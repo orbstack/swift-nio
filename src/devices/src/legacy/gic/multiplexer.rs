@@ -1,9 +1,18 @@
 // Copyright 2021 Red Hat, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::thread::Thread;
+use std::{
+    sync::{atomic::AtomicBool, Arc},
+    thread::Thread,
+};
 
 use crate::bus::BusDevice;
+
+#[derive(Debug)]
+pub struct WfeThread {
+    pub thread: Thread,
+    pub is_parked: Arc<AtomicBool>,
+}
 
 pub struct Gic(Box<dyn UserspaceGicImpl>);
 
@@ -35,7 +44,7 @@ impl Gic {
         self.0.set_irq(irq_line)
     }
 
-    pub fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: Thread) {
+    pub fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread) {
         self.0.register_vcpu(vcpuid, wfe_thread)
     }
 
@@ -105,7 +114,7 @@ pub trait UserspaceGicImpl: 'static + Send {
 
     // === VCPU management === //
 
-    fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: Thread);
+    fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread);
 
     fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool;
 

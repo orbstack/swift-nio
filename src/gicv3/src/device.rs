@@ -160,6 +160,8 @@ pub const PRIORITY_BITS: u64 = 4;
 pub trait GicV3EventHandler {
     fn kick_vcpu_for_irq(&mut self, pe: PeId);
 
+    fn is_vcpu_parked(&mut self, pe: PeId) -> bool;
+
     fn handle_custom_eoi(&mut self, pe: PeId, int_id: InterruptId);
 
     fn get_affinity(&mut self, pe: PeId) -> Affinity;
@@ -222,9 +224,16 @@ impl GicV3 {
     pub fn send_spi(&mut self, handler: &mut impl GicV3EventHandler, int_id: InterruptId) {
         assert_eq!(int_id.kind(), InterruptKind::SharedPeripheral);
 
-        // HACK: We just send the SPI to the first PE we find but I don't think that's spec-compliant,
-        //  technically? I think Linux just configures a specific PE as the only one capable of
-        //  receiving these events but I may be wrong.
+        // HACK: we ignore Linux's preference and effectively implement real-time irqbalance:
+        // 1. try to send SPI to an awake vCPU
+        for (pe, pe_state) in self.pe_states.iter_mut() {
+            if !handler.is_vcpu_parked(*pe) {
+                Self::send_interrupt_inner(handler, *pe, pe_state, int_id);
+                return;
+            }
+        }
+
+        // last resort: all vCPUs are asleep. wake up vCPU 0
         if let Some((pe, pe_state)) = self.pe_states.iter_mut().next() {
             Self::send_interrupt_inner(handler, *pe, pe_state, int_id);
         }

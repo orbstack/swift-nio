@@ -22,7 +22,7 @@ use crate::vmm_config::machine_config::CpuFeaturesTemplate;
 use arch;
 use arch::aarch64::gic::GICDevice;
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use devices::legacy::Gic;
+use devices::legacy::{Gic, WfeThread};
 use hvf::{HvfVcpu, HvfVm, ParkError, Parkable, VcpuExit};
 use utils::eventfd::EventFd;
 use vm_memory::{
@@ -370,6 +370,7 @@ pub struct Vcpu {
     response_sender: Sender<VcpuResponse>,
 
     intc: Arc<Mutex<Gic>>,
+    is_parked: Arc<AtomicBool>,
 }
 
 impl Vcpu {
@@ -464,6 +465,7 @@ impl Vcpu {
             response_receiver: Some(response_receiver),
             response_sender,
             intc,
+            is_parked: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -657,10 +659,13 @@ impl Vcpu {
         let mut hvf_vcpu = HvfVcpu::new(parker.clone()).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();
 
-        self.intc
-            .lock()
-            .unwrap()
-            .register_vcpu(hvf_vcpuid, thread::current());
+        self.intc.lock().unwrap().register_vcpu(
+            hvf_vcpuid,
+            WfeThread {
+                thread: thread::current(),
+                is_parked: self.is_parked.clone(),
+            },
+        );
 
         parker.register_vcpu(hvf_vcpuid, thread::current());
 
@@ -704,11 +709,13 @@ impl Vcpu {
 
     fn wait_for_event(&mut self, hvf_vcpuid: u64, timeout: Option<Duration>) {
         if self.intc.lock().unwrap().vcpu_should_wait(hvf_vcpuid) {
+            self.is_parked.store(true, Ordering::Relaxed);
             if let Some(timeout) = timeout {
                 thread::park_timeout(timeout);
             } else {
                 thread::park();
             }
+            self.is_parked.store(false, Ordering::Relaxed);
         }
     }
 

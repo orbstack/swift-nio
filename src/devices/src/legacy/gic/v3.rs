@@ -1,6 +1,10 @@
-use std::{collections::HashMap, thread::Thread};
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicBool, Ordering},
+    thread::Thread,
+};
 
-use super::UserspaceGicImpl;
+use super::{UserspaceGicImpl, WfeThread};
 
 use arch::aarch64::{gicv3::GICv3, layout::GTIMER_VIRT};
 use gicv3::{
@@ -13,10 +17,6 @@ use gicv3::{
 pub struct UserspaceGicV3 {
     gic: gicv3::device::GicV3,
     wfe_threads: HashMap<PeId, WfeThread>,
-}
-
-struct WfeThread {
-    thread: Thread,
 }
 
 const TIMER_INT_ID: InterruptId = InterruptId(GTIMER_VIRT + 16);
@@ -89,10 +89,9 @@ impl UserspaceGicImpl for UserspaceGicV3 {
         );
     }
 
-    fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: Thread) {
+    fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread) {
         log::trace!("v3::register_vcpu({vcpuid}, {wfe_thread:?})");
-        self.wfe_threads
-            .insert(PeId(vcpuid), WfeThread { thread: wfe_thread });
+        self.wfe_threads.insert(PeId(vcpuid), wfe_thread);
     }
 
     fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
@@ -127,6 +126,14 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
         waker.thread.unpark();
 
         hvf::vcpu_request_exit(pe.0).unwrap();
+    }
+
+    fn is_vcpu_parked(&mut self, pe: PeId) -> bool {
+        self.wakers
+            .get(&pe)
+            .unwrap()
+            .is_parked
+            .load(Ordering::Relaxed)
     }
 
     // https://developer.arm.com/documentation/ddi0595/2021-12/AArch64-Registers/MPIDR-EL1--Multiprocessor-Affinity-Register

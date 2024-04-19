@@ -10,7 +10,7 @@ use arch::aarch64::gicv2::GICv2;
 use arch::aarch64::layout::GTIMER_VIRT;
 use hvf::{vcpu_request_exit, vcpu_set_vtimer_mask};
 
-use super::UserspaceGicImpl;
+use super::{UserspaceGicImpl, WfeThread};
 
 const IRQ_NUM: u32 = 64;
 const MAX_CPUS: u64 = 8;
@@ -316,13 +316,13 @@ impl UserspaceGicImpl for UserspaceGicV2 {
 
     // === VCPU management === //
 
-    fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: Thread) {
+    fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread) {
         assert!(vcpuid < MAX_CPUS);
         self.vcpus.insert(
             vcpuid as u8,
             VcpuInfo {
                 status: VcpuStatus::Running,
-                wfe_thread,
+                wfe_thread: wfe_thread.thread,
                 pending_irqs: VecDeque::new(),
             },
         );
