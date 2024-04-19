@@ -6,3 +6,7 @@ pub fn unpoison<T>(result: LockResult<T>) -> T {
         Err(err) => err.into_inner(),
     }
 }
+
+pub trait ExtensionFor<T: ?Sized> {}
+
+impl<T: ?Sized> ExtensionFor<T> for T {}

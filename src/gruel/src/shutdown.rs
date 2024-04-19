@@ -4,7 +4,10 @@ use std::sync::{Arc, Condvar, Mutex};
 use generational_arena::{Arena, Index};
 use thiserror::Error;
 
-use crate::{util::unpoison, BoundSignalChannel};
+use crate::{
+    util::{unpoison, ExtensionFor},
+    BoundSignalChannel,
+};
 
 // === Errors === //
 
@@ -33,7 +36,7 @@ struct ShutdownSignalInner {
 #[derive(Default)]
 struct State {
     shutting_down: bool,
-    tasks: Arena<BoundSignalChannel>,
+    tasks: Arena<Box<dyn Send + Sync + FnMut()>>,
 }
 
 impl ShutdownSignal {
@@ -43,7 +46,7 @@ impl ShutdownSignal {
 
     pub fn spawn(
         self,
-        signal: BoundSignalChannel,
+        kick: impl 'static + Send + Sync + FnOnce(),
     ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
         let mut guard = unpoison(self.0.state.lock());
 
@@ -51,7 +54,12 @@ impl ShutdownSignal {
             return Err(ShutdownAlreadyRequested);
         }
 
-        let index = guard.tasks.insert(signal);
+        let mut kick = Some(kick);
+        let index = guard.tasks.insert(Box::new(move || {
+            if let Some(kick) = kick.take() {
+                kick();
+            }
+        }));
 
         drop(guard);
 
@@ -65,14 +73,30 @@ impl ShutdownSignal {
         let mut guard = unpoison(self.0.state.lock());
         guard.shutting_down = true;
 
-        for (_, task) in &guard.tasks {
+        for (_, task) in &mut guard.tasks {
             // This is technically calling userland code but that routine should already be quite
             // reentrancy-aware so this is unlikely to be the source of bugs.
-            task.assert();
+            task();
         }
 
         let guard = unpoison(self.0.condvar.wait(guard));
         assert!(guard.tasks.is_empty());
+    }
+}
+
+pub trait ShutdownSignalExt: ExtensionFor<ShutdownSignal> {
+    fn spawn_signal(
+        self,
+        signal: BoundSignalChannel,
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested>;
+}
+
+impl ShutdownSignalExt for ShutdownSignal {
+    fn spawn_signal(
+        self,
+        signal: BoundSignalChannel,
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+        self.spawn(move || signal.assert())
     }
 }
 
@@ -82,6 +106,12 @@ impl ShutdownSignal {
 pub struct ShutdownTask {
     signal: ShutdownSignal,
     index: Index,
+}
+
+impl ShutdownTask {
+    pub fn signal(&self) -> &ShutdownSignal {
+        &self.signal
+    }
 }
 
 impl Drop for ShutdownTask {
@@ -115,7 +145,7 @@ mod test {
                 let signal = RawSignalChannel::new();
                 let task = shutdown
                     .clone()
-                    .spawn(BoundSignalChannel {
+                    .spawn_signal(BoundSignalChannel {
                         channel: signal.clone(),
                         mask: 0b1,
                     })
@@ -129,7 +159,7 @@ mod test {
 
                 assert!(shutdown
                     .clone()
-                    .spawn(BoundSignalChannel {
+                    .spawn_signal(BoundSignalChannel {
                         channel: signal.clone(),
                         mask: 0b1,
                     })
