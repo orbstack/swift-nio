@@ -10,7 +10,9 @@ run-raw: vmgr
 	@"../out/OrbStack Helper.app/Contents/MacOS/OrbStack Helper" vmgr
 
 # dev == debug
-RUST_BUILD_TYPE ?= dev
+RUST_BUILD_TYPE ?= release-with-debug
+export RUST_BACKTRACE ?= full
+export RUST_LOG ?= utils::span=info
 
 ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\):
 	@cd ../swift; make lib-debug
