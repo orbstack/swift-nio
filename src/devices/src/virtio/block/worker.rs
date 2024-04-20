@@ -142,7 +142,7 @@ impl BlockWorker {
                                 return;
                             }
                             _ => {
-                                log::warn!(
+                                tracing::warn!(
                                     "Received unknown event: {:?} from fd: {:?}",
                                     event_set,
                                     source

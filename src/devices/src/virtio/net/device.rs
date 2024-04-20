@@ -208,7 +208,7 @@ impl VirtioDevice for Net {
     }
 
     fn write_config(&mut self, offset: u64, data: &[u8]) {
-        log::warn!(
+        tracing::warn!(
             "Net: guest driver attempted to write device config (offset={:x}, len={:x})",
             offset,
             data.len()

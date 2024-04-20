@@ -10,7 +10,7 @@ use crate::virtio::device::VirtioDevice;
 
 impl Console {
     pub(crate) fn read_queue_event(&self, queue_index: usize, event: &EpollEvent) -> bool {
-        log::trace!("Event on queue {queue_index}: {:?}", event.event_set());
+        tracing::trace!("Event on queue {queue_index}: {:?}", event.event_set());
 
         let event_set = event.event_set();
         if event_set != EventSet::IN {
@@ -30,11 +30,11 @@ impl Console {
         let (direction, port_id) = queue_idx_to_port_id(queue_index);
         match direction {
             QueueDirection::Rx => {
-                log::trace!("Notify rx (queue event)");
+                tracing::trace!("Notify rx (queue event)");
                 self.ports[port_id].notify_rx()
             }
             QueueDirection::Tx => {
-                log::trace!("Notify tx (queue event)");
+                tracing::trace!("Notify tx (queue event)");
                 self.ports[port_id].notify_tx()
             }
         }
@@ -140,7 +140,7 @@ impl Subscriber for Console {
             } else if source == sigwinch_evt {
                 self.handle_sigwinch_event(event);
             } else {
-                log::warn!("Unexpected console event received: {:?}", source)
+                tracing::warn!("Unexpected console event received: {:?}", source)
             }
             if raise_irq {
                 self.irq.signal_used_queue("event_handler");

@@ -624,7 +624,7 @@ impl Vcpu {
                             );
                         }
                     } else {
-                        log::error!("`mmio_bus` not initialized before first sysreg access");
+                        tracing::error!("`mmio_bus` not initialized before first sysreg access");
                         hvf_vcpu.write_gp_reg(arg_reg_idx, 0).unwrap();
                     }
 
@@ -722,7 +722,7 @@ impl Vcpu {
     fn wait_for_resume(&mut self) {}
 
     fn exit(&mut self, exit_code: u8) {
-        log::info!("VCPU exiting with code {exit_code:?}");
+        tracing::info!("VCPU exiting with code {exit_code:?}");
 
         self.response_sender
             .send(VcpuResponse::Exited(exit_code))

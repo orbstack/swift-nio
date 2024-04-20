@@ -28,7 +28,7 @@ impl IRQSignaler {
     }
 
     pub fn signal_used_queue(&self, reason: &str) {
-        log::trace!("signal used queue because '{reason}'");
+        tracing::trace!("signal used queue because '{reason}'");
         self.interrupt_status
             .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {

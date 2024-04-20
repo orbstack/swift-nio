@@ -145,14 +145,14 @@ impl Console {
     }
 
     pub fn update_console_size(&mut self, cols: u16, rows: u16) {
-        log::debug!("update_console_size: {} {}", cols, rows);
+        tracing::debug!("update_console_size: {} {}", cols, rows);
         // Note that we currently only support resizing on the first/main console
         self.control
             .console_resize(0, VirtioConsoleResize { rows, cols });
     }
 
     pub(crate) fn process_control_rx(&mut self) -> bool {
-        log::trace!("process_control_rx");
+        tracing::trace!("process_control_rx");
         let DeviceState::Activated(ref mem) = self.device_state else {
             unreachable!()
         };
@@ -163,10 +163,10 @@ impl Console {
                 match mem.write(&buf, head.addr) {
                     Ok(n) => {
                         if n != buf.len() {
-                            log::error!("process_control_rx: partial write");
+                            tracing::error!("process_control_rx: partial write");
                         }
                         raise_irq = true;
-                        log::trace!("process_control_rx wrote {n}");
+                        tracing::trace!("process_control_rx wrote {n}");
                         if let Err(e) =
                             self.queues[CONTROL_RXQ_INDEX].add_used(mem, head.index, n as u32)
                         {
@@ -174,7 +174,7 @@ impl Console {
                         }
                     }
                     Err(e) => {
-                        log::error!("process_control_rx failed to write: {e}");
+                        tracing::error!("process_control_rx failed to write: {e}");
                     }
                 }
             } else {
@@ -186,7 +186,7 @@ impl Console {
     }
 
     pub(crate) fn process_control_tx(&mut self) -> bool {
-        log::trace!("process_control_tx");
+        tracing::trace!("process_control_tx");
         let DeviceState::Activated(ref mem) = self.device_state else {
             unreachable!()
         };
@@ -202,7 +202,7 @@ impl Console {
             let cmd: VirtioConsoleControl = match mem.read_obj(head.addr) {
                 Ok(cmd) => cmd,
                 Err(e) => {
-                    log::error!(
+                    tracing::error!(
                     "Failed to read VirtioConsoleControl struct: {e:?}, struct len = {len}, head.len = {head_len}",
                     len = size_of::<VirtioConsoleControl>(),
                     head_len = head.len,
@@ -214,10 +214,10 @@ impl Console {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
 
-            log::trace!("VirtioConsoleControl cmd: {cmd:?}");
+            tracing::trace!("VirtioConsoleControl cmd: {cmd:?}");
             match cmd.event {
                 control_event::VIRTIO_CONSOLE_DEVICE_READY => {
-                    log::debug!(
+                    tracing::debug!(
                         "Device is ready: initialization {}",
                         if cmd.value == 1 { "ok" } else { "failed" }
                     );
@@ -227,7 +227,7 @@ impl Console {
                 }
                 control_event::VIRTIO_CONSOLE_PORT_READY => {
                     if cmd.value != 1 {
-                        log::error!("Port initialization failed: {:?}", cmd);
+                        tracing::error!("Port initialization failed: {:?}", cmd);
                         continue;
                     }
 
@@ -241,7 +241,7 @@ impl Console {
                     }
 
                     let name = self.ports[cmd.id as usize].name();
-                    log::trace!("Port ready {id}: {name}", id = cmd.id);
+                    tracing::trace!("Port ready {id}: {name}", id = cmd.id);
                     if !name.is_empty() {
                         self.control.port_name(cmd.id, name)
                     }
@@ -251,7 +251,7 @@ impl Console {
                         0 => false,
                         1 => true,
                         _ => {
-                            log::error!(
+                            tracing::error!(
                                 "Invalid value ({}) for VIRTIO_CONSOLE_PORT_OPEN on port {}",
                                 cmd.value,
                                 cmd.id
@@ -261,18 +261,18 @@ impl Console {
                     };
 
                     if !opened {
-                        log::debug!("Guest closed port {}", cmd.id);
+                        tracing::debug!("Guest closed port {}", cmd.id);
                         continue;
                     }
 
                     ports_to_start.push(cmd.id as usize);
                 }
-                _ => log::warn!("Unknown console control event {:x}", cmd.event),
+                _ => tracing::warn!("Unknown console control event {:x}", cmd.event),
             }
         }
 
         for port_id in ports_to_start {
-            log::trace!("Starting port io for port {}", port_id);
+            tracing::trace!("Starting port io for port {}", port_id);
             self.ports[port_id].start(
                 mem.clone(),
                 self.queues[port_id_to_queue_idx(QueueDirection::Rx, port_id)].clone(),
@@ -383,6 +383,6 @@ impl VirtioDevice for Console {
 impl VmmExitObserver for Console {
     fn on_vmm_exit(&mut self) {
         self.reset();
-        log::trace!("Console on_vmm_exit finished");
+        tracing::trace!("Console on_vmm_exit finished");
     }
 }

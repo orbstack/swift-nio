@@ -10,10 +10,10 @@ use crossbeam_channel::unbounded;
 use devices::virtio::{net::device::VirtioNetBackend, CacheType, NfsInfo};
 use hvf::MemoryMapping;
 use libc::strdup;
-use log::error;
 use once_cell::sync::Lazy;
 use polly::event_manager::EventManager;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 use vmm::{
     builder::ConsoleFds,
     resources::VmResources,
@@ -287,7 +287,7 @@ impl Machine {
                 .iter()
                 .any(|ev| ev.fd() == exit_evt)
             {
-                log::info!("VM successfully torn-down.");
+                tracing::info!("VM successfully torn-down.");
                 unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
                 break;
             }
@@ -324,7 +324,7 @@ fn init_logger_once() {
 
     static INIT: Once = Once::new();
 
-    INIT.call_once(|| env_logger::init());
+    INIT.call_once(|| tracing_subscriber::fmt::init());
 }
 
 #[no_mangle]

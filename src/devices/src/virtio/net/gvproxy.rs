@@ -67,13 +67,13 @@ impl Gvproxy {
         }
 
         if let Err(e) = setsockopt(fd, sockopt::SndBuf, &(7 * 1024 * 1024)) {
-            log::warn!("Failed to increase SO_SNDBUF (performance may be decreased): {e}");
+            tracing::warn!("Failed to increase SO_SNDBUF (performance may be decreased): {e}");
         }
         if let Err(e) = setsockopt(fd, sockopt::RcvBuf, &(7 * 1024 * 1024)) {
-            log::warn!("Failed to increase SO_SNDBUF (performance may be decreased): {e}");
+            tracing::warn!("Failed to increase SO_SNDBUF (performance may be decreased): {e}");
         }
 
-        log::debug!(
+        tracing::debug!(
             "passt socket (fd {fd}) buffer sizes: SndBuf={:?} RcvBuf={:?}",
             getsockopt(fd, sockopt::SndBuf),
             getsockopt(fd, sockopt::RcvBuf)

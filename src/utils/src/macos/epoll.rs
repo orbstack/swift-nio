@@ -10,7 +10,7 @@ use std::ptr;
 use std::time::Duration;
 
 use bitflags::bitflags;
-use log::debug;
+use tracing::debug;
 
 #[repr(i32)]
 pub enum ControlOperation {

@@ -19,10 +19,10 @@ impl Passt {
     /// Connect to a running passt instance, given a socket file descriptor
     pub fn new(passt_fd: RawFd) -> Self {
         if let Err(e) = setsockopt(passt_fd, sockopt::SndBuf, &(16 * 1024 * 1024)) {
-            log::warn!("Failed to increase SO_SNDBUF (performance may be decreased): {e}");
+            tracing::warn!("Failed to increase SO_SNDBUF (performance may be decreased): {e}");
         }
 
-        log::debug!(
+        tracing::debug!(
             "passt socket (fd {passt_fd}) buffer sizes: SndBuf={:?} RcvBuf={:?}",
             getsockopt(passt_fd, sockopt::SndBuf),
             getsockopt(passt_fd, sockopt::RcvBuf)
@@ -63,13 +63,13 @@ impl Passt {
             match recv(self.fd, &mut buf[bytes_read..], flags) {
                 #[allow(unreachable_patterns)]
                 Err(nix::Error::EAGAIN | nix::Error::EWOULDBLOCK) => {
-                    log::warn!("read_loop: unexpected EAGAIN/EWOULDBLOCK on blocking socket");
+                    tracing::warn!("read_loop: unexpected EAGAIN/EWOULDBLOCK on blocking socket");
                     continue;
                 }
                 Err(e) => return Err(ReadError::Internal(e)),
                 Ok(size) => {
                     bytes_read += size;
-                    //log::trace!("passt recv {}/{}", bytes_read, buf.len());
+                    //tracing::trace!("passt recv {}/{}", bytes_read, buf.len());
                 }
             }
         }
@@ -93,7 +93,7 @@ impl Passt {
                     if bytes_send == 0 {
                         return Err(WriteError::NothingWritten);
                     } else {
-                        log::trace!(
+                        tracing::trace!(
                             "Wrote {} bytes, but socket blocked, will need try_finish_write() to finish",
                             bytes_send
                         );
@@ -125,7 +125,7 @@ impl NetBackend for Passt {
         let frame_length = self.expecting_frame_length as usize;
         self.read_loop(&mut buf[..frame_length], false)?;
         self.expecting_frame_length = 0;
-        log::trace!("Read eth frame from passt: {} bytes", frame_length);
+        tracing::trace!("Read eth frame from passt: {} bytes", frame_length);
         Ok(frame_length)
     }
 
@@ -170,9 +170,9 @@ impl NetBackend for Passt {
     fn try_finish_write(&mut self, hdr_len: usize, buf: &[u8]) -> Result<(), WriteError> {
         if self.last_partial_write_length != 0 {
             let already_written = self.last_partial_write_length;
-            log::trace!("Requested to finish partial write");
+            tracing::trace!("Requested to finish partial write");
             self.write_loop(&buf[hdr_len - PASST_HEADER_LEN + already_written..])?;
-            log::debug!(
+            tracing::debug!(
                 "Finished partial write ({}bytes written before)",
                 already_written
             )

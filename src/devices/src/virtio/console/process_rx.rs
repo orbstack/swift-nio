@@ -38,13 +38,13 @@ pub(crate) fn process_rx(
                     bytes_read += len;
                 }
                 Err(e) => {
-                    log::error!("Failed to read: {e:?}")
+                    tracing::error!("Failed to read: {e:?}")
                 }
             }
         }
 
         if bytes_read != 0 {
-            log::trace!("Rx {bytes_read} bytes queue len{}", queue.len(mem));
+            tracing::trace!("Rx {bytes_read} bytes queue len{}", queue.len(mem));
             if let Err(e) = queue.add_used(mem, head_index, bytes_read as u32) {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
@@ -53,7 +53,7 @@ pub(crate) fn process_rx(
         // We signal_used_queue only when we get WouldBlock or EOF
         if eof {
             irq.signal_used_queue("rx EOF");
-            log::trace!("signaling EOF on port {port_id}");
+            tracing::trace!("signaling EOF on port {port_id}");
             control.port_open(port_id, false);
             return;
         } else if bytes_read == 0 {
@@ -79,7 +79,7 @@ fn pop_head_blocking<'mem>(
             None => {
                 irq.signal_used_queue("rx queue empty, parking");
                 thread::park();
-                log::trace!("rx unparked, queue len {}", queue.len(mem))
+                tracing::trace!("rx unparked, queue len {}", queue.len(mem))
             }
         }
     }

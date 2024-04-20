@@ -19,7 +19,7 @@ impl GicV3 {
         reg: GicSysReg,
         value: u64,
     ) {
-        log::trace!("--- Write GIC sysreg, PE: {pe:?}, REG: {reg:?}, VAL: {value:b}",);
+        tracing::trace!("--- Write GIC sysreg, PE: {pe:?}, REG: {reg:?}, VAL: {value:b}",);
 
         match reg {
             GicSysReg::ICC_AP0R0_EL1 => todo!(),
@@ -65,7 +65,7 @@ impl GicV3 {
                 handler.handle_custom_eoi(pe, int_id);
 
                 if !pe_state.pending_interrupts.is_empty() {
-                    log::trace!("{pe:?} still has interrupts pending; kicking again.");
+                    tracing::trace!("{pe:?} still has interrupts pending; kicking again.");
                     handler.kick_vcpu_for_irq(pe);
                 }
             }
@@ -144,7 +144,7 @@ impl GicV3 {
                 let target_list_bits = value.get_range(0, 15);
                 assert!(!irm || target_list_bits == 0);
 
-                log::trace!(
+                tracing::trace!(
                     "Generated SGI with IntId {int_id:?} targeting {aff3}.{aff2}.{aff1}.[{target_list_bits:b}], \
                      IRM={irm:?}"
                 );
@@ -173,7 +173,7 @@ impl GicV3 {
     }
 
     pub fn write(&mut self, pe: PeId, mut req: MmioWriteRequest<'_>) {
-        log::trace!("--- Write GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range(),);
+        tracing::trace!("--- Write GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range(),);
 
         req.handle_sub(mmio_range!(GicFullMap, gicd), |req| {
             self.write_distributor(pe, req)
@@ -211,7 +211,7 @@ impl GicV3 {
 
         // Handle `GICD_CTLR` (see section 12.9.4 of spec)
         req.handle_flags(mmio_range!(GICD, ctlr), |val| {
-            log::trace!("writing to `GICD_CTLR`");
+            tracing::trace!("writing to `GICD_CTLR`");
 
             // This is all write-ignore:
             //
@@ -255,7 +255,7 @@ impl GicV3 {
 
         // Handle `GICD_ICACTIVER<n>` (see section 12.9.5 of spec)
         req.handle_pod_array(mmio_range!(GICD, icactiver), |idx, val| {
-            log::trace!("writing to `GICD_ICACTIVER`");
+            tracing::trace!("writing to `GICD_ICACTIVER`");
 
             for idx in read_set_bits(idx, val) {
                 // Only "write true" has an effect.
@@ -270,7 +270,7 @@ impl GicV3 {
 
         // Handle `GICD_ICENABLER<n>` (see section 12.9.7 of spec)
         req.handle_pod_array(mmio_range!(GICD, icenabler), |idx, val| {
-            log::trace!("writing to `GICD_ICENABLER`");
+            tracing::trace!("writing to `GICD_ICENABLER`");
 
             for idx in read_set_bits(idx, val) {
                 // For SPIs and PPIs, controls the forwarding of interrupt number 32n + x to the CPU interfaces.
@@ -287,7 +287,7 @@ impl GicV3 {
 
         // Handle `GICD_ICFGR<n>` (see section 12.9.9 of spec)
         req.handle_pod_array(mmio_range!(GICD, icfgr), |idx, val| {
-            log::trace!("writing to `GICD_ICFGR` (val: {val:b})");
+            tracing::trace!("writing to `GICD_ICFGR` (val: {val:b})");
 
             for (idx, val) in read_bit_array(idx, val, 2) {
                 let trigger = InterruptTrigger::from_two_bit_repr(val);
@@ -316,7 +316,7 @@ impl GicV3 {
 
         // Handle `GICD_IGROUPR<n>` (see section 12.9.13 of spec)
         req.handle_pod_array(mmio_range!(GICD, igroupr), |idx, val| {
-            log::trace!("writing to `igroupr`");
+            tracing::trace!("writing to `igroupr`");
             assert_eq!(val, u32::MAX);
         });
 
@@ -350,7 +350,7 @@ impl GicV3 {
 
         // Handle `GICD_IPRIORITYR<n>` (see section 12.9.20 of spec)
         req.handle_pod_array(mmio_range!(GICD, ipriorityr), |_idx, val| {
-            log::trace!("writing to `GICD_IPRIORITYR`");
+            tracing::trace!("writing to `GICD_IPRIORITYR`");
             assert_eq!(0xa0, val);
         });
 
@@ -361,7 +361,7 @@ impl GicV3 {
 
         // Handle `GICD_IROUTER<n>` (see section 12.9.22 of spec)
         req.handle_pod_array(mmio_range!(GICD, irouter), |idx, val| {
-            log::trace!("writing to `GICD_IROUTER`");
+            tracing::trace!("writing to `GICD_IROUTER`");
             let val = BitPack(convert_to_pod::<u64>(&val));
 
             // This only handles SPIs so the first 32 SGI and PPI IntIds are ignored.
@@ -398,7 +398,7 @@ impl GicV3 {
 
         // Handle `GICD_ISENABLER<n>` (see section 12.9.26 of spec)
         req.handle_pod_array(mmio_range!(GICD, isenabler), |idx, val| {
-            log::trace!("writing to `GICD_ISENABLER`");
+            tracing::trace!("writing to `GICD_ISENABLER`");
 
             for idx in read_set_bits(idx, val) {
                 // 0b1 If read, indicates that forwarding of the corresponding interrupt is enabled.
@@ -577,7 +577,7 @@ impl GicV3 {
 
         // Handle `GICR_WAKER` (see section 12.11.42 of spec)
         req.handle_flags(mmio_range!(GICR, waker), |val| {
-            log::trace!("writing to `GICR_WAKER`");
+            tracing::trace!("writing to `GICR_WAKER`");
             // I don't think we have to handle sleep requests so we can just return the empty bit-set
             // to indicate that the machine is ready.
             //
@@ -588,7 +588,7 @@ impl GicV3 {
     pub fn write_redistributor_sgi_base(&mut self, pe: PeId, mut req: MmioWriteRequest<'_>) {
         // Handle `GICR_ICACTIVER0` (see section 12.11.3 of spec)
         req.handle_pod(mmio_range!(SGI, icactiver0), |val| {
-            log::trace!("writing to `GICR_ICACTIVER0`");
+            tracing::trace!("writing to `GICR_ICACTIVER0`");
 
             for idx in read_set_bits(0, val) {
                 let iid = InterruptId(idx);
@@ -614,7 +614,7 @@ impl GicV3 {
 
         // Handle `GICR_ICENABLER0` (see section 12.11.5 of spec)
         req.handle_pod(mmio_range!(SGI, icenabler0), |val| {
-            log::trace!("writing to `GICR_ICENABLER0`");
+            tracing::trace!("writing to `GICR_ICENABLER0`");
 
             for idx in read_set_bits(0, val) {
                 let iid = InterruptId(idx);
@@ -658,7 +658,7 @@ impl GicV3 {
 
         // Handle `GICR_IGROUPR0` (see section 12.11.12 of spec)
         req.handle_pod(mmio_range!(SGI, igroupr0), |val| {
-            log::trace!("writing to `GICR_IGROUPR0`");
+            tracing::trace!("writing to `GICR_IGROUPR0`");
 
             // All intids should be in group 1.
             assert_eq!(val, u32::MAX);
@@ -691,7 +691,7 @@ impl GicV3 {
 
         // Handle `GICR_IPRIORITYR<n>` (see section 12.11.21 of spec)
         req.handle_pod_array(mmio_range!(SGI, ipriorityr), |idx, val| {
-            log::trace!("writing to `GICR_IPRIORITYR`");
+            tracing::trace!("writing to `GICR_IPRIORITYR`");
             assert_eq!(0xa0, val);
         });
 
@@ -712,7 +712,7 @@ impl GicV3 {
 
         // Handle `GICR_ISENABLER0` (see section 12.11.25 of spec)
         req.handle_pod(mmio_range!(SGI, isenabler0), |val| {
-            log::trace!("writing to `GICR_ISENABLER0`");
+            tracing::trace!("writing to `GICR_ISENABLER0`");
 
             for idx in read_set_bits(0, val) {
                 let iid = InterruptId(idx);

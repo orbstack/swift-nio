@@ -328,7 +328,7 @@ impl<'a> MmioWriteRequest<'a> {
     ) -> &mut Self {
         self.handle_sub(sub_range, |req| {
             if req.offset != 0 || req.data.len() != size_of::<T>() {
-                log::warn!(
+                tracing::warn!(
                     "malformed pod write, ignoring (offset: {}, actual size: {}, expected size: {})",
                     req.offset, req.data.len(), size_of::<T>(),
                 );

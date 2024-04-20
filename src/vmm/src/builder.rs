@@ -1154,7 +1154,7 @@ fn attach_console_devices(
         let stderr_is_terminal = isatty(STDERR_FILENO).unwrap_or(false);
 
         // if let Err(e) = term_set_raw_mode(!stdin_is_terminal) {
-        //     log::error!("Failed to set terminal to raw mode: {e}")
+        //     tracing::error!("Failed to set terminal to raw mode: {e}")
         // }
 
         let console_input = if stdin_is_terminal {

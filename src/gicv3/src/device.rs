@@ -215,7 +215,7 @@ impl GicV3 {
                 panic!("multiple PEs found with affinity {affinity:?}: {pe:?} and {replaced:?}");
             }
 
-            log::trace!("Found new PE: {pe:?} -> {affinity:?}");
+            tracing::trace!("Found new PE: {pe:?} -> {affinity:?}");
 
             PeState::new(affinity)
         })
@@ -260,7 +260,7 @@ impl GicV3 {
         // Check whether the target PE can receive the interrupt
         // TODO
         if !pe_state.is_enabled {
-            log::trace!(
+            tracing::trace!(
                 "Ignoring interrupt {int_id:?} of type {:?} to {pe:?}",
                 int_id.kind()
             );
@@ -268,7 +268,7 @@ impl GicV3 {
 
         // Push it to the queue
         // TODO: Prioritize these
-        log::trace!(
+        tracing::trace!(
             "Delivering interrupt {int_id:?} of type {:?} to {pe:?}",
             int_id.kind(),
         );

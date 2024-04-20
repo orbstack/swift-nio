@@ -34,16 +34,16 @@ pub(crate) fn process_tx(
                     bytes_written += n;
                 }
                 Err(e) => {
-                    log::error!("Failed to write output: {e}");
+                    tracing::error!("Failed to write output: {e}");
                 }
             }
         }
 
         if bytes_written == 0 {
-            log::trace!("Tx Add used {bytes_written}");
+            tracing::trace!("Tx Add used {bytes_written}");
             queue.undo_pop();
         } else {
-            log::trace!("Tx add used {bytes_written}");
+            tracing::trace!("Tx add used {bytes_written}");
             if let Err(e) = queue.add_used(&mem, head_index, bytes_written as u32) {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
@@ -66,7 +66,7 @@ fn pop_head_blocking<'mem>(
                 if stop.load(Ordering::Acquire) {
                     break None;
                 }
-                log::trace!("tx unparked, queue len {}", queue.len(mem))
+                tracing::trace!("tx unparked, queue len {}", queue.len(mem))
             }
         }
     }
@@ -81,13 +81,13 @@ fn write_desc_to_output(
         .try_access(desc.len as usize, desc.addr, |_, len, addr, region| {
             let src = region.get_slice(addr, len).unwrap();
             loop {
-                log::trace!("Tx {:?}, write_volatile {len} bytes", src);
+                tracing::trace!("Tx {:?}, write_volatile {len} bytes", src);
                 match output.write_volatile(&src) {
                     // try_access seem to handle partial write for us (we will be invoked again with an offset)
                     Ok(n) => break Ok(n),
                     // We can't return an error otherwise we would not know how many bytes were processed before WouldBlock
                     Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                        log::trace!("Tx wait for output (would block)");
+                        tracing::trace!("Tx wait for output (would block)");
                         irq.signal_used_queue("tx waiting for output");
                         output.wait_until_writable();
                     }

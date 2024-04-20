@@ -170,7 +170,7 @@ impl Port {
             if let Some(tx_thread) = mem::take(tx_thread) {
                 tx_thread.thread().unpark();
                 if let Err(e) = tx_thread.join() {
-                    log::error!(
+                    tracing::error!(
                         "Failed to flush tx for port {port_id}, thread panicked: {e:?}",
                         port_id = self.port_id
                     )
@@ -180,7 +180,7 @@ impl Port {
             if let Some(rx_thread) = mem::take(rx_thread) {
                 rx_thread.thread().unpark();
                 if let Err(e) = rx_thread.join() {
-                    log::error!(
+                    tracing::error!(
                         "Failed to flush tx for port {port_id}, thread panicked: {e:?}",
                         port_id = self.port_id
                     )

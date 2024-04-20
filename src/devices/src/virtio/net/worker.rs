@@ -143,7 +143,7 @@ impl NetWorker {
                                 if event_set.contains(EventSet::HANG_UP)
                                     || event_set.contains(EventSet::READ_HANG_UP)
                                 {
-                                    log::error!("Got {event_set:?} on backend fd, virtio-net will stop working");
+                                    tracing::error!("Got {event_set:?} on backend fd, virtio-net will stop working");
                                     eprintln!("LIBKRUN VIRTIO-NET FATAL: Backend process seems to have quit or crashed! Networking is now disabled!");
                                 } else {
                                     if event_set.contains(EventSet::IN) {
@@ -156,7 +156,7 @@ impl NetWorker {
                                 }
                             }
                             _ => {
-                                log::warn!(
+                                tracing::warn!(
                                     "Received unknown event: {:?} from fd: {:?}",
                                     event_set,
                                     source
@@ -174,13 +174,13 @@ impl NetWorker {
 
     pub(crate) fn process_rx_queue_event(&mut self) {
         if let Err(e) = self.queue_evts[RX_INDEX].read() {
-            log::error!("Failed to get rx event from queue: {:?}", e);
+            tracing::error!("Failed to get rx event from queue: {:?}", e);
         }
         if let Err(e) = self.queues[RX_INDEX].disable_notification(&self.mem) {
             error!("error disabling queue notifications: {:?}", e);
         }
         if let Err(e) = self.process_rx() {
-            log::error!("Failed to process rx: {e:?} (triggered by queue event)")
+            tracing::error!("Failed to process rx: {e:?} (triggered by queue event)")
         };
         if let Err(e) = self.queues[RX_INDEX].enable_notification(&self.mem) {
             error!("error disabling queue notifications: {:?}", e);
@@ -191,7 +191,7 @@ impl NetWorker {
         match self.queue_evts[TX_INDEX].read() {
             Ok(_) => self.process_tx_loop(),
             Err(e) => {
-                log::error!("Failed to get tx queue event from queue: {e:?}");
+                tracing::error!("Failed to get tx queue event from queue: {e:?}");
             }
         }
     }
@@ -201,7 +201,7 @@ impl NetWorker {
             error!("error disabling queue notifications: {:?}", e);
         }
         if let Err(e) = self.process_rx() {
-            log::error!("Failed to process rx: {e:?} (triggered by backend socket readable)");
+            tracing::error!("Failed to process rx: {e:?} (triggered by backend socket readable)");
         };
         if let Err(e) = self.queues[RX_INDEX].disable_notification(&self.mem) {
             error!("error disabling queue notifications: {:?}", e);
@@ -216,10 +216,10 @@ impl NetWorker {
             Ok(()) => self.process_tx_loop(),
             Err(WriteError::PartialWrite | WriteError::NothingWritten) => {}
             Err(e @ WriteError::Internal(_)) => {
-                log::error!("Failed to finish write: {e:?}");
+                tracing::error!("Failed to finish write: {e:?}");
             }
             Err(e @ WriteError::ProcessNotRunning) => {
-                log::debug!("Failed to finish write: {e:?}");
+                tracing::debug!("Failed to finish write: {e:?}");
             }
         }
     }
@@ -269,7 +269,9 @@ impl NetWorker {
                 .unwrap();
 
             if let Err(e) = self.process_tx() {
-                log::error!("Failed to process rx: {e:?} (triggered by backend socket readable)");
+                tracing::error!(
+                    "Failed to process rx: {e:?} (triggered by backend socket readable)"
+                );
             };
 
             if !self.queues[TX_INDEX]
@@ -290,7 +292,7 @@ impl NetWorker {
                 .try_finish_write(vnet_hdr_len(), &self.tx_frame_buf[..self.tx_frame_len])
                 .is_err()
         {
-            log::trace!("Cannot process tx because of unfinished partial write!");
+            tracing::trace!("Cannot process tx because of unfinished partial write!");
             return Ok(());
         }
 
@@ -325,7 +327,7 @@ impl NetWorker {
                         read_count += limit - read_count;
                     }
                     Err(e) => {
-                        log::error!("Failed to read slice: {:?}", e);
+                        tracing::error!("Failed to read slice: {:?}", e);
                         read_count = 0;
                         break;
                     }
@@ -349,7 +351,7 @@ impl NetWorker {
                     break;
                 }
                 Err(WriteError::PartialWrite) => {
-                    log::trace!("process_tx: partial write");
+                    tracing::trace!("process_tx: partial write");
                     /*
                     This situation should be pretty rare, assuming reasonably sized socket buffers.
                     We have written only a part of a frame to the backend socket (the socket is full).
@@ -424,7 +426,7 @@ impl NetWorker {
                     frame_slice = &frame_slice[len..];
                 }
                 Err(e) => {
-                    log::error!("Failed to write slice: {:?}", e);
+                    tracing::error!("Failed to write slice: {:?}", e);
                     result = Err(FrontendError::GuestMemory(e));
                     break;
                 }
@@ -433,7 +435,7 @@ impl NetWorker {
             maybe_next_descriptor = descriptor.next_descriptor();
         }
         if result.is_ok() && !frame_slice.is_empty() {
-            log::warn!("Receiving buffer is too small to hold frame of current size");
+            tracing::warn!("Receiving buffer is too small to hold frame of current size");
             result = Err(FrontendError::DescriptorChainTooSmall);
         }
 

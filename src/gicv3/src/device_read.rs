@@ -14,7 +14,7 @@ impl GicV3 {
         pe: PeId,
         reg: GicSysReg,
     ) -> u64 {
-        log::trace!("--- Read GIC sysreg, PE: {pe:?}, REG: {:?}", reg,);
+        tracing::trace!("--- Read GIC sysreg, PE: {pe:?}, REG: {:?}", reg,);
 
         match reg {
             GicSysReg::ICC_AP0R0_EL1 => todo!(),
@@ -118,7 +118,7 @@ impl GicV3 {
         pe: PeId,
         mut req: MmioReadRequest<'_>,
     ) {
-        log::trace!("--- Read GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range(),);
+        tracing::trace!("--- Read GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range(),);
 
         req.handle_sub(mmio_range!(GicFullMap, gicd), |req| {
             self.read_distributor(pe, req)
@@ -156,7 +156,7 @@ impl GicV3 {
 
         // Handle `GICD_CTLR` (see section 12.9.4 of spec)
         req.handle_flags(mmio_range!(GICD, ctlr), || {
-            log::trace!("Read `GICD_CTLR`");
+            tracing::trace!("Read `GICD_CTLR`");
             let mut flags = GicdCtlr::DS; // for GICs with one security level, this is RAO/WI.
 
             // bit 5, `ARE_NS`, is reserved for GICs with one security level. This is contrary
@@ -199,10 +199,10 @@ impl GicV3 {
 
         // Handle `GICD_ICFGR<n>` (see section 12.9.9 of spec)
         req.handle_pod_array(mmio_range!(GICD, icfgr), |idx| {
-            log::trace!("reading from `GICD_ICFGR`");
+            tracing::trace!("reading from `GICD_ICFGR`");
             write_bit_array(idx, 2, |idx| {
                 let trigger = self.interrupt_config(pe, InterruptId(idx as u32)).trigger;
-                log::trace!("{idx} = {trigger:?}");
+                tracing::trace!("{idx} = {trigger:?}");
                 trigger.to_two_bit_repr()
             })
         });
@@ -244,7 +244,7 @@ impl GicV3 {
 
         // Handle `GICD_IIDR` (see section 12.9.17 of spec)
         req.handle_pod(mmio_range!(GICD, iidr), || {
-            log::trace!("Read `GICD_IIDR`");
+            tracing::trace!("Read `GICD_IIDR`");
 
             BitPack::default()
                 // ProductID, bits [31:24]: Product Identifier.
@@ -367,7 +367,7 @@ impl GicV3 {
 
         // Handle `GICD_TYPER` (see section 12.9.38 of spec)
         req.handle_pod(mmio_range!(GICD, typer), || {
-            log::trace!("Read `GICD_TYPER`");
+            tracing::trace!("Read `GICD_TYPER`");
 
             BitPack::default()
                 // RSS, bit [26]: Range Selector Support.
@@ -411,7 +411,7 @@ impl GicV3 {
 
         // Handle `GICD_TYPER2` (see section 12.9.39 of spec)
         req.handle_pod(mmio_range!(GICD, typer2), || {
-            log::trace!("Read `GICD_TYPER2`");
+            tracing::trace!("Read `GICD_TYPER2`");
 
             BitPack::default()
                 // nASSGIcap, bit [8]: Indicates whether SGIs can be configured to not have an active state.
@@ -463,7 +463,7 @@ impl GicV3 {
 
         // Handle `GICR_CTLR` (see section 12.11.2 of spec)
         req.handle_pod(mmio_range!(GICR, ctlr), || {
-            log::trace!("Read `GICR_CTLR`");
+            tracing::trace!("Read `GICR_CTLR`");
             BitPack::default()
                 // UWP, bit [31]: Upstream Write Pending. Read-only. Indicates whether all upstream
                 //                writes have been communicated to the Distributor
@@ -566,7 +566,7 @@ impl GicV3 {
 
         // Handle `GICR_TYPER` (see section 12.11.37 of spec)
         req.handle_pod(mmio_range!(GICR, typer), || {
-            log::trace!("Read `GICR_TYPER`");
+            tracing::trace!("Read `GICR_TYPER`");
             BitPack::default()
                 // Affinity_Value, bits [63:32]: The identity of the PE associated with this Redistributor.
                 .set_range(
@@ -628,7 +628,7 @@ impl GicV3 {
 
         // Handle `GICR_WAKER` (see section 12.11.42 of spec)
         req.handle_flags(mmio_range!(GICR, waker), || {
-            log::trace!("read `GICR_WAKER`");
+            tracing::trace!("read `GICR_WAKER`");
             // I don't think we have to handle sleep requests so we can just return the empty bit-set
             // to indicate that the machine is ready.
             //
@@ -660,7 +660,7 @@ impl GicV3 {
 
         // Handle `GICR_ICFGR0`, `GICR_ICFGR1`, and `GICR_ICFGR<n>E` (see section 12.11.[7-9] of spec)
         req.handle_pod_array(mmio_range!(SGI, icfgr), |idx| {
-            log::trace!("read `GICR_ICFGR<n>`");
+            tracing::trace!("read `GICR_ICFGR<n>`");
             assert!(idx <= 1, "extended LPI range is not supported");
 
             write_bit_array(idx, 2, |idx| {
@@ -758,7 +758,7 @@ impl GicV3 {
 
     pub fn read_core_link_id(mut req: MmioReadRequest<'_>, version: u32) {
         req.handle_pod(mmio_range!(CoreLinkIdRegisters, pidr2), || {
-            log::trace!("Read `PIDR2`");
+            tracing::trace!("Read `PIDR2`");
             BitPack::default()
                 // ArchRev
                 .set_range(4, 7, version)

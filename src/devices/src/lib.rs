@@ -8,7 +8,7 @@
 //! Emulates virtual and hardware devices.
 
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 use std::io;
 

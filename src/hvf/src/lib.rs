@@ -21,7 +21,7 @@ use std::thread::Thread;
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
-use log::debug;
+use tracing::debug;
 
 extern "C" {
     pub fn mach_absolute_time() -> u64;
@@ -557,7 +557,7 @@ impl<'a> HvfVcpu<'a> {
                         let arg_reg_idx: u32 = ((syndrome >> 5) & 0x1f) as u32;
                         let sys_reg: u64 = syndrome & SYSREG_MASK;
 
-                        log::debug!("sysreg operation reg={} target={arg_reg_idx} (op0={} op1={} op2={} crn={} crm={}) isread={:?}",
+                        tracing::debug!("sysreg operation reg={} target={arg_reg_idx} (op0={} op1={} op2={} crn={} crm={}) isread={:?}",
                                sys_reg, (sys_reg >> 20) & 0x3,
                                (sys_reg >> 14) & 0x7, (sys_reg >> 17) & 0x7,
                                (sys_reg >> 10) & 0xf, (sys_reg >> 1) & 0xf,

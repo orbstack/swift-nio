@@ -3,10 +3,10 @@ use std::io::{self, ErrorKind};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 
 use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
-use log::Level;
 use nix::errno::Errno;
 use nix::poll::{poll, PollFd, PollFlags};
 use nix::unistd::dup;
+use tracing::Level;
 use utils::eventfd::EventFd;
 use utils::eventfd::EFD_NONBLOCK;
 use vm_memory::bitmap::Bitmap;
@@ -123,7 +123,7 @@ impl PortOutput for PortOutputFd {
         self.0.write_volatile(buf).map_err(|e| match e {
             VolatileMemoryError::IOError(e) => e,
             e => {
-                log::error!("Unsuported error from write_volatile: {e:?}");
+                tracing::error!("Unsuported error from write_volatile: {e:?}");
                 io::Error::new(ErrorKind::Other, e)
             }
         })
@@ -172,7 +172,7 @@ impl PortOutputLog {
     }
 
     fn force_flush(&mut self) {
-        log::log!(target: PortOutputLog::LOG_TARGET, Level::Error, "[missing newline]{}", String::from_utf8_lossy(&self.buf));
+        tracing::error!(target: PortOutputLog::LOG_TARGET, "[missing newline]{}", String::from_utf8_lossy(&self.buf));
         self.buf.clear();
     }
 }
@@ -186,7 +186,7 @@ impl PortOutput for PortOutputLog {
         let mut start = 0;
         for (i, ch) in self.buf.iter().cloned().enumerate() {
             if ch == b'\n' {
-                log::log!(target: PortOutputLog::LOG_TARGET, Level::Error, "{}", String::from_utf8_lossy(&self.buf[start..i]));
+                tracing::error!(target: PortOutputLog::LOG_TARGET, "{}", String::from_utf8_lossy(&self.buf[start..i]));
                 start = i + 1;
             }
         }
@@ -227,7 +227,7 @@ impl Default for PortInputSigInt {
 impl PortInput for PortInputSigInt {
     fn read_volatile(&mut self, buf: &mut VolatileSlice) -> Result<usize, io::Error> {
         self.sigint_evt.read()?;
-        log::trace!("SIGINT received");
+        tracing::trace!("SIGINT received");
         buf.copy_from(&[3u8]); //ASCII 'ETX' -> generates SIGINIT in a terminal
         Ok(1)
     }

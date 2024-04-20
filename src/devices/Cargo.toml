@@ -16,9 +16,8 @@ gpu = ["rutabaga_gfx", "thiserror", "zerocopy", "zerocopy-derive"]
 [dependencies]
 bitflags = "1.2.0"
 crossbeam-channel = "0.5"
-env_logger = "0.9.0"
 libc = ">=0.2.39"
-log = { version = "0.4.0", features = ["release_max_level_info"] }
+tracing = { version = "0.1.40", features = ["release_max_level_info"] }
 nix = { version = "0.24.1", features = ["poll"] }
 rand = "0.8.5"
 thiserror = { version = "1.0", optional = true }

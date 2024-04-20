@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use libc::{fpunchhole_t, off_t};
-use log::{error, warn};
+use tracing::{error, warn};
 use utils::eventfd::{EventFd, EFD_NONBLOCK};
 use virtio_bindings::{
     virtio_blk::*, virtio_config::VIRTIO_F_VERSION_1, virtio_ring::VIRTIO_RING_F_EVENT_IDX,

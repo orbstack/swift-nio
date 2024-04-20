@@ -11,7 +11,7 @@
 //#![deny(missing_docs)]
 
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 /// Handles setup and initialization a `Vmm` object.
 pub mod builder;
@@ -215,14 +215,14 @@ pub struct VmmShutdownHandle(Arc<Parker>);
 impl VmmShutdownHandle {
     pub fn request_shutdown(&self) {
         if self.0.park().is_err() {
-            log::info!(
+            tracing::info!(
                 "`VmmShutdownHandle::request_shutdown` ignored because a vcpu already left the run \
                  loop; the vcpu should exit soon enough, anyways"
             );
             return;
         };
 
-        log::info!("Requesting hard stop on VM");
+        tracing::info!("Requesting hard stop on VM");
 
         // N.B. we have to do this in the parked section since, otherwise, a shutdown vcpu will never
         // reach the parking section.

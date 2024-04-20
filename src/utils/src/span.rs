@@ -4,8 +4,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use log::info;
 use once_cell::sync::Lazy;
+use tracing::info;
 
 // TODO: EWMA / simple moving average?
 struct TagMetrics {

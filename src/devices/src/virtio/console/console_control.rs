@@ -138,7 +138,7 @@ impl ConsoleControl {
         let mut queue = self.queue.lock().expect("Poisoned lock");
         queue.push_back(Payload::ConsoleControl(msg));
         if let Err(e) = self.queue_evt.write(1) {
-            log::trace!("ConsoleControl failed to write to notify {e}")
+            tracing::trace!("ConsoleControl failed to write to notify {e}")
         }
     }
 
@@ -146,7 +146,7 @@ impl ConsoleControl {
         let mut queue = self.queue.lock().expect("Poisoned lock");
         queue.push_back(Payload::Bytes(buf));
         if let Err(e) = self.queue_evt.write(1) {
-            log::trace!("ConsoleControl failed to write to notify {e}")
+            tracing::trace!("ConsoleControl failed to write to notify {e}")
         }
     }
 }

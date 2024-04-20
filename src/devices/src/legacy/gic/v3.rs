@@ -90,7 +90,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
     }
 
     fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread) {
-        log::trace!("v3::register_vcpu({vcpuid}, {wfe_thread:?})");
+        tracing::trace!("v3::register_vcpu({vcpuid}, {wfe_thread:?})");
         self.wfe_threads.insert(PeId(vcpuid), wfe_thread);
     }
 

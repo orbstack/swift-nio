@@ -227,7 +227,7 @@ impl Bus {
                 .expect("Failed to acquire device lock")
                 .read_sysreg(vcpuid, reg)
         } else {
-            // log::warn!("Unhandled read to from register for PE {vcpuid}: READ from {reg}");
+            // tracing::warn!("Unhandled read to from register for PE {vcpuid}: READ from {reg}");
             0
         }
     }
@@ -239,7 +239,7 @@ impl Bus {
                 .expect("Failed to acquire device lock")
                 .write_sysreg(vcpuid, reg, value);
         } else {
-            // log::warn!(
+            // tracing::warn!(
             //     "Unhandled write to system register for PE {vcpuid}: WRITE {value} to {reg}"
             // );
         }

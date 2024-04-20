@@ -7,7 +7,7 @@ edition = "2021"
 bitflags = "2.4.2"
 bytemuck = "1.14.3"
 derive-where = "1.2.7"
-log = "0.4.21"
+tracing = { version = "0.1.40", features = ["release_max_level_info"] }
 num = "0.4.1"
 rustc-hash = "1.1.0"
 
