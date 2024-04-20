@@ -4,6 +4,7 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/sockets"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
@@ -35,7 +36,7 @@ func StartTcpVsockHostForward(listenAddr string, dialer func() (net.Conn, error)
 }
 
 func StartUnixVsockHostForward(listenAddr string, dialer func() (net.Conn, error)) (*StreamVsockHostForward, error) {
-	listener, err := net.Listen("unix", listenAddr)
+	listener, err := netx.ListenUnix(listenAddr)
 	if err != nil {
 		return nil, err
 	}

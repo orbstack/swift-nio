@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ type UnixTcpHostForward struct {
 }
 
 func StartUnixTcpHostForward(s *stack.Stack, nicID tcpip.NICID, listenAddr, connectAddr string) (*UnixTcpHostForward, error) {
-	listener, err := net.Listen("unix", listenAddr)
+	listener, err := netx.ListenUnix(listenAddr)
 	if err != nil {
 		return nil, err
 	}

@@ -414,6 +414,11 @@ func (m *VmManager) Stop(typ types.StopType, reason types.StopReason) {
 }
 
 func runVmManager() {
+	// virtiofs in libkrun requires umask=0. set it early to guarantee consistent behavior
+	// for all of vmgr
+	// careful when binding to unix sockets because of this!
+	unix.Umask(0)
+
 	// propagate stop reason via exit code
 	var lastStopReason types.StopReason
 	defer func() {
