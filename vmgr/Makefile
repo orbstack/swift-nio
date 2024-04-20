@@ -17,7 +17,7 @@ export RUST_LOG ?= utils::span=info
 ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\):
 	@cd ../swift; make lib-debug
 	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
-	@cd ../vendor/libkrun; cargo build --profile "$(RUST_BUILD_TYPE)"
+	@cd ../vendor/libkrun; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && cargo build || cargo build --profile "$(RUST_BUILD_TYPE)"
 	@./build.sh
 
 scli:
