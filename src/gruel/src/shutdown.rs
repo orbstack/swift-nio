@@ -1,13 +1,11 @@
 use core::fmt;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::Arc;
 
 use generational_arena::{Arena, Index};
+use parking_lot::{Condvar, Mutex};
 use thiserror::Error;
 
-use crate::{
-    util::{unpoison, ExtensionFor},
-    BoundSignalChannel,
-};
+use crate::{util::ExtensionFor, BoundSignalChannel};
 
 // === Errors === //
 
@@ -48,7 +46,7 @@ impl ShutdownSignal {
         self,
         kick: impl 'static + Send + Sync + FnOnce(),
     ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
-        let mut guard = unpoison(self.0.state.lock());
+        let mut guard = self.0.state.lock();
 
         if guard.shutting_down {
             return Err(ShutdownAlreadyRequested);
@@ -70,7 +68,7 @@ impl ShutdownSignal {
     }
 
     pub fn shutdown(&self) {
-        let mut guard = unpoison(self.0.state.lock());
+        let mut guard = self.0.state.lock();
         guard.shutting_down = true;
 
         for (_, task) in &mut guard.tasks {
@@ -79,7 +77,7 @@ impl ShutdownSignal {
             task();
         }
 
-        let guard = unpoison(self.0.condvar.wait(guard));
+        self.0.condvar.wait(&mut guard);
         assert!(guard.tasks.is_empty());
     }
 }
@@ -116,7 +114,7 @@ impl ShutdownTask {
 
 impl Drop for ShutdownTask {
     fn drop(&mut self) {
-        let mut guard = unpoison(self.signal.0.state.lock());
+        let mut guard = self.signal.0.state.lock();
 
         guard.tasks.remove(self.index);
         if guard.shutting_down && guard.tasks.is_empty() {

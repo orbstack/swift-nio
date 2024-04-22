@@ -1,18 +1,11 @@
 // N.B. if you decide to optimize this module, I strongly encourage you to keep this existing naïve
 // implementation as a debugging fallback.
 
-use std::{
-    fmt, hash,
-    marker::PhantomData,
-    panic::Location,
-    ptr::NonNull,
-    sync::{Arc, Mutex},
-};
+use std::{fmt, hash, marker::PhantomData, panic::Location, ptr::NonNull, sync::Arc};
 
 use bitflags::Flags;
+use parking_lot::Mutex;
 use scopeguard::guard;
-
-use crate::util::unpoison;
 
 // === RawSignalChannel === //
 
@@ -74,7 +67,7 @@ impl RawSignalChannel {
 
     /// Asserts zero or more signals.
     pub fn assert(&self, mask: u64) {
-        let mut state = unpoison(self.state.lock());
+        let mut state = self.state.lock();
 
         state.asserted_mask |= mask;
         if state.wake_mask & mask != 0 {
@@ -107,7 +100,7 @@ impl RawSignalChannel {
         let waker = &mut waker as &mut (dyn '_ + FnMut(u64) + Send + Sync);
 
         // Bind the waker
-        let mut state = unpoison(self.state.lock());
+        let mut state = self.state.lock();
 
         assert_eq!(
             state.handler, None,
@@ -133,7 +126,7 @@ impl RawSignalChannel {
         // Run the task with a guard to clear the waker before we invalidate it by leaving this
         // function.
         let _guard = guard((), |()| {
-            let mut state = unpoison(self.state.lock());
+            let mut state = self.state.lock();
             // Mark the handler as invalid so people don't try to wake us up with a dead handler.
             state.wake_mask = 0;
             state.handler = None;
@@ -145,7 +138,7 @@ impl RawSignalChannel {
 
     /// Takes all signals under the specified mask, clearing them in the process.
     pub fn take(&self, mask: u64) -> u64 {
-        let mut state = unpoison(self.state.lock());
+        let mut state = self.state.lock();
 
         let taken = state.asserted_mask & mask;
         state.asserted_mask &= !mask;
@@ -154,7 +147,7 @@ impl RawSignalChannel {
 
     /// Fetches a snapshot of the channel's state for debugging purposes.
     pub fn snapshot(&self) -> RawSignalChannelSnapshot {
-        let state = unpoison(self.state.lock());
+        let state = self.state.lock();
 
         RawSignalChannelSnapshot {
             asserted_mask: state.asserted_mask,

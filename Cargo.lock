@@ -592,6 +592,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.5.0",
  "generational-arena",
+ "parking_lot",
  "scopeguard",
  "thiserror",
 ]
