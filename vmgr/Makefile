@@ -10,7 +10,7 @@ run-raw: vmgr
 	@"../out/OrbStack Helper.app/Contents/MacOS/OrbStack Helper" vmgr
 
 # dev == debug
-RUST_BUILD_TYPE ?= release-with-debug
+export RUST_BUILD_TYPE ?= release-with-debug
 export RUST_BACKTRACE ?= full
 export RUST_LOG ?= utils::span=info
 
