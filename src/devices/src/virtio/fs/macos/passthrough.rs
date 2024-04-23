@@ -740,10 +740,13 @@ impl PassthroughFs {
                     return Err(linux_error(io::Error::from_raw_os_error(libc::ENFILE)));
                 }
 
-                let oflag = OFlag::from_bits_truncate(
-                    // SYMLINK implies NOFOLLOW, but NOFOLLOW prevents actually opening the symlink
-                    libc::O_EVTONLY | libc::O_CLOEXEC | libc::O_SYMLINK,
-                );
+                // OFlag::from_bits_truncate truncates O_SYMLINK
+                let oflag = unsafe {
+                    OFlag::from_bits_unchecked(
+                        // SYMLINK implies NOFOLLOW, but NOFOLLOW prevents actually opening the symlink
+                        libc::O_EVTONLY | libc::O_CLOEXEC | libc::O_SYMLINK,
+                    )
+                };
 
                 // must reopen even if we have fd, to get O_EVTONLY. dup can't do that
                 let fd = match file_ref {
