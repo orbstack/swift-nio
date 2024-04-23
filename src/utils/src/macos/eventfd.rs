@@ -9,7 +9,7 @@
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::{io, mem, result};
 
-use libc::{c_void, dup, fcntl, pipe, read, write, F_GETFL, F_SETFL, O_NONBLOCK};
+use libc::{c_void, fcntl, pipe, read, write, FD_CLOEXEC, F_GETFL, F_SETFD, F_SETFL, O_NONBLOCK};
 
 pub const EFD_NONBLOCK: i32 = 1;
 
@@ -20,6 +20,15 @@ fn set_nonblock(fd: RawFd) -> result::Result<(), io::Error> {
     }
 
     let ret = unsafe { fcntl(fd, F_SETFL, flags | O_NONBLOCK) };
+    if ret < 0 {
+        return Err(io::Error::last_os_error());
+    }
+
+    Ok(())
+}
+
+fn set_cloexec(fd: RawFd) -> result::Result<(), io::Error> {
+    let ret = unsafe { fcntl(fd, F_SETFD, FD_CLOEXEC) };
     if ret < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -40,6 +49,9 @@ impl EventFd {
         if ret < 0 {
             return Err(io::Error::last_os_error());
         }
+
+        set_cloexec(fds[0])?;
+        set_cloexec(fds[1])?;
 
         if flag == EFD_NONBLOCK {
             set_nonblock(fds[0])?;
@@ -90,12 +102,12 @@ impl EventFd {
     }
 
     pub fn try_clone(&self) -> result::Result<EventFd, io::Error> {
-        let read_fd = unsafe { dup(self.read_fd) };
+        let read_fd = unsafe { fcntl(self.read_fd, libc::F_DUPFD_CLOEXEC, 3) };
         if read_fd < 0 {
             return Err(io::Error::last_os_error());
         }
 
-        let write_fd = unsafe { dup(self.write_fd) };
+        let write_fd = unsafe { fcntl(self.write_fd, libc::F_DUPFD_CLOEXEC, 3) };
         if write_fd < 0 {
             return Err(io::Error::last_os_error());
         }

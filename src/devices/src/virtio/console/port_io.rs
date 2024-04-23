@@ -136,7 +136,11 @@ impl PortOutput for PortOutputFd {
 }
 
 fn dup_raw_fd_into_owned(raw_fd: RawFd) -> Result<OwnedFd, nix::Error> {
-    let fd = dup(raw_fd)?;
+    let fd = unsafe { fcntl(raw_fd, libc::F_DUPFD_CLOEXEC, 3) };
+    if fd == -1 {
+        return Err(nix::Error::last());
+    }
+
     // SAFETY: the fd is valid because dup succeeded
     Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
