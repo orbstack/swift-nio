@@ -22,6 +22,8 @@ pub use macos::fs_utils;
 pub use macos::passthrough;
 use rustc_hash::FxHasher;
 #[cfg(target_os = "macos")]
+mod attrlist;
+#[cfg(target_os = "macos")]
 pub mod rosetta;
 
 use super::bindings;

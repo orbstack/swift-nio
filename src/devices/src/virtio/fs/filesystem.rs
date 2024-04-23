@@ -62,6 +62,7 @@ impl From<Entry> for fuse::EntryOut {
 }
 
 /// Represents information about an entry in a directory.
+#[derive(Debug, Default)]
 pub struct DirEntry<'a> {
     /// The inode number for this entry. This does NOT have to be the same as the `Inode` for this
     /// directory entry. However, it must be the same as the `attr.st_ino` field of the `Entry` that

@@ -19,10 +19,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bitflags::bitflags;
-use libc::{AT_FDCWD, O_CLOEXEC};
+use libc::AT_FDCWD;
 use nix::errno::Errno;
 use nix::fcntl::OFlag;
-use nix::sys::stat::{fchmod, mknod};
+use nix::sys::stat::fchmod;
 use nix::sys::stat::{futimens, utimensat, Mode, UtimensatFlags};
 use nix::sys::statfs::{fstatfs, statfs};
 use nix::sys::statvfs::statvfs;
@@ -31,10 +31,11 @@ use nix::sys::time::TimeSpec;
 use nix::unistd::AccessFlags;
 use nix::unistd::{access, LinkatFlags};
 use nix::unistd::{ftruncate, symlinkat};
-use nix::NixPath;
 use parking_lot::{Mutex, RwLock};
+use smallvec::SmallVec;
 use vm_memory::ByteValued;
 
+use crate::virtio::fs::attrlist::{self, AttrlistEntry, INLINE_ENTRIES};
 use crate::virtio::fs::filesystem::SecContext;
 use crate::virtio::fs::multikey::{MultikeyFxDashMap, ToAltKey};
 use crate::virtio::linux_errno::nix_linux_error;
@@ -78,6 +79,8 @@ type Handle = u64;
 struct DirStream {
     stream: u64,
     offset: i64,
+    // OK because this is only for opened files
+    entries: Option<SmallVec<[AttrlistEntry; INLINE_ENTRIES]>>,
 }
 
 struct HandleData {
@@ -463,9 +466,14 @@ impl Default for Config {
 struct NodeData {
     nodeid: NodeId,
     dev_ino: DevIno,
+
+    // state
     refcount: AtomicU64,
     last_ctime: AtomicU64,
+
+    // cached stat info
     flags: NodeFlags,
+    nlink: u16,
 
     // if volfs not supported
     fd: Option<OwnedFd>,
@@ -531,6 +539,7 @@ impl PassthroughFs {
                 last_ctime: AtomicU64::new(st_ctime(&st)),
                 flags: NodeFlags::empty(),
                 fd: None,
+                nlink: st.st_nlink,
             },
         );
 
@@ -604,6 +613,13 @@ impl PassthroughFs {
 
     fn name_to_path(&self, parent: NodeId, name: &str) -> io::Result<CString> {
         Ok(self.name_to_path_and_data(parent, name)?.0)
+    }
+
+    fn devino_to_path(&self, devino: DevIno) -> io::Result<CString> {
+        let (dev, ino) = devino;
+        let path = format!("/.vol/{}/{}", dev, ino);
+        let cstr = CString::new(path).map_err(|_| einval())?;
+        Ok(cstr)
     }
 
     fn open_nodeid(&self, nodeid: NodeId, mut flags: OFlag) -> io::Result<File> {
@@ -753,6 +769,7 @@ impl PassthroughFs {
                 last_ctime: AtomicU64::new(st_ctime(&st)),
                 flags: parent_flags,
                 fd,
+                nlink: st.st_nlink,
             };
 
             if name == LINK_AS_CLONE_DIR_JS || name == LINK_AS_CLONE_DIR_PY {
@@ -920,6 +937,7 @@ impl PassthroughFs {
             dirstream: Mutex::new(DirStream {
                 stream: 0,
                 offset: 0,
+                entries: None,
             }),
         };
 
@@ -1183,7 +1201,7 @@ impl FileSystem for PassthroughFs {
 
     fn readdirplus<F>(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         handle: Handle,
         size: u32,
@@ -1193,15 +1211,149 @@ impl FileSystem for PassthroughFs {
     where
         F: FnMut(DirEntry, Entry) -> io::Result<usize>,
     {
-        self.do_readdir(nodeid, handle, size, offset, |dir_entry| {
-            // refcount doesn't get messed up on error:
-            // failed entries are skipped, but readdirplus still returns success
-            // (necessary because FUSE doesn't retry readdirplus)
-            let name = unsafe { std::str::from_utf8_unchecked(dir_entry.name) };
-            let entry = self.do_lookup(nodeid, name, &_ctx)?;
+        // race OK: FUSE won't FORGET until all handles are closed
+        let node = self.nodeids.get(&nodeid).ok_or_else(ebadf)?;
+        let parent_flags = node.flags;
+        let nlink = node.nlink;
+        let (dev, ino) = node.dev_ino;
+        // TODO: race still OK here because of FORGET, but need to fix
+        let parent_fd_path = match node.fd.as_ref() {
+            Some(f) => Some(get_path_by_fd(f.as_fd())?),
+            None => None,
+        };
+        drop(node);
 
-            add_entry(dir_entry, entry)
-        })
+        // for NFS loop prevention to work, use legacy impl on home dir
+        // getattrlistbulk on home can sometimes stat on mount and cause deadlock
+        if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
+            if nfs_info.parent_dir_dev == dev && nfs_info.parent_dir_inode == ino {
+                return self.do_readdir(nodeid, handle, size, offset, |dir_entry| {
+                    // refcount doesn't get messed up on error:
+                    // failed entries are skipped, but readdirplus still returns success
+                    // (necessary because FUSE doesn't retry readdirplus)
+                    let name = unsafe { std::str::from_utf8_unchecked(dir_entry.name) };
+                    let entry = self.do_lookup(nodeid, name, &ctx)?;
+                    let new_nodeid = entry.nodeid;
+
+                    match add_entry(dir_entry, entry) {
+                        Ok(len) => Ok(len),
+                        Err(e) => {
+                            // if add_entry failed, we won't be returning this entry, so forget it
+                            self.do_forget(new_nodeid, 1);
+                            Err(e)
+                        }
+                    }
+                });
+            }
+        }
+
+        debug!(
+            "readdirplus: nodeid={}, handle={}, size={}, offset={}",
+            nodeid, handle, size, offset
+        );
+        if size == 0 {
+            return Ok(());
+        }
+
+        let data = self
+            .handles
+            .get(&handle)
+            .filter(|hd| hd.nodeid == nodeid)
+            .map(|v| v.clone())
+            .ok_or_else(ebadf)?;
+
+        let mut ds = data.dirstream.lock();
+
+        // read entries if not already done
+        let entries = if let Some(entries) = ds.entries.as_ref() {
+            entries
+        } else {
+            // reserve # entries = nlink - 2 ("." and "..")
+            let capacity = nlink.saturating_sub(2);
+            let file = data.file.write();
+            let entries = attrlist::list_dir(file.as_fd(), capacity as usize)?;
+            ds.entries = Some(entries);
+            ds.entries.as_ref().unwrap()
+        };
+
+        if offset >= entries.len() as u64 {
+            return Ok(());
+        }
+
+        for (i, entry) in entries[offset as usize..].iter().enumerate() {
+            // we trust kernel to return valid utf-8 names
+            debug!(
+                "list_dir: name={} dev={} ino={} offset={}",
+                &entry.name,
+                entry.st.st_dev,
+                entry.st.st_ino,
+                offset + 1 + (i as u64)
+            );
+
+            // mountpoints must be looked up again. getattrlistbulk returns the orig fs mountpoint dir
+            let lookup_entry = match if entry.is_mountpoint {
+                self.do_lookup(nodeid, &entry.name, &ctx)
+            } else {
+                // only do path lookup once
+                let path = match if let Some(ref path) = parent_fd_path {
+                    CString::new(format!("{}/{}", path, entry.name)).map_err(|_| einval())
+                } else {
+                    self.devino_to_path((entry.st.st_dev, entry.st.st_ino))
+                } {
+                    Ok(path) => path,
+                    Err(e) => {
+                        error!("failed to lookup entry: {e}");
+                        continue;
+                    }
+                };
+
+                self.finish_lookup(
+                    parent_flags,
+                    &entry.name,
+                    entry.st,
+                    FileRef::Path(&path),
+                    &ctx,
+                )
+            } {
+                Ok(lookup_entry) => lookup_entry,
+                Err(e) => {
+                    error!("failed to lookup entry: {e}");
+                    continue;
+                }
+            };
+
+            let dir_entry = DirEntry {
+                ino: entry.st.st_ino,
+                offset: offset + 1 + (i as u64),
+                type_: match entry.st.st_mode & libc::S_IFMT {
+                    libc::S_IFREG => libc::DT_REG,
+                    libc::S_IFDIR => libc::DT_DIR,
+                    libc::S_IFLNK => libc::DT_LNK,
+                    libc::S_IFCHR => libc::DT_CHR,
+                    libc::S_IFBLK => libc::DT_BLK,
+                    libc::S_IFIFO => libc::DT_FIFO,
+                    _ => libc::DT_UNKNOWN,
+                } as u32,
+                name: entry.name.as_bytes(),
+            };
+
+            let new_nodeid = lookup_entry.nodeid;
+            match add_entry(dir_entry, lookup_entry) {
+                Ok(0) => {
+                    // out of space
+                    // forget this entry
+                    self.do_forget(new_nodeid, 1);
+                    break;
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    // continue
+                    error!("failed to add entry: {:?}", e);
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn open(
@@ -1278,6 +1430,7 @@ impl FileSystem for PassthroughFs {
             dirstream: Mutex::new(DirStream {
                 stream: 0,
                 offset: 0,
+                entries: None,
             }),
         };
 
@@ -1890,8 +2043,6 @@ impl FileSystem for PassthroughFs {
                 clean_buf.extend_from_slice(attr);
                 clean_buf.push(0);
             }
-
-            clean_buf.shrink_to_fit();
 
             if clean_buf.len() > size as usize {
                 Err(io::Error::from_raw_os_error(LINUX_ERANGE))
