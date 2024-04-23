@@ -89,7 +89,7 @@ struct DockerContainerDetails: View {
                         DividedRowButton {
                             NSWorkspace.shared.open(URL(string: "http://localhost")!)
                         } label: {
-                            Label("Open Tutorial", systemImage: "questionmark.circle")
+                            Label("Tutorial", systemImage: "questionmark.circle")
                         }
                     }
                 }
