@@ -12,7 +12,7 @@ replace gvisor.dev/gvisor => ../vendor/gvisor
 
 replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
-replace github.com/fsnotify/fsnotify => github.com/orbstack/fsnotify-macvirt v0.0.0-20230311084904-3a09ec342ff5
+replace github.com/fsnotify/fsnotify => github.com/orbstack/fsnotify-macvirt v0.0.0-20240424004612-788a996df377
 
 replace github.com/buildbarn/go-xdr => github.com/kdrag0n/go-xdr-macvirt v0.0.0-20230326123001-605de85becc7
 
