@@ -1286,12 +1286,40 @@ impl FileSystem for PassthroughFs {
         }
 
         for (i, entry) in entries[offset as usize..].iter().enumerate() {
+            let st = if let Some(ref st) = entry.st {
+                st
+            } else {
+                // on error, fall back to normal readdir response for this entry
+                // linux can get the real error on lookup
+                // unfortunately, on error, getattrlistbulk only returns ATTR_CMN_NAME + ATTR_CMN_ERROR. no inode or type like readdir
+                let dir_entry = DirEntry {
+                    // just can't be 0
+                    ino: offset + 1 + (i as u64),
+                    offset: offset + 1 + (i as u64),
+                    type_: libc::DT_UNKNOWN as u32,
+                    name: entry.name.as_bytes(),
+                };
+                let dummy_entry = Entry {
+                    // nodeid=0 means skip readdirplus lookup entry
+                    nodeid: 0,
+                    generation: 0,
+                    attr: unsafe { std::mem::zeroed() },
+                    attr_timeout: Duration::from_secs(0),
+                    entry_timeout: Duration::from_secs(0),
+                };
+                if let Ok(0) = add_entry(dir_entry, dummy_entry) {
+                    break;
+                }
+
+                continue;
+            };
+
             // we trust kernel to return valid utf-8 names
             debug!(
                 "list_dir: name={} dev={} ino={} offset={}",
                 &entry.name,
-                entry.st.st_dev,
-                entry.st.st_ino,
+                st.st_dev,
+                st.st_ino,
                 offset + 1 + (i as u64)
             );
 
@@ -1303,7 +1331,7 @@ impl FileSystem for PassthroughFs {
                 let path = match if let Some(ref path) = parent_fd_path {
                     CString::new(format!("{}/{}", path, entry.name)).map_err(|_| einval())
                 } else {
-                    self.devino_to_path((entry.st.st_dev, entry.st.st_ino))
+                    self.devino_to_path((st.st_dev, st.st_ino))
                 } {
                     Ok(path) => path,
                     Err(e) => {
@@ -1312,13 +1340,7 @@ impl FileSystem for PassthroughFs {
                     }
                 };
 
-                self.finish_lookup(
-                    parent_flags,
-                    &entry.name,
-                    entry.st,
-                    FileRef::Path(&path),
-                    &ctx,
-                )
+                self.finish_lookup(parent_flags, &entry.name, *st, FileRef::Path(&path), &ctx)
             } {
                 Ok(lookup_entry) => lookup_entry,
                 Err(e) => {
@@ -1328,9 +1350,9 @@ impl FileSystem for PassthroughFs {
             };
 
             let dir_entry = DirEntry {
-                ino: entry.st.st_ino,
+                ino: st.st_ino,
                 offset: offset + 1 + (i as u64),
-                type_: match entry.st.st_mode & libc::S_IFMT {
+                type_: match st.st_mode & libc::S_IFMT {
                     libc::S_IFREG => libc::DT_REG,
                     libc::S_IFDIR => libc::DT_DIR,
                     libc::S_IFLNK => libc::DT_LNK,

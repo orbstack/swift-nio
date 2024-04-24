@@ -43,7 +43,7 @@ mod vtype {
 pub struct AttrlistEntry {
     pub name: String,
     pub is_mountpoint: bool,
-    pub st: libc::stat,
+    pub st: Option<libc::stat>,
 }
 
 pub fn list_dir<T: AsRawFd>(
@@ -120,8 +120,9 @@ pub fn list_dir<T: AsRawFd>(
                 name: String::new(),
                 is_mountpoint: false,
                 // must zero because fields could be left empty
-                st: unsafe { std::mem::zeroed() },
+                st: Some(unsafe { std::mem::zeroed() }),
             };
+            let st = entry.st.as_mut().unwrap();
 
             let mut error: Option<Errno> = None;
             if returned.commonattr & ATTR_CMN_ERROR != 0 {
@@ -143,13 +144,13 @@ pub fn list_dir<T: AsRawFd>(
             }
 
             if returned.commonattr & ATTR_CMN_DEVID != 0 {
-                entry.st.st_dev = unsafe { (entry_p as *const libc::dev_t).read_unaligned() };
+                st.st_dev = unsafe { (entry_p as *const libc::dev_t).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<libc::dev_t>()) };
             }
 
             if returned.commonattr & ATTR_CMN_OBJTYPE != 0 {
                 let typ = unsafe { (entry_p as *const u32).read_unaligned() };
-                entry.st.st_mode = match typ {
+                st.st_mode = match typ {
                     vtype::VREG => libc::S_IFREG,
                     vtype::VDIR => libc::S_IFDIR,
                     vtype::VBLK => libc::S_IFBLK,
@@ -169,15 +170,15 @@ pub fn list_dir<T: AsRawFd>(
 
             if returned.commonattr & ATTR_CMN_MODTIME != 0 {
                 let time = unsafe { (entry_p as *const libc::timespec).read_unaligned() };
-                entry.st.st_mtime = time.tv_sec;
-                entry.st.st_mtime_nsec = time.tv_nsec;
+                st.st_mtime = time.tv_sec;
+                st.st_mtime_nsec = time.tv_nsec;
                 entry_p = unsafe { entry_p.add(size_of::<libc::timespec>()) };
             }
 
             if returned.commonattr & ATTR_CMN_CHGTIME != 0 {
                 let time = unsafe { (entry_p as *const libc::timespec).read_unaligned() };
-                entry.st.st_ctime = time.tv_sec;
-                entry.st.st_ctime_nsec = time.tv_nsec;
+                st.st_ctime = time.tv_sec;
+                st.st_ctime_nsec = time.tv_nsec;
                 entry_p = unsafe { entry_p.add(size_of::<libc::timespec>()) };
             } else {
                 // TODO substitute with mtime for unsupported FS?
@@ -185,28 +186,28 @@ pub fn list_dir<T: AsRawFd>(
 
             if returned.commonattr & ATTR_CMN_ACCTIME != 0 {
                 let time = unsafe { (entry_p as *const libc::timespec).read_unaligned() };
-                entry.st.st_atime = time.tv_sec;
-                entry.st.st_atime_nsec = time.tv_nsec;
+                st.st_atime = time.tv_sec;
+                st.st_atime_nsec = time.tv_nsec;
                 entry_p = unsafe { entry_p.add(size_of::<libc::timespec>()) };
             }
 
             if returned.commonattr & ATTR_CMN_OWNERID != 0 {
-                entry.st.st_uid = unsafe { (entry_p as *const libc::uid_t).read_unaligned() };
+                st.st_uid = unsafe { (entry_p as *const libc::uid_t).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<libc::uid_t>()) };
             }
 
             if returned.commonattr & ATTR_CMN_GRPID != 0 {
-                entry.st.st_gid = unsafe { (entry_p as *const libc::gid_t).read_unaligned() };
+                st.st_gid = unsafe { (entry_p as *const libc::gid_t).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<libc::gid_t>()) };
             }
 
             if returned.commonattr & ATTR_CMN_ACCESSMASK != 0 {
-                entry.st.st_mode |= unsafe { (entry_p as *const u16).read_unaligned() };
+                st.st_mode |= unsafe { (entry_p as *const u16).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
             if returned.commonattr & ATTR_CMN_FLAGS != 0 {
-                entry.st.st_flags = unsafe { (entry_p as *const u32).read_unaligned() };
+                st.st_flags = unsafe { (entry_p as *const u32).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
@@ -215,13 +216,13 @@ pub fn list_dir<T: AsRawFd>(
 
             if returned.commonattr & ATTR_CMN_FILEID != 0 {
                 let ino = unsafe { (entry_p as *const u64).read_unaligned() };
-                entry.st.st_ino = ino;
+                st.st_ino = ino;
                 entry_p = unsafe { entry_p.add(size_of::<u64>()) };
             }
 
             if returned.dirattr & ATTR_DIR_ENTRYCOUNT != 0 {
                 // add 2 for "." and "..", like st_nlink on most filesystems
-                entry.st.st_nlink = 2 + unsafe { (entry_p as *const u16).read_unaligned() };
+                st.st_nlink = 2 + unsafe { (entry_p as *const u16).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
@@ -234,44 +235,44 @@ pub fn list_dir<T: AsRawFd>(
             }
 
             if returned.dirattr & ATTR_DIR_ALLOCSIZE != 0 {
-                entry.st.st_blocks = unsafe { (entry_p as *const i64).read_unaligned() };
+                st.st_blocks = unsafe { (entry_p as *const i64).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<u64>()) };
             }
 
             if returned.dirattr & ATTR_DIR_IOBLOCKSIZE != 0 {
-                entry.st.st_blksize = unsafe { (entry_p as *const i32).read_unaligned() };
-                entry.st.st_blocks /= entry.st.st_blksize as i64;
+                st.st_blksize = unsafe { (entry_p as *const i32).read_unaligned() };
+                st.st_blocks /= st.st_blksize as i64;
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
             if returned.dirattr & ATTR_DIR_DATALENGTH != 0 {
-                entry.st.st_size = unsafe { (entry_p as *const i64).read_unaligned() };
+                st.st_size = unsafe { (entry_p as *const i64).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<u64>()) };
             }
 
             if returned.fileattr & ATTR_FILE_LINKCOUNT != 0 {
-                entry.st.st_nlink = unsafe { (entry_p as *const u16).read_unaligned() };
+                st.st_nlink = unsafe { (entry_p as *const u16).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
             if returned.fileattr & ATTR_FILE_IOBLOCKSIZE != 0 {
-                entry.st.st_blksize = unsafe { (entry_p as *const i32).read_unaligned() };
+                st.st_blksize = unsafe { (entry_p as *const i32).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
             if returned.fileattr & ATTR_FILE_DEVTYPE != 0 {
-                entry.st.st_rdev = unsafe { (entry_p as *const libc::dev_t).read_unaligned() };
+                st.st_rdev = unsafe { (entry_p as *const libc::dev_t).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<libc::dev_t>()) };
             }
 
             if returned.fileattr & ATTR_FILE_DATALENGTH != 0 {
-                entry.st.st_size = unsafe { (entry_p as *const libc::off_t).read_unaligned() };
+                st.st_size = unsafe { (entry_p as *const libc::off_t).read_unaligned() };
                 entry_p = unsafe { entry_p.add(size_of::<libc::off_t>()) };
             }
 
             if returned.fileattr & ATTR_FILE_DATAALLOCSIZE != 0 {
-                entry.st.st_blocks = unsafe { (entry_p as *const libc::off_t).read_unaligned() }
-                    / entry.st.st_blksize as i64;
+                st.st_blocks = unsafe { (entry_p as *const libc::off_t).read_unaligned() }
+                    / st.st_blksize as i64;
                 entry_p = unsafe { entry_p.add(size_of::<libc::off_t>()) };
             }
 
@@ -289,7 +290,8 @@ pub fn list_dir<T: AsRawFd>(
 
             // on error, skip to next entry
             if let Some(error) = error {
-                error!(?error, name = &entry.name, "failed to read entry");
+                debug!(?error, name = &entry.name, "failed to read entry");
+                entry.st = None;
                 p = unsafe { p.add(entry_len as usize) };
                 continue;
             }
