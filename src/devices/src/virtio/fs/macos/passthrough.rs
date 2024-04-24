@@ -1239,12 +1239,14 @@ impl FileSystem for PassthroughFs {
                     let new_nodeid = entry.nodeid;
 
                     match add_entry(dir_entry, entry) {
-                        Ok(len) => Ok(len),
-                        Err(e) => {
-                            // if add_entry failed, we won't be returning this entry, so forget it
+                        Ok(0) => {
+                            // out of space
+                            // forget this entry
                             self.do_forget(new_nodeid, 1);
-                            Err(e)
+                            Ok(0)
                         }
+                        Ok(size) => Ok(size),
+                        Err(e) => Err(e),
                     }
                 });
             }
