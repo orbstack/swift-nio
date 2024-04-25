@@ -235,13 +235,13 @@ pub fn list_dir<T: AsRawFd>(
             }
 
             if returned.dirattr & ATTR_DIR_ALLOCSIZE != 0 {
-                st.st_blocks = unsafe { (entry_p as *const i64).read_unaligned() };
+                // always 512-blocks, regardless of st_blksize
+                st.st_blocks = unsafe { (entry_p as *const i64).read_unaligned() } / 512;
                 entry_p = unsafe { entry_p.add(size_of::<u64>()) };
             }
 
             if returned.dirattr & ATTR_DIR_IOBLOCKSIZE != 0 {
                 st.st_blksize = unsafe { (entry_p as *const i32).read_unaligned() };
-                st.st_blocks /= st.st_blksize as i64;
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 

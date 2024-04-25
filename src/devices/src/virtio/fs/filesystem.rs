@@ -18,6 +18,7 @@ pub use fuse::SetattrValid;
 use nix::sys::statvfs::Statvfs;
 
 /// Information about a path in the filesystem.
+#[derive(Debug)]
 pub struct Entry {
     /// An `Inode` that uniquely identifies this path. During `lookup`, setting this to `0` means a
     /// negative entry. Returning `ENOENT` also means a negative entry but setting this to `0`

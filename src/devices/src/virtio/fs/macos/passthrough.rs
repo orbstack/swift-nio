@@ -1208,7 +1208,7 @@ impl FileSystem for PassthroughFs {
         nodeid: NodeId,
         handle: Handle,
         size: u32,
-        offset: u64,
+        mut offset: u64,
         mut add_entry: F,
     ) -> io::Result<()>
     where
@@ -1281,6 +1281,8 @@ impl FileSystem for PassthroughFs {
             ds.entries.as_ref().unwrap()
         };
 
+        // skip "." and "..", but leave space for FUSE to emit them (?)
+        offset = offset.saturating_sub(2);
         if offset >= entries.len() as u64 {
             return Ok(());
         }
@@ -1294,8 +1296,8 @@ impl FileSystem for PassthroughFs {
                 // unfortunately, on error, getattrlistbulk only returns ATTR_CMN_NAME + ATTR_CMN_ERROR. no inode or type like readdir
                 let dir_entry = DirEntry {
                     // just can't be 0
-                    ino: offset + 1 + (i as u64),
-                    offset: offset + 1 + (i as u64),
+                    ino: offset + 2 + 1 + (i as u64),
+                    offset: offset + 2 + 1 + (i as u64),
                     type_: libc::DT_UNKNOWN as u32,
                     name: entry.name.as_bytes(),
                 };
@@ -1320,7 +1322,7 @@ impl FileSystem for PassthroughFs {
                 &entry.name,
                 st.st_dev,
                 st.st_ino,
-                offset + 1 + (i as u64)
+                offset + 2 + 1 + (i as u64)
             );
 
             // mountpoints must be looked up again. getattrlistbulk returns the orig fs mountpoint dir
@@ -1351,7 +1353,8 @@ impl FileSystem for PassthroughFs {
 
             let dir_entry = DirEntry {
                 ino: st.st_ino,
-                offset: offset + 1 + (i as u64),
+                offset: offset + 2 + 1 + (i as u64),
+                // same values on macOS and Linux
                 type_: match st.st_mode & libc::S_IFMT {
                     libc::S_IFREG => libc::DT_REG,
                     libc::S_IFDIR => libc::DT_DIR,
@@ -1359,6 +1362,7 @@ impl FileSystem for PassthroughFs {
                     libc::S_IFCHR => libc::DT_CHR,
                     libc::S_IFBLK => libc::DT_BLK,
                     libc::S_IFIFO => libc::DT_FIFO,
+                    libc::S_IFSOCK => libc::DT_SOCK,
                     _ => libc::DT_UNKNOWN,
                 } as u32,
                 name: entry.name.as_bytes(),
