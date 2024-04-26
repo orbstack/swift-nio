@@ -4,7 +4,8 @@ set -eufo pipefail
 cd "$(dirname "$0")"
 
 export GOPRIVATE='github.com/orbstack/*-macvirt'
-BRANCH=orbstack/1.27
+BRANCH=orbstack/1.29
+ARCH="$(uname -m)"
 
 orb start
 
@@ -22,4 +23,4 @@ popd
 echo "Building"
 make
 
-cp -f bin/k3s ../../rootfs/k8s/k3s-arm64
+cp -f "dist/artifacts/k3s-$ARCH" ../../rootfs/k8s
