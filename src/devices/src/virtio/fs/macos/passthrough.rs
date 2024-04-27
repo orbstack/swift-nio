@@ -352,6 +352,47 @@ fn get_path_by_fd<T: AsRawFd>(fd: T) -> io::Result<String> {
     Ok(unsafe { String::from_utf8_unchecked(cstr.to_bytes().to_vec()) })
 }
 
+fn listxattr(c_path: &CStr) -> nix::Result<Vec<u8>> {
+    fn do_listxattr(c_path: &CStr, mut buf: Option<&mut [u8]>) -> nix::Result<usize> {
+        let ret = unsafe {
+            libc::listxattr(
+                c_path.as_ptr(),
+                buf.as_mut()
+                    .map(|b| b.as_mut_ptr() as *mut libc::c_char)
+                    .unwrap_or(std::ptr::null_mut()),
+                buf.map(|b| b.len()).unwrap_or(0),
+                0,
+            )
+        };
+        if ret == -1 {
+            return Err(nix::Error::last());
+        }
+
+        Ok(ret as usize)
+    }
+
+    let mut buf = vec![0u8; 512];
+    match do_listxattr(c_path, Some(&mut buf)) {
+        Ok(size) => {
+            buf.truncate(size);
+            Ok(buf)
+        }
+        Err(Errno::ERANGE) => {
+            // get the size we need
+            let size = do_listxattr(c_path, None)?;
+            let mut buf = vec![0u8; size];
+            match do_listxattr(c_path, Some(&mut buf)) {
+                Ok(size) => {
+                    buf.truncate(size);
+                    Ok(buf)
+                }
+                Err(e) => Err(e),
+            }
+        }
+        Err(e) => Err(e),
+    }
+}
+
 /// The caching policy that the file system should report to the FUSE client. By default the FUSE
 /// protocol uses close-to-open consistency. This means that any cached contents of the file are
 /// invalidated the next time that file is opened.
@@ -2033,27 +2074,13 @@ impl FileSystem for PassthroughFs {
             return Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)));
         }
 
-        let mut buf = vec![0; 512_usize];
-
         let c_path = self.nodeid_to_path(nodeid)?;
 
         // Safe because this will only modify the contents of `buf`.
-        let res = unsafe {
-            libc::listxattr(
-                c_path.as_ptr(),
-                buf.as_mut_ptr() as *mut libc::c_char,
-                512,
-                0,
-            )
-        };
-        if res == -1 {
-            return Err(linux_error(io::Error::last_os_error()));
-        }
-
-        buf.truncate(res as usize);
+        let buf = listxattr(&c_path).map_err(nix_linux_error)?;
 
         if size == 0 {
-            let mut clean_size = res as usize;
+            let mut clean_size = buf.len();
 
             for attr in buf.split(|c| *c == 0) {
                 if attr.starts_with(&STAT_XATTR_KEY[..STAT_XATTR_KEY.len() - 1]) {
