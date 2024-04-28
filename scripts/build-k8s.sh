@@ -5,7 +5,6 @@ cd "$(dirname "$0")"
 
 export GOPRIVATE='github.com/orbstack/*-macvirt'
 BRANCH=orbstack/1.29
-ARCH="$(uname -m)"
 
 orb start
 
@@ -21,6 +20,14 @@ pushd forks
 popd
 
 echo "Building"
-make
+PLATFORMS="amd64 arm64"
+for platform in $PLATFORMS; do 
+  export DOCKER_DEFAULT_PLATFORM="linux/$platform"
+  make
 
-cp -f "dist/artifacts/k3s-$ARCH" ../../rootfs/k8s
+  if [[ "$platform" == "amd64" ]]; then
+    cp -f "dist/artifacts/k3s" "../../rootfs/k8s/k3s-$platform"
+  else
+    cp -f "dist/artifacts/k3s-$platform" ../../rootfs/k8s
+  fi
+done
