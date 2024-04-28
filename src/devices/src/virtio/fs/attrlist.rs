@@ -271,8 +271,8 @@ pub fn list_dir<T: AsRawFd>(
             }
 
             if returned.fileattr & ATTR_FILE_DATAALLOCSIZE != 0 {
-                st.st_blocks = unsafe { (entry_p as *const libc::off_t).read_unaligned() }
-                    / st.st_blksize as i64;
+                // always 512-blocks, regardless of st_blksize
+                st.st_blocks = unsafe { (entry_p as *const libc::off_t).read_unaligned() } / 512;
                 entry_p = unsafe { entry_p.add(size_of::<libc::off_t>()) };
             }
 
