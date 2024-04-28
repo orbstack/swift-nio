@@ -856,20 +856,22 @@ impl<F: FileSystem + Sync> Server<F> {
         }
 
         // These fuse features are supported by this server by default.
-        let mut supported = FsOptions::ASYNC_READ
+        let supported = FsOptions::ASYNC_READ // TODO: reconsider. how much s readahead used?
             | FsOptions::PARALLEL_DIROPS
             | FsOptions::BIG_WRITES
-            | FsOptions::AUTO_INVAL_DATA
+            | FsOptions::AUTO_INVAL_DATA // extra getattr calls OK because they respect cache
             | FsOptions::HANDLE_KILLPRIV
-            | FsOptions::ASYNC_DIO
+            // no ASYNC_DIO: we want low latency
             | FsOptions::HAS_IOCTL_DIR
             | FsOptions::ATOMIC_O_TRUNC
             | FsOptions::MAX_PAGES
+            // TODO: if we support selinux/apparmor
+            //| FsOptions::SECURITY_CTX;
+            // not worth it in terms of calls: our writes are fast (~2.5us), and WB cache causes FUSE to issue setattr calls on every close (incl. unlinked ENOENT files)
+            //| FsOptions::WRITEBACK_CACHE
+            // not really necessary -- revisit later
+            //| FsOptions::CACHE_SYMLINKS;
             | FsOptions::INIT_EXT;
-
-        if cfg!(target_os = "macos") {
-            supported |= FsOptions::SECURITY_CTX;
-        }
 
         let flags_64 = ((flags2 as u64) << 32) | (flags as u64);
         let capable = FsOptions::from_bits_truncate(flags_64);
