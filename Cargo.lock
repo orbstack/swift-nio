@@ -619,6 +619,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "krun"
+version = "1.8.1"
+dependencies = [
+ "anyhow",
+ "color-backtrace",
+ "crossbeam-channel",
+ "devices",
+ "hvf",
+ "libc",
+ "once_cell",
+ "polly",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber",
+ "utils",
+ "vmm",
+]
+
+[[package]]
+name = "kruntest"
+version = "1.8.1"
+dependencies = [
+ "anyhow",
+ "krun",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "kvm-bindings"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -650,26 +679,6 @@ name = "libc"
 version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
-
-[[package]]
-name = "libkrun"
-version = "1.8.1"
-dependencies = [
- "anyhow",
- "color-backtrace",
- "crossbeam-channel",
- "devices",
- "hvf",
- "libc",
- "once_cell",
- "polly",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
- "utils",
- "vmm",
-]
 
 [[package]]
 name = "libredox"

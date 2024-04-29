@@ -1,0 +1,10 @@
+[package]
+name = "kruntest"
+version = "1.8.1"
+authors = ["Sergio Lopez <slp@redhat.com>"]
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.82"
+krun = { path = "../libkrun" }
+tracing-subscriber = "0.3.18"

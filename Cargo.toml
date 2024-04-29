@@ -1,5 +1,5 @@
 [workspace]
-members = ["src/gicv3", "src/libkrun"]
+members = ["src/gicv3", "src/libkrun", "src/kruntest"]
 resolver = "2"
 #panic = "abort"
 

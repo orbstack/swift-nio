@@ -44,36 +44,36 @@ pub struct GResultIntErr {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ConsoleSpec {
-    read_fd: i32,
-    write_fd: i32,
+pub struct ConsoleSpec {
+    pub read_fd: i32,
+    pub write_fd: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct VzSpec {
-    cpus: u8,
-    memory: usize,
-    kernel: String,
-    cmdline: String,
-    initrd: Option<String>,
-    console: Option<ConsoleSpec>,
-    mtu: u16,
-    mac_address_prefix: String,
-    network_nat: bool,
-    network_fds: Vec<i32>,
-    rng: bool,
-    disk_rootfs: Option<String>,
-    disk_data: Option<String>,
-    disk_swap: Option<String>,
-    balloon: bool,
-    vsock: bool,
-    virtiofs: bool,
-    rosetta: bool,
-    sound: bool,
+pub struct VzSpec {
+    pub cpus: u8,
+    pub memory: usize,
+    pub kernel: String,
+    pub cmdline: String,
+    pub initrd: Option<String>,
+    pub console: Option<ConsoleSpec>,
+    pub mtu: u16,
+    pub mac_address_prefix: String,
+    pub network_nat: bool,
+    pub network_fds: Vec<i32>,
+    pub rng: bool,
+    pub disk_rootfs: Option<String>,
+    pub disk_data: Option<String>,
+    pub disk_swap: Option<String>,
+    pub balloon: bool,
+    pub vsock: bool,
+    pub virtiofs: bool,
+    pub rosetta: bool,
+    pub sound: bool,
 
     // for loop prevention
-    nfs_info: Option<NfsInfo>,
+    pub nfs_info: Option<NfsInfo>,
 }
 
 // due to HVF limitations, we can't have more than one VM per process, so this simplifies things
@@ -87,7 +87,7 @@ fn parse_mac_addr(s: &str) -> anyhow::Result<[u8; 6]> {
         .map(|v| v.try_into().unwrap())?)
 }
 
-struct Machine {
+pub struct Machine {
     vmr: Option<VmResources>,
     vmm_shutdown: Option<VmmShutdownHandle>,
     // must be kept in memory until start
@@ -95,7 +95,7 @@ struct Machine {
 }
 
 impl Machine {
-    fn new(spec: &VzSpec) -> anyhow::Result<Machine> {
+    pub fn new(spec: &VzSpec) -> anyhow::Result<Machine> {
         let mut vmr = VmResources::default();
 
         // resources
@@ -245,7 +245,7 @@ impl Machine {
         })
     }
 
-    fn start(&mut self) -> anyhow::Result<()> {
+    pub fn start(&mut self) -> anyhow::Result<()> {
         anyhow::ensure!(self.vmm_shutdown.is_none(), "vmm already started");
 
         let mut event_manager = EventManager::new().map_err(to_anyhow_error_dbg)?;
@@ -301,7 +301,7 @@ impl Machine {
         Ok(())
     }
 
-    fn stop(&mut self) -> anyhow::Result<()> {
+    pub fn stop(&mut self) -> anyhow::Result<()> {
         self.vmm_shutdown
             .take()
             .context("force stop already requested")?
@@ -424,7 +424,7 @@ pub extern "C" fn rsvm_machine_stop(ptr: *mut c_void) -> GResultErr {
     }
 }
 
-const MACHINE_STATE_STOPPED: u32 = 0;
+pub const MACHINE_STATE_STOPPED: u32 = 0;
 
 extern "C" {
     fn rsvm_go_on_state_change(state: u32);

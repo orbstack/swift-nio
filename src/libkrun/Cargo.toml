@@ -1,5 +1,5 @@
 [package]
-name = "libkrun"
+name = "krun"
 version = "1.8.1"
 authors = ["Sergio Lopez <slp@redhat.com>"]
 edition = "2021"
@@ -7,7 +7,7 @@ build = "build.rs"
 
 [lib]
 name = "krun"
-crate-type = ["staticlib"]
+crate-type = ["lib", "staticlib"]
 
 [features]
 default = ["net", "blk"]
