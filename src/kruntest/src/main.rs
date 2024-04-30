@@ -41,8 +41,8 @@ fn main() -> anyhow::Result<()> {
         disk_swap: None,
         balloon: true,
         vsock: false,
-        virtiofs: true,
-        rosetta: true,
+        virtiofs: false,
+        rosetta: false,
         sound: false,
 
         nfs_info: None,

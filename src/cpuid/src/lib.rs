@@ -8,10 +8,6 @@
 #![deny(missing_docs)]
 //! Utility for configuring the CPUID (CPU identification) for the guest microVM.
 
-#![cfg(target_arch = "x86_64")]
-
-use kvm_bindings::CpuId;
-
 mod common;
 use crate::common::*;
 
@@ -27,6 +23,9 @@ mod cpu_leaf;
 mod transformer;
 use crate::transformer::*;
 pub use crate::transformer::{Error, VmSpec};
+
+mod model;
+use crate::model::CpuId;
 
 mod brand_string;
 

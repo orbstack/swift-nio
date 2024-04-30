@@ -7,8 +7,10 @@
 
 use std::mem;
 
-use super::gdt::{gdt_entry, kvm_segment_from_gdt};
+use super::gdt::{gdt_entry, kvm_segment, kvm_segment_from_gdt};
+#[cfg(target_os = "linux")]
 use kvm_bindings::{kvm_fpu, kvm_regs, kvm_sregs};
+#[cfg(target_os = "linux")]
 use kvm_ioctls::VcpuFd;
 use vm_memory::{Address, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap};
 
@@ -18,15 +20,19 @@ const PDPTE_START: u64 = 0xa000;
 const PDE_START: u64 = 0xb000;
 
 /// Errors thrown while setting up x86_64 registers.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Error {
     /// Failed to get SREGs for this CPU.
+    #[cfg(target_os = "linux")]
     GetStatusRegisters(kvm_ioctls::Error),
     /// Failed to set base registers for this CPU.
+    #[cfg(target_os = "linux")]
     SetBaseRegisters(kvm_ioctls::Error),
     /// Failed to configure the FPU.
+    #[cfg(target_os = "linux")]
     SetFPURegisters(kvm_ioctls::Error),
     /// Failed to set SREGs for this CPU.
+    #[cfg(target_os = "linux")]
     SetStatusRegisters(kvm_ioctls::Error),
     /// Writing the GDT to RAM failed.
     WriteGDT,
@@ -41,11 +47,48 @@ pub enum Error {
 }
 type Result<T> = std::result::Result<T, Error>;
 
+#[cfg(not(target_os = "linux"))]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(zerocopy::AsBytes, zerocopy::FromBytes, zerocopy::FromZeroes)
+)]
+#[allow(non_camel_case_types)]
+pub struct kvm_dtable {
+    pub base: u64,
+    pub limit: u16,
+}
+
+#[cfg(not(target_os = "linux"))]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(zerocopy::AsBytes, zerocopy::FromBytes, zerocopy::FromZeroes)
+)]
+#[allow(non_camel_case_types)]
+pub struct kvm_sregs {
+    pub cs: kvm_segment,
+    pub ds: kvm_segment,
+    pub es: kvm_segment,
+    pub fs: kvm_segment,
+    pub gs: kvm_segment,
+    pub ss: kvm_segment,
+    pub tr: kvm_segment,
+    pub ldt: kvm_segment,
+    pub gdt: kvm_dtable,
+    pub idt: kvm_dtable,
+    pub cr0: u64,
+    pub cr3: u64,
+    pub cr4: u64,
+    pub efer: u64,
+}
+
 /// Configure Floating-Point Unit (FPU) registers for a given CPU.
 ///
 /// # Arguments
 ///
 /// * `vcpu` - Structure for the VCPU that holds the VCPU's fd.
+#[cfg(target_os = "linux")]
 pub fn setup_fpu(vcpu: &VcpuFd) -> Result<()> {
     let fpu: kvm_fpu = kvm_fpu {
         fcw: 0x37f,
@@ -62,6 +105,7 @@ pub fn setup_fpu(vcpu: &VcpuFd) -> Result<()> {
 ///
 /// * `vcpu` - Structure for the VCPU that holds the VCPU's fd.
 /// * `boot_ip` - Starting instruction pointer.
+#[cfg(target_os = "linux")]
 pub fn setup_regs(vcpu: &VcpuFd, boot_ip: u64, id: u8) -> Result<()> {
     let regs: kvm_regs = if id == 0 || cfg!(not(feature = "tee")) {
         kvm_regs {
@@ -94,6 +138,7 @@ pub fn setup_regs(vcpu: &VcpuFd, boot_ip: u64, id: u8) -> Result<()> {
 ///
 /// * `mem` - The memory that will be passed to the guest.
 /// * `vcpu` - Structure for the VCPU that holds the VCPU's fd.
+#[cfg(target_os = "linux")]
 pub fn setup_sregs(mem: &GuestMemoryMmap, vcpu: &VcpuFd, id: u8) -> Result<()> {
     let mut sregs: kvm_sregs = vcpu.get_sregs().map_err(Error::GetStatusRegisters)?;
 
@@ -106,6 +151,13 @@ pub fn setup_sregs(mem: &GuestMemoryMmap, vcpu: &VcpuFd, id: u8) -> Result<()> {
     }
 
     vcpu.set_sregs(&sregs).map_err(Error::SetStatusRegisters)
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn init_sregs(mem: &GuestMemoryMmap, sregs: &mut kvm_sregs) -> Result<()> {
+    configure_segments_and_sregs(mem, sregs)?;
+    setup_page_tables(mem, sregs)?;
+    Ok(())
 }
 
 const BOOT_GDT_OFFSET: u64 = 0x500;
@@ -203,6 +255,7 @@ fn setup_page_tables(mem: &GuestMemoryMmap, sregs: &mut kvm_sregs) -> Result<()>
 }
 
 #[cfg(test)]
+#[cfg(target_os = "linux")]
 mod tests {
     use super::*;
     use kvm_ioctls::Kvm;

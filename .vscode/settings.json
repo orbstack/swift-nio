@@ -6,4 +6,5 @@
     "rust-analyzer.cargo.unsetTest": [
         "arch", "arch_gen", "cpuid", "devices", "hvf", "kernel", "libkrun", "polly", "utils", "vmm",
     ],
+    "rust-analyzer.cargo.target": "x86_64-apple-darwin",
 }

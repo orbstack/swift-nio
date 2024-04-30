@@ -18,7 +18,6 @@ use devices::legacy::Gic;
 use devices::BusDevice;
 use kernel::cmdline as kernel_cmdline;
 use polly::event_manager::EventManager;
-#[cfg(target_arch = "aarch64")]
 use utils::eventfd::EventFd;
 
 use crate::vstate::Vm;
@@ -133,6 +132,27 @@ impl MMIODeviceManager {
         self.irq += 1;
 
         Ok(ret)
+    }
+
+    /// Append a registered MMIO device to the kernel cmdline.
+    #[cfg(target_arch = "x86_64")]
+    pub fn add_device_to_cmdline(
+        &mut self,
+        cmdline: &mut kernel_cmdline::Cmdline,
+        mmio_base: u64,
+        irq: u32,
+    ) -> Result<()> {
+        // as per doc, [virtio_mmio.]device=<size>@<baseaddr>:<irq> needs to be appended
+        // to kernel commandline for virtio mmio devices to get recognized
+        // the size parameter has to be transformed to KiB, so dividing hexadecimal value in
+        // bytes to 1024; further, the '{}' formatting rust construct will automatically
+        // transform it to decimal
+        cmdline
+            .insert(
+                "virtio_mmio.device",
+                &format!("{}K@0x{:08x}:{}", MMIO_LEN / 1024, mmio_base, irq),
+            )
+            .map_err(Error::Cmdline)
     }
 
     #[cfg(target_arch = "aarch64")]
@@ -321,6 +341,7 @@ impl DeviceInfoForFDT for MMIODeviceInfo {
 }
 
 #[cfg(test)]
+#[cfg(target_arch = "aarch64")]
 mod tests {
     use super::super::super::builder;
     use super::*;

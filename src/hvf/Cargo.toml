@@ -6,4 +6,9 @@ edition = "2021"
 
 [dependencies]
 crossbeam-channel = "0.5"
+iced-x86 = "1.21.0"
+thiserror = "1.0.59"
 tracing = { version = "0.1.40", features = ["release_max_level_info"] }
+vm-memory = { version = ">=0.13", features = ["backend-mmap"] }
+arch_gen = { path = "../arch_gen" }
+arch = { path = "../arch" }

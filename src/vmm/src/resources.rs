@@ -160,7 +160,7 @@ impl VmResources {
         // Update all the fields that have a new value.
         self.vm_config.vcpu_count = Some(vcpu_count_value);
         self.vm_config.ht_enabled = Some(ht_enabled);
-        self.vm_config.enable_tso = machine_config.enable_tso;
+        self.copy_arch_config(machine_config);
 
         if machine_config.mem_size_mib.is_some() {
             self.vm_config.mem_size_mib = machine_config.mem_size_mib;
@@ -172,6 +172,14 @@ impl VmResources {
 
         Ok(())
     }
+
+    #[cfg(target_arch = "aarch64")]
+    fn copy_arch_config(&mut self, machine_config: &VmConfig) {
+        self.vm_config.enable_tso = machine_config.enable_tso;
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    fn copy_arch_config(&mut self, machine_config: &VmConfig) {}
 
     /// Set the guest boot source configuration.
     pub fn set_boot_source(

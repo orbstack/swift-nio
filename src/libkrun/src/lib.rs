@@ -146,8 +146,14 @@ impl Machine {
         );
         vmr.set_kernel_bundle(KernelBundle {
             host_addr: kernel_bytes.as_ptr() as u64,
+            #[cfg(target_arch = "aarch64")]
             guest_addr: 0x80000000,
+            #[cfg(target_arch = "aarch64")]
             entry_addr: 0x80000000,
+            #[cfg(target_arch = "x86_64")]
+            guest_addr: 0x1000000,
+            #[cfg(target_arch = "x86_64")]
+            entry_addr: 0x1000000,
             size: kernel_bytes.len(),
         })
         .map_err(to_anyhow_error)?;

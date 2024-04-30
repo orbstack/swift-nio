@@ -5,8 +5,8 @@ use super::*;
 use crate::bit_helper::BitHelper;
 use crate::common::get_cpuid;
 
+use crate::model::{kvm_cpuid_entry2, CpuId};
 use crate::transformer::Error::FamError;
-use kvm_bindings::{kvm_cpuid_entry2, CpuId};
 
 // constants for setting the fields of kvm_cpuid2 structures
 // CPUID bits in ebx, ecx, and edx.
@@ -135,8 +135,8 @@ pub fn use_host_cpuid_function(
 mod tests {
     use super::*;
     use crate::common::tests::get_topoext_fn;
+    use crate::model::kvm_cpuid_entry2;
     use crate::transformer::VmSpec;
-    use kvm_bindings::kvm_cpuid_entry2;
 
     #[test]
     fn test_get_max_cpus_per_package() {
@@ -294,7 +294,7 @@ mod tests {
     fn test_use_host_cpuid_function_err() {
         let topoext_fn = get_topoext_fn();
         // check that it returns Err when there are too many entriesentry.function == topoext_fn
-        let mut cpuid = CpuId::new(kvm_bindings::KVM_MAX_CPUID_ENTRIES).unwrap();
+        let mut cpuid = CpuId::new(crate::model::KVM_MAX_CPUID_ENTRIES).unwrap();
         match use_host_cpuid_function(&mut cpuid, topoext_fn, true) {
             Err(Error::FamError(vmm_sys_util::fam::Error::SizeLimitExceeded)) => {}
             _ => panic!("Wrong behavior"),

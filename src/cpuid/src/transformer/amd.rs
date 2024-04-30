@@ -3,7 +3,7 @@
 
 use super::*;
 
-use kvm_bindings::{CpuId, KVM_CPUID_FLAG_SIGNIFCANT_INDEX};
+use crate::model::{CpuId, KVM_CPUID_FLAG_SIGNIFCANT_INDEX};
 
 use crate::bit_helper::BitHelper;
 use crate::cpu_leaf::*;

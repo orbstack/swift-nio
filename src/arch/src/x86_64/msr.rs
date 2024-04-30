@@ -5,21 +5,37 @@
 use std::result;
 
 use arch_gen::x86::msr_index::*;
+#[cfg(target_os = "linux")]
 use kvm_bindings::{kvm_msr_entry, MsrList, Msrs};
+#[cfg(target_os = "linux")]
 use kvm_ioctls::{Kvm, VcpuFd};
 
 #[derive(Debug)]
 /// MSR related errors.
 pub enum Error {
     /// Getting supported MSRs failed.
+    #[cfg(target_os = "linux")]
     GetSupportedModelSpecificRegisters(kvm_ioctls::Error),
     /// Setting up MSRs failed.
+    #[cfg(target_os = "linux")]
     SetModelSpecificRegisters(kvm_ioctls::Error),
     /// Failed to set all MSRs.
     SetModelSpecificRegistersCount,
 }
 
 type Result<T> = result::Result<T, Error>;
+
+#[cfg(not(target_os = "linux"))]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(zerocopy::AsBytes, zerocopy::FromBytes, zerocopy::FromZeroes)
+)]
+#[allow(non_camel_case_types)]
+pub struct kvm_msr_entry {
+    pub index: u32,
+    pub data: u64,
+}
 
 /// MSR range
 struct MsrRange {
@@ -188,7 +204,7 @@ pub const MTRR_ENABLE: u64 = 0x800;
 pub const MTRR_MEM_TYPE_WB: u64 = 0x6;
 
 // Creates and populates required MSR entries for booting Linux on X86_64.
-fn create_boot_msr_entries() -> Vec<kvm_msr_entry> {
+pub fn create_boot_msr_entries() -> Vec<kvm_msr_entry> {
     let msr_entry_default = |msr| kvm_msr_entry {
         index: msr,
         data: 0x0,
@@ -207,11 +223,13 @@ fn create_boot_msr_entries() -> Vec<kvm_msr_entry> {
         msr_entry_default(MSR_LSTAR),
         // end of x86_64 specific code
         msr_entry_default(MSR_IA32_TSC),
+        #[cfg(target_os = "linux")]
         kvm_msr_entry {
             index: MSR_IA32_MISC_ENABLE,
             data: u64::from(MSR_IA32_MISC_ENABLE_FAST_STRING),
             ..Default::default()
         },
+        #[cfg(target_os = "linux")]
         kvm_msr_entry {
             index: MSR_MTRRdefType,
             data: (MTRR_ENABLE | MTRR_MEM_TYPE_WB),
@@ -225,6 +243,7 @@ fn create_boot_msr_entries() -> Vec<kvm_msr_entry> {
 /// # Arguments
 ///
 /// * `vcpu` - Structure for the VCPU that holds the VCPU's fd.
+#[cfg(target_os = "linux")]
 pub fn setup_msrs(vcpu: &VcpuFd) -> Result<()> {
     let entry_vec = create_boot_msr_entries();
     let msrs = Msrs::from_entries(&entry_vec).unwrap();
@@ -244,6 +263,7 @@ pub fn setup_msrs(vcpu: &VcpuFd) -> Result<()> {
 /// # Arguments
 ///
 /// * `kvm_fd` - Structure that holds the KVM's fd.
+#[cfg(target_os = "linux")]
 pub fn supported_guest_msrs(kvm_fd: &Kvm) -> Result<MsrList> {
     let mut msr_list = kvm_fd
         .get_msr_index_list()
@@ -255,6 +275,7 @@ pub fn supported_guest_msrs(kvm_fd: &Kvm) -> Result<MsrList> {
 }
 
 #[cfg(test)]
+#[cfg(target_os = "linux")]
 mod tests {
     use super::*;
     use kvm_ioctls::Kvm;

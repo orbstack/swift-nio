@@ -7,7 +7,31 @@
 
 // For GDT details see arch/x86/include/asm/segment.h
 
+#[cfg(target_os = "linux")]
 use kvm_bindings::kvm_segment;
+
+#[cfg(not(target_os = "linux"))]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(zerocopy::AsBytes, zerocopy::FromBytes, zerocopy::FromZeroes)
+)]
+#[allow(non_camel_case_types)]
+pub struct kvm_segment {
+    pub base: u64,
+    pub limit: u32,
+    pub selector: u16,
+    pub type_: u8,
+    pub present: u8,
+    pub dpl: u8,
+    pub db: u8,
+    pub s: u8,
+    pub l: u8,
+    pub g: u8,
+    pub avl: u8,
+    pub unusable: u8,
+    pub padding: u8,
+}
 
 /// Constructor for a conventional segment GDT (or LDT) entry. Derived from the kernel's segment.h.
 pub fn gdt_entry(flags: u16, base: u32, limit: u32) -> u64 {
@@ -58,6 +82,24 @@ fn get_s(entry: u64) -> u8 {
 
 fn get_type(entry: u64) -> u8 {
     ((entry & 0x0000_0F00_0000_0000) >> 40) as u8
+}
+
+pub fn encode_kvm_segment(segment: &kvm_segment) -> u64 {
+    let mut entry: u64 = 0;
+    entry |= segment.base as u64;
+    entry |= ((segment.limit & 0xFFFF) as u64) << 16;
+    entry |= ((segment.selector & 0xFFFF) as u64) << 32;
+    entry |= ((segment.type_ & 0xF) as u64) << 40;
+    entry |= ((segment.present & 0x1) as u64) << 47;
+    entry |= ((segment.dpl & 0x3) as u64) << 45;
+    entry |= ((segment.db & 0x1) as u64) << 44;
+    entry |= ((segment.s & 0x1) as u64) << 43;
+    entry |= ((segment.l & 0x1) as u64) << 42;
+    entry |= ((segment.g & 0x1) as u64) << 41;
+    entry |= ((segment.avl & 0x1) as u64) << 52;
+    entry |= ((segment.unusable & 0xFF) as u64) << 48;
+    entry |= ((segment.padding & 0xFF) as u64) << 56;
+    entry
 }
 
 /// Automatically build the kvm struct for SET_SREGS from the kernel bit fields.

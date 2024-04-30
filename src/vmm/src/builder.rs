@@ -59,7 +59,7 @@ use nix::unistd::isatty;
 use polly::event_manager::{Error as EventManagerError, EventManager};
 use utils::eventfd::EventFd;
 use utils::time::TimestampUs;
-#[cfg(all(target_os = "linux", target_arch = "x86_64", not(feature = "tee")))]
+#[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
 use vm_memory::mmap::GuestRegionMmap;
 #[cfg(not(feature = "efi"))]
 use vm_memory::mmap::MmapRegion;
@@ -471,7 +471,7 @@ pub fn build_microvm(
     #[cfg(target_os = "macos")]
     let intc = Some(Arc::new(Mutex::new(devices::legacy::Gic::new())));
 
-    #[cfg(all(target_os = "linux", target_arch = "x86_64", not(feature = "tee")))]
+    #[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
     let boot_ip: GuestAddress = GuestAddress(kernel_bundle.entry_addr);
     #[cfg(feature = "tee")]
     let boot_ip: GuestAddress = GuestAddress(arch::RESET_VECTOR);
@@ -481,7 +481,7 @@ pub fn build_microvm(
     // while on aarch64 we need to do it the other way around.
     #[cfg(target_arch = "x86_64")]
     {
-        setup_interrupt_controller(&vm)?;
+        setup_interrupt_controller(&mut vm)?;
         attach_legacy_devices(&vm, &mut pio_device_manager)?;
 
         vcpus = create_vcpus_x86_64(
@@ -673,7 +673,7 @@ pub fn build_microvm(
 }
 
 /// Creates GuestMemory of `mem_size_mib` MiB in size.
-#[cfg(all(target_os = "linux", target_arch = "x86_64", not(feature = "tee")))]
+#[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
 pub fn create_guest_memory(
     mem_size_mib: usize,
     kernel_region: MmapRegion,
@@ -829,7 +829,7 @@ pub(crate) fn setup_vm(
 
 /// Sets up the irqchip for a x86_64 microVM.
 #[cfg(target_arch = "x86_64")]
-pub fn setup_interrupt_controller(vm: &Vm) -> std::result::Result<(), StartMicrovmError> {
+pub fn setup_interrupt_controller(vm: &mut Vm) -> std::result::Result<(), StartMicrovmError> {
     vm.setup_irqchip()
         .map_err(Error::Vm)
         .map_err(StartMicrovmError::Internal)
@@ -880,6 +880,7 @@ fn attach_legacy_devices(
         .map_err(Error::LegacyIOBus)
         .map_err(StartMicrovmError::Internal)?;
 
+    #[cfg(target_os = "linux")]
     macro_rules! register_irqfd_evt {
         ($evt: ident, $index: expr) => {{
             vm.fd()
@@ -891,6 +892,11 @@ fn attach_legacy_devices(
                 })
                 .map_err(StartMicrovmError::Internal)?;
         }};
+    }
+
+    #[cfg(target_os = "macos")]
+    macro_rules! register_irqfd_evt {
+        ($evt: ident, $index: expr) => {{}};
     }
 
     register_irqfd_evt!(com_evt_1_3, 4);
@@ -958,7 +964,7 @@ fn attach_legacy_devices(
     Ok(())
 }
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 fn create_vcpus_x86_64(
     vm: &Vm,
     vcpu_config: &VcpuConfig,
@@ -978,6 +984,36 @@ fn create_vcpus_x86_64(
             io_bus.clone(),
             exit_evt.try_clone().map_err(Error::EventFd)?,
             request_ts.clone(),
+        )
+        .map_err(Error::Vcpu)?;
+
+        vcpu.configure_x86_64(guest_mem, entry_addr, vcpu_config)
+            .map_err(Error::Vcpu)?;
+
+        vcpus.push(vcpu);
+    }
+    Ok(vcpus)
+}
+
+#[cfg(all(target_arch = "x86_64", target_os = "macos"))]
+fn create_vcpus_x86_64(
+    vm: &Vm,
+    vcpu_config: &VcpuConfig,
+    guest_mem: &GuestMemoryMmap,
+    entry_addr: GuestAddress,
+    request_ts: TimestampUs,
+    io_bus: &devices::Bus,
+    exit_evt: &EventFd,
+) -> super::Result<Vec<Vcpu>> {
+    let mut vcpus = Vec::with_capacity(vcpu_config.vcpu_count as usize);
+    for cpu_index in 0..vcpu_config.vcpu_count {
+        let mut vcpu = Vcpu::new_x86_64(
+            cpu_index,
+            entry_addr,
+            None,
+            exit_evt.try_clone().map_err(Error::EventFd)?,
+            //io_bus.clone(),
+            guest_mem.clone(),
         )
         .map_err(Error::Vcpu)?;
 

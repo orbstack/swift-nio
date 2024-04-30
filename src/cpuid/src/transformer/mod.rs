@@ -5,7 +5,7 @@ pub mod amd;
 pub mod common;
 pub mod intel;
 
-pub use kvm_bindings::{kvm_cpuid_entry2, CpuId};
+pub use crate::model::{kvm_cpuid_entry2, CpuId};
 
 use crate::brand_string::BrandString;
 use crate::brand_string::Reg as BsReg;
@@ -90,7 +90,7 @@ pub trait CpuidTransformer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kvm_bindings::kvm_cpuid_entry2;
+    use crate::model::kvm_cpuid_entry2;
 
     const PROCESSED_FN: u32 = 1;
     const EXPECTED_INDEX: u32 = 100;

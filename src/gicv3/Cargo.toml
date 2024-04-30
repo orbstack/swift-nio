@@ -10,5 +10,3 @@ derive-where = "1.2.7"
 tracing = { version = "0.1.40", features = ["release_max_level_info"] }
 num = "0.4.1"
 rustc-hash = "1.1.0"
-
-hvf = { path = "../hvf" }

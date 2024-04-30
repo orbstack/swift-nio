@@ -20,8 +20,11 @@ impl Default for Gic {
 
 impl Gic {
     pub fn new() -> Self {
+        #[cfg(target_arch = "aarch64")]
         // Self(Box::<super::v2::UserspaceGicV2>::default())
-        Self(Box::<super::v3::UserspaceGicV3>::default())
+        return Self(Box::<super::v3::UserspaceGicV3>::default());
+        #[cfg(target_arch = "x86_64")]
+        return Self(Box::<super::hvf_apic::HvfApic>::default());
     }
 
     pub fn get_addr(&self) -> u64 {

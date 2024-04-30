@@ -64,6 +64,7 @@ pub fn set_lint(vcpu: &VcpuFd) -> Result<()> {
 }
 
 #[cfg(test)]
+#[cfg(target_os = "linux")]
 mod tests {
     extern crate utils;
 

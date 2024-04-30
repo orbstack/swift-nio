@@ -5,13 +5,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
-mod gdt;
+pub mod gdt;
 /// Contains logic for setting up Advanced Programmable Interrupt Controller (local version).
+#[cfg(target_os = "linux")]
 pub mod interrupts;
 /// Layout for the x86_64 system.
 pub mod layout;
 #[cfg(not(feature = "tee"))]
-mod mptable;
+pub mod mptable;
 /// Logic for configuring x86_64 model specific registers (MSRs).
 pub mod msr;
 /// Logic for configuring x86_64 registers.
