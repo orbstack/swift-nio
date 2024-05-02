@@ -34,7 +34,7 @@ import (
 )
 
 // prevent loop when domain keeps resolving to same CNAME
-const maxCnameRecursion = 5
+const maxCnameRecursion = 16
 
 var (
 	queryMap   = map[uint64]*queryState{}
