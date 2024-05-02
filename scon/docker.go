@@ -604,6 +604,8 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			"--service-cidr", netconf.K8sServiceCIDR4 + "," + netconf.K8sServiceCIDR6,
 			"--kube-controller-manager-arg", "node-cidr-mask-size-ipv4=" + netconf.K8sNodeCIDRMaskSize4,
 			"--kube-controller-manager-arg", "node-cidr-mask-size-ipv6=" + netconf.K8sNodeCIDRMaskSize6,
+			"--tls-san", "k8s.orb.local",
+			"--tls-san", "docker.orb.local",
 			"--write-kubeconfig", "/run/kubeconfig.yml",
 		}
 		if conf.Debug() {
