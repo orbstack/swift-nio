@@ -18,9 +18,7 @@ target_exe="Library/Apple/usr/libexec/oah/RosettaLinux/rosetta"
 
 echo -ne 'orb\x00rosetta\x00fp' > header
 
-for from_pkg in $(cat src_pkgs); do
-    ./generate-one.sh "cache/$from_pkg" "$target_exe"
-done
+cat src_pkgs | parallel "./generate-one.sh 'cache/{}' '$target_exe'"
 
 target_fp="$(cat header "$target_exe" | b3sum --no-names)"
 touch "/out/$target_fp"
