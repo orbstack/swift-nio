@@ -1239,7 +1239,10 @@ fn attach_net_devices<'a>(
     net_devices: impl Iterator<Item = &'a Arc<Mutex<Net>>>,
     intc: Option<Arc<Mutex<Gic>>>,
 ) -> Result<(), StartMicrovmError> {
+    info!("Attaching network devices");
     for net_device in net_devices {
+        vmm.exit_observers.push(net_device.clone());
+
         let id = net_device.lock().unwrap().id().to_string();
 
         if let Some(ref intc) = intc {

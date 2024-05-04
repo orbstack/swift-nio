@@ -13,7 +13,7 @@ use std::os::fd::AsRawFd;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::{cmp, mem, result};
 use utils::epoll::{ControlOperation, Epoll, EpollEvent, EventSet};
 use utils::eventfd::EventFd;
@@ -50,6 +50,8 @@ pub struct NetWorker {
     tx_iovec: Vec<(GuestAddress, usize)>,
     tx_frame_buf: [u8; MAX_BUFFER_SIZE],
     tx_frame_len: usize,
+
+    stop_evt: EventFd,
 }
 
 impl NetWorker {
@@ -63,6 +65,7 @@ impl NetWorker {
         irq_line: Option<u32>,
         mem: GuestMemoryMmap,
         cfg_backend: VirtioNetBackend,
+        stop_evt: EventFd,
     ) -> Self {
         let backend = match cfg_backend {
             VirtioNetBackend::Passt(fd) => Box::new(Passt::new(fd)) as Box<dyn NetBackend + Send>,
@@ -92,11 +95,13 @@ impl NetWorker {
             tx_frame_buf: [0u8; MAX_BUFFER_SIZE],
             tx_frame_len: 0,
             tx_iovec: Vec::with_capacity(QUEUE_SIZE as usize),
+
+            stop_evt,
         }
     }
 
-    pub fn run(self) {
-        thread::spawn(|| self.work());
+    pub fn run(self) -> JoinHandle<()> {
+        thread::spawn(|| self.work())
     }
 
     fn work(mut self) {
@@ -118,6 +123,11 @@ impl NetWorker {
         );
         let _ = epoll.ctl(
             ControlOperation::Add,
+            self.stop_evt.as_raw_fd(),
+            &EpollEvent::new(EventSet::IN, self.stop_evt.as_raw_fd() as u64),
+        );
+        let _ = epoll.ctl(
+            ControlOperation::Add,
             backend_socket,
             &EpollEvent::new(
                 EventSet::IN | EventSet::OUT | EventSet::EDGE_TRIGGERED | EventSet::READ_HANG_UP,
@@ -125,7 +135,7 @@ impl NetWorker {
             ),
         );
 
-        loop {
+        'main: loop {
             let mut epoll_events = vec![EpollEvent::new(EventSet::empty(), 0); 32];
             match epoll.wait(epoll_events.len(), -1, epoll_events.as_mut_slice()) {
                 Ok(ev_cnt) => {
@@ -138,6 +148,9 @@ impl NetWorker {
                             }
                             EventSet::IN if source == virtq_tx_ev_fd => {
                                 self.process_tx_queue_event();
+                            }
+                            EventSet::IN if source == self.stop_evt.as_raw_fd() => {
+                                break 'main;
                             }
                             _ if source == backend_socket => {
                                 if event_set.contains(EventSet::HANG_UP)

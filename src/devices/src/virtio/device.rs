@@ -5,7 +5,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
-use std::sync::{atomic::AtomicUsize, Arc};
+use std::{
+    any::type_name,
+    sync::{atomic::AtomicUsize, Arc},
+};
 
 use super::{ActivateResult, Queue};
 use crate::virtio::AsAny;
@@ -137,6 +140,10 @@ pub trait HvcDevice: Send + Sync {
 }
 
 pub trait VmmExitObserver: Send {
+    fn type_name(&self) -> &'static str {
+        type_name::<Self>()
+    }
+
     /// Callback to finish processing or cleanup the device resources
     fn on_vmm_exit(&mut self) {}
 }

@@ -8,7 +8,7 @@ use crate::legacy::Gic;
 use crate::virtio::net::{Error, Result};
 use crate::virtio::net::{QUEUE_SIZES, RX_INDEX, TX_INDEX};
 use crate::virtio::queue::Error as QueueError;
-use crate::virtio::{ActivateResult, DeviceState, Queue, VirtioDevice, TYPE_NET};
+use crate::virtio::{ActivateResult, DeviceState, Queue, VirtioDevice, VmmExitObserver, TYPE_NET};
 use crate::Error as DeviceError;
 
 use super::backend::{ReadError, WriteError};
@@ -20,6 +20,7 @@ use std::os::fd::RawFd;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 use utils::eventfd::{EventFd, EFD_NONBLOCK};
 use virtio_bindings::virtio_net::{
     VIRTIO_NET_F_CSUM, VIRTIO_NET_F_GUEST_CSUM, VIRTIO_NET_F_GUEST_TSO4, VIRTIO_NET_F_GUEST_UFO,
@@ -83,6 +84,7 @@ pub struct Net {
 
     interrupt_status: Arc<AtomicUsize>,
     interrupt_evt: EventFd,
+    stop_evt: EventFd,
 
     pub(crate) device_state: DeviceState,
 
@@ -90,6 +92,8 @@ pub struct Net {
     irq_line: Option<u32>,
 
     config: VirtioNetConfig,
+
+    worker_thread: Option<JoinHandle<()>>,
 }
 
 impl Net {
@@ -132,6 +136,7 @@ impl Net {
 
             interrupt_status: Arc::new(AtomicUsize::new(0)),
             interrupt_evt: EventFd::new(EFD_NONBLOCK).map_err(Error::EventFd)?,
+            stop_evt: EventFd::new(EFD_NONBLOCK).map_err(Error::EventFd)?,
 
             device_state: DeviceState::Inactive,
 
@@ -139,6 +144,7 @@ impl Net {
             irq_line: None,
 
             config,
+            worker_thread: None,
         })
     }
 
@@ -234,8 +240,9 @@ impl VirtioDevice for Net {
             self.irq_line,
             mem.clone(),
             self.cfg_backend.clone(),
+            self.stop_evt.try_clone().unwrap(),
         );
-        worker.run();
+        self.worker_thread = Some(worker.run());
 
         self.device_state = DeviceState::Activated(mem);
         Ok(())
@@ -246,5 +253,18 @@ impl VirtioDevice for Net {
             DeviceState::Inactive => false,
             DeviceState::Activated(_) => true,
         }
+    }
+}
+
+impl VmmExitObserver for Net {
+    fn on_vmm_exit(&mut self) {
+        info!("Shutting down net");
+        self.stop_evt.write(1).unwrap();
+        if let Some(thread) = self.worker_thread.take() {
+            info!("Joining on net");
+            let _ = thread.join();
+        }
+
+        info!("Done shutting down net");
     }
 }

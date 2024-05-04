@@ -368,16 +368,13 @@ impl Vmm {
     }
 
     /// Waits for all vCPUs to exit.
-    pub fn wait_for_vcpus_to_exit(&mut self, exit_code: i32) {
-        info!("Vmm is stopping.");
-
-        // TODO: Expose `exit_code`
-
+    pub fn wait_for_vcpus_to_exit(&mut self) {
         for observer in &self.exit_observers {
-            observer
-                .lock()
-                .expect("Poisoned mutex for exit observer")
-                .on_vmm_exit();
+            let mut observer = observer.lock().expect("Poisoned mutex for exit observer");
+
+            info!("Calling exit observer: {:?}", observer.type_name());
+            observer.on_vmm_exit();
+            info!("Finished calling exit observer: {:?}", observer.type_name());
         }
     }
 
@@ -427,20 +424,7 @@ impl Subscriber for Vmm {
 
         if source == self.exit_evt.as_raw_fd() && event_set == EventSet::IN {
             let _ = self.exit_evt.read();
-            // Query each vcpu for the exit_code.
-            // If the exit_code can't be found on any vcpu, it means that the exit signal
-            // has been issued by the i8042 controller in which case we exit with
-            // FC_EXIT_CODE_OK.
-            let exit_code = self
-                .vcpus_handles
-                .iter()
-                .find_map(|handle| match handle.response_receiver().try_recv() {
-                    Ok(VcpuResponse::Exited(exit_code)) => Some(exit_code),
-                    _ => None,
-                })
-                .unwrap_or(FC_EXIT_CODE_OK);
-
-            self.wait_for_vcpus_to_exit(i32::from(exit_code));
+            self.wait_for_vcpus_to_exit();
         } else {
             error!("Spurious EventManager event for handler: Vmm");
         }
