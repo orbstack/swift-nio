@@ -389,7 +389,6 @@ pub struct Vcpu {
     event_sender: Option<Sender<VcpuEvent>>,
 
     intc: Arc<Mutex<Gic>>,
-    is_parked: Arc<AtomicBool>,
 }
 
 impl Vcpu {
@@ -481,7 +480,6 @@ impl Vcpu {
             event_receiver,
             event_sender: Some(event_sender),
             intc,
-            is_parked: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -674,7 +672,6 @@ impl Vcpu {
             hvf_vcpuid,
             WfeThread {
                 thread: thread::current(),
-                is_parked: self.is_parked.clone(),
             },
         );
 
@@ -721,13 +718,11 @@ impl Vcpu {
 
     fn wait_for_event(&mut self, hvf_vcpuid: u64, timeout: Option<Duration>) {
         if self.intc.lock().unwrap().vcpu_should_wait(hvf_vcpuid) {
-            self.is_parked.store(true, Ordering::Relaxed);
             if let Some(timeout) = timeout {
                 thread::park_timeout(timeout);
             } else {
                 thread::park();
             }
-            self.is_parked.store(false, Ordering::Relaxed);
         }
     }
 

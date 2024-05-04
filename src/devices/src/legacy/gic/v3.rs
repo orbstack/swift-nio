@@ -124,14 +124,6 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
         hvf::vcpu_request_exit(pe.0).unwrap();
     }
 
-    fn is_vcpu_parked(&mut self, pe: PeId) -> bool {
-        self.wakers
-            .get(&pe)
-            .unwrap()
-            .is_parked
-            .load(Ordering::Relaxed)
-    }
-
     // https://developer.arm.com/documentation/ddi0595/2021-12/AArch64-Registers/MPIDR-EL1--Multiprocessor-Affinity-Register
     fn get_affinity(&mut self, pe: PeId) -> Affinity {
         let mpidr = BitPack(hvf::vcpu_read_mpidr(pe.0).unwrap());

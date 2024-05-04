@@ -8,7 +8,6 @@ use crate::bus::BusDevice;
 #[derive(Debug)]
 pub struct WfeThread {
     pub thread: Thread,
-    pub is_parked: Arc<AtomicBool>,
 }
 
 pub struct Gic(Box<dyn UserspaceGicImpl>);
