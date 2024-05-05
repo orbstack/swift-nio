@@ -326,6 +326,30 @@ impl Vm {
     pub fn get_parker(&self) -> Arc<Parker> {
         self.parker.clone()
     }
+
+    pub fn get_kick_handle(&self) -> VmKickHandle<'_> {
+        VmKickHandle {
+            vcpu_ids: &self.parker.vcpu_ids,
+            hvf_vm: &self.hvf_vm,
+        }
+    }
+
+    pub fn destroy_hvf(&self) {
+        self.hvf_vm.destroy();
+    }
+}
+
+pub struct VmKickHandle<'a> {
+    vcpu_ids: &'a Mutex<Vec<u64>>,
+    hvf_vm: &'a HvfVm,
+}
+
+impl VmKickHandle<'_> {
+    // HACK: See `wait_for_vcpus_to_exit` for details
+    pub fn kick_every_hvf_vcpu(&self) {
+        let mut vcpu_ids = self.vcpu_ids.lock().unwrap();
+        self.hvf_vm.force_exits(&mut vcpu_ids).unwrap();
+    }
 }
 
 /// Encapsulates configuration parameters for the guest vCPUS.
@@ -692,6 +716,7 @@ impl Vcpu {
         }
 
         parker.mark_can_no_longer_park();
+        hvf_vcpu.destroy();
     }
 
     fn wait_for_event(&mut self, hvf_vcpuid: u64, timeout: Option<Duration>) {
@@ -777,11 +802,16 @@ impl VcpuHandle {
         Ok(())
     }
 
+    pub fn thread(&self) -> &Thread {
+        self.vcpu_thread.thread()
+    }
+
     pub fn join(self) {
         info!(
             "Joining on vcpu thread: {:?}",
             self.vcpu_thread.thread().name()
         );
+
         let _ = self.vcpu_thread.join();
     }
 }

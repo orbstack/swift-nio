@@ -21,7 +21,7 @@ use std::thread::Thread;
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
-use tracing::debug;
+use tracing::{debug, error};
 
 extern "C" {
     pub fn mach_absolute_time() -> u64;
@@ -247,6 +247,13 @@ impl HvfVm {
             Err(Error::VcpuRequestExit)
         } else {
             Ok(())
+        }
+    }
+
+    pub fn destroy(&self) {
+        let res = unsafe { hv_vm_destroy() };
+        if res != 0 {
+            error!("Failed to destroy HVF VM: {res}");
         }
     }
 }
@@ -648,6 +655,13 @@ impl<'a> HvfVcpu<'a> {
                     pc
                 );
             }
+        }
+    }
+
+    pub fn destroy(self) {
+        let err = unsafe { hv_vcpu_destroy(self.vcpuid) };
+        if err != 0 {
+            error!("Failed to destroy vcpu: {err}");
         }
     }
 }
