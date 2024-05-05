@@ -15,7 +15,6 @@ use std::thread::{self, Thread};
 use std::time::Duration;
 
 use super::super::TimestampUs;
-use super::super::{FC_EXIT_CODE_GENERIC_ERROR, FC_EXIT_CODE_OK};
 use super::barrier::BreakableBarrier;
 use crate::vmm_config::machine_config::CpuFeaturesTemplate;
 
@@ -364,10 +363,6 @@ pub struct Vcpu {
     event_receiver: Receiver<VcpuEvent>,
     // The transmitting end of the events channel which will be given to the handler.
     event_sender: Option<Sender<VcpuEvent>>,
-    // The receiving end of the responses channel which will be given to the handler.
-    response_receiver: Option<Receiver<VcpuResponse>>,
-    // The transmitting end of the responses channel owned by the vcpu side.
-    response_sender: Sender<VcpuResponse>,
 
     intc: Arc<Mutex<Gic>>,
     is_parked: Arc<AtomicBool>,
@@ -448,7 +443,6 @@ impl Vcpu {
         intc: Arc<Mutex<Gic>>,
     ) -> Result<Self> {
         let (event_sender, event_receiver) = unbounded();
-        let (response_sender, response_receiver) = unbounded();
 
         Ok(Vcpu {
             id,
@@ -462,8 +456,6 @@ impl Vcpu {
             mpidr: 0,
             event_receiver,
             event_sender: Some(event_sender),
-            response_receiver: Some(response_receiver),
-            response_sender,
             intc,
             is_parked: Arc::new(AtomicBool::new(false)),
         })
@@ -511,7 +503,6 @@ impl Vcpu {
     /// The handle can be used to control the remote vcpu.
     pub fn start_threaded(mut self, parker: Arc<Parker>) -> Result<VcpuHandle> {
         let event_sender = self.event_sender.take().unwrap();
-        let response_receiver = self.response_receiver.take().unwrap();
         let (init_tls_sender, init_tls_receiver) = unbounded();
 
         let vcpu_thread = thread::Builder::new()
@@ -532,11 +523,7 @@ impl Vcpu {
             .recv()
             .expect("Error waiting for TLS initialization.");
 
-        Ok(VcpuHandle::new(
-            event_sender,
-            response_receiver,
-            vcpu_thread,
-        ))
+        Ok(VcpuHandle::new(event_sender, vcpu_thread))
     }
 
     /// Returns error or enum specifying whether emulation was handled or interrupted.
@@ -693,12 +680,12 @@ impl Vcpu {
                 }
                 // The guest was rebooted or halted.
                 Ok(VcpuEmulation::Stopped) => {
-                    self.exit(FC_EXIT_CODE_OK);
+                    self.exit();
                     break;
                 }
                 // Emulation errors lead to vCPU exit.
                 Err(_) => {
-                    self.exit(FC_EXIT_CODE_GENERIC_ERROR);
+                    self.exit();
                     break;
                 }
             }
@@ -721,12 +708,8 @@ impl Vcpu {
 
     fn wait_for_resume(&mut self) {}
 
-    fn exit(&mut self, exit_code: u8) {
-        tracing::info!("VCPU exiting with code {exit_code:?}");
-
-        self.response_sender
-            .send(VcpuResponse::Exited(exit_code))
-            .expect("failed to send Exited status");
+    fn exit(&mut self) {
+        tracing::info!("VCPU exiting");
 
         if let Err(e) = self.exit_evt.write(1) {
             error!("Failed signaling vcpu exit event: {}", e);
@@ -766,18 +749,14 @@ pub enum VcpuResponse {
 /// Wrapper over Vcpu that hides the underlying interactions with the Vcpu thread.
 pub struct VcpuHandle {
     event_sender: Sender<VcpuEvent>,
-    response_receiver: Receiver<VcpuResponse>,
+    vcpu_thread: thread::JoinHandle<()>,
 }
 
 impl VcpuHandle {
-    pub fn new(
-        event_sender: Sender<VcpuEvent>,
-        response_receiver: Receiver<VcpuResponse>,
-        _vcpu_thread: thread::JoinHandle<()>,
-    ) -> Self {
+    pub fn new(event_sender: Sender<VcpuEvent>, vcpu_thread: thread::JoinHandle<()>) -> Self {
         Self {
             event_sender,
-            response_receiver,
+            vcpu_thread,
         }
     }
 
@@ -798,8 +777,12 @@ impl VcpuHandle {
         Ok(())
     }
 
-    pub fn response_receiver(&self) -> &Receiver<VcpuResponse> {
-        &self.response_receiver
+    pub fn join(self) {
+        info!(
+            "Joining on vcpu thread: {:?}",
+            self.vcpu_thread.thread().name()
+        );
+        let _ = self.vcpu_thread.join();
     }
 }
 
