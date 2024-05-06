@@ -8,7 +8,7 @@
 #[allow(non_upper_case_globals)]
 #[allow(deref_nullptr)]
 mod bindings;
-mod bsd;
+mod reg_init;
 
 use arch::x86_64::gdt::encode_kvm_segment;
 use arch::x86_64::mptable::APIC_DEFAULT_PHYS_BASE;
