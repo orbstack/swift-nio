@@ -6,12 +6,12 @@ use std::{
 
 use libc::{
     attrlist, getattrlistbulk, ATTR_BIT_MAP_COUNT, ATTR_CMNEXT_EXT_FLAGS, ATTR_CMN_ACCESSMASK,
-    ATTR_CMN_ACCTIME, ATTR_CMN_CHGTIME, ATTR_CMN_DEVID, ATTR_CMN_FILEID, ATTR_CMN_FLAGS,
-    ATTR_CMN_GRPID, ATTR_CMN_MODTIME, ATTR_CMN_NAME, ATTR_CMN_OBJTYPE, ATTR_CMN_OWNERID,
-    ATTR_CMN_RETURNED_ATTRS, ATTR_DIR_ALLOCSIZE, ATTR_DIR_DATALENGTH, ATTR_DIR_ENTRYCOUNT,
-    ATTR_DIR_IOBLOCKSIZE, ATTR_DIR_MOUNTSTATUS, ATTR_FILE_DATAALLOCSIZE, ATTR_FILE_DATALENGTH,
-    ATTR_FILE_DEVTYPE, ATTR_FILE_IOBLOCKSIZE, ATTR_FILE_LINKCOUNT, DIR_MNTSTATUS_MNTPOINT,
-    FSOPT_ATTR_CMN_EXTENDED,
+    ATTR_CMN_ACCTIME, ATTR_CMN_CHGTIME, ATTR_CMN_CRTIME, ATTR_CMN_DEVID, ATTR_CMN_FILEID,
+    ATTR_CMN_FLAGS, ATTR_CMN_GRPID, ATTR_CMN_MODTIME, ATTR_CMN_NAME, ATTR_CMN_OBJTYPE,
+    ATTR_CMN_OWNERID, ATTR_CMN_RETURNED_ATTRS, ATTR_DIR_ALLOCSIZE, ATTR_DIR_DATALENGTH,
+    ATTR_DIR_ENTRYCOUNT, ATTR_DIR_IOBLOCKSIZE, ATTR_DIR_MOUNTSTATUS, ATTR_FILE_DATAALLOCSIZE,
+    ATTR_FILE_DATALENGTH, ATTR_FILE_DEVTYPE, ATTR_FILE_IOBLOCKSIZE, ATTR_FILE_LINKCOUNT,
+    DIR_MNTSTATUS_MNTPOINT, FSOPT_ATTR_CMN_EXTENDED,
 };
 use nix::errno::Errno;
 use smallvec::SmallVec;
@@ -66,6 +66,7 @@ pub fn list_dir<T: AsRawFd>(
             | ATTR_CMN_NAME
             | ATTR_CMN_DEVID
             | ATTR_CMN_OBJTYPE
+            //| ATTR_CMN_CRTIME
             | ATTR_CMN_MODTIME
             | ATTR_CMN_CHGTIME
             | ATTR_CMN_ACCTIME
@@ -166,6 +167,13 @@ pub fn list_dir<T: AsRawFd>(
                     }
                 };
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
+            }
+
+            if returned.commonattr & ATTR_CMN_CRTIME != 0 {
+                let time = unsafe { (entry_p as *const libc::timespec).read_unaligned() };
+                st.st_birthtime = time.tv_sec;
+                st.st_birthtime_nsec = time.tv_nsec;
+                entry_p = unsafe { entry_p.add(size_of::<libc::timespec>()) };
             }
 
             if returned.commonattr & ATTR_CMN_MODTIME != 0 {
