@@ -663,14 +663,13 @@ impl PassthroughFs {
             nodeid
         };
 
+        // root generation must be zero
+        // for other inodes, we ignore st_gen because getattrlistbulk (readdirplus) doesn't support it, so returning it here would break revalidate
+        st.st_gen = 0;
+
         Ok(Entry {
             nodeid,
-            // root generation must be zero
-            generation: if nodeid == fuse::ROOT_ID {
-                0
-            } else {
-                st.st_gen as u64
-            },
+            generation: 0,
             attr: st,
             attr_timeout: self.cfg.attr_timeout,
             entry_timeout: self.cfg.entry_timeout,
