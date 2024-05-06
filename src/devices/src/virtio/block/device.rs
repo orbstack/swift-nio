@@ -18,7 +18,6 @@ use std::path::PathBuf;
 use std::result;
 use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
-use std::thread::JoinHandle;
 
 use libc::{fpunchhole_t, off_t};
 use tracing::{error, warn};
@@ -226,7 +225,6 @@ pub struct Block {
     disk_image_path: String,
     is_disk_read_only: bool,
     worker: Option<BlockWorker>,
-    worker_stopfd: EventFd,
 
     // Virtio fields.
     pub(crate) avail_features: u64,
@@ -310,7 +308,6 @@ impl Block {
             intc: None,
             irq_line: None,
             worker: None,
-            worker_stopfd: EventFd::new(EFD_NONBLOCK)?,
         })
     }
 
@@ -421,14 +418,12 @@ impl VirtioDevice for Block {
 
         let worker = BlockWorker::new(
             self.queues[0].clone(),
-            self.queue_evts[0].try_clone().unwrap(),
             self.interrupt_status.clone(),
             self.interrupt_evt.try_clone().unwrap(),
             self.intc.clone(),
             self.irq_line,
             mem.clone(),
             disk,
-            self.worker_stopfd.try_clone().unwrap(),
         );
         self.worker = Some(worker);
 

@@ -6,12 +6,10 @@
 #[cfg(target_os = "macos")]
 use crossbeam_channel::{unbounded, Sender};
 use std::fmt::{Display, Formatter};
-use std::fs::File;
 use std::io;
 #[cfg(target_os = "linux")]
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use super::{Error, Vmm};
@@ -33,14 +31,12 @@ use hvf::MemoryMapping;
 use kbs_types::Tee;
 
 use crate::device_manager;
-use crate::macos::Parker;
 #[cfg(feature = "tee")]
 use crate::resources::TeeConfig;
 #[cfg(target_os = "linux")]
 use crate::signal_handler::register_sigint_handler;
 #[cfg(target_os = "linux")]
 use crate::signal_handler::register_sigwinch_handler;
-use crate::terminal::term_set_raw_mode;
 #[cfg(feature = "blk")]
 use crate::vmm_config::block::BlockBuilder;
 use crate::vmm_config::boot_source::DEFAULT_KERNEL_CMDLINE;
@@ -1022,7 +1018,7 @@ fn create_vcpus_aarch64(
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 fn create_vcpus_aarch64(
-    vm: &mut Vm,
+    _vm: &mut Vm,
     vcpu_config: &VcpuConfig,
     guest_mem: &GuestMemoryMmap,
     entry_addr: GuestAddress,
@@ -1152,10 +1148,6 @@ fn attach_console_devices(
         let stdin_is_terminal = isatty(STDIN_FILENO).unwrap_or(false);
         let stdout_is_terminal = isatty(STDOUT_FILENO).unwrap_or(false);
         let stderr_is_terminal = isatty(STDERR_FILENO).unwrap_or(false);
-
-        // if let Err(e) = term_set_raw_mode(!stdin_is_terminal) {
-        //     tracing::error!("Failed to set terminal to raw mode: {e}")
-        // }
 
         let console_input = if stdin_is_terminal {
             Some(port_io::stdin().unwrap())

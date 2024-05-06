@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::atomic::{AtomicBool, Ordering},
-    thread::Thread,
-};
+use std::collections::HashMap;
 
 use super::{UserspaceGicImpl, WfeThread};
 

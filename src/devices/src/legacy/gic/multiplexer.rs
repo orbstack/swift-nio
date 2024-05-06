@@ -1,10 +1,7 @@
 // Copyright 2021 Red Hat, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    sync::{atomic::AtomicBool, Arc},
-    thread::Thread,
-};
+use std::thread::Thread;
 
 use crate::bus::BusDevice;
 

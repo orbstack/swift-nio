@@ -60,8 +60,6 @@ const STAT_XATTR_KEY: &[u8] = b"user.orbstack.override_stat\0";
 const LINK_AS_CLONE_DIR_JS: &str = "node_modules";
 const LINK_AS_CLONE_DIR_PY: &str = "site-packages";
 
-const UID_MAX: u32 = u32::MAX - 1;
-
 // 2 hours
 // we invalidate via krpc
 const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(2 * 60 * 60);
@@ -129,175 +127,15 @@ enum FileRef<'a> {
     Fd(BorrowedFd<'a>),
 }
 
-fn item_to_value(item: &[u8], radix: u32) -> Option<u32> {
-    match std::str::from_utf8(item) {
-        Ok(val) => match u32::from_str_radix(val, radix) {
-            Ok(i) => Some(i),
-            Err(e) => {
-                debug!("invalid value: {} err={}", radix, e);
-                None
-            }
-        },
-        Err(_) => None,
-    }
-}
-
 fn get_xattr_stat(_file: FileRef) -> io::Result<Option<(u32, u32, u32)>> {
-    /*
-    let mut buf: Vec<u8> = vec![0; 32];
-    let res = match file {
-        StatFile::Path(path) => unsafe {
-            let st = lstat(path, true)?;
-            let options = if (st.st_mode & libc::S_IFMT) == libc::S_IFLNK {
-                libc::XATTR_NOFOLLOW
-            } else {
-                0
-            };
-            libc::getxattr(
-                path.as_ptr(),
-                XATTR_KEY.as_ptr() as *const i8,
-                buf.as_mut_ptr() as *mut libc::c_void,
-                32,
-                0,
-                options,
-            )
-        },
-        StatFile::Fd(fd) => unsafe {
-            let st = fstat(fd, true)?;
-            let options = if (st.st_mode & libc::S_IFMT) == libc::S_IFLNK {
-                libc::XATTR_NOFOLLOW
-            } else {
-                0
-            };
-            libc::fgetxattr(
-                fd,
-                XATTR_KEY.as_ptr() as *const i8,
-                buf.as_mut_ptr() as *mut libc::c_void,
-                64,
-                0,
-                options,
-            )
-        },
-    };
-    if res == -1 {
-        debug!("fget_xattr error: {}", res);
-        return Ok(None);
-    }
-
-    buf.resize(res as usize, 0);
-
-    let mut items = buf.split(|c| *c == b':');
-
-    let uid = match items.next() {
-        Some(item) => match item_to_value(item, 10) {
-            Some(item) => item,
-            None => return Ok(None),
-        },
-        None => return Ok(None),
-    };
-    let gid = match items.next() {
-        Some(item) => match item_to_value(item, 10) {
-            Some(item) => item,
-            None => return Ok(None),
-        },
-        None => return Ok(None),
-    };
-    let mode = match items.next() {
-        Some(item) => match item_to_value(item, 8) {
-            Some(item) => item,
-            None => return Ok(None),
-        },
-        None => return Ok(None),
-    };
-
-    Ok(Some((uid, gid, mode)))
-    */
     Ok(None)
 }
 
-fn is_valid_owner(owner: Option<(u32, u32)>) -> bool {
-    if let Some(owner) = owner {
-        if owner.0 < UID_MAX && owner.1 < UID_MAX {
-            return true;
-        }
-    }
-
-    false
-}
-
-// We won't need this once expressions like "if let ... &&" are allowed.
-#[allow(clippy::unnecessary_unwrap)]
 fn set_xattr_stat(
     _file: FileRef,
     _owner: Option<(u32, u32)>,
     _mode: Option<u32>,
 ) -> io::Result<()> {
-    /*
-    let (new_owner, new_mode) = if is_valid_owner(owner) && mode.is_some() {
-        (owner.unwrap(), mode.unwrap())
-    } else {
-        let (orig_owner, orig_mode) =
-            if let Some((xuid, xgid, xmode)) = get_xattr_stat(file.clone())? {
-                ((xuid, xgid), xmode)
-            } else {
-                ((0, 0), 0o0777)
-            };
-
-        let new_owner = match owner {
-            Some(o) => {
-                let uid = if o.0 < UID_MAX { o.0 } else { orig_owner.0 };
-                let gid = if o.1 < UID_MAX { o.1 } else { orig_owner.1 };
-                (uid, gid)
-            }
-            None => orig_owner,
-        };
-
-        (new_owner, mode.unwrap_or(orig_mode))
-    };
-
-    let buf = format!("{}:{}:0{:o}", new_owner.0, new_owner.1, new_mode);
-
-    let res = match file {
-        StatFile::Path(path) => unsafe {
-            let st = lstat(path, true)?;
-            let options = if (st.st_mode & libc::S_IFMT) == libc::S_IFLNK {
-                libc::XATTR_NOFOLLOW
-            } else {
-                0
-            };
-            libc::setxattr(
-                path.as_ptr(),
-                XATTR_KEY.as_ptr() as *const i8,
-                buf.as_ptr() as *mut libc::c_void,
-                buf.len() as libc::size_t,
-                0,
-                options,
-            )
-        },
-        StatFile::Fd(fd) => unsafe {
-            let st = fstat(fd, true)?;
-            let options = if (st.st_mode & libc::S_IFMT) == libc::S_IFLNK {
-                libc::XATTR_NOFOLLOW
-            } else {
-                0
-            };
-            libc::fsetxattr(
-                fd,
-                XATTR_KEY.as_ptr() as *const i8,
-                buf.as_ptr() as *mut libc::c_void,
-                buf.len() as libc::size_t,
-                0,
-                options,
-            )
-        },
-    };
-
-    if res == -1 {
-        Err(linux_error(io::Error::last_os_error()))
-    } else {
-        Ok(())
-    }
-    */
     Ok(())
 }
 

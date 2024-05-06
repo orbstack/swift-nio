@@ -30,7 +30,6 @@ mod linux;
 use crate::linux::vstate;
 #[cfg(target_os = "macos")]
 mod macos;
-mod terminal;
 
 #[cfg(target_os = "macos")]
 pub use hvf::MemoryMapping;
@@ -49,10 +48,9 @@ use std::time::Duration;
 #[cfg(target_arch = "x86_64")]
 use crate::device_manager::legacy::PortIODeviceManager;
 use crate::device_manager::mmio::MMIODeviceManager;
-use crate::terminal::term_set_canonical_mode;
 #[cfg(target_os = "linux")]
 use crate::vstate::VcpuEvent;
-use crate::vstate::{Vcpu, VcpuHandle, VcpuResponse, Vm};
+use crate::vstate::{Vcpu, VcpuHandle, Vm};
 
 use hvf::Parkable;
 

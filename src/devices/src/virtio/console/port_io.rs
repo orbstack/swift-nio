@@ -5,8 +5,6 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use nix::errno::Errno;
 use nix::poll::{poll, PollFd, PollFlags};
-use nix::unistd::dup;
-use tracing::Level;
 use utils::eventfd::EventFd;
 use utils::eventfd::EFD_NONBLOCK;
 use vm_memory::bitmap::Bitmap;

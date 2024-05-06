@@ -7,7 +7,6 @@
 use std::fs::File;
 #[cfg(feature = "tee")]
 use std::io::BufReader;
-use std::path::PathBuf;
 
 #[cfg(feature = "tee")]
 use serde::{Deserialize, Serialize};

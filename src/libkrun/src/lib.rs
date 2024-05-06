@@ -393,12 +393,6 @@ pub extern "C" fn rsvm_machine_start(ptr: *mut c_void) -> GResultErr {
         Err(e) => GResultErr {
             err: return_owned_cstr(&e.to_string()),
         },
-        Ok(()) => GResultErr {
-            err: std::ptr::null(),
-        },
-        Err(e) => GResultErr {
-            err: return_owned_cstr(&e.to_string()),
-        },
     }
 }
 
