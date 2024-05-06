@@ -85,11 +85,12 @@ impl GicV3 {
             // 12.2.14 ICC_IAR1_EL1, Interrupt Controller Interrupt Acknowledge Register 1
             GicSysReg::ICC_IAR1_EL1 => {
                 let pe_state = self.pe_state(handler, pe);
+                let mut pe_int_state = pe_state.int_state.lock().unwrap();
 
-                let active_int_id = if let Some(active) = pe_state.active_interrupt {
+                let active_int_id = if let Some(active) = pe_int_state.active_interrupt {
                     active
-                } else if let Some(front) = pe_state.pending_interrupts.pop_front() {
-                    pe_state.active_interrupt = Some(front);
+                } else if let Some(front) = pe_int_state.pending_interrupts.pop_front() {
+                    pe_int_state.active_interrupt = Some(front);
                     front
                 } else {
                     InterruptId(1023)

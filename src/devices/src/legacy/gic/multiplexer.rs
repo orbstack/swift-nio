@@ -1,7 +1,7 @@
 // Copyright 2021 Red Hat, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::thread::Thread;
+use std::{any::Any, sync::Mutex, thread::Thread};
 
 use hvf::HvfVm;
 
@@ -49,12 +49,12 @@ impl Gic {
         self.0.register_vcpu(vcpuid, wfe_thread)
     }
 
-    pub fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
-        self.0.vcpu_should_wait(vcpuid)
+    pub fn get_vcpu_handle(&mut self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
+        self.0.get_vcpu_handle(vcpuid)
     }
 
-    pub fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool {
-        self.0.vcpu_has_pending_irq(vcpuid)
+    pub fn downcast_impl<T: 'static>(&mut self) -> Option<&mut T> {
+        self.0.as_any().downcast_mut::<T>()
     }
 }
 
@@ -80,7 +80,15 @@ impl BusDevice for Gic {
     }
 }
 
+pub trait GicVcpuHandle: Send + Sync {
+    fn has_pending_irq(&mut self, gic: &Mutex<Gic>) -> bool;
+
+    fn should_wait(&mut self, gic: &Mutex<Gic>) -> bool;
+}
+
 pub trait UserspaceGicImpl: 'static + Send {
+    fn as_any(&mut self) -> &mut (dyn Any + Send);
+
     // === MMIO === //
 
     fn get_addr(&self) -> u64;
@@ -117,7 +125,5 @@ pub trait UserspaceGicImpl: 'static + Send {
 
     fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread);
 
-    fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool;
-
-    fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool;
+    fn get_vcpu_handle(&mut self, vcpuid: u64) -> Box<dyn GicVcpuHandle>;
 }

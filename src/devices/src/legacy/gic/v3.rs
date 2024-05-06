@@ -1,10 +1,13 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
-use super::{UserspaceGicImpl, WfeThread};
+use super::{Gic, GicVcpuHandle, UserspaceGicImpl, WfeThread};
 
 use arch::aarch64::{gicv3::GICv3, layout::GTIMER_VIRT};
 use gicv3::{
-    device::{Affinity, GicV3EventHandler, InterruptId, PeId},
+    device::{Affinity, GicV3EventHandler, InterruptId, PeId, PeInterruptState},
     mmio::GicSysReg,
     mmio_util::{BitPack, MmioRequest},
 };
@@ -18,6 +21,10 @@ pub struct UserspaceGicV3 {
 const TIMER_INT_ID: InterruptId = InterruptId(GTIMER_VIRT + 16);
 
 impl UserspaceGicImpl for UserspaceGicV3 {
+    fn as_any(&mut self) -> &mut (dyn std::any::Any + Send) {
+        self
+    }
+
     fn get_addr(&self) -> u64 {
         GICv3::mapped_range().start
     }
@@ -90,25 +97,18 @@ impl UserspaceGicImpl for UserspaceGicV3 {
         self.wfe_threads.insert(PeId(vcpuid), wfe_thread);
     }
 
-    fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
-        let vcpuid = PeId(vcpuid);
-        let can_park = !self.gic.is_irq_line_asserted(
-            &mut HvfGicEventHandler {
-                wakers: &mut self.wfe_threads,
-            },
-            vcpuid,
-        );
-
-        can_park
-    }
-
-    fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool {
-        self.gic.is_irq_line_asserted(
-            &mut HvfGicEventHandler {
-                wakers: &mut self.wfe_threads,
-            },
-            PeId(vcpuid),
-        )
+    fn get_vcpu_handle(&mut self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
+        Box::new(GicV3VcpuHandle(
+            self.gic
+                .pe_state(
+                    &mut HvfGicEventHandler {
+                        wakers: &mut self.wfe_threads,
+                    },
+                    PeId(vcpuid),
+                )
+                .int_state
+                .clone(),
+        ))
     }
 }
 
@@ -139,5 +139,17 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
         if int_id == TIMER_INT_ID {
             hvf::vcpu_set_vtimer_mask(pe.0, false).unwrap();
         }
+    }
+}
+
+struct GicV3VcpuHandle(Arc<Mutex<PeInterruptState>>);
+
+impl GicVcpuHandle for GicV3VcpuHandle {
+    fn has_pending_irq(&mut self, _gic: &Mutex<Gic>) -> bool {
+        self.0.lock().unwrap().is_irq_line_asserted()
+    }
+
+    fn should_wait(&mut self, _gic: &Mutex<Gic>) -> bool {
+        !self.0.lock().unwrap().is_irq_line_asserted()
     }
 }

@@ -16,6 +16,10 @@ impl HvfApic {
 }
 
 impl UserspaceGicImpl for HvfApic {
+    fn as_any(&mut self) -> &mut (dyn std::any::Any + Send) {
+        self
+    }
+
     // === MMIO === //
 
     fn get_addr(&self) -> u64 {
@@ -51,11 +55,7 @@ impl UserspaceGicImpl for HvfApic {
         todo!()
     }
 
-    fn vcpu_should_wait(&mut self, _vcpuid: u64) -> bool {
-        false
-    }
-
-    fn vcpu_has_pending_irq(&mut self, _vcpuid: u64) -> bool {
-        false
+    fn get_vcpu_handle(&mut self, _vcpuid: u64) -> Box<dyn super::GicVcpuHandle> {
+        unimplemented!()
     }
 }

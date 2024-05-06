@@ -6,7 +6,10 @@
 
 // === Definitions === //
 
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+};
 
 use rustc_hash::FxHashMap;
 
@@ -171,24 +174,24 @@ pub trait GicV3EventHandler {
 pub struct GicV3 {
     // TODO: Replace with index vectors and, perhaps, perform an SOA transform to make bitmask queries
     //  considerably quicker. Also, a lot of bitmask handling could be done using CTZ.
-    pub(crate) global_int_configs: FxHashMap<InterruptId, InterruptConfig>,
-    pub(crate) local_int_configs: FxHashMap<(PeId, InterruptId), InterruptConfig>,
-    pub(crate) pe_states: FxHashMap<PeId, PeState>,
-    pub(crate) affinity_to_pe: FxHashMap<Affinity, PeId>,
+    pub global_int_configs: FxHashMap<InterruptId, InterruptConfig>,
+    pub local_int_configs: FxHashMap<(PeId, InterruptId), InterruptConfig>,
+    pub pe_states: FxHashMap<PeId, PeState>,
+    pub affinity_to_pe: FxHashMap<Affinity, PeId>,
 
     // TODO: Are these even necessary? Although they're mentioned in the kernel, it looks like they
     // only ever change during boot and it looks like our setup doesn't hit them.
-    pub(crate) enable_are: bool,
-    pub(crate) enable_grp_1: bool,
-    pub(crate) enable_grp_0: bool,
+    pub enable_are: bool,
+    pub enable_grp_1: bool,
+    pub enable_grp_0: bool,
 }
 
 impl GicV3 {
-    pub(crate) fn affinity_to_pe(&self, affinity: Affinity) -> Option<PeId> {
+    pub fn affinity_to_pe(&self, affinity: Affinity) -> Option<PeId> {
         self.affinity_to_pe.get(&affinity).copied()
     }
 
-    pub(crate) fn interrupt_config(&mut self, pe: PeId, id: InterruptId) -> &mut InterruptConfig {
+    pub fn interrupt_config(&mut self, pe: PeId, id: InterruptId) -> &mut InterruptConfig {
         if id.kind() == InterruptKind::PrivatePeripheral {
             self.local_int_configs
                 .entry((pe, id))
@@ -200,11 +203,7 @@ impl GicV3 {
         }
     }
 
-    pub(crate) fn pe_state(
-        &mut self,
-        handler: &mut impl GicV3EventHandler,
-        pe: PeId,
-    ) -> &mut PeState {
+    pub fn pe_state(&mut self, handler: &mut impl GicV3EventHandler, pe: PeId) -> &mut PeState {
         self.pe_states.entry(pe).or_insert_with(|| {
             let affinity = handler.get_affinity(pe);
             let replaced = self.affinity_to_pe.insert(affinity, pe);
@@ -242,7 +241,7 @@ impl GicV3 {
         Self::send_interrupt_inner(handler, pe, pe_state, int_id);
     }
 
-    pub(crate) fn send_interrupt_inner(
+    pub fn send_interrupt_inner(
         handler: &mut impl GicV3EventHandler,
         pe: PeId,
         pe_state: &mut PeState,
@@ -263,18 +262,19 @@ impl GicV3 {
             "Delivering interrupt {int_id:?} of type {:?} to {pe:?}",
             int_id.kind(),
         );
-        pe_state.pending_interrupts.push_front(int_id);
-        handler.kick_vcpu_for_irq(pe);
-    }
+        pe_state
+            .int_state
+            .lock()
+            .unwrap()
+            .pending_interrupts
+            .push_front(int_id);
 
-    pub fn is_irq_line_asserted(&mut self, handler: &mut impl GicV3EventHandler, pe: PeId) -> bool {
-        let pe_state = self.pe_state(handler, pe);
-        !pe_state.pending_interrupts.is_empty() || pe_state.active_interrupt.is_some()
+        handler.kick_vcpu_for_irq(pe);
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct InterruptConfig {
+pub struct InterruptConfig {
     pub trigger: InterruptTrigger,
     pub disabled: bool,
     pub not_forwarded: bool,
@@ -300,12 +300,11 @@ impl InterruptConfig {
 }
 
 #[derive(Debug)]
-pub(crate) struct PeState {
+pub struct PeState {
     pub affinity: Affinity,
     pub min_priority: u8,
     pub is_enabled: bool,
-    pub pending_interrupts: VecDeque<InterruptId>,
-    pub active_interrupt: Option<InterruptId>,
+    pub int_state: Arc<Mutex<PeInterruptState>>,
 }
 
 impl PeState {
@@ -314,8 +313,22 @@ impl PeState {
             affinity,
             min_priority: 0,
             is_enabled: false,
-            pending_interrupts: VecDeque::new(),
-            active_interrupt: None,
+            int_state: Arc::new(Mutex::new(PeInterruptState {
+                pending_interrupts: VecDeque::new(),
+                active_interrupt: None,
+            })),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct PeInterruptState {
+    pub pending_interrupts: VecDeque<InterruptId>,
+    pub active_interrupt: Option<InterruptId>,
+}
+
+impl PeInterruptState {
+    pub fn is_irq_line_asserted(&self) -> bool {
+        !self.pending_interrupts.is_empty() || self.active_interrupt.is_some()
     }
 }

@@ -1,16 +1,18 @@
 // Copyright 2021 Red Hat, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::any::Any;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, VecDeque};
 use std::convert::TryInto;
+use std::sync::Mutex;
 use std::thread::Thread;
 
 use arch::aarch64::gicv2::GICv2;
 use arch::aarch64::layout::GTIMER_VIRT;
 use hvf::{vcpu_request_exit, vcpu_set_vtimer_mask};
 
-use super::{UserspaceGicImpl, WfeThread};
+use super::{Gic, GicVcpuHandle, UserspaceGicImpl, WfeThread};
 
 const IRQ_NUM: u32 = 64;
 const MAX_CPUS: u64 = 8;
@@ -246,6 +248,10 @@ impl UserspaceGicV2 {
 }
 
 impl UserspaceGicImpl for UserspaceGicV2 {
+    fn as_any(&mut self) -> &mut (dyn Any + Send) {
+        self
+    }
+
     // === MMIO === //
 
     fn get_addr(&self) -> u64 {
@@ -330,7 +336,26 @@ impl UserspaceGicImpl for UserspaceGicV2 {
         self.vcpu_count = self.vcpus.len() as u8;
     }
 
-    fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
+    fn get_vcpu_handle(&mut self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
+        Box::new(GicV2VcpuHandle(vcpuid))
+    }
+}
+
+impl UserspaceGicV2 {
+    pub fn has_pending_irq(&mut self, vcpuid: u64) -> bool {
+        assert!(vcpuid < MAX_CPUS);
+        match self.vcpus.entry(vcpuid as u8) {
+            Entry::Vacant(_) => {
+                panic!("Unknown vCPU id: {}", vcpuid);
+            }
+            Entry::Occupied(mut vcpu_entry) => {
+                let vcpu = vcpu_entry.get_mut();
+                !vcpu.pending_irqs.is_empty()
+            }
+        }
+    }
+
+    pub fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
         assert!(vcpuid < MAX_CPUS);
         match self.vcpus.entry(vcpuid as u8) {
             Entry::Vacant(_) => {
@@ -347,17 +372,24 @@ impl UserspaceGicImpl for UserspaceGicV2 {
             }
         }
     }
+}
 
-    fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool {
-        assert!(vcpuid < MAX_CPUS);
-        match self.vcpus.entry(vcpuid as u8) {
-            Entry::Vacant(_) => {
-                panic!("Unknown vCPU id: {}", vcpuid);
-            }
-            Entry::Occupied(mut vcpu_entry) => {
-                let vcpu = vcpu_entry.get_mut();
-                !vcpu.pending_irqs.is_empty()
-            }
-        }
+struct GicV2VcpuHandle(u64);
+
+impl GicVcpuHandle for GicV2VcpuHandle {
+    fn has_pending_irq(&mut self, gic: &Mutex<Gic>) -> bool {
+        gic.lock()
+            .unwrap()
+            .downcast_impl::<UserspaceGicV2>()
+            .unwrap()
+            .has_pending_irq(self.0)
+    }
+
+    fn should_wait(&mut self, gic: &Mutex<Gic>) -> bool {
+        gic.lock()
+            .unwrap()
+            .downcast_impl::<UserspaceGicV2>()
+            .unwrap()
+            .vcpu_should_wait(self.0)
     }
 }

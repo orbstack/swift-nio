@@ -59,12 +59,13 @@ impl GicV3 {
             GicSysReg::ICC_EOIR1_EL1 => {
                 let int_id = InterruptId(BitPack(value).get_range(0, 23) as u32);
                 let pe_state = self.pe_state(handler, pe);
-                assert_eq!(pe_state.active_interrupt, Some(int_id));
+                let mut pe_int_state = pe_state.int_state.lock().unwrap();
+                assert_eq!(pe_int_state.active_interrupt, Some(int_id));
 
-                pe_state.active_interrupt = None;
+                pe_int_state.active_interrupt = None;
                 handler.handle_custom_eoi(pe, int_id);
 
-                if !pe_state.pending_interrupts.is_empty() {
+                if !pe_int_state.pending_interrupts.is_empty() {
                     tracing::trace!("{pe:?} still has interrupts pending; kicking again.");
                     handler.kick_vcpu_for_irq(pe);
                 }

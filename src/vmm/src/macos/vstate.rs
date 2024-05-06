@@ -22,7 +22,7 @@ use arch;
 #[cfg(target_arch = "aarch64")]
 use arch::aarch64::gic::GICDevice;
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use devices::legacy::{Gic, WfeThread};
+use devices::legacy::{Gic, GicVcpuHandle, WfeThread};
 use hvf::{HvfVcpu, HvfVm, ParkError, Parkable, VcpuExit, VcpuId};
 use utils::eventfd::EventFd;
 use vm_memory::{
@@ -619,19 +619,19 @@ impl Vcpu {
 
     /// Returns error or enum specifying whether emulation was handled or interrupted.
     #[cfg(target_arch = "aarch64")]
-    fn run_emulation(&mut self, hvf_vcpu: &mut HvfVcpu) -> Result<VcpuEmulation> {
+    fn run_emulation(
+        &mut self,
+        hvf_vcpu: &mut HvfVcpu,
+        intc_handle: &mut dyn GicVcpuHandle,
+    ) -> Result<VcpuEmulation> {
         let vcpuid = hvf_vcpu.id();
-        let pending_irq = self
-            .intc
-            .lock()
-            .unwrap()
-            .vcpu_has_pending_irq(hvf_vcpu.id());
+        let pending_irq = intc_handle.has_pending_irq(&self.intc);
 
         match hvf_vcpu.run(pending_irq) {
             Ok(exit) => match exit {
                 VcpuExit::Breakpoint => {
                     debug!("vCPU {} breakpoint", vcpuid);
-                    Ok(VcpuEmulation::Interrupted)
+                    Ok(VcpuEmulation::Handled)
                 }
                 VcpuExit::Canceled => {
                     debug!("vCPU {} canceled", vcpuid);
@@ -813,21 +813,11 @@ impl Vcpu {
     }
 
     /// Main loop of the vCPU thread.
+    #[cfg(target_arch = "aarch64")]
     pub fn run(&mut self, parker: Arc<Parker>) {
-        #[cfg(target_arch = "x86_64")]
-        let mut hvf_vcpu = HvfVcpu::new(
-            parker.clone(),
-            self.guest_mem.clone(),
-            &self.hvf_vm,
-            self.vcpu_count,
-            self.ht_enabled,
-        )
-        .expect("Can't create HVF vCPU");
-        #[cfg(target_arch = "aarch64")]
         let mut hvf_vcpu = HvfVcpu::new(parker.clone()).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();
 
-        #[cfg(target_arch = "aarch64")]
         self.intc.lock().unwrap().register_vcpu(
             hvf_vcpuid as u64,
             WfeThread {
@@ -843,31 +833,27 @@ impl Vcpu {
             self.boot_entry_addr
         };
 
-        #[cfg(target_arch = "aarch64")]
         hvf_vcpu
             .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_tso)
-            .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
-
-        #[cfg(target_arch = "x86_64")]
-        hvf_vcpu
-            .set_initial_state(entry_addr, self.boot_receiver.is_some())
             .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
 
         let barrier_break_guard = scopeguard::guard(parker.clone(), |parker| {
             parker.mark_can_no_longer_park();
         });
 
+        let mut intc_vcpu_handle = self.intc.lock().unwrap().get_vcpu_handle(hvf_vcpuid);
+
         loop {
-            match self.run_emulation(&mut hvf_vcpu) {
+            match self.run_emulation(&mut hvf_vcpu, &mut *intc_vcpu_handle) {
                 // Emulation ran successfully, continue.
                 Ok(VcpuEmulation::Handled) => (),
-                // Emulation was interrupted by a breakpoint.
-                Ok(VcpuEmulation::Interrupted) => self.wait_for_resume(),
                 // Wait for an external event.
-                Ok(VcpuEmulation::WaitForEvent) => self.wait_for_event(hvf_vcpuid as u64, None),
+                Ok(VcpuEmulation::WaitForEvent) => {
+                    self.wait_for_event(&mut *intc_vcpu_handle, None)
+                }
                 Ok(VcpuEmulation::WaitForEventExpired) => (),
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
-                    self.wait_for_event(hvf_vcpuid as u64, Some(timeout))
+                    self.wait_for_event(&mut *intc_vcpu_handle, Some(timeout))
                 }
                 // The guest was rebooted or halted.
                 Ok(VcpuEmulation::Stopped) => {
@@ -886,9 +872,59 @@ impl Vcpu {
         hvf_vcpu.destroy();
     }
 
-    fn wait_for_event(&mut self, hvf_vcpuid: u64, timeout: Option<Duration>) {
-        #[cfg(target_arch = "aarch64")]
-        if self.intc.lock().unwrap().vcpu_should_wait(hvf_vcpuid) {
+    /// Main loop of the vCPU thread.
+    #[cfg(target_arch = "x86_64")]
+    pub fn run(&mut self, parker: Arc<Parker>) {
+        let mut hvf_vcpu = HvfVcpu::new(
+            parker.clone(),
+            self.guest_mem.clone(),
+            &self.hvf_vm,
+            self.vcpu_count,
+            self.ht_enabled,
+        )
+        .expect("Can't create HVF vCPU");
+        let hvf_vcpuid = hvf_vcpu.id();
+
+        parker.register_vcpu(hvf_vcpuid, thread::current());
+
+        let entry_addr = if let Some(boot_receiver) = &self.boot_receiver {
+            boot_receiver.recv().unwrap()
+        } else {
+            self.boot_entry_addr
+        };
+
+        hvf_vcpu
+            .set_initial_state(entry_addr, self.boot_receiver.is_some())
+            .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
+
+        let barrier_break_guard = scopeguard::guard(parker.clone(), |parker| {
+            parker.mark_can_no_longer_park();
+        });
+
+        loop {
+            match self.run_emulation(&mut hvf_vcpu) {
+                // Emulation ran successfully, continue.
+                Ok(VcpuEmulation::Handled) => (),
+                // The guest was rebooted or halted.
+                Ok(VcpuEmulation::Stopped) => {
+                    self.exit();
+                    break;
+                }
+                // Emulation errors lead to vCPU exit.
+                Err(_) => {
+                    self.exit();
+                    break;
+                }
+            }
+        }
+
+        drop(barrier_break_guard);
+        hvf_vcpu.destroy();
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    fn wait_for_event(&mut self, intc_handle: &mut dyn GicVcpuHandle, timeout: Option<Duration>) {
+        if intc_handle.should_wait(&self.intc) {
             if let Some(timeout) = timeout {
                 thread::park_timeout(timeout);
             } else {
@@ -896,8 +932,6 @@ impl Vcpu {
             }
         }
     }
-
-    fn wait_for_resume(&mut self) {}
 
     fn exit(&mut self) {
         tracing::info!("VCPU exiting");
@@ -973,10 +1007,12 @@ impl VcpuHandle {
 
 enum VcpuEmulation {
     Handled,
-    Interrupted,
     Stopped,
+    #[cfg(target_arch = "aarch64")]
     WaitForEvent,
+    #[cfg(target_arch = "aarch64")]
     WaitForEventExpired,
+    #[cfg(target_arch = "aarch64")]
     WaitForEventTimeout(Duration),
 }
 
