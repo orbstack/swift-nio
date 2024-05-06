@@ -56,13 +56,35 @@ use super::{
 mod constants;
 use constants::*;
 
+const VCPU_TRACE_EXCEPTIONS: bool = false;
+
+#[derive(Default)]
 struct VmSetupState {
-    state: Vec<()>,
+    cap_halt_exit: u32,
+    cap_monitor_trap: u32,
+    cap_pause_exit: u32,
+    cr0_ones_mask: u32,
+    cr4_ones_mask: u32,
+    cr0_zeros_mask: u32,
+    cr4_zeros_mask: u32,
 }
 
 impl VmSetupState {
-    fn new(cpu_count: usize) -> Self {
-        todo!();
+    // xhyve: src/vmm/intel/vmx.c:468
+    fn vmx_init(&mut self) {
+        // Check support for optional features by testing them as individual bits
+        self.cap_halt_exit = 1;
+        self.cap_monitor_trap = 1;
+        self.cap_pause_exit = 1;
+
+        self.cr0_ones_mask = 0;
+        self.cr4_ones_mask = 0;
+        self.cr0_zeros_mask = 0;
+        self.cr4_zeros_mask = 0;
+
+        self.cr0_ones_mask |= CR0_NE | CR0_ET;
+        self.cr0_zeros_mask |= CR0_NW | CR0_CD;
+        self.cr4_ones_mask = 0x2000;
     }
 
     // xhyve: src/vmm/intel/vmx.c:567
@@ -84,7 +106,9 @@ impl VmSetupState {
         let mut procbased_ctls = 0u32;
         let mut procbased_ctls2 = 0u32;
         let mut exit_ctls = 0u32;
-        self.state[vcpu.id() as usize].entry_ctls = 0;
+
+        let mut hack_entry_ctls = 0;
+        // self.state[vcpu.id() as usize].entry_ctls = 0;
 
         // Check support for primary processor-based VM-execution controls
         // xhyve: src/vmm/intel/vmx.c:603
@@ -150,32 +174,35 @@ impl VmSetupState {
             hv_vmx_capability_t_HV_VMX_CAP_ENTRY,
             VM_ENTRY_CTLS_ONE_SETTING,
             VM_ENTRY_CTLS_ZERO_SETTING,
-            &mut self.state[vcpu.id() as usize].entry_ctls,
+            &mut hack_entry_ctls, // &mut self.state[vcpu.id() as usize].entry_ctls,
         )
         .context("vmx_init: processor does not support desired entry controls")?;
 
         // xhyve: src/vmm/intel/vmx.c:658
-        vcpu.write_vmcs(VMCS_PIN_BASED_CTLS, pinbased_ctls);
-        vcpu.write_vmcs(VMCS_PRI_PROC_BASED_CTLS, procbased_ctls);
-        vcpu.write_vmcs(VMCS_SEC_PROC_BASED_CTLS, procbased_ctls2);
-        vcpu.write_vmcs(VMCS_EXIT_CTLS, exit_ctls);
-        vcpu.write_vmcs(VMCS_ENTRY_CTLS, self.state[vcpu.id() as usize].entry_ctls);
+        vcpu.write_vmcs(VMCS_PIN_BASED_CTLS, pinbased_ctls as u64)?;
+        vcpu.write_vmcs(VMCS_PRI_PROC_BASED_CTLS, procbased_ctls as u64)?;
+        vcpu.write_vmcs(VMCS_SEC_PROC_BASED_CTLS, procbased_ctls2 as u64)?;
+        vcpu.write_vmcs(VMCS_EXIT_CTLS, exit_ctls as u64)?;
+        vcpu.write_vmcs(
+            VMCS_ENTRY_CTLS,
+            hack_entry_ctls as u64, //self.state[vcpu.id() as usize].entry_ctls as u64,
+        )?;
 
         // exception bitmap
         // xhyve: src/vmm/intel/vmx.c:665
-        let exc_bitmap = if vcpu_trace_exceptions() {
+        let exc_bitmap = if VCPU_TRACE_EXCEPTIONS {
             0xffffffff
         } else {
             1 << IDT_MC
         };
 
-        vcpu.write_vmcs(VMCS_EXCEPTION_BITMAP, exc_bitmap);
+        vcpu.write_vmcs(VMCS_EXCEPTION_BITMAP, exc_bitmap)?;
 
         // xhyve: src/vmm/intel/vmx.c:672
-        self.cap[vcpu.id() as usize].set = 0;
-        self.cap[vcpu.id() as usize].proc_ctls = procbased_ctls;
-        self.cap[vcpu.id() as usize].proc_ctls2 = procbased_ctls2;
-        self.state[vcpu.id() as usize].nextrip = !0u64;
+        // self.cap[vcpu.id() as usize].set = 0;
+        // self.cap[vcpu.id() as usize].proc_ctls = procbased_ctls;
+        // self.cap[vcpu.id() as usize].proc_ctls2 = procbased_ctls2;
+        // self.state[vcpu.id() as usize].nextrip = !0u64;
 
         // Set up the CR0/4 shadows, and init the read shadow
         // to the power-on register value from the Intel Sys Arch.
@@ -200,14 +227,14 @@ impl VmSetupState {
         vcpu.enable_native_msr(MSR_KGSBASE)?;
 
         // Initialize guest IA32_PAT MSR with default value after reset.
-        guest_msrs[IDX_MSR_PAT] = PAT_VALUE(0, PAT_WRITE_BACK)
-            | PAT_VALUE(1, PAT_WRITE_THROUGH)
-            | PAT_VALUE(2, PAT_UNCACHED)
-            | PAT_VALUE(3, PAT_UNCACHEABLE)
-            | PAT_VALUE(4, PAT_WRITE_BACK)
-            | PAT_VALUE(5, PAT_WRITE_THROUGH)
-            | PAT_VALUE(6, PAT_UNCACHED)
-            | PAT_VALUE(7, PAT_UNCACHEABLE);
+        // guest_msrs[IDX_MSR_PAT] = Self::pat_value(0, PAT_WRITE_BACK)
+        //     | Self::pat_value(1, PAT_WRITE_THROUGH)
+        //     | Self::pat_value(2, PAT_UNCACHED)
+        //     | Self::pat_value(3, PAT_UNCACHEABLE)
+        //     | Self::pat_value(4, PAT_WRITE_BACK)
+        //     | Self::pat_value(5, PAT_WRITE_THROUGH)
+        //     | Self::pat_value(6, PAT_UNCACHED)
+        //     | Self::pat_value(7, PAT_UNCACHEABLE);
 
         Ok(())
     }
@@ -245,16 +272,35 @@ impl VmSetupState {
             shadow_ident = VMCS_CR4_SHADOW;
         }
 
-        // TODO
-        //     error = vmcs_setreg(vcpuid, VMCS_IDENT(mask_ident), mask_value);
-        //     if (error)
-        //         return (error);
-        //
-        //     error = vmcs_setreg(vcpuid, VMCS_IDENT(shadow_ident), initial);
-        //     if (error)
-        //         return (error);
+        vcpu.write_reg(
+            mask_ident,
+            self.vmcs_fix_regval(mask_ident, mask_value as u64),
+        )?;
+        vcpu.write_reg(
+            shadow_ident,
+            self.vmcs_fix_regval(shadow_ident, initial as u64),
+        )?;
 
         Ok(())
+    }
+
+    // xhyve: src/vmm/intel/vmcs.c:36
+    fn vmcs_fix_regval(&mut self, encoding: u32, val: u64) -> u64 {
+        match encoding {
+            VMCS_GUEST_CR0 => self.vmx_fix_cr0(val),
+            VMCS_GUEST_CR4 => self.vmx_fix_cr4(val),
+            _ => val,
+        }
+    }
+
+    // xhyve: src/vmm/intel/vmx.c:450
+    fn vmx_fix_cr0(&mut self, cr0: u64) -> u64 {
+        (cr0 | self.cr0_ones_mask as u64) & !(self.cr0_zeros_mask as u64)
+    }
+
+    // xhyve: src/vmm/intel/vmx.c:456
+    fn vmx_fix_cr4(&mut self, cr4: u64) -> u64 {
+        (cr4 | self.cr4_ones_mask as u64) & !(self.cr4_zeros_mask as u64)
     }
 
     // xhyve: src/vmm/intel/vmx_msr.c:60
@@ -325,4 +371,25 @@ impl VmSetupState {
     fn vmx_ctl_allows_zero_setting(msr_val: u64, bitpos: u32) -> bool {
         msr_val & (164 << bitpos) != 0
     }
+
+    // xhyve: include/xhyve/support/specialreg.h:535
+    fn pat_value(i: u32, m: u32) -> u64 {
+        (m << (8 * i)) as u64
+    }
+
+    // xhyve: include/xhyve/support/specialreg.h:536
+    fn pat_mask(i: u32) -> u64 {
+        Self::pat_value(i, 0xFF)
+    }
+}
+
+pub fn just_initialize_hvf_already(vcpu: &HvfVcpu) -> Result<(), crate::Error> {
+    let mut state = VmSetupState::default();
+    state.vmx_init();
+    state
+        .vmx_vcpu_init(vcpu)
+        // TODO: Get better errors!
+        .map_err(|_| crate::Error::VcpuCreate)?;
+
+    Ok(())
 }
