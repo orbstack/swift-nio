@@ -44,6 +44,8 @@ pub enum Error {
     MemoryMap,
     #[error("unmap memory")]
     MemoryUnmap,
+    #[error("vcpu read capability")]
+    VcpuReadCapability,
     #[error("create vcpu")]
     VcpuCreate,
     #[error("vcpu set initial registers")]
@@ -430,6 +432,18 @@ impl HvfVcpu {
         let ret = unsafe { hv_vmx_vcpu_read_vmcs(self.vcpuid, field, &mut val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadRegister)
+        } else {
+            Ok(val)
+        }
+    }
+
+    pub fn read_cap(&self, field: u32) -> Result<u64, Error> {
+        let mut val: u64 = 0;
+
+        let ret = unsafe { hv_vmx_read_capability(field, &mut val) };
+
+        if ret != HV_SUCCESS {
+            Err(Error::VcpuReadCapability)
         } else {
             Ok(val)
         }

@@ -1,10 +1,47 @@
 //! Register initialization code copied from BSD. This code intentionally tries to replicate BSD's
 //! implementation as closely as possible to avoid mistakes since we don't yet really know how x86's
 //! virtualization extension works. We should eventually replace this with a from-scratch implementation
-//! that properly documents what it's doing.
+//! that properly documents what it's doing. [This series](hypervisor-tutorial) might also be helpful
+//! in doing that.
 //!
-//!  This series might also be helpful in doing that:
-//!   https://rayanfam.com/topics/hypervisor-from-scratch-part-1/
+//! [hypervisor-tutorial]: https://rayanfam.com/topics/hypervisor-from-scratch-part-1/
+//!
+//! ## References
+//!
+//! - BSD: `HEAD` is `fce03f85c5bfc0d73fb5c43ac1affad73efab11a` (May 5, 2024)
+//! - xhyve: `HEAD` is `dfbe09b9db0ef9384c993db8e72fb3e96f376e7b` (Oct 2, 2021)
+//!
+//! ## Copyright Notices
+//!
+//! ```plaintext
+//! Copyright (c) 2011 NetApp, Inc.
+//! Copyright (c) 2015 xhyve developers
+//!
+//! All rights reserved.
+//!
+//! Redistribution and use in source and binary forms, with or without
+//! modification, are permitted provided that the following conditions
+//! are met:
+//! 1. Redistributions of source code must retain the above copyright
+//!    notice, this list of conditions and the following disclaimer.
+//! 2. Redistributions in binary form must reproduce the above copyright
+//!    notice, this list of conditions and the following disclaimer in the
+//!    documentation and/or other materials provided with the distribution.
+//!
+//! THIS SOFTWARE IS PROVIDED BY NETAPP, INC ``AS IS'' AND
+//! ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+//! IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+//! ARE DISCLAIMED.  IN NO EVENT SHALL NETAPP, INC OR CONTRIBUTORS BE LIABLE
+//! FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+//! DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+//! OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+//! HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+//! LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+//! OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+//! SUCH DAMAGE.
+//!
+//! $FreeBSD$
+//! ```
 
 use arch_gen::x86::msr_index::*;
 
@@ -25,14 +62,14 @@ struct VmSetupState {
 }
 
 impl VmSetupState {
-    // sys/amd64/vmm/intel/vmx.c:1045
+    // BSD: sys/amd64/vmm/intel/vmx.c:1045
     fn new() -> Self {
         let mut cx = Self {
             msr_bitmap: Box::new([0xFF; PAGE_SIZE]),
         };
 
         // Determine VCPU capabilities
-        // sys/amd64/vmm/intel/vmx.c:659
+        // BSD: sys/amd64/vmm/intel/vmx.c:659
         // TODO
 
         // Determine MSR
@@ -52,8 +89,8 @@ impl VmSetupState {
     // the HVF is being set-up. Usually, `msr_bitmap` is a physical address but the kernel (presumably)
     // does the translation for us.
     //
-    // sys/amd64/vmm/intel/vmx.c:1121
-    unsafe fn vmx_vcpu_init(&mut self, vcpu: &mut HvfVcpu) {
+    // BSD: sys/amd64/vmm/intel/vmx.c:1121
+    unsafe fn vmx_vcpu_init(&mut self, vcpu: &HvfVcpu) {
         self.vmx_msr_guest_init();
         self.vmcs_init(vcpu);
 
@@ -117,14 +154,14 @@ impl VmSetupState {
         self.vmx_setup_cr4_shadow(vcpu, 0);
     }
 
-    // sys/amd64/vmm/intel/vmcs.c:341
-    fn vmcs_init(&mut self, vcpu: &mut HvfVcpu) {
+    // BSD: sys/amd64/vmm/intel/vmcs.c:341
+    fn vmcs_init(&mut self, vcpu: &HvfVcpu) {
         // (everything else in this function is for the host)
 
         vcpu.write_vmcs(VMCS_GUEST_LINK_POINTER, !0).unwrap(); // VMCS_LINK_POINTER
     }
 
-    // sys/amd64/vmm/intel/vmx_msr.c:312
+    // BSD: sys/amd64/vmm/intel/vmx_msr.c:312
     fn vmx_msr_guest_init(&mut self) {
         self.guest_msr_rw(MSR_LSTAR);
         self.guest_msr_rw(MSR_CSTAR);
@@ -133,17 +170,17 @@ impl VmSetupState {
         self.guest_msr_rw(HV_MSR_IA32_KERNEL_GS_BASE); // MSR_KGSBASE
     }
 
-    // sys/amd64/vmm/intel/vmx_msr.h:66
+    // BSD: sys/amd64/vmm/intel/vmx_msr.h:66
     fn guest_msr_rw(&mut self, msr: u32) {
         self.msr_bitmap_change_access(msr, BitmapAccess::RW);
     }
 
-    // sys/amd64/vmm/intel/vmx_msr.h:69
+    // BSD: sys/amd64/vmm/intel/vmx_msr.h:69
     fn guest_msr_ro(&mut self, msr: u32) {
         self.msr_bitmap_change_access(msr, BitmapAccess::READ);
     }
 
-    // sys/amd64/vmm/intel/vmx_msr.c:143
+    // BSD: sys/amd64/vmm/intel/vmx_msr.c:143
     // This seems to follow the algorithm described at 25.6.9 MSR-Bitmap Address
     fn msr_bitmap_change_access(&mut self, msr: u32, access: BitmapAccess) {
         let byte = if msr <= 0x00001FFF {
@@ -171,18 +208,18 @@ impl VmSetupState {
         }
     }
 
-    // sys/amd64/vmm/intel/vmx_msr.c:1041
-    fn vmx_setup_cr0_shadow(&mut self, vcpu: &mut HvfVcpu, initial: u32) {
+    // BSD: sys/amd64/vmm/intel/vmx_msr.c:1041
+    fn vmx_setup_cr0_shadow(&mut self, vcpu: &HvfVcpu, initial: u32) {
         self.vmx_setup_cr_shadow(vcpu, 0, initial);
     }
 
-    // sys/amd64/vmm/intel/vmx_msr.c:1042
-    fn vmx_setup_cr4_shadow(&mut self, vcpu: &mut HvfVcpu, initial: u32) {
+    // BSD: sys/amd64/vmm/intel/vmx_msr.c:1042
+    fn vmx_setup_cr4_shadow(&mut self, vcpu: &HvfVcpu, initial: u32) {
         self.vmx_setup_cr_shadow(vcpu, 4, initial);
     }
 
-    // sys/amd64/vmm/intel/vmx_msr.c:1013
-    fn vmx_setup_cr_shadow(&mut self, vcpu: &mut HvfVcpu, which: u32, initial: u32) {
+    // BSD: sys/amd64/vmm/intel/vmx_msr.c:1013
+    fn vmx_setup_cr_shadow(&mut self, vcpu: &HvfVcpu, which: u32, initial: u32) {
         if which != 0 && which != 4 {
             panic!("vmx_setup_cr_shadow: unknown cr{which}");
         }
@@ -210,6 +247,75 @@ impl VmSetupState {
         // TODO: These also need to be fixed by some mask...?
         vcpu.write_reg(mask_ident, mask_value).unwrap();
         vcpu.write_reg(shadow_ident, initial as u64).unwrap();
+    }
+
+    // xhyve: src/vmm/intel/vmx_msr.c:60
+    fn vmx_set_ctlreg(
+        &mut self,
+        vcpu: &HvfVcpu,
+        vmcs_field: u32,
+        cap_field: u32,
+        expect_one: u32,
+        expect_zero: u32,
+    ) -> u32 {
+        let mut retval: u32 = 0;
+
+        // We cannot ask the same bit to be set to both `1` and `0`.
+        assert_eq!((expect_one ^ expect_zero), (expect_one | expect_zero));
+
+        let cap = vcpu.read_cap(cap_field).unwrap();
+        let current = vcpu.read_vmcs(vmcs_field).unwrap() as u32;
+
+        for i in 0..32 {
+            let one_allowed = Self::vmx_ctl_allows_one_setting(cap, i);
+            let zero_allowed = Self::vmx_ctl_allows_zero_setting(cap, i);
+
+            if zero_allowed && !one_allowed {
+                // Case 1: must be zero
+                if expect_one & (1 << i) != 0 {
+                    panic!(
+                        "vmx_set_ctlreg: cap_field: {} bit: {} must be zero\n",
+                        cap_field, i
+                    );
+                }
+
+                retval &= !(1 << i);
+            } else if one_allowed && !zero_allowed {
+                // Case 2: must be one
+                if expect_zero & (1 << i) != 0 {
+                    panic!(
+                        "vmx_set_ctlreg: cap_field: {} bit: {} must be one\n",
+                        cap_field, i
+                    );
+                }
+
+                retval |= 1 << i;
+            } else {
+                // Case 3: don't care
+                if expect_zero & (1 << i) != 0 {
+                    // The value is expected to be zero; use it.
+                    retval &= !(1 << i);
+                } else if expect_one & (1 << i) != 0 {
+                    // The value is expected to be one; use it.
+                    retval |= 1 << i;
+                } else {
+                    // Unknown: keep existing value.
+                    retval = (retval & !(1 << i)) | (current & (1 << i));
+                }
+            }
+        }
+
+        retval
+    }
+
+    // xhyve: src/vmm/intel/vmx_msr.c:43
+    fn vmx_ctl_allows_one_setting(msr_val: u64, bitpos: u32) -> bool {
+        msr_val & (1u64 << (bitpos + 32)) != 0
+    }
+
+    // xhyve: src/vmm/intel/vmx_msr.c:52
+    fn vmx_ctl_allows_zero_setting(msr_val: u64, bitpos: u32) -> bool {
+        msr_val & (1u64 << bitpos) != 0
     }
 }
 
