@@ -1342,15 +1342,8 @@ impl FileSystem for PassthroughFs {
                     type_: libc::DT_UNKNOWN as u32,
                     name: entry.name.as_bytes(),
                 };
-                let dummy_entry = Entry {
-                    // nodeid=0 means skip readdirplus lookup entry
-                    nodeid: 0,
-                    generation: 0,
-                    attr: unsafe { std::mem::zeroed() },
-                    attr_timeout: Duration::from_secs(0),
-                    entry_timeout: Duration::from_secs(0),
-                };
-                if let Ok(0) = add_entry(dir_entry, dummy_entry) {
+                // nodeid=0 means skip readdirplus lookup entry
+                if let Ok(0) = add_entry(dir_entry, Entry::default()) {
                     break;
                 }
 
@@ -1366,16 +1359,24 @@ impl FileSystem for PassthroughFs {
                 offset + 2 + 1 + (i as u64)
             );
 
-            // mountpoints must be looked up again. getattrlistbulk returns the orig fs mountpoint dir
-            let lookup_entry = match if entry.is_mountpoint {
+            let lookup_entry = if self.nodeids.contains_alt_key(&(st.st_dev, st.st_ino)) {
+                // don't return attrs for files with existing nodeids (i.e. inode struct on the linux side)
+                // this prevents a race (cargo build [st_size], rm -rf [st_nlink? not sure]) where Linux is writing to a file that's growing in size, and something else calls readdirplus on its parent dir, causing FUSE to update the existing inode's attributes with a stale size, causing the readable portion of the file to be truncated when the next rustc process tries to read from the previous compilation output
+                // it's OK for perf, because readdirplus covers two cases: (1) providing attrs to avoid lookup for a newly-seen file, and (2) updating invalidated attrs (>2h timeout, or set in inval_mask) on existing files
+                // we only really care about the former case. for the latter case, inval_mask is rarely set in perf-critical contexts, and readdirplus is unlikely to help with the >2h timeout (would the first revalidation call be preceded by readdirplus?)
+                // if the 2h-timeout case turns out to be important, we can record last-attr-update timestamp in NodeData and return attrs if expired. races won't happen 2 hours apart
+                Ok(Entry::default())
+            } else if entry.is_mountpoint {
+                // mountpoints must be looked up again. getattrlistbulk returns the orig fs mountpoint dir
                 self.do_lookup(nodeid, &entry.name, &ctx)
             } else {
                 // only do path lookup once
-                let path = match if let Some(ref path) = parent_fd_path {
+                let path = if let Some(ref path) = parent_fd_path {
                     CString::new(format!("{}/{}", path, entry.name)).map_err(|_| einval())
                 } else {
                     self.devino_to_path((st.st_dev, st.st_ino))
-                } {
+                };
+                let path = match path {
                     Ok(path) => path,
                     Err(e) => {
                         error!("failed to lookup entry: {e}");
@@ -1384,7 +1385,9 @@ impl FileSystem for PassthroughFs {
                 };
 
                 self.finish_lookup(parent_flags, &entry.name, *st, FileRef::Path(&path), &ctx)
-            } {
+            };
+
+            let lookup_entry = match lookup_entry {
                 Ok(lookup_entry) => lookup_entry,
                 Err(e) => {
                     error!("failed to lookup entry: {e}");

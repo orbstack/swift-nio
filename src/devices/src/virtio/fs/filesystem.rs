@@ -48,6 +48,18 @@ pub struct Entry {
     pub entry_timeout: Duration,
 }
 
+impl Default for Entry {
+    fn default() -> Self {
+        Entry {
+            nodeid: 0,
+            generation: 0,
+            attr: unsafe { std::mem::zeroed() },
+            attr_timeout: Duration::from_secs(0),
+            entry_timeout: Duration::from_secs(0),
+        }
+    }
+}
+
 impl From<Entry> for fuse::EntryOut {
     fn from(entry: Entry) -> fuse::EntryOut {
         fuse::EntryOut {
