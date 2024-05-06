@@ -8,6 +8,8 @@
 #[allow(non_upper_case_globals)]
 #[allow(deref_nullptr)]
 mod bindings;
+mod bsd;
+
 use arch::x86_64::gdt::encode_kvm_segment;
 use arch::x86_64::mptable::APIC_DEFAULT_PHYS_BASE;
 use arch::x86_64::regs::kvm_sregs;
@@ -274,6 +276,9 @@ impl HvfVcpu {
         for entry in arch::x86_64::msr::create_boot_msr_entries() {
             self.write_msr(entry.index, entry.data)?;
         }
+
+        // setup VM registers (imported from BSD's hypervisor)
+        // TODO
 
         // TODO: FPU
 
