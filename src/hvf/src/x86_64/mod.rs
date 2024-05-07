@@ -315,6 +315,7 @@ impl HvfVcpu {
             ..Default::default()
         };
         arch::x86_64::regs::init_sregs(&self.guest_mem, &mut sregs).map_err(Error::InitSregs)?;
+
         // set sregs
         debug!("set cs...tr");
         self.write_vmcs(
@@ -383,19 +384,42 @@ impl HvfVcpu {
             VMCS_GUEST_LDTR_AR,
         )?;
 
-        debug!("set gdtr");
-        self.write_reg(hv_x86_reg_t_HV_X86_GDT_BASE, sregs.gdt.base)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_GDT_LIMIT, sregs.gdt.limit as u64)?;
-        debug!("set idtr");
-        self.write_reg(hv_x86_reg_t_HV_X86_IDT_BASE, sregs.idt.base)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_IDT_LIMIT, sregs.idt.limit as u64)?;
-        debug!("set cr0");
-        self.write_reg(hv_x86_reg_t_HV_X86_CR0, sregs.cr0)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_CR3, sregs.cr3)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_CR4, sregs.cr4)?;
-        debug!("set efer");
-        self.write_vmcs(VMCS_GUEST_IA32_EFER, sregs.efer)?;
+        //         debug!("set gdtr");
+        //         self.write_reg(hv_x86_reg_t_HV_X86_GDT_BASE, sregs.gdt.base)?;
+        //         self.write_reg(hv_x86_reg_t_HV_X86_GDT_LIMIT, sregs.gdt.limit as u64)?;
+        //         debug!("set idtr");
+        //         self.write_reg(hv_x86_reg_t_HV_X86_IDT_BASE, sregs.idt.base)?;
+        //         self.write_reg(hv_x86_reg_t_HV_X86_IDT_LIMIT, sregs.idt.limit as u64)?;
+        //         debug!("set cr0");
+        //         self.write_reg(hv_x86_reg_t_HV_X86_CR0, sregs.cr0)?;
+        //         self.write_reg(hv_x86_reg_t_HV_X86_CR3, sregs.cr3)?;
+        //         self.write_reg(hv_x86_reg_t_HV_X86_CR4, sregs.cr4)?;
+        //         debug!("set efer");
+        //         self.write_vmcs(VMCS_GUEST_IA32_EFER, sregs.efer)?;
 
+        // setup regs
+        debug!("set regs");
+        self.write_reg(hv_x86_reg_t_HV_X86_RFLAGS, 0x0000_0000_0000_0002u64)?;
+        self.write_reg(hv_x86_reg_t_HV_X86_RIP, boot_ip)?;
+        self.write_reg(
+            hv_x86_reg_t_HV_X86_RSP,
+            arch::x86_64::layout::BOOT_STACK_POINTER,
+        )?;
+        self.write_reg(
+            hv_x86_reg_t_HV_X86_RBP,
+            arch::x86_64::layout::BOOT_STACK_POINTER,
+        )?;
+        self.write_reg(
+            hv_x86_reg_t_HV_X86_RSI,
+            arch::x86_64::layout::ZERO_PAGE_START,
+        )?;
+
+        // HACK: Magic numbers :(
+        // self.write_vmcs(VMCS_CTRL_CR0_SHADOW, 0x0000000000000021)?;
+        self.write_vmcs(VMCS_GUEST_CR0, 0x0000000000000031)?;
+        self.write_vmcs(VMCS_GUEST_CR4, 0x0000000000002000)?;
+
+        // Regular MSR stuff
         self.enable_native_msr(HV_MSR_IA32_GS_BASE)?;
         self.enable_native_msr(HV_MSR_IA32_FS_BASE)?;
         self.enable_native_msr(HV_MSR_IA32_SYSENTER_CS)?;
@@ -409,6 +433,8 @@ impl HvfVcpu {
         self.enable_native_msr(HV_MSR_IA32_STAR)?;
         self.enable_native_msr(MSR_SYSCALL_MASK)?;
         self.enable_native_msr(HV_MSR_IA32_KERNEL_GS_BASE)?;
+
+        reg_init::dump_hvf_params(self);
 
         Ok(())
     }

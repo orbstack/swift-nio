@@ -45,12 +45,22 @@
 
 use anyhow::Context;
 
-use crate::HvfVcpu;
+use crate::{
+    x86_64::{
+        hv_x86_reg_t_HV_X86_CR2, hv_x86_reg_t_HV_X86_R10, hv_x86_reg_t_HV_X86_R11,
+        hv_x86_reg_t_HV_X86_R12, hv_x86_reg_t_HV_X86_R14, hv_x86_reg_t_HV_X86_R15,
+        hv_x86_reg_t_HV_X86_R8, hv_x86_reg_t_HV_X86_R9, hv_x86_reg_t_HV_X86_RAX,
+        hv_x86_reg_t_HV_X86_RBP, hv_x86_reg_t_HV_X86_RBX, hv_x86_reg_t_HV_X86_RCX,
+        hv_x86_reg_t_HV_X86_RDI, hv_x86_reg_t_HV_X86_RDX, hv_x86_reg_t_HV_X86_RFLAGS,
+        hv_x86_reg_t_HV_X86_RIP, hv_x86_reg_t_HV_X86_RSI, hv_x86_reg_t_HV_X86_RSP,
+    },
+    HvfVcpu,
+};
 
 use super::{
     hv_vmx_capability_t_HV_VMX_CAP_ENTRY, hv_vmx_capability_t_HV_VMX_CAP_EXIT,
     hv_vmx_capability_t_HV_VMX_CAP_PINBASED, hv_vmx_capability_t_HV_VMX_CAP_PROCBASED,
-    hv_vmx_capability_t_HV_VMX_CAP_PROCBASED2,
+    hv_vmx_capability_t_HV_VMX_CAP_PROCBASED2, VMCS_CTRL_CR0_SHADOW,
 };
 
 mod constants;
@@ -220,6 +230,7 @@ impl VmSetupState {
         self.vmx_setup_cr0_shadow(vcpu, 0x60000010)
             .context("vmx_setup_cr0_shadow")
             .unwrap();
+
         self.vmx_setup_cr4_shadow(vcpu, 0)
             .context("vmx_setup_cr4_shadow")
             .unwrap();
@@ -286,6 +297,7 @@ impl VmSetupState {
             self.vmcs_fix_regval(mask_ident, mask_value as u64),
         )
         .unwrap();
+
         vcpu.write_vmcs(
             shadow_ident,
             self.vmcs_fix_regval(shadow_ident, initial as u64),
@@ -392,6 +404,241 @@ impl VmSetupState {
     fn pat_mask(i: u32) -> u64 {
         Self::pat_value(i, 0xFF)
     }
+
+    // xhyve: src/vmm/intel/vmx.c:164
+    fn hvdump(vcpu: &HvfVcpu) {
+        println!(
+            "VMCS_PIN_BASED_CTLS:           {:#018x}",
+            vcpu.read_vmcs(VMCS_PIN_BASED_CTLS).unwrap(),
+        );
+        println!(
+            "VMCS_PRI_PROC_BASED_CTLS:      {:#018x}",
+            vcpu.read_vmcs(VMCS_PRI_PROC_BASED_CTLS).unwrap(),
+        );
+        println!(
+            "VMCS_SEC_PROC_BASED_CTLS:      {:#018x}",
+            vcpu.read_vmcs(VMCS_SEC_PROC_BASED_CTLS).unwrap(),
+        );
+        println!(
+            "VMCS_ENTRY_CTLS:               {:#018x}",
+            vcpu.read_vmcs(VMCS_ENTRY_CTLS).unwrap(),
+        );
+        println!(
+            "VMCS_EXCEPTION_BITMAP:         {:#018x}",
+            vcpu.read_vmcs(VMCS_EXCEPTION_BITMAP).unwrap(),
+        );
+        println!(
+            "VMCS_CR0_MASK:                 {:#018x}",
+            vcpu.read_vmcs(VMCS_CR0_MASK).unwrap(),
+        );
+        println!(
+            "VMCS_CR0_SHADOW:               {:#018x}",
+            vcpu.read_vmcs(VMCS_CR0_SHADOW).unwrap(),
+        );
+        println!(
+            "VMCS_CR4_MASK:                 {:#018x}",
+            vcpu.read_vmcs(VMCS_CR4_MASK).unwrap(),
+        );
+        println!(
+            "VMCS_CR4_SHADOW:               {:#018x}",
+            vcpu.read_vmcs(VMCS_CR4_SHADOW).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_CS_SELECTOR:        {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_CS_SELECTOR).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_CS_LIMIT:           {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_CS_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_CS_ACCESS_RIGHTS:   {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_CS_ACCESS_RIGHTS).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_CS_BASE:            {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_CS_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_DS_SELECTOR:        {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_DS_SELECTOR).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_DS_LIMIT:           {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_DS_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_DS_ACCESS_RIGHTS:   {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_DS_ACCESS_RIGHTS).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_DS_BASE:            {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_DS_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_ES_SELECTOR:        {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_ES_SELECTOR).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_ES_LIMIT:           {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_ES_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_ES_ACCESS_RIGHTS:   {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_ES_ACCESS_RIGHTS).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_ES_BASE:            {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_ES_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_FS_SELECTOR:        {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_FS_SELECTOR).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_FS_LIMIT:           {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_FS_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_FS_ACCESS_RIGHTS:   {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_FS_ACCESS_RIGHTS).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_FS_BASE:            {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_FS_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_GS_SELECTOR:        {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_GS_SELECTOR).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_GS_LIMIT:           {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_GS_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_GS_ACCESS_RIGHTS:   {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_GS_ACCESS_RIGHTS).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_GS_BASE:            {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_GS_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_SS_SELECTOR:        {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_SS_SELECTOR).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_SS_LIMIT:           {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_SS_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_SS_ACCESS_RIGHTS:   {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_SS_ACCESS_RIGHTS).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_SS_BASE:            {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_SS_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_LDTR_SELECTOR:      {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_LDTR_SELECTOR).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_LDTR_LIMIT:         {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_LDTR_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_LDTR_ACCESS_RIGHTS: {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_LDTR_ACCESS_RIGHTS).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_LDTR_BASE:          {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_LDTR_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_TR_SELECTOR:        {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_TR_SELECTOR).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_TR_LIMIT:           {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_TR_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_TR_ACCESS_RIGHTS:   {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_TR_ACCESS_RIGHTS).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_TR_BASE:            {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_TR_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_GDTR_LIMIT:         {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_GDTR_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_GDTR_BASE:          {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_GDTR_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_IDTR_LIMIT:         {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_LDTR_LIMIT).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_IDTR_BASE:          {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_LDTR_BASE).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_CR0:                {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_CR0).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_CR3:                {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_CR3).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_CR4:                {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_CR4).unwrap(),
+        );
+        println!(
+            "VMCS_GUEST_IA32_EFER:          {:#018x}",
+            vcpu.read_vmcs(VMCS_GUEST_IA32_EFER).unwrap(),
+        );
+        println!();
+        println!(
+            "rip: {:#018x} rfl: {:#018x} cr2: {:#018x}",
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RIP).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RFLAGS).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_CR2).unwrap(),
+        );
+        println!(
+            "rax: {:#018x} rbx: {:#018x} rcx: {:#018x} rdx: {:#018x}",
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RAX).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RBX).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RCX).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RDX).unwrap(),
+        );
+        println!(
+            "rsi: {:#018x} rdi: {:#018x} rbp: {:#018x} rsp: {:#018x}",
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RSI).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RDI).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RBP).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_RSP).unwrap(),
+        );
+        println!(
+            "r8:  {:#018x} r9:  {:#018x} r10: {:#018x} r11: {:#018x}",
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_R8).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_R9).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_R10).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_R11).unwrap(),
+        );
+        println!(
+            "r12: {:#018x} r13: {:#018x} r14: {:#018x} r15: {:#018x}",
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_R12).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_R12).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_R14).unwrap(),
+            vcpu.read_reg(hv_x86_reg_t_HV_X86_R15).unwrap(),
+        );
+    }
 }
 
 pub fn just_initialize_hvf_already(vcpu: &HvfVcpu) -> Result<(), crate::Error> {
@@ -404,4 +651,8 @@ pub fn just_initialize_hvf_already(vcpu: &HvfVcpu) -> Result<(), crate::Error> {
         .unwrap();
 
     Ok(())
+}
+
+pub fn dump_hvf_params(vcpu: &HvfVcpu) {
+    VmSetupState::hvdump(vcpu)
 }
