@@ -1014,7 +1014,6 @@ fn create_vcpus_x86_64(
             exit_evt.try_clone().map_err(Error::EventFd)?,
             //io_bus.clone(),
             guest_mem.clone(),
-            vm,
         )
         .map_err(Error::Vcpu)?;
 
