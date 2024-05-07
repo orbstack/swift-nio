@@ -76,7 +76,7 @@ class ActionTracker: ObservableObject {
         ongoingDockerVolumeActions[volume.id]
     }
 
-    func ongoingFor(image: DKImage) -> DKImageAction? {
+    func ongoingFor(image: DKSummaryAndFullImage) -> DKImageAction? {
         ongoingDockerImageActions[image.id]
     }
 

@@ -413,7 +413,7 @@ func (d *DockerAgent) doSendUIEvent() error {
 	}
 
 	if d.pendingUIEntities[uitypes.DockerEntityImage] {
-		images, err := d.client.ListImages()
+		images, err := d.client.ListImagesFull()
 		if err != nil {
 			return err
 		}

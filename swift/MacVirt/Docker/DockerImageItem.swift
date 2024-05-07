@@ -13,7 +13,7 @@ struct DockerImageItem: View, Equatable {
 
     @Default(.tipsImageMountsShow) private var tipsImageMountsShow
 
-    var image: DKImage
+    var image: DKSummaryAndFullImage
     var selection: Set<String> {
         listModel.selection as! Set<String>
     }
@@ -31,19 +31,36 @@ struct DockerImageItem: View, Equatable {
         HStack {
             HStack {
                 VStack(alignment: .leading) {
-                    Text(image.userTag)
+                    Text(image.summary.userTag)
                         .font(.body)
                         .truncationMode(.tail)
                         .lineLimit(1)
 
-                    Text("\(image.formattedSize), created \(image.formattedCreated)")
+                    Text("\(image.summary.formattedSize), created \(image.summary.formattedCreated)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
             }
+
+            #if arch(arm64)
+            if image.full.architecture != "arm64" {
+                HStack() {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text(image.full.architecture)
+                }
+                .padding(4)
+                .foregroundStyle(Color.white)
+                .background(.thickMaterial)
+                .background(Color.red)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                // TODO(winter): maybe add a tooltip? there's no tooltip for SwiftUI though...
+            }
+            #endif
+
             Spacer()
 
-            if image.repoTags?.isEmpty == false {
+            if image.summary.repoTags?.isEmpty == false {
                 Button(action: {
                     openFolder()
                 }) {
@@ -100,7 +117,7 @@ struct DockerImageItem: View, Equatable {
         }
         .padding(.vertical, 8)
         .akListOnDoubleClick {
-            if image.repoTags?.isEmpty == false {
+            if image.summary.repoTags?.isEmpty == false {
                 openFolder()
             }
         }
@@ -109,7 +126,7 @@ struct DockerImageItem: View, Equatable {
                 openFolder()
             }) {
                 Label("Open", systemImage: "folder")
-            }.disabled(actionInProgress || (image.repoTags?.isEmpty != false))
+            }.disabled(actionInProgress || (image.summary.repoTags?.isEmpty != false))
 
             Divider()
 
@@ -124,7 +141,7 @@ struct DockerImageItem: View, Equatable {
             Button(action: {
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
-                pasteboard.setString(image.userTag, forType: .string)
+                pasteboard.setString(image.summary.userTag, forType: .string)
             }) {
                 Label("Copy Tag", systemImage: "doc.on.doc")
             }
@@ -132,13 +149,13 @@ struct DockerImageItem: View, Equatable {
             Button(action: {
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
-                pasteboard.setString(image.userId, forType: .string)
+                pasteboard.setString(image.summary.userId, forType: .string)
             }) {
                 Label("Copy ID", systemImage: "doc.on.doc")
             }
 
             Button("Copy Path") {
-                NSPasteboard.copy("\(Folders.nfsDockerImages)/\(image.userTag)")
+                NSPasteboard.copy("\(Folders.nfsDockerImages)/\(image.summary.userTag)")
             }
         }
     }
@@ -180,6 +197,6 @@ struct DockerImageItem: View, Equatable {
     }
 
     private func openFolder() {
-        NSWorkspace.openFolder("\(Folders.nfsDockerImages)/\(image.userTag)")
+        NSWorkspace.openFolder("\(Folders.nfsDockerImages)/\(image.summary.userTag)")
     }
 }

@@ -367,7 +367,7 @@ struct DKVolumeListResponse: Codable {
     }
 }
 
-struct DKImage: AKListItem, Codable, Identifiable {
+struct DKImage: Codable, Equatable, Identifiable {
     let id: String
     let containers: Int
     let created: Int64
@@ -424,10 +424,6 @@ struct DKImage: AKListItem, Codable, Identifiable {
         return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 
-    var textLabel: String? {
-        userTag
-    }
-
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case containers = "Containers"
@@ -439,6 +435,29 @@ struct DKImage: AKListItem, Codable, Identifiable {
         case sharedSize = "SharedSize"
         case size = "Size"
         case virtualSize = "VirtualSize"
+    }
+}
+
+struct DKFullImage: Codable, Equatable {
+    let architecture: String
+
+    enum CodingKeys: String, CodingKey {
+        case architecture = "Architecture"
+    }
+}
+
+struct DKSummaryAndFullImage: AKListItem, Codable, Equatable, Identifiable {
+    var id: String { summary.id }
+    let summary: DKImage
+    let full: DKFullImage
+
+    var textLabel: String? {
+        summary.userTag
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case summary = "Summary"
+        case full = "Full"
     }
 }
 
