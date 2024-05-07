@@ -84,22 +84,17 @@ fn get_type(entry: u64) -> u8 {
     ((entry & 0x0000_0F00_0000_0000) >> 40) as u8
 }
 
-pub fn encode_kvm_segment(segment: &kvm_segment) -> u64 {
-    let mut entry: u64 = 0;
-    entry |= segment.base as u64;
-    entry |= ((segment.limit & 0xFFFF) as u64) << 16;
-    entry |= ((segment.selector & 0xFFFF) as u64) << 32;
-    entry |= ((segment.type_ & 0xF) as u64) << 40;
-    entry |= ((segment.present & 0x1) as u64) << 47;
-    entry |= ((segment.dpl & 0x3) as u64) << 45;
-    entry |= ((segment.db & 0x1) as u64) << 44;
-    entry |= ((segment.s & 0x1) as u64) << 43;
-    entry |= ((segment.l & 0x1) as u64) << 42;
-    entry |= ((segment.g & 0x1) as u64) << 41;
-    entry |= ((segment.avl & 0x1) as u64) << 52;
-    entry |= ((segment.unusable & 0xFF) as u64) << 48;
-    entry |= ((segment.padding & 0xFF) as u64) << 56;
-    entry
+pub fn encode_kvm_segment_ar(segment: &kvm_segment) -> u32 {
+    let mut ar: u32 = (segment.type_ & 15) as u32;
+    ar |= ((segment.s & 1) as u32) << 4;
+    ar |= ((segment.dpl & 3) as u32) << 5;
+    ar |= ((segment.present & 1) as u32) << 7;
+    ar |= ((segment.avl & 1) as u32) << 12;
+    ar |= ((segment.l & 1) as u32) << 13;
+    ar |= ((segment.db & 1) as u32) << 14;
+    ar |= ((segment.g & 1) as u32) << 15;
+    ar |= ((segment.unusable != 0 || segment.present == 0) as u32) << 16;
+    return ar;
 }
 
 /// Automatically build the kvm struct for SET_SREGS from the kernel bit fields.

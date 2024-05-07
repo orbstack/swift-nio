@@ -10,7 +10,7 @@
 mod bindings;
 mod reg_init;
 
-use arch::x86_64::gdt::encode_kvm_segment;
+use arch::x86_64::gdt::{encode_kvm_segment_ar, kvm_segment};
 use arch::x86_64::mptable::APIC_DEFAULT_PHYS_BASE;
 use arch::x86_64::regs::kvm_sregs;
 use arch_gen::x86::msr_index::{
@@ -324,39 +324,65 @@ impl HvfVcpu {
                                                          // // Load IA32_EFER
                                                          // | (1<<15),
         )?;
-        self.write_reg(hv_x86_reg_t_HV_X86_CS, encode_kvm_segment(&sregs.cs))?;
-        self.write_vmcs(VMCS_GUEST_CS_BASE, sregs.cs.base)?;
-        self.write_vmcs(VMCS_GUEST_CS_LIMIT, sregs.cs.limit as u64)?;
-        //self.write_vmcs(VMCS_GUEST_CS_AR, sregs.cs.ar)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_DS, encode_kvm_segment(&sregs.ds))?;
-        self.write_vmcs(VMCS_GUEST_DS_BASE, sregs.ds.base)?;
-        self.write_vmcs(VMCS_GUEST_DS_LIMIT, sregs.ds.limit as u64)?;
-        //self.write_vmcs(VMCS_GUEST_DS_AR, sregs.ds.ar)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_ES, encode_kvm_segment(&sregs.es))?;
-        self.write_vmcs(VMCS_GUEST_ES_BASE, sregs.es.base)?;
-        self.write_vmcs(VMCS_GUEST_ES_LIMIT, sregs.es.limit as u64)?;
-        //self.write_vmcs(VMCS_GUEST_ES_AR, sregs.es.ar)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_FS, encode_kvm_segment(&sregs.fs))?;
-        self.write_vmcs(VMCS_GUEST_FS_BASE, sregs.fs.base)?;
-        self.write_vmcs(VMCS_GUEST_FS_LIMIT, sregs.fs.limit as u64)?;
-        //self.write_vmcs(VMCS_GUEST_FS_AR, sregs.fs.ar)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_GS, encode_kvm_segment(&sregs.gs))?;
-        self.write_vmcs(VMCS_GUEST_GS_BASE, sregs.gs.base)?;
-        self.write_vmcs(VMCS_GUEST_GS_LIMIT, sregs.gs.limit as u64)?;
-        //self.write_vmcs(VMCS_GUEST_GS_AR, sregs.gs.ar)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_SS, encode_kvm_segment(&sregs.ss))?;
-        self.write_vmcs(VMCS_GUEST_SS_BASE, sregs.ss.base)?;
-        self.write_vmcs(VMCS_GUEST_SS_LIMIT, sregs.ss.limit as u64)?;
-        //self.write_vmcs(VMCS_GUEST_SS_AR, sregs.ss.ar)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_TR, encode_kvm_segment(&sregs.tr))?;
-        self.write_vmcs(VMCS_GUEST_TR_BASE, sregs.tr.base)?;
-        self.write_vmcs(VMCS_GUEST_TR_LIMIT, sregs.tr.limit as u64)?;
-        //self.write_vmcs(VMCS_GUEST_TR_AR, sregs.tr.ar)?;
-        debug!("set ldtr");
-        self.write_reg(hv_x86_reg_t_HV_X86_LDTR, encode_kvm_segment(&sregs.ldt))?;
-        self.write_vmcs(VMCS_GUEST_LDTR_BASE, sregs.ldt.base)?;
-        self.write_vmcs(VMCS_GUEST_LDTR_LIMIT, sregs.ldt.limit as u64)?;
-        //self.write_vmcs(VMCS_GUEST_LDTR_AR, sregs.ldt.ar)?;
+
+        // cs, ds, es, fs, gs, ss, tr, ldtr
+        self.write_segment(
+            &sregs.cs,
+            VMCS_GUEST_CS,
+            VMCS_GUEST_CS_BASE,
+            VMCS_GUEST_CS_LIMIT,
+            VMCS_GUEST_CS_AR,
+        )?;
+        self.write_segment(
+            &sregs.ds,
+            VMCS_GUEST_DS,
+            VMCS_GUEST_DS_BASE,
+            VMCS_GUEST_DS_LIMIT,
+            VMCS_GUEST_DS_AR,
+        )?;
+        self.write_segment(
+            &sregs.es,
+            VMCS_GUEST_ES,
+            VMCS_GUEST_ES_BASE,
+            VMCS_GUEST_ES_LIMIT,
+            VMCS_GUEST_ES_AR,
+        )?;
+        self.write_segment(
+            &sregs.fs,
+            VMCS_GUEST_FS,
+            VMCS_GUEST_FS_BASE,
+            VMCS_GUEST_FS_LIMIT,
+            VMCS_GUEST_FS_AR,
+        )?;
+        self.write_segment(
+            &sregs.gs,
+            VMCS_GUEST_GS,
+            VMCS_GUEST_GS_BASE,
+            VMCS_GUEST_GS_LIMIT,
+            VMCS_GUEST_GS_AR,
+        )?;
+        self.write_segment(
+            &sregs.ss,
+            VMCS_GUEST_SS,
+            VMCS_GUEST_SS_BASE,
+            VMCS_GUEST_SS_LIMIT,
+            VMCS_GUEST_SS_AR,
+        )?;
+        self.write_segment(
+            &sregs.tr,
+            VMCS_GUEST_TR,
+            VMCS_GUEST_TR_BASE,
+            VMCS_GUEST_TR_LIMIT,
+            VMCS_GUEST_TR_AR,
+        )?;
+        self.write_segment(
+            &sregs.ldt,
+            VMCS_GUEST_LDTR,
+            VMCS_GUEST_LDTR_BASE,
+            VMCS_GUEST_LDTR_LIMIT,
+            VMCS_GUEST_LDTR_AR,
+        )?;
+
         debug!("set gdtr");
         self.write_reg(hv_x86_reg_t_HV_X86_GDT_BASE, sregs.gdt.base)?;
         self.write_reg(hv_x86_reg_t_HV_X86_GDT_LIMIT, sregs.gdt.limit as u64)?;
@@ -411,7 +437,7 @@ impl HvfVcpu {
         }
     }
 
-    pub fn read_msr(&self, msr: u32) -> Result<u64, Error> {
+    fn read_msr(&self, msr: u32) -> Result<u64, Error> {
         let mut val: u64 = 0;
         let ret = unsafe { hv_vcpu_read_msr(self.vcpuid, msr, &mut val) };
         if ret != HV_SUCCESS {
@@ -421,7 +447,7 @@ impl HvfVcpu {
         }
     }
 
-    pub fn write_msr(&self, msr: u32, val: u64) -> Result<(), Error> {
+    fn write_msr(&self, msr: u32, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_write_msr(self.vcpuid, msr, val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetMsr)
@@ -430,7 +456,7 @@ impl HvfVcpu {
         }
     }
 
-    pub fn read_vmcs(&self, field: u32) -> Result<u64, Error> {
+    fn read_vmcs(&self, field: u32) -> Result<u64, Error> {
         let mut val: u64 = 0;
         let ret = unsafe { hv_vmx_vcpu_read_vmcs(self.vcpuid, field, &mut val) };
         if ret != HV_SUCCESS {
@@ -440,7 +466,7 @@ impl HvfVcpu {
         }
     }
 
-    pub fn read_cap(&self, field: u32) -> Result<u64, Error> {
+    fn read_cap(&self, field: u32) -> Result<u64, Error> {
         let mut val: u64 = 0;
 
         let ret = unsafe { hv_vmx_read_capability(field, &mut val) };
@@ -452,7 +478,7 @@ impl HvfVcpu {
         }
     }
 
-    pub fn write_vmcs(&self, field: u32, val: u64) -> Result<(), Error> {
+    fn write_vmcs(&self, field: u32, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vmx_vcpu_write_vmcs(self.vcpuid, field, val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetRegister)
@@ -461,7 +487,22 @@ impl HvfVcpu {
         }
     }
 
-    pub fn enable_native_msr(&self, msr: u32) -> Result<(), Error> {
+    fn write_segment(
+        &self,
+        segment: &kvm_segment,
+        vmcs_selector: u32,
+        vmcs_base: u32,
+        vmcs_limit: u32,
+        vmcs_ar: u32,
+    ) -> Result<(), Error> {
+        self.write_vmcs(vmcs_selector, segment.selector as u64)?;
+        self.write_vmcs(vmcs_base, segment.base)?;
+        self.write_vmcs(vmcs_limit, segment.limit as u64)?;
+        self.write_vmcs(vmcs_ar, encode_kvm_segment_ar(segment) as u64)?;
+        Ok(())
+    }
+
+    fn enable_native_msr(&self, msr: u32) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_enable_native_msr(self.vcpuid, msr, true) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetRegister)
@@ -515,6 +556,7 @@ impl HvfVcpu {
         if ret != HV_SUCCESS {
             return Err(Error::VcpuRun);
         }
+        self.dump_vmcs();
 
         match exit_info {
             hv_vm_exitinfo_t_HV_VM_EXITINFO_VMX => {
@@ -581,5 +623,233 @@ impl HvfVcpu {
         if err != 0 {
             error!("Failed to destroy vcpu: {err}");
         }
+    }
+
+    fn dump_vmcs(&self) {
+        println!("--------START---------");
+        for (field_name, field_id) in &[
+            ("VMCS_VPID", VMCS_VPID),
+            (
+                "VMCS_CTRL_POSTED_INT_N_VECTOR",
+                VMCS_CTRL_POSTED_INT_N_VECTOR,
+            ),
+            ("VMCS_CTRL_EPTP_INDEX", VMCS_CTRL_EPTP_INDEX),
+            ("VMCS_GUEST_ES", VMCS_GUEST_ES),
+            ("VMCS_GUEST_CS", VMCS_GUEST_CS),
+            ("VMCS_GUEST_SS", VMCS_GUEST_SS),
+            ("VMCS_GUEST_DS", VMCS_GUEST_DS),
+            ("VMCS_GUEST_FS", VMCS_GUEST_FS),
+            ("VMCS_GUEST_GS", VMCS_GUEST_GS),
+            ("VMCS_GUEST_LDTR", VMCS_GUEST_LDTR),
+            ("VMCS_GUEST_TR", VMCS_GUEST_TR),
+            ("VMCS_GUEST_INT_STATUS", VMCS_GUEST_INT_STATUS),
+            ("VMCS_GUESTPML_INDEX", VMCS_GUESTPML_INDEX),
+            ("VMCS_HOST_ES", VMCS_HOST_ES),
+            ("VMCS_HOST_CS", VMCS_HOST_CS),
+            ("VMCS_HOST_SS", VMCS_HOST_SS),
+            ("VMCS_HOST_DS", VMCS_HOST_DS),
+            ("VMCS_HOST_FS", VMCS_HOST_FS),
+            ("VMCS_HOST_GS", VMCS_HOST_GS),
+            ("VMCS_HOST_TR", VMCS_HOST_TR),
+            ("VMCS_CTRL_IO_BITMAP_A", VMCS_CTRL_IO_BITMAP_A),
+            ("VMCS_CTRL_IO_BITMAP_B", VMCS_CTRL_IO_BITMAP_B),
+            ("VMCS_CTRL_MSR_BITMAPS", VMCS_CTRL_MSR_BITMAPS),
+            (
+                "VMCS_CTRL_VMEXIT_MSR_STORE_ADDR",
+                VMCS_CTRL_VMEXIT_MSR_STORE_ADDR,
+            ),
+            (
+                "VMCS_CTRL_VMEXIT_MSR_LOAD_ADDR",
+                VMCS_CTRL_VMEXIT_MSR_LOAD_ADDR,
+            ),
+            (
+                "VMCS_CTRL_VMENTRY_MSR_LOAD_ADDR",
+                VMCS_CTRL_VMENTRY_MSR_LOAD_ADDR,
+            ),
+            ("VMCS_CTRL_EXECUTIVE_VMCS_PTR", VMCS_CTRL_EXECUTIVE_VMCS_PTR),
+            ("VMCS_CTRL_PML_ADDR", VMCS_CTRL_PML_ADDR),
+            ("VMCS_CTRL_TSC_OFFSET", VMCS_CTRL_TSC_OFFSET),
+            ("VMCS_CTRL_VIRTUAL_APIC", VMCS_CTRL_VIRTUAL_APIC),
+            ("VMCS_CTRL_APIC_ACCESS", VMCS_CTRL_APIC_ACCESS),
+            (
+                "VMCS_CTRL_POSTED_INT_DESC_ADDR",
+                VMCS_CTRL_POSTED_INT_DESC_ADDR,
+            ),
+            ("VMCS_CTRL_VMFUNC_CTRL", VMCS_CTRL_VMFUNC_CTRL),
+            ("VMCS_CTRL_EPTP", VMCS_CTRL_EPTP),
+            ("VMCS_CTRL_EOI_EXIT_BITMAP_0", VMCS_CTRL_EOI_EXIT_BITMAP_0),
+            ("VMCS_CTRL_EOI_EXIT_BITMAP_1", VMCS_CTRL_EOI_EXIT_BITMAP_1),
+            ("VMCS_CTRL_EOI_EXIT_BITMAP_2", VMCS_CTRL_EOI_EXIT_BITMAP_2),
+            ("VMCS_CTRL_EOI_EXIT_BITMAP_3", VMCS_CTRL_EOI_EXIT_BITMAP_3),
+            ("VMCS_CTRL_EPTP_LIST_ADDR", VMCS_CTRL_EPTP_LIST_ADDR),
+            ("VMCS_CTRL_VMREAD_BITMAP_ADDR", VMCS_CTRL_VMREAD_BITMAP_ADDR),
+            (
+                "VMCS_CTRL_VMWRITE_BITMAP_ADDR",
+                VMCS_CTRL_VMWRITE_BITMAP_ADDR,
+            ),
+            ("VMCS_CTRL_VIRT_EXC_INFO_ADDR", VMCS_CTRL_VIRT_EXC_INFO_ADDR),
+            ("VMCS_CTRL_XSS_EXITING_BITMAP", VMCS_CTRL_XSS_EXITING_BITMAP),
+            (
+                "VMCS_CTRL_ENCLS_EXITING_BITMAP",
+                VMCS_CTRL_ENCLS_EXITING_BITMAP,
+            ),
+            ("VMCS_CTRL_SPP_TABLE", VMCS_CTRL_SPP_TABLE),
+            ("VMCS_CTRL_TSC_MULTIPLIER", VMCS_CTRL_TSC_MULTIPLIER),
+            (
+                "VMCS_CTRL_ENCLV_EXITING_BITMAP",
+                VMCS_CTRL_ENCLV_EXITING_BITMAP,
+            ),
+            ("VMCS_GUEST_PHYSICAL_ADDRESS", VMCS_GUEST_PHYSICAL_ADDRESS),
+            ("VMCS_GUEST_LINK_POINTER", VMCS_GUEST_LINK_POINTER),
+            ("VMCS_GUEST_IA32_DEBUGCTL", VMCS_GUEST_IA32_DEBUGCTL),
+            ("VMCS_GUEST_IA32_PAT", VMCS_GUEST_IA32_PAT),
+            ("VMCS_GUEST_IA32_EFER", VMCS_GUEST_IA32_EFER),
+            (
+                "VMCS_GUEST_IA32_PERF_GLOBAL_CTRL",
+                VMCS_GUEST_IA32_PERF_GLOBAL_CTRL,
+            ),
+            ("VMCS_GUEST_PDPTE0", VMCS_GUEST_PDPTE0),
+            ("VMCS_GUEST_PDPTE1", VMCS_GUEST_PDPTE1),
+            ("VMCS_GUEST_PDPTE2", VMCS_GUEST_PDPTE2),
+            ("VMCS_GUEST_PDPTE3", VMCS_GUEST_PDPTE3),
+            ("VMCS_GUEST_IA32_BNDCFGS", VMCS_GUEST_IA32_BNDCFGS),
+            ("VMCS_GUEST_IA32_RTIT_CTL", VMCS_GUEST_IA32_RTIT_CTL),
+            ("VMCS_GUEST_IA32_PKRS", VMCS_GUEST_IA32_PKRS),
+            ("VMCS_HOST_IA32_PAT", VMCS_HOST_IA32_PAT),
+            ("VMCS_HOST_IA32_EFER", VMCS_HOST_IA32_EFER),
+            (
+                "VMCS_HOST_IA32_PERF_GLOBAL_CTRL",
+                VMCS_HOST_IA32_PERF_GLOBAL_CTRL,
+            ),
+            ("VMCS_HOST_IA32_PKRS", VMCS_HOST_IA32_PKRS),
+            ("VMCS_CTRL_PIN_BASED", VMCS_CTRL_PIN_BASED),
+            ("VMCS_CTRL_CPU_BASED", VMCS_CTRL_CPU_BASED),
+            ("VMCS_CTRL_EXC_BITMAP", VMCS_CTRL_EXC_BITMAP),
+            ("VMCS_CTRL_PF_ERROR_MASK", VMCS_CTRL_PF_ERROR_MASK),
+            ("VMCS_CTRL_PF_ERROR_MATCH", VMCS_CTRL_PF_ERROR_MATCH),
+            ("VMCS_CTRL_CR3_COUNT", VMCS_CTRL_CR3_COUNT),
+            ("VMCS_CTRL_VMEXIT_CONTROLS", VMCS_CTRL_VMEXIT_CONTROLS),
+            (
+                "VMCS_CTRL_VMEXIT_MSR_STORE_COUNT",
+                VMCS_CTRL_VMEXIT_MSR_STORE_COUNT,
+            ),
+            (
+                "VMCS_CTRL_VMEXIT_MSR_LOAD_COUNT",
+                VMCS_CTRL_VMEXIT_MSR_LOAD_COUNT,
+            ),
+            ("VMCS_CTRL_VMENTRY_CONTROLS", VMCS_CTRL_VMENTRY_CONTROLS),
+            (
+                "VMCS_CTRL_VMENTRY_MSR_LOAD_COUNT",
+                VMCS_CTRL_VMENTRY_MSR_LOAD_COUNT,
+            ),
+            ("VMCS_CTRL_VMENTRY_IRQ_INFO", VMCS_CTRL_VMENTRY_IRQ_INFO),
+            ("VMCS_CTRL_VMENTRY_EXC_ERROR", VMCS_CTRL_VMENTRY_EXC_ERROR),
+            ("VMCS_CTRL_VMENTRY_INSTR_LEN", VMCS_CTRL_VMENTRY_INSTR_LEN),
+            ("VMCS_CTRL_TPR_THRESHOLD", VMCS_CTRL_TPR_THRESHOLD),
+            ("VMCS_CTRL_CPU_BASED2", VMCS_CTRL_CPU_BASED2),
+            ("VMCS_CTRL_PLE_GAP", VMCS_CTRL_PLE_GAP),
+            ("VMCS_CTRL_PLE_WINDOW", VMCS_CTRL_PLE_WINDOW),
+            // ("VMCS_RO_INSTR_ERROR", VMCS_RO_INSTR_ERROR),
+            // ("VMCS_RO_EXIT_REASON", VMCS_RO_EXIT_REASON),
+            // ("VMCS_RO_VMEXIT_IRQ_INFO", VMCS_RO_VMEXIT_IRQ_INFO),
+            // ("VMCS_RO_VMEXIT_IRQ_ERROR", VMCS_RO_VMEXIT_IRQ_ERROR),
+            // ("VMCS_RO_IDT_VECTOR_INFO", VMCS_RO_IDT_VECTOR_INFO),
+            // ("VMCS_RO_IDT_VECTOR_ERROR", VMCS_RO_IDT_VECTOR_ERROR),
+            // ("VMCS_RO_VMEXIT_INSTR_LEN", VMCS_RO_VMEXIT_INSTR_LEN),
+            // ("VMCS_RO_VMX_INSTR_INFO", VMCS_RO_VMX_INSTR_INFO),
+            ("VMCS_GUEST_ES_LIMIT", VMCS_GUEST_ES_LIMIT),
+            ("VMCS_GUEST_CS_LIMIT", VMCS_GUEST_CS_LIMIT),
+            ("VMCS_GUEST_SS_LIMIT", VMCS_GUEST_SS_LIMIT),
+            ("VMCS_GUEST_DS_LIMIT", VMCS_GUEST_DS_LIMIT),
+            ("VMCS_GUEST_FS_LIMIT", VMCS_GUEST_FS_LIMIT),
+            ("VMCS_GUEST_GS_LIMIT", VMCS_GUEST_GS_LIMIT),
+            ("VMCS_GUEST_LDTR_LIMIT", VMCS_GUEST_LDTR_LIMIT),
+            ("VMCS_GUEST_TR_LIMIT", VMCS_GUEST_TR_LIMIT),
+            ("VMCS_GUEST_GDTR_LIMIT", VMCS_GUEST_GDTR_LIMIT),
+            ("VMCS_GUEST_IDTR_LIMIT", VMCS_GUEST_IDTR_LIMIT),
+            ("VMCS_GUEST_ES_AR", VMCS_GUEST_ES_AR),
+            ("VMCS_GUEST_CS_AR", VMCS_GUEST_CS_AR),
+            ("VMCS_GUEST_SS_AR", VMCS_GUEST_SS_AR),
+            ("VMCS_GUEST_DS_AR", VMCS_GUEST_DS_AR),
+            ("VMCS_GUEST_FS_AR", VMCS_GUEST_FS_AR),
+            ("VMCS_GUEST_GS_AR", VMCS_GUEST_GS_AR),
+            ("VMCS_GUEST_LDTR_AR", VMCS_GUEST_LDTR_AR),
+            ("VMCS_GUEST_TR_AR", VMCS_GUEST_TR_AR),
+            ("VMCS_GUEST_INTERRUPTIBILITY", VMCS_GUEST_INTERRUPTIBILITY),
+            ("VMCS_GUEST_IGNORE_IRQ", VMCS_GUEST_IGNORE_IRQ),
+            ("VMCS_GUEST_ACTIVITY_STATE", VMCS_GUEST_ACTIVITY_STATE),
+            ("VMCS_GUEST_SMBASE", VMCS_GUEST_SMBASE),
+            ("VMCS_GUEST_IA32_SYSENTER_CS", VMCS_GUEST_IA32_SYSENTER_CS),
+            ("VMCS_GUEST_VMX_TIMER_VALUE", VMCS_GUEST_VMX_TIMER_VALUE),
+            ("VMCS_HOST_IA32_SYSENTER_CS", VMCS_HOST_IA32_SYSENTER_CS),
+            ("VMCS_CTRL_CR0_MASK", VMCS_CTRL_CR0_MASK),
+            ("VMCS_CTRL_CR4_MASK", VMCS_CTRL_CR4_MASK),
+            ("VMCS_CTRL_CR0_SHADOW", VMCS_CTRL_CR0_SHADOW),
+            ("VMCS_CTRL_CR4_SHADOW", VMCS_CTRL_CR4_SHADOW),
+            ("VMCS_CTRL_CR3_VALUE0", VMCS_CTRL_CR3_VALUE0),
+            ("VMCS_CTRL_CR3_VALUE1", VMCS_CTRL_CR3_VALUE1),
+            ("VMCS_CTRL_CR3_VALUE2", VMCS_CTRL_CR3_VALUE2),
+            ("VMCS_CTRL_CR3_VALUE3", VMCS_CTRL_CR3_VALUE3),
+            // ("VMCS_RO_EXIT_QUALIFIC", VMCS_RO_EXIT_QUALIFIC),
+            // ("VMCS_RO_IO_RCX", VMCS_RO_IO_RCX),
+            // ("VMCS_RO_IO_RSI", VMCS_RO_IO_RSI),
+            // ("VMCS_RO_IO_RDI", VMCS_RO_IO_RDI),
+            // ("VMCS_RO_IO_RIP", VMCS_RO_IO_RIP),
+            // ("VMCS_RO_GUEST_LIN_ADDR", VMCS_RO_GUEST_LIN_ADDR),
+            ("VMCS_GUEST_CR0", VMCS_GUEST_CR0),
+            ("VMCS_GUEST_CR3", VMCS_GUEST_CR3),
+            ("VMCS_GUEST_CR4", VMCS_GUEST_CR4),
+            ("VMCS_GUEST_ES_BASE", VMCS_GUEST_ES_BASE),
+            ("VMCS_GUEST_CS_BASE", VMCS_GUEST_CS_BASE),
+            ("VMCS_GUEST_SS_BASE", VMCS_GUEST_SS_BASE),
+            ("VMCS_GUEST_DS_BASE", VMCS_GUEST_DS_BASE),
+            ("VMCS_GUEST_FS_BASE", VMCS_GUEST_FS_BASE),
+            ("VMCS_GUEST_GS_BASE", VMCS_GUEST_GS_BASE),
+            ("VMCS_GUEST_LDTR_BASE", VMCS_GUEST_LDTR_BASE),
+            ("VMCS_GUEST_TR_BASE", VMCS_GUEST_TR_BASE),
+            ("VMCS_GUEST_GDTR_BASE", VMCS_GUEST_GDTR_BASE),
+            ("VMCS_GUEST_IDTR_BASE", VMCS_GUEST_IDTR_BASE),
+            ("VMCS_GUEST_DR7", VMCS_GUEST_DR7),
+            ("VMCS_GUEST_RSP", VMCS_GUEST_RSP),
+            ("VMCS_GUEST_RIP", VMCS_GUEST_RIP),
+            ("VMCS_GUEST_RFLAGS", VMCS_GUEST_RFLAGS),
+            ("VMCS_GUEST_DEBUG_EXC", VMCS_GUEST_DEBUG_EXC),
+            ("VMCS_GUEST_SYSENTER_ESP", VMCS_GUEST_SYSENTER_ESP),
+            ("VMCS_GUEST_SYSENTER_EIP", VMCS_GUEST_SYSENTER_EIP),
+            ("VMCS_GUEST_IA32_S_CET", VMCS_GUEST_IA32_S_CET),
+            ("VMCS_GUEST_SSP", VMCS_GUEST_SSP),
+            (
+                "VMCS_GUEST_IA32_INTR_SSP_TABLE_ADDR",
+                VMCS_GUEST_IA32_INTR_SSP_TABLE_ADDR,
+            ),
+            ("VMCS_HOST_CR0", VMCS_HOST_CR0),
+            ("VMCS_HOST_CR3", VMCS_HOST_CR3),
+            ("VMCS_HOST_CR4", VMCS_HOST_CR4),
+            ("VMCS_HOST_FS_BASE", VMCS_HOST_FS_BASE),
+            ("VMCS_HOST_GS_BASE", VMCS_HOST_GS_BASE),
+            ("VMCS_HOST_TR_BASE", VMCS_HOST_TR_BASE),
+            ("VMCS_HOST_GDTR_BASE", VMCS_HOST_GDTR_BASE),
+            ("VMCS_HOST_IDTR_BASE", VMCS_HOST_IDTR_BASE),
+            ("VMCS_HOST_IA32_SYSENTER_ESP", VMCS_HOST_IA32_SYSENTER_ESP),
+            ("VMCS_HOST_IA32_SYSENTER_EIP", VMCS_HOST_IA32_SYSENTER_EIP),
+            ("VMCS_HOST_RSP", VMCS_HOST_RSP),
+            ("VMCS_HOST_RIP", VMCS_HOST_RIP),
+            ("VMCS_HOST_IA32_S_CET", VMCS_HOST_IA32_S_CET),
+            ("VMCS_HOST_SSP", VMCS_HOST_SSP),
+            (
+                "VMCS_HOST_IA32_INTR_SSP_TABLE_ADDR",
+                VMCS_HOST_IA32_INTR_SSP_TABLE_ADDR,
+            ),
+        ] {
+            let value = match self.read_vmcs(*field_id) {
+                Ok(value) => value,
+                Err(e) => {
+                    //error!("Failed to read field {field_name}: {e}");
+                    continue;
+                }
+            };
+            println!("{field_name} = {value:016x}");
+        }
+        println!("--------END---------");
     }
 }
