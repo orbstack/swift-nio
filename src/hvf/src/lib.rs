@@ -11,7 +11,6 @@ mod bindings;
 use bindings::*;
 
 use std::arch::asm;
-use std::cell::Cell;
 use std::convert::TryInto;
 use std::ffi::c_void;
 use std::fmt::{Display, Formatter};

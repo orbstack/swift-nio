@@ -755,17 +755,6 @@ pub enum VcpuEvent {
     // Serialize and Deserialize to follow after we get the support from kvm-ioctls.
 }
 
-#[derive(Debug, Eq, PartialEq)]
-/// List of responses that the Vcpu reports.
-pub enum VcpuResponse {
-    /// Vcpu is paused.
-    Paused,
-    /// Vcpu is resumed.
-    Resumed,
-    /// Vcpu is stopped.
-    Exited(u8),
-}
-
 /// Wrapper over Vcpu that hides the underlying interactions with the Vcpu thread.
 pub struct VcpuHandle {
     event_sender: Sender<VcpuEvent>,

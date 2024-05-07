@@ -7,7 +7,6 @@
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::ptr;
-use std::time::Duration;
 
 use bitflags::bitflags;
 use tracing::debug;
