@@ -16,7 +16,7 @@ use super::macos::passthrough::PassthroughFs;
 use super::server::Server;
 use super::worker::FsWorker;
 use super::{defs, defs::uapi};
-use super::{passthrough, NfsInfo};
+use super::{passthrough, ActivityNotifier, NfsInfo};
 use crate::legacy::Gic;
 
 #[derive(Copy, Clone)]
@@ -60,6 +60,7 @@ impl Fs {
         shared_dir: String,
         nfs_info: Option<NfsInfo>,
         queues: Vec<VirtQueue>,
+        activity_notifier: Option<Arc<dyn ActivityNotifier>>,
     ) -> super::Result<Fs> {
         let mut queue_events = Vec::new();
         for _ in 0..queues.len() {
@@ -98,16 +99,22 @@ impl Fs {
             worker_stopfd: EventFd::new(EFD_NONBLOCK).map_err(FsError::EventFd)?,
             server: Arc::new(Server::new(
                 PassthroughFs::new(fs_cfg).map_err(FsError::CreateServer)?,
+                activity_notifier,
             )),
         })
     }
 
-    pub fn new(fs_id: String, shared_dir: String, nfs_info: Option<NfsInfo>) -> super::Result<Fs> {
+    pub fn new(
+        fs_id: String,
+        shared_dir: String,
+        nfs_info: Option<NfsInfo>,
+        activity_notifier: Option<Arc<dyn ActivityNotifier>>,
+    ) -> super::Result<Fs> {
         let queues: Vec<VirtQueue> = defs::QUEUE_SIZES
             .iter()
             .map(|&max_size| VirtQueue::new(max_size))
             .collect();
-        Self::with_queues(fs_id, shared_dir, nfs_info, queues)
+        Self::with_queues(fs_id, shared_dir, nfs_info, queues, activity_notifier)
     }
 
     pub fn id(&self) -> &str {

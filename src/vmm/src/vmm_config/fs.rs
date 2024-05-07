@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
-use devices::virtio::{Fs, FsError, NfsInfo};
+use devices::virtio::{ActivityNotifier, Fs, FsError, NfsInfo};
 
 #[derive(Debug)]
 pub enum FsConfigError {
@@ -21,11 +21,12 @@ impl fmt::Display for FsConfigError {
 
 type Result<T> = std::result::Result<T, FsConfigError>;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct FsDeviceConfig {
     pub fs_id: String,
     pub shared_dir: String,
     pub nfs_info: Option<NfsInfo>,
+    pub activity_notifier: Option<Arc<dyn ActivityNotifier>>,
 }
 
 #[derive(Default)]
@@ -47,7 +48,12 @@ impl FsBuilder {
     }
 
     pub fn create_fs(config: FsDeviceConfig) -> Result<Fs> {
-        devices::virtio::Fs::new(config.fs_id, config.shared_dir, config.nfs_info)
-            .map_err(FsConfigError::CreateFsDevice)
+        devices::virtio::Fs::new(
+            config.fs_id,
+            config.shared_dir,
+            config.nfs_info,
+            config.activity_notifier,
+        )
+        .map_err(FsConfigError::CreateFsDevice)
     }
 }

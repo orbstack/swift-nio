@@ -2,14 +2,21 @@ use std::{
     ffi::{c_char, CStr, CString},
     fmt,
     os::raw::c_void,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicI64, Ordering},
+        Arc, Mutex,
+    },
 };
 
 use anyhow::{anyhow, Context};
 use crossbeam_channel::unbounded;
-use devices::virtio::{net::device::VirtioNetBackend, CacheType, NfsInfo};
+use devices::virtio::{net::device::VirtioNetBackend, ActivityNotifier, CacheType, NfsInfo};
 use hvf::MemoryMapping;
 use libc::strdup;
+use nix::{
+    sys::time::TimeValLike,
+    time::{clock_gettime, ClockId},
+};
 use once_cell::sync::Lazy;
 use polly::event_manager::EventManager;
 use serde::{Deserialize, Serialize};
@@ -76,6 +83,9 @@ pub struct VzSpec {
     pub nfs_info: Option<NfsInfo>,
 }
 
+// ratelimit Go notifications (and hence timer cancellations) to 100ms for perf
+const ACTIVITY_NOTIFIER_INTERVAL_MS: i64 = 100;
+
 // due to HVF limitations, we can't have more than one VM per process, so this simplifies things
 static GLOBAL_VM: Lazy<Arc<Mutex<Option<Machine>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
 const VM_PTR: usize = 0xdeadbeef;
@@ -85,6 +95,24 @@ fn parse_mac_addr(s: &str) -> anyhow::Result<[u8; 6]> {
         .map(|s| u8::from_str_radix(s, 16))
         .collect::<Result<Vec<u8>, _>>()
         .map(|v| v.try_into().unwrap())?)
+}
+
+#[derive(Debug)]
+struct GoActivityNotifier {
+    last_report_time: AtomicI64,
+}
+
+impl ActivityNotifier for GoActivityNotifier {
+    fn on_activity(&self) {
+        let now = clock_gettime(ClockId::CLOCK_MONOTONIC)
+            .unwrap()
+            .num_milliseconds();
+        // race doesn't matter - this is an optimization
+        if now - self.last_report_time.load(Ordering::Relaxed) >= ACTIVITY_NOTIFIER_INTERVAL_MS {
+            self.last_report_time.store(now, Ordering::Relaxed);
+            unsafe { rsvm_go_on_fs_activity() };
+        }
+    }
 }
 
 pub struct Machine {
@@ -219,6 +247,9 @@ impl Machine {
                 fs_id: "mac".to_string(),
                 shared_dir: "/".to_string(),
                 nfs_info: spec.nfs_info.clone(),
+                activity_notifier: Some(Arc::new(GoActivityNotifier {
+                    last_report_time: AtomicI64::new(0),
+                })),
             })
             .map_err(to_anyhow_error)?;
         }
@@ -229,6 +260,7 @@ impl Machine {
                 fs_id: "rosetta".to_string(),
                 shared_dir: "/Library/Apple/usr/libexec/oah/RosettaLinux".to_string(),
                 nfs_info: None,
+                activity_notifier: None,
             })
             .map_err(to_anyhow_error)?;
         }
@@ -422,6 +454,7 @@ pub const MACHINE_STATE_STOPPED: u32 = 0;
 
 extern "C" {
     fn rsvm_go_on_state_change(state: u32);
+    fn rsvm_go_on_fs_activity();
 }
 
 fn to_anyhow_error<E: fmt::Display>(err: E) -> anyhow::Error {

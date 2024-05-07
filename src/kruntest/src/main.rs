@@ -9,6 +9,9 @@ pub extern "C" fn rsvm_go_on_state_change(state: u32) {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn rsvm_go_on_fs_activity() {}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 

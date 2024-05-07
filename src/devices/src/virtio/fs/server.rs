@@ -4,10 +4,12 @@
 
 use std::convert::TryInto;
 use std::ffi::{CStr, CString};
+use std::fmt::Debug;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::mem::size_of;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use vm_memory::ByteValued;
 
@@ -61,16 +63,22 @@ impl<'a> io::Write for ZCWriter<'a> {
     }
 }
 
+pub trait ActivityNotifier: Send + Sync + Debug {
+    fn on_activity(&self);
+}
+
 pub struct Server<F: FileSystem + Sync> {
     fs: F,
     options: AtomicU64,
+    activity_notifier: Option<Arc<dyn ActivityNotifier>>,
 }
 
 impl<F: FileSystem + Sync> Server<F> {
-    pub fn new(fs: F) -> Server<F> {
+    pub fn new(fs: F, activity_notifier: Option<Arc<dyn ActivityNotifier>>) -> Server<F> {
         Server {
             fs,
             options: AtomicU64::new(FsOptions::empty().bits()),
+            activity_notifier,
         }
     }
 
@@ -94,6 +102,11 @@ impl<F: FileSystem + Sync> Server<F> {
                 w,
             );
         }
+
+        if let Some(ref activity_notifier) = self.activity_notifier {
+            activity_notifier.on_activity();
+        }
+
         debug!("opcode: {}", in_header.opcode);
         match in_header.opcode {
             x if x == Opcode::Lookup as u32 => self.lookup(in_header, r, w),
