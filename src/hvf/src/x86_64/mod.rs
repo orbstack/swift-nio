@@ -146,7 +146,9 @@ pub enum ParkError {
 }
 
 #[derive(Clone, Debug)]
-pub struct HvfVm {}
+pub struct HvfVm {
+    asid: hv_vm_space_t,
+}
 
 impl HvfVm {
     pub fn new() -> Result<Self, Error> {
@@ -155,7 +157,13 @@ impl HvfVm {
             return Err(Error::VmCreate);
         }
 
-        Ok(Self {})
+        let mut asid: hv_vm_space_t = 0;
+        let ret = unsafe { hv_vm_space_create(&mut asid) };
+        if ret != HV_SUCCESS {
+            return Err(Error::VmCreate);
+        }
+
+        Ok(Self { asid })
     }
 
     pub fn map_memory(
@@ -165,7 +173,8 @@ impl HvfVm {
         size: u64,
     ) -> Result<(), Error> {
         let ret = unsafe {
-            hv_vm_map(
+            hv_vm_map_space(
+                self.asid,
                 host_start_addr as *mut core::ffi::c_void,
                 guest_start_addr,
                 size as usize,
@@ -180,7 +189,7 @@ impl HvfVm {
     }
 
     pub fn unmap_memory(&self, guest_start_addr: u64, size: u64) -> Result<(), Error> {
-        let ret = unsafe { hv_vm_unmap(guest_start_addr, size as usize) };
+        let ret = unsafe { hv_vm_unmap_space(self.asid, guest_start_addr, size as usize) };
         if ret != HV_SUCCESS {
             Err(Error::MemoryUnmap)
         } else {
@@ -247,11 +256,20 @@ pub struct HvfVcpu {
 }
 
 impl HvfVcpu {
-    pub fn new(parker: Arc<dyn Parkable>, guest_mem: GuestMemoryMmap) -> Result<Self, Error> {
+    pub fn new(
+        parker: Arc<dyn Parkable>,
+        guest_mem: GuestMemoryMmap,
+        hvf_vm: &HvfVm,
+    ) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpuid_t = 0;
 
         let ret =
             unsafe { hv_vcpu_create(&mut vcpuid, (HV_VCPU_DEFAULT | HV_VCPU_ACCEL_RDPMC) as u64) };
+        if ret != HV_SUCCESS {
+            return Err(Error::VcpuCreate);
+        }
+
+        let ret = unsafe { hv_vcpu_set_space(vcpuid, hvf_vm.asid) };
         if ret != HV_SUCCESS {
             return Err(Error::VcpuCreate);
         }
