@@ -394,8 +394,7 @@ impl HvfVcpu {
         self.write_reg(hv_x86_reg_t_HV_X86_CR3, sregs.cr3)?;
         self.write_reg(hv_x86_reg_t_HV_X86_CR4, sregs.cr4)?;
         debug!("set efer");
-        // causes vcpu run = HV_ERROR
-        // self.write_vmcs(VMCS_GUEST_IA32_EFER, sregs.efer)?;
+        self.write_vmcs(VMCS_GUEST_IA32_EFER, sregs.efer)?;
 
         self.enable_native_msr(HV_MSR_IA32_GS_BASE)?;
         self.enable_native_msr(HV_MSR_IA32_FS_BASE)?;
