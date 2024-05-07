@@ -716,8 +716,9 @@ func runVmManager() {
 	check(err)
 
 	// fsnotifier
-	fsNotifier, err := fsnotify.NewVmNotifier(vnetwork)
+	fsNotifier, err := fsnotify.NewVmNotifier(vnetwork, monitor == rsvm.Monitor)
 	check(err)
+	rsvm.OnFsActivityCallback = fsNotifier.OnVirtiofsActivity
 	defer fsNotifier.Close()
 	hcServer.FsNotifier = fsNotifier
 	go runOne("fsnotify proxy", fsNotifier.Run)

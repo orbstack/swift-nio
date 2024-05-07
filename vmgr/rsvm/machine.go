@@ -71,6 +71,16 @@ func rsvm_go_on_state_change(state int) {
 	}()
 }
 
+var OnFsActivityCallback func()
+
+//export rsvm_go_on_fs_activity
+func rsvm_go_on_fs_activity() {
+	// intentional data race: rarely mutated
+	if OnFsActivityCallback != nil {
+		OnFsActivityCallback()
+	}
+}
+
 type machine struct {
 	mu     sync.RWMutex
 	ptr    atomicUnsafePointer

@@ -20,9 +20,9 @@ private let npFlagRename: UInt64 = 1 << 5
 
 private let krpcMsgNotifyproxyInject: UInt32 = 1
 
-// up to 1 sec is ok because that's virtiofs entry_valid
-// to be safe, use 500 ms
-private let dirChangeDebounce: Double = 0.5
+// short debounce to avoid stale nodeids on recreated dir
+// OK because we have an inactivity timeout to stop this when virtiofs isn't being used
+private let dirChangeDebounce: Double = 0.1
 // for explicit Docker bind mount fsnotify, send events faster
 // this also acts as a faster cache invalidation in such cases
 private let fileWatchDebounce: Double = 0.1
@@ -263,7 +263,7 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
 }
 
 @_cdecl("swext_fsevents_monitor_dirs")
-func swext_fsevents_monitor_dirs() -> UnsafeMutablePointer<CChar> {
+func swext_fsevents_monitor_dirs(nfsMountPath: UnsafePointer<CChar>, dataPath: UnsafePointer<CChar>) -> GResultCreate {
     func callback(stream _: ConstFSEventStreamRef, info _: UnsafeMutableRawPointer?, numEvents: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>, ids _: UnsafePointer<FSEventStreamEventId>) {
         let pathsAndFlags = dedupeEvents(paths, flags, numEvents)
 
@@ -281,28 +281,25 @@ func swext_fsevents_monitor_dirs() -> UnsafeMutablePointer<CChar> {
                                      UInt64(kFSEventStreamEventIdSinceNow), dirChangeDebounce,
                                      UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer))
     guard let stream else {
-        return strdup("FSEventStreamCreate failed")
+        return GResultCreate(ptr: nil, err: strdup("FSEventStreamCreate failed"))
     }
 
     // exclude chatty paths
     let homePrefix = FileManager.default.homeDirectoryForCurrentUser.path
     let cachesPrefix = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].path
     let tmpPrefix = FileManager.default.temporaryDirectory.path
-    let nfsPrefix = "\(homePrefix)/OrbStack"
     let appDataPrefix = "\(homePrefix)/.orbstack"
-    let excludePaths = [cachesPrefix, tmpPrefix, nfsPrefix, appDataPrefix] as CFArray
+    let excludePaths = [cachesPrefix, tmpPrefix, appDataPrefix, String(cString: nfsMountPath), String(cString: dataPath)] as CFArray
     guard FSEventStreamSetExclusionPaths(stream, excludePaths) else {
-        return strdup("FSEventStreamSetExclusionPaths failed")
+        return GResultCreate(ptr: nil, err: strdup("FSEventStreamSetExclusionPaths failed"))
     }
 
+    // starts in stopped state!
     FSEventStreamSetDispatchQueue(stream, fseventsQueue)
-    guard FSEventStreamStart(stream) else {
-        return strdup("FSEventStreamStart failed")
-    }
 
     // retain for Go
     FSEventStreamRetain(stream)
-    return strdup("")
+    return GResultCreate(ptr: UnsafeMutableRawPointer(stream), err: nil)
 }
 
 // now, the standard files monitor
