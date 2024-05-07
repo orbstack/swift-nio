@@ -90,16 +90,16 @@ impl VmSetupState {
     // xhyve: src/vmm/intel/vmx.c:567
     fn vmx_vcpu_init(&mut self, vcpu: &HvfVcpu) -> anyhow::Result<()> {
         // xhyve: src/vmm/intel/vmx.c:584
-        vcpu.enable_native_msr(MSR_GSBASE)?;
-        vcpu.enable_native_msr(MSR_FSBASE)?;
-        vcpu.enable_native_msr(MSR_SYSENTER_CS_MSR)?;
-        vcpu.enable_native_msr(MSR_SYSENTER_ESP_MSR)?;
-        vcpu.enable_native_msr(MSR_SYSENTER_EIP_MSR)?;
-        vcpu.enable_native_msr(MSR_TSC)?;
-        vcpu.enable_native_msr(MSR_IA32_TSC_AUX)?;
+        vcpu.enable_native_msr(MSR_GSBASE).unwrap();
+        vcpu.enable_native_msr(MSR_FSBASE).unwrap();
+        vcpu.enable_native_msr(MSR_SYSENTER_CS_MSR).unwrap();
+        vcpu.enable_native_msr(MSR_SYSENTER_ESP_MSR).unwrap();
+        vcpu.enable_native_msr(MSR_SYSENTER_EIP_MSR).unwrap();
+        vcpu.enable_native_msr(MSR_TSC).unwrap();
+        vcpu.enable_native_msr(MSR_IA32_TSC_AUX).unwrap();
 
         // xhyve: src/vmm/intel/vmx.c:595
-        self.vmx_msr_guest_init(vcpu)?;
+        self.vmx_msr_guest_init(vcpu).unwrap();
 
         // xhyve: src/vmm/intel/vmx.c:597
         let mut pinbased_ctls = 0u32;
@@ -123,7 +123,8 @@ impl VmSetupState {
         .context(
             "vmx_init: processor does not support desired primary 
                     processor-based controls",
-        )?;
+        )
+        .unwrap();
 
         // Clear the processor-based ctl bits that are set on demand
         procbased_ctls &= !PROCBASED_CTLS_WINDOW_SETTING; // PROCBASED_CTLS_WINDOW_SETTING
@@ -138,9 +139,8 @@ impl VmSetupState {
             PROCBASED_CTLS2_ZERO_SETTING,
             &mut procbased_ctls2,
         )
-        .context(
-            "vmx_init: processor does not support desired secondary processor-based controls",
-        )?;
+        .context("vmx_init: processor does not support desired secondary processor-based controls")
+        .unwrap();
 
         // Check support for pin-based VM-execution controls
         // xhyve: src/vmm/intel/vmx.c:627
@@ -152,7 +152,8 @@ impl VmSetupState {
             PINBASED_CTLS_ZERO_SETTING,
             &mut pinbased_ctls,
         )
-        .context("vmx_init: processor does not support desired pin-based controls")?;
+        .context("vmx_init: processor does not support desired pin-based controls")
+        .unwrap();
 
         // Check support for VM-exit controls
         // xhyve: src/vmm/intel/vmx.c:638
@@ -164,7 +165,8 @@ impl VmSetupState {
             VM_EXIT_CTLS_ZERO_SETTING,
             &mut exit_ctls,
         )
-        .context("vmx_init: processor does not support desired exit controls")?;
+        .context("vmx_init: processor does not support desired exit controls")
+        .unwrap();
 
         // Check support for VM-entry controls
         // xhyve: src/vmm/intel/vmx.c:649
@@ -176,17 +178,22 @@ impl VmSetupState {
             VM_ENTRY_CTLS_ZERO_SETTING,
             &mut hack_entry_ctls, // &mut self.state[vcpu.id() as usize].entry_ctls,
         )
-        .context("vmx_init: processor does not support desired entry controls")?;
+        .context("vmx_init: processor does not support desired entry controls")
+        .unwrap();
 
         // xhyve: src/vmm/intel/vmx.c:658
-        vcpu.write_vmcs(VMCS_PIN_BASED_CTLS, pinbased_ctls as u64)?;
-        vcpu.write_vmcs(VMCS_PRI_PROC_BASED_CTLS, procbased_ctls as u64)?;
-        vcpu.write_vmcs(VMCS_SEC_PROC_BASED_CTLS, procbased_ctls2 as u64)?;
-        vcpu.write_vmcs(VMCS_EXIT_CTLS, exit_ctls as u64)?;
+        vcpu.write_vmcs(VMCS_PIN_BASED_CTLS, pinbased_ctls as u64)
+            .unwrap();
+        vcpu.write_vmcs(VMCS_PRI_PROC_BASED_CTLS, procbased_ctls as u64)
+            .unwrap();
+        vcpu.write_vmcs(VMCS_SEC_PROC_BASED_CTLS, procbased_ctls2 as u64)
+            .unwrap();
+        vcpu.write_vmcs(VMCS_EXIT_CTLS, exit_ctls as u64).unwrap();
         vcpu.write_vmcs(
             VMCS_ENTRY_CTLS,
             hack_entry_ctls as u64, //self.state[vcpu.id() as usize].entry_ctls as u64,
-        )?;
+        )
+        .unwrap();
 
         // exception bitmap
         // xhyve: src/vmm/intel/vmx.c:665
@@ -196,7 +203,7 @@ impl VmSetupState {
             1 << IDT_MC
         };
 
-        vcpu.write_vmcs(VMCS_EXCEPTION_BITMAP, exc_bitmap)?;
+        vcpu.write_vmcs(VMCS_EXCEPTION_BITMAP, exc_bitmap).unwrap();
 
         // xhyve: src/vmm/intel/vmx.c:672
         // self.cap[vcpu.id() as usize].set = 0;
@@ -211,20 +218,22 @@ impl VmSetupState {
         //
         // xhyve: src/vmm/intel/vmx.c:677
         self.vmx_setup_cr0_shadow(vcpu, 0x60000010)
-            .context("vmx_setup_cr0_shadow")?;
+            .context("vmx_setup_cr0_shadow")
+            .unwrap();
         self.vmx_setup_cr4_shadow(vcpu, 0)
-            .context("vmx_setup_cr4_shadow")?;
+            .context("vmx_setup_cr4_shadow")
+            .unwrap();
 
         Ok(())
     }
 
     // xhyve: src/vmm/intel/vmx_msr.c:206
     fn vmx_msr_guest_init(&mut self, vcpu: &HvfVcpu) -> anyhow::Result<()> {
-        vcpu.enable_native_msr(MSR_LSTAR)?;
-        vcpu.enable_native_msr(MSR_CSTAR)?;
-        vcpu.enable_native_msr(MSR_STAR)?;
-        vcpu.enable_native_msr(MSR_SF_MASK)?;
-        vcpu.enable_native_msr(MSR_KGSBASE)?;
+        vcpu.enable_native_msr(MSR_LSTAR).unwrap();
+        vcpu.enable_native_msr(MSR_CSTAR).unwrap();
+        vcpu.enable_native_msr(MSR_STAR).unwrap();
+        vcpu.enable_native_msr(MSR_SF_MASK).unwrap();
+        vcpu.enable_native_msr(MSR_KGSBASE).unwrap();
 
         // Initialize guest IA32_PAT MSR with default value after reset.
         // guest_msrs[IDX_MSR_PAT] = Self::pat_value(0, PAT_WRITE_BACK)
@@ -272,14 +281,16 @@ impl VmSetupState {
             shadow_ident = VMCS_CR4_SHADOW;
         }
 
-        vcpu.write_reg(
+        vcpu.write_vmcs(
             mask_ident,
             self.vmcs_fix_regval(mask_ident, mask_value as u64),
-        )?;
-        vcpu.write_reg(
+        )
+        .unwrap();
+        vcpu.write_vmcs(
             shadow_ident,
             self.vmcs_fix_regval(shadow_ident, initial as u64),
-        )?;
+        )
+        .unwrap();
 
         Ok(())
     }
@@ -364,12 +375,12 @@ impl VmSetupState {
 
     // xhyve: src/vmm/intel/vmx_msr.c:43
     fn vmx_ctl_allows_one_setting(msr_val: u64, bitpos: u32) -> bool {
-        msr_val & (164 << (bitpos + 32)) != 0
+        msr_val & (1u64 << (bitpos + 32)) != 0
     }
 
     // xhyve: src/vmm/intel/vmx_msr.c:52
     fn vmx_ctl_allows_zero_setting(msr_val: u64, bitpos: u32) -> bool {
-        msr_val & (164 << bitpos) != 0
+        msr_val & (1u64 << bitpos) == 0
     }
 
     // xhyve: include/xhyve/support/specialreg.h:535
@@ -389,7 +400,8 @@ pub fn just_initialize_hvf_already(vcpu: &HvfVcpu) -> Result<(), crate::Error> {
     state
         .vmx_vcpu_init(vcpu)
         // TODO: Get better errors!
-        .map_err(|_| crate::Error::VcpuCreate)?;
+        .map_err(|_| crate::Error::VcpuCreate)
+        .unwrap();
 
     Ok(())
 }

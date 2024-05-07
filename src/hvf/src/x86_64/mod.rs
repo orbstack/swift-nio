@@ -280,7 +280,7 @@ impl HvfVcpu {
         }
 
         // HACK
-        reg_init::just_initialize_hvf_already(self);
+        reg_init::just_initialize_hvf_already(self)?;
 
         // setup VM registers (imported from BSD's hypervisor)
         // TODO
