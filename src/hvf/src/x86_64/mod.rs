@@ -310,7 +310,10 @@ impl HvfVcpu {
         let mut sregs: kvm_sregs = kvm_sregs {
             cr0: self.read_reg(hv_x86_reg_t_HV_X86_CR0)?,
             cr3: self.read_reg(hv_x86_reg_t_HV_X86_CR3)?,
-            cr4: self.read_reg(hv_x86_reg_t_HV_X86_CR4)?,
+            // TODO: this means ENABLE_VMX, and is supposed to be read from msr FIXED0
+            // we can do that by reading capabilities: hv_vmx_capability_t_HV_VMX_CAP_CR0_FIXED0, hv_vmx_capability_t_HV_VMX_CAP_CR0_FIXED1, hv_vmx_capability_t_HV_VMX_CAP_CR4_FIXED0, hv_vmx_capability_t_HV_VMX_CAP_CR4_FIXED1
+            // see xhyve: vmx_fix_cr0() and vmx_fix_cr4()
+            cr4: self.read_reg(hv_x86_reg_t_HV_X86_CR4)? | 0x2000,
             efer: self.read_vmcs(VMCS_GUEST_IA32_EFER)?,
             ..Default::default()
         };
@@ -320,10 +323,7 @@ impl HvfVcpu {
         debug!("set cs...tr");
         self.write_vmcs(
             VMCS_CTRL_VMENTRY_CONTROLS,
-            self.read_vmcs(VMCS_CTRL_VMENTRY_CONTROLS)?, // IA-32e mode guest
-                                                         // | (1<<9)
-                                                         // // Load IA32_EFER
-                                                         // | (1<<15),
+            self.read_vmcs(VMCS_CTRL_VMENTRY_CONTROLS)? | (1 << 9), // IA-32e mode guest
         )?;
 
         // cs, ds, es, fs, gs, ss, tr, ldtr
@@ -384,23 +384,21 @@ impl HvfVcpu {
             VMCS_GUEST_LDTR_AR,
         )?;
 
-        //         debug!("set gdtr");
-        //         self.write_reg(hv_x86_reg_t_HV_X86_GDT_BASE, sregs.gdt.base)?;
-        //         self.write_reg(hv_x86_reg_t_HV_X86_GDT_LIMIT, sregs.gdt.limit as u64)?;
-        //         debug!("set idtr");
-        //         self.write_reg(hv_x86_reg_t_HV_X86_IDT_BASE, sregs.idt.base)?;
-        //         self.write_reg(hv_x86_reg_t_HV_X86_IDT_LIMIT, sregs.idt.limit as u64)?;
-        //         debug!("set cr0");
-        //         self.write_reg(hv_x86_reg_t_HV_X86_CR0, sregs.cr0)?;
-        //         self.write_reg(hv_x86_reg_t_HV_X86_CR3, sregs.cr3)?;
-        //         self.write_reg(hv_x86_reg_t_HV_X86_CR4, sregs.cr4)?;
-        //         debug!("set efer");
-        //         self.write_vmcs(VMCS_GUEST_IA32_EFER, sregs.efer)?;
+        debug!("set gdtr");
+        self.write_reg(hv_x86_reg_t_HV_X86_GDT_BASE, sregs.gdt.base)?;
+        self.write_reg(hv_x86_reg_t_HV_X86_GDT_LIMIT, sregs.gdt.limit as u64)?;
+        debug!("set idtr");
+        self.write_reg(hv_x86_reg_t_HV_X86_IDT_BASE, sregs.idt.base)?;
+        self.write_reg(hv_x86_reg_t_HV_X86_IDT_LIMIT, sregs.idt.limit as u64)?;
+        debug!("set cr0");
+        self.write_reg(hv_x86_reg_t_HV_X86_CR0, sregs.cr0)?;
+        self.write_reg(hv_x86_reg_t_HV_X86_CR3, sregs.cr3)?;
+        self.write_reg(hv_x86_reg_t_HV_X86_CR4, sregs.cr4)?;
+        debug!("set efer");
+        self.write_vmcs(VMCS_GUEST_IA32_EFER, sregs.efer)?;
 
-        // HACK: Magic numbers :(
-        // self.write_vmcs(VMCS_CTRL_CR0_SHADOW, 0x0000000000000021)?;
-        self.write_vmcs(VMCS_GUEST_CR0, 0x0000000000000031)?;
-        self.write_vmcs(VMCS_GUEST_CR4, 0x0000000000002000)?;
+        self.write_vmcs(VMCS_CTRL_CR0_SHADOW, sregs.cr0)?;
+        self.write_vmcs(VMCS_CTRL_CR4_SHADOW, sregs.cr4)?;
 
         // Regular MSR stuff
         self.enable_native_msr(HV_MSR_IA32_GS_BASE)?;
