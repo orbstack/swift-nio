@@ -117,6 +117,8 @@ pub enum Error {
     SpaceCreate,
     #[error("init sregs")]
     InitSregs(arch::x86_64::regs::Error),
+    #[error("vcpu exit apic access read")]
+    VcpuExitApicAccessRead,
 }
 
 /// Messages for requesting memory maps/unmaps.
@@ -683,7 +685,7 @@ impl HvfVcpu {
                         if eax == 1 {
                             res.ecx |= 1 << 31; // HYPERVISOR
                         } else if eax == 7 {
-                            res.ebx &= !((1 << 1) | (1 << 10)); // TSC_ADJUST (msr 0x3b), INVPCID
+                            res.ebx &= !(1 << 1); // TSC_ADJUST (msr 0x3b)
                         }
 
                         self.write_reg(hv_x86_reg_t_HV_X86_RAX, res.eax as u64)?;
@@ -865,6 +867,7 @@ impl HvfVcpu {
                     ),
                 }
             }
+            // TODO: shouldn't advance rip for these
             hv_vm_exitinfo_t_HV_VM_EXITINFO_INIT_AP => todo!(),
             hv_vm_exitinfo_t_HV_VM_EXITINFO_STARTUP_AP => todo!(),
             hv_vm_exitinfo_t_HV_VM_EXITINFO_IOAPIC_EOI => todo!(),
@@ -876,7 +879,16 @@ impl HvfVcpu {
                     exit_info
                 )
             }
-            hv_vm_exitinfo_t_HV_VM_EXITINFO_APIC_ACCESS_READ => todo!(),
+            hv_vm_exitinfo_t_HV_VM_EXITINFO_APIC_ACCESS_READ => {
+                let mut value: u32 = 0;
+                let ret = unsafe { hv_vcpu_exit_apic_access_read(self.vcpuid, &mut value) };
+                if ret != HV_SUCCESS {
+                    return Err(Error::VcpuExitApicAccessRead);
+                }
+
+                self.dump_vmcs();
+                todo!("apic access read: {value:x}")
+            }
             _ => panic!("unhandled exit info"),
         }?;
 
