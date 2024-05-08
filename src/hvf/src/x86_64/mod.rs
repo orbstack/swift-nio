@@ -397,23 +397,6 @@ impl HvfVcpu {
         //         debug!("set efer");
         //         self.write_vmcs(VMCS_GUEST_IA32_EFER, sregs.efer)?;
 
-        // setup regs
-        debug!("set regs");
-        self.write_reg(hv_x86_reg_t_HV_X86_RFLAGS, 0x0000_0000_0000_0002u64)?;
-        self.write_reg(hv_x86_reg_t_HV_X86_RIP, boot_ip)?;
-        self.write_reg(
-            hv_x86_reg_t_HV_X86_RSP,
-            arch::x86_64::layout::BOOT_STACK_POINTER,
-        )?;
-        self.write_reg(
-            hv_x86_reg_t_HV_X86_RBP,
-            arch::x86_64::layout::BOOT_STACK_POINTER,
-        )?;
-        self.write_reg(
-            hv_x86_reg_t_HV_X86_RSI,
-            arch::x86_64::layout::ZERO_PAGE_START,
-        )?;
-
         // HACK: Magic numbers :(
         // self.write_vmcs(VMCS_CTRL_CR0_SHADOW, 0x0000000000000021)?;
         self.write_vmcs(VMCS_GUEST_CR0, 0x0000000000000031)?;
