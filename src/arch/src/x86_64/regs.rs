@@ -169,7 +169,7 @@ const EFER_LMA: u64 = 0x400;
 const EFER_LME: u64 = 0x100;
 
 const X86_CR0_PE: u64 = 0x1;
-const X86_CR0_PG: u64 = 0x8000_0000;
+pub const X86_CR0_PG: u64 = 0x8000_0000;
 const X86_CR4_PAE: u64 = 0x20;
 
 fn write_gdt_table(table: &[u64], guest_mem: &GuestMemoryMmap) -> Result<()> {

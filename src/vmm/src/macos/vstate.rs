@@ -749,6 +749,7 @@ impl Vcpu {
                     }
                     Ok(VcpuEmulation::Handled)
                 }
+                VcpuExit::Handled => Ok(VcpuEmulation::Handled),
                 VcpuExit::HypervisorCall => {
                     debug!("vCPU {} HVC", vcpuid);
                     Ok(VcpuEmulation::Handled)
@@ -814,7 +815,7 @@ impl Vcpu {
                     Ok(VcpuEmulation::Handled)
                 }
                 VcpuExit::WaitForEvent => {
-                    debug!("vCPU {} WaitForEvent", vcpuid);
+                    //debug!("vCPU {} WaitForEvent", vcpuid);
                     Ok(VcpuEmulation::WaitForEvent)
                 }
                 VcpuExit::WaitForEventExpired => {
@@ -825,10 +826,16 @@ impl Vcpu {
                     debug!("vCPU {} WaitForEventTimeout timeout={:?}", vcpuid, duration);
                     Ok(VcpuEmulation::WaitForEventTimeout(duration))
                 }
+                VcpuExit::IoPortRead(port) => {
+                    //debug!("vCPU {} IoPortRead port={}", vcpuid, port);
+                    Ok(VcpuEmulation::Handled)
+                }
                 VcpuExit::IoPortWrite(port, value) => {
-                    debug!("vCPU {} IoPortWrite port={} value={}", vcpuid, port, value);
+                    //debug!("vCPU {} IoPortWrite port={} value={}", vcpuid, port, value);
                     // write to stdout
-                    write(1, &[(value & 0xff) as u8]).unwrap();
+                    if port == 0x3f8 {
+                        write(1, &[(value & 0xff) as u8]).unwrap();
+                    }
                     Ok(VcpuEmulation::Handled)
                 }
             },

@@ -338,7 +338,7 @@ impl VmSetupState {
         // We cannot ask the same bit to be set to both `1` and `0`.
         assert_eq!((expect_one ^ expect_zero), (expect_one | expect_zero));
 
-        let cap = vcpu.read_cap(cap_field).unwrap();
+        let cap = HvfVcpu::read_cap(cap_field).unwrap();
         let current = vcpu.read_vmcs(vmcs_field).unwrap() as u32;
 
         for i in 0..32 {

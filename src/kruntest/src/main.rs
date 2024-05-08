@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
         memory: 1024 * 1024 * 1024,
         kernel: home_dir + "/kernel",
         #[cfg(target_arch = "x86_64")]
-        cmdline: "clocksource=tsc tsc=reliable earlycon=uart,io,12345".to_string(),
+        cmdline: "clocksource=tsc tsc=reliable earlycon=uart,io,0x3f8".to_string(),
         #[cfg(target_arch = "aarch64")]
         cmdline: "".to_string(),
         initrd: None,

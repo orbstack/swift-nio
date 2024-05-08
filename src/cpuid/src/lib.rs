@@ -18,6 +18,8 @@ mod template;
 pub use crate::template::c3;
 pub use crate::template::t2;
 
+pub mod host;
+
 mod cpu_leaf;
 
 mod transformer;

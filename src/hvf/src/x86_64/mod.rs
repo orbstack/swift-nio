@@ -12,19 +12,24 @@ mod reg_init;
 
 use arch::x86_64::gdt::{encode_kvm_segment_ar, kvm_segment};
 use arch::x86_64::mptable::APIC_DEFAULT_PHYS_BASE;
-use arch::x86_64::regs::kvm_sregs;
+use arch::x86_64::regs::{kvm_sregs, X86_CR0_PG};
 use arch_gen::x86::msr_index::{
-    MSR_MTRRdefType, MSR_IA32_MISC_ENABLE, MSR_IA32_MISC_ENABLE_FAST_STRING, MSR_KERNEL_GS_BASE,
-    MSR_SYSCALL_MASK,
+    MSR_MTRRcap, MSR_MTRRdefType, MSR_MTRRfix16K_80000, MSR_MTRRfix16K_A0000, MSR_MTRRfix4K_C0000,
+    MSR_MTRRfix4K_C8000, MSR_MTRRfix4K_D0000, MSR_MTRRfix4K_D8000, MSR_MTRRfix4K_E0000,
+    MSR_MTRRfix4K_E8000, MSR_MTRRfix4K_F0000, MSR_MTRRfix4K_F8000, MSR_MTRRfix64K_00000, EFER_LMA,
+    EFER_LME, MSR_EFER, MSR_IA32_CR_PAT, MSR_IA32_MISC_ENABLE, MSR_IA32_MISC_ENABLE_FAST_STRING,
+    MSR_IA32_UCODE_REV, MSR_KERNEL_GS_BASE, MSR_SYSCALL_MASK,
 };
 use bindings::*;
 use vm_memory::GuestMemoryMmap;
 
 use core::panic;
 use std::arch::asm;
+use std::arch::x86_64::__cpuid_count;
 use std::convert::TryInto;
 use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
+use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
 use std::thread::Thread;
@@ -37,6 +42,32 @@ use tracing::{debug, error};
 const MTRR_ENABLE: u64 = 0x800;
 /// Mem type WB
 const MTRR_MEM_TYPE_WB: u64 = 0x6;
+
+const LAPIC_TPR: u32 = 0x80;
+
+// from xhyve:
+// set branch trace disabled(11), PEBS unavailable(12)
+const IA32_MISC_ENABLE_VALUE: u64 = 1 | (1 << 11) | (1 << 12);
+
+const PAT_UNCACHEABLE: u64 = 0x00;
+const PAT_WRITE_COMBINING: u64 = 0x01;
+const PAT_WRITE_THROUGH: u64 = 0x04;
+const PAT_WRITE_PROTECTED: u64 = 0x05;
+const PAT_WRITE_BACK: u64 = 0x06;
+const PAT_UNCACHED: u64 = 0x07;
+
+const fn pat_value(i: u32, m: u64) -> u64 {
+    (m << (8 * i)) as u64
+}
+
+const IA32_PAT_DEFAULT: u64 = pat_value(0, PAT_WRITE_BACK)
+    | pat_value(1, PAT_WRITE_THROUGH)
+    | pat_value(2, PAT_UNCACHED)
+    | pat_value(3, PAT_UNCACHEABLE)
+    | pat_value(4, PAT_WRITE_BACK)
+    | pat_value(5, PAT_WRITE_THROUGH)
+    | pat_value(6, PAT_UNCACHED)
+    | pat_value(7, PAT_UNCACHEABLE);
 
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum Error {
@@ -62,12 +93,24 @@ pub enum Error {
     VcpuSetPendingIrq,
     #[error("vcpu set register")]
     VcpuSetRegister,
+    #[error("vcpu read vmcs")]
+    VcpuReadVmcs,
+    #[error("vcpu write vmcs")]
+    VcpuWriteVmcs,
     #[error("vcpu set msr")]
     VcpuSetMsr,
     #[error("vcpu set vtimer mask")]
     VcpuSetVtimerMask,
     #[error("vcpu set apic address")]
     VcpuSetApicAddress,
+    #[error("vcpu get apic state")]
+    VcpuGetApicState,
+    #[error("vcpu set apic state")]
+    VcpuSetApicState,
+    #[error("vcpu read apic")]
+    VcpuReadApic,
+    #[error("vcpu set apic")]
+    VcpuSetApic,
     #[error("vm create")]
     VmCreate,
     #[error("space create")]
@@ -97,35 +140,6 @@ pub fn vcpu_request_exit(vcpuid: hv_vcpuid_t) -> Result<(), Error> {
         Ok(())
     }
 }
-
-// pub fn vcpu_set_pending_irq(
-//     vcpuid: u64,
-//     irq_type: InterruptType,
-//     pending: bool,
-// ) -> Result<(), Error> {
-//     let _type = match irq_type {
-//         InterruptType::Irq => hv_interrupt_type_t_HV_INTERRUPT_TYPE_IRQ,
-//         InterruptType::Fiq => hv_interrupt_type_t_HV_INTERRUPT_TYPE_FIQ,
-//     };
-
-//     let ret = unsafe { hv_vcpu_set_pending_interrupt(vcpuid, _type, pending) };
-
-//     if ret != HV_SUCCESS {
-//         Err(Error::VcpuSetPendingIrq)
-//     } else {
-//         Ok(())
-//     }
-// }
-
-// pub fn vcpu_set_vtimer_mask(vcpuid: u64, masked: bool) -> Result<(), Error> {
-//     let ret = unsafe { hv_vcpu_set_vtimer_mask(vcpuid, masked) };
-
-//     if ret != HV_SUCCESS {
-//         Err(Error::VcpuSetVtimerMask)
-//     } else {
-//         Ok(())
-//     }
-// }
 
 pub type VcpuId = u32;
 
@@ -210,6 +224,7 @@ pub enum VcpuExit<'a> {
     Breakpoint,
     Canceled,
     CpuOn(u64, u64, u64),
+    Handled,
     HypervisorCall,
     HypervisorIoCall {
         dev_id: usize,
@@ -228,6 +243,7 @@ pub enum VcpuExit<'a> {
     WaitForEvent,
     WaitForEventExpired,
     WaitForEventTimeout(Duration),
+    IoPortRead(u16),
     IoPortWrite(u16, u64),
 }
 
@@ -242,8 +258,34 @@ pub struct HvfVcpu {
     vcpuid: hv_vcpuid_t,
     mmio_buf: [u8; 8],
     pending_mmio_read: Option<MmioRead>,
-    pending_advance_rip: bool,
     guest_mem: GuestMemoryMmap,
+
+    cr0_fixed0: u64,
+    cr4_fixed0: u64,
+    cr0_fixed1: u64,
+    cr4_fixed1: u64,
+}
+
+fn map_indexed_reg(reg: u8) -> u32 {
+    match reg {
+        0 => hv_x86_reg_t_HV_X86_RAX,
+        1 => hv_x86_reg_t_HV_X86_RCX,
+        2 => hv_x86_reg_t_HV_X86_RDX,
+        3 => hv_x86_reg_t_HV_X86_RBX,
+        4 => hv_x86_reg_t_HV_X86_RSP,
+        5 => hv_x86_reg_t_HV_X86_RBP,
+        6 => hv_x86_reg_t_HV_X86_RSI,
+        7 => hv_x86_reg_t_HV_X86_RDI,
+        8 => hv_x86_reg_t_HV_X86_R8,
+        9 => hv_x86_reg_t_HV_X86_R9,
+        10 => hv_x86_reg_t_HV_X86_R10,
+        11 => hv_x86_reg_t_HV_X86_R11,
+        12 => hv_x86_reg_t_HV_X86_R12,
+        13 => hv_x86_reg_t_HV_X86_R13,
+        14 => hv_x86_reg_t_HV_X86_R14,
+        15 => hv_x86_reg_t_HV_X86_R15,
+        _ => panic!("unexpected indexed register: {reg}"),
+    }
 }
 
 impl HvfVcpu {
@@ -256,13 +298,22 @@ impl HvfVcpu {
             return Err(Error::VcpuCreate);
         }
 
+        // read cr0/cr4 fixed0/fixed1
+        let cr0_fixed0 = Self::read_cap(hv_vmx_capability_t_HV_VMX_CAP_CR0_FIXED0)?;
+        let cr4_fixed0 = Self::read_cap(hv_vmx_capability_t_HV_VMX_CAP_CR4_FIXED0)?;
+        let cr0_fixed1 = Self::read_cap(hv_vmx_capability_t_HV_VMX_CAP_CR0_FIXED1)?;
+        let cr4_fixed1 = Self::read_cap(hv_vmx_capability_t_HV_VMX_CAP_CR4_FIXED1)?;
+
         Ok(Self {
             parker,
             vcpuid,
             mmio_buf: [0; 8],
             pending_mmio_read: None,
-            pending_advance_rip: false,
             guest_mem,
+            cr0_fixed1: cr0_fixed0 & cr0_fixed1,
+            cr4_fixed1: cr4_fixed0 & cr4_fixed1,
+            cr0_fixed0: !cr0_fixed0 & !cr0_fixed1,
+            cr4_fixed0: !cr4_fixed0 & !cr4_fixed1,
         })
     }
 
@@ -270,6 +321,12 @@ impl HvfVcpu {
         // set APIC address
         let ret =
             unsafe { hv_vmx_vcpu_set_apic_address(self.vcpuid, APIC_DEFAULT_PHYS_BASE as u64) };
+        if ret != HV_SUCCESS {
+            return Err(Error::VcpuSetApicAddress);
+        }
+
+        let ret =
+            unsafe { hv_vcpu_apic_ctrl(self.vcpuid, hv_apic_ctrl_t_HV_APIC_CTRL_EOI_ICR_TPR) };
         if ret != HV_SUCCESS {
             return Err(Error::VcpuSetApicAddress);
         }
@@ -312,8 +369,7 @@ impl HvfVcpu {
             cr3: self.read_reg(hv_x86_reg_t_HV_X86_CR3)?,
             // TODO: this means ENABLE_VMX, and is supposed to be read from msr FIXED0
             // we can do that by reading capabilities: hv_vmx_capability_t_HV_VMX_CAP_CR0_FIXED0, hv_vmx_capability_t_HV_VMX_CAP_CR0_FIXED1, hv_vmx_capability_t_HV_VMX_CAP_CR4_FIXED0, hv_vmx_capability_t_HV_VMX_CAP_CR4_FIXED1
-            // see xhyve: vmx_fix_cr0() and vmx_fix_cr4()
-            cr4: self.read_reg(hv_x86_reg_t_HV_X86_CR4)? | 0x2000,
+            cr4: self.fix_cr4(self.read_reg(hv_x86_reg_t_HV_X86_CR4)?),
             efer: self.read_vmcs(VMCS_GUEST_IA32_EFER)?,
             ..Default::default()
         };
@@ -415,7 +471,7 @@ impl HvfVcpu {
         self.enable_native_msr(MSR_SYSCALL_MASK)?;
         self.enable_native_msr(HV_MSR_IA32_KERNEL_GS_BASE)?;
 
-        reg_init::dump_hvf_params(self);
+        // reg_init::dump_hvf_params(self);
 
         Ok(())
     }
@@ -466,15 +522,14 @@ impl HvfVcpu {
         let mut val: u64 = 0;
         let ret = unsafe { hv_vmx_vcpu_read_vmcs(self.vcpuid, field, &mut val) };
         if ret != HV_SUCCESS {
-            Err(Error::VcpuReadRegister)
+            Err(Error::VcpuReadVmcs)
         } else {
             Ok(val)
         }
     }
 
-    fn read_cap(&self, field: u32) -> Result<u64, Error> {
+    fn read_cap(field: hv_vmx_capability_t) -> Result<u64, Error> {
         let mut val: u64 = 0;
-
         let ret = unsafe { hv_vmx_read_capability(field, &mut val) };
 
         if ret != HV_SUCCESS {
@@ -484,13 +539,69 @@ impl HvfVcpu {
         }
     }
 
+    fn get_msr_info(field: u32) -> Result<u64, Error> {
+        let mut value: u64 = 0;
+        let ret = unsafe { hv_vmx_get_msr_info(field as hv_vmx_msr_info_t, &mut value) };
+        if ret != HV_SUCCESS {
+            Err(Error::VcpuReadMsr)
+        } else {
+            Ok(value)
+        }
+    }
+
     fn write_vmcs(&self, field: u32, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vmx_vcpu_write_vmcs(self.vcpuid, field, val) };
         if ret != HV_SUCCESS {
-            Err(Error::VcpuSetRegister)
+            Err(Error::VcpuWriteVmcs)
         } else {
             Ok(())
         }
+    }
+
+    fn read_apic(&self, offset: u32) -> Result<u32, Error> {
+        let mut val: u32 = 0;
+        let ret = unsafe { hv_vcpu_apic_read(self.vcpuid, offset, &mut val) };
+        if ret != HV_SUCCESS {
+            Err(Error::VcpuReadApic)
+        } else {
+            Ok(val)
+        }
+    }
+
+    fn write_apic(&self, offset: u32, val: u32) -> Result<bool, Error> {
+        let mut no_side_effect: bool = false;
+        let ret = unsafe { hv_vcpu_apic_write(self.vcpuid, offset, val, &mut no_side_effect) };
+        if ret != HV_SUCCESS {
+            Err(Error::VcpuSetApic)
+        } else {
+            Ok(no_side_effect)
+        }
+    }
+
+    fn get_apic_state(&self) -> Result<hv_apic_state, Error> {
+        let mut state = hv_apic_state_ext_t {
+            version: HV_APIC_STATE_EXT_VER,
+            state: unsafe { MaybeUninit::uninit().assume_init() },
+        };
+        let ret = unsafe { hv_vcpu_apic_get_state(self.vcpuid, &mut state) };
+        if ret != HV_SUCCESS {
+            return Err(Error::VcpuGetApicState);
+        }
+
+        Ok(state.state)
+    }
+
+    fn set_apic_state(&self, state: &hv_apic_state) -> Result<(), Error> {
+        let state = hv_apic_state_ext_t {
+            version: HV_APIC_STATE_EXT_VER,
+            state: *state,
+        };
+        let ret = unsafe { hv_vcpu_apic_put_state(self.vcpuid, &state) };
+        if ret != HV_SUCCESS {
+            return Err(Error::VcpuSetApicState);
+        }
+
+        Ok(())
     }
 
     fn write_segment(
@@ -540,17 +651,12 @@ impl HvfVcpu {
         //         self.write_raw_reg(hv_reg_t_HV_REG_X0 + mmio_read.srt, val)?;
         //     }
         // }
-
-        if self.pending_advance_rip {
-            let rip = self.read_reg(hv_x86_reg_t_HV_X86_RIP)?;
-            let instr_len = self.read_vmcs(VMCS_RO_VMEXIT_INSTR_LEN)?;
-            self.write_reg(hv_x86_reg_t_HV_X86_RIP, rip + instr_len)?;
-            self.pending_advance_rip = false;
-        }
+        let mut advance_rip = true;
 
         // if pending_irq {
         //     vcpu_set_pending_irq(self.vcpuid, InterruptType::Irq, true)?;
         // }
+        // self.dump_vmcs();
 
         let ret = unsafe { hv_vcpu_run_until(self.vcpuid, HV_DEADLINE_FOREVER) };
         if ret != HV_SUCCESS {
@@ -562,35 +668,186 @@ impl HvfVcpu {
         if ret != HV_SUCCESS {
             return Err(Error::VcpuRun);
         }
-        self.dump_vmcs();
 
-        match exit_info {
+        let res = match exit_info {
             hv_vm_exitinfo_t_HV_VM_EXITINFO_VMX => {
                 let exit_reason = self.read_vmcs(VMCS_RO_EXIT_REASON)? as u32;
                 match exit_reason {
                     VMX_REASON_VMCALL => Ok(VcpuExit::HypervisorCall),
-                    VMX_REASON_CPUID => todo!(),
+                    VMX_REASON_CPUID => {
+                        // TODO: filter + enumerate host
+                        let eax = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff;
+                        let ecx = self.read_reg(hv_x86_reg_t_HV_X86_RCX)? & 0xffffffff;
+                        let mut res = unsafe { __cpuid_count(eax as u32, ecx as u32) };
+
+                        if eax == 1 {
+                            res.ecx |= 1 << 31; // HYPERVISOR
+                        } else if eax == 7 {
+                            res.ebx &= !((1 << 1) | (1 << 10)); // TSC_ADJUST (msr 0x3b), INVPCID
+                        }
+
+                        self.write_reg(hv_x86_reg_t_HV_X86_RAX, res.eax as u64)?;
+                        self.write_reg(hv_x86_reg_t_HV_X86_RCX, res.ecx as u64)?;
+                        self.write_reg(hv_x86_reg_t_HV_X86_RDX, res.edx as u64)?;
+                        self.write_reg(hv_x86_reg_t_HV_X86_RBX, res.ebx as u64)?;
+                        Ok(VcpuExit::Handled)
+                    }
+                    VMX_REASON_MOV_CR => {
+                        let qual = self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?;
+                        match qual & 0xf {
+                            0 => {
+                                // cr0
+                                // must be mov to cr0
+                                if qual & 0xf0 != 0 {
+                                    panic!("unexpected mov cr0 exit (not reg): {qual}");
+                                }
+
+                                let reg = (qual >> 8) & 0xf;
+                                let value = self.read_reg(map_indexed_reg(reg as u8))? as u64;
+                                self.write_reg(hv_x86_reg_t_HV_X86_CR0, self.fix_cr0(value))?;
+                                self.write_vmcs(VMCS_CTRL_CR0_SHADOW, value)?;
+
+                                // if CR0.PG=1, EFER.LME=1, then IA32E_MODE == EFER.LMA
+                                let mut efer = self.read_vmcs(VMCS_GUEST_IA32_EFER)?;
+                                let is_ia32e = (value & X86_CR0_PG) != 0
+                                    && (efer & EFER_LME as u64) != 0
+                                    && (efer & EFER_LMA as u64) != 0;
+                                if is_ia32e {
+                                    efer |= EFER_LMA as u64;
+                                } else {
+                                    efer &= !EFER_LMA as u64;
+                                }
+                                self.write_vmcs(VMCS_GUEST_IA32_EFER, efer)?;
+                            }
+                            4 => {
+                                // cr4
+                                // must be mov to cr4
+                                if qual & 0xf0 != 0 {
+                                    panic!("unexpected mov cr4 exit (not reg): {qual}");
+                                }
+
+                                let reg = (qual >> 8) & 0xf;
+                                let value = self.read_reg(map_indexed_reg(reg as u8))? as u64;
+                                self.write_reg(hv_x86_reg_t_HV_X86_CR4, self.fix_cr4(value))?;
+                                self.write_vmcs(VMCS_CTRL_CR4_SHADOW, value)?;
+                            }
+                            8 => {
+                                // cr8
+                                // must be to/from a register
+                                if qual & 0xe0 != 0 {
+                                    panic!("unexpected mov cr8 exit (not reg): {qual}");
+                                }
+
+                                // read or write?
+                                let reg = (qual >> 8) & 0xf;
+                                if qual & 0x10 != 0 {
+                                    // read
+                                    let tpr = self.read_apic(LAPIC_TPR)? as u64;
+                                    self.write_reg(map_indexed_reg(reg as u8), tpr >> 4)?;
+                                } else {
+                                    // write
+                                    let tpr = self.read_reg(map_indexed_reg(reg as u8))? as u32;
+                                    self.write_apic(LAPIC_TPR, tpr << 4)?;
+                                }
+                            }
+                            _ => panic!("unexpected mov cr exit: {qual}"),
+                        }
+
+                        Ok(VcpuExit::Handled)
+                    }
+                    VMX_REASON_RDMSR => {
+                        let msr_id = self.read_reg(hv_x86_reg_t_HV_X86_RCX)? & 0xffffffff;
+                        let value = match msr_id as u32 {
+                            MSR_EFER => self.read_vmcs(VMCS_GUEST_IA32_EFER)?,
+                            MSR_IA32_MISC_ENABLE => IA32_MISC_ENABLE_VALUE,
+                            MSR_IA32_UCODE_REV => 0,
+                            HV_MSR_IA32_ARCH_CAPABILITIES => {
+                                Self::get_msr_info(HV_VMX_INFO_MSR_IA32_ARCH_CAPABILITIES)?
+                            }
+                            MSR_MTRRcap => 0,
+                            MSR_MTRRdefType => 0,
+                            MSR_MTRRfix4K_C0000 => 0,
+                            MSR_MTRRfix4K_C8000 => 0,
+                            MSR_MTRRfix4K_D0000 => 0,
+                            MSR_MTRRfix4K_D8000 => 0,
+                            MSR_MTRRfix4K_E0000 => 0,
+                            MSR_MTRRfix4K_E8000 => 0,
+                            MSR_MTRRfix4K_F0000 => 0,
+                            MSR_MTRRfix4K_F8000 => 0,
+                            MSR_MTRRfix16K_80000 => 0,
+                            MSR_MTRRfix16K_A0000 => 0,
+                            MSR_MTRRfix64K_00000 => 0,
+                            MSR_IA32_CR_PAT => IA32_PAT_DEFAULT,
+                            _ => panic!("unexpected rdmsr exit: {msr_id:x}"),
+                        };
+
+                        self.write_reg(hv_x86_reg_t_HV_X86_RAX, value)?;
+                        self.write_reg(hv_x86_reg_t_HV_X86_RDX, value >> 32)?;
+                        Ok(VcpuExit::Handled)
+                    }
+                    VMX_REASON_WRMSR => {
+                        let msr_id = self.read_reg(hv_x86_reg_t_HV_X86_RCX)? & 0xffffffff;
+                        let edx = self.read_reg(hv_x86_reg_t_HV_X86_RDX)? & 0xffffffff;
+                        let eax = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff;
+                        let value = (edx as u64) << 32 | (eax as u64);
+                        match msr_id as u32 {
+                            MSR_EFER => self.write_vmcs(VMCS_GUEST_IA32_EFER, value)?,
+                            MSR_IA32_UCODE_REV => {}
+                            MSR_MTRRcap => {}
+                            MSR_MTRRdefType => {}
+                            MSR_MTRRfix4K_C0000 => {}
+                            MSR_MTRRfix4K_C8000 => {}
+                            MSR_MTRRfix4K_D0000 => {}
+                            MSR_MTRRfix4K_D8000 => {}
+                            MSR_MTRRfix4K_E0000 => {}
+                            MSR_MTRRfix4K_E8000 => {}
+                            MSR_MTRRfix4K_F0000 => {}
+                            MSR_MTRRfix4K_F8000 => {}
+                            MSR_MTRRfix16K_80000 => {}
+                            MSR_MTRRfix16K_A0000 => {}
+                            MSR_MTRRfix64K_00000 => {}
+                            // macOS doesn't let us set VMCS_GUEST_IA32_PAT
+                            MSR_IA32_CR_PAT => {}
+                            _ => panic!("unexpected wrmsr exit: {msr_id:x}"),
+                        }
+                        Ok(VcpuExit::Handled)
+                    }
                     // TODO check pending
                     VMX_REASON_HLT => Ok(VcpuExit::WaitForEvent),
                     VMX_REASON_IO => {
                         let qual = self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?;
                         let input = (qual & 8) != 0;
+                        let string = (qual & 0x10) != 0;
                         let port: u16 = ((qual >> 16) & 0xffff) as u16;
-                        if port != 12345 {
-                            panic!("unexpected port: {port}");
+                        if string {
+                            panic!("string port io unsupported");
                         }
+
                         if input {
-                            panic!("unexpected input");
+                            // not supported, except for earlycon LSR
+                            let value = if port == 0x3f8 + 5 {
+                                // LSR_EMPTY_BIT | LSR_IDLE_BIT (THR is empty, line is idle)
+                                0x20 | 0x40
+                            } else {
+                                0
+                            };
+
+                            self.write_reg(hv_x86_reg_t_HV_X86_RAX, value)?;
+                            Ok(VcpuExit::IoPortRead(port))
+                        } else {
+                            let value = self.read_reg(hv_x86_reg_t_HV_X86_RAX)?;
+                            Ok(VcpuExit::IoPortWrite(port, value))
                         }
-
-                        let value = self.read_reg(hv_x86_reg_t_HV_X86_RAX)?;
-
-                        self.pending_advance_rip = true;
-                        Ok(VcpuExit::IoPortWrite(port, value))
                     }
-                    // handled by hv_vcpu_run_until
-                    VMX_REASON_IRQ => panic!("unexpected IRQ vmexit on vcpu {}", self.vcpuid),
-                    VMX_REASON_TRIPLE_FAULT => panic!("triple fault on vcpu {}", self.vcpuid),
+                    VMX_REASON_IRQ => {
+                        // external interrupt on host - nothing to do
+                        advance_rip = false;
+                        Ok(VcpuExit::Handled)
+                    }
+                    VMX_REASON_TRIPLE_FAULT => {
+                        self.dump_vmcs();
+                        panic!("triple fault on vcpu {}", self.vcpuid)
+                    }
                     //VMX_REASON_EXC_NMI => {}
                     VMX_REASON_EPT_VIOLATION => {
                         let exit_qualific = self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?;
@@ -601,7 +858,7 @@ impl HvfVcpu {
                     }
                     VMX_REASON_VMX_TIMER_EXPIRED => Ok(VcpuExit::VtimerActivated),
                     _ => panic!(
-                        "unexpected exit reason: vcpuid={} 0x{:x} - qual={:x}",
+                        "unexpected exit reason: vcpuid={} {} - qual={:x}",
                         self.vcpuid,
                         exit_reason,
                         self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?
@@ -621,7 +878,15 @@ impl HvfVcpu {
             }
             hv_vm_exitinfo_t_HV_VM_EXITINFO_APIC_ACCESS_READ => todo!(),
             _ => panic!("unhandled exit info"),
+        }?;
+
+        if advance_rip {
+            let rip = self.read_reg(hv_x86_reg_t_HV_X86_RIP)?;
+            let instr_len = self.read_vmcs(VMCS_RO_VMEXIT_INSTR_LEN)?;
+            self.write_reg(hv_x86_reg_t_HV_X86_RIP, rip + instr_len)?;
         }
+
+        Ok(res)
     }
 
     pub fn destroy(self) {
@@ -629,6 +894,14 @@ impl HvfVcpu {
         if err != 0 {
             error!("Failed to destroy vcpu: {err}");
         }
+    }
+
+    fn fix_cr0(&self, cr0: u64) -> u64 {
+        (cr0 | self.cr0_fixed1) & !self.cr0_fixed0
+    }
+
+    fn fix_cr4(&self, cr4: u64) -> u64 {
+        (cr4 | self.cr4_fixed1) & !self.cr4_fixed0
     }
 
     fn dump_vmcs(&self) {
@@ -755,14 +1028,14 @@ impl HvfVcpu {
             ("VMCS_CTRL_CPU_BASED2", VMCS_CTRL_CPU_BASED2),
             ("VMCS_CTRL_PLE_GAP", VMCS_CTRL_PLE_GAP),
             ("VMCS_CTRL_PLE_WINDOW", VMCS_CTRL_PLE_WINDOW),
-            // ("VMCS_RO_INSTR_ERROR", VMCS_RO_INSTR_ERROR),
-            // ("VMCS_RO_EXIT_REASON", VMCS_RO_EXIT_REASON),
-            // ("VMCS_RO_VMEXIT_IRQ_INFO", VMCS_RO_VMEXIT_IRQ_INFO),
-            // ("VMCS_RO_VMEXIT_IRQ_ERROR", VMCS_RO_VMEXIT_IRQ_ERROR),
-            // ("VMCS_RO_IDT_VECTOR_INFO", VMCS_RO_IDT_VECTOR_INFO),
-            // ("VMCS_RO_IDT_VECTOR_ERROR", VMCS_RO_IDT_VECTOR_ERROR),
-            // ("VMCS_RO_VMEXIT_INSTR_LEN", VMCS_RO_VMEXIT_INSTR_LEN),
-            // ("VMCS_RO_VMX_INSTR_INFO", VMCS_RO_VMX_INSTR_INFO),
+            ("VMCS_RO_INSTR_ERROR", VMCS_RO_INSTR_ERROR),
+            ("VMCS_RO_EXIT_REASON", VMCS_RO_EXIT_REASON),
+            ("VMCS_RO_VMEXIT_IRQ_INFO", VMCS_RO_VMEXIT_IRQ_INFO),
+            ("VMCS_RO_VMEXIT_IRQ_ERROR", VMCS_RO_VMEXIT_IRQ_ERROR),
+            ("VMCS_RO_IDT_VECTOR_INFO", VMCS_RO_IDT_VECTOR_INFO),
+            ("VMCS_RO_IDT_VECTOR_ERROR", VMCS_RO_IDT_VECTOR_ERROR),
+            ("VMCS_RO_VMEXIT_INSTR_LEN", VMCS_RO_VMEXIT_INSTR_LEN),
+            ("VMCS_RO_VMX_INSTR_INFO", VMCS_RO_VMX_INSTR_INFO),
             ("VMCS_GUEST_ES_LIMIT", VMCS_GUEST_ES_LIMIT),
             ("VMCS_GUEST_CS_LIMIT", VMCS_GUEST_CS_LIMIT),
             ("VMCS_GUEST_SS_LIMIT", VMCS_GUEST_SS_LIMIT),
@@ -796,12 +1069,12 @@ impl HvfVcpu {
             ("VMCS_CTRL_CR3_VALUE1", VMCS_CTRL_CR3_VALUE1),
             ("VMCS_CTRL_CR3_VALUE2", VMCS_CTRL_CR3_VALUE2),
             ("VMCS_CTRL_CR3_VALUE3", VMCS_CTRL_CR3_VALUE3),
-            // ("VMCS_RO_EXIT_QUALIFIC", VMCS_RO_EXIT_QUALIFIC),
-            // ("VMCS_RO_IO_RCX", VMCS_RO_IO_RCX),
-            // ("VMCS_RO_IO_RSI", VMCS_RO_IO_RSI),
-            // ("VMCS_RO_IO_RDI", VMCS_RO_IO_RDI),
-            // ("VMCS_RO_IO_RIP", VMCS_RO_IO_RIP),
-            // ("VMCS_RO_GUEST_LIN_ADDR", VMCS_RO_GUEST_LIN_ADDR),
+            ("VMCS_RO_EXIT_QUALIFIC", VMCS_RO_EXIT_QUALIFIC),
+            ("VMCS_RO_IO_RCX", VMCS_RO_IO_RCX),
+            ("VMCS_RO_IO_RSI", VMCS_RO_IO_RSI),
+            ("VMCS_RO_IO_RDI", VMCS_RO_IO_RDI),
+            ("VMCS_RO_IO_RIP", VMCS_RO_IO_RIP),
+            ("VMCS_RO_GUEST_LIN_ADDR", VMCS_RO_GUEST_LIN_ADDR),
             ("VMCS_GUEST_CR0", VMCS_GUEST_CR0),
             ("VMCS_GUEST_CR3", VMCS_GUEST_CR3),
             ("VMCS_GUEST_CR4", VMCS_GUEST_CR4),
