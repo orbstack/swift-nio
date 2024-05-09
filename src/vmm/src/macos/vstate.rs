@@ -107,7 +107,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// A wrapper around creating and using a VM.
 pub struct Vm {
-    hvf_vm: HvfVm,
+    pub hvf_vm: HvfVm,
     parker: Arc<Parker>,
     #[cfg(target_arch = "aarch64")]
     irqchip_handle: Option<Box<dyn GICDevice>>,
@@ -406,6 +406,9 @@ pub struct Vcpu {
 
     #[cfg(target_arch = "aarch64")]
     intc: Arc<Mutex<Gic>>,
+
+    #[cfg(target_arch = "x86_64")]
+    hvf_vm: HvfVm,
 }
 
 impl Vcpu {
@@ -508,6 +511,7 @@ impl Vcpu {
         boot_receiver: Option<Receiver<u64>>,
         exit_evt: EventFd,
         guest_mem: GuestMemoryMmap,
+        vm: &Vm,
     ) -> Result<Self> {
         let (event_sender, event_receiver) = unbounded();
 
@@ -523,6 +527,7 @@ impl Vcpu {
             event_receiver,
             event_sender: Some(event_sender),
             guest_mem,
+            hvf_vm: vm.hvf_vm.clone(),
         })
     }
 
@@ -848,8 +853,8 @@ impl Vcpu {
     /// Main loop of the vCPU thread.
     pub fn run(&mut self, parker: Arc<Parker>) {
         #[cfg(target_arch = "x86_64")]
-        let mut hvf_vcpu =
-            HvfVcpu::new(parker.clone(), self.guest_mem.clone()).expect("Can't create HVF vCPU");
+        let mut hvf_vcpu = HvfVcpu::new(parker.clone(), self.guest_mem.clone(), &self.hvf_vm)
+            .expect("Can't create HVF vCPU");
         #[cfg(target_arch = "aarch64")]
         let mut hvf_vcpu = HvfVcpu::new(parker.clone()).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();

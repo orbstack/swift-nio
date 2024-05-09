@@ -21,9 +21,10 @@ fn main() -> anyhow::Result<()> {
         cpus: 1,
         // 1 GiB
         memory: 1024 * 1024 * 1024,
-        kernel: home_dir + "/kernel",
+        kernel: home_dir.clone() + "/kernel",
         #[cfg(target_arch = "x86_64")]
-        cmdline: "clocksource=tsc tsc=reliable earlycon=uart,io,0x3f8 apic=verbose".to_string(),
+        cmdline: "clocksource=tsc tsc=reliable earlycon=uart,io,0x3f8 console=hvc0 apic=verbose ro root=/dev/vda init=/bin/sh"
+            .to_string(),
         #[cfg(target_arch = "aarch64")]
         cmdline: "".to_string(),
         initrd: None,
@@ -36,7 +37,7 @@ fn main() -> anyhow::Result<()> {
         network_nat: false,
         network_fds: Vec::new(),
         rng: true,
-        disk_rootfs: None,
+        disk_rootfs: Some(home_dir + "/alpine.img"),
         disk_data: None,
         disk_swap: None,
         balloon: true,

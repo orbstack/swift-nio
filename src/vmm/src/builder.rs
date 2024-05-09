@@ -469,7 +469,7 @@ pub fn build_microvm(
     #[cfg(target_os = "linux")]
     let intc = None;
     #[cfg(target_os = "macos")]
-    let intc = Some(Arc::new(Mutex::new(devices::legacy::Gic::new())));
+    let intc = Some(Arc::new(Mutex::new(devices::legacy::Gic::new(&vm.hvf_vm))));
 
     #[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
     let boot_ip: GuestAddress = GuestAddress(kernel_bundle.entry_addr);
@@ -1014,6 +1014,7 @@ fn create_vcpus_x86_64(
             exit_evt.try_clone().map_err(Error::EventFd)?,
             //io_bus.clone(),
             guest_mem.clone(),
+            vm,
         )
         .map_err(Error::Vcpu)?;
 

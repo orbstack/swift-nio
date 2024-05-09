@@ -4,6 +4,8 @@
 use std::collections::btree_map::Entry;
 use std::thread::Thread;
 
+use hvf::HvfVm;
+
 use super::{UserspaceGicImpl, WfeThread};
 
 const IRQ_NUM: u32 = 64;
@@ -19,15 +21,15 @@ struct VcpuInfo {
     wfe_thread: Thread,
 }
 
-pub struct HvfApic {}
-
-impl Default for HvfApic {
-    fn default() -> Self {
-        Self {}
-    }
+pub struct HvfApic {
+    hvf_vm: HvfVm,
 }
 
-impl HvfApic {}
+impl HvfApic {
+    pub fn new(hvf_vm: HvfVm) -> Self {
+        Self { hvf_vm }
+    }
+}
 
 impl UserspaceGicImpl for HvfApic {
     // === MMIO === //
@@ -56,7 +58,8 @@ impl UserspaceGicImpl for HvfApic {
     }
 
     fn set_irq(&mut self, irq_line: u32) {
-        todo!()
+        debug!("asserting ioapic irq {}", irq_line);
+        self.hvf_vm.assert_ioapic_irq(irq_line as i32).unwrap();
     }
 
     // === VCPU management === //

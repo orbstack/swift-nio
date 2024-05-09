@@ -3,7 +3,11 @@
 
 use std::thread::Thread;
 
+use hvf::HvfVm;
+
 use crate::bus::BusDevice;
+
+use super::hvf_apic::HvfApic;
 
 #[derive(Debug)]
 pub struct WfeThread {
@@ -12,19 +16,13 @@ pub struct WfeThread {
 
 pub struct Gic(Box<dyn UserspaceGicImpl>);
 
-impl Default for Gic {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Gic {
-    pub fn new() -> Self {
+    pub fn new(hvf_vm: &HvfVm) -> Self {
         #[cfg(target_arch = "aarch64")]
         // Self(Box::<super::v2::UserspaceGicV2>::default())
         return Self(Box::<super::v3::UserspaceGicV3>::default());
         #[cfg(target_arch = "x86_64")]
-        return Self(Box::<super::hvf_apic::HvfApic>::default());
+        return Self(Box::new(HvfApic::new(hvf_vm.clone())));
     }
 
     pub fn get_addr(&self) -> u64 {
