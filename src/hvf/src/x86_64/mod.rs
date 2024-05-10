@@ -65,8 +65,8 @@ const VM_INTINFO_NMI: u64 = 2 << 8;
 const VM_INTINFO_HWEXCEPTION: u64 = 3 << 8;
 const VM_INTINFO_SWINTR: u64 = 4 << 8;
 
-const CPUID_XSTATE: u64 = 0xd;
-const KVM_CPUID_SIGNATURE: u64 = 0x40000000;
+const CPUID_XSTATE: u32 = 0xd;
+const CPUID_KVM: u32 = 0x40000000;
 
 const MSR_TSX_FORCE_ABORT: u32 = 0x0000010f;
 const MSR_IA32_TSX_CTRL: u32 = 0x00000122;
@@ -781,7 +781,7 @@ impl HvfVcpu {
                         let ecx = self.read_reg(hv_x86_reg_t_HV_X86_RCX)? & 0xffffffff;
                         let mut res = unsafe { __cpuid_count(eax as u32, ecx as u32) };
 
-                        match (eax, ecx) {
+                        match (eax as u32, ecx as u32) {
                             (1, _) => {
                                 res.ecx |= 1 << 31; // HYPERVISOR
                                 res.edx &= !(1 << 29); // Automatic Clock Control
@@ -802,20 +802,16 @@ impl HvfVcpu {
                             }
                             (CPUID_XSTATE, 0) => {
                                 // ebx = size for XSAVE, with features in XCR0+XSS
-                                // since host XCR0 and XSS are different, we need to recalculate this
-                                // res.ebx = self.calculate_xsave_size(false)?;
-                                res.ebx = 1088;
+                                // since host XCR0 and XSS are different, we need to recalculate this, instead of relying on whatever CPUID returns with macOS' XCR0 and XSS
+                                res.ebx = self.calculate_xsave_size(false)?;
                             }
                             (CPUID_XSTATE, 1) => {
                                 // ebx = size for XSAVEC/XSAVES, with features in XCR0+XSS
-                                // since host XCR0 and XSS are different, we need to recalculate this
-                                // res.ebx = self.calculate_xsave_size(true)?;
-                                res.ebx = 1088;
-
-                                res.eax &= !(1 << 1); // XSAVEC
-                                res.eax &= !(1 << 3); // XSAVES
+                                // since host XCR0 and XSS are different, we need to recalculate this, instead of relying on whatever CPUID returns with macOS' XCR0 and XSS
+                                // we support XSAVEC/XSAVES on supported CPUs, so this case is possible
+                                res.ebx = self.calculate_xsave_size(true)?;
                             }
-                            (KVM_CPUID_SIGNATURE, _) => {
+                            (CPUID_KVM, _) => {
                                 // "KVMKVMKVM\0\0\0"
                                 // we report no features, but this is good: it allows x2apic and disables hardlockup detector
                                 res.eax = 0; // no KVM_CPUID_FEATURES
@@ -1300,10 +1296,34 @@ impl HvfVcpu {
     fn calculate_xsave_size(&self, compact: bool) -> Result<u32, Error> {
         let mut features = self.read_reg(hv_x86_reg_t_HV_X86_XCR0)?;
         if compact {
+            // compact = XSAVES, i.e. including supervisor state
             features |= self.read_msr(MSR_IA32_XSS)?;
-        }
 
-        Ok(0)
+            // in compact mode, calculate size by adding the header size, plus the size of each feature
+            // header size is based on the 2 non-extended/legacy features: FP and SSE, but their sizes are *different* in compact mode!
+            let mut size = 512 + 64;
+            let highest_feature_index = features.ilog2() as u32;
+            // first extended feature index = 2
+            for feature_index in 2..=highest_feature_index as u32 {
+                if features & (1 << feature_index) == 0 {
+                    continue;
+                }
+
+                let info = get_xstate_info(feature_index);
+                // needs alignment?
+                if info.flags & XSTATE_FLAG_ALIGNED != 0 {
+                    size = (size + 63) / 64 * 64;
+                }
+                size += info.size;
+            }
+            Ok(size)
+        } else {
+            // in standard mode, calculate size by taking the offset + size of the highest feature
+            let highest_feature_index = features.ilog2() as u32;
+            let info = get_xstate_info(highest_feature_index);
+            let offset = info.offset.unwrap();
+            Ok(offset + info.size)
+        }
     }
 
     fn dump_vmcs(&self) {
@@ -1588,14 +1608,14 @@ fn map_insn_reg(reg: Register) -> u32 {
         Register::BP => hv_x86_reg_t_HV_X86_RBP,
         Register::SI => hv_x86_reg_t_HV_X86_RSI,
         Register::DI => hv_x86_reg_t_HV_X86_RDI,
-        Register::R8 => hv_x86_reg_t_HV_X86_R8,
-        Register::R9 => hv_x86_reg_t_HV_X86_R9,
-        Register::R10 => hv_x86_reg_t_HV_X86_R10,
-        Register::R11 => hv_x86_reg_t_HV_X86_R11,
-        Register::R12 => hv_x86_reg_t_HV_X86_R12,
-        Register::R13 => hv_x86_reg_t_HV_X86_R13,
-        Register::R14 => hv_x86_reg_t_HV_X86_R14,
-        Register::R15 => hv_x86_reg_t_HV_X86_R15,
+        Register::R8W => hv_x86_reg_t_HV_X86_R8,
+        Register::R9W => hv_x86_reg_t_HV_X86_R9,
+        Register::R10W => hv_x86_reg_t_HV_X86_R10,
+        Register::R11W => hv_x86_reg_t_HV_X86_R11,
+        Register::R12W => hv_x86_reg_t_HV_X86_R12,
+        Register::R13W => hv_x86_reg_t_HV_X86_R13,
+        Register::R14W => hv_x86_reg_t_HV_X86_R14,
+        Register::R15W => hv_x86_reg_t_HV_X86_R15,
 
         Register::EAX => hv_x86_reg_t_HV_X86_RAX,
         Register::ECX => hv_x86_reg_t_HV_X86_RCX,
@@ -1647,4 +1667,47 @@ fn map_insn_reg(reg: Register) -> u32 {
 
 fn set_apic_delivery_mode(reg: u32, mode: u32) -> u32 {
     ((reg) & !0x700) | ((mode) << 8)
+}
+
+const XSTATE_FLAG_SUPERVISOR: u32 = 1 << 0;
+const XSTATE_FLAG_ALIGNED: u32 = 1 << 1;
+
+struct XstateInfo {
+    offset: Option<u32>,
+    size: u32,
+    flags: u32,
+}
+
+fn get_xstate_info(feature_index: u32) -> XstateInfo {
+    match feature_index {
+        // FP
+        0 => XstateInfo {
+            offset: Some(0),
+            size: 160,
+            flags: 0,
+        },
+        // SSE
+        1 => XstateInfo {
+            offset: Some(160),
+            size: 256,
+            flags: 0,
+        },
+        _ => {
+            // read from cpuid
+            let res = unsafe { __cpuid_count(CPUID_XSTATE, feature_index) };
+            let size = res.eax;
+            let flags = res.ecx;
+            let offset = if flags & XSTATE_FLAG_SUPERVISOR != 0 {
+                // supervisor: offset is invalid because it's always compact format
+                None
+            } else {
+                Some(res.ebx)
+            };
+            XstateInfo {
+                offset,
+                size,
+                flags,
+            }
+        }
+    }
 }
