@@ -543,8 +543,10 @@ impl HvfVcpu {
         debug!("set efer");
         self.write_vmcs(VMCS_GUEST_IA32_EFER, sregs.efer)?;
 
+        // bhyve?
         self.write_vmcs(VMCS_CTRL_CR0_MASK, self.cr0_fixed0 | self.cr0_fixed1)?;
         self.write_vmcs(VMCS_CTRL_CR4_MASK, self.cr4_fixed0 | self.cr4_fixed1)?;
+        // intel manual?
         self.write_vmcs(VMCS_CTRL_CR0_SHADOW, 0x60000010)?;
         self.write_vmcs(VMCS_CTRL_CR4_SHADOW, 0)?;
 
@@ -775,6 +777,7 @@ impl HvfVcpu {
                 let exit_reason = self.read_vmcs(VMCS_RO_EXIT_REASON)? as u32;
                 match exit_reason {
                     VMX_REASON_VMCALL => Ok(VcpuExit::HypervisorCall),
+
                     VMX_REASON_CPUID => {
                         // TODO: filter + enumerate host
                         let eax = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff;
@@ -783,6 +786,9 @@ impl HvfVcpu {
 
                         match (eax as u32, ecx as u32) {
                             (1, _) => {
+                                // we use HLT, which handled by HVC APIC
+                                res.ecx &= !(1 << 3); // monitor/mwait
+
                                 res.ecx |= 1 << 31; // HYPERVISOR
                                 res.edx &= !(1 << 29); // Automatic Clock Control
                             }
@@ -828,6 +834,7 @@ impl HvfVcpu {
                         self.write_reg(hv_x86_reg_t_HV_X86_RBX, res.ebx as u64)?;
                         Ok(VcpuExit::Handled)
                     }
+
                     VMX_REASON_MOV_CR => {
                         let qual = self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?;
                         match qual & 0xf {
@@ -892,6 +899,7 @@ impl HvfVcpu {
 
                         Ok(VcpuExit::Handled)
                     }
+
                     VMX_REASON_RDMSR => {
                         let msr_id = self.read_reg(hv_x86_reg_t_HV_X86_RCX)? & 0xffffffff;
                         let value = match msr_id as u32 {
@@ -938,6 +946,7 @@ impl HvfVcpu {
                         self.write_reg(hv_x86_reg_t_HV_X86_RDX, value >> 32)?;
                         Ok(VcpuExit::Handled)
                     }
+
                     VMX_REASON_WRMSR => {
                         let msr_id = self.read_reg(hv_x86_reg_t_HV_X86_RCX)? & 0xffffffff;
                         let edx = self.read_reg(hv_x86_reg_t_HV_X86_RDX)? & 0xffffffff;
@@ -970,10 +979,13 @@ impl HvfVcpu {
                         }
                         Ok(VcpuExit::Handled)
                     }
-                    // TODO check pending, then WFE
-                    VMX_REASON_HLT => Ok(VcpuExit::Handled),
+
+                    // HVF APIC handles HLT
+                    VMX_REASON_HLT => panic!("unexpected hlt"),
+                    // we hide monitor/mwait, but just just in case userspace uses it...
                     VMX_REASON_MONITOR => Ok(VcpuExit::Handled),
                     VMX_REASON_MWAIT => Ok(VcpuExit::Handled),
+
                     VMX_REASON_IO => {
                         let qual = self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?;
                         let input = (qual & 8) != 0;
@@ -999,15 +1011,15 @@ impl HvfVcpu {
                             Ok(VcpuExit::IoPortWrite(port, value))
                         }
                     }
+
                     VMX_REASON_IRQ => {
                         // external interrupt on host - nothing to do
                         self.pending_advance_rip = false;
                         Ok(VcpuExit::Handled)
                     }
-                    VMX_REASON_TRIPLE_FAULT => {
-                        panic!("triple fault");
-                    }
-                    //VMX_REASON_EXC_NMI => {}
+
+                    VMX_REASON_TRIPLE_FAULT => panic!("triple fault"),
+
                     VMX_REASON_EPT_VIOLATION => {
                         let qual = self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?;
                         let is_write = (qual & EPT_VIOLATION_DATA_WRITE) != 0;
@@ -1101,6 +1113,7 @@ impl HvfVcpu {
                             }
                         }
                     }
+
                     VMX_REASON_APIC_ACCESS => {
                         let qual = self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?;
                         let offset = qual & 0xfff;
@@ -1120,6 +1133,7 @@ impl HvfVcpu {
                         self.write_apic(offset as u32, value as u32)?;
                         Ok(VcpuExit::Handled)
                     }
+
                     VMX_REASON_XSETBV => {
                         // only xcr0 is defined
                         let xcr = self.read_reg(hv_x86_reg_t_HV_X86_RCX)?;
@@ -1133,7 +1147,7 @@ impl HvfVcpu {
                         self.write_reg(hv_x86_reg_t_HV_X86_XCR0, value)?;
                         Ok(VcpuExit::Handled)
                     }
-                    VMX_REASON_VMX_TIMER_EXPIRED => Ok(VcpuExit::VtimerActivated),
+
                     _ => {
                         self.dump_vmcs();
                         panic!(
