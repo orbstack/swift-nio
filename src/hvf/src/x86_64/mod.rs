@@ -543,8 +543,10 @@ impl HvfVcpu {
         debug!("set efer");
         self.write_vmcs(VMCS_GUEST_IA32_EFER, sregs.efer)?;
 
-        self.write_vmcs(VMCS_CTRL_CR0_SHADOW, sregs.cr0)?;
-        self.write_vmcs(VMCS_CTRL_CR4_SHADOW, sregs.cr4)?;
+        self.write_vmcs(VMCS_CTRL_CR0_MASK, self.cr0_fixed0 | self.cr0_fixed1)?;
+        self.write_vmcs(VMCS_CTRL_CR4_MASK, self.cr4_fixed0 | self.cr4_fixed1)?;
+        self.write_vmcs(VMCS_CTRL_CR0_SHADOW, 0x60000010)?;
+        self.write_vmcs(VMCS_CTRL_CR4_SHADOW, 0)?;
 
         // Regular MSR stuff
         self.enable_native_msr(HV_MSR_IA32_GS_BASE)?;
@@ -791,6 +793,9 @@ impl HvfVcpu {
                             (7, 0) => {
                                 res.ebx &= !(1 << 1); // TODO: TSC_ADJUST (msr 0x3b)?
                                 res.ebx &= !(1 << 25); // Intel Processor Trace
+
+                                // macOS silently fails to set XCR0 (i.e. write_reg(XCR0) has no effect) if Linux attempts to enable MPX (XCR0[3:4]), which breaks AVX
+                                res.ebx &= !(1 << 14); // MPX
                             }
                             (10, _) => {
                                 res.eax = 0; // TODO: PMU
@@ -1129,17 +1134,19 @@ impl HvfVcpu {
                         let edx = self.read_reg(hv_x86_reg_t_HV_X86_RDX)? & 0xffffffff;
                         let eax = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff;
                         let value = (edx as u64) << 32 | (eax as u64);
-                        println!("set xcr0 = {:x}", value);
                         self.write_reg(hv_x86_reg_t_HV_X86_XCR0, value)?;
                         Ok(VcpuExit::Handled)
                     }
                     VMX_REASON_VMX_TIMER_EXPIRED => Ok(VcpuExit::VtimerActivated),
-                    _ => panic!(
-                        "unexpected exit reason: vcpuid={} {} - qual={:x}",
-                        self.vcpuid,
-                        exit_reason,
-                        self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?
-                    ),
+                    _ => {
+                        self.dump_vmcs();
+                        panic!(
+                            "unexpected exit reason: vcpuid={} {} - qual={:x}",
+                            self.vcpuid,
+                            exit_reason,
+                            self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?
+                        )
+                    }
                 }
             }
             hv_vm_exitinfo_t_HV_VM_EXITINFO_INIT_AP => todo!(),
