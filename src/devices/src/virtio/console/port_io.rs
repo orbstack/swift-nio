@@ -52,7 +52,6 @@ pub fn output_file(file: File) -> Result<Box<dyn PortOutput + Send>, nix::Error>
 
 pub fn output_to_raw_fd_dup(fd: RawFd) -> Result<Box<dyn PortOutput + Send>, nix::Error> {
     let fd = dup_raw_fd_into_owned(fd)?;
-    make_non_blocking(&fd)?;
     Ok(Box::new(PortOutputFd(fd)))
 }
 
