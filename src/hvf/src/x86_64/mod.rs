@@ -26,6 +26,7 @@ use arch_gen::x86::msr_index::{
 };
 use bindings::*;
 use iced_x86::{Code, Decoder, DecoderOptions, Instruction, Register};
+use rustc_hash::FxHashMap;
 use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryMmap};
 
 use core::panic;
@@ -359,6 +360,16 @@ struct MmioRead {
     dest_reg: u32,
 }
 
+#[derive(Debug, Eq, PartialEq, Hash)]
+struct InsnCacheKey {
+    // probably ok on its own...
+    rip: u64,
+    // in case PML4 changed
+    cr3: u64,
+    // in case it's same addr but insn changed
+    instr_len: u8,
+}
+
 pub struct HvfVcpu {
     parker: Arc<dyn Parkable>,
     vcpuid: hv_vcpuid_t,
@@ -369,6 +380,8 @@ pub struct HvfVcpu {
     mmio_buf: [u8; 8],
     pending_mmio_read: Option<MmioRead>,
     pending_advance_rip: bool,
+
+    insn_cache: FxHashMap<InsnCacheKey, Instruction>,
 
     cr0_mask0: u64,
     cr0_mask1: u64,
@@ -415,6 +428,8 @@ impl HvfVcpu {
             mmio_buf: [0; 8],
             pending_mmio_read: None,
             pending_advance_rip: false,
+
+            insn_cache: FxHashMap::default(),
 
             cr0_mask0,
             cr0_mask1,
@@ -1368,11 +1383,23 @@ impl HvfVcpu {
         Ok(GuestAddress(page_addr | page_offset))
     }
 
-    fn decode_current_insn(&self) -> Result<Instruction, Error> {
+    fn decode_current_insn(&mut self) -> Result<Instruction, Error> {
         let rip = self.read_reg(hv_x86_reg_t_HV_X86_RIP)?;
+        let instr_len = self.read_vmcs(VMCS_RO_VMEXIT_INSTR_LEN)?;
+
+        // a simple fused TLB + icache
+        // we'll be fine as long as instr len changes on memory change...
+        let key = InsnCacheKey {
+            rip,
+            cr3: self.read_reg(hv_x86_reg_t_HV_X86_CR3)?,
+            instr_len: instr_len as u8,
+        };
+        if let Some(insn) = self.insn_cache.get(&key) {
+            return Ok(*insn);
+        }
+
         let rip_phys = self.resolve_virtual_address(GuestAddress(rip as u64))?;
 
-        let instr_len = self.read_vmcs(VMCS_RO_VMEXIT_INSTR_LEN)?;
         let mut instr_buf = [0u8; 16];
         self.guest_mem
             .read_slice(&mut instr_buf[..instr_len as usize], rip_phys)
@@ -1386,6 +1413,7 @@ impl HvfVcpu {
         );
         let instr = decoder.decode();
 
+        self.insn_cache.insert(key, instr);
         Ok(instr)
     }
 
