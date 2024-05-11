@@ -42,6 +42,7 @@ import (
 	"unsafe"
 
 	"github.com/orbstack/macvirt/vmgr/vmm"
+	"golang.org/x/sys/unix"
 )
 
 func errFromC(err *C.char) error {
@@ -92,6 +93,12 @@ type machine struct {
 func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machine, error) {
 	if !vmCreated.CompareAndSwap(false, true) {
 		return nil, fmt.Errorf("only one VM can be created in a process")
+	}
+
+	// to work correctly, krun requires console fds to be non-blocking
+	if spec.Console != nil {
+		unix.SetNonblock(spec.Console.ReadFd, true)
+		unix.SetNonblock(spec.Console.WriteFd, true)
 	}
 
 	// encode to json
