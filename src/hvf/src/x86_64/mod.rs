@@ -44,11 +44,6 @@ use std::time::Duration;
 use crossbeam_channel::Sender;
 use tracing::{debug, error, trace, warn};
 
-/// IA32_MTRR_DEF_TYPE MSR: E (MTRRs enabled) flag, bit 11
-const MTRR_ENABLE: u64 = 0x800;
-/// Mem type WB
-const MTRR_MEM_TYPE_WB: u64 = 0x6;
-
 const LAPIC_TPR: u32 = 0x80;
 
 const APIC_LVT0: u32 = 0x350;
@@ -65,6 +60,8 @@ const VM_INTINFO_HWINTR: u64 = 0 << 8;
 const VM_INTINFO_NMI: u64 = 2 << 8;
 const VM_INTINFO_HWEXCEPTION: u64 = 3 << 8;
 const VM_INTINFO_SWINTR: u64 = 4 << 8;
+
+const APIC_ID: u32 = 0x20;
 
 const CPUID_XSTATE: u32 = 0xd;
 const CPUID_KVM: u32 = 0x40000000;
@@ -840,6 +837,9 @@ impl HvfVcpu {
 
                                 res.ecx |= 1 << 31; // HYPERVISOR
                                 res.edx &= !(1 << 29); // Automatic Clock Control
+
+                                // APIC ID
+                                res.ebx = (self.vcpuid & 0xff) << 24 | (res.ebx & 0xffffff);
                             }
                             (6, _) => {
                                 res.eax &= !(1 << 0); // Digital Thermal Sensor
@@ -855,16 +855,34 @@ impl HvfVcpu {
                             (10, _) => {
                                 res.eax = 0; // TODO: PMU
                             }
+                            // topology
+                            (0xb, _) => {
+                                res.eax = 0;
+                                res.ebx = 0;
+                                res.ecx = 0;
+                                res.edx = 0;
+                            }
+                            (0x1f, _) => {
+                                res.eax = 0;
+                                res.ebx = 0;
+                                res.ecx = 0;
+                                res.edx = 0;
+                            }
                             (CPUID_XSTATE, 0) => {
                                 // ebx = size for XSAVE, with features in XCR0+XSS
                                 // since host XCR0 and XSS are different, we need to recalculate this, instead of relying on whatever CPUID returns with macOS' XCR0 and XSS
-                                res.ebx = self.calculate_xsave_size(false)?;
+                                // only do this if host supports it
+                                if res.ebx != 0 {
+                                    res.ebx = self.calculate_xsave_size(false)?;
+                                }
                             }
                             (CPUID_XSTATE, 1) => {
                                 // ebx = size for XSAVEC/XSAVES, with features in XCR0+XSS
                                 // since host XCR0 and XSS are different, we need to recalculate this, instead of relying on whatever CPUID returns with macOS' XCR0 and XSS
                                 // we support XSAVEC/XSAVES on supported CPUs, so this case is possible
-                                res.ebx = self.calculate_xsave_size(true)?;
+                                if res.ebx != 0 {
+                                    res.ebx = self.calculate_xsave_size(true)?;
+                                }
                             }
                             (CPUID_KVM, _) => {
                                 // "KVMKVMKVM\0\0\0"
@@ -1262,11 +1280,15 @@ impl HvfVcpu {
                 })
             }
 
-            // should never get this
-            hv_vm_exitinfo_t_HV_VM_EXITINFO_IOAPIC_EOI => panic!("unexpected IOAPIC EOI"),
-            hv_vm_exitinfo_t_HV_VM_EXITINFO_INJECT_EXCP => todo!("APIC inject exception"),
-            // TODO: need to test this
-            hv_vm_exitinfo_t_HV_VM_EXITINFO_SMI => todo!("SMI"),
+            // should never get this because we didn't enable the ctrl
+            hv_vm_exitinfo_t_HV_VM_EXITINFO_IOAPIC_EOI => unreachable!("IOAPIC EOI"),
+            hv_vm_exitinfo_t_HV_VM_EXITINFO_INJECT_EXCP => todo!("APIC exception"),
+            hv_vm_exitinfo_t_HV_VM_EXITINFO_SMI => {
+                // TODO: verify this behavior
+                debug!("SMI vmexit");
+                self.pending_advance_rip = false;
+                Ok(VcpuExit::Handled)
+            }
 
             // only for reads. we still get VMX_REASON_APIC_ACCESS for writes
             hv_vm_exitinfo_t_HV_VM_EXITINFO_APIC_ACCESS_READ => {
@@ -1295,7 +1317,7 @@ impl HvfVcpu {
                 Ok(VcpuExit::Handled)
             }
 
-            _ => panic!("unknown exit info: {:x}", exit_info),
+            _ => unreachable!("unknown exit info: {:x}", exit_info),
         }?;
 
         Ok(res)
