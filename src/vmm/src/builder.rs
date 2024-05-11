@@ -1003,11 +1003,21 @@ fn create_vcpus_x86_64(
     exit_evt: &EventFd,
 ) -> super::Result<Vec<Vcpu>> {
     let mut vcpus = Vec::with_capacity(vcpu_config.vcpu_count as usize);
+    let mut boot_senders = Vec::with_capacity(vcpu_config.vcpu_count as usize - 1);
+
     for cpu_index in 0..vcpu_config.vcpu_count {
+        let boot_receiver = if cpu_index != 0 {
+            let (boot_sender, boot_receiver) = unbounded();
+            boot_senders.push(boot_sender);
+            Some(boot_receiver)
+        } else {
+            None
+        };
+
         let mut vcpu = Vcpu::new_x86_64(
             cpu_index,
             entry_addr,
-            None,
+            boot_receiver,
             exit_evt.try_clone().map_err(Error::EventFd)?,
             //io_bus.clone(),
             guest_mem.clone(),
@@ -1020,6 +1030,9 @@ fn create_vcpus_x86_64(
 
         vcpus.push(vcpu);
     }
+
+    vcpus[0].set_boot_senders(boot_senders);
+
     Ok(vcpus)
 }
 
