@@ -140,8 +140,9 @@ impl Machine {
         // kernel
         let mut kernel_bytes = std::fs::read(&spec.kernel)?;
         // pad up to page size boundary
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
         kernel_bytes.resize(
-            kernel_bytes.len() + (16384 - (kernel_bytes.len() % 16384)),
+            kernel_bytes.len() + (page_size - (kernel_bytes.len() % page_size)),
             0,
         );
         vmr.set_kernel_bundle(KernelBundle {
