@@ -841,6 +841,10 @@ impl Vcpu {
             .set_initial_state(entry_addr, self.boot_receiver.is_some())
             .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
 
+        let barrier_break_guard = scopeguard::guard(parker.clone(), |parker| {
+            parker.mark_can_no_longer_park();
+        });
+
         loop {
             match self.run_emulation(&mut hvf_vcpu) {
                 // Emulation ran successfully, continue.
@@ -866,7 +870,7 @@ impl Vcpu {
             }
         }
 
-        parker.mark_can_no_longer_park();
+        drop(barrier_break_guard);
         hvf_vcpu.destroy();
     }
 

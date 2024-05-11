@@ -1588,6 +1588,7 @@ dependencies = [
  "nix 0.24.3",
  "polly",
  "procfs",
+ "scopeguard",
  "serde",
  "serde_json",
  "sev",
