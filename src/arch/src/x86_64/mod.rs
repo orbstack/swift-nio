@@ -83,14 +83,13 @@ pub fn arch_memory_regions(
     let (ram_last_addr, shm_start_addr, regions) = match size.checked_sub(MMIO_MEM_START as usize) {
         // case1: guest memory fits before the gap
         None | Some(0) => {
-            let ram_last_addr = kernel_load_addr + kernel_size as u64 + size as u64;
+            let ram_last_addr = size as u64;
             let shm_start_addr = FIRST_ADDR_PAST_32BITS;
             (
                 ram_last_addr,
                 shm_start_addr,
                 vec![
-                    (GuestAddress(0), kernel_load_addr as usize),
-                    (GuestAddress(kernel_load_addr + kernel_size as u64), size),
+                    (GuestAddress(0), size),
                     (GuestAddress(FIRST_ADDR_PAST_32BITS), MMIO_SHM_SIZE as usize),
                 ],
             )
@@ -103,11 +102,7 @@ pub fn arch_memory_regions(
                 ram_last_addr,
                 shm_start_addr,
                 vec![
-                    (GuestAddress(0), kernel_load_addr as usize),
-                    (
-                        GuestAddress(kernel_load_addr + kernel_size as u64),
-                        (MMIO_MEM_START - (kernel_load_addr + kernel_size as u64)) as usize,
-                    ),
+                    (GuestAddress(0), MMIO_MEM_START as usize),
                     (GuestAddress(FIRST_ADDR_PAST_32BITS), remaining),
                     (GuestAddress(shm_start_addr), MMIO_SHM_SIZE as usize),
                 ],

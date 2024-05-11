@@ -63,7 +63,6 @@ use utils::time::TimestampUs;
 use vm_memory::mmap::GuestRegionMmap;
 #[cfg(not(feature = "efi"))]
 use vm_memory::mmap::MmapRegion;
-#[cfg(any(target_arch = "aarch64", feature = "tee"))]
 use vm_memory::Bytes;
 use vm_memory::GuestMemory;
 use vm_memory::{GuestAddress, GuestMemoryMmap};
@@ -684,17 +683,15 @@ pub fn create_guest_memory(
     let (arch_mem_info, arch_mem_regions) =
         arch::arch_memory_regions(mem_size, kernel_load_addr, kernel_size);
 
-    Ok((
-        GuestMemoryMmap::from_ranges(&arch_mem_regions)
-            .and_then(|memory| {
-                memory.insert_region(Arc::new(GuestRegionMmap::new(
-                    kernel_region,
-                    GuestAddress(kernel_load_addr),
-                )?))
-            })
-            .map_err(StartMicrovmError::GuestMemoryMmap)?,
-        arch_mem_info,
-    ))
+    let guest_mem = GuestMemoryMmap::from_ranges(&arch_mem_regions)
+        .map_err(StartMicrovmError::GuestMemoryMmap)?;
+
+    let kernel_data = unsafe { std::slice::from_raw_parts(kernel_region.as_ptr(), kernel_size) };
+    guest_mem
+        .write(kernel_data, GuestAddress(kernel_load_addr))
+        .unwrap();
+
+    Ok((guest_mem, arch_mem_info))
 }
 
 /// Creates GuestMemory of `mem_size_mib` MiB in size.
