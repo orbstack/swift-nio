@@ -1,5 +1,6 @@
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::__cpuid_count;
 use std::{
-    arch::x86_64::__cpuid_count,
     ffi::{c_char, CStr, CString},
     fmt,
     os::raw::c_void,
@@ -22,13 +23,14 @@ use once_cell::sync::Lazy;
 use polly::event_manager::EventManager;
 use serde::{Deserialize, Serialize};
 use tracing::error;
+#[cfg(target_arch = "aarch64")]
+use vmm::vmm_config::kernel_bundle::KernelBundle;
 use vmm::{
     builder::ConsoleFds,
     resources::VmResources,
     vmm_config::{
         block::BlockDeviceConfig, boot_source::BootSourceConfig, fs::FsDeviceConfig,
-        kernel_bundle::KernelBundle, machine_config::VmConfig, net::NetworkInterfaceConfig,
-        vsock::VsockDeviceConfig,
+        machine_config::VmConfig, net::NetworkInterfaceConfig, vsock::VsockDeviceConfig,
     },
     VmmShutdownHandle,
 };

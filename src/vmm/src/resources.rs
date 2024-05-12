@@ -8,6 +8,7 @@ use std::fs::File;
 #[cfg(feature = "tee")]
 use std::io::BufReader;
 
+#[cfg(target_arch = "x86_64")]
 use arch::x86_64;
 #[cfg(feature = "tee")]
 use serde::{Deserialize, Serialize};

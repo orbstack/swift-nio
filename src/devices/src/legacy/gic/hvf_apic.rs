@@ -1,25 +1,9 @@
 // Copyright 2021 Red Hat, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::btree_map::Entry;
-use std::thread::Thread;
-
 use hvf::HvfVm;
 
 use super::{UserspaceGicImpl, WfeThread};
-
-const IRQ_NUM: u32 = 64;
-const MAX_CPUS: u64 = 8;
-
-enum VcpuStatus {
-    Running,
-    Waiting,
-}
-
-struct VcpuInfo {
-    status: VcpuStatus,
-    wfe_thread: Thread,
-}
 
 pub struct HvfApic {
     hvf_vm: HvfVm,
@@ -39,21 +23,20 @@ impl UserspaceGicImpl for HvfApic {
     }
 
     fn get_size(&self) -> u64 {
-        // TODO
         4096
     }
 
-    fn read(&mut self, vcpuid: u64, offset: u64, data: &mut [u8]) {
+    fn read(&mut self, _vcpuid: u64, _offset: u64, _data: &mut [u8]) {
         todo!()
     }
 
-    fn write(&mut self, vcpuid: u64, offset: u64, data: &[u8]) {
+    fn write(&mut self, _vcpuid: u64, _offset: u64, _data: &[u8]) {
         todo!()
     }
 
     // === IRQ Assertion === //
 
-    fn set_vtimer_irq(&mut self, vcpuid: u64) {
+    fn set_vtimer_irq(&mut self, _vcpuid: u64) {
         todo!()
     }
 
@@ -64,15 +47,15 @@ impl UserspaceGicImpl for HvfApic {
 
     // === VCPU management === //
 
-    fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread) {
+    fn register_vcpu(&mut self, _vcpuid: u64, _wfe_thread: WfeThread) {
         todo!()
     }
 
-    fn vcpu_should_wait(&mut self, vcpuid: u64) -> bool {
+    fn vcpu_should_wait(&mut self, _vcpuid: u64) -> bool {
         false
     }
 
-    fn vcpu_has_pending_irq(&mut self, vcpuid: u64) -> bool {
+    fn vcpu_has_pending_irq(&mut self, _vcpuid: u64) -> bool {
         false
     }
 }

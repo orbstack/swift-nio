@@ -12,38 +12,32 @@ mod reg_init;
 
 use arch::x86_64::gdt::{encode_kvm_segment_ar, kvm_segment};
 use arch::x86_64::mptable::{APIC_DEFAULT_PHYS_BASE, IO_APIC_DEFAULT_PHYS_BASE};
-use arch::x86_64::regs::{kvm_sregs, X86_CR0_PG};
+use arch::x86_64::regs::kvm_sregs;
 use arch_gen::x86::msr_index::{
     MSR_MTRRcap, MSR_MTRRdefType, MSR_MTRRfix16K_80000, MSR_MTRRfix16K_A0000, MSR_MTRRfix4K_C0000,
     MSR_MTRRfix4K_C8000, MSR_MTRRfix4K_D0000, MSR_MTRRfix4K_D8000, MSR_MTRRfix4K_E0000,
     MSR_MTRRfix4K_E8000, MSR_MTRRfix4K_F0000, MSR_MTRRfix4K_F8000, MSR_MTRRfix64K_00000, EFER_LMA,
-    EFER_LME, MSR_DRAM_ENERGY_STATUS, MSR_EFER, MSR_IA32_APERF, MSR_IA32_APICBASE, MSR_IA32_CR_PAT,
-    MSR_IA32_FEATURE_CONTROL, MSR_IA32_MISC_ENABLE, MSR_IA32_MISC_ENABLE_FAST_STRING,
-    MSR_IA32_MPERF, MSR_IA32_PERF_CAPABILITIES, MSR_IA32_UCODE_REV, MSR_IA32_XSS,
-    MSR_KERNEL_GS_BASE, MSR_MISC_FEATURE_ENABLES, MSR_PKG_ENERGY_STATUS,
-    MSR_PLATFORM_ENERGY_STATUS, MSR_PLATFORM_INFO, MSR_PP0_ENERGY_STATUS, MSR_PP1_ENERGY_STATUS,
-    MSR_PPERF, MSR_RAPL_POWER_UNIT, MSR_SMI_COUNT, MSR_SYSCALL_MASK,
+    EFER_LME, MSR_DRAM_ENERGY_STATUS, MSR_EFER, MSR_IA32_APICBASE, MSR_IA32_CR_PAT,
+    MSR_IA32_FEATURE_CONTROL, MSR_IA32_MISC_ENABLE, MSR_IA32_PERF_CAPABILITIES, MSR_IA32_UCODE_REV,
+    MSR_IA32_XSS, MSR_MISC_FEATURE_ENABLES, MSR_PKG_ENERGY_STATUS, MSR_PLATFORM_ENERGY_STATUS,
+    MSR_PLATFORM_INFO, MSR_PP0_ENERGY_STATUS, MSR_PP1_ENERGY_STATUS, MSR_PPERF,
+    MSR_RAPL_POWER_UNIT, MSR_SMI_COUNT, MSR_SYSCALL_MASK,
 };
 use bindings::*;
+#[cfg(target_arch = "x86_64")]
 use cpuid::{kvm_cpuid_entry2, CpuidTransformer, IntelCpuidTransformer, VmSpec};
 use iced_x86::{Code, Decoder, DecoderOptions, Instruction, Register};
 use rustc_hash::FxHashMap;
 use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryMmap};
 
 use core::panic;
-use std::arch::asm;
 use std::arch::x86_64::__cpuid_count;
 use std::convert::TryInto;
-use std::ffi::c_void;
-use std::fmt::{Display, Formatter};
-use std::mem::MaybeUninit;
-use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
 use std::thread::Thread;
-use std::time::Duration;
 
 use crossbeam_channel::Sender;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error};
 
 const LAPIC_TPR: u32 = 0x80;
 
@@ -58,21 +52,11 @@ pub const HV_X86_RAX: u32 = hv_x86_reg_t_HV_X86_RAX;
 // set branch trace disabled(11), PEBS unavailable(12)
 const IA32_MISC_ENABLE_VALUE: u64 = 1 | (1 << 11) | (1 << 12);
 
-const VM_INTINFO_VALID: u64 = 0x80000000;
-const VM_INTINFO_HWINTR: u64 = 0 << 8;
-const VM_INTINFO_NMI: u64 = 2 << 8;
-const VM_INTINFO_HWEXCEPTION: u64 = 3 << 8;
-const VM_INTINFO_SWINTR: u64 = 4 << 8;
-
-const APIC_ID: u32 = 0x20;
-
 const CPUID_XSTATE: u32 = 0xd;
 const CPUID_KVM: u32 = 0x40000000;
 const CPUID_KVM_FEATURES: u32 = 0x40000001;
 
 const IA32E_MODE_GUEST: u64 = 1 << 9;
-
-const PROCBASED2_UNRESTRICTED_GUEST: u64 = 1 << 7;
 
 const CR0_PG: u64 = 0x80000000;
 const CR0_PE: u64 = 0x00000001;
@@ -89,7 +73,6 @@ const FEAT_CTL_LOCKED: u64 = 1 << 0;
 const IOAPIC_START: u64 = IO_APIC_DEFAULT_PHYS_BASE as u64;
 const IOAPIC_END_INCL: u64 = IOAPIC_START + 0x1000 - 1;
 
-const EPT_VIOLATION_DATA_READ: u64 = 1 << 0;
 const EPT_VIOLATION_DATA_WRITE: u64 = 1 << 1;
 const EPT_VIOLATION_INST_FETCH: u64 = 1 << 2;
 
@@ -97,34 +80,9 @@ const PTE_PRESENT: u64 = 1 << 0;
 const PTE_PAGE_SIZE: u64 = 1 << 7;
 
 const PAT_UNCACHEABLE: u64 = 0x00;
-const PAT_WRITE_COMBINING: u64 = 0x01;
 const PAT_WRITE_THROUGH: u64 = 0x04;
-const PAT_WRITE_PROTECTED: u64 = 0x05;
 const PAT_WRITE_BACK: u64 = 0x06;
 const PAT_UNCACHED: u64 = 0x07;
-
-#[repr(u32)]
-enum Idt {
-    DE = 0,
-    DB = 1,
-    NMI = 2,
-    BP = 3,
-    OF = 4,
-    BR = 5,
-    UD = 6,
-    NM = 7,
-    DF = 8,
-    FPUGP = 9,
-    TS = 10,
-    NP = 11,
-    SS = 12,
-    GP = 13,
-    PF = 14,
-    MF = 16,
-    AC = 17,
-    MC = 18,
-    XF = 19,
-}
 
 const fn pat_value(i: u32, m: u64) -> u64 {
     (m << (8 * i)) as u64
@@ -1511,18 +1469,6 @@ impl HvfVcpu {
         Ok(instr)
     }
 
-    // TODO: causes entry failure
-    fn inject_exception(&self, vector: Idt, error_code: Option<u32>) -> Result<(), Error> {
-        self.clear_guest_intr_shadow()?;
-
-        let info = (vector as u64) & 0xff | VM_INTINFO_VALID | VM_INTINFO_HWEXCEPTION;
-        if let Some(error_code) = error_code {
-            self.write_vmcs(VMCS_CTRL_VMENTRY_EXC_ERROR, error_code as u64)?;
-        }
-        self.write_vmcs(VMCS_CTRL_VMENTRY_IRQ_INFO, info)?;
-        Ok(())
-    }
-
     fn clear_guest_intr_shadow(&self) -> Result<(), Error> {
         let mut intr = self.read_vmcs(VMCS_GUEST_INTERRUPTIBILITY)?;
         intr &= !(GUEST_INTRBILITY_MOVSS_BLOCKING as u64 | GUEST_INTRBILITY_STI_BLOCKING as u64);
@@ -1883,10 +1829,7 @@ impl HvfVcpu {
         ] {
             let value = match self.read_vmcs(*field_id) {
                 Ok(value) => value,
-                Err(e) => {
-                    //error!("Failed to read field {field_name}: {e}");
-                    continue;
-                }
+                Err(e) => continue,
             };
             println!("{field_name} = {value:016x}");
         }

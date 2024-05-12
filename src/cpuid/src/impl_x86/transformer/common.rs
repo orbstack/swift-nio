@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::bit_helper::BitHelper;
-use crate::common::get_cpuid;
+use crate::impl_x86::bit_helper::BitHelper;
+use crate::impl_x86::common::get_cpuid;
 
-use crate::model::{kvm_cpuid_entry2, CpuId};
-use crate::transformer::Error::FamError;
+use crate::impl_x86::model::{kvm_cpuid_entry2, CpuId};
+use crate::impl_x86::transformer::Error::FamError;
 
 /// The maximum number of logical processors per package is computed as the closest power of 2
 /// higher or equal to the CPU count configured by the user.
@@ -27,7 +27,7 @@ pub fn update_feature_info_entry(
     entry: &mut kvm_cpuid_entry2,
     vm_spec: &VmSpec,
 ) -> Result<(), Error> {
-    use crate::cpu_leaf::leaf_0x1::*;
+    use crate::impl_x86::cpu_leaf::leaf_0x1::*;
 
     let max_cpus_per_package = u32::from(common::get_max_cpus_per_package(vm_spec.cpu_count)?);
 
@@ -66,7 +66,7 @@ pub fn update_cache_parameters_entry(
     entry: &mut kvm_cpuid_entry2,
     vm_spec: &VmSpec,
 ) -> Result<(), Error> {
-    use crate::cpu_leaf::leaf_cache_parameters::*;
+    use crate::impl_x86::cpu_leaf::leaf_cache_parameters::*;
 
     match entry.eax.read_bits_in_range(&eax::CACHE_LEVEL_BITRANGE) {
         // L1 & L2 Cache
@@ -129,9 +129,9 @@ pub fn use_host_cpuid_function(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::tests::get_topoext_fn;
-    use crate::model::kvm_cpuid_entry2;
-    use crate::transformer::VmSpec;
+    use crate::impl_x86::common::tests::get_topoext_fn;
+    use crate::impl_x86::model::kvm_cpuid_entry2;
+    use crate::impl_x86::transformer::VmSpec;
 
     #[test]
     fn test_get_max_cpus_per_package() {
@@ -144,7 +144,7 @@ mod tests {
     }
 
     fn check_update_feature_info_entry(cpu_count: u8, expected_htt: bool) {
-        use crate::cpu_leaf::leaf_0x1::*;
+        use crate::impl_x86::cpu_leaf::leaf_0x1::*;
 
         let vm_spec = VmSpec::new(0, cpu_count, false).expect("Error creating vm_spec");
         let mut entry = kvm_cpuid_entry2 {
@@ -169,7 +169,7 @@ mod tests {
         cache_level: u32,
         expected_max_cpus_per_core: u32,
     ) {
-        use crate::cpu_leaf::leaf_cache_parameters::*;
+        use crate::impl_x86::cpu_leaf::leaf_cache_parameters::*;
 
         let vm_spec = VmSpec::new(0, cpu_count, ht_enabled).expect("Error creating vm_spec");
         let mut entry = kvm_cpuid_entry2 {
@@ -267,7 +267,7 @@ mod tests {
     #[test]
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     fn test_use_host_cpuid_function_without_count() {
-        use crate::cpu_leaf::leaf_0x1::*;
+        use crate::impl_x86::cpu_leaf::leaf_0x1::*;
         // try to emulate the extended cache topology leaves
         let feature_info_fn = LEAF_NUM;
 
@@ -289,7 +289,7 @@ mod tests {
     fn test_use_host_cpuid_function_err() {
         let topoext_fn = get_topoext_fn();
         // check that it returns Err when there are too many entriesentry.function == topoext_fn
-        let mut cpuid = CpuId::new(crate::model::KVM_MAX_CPUID_ENTRIES).unwrap();
+        let mut cpuid = CpuId::new(crate::impl_x86::model::KVM_MAX_CPUID_ENTRIES).unwrap();
         match use_host_cpuid_function(&mut cpuid, topoext_fn, true) {
             Err(Error::FamError(vmm_sys_util::fam::Error::SizeLimitExceeded)) => {}
             _ => panic!("Wrong behavior"),

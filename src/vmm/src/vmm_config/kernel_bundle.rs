@@ -3,6 +3,7 @@
 
 use std::fmt::{Display, Formatter, Result};
 
+#[cfg(target_arch = "x86_64")]
 use arch::x86_64::BootParamsWrapper;
 
 /// Data structure holding the attributes read from the `libkrunfw` kernel config.

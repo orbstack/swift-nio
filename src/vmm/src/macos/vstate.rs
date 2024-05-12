@@ -578,6 +578,7 @@ impl Vcpu {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn configure_x86_64(
         &mut self,
         _guest_mem: &GuestMemoryMmap,

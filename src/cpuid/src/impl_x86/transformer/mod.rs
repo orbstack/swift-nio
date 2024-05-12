@@ -5,11 +5,11 @@ pub mod amd;
 pub mod common;
 pub mod intel;
 
-pub use crate::model::{kvm_cpuid_entry2, CpuId};
+pub use crate::impl_x86::model::{kvm_cpuid_entry2, CpuId};
 
-use crate::brand_string::BrandString;
-use crate::brand_string::Reg as BsReg;
-use crate::common::get_vendor_id;
+use crate::impl_x86::brand_string::BrandString;
+use crate::impl_x86::brand_string::Reg as BsReg;
+use crate::impl_x86::common::get_vendor_id;
 
 /// Structure containing the specifications of the VM
 pub struct VmSpec {
@@ -90,7 +90,7 @@ pub trait CpuidTransformer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::kvm_cpuid_entry2;
+    use crate::impl_x86::model::kvm_cpuid_entry2;
 
     const PROCESSED_FN: u32 = 1;
     const EXPECTED_INDEX: u32 = 100;

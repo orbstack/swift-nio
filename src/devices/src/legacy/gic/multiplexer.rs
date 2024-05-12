@@ -18,12 +18,15 @@ pub struct WfeThread {
 pub struct Gic(Box<dyn UserspaceGicImpl>);
 
 impl Gic {
-    pub fn new(hvf_vm: &HvfVm) -> Self {
-        #[cfg(target_arch = "aarch64")]
+    #[cfg(target_arch = "aarch64")]
+    pub fn new(_hvf_vm: &HvfVm) -> Self {
         // Self(Box::<super::v2::UserspaceGicV2>::default())
-        return Self(Box::<super::v3::UserspaceGicV3>::default());
-        #[cfg(target_arch = "x86_64")]
-        return Self(Box::new(HvfApic::new(hvf_vm.clone())));
+        Self(Box::<super::v3::UserspaceGicV3>::default())
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    pub fn new(hvf_vm: &HvfVm) -> Self {
+        Self(Box::new(HvfApic::new(hvf_vm.clone())))
     }
 
     pub fn get_addr(&self) -> u64 {
