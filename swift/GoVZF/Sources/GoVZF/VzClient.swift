@@ -79,7 +79,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
         // must init before calling super
         self.vz = vz
         if !vz.socketDevices.isEmpty {
-            vsockDevice = vz.socketDevices[0] as! VZVirtioSocketDevice
+            vsockDevice = (vz.socketDevices[0] as! VZVirtioSocketDevice)
         }
         self.goHandle = goHandle
 
