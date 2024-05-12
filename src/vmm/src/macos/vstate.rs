@@ -726,6 +726,7 @@ impl Vcpu {
     /// Returns error or enum specifying whether emulation was handled or interrupted.
     #[cfg(target_arch = "x86_64")]
     fn run_emulation(&mut self, hvf_vcpu: &mut HvfVcpu) -> Result<VcpuEmulation> {
+        use hvf::HV_X86_RAX;
         use nix::unistd::write;
 
         let vcpuid = hvf_vcpu.id();
@@ -762,7 +763,7 @@ impl Vcpu {
                     );
                     if let Some(ref mmio_bus) = self.mmio_bus {
                         let ret = mmio_bus.call_hvc(dev_id, args_ptr);
-                        // hvf_vcpu.write_gp_reg(0, ret as u64).unwrap();
+                        hvf_vcpu.write_reg(HV_X86_RAX, ret as u64).unwrap();
                     }
                     Ok(VcpuEmulation::Handled)
                 }

@@ -51,6 +51,8 @@ const APIC_LVT1: u32 = 0x360;
 const APIC_MODE_NMI: u32 = 0x4;
 const APIC_MODE_EXTINT: u32 = 0x7;
 
+pub const HV_X86_RAX: u32 = hv_x86_reg_t_HV_X86_RAX;
+
 // from xhyve:
 // set branch trace disabled(11), PEBS unavailable(12)
 const IA32_MISC_ENABLE_VALUE: u64 = 1 | (1 << 11) | (1 << 12);
@@ -835,7 +837,20 @@ impl HvfVcpu {
                 let exit_reason = self.read_vmcs(VMCS_RO_EXIT_REASON)? as u32;
                 // some exit reasons have metadata. the highest reason we check for is 68
                 match exit_reason & 0xff {
-                    VMX_REASON_VMCALL => Ok(VcpuExit::HypervisorCall),
+                    VMX_REASON_VMCALL => {
+                        let call_id = self.read_reg(hv_x86_reg_t_HV_X86_R8)?;
+                        match call_id {
+                            0xc400_002a => {
+                                let arg1 = self.read_reg(hv_x86_reg_t_HV_X86_RDI)?;
+                                let arg2 = self.read_reg(hv_x86_reg_t_HV_X86_RSI)?;
+                                Ok(VcpuExit::HypervisorIoCall {
+                                    dev_id: arg1 as usize,
+                                    args_ptr: arg2 as usize,
+                                })
+                            }
+                            _ => Ok(VcpuExit::HypervisorCall),
+                        }
+                    }
 
                     VMX_REASON_CPUID => {
                         let eax = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff;
