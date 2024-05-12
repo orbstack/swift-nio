@@ -588,10 +588,11 @@ func runVmManager() {
 		errorx.Fatalf("failed to lock data: %w", err)
 	}
 
-	// rsvm if supported
-	var monitor vmm.Monitor = vzf.Monitor
-	if runtime.GOARCH == "arm64" {
-		monitor = rsvm.Monitor
+	// always prefer rsvm
+	var monitor vmm.Monitor = rsvm.Monitor
+	if conf.Debug() && os.Getenv("VMM") == "vzf" {
+		// in debug, allow vzf override for testing
+		monitor = vzf.Monitor
 	}
 
 	// set time machine backup xattr
