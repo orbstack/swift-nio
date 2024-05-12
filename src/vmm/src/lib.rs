@@ -193,26 +193,15 @@ pub struct Vmm {
     pio_device_manager: PortIODeviceManager,
 }
 
-#[derive(Clone)]
-pub struct VmmShutdownHandle(Arc<Parker>);
+pub struct VmmShutdownHandle(pub EventFd);
 
 impl VmmShutdownHandle {
     pub fn request_shutdown(&self) {
-        if self.0.park().is_err() {
-            tracing::info!(
-                "`VmmShutdownHandle::request_shutdown` ignored because a vcpu already left the run \
-                 loop; the vcpu should exit soon enough, anyways"
-            );
-            return;
-        };
+        tracing::info!("Requesting hard shutdown for VMM");
 
-        tracing::info!("Requesting hard stop on VM");
-
-        // N.B. we have to do this in the parked section since, otherwise, a shutdown vcpu will never
-        // reach the parking section.
-        self.0.flag_for_shutdown_while_parked();
-
-        self.0.unpark();
+        if let Err(e) = self.0.write(1) {
+            error!("Failed to signal hard shutdown request: {}", e);
+        }
     }
 }
 
@@ -222,7 +211,7 @@ impl Vmm {
     }
 
     pub fn shutdown_handle(&self) -> VmmShutdownHandle {
-        VmmShutdownHandle(self.parker.clone())
+        VmmShutdownHandle(self.exit_evt.try_clone().unwrap())
     }
 
     /// Gets the the specified bus device.

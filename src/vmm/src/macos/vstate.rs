@@ -17,6 +17,7 @@ use std::time::Duration;
 use super::super::TimestampUs;
 use super::barrier::BreakableBarrier;
 use crate::vmm_config::machine_config::CpuFeaturesTemplate;
+use crate::VmmShutdownHandle;
 
 use arch;
 #[cfg(target_arch = "aarch64")]
@@ -837,8 +838,10 @@ impl Vcpu {
             .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_tso)
             .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
 
+        let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());
         let barrier_break_guard = scopeguard::guard(parker.clone(), |parker| {
             parker.mark_can_no_longer_park();
+            shutdown_handle.request_shutdown();
         });
 
         let mut intc_vcpu_handle = self.intc.lock().unwrap().get_vcpu_handle(hvf_vcpuid);
@@ -857,12 +860,10 @@ impl Vcpu {
                 }
                 // The guest was rebooted or halted.
                 Ok(VcpuEmulation::Stopped) => {
-                    self.exit();
                     break;
                 }
                 // Emulation errors lead to vCPU exit.
                 Err(_) => {
-                    self.exit();
                     break;
                 }
             }
@@ -897,8 +898,11 @@ impl Vcpu {
             .set_initial_state(entry_addr, self.boot_receiver.is_some())
             .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
 
+        let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());
+
         let barrier_break_guard = scopeguard::guard(parker.clone(), |parker| {
             parker.mark_can_no_longer_park();
+            shutdown_handle.request_shutdown();
         });
 
         loop {
@@ -907,12 +911,10 @@ impl Vcpu {
                 Ok(VcpuEmulation::Handled) => (),
                 // The guest was rebooted or halted.
                 Ok(VcpuEmulation::Stopped) => {
-                    self.exit();
                     break;
                 }
                 // Emulation errors lead to vCPU exit.
                 Err(_) => {
-                    self.exit();
                     break;
                 }
             }
@@ -930,14 +932,6 @@ impl Vcpu {
             } else {
                 thread::park();
             }
-        }
-    }
-
-    fn exit(&mut self) {
-        tracing::info!("VCPU exiting");
-
-        if let Err(e) = self.exit_evt.write(1) {
-            error!("Failed signaling vcpu exit event: {}", e);
         }
     }
 }
