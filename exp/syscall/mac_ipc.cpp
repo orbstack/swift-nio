@@ -29,6 +29,8 @@ static u64 now() {
 static int do_test(int fd1, int fd2) {
 	// test ipc writing latency
 	std::thread reader([fd1]() {
+		pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+
 		u64 buckets[65536] = {0};
 		u64 total_lat = 0;
 		u64 iters = 0;
@@ -75,6 +77,8 @@ static int do_test(int fd1, int fd2) {
 			}
 		}
 	});
+
+	pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
 
 	u64 start = now();
 	while (true) {

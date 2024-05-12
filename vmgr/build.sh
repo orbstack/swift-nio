@@ -26,9 +26,17 @@ mkdir -p "$BUNDLE_BIN"
 
 # force relinking if Swift lib changed
 # if modification time of Swift lib is newer than the binary, relink
-LIB_PATH="../swift/GoVZF/.build/${SWIFT_ARCH}-apple-macosx/${BUILD_TYPE:-debug}/libGoVZF.a"
+SWIFT_LIB_PATH="../swift/GoVZF/.build/${SWIFT_ARCH}-apple-macosx/${BUILD_TYPE:-debug}/libGoVZF.a"
 if [[ -f "$BIN_OUT" ]]; then
-    if [[ ! -f "$LIB_PATH" ]] || [[ "$(stat -f "%m" "$LIB_PATH")" -gt "$(stat -f "%m" "$BIN_OUT")" ]]; then
+    if [[ ! -f "$SWIFT_LIB_PATH" ]] || [[ "$(stat -f "%m" "$SWIFT_LIB_PATH")" -gt "$(stat -f "%m" "$BIN_OUT")" ]]; then
+        rm -f "$BIN_OUT"
+    fi
+fi
+
+# same logic for Rust lib
+RUST_LIB_PATH="../vendor/libkrun/target/${RUST_BUILD_TYPE:-debug}/libkrun.a"
+if [[ -f "$BIN_OUT" ]]; then
+    if [[ ! -f "$RUST_LIB_PATH" ]] || [[ "$(stat -f "%m" "$RUST_LIB_PATH")" -gt "$(stat -f "%m" "$BIN_OUT")" ]]; then
         rm -f "$BIN_OUT"
     fi
 fi
@@ -37,7 +45,7 @@ go generate ./conf/appver ./drm/killswitch
 
 CGO_CFLAGS="-mmacosx-version-min=12.3" \
 CGO_LDFLAGS="-mmacosx-version-min=12.3" \
-go build -buildmode=pie -ldflags="-extldflags \"$LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
+go build -buildmode=pie -ldflags="-extldflags \"$SWIFT_LIB_PATH $RUST_LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
 
 # strip for release
 codesign_flags=(-f)

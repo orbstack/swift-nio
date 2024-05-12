@@ -42,7 +42,7 @@ var (
 		images.ImageDevuan: nil, // no need
 		images.ImageAlma:   {"dnf install -y tar"},
 		//images.ImageAmazon: {"yum install -y curl"},
-		images.ImageOracle: {"dnf install -y tar"},
+		images.ImageOracle: {"dnf install -y tar glibc-langpack-en"},
 		images.ImageRocky:  {"dnf install -y tar"},
 
 		// we don't actually use this, but keep it there to force waiting for network
@@ -346,6 +346,7 @@ func configureSystemStandard(args InitialSetupArgs) error {
 	}
 
 	// oracle: add repos
+	// not in PackageInstallCommands because it depends on version
 	if args.Distro == images.ImageOracle {
 		logrus.Debug("Installing oracle repos")
 		// adds appstream repos and UEK (Unbreakable Enterprise Kernel) repo

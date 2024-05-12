@@ -15,6 +15,8 @@
 
 ## Developer onboarding
 
+**If you're not working on Kubernetes or the Linux kernel, check Slack for prebuilt binaries to speed this up.**
+
 1. Install and start a [release build of OrbStack](https://orbstack.dev/download)
 1. Add `GOPRIVATE=github.com/orbstack/*-macvirt` to global shell environment (`~/.profile`)
 1. Install GitHub CLI: `brew install gh`
@@ -38,10 +40,7 @@
     - Example: `Apple Development: Danny Lin (A2LS84RQFY)`
 1. Add your SSH public key to `rootfs/config/authorized_keys`
     - You can commit and push this as a PR
-1. Build Kubernetes
-    1. **TODO**
-    1. For now, [grab binary from Slack](https://orbstack.slack.com/archives/C058SB82RUP/p1707796843420459?thread_ts=1707796032.071449&cid=C058SB82RUP)
-    1. Download and save to `rootfs/k8s/k3s-arm64`
+1. Build Kubernetes: `./scripts/build-k8s.sh`
 1. Symlink your macvirt repo root to `~/code/projects/macvirt`
     - `mkdir -p ~/code/projects; ln -s $PWD/.. ~/code/projects/macvirt`
     - **TODO: remove the need for this in the future**
@@ -49,7 +48,6 @@
 1. Build debug rootfs: `cd rootfs; make`
 1. Build debug CLI (orb command): `cd scon; make`
 1. Download binaries: `cd bins; make`
-1. Quit the release build of OrbStack
 1. Build kernel
     1. Create Arch machine in OrbStack (to get latest GCC)
     1. Install dependencies: `sudo pacman -Syu base-devel bc cpio clang lld llvm`
@@ -60,6 +58,7 @@
     1. `restore_config`
     1. `marm`
     1. Copy `out/arch/arm64/boot/Image` to `assets/debug/arm64/kernel` in repo root
+1. Quit the release build of OrbStack
 1. Build and run app in Xcode
     1. Select scheme `MacVirt`
     2. Click the play button
@@ -94,7 +93,7 @@ To build & run vmgr:
 
 ```bash
 cd vmgr
-make
+make run
 ```
 
 Stop with ^C.

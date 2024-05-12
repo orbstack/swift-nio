@@ -74,3 +74,4 @@ copy_file() {
 copy_file out/rootfs.img rootfs.img
 copy_file out/data.img.tar data.img.tar
 copy_file out/swap.img.tar swap.img.tar
+copy_file out/ri.cpio rpack

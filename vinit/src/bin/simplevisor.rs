@@ -1,4 +1,4 @@
-use std::{error::Error, process::Command, fs, os::unix::process::ExitStatusExt};
+use std::{error::Error, fs, os::unix::{fs::symlink, process::ExitStatusExt}, process::Command};
 
 use nix::{sys::signal::{kill, Signal}, unistd::Pid};
 use signal_hook::iterator::Signals;
@@ -84,6 +84,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             return Err(format!("init command {:?} failed with {}", init_command, status).into());
         }
     }
+
+    // symlink: /var/run/docker.sock -> /var/run/docker.sock.raw
+    // compat: https://docs.docker.com/desktop/extensions-sdk/guides/use-docker-socket-from-backend/
+    symlink("/var/run/docker.sock", "/var/run/docker.sock.raw")?;
 
     let mut children = config.services.iter()
         .map(|child_args| {

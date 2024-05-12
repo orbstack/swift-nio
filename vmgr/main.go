@@ -35,6 +35,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/orbstack/macvirt/vmgr/osver"
+	"github.com/orbstack/macvirt/vmgr/rsvm"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
@@ -253,6 +254,24 @@ func migrateStateV1ToV2() error {
 	return nil
 }
 
+func migrateStateV2ToV3() error {
+	logrus.WithFields(logrus.Fields{
+		"from": "2",
+		"to":   "3",
+	}).Info("migrating state")
+
+	// old default: set DataAllowBackup to true - IF time machine is enabled
+	// otherwise, set to false
+	err := vmconfig.Update(func(c *vmconfig.VmConfig) {
+		c.DataAllowBackup = util.CheckTimeMachineEnabled()
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func migrateState() error {
 	old := vmconfig.GetState()
 	logrus.Debug("old state: ", old)
@@ -271,6 +290,15 @@ func migrateState() error {
 			}
 
 			ver = 2
+		}
+
+		if ver == 2 {
+			err := migrateStateV2ToV3()
+			if err != nil {
+				return err
+			}
+
+			ver = 3
 		}
 
 		ver = vmconfig.CurrentVersion
@@ -315,6 +343,7 @@ func flushDisk() error {
 // must do it before creating VM config, or storage config/attachment is reported as invalid on vm.Start()
 // --
 // this deals with cases like vmgr force stop + VMM cleaning up a lot of fds before exiting
+// TODO: this can be done better with rsvm
 func ensureDataLock() error {
 	dataImg, err := os.OpenFile(conf.DataImage(), os.O_RDWR, 0644)
 	if err != nil {
@@ -385,6 +414,11 @@ func (m *VmManager) Stop(typ types.StopType, reason types.StopReason) {
 }
 
 func runVmManager() {
+	// virtiofs in libkrun requires umask=0. set it early to guarantee consistent behavior
+	// for all of vmgr
+	// careful when binding to unix sockets because of this!
+	unix.Umask(0)
+
 	// propagate stop reason via exit code
 	var lastStopReason types.StopReason
 	defer func() {
@@ -554,9 +588,42 @@ func runVmManager() {
 		errorx.Fatalf("failed to lock data: %w", err)
 	}
 
+	// always prefer rsvm
+	var monitor vmm.Monitor = rsvm.Monitor
+	if conf.Debug() && os.Getenv("VMM") == "vzf" {
+		// in debug, allow vzf override for testing
+		monitor = vzf.Monitor
+	}
+
+	// set time machine backup xattr
+	err = util.SetBackupExclude(conf.DataImage(), !vmconfig.Get().DataAllowBackup)
+	check(err)
+	// always exclude swap
+	err = util.SetBackupExclude(conf.SwapImage(), false)
+	check(err)
+	// update xattr on config change
+	go func() {
+		for diff := range vmconfig.SubscribeDiff() {
+			if diff.New.DataAllowBackup != diff.Old.DataAllowBackup {
+				err = util.SetBackupExclude(conf.DataImage(), !diff.New.DataAllowBackup)
+				if err != nil {
+					logrus.WithError(err).Error("failed to set backup exclude on data image")
+				}
+			}
+		}
+	}()
+
+	// force-unmount nfs
+	// needed to make it safe to stat this later for virtio nfs loop protection
+	err = nfsmnt.UnmountNfs()
+	// EINVAL = not mounted, ENOENT = mountpoint not created
+	if err != nil && !errors.Is(err, unix.EINVAL) && !errors.Is(err, unix.ENOENT) {
+		logrus.WithError(err).Error("failed to unmount nfs")
+	}
+
 	logrus.Debug("configuring VM")
 	healthCheckCh := make(chan struct{}, 1)
-	vnetwork, vm := CreateVm(vzf.Monitor, &VmParams{
+	vnetwork, vm := CreateVm(monitor, &VmParams{
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
 		Memory: vmconfig.Get().MemoryMiB,
@@ -570,7 +637,7 @@ func runVmManager() {
 		NetworkNat:         useNat,
 		NetworkHostBridges: 2, // machine + VlanRouter
 		MacAddressPrefix:   netconf.GuestMACPrefix,
-		// doesn't work so let's just hide it
+		// doesn't work on vzf so let's just hide it
 		Balloon: false,
 		Rng:     true,
 		// no longer used (NFS is now TCP)
@@ -584,7 +651,9 @@ func runVmManager() {
 		HealthCheckCh: healthCheckCh,
 	})
 	defer vnetwork.Close()
-	defer runOne("flush disk", flushDisk)
+	if monitor != rsvm.Monitor {
+		defer runOne("flush disk", flushDisk)
+	}
 	// close in case we need to release disk flock for next start
 	defer vm.Close()
 
@@ -648,8 +717,9 @@ func runVmManager() {
 	check(err)
 
 	// fsnotifier
-	fsNotifier, err := fsnotify.NewVmNotifier(vnetwork)
+	fsNotifier, err := fsnotify.NewVmNotifier(vnetwork, monitor == rsvm.Monitor)
 	check(err)
+	rsvm.OnFsActivityCallback = fsNotifier.OnVirtiofsActivity
 	defer fsNotifier.Close()
 	hcServer.FsNotifier = fsNotifier
 	go runOne("fsnotify proxy", fsNotifier.Run)

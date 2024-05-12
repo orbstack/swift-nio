@@ -21,8 +21,18 @@ const (
 )
 
 type ConsoleSpec struct {
-	ReadFd  int `json:"readFd"`
-	WriteFd int `json:"writeFd"`
+	Earlycon bool `json:"earlycon"`
+	ReadFd   int  `json:"readFd"`
+	WriteFd  int  `json:"writeFd"`
+}
+
+type NfsInfo struct {
+	DirDev         int32  `json:"dirDev"`
+	DirInode       uint64 `json:"dirInode"`
+	DirName        string `json:"dirName"`
+	ParentDirDev   int32  `json:"parentDirDev"`
+	ParentDirInode uint64 `json:"parentDirInode"`
+	EmptyDirInode  uint64 `json:"emptyDirInode"`
 }
 
 type VzSpec struct {
@@ -30,6 +40,7 @@ type VzSpec struct {
 	Memory           uint64       `json:"memory"`
 	Kernel           string       `json:"kernel"`
 	Cmdline          string       `json:"cmdline"`
+	Initrd           string       `json:"initrd,omitempty"`
 	Console          *ConsoleSpec `json:"console"`
 	Mtu              int          `json:"mtu"`
 	MacAddressPrefix string       `json:"macAddressPrefix"`
@@ -44,6 +55,10 @@ type VzSpec struct {
 	Virtiofs         bool         `json:"virtiofs"`
 	Rosetta          bool         `json:"rosetta"`
 	Sound            bool         `json:"sound"`
+	Rconfig          []byte       `json:"rconfig,omitempty"`
+
+	// for loop prevention
+	NfsInfo *NfsInfo `json:"nfsInfo"`
 }
 
 type Monitor interface {

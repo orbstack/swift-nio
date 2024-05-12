@@ -13,6 +13,11 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 		return "", fmt.Errorf("machine '%q' already exists", newName)
 	}
 
+	// update name in mDNS registry: remove old, and always add new or restore old (if failed)
+	// TODO: atomic
+	c.manager.net.mdnsRegistry.RemoveMachine(c)
+	defer c.manager.net.mdnsRegistry.AddMachine(c)
+
 	delete(m.containersByID, c.ID)
 	delete(m.containersByName, c.Name)
 	oldName := c.Name
@@ -36,6 +41,7 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 	}
 
 	// update NFS bind mount: unmount old, mount new
+	// TODO: atomic
 	err = c.manager.nfsForAll.Unmount(oldName)
 	if err != nil {
 		return "", err
@@ -45,13 +51,13 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 	defer func() {
 		if retErr != nil {
 			_ = c.manager.nfsForAll.Unmount(newName)
-			err2 := c.manager.nfsForAll.MountBind(c.rootfsDir, oldName)
+			err2 := c.manager.nfsForAll.MountBind(c.rootfsDir, oldName, -1, -1)
 			if err2 != nil {
 				logrus.WithError(err2).Error("failed to remount old name after error")
 			}
 		}
 	}()
-	err = c.manager.nfsForAll.MountBind(c.rootfsDir, newName)
+	err = c.manager.nfsForAll.MountBind(c.rootfsDir, newName, -1, -1)
 	if err != nil {
 		return "", err
 	}

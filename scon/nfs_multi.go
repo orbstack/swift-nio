@@ -8,8 +8,8 @@ import (
 )
 
 type NfsMirror interface {
-	Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFunc func(destPath string) error) error
-	MountBind(source string, subdest string) error
+	Mount(source string, subdest string, fstype string, flags uintptr, data string, clientUid int, clientGid int, mountFunc func(destPath string) error) error
+	MountBind(source string, subdest string, clientUid int, clientGid int) error
 	Unmount(subdest string) error
 	Flush() error
 	Close() error
@@ -27,10 +27,10 @@ func NewMultiNfsMirror(mirrors ...NfsMirror) *MultiNfsMirror {
 	}
 }
 
-func (m *MultiNfsMirror) Mount(source string, subdest string, fstype string, flags uintptr, data string, mountFunc func(destPath string) error) error {
+func (m *MultiNfsMirror) Mount(source string, subdest string, fstype string, flags uintptr, data string, clientUid int, clientGid int, mountFunc func(destPath string) error) error {
 	var errs []error
 	for _, mirror := range m.mirrors {
-		err := mirror.Mount(source, subdest, fstype, flags, data, mountFunc)
+		err := mirror.Mount(source, subdest, fstype, flags, data, clientUid, clientGid, mountFunc)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -38,10 +38,10 @@ func (m *MultiNfsMirror) Mount(source string, subdest string, fstype string, fla
 	return errors.Join(errs...)
 }
 
-func (m *MultiNfsMirror) MountBind(source string, subdest string) error {
+func (m *MultiNfsMirror) MountBind(source string, subdest string, clientUid int, clientGid int) error {
 	var errs []error
 	for _, mirror := range m.mirrors {
-		err := mirror.MountBind(source, subdest)
+		err := mirror.MountBind(source, subdest, clientUid, clientGid)
 		if err != nil {
 			errs = append(errs, err)
 		}

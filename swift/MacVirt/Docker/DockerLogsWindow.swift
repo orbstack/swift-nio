@@ -154,8 +154,15 @@ private class CommandViewModel: ObservableObject {
 }
 
 private class LogsViewModel: ObservableObject {
-    var contents = NSMutableAttributedString()
-    let updateEvent = PassthroughSubject<Void, Never>()
+
+    enum EditAction {
+        case append(NSAttributedString)
+        case replace(range: NSRange, replacementString: NSAttributedString)
+        case clear
+    }
+
+    let contents = NSMutableAttributedString()
+    let updateEvent = PassthroughSubject<EditAction, Never>()
 
     var process: Process?
     private var lastAnsiState = AnsiState()
@@ -417,12 +424,14 @@ private class LogsViewModel: ObservableObject {
     @MainActor
     private func add(attributedString: NSMutableAttributedString) {
         contents.append(attributedString)
+        // publish
+        updateEvent.send(.append(attributedString))
         // truncate if needed
         if contents.length > maxChars {
-            contents.deleteCharacters(in: NSRange(location: 0, length: contents.length - maxChars))
+            let truncateRange = NSRange(location: 0, length: contents.length - maxChars)
+            contents.deleteCharacters(in: truncateRange)
+            updateEvent.send(.replace(range: truncateRange, replacementString: NSAttributedString()))
         }
-        // publish
-        updateEvent.send()
     }
 
     @MainActor
@@ -447,8 +456,8 @@ private class LogsViewModel: ObservableObject {
 
     @MainActor
     func clear() {
-        contents = NSMutableAttributedString()
-        updateEvent.send()
+        contents.setAttributedString(NSAttributedString())
+        updateEvent.send(.clear)
     }
 
     func copyAll() {
@@ -544,21 +553,38 @@ private struct LogsTextView: NSViewRepresentable {
         textView.isEditable = false
         textView.usesFindBar = true
 
-        model.updateEvent
-            .throttle(for: 0.035, scheduler: DispatchQueue.main, latest: true)
-            .sink { [weak textView] _ in
-                guard let textView else { return }
-                // TODO: only scroll if at bottom
-                // let shouldScroll = abs(textView.visibleRect.maxY - textView.bounds.maxY) < bottomScrollThreshold
-                textView.textStorage?.setAttributedString(model.contents)
+        let debouncedScrollToEnd = Debouncer(delay: 0.05) {
+            if let clipView = textView.enclosingScrollView?.contentView,
+               let layoutManager = textView.layoutManager,
+               let textContainer = textView.textContainer
+            {
+                layoutManager.ensureLayout(for: textContainer)
+                let userRect = layoutManager.usedRect(for: textContainer)
+                clipView.bounds.origin = CGPoint(x: textView.textContainerInset.width / 2, y: userRect.maxY)
+            }
+        }
 
-                NSAnimationContext.beginGrouping()
-                NSAnimationContext.current.duration = 0
-                textView.scrollToEndOfDocument(nil)
-                NSAnimationContext.endGrouping()
+        model.updateEvent
+            .receive(on: DispatchQueue.main)
+            .sink { [weak textView] editAction in
+                guard let textView else { return }
+
+                switch editAction {
+                case .append(let string):
+                    textView.textStorage?.append(string)
+
+                    if let clipView = textView.enclosingScrollView?.contentView {
+                        let shouldScroll = (clipView.bounds.maxY >= textView.bounds.maxY - 1)
+                        if shouldScroll {
+                            debouncedScrollToEnd.call()
+                        }
+                    }
+                case .replace(let range, let replacementString):
+                    textView.textStorage?.replaceCharacters(in: range, with: replacementString)
+                case .clear:
+                    textView.string = ""
+                }
             }.store(in: &context.coordinator.cancellables)
-        // trigger initial update
-        model.updateEvent.send()
 
         commandModel.searchCommand.sink { [weak textView] _ in
             guard let textView else { return }
@@ -964,5 +990,27 @@ struct K8SPodLogsWindow: View {
             }
         }
         .toolbar(forCommands: commandModel, standalone: true)
+    }
+}
+
+private class Debouncer {
+    private var timer: Timer?
+    private let delay: TimeInterval
+    private var handler: () -> Void
+
+    init(delay: TimeInterval, handler: @escaping () -> Void) {
+        self.delay = delay
+        self.handler = handler
+    }
+
+    func call() {
+        if timer == nil {
+            self.handler()
+        }
+        
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            self?.handler()
+        }
     }
 }

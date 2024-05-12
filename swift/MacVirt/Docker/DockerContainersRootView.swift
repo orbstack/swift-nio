@@ -104,8 +104,9 @@ private struct DockerContainerListItemView: View {
         case let .container(container):
             DockerContainerItem(container: container, isFirstInList: isFirstInList)
                 .equatable()
-        case let .compose(group, _):
+        case let .compose(group, children):
             DockerComposeGroupItem(composeGroup: group,
+                                   children: children,
                                    isFirstInList: isFirstInList)
                 .equatable()
         case let .k8sGroup(group, _):

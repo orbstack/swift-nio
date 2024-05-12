@@ -16,7 +16,7 @@ struct K8SPodDetails: View {
             let isRunning = pod.uiState == .running
 
             DetailsSection("Info") {
-                SimpleKvTable(longestLabel: "Address") {
+                SimpleKvTable(longestLabel: "Restarts") {
                     let domain = pod.preferredDomain
                     let ipAddress = pod.status.podIP
 
@@ -36,7 +36,7 @@ struct K8SPodDetails: View {
                     if let ipAddress,
                        let url = URL(string: "http://\(domain)")
                     {
-                        SimpleKvTableRow("Address") {
+                        SimpleKvTableRow("Domain") {
                             if vmModel.netBridgeAvailable {
                                 CopyableText(copyAs: domain) {
                                     CustomLink(domain, url: url)

@@ -54,7 +54,6 @@ type ConManager struct {
 	// services
 	db             *Database
 	host           *hclient.Client
-	hostNfsMounted bool
 	bpf            *bpf.GlobalBpfManager
 	// TODO make this its own machine?
 	k8sEnabled        bool
@@ -562,25 +561,6 @@ func (m *ConManager) ForEachContainer(fn func(c *Container) error) error {
 	}
 
 	return errors.Join(errs...)
-}
-
-// mount after, so inode doesn't change
-func (m *ConManager) onHostNfsMounted() error {
-	// dupe is ok - we'll have to remount if inode changed
-	m.hostNfsMounted = true
-
-	hostUser, err := m.host.GetUser()
-	if err != nil {
-		return err
-	}
-
-	return m.ForEachContainer(func(c *Container) error {
-		if !c.Running() {
-			return nil
-		}
-
-		return bindMountNfsRoot(c, "/mnt/machines", hostUser.HomeDir+"/"+mounts.NfsDirName)
-	})
 }
 
 func (m *ConManager) getAndWriteCerts(fs *securefs.FS, destDir string) error {

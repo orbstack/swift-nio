@@ -16,7 +16,7 @@ struct DockerContainerDetails: View {
             let isRunning = container.running
 
             DetailsSection("Info") {
-                SimpleKvTable(longestLabel: "Address") {
+                SimpleKvTable(longestLabel: "Domain") {
                     let domain = container.preferredDomain
                     let ipAddress = container.ipAddress
 
@@ -41,7 +41,7 @@ struct DockerContainerDetails: View {
                        let domain,
                        let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
                     {
-                        SimpleKvTableRow("Address") {
+                        SimpleKvTableRow("Domain") {
                             if vmModel.netBridgeAvailable {
                                 CopyableText(copyAs: domain) {
                                     CustomLink(domain, url: url)
@@ -89,7 +89,7 @@ struct DockerContainerDetails: View {
                         DividedRowButton {
                             NSWorkspace.shared.open(URL(string: "http://localhost")!)
                         } label: {
-                            Label("Open Tutorial", systemImage: "questionmark.circle")
+                            Label("Tutorial", systemImage: "questionmark.circle")
                         }
                     }
                 }

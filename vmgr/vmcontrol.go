@@ -21,6 +21,7 @@ import (
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/orbstack/macvirt/scon/isclient"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -445,7 +446,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		Handler: mux,
 	}
 
-	listenerUnix, err := net.Listen("unix", conf.VmControlSocket())
+	listenerUnix, err := netx.ListenUnix(conf.VmControlSocket())
 	if err != nil {
 		return nil, fmt.Errorf("listen vmcontrol: %w", err)
 	}

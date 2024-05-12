@@ -1,0 +1,4 @@
+[   27.262557] krpc: kernel HVC: 846 ns/call
+[   31.332547] krpc: userspace HVC: 813 ns/call
+
+[    9.355136] GIC MMIO: 1863 ns/call

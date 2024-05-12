@@ -46,7 +46,7 @@ struct UserSwitcherButton: View {
             }
         } label: {
             HStack(spacing: 0) {
-                var drmState = vmModel.drmState
+                let drmState = vmModel.drmState
 
                 let subtitle = drmState.subtitle
                 // "Personal use only" is shown in badge instead

@@ -2,6 +2,7 @@ package netx
 
 import (
 	"net"
+	"os"
 )
 
 func DialTCP(network string, laddr, raddr *net.TCPAddr) (*net.TCPConn, error) {
@@ -59,5 +60,21 @@ func Listen(network, address string) (net.Listener, error) {
 	if tcpListener, ok := listener.(*net.TCPListener); ok {
 		return &TCPListener{tcpListener}, nil
 	}
+	return listener, nil
+}
+
+func ListenUnix(path string) (net.Listener, error) {
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path})
+	if err != nil {
+		return nil, err
+	}
+
+	// vmgr runs with umask 0 for virtiofs purposes. default mode for unix bind is 0777
+	// this is racy but we have no option. set it back to 0755 (~0022)
+	err = os.Chmod(path, 0755)
+	if err != nil {
+		return nil, err
+	}
+
 	return listener, nil
 }

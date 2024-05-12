@@ -16,6 +16,7 @@ struct VmConfig: Codable, Equatable {
     var networkHttps: Bool
     var mountHideShared: Bool
     var dataDir: String?
+    var dataAllowBackup: Bool
     var dockerSetContext: Bool
     var dockerNodeName: String
     var setupUseAdmin: Bool
@@ -33,6 +34,7 @@ struct VmConfig: Codable, Equatable {
         case networkHttps = "network.https"
         case mountHideShared
         case dataDir
+        case dataAllowBackup
         case dockerSetContext = "docker.setContext"
         case dockerNodeName = "docker.nodeName"
         case setupUseAdmin = "setup.useAdmin"

@@ -202,7 +202,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                    let queryItems = components.queryItems,
                    let token = queryItems.first(where: { $0.name == "token" })?.value
                 {
-                    var state = vmModel.drmState
+                    let state = vmModel.drmState
                     state.refreshToken = token
                     vmModel.drmState = state
 

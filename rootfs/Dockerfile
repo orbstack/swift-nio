@@ -108,12 +108,26 @@ g++ -O2 -Wall /build/fuse/fpll.cpp $(pkg-config fuse3 --cflags --libs) -o /out/f
 EOT
 RUN <<EOT sh -eux
 gcc -O2 -Wall -static -o /out/rstub /build/rvfs-wrapper.c
+gcc -O2 -Wall -static -o /out/rinit /build/rinit.c
 gcc -O2 -Wall -static -o /out-guest/pstub /build/pstub.c
 gcc -O2 -Wall -static -o /out-guest/runc-wrapper /build/runc-wrapper.c
 strip /out/* /out-guest/*
 
 # append runc.arm64 to rvfs-wrapper
 cat /build/runc >> /out/rstub
+EOT
+
+# build initrd for rinit
+FROM base AS initrd-build
+COPY --from=c-build /out/rinit /
+RUN <<EOT sh -eux
+mkdir /initrd
+cd /initrd
+mkdir sbin
+mv /rinit sbin/init
+# make cpio
+mkdir /out
+find . -print0 | cpio -o -H newc -R 0:0 -0 > /out/ri.cpio
 EOT
 
 # Build wormhole's debugos rootfs
@@ -178,7 +192,7 @@ COPY --from=rust-build /out/dctl /out/nix/orb/sys/bin/
 # Generate Rosetta deltas (need Debian for bsdiff)
 FROM debian as rosetta-deltas
 RUN apt-get update && \
-    apt-get install -y curl python3.11 bsdiff b3sum 7zip
+    apt-get install -y curl python3.11 bsdiff b3sum 7zip parallel
 COPY rootfs/utils/rosetta /work/
 WORKDIR /work
 COPY --from=rust-build /out/b3enc /work/
@@ -557,3 +571,4 @@ EOT
 # speed up exporting images by skipping /rootfs
 FROM packer as images
 COPY --from=pack-images /images /images
+COPY --from=initrd-build /out/ri.cpio /images/ri.cpio

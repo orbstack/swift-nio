@@ -8,13 +8,12 @@ import (
 )
 
 const (
-	debugXcodeBundle   = "/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app"
-	debugAppCodeBundle = "/Library/Caches/JetBrains/AppCode2023.1/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app"
+	debugXcodeBundle = "/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app"
 )
 
 func findAuxiliaryExe(name string) (string, error) {
 	if conf.Debug() {
-		return HomeDir() + debugAppCodeBundle + "/Contents/MacOS/" + name, nil
+		return HomeDir() + debugXcodeBundle + "/Contents/MacOS/" + name, nil
 	}
 
 	exeDir, err := ExecutableDir()
@@ -34,7 +33,7 @@ func FindGuihelperExe() (string, error) {
 
 func FindAppBundle() (string, error) {
 	if conf.Debug() {
-		return HomeDir() + debugAppCodeBundle, nil
+		return HomeDir() + debugXcodeBundle, nil
 	}
 
 	exeDir, err := ExecutableDir()

@@ -31,7 +31,7 @@ func hostUsername(t *testing.T) string {
 func TestNfsReadOnlyRoot(t *testing.T) {
 	t.Parallel()
 
-	err := os.WriteFile(coredir.NfsMountpoint()+"/testfile", []byte("test"), 0644)
+	err := os.WriteFile(coredir.EnsureNfsMountpoint()+"/testfile", []byte("test"), 0644)
 	if !errors.Is(err, syscall.EACCES) {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestNfsReadOnlyRoot(t *testing.T) {
 func TestNfsMachineRootPermissions(t *testing.T) {
 	t.Parallel()
 
-	err := os.WriteFile(fmt.Sprintf("%s/%s/root/testfile", coredir.NfsMountpoint(), singleTestMachine), []byte("test"), 0644)
+	err := os.WriteFile(fmt.Sprintf("%s/%s/root/testfile", coredir.EnsureNfsMountpoint(), singleTestMachine), []byte("test"), 0644)
 	if !errors.Is(err, syscall.EACCES) {
 		t.Fatal(err)
 	}
@@ -49,13 +49,13 @@ func TestNfsMachineRootPermissions(t *testing.T) {
 func TestNfsMachineUserPermissions(t *testing.T) {
 	t.Parallel()
 
-	err := os.WriteFile(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.NfsMountpoint(), singleTestMachine, hostUsername(t)), []byte("test"), 0644)
+	err := os.WriteFile(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), singleTestMachine, hostUsername(t)), []byte("test"), 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// delete file
-	err = os.Remove(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.NfsMountpoint(), singleTestMachine, hostUsername(t)))
+	err = os.Remove(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), singleTestMachine, hostUsername(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestNfsContainerWrite(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	// write file via nfs
-	err = os.WriteFile(coredir.NfsMountpoint()+"/docker/containers/otest-nfs/etc/testfile", []byte("test"), 0644)
+	err = os.WriteFile(coredir.EnsureNfsMountpoint()+"/docker/containers/otest-nfs/etc/testfile", []byte("test"), 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestNfsContainerWrite(t *testing.T) {
 	}
 
 	// delete file
-	err = os.Remove(coredir.NfsMountpoint() + "/docker/containers/otest-nfs/etc/testfile")
+	err = os.Remove(coredir.EnsureNfsMountpoint() + "/docker/containers/otest-nfs/etc/testfile")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestNfsContainerWrite(t *testing.T) {
 	}
 
 	// read file via nfs
-	data, err := os.ReadFile(coredir.NfsMountpoint() + "/docker/containers/otest-nfs/etc/passwd")
+	data, err := os.ReadFile(coredir.EnsureNfsMountpoint() + "/docker/containers/otest-nfs/etc/passwd")
 	if err != nil {
 		t.Fatal(err)
 	}

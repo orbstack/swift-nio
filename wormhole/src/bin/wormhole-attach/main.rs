@@ -1,9 +1,9 @@
 use std::{collections::HashMap, ffi::CString, fs::File, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
-use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgid, setgroups, setuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
+use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgroups, setresgid, setresuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
 use pidfd::PidFd;
-use tracing::{debug, error, span, trace, Level};
+use tracing::{debug, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{err, flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY}};
 
@@ -49,6 +49,20 @@ const INHERIT_ENVS: &[&str] = &[
     "TERM",
     "SSH_CONNECTION",
     "SSH_AUTH_SOCK",
+];
+// there's no generic solution for problematic env vars...
+// but we need to inherit env for many apps to work correctly
+const EXCLUDE_ENVS: &[&str] = &[
+    // LD_PRELOAD libs may depend on musl (which fails to load in nix rpath) or conflicting glibc
+    // checking the lib's DT_NEEDED is pointless: impossible to have a statically-linked dynamic lib
+    // https://github.com/orbstack/orbstack/issues/1131
+    "LD_PRELOAD",
+
+    // BASH_ENV is basically bashrc, but for *all* bash instances, including #! shell scripts
+    // nix has binaries like "manpath" that are bash wrapper scripts
+    // if BASH_ENV script (e.g. bashrc -> nvm) runs such commands (e.g. manpath), we get infinite recursion
+    // https://github.com/orbstack/orbstack/issues/1096
+    "BASH_ENV",
 ];
 const PREPEND_PATH: &str = "/nix/orb/data/.env-out/bin:/nix/orb/sys/bin";
 
@@ -378,17 +392,14 @@ fn main() -> anyhow::Result<()> {
         .map(|line| (line[0], line.iter().skip(1).map(|s| s.to_string()).collect::<Vec<_>>()))
         .collect::<HashMap<_, _>>();
 
-    // TODO: support setting uid
-    trace!("copy uid/gid");
-    let uid = 0;
-    let uid: Uid = uid.into();
+    trace!("chown stdio fds");
+    let uid = "0";
+    let uid: Uid = uid.parse::<u32>()?.into();
     let gid = init_status.get("Gid:").unwrap().get(0).unwrap();
     let gid: Gid = gid.parse::<u32>()?.into();
     fchown(0, Some(uid), Some(gid))?;
     fchown(1, Some(uid), Some(gid))?;
     fchown(2, Some(uid), Some(gid))?;
-    setuid(uid.into())?;
-    setgid(gid)?;
 
     trace!("copy supplementary groups");
     let groups = init_status.get("Groups:").unwrap();
@@ -410,6 +421,8 @@ fn main() -> anyhow::Result<()> {
         // skip invalid entries with no =
         .filter(|s| s.len() == 2)
         .map(|s| (s[0].to_string(), s[1].to_string()))
+        // exclude envs that are known to cause issues
+        .filter(|(k, _)| !EXCLUDE_ENVS.contains(&k.as_str()))
         .collect::<HashMap<_, _>>();
     // edit PATH (append and prepend)
     env_map.insert("PATH".to_string(), format!("{}:{}", PREPEND_PATH, env_map.get("PATH").unwrap_or(&"".to_string())));
@@ -506,16 +519,34 @@ fn main() -> anyhow::Result<()> {
                 copy_seccomp_filter(init_pid, 0)?;
             }
 
-            // copy capabilities
+            // keep capabilities across UID transition
+            // (gets reset on execve)
+            prctl::set_keepcaps(true)?;
+
+            // bounding: drop all unset caps
+            // this requires CAP_SETCAP so do it before we lose eff caps
+            trace!("copy capabilities: bounding");
+            let cap_bnd = u64::from_str_radix(init_status.get("CapBnd:").unwrap().get(0).unwrap(), 16)?;
+            for i in 0..num_caps {
+                if cap_bnd & (1 << i) == 0 {
+                    unsafe { err(libc::prctl(PR_CAPBSET_DROP, i as i32, 0, 0, 0))? };
+                }
+            }
+
+            // copy real uid, effective uid, saved uid
+            trace!("copy uid/gid");
+            setresgid(gid, gid, gid)?;
+            setresuid(uid, uid, uid)?;
+
+            // copy remaining capabilities
             // ptrace is actually allowed by default caps!
             // must be after seccomp: if we drop CAP_SYS_ADMIN and don't have NO_NEW_PRIVS, we can't set a seccomp filter
             // works because docker's seccomp filter allows capset/capget
             // order: ambient, bounding, effective, inheritable, permitted
-            trace!("copy capabilities");
+            trace!("copy remaining capabilities");
             let cap_inh = u64::from_str_radix(init_status.get("CapInh:").unwrap().get(0).unwrap(), 16)?;
             let cap_prm = u64::from_str_radix(init_status.get("CapPrm:").unwrap().get(0).unwrap(), 16)?;
             let cap_eff = u64::from_str_radix(init_status.get("CapEff:").unwrap().get(0).unwrap(), 16)?;
-            let cap_bnd = u64::from_str_radix(init_status.get("CapBnd:").unwrap().get(0).unwrap(), 16)?;
             let cap_amb = u64::from_str_radix(init_status.get("CapAmb:").unwrap().get(0).unwrap(), 16)?;
             // ambient: clear all, then raise set caps
             trace!("copy capabilities: ambient");
@@ -523,13 +554,6 @@ fn main() -> anyhow::Result<()> {
             for i in 0..num_caps {
                 if cap_amb & (1 << i) != 0 {
                     unsafe { err(libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i as i32, 0, 0))? };
-                }
-            }
-            // bounding: drop all unset caps
-            trace!("copy capabilities: bounding");
-            for i in 0..num_caps {
-                if cap_bnd & (1 << i) == 0 {
-                    unsafe { err(libc::prctl(PR_CAPBSET_DROP, i as i32, 0, 0, 0))? };
                 }
             }
             // set eff/prm/inh
