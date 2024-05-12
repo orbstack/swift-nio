@@ -20,6 +20,8 @@ use tracing::{error, trace};
 // __DARWIN_C_LEVEL >= __DARWIN_C_FULL
 const ATTR_CMN_ERROR: u32 = 0x20000000;
 
+const SF_FIRMLINK: u32 = 0x00800000;
+
 const EF_NO_XATTRS: u64 = 0x00000002;
 
 pub const INLINE_ENTRIES: usize = 16;
@@ -216,6 +218,12 @@ pub fn list_dir<T: AsRawFd>(
 
             if returned.commonattr & ATTR_CMN_FLAGS != 0 {
                 st.st_flags = unsafe { (entry_p as *const u32).read_unaligned() };
+                // firmlinks are bind mounts, but with no mountpoint
+                // they require the same special treatment as mountpoints:
+                // readdir inode != inode on stat (but device is the same, because it's on the same FS)
+                if st.st_flags & SF_FIRMLINK != 0 {
+                    entry.is_mountpoint = true;
+                }
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
