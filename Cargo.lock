@@ -568,6 +568,7 @@ dependencies = [
  "arch",
  "arch_gen",
  "bitflags 2.5.0",
+ "counter",
  "cpuid",
  "crossbeam-channel",
  "iced-x86",
@@ -666,6 +667,7 @@ version = "1.8.1"
 dependencies = [
  "anyhow",
  "color-backtrace",
+ "counter",
  "crossbeam-channel",
  "devices",
  "hvf",

@@ -8,6 +8,7 @@ use std::{
         atomic::{AtomicI64, Ordering},
         Arc,
     },
+    time::Duration,
 };
 use utils::Mutex;
 
@@ -378,7 +379,13 @@ fn init_logger_once() {
 
     static INIT: Once = Once::new();
 
-    INIT.call_once(|| tracing_subscriber::fmt::init());
+    INIT.call_once(|| {
+        tracing_subscriber::fmt::init();
+
+        if let Some(filter) = counter::default_env_filter() {
+            std::mem::forget(counter::display_every(filter, Duration::from_millis(1000)));
+        }
+    });
 }
 
 #[no_mangle]

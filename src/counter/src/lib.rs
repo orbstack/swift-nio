@@ -197,7 +197,7 @@ pub mod global_counter_inner {
     pub use {
         crate::{DisableableCounter, DynCounter},
         counter_proc::cfg_aho,
-        linkme::distributed_slice,
+        linkme::{self, distributed_slice},
     };
 
     #[linkme::distributed_slice]
@@ -208,7 +208,7 @@ pub mod global_counter_inner {
 macro_rules! counter {
     ($(
         $(#[$attr:meta])*
-        $vis:vis $name:ident $(where($filter:literal))? : $ty:ty = $init:expr;
+        $vis:vis $name:ident $(in $filter:literal)? : $ty:ty = $init:expr;
     )*) => {$(
         $crate::global_counter_inner::cfg_aho! {
             // If matched
@@ -217,6 +217,7 @@ macro_rules! counter {
                 $vis static $name: $ty = {
                     $(const FILTER: &str = $filter;)?
                     #[$crate::global_counter_inner::distributed_slice($crate::global_counter_inner::COUNTERS)]
+                    #[linkme(crate = $crate::global_counter_inner::linkme)]
                     static MY_COUNTER: &'static dyn $crate::global_counter_inner::DynCounter = &$name;
 
                     $init
@@ -244,19 +245,19 @@ pub fn counters_init(filter: &AhoCorasick) -> impl Iterator<Item = InitializedCo
         .filter_map(|&counter| InitializedCounter::new(filter, counter))
 }
 
-pub fn default_env_filter() -> &'static AhoCorasick {
-    static FILTER: OnceCell<AhoCorasick> = OnceCell::new();
+pub fn default_env_filter() -> Option<&'static AhoCorasick> {
+    static FILTER: OnceCell<Option<AhoCorasick>> = OnceCell::new();
 
-    FILTER.get_or_init(|| {
-        AhoCorasick::builder()
-            .ascii_case_insensitive(true)
-            .build(
-                std::env::var("RUST_COUNTERS")
-                    .unwrap_or_default()
-                    .split(','),
-            )
-            .unwrap()
-    })
+    FILTER
+        .get_or_init(|| {
+            std::env::var("RUST_COUNTERS").ok().map(|counters_str| {
+                AhoCorasick::builder()
+                    .ascii_case_insensitive(true)
+                    .build(counters_str.split(','))
+                    .unwrap()
+            })
+        })
+        .as_ref()
 }
 
 // === Displays === //

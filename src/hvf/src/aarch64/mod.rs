@@ -22,8 +22,14 @@ use std::time::Duration;
 use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
+use counter::RateCounter;
+
 extern "C" {
     pub fn mach_absolute_time() -> u64;
+}
+
+counter::counter! {
+    COUNTER_VMEX_TOTAL in "hvf.vmexit.total": RateCounter = RateCounter::new(FILTER);
 }
 
 const HV_EXIT_REASON_CANCELED: hv_exit_reason_t = 0;
@@ -544,6 +550,8 @@ impl<'a> HvfVcpu<'a> {
         if ret != HV_SUCCESS {
             return Err(Error::VcpuRun);
         }
+
+        COUNTER_VMEX_TOTAL.count();
 
         match self.vcpu_exit.reason {
             HV_EXIT_REASON_CANCELED => Ok(VcpuExit::Canceled),

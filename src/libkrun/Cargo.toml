@@ -35,5 +35,7 @@ serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.114"
 nix = { version = "0.28.0", features = ["time"] }
 
+counter = { path = "../counter" }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }
