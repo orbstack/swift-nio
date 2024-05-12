@@ -8,10 +8,6 @@ use crate::common::get_cpuid;
 use crate::model::{kvm_cpuid_entry2, CpuId};
 use crate::transformer::Error::FamError;
 
-// constants for setting the fields of kvm_cpuid2 structures
-// CPUID bits in ebx, ecx, and edx.
-const EBX_CLFLUSH_CACHELINE: u32 = 8; // Flush a cache line size.
-
 /// The maximum number of logical processors per package is computed as the closest power of 2
 /// higher or equal to the CPU count configured by the user.
 fn get_max_cpus_per_package(cpu_count: u8) -> Result<u8, Error> {
@@ -41,7 +37,6 @@ pub fn update_feature_info_entry(
     entry
         .ebx
         .write_bits_in_range(&ebx::APICID_BITRANGE, u32::from(vm_spec.cpu_id))
-        .write_bits_in_range(&ebx::CLFLUSH_SIZE_BITRANGE, EBX_CLFLUSH_CACHELINE)
         .write_bits_in_range(&ebx::CPU_COUNT_BITRANGE, max_cpus_per_package);
 
     // A value of 1 for HTT indicates the value in CPUID.1.EBX[23:16]

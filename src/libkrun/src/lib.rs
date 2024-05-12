@@ -1,4 +1,5 @@
 use std::{
+    arch::x86_64::__cpuid_count,
     ffi::{c_char, CStr, CString},
     fmt,
     os::raw::c_void,
@@ -126,11 +127,17 @@ impl Machine {
     pub fn new(spec: &VzSpec) -> anyhow::Result<Machine> {
         let mut vmr = VmResources::default();
 
+        // on x86, enable HT/SMT if there's an even number of vCPUs, and host has HT/SMT
+        #[cfg(target_arch = "x86_64")]
+        let ht_enabled = spec.cpus % 2 == 0 && cpuid_has_ht();
+        #[cfg(target_arch = "aarch64")]
+        let ht_enabled = false;
+
         // resources
         vmr.set_vm_config(&VmConfig {
             vcpu_count: Some(spec.cpus),
             mem_size_mib: Some(spec.memory / 1024 / 1024),
-            ht_enabled: Some(false),
+            ht_enabled: Some(ht_enabled),
             cpu_template: None,
             #[cfg(target_arch = "aarch64")]
             enable_tso: spec.rosetta,
@@ -471,4 +478,12 @@ fn to_anyhow_error<E: fmt::Display>(err: E) -> anyhow::Error {
 
 fn to_anyhow_error_dbg<E: fmt::Debug>(err: E) -> anyhow::Error {
     anyhow!("{err:?}")
+}
+
+#[cfg(target_arch = "x86_64")]
+fn cpuid_has_ht() -> bool {
+    // topology cpuid, thread level
+    let res = unsafe { __cpuid_count(0xb, 0) };
+    let num_logical_processors = res.ebx & 0xff;
+    num_logical_processors > 1
 }

@@ -388,9 +388,11 @@ pub struct Vcpu {
     boot_entry_addr: u64,
     boot_receiver: Option<Receiver<u64>>,
     boot_senders: Option<Vec<Sender<u64>>>,
+    #[cfg(target_arch = "aarch64")]
     fdt_addr: u64,
     #[cfg(target_arch = "x86_64")]
     guest_mem: GuestMemoryMmap,
+    #[cfg(target_arch = "aarch64")]
     enable_tso: bool,
     mmio_bus: Option<devices::Bus>,
     #[cfg_attr(all(test, target_arch = "aarch64"), allow(unused))]
@@ -409,6 +411,11 @@ pub struct Vcpu {
 
     #[cfg(target_arch = "x86_64")]
     hvf_vm: HvfVm,
+
+    #[cfg(target_arch = "x86_64")]
+    vcpu_count: u8,
+    #[cfg(target_arch = "x86_64")]
+    ht_enabled: bool,
 }
 
 impl Vcpu {
@@ -520,14 +527,14 @@ impl Vcpu {
             boot_entry_addr: boot_entry_addr.raw_value(),
             boot_receiver,
             boot_senders: None,
-            fdt_addr: 0,
-            enable_tso: false,
             mmio_bus: None,
             exit_evt,
             event_receiver,
             event_sender: Some(event_sender),
             guest_mem,
             hvf_vm: vm.hvf_vm.clone(),
+            vcpu_count: 0,
+            ht_enabled: false,
         })
     }
 
@@ -575,8 +582,10 @@ impl Vcpu {
         &mut self,
         _guest_mem: &GuestMemoryMmap,
         _entry_addr: GuestAddress,
-        _vcpu_config: &VcpuConfig,
+        vcpu_config: &VcpuConfig,
     ) -> Result<()> {
+        self.vcpu_count = vcpu_config.vcpu_count;
+        self.ht_enabled = vcpu_config.ht_enabled;
         Ok(())
     }
 
@@ -783,7 +792,7 @@ impl Vcpu {
                     info!("vCPU {} received shutdown signal", vcpuid);
                     Ok(VcpuEmulation::Stopped)
                 }
-                VcpuExit::IoPortRead(port) => {
+                VcpuExit::IoPortRead(_) => {
                     //debug!("vCPU {} IoPortRead port={}", vcpuid, port);
                     Ok(VcpuEmulation::Handled)
                 }
@@ -809,7 +818,8 @@ impl Vcpu {
             parker.clone(),
             self.guest_mem.clone(),
             &self.hvf_vm,
-            self.boot_senders.as_ref().map(|b| b.len()).unwrap_or(0) + 1,
+            self.vcpu_count,
+            self.ht_enabled,
         )
         .expect("Can't create HVF vCPU");
         #[cfg(target_arch = "aarch64")]

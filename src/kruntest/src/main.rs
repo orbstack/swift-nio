@@ -19,8 +19,8 @@ fn main() -> anyhow::Result<()> {
 
     let mut machine = Machine::new(&VzSpec {
         cpus: 4,
-        // 1 GiB
-        memory: 1024 * 1024 * 1024,
+        // 8 GiB
+        memory: 8 * 1024 * 1024 * 1024,
         kernel: home_dir.clone() + "/kernel",
         #[cfg(target_arch = "x86_64")]
         cmdline: "clocksource=tsc tsc=reliable earlycon=uart,io,0x3f8 console=hvc0 apic=verbose ro root=/dev/vda init=/bin/sh"

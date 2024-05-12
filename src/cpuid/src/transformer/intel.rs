@@ -146,7 +146,7 @@ impl CpuidTransformer for IntelCpuidTransformer {
             leaf_0x6::LEAF_NUM => Some(intel::update_power_management_entry),
             leaf_0xa::LEAF_NUM => Some(intel::update_perf_mon_entry),
             leaf_0xb::LEAF_NUM => Some(intel::update_extended_cache_topology_entry),
-            0x8000_0002..=0x8000_0004 => Some(common::update_brand_string_entry),
+            //0x8000_0002..=0x8000_0004 => Some(common::update_brand_string_entry),
             _ => None,
         }
     }

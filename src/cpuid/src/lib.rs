@@ -5,7 +5,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
-#![deny(missing_docs)]
 //! Utility for configuring the CPUID (CPU identification) for the guest microVM.
 
 mod common;
@@ -30,6 +29,10 @@ mod model;
 use crate::model::CpuId;
 
 mod brand_string;
+
+pub use crate::transformer::intel::IntelCpuidTransformer;
+pub use crate::transformer::CpuidTransformer;
+pub use model::kvm_cpuid_entry2;
 
 /// Sets up the CPUID entries for the given vcpu.
 ///

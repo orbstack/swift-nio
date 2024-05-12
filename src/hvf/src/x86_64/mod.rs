@@ -25,6 +25,7 @@ use arch_gen::x86::msr_index::{
     MSR_PPERF, MSR_RAPL_POWER_UNIT, MSR_SMI_COUNT, MSR_SYSCALL_MASK,
 };
 use bindings::*;
+use cpuid::{kvm_cpuid_entry2, CpuidTransformer, IntelCpuidTransformer, VmSpec};
 use iced_x86::{Code, Decoder, DecoderOptions, Instruction, Register};
 use rustc_hash::FxHashMap;
 use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryMmap};
@@ -373,10 +374,13 @@ struct InsnCacheKey {
 
 pub struct HvfVcpu {
     parker: Arc<dyn Parkable>,
-    vcpuid: hv_vcpuid_t,
+    hv_vcpu: hv_vcpuid_t,
     guest_mem: GuestMemoryMmap,
     hvf_vm: HvfVm,
-    vcpu_count: usize,
+
+    vcpu_id: u8,
+    vcpu_count: u8,
+    ht_enabled: bool,
 
     mmio_buf: [u8; 8],
     pending_mmio_read: Option<MmioRead>,
@@ -395,12 +399,13 @@ impl HvfVcpu {
         parker: Arc<dyn Parkable>,
         guest_mem: GuestMemoryMmap,
         hvf_vm: &HvfVm,
-        vcpu_count: usize,
+        vcpu_count: u8,
+        ht_enabled: bool,
     ) -> Result<Self, Error> {
-        let mut vcpuid: hv_vcpuid_t = 0;
+        let mut hv_vcpu: hv_vcpuid_t = 0;
 
         let ret =
-            unsafe { hv_vcpu_create(&mut vcpuid, (HV_VCPU_DEFAULT | HV_VCPU_ACCEL_RDPMC) as u64) };
+            unsafe { hv_vcpu_create(&mut hv_vcpu, (HV_VCPU_DEFAULT | HV_VCPU_ACCEL_RDPMC) as u64) };
         if ret != HV_SUCCESS {
             return Err(Error::VcpuCreate);
         }
@@ -421,10 +426,14 @@ impl HvfVcpu {
 
         let vcpu = Self {
             parker,
-            vcpuid,
+            hv_vcpu,
             guest_mem,
             hvf_vm: hvf_vm.clone(),
+
+            // TODO: this is wrong... no guarantee that it's not a pointer
+            vcpu_id: hv_vcpu as u8,
             vcpu_count,
+            ht_enabled,
 
             mmio_buf: [0; 8],
             pending_mmio_read: None,
@@ -447,7 +456,7 @@ impl HvfVcpu {
     fn early_init(&self) -> Result<(), Error> {
         // set APIC address
         let ret =
-            unsafe { hv_vmx_vcpu_set_apic_address(self.vcpuid, APIC_DEFAULT_PHYS_BASE as u64) };
+            unsafe { hv_vmx_vcpu_set_apic_address(self.hv_vcpu, APIC_DEFAULT_PHYS_BASE as u64) };
         if ret != HV_SUCCESS {
             return Err(Error::VcpuSetApicAddress);
         }
@@ -629,7 +638,7 @@ impl HvfVcpu {
     }
 
     pub fn id(&self) -> VcpuId {
-        self.vcpuid as VcpuId
+        self.hv_vcpu as VcpuId
     }
 
     #[allow(non_upper_case_globals)]
@@ -643,7 +652,7 @@ impl HvfVcpu {
         }
 
         let mut val: u64 = 0;
-        let ret = unsafe { hv_vcpu_read_register(self.vcpuid, reg, &mut val) };
+        let ret = unsafe { hv_vcpu_read_register(self.hv_vcpu, reg, &mut val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadRegister)
         } else {
@@ -667,7 +676,7 @@ impl HvfVcpu {
                 Ok(())
             }
             _ => {
-                let ret = unsafe { hv_vcpu_write_register(self.vcpuid, reg, val) };
+                let ret = unsafe { hv_vcpu_write_register(self.hv_vcpu, reg, val) };
                 if ret != HV_SUCCESS {
                     Err(Error::VcpuSetRegister)
                 } else {
@@ -679,7 +688,7 @@ impl HvfVcpu {
 
     fn read_msr(&self, msr: u32) -> Result<u64, Error> {
         let mut val: u64 = 0;
-        let ret = unsafe { hv_vcpu_read_msr(self.vcpuid, msr, &mut val) };
+        let ret = unsafe { hv_vcpu_read_msr(self.hv_vcpu, msr, &mut val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadMsr)
         } else {
@@ -688,7 +697,7 @@ impl HvfVcpu {
     }
 
     fn write_msr(&self, msr: u32, val: u64) -> Result<(), Error> {
-        let ret = unsafe { hv_vcpu_write_msr(self.vcpuid, msr, val) };
+        let ret = unsafe { hv_vcpu_write_msr(self.hv_vcpu, msr, val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetMsr)
         } else {
@@ -698,7 +707,7 @@ impl HvfVcpu {
 
     fn read_vmcs(&self, field: u32) -> Result<u64, Error> {
         let mut val: u64 = 0;
-        let ret = unsafe { hv_vmx_vcpu_read_vmcs(self.vcpuid, field, &mut val) };
+        let ret = unsafe { hv_vmx_vcpu_read_vmcs(self.hv_vcpu, field, &mut val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadVmcs)
         } else {
@@ -728,7 +737,7 @@ impl HvfVcpu {
     }
 
     fn write_vmcs(&self, field: u32, val: u64) -> Result<(), Error> {
-        let ret = unsafe { hv_vmx_vcpu_write_vmcs(self.vcpuid, field, val) };
+        let ret = unsafe { hv_vmx_vcpu_write_vmcs(self.hv_vcpu, field, val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuWriteVmcs)
         } else {
@@ -738,7 +747,7 @@ impl HvfVcpu {
 
     fn read_apic(&self, offset: u32) -> Result<u32, Error> {
         let mut val: u32 = 0;
-        let ret = unsafe { hv_vcpu_apic_read(self.vcpuid, offset, &mut val) };
+        let ret = unsafe { hv_vcpu_apic_read(self.hv_vcpu, offset, &mut val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadApic)
         } else {
@@ -748,7 +757,7 @@ impl HvfVcpu {
 
     fn write_apic(&self, offset: u32, val: u32) -> Result<bool, Error> {
         let mut no_side_effect: bool = false;
-        let ret = unsafe { hv_vcpu_apic_write(self.vcpuid, offset, val, &mut no_side_effect) };
+        let ret = unsafe { hv_vcpu_apic_write(self.hv_vcpu, offset, val, &mut no_side_effect) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetApic)
         } else {
@@ -772,7 +781,7 @@ impl HvfVcpu {
     }
 
     fn enable_native_msr(&self, msr: u32) -> Result<(), Error> {
-        let ret = unsafe { hv_vcpu_enable_native_msr(self.vcpuid, msr, true) };
+        let ret = unsafe { hv_vcpu_enable_native_msr(self.hv_vcpu, msr, true) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetRegister)
         } else {
@@ -782,7 +791,7 @@ impl HvfVcpu {
 
     #[allow(non_upper_case_globals)]
     pub fn run(&mut self) -> Result<VcpuExit, Error> {
-        self.parker.before_vcpu_run(self.vcpuid as VcpuId);
+        self.parker.before_vcpu_run(self.hv_vcpu as VcpuId);
 
         if self.parker.should_shutdown() {
             return Ok(VcpuExit::Shutdown);
@@ -810,13 +819,13 @@ impl HvfVcpu {
             self.write_reg(hv_x86_reg_t_HV_X86_RIP, rip + instr_len)?;
         }
 
-        let ret = unsafe { hv_vcpu_run_until(self.vcpuid, HV_DEADLINE_FOREVER) };
+        let ret = unsafe { hv_vcpu_run_until(self.hv_vcpu, HV_DEADLINE_FOREVER) };
         if ret != HV_SUCCESS {
             return Err(Error::VcpuRun);
         }
 
         let mut exit_info: hv_vm_exitinfo_t = 0;
-        let ret = unsafe { hv_vcpu_exit_info(self.vcpuid, &mut exit_info) };
+        let ret = unsafe { hv_vcpu_exit_info(self.hv_vcpu, &mut exit_info) };
         if ret != HV_SUCCESS {
             return Err(Error::VcpuRun);
         }
@@ -843,9 +852,33 @@ impl HvfVcpu {
                     }
 
                     VMX_REASON_CPUID => {
-                        let eax = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff;
-                        let ecx = self.read_reg(hv_x86_reg_t_HV_X86_RCX)? & 0xffffffff;
-                        let mut res = unsafe { __cpuid_count(eax as u32, ecx as u32) };
+                        let eax = (self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff) as u32;
+                        let ecx = (self.read_reg(hv_x86_reg_t_HV_X86_RCX)? & 0xffffffff) as u32;
+                        let mut res = unsafe { __cpuid_count(eax, ecx) };
+
+                        // transform with krun's cpuid transformer first
+                        // this handles topology, cache, apic id, etc.
+                        let transformer = IntelCpuidTransformer {};
+                        let mut kvm_entry = kvm_cpuid_entry2 {
+                            function: eax,
+                            index: ecx,
+                            flags: 0,
+                            eax: res.eax,
+                            ebx: res.ebx,
+                            ecx: res.ecx,
+                            edx: res.edx,
+                            padding: [0, 0, 0],
+                        };
+                        if let Some(func) = transformer.entry_transformer_fn(&mut kvm_entry) {
+                            let spec =
+                                VmSpec::new(self.vcpu_id, self.vcpu_count as u8, self.ht_enabled)
+                                    .unwrap();
+                            func(&mut kvm_entry, &spec).unwrap();
+                            res.eax = kvm_entry.eax;
+                            res.ebx = kvm_entry.ebx;
+                            res.ecx = kvm_entry.ecx;
+                            res.edx = kvm_entry.edx;
+                        }
 
                         match (eax as u32, ecx as u32) {
                             (1, _) => {
@@ -859,7 +892,7 @@ impl HvfVcpu {
                                 res.ecx &= !(1 << 5); // VMX
 
                                 // APIC ID
-                                res.ebx = (self.vcpuid & 0xff) << 24 | (res.ebx & 0xffffff);
+                                res.ebx = (self.vcpu_id as u32 & 0xff) << 24 | (res.ebx & 0xffffff);
                             }
                             (6, _) => {
                                 res.eax &= !(1 << 0); // Digital Thermal Sensor
@@ -889,13 +922,7 @@ impl HvfVcpu {
                             (10, _) => {
                                 res.eax = 0; // TODO: PMU
                             }
-                            // topology
-                            (0xb, _) => {
-                                res.eax = 0;
-                                res.ebx = 0;
-                                res.ecx = 0;
-                                res.edx = 0;
-                            }
+                            // topology: use 0xb from krun
                             (0x1f, _) => {
                                 res.eax = 0;
                                 res.ebx = 0;
@@ -1294,7 +1321,7 @@ impl HvfVcpu {
                         self.dump_vmcs();
                         panic!(
                             "unexpected exit reason: vcpuid={} {} - qual={:x}",
-                            self.vcpuid,
+                            self.hv_vcpu,
                             exit_reason,
                             self.read_vmcs(VMCS_RO_EXIT_QUALIFIC)?
                         )
@@ -1305,11 +1332,11 @@ impl HvfVcpu {
             // we get the same is_actv array below, so no need to handle INIT_AP
             hv_vm_exitinfo_t_HV_VM_EXITINFO_INIT_AP => Ok(VcpuExit::Handled),
             hv_vm_exitinfo_t_HV_VM_EXITINFO_STARTUP_AP => {
-                let mut is_actv = vec![false; self.vcpu_count];
+                let mut is_actv = vec![false; self.vcpu_count as usize];
                 let mut ap_rip: u64 = 0;
                 let ret = unsafe {
                     hv_vcpu_exit_startup_ap(
-                        self.vcpuid,
+                        self.hv_vcpu,
                         is_actv.as_mut_ptr(),
                         is_actv.len() as u32,
                         &mut ap_rip,
@@ -1347,7 +1374,7 @@ impl HvfVcpu {
                 }
 
                 let mut value: u32 = 0;
-                let ret = unsafe { hv_vcpu_exit_apic_access_read(self.vcpuid, &mut value) };
+                let ret = unsafe { hv_vcpu_exit_apic_access_read(self.hv_vcpu, &mut value) };
                 if ret != HV_SUCCESS {
                     return Err(Error::VcpuExitApicAccessRead);
                 }
@@ -1369,7 +1396,7 @@ impl HvfVcpu {
     }
 
     pub fn destroy(self) {
-        let err = unsafe { hv_vcpu_destroy(self.vcpuid) };
+        let err = unsafe { hv_vcpu_destroy(self.hv_vcpu) };
         if err != 0 {
             error!("Failed to destroy vcpu: {err}");
         }
