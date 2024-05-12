@@ -113,6 +113,10 @@ pub struct VmResources {
     pub gpu_virgl_flags: Option<u32>,
     /// File to send console output.
     pub console_output: Option<ConsoleFds>,
+    /// The balloon device.
+    pub balloon: Option<()>,
+    /// The RNG device.
+    pub rng: Option<()>,
 }
 
 impl VmResources {
@@ -277,6 +281,14 @@ impl VmResources {
 
     pub fn set_console_output(&mut self, console_output: ConsoleFds) {
         self.console_output = Some(console_output);
+    }
+
+    pub fn set_balloon_device(&mut self) {
+        self.balloon = Some(());
+    }
+
+    pub fn set_rng_device(&mut self) {
+        self.rng = Some(());
     }
 
     /// Sets a network device to be attached when the VM starts.

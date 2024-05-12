@@ -204,8 +204,8 @@ impl Machine {
         }
 
         // rng
-        if !spec.rng {
-            return Err(anyhow!("disabling rng is not supported"));
+        if spec.rng {
+            vmr.set_rng_device();
         }
 
         // disks
@@ -241,8 +241,8 @@ impl Machine {
         }
 
         // balloon
-        if !spec.balloon {
-            return Err(anyhow!("disabling balloon is not supported"));
+        if spec.balloon {
+            vmr.set_balloon_device();
         }
 
         // vsock

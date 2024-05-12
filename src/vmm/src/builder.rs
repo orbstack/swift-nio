@@ -574,9 +574,13 @@ pub fn build_microvm(
     };
 
     #[cfg(not(feature = "tee"))]
-    attach_balloon_device(&mut vmm, event_manager, intc.clone())?;
+    if let Some(_) = vm_resources.balloon {
+        attach_balloon_device(&mut vmm, event_manager, intc.clone())?;
+    }
     #[cfg(not(feature = "tee"))]
-    attach_rng_device(&mut vmm, event_manager, intc.clone())?;
+    if let Some(_) = vm_resources.rng {
+        attach_rng_device(&mut vmm, event_manager, intc.clone())?;
+    }
     attach_console_devices(
         &mut vmm,
         event_manager,
