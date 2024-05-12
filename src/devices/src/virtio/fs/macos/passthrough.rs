@@ -1214,7 +1214,7 @@ impl FileSystem for PassthroughFs {
                 let path = match path {
                     Ok(path) => path,
                     Err(e) => {
-                        error!("failed to lookup entry: {e}");
+                        error!("failed to get path: {e}");
                         continue;
                     }
                 };
@@ -1222,13 +1222,8 @@ impl FileSystem for PassthroughFs {
                 self.finish_lookup(parent_flags, &entry.name, *st, FileRef::Path(&path), &ctx)
             };
 
-            let lookup_entry = match lookup_entry {
-                Ok(lookup_entry) => lookup_entry,
-                Err(e) => {
-                    error!("failed to lookup entry: {e}");
-                    continue;
-                }
-            };
+            // if lookup failed, return no entry, so linux will get the error on lookup
+            let lookup_entry = lookup_entry.unwrap_or_default();
 
             let dir_entry = DirEntry {
                 ino: st.st_ino,
