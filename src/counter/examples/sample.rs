@@ -3,7 +3,7 @@ use std::{thread, time::Duration};
 use counter::{counter, default_env_filter, display_every, RateCounter};
 
 counter! {
-    pub TIMES_CALLED: RateCounter = RateCounter::new("foo");
+    pub TIMES_CALLED where("foo"): RateCounter = RateCounter::new(FILTER);
 }
 
 fn main() {

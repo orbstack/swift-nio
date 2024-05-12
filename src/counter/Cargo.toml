@@ -7,3 +7,5 @@ edition = "2021"
 aho-corasick = "1.1.3"
 linkme = "0.3.26"
 once_cell = "1.19.0"
+
+counter-proc = { path = "../counter-proc" }

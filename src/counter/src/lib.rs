@@ -131,7 +131,7 @@ impl Counter for TotalCounter {
     type Userdata = ();
 
     fn init(&self, filter: &AhoCorasick) -> Option<Self::Userdata> {
-        filter.find(self.0).map(|_| ())
+        filter.is_match(self.0).then_some(())
     }
 
     fn tick(&self, _userdata: &mut Self::Userdata, _info: IntervalInfo) {
@@ -166,8 +166,8 @@ impl Counter for RateCounter {
 
     fn init(&self, filter: &AhoCorasick) -> Option<Self::Userdata> {
         filter
-            .find(self.0)
-            .map(|_| (self.1.load(Ordering::Relaxed), f64::NAN))
+            .is_match(self.0)
+            .then(|| (self.1.load(Ordering::Relaxed), f64::NAN))
     }
 
     fn tick(&self, (start_count, snap): &mut Self::Userdata, info: IntervalInfo) {
@@ -194,9 +194,11 @@ impl DisableableCounter for RateCounter {
 
 #[doc(hidden)]
 pub mod global_counter_inner {
-    pub use crate::{DisableableCounter, DynCounter};
-
-    pub use linkme::distributed_slice;
+    pub use {
+        crate::{DisableableCounter, DynCounter},
+        counter_proc::cfg_aho,
+        linkme::distributed_slice,
+    };
 
     #[linkme::distributed_slice]
     pub static COUNTERS: [&'static dyn crate::DynCounter];
@@ -206,23 +208,29 @@ pub mod global_counter_inner {
 macro_rules! counter {
     ($(
         $(#[$attr:meta])*
-        $vis:vis $name:ident $(where($($cfg:tt)*))? : $ty:ty = $init:expr;
+        $vis:vis $name:ident $(where($filter:literal))? : $ty:ty = $init:expr;
     )*) => {$(
-        $(#[$attr])*
-        $(#[cfg($($cfg)*)])?
-        $vis static $name: $ty = {
-            #[$crate::global_counter_inner::distributed_slice($crate::global_counter_inner::COUNTERS)]
-            static MY_COUNTER: &'static dyn $crate::global_counter_inner::DynCounter = &$name;
+        $crate::global_counter_inner::cfg_aho! {
+            // If matched
+            {
+                $(#[$attr])*
+                $vis static $name: $ty = {
+                    $(const FILTER: &str = $filter;)?
+                    #[$crate::global_counter_inner::distributed_slice($crate::global_counter_inner::COUNTERS)]
+                    static MY_COUNTER: &'static dyn $crate::global_counter_inner::DynCounter = &$name;
 
-            $init
-        };
-
-
-        $(
-            #[cfg(not($($cfg)*))]
-            $vis static $name: <$ty as $crate::global_counter_inner::DisableableCounter>::Dummy =
-                <<$ty as $crate::global_counter_inner::DisableableCounter>::Dummy>::new();
-        )?
+                    $init
+                };
+            }
+            // If not matched
+            {
+                $(#[$attr])*
+                $vis static $name: <$ty as $crate::global_counter_inner::DisableableCounter>::Dummy =
+                    <<$ty as $crate::global_counter_inner::DisableableCounter>::Dummy>::new();
+            }
+            // Name
+            $($filter)?
+        }
     )*};
 }
 
@@ -240,12 +248,14 @@ pub fn default_env_filter() -> &'static AhoCorasick {
     static FILTER: OnceCell<AhoCorasick> = OnceCell::new();
 
     FILTER.get_or_init(|| {
-        AhoCorasick::new(
-            std::env::var("RUST_COUNTERS")
-                .unwrap_or_default()
-                .split(','),
-        )
-        .unwrap()
+        AhoCorasick::builder()
+            .ascii_case_insensitive(true)
+            .build(
+                std::env::var("RUST_COUNTERS")
+                    .unwrap_or_default()
+                    .split(','),
+            )
+            .unwrap()
     })
 }
 
