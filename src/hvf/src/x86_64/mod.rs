@@ -196,8 +196,8 @@ pub enum Error {
     VmIoapicWrite,
     #[error("ioapic assert irq")]
     VmIoapicAssertIrq,
-    #[error("vcpu exit init ap")]
-    VcpuExitInitAp,
+    #[error("vcpu startup ap")]
+    VcpuStartupAp,
 }
 
 /// Messages for requesting memory maps/unmaps.
@@ -821,11 +821,11 @@ impl HvfVcpu {
         let res = match exit_info {
             hv_vm_exitinfo_t_HV_VM_EXITINFO_VMX => {
                 let exit_reason = self.read_vmcs(VMCS_RO_EXIT_REASON)? as u32;
-                match exit_reason {
+                // some exit reasons have metadata. the highest reason we check for is 68
+                match exit_reason & 0xff {
                     VMX_REASON_VMCALL => Ok(VcpuExit::HypervisorCall),
 
                     VMX_REASON_CPUID => {
-                        // TODO: filter + enumerate host
                         let eax = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff;
                         let ecx = self.read_reg(hv_x86_reg_t_HV_X86_RCX)? & 0xffffffff;
                         let mut res = unsafe { __cpuid_count(eax as u32, ecx as u32) };
@@ -838,11 +838,16 @@ impl HvfVcpu {
                                 res.ecx |= 1 << 31; // HYPERVISOR
                                 res.edx &= !(1 << 29); // Automatic Clock Control
 
+                                // disable VMX: no nested virt
+                                res.ecx &= !(1 << 5); // VMX
+
                                 // APIC ID
                                 res.ebx = (self.vcpuid & 0xff) << 24 | (res.ebx & 0xffffff);
                             }
                             (6, _) => {
                                 res.eax &= !(1 << 0); // Digital Thermal Sensor
+                                res.eax &= !(1 << 1); // Intel Dynamic Acceleration (Ice Lake has this -- prob OK, but let's be safe)
+                                res.eax &= !(1 << 11); // HWP Package Level Request (Ice Lake has this -- prob OK, but let's be safe)
                                 res.ecx &= !(1 << 0); // APERFMPERF
                             }
                             (7, 0) => {
@@ -851,6 +856,18 @@ impl HvfVcpu {
 
                                 // macOS silently fails to set XCR0 (i.e. write_reg(XCR0) has no effect) if Linux attempts to enable MPX (XCR0[3:4]), which breaks AVX
                                 res.ebx &= !(1 << 14); // MPX
+
+                                res.edx &= !(1 << 30); // core capabilities (for split lock detect on Ice Lake)
+
+                                // Ice Lake: avoid implementing MPK
+                                res.ecx &= !(1 << 3); // PKU
+                                res.ecx &= !(1 << 4); // OSPKE
+
+                                // Ice Lake: UMIP involves tricky CR4 ops, and we don't have HW to test
+                                res.ecx &= !(1 << 2); // UMIP
+
+                                // Ice Lake: RDPID requires vmexit implementation
+                                res.ecx &= !(1 << 22); // RDPID
                             }
                             (10, _) => {
                                 res.eax = 0; // TODO: PMU
@@ -1067,8 +1084,9 @@ impl HvfVcpu {
                         Ok(VcpuExit::Handled)
                     }
 
-                    // HVF APIC handles HLT
-                    VMX_REASON_HLT => panic!("unexpected hlt"),
+                    // HVF APIC handles HLT in the idle case
+                    // we only get a HLT exit on shutdown
+                    VMX_REASON_HLT => Ok(VcpuExit::Shutdown),
                     // we hide monitor/mwait, but just just in case userspace uses it...
                     VMX_REASON_MONITOR => Ok(VcpuExit::Handled),
                     VMX_REASON_MWAIT => Ok(VcpuExit::Handled),
@@ -1099,7 +1117,7 @@ impl HvfVcpu {
                         }
                     }
 
-                    VMX_REASON_IRQ => {
+                    VMX_REASON_IRQ | VMX_REASON_IO_SMI | VMX_REASON_OTHER_SMI => {
                         // external interrupt on host - nothing to do
                         self.pending_advance_rip = false;
                         Ok(VcpuExit::Handled)
@@ -1245,6 +1263,16 @@ impl HvfVcpu {
                         Ok(VcpuExit::Handled)
                     }
 
+                    VMX_REASON_VMENTRY_GUEST => {
+                        self.dump_vmcs();
+                        panic!("invalid VMCS guest state");
+                    }
+
+                    VMX_REASON_VMENTRY_MSR => {
+                        self.dump_vmcs();
+                        panic!("invalid VMCS MSR state");
+                    }
+
                     _ => {
                         self.dump_vmcs();
                         panic!(
@@ -1271,7 +1299,7 @@ impl HvfVcpu {
                     )
                 };
                 if ret != HV_SUCCESS {
-                    return Err(Error::VcpuExitInitAp);
+                    return Err(Error::VcpuStartupAp);
                 }
 
                 Ok(VcpuExit::CpuOn {
@@ -1284,7 +1312,7 @@ impl HvfVcpu {
             hv_vm_exitinfo_t_HV_VM_EXITINFO_IOAPIC_EOI => unreachable!("IOAPIC EOI"),
             hv_vm_exitinfo_t_HV_VM_EXITINFO_INJECT_EXCP => todo!("APIC exception"),
             hv_vm_exitinfo_t_HV_VM_EXITINFO_SMI => {
-                // TODO: verify this behavior
+                // TODO: is this correct?
                 debug!("SMI vmexit");
                 self.pending_advance_rip = false;
                 Ok(VcpuExit::Handled)
