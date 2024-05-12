@@ -5,6 +5,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
+pub mod bzimage;
 pub mod gdt;
 /// Contains logic for setting up Advanced Programmable Interrupt Controller (local version).
 #[cfg(target_os = "linux")]
@@ -17,6 +18,9 @@ pub mod mptable;
 pub mod msr;
 /// Logic for configuring x86_64 registers.
 pub mod regs;
+
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 use crate::ArchMemoryInfo;
 use crate::InitrdConfig;
@@ -32,10 +36,24 @@ use vm_memory::{
 // *    all of the parameters being passed to the trait (if there are any) are also foreign
 // is prohibited.
 #[derive(Copy, Clone, Default)]
-struct BootParamsWrapper(boot_params);
+pub struct BootParamsWrapper(boot_params);
 
 // It is safe to initialize BootParamsWrap which is a wrapper over `boot_params` (a series of ints).
 unsafe impl ByteValued for BootParamsWrapper {}
+
+impl Deref for BootParamsWrapper {
+    type Target = boot_params;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for BootParamsWrapper {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 /// Errors thrown while configuring x86_64 system.
 #[derive(Debug, Eq, PartialEq)]
@@ -209,6 +227,7 @@ pub fn configure_system(
     cmdline_size: usize,
     initrd: &Option<InitrdConfig>,
     num_cpus: u8,
+    mut params: BootParamsWrapper,
 ) -> super::Result<()> {
     const KERNEL_BOOT_FLAG_MAGIC: u16 = 0xaa55;
     const KERNEL_HDR_MAGIC: u32 = 0x5372_6448;
@@ -222,8 +241,6 @@ pub fn configure_system(
     // Note that this puts the mptable at the last 1k of Linux's 640k base RAM
     #[cfg(not(feature = "tee"))]
     mptable::setup_mptable(guest_mem, num_cpus).map_err(Error::MpTableSetup)?;
-
-    let mut params: BootParamsWrapper = BootParamsWrapper(boot_params::default());
 
     params.0.hdr.type_of_loader = KERNEL_LOADER_OTHER;
     params.0.hdr.boot_flag = KERNEL_BOOT_FLAG_MAGIC;

@@ -8,6 +8,7 @@ use std::fs::File;
 #[cfg(feature = "tee")]
 use std::io::BufReader;
 
+use arch::x86_64;
 #[cfg(feature = "tee")]
 use serde::{Deserialize, Serialize};
 
@@ -179,7 +180,7 @@ impl VmResources {
     }
 
     #[cfg(target_arch = "x86_64")]
-    fn copy_arch_config(&mut self, machine_config: &VmConfig) {}
+    fn copy_arch_config(&mut self, _machine_config: &VmConfig) {}
 
     /// Set the guest boot source configuration.
     pub fn set_boot_source(
@@ -212,6 +213,20 @@ impl VmResources {
         }
 
         self.kernel_bundle = Some(kernel_bundle);
+        Ok(())
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    pub fn set_kernel_bzimage(&mut self, bzimage: &mut Vec<u8>) -> Result<KernelBundleError> {
+        let info = x86_64::bzimage::load_bzimage(bzimage)
+            .map_err(|e| KernelBundleError::Bzimage(e.into()))?;
+        self.kernel_bundle = Some(KernelBundle {
+            host_addr: info.host_addr,
+            guest_addr: info.guest_addr,
+            entry_addr: info.entry_addr,
+            size: info.size,
+            params: info.params,
+        });
         Ok(())
     }
 

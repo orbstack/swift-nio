@@ -18,7 +18,7 @@ fn main() -> anyhow::Result<()> {
     let home_dir = std::env::var("HOME").unwrap();
 
     let mut machine = Machine::new(&VzSpec {
-        cpus: 3,
+        cpus: 4,
         // 1 GiB
         memory: 1024 * 1024 * 1024,
         kernel: home_dir.clone() + "/kernel",

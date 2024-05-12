@@ -3,13 +3,17 @@
 
 use std::fmt::{Display, Formatter, Result};
 
+use arch::x86_64::BootParamsWrapper;
+
 /// Data structure holding the attributes read from the `libkrunfw` kernel config.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct KernelBundle {
     pub host_addr: u64,
     pub guest_addr: u64,
     pub entry_addr: u64,
     pub size: usize,
+    #[cfg(target_arch = "x86_64")]
+    pub params: BootParamsWrapper,
 }
 
 /// Structure used to specify the parameters for the `libkrunfw` kernel bundle.
@@ -21,6 +25,8 @@ pub enum KernelBundleError {
     InvalidHostAddress,
     /// Kernel size is zero or not a multiple of the page size.
     InvalidSize,
+    /// Error loading the bzimage.
+    Bzimage(anyhow::Error),
 }
 
 impl Display for KernelBundleError {
@@ -30,6 +36,7 @@ impl Display for KernelBundleError {
             InvalidGuestAddress => write!(f, "Guest address is not page-aligned"),
             InvalidHostAddress => write!(f, "Host address is zero or not page-aligned"),
             InvalidSize => write!(f, "Kernel size is zero or not a multiple of the page size"),
+            Bzimage(ref e) => write!(f, "Error loading the bzimage: {}", e),
         }
     }
 }

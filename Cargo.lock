@@ -70,6 +70,7 @@ checksum = "25bdb32cbbdce2b519a9cd7df3a678443100e265d5e25ca763b7572a5104f5f3"
 name = "arch"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arch_gen",
  "gicv3",
  "kvm-bindings",
@@ -1574,6 +1575,7 @@ dependencies = [
 name = "vmm"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arch",
  "codicon",
  "crossbeam-channel",

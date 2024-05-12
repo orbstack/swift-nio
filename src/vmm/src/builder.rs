@@ -625,8 +625,12 @@ pub fn build_microvm(
     #[cfg(not(feature = "tee"))]
     let initrd_config = None;
 
-    vmm.configure_system(vcpus.as_slice(), &initrd_config)
-        .map_err(StartMicrovmError::Internal)?;
+    vmm.configure_system(
+        vcpus.as_slice(),
+        &initrd_config,
+        &vm_resources.kernel_bundle,
+    )
+    .map_err(StartMicrovmError::Internal)?;
 
     #[cfg(feature = "tee")]
     {

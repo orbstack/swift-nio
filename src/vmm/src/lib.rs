@@ -35,6 +35,7 @@ mod macos;
 pub use hvf::MemoryMapping;
 #[cfg(target_os = "macos")]
 use macos::vstate;
+use vmm_config::kernel_bundle::KernelBundle;
 
 use crate::macos::Parker;
 use std::fmt::{Display, Formatter};
@@ -282,7 +283,12 @@ impl Vmm {
     }
 
     /// Configures the system for boot.
-    pub fn configure_system(&self, vcpus: &[Vcpu], initrd: &Option<InitrdConfig>) -> Result<()> {
+    pub fn configure_system(
+        &self,
+        vcpus: &[Vcpu],
+        initrd: &Option<InitrdConfig>,
+        kernel_bundle: &Option<KernelBundle>,
+    ) -> Result<()> {
         #[cfg(target_arch = "x86_64")]
         {
             let cmdline_len = if cfg!(feature = "tee") {
@@ -298,6 +304,7 @@ impl Vmm {
                 cmdline_len,
                 initrd,
                 vcpus.len() as u8,
+                kernel_bundle.as_ref().map(|k| k.params).unwrap_or_default(),
             )
             .map_err(Error::ConfigureSystem)?;
         }
