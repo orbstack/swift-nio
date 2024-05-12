@@ -7,6 +7,7 @@ use hvf::HvfVm;
 
 use crate::bus::BusDevice;
 
+#[cfg(target_arch = "x86_64")]
 use super::hvf_apic::HvfApic;
 
 #[derive(Debug)]

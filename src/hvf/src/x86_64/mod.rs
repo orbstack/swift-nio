@@ -878,7 +878,7 @@ impl HvfVcpu {
                                 res.ecx &= !(1 << 0); // APERFMPERF
                             }
                             (7, 0) => {
-                                res.ebx &= !(1 << 1); // TODO: TSC_ADJUST (msr 0x3b)?
+                                res.ebx &= !(1 << 1); // TSC_ADJUST (msr 0x3b). only useful for multi-socket
                                 res.ebx &= !(1 << 25); // Intel Processor Trace
 
                                 // macOS silently fails to set XCR0 (i.e. write_reg(XCR0) has no effect) if Linux attempts to enable MPX (XCR0[3:4]), which breaks AVX
