@@ -28,7 +28,7 @@ impl fmt::Debug for InitializedCounter {
 
 impl fmt::Display for InitializedCounter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.counter.display_raw(f, &self.userdata)
+        self.counter.display_raw(f, &*self.userdata)
     }
 }
 
@@ -39,15 +39,15 @@ impl InitializedCounter {
             .map(|userdata| Self { counter, userdata })
     }
 
-    pub fn tick(&mut self, elapsed: Duration) {
-        self.counter.tick_raw(&mut self.userdata, elapsed);
+    pub fn tick(&mut self, info: IntervalInfo) {
+        self.counter.tick_raw(&mut *self.userdata, info);
     }
 }
 
 pub trait DynCounter: Send + Sync {
     fn init_raw(&self, filter: &AhoCorasick) -> Option<Box<dyn Any + Send>>;
 
-    fn tick_raw(&self, userdata: &mut (dyn Any + Send), elapsed: Duration);
+    fn tick_raw(&self, userdata: &mut (dyn Any + Send), info: IntervalInfo);
 
     fn display_raw(&self, fmt: &mut fmt::Formatter<'_>, userdata: &(dyn Any + Send))
         -> fmt::Result;
@@ -59,8 +59,8 @@ impl<T: Counter> DynCounter for T {
             .map(|userdata| Box::<T::Userdata>::new(userdata) as Box<dyn Any + Send>)
     }
 
-    fn tick_raw(&self, userdata: &mut (dyn Any + Send), elapsed: Duration) {
-        self.tick(userdata.downcast_mut::<T::Userdata>().unwrap(), elapsed);
+    fn tick_raw(&self, userdata: &mut (dyn Any + Send), info: IntervalInfo) {
+        self.tick(userdata.downcast_mut::<T::Userdata>().unwrap(), info);
     }
 
     fn display_raw(&self, f: &mut fmt::Formatter<'_>, userdata: &(dyn Any + Send)) -> fmt::Result {
@@ -73,7 +73,7 @@ pub trait Counter: Sized + Send + Sync {
 
     fn init(&self, filter: &AhoCorasick) -> Option<Self::Userdata>;
 
-    fn tick(&self, userdata: &mut Self::Userdata, elapsed: Duration);
+    fn tick(&self, userdata: &mut Self::Userdata, info: IntervalInfo);
 
     fn display(&self, f: &mut fmt::Formatter, userdata: &Self::Userdata) -> fmt::Result;
 }
@@ -104,7 +104,7 @@ impl Counter for DummyCounter {
         None
     }
 
-    fn tick(&self, _userdata: &mut Self::Userdata, _elapsed: Duration) {
+    fn tick(&self, _userdata: &mut Self::Userdata, _info: IntervalInfo) {
         // (no-op)
     }
 
@@ -134,7 +134,7 @@ impl Counter for TotalCounter {
         filter.find(self.0).map(|_| ())
     }
 
-    fn tick(&self, _userdata: &mut Self::Userdata, _elapsed: Duration) {
+    fn tick(&self, _userdata: &mut Self::Userdata, _info: IntervalInfo) {
         // (no-op)
     }
 
@@ -144,6 +144,49 @@ impl Counter for TotalCounter {
 }
 
 impl DisableableCounter for TotalCounter {
+    type Dummy = DummyCounter;
+}
+
+// RateCounter
+#[derive(Debug, Default)]
+pub struct RateCounter(&'static str, AtomicU64);
+
+impl RateCounter {
+    pub const fn new(name: &'static str) -> Self {
+        Self(name, AtomicU64::new(0))
+    }
+
+    pub fn count(&self) {
+        self.1.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+impl Counter for RateCounter {
+    type Userdata = (u64, f64);
+
+    fn init(&self, filter: &AhoCorasick) -> Option<Self::Userdata> {
+        filter
+            .find(self.0)
+            .map(|_| (self.1.load(Ordering::Relaxed), f64::NAN))
+    }
+
+    fn tick(&self, (start_count, snap): &mut Self::Userdata, info: IntervalInfo) {
+        let count = self.1.load(Ordering::Relaxed) - *start_count;
+        *snap = count as f64 / info.since_start.as_secs_f64();
+    }
+
+    fn display(&self, f: &mut fmt::Formatter, (_, snap): &Self::Userdata) -> fmt::Result {
+        let total = self.1.load(Ordering::Relaxed);
+
+        if snap.is_nan() {
+            write!(f, "{} = [unknown] (total: {total})", self.0)
+        } else {
+            write!(f, "{} = {snap}/s (total: {total})", self.0)
+        }
+    }
+}
+
+impl DisableableCounter for RateCounter {
     type Dummy = DummyCounter;
 }
 
@@ -214,18 +257,22 @@ pub fn default_env_filter() -> &'static AhoCorasick {
 pub struct RunAtInterval(Arc<()>);
 
 impl RunAtInterval {
-    pub fn new(interval: Duration, mut f: impl 'static + Send + FnMut(Duration)) -> Self {
+    pub fn new(interval: Duration, mut f: impl 'static + Send + FnMut(IntervalInfo)) -> Self {
         let canceller = Arc::new(());
         let weak_canceller = Arc::downgrade(&canceller);
 
         thread::spawn(move || {
+            let start = Instant::now();
             let mut prev = Instant::now();
             while weak_canceller.strong_count() > 0 {
                 let now = Instant::now();
                 let elapsed = now.duration_since(prev);
                 prev = now;
 
-                f(elapsed);
+                f(IntervalInfo {
+                    since_start: now.duration_since(start),
+                    since_last: elapsed,
+                });
 
                 // TODO: We might need to use an adaptive sleep mechanism for this.
                 thread::sleep(interval);
@@ -234,6 +281,13 @@ impl RunAtInterval {
 
         Self(canceller)
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+#[non_exhaustive]
+pub struct IntervalInfo {
+    pub since_start: Duration,
+    pub since_last: Duration,
 }
 
 pub fn display_now(filter: &AhoCorasick) {
@@ -247,12 +301,15 @@ pub fn display_every(filter: &AhoCorasick, interval: Duration) -> RunAtInterval 
 
     RunAtInterval::new(interval, move |duration| {
         let mut builder = String::new();
-        builder.push_str("=== COUNTERS ===");
+        builder.push_str("\n====== COUNTERS ======\n");
+        if counters.is_empty() {
+            builder.push_str("no counters to display\n");
+        }
         for counter in &mut counters {
             counter.tick(duration);
-            write!(&mut builder, "{counter}").unwrap();
+            writeln!(&mut builder, "{counter}").unwrap();
         }
-        builder.push_str("================");
+        builder.push_str("======================\n");
 
         let mut stderr = std::io::stderr().lock();
         stderr.write_all(builder.as_bytes()).unwrap();

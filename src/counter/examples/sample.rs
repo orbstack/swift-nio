@@ -1,9 +1,9 @@
 use std::{thread, time::Duration};
 
-use counter::{counter, default_env_filter, display_every, TotalCounter};
+use counter::{counter, default_env_filter, display_every, RateCounter};
 
 counter! {
-    pub TIMES_CALLED: TotalCounter = TotalCounter::new("foo");
+    pub TIMES_CALLED: RateCounter = RateCounter::new("foo");
 }
 
 fn main() {
