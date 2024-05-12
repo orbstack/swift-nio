@@ -399,12 +399,8 @@ impl HvfVcpu {
     ) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpuid_t = 0;
 
-        let ret = unsafe {
-            hv_vcpu_create(
-                &mut vcpuid,
-                (HV_VCPU_DEFAULT | HV_VCPU_ACCEL_RDPMC | HV_VCPU_TSC_RELATIVE) as u64,
-            )
-        };
+        let ret =
+            unsafe { hv_vcpu_create(&mut vcpuid, (HV_VCPU_DEFAULT | HV_VCPU_ACCEL_RDPMC) as u64) };
         if ret != HV_SUCCESS {
             return Err(Error::VcpuCreate);
         }
@@ -454,12 +450,6 @@ impl HvfVcpu {
             unsafe { hv_vmx_vcpu_set_apic_address(self.vcpuid, APIC_DEFAULT_PHYS_BASE as u64) };
         if ret != HV_SUCCESS {
             return Err(Error::VcpuSetApicAddress);
-        }
-
-        // set TSC relative -- same offset on every vCPU
-        let ret = unsafe { hv_vcpu_set_tsc_relative(self.vcpuid, 0) };
-        if ret != HV_SUCCESS {
-            return Err(Error::VcpuSetTscRel);
         }
 
         // configure: lint0 = ExtINT, lint1 = NMI (as per MPTable)
