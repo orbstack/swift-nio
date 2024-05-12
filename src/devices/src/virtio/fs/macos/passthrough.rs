@@ -348,13 +348,15 @@ struct NodeData {
 
     // state
     refcount: AtomicU64,
-    last_ctime: AtomicU64,
+    // for CTO consistency: clear cache on open if ctime has changed
+    // must only be updated on open
+    last_open_ctime: AtomicU64,
 
     // cached stat info
-    flags: NodeFlags,
-    nlink: u16,
+    flags: NodeFlags, // for flags propagated to children
+    nlink: u16,       // for getattrlistbulk buffer size
 
-    // if volfs not supported
+    // open fd, if volfs is not supported
     fd: Option<OwnedFd>,
 }
 
@@ -415,7 +417,7 @@ impl PassthroughFs {
                 dev_ino: (st.st_dev, st.st_ino),
                 // refcount 2 so it can never be dropped
                 refcount: AtomicU64::new(2),
-                last_ctime: AtomicU64::new(st_ctime(&st)),
+                last_open_ctime: AtomicU64::new(st_ctime(&st)),
                 flags: NodeFlags::empty(),
                 fd: None,
                 nlink: st.st_nlink,
@@ -603,7 +605,7 @@ impl PassthroughFs {
         } else {
             // this (dev, ino) is new
             // create a new nodeid and return it
-            let nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
+            let mut new_nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
 
             // open fd if volfs is not supported
             // but DO NOT open char devs or block devs - could block, will likely fail, doesn't work thru virtiofs
@@ -645,22 +647,44 @@ impl PassthroughFs {
             };
 
             let mut node = NodeData {
-                nodeid,
+                nodeid: new_nodeid,
                 dev_ino,
                 refcount: AtomicU64::new(1),
-                last_ctime: AtomicU64::new(st_ctime(&st)),
+                last_open_ctime: AtomicU64::new(st_ctime(&st)),
                 flags: parent_flags,
                 fd,
                 nlink: st.st_nlink,
             };
 
+            // flag to use clonefile instead of link, for package managers
             if name == LINK_AS_CLONE_DIR_JS || name == LINK_AS_CLONE_DIR_PY {
                 node.flags |= NodeFlags::LINK_AS_CLONE;
             }
 
             // deadlock OK: we're not holding a ref, since lookup returned None
-            self.nodeids.insert(nodeid, dev_ino, node);
-            nodeid
+            let inserted_nodeid = self.nodeids.insert(new_nodeid, dev_ino, node);
+            if inserted_nodeid != new_nodeid {
+                // we raced with another thread, which added a nodeid for this (dev, ino)
+                // does the old nodeid still exist?
+                let found_existing = if let Some(node) = self.nodeids.get(&inserted_nodeid) {
+                    // old nodeid exists. increment refcount so we can use it instead
+                    node.refcount.fetch_add(1, Ordering::Relaxed);
+                    true
+                } else {
+                    // just in case it's gone, keep our new nodeid. it wasn't a duplicate after all
+                    false
+                };
+
+                if found_existing {
+                    // old nodeid exists, and we incremented its refcount
+                    // deadlock OK: we just released the read shard lock
+                    self.nodeids.remove_main(&new_nodeid);
+                    // use the old nodeid
+                    new_nodeid = inserted_nodeid;
+                }
+            }
+
+            new_nodeid
         };
 
         // root generation must be zero
@@ -838,7 +862,7 @@ impl PassthroughFs {
                     // TODO: reuse from earlier lookup
                     if let Some(node) = self.nodeids.get(&nodeid) {
                         let ctime = st_ctime(&st);
-                        if node.last_ctime.swap(ctime, Ordering::Relaxed) == ctime {
+                        if node.last_open_ctime.swap(ctime, Ordering::Relaxed) == ctime {
                             opts |= OpenOptions::KEEP_CACHE;
                         }
                     }
@@ -1351,7 +1375,7 @@ impl FileSystem for PassthroughFs {
                 // TODO: reuse from earlier lookup
                 if let Some(node) = self.nodeids.get(&entry.nodeid) {
                     let ctime = st_ctime(&entry.attr);
-                    if node.last_ctime.swap(ctime, Ordering::Relaxed) == ctime {
+                    if node.last_open_ctime.swap(ctime, Ordering::Relaxed) == ctime {
                         opts |= OpenOptions::KEEP_CACHE;
                     }
                 }

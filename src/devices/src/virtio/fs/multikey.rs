@@ -82,14 +82,11 @@ where
     }
 
     /// Inserts a new entry into the map with the given keys and value.
-    ///
-    /// it's not worth dealing with conflicts. K1 conflicts are impossible due to atomics.
-    /// K2 should be overwritten if it exists.
-    pub fn insert(&self, k1: K1, k2: K2, v: V) {
+    pub fn insert(&self, k1: K1, k2: K2, v: V) -> K1 {
         // always add K1 first to prevent race. reverse mapping requires original to exist already
         self.main.insert(k1.clone(), v);
         // add or replace K2->K1 mapping to new K1 value
-        self.alt.insert(k2, k1);
+        self.alt.entry(k2).or_insert(k1).clone()
     }
 
     // dual-remove can be racy, so user must deal with the precise k1/k2 removal semantics
