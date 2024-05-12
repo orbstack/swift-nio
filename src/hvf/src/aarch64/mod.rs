@@ -106,6 +106,7 @@ pub enum Error {
     VcpuSetSystemRegister,
     VcpuSetVtimerMask,
     VmCreate,
+    VmAllocate,
 }
 
 impl Display for Error {
@@ -126,6 +127,7 @@ impl Display for Error {
             VcpuSetSystemRegister => write!(f, "Error setting HVF vCPU system register"),
             VcpuSetVtimerMask => write!(f, "Error setting HVF vCPU vtimer mask"),
             VmCreate => write!(f, "Error creating HVF VM instance"),
+            VmAllocate => write!(f, "Error allocating HVF VM memory"),
         }
     }
 }
@@ -675,5 +677,24 @@ pub fn vcpu_read_mpidr(vcpu_id: u64) -> Result<u64, Error> {
         Err(Error::VcpuReadSystemRegister)
     } else {
         Ok(val)
+    }
+}
+
+pub unsafe fn vm_allocate(size: usize) -> Result<*mut c_void, Error> {
+    let mut ptr: *mut c_void = std::ptr::null_mut();
+    let ret = unsafe { hv_vm_allocate(&mut ptr, size, HV_ALLOCATE_DEFAULT as u64) };
+    if ret != HV_SUCCESS {
+        Err(Error::VmAllocate)
+    } else {
+        Ok(ptr)
+    }
+}
+
+pub unsafe fn vm_deallocate(ptr: *mut c_void, size: usize) -> Result<(), Error> {
+    let ret = unsafe { hv_vm_deallocate(ptr, size) };
+    if ret != HV_SUCCESS {
+        Err(Error::VmAllocate)
+    } else {
+        Ok(())
     }
 }

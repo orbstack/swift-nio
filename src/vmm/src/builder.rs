@@ -84,7 +84,7 @@ pub enum StartMicrovmError {
     /// Failed to create a `RateLimiter` object.
     CreateRateLimiter(io::Error),
     /// Memory regions are overlapping or mmap fails.
-    GuestMemoryMmap(vm_memory::Error),
+    GuestMemoryMmap(anyhow::Error),
     /// Cannot load initrd due to an invalid memory configuration.
     InitrdLoad,
     /// Cannot load initrd due to an invalid image.
@@ -691,7 +691,7 @@ pub fn create_guest_memory(
     let (arch_mem_info, arch_mem_regions) =
         arch::arch_memory_regions(mem_size, kernel_load_addr, kernel_size);
 
-    let guest_mem = GuestMemoryMmap::from_ranges(&arch_mem_regions)
+    let guest_mem = hvf::allocate_guest_memory(&arch_mem_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     let kernel_data = unsafe { std::slice::from_raw_parts(kernel_region.as_ptr(), kernel_size) };
@@ -753,7 +753,7 @@ pub fn create_guest_memory(
     let mem_size = mem_size_mib << 20;
     let (arch_mem_info, arch_mem_regions) = arch::arch_memory_regions(mem_size);
 
-    let guest_mem = GuestMemoryMmap::from_ranges(&arch_mem_regions)
+    let guest_mem = hvf::allocate_guest_memory(&arch_mem_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     let kernel_data = unsafe { std::slice::from_raw_parts(kernel_region.as_ptr(), kernel_size) };
@@ -770,7 +770,7 @@ pub fn create_guest_memory(
     let mem_size = mem_size_mib << 20;
     let (arch_mem_info, arch_mem_regions) = arch::arch_memory_regions(mem_size);
 
-    let guest_mem = GuestMemoryMmap::from_ranges(&arch_mem_regions)
+    let guest_mem = hvf::allocate_guest_memory(&arch_mem_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem.write(EDK2_BINARY, GuestAddress(0u64)).unwrap();
