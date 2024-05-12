@@ -637,7 +637,7 @@ func runVmManager() {
 		NetworkHostBridges: 2, // machine + VlanRouter
 		MacAddressPrefix:   netconf.GuestMACPrefix,
 		// doesn't work on vzf so let's just hide it
-		Balloon: monitor == rsvm.Monitor,
+		Balloon: false,
 		Rng:     true,
 		// no longer used (NFS is now TCP)
 		Vsock:    false,
