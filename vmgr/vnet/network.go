@@ -131,6 +131,10 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 			// IPv6 gets truncated without -8 bytes on GSOMaxSize. TODO: why?
 			// also, we don't strictly need -8 on MTU, only GSOMaxSize. but just make it match to avoid issues
 			linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize + 8)
+		} else {
+			// TODO: why do we still need this for IPv6? gisor bug?
+			// above is -20. -8 and -10 are not enough.
+			linkOpts.MTU -= 16
 		}
 
 		// we use GSO *with* high MTU just to give Linux kernel the GSO/TSO metadata
