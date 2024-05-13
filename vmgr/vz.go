@@ -139,7 +139,7 @@ func RunRinitVm() (*RinitData, error) {
 	return &RinitData{Data: data}, nil
 }
 
-func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
+func CreateVm(monitor vmm.Monitor, params *VmParams) (*vnet.Network, vmm.Machine) {
 	cmdline := []string{
 		// boot
 		"init=/opt/orb/vinit",
@@ -164,15 +164,15 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 		// on vzf: disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
 		cmdline = append(cmdline, "hpet=disable")
 	}
-	if c.DiskRootfs != "" {
+	if params.DiskRootfs != "" {
 		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")
 	}
-	if c.Console != ConsoleNone {
+	if params.Console != ConsoleNone {
 		// quiet kernel boot to reduce log spam when truncated in sentry and GUI
 		// disabled once init starts to preserve any debug info
 		cmdline = append(cmdline, "console=hvc0", "quiet")
 		// disable colors if logging to file
-		if c.Console == ConsoleLog && !term.IsTerminal(int(os.Stdout.Fd())) {
+		if params.Console == ConsoleLog && !term.IsTerminal(int(os.Stdout.Fd())) {
 			cmdline = append(cmdline, "orb.console_is_pipe")
 		}
 	}
@@ -184,26 +184,26 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 	logrus.Debug("cmdline", cmdline)
 
 	spec := vmm.VzSpec{
-		Cpus:             c.Cpus,
-		Memory:           c.Memory * 1024 * 1024,
-		Kernel:           c.Kernel,
+		Cpus:             params.Cpus,
+		Memory:           params.Memory * 1024 * 1024,
+		Kernel:           params.Kernel,
 		Cmdline:          strings.Join(cmdline, " "),
-		MacAddressPrefix: c.MacAddressPrefix,
-		NetworkNat:       c.NetworkNat,
+		MacAddressPrefix: params.MacAddressPrefix,
+		NetworkNat:       params.NetworkNat,
 		/* fds populated below */
-		Rng:        c.Rng,
-		DiskRootfs: c.DiskRootfs,
-		DiskData:   c.DiskData,
-		DiskSwap:   c.DiskSwap,
-		Balloon:    c.Balloon,
-		Vsock:      c.Vsock,
-		Virtiofs:   c.Virtiofs,
-		Rosetta:    c.Rosetta,
-		Sound:      c.Sound,
+		Rng:        params.Rng,
+		DiskRootfs: params.DiskRootfs,
+		DiskData:   params.DiskData,
+		DiskSwap:   params.DiskSwap,
+		Balloon:    params.Balloon,
+		Vsock:      params.Vsock,
+		Virtiofs:   params.Virtiofs,
+		Rosetta:    params.Rosetta,
+		Sound:      params.Sound,
 	}
 
 	// FS: virtiofs<->nfs deadlock/loop prevention
-	if c.Virtiofs {
+	if params.Virtiofs {
 		// create if not exists
 		dirPath := coredir.EnsureNfsMountpoint()
 		dirName := filepath.Base(coredir.NfsMountpoint())
@@ -238,16 +238,16 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 	// Console
 	var err error
 	retainFiles := []*os.File{}
-	if c.Console != ConsoleNone {
+	if params.Console != ConsoleNone {
 		var conRead, conWrite *os.File
-		switch c.Console {
+		switch params.Console {
 		case ConsoleStdio:
 			conRead = os.Stdin
 			conWrite = os.Stdout
 		case ConsoleLog:
 			conRead, err = os.Open("/dev/null")
 			check(err)
-			conWrite, err = NewConsoleLogPipe(c.StopCh, c.HealthCheckCh)
+			conWrite, err = NewConsoleLogPipe(params.StopCh, params.HealthCheckCh)
 			check(err)
 		}
 
@@ -263,7 +263,7 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 	spec.Mtu = mtu
 	// gvnet
 	var vnetwork *vnet.Network
-	if c.NetworkVnet {
+	if params.NetworkVnet {
 		newNetwork, gvnetFile, err := vnet.StartUnixgramPair(vnet.NetOptions{
 			LinkMTU: uint32(mtu),
 		})
@@ -274,7 +274,7 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 		// already retained by network, but doesn't hurt
 		retainFiles = append(retainFiles, gvnetFile)
 	}
-	for i := 0; i < c.NetworkHostBridges; i++ {
+	for i := 0; i < params.NetworkHostBridges; i++ {
 		// host bridges are only reserved, not
 		file0, fd1, err := vnet.NewUnixgramPair()
 		check(err)
@@ -287,13 +287,13 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 		err = vnetwork.AddHostBridgeFd(fd1)
 		check(err)
 	}
-	if c.NetworkPairFile != nil {
-		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(c.NetworkPairFile)))
-		retainFiles = append(retainFiles, c.NetworkPairFile)
+	if params.NetworkPairFile != nil {
+		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(params.NetworkPairFile)))
+		retainFiles = append(retainFiles, params.NetworkPairFile)
 	}
 
 	// install Rosetta
-	if c.Rosetta {
+	if params.Rosetta {
 		rosettaStatus, err := vzf.SwextInstallRosetta()
 		check(err)
 		if rosettaStatus != vzf.RosettaStatusInstalled {
@@ -302,6 +302,9 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 				c.Rosetta = false
 			})
 			check(err)
+
+			params.Rosetta = false
+			spec.Rosetta = false
 		}
 	}
 
@@ -310,7 +313,7 @@ func CreateVm(monitor vmm.Monitor, c *VmParams) (*vnet.Network, vmm.Machine) {
 	vm, err := monitor.NewMachine(&spec, retainFiles)
 	check(err)
 
-	if c.Rosetta {
+	if params.Rosetta {
 		// if it's not VZF, we need to get rinit data from VZF
 		// takes ~90ms so do it async. not worth caching
 		if monitor != vzf.Monitor {
