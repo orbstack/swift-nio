@@ -28,6 +28,12 @@ enum AppConfig {
     static let dockerExe = pathForAuxiliaryExecutable("xbin/docker")
     static let dockerComposeExe = pathForAuxiliaryExecutable("xbin/docker-compose")
     static let kubectlExe = pathForAuxiliaryExecutable("xbin/kubectl")
+
+    #if arch(arm64)
+    static let nativeArchs = Set(["arm64"])
+    #else
+    static let nativeArchs = Set(["amd64", "386"])
+    #endif
 }
 
 // can't crash because bundlePath can't be nil

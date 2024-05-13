@@ -41,67 +41,64 @@ struct DockerImageItem: View, Equatable {
                         .foregroundColor(.secondary)
                 }
             }
-
-            #if arch(arm64)
-            if image.full.architecture != "arm64" {
-                HStack() {
-                    Image(systemName: "exclamationmark.triangle")
-                    Text(image.full.architecture)
-                }
-                .padding(4)
-                .foregroundStyle(Color.white)
-                .background(.thickMaterial)
-                .background(Color.red)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                // TODO(winter): maybe add a tooltip? there's no tooltip for SwiftUI though...
-            }
-            #endif
-
+            
             Spacer()
 
-            if image.summary.repoTags?.isEmpty == false {
-                Button(action: {
-                    openFolder()
-                }) {
-                    Image(systemName: "folder.fill")
-                        // match ProgressIconButton size
-                        .frame(width: 24, height: 24)
+            if !AppConfig.nativeArchs.contains(image.full.architecture) {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text(image.full.architecture)
+                        .font(.subheadline)
                 }
-                .buttonStyle(.borderless)
-                .disabled(actionInProgress)
-                .help("Open image")
-                .if(isFirstInList) {
-                    $0.popover(isPresented: $tipsImageMountsShow, arrowEdge: .leading) {
-                        HStack {
-                            Image(systemName: "folder.circle")
+                // TODO: this is bad...
+                .foregroundStyle(.black.opacity(0.8))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                // TODO: composite onto bg so list highlight doesn't affect it
+                .background(SystemColors.desaturate(Color(.systemYellow)), in: .capsule)
+                .help("Runs slower due to emulation")
+            }
+
+            Button(action: {
+                openFolder()
+            }) {
+                Image(systemName: "folder.fill")
+                    // match ProgressIconButton size
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .disabled(image.summary.repoTags?.isEmpty != false || actionInProgress)
+            .help("Open image")
+            .if(isFirstInList) {
+                $0.popover(isPresented: $tipsImageMountsShow, arrowEdge: .leading) {
+                    HStack {
+                        Image(systemName: "folder.circle")
+                            .resizable()
+                            .frame(width: 32, height: 32)
+                            .foregroundColor(.accentColor)
+                            .padding(.trailing, 4)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("New: Direct image access")
+                                .font(.headline)
+
+                            Text("Explore image files in Finder and other tools")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(20)
+                    .overlay(alignment: .topLeading) { // opposite side of arrow edge
+                        Button(action: {
+                            tipsImageMountsShow = false
+                        }) {
+                            Image(systemName: "xmark")
                                 .resizable()
-                                .frame(width: 32, height: 32)
-                                .foregroundColor(.accentColor)
-                                .padding(.trailing, 4)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("New: Direct image access")
-                                    .font(.headline)
-
-                                Text("Explore image files in Finder and other tools")
-                                    .font(.body)
-                                    .foregroundColor(.secondary)
-                            }
+                                .frame(width: 8, height: 8)
+                                .foregroundColor(.secondary)
                         }
-                        .padding(20)
-                        .overlay(alignment: .topLeading) { // opposite side of arrow edge
-                            Button(action: {
-                                tipsImageMountsShow = false
-                            }) {
-                                Image(systemName: "xmark")
-                                    .resizable()
-                                    .frame(width: 8, height: 8)
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(8)
-                        }
+                        .buttonStyle(.plain)
+                        .padding(8)
                     }
                 }
             }
