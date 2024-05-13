@@ -9,11 +9,11 @@
 #[allow(deref_nullptr)]
 mod bindings;
 use bindings::*;
+use vm_memory::{Address, GuestMemory, GuestMemoryMmap};
 
 use std::arch::asm;
 use std::convert::TryInto;
 use std::ffi::c_void;
-use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
 use std::thread::Thread;
@@ -91,45 +91,40 @@ arm64_sys_reg!(SYSREG_ICC_SGI1R_EL1, 3, 0, 5, 12, 11);
 arm64_sys_reg!(SYSREG_ICC_SRE_EL1, 3, 0, 5, 12, 12);
 */
 
-#[derive(Clone, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("memory map")]
     MemoryMap,
+    #[error("memory unmap")]
     MemoryUnmap,
+    #[error("vcpu create")]
     VcpuCreate,
+    #[error("vcpu initial registers")]
     VcpuInitialRegisters,
+    #[error("vcpu read register")]
     VcpuReadRegister,
+    #[error("vcpu read system register")]
     VcpuReadSystemRegister,
+    #[error("vcpu request exit")]
     VcpuRequestExit,
+    #[error("vcpu run")]
     VcpuRun,
+    #[error("vcpu set pending irq")]
     VcpuSetPendingIrq,
+    #[error("vcpu set register")]
     VcpuSetRegister,
+    #[error("vcpu set system register")]
     VcpuSetSystemRegister,
+    #[error("vcpu set vtimer mask")]
     VcpuSetVtimerMask,
+    #[error("vm config set ipa size")]
+    VmConfigSetIpaSize,
+    #[error("vm create")]
     VmCreate,
+    #[error("vm allocate")]
     VmAllocate,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        use self::Error::*;
-
-        match self {
-            MemoryMap => write!(f, "Error registering memory region in HVF"),
-            MemoryUnmap => write!(f, "Error unregistering memory region in HVF"),
-            VcpuCreate => write!(f, "Error creating HVF vCPU instance"),
-            VcpuInitialRegisters => write!(f, "Error setting up initial HVF vCPU registers"),
-            VcpuReadRegister => write!(f, "Error reading HVF vCPU register"),
-            VcpuReadSystemRegister => write!(f, "Error reading HVF vCPU system register"),
-            VcpuRequestExit => write!(f, "Error requesting HVF vCPU exit"),
-            VcpuRun => write!(f, "Error running HVF vCPU"),
-            VcpuSetPendingIrq => write!(f, "Error setting HVF vCPU pending irq"),
-            VcpuSetRegister => write!(f, "Error setting HVF vCPU register"),
-            VcpuSetSystemRegister => write!(f, "Error setting HVF vCPU system register"),
-            VcpuSetVtimerMask => write!(f, "Error setting HVF vCPU vtimer mask"),
-            VmCreate => write!(f, "Error creating HVF VM instance"),
-            VmAllocate => write!(f, "Error allocating HVF VM memory"),
-        }
-    }
+    #[error("host CPU doesn't support assigning {0} bits of VM memory")]
+    VmConfigIpaSizeLimit(u32),
 }
 
 /// Messages for requesting memory maps/unmaps.
@@ -205,8 +200,27 @@ pub enum ParkError {
 pub struct HvfVm {}
 
 impl HvfVm {
-    pub fn new() -> Result<Self, Error> {
-        let ret = unsafe { hv_vm_create(std::ptr::null_mut()) };
+    pub fn new(guest_mem: &GuestMemoryMmap) -> Result<Self, Error> {
+        // safe: infallible
+        let config = unsafe { hv_vm_config_create() };
+
+        // how many IPA bits do we need? check highest guest mem address
+        let ipa_bits = guest_mem.last_addr().raw_value().ilog2() + 1;
+        debug!("IPA size: {} bits", ipa_bits);
+        if ipa_bits > Self::get_default_ipa_size() {
+            // if we need more than default, make sure HW supports it
+            if ipa_bits > Self::get_max_ipa_size() {
+                return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
+            }
+
+            // it's supported. set it
+            let ret = unsafe { hv_vm_config_set_ipa_size(config, ipa_bits) };
+            if ret != HV_SUCCESS {
+                return Err(Error::VmConfigSetIpaSize);
+            }
+        }
+
+        let ret = unsafe { hv_vm_create(config) };
         if ret != HV_SUCCESS {
             Err(Error::VmCreate)
         } else {
@@ -258,6 +272,18 @@ impl HvfVm {
         if res != 0 {
             error!("Failed to destroy HVF VM: {res}");
         }
+    }
+
+    fn get_default_ipa_size() -> u32 {
+        let mut ipa_bit_length: u32 = 0;
+        unsafe { hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
+        ipa_bit_length
+    }
+
+    fn get_max_ipa_size() -> u32 {
+        let mut ipa_bit_length: u32 = 0;
+        unsafe { hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
+        ipa_bit_length
     }
 }
 

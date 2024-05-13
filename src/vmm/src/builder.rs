@@ -164,7 +164,7 @@ impl Display for StartMicrovmError {
                 "Cannot load initrd due to an invalid memory configuration."
             ),
             InitrdRead(ref err) => write!(f, "Cannot load initrd due to an invalid image: {err}"),
-            Internal(ref err) => write!(f, "Internal error while starting VM: {err:?}"),
+            Internal(ref err) => write!(f, "Internal error while starting VM: {err}"),
             KernelCmdline(ref err) => write!(f, "Invalid kernel command line: {err}"),
             KernelBundle(ref err) => {
                 let mut err_msg = format!("{err}");
@@ -823,7 +823,7 @@ pub(crate) fn setup_vm(
     guest_memory: &GuestMemoryMmap,
     vcpu_count: u8,
 ) -> std::result::Result<Vm, StartMicrovmError> {
-    let mut vm = Vm::new(vcpu_count)
+    let mut vm = Vm::new(vcpu_count, guest_memory)
         .map_err(Error::Vm)
         .map_err(StartMicrovmError::Internal)?;
     vm.memory_init(guest_memory)

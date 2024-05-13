@@ -74,7 +74,7 @@ impl Display for Error {
         match self {
             GuestMemoryMmap(e) => write!(f, "Guest memory error: {:?}", e),
             VcpuCountNotInitialized => write!(f, "vCPU count is not initialized"),
-            VmSetup(e) => write!(f, "Cannot configure the microvm: {:?}", e),
+            VmSetup(e) => write!(f, "Cannot configure the VM: {}", e),
             VcpuRun => write!(f, "Cannot run the VCPUs"),
             NotEnoughMemorySlots => write!(
                 f,
@@ -248,8 +248,8 @@ impl Parkable for Parker {
 
 impl Vm {
     /// Constructs a new `Vm` using the given `Kvm` instance.
-    pub fn new(vcpu_count: u8) -> Result<Self> {
-        let hvf_vm = HvfVm::new().map_err(Error::VmSetup)?;
+    pub fn new(vcpu_count: u8, guest_mem: &GuestMemoryMmap) -> Result<Self> {
+        let hvf_vm = HvfVm::new(guest_mem).map_err(Error::VmSetup)?;
 
         Ok(Vm {
             hvf_vm: hvf_vm.clone(),

@@ -210,7 +210,7 @@ pub enum ParkError {
 pub struct HvfVm {}
 
 impl HvfVm {
-    pub fn new() -> Result<Self, Error> {
+    pub fn new(_guest_mem: &GuestMemoryMmap) -> Result<Self, Error> {
         let ret = unsafe { hv_vm_create((HV_VM_DEFAULT | HV_VM_ACCEL_APIC) as u64) };
         if ret != HV_SUCCESS {
             return Err(Error::VmCreate);
