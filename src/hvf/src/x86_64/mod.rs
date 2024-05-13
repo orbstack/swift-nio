@@ -33,6 +33,7 @@ use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryMmap};
 use core::panic;
 use std::arch::x86_64::__cpuid_count;
 use std::convert::TryInto;
+use std::ffi::c_void;
 use std::sync::Arc;
 use std::thread::Thread;
 

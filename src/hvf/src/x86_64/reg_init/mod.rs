@@ -60,7 +60,7 @@ use crate::{
 use super::{
     hv_vmx_capability_t_HV_VMX_CAP_ENTRY, hv_vmx_capability_t_HV_VMX_CAP_EXIT,
     hv_vmx_capability_t_HV_VMX_CAP_PINBASED, hv_vmx_capability_t_HV_VMX_CAP_PROCBASED,
-    hv_vmx_capability_t_HV_VMX_CAP_PROCBASED2, VMCS_CTRL_CR0_SHADOW,
+    hv_vmx_capability_t_HV_VMX_CAP_PROCBASED2,
 };
 
 mod constants;
