@@ -16,10 +16,11 @@ type ImageSummary struct {
 }
 
 type FullImage struct {
-	ID          string `json:"Id"`
-	RepoTags    []string
-	GraphDriver *GraphDriverData `json:",omitempty"`
-	RootFS      struct {
+	ID           string `json:"Id"`
+	RepoTags     []string
+	GraphDriver  *GraphDriverData `json:",omitempty"`
+	Architecture string
+	RootFS       struct {
 		Type   string
 		Layers []string
 	}

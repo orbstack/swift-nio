@@ -486,7 +486,7 @@ class VmViewModel: ObservableObject {
     // Docker
     @Published private(set) var dockerContainers: [DKContainer]?
     @Published private(set) var dockerVolumes: [DKVolume]?
-    @Published private(set) var dockerImages: [DKImage]?
+    @Published private(set) var dockerImages: [DKSummaryAndFullImage]?
     @Published private(set) var dockerSystemDf: DKSystemDf?
 
     // Kubernetes
@@ -781,9 +781,9 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    private func onNewDockerImages(rawImages: [DKImage]) {
+    private func onNewDockerImages(rawImages: [DKSummaryAndFullImage]) {
         // sort images
-        let images = rawImages.sorted { $0.userTag < $1.userTag }
+        let images = rawImages.sorted { $0.summary.userTag < $1.summary.userTag }
         dockerImages = images
     }
 

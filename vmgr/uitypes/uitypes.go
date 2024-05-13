@@ -4,6 +4,7 @@ import (
 	"time"
 
 	stypes "github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 )
@@ -45,7 +46,7 @@ const (
 type DockerEvent struct {
 	CurrentContainers []*dockertypes.ContainerSummary `json:"currentContainers"`
 	CurrentVolumes    []*dockertypes.Volume           `json:"currentVolumes"`
-	CurrentImages     []*dockertypes.ImageSummary     `json:"currentImages"`
+	CurrentImages     []dockerclient.Image            `json:"currentImages"`
 	CurrentSystemDf   *dockertypes.SystemDf           `json:"currentSystemDf"`
 
 	Exited *ExitEvent `json:"exited"`

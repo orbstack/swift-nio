@@ -109,7 +109,7 @@ struct UIEvent: Codable {
     struct Docker: Codable {
         let currentContainers: [DKContainer]?
         let currentVolumes: [DKVolume]?
-        let currentImages: [DKImage]?
+        let currentImages: [DKSummaryAndFullImage]?
         let currentSystemDf: DKSystemDf?
         let exited: UIExitEvent?
     }

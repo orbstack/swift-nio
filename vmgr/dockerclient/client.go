@@ -161,6 +161,20 @@ func (c *Client) Call(method, path string, body any, out any) error {
 	return nil
 }
 
+func (c *Client) CallRaw(method, path string, body any) (*http.Response, error) {
+	req, err := c.newRequest(method, path, body)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+
+	return resp, nil
+}
+
 func (c *Client) CallDiscard(method, path string, body any) error {
 	req, err := c.newRequest(method, path, body)
 	if err != nil {

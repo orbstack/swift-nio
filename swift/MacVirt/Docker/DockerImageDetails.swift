@@ -9,28 +9,32 @@ struct DockerImageDetails: View {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var windowTracker: WindowTracker
 
-    let image: DKImage
+    let image: DKSummaryAndFullImage
 
     var body: some View {
         DetailsStack {
             DetailsSection("Info") {
                 // TODO: fix width constraints
-                SimpleKvTable(longestLabel: "Created") {
+                SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("ID") {
                         CopyableText(image.id)
                     }
 
                     SimpleKvTableRow("Created") {
-                        Text(image.formattedCreated)
+                        Text(image.summary.formattedCreated)
                     }
 
                     SimpleKvTableRow("Size") {
-                        Text(image.formattedSize)
+                        Text(image.summary.formattedSize)
+                    }
+
+                    SimpleKvTableRow("Architecture") {
+                        Text(image.full.architecture)
                     }
                 }
             }
 
-            if let tags = image.repoTags,
+            if let tags = image.summary.repoTags,
                !tags.isEmpty
             {
                 DetailsSection("Tags") {
@@ -58,7 +62,7 @@ struct DockerImageDetails: View {
                 }
             }
 
-            if let labels = image.labels,
+            if let labels = image.summary.labels,
                !labels.isEmpty
             {
                 ScrollableDetailsSection("Labels") {

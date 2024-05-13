@@ -129,7 +129,7 @@ private struct DockerContainersList: View {
     let listData: [AKSection<DockerListItem>]
     @Binding var selection: Set<DockerContainerId>
 
-    let dockerImages: [DKImage]?
+    let dockerImages: [DKSummaryAndFullImage]?
     let dockerVolumes: [DKVolume]?
 
     var body: some View {
