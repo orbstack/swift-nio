@@ -1,6 +1,6 @@
 use std::{error::Error, fs::{self, remove_file}, os::unix::{fs::symlink, net::UnixDatagram, process::ExitStatusExt}, process::Command, sync::{Arc, Mutex}};
 
-use nix::{sys::{signal::{kill, Signal}, socket::UnixAddr}, unistd::Pid};
+use nix::{sys::signal::{kill, Signal}, unistd::Pid};
 use signal_hook::iterator::Signals;
 use serde::{Serialize, Deserialize};
 
