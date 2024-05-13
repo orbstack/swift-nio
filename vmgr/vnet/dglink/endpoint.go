@@ -408,15 +408,15 @@ func (e *endpoint) Wait() {
 	e.wg.Wait()
 }
 
-// virtioNetHdr is declared in linux/virtio_net.h.
-// full header is 12 bytes, but numBuffers field is usually not included
-type virtioNetHdr struct {
+// virtioNetHdrV1 is declared in linux/virtio_net.h.
+type virtioNetHdrV1 struct {
 	flags      uint8
 	gsoType    uint8
 	hdrLen     uint16
 	gsoSize    uint16
 	csumStart  uint16
 	csumOffset uint16
+	// v1 header (mergeable rx buffers)
 	numBuffers uint16
 }
 
@@ -426,7 +426,7 @@ type virtioNetHdr struct {
 // Note: Virtio v1.0 onwards specifies little-endian as the byte ordering used
 // for general serialization. This makes it difficult to use go-marshal for
 // virtio types, as go-marshal implicitly uses the native byte ordering.
-func (h *virtioNetHdr) marshal() []byte {
+func (h *virtioNetHdrV1) marshal() []byte {
 	buf := [virtioNetHdrSize]byte{
 		0: byte(h.flags),
 		1: byte(h.gsoType),
@@ -493,7 +493,7 @@ func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
 	fd := fdInfo.fd
 	var vnetHdrBuf []byte
 	if e.gsoKind == stack.HostGSOSupported {
-		vnetHdr := virtioNetHdr{}
+		vnetHdr := virtioNetHdrV1{}
 		// GSO is only for large TCP packets. UDP and small TCP packets still need this part
 		vnetHdr.flags = _VIRTIO_NET_HDR_F_DATA_VALID
 		if pkt.GSOOptions.Type != stack.GSONone {

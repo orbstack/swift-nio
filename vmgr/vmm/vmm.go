@@ -64,7 +64,7 @@ type VzSpec struct {
 type Monitor interface {
 	NewMachine(c *VzSpec, retainFiles []*os.File) (Machine, error)
 	NetworkMTU() int
-	NetworkWantsVnetHdr() bool
+	NetworkWantsVnetHdrV1() bool
 }
 
 type Machine interface {

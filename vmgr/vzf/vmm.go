@@ -13,6 +13,6 @@ func (m monitor) NetworkMTU() int {
 	return vnettypes.BaseMTU
 }
 
-func (m monitor) NetworkWantsVnetHdr() bool {
+func (m monitor) NetworkWantsVnetHdrV1() bool {
 	return false
 }

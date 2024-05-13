@@ -133,7 +133,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 			linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize + 8)
 		} else {
 			// TODO: why do we still need this for IPv6? gisor bug?
-			// above is -20. -8 and -10 are not enough.
+			// above is -18 with v0 vnet hdr. -8 and -10 are not enough.
 			linkOpts.MTU -= 16
 		}
 
