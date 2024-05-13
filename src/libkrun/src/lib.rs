@@ -336,7 +336,7 @@ impl Machine {
                 .iter()
                 .any(|ev| ev.fd() == exit_evt)
             {
-                tracing::info!("VM successfully torn-down.");
+                tracing::debug!("VM successfully torn-down.");
                 unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
                 break;
             }

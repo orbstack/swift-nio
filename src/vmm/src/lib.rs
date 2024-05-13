@@ -197,7 +197,7 @@ pub struct VmmShutdownHandle(pub EventFd);
 
 impl VmmShutdownHandle {
     pub fn request_shutdown(&self) {
-        tracing::info!("Requesting hard shutdown for VMM");
+        tracing::debug!("Requesting hard shutdown for VMM");
 
         if let Err(e) = self.0.write(1) {
             error!("Failed to signal hard shutdown request: {}", e);
@@ -348,7 +348,7 @@ impl Vmm {
 
     /// Waits for all vCPUs to exit.
     fn wait_for_vcpus_to_exit(&mut self) {
-        info!("Shutting down all VCPUs");
+        info!("Stopping");
 
         // HACK: There are currently two ways a VCPU could sleep for long periods of time:
         // 1) It's processing the guest.
@@ -386,20 +386,20 @@ impl Vmm {
                 handle.join();
             }
 
-            info!("Joined on all VCPUs");
+            debug!("Joined on all VCPUs");
             killer_done_sig.store(false, Ordering::Relaxed);
         });
 
-        info!("Shut down all VCPUs");
+        debug!("Shut down all VCPUs");
     }
 
     fn wait_for_observers_to_exit(&mut self) {
         for observer in &self.exit_observers {
             let mut observer = observer.lock().expect("Poisoned mutex for exit observer");
 
-            info!("Calling exit observer: {:?}", observer.type_name());
+            debug!("Calling exit observer: {:?}", observer.type_name());
             observer.on_vmm_exit();
-            info!("Finished calling exit observer: {:?}", observer.type_name());
+            debug!("Finished calling exit observer: {:?}", observer.type_name());
         }
     }
 
@@ -452,7 +452,7 @@ impl Subscriber for Vmm {
             self.wait_for_vcpus_to_exit();
             self.wait_for_observers_to_exit();
 
-            info!("Destroying HVF VM");
+            debug!("Destroying HVF VM");
             self.vm.destroy_hvf();
         } else {
             error!("Spurious EventManager event for handler: Vmm");

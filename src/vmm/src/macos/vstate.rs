@@ -683,7 +683,7 @@ impl Vcpu {
                     Ok(VcpuEmulation::Handled)
                 }
                 VcpuExit::Shutdown => {
-                    info!("vCPU {} received shutdown signal", vcpuid);
+                    debug!("vCPU {} received shutdown signal", vcpuid);
                     Ok(VcpuEmulation::Stopped)
                 }
                 VcpuExit::SystemRegister {
@@ -791,7 +791,7 @@ impl Vcpu {
                     Ok(VcpuEmulation::Handled)
                 }
                 VcpuExit::Shutdown => {
-                    info!("vCPU {} received shutdown signal", vcpuid);
+                    debug!("vCPU {} received shutdown signal", vcpuid);
                     Ok(VcpuEmulation::Stopped)
                 }
                 VcpuExit::IoPortRead(_) => {
