@@ -520,8 +520,8 @@ class PacketProcessor {
         throw BrnetError.redirectToHost
     }
 
-    func buildVnetHdr(pkt: Packet) throws -> virtio_net_hdr {
-        var hdr = virtio_net_hdr()
+    func buildVnetHdr(pkt: Packet) throws -> virtio_net_hdr_v1 {
+        var hdr = virtio_net_hdr_v1()
         hdr.flags = VIRTIO_NET_HDR_F_DATA_VALID
 
         // read ethertype from pkt

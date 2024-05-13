@@ -128,7 +128,7 @@ class BridgeNetwork {
     private let processor: PacketProcessor
     private var guestReader: GuestReader?
     private let hostReadIovs: UnsafeMutablePointer<iovec>
-    private let vnetHdr: UnsafeMutablePointer<virtio_net_hdr>
+    private let vnetHdr: UnsafeMutablePointer<virtio_net_hdr_v1>
 
     private var closed = false
 
@@ -198,7 +198,7 @@ class BridgeNetwork {
         }
 
         // vnet header buffer for outgoing packets
-        vnetHdr = UnsafeMutablePointer<virtio_net_hdr>.allocate(capacity: 1)
+        vnetHdr = UnsafeMutablePointer<virtio_net_hdr_v1>.allocate(capacity: 1)
 
         // must keep self ref to prevent deinit while referenced
         let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, vmnetPktQueue) { [self] _, _ in
@@ -217,7 +217,7 @@ class BridgeNetwork {
                 let pktDesc = pktDescs[i]
 
                 // sanity: never write a packet > 65535 bytes. that breaks the network, so just drop it
-                let vnetHdrSize = needsVnetHdr ? MemoryLayout<virtio_net_hdr>.size : 0
+                let vnetHdrSize = needsVnetHdr ? MemoryLayout<virtio_net_hdr_v1>.size : 0
                 guard pktDesc.vm_pkt_size + vnetHdrSize <= 65535 else {
                     // print("packet too big: \(pktDesc.vm_pkt_size + vnetHdrSize)")
                     continue
