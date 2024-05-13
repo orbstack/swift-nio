@@ -153,7 +153,7 @@ impl Machine {
             // pad up to page size boundary
             let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
             kernel_bytes.resize(
-                kernel_bytes.len() + (page_size - (kernel_bytes.len() % page_size)),
+                (kernel_bytes.len() + page_size - 1) / page_size * page_size,
                 0,
             );
             vmr.set_kernel_bundle(KernelBundle {
