@@ -24,14 +24,6 @@ fn vnet_hdr_len() -> usize {
     mem::size_of::<virtio_net_hdr_v1>()
 }
 
-// This initializes to all 0 the virtio_net_hdr part of a buf and return the length of the header
-// https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html#x1-2050006
-fn write_virtio_net_hdr(buf: &mut [u8]) -> usize {
-    let len = vnet_hdr_len();
-    buf[0..len].fill(0);
-    len
-}
-
 pub struct NetWorker {
     queues: Vec<Queue>,
     queue_evts: Vec<EventFd>,
@@ -157,7 +149,6 @@ impl NetWorker {
                                     || event_set.contains(EventSet::READ_HANG_UP)
                                 {
                                     tracing::error!("Got {event_set:?} on backend fd, virtio-net will stop working");
-                                    eprintln!("LIBKRUN VIRTIO-NET FATAL: Backend process seems to have quit or crashed! Networking is now disabled!");
                                 } else {
                                     if event_set.contains(EventSet::IN) {
                                         self.process_backend_socket_readable()
@@ -483,9 +474,8 @@ impl NetWorker {
 
     /// Fills self.rx_frame_buf with an ethernet frame from backend and prepends virtio_net_hdr to it
     fn read_into_rx_frame_buf_from_backend(&mut self) -> result::Result<(), ReadError> {
-        let mut len = 0;
-        len += write_virtio_net_hdr(&mut self.rx_frame_buf);
-        len += self.backend.read_frame(&mut self.rx_frame_buf[len..])?;
+        // we expect backend to return a vnet hdr
+        let len = self.backend.read_frame(&mut self.rx_frame_buf)?;
         self.rx_frame_buf_len = len;
         Ok(())
     }
