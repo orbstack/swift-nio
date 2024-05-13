@@ -164,7 +164,7 @@ impl Display for StartMicrovmError {
                 "Cannot load initrd due to an invalid memory configuration."
             ),
             InitrdRead(ref err) => write!(f, "Cannot load initrd due to an invalid image: {err}"),
-            Internal(ref err) => write!(f, "Internal error while starting microVM: {err:?}"),
+            Internal(ref err) => write!(f, "Internal error while starting VM: {err:?}"),
             KernelCmdline(ref err) => write!(f, "Invalid kernel command line: {err}"),
             KernelBundle(ref err) => {
                 let mut err_msg = format!("{err}");
@@ -180,10 +180,10 @@ impl Display for StartMicrovmError {
                 err_msg = err_msg.replace('\"', "");
                 write!(f, "Cannot load command line string. {err_msg}")
             }
-            MicroVMAlreadyRunning => write!(f, "Microvm already running."),
-            MissingKernelConfig => write!(f, "Cannot start microvm without kernel configuration."),
+            MicroVMAlreadyRunning => write!(f, "VM already running."),
+            MissingKernelConfig => write!(f, "Cannot start VM without kernel configuration."),
             MissingMemSizeConfig => {
-                write!(f, "Cannot start microvm without guest mem_size config.")
+                write!(f, "Cannot start VM without guest mem_size config.")
             }
             NetDeviceNotConfigured => {
                 write!(f, "The net device configuration is missing the tap device.")
