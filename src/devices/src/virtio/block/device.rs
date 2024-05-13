@@ -55,6 +55,7 @@ pub(crate) struct DiskProperties {
     pub(crate) file: File,
     nsectors: u64,
     image_id: Vec<u8>,
+    read_only: bool,
 }
 
 impl DiskProperties {
@@ -84,6 +85,7 @@ impl DiskProperties {
             nsectors: disk_size >> SECTOR_SHIFT,
             image_id: Self::build_disk_image_id(&disk_image),
             file: disk_image,
+            read_only: is_disk_read_only,
         })
     }
 
@@ -158,6 +160,10 @@ impl DiskProperties {
 
 impl Drop for DiskProperties {
     fn drop(&mut self) {
+        if self.read_only {
+            return;
+        }
+
         match self.cache_type {
             CacheType::Writeback => {
                 // flush() first to force any cached data out.
