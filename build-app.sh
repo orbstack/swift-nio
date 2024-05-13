@@ -28,10 +28,13 @@ source config.sh
 function build_one() {
     local arch_go="$1"
     local arch_mac=""
+    local arch_rust=""
     if [[ "$arch_go" == "amd64" ]]; then
         arch_mac="x86_64"
+        arch_rust="x86_64-apple-darwin"
     elif [[ "$arch_go" == "arm64" ]]; then
         arch_mac="arm64"
+        arch_rust="aarch64-apple-darwin"
     else
         echo "unknown arch: $arch_go"
         exit 1
@@ -46,6 +49,11 @@ function build_one() {
     SWIFT_ARCH="$arch_mac" make lib-release
     popd
 
+    # build rust lib
+    pushd vendor/libkrun
+    cargo build --release --target $arch_rust
+    popd
+
     # build go (vmgr and scon)
     export GOARCH=$arch_go
     export CGO_ENABLED=1
@@ -58,6 +66,8 @@ function build_one() {
         EXTRA_LDFLAGS="-s -w" \
         BUNDLE_OUT="$OUT/$VMGR_BIN.app" \
         SIGNING_CERT_OVERRIDE="$SIGNING_CERT" \
+        RUST_TARGET="$arch_rust" \
+        RUST_BUILD_TYPE="release" \
         ./build.sh -tags release -trimpath
     popd
 
@@ -69,8 +79,6 @@ function build_one() {
     # this signing ID doesn't matter much
     codesign -f --timestamp --options=runtime -i dev.orbstack.OrbStack.scli -s "$SIGNING_CERT" $OUT/scli
     popd
-
-    # TODO: rebuild rootfs
 
     # build swift
     pushd swift
