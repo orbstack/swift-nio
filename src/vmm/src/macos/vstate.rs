@@ -598,7 +598,7 @@ impl Vcpu {
         let (init_tls_sender, init_tls_receiver) = unbounded();
 
         let vcpu_thread = thread::Builder::new()
-            .name(format!("fc_vcpu {}", self.cpu_index()))
+            .name(format!("vcpu{}", self.cpu_index()))
             .spawn(move || {
                 self.init_thread_local_data()
                     .expect("Cannot cleanly initialize vcpu TLS.");
