@@ -278,6 +278,7 @@ func (a *AgentServer) DockerQueryKubeDns(q dns.Question, rrs *[]dns.RR) error {
 
 func (d *DockerAgent) PostStart() error {
 	// wait for Docker API to start
+	// TODO: this works, but should replace with sd-notify
 	err := util.WaitForRunPathExist(dockerAPISocketUpstream)
 	if err != nil {
 		return err

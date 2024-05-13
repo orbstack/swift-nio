@@ -1,6 +1,6 @@
-use std::{error::Error, fs, os::unix::{fs::symlink, process::ExitStatusExt}, process::Command};
+use std::{error::Error, fs::{self, remove_file}, os::unix::{fs::symlink, net::UnixDatagram, process::ExitStatusExt}, process::Command, sync::{Arc, Mutex}};
 
-use nix::{sys::signal::{kill, Signal}, unistd::Pid};
+use nix::{sys::{signal::{kill, Signal}, socket::UnixAddr}, unistd::Pid};
 use signal_hook::iterator::Signals;
 use serde::{Serialize, Deserialize};
 
@@ -12,49 +12,17 @@ struct MonitoredChild {
     args: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct SimplevisorConfig {
     init_commands: Vec<Vec<String>>,
-    services: Vec<Vec<String>>,
+    init_services: Vec<Vec<String>>,
+    dep_services: Vec<Vec<String>>,
 }
 
 #[derive(Serialize)]
 struct SimplevisorStatus {
     exit_statuses: Vec<i32>,
 }
-
-/*
-fn init_system() -> Result<(), Box<dyn Error>> {
-    // move processes to fix delegation
-    fs::create_dir_all("/sys/fs/cgroup/init.scope")?;
-    let all_procs = fs::read_to_string("/sys/fs/cgroup/cgroup.procs")?;
-    fs::write("/sys/fs/cgroup/init.scope/cgroup.procs", all_procs)?;
-
-    // enable all controllers for subgroups
-    let subtree_controllers = fs::read_to_string("/sys/fs/cgroup/cgroup.controllers")?
-        .trim()
-        .split(' ')
-        // prepend '+' to each controller
-        .map(|s| "+".to_string() + s)
-        .collect::<Vec<String>>()
-        .join(" ");
-    fs::write("/sys/fs/cgroup/cgroup.subtree_control", subtree_controllers)?;
-
-    // make / rshared
-    // TODO do this in rust. too dangerous though
-    let status = Command::new("mount").args(&["--make-rshared", "/"])
-        .status()?;
-    if !status.success() {
-        return Err("failed to make / rshared".into());
-    }
-
-    // symlink sockets for docker desktop compat
-    fs::create_dir_all("/run/host-services")?;
-    symlink("/opt/orbstack-guest/run/host-ssh-agent.sock", "/run/host-services/ssh-auth.sock")?;
-
-    Ok(())
-}
-*/
 
 // EXTREMELY simple process supervisor:
 // - start processes
@@ -69,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let config: SimplevisorConfig = serde_json::from_str(&config_str)?;
 
     let mut out_status = SimplevisorStatus {
-        exit_statuses: vec![-1; config.services.len()],
+        exit_statuses: vec![-1; config.init_services.len()],
     };
 
     // broken: EINVAL
@@ -89,18 +57,58 @@ fn main() -> Result<(), Box<dyn Error>> {
     // compat: https://docs.docker.com/desktop/extensions-sdk/guides/use-docker-socket-from-backend/
     symlink("/var/run/docker.sock", "/var/run/docker.sock.raw")?;
 
-    let mut children = config.services.iter()
-        .map(|child_args| {
-            let process = Command::new(&child_args[0])
-                .args(&child_args[1..])
-                .spawn()
-                .unwrap();
-            MonitoredChild {
-                process,
-                args: child_args.clone(),
+    let children = Arc::new(Mutex::new(vec![]));
+    let children_clone = children.clone();
+    let config_clone = config.clone();
+
+    // start sd-notify first
+    std::thread::spawn(move || {
+        let children = children_clone;
+        let config = config_clone;
+
+        let _ = remove_file("/run/sd.sock");
+        let listener = UnixDatagram::bind("/run/sd.sock").unwrap();
+        let mut buf = [0; 256];
+        loop {
+            let (len, _) = listener.recv_from(&mut buf).unwrap();
+            let msg = String::from_utf8_lossy(&buf[..len]).to_string();
+            if msg == "READY=1" {
+                println!(" [*] service 0 started");
+
+                // now start dependent services
+                for child_args in config.dep_services.iter() {
+                    println!(" [*] starting dependent service");
+                    let process = Command::new(&child_args[0])
+                        .args(&child_args[1..])
+                        .spawn()
+                        .unwrap();
+
+                    let child = MonitoredChild {
+                        process,
+                        args: child_args.clone(),
+                    };
+
+                    children.lock().unwrap().push(child);
+                }
             }
-        })
-        .collect::<Vec<_>>();
+        }
+    });
+
+    for child_args in config.init_services {
+        let process = Command::new(&child_args[0])
+            .args(&child_args[1..])
+            .env("NOTIFY_SOCKET", "/run/sd.sock")
+            .spawn()
+            .unwrap();
+
+        let child = MonitoredChild {
+            process,
+            args: child_args.clone(),
+        };
+
+        children.lock().unwrap().push(child);
+    }
+
     let mut is_shutting_down = false;
 
     // remove config from env
@@ -134,7 +142,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         match signal {
             signal_hook::consts::SIGCHLD => {
                 // a child exited?
-                for (i, child) in children.iter_mut().enumerate() {
+                for (i, child) in children.lock().unwrap().iter_mut().enumerate() {
                     if let Some(status) = child.process.try_wait()? {
                         // we exit as soon as a child does
                         // this covers cases of dockerd and k8s crashing
@@ -164,9 +172,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
             }
+
             signal_hook::consts::SIGUSR2 => {
                 // kill children, wait for exit, then restart
-                for (i, child) in children.iter_mut().enumerate() {
+                for (i, child) in children.lock().unwrap().iter_mut().enumerate() {
                     println!(" [*] restart service {}...", i);
                     // TODO: speed this up with SIGKILL?
                     // should be safe with Docker because we block requests and never start a new container, but still risky, and we kill container cgroups to speed that up anyway
@@ -181,11 +190,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .unwrap();
                 }
             }
+
             _ => {
                 println!(" [*] received {}", Signal::try_from(signal)?);
 
                 // forward signal to children
-                for child in children.iter_mut() {
+                for child in children.lock().unwrap().iter() {
                     kill(Pid::from_raw(child.process.id() as i32), Some(Signal::try_from(signal)?))?;
                 }
 

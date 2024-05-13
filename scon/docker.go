@@ -171,7 +171,8 @@ func newDockerHooks() (*DockerHooks, error) {
 
 type SimplevisorConfig struct {
 	InitCommands [][]string `json:"init_commands"`
-	Services     [][]string `json:"services"`
+	InitServices [][]string `json:"init_services"`
+	DepServices  [][]string `json:"dep_services"`
 }
 
 type SimplevisorStatus struct {
@@ -578,9 +579,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// must not be nil for rust
 		// CAN'T MUTATE THIS GLOBAL! make a copy if needed
 		InitCommands: dockerInitCommands,
-		Services: [][]string{
+		InitServices: [][]string{
 			{"dockerd", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
 		},
+		DepServices: [][]string{},
 	}
 	// add TLS proxy iptables rules
 	if c.manager.vmConfig.NetworkHttps {
@@ -611,7 +613,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		if conf.Debug() {
 			k8sCmd = append(k8sCmd, "--enable-pprof")
 		}
-		svConfig.Services = append(svConfig.Services, k8sCmd)
+		svConfig.DepServices = append(svConfig.DepServices, k8sCmd)
 
 		// add iptables rule to fix leaking 192.168.194.129:443 api server conns causing CrashLoopBackOff when services start and try to connect to api server
 		// DROP in PREROUTING works because
