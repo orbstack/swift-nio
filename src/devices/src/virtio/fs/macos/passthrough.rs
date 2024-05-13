@@ -28,6 +28,7 @@ use nix::sys::statfs::{fstatfs, statfs};
 use nix::sys::statvfs::statvfs;
 use nix::sys::statvfs::Statvfs;
 use nix::sys::time::TimeSpec;
+use nix::sys::uio::pwrite;
 use nix::unistd::AccessFlags;
 use nix::unistd::{access, LinkatFlags};
 use nix::unistd::{ftruncate, symlinkat};
@@ -70,6 +71,10 @@ const NSEC_PER_SEC: u64 = 1_000_000_000;
 const MAX_PATH_FDS: u64 = 8000;
 
 const CLONE_NOFOLLOW: u32 = 0x0001;
+
+const FALLOC_FL_KEEP_SIZE: u32 = 0x01;
+const FALLOC_FL_PUNCH_HOLE: u32 = 0x02;
+const FALLOC_FL_KEEP_SIZE_AND_PUNCH_HOLE: u32 = FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE;
 
 type NodeId = u64;
 type Handle = u64;
@@ -1438,6 +1443,10 @@ impl FileSystem for PassthroughFs {
 
         // This is safe because read_to uses pwritev64, so the underlying file descriptor
         // offset is not affected by this operation.
+        debug!(
+            "write: nodeid={} handle={:?} size={} offset={}",
+            nodeid, handle, size, offset
+        );
         let f = data.file.read();
         r.read_to(&f, size as usize, offset)
     }
@@ -1514,6 +1523,11 @@ impl FileSystem for PassthroughFs {
         }
 
         if valid.contains(SetattrValid::SIZE) {
+            debug!(
+                "ftruncate: nodeid={} handle={:?} size={}",
+                nodeid, handle, attr.st_size
+            );
+
             // Safe because this doesn't modify any memory and we check the return value.
             match data {
                 Data::Handle(fd) => ftruncate(fd, attr.st_size),
@@ -1995,10 +2009,15 @@ impl FileSystem for PassthroughFs {
         _ctx: Context,
         nodeid: NodeId,
         handle: Handle,
-        _mode: u32,
+        mode: u32,
         offset: u64,
         length: u64,
     ) -> io::Result<()> {
+        debug!(
+            "fallocate: nodeid={} handle={:?} mode={} offset={} length={}",
+            nodeid, handle, mode, offset, length
+        );
+
         let data = self
             .handles
             .get(&handle)
@@ -2006,31 +2025,85 @@ impl FileSystem for PassthroughFs {
             .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
-        let fd = data.file.write().as_raw_fd();
+        let file = data.file.write();
 
-        let mut fs = libc::fstore_t {
-            fst_flags: libc::F_ALLOCATECONTIG,
-            fst_posmode: libc::F_PEOFPOSMODE,
-            fst_offset: 0,
-            fst_length: (offset + length) as i64,
-            fst_bytesalloc: 0,
-        };
+        match mode {
+            0 | FALLOC_FL_KEEP_SIZE => {
+                // this allocates blocks but doesn't change st_size
+                let mut fs = libc::fstore_t {
+                    fst_flags: libc::F_ALLOCATEALL,
+                    fst_posmode: libc::F_PEOFPOSMODE,
+                    fst_offset: 0,
+                    fst_length: (offset + length) as i64,
+                    fst_bytesalloc: 0,
+                };
+                let res = unsafe {
+                    libc::fcntl(file.as_raw_fd(), libc::F_PREALLOCATE, &mut fs as *mut _)
+                };
+                if res == -1 {
+                    return Err(linux_error(io::Error::last_os_error()));
+                }
 
-        let res = unsafe { libc::fcntl(fd, libc::F_PREALLOCATE, &mut fs as *mut _) };
-        if res == -1 {
-            fs.fst_flags = libc::F_ALLOCATEALL;
-            let res = unsafe { libc::fcntl(fd, libc::F_PREALLOCATE, &mut fs as &mut _) };
-            if res == -1 {
-                return Err(linux_error(io::Error::last_os_error()));
+                // only change size if requested
+                if mode & FALLOC_FL_KEEP_SIZE == 0 {
+                    let res =
+                        unsafe { libc::ftruncate(file.as_raw_fd(), (offset + length) as i64) };
+                    if res == -1 {
+                        return Err(linux_error(io::Error::last_os_error()));
+                    }
+                }
+
+                Ok(())
             }
-        }
 
-        let res = unsafe { libc::ftruncate(fd, (offset + length) as i64) };
+            FALLOC_FL_KEEP_SIZE_AND_PUNCH_HOLE => {
+                let zero_start = offset as libc::off_t;
+                let zero_end = (offset + length) as libc::off_t;
 
-        if res == 0 {
-            Ok(())
-        } else {
-            Err(linux_error(io::Error::last_os_error()))
+                // macOS requires FS block size alignment
+                // Linux zeroes partial blocks
+                let st = fstat(file.as_fd(), true)?;
+                let block_size = st.st_blksize as libc::off_t;
+                // start: round up
+                let hole_start = (zero_start + block_size - 1) / block_size * block_size;
+                // end: round down
+                let hole_end = zero_end / block_size * block_size;
+
+                if hole_start != hole_end {
+                    let punch_hole = libc::fpunchhole_t {
+                        fp_flags: 0,
+                        reserved: 0,
+                        fp_offset: hole_start,
+                        fp_length: hole_end - hole_start,
+                    };
+                    let res =
+                        unsafe { libc::fcntl(file.as_raw_fd(), libc::F_PUNCHHOLE, &punch_hole) };
+                    if res == -1 {
+                        return Err(linux_error(io::Error::last_os_error()));
+                    }
+                }
+
+                // zero the starting block
+                let zero_start_len = hole_start - zero_start;
+                if zero_start_len > 0 {
+                    let zero_start_buf = vec![0u8; zero_start_len as usize];
+                    pwrite(file.as_raw_fd(), &zero_start_buf, zero_start)
+                        .map_err(nix_linux_error)?;
+                }
+
+                // zero the ending block
+                let zero_end_len = zero_end - hole_end;
+                if zero_end_len > 0 {
+                    let zero_end_buf = vec![0u8; zero_end_len as usize];
+                    pwrite(file.as_raw_fd(), &zero_end_buf, hole_end).map_err(nix_linux_error)?;
+                }
+
+                Ok(())
+            }
+
+            // don't think it's possible to emulate FALLOC_FL_ZERO_RANGE
+            // most programs (e.g. mkfs.ext4) will fall back to FALLOC_FL_PUNCH_HOLE
+            _ => Err(linux_error(io::Error::from_raw_os_error(libc::EOPNOTSUPP))),
         }
     }
 
@@ -2042,6 +2115,11 @@ impl FileSystem for PassthroughFs {
         offset: u64,
         whence: u32,
     ) -> io::Result<u64> {
+        debug!(
+            "lseek: nodeid={} handle={:?} offset={} whence={}",
+            nodeid, handle, offset, whence
+        );
+
         let data = self
             .handles
             .get(&handle)
