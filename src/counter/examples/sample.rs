@@ -11,7 +11,7 @@ fn main() {
         TIMES_CALLED.count();
     });
 
-    let _guard = display_every(default_env_filter(), Duration::from_secs_f32(0.5));
+    let _guard = display_every(default_env_filter().unwrap(), Duration::from_secs_f32(0.5));
 
     thread::sleep(Duration::from_secs_f32(10.));
 }

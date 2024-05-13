@@ -151,6 +151,13 @@ impl DisableableCounter for TotalCounter {
 #[derive(Debug, Default)]
 pub struct RateCounter(&'static str, AtomicU64);
 
+pub struct RateCounterUserdata {
+    start: u64,
+    count_snapshot: u64,
+    delta_snapshot: u64,
+    avg_snapshot: f64,
+}
+
 impl RateCounter {
     pub const fn new(name: &'static str) -> Self {
         Self(name, AtomicU64::new(0))
@@ -162,26 +169,39 @@ impl RateCounter {
 }
 
 impl Counter for RateCounter {
-    type Userdata = (u64, f64);
+    type Userdata = RateCounterUserdata;
 
     fn init(&self, filter: &AhoCorasick) -> Option<Self::Userdata> {
-        filter
-            .is_match(self.0)
-            .then(|| (self.1.load(Ordering::Relaxed), f64::NAN))
+        filter.is_match(self.0).then(|| {
+            let snapshot = self.1.load(Ordering::Relaxed);
+
+            RateCounterUserdata {
+                start: snapshot,
+                count_snapshot: snapshot,
+                delta_snapshot: 0,
+                avg_snapshot: f64::NAN,
+            }
+        })
     }
 
-    fn tick(&self, (start_count, snap): &mut Self::Userdata, info: IntervalInfo) {
-        let count = self.1.load(Ordering::Relaxed) - *start_count;
-        *snap = count as f64 / info.since_start.as_secs_f64();
+    fn tick(&self, userdata: &mut Self::Userdata, info: IntervalInfo) {
+        let count = self.1.load(Ordering::Relaxed);
+        userdata.delta_snapshot = count - userdata.count_snapshot;
+        userdata.count_snapshot = count;
+        userdata.avg_snapshot = (count - userdata.start) as f64 / info.since_start.as_secs_f64();
     }
 
-    fn display(&self, f: &mut fmt::Formatter, (_, snap): &Self::Userdata) -> fmt::Result {
+    fn display(&self, f: &mut fmt::Formatter, userdata: &Self::Userdata) -> fmt::Result {
         let total = self.1.load(Ordering::Relaxed);
 
-        if snap.is_nan() {
+        if userdata.avg_snapshot.is_nan() {
             write!(f, "{} = [unknown] (total: {total})", self.0)
         } else {
-            write!(f, "{} = {snap}/s (total: {total})", self.0)
+            write!(
+                f,
+                "{} = {}/s +{} (total: {total})",
+                self.0, userdata.avg_snapshot, userdata.delta_snapshot
+            )
         }
     }
 }
@@ -313,6 +333,7 @@ pub fn display_every(filter: &AhoCorasick, interval: Duration) -> RunAtInterval 
     RunAtInterval::new(interval, move |duration| {
         let mut builder = String::new();
         builder.push_str("\n====== COUNTERS ======\n");
+        writeln!(&mut builder, "time since start: {:?}", duration.since_start).unwrap();
         if counters.is_empty() {
             builder.push_str("no counters to display\n");
         }
