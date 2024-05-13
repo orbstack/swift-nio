@@ -11,3 +11,7 @@ var Monitor = &monitor{}
 func (m monitor) NetworkMTU() int {
 	return vnettypes.PreferredMTU
 }
+
+func (m monitor) NetworkWantsVnetHdr() bool {
+	return true
+}

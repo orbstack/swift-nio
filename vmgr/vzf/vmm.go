@@ -1,7 +1,6 @@
 package vzf
 
 import (
-	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/vnet/vnettypes"
 )
 
@@ -10,9 +9,10 @@ type monitor struct{}
 var Monitor = &monitor{}
 
 func (m monitor) NetworkMTU() int {
-	if osver.IsAtLeast("v13.0") {
-		return vnettypes.PreferredMTU
-	} else {
-		return vnettypes.BaseMTU
-	}
+	// our kernel no longer has double vnet hdr hacks for forcing TSO
+	return vnettypes.BaseMTU
+}
+
+func (m monitor) NetworkWantsVnetHdr() bool {
+	return false
 }

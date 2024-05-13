@@ -409,6 +409,7 @@ func (e *endpoint) Wait() {
 }
 
 // virtioNetHdr is declared in linux/virtio_net.h.
+// full header is 12 bytes, but numBuffers field is usually not included
 type virtioNetHdr struct {
 	flags      uint8
 	gsoType    uint8
@@ -416,6 +417,7 @@ type virtioNetHdr struct {
 	gsoSize    uint16
 	csumStart  uint16
 	csumOffset uint16
+	numBuffers uint16
 }
 
 // marshal serializes h to a newly-allocated byte slice, in little-endian byte
@@ -492,11 +494,13 @@ func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
 	var vnetHdrBuf []byte
 	if e.gsoKind == stack.HostGSOSupported {
 		vnetHdr := virtioNetHdr{}
+		// GSO is only for large TCP packets. UDP and small TCP packets still need this part
+		vnetHdr.flags = _VIRTIO_NET_HDR_F_DATA_VALID
 		if pkt.GSOOptions.Type != stack.GSONone {
 			vnetHdr.hdrLen = uint16(pkt.HeaderSize())
 			if pkt.GSOOptions.NeedsCsum {
 				// for some reason F_NEEDS_CSUM alone doesn't work
-				vnetHdr.flags = _VIRTIO_NET_HDR_F_DATA_VALID | _VIRTIO_NET_HDR_F_NEEDS_CSUM
+				vnetHdr.flags |= _VIRTIO_NET_HDR_F_NEEDS_CSUM
 				vnetHdr.csumStart = header.EthernetMinimumSize + pkt.GSOOptions.L3HdrLen
 				vnetHdr.csumOffset = pkt.GSOOptions.CsumOffset
 			}

@@ -265,7 +265,8 @@ func CreateVm(monitor vmm.Monitor, params *VmParams) (*vnet.Network, vmm.Machine
 	var vnetwork *vnet.Network
 	if params.NetworkVnet {
 		newNetwork, gvnetFile, err := vnet.StartUnixgramPair(vnet.NetOptions{
-			LinkMTU: uint32(mtu),
+			LinkMTU:      uint32(mtu),
+			WantsVnetHdr: monitor.NetworkWantsVnetHdr(),
 		})
 		check(err)
 		vnetwork = newNetwork

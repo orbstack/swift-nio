@@ -87,7 +87,8 @@ type Network struct {
 }
 
 type NetOptions struct {
-	LinkMTU uint32
+	LinkMTU      uint32
+	WantsVnetHdr bool
 }
 
 func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
@@ -124,9 +125,14 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 	// - host -> guest: 65517 (65535 - 10 (vnet_hdr) - 8 (ipv6 overhead))
 	// but that's ok, because official MTU on the Linux side is 1500. 65535 is a TSO detail
 	if opts.LinkMTU > vnettypes.BaseMTU {
-		// IPv6 gets truncated without -8 bytes on GSOMaxSize. TODO: why?
-		// also, we don't strictly need -8 on MTU, only GSOMaxSize. but just make it match to avoid issues
-		linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize + 8)
+		// in the VZF case this subtracts from MTU because the VM gets a double vnet hdr
+		// with RSVM the vnet hdr is separate from the 65535 max
+		if !opts.WantsVnetHdr {
+			// IPv6 gets truncated without -8 bytes on GSOMaxSize. TODO: why?
+			// also, we don't strictly need -8 on MTU, only GSOMaxSize. but just make it match to avoid issues
+			linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize + 8)
+		}
+
 		// we use GSO *with* high MTU just to give Linux kernel the GSO/TSO metadata
 		// so it can split for mtu-1500 bridges like Docker Compose
 		linkOpts.GSOMaxSize = linkOpts.MTU
