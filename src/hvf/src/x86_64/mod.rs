@@ -798,11 +798,12 @@ impl HvfVcpu {
                 // some exit reasons have metadata. the highest reason we check for is 68
                 match exit_reason & 0xff {
                     VMX_REASON_VMCALL => {
-                        let call_id = self.read_reg(hv_x86_reg_t_HV_X86_R8)?;
+                        // KVM hypercall ABI (Intel)
+                        let call_id = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff;
                         match call_id {
                             0xc400_002a => {
-                                let arg1 = self.read_reg(hv_x86_reg_t_HV_X86_RDI)?;
-                                let arg2 = self.read_reg(hv_x86_reg_t_HV_X86_RSI)?;
+                                let arg1 = self.read_reg(hv_x86_reg_t_HV_X86_RBX)?;
+                                let arg2 = self.read_reg(hv_x86_reg_t_HV_X86_RCX)?;
                                 Ok(VcpuExit::HypervisorIoCall {
                                     dev_id: arg1 as usize,
                                     args_ptr: arg2 as usize,
