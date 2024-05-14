@@ -12,11 +12,12 @@ use super::dgram::Dgram;
 use std::os::fd::AsRawFd;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{cmp, mem, result};
 use utils::epoll::{ControlOperation, Epoll, EpollEvent, EventSet};
 use utils::eventfd::EventFd;
+use utils::Mutex;
 use virtio_bindings::virtio_net::virtio_net_hdr_v1;
 use vm_memory::{Bytes, GuestAddress, GuestMemoryMmap};
 

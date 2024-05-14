@@ -4,7 +4,8 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use devices::virtio::{Vsock, VsockError};
 

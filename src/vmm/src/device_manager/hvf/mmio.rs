@@ -6,8 +6,9 @@
 // found in the THIRD-PARTY file.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{fmt, io};
+use utils::Mutex;
 
 #[cfg(target_arch = "aarch64")]
 use arch::aarch64::DeviceInfoForFDT;

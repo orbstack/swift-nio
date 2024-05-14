@@ -1,7 +1,8 @@
 use std::os::unix::io::RawFd;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
+use utils::Mutex;
 
 use super::super::super::legacy::Gic;
 use super::super::Queue as VirtQueue;

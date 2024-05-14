@@ -1,7 +1,8 @@
 // Copyright 2021 Red Hat, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{any::Any, sync::Mutex, thread::Thread};
+use std::{any::Any, thread::Thread};
+use utils::Mutex;
 
 use hvf::HvfVm;
 

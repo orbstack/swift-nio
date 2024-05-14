@@ -5,8 +5,8 @@ use std::any::Any;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, VecDeque};
 use std::convert::TryInto;
-use std::sync::Mutex;
 use std::thread::Thread;
+use utils::Mutex;
 
 use arch::aarch64::gicv2::GICv2;
 use arch::aarch64::layout::GTIMER_VIRT;

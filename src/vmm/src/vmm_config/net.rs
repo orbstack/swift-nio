@@ -3,7 +3,8 @@
 
 use std::fmt;
 use std::result;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use devices::virtio::net::device::VirtioNetBackend;
 use devices::virtio::Net;

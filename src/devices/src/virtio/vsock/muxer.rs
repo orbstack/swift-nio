@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::os::unix::io::RawFd;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
+use utils::Mutex;
 
 use super::super::super::legacy::Gic;
 use super::super::Queue as VirtQueue;

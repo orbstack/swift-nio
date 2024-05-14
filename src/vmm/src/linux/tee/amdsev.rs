@@ -3,7 +3,8 @@ use std::fs::File;
 use std::io::Read;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use super::super::super::resources::TeeConfig;
 use super::super::vstate::MeasuredRegion;

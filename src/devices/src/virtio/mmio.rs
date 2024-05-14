@@ -6,7 +6,8 @@
 // found in the THIRD-PARTY file.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
+use utils::{Mutex, MutexGuard};
 
 use utils::byte_order;
 use vm_memory::{GuestAddress, GuestMemoryMmap};

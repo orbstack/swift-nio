@@ -10,7 +10,8 @@ use std::io;
 #[cfg(target_os = "linux")]
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use super::{Error, Vmm};
 

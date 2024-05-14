@@ -1,7 +1,8 @@
 use std::io::Write;
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use crossbeam_channel::{unbounded, Sender};
 use utils::eventfd::EventFd;

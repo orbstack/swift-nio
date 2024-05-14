@@ -4,7 +4,8 @@ use std::env;
 use std::os::fd::AsRawFd;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 #[cfg(target_os = "macos")]
 use crossbeam_channel::{unbounded, Sender};

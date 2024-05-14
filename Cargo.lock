@@ -505,6 +505,7 @@ dependencies = [
  "num",
  "rustc-hash",
  "tracing",
+ "utils",
 ]
 
 [[package]]

@@ -6,10 +6,8 @@
 
 // === Definitions === //
 
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex},
-};
+use std::{collections::VecDeque, sync::Arc};
+use utils::Mutex;
 
 use rustc_hash::FxHashMap;
 

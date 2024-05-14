@@ -9,7 +9,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use utils::byte_order;
 use utils::eventfd::EventFd;

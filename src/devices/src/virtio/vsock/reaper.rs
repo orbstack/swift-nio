@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
+use utils::Mutex;
 
 use super::proxy::Proxy;
 use crossbeam_channel::Receiver;

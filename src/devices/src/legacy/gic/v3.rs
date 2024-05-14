@@ -1,7 +1,5 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, sync::Arc};
+use utils::Mutex;
 
 use super::{Gic, GicVcpuHandle, UserspaceGicImpl, WfeThread};
 

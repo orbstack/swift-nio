@@ -12,7 +12,8 @@ use std::collections::btree_map::BTreeMap;
 use std::fmt;
 use std::io;
 use std::result;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use rustc_hash::FxHashMap;
 

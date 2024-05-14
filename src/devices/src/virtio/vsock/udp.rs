@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::num::Wrapping;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::sys::socket::{

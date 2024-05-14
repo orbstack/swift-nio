@@ -9,9 +9,10 @@ use std::io::{self, Write};
 use std::mem::size_of;
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use utils::eventfd::EventFd;
+use utils::Mutex;
 use virtio_bindings::virtio_blk::*;
 use vm_memory::{ByteValued, GuestMemoryMmap};
 

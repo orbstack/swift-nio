@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use ahash::RandomState;
 use utils::epoll::{self, Epoll, EpollEvent};

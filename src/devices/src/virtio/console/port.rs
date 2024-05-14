@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::{mem, thread};
+use utils::Mutex;
 
 use vm_memory::GuestMemoryMmap;
 

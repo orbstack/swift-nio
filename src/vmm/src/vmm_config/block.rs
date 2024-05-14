@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use devices::virtio::{Block, CacheType};
 

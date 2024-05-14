@@ -6,8 +6,9 @@
 // found in the THIRD-PARTY file.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{fmt, io};
+use utils::Mutex;
 
 #[cfg(target_arch = "aarch64")]
 use arch::aarch64::DeviceInfoForFDT;
@@ -321,8 +322,11 @@ mod tests {
             DummyDevice {
                 dummy: 0,
                 queues: QUEUE_SIZES.iter().map(|&s| Queue::new(s)).collect(),
-                queue_evts: [EventFd::new(utils::eventfd::EFD_NONBLOCK).expect("cannot create eventFD")],
-                interrupt_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK).expect("cannot create eventFD"),
+                queue_evts: [
+                    EventFd::new(utils::eventfd::EFD_NONBLOCK).expect("cannot create eventFD")
+                ],
+                interrupt_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK)
+                    .expect("cannot create eventFD"),
             }
         }
     }

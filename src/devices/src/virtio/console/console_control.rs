@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::ops::Deref;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use utils::eventfd::EventFd;
 use utils::eventfd::EFD_NONBLOCK;

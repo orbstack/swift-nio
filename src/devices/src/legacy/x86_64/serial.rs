@@ -307,7 +307,8 @@ mod tests {
     use std::io;
     use std::io::Write;
     use std::os::unix::io::{AsRawFd, RawFd};
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
+    use utils::Mutex;
 
     use polly::event_manager::EventManager;
 

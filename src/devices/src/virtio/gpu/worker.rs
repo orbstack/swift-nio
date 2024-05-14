@@ -1,7 +1,8 @@
 use std::io::Read;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{result, thread};
+use utils::Mutex;
 
 use crossbeam_channel::Receiver;
 #[cfg(target_os = "macos")]

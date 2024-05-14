@@ -1,8 +1,9 @@
 use std::cmp;
 use std::io::Write;
 use std::sync::atomic::AtomicUsize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread::JoinHandle;
+use utils::Mutex;
 
 use utils::eventfd::{EventFd, EFD_NONBLOCK};
 use virtio_bindings::{virtio_config::VIRTIO_F_VERSION_1, virtio_ring::VIRTIO_RING_F_EVENT_IDX};

@@ -4,7 +4,8 @@ use std::iter::zip;
 use std::mem::{size_of, size_of_val};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::sync::atomic::AtomicUsize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use libc::TIOCGWINSZ;
 use utils::eventfd::EventFd;

@@ -19,9 +19,10 @@ use std::io::Write;
 use std::os::fd::RawFd;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread::JoinHandle;
 use utils::eventfd::{EventFd, EFD_NONBLOCK};
+use utils::Mutex;
 use virtio_bindings::virtio_net::{
     VIRTIO_NET_F_CSUM, VIRTIO_NET_F_GUEST_CSUM, VIRTIO_NET_F_GUEST_TSO4, VIRTIO_NET_F_GUEST_TSO6,
     VIRTIO_NET_F_HOST_TSO4, VIRTIO_NET_F_HOST_TSO6, VIRTIO_NET_F_MAC, VIRTIO_NET_F_MTU,

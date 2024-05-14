@@ -1,6 +1,7 @@
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use rand::{rngs::OsRng, RngCore};
 use utils::eventfd::EventFd;

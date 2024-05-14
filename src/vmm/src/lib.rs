@@ -43,10 +43,11 @@ use std::io;
 use std::os::fd::RawFd;
 use std::os::unix::io::AsRawFd;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 #[cfg(target_os = "linux")]
 use std::time::Duration;
+use utils::Mutex;
 
 #[cfg(target_arch = "x86_64")]
 use crate::device_manager::legacy::PortIODeviceManager;

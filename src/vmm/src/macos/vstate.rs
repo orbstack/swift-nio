@@ -10,9 +10,10 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread::{self, Thread};
 use std::time::Duration;
+use utils::Mutex;
 
 use super::super::TimestampUs;
 use super::barrier::BreakableBarrier;

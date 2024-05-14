@@ -6,9 +6,10 @@ use std::{
     os::raw::c_void,
     sync::{
         atomic::{AtomicI64, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
+use utils::Mutex;
 
 use anyhow::{anyhow, Context};
 use crossbeam_channel::unbounded;

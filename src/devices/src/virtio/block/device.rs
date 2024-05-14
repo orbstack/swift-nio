@@ -17,7 +17,8 @@ use std::os::macos::fs::MetadataExt;
 use std::path::PathBuf;
 use std::result;
 use std::sync::atomic::AtomicUsize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use libc::{fpunchhole_t, off_t};
 use tracing::{error, warn};

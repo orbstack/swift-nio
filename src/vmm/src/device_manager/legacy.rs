@@ -7,7 +7,8 @@
 #![cfg(target_arch = "x86_64")]
 
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use utils::Mutex;
 
 use devices;
 use utils::eventfd::EventFd;

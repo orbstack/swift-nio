@@ -8,8 +8,9 @@
 
 use std::collections::VecDeque;
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{io, result};
+use utils::Mutex;
 
 use polly::event_manager::{EventManager, Subscriber};
 use utils::byte_order::{read_le_u32, write_le_u32};

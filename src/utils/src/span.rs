@@ -1,6 +1,6 @@
+use crate::Mutex;
 use std::{
     collections::HashMap,
-    sync::Mutex,
     time::{Duration, Instant},
 };
 
