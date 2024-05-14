@@ -556,6 +556,7 @@ dependencies = [
  "crossbeam-channel",
  "iced-x86",
  "libc",
+ "nix 0.28.0",
  "rustc-hash",
  "thiserror",
  "tracing",
