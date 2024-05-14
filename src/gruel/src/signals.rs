@@ -7,6 +7,8 @@ use bitflags::Flags;
 use parking_lot::Mutex;
 use scopeguard::guard;
 
+use crate::util::Parker;
+
 // === RawSignalChannel === //
 
 #[derive(Clone, Default)]
@@ -331,8 +333,15 @@ impl<S: Flags<Bits = u64> + Copy> AnySignalChannel for SignalChannel<S> {
 // Idle
 pub trait ParkSignalChannelExt: AnySignalChannel {
     fn wait_on_park(&self, wake_mask: Self::Mask) {
-        let thread = std::thread::current();
-        self.wait(wake_mask, |_| thread.unpark(), std::thread::park);
+        thread_local! {
+            // We use our own parker implementation to avoid wake-ups from spurious
+            // unpark operations.
+            static MY_PARKER: Parker = Parker::default();
+        }
+
+        MY_PARKER.with(|parker| {
+            self.wait(wake_mask, |_| parker.unpark(), || parker.park());
+        });
     }
 }
 
