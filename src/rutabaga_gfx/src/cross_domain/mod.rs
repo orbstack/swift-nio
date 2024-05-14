@@ -13,8 +13,8 @@ use std::fs::File;
 use std::mem::size_of;
 use std::sync::Arc;
 use std::sync::Condvar;
-use std::sync::Mutex;
 use std::thread;
+use utils::Mutex;
 
 use log::error;
 use zerocopy::AsBytes;
@@ -87,7 +87,7 @@ enum RingWrite<'a, T> {
 }
 
 pub(crate) type CrossDomainResources = Arc<Mutex<Map<u32, CrossDomainResource>>>;
-type CrossDomainJobs = Mutex<Option<VecDeque<CrossDomainJob>>>;
+type CrossDomainJobs = std::sync::Mutex<Option<VecDeque<CrossDomainJob>>>;
 pub(crate) type CrossDomainItemState = Arc<Mutex<CrossDomainItems>>;
 
 pub(crate) struct CrossDomainResource {
@@ -191,7 +191,7 @@ impl CrossDomainState {
             channel_ring_id,
             context_resources,
             connection,
-            jobs: Mutex::new(Some(VecDeque::new())),
+            jobs: std::sync::Mutex::new(Some(VecDeque::new())),
             jobs_cvar: Condvar::new(),
         }
     }

@@ -25,6 +25,7 @@ remain = "0.2"
 thiserror = "1.0.23"
 zerocopy = "0.6"
 log = "0.4"
+utils = { version = "0.1.0", path = "../utils" }
 
 [target.'cfg(unix)'.dependencies]
 nix = "0.26.1"

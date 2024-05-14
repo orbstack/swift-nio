@@ -19,7 +19,7 @@ use std::ptr::null;
 use std::ptr::null_mut;
 use std::slice::from_raw_parts;
 use std::slice::from_raw_parts_mut;
-use std::sync::Mutex;
+use utils::Mutex;
 
 use libc::iovec;
 use libc::EINVAL;

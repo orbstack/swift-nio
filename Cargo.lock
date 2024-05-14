@@ -1239,6 +1239,7 @@ dependencies = [
  "pkg-config",
  "remain",
  "thiserror",
+ "utils",
  "winapi",
  "zerocopy 0.6.6",
 ]
