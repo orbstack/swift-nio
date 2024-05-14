@@ -32,8 +32,9 @@ use nix::sys::uio::pwrite;
 use nix::unistd::AccessFlags;
 use nix::unistd::{access, LinkatFlags};
 use nix::unistd::{ftruncate, symlinkat};
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use smallvec::SmallVec;
+use utils::Mutex;
 use vm_memory::ByteValued;
 
 use crate::virtio::fs::attrlist::{self, AttrlistEntry, INLINE_ENTRIES};
@@ -94,7 +95,7 @@ struct HandleData {
 
 impl Drop for HandleData {
     fn drop(&mut self) {
-        let ds = self.dirstream.lock();
+        let ds = self.dirstream.lock().unwrap();
         if ds.stream != 0 {
             // this is a dir, and it had a stream open
             // closedir *closes* the fd passed to fdopendir (which is the fd that File holds)
@@ -756,7 +757,7 @@ impl PassthroughFs {
         // race OK: FUSE won't FORGET until all handles are closed
         let (dev, _) = self.nodeids.get(&nodeid).ok_or_else(ebadf)?.dev_ino;
 
-        let mut ds = data.dirstream.lock();
+        let mut ds = data.dirstream.lock().unwrap();
 
         // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries
         let dir_stream = if ds.stream == 0 {
@@ -1174,7 +1175,7 @@ impl FileSystem for PassthroughFs {
             .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
-        let mut ds = data.dirstream.lock();
+        let mut ds = data.dirstream.lock().unwrap();
 
         // read entries if not already done
         let entries = if let Some(entries) = ds.entries.as_ref() {
