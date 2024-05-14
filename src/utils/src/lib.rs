@@ -23,3 +23,6 @@ pub mod sm;
 pub mod span;
 pub mod syscall;
 pub mod time;
+
+mod os_unfair_lock;
+pub use os_unfair_lock::{Mutex, MutexGuard};
