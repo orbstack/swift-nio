@@ -75,6 +75,7 @@ is equivalent to:
 		cmdArgs = append(cmdArgs, dest)
 
 		// TODO: do this ourselves
+		// exec OK: this runs on Linux, in a separate process
 		cmd := exec.Command("cp", cmdArgs...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout

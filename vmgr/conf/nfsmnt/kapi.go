@@ -3,7 +3,6 @@ package nfsmnt
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"sync"
@@ -11,6 +10,7 @@ import (
 	"unsafe"
 
 	nfs_sys_prot "github.com/buildbarn/go-xdr/pkg/protocols/darwin_nfs_sys_prot"
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 
 	"golang.org/x/sys/unix"
@@ -77,7 +77,7 @@ func doMount(spec Spec) error {
 	// such a way that the arguments are valid, but is guaranteed to
 	// fail quickly.
 	initializeNFSOnce.Do(func() {
-		exec.Command("/sbin/mount_nfs", "0.0.0.0:/", "/").Run()
+		pspawn.Command("/sbin/mount_nfs", "0.0.0.0:/", "/").Run()
 	})
 
 	// Construct attributes that are provided to mount(2). For NFS,

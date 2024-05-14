@@ -1,11 +1,10 @@
 package main
 
 import (
-	"os/exec"
-
 	"github.com/fsnotify/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/types"
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -14,7 +13,7 @@ func doUninstallCleanup() error {
 	logrus.Info("uninstall - cleaning up")
 
 	// revert docker context
-	err := exec.Command(conf.FindXbin("docker"), "context", "use", "default").Run()
+	err := pspawn.Command(conf.FindXbin("docker"), "context", "use", "default").Run()
 	if err != nil {
 		return err
 	}

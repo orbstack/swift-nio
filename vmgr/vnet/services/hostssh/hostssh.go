@@ -149,6 +149,7 @@ func handleSshConn(s ssh.Session) error {
 			argv0 = &loginArgv0
 		}
 	}
+	// TODO: can't use pspawn because setctty is missing. need re-exec helper
 	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
 	if argv0 != nil {
 		cmd.Args[0] = *argv0

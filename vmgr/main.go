@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
 	"runtime"
 	"strconv"
@@ -41,6 +40,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/util/errorx"
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
@@ -100,7 +100,7 @@ func extractSparse(file io.ReadCloser) {
 	target := conf.DataDir()
 	// Go archive/tar doesn't fully support sparse. bsdtar does.
 	// apparently some people get not found in PATH so we use the full path
-	cmd := exec.Command("/usr/bin/bsdtar", "-xf", "-", "-C", target)
+	cmd := pspawn.Command("/usr/bin/bsdtar", "-xf", "-", "-C", target)
 	cmd.Stdin = file
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

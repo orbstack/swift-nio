@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
@@ -57,7 +58,7 @@ func getFeedURL() string {
 	return fmt.Sprintf("https://api-updates.orbstack.dev/%s/appcast.xml?bucket=%d", runtime.GOARCH, bucket)
 }
 
-func NewSparkleCommand(args ...string) (*exec.Cmd, error) {
+func NewSparkleCommand(args ...string) (*pspawn.Cmd, error) {
 	sparkleExe, err := conf.FindSparkleExe()
 	if err != nil {
 		return nil, err
@@ -86,7 +87,7 @@ func NewSparkleCommand(args ...string) (*exec.Cmd, error) {
 
 	baseArgs := []string{"--user-agent-name", userAgent, "--feed-url", feedURL, "--send-profile", "--grant-automatic-checks", "--channels", strings.Join(channels, ","), "--allow-major-upgrades", bundlePath}
 	allArgs := append(baseArgs, args...)
-	cmd := exec.Command(sparkleExe, allArgs...)
+	cmd := pspawn.Command(sparkleExe, allArgs...)
 	logrus.WithField("args", allArgs).Debug("sparkle-cli command")
 	return cmd, nil
 }

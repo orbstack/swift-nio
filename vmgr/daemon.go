@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"syscall"
 
 	"github.com/orbstack/macvirt/vmgr/buildid"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/flock"
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 )
 
@@ -111,7 +111,7 @@ func runSpawnDaemon() {
 	logFile, err := os.Create(conf.VmgrLog())
 	check(err)
 
-	cmd := exec.Command(exe, "vmgr", "-build-id", buildID, "-handoff")
+	cmd := pspawn.Command(exe, "vmgr", "-build-id", buildID, "-handoff")
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{

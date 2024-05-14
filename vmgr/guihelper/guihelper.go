@@ -2,10 +2,10 @@ package guihelper
 
 import (
 	"fmt"
-	"os/exec"
 
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 )
 
 func run(args ...string) (string, error) {
@@ -14,7 +14,7 @@ func run(args ...string) (string, error) {
 		return "", err
 	}
 
-	cmd := exec.Command(exe, args...)
+	cmd := pspawn.Command(exe, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("run guihelper: %w; output: %s", err, out)

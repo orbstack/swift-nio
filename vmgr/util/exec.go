@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"syscall"
 
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/sirupsen/logrus"
 )
 
 func Run(combinedArgs ...string) (string, error) {
 	logrus.Tracef("run: %v", combinedArgs)
-	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
+	cmd := pspawn.Command(combinedArgs[0], combinedArgs[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		// without this, running interactive shell breaks ctrl-c SIGINT
 		Setsid: true,
@@ -32,7 +32,7 @@ func Run(combinedArgs ...string) (string, error) {
 
 func RunWithEnv(extraEnv []string, combinedArgs ...string) (string, error) {
 	logrus.Tracef("run: %v", combinedArgs)
-	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
+	cmd := pspawn.Command(combinedArgs[0], combinedArgs[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		// without this, running interactive shell breaks ctrl-c SIGINT
 		Setsid: true,
@@ -53,7 +53,7 @@ func RunWithEnv(extraEnv []string, combinedArgs ...string) (string, error) {
 
 func RunLoginShell(ctx context.Context, combinedArgs ...string) error {
 	logrus.Tracef("run: %v", combinedArgs)
-	cmd := exec.CommandContext(ctx, combinedArgs[0], combinedArgs[1:]...)
+	cmd := pspawn.CommandContext(ctx, combinedArgs[0], combinedArgs[1:]...)
 	// transform to login shell syntax: -bash instead of bash -l
 	cmd.Args[0] = "-" + filepath.Base(cmd.Args[0])
 	cmd.SysProcAttr = &syscall.SysProcAttr{
