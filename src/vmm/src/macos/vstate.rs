@@ -990,7 +990,7 @@ impl VcpuHandle {
     }
 
     pub fn join(self) {
-        info!(
+        debug!(
             "Joining on vcpu thread: {:?}",
             self.vcpu_thread.thread().name()
         );

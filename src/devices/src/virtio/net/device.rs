@@ -258,13 +258,13 @@ impl VirtioDevice for Net {
 
 impl VmmExitObserver for Net {
     fn on_vmm_exit(&mut self) {
-        info!("Shutting down net");
+        debug!("Shutting down net");
         self.stop_evt.write(1).unwrap();
         if let Some(thread) = self.worker_thread.take() {
-            info!("Joining on net");
+            debug!("Joining on net");
             let _ = thread.join();
         }
 
-        info!("Done shutting down net");
+        debug!("Done shutting down net");
     }
 }
