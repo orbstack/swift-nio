@@ -56,7 +56,10 @@ impl FsWorker {
     }
 
     pub fn run(self) -> thread::JoinHandle<()> {
-        thread::spawn(|| self.work())
+        thread::Builder::new()
+            .name("fs worker".to_string())
+            .spawn(|| self.work())
+            .expect("failed to spawn thread")
     }
 
     fn work(mut self) {

@@ -132,23 +132,30 @@ impl Port {
             let port_id = self.port_id;
             let stopfd = stopfd.try_clone().unwrap();
             let stop = stop.clone();
-            thread::spawn(move || {
-                process_rx(
-                    mem,
-                    rx_queue,
-                    irq_signaler,
-                    input,
-                    control,
-                    port_id,
-                    stopfd,
-                    stop,
-                )
-            })
+
+            thread::Builder::new()
+                .name("console port rx".to_string())
+                .spawn(move || {
+                    process_rx(
+                        mem,
+                        rx_queue,
+                        irq_signaler,
+                        input,
+                        control,
+                        port_id,
+                        stopfd,
+                        stop,
+                    )
+                })
+                .expect("failed to spawn thread")
         });
 
         let tx_thread = output.map(|output| {
             let stop = stop.clone();
-            thread::spawn(move || process_tx(mem, tx_queue, irq_signaler, output, stop))
+            thread::Builder::new()
+                .name("console port tx".to_string())
+                .spawn(move || process_tx(mem, tx_queue, irq_signaler, output, stop))
+                .expect("failed to spawn thread")
         });
 
         self.state = PortState::Active {

@@ -71,7 +71,10 @@ impl Worker {
     }
 
     pub fn run(self) {
-        thread::spawn(|| self.work());
+        thread::Builder::new()
+            .name("gpu worker".to_string())
+            .spawn(|| self.work())
+            .expect("failed to spawn thread");
     }
 
     fn work(mut self) {

@@ -94,7 +94,10 @@ impl NetWorker {
     }
 
     pub fn run(self) -> JoinHandle<()> {
-        thread::spawn(|| self.work())
+        thread::Builder::new()
+            .name("net worker".to_string())
+            .spawn(|| self.work())
+            .expect("failed to spawn thread")
     }
 
     fn work(mut self) {

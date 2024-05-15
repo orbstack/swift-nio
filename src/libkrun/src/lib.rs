@@ -311,37 +311,41 @@ impl Machine {
 
         if vmr.gpu_virgl_flags.is_some() {
             let mapper_vmm = vmm.clone();
-            std::thread::spawn(move || loop {
-                match receiver.recv() {
-                    Err(e) => {
-                        error!("Error in receiver: {:?}", e);
-                        break;
+            std::thread::Builder::new()
+                .name("VMM GPU mapper".to_string())
+                .spawn(move || loop {
+                    match receiver.recv() {
+                        Err(e) => {
+                            error!("Error in receiver: {:?}", e);
+                            break;
+                        }
+                        Ok(m) => match m {
+                            MemoryMapping::AddMapping(s, h, g, l) => {
+                                mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
+                            }
+                            MemoryMapping::RemoveMapping(s, g, l) => {
+                                mapper_vmm.lock().unwrap().remove_mapping(s, g, l)
+                            }
+                        },
                     }
-                    Ok(m) => match m {
-                        MemoryMapping::AddMapping(s, h, g, l) => {
-                            mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
-                        }
-                        MemoryMapping::RemoveMapping(s, g, l) => {
-                            mapper_vmm.lock().unwrap().remove_mapping(s, g, l)
-                        }
-                    },
-                }
-            });
+                })?;
         }
 
-        std::thread::spawn(move || loop {
-            event_manager.run().unwrap();
+        std::thread::Builder::new()
+            .name("VMM main loop".to_string())
+            .spawn(move || loop {
+                event_manager.run().unwrap();
 
-            if event_manager
-                .last_ready_events()
-                .iter()
-                .any(|ev| ev.fd() == exit_evt)
-            {
-                tracing::debug!("VM successfully torn-down.");
-                unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
-                break;
-            }
-        });
+                if event_manager
+                    .last_ready_events()
+                    .iter()
+                    .any(|ev| ev.fd() == exit_evt)
+                {
+                    tracing::debug!("VM successfully torn-down.");
+                    unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
+                    break;
+                }
+            })?;
 
         self.vmm_shutdown = Some(vmm.lock().unwrap().shutdown_handle());
 
