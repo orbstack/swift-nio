@@ -34,7 +34,6 @@ use nix::sys::uio::pwrite;
 use nix::unistd::{access, LinkatFlags};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
-use parking_lot::RwLock;
 use smallvec::SmallVec;
 use utils::Mutex;
 use vm_memory::ByteValued;
@@ -91,7 +90,7 @@ struct DirStream {
 
 struct HandleData {
     nodeid: NodeId,
-    file: RwLock<ManuallyDrop<File>>,
+    file: ManuallyDrop<File>,
     dirstream: Mutex<DirStream>,
 }
 
@@ -106,7 +105,7 @@ impl Drop for HandleData {
         } else {
             // this is a file, or a dir with no stream open
             // manually drop File to close OwnedFd
-            unsafe { ManuallyDrop::drop(&mut self.file.write()) };
+            unsafe { ManuallyDrop::drop(&mut self.file) };
         }
     }
 }
@@ -757,7 +756,7 @@ impl PassthroughFs {
 
         // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries
         let dir_stream = if ds.stream == 0 {
-            let dir = unsafe { libc::fdopendir(data.file.write().as_raw_fd()) };
+            let dir = unsafe { libc::fdopendir(data.file.as_raw_fd()) };
             if dir.is_null() {
                 return Err(linux_error(io::Error::last_os_error()));
             }
@@ -840,7 +839,7 @@ impl PassthroughFs {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
         let data = HandleData {
             nodeid,
-            file: RwLock::new(ManuallyDrop::new(file)),
+            file: ManuallyDrop::new(file),
             dirstream: Mutex::new(DirStream {
                 stream: 0,
                 offset: 0,
@@ -1179,8 +1178,7 @@ impl FileSystem for PassthroughFs {
         } else {
             // reserve # entries = nlink - 2 ("." and "..")
             let capacity = nlink.saturating_sub(2);
-            let file = data.file.write();
-            let entries = attrlist::list_dir(file.as_fd(), capacity as usize)?;
+            let entries = attrlist::list_dir(data.file.as_fd(), capacity as usize)?;
             ds.entries = Some(entries);
             ds.entries.as_ref().unwrap()
         };
@@ -1357,7 +1355,7 @@ impl FileSystem for PassthroughFs {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
         let data = HandleData {
             nodeid: entry.nodeid,
-            file: RwLock::new(ManuallyDrop::new(File::from(fd))),
+            file: ManuallyDrop::new(File::from(fd)),
             dirstream: Mutex::new(DirStream {
                 stream: 0,
                 offset: 0,
@@ -1414,8 +1412,7 @@ impl FileSystem for PassthroughFs {
 
         // This is safe because write_from uses preadv64, so the underlying file descriptor
         // offset is not affected by this operation.
-        let f = data.file.read();
-        w.write_from(&f, size as usize, offset)
+        w.write_from(&data.file, size as usize, offset)
     }
 
     fn write<R: io::Read + ZeroCopyReader>(
@@ -1444,8 +1441,7 @@ impl FileSystem for PassthroughFs {
             "write: nodeid={} handle={:?} size={} offset={}",
             nodeid, handle, size, offset
         );
-        let f = data.file.read();
-        r.read_to(&f, size as usize, offset)
+        r.read_to(&data.file, size as usize, offset)
     }
 
     fn getattr(
@@ -1481,8 +1477,7 @@ impl FileSystem for PassthroughFs {
                 .map(|v| v.clone())
                 .ok_or_else(ebadf)?;
 
-            let fd = hd.file.write().as_raw_fd();
-            Data::Handle(fd)
+            Data::Handle(hd.file.as_raw_fd())
         } else {
             Data::FilePath
         };
@@ -1823,12 +1818,9 @@ impl FileSystem for PassthroughFs {
             .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
-        // doesn't need exclusive fd access, but it should be a barrier point
-        let fd = data.file.write().as_raw_fd();
-
         // use barrier fsync to preserve semantics and avoid DB corruption
         // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe { libc::fcntl(fd, libc::F_BARRIERFSYNC, 0) };
+        let res = unsafe { libc::fcntl(data.file.as_raw_fd(), libc::F_BARRIERFSYNC, 0) };
 
         if res == 0 {
             Ok(())
@@ -2038,8 +2030,7 @@ impl FileSystem for PassthroughFs {
             .map(|v| v.clone())
             .ok_or_else(ebadf)?;
 
-        let file = data.file.write();
-
+        let file = &data.file;
         match mode {
             0 | FALLOC_FL_KEEP_SIZE => {
                 // determine how many blocks to preallocate
@@ -2164,10 +2155,14 @@ impl FileSystem for PassthroughFs {
             whence as i32
         };
 
-        let fd = data.file.write().as_raw_fd();
-
         // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe { libc::lseek(fd, offset as bindings::off64_t, mwhence as libc::c_int) };
+        let res = unsafe {
+            libc::lseek(
+                data.file.as_raw_fd(),
+                offset as bindings::off64_t,
+                mwhence as libc::c_int,
+            )
+        };
         if res == -1 {
             Err(linux_error(io::Error::last_os_error()))
         } else {
