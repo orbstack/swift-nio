@@ -88,7 +88,7 @@ macro_rules! char_array {
 const SMP_MAGIC_IDENT: [c_char; 4] = char_array!(c_char; '_', 'M', 'P', '_');
 const MPC_SIGNATURE: [c_char; 4] = char_array!(c_char; 'P', 'C', 'M', 'P');
 const MPC_SPEC: i8 = 4;
-const MPC_OEM: [c_char; 8] = char_array!(c_char; 'F', 'C', ' ', ' ', ' ', ' ', ' ', ' ');
+const MPC_OEM: [c_char; 8] = char_array!(c_char; 'O', 'R', 'B', ' ', ' ', ' ', ' ', ' ');
 const MPC_PRODUCT_ID: [c_char; 12] = ['0' as c_char; 12];
 const BUS_TYPE_ISA: [u8; 6] = char_array!(u8; 'I', 'S', 'A', ' ', ' ', ' ');
 pub const IO_APIC_DEFAULT_PHYS_BASE: u32 = 0xfec0_0000; // source: linux/arch/x86/include/asm/apicdef.h
