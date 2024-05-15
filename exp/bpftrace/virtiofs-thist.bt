@@ -49,6 +49,7 @@ BEGIN
     @opcodes[49] = "removemapping";
     @opcodes[50] = "syncfs";
     @opcodes[51] = "tmpfile";
+    @opcodes[52] = "statx";
 }
 
 kprobe:fuse_simple_request
