@@ -110,6 +110,10 @@ where
         self.main.entry(key)
     }
 
+    pub fn iter_main(&self) -> dashmap::iter::Iter<K1, V, S> {
+        self.main.iter()
+    }
+
     /// Clears the map, removing all values.
     pub fn clear(&self) {
         self.alt.clear();

@@ -1012,6 +1012,23 @@ impl FileSystem for PassthroughFs {
     }
 
     fn destroy(&self) {
+        /*
+        for handle in self.handles.iter() {
+            warn!("leaked handle: nodeid={}", handle.nodeid);
+        }
+        for node in self.nodeids.iter_main() {
+            if node.nodeid == fuse::ROOT_ID {
+                continue;
+            }
+
+            warn!(
+                "leaked node: nodeid={} refcount={}",
+                node.nodeid,
+                node.refcount.load(Ordering::Relaxed)
+            );
+        }
+        */
+
         self.handles.clear();
         self.nodeids.clear();
     }
