@@ -36,8 +36,9 @@ pub use self::server::ActivityNotifier;
 
 mod defs {
     pub const FS_DEV_ID: &str = "virtio_fs";
-    pub const NUM_QUEUES: usize = 2;
-    pub const QUEUE_SIZES: &[u16] = &[1024; NUM_QUEUES];
+    // we use the high-priority queue to implement FORGET batching/deferring, similar to a GC
+    // so allow a large number of requests to build up in the queue
+    pub const QUEUE_SIZES: &[u16] = &[4096, 1024];
     // High priority queue.
     pub const HPQ_INDEX: usize = 0;
     // Request queue.
