@@ -150,7 +150,6 @@ func CreateVm(monitor vmm.Monitor, params *VmParams) (*vnet.Network, vmm.Machine
 		// Kernel tuning
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
-		"swapaccount=0", // don't allocate cgroup swap bitmap (~3-4M)
 		// rcu_nocbs is in kernel
 		// Drivers
 		"nbd.nbds_max=4",    // fast boot
