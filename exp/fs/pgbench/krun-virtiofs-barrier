@@ -1,0 +1,99 @@
+docker-compose run --rm pgbench-init
+dropping old tables...
+creating tables...
+generating data (client-side)...
+5000000 of 5000000 tuples (100%) done (elapsed 2.06 s, remaining 0.00 s)
+vacuuming...
+creating primary keys...
+done in 3.34 s (drop tables 0.04 s, create tables 0.04 s, client-side generate 2.17 s, vacuum 0.18 s, primary keys 0.90 s).
+docker-compose run --rm pgbench
+pgbench (16.3 (Debian 16.3-1.pgdg120+1))
+starting vacuum...end.
+progress: 1.0 s, 9094.9 tps, lat 0.857 ms stddev 0.587, 0 failed
+progress: 2.0 s, 8092.7 tps, lat 0.986 ms stddev 0.650, 0 failed
+progress: 3.0 s, 8761.3 tps, lat 0.909 ms stddev 0.598, 0 failed
+progress: 4.0 s, 7239.6 tps, lat 1.100 ms stddev 0.717, 0 failed
+progress: 5.0 s, 9766.8 tps, lat 0.817 ms stddev 0.382, 0 failed
+progress: 6.0 s, 9912.9 tps, lat 0.803 ms stddev 0.344, 0 failed
+progress: 7.0 s, 10189.0 tps, lat 0.781 ms stddev 0.314, 0 failed
+progress: 8.0 s, 5554.0 tps, lat 1.437 ms stddev 15.471, 0 failed
+progress: 9.0 s, 9813.0 tps, lat 0.812 ms stddev 0.432, 0 failed
+progress: 10.0 s, 9936.6 tps, lat 0.802 ms stddev 0.357, 0 failed
+progress: 11.0 s, 10040.7 tps, lat 0.793 ms stddev 0.339, 0 failed
+progress: 12.0 s, 10203.9 tps, lat 0.780 ms stddev 0.333, 0 failed
+progress: 13.0 s, 9982.9 tps, lat 0.798 ms stddev 0.362, 0 failed
+progress: 14.0 s, 9689.1 tps, lat 0.822 ms stddev 0.434, 0 failed
+progress: 15.0 s, 9895.0 tps, lat 0.805 ms stddev 0.407, 0 failed
+progress: 16.0 s, 9944.1 tps, lat 0.801 ms stddev 0.410, 0 failed
+progress: 17.0 s, 7490.7 tps, lat 1.065 ms stddev 7.354, 0 failed
+progress: 18.0 s, 10003.3 tps, lat 0.796 ms stddev 0.366, 0 failed
+progress: 19.0 s, 9849.9 tps, lat 0.808 ms stddev 0.357, 0 failed
+progress: 20.0 s, 10024.8 tps, lat 0.794 ms stddev 0.350, 0 failed
+progress: 21.0 s, 10021.3 tps, lat 0.794 ms stddev 0.379, 0 failed
+progress: 22.0 s, 10023.1 tps, lat 0.795 ms stddev 0.392, 0 failed
+progress: 23.0 s, 10088.9 tps, lat 0.789 ms stddev 0.456, 0 failed
+progress: 24.0 s, 10153.9 tps, lat 0.785 ms stddev 0.463, 0 failed
+progress: 25.0 s, 10219.9 tps, lat 0.779 ms stddev 0.376, 0 failed
+progress: 26.0 s, 8952.5 tps, lat 0.776 ms stddev 0.380, 0 failed
+progress: 27.0 s, 8937.8 tps, lat 1.006 ms stddev 6.296, 0 failed
+progress: 28.0 s, 9743.8 tps, lat 0.818 ms stddev 0.451, 0 failed
+progress: 29.0 s, 9954.9 tps, lat 0.800 ms stddev 0.377, 0 failed
+progress: 30.0 s, 9760.2 tps, lat 0.816 ms stddev 0.570, 0 failed
+progress: 31.0 s, 9633.9 tps, lat 0.827 ms stddev 0.452, 0 failed
+progress: 32.0 s, 10114.2 tps, lat 0.787 ms stddev 0.387, 0 failed
+progress: 33.0 s, 9880.1 tps, lat 0.806 ms stddev 0.435, 0 failed
+progress: 34.0 s, 9524.7 tps, lat 0.836 ms stddev 0.475, 0 failed
+progress: 35.0 s, 10429.2 tps, lat 0.763 ms stddev 0.345, 0 failed
+progress: 36.0 s, 10416.6 tps, lat 0.764 ms stddev 0.323, 0 failed
+progress: 37.0 s, 8358.0 tps, lat 0.813 ms stddev 0.445, 0 failed
+progress: 38.0 s, 8095.2 tps, lat 1.130 ms stddev 6.048, 0 failed
+progress: 39.0 s, 9928.7 tps, lat 0.802 ms stddev 0.451, 0 failed
+progress: 40.0 s, 10079.1 tps, lat 0.790 ms stddev 0.359, 0 failed
+progress: 41.0 s, 10146.6 tps, lat 0.785 ms stddev 0.355, 0 failed
+progress: 42.0 s, 10053.5 tps, lat 0.792 ms stddev 0.389, 0 failed
+progress: 43.0 s, 10061.9 tps, lat 0.791 ms stddev 0.409, 0 failed
+progress: 44.0 s, 10176.1 tps, lat 0.783 ms stddev 0.415, 0 failed
+progress: 45.0 s, 10068.0 tps, lat 0.791 ms stddev 0.418, 0 failed
+progress: 46.0 s, 10119.9 tps, lat 0.787 ms stddev 0.429, 0 failed
+progress: 47.0 s, 10231.0 tps, lat 0.778 ms stddev 0.410, 0 failed
+progress: 48.0 s, 10156.2 tps, lat 0.784 ms stddev 0.406, 0 failed
+progress: 49.0 s, 7704.8 tps, lat 1.035 ms stddev 6.210, 0 failed
+progress: 50.0 s, 9920.1 tps, lat 0.803 ms stddev 0.423, 0 failed
+progress: 51.0 s, 9943.0 tps, lat 0.801 ms stddev 0.408, 0 failed
+progress: 52.0 s, 9958.1 tps, lat 0.799 ms stddev 0.363, 0 failed
+progress: 53.0 s, 9878.8 tps, lat 0.806 ms stddev 0.455, 0 failed
+progress: 54.0 s, 7825.3 tps, lat 1.017 ms stddev 0.784, 0 failed
+progress: 55.0 s, 10153.5 tps, lat 0.785 ms stddev 0.402, 0 failed
+progress: 56.0 s, 10263.2 tps, lat 0.776 ms stddev 0.365, 0 failed
+progress: 57.0 s, 10247.9 tps, lat 0.777 ms stddev 0.406, 0 failed
+progress: 58.0 s, 10148.4 tps, lat 0.784 ms stddev 0.414, 0 failed
+progress: 59.0 s, 10312.8 tps, lat 0.772 ms stddev 0.381, 0 failed
+progress: 60.0 s, 9775.1 tps, lat 0.814 ms stddev 0.490, 0 failed
+progress: 61.0 s, 7656.5 tps, lat 1.039 ms stddev 5.667, 0 failed
+progress: 62.0 s, 9930.4 tps, lat 0.803 ms stddev 0.401, 0 failed
+progress: 63.0 s, 9652.9 tps, lat 0.825 ms stddev 0.484, 0 failed
+progress: 64.0 s, 9736.9 tps, lat 0.817 ms stddev 0.523, 0 failed
+progress: 65.0 s, 9653.5 tps, lat 0.825 ms stddev 0.417, 0 failed
+progress: 66.0 s, 9954.8 tps, lat 0.800 ms stddev 0.386, 0 failed
+progress: 67.0 s, 10061.8 tps, lat 0.791 ms stddev 0.384, 0 failed
+progress: 68.0 s, 7591.9 tps, lat 1.050 ms stddev 1.004, 0 failed
+progress: 69.0 s, 9857.8 tps, lat 0.808 ms stddev 0.437, 0 failed
+progress: 70.0 s, 9956.0 tps, lat 0.799 ms stddev 0.402, 0 failed
+progress: 71.0 s, 9705.1 tps, lat 0.820 ms stddev 0.446, 0 failed
+progress: 72.0 s, 9846.8 tps, lat 0.808 ms stddev 0.432, 0 failed
+progress: 73.0 s, 6390.4 tps, lat 1.246 ms stddev 8.395, 0 failed
+progress: 74.0 s, 9042.1 tps, lat 0.883 ms stddev 0.570, 0 failed
+progress: 75.0 s, 9737.7 tps, lat 0.818 ms stddev 0.458, 0 failed
+transaction type: <builtin: TPC-B (sort of)>
+scaling factor: 50
+query mode: simple
+number of clients: 8
+number of threads: 2
+maximum number of tries: 1
+duration: 75 s
+number of transactions actually processed: 715730
+number of failed transactions: 0 (0.000%)
+latency average = 0.834 ms
+latency stddev = 2.216 ms
+initial connection time = 20.761 ms
+tps = 9545.475945 (without initial connection time)
