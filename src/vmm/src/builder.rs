@@ -488,8 +488,6 @@ pub fn build_microvm(
             &vm,
             &vcpu_config,
             &guest_memory,
-            boot_ip,
-            request_ts,
             &pio_device_manager.io_bus,
             &exit_evt,
         )
@@ -521,18 +519,17 @@ pub fn build_microvm(
         )?;
     }
 
+    #[cfg(all(target_arch = "aarch64", target_os = "macos", not(feature = "efi")))]
+    let boot_ip = GuestAddress(kernel_bundle.guest_addr);
+    #[cfg(all(target_arch = "aarch64", target_os = "macos", feature = "efi"))]
+    let boot_ip = GuestAddress(0u64);
+
     #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
     {
-        #[cfg(not(feature = "efi"))]
-        let start_addr = GuestAddress(kernel_bundle.guest_addr);
-        #[cfg(feature = "efi")]
-        let start_addr = GuestAddress(0u64);
-
         vcpus = create_vcpus_aarch64(
             &mut vm,
             &vcpu_config,
             &guest_memory,
-            start_addr,
             request_ts,
             &exit_evt,
             intc.clone().unwrap(),
@@ -666,7 +663,7 @@ pub fn build_microvm(
         println!("Starting TEE/microVM.");
     }
 
-    vmm.start_vcpus(vcpus)
+    vmm.start_vcpus(vcpus, boot_ip)
         .map_err(StartMicrovmError::Internal)?;
 
     // Clippy thinks we don't need Arc<Mutex<...
@@ -1006,26 +1003,18 @@ fn create_vcpus_x86_64(
     vm: &Vm,
     vcpu_config: &VcpuConfig,
     guest_mem: &GuestMemoryMmap,
-    entry_addr: GuestAddress,
-    request_ts: TimestampUs,
     io_bus: &devices::Bus,
     exit_evt: &EventFd,
 ) -> super::Result<Vec<Vcpu>> {
     let mut vcpus = Vec::with_capacity(vcpu_config.vcpu_count as usize);
-    let mut boot_senders = Vec::with_capacity(vcpu_config.vcpu_count as usize - 1);
+    let mut boot_senders = Vec::with_capacity(vcpu_config.vcpu_count as usize);
 
     for cpu_index in 0..vcpu_config.vcpu_count {
-        let boot_receiver = if cpu_index != 0 {
-            let (boot_sender, boot_receiver) = unbounded();
-            boot_senders.push(boot_sender);
-            Some(boot_receiver)
-        } else {
-            None
-        };
+        let (boot_sender, boot_receiver) = unbounded();
+        boot_senders.push(boot_sender);
 
         let mut vcpu = Vcpu::new_x86_64(
             cpu_index,
-            entry_addr,
             boot_receiver,
             exit_evt.try_clone().map_err(Error::EventFd)?,
             //io_bus.clone(),
@@ -1034,13 +1023,15 @@ fn create_vcpus_x86_64(
         )
         .map_err(Error::Vcpu)?;
 
-        vcpu.configure_x86_64(guest_mem, entry_addr, vcpu_config)
+        vcpu.configure_x86_64(guest_mem, vcpu_config)
             .map_err(Error::Vcpu)?;
 
         vcpus.push(vcpu);
     }
 
-    vcpus[0].set_boot_senders(boot_senders);
+    for vcpu in vcpus.iter_mut() {
+        vcpu.set_boot_senders(boot_senders.clone());
+    }
 
     Ok(vcpus)
 }
@@ -1077,26 +1068,19 @@ fn create_vcpus_aarch64(
     _vm: &mut Vm,
     vcpu_config: &VcpuConfig,
     guest_mem: &GuestMemoryMmap,
-    entry_addr: GuestAddress,
     request_ts: TimestampUs,
     exit_evt: &EventFd,
     intc: Arc<Mutex<Gic>>,
 ) -> super::Result<Vec<Vcpu>> {
     let mut vcpus = Vec::with_capacity(vcpu_config.vcpu_count as usize);
-    let mut boot_senders = Vec::with_capacity(vcpu_config.vcpu_count as usize - 1);
+    let mut boot_senders = Vec::with_capacity(vcpu_config.vcpu_count as usize);
 
     for cpu_index in 0..vcpu_config.vcpu_count {
-        let boot_receiver = if cpu_index != 0 {
-            let (boot_sender, boot_receiver) = unbounded();
-            boot_senders.push(boot_sender);
-            Some(boot_receiver)
-        } else {
-            None
-        };
+        let (boot_sender, boot_receiver) = unbounded();
+        boot_senders.push(boot_sender);
 
         let mut vcpu = Vcpu::new_aarch64(
             cpu_index,
-            entry_addr,
             boot_receiver,
             exit_evt.try_clone().map_err(Error::EventFd)?,
             request_ts.clone(),
@@ -1110,7 +1094,11 @@ fn create_vcpus_aarch64(
         vcpus.push(vcpu);
     }
 
-    vcpus[0].set_boot_senders(boot_senders);
+    // all vCPUs should get boot senders
+    // TODO: this should be set once on the VM
+    for vcpu in vcpus.iter_mut() {
+        vcpu.set_boot_senders(boot_senders.clone());
+    }
 
     Ok(vcpus)
 }

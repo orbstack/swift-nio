@@ -5,8 +5,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
-use std::cell::Cell;
-use std::fmt::{Display, Formatter};
 use std::io;
 use std::result;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -32,77 +30,40 @@ use vm_memory::{
 };
 
 /// Errors associated with the wrappers over KVM ioctls.
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
-    /// Invalid guest memory configuration.
+    #[error("failed to configure guest memory: {0}")]
     GuestMemoryMmap(GuestMemoryError),
-    /// The number of configured slots is bigger than the maximum reported by KVM.
+    #[error("not enough memory slots")]
     NotEnoughMemorySlots,
-    /// Error configuring the general purpose aarch64 registers.
     #[cfg(target_arch = "aarch64")]
+    #[error("error configuring the general purpose aarch64 registers: {0:?}")]
     REGSConfiguration(arch::aarch64::regs::Error),
-    /// Error setting up the global interrupt controller.
     #[cfg(target_arch = "aarch64")]
+    #[error("error setting up the global interrupt controller: {0:?}")]
     SetupGIC(arch::aarch64::gic::Error),
-    /// Cannot set the memory regions.
+    #[error("cannot set the memory regions: {0}")]
     SetUserMemoryRegion(hvf::Error),
-    /// Failed to signal Vcpu.
+    #[error("failed to signal Vcpu: {0}")]
     SignalVcpu(utils::errno::Error),
-    /// Error doing Vcpu Init on Arm.
+    #[error("error doing Vcpu Init on Arm")]
     VcpuArmInit,
-    /// Error getting the Vcpu preferred target on Arm.
+    #[error("error getting the Vcpu preferred target on Arm")]
     VcpuArmPreferredTarget,
-    /// vCPU count is not initialized.
+    #[error("vCPU count is not initialized")]
     VcpuCountNotInitialized,
-    /// Cannot run the VCPUs.
+    #[error("cannot run the VCPUs")]
     VcpuRun,
-    /// Cannot spawn a new vCPU thread.
+    #[error("cannot spawn a new vCPU thread: {0}")]
     VcpuSpawn(io::Error),
-    /// Cannot cleanly initialize vcpu TLS.
-    VcpuTlsInit,
-    /// Vcpu not present in TLS.
+    #[error("vCPU thread failed to initialize")]
+    VcpuInit,
+    #[error("vcpu not present in TLS")]
     VcpuTlsNotPresent,
-    /// Unexpected KVM_RUN exit reason
+    #[error("unexpected KVM_RUN exit reason")]
     VcpuUnhandledKvmExit,
-    /// Cannot configure the microvm.
+    #[error("cannot configure the VM: {0}")]
     VmSetup(hvf::Error),
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        use self::Error::*;
-
-        match self {
-            GuestMemoryMmap(e) => write!(f, "Guest memory error: {:?}", e),
-            VcpuCountNotInitialized => write!(f, "vCPU count is not initialized"),
-            VmSetup(e) => write!(f, "Cannot configure the VM: {}", e),
-            VcpuRun => write!(f, "Cannot run the VCPUs"),
-            NotEnoughMemorySlots => write!(
-                f,
-                "The number of configured slots is bigger than the maximum reported by KVM"
-            ),
-            SetUserMemoryRegion(e) => write!(f, "Cannot set the memory regions: {:?}", e),
-            SignalVcpu(e) => write!(f, "Failed to signal Vcpu: {}", e),
-            #[cfg(target_arch = "aarch64")]
-            REGSConfiguration(e) => write!(
-                f,
-                "Error configuring the general purpose aarch64 registers: {:?}",
-                e
-            ),
-            VcpuSpawn(e) => write!(f, "Cannot spawn a new vCPU thread: {}", e),
-            VcpuTlsInit => write!(f, "Cannot clean init vcpu TLS"),
-            VcpuTlsNotPresent => write!(f, "Vcpu not present in TLS"),
-            VcpuUnhandledKvmExit => write!(f, "Unexpected KVM_RUN exit reason"),
-            #[cfg(target_arch = "aarch64")]
-            SetupGIC(e) => write!(
-                f,
-                "Error setting up the global interrupt controller: {:?}",
-                e
-            ),
-            VcpuArmPreferredTarget => write!(f, "Error getting the Vcpu preferred target on Arm"),
-            VcpuArmInit => write!(f, "Error doing Vcpu Init on Arm"),
-        }
-    }
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -381,15 +342,11 @@ pub struct VcpuConfig {
     pub enable_tso: bool,
 }
 
-// Using this for easier explicit type-casting to help IDEs interpret the code.
-type VcpuCell = Cell<Option<*const Vcpu>>;
-
 /// A wrapper around creating and using a kvm-based VCPU.
 pub struct Vcpu {
     id: u8,
-    boot_entry_addr: u64,
-    boot_receiver: Option<Receiver<u64>>,
-    boot_senders: Option<Vec<Sender<u64>>>,
+    boot_receiver: Receiver<GuestAddress>,
+    boot_senders: Option<Vec<Sender<GuestAddress>>>,
     #[cfg(target_arch = "aarch64")]
     fdt_addr: u64,
     #[cfg(target_arch = "x86_64")]
@@ -402,11 +359,6 @@ pub struct Vcpu {
 
     #[cfg(target_arch = "aarch64")]
     mpidr: u64,
-
-    #[allow(unused)]
-    event_receiver: Receiver<VcpuEvent>,
-    // The transmitting end of the events channel which will be given to the handler.
-    event_sender: Option<Sender<VcpuEvent>>,
 
     #[cfg(target_arch = "aarch64")]
     intc: Arc<Mutex<Gic>>,
@@ -421,62 +373,8 @@ pub struct Vcpu {
 }
 
 impl Vcpu {
-    thread_local!(static TLS_VCPU_PTR: VcpuCell = Cell::new(None));
-
-    /// Associates `self` with the current thread.
-    ///
-    /// It is a prerequisite to successfully run `init_thread_local_data()` before using
-    /// `run_on_thread_local()` on the current thread.
-    /// This function will return an error if there already is a `Vcpu` present in the TLS.
-    fn init_thread_local_data(&mut self) -> Result<()> {
-        Self::TLS_VCPU_PTR.with(|cell: &VcpuCell| {
-            if cell.get().is_some() {
-                return Err(Error::VcpuTlsInit);
-            }
-            cell.set(Some(self as *const Vcpu));
-            Ok(())
-        })
-    }
-
-    /// Deassociates `self` from the current thread.
-    ///
-    /// Should be called if the current `self` had called `init_thread_local_data()` and
-    /// now needs to move to a different thread.
-    ///
-    /// Fails if `self` was not previously associated with the current thread.
-    fn reset_thread_local_data(&mut self) -> Result<()> {
-        // Best-effort to clean up TLS. If the `Vcpu` was moved to another thread
-        // _before_ running this, then there is nothing we can do.
-        Self::TLS_VCPU_PTR.with(|cell: &VcpuCell| {
-            if let Some(vcpu_ptr) = cell.get() {
-                if vcpu_ptr == self as *const Vcpu {
-                    Self::TLS_VCPU_PTR.with(|cell: &VcpuCell| cell.take());
-                    return Ok(());
-                }
-            }
-            Err(Error::VcpuTlsNotPresent)
-        })
-    }
-
-    /// Registers a signal handler which makes use of TLS and kvm immediate exit to
-    /// kick the vcpu running on the current thread, if there is one.
-    pub fn register_kick_signal_handler() {
-        /*
-        extern "C" fn handle_signal(_: c_int, _: *mut siginfo_t, _: *mut c_void) {
-            // This is safe because it's temporarily aliasing the `Vcpu` object, but we are
-            // only reading `vcpu.fd` which does not change for the lifetime of the `Vcpu`.
-            unsafe {
-                let _ = Vcpu::run_on_thread_local(|_vcpu| {
-                    vcpu.fd.set_kvm_immediate_exit(1);
-                    fence(Ordering::Release);
-                });
-            }
-        }
-        */
-
-        //register_signal_handler(sigrtmin() + VCPU_RTSIG_OFFSET, handle_signal)
-        //    .expect("Failed to register vcpu signal handler");
-    }
+    // macOS doesn't use signals for kicking
+    pub fn register_kick_signal_handler() {}
 
     /// Constructs a new VCPU for `vm`.
     ///
@@ -489,17 +387,13 @@ impl Vcpu {
     #[cfg(target_arch = "aarch64")]
     pub fn new_aarch64(
         id: u8,
-        boot_entry_addr: GuestAddress,
-        boot_receiver: Option<Receiver<u64>>,
+        boot_receiver: Receiver<GuestAddress>,
         exit_evt: EventFd,
         _create_ts: TimestampUs,
         intc: Arc<Mutex<Gic>>,
     ) -> Result<Self> {
-        let (event_sender, event_receiver) = unbounded();
-
         Ok(Vcpu {
             id,
-            boot_entry_addr: boot_entry_addr.raw_value(),
             boot_receiver,
             boot_senders: None,
             fdt_addr: 0,
@@ -507,8 +401,6 @@ impl Vcpu {
             mmio_bus: None,
             exit_evt,
             mpidr: 0,
-            event_receiver,
-            event_sender: Some(event_sender),
             intc,
         })
     }
@@ -516,23 +408,17 @@ impl Vcpu {
     #[cfg(target_arch = "x86_64")]
     pub fn new_x86_64(
         id: u8,
-        boot_entry_addr: GuestAddress,
-        boot_receiver: Option<Receiver<u64>>,
+        boot_receiver: Receiver<GuestAddress>,
         exit_evt: EventFd,
         guest_mem: GuestMemoryMmap,
         vm: &Vm,
     ) -> Result<Self> {
-        let (event_sender, event_receiver) = unbounded();
-
         Ok(Vcpu {
             id,
-            boot_entry_addr: boot_entry_addr.raw_value(),
             boot_receiver,
             boot_senders: None,
             mmio_bus: None,
             exit_evt,
-            event_receiver,
-            event_sender: Some(event_sender),
             guest_mem,
             hvf_vm: vm.hvf_vm.clone(),
             vcpu_count: 0,
@@ -556,7 +442,7 @@ impl Vcpu {
         self.mmio_bus = Some(mmio_bus);
     }
 
-    pub fn set_boot_senders(&mut self, boot_senders: Vec<Sender<u64>>) {
+    pub fn set_boot_senders(&mut self, boot_senders: Vec<Sender<GuestAddress>>) {
         self.boot_senders = Some(boot_senders);
     }
 
@@ -584,7 +470,6 @@ impl Vcpu {
     pub fn configure_x86_64(
         &mut self,
         _guest_mem: &GuestMemoryMmap,
-        _entry_addr: GuestAddress,
         vcpu_config: &VcpuConfig,
     ) -> Result<()> {
         self.vcpu_count = vcpu_config.vcpu_count;
@@ -595,28 +480,19 @@ impl Vcpu {
     /// Moves the vcpu to its own thread and constructs a VcpuHandle.
     /// The handle can be used to control the remote vcpu.
     pub fn start_threaded(mut self, parker: Arc<Parker>) -> Result<VcpuHandle> {
-        let event_sender = self.event_sender.take().unwrap();
-        let (init_tls_sender, init_tls_receiver) = unbounded();
+        let (init_sender, init_receiver) = unbounded();
+        let boot_sender = self.boot_senders.as_ref().unwrap()[self.cpu_index() as usize].clone();
 
         let vcpu_thread = thread::Builder::new()
             .name(format!("vcpu{}", self.cpu_index()))
             .spawn(move || {
-                self.init_thread_local_data()
-                    .expect("Cannot cleanly initialize vcpu TLS.");
-
-                init_tls_sender
-                    .send(true)
-                    .expect("Cannot notify vcpu TLS initialization.");
-
-                self.run(parker);
+                self.run(parker, init_sender);
             })
             .map_err(Error::VcpuSpawn)?;
 
-        init_tls_receiver
-            .recv()
-            .expect("Error waiting for TLS initialization.");
+        init_receiver.recv().map_err(|_| Error::VcpuInit)?;
 
-        Ok(VcpuHandle::new(event_sender, vcpu_thread))
+        Ok(VcpuHandle::new(boot_sender, vcpu_thread))
     }
 
     /// Returns error or enum specifying whether emulation was handled or interrupted.
@@ -646,8 +522,8 @@ impl Vcpu {
                     );
                     let cpuid: usize = (mpidr >> 8) as usize;
                     if let Some(boot_senders) = &self.boot_senders {
-                        if let Some(sender) = boot_senders.get(cpuid - 1) {
-                            sender.send(entry).unwrap()
+                        if let Some(sender) = boot_senders.get(cpuid) {
+                            sender.send(GuestAddress(entry)).unwrap()
                         }
                     }
                     Ok(VcpuEmulation::Handled)
@@ -754,8 +630,8 @@ impl Vcpu {
                         if should_start {
                             debug!("start vCPU {} at {:x}", cpuid, entry_rip);
                             if let Some(boot_senders) = &self.boot_senders {
-                                if let Some(sender) = boot_senders.get(cpuid - 1) {
-                                    sender.send(entry_rip).unwrap()
+                                if let Some(sender) = boot_senders.get(cpuid) {
+                                    sender.send(GuestAddress(entry_rip)).unwrap()
                                 }
                             }
                         }
@@ -816,7 +692,7 @@ impl Vcpu {
 
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "aarch64")]
-    pub fn run(&mut self, parker: Arc<Parker>) {
+    pub fn run(&mut self, parker: Arc<Parker>, init_sender: Sender<bool>) {
         let mut hvf_vcpu = HvfVcpu::new(parker.clone()).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();
 
@@ -829,11 +705,11 @@ impl Vcpu {
 
         parker.register_vcpu(hvf_vcpuid, thread::current());
 
-        let entry_addr = if let Some(boot_receiver) = &self.boot_receiver {
-            boot_receiver.recv().unwrap()
-        } else {
-            self.boot_entry_addr
-        };
+        // notify init done (everything is registered)
+        init_sender.send(true).unwrap();
+
+        // wait for boot signal
+        let entry_addr = self.boot_receiver.recv().unwrap().raw_value();
 
         hvf_vcpu
             .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_tso)
@@ -876,7 +752,7 @@ impl Vcpu {
 
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "x86_64")]
-    pub fn run(&mut self, parker: Arc<Parker>) {
+    pub fn run(&mut self, parker: Arc<Parker>, init_sender: Sender<bool>) {
         let mut hvf_vcpu = HvfVcpu::new(
             parker.clone(),
             self.guest_mem.clone(),
@@ -889,14 +765,14 @@ impl Vcpu {
 
         parker.register_vcpu(hvf_vcpuid, thread::current());
 
-        let entry_addr = if let Some(boot_receiver) = &self.boot_receiver {
-            boot_receiver.recv().unwrap()
-        } else {
-            self.boot_entry_addr
-        };
+        // notify init done (everything is registered)
+        init_sender.send(true).unwrap();
+
+        // wait for boot signal
+        let entry_addr = self.boot_receiver.recv().unwrap().raw_value();
 
         hvf_vcpu
-            .set_initial_state(entry_addr, self.boot_receiver.is_some())
+            .set_initial_state(entry_addr, self.cpu_index() != 0)
             .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
 
         let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());
@@ -937,12 +813,6 @@ impl Vcpu {
     }
 }
 
-impl Drop for Vcpu {
-    fn drop(&mut self) {
-        let _ = self.reset_thread_local_data();
-    }
-}
-
 // Allow currently unused Pause and Exit events. These will be used by the vmm later on.
 #[allow(unused)]
 #[derive(Debug)]
@@ -957,37 +827,24 @@ pub enum VcpuEvent {
 
 /// Wrapper over Vcpu that hides the underlying interactions with the Vcpu thread.
 pub struct VcpuHandle {
-    event_sender: Sender<VcpuEvent>,
+    boot_sender: Sender<GuestAddress>,
     vcpu_thread: thread::JoinHandle<()>,
 }
 
 impl VcpuHandle {
-    pub fn new(event_sender: Sender<VcpuEvent>, vcpu_thread: thread::JoinHandle<()>) -> Self {
+    pub fn new(boot_sender: Sender<GuestAddress>, vcpu_thread: thread::JoinHandle<()>) -> Self {
         Self {
-            event_sender,
+            boot_sender,
             vcpu_thread,
         }
     }
 
-    pub fn send_event(&self, event: VcpuEvent) -> Result<()> {
-        // Use expect() to crash if the other thread closed this channel.
-        self.event_sender
-            .send(event)
-            .expect("event sender channel closed on vcpu end.");
-        // Kick the vcpu so it picks up the message.
-        /*
-        self.vcpu_thread
-            .as_ref()
-            // Safe to unwrap since constructor make this 'Some'.
-            .unwrap()
-            .kill(sigrtmin() + VCPU_RTSIG_OFFSET)
-            .map_err(Error::SignalVcpu)?;
-        */
-        Ok(())
-    }
-
     pub fn thread(&self) -> &Thread {
         self.vcpu_thread.thread()
+    }
+
+    pub fn boot(&self, entry_addr: GuestAddress) {
+        self.boot_sender.send(entry_addr).unwrap();
     }
 
     pub fn join(self) {
