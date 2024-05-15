@@ -2,15 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr, CString, OsStr};
 use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
 use std::io;
 use std::mem::{self, ManuallyDrop};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::os::unix::net::UnixDatagram;
 use std::path::Path;
 use std::ptr::slice_from_raw_parts;
 use std::str::FromStr;
@@ -29,9 +31,9 @@ use nix::sys::statvfs::statvfs;
 use nix::sys::statvfs::Statvfs;
 use nix::sys::time::TimeSpec;
 use nix::sys::uio::pwrite;
-use nix::unistd::AccessFlags;
 use nix::unistd::{access, LinkatFlags};
 use nix::unistd::{ftruncate, symlinkat};
+use nix::unistd::{mkfifo, AccessFlags};
 use parking_lot::RwLock;
 use smallvec::SmallVec;
 use utils::Mutex;
@@ -1660,31 +1662,47 @@ impl FileSystem for PassthroughFs {
         parent: NodeId,
         name: &CStr,
         mode: u32,
-        _rdev: u32,
+        rdev: u32,
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<Entry> {
+        debug!(
+            "mknod: parent={} name={:?} mode={:x} rdev={} umask={:x}",
+            parent, name, mode, rdev, umask
+        );
+
         let name = &name.to_string_lossy();
         let c_path = self.name_to_path(parent, name)?;
 
-        let fd = unsafe {
-            OwnedFd::from_raw_fd(
-                nix::fcntl::open(
-                    c_path.as_ref(),
-                    OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
-                    Mode::from_bits_truncate(0o600),
-                )
-                .map_err(nix_linux_error)?,
-            )
-        };
+        // since we run as a normal user, we can't call mknod() to create chr/blk devices
+        // TODO: once we support mode overrides, represent them with empty files / sockets
+        match mode as u16 & libc::S_IFMT {
+            libc::S_IFIFO => {
+                // FIFOs are actually safe because Linux just treats them as a device node, and will never issue VFS read call because they can't have data on real filesystems
+                // read/write blocking is all handled by the kernel
+                mkfifo(c_path.as_ref(), Mode::from_bits_truncate(mode as u16))
+                    .map_err(nix_linux_error)?;
+            }
+            libc::S_IFSOCK => {
+                // we use datagram because it doesn't call listen
+                let _ = UnixDatagram::bind(OsStr::from_bytes(c_path.to_bytes()))
+                    .map_err(linux_error)?;
+            }
+            libc::S_IFCHR | libc::S_IFBLK => {
+                return Err(linux_error(io::Error::from_raw_os_error(libc::EPERM)));
+            }
+            _ => {
+                return Err(linux_error(io::Error::from_raw_os_error(libc::EINVAL)));
+            }
+        }
 
         // Set security context
         if let Some(secctx) = extensions.secctx {
-            set_secctx(FileRef::Fd(fd.as_fd()), secctx, false)?
+            set_secctx(FileRef::Path(&c_path), secctx, false)?
         };
 
         if let Err(e) = set_xattr_stat(
-            FileRef::Fd(fd.as_fd()),
+            FileRef::Path(&c_path),
             Some((ctx.uid, ctx.gid)),
             Some(mode & !umask),
         ) {
