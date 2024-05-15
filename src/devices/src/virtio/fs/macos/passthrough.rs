@@ -322,13 +322,6 @@ pub struct Config {
     /// The default value for this options is `false`.
     pub xattr: bool,
 
-    /// Optional file descriptor for /proc/self/fd. Callers can obtain a file descriptor and pass it
-    /// here, so there's no need to open it in PassthroughFs::new(). This is specially useful for
-    /// sandboxing.
-    ///
-    /// The default is `None`.
-    pub proc_sfd_rawfd: Option<RawFd>,
-
     pub allow_rosetta_ioctl: bool,
     pub nfs_info: Option<NfsInfo>,
 }
@@ -343,7 +336,6 @@ impl Default for Config {
             root_dir: String::from("/"),
             // OK for perf because we block security.capability in kernel
             xattr: true,
-            proc_sfd_rawfd: None,
             allow_rosetta_ioctl: false,
             nfs_info: None,
         }
@@ -365,7 +357,9 @@ struct NodeData {
     nlink: u16,       // for getattrlistbulk buffer size
 
     // open fd, if volfs is not supported
-    fd: Option<OwnedFd>,
+    // Arc makes sure this fd won't be closed while a FS call is using it
+    // open-fd nodes are the slow case anyway, so this is OK for perf
+    fd: Option<Arc<OwnedFd>>,
 }
 
 impl ToAltKey<DevIno> for NodeData {
@@ -450,15 +444,10 @@ impl PassthroughFs {
         })
     }
 
-    // TODO: fix possible race with fd close, without Arc
-    fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, NodeFlags, Option<RawFd>)> {
+    fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, NodeFlags, Option<Arc<OwnedFd>>)> {
         // race OK: primary key lookup only
         let node = self.nodeids.get(&nodeid).ok_or_else(ebadf)?;
-        Ok((
-            node.dev_ino,
-            node.flags,
-            node.fd.as_ref().map(|fd| fd.as_raw_fd()),
-        ))
+        Ok((node.dev_ino, node.flags, node.fd.clone()))
     }
 
     // note: /.vol (volfs) is undocumented and deprecated
@@ -653,7 +642,7 @@ impl PassthroughFs {
                     }
                 }
                 .map_err(nix_linux_error)?;
-                Some(unsafe { OwnedFd::from_raw_fd(fd) })
+                Some(Arc::new(unsafe { OwnedFd::from_raw_fd(fd) }))
             } else {
                 debug!("skip open");
                 None
@@ -872,7 +861,7 @@ impl PassthroughFs {
                     // file: provide CTO consistency
                     // check ctime, and invalidate cache if ctime has changed
                     // race OK: we'll just be missing cache for a file
-                    // TODO: reuse from earlier lookup
+                    // fstat() is the slow part, so should be faster to release and re-acquire map ref here
                     if let Some(node) = self.nodeids.get(&nodeid) {
                         let ctime = st_ctime(&st);
                         if node.last_open_ctime.swap(ctime, Ordering::Relaxed) == ctime {
