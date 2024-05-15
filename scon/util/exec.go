@@ -33,16 +33,16 @@ func RunWithOutput(combinedArgs ...string) (string, error) {
 	return string(output), nil
 }
 
-func RunWithInput(input string, combinedArgs ...string) error {
+func RunWithInput(input string, combinedArgs ...string) (string, error) {
 	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
 	cmd.Stdin = strings.NewReader(input)
 	// inherits env
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("run command '%v': %w; output: %s", combinedArgs, err, string(output))
+		return "", fmt.Errorf("run command '%v': %w; output: %s", combinedArgs, err, string(output))
 	}
 
-	return nil
+	return string(output), nil
 }
 
 func RunInheritOut(combinedArgs ...string) error {

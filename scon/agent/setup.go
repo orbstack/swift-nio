@@ -406,8 +406,6 @@ func (a *AgentServer) createUserAndGroup(username string, uid int, gid int, shel
 	if _, err := strconv.Atoi(groupName); err == nil {
 		groupName = "g" + groupName
 	}
-	// NixOS can't have @
-	groupName = strings.ReplaceAll(groupName, "@", "_")
 	err := util.Run("groupadd", "--gid", gidStr, groupName)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
@@ -450,41 +448,66 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		logrus.WithError(err).Warn("failed to wait for cloud-init")
 	}
 
-	// find a shell
-	shell, err := selectShell()
-	if err != nil {
-		return err
-	}
-
-	// delete default lxd image users to avoid conflict
-	err = deleteDefaultUsers()
-	if err != nil {
-		return err
-	}
-
-	// Alpine: install shadow early for standard "useradd" tool. Busybox checks uid <= 256000
-	if args.Distro == images.ImageAlpine {
-		// keep cache for other pkg installation
-		err = util.Run("apk", "add", "shadow")
+	if args.Distro == images.ImageNixos {
+		// have to do it all with nix instead
+		err = configureSystemNixos(args)
+		if err != nil {
+			logrus.WithError(err).Error("NixOS system configuration failed")
+			return err
+		}
+	} else {
+		// find a shell
+		shell, err := selectShell()
 		if err != nil {
 			return err
 		}
-	}
 
-	// create user group
-	gid := args.Uid
-	err = a.createUserAndGroup(args.Username, args.Uid, gid, shell)
-	// ignore if already exists
-	if err != nil && !strings.Contains(err.Error(), "already exists") {
-		return err
-	}
-
-	// set password
-	if args.Password != "" {
-		logrus.Debug("Setting password")
-		pwdEntries := args.Username + ":" + args.Password + "\nroot:" + args.Password + "\n"
-		err = util.RunWithInput(pwdEntries, "chpasswd")
+		// delete default lxd image users to avoid conflict
+		err = deleteDefaultUsers()
 		if err != nil {
+			return err
+		}
+
+		// Alpine: install shadow early for standard "useradd" tool. Busybox checks uid <= 256000
+		if args.Distro == images.ImageAlpine {
+			// keep cache for other pkg installation
+			err = util.Run("apk", "add", "shadow")
+			if err != nil {
+				return err
+			}
+		}
+
+		// create user group
+		gid := args.Uid
+		err = a.createUserAndGroup(args.Username, args.Uid, gid, shell)
+		// ignore if already exists
+		if err != nil && !strings.Contains(err.Error(), "already exists") {
+			return err
+		}
+
+		// set password
+		if args.Password != "" {
+			logrus.Debug("Setting password")
+			pwdEntries := args.Username + ":" + args.Password + "\nroot:" + args.Password + "\n"
+			_, err = util.RunWithInput(pwdEntries, "chpasswd")
+			if err != nil {
+				return err
+			}
+		}
+
+		// add user to admin groups
+		// Alpine has no usermod, so we have to do this manually
+		groups := selectAdminGroups()
+		logrus.WithField("groups", groups).Debug("Adding user to groups")
+		err = addUserToGroups(args.Username, groups)
+		if err != nil {
+			return err
+		}
+
+		// standard system configuration
+		err = configureSystemStandard(args)
+		if err != nil {
+			logrus.WithError(err).Error("standard system configuration failed")
 			return err
 		}
 	}
@@ -500,7 +523,7 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	if err != nil {
 		return err
 	}
-	gid, err = strconv.Atoi(u.Gid)
+	gid, err := strconv.Atoi(u.Gid)
 	if err != nil {
 		return err
 	}
@@ -587,39 +610,11 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		}
 	}
 
-	// add user to admin groups
-	// Alpine has no usermod, so we have to do this manually
-	groups := selectAdminGroups()
-	logrus.WithField("groups", groups).Debug("Adding user to groups")
-	err = addUserToGroups(args.Username, groups)
-	if err != nil {
-		return err
-	}
-
 	// create path translation disambiguation symlink at /mnt/linux
 	logrus.Debug("Creating /mnt/linux symlink")
 	err = os.Symlink("/", "/mnt/linux")
 	if err != nil {
 		return err
-	}
-
-	/*
-	 * after this point is system configs
-	 */
-	if args.Distro == images.ImageNixos {
-		// have to do it all with nix instead
-		err = configureSystemNixos(args)
-		if err != nil {
-			logrus.WithError(err).Error("NixOS system configuration failed")
-			return err
-		}
-	} else {
-		// standard system configuration
-		err = configureSystemStandard(args)
-		if err != nil {
-			logrus.WithError(err).Error("standard system configuration failed")
-			return err
-		}
 	}
 
 	return nil
