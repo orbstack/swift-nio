@@ -484,6 +484,11 @@ impl PassthroughFs {
         parent: NodeId,
         name: &str,
     ) -> io::Result<(CString, DevIno, NodeFlags)> {
+        // deny ".." to prevent root escape
+        if name == ".." {
+            return Err(linux_error(std::io::Error::from_raw_os_error(libc::ENOENT)));
+        }
+
         let ((parent_device, parent_inode), parent_flags, fd) = self.get_nodeid(parent)?;
         let path = if let Some(fd) = fd {
             // to minimize race window and support renames, get latest path from fd
