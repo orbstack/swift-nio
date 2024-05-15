@@ -1,3 +1,4 @@
+//go:build darwin
 /*
  * Most of this package (exec.Command wrappers) is copied from Go 1.21.5 stdlib.
  * We just implement an os.StartProcess() equivalent using posix_spawn.

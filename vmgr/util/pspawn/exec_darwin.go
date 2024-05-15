@@ -1,3 +1,5 @@
+//go:build darwin
+
 // Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -95,6 +97,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1261,3 +1264,15 @@ func addCriticalEnv(env []string) []string {
 // Code should use errors.Is(err, ErrDot), not err == ErrDot,
 // to test whether a returned error err is due to this condition.
 var ErrDot = errors.New("cannot run executable found relative to current directory")
+
+// skipStdinCopyError optionally specifies a function which reports
+// whether the provided stdin copy error should be ignored.
+func skipStdinCopyError(err error) bool {
+	// Ignore EPIPE errors copying to stdin if the program
+	// completed successfully otherwise.
+	// See Issue 9173.
+	pe, ok := err.(*fs.PathError)
+	return ok &&
+		pe.Op == "write" && pe.Path == "|1" &&
+		pe.Err == syscall.EPIPE
+}
