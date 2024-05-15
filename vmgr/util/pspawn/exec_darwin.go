@@ -108,25 +108,13 @@ import (
 	"time"
 )
 
-// Error is returned by LookPath when it fails to classify a file as an
-// executable.
-type Error struct {
-	// Name is the file name for which the error occurred.
-	Name string
-	// Err is the underlying error.
-	Err error
-}
+// match error types for API compatibility
+type Error = exec.Error
+type ExitError = exec.ExitError
 
-func (e *Error) Error() string {
-	return "exec: " + strconv.Quote(e.Name) + ": " + e.Err.Error()
-}
-
-func (e *Error) Unwrap() error { return e.Err }
-
-// ErrWaitDelay is returned by (*Cmd).Wait if the process exits with a
-// successful status code but its output pipes are not closed before the
-// command's WaitDelay expires.
-var ErrWaitDelay = errors.New("exec: WaitDelay expired before I/O complete")
+var ErrDot = exec.ErrDot
+var ErrNotFound = exec.ErrNotFound
+var ErrWaitDelay = exec.ErrWaitDelay
 
 // wrappedError wraps an error without relying on fmt.Errorf.
 type wrappedError struct {
@@ -804,27 +792,6 @@ func (c *Cmd) watchCtx(resultc chan<- ctxResult) {
 	resultc <- ctxResult{err: err}
 }
 
-// An ExitError reports an unsuccessful exit by a command.
-type ExitError struct {
-	*os.ProcessState
-
-	// Stderr holds a subset of the standard error output from the
-	// Cmd.Output method if standard error was not otherwise being
-	// collected.
-	//
-	// If the error output is long, Stderr may contain only a prefix
-	// and suffix of the output, with the middle replaced with
-	// text about the number of omitted bytes.
-	//
-	// Stderr is provided for debugging, for inclusion in error messages.
-	// Users with other needs should redirect Cmd.Stderr as needed.
-	Stderr []byte
-}
-
-func (e *ExitError) Error() string {
-	return e.ProcessState.String()
-}
-
 // Wait waits for the command to exit and waits for any copying to
 // stdin or copying from stdout or stderr to complete.
 //
@@ -1255,15 +1222,6 @@ func addCriticalEnv(env []string) []string {
 	}
 	return append(env, "SYSTEMROOT="+os.Getenv("SYSTEMROOT"))
 }
-
-// ErrDot indicates that a path lookup resolved to an executable
-// in the current directory due to ‘.’ being in the path, either
-// implicitly or explicitly. See the package documentation for details.
-//
-// Note that functions in this package do not return ErrDot directly.
-// Code should use errors.Is(err, ErrDot), not err == ErrDot,
-// to test whether a returned error err is due to this condition.
-var ErrDot = errors.New("cannot run executable found relative to current directory")
 
 // skipStdinCopyError optionally specifies a function which reports
 // whether the provided stdin copy error should be ignored.
