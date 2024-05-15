@@ -34,7 +34,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
     fn read(&mut self, vcpuid: u64, offset: u64, data: &mut [u8]) {
         self.gic.read(
             &mut HvfGicEventHandler {
-                wakers: &mut self.wfe_threads,
+                wfe_threads: &mut self.wfe_threads,
             },
             PeId(vcpuid),
             MmioRequest::new(offset, data),
@@ -52,7 +52,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
     fn read_sysreg(&mut self, vcpuid: u64, reg: u64) -> u64 {
         self.gic.read_sysreg(
             &mut HvfGicEventHandler {
-                wakers: &mut self.wfe_threads,
+                wfe_threads: &mut self.wfe_threads,
             },
             PeId(vcpuid),
             GicSysReg::parse(reg),
@@ -62,7 +62,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
     fn write_sysreg(&mut self, vcpuid: u64, reg: u64, value: u64) {
         self.gic.write_sysreg(
             &mut HvfGicEventHandler {
-                wakers: &mut self.wfe_threads,
+                wfe_threads: &mut self.wfe_threads,
             },
             PeId(vcpuid),
             GicSysReg::parse(reg),
@@ -74,7 +74,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
         let vcpuid = PeId(vcpuid);
         self.gic.send_ppi(
             &mut HvfGicEventHandler {
-                wakers: &mut self.wfe_threads,
+                wfe_threads: &mut self.wfe_threads,
             },
             vcpuid,
             TIMER_INT_ID,
@@ -84,7 +84,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
     fn set_irq(&mut self, irq_line: u32) {
         self.gic.send_spi(
             &mut HvfGicEventHandler {
-                wakers: &mut self.wfe_threads,
+                wfe_threads: &mut self.wfe_threads,
             },
             InterruptId(irq_line),
         );
@@ -100,7 +100,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
             self.gic
                 .pe_state(
                     &mut HvfGicEventHandler {
-                        wakers: &mut self.wfe_threads,
+                        wfe_threads: &mut self.wfe_threads,
                     },
                     PeId(vcpuid),
                 )
@@ -108,15 +108,22 @@ impl UserspaceGicImpl for UserspaceGicV3 {
                 .clone(),
         ))
     }
+
+    fn kick_vcpu(&mut self, vcpuid: u64) {
+        HvfGicEventHandler {
+            wfe_threads: &mut self.wfe_threads,
+        }
+        .kick_vcpu_for_irq(PeId(vcpuid));
+    }
 }
 
 struct HvfGicEventHandler<'a> {
-    wakers: &'a mut HashMap<PeId, WfeThread>,
+    wfe_threads: &'a mut HashMap<PeId, WfeThread>,
 }
 
 impl GicV3EventHandler for HvfGicEventHandler<'_> {
     fn kick_vcpu_for_irq(&mut self, pe: PeId) {
-        let waker = self.wakers.get(&pe).unwrap();
+        let waker = self.wfe_threads.get(&pe).unwrap();
         waker.thread.unpark();
 
         hvf::vcpu_request_exit(pe.0).unwrap();

@@ -310,6 +310,8 @@ pub enum VcpuExit<'a> {
     WaitForEvent,
     WaitForEventExpired,
     WaitForEventTimeout(Duration),
+    PvlockPark,
+    PvlockUnpark(u64),
 }
 
 struct MmioRead {
@@ -569,6 +571,13 @@ impl<'a> HvfVcpu<'a> {
                                 let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
                                 let args_ptr = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as usize;
                                 return Ok(VcpuExit::HypervisorIoCall { dev_id, args_ptr });
+                            }
+                            0xc300_0005 => {
+                                return Ok(VcpuExit::PvlockPark);
+                            }
+                            0xc300_0006 => {
+                                let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                                return Ok(VcpuExit::PvlockUnpark(vcpuid));
                             }
                             _ => {
                                 debug!("HVC call unhandled");

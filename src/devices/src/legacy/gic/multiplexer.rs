@@ -54,6 +54,10 @@ impl Gic {
         self.0.get_vcpu_handle(vcpuid)
     }
 
+    pub fn kick_cpu(&mut self, vcpuid: u64) {
+        self.0.kick_vcpu(vcpuid);
+    }
+
     pub fn downcast_impl<T: 'static>(&mut self) -> Option<&mut T> {
         self.0.as_any().downcast_mut::<T>()
     }
@@ -127,4 +131,7 @@ pub trait UserspaceGicImpl: 'static + Send {
     fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread);
 
     fn get_vcpu_handle(&mut self, vcpuid: u64) -> Box<dyn GicVcpuHandle>;
+
+    // TODO: This probably shouldn't be here.
+    fn kick_vcpu(&mut self, vcpuid: u64);
 }

@@ -339,6 +339,10 @@ impl UserspaceGicImpl for UserspaceGicV2 {
     fn get_vcpu_handle(&mut self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
         Box::new(GicV2VcpuHandle(vcpuid))
     }
+
+    fn kick_vcpu(&mut self, vcpuid: u64) {
+        self.vcpus[&(vcpuid as u8)].wfe_thread.unpark();
+    }
 }
 
 impl UserspaceGicV2 {
