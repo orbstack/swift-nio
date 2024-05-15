@@ -1,4 +1,5 @@
 //go:build darwin
+
 /*
  * Most of this package (exec.Command wrappers) is copied from Go 1.21.5 stdlib.
  * We just implement an os.StartProcess() equivalent using posix_spawn.
@@ -19,6 +20,7 @@ package pspawn
 /*
 #include <spawn.h>
 #include <stdlib.h>
+#include <signal.h>
 */
 import "C"
 import (
@@ -63,7 +65,7 @@ func StartProcess(exe string, argv []string, attr *os.ProcAttr) (*os.Process, er
 	}
 	defer C.posix_spawnattr_destroy(&spawnattr)
 
-	spawnFlags := C.POSIX_SPAWN_CLOEXEC_DEFAULT
+	spawnFlags := C.POSIX_SPAWN_CLOEXEC_DEFAULT | C.POSIX_SPAWN_SETSIGDEF | C.POSIX_SPAWN_SETSIGMASK
 	if attr.Sys != nil {
 		if attr.Sys.Chroot != "" {
 			return nil, errors.New("chroot not supported")
@@ -104,6 +106,19 @@ func StartProcess(exe string, argv []string, attr *os.ProcAttr) (*os.Process, er
 	ret = C.posix_spawnattr_setflags(&spawnattr, C.short(spawnFlags))
 	if ret != 0 {
 		return nil, fmt.Errorf("posix_spawnattr_setflags: %w", syscall.Errno(ret))
+	}
+
+	// reset all signal actions to default, and unmask all signals
+	var sigset C.sigset_t
+	C.sigfillset(&sigset)
+	ret = C.posix_spawnattr_setsigdefault(&spawnattr, &sigset)
+	if ret != 0 {
+		return nil, fmt.Errorf("posix_spawnattr_setsigdefault: %w", syscall.Errno(ret))
+	}
+	C.sigemptyset(&sigset)
+	ret = C.posix_spawnattr_setsigmask(&spawnattr, &sigset)
+	if ret != 0 {
+		return nil, fmt.Errorf("posix_spawnattr_setsigmask: %w", syscall.Errno(ret))
 	}
 
 	var fileActions C.posix_spawn_file_actions_t
