@@ -869,8 +869,8 @@ impl<F: FileSystem + Sync> Server<F> {
         }
 
         // These fuse features are supported by this server by default.
-        let supported = FsOptions::ASYNC_READ // TODO: reconsider. how much s readahead used?
-            | FsOptions::PARALLEL_DIROPS
+        // ASYNC_READ is slow: almost all reads are issued as readahead (at least with postgres workload)
+        let supported = FsOptions::PARALLEL_DIROPS
             | FsOptions::BIG_WRITES
             | FsOptions::AUTO_INVAL_DATA // extra getattr calls OK because they respect cache
             | FsOptions::HANDLE_KILLPRIV
