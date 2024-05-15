@@ -11,7 +11,7 @@ use std::mem::{self, ManuallyDrop};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::os::unix::net::UnixDatagram;
 use std::path::Path;
 use std::ptr::slice_from_raw_parts;
@@ -1464,7 +1464,7 @@ impl FileSystem for PassthroughFs {
         let c_path = self.nodeid_to_path(nodeid)?;
 
         enum Data {
-            Handle(RawFd),
+            Handle(Arc<HandleData>),
             FilePath,
         }
 
@@ -1477,7 +1477,7 @@ impl FileSystem for PassthroughFs {
                 .map(|v| v.clone())
                 .ok_or_else(ebadf)?;
 
-            Data::Handle(hd.file.as_raw_fd())
+            Data::Handle(hd)
         } else {
             Data::FilePath
         };
@@ -1485,8 +1485,8 @@ impl FileSystem for PassthroughFs {
         if valid.contains(SetattrValid::MODE) {
             // TODO: store sticky bit in xattr
             match data {
-                Data::Handle(fd) => {
-                    fchmod(fd, Mode::from_bits_truncate(attr.st_mode))?;
+                Data::Handle(ref hd) => {
+                    fchmod(hd.file.as_raw_fd(), Mode::from_bits_truncate(attr.st_mode))?;
                 }
                 Data::FilePath => {
                     set_permissions(
@@ -1522,7 +1522,7 @@ impl FileSystem for PassthroughFs {
 
             // Safe because this doesn't modify any memory and we check the return value.
             match data {
-                Data::Handle(fd) => ftruncate(fd, attr.st_size),
+                Data::Handle(ref hd) => ftruncate(hd.file.as_raw_fd(), attr.st_size),
                 _ => {
                     // There is no `ftruncateat` so we need to get a new fd and truncate it.
                     let f = self.open_nodeid(nodeid, OFlag::O_NONBLOCK | OFlag::O_RDWR)?;
@@ -1560,7 +1560,7 @@ impl FileSystem for PassthroughFs {
             let atime = TimeSpec::from_timespec(atime);
             let mtime = TimeSpec::from_timespec(mtime);
             match data {
-                Data::Handle(fd) => futimens(fd, &atime, &mtime),
+                Data::Handle(ref hd) => futimens(hd.file.as_raw_fd(), &atime, &mtime),
                 Data::FilePath => utimensat(
                     None,
                     c_path.as_ref(),
