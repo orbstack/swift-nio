@@ -2035,25 +2035,37 @@ impl FileSystem for PassthroughFs {
 
         match mode {
             0 | FALLOC_FL_KEEP_SIZE => {
-                // this allocates blocks but doesn't change st_size
-                let mut fs = libc::fstore_t {
-                    fst_flags: libc::F_ALLOCATEALL,
-                    fst_posmode: libc::F_PEOFPOSMODE,
-                    fst_offset: 0,
-                    fst_length: (offset + length) as i64,
-                    fst_bytesalloc: 0,
-                };
-                let res = unsafe {
-                    libc::fcntl(file.as_raw_fd(), libc::F_PREALLOCATE, &mut fs as *mut _)
-                };
-                if res == -1 {
-                    return Err(linux_error(io::Error::last_os_error()));
+                // determine how many blocks to preallocate
+                let st = fstat(file.as_fd(), true)?;
+                let new_end = offset + length;
+                let size_diff = new_end.saturating_sub(st.st_size as u64);
+                let num_blocks = size_diff.div_ceil(st.st_blksize as u64);
+
+                if num_blocks > 0 {
+                    // this allocates blocks but doesn't change st_size
+                    let mut fs = libc::fstore_t {
+                        fst_flags: libc::F_ALLOCATEALL,
+                        // TODO: what is volume offset? it seems to let us position the blocks with a "block location hint", but requires that length >= file size?
+                        fst_posmode: libc::F_PEOFPOSMODE,
+                        // offset must be 0 for physical EOF mode
+                        // basically, this allocates extents and attempts to make them contiguous starting from the last (EOF) block, but it doesn't place the extents anywhere
+                        fst_offset: 0,
+                        // this is the number of bytes to allocate extents for, *not* offset+length target size
+                        // we don't need to zero existing ranges
+                        fst_length: num_blocks as i64 * st.st_blksize as i64,
+                        fst_bytesalloc: 0,
+                    };
+                    let res = unsafe {
+                        libc::fcntl(file.as_raw_fd(), libc::F_PREALLOCATE, &mut fs as *mut _)
+                    };
+                    if res == -1 {
+                        return Err(linux_error(io::Error::last_os_error()));
+                    }
                 }
 
-                // only change size if requested
-                if mode & FALLOC_FL_KEEP_SIZE == 0 {
-                    let res =
-                        unsafe { libc::ftruncate(file.as_raw_fd(), (offset + length) as i64) };
+                // only change size if requested, and if new size is *greater*
+                if mode & FALLOC_FL_KEEP_SIZE == 0 && new_end > st.st_size as u64 {
+                    let res = unsafe { libc::ftruncate(file.as_raw_fd(), new_end as i64) };
                     if res == -1 {
                         return Err(linux_error(io::Error::last_os_error()));
                     }
