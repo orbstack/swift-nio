@@ -8,6 +8,7 @@ import (
 
 	"github.com/orbstack/macvirt/vmgr/cmd/macctl/shell"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/spf13/cobra"
 )
 
@@ -75,8 +76,7 @@ is equivalent to:
 		cmdArgs = append(cmdArgs, dest)
 
 		// TODO: do this ourselves
-		// exec OK: this runs on Linux, in a separate process
-		cmd := exec.Command("cp", cmdArgs...)
+		cmd := pspawn.Command("cp", cmdArgs...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
