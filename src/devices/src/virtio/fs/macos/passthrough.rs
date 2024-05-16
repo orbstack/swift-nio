@@ -96,6 +96,12 @@ struct HandleData {
     dirstream: Mutex<DirStream>,
 }
 
+impl AsFd for HandleData {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.file.as_fd()
+    }
+}
+
 impl Drop for HandleData {
     fn drop(&mut self) {
         let ds = self.dirstream.lock().unwrap();
@@ -136,15 +142,15 @@ enum FileRef<'a> {
     Fd(BorrowedFd<'a>),
 }
 
-enum OwnedFileRef {
-    Handle(Arc<HandleData>),
+enum OwnedFileRef<F: AsFd> {
+    Fd(Arc<F>),
     Path(CString),
 }
 
-impl OwnedFileRef {
+impl<F: AsFd> OwnedFileRef<F> {
     fn as_ref(&self) -> FileRef {
         match self {
-            OwnedFileRef::Handle(hd) => FileRef::Fd(hd.file.as_fd()),
+            OwnedFileRef::Fd(fd) => FileRef::Fd(fd.as_fd()),
             OwnedFileRef::Path(path) => FileRef::Path(path),
         }
     }
@@ -471,19 +477,29 @@ impl PassthroughFs {
     // and also cache O_EVTONLY fds and paths.
     // lstat realpath=681.85ns, volfs=895.88ns, fsgetpath=1.1478us, lstat+fsgetpath=1.8592us
     // TODO: unify with name_to_path(NodeId, Option<N>)
-    fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
-        let ((device, inode), _, fd) = self.get_nodeid(nodeid)?;
-        let path = if let Some(fd) = fd {
-            // to minimize race window and support renames, get latest path from fd
-            // this also allows minimal opens (EVTONLY | RDONLY)
-            // TODO: all handlers should support Fd or Path. this is just lowest-effort impl
-            get_path_by_fd(fd)?
+    fn nodeid_to_file_ref(&self, nodeid: NodeId) -> io::Result<OwnedFileRef<OwnedFd>> {
+        let ((dev, ino), _, fd) = self.get_nodeid(nodeid)?;
+        if let Some(fd) = fd {
+            Ok(OwnedFileRef::Fd(fd))
         } else {
-            format!("/.vol/{}/{}", device, inode)
-        };
+            let path = format!("/.vol/{}/{}", dev, ino);
+            let cstr = CString::new(path).map_err(|_| einval())?;
+            Ok(OwnedFileRef::Path(cstr))
+        }
+    }
 
-        let cstr = CString::new(path).map_err(|_| einval())?;
-        Ok(cstr)
+    fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
+        match self.nodeid_to_file_ref(nodeid)? {
+            OwnedFileRef::Path(path) => Ok(path),
+            OwnedFileRef::Fd(fd) => {
+                // to minimize race window and support renames, get latest path from fd
+                // this also allows minimal opens (EVTONLY | RDONLY)
+                // TODO: all handlers should support Fd or Path. this is just lowest-effort impl
+                let path = get_path_by_fd(fd)?;
+                let cstr = CString::new(path).map_err(|_| einval())?;
+                Ok(cstr)
+            }
+        }
     }
 
     fn name_to_path_and_data(
@@ -979,7 +995,11 @@ impl PassthroughFs {
         unsafe { OFlag::from_bits_unchecked(mflags) }
     }
 
-    fn get_file_ref(&self, nodeid: NodeId, handle: Option<HandleId>) -> io::Result<OwnedFileRef> {
+    fn get_file_ref(
+        &self,
+        nodeid: NodeId,
+        handle: Option<HandleId>,
+    ) -> io::Result<OwnedFileRef<HandleData>> {
         if let Some(handle) = handle {
             let hd = self
                 .handles
@@ -988,7 +1008,7 @@ impl PassthroughFs {
                 .map(|v| v.clone())
                 .ok_or_else(ebadf)?;
 
-            Ok(OwnedFileRef::Handle(hd))
+            Ok(OwnedFileRef::Fd(hd))
         } else {
             let path = self.nodeid_to_path(nodeid)?;
             Ok(OwnedFileRef::Path(path))
