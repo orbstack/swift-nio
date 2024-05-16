@@ -167,6 +167,7 @@ func (c *Container) setupInitial(args *types.CreateRequest) error {
 	} else if hostGitConfigs != nil {
 		gitConfigs.Name = hostGitConfigs["user.name"]
 		gitConfigs.Email = hostGitConfigs["user.email"]
+		gitConfigs.DefaultBranch = hostGitConfigs["init.defaultBranch"]
 		gitConfigs.Path = hostGitConfigs["gitConfigPath"]
 	}
 

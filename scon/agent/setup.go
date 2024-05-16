@@ -71,9 +71,10 @@ type InitialSetupArgs struct {
 }
 
 type BasicGitConfigs struct {
-	Email string
-	Name  string
-	Path  string
+	Email         string
+	Name          string
+	DefaultBranch string
+	Path          string
 }
 
 func selectShell() (string, error) {
@@ -533,6 +534,14 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	name = %s
 	email = %s
 `, appid.UserAppName, args.Username, args.BasicGitConfigs.Path, args.BasicGitConfigs.Name, args.BasicGitConfigs.Email)
+
+		if args.BasicGitConfigs.DefaultBranch != "" {
+			gitConfig += fmt.Sprintf(`
+[init]
+	defaultBranch = %s
+`, args.BasicGitConfigs.DefaultBranch)
+		}
+
 		err = os.WriteFile(home+"/.gitconfig", []byte(gitConfig), 0644)
 		if err != nil {
 			return err
