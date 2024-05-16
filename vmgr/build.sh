@@ -24,9 +24,11 @@ BUNDLE_BIN="$BUNDLE_OUT/Contents/MacOS"
 BIN_OUT="$BUNDLE_BIN/$VMGR_BIN"
 mkdir -p "$BUNDLE_BIN"
 
+BUILD_TYPE="${BUILD_TYPE:-debug}"
+
 # force relinking if Swift lib changed
 # if modification time of Swift lib is newer than the binary, relink
-SWIFT_LIB_PATH="../swift/GoVZF/.build/${SWIFT_ARCH}-apple-macosx/${BUILD_TYPE:-debug}/libGoVZF.a"
+SWIFT_LIB_PATH="../swift/GoVZF/.build/${SWIFT_ARCH}-apple-macosx/$BUILD_TYPE/libGoVZF.a"
 if [[ -f "$BIN_OUT" ]]; then
     if [[ ! -f "$SWIFT_LIB_PATH" ]] || [[ "$(stat -f "%m" "$SWIFT_LIB_PATH")" -gt "$(stat -f "%m" "$BIN_OUT")" ]]; then
         rm -f "$BIN_OUT"
@@ -49,7 +51,7 @@ go build -buildmode=pie -ldflags="-extldflags \"$SWIFT_LIB_PATH $RUST_LIB_PATH\"
 
 # strip for release
 codesign_flags=(-f)
-if [[ "${BUILD_TYPE:-debug}" == "release" ]]; then
+if [[ "$BUILD_TYPE" == "release" ]]; then
     strip "$BIN_OUT"
     # only need timestamp for release notarization
     # omit in debug to allow working offline
@@ -63,7 +65,7 @@ fi
 # -R doesn't follow symlinks
 cp -R bundle/. "$BUNDLE_OUT/Contents"
 # sign bundle w/ resources & executable, vmgr identity + restricted entitlements
-codesign "${codesign_flags[@]}" --options=runtime --entitlements vmgr.entitlements -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT" "$BUNDLE_OUT" || :
+codesign "${codesign_flags[@]}" --options=runtime --entitlements "vmgr.$BUILD_TYPE.entitlements" -i dev.kdrag0n.MacVirt.vmgr -s "$SIGNING_CERT" "$BUNDLE_OUT" || :
 
 # for xcode app debug build - assets loaded from symlinked debug bundle
 mkdir -p ../swift/build/assets
