@@ -1,3 +1,4 @@
+use counter::RateCounter;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use utils::Mutex;
@@ -10,6 +11,10 @@ use gicv3::{
     mmio::GicSysReg,
     mmio_util::{BitPack, MmioRequest},
 };
+
+counter::counter! {
+    COUNT_VCPU_KICK in "gic.vcpu.kick": RateCounter = RateCounter::new(FILTER);
+}
 
 #[derive(Default)]
 pub struct UserspaceGicV3 {
@@ -129,6 +134,7 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
         waker.thread.unpark();
 
         hvf::vcpu_request_exit(pe.0).unwrap();
+        COUNT_VCPU_KICK.count();
     }
 
     // https://developer.arm.com/documentation/ddi0595/2021-12/AArch64-Registers/MPIDR-EL1--Multiprocessor-Affinity-Register

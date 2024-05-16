@@ -1,5 +1,7 @@
 #![allow(unused_variables)]
 
+use counter::RateCounter;
+
 use crate::{
     device::{
         Affinity, GicV3, GicV3EventHandler, InterruptId, InterruptKind, InterruptTrigger, PeId,
@@ -10,6 +12,13 @@ use crate::{
         convert_to_pod, iter_set_bits, read_bit_array, read_set_bits, BitPack, MmioWriteRequest,
     },
 };
+
+counter::counter! {
+    COUNT_EOI in "gic.eoi": RateCounter = RateCounter::new(FILTER);
+
+    COUNT_IPI_BROADCAST in "gic.ipi.broadcast": RateCounter = RateCounter::new(FILTER);
+    COUNT_IPI_SINGLE in "gic.ipi.single": RateCounter = RateCounter::new(FILTER);
+}
 
 impl GicV3 {
     pub fn write_sysreg(
@@ -64,6 +73,8 @@ impl GicV3 {
 
                 pe_int_state.active_interrupt = None;
                 handler.handle_custom_eoi(pe, int_id);
+
+                COUNT_EOI.count();
             }
 
             GicSysReg::ICC_HPPIR0_EL1 => todo!(),
@@ -153,6 +164,8 @@ impl GicV3 {
                             Self::send_interrupt_inner(handler, pe, pe_state, int_id, true);
                         }
                     }
+
+                    COUNT_IPI_BROADCAST.count();
                 } else {
                     for aff0 in iter_set_bits(target_list_bits) {
                         let target_aff = Affinity([aff0 as u8, aff1 as u8, aff2 as u8, aff3 as u8]);
@@ -161,6 +174,8 @@ impl GicV3 {
 
                         Self::send_interrupt_inner(handler, target_pe, pe_state, int_id, true);
                     }
+
+                    COUNT_IPI_SINGLE.count();
                 }
             }
 

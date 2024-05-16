@@ -29,7 +29,17 @@ extern "C" {
 }
 
 counter::counter! {
-    COUNTER_VMEX_TOTAL in "hvf.vmexit.total": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_TOTAL in "hvf.vmexit.total": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_HVC_VIRTIOFS in "hvf.vmexit.hvc.virtiofs": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_HVC_PVLOCK_WAIT in "hvf.vmexit.hvc.pvlock.wait": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_HVC_PVLOCK_KICK in "hvf.vmexit.hvc.pvlock.kick": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_MMIO_READ in "hvf.vmexit.mmio.read": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_MMIO_WRITE in "hvf.vmexit.mmio.write": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_SYSREG in "hvf.vmexit.sysreg": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_WFE_INDEFINITE in "hvf.vmexit.wfe.indefinite": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_WFE_TIMED in "hvf.vmexit.wfe.timed": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_WFE_EXPIRED in "hvf.vmexit.wfe.expired": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_VTIMER in "hvf.vmexit.vtimer": RateCounter = RateCounter::new(FILTER);
 }
 
 const HV_EXIT_REASON_CANCELED: hv_exit_reason_t = 0;
@@ -520,7 +530,7 @@ impl<'a> HvfVcpu<'a> {
             return Err(Error::VcpuRun);
         }
 
-        COUNTER_VMEX_TOTAL.count();
+        COUNT_EXIT_TOTAL.count();
 
         match self.vcpu_exit.reason {
             HV_EXIT_REASON_CANCELED => Ok(VcpuExit::Canceled),
@@ -545,14 +555,17 @@ impl<'a> HvfVcpu<'a> {
                                 return Ok(VcpuExit::CpuOn(mpidr, entry, context_id));
                             }
                             0xc400_002a => {
+                                COUNT_EXIT_HVC_VIRTIOFS.count();
                                 let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
                                 let args_ptr = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as usize;
                                 return Ok(VcpuExit::HypervisorIoCall { dev_id, args_ptr });
                             }
                             0xc300_0005 => {
+                                COUNT_EXIT_HVC_PVLOCK_WAIT.count();
                                 return Ok(VcpuExit::PvlockPark);
                             }
                             0xc300_0006 => {
+                                COUNT_EXIT_HVC_PVLOCK_KICK.count();
                                 let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                                 return Ok(VcpuExit::PvlockUnpark(vcpuid));
                             }
@@ -585,6 +598,7 @@ impl<'a> HvfVcpu<'a> {
                                (sys_reg >> 10) & 0xf, (sys_reg >> 1) & 0xf,
                                is_read);
 
+                        COUNT_EXIT_SYSREG.count();
                         self.pending_advance_pc = true;
                         Ok(VcpuExit::SystemRegister {
                             sys_reg,
@@ -626,8 +640,10 @@ impl<'a> HvfVcpu<'a> {
                                 _ => panic!("unsupported mmio len={len}"),
                             };
 
+                            COUNT_EXIT_MMIO_READ.count();
                             Ok(VcpuExit::MmioWrite(pa, &self.mmio_buf[0..len]))
                         } else {
+                            COUNT_EXIT_MMIO_WRITE.count();
                             self.pending_mmio_read = Some(MmioRead { addr: pa, srt, len });
                             Ok(VcpuExit::MmioRead(pa, &mut self.mmio_buf[0..len]))
                         }
@@ -636,31 +652,41 @@ impl<'a> HvfVcpu<'a> {
                         debug!("BRK exit");
                         Ok(VcpuExit::Breakpoint)
                     }
+
                     EC_WFX_TRAP => {
                         debug!("WFX exit");
                         let ctl = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CTL_EL0)?;
 
                         self.pending_advance_pc = true;
                         if ((ctl & 1) == 0) || (ctl & 2) != 0 {
+                            COUNT_EXIT_WFE_INDEFINITE.count();
                             Ok(VcpuExit::WaitForEvent)
                         } else {
                             let cval = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CVAL_EL0)?;
                             let now = unsafe { mach_absolute_time() };
 
                             if now > cval {
+                                COUNT_EXIT_WFE_EXPIRED.count();
                                 Ok(VcpuExit::WaitForEventExpired)
                             } else {
                                 let timeout = Duration::from_nanos(
                                     (cval - now) * (1_000_000_000 / self.cntfrq),
                                 );
+                                COUNT_EXIT_WFE_TIMED.count();
                                 Ok(VcpuExit::WaitForEventTimeout(timeout))
                             }
                         }
                     }
+
                     _ => panic!("unexpected exception: 0x{ec:x}"),
                 }
             }
-            HV_EXIT_REASON_VTIMER_ACTIVATED => Ok(VcpuExit::VtimerActivated),
+
+            HV_EXIT_REASON_VTIMER_ACTIVATED => {
+                COUNT_EXIT_VTIMER.count();
+                Ok(VcpuExit::VtimerActivated)
+            }
+
             _ => {
                 let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
                 panic!(

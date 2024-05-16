@@ -11,3 +11,4 @@ tracing = { version = "0.1.40", features = ["release_max_level_info"] }
 num = "0.4.1"
 rustc-hash = "1.1.0"
 utils = { version = "0.1.0", path = "../utils" }
+counter = { version = "0.1.0", path = "../counter" }

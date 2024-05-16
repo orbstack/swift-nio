@@ -5,6 +5,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
+use counter::RateCounter;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use utils::{Mutex, MutexGuard};
@@ -25,6 +26,11 @@ const MMIO_MAGIC_VALUE: u32 = 0x7472_6976;
 
 //current version specified by the mmio standard (legacy devices used 1 here)
 const MMIO_VERSION: u32 = 2;
+
+counter::counter! {
+    COUNT_NOTIFY_SYNC in "virtio.notify.sync": RateCounter = RateCounter::new(FILTER);
+    COUNT_NOTIFY_WORKER in "virtio.notify.worker": RateCounter = RateCounter::new(FILTER);
+}
 
 /// Implements the
 /// [MMIO](http://docs.oasis-open.org/virtio/virtio/v1.0/cs04/virtio-v1.0-cs04.html#x1-1090002)
@@ -304,8 +310,10 @@ impl BusDevice for MmioTransport {
                     0x44 => self.update_queue_field(|q| q.ready = v == 1),
                     0x50 => {
                         if self.supports_sync_event {
+                            COUNT_NOTIFY_SYNC.count();
                             self.device.lock().unwrap().handle_sync_event(v);
                         } else {
+                            COUNT_NOTIFY_WORKER.count();
                             if let Some(eventfd) = self.queue_evts.get(v as usize) {
                                 eventfd.write(v as u64).unwrap();
                             }
