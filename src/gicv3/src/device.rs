@@ -274,13 +274,7 @@ impl GicV3 {
         // we must push to the back of the queue, and not the front, in order for PV GIC to work
         // otherwise the next peeked interrupt could change between vmenter and vmexit (which is when we prcoess the deferred IAR1)
         // due to PV GIC, if we ever dedupe interrupts, it's fine -- we just need to allow 2 copies of each interrupt (e.g. 2 bitmasks) to make sure that any new interrupt delivered between when guest was supposed to IAR1, and when it was supposed to EOIR1, is not missed (because normally IAR1 dequeues and would make it no longer a duplicate when re-asserted)
-        // TODO: dedupe >2 copies of the same interrupt
-        pe_state
-            .int_state
-            .lock()
-            .unwrap()
-            .pending_interrupts
-            .push_back(int_id);
+        pe_state.int_state.lock().unwrap().push_interrupt(int_id);
 
         if needs_kick {
             handler.kick_vcpu_for_irq(pe);
@@ -356,5 +350,24 @@ impl PeInterruptState {
         } else {
             None
         }
+    }
+
+    fn push_interrupt(&mut self, int_id: InterruptId) {
+        // if there's already more than 1 interrupt pending (uncommon case), make sure we only push at most one duplicate
+        // any additional ones are just bad for performance, and searching here is definitely worth the saved vmexits
+        // for perf, avoid the scan unless there are already several pending interrupts
+        if self.pending_interrupts.len() > 8 {
+            let mut count = 0;
+            for existing_int in &self.pending_interrupts {
+                if existing_int == &int_id {
+                    count += 1;
+                    if count > 1 {
+                        return;
+                    }
+                }
+            }
+        }
+
+        self.pending_interrupts.push_back(int_id);
     }
 }
