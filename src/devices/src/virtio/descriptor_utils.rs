@@ -12,6 +12,7 @@ use std::ptr::copy_nonoverlapping;
 use std::result;
 
 use crate::virtio::queue::DescriptorChain;
+use smallvec::SmallVec;
 use vm_memory::{
     Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap,
     GuestMemoryRegion, Le16, Le32, Le64, VolatileMemory, VolatileMemoryError, VolatileSlice,
@@ -87,7 +88,9 @@ impl<'a> DescriptorChainConsumer<'a> {
         F: FnOnce(&[VolatileSlice]) -> io::Result<usize>,
     {
         let mut buflen = 0;
-        let mut bufs = Vec::with_capacity(self.buffers.len());
+        // TODO: convert entire DescriptorChainConsumer to use iterators
+        // can go up to 256 for virtio-blk, 128 for virtiofs
+        let mut bufs = SmallVec::<[VolatileSlice; 128]>::with_capacity(self.buffers.len());
         for &vs in &self.buffers {
             if buflen >= count {
                 break;
