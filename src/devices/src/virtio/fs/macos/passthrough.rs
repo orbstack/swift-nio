@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bitflags::bitflags;
-use libc::AT_FDCWD;
+use libc::{AT_FDCWD, MAXPATHLEN};
 use nix::errno::Errno;
 use nix::fcntl::OFlag;
 use nix::sys::stat::fchmod;
@@ -31,7 +31,7 @@ use nix::sys::statvfs::statvfs;
 use nix::sys::statvfs::Statvfs;
 use nix::sys::time::TimeSpec;
 use nix::sys::uio::pwrite;
-use nix::unistd::{access, LinkatFlags};
+use nix::unistd::{access, truncate, LinkatFlags};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
 use smallvec::SmallVec;
@@ -63,8 +63,7 @@ const STAT_XATTR_KEY: &[u8] = b"user.orbstack.override_stat\0";
 const LINK_AS_CLONE_DIR_JS: &str = "node_modules";
 const LINK_AS_CLONE_DIR_PY: &str = "site-packages";
 
-// 2 hours
-// we invalidate via krpc
+// 2 hours - we invalidate via krpc
 const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(2 * 60 * 60);
 
 const NSEC_PER_SEC: u64 = 1_000_000_000;
@@ -79,14 +78,17 @@ const FALLOC_FL_PUNCH_HOLE: u32 = 0x02;
 const FALLOC_FL_KEEP_SIZE_AND_PUNCH_HOLE: u32 = FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE;
 
 type NodeId = u64;
-type Handle = u64;
+type HandleId = u64;
 
 struct DirStream {
-    stream: u64,
+    stream: *mut libc::DIR,
     offset: i64,
     // OK because this is only for opened files
     entries: Option<SmallVec<[AttrlistEntry; INLINE_ENTRIES]>>,
 }
+
+// libc::DIR is Send but not Sync
+unsafe impl Send for DirStream {}
 
 struct HandleData {
     nodeid: NodeId,
@@ -97,7 +99,7 @@ struct HandleData {
 impl Drop for HandleData {
     fn drop(&mut self) {
         let ds = self.dirstream.lock().unwrap();
-        if ds.stream != 0 {
+        if !ds.stream.is_null() {
             // this is a dir, and it had a stream open
             // closedir *closes* the fd passed to fdopendir (which is the fd that File holds)
             // so this invalidates the OwnedFd ownership
@@ -128,10 +130,24 @@ fn einval() -> io::Error {
     linux_error(io::Error::from_raw_os_error(libc::EINVAL))
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 enum FileRef<'a> {
     Path(&'a CStr),
     Fd(BorrowedFd<'a>),
+}
+
+enum OwnedFileRef {
+    Handle(Arc<HandleData>),
+    Path(CString),
+}
+
+impl OwnedFileRef {
+    fn as_ref(&self) -> FileRef {
+        match self {
+            OwnedFileRef::Handle(hd) => FileRef::Fd(hd.file.as_fd()),
+            OwnedFileRef::Path(path) => FileRef::Path(path),
+        }
+    }
 }
 
 fn get_xattr_stat(_file: FileRef) -> io::Result<Option<(u32, u32, u32)>> {
@@ -185,7 +201,8 @@ fn lstat(c_path: &CStr, host: bool) -> io::Result<bindings::stat64> {
 fn get_path_by_fd<T: AsRawFd>(fd: T) -> io::Result<String> {
     // allocate it on stack
     debug!("get_path_by_fd: fd={}", fd.as_raw_fd());
-    let mut path_buf: [u8; 1024] = [0; 1024];
+    let mut path_buf = [0u8; MAXPATHLEN as usize];
+    // safe: F_GETPATH is limited to MAXPATHLEN
     let ret = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETPATH, &mut path_buf) };
     if ret == -1 {
         return Err(io::Error::last_os_error());
@@ -392,7 +409,7 @@ pub struct PassthroughFs {
     nodeids: MultikeyFxDashMap<NodeId, DevIno, NodeData>,
     next_nodeid: AtomicU64,
 
-    handles: FxDashMap<Handle, Arc<HandleData>>,
+    handles: FxDashMap<HandleId, Arc<HandleData>>,
     next_handle: AtomicU64,
 
     // volfs supported?
@@ -731,7 +748,7 @@ impl PassthroughFs {
     fn do_readdir<F>(
         &self,
         nodeid: NodeId,
-        handle: Handle,
+        handle: HandleId,
         size: u32,
         offset: u64,
         mut add_entry: F,
@@ -755,15 +772,15 @@ impl PassthroughFs {
         let mut ds = data.dirstream.lock().unwrap();
 
         // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries
-        let dir_stream = if ds.stream == 0 {
+        let dir_stream = if ds.stream.is_null() {
             let dir = unsafe { libc::fdopendir(data.file.as_raw_fd()) };
             if dir.is_null() {
                 return Err(linux_error(io::Error::last_os_error()));
             }
-            ds.stream = dir as u64;
+            ds.stream = dir;
             dir
         } else {
-            ds.stream as *mut libc::DIR
+            ds.stream
         };
 
         if (offset as i64) != ds.offset {
@@ -829,7 +846,7 @@ impl PassthroughFs {
         Ok(())
     }
 
-    fn do_open(&self, nodeid: NodeId, flags: u32) -> io::Result<(Option<Handle>, OpenOptions)> {
+    fn do_open(&self, nodeid: NodeId, flags: u32) -> io::Result<(Option<HandleId>, OpenOptions)> {
         let flags = self.parse_open_flags(flags as i32);
 
         let file = self.open_nodeid(nodeid, flags)?;
@@ -841,7 +858,7 @@ impl PassthroughFs {
             nodeid,
             file: ManuallyDrop::new(file),
             dirstream: Mutex::new(DirStream {
-                stream: 0,
+                stream: std::ptr::null_mut(),
                 offset: 0,
                 entries: None,
             }),
@@ -885,7 +902,7 @@ impl PassthroughFs {
         Ok((Some(handle), opts))
     }
 
-    fn do_release(&self, nodeid: NodeId, handle: Handle) -> io::Result<()> {
+    fn do_release(&self, nodeid: NodeId, handle: HandleId) -> io::Result<()> {
         if let dashmap::mapref::entry::Entry::Occupied(e) = self.handles.entry(handle) {
             if e.get().nodeid == nodeid {
                 // We don't need to close the file here because that will happen automatically when
@@ -898,10 +915,17 @@ impl PassthroughFs {
         Err(ebadf())
     }
 
-    fn do_getattr(&self, nodeid: NodeId, ctx: Context) -> io::Result<(bindings::stat64, Duration)> {
-        let c_path = self.nodeid_to_path(nodeid)?;
+    fn do_getattr(
+        &self,
+        file_ref: FileRef,
+        ctx: Context,
+    ) -> io::Result<(bindings::stat64, Duration)> {
+        let mut st = match file_ref {
+            FileRef::Path(c_path) => lstat(&c_path, false)?,
+            FileRef::Fd(fd) => fstat(fd, false)?,
+        };
 
-        let mut st = lstat(&c_path, false)?;
+        // TODO: remove on perms
         st.st_uid = ctx.uid;
         st.st_gid = ctx.gid;
 
@@ -954,6 +978,22 @@ impl PassthroughFs {
 
         unsafe { OFlag::from_bits_unchecked(mflags) }
     }
+
+    fn get_file_ref(&self, nodeid: NodeId, handle: Option<HandleId>) -> io::Result<OwnedFileRef> {
+        if let Some(handle) = handle {
+            let hd = self
+                .handles
+                .get(&handle)
+                .filter(|hd| hd.nodeid == nodeid)
+                .map(|v| v.clone())
+                .ok_or_else(ebadf)?;
+
+            Ok(OwnedFileRef::Handle(hd))
+        } else {
+            let path = self.nodeid_to_path(nodeid)?;
+            Ok(OwnedFileRef::Path(path))
+        }
+    }
 }
 
 fn set_secctx(file: FileRef, secctx: SecContext, symlink: bool) -> io::Result<()> {
@@ -990,7 +1030,7 @@ fn set_secctx(file: FileRef, secctx: SecContext, symlink: bool) -> io::Result<()
 
 impl FileSystem for PassthroughFs {
     type NodeId = NodeId;
-    type Handle = Handle;
+    type Handle = HandleId;
 
     fn hvc_id(&self) -> Option<usize> {
         Some(if self.cfg.root_dir == "/" { 0 } else { 1 })
@@ -1058,7 +1098,7 @@ impl FileSystem for PassthroughFs {
         _ctx: Context,
         nodeid: NodeId,
         flags: u32,
-    ) -> io::Result<(Option<Handle>, OpenOptions)> {
+    ) -> io::Result<(Option<HandleId>, OpenOptions)> {
         self.do_open(nodeid, flags | libc::O_DIRECTORY as u32)
     }
 
@@ -1067,7 +1107,7 @@ impl FileSystem for PassthroughFs {
         _ctx: Context,
         nodeid: NodeId,
         _flags: u32,
-        handle: Handle,
+        handle: HandleId,
     ) -> io::Result<()> {
         self.do_release(nodeid, handle)
     }
@@ -1111,7 +1151,7 @@ impl FileSystem for PassthroughFs {
         &self,
         _ctx: Context,
         nodeid: NodeId,
-        handle: Handle,
+        handle: HandleId,
         size: u32,
         offset: u64,
         add_entry: F,
@@ -1126,7 +1166,7 @@ impl FileSystem for PassthroughFs {
         &self,
         ctx: Context,
         nodeid: NodeId,
-        handle: Handle,
+        handle: HandleId,
         size: u32,
         offset: u64,
         mut add_entry: F,
@@ -1307,7 +1347,7 @@ impl FileSystem for PassthroughFs {
         _ctx: Context,
         nodeid: NodeId,
         flags: u32,
-    ) -> io::Result<(Option<Handle>, OpenOptions)> {
+    ) -> io::Result<(Option<HandleId>, OpenOptions)> {
         self.do_open(nodeid, flags)
     }
 
@@ -1316,7 +1356,7 @@ impl FileSystem for PassthroughFs {
         _ctx: Context,
         nodeid: NodeId,
         _flags: u32,
-        handle: Handle,
+        handle: HandleId,
         _flush: bool,
         _flock_release: bool,
         _lock_owner: Option<u64>,
@@ -1333,7 +1373,7 @@ impl FileSystem for PassthroughFs {
         flags: u32,
         umask: u32,
         extensions: Extensions,
-    ) -> io::Result<(Entry, Option<Handle>, OpenOptions)> {
+    ) -> io::Result<(Entry, Option<HandleId>, OpenOptions)> {
         let name = &name.to_string_lossy();
         let (c_path, _, parent_flags) = self.name_to_path_and_data(parent, name)?;
 
@@ -1374,7 +1414,7 @@ impl FileSystem for PassthroughFs {
             nodeid: entry.nodeid,
             file: ManuallyDrop::new(File::from(fd)),
             dirstream: Mutex::new(DirStream {
-                stream: 0,
+                stream: std::ptr::null_mut(),
                 offset: 0,
                 entries: None,
             }),
@@ -1411,7 +1451,7 @@ impl FileSystem for PassthroughFs {
         &self,
         _ctx: Context,
         nodeid: NodeId,
-        handle: Handle,
+        handle: HandleId,
         mut w: W,
         size: u32,
         offset: u64,
@@ -1436,7 +1476,7 @@ impl FileSystem for PassthroughFs {
         &self,
         _ctx: Context,
         nodeid: NodeId,
-        handle: Handle,
+        handle: HandleId,
         mut r: R,
         size: u32,
         offset: u64,
@@ -1465,9 +1505,11 @@ impl FileSystem for PassthroughFs {
         &self,
         _ctx: Context,
         nodeid: NodeId,
-        _handle: Option<Handle>,
+        handle: Option<HandleId>,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        self.do_getattr(nodeid, _ctx)
+        debug!("getattr: nodeid={} handle={:?}", nodeid, handle);
+        let file_ref = self.get_file_ref(nodeid, handle)?;
+        self.do_getattr(file_ref.as_ref(), _ctx)
     }
 
     fn setattr(
@@ -1475,39 +1517,20 @@ impl FileSystem for PassthroughFs {
         _ctx: Context,
         nodeid: NodeId,
         attr: bindings::stat64,
-        handle: Option<Handle>,
+        handle: Option<HandleId>,
         valid: SetattrValid,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        let c_path = self.nodeid_to_path(nodeid)?;
-
-        enum Data {
-            Handle(Arc<HandleData>),
-            FilePath,
-        }
-
-        // If we have a handle then use it otherwise get a new fd from the nodeid.
-        let data = if let Some(handle) = handle {
-            let hd = self
-                .handles
-                .get(&handle)
-                .filter(|hd| hd.nodeid == nodeid)
-                .map(|v| v.clone())
-                .ok_or_else(ebadf)?;
-
-            Data::Handle(hd)
-        } else {
-            Data::FilePath
-        };
+        let file_ref = self.get_file_ref(nodeid, handle)?;
 
         if valid.contains(SetattrValid::MODE) {
-            // TODO: store sticky bit in xattr
-            match data {
-                Data::Handle(ref hd) => {
-                    fchmod(hd.file.as_raw_fd(), Mode::from_bits_truncate(attr.st_mode))?;
+            // TODO: store sticky bit in xattr. don't allow suid/sgid
+            match file_ref.as_ref() {
+                FileRef::Fd(fd) => {
+                    fchmod(fd.as_raw_fd(), Mode::from_bits_truncate(attr.st_mode))?;
                 }
-                Data::FilePath => {
+                FileRef::Path(path) => {
                     set_permissions(
-                        Path::new(&*c_path.to_string_lossy()),
+                        Path::new(&*path.to_string_lossy()),
                         Permissions::from_mode(attr.st_mode as u32),
                     )?;
                 }
@@ -1528,7 +1551,7 @@ impl FileSystem for PassthroughFs {
                 std::u32::MAX
             };
 
-            set_xattr_stat(FileRef::Path(&c_path), Some((uid, gid)), None)?;
+            set_xattr_stat(file_ref.as_ref(), Some((uid, gid)), None)?;
         }
 
         if valid.contains(SetattrValid::SIZE) {
@@ -1537,14 +1560,9 @@ impl FileSystem for PassthroughFs {
                 nodeid, handle, attr.st_size
             );
 
-            // Safe because this doesn't modify any memory and we check the return value.
-            match data {
-                Data::Handle(ref hd) => ftruncate(hd.file.as_raw_fd(), attr.st_size),
-                _ => {
-                    // There is no `ftruncateat` so we need to get a new fd and truncate it.
-                    let f = self.open_nodeid(nodeid, OFlag::O_NONBLOCK | OFlag::O_RDWR)?;
-                    ftruncate(f.as_raw_fd(), attr.st_size)
-                }
+            match file_ref.as_ref() {
+                FileRef::Fd(fd) => ftruncate(fd.as_raw_fd(), attr.st_size),
+                FileRef::Path(path) => truncate(path, attr.st_size),
             }
             .map_err(nix_linux_error)?;
         }
@@ -1576,11 +1594,11 @@ impl FileSystem for PassthroughFs {
             // Safe because this doesn't modify any memory and we check the return value.
             let atime = TimeSpec::from_timespec(atime);
             let mtime = TimeSpec::from_timespec(mtime);
-            match data {
-                Data::Handle(ref hd) => futimens(hd.file.as_raw_fd(), &atime, &mtime),
-                Data::FilePath => utimensat(
+            match file_ref.as_ref() {
+                FileRef::Fd(fd) => futimens(fd.as_raw_fd(), &atime, &mtime),
+                FileRef::Path(path) => utimensat(
                     None,
-                    c_path.as_ref(),
+                    path.as_ref(),
                     &atime,
                     &mtime,
                     UtimensatFlags::NoFollowSymlink,
@@ -1589,7 +1607,7 @@ impl FileSystem for PassthroughFs {
             .map_err(nix_linux_error)?;
         }
 
-        self.do_getattr(nodeid, _ctx)
+        self.do_getattr(file_ref.as_ref(), _ctx)
     }
 
     fn rename(
@@ -1811,7 +1829,7 @@ impl FileSystem for PassthroughFs {
         &self,
         _ctx: Context,
         _nodeid: NodeId,
-        _handle: Handle,
+        _handle: HandleId,
         _lock_owner: u64,
     ) -> io::Result<()> {
         // returning ENOSYS causes no_flush=1 to be set, skipping future calls
@@ -1826,7 +1844,7 @@ impl FileSystem for PassthroughFs {
         _ctx: Context,
         nodeid: NodeId,
         _datasync: bool,
-        handle: Handle,
+        handle: HandleId,
     ) -> io::Result<()> {
         let data = self
             .handles
@@ -1851,7 +1869,7 @@ impl FileSystem for PassthroughFs {
         ctx: Context,
         nodeid: NodeId,
         datasync: bool,
-        handle: Handle,
+        handle: HandleId,
     ) -> io::Result<()> {
         self.fsync(ctx, nodeid, datasync, handle)
     }
@@ -2030,7 +2048,7 @@ impl FileSystem for PassthroughFs {
         &self,
         _ctx: Context,
         nodeid: NodeId,
-        handle: Handle,
+        handle: HandleId,
         mode: u32,
         offset: u64,
         length: u64,
@@ -2144,7 +2162,7 @@ impl FileSystem for PassthroughFs {
         &self,
         _ctx: Context,
         nodeid: NodeId,
-        handle: Handle,
+        handle: HandleId,
         offset: u64,
         whence: u32,
     ) -> io::Result<u64> {
