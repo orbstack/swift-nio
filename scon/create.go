@@ -164,9 +164,10 @@ func (c *Container) setupInitial(args *types.CreateRequest) error {
 	hostGitConfigs, err := c.manager.host.GetGitConfig()
 	if err != nil {
 		logrus.WithError(err).Warn("failed to get host git configs")
-	} else {
+	} else if hostGitConfigs != nil {
 		gitConfigs.Name = hostGitConfigs["user.name"]
 		gitConfigs.Email = hostGitConfigs["user.email"]
+		gitConfigs.Path = hostGitConfigs["gitConfigPath"]
 	}
 
 	// always wait for network

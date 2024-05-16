@@ -230,17 +230,29 @@ func parseGitConfig(data string) (map[string]string, error) {
 }
 
 func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
-	data, err := os.ReadFile(conf.HomeDir() + "/.gitconfig")
-	if err != nil {
-		return err
+	// https://git-scm.com/docs/git-config#Documentation/git-config.txt---global
+	// yes, we're hardcoding $XDG_CONFIG_HOME, but meh.
+	// TODO: read all files? is it worth the complexity for correctness? (https://git-scm.com/docs/git-config#FILES)
+	for _, file := range []string{".gitconfig", ".config/git/config"} {
+		data, err := os.ReadFile(conf.HomeDir() + "/" + file)
+		if err != nil && errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return err
+		}
+
+		config, err := parseGitConfig(string(data))
+		if err != nil {
+			return err
+		}
+
+		config["gitConfigPath"] = file
+
+		*reply = config
+		return nil
 	}
 
-	config, err := parseGitConfig(string(data))
-	if err != nil {
-		return err
-	}
-
-	*reply = config
+	*reply = nil
 	return nil
 }
 

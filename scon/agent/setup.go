@@ -73,6 +73,7 @@ type InitialSetupArgs struct {
 type BasicGitConfigs struct {
 	Email string
 	Name  string
+	Path  string
 }
 
 func selectShell() (string, error) {
@@ -526,12 +527,12 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 	if args.BasicGitConfigs.Email != "" && args.BasicGitConfigs.Name != "" {
 		logrus.Debug("Writing gitconfig")
 		gitConfig := fmt.Sprintf(`# Basic config generated from your macOS config by %s.
-# Feel free to edit it or symlink /Users/%s/.gitconfig instead.
+# Feel free to edit it or symlink /Users/%s/%s instead.
 
 [user]
 	name = %s
 	email = %s
-`, appid.UserAppName, args.Username, args.BasicGitConfigs.Name, args.BasicGitConfigs.Email)
+`, appid.UserAppName, args.Username, args.BasicGitConfigs.Path, args.BasicGitConfigs.Name, args.BasicGitConfigs.Email)
 		err = os.WriteFile(home+"/.gitconfig", []byte(gitConfig), 0644)
 		if err != nil {
 			return err
