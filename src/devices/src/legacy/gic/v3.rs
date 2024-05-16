@@ -1,4 +1,5 @@
-use std::{collections::HashMap, sync::Arc};
+use rustc_hash::FxHashMap;
+use std::sync::Arc;
 use utils::Mutex;
 
 use super::{Gic, GicVcpuHandle, UserspaceGicImpl, WfeThread};
@@ -13,7 +14,7 @@ use gicv3::{
 #[derive(Default)]
 pub struct UserspaceGicV3 {
     gic: gicv3::device::GicV3,
-    wfe_threads: HashMap<PeId, WfeThread>,
+    wfe_threads: FxHashMap<PeId, WfeThread>,
 }
 
 const TIMER_INT_ID: InterruptId = InterruptId(GTIMER_VIRT + 16);
@@ -118,7 +119,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
 }
 
 struct HvfGicEventHandler<'a> {
-    wfe_threads: &'a mut HashMap<PeId, WfeThread>,
+    wfe_threads: &'a mut FxHashMap<PeId, WfeThread>,
 }
 
 impl GicV3EventHandler for HvfGicEventHandler<'_> {
