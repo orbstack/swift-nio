@@ -279,7 +279,7 @@ impl Vmm {
         &self,
         vcpus: &[Vcpu],
         initrd: &Option<InitrdConfig>,
-        kernel_bundle: &Option<KernelBundle>,
+        _kernel_bundle: &Option<KernelBundle>,
     ) -> Result<()> {
         #[cfg(target_arch = "x86_64")]
         {
@@ -296,7 +296,10 @@ impl Vmm {
                 cmdline_len,
                 initrd,
                 vcpus.len() as u8,
-                kernel_bundle.as_ref().map(|k| k.params).unwrap_or_default(),
+                _kernel_bundle
+                    .as_ref()
+                    .map(|k| k.params)
+                    .unwrap_or_default(),
             )
             .map_err(Error::ConfigureSystem)?;
         }
