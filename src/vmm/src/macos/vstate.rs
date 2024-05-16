@@ -738,13 +738,9 @@ impl Vcpu {
                     break;
                 }
                 // PV-lock
-                Ok(VcpuEmulation::PvlockPark) => {
-                    // TODO: this should park when no interrupts
-                    self.wait_for_event(&mut *intc_vcpu_handle, None);
-                }
-                Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {
-                    self.intc.lock().unwrap().kick_cpu(vcpuid);
-                }
+                // TODO: fix lockups
+                Ok(VcpuEmulation::PvlockPark) => {}
+                Ok(VcpuEmulation::PvlockUnpark(_)) => {}
                 // Emulation errors lead to vCPU exit.
                 Err(_) => {
                     break;
