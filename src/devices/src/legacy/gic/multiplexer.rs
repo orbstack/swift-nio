@@ -21,7 +21,6 @@ pub struct Gic(Box<dyn UserspaceGicImpl>);
 impl Gic {
     #[cfg(target_arch = "aarch64")]
     pub fn new(_hvf_vm: &HvfVm) -> Self {
-        // Self(Box::<super::v2::UserspaceGicV2>::default())
         Self(Box::<super::v3::UserspaceGicV3>::default())
     }
 
