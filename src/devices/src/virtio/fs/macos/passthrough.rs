@@ -35,6 +35,7 @@ use nix::unistd::{access, truncate, LinkatFlags};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
 use smallvec::SmallVec;
+use utils::qos::{set_thread_qos, QosClass};
 use utils::Mutex;
 
 use crate::virtio::fs::attrlist::{self, AttrlistEntry, INLINE_ENTRIES};
@@ -49,6 +50,7 @@ use super::super::filesystem::{
     OpenOptions, SetattrValid, ZeroCopyReader, ZeroCopyWriter,
 };
 use super::super::fuse;
+use super::vnode_poll::VnodePoller;
 
 // _IOC(_IOC_READ, 0x61, 0x22, 0x45)
 const IOCTL_ROSETTA: u32 = 0x8045_6122;
@@ -91,6 +93,36 @@ struct HandleData {
     nodeid: NodeId,
     file: ManuallyDrop<File>,
     dirstream: Mutex<DirStream>,
+    poller: Option<Arc<VnodePoller<HandleId>>>,
+}
+
+impl HandleData {
+    fn new(
+        nodeid: NodeId,
+        file: File,
+        is_readable_file: bool,
+        poller: &Arc<VnodePoller<HandleId>>,
+    ) -> io::Result<Self> {
+        let mut hd = HandleData {
+            nodeid,
+            file: ManuallyDrop::new(file),
+            dirstream: Mutex::new(DirStream {
+                stream: std::ptr::null_mut(),
+                offset: 0,
+                entries: None,
+            }),
+            // not registered
+            poller: None,
+        };
+
+        // technically we only have to register it when read hits EOF, but that's flaky and won't actually save time, because the common case is that files (e.g. source code) will be fully read
+        if is_readable_file {
+            poller.register(hd.file.as_fd(), hd.nodeid)?;
+            hd.poller = Some(poller.clone());
+        }
+
+        Ok(hd)
+    }
 }
 
 impl AsFd for HandleData {
@@ -101,6 +133,13 @@ impl AsFd for HandleData {
 
 impl Drop for HandleData {
     fn drop(&mut self) {
+        // unregister from poller if registered
+        if let Some(ref poller) = self.poller {
+            poller
+                .unregister(self.file.as_fd(), self.nodeid)
+                .expect("failed to unregister from poller on drop");
+        }
+
         let ds = self.dirstream.lock().unwrap();
         if !ds.stream.is_null() {
             // this is a dir, and it had a stream open
@@ -406,6 +445,8 @@ pub struct PassthroughFs {
     // `cfg.writeback` is true and `init` was called with `FsOptions::WRITEBACK_CACHE`.
     writeback: AtomicBool,
     cfg: Config,
+
+    poller: Arc<VnodePoller<HandleId>>,
 }
 
 impl PassthroughFs {
@@ -431,7 +472,7 @@ impl PassthroughFs {
         let dev_info = FxDashMap::default();
         dev_info.insert(st.st_dev, true);
 
-        Ok(PassthroughFs {
+        let fs = PassthroughFs {
             nodeids,
             next_nodeid: AtomicU64::new(fuse::ROOT_ID + 1),
 
@@ -443,7 +484,19 @@ impl PassthroughFs {
 
             writeback: AtomicBool::new(false),
             cfg,
-        })
+
+            poller: Arc::new(VnodePoller::new()?),
+        };
+
+        let poller_clone = fs.poller.clone();
+        std::thread::Builder::new()
+            .name(format!("fs{} poller", fs.hvc_id().unwrap()))
+            .spawn(move || {
+                set_thread_qos(QosClass::Background, None).unwrap();
+                poller_clone.main_loop()
+            })?;
+
+        Ok(fs)
     }
 
     fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, NodeFlags, Option<Arc<OwnedFd>>)> {
@@ -846,15 +899,9 @@ impl PassthroughFs {
         let st = fstat(&file, false)?;
 
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
-        let data = HandleData {
-            nodeid,
-            file: ManuallyDrop::new(file),
-            dirstream: Mutex::new(DirStream {
-                stream: std::ptr::null_mut(),
-                offset: 0,
-                entries: None,
-            }),
-        };
+        let is_readable_file =
+            !flags.contains(OFlag::O_DIRECTORY) && !flags.contains(OFlag::O_WRONLY);
+        let data = HandleData::new(nodeid, file, is_readable_file, &self.poller)?;
 
         self.handles.insert(handle, Arc::new(data));
 
@@ -1044,6 +1091,7 @@ impl FileSystem for PassthroughFs {
             opts |= FsOptions::WRITEBACK_CACHE;
             self.writeback.store(true, Ordering::Relaxed);
         }
+
         Ok(opts)
     }
 
@@ -1404,16 +1452,8 @@ impl FileSystem for PassthroughFs {
         let entry = self.finish_lookup(parent_flags, name, st, FileRef::Fd(fd.as_fd()), &ctx)?;
 
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
-        let data = HandleData {
-            nodeid: entry.nodeid,
-            file: ManuallyDrop::new(File::from(fd)),
-            dirstream: Mutex::new(DirStream {
-                stream: std::ptr::null_mut(),
-                offset: 0,
-                entries: None,
-            }),
-        };
-
+        let is_readable_file = !flags.contains(OFlag::O_WRONLY);
+        let data = HandleData::new(entry.nodeid, fd.into(), is_readable_file, &self.poller)?;
         self.handles.insert(handle, Arc::new(data));
 
         let mut opts = OpenOptions::empty();
