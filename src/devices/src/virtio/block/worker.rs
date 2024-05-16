@@ -5,6 +5,7 @@ use crate::Error as DeviceError;
 use super::super::{Queue, VIRTIO_MMIO_INT_VRING};
 use super::device::{CacheType, DiskProperties};
 
+use nix::errno::Errno;
 use std::io::{self, Write};
 use std::mem::size_of;
 use std::result;
@@ -203,9 +204,7 @@ impl BlockWorker {
                             // only diff: DISCARD fails gracefully and is ignored; WRITE_ZEROES needs a fallback if not supported by FS
                             if request_header.request_type == VIRTIO_BLK_T_WRITE_ZEROES {
                                 // TODO fallback. we only support APFS so this is impossible
-                                return Err(RequestError::WriteZeroes(
-                                    io::Error::from_raw_os_error(libc::EOPNOTSUPP),
-                                ));
+                                return Err(RequestError::WriteZeroes(Errno::EOPNOTSUPP.into()));
                             } else {
                                 // ignore error
                             }

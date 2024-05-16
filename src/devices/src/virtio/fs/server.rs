@@ -11,6 +11,7 @@ use std::mem::size_of;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use nix::errno::Errno;
 use vm_memory::ByteValued;
 
 use super::bindings;
@@ -19,15 +20,17 @@ use super::filesystem::{
     Context, DirEntry, Entry, Extensions, FileSystem, GetxattrReply, ListxattrReply, SecContext,
     ZeroCopyReader, ZeroCopyWriter,
 };
-use super::fs_utils::einval;
 use super::fuse::*;
 use super::{FsError as Error, Result};
+use crate::virtio::linux_errno::linux_errno_raw;
 use crate::virtio::VirtioShmRegion;
 
 const MAX_BUFFER_SIZE: u32 = 524288;
 const BUFFER_HEADER_SIZE: u32 = 0x1000;
 const DIRENT_PADDING: [u8; 8] = [0; 8];
 
+// our Linux guest always has 4K pages
+// TODO: make this configurable if we support 16K
 const FUSE_PAGE_SIZE: u32 = 4096;
 pub const MAX_PAGES: u32 = ((MAX_BUFFER_SIZE - 1) / FUSE_PAGE_SIZE) + 1;
 
@@ -96,11 +99,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let in_header: InHeader = r.read_obj().map_err(Error::DecodeMessage)?;
 
         if in_header.len > (MAX_BUFFER_SIZE + BUFFER_HEADER_SIZE) {
-            return reply_error(
-                io::Error::from_raw_os_error(libc::ENOMEM),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
         }
 
         if let Some(ref activity_notifier) = self.activity_notifier {
@@ -162,11 +161,7 @@ impl<F: FileSystem + Sync> Server<F> {
                 let shm = shm_region.unwrap();
                 self.removemapping(in_header, r, w, shm.host_addr, shm.size as u64)
             }
-            _ => reply_error(
-                io::Error::from_raw_os_error(bindings::LINUX_ENOSYS),
-                in_header.unique,
-                w,
-            ),
+            _ => reply_error(Errno::ENOSYS.into(), in_header.unique, w),
         }
     }
 
@@ -530,11 +525,7 @@ impl<F: FileSystem + Sync> Server<F> {
         } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         if size > MAX_BUFFER_SIZE {
-            return reply_error(
-                io::Error::from_raw_os_error(libc::ENOMEM),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
         }
 
         let owner = if read_flags & READ_LOCKOWNER != 0 {
@@ -584,11 +575,7 @@ impl<F: FileSystem + Sync> Server<F> {
         } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         if size > MAX_BUFFER_SIZE {
-            return reply_error(
-                io::Error::from_raw_os_error(libc::ENOMEM),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
         }
 
         let owner = if write_flags & WRITE_LOCKOWNER != 0 {
@@ -732,11 +719,7 @@ impl<F: FileSystem + Sync> Server<F> {
         r.read_exact(&mut name).map_err(Error::DecodeMessage)?;
 
         if size > MAX_BUFFER_SIZE {
-            return reply_error(
-                io::Error::from_raw_os_error(libc::ENOMEM),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
         }
 
         match self.fs.getxattr(
@@ -762,11 +745,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let GetxattrIn { size, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         if size > MAX_BUFFER_SIZE {
-            return reply_error(
-                io::Error::from_raw_os_error(libc::ENOMEM),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
         }
 
         match self
@@ -838,11 +817,7 @@ impl<F: FileSystem + Sync> Server<F> {
 
         if major < KERNEL_VERSION {
             error!("Unsupported fuse protocol version: {}.{}", major, minor);
-            return reply_error(
-                io::Error::from_raw_os_error(libc::EPROTO),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::EPROTO.into(), in_header.unique, w);
         }
 
         if major > KERNEL_VERSION {
@@ -861,11 +836,7 @@ impl<F: FileSystem + Sync> Server<F> {
                 "Unsupported fuse protocol minor version: {}.{}",
                 major, minor
             );
-            return reply_error(
-                io::Error::from_raw_os_error(libc::EPROTO),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::EPROTO.into(), in_header.unique, w);
         }
 
         // These fuse features are supported by this server by default.
@@ -947,20 +918,12 @@ impl<F: FileSystem + Sync> Server<F> {
         } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         if size > MAX_BUFFER_SIZE {
-            return reply_error(
-                io::Error::from_raw_os_error(libc::ENOMEM),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
         }
 
         let available_bytes = w.available_bytes();
         if available_bytes < size as usize {
-            return reply_error(
-                io::Error::from_raw_os_error(libc::ENOMEM),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
         }
 
         // Skip over enough bytes for the header.
@@ -1205,18 +1168,10 @@ impl<F: FileSystem + Sync> Server<F> {
 
         if let Some(size) = (count as usize).checked_mul(size_of::<ForgetOne>()) {
             if size > MAX_BUFFER_SIZE as usize {
-                return reply_error(
-                    io::Error::from_raw_os_error(libc::ENOMEM),
-                    in_header.unique,
-                    w,
-                );
+                return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
             }
         } else {
-            return reply_error(
-                io::Error::from_raw_os_error(libc::EOVERFLOW),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::EOVERFLOW.into(), in_header.unique, w);
         }
 
         let mut requests = Vec::with_capacity(count as usize);
@@ -1356,18 +1311,10 @@ impl<F: FileSystem + Sync> Server<F> {
 
         if let Some(size) = (count as usize).checked_mul(size_of::<RemovemappingOne>()) {
             if size > MAX_BUFFER_SIZE as usize {
-                return reply_error(
-                    io::Error::from_raw_os_error(libc::ENOMEM),
-                    in_header.unique,
-                    w,
-                );
+                return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
             }
         } else {
-            return reply_error(
-                io::Error::from_raw_os_error(libc::EOVERFLOW),
-                in_header.unique,
-                w,
-            );
+            return reply_error(Errno::EOVERFLOW.into(), in_header.unique, w);
         }
 
         let mut requests = Vec::with_capacity(count as usize);
@@ -1426,9 +1373,22 @@ fn reply_ok<T: ByteValued>(
 }
 
 fn reply_error(e: io::Error, unique: u64, mut w: Writer) -> Result<usize> {
+    debug!("reply_error: {e:?}");
+    let errno = match e.raw_os_error() {
+        Some(e) => e,
+        None => {
+            // InvalidInput = CString::new NulError
+            if e.kind() == io::ErrorKind::InvalidInput {
+                libc::EINVAL
+            } else {
+                libc::EIO
+            }
+        }
+    };
+
     let header = OutHeader {
         len: size_of::<OutHeader>() as u32,
-        error: -e.raw_os_error().unwrap_or(libc::EIO),
+        error: -linux_errno_raw(errno),
         unique,
     };
 
@@ -1452,24 +1412,24 @@ fn add_dirent(
     entry: Option<Entry>,
 ) -> io::Result<usize> {
     if d.name.len() > ::std::u32::MAX as usize {
-        return Err(io::Error::from_raw_os_error(libc::EOVERFLOW));
+        return Err(Errno::EOVERFLOW.into());
     }
 
     let dirent_len = size_of::<Dirent>()
         .checked_add(d.name.len())
-        .ok_or_else(|| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
+        .ok_or::<io::Error>(Errno::EOVERFLOW.into())?;
 
     // Directory entries must be padded to 8-byte alignment.  If adding 7 causes
     // an overflow then this dirent cannot be properly padded.
     let padded_dirent_len = dirent_len
         .checked_add(7)
         .map(|l| l & !7)
-        .ok_or_else(|| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
+        .ok_or::<io::Error>(Errno::EOVERFLOW.into())?;
 
     let total_len = if entry.is_some() {
         padded_dirent_len
             .checked_add(size_of::<EntryOut>())
-            .ok_or_else(|| io::Error::from_raw_os_error(libc::EOVERFLOW))?
+            .ok_or::<io::Error>(Errno::EOVERFLOW.into())?
     } else {
         padded_dirent_len
     };
@@ -1504,7 +1464,7 @@ fn add_dirent(
 
 fn take_object<T: ByteValued>(data: &[u8]) -> Result<(T, &[u8])> {
     if data.len() < size_of::<T>() {
-        return Err(Error::DecodeMessage(einval()));
+        return Err(Error::DecodeMessage(Errno::EINVAL.into()));
     }
 
     let (object_bytes, remaining_bytes) = data.split_at(size_of::<T>());
@@ -1518,7 +1478,7 @@ fn parse_security_context(nr_secctx: u32, data: &[u8]) -> Result<Option<SecConte
     // Although the FUSE security context extension allows sending several security contexts,
     // currently the guest kernel only sends one.
     if nr_secctx > 1 {
-        return Err(Error::DecodeMessage(einval()));
+        return Err(Error::DecodeMessage(Errno::EINVAL.into()));
     } else if nr_secctx == 0 {
         // No security context sent. May be no LSM supports it.
         return Ok(None);
@@ -1527,7 +1487,7 @@ fn parse_security_context(nr_secctx: u32, data: &[u8]) -> Result<Option<SecConte
     let (secctx, data) = take_object::<Secctx>(data)?;
 
     if secctx.size == 0 {
-        return Err(Error::DecodeMessage(einval()));
+        return Err(Error::DecodeMessage(Errno::EINVAL.into()));
     }
 
     let mut components = data.split_inclusive(|c| *c == b'\0');
@@ -1535,7 +1495,7 @@ fn parse_security_context(nr_secctx: u32, data: &[u8]) -> Result<Option<SecConte
     let (_, data) = data.split_at(secctx_name.len());
 
     if data.len() < secctx.size as usize {
-        return Err(Error::DecodeMessage(einval()));
+        return Err(Error::DecodeMessage(Errno::EINVAL.into()));
     }
 
     // Fuse client aligns the whole security context block to 64 byte
@@ -1565,7 +1525,7 @@ fn get_extensions(options: FsOptions, skip: usize, request_bytes: &[u8]) -> Resu
 
     // It's not guaranty to receive an extension even if it's supported by the guest kernel
     if request_bytes.len() < skip {
-        return Err(Error::DecodeMessage(einval()));
+        return Err(Error::DecodeMessage(Errno::EINVAL.into()));
     }
 
     // We need to track if a SecCtx was received, because it's valid
@@ -1584,12 +1544,12 @@ fn get_extensions(options: FsOptions, skip: usize, request_bytes: &[u8]) -> Resu
             remaining_bytes.split_at(extension_size);
 
         let ext_type = ExtType::try_from(extension_header.ext_type)
-            .map_err(|_| Error::DecodeMessage(einval()))?;
+            .map_err(|_| Error::DecodeMessage(Errno::EINVAL.into()))?;
 
         match ext_type {
             ExtType::SecCtx(nr_secctx) => {
                 if !options.contains(FsOptions::SECURITY_CTX) || secctx_received {
-                    return Err(Error::DecodeMessage(einval()));
+                    return Err(Error::DecodeMessage(Errno::EINVAL.into()));
                 }
 
                 secctx_received = true;

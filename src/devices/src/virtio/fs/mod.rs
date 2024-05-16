@@ -17,8 +17,6 @@ pub use linux::passthrough;
 #[cfg(target_os = "macos")]
 pub mod macos;
 #[cfg(target_os = "macos")]
-pub use macos::fs_utils;
-#[cfg(target_os = "macos")]
 pub use macos::passthrough;
 use rustc_hash::FxHasher;
 #[cfg(target_os = "macos")]

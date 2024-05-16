@@ -30,6 +30,7 @@ const LINUX_EROFS: i32 = 30;
 const LINUX_EMLINK: i32 = 31;
 const LINUX_EPIPE: i32 = 32;
 const LINUX_EDOM: i32 = 33;
+const LINUX_ERANGE: i32 = 34;
 const LINUX_EDEADLK: i32 = 35;
 const LINUX_ENAMETOOLONG: i32 = 36;
 const LINUX_ENOLCK: i32 = 37;
@@ -84,13 +85,6 @@ const LINUX_EDQUOT: i32 = 122;
 const LINUX_ECANCELED: i32 = 125;
 const LINUX_EOWNERDEAD: i32 = 130;
 const LINUX_ENOTRECOVERABLE: i32 = 131;
-
-// Errors to be directly used.
-pub const LINUX_ERANGE: i32 = 34;
-
-pub fn linux_error(error: std::io::Error) -> std::io::Error {
-    std::io::Error::from_raw_os_error(linux_errno_raw(error.raw_os_error().unwrap_or(libc::EIO)))
-}
 
 pub fn linux_errno_raw(errno: i32) -> i32 {
     match errno {
@@ -181,10 +175,7 @@ pub fn linux_errno_raw(errno: i32) -> i32 {
         libc::EOPNOTSUPP => LINUX_EOPNOTSUPP,
         libc::ENOTRECOVERABLE => LINUX_ENOTRECOVERABLE,
         libc::EOWNERDEAD => LINUX_EOWNERDEAD,
+        libc::ERANGE => LINUX_ERANGE,
         _ => LINUX_EIO,
     }
-}
-
-pub fn nix_linux_error(errno: nix::Error) -> std::io::Error {
-    std::io::Error::from_raw_os_error(linux_errno_raw(errno as i32))
 }

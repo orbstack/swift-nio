@@ -36,16 +36,13 @@ use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
 use smallvec::SmallVec;
 use utils::Mutex;
-use vm_memory::ByteValued;
 
 use crate::virtio::fs::attrlist::{self, AttrlistEntry, INLINE_ENTRIES};
 use crate::virtio::fs::filesystem::SecContext;
 use crate::virtio::fs::multikey::{MultikeyFxDashMap, ToAltKey};
-use crate::virtio::linux_errno::nix_linux_error;
 use crate::virtio::rosetta::get_rosetta_data;
 use crate::virtio::{FxDashMap, NfsInfo};
 
-use super::super::super::linux_errno::{linux_error, LINUX_ERANGE};
 use super::super::bindings;
 use super::super::filesystem::{
     Context, DirEntry, Entry, Extensions, FileSystem, FsOptions, GetxattrReply, ListxattrReply,
@@ -118,24 +115,6 @@ impl Drop for HandleData {
     }
 }
 
-#[repr(C, packed)]
-#[derive(Clone, Copy, Debug, Default)]
-struct LinuxDirent64 {
-    d_ino: bindings::ino64_t,
-    d_off: bindings::off64_t,
-    d_reclen: libc::c_ushort,
-    d_ty: libc::c_uchar,
-}
-unsafe impl ByteValued for LinuxDirent64 {}
-
-fn ebadf() -> io::Error {
-    linux_error(io::Error::from_raw_os_error(libc::EBADF))
-}
-
-fn einval() -> io::Error {
-    linux_error(io::Error::from_raw_os_error(libc::EINVAL))
-}
-
 #[derive(Clone, Copy, Debug)]
 enum FileRef<'a> {
     Path(&'a CStr),
@@ -169,7 +148,7 @@ fn set_xattr_stat(
 }
 
 fn fstat<T: AsFd>(fd: T, host: bool) -> io::Result<bindings::stat64> {
-    let mut st = nix::sys::stat::fstat(fd.as_fd().as_raw_fd()).map_err(nix_linux_error)?;
+    let mut st = nix::sys::stat::fstat(fd.as_fd().as_raw_fd())?;
 
     if !host {
         if let Some((uid, gid, mode)) = get_xattr_stat(FileRef::Fd(fd.as_fd()))? {
@@ -187,7 +166,7 @@ fn fstat<T: AsFd>(fd: T, host: bool) -> io::Result<bindings::stat64> {
 }
 
 fn lstat(c_path: &CStr, host: bool) -> io::Result<bindings::stat64> {
-    let mut st = nix::sys::stat::lstat(c_path.as_ref()).map_err(nix_linux_error)?;
+    let mut st = nix::sys::stat::lstat(c_path.as_ref())?;
 
     if !host {
         if let Some((uid, gid, mode)) = get_xattr_stat(FileRef::Path(c_path))? {
@@ -215,7 +194,8 @@ fn get_path_by_fd<T: AsRawFd>(fd: T) -> io::Result<String> {
     }
 
     // cstr to find length
-    let cstr = CStr::from_bytes_until_nul(&path_buf).map_err(|_| einval())?;
+    let cstr = CStr::from_bytes_until_nul(&path_buf).map_err(|_| Errno::EINVAL)?; // different from NulError
+
     // safe: kernel guarantees UTF-8
     Ok(unsafe { String::from_utf8_unchecked(cstr.to_bytes().to_vec()) })
 }
@@ -468,7 +448,7 @@ impl PassthroughFs {
 
     fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, NodeFlags, Option<Arc<OwnedFd>>)> {
         // race OK: primary key lookup only
-        let node = self.nodeids.get(&nodeid).ok_or_else(ebadf)?;
+        let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
         Ok((node.dev_ino, node.flags, node.fd.clone()))
     }
 
@@ -483,8 +463,7 @@ impl PassthroughFs {
             Ok(OwnedFileRef::Fd(fd))
         } else {
             let path = format!("/.vol/{}/{}", dev, ino);
-            let cstr = CString::new(path).map_err(|_| einval())?;
-            Ok(OwnedFileRef::Path(cstr))
+            Ok(OwnedFileRef::Path(CString::new(path)?))
         }
     }
 
@@ -496,8 +475,7 @@ impl PassthroughFs {
                 // this also allows minimal opens (EVTONLY | RDONLY)
                 // TODO: all handlers should support Fd or Path. this is just lowest-effort impl
                 let path = get_path_by_fd(fd)?;
-                let cstr = CString::new(path).map_err(|_| einval())?;
-                Ok(cstr)
+                Ok(CString::new(path)?)
             }
         }
     }
@@ -509,7 +487,7 @@ impl PassthroughFs {
     ) -> io::Result<(CString, DevIno, NodeFlags)> {
         // deny ".." to prevent root escape
         if name == ".." {
-            return Err(linux_error(std::io::Error::from_raw_os_error(libc::ENOENT)));
+            return Err(Errno::ENOENT.into());
         }
 
         let ((parent_device, parent_inode), parent_flags, fd) = self.get_nodeid(parent)?;
@@ -522,7 +500,7 @@ impl PassthroughFs {
             format!("/.vol/{}/{}/{}", parent_device, parent_inode, name)
         };
 
-        let cstr = CString::new(path).map_err(|_| einval())?;
+        let cstr = CString::new(path)?;
         Ok((cstr, (parent_device, parent_inode), parent_flags))
     }
 
@@ -533,7 +511,7 @@ impl PassthroughFs {
     fn devino_to_path(&self, devino: DevIno) -> io::Result<CString> {
         let (dev, ino) = devino;
         let path = format!("/.vol/{}/{}", dev, ino);
-        let cstr = CString::new(path).map_err(|_| einval())?;
+        let cstr = CString::new(path)?;
         Ok(cstr)
     }
 
@@ -562,14 +540,14 @@ impl PassthroughFs {
         flags |= OFlag::O_CLOEXEC;
         flags.remove(OFlag::O_NOFOLLOW | OFlag::O_EXLOCK);
 
-        let fd =
-            nix::fcntl::open(c_path.as_ref(), flags, Mode::empty()).map_err(nix_linux_error)?;
+        let fd = nix::fcntl::open(c_path.as_ref(), flags, Mode::empty())?;
 
         // Safe because we just opened this fd.
         Ok(unsafe { File::from_raw_fd(fd) })
     }
 
     fn dev_supports_volfs(&self, dev: i32, file_ref: &FileRef) -> io::Result<bool> {
+        // TODO: what if the mountpoint disappears, and st_dev gets reused?
         if let Some(supported) = self.dev_info.get(&dev) {
             return Ok(*supported);
         }
@@ -579,8 +557,7 @@ impl PassthroughFs {
         let stf = match file_ref {
             FileRef::Path(c_path) => statfs(c_path.as_ref()),
             FileRef::Fd(fd) => fstatfs(fd),
-        }
-        .map_err(nix_linux_error)?;
+        }?;
         // transmute type (repr(transparent))
         let stf = unsafe { mem::transmute::<_, libc::statfs>(stf) };
         let supported = (stf.f_flags & libc::MNT_DOVOLFS as u32) != 0;
@@ -652,7 +629,7 @@ impl PassthroughFs {
                 // TODO: evict fds and cache as paths
                 if self.num_open_fds.fetch_add(1, Ordering::Relaxed) > MAX_PATH_FDS {
                     self.num_open_fds.fetch_sub(1, Ordering::Relaxed);
-                    return Err(linux_error(io::Error::from_raw_os_error(libc::ENFILE)));
+                    return Err(Errno::ENFILE.into());
                 }
 
                 // OFlag::from_bits_truncate truncates O_SYMLINK
@@ -672,8 +649,7 @@ impl PassthroughFs {
                         // TODO: faster to ask caller for c_path here
                         nix::fcntl::open(Path::new(&get_path_by_fd(fd)?), oflag, Mode::empty())
                     }
-                }
-                .map_err(nix_linux_error)?;
+                }?;
                 Some(Arc::new(unsafe { OwnedFd::from_raw_fd(fd) }))
             } else {
                 debug!("skip open");
@@ -781,9 +757,9 @@ impl PassthroughFs {
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(|v| v.clone())
-            .ok_or_else(ebadf)?;
+            .ok_or(Errno::EBADF)?;
         // race OK: FUSE won't FORGET until all handles are closed
-        let (dev, _) = self.nodeids.get(&nodeid).ok_or_else(ebadf)?.dev_ino;
+        let (dev, _) = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?.dev_ino;
 
         let mut ds = data.dirstream.lock().unwrap();
 
@@ -791,7 +767,7 @@ impl PassthroughFs {
         let dir_stream = if ds.stream.is_null() {
             let dir = unsafe { libc::fdopendir(data.file.as_raw_fd()) };
             if dir.is_null() {
-                return Err(linux_error(io::Error::last_os_error()));
+                return Err(io::Error::last_os_error());
             }
             ds.stream = dir;
             dir
@@ -928,7 +904,7 @@ impl PassthroughFs {
             }
         }
 
-        Err(ebadf())
+        Err(Errno::EBADF.into())
     }
 
     fn do_getattr(
@@ -963,7 +939,7 @@ impl PassthroughFs {
         if res == 0 {
             Ok(())
         } else {
-            Err(linux_error(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         }
     }
 
@@ -1006,7 +982,7 @@ impl PassthroughFs {
                 .get(&handle)
                 .filter(|hd| hd.nodeid == nodeid)
                 .map(|v| v.clone())
-                .ok_or_else(ebadf)?;
+                .ok_or(Errno::EBADF)?;
 
             Ok(OwnedFileRef::Fd(hd))
         } else {
@@ -1095,7 +1071,8 @@ impl FileSystem for PassthroughFs {
 
     fn statfs(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Statvfs> {
         let c_path = self.nodeid_to_path(nodeid)?;
-        statvfs(c_path.as_ref()).map_err(nix_linux_error)
+        let stv = statvfs(c_path.as_ref())?;
+        Ok(stv)
     }
 
     fn lookup(&self, _ctx: Context, parent: NodeId, name: &CStr) -> io::Result<Entry> {
@@ -1159,7 +1136,7 @@ impl FileSystem for PassthroughFs {
             )?;
             self.do_lookup(parent, name, &ctx)
         } else {
-            Err(linux_error(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         }
     }
 
@@ -1195,7 +1172,7 @@ impl FileSystem for PassthroughFs {
         F: FnMut(DirEntry, Entry) -> io::Result<usize>,
     {
         // race OK: FUSE won't FORGET until all handles are closed
-        let node = self.nodeids.get(&nodeid).ok_or_else(ebadf)?;
+        let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
         let parent_flags = node.flags;
         let nlink = node.nlink;
         let (dev, ino) = node.dev_ino;
@@ -1245,7 +1222,7 @@ impl FileSystem for PassthroughFs {
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(|v| v.clone())
-            .ok_or_else(ebadf)?;
+            .ok_or(Errno::EBADF)?;
 
         let mut ds = data.dirstream.lock().unwrap();
 
@@ -1308,7 +1285,7 @@ impl FileSystem for PassthroughFs {
             } else {
                 // only do path lookup once
                 let path = if let Some(ref path) = parent_fd_path {
-                    CString::new(format!("{}/{}", path, entry.name)).map_err(|_| einval())
+                    CString::new(format!("{}/{}", path, entry.name)).map_err(|e| e.into())
                 } else {
                     self.devino_to_path((st.st_dev, st.st_ino))
                 };
@@ -1403,14 +1380,11 @@ impl FileSystem for PassthroughFs {
         // really check `flags` because if the kernel can't handle poorly specified flags then we
         // have much bigger problems.
         let fd = unsafe {
-            OwnedFd::from_raw_fd(
-                nix::fcntl::open(
-                    c_path.as_ref(),
-                    flags | OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
-                    Mode::from_bits_unchecked(mode as u16),
-                )
-                .map_err(nix_linux_error)?,
-            )
+            OwnedFd::from_raw_fd(nix::fcntl::open(
+                c_path.as_ref(),
+                flags | OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
+                Mode::from_bits_unchecked(mode as u16),
+            )?)
         };
 
         if let Err(e) = set_xattr_stat(
@@ -1485,7 +1459,7 @@ impl FileSystem for PassthroughFs {
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(|v| v.clone())
-            .ok_or_else(ebadf)?;
+            .ok_or(Errno::EBADF)?;
 
         // This is safe because write_from uses preadv64, so the underlying file descriptor
         // offset is not affected by this operation.
@@ -1510,7 +1484,7 @@ impl FileSystem for PassthroughFs {
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(|v| v.clone())
-            .ok_or_else(ebadf)?;
+            .ok_or(Errno::EBADF)?;
 
         // This is safe because read_to uses pwritev64, so the underlying file descriptor
         // offset is not affected by this operation.
@@ -1583,8 +1557,7 @@ impl FileSystem for PassthroughFs {
             match file_ref.as_ref() {
                 FileRef::Fd(fd) => ftruncate(fd.as_raw_fd(), attr.st_size),
                 FileRef::Path(path) => truncate(path, attr.st_size),
-            }
-            .map_err(nix_linux_error)?;
+            }?;
         }
 
         if valid.intersects(SetattrValid::ATIME | SetattrValid::MTIME) {
@@ -1623,8 +1596,7 @@ impl FileSystem for PassthroughFs {
                     &mtime,
                     UtimensatFlags::NoFollowSymlink,
                 ),
-            }
-            .map_err(nix_linux_error)?;
+            }?;
         }
 
         self.do_getattr(file_ref.as_ref(), _ctx)
@@ -1650,7 +1622,7 @@ impl FileSystem for PassthroughFs {
         if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0
             && ((flags as i32) & bindings::LINUX_RENAME_EXCHANGE) != 0
         {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::EINVAL)));
+            return Err(Errno::EINVAL.into());
         }
 
         let old_cpath = self.name_to_path(olddir, &oldname.to_string_lossy())?;
@@ -1663,9 +1635,9 @@ impl FileSystem for PassthroughFs {
         if res == -1 && Errno::last() == Errno::ENOTSUP && mflags == libc::RENAME_EXCL {
             // EXCL means that target must not exist, so check it
             match access(new_cpath.as_ref(), AccessFlags::F_OK) {
-                Ok(_) => return Err(linux_error(io::Error::from_raw_os_error(libc::EEXIST))),
+                Ok(_) => return Err(Errno::EEXIST.into()),
                 Err(Errno::ENOENT) => {}
-                Err(e) => return Err(linux_error(io::Error::from_raw_os_error(e as i32))),
+                Err(e) => return Err(e.into()),
             }
 
             res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), 0) }
@@ -1691,7 +1663,7 @@ impl FileSystem for PassthroughFs {
 
             Ok(())
         } else {
-            Err(linux_error(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         }
     }
 
@@ -1719,19 +1691,17 @@ impl FileSystem for PassthroughFs {
             libc::S_IFIFO => {
                 // FIFOs are actually safe because Linux just treats them as a device node, and will never issue VFS read call because they can't have data on real filesystems
                 // read/write blocking is all handled by the kernel
-                mkfifo(c_path.as_ref(), Mode::from_bits_truncate(mode as u16))
-                    .map_err(nix_linux_error)?;
+                mkfifo(c_path.as_ref(), Mode::from_bits_truncate(mode as u16))?;
             }
             libc::S_IFSOCK => {
                 // we use datagram because it doesn't call listen
-                let _ = UnixDatagram::bind(OsStr::from_bytes(c_path.to_bytes()))
-                    .map_err(linux_error)?;
+                let _ = UnixDatagram::bind(OsStr::from_bytes(c_path.to_bytes()))?;
             }
             libc::S_IFCHR | libc::S_IFBLK => {
-                return Err(linux_error(io::Error::from_raw_os_error(libc::EPERM)));
+                return Err(Errno::EPERM.into());
             }
             _ => {
-                return Err(linux_error(io::Error::from_raw_os_error(libc::EINVAL)));
+                return Err(Errno::EINVAL.into());
             }
         }
 
@@ -1776,8 +1746,7 @@ impl FileSystem for PassthroughFs {
                     None,
                     link_c_path.as_ref(),
                     LinkatFlags::NoSymlinkFollow,
-                )
-                .map_err(nix_linux_error)?;
+                )?;
             }
         } else {
             // only APFS supports clonefile. fall back to link
@@ -1787,8 +1756,7 @@ impl FileSystem for PassthroughFs {
                 None,
                 link_c_path.as_ref(),
                 LinkatFlags::NoSymlinkFollow,
-            )
-            .map_err(nix_linux_error)?;
+            )?;
         }
 
         self.do_lookup(newparent, newname, &_ctx)
@@ -1806,7 +1774,7 @@ impl FileSystem for PassthroughFs {
         let c_path = self.name_to_path(parent, name)?;
 
         // Safe because this doesn't modify any memory and we check the return value.
-        symlinkat(linkname.as_ref(), None, c_path.as_ref()).map_err(nix_linux_error)?;
+        symlinkat(linkname.as_ref(), None, c_path.as_ref())?;
 
         // Set security context
         if let Some(secctx) = extensions.secctx {
@@ -1838,7 +1806,7 @@ impl FileSystem for PassthroughFs {
             )
         };
         if res == -1 {
-            return Err(linux_error(io::Error::last_os_error()));
+            return Err(io::Error::last_os_error());
         }
 
         buf.resize(res as usize, 0);
@@ -1856,7 +1824,7 @@ impl FileSystem for PassthroughFs {
         // we could emulate this with dup+close to trigger nfs_vnop_close on NFS,
         // but it's usually ok to just wait for last fd to be closed (i.e. RELEASE)
         // multi-fd is rare anyway
-        Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)))
+        Err(Errno::ENOSYS.into())
     }
 
     fn fsync(
@@ -1871,7 +1839,7 @@ impl FileSystem for PassthroughFs {
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(|v| v.clone())
-            .ok_or_else(ebadf)?;
+            .ok_or(Errno::EBADF)?;
 
         // use barrier fsync to preserve semantics and avoid DB corruption
         // Safe because this doesn't modify any memory and we check the return value.
@@ -1880,7 +1848,7 @@ impl FileSystem for PassthroughFs {
         if res == 0 {
             Ok(())
         } else {
-            Err(linux_error(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         }
     }
 
@@ -1910,11 +1878,11 @@ impl FileSystem for PassthroughFs {
         );
 
         if !self.cfg.xattr {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)));
+            return Err(Errno::ENOSYS.into());
         }
 
         if name.to_bytes() == STAT_XATTR_KEY {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::EACCES)));
+            return Err(Errno::EACCES.into());
         }
 
         let mut mflags: i32 = 0;
@@ -1941,7 +1909,7 @@ impl FileSystem for PassthroughFs {
         if res == 0 {
             Ok(())
         } else {
-            Err(linux_error(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         }
     }
 
@@ -1955,11 +1923,11 @@ impl FileSystem for PassthroughFs {
         debug!("getxattr: nodeid={} name={:?}, size={}", nodeid, name, size);
 
         if !self.cfg.xattr {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)));
+            return Err(Errno::ENOSYS.into());
         }
 
         if name.to_bytes() == STAT_XATTR_KEY {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::EACCES)));
+            return Err(Errno::EACCES.into());
         }
 
         let mut buf = vec![0; size as usize];
@@ -1989,7 +1957,7 @@ impl FileSystem for PassthroughFs {
             }
         };
         if res == -1 {
-            return Err(linux_error(io::Error::last_os_error()));
+            return Err(io::Error::last_os_error());
         }
 
         if size == 0 {
@@ -2002,13 +1970,13 @@ impl FileSystem for PassthroughFs {
 
     fn listxattr(&self, _ctx: Context, nodeid: NodeId, size: u32) -> io::Result<ListxattrReply> {
         if !self.cfg.xattr {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)));
+            return Err(Errno::ENOSYS.into());
         }
 
         let c_path = self.nodeid_to_path(nodeid)?;
 
         // Safe because this will only modify the contents of `buf`.
-        let buf = listxattr(&c_path).map_err(nix_linux_error)?;
+        let buf = listxattr(&c_path)?;
 
         if size == 0 {
             let mut clean_size = buf.len();
@@ -2034,7 +2002,7 @@ impl FileSystem for PassthroughFs {
             }
 
             if clean_buf.len() > size as usize {
-                Err(io::Error::from_raw_os_error(LINUX_ERANGE))
+                Err(Errno::ERANGE.into())
             } else {
                 Ok(ListxattrReply::Names(clean_buf))
             }
@@ -2043,13 +2011,11 @@ impl FileSystem for PassthroughFs {
 
     fn removexattr(&self, _ctx: Context, nodeid: NodeId, name: &CStr) -> io::Result<()> {
         if !self.cfg.xattr {
-            return Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)));
+            return Err(Errno::ENOSYS.into());
         }
 
         if name.to_bytes() == STAT_XATTR_KEY {
-            return Err(linux_error(io::Error::from_raw_os_error(
-                bindings::LINUX_EACCES,
-            )));
+            return Err(Errno::EACCES.into());
         }
 
         let c_path = self.nodeid_to_path(nodeid)?;
@@ -2060,7 +2026,7 @@ impl FileSystem for PassthroughFs {
         if res == 0 {
             Ok(())
         } else {
-            Err(linux_error(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         }
     }
 
@@ -2083,7 +2049,7 @@ impl FileSystem for PassthroughFs {
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(|v| v.clone())
-            .ok_or_else(ebadf)?;
+            .ok_or(Errno::EBADF)?;
 
         let file = &data.file;
         match mode {
@@ -2112,7 +2078,7 @@ impl FileSystem for PassthroughFs {
                         libc::fcntl(file.as_raw_fd(), libc::F_PREALLOCATE, &mut fs as *mut _)
                     };
                     if res == -1 {
-                        return Err(linux_error(io::Error::last_os_error()));
+                        return Err(io::Error::last_os_error());
                     }
                 }
 
@@ -2120,7 +2086,7 @@ impl FileSystem for PassthroughFs {
                 if mode & FALLOC_FL_KEEP_SIZE == 0 && new_end > st.st_size as u64 {
                     let res = unsafe { libc::ftruncate(file.as_raw_fd(), new_end as i64) };
                     if res == -1 {
-                        return Err(linux_error(io::Error::last_os_error()));
+                        return Err(io::Error::last_os_error());
                     }
                 }
 
@@ -2150,7 +2116,7 @@ impl FileSystem for PassthroughFs {
                     let res =
                         unsafe { libc::fcntl(file.as_raw_fd(), libc::F_PUNCHHOLE, &punch_hole) };
                     if res == -1 {
-                        return Err(linux_error(io::Error::last_os_error()));
+                        return Err(io::Error::last_os_error());
                     }
                 }
 
@@ -2158,15 +2124,14 @@ impl FileSystem for PassthroughFs {
                 let zero_start_len = hole_start - zero_start;
                 if zero_start_len > 0 {
                     let zero_start_buf = vec![0u8; zero_start_len as usize];
-                    pwrite(file.as_raw_fd(), &zero_start_buf, zero_start)
-                        .map_err(nix_linux_error)?;
+                    pwrite(file.as_raw_fd(), &zero_start_buf, zero_start)?;
                 }
 
                 // zero the ending block
                 let zero_end_len = zero_end - hole_end;
                 if zero_end_len > 0 {
                     let zero_end_buf = vec![0u8; zero_end_len as usize];
-                    pwrite(file.as_raw_fd(), &zero_end_buf, hole_end).map_err(nix_linux_error)?;
+                    pwrite(file.as_raw_fd(), &zero_end_buf, hole_end)?;
                 }
 
                 Ok(())
@@ -2174,7 +2139,7 @@ impl FileSystem for PassthroughFs {
 
             // don't think it's possible to emulate FALLOC_FL_ZERO_RANGE
             // most programs (e.g. mkfs.ext4) will fall back to FALLOC_FL_PUNCH_HOLE
-            _ => Err(linux_error(io::Error::from_raw_os_error(libc::EOPNOTSUPP))),
+            _ => Err(Errno::EOPNOTSUPP.into()),
         }
     }
 
@@ -2196,7 +2161,7 @@ impl FileSystem for PassthroughFs {
             .get(&handle)
             .filter(|hd| hd.nodeid == nodeid)
             .map(|v| v.clone())
-            .ok_or_else(ebadf)?;
+            .ok_or(Errno::EBADF)?;
 
         // SEEK_DATA and SEEK_HOLE have slightly different semantics
         // in Linux vs. macOS, which means we can't support them.
@@ -2219,7 +2184,7 @@ impl FileSystem for PassthroughFs {
             )
         };
         if res == -1 {
-            Err(linux_error(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         } else {
             Ok(res as u64)
         }
@@ -2245,6 +2210,6 @@ impl FileSystem for PassthroughFs {
             }
         }
 
-        Err(linux_error(io::Error::from_raw_os_error(libc::ENOSYS)))
+        Err(Errno::ENOSYS.into())
     }
 }
