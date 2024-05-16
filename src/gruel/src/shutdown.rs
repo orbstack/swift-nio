@@ -1,7 +1,9 @@
 use core::fmt;
 use std::sync::Arc;
 
+use derive_where::derive_where;
 use generational_arena::{Arena, Index};
+use newt::{NumEnum, NumEnumMap};
 use parking_lot::{Condvar, Mutex};
 use thiserror::Error;
 
@@ -13,6 +15,40 @@ use crate::{util::ExtensionFor, BoundSignalChannel};
 #[error("failed to spawn new task: shutdown already requested")]
 #[non_exhaustive]
 pub struct ShutdownAlreadyRequested;
+
+// === MultiShutdownSignal === //
+
+#[derive_where(Clone, Default)]
+pub struct MultiShutdownSignal<P: NumEnum> {
+    signals: Arc<NumEnumMap<P, ShutdownSignal>>,
+}
+
+impl<P: NumEnum> fmt::Debug for MultiShutdownSignal<P> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MultiShutdownSignal")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<P: NumEnum> MultiShutdownSignal<P> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn spawn(
+        &self,
+        phase: P,
+        kick: impl 'static + Send + Sync + FnOnce(),
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+        self.signals[phase].spawn_ref(kick)
+    }
+
+    pub fn shutdown(&self) {
+        for signal in self.signals.values() {
+            signal.shutdown();
+        }
+    }
+}
 
 // === ShutdownSignal === //
 
@@ -67,6 +103,13 @@ impl ShutdownSignal {
         })
     }
 
+    pub fn spawn_ref(
+        &self,
+        kick: impl 'static + Send + Sync + FnOnce(),
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+        self.clone().spawn(kick)
+    }
+
     pub fn shutdown(&self) {
         let mut guard = self.0.state.lock();
         guard.shutting_down = true;
@@ -79,22 +122,6 @@ impl ShutdownSignal {
 
         self.0.condvar.wait(&mut guard);
         assert!(guard.tasks.is_empty());
-    }
-}
-
-pub trait ShutdownSignalExt: ExtensionFor<ShutdownSignal> {
-    fn spawn_signal(
-        self,
-        signal: BoundSignalChannel,
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested>;
-}
-
-impl ShutdownSignalExt for ShutdownSignal {
-    fn spawn_signal(
-        self,
-        signal: BoundSignalChannel,
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
-        self.spawn(move || signal.assert())
     }
 }
 
@@ -120,6 +147,58 @@ impl Drop for ShutdownTask {
         if guard.shutting_down && guard.tasks.is_empty() {
             self.signal.0.condvar.notify_all();
         }
+    }
+}
+
+// === Extensions === //
+
+pub trait MultiShutdownSignalExt: ExtensionFor<MultiShutdownSignal<Self::Phase>> {
+    type Phase: NumEnum;
+
+    fn spawn_signal(
+        &self,
+        phase: Self::Phase,
+        signal: BoundSignalChannel,
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested>;
+}
+
+impl<P: NumEnum> MultiShutdownSignalExt for MultiShutdownSignal<P> {
+    type Phase = P;
+
+    fn spawn_signal(
+        &self,
+        phase: Self::Phase,
+        signal: BoundSignalChannel,
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+        self.spawn(phase, move || signal.assert())
+    }
+}
+
+pub trait ShutdownSignalExt: ExtensionFor<ShutdownSignal> {
+    fn spawn_signal(
+        self,
+        signal: BoundSignalChannel,
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested>;
+
+    fn spawn_signal_ref(
+        &self,
+        signal: BoundSignalChannel,
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested>;
+}
+
+impl ShutdownSignalExt for ShutdownSignal {
+    fn spawn_signal(
+        self,
+        signal: BoundSignalChannel,
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+        self.spawn(move || signal.assert())
+    }
+
+    fn spawn_signal_ref(
+        &self,
+        signal: BoundSignalChannel,
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+        self.spawn_ref(move || signal.assert())
     }
 }
 

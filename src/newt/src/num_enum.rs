@@ -114,6 +114,17 @@ impl<K: NumEnum, V: Default> Default for NumEnumMap<K, V> {
     }
 }
 
+impl<K: NumEnum, V> Clone for NumEnumMap<K, V>
+where
+    K::Array<V>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<K: NumEnum, V> Copy for NumEnumMap<K, V> where K::Array<V>: Copy {}
+
 impl<K: NumEnum, V: fmt::Debug> fmt::Debug for NumEnumMap<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()

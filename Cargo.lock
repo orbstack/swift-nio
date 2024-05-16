@@ -598,7 +598,9 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.5.0",
  "cfgenius",
+ "derive-where",
  "generational-arena",
+ "newt",
  "parking_lot",
  "scopeguard",
  "thiserror",

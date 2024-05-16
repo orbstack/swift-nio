@@ -6,7 +6,9 @@ edition = "2021"
 [dependencies]
 bitflags = "2.4.2"
 cfgenius = "0.1.1"
+derive-where = "1.2.7"
 generational-arena = "0.2.9"
+newt = { version = "0.1.0", path = "../newt" }
 parking_lot = "0.12.1"
 scopeguard = "1.2.0"
 thiserror = "1.0.58"
