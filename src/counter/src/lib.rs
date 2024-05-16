@@ -199,8 +199,8 @@ impl Counter for RateCounter {
         } else {
             write!(
                 f,
-                "{} = {}/s +{} (total: {total})",
-                self.0, userdata.avg_snapshot, userdata.delta_snapshot
+                "{:<26} += {:<6}  |  avg={:>5.0}/s   total={total}",
+                self.0, userdata.delta_snapshot, userdata.avg_snapshot
             )
         }
     }
@@ -333,7 +333,12 @@ pub fn display_every(filter: &AhoCorasick, interval: Duration) -> RunAtInterval 
     RunAtInterval::new(interval, move |duration| {
         let mut builder = String::new();
         builder.push_str("\n====== COUNTERS ======\n");
-        writeln!(&mut builder, "time since start: {:?}", duration.since_start).unwrap();
+        writeln!(
+            &mut builder,
+            "uptime: {:?}s",
+            duration.since_start.as_secs()
+        )
+        .unwrap();
         if counters.is_empty() {
             builder.push_str("no counters to display\n");
         }
@@ -341,7 +346,7 @@ pub fn display_every(filter: &AhoCorasick, interval: Duration) -> RunAtInterval 
             counter.tick(duration);
             writeln!(&mut builder, "{counter}").unwrap();
         }
-        builder.push_str("======================\n");
+        builder.push_str("======================\n\n");
 
         let mut stderr = std::io::stderr().lock();
         stderr.write_all(builder.as_bytes()).unwrap();
