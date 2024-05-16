@@ -512,8 +512,8 @@ impl Vcpu {
         let (exit, exit_actions) = hvf_vcpu.run(pending_irq).expect("Failed to run HVF vCPU");
 
         // handle PV GIC read side effects
+        let mmio_bus = self.mmio_bus.as_ref().unwrap();
         if exit_actions.contains(ExitActions::READ_IAR1_EL1) {
-            let mmio_bus = self.mmio_bus.as_ref().unwrap();
             mmio_bus.read_sysreg(vcpuid, GicSysReg::ICC_IAR1_EL1 as u64);
         }
 
@@ -547,18 +547,15 @@ impl Vcpu {
                     "vCPU {} HVC IO: dev_id={} args_ptr={}",
                     vcpuid, dev_id, args_ptr
                 );
-                let mmio_bus = self.mmio_bus.as_ref().unwrap();
                 let ret = mmio_bus.call_hvc(dev_id, args_ptr);
                 hvf_vcpu.write_gp_reg(0, ret as u64).unwrap();
                 Ok(VcpuEmulation::Handled)
             }
             VcpuExit::MmioRead(addr, data) => {
-                let mmio_bus = self.mmio_bus.as_ref().unwrap();
                 mmio_bus.read(vcpuid, addr, data);
                 Ok(VcpuEmulation::Handled)
             }
             VcpuExit::MmioWrite(addr, data) => {
-                let mmio_bus = self.mmio_bus.as_ref().unwrap();
                 mmio_bus.write(vcpuid, addr, data);
                 Ok(VcpuEmulation::Handled)
             }
@@ -575,7 +572,6 @@ impl Vcpu {
                 arg_reg_idx,
                 is_read,
             } => {
-                let mmio_bus = self.mmio_bus.as_ref().unwrap();
                 if is_read {
                     hvf_vcpu
                         .write_gp_reg(arg_reg_idx, mmio_bus.read_sysreg(vcpuid, sys_reg))
