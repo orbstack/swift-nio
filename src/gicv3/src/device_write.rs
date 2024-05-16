@@ -64,11 +64,6 @@ impl GicV3 {
 
                 pe_int_state.active_interrupt = None;
                 handler.handle_custom_eoi(pe, int_id);
-
-                if !pe_int_state.pending_interrupts.is_empty() {
-                    tracing::trace!("{pe:?} still has interrupts pending; kicking again.");
-                    handler.kick_vcpu_for_irq(pe);
-                }
             }
 
             GicSysReg::ICC_HPPIR0_EL1 => todo!(),
