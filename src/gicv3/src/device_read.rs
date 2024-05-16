@@ -1,11 +1,19 @@
 #![allow(unused_variables)]
 
+use counter::RateCounter;
+
 use crate::{
     device::{GicV3, GicV3EventHandler, InterruptId, PeId},
     mmio::{CoreLinkIdRegisters, GicFullMap, GicSysReg, GicdCtlr, Waker, GICD, GICR, SGI},
     mmio_range,
     mmio_util::{write_bit_array, BitPack, MmioReadRequest},
 };
+
+counter::counter! {
+    COUNT_GIC_ACK in "gic.sys.read.ack": RateCounter = RateCounter::new(FILTER);
+    COUNT_GIC_SYSREG_READ in "gic.sys.read.total": RateCounter = RateCounter::new(FILTER);
+    COUNT_GIC_MMIO_READ in "gic.mmio.read.total": RateCounter = RateCounter::new(FILTER);
+}
 
 impl GicV3 {
     pub fn read_sysreg(
@@ -16,6 +24,7 @@ impl GicV3 {
     ) -> u64 {
         tracing::trace!("--- Read GIC sysreg, PE: {pe:?}, REG: {:?}", reg,);
 
+        COUNT_GIC_SYSREG_READ.count();
         match reg {
             GicSysReg::ICC_AP0R0_EL1 => todo!(),
             GicSysReg::ICC_AP0R1_EL1 => todo!(),
@@ -84,6 +93,8 @@ impl GicV3 {
 
             // 12.2.14 ICC_IAR1_EL1, Interrupt Controller Interrupt Acknowledge Register 1
             GicSysReg::ICC_IAR1_EL1 => {
+                COUNT_GIC_ACK.count();
+
                 let pe_state = self.pe_state(handler, pe);
                 let mut pe_int_state = pe_state.int_state.lock().unwrap();
 
@@ -120,6 +131,7 @@ impl GicV3 {
         mut req: MmioReadRequest<'_>,
     ) {
         tracing::trace!("--- Read GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range(),);
+        COUNT_GIC_MMIO_READ.count();
 
         req.handle_sub(mmio_range!(GicFullMap, gicd), |req| {
             self.read_distributor(pe, req)

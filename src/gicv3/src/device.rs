@@ -6,12 +6,18 @@
 
 // === Definitions === //
 
+use counter::RateCounter;
 use std::{collections::VecDeque, sync::Arc};
 use utils::Mutex;
 
 use rustc_hash::FxHashMap;
 
 use crate::mmio_util::BitPack;
+
+counter::counter! {
+    COUNT_SPI in "gic.irq.spi": RateCounter = RateCounter::new(FILTER);
+    COUNT_PPI in "gic.irq.ppi": RateCounter = RateCounter::new(FILTER);
+}
 
 /// The ID of an interrupt target that the GIC can route. The interrupt kind is determined by its ID.
 /// Each ID corresponds to an *interrupt source*.
@@ -218,6 +224,7 @@ impl GicV3 {
 
     pub fn send_spi(&mut self, handler: &mut impl GicV3EventHandler, int_id: InterruptId) {
         assert_eq!(int_id.kind(), InterruptKind::SharedPeripheral);
+        COUNT_SPI.count();
 
         // HACK: We just send the SPI to the first PE we find but I don't think that's spec-compliant,
         //  technically? I think Linux just configures a specific PE as the only one capable of
@@ -235,6 +242,7 @@ impl GicV3 {
         is_local: bool,
     ) {
         assert_eq!(int_id.kind(), InterruptKind::PrivatePeripheral);
+        COUNT_PPI.count();
 
         let pe_state = self.pe_states.get_mut(&pe).unwrap();
         Self::send_interrupt_inner(handler, pe, pe_state, int_id, !is_local);
@@ -262,6 +270,7 @@ impl GicV3 {
             "Delivering interrupt {int_id:?} of type {:?} to {pe:?}",
             int_id.kind(),
         );
+        // TODO: don't push duplicate interrupts?
         pe_state
             .int_state
             .lock()

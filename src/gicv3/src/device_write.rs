@@ -14,10 +14,14 @@ use crate::{
 };
 
 counter::counter! {
-    COUNT_EOI in "gic.eoi": RateCounter = RateCounter::new(FILTER);
+    COUNT_EOI in "gic.sys.write.eoi": RateCounter = RateCounter::new(FILTER);
+    COUNT_EOI_WITH_PENDING in "gic.sys.write.eoi.pending": RateCounter = RateCounter::new(FILTER);
 
-    COUNT_IPI_BROADCAST in "gic.ipi.broadcast": RateCounter = RateCounter::new(FILTER);
-    COUNT_IPI_SINGLE in "gic.ipi.single": RateCounter = RateCounter::new(FILTER);
+    COUNT_IPI_BROADCAST in "gic.sys.write.ipi.bcast": RateCounter = RateCounter::new(FILTER);
+    COUNT_IPI_SINGLE in "gic.sys.write.ipi.single": RateCounter = RateCounter::new(FILTER);
+
+    COUNT_SYSREG_WRITE in "gic.sys.write.total": RateCounter = RateCounter::new(FILTER);
+    COUNT_MMIO_WRITE in "gic.mmio.write.total": RateCounter = RateCounter::new(FILTER);
 }
 
 impl GicV3 {
@@ -28,7 +32,8 @@ impl GicV3 {
         reg: GicSysReg,
         value: u64,
     ) {
-        tracing::trace!("--- Write GIC sysreg, PE: {pe:?}, REG: {reg:?}, VAL: {value:b}",);
+        tracing::trace!("--- Write GIC sysreg, PE: {pe:?}, REG: {reg:?}, VAL: {value:b}");
+        COUNT_SYSREG_WRITE.count();
 
         match reg {
             GicSysReg::ICC_AP0R0_EL1 => todo!(),
@@ -75,6 +80,9 @@ impl GicV3 {
                 handler.handle_custom_eoi(pe, int_id);
 
                 COUNT_EOI.count();
+                if !pe_int_state.pending_interrupts.is_empty() {
+                    COUNT_EOI_WITH_PENDING.count();
+                }
             }
 
             GicSysReg::ICC_HPPIR0_EL1 => todo!(),
@@ -184,7 +192,8 @@ impl GicV3 {
     }
 
     pub fn write(&mut self, pe: PeId, mut req: MmioWriteRequest<'_>) {
-        tracing::trace!("--- Write GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range(),);
+        tracing::trace!("--- Write GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range());
+        COUNT_MMIO_WRITE.count();
 
         req.handle_sub(mmio_range!(GicFullMap, gicd), |req| {
             self.write_distributor(pe, req)
