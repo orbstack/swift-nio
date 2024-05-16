@@ -1,0 +1,60 @@
+version: '3.0'
+services:
+  postgres:
+    image: $DOCKER_IMAGE
+    environment:
+      POSTGRES_PASSWORD: $DATABASE_PASSWORD
+      POSTGRES_USER: $DATABASE_USER
+      POSTGRES_DB: $DATABASE_NAME
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    command: [
+      "postgres",
+      "-c", "max_connections=100",
+    ]
+
+  wait-for-db:
+    image: $DOCKER_IMAGE
+    environment:
+      PGAPPNAME: wait-for-db
+      PGHOST: $DATABASE_HOST
+      PGUSER: $DATABASE_USER
+      PGPASSWORD: $DATABASE_PASSWORD
+      PGDATABASE: $DATABASE_NAME
+    volumes:
+      - $PWD:/code
+    depends_on:
+      - postgres
+    command: ["/code/wait-for-db.sh"]
+
+  pgbench-init:
+    image: $DOCKER_IMAGE
+    environment:
+      PGAPPNAME: pgbench-init
+      PGHOST: $DATABASE_HOST
+      PGUSER: $DATABASE_USER
+      PGPASSWORD: $DATABASE_PASSWORD
+      PGDATABASE: $DATABASE_NAME
+    command: [
+      "pgbench",
+      "-i", # initialize
+      "-s", $PGBENCH_SCALE # scale
+    ]
+
+  pgbench:
+    image: $DOCKER_IMAGE
+    environment:
+      PGAPPNAME: pgbench
+      PGHOST: $DATABASE_HOST
+      PGUSER: $DATABASE_USER
+      PGPASSWORD: $DATABASE_PASSWORD
+      PGDATABASE: $DATABASE_NAME
+    command: [
+      "pgbench",
+      "-c", $PGBENCH_CLIENTS,
+      "-j", $PGBENCH_THREADS,
+      "-b", $PGBENCH_SCRIPT,
+      "-T", $PGBENCH_DURATION,
+      "-P", "1", # show progress every 1 sec
+      "pgbench" # database name
+    ]
