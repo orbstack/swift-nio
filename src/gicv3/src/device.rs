@@ -223,7 +223,7 @@ impl GicV3 {
         //  technically? I think Linux just configures a specific PE as the only one capable of
         //  receiving these events but I may be wrong.
         if let Some((pe, pe_state)) = self.pe_states.iter_mut().next() {
-            Self::send_interrupt_inner(handler, *pe, pe_state, int_id);
+            Self::send_interrupt_inner(handler, *pe, pe_state, int_id, true);
         }
     }
 
@@ -232,11 +232,12 @@ impl GicV3 {
         handler: &mut impl GicV3EventHandler,
         pe: PeId,
         int_id: InterruptId,
+        is_local: bool,
     ) {
         assert_eq!(int_id.kind(), InterruptKind::PrivatePeripheral);
 
         let pe_state = self.pe_states.get_mut(&pe).unwrap();
-        Self::send_interrupt_inner(handler, pe, pe_state, int_id);
+        Self::send_interrupt_inner(handler, pe, pe_state, int_id, !is_local);
     }
 
     pub fn send_interrupt_inner(
@@ -244,6 +245,7 @@ impl GicV3 {
         pe: PeId,
         pe_state: &mut PeState,
         int_id: InterruptId,
+        needs_kick: bool,
     ) {
         // Check whether the target PE can receive the interrupt
         // TODO
@@ -267,7 +269,9 @@ impl GicV3 {
             .pending_interrupts
             .push_front(int_id);
 
-        handler.kick_vcpu_for_irq(pe);
+        if needs_kick {
+            handler.kick_vcpu_for_irq(pe);
+        }
     }
 }
 

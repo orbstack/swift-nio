@@ -79,6 +79,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
             },
             vcpuid,
             TIMER_INT_ID,
+            true, // doesn't need kick: timer PPIs are always local to the vCPU, so we just exited to deliver this
         );
     }
 
