@@ -58,4 +58,8 @@ impl UserspaceGicImpl for HvfApic {
     fn get_vcpu_handle(&mut self, _vcpuid: u64) -> Box<dyn super::GicVcpuHandle> {
         unimplemented!()
     }
+
+    fn kick_vcpu(&mut self, _vcpuid: u64) {
+        todo!()
+    }
 }
