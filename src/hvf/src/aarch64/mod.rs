@@ -66,37 +66,6 @@ macro_rules! arm64_sys_reg {
 
 arm64_sys_reg!(SYSREG_MASK, 0x3, 0x7, 0x7, 0xf, 0xf);
 
-/*
-arm64_sys_reg!(SYSREG_CNTPCT_EL0, 3, 3, 1, 14, 0);
-arm64_sys_reg!(SYSREG_PMCCNTR_EL0, 3, 3, 0, 9, 13);
-arm64_sys_reg!(SYSREG_ICC_AP0R0_EL1, 3, 0, 4, 12, 8);
-arm64_sys_reg!(SYSREG_ICC_AP0R1_EL1, 3, 0, 5, 12, 8);
-arm64_sys_reg!(SYSREG_ICC_AP0R2_EL1, 3, 0, 6, 12, 8);
-arm64_sys_reg!(SYSREG_ICC_AP0R3_EL1, 3, 0, 7, 12, 8);
-arm64_sys_reg!(SYSREG_ICC_AP1R0_EL1, 3, 0, 0, 12, 9);
-arm64_sys_reg!(SYSREG_ICC_AP1R1_EL1, 3, 0, 1, 12, 9);
-arm64_sys_reg!(SYSREG_ICC_AP1R2_EL1, 3, 0, 2, 12, 9);
-arm64_sys_reg!(SYSREG_ICC_AP1R3_EL1, 3, 0, 3, 12, 9);
-arm64_sys_reg!(SYSREG_ICC_ASGI1R_EL1, 3, 0, 6, 12, 11);
-arm64_sys_reg!(SYSREG_ICC_BPR0_EL1, 3, 0, 3, 12, 8);
-arm64_sys_reg!(SYSREG_ICC_BPR1_EL1, 3, 0, 3, 12, 12);
-arm64_sys_reg!(SYSREG_ICC_CTLR_EL1, 3, 0, 4, 12, 12);
-arm64_sys_reg!(SYSREG_ICC_DIR_EL1, 3, 0, 1, 12, 11);
-arm64_sys_reg!(SYSREG_ICC_EOIR0_EL1, 3, 0, 1, 12, 8);
-arm64_sys_reg!(SYSREG_ICC_EOIR1_EL1, 3, 0, 1, 12, 12);
-arm64_sys_reg!(SYSREG_ICC_HPPIR0_EL1, 3, 0, 2, 12, 8);
-arm64_sys_reg!(SYSREG_ICC_HPPIR1_EL1, 3, 0, 2, 12, 12);
-arm64_sys_reg!(SYSREG_ICC_IAR0_EL1, 3, 0, 0, 12, 8);
-arm64_sys_reg!(SYSREG_ICC_IAR1_EL1, 3, 0, 0, 12, 12);
-arm64_sys_reg!(SYSREG_ICC_IGRPEN0_EL1, 3, 0, 6, 12, 12);
-arm64_sys_reg!(SYSREG_ICC_IGRPEN1_EL1, 3, 0, 7, 12, 12);
-arm64_sys_reg!(SYSREG_ICC_PMR_EL1, 3, 0, 0, 4, 6);
-arm64_sys_reg!(SYSREG_ICC_RPR_EL1, 3, 0, 3, 12, 11);
-arm64_sys_reg!(SYSREG_ICC_SGI0R_EL1, 3, 0, 7, 12, 11);
-arm64_sys_reg!(SYSREG_ICC_SGI1R_EL1, 3, 0, 5, 12, 11);
-arm64_sys_reg!(SYSREG_ICC_SRE_EL1, 3, 0, 5, 12, 12);
-*/
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("memory map")]
