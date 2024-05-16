@@ -57,7 +57,7 @@ impl FsWorker {
 
     pub fn run(self) -> thread::JoinHandle<()> {
         thread::Builder::new()
-            .name("fs worker".to_string())
+            .name(format!("fs{} worker", self.server.hvc_id().unwrap_or(0)))
             .spawn(|| self.work())
             .expect("failed to spawn thread")
     }
