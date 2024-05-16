@@ -2,6 +2,7 @@ use std::os::fd::AsRawFd;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
+use utils::qos::{set_thread_qos, QosClass};
 use utils::Mutex;
 
 use utils::epoll::{ControlOperation, Epoll, EpollEvent, EventSet};
@@ -58,7 +59,12 @@ impl FsWorker {
     pub fn run(self) -> thread::JoinHandle<()> {
         thread::Builder::new()
             .name(format!("fs{} worker", self.server.hvc_id().unwrap_or(0)))
-            .spawn(|| self.work())
+            .spawn(|| {
+                // these worker threads are only used for FORGET
+                set_thread_qos(QosClass::Background, None).unwrap();
+
+                self.work()
+            })
             .expect("failed to spawn thread")
     }
 
