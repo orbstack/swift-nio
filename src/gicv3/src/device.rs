@@ -270,13 +270,17 @@ impl GicV3 {
             "Delivering interrupt {int_id:?} of type {:?} to {pe:?}",
             int_id.kind(),
         );
-        // TODO: don't push duplicate interrupts?
+
+        // we must push to the back of the queue, and not the front, in order for PV GIC to work
+        // otherwise the next peeked interrupt could change between vmenter and vmexit (which is when we prcoess the deferred IAR1)
+        // due to PV GIC, if we ever dedupe interrupts, it's fine -- we just need to allow 2 copies of each interrupt (e.g. 2 bitmasks) to make sure that any new interrupt delivered between when guest was supposed to IAR1, and when it was supposed to EOIR1, is not missed (because normally IAR1 dequeues and would make it no longer a duplicate when re-asserted)
+        // TODO: dedupe >2 copies of the same interrupt
         pe_state
             .int_state
             .lock()
             .unwrap()
             .pending_interrupts
-            .push_front(int_id);
+            .push_back(int_id);
 
         if needs_kick {
             handler.kick_vcpu_for_irq(pe);
@@ -341,5 +345,16 @@ pub struct PeInterruptState {
 impl PeInterruptState {
     pub fn is_irq_line_asserted(&self) -> bool {
         !self.pending_interrupts.is_empty() || self.active_interrupt.is_some()
+    }
+
+    // allow peeking at the next (active/pending) interrupt that IAR_EL1 (ack) would return, for PV GIC
+    pub fn get_pending_irq(&self) -> Option<InterruptId> {
+        if let Some(active_interrupt) = self.active_interrupt {
+            Some(active_interrupt)
+        } else if let Some(pending_interrupt) = self.pending_interrupts.front() {
+            Some(*pending_interrupt)
+        } else {
+            None
+        }
     }
 }

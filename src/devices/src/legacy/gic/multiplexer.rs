@@ -1,6 +1,7 @@
 // Copyright 2021 Red Hat, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use gicv3::device::InterruptId;
 use std::{any::Any, thread::Thread};
 use utils::Mutex;
 
@@ -85,7 +86,7 @@ impl BusDevice for Gic {
 }
 
 pub trait GicVcpuHandle: Send + Sync {
-    fn has_pending_irq(&mut self, gic: &Mutex<Gic>) -> bool;
+    fn get_pending_irq(&mut self, gic: &Mutex<Gic>) -> Option<InterruptId>;
 
     fn should_wait(&mut self, gic: &Mutex<Gic>) -> bool;
 }

@@ -9,11 +9,13 @@
 #[allow(deref_nullptr)]
 mod bindings;
 use bindings::*;
-use vm_memory::{Address, GuestMemory, GuestMemoryMmap};
+use bitflags::bitflags;
+use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap, VolatileMemory};
 
 use std::arch::asm;
 use std::convert::TryInto;
 use std::ffi::c_void;
+use std::mem::size_of;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
 use std::thread::Thread;
@@ -110,6 +112,8 @@ pub enum Error {
     VmAllocate,
     #[error("host CPU doesn't support assigning {0} bits of VM memory")]
     VmConfigIpaSizeLimit(u32),
+    #[error("guest memory map")]
+    GetGuestMemory,
 }
 
 /// Messages for requesting memory maps/unmaps.
@@ -305,6 +309,30 @@ struct MmioRead {
     srt: u32,
 }
 
+bitflags! {
+    #[derive(Debug, Clone, Copy)]
+    pub struct PvgicFlags: u32 {
+        const PVGIC_FLAG_IAR1_PENDING = 1 << 0;
+        const PVGIC_FLAG_IAR1_READ = 1 << 1;
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct ExitActions: u32 {
+        const READ_IAR1_EL1 = 1 << 0;
+    }
+}
+
+// no atomics because it's on the same CPU, but must be volatile
+#[derive(Debug, Clone, Copy)]
+struct PvgicVcpuState {
+    flags: PvgicFlags,
+    // only guest reads this
+    #[allow(dead_code)]
+    pending_iar1_read: u32,
+}
+
+unsafe impl ByteValued for PvgicVcpuState {}
+
 pub struct HvfVcpu<'a> {
     parker: Arc<dyn Parkable>,
     vcpuid: hv_vcpu_t,
@@ -313,6 +341,9 @@ pub struct HvfVcpu<'a> {
     mmio_buf: [u8; 8],
     pending_mmio_read: Option<MmioRead>,
     pending_advance_pc: bool,
+
+    guest_mem: GuestMemoryMmap,
+    pvgic: Option<*mut PvgicVcpuState>,
 }
 
 extern "C" {
@@ -332,7 +363,7 @@ fn search_8b_linear(haystack_ptr: *mut u64, needle: u64, haystack_bytes: usize) 
 }
 
 impl<'a> HvfVcpu<'a> {
-    pub fn new(parker: Arc<dyn Parkable>) -> Result<Self, Error> {
+    pub fn new(parker: Arc<dyn Parkable>, guest_mem: GuestMemoryMmap) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpu_t = 0;
         let mut vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
 
@@ -360,6 +391,9 @@ impl<'a> HvfVcpu<'a> {
             mmio_buf: [0; 8],
             pending_mmio_read: None,
             pending_advance_pc: false,
+
+            guest_mem,
+            pvgic: None,
         })
     }
 
@@ -491,11 +525,12 @@ impl<'a> HvfVcpu<'a> {
         Ok(())
     }
 
-    pub fn run(&mut self, pending_irq: bool) -> Result<VcpuExit, Error> {
+    pub fn run(&mut self, pending_irq: Option<u32>) -> Result<(VcpuExit, ExitActions), Error> {
         self.parker.before_vcpu_run(self.vcpuid);
 
+        let mut exit_actions = ExitActions::empty();
         if self.parker.should_shutdown() {
-            return Ok(VcpuExit::Shutdown);
+            return Ok((VcpuExit::Shutdown, exit_actions));
         }
 
         if let Some(mmio_read) = self.pending_mmio_read.take() {
@@ -521,8 +556,19 @@ impl<'a> HvfVcpu<'a> {
             self.pending_advance_pc = false;
         }
 
-        if pending_irq {
+        if let Some(pending_irq) = pending_irq {
             vcpu_set_pending_irq(self.vcpuid, InterruptType::Irq, true)?;
+
+            if let Some(pvgic) = self.pvgic {
+                // if there's a pending IRQ, IAR1_EL1 always has a valid value (!= 1023)
+                let new_state = PvgicVcpuState {
+                    flags: PvgicFlags::PVGIC_FLAG_IAR1_PENDING,
+                    pending_iar1_read: pending_irq,
+                };
+                unsafe {
+                    std::ptr::write_volatile(pvgic, new_state);
+                }
+            }
         }
 
         let ret = unsafe { hv_vcpu_run(self.vcpuid) };
@@ -532,60 +578,30 @@ impl<'a> HvfVcpu<'a> {
 
         COUNT_EXIT_TOTAL.count();
 
-        match self.vcpu_exit.reason {
-            HV_EXIT_REASON_CANCELED => Ok(VcpuExit::Canceled),
+        if pending_irq.is_some() {
+            if let Some(pvgic) = self.pvgic {
+                let pvgic = unsafe { std::ptr::read_volatile(pvgic) };
+                if pvgic.flags.contains(PvgicFlags::PVGIC_FLAG_IAR1_READ) {
+                    // we can only return one vmexit here, so tell the emulation loop to trigger IAR1_EL1 read for side effects (dequeue)
+                    // usually this will happen when the guest hits EOIR_EL1 write
+                    exit_actions.insert(ExitActions::READ_IAR1_EL1);
+                }
+            }
+        }
+
+        let exit = match self.vcpu_exit.reason {
+            HV_EXIT_REASON_CANCELED => VcpuExit::Canceled,
             HV_EXIT_REASON_EXCEPTION => {
                 let syndrome = self.vcpu_exit.exception.syndrome;
                 let ec = (syndrome >> 26) & 0x3f;
 
                 match ec {
-                    EC_AA64_HVC => {
-                        let val = self.read_raw_reg(hv_reg_t_HV_REG_X0)?;
-
-                        debug!("HVC: 0x{:x}", val);
-                        let ret = match val {
-                            0x8400_0000 => Some(2),
-                            0x8400_0006 => Some(2),
-                            0x8400_0008 | 0x8400_0009 => return Ok(VcpuExit::Shutdown),
-                            0xc400_0003 => {
-                                let mpidr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
-                                let entry = self.read_raw_reg(hv_reg_t_HV_REG_X2)?;
-                                let context_id = self.read_raw_reg(hv_reg_t_HV_REG_X3)?;
-                                self.write_raw_reg(hv_reg_t_HV_REG_X0, 0)?;
-                                return Ok(VcpuExit::CpuOn(mpidr, entry, context_id));
-                            }
-                            0xc400_002a => {
-                                COUNT_EXIT_HVC_VIRTIOFS.count();
-                                let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
-                                let args_ptr = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as usize;
-                                return Ok(VcpuExit::HypervisorIoCall { dev_id, args_ptr });
-                            }
-                            0xc300_0005 => {
-                                COUNT_EXIT_HVC_PVLOCK_WAIT.count();
-                                return Ok(VcpuExit::PvlockPark);
-                            }
-                            0xc300_0006 => {
-                                COUNT_EXIT_HVC_PVLOCK_KICK.count();
-                                let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
-                                return Ok(VcpuExit::PvlockUnpark(vcpuid));
-                            }
-                            _ => {
-                                debug!("HVC call unhandled");
-                                None
-                            }
-                        };
-
-                        if let Some(ret) = ret {
-                            self.write_raw_reg(hv_reg_t_HV_REG_X0, ret)?;
-                        }
-
-                        Ok(VcpuExit::HypervisorCall)
-                    }
+                    EC_AA64_HVC => self.handle_hvc()?,
                     EC_AA64_SMC => {
                         debug!("SMC exit");
 
                         self.pending_advance_pc = true;
-                        Ok(VcpuExit::SecureMonitorCall)
+                        VcpuExit::SecureMonitorCall
                     }
                     EC_SYSTEMREGISTERTRAP => {
                         let is_read: bool = (syndrome & 1) != 0;
@@ -600,11 +616,11 @@ impl<'a> HvfVcpu<'a> {
 
                         COUNT_EXIT_SYSREG.count();
                         self.pending_advance_pc = true;
-                        Ok(VcpuExit::SystemRegister {
+                        VcpuExit::SystemRegister {
                             sys_reg,
                             arg_reg_idx,
                             is_read,
-                        })
+                        }
                     }
                     EC_DATAABORT => {
                         let isv: bool = (syndrome & (1 << 24)) != 0;
@@ -641,16 +657,16 @@ impl<'a> HvfVcpu<'a> {
                             };
 
                             COUNT_EXIT_MMIO_READ.count();
-                            Ok(VcpuExit::MmioWrite(pa, &self.mmio_buf[0..len]))
+                            VcpuExit::MmioWrite(pa, &self.mmio_buf[0..len])
                         } else {
                             COUNT_EXIT_MMIO_WRITE.count();
                             self.pending_mmio_read = Some(MmioRead { addr: pa, srt, len });
-                            Ok(VcpuExit::MmioRead(pa, &mut self.mmio_buf[0..len]))
+                            VcpuExit::MmioRead(pa, &mut self.mmio_buf[0..len])
                         }
                     }
                     EC_AA64_BKPT => {
                         debug!("BRK exit");
-                        Ok(VcpuExit::Breakpoint)
+                        VcpuExit::Breakpoint
                     }
 
                     EC_WFX_TRAP => {
@@ -660,20 +676,20 @@ impl<'a> HvfVcpu<'a> {
                         self.pending_advance_pc = true;
                         if ((ctl & 1) == 0) || (ctl & 2) != 0 {
                             COUNT_EXIT_WFE_INDEFINITE.count();
-                            Ok(VcpuExit::WaitForEvent)
+                            VcpuExit::WaitForEvent
                         } else {
                             let cval = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CVAL_EL0)?;
                             let now = unsafe { mach_absolute_time() };
 
                             if now > cval {
                                 COUNT_EXIT_WFE_EXPIRED.count();
-                                Ok(VcpuExit::WaitForEventExpired)
+                                VcpuExit::WaitForEventExpired
                             } else {
                                 let timeout = Duration::from_nanos(
                                     (cval - now) * (1_000_000_000 / self.cntfrq),
                                 );
                                 COUNT_EXIT_WFE_TIMED.count();
-                                Ok(VcpuExit::WaitForEventTimeout(timeout))
+                                VcpuExit::WaitForEventTimeout(timeout)
                             }
                         }
                     }
@@ -684,7 +700,7 @@ impl<'a> HvfVcpu<'a> {
 
             HV_EXIT_REASON_VTIMER_ACTIVATED => {
                 COUNT_EXIT_VTIMER.count();
-                Ok(VcpuExit::VtimerActivated)
+                VcpuExit::VtimerActivated
             }
 
             _ => {
@@ -696,7 +712,61 @@ impl<'a> HvfVcpu<'a> {
                     pc
                 );
             }
-        }
+        };
+
+        Ok((exit, exit_actions))
+    }
+
+    fn handle_hvc(&mut self) -> Result<VcpuExit, Error> {
+        let val = self.read_raw_reg(hv_reg_t_HV_REG_X0)?;
+
+        debug!("HVC: 0x{:x}", val);
+        let ret = match val {
+            0x8400_0000 => Some(2),
+            0x8400_0006 => Some(2),
+            0x8400_0008 | 0x8400_0009 => return Ok(VcpuExit::Shutdown),
+            0xc400_0003 => {
+                let mpidr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                let entry = self.read_raw_reg(hv_reg_t_HV_REG_X2)?;
+                let context_id = self.read_raw_reg(hv_reg_t_HV_REG_X3)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X0, 0)?;
+                return Ok(VcpuExit::CpuOn(mpidr, entry, context_id));
+            }
+            0xc400_002a => {
+                COUNT_EXIT_HVC_VIRTIOFS.count();
+                let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
+                let args_ptr = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as usize;
+                return Ok(VcpuExit::HypervisorIoCall { dev_id, args_ptr });
+            }
+            0xc400_002b => {
+                let pvgic_state_addr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                let slice = self
+                    .guest_mem
+                    .get_slice(GuestAddress(pvgic_state_addr), size_of::<PvgicVcpuState>())
+                    .map_err(|_| Error::GetGuestMemory)?;
+                let mut_ref =
+                    unsafe { slice.aligned_as_mut(0).map_err(|_| Error::GetGuestMemory)? };
+                self.pvgic = Some(mut_ref as *mut PvgicVcpuState);
+                Some(0)
+            }
+            0xc300_0005 => {
+                COUNT_EXIT_HVC_PVLOCK_WAIT.count();
+                return Ok(VcpuExit::PvlockPark);
+            }
+            0xc300_0006 => {
+                COUNT_EXIT_HVC_PVLOCK_KICK.count();
+                let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                return Ok(VcpuExit::PvlockUnpark(vcpuid));
+            }
+            _ => {
+                debug!("HVC call unhandled");
+                None
+            }
+        };
+
+        // SMCCC not supported
+        self.write_raw_reg(hv_reg_t_HV_REG_X0, ret.unwrap_or(-1i64 as u64))?;
+        Ok(VcpuExit::HypervisorCall)
     }
 
     pub fn destroy(self) {

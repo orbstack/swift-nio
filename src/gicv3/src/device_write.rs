@@ -17,7 +17,6 @@ counter::counter! {
     COUNT_EOI in "gic.sys.write.eoi": RateCounter = RateCounter::new(FILTER);
     COUNT_EOI_WITH_PENDING in "gic.sys.write.eoi.pending": RateCounter = RateCounter::new(FILTER);
 
-    COUNT_IPI_BROADCAST in "gic.sys.write.ipi.bcast": RateCounter = RateCounter::new(FILTER);
     COUNT_IPI_SINGLE in "gic.sys.write.ipi.single": RateCounter = RateCounter::new(FILTER);
 
     COUNT_SYSREG_WRITE in "gic.sys.write.total": RateCounter = RateCounter::new(FILTER);
@@ -172,8 +171,6 @@ impl GicV3 {
                             Self::send_interrupt_inner(handler, pe, pe_state, int_id, true);
                         }
                     }
-
-                    COUNT_IPI_BROADCAST.count();
                 } else {
                     for aff0 in iter_set_bits(target_list_bits) {
                         let target_aff = Affinity([aff0 as u8, aff1 as u8, aff2 as u8, aff3 as u8]);

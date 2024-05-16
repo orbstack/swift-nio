@@ -349,7 +349,6 @@ pub struct Vcpu {
     boot_senders: Option<Vec<Sender<GuestAddress>>>,
     #[cfg(target_arch = "aarch64")]
     fdt_addr: u64,
-    #[cfg(target_arch = "x86_64")]
     guest_mem: GuestMemoryMmap,
     #[cfg(target_arch = "aarch64")]
     enable_tso: bool,
@@ -389,6 +388,7 @@ impl Vcpu {
         id: u8,
         boot_receiver: Receiver<GuestAddress>,
         exit_evt: EventFd,
+        guest_mem: GuestMemoryMmap,
         _create_ts: TimestampUs,
         intc: Arc<Mutex<Gic>>,
     ) -> Result<Self> {
@@ -400,6 +400,7 @@ impl Vcpu {
             enable_tso: false,
             mmio_bus: None,
             exit_evt,
+            guest_mem,
             mpidr: 0,
             intc,
         })
@@ -502,114 +503,112 @@ impl Vcpu {
         hvf_vcpu: &mut HvfVcpu,
         intc_handle: &mut dyn GicVcpuHandle,
     ) -> Result<VcpuEmulation> {
+        use devices::legacy::GicSysReg;
+        use hvf::ExitActions;
+
         let vcpuid = hvf_vcpu.id();
-        let pending_irq = intc_handle.has_pending_irq(&self.intc);
+        let pending_irq = intc_handle.get_pending_irq(&self.intc).map(|i| i.0);
 
-        match hvf_vcpu.run(pending_irq) {
-            Ok(exit) => match exit {
-                VcpuExit::Breakpoint => {
-                    debug!("vCPU {} breakpoint", vcpuid);
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::Canceled => {
-                    debug!("vCPU {} canceled", vcpuid);
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::CpuOn(mpidr, entry, context_id) => {
-                    debug!(
-                        "CpuOn: mpidr=0x{:x} entry=0x{:x} context_id={}",
-                        mpidr, entry, context_id
-                    );
-                    let cpuid: usize = (mpidr >> 8) as usize;
-                    if let Some(boot_senders) = &self.boot_senders {
-                        if let Some(sender) = boot_senders.get(cpuid) {
-                            sender.send(GuestAddress(entry)).unwrap()
-                        }
-                    }
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::HypervisorCall => {
-                    debug!("vCPU {} HVC", vcpuid);
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::HypervisorIoCall { dev_id, args_ptr } => {
-                    debug!(
-                        "vCPU {} HVC IO: dev_id={} args_ptr={}",
-                        vcpuid, dev_id, args_ptr
-                    );
-                    if let Some(ref mmio_bus) = self.mmio_bus {
-                        let ret = mmio_bus.call_hvc(dev_id, args_ptr);
-                        hvf_vcpu.write_gp_reg(0, ret as u64).unwrap();
-                    }
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::MmioRead(addr, data) => {
-                    if let Some(ref mmio_bus) = self.mmio_bus {
-                        mmio_bus.read(vcpuid, addr, data);
-                    }
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::MmioWrite(addr, data) => {
-                    if let Some(ref mmio_bus) = self.mmio_bus {
-                        mmio_bus.write(vcpuid, addr, data);
-                    }
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::SecureMonitorCall => {
-                    debug!("vCPU {} SMC", vcpuid);
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::Shutdown => {
-                    debug!("vCPU {} received shutdown signal", vcpuid);
-                    Ok(VcpuEmulation::Stopped)
-                }
-                VcpuExit::SystemRegister {
-                    sys_reg,
-                    arg_reg_idx,
-                    is_read,
-                } => {
-                    if let Some(ref mmio_bus) = self.mmio_bus {
-                        if is_read {
-                            hvf_vcpu
-                                .write_gp_reg(arg_reg_idx, mmio_bus.read_sysreg(vcpuid, sys_reg))
-                                .unwrap()
-                        } else {
-                            mmio_bus.write_sysreg(
-                                vcpuid,
-                                sys_reg,
-                                hvf_vcpu.read_gp_reg(arg_reg_idx).unwrap(),
-                            );
-                        }
-                    } else {
-                        tracing::error!("`mmio_bus` not initialized before first sysreg access");
-                        hvf_vcpu.write_gp_reg(arg_reg_idx, 0).unwrap();
-                    }
+        let (exit, exit_actions) = hvf_vcpu.run(pending_irq).expect("Failed to run HVF vCPU");
 
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::VtimerActivated => {
-                    debug!("vCPU {} VtimerActivated", vcpuid);
-                    self.intc.lock().unwrap().set_vtimer_irq(vcpuid);
-                    Ok(VcpuEmulation::Handled)
-                }
-                VcpuExit::WaitForEvent => {
-                    debug!("vCPU {} WaitForEvent", vcpuid);
-                    Ok(VcpuEmulation::WaitForEvent)
-                }
-                VcpuExit::WaitForEventExpired => {
-                    debug!("vCPU {} WaitForEventExpired", vcpuid);
-                    Ok(VcpuEmulation::WaitForEventExpired)
-                }
-                VcpuExit::WaitForEventTimeout(duration) => {
-                    debug!("vCPU {} WaitForEventTimeout timeout={:?}", vcpuid, duration);
-                    Ok(VcpuEmulation::WaitForEventTimeout(duration))
-                }
-                VcpuExit::PvlockPark => Ok(VcpuEmulation::PvlockPark),
-                VcpuExit::PvlockUnpark(vcpuid) => Ok(VcpuEmulation::PvlockUnpark(vcpuid)),
-            },
-            Err(e) => {
-                panic!("Error running HVF vCPU: {:?}", e);
+        // handle PV GIC read side effects
+        if exit_actions.contains(ExitActions::READ_IAR1_EL1) {
+            let mmio_bus = self.mmio_bus.as_ref().unwrap();
+            mmio_bus.read_sysreg(vcpuid, GicSysReg::ICC_IAR1_EL1 as u64);
+        }
+
+        match exit {
+            VcpuExit::Breakpoint => {
+                debug!("vCPU {} breakpoint", vcpuid);
+                Ok(VcpuEmulation::Handled)
             }
+            VcpuExit::Canceled => {
+                debug!("vCPU {} canceled", vcpuid);
+                Ok(VcpuEmulation::Handled)
+            }
+            VcpuExit::CpuOn(mpidr, entry, context_id) => {
+                debug!(
+                    "CpuOn: mpidr=0x{:x} entry=0x{:x} context_id={}",
+                    mpidr, entry, context_id
+                );
+                let cpuid: usize = (mpidr >> 8) as usize;
+                let boot_senders = self.boot_senders.as_ref().unwrap();
+                if let Some(sender) = boot_senders.get(cpuid) {
+                    sender.send(GuestAddress(entry)).unwrap()
+                }
+                Ok(VcpuEmulation::Handled)
+            }
+            VcpuExit::HypervisorCall => {
+                debug!("vCPU {} HVC", vcpuid);
+                Ok(VcpuEmulation::Handled)
+            }
+            VcpuExit::HypervisorIoCall { dev_id, args_ptr } => {
+                debug!(
+                    "vCPU {} HVC IO: dev_id={} args_ptr={}",
+                    vcpuid, dev_id, args_ptr
+                );
+                let mmio_bus = self.mmio_bus.as_ref().unwrap();
+                let ret = mmio_bus.call_hvc(dev_id, args_ptr);
+                hvf_vcpu.write_gp_reg(0, ret as u64).unwrap();
+                Ok(VcpuEmulation::Handled)
+            }
+            VcpuExit::MmioRead(addr, data) => {
+                let mmio_bus = self.mmio_bus.as_ref().unwrap();
+                mmio_bus.read(vcpuid, addr, data);
+                Ok(VcpuEmulation::Handled)
+            }
+            VcpuExit::MmioWrite(addr, data) => {
+                let mmio_bus = self.mmio_bus.as_ref().unwrap();
+                mmio_bus.write(vcpuid, addr, data);
+                Ok(VcpuEmulation::Handled)
+            }
+            VcpuExit::SecureMonitorCall => {
+                debug!("vCPU {} SMC", vcpuid);
+                Ok(VcpuEmulation::Handled)
+            }
+            VcpuExit::Shutdown => {
+                debug!("vCPU {} received shutdown signal", vcpuid);
+                Ok(VcpuEmulation::Stopped)
+            }
+            VcpuExit::SystemRegister {
+                sys_reg,
+                arg_reg_idx,
+                is_read,
+            } => {
+                let mmio_bus = self.mmio_bus.as_ref().unwrap();
+                if is_read {
+                    hvf_vcpu
+                        .write_gp_reg(arg_reg_idx, mmio_bus.read_sysreg(vcpuid, sys_reg))
+                        .unwrap()
+                } else {
+                    mmio_bus.write_sysreg(
+                        vcpuid,
+                        sys_reg,
+                        hvf_vcpu.read_gp_reg(arg_reg_idx).unwrap(),
+                    );
+                }
+
+                Ok(VcpuEmulation::Handled)
+            }
+            VcpuExit::VtimerActivated => {
+                debug!("vCPU {} VtimerActivated", vcpuid);
+                self.intc.lock().unwrap().set_vtimer_irq(vcpuid);
+                Ok(VcpuEmulation::Handled)
+            }
+            VcpuExit::WaitForEvent => {
+                debug!("vCPU {} WaitForEvent", vcpuid);
+                Ok(VcpuEmulation::WaitForEvent)
+            }
+            VcpuExit::WaitForEventExpired => {
+                debug!("vCPU {} WaitForEventExpired", vcpuid);
+                Ok(VcpuEmulation::WaitForEventExpired)
+            }
+            VcpuExit::WaitForEventTimeout(duration) => {
+                debug!("vCPU {} WaitForEventTimeout timeout={:?}", vcpuid, duration);
+                Ok(VcpuEmulation::WaitForEventTimeout(duration))
+            }
+            VcpuExit::PvlockPark => Ok(VcpuEmulation::PvlockPark),
+            VcpuExit::PvlockUnpark(vcpuid) => Ok(VcpuEmulation::PvlockUnpark(vcpuid)),
         }
     }
 
@@ -695,7 +694,8 @@ impl Vcpu {
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "aarch64")]
     pub fn run(&mut self, parker: Arc<Parker>, init_sender: Sender<bool>) {
-        let mut hvf_vcpu = HvfVcpu::new(parker.clone()).expect("Can't create HVF vCPU");
+        let mut hvf_vcpu =
+            HvfVcpu::new(parker.clone(), self.guest_mem.clone()).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();
 
         self.intc.lock().unwrap().register_vcpu(
@@ -743,6 +743,7 @@ impl Vcpu {
                 }
                 // PV-lock
                 Ok(VcpuEmulation::PvlockPark) => {
+                    // TODO: this should park when no interrupts
                     self.wait_for_event(&mut *intc_vcpu_handle, None);
                 }
                 Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {

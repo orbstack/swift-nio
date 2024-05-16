@@ -1083,6 +1083,7 @@ fn create_vcpus_aarch64(
             cpu_index,
             boot_receiver,
             exit_evt.try_clone().map_err(Error::EventFd)?,
+            guest_mem.clone(),
             request_ts.clone(),
             intc.clone(),
         )
