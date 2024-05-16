@@ -35,11 +35,20 @@ static int do_test() {
 
 	u64 start = now();
 	while (true) {
-		// int new_fd = open("/Users/dragon/code/projects/macvirt/exp/syscall/testfile", O_RDWR|O_CREAT, 0644);
-		// if (new_fd < 0) {
-		// 	printf("open error\n");
-		// 	break;
-		// }
+		int new_fd = open("/Users/dragon/code/projects/macvirt/exp/syscall/testfile", O_RDWR|O_CREAT, 0644);
+		if (new_fd < 0) {
+			printf("open error\n");
+			break;
+		}
+		struct stat st;
+		int ret = stat("/Users/dragon/code/projects/macvirt/exp/syscall", &st);
+		if (ret != 0) {
+			printf("fstat error\n");
+			break;
+		}
+		char volfs_buf[1024];
+		sprintf(volfs_buf, "/.vol/%llu/%llu/testfile", st.st_dev, st.st_ino);
+		close(new_fd);
 
 		u64 iter_start_ts = now();
 		if (iter_start_ts - start > DURATION) {
@@ -76,11 +85,21 @@ static int do_test() {
 		// 	break;
 		// }
 
-		int new_fd = openat(dir_fd, "testfile", O_RDWR, 0644);
-		if (new_fd < 0) {
-			printf("openat error\n");
+		// int new_fd = openat(dir_fd, "testfile", O_RDWR, 0644);
+		// if (new_fd < 0) {
+		// 	printf("openat error\n");
+		// 	break;
+		// }
+		ret = unlinkat(dir_fd, "testfile", 0);
+		if (ret != 0) {
+			printf("unlinkat error\n");
 			break;
 		}
+		// ret = unlinkat(AT_FDCWD, volfs_buf, 0);
+		// if (ret != 0) {
+		// 	printf("unlinkat error\n");
+		// 	break;
+		// }
 
 		// char buf[1024];
 		// int ret = getxattr("/Users/dragon/code/projects/macvirt/exp/syscall/testfile", "dev.orbstack.perm", buf, sizeof(buf), 0, XATTR_NOFOLLOW);
@@ -136,7 +155,7 @@ static int do_test() {
 			buckets[65535]++;
 		}
 
-		close(new_fd);
+		// close(new_fd);
 	}
 
 	// print avg
