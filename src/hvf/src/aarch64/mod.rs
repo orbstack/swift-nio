@@ -10,7 +10,10 @@
 mod bindings;
 use bindings::*;
 use bitflags::bitflags;
+use dlopen_derive::WrapperApi;
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap, VolatileMemory};
+
+use dlopen::wrapper::{Container, WrapperApi};
 
 use std::arch::asm;
 use std::convert::TryInto;
@@ -180,6 +183,16 @@ pub trait Parkable: Send + Sync {
     fn flag_for_shutdown_while_parked(&self);
 }
 
+#[derive(WrapperApi)]
+struct HvfOptional {
+    hv_vm_config_create: unsafe extern "C" fn() -> hv_vm_config_t,
+    hv_vm_config_get_max_ipa_size: unsafe extern "C" fn(ipa_bit_length: *mut u32) -> hv_return_t,
+    hv_vm_config_get_default_ipa_size:
+        unsafe extern "C" fn(ipa_bit_length: *mut u32) -> hv_return_t,
+    hv_vm_config_set_ipa_size:
+        unsafe extern "C" fn(config: hv_vm_config_t, ipa_bit_length: u32) -> hv_return_t,
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum ParkError {
     CanNoLongerPark,
@@ -190,20 +203,31 @@ pub struct HvfVm {}
 
 impl HvfVm {
     pub fn new(guest_mem: &GuestMemoryMmap) -> Result<Self, Error> {
+        let hvf_optional: Option<Container<HvfOptional>> = unsafe { Container::load_self() }.ok();
+
         // safe: infallible
-        let config = unsafe { hv_vm_config_create() };
+        let config = if let Some(ref hvf_optional) = hvf_optional {
+            unsafe { hvf_optional.hv_vm_config_create() }
+        } else {
+            std::ptr::null_mut()
+        };
 
         // how many IPA bits do we need? check highest guest mem address
         let ipa_bits = guest_mem.last_addr().raw_value().ilog2() + 1;
         debug!("IPA size: {} bits", ipa_bits);
-        if ipa_bits > Self::get_default_ipa_size() {
+        if ipa_bits > Self::get_default_ipa_size(&hvf_optional) {
             // if we need more than default, make sure HW supports it
-            if ipa_bits > Self::get_max_ipa_size() {
+            if ipa_bits > Self::get_max_ipa_size(&hvf_optional) {
                 return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
             }
 
             // it's supported. set it
-            let ret = unsafe { hv_vm_config_set_ipa_size(config, ipa_bits) };
+            let ret = unsafe {
+                hvf_optional
+                    .as_ref()
+                    .unwrap()
+                    .hv_vm_config_set_ipa_size(config, ipa_bits)
+            };
             if ret != HV_SUCCESS {
                 return Err(Error::VmConfigSetIpaSize);
             }
@@ -263,16 +287,24 @@ impl HvfVm {
         }
     }
 
-    fn get_default_ipa_size() -> u32 {
-        let mut ipa_bit_length: u32 = 0;
-        unsafe { hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
-        ipa_bit_length
+    fn get_default_ipa_size(hvf_optional: &Option<Container<HvfOptional>>) -> u32 {
+        if let Some(hvf_optional) = hvf_optional {
+            let mut ipa_bit_length: u32 = 0;
+            unsafe { hvf_optional.hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
+            ipa_bit_length
+        } else {
+            36
+        }
     }
 
-    fn get_max_ipa_size() -> u32 {
-        let mut ipa_bit_length: u32 = 0;
-        unsafe { hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
-        ipa_bit_length
+    fn get_max_ipa_size(hvf_optional: &Option<Container<HvfOptional>>) -> u32 {
+        if let Some(hvf_optional) = hvf_optional {
+            let mut ipa_bit_length: u32 = 0;
+            unsafe { hvf_optional.hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
+            ipa_bit_length
+        } else {
+            36
+        }
     }
 }
 
