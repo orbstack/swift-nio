@@ -1,42 +1,22 @@
-// N.B. if you decide to optimize this module, I strongly encourage you to keep this existing naïve
-// implementation as a debugging fallback.
-
-use std::{fmt, hash, marker::PhantomData, panic::Location, ptr::NonNull, sync::Arc};
+use std::{fmt, hash, marker::PhantomData, sync::Arc};
 
 use bitflags::Flags;
-use parking_lot::Mutex;
-use scopeguard::guard;
 
 use crate::util::Parker;
+
+// === "Backends" === //
+
+mod impl_dummy;
+mod impl_naive;
+mod impl_optimized;
+
+use impl_naive::RawSignalChannelInner;
 
 // === RawSignalChannel === //
 
 #[derive(Clone, Default)]
 pub struct RawSignalChannel {
-    // TODO: move out `handler` and `wake_mask` for efficiency reasons.
-    state: Arc<Mutex<RawSignalChannelInner>>,
-}
-
-#[derive(Default)]
-struct RawSignalChannelInner {
-    // The set of all asserted bits.
-    asserted_mask: u64,
-
-    // The set of all bits listened for by the current waker.
-    wake_mask: u64,
-
-    // Only valid if `wake_mask` is not zero.
-    handler: Option<NonNull<dyn FnMut(u64) + Send + Sync>>,
-
-    // For debugging purposes
-    handler_location: Option<&'static Location<'static>>,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct RawSignalChannelSnapshot {
-    pub asserted_mask: u64,
-    pub wake_mask: u64,
-    pub handler: Option<&'static Location<'static>>,
+    inner: Arc<RawSignalChannelInner>,
 }
 
 impl fmt::Debug for RawSignalChannel {
@@ -50,7 +30,7 @@ unsafe impl Sync for RawSignalChannel {}
 
 impl hash::Hash for RawSignalChannel {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.state).hash(state);
+        Arc::as_ptr(&self.inner).hash(state);
     }
 }
 
@@ -58,7 +38,7 @@ impl Eq for RawSignalChannel {}
 
 impl PartialEq for RawSignalChannel {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.state, &other.state)
+        Arc::ptr_eq(&self.inner, &other.inner)
     }
 }
 
@@ -69,93 +49,39 @@ impl RawSignalChannel {
 
     /// Asserts zero or more signals.
     pub fn assert(&self, mask: u64) {
-        let mut state = self.state.lock();
-
-        state.asserted_mask |= mask;
-        if state.wake_mask & mask != 0 {
-            // (implies that state.wake_mask != 0)
-            unsafe { (*state.handler.unwrap().as_ptr())(mask) }
-        }
+        self.inner.assert(mask);
     }
 
-    /// Runs the `runner` routine so long as signals in the `wake_mask` are not asserted. If one of
+    /// Runs the `worker` routine so long as signals in the `wake_mask` are not asserted. If one of
     /// these signals is asserted during the period of this method's execution, we'll either exit
     /// immediately with `None` or call the waker.
     ///
     /// ## Semantics
     ///
     /// - Spurious wake-up calls are not possible.
-    /// - The `waker` may be called at any time, even before `runner` has executed.
+    /// - The `waker` may be called at any time, even before `worker` has executed.
     /// - The `waker` may be called more than once.
-    /// - `runner` may possibly never execute if the task is cancelled immediately.
+    /// - `worker` may possibly never execute if the task is cancelled immediately.
     /// - The call to `open` cannot complete until the `waker` terminates.
     ///
     #[track_caller]
     pub fn wait<R>(
         &self,
         wake_mask: u64,
-        waker: impl FnMut(u64) + Send + Sync,
-        runner: impl FnOnce() -> R,
+        waker: impl FnOnce() + Send + Sync,
+        worker: impl FnOnce() -> R,
     ) -> Option<R> {
-        // Unsize the waker
-        let mut waker = waker;
-        let waker = &mut waker as &mut (dyn '_ + FnMut(u64) + Send + Sync);
-
-        // Bind the waker
-        let mut state = self.state.lock();
-
-        assert_eq!(
-            state.handler, None,
-            "`open` already called somewhere else on this channel"
-        );
-
-        if state.asserted_mask & wake_mask != 0 {
-            return None;
-        }
-
-        #[allow(clippy::unnecessary_cast)] // false positive
-        {
-            state.handler_location = Some(Location::caller());
-            state.handler = NonNull::new(
-                waker as *mut (dyn '_ + FnMut(u64) + Send + Sync)
-                    as *mut (dyn FnMut(u64) + Send + Sync),
-            );
-        }
-
-        state.wake_mask = wake_mask;
-        drop(state);
-
-        // Run the task with a guard to clear the waker before we invalidate it by leaving this
-        // function.
-        let _guard = guard((), |()| {
-            let mut state = self.state.lock();
-            // Mark the handler as invalid so people don't try to wake us up with a dead handler.
-            state.wake_mask = 0;
-            state.handler = None;
-            state.handler_location = None;
-        });
-
-        Some(runner())
+        self.inner.wait(wake_mask, waker, worker)
     }
 
     /// Takes all signals under the specified mask, clearing them in the process.
     pub fn take(&self, mask: u64) -> u64 {
-        let mut state = self.state.lock();
-
-        let taken = state.asserted_mask & mask;
-        state.asserted_mask &= !mask;
-        taken
+        self.inner.take(mask)
     }
 
     /// Fetches a snapshot of the channel's state for debugging purposes.
-    pub fn snapshot(&self) -> RawSignalChannelSnapshot {
-        let state = self.state.lock();
-
-        RawSignalChannelSnapshot {
-            asserted_mask: state.asserted_mask,
-            wake_mask: state.wake_mask,
-            handler: state.handler_location,
-        }
+    pub fn snapshot(&self) -> impl fmt::Debug + Clone {
+        self.inner.snapshot()
     }
 }
 
@@ -164,13 +90,6 @@ impl RawSignalChannel {
 pub struct SignalChannel<S> {
     _ty: PhantomData<fn() -> S>,
     raw: RawSignalChannel,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct SignalChannelSnapshot<S> {
-    pub asserted_mask: S,
-    pub wake_mask: S,
-    pub handler: Option<&'static Location<'static>>,
 }
 
 impl<S: fmt::Debug + Flags<Bits = u64>> fmt::Debug for SignalChannel<S> {
@@ -240,14 +159,10 @@ impl<S: Flags<Bits = u64>> SignalChannel<S> {
     pub fn wait<R>(
         &self,
         wake_mask: S,
-        mut waker: impl FnMut(S) + Send + Sync,
-        runner: impl FnOnce() -> R,
+        waker: impl FnOnce() + Send + Sync,
+        worker: impl FnOnce() -> R,
     ) -> Option<R> {
-        self.raw.wait(
-            wake_mask.bits(),
-            move |bits| waker(S::from_bits_retain(bits)),
-            runner,
-        )
+        self.raw.wait(wake_mask.bits(), waker, worker)
     }
 
     /// Honors all signals under the specified mask, clearing them in the process.
@@ -256,14 +171,8 @@ impl<S: Flags<Bits = u64>> SignalChannel<S> {
     }
 
     /// Fetches a snapshot of the channel's state for debugging purposes.
-    pub fn snapshot(&self) -> SignalChannelSnapshot<S> {
-        let snap = self.raw.snapshot();
-
-        SignalChannelSnapshot {
-            asserted_mask: S::from_bits_retain(snap.asserted_mask),
-            wake_mask: S::from_bits_retain(snap.wake_mask),
-            handler: snap.handler,
-        }
+    pub fn snapshot(&self) -> impl fmt::Debug + Clone {
+        self.raw.snapshot()
     }
 
     pub fn bind(self, mask: S) -> BoundSignalChannel {
@@ -305,8 +214,8 @@ pub trait AnySignalChannel: Sized {
     fn wait<R>(
         &self,
         wake_mask: Self::Mask,
-        waker: impl FnMut(Self::Mask) + Send + Sync,
-        runner: impl FnOnce() -> R,
+        waker: impl FnOnce() + Send + Sync,
+        worker: impl FnOnce() -> R,
     ) -> Option<R>;
 }
 
@@ -316,11 +225,11 @@ impl AnySignalChannel for RawSignalChannel {
     fn wait<R>(
         &self,
         wake_mask: Self::Mask,
-        waker: impl FnMut(Self::Mask) + Send + Sync,
-        runner: impl FnOnce() -> R,
+        waker: impl FnOnce() + Send + Sync,
+        worker: impl FnOnce() -> R,
     ) -> Option<R> {
         // inherent impls take priority during name resolution
-        self.wait(wake_mask, waker, runner)
+        self.wait(wake_mask, waker, worker)
     }
 }
 
@@ -330,11 +239,11 @@ impl<S: Flags<Bits = u64> + Copy> AnySignalChannel for SignalChannel<S> {
     fn wait<R>(
         &self,
         wake_mask: Self::Mask,
-        waker: impl FnMut(Self::Mask) + Send + Sync,
-        runner: impl FnOnce() -> R,
+        waker: impl FnOnce() + Send + Sync,
+        worker: impl FnOnce() -> R,
     ) -> Option<R> {
         // inherent impls take priority during name resolution
-        self.wait(wake_mask, waker, runner)
+        self.wait(wake_mask, waker, worker)
     }
 }
 
@@ -348,7 +257,7 @@ pub trait ParkSignalChannelExt: AnySignalChannel {
         }
 
         MY_PARKER.with(|parker| {
-            self.wait(wake_mask, |_| parker.unpark(), || parker.park());
+            self.wait(wake_mask, || parker.unpark(), || parker.park());
         });
     }
 }
