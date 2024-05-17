@@ -17,14 +17,14 @@ use utils::Mutex;
 
 use rustc_hash::FxHashMap;
 
-use crate::virtio::{AsAny, HvcDevice};
+use crate::virtio::HvcDevice;
 
 /// Trait for devices that respond to reads or writes in an arbitrary address space.
 ///
 /// The device does not care where it exists in address space as each method is only given an offset
 /// into its allocated portion of address space.
 #[allow(unused_variables)]
-pub trait BusDevice: AsAny + Send {
+pub trait BusDevice: Send {
     /// Reads at `offset` from this device
     fn read(&mut self, vcpuid: u64, offset: u64, data: &mut [u8]) {}
 

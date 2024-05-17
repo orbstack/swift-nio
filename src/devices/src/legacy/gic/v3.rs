@@ -25,10 +25,6 @@ pub struct UserspaceGicV3 {
 const TIMER_INT_ID: InterruptId = InterruptId(GTIMER_VIRT + 16);
 
 impl UserspaceGicImpl for UserspaceGicV3 {
-    fn as_any(&mut self) -> &mut (dyn std::any::Any + Send) {
-        self
-    }
-
     fn get_addr(&self) -> u64 {
         GICv3::mapped_range().start
     }
@@ -73,18 +69,6 @@ impl UserspaceGicImpl for UserspaceGicV3 {
             PeId(vcpuid),
             GicSysReg::parse(reg),
             value,
-        );
-    }
-
-    fn set_vtimer_irq(&mut self, vcpuid: u64) {
-        let vcpuid = PeId(vcpuid);
-        self.gic.send_ppi(
-            &mut HvfGicEventHandler {
-                wfe_threads: &mut self.wfe_threads,
-            },
-            vcpuid,
-            TIMER_INT_ID,
-            true, // doesn't need kick: timer PPIs are always local to the vCPU, so we just exited to deliver this
         );
     }
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use gicv3::device::InterruptId;
-use std::{any::Any, thread::Thread};
+use std::thread::Thread;
 use utils::Mutex;
 
 use hvf::HvfVm;
@@ -38,10 +38,6 @@ impl Gic {
         self.0.get_size()
     }
 
-    pub fn set_vtimer_irq(&mut self, vcpuid: u64) {
-        self.0.set_vtimer_irq(vcpuid)
-    }
-
     pub fn set_irq(&mut self, irq_line: u32) {
         self.0.set_irq(irq_line)
     }
@@ -56,10 +52,6 @@ impl Gic {
 
     pub fn kick_cpu(&mut self, vcpuid: u64) {
         self.0.kick_vcpu(vcpuid);
-    }
-
-    pub fn downcast_impl<T: 'static>(&mut self) -> Option<&mut T> {
-        self.0.as_any().downcast_mut::<T>()
     }
 }
 
@@ -94,8 +86,6 @@ pub trait GicVcpuHandle: Send + Sync {
 }
 
 pub trait UserspaceGicImpl: 'static + Send {
-    fn as_any(&mut self) -> &mut (dyn Any + Send);
-
     // === MMIO === //
 
     fn get_addr(&self) -> u64;
@@ -123,8 +113,6 @@ pub trait UserspaceGicImpl: 'static + Send {
     }
 
     // === IRQ Assertion === //
-
-    fn set_vtimer_irq(&mut self, vcpuid: u64);
 
     fn set_irq(&mut self, irq_line: u32);
 
