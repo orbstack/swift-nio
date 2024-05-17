@@ -308,7 +308,7 @@ func mountVolume(nfs NfsMirror, vol *dockertypes.Volume, fs *securefs.FS) error 
 	}
 	defer unix.Close(fd)
 
-	err = nfs.MountBind("/proc/self/fd/"+strconv.Itoa(fd), "docker/volumes/"+vol.Name, -1, -1)
+	err = nfs.MountBind("/proc/self/fd/"+strconv.Itoa(fd), "docker/volumes/"+vol.Name, 0, 0)
 	if err != nil {
 		return fmt.Errorf("mount volume: %w", err)
 	}
