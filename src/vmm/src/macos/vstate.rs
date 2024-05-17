@@ -604,7 +604,7 @@ impl Vcpu {
                 Ok(VcpuEmulation::WaitForEventTimeout(duration))
             }
             VcpuExit::PvlockPark => Ok(VcpuEmulation::PvlockPark),
-            VcpuExit::PvlockUnpark(vcpuid) => Ok(VcpuEmulation::PvlockUnpark(vcpuid)),
+            VcpuExit::PvlockUnpark(vcpu) => Ok(VcpuEmulation::PvlockUnpark(vcpu)),
         }
     }
 
@@ -738,9 +738,11 @@ impl Vcpu {
                     break;
                 }
                 // PV-lock
-                // TODO: fix lockups
-                Ok(VcpuEmulation::PvlockPark) => {}
-                Ok(VcpuEmulation::PvlockUnpark(_)) => {}
+                // TODO: actually park and unpark after gruel migration
+                Ok(VcpuEmulation::PvlockPark) => {
+                    std::thread::yield_now();
+                }
+                Ok(VcpuEmulation::PvlockUnpark(_vcpuid)) => {}
                 // Emulation errors lead to vCPU exit.
                 Err(_) => {
                     break;
