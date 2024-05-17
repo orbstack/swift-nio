@@ -11,10 +11,38 @@ use crate::{util::ExtensionFor, BoundSignalChannel};
 
 // === Errors === //
 
-#[derive(Debug, Clone, Error)]
+#[derive_where(Debug)]
+#[derive(Error, Clone)]
 #[error("failed to spawn new task: shutdown already requested")]
 #[non_exhaustive]
-pub struct ShutdownAlreadyRequested;
+pub struct ShutdownAlreadyRequested<F> {
+    #[derive_where(skip)]
+    pub kick: F,
+}
+
+pub trait ShutdownAlreadyRequestedExt:
+    ExtensionFor<Result<ShutdownTask, ShutdownAlreadyRequested<Self::Handler>>>
+{
+    type Handler: FnOnce();
+
+    fn unwrap_or_run_now(self) -> Option<ShutdownTask>;
+}
+
+impl<H: FnOnce()> ShutdownAlreadyRequestedExt
+    for Result<ShutdownTask, ShutdownAlreadyRequested<H>>
+{
+    type Handler = H;
+
+    fn unwrap_or_run_now(self) -> Option<ShutdownTask> {
+        match self {
+            Ok(handler) => Some(handler),
+            Err(err) => {
+                (err.kick)();
+                None
+            }
+        }
+    }
+}
 
 // === MultiShutdownSignal === //
 
@@ -35,11 +63,10 @@ impl<P: NumEnum> MultiShutdownSignal<P> {
         Self::default()
     }
 
-    pub fn spawn(
-        &self,
-        phase: P,
-        kick: impl 'static + Send + Sync + FnOnce(),
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+    pub fn spawn<F>(&self, phase: P, kick: F) -> Result<ShutdownTask, ShutdownAlreadyRequested<F>>
+    where
+        F: 'static + Send + Sync + FnOnce(),
+    {
         self.signals[phase].spawn_ref(kick)
     }
 
@@ -78,14 +105,14 @@ impl ShutdownSignal {
         Self::default()
     }
 
-    pub fn spawn(
-        self,
-        kick: impl 'static + Send + Sync + FnOnce(),
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+    pub fn spawn<F>(self, kick: F) -> Result<ShutdownTask, ShutdownAlreadyRequested<F>>
+    where
+        F: 'static + Send + Sync + FnOnce(),
+    {
         let mut guard = self.0.state.lock();
 
         if guard.shutting_down {
-            return Err(ShutdownAlreadyRequested);
+            return Err(ShutdownAlreadyRequested { kick });
         }
 
         let mut kick = Some(kick);
@@ -103,15 +130,18 @@ impl ShutdownSignal {
         })
     }
 
-    pub fn spawn_ref(
-        &self,
-        kick: impl 'static + Send + Sync + FnOnce(),
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+    pub fn spawn_ref<F>(&self, kick: F) -> Result<ShutdownTask, ShutdownAlreadyRequested<F>>
+    where
+        F: 'static + Send + Sync + FnOnce(),
+    {
         self.clone().spawn(kick)
     }
 
     pub fn shutdown(&self) {
         let mut guard = self.0.state.lock();
+        if guard.shutting_down {
+            return;
+        }
         guard.shutting_down = true;
 
         for (_, task) in &mut guard.tasks {
@@ -120,7 +150,10 @@ impl ShutdownSignal {
             task();
         }
 
-        self.0.condvar.wait(&mut guard);
+        if !guard.tasks.is_empty() {
+            self.0.condvar.wait(&mut guard);
+        }
+
         assert!(guard.tasks.is_empty());
     }
 }
@@ -150,7 +183,7 @@ impl Drop for ShutdownTask {
     }
 }
 
-// === Extensions === //
+// === Integrations === //
 
 pub trait MultiShutdownSignalExt: ExtensionFor<MultiShutdownSignal<Self::Phase>> {
     type Phase: NumEnum;
@@ -159,7 +192,7 @@ pub trait MultiShutdownSignalExt: ExtensionFor<MultiShutdownSignal<Self::Phase>>
         &self,
         phase: Self::Phase,
         signal: BoundSignalChannel,
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested>;
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>>;
 }
 
 impl<P: NumEnum> MultiShutdownSignalExt for MultiShutdownSignal<P> {
@@ -169,7 +202,7 @@ impl<P: NumEnum> MultiShutdownSignalExt for MultiShutdownSignal<P> {
         &self,
         phase: Self::Phase,
         signal: BoundSignalChannel,
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>> {
         self.spawn(phase, move || signal.assert())
     }
 }
@@ -178,26 +211,26 @@ pub trait ShutdownSignalExt: ExtensionFor<ShutdownSignal> {
     fn spawn_signal(
         self,
         signal: BoundSignalChannel,
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested>;
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>>;
 
     fn spawn_signal_ref(
         &self,
         signal: BoundSignalChannel,
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested>;
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>>;
 }
 
 impl ShutdownSignalExt for ShutdownSignal {
     fn spawn_signal(
         self,
         signal: BoundSignalChannel,
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>> {
         self.spawn(move || signal.assert())
     }
 
     fn spawn_signal_ref(
         &self,
         signal: BoundSignalChannel,
-    ) -> Result<ShutdownTask, ShutdownAlreadyRequested> {
+    ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>> {
         self.spawn_ref(move || signal.assert())
     }
 }

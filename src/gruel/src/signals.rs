@@ -265,6 +265,14 @@ impl<S: Flags<Bits = u64>> SignalChannel<S> {
             handler: snap.handler,
         }
     }
+
+    pub fn bind(self, mask: S) -> BoundSignalChannel {
+        BoundSignalChannel::wrap(self, mask)
+    }
+
+    pub fn bind_ref(&self, mask: S) -> BoundSignalChannel {
+        self.clone().bind(mask)
+    }
 }
 
 // === BoundSignalChannel === //
