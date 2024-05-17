@@ -588,7 +588,7 @@ impl Vcpu {
             }
             VcpuExit::VtimerActivated => {
                 debug!("vCPU {} VtimerActivated", vcpuid);
-                self.intc.lock().unwrap().set_vtimer_irq(vcpuid);
+                intc_handle.set_vtimer_irq();
                 Ok(VcpuEmulation::Handled)
             }
             VcpuExit::WaitForEvent => {

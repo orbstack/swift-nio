@@ -89,6 +89,8 @@ pub trait GicVcpuHandle: Send + Sync {
     fn get_pending_irq(&mut self, gic: &Mutex<Gic>) -> Option<InterruptId>;
 
     fn should_wait(&mut self, gic: &Mutex<Gic>) -> bool;
+
+    fn set_vtimer_irq(&mut self);
 }
 
 pub trait UserspaceGicImpl: 'static + Send {

@@ -165,4 +165,8 @@ impl GicVcpuHandle for GicV3VcpuHandle {
     fn should_wait(&mut self, _gic: &Mutex<Gic>) -> bool {
         !self.0.lock().unwrap().is_irq_line_asserted()
     }
+
+    fn set_vtimer_irq(&mut self) {
+        self.0.lock().unwrap().push_interrupt(TIMER_INT_ID);
+    }
 }

@@ -352,7 +352,7 @@ impl PeInterruptState {
         }
     }
 
-    fn push_interrupt(&mut self, int_id: InterruptId) {
+    pub fn push_interrupt(&mut self, int_id: InterruptId) {
         // if there's already more than 1 interrupt pending (uncommon case), make sure we only push at most one duplicate
         // any additional ones are just bad for performance, and searching here is definitely worth the saved vmexits
         // for perf, avoid the scan unless there are already several pending interrupts
