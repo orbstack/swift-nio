@@ -16,6 +16,8 @@ pub mod macos;
 pub use macos::epoll;
 #[cfg(target_os = "macos")]
 pub use macos::eventfd;
+pub mod parker;
+pub mod qos;
 pub mod rand;
 #[cfg(target_os = "linux")]
 pub mod signal;
@@ -23,7 +25,6 @@ pub mod sm;
 pub mod span;
 pub mod syscall;
 pub mod time;
-pub mod qos;
 
 mod os_unfair_lock;
 pub use os_unfair_lock::{Mutex, MutexGuard};
