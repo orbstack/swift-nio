@@ -71,12 +71,12 @@ pub type Result<T> = result::Result<T, Error>;
 /// A wrapper around creating and using a VM.
 pub struct Vm {
     pub hvf_vm: HvfVm,
-    parker: Arc<Parker>,
+    parker: Arc<VmParker>,
     #[cfg(target_arch = "aarch64")]
     irqchip_handle: Option<Box<dyn GICDevice>>,
 }
 
-pub struct Parker {
+pub struct VmParker {
     // everything in here must be Send
     hvf_vm: HvfVm,
     vcpu_ids: Mutex<Vec<VcpuId>>,
@@ -94,9 +94,9 @@ pub struct MapRegion {
     size: u64,
 }
 
-impl Parker {
+impl VmParker {
     pub fn new(vcpu_count: u8, hvf_vm: HvfVm) -> Self {
-        Parker {
+        VmParker {
             hvf_vm,
             vcpu_ids: Mutex::new(Vec::with_capacity(vcpu_count as usize)),
             vcpu_threads: Mutex::new(Vec::with_capacity(vcpu_count as usize)),
@@ -113,7 +113,7 @@ impl Parker {
     }
 }
 
-impl Parkable for Parker {
+impl Parkable for VmParker {
     fn park(&self) -> std::result::Result<(), ParkError> {
         debug!("park begin");
         // 1. set bool
@@ -215,7 +215,7 @@ impl Vm {
 
         Ok(Vm {
             hvf_vm: hvf_vm.clone(),
-            parker: Arc::new(Parker::new(vcpu_count, hvf_vm.clone())),
+            parker: Arc::new(VmParker::new(vcpu_count, hvf_vm.clone())),
             #[cfg(target_arch = "aarch64")]
             irqchip_handle: None,
         })
@@ -300,7 +300,7 @@ impl Vm {
         }
     }
 
-    pub fn get_parker(&self) -> Arc<Parker> {
+    pub fn get_parker(&self) -> Arc<VmParker> {
         self.parker.clone()
     }
 
@@ -480,7 +480,7 @@ impl Vcpu {
 
     /// Moves the vcpu to its own thread and constructs a VcpuHandle.
     /// The handle can be used to control the remote vcpu.
-    pub fn start_threaded(mut self, parker: Arc<Parker>) -> Result<VcpuHandle> {
+    pub fn start_threaded(mut self, parker: Arc<VmParker>) -> Result<VcpuHandle> {
         let (init_sender, init_receiver) = unbounded();
         let boot_sender = self.boot_senders.as_ref().unwrap()[self.cpu_index() as usize].clone();
 
@@ -689,7 +689,7 @@ impl Vcpu {
 
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "aarch64")]
-    pub fn run(&mut self, parker: Arc<Parker>, init_sender: Sender<bool>) {
+    pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
         let mut hvf_vcpu =
             HvfVcpu::new(parker.clone(), self.guest_mem.clone()).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();
@@ -756,7 +756,7 @@ impl Vcpu {
 
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "x86_64")]
-    pub fn run(&mut self, parker: Arc<Parker>, init_sender: Sender<bool>) {
+    pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
         let mut hvf_vcpu = HvfVcpu::new(
             parker.clone(),
             self.guest_mem.clone(),

@@ -37,7 +37,7 @@ pub use hvf::MemoryMapping;
 use macos::vstate;
 use vmm_config::kernel_bundle::KernelBundle;
 
-use crate::macos::Parker;
+use crate::macos::VmParker;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::os::fd::RawFd;
@@ -184,7 +184,7 @@ pub struct Vmm {
 
     vcpus_handles: Vec<VcpuHandle>,
     exit_evt: EventFd,
-    parker: Arc<Parker>,
+    parker: Arc<VmParker>,
     vm: Vm,
     exit_observers: Vec<Arc<Mutex<dyn VmmExitObserver>>>,
 

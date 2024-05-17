@@ -1,4 +1,4 @@
 pub mod barrier;
 pub mod vstate;
 
-pub use self::vstate::Parker;
+pub use self::vstate::VmParker;
