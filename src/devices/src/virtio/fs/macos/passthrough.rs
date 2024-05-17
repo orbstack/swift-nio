@@ -42,7 +42,7 @@ use crate::virtio::fs::attrlist::{self, AttrlistEntry, INLINE_ENTRIES};
 use crate::virtio::fs::filesystem::SecContext;
 use crate::virtio::fs::multikey::{MultikeyFxDashMap, ToAltKey};
 use crate::virtio::rosetta::get_rosetta_data;
-use crate::virtio::{FxDashMap, NfsInfo};
+use crate::virtio::{FsCallbacks, FxDashMap, NfsInfo};
 
 use super::super::bindings;
 use super::super::filesystem::{
@@ -101,7 +101,7 @@ impl HandleData {
         nodeid: NodeId,
         file: File,
         is_readable_file: bool,
-        poller: &Arc<VnodePoller<HandleId>>,
+        poller: &Option<Arc<VnodePoller<HandleId>>>,
     ) -> io::Result<Self> {
         let mut hd = HandleData {
             nodeid,
@@ -117,8 +117,10 @@ impl HandleData {
 
         // technically we only have to register it when read hits EOF, but that's flaky and won't actually save time, because the common case is that files (e.g. source code) will be fully read
         if is_readable_file {
-            poller.register(hd.file.as_fd(), hd.nodeid)?;
-            hd.poller = Some(poller.clone());
+            if let Some(poller) = poller {
+                poller.register(hd.file.as_fd(), hd.nodeid)?;
+                hd.poller = Some(poller.clone());
+            }
         }
 
         Ok(hd)
@@ -222,7 +224,7 @@ fn lstat(c_path: &CStr, host: bool) -> io::Result<bindings::stat64> {
     Ok(st)
 }
 
-fn get_path_by_fd<T: AsRawFd>(fd: T) -> io::Result<String> {
+pub fn get_path_by_fd<T: AsRawFd>(fd: T) -> io::Result<String> {
     // allocate it on stack
     debug!("get_path_by_fd: fd={}", fd.as_raw_fd());
     let mut path_buf = [0u8; MAXPATHLEN as usize];
@@ -446,11 +448,11 @@ pub struct PassthroughFs {
     writeback: AtomicBool,
     cfg: Config,
 
-    poller: Arc<VnodePoller<HandleId>>,
+    poller: Option<Arc<VnodePoller<HandleId>>>,
 }
 
 impl PassthroughFs {
-    pub fn new(cfg: Config) -> io::Result<PassthroughFs> {
+    pub fn new(cfg: Config, callbacks: Option<Arc<dyn FsCallbacks>>) -> io::Result<PassthroughFs> {
         // init with root nodeid
         let st = nix::sys::stat::stat(Path::new(&cfg.root_dir))?;
         let nodeids = MultikeyFxDashMap::new();
@@ -472,6 +474,11 @@ impl PassthroughFs {
         let dev_info = FxDashMap::default();
         dev_info.insert(st.st_dev, true);
 
+        let poller = match callbacks {
+            Some(callbacks) => Some(Arc::new(VnodePoller::new(callbacks)?)),
+            None => None,
+        };
+
         let fs = PassthroughFs {
             nodeids,
             next_nodeid: AtomicU64::new(fuse::ROOT_ID + 1),
@@ -485,16 +492,19 @@ impl PassthroughFs {
             writeback: AtomicBool::new(false),
             cfg,
 
-            poller: Arc::new(VnodePoller::new()?),
+            // poller is useless if we have no invalidation callbacks
+            poller,
         };
 
-        let poller_clone = fs.poller.clone();
-        std::thread::Builder::new()
-            .name(format!("fs{} poller", fs.hvc_id().unwrap()))
-            .spawn(move || {
-                set_thread_qos(QosClass::Background, None).unwrap();
-                poller_clone.main_loop()
-            })?;
+        if let Some(ref poller) = fs.poller {
+            let poller_clone = poller.clone();
+            std::thread::Builder::new()
+                .name(format!("fs{} poller", fs.hvc_id().unwrap()))
+                .spawn(move || {
+                    set_thread_qos(QosClass::Background, None).unwrap();
+                    poller_clone.main_loop()
+                })?;
+        }
 
         Ok(fs)
     }
@@ -1071,6 +1081,14 @@ fn set_secctx(file: FileRef, secctx: SecContext, symlink: bool) -> io::Result<()
     }
 }
 
+impl Drop for PassthroughFs {
+    fn drop(&mut self) {
+        if let Some(ref poller) = self.poller {
+            let _ = poller.stop();
+        }
+    }
+}
+
 impl FileSystem for PassthroughFs {
     type NodeId = NodeId;
     type Handle = HandleId;
@@ -1115,6 +1133,11 @@ impl FileSystem for PassthroughFs {
 
         self.handles.clear();
         self.nodeids.clear();
+
+        // TODO: handle remount
+        if let Some(ref poller) = self.poller {
+            poller.stop().unwrap();
+        }
     }
 
     fn statfs(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Statvfs> {

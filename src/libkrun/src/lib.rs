@@ -14,7 +14,7 @@ use utils::Mutex;
 
 use anyhow::{anyhow, Context};
 use crossbeam_channel::unbounded;
-use devices::virtio::{net::device::VirtioNetBackend, ActivityNotifier, CacheType, NfsInfo};
+use devices::virtio::{net::device::VirtioNetBackend, CacheType, FsCallbacks, NfsInfo};
 use hvf::MemoryMapping;
 use libc::strdup;
 use nix::{
@@ -103,11 +103,11 @@ fn parse_mac_addr(s: &str) -> anyhow::Result<[u8; 6]> {
 }
 
 #[derive(Debug)]
-struct GoActivityNotifier {
+struct GoFsCallbacks {
     last_report_time: AtomicI64,
 }
 
-impl ActivityNotifier for GoActivityNotifier {
+impl FsCallbacks for GoFsCallbacks {
     fn on_activity(&self) {
         let now = clock_gettime(ClockId::CLOCK_MONOTONIC)
             .unwrap()
@@ -116,6 +116,12 @@ impl ActivityNotifier for GoActivityNotifier {
         if now - self.last_report_time.load(Ordering::Relaxed) >= ACTIVITY_NOTIFIER_INTERVAL_MS {
             self.last_report_time.store(now, Ordering::Relaxed);
             unsafe { rsvm_go_on_fs_activity() };
+        }
+    }
+
+    fn send_krpc_events(&self, krpc_buf: &[u8]) {
+        unsafe {
+            swext_fsevents_cb_krpc_events(krpc_buf.as_ptr(), krpc_buf.len());
         }
     }
 }
@@ -266,7 +272,7 @@ impl Machine {
                 fs_id: "mac".to_string(),
                 shared_dir: "/".to_string(),
                 nfs_info: spec.nfs_info.clone(),
-                activity_notifier: Some(Arc::new(GoActivityNotifier {
+                activity_notifier: Some(Arc::new(GoFsCallbacks {
                     last_report_time: AtomicI64::new(0),
                 })),
             })
@@ -484,6 +490,7 @@ pub const MACHINE_STATE_STOPPED: u32 = 0;
 extern "C" {
     fn rsvm_go_on_state_change(state: u32);
     fn rsvm_go_on_fs_activity();
+    fn swext_fsevents_cb_krpc_events(krpc_buf: *const u8, krpc_buf_len: usize);
 }
 
 fn to_anyhow_error<E: fmt::Display>(err: E) -> anyhow::Error {

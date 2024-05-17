@@ -12,6 +12,9 @@ pub extern "C" fn rsvm_go_on_state_change(state: u32) {
 #[no_mangle]
 pub extern "C" fn rsvm_go_on_fs_activity() {}
 
+#[no_mangle]
+pub extern "C" fn swext_fsevents_cb_krpc_events(_krpc_buf: *const u8, _krpc_buf_len: usize) {}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 

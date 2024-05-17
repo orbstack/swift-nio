@@ -66,18 +66,19 @@ impl<'a> io::Write for ZCWriter<'a> {
     }
 }
 
-pub trait ActivityNotifier: Send + Sync + Debug {
+pub trait FsCallbacks: Send + Sync + Debug {
     fn on_activity(&self);
+    fn send_krpc_events(&self, krpc_buf: &[u8]);
 }
 
 pub struct Server<F: FileSystem + Sync> {
     fs: F,
     options: AtomicU64,
-    activity_notifier: Option<Arc<dyn ActivityNotifier>>,
+    activity_notifier: Option<Arc<dyn FsCallbacks>>,
 }
 
 impl<F: FileSystem + Sync> Server<F> {
-    pub fn new(fs: F, activity_notifier: Option<Arc<dyn ActivityNotifier>>) -> Server<F> {
+    pub fn new(fs: F, activity_notifier: Option<Arc<dyn FsCallbacks>>) -> Server<F> {
         Server {
             fs,
             options: AtomicU64::new(FsOptions::empty().bits()),

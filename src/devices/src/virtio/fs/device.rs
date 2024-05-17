@@ -17,7 +17,7 @@ use super::macos::passthrough::PassthroughFs;
 use super::server::Server;
 use super::worker::FsWorker;
 use super::{defs, defs::uapi};
-use super::{passthrough, ActivityNotifier, NfsInfo};
+use super::{passthrough, FsCallbacks, NfsInfo};
 use crate::legacy::Gic;
 
 #[derive(Copy, Clone)]
@@ -61,7 +61,7 @@ impl Fs {
         shared_dir: String,
         nfs_info: Option<NfsInfo>,
         queues: Vec<VirtQueue>,
-        activity_notifier: Option<Arc<dyn ActivityNotifier>>,
+        callbacks: Option<Arc<dyn FsCallbacks>>,
     ) -> super::Result<Fs> {
         let mut queue_events = Vec::new();
         for _ in 0..queues.len() {
@@ -99,8 +99,8 @@ impl Fs {
             worker_thread: None,
             worker_stopfd: EventFd::new(EFD_NONBLOCK).map_err(FsError::EventFd)?,
             server: Arc::new(Server::new(
-                PassthroughFs::new(fs_cfg).map_err(FsError::CreateServer)?,
-                activity_notifier,
+                PassthroughFs::new(fs_cfg, callbacks.clone()).map_err(FsError::CreateServer)?,
+                callbacks,
             )),
         })
     }
@@ -109,7 +109,7 @@ impl Fs {
         fs_id: String,
         shared_dir: String,
         nfs_info: Option<NfsInfo>,
-        activity_notifier: Option<Arc<dyn ActivityNotifier>>,
+        activity_notifier: Option<Arc<dyn FsCallbacks>>,
     ) -> super::Result<Fs> {
         let queues: Vec<VirtQueue> = defs::QUEUE_SIZES
             .iter()

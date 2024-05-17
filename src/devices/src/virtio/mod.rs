@@ -7,7 +7,6 @@
 
 //! Implements virtio devices, queues, and transport mechanisms.
 use std;
-use std::any::Any;
 use std::io::Error as IOError;
 
 #[cfg(not(feature = "tee"))]

@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 use utils::Mutex;
 
-use devices::virtio::{ActivityNotifier, Fs, FsError, NfsInfo};
+use devices::virtio::{FsCallbacks, Fs, FsError, NfsInfo};
 
 #[derive(Debug)]
 pub enum FsConfigError {
@@ -27,7 +27,7 @@ pub struct FsDeviceConfig {
     pub fs_id: String,
     pub shared_dir: String,
     pub nfs_info: Option<NfsInfo>,
-    pub activity_notifier: Option<Arc<dyn ActivityNotifier>>,
+    pub activity_notifier: Option<Arc<dyn FsCallbacks>>,
 }
 
 #[derive(Default)]
