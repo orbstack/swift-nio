@@ -17,7 +17,7 @@ use utils::Mutex;
 use virtio_bindings::virtio_blk::*;
 use vm_memory::{ByteValued, GuestMemoryMmap};
 
-const FLUSH_INTERVAL: Duration = Duration::from_millis(500);
+const FLUSH_INTERVAL: Duration = Duration::from_millis(1000);
 
 #[derive(Debug)]
 pub enum RequestError {
@@ -215,8 +215,8 @@ impl BlockWorker {
             }
             VIRTIO_BLK_T_FLUSH => match self.disk.cache_type() {
                 CacheType::Writeback => {
-                    // F_FULLFSYNC is very expensive on Apple SSDs, so only do it every 500ms (leading edge)
-                    // barrier suffices for other cases
+                    // F_FULLFSYNC is very expensive on Apple SSDs, so only do it every 1000ms (leading edge)
+                    // barrier suffices for integrity; F_FULLFSYNC is only for persistence on shutdown
                     if Instant::now() - self.last_flushed_at > FLUSH_INTERVAL {
                         let diskfile = self.disk.file_mut();
                         diskfile.sync_all().map_err(RequestError::FlushingToDisk)?;
