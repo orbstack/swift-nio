@@ -1,4 +1,4 @@
-// FIXME: This still seems racy; also, we should weaken orderings.
+// FIXME: We should weaken orderings.
 
 #![allow(dead_code)]
 
@@ -34,7 +34,7 @@ impl RawSignalChannelInner {
 
         // By invariant, if a bit is set in the mask, the worker thread will eventually observe it.
         // Hence, if all of our set bits are already one, we don't need to worry.
-        if !prev | mask == u64::MAX {
+        if prev & mask == mask {
             return;
         }
 

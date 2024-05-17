@@ -10,7 +10,7 @@ mod impl_dummy;
 mod impl_naive;
 mod impl_optimized;
 
-use impl_naive::RawSignalChannelInner;
+use impl_optimized::RawSignalChannelInner;
 
 // === RawSignalChannel === //
 
