@@ -614,15 +614,11 @@ impl HvfVcpu {
         if let Some(pending_irq) = pending_irq {
             vcpu_set_pending_irq(self.vcpuid, InterruptType::Irq, true)?;
 
-            if let Some(pvgic) = self.pvgic {
+            if let Some(pvgic_ptr) = self.pvgic {
+                let pvgic = unsafe { &mut *pvgic_ptr };
                 // if there's a pending IRQ, IAR1_EL1 always has a valid value (!= 1023)
-                let new_state = PvgicVcpuState {
-                    flags: PvgicFlags::PVGIC_FLAG_IAR1_PENDING,
-                    pending_iar1_read: pending_irq,
-                };
-                unsafe {
-                    std::ptr::write_volatile(pvgic, new_state);
-                }
+                pvgic.flags = PvgicFlags::PVGIC_FLAG_IAR1_PENDING;
+                pvgic.pending_iar1_read = pending_irq;
             }
         }
 
@@ -634,8 +630,8 @@ impl HvfVcpu {
         COUNT_EXIT_TOTAL.count();
 
         if pending_irq.is_some() {
-            if let Some(pvgic) = self.pvgic {
-                let pvgic = unsafe { std::ptr::read_volatile(pvgic) };
+            if let Some(pvgic_ptr) = self.pvgic {
+                let pvgic = unsafe { &*pvgic_ptr };
                 if pvgic.flags.contains(PvgicFlags::PVGIC_FLAG_IAR1_READ) {
                     // we can only return one vmexit here, so tell the emulation loop to trigger IAR1_EL1 read for side effects (dequeue)
                     // usually this will happen when the guest hits EOIR_EL1 write
