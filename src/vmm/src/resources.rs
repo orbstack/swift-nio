@@ -204,8 +204,7 @@ impl VmResources {
         // Safe because this call just returns the page size and doesn't have any side effects.
         let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
 
-        if kernel_bundle.host_addr == 0 || (kernel_bundle.host_addr as usize) & (page_size - 1) != 0
-        {
+        if kernel_bundle.host_addr == 0 {
             return Err(KernelBundleError::InvalidHostAddress);
         }
 
