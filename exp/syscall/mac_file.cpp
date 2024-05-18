@@ -19,7 +19,14 @@ typedef long long s64;
 #define BUCKET_SIZE 5
 
 static u64 now() {
+#ifdef __MACH__
+	// mach_absolute_time
 	return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+#else
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec * SEC + ts.tv_nsec;
+#endif
 }
 
 static int do_test() {
@@ -27,7 +34,7 @@ static int do_test() {
 	u64 total_lat = 0;
 	u64 iters = 0;
 
-	int dir_fd = open("/Users/dragon/code/projects/macvirt/exp/syscall", O_EVTONLY, 0);
+	int dir_fd = open("/Users/dragon/code/projects/macvirt/exp/syscall", 0, 0);
 	if (dir_fd < 0) {
 		printf("open error\n");
 		return -1;
