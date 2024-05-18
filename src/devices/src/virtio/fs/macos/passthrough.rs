@@ -18,6 +18,7 @@ use std::ptr::slice_from_raw_parts;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 use bitflags::bitflags;
@@ -449,6 +450,7 @@ pub struct PassthroughFs {
     cfg: Config,
 
     poller: Option<Arc<VnodePoller<HandleId>>>,
+    poller_thread: Option<JoinHandle<()>>,
 }
 
 impl PassthroughFs {
@@ -479,7 +481,7 @@ impl PassthroughFs {
             None => None,
         };
 
-        let fs = PassthroughFs {
+        let mut fs = PassthroughFs {
             nodeids,
             next_nodeid: AtomicU64::new(fuse::ROOT_ID + 1),
 
@@ -494,16 +496,18 @@ impl PassthroughFs {
 
             // poller is useless if we have no invalidation callbacks
             poller,
+            poller_thread: None,
         };
 
         if let Some(ref poller) = fs.poller {
             let poller_clone = poller.clone();
-            std::thread::Builder::new()
+            let handle = std::thread::Builder::new()
                 .name(format!("fs{} poller", fs.hvc_id().unwrap()))
                 .spawn(move || {
                     set_thread_qos(QosClass::Background, None).unwrap();
-                    poller_clone.main_loop()
+                    poller_clone.main_loop().unwrap();
                 })?;
+            fs.poller_thread = Some(handle);
         }
 
         Ok(fs)
@@ -1085,6 +1089,9 @@ impl Drop for PassthroughFs {
     fn drop(&mut self) {
         if let Some(ref poller) = self.poller {
             let _ = poller.stop();
+            if let Some(ref poller_thread) = self.poller_thread {
+                poller_thread.thread().unpark();
+            }
         }
     }
 }
