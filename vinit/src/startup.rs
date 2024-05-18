@@ -3,16 +3,14 @@ use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::{Instan
 use anyhow::anyhow;
 use elf::{endian::NativeEndian, ElfStream};
 use mkswap::SwapWriter;
-use netlink_packet_route::{LinkMessage, link, FR_ACT_TO_TBL};
+use netlink_packet_route::FR_ACT_TO_TBL;
 use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId, clock_gettime}};
 use futures_util::TryStreamExt;
 use tracing::log::debug;
 
-use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, ethtool, InitError, Timeline, vcontrol, action::SystemAction};
+use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, InitError, Timeline, vcontrol, action::SystemAction};
 use crate::service::{ServiceTracker, Service};
 use tokio::sync::{Mutex, mpsc::Sender};
-
-use crate::ethtool::ETHTOOL_STSO;
 
 // da:9b:d0:64:e1:01
 const VNET_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x01];
@@ -283,36 +281,6 @@ fn apply_perf_tuning_late() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn maybe_disable_tso(name: &str, link: &LinkMessage) -> Result<(), Box<dyn Error>> {
-    // disable TSO if mtu == 1500
-    // this is for vmnet bridge interfaces:
-    /*
-    eth0 = gvisor (which doesn't care about MTU and packet size)
-        * macOS 12 doesn't let us set MTU on virtio-net
-        * it rejects big packets from host
-        * but allows guest to send big packets out
-        * so we abuse this for fast asymmetrical network
-    eth1, eth2, ... = vmnet bridge interfaces or vlan router
-        * vmnet only supports symmetrical MTU and rejects packets bigger than
-          MTU with packetTooBig, so we can't stuff 65K packets through from
-          guest->host and limit to 1500 from host->guest
-    */
-    if let Some(mtu) = link.nlas.iter().find_map(|nla| {
-        if let link::nlas::Nla::Mtu(mtu) = nla {
-            Some(*mtu)
-        } else {
-            None
-        }
-    }) {
-        if mtu == 1500 {
-            //println!("  - Disabling TSO on {}", name);
-            ethtool::set(name, ETHTOOL_STSO, 0)?;
-        }
-    }
-
-    Ok(())
-}
-
 async fn setup_network() -> Result<(), Box<dyn Error>> {
     // don't send IPv6 router solicitations
     sysctl("net.ipv6.conf.all.accept_ra", "0")?;
@@ -370,7 +338,6 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     // scon deals with the rest
     // cannot use static neigh because macOS generates MAC addr
     let eth1 = ip_link.get().match_name("eth1".into()).execute().try_next().await?.unwrap();
-    maybe_disable_tso("eth1", &eth1)?;
     ip_link.set(eth1.header.index)
         .mtu(1500)
         .up()
@@ -403,7 +370,6 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     // docker vlan router
     // scon deals with the rest
     let eth2 = ip_link.get().match_name("eth2".into()).execute().try_next().await?.unwrap();
-    maybe_disable_tso("eth2", &eth2)?;
     ip_link.set(eth2.header.index)
         .mtu(1500)
         .up()
