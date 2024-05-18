@@ -225,6 +225,7 @@ pub mod global_counter_inner {
 }
 
 #[macro_export]
+#[cfg(debug_assertions)]
 macro_rules! counter {
     ($(
         $(#[$attr:meta])*
@@ -252,6 +253,19 @@ macro_rules! counter {
             // Name
             $($filter)?
         }
+    )*};
+}
+
+#[macro_export]
+#[cfg(not(debug_assertions))]
+macro_rules! counter {
+    ($(
+        $(#[$attr:meta])*
+        $vis:vis $name:ident $(in $filter:literal)? : $ty:ty = $init:expr;
+    )*) => {$(
+        $(#[$attr])*
+        $vis static $name: <$ty as $crate::global_counter_inner::DisableableCounter>::Dummy =
+            <<$ty as $crate::global_counter_inner::DisableableCounter>::Dummy>::new();
     )*};
 }
 
