@@ -50,7 +50,6 @@ nix = "0.24.1"
 scopeguard = "1.2.0"
 anyhow = "1.0.83"
 thiserror = "1.0.60"
-bitflags = "2.4.2"
 gruel = { version = "0.1.0", path = "../gruel" }
 vmm-ids = { version = "0.1.0", path = "../vmm-ids" }
 

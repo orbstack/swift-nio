@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::thread::{self, Thread};
 use std::time::Duration;
 use utils::Mutex;
+use vmm_ids::VmmShutdownSignal;
 
 use super::super::TimestampUs;
 use super::barrier::BreakableBarrier;
@@ -70,6 +71,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// A wrapper around creating and using a VM.
 pub struct Vm {
+    shutdown: VmmShutdownSignal,
     pub hvf_vm: HvfVm,
     parker: Arc<VmParker>,
     #[cfg(target_arch = "aarch64")]
@@ -210,10 +212,15 @@ impl Parkable for VmParker {
 
 impl Vm {
     /// Constructs a new `Vm` using the given `Kvm` instance.
-    pub fn new(vcpu_count: u8, guest_mem: &GuestMemoryMmap) -> Result<Self> {
+    pub fn new(
+        shutdown: VmmShutdownSignal,
+        vcpu_count: u8,
+        guest_mem: &GuestMemoryMmap,
+    ) -> Result<Self> {
         let hvf_vm = HvfVm::new(guest_mem).map_err(Error::VmSetup)?;
 
         Ok(Vm {
+            shutdown,
             hvf_vm: hvf_vm.clone(),
             parker: Arc::new(VmParker::new(vcpu_count, hvf_vm.clone())),
             #[cfg(target_arch = "aarch64")]
@@ -356,6 +363,8 @@ pub struct Vcpu {
     #[cfg_attr(all(test, target_arch = "aarch64"), allow(unused))]
     exit_evt: EventFd,
 
+    shutdown: VmmShutdownSignal,
+
     #[cfg(target_arch = "aarch64")]
     mpidr: u64,
 
@@ -391,6 +400,7 @@ impl Vcpu {
         guest_mem: GuestMemoryMmap,
         _create_ts: TimestampUs,
         intc: Arc<Mutex<Gic>>,
+        shutdown: VmmShutdownSignal,
     ) -> Result<Self> {
         Ok(Vcpu {
             id,
@@ -403,6 +413,7 @@ impl Vcpu {
             guest_mem,
             mpidr: 0,
             intc,
+            shutdown,
         })
     }
 
@@ -690,6 +701,28 @@ impl Vcpu {
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "aarch64")]
     pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
+        use gruel::{MultiShutdownSignalExt, ShutdownAlreadyRequestedExt};
+        use vmm_ids::{VcpuSignal, VcpuSignalMask, VmmShutdownPhase};
+
+        // Create and register the signal
+        let signal = VcpuSignal::new();
+        let _cpu_shutdown_task = self
+            .shutdown
+            .spawn_signal(
+                VmmShutdownPhase::VcpuPause,
+                signal.bind_ref(VcpuSignalMask::SHUTDOWN),
+            )
+            .unwrap_or_run_now();
+
+        let _hvf_destroy_task = self
+            .shutdown
+            .spawn_signal(
+                VmmShutdownPhase::VcpuPause,
+                signal.bind_ref(VcpuSignalMask::DESTROY_VM),
+            )
+            .unwrap_or_run_now();
+
+        // Create the underlying HVF vCPU.
         let mut hvf_vcpu =
             HvfVcpu::new(parker.clone(), self.guest_mem.clone()).expect("Can't create HVF vCPU");
         let hvf_vcpuid = hvf_vcpu.id();

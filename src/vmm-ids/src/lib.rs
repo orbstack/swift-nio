@@ -1,4 +1,4 @@
-use gruel::MultiShutdownSignal;
+use gruel::{MultiShutdownSignal, SignalChannel};
 use newt::define_num_enum;
 
 pub type VmmShutdownSignal = MultiShutdownSignal<VmmShutdownPhase>;
@@ -23,5 +23,14 @@ define_num_enum! {
         /// Notify the `libkrun` worker that it can close its worker thread and notify the
         /// embedder.
         NotifyLibkrunWorker,
+    }
+}
+
+pub type VcpuSignal = SignalChannel<VcpuSignalMask>;
+
+bitflags::bitflags! {
+    pub struct VcpuSignalMask: u64 {
+        const SHUTDOWN = 1 << 0;
+        const DESTROY_VM = 1 << 1;
     }
 }

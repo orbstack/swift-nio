@@ -308,6 +308,8 @@ pub fn build_microvm(
     _shutdown_efd: Option<EventFd>,
     #[cfg(target_os = "macos")] _map_sender: Sender<MemoryMapping>,
 ) -> std::result::Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
+    let shutdown = VmmShutdownSignal::default();
+
     // Timestamp for measuring microVM boot duration.
     let request_ts = TimestampUs::default();
 
@@ -352,7 +354,7 @@ pub fn build_microvm(
 
     #[cfg(not(feature = "tee"))]
     #[allow(unused_mut)]
-    let mut vm = setup_vm(&guest_memory, vcpu_config.vcpu_count)?;
+    let mut vm = setup_vm(shutdown.clone(), &guest_memory, vcpu_config.vcpu_count)?;
 
     #[cfg(feature = "tee")]
     let (kvm, mut vm) = {
@@ -525,6 +527,7 @@ pub fn build_microvm(
             request_ts,
             &exit_evt,
             intc.clone().unwrap(),
+            &shutdown,
         )
         .map_err(StartMicrovmError::Internal)?;
 
@@ -558,7 +561,7 @@ pub fn build_microvm(
         exit_observers: Vec::new(),
         parker: vm.get_parker().clone(),
         vm,
-        shutdown: VmmShutdownSignal::default(),
+        shutdown: shutdown.clone(),
         mmio_device_manager,
         #[cfg(target_arch = "x86_64")]
         pio_device_manager,
@@ -807,10 +810,11 @@ pub(crate) fn setup_vm(
 }
 #[cfg(target_os = "macos")]
 pub(crate) fn setup_vm(
+    shutdown: VmmShutdownSignal,
     guest_memory: &GuestMemoryMmap,
     vcpu_count: u8,
 ) -> std::result::Result<Vm, StartMicrovmError> {
-    let mut vm = Vm::new(vcpu_count, guest_memory)
+    let mut vm = Vm::new(shutdown, vcpu_count, guest_memory)
         .map_err(Error::Vm)
         .map_err(StartMicrovmError::Internal)?;
     vm.memory_init(guest_memory)
@@ -1060,6 +1064,7 @@ fn create_vcpus_aarch64(
     request_ts: TimestampUs,
     exit_evt: &EventFd,
     intc: Arc<Mutex<Gic>>,
+    shutdown: &VmmShutdownSignal,
 ) -> super::Result<Vec<Vcpu>> {
     let mut vcpus = Vec::with_capacity(vcpu_config.vcpu_count as usize);
     let mut boot_senders = Vec::with_capacity(vcpu_config.vcpu_count as usize);
@@ -1075,6 +1080,7 @@ fn create_vcpus_aarch64(
             guest_mem.clone(),
             request_ts.clone(),
             intc.clone(),
+            shutdown.clone(),
         )
         .map_err(Error::Vcpu)?;
 

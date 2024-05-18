@@ -1800,7 +1800,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arch",
- "bitflags 2.5.0",
  "codicon",
  "crossbeam-channel",
  "curl",
@@ -1831,6 +1830,7 @@ dependencies = [
 name = "vmm-ids"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.5.0",
  "gruel",
  "newt",
 ]
