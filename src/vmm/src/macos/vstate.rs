@@ -460,7 +460,7 @@ impl Vcpu {
         guest_mem: &GuestMemoryMmap,
         enable_tso: bool,
     ) -> Result<()> {
-        self.mpidr = (self.id as u64) << 8;
+        self.mpidr = hvf::vcpu_id_to_mpidr(self.id as u64);
         self.fdt_addr = arch::aarch64::get_fdt_addr(guest_mem);
         self.enable_tso = enable_tso;
 

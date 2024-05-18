@@ -855,17 +855,6 @@ impl HvfVcpu {
     }
 }
 
-pub fn vcpu_read_mpidr(vcpu_id: u64) -> Result<u64, Error> {
-    let mut val: u64 = 0;
-    let ret = unsafe { hv_vcpu_get_sys_reg(vcpu_id, hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, &mut val) };
-
-    if ret != HV_SUCCESS {
-        Err(Error::VcpuReadSystemRegister)
-    } else {
-        Ok(val)
-    }
-}
-
 pub unsafe fn vm_allocate(size: usize) -> Result<*mut c_void, Error> {
     let mut ptr: *mut c_void = std::ptr::null_mut();
     let ret = unsafe { hv_vm_allocate(&mut ptr, size, HV_ALLOCATE_DEFAULT as u64) };
@@ -883,4 +872,8 @@ pub unsafe fn vm_deallocate(ptr: *mut c_void, size: usize) -> Result<(), Error> 
     } else {
         Ok(())
     }
+}
+
+pub fn vcpu_id_to_mpidr(vcpu_id: u64) -> u64 {
+    vcpu_id << 8
 }

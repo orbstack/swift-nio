@@ -123,7 +123,7 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
 
     // https://developer.arm.com/documentation/ddi0595/2021-12/AArch64-Registers/MPIDR-EL1--Multiprocessor-Affinity-Register
     fn get_affinity(&mut self, pe: PeId) -> Affinity {
-        let mpidr = BitPack(hvf::vcpu_read_mpidr(pe.0).unwrap());
+        let mpidr = BitPack(hvf::vcpu_id_to_mpidr(pe.0));
         let aff3 = mpidr.get_range(32, 39);
         let aff2 = mpidr.get_range(16, 23);
         let aff1 = mpidr.get_range(8, 15);
