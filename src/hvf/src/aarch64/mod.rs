@@ -375,10 +375,10 @@ struct PvgicVcpuState {
 
 unsafe impl ByteValued for PvgicVcpuState {}
 
-pub struct HvfVcpu<'a> {
+pub struct HvfVcpu {
     parker: Arc<dyn Parkable>,
     vcpuid: hv_vcpu_t,
-    vcpu_exit: &'a hv_vcpu_exit_t,
+    vcpu_exit_ptr: *mut hv_vcpu_exit_t,
     cntfrq: u64,
     mmio_buf: [u8; 8],
     pending_mmio_read: Option<MmioRead>,
@@ -407,7 +407,7 @@ fn search_8b_linear(haystack_ptr: *mut u64, needle: u64, haystack_bytes: usize) 
     None
 }
 
-impl<'a> HvfVcpu<'a> {
+impl HvfVcpu {
     pub fn new(parker: Arc<dyn Parkable>, guest_mem: GuestMemoryMmap) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpu_t = 0;
         let mut vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
@@ -426,12 +426,10 @@ impl<'a> HvfVcpu<'a> {
             return Err(Error::VcpuCreate);
         }
 
-        let vcpu_exit: &hv_vcpu_exit_t = unsafe { vcpu_exit_ptr.as_mut().unwrap() };
-
         Ok(Self {
             parker,
             vcpuid,
-            vcpu_exit,
+            vcpu_exit_ptr,
             cntfrq,
             mmio_buf: [0; 8],
             pending_mmio_read: None,
@@ -646,10 +644,11 @@ impl<'a> HvfVcpu<'a> {
             }
         }
 
-        let exit = match self.vcpu_exit.reason {
+        let vcpu_exit = unsafe { &*self.vcpu_exit_ptr };
+        let exit = match vcpu_exit.reason {
             HV_EXIT_REASON_CANCELED => VcpuExit::Canceled,
             HV_EXIT_REASON_EXCEPTION => {
-                let syndrome = self.vcpu_exit.exception.syndrome;
+                let syndrome = vcpu_exit.exception.syndrome;
                 let ec = (syndrome >> 26) & 0x3f;
 
                 match ec {
@@ -688,11 +687,11 @@ impl<'a> HvfVcpu<'a> {
                         let srt: u32 = (syndrome as u32 >> 16) & 0x1f;
 
                         debug!("data abort: va={:x}, pa={:x}, isv={}, iswrite={:?}, s1ptrw={}, len={}, srt={}",
-                               self.vcpu_exit.exception.virtual_address,
-                               self.vcpu_exit.exception.physical_address,
+                               vcpu_exit.exception.virtual_address,
+                               vcpu_exit.exception.physical_address,
                                isv, iswrite, s1ptw, len, srt);
 
-                        let pa = self.vcpu_exit.exception.physical_address;
+                        let pa = vcpu_exit.exception.physical_address;
                         self.pending_advance_pc = true;
 
                         if iswrite {
@@ -765,7 +764,7 @@ impl<'a> HvfVcpu<'a> {
                 panic!(
                     "unexpected exit reason: vcpuid={} 0x{:x} at pc=0x{:x}",
                     self.id(),
-                    self.vcpu_exit.reason,
+                    vcpu_exit.reason,
                     pc
                 );
             }
