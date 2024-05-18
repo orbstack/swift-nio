@@ -384,6 +384,7 @@ pub struct HvfVcpu<'a> {
     pending_mmio_read: Option<MmioRead>,
     pending_advance_pc: bool,
 
+    allow_actlr: bool,
     actlr_el1_ptr: *mut u64,
 
     guest_mem: GuestMemoryMmap,
@@ -436,6 +437,7 @@ impl<'a> HvfVcpu<'a> {
             pending_mmio_read: None,
             pending_advance_pc: false,
 
+            allow_actlr: false,
             actlr_el1_ptr: std::ptr::null_mut(),
 
             guest_mem,
@@ -455,6 +457,7 @@ impl<'a> HvfVcpu<'a> {
         self.write_raw_reg(hv_reg_t_HV_REG_X0, fdt_addr)?;
         self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, mpidr)?;
         if enable_tso {
+            self.allow_actlr = true;
             self.write_actlr_el1(ACTLR_EL1_EN_TSO | ACTLR_EL1_MYSTERY)?;
         }
         Ok(())
@@ -814,8 +817,12 @@ impl<'a> HvfVcpu<'a> {
 
             RSVM_SET_ACTLR_EL1 => {
                 COUNT_EXIT_HVC_ACTLR.count();
-                let value = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
-                self.write_actlr_el1(value & ACTLR_EL1_ALLOWED_MASK)?;
+
+                if self.allow_actlr {
+                    let value = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                    self.write_actlr_el1(value & ACTLR_EL1_ALLOWED_MASK)?;
+                }
+
                 return Ok(VcpuExit::HypervisorCall);
             }
 
