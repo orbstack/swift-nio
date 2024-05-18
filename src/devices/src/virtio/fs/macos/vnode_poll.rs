@@ -36,6 +36,11 @@ enum EventResult {
     Stop,
 }
 
+enum EventBatchResult {
+    Stop,
+    Continue,
+}
+
 // ... we're responsible for prepending this
 const VIRTIOFS_MOUNTPOINT: &str = "/mnt/mac";
 
@@ -137,40 +142,66 @@ impl<E: Into<u64> + From<u64>> VnodePoller<E> {
             let events_buf = MaybeUninit::<[kevent64_s; 512]>::uninit();
             let mut events_buf = unsafe { events_buf.assume_init() };
 
+            // long-running wait with no timeout, for initial set of events in a new batch
             match self.kevent(&[], &mut events_buf, 0) {
-                Ok(0) => break,
                 Err(Errno::EINTR) => continue,
                 Err(e) => return Err(e.into()),
 
                 Ok(n) => {
-                    let mut krpc_events = Vec::with_capacity(n as usize);
-
-                    for event in &events_buf[0..n] {
-                        match self.process_event(event)? {
-                            Some(EventResult::Stop) => return Ok(()),
-                            Some(EventResult::Krpc(path)) => {
-                                let flags = NpFlag::NP_FLAG_MODIFY | NpFlag::NP_FLAG_STAT_ATTR;
-                                let event = (flags, path);
-                                krpc_events.push(event);
-                            }
-                            None => {}
-                        }
-                    }
-
-                    if !krpc_events.is_empty() {
-                        self.send_krpc_events(&krpc_events);
+                    // process this batch of events first
+                    match self.process_kevents(&events_buf[0..n])? {
+                        EventBatchResult::Stop => return Ok(()),
+                        EventBatchResult::Continue => {}
                     }
                 }
             }
 
-            // TODO: stopping shouldn't wait for debounce
-            std::thread::sleep(DEBOUNCE_DURATION);
-        }
+            // we just got woken up by a new batch of events, so there might be more
+            // keep draining events until there are no more
+            loop {
+                match self.kevent(&[], &mut events_buf, KEVENT_FLAG_IMMEDIATE) {
+                    Ok(0) => break,
+                    Err(Errno::EINTR) => continue,
+                    Err(e) => return Err(e.into()),
 
-        Ok(())
+                    Ok(n) => {
+                        // an additional set of events arrived, for the same batch
+                        match self.process_kevents(&events_buf[0..n])? {
+                            EventBatchResult::Stop => return Ok(()),
+                            EventBatchResult::Continue => {}
+                        }
+                    }
+                }
+            }
+
+            // no more events. let's debounce, then wait for next batch
+            std::thread::park_timeout(DEBOUNCE_DURATION);
+        }
     }
 
-    fn process_event(&self, event: &kevent64_s) -> anyhow::Result<Option<EventResult>> {
+    fn process_kevents(&self, kevents: &[kevent64_s]) -> anyhow::Result<EventBatchResult> {
+        let mut krpc_events = Vec::with_capacity(kevents.len());
+
+        for event in kevents {
+            match self.process_kevent(event)? {
+                Some(EventResult::Stop) => return Ok(EventBatchResult::Stop),
+                Some(EventResult::Krpc(path)) => {
+                    let flags = NpFlag::NP_FLAG_MODIFY | NpFlag::NP_FLAG_STAT_ATTR;
+                    let event = (flags, path);
+                    krpc_events.push(event);
+                }
+                None => {}
+            }
+        }
+
+        if !krpc_events.is_empty() {
+            self.send_krpc_events(&krpc_events);
+        }
+
+        Ok(EventBatchResult::Continue)
+    }
+
+    fn process_kevent(&self, event: &kevent64_s) -> anyhow::Result<Option<EventResult>> {
         match event.filter {
             // shutdown
             EVFILT_USER => return Ok(Some(EventResult::Stop)),
