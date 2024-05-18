@@ -278,31 +278,50 @@ func migrateState() error {
 
 	// TODO: future versions need transactional updates
 	err := vmconfig.UpdateState(func(state *vmconfig.VmgrState) error {
-		ver := state.Version
+		// enforce upper bound on legacy version, to fix v1.6.0-rc1/rc2 canary preventing downgrade due to 2->3 version bump
+		if state.LegacyVersion > vmconfig.LastLegacyVersion {
+			state.LegacyVersion = vmconfig.LastLegacyVersion
+		}
+
+		// migrate version number first
+		if state.LegacyVersion != 0 && state.MajorVersion == 0 && state.MinorVersion == 0 {
+			state.MajorVersion = 0
+			state.MinorVersion = state.LegacyVersion // last = 2 (or 3 in canary)
+
+			// keep LegacyVersion for downgrade support
+		}
+
+		major := state.MajorVersion
+		minor := state.MinorVersion
 
 		// v1: initial version up to 0.4.0
 
 		// v2: 0.4.1 - moved nfs mount from ~/Linux to ~/OrbStack
-		if ver == 1 {
+		if minor == 1 {
 			err := migrateStateV1ToV2()
 			if err != nil {
 				return err
 			}
 
-			ver = 2
+			minor = 2
 		}
 
-		if ver == 2 {
+		if minor == 2 {
 			err := migrateStateV2ToV3()
 			if err != nil {
 				return err
 			}
 
-			ver = 3
+			minor = 3
 		}
 
-		ver = vmconfig.CurrentVersion
-		state.Version = ver
+		major = vmconfig.CurrentMajorVersion
+		minor = vmconfig.CurrentMinorVersion
+		state.MajorVersion = major
+		state.MinorVersion = minor
+		// always write store last legacy version to allow downgrade from new installs
+		// also account for major here to prevent major downgrade to older versions that don't understand major/minor versions. (running an old build will delete major/minor fields)
+		state.LegacyVersion = vmconfig.LastLegacyVersion + major
 
 		// update current architecture (can migrate w/o changes)
 		state.Arch = runtime.GOARCH

@@ -11,7 +11,11 @@ import (
 )
 
 const (
-	CurrentVersion = 3
+	// major = 0, minor = 1-3 matches (0, legacy version)
+	CurrentMajorVersion = 0
+	CurrentMinorVersion = 3
+
+	LastLegacyVersion = 2
 )
 
 var (
@@ -20,17 +24,15 @@ var (
 )
 
 type VmgrState struct {
-	Version int    `json:"version"`
-	Arch    string `json:"arch"`
+	LegacyVersion uint   `json:"version,omitempty"`
+	MajorVersion  uint   `json:"majorVersion"`
+	MinorVersion  uint   `json:"minorVersion"`
+	Arch          string `json:"arch"`
 }
 
 func (c *VmgrState) Validate() error {
-	if c.Version > CurrentVersion {
-		return fmt.Errorf("last-used version %d is newer than current version %d. Downgrades are not supported; please update OrbStack", c.Version, CurrentVersion)
-	}
-
-	if c.Version < 0 {
-		return fmt.Errorf("invalid vmgr state version %d", c.Version)
+	if c.MajorVersion > CurrentMajorVersion {
+		return fmt.Errorf("last-used major version %d is newer than current major version %d. Downgrades are not supported; please update OrbStack", c.MajorVersion, CurrentMajorVersion)
 	}
 
 	// we allow migrating between architectures thanks to emulation
@@ -86,6 +88,7 @@ func UpdateState(cb func(*VmgrState) error) error {
 		return err
 	}
 
+	// always write state, to set current version on init
 	data, err := json.MarshalIndent(&newState, "", "\t")
 	if err != nil {
 		return err
@@ -103,7 +106,8 @@ func UpdateState(cb func(*VmgrState) error) error {
 
 func defaultState() *VmgrState {
 	return &VmgrState{
-		Version: CurrentVersion,
-		Arch:    runtime.GOARCH,
+		MajorVersion: CurrentMajorVersion,
+		MinorVersion: CurrentMinorVersion,
+		Arch:         runtime.GOARCH,
 	}
 }
