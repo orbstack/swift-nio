@@ -112,8 +112,8 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 		// if GSO is enabled, we add a virtio_net_hdr
 		GvisorGSOEnabled:   false,
 		PacketDispatchMode: dglink.RecvMMsg,
-		TXChecksumOffload:  true,
-		RXChecksumOffload:  true,
+		TXChecksumOffload:  opts.WantsVnetHdr,
+		RXChecksumOffload:  opts.WantsVnetHdr,
 	}
 
 	// for high MTU, add double virtio_net_hdr for GSO/TSO metadata
