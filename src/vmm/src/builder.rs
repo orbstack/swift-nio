@@ -12,6 +12,7 @@ use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
 use std::sync::Arc;
 use utils::Mutex;
+use vmm_ids::VmmShutdownSignal;
 
 use super::{Error, Vmm};
 
@@ -557,6 +558,7 @@ pub fn build_microvm(
         exit_observers: Vec::new(),
         parker: vm.get_parker().clone(),
         vm,
+        shutdown: VmmShutdownSignal::default(),
         mmio_device_manager,
         #[cfg(target_arch = "x86_64")]
         pio_device_manager,

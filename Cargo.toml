@@ -6,7 +6,7 @@ members = [
     "src/gruel",
     "src/kruntest",
     "src/libkrun",
-    "src/newt",
+    "src/newt", "src/vmm-ids",
 ]
 resolver = "2"
 #panic = "abort"

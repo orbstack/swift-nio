@@ -1,0 +1,8 @@
+[package]
+name = "vmm-ids"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gruel = { version = "0.1.0", path = "../gruel" }
+newt = { version = "0.1.0", path = "../newt" }

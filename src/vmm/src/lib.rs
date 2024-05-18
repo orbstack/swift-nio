@@ -36,6 +36,7 @@ pub use hvf::MemoryMapping;
 #[cfg(target_os = "macos")]
 use macos::vstate;
 use vmm_config::kernel_bundle::KernelBundle;
+use vmm_ids::VmmShutdownSignal;
 
 use crate::macos::VmParker;
 use std::fmt::{Display, Formatter};
@@ -186,6 +187,7 @@ pub struct Vmm {
     exit_evt: EventFd,
     parker: Arc<VmParker>,
     vm: Vm,
+    shutdown: VmmShutdownSignal,
     exit_observers: Vec<Arc<Mutex<dyn VmmExitObserver>>>,
 
     // Guest VM devices.

@@ -67,7 +67,15 @@ impl<P: NumEnum> MultiShutdownSignal<P> {
     where
         F: 'static + Send + Sync + FnOnce(),
     {
-        self.signals[phase].spawn_ref(kick)
+        self.phase_ref(phase).spawn_ref(kick)
+    }
+
+    pub fn phase(&self, phase: P) -> ShutdownSignal {
+        self.phase_ref(phase).clone()
+    }
+
+    pub fn phase_ref(&self, phase: P) -> &ShutdownSignal {
+        &self.signals[phase]
     }
 
     pub fn shutdown(&self) {

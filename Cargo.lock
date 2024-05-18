@@ -1800,10 +1800,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arch",
+ "bitflags 2.5.0",
  "codicon",
  "crossbeam-channel",
  "curl",
  "devices",
+ "gruel",
  "hvf",
  "kbs-types",
  "kernel",
@@ -1821,7 +1823,16 @@ dependencies = [
  "tracing",
  "utils",
  "vm-memory",
+ "vmm-ids",
  "vmm-sys-util",
+]
+
+[[package]]
+name = "vmm-ids"
+version = "0.1.0"
+dependencies = [
+ "gruel",
+ "newt",
 ]
 
 [[package]]
