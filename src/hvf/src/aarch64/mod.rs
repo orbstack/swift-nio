@@ -29,12 +29,18 @@ use tracing::{debug, error};
 
 use counter::RateCounter;
 
+use crate::hypercalls::{
+    PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION, RSVM_FEATURES,
+    RSVM_IO_REQ, RSVM_PVGIC_SET_ADDR, RSVM_SET_ACTLR_EL1, VZF_PVLOCK_KICK, VZF_PVLOCK_WAIT,
+};
+
 extern "C" {
     pub fn mach_absolute_time() -> u64;
 }
 
 counter::counter! {
     COUNT_EXIT_TOTAL in "hvf.vmexit.total": RateCounter = RateCounter::new(FILTER);
+    COUNT_EXIT_HVC_ACTLR in "hvf.vmexit.hvc.actlr": RateCounter = RateCounter::new(FILTER);
     COUNT_EXIT_HVC_VIRTIOFS in "hvf.vmexit.hvc.virtiofs": RateCounter = RateCounter::new(FILTER);
     COUNT_EXIT_HVC_PVLOCK_WAIT in "hvf.vmexit.hvc.pvlock.wait": RateCounter = RateCounter::new(FILTER);
     COUNT_EXIT_HVC_PVLOCK_KICK in "hvf.vmexit.hvc.pvlock.kick": RateCounter = RateCounter::new(FILTER);
@@ -66,7 +72,11 @@ const EC_DATAABORT: u64 = 0x24;
 const EC_AA64_BKPT: u64 = 0x3c;
 
 const SYS_REG_SENTINEL: u64 = 0xb724_5c1e_68e7_5fc5;
-const ACTLR_EL1_EN_TSO: u64 = 0x2;
+// VZF seems to set either 0x202 (for Rosetta) or 0, but no one knows what 0x200 does
+const ACTLR_EL1_EN_TSO: u64 = 1 << 1;
+const ACTLR_EL1_MYSTERY: u64 = 0x200;
+// only allow guest to set these values
+const ACTLR_EL1_ALLOWED_MASK: u64 = ACTLR_EL1_EN_TSO | ACTLR_EL1_MYSTERY;
 static ACTLR_EL1_OFFSET: AtomicIsize = AtomicIsize::new(-1);
 
 macro_rules! arm64_sys_reg {
@@ -374,6 +384,8 @@ pub struct HvfVcpu<'a> {
     pending_mmio_read: Option<MmioRead>,
     pending_advance_pc: bool,
 
+    actlr_el1_ptr: *mut u64,
+
     guest_mem: GuestMemoryMmap,
     pvgic: Option<*mut PvgicVcpuState>,
 }
@@ -424,13 +436,15 @@ impl<'a> HvfVcpu<'a> {
             pending_mmio_read: None,
             pending_advance_pc: false,
 
+            actlr_el1_ptr: std::ptr::null_mut(),
+
             guest_mem,
             pvgic: None,
         })
     }
 
     pub fn set_initial_state(
-        &self,
+        &mut self,
         entry_addr: u64,
         fdt_addr: u64,
         mpidr: u64,
@@ -441,7 +455,7 @@ impl<'a> HvfVcpu<'a> {
         self.write_raw_reg(hv_reg_t_HV_REG_X0, fdt_addr)?;
         self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, mpidr)?;
         if enable_tso {
-            self.write_tso_sys_reg(true)?;
+            self.write_actlr_el1(ACTLR_EL1_EN_TSO | ACTLR_EL1_MYSTERY)?;
         }
         Ok(())
     }
@@ -460,7 +474,7 @@ impl<'a> HvfVcpu<'a> {
         }
     }
 
-    pub fn write_raw_reg(&self, reg: u32, val: u64) -> Result<(), Error> {
+    pub fn write_raw_reg(&mut self, reg: u32, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_set_reg(self.vcpuid, reg, val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetRegister)
@@ -479,7 +493,7 @@ impl<'a> HvfVcpu<'a> {
         }
     }
 
-    pub fn write_gp_reg(&self, reg: u32, val: u64) -> Result<(), Error> {
+    pub fn write_gp_reg(&mut self, reg: u32, val: u64) -> Result<(), Error> {
         assert!(reg < 32);
 
         if reg == 31 {
@@ -500,8 +514,7 @@ impl<'a> HvfVcpu<'a> {
         }
     }
 
-    #[allow(dead_code)]
-    fn write_sys_reg(&self, reg: u16, val: u64) -> Result<(), Error> {
+    fn write_sys_reg(&mut self, reg: u16, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_set_sys_reg(self.vcpuid, reg, val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetSystemRegister)
@@ -510,7 +523,22 @@ impl<'a> HvfVcpu<'a> {
         }
     }
 
-    fn write_tso_sys_reg(&self, en_tso: bool) -> Result<(), Error> {
+    fn write_actlr_el1(&mut self, new_value: u64) -> Result<(), Error> {
+        let actlr_el1_ptr = self.actlr_el1_ptr;
+        if actlr_el1_ptr.is_null() {
+            return self.write_actlr_el1_initial(new_value);
+        }
+
+        // fastpath
+        // flag regs as dirty via unused sysreg where value doesn't matter
+        self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_CONTEXTIDR_EL1, 0)?;
+
+        // write this *after* potentially syncing from hv (which would overwrite it)
+        unsafe { actlr_el1_ptr.write_volatile(new_value) };
+        Ok(())
+    }
+
+    fn write_actlr_el1_initial(&mut self, new_value: u64) -> Result<(), Error> {
         // get pointer to vcpu context struct for this vcpu
         // this is actually in a global array indexed by vcpuid
         let vcpu_ptr = unsafe { _hv_vcpu_get_context(self.vcpuid) };
@@ -539,20 +567,14 @@ impl<'a> HvfVcpu<'a> {
             ACTLR_EL1_OFFSET.store(actlr_el1_offset, Ordering::Relaxed);
         }
 
-        let actlr_el1_ptr = unsafe { vcpu_ptr.offset(actlr_el1_offset) as *mut u64 };
-
-        // set EN_TSO to 1 (enable TSO) on ACTLR_EL1
-        unsafe {
-            if en_tso {
-                *actlr_el1_ptr |= ACTLR_EL1_EN_TSO;
-            } else {
-                *actlr_el1_ptr &= !ACTLR_EL1_EN_TSO;
-            }
-        }
-
         // restore sctlr_el1 to original value
         // this should also flag regs as dirty
         self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_SCTLR_EL1, sctlr_el1)?;
+
+        // write this *after* potentially syncing from hv (which would overwrite it)
+        let actlr_el1_ptr = unsafe { vcpu_ptr.offset(actlr_el1_offset) as *mut u64 };
+        self.actlr_el1_ptr = actlr_el1_ptr;
+        unsafe { actlr_el1_ptr.write_volatile(new_value) };
 
         Ok(())
     }
@@ -753,24 +775,32 @@ impl<'a> HvfVcpu<'a> {
         let val = self.read_raw_reg(hv_reg_t_HV_REG_X0)?;
 
         debug!("HVC: 0x{:x}", val);
-        let ret = match val {
-            0x8400_0000 => Some(2),
-            0x8400_0006 => Some(2),
-            0x8400_0008 | 0x8400_0009 => return Ok(VcpuExit::Shutdown),
-            0xc400_0003 => {
+        let ret = match val as u32 {
+            PSCI_VERSION => Some(2),
+            PSCI_MIGRATE_TYPE => Some(2),
+            PSCI_POWER_OFF | PSCI_RESET => return Ok(VcpuExit::Shutdown),
+
+            PSCI_CPU_ON => {
                 let mpidr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 let entry = self.read_raw_reg(hv_reg_t_HV_REG_X2)?;
                 let context_id = self.read_raw_reg(hv_reg_t_HV_REG_X3)?;
                 self.write_raw_reg(hv_reg_t_HV_REG_X0, 0)?;
                 return Ok(VcpuExit::CpuOn(mpidr, entry, context_id));
             }
-            0xc400_002a => {
+
+            RSVM_FEATURES => {
+                self.write_raw_reg(hv_reg_t_HV_REG_X0, 0)?;
+                return Ok(VcpuExit::HypervisorCall);
+            }
+
+            RSVM_IO_REQ => {
                 COUNT_EXIT_HVC_VIRTIOFS.count();
                 let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
                 let args_ptr = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as usize;
                 return Ok(VcpuExit::HypervisorIoCall { dev_id, args_ptr });
             }
-            0xc400_002b => {
+
+            RSVM_PVGIC_SET_ADDR => {
                 let pvgic_state_addr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 let slice = self
                     .guest_mem
@@ -781,15 +811,25 @@ impl<'a> HvfVcpu<'a> {
                 self.pvgic = Some(mut_ref as *mut PvgicVcpuState);
                 Some(0)
             }
-            0xc300_0005 => {
+
+            RSVM_SET_ACTLR_EL1 => {
+                COUNT_EXIT_HVC_ACTLR.count();
+                let value = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                self.write_actlr_el1(value & ACTLR_EL1_ALLOWED_MASK)?;
+                return Ok(VcpuExit::HypervisorCall);
+            }
+
+            VZF_PVLOCK_WAIT => {
                 COUNT_EXIT_HVC_PVLOCK_WAIT.count();
                 return Ok(VcpuExit::PvlockPark);
             }
-            0xc300_0006 => {
+
+            VZF_PVLOCK_KICK => {
                 COUNT_EXIT_HVC_PVLOCK_KICK.count();
                 let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 return Ok(VcpuExit::PvlockUnpark(vcpuid));
             }
+
             _ => {
                 debug!("HVC call unhandled");
                 None

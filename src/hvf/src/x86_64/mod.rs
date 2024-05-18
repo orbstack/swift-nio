@@ -40,6 +40,8 @@ use std::thread::Thread;
 use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
+use crate::hypercalls::{RSVM_FEATURES, RSVM_IO_REQ};
+
 const LAPIC_TPR: u32 = 0x80;
 
 const APIC_LVT0: u32 = 0x350;
@@ -799,9 +801,14 @@ impl HvfVcpu {
                 match exit_reason & 0xff {
                     VMX_REASON_VMCALL => {
                         // KVM hypercall ABI (Intel)
-                        let call_id = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? & 0xffffffff;
+                        let call_id = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? as u32;
                         match call_id {
-                            0xc400_002a => {
+                            RSVM_FEATURES => {
+                                self.write_reg(hv_x86_reg_t_HV_X86_RAX, 0)?;
+                                Ok(VcpuExit::HypervisorCall)
+                            }
+
+                            RSVM_IO_REQ => {
                                 let arg1 = self.read_reg(hv_x86_reg_t_HV_X86_RBX)?;
                                 let arg2 = self.read_reg(hv_x86_reg_t_HV_X86_RCX)?;
                                 Ok(VcpuExit::HypervisorIoCall {

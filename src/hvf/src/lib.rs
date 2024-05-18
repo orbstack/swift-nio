@@ -9,6 +9,8 @@ mod aarch64;
 #[cfg(target_arch = "aarch64")]
 pub use aarch64::*;
 
+mod hypercalls;
+
 // TODO: unify all our libsystem externs into one package
 mod sys {
     extern "C" {
