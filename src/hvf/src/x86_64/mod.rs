@@ -195,7 +195,7 @@ pub type VcpuId = u32;
 pub trait Parkable: Send + Sync {
     fn park(&self) -> Result<(), ParkError>;
     fn unpark(&self);
-    fn before_vcpu_run(&self, vcpuid: VcpuId);
+    fn before_vcpu_run(&self);
     fn register_vcpu(&self, vcpuid: VcpuId, wfe_thread: Thread);
     fn mark_can_no_longer_park(&self);
 
@@ -754,7 +754,7 @@ impl HvfVcpu {
 
     #[allow(non_upper_case_globals)]
     pub fn run(&mut self) -> Result<VcpuExit, Error> {
-        self.parker.before_vcpu_run(self.hv_vcpu as VcpuId);
+        self.parker.before_vcpu_run();
 
         if self.parker.should_shutdown() {
             return Ok(VcpuExit::Shutdown);

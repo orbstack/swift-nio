@@ -117,7 +117,7 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
         let waker = self.wfe_threads.get(&pe).unwrap();
         waker.thread.unpark();
 
-        hvf::vcpu_request_exit(pe.0).unwrap();
+        hvf::vcpu_request_exit(waker.hv_vcpu).unwrap();
         COUNT_VCPU_KICK.count();
     }
 
@@ -134,7 +134,8 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
 
     fn handle_custom_eoi(&mut self, pe: PeId, int_id: InterruptId) {
         if int_id == TIMER_INT_ID {
-            hvf::vcpu_set_vtimer_mask(pe.0, false).unwrap();
+            let waker = self.wfe_threads.get(&pe).unwrap();
+            hvf::vcpu_set_vtimer_mask(waker.hv_vcpu, false).unwrap();
         }
     }
 }

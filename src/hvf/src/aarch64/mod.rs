@@ -140,8 +140,8 @@ pub enum InterruptType {
     Fiq,
 }
 
-pub fn vcpu_request_exit(vcpuid: u64) -> Result<(), Error> {
-    let mut vcpu: u64 = vcpuid;
+pub fn vcpu_request_exit(hv_vcpu: HvVcpuRef) -> Result<(), Error> {
+    let mut vcpu: u64 = hv_vcpu.0;
     let ret = unsafe { hv_vcpus_exit(&mut vcpu, 1) };
 
     if ret != HV_SUCCESS {
@@ -152,7 +152,7 @@ pub fn vcpu_request_exit(vcpuid: u64) -> Result<(), Error> {
 }
 
 pub fn vcpu_set_pending_irq(
-    vcpuid: u64,
+    hv_vcpu: HvVcpuRef,
     irq_type: InterruptType,
     pending: bool,
 ) -> Result<(), Error> {
@@ -161,7 +161,7 @@ pub fn vcpu_set_pending_irq(
         InterruptType::Fiq => hv_interrupt_type_t_HV_INTERRUPT_TYPE_FIQ,
     };
 
-    let ret = unsafe { hv_vcpu_set_pending_interrupt(vcpuid, _type, pending) };
+    let ret = unsafe { hv_vcpu_set_pending_interrupt(hv_vcpu.0, _type, pending) };
 
     if ret != HV_SUCCESS {
         Err(Error::VcpuSetPendingIrq)
@@ -170,8 +170,8 @@ pub fn vcpu_set_pending_irq(
     }
 }
 
-pub fn vcpu_set_vtimer_mask(vcpuid: u64, masked: bool) -> Result<(), Error> {
-    let ret = unsafe { hv_vcpu_set_vtimer_mask(vcpuid, masked) };
+pub fn vcpu_set_vtimer_mask(hv_vcpu: HvVcpuRef, masked: bool) -> Result<(), Error> {
+    let ret = unsafe { hv_vcpu_set_vtimer_mask(hv_vcpu.0, masked) };
 
     if ret != HV_SUCCESS {
         Err(Error::VcpuSetVtimerMask)
@@ -185,7 +185,7 @@ pub type VcpuId = u64;
 pub trait Parkable: Send + Sync {
     fn park(&self) -> Result<(), ParkError>;
     fn unpark(&self);
-    fn before_vcpu_run(&self, vcpuid: u64);
+    fn before_vcpu_run(&self);
     fn register_vcpu(&self, vcpuid: u64, wfe_thread: Thread);
     fn mark_can_no_longer_park(&self);
 
@@ -375,9 +375,12 @@ struct PvgicVcpuState {
 
 unsafe impl ByteValued for PvgicVcpuState {}
 
+#[derive(Debug, Clone, Copy)]
+pub struct HvVcpuRef(pub hv_vcpu_t);
+
 pub struct HvfVcpu {
     parker: Arc<dyn Parkable>,
-    vcpuid: hv_vcpu_t,
+    hv_vcpu: HvVcpuRef,
     vcpu_exit_ptr: *mut hv_vcpu_exit_t,
     cntfrq: u64,
     mmio_buf: [u8; 8],
@@ -428,7 +431,7 @@ impl HvfVcpu {
 
         Ok(Self {
             parker,
-            vcpuid,
+            hv_vcpu: HvVcpuRef(vcpuid),
             vcpu_exit_ptr,
             cntfrq,
             mmio_buf: [0; 8],
@@ -456,18 +459,24 @@ impl HvfVcpu {
         self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, mpidr)?;
         if enable_tso {
             self.allow_actlr = true;
-            self.write_actlr_el1(ACTLR_EL1_EN_TSO | ACTLR_EL1_MYSTERY)?;
+            // we must boot with TSO unset for Linux ACTLR_EL1 context switching to work correctly (otherwise init thread has TSO enabled)
+            self.write_actlr_el1(ACTLR_EL1_MYSTERY)?;
         }
         Ok(())
     }
 
     pub fn id(&self) -> u64 {
-        self.vcpuid
+        // TODO: hv_vcpu_t vs. vcpu index hygiene
+        self.hv_vcpu.0
+    }
+
+    pub fn vcpu_ref(&self) -> HvVcpuRef {
+        self.hv_vcpu
     }
 
     pub fn read_raw_reg(&self, reg: u32) -> Result<u64, Error> {
         let mut val: u64 = 0;
-        let ret = unsafe { hv_vcpu_get_reg(self.vcpuid, reg, &mut val) };
+        let ret = unsafe { hv_vcpu_get_reg(self.hv_vcpu.0, reg, &mut val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadRegister)
         } else {
@@ -476,7 +485,7 @@ impl HvfVcpu {
     }
 
     pub fn write_raw_reg(&mut self, reg: u32, val: u64) -> Result<(), Error> {
-        let ret = unsafe { hv_vcpu_set_reg(self.vcpuid, reg, val) };
+        let ret = unsafe { hv_vcpu_set_reg(self.hv_vcpu.0, reg, val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetRegister)
         } else {
@@ -507,7 +516,7 @@ impl HvfVcpu {
 
     fn read_sys_reg(&self, reg: u16) -> Result<u64, Error> {
         let mut val: u64 = 0;
-        let ret = unsafe { hv_vcpu_get_sys_reg(self.vcpuid, reg, &mut val) };
+        let ret = unsafe { hv_vcpu_get_sys_reg(self.hv_vcpu.0, reg, &mut val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuReadSystemRegister)
         } else {
@@ -516,7 +525,7 @@ impl HvfVcpu {
     }
 
     fn write_sys_reg(&mut self, reg: u16, val: u64) -> Result<(), Error> {
-        let ret = unsafe { hv_vcpu_set_sys_reg(self.vcpuid, reg, val) };
+        let ret = unsafe { hv_vcpu_set_sys_reg(self.hv_vcpu.0, reg, val) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuSetSystemRegister)
         } else {
@@ -542,7 +551,7 @@ impl HvfVcpu {
     fn write_actlr_el1_initial(&mut self, new_value: u64) -> Result<(), Error> {
         // get pointer to vcpu context struct for this vcpu
         // this is actually in a global array indexed by vcpuid
-        let vcpu_ptr = unsafe { _hv_vcpu_get_context(self.vcpuid) };
+        let vcpu_ptr = unsafe { _hv_vcpu_get_context(self.hv_vcpu.0) };
         if vcpu_ptr.is_null() {
             return Err(Error::VcpuInitialRegisters);
         }
@@ -581,7 +590,7 @@ impl HvfVcpu {
     }
 
     pub fn run(&mut self, pending_irq: Option<u32>) -> Result<(VcpuExit, ExitActions), Error> {
-        self.parker.before_vcpu_run(self.vcpuid);
+        self.parker.before_vcpu_run();
 
         let mut exit_actions = ExitActions::empty();
         if self.parker.should_shutdown() {
@@ -612,7 +621,7 @@ impl HvfVcpu {
         }
 
         if let Some(pending_irq) = pending_irq {
-            vcpu_set_pending_irq(self.vcpuid, InterruptType::Irq, true)?;
+            vcpu_set_pending_irq(self.hv_vcpu, InterruptType::Irq, true)?;
 
             if let Some(pvgic_ptr) = self.pvgic {
                 let pvgic = unsafe { &mut *pvgic_ptr };
@@ -622,7 +631,7 @@ impl HvfVcpu {
             }
         }
 
-        let ret = unsafe { hv_vcpu_run(self.vcpuid) };
+        let ret = unsafe { hv_vcpu_run(self.hv_vcpu.0) };
         if ret != HV_SUCCESS {
             return Err(Error::VcpuRun);
         }
@@ -844,7 +853,7 @@ impl HvfVcpu {
     }
 
     pub fn destroy(self) {
-        let err = unsafe { hv_vcpu_destroy(self.vcpuid) };
+        let err = unsafe { hv_vcpu_destroy(self.hv_vcpu.0) };
         if err != 0 {
             error!("Failed to destroy vcpu: {err}");
         }

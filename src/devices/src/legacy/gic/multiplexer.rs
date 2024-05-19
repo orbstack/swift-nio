@@ -5,7 +5,7 @@ use gicv3::device::InterruptId;
 use std::thread::Thread;
 use utils::Mutex;
 
-use hvf::HvfVm;
+use hvf::{HvVcpuRef, HvfVm};
 
 use crate::bus::BusDevice;
 
@@ -15,6 +15,7 @@ use super::hvf_apic::HvfApic;
 #[derive(Debug)]
 pub struct WfeThread {
     pub thread: Thread,
+    pub hv_vcpu: HvVcpuRef,
 }
 
 pub struct Gic(Box<dyn UserspaceGicImpl>);

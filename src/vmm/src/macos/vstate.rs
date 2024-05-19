@@ -183,11 +183,11 @@ impl Parkable for VmParker {
         self.barrier.destroy();
     }
 
-    fn before_vcpu_run(&self, vcpuid: VcpuId) {
+    fn before_vcpu_run(&self) {
         // problem: cpus stuck in VcpuEmulation::WaitForEvent won't hit this
         // need an atomic vcpu count
         if self.pending_park.load(Ordering::Relaxed) {
-            debug!("before_vcpu_run begin @ {vcpuid}");
+            debug!("before_vcpu_run begin");
             let _ = self.barrier.wait();
             let _ = self.barrier.wait();
             debug!("before_vcpu_run end");
@@ -698,6 +698,7 @@ impl Vcpu {
             hvf_vcpuid as u64,
             WfeThread {
                 thread: thread::current(),
+                hv_vcpu: hvf_vcpu.vcpu_ref(),
             },
         );
 
