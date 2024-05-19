@@ -459,8 +459,7 @@ impl HvfVcpu {
         self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, mpidr)?;
         if enable_tso {
             self.allow_actlr = true;
-            // we must boot with TSO unset for Linux ACTLR_EL1 context switching to work correctly (otherwise init thread has TSO enabled)
-            self.write_actlr_el1(ACTLR_EL1_MYSTERY)?;
+            self.write_actlr_el1(ACTLR_EL1_MYSTERY | ACTLR_EL1_EN_TSO)?;
         }
         Ok(())
     }
