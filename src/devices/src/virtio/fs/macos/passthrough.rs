@@ -94,7 +94,6 @@ struct HandleData {
     nodeid: NodeId,
     file: ManuallyDrop<File>,
     dirstream: Mutex<DirStream>,
-    poller: Option<Arc<VnodePoller<HandleId>>>,
 }
 
 impl HandleData {
@@ -104,7 +103,7 @@ impl HandleData {
         is_readable_file: bool,
         poller: &Option<Arc<VnodePoller<HandleId>>>,
     ) -> io::Result<Self> {
-        let mut hd = HandleData {
+        let hd = HandleData {
             nodeid,
             file: ManuallyDrop::new(file),
             dirstream: Mutex::new(DirStream {
@@ -112,15 +111,12 @@ impl HandleData {
                 offset: 0,
                 entries: None,
             }),
-            // not registered
-            poller: None,
         };
 
         // technically we only have to register it when read hits EOF, but that's flaky and won't actually save time, because the common case is that files (e.g. source code) will be fully read
         if is_readable_file {
             if let Some(poller) = poller {
                 poller.register(hd.file.as_fd(), hd.nodeid)?;
-                hd.poller = Some(poller.clone());
             }
         }
 
@@ -136,13 +132,6 @@ impl AsFd for HandleData {
 
 impl Drop for HandleData {
     fn drop(&mut self) {
-        // unregister from poller if registered
-        if let Some(ref poller) = self.poller {
-            poller
-                .unregister(self.file.as_fd(), self.nodeid)
-                .expect("failed to unregister from poller on drop");
-        }
-
         let ds = self.dirstream.lock().unwrap();
         if !ds.stream.is_null() {
             // this is a dir, and it had a stream open
