@@ -79,13 +79,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
+    let mut total_wake_time = 0;
+    let mut total_wake_iters = 0;
     loop {
         let send_ts = now(start);
         if send_ts > DURATION {
             break;
         }
         last_ts.store(send_ts, Ordering::Relaxed);
+        let before_wake = now(start);
         waker.wake().unwrap();
+        let after_wake = now(start);
+        total_wake_time += after_wake - before_wake;
+        total_wake_iters += 1;
         std::thread::sleep(Duration::from_millis(1));
     }
 
@@ -94,6 +100,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     waker.wake().unwrap();
 
     handle.join().unwrap();
+
+    println!("avg wake time: {} ns", total_wake_time / total_wake_iters);
 
     Ok(())
 }
