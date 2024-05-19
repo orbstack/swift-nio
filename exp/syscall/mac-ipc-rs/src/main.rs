@@ -1,4 +1,4 @@
-use std::{error::Error, sync::{atomic::{AtomicU64, Ordering}, Arc}, time::{Duration, Instant}};
+use std::{error::Error, ffi::c_int, os::raw::c_void, sync::{atomic::{AtomicU64, Ordering}, Arc}, time::{Duration, Instant}};
 
 use mio::{Events, Poll, Token, Waker};
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::unix::pipe::pipe, sync::Notify};
@@ -12,6 +12,11 @@ const DURATION: u64 = 10 * SEC;
 const BUCKET_SIZE: usize = 3;
 
 const WAKE_TOKEN: Token = Token(12);
+
+extern "C" {
+    fn os_sync_wake_by_address_any(addr: *const c_void, size: usize, flags: u32) -> c_int;
+    fn os_sync_wait_on_address(addr: *mut c_void, value: u64, size: usize, flags: u32) -> c_int;
+}
 
 fn now(ref_instant: Instant) -> u64 {
     // get current monotonic time in nanoseconds
@@ -28,8 +33,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut poll = Poll::new()?;
     let waker = Arc::new(Waker::new(poll.registry(), WAKE_TOKEN)?);
 
+    let futex_val = Box::into_raw(Box::new(0u64));
+    let futex_val_raw = futex_val as u64;
+
     // spawn reader
     let handle = std::thread::spawn(move || {
+        let futex_val = futex_val_raw as *mut u64;
         let last_ts = last_ts_clone;
 
         let mut buckets = vec![0u64; 65536];
@@ -40,7 +49,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             // let mut events = Events::with_capacity(2);
             // poll.poll(&mut events, None).unwrap();
             // let waker_event = events.iter().next().unwrap();
-            std::thread::park();
+            // std::thread::park();
+            unsafe {
+                os_sync_wait_on_address(futex_val as *mut c_void, 0, 8, 0);
+            }
             let send_ts = last_ts.load(Ordering::Relaxed);
             if send_ts == 0 {
                 break;
@@ -90,7 +102,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         last_ts.store(send_ts, Ordering::Relaxed);
         let before_wake = now(start);
-        thread.unpark();
+        // thread.unpark();
+        unsafe {
+            os_sync_wake_by_address_any(futex_val as *const c_void, 8, 0);
+        }
         let after_wake = now(start);
         total_wake_time += after_wake - before_wake;
         total_wake_iters += 1;
@@ -99,7 +114,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // stop
     last_ts.store(0, Ordering::Relaxed);
-    thread.unpark();
+    // thread.unpark();
+    unsafe {
+        os_sync_wake_by_address_any(futex_val as *const c_void, 8, 0);
+    }
 
     handle.join().unwrap();
 
