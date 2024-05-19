@@ -613,6 +613,13 @@ impl PassthroughFs {
         Ok(unsafe { File::from_raw_fd(fd) })
     }
 
+    fn get_handle(&self, _nodeid: NodeId, handle: HandleId) -> io::Result<Arc<HandleData>> {
+        self.handles
+            .get(&handle)
+            .map(|v| v.clone())
+            .ok_or(Errno::EBADF.into())
+    }
+
     fn dev_supports_volfs(&self, dev: i32, file_ref: &FileRef) -> io::Result<bool> {
         // TODO: what if the mountpoint disappears, and st_dev gets reused?
         if let Some(supported) = self.dev_info.get(&dev) {
@@ -819,12 +826,7 @@ impl PassthroughFs {
             return Ok(());
         }
 
-        let data = self
-            .handles
-            .get(&handle)
-            .filter(|hd| hd.nodeid == nodeid)
-            .map(|v| v.clone())
-            .ok_or(Errno::EBADF)?;
+        let data = self.get_handle(nodeid, handle)?;
         // race OK: FUSE won't FORGET until all handles are closed
         let (dev, _) = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?.dev_ino;
 
@@ -955,14 +957,12 @@ impl PassthroughFs {
         Ok((Some(handle), opts))
     }
 
-    fn do_release(&self, nodeid: NodeId, handle: HandleId) -> io::Result<()> {
+    fn do_release(&self, _nodeid: NodeId, handle: HandleId) -> io::Result<()> {
         if let dashmap::mapref::entry::Entry::Occupied(e) = self.handles.entry(handle) {
-            if e.get().nodeid == nodeid {
-                // We don't need to close the file here because that will happen automatically when
-                // the last `Arc` is dropped.
-                e.remove();
-                return Ok(());
-            }
+            // We don't need to close the file here because that will happen automatically when
+            // the last `Arc` is dropped.
+            e.remove();
+            return Ok(());
         }
 
         Err(Errno::EBADF.into())
@@ -1038,13 +1038,7 @@ impl PassthroughFs {
         handle: Option<HandleId>,
     ) -> io::Result<OwnedFileRef<HandleData>> {
         if let Some(handle) = handle {
-            let hd = self
-                .handles
-                .get(&handle)
-                .filter(|hd| hd.nodeid == nodeid)
-                .map(|v| v.clone())
-                .ok_or(Errno::EBADF)?;
-
+            let hd = self.get_handle(nodeid, handle)?;
             Ok(OwnedFileRef::Fd(hd))
         } else {
             let path = self.nodeid_to_path(nodeid)?;
@@ -1295,13 +1289,7 @@ impl FileSystem for PassthroughFs {
             return Ok(());
         }
 
-        let data = self
-            .handles
-            .get(&handle)
-            .filter(|hd| hd.nodeid == nodeid)
-            .map(|v| v.clone())
-            .ok_or(Errno::EBADF)?;
-
+        let data = self.get_handle(nodeid, handle)?;
         let mut ds = data.dirstream.lock().unwrap();
 
         // read entries if not already done
@@ -1524,12 +1512,7 @@ impl FileSystem for PassthroughFs {
     ) -> io::Result<usize> {
         debug!("read: {:?}", nodeid);
 
-        let data = self
-            .handles
-            .get(&handle)
-            .filter(|hd| hd.nodeid == nodeid)
-            .map(|v| v.clone())
-            .ok_or(Errno::EBADF)?;
+        let data = self.get_handle(nodeid, handle)?;
 
         // This is safe because write_from uses preadv64, so the underlying file descriptor
         // offset is not affected by this operation.
@@ -1549,12 +1532,7 @@ impl FileSystem for PassthroughFs {
         _kill_priv: bool,
         _flags: u32,
     ) -> io::Result<usize> {
-        let data = self
-            .handles
-            .get(&handle)
-            .filter(|hd| hd.nodeid == nodeid)
-            .map(|v| v.clone())
-            .ok_or(Errno::EBADF)?;
+        let data = self.get_handle(nodeid, handle)?;
 
         // This is safe because read_to uses pwritev64, so the underlying file descriptor
         // offset is not affected by this operation.
@@ -1904,12 +1882,7 @@ impl FileSystem for PassthroughFs {
         _datasync: bool,
         handle: HandleId,
     ) -> io::Result<()> {
-        let data = self
-            .handles
-            .get(&handle)
-            .filter(|hd| hd.nodeid == nodeid)
-            .map(|v| v.clone())
-            .ok_or(Errno::EBADF)?;
+        let data = self.get_handle(nodeid, handle)?;
 
         // use barrier fsync to preserve semantics and avoid DB corruption
         // Safe because this doesn't modify any memory and we check the return value.
@@ -2114,12 +2087,7 @@ impl FileSystem for PassthroughFs {
             nodeid, handle, mode, offset, length
         );
 
-        let data = self
-            .handles
-            .get(&handle)
-            .filter(|hd| hd.nodeid == nodeid)
-            .map(|v| v.clone())
-            .ok_or(Errno::EBADF)?;
+        let data = self.get_handle(nodeid, handle)?;
 
         let file = &data.file;
         match mode {
@@ -2226,12 +2194,7 @@ impl FileSystem for PassthroughFs {
             nodeid, handle, offset, whence
         );
 
-        let data = self
-            .handles
-            .get(&handle)
-            .filter(|hd| hd.nodeid == nodeid)
-            .map(|v| v.clone())
-            .ok_or(Errno::EBADF)?;
+        let data = self.get_handle(nodeid, handle)?;
 
         // SEEK_DATA and SEEK_HOLE have slightly different semantics
         // in Linux vs. macOS, which means we can't support them.
