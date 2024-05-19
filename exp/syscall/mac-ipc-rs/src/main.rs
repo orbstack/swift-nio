@@ -37,9 +37,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut iters: u64 = 0;
 
         loop {
-            let mut events = Events::with_capacity(2);
-            poll.poll(&mut events, None).unwrap();
-            let waker_event = events.iter().next().unwrap();
+            // let mut events = Events::with_capacity(2);
+            // poll.poll(&mut events, None).unwrap();
+            // let waker_event = events.iter().next().unwrap();
+            std::thread::park();
             let send_ts = last_ts.load(Ordering::Relaxed);
             if send_ts == 0 {
                 break;
@@ -81,6 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut total_wake_time = 0;
     let mut total_wake_iters = 0;
+    let thread = handle.thread();
     loop {
         let send_ts = now(start);
         if send_ts > DURATION {
@@ -88,7 +90,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         last_ts.store(send_ts, Ordering::Relaxed);
         let before_wake = now(start);
-        waker.wake().unwrap();
+        thread.unpark();
         let after_wake = now(start);
         total_wake_time += after_wake - before_wake;
         total_wake_iters += 1;
@@ -97,7 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // stop
     last_ts.store(0, Ordering::Relaxed);
-    waker.wake().unwrap();
+    thread.unpark();
 
     handle.join().unwrap();
 
