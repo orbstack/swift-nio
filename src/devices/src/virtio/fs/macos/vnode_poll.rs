@@ -183,14 +183,15 @@ impl<E: Into<u64> + From<u64>> VnodePoller<E> {
         let mut krpc_events = Vec::with_capacity(kevents.len());
 
         for event in kevents {
-            match self.process_kevent(event)? {
-                Some(EventResult::Stop) => return Ok(EventBatchResult::Stop),
-                Some(EventResult::Krpc(path)) => {
+            match self.process_kevent(event) {
+                Ok(Some(EventResult::Stop)) => return Ok(EventBatchResult::Stop),
+                Ok(Some(EventResult::Krpc(path))) => {
                     let flags = NpFlag::NP_FLAG_MODIFY | NpFlag::NP_FLAG_STAT_ATTR;
                     let event = (flags, path);
                     krpc_events.push(event);
                 }
-                None => {}
+                Ok(None) => {}
+                Err(e) => error!("error processing event: {:?}", e),
             }
         }
 
