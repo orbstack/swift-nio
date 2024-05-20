@@ -804,18 +804,15 @@ impl Vcpu {
 
                 // Wait for an external event.
                 Ok(VcpuEmulation::WaitForEvent) => {
-                    signal.wait_on_park(VcpuSignalMask::all());
+                    if intc_vcpu_handle.should_wait(&self.intc) {
+                        signal.wait_on_park(VcpuSignalMask::all());
+                    }
                 }
                 Ok(VcpuEmulation::WaitForEventExpired) => {}
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
-                    let thread = thread::current();
-
-                    // TODO: Move this to `wait_on_park` once it supports timeouts.
-                    signal.wait(
-                        VcpuSignalMask::all(),
-                        || thread.unpark(),
-                        || self.wait_for_event(&mut *intc_vcpu_handle, Some(timeout)),
-                    );
+                    if intc_vcpu_handle.should_wait(&self.intc) {
+                        signal.wait_on_park_timeout(VcpuSignalMask::all(), timeout);
+                    }
                 }
 
                 // The guest was rebooted or halted. No need to check for the shutdown signal—we
@@ -896,17 +893,6 @@ impl Vcpu {
 
         drop(barrier_break_guard);
         hvf_vcpu.destroy();
-    }
-
-    #[cfg(target_arch = "aarch64")]
-    fn wait_for_event(&mut self, intc_handle: &mut dyn GicVcpuHandle, timeout: Option<Duration>) {
-        if intc_handle.should_wait(&self.intc) {
-            if let Some(timeout) = timeout {
-                thread::park_timeout(timeout);
-            } else {
-                thread::park();
-            }
-        }
     }
 }
 

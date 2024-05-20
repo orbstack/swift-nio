@@ -1,4 +1,4 @@
-use std::{fmt, hash, marker::PhantomData, sync::Arc};
+use std::{fmt, hash, marker::PhantomData, sync::Arc, time::Duration};
 
 use bitflags::Flags;
 
@@ -264,6 +264,23 @@ pub trait ParkSignalChannelExt: AnySignalChannel {
             self.wait(wake_mask, || parker.unpark(), || parker.park());
         });
     }
+
+    #[track_caller]
+    fn wait_on_park_timeout(&self, wake_mask: Self::Mask, timeout: Duration) {
+        thread_local! {
+            // We use our own parker implementation to avoid wake-ups from spurious
+            // unpark operations.
+            static MY_PARKER: Parker = Parker::default();
+        }
+
+        MY_PARKER.with(|parker| {
+            self.wait(
+                wake_mask,
+                || parker.unpark(),
+                || parker.park_timeout(timeout),
+            );
+        });
+    }
 }
 
 impl<T: AnySignalChannel> ParkSignalChannelExt for T {}
@@ -272,7 +289,7 @@ impl<T: AnySignalChannel> ParkSignalChannelExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Barrier;
+    use std::{sync::Barrier, time::Duration};
 
     use crate::{ParkSignalChannelExt, RawSignalChannel};
 
@@ -304,5 +321,11 @@ mod tests {
         for _ in 0..1000 {
             signal.wait_on_park(u64::MAX);
         }
+    }
+
+    #[test]
+    fn respects_timeouts() {
+        let signal = RawSignalChannel::new();
+        signal.wait_on_park_timeout(0, Duration::from_millis(100));
     }
 }

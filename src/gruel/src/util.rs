@@ -16,11 +16,15 @@ cfgenius::cond! {
         // Reference: `src/sys/pal/unix/thread_parking/darwin.rs` in `std`
         #[allow(non_camel_case_types)]
         mod park {
-            use std::sync::atomic::{AtomicI8, Ordering::*};
+            use std::{
+                sync::atomic::{AtomicI8, Ordering::*},
+                time::Duration,
+            };
 
             type dispatch_semaphore_t = *mut std::ffi::c_void;
             type dispatch_time_t = u64;
 
+            const DISPATCH_TIME_NOW: dispatch_time_t = 0;
             const DISPATCH_TIME_FOREVER: dispatch_time_t = !0;
 
             const EMPTY: i8 = 0;
@@ -30,6 +34,7 @@ cfgenius::cond! {
             // Contained in libSystem.dylib, which is linked by default.
             // TODO: Bindings?
             extern "C" {
+                fn dispatch_time(when: dispatch_time_t, delta: i64) -> dispatch_time_t;
                 fn dispatch_semaphore_create(val: isize) -> dispatch_semaphore_t;
                 fn dispatch_semaphore_wait(dsema: dispatch_semaphore_t, timeout: dispatch_time_t) -> isize;
                 fn dispatch_semaphore_signal(dsema: dispatch_semaphore_t) -> isize;
@@ -65,6 +70,31 @@ cfgenius::cond! {
                     self.state.swap(EMPTY, Acquire);
                 }
 
+                pub fn park_timeout(&self, timeout: Duration) {
+                    if self.state.fetch_sub(1, Acquire) == NOTIFIED {
+                        return;
+                    }
+
+                    let nanos = timeout.as_nanos().try_into().unwrap_or(i64::MAX);
+                    let timeout = unsafe { dispatch_time(DISPATCH_TIME_NOW, nanos) };
+
+                    let timeout = unsafe { dispatch_semaphore_wait(self.semaphore, timeout) != 0 };
+
+                    let state = self.state.swap(EMPTY, Acquire);
+                    if state == NOTIFIED && timeout {
+                        // If the state was NOTIFIED but semaphore_wait returned without
+                        // decrementing the count because of a timeout, it means another
+                        // thread is about to call semaphore_signal. We must wait for that
+                        // to happen to ensure the semaphore count is reset.
+                        while unsafe { dispatch_semaphore_wait(self.semaphore, DISPATCH_TIME_FOREVER) } != 0 {}
+                    } else {
+                        // Either a timeout occurred and we reset the state before any thread
+                        // tried to wake us up, or we were woken up and reset the state,
+                        // making sure to observe the state change with acquire ordering.
+                        // Either way, the semaphore counter is now zero again.
+                    }
+                }
+
                 pub fn unpark(&self) {
                     let state = self.state.swap(NOTIFIED, Release);
                     if state == PARKED {
@@ -84,6 +114,8 @@ cfgenius::cond! {
     } else {
         // Fallback
         mod park {
+            use std::time::Duration;
+
             #[derive(Debug, Default)]
             pub struct Parker {
                 state: parking_lot::Mutex<bool>,
@@ -98,6 +130,14 @@ cfgenius::cond! {
                         self.condvar.wait(&mut state);
                     }
 
+                    *state = false;
+                }
+
+                pub fn park_timeout(&self, timeout: Duration) {
+                    let mut state = self.state.lock();
+                    if !*state {
+                        self.condvar.wait_for(&mut state, timeout);
+                    }
                     *state = false;
                 }
 
