@@ -10,8 +10,7 @@ mod impl_dummy;
 mod impl_naive;
 mod impl_optimized;
 
-// FIXME: Looks like the optimized backend is broken again!
-use impl_naive::RawSignalChannelInner;
+use impl_optimized::RawSignalChannelInner;
 
 // === RawSignalChannel === //
 
@@ -212,6 +211,7 @@ impl BoundSignalChannel {
 pub trait AnySignalChannel: Sized {
     type Mask: Copy;
 
+    #[track_caller]
     fn wait<R>(
         &self,
         wake_mask: Self::Mask,
@@ -223,6 +223,7 @@ pub trait AnySignalChannel: Sized {
 impl AnySignalChannel for RawSignalChannel {
     type Mask = u64;
 
+    #[track_caller]
     fn wait<R>(
         &self,
         wake_mask: Self::Mask,
@@ -237,6 +238,7 @@ impl AnySignalChannel for RawSignalChannel {
 impl<S: Flags<Bits = u64> + Copy> AnySignalChannel for SignalChannel<S> {
     type Mask = S;
 
+    #[track_caller]
     fn wait<R>(
         &self,
         wake_mask: Self::Mask,
@@ -250,6 +252,7 @@ impl<S: Flags<Bits = u64> + Copy> AnySignalChannel for SignalChannel<S> {
 
 // Idle
 pub trait ParkSignalChannelExt: AnySignalChannel {
+    #[track_caller]
     fn wait_on_park(&self, wake_mask: Self::Mask) {
         thread_local! {
             // We use our own parker implementation to avoid wake-ups from spurious
@@ -290,5 +293,16 @@ mod tests {
                 channel.assert(1);
             });
         });
+    }
+
+    #[test]
+    fn early_exit_works() {
+        let signal = RawSignalChannel::new();
+
+        signal.assert(1);
+
+        for _ in 0..1000 {
+            signal.wait_on_park(u64::MAX);
+        }
     }
 }

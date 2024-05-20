@@ -4,6 +4,7 @@
 
 use std::{
     fmt,
+    panic::Location,
     ptr::NonNull,
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -25,7 +26,12 @@ pub struct RawSignalChannelInner {
     /// The active waker function. This pointer is guaranteed to be valid to call at the time the
     /// handler is locked.
     #[allow(clippy::type_complexity)]
-    waker: Mutex<Option<NonNull<dyn FnMut(u64) + Send + Sync>>>,
+    waker: Mutex<Option<WakerValue>>,
+}
+
+struct WakerValue {
+    func: NonNull<dyn FnMut(u64) + Send + Sync>,
+    handler_location: &'static Location<'static>,
 }
 
 impl RawSignalChannelInner {
@@ -41,10 +47,11 @@ impl RawSignalChannelInner {
         // Otherwise, we need to try and wake the worker. If it's a false positive, this will early
         // return in the handler body.
         if let Some(handler) = &mut *self.waker.lock() {
-            (unsafe { handler.as_mut() })(mask);
+            (unsafe { handler.func.as_mut() })(mask);
         }
     }
 
+    #[track_caller]
     pub fn wait<R>(
         &self,
         wake_mask: u64,
@@ -69,21 +76,27 @@ impl RawSignalChannelInner {
 
         // Begin critical section!
         let mut waker_mutex = self.waker.lock();
+
         assert!(
             waker_mutex.is_none(),
-            "`wait` already called somewhere else on this channel"
+            "`wait` already called at {} on this channel",
+            waker_mutex.as_ref().unwrap().handler_location,
         );
-        *waker_mutex = Some(unsafe {
-            #[allow(clippy::unnecessary_cast)]
-            NonNull::new_unchecked(
-                &mut waker as *mut (dyn '_ + FnMut(u64) + Send + Sync)
-                    as *mut (dyn FnMut(u64) + Send + Sync),
-            )
-        });
 
         if self.asserted_mask.load(Ordering::SeqCst) & wake_mask != 0 {
             return None;
         }
+
+        *waker_mutex = Some(WakerValue {
+            func: unsafe {
+                #[allow(clippy::unnecessary_cast)]
+                NonNull::new_unchecked(
+                    &mut waker as *mut (dyn '_ + FnMut(u64) + Send + Sync)
+                        as *mut (dyn FnMut(u64) + Send + Sync),
+                )
+            },
+            handler_location: Location::caller(),
+        });
 
         // End of critical section!
         drop(waker_mutex);

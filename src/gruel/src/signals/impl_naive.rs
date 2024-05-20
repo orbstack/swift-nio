@@ -62,9 +62,10 @@ impl RawSignalChannelInner {
         // Bind the waker
         let mut state = self.state.lock();
 
-        assert_eq!(
-            state.handler, None,
-            "`wait` already called somewhere else on this channel"
+        assert!(
+            state.handler.is_none(),
+            "`wait` already called at {} on this channel",
+            state.handler_location.unwrap(),
         );
 
         if state.asserted_mask & wake_mask != 0 {
