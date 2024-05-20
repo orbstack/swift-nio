@@ -7,6 +7,7 @@ use std::mem;
 use super::bindings;
 use bitflags::bitflags;
 use nix::sys::statvfs::Statvfs;
+use num_derive::FromPrimitive;
 use vm_memory::ByteValued;
 
 /// Version number of this interface.
@@ -630,7 +631,7 @@ pub struct FileLock {
 unsafe impl ByteValued for FileLock {}
 
 #[repr(u32)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, FromPrimitive)]
 pub enum Opcode {
     Lookup = 1,
     Forget = 2, /* No Reply */

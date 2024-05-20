@@ -111,6 +111,7 @@ impl<E: Into<u64> + From<u64>> VnodePoller<E> {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn unregister<F: AsRawFd>(&self, fd: F, event_id: E) -> nix::Result<()> {
         let new_event = kevent64_s {
             ident: fd.as_raw_fd() as u64,

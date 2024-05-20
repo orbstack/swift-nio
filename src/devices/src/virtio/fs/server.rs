@@ -12,6 +12,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use nix::errno::Errno;
+use num_traits::FromPrimitive;
+use tracing::Level;
 use vm_memory::ByteValued;
 
 use super::bindings;
@@ -108,59 +110,66 @@ impl<F: FileSystem + Sync> Server<F> {
         }
 
         debug!("opcode: {}", in_header.opcode);
-        match in_header.opcode {
-            x if x == Opcode::Lookup as u32 => self.lookup(in_header, r, w),
-            x if x == Opcode::Forget as u32 => self.forget(in_header, r), // No reply.
-            x if x == Opcode::Getattr as u32 => self.getattr(in_header, r, w),
-            x if x == Opcode::Setattr as u32 => self.setattr(in_header, r, w),
-            x if x == Opcode::Readlink as u32 => self.readlink(in_header, w),
-            x if x == Opcode::Symlink as u32 => self.symlink(in_header, r, w),
-            x if x == Opcode::Mknod as u32 => self.mknod(in_header, r, w),
-            x if x == Opcode::Mkdir as u32 => self.mkdir(in_header, r, w),
-            x if x == Opcode::Unlink as u32 => self.unlink(in_header, r, w),
-            x if x == Opcode::Rmdir as u32 => self.rmdir(in_header, r, w),
-            x if x == Opcode::Rename as u32 => self.rename(in_header, r, w),
-            x if x == Opcode::Link as u32 => self.link(in_header, r, w),
-            x if x == Opcode::Open as u32 => self.open(in_header, r, w),
-            x if x == Opcode::Read as u32 => self.read(in_header, r, w),
-            x if x == Opcode::Write as u32 => self.write(in_header, r, w),
-            x if x == Opcode::Statfs as u32 => self.statfs(in_header, w),
-            x if x == Opcode::Release as u32 => self.release(in_header, r, w),
-            x if x == Opcode::Fsync as u32 => self.fsync(in_header, r, w),
-            x if x == Opcode::Setxattr as u32 => self.setxattr(in_header, r, w),
-            x if x == Opcode::Getxattr as u32 => self.getxattr(in_header, r, w),
-            x if x == Opcode::Listxattr as u32 => self.listxattr(in_header, r, w),
-            x if x == Opcode::Removexattr as u32 => self.removexattr(in_header, r, w),
-            x if x == Opcode::Flush as u32 => self.flush(in_header, r, w),
-            x if x == Opcode::Init as u32 => self.init(in_header, r, w),
-            x if x == Opcode::Opendir as u32 => self.opendir(in_header, r, w),
-            x if x == Opcode::Readdir as u32 => self.readdir(in_header, r, w),
-            x if x == Opcode::Releasedir as u32 => self.releasedir(in_header, r, w),
-            x if x == Opcode::Fsyncdir as u32 => self.fsyncdir(in_header, r, w),
-            x if x == Opcode::Getlk as u32 => self.getlk(in_header, r, w),
-            x if x == Opcode::Setlk as u32 => self.setlk(in_header, r, w),
-            x if x == Opcode::Setlkw as u32 => self.setlkw(in_header, r, w),
-            x if x == Opcode::Access as u32 => self.access(in_header, r, w),
-            x if x == Opcode::Create as u32 => self.create(in_header, r, w),
-            x if x == Opcode::Interrupt as u32 => self.interrupt(in_header),
-            x if x == Opcode::Bmap as u32 => self.bmap(in_header, r, w),
-            x if x == Opcode::Destroy as u32 => self.destroy(),
-            x if x == Opcode::Ioctl as u32 => self.ioctl(in_header, r, w),
-            x if x == Opcode::Poll as u32 => self.poll(in_header, r, w),
-            x if x == Opcode::NotifyReply as u32 => self.notify_reply(in_header, r, w),
-            x if x == Opcode::BatchForget as u32 => self.batch_forget(in_header, r, w),
-            x if x == Opcode::Fallocate as u32 => self.fallocate(in_header, r, w),
-            x if x == Opcode::Readdirplus as u32 => self.readdirplus(in_header, r, w),
-            x if x == Opcode::Rename2 as u32 => self.rename2(in_header, r, w),
-            x if x == Opcode::Lseek as u32 => self.lseek(in_header, r, w),
-            x if x == Opcode::CopyFileRange as u32 => self.copyfilerange(in_header, r, w),
-            x if (x == Opcode::SetupMapping as u32) && shm_region.is_some() => {
-                let shm = shm_region.unwrap();
-                self.setupmapping(in_header, r, w, shm.host_addr, shm.size as u64)
+        let opcode = Opcode::from_u32(in_header.opcode);
+        match opcode {
+            Some(Opcode::Lookup) => self.lookup(in_header, r, w),
+            Some(Opcode::Forget) => self.forget(in_header, r), // No reply.
+            Some(Opcode::Getattr) => self.getattr(in_header, r, w),
+            Some(Opcode::Setattr) => self.setattr(in_header, r, w),
+            Some(Opcode::Readlink) => self.readlink(in_header, w),
+            Some(Opcode::Symlink) => self.symlink(in_header, r, w),
+            Some(Opcode::Mknod) => self.mknod(in_header, r, w),
+            Some(Opcode::Mkdir) => self.mkdir(in_header, r, w),
+            Some(Opcode::Unlink) => self.unlink(in_header, r, w),
+            Some(Opcode::Rmdir) => self.rmdir(in_header, r, w),
+            Some(Opcode::Rename) => self.rename(in_header, r, w),
+            Some(Opcode::Link) => self.link(in_header, r, w),
+            Some(Opcode::Open) => self.open(in_header, r, w),
+            Some(Opcode::Read) => self.read(in_header, r, w),
+            Some(Opcode::Write) => self.write(in_header, r, w),
+            Some(Opcode::Statfs) => self.statfs(in_header, w),
+            Some(Opcode::Release) => self.release(in_header, r, w),
+            Some(Opcode::Fsync) => self.fsync(in_header, r, w),
+            Some(Opcode::Setxattr) => self.setxattr(in_header, r, w),
+            Some(Opcode::Getxattr) => self.getxattr(in_header, r, w),
+            Some(Opcode::Listxattr) => self.listxattr(in_header, r, w),
+            Some(Opcode::Removexattr) => self.removexattr(in_header, r, w),
+            Some(Opcode::Flush) => self.flush(in_header, r, w),
+            Some(Opcode::Init) => self.init(in_header, r, w),
+            Some(Opcode::Opendir) => self.opendir(in_header, r, w),
+            Some(Opcode::Readdir) => self.readdir(in_header, r, w),
+            Some(Opcode::Releasedir) => self.releasedir(in_header, r, w),
+            Some(Opcode::Fsyncdir) => self.fsyncdir(in_header, r, w),
+            Some(Opcode::Getlk) => self.getlk(in_header, r, w),
+            Some(Opcode::Setlk) => self.setlk(in_header, r, w),
+            Some(Opcode::Setlkw) => self.setlkw(in_header, r, w),
+            Some(Opcode::Access) => self.access(in_header, r, w),
+            Some(Opcode::Create) => self.create(in_header, r, w),
+            Some(Opcode::Interrupt) => self.interrupt(in_header),
+            Some(Opcode::Bmap) => self.bmap(in_header, r, w),
+            Some(Opcode::Destroy) => self.destroy(),
+            Some(Opcode::Ioctl) => self.ioctl(in_header, r, w),
+            Some(Opcode::Poll) => self.poll(in_header, r, w),
+            Some(Opcode::NotifyReply) => self.notify_reply(in_header, r, w),
+            Some(Opcode::BatchForget) => self.batch_forget(in_header, r, w),
+            Some(Opcode::Fallocate) => self.fallocate(in_header, r, w),
+            Some(Opcode::Readdirplus) => self.readdirplus(in_header, r, w),
+            Some(Opcode::Rename2) => self.rename2(in_header, r, w),
+            Some(Opcode::Lseek) => self.lseek(in_header, r, w),
+            Some(Opcode::CopyFileRange) => self.copyfilerange(in_header, r, w),
+            Some(Opcode::SetupMapping) => {
+                if let Some(shm) = shm_region {
+                    self.setupmapping(in_header, r, w, shm.host_addr, shm.size as u64)
+                } else {
+                    reply_error(Errno::ENOSYS.into(), in_header.unique, w)
+                }
             }
-            x if (x == Opcode::RemoveMapping as u32) && shm_region.is_some() => {
-                let shm = shm_region.unwrap();
-                self.removemapping(in_header, r, w, shm.host_addr, shm.size as u64)
+            Some(Opcode::RemoveMapping) => {
+                if let Some(shm) = shm_region {
+                    self.removemapping(in_header, r, w, shm.host_addr, shm.size as u64)
+                } else {
+                    reply_error(Errno::ENOSYS.into(), in_header.unique, w)
+                }
             }
             _ => reply_error(Errno::ENOSYS.into(), in_header.unique, w),
         }
