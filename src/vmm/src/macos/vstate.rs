@@ -701,23 +701,23 @@ impl Vcpu {
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "aarch64")]
     pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
-        use gruel::{MultiShutdownSignalExt, ShutdownAlreadyRequestedExt};
+        use gruel::{MultiShutdownSignalExt, ParkSignalChannelExt, ShutdownAlreadyRequestedExt};
         use vmm_ids::{VcpuSignal, VcpuSignalMask, VmmShutdownPhase};
 
         // Create and register the signal
         let signal = VcpuSignal::new();
-        let _cpu_shutdown_task = self
+        let cpu_shutdown_task = self
             .shutdown
             .spawn_signal(
-                VmmShutdownPhase::VcpuPause,
-                signal.bind_ref(VcpuSignalMask::SHUTDOWN),
+                VmmShutdownPhase::VcpuExitLoop,
+                signal.bind_ref(VcpuSignalMask::EXIT_LOOP),
             )
             .unwrap_or_run_now();
 
-        let _hvf_destroy_task = self
+        let hvf_destroy_task = self
             .shutdown
             .spawn_signal(
-                VmmShutdownPhase::VcpuPause,
+                VmmShutdownPhase::VcpuDestroy,
                 signal.bind_ref(VcpuSignalMask::DESTROY_VM),
             )
             .unwrap_or_run_now();
@@ -725,13 +725,16 @@ impl Vcpu {
         // Create the underlying HVF vCPU.
         let mut hvf_vcpu =
             HvfVcpu::new(parker.clone(), self.guest_mem.clone()).expect("Can't create HVF vCPU");
-        let hvf_vcpuid = hvf_vcpu.id();
 
+        let hvf_vcpuid = hvf_vcpu.id();
+        let hvf_vcpu_ref = hvf_vcpu.vcpu_ref();
+
+        // Register the vCPU with the interrupt controller and the parker
         self.intc.lock().unwrap().register_vcpu(
-            hvf_vcpuid as u64,
+            hvf_vcpuid,
             WfeThread {
-                thread: thread::current(),
                 hv_vcpu: hvf_vcpu.vcpu_ref(),
+                signal: signal.clone(),
             },
         );
 
@@ -739,55 +742,107 @@ impl Vcpu {
 
         devices::virtio::fs::macos::iopolicy::prepare_vcpu_for_hvc().unwrap();
 
-        // notify init done (everything is registered)
+        // Notify init done (everything is registered)
+        // TODO: We should be using startup signals for these to reduce the number of thread wake-ups.
         init_sender.send(true).unwrap();
 
-        // wait for boot signal
+        // Wait for boot signal
         let entry_addr = self.boot_receiver.recv().unwrap().raw_value();
 
+        // Setup the vCPU
         hvf_vcpu
             .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_tso)
             .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
 
+        // Create a guard for loop exit
         let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());
-        let barrier_break_guard = scopeguard::guard(parker.clone(), |parker| {
+        let vcpu_loop_exit_guard = scopeguard::guard(parker.clone(), |parker| {
             parker.mark_can_no_longer_park();
             shutdown_handle.request_shutdown();
         });
+        let vcpu_loop_exit_guard = (vcpu_loop_exit_guard, cpu_shutdown_task);
 
+        // Finally, start virtualization!
         let mut intc_vcpu_handle = self.intc.lock().unwrap().get_vcpu_handle(hvf_vcpuid);
 
         loop {
-            match self.run_emulation(&mut hvf_vcpu, &mut *intc_vcpu_handle) {
+            // Handle events
+            if !signal.take(VcpuSignalMask::EXIT_LOOP).is_empty() {
+                break;
+            }
+
+            // (this should never happen if we haven't exited the loop yet)
+            debug_assert!(!signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
+
+            if !signal.take(VcpuSignalMask::INTERRUPT).is_empty() {
+                // TODO: This should be how we determine whether a vCPU needs to interrupt—
+            }
+
+            // Run emulation
+            let emulation = signal.wait(
+                VcpuSignalMask::all(),
+                || {
+                    // This is a pure HVF operation
+                    // TODO: Okay, well, that is a lie w.r.t. balloon parking but that should be
+                    // fixed soon.
+                    hvf::vcpu_request_exit(hvf_vcpu_ref).unwrap();
+                },
+                || self.run_emulation(&mut hvf_vcpu, &mut *intc_vcpu_handle),
+            );
+
+            // Handle emulation result
+            let Some(emulation) = emulation else {
+                // This is a VM exit, which has no side-effects.
+                continue;
+            };
+
+            match emulation {
                 // Emulation ran successfully, continue.
-                Ok(VcpuEmulation::Handled) => (),
+                Ok(VcpuEmulation::Handled) => {}
+
                 // Wait for an external event.
                 Ok(VcpuEmulation::WaitForEvent) => {
-                    self.wait_for_event(&mut *intc_vcpu_handle, None)
+                    signal.wait_on_park(VcpuSignalMask::INTERRUPT);
                 }
-                Ok(VcpuEmulation::WaitForEventExpired) => (),
+                Ok(VcpuEmulation::WaitForEventExpired) => {}
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
-                    self.wait_for_event(&mut *intc_vcpu_handle, Some(timeout))
+                    let thread = thread::current();
+
+                    // TODO: Move this to `wait_on_park` once it supports timeouts.
+                    signal.wait(
+                        VcpuSignalMask::INTERRUPT,
+                        || thread.unpark(),
+                        || self.wait_for_event(&mut *intc_vcpu_handle, Some(timeout)),
+                    );
                 }
-                // The guest was rebooted or halted.
-                Ok(VcpuEmulation::Stopped) => {
+
+                // The guest was rebooted or halted. No need to check for the shutdown signal—we
+                // can't re-renter the VM anyways.Emulation errors lead to vCPU exit.
+                Ok(VcpuEmulation::Stopped) | Err(_) => {
                     break;
                 }
+
                 // PV-lock
-                // TODO: actually park and unpark after gruel migration
                 Ok(VcpuEmulation::PvlockPark) => {
+                    // TODO: actually park and unpark after gruel migration
                     std::thread::yield_now();
                 }
                 Ok(VcpuEmulation::PvlockUnpark(_vcpuid)) => {}
-                // Emulation errors lead to vCPU exit.
-                Err(_) => {
-                    break;
-                }
             }
         }
 
-        drop(barrier_break_guard);
+        drop(vcpu_loop_exit_guard);
+
+        // Now, we just have to wait for the permission to destroy our vCPUs. We can't just let these
+        // become dangling handles because cause an entire list of vCPUs to exit requires all handles
+        // in that list to exit successfully.
+        //
+        // We really don't want any other signal to shutdown the CPU. Note: `wait_on_park` only wakes
+        // up if we genuinely receive the signal.
+        signal.wait_on_park(VcpuSignalMask::DESTROY_VM);
+
         hvf_vcpu.destroy();
+        drop(hvf_destroy_task);
     }
 
     /// Main loop of the vCPU thread.

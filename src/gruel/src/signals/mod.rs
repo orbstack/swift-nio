@@ -10,7 +10,8 @@ mod impl_dummy;
 mod impl_naive;
 mod impl_optimized;
 
-use impl_optimized::RawSignalChannelInner;
+// FIXME: Looks like the optimized backend is broken again!
+use impl_naive::RawSignalChannelInner;
 
 // === RawSignalChannel === //
 

@@ -453,6 +453,7 @@ dependencies = [
  "dashmap",
  "derive_more",
  "gicv3",
+ "gruel",
  "hvf",
  "libc",
  "lru",
@@ -473,6 +474,7 @@ dependencies = [
  "utils",
  "virtio-bindings",
  "vm-memory",
+ "vmm-ids",
  "zerocopy 0.6.6",
  "zerocopy-derive 0.6.6",
 ]

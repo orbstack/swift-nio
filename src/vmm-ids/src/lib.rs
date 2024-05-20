@@ -5,8 +5,10 @@ pub type VmmShutdownSignal = MultiShutdownSignal<VmmShutdownPhase>;
 
 define_num_enum! {
     pub enum VmmShutdownPhase {
-        /// Pauses execution of all vCPUs, letting them wait to destroy themselves.
-        VcpuPause,
+        /// Pauses execution of all vCPUs, letting them wait to destroy themselves. This should
+        /// happen before everything else because vCPUs exiting the loop could actually initiate the
+        /// shutdown.
+        VcpuExitLoop,
 
         /// Shut-down the serial console.
         Console,
@@ -29,8 +31,10 @@ define_num_enum! {
 pub type VcpuSignal = SignalChannel<VcpuSignalMask>;
 
 bitflags::bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
     pub struct VcpuSignalMask: u64 {
-        const SHUTDOWN = 1 << 0;
+        const EXIT_LOOP = 1 << 0;
         const DESTROY_VM = 1 << 1;
+        const INTERRUPT = 1 << 2;
     }
 }

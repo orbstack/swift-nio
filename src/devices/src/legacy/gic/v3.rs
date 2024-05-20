@@ -2,6 +2,7 @@ use counter::RateCounter;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use utils::Mutex;
+use vmm_ids::VcpuSignalMask;
 
 use super::{Gic, GicVcpuHandle, UserspaceGicImpl, WfeThread};
 
@@ -114,10 +115,12 @@ struct HvfGicEventHandler<'a> {
 
 impl GicV3EventHandler for HvfGicEventHandler<'_> {
     fn kick_vcpu_for_irq(&mut self, pe: PeId) {
-        let waker = self.wfe_threads.get(&pe).unwrap();
-        waker.thread.unpark();
+        self.wfe_threads
+            .get(&pe)
+            .unwrap()
+            .signal
+            .assert(VcpuSignalMask::INTERRUPT);
 
-        hvf::vcpu_request_exit(waker.hv_vcpu).unwrap();
         COUNT_VCPU_KICK.count();
     }
 

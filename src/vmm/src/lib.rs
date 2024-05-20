@@ -354,57 +354,6 @@ impl Vmm {
             .map_err(Error::I8042Error)
     }
 
-    /// Waits for all vCPUs to exit.
-    fn wait_for_vcpus_to_exit(&mut self) {
-        info!("Stopping");
-
-        // HACK: There are currently two ways a VCPU could sleep for long periods of time:
-        // 1) It's processing the guest.
-        // 2) It's parked.
-        //
-        // We just repeatedly wake-up the VCPU and tell it to shutdown so it will eventually receive
-        // this message. This is an awful thing to do but it's more reliable than trying to do it
-        // correctly.
-        self.parker.flag_for_shutdown_while_parked();
-
-        for handle in &self.vcpus_handles {
-            let _ = handle.boot_sender.send(GuestAddress(0xC0FFEE));
-        }
-
-        let killer_done_sig = Arc::new(AtomicBool::new(true));
-        std::thread::scope(|s| {
-            s.spawn({
-                let killer_done_sig = killer_done_sig.clone();
-                let vm_kick = self.vm.get_kick_handle();
-                let threads = self
-                    .vcpus_handles
-                    .iter()
-                    .map(|h| h.thread().clone())
-                    .collect::<Vec<_>>();
-
-                move || {
-                    while killer_done_sig.load(Ordering::Relaxed) {
-                        for thread in &threads {
-                            thread.unpark();
-                        }
-                        vm_kick.kick_every_hvf_vcpu();
-
-                        std::thread::sleep(Duration::from_millis(100));
-                    }
-                }
-            });
-
-            for handle in self.vcpus_handles.drain(..) {
-                handle.join();
-            }
-
-            debug!("Joined on all VCPUs");
-            killer_done_sig.store(false, Ordering::Relaxed);
-        });
-
-        debug!("Shut down all VCPUs");
-    }
-
     fn wait_for_observers_to_exit(&mut self) {
         for observer in &self.exit_observers {
             let mut observer = observer.lock().expect("Poisoned mutex for exit observer");
@@ -461,10 +410,8 @@ impl Subscriber for Vmm {
 
         if source == self.exit_evt.as_raw_fd() && event_set == EventSet::IN {
             let _ = self.exit_evt.read();
-            self.wait_for_vcpus_to_exit();
+            self.shutdown.shutdown();
             self.wait_for_observers_to_exit();
-
-            debug!("Destroying HVF VM");
             self.vm.destroy_hvf();
         } else {
             error!("Spurious EventManager event for handler: Vmm");

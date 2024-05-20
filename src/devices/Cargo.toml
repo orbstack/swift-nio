@@ -42,6 +42,8 @@ parking_lot = "0.12.1"
 dashmap = "5.5.3"
 smallvec = "1.13.2"
 counter = { version = "0.1.0", path = "../counter" }
+gruel = { version = "0.1.0", path = "../gruel" }
+vmm-ids = { version = "0.1.0", path = "../vmm-ids" }
 num-traits = "0.2.19"
 num-derive = "0.4.2"
 smol_str = "0.2.2"

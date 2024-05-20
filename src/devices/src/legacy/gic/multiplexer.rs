@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use gicv3::device::InterruptId;
-use std::thread::Thread;
 use utils::Mutex;
+use vmm_ids::VcpuSignal;
 
 use hvf::{HvVcpuRef, HvfVm};
 
@@ -14,8 +14,8 @@ use super::hvf_apic::HvfApic;
 
 #[derive(Debug)]
 pub struct WfeThread {
-    pub thread: Thread,
     pub hv_vcpu: HvVcpuRef,
+    pub signal: VcpuSignal,
 }
 
 pub struct Gic(Box<dyn UserspaceGicImpl>);
