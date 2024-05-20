@@ -341,8 +341,10 @@ impl PeInterruptState {
         !self.pending_interrupts.is_empty() || self.active_interrupt.is_some()
     }
 
-    // allow peeking at the next (active/pending) interrupt that IAR_EL1 (ack) would return, for PV GIC
+    #[allow(clippy::manual_map)] // Keeps things clear
     pub fn get_pending_irq(&self) -> Option<InterruptId> {
+        // Allow peeking at the next (active/pending) interrupt that IAR_EL1 (ack) would return, for
+        // PV GIC
         if let Some(active_interrupt) = self.active_interrupt {
             Some(active_interrupt)
         } else {
@@ -351,9 +353,10 @@ impl PeInterruptState {
     }
 
     pub fn push_interrupt(&mut self, int_id: InterruptId) {
-        // if there's already more than 1 interrupt pending (uncommon case), make sure we only push at most one duplicate
-        // any additional ones are just bad for performance, and searching here is definitely worth the saved vmexits
-        // for perf, avoid the scan unless there are already several pending interrupts
+        // If there's already more than 1 interrupt pending (uncommon case), make sure we only push
+        // at most one duplicate. Any additional ones are just bad for performance, and searching
+        // here is definitely worth the saved vmexits. For perf, avoid the scan unless there are
+        // already several pending interrupts.
         if self.pending_interrupts.len() > 8 {
             let mut count = 0;
             for existing_int in &self.pending_interrupts {

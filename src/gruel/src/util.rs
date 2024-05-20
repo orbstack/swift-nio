@@ -84,24 +84,26 @@ cfgenius::cond! {
     } else {
         // Fallback
         mod park {
-            use std::thread;
-
-            #[derive(Debug)]
-            pub struct GracelessParker(thread::Thread);
-
-            impl Default for Parker {
-                fn default() -> Self {
-                    Self(thread::current())
-                }
+            #[derive(Debug, Default)]
+            pub struct Parker {
+                state: parking_lot::Mutex<bool>,
+                condvar: parking_lot::Condvar,
             }
 
             impl Parker {
                 pub fn park(&self) {
-                    thread::park();
+                    let mut state = self.state.lock();
+
+                    while !*state {
+                        self.condvar.wait(&mut state);
+                    }
+
+                    *state = false;
                 }
 
                 pub fn unpark(&self) {
-                    self.0.unpark();
+                    *self.state.lock() = true;
+                    self.condvar.notify_all();
                 }
             }
         }
