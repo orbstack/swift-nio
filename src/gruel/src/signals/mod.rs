@@ -176,11 +176,21 @@ impl<S: Flags<Bits = u64>> SignalChannel<S> {
     }
 
     pub fn bind(self, mask: S) -> BoundSignalChannel {
-        BoundSignalChannel::wrap(self, mask)
+        BoundSignalChannel {
+            channel: self.into_raw(),
+            mask: mask.bits(),
+        }
     }
 
-    pub fn bind_ref(&self, mask: S) -> BoundSignalChannel {
+    pub fn bind_clone(&self, mask: S) -> BoundSignalChannel {
         self.clone().bind(mask)
+    }
+
+    pub fn bind_ref(&self, mask: S) -> BoundSignalChannelRef<'_> {
+        BoundSignalChannelRef {
+            channel: self.raw(),
+            mask: mask.bits(),
+        }
     }
 }
 
@@ -193,15 +203,30 @@ pub struct BoundSignalChannel {
 }
 
 impl BoundSignalChannel {
-    pub fn wrap<S: Flags<Bits = u64>>(channel: SignalChannel<S>, mask: S) -> Self {
-        Self {
-            channel: channel.into_raw(),
-            mask: mask.bits(),
-        }
-    }
-
     pub fn assert(&self) {
         self.channel.assert(self.mask);
+    }
+
+    pub fn take(&self) {
+        self.channel.take(self.mask);
+    }
+}
+
+// === BoundSignalChannelRef === //
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct BoundSignalChannelRef<'a> {
+    pub channel: &'a RawSignalChannel,
+    pub mask: u64,
+}
+
+impl<'a> BoundSignalChannelRef<'a> {
+    pub fn assert(&self) {
+        self.channel.assert(self.mask);
+    }
+
+    pub fn take(&self) {
+        self.channel.take(self.mask);
     }
 }
 
@@ -284,6 +309,48 @@ pub trait ParkSignalChannelExt: AnySignalChannel {
 }
 
 impl<T: AnySignalChannel> ParkSignalChannelExt for T {}
+
+// === Common Patterns === //
+
+// To handle events safely, it is necessary to implement the following pattern:
+//
+// - Sender thread:
+//    - Push to queue
+//    - Assert signal
+//
+// - Worker thread:
+//    - De-assert signal
+//    - Check if queue is empty
+//
+// These functions help us do that!
+//
+// To show why this is true, consider what happens in the worst-case-scenario, where the worker
+// thread observes an empty queue. This can only happen if the sender thread hasn't ran yet. Hence,
+// once the sender eventually finishes, the worker thread is condemned to receive the signal
+// whenever they start preemptible work again.
+//
+// In the opposite order, the assertion and deassertion could be interwoven, leaving the push and
+// the check to unsafely race.
+
+pub fn add_to_queue_with_kick(kick: BoundSignalChannelRef<'_>, push_to_queue: impl FnOnce()) {
+    push_to_queue();
+    kick.assert();
+}
+
+#[must_use]
+pub fn check_queue_for_work_with_ack(
+    kick: BoundSignalChannelRef<'_>,
+    mut queue_has_work: impl FnMut() -> bool,
+) -> bool {
+    // Optimization: ensure that we have no work in the queue before acknowledging the signal to
+    // reduce the amount of work the `assert` routine has to do. This is not needed for correctness.
+    if queue_has_work() {
+        return true;
+    }
+
+    kick.take();
+    queue_has_work()
+}
 
 // === Tests === //
 

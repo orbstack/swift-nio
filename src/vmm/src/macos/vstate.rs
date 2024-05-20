@@ -710,7 +710,7 @@ impl Vcpu {
             .shutdown
             .spawn_signal(
                 VmmShutdownPhase::VcpuExitLoop,
-                signal.bind_ref(VcpuSignalMask::EXIT_LOOP),
+                signal.bind_clone(VcpuSignalMask::EXIT_LOOP),
             )
             .unwrap_or_run_now();
 
@@ -718,7 +718,7 @@ impl Vcpu {
             .shutdown
             .spawn_signal(
                 VmmShutdownPhase::VcpuDestroy,
-                signal.bind_ref(VcpuSignalMask::DESTROY_VM),
+                signal.bind_clone(VcpuSignalMask::DESTROY_VM),
             )
             .unwrap_or_run_now();
 
@@ -803,6 +803,10 @@ impl Vcpu {
                 Ok(VcpuEmulation::Handled) => {}
 
                 // Wait for an external event.
+                // N.B. we check `vcpu_should_wait` here since, although we consistently assert the
+                // wake-up signal on new interrupts, we don't re-assert it for self-PPI and EOI so
+                // making sure that the guest doesn't WFE while an IRQ is pending seems like a smart
+                // idea.
                 Ok(VcpuEmulation::WaitForEvent) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
                         signal.wait_on_park(VcpuSignalMask::all());

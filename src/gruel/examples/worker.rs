@@ -48,7 +48,10 @@ bitflags! {
 
 fn vcpu_worker(stopper: MultiShutdownSignal<VmStopPhase>, signal: SignalChannel<VcpuSignal>) {
     let _shutdown_task = stopper
-        .spawn_signal(VmStopPhase::DestroyVcpu, signal.bind_ref(VcpuSignal::STOP))
+        .spawn_signal(
+            VmStopPhase::DestroyVcpu,
+            signal.bind_clone(VcpuSignal::STOP),
+        )
         .unwrap_or_run_now();
 
     loop {
