@@ -141,16 +141,28 @@ impl VmSetupState {
 
         // Check support for secondary processor-based VM-execution controls
         // xhyve: src/vmm/intel/vmx.c:617
-        Self::vmx_set_ctlreg(
+        if let Err(e) = Self::vmx_set_ctlreg(
             vcpu,
             VMCS_SEC_PROC_BASED_CTLS,
             hv_vmx_capability_t_HV_VMX_CAP_PROCBASED2,
             PROCBASED_CTLS2_ONE_SETTING,
             PROCBASED_CTLS2_ZERO_SETTING,
             &mut procbased_ctls2,
-        )
-        .context("vmx_init: processor does not support desired secondary processor-based controls")
-        .unwrap();
+        ) {
+            // try fallback for pre-Skylake
+            Self::vmx_set_ctlreg(
+                vcpu,
+                VMCS_SEC_PROC_BASED_CTLS,
+                hv_vmx_capability_t_HV_VMX_CAP_PROCBASED2,
+                PROCBASED_CTLS2_ONE_SETTING_FALLBACK,
+                PROCBASED_CTLS2_ZERO_SETTING,
+                &mut procbased_ctls2,
+            )
+            .context(
+                "vmx_init: processor does not support desired secondary processor-based controls",
+            )
+            .unwrap();
+        }
 
         // Check support for pin-based VM-execution controls
         // xhyve: src/vmm/intel/vmx.c:627
