@@ -187,21 +187,23 @@ func deleteDefaultUsers() error {
 }
 
 func configureSystemStandard(args InitialSetupArgs) error {
-	// add sudoers.d file
-	logrus.Debug("Adding sudoers.d file")
-	sudoersLine := args.Username + " ALL=(ALL) NOPASSWD:ALL"
-	err := os.MkdirAll("/etc/sudoers.d", 0750)
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile("/etc/sudoers.d/orbstack", []byte(sudoersLine), 0440)
-	if err != nil {
-		return err
+	if args.Password == "" {
+		// add sudoers.d file
+		logrus.Debug("Adding sudoers.d file")
+		sudoersLine := args.Username + " ALL=(ALL) NOPASSWD:ALL"
+		err := os.MkdirAll("/etc/sudoers.d", 0750)
+		if err != nil {
+			return err
+		}
+		err = os.WriteFile("/etc/sudoers.d/orbstack", []byte(sudoersLine), 0440)
+		if err != nil {
+			return err
+		}
 	}
 
 	// symlink /opt/orbstack-guest/profile
 	logrus.Debug("linking profile")
-	err = os.Symlink(mounts.ProfileEarly, "/etc/profile.d/000-"+appid.AppName+".sh")
+	err := os.Symlink(mounts.ProfileEarly, "/etc/profile.d/000-"+appid.AppName+".sh")
 	if err != nil {
 		return err
 	}
