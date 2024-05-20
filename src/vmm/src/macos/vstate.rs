@@ -802,7 +802,7 @@ impl Vcpu {
 
                 // Wait for an external event.
                 Ok(VcpuEmulation::WaitForEvent) => {
-                    signal.wait_on_park(VcpuSignalMask::INTERRUPT);
+                    signal.wait_on_park(VcpuSignalMask::all());
                 }
                 Ok(VcpuEmulation::WaitForEventExpired) => {}
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
@@ -810,7 +810,7 @@ impl Vcpu {
 
                     // TODO: Move this to `wait_on_park` once it supports timeouts.
                     signal.wait(
-                        VcpuSignalMask::INTERRUPT,
+                        VcpuSignalMask::all(),
                         || thread.unpark(),
                         || self.wait_for_event(&mut *intc_vcpu_handle, Some(timeout)),
                     );

@@ -602,6 +602,7 @@ dependencies = [
  "cfgenius",
  "derive-where",
  "generational-arena",
+ "log",
  "newt",
  "parking_lot",
  "scopeguard",

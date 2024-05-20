@@ -79,9 +79,11 @@ impl<P: NumEnum> MultiShutdownSignal<P> {
     }
 
     pub fn shutdown(&self) {
-        for signal in self.signals.values() {
+        for (phase, signal) in self.signals.iter() {
+            log::info!("Beginning shutdown phase: {phase:?}");
             signal.shutdown();
         }
+        log::info!("Completed all shutdown phases on `MultiShutdownSignal`");
     }
 }
 
