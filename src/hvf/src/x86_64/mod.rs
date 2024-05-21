@@ -887,9 +887,20 @@ impl HvfVcpu {
 
                                 // Ice Lake: RDPID requires vmexit implementation
                                 res.ecx &= !(1 << 22); // RDPID
+
+                                // Skylake-X Xeon W
+                                res.ebx &= !(1 << 15); // RDT A (and CAT L3, CDP L3, MBA)
+                                res.ebx &= !(1 << 12); // CQM
                             }
                             (10, _) => {
                                 res.eax = 0; // TODO: PMU
+                            }
+                            // CQM
+                            (0xf, _) => {
+                                res.eax = 0;
+                                res.ebx = 0;
+                                res.ecx = 0;
+                                res.edx = 0;
                             }
                             // topology: use 0xb from krun
                             (0x1f, _) => {
