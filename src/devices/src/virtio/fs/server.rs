@@ -27,6 +27,7 @@ use super::{FsError as Error, Result};
 use crate::virtio::linux_errno::linux_errno_raw;
 use crate::virtio::VirtioShmRegion;
 
+// MUST change rsvm_args in kernel to match (num pages)
 const MAX_BUFFER_SIZE: u32 = 524288;
 const BUFFER_HEADER_SIZE: u32 = 0x1000;
 const DIRENT_PADDING: [u8; 8] = [0; 8];
@@ -880,6 +881,7 @@ impl<F: FileSystem + Sync> Server<F> {
                     minor: KERNEL_MINOR_VERSION,
                     max_readahead,
                     flags: enabled as u32,
+                    // never stall background requests
                     max_background: ::std::u16::MAX,
                     congestion_threshold: (::std::u16::MAX / 4) * 3,
                     max_write: MAX_BUFFER_SIZE,

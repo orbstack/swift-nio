@@ -178,19 +178,18 @@ impl<'a> DescriptorChainConsumer<'a> {
     }
 }
 
-// compat with FuseArg
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GuestIoSlice {
-    len: u64,
     addr: GuestAddress,
+    len: u64,
 }
 
 impl GuestIoSlice {
     pub fn new(addr: GuestAddress, len: usize) -> GuestIoSlice {
         GuestIoSlice {
-            len: len as u64,
             addr,
+            len: len as u64,
         }
     }
 }
