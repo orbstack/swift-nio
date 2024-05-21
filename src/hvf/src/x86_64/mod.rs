@@ -20,7 +20,7 @@ use arch_gen::x86::msr_index::{
     EFER_LME, MSR_DRAM_ENERGY_STATUS, MSR_EFER, MSR_IA32_APICBASE, MSR_IA32_CR_PAT,
     MSR_IA32_FEATURE_CONTROL, MSR_IA32_MISC_ENABLE, MSR_IA32_PERF_CAPABILITIES, MSR_IA32_UCODE_REV,
     MSR_IA32_XSS, MSR_MISC_FEATURE_ENABLES, MSR_PKG_ENERGY_STATUS, MSR_PLATFORM_ENERGY_STATUS,
-    MSR_PLATFORM_INFO, MSR_PP0_ENERGY_STATUS, MSR_PP1_ENERGY_STATUS, MSR_PPERF,
+    MSR_PLATFORM_INFO, MSR_PP0_ENERGY_STATUS, MSR_PP1_ENERGY_STATUS, MSR_PPERF, MSR_PPIN_CTL,
     MSR_RAPL_POWER_UNIT, MSR_SMI_COUNT, MSR_SYSCALL_MASK,
 };
 use bindings::*;
@@ -72,6 +72,7 @@ const MSR_TSX_FORCE_ABORT: u32 = 0x0000010f;
 const MSR_IA32_TSX_CTRL: u32 = 0x00000122;
 
 const FEAT_CTL_LOCKED: u64 = 1 << 0;
+const PPIN_CTL_LOCKED: u64 = 1 << 0;
 
 const IOAPIC_START: u64 = IO_APIC_DEFAULT_PHYS_BASE as u64;
 const IOAPIC_END_INCL: u64 = IOAPIC_START + 0x1000 - 1;
@@ -174,11 +175,6 @@ pub enum MemoryMapping {
     RemoveMapping(Sender<bool>, u64, u64),
 }
 
-pub enum InterruptType {
-    Irq,
-    Fiq,
-}
-
 pub fn vcpu_request_exit(vcpuid: hv_vcpuid_t) -> Result<(), Error> {
     let mut vcpu = vcpuid;
     let ret = unsafe { hv_vcpu_interrupt(&mut vcpu, 1) };
@@ -189,6 +185,10 @@ pub fn vcpu_request_exit(vcpuid: hv_vcpuid_t) -> Result<(), Error> {
         Ok(())
     }
 }
+
+// TODO: use this
+#[derive(Debug, Clone, Copy)]
+pub struct HvVcpuRef(pub hv_vcpuid_t);
 
 pub type VcpuId = u32;
 
@@ -1019,6 +1019,8 @@ impl HvfVcpu {
                                 Self::get_msr_info(HV_VMX_INFO_MSR_IA32_PERF_CAPABILITIES)?
                             }
                             MSR_IA32_FEATURE_CONTROL => FEAT_CTL_LOCKED,
+                            // Skylake-X / Xeon
+                            MSR_PPIN_CTL => PPIN_CTL_LOCKED,
                             MSR_MISC_FEATURE_ENABLES => 0,
                             MSR_PLATFORM_INFO => 0,
                             MSR_TSX_FORCE_ABORT => 0,
