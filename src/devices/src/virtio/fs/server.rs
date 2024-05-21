@@ -13,7 +13,6 @@ use std::sync::Arc;
 
 use nix::errno::Errno;
 use num_traits::FromPrimitive;
-use tracing::Level;
 use vm_memory::ByteValued;
 
 use super::bindings;

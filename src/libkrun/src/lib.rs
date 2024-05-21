@@ -129,8 +129,6 @@ impl FsCallbacks for GoFsCallbacks {
 pub struct Machine {
     vmr: Option<VmResources>,
     vmm_shutdown: Option<VmmShutdownHandle>,
-    // must be kept in memory until start
-    kernel_bytes: Option<Vec<u8>>,
 }
 
 impl Machine {
@@ -155,26 +153,25 @@ impl Machine {
         .map_err(to_anyhow_error)?;
 
         // kernel
-        let mut kernel_bytes = std::fs::read(&spec.kernel)?;
+        let mut kernel_data = std::fs::read(&spec.kernel)?;
         #[cfg(target_arch = "aarch64")]
         {
             // pad up to page size boundary
             let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-            kernel_bytes.resize(
-                (kernel_bytes.len() + page_size - 1) / page_size * page_size,
+            kernel_data.resize(
+                (kernel_data.len() + page_size - 1) / page_size * page_size,
                 0,
             );
-            vmr.set_kernel_bundle(KernelBundle {
-                host_addr: kernel_bytes.as_ptr() as u64,
-                size: kernel_bytes.len(),
 
+            vmr.set_kernel_bundle(KernelBundle {
+                data: kernel_data,
                 guest_addr: 0x80000000,
                 entry_addr: 0x80000000,
             })
             .map_err(to_anyhow_error)?;
         }
         #[cfg(target_arch = "x86_64")]
-        vmr.set_kernel_bzimage(&mut kernel_bytes)
+        vmr.set_kernel_bzimage(kernel_data)
             .map_err(to_anyhow_error)?;
 
         // cmdline
@@ -298,7 +295,6 @@ impl Machine {
         Ok(Machine {
             vmr: Some(vmr),
             vmm_shutdown: None,
-            kernel_bytes: Some(kernel_bytes),
         })
     }
 
@@ -355,10 +351,7 @@ impl Machine {
             })?;
 
         self.vmm_shutdown = Some(vmm.lock().unwrap().shutdown_handle());
-
-        // must be retained until copied into guest memory by build_microvm
-        self.kernel_bytes.take().unwrap();
-        self.vmr.take().unwrap();
+        self.vmr = None;
         Ok(())
     }
 

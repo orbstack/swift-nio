@@ -204,15 +204,11 @@ impl VmResources {
         // Safe because this call just returns the page size and doesn't have any side effects.
         let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
 
-        if kernel_bundle.host_addr == 0 {
-            return Err(KernelBundleError::InvalidHostAddress);
-        }
-
         if (kernel_bundle.guest_addr as usize) & (page_size - 1) != 0 {
             return Err(KernelBundleError::InvalidGuestAddress);
         }
 
-        if kernel_bundle.size & (page_size - 1) != 0 {
+        if kernel_bundle.data.len() & (page_size - 1) != 0 {
             return Err(KernelBundleError::InvalidSize);
         }
 
@@ -221,14 +217,13 @@ impl VmResources {
     }
 
     #[cfg(target_arch = "x86_64")]
-    pub fn set_kernel_bzimage(&mut self, bzimage: &mut Vec<u8>) -> Result<KernelBundleError> {
-        let info = x86_64::bzimage::load_bzimage(bzimage)
+    pub fn set_kernel_bzimage(&mut self, bzimage: Vec<u8>) -> Result<KernelBundleError> {
+        let info = x86_64::bzimage::load_bzimage(&mut bzimage)
             .map_err(|e| KernelBundleError::Bzimage(e.into()))?;
         self.kernel_bundle = Some(KernelBundle {
-            host_addr: info.host_addr,
+            data: bzimage,
             guest_addr: info.guest_addr,
             entry_addr: info.entry_addr,
-            size: info.size,
             params: info.params,
         });
         Ok(())

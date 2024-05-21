@@ -62,8 +62,6 @@ use utils::eventfd::EventFd;
 use utils::time::TimestampUs;
 #[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
 use vm_memory::mmap::GuestRegionMmap;
-#[cfg(not(feature = "efi"))]
-use vm_memory::mmap::MmapRegion;
 use vm_memory::Bytes;
 use vm_memory::GuestMemory;
 use vm_memory::{GuestAddress, GuestMemoryMmap};
@@ -316,11 +314,6 @@ pub fn build_microvm(
     let kernel_bundle = vm_resources
         .kernel_bundle()
         .ok_or(StartMicrovmError::MissingKernelConfig)?;
-    #[cfg(not(feature = "efi"))]
-    let kernel_region = unsafe {
-        MmapRegion::build_raw(kernel_bundle.host_addr as *mut u8, kernel_bundle.size, 0, 0)
-            .map_err(StartMicrovmError::KernelBundle)?
-    };
 
     #[cfg(feature = "tee")]
     let qboot_bundle = vm_resources
@@ -338,11 +331,9 @@ pub fn build_microvm(
             .mem_size_mib
             .ok_or(StartMicrovmError::MissingMemSizeConfig)?,
         #[cfg(not(feature = "efi"))]
-        kernel_region,
+        &kernel_bundle.data,
         #[cfg(not(feature = "efi"))]
         kernel_bundle.guest_addr,
-        #[cfg(not(feature = "efi"))]
-        kernel_bundle.size,
         #[cfg(feature = "tee")]
         qboot_bundle,
         #[cfg(feature = "tee")]
@@ -744,9 +735,8 @@ pub fn create_guest_memory(
 #[cfg(all(target_arch = "aarch64", not(feature = "efi")))]
 pub fn create_guest_memory(
     mem_size_mib: usize,
-    kernel_region: MmapRegion,
+    kernel_data: &[u8],
     kernel_load_addr: u64,
-    kernel_size: usize,
 ) -> std::result::Result<(GuestMemoryMmap, ArchMemoryInfo), StartMicrovmError> {
     let mem_size = mem_size_mib << 20;
     let (arch_mem_info, arch_mem_regions) = arch::arch_memory_regions(mem_size);
@@ -754,7 +744,6 @@ pub fn create_guest_memory(
     let guest_mem = hvf::allocate_guest_memory(&arch_mem_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
-    let kernel_data = unsafe { std::slice::from_raw_parts(kernel_region.as_ptr(), kernel_size) };
     guest_mem
         .write(kernel_data, GuestAddress(kernel_load_addr))
         .unwrap();

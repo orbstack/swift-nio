@@ -9,10 +9,9 @@ use arch::x86_64::BootParamsWrapper;
 /// Data structure holding the attributes read from the `libkrunfw` kernel config.
 #[derive(Default)]
 pub struct KernelBundle {
-    pub host_addr: u64,
+    pub data: Vec<u8>,
     pub guest_addr: u64,
     pub entry_addr: u64,
-    pub size: usize,
     #[cfg(target_arch = "x86_64")]
     pub params: BootParamsWrapper,
 }
