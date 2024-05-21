@@ -36,6 +36,7 @@ serde_json = "1.0.114"
 nix = { version = "0.28.0", features = ["time"] }
 
 counter = { path = "../counter" }
+tikv-jemallocator = "0.5.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }

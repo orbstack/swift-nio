@@ -37,6 +37,11 @@ use vmm::{
     VmmShutdownHandle,
 };
 
+use tikv_jemallocator::Jemalloc;
+
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 #[repr(C)]
 pub struct GResultCreate {
     ptr: *mut c_void,
