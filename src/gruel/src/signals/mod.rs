@@ -1,6 +1,7 @@
 use std::{fmt, hash, marker::PhantomData, sync::Arc, time::Duration};
 
 use bitflags::Flags;
+use thiserror::Error;
 
 use crate::util::Parker;
 
@@ -82,6 +83,24 @@ impl RawSignalChannel {
     /// Fetches a snapshot of the channel's state for debugging purposes.
     pub fn snapshot(&self) -> impl fmt::Debug + Clone {
         self.inner.snapshot()
+    }
+
+    pub fn bind(self, mask: u64) -> BoundSignalChannel {
+        BoundSignalChannel {
+            channel: self,
+            mask,
+        }
+    }
+
+    pub fn bind_clone(&self, mask: u64) -> BoundSignalChannel {
+        self.clone().bind(mask)
+    }
+
+    pub fn bind_ref(&self, mask: u64) -> BoundSignalChannelRef<'_> {
+        BoundSignalChannelRef {
+            channel: self,
+            mask,
+        }
     }
 }
 
@@ -236,6 +255,10 @@ impl<'a> BoundSignalChannelRef<'a> {
 pub trait AnySignalChannel: Sized {
     type Mask: Copy;
 
+    fn assert(&self, mask: Self::Mask);
+
+    fn take(&self, mask: Self::Mask) -> Self::Mask;
+
     #[track_caller]
     fn wait<R>(
         &self,
@@ -243,10 +266,26 @@ pub trait AnySignalChannel: Sized {
         waker: impl FnOnce() + Send + Sync,
         worker: impl FnOnce() -> R,
     ) -> Option<R>;
+
+    fn bind(self, mask: Self::Mask) -> BoundSignalChannel;
+
+    fn bind_clone(&self, mask: Self::Mask) -> BoundSignalChannel;
+
+    fn bind_ref(&self, mask: Self::Mask) -> BoundSignalChannelRef<'_>;
 }
 
 impl AnySignalChannel for RawSignalChannel {
     type Mask = u64;
+
+    fn assert(&self, mask: Self::Mask) {
+        // inherent impls take priority during name resolution
+        self.assert(mask)
+    }
+
+    fn take(&self, mask: Self::Mask) -> Self::Mask {
+        // inherent impls take priority during name resolution
+        self.take(mask)
+    }
 
     #[track_caller]
     fn wait<R>(
@@ -258,10 +297,35 @@ impl AnySignalChannel for RawSignalChannel {
         // inherent impls take priority during name resolution
         self.wait(wake_mask, waker, worker)
     }
+
+    fn bind(self, mask: Self::Mask) -> BoundSignalChannel {
+        // inherent impls take priority during name resolution
+        self.bind(mask)
+    }
+
+    fn bind_clone(&self, mask: Self::Mask) -> BoundSignalChannel {
+        // inherent impls take priority during name resolution
+        self.bind_clone(mask)
+    }
+
+    fn bind_ref(&self, mask: Self::Mask) -> BoundSignalChannelRef<'_> {
+        // inherent impls take priority during name resolution
+        self.bind_ref(mask)
+    }
 }
 
 impl<S: Flags<Bits = u64> + Copy> AnySignalChannel for SignalChannel<S> {
     type Mask = S;
+
+    fn assert(&self, mask: Self::Mask) {
+        // inherent impls take priority during name resolution
+        self.assert(mask)
+    }
+
+    fn take(&self, mask: Self::Mask) -> Self::Mask {
+        // inherent impls take priority during name resolution
+        self.take(mask)
+    }
 
     #[track_caller]
     fn wait<R>(
@@ -272,6 +336,21 @@ impl<S: Flags<Bits = u64> + Copy> AnySignalChannel for SignalChannel<S> {
     ) -> Option<R> {
         // inherent impls take priority during name resolution
         self.wait(wake_mask, waker, worker)
+    }
+
+    fn bind(self, mask: Self::Mask) -> BoundSignalChannel {
+        // inherent impls take priority during name resolution
+        self.bind(mask)
+    }
+
+    fn bind_clone(&self, mask: Self::Mask) -> BoundSignalChannel {
+        // inherent impls take priority during name resolution
+        self.bind_clone(mask)
+    }
+
+    fn bind_ref(&self, mask: Self::Mask) -> BoundSignalChannelRef<'_> {
+        // inherent impls take priority during name resolution
+        self.bind_ref(mask)
     }
 }
 
@@ -310,55 +389,97 @@ pub trait ParkSignalChannelExt: AnySignalChannel {
 
 impl<T: AnySignalChannel> ParkSignalChannelExt for T {}
 
-// === Common Patterns === //
+// Queue Receiving
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Error)]
+pub enum QueueRecvError {
+    #[error("queue senders have all disconnected")]
+    HungUp,
 
-// To handle events safely, it is necessary to implement the following pattern:
-//
-// - Sender thread:
-//    - Push to queue
-//    - Assert signal
-//
-// - Worker thread:
-//    - De-assert signal
-//    - Check if queue is empty
-//
-// These functions help us do that!
-//
-// To show why this is true, consider what happens in the worst-case-scenario, where the worker
-// thread observes an empty queue. This can only happen if the sender thread hasn't ran yet. Hence,
-// once the sender eventually finishes, the worker thread is condemned to receive the signal
-// whenever they start preemptible work again.
-//
-// In the opposite order, the assertion and deassertion could be interwoven, leaving the push and
-// the check to unsafely race.
-
-pub fn add_to_queue_with_kick(kick: BoundSignalChannelRef<'_>, push_to_queue: impl FnOnce()) {
-    push_to_queue();
-    kick.assert();
+    #[error("receive operation was cancelled")]
+    Cancelled,
 }
 
-#[must_use]
-pub fn check_queue_for_work_with_ack(
-    kick: BoundSignalChannelRef<'_>,
-    mut queue_has_work: impl FnMut() -> bool,
-) -> bool {
-    // Optimization: ensure that we have no work in the queue before acknowledging the signal to
-    // reduce the amount of work the `assert` routine has to do. This is not needed for correctness.
-    if queue_has_work() {
-        return true;
+pub trait QueueRecvSignalChannelExt: AnySignalChannel {
+    #[track_caller]
+    fn recv_with_cancel<T>(
+        &self,
+        cancel_mask: Self::Mask,
+        receiver: &crossbeam_channel::Receiver<T>,
+    ) -> Result<T, QueueRecvError> {
+        enum Never {}
+
+        let (cancel_send, cancel_recv) = crossbeam_channel::bounded::<Never>(0);
+
+        self.wait(
+            cancel_mask,
+            || drop(cancel_send),
+            || {
+                crossbeam_channel::select! {
+                    recv(receiver) -> val => {
+                        val.map_err(|_| QueueRecvError::HungUp)
+                    }
+                    recv(cancel_recv) -> _ => {
+                        Err(QueueRecvError::Cancelled)
+                    }
+                }
+            },
+        )
+        .unwrap_or(Err(QueueRecvError::Cancelled))
+    }
+}
+
+impl<T: AnySignalChannel> QueueRecvSignalChannelExt for T {}
+
+// Queue Communication
+
+/// To handle events safely, it is necessary to implement the following pattern:
+///
+/// - Sender thread:
+///    - Push to queue
+///    - Assert signal
+///
+/// - Worker thread:
+///    - De-assert signal
+///    - Check if queue is empty
+///
+/// These functions help us do that!
+///
+/// To show why this is true, consider what happens in the worst-case-scenario, where the worker
+/// thread observes an empty queue. This can only happen if the sender thread hasn't ran yet. Hence,
+/// once the sender eventually finishes, the worker thread is condemned to receive the signal
+/// whenever they start preemptible work again.
+///
+/// In the opposite order, the assertion and deassertion could be interwoven, leaving the push and
+/// the check to unsafely race.
+pub trait QueueCommSignalChannelExt: AnySignalChannel {
+    fn add_to_queue_with_kick(&self, mask: Self::Mask, push_to_queue: impl FnOnce()) {
+        push_to_queue();
+        self.assert(mask);
     }
 
-    kick.take();
-    queue_has_work()
+    fn check_queue_for_work_with_ack(
+        &self,
+        mask: Self::Mask,
+        mut queue_has_work: impl FnMut() -> bool,
+    ) -> bool {
+        // Optimization: ensure that we have no work in the queue before acknowledging the signal to
+        // reduce the amount of work the `assert` routine has to do. This is not needed for correctness.
+        if queue_has_work() {
+            return true;
+        }
+
+        self.take(mask);
+        queue_has_work()
+    }
 }
 
 // === Tests === //
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Barrier, time::Duration};
+    use std::{sync::Barrier, thread, time::Duration};
 
-    use crate::{ParkSignalChannelExt, RawSignalChannel};
+    use crate::{ParkSignalChannelExt, QueueRecvSignalChannelExt, RawSignalChannel};
 
     #[test]
     fn simple_wake_up() {
@@ -394,5 +515,43 @@ mod tests {
     fn respects_timeouts() {
         let signal = RawSignalChannel::new();
         signal.wait_on_park_timeout(0, Duration::from_millis(100));
+    }
+
+    #[test]
+    fn queues_can_be_cancelled() {
+        let (_send, recv) = crossbeam_channel::unbounded::<u32>();
+        let signal = RawSignalChannel::new();
+
+        thread::scope(|s| {
+            s.spawn(|| {
+                assert_eq!(
+                    signal.recv_with_cancel(u64::MAX, &recv),
+                    Err(crate::QueueRecvError::Cancelled)
+                );
+            });
+
+            s.spawn(|| {
+                // We'd like to exercise the cancellation behavior, ideally.
+                thread::sleep(Duration::from_millis(100));
+                signal.assert(1);
+            });
+        });
+    }
+
+    #[test]
+    fn queues_can_still_receive() {
+        let (send, recv) = crossbeam_channel::unbounded::<u32>();
+        let signal = RawSignalChannel::new();
+
+        thread::scope(|s| {
+            s.spawn(|| {
+                assert_eq!(signal.recv_with_cancel(u64::MAX, &recv), Ok(42));
+            });
+
+            s.spawn(|| {
+                thread::sleep(Duration::from_millis(100));
+                send.send(42).unwrap();
+            });
+        });
     }
 }
