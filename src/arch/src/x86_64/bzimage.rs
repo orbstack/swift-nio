@@ -1,4 +1,4 @@
-use std::mem::offset_of;
+use std::{mem::offset_of, ops::Range};
 
 use anyhow::anyhow;
 use arch_gen::x86::bootparam::boot_params;
@@ -10,10 +10,9 @@ const KERNEL_LOAD_ADDR: u64 = 0x1000000;
 const KERNEL_64BIT_ENTRY_OFFSET: u64 = 0x200;
 
 pub struct KernelLoadInfo {
-    pub host_addr: u64,
+    pub load_range: Range<usize>,
     pub guest_addr: u64,
     pub entry_addr: u64,
-    pub size: usize,
     pub params: BootParamsWrapper,
 }
 
@@ -51,21 +50,19 @@ pub fn load_bzimage(bzimage: &[u8]) -> anyhow::Result<KernelLoadInfo> {
     let kernel_offset = setup_sects
         .checked_add(1)
         .and_then(|sectors| sectors.checked_mul(512))
-        .ok_or_else(|| anyhow!("bad setup_sects"))?;
+        .ok_or_else(|| anyhow!("bad setup_sects"))? as usize;
     let kernel_size = (params.hdr.syssize as usize)
         .checked_mul(16)
         .ok_or_else(|| anyhow!("bad syssize"))?;
 
-    if kernel_offset as usize + kernel_size > bzimage.len() {
+    if kernel_offset + kernel_size > bzimage.len() {
         return Err(anyhow!("bad kernel offset/size"));
     }
 
-    // TODO: redo the KernelBundle API for safety
     Ok(KernelLoadInfo {
-        host_addr: bzimage.as_ptr() as u64 + kernel_offset,
+        load_range: kernel_offset..kernel_offset + kernel_size,
         guest_addr: KERNEL_LOAD_ADDR,
         entry_addr: KERNEL_LOAD_ADDR + KERNEL_64BIT_ENTRY_OFFSET,
-        size: kernel_size,
         params,
     })
 }

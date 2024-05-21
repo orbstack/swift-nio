@@ -331,7 +331,7 @@ pub fn build_microvm(
             .mem_size_mib
             .ok_or(StartMicrovmError::MissingMemSizeConfig)?,
         #[cfg(not(feature = "efi"))]
-        &kernel_bundle.data,
+        &kernel_bundle.data[kernel_bundle.load_range.clone()],
         #[cfg(not(feature = "efi"))]
         kernel_bundle.guest_addr,
         #[cfg(feature = "tee")]
@@ -672,18 +672,16 @@ pub fn build_microvm(
 #[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
 pub fn create_guest_memory(
     mem_size_mib: usize,
-    kernel_region: MmapRegion,
+    kernel_data: &[u8],
     kernel_load_addr: u64,
-    kernel_size: usize,
 ) -> std::result::Result<(GuestMemoryMmap, ArchMemoryInfo), StartMicrovmError> {
     let mem_size = mem_size_mib << 20;
     let (arch_mem_info, arch_mem_regions) =
-        arch::arch_memory_regions(mem_size, kernel_load_addr, kernel_size);
+        arch::arch_memory_regions(mem_size, kernel_load_addr, kernel_data.len());
 
     let guest_mem = hvf::allocate_guest_memory(&arch_mem_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
-    let kernel_data = unsafe { std::slice::from_raw_parts(kernel_region.as_ptr(), kernel_size) };
     guest_mem
         .write(kernel_data, GuestAddress(kernel_load_addr))
         .unwrap();

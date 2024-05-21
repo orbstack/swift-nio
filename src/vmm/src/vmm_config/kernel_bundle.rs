@@ -1,7 +1,10 @@
 // Copyright 2020, Red Hat Inc. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::{Display, Formatter, Result};
+use std::{
+    fmt::{Display, Formatter, Result},
+    ops::Range,
+};
 
 #[cfg(target_arch = "x86_64")]
 use arch::x86_64::BootParamsWrapper;
@@ -10,6 +13,7 @@ use arch::x86_64::BootParamsWrapper;
 #[derive(Default)]
 pub struct KernelBundle {
     pub data: Vec<u8>,
+    pub load_range: Range<usize>,
     pub guest_addr: u64,
     pub entry_addr: u64,
     #[cfg(target_arch = "x86_64")]

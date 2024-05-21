@@ -169,6 +169,7 @@ impl Machine {
             );
 
             vmr.set_kernel_bundle(KernelBundle {
+                load_range: 0..kernel_data.len(),
                 data: kernel_data,
                 guest_addr: 0x80000000,
                 entry_addr: 0x80000000,
