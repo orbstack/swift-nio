@@ -194,9 +194,15 @@ FROM debian as rosetta-deltas
 RUN apt-get update && \
     apt-get install -y curl python3.11 bsdiff b3sum parallel
 # Use the previous version of 7zip, as 24.05 contains a change that breaks our script
-RUN curl -o 7z.deb https://snapshot.debian.org/archive/debian/20240411T144035Z/pool/main/7/7zip/7zip_23.01%2Bdfsg-12_arm64.deb && \
-    apt install -f ./7z.deb && \
-    rm 7z.deb
+RUN <<EOT sh -eux
+ARCH=amd64
+if [ "\$(uname -m)" = "aarch64" ]; then
+    ARCH=arm64
+fi
+
+curl -o 7z.deb https://snapshot.debian.org/archive/debian/20240411T144035Z/pool/main/7/7zip/7zip_23.01%2Bdfsg-12_\$ARCH.deb
+apt install -f ./7z.deb
+EOT
 COPY rootfs/utils/rosetta /work/
 WORKDIR /work
 COPY --from=rust-build /out/b3enc /work/
