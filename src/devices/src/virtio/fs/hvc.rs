@@ -1,10 +1,9 @@
 use std::{
-    io::Read,
     mem::{size_of, MaybeUninit},
     sync::Arc,
 };
 
-use vm_memory::{ByteValued, GuestAddress, GuestMemoryMmap};
+use vm_memory::{ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
 
 use crate::virtio::{
     descriptor_utils::{GuestIoSlice, Reader, Writer},
@@ -40,17 +39,8 @@ impl FsHvcDevice {
 
     pub fn handle_hvc(&self, args_ptr: usize) -> anyhow::Result<i64> {
         // read args struct
-        let mut args_reader = Reader::new_from_slices(
-            &self.mem,
-            &[GuestIoSlice::new(
-                GuestAddress(args_ptr as u64),
-                size_of::<RsvmArgs>() + size_of::<GuestIoSlice>() * MAX_PAGES as usize,
-            )],
-            &[],
-        )
-        .map_err(FsError::QueueReader)
-        .unwrap();
-        let args: RsvmArgs = args_reader.read_obj()?;
+        let args_addr = GuestAddress(args_ptr as u64);
+        let args: RsvmArgs = self.mem.read_obj(args_addr)?;
 
         if args.in_numargs as usize > args.in_args.len() {
             todo!();
@@ -64,21 +54,28 @@ impl FsHvcDevice {
         let mut pages = unsafe { pages.assume_init() };
         let mut in_pages: &[GuestIoSlice] = &[];
         let mut out_pages: &[GuestIoSlice] = &[];
+        let pages_addr = GuestAddress(args_ptr as u64 + size_of::<RsvmArgs>() as u64);
         if args.in_pages != 0 {
-            args_reader.read_exact(unsafe {
-                std::slice::from_raw_parts_mut(
-                    pages.as_mut_ptr() as *mut u8,
-                    size_of::<GuestIoSlice>() * args.in_pages as usize,
-                )
-            })?;
+            self.mem.read_slice(
+                unsafe {
+                    std::slice::from_raw_parts_mut(
+                        pages.as_mut_ptr() as *mut u8,
+                        size_of::<GuestIoSlice>() * args.in_pages as usize,
+                    )
+                },
+                pages_addr,
+            )?;
             in_pages = &pages[..args.in_pages as usize];
         } else if args.out_pages != 0 {
-            args_reader.read_exact(unsafe {
-                std::slice::from_raw_parts_mut(
-                    pages.as_mut_ptr() as *mut u8,
-                    size_of::<GuestIoSlice>() * args.out_pages as usize,
-                )
-            })?;
+            self.mem.read_slice(
+                unsafe {
+                    std::slice::from_raw_parts_mut(
+                        pages.as_mut_ptr() as *mut u8,
+                        size_of::<GuestIoSlice>() * args.out_pages as usize,
+                    )
+                },
+                pages_addr,
+            )?;
             out_pages = &pages[..args.out_pages as usize];
         }
 
