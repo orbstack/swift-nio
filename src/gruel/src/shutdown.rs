@@ -1,5 +1,8 @@
 use core::fmt;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use derive_where::derive_where;
 use generational_arena::{Arena, Index};
@@ -48,7 +51,13 @@ impl<H: FnOnce()> ShutdownAlreadyRequestedExt
 
 #[derive_where(Clone, Default)]
 pub struct MultiShutdownSignal<P: NumEnum> {
-    signals: Arc<NumEnumMap<P, ShutdownSignal>>,
+    inner: Arc<MultiShutdownSignalInner<P>>,
+}
+
+#[derive_where(Default)]
+struct MultiShutdownSignalInner<P: NumEnum> {
+    is_condemned: AtomicBool,
+    signals: NumEnumMap<P, ShutdownSignal>,
 }
 
 impl<P: NumEnum> fmt::Debug for MultiShutdownSignal<P> {
@@ -75,11 +84,20 @@ impl<P: NumEnum> MultiShutdownSignal<P> {
     }
 
     pub fn phase_ref(&self, phase: P) -> &ShutdownSignal {
-        &self.signals[phase]
+        &self.inner.signals[phase]
     }
 
     pub fn shutdown(&self) {
-        for (phase, signal) in self.signals.iter() {
+        // We cannot allow races over shutdown since a second shutdown request will skip past what
+        // we've shutdown thus far and shut down the next phase early. All other forms of
+        // races (especially for binding) are perfectly permissible and, indeed, desired to ensure
+        // that new tasks are only rejected once the phase has run.
+        if self.inner.is_condemned.swap(true, Ordering::Relaxed) {
+            // (we're already condemned)
+            return;
+        }
+
+        for (phase, signal) in self.inner.signals.iter() {
             log::info!("Beginning shutdown phase: {phase:?}");
             signal.shutdown();
         }
