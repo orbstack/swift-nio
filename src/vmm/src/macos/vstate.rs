@@ -701,7 +701,10 @@ impl Vcpu {
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "aarch64")]
     pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
-        use gruel::{MultiShutdownSignalExt, ParkSignalChannelExt, ShutdownAlreadyRequestedExt};
+        use gruel::{
+            MultiShutdownSignalExt, ParkSignalChannelExt, QueueRecvSignalChannelExt,
+            ShutdownAlreadyRequestedExt,
+        };
         use vmm_ids::{VcpuSignal, VcpuSignalMask, VmmShutdownPhase};
 
         // Create and register the signal
@@ -747,7 +750,14 @@ impl Vcpu {
         init_sender.send(true).unwrap();
 
         // Wait for boot signal
-        let entry_addr = self.boot_receiver.recv().unwrap().raw_value();
+        let Ok(entry_addr) =
+            signal.recv_with_cancel(VcpuSignalMask::ANY_SHUTDOWN, &self.boot_receiver)
+        else {
+            // Destroy both aforementioned tasks—the user has requested a shutdown.
+            return;
+        };
+
+        let entry_addr = entry_addr.raw_value();
 
         // Setup the vCPU
         hvf_vcpu
