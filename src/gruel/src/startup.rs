@@ -1,4 +1,8 @@
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    mem::{self, ManuallyDrop},
+    sync::Arc,
+};
 
 use parking_lot::{Condvar, Mutex};
 use thiserror::Error;
@@ -65,7 +69,7 @@ impl fmt::Debug for StartupSignal {
 impl StartupSignal {
     pub fn new() -> (Self, StartupTask) {
         let state = Arc::<StartupInner>::default();
-        (Self(state.clone()), StartupTask(state))
+        (Self(state.clone()), StartupTask(ManuallyDrop::new(state)))
     }
 
     pub fn abort(&self) {
@@ -83,12 +87,33 @@ impl StartupSignal {
 
         guard.interpret_as_result().unwrap()
     }
+
+    pub fn into_task(self) -> StartupTask {
+        // Increment RC
+        // This is not exactly the same of the clone handler, hence the
+        // duplication.
+        {
+            let mut guard = self.0.state.lock();
+
+            if guard.pending_starts == usize::MAX {
+                guard.pending_starts = 1;
+            } else {
+                guard.pending_starts += 1;
+            }
+        }
+
+        StartupTask(ManuallyDrop::new(self.0))
+    }
+
+    pub fn into_task_ref(&self) -> StartupTask {
+        self.clone().into_task()
+    }
 }
 
 // === StartupTask === //
 
 #[must_use]
-pub struct StartupTask(Arc<StartupInner>);
+pub struct StartupTask(ManuallyDrop<Arc<StartupInner>>);
 
 impl Clone for StartupTask {
     fn clone(&self) -> Self {
@@ -110,7 +135,13 @@ impl Clone for StartupTask {
 
 impl StartupTask {
     pub fn success(self) {
-        let mut state = self.0.state.lock();
+        let _ = self.success_keeping();
+    }
+
+    pub fn success_keeping(self) -> StartupSignal {
+        let signal = self.into_signal_no_rc();
+
+        let mut state = signal.0.state.lock();
 
         if state.pending_starts != usize::MAX {
             state.pending_starts -= 1;
@@ -120,14 +151,29 @@ impl StartupTask {
         drop(state);
 
         if should_notify {
-            self.0.condvar.notify_all();
+            signal.0.condvar.notify_all();
         }
+
+        signal
+    }
+
+    pub fn abort_keeping(self) -> StartupSignal {
+        let signal = self.into_signal_no_rc();
+        signal.abort();
+        signal
+    }
+
+    fn into_signal_no_rc(mut self) -> StartupSignal {
+        let signal = StartupSignal(unsafe { ManuallyDrop::take(&mut self.0) });
+        mem::forget(self);
+        signal
     }
 }
 
 impl Drop for StartupTask {
     fn drop(&mut self) {
         self.0.abort();
+        unsafe { ManuallyDrop::drop(&mut self.0) }
     }
 }
 
