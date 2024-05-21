@@ -365,6 +365,10 @@ impl Vmm {
         // correctly.
         self.parker.flag_for_shutdown_while_parked();
 
+        for handle in &self.vcpus_handles {
+            let _ = handle.boot_sender.send(GuestAddress(0xC0FFEE));
+        }
+
         let killer_done_sig = Arc::new(AtomicBool::new(true));
         std::thread::scope(|s| {
             s.spawn({

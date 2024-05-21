@@ -832,7 +832,7 @@ pub enum VcpuEvent {
 
 /// Wrapper over Vcpu that hides the underlying interactions with the Vcpu thread.
 pub struct VcpuHandle {
-    boot_sender: Sender<GuestAddress>,
+    pub boot_sender: Sender<GuestAddress>,
     vcpu_thread: thread::JoinHandle<()>,
 }
 
