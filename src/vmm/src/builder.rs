@@ -484,6 +484,7 @@ pub fn build_microvm(
             &guest_memory,
             &pio_device_manager.io_bus,
             &exit_evt,
+            &shutdown,
         )
         .map_err(StartMicrovmError::Internal)?;
     }
@@ -998,6 +999,7 @@ fn create_vcpus_x86_64(
     guest_mem: &GuestMemoryMmap,
     io_bus: &devices::Bus,
     exit_evt: &EventFd,
+    shutdown: &VmmShutdownSignal,
 ) -> super::Result<Vec<Vcpu>> {
     let mut vcpus = Vec::with_capacity(vcpu_config.vcpu_count as usize);
     let mut boot_senders = Vec::with_capacity(vcpu_config.vcpu_count as usize);
@@ -1013,6 +1015,7 @@ fn create_vcpus_x86_64(
             //io_bus.clone(),
             guest_mem.clone(),
             vm,
+            shutdown.clone(),
         )
         .map_err(Error::Vcpu)?;
 

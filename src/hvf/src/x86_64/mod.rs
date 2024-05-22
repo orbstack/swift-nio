@@ -26,9 +26,11 @@ use arch_gen::x86::msr_index::{
 use bindings::*;
 #[cfg(target_arch = "x86_64")]
 use cpuid::{kvm_cpuid_entry2, CpuidTransformer, IntelCpuidTransformer, VmSpec};
+use gruel::{StartupAbortedError, StartupTask};
 use iced_x86::{Code, Decoder, DecoderOptions, Instruction, Register};
 use rustc_hash::FxHashMap;
 use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryMmap};
+use vmm_ids::VcpuSignal;
 
 use core::panic;
 use std::arch::x86_64::{__cpuid, __cpuid_count};
@@ -197,14 +199,17 @@ pub struct HvVcpuRef(pub hv_vcpuid_t);
 pub type VcpuId = u32;
 
 pub trait Parkable: Send + Sync {
-    fn park(&self) -> Result<(), ParkError>;
-    fn unpark(&self);
-    fn before_vcpu_run(&self);
-    fn register_vcpu(&self, vcpuid: VcpuId, wfe_thread: Thread);
-    fn mark_can_no_longer_park(&self);
+    fn park(&self) -> Result<StartupTask, StartupAbortedError>;
 
-    fn should_shutdown(&self) -> bool;
-    fn flag_for_shutdown_while_parked(&self);
+    fn unpark(&self, unpark_task: StartupTask);
+
+    fn register_vcpu(&self, vcpu: VcpuSignal) -> StartupTask;
+
+    fn process_park_commands(
+        &self,
+        signal: &VcpuSignal,
+        park_task: StartupTask,
+    ) -> Result<StartupTask, StartupAbortedError>;
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -764,12 +769,6 @@ impl HvfVcpu {
 
     #[allow(non_upper_case_globals)]
     pub fn run(&mut self) -> Result<VcpuExit, Error> {
-        self.parker.before_vcpu_run();
-
-        if self.parker.should_shutdown() {
-            return Ok(VcpuExit::Shutdown);
-        }
-
         if let Some(mmio_read) = self.pending_mmio_read.take() {
             let val = match mmio_read.len {
                 1 => u8::from_le_bytes(self.mmio_buf[0..1].try_into().unwrap()) as u64,
