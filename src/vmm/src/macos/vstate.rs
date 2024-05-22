@@ -5,17 +5,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
+use gruel::StartupAbortedError;
+use gruel::StartupSignal;
+use gruel::StartupTask;
 use std::io;
 use std::result;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::{self, Thread};
 use std::time::Duration;
 use utils::Mutex;
+use vmm_ids::VcpuSignal;
+use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
 
 use super::super::TimestampUs;
-use super::barrier::BreakableBarrier;
 use crate::vmm_config::machine_config::CpuFeaturesTemplate;
 use crate::VmmShutdownHandle;
 
@@ -79,15 +82,17 @@ pub struct Vm {
 }
 
 pub struct VmParker {
-    // everything in here must be Send
     hvf_vm: HvfVm,
-    vcpu_ids: Mutex<Vec<VcpuId>>,
-    vcpu_threads: Mutex<Vec<Thread>>,
-    pending_park: AtomicBool,
-    // we use this both when parking and when unparking
-    barrier: BreakableBarrier,
+    vcpus: Mutex<Vec<VcpuSignal>>,
+
+    /// Tasks here represent vCPUs which have yet to park.
+    park_signal: StartupSignal,
+
+    /// Tasks here represent parker threads which have yet to finish their operations e.g. balloon.
+    unpark_signal: StartupSignal,
+
+    /// These are the regions mapped to the VM.
     regions: Mutex<Vec<MapRegion>>,
-    shutdown_requested: AtomicBool,
 }
 
 pub struct MapRegion {
@@ -97,15 +102,13 @@ pub struct MapRegion {
 }
 
 impl VmParker {
-    pub fn new(vcpu_count: u8, hvf_vm: HvfVm) -> Self {
-        VmParker {
+    pub fn new(hvf_vm: HvfVm) -> Self {
+        Self {
             hvf_vm,
-            vcpu_ids: Mutex::new(Vec::with_capacity(vcpu_count as usize)),
-            vcpu_threads: Mutex::new(Vec::with_capacity(vcpu_count as usize)),
-            pending_park: AtomicBool::new(false),
-            barrier: BreakableBarrier::new(usize::from(vcpu_count) + 1),
-            regions: Mutex::new(Vec::new()),
-            shutdown_requested: AtomicBool::new(false),
+            vcpus: Default::default(),
+            park_signal: Default::default(),
+            unpark_signal: Default::default(),
+            regions: Default::default(),
         }
     }
 
@@ -116,28 +119,27 @@ impl VmParker {
 }
 
 impl Parkable for VmParker {
-    fn park(&self) -> std::result::Result<(), ParkError> {
-        debug!("park begin");
-        // 1. set bool
-        self.pending_park.store(true, Ordering::Relaxed);
+    fn register_vcpu(&self, vcpu: VcpuSignal) -> StartupTask {
+        self.vcpus.lock().unwrap().push(vcpu);
+        self.park_signal.resurrect_cloned()
+    }
 
-        // force all vcpus to exit
-        let mut vcpu_ids = self.vcpu_ids.lock().unwrap();
-        debug!("force vcpus to exit: {:?}", vcpu_ids);
-        self.hvf_vm.force_exits(&mut vcpu_ids).unwrap();
-        drop(vcpu_ids);
+    fn park(&self) -> std::result::Result<StartupTask, StartupAbortedError> {
+        // Resurrect the unpark task. We do this here to ensure that parking vCPUs don't
+        // immediately exit.
+        let unpark_task = self.unpark_signal.resurrect_cloned();
 
-        // kick from WFE
-        for vcpu_thread in self.vcpu_threads.lock().unwrap().iter() {
-            vcpu_thread.unpark();
+        // Let's send a pause signal to every vCPU. They will receive and honor this since this
+        // signal is never asserted outside of `park` (or when the signal is aborted)
+        for cpu in &*self.vcpus.lock().unwrap() {
+            cpu.assert(VcpuSignalMask::PAUSE);
         }
 
-        // 2. wait for all vcpus to reach this point
-        if self.barrier.wait().is_broken() {
-            return Err(ParkError::CanNoLongerPark);
-        }
+        // Now, wait for every vCPU to enter the parked state. If a shutdown occurs, this signal will
+        // be aborted and we'll unblock naturally.
+        self.park_signal.wait()?;
 
-        // then we can unmap the memory
+        // Now, we can unmap the vCPU memory.
         let regions = self.regions.lock().unwrap();
         for region in regions.iter() {
             debug!(
@@ -149,13 +151,13 @@ impl Parkable for VmParker {
                 .unwrap();
         }
 
-        debug!("park end");
-        Ok(())
+        // From there, we just have to give the consumer the unpark task so they can eventually
+        // resolve it.
+        Ok(unpark_task)
     }
 
-    fn unpark(&self) {
-        debug!("unpark begin");
-        // remap the memory
+    fn unpark(&self, unpark_task: StartupTask) {
+        // Make sure we remap all regions before resolving the startup task.
         let regions = self.regions.lock().unwrap();
         for region in regions.iter() {
             debug!(
@@ -167,46 +169,27 @@ impl Parkable for VmParker {
                 .unwrap();
         }
 
-        // 1. clear bool
-        self.pending_park.store(false, Ordering::Relaxed);
+        unpark_task.success();
+    }
 
-        // 2. all vcpus are waiting on the barrier
-        // so trigger it
-        if self.barrier.wait().is_broken() {
-            unreachable!(
-                "barrier broken while vcpus were parked, even though only vcpus can break it"
-            );
+    fn process_park_commands(
+        &self,
+        signal: &VcpuSignal,
+        park_task: StartupTask,
+    ) -> std::result::Result<StartupTask, StartupAbortedError> {
+        // Check whether the signal needs to be resolved.
+        if signal.take(VcpuSignalMask::PAUSE).is_empty() {
+            return Ok(park_task);
         }
 
-        debug!("unpark end");
-    }
+        // Tell the parker that we successfully parked.
+        let park_task = park_task.success_keeping();
 
-    fn mark_can_no_longer_park(&self) {
-        self.barrier.destroy();
-    }
+        // Now, we really need to wait on the unpark signal.
+        self.unpark_signal.wait()?;
 
-    fn before_vcpu_run(&self) {
-        // problem: cpus stuck in VcpuEmulation::WaitForEvent won't hit this
-        // need an atomic vcpu count
-        if self.pending_park.load(Ordering::Relaxed) {
-            debug!("before_vcpu_run begin");
-            let _ = self.barrier.wait();
-            let _ = self.barrier.wait();
-            debug!("before_vcpu_run end");
-        }
-    }
-
-    fn register_vcpu(&self, vcpuid: VcpuId, wfe_thread: Thread) {
-        self.vcpu_ids.lock().unwrap().push(vcpuid);
-        self.vcpu_threads.lock().unwrap().push(wfe_thread);
-    }
-
-    fn should_shutdown(&self) -> bool {
-        self.shutdown_requested.load(Ordering::Relaxed)
-    }
-
-    fn flag_for_shutdown_while_parked(&self) {
-        self.shutdown_requested.store(true, Ordering::Relaxed);
+        // And we're back in business!
+        Ok(park_task.resurrect())
     }
 }
 
@@ -222,7 +205,7 @@ impl Vm {
         Ok(Vm {
             shutdown,
             hvf_vm: hvf_vm.clone(),
-            parker: Arc::new(VmParker::new(vcpu_count, hvf_vm.clone())),
+            parker: Arc::new(VmParker::new(hvf_vm.clone())),
             #[cfg(target_arch = "aarch64")]
             irqchip_handle: None,
         })
@@ -311,28 +294,8 @@ impl Vm {
         self.parker.clone()
     }
 
-    pub fn get_kick_handle(&self) -> VmKickHandle<'_> {
-        VmKickHandle {
-            vcpu_ids: &self.parker.vcpu_ids,
-            hvf_vm: &self.hvf_vm,
-        }
-    }
-
     pub fn destroy_hvf(&self) {
         self.hvf_vm.destroy();
-    }
-}
-
-pub struct VmKickHandle<'a> {
-    vcpu_ids: &'a Mutex<Vec<VcpuId>>,
-    hvf_vm: &'a HvfVm,
-}
-
-impl VmKickHandle<'_> {
-    // HACK: See `wait_for_vcpus_to_exit` for details
-    pub fn kick_every_hvf_vcpu(&self) {
-        let mut vcpu_ids = self.vcpu_ids.lock().unwrap();
-        self.hvf_vm.force_exits(&mut vcpu_ids).unwrap();
     }
 }
 
@@ -741,7 +704,7 @@ impl Vcpu {
             },
         );
 
-        parker.register_vcpu(hvf_vcpuid, thread::current());
+        let mut park_task = parker.register_vcpu(signal.clone());
 
         devices::virtio::fs::macos::iopolicy::prepare_vcpu_for_hvc().unwrap();
 
@@ -766,10 +729,10 @@ impl Vcpu {
 
         // Create a guard for loop exit
         let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());
-        let vcpu_loop_exit_guard = scopeguard::guard(parker.clone(), |parker| {
-            parker.mark_can_no_longer_park();
+        let vcpu_loop_exit_guard = scopeguard::guard((), |()| {
             shutdown_handle.request_shutdown();
         });
+
         let vcpu_loop_exit_guard = (vcpu_loop_exit_guard, cpu_shutdown_task);
 
         // Finally, start virtualization!
@@ -783,6 +746,14 @@ impl Vcpu {
 
             // (this should never happen if we haven't exited the loop yet)
             debug_assert!(!signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
+
+            let Ok(park_task_tmp) = parker.process_park_commands(&signal, park_task) else {
+                info!(
+                    "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
+                );
+                break;
+            };
+            park_task = park_task_tmp;
 
             if !signal.take(VcpuSignalMask::INTERRUPT).is_empty() {
                 // Although we could theoretically use this to signal the presence of an interrupt,

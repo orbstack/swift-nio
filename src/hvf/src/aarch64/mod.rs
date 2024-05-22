@@ -12,10 +12,12 @@ use arch::aarch64::{layout, MMIO_SHM_SIZE};
 use bindings::*;
 use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
+use gruel::{StartupAbortedError, StartupTask};
 use once_cell::sync::Lazy;
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap, VolatileMemory};
 
 use dlopen::wrapper::{Container, WrapperApi};
+use vmm_ids::VcpuSignal;
 
 use std::arch::asm;
 use std::convert::TryInto;
@@ -23,7 +25,6 @@ use std::ffi::c_void;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
-use std::thread::Thread;
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
@@ -188,14 +189,17 @@ pub fn vcpu_set_vtimer_mask(hv_vcpu: HvVcpuRef, masked: bool) -> Result<(), Erro
 pub type VcpuId = u64;
 
 pub trait Parkable: Send + Sync {
-    fn park(&self) -> Result<(), ParkError>;
-    fn unpark(&self);
-    fn before_vcpu_run(&self);
-    fn register_vcpu(&self, vcpuid: u64, wfe_thread: Thread);
-    fn mark_can_no_longer_park(&self);
+    fn park(&self) -> Result<StartupTask, StartupAbortedError>;
 
-    fn should_shutdown(&self) -> bool;
-    fn flag_for_shutdown_while_parked(&self);
+    fn unpark(&self, unpark_task: StartupTask);
+
+    fn register_vcpu(&self, vcpu: VcpuSignal) -> StartupTask;
+
+    fn process_park_commands(
+        &self,
+        signal: &VcpuSignal,
+        park_task: StartupTask,
+    ) -> Result<StartupTask, StartupAbortedError>;
 }
 
 #[derive(WrapperApi)]
@@ -601,12 +605,7 @@ impl HvfVcpu {
     }
 
     pub fn run(&mut self, pending_irq: Option<u32>) -> Result<(VcpuExit, ExitActions), Error> {
-        self.parker.before_vcpu_run();
-
         let mut exit_actions = ExitActions::empty();
-        if self.parker.should_shutdown() {
-            return Ok((VcpuExit::Shutdown, exit_actions));
-        }
 
         if let Some(mmio_read) = self.pending_mmio_read.take() {
             if mmio_read.srt < 31 {

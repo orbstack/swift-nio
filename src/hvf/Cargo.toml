@@ -20,6 +20,8 @@ nix = "0.28.0"
 counter = { path = "../counter" }
 dlopen = "0.1.8"
 dlopen_derive = "0.1.4"
+gruel = { version = "0.1.0", path = "../gruel" }
+vmm-ids = { version = "0.1.0", path = "../vmm-ids" }
 once_cell = "1.19.0"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]

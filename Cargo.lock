@@ -654,6 +654,7 @@ dependencies = [
  "crossbeam-channel",
  "dlopen",
  "dlopen_derive",
+ "gruel",
  "iced-x86",
  "libc",
  "nix 0.28.0",
@@ -662,6 +663,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "vm-memory",
+ "vmm-ids",
 ]
 
 [[package]]
