@@ -77,8 +77,8 @@ const FALLOC_FL_KEEP_SIZE: u32 = 0x01;
 const FALLOC_FL_PUNCH_HOLE: u32 = 0x02;
 const FALLOC_FL_KEEP_SIZE_AND_PUNCH_HOLE: u32 = FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE;
 
-type NodeId = u64;
-type HandleId = u64;
+pub(crate) type NodeId = u64;
+pub(crate) type HandleId = u64;
 
 struct DirStream {
     stream: *mut libc::DIR,
@@ -90,7 +90,7 @@ struct DirStream {
 // libc::DIR is Send but not Sync
 unsafe impl Send for DirStream {}
 
-struct HandleData {
+pub(crate) struct HandleData {
     nodeid: NodeId,
     file: ManuallyDrop<File>,
     dirstream: Mutex<DirStream>,
@@ -101,7 +101,7 @@ impl HandleData {
         nodeid: NodeId,
         file: File,
         is_readable_file: bool,
-        poller: &Option<Arc<VnodePoller<HandleId>>>,
+        poller: &Option<Arc<VnodePoller>>,
     ) -> io::Result<Self> {
         let hd = HandleData {
             nodeid,
@@ -121,6 +121,10 @@ impl HandleData {
         }
 
         Ok(hd)
+    }
+
+    pub fn path(&self) -> io::Result<String> {
+        get_path_by_fd(self.file.as_fd())
     }
 }
 
@@ -426,7 +430,7 @@ pub struct PassthroughFs {
     nodeids: MultikeyFxDashMap<NodeId, DevIno, NodeData>,
     next_nodeid: AtomicU64,
 
-    handles: FxDashMap<HandleId, Arc<HandleData>>,
+    handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
     next_handle: AtomicU64,
 
     // volfs supported?
@@ -438,7 +442,7 @@ pub struct PassthroughFs {
     writeback: AtomicBool,
     cfg: Config,
 
-    poller: Option<Arc<VnodePoller<HandleId>>>,
+    poller: Option<Arc<VnodePoller>>,
     poller_thread: Option<JoinHandle<()>>,
 }
 
@@ -465,8 +469,9 @@ impl PassthroughFs {
         let dev_info = FxDashMap::default();
         dev_info.insert(st.st_dev, true);
 
+        let handles = Arc::new(FxDashMap::default());
         let poller = match callbacks {
-            Some(callbacks) => Some(Arc::new(VnodePoller::new(callbacks)?)),
+            Some(callbacks) => Some(Arc::new(VnodePoller::new(callbacks, handles.clone())?)),
             None => None,
         };
 
@@ -474,7 +479,7 @@ impl PassthroughFs {
             nodeids,
             next_nodeid: AtomicU64::new(fuse::ROOT_ID + 1),
 
-            handles: FxDashMap::default(),
+            handles,
             next_handle: AtomicU64::new(1),
 
             dev_info,

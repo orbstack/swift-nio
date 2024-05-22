@@ -1,7 +1,6 @@
 use std::{
-    marker::PhantomData,
     mem::{size_of, MaybeUninit},
-    os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
     sync::Arc,
     time::Duration,
 };
@@ -15,9 +14,9 @@ use libc::{
 use nix::{errno::Errno, sys::event::kqueue};
 use zerocopy::AsBytes;
 
-use crate::virtio::FsCallbacks;
+use crate::virtio::{FsCallbacks, FxDashMap};
 
-use super::passthrough::get_path_by_fd;
+use super::passthrough::{HandleData, HandleId};
 
 const DEBOUNCE_DURATION: Duration = Duration::from_millis(100);
 
@@ -25,10 +24,10 @@ const IDENT_STOP: u64 = 1;
 
 const KEVENT_FLAG_IMMEDIATE: u32 = 1;
 
-pub struct VnodePoller<E: Into<u64> + From<u64>> {
+pub struct VnodePoller {
     kqueue: OwnedFd,
     callbacks: Arc<dyn FsCallbacks>,
-    _event_id: PhantomData<E>,
+    handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
 }
 
 enum EventResult {
@@ -71,15 +70,18 @@ bitflags! {
     }
 }
 
-impl<E: Into<u64> + From<u64>> VnodePoller<E> {
-    pub fn new(callbacks: Arc<dyn FsCallbacks>) -> nix::Result<Self> {
+impl VnodePoller {
+    pub fn new(
+        callbacks: Arc<dyn FsCallbacks>,
+        handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
+    ) -> nix::Result<Self> {
         let fd = kqueue()?;
         let fd = unsafe { OwnedFd::from_raw_fd(fd) };
 
         let poller = VnodePoller {
             kqueue: fd,
             callbacks,
-            _event_id: PhantomData,
+            handles,
         };
 
         // register waker
@@ -96,7 +98,7 @@ impl<E: Into<u64> + From<u64>> VnodePoller<E> {
     }
 
     // this should be handle id, but how to stop dupe registrations per nodeid? don't worry about it?
-    pub fn register<F: AsRawFd>(&self, fd: F, event_id: E) -> nix::Result<()> {
+    pub fn register<F: AsRawFd>(&self, fd: F, handle_id: HandleId) -> nix::Result<()> {
         let new_event = kevent64_s {
             ident: fd.as_raw_fd() as u64,
             filter: EVFILT_VNODE,
@@ -104,7 +106,7 @@ impl<E: Into<u64> + From<u64>> VnodePoller<E> {
             // we only care about tail -f case. EXTEND should be less chatty than WRITE
             // TODO: NOTE_DELETE for closing auto-opened fds -- or better to use fsevents for that?
             fflags: NOTE_EXTEND,
-            udata: event_id.into(),
+            udata: handle_id.into(),
             ..default_kevent()
         };
         self.kevent(&[new_event], &mut [], KEVENT_FLAG_IMMEDIATE)?;
@@ -112,13 +114,13 @@ impl<E: Into<u64> + From<u64>> VnodePoller<E> {
     }
 
     #[allow(dead_code)]
-    pub fn unregister<F: AsRawFd>(&self, fd: F, event_id: E) -> nix::Result<()> {
+    pub fn unregister<F: AsRawFd>(&self, fd: F, handle_id: HandleId) -> nix::Result<()> {
         let new_event = kevent64_s {
             ident: fd.as_raw_fd() as u64,
             filter: EVFILT_VNODE,
             flags: EV_DELETE,
             fflags: NOTE_EXTEND,
-            udata: event_id.into(),
+            udata: handle_id.into(),
             ..default_kevent()
         };
         self.kevent(&[new_event], &mut [], KEVENT_FLAG_IMMEDIATE)?;
@@ -209,12 +211,17 @@ impl<E: Into<u64> + From<u64>> VnodePoller<E> {
             EVFILT_USER => return Ok(Some(EventResult::Stop)),
             EVFILT_VNODE => {
                 if event.fflags & NOTE_EXTEND != 0 {
-                    let fd = event.ident as RawFd;
-                    let nodeid = event.udata as u64;
+                    // need to use handle to prevent race if event was buffered before fd was closed
+                    let handleid = event.udata as HandleId;
+                    let hd = match self.handles.get(&handleid) {
+                        Some(hd) => hd,
+                        // race: handle was closed before we processed the event. ignore, because it no longer matters
+                        None => return Ok(None),
+                    };
 
                     // TODO: just use nodeid for krpc
-                    let path = VIRTIOFS_MOUNTPOINT.to_string() + &get_path_by_fd(fd)?;
-                    debug!("vnode EXTEND: nodeid={} fd={} path={}", nodeid, fd, path);
+                    let path = VIRTIOFS_MOUNTPOINT.to_string() + &hd.path()?;
+                    debug!("vnode EXTEND: handle={:?} path={:?}", handleid, path);
                     return Ok(Some(EventResult::Krpc(path)));
                 }
             }
