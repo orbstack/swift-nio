@@ -1,0 +1,491 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg version="1.1" width="1200" height="406" onload="init(evt)" viewBox="0 0 1200 406" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:fg="http://github.com/jonhoo/inferno"><!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.--><!--NOTES: --><defs><linearGradient id="background" y1="0" y2="1" x1="0" x2="0"><stop stop-color="#eeeeee" offset="5%"/><stop stop-color="#eeeeb0" offset="95%"/></linearGradient></defs><style type="text/css">
+text { font-family:monospace; font-size:12px }
+#title { text-anchor:middle; font-size:17px; }
+#matched { text-anchor:end; }
+#search { text-anchor:end; opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style><script type="text/ecmascript"><![CDATA[
+        var nametype = 'Function:';
+        var fontsize = 12;
+        var fontwidth = 0.59;
+        var xpad = 10;
+        var inverted = false;
+        var searchcolor = 'rgb(230,0,230)';
+        var fluiddrawing = true;
+        var truncate_text_right = false;
+    ]]><![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames, known_font_width;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    known_font_width = get_monospace_width(frames);
+    total_samples = parseInt(frames.attributes.total_samples.value);
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[*|x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+            svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            update_text_for_elements(frames.children);
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad;
+            matchedtxt.attributes.x.value = svgWidth - xpad;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes["fg:x"]) {
+            var params = get_params()
+            params.x = el.attributes["fg:x"].value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["fg:orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("fg:orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["fg:orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["fg:orig_" + attr].value;
+    e.removeAttribute("fg:orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function get_monospace_width(frames) {
+    // Given the id="frames" element, return the width of text characters if
+    // this is a monospace font, otherwise return 0.
+    text = find_child(frames.children[0], "text");
+    originalContent = text.textContent;
+    text.textContent = "!";
+    bangWidth = text.getComputedTextLength();
+    text.textContent = "W";
+    wWidth = text.getComputedTextLength();
+    text.textContent = originalContent;
+    if (bangWidth === wWidth) {
+        return bangWidth;
+    } else {
+        return 0;
+    }
+}
+function update_text_for_elements(elements) {
+    // In order to render quickly in the browser, you want to do one pass of
+    // reading attributes, and one pass of mutating attributes. See
+    // https://web.dev/avoid-large-complex-layouts-and-layout-thrashing/ for details.
+
+    // Fall back to inefficient calculation, if we're variable-width font.
+    // TODO This should be optimized somehow too.
+    if (known_font_width === 0) {
+        for (var i = 0; i < elements.length; i++) {
+            update_text(elements[i]);
+        }
+        return;
+    }
+
+    var textElemNewAttributes = [];
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var r = find_child(e, "rect");
+        var t = find_child(e, "text");
+        var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+        var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+        var newX = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+        // Smaller than this size won't fit anything
+        if (w < 2 * known_font_width) {
+            textElemNewAttributes.push([newX, ""]);
+            continue;
+        }
+
+        // Fit in full text width
+        if (txt.length * known_font_width < w) {
+            textElemNewAttributes.push([newX, txt]);
+            continue;
+        }
+
+        var substringLength = Math.floor(w / known_font_width) - 2;
+        if (truncate_text_right) {
+            // Truncate the right side of the text.
+            textElemNewAttributes.push([newX, txt.substring(0, substringLength) + ".."]);
+            continue;
+        } else {
+            // Truncate the left side of the text.
+            textElemNewAttributes.push([newX, ".." + txt.substring(txt.length - substringLength, txt.length)]);
+            continue;
+        }
+    }
+
+    console.assert(textElemNewAttributes.length === elements.length, "Resize failed, please file a bug at https://github.com/jonhoo/inferno/");
+
+    // Now that we know new textContent, set it all in one go so we don't refresh a bazillion times.
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var values = textElemNewAttributes[i];
+        var t = find_child(e, "text");
+        t.attributes.x.value = values[0];
+        t.textContent = values[1];
+    }
+}
+
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * parseInt(e.attributes["fg:x"].value) / total_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / total_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, zoomed_width_samples) {
+    if (e.tagName == "text") {
+        var parent_x = parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value);
+        e.attributes.x.value = format_percent(parent_x + (100 * 3 / frames.attributes.width.value));
+    } else if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * (parseInt(e.attributes["fg:x"].value) - x) / zoomed_width_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / zoomed_width_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, zoomed_width_samples);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseInt(attr["fg:w"].value);
+    var xmin = parseInt(attr["fg:x"].value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    var to_update_text = [];
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseInt(a["fg:x"].value);
+        var ew = parseInt(a["fg:w"].value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                to_update_text.push(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, width);
+                to_update_text.push(e);
+            }
+        }
+    }
+    update_text_for_elements(to_update_text);
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+    }
+    update_text_for_elements(el);
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        // Skip over frames which are either not visible, or below the zoomed-to frame
+        if (e.classList.contains("hide") || e.classList.contains("parent")) {
+            continue;
+        }
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseInt(rect.attributes["fg:w"].value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseInt(rect.attributes["fg:x"].value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    for (var k in keys) {
+        var x = parseInt(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]></script><rect x="0" y="0" width="100%" height="406" fill="url(#background)"/><text id="title" fill="rgb(0,0,0)" x="50.0000%" y="24.00">Flame Graph</text><text id="details" fill="rgb(0,0,0)" x="10" y="389.00"> </text><text id="unzoom" class="hide" fill="rgb(0,0,0)" x="10" y="24.00">Reset Zoom</text><text id="search" fill="rgb(0,0,0)" x="1190" y="24.00">Search</text><text id="matched" fill="rgb(0,0,0)" x="1190" y="389.00"> </text><svg id="frames" x="10" width="1180" total_samples="7911"><g><title>libsystem_kernel.dylib`__psynch_cvwait (1 samples, 0.01%)</title><rect x="0.0000%" y="309" width="0.0126%" height="15" fill="rgb(227,0,7)" fg:x="0" fg:w="1"/><text x="0.2500%" y="319.50"></text></g><g><title>OrbStack Helper`runtime.pthread_cond_wait_trampoline.abi0 (2 samples, 0.03%)</title><rect x="0.0000%" y="325" width="0.0253%" height="15" fill="rgb(217,0,24)" fg:x="0" fg:w="2"/><text x="0.2500%" y="335.50"></text></g><g><title>libsystem_pthread.dylib`_pthread_cond_wait (1 samples, 0.01%)</title><rect x="0.0126%" y="309" width="0.0126%" height="15" fill="rgb(221,193,54)" fg:x="1" fg:w="1"/><text x="0.2626%" y="319.50"></text></g><g><title>OrbStack Helper`runtime.pthread_kill_trampoline.abi0 (1 samples, 0.01%)</title><rect x="0.0253%" y="325" width="0.0126%" height="15" fill="rgb(248,212,6)" fg:x="2" fg:w="1"/><text x="0.2753%" y="335.50"></text></g><g><title>libsystem_pthread.dylib`pthread_kill (1 samples, 0.01%)</title><rect x="0.0253%" y="309" width="0.0126%" height="15" fill="rgb(208,68,35)" fg:x="2" fg:w="1"/><text x="0.2753%" y="319.50"></text></g><g><title>OrbStack Helper`runtime.asmcgocall.abi0 (14 samples, 0.18%)</title><rect x="0.0000%" y="341" width="0.1770%" height="15" fill="rgb(232,128,0)" fg:x="0" fg:w="14"/><text x="0.2500%" y="351.50"></text></g><g><title>OrbStack Helper`runtime.usleep_trampoline.abi0 (11 samples, 0.14%)</title><rect x="0.0379%" y="325" width="0.1390%" height="15" fill="rgb(207,160,47)" fg:x="3" fg:w="11"/><text x="0.2879%" y="335.50"></text></g><g><title>libsystem_c.dylib`usleep (11 samples, 0.14%)</title><rect x="0.0379%" y="309" width="0.1390%" height="15" fill="rgb(228,23,34)" fg:x="3" fg:w="11"/><text x="0.2879%" y="319.50"></text></g><g><title>libsystem_kernel.dylib`__semwait_signal (11 samples, 0.14%)</title><rect x="0.0379%" y="293" width="0.1390%" height="15" fill="rgb(218,30,26)" fg:x="3" fg:w="11"/><text x="0.2879%" y="303.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/vnet/dglink.(*iovecBuffer).nextIovecs (1 samples, 0.01%)</title><rect x="0.1770%" y="261" width="0.0126%" height="15" fill="rgb(220,122,19)" fg:x="14" fg:w="1"/><text x="0.4270%" y="271.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/buffer.NewViewSize (1 samples, 0.01%)</title><rect x="0.1770%" y="245" width="0.0126%" height="15" fill="rgb(250,228,42)" fg:x="14" fg:w="1"/><text x="0.4270%" y="255.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/buffer.NewView (1 samples, 0.01%)</title><rect x="0.1770%" y="229" width="0.0126%" height="15" fill="rgb(240,193,28)" fg:x="14" fg:w="1"/><text x="0.4270%" y="239.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/buffer.newChunk (1 samples, 0.01%)</title><rect x="0.1770%" y="213" width="0.0126%" height="15" fill="rgb(216,20,37)" fg:x="14" fg:w="1"/><text x="0.4270%" y="223.50"></text></g><g><title>OrbStack Helper`sync.(*Pool).Get (1 samples, 0.01%)</title><rect x="0.1770%" y="197" width="0.0126%" height="15" fill="rgb(206,188,39)" fg:x="14" fg:w="1"/><text x="0.4270%" y="207.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/network/ipv4.(*endpoint).handleValidatedPacket (1 samples, 0.01%)</title><rect x="0.1896%" y="213" width="0.0126%" height="15" fill="rgb(217,207,13)" fg:x="15" fg:w="1"/><text x="0.4396%" y="223.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/stack.(*nic).DeliverRawPacket (1 samples, 0.01%)</title><rect x="0.1896%" y="197" width="0.0126%" height="15" fill="rgb(231,73,38)" fg:x="15" fg:w="1"/><text x="0.4396%" y="207.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/stack.(*transportDemuxer).deliverRawPacket (1 samples, 0.01%)</title><rect x="0.1896%" y="181" width="0.0126%" height="15" fill="rgb(225,20,46)" fg:x="15" fg:w="1"/><text x="0.4396%" y="191.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/vnet/dglink.(*endpoint).Attach.func2 (3 samples, 0.04%)</title><rect x="0.1770%" y="325" width="0.0379%" height="15" fill="rgb(210,31,41)" fg:x="14" fg:w="3"/><text x="0.4270%" y="335.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/vnet/dglink.(*endpoint).Attach.func1 (3 samples, 0.04%)</title><rect x="0.1770%" y="309" width="0.0379%" height="15" fill="rgb(221,200,47)" fg:x="14" fg:w="3"/><text x="0.4270%" y="319.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/vnet/dglink.(*endpoint).dispatchLoop (3 samples, 0.04%)</title><rect x="0.1770%" y="293" width="0.0379%" height="15" fill="rgb(226,26,5)" fg:x="14" fg:w="3"/><text x="0.4270%" y="303.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/vnet/dglink.(*recvMMsgDispatcher).dispatch (3 samples, 0.04%)</title><rect x="0.1770%" y="277" width="0.0379%" height="15" fill="rgb(249,33,26)" fg:x="14" fg:w="3"/><text x="0.4270%" y="287.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/stack.(*nic).DeliverNetworkPacket (2 samples, 0.03%)</title><rect x="0.1896%" y="261" width="0.0253%" height="15" fill="rgb(235,183,28)" fg:x="15" fg:w="2"/><text x="0.4396%" y="271.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/stack.(*groDispatcher).dispatch (2 samples, 0.03%)</title><rect x="0.1896%" y="245" width="0.0253%" height="15" fill="rgb(221,5,38)" fg:x="15" fg:w="2"/><text x="0.4396%" y="255.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/network/ipv4.(*endpoint).HandlePacket (2 samples, 0.03%)</title><rect x="0.1896%" y="229" width="0.0253%" height="15" fill="rgb(247,18,42)" fg:x="15" fg:w="2"/><text x="0.4396%" y="239.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/network/ipv4.(*protocol).parseAndValidate (1 samples, 0.01%)</title><rect x="0.2023%" y="213" width="0.0126%" height="15" fill="rgb(241,131,45)" fg:x="16" fg:w="1"/><text x="0.4523%" y="223.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/stack.PacketHeader.View (1 samples, 0.01%)</title><rect x="0.2023%" y="197" width="0.0126%" height="15" fill="rgb(249,31,29)" fg:x="16" fg:w="1"/><text x="0.4523%" y="207.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/buffer.(*View).Clone (1 samples, 0.01%)</title><rect x="0.2023%" y="181" width="0.0126%" height="15" fill="rgb(225,111,53)" fg:x="16" fg:w="1"/><text x="0.4523%" y="191.50"></text></g><g><title>OrbStack Helper`sync.(*Pool).Get (1 samples, 0.01%)</title><rect x="0.2023%" y="165" width="0.0126%" height="15" fill="rgb(238,160,17)" fg:x="16" fg:w="1"/><text x="0.4523%" y="175.50"></text></g><g><title>OrbStack Helper`sync.(*poolChain).popHead (1 samples, 0.01%)</title><rect x="0.2023%" y="149" width="0.0126%" height="15" fill="rgb(214,148,48)" fg:x="16" fg:w="1"/><text x="0.4523%" y="159.50"></text></g><g><title>OrbStack Helper`sync.(*poolDequeue).popHead (1 samples, 0.01%)</title><rect x="0.2023%" y="133" width="0.0126%" height="15" fill="rgb(232,36,49)" fg:x="16" fg:w="1"/><text x="0.4523%" y="143.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/vnet/tcpfwd.pump2SpUnixGv.func2 (1 samples, 0.01%)</title><rect x="0.2149%" y="325" width="0.0126%" height="15" fill="rgb(209,103,24)" fg:x="17" fg:w="1"/><text x="0.4649%" y="335.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/vnet/tcpfwd.pump1SpGvUnix (1 samples, 0.01%)</title><rect x="0.2149%" y="309" width="0.0126%" height="15" fill="rgb(229,88,8)" fg:x="17" fg:w="1"/><text x="0.4649%" y="319.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/vnet/tcpfwd.copyViewBufferGvUnix (1 samples, 0.01%)</title><rect x="0.2149%" y="293" width="0.0126%" height="15" fill="rgb(213,181,19)" fg:x="17" fg:w="1"/><text x="0.4649%" y="303.50"></text></g><g><title>OrbStack Helper`runtime.newobject (1 samples, 0.01%)</title><rect x="0.2149%" y="277" width="0.0126%" height="15" fill="rgb(254,191,54)" fg:x="17" fg:w="1"/><text x="0.4649%" y="287.50"></text></g><g><title>OrbStack Helper`runtime.memclrNoHeapPointers (1 samples, 0.01%)</title><rect x="0.2149%" y="261" width="0.0126%" height="15" fill="rgb(241,83,37)" fg:x="17" fg:w="1"/><text x="0.4649%" y="271.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*dispatcher).init.func2 (1 samples, 0.01%)</title><rect x="0.2275%" y="325" width="0.0126%" height="15" fill="rgb(233,36,39)" fg:x="18" fg:w="1"/><text x="0.4775%" y="335.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*processor).start (1 samples, 0.01%)</title><rect x="0.2275%" y="309" width="0.0126%" height="15" fill="rgb(226,3,54)" fg:x="18" fg:w="1"/><text x="0.4775%" y="319.50"></text></g><g><title>OrbStack Helper`runtime.goexit.abi0 (6 samples, 0.08%)</title><rect x="0.1770%" y="341" width="0.0758%" height="15" fill="rgb(245,192,40)" fg:x="14" fg:w="6"/><text x="0.4270%" y="351.50"></text></g><g><title>OrbStack Helper`main.runVmManager.func30 (1 samples, 0.01%)</title><rect x="0.2402%" y="325" width="0.0126%" height="15" fill="rgb(238,167,29)" fg:x="19" fg:w="1"/><text x="0.4902%" y="335.50"></text></g><g><title>OrbStack Helper`main.runOne (1 samples, 0.01%)</title><rect x="0.2402%" y="309" width="0.0126%" height="15" fill="rgb(232,182,51)" fg:x="19" fg:w="1"/><text x="0.4902%" y="319.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/fsnotify.(*VmNotifier).Run-fm (1 samples, 0.01%)</title><rect x="0.2402%" y="293" width="0.0126%" height="15" fill="rgb(231,60,39)" fg:x="19" fg:w="1"/><text x="0.4902%" y="303.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/fsnotify.(*VmNotifier).Run (1 samples, 0.01%)</title><rect x="0.2402%" y="277" width="0.0126%" height="15" fill="rgb(208,69,12)" fg:x="19" fg:w="1"/><text x="0.4902%" y="287.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/fsnotify.(*KrpcClient).WriteRaw (1 samples, 0.01%)</title><rect x="0.2402%" y="261" width="0.0126%" height="15" fill="rgb(235,93,37)" fg:x="19" fg:w="1"/><text x="0.4902%" y="271.50"></text></g><g><title>OrbStack Helper`github.com/orbstack/macvirt/vmgr/vnet/gonet.(*TCPConn).Write (1 samples, 0.01%)</title><rect x="0.2402%" y="245" width="0.0126%" height="15" fill="rgb(213,116,39)" fg:x="19" fg:w="1"/><text x="0.4902%" y="255.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*endpoint).Write (1 samples, 0.01%)</title><rect x="0.2402%" y="229" width="0.0126%" height="15" fill="rgb(222,207,29)" fg:x="19" fg:w="1"/><text x="0.4902%" y="239.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*endpoint).queueSegment (1 samples, 0.01%)</title><rect x="0.2402%" y="213" width="0.0126%" height="15" fill="rgb(206,96,30)" fg:x="19" fg:w="1"/><text x="0.4902%" y="223.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/tcpip/transport/tcp.(*endpoint).readFromPayloader (1 samples, 0.01%)</title><rect x="0.2402%" y="197" width="0.0126%" height="15" fill="rgb(218,138,4)" fg:x="19" fg:w="1"/><text x="0.4902%" y="207.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/buffer.(*Buffer).WriteFromReader (1 samples, 0.01%)</title><rect x="0.2402%" y="181" width="0.0126%" height="15" fill="rgb(250,191,14)" fg:x="19" fg:w="1"/><text x="0.4902%" y="191.50"></text></g><g><title>OrbStack Helper`gvisor.dev/gvisor/pkg/buffer.NewView (1 samples, 0.01%)</title><rect x="0.2402%" y="165" width="0.0126%" height="15" fill="rgb(239,60,40)" fg:x="19" fg:w="1"/><text x="0.4902%" y="175.50"></text></g><g><title>OrbStack Helper`runtime.memclrNoHeapPointers (1 samples, 0.01%)</title><rect x="0.2402%" y="149" width="0.0126%" height="15" fill="rgb(206,27,48)" fg:x="19" fg:w="1"/><text x="0.4902%" y="159.50"></text></g><g><title>OrbStack Helper`runtime.checkTimers (1 samples, 0.01%)</title><rect x="0.2655%" y="277" width="0.0126%" height="15" fill="rgb(225,35,8)" fg:x="21" fg:w="1"/><text x="0.5155%" y="287.50"></text></g><g><title>OrbStack Helper`runtime.runtimer (1 samples, 0.01%)</title><rect x="0.2655%" y="261" width="0.0126%" height="15" fill="rgb(250,213,24)" fg:x="21" fg:w="1"/><text x="0.5155%" y="271.50"></text></g><g><title>OrbStack Helper`runtime.findRunnable (3 samples, 0.04%)</title><rect x="0.2528%" y="293" width="0.0379%" height="15" fill="rgb(247,123,22)" fg:x="20" fg:w="3"/><text x="0.5028%" y="303.50"></text></g><g><title>OrbStack Helper`runtime.pidleput (1 samples, 0.01%)</title><rect x="0.2781%" y="277" width="0.0126%" height="15" fill="rgb(231,138,38)" fg:x="22" fg:w="1"/><text x="0.5281%" y="287.50"></text></g><g><title>OrbStack Helper`runtime.updateTimerPMask (1 samples, 0.01%)</title><rect x="0.2781%" y="261" width="0.0126%" height="15" fill="rgb(231,145,46)" fg:x="22" fg:w="1"/><text x="0.5281%" y="271.50"></text></g><g><title>OrbStack Helper`runtime.mcall (4 samples, 0.05%)</title><rect x="0.2528%" y="341" width="0.0506%" height="15" fill="rgb(251,118,11)" fg:x="20" fg:w="4"/><text x="0.5028%" y="351.50"></text></g><g><title>OrbStack Helper`runtime.park_m (4 samples, 0.05%)</title><rect x="0.2528%" y="325" width="0.0506%" height="15" fill="rgb(217,147,25)" fg:x="20" fg:w="4"/><text x="0.5028%" y="335.50"></text></g><g><title>OrbStack Helper`runtime.schedule (4 samples, 0.05%)</title><rect x="0.2528%" y="309" width="0.0506%" height="15" fill="rgb(247,81,37)" fg:x="20" fg:w="4"/><text x="0.5028%" y="319.50"></text></g><g><title>OrbStack Helper`runtime.resetspinning (1 samples, 0.01%)</title><rect x="0.2907%" y="293" width="0.0126%" height="15" fill="rgb(209,12,38)" fg:x="23" fg:w="1"/><text x="0.5407%" y="303.50"></text></g><g><title>OrbStack Helper`runtime.wakep (1 samples, 0.01%)</title><rect x="0.2907%" y="277" width="0.0126%" height="15" fill="rgb(227,1,9)" fg:x="23" fg:w="1"/><text x="0.5407%" y="287.50"></text></g><g><title>OrbStack Helper`runtime.pidleget (1 samples, 0.01%)</title><rect x="0.2907%" y="261" width="0.0126%" height="15" fill="rgb(248,47,43)" fg:x="23" fg:w="1"/><text x="0.5407%" y="271.50"></text></g><g><title>libsystem_kernel.dylib`__workq_kernreturn (1 samples, 0.01%)</title><rect x="0.3034%" y="325" width="0.0126%" height="15" fill="rgb(221,10,30)" fg:x="24" fg:w="1"/><text x="0.5534%" y="335.50"></text></g><g><title>libsystem_pthread.dylib`start_wqthread (2 samples, 0.03%)</title><rect x="0.3034%" y="341" width="0.0253%" height="15" fill="rgb(210,229,1)" fg:x="24" fg:w="2"/><text x="0.5534%" y="351.50"></text></g><g><title>libsystem_pthread.dylib`_pthread_wqthread (1 samples, 0.01%)</title><rect x="0.3160%" y="325" width="0.0126%" height="15" fill="rgb(222,148,37)" fg:x="25" fg:w="1"/><text x="0.5660%" y="335.50"></text></g><g><title>libdispatch.dylib`_dispatch_workloop_worker_thread (1 samples, 0.01%)</title><rect x="0.3160%" y="309" width="0.0126%" height="15" fill="rgb(234,67,33)" fg:x="25" fg:w="1"/><text x="0.5660%" y="319.50"></text></g><g><title>libdispatch.dylib`_dispatch_root_queue_drain_deferred_wlh (1 samples, 0.01%)</title><rect x="0.3160%" y="293" width="0.0126%" height="15" fill="rgb(247,98,35)" fg:x="25" fg:w="1"/><text x="0.5660%" y="303.50"></text></g><g><title>libdispatch.dylib`_dispatch_lane_invoke (1 samples, 0.01%)</title><rect x="0.3160%" y="277" width="0.0126%" height="15" fill="rgb(247,138,52)" fg:x="25" fg:w="1"/><text x="0.5660%" y="287.50"></text></g><g><title>libdispatch.dylib`_dispatch_lane_serial_drain (1 samples, 0.01%)</title><rect x="0.3160%" y="261" width="0.0126%" height="15" fill="rgb(213,79,30)" fg:x="25" fg:w="1"/><text x="0.5660%" y="271.50"></text></g><g><title>libdispatch.dylib`_dispatch_source_invoke (1 samples, 0.01%)</title><rect x="0.3160%" y="245" width="0.0126%" height="15" fill="rgb(246,177,23)" fg:x="25" fg:w="1"/><text x="0.5660%" y="255.50"></text></g><g><title>libdispatch.dylib`_dispatch_source_latch_and_call (1 samples, 0.01%)</title><rect x="0.3160%" y="229" width="0.0126%" height="15" fill="rgb(230,62,27)" fg:x="25" fg:w="1"/><text x="0.5660%" y="239.50"></text></g><g><title>libdispatch.dylib`_dispatch_continuation_pop (1 samples, 0.01%)</title><rect x="0.3160%" y="213" width="0.0126%" height="15" fill="rgb(216,154,8)" fg:x="25" fg:w="1"/><text x="0.5660%" y="223.50"></text></g><g><title>libdispatch.dylib`_dispatch_client_callout (1 samples, 0.01%)</title><rect x="0.3160%" y="197" width="0.0126%" height="15" fill="rgb(244,35,45)" fg:x="25" fg:w="1"/><text x="0.5660%" y="207.50"></text></g><g><title>FSEvents`receive_and_dispatch_rcv_msg (1 samples, 0.01%)</title><rect x="0.3160%" y="181" width="0.0126%" height="15" fill="rgb(251,115,12)" fg:x="25" fg:w="1"/><text x="0.5660%" y="191.50"></text></g><g><title>FSEvents`FSEventsD2F_server (1 samples, 0.01%)</title><rect x="0.3160%" y="165" width="0.0126%" height="15" fill="rgb(240,54,50)" fg:x="25" fg:w="1"/><text x="0.5660%" y="175.50"></text></g><g><title>FSEvents`_Xcallback_rpc (1 samples, 0.01%)</title><rect x="0.3160%" y="149" width="0.0126%" height="15" fill="rgb(233,84,52)" fg:x="25" fg:w="1"/><text x="0.5660%" y="159.50"></text></g><g><title>libsystem_kernel.dylib`_kernelrpc_mach_vm_deallocate_trap (1 samples, 0.01%)</title><rect x="0.3160%" y="133" width="0.0126%" height="15" fill="rgb(207,117,47)" fg:x="25" fg:w="1"/><text x="0.5660%" y="143.50"></text></g><g><title>OrbStack Helper`&lt;devices::legacy::gic::v3::GicV3VcpuHandle as devices::legacy::gic::multiplexer::GicVcpuHandle&gt;::get_pending_irq (1 samples, 0.01%)</title><rect x="0.3287%" y="261" width="0.0126%" height="15" fill="rgb(249,43,39)" fg:x="26" fg:w="1"/><text x="0.5787%" y="271.50"></text></g><g><title>OrbStack Helper`devices::bus::Bus::call_hvc (1 samples, 0.01%)</title><rect x="0.3413%" y="261" width="0.0126%" height="15" fill="rgb(209,38,44)" fg:x="27" fg:w="1"/><text x="0.5913%" y="271.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::net::dgram::Dgram as devices::virtio::net::backend::NetBackend&gt;::read_frame (2 samples, 0.03%)</title><rect x="0.3539%" y="245" width="0.0253%" height="15" fill="rgb(236,212,23)" fg:x="28" fg:w="2"/><text x="0.6039%" y="255.50"></text></g><g><title>libsystem_kernel.dylib`__recvfrom (2 samples, 0.03%)</title><rect x="0.3539%" y="229" width="0.0253%" height="15" fill="rgb(242,79,21)" fg:x="28" fg:w="2"/><text x="0.6039%" y="239.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::net::dgram::Dgram as devices::virtio::net::backend::NetBackend&gt;::write_frame (1 samples, 0.01%)</title><rect x="0.3792%" y="229" width="0.0126%" height="15" fill="rgb(211,96,35)" fg:x="30" fg:w="1"/><text x="0.6292%" y="239.50"></text></g><g><title>libsystem_kernel.dylib`__sendto (1 samples, 0.01%)</title><rect x="0.3792%" y="213" width="0.0126%" height="15" fill="rgb(253,215,40)" fg:x="30" fg:w="1"/><text x="0.6292%" y="223.50"></text></g><g><title>OrbStack Helper`devices::virtio::net::worker::NetWorker::work (4 samples, 0.05%)</title><rect x="0.3539%" y="261" width="0.0506%" height="15" fill="rgb(211,81,21)" fg:x="28" fg:w="4"/><text x="0.6039%" y="271.50"></text></g><g><title>OrbStack Helper`devices::virtio::net::worker::NetWorker::process_tx_loop (2 samples, 0.03%)</title><rect x="0.3792%" y="245" width="0.0253%" height="15" fill="rgb(208,190,38)" fg:x="30" fg:w="2"/><text x="0.6292%" y="255.50"></text></g><g><title>OrbStack Helper`devices::virtio::net::worker::NetWorker::signal_used_queue (1 samples, 0.01%)</title><rect x="0.3919%" y="229" width="0.0126%" height="15" fill="rgb(235,213,38)" fg:x="31" fg:w="1"/><text x="0.6419%" y="239.50"></text></g><g><title>OrbStack Helper`&lt;devices::legacy::gic::v3::UserspaceGicV3 as devices::legacy::gic::multiplexer::UserspaceGicImpl&gt;::set_irq (1 samples, 0.01%)</title><rect x="0.3919%" y="213" width="0.0126%" height="15" fill="rgb(237,122,38)" fg:x="31" fg:w="1"/><text x="0.6419%" y="223.50"></text></g><g><title>OrbStack Helper`&lt;devices::legacy::gic::v3::HvfGicEventHandler as gicv3::device::GicV3EventHandler&gt;::kick_vcpu_for_irq (1 samples, 0.01%)</title><rect x="0.3919%" y="197" width="0.0126%" height="15" fill="rgb(244,218,35)" fg:x="31" fg:w="1"/><text x="0.6419%" y="207.50"></text></g><g><title>libdispatch.dylib`_dispatch_semaphore_signal_slow (1 samples, 0.01%)</title><rect x="0.3919%" y="181" width="0.0126%" height="15" fill="rgb(240,68,47)" fg:x="31" fg:w="1"/><text x="0.6419%" y="191.50"></text></g><g><title>libsystem_kernel.dylib`semaphore_signal_trap (1 samples, 0.01%)</title><rect x="0.3919%" y="165" width="0.0126%" height="15" fill="rgb(210,16,53)" fg:x="31" fg:w="1"/><text x="0.6419%" y="175.50"></text></g><g><title>OrbStack Helper`hvf::aarch64::HvfVcpu::write_gp_reg (1 samples, 0.01%)</title><rect x="0.4045%" y="261" width="0.0126%" height="15" fill="rgb(235,124,12)" fg:x="32" fg:w="1"/><text x="0.6545%" y="271.50"></text></g><g><title>Hypervisor`hv_vcpu_get_sys_reg (1 samples, 0.01%)</title><rect x="0.4677%" y="245" width="0.0126%" height="15" fill="rgb(224,169,11)" fg:x="37" fg:w="1"/><text x="0.7177%" y="255.50"></text></g><g><title>Hypervisor`hv_vcpu_set_reg (1 samples, 0.01%)</title><rect x="0.4803%" y="245" width="0.0126%" height="15" fill="rgb(250,166,2)" fg:x="38" fg:w="1"/><text x="0.7303%" y="255.50"></text></g><g><title>OrbStack Helper`&lt;devices::legacy::gic::v3::UserspaceGicV3 as devices::legacy::gic::multiplexer::UserspaceGicImpl&gt;::read_sysreg (1 samples, 0.01%)</title><rect x="0.4930%" y="245" width="0.0126%" height="15" fill="rgb(242,216,29)" fg:x="39" fg:w="1"/><text x="0.7430%" y="255.50"></text></g><g><title>OrbStack Helper`core::iter::adapters::try_process (1 samples, 0.01%)</title><rect x="0.5056%" y="229" width="0.0126%" height="15" fill="rgb(230,116,27)" fg:x="40" fg:w="1"/><text x="0.7556%" y="239.50"></text></g><g><title>OrbStack Helper`&lt;alloc::vec::Vec&lt;T&gt; as alloc::vec::spec_from_iter::SpecFromIter&lt;T,I&gt;&gt;::from_iter (1 samples, 0.01%)</title><rect x="0.8469%" y="213" width="0.0126%" height="15" fill="rgb(228,99,48)" fg:x="67" fg:w="1"/><text x="1.0969%" y="223.50"></text></g><g><title>OrbStack Helper`&lt;krun::GoFsCallbacks as devices::virtio::fs::server::FsCallbacks&gt;::on_activity (1 samples, 0.01%)</title><rect x="0.8596%" y="213" width="0.0126%" height="15" fill="rgb(253,11,6)" fg:x="68" fg:w="1"/><text x="1.1096%" y="223.50"></text></g><g><title>OrbStack Helper`&lt;vm_memory::guest_memory::GuestAddress as vm_memory::address::Address&gt;::checked_offset_from (2 samples, 0.03%)</title><rect x="0.8722%" y="213" width="0.0253%" height="15" fill="rgb(247,143,39)" fg:x="69" fg:w="2"/><text x="1.1222%" y="223.50"></text></g><g><title>OrbStack Helper`core::ops::function::impls::_&lt;impl core::ops::function::FnMut&lt;A&gt; for &amp;mut F&gt;::call_mut (4 samples, 0.05%)</title><rect x="1.0618%" y="165" width="0.0506%" height="15" fill="rgb(236,97,10)" fg:x="84" fg:w="4"/><text x="1.3118%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;core::iter::adapters::chain::Chain&lt;A,B&gt; as core::iter::traits::iterator::Iterator&gt;::try_fold (13 samples, 0.16%)</title><rect x="0.9607%" y="181" width="0.1643%" height="15" fill="rgb(233,208,19)" fg:x="76" fg:w="13"/><text x="1.2107%" y="191.50"></text></g><g><title>OrbStack Helper`vm_memory::volatile_memory::compute_offset (1 samples, 0.01%)</title><rect x="1.1124%" y="165" width="0.0126%" height="15" fill="rgb(216,164,2)" fg:x="88" fg:w="1"/><text x="1.3624%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;vm_memory::guest_memory::GuestAddress as vm_memory::address::Address&gt;::checked_sub (1 samples, 0.01%)</title><rect x="1.1250%" y="181" width="0.0126%" height="15" fill="rgb(220,129,5)" fg:x="89" fg:w="1"/><text x="1.3750%" y="191.50"></text></g><g><title>OrbStack Helper`rtree_metadata_read (1 samples, 0.01%)</title><rect x="1.1503%" y="133" width="0.0126%" height="15" fill="rgb(242,17,10)" fg:x="91" fg:w="1"/><text x="1.4003%" y="143.50"></text></g><g><title>OrbStack Helper`alloc::raw_vec::RawVec&lt;T,A&gt;::reserve::do_reserve_and_handle (3 samples, 0.04%)</title><rect x="1.1377%" y="181" width="0.0379%" height="15" fill="rgb(242,107,0)" fg:x="90" fg:w="3"/><text x="1.3877%" y="191.50"></text></g><g><title>OrbStack Helper`alloc::raw_vec::finish_grow (3 samples, 0.04%)</title><rect x="1.1377%" y="165" width="0.0379%" height="15" fill="rgb(251,28,31)" fg:x="90" fg:w="3"/><text x="1.3877%" y="175.50"></text></g><g><title>OrbStack Helper`do_rallocx (3 samples, 0.04%)</title><rect x="1.1377%" y="149" width="0.0379%" height="15" fill="rgb(233,223,10)" fg:x="90" fg:w="3"/><text x="1.3877%" y="159.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (1 samples, 0.01%)</title><rect x="1.1629%" y="133" width="0.0126%" height="15" fill="rgb(215,21,27)" fg:x="92" fg:w="1"/><text x="1.4129%" y="143.50"></text></g><g><title>OrbStack Helper`core::ops::function::impls::_&lt;impl core::ops::function::FnMut&lt;A&gt; for &amp;mut F&gt;::call_mut (2 samples, 0.03%)</title><rect x="1.1756%" y="181" width="0.0253%" height="15" fill="rgb(232,23,21)" fg:x="93" fg:w="2"/><text x="1.4256%" y="191.50"></text></g><g><title>OrbStack Helper`tikv_jemallocator::layout_to_flags (1 samples, 0.01%)</title><rect x="1.2009%" y="181" width="0.0126%" height="15" fill="rgb(244,5,23)" fg:x="95" fg:w="1"/><text x="1.4509%" y="191.50"></text></g><g><title>OrbStack Helper`&lt;alloc::vec::Vec&lt;T&gt; as alloc::vec::spec_from_iter::SpecFromIter&lt;T,I&gt;&gt;::from_iter (26 samples, 0.33%)</title><rect x="0.8975%" y="197" width="0.3287%" height="15" fill="rgb(226,81,46)" fg:x="71" fg:w="26"/><text x="1.1475%" y="207.50"></text></g><g><title>libsystem_pthread.dylib`pthread_getspecific (1 samples, 0.01%)</title><rect x="1.2135%" y="181" width="0.0126%" height="15" fill="rgb(247,70,30)" fg:x="96" fg:w="1"/><text x="1.4635%" y="191.50"></text></g><g><title>OrbStack Helper`core::iter::adapters::try_process (32 samples, 0.40%)</title><rect x="0.8975%" y="213" width="0.4045%" height="15" fill="rgb(212,68,19)" fg:x="71" fg:w="32"/><text x="1.1475%" y="223.50"></text></g><g><title>OrbStack Helper`&lt;core::iter::adapters::chain::Chain&lt;A,B&gt; as core::iter::traits::iterator::Iterator&gt;::try_fold (6 samples, 0.08%)</title><rect x="1.2261%" y="197" width="0.0758%" height="15" fill="rgb(240,187,13)" fg:x="97" fg:w="6"/><text x="1.4761%" y="207.50"></text></g><g><title>libsystem_c.dylib`_mach_boottime_usec (1 samples, 0.01%)</title><rect x="1.3399%" y="165" width="0.0126%" height="15" fill="rgb(223,113,26)" fg:x="106" fg:w="1"/><text x="1.5899%" y="175.50"></text></g><g><title>libsystem_c.dylib`DYLD-STUB$$__commpage_gettimeofday (1 samples, 0.01%)</title><rect x="1.3905%" y="133" width="0.0126%" height="15" fill="rgb(206,192,2)" fg:x="110" fg:w="1"/><text x="1.6405%" y="143.50"></text></g><g><title>libsystem_c.dylib`_mach_boottime_usec (18 samples, 0.23%)</title><rect x="1.3652%" y="149" width="0.2275%" height="15" fill="rgb(241,108,4)" fg:x="108" fg:w="18"/><text x="1.6152%" y="159.50"></text></g><g><title>libsystem_c.dylib`gettimeofday (15 samples, 0.19%)</title><rect x="1.4031%" y="133" width="0.1896%" height="15" fill="rgb(247,173,49)" fg:x="111" fg:w="15"/><text x="1.6531%" y="143.50"></text></g><g><title>libsystem_kernel.dylib`mach_absolute_time (14 samples, 0.18%)</title><rect x="1.4158%" y="117" width="0.1770%" height="15" fill="rgb(224,114,35)" fg:x="112" fg:w="14"/><text x="1.6658%" y="127.50"></text></g><g><title>OrbStack Helper`&lt;krun::GoFsCallbacks as devices::virtio::fs::server::FsCallbacks&gt;::on_activity (21 samples, 0.27%)</title><rect x="1.3399%" y="197" width="0.2655%" height="15" fill="rgb(245,159,27)" fg:x="106" fg:w="21"/><text x="1.5899%" y="207.50"></text></g><g><title>OrbStack Helper`nix::time::clock_gettime (21 samples, 0.27%)</title><rect x="1.3399%" y="181" width="0.2655%" height="15" fill="rgb(245,172,44)" fg:x="106" fg:w="21"/><text x="1.5899%" y="191.50"></text></g><g><title>libsystem_c.dylib`clock_gettime (20 samples, 0.25%)</title><rect x="1.3525%" y="165" width="0.2528%" height="15" fill="rgb(236,23,11)" fg:x="107" fg:w="20"/><text x="1.6025%" y="175.50"></text></g><g><title>libsystem_kernel.dylib`mach_boottime_usec (1 samples, 0.01%)</title><rect x="1.5927%" y="149" width="0.0126%" height="15" fill="rgb(205,117,38)" fg:x="126" fg:w="1"/><text x="1.8427%" y="159.50"></text></g><g><title>OrbStack Helper`_rjem_sdallocx (1 samples, 0.01%)</title><rect x="1.6054%" y="197" width="0.0126%" height="15" fill="rgb(237,72,25)" fg:x="127" fg:w="1"/><text x="1.8554%" y="207.50"></text></g><g><title>OrbStack Helper`core::ffi::c_str::CStr::from_bytes_with_nul (1 samples, 0.01%)</title><rect x="1.6180%" y="197" width="0.0126%" height="15" fill="rgb(244,70,9)" fg:x="128" fg:w="1"/><text x="1.8680%" y="207.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Reader as std::io::Read&gt;::read (1 samples, 0.01%)</title><rect x="1.6306%" y="181" width="0.0126%" height="15" fill="rgb(217,125,39)" fg:x="129" fg:w="1"/><text x="1.8806%" y="191.50"></text></g><g><title>OrbStack Helper`&lt;dashmap::DashMap&lt;K,V,S&gt; as dashmap::t::Map&lt;K,V,S&gt;&gt;::_get (1 samples, 0.01%)</title><rect x="1.6559%" y="165" width="0.0126%" height="15" fill="rgb(235,36,10)" fg:x="131" fg:w="1"/><text x="1.9059%" y="175.50"></text></g><g><title>OrbStack Helper`__rust_dealloc (2 samples, 0.03%)</title><rect x="1.6686%" y="165" width="0.0253%" height="15" fill="rgb(251,123,47)" fg:x="132" fg:w="2"/><text x="1.9186%" y="175.50"></text></g><g><title>OrbStack Helper`_rjem_je_malloc_default (2 samples, 0.03%)</title><rect x="1.6938%" y="165" width="0.0253%" height="15" fill="rgb(221,13,13)" fg:x="134" fg:w="2"/><text x="1.9438%" y="175.50"></text></g><g><title>OrbStack Helper`_rjem_je_te_event_trigger (1 samples, 0.01%)</title><rect x="1.7065%" y="149" width="0.0126%" height="15" fill="rgb(238,131,9)" fg:x="135" fg:w="1"/><text x="1.9565%" y="159.50"></text></g><g><title>OrbStack Helper`tcache_event (1 samples, 0.01%)</title><rect x="1.7065%" y="133" width="0.0126%" height="15" fill="rgb(211,50,8)" fg:x="135" fg:w="1"/><text x="1.9565%" y="143.50"></text></g><g><title>OrbStack Helper`_rjem_je_tcache_bin_flush_small (1 samples, 0.01%)</title><rect x="1.7065%" y="117" width="0.0126%" height="15" fill="rgb(245,182,24)" fg:x="135" fg:w="1"/><text x="1.9565%" y="127.50"></text></g><g><title>OrbStack Helper`core::slice::memchr::memchr_aligned (1 samples, 0.01%)</title><rect x="1.7191%" y="165" width="0.0126%" height="15" fill="rgb(242,14,37)" fg:x="136" fg:w="1"/><text x="1.9691%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;dashmap::DashMap&lt;K,V,S&gt; as dashmap::t::Map&lt;K,V,S&gt;&gt;::_entry (1 samples, 0.01%)</title><rect x="1.7823%" y="133" width="0.0126%" height="15" fill="rgb(246,228,12)" fg:x="141" fg:w="1"/><text x="2.0323%" y="143.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::macos::passthrough::PassthroughFs::finish_lookup (7 samples, 0.09%)</title><rect x="1.7318%" y="165" width="0.0885%" height="15" fill="rgb(213,55,15)" fg:x="137" fg:w="7"/><text x="1.9818%" y="175.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::multikey::MultikeyFxDashMap&lt;K1,K2,V&gt;::insert (6 samples, 0.08%)</title><rect x="1.7444%" y="149" width="0.0758%" height="15" fill="rgb(209,9,3)" fg:x="138" fg:w="6"/><text x="1.9944%" y="159.50"></text></g><g><title>OrbStack Helper`&lt;dashmap::DashMap&lt;K,V,S&gt; as dashmap::t::Map&lt;K,V,S&gt;&gt;::_insert (2 samples, 0.03%)</title><rect x="1.7950%" y="133" width="0.0253%" height="15" fill="rgb(230,59,30)" fg:x="142" fg:w="2"/><text x="2.0450%" y="143.50"></text></g><g><title>OrbStack Helper`&lt;dashmap::DashMap&lt;K,V,S&gt; as dashmap::t::Map&lt;K,V,S&gt;&gt;::_get (1 samples, 0.01%)</title><rect x="1.8203%" y="149" width="0.0126%" height="15" fill="rgb(209,121,21)" fg:x="144" fg:w="1"/><text x="2.0703%" y="159.50"></text></g><g><title>OrbStack Helper`alloc::ffi::c_str::CString::_from_vec_unchecked (1 samples, 0.01%)</title><rect x="1.8329%" y="149" width="0.0126%" height="15" fill="rgb(220,109,13)" fg:x="145" fg:w="1"/><text x="2.0829%" y="159.50"></text></g><g><title>OrbStack Helper`do_rallocx (1 samples, 0.01%)</title><rect x="1.8329%" y="133" width="0.0126%" height="15" fill="rgb(232,18,1)" fg:x="145" fg:w="1"/><text x="2.0829%" y="143.50"></text></g><g><title>OrbStack Helper`core::fmt::Formatter::pad_integral::write_prefix (1 samples, 0.01%)</title><rect x="1.8582%" y="101" width="0.0126%" height="15" fill="rgb(215,41,42)" fg:x="147" fg:w="1"/><text x="2.1082%" y="111.50"></text></g><g><title>OrbStack Helper`core::fmt::num::imp::_&lt;impl core::fmt::Display for i32&gt;::fmt (3 samples, 0.04%)</title><rect x="1.8582%" y="117" width="0.0379%" height="15" fill="rgb(224,123,36)" fg:x="147" fg:w="3"/><text x="2.1082%" y="127.50"></text></g><g><title>OrbStack Helper`core::fmt::Formatter::pad_integral (2 samples, 0.03%)</title><rect x="1.8708%" y="101" width="0.0253%" height="15" fill="rgb(240,125,3)" fg:x="148" fg:w="2"/><text x="2.1208%" y="111.50"></text></g><g><title>OrbStack Helper`core::fmt::Formatter::pad_integral::write_prefix (2 samples, 0.03%)</title><rect x="1.8708%" y="85" width="0.0253%" height="15" fill="rgb(205,98,50)" fg:x="148" fg:w="2"/><text x="2.1208%" y="95.50"></text></g><g><title>OrbStack Helper`alloc::fmt::format::format_inner (5 samples, 0.06%)</title><rect x="1.8455%" y="149" width="0.0632%" height="15" fill="rgb(205,185,37)" fg:x="146" fg:w="5"/><text x="2.0955%" y="159.50"></text></g><g><title>OrbStack Helper`core::fmt::write (5 samples, 0.06%)</title><rect x="1.8455%" y="133" width="0.0632%" height="15" fill="rgb(238,207,15)" fg:x="146" fg:w="5"/><text x="2.0955%" y="143.50"></text></g><g><title>OrbStack Helper`core::fmt::num::imp::_&lt;impl core::fmt::Display for u64&gt;::fmt (1 samples, 0.01%)</title><rect x="1.8961%" y="117" width="0.0126%" height="15" fill="rgb(213,199,42)" fg:x="150" fg:w="1"/><text x="2.1461%" y="127.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (1 samples, 0.01%)</title><rect x="1.8961%" y="101" width="0.0126%" height="15" fill="rgb(235,201,11)" fg:x="150" fg:w="1"/><text x="2.1461%" y="111.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::macos::passthrough::PassthroughFs::name_to_path_and_data (8 samples, 0.10%)</title><rect x="1.8203%" y="165" width="0.1011%" height="15" fill="rgb(207,46,11)" fg:x="144" fg:w="8"/><text x="2.0703%" y="175.50"></text></g><g><title>OrbStack Helper`do_rallocx (1 samples, 0.01%)</title><rect x="1.9087%" y="149" width="0.0126%" height="15" fill="rgb(241,35,35)" fg:x="151" fg:w="1"/><text x="2.1587%" y="159.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::multikey::MultikeyFxDashMap&lt;K1,K2,V&gt;::insert (1 samples, 0.01%)</title><rect x="1.9214%" y="165" width="0.0126%" height="15" fill="rgb(243,32,47)" fg:x="152" fg:w="1"/><text x="2.1714%" y="175.50"></text></g><g><title>libsystem_kernel.dylib`__open (1,445 samples, 18.27%)</title><rect x="1.9340%" y="165" width="18.2657%" height="15" fill="rgb(247,202,23)" fg:x="153" fg:w="1445"/><text x="2.1840%" y="175.50">libsystem_kernel.dylib`__open</text></g><g><title>OrbStack Helper`&lt;devices::virtio::fs::macos::passthrough::PassthroughFs as devices::virtio::fs::filesystem::FileSystem&gt;::create (1,489 samples, 18.82%)</title><rect x="1.6433%" y="181" width="18.8219%" height="15" fill="rgb(219,102,11)" fg:x="130" fg:w="1489"/><text x="1.8933%" y="191.50">OrbStack Helper`&lt;devices::vir..</text></g><g><title>libsystem_kernel.dylib`fstat (21 samples, 0.27%)</title><rect x="20.1997%" y="165" width="0.2655%" height="15" fill="rgb(243,110,44)" fg:x="1598" fg:w="21"/><text x="20.4497%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Writer as std::io::Write&gt;::write (3 samples, 0.04%)</title><rect x="20.4778%" y="149" width="0.0379%" height="15" fill="rgb(222,74,54)" fg:x="1620" fg:w="3"/><text x="20.7278%" y="159.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::reply_ok (9 samples, 0.11%)</title><rect x="20.4652%" y="181" width="0.1138%" height="15" fill="rgb(216,99,12)" fg:x="1619" fg:w="9"/><text x="20.7152%" y="191.50"></text></g><g><title>OrbStack Helper`std::io::Write::write_all (8 samples, 0.10%)</title><rect x="20.4778%" y="165" width="0.1011%" height="15" fill="rgb(226,22,26)" fg:x="1620" fg:w="8"/><text x="20.7278%" y="175.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (5 samples, 0.06%)</title><rect x="20.5157%" y="149" width="0.0632%" height="15" fill="rgb(217,163,10)" fg:x="1623" fg:w="5"/><text x="20.7657%" y="159.50"></text></g><g><title>OrbStack Helper`std::io::default_read_exact (4 samples, 0.05%)</title><rect x="20.5789%" y="181" width="0.0506%" height="15" fill="rgb(213,25,53)" fg:x="1628" fg:w="4"/><text x="20.8289%" y="191.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (4 samples, 0.05%)</title><rect x="20.5789%" y="165" width="0.0506%" height="15" fill="rgb(252,105,26)" fg:x="1628" fg:w="4"/><text x="20.8289%" y="175.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::Server&lt;F&gt;::create (1,520 samples, 19.21%)</title><rect x="1.6306%" y="197" width="19.2138%" height="15" fill="rgb(220,39,43)" fg:x="129" fg:w="1520"/><text x="1.8806%" y="207.50">OrbStack Helper`devices::virti..</text></g><g><title>libsystem_platform.dylib`_platform_memmove (17 samples, 0.21%)</title><rect x="20.6295%" y="181" width="0.2149%" height="15" fill="rgb(229,68,48)" fg:x="1632" fg:w="17"/><text x="20.8795%" y="191.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::macos::passthrough::PassthroughFs::do_getattr (28 samples, 0.35%)</title><rect x="20.8570%" y="165" width="0.3539%" height="15" fill="rgb(252,8,32)" fg:x="1650" fg:w="28"/><text x="21.1070%" y="175.50"></text></g><g><title>libsystem_kernel.dylib`fstat (28 samples, 0.35%)</title><rect x="20.8570%" y="149" width="0.3539%" height="15" fill="rgb(223,20,43)" fg:x="1650" fg:w="28"/><text x="21.1070%" y="159.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::fs::macos::passthrough::PassthroughFs as devices::virtio::fs::filesystem::FileSystem&gt;::getattr (39 samples, 0.49%)</title><rect x="20.8570%" y="181" width="0.4930%" height="15" fill="rgb(229,81,49)" fg:x="1650" fg:w="39"/><text x="21.1070%" y="191.50"></text></g><g><title>libsystem_kernel.dylib`lstat (11 samples, 0.14%)</title><rect x="21.2110%" y="165" width="0.1390%" height="15" fill="rgb(236,28,36)" fg:x="1678" fg:w="11"/><text x="21.4610%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;std::sys::pal::unix::fd::FileDesc as std::os::fd::owned::AsFd&gt;::as_fd (1 samples, 0.01%)</title><rect x="21.3500%" y="181" width="0.0126%" height="15" fill="rgb(249,185,26)" fg:x="1689" fg:w="1"/><text x="21.6000%" y="191.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::macos::passthrough::PassthroughFs::do_getattr (1 samples, 0.01%)</title><rect x="21.3627%" y="181" width="0.0126%" height="15" fill="rgb(249,174,33)" fg:x="1690" fg:w="1"/><text x="21.6127%" y="191.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Writer as std::io::Write&gt;::write (1 samples, 0.01%)</title><rect x="21.3753%" y="149" width="0.0126%" height="15" fill="rgb(233,201,37)" fg:x="1691" fg:w="1"/><text x="21.6253%" y="159.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::reply_ok (7 samples, 0.09%)</title><rect x="21.3753%" y="181" width="0.0885%" height="15" fill="rgb(221,78,26)" fg:x="1691" fg:w="7"/><text x="21.6253%" y="191.50"></text></g><g><title>OrbStack Helper`std::io::Write::write_all (7 samples, 0.09%)</title><rect x="21.3753%" y="165" width="0.0885%" height="15" fill="rgb(250,127,30)" fg:x="1691" fg:w="7"/><text x="21.6253%" y="175.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (6 samples, 0.08%)</title><rect x="21.3879%" y="149" width="0.0758%" height="15" fill="rgb(230,49,44)" fg:x="1692" fg:w="6"/><text x="21.6379%" y="159.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::Server&lt;F&gt;::getattr (51 samples, 0.64%)</title><rect x="20.8444%" y="197" width="0.6447%" height="15" fill="rgb(229,67,23)" fg:x="1649" fg:w="51"/><text x="21.0944%" y="207.50"></text></g><g><title>OrbStack Helper`std::io::default_read_exact (2 samples, 0.03%)</title><rect x="21.4638%" y="181" width="0.0253%" height="15" fill="rgb(249,83,47)" fg:x="1698" fg:w="2"/><text x="21.7138%" y="191.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (2 samples, 0.03%)</title><rect x="21.4638%" y="165" width="0.0253%" height="15" fill="rgb(215,43,3)" fg:x="1698" fg:w="2"/><text x="21.7138%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;core::str::lossy::Utf8Chunks as core::iter::traits::iterator::Iterator&gt;::next (2 samples, 0.03%)</title><rect x="21.4891%" y="181" width="0.0253%" height="15" fill="rgb(238,154,13)" fg:x="1700" fg:w="2"/><text x="21.7391%" y="191.50"></text></g><g><title>OrbStack Helper`alloc::fmt::format::format_inner (1 samples, 0.01%)</title><rect x="21.5523%" y="165" width="0.0126%" height="15" fill="rgb(219,56,2)" fg:x="1705" fg:w="1"/><text x="21.8023%" y="175.50"></text></g><g><title>OrbStack Helper`core::slice::memchr::memchr_aligned (1 samples, 0.01%)</title><rect x="21.5649%" y="165" width="0.0126%" height="15" fill="rgb(233,0,4)" fg:x="1706" fg:w="1"/><text x="21.8149%" y="175.50"></text></g><g><title>OrbStack Helper`_rjem_je_arena_ralloc (1 samples, 0.01%)</title><rect x="21.5776%" y="133" width="0.0126%" height="15" fill="rgb(235,30,7)" fg:x="1707" fg:w="1"/><text x="21.8276%" y="143.50"></text></g><g><title>OrbStack Helper`_rjem_je_arena_ralloc (2 samples, 0.03%)</title><rect x="21.6028%" y="117" width="0.0253%" height="15" fill="rgb(250,79,13)" fg:x="1709" fg:w="2"/><text x="21.8528%" y="127.50"></text></g><g><title>OrbStack Helper`_rjem_je_arena_ralloc_no_move (2 samples, 0.03%)</title><rect x="21.6028%" y="101" width="0.0253%" height="15" fill="rgb(211,146,34)" fg:x="1709" fg:w="2"/><text x="21.8528%" y="111.50"></text></g><g><title>OrbStack Helper`rtree_read (1 samples, 0.01%)</title><rect x="21.6155%" y="85" width="0.0126%" height="15" fill="rgb(228,22,38)" fg:x="1710" fg:w="1"/><text x="21.8655%" y="95.50"></text></g><g><title>OrbStack Helper`alloc::ffi::c_str::CString::_from_vec_unchecked (5 samples, 0.06%)</title><rect x="21.5776%" y="149" width="0.0632%" height="15" fill="rgb(235,168,5)" fg:x="1707" fg:w="5"/><text x="21.8276%" y="159.50"></text></g><g><title>OrbStack Helper`do_rallocx (4 samples, 0.05%)</title><rect x="21.5902%" y="133" width="0.0506%" height="15" fill="rgb(221,155,16)" fg:x="1708" fg:w="4"/><text x="21.8402%" y="143.50"></text></g><g><title>OrbStack Helper`_rjem_je_hook_invoke_dalloc (1 samples, 0.01%)</title><rect x="21.6281%" y="117" width="0.0126%" height="15" fill="rgb(215,215,53)" fg:x="1711" fg:w="1"/><text x="21.8781%" y="127.50"></text></g><g><title>OrbStack Helper`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (2 samples, 0.03%)</title><rect x="21.6408%" y="133" width="0.0253%" height="15" fill="rgb(223,4,10)" fg:x="1712" fg:w="2"/><text x="21.8908%" y="143.50"></text></g><g><title>OrbStack Helper`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (1 samples, 0.01%)</title><rect x="21.6787%" y="117" width="0.0126%" height="15" fill="rgb(234,103,6)" fg:x="1715" fg:w="1"/><text x="21.9287%" y="127.50"></text></g><g><title>OrbStack Helper`core::fmt::Formatter::pad_integral (1 samples, 0.01%)</title><rect x="21.6913%" y="117" width="0.0126%" height="15" fill="rgb(227,97,0)" fg:x="1716" fg:w="1"/><text x="21.9413%" y="127.50"></text></g><g><title>OrbStack Helper`core::fmt::Formatter::pad_integral::write_prefix (1 samples, 0.01%)</title><rect x="21.7040%" y="101" width="0.0126%" height="15" fill="rgb(234,150,53)" fg:x="1717" fg:w="1"/><text x="21.9540%" y="111.50"></text></g><g><title>OrbStack Helper`core::fmt::Formatter::pad_integral (1 samples, 0.01%)</title><rect x="21.7166%" y="101" width="0.0126%" height="15" fill="rgb(228,201,54)" fg:x="1718" fg:w="1"/><text x="21.9666%" y="111.50"></text></g><g><title>OrbStack Helper`core::fmt::Formatter::pad_integral::write_prefix (1 samples, 0.01%)</title><rect x="21.7166%" y="85" width="0.0126%" height="15" fill="rgb(222,22,37)" fg:x="1718" fg:w="1"/><text x="21.9666%" y="95.50"></text></g><g><title>OrbStack Helper`core::fmt::num::imp::_&lt;impl core::fmt::Display for i32&gt;::fmt (3 samples, 0.04%)</title><rect x="21.7040%" y="117" width="0.0379%" height="15" fill="rgb(237,53,32)" fg:x="1717" fg:w="3"/><text x="21.9540%" y="127.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (1 samples, 0.01%)</title><rect x="21.7292%" y="101" width="0.0126%" height="15" fill="rgb(233,25,53)" fg:x="1719" fg:w="1"/><text x="21.9792%" y="111.50"></text></g><g><title>OrbStack Helper`core::fmt::write (8 samples, 0.10%)</title><rect x="21.6660%" y="133" width="0.1011%" height="15" fill="rgb(210,40,34)" fg:x="1714" fg:w="8"/><text x="21.9160%" y="143.50"></text></g><g><title>OrbStack Helper`core::fmt::num::imp::_&lt;impl core::fmt::Display for u64&gt;::fmt (2 samples, 0.03%)</title><rect x="21.7419%" y="117" width="0.0253%" height="15" fill="rgb(241,220,44)" fg:x="1720" fg:w="2"/><text x="21.9919%" y="127.50"></text></g><g><title>OrbStack Helper`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (2 samples, 0.03%)</title><rect x="21.7419%" y="101" width="0.0253%" height="15" fill="rgb(235,28,35)" fg:x="1720" fg:w="2"/><text x="21.9919%" y="111.50"></text></g><g><title>OrbStack Helper`alloc::raw_vec::RawVec&lt;T,A&gt;::reserve::do_reserve_and_handle (2 samples, 0.03%)</title><rect x="21.7419%" y="85" width="0.0253%" height="15" fill="rgb(210,56,17)" fg:x="1720" fg:w="2"/><text x="21.9919%" y="95.50"></text></g><g><title>OrbStack Helper`alloc::raw_vec::finish_grow (2 samples, 0.03%)</title><rect x="21.7419%" y="69" width="0.0253%" height="15" fill="rgb(224,130,29)" fg:x="1720" fg:w="2"/><text x="21.9919%" y="79.50"></text></g><g><title>OrbStack Helper`do_rallocx (2 samples, 0.03%)</title><rect x="21.7419%" y="53" width="0.0253%" height="15" fill="rgb(235,212,8)" fg:x="1720" fg:w="2"/><text x="21.9919%" y="63.50"></text></g><g><title>OrbStack Helper`_rjem_je_hook_invoke_dalloc (1 samples, 0.01%)</title><rect x="21.7545%" y="37" width="0.0126%" height="15" fill="rgb(223,33,50)" fg:x="1721" fg:w="1"/><text x="22.0045%" y="47.50"></text></g><g><title>OrbStack Helper`alloc::fmt::format::format_inner (11 samples, 0.14%)</title><rect x="21.6408%" y="149" width="0.1390%" height="15" fill="rgb(219,149,13)" fg:x="1712" fg:w="11"/><text x="21.8908%" y="159.50"></text></g><g><title>OrbStack Helper`tikv_jemallocator::layout_to_flags (1 samples, 0.01%)</title><rect x="21.7672%" y="133" width="0.0126%" height="15" fill="rgb(250,156,29)" fg:x="1722" fg:w="1"/><text x="22.0172%" y="143.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::macos::passthrough::PassthroughFs::name_to_path_and_data (18 samples, 0.23%)</title><rect x="21.5776%" y="165" width="0.2275%" height="15" fill="rgb(216,193,19)" fg:x="1707" fg:w="18"/><text x="21.8276%" y="175.50"></text></g><g><title>OrbStack Helper`core::fmt::write (2 samples, 0.03%)</title><rect x="21.7798%" y="149" width="0.0253%" height="15" fill="rgb(216,135,14)" fg:x="1723" fg:w="2"/><text x="22.0298%" y="159.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::macos::passthrough::PassthroughFs::do_lookup (25 samples, 0.32%)</title><rect x="21.5143%" y="181" width="0.3160%" height="15" fill="rgb(241,47,5)" fg:x="1702" fg:w="25"/><text x="21.7643%" y="191.50"></text></g><g><title>libsystem_kernel.dylib`cerror_nocancel (2 samples, 0.03%)</title><rect x="21.8051%" y="165" width="0.0253%" height="15" fill="rgb(233,42,35)" fg:x="1725" fg:w="2"/><text x="22.0551%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Writer as std::io::Write&gt;::write (3 samples, 0.04%)</title><rect x="21.8556%" y="149" width="0.0379%" height="15" fill="rgb(231,13,6)" fg:x="1729" fg:w="3"/><text x="22.1056%" y="159.50"></text></g><g><title>OrbStack Helper`std::io::Write::write_all (8 samples, 0.10%)</title><rect x="21.8304%" y="165" width="0.1011%" height="15" fill="rgb(207,181,40)" fg:x="1727" fg:w="8"/><text x="22.0804%" y="175.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (3 samples, 0.04%)</title><rect x="21.8936%" y="149" width="0.0379%" height="15" fill="rgb(254,173,49)" fg:x="1732" fg:w="3"/><text x="22.1436%" y="159.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::reply_error (9 samples, 0.11%)</title><rect x="21.8304%" y="181" width="0.1138%" height="15" fill="rgb(221,1,38)" fg:x="1727" fg:w="9"/><text x="22.0804%" y="191.50"></text></g><g><title>OrbStack Helper`tikv_jemallocator::layout_to_flags (1 samples, 0.01%)</title><rect x="21.9315%" y="165" width="0.0126%" height="15" fill="rgb(206,124,46)" fg:x="1735" fg:w="1"/><text x="22.1815%" y="175.50"></text></g><g><title>OrbStack Helper`nix::errno::_&lt;impl nix::errno::consts::Errno&gt;::last (2 samples, 0.03%)</title><rect x="21.9441%" y="181" width="0.0253%" height="15" fill="rgb(249,21,11)" fg:x="1736" fg:w="2"/><text x="22.1941%" y="191.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Reader as std::io::Read&gt;::read (2 samples, 0.03%)</title><rect x="21.9694%" y="165" width="0.0253%" height="15" fill="rgb(222,201,40)" fg:x="1738" fg:w="2"/><text x="22.2194%" y="175.50"></text></g><g><title>OrbStack Helper`std::io::default_read_exact (9 samples, 0.11%)</title><rect x="21.9694%" y="181" width="0.1138%" height="15" fill="rgb(235,61,29)" fg:x="1738" fg:w="9"/><text x="22.2194%" y="191.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (7 samples, 0.09%)</title><rect x="21.9947%" y="165" width="0.0885%" height="15" fill="rgb(219,207,3)" fg:x="1740" fg:w="7"/><text x="22.2447%" y="175.50"></text></g><g><title>OrbStack Helper`tikv_jemallocator::layout_to_flags (1 samples, 0.01%)</title><rect x="22.0832%" y="181" width="0.0126%" height="15" fill="rgb(222,56,46)" fg:x="1747" fg:w="1"/><text x="22.3332%" y="191.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::Server&lt;F&gt;::lookup (773 samples, 9.77%)</title><rect x="21.4891%" y="197" width="9.7712%" height="15" fill="rgb(239,76,54)" fg:x="1700" fg:w="773"/><text x="21.7391%" y="207.50">OrbStack Helpe..</text></g><g><title>libsystem_kernel.dylib`lstat (725 samples, 9.16%)</title><rect x="22.0958%" y="181" width="9.1645%" height="15" fill="rgb(231,124,27)" fg:x="1748" fg:w="725"/><text x="22.3458%" y="191.50">libsystem_ker..</text></g><g><title>OrbStack Helper`&lt;devices::virtio::fs::macos::passthrough::PassthroughFs as devices::virtio::fs::filesystem::FileSystem&gt;::mkdir (8 samples, 0.10%)</title><rect x="31.2603%" y="181" width="0.1011%" height="15" fill="rgb(249,195,6)" fg:x="2473" fg:w="8"/><text x="31.5103%" y="191.50"></text></g><g><title>libsystem_kernel.dylib`lstat (8 samples, 0.10%)</title><rect x="31.2603%" y="165" width="0.1011%" height="15" fill="rgb(237,174,47)" fg:x="2473" fg:w="8"/><text x="31.5103%" y="175.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::reply_ok (2 samples, 0.03%)</title><rect x="31.3614%" y="181" width="0.0253%" height="15" fill="rgb(206,201,31)" fg:x="2481" fg:w="2"/><text x="31.6114%" y="191.50"></text></g><g><title>OrbStack Helper`std::io::default_read_exact (1 samples, 0.01%)</title><rect x="31.3867%" y="181" width="0.0126%" height="15" fill="rgb(231,57,52)" fg:x="2483" fg:w="1"/><text x="31.6367%" y="191.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (1 samples, 0.01%)</title><rect x="31.3867%" y="165" width="0.0126%" height="15" fill="rgb(248,177,22)" fg:x="2483" fg:w="1"/><text x="31.6367%" y="175.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::Server&lt;F&gt;::mkdir (111 samples, 1.40%)</title><rect x="31.2603%" y="197" width="1.4031%" height="15" fill="rgb(215,211,37)" fg:x="2473" fg:w="111"/><text x="31.5103%" y="207.50"></text></g><g><title>libsystem_kernel.dylib`mkdir (100 samples, 1.26%)</title><rect x="31.3993%" y="181" width="1.2641%" height="15" fill="rgb(241,128,51)" fg:x="2484" fg:w="100"/><text x="31.6493%" y="191.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::Server&lt;F&gt;::read (17 samples, 0.21%)</title><rect x="32.6634%" y="197" width="0.2149%" height="15" fill="rgb(227,165,31)" fg:x="2584" fg:w="17"/><text x="32.9134%" y="207.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::fs::macos::passthrough::PassthroughFs as devices::virtio::fs::filesystem::FileSystem&gt;::read (17 samples, 0.21%)</title><rect x="32.6634%" y="181" width="0.2149%" height="15" fill="rgb(228,167,24)" fg:x="2584" fg:w="17"/><text x="32.9134%" y="191.50"></text></g><g><title>OrbStack Helper`devices::virtio::descriptor_utils::Writer::write_from_at (17 samples, 0.21%)</title><rect x="32.6634%" y="165" width="0.2149%" height="15" fill="rgb(228,143,12)" fg:x="2584" fg:w="17"/><text x="32.9134%" y="175.50"></text></g><g><title>libsystem_kernel.dylib`preadv (17 samples, 0.21%)</title><rect x="32.6634%" y="149" width="0.2149%" height="15" fill="rgb(249,149,8)" fg:x="2584" fg:w="17"/><text x="32.9134%" y="159.50"></text></g><g><title>OrbStack Helper`DYLD-STUB$$pthread_getspecific (1 samples, 0.01%)</title><rect x="32.8783%" y="181" width="0.0126%" height="15" fill="rgb(243,35,44)" fg:x="2601" fg:w="1"/><text x="33.1283%" y="191.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::macos::passthrough::PassthroughFs::do_release (492 samples, 6.22%)</title><rect x="32.8909%" y="181" width="6.2192%" height="15" fill="rgb(246,89,9)" fg:x="2602" fg:w="492"/><text x="33.1409%" y="191.50">OrbStack..</text></g><g><title>libsystem_kernel.dylib`close (491 samples, 6.21%)</title><rect x="32.9036%" y="165" width="6.2065%" height="15" fill="rgb(233,213,13)" fg:x="2603" fg:w="491"/><text x="33.1536%" y="175.50">libsyste..</text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Writer as std::io::Write&gt;::write (2 samples, 0.03%)</title><rect x="39.1227%" y="165" width="0.0253%" height="15" fill="rgb(233,141,41)" fg:x="3095" fg:w="2"/><text x="39.3727%" y="175.50"></text></g><g><title>OrbStack Helper`std::io::Write::write_all (8 samples, 0.10%)</title><rect x="39.1101%" y="181" width="0.1011%" height="15" fill="rgb(239,167,4)" fg:x="3094" fg:w="8"/><text x="39.3601%" y="191.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (5 samples, 0.06%)</title><rect x="39.1480%" y="165" width="0.0632%" height="15" fill="rgb(209,217,16)" fg:x="3097" fg:w="5"/><text x="39.3980%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Reader as std::io::Read&gt;::read (1 samples, 0.01%)</title><rect x="39.2112%" y="165" width="0.0126%" height="15" fill="rgb(219,88,35)" fg:x="3102" fg:w="1"/><text x="39.4612%" y="175.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::Server&lt;F&gt;::release (505 samples, 6.38%)</title><rect x="32.8783%" y="197" width="6.3835%" height="15" fill="rgb(220,193,23)" fg:x="2601" fg:w="505"/><text x="33.1283%" y="207.50">OrbStack..</text></g><g><title>OrbStack Helper`std::io::default_read_exact (4 samples, 0.05%)</title><rect x="39.2112%" y="181" width="0.0506%" height="15" fill="rgb(230,90,52)" fg:x="3102" fg:w="4"/><text x="39.4612%" y="191.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (3 samples, 0.04%)</title><rect x="39.2239%" y="165" width="0.0379%" height="15" fill="rgb(252,106,19)" fg:x="3103" fg:w="3"/><text x="39.4739%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;std::fs::File as devices::virtio::file_traits::FileReadWriteAtVolatile&gt;::write_vectored_at_volatile (2 samples, 0.03%)</title><rect x="39.2618%" y="165" width="0.0253%" height="15" fill="rgb(206,74,20)" fg:x="3106" fg:w="2"/><text x="39.5118%" y="175.50"></text></g><g><title>OrbStack Helper`DYLD-STUB$$memcpy (1 samples, 0.01%)</title><rect x="39.2871%" y="165" width="0.0126%" height="15" fill="rgb(230,138,44)" fg:x="3108" fg:w="1"/><text x="39.5371%" y="175.50"></text></g><g><title>OrbStack Helper`_rjem_sdallocx (2 samples, 0.03%)</title><rect x="39.2997%" y="165" width="0.0253%" height="15" fill="rgb(235,182,43)" fg:x="3109" fg:w="2"/><text x="39.5497%" y="175.50"></text></g><g><title>OrbStack Helper`devices::virtio::descriptor_utils::Reader::read_to_at (1,445 samples, 18.27%)</title><rect x="39.3250%" y="165" width="18.2657%" height="15" fill="rgb(242,16,51)" fg:x="3111" fg:w="1445"/><text x="39.5750%" y="175.50">OrbStack Helper`devices::vir..</text></g><g><title>libsystem_kernel.dylib`pwritev (1,444 samples, 18.25%)</title><rect x="39.3376%" y="149" width="18.2531%" height="15" fill="rgb(248,9,4)" fg:x="3112" fg:w="1444"/><text x="39.5876%" y="159.50">libsystem_kernel.dylib`pwrit..</text></g><g><title>OrbStack Helper`&lt;devices::virtio::fs::macos::passthrough::PassthroughFs as devices::virtio::fs::filesystem::FileSystem&gt;::write (1,458 samples, 18.43%)</title><rect x="39.2618%" y="181" width="18.4300%" height="15" fill="rgb(210,31,22)" fg:x="3106" fg:w="1458"/><text x="39.5118%" y="191.50">OrbStack Helper`&lt;devices::vir..</text></g><g><title>libsystem_platform.dylib`_platform_memmove (8 samples, 0.10%)</title><rect x="57.5907%" y="165" width="0.1011%" height="15" fill="rgb(239,54,39)" fg:x="4556" fg:w="8"/><text x="57.8407%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Writer as std::io::Write&gt;::write (6 samples, 0.08%)</title><rect x="57.6918%" y="149" width="0.0758%" height="15" fill="rgb(230,99,41)" fg:x="4564" fg:w="6"/><text x="57.9418%" y="159.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::reply_ok (18 samples, 0.23%)</title><rect x="57.6918%" y="181" width="0.2275%" height="15" fill="rgb(253,106,12)" fg:x="4564" fg:w="18"/><text x="57.9418%" y="191.50"></text></g><g><title>OrbStack Helper`std::io::Write::write_all (18 samples, 0.23%)</title><rect x="57.6918%" y="165" width="0.2275%" height="15" fill="rgb(213,46,41)" fg:x="4564" fg:w="18"/><text x="57.9418%" y="175.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (12 samples, 0.15%)</title><rect x="57.7677%" y="149" width="0.1517%" height="15" fill="rgb(215,133,35)" fg:x="4570" fg:w="12"/><text x="58.0177%" y="159.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Reader as std::io::Read&gt;::read (2 samples, 0.03%)</title><rect x="57.9194%" y="165" width="0.0253%" height="15" fill="rgb(213,28,5)" fg:x="4582" fg:w="2"/><text x="58.1694%" y="175.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::Server&lt;F&gt;::write (1,484 samples, 18.76%)</title><rect x="39.2618%" y="197" width="18.7587%" height="15" fill="rgb(215,77,49)" fg:x="3106" fg:w="1484"/><text x="39.5118%" y="207.50">OrbStack Helper`devices::virt..</text></g><g><title>OrbStack Helper`std::io::default_read_exact (8 samples, 0.10%)</title><rect x="57.9194%" y="181" width="0.1011%" height="15" fill="rgb(248,100,22)" fg:x="4582" fg:w="8"/><text x="58.1694%" y="191.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (6 samples, 0.08%)</title><rect x="57.9446%" y="165" width="0.0758%" height="15" fill="rgb(208,67,9)" fg:x="4584" fg:w="6"/><text x="58.1946%" y="175.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::descriptor_utils::Reader as std::io::Read&gt;::read (10 samples, 0.13%)</title><rect x="58.0458%" y="181" width="0.1264%" height="15" fill="rgb(219,133,21)" fg:x="4592" fg:w="10"/><text x="58.2958%" y="191.50"></text></g><g><title>OrbStack Helper`DYLD-STUB$$memcpy (1 samples, 0.01%)</title><rect x="58.1722%" y="181" width="0.0126%" height="15" fill="rgb(246,46,29)" fg:x="4602" fg:w="1"/><text x="58.4222%" y="191.50"></text></g><g><title>OrbStack Helper`std::io::default_read_exact (26 samples, 0.33%)</title><rect x="58.0205%" y="197" width="0.3287%" height="15" fill="rgb(246,185,52)" fg:x="4590" fg:w="26"/><text x="58.2705%" y="207.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (13 samples, 0.16%)</title><rect x="58.1848%" y="181" width="0.1643%" height="15" fill="rgb(252,136,11)" fg:x="4603" fg:w="13"/><text x="58.4348%" y="191.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::server::Server&lt;F&gt;::handle_message (4,514 samples, 57.06%)</title><rect x="1.3020%" y="213" width="57.0598%" height="15" fill="rgb(219,138,53)" fg:x="103" fg:w="4514"/><text x="1.5520%" y="223.50">OrbStack Helper`devices::virtio::fs::server::Server&lt;F&gt;::handle_message</text></g><g><title>libsystem_pthread.dylib`pthread_getspecific (1 samples, 0.01%)</title><rect x="58.3491%" y="197" width="0.0126%" height="15" fill="rgb(211,51,23)" fg:x="4616" fg:w="1"/><text x="58.5991%" y="207.50"></text></g><g><title>OrbStack Helper`vm_memory::guest_memory::_&lt;impl vm_memory::bytes::Bytes&lt;vm_memory::guest_memory::GuestAddress&gt; for T&gt;::read_slice (6 samples, 0.08%)</title><rect x="58.3618%" y="213" width="0.0758%" height="15" fill="rgb(247,221,28)" fg:x="4617" fg:w="6"/><text x="58.6118%" y="223.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (4 samples, 0.05%)</title><rect x="58.3871%" y="197" width="0.0506%" height="15" fill="rgb(251,222,45)" fg:x="4619" fg:w="4"/><text x="58.6371%" y="207.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::fs::hvc::FsHvcDevice as devices::virtio::device::HvcDevice&gt;::call_hvc (4,589 samples, 58.01%)</title><rect x="0.5056%" y="245" width="58.0078%" height="15" fill="rgb(217,162,53)" fg:x="40" fg:w="4589"/><text x="0.7556%" y="255.50">OrbStack Helper`&lt;devices::virtio::fs::hvc::FsHvcDevice as devices::virtio::device::HvcDevice&gt;::c..</text></g><g><title>OrbStack Helper`devices::virtio::fs::hvc::FsHvcDevice::handle_hvc (4,588 samples, 58.00%)</title><rect x="0.5183%" y="229" width="57.9952%" height="15" fill="rgb(229,93,14)" fg:x="41" fg:w="4588"/><text x="0.7683%" y="239.50">OrbStack Helper`devices::virtio::fs::hvc::FsHvcDevice::handle_hvc</text></g><g><title>OrbStack Helper`vm_memory::volatile_memory::copy_slice_impl::copy_slice (6 samples, 0.08%)</title><rect x="58.4376%" y="213" width="0.0758%" height="15" fill="rgb(209,67,49)" fg:x="4623" fg:w="6"/><text x="58.6876%" y="223.50"></text></g><g><title>OrbStack Helper`&lt;vmm::macos::vstate::VmParker as hvf::aarch64::Parkable&gt;::before_vcpu_run (1 samples, 0.01%)</title><rect x="58.5135%" y="245" width="0.0126%" height="15" fill="rgb(213,87,29)" fg:x="4629" fg:w="1"/><text x="58.7635%" y="255.50"></text></g><g><title>OrbStack Helper`DYLD-STUB$$hv_vcpu_run (1 samples, 0.01%)</title><rect x="58.5261%" y="245" width="0.0126%" height="15" fill="rgb(205,151,52)" fg:x="4630" fg:w="1"/><text x="58.7761%" y="255.50"></text></g><g><title>OrbStack Helper`DYLD-STUB$$hv_vcpu_set_reg (1 samples, 0.01%)</title><rect x="58.5387%" y="245" width="0.0126%" height="15" fill="rgb(253,215,39)" fg:x="4631" fg:w="1"/><text x="58.7887%" y="255.50"></text></g><g><title>OrbStack Helper`DYLD-STUB$$os_unfair_lock_lock (2 samples, 0.03%)</title><rect x="58.5514%" y="245" width="0.0253%" height="15" fill="rgb(221,220,41)" fg:x="4632" fg:w="2"/><text x="58.8014%" y="255.50"></text></g><g><title>OrbStack Helper`devices::virtio::descriptor_utils::Reader::read_to_at (1 samples, 0.01%)</title><rect x="58.5767%" y="197" width="0.0126%" height="15" fill="rgb(218,133,21)" fg:x="4634" fg:w="1"/><text x="58.8267%" y="207.50"></text></g><g><title>libsystem_kernel.dylib`pwritev (1 samples, 0.01%)</title><rect x="58.5767%" y="181" width="0.0126%" height="15" fill="rgb(221,193,43)" fg:x="4634" fg:w="1"/><text x="58.8267%" y="191.50"></text></g><g><title>OrbStack Helper`devices::bus::Bus::write (3 samples, 0.04%)</title><rect x="58.5767%" y="245" width="0.0379%" height="15" fill="rgb(240,128,52)" fg:x="4634" fg:w="3"/><text x="58.8267%" y="255.50"></text></g><g><title>OrbStack Helper`&lt;devices::virtio::mmio::MmioTransport as devices::bus::BusDevice&gt;::write (3 samples, 0.04%)</title><rect x="58.5767%" y="229" width="0.0379%" height="15" fill="rgb(253,114,12)" fg:x="4634" fg:w="3"/><text x="58.8267%" y="239.50"></text></g><g><title>OrbStack Helper`devices::virtio::block::worker::BlockWorker::process_virtio_queues (3 samples, 0.04%)</title><rect x="58.5767%" y="213" width="0.0379%" height="15" fill="rgb(215,223,47)" fg:x="4634" fg:w="3"/><text x="58.8267%" y="223.50"></text></g><g><title>OrbStack Helper`devices::virtio::descriptor_utils::Writer::write_from_at (2 samples, 0.03%)</title><rect x="58.5893%" y="197" width="0.0253%" height="15" fill="rgb(248,225,23)" fg:x="4635" fg:w="2"/><text x="58.8393%" y="207.50"></text></g><g><title>libsystem_kernel.dylib`preadv (2 samples, 0.03%)</title><rect x="58.5893%" y="181" width="0.0253%" height="15" fill="rgb(250,108,0)" fg:x="4635" fg:w="2"/><text x="58.8393%" y="191.50"></text></g><g><title>Hypervisor`hv_trap (2 samples, 0.03%)</title><rect x="58.6146%" y="181" width="0.0253%" height="15" fill="rgb(228,208,7)" fg:x="4637" fg:w="2"/><text x="58.8646%" y="191.50"></text></g><g><title>OrbStack Helper`devices::bus::Bus::write_sysreg (3 samples, 0.04%)</title><rect x="58.6146%" y="245" width="0.0379%" height="15" fill="rgb(244,45,10)" fg:x="4637" fg:w="3"/><text x="58.8646%" y="255.50"></text></g><g><title>OrbStack Helper`&lt;devices::legacy::gic::v3::UserspaceGicV3 as devices::legacy::gic::multiplexer::UserspaceGicImpl&gt;::write_sysreg (3 samples, 0.04%)</title><rect x="58.6146%" y="229" width="0.0379%" height="15" fill="rgb(207,125,25)" fg:x="4637" fg:w="3"/><text x="58.8646%" y="239.50"></text></g><g><title>OrbStack Helper`gicv3::device_write::_&lt;impl gicv3::device::GicV3&gt;::write_sysreg (3 samples, 0.04%)</title><rect x="58.6146%" y="213" width="0.0379%" height="15" fill="rgb(210,195,18)" fg:x="4637" fg:w="3"/><text x="58.8646%" y="223.50"></text></g><g><title>OrbStack Helper`&lt;devices::legacy::gic::v3::HvfGicEventHandler as gicv3::device::GicV3EventHandler&gt;::kick_vcpu_for_irq (3 samples, 0.04%)</title><rect x="58.6146%" y="197" width="0.0379%" height="15" fill="rgb(249,80,12)" fg:x="4637" fg:w="3"/><text x="58.8646%" y="207.50"></text></g><g><title>libdispatch.dylib`_dispatch_semaphore_signal_slow (1 samples, 0.01%)</title><rect x="58.6399%" y="181" width="0.0126%" height="15" fill="rgb(221,65,9)" fg:x="4639" fg:w="1"/><text x="58.8899%" y="191.50"></text></g><g><title>libsystem_kernel.dylib`semaphore_signal_trap (1 samples, 0.01%)</title><rect x="58.6399%" y="165" width="0.0126%" height="15" fill="rgb(235,49,36)" fg:x="4639" fg:w="1"/><text x="58.8899%" y="175.50"></text></g><g><title>OrbStack Helper`devices::virtio::fs::hvc::FsHvcDevice::handle_hvc (1 samples, 0.01%)</title><rect x="58.6525%" y="245" width="0.0126%" height="15" fill="rgb(225,32,20)" fg:x="4640" fg:w="1"/><text x="58.9025%" y="255.50"></text></g><g><title>OrbStack Helper`hvf::aarch64::HvfVcpu::handle_hvc (5 samples, 0.06%)</title><rect x="58.6651%" y="245" width="0.0632%" height="15" fill="rgb(215,141,46)" fg:x="4641" fg:w="5"/><text x="58.9151%" y="255.50"></text></g><g><title>OrbStack Helper`hvf::aarch64::HvfVcpu::read_gp_reg (1 samples, 0.01%)</title><rect x="58.7284%" y="245" width="0.0126%" height="15" fill="rgb(250,160,47)" fg:x="4646" fg:w="1"/><text x="58.9784%" y="255.50"></text></g><g><title>Hypervisor`hv_trap (3,224 samples, 40.75%)</title><rect x="58.8674%" y="229" width="40.7534%" height="15" fill="rgb(216,222,40)" fg:x="4657" fg:w="3224"/><text x="59.1174%" y="239.50">Hypervisor`hv_trap</text></g><g><title>Hypervisor`hv_vcpu_get_reg (2 samples, 0.03%)</title><rect x="99.6208%" y="229" width="0.0253%" height="15" fill="rgb(234,217,39)" fg:x="7881" fg:w="2"/><text x="99.8708%" y="239.50"></text></g><g><title>Hypervisor`hv_vcpu_run (9 samples, 0.11%)</title><rect x="99.6461%" y="229" width="0.1138%" height="15" fill="rgb(207,178,40)" fg:x="7883" fg:w="9"/><text x="99.8961%" y="239.50"></text></g><g><title>OrbStack Helper`hvf::aarch64::HvfVcpu::run (3,254 samples, 41.13%)</title><rect x="58.7410%" y="245" width="41.1326%" height="15" fill="rgb(221,136,13)" fg:x="4647" fg:w="3254"/><text x="58.9910%" y="255.50">OrbStack Helper`hvf::aarch64::HvfVcpu::run</text></g><g><title>OrbStack Helper`hvf::aarch64::HvfVcpu::handle_hvc (9 samples, 0.11%)</title><rect x="99.7598%" y="229" width="0.1138%" height="15" fill="rgb(249,199,10)" fg:x="7892" fg:w="9"/><text x="100.0098%" y="239.50"></text></g><g><title>OrbStack Helper`std::sys::pal::unix::thread::Thread::new::thread_start (7,884 samples, 99.66%)</title><rect x="0.3287%" y="309" width="99.6587%" height="15" fill="rgb(249,222,13)" fg:x="26" fg:w="7884"/><text x="0.5787%" y="319.50">OrbStack Helper`std::sys::pal::unix::thread::Thread::new::thread_start</text></g><g><title>OrbStack Helper`core::ops::function::FnOnce::call_once{{vtable.shim}} (7,884 samples, 99.66%)</title><rect x="0.3287%" y="293" width="99.6587%" height="15" fill="rgb(244,185,38)" fg:x="26" fg:w="7884"/><text x="0.5787%" y="303.50">OrbStack Helper`core::ops::function::FnOnce::call_once{{vtable.shim}}</text></g><g><title>OrbStack Helper`std::sys_common::backtrace::__rust_begin_short_backtrace (7,884 samples, 99.66%)</title><rect x="0.3287%" y="277" width="99.6587%" height="15" fill="rgb(236,202,9)" fg:x="26" fg:w="7884"/><text x="0.5787%" y="287.50">OrbStack Helper`std::sys_common::backtrace::__rust_begin_short_backtrace</text></g><g><title>OrbStack Helper`vmm::macos::vstate::Vcpu::run (7,877 samples, 99.57%)</title><rect x="0.4171%" y="261" width="99.5702%" height="15" fill="rgb(250,229,37)" fg:x="33" fg:w="7877"/><text x="0.6671%" y="271.50">OrbStack Helper`vmm::macos::vstate::Vcpu::run</text></g><g><title>OrbStack Helper`std::thread::park_timeout (9 samples, 0.11%)</title><rect x="99.8736%" y="245" width="0.1138%" height="15" fill="rgb(206,174,23)" fg:x="7901" fg:w="9"/><text x="100.1236%" y="255.50"></text></g><g><title>libdispatch.dylib`_dispatch_semaphore_wait_slow (9 samples, 0.11%)</title><rect x="99.8736%" y="229" width="0.1138%" height="15" fill="rgb(211,33,43)" fg:x="7901" fg:w="9"/><text x="100.1236%" y="239.50"></text></g><g><title>libsystem_kernel.dylib`semaphore_timedwait_trap (8 samples, 0.10%)</title><rect x="99.8862%" y="213" width="0.1011%" height="15" fill="rgb(245,58,50)" fg:x="7902" fg:w="8"/><text x="100.1362%" y="223.50"></text></g><g><title>all (7,911 samples, 100%)</title><rect x="0.0000%" y="357" width="100.0000%" height="15" fill="rgb(244,68,36)" fg:x="0" fg:w="7911"/><text x="0.2500%" y="367.50"></text></g><g><title>libsystem_pthread.dylib`thread_start (7,885 samples, 99.67%)</title><rect x="0.3287%" y="341" width="99.6713%" height="15" fill="rgb(232,229,15)" fg:x="26" fg:w="7885"/><text x="0.5787%" y="351.50">libsystem_pthread.dylib`thread_start</text></g><g><title>libsystem_pthread.dylib`_pthread_start (7,885 samples, 99.67%)</title><rect x="0.3287%" y="325" width="99.6713%" height="15" fill="rgb(254,30,23)" fg:x="26" fg:w="7885"/><text x="0.5787%" y="335.50">libsystem_pthread.dylib`_pthread_start</text></g><g><title>OrbStack Helper`threadentry (1 samples, 0.01%)</title><rect x="99.9874%" y="309" width="0.0126%" height="15" fill="rgb(235,160,14)" fg:x="7910" fg:w="1"/><text x="100.2374%" y="319.50"></text></g><g><title>OrbStack Helper`crosscall1 (1 samples, 0.01%)</title><rect x="99.9874%" y="293" width="0.0126%" height="15" fill="rgb(212,155,44)" fg:x="7910" fg:w="1"/><text x="100.2374%" y="303.50"></text></g><g><title>OrbStack Helper`runtime.mstart.abi0 (1 samples, 0.01%)</title><rect x="99.9874%" y="277" width="0.0126%" height="15" fill="rgb(226,2,50)" fg:x="7910" fg:w="1"/><text x="100.2374%" y="287.50"></text></g><g><title>OrbStack Helper`runtime.mstart0 (1 samples, 0.01%)</title><rect x="99.9874%" y="261" width="0.0126%" height="15" fill="rgb(234,177,6)" fg:x="7910" fg:w="1"/><text x="100.2374%" y="271.50"></text></g><g><title>OrbStack Helper`runtime.mstart1 (1 samples, 0.01%)</title><rect x="99.9874%" y="245" width="0.0126%" height="15" fill="rgb(217,24,9)" fg:x="7910" fg:w="1"/><text x="100.2374%" y="255.50"></text></g><g><title>OrbStack Helper`runtime.sysmon (1 samples, 0.01%)</title><rect x="99.9874%" y="229" width="0.0126%" height="15" fill="rgb(220,13,46)" fg:x="7910" fg:w="1"/><text x="100.2374%" y="239.50"></text></g><g><title>OrbStack Helper`runtime.unlock2 (1 samples, 0.01%)</title><rect x="99.9874%" y="213" width="0.0126%" height="15" fill="rgb(239,221,27)" fg:x="7910" fg:w="1"/><text x="100.2374%" y="223.50"></text></g></svg></svg>
