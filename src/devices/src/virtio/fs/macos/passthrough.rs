@@ -669,11 +669,6 @@ impl PassthroughFs {
         st.st_uid = ctx.uid;
         st.st_gid = ctx.gid;
 
-        debug!(
-            "finish_lookup: dev={} ino={} ref={:?}",
-            st.st_dev, st.st_ino, file_ref
-        );
-
         // race OK: if we fail to find a nodeid by (dev,ino), we'll just make a new one, and old one will gradually be forgotten
         let dev_ino = (st.st_dev, st.st_ino);
         let nodeid = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
@@ -768,6 +763,11 @@ impl PassthroughFs {
         // root generation must be zero
         // for other inodes, we ignore st_gen because getattrlistbulk (readdirplus) doesn't support it, so returning it here would break revalidate
         st.st_gen = 0;
+
+        debug!(
+            "finish_lookup: dev={} ino={} ref={:?} -> nodeid={}",
+            st.st_dev, st.st_ino, file_ref, nodeid
+        );
 
         Ok(Entry {
             nodeid,
@@ -913,6 +913,7 @@ impl PassthroughFs {
             !flags.contains(OFlag::O_DIRECTORY) && !flags.contains(OFlag::O_WRONLY);
         let data = HandleData::new(nodeid, file, is_readable_file, &self.poller)?;
 
+        debug!("open_nodeid: nodeid={} -> handle={:?}", nodeid, handle);
         self.handles.insert(handle, Arc::new(data));
 
         let mut opts = OpenOptions::empty();
@@ -2126,12 +2127,14 @@ impl FileSystem for PassthroughFs {
             }
 
             FALLOC_FL_KEEP_SIZE_AND_PUNCH_HOLE => {
+                let st = fstat(file.as_fd(), true)?;
+
                 let zero_start = offset as libc::off_t;
-                let zero_end = (offset + length) as libc::off_t;
+                // the file must not grow. F_PUNCHHOLE can grow it
+                let zero_end = (offset + length).min(st.st_size as u64) as libc::off_t;
 
                 // macOS requires FS block size alignment
                 // Linux zeroes partial blocks
-                let st = fstat(file.as_fd(), true)?;
                 let block_size = st.st_blksize as libc::off_t;
                 // start: round up
                 let hole_start = (zero_start + block_size - 1) / block_size * block_size;
