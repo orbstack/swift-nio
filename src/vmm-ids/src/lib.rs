@@ -36,6 +36,7 @@ bitflags::bitflags! {
         const EXIT_LOOP = 1 << 0;
         const DESTROY_VM = 1 << 1;
         const INTERRUPT = 1 << 2;
+        const PAUSE = 1 << 3;
 
         const ANY_SHUTDOWN = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits();
     }
