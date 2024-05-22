@@ -6,6 +6,8 @@ import Foundation
 import SwiftUI
 import AppKit
 
+private let MAX_INLINE_DESC_CHARS = 500
+
 struct AKAlert<T: Equatable>: ViewModifier {
     @Binding var presentedData: T?
     @StateObject private var windowHolder = WindowHolder()
@@ -107,7 +109,8 @@ struct AKAlertContent {
          button2Action: (() -> Void)? = nil) {
         self.title = title
         self.desc = desc
-        self.scrollableText = scrollableText
+        // always use scrollable if text is too long
+        self.scrollableText = scrollableText || (desc?.count ?? 0) > MAX_INLINE_DESC_CHARS
         self.style = style
         self.button1Label = button1Label
         self.button1Action = button1Action
