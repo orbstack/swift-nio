@@ -331,17 +331,23 @@ impl Machine {
 
         std::thread::Builder::new()
             .name("VMM main loop".to_string())
-            .spawn(move || loop {
-                event_manager.run().unwrap();
+            .spawn(move || {
+                let counter_display = counter::default_env_filter()
+                    .map(|filter| counter::display_every(filter, Duration::from_millis(1000)));
 
-                if event_manager
-                    .last_ready_events()
-                    .iter()
-                    .any(|ev| ev.fd() == exit_evt)
-                {
-                    tracing::debug!("VM successfully torn-down.");
-                    unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
-                    break;
+                loop {
+                    event_manager.run().unwrap();
+
+                    if event_manager
+                        .last_ready_events()
+                        .iter()
+                        .any(|ev| ev.fd() == exit_evt)
+                    {
+                        drop(counter_display);
+                        tracing::info!("VM successfully torn-down.");
+                        unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
+                        break;
+                    }
                 }
             })?;
 
@@ -375,10 +381,6 @@ fn init_logger_once() {
 
     INIT.call_once(|| {
         tracing_subscriber::fmt::init();
-
-        if let Some(filter) = counter::default_env_filter() {
-            std::mem::forget(counter::display_every(filter, Duration::from_millis(1000)));
-        }
     });
 }
 
