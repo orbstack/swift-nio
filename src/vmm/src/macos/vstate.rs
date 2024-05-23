@@ -947,6 +947,8 @@ impl Vcpu {
             }
         }
 
+        drop(vcpu_loop_exit_guard);
+
         // Now, we just have to wait for the permission to destroy our vCPUs. We can't just let these
         // become dangling handles because cause an entire list of vCPUs to exit requires all handles
         // in that list to exit successfully.
