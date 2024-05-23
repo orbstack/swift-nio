@@ -11,6 +11,11 @@ use std::{
 
 use parking_lot::Mutex;
 
+counter::counter! {
+    COUNT_ASSERT_SLOW in "gruel.signal.assert_slow": counter::RateCounter = counter::RateCounter::new(FILTER);
+    COUNT_WAIT_SLOW in "gruel.signal.wait_slow": counter::RateCounter = counter::RateCounter::new(FILTER);
+}
+
 #[derive(Default)]
 pub struct RawSignalChannelInner {
     /// The bit-flag of signals currently asserted on this signal. If a bit is set, it is guaranteed
@@ -44,6 +49,14 @@ impl RawSignalChannelInner {
             return;
         }
 
+        counter::cfg! {
+            if "gruel.signal.assert_slow" {
+                if self.waker.try_lock().is_none() {
+                    COUNT_ASSERT_SLOW.count();
+                }
+            }
+        }
+
         // Otherwise, we need to try and wake the worker. If it's a false positive, this will early
         // return in the handler body.
         if let Some(handler) = &mut *self.waker.lock() {
@@ -73,6 +86,14 @@ impl RawSignalChannelInner {
 
             waker();
         };
+
+        counter::cfg! {
+            if "gruel.signal.wait_slow" {
+                if self.waker.try_lock().is_none() {
+                    COUNT_WAIT_SLOW.count();
+                }
+            }
+        }
 
         // Begin critical section!
         let mut waker_mutex = self.waker.lock();
