@@ -603,6 +603,7 @@ dependencies = [
  "iced-x86",
  "libc",
  "nix 0.28.0",
+ "once_cell",
  "rustc-hash",
  "thiserror",
  "tracing",
@@ -695,6 +696,7 @@ name = "krun"
 version = "1.8.1"
 dependencies = [
  "anyhow",
+ "arch",
  "color-backtrace",
  "counter",
  "crossbeam-channel",

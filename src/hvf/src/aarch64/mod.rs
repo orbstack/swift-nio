@@ -8,9 +8,11 @@
 #[allow(non_upper_case_globals)]
 #[allow(deref_nullptr)]
 mod bindings;
+use arch::aarch64::{layout, MMIO_SHM_SIZE};
 use bindings::*;
 use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
+use once_cell::sync::Lazy;
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap, VolatileMemory};
 
 use dlopen::wrapper::{Container, WrapperApi};
@@ -90,6 +92,9 @@ macro_rules! arm64_sys_reg {
 }
 
 arm64_sys_reg!(SYSREG_MASK, 0x3, 0x7, 0x7, 0xf, 0xf);
+
+static HVF_OPTIONAL: Lazy<Option<Container<HvfOptional>>> =
+    Lazy::new(|| unsafe { Container::load_self() }.ok());
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -213,10 +218,8 @@ pub struct HvfVm {}
 
 impl HvfVm {
     pub fn new(guest_mem: &GuestMemoryMmap) -> Result<Self, Error> {
-        let hvf_optional: Option<Container<HvfOptional>> = unsafe { Container::load_self() }.ok();
-
         // safe: infallible
-        let config = if let Some(ref hvf_optional) = hvf_optional {
+        let config = if let Some(hvf_optional) = HVF_OPTIONAL.as_ref() {
             unsafe { hvf_optional.hv_vm_config_create() }
         } else {
             std::ptr::null_mut()
@@ -225,15 +228,15 @@ impl HvfVm {
         // how many IPA bits do we need? check highest guest mem address
         let ipa_bits = guest_mem.last_addr().raw_value().ilog2() + 1;
         debug!("IPA size: {} bits", ipa_bits);
-        if ipa_bits > Self::get_default_ipa_size(&hvf_optional) {
+        if ipa_bits > Self::get_default_ipa_size() {
             // if we need more than default, make sure HW supports it
-            if ipa_bits > Self::get_max_ipa_size(&hvf_optional) {
+            if ipa_bits > Self::get_max_ipa_size() {
                 return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
             }
 
             // it's supported. set it
             let ret = unsafe {
-                hvf_optional
+                HVF_OPTIONAL
                     .as_ref()
                     .unwrap()
                     .hv_vm_config_set_ipa_size(config, ipa_bits)
@@ -297,8 +300,8 @@ impl HvfVm {
         }
     }
 
-    fn get_default_ipa_size(hvf_optional: &Option<Container<HvfOptional>>) -> u32 {
-        if let Some(hvf_optional) = hvf_optional {
+    fn get_default_ipa_size() -> u32 {
+        if let Some(hvf_optional) = HVF_OPTIONAL.as_ref() {
             let mut ipa_bit_length: u32 = 0;
             unsafe { hvf_optional.hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
             ipa_bit_length
@@ -307,14 +310,20 @@ impl HvfVm {
         }
     }
 
-    fn get_max_ipa_size(hvf_optional: &Option<Container<HvfOptional>>) -> u32 {
-        if let Some(hvf_optional) = hvf_optional {
+    fn get_max_ipa_size() -> u32 {
+        if let Some(hvf_optional) = HVF_OPTIONAL.as_ref() {
             let mut ipa_bit_length: u32 = 0;
             unsafe { hvf_optional.hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
             ipa_bit_length
         } else {
             36
         }
+    }
+
+    pub fn max_ram_size() -> u64 {
+        let max_addr = 1 << Self::get_max_ipa_size() - 1;
+        let max_ram_addr = max_addr - MMIO_SHM_SIZE - 0x4000_0000; // shm rounding (ceil) = 1 GiB
+        max_ram_addr - layout::DRAM_MEM_START
     }
 }
 

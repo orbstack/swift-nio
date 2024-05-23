@@ -15,7 +15,7 @@ use utils::Mutex;
 use anyhow::{anyhow, Context};
 use crossbeam_channel::unbounded;
 use devices::virtio::{net::device::VirtioNetBackend, CacheType, FsCallbacks, NfsInfo};
-use hvf::MemoryMapping;
+use hvf::{HvfVm, MemoryMapping};
 use libc::strdup;
 use nix::{
     sys::time::TimeValLike,
@@ -107,6 +107,13 @@ fn parse_mac_addr(s: &str) -> anyhow::Result<[u8; 6]> {
         .map(|v| v.try_into().unwrap())?)
 }
 
+// same as Go mem.PhysicalMemory
+fn system_total_memory() -> usize {
+    let pages = unsafe { libc::sysconf(libc::_SC_PHYS_PAGES) };
+    let page_size = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) };
+    pages as usize * page_size as usize
+}
+
 #[derive(Debug)]
 struct GoFsCallbacks {
     last_report_time: AtomicI64,
@@ -146,10 +153,16 @@ impl Machine {
         #[cfg(target_arch = "aarch64")]
         let ht_enabled = false;
 
+        // clamp memory
+        let mem_size = spec
+            .memory
+            .min(HvfVm::max_ram_size() as usize)
+            .min(system_total_memory());
+
         // resources
         vmr.set_vm_config(&VmConfig {
             vcpu_count: Some(spec.cpus),
-            mem_size_mib: Some(spec.memory / 1024 / 1024),
+            mem_size_mib: Some(mem_size / 1024 / 1024),
             ht_enabled: Some(ht_enabled),
             cpu_template: None,
             #[cfg(target_arch = "aarch64")]
@@ -171,8 +184,8 @@ impl Machine {
             vmr.set_kernel_bundle(KernelBundle {
                 load_range: 0..kernel_data.len(),
                 data: kernel_data,
-                guest_addr: 0x80000000,
-                entry_addr: 0x80000000,
+                guest_addr: arch::aarch64::get_kernel_start(),
+                entry_addr: arch::aarch64::get_kernel_start(),
             })
             .map_err(to_anyhow_error)?;
         }

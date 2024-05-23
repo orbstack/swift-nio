@@ -37,6 +37,7 @@ nix = { version = "0.28.0", features = ["time"] }
 
 counter = { path = "../counter" }
 tikv-jemallocator = "0.5.4"
+arch = { version = "0.1.0", path = "../arch" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }

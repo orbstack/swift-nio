@@ -294,6 +294,11 @@ impl HvfVm {
             error!("Failed to destroy HVF VM: {res}");
         }
     }
+
+    // x86 IPA size is always larger than system RAM, so just clamp to total system RAM
+    pub fn max_ram_size() -> u64 {
+        u64::MAX
+    }
 }
 
 #[derive(Debug)]
