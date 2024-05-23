@@ -747,7 +747,7 @@ impl Vcpu {
             }
 
             // (this should never happen if we haven't exited the loop yet)
-            debug_assert!(!signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
+            debug_assert!(signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
 
             let Ok(park_task_tmp) = parker.process_park_commands(&signal, park_task) else {
                 info!(
@@ -907,7 +907,7 @@ impl Vcpu {
             }
 
             // (this should never happen if we haven't exited the loop yet)
-            debug_assert!(!signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
+            debug_assert!(signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
 
             let Ok(park_task_tmp) = parker.process_park_commands(&signal, park_task) else {
                 info!(
