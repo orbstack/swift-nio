@@ -60,6 +60,13 @@ func (c *VmConfig) Validate() error {
 		return fmt.Errorf("memory must be at least %d MiB", minMemoryMib)
 	}
 
+	// idk if this is user error or an old GUI bug, but fix MemoryMiB being set as bytes:
+	// max reasonable memory is 1.5
+	if c.MemoryMiB/1024/1024 >= 2 {
+		// wrong unit. fix it
+		c.MemoryMiB = c.MemoryMiB / 1024 / 1024
+	}
+
 	// clamp cpus
 	c.CPU = min(c.CPU, runtime.NumCPU())
 	c.CPU = max(c.CPU, 1)
