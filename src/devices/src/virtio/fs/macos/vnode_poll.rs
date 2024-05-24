@@ -60,6 +60,7 @@ struct KrpcNotifyproxyInject {
 }
 
 bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
     pub struct NpFlag: u32 {
         const NP_FLAG_CREATE = 1 << 0;
         const NP_FLAG_MODIFY = 1 << 1;

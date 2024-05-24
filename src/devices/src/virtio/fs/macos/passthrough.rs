@@ -495,10 +495,11 @@ struct NodeData {
 }
 
 bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
     pub struct NodeFlags: u16 {
         // inherited
         const LINK_AS_CLONE = 1 << 0;
-        const INHERITED_FLAGS = Self::LINK_AS_CLONE.bits;
+        const INHERITED_FLAGS = Self::LINK_AS_CLONE.bits();
 
         // per-node
         const NO_SYNC_IO = 1 << 1;

@@ -33,6 +33,7 @@ pub const FATTR_LOCKOWNER: u32 = 512;
 const FATTR_CTIME: u32 = 1024;
 
 bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
     pub struct SetattrValid: u32 {
         const MODE = FATTR_MODE;
         const UID = FATTR_UID;
@@ -63,6 +64,7 @@ const FOPEN_CACHE_DIR: u32 = 8;
 bitflags! {
     /// Options controlling the behavior of files opened by the server in response
     /// to an open or create request.
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
     pub struct OpenOptions: u32 {
         const DIRECT_IO = FOPEN_DIRECT_IO;
         const KEEP_CACHE = FOPEN_KEEP_CACHE;
@@ -184,6 +186,7 @@ const CREATE_SUPP_GROUP: u64 = 1 << 34;
 bitflags! {
     /// A bitfield passed in as a parameter to and returned from the `init` method of the
     /// `FileSystem` trait.
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
     pub struct FsOptions: u64 {
         /// Indicates that the filesystem supports asynchronous read requests.
         ///
@@ -482,6 +485,7 @@ const IOCTL_COMPAT_X32: u32 = 32;
 const IOCTL_MAX_IOV: u32 = 256;
 
 bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
     pub struct IoctlFlags: u32 {
         /// 32bit compat ioctl on 64bit machine
         const IOCTL_COMPAT = IOCTL_COMPAT;
@@ -1239,9 +1243,10 @@ pub struct CopyfilerangeIn {
 unsafe impl ByteValued for CopyfilerangeIn {}
 
 bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
     pub struct SetupmappingFlags: u64 {
-    const WRITE = 0x1;
-    const READ = 0x2;
+        const WRITE = 0x1;
+        const READ = 0x2;
     }
 }
 

@@ -19,6 +19,7 @@ pub enum ControlOperation {
 }
 
 bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
     pub struct EventSet: u32 {
         const IN = 0b00000001;
         const OUT = 0b00000010;

@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bitflags = "2.4.2"
+bitflags = "2.5.0"
 gruel = { version = "0.1.0", path = "../gruel" }
 newt = { version = "0.1.0", path = "../newt" }

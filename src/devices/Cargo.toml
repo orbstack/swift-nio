@@ -14,7 +14,7 @@ efi = ["blk", "net"]
 gpu = ["rutabaga_gfx", "thiserror"]
 
 [dependencies]
-bitflags = "1.2.0"
+bitflags = "2.5.0"
 crossbeam-channel = "0.5"
 libc = ">=0.2.39"
 tracing = { version = "0.1.40", features = ["release_max_level_info"] }
