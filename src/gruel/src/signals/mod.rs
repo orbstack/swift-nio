@@ -1,4 +1,4 @@
-use std::{fmt, hash, marker::PhantomData, sync::Arc, time::Duration};
+use std::{fmt, hash, io, marker::PhantomData, sync::Arc, time::Duration};
 
 use bitflags::Flags;
 use thiserror::Error;
@@ -429,6 +429,30 @@ pub trait QueueRecvSignalChannelExt: AnySignalChannel {
 }
 
 impl<T: AnySignalChannel> QueueRecvSignalChannelExt for T {}
+
+// MIO integration
+pub trait MioSignalChannelExt: AnySignalChannel {
+    fn wait_on_poll(
+        &self,
+        wake_mask: Self::Mask,
+        poll: &mut mio::Poll,
+        events: &mut mio::Events,
+        waker: &mio::Waker,
+    ) -> io::Result<()> {
+        self.wait(
+            wake_mask,
+            || {
+                if let Err(err) = waker.wake() {
+                    log::error!("failed to wake epoll target: {err}");
+                }
+            },
+            || poll.poll(events, None),
+        )
+        .unwrap_or(Ok(()))
+    }
+}
+
+impl<T: AnySignalChannel> MioSignalChannelExt for T {}
 
 // Queue Communication
 
