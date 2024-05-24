@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use aho_corasick::AhoCorasick;
-use litrs::StringLit;
+use litrs::{BoolLit, StringLit};
 use proc_macro::{Delimiter, Group, Literal, Punct, Spacing, TokenStream, TokenTree};
 
 const ENV_COMPILED_COUNTERS: &str =
@@ -20,6 +20,20 @@ pub fn cfg_aho(input: TokenStream) -> TokenStream {
         return pm_error("expected group as second argument");
     };
 
+    let are_debug_assertions_enabled = match input.next() {
+        Some(tt) => strip_parent_macro_groups(tt),
+        None => return pm_error("expected debug assertion status as third argument"),
+    };
+
+    let are_debug_assertions_enabled = match BoolLit::try_from(are_debug_assertions_enabled) {
+        Ok(name) => name,
+        Err(err) => {
+            return pm_error(&format!(
+                "expected debug assertion status as third argument: {err}"
+            ))
+        }
+    };
+
     let name = match input.next() {
         Some(tt) => strip_parent_macro_groups(tt),
         None => return if_okay.stream(),
@@ -35,19 +49,27 @@ pub fn cfg_aho(input: TokenStream) -> TokenStream {
     };
 
     if input.next().is_some() {
-        return pm_error("expected at most three arguments");
+        return pm_error("expected at most four arguments");
     }
 
     // Build a filter
-    let filter = AhoCorasick::builder()
-        .ascii_case_insensitive(true)
-        .build(ENV_COMPILED_COUNTERS.split(','))
-        .unwrap();
-
-    if filter.is_match(name.value()) {
-        if_okay.stream()
+    if ENV_COMPILED_COUNTERS == "COUNTER_SENTINEL_NOT_SPECIFIED" {
+        if are_debug_assertions_enabled.value() {
+            if_okay.stream()
+        } else {
+            if_not_okay.stream()
+        }
     } else {
-        if_not_okay.stream()
+        let filter = AhoCorasick::builder()
+            .ascii_case_insensitive(true)
+            .build(ENV_COMPILED_COUNTERS.split(','))
+            .unwrap();
+
+        if filter.is_match(name.value()) {
+            if_okay.stream()
+        } else {
+            if_not_okay.stream()
+        }
     }
 }
 

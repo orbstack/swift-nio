@@ -225,12 +225,35 @@ pub mod global_counter_inner {
 }
 
 #[macro_export]
+#[cfg(debug_assertions)]
 macro_rules! cfg {
-    (if $filter:literal { $($true:tt)* } $(else { $($false:tt)* })?) => {
+    (if $($filter:literal)? { $($true:tt)* } $(else { $($false:tt)* })?) => {
         $crate::global_counter_inner::cfg_aho! {
+            // If true
             { $($true)* }
+            // If false
             { $($($false)*)? }
-            $filter
+            // Is debug mode?
+            true
+            // Filter
+            $($filter)?
+        }
+    };
+}
+
+#[macro_export]
+#[cfg(not(debug_assertions))]
+macro_rules! cfg {
+    (if $($filter:literal)? { $($true:tt)* } $(else { $($false:tt)* })?) => {
+        $crate::global_counter_inner::cfg_aho! {
+            // If true
+            { $($true)* }
+            // If false
+            { $($($false)*)? }
+            // Is debug mode?
+            false
+            // Filter
+            $($filter)?
         }
     };
 }
@@ -241,9 +264,8 @@ macro_rules! counter {
         $(#[$attr:meta])*
         $vis:vis $name:ident $(in $filter:literal)? : $ty:ty = $init:expr;
     )*) => {$(
-        $crate::global_counter_inner::cfg_aho! {
-            // If matched
-            {
+        $crate::cfg! {
+            if $($filter)? {
                 $(#[$attr])*
                 $vis static $name: $ty = {
                     $(const FILTER: &str = $filter;)?
@@ -253,15 +275,11 @@ macro_rules! counter {
 
                     $init
                 };
-            }
-            // If not matched
-            {
+            } else {
                 $(#[$attr])*
                 $vis static $name: <$ty as $crate::global_counter_inner::DisableableCounter>::Dummy =
                     <<$ty as $crate::global_counter_inner::DisableableCounter>::Dummy>::new();
             }
-            // Name
-            $($filter)?
         }
     )*};
 }

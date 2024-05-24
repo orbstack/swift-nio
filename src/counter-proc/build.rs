@@ -9,7 +9,9 @@ fn main() {
             path.push("env_compiled_counters.txt");
             path
         },
-        std::env::var("CARGO_CFG_COMPILED_COUNTERS").unwrap_or_default(),
+        std::env::var("CARGO_CFG_COMPILED_COUNTERS")
+            .as_deref()
+            .unwrap_or("COUNTER_SENTINEL_NOT_SPECIFIED"),
     )
     .unwrap();
 }
