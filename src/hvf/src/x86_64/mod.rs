@@ -31,7 +31,7 @@ use rustc_hash::FxHashMap;
 use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryMmap};
 
 use core::panic;
-use std::arch::x86_64::__cpuid_count;
+use std::arch::x86_64::{__cpuid, __cpuid_count};
 use std::convert::TryInto;
 use std::ffi::c_void;
 use std::sync::Arc;
@@ -151,7 +151,7 @@ pub enum Error {
     VmCreate,
     #[error("space create")]
     SpaceCreate,
-    #[error("init sregs")]
+    #[error("init sregs: {0:?}")]
     InitSregs(arch::x86_64::regs::Error),
     #[error("vcpu exit apic access read")]
     VcpuExitApicAccessRead,
@@ -169,6 +169,8 @@ pub enum Error {
     VcpuStartupAp,
     #[error("vm allocate")]
     VmAllocate,
+    #[error("Intel CPUs newer than Ice Lake (10th generation), the newest CPU ever shipped in an Intel Mac, are not supported")]
+    CpuUnsupported,
 }
 
 /// Messages for requesting memory maps/unmaps.
@@ -215,10 +217,13 @@ pub struct HvfVm {}
 
 impl HvfVm {
     pub fn new(_guest_mem: &GuestMemoryMmap) -> Result<Self, Error> {
+        // this will weed out AMD CPUs
         let ret = unsafe { hv_vm_create((HV_VM_DEFAULT | HV_VM_ACCEL_APIC) as u64) };
         if ret != HV_SUCCESS {
             return Err(Error::VmCreate);
         }
+
+        check_cpuid()?;
 
         Ok(Self {})
     }
@@ -2039,5 +2044,55 @@ pub unsafe fn vm_deallocate(ptr: *mut c_void, size: usize) -> Result<(), Error> 
         Err(Error::VmAllocate)
     } else {
         Ok(())
+    }
+}
+
+fn get_cpuid_family_model() -> (u32, u32) {
+    let res = unsafe { __cpuid(1) };
+    let base_model = (res.eax >> 4) & 0b1111;
+    let base_family = (res.eax >> 8) & 0b1111;
+    let extended_model = (res.eax >> 16) & 0b1111;
+    let extended_family = (res.eax >> 20) & 0b11111111;
+
+    /*
+    The actual processor model is derived from the Model, Extended Model ID and Family ID fields. If the Family ID field is either 6 or 15, the model is equal to the sum of the Extended Model ID field shifted left by 4 bits and the Model field. Otherwise, the model is equal to the value of the Model field.
+
+    The actual processor family is derived from the Family ID and Extended Family ID fields. If the Family ID field is equal to 15, the family is equal to the sum of the Extended Family ID and the Family ID fields. Otherwise, the family is equal to the value of the Family ID field.
+    */
+    let model = if base_family == 6 || base_family == 15 {
+        (extended_model << 4) | base_model
+    } else {
+        base_model
+    };
+    let family = if base_family == 15 {
+        base_family + extended_family
+    } else {
+        base_family
+    };
+
+    (family, model)
+}
+
+fn check_cpuid() -> Result<(), Error> {
+    let (family, model) = get_cpuid_family_model();
+    if family != 6 {
+        return Err(Error::VmCreate);
+    }
+
+    match model {
+        // Haswell
+        0x3c | 0x3f | 0x45 | 0x46 => Ok(()),
+        // Broadwell
+        0x3d | 0x47 | 0x4f | 0x56 => Ok(()),
+        // Skylake
+        0x4e | 0x5e | 0x55 => Ok(()),
+        // Kaby Lake, Coffee Lake
+        0x8e | 0x9e => Ok(()),
+        // no Comet Lake
+        // Cannon Lake
+        0x66 => Ok(()),
+        // Ice Lake
+        0x6a | 0x6c | 0x7d | 0x7e | 0x9d => Ok(()),
+        _ => Err(Error::VmCreate),
     }
 }
