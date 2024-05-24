@@ -125,6 +125,8 @@ pub enum Error {
     VcpuSetPendingIrq,
     #[error("vcpu set register")]
     VcpuSetRegister,
+    #[error("vcpu enable native msr")]
+    VcpuEnableNativeMsr,
     #[error("vcpu read vmcs")]
     VcpuReadVmcs,
     #[error("vcpu write vmcs")]
@@ -574,7 +576,7 @@ impl HvfVcpu {
         self.enable_native_msr(HV_MSR_IA32_SYSENTER_ESP)?;
         self.enable_native_msr(HV_MSR_IA32_SYSENTER_EIP)?;
         self.enable_native_msr(HV_MSR_IA32_TSC)?;
-        self.enable_native_msr(HV_MSR_IA32_TSC_AUX)?;
+        let _ = self.enable_native_msr(HV_MSR_IA32_TSC_AUX);
 
         self.enable_native_msr(HV_MSR_IA32_LSTAR)?;
         self.enable_native_msr(HV_MSR_IA32_CSTAR)?;
@@ -582,9 +584,10 @@ impl HvfVcpu {
         self.enable_native_msr(MSR_SYSCALL_MASK)?;
         self.enable_native_msr(HV_MSR_IA32_KERNEL_GS_BASE)?;
 
-        self.enable_native_msr(HV_MSR_IA32_SPEC_CTRL)?;
-        self.enable_native_msr(HV_MSR_IA32_PRED_CMD)?;
-        self.enable_native_msr(HV_MSR_IA32_XSS)?;
+        // these are new in ~Skylake
+        let _ = self.enable_native_msr(HV_MSR_IA32_SPEC_CTRL);
+        let _ = self.enable_native_msr(HV_MSR_IA32_PRED_CMD);
+        let _ = self.enable_native_msr(HV_MSR_IA32_XSS);
 
         Ok(())
     }
@@ -751,7 +754,7 @@ impl HvfVcpu {
     fn enable_native_msr(&self, msr: u32) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_enable_native_msr(self.hv_vcpu, msr, true) };
         if ret != HV_SUCCESS {
-            Err(Error::VcpuSetRegister)
+            Err(Error::VcpuEnableNativeMsr)
         } else {
             Ok(())
         }
