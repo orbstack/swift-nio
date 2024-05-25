@@ -37,7 +37,7 @@ use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
 use smallvec::SmallVec;
 use utils::qos::{set_thread_qos, QosClass};
-use utils::Mutex;
+use utils::{Mutex, MutexGuard};
 
 use crate::virtio::fs::attrlist::{self, AttrlistEntry, INLINE_ENTRIES};
 use crate::virtio::fs::filesystem::SecContext;
@@ -81,7 +81,7 @@ pub(crate) type NodeId = u64;
 pub(crate) type HandleId = u64;
 
 struct DirStream {
-    stream: *mut libc::DIR,
+    _stream: *mut libc::DIR,
     offset: i64,
     // OK because this is only for opened files
     entries: Option<SmallVec<[AttrlistEntry; INLINE_ENTRIES]>>,
@@ -107,7 +107,7 @@ impl HandleData {
             nodeid,
             file: ManuallyDrop::new(file),
             dirstream: Mutex::new(DirStream {
-                stream: std::ptr::null_mut(),
+                _stream: std::ptr::null_mut(),
                 offset: 0,
                 entries: None,
             }),
@@ -126,6 +126,26 @@ impl HandleData {
     pub fn path(&self) -> io::Result<String> {
         get_path_by_fd(self.file.as_fd())
     }
+
+    fn readdir_stream(&self) -> io::Result<(MutexGuard<DirStream>, *mut libc::DIR)> {
+        let mut ds = self.dirstream.lock().unwrap();
+        let dir_stream = self.readdir_stream_locked(&mut ds)?;
+        Ok((ds, dir_stream))
+    }
+
+    fn readdir_stream_locked(&self, ds: &mut DirStream) -> io::Result<*mut libc::DIR> {
+        // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries, or only uses getattrlistbulk
+        if ds._stream.is_null() {
+            let dir = unsafe { libc::fdopendir(self.file.as_raw_fd()) };
+            if dir.is_null() {
+                return Err(io::Error::last_os_error());
+            }
+            ds._stream = dir;
+            Ok(dir)
+        } else {
+            Ok(ds._stream)
+        }
+    }
 }
 
 impl AsFd for HandleData {
@@ -137,11 +157,11 @@ impl AsFd for HandleData {
 impl Drop for HandleData {
     fn drop(&mut self) {
         let ds = self.dirstream.lock().unwrap();
-        if !ds.stream.is_null() {
+        if !ds._stream.is_null() {
             // this is a dir, and it had a stream open
             // closedir *closes* the fd passed to fdopendir (which is the fd that File holds)
             // so this invalidates the OwnedFd ownership
-            unsafe { libc::closedir(ds.stream as *mut libc::DIR) };
+            unsafe { libc::closedir(ds._stream as *mut libc::DIR) };
         } else {
             // this is a file, or a dir with no stream open
             // manually drop File to close OwnedFd
@@ -639,7 +659,11 @@ impl PassthroughFs {
         Ok(supported)
     }
 
-    fn do_lookup(&self, parent: NodeId, name: &str, ctx: &Context) -> io::Result<Entry> {
+    fn begin_lookup(
+        &self,
+        parent: NodeId,
+        name: &str,
+    ) -> io::Result<(CString, NodeFlags, libc::stat)> {
         let (mut c_path, (parent_dev, parent_ino), parent_flags) =
             self.name_to_path_and_data(parent, &name)?;
         // looking up nfs mountpoint should return a dummy empty dir
@@ -654,6 +678,11 @@ impl PassthroughFs {
         }
 
         let st = lstat(&c_path, false)?;
+        Ok((c_path, parent_flags, st))
+    }
+
+    fn do_lookup(&self, parent: NodeId, name: &str, ctx: &Context) -> io::Result<Entry> {
+        let (c_path, parent_flags, st) = self.begin_lookup(parent, name)?;
         self.finish_lookup(parent_flags, name, st, FileRef::Path(&c_path), ctx)
     }
 
@@ -824,19 +853,8 @@ impl PassthroughFs {
         // race OK: FUSE won't FORGET until all handles are closed
         let (dev, _) = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?.dev_ino;
 
-        let mut ds = data.dirstream.lock().unwrap();
-
         // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries
-        let dir_stream = if ds.stream.is_null() {
-            let dir = unsafe { libc::fdopendir(data.file.as_raw_fd()) };
-            if dir.is_null() {
-                return Err(io::Error::last_os_error());
-            }
-            ds.stream = dir;
-            dir
-        } else {
-            ds.stream
-        };
+        let (mut ds, dir_stream) = data.readdir_stream()?;
 
         if (offset as i64) != ds.offset {
             unsafe { libc::seekdir(dir_stream, offset as i64) };
@@ -1247,32 +1265,6 @@ impl FileSystem for PassthroughFs {
         };
         drop(node);
 
-        // for NFS loop prevention to work, use legacy impl on home dir
-        // getattrlistbulk on home can sometimes stat on mount and cause deadlock
-        if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
-            if nfs_info.parent_dir_dev == dev && nfs_info.parent_dir_inode == ino {
-                return self.do_readdir(nodeid, handle, size, offset, |dir_entry| {
-                    // refcount doesn't get messed up on error:
-                    // failed entries are skipped, but readdirplus still returns success
-                    // (necessary because FUSE doesn't retry readdirplus)
-                    let name = unsafe { std::str::from_utf8_unchecked(dir_entry.name) };
-                    let entry = self.do_lookup(nodeid, name, &ctx)?;
-                    let new_nodeid = entry.nodeid;
-
-                    match add_entry(dir_entry, entry) {
-                        Ok(0) => {
-                            // out of space
-                            // forget this entry
-                            self.do_forget(new_nodeid, 1);
-                            Ok(0)
-                        }
-                        Ok(size) => Ok(size),
-                        Err(e) => Err(e),
-                    }
-                });
-            }
-        }
-
         debug!(
             "readdirplus: nodeid={}, handle={}, size={}, offset={}",
             nodeid, handle, size, offset
@@ -1283,7 +1275,7 @@ impl FileSystem for PassthroughFs {
 
         let data = self.get_handle(nodeid, handle)?;
 
-        // skip dirstream lock if only reading . and ..
+        // emit "." and ".." first. according to FUSE docs, kernel does this if we don't, but that's not true (and it breaks some apps)
         if offset == 0 {
             match add_entry(
                 DirEntry {
@@ -1320,8 +1312,7 @@ impl FileSystem for PassthroughFs {
             offset = 2;
         }
 
-        // no one cares about dt_ino. don't bother to look it up
-
+        // skip dirstream lock if only reading . and ..
         let mut ds = data.dirstream.lock().unwrap();
 
         // read entries if not already done
@@ -1330,7 +1321,28 @@ impl FileSystem for PassthroughFs {
         } else {
             // reserve # entries = nlink - 2 ("." and "..")
             let capacity = nlink.saturating_sub(2);
-            let entries = attrlist::list_dir(data.file.as_fd(), capacity as usize)?;
+
+            // for NFS loop prevention to work, use legacy impl on home dir
+            // getattrlistbulk on home can sometimes stat on mount and cause deadlock
+            let use_legacy = if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
+                nfs_info.parent_dir_dev == dev && nfs_info.parent_dir_inode == ino
+            } else {
+                false
+            };
+
+            let entries = if use_legacy {
+                attrlist::list_dir_legacy(
+                    data.readdir_stream_locked(&mut ds)?,
+                    capacity as usize,
+                    |name| {
+                        let (_, _, st) = self.begin_lookup(nodeid, name)?;
+                        Ok(st)
+                    },
+                )?
+            } else {
+                attrlist::list_dir(data.file.as_fd(), capacity as usize)?
+            };
+
             ds.entries = Some(entries);
             ds.entries.as_ref().unwrap()
         };
@@ -1423,8 +1435,10 @@ impl FileSystem for PassthroughFs {
             match add_entry(dir_entry, lookup_entry) {
                 Ok(0) => {
                     // out of space
-                    // forget this entry
-                    self.do_forget(new_nodeid, 1);
+                    // forget this entry (if we looked up a nodeid for it)
+                    if new_nodeid != 0 {
+                        self.do_forget(new_nodeid, 1);
+                    }
                     break;
                 }
                 Ok(_) => {}

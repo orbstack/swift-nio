@@ -1,4 +1,5 @@
 use std::{
+    ffi::CStr,
     io,
     mem::{size_of, MaybeUninit},
     os::fd::AsRawFd,
@@ -58,8 +59,7 @@ pub fn list_dir<T: AsRawFd>(
     let mut buf: MaybeUninit<[u8; 16384]> = MaybeUninit::uninit();
     let buf = unsafe { buf.assume_init_mut() };
 
-    let mut entries = SmallVec::new();
-    entries.reserve_exact(reserve_capacity);
+    let mut entries = SmallVec::with_capacity(reserve_capacity);
 
     let attrlist = attrlist {
         bitmapcount: ATTR_BIT_MAP_COUNT,
@@ -316,6 +316,60 @@ pub fn list_dir<T: AsRawFd>(
             entries.push(entry);
             p = unsafe { p.add(entry_len as usize) };
         }
+    }
+
+    Ok(entries)
+}
+
+pub fn list_dir_legacy<F>(
+    stream: *mut libc::DIR,
+    reserve_capacity: usize,
+    stat_fn: F,
+) -> io::Result<SmallVec<[AttrlistEntry; INLINE_ENTRIES]>>
+where
+    F: Fn(&str) -> io::Result<libc::stat>,
+{
+    let mut entries = SmallVec::with_capacity(reserve_capacity);
+
+    loop {
+        let dentry = unsafe { libc::readdir(stream) };
+        if dentry.is_null() {
+            break;
+        }
+
+        let dt_ino = unsafe { (*dentry).d_ino };
+        let name = unsafe {
+            CStr::from_bytes_until_nul(&*std::ptr::slice_from_raw_parts(
+                (*dentry).d_name.as_ptr() as *const u8,
+                (*dentry).d_name.len(),
+            ))
+            .unwrap()
+        };
+
+        // match getattrlistbulk behavior: skip "." and ".."
+        let name_bytes = name.to_bytes();
+        if name_bytes == b"." || name_bytes == b".." {
+            continue;
+        }
+
+        // no need to replace ino based on nfs mountpoint: we call common lookup functions and never return dt_ino
+        let name_str = name.to_str().unwrap();
+        let st = match stat_fn(name_str) {
+            Ok(st) => Some(st),
+            // on error, fall back to normal readdir response for this entry
+            Err(_) => None,
+        };
+
+        entries.push(AttrlistEntry {
+            // kernel guarantees valid UTF-8
+            name: name_str.to_string(),
+            is_mountpoint: if let Some(st) = st {
+                st.st_ino != dt_ino
+            } else {
+                false
+            },
+            st,
+        });
     }
 
     Ok(entries)
