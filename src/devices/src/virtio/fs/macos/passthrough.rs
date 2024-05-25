@@ -850,6 +850,7 @@ impl PassthroughFs {
                 break;
             }
 
+            // include "." and ".." - FUSE expects them
             let name = unsafe {
                 CStr::from_bytes_until_nul(&*slice_from_raw_parts(
                     (*dentry).d_name.as_ptr() as *const u8,
@@ -858,10 +859,6 @@ impl PassthroughFs {
                 .unwrap()
                 .to_bytes()
             };
-
-            if name == b"." || name == b".." {
-                continue;
-            }
 
             let mut ino = unsafe { (*dentry).d_ino };
             if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
@@ -1232,7 +1229,7 @@ impl FileSystem for PassthroughFs {
         nodeid: NodeId,
         handle: HandleId,
         size: u32,
-        offset: u64,
+        mut offset: u64,
         mut add_entry: F,
     ) -> io::Result<()>
     where
@@ -1285,6 +1282,46 @@ impl FileSystem for PassthroughFs {
         }
 
         let data = self.get_handle(nodeid, handle)?;
+
+        // skip dirstream lock if only reading . and ..
+        if offset == 0 {
+            match add_entry(
+                DirEntry {
+                    ino,
+                    offset: 1,
+                    type_: libc::DT_DIR as u32,
+                    name: b".",
+                },
+                Entry::default(),
+            ) {
+                Ok(0) => return Ok(()),
+                Ok(_) => {}
+                Err(e) => error!("failed to add entry: {:?}", e),
+            }
+
+            offset = 1;
+        }
+        if offset == 1 {
+            match add_entry(
+                DirEntry {
+                    // bogus ino to skip lookup - no one cares about dt_ino
+                    ino: offset + 1 + 1,
+                    offset: 2,
+                    type_: libc::DT_DIR as u32,
+                    name: b"..",
+                },
+                Entry::default(),
+            ) {
+                Ok(0) => return Ok(()),
+                Ok(_) => {}
+                Err(e) => error!("failed to add entry: {:?}", e),
+            }
+
+            offset = 2;
+        }
+
+        // no one cares about dt_ino. don't bother to look it up
+
         let mut ds = data.dirstream.lock().unwrap();
 
         // read entries if not already done
@@ -1298,11 +1335,12 @@ impl FileSystem for PassthroughFs {
             ds.entries.as_ref().unwrap()
         };
 
-        if offset >= entries.len() as u64 {
+        let ds_offset = offset - 2;
+        if ds_offset >= entries.len() as u64 {
             return Ok(());
         }
 
-        for (i, entry) in entries[offset as usize..].iter().enumerate() {
+        for (i, entry) in entries[ds_offset as usize..].iter().enumerate() {
             let st = if let Some(ref st) = entry.st {
                 st
             } else {
