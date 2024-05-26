@@ -1,4 +1,5 @@
 use std::{
+    any::{Any, TypeId},
     fmt, hash,
     marker::PhantomData,
     sync::{
@@ -7,40 +8,53 @@ use std::{
     },
 };
 
+use bitflags::Flags;
 use derive_where::derive_where;
 
-use crate::util::FmtDebugUsingDisplay;
+use crate::util::{FmtDebugUsingDisplay, FmtU64AsBits};
 
 // === WakerSet === //
 
 // Traits
-pub trait WakerSet: 'static + Send + Sync {
-    fn wake(&self, index: u32);
-
-    fn name_of(&self, index: u32) -> &'static str;
-}
-
-pub trait WakerSetHas<T: Waker>: Sized + WakerSet {
-    const REF: WakerSetRef<Self>;
-}
-
 pub trait Waker: 'static + Send + Sync {
     fn wake(&self);
 }
 
-#[derive_where(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct WakerSetRef<S: WakerSet> {
+pub trait WakerSet: 'static + Send + Sync {
+    fn wake(&self, index: u32);
+
+    fn state_of(&self, ty: TypeId) -> Option<&(dyn Any + Send + Sync)>;
+
+    fn name_of(&self, index: u32) -> &'static str;
+
+    fn name_of_static(index: u32) -> &'static str
+    where
+        Self: Sized;
+}
+
+pub trait WakerSetHas<T: Waker>: Sized + WakerSet {
+    const INDEX: WakerIndex<Self>;
+}
+
+#[derive_where(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct WakerIndex<S: ?Sized + WakerSet> {
     _ty: PhantomData<fn(S) -> S>,
     index: u32,
 }
 
-impl<S: WakerSet> WakerSetRef<S> {
+impl<S: ?Sized + WakerSet> fmt::Debug for WakerIndex<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("WakerIndex").field(&self.index).finish()
+    }
+}
+
+impl<S: ?Sized + WakerSet> WakerIndex<S> {
     pub const fn new<V>() -> Self
     where
         V: Waker,
         S: WakerSetHas<V>,
     {
-        S::REF
+        S::INDEX
     }
 
     pub const fn new_unchecked(index: u32) -> Self {
@@ -59,9 +73,11 @@ impl<S: WakerSet> WakerSetRef<S> {
 #[doc(hidden)]
 pub mod define_waker_set_internal {
     pub use {
-        super::{Waker, WakerSet, WakerSetHas, WakerSetRef},
+        super::{Waker, WakerIndex, WakerSet, WakerSetHas},
         std::{
-            any::type_name,
+            any::{type_name, Any, TypeId},
+            marker::{Send, Sized, Sync},
+            option::Option,
             primitive::{str, u32},
             unreachable,
         },
@@ -94,7 +110,7 @@ macro_rules! define_waker_set {
         }
 
         $(impl $crate::define_waker_set_internal::WakerSetHas<$f_ty> for $name {
-            const REF: $crate::define_waker_set_internal::WakerSetRef<Self> = Self::$f_name;
+            const INDEX: $crate::define_waker_set_internal::WakerSetRef<Self> = Self::$f_name;
         })*
 
         impl $crate::define_waker_set_internal::WakerSet for $name {
@@ -104,7 +120,26 @@ macro_rules! define_waker_set {
                 })*
             }
 
+            fn state_of(
+                &self,
+                ty: $crate::define_waker_set_internal::TypeId,
+            ) -> $crate::define_waker_set_internal::Option<&(
+                dyn $crate::define_waker_set_internal::Any +
+                    $crate::define_waker_set_internal::Send +
+                    $crate::define_waker_set_internal::Sync
+            )> {
+                $(if ty == $crate::define_waker_set_internal::TypeId::of::<$f_ty>() {
+                    return $crate::define_waker_set_internal::Option::Some(&self.$f_name);
+                })*
+
+                $crate::define_waker_set_internal::Option::None
+            }
+
             fn name_of(&self, index: $crate::define_waker_set_internal::u32) -> &'static $crate::define_waker_set_internal::str {
+                Self::name_of_static(index)
+            }
+
+            fn name_of_static(index: $crate::define_waker_set_internal::u32) -> &'static $crate::define_waker_set_internal::str {
                 $(if index == Self::$f_name.index() {
                     return $crate::define_waker_set_internal::type_name::<$f_type>();
                 })*
@@ -126,10 +161,7 @@ macro_rules! define_waker_set {
 
 // === RawSignalChannel === //
 
-pub struct RawSignalChannel<W: ?Sized + WakerSet> {
-    inner: Arc<RawSignalChannelInner<W>>,
-}
-
+// Internals
 mod sealed_raw_signal_channel {
     use super::*;
 
@@ -164,9 +196,27 @@ mod sealed_raw_signal_channel {
 
 use sealed_raw_signal_channel::*;
 
+// Public API
+pub struct RawSignalChannel<W: ?Sized + WakerSet> {
+    inner: Arc<RawSignalChannelInner<W>>,
+}
+
 impl<W: ?Sized + WakerSet> fmt::Debug for RawSignalChannel<W> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.snapshot().fmt(f)
+        f.debug_struct("RawSignalChannel")
+            .field(
+                "asserted_mask",
+                &FmtU64AsBits(self.inner.asserted_mask.load(Relaxed)),
+            )
+            .field(
+                "active_waker",
+                &FmtDebugUsingDisplay(
+                    self.inner
+                        .wakers
+                        .name_of(self.inner.active_waker.load(Relaxed)),
+                ),
+            )
+            .finish()
     }
 }
 
@@ -206,10 +256,22 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         }
     }
 
-    pub fn wait<R>(&self, waker: WakerSetRef<W>, worker: impl FnOnce() -> R) -> Option<R>
+    pub fn opt_waker_state<T: Waker>(&self) -> Option<&T> {
+        self.inner
+            .wakers
+            .state_of(TypeId::of::<T>())
+            .map(|v| v.downcast_ref().unwrap())
+    }
+
+    pub fn waker_state<T>(&self) -> &T
     where
-        W: Sized,
+        T: Waker,
+        W: WakerSetHas<T>,
     {
+        self.opt_waker_state().unwrap()
+    }
+
+    pub fn wait<R>(&self, waker: WakerIndex<W>, worker: impl FnOnce() -> R) -> Option<R> {
         debug_assert_eq!(self.inner.active_waker.load(Relaxed), u32::MAX);
 
         self.inner.active_waker.store(waker.index(), Relaxed);
@@ -243,24 +305,6 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 
     pub fn take(&self, mask: u64) -> u64 {
         self.inner.asserted_mask.fetch_and(!mask, Relaxed) & mask
-    }
-
-    pub fn snapshot(&self) -> impl '_ + fmt::Debug + Clone {
-        #[derive(Debug, Clone)]
-        #[allow(unused)]
-        struct RawSignalChannel {
-            asserted_mask: u64,
-            active_waker: FmtDebugUsingDisplay<&'static str>,
-        }
-
-        RawSignalChannel {
-            asserted_mask: self.inner.asserted_mask.load(Relaxed),
-            active_waker: FmtDebugUsingDisplay(
-                self.inner
-                    .wakers
-                    .name_of(self.inner.active_waker.load(Relaxed)),
-            ),
-        }
     }
 }
 
@@ -298,5 +342,112 @@ impl BoundSignalChannel {
 
     pub fn take(&self) {
         self.channel.take(self.mask);
+    }
+}
+
+// === SignalChannel === //
+
+#[derive_where(Clone, Hash, Eq, PartialEq)]
+pub struct SignalChannel<S, W: ?Sized + WakerSet> {
+    _ty: PhantomData<fn(S) -> S>,
+    raw: RawSignalChannel<W>,
+}
+
+impl<S, W> fmt::Debug for SignalChannel<S, W>
+where
+    S: fmt::Debug + Flags<Bits = u64>,
+    W: ?Sized + WakerSet,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SignalChannel")
+            .field(
+                "asserted_mask",
+                &S::from_bits_retain(self.raw.inner.asserted_mask.load(Relaxed)),
+            )
+            .field(
+                "active_waker",
+                &FmtDebugUsingDisplay(
+                    self.raw
+                        .inner
+                        .wakers
+                        .name_of(self.raw.inner.active_waker.load(Relaxed)),
+                ),
+            )
+            .finish()
+    }
+}
+
+impl<S, W> SignalChannel<S, W>
+where
+    W: ?Sized + WakerSet,
+{
+    pub fn new(wakers: W) -> Self
+    where
+        W: Sized,
+    {
+        Self::from_raw(RawSignalChannel::new(wakers))
+    }
+
+    pub fn from_raw(raw: RawSignalChannel<W>) -> Self {
+        Self {
+            _ty: PhantomData,
+            raw,
+        }
+    }
+
+    pub fn raw(&self) -> &RawSignalChannel<W> {
+        &self.raw
+    }
+
+    pub fn into_raw(self) -> RawSignalChannel<W> {
+        self.raw
+    }
+
+    pub fn opt_waker_state<T: Waker>(&self) -> Option<&T> {
+        self.raw.opt_waker_state()
+    }
+
+    pub fn waker_state<T>(&self) -> &T
+    where
+        T: Waker,
+        W: WakerSetHas<T>,
+    {
+        self.raw.waker_state()
+    }
+
+    pub fn wait<R>(&self, waker: WakerIndex<W>, worker: impl FnOnce() -> R) -> Option<R> {
+        self.raw.wait(waker, worker)
+    }
+}
+
+impl<S, W> SignalChannel<S, W>
+where
+    S: Flags<Bits = u64>,
+    W: ?Sized + WakerSet,
+{
+    pub fn assert(&self, mask: S) {
+        self.raw.assert(mask.bits())
+    }
+
+    pub fn take(&self, mask: S) -> S {
+        S::from_bits_retain(self.raw.take(mask.bits()))
+    }
+}
+
+impl<S, W> SignalChannel<S, W>
+where
+    S: Flags<Bits = u64>,
+    W: ?Sized + WakerSet + WakerSetCanUnsize,
+{
+    pub fn bind(self, mask: S) -> BoundSignalChannel {
+        self.raw.bind(mask.bits())
+    }
+
+    pub fn bind_clone(&self, mask: S) -> BoundSignalChannel {
+        self.raw.bind_clone(mask.bits())
+    }
+
+    pub fn unsize(self) -> SignalChannel<S, dyn WakerSet> {
+        SignalChannel::from_raw(self.into_raw().unsize())
     }
 }

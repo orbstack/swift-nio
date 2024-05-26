@@ -6,14 +6,21 @@ pub trait ExtensionFor<T: ?Sized> {}
 
 impl<T: ?Sized> ExtensionFor<T> for T {}
 
-// === FmtDebugUsingDisplay === //
+// === Formatting Helpers === //
 
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct FmtDebugUsingDisplay<T>(pub T);
 
 impl<T: fmt::Display> fmt::Debug for FmtDebugUsingDisplay<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+pub struct FmtU64AsBits(pub u64);
+
+impl fmt::Debug for FmtU64AsBits {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:b}", self.0)
     }
 }
 
