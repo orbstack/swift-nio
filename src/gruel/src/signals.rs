@@ -2,16 +2,20 @@ use std::{
     any::{Any, TypeId},
     fmt, hash,
     marker::PhantomData,
+    ptr::NonNull,
     sync::{
         atomic::{fence, AtomicU32, AtomicU64, Ordering::*},
         Arc,
     },
+    time::Duration,
 };
 
 use bitflags::Flags;
 use derive_where::derive_where;
+use parking_lot::Mutex;
+use thiserror::Error;
 
-use crate::util::{FmtDebugUsingDisplay, FmtU64AsBits};
+use crate::util::{FmtDebugUsingDisplay, FmtU64AsBits, Parker};
 
 // === WakerSet === //
 
@@ -49,7 +53,7 @@ impl<S: ?Sized + WakerSet> fmt::Debug for WakerIndex<S> {
 }
 
 impl<S: ?Sized + WakerSet> WakerIndex<S> {
-    pub const fn new<V>() -> Self
+    pub const fn of<V>() -> Self
     where
         V: Waker,
         S: WakerSetHas<V>,
@@ -110,7 +114,7 @@ macro_rules! define_waker_set {
         }
 
         $(impl $crate::define_waker_set_internal::WakerSetHas<$f_ty> for $name {
-            const INDEX: $crate::define_waker_set_internal::WakerSetRef<Self> = Self::$f_name;
+            const INDEX: $crate::define_waker_set_internal::WakerIndex<Self> = Self::$f_name;
         })*
 
         impl $crate::define_waker_set_internal::WakerSet for $name {
@@ -141,7 +145,7 @@ macro_rules! define_waker_set {
 
             fn name_of_static(index: $crate::define_waker_set_internal::u32) -> &'static $crate::define_waker_set_internal::str {
                 $(if index == Self::$f_name.index() {
-                    return $crate::define_waker_set_internal::type_name::<$f_type>();
+                    return $crate::define_waker_set_internal::type_name::<$f_ty>();
                 })*
 
                 "<no waker set>"
@@ -149,8 +153,8 @@ macro_rules! define_waker_set {
         }
     )*};
     (@internal; $counter:expr, $first:ident $($name:ident)*) => {
-        pub const $first: $crate::define_waker_set_internal::WakerSetRef<Self> =
-            $crate::define_waker_set_internal::WakerSetRef::new_unchecked(
+        pub const $first: $crate::define_waker_set_internal::WakerIndex<Self> =
+            $crate::define_waker_set_internal::WakerIndex::new_unchecked(
                 $counter
             );
 
@@ -449,5 +453,267 @@ where
 
     pub fn unsize(self) -> SignalChannel<S, dyn WakerSet> {
         SignalChannel::from_raw(self.into_raw().unsize())
+    }
+}
+
+// === Extensions === //
+
+// Helper traits
+pub trait AnySignalChannel<T: Waker>: Sized {
+    type WakerSet: WakerSetHas<T>;
+
+    fn raw(&self) -> &RawSignalChannel<Self::WakerSet>;
+}
+
+impl<T, W> AnySignalChannel<T> for RawSignalChannel<W>
+where
+    T: Waker,
+    W: WakerSetHas<T>,
+{
+    type WakerSet = W;
+
+    fn raw(&self) -> &RawSignalChannel<Self::WakerSet> {
+        self
+    }
+}
+
+impl<T, S, W> AnySignalChannel<T> for SignalChannel<S, W>
+where
+    T: Waker,
+    W: WakerSetHas<T>,
+{
+    type WakerSet = W;
+
+    fn raw(&self) -> &RawSignalChannel<Self::WakerSet> {
+        self.raw()
+    }
+}
+
+// Parker
+#[derive(Debug, Default)]
+pub struct ParkWaker(Parker);
+
+impl Waker for ParkWaker {
+    fn wake(&self) {
+        self.0.unpark();
+    }
+}
+
+pub trait ParkSignalChannelExt: AnySignalChannel<ParkWaker> {
+    fn wait_on_park(&self) {
+        let raw = self.raw();
+
+        raw.wait(WakerIndex::of::<ParkWaker>(), || {
+            raw.waker_state::<ParkWaker>().0.park();
+        });
+    }
+
+    fn wait_on_park_timeout(&self, timeout: Duration) {
+        let raw = self.raw();
+
+        raw.wait(WakerIndex::of::<ParkWaker>(), || {
+            raw.waker_state::<ParkWaker>().0.park_timeout(timeout);
+        });
+    }
+}
+
+impl<T: AnySignalChannel<ParkWaker>> ParkSignalChannelExt for T {}
+
+// Dynamically Bound (or: "I heard y'all liked the convenient legacy API!")
+#[derive(Default)]
+pub struct DynamicallyBoundWaker {
+    waker: Mutex<Option<NonNull<dyn FnMut() + Send + Sync>>>,
+}
+
+unsafe impl Send for DynamicallyBoundWaker {}
+
+unsafe impl Sync for DynamicallyBoundWaker {}
+
+impl Waker for DynamicallyBoundWaker {
+    fn wake(&self) {
+        if let Some(waker) = self.waker.lock().as_mut() {
+            (unsafe { waker.as_mut() })()
+        }
+    }
+}
+
+pub trait DynamicallyBoundSignalChannelExt: AnySignalChannel<DynamicallyBoundWaker> {
+    fn wait_on_closure<R>(
+        &self,
+        waker: impl FnOnce() + Send + Sync,
+        worker: impl FnOnce() -> R,
+    ) -> Option<R> {
+        let raw = self.raw();
+
+        // Unsize the waker
+        let mut waker = Some(waker);
+        let mut waker = move || {
+            if let Some(waker) = waker.take() {
+                waker()
+            }
+        };
+
+        let waker = unsafe {
+            #[allow(clippy::unnecessary_cast)]
+            NonNull::new_unchecked(
+                &mut waker as *mut (dyn FnMut() + Send + Sync + '_)
+                    as *mut (dyn FnMut() + Send + Sync),
+            )
+        };
+
+        // Provide it to the interned waker
+        let dyn_state = raw.waker_state::<DynamicallyBoundWaker>();
+
+        {
+            let mut curr_waker = dyn_state.waker.lock();
+            assert!(curr_waker.is_none());
+
+            *curr_waker = Some(waker);
+        }
+
+        // Bind an undo scope guard
+        let _undo_guard = scopeguard::guard((), |()| {
+            *dyn_state.waker.lock() = None;
+        });
+
+        // Run the actual wait operation
+        raw.wait(WakerIndex::of::<DynamicallyBoundWaker>(), worker)
+    }
+}
+
+impl<T: AnySignalChannel<DynamicallyBoundWaker>> DynamicallyBoundSignalChannelExt for T {}
+
+// Queue Receiving
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Error)]
+pub enum QueueRecvError {
+    #[error("queue senders have all disconnected")]
+    HungUp,
+
+    #[error("receive operation was cancelled")]
+    Cancelled,
+}
+
+pub trait QueueRecvSignalChannelExt: DynamicallyBoundSignalChannelExt {
+    #[track_caller]
+    fn recv_with_cancel<T>(
+        &self,
+        receiver: &crossbeam_channel::Receiver<T>,
+    ) -> Result<T, QueueRecvError> {
+        enum Never {}
+
+        let (cancel_send, cancel_recv) = crossbeam_channel::bounded::<Never>(0);
+
+        self.wait_on_closure(
+            || drop(cancel_send),
+            || {
+                crossbeam_channel::select! {
+                    recv(receiver) -> val => {
+                        val.map_err(|_| QueueRecvError::HungUp)
+                    }
+                    recv(cancel_recv) -> _ => {
+                        Err(QueueRecvError::Cancelled)
+                    }
+                }
+            },
+        )
+        .unwrap_or(Err(QueueRecvError::Cancelled))
+    }
+}
+
+impl<T: DynamicallyBoundSignalChannelExt> QueueRecvSignalChannelExt for T {}
+
+// TODO: Port MIO... how?
+
+// === Tests === //
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::Barrier, thread, time::Duration};
+
+    use crate::{
+        DynamicallyBoundWaker, ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,
+        RawSignalChannel,
+    };
+
+    define_waker_set! {
+        #[derive(Default)]
+        struct MyWakerSet {
+            parker: ParkWaker,
+            dynamic: DynamicallyBoundWaker,
+        }
+    }
+
+    #[test]
+    fn simple_wake_up() {
+        let start_barrier = Barrier::new(2);
+        let channel = RawSignalChannel::new(MyWakerSet::default());
+
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                start_barrier.wait();
+                channel.wait_on_park();
+                assert_eq!(channel.take(1), 1);
+            });
+
+            s.spawn(|| {
+                start_barrier.wait();
+                channel.assert(1);
+            });
+        });
+    }
+
+    #[test]
+    fn early_exit_works() {
+        let signal = RawSignalChannel::new(MyWakerSet::default());
+
+        signal.assert(1);
+
+        for _ in 0..1000 {
+            signal.wait_on_park();
+        }
+    }
+
+    #[test]
+    fn respects_timeouts() {
+        let signal = RawSignalChannel::new(MyWakerSet::default());
+        signal.wait_on_park_timeout(Duration::from_millis(100));
+    }
+
+    #[test]
+    fn queues_can_be_cancelled() {
+        let (_send, recv) = crossbeam_channel::unbounded::<u32>();
+        let signal = RawSignalChannel::new(MyWakerSet::default());
+
+        thread::scope(|s| {
+            s.spawn(|| {
+                assert_eq!(
+                    signal.recv_with_cancel(&recv),
+                    Err(crate::QueueRecvError::Cancelled)
+                );
+            });
+
+            s.spawn(|| {
+                // We'd like to exercise the cancellation behavior, ideally.
+                thread::sleep(Duration::from_millis(100));
+                signal.assert(1);
+            });
+        });
+    }
+
+    #[test]
+    fn queues_can_still_receive() {
+        let (send, recv) = crossbeam_channel::unbounded::<u32>();
+        let signal = RawSignalChannel::new(MyWakerSet::default());
+
+        thread::scope(|s| {
+            s.spawn(|| {
+                assert_eq!(signal.recv_with_cancel(&recv), Ok(42));
+            });
+
+            s.spawn(|| {
+                thread::sleep(Duration::from_millis(100));
+                send.send(42).unwrap();
+            });
+        });
     }
 }
