@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 bitflags = "2.5.0"
+bumpalo = "3.16.0"
 cfgenius = "0.1.1"
 counter = { version = "0.1.0", path = "../counter" }
 crossbeam-channel = "0.5.13"

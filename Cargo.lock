@@ -599,6 +599,7 @@ name = "gruel"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.5.0",
+ "bumpalo",
  "cfgenius",
  "counter",
  "crossbeam-channel",
