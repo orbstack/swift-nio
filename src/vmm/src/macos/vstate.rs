@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::thread::{self, Thread};
 use std::time::Duration;
 use utils::Mutex;
+use vmm_ids::ArcVcpuSignal;
 use vmm_ids::VcpuSignal;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
@@ -83,7 +84,7 @@ pub struct Vm {
 
 pub struct VmParker {
     hvf_vm: HvfVm,
-    vcpus: Mutex<Vec<VcpuSignal>>,
+    vcpus: Mutex<Vec<ArcVcpuSignal>>,
 
     /// Tasks here represent vCPUs which have yet to park.
     park_signal: StartupSignal,
@@ -119,7 +120,7 @@ impl VmParker {
 }
 
 impl Parkable for VmParker {
-    fn register_vcpu(&self, vcpu: VcpuSignal) -> StartupTask {
+    fn register_vcpu(&self, vcpu: ArcVcpuSignal) -> StartupTask {
         self.vcpus.lock().unwrap().push(vcpu);
         self.park_signal.resurrect_cloned()
     }
@@ -664,16 +665,28 @@ impl Vcpu {
     }
 
     /// Main loop of the vCPU thread.
+    // TODO: Add back wake-up masks
     #[cfg(target_arch = "aarch64")]
     pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
         use gruel::{
-            MultiShutdownSignalExt, ParkSignalChannelExt, QueueRecvSignalChannelExt,
-            ShutdownAlreadyRequestedExt,
+            define_waker_set, DynamicallyBoundSignalChannelExt, DynamicallyBoundWaker,
+            MultiShutdownSignalExt, ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,
+            ShutdownAlreadyRequestedExt, SignalChannel, SignalChannelBindExt,
         };
-        use vmm_ids::{VcpuSignal, VcpuSignalMask, VmmShutdownPhase};
+        use vmm_ids::{VcpuSignalMask, VmmShutdownPhase};
+
+        define_waker_set! {
+            struct VcpuWakerSet {
+                park: ParkWaker,
+                dynamic: DynamicallyBoundWaker,
+            }
+        }
 
         // Create and register the signal
-        let signal = VcpuSignal::new();
+        let signal = Arc::new(SignalChannel::new(VcpuWakerSet {
+            park: ParkWaker::default(),
+            dynamic: DynamicallyBoundWaker::default(),
+        }));
         let cpu_shutdown_task = self
             .shutdown
             .spawn_signal(
@@ -716,7 +729,7 @@ impl Vcpu {
 
         // Wait for boot signal
         let Ok(entry_addr) =
-            signal.recv_with_cancel(VcpuSignalMask::ANY_SHUTDOWN, &self.boot_receiver)
+            signal.recv_with_cancel(/*VcpuSignalMask::ANY_SHUTDOWN,*/ &self.boot_receiver)
         else {
             // Destroy both aforementioned tasks—the user has requested a shutdown.
             return;
@@ -749,7 +762,7 @@ impl Vcpu {
             // (this should never happen if we haven't exited the loop yet)
             debug_assert!(signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
 
-            let Ok(park_task_tmp) = parker.process_park_commands(&signal, park_task) else {
+            let Ok(park_task_tmp) = parker.process_park_commands(&*signal, park_task) else {
                 info!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );
@@ -764,8 +777,8 @@ impl Vcpu {
             }
 
             // Run emulation
-            let emulation = signal.wait(
-                VcpuSignalMask::all(),
+            let emulation = signal.wait_on_closure(
+                /*VcpuSignalMask::all(),*/
                 || {
                     // This is a pure HVF operation
                     // TODO: Okay, well, that is a lie w.r.t. balloon parking but that should be
@@ -792,13 +805,13 @@ impl Vcpu {
                 // idea.
                 Ok(VcpuEmulation::WaitForEvent) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
-                        signal.wait_on_park(VcpuSignalMask::all());
+                        signal.wait_on_park(/*VcpuSignalMask::all()*/);
                     }
                 }
                 Ok(VcpuEmulation::WaitForEventExpired) => {}
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
-                        signal.wait_on_park_timeout(VcpuSignalMask::all(), timeout);
+                        signal.wait_on_park_timeout(/*VcpuSignalMask::all(),*/ timeout);
                     }
                 }
 
@@ -825,7 +838,16 @@ impl Vcpu {
         //
         // We really don't want any other signal to shutdown the CPU. Note: `wait_on_park` only wakes
         // up if we genuinely receive the signal.
-        signal.wait_on_park(VcpuSignalMask::DESTROY_VM);
+        loop {
+            if signal
+                .take(VcpuSignalMask::all())
+                .intersects(VcpuSignalMask::DESTROY_VM)
+            {
+                break;
+            }
+
+            signal.wait_on_park();
+        }
 
         hvf_vcpu.destroy();
         drop(hvf_destroy_task);
@@ -840,7 +862,7 @@ impl Vcpu {
             ShutdownAlreadyRequestedExt,
         };
         use vmm_ids::VmmShutdownPhase;
-        let signal = VcpuSignal::new();
+        let signal = ArcVcpuSignal::new();
         let cpu_shutdown_task = self
             .shutdown
             .spawn_signal(

@@ -363,29 +363,25 @@ where
 
 // === Arc Helpers === //
 
-pub type ArcBoundSignalChannel = BoundSignalChannel<ArcRawSignalChannel<dyn WakerSet>>;
-
-pub type ArcRawSignalChannel<W> = Arc<RawSignalChannel<W>>;
-
-pub type ArcSignalChannel<S, W> = Arc<SignalChannel<S, W>>;
+pub type ArcBoundSignalChannel = BoundSignalChannel<Arc<RawSignalChannel<dyn WakerSet>>>;
 
 pub trait ArcSignalChannelExt:
-    ExtensionFor<ArcSignalChannel<Self::Signal, Self::WakerSet>>
+    ExtensionFor<Arc<SignalChannel<Self::Signal, Self::WakerSet>>>
 {
     type Signal;
     type WakerSet: ?Sized + WakerSet;
 
-    fn into_raw(self) -> ArcRawSignalChannel<Self::WakerSet>;
+    fn into_raw(self) -> Arc<RawSignalChannel<Self::WakerSet>>;
 }
 
-impl<S, W> ArcSignalChannelExt for ArcSignalChannel<S, W>
+impl<S, W> ArcSignalChannelExt for Arc<SignalChannel<S, W>>
 where
     W: ?Sized + WakerSet,
 {
     type Signal = S;
     type WakerSet = W;
 
-    fn into_raw(self) -> ArcRawSignalChannel<Self::WakerSet> {
+    fn into_raw(self) -> Arc<RawSignalChannel<Self::WakerSet>> {
         cast_arc(self, |v| v.raw())
     }
 }
@@ -401,13 +397,13 @@ pub trait SignalChannelBindExt: Clone {
     }
 }
 
-impl<S, W> SignalChannelBindExt for ArcSignalChannel<S, W>
+impl<S, W> SignalChannelBindExt for Arc<SignalChannel<S, W>>
 where
     S: Flags<Bits = u64>,
     W: WakerSet,
 {
     type Mask = S;
-    type Ptr = ArcRawSignalChannel<dyn WakerSet>;
+    type Ptr = Arc<RawSignalChannel<dyn WakerSet>>;
 
     fn bind(self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr> {
         BoundSignalChannel {
@@ -417,12 +413,12 @@ where
     }
 }
 
-impl<S> SignalChannelBindExt for ArcSignalChannel<S, dyn WakerSet>
+impl<S> SignalChannelBindExt for Arc<SignalChannel<S, dyn WakerSet>>
 where
     S: Flags<Bits = u64>,
 {
     type Mask = S;
-    type Ptr = ArcRawSignalChannel<dyn WakerSet>;
+    type Ptr = Arc<RawSignalChannel<dyn WakerSet>>;
 
     fn bind(self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr> {
         BoundSignalChannel {
@@ -432,9 +428,9 @@ where
     }
 }
 
-impl<W: WakerSet> SignalChannelBindExt for ArcRawSignalChannel<W> {
+impl<W: WakerSet> SignalChannelBindExt for Arc<RawSignalChannel<W>> {
     type Mask = u64;
-    type Ptr = ArcRawSignalChannel<dyn WakerSet>;
+    type Ptr = Arc<RawSignalChannel<dyn WakerSet>>;
 
     fn bind(self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr> {
         BoundSignalChannel {
@@ -444,9 +440,9 @@ impl<W: WakerSet> SignalChannelBindExt for ArcRawSignalChannel<W> {
     }
 }
 
-impl SignalChannelBindExt for ArcRawSignalChannel<dyn WakerSet> {
+impl SignalChannelBindExt for Arc<RawSignalChannel<dyn WakerSet>> {
     type Mask = u64;
-    type Ptr = ArcRawSignalChannel<dyn WakerSet>;
+    type Ptr = Arc<RawSignalChannel<dyn WakerSet>>;
 
     fn bind(self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr> {
         BoundSignalChannel {

@@ -17,7 +17,7 @@ use once_cell::sync::Lazy;
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap, VolatileMemory};
 
 use dlopen::wrapper::{Container, WrapperApi};
-use vmm_ids::VcpuSignal;
+use vmm_ids::{ArcVcpuSignal, VcpuSignal};
 
 use std::arch::asm;
 use std::convert::TryInto;
@@ -193,7 +193,7 @@ pub trait Parkable: Send + Sync {
 
     fn unpark(&self, unpark_task: StartupTask);
 
-    fn register_vcpu(&self, vcpu: VcpuSignal) -> StartupTask;
+    fn register_vcpu(&self, vcpu: ArcVcpuSignal) -> StartupTask;
 
     fn process_park_commands(
         &self,

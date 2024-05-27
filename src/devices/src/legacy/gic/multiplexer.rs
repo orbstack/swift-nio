@@ -3,7 +3,7 @@
 
 use gicv3::device::InterruptId;
 use utils::Mutex;
-use vmm_ids::VcpuSignal;
+use vmm_ids::ArcVcpuSignal;
 
 use hvf::{HvVcpuRef, HvfVm};
 
@@ -15,7 +15,7 @@ use super::hvf_apic::HvfApic;
 #[derive(Debug)]
 pub struct WfeThread {
     pub hv_vcpu: HvVcpuRef,
-    pub signal: VcpuSignal,
+    pub signal: ArcVcpuSignal,
 }
 
 pub struct Gic(Box<dyn UserspaceGicImpl>);
