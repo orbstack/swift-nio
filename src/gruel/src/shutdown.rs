@@ -265,53 +265,52 @@ impl ShutdownSignalExt for ShutdownSignal {
 
 // === Tests === //
 
-// TODO: Port to new signals
+#[cfg(test)]
+mod test {
+    use std::sync::Barrier;
 
-// #[cfg(test)]
-// mod test {
-//     use std::sync::Barrier;
-//
-//     use crate::{ParkSignalChannelExt, RawSignalChannel};
-//
-//     use super::*;
-//
-//     #[test]
-//     fn does_notify() {
-//         let subscriber_barrier = Barrier::new(2);
-//         let shutdown = ShutdownSignal::new();
-//
-//         std::thread::scope(|s| {
-//             s.spawn(|| {
-//                 let signal = RawSignalChannel::new();
-//                 let task = shutdown
-//                     .clone()
-//                     .spawn_signal(BoundSignalChannel {
-//                         channel: signal.clone(),
-//                         mask: 0b1,
-//                     })
-//                     .unwrap();
-//
-//                 subscriber_barrier.wait();
-//
-//                 while signal.take(0b1) == 0 {
-//                     signal.wait_on_park(u64::MAX);
-//                 }
-//
-//                 assert!(shutdown
-//                     .clone()
-//                     .spawn_signal(BoundSignalChannel {
-//                         channel: signal.clone(),
-//                         mask: 0b1,
-//                     })
-//                     .is_err());
-//
-//                 drop(task);
-//             });
-//
-//             s.spawn(|| {
-//                 subscriber_barrier.wait();
-//                 shutdown.shutdown();
-//             });
-//         });
-//     }
-// }
+    use crate::{define_waker_set, ParkSignalChannelExt, ParkWaker, RawSignalChannel};
+
+    use super::*;
+
+    define_waker_set! {
+        #[derive(Default)]
+        struct MyWakerSet {
+            park: ParkWaker,
+        }
+    }
+
+    #[test]
+    fn does_notify() {
+        let subscriber_barrier = Barrier::new(2);
+        let shutdown = ShutdownSignal::new();
+
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                let signal = RawSignalChannel::new(MyWakerSet::default());
+                let task = shutdown
+                    .clone()
+                    .spawn_signal(signal.bind_clone(0b1))
+                    .unwrap();
+
+                subscriber_barrier.wait();
+
+                while signal.take(0b1) == 0 {
+                    signal.wait_on_park();
+                }
+
+                assert!(shutdown
+                    .clone()
+                    .spawn_signal(signal.bind_clone(0b1))
+                    .is_err());
+
+                drop(task);
+            });
+
+            s.spawn(|| {
+                subscriber_barrier.wait();
+                shutdown.shutdown();
+            });
+        });
+    }
+}

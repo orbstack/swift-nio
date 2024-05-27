@@ -329,6 +329,10 @@ impl<W: ?Sized + WakerSet + WakerSetCanUnsize> RawSignalChannel<W> {
             inner: W::unsize(self.inner),
         }
     }
+
+    pub fn unsize_clone(&self) -> RawSignalChannel<dyn WakerSet> {
+        self.clone().unsize()
+    }
 }
 
 // === BoundSignalChannel === //
@@ -453,6 +457,10 @@ where
 
     pub fn unsize(self) -> SignalChannel<S, dyn WakerSet> {
         SignalChannel::from_raw(self.into_raw().unsize())
+    }
+
+    pub fn unsize_clone(&self) -> SignalChannel<S, dyn WakerSet> {
+        self.clone().unsize()
     }
 }
 
