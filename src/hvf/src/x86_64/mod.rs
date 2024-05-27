@@ -2085,7 +2085,8 @@ pub fn check_cpuid() -> Result<(), Error> {
         0x4e | 0x5e | 0x55 => Ok(()),
         // Kaby Lake, Coffee Lake
         0x8e | 0x9e => Ok(()),
-        // no Comet Lake
+        // Comet Lake
+        0xa5 | 0xa6 => Ok(()),
         // Cannon Lake
         0x66 => Ok(()),
         // Ice Lake
