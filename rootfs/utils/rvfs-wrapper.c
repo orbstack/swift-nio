@@ -40,6 +40,9 @@ struct elf_info {
     bool has_interp; // false = static
     char interpreter[PATH_MAX];
 
+    // links against libuv?
+    bool needs_libuv;
+
     // compressed by UPX?
     bool is_upx;
 };
@@ -78,6 +81,14 @@ static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, 
     // we don't use new QEMU due to segfaults so we can't run this anyway
 
     // vsce-sign also breaks in qemu so no point in switching
+
+    // fix "build-script-build" getting stuck on futex during cargo build
+    // futex(0xffff86e5bfb4, FUTEX_WAIT_PRIVATE, 1, NULL
+    // ex: /build/vinit/target/release/build/bzip2-sys-7a5f3f458c874dc9/build-script-build
+    if (strcmp(exe_name, "build-script-build") == 0) {
+        if (DEBUG) fprintf(stderr, "selecting qemu: exe name\n");
+        return EMU_QEMU;
+    }
 
     // fix IBM DB2 shm issue: https://github.com/orbstack/orbstack/issues/642
     if (strncmp(exe_name, "db2", 3) == 0) {
@@ -180,6 +191,49 @@ static int read_elf_info(int fd, struct elf_info *out) {
             out->has_interp = true;
             out->interpreter[phdr->p_filesz] = '\0';
             if (DEBUG) fprintf(stderr, "interp: %s\n", out->interpreter);
+        } else if (phdr->p_type == PT_DYNAMIC) {
+            // find string table (STRTAB)
+            char *strtab = NULL;
+            for (int j = 0; j < phdr->p_filesz / sizeof(Elf64_Dyn); j++) {
+                Elf64_Dyn *dyn = file + (phdr->p_offset + j * sizeof(Elf64_Dyn)); //TODO check bounds
+                if (dyn->d_tag == DT_STRTAB) {
+                    // dyn->d_un.d_ptr is the loaded virtual address, not file offset
+                    // find PT_LOAD segment to translate it
+                    Elf64_Phdr *load_phdr = NULL;
+                    for (int k = 0; k < ehdr->e_phnum; k++) {
+                        Elf64_Phdr *tmp_phdr = file + (ehdr->e_phoff + k * ehdr->e_phentsize);
+                        if (tmp_phdr->p_type == PT_LOAD && dyn->d_un.d_ptr >= tmp_phdr->p_vaddr && dyn->d_un.d_ptr < (tmp_phdr->p_vaddr + tmp_phdr->p_memsz)) {
+                            load_phdr = tmp_phdr;
+                            break;
+                        }
+                    }
+                    if (load_phdr == NULL) {
+                        return orb_perror("missing LOAD segment for STRTAB");
+                    }
+
+                    strtab = file + load_phdr->p_offset + (dyn->d_un.d_ptr - load_phdr->p_vaddr);
+                    break;
+                }
+            }
+            if (strtab == NULL) {
+                return orb_perror("missing DT_STRTAB");
+            }
+
+            // check DT_NEEDED tags
+            for (int j = 0; j < phdr->p_filesz / sizeof(Elf64_Dyn); j++) {
+                Elf64_Dyn *dyn = file + (phdr->p_offset + j * sizeof(Elf64_Dyn)); //TODO check bounds
+                if (dyn->d_tag == DT_NEEDED) {
+                    char libname[PATH_MAX];
+                    strncpy(libname, strtab + dyn->d_un.d_val, sizeof(libname) - 1);
+                    if (DEBUG) fprintf(stderr, "needed: %s\n", libname);
+
+                    // is it libuv?
+                    if (strstr(libname, "libuv.so") != NULL) {
+                        if (DEBUG) fprintf(stderr, "needs libuv\n");
+                        out->needs_libuv = true;
+                    }
+                }
+            }
         }
     }
 
@@ -309,6 +363,14 @@ int main(int argc, char **argv) {
                             "", elf_info.interpreter, env_type, env_type);
             return 255;
         }
+
+        // if using Rosetta and running "node" or "nvim", set UV_USE_IO_URING=0 if not already set in environ
+        // we check DT_NEEDED libraries but node.js might be statically linked
+        // this is a crude way to detect libuv and avoid 100% CPU on io_uring: https://github.com/orbstack/orbstack/issues/377
+        if (!PASSTHROUGH && (elf_info.needs_libuv || !strcmp(exe_name, "node"))) {
+            if (DEBUG) fprintf(stderr, "setting UV_USE_IO_URING=0\n");
+            setenv("UV_USE_IO_URING", "0", /*overwrite*/ 0);
+        }
     }
 
     // select emulator
@@ -331,6 +393,31 @@ int main(int argc, char **argv) {
 
     char *node_argv_buf[(exe_argc + 3) + 1];
     if (emu == EMU_ROSETTA && !PASSTHROUGH) {
+        // add arguments:
+        // Fix Node.js programs hanging
+        // "pnpm install" with large packages.json/pkgs, e.g. TypeScript, locks up with TurboFan JIT
+        // webpack also freezes so it could be anything, really: https://github.com/orbstack/orbstack/issues/390
+        // this is still way faster than qemu without TurboFan, and we still have Sparkplug compiler
+        // --jitless works too but disables expose-wasm and requires Node 12+
+        if (strcmp(exe_name, "node") == 0) {
+            if (DEBUG) fprintf(stderr, "disabling Node.js TurboFan JIT\n");
+
+            // insert argument (--no-opt)
+            // then, to avoid breaking Yarn and other programs that use workers + execArgv,
+            // inject a preload script to clean up process.execArgv.
+            // node uses readlink, so we have to use a real /proc/.p file instead of memfd
+            // can't use NODE_OPTIONS env var due to limited options. --jitless causes warning,
+            // and --no-expose-wasm is not an allowed option
+
+            node_argv_buf[0] = exe_argv[0];
+            node_argv_buf[1] = "--no-opt";
+            node_argv_buf[2] = "-r"; // --require
+            node_argv_buf[3] = "/proc/.p";
+            memcpy(&node_argv_buf[4], &exe_argv[1], (exe_argc - 1) * sizeof(char*));
+            node_argv_buf[exe_argc + 3] = NULL;
+            exe_argv = node_argv_buf;
+        }
+
         // workaround for Rosetta not supporting RLIM_INFINITY stack rlimit
         // https://github.com/orbstack/orbstack/issues/573
         struct rlimit stack_lim;
