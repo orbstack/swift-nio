@@ -30,7 +30,7 @@ use gruel::{StartupAbortedError, StartupTask};
 use iced_x86::{Code, Decoder, DecoderOptions, Instruction, Register};
 use rustc_hash::FxHashMap;
 use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryMmap};
-use vmm_ids::VcpuSignal;
+use vmm_ids::{ArcVcpuSignal, VcpuSignal};
 
 use core::panic;
 use std::arch::x86_64::{__cpuid, __cpuid_count};
@@ -203,7 +203,7 @@ pub trait Parkable: Send + Sync {
 
     fn unpark(&self, unpark_task: StartupTask);
 
-    fn register_vcpu(&self, vcpu: VcpuSignal) -> StartupTask;
+    fn register_vcpu(&self, vcpu: ArcVcpuSignal) -> StartupTask;
 
     fn process_park_commands(
         &self,

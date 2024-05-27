@@ -684,6 +684,14 @@ impl Vcpu {
             }
         }
 
+        struct HvfWaker(HvVcpuRef);
+
+        impl Waker for HvfWaker {
+            fn wake(&self) {
+                hvf::vcpu_request_exit(self.0).unwrap();
+            }
+        }
+
         // Create the underlying HVF vCPU.
         let mut hvf_vcpu =
             HvfVcpu::new(parker.clone(), self.guest_mem.clone()).expect("Can't create HVF vCPU");
@@ -843,13 +851,47 @@ impl Vcpu {
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "x86_64")]
     pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
-        // Create and register the signal
         use gruel::{
-            MultiShutdownSignalExt, ParkSignalChannelExt, QueueRecvSignalChannelExt,
-            ShutdownAlreadyRequestedExt,
+            define_waker_set, DynamicallyBoundWaker, MultiShutdownSignalExt, ParkSignalChannelExt,
+            ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt, SignalChannel,
+            SignalChannelBindExt,
         };
         use vmm_ids::VmmShutdownPhase;
-        let signal = ArcVcpuSignal::new();
+
+        define_waker_set! {
+            struct VcpuWakerSet {
+                park: ParkWaker,
+                dynamic: DynamicallyBoundWaker,
+                hvf: HvfWaker,
+            }
+        }
+
+        struct HvfWaker(u32);
+
+        impl Waker for HvfWaker {
+            fn wake(&self) {
+                hvf::vcpu_request_exit(self.0).unwrap();
+            }
+        }
+
+        // Create the underlying HVF vCPU.
+        let mut hvf_vcpu = HvfVcpu::new(
+            parker.clone(),
+            self.guest_mem.clone(),
+            &self.hvf_vm,
+            self.vcpu_count,
+            self.ht_enabled,
+        )
+        .expect("Can't create HVF vCPU");
+
+        let hvf_vcpuid = hvf_vcpu.id();
+
+        // Create and register the signal
+        let signal = Arc::new(SignalChannel::new(VcpuWakerSet {
+            park: ParkWaker::default(),
+            dynamic: DynamicallyBoundWaker::default(),
+            hvf: HvfWaker(hvf_vcpuid),
+        }));
         let cpu_shutdown_task = self
             .shutdown
             .spawn_signal(
@@ -865,18 +907,6 @@ impl Vcpu {
                 signal.bind_clone(VcpuSignalMask::DESTROY_VM),
             )
             .unwrap_or_run_now();
-
-        // Create the underlying HVF vCPU.
-        let mut hvf_vcpu = HvfVcpu::new(
-            parker.clone(),
-            self.guest_mem.clone(),
-            &self.hvf_vm,
-            self.vcpu_count,
-            self.ht_enabled,
-        )
-        .expect("Can't create HVF vCPU");
-
-        let hvf_vcpuid = hvf_vcpu.id();
 
         // Register the vCPU with the parker
         let mut park_task = parker.register_vcpu(signal.clone());
@@ -918,7 +948,7 @@ impl Vcpu {
             // (this should never happen if we haven't exited the loop yet)
             debug_assert!(signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
 
-            let Ok(park_task_tmp) = parker.process_park_commands(&signal, park_task) else {
+            let Ok(park_task_tmp) = parker.process_park_commands(&*signal, park_task) else {
                 info!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );
@@ -927,14 +957,9 @@ impl Vcpu {
             park_task = park_task_tmp;
 
             // Run emulation
-            let emulation = signal.wait(
-                VcpuSignalMask::all(),
-                || {
-                    // This is a pure HVF operation
-                    hvf::vcpu_request_exit(hvf_vcpuid).unwrap();
-                },
-                || self.run_emulation(&mut hvf_vcpu),
-            );
+            let emulation = signal.wait(VcpuSignalMask::all(), VcpuWakerSet::hvf, || {
+                self.run_emulation(&mut hvf_vcpu)
+            });
 
             // Handle emulation result
             let Some(emulation) = emulation else {
@@ -1028,14 +1053,6 @@ enum VcpuEmulation {
     PvlockPark,
     #[cfg(target_arch = "aarch64")]
     PvlockUnpark(u64),
-}
-
-struct HvfWaker(HvVcpuRef);
-
-impl Waker for HvfWaker {
-    fn wake(&self) {
-        hvf::vcpu_request_exit(self.0).unwrap();
-    }
 }
 
 #[cfg(test)]
