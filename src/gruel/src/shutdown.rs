@@ -265,7 +265,7 @@ impl ShutdownSignalExt for ShutdownSignal {
 
 // === Tests === //
 
-#[cfg(test)]
+#[cfg(all(test, not(loom)))]
 mod test {
     use std::sync::Barrier;
 

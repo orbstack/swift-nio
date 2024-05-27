@@ -4,12 +4,15 @@ use std::{
     marker::PhantomData,
     ops::Deref,
     ptr::NonNull,
-    sync::{
-        atomic::{fence, AtomicU32, AtomicU64, Ordering::*},
-        Arc,
-    },
+    sync::{atomic::Ordering::*, Arc},
     time::Duration,
 };
+
+#[cfg(not(loom))]
+use std::sync::atomic::{fence, AtomicU32, AtomicU64};
+
+#[cfg(loom)]
+use loom::sync::atomic::{fence, AtomicU32, AtomicU64};
 
 use bitflags::Flags;
 use derive_where::derive_where;
@@ -335,13 +338,8 @@ where
     S: Flags<Bits = u64>,
     W: ?Sized + WakerSet,
 {
-    pub fn wait<R>(
-        &self,
-        wake_up_mask: S,
-        waker: WakerIndex<W>,
-        worker: impl FnOnce() -> R,
-    ) -> Option<R> {
-        self.raw.wait(wake_up_mask.bits(), waker, worker)
+    pub fn wait<R>(&self, mask: S, waker: WakerIndex<W>, worker: impl FnOnce() -> R) -> Option<R> {
+        self.raw.wait(mask.bits(), waker, worker)
     }
 
     pub fn assert(&self, mask: S) {
@@ -653,7 +651,7 @@ impl<T: DynamicallyBoundSignalChannelExt> QueueRecvSignalChannelExt for T {}
 
 // === Tests === //
 
-#[cfg(test)]
+#[cfg(all(test, not(loom)))]
 mod tests {
     use std::{sync::Barrier, thread, time::Duration};
 
@@ -740,6 +738,111 @@ mod tests {
             s.spawn(|| {
                 thread::sleep(Duration::from_millis(100));
                 send.send(42).unwrap();
+            });
+        });
+    }
+}
+
+#[cfg(all(loom, test))]
+mod loom_tests {
+    use super::*;
+
+    use std::sync::{Arc, Barrier};
+
+    define_waker_set! {
+        #[derive(Default)]
+        struct MyWakerSet {
+            parker: ParkWaker,
+        }
+    }
+
+    #[test]
+    fn single_wake_up_loom() {
+        loom::model(|| {
+            let channel = Arc::new(RawSignalChannel::new(MyWakerSet::default()));
+
+            loom::thread::spawn({
+                let channel = channel.clone();
+
+                move || {
+                    channel.wait_on_park(0b1);
+                    assert_eq!(channel.take(u64::MAX), 0b1);
+                }
+            });
+
+            loom::thread::spawn({
+                let channel = channel.clone();
+
+                move || {
+                    channel.assert(0b1);
+                }
+            });
+        });
+    }
+
+    #[test]
+    fn double_wake_up_loom() {
+        loom::model(|| {
+            let channel = Arc::new(RawSignalChannel::new(MyWakerSet::default()));
+
+            loom::thread::spawn({
+                let channel = channel.clone();
+
+                move || {
+                    channel.wait_on_park(0b1);
+                    assert_eq!(channel.take(0b1), 0b1);
+
+                    channel.wait_on_park(0b10);
+                    assert_eq!(channel.take(0b10), 0b10);
+
+                    assert_eq!(channel.take(u64::MAX), 0);
+                }
+            });
+
+            loom::thread::spawn({
+                let channel = channel.clone();
+
+                move || {
+                    channel.assert(0b1);
+                    channel.assert(0b10);
+                }
+            });
+        });
+    }
+
+    #[test]
+    fn multi_source_wake_up_loom() {
+        loom::model(|| {
+            let channel = Arc::new(RawSignalChannel::new(MyWakerSet::default()));
+
+            loom::thread::spawn({
+                let channel = channel.clone();
+
+                move || {
+                    channel.wait_on_park(0b1);
+                    assert_eq!(channel.take(0b1), 0b1);
+
+                    channel.wait_on_park(0b10);
+                    assert_eq!(channel.take(0b10), 0b10);
+
+                    assert_eq!(channel.take(u64::MAX), 0);
+                }
+            });
+
+            loom::thread::spawn({
+                let channel = channel.clone();
+
+                move || {
+                    channel.assert(0b1);
+                }
+            });
+
+            loom::thread::spawn({
+                let channel = channel.clone();
+
+                move || {
+                    channel.assert(0b10);
+                }
             });
         });
     }

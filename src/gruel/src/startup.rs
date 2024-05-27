@@ -193,7 +193,7 @@ impl Drop for StartupTask {
 
 // === Tests === //
 
-#[cfg(test)]
+#[cfg(all(test, not(loom)))]
 mod tests {
     use std::thread;
 

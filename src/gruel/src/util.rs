@@ -49,7 +49,42 @@ cfgenius::define! {
 }
 
 cfgenius::cond! {
-    if all(cfg(target_os = "macos"), macro(enable_specialized_park)) {
+    if cfg(loom) {
+        // Loom implementation
+        mod park {
+            use std::time::Duration;
+
+            #[cfg(loom)]
+            use loom::sync::{Mutex, Condvar};
+
+            #[derive(Debug, Default)]
+            pub struct Parker {
+                state: Mutex<bool>,
+                condvar: Condvar,
+            }
+
+            impl Parker {
+                pub fn park(&self) {
+                    let mut state = self.state.lock().unwrap();
+
+                    while !*state {
+                        state = self.condvar.wait(state).unwrap();
+                    }
+
+                    *state = false;
+                }
+
+                pub fn park_timeout(&self, _timeout: Duration) {
+                    // (loom has no notion of timeouts)
+                }
+
+                pub fn unpark(&self) {
+                    *self.state.lock().unwrap() = true;
+                    self.condvar.notify_all();
+                }
+            }
+        }
+    } else if all(cfg(target_os = "macos"), macro(enable_specialized_park)) {
         // MacOS
         // Reference: `src/sys/pal/unix/thread_parking/darwin.rs` in `std`
         #[allow(non_camel_case_types)]
