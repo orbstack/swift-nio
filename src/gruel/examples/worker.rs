@@ -2,9 +2,8 @@ use std::{sync::Arc, thread, time::Duration};
 
 use bitflags::bitflags;
 use gruel::{
-    define_waker_set, ArcSignalChannel, MultiShutdownSignal, MultiShutdownSignalExt,
-    ParkSignalChannelExt, ParkWaker, ShutdownAlreadyRequestedExt, SignalChannel,
-    SignalChannelBindExt,
+    define_waker_set, MultiShutdownSignal, MultiShutdownSignalExt, ParkSignalChannelExt, ParkWaker,
+    ShutdownAlreadyRequestedExt, SignalChannel, SignalChannelBindExt,
 };
 use newt::define_num_enum;
 
@@ -56,7 +55,7 @@ bitflags! {
 
 fn vcpu_worker(
     stopper: MultiShutdownSignal<VmStopPhase>,
-    signal: ArcSignalChannel<VcpuSignal, VcpuWakerSet>,
+    signal: Arc<SignalChannel<VcpuSignal, VcpuWakerSet>>,
 ) {
     let _shutdown_task = stopper
         .spawn_signal(
@@ -74,6 +73,6 @@ fn vcpu_worker(
             panic!("Ruh roh!");
         }
 
-        signal.wait_on_park();
+        signal.wait_on_park(VcpuSignal::all());
     }
 }

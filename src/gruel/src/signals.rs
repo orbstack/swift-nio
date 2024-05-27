@@ -168,6 +168,7 @@ macro_rules! define_waker_set {
 
 pub struct RawSignalChannel<W: ?Sized + WakerSet> {
     asserted_mask: AtomicU64,
+    wake_up_mask: AtomicU64,
     active_waker: AtomicU32,
     wakers: W,
 }
@@ -194,6 +195,7 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     {
         Self {
             asserted_mask: AtomicU64::new(0),
+            wake_up_mask: AtomicU64::new(0),
             active_waker: AtomicU32::new(u32::MAX),
             wakers,
         }
@@ -213,10 +215,16 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         self.opt_waker_state().unwrap()
     }
 
-    pub fn wait<R>(&self, waker: WakerIndex<W>, worker: impl FnOnce() -> R) -> Option<R> {
+    pub fn wait<R>(
+        &self,
+        wake_up_mask: u64,
+        waker: WakerIndex<W>,
+        worker: impl FnOnce() -> R,
+    ) -> Option<R> {
         debug_assert_eq!(self.active_waker.load(Relaxed), u32::MAX);
 
         self.active_waker.store(waker.index(), Relaxed);
+        self.wake_up_mask.store(wake_up_mask, Relaxed);
 
         let _undo_guard = scopeguard::guard((), |()| {
             self.active_waker.store(u32::MAX, Relaxed);
@@ -232,7 +240,7 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     }
 
     pub fn assert(&self, mask: u64) {
-        if self.asserted_mask.fetch_or(mask, Relaxed) != 0 {
+        if self.asserted_mask.fetch_or(mask, Relaxed) & self.wake_up_mask.load(Relaxed) != 0 {
             return;
         }
 
@@ -320,10 +328,6 @@ where
     {
         self.raw.waker_state()
     }
-
-    pub fn wait<R>(&self, waker: WakerIndex<W>, worker: impl FnOnce() -> R) -> Option<R> {
-        self.raw.wait(waker, worker)
-    }
 }
 
 impl<S, W> SignalChannel<S, W>
@@ -331,6 +335,15 @@ where
     S: Flags<Bits = u64>,
     W: ?Sized + WakerSet,
 {
+    pub fn wait<R>(
+        &self,
+        wake_up_mask: S,
+        waker: WakerIndex<W>,
+        worker: impl FnOnce() -> R,
+    ) -> Option<R> {
+        self.raw.wait(wake_up_mask.bits(), waker, worker)
+    }
+
     pub fn assert(&self, mask: S) {
         self.raw.assert(mask.bits())
     }
@@ -457,8 +470,11 @@ impl SignalChannelBindExt for Arc<RawSignalChannel<dyn WakerSet>> {
 // Helper traits
 pub trait AnySignalChannel<T: Waker>: Sized {
     type WakerSet: WakerSetHas<T>;
+    type Mask: Copy;
 
     fn raw(&self) -> &RawSignalChannel<Self::WakerSet>;
+
+    fn mask_to_u64(mask: Self::Mask) -> u64;
 }
 
 impl<T, W> AnySignalChannel<T> for RawSignalChannel<W>
@@ -467,9 +483,14 @@ where
     W: WakerSetHas<T>,
 {
     type WakerSet = W;
+    type Mask = u64;
 
     fn raw(&self) -> &RawSignalChannel<Self::WakerSet> {
         self
+    }
+
+    fn mask_to_u64(mask: Self::Mask) -> u64 {
+        mask
     }
 }
 
@@ -477,11 +498,17 @@ impl<T, S, W> AnySignalChannel<T> for SignalChannel<S, W>
 where
     T: Waker,
     W: WakerSetHas<T>,
+    S: Copy + Flags<Bits = u64>,
 {
     type WakerSet = W;
+    type Mask = S;
 
     fn raw(&self) -> &RawSignalChannel<Self::WakerSet> {
         self.raw()
+    }
+
+    fn mask_to_u64(mask: Self::Mask) -> u64 {
+        mask.bits()
     }
 }
 
@@ -496,18 +523,20 @@ impl Waker for ParkWaker {
 }
 
 pub trait ParkSignalChannelExt: AnySignalChannel<ParkWaker> {
-    fn wait_on_park(&self) {
+    fn wait_on_park(&self, mask: Self::Mask) {
         let raw = self.raw();
+        let mask = Self::mask_to_u64(mask);
 
-        raw.wait(WakerIndex::of::<ParkWaker>(), || {
+        raw.wait(mask, WakerIndex::of::<ParkWaker>(), || {
             raw.waker_state::<ParkWaker>().0.park();
         });
     }
 
-    fn wait_on_park_timeout(&self, timeout: Duration) {
+    fn wait_on_park_timeout(&self, mask: Self::Mask, timeout: Duration) {
         let raw = self.raw();
+        let mask = Self::mask_to_u64(mask);
 
-        raw.wait(WakerIndex::of::<ParkWaker>(), || {
+        raw.wait(mask, WakerIndex::of::<ParkWaker>(), || {
             raw.waker_state::<ParkWaker>().0.park_timeout(timeout);
         });
     }
@@ -536,10 +565,12 @@ impl Waker for DynamicallyBoundWaker {
 pub trait DynamicallyBoundSignalChannelExt: AnySignalChannel<DynamicallyBoundWaker> {
     fn wait_on_closure<R>(
         &self,
+        mask: Self::Mask,
         waker: impl FnOnce() + Send + Sync,
         worker: impl FnOnce() -> R,
     ) -> Option<R> {
         let raw = self.raw();
+        let mask = Self::mask_to_u64(mask);
 
         // Unsize the waker
         let mut waker = Some(waker);
@@ -573,7 +604,7 @@ pub trait DynamicallyBoundSignalChannelExt: AnySignalChannel<DynamicallyBoundWak
         });
 
         // Run the actual wait operation
-        raw.wait(WakerIndex::of::<DynamicallyBoundWaker>(), worker)
+        raw.wait(mask, WakerIndex::of::<DynamicallyBoundWaker>(), worker)
     }
 }
 
@@ -593,6 +624,7 @@ pub trait QueueRecvSignalChannelExt: DynamicallyBoundSignalChannelExt {
     #[track_caller]
     fn recv_with_cancel<T>(
         &self,
+        mask: Self::Mask,
         receiver: &crossbeam_channel::Receiver<T>,
     ) -> Result<T, QueueRecvError> {
         enum Never {}
@@ -600,6 +632,7 @@ pub trait QueueRecvSignalChannelExt: DynamicallyBoundSignalChannelExt {
         let (cancel_send, cancel_recv) = crossbeam_channel::bounded::<Never>(0);
 
         self.wait_on_closure(
+            mask,
             || drop(cancel_send),
             || {
                 crossbeam_channel::select! {
@@ -647,7 +680,7 @@ mod tests {
         std::thread::scope(|s| {
             s.spawn(|| {
                 start_barrier.wait();
-                channel.wait_on_park();
+                channel.wait_on_park(u64::MAX);
                 assert_eq!(channel.take(1), 1);
             });
 
@@ -665,14 +698,14 @@ mod tests {
         signal.assert(1);
 
         for _ in 0..1000 {
-            signal.wait_on_park();
+            signal.wait_on_park(u64::MAX);
         }
     }
 
     #[test]
     fn respects_timeouts() {
         let signal = RawSignalChannel::new(MyWakerSet::default());
-        signal.wait_on_park_timeout(Duration::from_millis(100));
+        signal.wait_on_park_timeout(u64::MAX, Duration::from_millis(100));
     }
 
     #[test]
@@ -683,7 +716,7 @@ mod tests {
         thread::scope(|s| {
             s.spawn(|| {
                 assert_eq!(
-                    signal.recv_with_cancel(&recv),
+                    signal.recv_with_cancel(u64::MAX, &recv),
                     Err(crate::QueueRecvError::Cancelled)
                 );
             });
@@ -703,7 +736,7 @@ mod tests {
 
         thread::scope(|s| {
             s.spawn(|| {
-                assert_eq!(signal.recv_with_cancel(&recv), Ok(42));
+                assert_eq!(signal.recv_with_cancel(u64::MAX, &recv), Ok(42));
             });
 
             s.spawn(|| {

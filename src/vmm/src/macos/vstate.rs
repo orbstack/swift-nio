@@ -729,7 +729,7 @@ impl Vcpu {
 
         // Wait for boot signal
         let Ok(entry_addr) =
-            signal.recv_with_cancel(/*VcpuSignalMask::ANY_SHUTDOWN,*/ &self.boot_receiver)
+            signal.recv_with_cancel(VcpuSignalMask::ANY_SHUTDOWN, &self.boot_receiver)
         else {
             // Destroy both aforementioned tasks—the user has requested a shutdown.
             return;
@@ -778,7 +778,7 @@ impl Vcpu {
 
             // Run emulation
             let emulation = signal.wait_on_closure(
-                /*VcpuSignalMask::all(),*/
+                VcpuSignalMask::all(),
                 || {
                     // This is a pure HVF operation
                     // TODO: Okay, well, that is a lie w.r.t. balloon parking but that should be
@@ -805,13 +805,13 @@ impl Vcpu {
                 // idea.
                 Ok(VcpuEmulation::WaitForEvent) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
-                        signal.wait_on_park(/*VcpuSignalMask::all()*/);
+                        signal.wait_on_park(VcpuSignalMask::all());
                     }
                 }
                 Ok(VcpuEmulation::WaitForEventExpired) => {}
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
-                        signal.wait_on_park_timeout(/*VcpuSignalMask::all(),*/ timeout);
+                        signal.wait_on_park_timeout(VcpuSignalMask::all(), timeout);
                     }
                 }
 
@@ -838,16 +838,7 @@ impl Vcpu {
         //
         // We really don't want any other signal to shutdown the CPU. Note: `wait_on_park` only wakes
         // up if we genuinely receive the signal.
-        loop {
-            if signal
-                .take(VcpuSignalMask::all())
-                .intersects(VcpuSignalMask::DESTROY_VM)
-            {
-                break;
-            }
-
-            signal.wait_on_park();
-        }
+        signal.wait_on_park(VcpuSignalMask::DESTROY_VM);
 
         hvf_vcpu.destroy();
         drop(hvf_destroy_task);

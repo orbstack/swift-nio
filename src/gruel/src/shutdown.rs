@@ -298,7 +298,7 @@ mod test {
                 subscriber_barrier.wait();
 
                 while signal.take(0b1) == 0 {
-                    signal.wait_on_park();
+                    signal.wait_on_park(u64::MAX);
                 }
 
                 assert!(shutdown
