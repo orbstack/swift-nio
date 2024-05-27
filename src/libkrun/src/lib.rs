@@ -15,6 +15,8 @@ use utils::Mutex;
 use anyhow::{anyhow, Context};
 use crossbeam_channel::unbounded;
 use devices::virtio::{net::device::VirtioNetBackend, CacheType, FsCallbacks, NfsInfo};
+#[cfg(target_arch = "x86_64")]
+use hvf::check_cpuid;
 use hvf::{HvfVm, MemoryMapping};
 use libc::strdup;
 use nix::{
@@ -146,6 +148,10 @@ pub struct Machine {
 impl Machine {
     pub fn new(spec: &VzSpec) -> anyhow::Result<Machine> {
         let mut vmr = VmResources::default();
+
+        // on x86, check CPU compatibility early to return a better error
+        #[cfg(target_arch = "x86_64")]
+        check_cpuid()?;
 
         // on x86, enable HT/SMT if there's an even number of vCPUs, and host has HT/SMT
         #[cfg(target_arch = "x86_64")]

@@ -217,13 +217,10 @@ pub struct HvfVm {}
 
 impl HvfVm {
     pub fn new(_guest_mem: &GuestMemoryMmap) -> Result<Self, Error> {
-        // this will weed out AMD CPUs
         let ret = unsafe { hv_vm_create((HV_VM_DEFAULT | HV_VM_ACCEL_APIC) as u64) };
         if ret != HV_SUCCESS {
             return Err(Error::VmCreate);
         }
-
-        check_cpuid()?;
 
         Ok(Self {})
     }
@@ -2073,10 +2070,10 @@ fn get_cpuid_family_model() -> (u32, u32) {
     (family, model)
 }
 
-fn check_cpuid() -> Result<(), Error> {
+pub fn check_cpuid() -> Result<(), Error> {
     let (family, model) = get_cpuid_family_model();
     if family != 6 {
-        return Err(Error::VmCreate);
+        return Err(Error::CpuUnsupported);
     }
 
     match model {
@@ -2093,6 +2090,6 @@ fn check_cpuid() -> Result<(), Error> {
         0x66 => Ok(()),
         // Ice Lake
         0x6a | 0x6c | 0x7d | 0x7e | 0x9d => Ok(()),
-        _ => Err(Error::VmCreate),
+        _ => Err(Error::CpuUnsupported),
     }
 }
