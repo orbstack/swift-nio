@@ -651,8 +651,6 @@ pub trait QueueRecvSignalChannelExt: DynamicallyBoundSignalChannelExt {
 
 impl<T: DynamicallyBoundSignalChannelExt> QueueRecvSignalChannelExt for T {}
 
-// TODO: Port MIO... how?
-
 // === Tests === //
 
 #[cfg(test)]
