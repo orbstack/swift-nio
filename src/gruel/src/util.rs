@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, mem, sync::Arc};
 
 // === ExtensionFor === //
 
@@ -22,6 +22,24 @@ impl fmt::Debug for FmtU64AsBits {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:b}", self.0)
     }
+}
+
+// === Arc casting === //
+
+pub fn cast_arc<T: ?Sized, V: ?Sized>(arc: Arc<T>, convert: impl FnOnce(&T) -> &V) -> Arc<V> {
+    let original = &*arc;
+    let converted = convert(original);
+
+    assert_eq!(
+        original as *const T as *const (),
+        converted as *const V as *const ()
+    );
+    assert_eq!(mem::size_of_val(original), mem::size_of_val(converted));
+
+    let converted = converted as *const V;
+
+    let _ = Arc::into_raw(arc);
+    unsafe { Arc::from_raw(converted) }
 }
 
 // === Parker === //

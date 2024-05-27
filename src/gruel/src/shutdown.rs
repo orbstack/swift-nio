@@ -10,7 +10,7 @@ use newt::{NumEnum, NumEnumMap};
 use parking_lot::{Condvar, Mutex};
 use thiserror::Error;
 
-use crate::{util::ExtensionFor, BoundSignalChannel};
+use crate::{util::ExtensionFor, ArcBoundSignalChannel};
 
 // === Errors === //
 
@@ -219,7 +219,7 @@ pub trait MultiShutdownSignalExt: ExtensionFor<MultiShutdownSignal<Self::Phase>>
     fn spawn_signal(
         &self,
         phase: Self::Phase,
-        signal: BoundSignalChannel,
+        signal: ArcBoundSignalChannel,
     ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>>;
 }
 
@@ -229,7 +229,7 @@ impl<P: NumEnum> MultiShutdownSignalExt for MultiShutdownSignal<P> {
     fn spawn_signal(
         &self,
         phase: Self::Phase,
-        signal: BoundSignalChannel,
+        signal: ArcBoundSignalChannel,
     ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>> {
         self.spawn(phase, move || signal.assert())
     }
@@ -238,26 +238,26 @@ impl<P: NumEnum> MultiShutdownSignalExt for MultiShutdownSignal<P> {
 pub trait ShutdownSignalExt: ExtensionFor<ShutdownSignal> {
     fn spawn_signal(
         self,
-        signal: BoundSignalChannel,
+        signal: ArcBoundSignalChannel,
     ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>>;
 
     fn spawn_signal_ref(
         &self,
-        signal: BoundSignalChannel,
+        signal: ArcBoundSignalChannel,
     ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>>;
 }
 
 impl ShutdownSignalExt for ShutdownSignal {
     fn spawn_signal(
         self,
-        signal: BoundSignalChannel,
+        signal: ArcBoundSignalChannel,
     ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>> {
         self.spawn(move || signal.assert())
     }
 
     fn spawn_signal_ref(
         &self,
-        signal: BoundSignalChannel,
+        signal: ArcBoundSignalChannel,
     ) -> Result<ShutdownTask, ShutdownAlreadyRequested<impl 'static + Send + Sync + FnOnce()>> {
         self.spawn_ref(move || signal.assert())
     }
@@ -269,7 +269,9 @@ impl ShutdownSignalExt for ShutdownSignal {
 mod test {
     use std::sync::Barrier;
 
-    use crate::{define_waker_set, ParkSignalChannelExt, ParkWaker, RawSignalChannel};
+    use crate::{
+        define_waker_set, ParkSignalChannelExt, ParkWaker, RawSignalChannel, SignalChannelBindExt,
+    };
 
     use super::*;
 
@@ -287,7 +289,7 @@ mod test {
 
         std::thread::scope(|s| {
             s.spawn(|| {
-                let signal = RawSignalChannel::new(MyWakerSet::default());
+                let signal = Arc::new(RawSignalChannel::new(MyWakerSet::default()));
                 let task = shutdown
                     .clone()
                     .spawn_signal(signal.bind_clone(0b1))

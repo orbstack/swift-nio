@@ -1,7 +1,8 @@
 use std::{
     any::{Any, TypeId},
-    fmt, hash,
+    fmt,
     marker::PhantomData,
+    ops::Deref,
     ptr::NonNull,
     sync::{
         atomic::{fence, AtomicU32, AtomicU64, Ordering::*},
@@ -15,7 +16,7 @@ use derive_where::derive_where;
 use parking_lot::Mutex;
 use thiserror::Error;
 
-use crate::util::{FmtDebugUsingDisplay, FmtU64AsBits, Parker};
+use crate::util::{cast_arc, ExtensionFor, FmtDebugUsingDisplay, FmtU64AsBits, Parker};
 
 // === WakerSet === //
 
@@ -165,44 +166,10 @@ macro_rules! define_waker_set {
 
 // === RawSignalChannel === //
 
-// Internals
-mod sealed_raw_signal_channel {
-    use super::*;
-
-    pub struct RawSignalChannelInner<W: ?Sized + WakerSet> {
-        pub(super) asserted_mask: AtomicU64,
-        pub(super) active_waker: AtomicU32,
-        pub(super) wakers: W,
-    }
-
-    pub trait WakerSetCanUnsize: WakerSet {
-        fn unsize(
-            arc: Arc<RawSignalChannelInner<Self>>,
-        ) -> Arc<RawSignalChannelInner<dyn WakerSet>>;
-    }
-
-    impl<T: WakerSet> WakerSetCanUnsize for T {
-        fn unsize(
-            arc: Arc<RawSignalChannelInner<Self>>,
-        ) -> Arc<RawSignalChannelInner<dyn WakerSet>> {
-            arc
-        }
-    }
-
-    impl WakerSetCanUnsize for dyn WakerSet {
-        fn unsize(
-            arc: Arc<RawSignalChannelInner<Self>>,
-        ) -> Arc<RawSignalChannelInner<dyn WakerSet>> {
-            arc
-        }
-    }
-}
-
-use sealed_raw_signal_channel::*;
-
-// Public API
 pub struct RawSignalChannel<W: ?Sized + WakerSet> {
-    inner: Arc<RawSignalChannelInner<W>>,
+    asserted_mask: AtomicU64,
+    active_waker: AtomicU32,
+    wakers: W,
 }
 
 impl<W: ?Sized + WakerSet> fmt::Debug for RawSignalChannel<W> {
@@ -210,39 +177,13 @@ impl<W: ?Sized + WakerSet> fmt::Debug for RawSignalChannel<W> {
         f.debug_struct("RawSignalChannel")
             .field(
                 "asserted_mask",
-                &FmtU64AsBits(self.inner.asserted_mask.load(Relaxed)),
+                &FmtU64AsBits(self.asserted_mask.load(Relaxed)),
             )
             .field(
                 "active_waker",
-                &FmtDebugUsingDisplay(
-                    self.inner
-                        .wakers
-                        .name_of(self.inner.active_waker.load(Relaxed)),
-                ),
+                &FmtDebugUsingDisplay(self.wakers.name_of(self.active_waker.load(Relaxed))),
             )
             .finish()
-    }
-}
-
-impl<W: ?Sized + WakerSet> hash::Hash for RawSignalChannel<W> {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.inner).hash(state);
-    }
-}
-
-impl<W: ?Sized + WakerSet> Eq for RawSignalChannel<W> {}
-
-impl<W: ?Sized + WakerSet> PartialEq for RawSignalChannel<W> {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.inner, &other.inner)
-    }
-}
-
-impl<W: ?Sized + WakerSet> Clone for RawSignalChannel<W> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
     }
 }
 
@@ -252,17 +193,14 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         W: Sized,
     {
         Self {
-            inner: Arc::new(RawSignalChannelInner {
-                wakers,
-                asserted_mask: AtomicU64::new(0),
-                active_waker: AtomicU32::new(u32::MAX),
-            }),
+            asserted_mask: AtomicU64::new(0),
+            active_waker: AtomicU32::new(u32::MAX),
+            wakers,
         }
     }
 
     pub fn opt_waker_state<T: Waker>(&self) -> Option<&T> {
-        self.inner
-            .wakers
+        self.wakers
             .state_of(TypeId::of::<T>())
             .map(|v| v.downcast_ref().unwrap())
     }
@@ -276,17 +214,17 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     }
 
     pub fn wait<R>(&self, waker: WakerIndex<W>, worker: impl FnOnce() -> R) -> Option<R> {
-        debug_assert_eq!(self.inner.active_waker.load(Relaxed), u32::MAX);
+        debug_assert_eq!(self.active_waker.load(Relaxed), u32::MAX);
 
-        self.inner.active_waker.store(waker.index(), Relaxed);
+        self.active_waker.store(waker.index(), Relaxed);
 
         let _undo_guard = scopeguard::guard((), |()| {
-            self.inner.active_waker.store(u32::MAX, Relaxed);
+            self.active_waker.store(u32::MAX, Relaxed);
         });
 
         fence(SeqCst);
 
-        if self.inner.asserted_mask.load(Relaxed) != 0 {
+        if self.asserted_mask.load(Relaxed) != 0 {
             return None;
         }
 
@@ -294,68 +232,27 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     }
 
     pub fn assert(&self, mask: u64) {
-        if self.inner.asserted_mask.fetch_or(mask, Relaxed) != 0 {
+        if self.asserted_mask.fetch_or(mask, Relaxed) != 0 {
             return;
         }
 
         fence(SeqCst);
 
-        let waker = self.inner.active_waker.load(Relaxed);
+        let waker = self.active_waker.load(Relaxed);
 
         if waker != u32::MAX {
-            self.inner.wakers.wake(waker);
+            self.wakers.wake(waker);
         }
     }
 
     pub fn take(&self, mask: u64) -> u64 {
-        self.inner.asserted_mask.fetch_and(!mask, Relaxed) & mask
-    }
-}
-
-impl<W: ?Sized + WakerSet + WakerSetCanUnsize> RawSignalChannel<W> {
-    pub fn bind(self, mask: u64) -> BoundSignalChannel {
-        BoundSignalChannel {
-            channel: self.unsize(),
-            mask,
-        }
-    }
-
-    pub fn bind_clone(&self, mask: u64) -> BoundSignalChannel {
-        self.clone().bind(mask)
-    }
-
-    pub fn unsize(self) -> RawSignalChannel<dyn WakerSet> {
-        RawSignalChannel {
-            inner: W::unsize(self.inner),
-        }
-    }
-
-    pub fn unsize_clone(&self) -> RawSignalChannel<dyn WakerSet> {
-        self.clone().unsize()
-    }
-}
-
-// === BoundSignalChannel === //
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct BoundSignalChannel {
-    pub channel: RawSignalChannel<dyn WakerSet>,
-    pub mask: u64,
-}
-
-impl BoundSignalChannel {
-    pub fn assert(&self) {
-        self.channel.assert(self.mask);
-    }
-
-    pub fn take(&self) {
-        self.channel.take(self.mask);
+        self.asserted_mask.fetch_and(!mask, Relaxed) & mask
     }
 }
 
 // === SignalChannel === //
 
-#[derive_where(Clone, Hash, Eq, PartialEq)]
+#[repr(transparent)]
 pub struct SignalChannel<S, W: ?Sized + WakerSet> {
     _ty: PhantomData<fn(S) -> S>,
     raw: RawSignalChannel<W>,
@@ -370,16 +267,11 @@ where
         f.debug_struct("SignalChannel")
             .field(
                 "asserted_mask",
-                &S::from_bits_retain(self.raw.inner.asserted_mask.load(Relaxed)),
+                &S::from_bits_retain(self.raw.asserted_mask.load(Relaxed)),
             )
             .field(
                 "active_waker",
-                &FmtDebugUsingDisplay(
-                    self.raw
-                        .inner
-                        .wakers
-                        .name_of(self.raw.inner.active_waker.load(Relaxed)),
-                ),
+                &FmtDebugUsingDisplay(self.raw.wakers.name_of(self.raw.active_waker.load(Relaxed))),
             )
             .finish()
     }
@@ -396,7 +288,10 @@ where
         Self::from_raw(RawSignalChannel::new(wakers))
     }
 
-    pub fn from_raw(raw: RawSignalChannel<W>) -> Self {
+    pub fn from_raw(raw: RawSignalChannel<W>) -> Self
+    where
+        W: Sized,
+    {
         Self {
             _ty: PhantomData,
             raw,
@@ -407,7 +302,10 @@ where
         &self.raw
     }
 
-    pub fn into_raw(self) -> RawSignalChannel<W> {
+    pub fn into_raw(self) -> RawSignalChannel<W>
+    where
+        W: Sized,
+    {
         self.raw
     }
 
@@ -442,25 +340,119 @@ where
     }
 }
 
-impl<S, W> SignalChannel<S, W>
+// === BoundSignalChannel === //
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct BoundSignalChannel<P> {
+    pub channel: P,
+    pub mask: u64,
+}
+
+impl<P> BoundSignalChannel<P>
+where
+    P: Deref<Target = RawSignalChannel<dyn WakerSet>>,
+{
+    pub fn assert(&self) {
+        self.channel.assert(self.mask);
+    }
+
+    pub fn take(&self) {
+        self.channel.take(self.mask);
+    }
+}
+
+// === Arc Helpers === //
+
+pub type ArcBoundSignalChannel = BoundSignalChannel<ArcRawSignalChannel<dyn WakerSet>>;
+
+pub type ArcRawSignalChannel<W> = Arc<RawSignalChannel<W>>;
+
+pub type ArcSignalChannel<S, W> = Arc<SignalChannel<S, W>>;
+
+pub trait ArcSignalChannelExt:
+    ExtensionFor<ArcSignalChannel<Self::Signal, Self::WakerSet>>
+{
+    type Signal;
+    type WakerSet: ?Sized + WakerSet;
+
+    fn into_raw(self) -> ArcRawSignalChannel<Self::WakerSet>;
+}
+
+impl<S, W> ArcSignalChannelExt for ArcSignalChannel<S, W>
+where
+    W: ?Sized + WakerSet,
+{
+    type Signal = S;
+    type WakerSet = W;
+
+    fn into_raw(self) -> ArcRawSignalChannel<Self::WakerSet> {
+        cast_arc(self, |v| v.raw())
+    }
+}
+
+pub trait SignalChannelBindExt: Clone {
+    type Mask;
+    type Ptr: Deref<Target = RawSignalChannel<dyn WakerSet>>;
+
+    fn bind(self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr>;
+
+    fn bind_clone(&self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr> {
+        self.clone().bind(mask)
+    }
+}
+
+impl<S, W> SignalChannelBindExt for ArcSignalChannel<S, W>
 where
     S: Flags<Bits = u64>,
-    W: ?Sized + WakerSet + WakerSetCanUnsize,
+    W: WakerSet,
 {
-    pub fn bind(self, mask: S) -> BoundSignalChannel {
-        self.raw.bind(mask.bits())
-    }
+    type Mask = S;
+    type Ptr = ArcRawSignalChannel<dyn WakerSet>;
 
-    pub fn bind_clone(&self, mask: S) -> BoundSignalChannel {
-        self.raw.bind_clone(mask.bits())
+    fn bind(self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr> {
+        BoundSignalChannel {
+            channel: self.into_raw(),
+            mask: mask.bits(),
+        }
     }
+}
 
-    pub fn unsize(self) -> SignalChannel<S, dyn WakerSet> {
-        SignalChannel::from_raw(self.into_raw().unsize())
+impl<S> SignalChannelBindExt for ArcSignalChannel<S, dyn WakerSet>
+where
+    S: Flags<Bits = u64>,
+{
+    type Mask = S;
+    type Ptr = ArcRawSignalChannel<dyn WakerSet>;
+
+    fn bind(self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr> {
+        BoundSignalChannel {
+            channel: self.into_raw(),
+            mask: mask.bits(),
+        }
     }
+}
 
-    pub fn unsize_clone(&self) -> SignalChannel<S, dyn WakerSet> {
-        self.clone().unsize()
+impl<W: WakerSet> SignalChannelBindExt for ArcRawSignalChannel<W> {
+    type Mask = u64;
+    type Ptr = ArcRawSignalChannel<dyn WakerSet>;
+
+    fn bind(self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr> {
+        BoundSignalChannel {
+            channel: self,
+            mask,
+        }
+    }
+}
+
+impl SignalChannelBindExt for ArcRawSignalChannel<dyn WakerSet> {
+    type Mask = u64;
+    type Ptr = ArcRawSignalChannel<dyn WakerSet>;
+
+    fn bind(self, mask: Self::Mask) -> BoundSignalChannel<Self::Ptr> {
+        BoundSignalChannel {
+            channel: self,
+            mask,
+        }
     }
 }
 

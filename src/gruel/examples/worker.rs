@@ -1,9 +1,10 @@
-use std::{thread, time::Duration};
+use std::{sync::Arc, thread, time::Duration};
 
 use bitflags::bitflags;
 use gruel::{
-    define_waker_set, MultiShutdownSignal, MultiShutdownSignalExt, ParkSignalChannelExt, ParkWaker,
-    ShutdownAlreadyRequestedExt, SignalChannel,
+    define_waker_set, ArcSignalChannel, MultiShutdownSignal, MultiShutdownSignalExt,
+    ParkSignalChannelExt, ParkWaker, ShutdownAlreadyRequestedExt, SignalChannel,
+    SignalChannelBindExt,
 };
 use newt::define_num_enum;
 
@@ -16,8 +17,8 @@ define_waker_set! {
 
 fn main() {
     let stopper = MultiShutdownSignal::new();
-    let signal_1 = SignalChannel::new(VcpuWakerSet::default());
-    let signal_2 = SignalChannel::new(VcpuWakerSet::default());
+    let signal_1 = Arc::new(SignalChannel::new(VcpuWakerSet::default()));
+    let signal_2 = Arc::new(SignalChannel::new(VcpuWakerSet::default()));
 
     thread::spawn({
         let stopper = stopper.clone();
@@ -55,7 +56,7 @@ bitflags! {
 
 fn vcpu_worker(
     stopper: MultiShutdownSignal<VmStopPhase>,
-    signal: SignalChannel<VcpuSignal, VcpuWakerSet>,
+    signal: ArcSignalChannel<VcpuSignal, VcpuWakerSet>,
 ) {
     let _shutdown_task = stopper
         .spawn_signal(
