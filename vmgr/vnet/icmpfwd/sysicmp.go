@@ -203,17 +203,21 @@ func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
 		_, err := i.conn4.WriteTo(icmpMsg, nil, dstAddr)
 		i.conn4Mu.Unlock()
 		if err != nil {
-			logrus.WithError(err).Error("icmp4 write failed")
 			if errors.Is(err, unix.ENETUNREACH) {
+				logrus.WithError(err).Debug("icmp4: inject network unreachable")
 				err = i.InjectDestUnreachable4(pkt, header.ICMPv4NetUnreachable)
 				if err != nil {
 					logrus.WithError(err).Error("icmp4 inject unreachable failed")
 				}
 			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) {
+				logrus.WithError(err).Debug("icmp4: inject host unreachable")
 				err = i.InjectDestUnreachable4(pkt, header.ICMPv4HostUnreachable)
 				if err != nil {
 					logrus.WithError(err).Error("icmp4 inject unreachable failed")
 				}
+			} else {
+				// don't spam logs with errors that are normal if pinging with host down / no route to host
+				logrus.WithError(err).Error("icmp4 write failed")
 			}
 			return false
 		}
@@ -242,17 +246,21 @@ func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
 		_, err := i.conn6.WriteTo(icmpMsg, nil, dstAddr)
 		i.conn6Mu.Unlock()
 		if err != nil {
-			logrus.WithError(err).Error("icmp6 write failed")
 			if errors.Is(err, unix.ENETUNREACH) {
+				logrus.WithError(err).Debug("icmp6: inject network unreachable")
 				err = i.InjectDestUnreachable6(pkt, header.ICMPv6NetworkUnreachable)
 				if err != nil {
 					logrus.WithError(err).Error("icmp6 inject unreachable failed")
 				}
 			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) {
+				logrus.WithError(err).Debug("icmp6: inject host unreachable")
 				err = i.InjectDestUnreachable6(pkt, header.ICMPv6AddressUnreachable)
 				if err != nil {
 					logrus.WithError(err).Error("icmp6 inject unreachable failed")
 				}
+			} else {
+				// don't spam logs with errors that are normal if pinging with host down / no route to host
+				logrus.WithError(err).Error("icmp6 write failed")
 			}
 			return false
 		}
