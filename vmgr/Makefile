@@ -3,7 +3,7 @@
 vmgr: ../out/OrbStack\ Helper\ \(VM\).app/Contents/MacOS/OrbStack\ Helper\ \(VM\)
 
 run: vmgr
-	@orb shutdown -f || :
+	@orb stop || :
 	@"../out/OrbStack Helper.app/Contents/MacOS/OrbStack Helper" vmgr
 
 run-raw: vmgr
