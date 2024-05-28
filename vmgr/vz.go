@@ -160,8 +160,10 @@ func CreateVm(monitor vmm.Monitor, params *VmParams) (*vnet.Network, vmm.Machine
 		// But on x86, there are too many, just disable it like Docker
 		// Also prevent TSC from being disabled after sleep with tsc=reliable
 		cmdline = append(cmdline, "mitigations=off", "clocksource=tsc", "tsc=reliable")
-		// on vzf: disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
-		cmdline = append(cmdline, "hpet=disable")
+		if monitor == vzf.Monitor {
+			// on vzf: disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
+			cmdline = append(cmdline, "hpet=disable")
+		}
 	}
 	if params.DiskRootfs != "" {
 		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")
