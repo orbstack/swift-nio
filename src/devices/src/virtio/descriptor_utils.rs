@@ -2,23 +2,28 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+use std::cell::Cell;
 use std::cmp;
-use std::collections::VecDeque;
 use std::fmt::{self, Display};
-use std::io::{self, Read, Write};
+use std::fs::File;
+use std::io::{self, IoSlice, IoSliceMut, Read, Write};
+use std::marker::PhantomData;
 use std::mem::{size_of, MaybeUninit};
 use std::ops::Deref;
+use std::os::fd::AsRawFd;
 use std::ptr::copy_nonoverlapping;
 use std::result;
 
 use crate::virtio::queue::DescriptorChain;
+use libc::c_void;
+use nix::sys::uio::{preadv, pwritev, readv, writev};
 use smallvec::SmallVec;
 use vm_memory::{
     Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap,
     GuestMemoryRegion, Le16, Le32, Le64, VolatileMemory, VolatileMemoryError, VolatileSlice,
 };
 
-use super::file_traits::{FileReadWriteAtVolatile, FileReadWriteVolatile};
+const INLINE_IOVECS: usize = 16;
 
 #[derive(Debug)]
 pub enum Error {
@@ -54,24 +59,119 @@ pub type Result<T> = result::Result<T, Error>;
 
 impl std::error::Error for Error {}
 
+#[repr(transparent)]
 #[derive(Clone)]
+pub struct Iovec<'a> {
+    iov: libc::iovec,
+    _phantom: PhantomData<&'a ()>,
+}
+
+unsafe impl<'a> Send for Iovec<'a> {}
+unsafe impl<'a> Sync for Iovec<'a> {}
+
+impl<'a> Iovec<'a> {
+    pub fn len(&self) -> usize {
+        self.iov.iov_len
+    }
+
+    pub fn set_len(&mut self, len: usize) {
+        self.iov.iov_len = len;
+    }
+
+    pub fn addr(&self) -> *const u8 {
+        self.iov.iov_base as *const u8
+    }
+
+    pub fn addr_mut(&self) -> *mut u8 {
+        self.iov.iov_base as *mut u8
+    }
+
+    pub fn advance(&mut self, len: usize) {
+        self.iov.iov_base = unsafe { self.iov.iov_base.offset(len as isize) } as *mut c_void;
+        self.iov.iov_len -= len;
+    }
+
+    pub fn slice_to_std(iovs: &'a [Iovec<'a>]) -> &'a [IoSlice<'a>] {
+        // safe: std IoSlice is guaranteed to be ABI compatible with iovec
+        unsafe { std::slice::from_raw_parts(iovs.as_ptr() as *const IoSlice<'a>, iovs.len()) }
+    }
+
+    pub fn slice_to_std_mut(iovs: &'a [Iovec<'a>]) -> &'a mut [IoSliceMut<'a>] {
+        // UNSAFE! but nix requires &mut [IoSliceMut] and doesn't actually mutate it, so it's ok...
+        unsafe {
+            std::slice::from_raw_parts_mut(
+                iovs.as_ptr() as *const IoSliceMut<'a> as *mut IoSliceMut<'a>,
+                iovs.len(),
+            )
+        }
+    }
+}
+
+impl<'a> From<VolatileSlice<'a>> for Iovec<'a> {
+    fn from(slice: VolatileSlice<'a>) -> Self {
+        Iovec {
+            iov: libc::iovec {
+                iov_base: slice.ptr_guard_mut().as_ptr() as *mut c_void,
+                iov_len: slice.len(),
+            },
+            _phantom: PhantomData,
+        }
+    }
+}
+
 struct DescriptorChainConsumer<'a> {
-    buffers: VecDeque<VolatileSlice<'a>>,
+    _buffers_vec: Cell<SmallVec<[Iovec<'a>; INLINE_IOVECS]>>,
+    buffers_pos: usize,
     bytes_consumed: usize,
 }
 
 impl<'a> DescriptorChainConsumer<'a> {
-    fn available_bytes(&self) -> usize {
+    pub fn new(buffers: SmallVec<[Iovec<'a>; INLINE_IOVECS]>) -> Self {
+        DescriptorChainConsumer {
+            _buffers_vec: Cell::new(buffers),
+            buffers_pos: 0,
+            bytes_consumed: 0,
+        }
+    }
+
+    fn available_bytes(&mut self) -> usize {
         // This is guaranteed not to overflow because the total length of the chain
         // is checked during all creations of `DescriptorChainConsumer` (see
         // `Reader::new()` and `Writer::new()`).
-        self.buffers
+        self.buffers_mut()
             .iter()
             .fold(0usize, |count, vs| count + vs.len())
     }
 
     fn bytes_consumed(&self) -> usize {
         self.bytes_consumed
+    }
+
+    fn buffers_mut(&mut self) -> &mut [Iovec<'a>] {
+        &mut self._buffers_vec.get_mut()[self.buffers_pos..]
+    }
+
+    fn advance_buffers(&mut self, n: usize) {
+        // Number of buffers to remove.
+        let mut remove = 0;
+        // Remaining length before reaching n.
+        let mut left = n;
+        for buf in self.buffers_mut().iter() {
+            if let Some(remainder) = left.checked_sub(buf.len()) {
+                left = remainder;
+                remove += 1;
+            } else {
+                break;
+            }
+        }
+
+        self.buffers_pos += remove;
+        let bufs = self.buffers_mut();
+        if bufs.is_empty() {
+            assert!(left == 0, "advancing io slices beyond their length");
+        } else {
+            bufs[0].advance(left);
+        }
     }
 
     /// Consumes at most `count` bytes from the `DescriptorChain`. Callers must provide a function
@@ -85,32 +185,39 @@ impl<'a> DescriptorChainConsumer<'a> {
     /// the error is returned to the caller.
     fn consume<F>(&mut self, count: usize, f: F) -> io::Result<usize>
     where
-        F: FnOnce(&[VolatileSlice]) -> io::Result<usize>,
+        F: FnOnce(&[Iovec]) -> io::Result<usize>,
     {
-        let mut buflen = 0;
-        // TODO: convert entire DescriptorChainConsumer to use iterators
-        // can go up to 256 for virtio-blk, 128 for virtiofs
-        let mut bufs = SmallVec::<[VolatileSlice; 128]>::with_capacity(self.buffers.len());
-        for &vs in &self.buffers {
-            if buflen >= count {
+        // how many buffers do we need?
+        let bufs = self.buffers_mut();
+        let mut last_slice_index: Option<usize> = None;
+        let mut last_slice_len: usize = 0;
+        let mut bufs_len = 0;
+        for (i, slice) in bufs.iter_mut().enumerate() {
+            if bufs_len + slice.len() >= count {
+                last_slice_index = Some(i);
+                // cut this last slice short so it's not larger than len
+                last_slice_len = slice.len();
+                slice.set_len(count - bufs_len);
                 break;
             }
 
-            bufs.push(vs);
-
-            let rem = count - buflen;
-            if rem < vs.len() {
-                buflen += rem;
-            } else {
-                buflen += vs.len();
-            }
+            bufs_len += slice.len();
         }
 
-        if bufs.is_empty() {
-            return Ok(0);
-        }
+        let last_slice_index = last_slice_index.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "not enough buffers in descriptor chain",
+            )
+        })?;
 
-        let bytes_consumed = f(&bufs)?;
+        let bytes_consumed = f(&bufs[..last_slice_index + 1])?;
+
+        // restore last slice
+        bufs[last_slice_index].set_len(last_slice_len);
+
+        // advance buffers
+        self.advance_buffers(bytes_consumed);
 
         // This can happen if a driver tricks a device into reading/writing more data than
         // fits in a `usize`.
@@ -121,60 +228,31 @@ impl<'a> DescriptorChainConsumer<'a> {
                     io::Error::new(io::ErrorKind::InvalidData, Error::DescriptorChainOverflow)
                 })?;
 
-        let mut rem = bytes_consumed;
-        while let Some(vs) = self.buffers.pop_front() {
-            if rem < vs.len() {
-                // Split the slice and push the remainder back into the buffer list. Safe because we
-                // know that `rem` is not out of bounds due to the check and we checked the bounds
-                // on `vs` when we added it to the buffer list.
-                self.buffers.push_front(vs.offset(rem).unwrap());
-                break;
-            }
-
-            // No need for checked math because we know that `vs.size() <= rem`.
-            rem -= vs.len();
-        }
-
         self.bytes_consumed = total_bytes_consumed;
-
         Ok(bytes_consumed)
     }
 
     fn split_at(&mut self, offset: usize) -> Result<DescriptorChainConsumer<'a>> {
-        let mut rem = offset;
-        let pos = self.buffers.iter().position(|vs| {
-            if rem < vs.len() {
-                true
-            } else {
-                rem -= vs.len();
-                false
-            }
-        });
-
-        if let Some(at) = pos {
-            let mut other = self.buffers.split_off(at);
-
-            if rem > 0 {
-                // There must be at least one element in `other` because we checked
-                // its `size` value in the call to `position` above.
-                let front = other.pop_front().expect("empty VecDeque after split");
-                self.buffers
-                    .push_back(front.offset(rem).map_err(Error::VolatileMemoryError)?);
-                other.push_front(front.offset(rem).map_err(Error::VolatileMemoryError)?);
-            }
-
-            Ok(DescriptorChainConsumer {
-                buffers: other,
-                bytes_consumed: 0,
-            })
-        } else if rem == 0 {
-            Ok(DescriptorChainConsumer {
-                buffers: VecDeque::new(),
-                bytes_consumed: 0,
-            })
-        } else {
-            Err(Error::SplitOutOfBounds(offset))
+        // we currently only support skipping the first buffer
+        if self.buffers_pos != 0
+            || self.bytes_consumed != 0
+            || self._buffers_vec.get_mut().len() == 0
+            || self._buffers_vec.get_mut()[0].len() != offset
+        {
+            return Err(Error::SplitOutOfBounds(offset));
         }
+
+        // self will be left with a len-1 slice, and we'll allocate once for self
+        let mut other_bufs = SmallVec::<[Iovec<'a>; INLINE_IOVECS]>::with_capacity(1);
+        other_bufs.push(self.buffers_mut()[0].clone());
+        let other = DescriptorChainConsumer {
+            _buffers_vec: Cell::new(other_bufs),
+            buffers_pos: 1,
+            bytes_consumed: 0,
+        };
+
+        self._buffers_vec.swap(&other._buffers_vec);
+        Ok(other)
     }
 }
 
@@ -201,7 +279,6 @@ impl GuestIoSlice {
 /// descriptors after any device-readable descriptors (2.6.4.2 in Virtio Spec v1.1).
 /// Reader will skip iterating over descriptor chain when first writable
 /// descriptor is encountered.
-#[derive(Clone)]
 pub struct Reader<'a> {
     buffer: DescriptorChainConsumer<'a>,
 }
@@ -230,13 +307,11 @@ impl<'a> Reader<'a> {
                     .deref()
                     .get_slice(offset.raw_value() as usize, desc.len as usize)
                     .map_err(Error::VolatileMemoryError)
+                    .map(|vs| vs.into())
             })
-            .collect::<Result<VecDeque<VolatileSlice<'a>>>>()?;
+            .collect::<Result<SmallVec<[Iovec<'a>; INLINE_IOVECS]>>>()?;
         Ok(Reader {
-            buffer: DescriptorChainConsumer {
-                buffers,
-                bytes_consumed: 0,
-            },
+            buffer: DescriptorChainConsumer::new(buffers),
         })
     }
 
@@ -263,13 +338,11 @@ impl<'a> Reader<'a> {
                     .deref()
                     .get_slice(offset.raw_value() as usize, s.len as usize)
                     .map_err(Error::VolatileMemoryError)
+                    .map(|vs| vs.into())
             })
-            .collect::<Result<VecDeque<VolatileSlice<'a>>>>()?;
+            .collect::<Result<SmallVec<[Iovec<'a>; INLINE_IOVECS]>>>()?;
         Ok(Reader {
-            buffer: DescriptorChainConsumer {
-                buffers,
-                bytes_consumed: 0,
-            },
+            buffer: DescriptorChainConsumer::new(buffers),
         })
     }
 
@@ -294,36 +367,25 @@ impl<'a> Reader<'a> {
     /// Returns the number of bytes read from the descriptor chain buffer.
     /// The number of bytes read can be less than `count` if there isn't
     /// enough data in the descriptor chain buffer.
-    pub fn read_to<F: FileReadWriteVolatile>(
-        &mut self,
-        mut dst: F,
-        count: usize,
-    ) -> io::Result<usize> {
-        self.buffer
-            .consume(count, |bufs| dst.write_vectored_volatile(bufs))
+    pub fn read_to(&mut self, dst: &mut File, count: usize) -> io::Result<usize> {
+        self.buffer.consume(count, |bufs| {
+            writev(dst.as_raw_fd(), Iovec::slice_to_std(bufs)).map_err(|e| e.into())
+        })
     }
 
     /// Reads data from the descriptor chain buffer into a File at offset `off`.
     /// Returns the number of bytes read from the descriptor chain buffer.
     /// The number of bytes read can be less than `count` if there isn't
     /// enough data in the descriptor chain buffer.
-    pub fn read_to_at<F: FileReadWriteAtVolatile>(
-        &mut self,
-        dst: F,
-        count: usize,
-        off: u64,
-    ) -> io::Result<usize> {
-        self.buffer
-            .consume(count, |bufs| dst.write_vectored_at_volatile(bufs, off))
+    pub fn read_to_at(&mut self, dst: &File, count: usize, off: u64) -> io::Result<usize> {
+        self.buffer.consume(count, |bufs| {
+            pwritev(dst.as_raw_fd(), Iovec::slice_to_std(bufs), off as i64).map_err(|e| e.into())
+        })
     }
 
-    pub fn read_exact_to<F: FileReadWriteVolatile>(
-        &mut self,
-        mut dst: F,
-        mut count: usize,
-    ) -> io::Result<()> {
+    pub fn read_exact_to(&mut self, dst: &mut File, mut count: usize) -> io::Result<()> {
         while count > 0 {
-            match self.read_to(&mut dst, count) {
+            match self.read_to(dst, count) {
                 Ok(0) => {
                     return Err(io::Error::new(
                         io::ErrorKind::UnexpectedEof,
@@ -341,7 +403,7 @@ impl<'a> Reader<'a> {
 
     /// Returns number of bytes available for reading.  May return an error if the combined
     /// lengths of all the buffers in the DescriptorChain would cause an integer overflow.
-    pub fn available_bytes(&self) -> usize {
+    pub fn available_bytes(&mut self) -> usize {
         self.buffer.available_bytes()
     }
 
@@ -364,12 +426,12 @@ impl<'a> io::Read for Reader<'a> {
         self.buffer.consume(buf.len(), |bufs| {
             let mut rem = buf;
             let mut total = 0;
-            for vs in bufs {
-                let copy_len = cmp::min(rem.len(), vs.len());
+            for iov in bufs {
+                let copy_len = cmp::min(rem.len(), iov.len());
 
                 // Safe because we have already verified that `vs` points to valid memory.
                 unsafe {
-                    copy_nonoverlapping(vs.ptr_guard().as_ptr(), rem.as_mut_ptr(), copy_len);
+                    copy_nonoverlapping(iov.addr(), rem.as_mut_ptr(), copy_len);
                 }
                 rem = &mut rem[copy_len..];
                 total += copy_len;
@@ -386,7 +448,6 @@ impl<'a> io::Read for Reader<'a> {
 /// descriptors after any device-readable descriptors (2.6.4.2 in Virtio Spec v1.1).
 /// Writer will start iterating the descriptors from the first writable one and will
 /// assume that all following descriptors are writable.
-#[derive(Clone)]
 pub struct Writer<'a> {
     buffer: DescriptorChainConsumer<'a>,
 }
@@ -415,14 +476,12 @@ impl<'a> Writer<'a> {
                     .deref()
                     .get_slice(offset.raw_value() as usize, desc.len as usize)
                     .map_err(Error::VolatileMemoryError)
+                    .map(|vs: VolatileSlice<()>| vs.into())
             })
-            .collect::<Result<VecDeque<VolatileSlice<'a>>>>()?;
+            .collect::<Result<SmallVec<[Iovec<'a>; INLINE_IOVECS]>>>()?;
 
         Ok(Writer {
-            buffer: DescriptorChainConsumer {
-                buffers,
-                bytes_consumed: 0,
-            },
+            buffer: DescriptorChainConsumer::new(buffers),
         })
     }
 
@@ -449,13 +508,11 @@ impl<'a> Writer<'a> {
                     .deref()
                     .get_slice(offset.raw_value() as usize, s.len as usize)
                     .map_err(Error::VolatileMemoryError)
+                    .map(|vs| vs.into())
             })
-            .collect::<Result<VecDeque<VolatileSlice<'a>>>>()?;
+            .collect::<Result<SmallVec<[Iovec<'a>; INLINE_IOVECS]>>>()?;
         Ok(Writer {
-            buffer: DescriptorChainConsumer {
-                buffers,
-                bytes_consumed: 0,
-            },
+            buffer: DescriptorChainConsumer::new(buffers),
         })
     }
 
@@ -466,7 +523,7 @@ impl<'a> Writer<'a> {
 
     /// Returns number of bytes available for writing.  May return an error if the combined
     /// lengths of all the buffers in the DescriptorChain would cause an overflow.
-    pub fn available_bytes(&self) -> usize {
+    pub fn available_bytes(&mut self) -> usize {
         self.buffer.available_bytes()
     }
 
@@ -474,36 +531,25 @@ impl<'a> Writer<'a> {
     /// Returns the number of bytes written to the descriptor chain buffer.
     /// The number of bytes written can be less than `count` if
     /// there isn't enough data in the descriptor chain buffer.
-    pub fn write_from<F: FileReadWriteVolatile>(
-        &mut self,
-        mut src: F,
-        count: usize,
-    ) -> io::Result<usize> {
-        self.buffer
-            .consume(count, |bufs| src.read_vectored_volatile(bufs))
+    pub fn write_from(&mut self, src: &mut File, count: usize) -> io::Result<usize> {
+        self.buffer.consume(count, |bufs| {
+            readv(src.as_raw_fd(), Iovec::slice_to_std_mut(bufs)).map_err(|e| e.into())
+        })
     }
 
     /// Writes data to the descriptor chain buffer from a File at offset `off`.
     /// Returns the number of bytes written to the descriptor chain buffer.
     /// The number of bytes written can be less than `count` if
     /// there isn't enough data in the descriptor chain buffer.
-    pub fn write_from_at<F: FileReadWriteAtVolatile>(
-        &mut self,
-        src: F,
-        count: usize,
-        off: u64,
-    ) -> io::Result<usize> {
-        self.buffer
-            .consume(count, |bufs| src.read_vectored_at_volatile(bufs, off))
+    pub fn write_from_at(&mut self, src: &File, count: usize, off: u64) -> io::Result<usize> {
+        self.buffer.consume(count, |bufs| {
+            preadv(src.as_raw_fd(), Iovec::slice_to_std_mut(bufs), off as i64).map_err(|e| e.into())
+        })
     }
 
-    pub fn write_all_from<F: FileReadWriteVolatile>(
-        &mut self,
-        mut src: F,
-        mut count: usize,
-    ) -> io::Result<()> {
+    pub fn write_all_from(&mut self, src: &mut File, mut count: usize) -> io::Result<()> {
         while count > 0 {
-            match self.write_from(&mut src, count) {
+            match self.write_from(src, count) {
                 Ok(0) => {
                     return Err(io::Error::new(
                         io::ErrorKind::WriteZero,
@@ -538,12 +584,12 @@ impl<'a> io::Write for Writer<'a> {
         self.buffer.consume(buf.len(), |bufs| {
             let mut rem = buf;
             let mut total = 0;
-            for vs in bufs {
-                let copy_len = cmp::min(rem.len(), vs.len());
+            for iov in bufs {
+                let copy_len = cmp::min(rem.len(), iov.len());
 
                 // Safe because we have already verified that `vs` points to valid memory.
                 unsafe {
-                    copy_nonoverlapping(rem.as_ptr(), vs.ptr_guard_mut().as_ptr(), copy_len);
+                    copy_nonoverlapping(rem.as_ptr(), iov.addr_mut(), copy_len);
                 }
                 rem = &rem[copy_len..];
                 total += copy_len;
