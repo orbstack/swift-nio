@@ -463,4 +463,14 @@ impl VirtioDevice for Block {
         self.device_state = DeviceState::Inactive;
         true
     }
+
+    fn supports_sync_event(&self) -> bool {
+        !USE_ASYNC_WORKER
+    }
+
+    fn handle_sync_event(&mut self, _queue: u32) {
+        if let Some(ref mut worker) = self.worker {
+            worker.process_virtio_queues();
+        }
+    }
 }
