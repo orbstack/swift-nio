@@ -567,7 +567,7 @@ impl PassthroughFs {
         name: &str,
     ) -> io::Result<(CString, DevIno, NodeFlags)> {
         // deny ".." to prevent root escape
-        if name == ".." {
+        if name == ".." || name.contains('/') {
             return Err(Errno::ENOENT.into());
         }
 
