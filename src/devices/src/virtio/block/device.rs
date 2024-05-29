@@ -18,6 +18,7 @@ use std::path::PathBuf;
 use std::result;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
+use std::thread::JoinHandle;
 use utils::Mutex;
 
 use libc::{fpunchhole_t, off_t};
@@ -36,6 +37,8 @@ use super::{
 
 use crate::legacy::Gic;
 use crate::virtio::ActivateError;
+
+const USE_ASYNC_WORKER: bool = false;
 
 /// Configuration options for disk caching.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -232,6 +235,8 @@ pub struct Block {
     disk_image_path: String,
     is_disk_read_only: bool,
     worker: Option<BlockWorker>,
+    worker_thread: Option<JoinHandle<()>>,
+    worker_stopfd: EventFd,
 
     // Virtio fields.
     pub(crate) avail_features: u64,
@@ -315,6 +320,8 @@ impl Block {
             intc: None,
             irq_line: None,
             worker: None,
+            worker_thread: None,
+            worker_stopfd: EventFd::new(EFD_NONBLOCK)?,
         })
     }
 
@@ -425,32 +432,35 @@ impl VirtioDevice for Block {
 
         let worker = BlockWorker::new(
             self.queues[0].clone(),
+            self.queue_evts[0].try_clone().unwrap(),
             self.interrupt_status.clone(),
             self.interrupt_evt.try_clone().unwrap(),
             self.intc.clone(),
             self.irq_line,
             mem.clone(),
             disk,
+            self.worker_stopfd.try_clone().unwrap(),
         );
-        self.worker = Some(worker);
+        if USE_ASYNC_WORKER {
+            self.worker_thread = Some(worker.run());
+        } else {
+            self.worker = Some(worker);
+        }
 
         self.device_state = DeviceState::Activated(mem);
         Ok(())
     }
 
     fn reset(&mut self) -> bool {
+        if let Some(worker) = self.worker_thread.take() {
+            let _ = self.worker_stopfd.write(1);
+            if let Err(e) = worker.join() {
+                error!("error waiting for worker thread: {:?}", e);
+            }
+        }
+
         self.worker.take();
         self.device_state = DeviceState::Inactive;
         true
-    }
-
-    fn supports_sync_event(&self) -> bool {
-        true
-    }
-
-    fn handle_sync_event(&mut self, _queue: u32) {
-        if let Some(ref mut worker) = self.worker {
-            worker.process_virtio_queues();
-        }
     }
 }

@@ -8,10 +8,13 @@ use super::device::{CacheType, DiskProperties};
 use nix::errno::Errno;
 use std::io::{self, Write};
 use std::mem::size_of;
+use std::os::fd::AsRawFd;
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::thread;
 use std::time::{Duration, Instant};
+use utils::epoll::{ControlOperation, Epoll, EpollEvent, EventSet};
 use utils::eventfd::EventFd;
 use utils::Mutex;
 use virtio_bindings::virtio_blk::*;
@@ -51,6 +54,7 @@ unsafe impl ByteValued for RequestHeader {}
 
 pub struct BlockWorker {
     queue: Queue,
+    queue_evt: EventFd,
     interrupt_status: Arc<AtomicUsize>,
     interrupt_evt: EventFd,
     intc: Option<Arc<Mutex<Gic>>>,
@@ -58,6 +62,7 @@ pub struct BlockWorker {
 
     mem: GuestMemoryMmap,
     disk: DiskProperties,
+    stop_fd: EventFd,
 
     last_flushed_at: Instant,
 }
@@ -75,15 +80,18 @@ impl BlockWorker {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         queue: Queue,
+        queue_evt: EventFd,
         interrupt_status: Arc<AtomicUsize>,
         interrupt_evt: EventFd,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
         mem: GuestMemoryMmap,
         disk: DiskProperties,
+        stop_fd: EventFd,
     ) -> Self {
         Self {
             queue,
+            queue_evt,
             interrupt_status,
             interrupt_evt,
             intc,
@@ -91,8 +99,72 @@ impl BlockWorker {
 
             mem,
             disk,
+            stop_fd,
 
             last_flushed_at: Instant::now(),
+        }
+    }
+
+    pub fn run(self) -> thread::JoinHandle<()> {
+        thread::spawn(|| self.work())
+    }
+
+    fn work(mut self) {
+        let virtq_ev_fd = self.queue_evt.as_raw_fd();
+        let stop_ev_fd = self.stop_fd.as_raw_fd();
+
+        let epoll = Epoll::new().unwrap();
+
+        let _ = epoll.ctl(
+            ControlOperation::Add,
+            virtq_ev_fd,
+            &EpollEvent::new(EventSet::IN, virtq_ev_fd as u64),
+        );
+
+        let _ = epoll.ctl(
+            ControlOperation::Add,
+            stop_ev_fd,
+            &EpollEvent::new(EventSet::IN, stop_ev_fd as u64),
+        );
+
+        loop {
+            let mut epoll_events = vec![EpollEvent::new(EventSet::empty(), 0); 32];
+            match epoll.wait(epoll_events.len(), -1, epoll_events.as_mut_slice()) {
+                Ok(ev_cnt) => {
+                    for event in &epoll_events[0..ev_cnt] {
+                        let source = event.fd();
+                        let event_set = event.event_set();
+                        match event_set {
+                            EventSet::IN if source == virtq_ev_fd => {
+                                self.process_queue_event();
+                            }
+                            EventSet::IN if source == stop_ev_fd => {
+                                debug!("stopping worker thread");
+                                let _ = self.stop_fd.read();
+                                return;
+                            }
+                            _ => {
+                                tracing::warn!(
+                                    "Received unknown event: {:?} from fd: {:?}",
+                                    event_set,
+                                    source
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    debug!("failed to consume muxer epoll event: {}", e);
+                }
+            }
+        }
+    }
+
+    fn process_queue_event(&mut self) {
+        if let Err(e) = self.queue_evt.read() {
+            error!("Failed to get queue event: {:?}", e);
+        } else {
+            self.process_virtio_queues();
         }
     }
 
