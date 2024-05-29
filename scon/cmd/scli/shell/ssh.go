@@ -54,6 +54,16 @@ type CommandOpts struct {
 	WormholeFallback bool
 }
 
+func termMakeRawEintr(fd int) (*term.State, error) {
+	for {
+		state, err := term.MakeRaw(fd)
+		if errors.Is(err, unix.EINTR) {
+			continue
+		}
+		return state, err
+	}
+}
+
 func RunSSH(opts CommandOpts) (int, error) {
 	if opts.ContainerName == "" {
 		opts.ContainerName = "default"
@@ -122,7 +132,7 @@ func RunSSH(opts CommandOpts) (int, error) {
 
 		// raw mode if both outputs are ptys
 		if meta.PtyStdout && meta.PtyStderr {
-			state, err := term.MakeRaw(ptyFd)
+			state, err := termMakeRawEintr(ptyFd)
 			if err != nil {
 				return 0, err
 			}
