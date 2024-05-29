@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/agent"
-	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
@@ -36,7 +35,7 @@ type DockerProxy struct {
 func (m *ConManager) startDockerProxy() error {
 	l, err := netx.ListenTCP("tcp", &net.TCPAddr{
 		// NIC interface, port 2375
-		IP:   util.DefaultAddress4(),
+		IP:   vnetGuestIP4,
 		Port: ports.GuestDocker,
 	})
 	if err != nil {

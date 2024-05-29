@@ -17,7 +17,7 @@ const (
 )
 
 func RunKrpcInitiator() error {
-	listener, err := netx.Listen("tcp", util.DefaultAddress4().String()+":"+strconv.Itoa(ports.GuestKrpc))
+	listener, err := netx.Listen("tcp", vnetGuestIP4.String()+":"+strconv.Itoa(ports.GuestKrpc))
 	if err != nil {
 		return err
 	}

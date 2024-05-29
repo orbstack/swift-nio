@@ -44,6 +44,9 @@ const (
 	oomScoreAdjCriticalHost = "-950"
 )
 
+var vnetGuestIP4 = net.ParseIP(netconf.VnetGuestIP4)
+var vnetGuestIP6 = net.ParseIP(netconf.VnetGuestIP6)
+
 type Network struct {
 	bridge         *netlink.Bridge
 	mtu            int

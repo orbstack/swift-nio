@@ -141,9 +141,9 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 	agentSpec := procToAgentSpec(spec)
 	var internalListenIP net.IP
 	if spec.Addr().Is4() {
-		internalListenIP = util.DefaultAddress4()
+		internalListenIP = vnetGuestIP4
 	} else {
-		internalListenIP = util.DefaultAddress6()
+		internalListenIP = vnetGuestIP6
 	}
 	hostListenIP := spec.HostListenIP()
 

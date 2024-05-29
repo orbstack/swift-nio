@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/orbstack/macvirt/scon/sclient"
-	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 )
 
@@ -15,7 +14,7 @@ const (
 
 func runLxcPostStop(cid string) {
 	// don't bother to close it, we're exiting anyway
-	addr := util.DefaultAddress4().String() + ":" + strconv.Itoa(ports.GuestScon)
+	addr := vnetGuestIP4.String() + ":" + strconv.Itoa(ports.GuestScon)
 	client, err := sclient.New("tcp", addr)
 	check(err)
 
