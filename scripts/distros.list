@@ -4,6 +4,7 @@ alpine:3.16
 alpine:3.17
 alpine:3.18
 alpine:3.19
+alpine:3.20
 alpine:edge
 alt:Sisyphus
 alt:p10
