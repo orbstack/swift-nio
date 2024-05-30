@@ -17,7 +17,9 @@ use std::sync::atomic::{
 };
 use std::time::Duration;
 
+#[allow(non_camel_case_types)]
 type dispatch_semaphore_t = *mut std::ffi::c_void;
+#[allow(non_camel_case_types)]
 type dispatch_time_t = u64;
 
 const DISPATCH_TIME_NOW: dispatch_time_t = 0;
