@@ -217,7 +217,20 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     {
         self.opt_waker_state().unwrap()
     }
+}
 
+// This mechanism offers the following guarantees:
+//
+// 1. If a given signal in a `wake_up_mask` is asserted, the `wait` command will be skipped and/or the
+//    waker will be called.
+// 2. A given waker be called at most once for a given `wait` command.
+//
+// Unfortunately, the following guarantees are *not* yet made:
+//
+// 1. It is possible that a waker will be called and a task will be skipped at the same time.
+//
+// TODO: Prove these properties
+impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     pub fn wait<R>(
         &self,
         wake_up_mask: u64,
@@ -235,7 +248,7 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 
         fence(SeqCst);
 
-        if self.asserted_mask.load(Relaxed) != 0 {
+        if self.asserted_mask.load(Relaxed) & wake_up_mask != 0 {
             return None;
         }
 
@@ -243,7 +256,10 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     }
 
     pub fn assert(&self, mask: u64) {
-        if self.asserted_mask.fetch_or(mask, Relaxed) & self.wake_up_mask.load(Relaxed) != 0 {
+        let asserted_mask = self.asserted_mask.fetch_or(mask, Relaxed);
+        let wake_up_mask = self.wake_up_mask.load(Relaxed);
+
+        if asserted_mask & wake_up_mask != 0 {
             return;
         }
 
@@ -257,7 +273,20 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     }
 
     pub fn take(&self, mask: u64) -> u64 {
+        // Ensures that any threads which see the reduced assertion mask also see the `active_waker`,
+        // which `wait` must have set to `u32::MAX`. This ensures that the waker cannot be called
+        // more times than is expected. We use a fence here because, honestly, I'm not sure how the
+        // other orderings would interact here.
+        fence(SeqCst);
+
         self.asserted_mask.fetch_and(!mask, Relaxed) & mask
+    }
+
+    pub fn could_take(&self, mask: u64) -> bool {
+        // (mimics `take`)
+        fence(SeqCst);
+
+        self.asserted_mask.load(Relaxed) & mask != 0
     }
 }
 
@@ -348,6 +377,10 @@ where
 
     pub fn take(&self, mask: S) -> S {
         S::from_bits_retain(self.raw.take(mask.bits()))
+    }
+
+    pub fn could_take(&self, mask: S) -> bool {
+        self.raw.could_take(mask.bits())
     }
 }
 
@@ -525,9 +558,16 @@ pub trait ParkSignalChannelExt: AnySignalChannel<ParkWaker> {
         let raw = self.raw();
         let mask = Self::mask_to_u64(mask);
 
-        raw.wait(mask, WakerIndex::of::<ParkWaker>(), || {
-            raw.waker_state::<ParkWaker>().0.park();
-        });
+        // Unfortunately, a given `wait` command is allowed to be both skipped and awaken, which can
+        // easily lead in a left-over wake-up ticket. Hence, we loop until we're sure that the operation
+        // has actually been woken up. In practice, this loop should very rarely be taken.
+        //
+        // FIXME: Maybe we should strengthen the signal's guarantees?
+        while !raw.could_take(mask) {
+            raw.wait(mask, WakerIndex::of::<ParkWaker>(), || {
+                raw.waker_state::<ParkWaker>().0.park();
+            });
+        }
     }
 
     fn wait_on_park_timeout(&self, mask: Self::Mask, timeout: Duration) {
