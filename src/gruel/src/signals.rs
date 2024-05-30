@@ -223,13 +223,18 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 //
 // 1. If a given signal in a `wake_up_mask` is asserted, the `wait` command will be skipped and/or the
 //    waker will be called.
+//
 // 2. A given waker be called at most once for a given `wait` command.
 //
 // Unfortunately, the following guarantees are *not* yet made:
 //
-// 1. It is possible that a waker will be called and a task will be skipped at the same time.
+// 1. It is possible that a waker will be called and a task will be skipped at the same time. This
+//    could potentially be fixed but doing so isn't too useful considering limitation 2.
 //
-// TODO: Prove these properties
+// 2. It is possible that a wake call from an earlier `wait` can be so delayed that it ends up being
+//    called in the context of a subsequent `wait`. This cannot be prevented without blocking the
+//    `wait` call on completion of its wakers.
+//
 impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     pub fn wait<R>(
         &self,
@@ -248,6 +253,13 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 
         fence(SeqCst);
 
+        // We know that this satisfies property 1 of the impl docs because if this branch is not taken
+        // but `assert` is called in a way compatible with `wake_up_mask`, the `asserted_mask` must
+        // not have been updated yet. We know that, once the `assert` call gets past the `asserted_mask`
+        // update and the fence right after that, our updates to `active_waker` and `wake_up_mask`
+        // must have been made visible to it. Hence, it will realize that it must wake-up.
+        //
+        // Hence, at a minimum, the waker will be called.
         if self.asserted_mask.load(Relaxed) & wake_up_mask != 0 {
             return None;
         }
@@ -257,13 +269,17 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 
     pub fn assert(&self, mask: u64) {
         let asserted_mask = self.asserted_mask.fetch_or(mask, Relaxed);
-        let wake_up_mask = self.wake_up_mask.load(Relaxed);
-
-        if asserted_mask & wake_up_mask != 0 {
-            return;
-        }
 
         fence(SeqCst);
+
+        // Ensure that we only call the waker once for a given `wait` command. We know will be the
+        // case since, before we unset the `waker`—thereby completing the uniqueness period—we will
+        // have saturated the `asserted_mask` with an assertion bit that causes this branch to be
+        // taken. Note that `take`'s updates to `asserted_mask` must be made visible after the waker
+        // is unset to keep this true.
+        if asserted_mask & self.wake_up_mask.load(Relaxed) != 0 {
+            return;
+        }
 
         let waker = self.active_waker.load(Relaxed);
 
@@ -561,8 +577,6 @@ pub trait ParkSignalChannelExt: AnySignalChannel<ParkWaker> {
         // Unfortunately, a given `wait` command is allowed to be both skipped and awaken, which can
         // easily lead in a left-over wake-up ticket. Hence, we loop until we're sure that the operation
         // has actually been woken up. In practice, this loop should very rarely be taken.
-        //
-        // FIXME: Maybe we should strengthen the signal's guarantees?
         while !raw.could_take(mask) {
             raw.wait(mask, WakerIndex::of::<ParkWaker>(), || {
                 raw.waker_state::<ParkWaker>().0.park();
