@@ -49,7 +49,7 @@ func (m *ConManager) removeDeviceNodeAll(src string, dst string) error {
 				"container": c.Name,
 				"dst":       dst,
 			}).Debug("removing device node")
-			err := c.removeDeviceNode(src, dst)
+			err := c.removeDeviceNode(dst)
 			if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
 				errs = append(errs, err)
 			}

@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/sirupsen/logrus"

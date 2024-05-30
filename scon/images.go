@@ -415,10 +415,10 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	logrus.Info("applying templates")
 	ctx := pongo2.Context{
 		"container": map[string]string{
-			"name": containerName,
+			"name": hostName,
 		},
 		"instance": map[string]string{
-			"name": containerName,
+			"name": hostName,
 			"type": "container", // not virtual-machine. for cloud-init network-config
 		},
 		"properties": map[string]string{
