@@ -17,3 +17,7 @@ arm-test: arm
 arm:
 	cargo build
 	codesign -f --entitlements kruntest.entitlements -s - target/debug/kruntest
+
+test-gruel:
+	cargo test -p gruel
+	LOOM_MAX_PREEMPTIONS=5 RUSTFLAGS="--cfg loom" cargo test -p gruel --release

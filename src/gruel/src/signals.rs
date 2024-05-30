@@ -238,14 +238,14 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     pub fn wait<R>(
         &self,
-        wake_up_mask: u64,
+        mask: u64,
         waker: WakerIndex<W>,
         worker: impl FnOnce() -> R,
     ) -> Option<R> {
         debug_assert_eq!(self.active_waker.load(Relaxed), u32::MAX);
 
         self.active_waker.store(waker.index(), Relaxed);
-        self.wake_up_mask.store(wake_up_mask, Relaxed);
+        self.wake_up_mask.store(mask, Relaxed);
 
         let _undo_guard = scopeguard::guard((), |()| {
             self.active_waker.store(u32::MAX, Relaxed);
@@ -260,7 +260,7 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         // must have been made visible to it. Hence, it will realize that it must wake-up.
         //
         // Hence, at a minimum, the waker will be called.
-        if self.asserted_mask.load(Relaxed) & wake_up_mask != 0 {
+        if self.asserted_mask.load(Relaxed) & mask != 0 {
             return None;
         }
 
