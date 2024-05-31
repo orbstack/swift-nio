@@ -53,16 +53,10 @@ struct Cli {
 enum Commands {
     /// Install package(s)
     #[clap(alias("add"), alias("i"))]
-    Install {
-        #[arg(required=true, num_args=1..)]
-        package: Vec<String>,
-    },
+    Install { package: Vec<String> },
     /// Uninstall package(s)
     #[clap(alias("remove"), alias("rm"), alias("del"))]
-    Uninstall {
-        #[arg(required=true, num_args=1..)]
-        package: Vec<String>,
-    },
+    Uninstall { package: Vec<String> },
     /// List installed packages
     #[clap(alias("ls"))]
     List,
