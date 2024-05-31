@@ -206,7 +206,7 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 		written, err := ext.conn.Write(readBuf[:read])
 		if err != nil {
 			if !errors.Is(err, unix.ENOBUFS) {
-				logrus.Error("UDP write failed", err)
+				logrus.WithError(err).Error("UDP write failed")
 				break
 			}
 		} else if written != read {
