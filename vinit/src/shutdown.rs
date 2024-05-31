@@ -72,15 +72,22 @@ fn broadcast_signal(signal: Signal) -> nix::Result<Vec<PidFd>> {
 
     // can't use kill(-1) because we need to know which PIDs to wait for exit
     // otherwise unmount returns EBUSY
-    let mut pids = Vec::new();
+    let mut pidfds = Vec::new();
     match fs::read_dir("/proc") {
         Ok(entries) => {
             for entry in entries {
                 match kill_one_entry(entry, signal) {
-                    Ok(Some(pid)) => {
-                        pids.push(pid);
+                    Ok(Some(pidfd)) => {
+                        pidfds.push(pidfd);
                     },
                     Err(e) => {
+                        if let Some(e) = e.downcast_ref::<io::Error>() {
+                            if e.kind() == io::ErrorKind::NotFound {
+                                // process already exited
+                                continue;
+                            }
+                        }
+
                         println!(" !!! Failed to read /proc entry: {}", e);
                     },
                     _ => {},
@@ -94,7 +101,7 @@ fn broadcast_signal(signal: Signal) -> nix::Result<Vec<PidFd>> {
 
     // always make sure to unfreeze
     kill(Pid::from_raw(-1), Signal::SIGCONT)?;
-    Ok(pids)
+    Ok(pidfds)
 }
 
 fn unmount_one_loopback(entry: Result<DirEntry, io::Error>) -> Result<bool, Box<dyn Error>> {
