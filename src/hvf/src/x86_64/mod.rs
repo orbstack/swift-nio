@@ -169,7 +169,7 @@ pub enum Error {
     VcpuStartupAp,
     #[error("vm allocate")]
     VmAllocate,
-    #[error("Intel CPUs newer than Ice Lake (10th generation), the newest CPU ever shipped in an Intel Mac, are not supported")]
+    #[error("Intel CPUs older than Skylake (6th generation) or newer than Ice Lake (10th generation), the newest CPU ever shipped in an Intel Mac, are not supported")]
     CpuUnsupported,
 }
 
