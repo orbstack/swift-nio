@@ -110,7 +110,8 @@ const EXCLUDE_ENVS: &[&str] = &[
     // https://github.com/orbstack/orbstack/issues/1096
     "BASH_ENV",
 ];
-const PREPEND_PATH: &str = "/nix/orb/data/.env-out/bin:/nix/orb/sys/bin";
+const PREPEND_PATH: &str = "/nix/orb/sys/bin";
+const APPEND_PATH: &str = "/nix/orb/data/.env-out/bin";
 
 // type mismatch: musl=c_int, glibc=c_uint
 const PTRACE_SECCOMP_GET_FILTER: libc::c_uint = 0x420c;
@@ -612,9 +613,10 @@ fn main() -> anyhow::Result<()> {
     env_map.insert(
         "PATH".to_string(),
         format!(
-            "{}:{}",
+            "{}:{}:{}",
             PREPEND_PATH,
-            env_map.get("PATH").unwrap_or(&"".to_string())
+            env_map.get("PATH").unwrap_or(&"".to_string()),
+            APPEND_PATH,
         ),
     );
     // set/overwrite extra envs
