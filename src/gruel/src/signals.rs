@@ -2,10 +2,12 @@ use std::{
     any::{Any, TypeId},
     fmt,
     marker::PhantomData,
-    mem,
     ops::Deref,
     ptr::NonNull,
-    sync::{atomic::Ordering::*, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering::*},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -31,6 +33,8 @@ pub trait Waker: 'static + Send + Sync {
 
 pub trait WakerSet: 'static + Send + Sync {
     fn wake(&self, index: u32);
+
+    fn index_of(&self, ty: TypeId) -> Option<u32>;
 
     fn state_of(&self, ty: TypeId) -> Option<&(dyn Any + Send + Sync)>;
 
@@ -73,7 +77,7 @@ impl<S: ?Sized + WakerSet> WakerIndex<S> {
         }
     }
 
-    pub fn index(self) -> u32 {
+    pub const fn index(self) -> u32 {
         self.index
     }
 }
@@ -127,6 +131,17 @@ macro_rules! define_waker_set {
                 $(if index == Self::$f_name.index() {
                     $crate::define_waker_set_internal::Waker::wake(&self.$f_name);
                 })*
+            }
+
+            fn index_of(
+                &self,
+                ty: $crate::define_waker_set_internal::TypeId,
+            ) -> $crate::define_waker_set_internal::Option<$crate::define_waker_set_internal::u32> {
+                $(if ty == $crate::define_waker_set_internal::TypeId::of::<$f_ty>() {
+                    return $crate::define_waker_set_internal::Option::Some(Self::$f_name.index());
+                })*
+
+                $crate::define_waker_set_internal::Option::None
             }
 
             fn state_of(
@@ -205,10 +220,25 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         }
     }
 
+    pub fn wakers(&self) -> &W {
+        &self.wakers
+    }
+
+    pub fn opt_waker_index<T: Waker>(&self) -> Option<WakerIndex<W>> {
+        self.wakers
+            .index_of(TypeId::of::<T>())
+            .map(WakerIndex::new_unchecked)
+    }
+
     pub fn opt_waker_state<T: Waker>(&self) -> Option<&T> {
         self.wakers
             .state_of(TypeId::of::<T>())
             .map(|v| v.downcast_ref().unwrap())
+    }
+
+    pub fn opt_waker<T: Waker>(&self) -> Option<(&T, WakerIndex<W>)> {
+        self.opt_waker_state::<T>()
+            .map(|state| (state, self.opt_waker_index::<T>().unwrap()))
     }
 
     pub fn waker_state<T>(&self) -> &T
@@ -237,18 +267,18 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 //    `wait` call on completion of its wakers.
 //
 impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
-    pub fn wait_inner(
+    pub fn wait_manual(
         &self,
         wake_up_mask: u64,
         abort_mask: u64,
         waker: WakerIndex<W>,
-    ) -> Option<RawSignalChannelWakerGuard<'_>> {
+    ) -> WaitManualResult<'_> {
         debug_assert_eq!(self.active_waker.load(Relaxed), u32::MAX);
 
         self.active_waker.store(waker.index(), Relaxed);
         self.wake_up_mask.store(wake_up_mask, Relaxed);
 
-        let undo_guard = RawSignalChannelWakerGuard {
+        let wait_guard = SignalChannelWaitGuard {
             active_waker: &self.active_waker,
         };
 
@@ -261,11 +291,18 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         // must have been made visible to it. Hence, it will realize that it must wake-up.
         //
         // Hence, at a minimum, the waker will be called.
-        if self.asserted_mask.load(Relaxed) & abort_mask != 0 {
-            return None;
+        let observed_mask = self.asserted_mask.load(Relaxed);
+        if observed_mask & abort_mask != 0 {
+            return WaitManualResult {
+                observed_mask,
+                wait_guard: None,
+            };
         }
 
-        Some(undo_guard)
+        WaitManualResult {
+            observed_mask,
+            wait_guard: Some(wait_guard),
+        }
     }
 
     pub fn wait<R>(
@@ -274,7 +311,7 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         waker: WakerIndex<W>,
         worker: impl FnOnce() -> R,
     ) -> Option<R> {
-        let _undo_guard = self.wait_inner(mask, mask, waker)?;
+        let _undo_guard = self.wait_manual(mask, mask, waker).wait_guard?;
 
         Some(worker())
     }
@@ -319,33 +356,19 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 }
 
 #[derive(Debug)]
-pub struct RawSignalChannelWakerGuard<'a> {
-    active_waker: &'a AtomicU32,
-}
-
-impl RawSignalChannelWakerGuard<'_> {
-    #[allow(clippy::missing_safety_doc)] // (mostly internal)
-    pub unsafe fn to_unsafe(self) -> UnsafeRawSignalChannelWakerGuard {
-        let active_waker = NonNull::from(self.active_waker);
-        mem::forget(self);
-        UnsafeRawSignalChannelWakerGuard { active_waker }
-    }
-}
-
-impl Drop for RawSignalChannelWakerGuard<'_> {
-    fn drop(&mut self) {
-        self.active_waker.store(u32::MAX, Relaxed);
-    }
+pub struct WaitManualResult<'a> {
+    pub observed_mask: u64,
+    pub wait_guard: Option<SignalChannelWaitGuard<'a>>,
 }
 
 #[derive(Debug)]
-pub struct UnsafeRawSignalChannelWakerGuard {
-    active_waker: NonNull<AtomicU32>,
+pub struct SignalChannelWaitGuard<'a> {
+    active_waker: &'a AtomicU32,
 }
 
-impl Drop for UnsafeRawSignalChannelWakerGuard {
+impl Drop for SignalChannelWaitGuard<'_> {
     fn drop(&mut self) {
-        unsafe { self.active_waker.as_ref().store(u32::MAX, Relaxed) };
+        self.active_waker.store(u32::MAX, Relaxed);
     }
 }
 
@@ -659,16 +682,9 @@ impl Waker for DynamicallyBoundWaker {
     }
 }
 
-pub trait DynamicallyBoundSignalChannelExt: AnySignalChannel<DynamicallyBoundWaker> {
-    fn wait_on_closure<R>(
-        &self,
-        mask: Self::Mask,
-        waker: impl FnOnce() + Send + Sync,
-        worker: impl FnOnce() -> R,
-    ) -> Option<R> {
-        let raw = self.raw();
-        let mask = Self::mask_to_u64(mask);
-
+impl DynamicallyBoundWaker {
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn bind_waker(&self, waker: impl FnOnce() + Send + Sync) {
         // Unsize the waker
         let mut waker = Some(waker);
         let mut waker = move || {
@@ -685,19 +701,34 @@ pub trait DynamicallyBoundSignalChannelExt: AnySignalChannel<DynamicallyBoundWak
             )
         };
 
+        let mut curr_waker = self.waker.lock();
+        assert!(curr_waker.is_none());
+
+        *curr_waker = Some(waker);
+    }
+
+    pub fn clear_waker(&self) {
+        *self.waker.lock() = None;
+    }
+}
+
+pub trait DynamicallyBoundSignalChannelExt: AnySignalChannel<DynamicallyBoundWaker> {
+    fn wait_on_closure<R>(
+        &self,
+        mask: Self::Mask,
+        waker: impl FnOnce() + Send + Sync,
+        worker: impl FnOnce() -> R,
+    ) -> Option<R> {
+        let raw = self.raw();
+        let mask = Self::mask_to_u64(mask);
+
         // Provide it to the interned waker
         let dyn_state = raw.waker_state::<DynamicallyBoundWaker>();
-
-        {
-            let mut curr_waker = dyn_state.waker.lock();
-            assert!(curr_waker.is_none());
-
-            *curr_waker = Some(waker);
-        }
+        unsafe { dyn_state.bind_waker(waker) };
 
         // Bind an undo scope guard
         let _undo_guard = scopeguard::guard((), |()| {
-            *dyn_state.waker.lock() = None;
+            dyn_state.clear_waker();
         });
 
         // Run the actual wait operation
@@ -747,6 +778,86 @@ pub trait QueueRecvSignalChannelExt: DynamicallyBoundSignalChannelExt {
 }
 
 impl<T: DynamicallyBoundSignalChannelExt> QueueRecvSignalChannelExt for T {}
+
+// === Signal Multiplexing === //
+
+pub fn process_signals_multiplexed(
+    handlers: &[&dyn SignalMultiplexHandler],
+    should_stop: &AtomicBool,
+    park: impl Fn(),
+    unpark: impl Sync + Fn(),
+) {
+    // Create a bitflag for quickly determining which handlers are dirty.
+    let dirty_flags = Box::from_iter((0..(handlers.len() + 63) / 64).map(|_| AtomicU64::new(0)));
+    let dirty_flags = &*dirty_flags;
+
+    // Create a parker for this subscriber loop.
+    let unpark = &unpark;
+
+    // Bind the subscriber to every handler.
+    let mut wait_guards = Vec::new();
+
+    for (i, handler) in handlers.iter().enumerate() {
+        // Determine the bit in the dirty mask that this handler occupies.
+        let slot_idx = i / 64;
+        let slot_mask = 1 << (i % 64);
+        let slot = &dirty_flags[slot_idx];
+
+        // Bind each signal to the slot.
+        for signal in handler.signals() {
+            let (state, waiter_idx) = signal
+                .opt_waker::<DynamicallyBoundWaker>()
+                .expect("only signals with a `DynamicallyBoundWaker` can be multiplexed");
+
+            // Set the waker's dynamic waking closure. We could theoretically do better than a
+            // `DynamicallyBoundWaker` with some clever reference-counting but I don't really want
+            // to implement such a complex system for such a performance-insensitive system.
+            unsafe {
+                // We have to be *very* careful to only borrow things that only expire after all the
+                // wait guards are gone.
+                state.bind_waker(move || {
+                    slot.fetch_or(slot_mask, Relaxed);
+                    (unpark)();
+                });
+            }
+
+            let wait_result = signal.wait_manual(u64::MAX, 0, waiter_idx);
+            if wait_result.observed_mask != 0 {
+                slot.fetch_or(slot_mask, Relaxed);
+            }
+
+            let undo_waker_guard = wait_result.wait_guard;
+            let unbind_dynamic_guard = scopeguard::guard((), |()| {
+                state.clear_waker();
+            });
+            wait_guards.push((undo_waker_guard, unbind_dynamic_guard));
+        }
+    }
+
+    // Process events
+    while !should_stop.load(Relaxed) {
+        for (i_cell, flag) in dirty_flags.iter().enumerate() {
+            let mut flag = flag.swap(0, Relaxed);
+            while flag != 0 {
+                let i_bit = flag.trailing_zeros() as usize;
+                flag ^= 1 << i_bit;
+                let i = i_cell * 64 + i_bit;
+
+                handlers[i].process();
+            }
+        }
+
+        // Although we don't redo another `wait` operation here, this routine is still guaranteed not
+        // to miss any events because `park` holds unpark tickets.
+        (park)();
+    }
+}
+
+pub trait SignalMultiplexHandler: 'static {
+    fn process(&self);
+
+    fn signals(&self) -> Vec<&RawSignalChannel>;
+}
 
 // === Tests === //
 
