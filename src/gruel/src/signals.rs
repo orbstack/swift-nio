@@ -2,6 +2,7 @@ use std::{
     any::{Any, TypeId},
     fmt,
     marker::PhantomData,
+    mem,
     ops::Deref,
     ptr::NonNull,
     sync::{atomic::Ordering::*, Arc},
@@ -236,20 +237,20 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 //    `wait` call on completion of its wakers.
 //
 impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
-    pub fn wait<R>(
+    pub fn wait_inner(
         &self,
-        mask: u64,
+        wake_up_mask: u64,
+        abort_mask: u64,
         waker: WakerIndex<W>,
-        worker: impl FnOnce() -> R,
-    ) -> Option<R> {
+    ) -> Option<RawSignalChannelWakerGuard<'_>> {
         debug_assert_eq!(self.active_waker.load(Relaxed), u32::MAX);
 
         self.active_waker.store(waker.index(), Relaxed);
-        self.wake_up_mask.store(mask, Relaxed);
+        self.wake_up_mask.store(wake_up_mask, Relaxed);
 
-        let _undo_guard = scopeguard::guard((), |()| {
-            self.active_waker.store(u32::MAX, Relaxed);
-        });
+        let undo_guard = RawSignalChannelWakerGuard {
+            active_waker: &self.active_waker,
+        };
 
         fence(SeqCst);
 
@@ -260,9 +261,20 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         // must have been made visible to it. Hence, it will realize that it must wake-up.
         //
         // Hence, at a minimum, the waker will be called.
-        if self.asserted_mask.load(Relaxed) & mask != 0 {
+        if self.asserted_mask.load(Relaxed) & abort_mask != 0 {
             return None;
         }
+
+        Some(undo_guard)
+    }
+
+    pub fn wait<R>(
+        &self,
+        mask: u64,
+        waker: WakerIndex<W>,
+        worker: impl FnOnce() -> R,
+    ) -> Option<R> {
+        let _undo_guard = self.wait_inner(mask, mask, waker)?;
 
         Some(worker())
     }
@@ -303,6 +315,37 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         fence(SeqCst);
 
         self.asserted_mask.load(Relaxed) & mask != 0
+    }
+}
+
+#[derive(Debug)]
+pub struct RawSignalChannelWakerGuard<'a> {
+    active_waker: &'a AtomicU32,
+}
+
+impl RawSignalChannelWakerGuard<'_> {
+    #[allow(clippy::missing_safety_doc)] // (mostly internal)
+    pub unsafe fn to_unsafe(self) -> UnsafeRawSignalChannelWakerGuard {
+        let active_waker = NonNull::from(self.active_waker);
+        mem::forget(self);
+        UnsafeRawSignalChannelWakerGuard { active_waker }
+    }
+}
+
+impl Drop for RawSignalChannelWakerGuard<'_> {
+    fn drop(&mut self) {
+        self.active_waker.store(u32::MAX, Relaxed);
+    }
+}
+
+#[derive(Debug)]
+pub struct UnsafeRawSignalChannelWakerGuard {
+    active_waker: NonNull<AtomicU32>,
+}
+
+impl Drop for UnsafeRawSignalChannelWakerGuard {
+    fn drop(&mut self) {
+        unsafe { self.active_waker.as_ref().store(u32::MAX, Relaxed) };
     }
 }
 
