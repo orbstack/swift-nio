@@ -11,9 +11,7 @@ use std::{
 };
 
 use super::{ActivateResult, Queue};
-use gruel::{
-    ArcSignalChannelExt, BoundSignalChannelRef, RawSignalChannel, SignalChannel, WakerSet,
-};
+use gruel::{ArcSignalChannelExt, BoundSignalChannelRef, RawSignalChannel, SignalChannel};
 use newt::{BitFlagRange, RawBitFlagRange};
 use vm_memory::GuestMemoryMmap;
 
@@ -33,13 +31,13 @@ pub struct VirtioShmRegion {
 
 #[derive(Debug, Clone)]
 pub struct VirtioQueueSignals {
-    pub signal: Arc<RawSignalChannel<dyn WakerSet>>,
+    pub signal: Arc<RawSignalChannel>,
     pub range: RawBitFlagRange,
 }
 
 impl VirtioQueueSignals {
     pub fn new<S: bitflags::Flags<Bits = u64>>(
-        signal: Arc<SignalChannel<S, dyn WakerSet>>,
+        signal: Arc<SignalChannel<S>>,
         range: BitFlagRange<S>,
     ) -> Self {
         Self {

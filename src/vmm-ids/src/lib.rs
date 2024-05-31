@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use gruel::{MultiShutdownSignal, SignalChannel, WakerSet};
+use gruel::{MultiShutdownSignal, SignalChannel};
 use newt::define_num_enum;
 
 pub type VmmShutdownSignal = MultiShutdownSignal<VmmShutdownPhase>;
@@ -31,7 +31,7 @@ define_num_enum! {
 }
 
 pub type ArcVcpuSignal = Arc<VcpuSignal>;
-pub type VcpuSignal = SignalChannel<VcpuSignalMask, dyn WakerSet>;
+pub type VcpuSignal = SignalChannel<VcpuSignalMask>;
 
 bitflags::bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
