@@ -352,6 +352,9 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 		cm.set("lxc.net.1.flags", "up")
 	*/
 
+	// fix https://github.com/orbstack/orbstack/issues/1237 (workaround for k3s bug)
+	cm.set("lxc.sysctl.net.ipv6.conf.all.forwarding", "1")
+
 	return conf.C().DockerRootfs, nil
 }
 
