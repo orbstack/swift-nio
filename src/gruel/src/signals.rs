@@ -22,7 +22,10 @@ use derive_where::derive_where;
 use parking_lot::Mutex;
 use thiserror::Error;
 
-use crate::util::{cast_arc, ExtensionFor, FmtDebugUsingDisplay, FmtU64AsBits, Parker};
+use crate::{
+    util::{cast_arc, ExtensionFor, FmtDebugUsingDisplay, FmtU64AsBits, Parker},
+    ShutdownSignal,
+};
 
 // === WakerSet === //
 
@@ -780,6 +783,26 @@ pub trait QueueRecvSignalChannelExt: DynamicallyBoundSignalChannelExt {
 impl<T: DynamicallyBoundSignalChannelExt> QueueRecvSignalChannelExt for T {}
 
 // === Signal Multiplexing === //
+
+pub fn process_signals_multiplexed_park(
+    shutdown: &ShutdownSignal,
+    handlers: &[&dyn SignalMultiplexHandler],
+) {
+    let should_stop = Arc::new(AtomicBool::new(false));
+    let parker = Arc::new(Parker::default());
+
+    let _task = shutdown.spawn_ref({
+        let should_stop = should_stop.clone();
+        let parker = parker.clone();
+
+        move || {
+            should_stop.store(true, Relaxed);
+            parker.unpark();
+        }
+    });
+
+    process_signals_multiplexed(handlers, &should_stop, || parker.park(), || parker.unpark());
+}
 
 pub fn process_signals_multiplexed(
     handlers: &[&dyn SignalMultiplexHandler],
