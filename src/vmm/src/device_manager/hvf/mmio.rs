@@ -105,15 +105,8 @@ impl MMIODeviceManager {
             return Err(Error::IrqsExhausted);
         }
 
-        let mut queue_evts: Vec<EventFd> = Vec::new();
-
-        for queue_evt in mmio_device.locked_device().queue_events().iter() {
-            queue_evts.push(queue_evt.try_clone().unwrap());
-        }
-
-        for (i, queue_evt) in queue_evts.drain(0..).enumerate() {
-            mmio_device.register_queue_evt(queue_evt, i as u32);
-        }
+        let queue_signals = mmio_device.locked_device().queue_signals();
+        mmio_device.register_queue_signals(queue_signals);
 
         mmio_device.locked_device().set_irq_line(self.irq);
 
@@ -347,7 +340,7 @@ mod tests {
     use super::super::super::builder;
     use super::*;
     use arch;
-    use devices::virtio::{ActivateResult, Queue, VirtioDevice};
+    use devices::virtio::{ActivateResult, Queue, VirtioDevice, VirtioQueueSignals};
     use std::sync::atomic::AtomicUsize;
     use std::sync::Arc;
     use utils::errno;
@@ -420,11 +413,11 @@ mod tests {
             &mut self.queues
         }
 
-        fn queue_events(&self) -> &[EventFd] {
-            &self.queue_evts
+        fn queue_signals(&self) -> VirtioQueueSignals {
+            todo!(); // TODO: Gruel port
         }
 
-        fn interrupt_evt(&self) -> &EventFd {
+        fn interrupt_signal(&self) -> &EventFd {
             &self.interrupt_evt
         }
 

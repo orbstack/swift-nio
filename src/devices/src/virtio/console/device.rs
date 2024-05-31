@@ -1,3 +1,4 @@
+use gruel::BoundSignalChannelRef;
 use std::cmp;
 use std::io::Write;
 use std::iter::zip;
@@ -25,7 +26,7 @@ use crate::virtio::console::port::Port;
 use crate::virtio::console::port_queue_mapping::{
     num_queues, port_id_to_queue_idx, QueueDirection,
 };
-use crate::virtio::{PortDescription, VmmExitObserver};
+use crate::virtio::{PortDescription, VirtioQueueSignals, VmmExitObserver};
 
 pub(crate) const CONTROL_RXQ_INDEX: usize = 2;
 pub(crate) const CONTROL_TXQ_INDEX: usize = 3;
@@ -312,12 +313,12 @@ impl VirtioDevice for Console {
         &mut self.queues
     }
 
-    fn queue_events(&self) -> &[EventFd] {
-        &self.queue_events
+    fn queue_signals(&self) -> VirtioQueueSignals {
+        todo!(); // TODO: Gruel port
     }
 
-    fn interrupt_evt(&self) -> &EventFd {
-        self.irq.interrupt_evt()
+    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
+        todo!(); // TODO: Gruel port
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

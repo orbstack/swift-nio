@@ -5,6 +5,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
+use gruel::BoundSignalChannelRef;
 use std::cmp;
 use std::convert::From;
 use std::fs::{File, OpenOptions};
@@ -36,7 +37,7 @@ use super::{
 };
 
 use crate::legacy::Gic;
-use crate::virtio::ActivateError;
+use crate::virtio::{ActivateError, VirtioQueueSignals};
 
 const USE_ASYNC_WORKER: bool = false;
 
@@ -358,12 +359,12 @@ impl VirtioDevice for Block {
         &mut self.queues
     }
 
-    fn queue_events(&self) -> &[EventFd] {
-        &self.queue_evts
+    fn queue_signals(&self) -> VirtioQueueSignals {
+        todo!(); // TODO: Gruel port
     }
 
-    fn interrupt_evt(&self) -> &EventFd {
-        &self.interrupt_evt
+    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
+        todo!(); // TODO: Gruel port
     }
 
     /// Returns the current device interrupt status.

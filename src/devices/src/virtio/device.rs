@@ -11,7 +11,10 @@ use std::{
 };
 
 use super::{ActivateResult, Queue};
-use utils::eventfd::EventFd;
+use gruel::{
+    ArcSignalChannelExt, BoundSignalChannelRef, RawSignalChannel, SignalChannel, WakerSet,
+};
+use newt::{BitFlagRange, RawBitFlagRange};
 use vm_memory::GuestMemoryMmap;
 
 /// Enum that indicates if a VirtioDevice is inactive or has been activated
@@ -26,6 +29,30 @@ pub struct VirtioShmRegion {
     pub host_addr: u64,
     pub guest_addr: u64,
     pub size: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct VirtioQueueSignals {
+    pub signal: Arc<RawSignalChannel<dyn WakerSet>>,
+    pub range: RawBitFlagRange,
+}
+
+impl VirtioQueueSignals {
+    pub fn new<S: bitflags::Flags<Bits = u64>>(
+        signal: Arc<SignalChannel<S, dyn WakerSet>>,
+        range: BitFlagRange<S>,
+    ) -> Self {
+        Self {
+            signal: signal.into_raw(),
+            range: range.raw,
+        }
+    }
+
+    pub fn assert(&self, queue: usize) {
+        if let Some(mask) = self.range.get(queue) {
+            self.signal.assert(mask);
+        }
+    }
 }
 
 /// Trait for virtio devices to be driven by a virtio transport.
@@ -55,10 +82,10 @@ pub trait VirtioDevice: Send {
     fn queues_mut(&mut self) -> &mut [Queue];
 
     /// Returns the device queues event fds.
-    fn queue_events(&self) -> &[EventFd];
+    fn queue_signals(&self) -> VirtioQueueSignals;
 
     /// Returns the device interrupt eventfd.
-    fn interrupt_evt(&self) -> &EventFd;
+    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_>;
 
     /// Returns the current device interrupt status.
     fn interrupt_status(&self) -> Arc<AtomicUsize>;

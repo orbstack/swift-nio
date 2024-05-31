@@ -1,3 +1,4 @@
+use gruel::BoundSignalChannelRef;
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -13,6 +14,7 @@ use super::super::{
 };
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
+use crate::virtio::VirtioQueueSignals;
 use crate::Error as DeviceError;
 
 // Request queue.
@@ -150,12 +152,12 @@ impl VirtioDevice for Rng {
         &mut self.queues
     }
 
-    fn queue_events(&self) -> &[EventFd] {
-        &self.queue_events
+    fn queue_signals(&self) -> VirtioQueueSignals {
+        todo!(); // TODO: Gruel port
     }
 
-    fn interrupt_evt(&self) -> &EventFd {
-        &self.interrupt_evt
+    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
+        todo!(); // TODO: Gruel port
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

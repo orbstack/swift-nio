@@ -16,7 +16,6 @@ use vm_memory::{GuestAddress, GuestMemoryMmap};
 use super::device_status;
 use super::*;
 use crate::bus::BusDevice;
-use utils::eventfd::EventFd;
 
 //TODO crosvm uses 0 here, but IIRC virtio specified some other vendor id that should be used
 const VENDOR_ID: u32 = 0;
@@ -57,7 +56,7 @@ pub struct MmioTransport {
     pub(crate) config_generation: u32,
     mem: GuestMemoryMmap,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
-    queue_evts: Vec<EventFd>,
+    queue_signals: Option<VirtioQueueSignals>,
     shm_region_select: u32,
     supports_sync_event: bool,
 }
@@ -80,7 +79,7 @@ impl MmioTransport {
             config_generation: 0,
             mem,
             interrupt_status,
-            queue_evts: Vec::new(),
+            queue_signals: None,
             shm_region_select: 0,
             supports_sync_event,
         }
@@ -95,8 +94,10 @@ impl MmioTransport {
         self.device.clone()
     }
 
-    pub fn register_queue_evt(&mut self, queue_evt: EventFd, _id: u32) {
-        self.queue_evts.push(queue_evt);
+    pub fn register_queue_signals(&mut self, signals: VirtioQueueSignals) {
+        debug_assert!(self.queue_signals.is_none());
+
+        self.queue_signals = Some(signals);
     }
 
     fn check_device_status(&self, set: u32, clr: u32) -> bool {
@@ -314,8 +315,9 @@ impl BusDevice for MmioTransport {
                             self.device.lock().unwrap().handle_sync_event(v);
                         } else {
                             COUNT_NOTIFY_WORKER.count();
-                            if let Some(eventfd) = self.queue_evts.get(v as usize) {
-                                eventfd.write(v as u64).unwrap();
+
+                            if let Some(signals) = self.queue_signals.as_ref() {
+                                signals.assert(v as usize);
                             }
                         }
                     }
@@ -358,16 +360,17 @@ impl BusDevice for MmioTransport {
     fn interrupt(&self, irq_mask: u32) -> std::io::Result<()> {
         self.interrupt_status
             .fetch_or(irq_mask as usize, Ordering::SeqCst);
+
         // interrupt_evt() is safe to unwrap because the inner interrupt_evt is initialized in the
         // constructor.
-        // write() is safe to unwrap because the inner syscall is tailored to be safe as well.
-        self.locked_device().interrupt_evt().write(1).unwrap();
+        self.locked_device().interrupt_signal().assert();
         Ok(())
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use gruel::BoundSignalChannelRef;
     use utils::byte_order::{read_le_u32, write_le_u32};
 
     use super::*;
@@ -447,12 +450,12 @@ pub(crate) mod tests {
             &mut self.queues
         }
 
-        fn queue_events(&self) -> &[EventFd] {
-            &self.queue_evts
+        fn queue_signals(&self) -> VirtioQueueSignals {
+            todo!(); // TODO: Gruel port
         }
 
-        fn interrupt_evt(&self) -> &EventFd {
-            &self.interrupt_evt
+        fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
+            todo!(); // TODO: Gruel port
         }
 
         fn interrupt_status(&self) -> Arc<AtomicUsize> {
@@ -481,7 +484,7 @@ pub(crate) mod tests {
         // We just make sure here that the implementation of a mmio device behaves as we expect,
         // given a known virtio device implementation (the dummy device).
 
-        assert_eq!(d.locked_device().queue_events().len(), 2);
+        assert_eq!(d.locked_device().queue_signals().range.count, 2);
 
         d.queue_select = 0;
         assert_eq!(d.with_queue(0, Queue::get_max_size), 16);

@@ -1,3 +1,4 @@
+use gruel::BoundSignalChannelRef;
 use std::cmp;
 use std::io::Write;
 use std::sync::atomic::AtomicUsize;
@@ -19,6 +20,7 @@ use super::worker::FsWorker;
 use super::{defs, defs::uapi};
 use super::{passthrough, FsCallbacks, NfsInfo};
 use crate::legacy::Gic;
+use crate::virtio::VirtioQueueSignals;
 
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
@@ -159,12 +161,12 @@ impl VirtioDevice for Fs {
         &mut self.queues
     }
 
-    fn queue_events(&self) -> &[EventFd] {
-        &self.queue_events
+    fn queue_signals(&self) -> VirtioQueueSignals {
+        todo!(); // TODO: Gruel port
     }
 
-    fn interrupt_evt(&self) -> &EventFd {
-        &self.interrupt_evt
+    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
+        todo!(); // TODO: Gruel port
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

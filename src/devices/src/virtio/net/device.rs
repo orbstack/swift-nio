@@ -8,12 +8,15 @@ use crate::legacy::Gic;
 use crate::virtio::net::{Error, Result};
 use crate::virtio::net::{QUEUE_SIZES, RX_INDEX, TX_INDEX};
 use crate::virtio::queue::Error as QueueError;
-use crate::virtio::{ActivateResult, DeviceState, Queue, VirtioDevice, VmmExitObserver, TYPE_NET};
+use crate::virtio::{
+    ActivateResult, DeviceState, Queue, VirtioDevice, VirtioQueueSignals, VmmExitObserver, TYPE_NET,
+};
 use crate::Error as DeviceError;
 
 use super::backend::{ReadError, WriteError};
 use super::worker::NetWorker;
 
+use gruel::BoundSignalChannelRef;
 use std::cmp;
 use std::io::Write;
 use std::os::fd::RawFd;
@@ -184,12 +187,12 @@ impl VirtioDevice for Net {
         &mut self.queues
     }
 
-    fn queue_events(&self) -> &[EventFd] {
-        &self.queue_evts
+    fn queue_signals(&self) -> VirtioQueueSignals {
+        todo!(); // TODO: Gruel port
     }
 
-    fn interrupt_evt(&self) -> &EventFd {
-        &self.interrupt_evt
+    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
+        todo!(); // TODO: Gruel port
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

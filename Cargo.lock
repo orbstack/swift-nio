@@ -457,6 +457,7 @@ dependencies = [
  "hvf",
  "libc",
  "lru",
+ "newt",
  "nix 0.24.3",
  "num-derive",
  "num-traits",

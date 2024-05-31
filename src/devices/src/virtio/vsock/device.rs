@@ -5,6 +5,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
+use gruel::BoundSignalChannelRef;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::result;
@@ -25,6 +26,7 @@ use super::muxer::VsockMuxer;
 use super::packet::VsockPacket;
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
+use crate::virtio::VirtioQueueSignals;
 
 pub(crate) const RXQ_INDEX: usize = 0;
 pub(crate) const TXQ_INDEX: usize = 1;
@@ -261,12 +263,12 @@ impl VirtioDevice for Vsock {
         &mut self.queues
     }
 
-    fn queue_events(&self) -> &[EventFd] {
-        &self.queue_events
+    fn queue_signals(&self) -> VirtioQueueSignals {
+        todo!(); // TODO: Gruel port
     }
 
-    fn interrupt_evt(&self) -> &EventFd {
-        &self.interrupt_evt
+    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
+        todo!(); // TODO: Gruel port
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

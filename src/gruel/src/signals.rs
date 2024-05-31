@@ -445,6 +445,8 @@ where
 
 // === BoundSignalChannel === //
 
+pub type BoundSignalChannelRef<'a> = BoundSignalChannel<&'a RawSignalChannel<dyn WakerSet>>;
+
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct BoundSignalChannel<P> {
     pub channel: P,

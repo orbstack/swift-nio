@@ -32,10 +32,16 @@ impl RawBitFlagRange {
         Self { base, count: COUNT }
     }
 
-    pub const fn get(self, idx: usize) -> u64 {
-        debug_assert!(idx < self.count);
+    pub const fn get(self, idx: usize) -> Option<u64> {
+        if idx < self.count {
+            Some(self.base << idx)
+        } else {
+            None
+        }
+    }
 
-        self.base << idx
+    pub fn iter(self) -> impl Iterator<Item = u64> {
+        (0..self.count).map(move |i| self.base << i)
     }
 }
 
@@ -51,6 +57,22 @@ impl<S: bitflags::Flags<Bits = u64>> BitFlagRange<S> {
             _ty: PhantomData,
             raw,
         }
+    }
+
+    pub fn base(self) -> S {
+        S::from_bits_retain(self.raw.base)
+    }
+
+    pub fn count(self) -> usize {
+        self.raw.count
+    }
+
+    pub fn get(self, idx: usize) -> Option<S> {
+        self.raw.get(idx).map(S::from_bits_retain)
+    }
+
+    pub fn iter(self) -> impl Iterator<Item = S> {
+        self.raw.iter().map(S::from_bits_retain)
     }
 }
 
