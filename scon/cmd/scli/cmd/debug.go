@@ -9,6 +9,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
+	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
@@ -20,12 +21,14 @@ import (
 
 var (
 	flagFallback bool
+	flagReset    bool
 )
 
 func init() {
 	rootCmd.AddCommand(debugCmd)
 	debugCmd.Flags().StringVarP(&flagWorkdir, "workdir", "w", "", "Set the working directory")
 	debugCmd.Flags().BoolVarP(&flagFallback, "fallback", "f", false, "Fallback to 'docker exec' if no Pro license")
+	debugCmd.Flags().BoolVar(&flagReset, "reset", false, "Resets Debug Shell data")
 }
 
 func ParseDebugFlags(args []string) ([]string, *string, error) {
@@ -51,6 +54,9 @@ func ParseDebugFlags(args []string) ([]string, *string, error) {
 			case "-f", "--fallback", "-fallback":
 				flagFallback = true
 				continue
+			case "--reset", "-reset":
+				flagReset = true
+				return nil, nil, nil
 			}
 
 			// 2. look for a pair
@@ -126,8 +132,23 @@ Pro only: requires an OrbStack Pro license.
 		if err != nil {
 			return err
 		}
-		if containerIDp == nil || FlagWantHelp {
+		if (containerIDp == nil && !flagReset) || FlagWantHelp {
 			cmd.Help()
+			return nil
+		}
+		if flagReset {
+			scli.EnsureSconVMWithSpinner()
+
+			spinner := spinutil.Start("blue", "Resetting Debug Shell data")
+			err = scli.Client().WormholeNukeData()
+			spinner.Stop()
+			if err != nil {
+				cmd.SilenceUsage = true
+				return err
+			}
+
+			fmt.Fprintln(os.Stderr, "Debug Shell data reset!")
+
 			return nil
 		}
 		containerID := *containerIDp

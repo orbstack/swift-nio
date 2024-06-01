@@ -148,6 +148,10 @@ func (c *SconClient) ContainerSetConfig(record *types.ContainerRecord, config ty
 	}, &noResult)
 }
 
+func (c *SconClient) WormholeNukeData() error {
+	return c.rpc.CallResult(context.TODO(), "WormholeNukeData", nil, &noResult)
+}
+
 func (c *SconClient) InternalReportStopped(id string) error {
 	return c.rpc.CallResult(context.TODO(), "InternalReportStopped", types.InternalReportStoppedRequest{
 		ID: id,

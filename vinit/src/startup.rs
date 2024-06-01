@@ -809,26 +809,8 @@ fn init_data() -> anyhow::Result<()> {
     // wormhole overlay
     fs::create_dir_all("/data/wormhole/overlay/upper")?;
     fs::create_dir_all("/data/wormhole/overlay/work")?;
-    // mount a r-w overlay for writing
-    mount("wormhole", "/mnt/wormhole-overlay", "overlay", MsFlags::MS_NOATIME, Some("lowerdir=/opt/wormhole-rootfs,upperdir=/data/wormhole/overlay/upper,workdir=/data/wormhole/overlay/work")).unwrap();
     // mount a r-o nix to protect /nix/orb/sys and prevent creating files in /nix/.
     bind_mount_ro("/opt/wormhole-rootfs", "/mnt/wormhole-unified")?;
-    // make /nix/orb/data, /nix/store, and /nix/var writable
-    bind_mount(
-        "/mnt/wormhole-overlay/nix/orb/data",
-        "/mnt/wormhole-unified/nix/orb/data",
-        None,
-    )?;
-    bind_mount(
-        "/mnt/wormhole-overlay/nix/store",
-        "/mnt/wormhole-unified/nix/store",
-        None,
-    )?;
-    bind_mount(
-        "/mnt/wormhole-overlay/nix/var",
-        "/mnt/wormhole-unified/nix/var",
-        None,
-    )?;
     // expose read-only base store
     bind_mount_ro(
         "/opt/wormhole-rootfs/nix/store",

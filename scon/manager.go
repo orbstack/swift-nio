@@ -65,6 +65,7 @@ type ConManager struct {
 	vmConfig          *vmconfig.VmConfig
 	sconGuest         *SconGuestServer
 	drm               *DrmMonitor
+	wormhole          *WormholeManager
 
 	// auto forward
 	forwards   map[sysnet.ListenerKey]ForwardState
@@ -154,9 +155,10 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		containersByID:   make(map[string]*Container),
 		containersByName: make(map[string]*Container),
 
-		db:   db,
-		host: hc,
-		bpf:  bpfMgr,
+		db:       db,
+		host:     hc,
+		bpf:      bpfMgr,
+		wormhole: NewWormholeManager(),
 
 		forwards: make(map[sysnet.ListenerKey]ForwardState),
 

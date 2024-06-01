@@ -308,6 +308,11 @@ func (sv *SshServer) prepareWormhole(cmd *agent.AgentCommand, a *agent.Client, w
 		return false, nil, &ExitError{status: 124}
 	}
 
+	err = sv.m.wormhole.OnSessionStart()
+	if err != nil {
+		return false, nil, err
+	}
+
 	wormholeMountFd, err := unix.OpenTree(unix.AT_FDCWD, mounts.WormholeUnifiedNix, unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 	if err != nil {
 		return false, nil, err
@@ -569,6 +574,13 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		})
 		if err != nil {
 			logrus.WithError(err).Error("end user session failed")
+		}
+
+		if isWormhole {
+			err = sv.m.wormhole.OnSessionEnd()
+			if err != nil {
+				logrus.WithError(err).Error("end wormhole session failed")
+			}
 		}
 	}()
 
