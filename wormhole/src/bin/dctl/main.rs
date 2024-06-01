@@ -1,8 +1,10 @@
 use std::{
-    ffi::CString,
+    env,
+    ffi::{CString, OsString},
     fs::{self, File},
     io::Write,
     path::Path,
+    process::{Command, ExitCode, ExitStatus},
     sync::atomic::Ordering,
     time::{Duration, SystemTime},
 };
@@ -27,6 +29,7 @@ mod programs;
 mod search;
 
 const ENV_PATH: &str = "/nix/orb/data/env";
+const ENV_BIN_PATH: &str = "/nix/orb/data/.env-out/bin";
 // just use the directory, which is guaranteed to exist on overlayfs
 const ENV_LOCK_PATH: &str = ENV_PATH;
 
@@ -70,6 +73,13 @@ enum Commands {
         /// Search by program/executable name
         #[arg(short, long)]
         program: bool,
+    },
+    /// Run a command, preferring packages installed in Debug Shell over the versions installed in the container, if any.
+    Exec {
+        #[arg(required = true)]
+        command: OsString,
+        #[arg(last = true)]
+        args: Option<Vec<OsString>>,
     },
 
     /// Internal command-not-found handler
@@ -343,6 +353,36 @@ fn cmd_search(query: &str, by_program: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn cmd_exec(command: OsString, args: Option<Vec<OsString>>) -> anyhow::Result<ExitStatus> {
+    let cmd_in_env = fs::read_dir(ENV_BIN_PATH)?
+        .filter(Result::is_ok)
+        .any(|d| d.unwrap().file_name() == command);
+
+    // can't use var_os b/c insert_str
+    // TODO: once_cell
+    let mut path = env::var("PATH").unwrap_or_default();
+    path.insert(0, ':');
+    path.insert_str(0, ENV_BIN_PATH);
+
+    let mut cmd = Command::new(if cmd_in_env {
+        let mut c: OsString = ENV_BIN_PATH.to_string().into();
+        c.push("/");
+        c.push(command);
+
+        c
+    } else {
+        command
+    });
+
+    cmd.env("PATH", path);
+
+    if let Some(args) = args {
+        cmd.args(args);
+    }
+
+    Ok(cmd.spawn()?.wait()?)
+}
+
 fn cmd_cnf(name: &str) -> anyhow::Result<()> {
     eprintln!("{}: command not found", name);
 
@@ -381,7 +421,7 @@ fn cmd_entrypoint(cmd: &str) -> anyhow::Result<()> {
     unreachable!();
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<ExitCode> {
     let cli = Cli::parse();
 
     ctrlc::set_handler(|| {
@@ -414,6 +454,10 @@ fn main() -> anyhow::Result<()> {
         Commands::Search { program, query } => {
             cmd_search(&query, program)?;
         }
+        Commands::Exec { command, args } => {
+            let exit_status = cmd_exec(command, args)?;
+            return Ok(u8::try_from(exit_status.code().unwrap_or_default())?.into());
+        }
         Commands::CommandNotFound { cmd } => {
             cmd_cnf(&cmd)?;
         }
@@ -422,5 +466,5 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
