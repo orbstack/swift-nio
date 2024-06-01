@@ -3,6 +3,8 @@ package agent
 import (
 	"fmt"
 
+	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"golang.org/x/sys/unix"
 )
 
@@ -18,11 +20,20 @@ type PrepWormholeResponse struct {
 
 // prep: get container's init pid and open its rootfs dirfd
 func (a *AgentServer) DockerPrepWormhole(args *PrepWormholeArgs, reply *PrepWormholeResponse) error {
-	ctr, err := a.docker.client.InspectContainer(args.ContainerID)
-	if err != nil {
-		return err
+	var initPid int
+	var workingDir string
+	if conf.Debug() && args.ContainerID == sshtypes.WormholeIDDocker {
+		initPid = 1
+		workingDir = "/"
+	} else {
+		ctr, err := a.docker.client.InspectContainer(args.ContainerID)
+		if err != nil {
+			return err
+		}
+		initPid = ctr.State.Pid
+		workingDir = ctr.Config.WorkingDir
 	}
-	initPid := ctr.State.Pid
+
 	if initPid == 0 {
 		return fmt.Errorf("container %s is not running", args.ContainerID)
 	}
@@ -41,7 +52,7 @@ func (a *AgentServer) DockerPrepWormhole(args *PrepWormholeArgs, reply *PrepWorm
 	*reply = PrepWormholeResponse{
 		RootfsSeq:  seq,
 		InitPid:    initPid,
-		WorkingDir: ctr.Config.WorkingDir,
+		WorkingDir: workingDir,
 	}
 
 	return nil

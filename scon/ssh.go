@@ -452,12 +452,31 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 	err = container.UseAgent(func(a *agent.Client) error {
 		// wormhole case is different
+		runOnHost := false
 		if isWormhole {
-			wormholeResp, rootfsFile, err := a.DockerPrepWormhole(agent.PrepWormholeArgs{
-				ContainerID: wormholeContainerID,
-			})
-			if err != nil {
-				return err
+			// debug: wormhole for VM host (ovm)
+			var wormholeResp *agent.PrepWormholeResponse
+			var rootfsFile *os.File
+			if conf.Debug() && wormholeContainerID == sshtypes.WormholeIDHost {
+				rootfsFd, err := unix.Open("/proc/thread-self/root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+				if err != nil {
+					return err
+				}
+				rootfsFile = os.NewFile(uintptr(rootfsFd), "rootfs")
+
+				runOnHost = true
+				wormholeResp = &agent.PrepWormholeResponse{
+					InitPid:    1,
+					WorkingDir: "/",
+				}
+			} else {
+				var err error
+				wormholeResp, rootfsFile, err = a.DockerPrepWormhole(agent.PrepWormholeArgs{
+					ContainerID: wormholeContainerID,
+				})
+				if err != nil {
+					return err
+				}
 			}
 			defer rootfsFile.Close()
 
@@ -492,7 +511,11 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			cmd.Env.SetPair("RUST_BACKTRACE=full")
 		}
 
-		return cmd.Start(a)
+		if runOnHost {
+			return cmd.StartOnHost()
+		} else {
+			return cmd.Start(a)
+		}
 	})
 	if err != nil {
 		return

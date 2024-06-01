@@ -2,6 +2,9 @@ package sshtypes
 
 const (
 	KeyMeta = "__ORB_CMETA"
+
+	WormholeIDDocker = "_docker"
+	WormholeIDHost   = "_ovm"
 )
 
 type SshMeta struct {

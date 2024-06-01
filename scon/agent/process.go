@@ -167,18 +167,39 @@ func parsePamEnv() ([]string, bool, error) {
 	return envs, foundPath, nil
 }
 
-func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessReply) (err error) {
+func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessReply) error {
 	// receive fds
-	childFds, err := a.fdx.RecvFiles(args.FdxSeq)
+	childFiles, err := a.fdx.RecvFiles(args.FdxSeq)
 	// returning sets err
 	if err != nil {
 		return err
 	}
-	stdin := childFds[0]
-	stdout := childFds[1]
-	stderr := childFds[2]
 	// any additional fds are passed to the process
-	defer closeAllFiles(childFds)
+	defer closeAllFiles(childFiles)
+
+	pid, pidfd, err := SpawnProcessImpl(a, &args, childFiles)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(pidfd)
+
+	// send pidfd
+	seq, err := a.fdx.SendFdInt(pidfd)
+	if err != nil {
+		return fmt.Errorf("send pidfd: %w", err)
+	}
+
+	*reply = SpawnProcessReply{
+		Pid:    pid,
+		FdxSeq: seq,
+	}
+	return nil
+}
+
+func SpawnProcessImpl(a *AgentServer, args *SpawnProcessArgs, childFiles []*os.File) (int, int, error) {
+	stdin := childFiles[0]
+	stdout := childFiles[1]
+	stderr := childFiles[2]
 
 	// resolve the pty, if any
 	var ptyF *os.File
@@ -191,7 +212,7 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 		case fdStderr:
 			ptyF = stderr
 		default:
-			return fmt.Errorf("invalid ctty fd: %d", args.CttyFd)
+			return 0, 0, fmt.Errorf("invalid ctty fd: %d", args.CttyFd)
 		}
 	}
 
@@ -205,30 +226,34 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 		// get user info
 		u, err := user.Lookup(args.User)
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
 		uid, err := strconv.Atoi(u.Uid)
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
 		gid, err := strconv.Atoi(u.Gid)
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
 		groupStrs, err := u.GroupIds()
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
 		groups := make([]uint32, len(groupStrs))
 		for i, groupStr := range groupStrs {
 			group, err := strconv.Atoi(groupStr)
 			if err != nil {
-				return err
+				return 0, 0, err
 			}
 			groups[i] = uint32(group)
 		}
 
 		if args.DoLogin {
+			if a == nil {
+				return 0, 0, errors.New("DoLogin requires an agent")
+			}
+
 			a.loginManager.BeginUserSession(args.User)
 			// if start successful, we end after WaitPid
 			defer func() {
@@ -242,7 +267,7 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 			// look up user shell
 			shell, err := lookupShell(args.User)
 			if err != nil {
-				return err
+				return 0, 0, err
 			}
 
 			// replace sentinel with shell
@@ -293,7 +318,7 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 		if args.Setctty {
 			err = unix.Fchown(int(ptyF.Fd()), uid, gid)
 			if err != nil {
-				return err
+				return 0, 0, err
 			}
 		}
 
@@ -324,55 +349,53 @@ func (a *AgentServer) SpawnProcess(args SpawnProcessArgs, reply *SpawnProcessRep
 	// create process
 	exePath, err := exec.LookPath(args.CombinedArgs[0])
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	if args.Argv0 != "" {
 		args.CombinedArgs[0] = args.Argv0
 	}
 	proc, err := os.StartProcess(exePath, args.CombinedArgs, &os.ProcAttr{
 		Dir:   args.Dir,
-		Files: childFds,
+		Files: childFiles,
 		Env:   args.Env.ToPairs(),
 		Sys:   attrs,
 	})
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	defer proc.Release()
 
 	// open pidfd
 	pidfd, err := unix.PidfdOpen(proc.Pid, 0)
 	if err != nil {
-		return err
-	}
-	defer unix.Close(pidfd)
-
-	// send pidfd
-	seq, err := a.fdx.SendFdInt(pidfd)
-	if err != nil {
-		return err
+		return 0, 0, err
 	}
 
-	*reply = SpawnProcessReply{
-		Pid:    proc.Pid,
-		FdxSeq: seq,
-	}
-	return nil
+	return proc.Pid, pidfd, nil
 }
 
-func (a *AgentServer) WaitPid(pid int, reply *int) error {
+func WaitPidImpl(pid int) (int, error) {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// wait for process to exit
 	ps, err := proc.Wait()
 	if err != nil {
+		return 0, err
+	}
+
+	return ps.ExitCode(), nil
+}
+
+func (a *AgentServer) WaitPid(pid int, reply *int) error {
+	exitCode, err := WaitPidImpl(pid)
+	if err != nil {
 		return err
 	}
 
-	*reply = ps.ExitCode()
+	*reply = exitCode
 	return nil
 }
 
@@ -403,7 +426,7 @@ type AgentCommand struct {
 	Process *PidfdProcess
 }
 
-func (c *AgentCommand) Start(agent *Client) error {
+func (c *AgentCommand) prepareStart() ([]*os.File, error) {
 	// must always have env map
 	if c.Env == nil {
 		c.Env = envutil.NewMap()
@@ -418,10 +441,9 @@ func (c *AgentCommand) Start(agent *Client) error {
 		// make pipe
 		r, w, err := os.Pipe()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		stdin = r
-		defer r.Close()
 
 		// copy stdin to pipe
 		go func() {
@@ -436,10 +458,9 @@ func (c *AgentCommand) Start(agent *Client) error {
 		// make pipe
 		r, w, err := os.Pipe()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		stdout = w
-		defer w.Close()
 
 		// copy pipe to stdout
 		go func() {
@@ -454,10 +475,9 @@ func (c *AgentCommand) Start(agent *Client) error {
 		// make pipe
 		r, w, err := os.Pipe()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		stderr = w
-		defer w.Close()
 
 		// copy pipe to stderr
 		go func() {
@@ -475,7 +495,16 @@ func (c *AgentCommand) Start(agent *Client) error {
 	childFiles := []*os.File{stdin, stdout, stderr}
 	childFiles = append(childFiles, c.ExtraFiles...)
 
-	var err error
+	return childFiles, nil
+}
+
+func (c *AgentCommand) Start(agent *Client) error {
+	childFiles, err := c.prepareStart()
+	if err != nil {
+		return err
+	}
+	defer closeAllFiles(childFiles)
+
 	c.Process, err = agent.SpawnProcess(SpawnProcessArgs{
 		CombinedArgs: c.CombinedArgs,
 		Dir:          c.Dir,
@@ -492,6 +521,34 @@ func (c *AgentCommand) Start(agent *Client) error {
 		return err
 	}
 
+	return nil
+}
+
+func (c *AgentCommand) StartOnHost() error {
+	childFiles, err := c.prepareStart()
+	if err != nil {
+		return err
+	}
+	defer closeAllFiles(childFiles)
+
+	pid, pidfd, err := SpawnProcessImpl(nil, &SpawnProcessArgs{
+		CombinedArgs: c.CombinedArgs,
+		Dir:          c.Dir,
+		Env:          c.Env,
+		User:         c.User,
+		Setsid:       c.Setsid,
+		Setctty:      c.Setctty,
+		CttyFd:       c.CttyFd,
+		DoLogin:      c.DoLogin,
+		ReplaceShell: c.ReplaceShell,
+		Argv0:        c.Argv0,
+	}, childFiles)
+	if err != nil {
+		return err
+	}
+	pidF := os.NewFile(uintptr(pidfd), "pidfd")
+
+	c.Process = wrapPidfdProcess(pidF, pid, nil)
 	return nil
 }
 
@@ -537,19 +594,23 @@ func (p *PidfdProcess) WaitStatus() (int, error) {
 		return 0, err
 	}
 
-	if p.a == nil {
-		return 0, errors.New("pidfd process has no agent")
-	}
-
 	// call wait to get the status
 	// it'll stay a zombie until we do
-	status, err := p.a.WaitPid(p.pid)
-	if err != nil {
-		if errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrUnexpectedEOF) {
-			// connection closed, assume process exited with signal
-			return -1, nil
+	var status int
+	if p.a == nil {
+		status, err = WaitPidImpl(p.pid)
+		if err != nil {
+			return 0, err
 		}
-		return 0, err
+	} else {
+		status, err = p.a.WaitPid(p.pid)
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrUnexpectedEOF) {
+				// connection closed, assume process exited with signal
+				return -1, nil
+			}
+			return 0, err
+		}
 	}
 
 	p.Release()

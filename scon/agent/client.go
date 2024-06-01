@@ -2,6 +2,7 @@ package agent
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/rpc"
 	"os"
@@ -155,7 +156,7 @@ func (c *Client) SpawnProcess(args SpawnProcessArgs, childFiles []*os.File) (*Pi
 	// send fds
 	seq, err := c.fdx.SendFiles(childFiles...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("send files: %w", err)
 	}
 	args.FdxSeq = seq
 
