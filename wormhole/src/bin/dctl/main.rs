@@ -404,7 +404,7 @@ fn main() -> anyhow::Result<()> {
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
-    match &cli.command {
+    match cli.command {
         Commands::Install { package } => {
             cmd_install(&package)?;
         }
@@ -418,7 +418,7 @@ fn main() -> anyhow::Result<()> {
             cmd_upgrade()?;
         }
         Commands::Search { program, query } => {
-            cmd_search(query, *program)?;
+            cmd_search(&query, program)?;
         }
         Commands::CommandNotFound { cmd } => {
             cmd_cnf(&cmd)?;
