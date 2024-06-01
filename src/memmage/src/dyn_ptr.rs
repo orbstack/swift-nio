@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+};
 
 // === Helpers === //
 
@@ -33,6 +36,12 @@ impl<'p, T: ?Sized> Deref for DynRef<'p, T> {
 
     fn deref(&self) -> &Self::Target {
         DynSmartPtrInner::deref(&*self.0)
+    }
+}
+
+impl<'p, T: ?Sized + fmt::Debug> fmt::Debug for DynRef<'p, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (**self).fmt(f)
     }
 }
 
@@ -80,6 +89,12 @@ impl<'p, T: ?Sized> Deref for CloneDynRef<'p, T> {
     }
 }
 
+impl<'p, T: ?Sized + fmt::Debug> fmt::Debug for CloneDynRef<'p, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (**self).fmt(f)
+    }
+}
+
 // Inner
 #[derive(Clone)]
 struct CloneDynRefInner<T>(T);
@@ -122,6 +137,12 @@ impl<'p, T: ?Sized> Deref for DynMut<'p, T> {
 impl<'p, T: ?Sized> DerefMut for DynMut<'p, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         DynSmartPtrInner::deref_mut(&mut *self.0)
+    }
+}
+
+impl<'p, T: ?Sized + fmt::Debug> fmt::Debug for DynMut<'p, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (**self).fmt(f)
     }
 }
 
