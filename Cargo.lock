@@ -622,6 +622,7 @@ dependencies = [
  "generational-arena",
  "log",
  "loom",
+ "memmage",
  "mio",
  "newt",
  "parking_lot",
@@ -934,6 +935,13 @@ name = "memchr"
 version = "2.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c8640c5d730cb13ebd907d8d04b52f55ac9a2eec55b440c8892f40d56c76c1d"
+
+[[package]]
+name = "memmage"
+version = "0.1.0"
+dependencies = [
+ "smallbox",
+]
 
 [[package]]
 name = "memoffset"
@@ -1625,6 +1633,12 @@ checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
 ]
+
+[[package]]
+name = "smallbox"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d92359f97e6b417da4328a970cf04a044db104fbd57f7d72cb7ff665bb8806af"
 
 [[package]]
 name = "smallvec"

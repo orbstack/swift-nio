@@ -19,6 +19,7 @@ use loom::sync::atomic::{fence, AtomicU32, AtomicU64};
 
 use bitflags::Flags;
 use derive_where::derive_where;
+use memmage::CloneDynRef;
 use parking_lot::Mutex;
 use thiserror::Error;
 
@@ -786,7 +787,7 @@ impl<T: DynamicallyBoundSignalChannelExt> QueueRecvSignalChannelExt for T {}
 
 pub fn process_signals_multiplexed_park(
     shutdown: &ShutdownSignal,
-    handlers: &[&dyn SignalMultiplexHandler],
+    handlers: &mut [&mut dyn SignalMultiplexHandler],
 ) {
     let should_stop = Arc::new(AtomicBool::new(false));
     let parker = Arc::new(Parker::default());
@@ -805,29 +806,38 @@ pub fn process_signals_multiplexed_park(
 }
 
 pub fn process_signals_multiplexed(
-    handlers: &[&dyn SignalMultiplexHandler],
+    handlers: &mut [&mut dyn SignalMultiplexHandler],
     should_stop: &AtomicBool,
     park: impl Fn(),
     unpark: impl Sync + Fn(),
 ) {
     // Create a bitflag for quickly determining which handlers are dirty.
-    let dirty_flags = Box::from_iter((0..(handlers.len() + 63) / 64).map(|_| AtomicU64::new(0)));
+    let dirty_flags = (0..(handlers.len() + 63) / 64)
+        .map(|_| AtomicU64::new(0))
+        .collect::<Box<[_]>>();
+
     let dirty_flags = &*dirty_flags;
 
     // Create a parker for this subscriber loop.
     let unpark = &unpark;
 
+    // Get handler signals before binding them so we can hold onto them after the binding loop.
+    let handler_signals = handlers
+        .iter()
+        .map(|handler| handler.signals())
+        .collect::<Box<[_]>>();
+
     // Bind the subscriber to every handler.
     let mut wait_guards = Vec::new();
 
-    for (i, handler) in handlers.iter().enumerate() {
+    for (i, _handler) in handlers.iter().enumerate() {
         // Determine the bit in the dirty mask that this handler occupies.
         let slot_idx = i / 64;
         let slot_mask = 1 << (i % 64);
         let slot = &dirty_flags[slot_idx];
 
         // Bind each signal to the slot.
-        for signal in handler.signals() {
+        for signal in &handler_signals[i] {
             let (state, waiter_idx) = signal
                 .opt_waker::<DynamicallyBoundWaker>()
                 .expect("only signals with a `DynamicallyBoundWaker` can be multiplexed");
@@ -877,9 +887,9 @@ pub fn process_signals_multiplexed(
 }
 
 pub trait SignalMultiplexHandler: 'static {
-    fn process(&self);
+    fn process(&mut self);
 
-    fn signals(&self) -> Vec<&RawSignalChannel>;
+    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>>;
 }
 
 // === Tests === //
