@@ -428,13 +428,6 @@ where
         &self.raw
     }
 
-    pub fn into_raw(self) -> RawSignalChannel<W>
-    where
-        W: Sized,
-    {
-        self.raw
-    }
-
     pub fn opt_waker_state<T: Waker>(&self) -> Option<&T> {
         self.raw.opt_waker_state()
     }

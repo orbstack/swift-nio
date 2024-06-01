@@ -1,35 +1,65 @@
-use gruel::BoundSignalChannelRef;
+use gruel::{define_waker_set, BoundSignalChannel, BoundSignalChannelRef, SignalChannel};
+use newt::{define_num_enum, make_bit_flag_range, BitFlagRange, NumEnumMap};
 use std::cmp;
 use std::convert::TryInto;
 use std::io::Write;
-use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use utils::Mutex;
 
-use utils::eventfd::EventFd;
 use vm_memory::{ByteValued, GuestMemory, GuestMemoryMmap};
 
 use super::super::{
-    ActivateError, ActivateResult, BalloonError, DeviceState, Queue as VirtQueue, VirtioDevice,
-    VIRTIO_MMIO_INT_VRING,
+    ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice, VIRTIO_MMIO_INT_VRING,
 };
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
 use crate::virtio::VirtioQueueSignals;
-use crate::Error as DeviceError;
 use hvf::Parkable;
 
-// Inflate queue.
-pub(crate) const IFQ_INDEX: usize = 0;
-// Deflate queue.
-pub(crate) const DFQ_INDEX: usize = 1;
-// Stats queue.
-pub(crate) const STQ_INDEX: usize = 2;
-// Page-hinting queue.
-pub(crate) const PHQ_INDEX: usize = 3;
-// Free page reporting queue.
-pub(crate) const FRQ_INDEX: usize = 4;
+define_waker_set! {
+    pub struct BalloonDeviceWakers {}
+}
+
+bitflags::bitflags! {
+    pub struct BalloonDeviceSignalMask: u64 {
+        // Inflate queue.
+        const IFQ = 1 << 0;
+
+        // Deflate queue.
+        const DFQ = 1 << 1;
+
+        // Stats queue.
+        const STQ = 1 << 2;
+
+        // Page-hinting queue.
+        const PHQ = 1 << 3;
+
+        // Free page reporting queue.
+        const FRQ = 1 << 4;
+
+        const INTERRUPT = 1 << 5;
+    }
+}
+
+pub const BALLOON_DEVICE_QUEUE_RANGE: BitFlagRange<BalloonDeviceSignalMask> =
+    make_bit_flag_range!([
+        BalloonDeviceSignalMask::IFQ,
+        BalloonDeviceSignalMask::DFQ,
+        BalloonDeviceSignalMask::STQ,
+        BalloonDeviceSignalMask::PHQ,
+        BalloonDeviceSignalMask::FRQ,
+    ]);
+
+define_num_enum! {
+    pub enum BalloonDeviceQueues {
+        IFQ,
+        DFQ,
+        STQ,
+        PHQ,
+        FRQ,
+    }
+}
 
 // Supported features.
 pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64
@@ -54,13 +84,11 @@ pub struct VirtioBalloonConfig {
 unsafe impl ByteValued for VirtioBalloonConfig {}
 
 pub struct Balloon {
-    pub(crate) queues: Vec<VirtQueue>,
-    pub(crate) queue_events: Vec<EventFd>,
+    pub(crate) signal: Arc<SignalChannel<BalloonDeviceSignalMask, BalloonDeviceWakers>>,
+    pub(crate) queues: NumEnumMap<BalloonDeviceQueues, VirtQueue>,
     pub(crate) avail_features: u64,
     pub(crate) acked_features: u64,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
-    pub(crate) interrupt_evt: EventFd,
-    pub(crate) activate_evt: EventFd,
     pub(crate) device_state: DeviceState,
     config: VirtioBalloonConfig,
     intc: Option<Arc<Mutex<Gic>>>,
@@ -70,24 +98,14 @@ pub struct Balloon {
 
 impl Balloon {
     pub(crate) fn with_queues(queues: Vec<VirtQueue>) -> super::Result<Balloon> {
-        let mut queue_events = Vec::new();
-        for _ in 0..queues.len() {
-            queue_events
-                .push(EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(BalloonError::EventFd)?);
-        }
-
         let config = VirtioBalloonConfig::default();
 
         Ok(Balloon {
-            queues,
-            queue_events,
+            signal: Arc::new(SignalChannel::new(BalloonDeviceWakers {})),
+            queues: NumEnumMap::from_iter(queues),
             avail_features: AVAIL_FEATURES,
             acked_features: 0,
             interrupt_status: Arc::new(AtomicUsize::new(0)),
-            interrupt_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK)
-                .map_err(BalloonError::EventFd)?,
-            activate_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK)
-                .map_err(BalloonError::EventFd)?,
             device_state: DeviceState::Inactive,
             config,
             intc: None,
@@ -116,18 +134,16 @@ impl Balloon {
         self.parker = Some(parker);
     }
 
-    pub fn signal_used_queue(&self) -> result::Result<(), DeviceError> {
+    pub fn signal_used_queue(&self) {
         debug!("balloon: raising IRQ");
+
         self.interrupt_status
             .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
+
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
-            Ok(())
         } else {
-            self.interrupt_evt.write(1).map_err(|e| {
-                error!("Failed to signal used queue: {:?}", e);
-                DeviceError::FailedSignalingUsedQueue(e)
-            })
+            self.signal.assert(BalloonDeviceSignalMask::INTERRUPT);
         }
     }
 
@@ -141,7 +157,7 @@ impl Balloon {
 
         let mut have_used = false;
 
-        while let Some(head) = self.queues[FRQ_INDEX].pop(mem) {
+        while let Some(head) = self.queues[BalloonDeviceQueues::FRQ].pop(mem) {
             have_used = true;
 
             // the idea:
@@ -173,7 +189,7 @@ impl Balloon {
             }
 
             self.parker.as_ref().unwrap().unpark(unpark_task);
-            if let Err(e) = self.queues[FRQ_INDEX].add_used(mem, index, 0) {
+            if let Err(e) = self.queues[BalloonDeviceQueues::FRQ].add_used(mem, index, 0) {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
         }
@@ -200,19 +216,23 @@ impl VirtioDevice for Balloon {
     }
 
     fn queues(&self) -> &[VirtQueue] {
-        &self.queues
+        &self.queues.0
     }
 
     fn queues_mut(&mut self) -> &mut [VirtQueue] {
-        &mut self.queues
+        &mut self.queues.0
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        todo!(); // TODO: Gruel port
+        VirtioQueueSignals::new(self.signal.clone(), BALLOON_DEVICE_QUEUE_RANGE)
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        todo!(); // TODO: Gruel port
+        // TODO: We need a better way to construct these.
+        BoundSignalChannel {
+            channel: self.signal.raw(),
+            mask: BalloonDeviceSignalMask::INTERRUPT.bits(),
+        }
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {
@@ -246,20 +266,6 @@ impl VirtioDevice for Balloon {
     }
 
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
-        if self.queues.len() != defs::NUM_QUEUES {
-            error!(
-                "Cannot perform activate. Expected {} queue(s), got {}",
-                defs::NUM_QUEUES,
-                self.queues.len()
-            );
-            return Err(ActivateError::BadActivate);
-        }
-
-        if self.activate_evt.write(1).is_err() {
-            error!("Cannot write to activate_evt",);
-            return Err(ActivateError::BadActivate);
-        }
-
         self.device_state = DeviceState::Activated(mem);
 
         Ok(())

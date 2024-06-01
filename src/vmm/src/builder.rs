@@ -1333,9 +1333,10 @@ fn attach_balloon_device(
 
     let balloon = Arc::new(Mutex::new(devices::virtio::Balloon::new().unwrap()));
 
-    event_manager
-        .add_subscriber(balloon.clone())
-        .map_err(RegisterEvent)?;
+    // TODO: Gruel port
+    // event_manager
+    //     .add_subscriber(balloon.clone())
+    //     .map_err(RegisterEvent)?;
 
     let id = String::from(balloon.lock().unwrap().id());
 

@@ -157,6 +157,12 @@ impl<K: NumEnum, V> NumEnumMap<K, V> {
     }
 }
 
+impl<K: NumEnum, V> FromIterator<V> for NumEnumMap<K, V> {
+    fn from_iter<T: IntoIterator<Item = V>>(iter: T) -> Self {
+        Self(K::Array::from_iter(iter))
+    }
+}
+
 impl<K: NumEnum, V> IntoIterator for NumEnumMap<K, V> {
     type Item = (K, V);
     type IntoIter = NumEnumMapIntoIter<K, V>;
