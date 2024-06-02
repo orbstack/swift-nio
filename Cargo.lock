@@ -621,7 +621,6 @@ dependencies = [
  "crossbeam-channel",
  "derive-where",
  "generational-arena",
- "log",
  "loom",
  "memmage",
  "mio",
@@ -629,6 +628,7 @@ dependencies = [
  "parking_lot",
  "scopeguard",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

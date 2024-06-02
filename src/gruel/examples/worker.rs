@@ -2,8 +2,8 @@ use std::{sync::Arc, thread, time::Duration};
 
 use bitflags::bitflags;
 use gruel::{
-    define_waker_set, MultiShutdownSignal, MultiShutdownSignalExt, ParkSignalChannelExt, ParkWaker,
-    ShutdownAlreadyRequestedExt, SignalChannel, SignalChannelBindExt,
+    define_waker_set, BoundSignalChannel, MultiShutdownSignal, MultiShutdownSignalExt,
+    ParkSignalChannelExt, ParkWaker, ShutdownAlreadyRequestedExt, SignalChannel,
 };
 use newt::define_num_enum;
 
@@ -60,7 +60,7 @@ fn vcpu_worker(
     let _shutdown_task = stopper
         .spawn_signal(
             VmStopPhase::DestroyVcpu,
-            signal.bind_clone(VcpuSignal::STOP),
+            BoundSignalChannel::new(signal.clone(), VcpuSignal::STOP),
         )
         .unwrap_or_run_now();
 

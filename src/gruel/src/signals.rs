@@ -809,6 +809,17 @@ pub fn process_signals_multiplexed(
                 let i = i_cell * 64 + i_bit;
 
                 handlers[i].process();
+
+                #[cfg(debug_assertions)]
+                for (signal_idx, signal) in handler_signals[i_cell].iter().enumerate() {
+                    if signal.could_take(u64::MAX) {
+                        tracing::warn!(
+                            "Signal multiplex handler of type {} ignored some events from its subscribed \
+                             signal at index {signal_idx}; this could cause unexpected behavior.",
+                            handlers[i].debug_type_name(),
+                        );
+                    }
+                }
             }
         }
 
@@ -822,6 +833,10 @@ pub trait SignalMultiplexHandler: 'static {
     fn process(&mut self);
 
     fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>>;
+
+    fn debug_type_name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
 }
 
 // === Tests === //
