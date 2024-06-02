@@ -1,8 +1,8 @@
-use std::fmt::{Display, Formatter};
 use axum::http::StatusCode;
-use axum::Json;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde_json::json;
+use std::fmt::{Display, Formatter};
 use tracing::error;
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ impl IntoResponse for Error {
             _ => {
                 error!("Request failed: {}", msg_str);
                 (StatusCode::INTERNAL_SERVER_ERROR, msg_str.as_str())
-            },
+            }
         };
 
         let body = Json(json!({

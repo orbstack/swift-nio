@@ -1,4 +1,4 @@
-use std::{fs};
+use std::fs;
 
 pub const SWAP_FLAG_PREFER: i32 = 0x8000;
 pub const SWAP_FLAG_DISCARD: i32 = 0x10000;

@@ -1,5 +1,5 @@
-use std::{error::Error, os::fd::AsRawFd};
 use nix::libc::size_t;
+use std::{error::Error, os::fd::AsRawFd};
 
 mod ioctl {
     use super::*;

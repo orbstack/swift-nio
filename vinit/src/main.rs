@@ -1,24 +1,44 @@
-use std::{error::Error, fs::{self}, time::{Instant}, process::{ExitStatus}, collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    fs::{self},
+    process::ExitStatus,
+    sync::Arc,
+    time::Instant,
+};
 
-use nix::{sys::{wait::{waitpid, WaitPidFlag, WaitStatus}, reboot::{reboot, RebootMode}}, unistd::{Pid, getpid}, errno::Errno};
+use nix::{
+    errno::Errno,
+    sys::{
+        reboot::{reboot, RebootMode},
+        wait::{waitpid, WaitPidFlag, WaitStatus},
+    },
+    unistd::{getpid, Pid},
+};
 
 mod helpers;
-use service::{PROCESS_WAIT_LOCK, ServiceTracker, Service};
-use tokio::{signal::unix::{signal, SignalKind}, sync::{Mutex, mpsc::{self, Sender}}};
+use service::{Service, ServiceTracker, PROCESS_WAIT_LOCK};
+use tokio::{
+    signal::unix::{signal, SignalKind},
+    sync::{
+        mpsc::{self, Sender},
+        Mutex,
+    },
+};
 
 mod action;
 use action::SystemAction;
 use tracing::debug;
-mod vcontrol;
-mod service;
 mod blockdev;
 mod ethtool;
 mod loopback;
 mod pidfd;
-mod startup;
-mod shutdown;
 #[cfg(target_arch = "aarch64")]
 mod rosetta;
+mod service;
+mod shutdown;
+mod startup;
+mod vcontrol;
 
 // debug flag
 #[cfg(debug_assertions)]
@@ -31,7 +51,12 @@ pub enum InitError {
     #[error("not pid 1")]
     NotPid1,
     #[error("failed to mount {} to {}: {}", .source, .dest, .error)]
-    Mount { source: String, dest: String, #[source] error: nix::Error },
+    Mount {
+        source: String,
+        dest: String,
+        #[source]
+        error: nix::Error,
+    },
     #[error("failed to resize data filesystem: {}", .0)]
     ResizeDataFs(ExitStatus),
     #[error("failed to waitpid: {}", .0)]
@@ -47,7 +72,11 @@ pub enum InitError {
     #[error("failed to parse proc stat for pid {}", .0)]
     ParseProcStat(i32),
     #[error("failed to spawn service {}: {}", .service, .error)]
-    SpawnService { service: Service, #[source] error: std::io::Error },
+    SpawnService {
+        service: Service,
+        #[source]
+        error: std::io::Error,
+    },
     #[error("missing data partition: {}", .0)]
     MissingDataPartition(Box<dyn Error>),
     #[error("invalid elf")]
@@ -64,8 +93,11 @@ struct SystemInfo {
 impl SystemInfo {
     fn read() -> Result<SystemInfo, Box<dyn Error>> {
         // trim newline
-        let kernel_version = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_string();
-        let cmdline: Vec<_> = fs::read_to_string("/proc/cmdline")?.trim()
+        let kernel_version = fs::read_to_string("/proc/sys/kernel/osrelease")?
+            .trim()
+            .to_string();
+        let cmdline: Vec<_> = fs::read_to_string("/proc/cmdline")?
+            .trim()
             .split(' ')
             .map(|s| s.to_string())
             .collect();
@@ -74,12 +106,17 @@ impl SystemInfo {
             .filter(|s| s.starts_with("orb."))
             .map(|s| {
                 let mut parts = s.splitn(2, '=');
-                let key = parts.next().unwrap().strip_prefix("orb.").unwrap().to_string();
+                let key = parts
+                    .next()
+                    .unwrap()
+                    .strip_prefix("orb.")
+                    .unwrap()
+                    .to_string();
                 let value = parts.next().unwrap_or("").to_string();
                 (key, value)
             })
             .collect();
-    
+
         Ok(SystemInfo {
             kernel_version,
             cmdline,
@@ -107,7 +144,10 @@ impl Timeline {
     }
 }
 
-async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: Sender<SystemAction>) -> Result<(), Box<dyn Error>> {
+async fn reap_children(
+    service_tracker: Arc<Mutex<ServiceTracker>>,
+    action_tx: Sender<SystemAction>,
+) -> Result<(), Box<dyn Error>> {
     loop {
         let _guard = PROCESS_WAIT_LOCK.lock().await;
         let wstatus = match waitpid(None, Some(WaitPidFlag::WNOHANG)) {
@@ -115,14 +155,14 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
             Err(Errno::ECHILD) => {
                 // no children
                 break;
-            },
+            }
             Err(Errno::EINTR) => {
                 // interrupted by signal
                 continue;
-            },
+            }
             Err(e) => {
                 return Err(InitError::Waitpid(e).into());
-            },
+            }
         };
         let mut service_tracker = service_tracker.lock().await;
         match wstatus {
@@ -130,7 +170,10 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
                 if let Some(service) = service_tracker.on_pid_exit(pid.as_raw() as u32) {
                     if service.restartable && !service_tracker.shutting_down {
                         // restart the service
-                        println!("  !  Service {} exited: status {}, restarting", service, status);
+                        println!(
+                            "  !  Service {} exited: status {}, restarting",
+                            service, status
+                        );
                         service_tracker.restart(service).await?;
                     } else if service.critical && !service_tracker.shutting_down && !DEBUG {
                         // service is critical and not restartable!
@@ -143,7 +186,7 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
                 } else {
                     debug!("  !  Untracked process {} exited: status {}", pid, status);
                 }
-            },
+            }
             WaitStatus::Signaled(pid, signal, _) => {
                 if let Some(service) = service_tracker.on_pid_exit(pid.as_raw() as u32) {
                     // don't restart on kill. kill must be intentional
@@ -151,10 +194,10 @@ async fn reap_children(service_tracker: Arc<Mutex<ServiceTracker>>, action_tx: S
                 } else {
                     debug!("  !  Untracked process {} exited: signal {}", pid, signal);
                 }
-            },
+            }
             _ => {
                 break;
-            },
+            }
         }
     }
 
@@ -179,7 +222,9 @@ async fn main_wrapped() -> Result<(), Box<dyn Error>> {
     tokio::spawn(async move {
         loop {
             sigchld_stream.recv().await;
-            reap_children(service_tracker_clone.clone(), action_tx_clone.clone()).await.unwrap();
+            reap_children(service_tracker_clone.clone(), action_tx_clone.clone())
+                .await
+                .unwrap();
         }
     });
 
@@ -198,18 +243,16 @@ async fn main_wrapped() -> Result<(), Box<dyn Error>> {
     // wait for action on mpsc
     loop {
         match action_rx.recv().await {
-            Some(action) => {
-                match action {
-                    SystemAction::Shutdown => {
-                        println!("  -  Shutting down");
-                        break;
-                    },
+            Some(action) => match action {
+                SystemAction::Shutdown => {
+                    println!("  -  Shutting down");
+                    break;
                 }
             },
             None => {
                 println!("  -  Channel closed");
                 break;
-            },
+            }
         }
     }
 

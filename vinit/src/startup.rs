@@ -1,16 +1,46 @@
-use std::{env, error::Error, fs::{self, Permissions, OpenOptions}, time::{Instant, Duration}, os::unix::{prelude::{PermissionsExt, FileExt}, fs::chroot}, process::{Command, Stdio}, io::Write, net::UdpSocket, sync::Arc};
+use std::{
+    env,
+    error::Error,
+    fs::{self, OpenOptions, Permissions},
+    io::Write,
+    net::UdpSocket,
+    os::unix::{
+        fs::chroot,
+        prelude::{FileExt, PermissionsExt},
+    },
+    process::{Command, Stdio},
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::anyhow;
 use elf::{endian::NativeEndian, ElfStream};
+use futures_util::TryStreamExt;
 use mkswap::SwapWriter;
 use netlink_packet_route::FR_ACT_TO_TBL;
-use nix::{sys::{stat::{umask, Mode}, resource::{setrlimit, Resource}, time::TimeSpec}, mount::MsFlags, unistd::sethostname, libc::{RLIM_INFINITY, self}, time::{clock_settime, ClockId, clock_gettime}};
-use futures_util::TryStreamExt;
+use nix::{
+    libc::{self, RLIM_INFINITY},
+    mount::MsFlags,
+    sys::{
+        resource::{setrlimit, Resource},
+        stat::{umask, Mode},
+        time::TimeSpec,
+    },
+    time::{clock_gettime, clock_settime, ClockId},
+    unistd::sethostname,
+};
 use tracing::log::debug;
 
-use crate::{helpers::{sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_SHIFT, SWAP_FLAG_PRIO_MASK}, DEBUG, blockdev, SystemInfo, InitError, Timeline, vcontrol, action::SystemAction};
-use crate::service::{ServiceTracker, Service};
-use tokio::sync::{Mutex, mpsc::Sender};
+use crate::service::{Service, ServiceTracker};
+use crate::{
+    action::SystemAction,
+    blockdev,
+    helpers::{
+        sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_MASK, SWAP_FLAG_PRIO_SHIFT,
+    },
+    vcontrol, InitError, SystemInfo, Timeline, DEBUG,
+};
+use tokio::sync::{mpsc::Sender, Mutex};
 
 // da:9b:d0:64:e1:01
 const VNET_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x01];
@@ -40,19 +70,24 @@ const FS_CORRUPTED_MSG: &str = r#"
 "#;
 
 // binfmt magics
-const ELF_MAGIC_X86_64: &str = r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#;
+const ELF_MAGIC_X86_64: &str =
+    r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00"#;
 // the 3 bytes after ELF-02-01-01-00 are: ABI version (0x00) and 7 bytes of padding
 // AppImage puts 0x414902 magic there: ABI version = 0x41, first 2 padding bytes = 0x49, 0x02
 // union of (0x41 | 0x49 | 0x02), inverted, is 0x34
 // this makes the matching as strict as possible while letting these magic bytes through
-const ELF_MASK_X86_64: &str = r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\x34\x34\x34\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#;
+const ELF_MASK_X86_64: &str =
+    r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\x34\x34\x34\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#;
 
 fn set_basic_env() -> Result<(), Box<dyn Error>> {
     // umask: self write, others read
     umask(Mode::from_bits_truncate(0o022));
 
     // environment variables
-    env::set_var("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+    env::set_var(
+        "PATH",
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    );
     // /etc/profile.d/locale.sh
     env::set_var("CHARSET", "UTF-8");
     env::set_var("LANG", "C");
@@ -68,24 +103,43 @@ fn set_basic_env() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn mount_common(source: &str, dest: &str, fstype: Option<&str>, flags: MsFlags, data: Option<&str>) -> Result<(), Box<dyn Error>> {
+fn mount_common(
+    source: &str,
+    dest: &str,
+    fstype: Option<&str>,
+    flags: MsFlags,
+    data: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
     if let Err(e) = nix::mount::mount(Some(source), dest, fstype, flags, data) {
         return Err(InitError::Mount {
             source: source.to_string(),
             dest: dest.to_string(),
             error: e,
-        }.into());
+        }
+        .into());
     }
 
     Ok(())
 }
 
-fn mount(source: &str, dest: &str, fstype: &str, flags: MsFlags, data: Option<&str>) -> Result<(), Box<dyn Error>> {
+fn mount(
+    source: &str,
+    dest: &str,
+    fstype: &str,
+    flags: MsFlags,
+    data: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
     mount_common(source, dest, Some(fstype), flags, data)
 }
 
 fn bind_mount(source: &str, dest: &str, flags: Option<MsFlags>) -> Result<(), Box<dyn Error>> {
-    mount_common(source, dest, None, flags.unwrap_or(MsFlags::empty()) | MsFlags::MS_BIND, None)
+    mount_common(
+        source,
+        dest,
+        None,
+        flags.unwrap_or(MsFlags::empty()) | MsFlags::MS_BIND,
+        None,
+    )
 }
 
 fn bind_mount_ro(source: &str, dest: &str) -> Result<(), Box<dyn Error>> {
@@ -112,7 +166,13 @@ fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all("/run/work")?;
     fs::create_dir_all("/run/merged")?;
     // mount overlayfs - with vanity name for "df"
-    mount("orbstack", "/run/merged", "overlay", merged_flags, Some("lowerdir=/,upperdir=/run/upper,workdir=/run/work"))?;
+    mount(
+        "orbstack",
+        "/run/merged",
+        "overlay",
+        merged_flags,
+        Some("lowerdir=/,upperdir=/run/upper,workdir=/run/work"),
+    )?;
 
     // make original fs available for debugging
     if DEBUG {
@@ -137,7 +197,8 @@ fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
 }
 
 fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
-    let secure_flags = MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_RELATIME;
+    let secure_flags =
+        MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_RELATIME;
     let dev_flags = MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_RELATIME;
     // easier for dev to allow exec
     let tmp_flags = MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_RELATIME;
@@ -151,14 +212,50 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     mount("devtmpfs", "/dev", "devtmpfs", dev_flags, Some("mode=0755"))?;
     // extra
     fs::create_dir_all("/dev/pts")?;
-    mount("devpts", "/dev/pts", "devpts", dev_flags, Some("mode=0620,gid=5,ptmxmode=000"))?;
-    mount("securityfs", "/sys/kernel/security", "securityfs", secure_flags, None)?;
-    mount("debugfs", "/sys/kernel/debug", "debugfs", secure_flags, None)?;
+    mount(
+        "devpts",
+        "/dev/pts",
+        "devpts",
+        dev_flags,
+        Some("mode=0620,gid=5,ptmxmode=000"),
+    )?;
+    mount(
+        "securityfs",
+        "/sys/kernel/security",
+        "securityfs",
+        secure_flags,
+        None,
+    )?;
+    mount(
+        "debugfs",
+        "/sys/kernel/debug",
+        "debugfs",
+        secure_flags,
+        None,
+    )?;
     fs::create_dir_all("/dev/mqueue")?;
     mount("mqueue", "/dev/mqueue", "mqueue", secure_flags, None)?;
-    mount("fusectl", "/sys/fs/fuse/connections", "fusectl", secure_flags, None)?;
-    mount("binfmt_misc", "/proc/sys/fs/binfmt_misc", "binfmt_misc", secure_flags, None)?;
-    mount("tracefs", "/sys/kernel/tracing", "tracefs", secure_flags, None)?;
+    mount(
+        "fusectl",
+        "/sys/fs/fuse/connections",
+        "fusectl",
+        secure_flags,
+        None,
+    )?;
+    mount(
+        "binfmt_misc",
+        "/proc/sys/fs/binfmt_misc",
+        "binfmt_misc",
+        secure_flags,
+        None,
+    )?;
+    mount(
+        "tracefs",
+        "/sys/kernel/tracing",
+        "tracefs",
+        secure_flags,
+        None,
+    )?;
     mount("bpf", "/sys/fs/bpf", "bpf", secure_flags, Some("mode=0700"))?;
     // tmp
     fs::create_dir_all("/dev/shm")?;
@@ -167,7 +264,13 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     mount("tmpfs", "/tmp", "tmpfs", tmp_flags, Some("mode=0755"))?;
 
     // cgroup2 (nsdelegate for delegation/confinement)
-    mount("cgroup", "/sys/fs/cgroup", "cgroup2", secure_flags, Some("nsdelegate"))?;
+    mount(
+        "cgroup",
+        "/sys/fs/cgroup",
+        "cgroup2",
+        secure_flags,
+        Some("nsdelegate"),
+    )?;
     // enable all controllers for subgroups
     let subtree_controllers = fs::read_to_string("/sys/fs/cgroup/cgroup.controllers")?
         .trim()
@@ -193,7 +296,10 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     //   - getting rid of renew timer saves CPU and reduces chances of unmount during sleep
     //   - is safe because we only have one client
     //   - 30 sec grace period is safe, but wasteful, and already bad enough UX if we end up hanging for 30s
-    fs::write("/proc/fs/nfsd/nfsv4leasetime", format!("{}", 5 * 365 * 24 * 3600))?;
+    fs::write(
+        "/proc/fs/nfsd/nfsv4leasetime",
+        format!("{}", 5 * 365 * 24 * 3600),
+    )?;
     fs::write("/proc/fs/nfsd/nfsv4gracetime", "1")?;
 
     // for security, seal all directories/files we expose to machines as read-only
@@ -306,55 +412,103 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     let ip_neigh = handle.neighbours();
 
     // loopback: set lo up
-    let lo = ip_link.get().match_name("lo".into()).execute().try_next().await?.unwrap();
+    let lo = ip_link
+        .get()
+        .match_name("lo".into())
+        .execute()
+        .try_next()
+        .await?
+        .unwrap();
     ip_link.set(lo.header.index).up().execute().await?;
 
     // main gvisor NAT network
-    let eth0 = ip_link.get().match_name("eth0".into()).execute().try_next().await?.unwrap();
+    let eth0 = ip_link
+        .get()
+        .match_name("eth0".into())
+        .execute()
+        .try_next()
+        .await?
+        .unwrap();
 
     // static neighbors to reduce ARP CPU usage
     for ip_addr in VNET_NEIGHBORS {
-        ip_neigh.add(eth0.header.index, ip_addr.parse()?)
+        ip_neigh
+            .add(eth0.header.index, ip_addr.parse()?)
             .link_local_address(VNET_LLADDR)
-            .execute().await?;
+            .execute()
+            .await?;
     }
 
     // set eth0 mtu, up
-    ip_link.set(eth0.header.index)
+    ip_link
+        .set(eth0.header.index)
         .mtu(1500)
         .up()
-        .execute().await?;
+        .execute()
+        .await?;
 
     // add IP addresses
-    ip_addr.add(eth0.header.index, "198.19.248.2".parse()?, 24).execute().await?;
+    ip_addr
+        .add(eth0.header.index, "198.19.248.2".parse()?, 24)
+        .execute()
+        .await?;
     // to avoid NDP, use /126 so only ::1 and ::2 are on the network
-    ip_addr.add(eth0.header.index, "fd07:b51a:cc66:f0::2".parse()?, 126).execute().await?;
+    ip_addr
+        .add(eth0.header.index, "fd07:b51a:cc66:f0::2".parse()?, 126)
+        .execute()
+        .await?;
 
     // add default routes
-    ip_route.add().v4().gateway("198.19.248.1".parse()?).execute().await?;
-    ip_route.add().v6().gateway("fd07:b51a:cc66:f0::1".parse()?).execute().await?;
+    ip_route
+        .add()
+        .v4()
+        .gateway("198.19.248.1".parse()?)
+        .execute()
+        .await?;
+    ip_route
+        .add()
+        .v6()
+        .gateway("fd07:b51a:cc66:f0::1".parse()?)
+        .execute()
+        .await?;
 
     // scon machine bridge: eth1 mtu, up
     // scon deals with the rest
     // cannot use static neigh because macOS generates MAC addr
-    let eth1 = ip_link.get().match_name("eth1".into()).execute().try_next().await?.unwrap();
-    ip_link.set(eth1.header.index)
+    let eth1 = ip_link
+        .get()
+        .match_name("eth1".into())
+        .execute()
+        .try_next()
+        .await?
+        .unwrap();
+    ip_link
+        .set(eth1.header.index)
         .mtu(1500)
         .up()
-        .execute().await?;
+        .execute()
+        .await?;
 
     // NAT64 from machine bridge to docker
     // make Linux happy (doesn't really matter)
-    ip_neigh.add(eth1.header.index, NAT64_SOURCE_ADDR.parse().unwrap())
+    ip_neigh
+        .add(eth1.header.index, NAT64_SOURCE_ADDR.parse().unwrap())
         .link_local_address(NAT64_SOURCE_LLADDR)
-        .execute().await.unwrap();
+        .execute()
+        .await
+        .unwrap();
     // ingress route from translated IPv4 source address to Docker machine (which does IP forward to containers)
     // create ip rule for fwmark from BPF clsact program
     // ip rule add fwmark 0xe97bd031 table 64
-    let mut fwmark_rule = ip_rule.add().v4()
+    let mut fwmark_rule = ip_rule
+        .add()
+        .v4()
         .table(64) // table ID is not exposed to BPF
         .action(FR_ACT_TO_TBL);
-    fwmark_rule.message_mut().nlas.push(netlink_packet_route::rule::Nla::FwMark(NAT64_FWMARK));
+    fwmark_rule
+        .message_mut()
+        .nlas
+        .push(netlink_packet_route::rule::Nla::FwMark(NAT64_FWMARK));
     fwmark_rule.execute().await.unwrap();
     // ip route add default via 198.19.249.2 table 64
     // ip_route.add().v4()
@@ -362,18 +516,30 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     //     .table(64).execute().await.unwrap();
     // egress route from Docker machine back to BPF eth1
     // ip route add 10.183.233.241 dev eth1
-    ip_route.add().v4()
+    ip_route
+        .add()
+        .v4()
         .destination_prefix(NAT64_SOURCE_ADDR.parse().unwrap(), 32)
         .output_interface(eth1.header.index)
-        .execute().await.unwrap();
+        .execute()
+        .await
+        .unwrap();
 
     // docker vlan router
     // scon deals with the rest
-    let eth2 = ip_link.get().match_name("eth2".into()).execute().try_next().await?.unwrap();
-    ip_link.set(eth2.header.index)
+    let eth2 = ip_link
+        .get()
+        .match_name("eth2".into())
+        .execute()
+        .try_next()
+        .await?
+        .unwrap();
+    ip_link
+        .set(eth2.header.index)
         .mtu(1500)
         .up()
-        .execute().await?;
+        .execute()
+        .await?;
 
     conn_task.abort();
     Ok(())
@@ -386,7 +552,7 @@ pub fn sync_clock(allow_backward: bool) -> Result<(), Box<dyn Error>> {
     socket.set_read_timeout(Some(Duration::from_secs(10)))?;
     let host_time = sntpc::simple_get_time("198.19.248.200:123", socket)
         .map_err(|e| InitError::NtpGetTime(e))?;
-    
+
     let sec = host_time.sec() as i64;
     let nsec = sntpc::fraction_to_nanoseconds(host_time.sec_fraction()) as i64;
 
@@ -410,7 +576,9 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         let new_size_mib = value.parse::<u64>()?;
         // get existing size
         let old_size_mib = blockdev::getsize64("/dev/vdb1")
-            .map_err(InitError::MissingDataPartition)? / 1024 / 1024;
+            .map_err(InitError::MissingDataPartition)?
+            / 1024
+            / 1024;
         // for safety, only allow increasing size
         if new_size_mib > old_size_mib {
             // resize
@@ -427,7 +595,10 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
                 return Err(InitError::ResizeDataFs(status).into());
             }
         } else if new_size_mib < old_size_mib {
-            eprintln!("WARNING: Attempted to shrink data partition from {} MiB to {} MiB", old_size_mib, new_size_mib);
+            eprintln!(
+                "WARNING: Attempted to shrink data partition from {} MiB to {} MiB",
+                old_size_mib, new_size_mib
+            );
         }
     }
 
@@ -445,7 +616,13 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(fs_options)) {
         eprintln!(" !!! Failed to mount data: {}", e);
         println!(" [*] Attempting to recover data");
-        if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(format!("{},rescue=usebackuproot", fs_options).as_str())) {
+        if let Err(e) = mount(
+            "/dev/vdb1",
+            "/data",
+            "btrfs",
+            data_flags,
+            Some(format!("{},rescue=usebackuproot", fs_options).as_str()),
+        ) {
             eprintln!(" !!! Failed to recover data: {}", e);
             eprintln!("{}", FS_CORRUPTED_MSG);
             return Err(e);
@@ -486,10 +663,17 @@ fn create_mirror_dir(dir: &str) -> Result<(String, String), Box<dyn Error>> {
     Ok((ro_dir, rw_dir))
 }
 
-fn init_nfs() -> Result<(), Box<dyn Error>> { 
+fn init_nfs() -> Result<(), Box<dyn Error>> {
     // mount name is visible in machines bind mount, so use vanity name
     // we use this same tmpfs for all mirror dirs
-    mount("machines", "/nfs", "tmpfs", MsFlags::MS_NOATIME | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID, Some("mode=0755")).unwrap();
+    mount(
+        "machines",
+        "/nfs",
+        "tmpfs",
+        MsFlags::MS_NOATIME | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID,
+        Some("mode=0755"),
+    )
+    .unwrap();
 
     // create mirror dirs: root, images, containers
     // perf matters more for volumes so it uses raw binds instead of mergerfs
@@ -537,16 +721,34 @@ fn init_data() -> Result<(), Box<dyn Error>> {
     // mount a r-o nix to protect /nix/orb/sys and prevent creating files in /nix/.
     bind_mount_ro("/opt/wormhole-rootfs", "/mnt/wormhole-unified")?;
     // make /nix/orb/data, /nix/store, and /nix/var writable
-    bind_mount("/mnt/wormhole-overlay/nix/orb/data", "/mnt/wormhole-unified/nix/orb/data", None)?;
-    bind_mount("/mnt/wormhole-overlay/nix/store", "/mnt/wormhole-unified/nix/store", None)?;
-    bind_mount("/mnt/wormhole-overlay/nix/var", "/mnt/wormhole-unified/nix/var", None)?;
+    bind_mount(
+        "/mnt/wormhole-overlay/nix/orb/data",
+        "/mnt/wormhole-unified/nix/orb/data",
+        None,
+    )?;
+    bind_mount(
+        "/mnt/wormhole-overlay/nix/store",
+        "/mnt/wormhole-unified/nix/store",
+        None,
+    )?;
+    bind_mount(
+        "/mnt/wormhole-overlay/nix/var",
+        "/mnt/wormhole-unified/nix/var",
+        None,
+    )?;
     // expose read-only base store
-    bind_mount_ro("/opt/wormhole-rootfs/nix/store", "/mnt/wormhole-unified/nix/orb/sys/.base")?;
+    bind_mount_ro(
+        "/opt/wormhole-rootfs/nix/store",
+        "/mnt/wormhole-unified/nix/orb/sys/.base",
+    )?;
 
     // debug root home
     if DEBUG {
         fs::create_dir_all("/data/dev-root-home/.ssh")?;
-        fs::copy("/root/.ssh/authorized_keys", "/data/dev-root-home/.ssh/authorized_keys")?;
+        fs::copy(
+            "/root/.ssh/authorized_keys",
+            "/data/dev-root-home/.ssh/authorized_keys",
+        )?;
         maybe_set_permissions("/data/dev-root-home/.ssh", 0o700)?;
         maybe_set_permissions("/data/dev-root-home/.ssh/authorized_keys", 0o600)?;
         bind_mount("/data/dev-root-home", "/root", None)?;
@@ -558,9 +760,23 @@ fn init_data() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn add_binfmt(name: &str, magic: &str, mask: Option<&str>, interpreter: &str, flags: &str) -> Result<(), Box<dyn Error>> {
+fn add_binfmt(
+    name: &str,
+    magic: &str,
+    mask: Option<&str>,
+    interpreter: &str,
+    flags: &str,
+) -> Result<(), Box<dyn Error>> {
     let offset = 0;
-    let buf = format!(":{}:M:{}:{}:{}:{}:{}", name, offset, magic, mask.unwrap_or(""), interpreter, flags);
+    let buf = format!(
+        ":{}:M:{}:{}:{}:{}:{}",
+        name,
+        offset,
+        magic,
+        mask.unwrap_or(""),
+        interpreter,
+        flags
+    );
     fs::write("/proc/sys/fs/binfmt_misc/register", buf)?;
     Ok(())
 }
@@ -568,7 +784,13 @@ fn add_binfmt(name: &str, magic: &str, mask: Option<&str>, interpreter: &str, fl
 #[cfg(target_arch = "x86_64")]
 fn setup_arch_emulators(_sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // arm64 qemu
-    add_binfmt("qemu-aarch64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu-arm64]", "POCF")?;
+    add_binfmt(
+        "qemu-aarch64",
+        r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00"#,
+        Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#),
+        "[qemu-arm64]",
+        "POCF",
+    )?;
     Ok(())
 }
 
@@ -589,19 +811,26 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
     match rosetta::find_and_apply_patch(&source_data, "/mnt/rv/[rosetta]") {
         Ok(_) => {
             patched = true;
-        },
+        }
         Err(RosettaError::UnknownBuild(fingerprint)) => {
             // allow proceeding, but try to print the version
             // rvfs isn't ready yet so run from virtiofs
             let version = rosetta::get_version("/mnt/rosetta/rosetta")
                 .unwrap_or_else(|e| format!("unknown ({}) ({})", &fingerprint[..8], e));
             eprintln!("  !  Unknown Rosetta version: {}", version);
-        },
+        }
         Err(e) => return Err(e.into()),
     }
 
     // remount readonly
-    mount("tmpfs", "/mnt/rv", "tmpfs", MsFlags::MS_REMOUNT | MsFlags::MS_NOATIME | MsFlags::MS_RDONLY, None).unwrap();
+    mount(
+        "tmpfs",
+        "/mnt/rv",
+        "tmpfs",
+        MsFlags::MS_REMOUNT | MsFlags::MS_NOATIME | MsFlags::MS_RDONLY,
+        None,
+    )
+    .unwrap();
 
     // redirect ioctls to real rosetta virtiofs
     let real_rosetta_file = fs::File::open("/mnt/rosetta/rosetta").unwrap();
@@ -622,11 +851,15 @@ fn prepare_rstub(host_build: &str) -> Result<(), Box<dyn Error>> {
     fs::set_permissions("/tmp/rstub", Permissions::from_mode(0o755))?;
 
     // parse elf
-    let file = OpenOptions::new().read(true).write(true).open("/tmp/rstub")?;
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/tmp/rstub")?;
     let mut elf = ElfStream::<NativeEndian, _>::open_stream(&file)?;
 
     // get config block
-    let shdr = elf.section_header_by_name(".c0")?
+    let shdr = elf
+        .section_header_by_name(".c0")?
         .ok_or(InitError::InvalidElf)?;
     // get offset in file
     let cfg_offset = shdr.sh_offset;
@@ -656,7 +889,13 @@ fn setup_arch_emulators_early() -> Result<(), Box<dyn Error>> {
     // MUST BE EARLY, or we could break execs sometimes when racing with other steps
     // this is the name used by ubuntu binfmt
     // also happens with: docker run --rm --privileged multiarch/qemu-user-static:register
-    add_binfmt("qemu-aarch64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu]", "POCF")?;
+    add_binfmt(
+        "qemu-aarch64",
+        r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00"#,
+        Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#),
+        "[qemu]",
+        "POCF",
+    )?;
     // then disable the entry. it's just there to take the name
     fs::write("/proc/sys/fs/binfmt_misc/qemu-aarch64", "0")?;
 
@@ -668,7 +907,13 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // we always register qemu, but flags change if using Rosetta
     let mut qemu_flags = "POCF".to_string();
 
-    if let Ok(_) = mount("rosetta", "/mnt/rosetta", "virtiofs", MsFlags::empty(), None) {
+    if let Ok(_) = mount(
+        "rosetta",
+        "/mnt/rosetta",
+        "virtiofs",
+        MsFlags::empty(),
+        None,
+    ) {
         // rosetta
         println!("  -  Using Rosetta");
 
@@ -677,7 +922,9 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 
         // add preserve-argv0 flag on Sonoma Rosetta 309+
         let mut rosetta_flags = "CF(".to_string();
-        let host_major_version = sys_info.seed_configs.get("host_major_version")
+        let host_major_version = sys_info
+            .seed_configs
+            .get("host_major_version")
             .ok_or_else(|| anyhow!("Missing version"))?
             .parse::<u32>()?;
         if patched || host_major_version >= 14 {
@@ -685,7 +932,9 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         }
 
         // prepare rosetta wrapper
-        let host_build: &String = sys_info.seed_configs.get("host_build_version")
+        let host_build: &String = sys_info
+            .seed_configs
+            .get("host_build_version")
             .ok_or_else(|| anyhow!("Missing version"))?;
         prepare_rstub(host_build).unwrap();
 
@@ -697,15 +946,34 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
         // entries added later take priority, so MUST register first to avoid infinite loop
         // WARNING: NOT THREAD SAFE! this uses chdir.
         //          luckily init doesn't care about cwd during early boot (but later, it matters for spawned processes)
-        add_binfmt("rosetta", ELF_MAGIC_X86_64, Some(ELF_MASK_X86_64), "[rosetta]", "POCF").unwrap();
+        add_binfmt(
+            "rosetta",
+            ELF_MAGIC_X86_64,
+            Some(ELF_MASK_X86_64),
+            "[rosetta]",
+            "POCF",
+        )
+        .unwrap();
 
         // then register real rosetta with comm=rvk1 key '('
         // '.' to make it hidden
         env::set_current_dir("/mnt/rv").unwrap();
         // use zero-width spaces to make it hard to inspect
-        let real_res = add_binfmt("rosetta\u{200b}", ELF_MAGIC_X86_64, Some(ELF_MASK_X86_64), "[rosetta]", &rosetta_flags);
+        let real_res = add_binfmt(
+            "rosetta\u{200b}",
+            ELF_MAGIC_X86_64,
+            Some(ELF_MASK_X86_64),
+            "[rosetta]",
+            &rosetta_flags,
+        );
         // rvk3 variant without preserve-argv0 flag, to work around bug for swift-driver
-        let real_res2 = add_binfmt("rosetta\u{200b}\u{200b}", ELF_MAGIC_X86_64, Some(ELF_MASK_X86_64), "[rosetta]", "CF[");
+        let real_res2 = add_binfmt(
+            "rosetta\u{200b}\u{200b}",
+            ELF_MAGIC_X86_64,
+            Some(ELF_MASK_X86_64),
+            "[rosetta]",
+            "CF[",
+        );
         env::set_current_dir("/").unwrap();
         real_res.unwrap();
         real_res2.unwrap();
@@ -718,11 +986,23 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // if Rosetta mode: RVFS wrapper may choose to invoke it via task comm=rvk2 key (we add ')' flag)
     // if QEMU mode: it will always be used
     // this also helps occupy the name so that distros don't try to install it
-    add_binfmt("qemu-x86_64", ELF_MAGIC_X86_64, Some(ELF_MASK_X86_64), "[qemu]", &qemu_flags)?;
+    add_binfmt(
+        "qemu-x86_64",
+        ELF_MAGIC_X86_64,
+        Some(ELF_MASK_X86_64),
+        "[qemu]",
+        &qemu_flags,
+    )?;
 
     // always use qemu for i386 (32-bit)
     // Rosetta doesn't support 32-bit
-    add_binfmt("qemu-i386", r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00"#, Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu32]", "POCF")?;
+    add_binfmt(
+        "qemu-i386",
+        r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00"#,
+        Some(r#"\xff\xff\xff\xff\xff\xfe\xfe\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#),
+        "[qemu32]",
+        "POCF",
+    )?;
 
     Ok(())
 }
@@ -733,29 +1013,83 @@ fn setup_binfmt(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // qemu for 32-bit ARM
     // must be emulated on both x86 and arm64
     // all our qemus use standard names to avoid distro conflicts in case user tries to install them
-    add_binfmt("qemu-arm", r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu-arm32]", "POCF")?;
+    add_binfmt(
+        "qemu-arm",
+        r#"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00"#,
+        Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#),
+        "[qemu-arm32]",
+        "POCF",
+    )?;
 
     // other common qemus: riscv64, ppc64le, s390x, mips64el
-    add_binfmt("qemu-riscv64", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xf3\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu-riscv64]", "POCF")?;
-    add_binfmt("qemu-ppc64le", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x15\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\x00"#), "[qemu-ppc64le]", "POCF")?;
-    add_binfmt("qemu-s390x", r#"\x7fELF\x02\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x16"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff"#), "[qemu-s390x]", "POCF")?;
-    add_binfmt("qemu-mips64el", r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x08\x00"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\x00\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#), "[qemu-mips64el]", "POCF")?;
+    add_binfmt(
+        "qemu-riscv64",
+        r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xf3\x00"#,
+        Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#),
+        "[qemu-riscv64]",
+        "POCF",
+    )?;
+    add_binfmt(
+        "qemu-ppc64le",
+        r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x15\x00"#,
+        Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\x00"#),
+        "[qemu-ppc64le]",
+        "POCF",
+    )?;
+    add_binfmt(
+        "qemu-s390x",
+        r#"\x7fELF\x02\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x16"#,
+        Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff"#),
+        "[qemu-s390x]",
+        "POCF",
+    )?;
+    add_binfmt(
+        "qemu-mips64el",
+        r#"\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x08\x00"#,
+        Some(r#"\xff\xff\xff\xff\xff\xff\xff\x00\x00\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#),
+        "[qemu-mips64el]",
+        "POCF",
+    )?;
 
     // Mach-O
     // no O because fds can't cross OS boundary
     // no C because credentials are ignored
     // macOS doesn't support 32-bit anymore
     // 07 = x86
-    add_binfmt("mac-macho-x86_64", r#"\xcf\xfa\xed\xfe\x07\x00\x00\x01"#, None, "[mac]", "FP")?;
+    add_binfmt(
+        "mac-macho-x86_64",
+        r#"\xcf\xfa\xed\xfe\x07\x00\x00\x01"#,
+        None,
+        "[mac]",
+        "FP",
+    )?;
     // only for arm64
     #[cfg(target_arch = "aarch64")]
-    add_binfmt("mac-macho-arm64", r#"\xcf\xfa\xed\xfe\x0c\x00\x00\x01"#, None, "[mac]", "FP")?;
+    add_binfmt(
+        "mac-macho-arm64",
+        r#"\xcf\xfa\xed\xfe\x0c\x00\x00\x01"#,
+        None,
+        "[mac]",
+        "FP",
+    )?;
 
     // macOS Universal (either arch first)
     // accepts both 1 and 2 binaries, with either arch first
     // no conflict with java: https://github.com/file/file/blob/c8bba134ac1f3c9f5b052486a7694c5b48e498bc/magic/Magdir/cafebabe#L3
-    add_binfmt("mac-universal-x86_64", r#"\xca\xfe\xba\xbe\x00\x00\x00\x02\x01\x00\x00\x07"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x02\xff\xff\xff\xff"#), "[mac]", "FP")?;
-    add_binfmt("mac-universal-arm64", r#"\xca\xfe\xba\xbe\x00\x00\x00\x02\x01\x00\x00\x0c"#, Some(r#"\xff\xff\xff\xff\xff\xff\xff\x02\xff\xff\xff\xff"#), "[mac]", "FP")?;
+    add_binfmt(
+        "mac-universal-x86_64",
+        r#"\xca\xfe\xba\xbe\x00\x00\x00\x02\x01\x00\x00\x07"#,
+        Some(r#"\xff\xff\xff\xff\xff\xff\xff\x02\xff\xff\xff\xff"#),
+        "[mac]",
+        "FP",
+    )?;
+    add_binfmt(
+        "mac-universal-arm64",
+        r#"\xca\xfe\xba\xbe\x00\x00\x00\x02\x01\x00\x00\x0c"#,
+        Some(r#"\xff\xff\xff\xff\xff\xff\xff\x02\xff\xff\xff\xff"#),
+        "[mac]",
+        "FP",
+    )?;
 
     Ok(())
 }
@@ -764,7 +1098,12 @@ fn enable_swap(path: &str, priority: i32) -> Result<(), Box<dyn Error>> {
     unsafe {
         let path = std::ffi::CString::new(path)?;
         // allow discard to free zram pages
-        let res = libc::swapon(path.as_ptr(), SWAP_FLAG_DISCARD | SWAP_FLAG_PREFER | (priority << SWAP_FLAG_PRIO_SHIFT) & SWAP_FLAG_PRIO_MASK);
+        let res = libc::swapon(
+            path.as_ptr(),
+            SWAP_FLAG_DISCARD
+                | SWAP_FLAG_PREFER
+                | (priority << SWAP_FLAG_PRIO_SHIFT) & SWAP_FLAG_PRIO_MASK,
+        );
         if res != 0 {
             return Err(std::io::Error::last_os_error().into());
         }
@@ -800,15 +1139,17 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
         .unwrap()
         .parse::<u64>()?;
     fs::write("/sys/block/zram0/backing_dev", "/dev/vdc1")?;
-    fs::write("/sys/block/zram0/disksize", format!("{}", mem_total_kib * 1024))?;
+    fs::write(
+        "/sys/block/zram0/disksize",
+        format!("{}", mem_total_kib * 1024),
+    )?;
     fs::write("/sys/block/zram0/writeback", "huge_idle")?;
     // create swap
     let zram_dev = OpenOptions::new()
         .read(true)
         .write(true)
         .open("/dev/zram0")?;
-    SwapWriter::new()
-        .write(zram_dev)?;
+    SwapWriter::new().write(zram_dev)?;
     // enable
     enable_swap("/dev/zram0", 32767)?;
 
@@ -818,31 +1159,43 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn start_services(service_tracker: Arc<Mutex<ServiceTracker>>, sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+async fn start_services(
+    service_tracker: Arc<Mutex<ServiceTracker>>,
+    sys_info: &SystemInfo,
+) -> Result<(), Box<dyn Error>> {
     let mut service_tracker = service_tracker.lock().await;
 
     // chrony
-    service_tracker.spawn(Service::CHRONY, &mut Command::new("/usr/sbin/chronyd")
-        .arg(if DEBUG { "-d" } else { "-n" }) // foreground (-d for log-to-stderr)
-        .arg("-f") // config file
-        .arg("/etc/chrony/chrony.conf"))?;
+    service_tracker.spawn(
+        Service::CHRONY,
+        &mut Command::new("/usr/sbin/chronyd")
+            .arg(if DEBUG { "-d" } else { "-n" }) // foreground (-d for log-to-stderr)
+            .arg("-f") // config file
+            .arg("/etc/chrony/chrony.conf"),
+    )?;
 
     // udev
     // this is only for USB devices, nbd, etc. so no need to wait for it to settle
     service_tracker.spawn(Service::UDEV, &mut Command::new("/sbin/udevd"))?;
 
     // scon
-    service_tracker.spawn(Service::SCON, &mut Command::new("/opt/orb/scon")
-        .arg("mgr")
-        // pass cmdline for console detection
-        .args(&sys_info.cmdline))?;
+    service_tracker.spawn(
+        Service::SCON,
+        &mut Command::new("/opt/orb/scon")
+            .arg("mgr")
+            // pass cmdline for console detection
+            .args(&sys_info.cmdline),
+    )?;
 
     // ssh
     if DEBUG {
         // must use absolute path for sshd's sandbox to work
-        service_tracker.spawn(Service::SSH, &mut Command::new("/usr/sbin/sshd")
-            .arg("-D") // foreground
-            .arg("-e"))?; // log to stderr
+        service_tracker.spawn(
+            Service::SSH,
+            &mut Command::new("/usr/sbin/sshd")
+                .arg("-D") // foreground
+                .arg("-e"),
+        )?; // log to stderr
     }
 
     Ok(())
@@ -886,14 +1239,16 @@ pub async fn main(
     timeline.begin("Late tasks");
     let mut tasks = vec![];
     let sys_info_clone = sys_info.clone();
-    tasks.push(std::thread::spawn(move || { // 55 ms
+    tasks.push(std::thread::spawn(move || {
+        // 55 ms
         //let stage_start = Instant::now();
         println!("     [*] Emulation");
         setup_binfmt(&sys_info_clone).unwrap();
         //println!("     ... Set up binfmt: +{}ms", stage_start.elapsed().as_millis());
     }));
     let sys_info_clone = sys_info.clone();
-    tasks.push(std::thread::spawn(move || { // 50 ms
+    tasks.push(std::thread::spawn(move || {
+        // 50 ms
         //let stage_start = Instant::now();
         resize_data(&sys_info_clone).unwrap();
 
@@ -902,7 +1257,8 @@ pub async fn main(
         //println!("     ... Mounting data: +{}ms", stage_start.elapsed().as_millis());
     }));
     // async, no need to wait for this
-    std::thread::spawn(|| { // 70 ms
+    std::thread::spawn(|| {
+        // 70 ms
         //let stage_start = Instant::now();
         println!("     [*] Memory");
         setup_memory().unwrap();
@@ -920,7 +1276,10 @@ pub async fn main(
 
     timeline.begin("Done!");
 
-    println!("  -  Total boot time: {}ms", boot_start.elapsed().as_millis());
+    println!(
+        "  -  Total boot time: {}ms",
+        boot_start.elapsed().as_millis()
+    );
 
     Ok(())
 }

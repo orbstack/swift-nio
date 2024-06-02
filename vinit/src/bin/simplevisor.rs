@@ -1,8 +1,17 @@
-use std::{error::Error, fs::{self, remove_file}, os::unix::{fs::symlink, net::UnixDatagram, process::ExitStatusExt}, process::Command, sync::{Arc, Mutex}};
+use std::{
+    error::Error,
+    fs::{self, remove_file},
+    os::unix::{fs::symlink, net::UnixDatagram, process::ExitStatusExt},
+    process::Command,
+    sync::{Arc, Mutex},
+};
 
-use nix::{sys::signal::{kill, Signal}, unistd::Pid};
+use nix::{
+    sys::signal::{kill, Signal},
+    unistd::Pid,
+};
+use serde::{Deserialize, Serialize};
 use signal_hook::iterator::Signals;
-use serde::{Serialize, Deserialize};
 
 const SERVICE_ID_DOCKER: usize = 0;
 const SERVICE_ID_K8S: usize = 1;
@@ -180,10 +189,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                     // TODO: speed this up with SIGKILL?
                     // should be safe with Docker because we block requests and never start a new container, but still risky, and we kill container cgroups to speed that up anyway
                     // not sure if it's safe for k8s though
-                    kill(Pid::from_raw(child.process.id() as i32), Some(Signal::SIGTERM))?;
+                    kill(
+                        Pid::from_raw(child.process.id() as i32),
+                        Some(Signal::SIGTERM),
+                    )?;
                     let status = child.process.wait()?;
                     println!(" [*] restart service {}: exited with {}", i, status);
-    
+
                     child.process = Command::new(&child.args[0])
                         .args(&child.args[1..])
                         .spawn()
@@ -196,7 +208,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                 // forward signal to children
                 for child in children.lock().unwrap().iter() {
-                    kill(Pid::from_raw(child.process.id() as i32), Some(Signal::try_from(signal)?))?;
+                    kill(
+                        Pid::from_raw(child.process.id() as i32),
+                        Some(Signal::try_from(signal)?),
+                    )?;
                 }
 
                 if signal == signal_hook::consts::SIGTERM {

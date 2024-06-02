@@ -1,8 +1,15 @@
-use std::{collections::{BTreeMap}, process::Command, fs, fmt::{Display, Formatter}, time::Duration, error::Error};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    fmt::{Display, Formatter},
+    fs,
+    process::Command,
+    time::Duration,
+};
 
-use nix::{sys::signal::{Signal}};
+use nix::sys::signal::Signal;
 use once_cell::sync::Lazy;
-use tokio::sync::{Mutex};
+use tokio::sync::Mutex;
 
 use crate::{pidfd::PidFd, InitError};
 
@@ -89,25 +96,35 @@ impl ServiceTracker {
     }
 
     pub fn spawn(&mut self, service: Service, cmd: &mut Command) -> Result<(), Box<dyn Error>> {
-        let pid = cmd.spawn()
+        let pid = cmd
+            .spawn()
             .map_err(|e| InitError::SpawnService { service, error: e })?
             .id();
 
         // set OOM score adj for critical services
         if service.critical {
-            fs::write(format!("/proc/{}/oom_score_adj", pid),
-                format!("{}", OOM_SCORE_CRITICAL))?;
+            fs::write(
+                format!("/proc/{}/oom_score_adj", pid),
+                format!("{}", OOM_SCORE_CRITICAL),
+            )?;
         }
 
         self.pids.insert(pid, service);
         // for restarting
-        self.command_specs.insert(service, CommandSpec {
-            exe: cmd.get_program().to_string_lossy().to_string(),
-            args: cmd.get_args().into_iter().map(|s| s.to_string_lossy().to_string()).collect(),
-        });
+        self.command_specs.insert(
+            service,
+            CommandSpec {
+                exe: cmd.get_program().to_string_lossy().to_string(),
+                args: cmd
+                    .get_args()
+                    .into_iter()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .collect(),
+            },
+        );
         Ok(())
     }
-    
+
     pub async fn restart(&mut self, service: Service) -> Result<(), Box<dyn Error>> {
         if !service.restartable || self.shutting_down {
             return Ok(());
@@ -117,8 +134,7 @@ impl ServiceTracker {
         tokio::time::sleep(Duration::from_secs(RESTART_DELAY)).await;
 
         let spec = self.command_specs.get(&service).unwrap();
-        self.spawn(service, &mut Command::new(&spec.exe)
-            .args(&spec.args))
+        self.spawn(service, &mut Command::new(&spec.exe).args(&spec.args))
     }
 
     pub fn stop_for_shutdown(&mut self, signal: Signal) -> std::io::Result<Vec<PidFd>> {

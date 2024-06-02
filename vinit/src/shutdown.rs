@@ -1,19 +1,33 @@
-use std::{error::Error, fs::{self, DirEntry}, io, os::fd::AsRawFd, path::Path, sync::Arc, time::{Duration, SystemTime}};
+use std::{
+    error::Error,
+    fs::{self, DirEntry},
+    io,
+    os::fd::AsRawFd,
+    path::Path,
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
-use nix::{sys::{signal::{kill, Signal}, reboot::{reboot, RebootMode}}, mount::{umount2, MntFlags}, unistd::{Pid, self}};
+use nix::{
+    mount::{umount2, MntFlags},
+    sys::{
+        reboot::{reboot, RebootMode},
+        signal::{kill, Signal},
+    },
+    unistd::{self, Pid},
+};
 
 use crate::pidfd::PidFd;
-use crate::service::{PROCESS_WAIT_LOCK, ServiceTracker};
-use tokio::{sync::{Mutex}};
+use crate::service::{ServiceTracker, PROCESS_WAIT_LOCK};
+use tokio::sync::Mutex;
 
-use crate::{loopback, Timeline, InitError, DEBUG};
+use crate::{loopback, InitError, Timeline, DEBUG};
 
 // only includes root namespace
 const UNMOUNT_ITERATION_LIMIT: usize = 10;
 const DATA_FILESYSTEM_TYPES: &[&str] = &[
     // unmount data-share virtiofs to sync changes and forget fds
-    "virtiofs",
-    "btrfs",
+    "virtiofs", "btrfs",
 ];
 const ROSETTA_VIRTIOFS_TAG: &str = "rosetta";
 
@@ -30,28 +44,31 @@ fn is_process_kthread(pid: i32) -> Result<bool, Box<dyn Error>> {
 
     // entire line: 420 (kworker/5:2) I 2 0 0 0 -1 69238880 0 0 0 0 0 0 0 0 20 0 1 0 96 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 1 0 0 17 5 0 0 0 0 0 0 0 0 0 0 0 0 0
     // there can be spaces in the comm field, so parse after the last ')'
-    let (_, numbers_part) = stat.rsplit_once(')')
+    let (_, numbers_part) = stat
+        .rsplit_once(')')
         .ok_or_else(|| InitError::ParseProcStat(pid))?;
     // " I 2 0 0 0 -1 69238880 0 0 0 0 0 0 0 0 20 0 1 0 96 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 1 0 0 17 5 0 0 0 0 0 0 0 0 0 0 0 0 0"
     let mut fields = numbers_part.split_whitespace();
     // flags is the 9th field (index 8) from start, so with two removed it's index 6
     // Rust split_whitespace ignores leading space
-    let flags = fields.nth(6)
-        .ok_or_else(|| InitError::ParseProcStat(pid))?;
+    let flags = fields.nth(6).ok_or_else(|| InitError::ParseProcStat(pid))?;
     // now parse the flags
     let flags = flags.parse::<u32>()?;
     // check for PF_KTHREAD
     Ok((flags & PF_KTHREAD) != 0)
 }
 
-fn kill_one_entry(entry: Result<DirEntry, io::Error>, signal: Signal) -> Result<Option<PidFd>, Box<dyn Error>> {
+fn kill_one_entry(
+    entry: Result<DirEntry, io::Error>,
+    signal: Signal,
+) -> Result<Option<PidFd>, Box<dyn Error>> {
     let filename = entry?.file_name();
     if let Ok(pid) = filename.to_str().unwrap().parse::<i32>() {
         // skip pid 1
         if pid == 1 {
             return Ok(None);
         }
-        
+
         // skip kthreads (they won't exit)
         if is_process_kthread(pid)? {
             return Ok(None);
@@ -79,7 +96,7 @@ fn broadcast_signal(signal: Signal) -> nix::Result<Vec<PidFd>> {
                 match kill_one_entry(entry, signal) {
                     Ok(Some(pidfd)) => {
                         pidfds.push(pidfd);
-                    },
+                    }
                     Err(e) => {
                         if let Some(e) = e.downcast_ref::<io::Error>() {
                             if e.kind() == io::ErrorKind::NotFound {
@@ -89,14 +106,14 @@ fn broadcast_signal(signal: Signal) -> nix::Result<Vec<PidFd>> {
                         }
 
                         println!(" !!! Failed to read /proc entry: {}", e);
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
             }
-        },
+        }
         Err(e) => {
             println!(" !!! Failed to read /proc: {}", e);
-        },
+        }
     }
 
     // always make sure to unfreeze
@@ -133,11 +150,11 @@ fn unmount_all_loopback() -> Result<bool, Box<dyn Error>> {
         match unmount_one_loopback(entry) {
             Ok(true) => {
                 made_progress = true;
-            },
+            }
             Err(e) => {
                 println!(" !!! Failed to unmount loopback: {}", e);
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 
@@ -202,7 +219,10 @@ async fn stop_nfs() -> Result<(), Box<dyn Error>> {
 
     // flush kernel nfsd cache after scon (rpc channel client) stops
     // equivalent to "exportfs -uav" which deletes etab and flushes
-    let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
     std::fs::write("/proc/net/rpc/auth.unix.ip/flush", format!("{}\n", now))?;
     std::fs::write("/proc/net/rpc/auth.unix.gid/flush", format!("{}\n", now))?;
     std::fs::write("/proc/net/rpc/nfsd.fh/flush", format!("{}\n", now))?;
@@ -215,7 +235,8 @@ async fn stop_nfs() -> Result<(), Box<dyn Error>> {
 }
 
 async fn wait_for_pidfds_exit(pidfds: Vec<PidFd>, timeout: Duration) -> Result<(), Box<dyn Error>> {
-    let futures = pidfds.iter()
+    let futures = pidfds
+        .iter()
         .map(|pidfd| async move {
             let _guard = pidfd.wait().await?;
             Ok::<(), tokio::io::Error>(())
@@ -241,7 +262,10 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
 
     // kill services that need clean shutdown
     timeline.begin("Stop services");
-    let service_pids = service_tracker.lock().await.stop_for_shutdown(Signal::SIGTERM)
+    let service_pids = service_tracker
+        .lock()
+        .await
+        .stop_for_shutdown(Signal::SIGTERM)
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to stop service: {}", e);
             vec![]
@@ -249,15 +273,15 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
 
     // stop NFS
     timeline.begin("Stop NFS");
-    stop_nfs().await
-        .unwrap_or_else(|e| {
-            eprintln!(" !!! Failed to stop NFS: {}", e);
-            ()
-        });
+    stop_nfs().await.unwrap_or_else(|e| {
+        eprintln!(" !!! Failed to stop NFS: {}", e);
+        ()
+    });
 
     // wait for the services to exit
     timeline.begin("Wait for services to exit");
-    wait_for_pidfds_exit(service_pids, SERVICE_SIGTERM_TIMEOUT).await
+    wait_for_pidfds_exit(service_pids, SERVICE_SIGTERM_TIMEOUT)
+        .await
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to wait for services to exit: {}", e);
             ()
@@ -265,12 +289,12 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
 
     // kill all processes (these don't need clean shutdown)
     timeline.begin("Kill all processes");
-    let all_pids = broadcast_signal(Signal::SIGKILL)
-        .unwrap_or_else(|e| {
-            eprintln!(" !!! Failed to kill all processes: {}", e);
-            vec![]
-        });
-    wait_for_pidfds_exit(all_pids, PROCESS_SIGKILL_TIMEOUT).await
+    let all_pids = broadcast_signal(Signal::SIGKILL).unwrap_or_else(|e| {
+        eprintln!(" !!! Failed to kill all processes: {}", e);
+        vec![]
+    });
+    wait_for_pidfds_exit(all_pids, PROCESS_SIGKILL_TIMEOUT)
+        .await
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to wait for processes to exit: {}", e);
             ()
@@ -288,11 +312,10 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
     let mut i = 0;
     loop {
         println!("  [round {}]", i + 1);
-        let made_progress = unmount_all_round()
-            .unwrap_or_else(|e| {
-                eprintln!(" !!! Failed to unmount filesystems: {}", e);
-                false
-            });
+        let made_progress = unmount_all_round().unwrap_or_else(|e| {
+            eprintln!(" !!! Failed to unmount filesystems: {}", e);
+            false
+        });
         if !made_progress {
             break;
         }
@@ -306,7 +329,7 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
 
     if DEBUG {
         timeline.begin("Dumping debug info");
-        
+
         let mounts = fs::read_to_string("/proc/mounts")?;
         println!("\nEnding with mounts:\n{}\n", mounts);
 

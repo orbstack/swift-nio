@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use tokio::net::UnixDatagram;
 use serde::Serialize;
+use tokio::net::UnixDatagram;
 
 const REQ_BURST: u16 = 3;
 const PKT_TYPE_CMD_REQUEST: u8 = 1;
@@ -31,11 +31,13 @@ struct RequestBurst {
     address: IPAddr,
     n_good_samples: u32,
     n_total_samples: u32,
-    
     // this one doesn't need padding. request > reply len
 }
 
-pub async fn send_burst_request(n_good_samples: u32, n_total_samples: u32) -> Result<(), Box<dyn Error>> {
+pub async fn send_burst_request(
+    n_good_samples: u32,
+    n_total_samples: u32,
+) -> Result<(), Box<dyn Error>> {
     // don't care because we never read reply
     let seq = 1;
     let request = RequestBurst {
@@ -66,7 +68,7 @@ pub async fn send_burst_request(n_good_samples: u32, n_total_samples: u32) -> Re
         n_total_samples,
     };
     let buf = bincode::serialize(&request)?;
-    
+
     // send to unixgram
     // don't bother to read reply
     let client_sock = UnixDatagram::unbound()?;

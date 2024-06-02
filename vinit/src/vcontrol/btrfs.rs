@@ -23,5 +23,10 @@ pub struct btrfs_ioctl_qgroup_limit_args {
 pub mod ioctl {
     use super::*;
 
-    nix::ioctl_read!(qgroup_limit, BTRFS_IOCTL_MAGIC, 43, btrfs_ioctl_qgroup_limit_args);
+    nix::ioctl_read!(
+        qgroup_limit,
+        BTRFS_IOCTL_MAGIC,
+        43,
+        btrfs_ioctl_qgroup_limit_args
+    );
 }

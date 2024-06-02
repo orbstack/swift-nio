@@ -1,6 +1,9 @@
-use std::os::fd::{OwnedFd, FromRawFd, AsRawFd, RawFd};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 
-use nix::{libc::{syscall, SYS_pidfd_open, PIDFD_NONBLOCK, SYS_pidfd_send_signal, siginfo_t}, sys::signal::Signal};
+use nix::{
+    libc::{siginfo_t, syscall, SYS_pidfd_open, SYS_pidfd_send_signal, PIDFD_NONBLOCK},
+    sys::signal::Signal,
+};
 use tokio::io::unix::{AsyncFd, AsyncFdReadyGuard};
 
 pub struct PidFd(AsyncFd<OwnedFd>);
@@ -17,7 +20,15 @@ impl PidFd {
     }
 
     pub fn kill(&self, signal: Signal) -> nix::Result<()> {
-        let res = unsafe { syscall(SYS_pidfd_send_signal, self.as_raw_fd(), signal, std::ptr::null::<*const siginfo_t>(), 0) };
+        let res = unsafe {
+            syscall(
+                SYS_pidfd_send_signal,
+                self.as_raw_fd(),
+                signal,
+                std::ptr::null::<*const siginfo_t>(),
+                0,
+            )
+        };
         if res < 0 {
             return Err(nix::Error::last());
         }

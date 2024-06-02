@@ -1,22 +1,22 @@
 use anyhow::anyhow;
 use axum::{
-    routing::{get, post},
     response::IntoResponse,
-    Json, Router, Extension,
+    routing::{get, post},
+    Extension, Json, Router,
 };
 use error::AppResult;
 use nix::sys::statvfs;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{Mutex, mpsc::Sender};
+use std::{fs::File, net::SocketAddr, os::fd::AsRawFd, sync::Arc};
+use tokio::sync::{mpsc::Sender, Mutex};
 use tower::ServiceBuilder;
 use tracing::debug;
-use std::{net::SocketAddr, sync::Arc, fs::File, os::fd::AsRawFd};
 
 use crate::{action::SystemAction, startup};
 
-mod error;
 mod btrfs;
 mod chrony;
+mod error;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -27,12 +27,10 @@ struct DiskReportStats {
 }
 
 #[derive(Clone, Debug)]
-struct State {
-}
+struct State {}
 
 #[derive(Clone, Debug)]
-struct DiskManager {
-}
+struct DiskManager {}
 
 impl DiskManager {
     fn new() -> AppResult<Self> {
@@ -76,7 +74,7 @@ pub async fn server_main(action_tx: Sender<SystemAction>) {
             ServiceBuilder::new()
                 .layer(Extension(state))
                 .layer(Extension(Arc::new(Mutex::new(disk_manager))))
-                .layer(Extension(action_tx))
+                .layer(Extension(action_tx)),
         );
 
     // 100.115.92.2:103
@@ -102,7 +100,7 @@ async fn sys_shutdown(
 
 // btrfs doesn't really have this much overhead
 const BASE_FS_OVERHEAD: u64 = 100 * 1024 * 1024; // 100MiB
-// can't use more than 95% of the host's free space
+                                                 // can't use more than 95% of the host's free space
 const MAX_HOST_FS_PERCENT: u64 = 95;
 // can't boot without free space for scon db. leave some - I/O error + R/O remount is better than no boot
 const MIN_FREE_SPACE: u64 = 2 * 1024 * 1024; // 2 MiB
@@ -113,7 +111,11 @@ async fn disk_report_stats(
     Json(payload): Json<DiskReportStats>,
 ) -> AppResult<impl IntoResponse> {
     debug!("disk_report_stats: {:?}", payload);
-    let DiskReportStats { host_fs_free, data_img_size, .. } = payload;
+    let DiskReportStats {
+        host_fs_free,
+        data_img_size,
+        ..
+    } = payload;
     let mut disk_manager = disk_manager.lock().await;
 
     let guest_statfs = statvfs::statvfs("/data")?;
@@ -149,13 +151,13 @@ async fn sys_wake() -> AppResult<impl IntoResponse> {
 
     // fix the time immediately by stepping
     // chrony doesn't like massive time difference
-    startup::sync_clock(false)
-        .map_err(|e| anyhow!("failed to step clock: {}", e))?;
+    startup::sync_clock(false).map_err(|e| anyhow!("failed to step clock: {}", e))?;
 
     // then ask chrony to do a more precise fix
     // #chronyc -m 'burst 4/4' 'makestep 3.0 -1'
     // chronyc 'burst 4/4'
-    chrony::send_burst_request(4, 4).await
+    chrony::send_burst_request(4, 4)
+        .await
         .map_err(|e| anyhow!("failed to send command: {}", e))?;
 
     Ok(())

@@ -1,4 +1,4 @@
-use std::{os::fd::RawFd};
+use std::os::fd::RawFd;
 
 use nix::libc::ioctl;
 

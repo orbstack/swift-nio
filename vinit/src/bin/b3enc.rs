@@ -1,4 +1,4 @@
-use std::{time::Instant, fs, error::Error};
+use std::{error::Error, fs, time::Instant};
 
 const ROSETTA_FINGERPRINT_SALT: &[u8] = b"orb\x00rosetta\x00fp";
 const ROSETTA_BUFFER: usize = 524288;
@@ -14,7 +14,7 @@ fn apply_xof(hasher: &mut blake3::Hasher, patch: &mut [u8]) {
     let mut xof = hasher.finalize_xof();
     let mut buf = [0u8; ROSETTA_BUFFER];
     let mut offset = 0;
-    
+
     // skip hash (first block)
     xof.set_position(64);
 
