@@ -439,7 +439,7 @@ func runVmManager() {
 	unix.Umask(0)
 
 	// propagate stop reason via exit code
-	var lastStopReason types.StopReason
+	lastStopReason := types.StopReasonUnknownCrash
 	defer func() {
 		if lastStopReason > types.Start_UnexpectedStopReasons {
 			os.Exit(stopExitCodeBase + int(lastStopReason-types.Start_UnexpectedStopReasons))

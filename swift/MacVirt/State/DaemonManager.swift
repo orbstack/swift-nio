@@ -16,6 +16,7 @@ private enum StopExitCode: Int {
     case dataCorruption = 104
     case ioError = 105
     case outOfMemory = 106
+    case unknownCrash = 107
 }
 
 enum ExitReason: Equatable, CustomStringConvertible {
@@ -32,6 +33,7 @@ enum ExitReason: Equatable, CustomStringConvertible {
     case dataCorruption
     case ioError
     case outOfMemory
+    case unknownCrash
 
     // from signal
     case killed
@@ -62,6 +64,8 @@ enum ExitReason: Equatable, CustomStringConvertible {
             return "I/O error"
         case .outOfMemory:
             return "out of memory"
+        case .unknownCrash:
+            return "unknown crash"
 
         case .killed:
             return "killed (SIGKILL)"
@@ -272,6 +276,8 @@ class DaemonManager {
                     reason = .kernelPanic
                 case .outOfMemory:
                     reason = .outOfMemory
+                case .unknownCrash:
+                    reason = .unknownCrash
                 case .drm:
                     reason = .drm
                 case .healthCheck:
