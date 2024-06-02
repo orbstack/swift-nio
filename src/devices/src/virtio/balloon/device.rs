@@ -1,4 +1,4 @@
-use gruel::{define_waker_set, BoundSignalChannel, BoundSignalChannelRef, SignalChannel};
+use gruel::{define_waker_set, BoundSignalChannelRef, DynamicallyBoundWaker, SignalChannel};
 use newt::{define_num_enum, make_bit_flag_range, BitFlagRange, NumEnumMap};
 use std::cmp;
 use std::convert::TryInto;
@@ -18,10 +18,14 @@ use crate::virtio::VirtioQueueSignals;
 use hvf::Parkable;
 
 define_waker_set! {
-    pub struct BalloonDeviceWakers {}
+    #[derive(Default)]
+    pub struct BalloonDeviceWakers {
+        pub dynamic: DynamicallyBoundWaker,
+    }
 }
 
 bitflags::bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
     pub struct BalloonDeviceSignalMask: u64 {
         // Inflate queue.
         const IFQ = 1 << 0;
@@ -101,7 +105,7 @@ impl Balloon {
         let config = VirtioBalloonConfig::default();
 
         Ok(Balloon {
-            signal: Arc::new(SignalChannel::new(BalloonDeviceWakers {})),
+            signal: Arc::new(SignalChannel::new(BalloonDeviceWakers::default())),
             queues: NumEnumMap::from_iter(queues),
             avail_features: AVAIL_FEATURES,
             acked_features: 0,
@@ -228,11 +232,7 @@ impl VirtioDevice for Balloon {
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        // TODO: We need a better way to construct these.
-        BoundSignalChannel {
-            channel: self.signal.raw(),
-            mask: BalloonDeviceSignalMask::INTERRUPT.bits(),
-        }
+        BoundSignalChannelRef::new(&*self.signal, BalloonDeviceSignalMask::INTERRUPT)
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

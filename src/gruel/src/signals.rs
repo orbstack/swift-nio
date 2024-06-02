@@ -19,7 +19,7 @@ use loom::sync::atomic::{fence, AtomicU32, AtomicU64};
 
 use bitflags::Flags;
 use derive_where::derive_where;
-use memmage::CloneDynRef;
+use memmage::{CastableRef, CloneDynRef};
 use parking_lot::Mutex;
 use thiserror::Error;
 
@@ -463,9 +463,73 @@ where
     }
 }
 
+// === AnySignalChannel === //
+
+pub trait AnySignalChannel: Sized {
+    type WakerSet: WakerSet;
+    type Mask: Copy;
+
+    fn raw(&self) -> &RawSignalChannel<Self::WakerSet>;
+
+    fn mask_to_u64(mask: Self::Mask) -> u64;
+}
+
+pub trait AnySignalChannelWith<T: Waker>: AnySignalChannel<WakerSet = Self::WakerSet2> {
+    type WakerSet2: WakerSetHas<T>;
+}
+
+impl<W: WakerSet> AnySignalChannel for RawSignalChannel<W> {
+    type WakerSet = W;
+    type Mask = u64;
+
+    fn raw(&self) -> &RawSignalChannel<Self::WakerSet> {
+        self
+    }
+
+    fn mask_to_u64(mask: Self::Mask) -> u64 {
+        mask
+    }
+}
+
+impl<T, W> AnySignalChannelWith<T> for RawSignalChannel<W>
+where
+    T: Waker,
+    W: WakerSetHas<T>,
+{
+    type WakerSet2 = W;
+}
+
+impl<S, W> AnySignalChannel for SignalChannel<S, W>
+where
+    W: WakerSet,
+    S: Copy + Flags<Bits = u64>,
+{
+    type WakerSet = W;
+    type Mask = S;
+
+    fn raw(&self) -> &RawSignalChannel<Self::WakerSet> {
+        self.raw()
+    }
+
+    fn mask_to_u64(mask: Self::Mask) -> u64 {
+        mask.bits()
+    }
+}
+
+impl<T, S, W> AnySignalChannelWith<T> for SignalChannel<S, W>
+where
+    T: Waker,
+    W: WakerSetHas<T>,
+    S: Copy + Flags<Bits = u64>,
+{
+    type WakerSet2 = W;
+}
+
 // === BoundSignalChannel === //
 
 pub type BoundSignalChannelRef<'a> = BoundSignalChannel<&'a RawSignalChannel>;
+
+pub type ArcBoundSignalChannel = BoundSignalChannel<Arc<RawSignalChannel>>;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct BoundSignalChannel<P> {
@@ -477,6 +541,17 @@ impl<P> BoundSignalChannel<P>
 where
     P: Deref<Target = RawSignalChannel>,
 {
+    pub fn new<'p, P2>(channel: P2, mask: <P2::Target as AnySignalChannel>::Mask) -> Self
+    where
+        P2: CastableRef<'p, WithPointee<RawSignalChannel> = P>,
+        P2::Target: AnySignalChannel,
+    {
+        Self {
+            channel: channel.map(|v| v.raw() as &RawSignalChannel),
+            mask: <P2::Target as AnySignalChannel>::mask_to_u64(mask),
+        }
+    }
+
     pub fn assert(&self) {
         self.channel.assert(self.mask);
     }
@@ -487,8 +562,6 @@ where
 }
 
 // === Arc Helpers === //
-
-pub type ArcBoundSignalChannel = BoundSignalChannel<Arc<RawSignalChannel>>;
 
 pub trait ArcSignalChannelExt:
     ExtensionFor<Arc<SignalChannel<Self::Signal, Self::WakerSet>>>
@@ -579,51 +652,6 @@ impl SignalChannelBindExt for Arc<RawSignalChannel> {
 
 // === Extensions === //
 
-// Helper traits
-pub trait AnySignalChannel<T: Waker>: Sized {
-    type WakerSet: WakerSetHas<T>;
-    type Mask: Copy;
-
-    fn raw(&self) -> &RawSignalChannel<Self::WakerSet>;
-
-    fn mask_to_u64(mask: Self::Mask) -> u64;
-}
-
-impl<T, W> AnySignalChannel<T> for RawSignalChannel<W>
-where
-    T: Waker,
-    W: WakerSetHas<T>,
-{
-    type WakerSet = W;
-    type Mask = u64;
-
-    fn raw(&self) -> &RawSignalChannel<Self::WakerSet> {
-        self
-    }
-
-    fn mask_to_u64(mask: Self::Mask) -> u64 {
-        mask
-    }
-}
-
-impl<T, S, W> AnySignalChannel<T> for SignalChannel<S, W>
-where
-    T: Waker,
-    W: WakerSetHas<T>,
-    S: Copy + Flags<Bits = u64>,
-{
-    type WakerSet = W;
-    type Mask = S;
-
-    fn raw(&self) -> &RawSignalChannel<Self::WakerSet> {
-        self.raw()
-    }
-
-    fn mask_to_u64(mask: Self::Mask) -> u64 {
-        mask.bits()
-    }
-}
-
 // Parker
 #[derive(Debug, Default)]
 pub struct ParkWaker(Parker);
@@ -634,7 +662,7 @@ impl Waker for ParkWaker {
     }
 }
 
-pub trait ParkSignalChannelExt: AnySignalChannel<ParkWaker> {
+pub trait ParkSignalChannelExt: AnySignalChannelWith<ParkWaker> {
     fn wait_on_park(&self, mask: Self::Mask) {
         let raw = self.raw();
         let mask = Self::mask_to_u64(mask);
@@ -659,7 +687,7 @@ pub trait ParkSignalChannelExt: AnySignalChannel<ParkWaker> {
     }
 }
 
-impl<T: AnySignalChannel<ParkWaker>> ParkSignalChannelExt for T {}
+impl<T: AnySignalChannelWith<ParkWaker>> ParkSignalChannelExt for T {}
 
 // Dynamically Bound (or: "I heard y'all liked the convenient legacy API!")
 #[derive(Default)]
@@ -709,7 +737,7 @@ impl DynamicallyBoundWaker {
     }
 }
 
-pub trait DynamicallyBoundSignalChannelExt: AnySignalChannel<DynamicallyBoundWaker> {
+pub trait DynamicallyBoundSignalChannelExt: AnySignalChannelWith<DynamicallyBoundWaker> {
     fn wait_on_closure<R>(
         &self,
         mask: Self::Mask,
@@ -733,7 +761,7 @@ pub trait DynamicallyBoundSignalChannelExt: AnySignalChannel<DynamicallyBoundWak
     }
 }
 
-impl<T: AnySignalChannel<DynamicallyBoundWaker>> DynamicallyBoundSignalChannelExt for T {}
+impl<T: AnySignalChannelWith<DynamicallyBoundWaker>> DynamicallyBoundSignalChannelExt for T {}
 
 // Queue Receiving
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Error)]
