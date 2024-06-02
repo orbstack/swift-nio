@@ -618,7 +618,7 @@ func runVmManager() {
 	err = util.SetBackupExclude(conf.DataImage(), !vmconfig.Get().DataAllowBackup)
 	check(err)
 	// always exclude swap
-	err = util.SetBackupExclude(conf.SwapImage(), false)
+	err = util.SetBackupExclude(conf.SwapImage(), true)
 	check(err)
 	// update xattr on config change
 	go func() {
