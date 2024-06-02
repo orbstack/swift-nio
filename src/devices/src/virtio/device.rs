@@ -11,7 +11,8 @@ use std::{
 };
 
 use super::{ActivateResult, Queue};
-use gruel::{ArcSignalChannelExt, BoundSignalChannelRef, RawSignalChannel, SignalChannel};
+use gruel::{BoundSignalChannelRef, RawSignalChannel, SignalChannel};
+use memmage::CastableRef;
 use newt::{BitFlagRange, RawBitFlagRange};
 use vm_memory::GuestMemoryMmap;
 
@@ -41,7 +42,7 @@ impl VirtioQueueSignals {
         range: BitFlagRange<S>,
     ) -> Self {
         Self {
-            signal: signal.into_raw(),
+            signal: signal.map(SignalChannel::raw),
             range: range.raw,
         }
     }

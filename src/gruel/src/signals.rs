@@ -24,7 +24,7 @@ use parking_lot::Mutex;
 use thiserror::Error;
 
 use crate::{
-    util::{cast_arc, ExtensionFor, FmtDebugUsingDisplay, FmtU64AsBits, Parker},
+    util::{FmtDebugUsingDisplay, FmtU64AsBits, Parker},
     ShutdownSignal,
 };
 
@@ -558,29 +558,6 @@ where
 
     pub fn take(&self) {
         self.channel.take(self.mask);
-    }
-}
-
-// === Arc Helpers === //
-
-pub trait ArcSignalChannelExt:
-    ExtensionFor<Arc<SignalChannel<Self::Signal, Self::WakerSet>>>
-{
-    type Signal;
-    type WakerSet: ?Sized + WakerSet;
-
-    fn into_raw(self) -> Arc<RawSignalChannel<Self::WakerSet>>;
-}
-
-impl<S, W> ArcSignalChannelExt for Arc<SignalChannel<S, W>>
-where
-    W: ?Sized + WakerSet,
-{
-    type Signal = S;
-    type WakerSet = W;
-
-    fn into_raw(self) -> Arc<RawSignalChannel<Self::WakerSet>> {
-        cast_arc(self, |v| v.raw())
     }
 }
 

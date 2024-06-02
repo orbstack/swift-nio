@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use gruel::{ArcSignalChannelExt, RawSignalChannel, SignalMultiplexHandler};
-use memmage::CloneDynRef;
+use gruel::{RawSignalChannel, SignalChannel, SignalMultiplexHandler};
+use memmage::{CastableRef, CloneDynRef};
 
 use super::device::Balloon;
 use crate::virtio::balloon::device::BalloonDeviceSignalMask;
@@ -59,7 +59,7 @@ impl SignalMultiplexHandler for Balloon {
 
     fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
         vec![CloneDynRef::new(
-            self.signal.clone().into_raw() as Arc<RawSignalChannel>
+            self.signal.clone().map(SignalChannel::raw) as Arc<RawSignalChannel>,
         )]
     }
 }
