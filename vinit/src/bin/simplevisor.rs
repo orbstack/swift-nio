@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     std::env::remove_var("SIMPLEVISOR_CONFIG");
 
     // forward all signals to children
-    let mut signals = Signals::new(&[
+    let mut signals = Signals::new([
         signal_hook::consts::SIGTERM,
         signal_hook::consts::SIGINT,
         signal_hook::consts::SIGQUIT,

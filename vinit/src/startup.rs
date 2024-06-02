@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     env,
     error::Error,
     fs::{self, OpenOptions, Permissions},
@@ -550,8 +551,8 @@ pub fn sync_clock(allow_backward: bool) -> Result<(), Box<dyn Error>> {
     // RTC can supposedly be wrong at boot: https://news.ycombinator.com/item?id=36185786
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_read_timeout(Some(Duration::from_secs(10)))?;
-    let host_time = sntpc::simple_get_time("198.19.248.200:123", socket)
-        .map_err(|e| InitError::NtpGetTime(e))?;
+    let host_time =
+        sntpc::simple_get_time("198.19.248.200:123", socket).map_err(InitError::NtpGetTime)?;
 
     let sec = host_time.sec() as i64;
     let nsec = sntpc::fraction_to_nanoseconds(host_time.sec_fraction()) as i64;
@@ -579,29 +580,38 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
             .map_err(InitError::MissingDataPartition)?
             / 1024
             / 1024;
+
         // for safety, only allow increasing size
-        if new_size_mib > old_size_mib {
-            // resize
-            println!("  - Resizing data to {} MiB", new_size_mib);
-            let script = format!(",{}M\n", new_size_mib);
-            let mut process = Command::new("sfdisk")
-                .arg("--force")
-                .arg("/dev/vdb")
-                .stdin(Stdio::piped())
-                .spawn()?;
-            process.stdin.take().unwrap().write_all(script.as_bytes())?;
-            let status = process.wait()?;
-            if !status.success() {
-                return Err(InitError::ResizeDataFs(status).into());
+        match new_size_mib.cmp(&old_size_mib) {
+            Ordering::Greater => {
+                // resize
+                println!("  - Resizing data to {} MiB", new_size_mib);
+                let script = format!(",{}M\n", new_size_mib);
+                let mut process = Command::new("sfdisk")
+                    .arg("--force")
+                    .arg("/dev/vdb")
+                    .stdin(Stdio::piped())
+                    .spawn()?;
+                process.stdin.take().unwrap().write_all(script.as_bytes())?;
+                let status = process.wait()?;
+                if !status.success() {
+                    return Err(InitError::ResizeDataFs(status).into());
+                }
             }
-        } else if new_size_mib < old_size_mib {
-            eprintln!(
-                "WARNING: Attempted to shrink data partition from {} MiB to {} MiB",
-                old_size_mib, new_size_mib
-            );
+            Ordering::Less => {
+                eprintln!(
+                    "WARNING: Attempted to shrink data partition from {} MiB to {} MiB",
+                    old_size_mib, new_size_mib
+                );
+            }
+            Ordering::Equal => {
+                eprintln!(
+                    "WARNING: Attempted to resize data partition from {} MiB to {} MiB?",
+                    old_size_mib, new_size_mib
+                );
+            }
         }
     }
-
     Ok(())
 }
 
@@ -907,13 +917,15 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     // we always register qemu, but flags change if using Rosetta
     let mut qemu_flags = "POCF".to_string();
 
-    if let Ok(_) = mount(
+    if mount(
         "rosetta",
         "/mnt/rosetta",
         "virtiofs",
         MsFlags::empty(),
         None,
-    ) {
+    )
+    .is_ok()
+    {
         // rosetta
         println!("  -  Using Rosetta");
 
@@ -1168,7 +1180,7 @@ async fn start_services(
     // chrony
     service_tracker.spawn(
         Service::CHRONY,
-        &mut Command::new("/usr/sbin/chronyd")
+        Command::new("/usr/sbin/chronyd")
             .arg(if DEBUG { "-d" } else { "-n" }) // foreground (-d for log-to-stderr)
             .arg("-f") // config file
             .arg("/etc/chrony/chrony.conf"),
@@ -1181,7 +1193,7 @@ async fn start_services(
     // scon
     service_tracker.spawn(
         Service::SCON,
-        &mut Command::new("/opt/orb/scon")
+        Command::new("/opt/orb/scon")
             .arg("mgr")
             // pass cmdline for console detection
             .args(&sys_info.cmdline),
@@ -1192,7 +1204,7 @@ async fn start_services(
         // must use absolute path for sshd's sandbox to work
         service_tracker.spawn(
             Service::SSH,
-            &mut Command::new("/usr/sbin/sshd")
+            Command::new("/usr/sbin/sshd")
                 .arg("-D") // foreground
                 .arg("-e"),
         )?; // log to stderr

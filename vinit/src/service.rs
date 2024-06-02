@@ -117,7 +117,6 @@ impl ServiceTracker {
                 exe: cmd.get_program().to_string_lossy().to_string(),
                 args: cmd
                     .get_args()
-                    .into_iter()
                     .map(|s| s.to_string_lossy().to_string())
                     .collect(),
             },
@@ -134,7 +133,7 @@ impl ServiceTracker {
         tokio::time::sleep(Duration::from_secs(RESTART_DELAY)).await;
 
         let spec = self.command_specs.get(&service).unwrap();
-        self.spawn(service, &mut Command::new(&spec.exe).args(&spec.args))
+        self.spawn(service, Command::new(&spec.exe).args(&spec.args))
     }
 
     pub fn stop_for_shutdown(&mut self, signal: Signal) -> std::io::Result<Vec<PidFd>> {
@@ -152,10 +151,6 @@ impl ServiceTracker {
     }
 
     pub fn on_pid_exit(&mut self, pid: u32) -> Option<Service> {
-        if let Some(service) = self.pids.remove(&pid) {
-            Some(service)
-        } else {
-            None
-        }
+        self.pids.remove(&pid)
     }
 }

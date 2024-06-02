@@ -275,7 +275,6 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
     timeline.begin("Stop NFS");
     stop_nfs().await.unwrap_or_else(|e| {
         eprintln!(" !!! Failed to stop NFS: {}", e);
-        ()
     });
 
     // wait for the services to exit
@@ -284,7 +283,6 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
         .await
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to wait for services to exit: {}", e);
-            ()
         });
 
     // kill all processes (these don't need clean shutdown)
@@ -297,7 +295,6 @@ pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box
         .await
         .unwrap_or_else(|e| {
             eprintln!(" !!! Failed to wait for processes to exit: {}", e);
-            ()
         });
 
     // remove binfmts

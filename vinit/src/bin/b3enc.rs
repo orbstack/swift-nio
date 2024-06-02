@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let start_time = Instant::now();
     let mut hasher = start_hash(ROSETTA_FINGERPRINT_SALT, &source_data);
     let fingerprint: [u8; 32] = hasher.finalize().into();
-    println!("fingerprint: {:?}", hex::encode(&fingerprint));
+    println!("fingerprint: {:?}", hex::encode(fingerprint));
     apply_xof(&mut hasher, &mut patch);
     println!("encryption took {}ms", start_time.elapsed().as_millis());
 

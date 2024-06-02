@@ -108,7 +108,7 @@ pub fn find_and_apply_patch(source_data: &[u8], dest_path: &str) -> Result<(), R
         .map_err(|e| RosettaError::Other(e.into()))?
         .buffer_size(ROSETTA_BUFFER)
         .delta_min(ROSETTA_BUFFER)
-        .apply(&source_data, &mut target)
+        .apply(source_data, &mut target)
         .map_err(|e| RosettaError::Other(e.into()))?;
 
     Ok(())

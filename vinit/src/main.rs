@@ -30,7 +30,6 @@ mod action;
 use action::SystemAction;
 use tracing::debug;
 mod blockdev;
-mod ethtool;
 mod loopback;
 mod pidfd;
 #[cfg(target_arch = "aarch64")]
@@ -241,6 +240,8 @@ async fn main_wrapped() -> Result<(), Box<dyn Error>> {
     });
 
     // wait for action on mpsc
+    // https://github.com/orbstack/macvirt/pull/107#discussion_r1623682202
+    #[allow(clippy::never_loop)]
     loop {
         match action_rx.recv().await {
             Some(action) => match action {

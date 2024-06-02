@@ -10,7 +10,7 @@ pub fn clear_fd(fd: RawFd) -> std::io::Result<()> {
         ioctl(fd, LOOP_CLR_FD.try_into().unwrap(), 0)
     };
     if res != 0 {
-        return Err(std::io::Error::last_os_error().into());
+        return Err(std::io::Error::last_os_error());
     }
     Ok(())
 }
