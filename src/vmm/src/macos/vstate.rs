@@ -670,9 +670,9 @@ impl Vcpu {
     #[cfg(target_arch = "aarch64")]
     pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
         use gruel::{
-            define_waker_set, DynamicallyBoundWaker, MultiShutdownSignalExt, ParkSignalChannelExt,
-            ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt, SignalChannel,
-            SignalChannelBindExt,
+            define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
+            ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,
+            ShutdownAlreadyRequestedExt, SignalChannel,
         };
         use vmm_ids::{VcpuSignalMask, VmmShutdownPhase};
 
@@ -709,7 +709,7 @@ impl Vcpu {
             .shutdown
             .spawn_signal(
                 VmmShutdownPhase::VcpuExitLoop,
-                signal.bind_clone(VcpuSignalMask::EXIT_LOOP),
+                BoundSignalChannel::new(signal.clone(), VcpuSignalMask::EXIT_LOOP),
             )
             .unwrap_or_run_now();
 
@@ -717,7 +717,7 @@ impl Vcpu {
             .shutdown
             .spawn_signal(
                 VmmShutdownPhase::VcpuDestroy,
-                signal.bind_clone(VcpuSignalMask::DESTROY_VM),
+                BoundSignalChannel::new(signal.clone(), VcpuSignalMask::DESTROY_VM),
             )
             .unwrap_or_run_now();
 
@@ -852,9 +852,9 @@ impl Vcpu {
     #[cfg(target_arch = "x86_64")]
     pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
         use gruel::{
-            define_waker_set, DynamicallyBoundWaker, MultiShutdownSignalExt, ParkSignalChannelExt,
-            ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt, SignalChannel,
-            SignalChannelBindExt,
+            define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
+            ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,
+            ShutdownAlreadyRequestedExt, SignalChannel,
         };
         use vmm_ids::VmmShutdownPhase;
 
@@ -896,7 +896,7 @@ impl Vcpu {
             .shutdown
             .spawn_signal(
                 VmmShutdownPhase::VcpuExitLoop,
-                signal.bind_clone(VcpuSignalMask::EXIT_LOOP),
+                BoundSignalChannel::new(signal.clone(), VcpuSignalMask::EXIT_LOOP),
             )
             .unwrap_or_run_now();
 
@@ -904,7 +904,7 @@ impl Vcpu {
             .shutdown
             .spawn_signal(
                 VmmShutdownPhase::VcpuDestroy,
-                signal.bind_clone(VcpuSignalMask::DESTROY_VM),
+                BoundSignalChannel::new(signal.clone(), VcpuSignalMask::DESTROY_VM),
             )
             .unwrap_or_run_now();
 

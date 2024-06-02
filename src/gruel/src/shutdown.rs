@@ -270,7 +270,7 @@ mod test {
     use std::sync::Barrier;
 
     use crate::{
-        define_waker_set, ParkSignalChannelExt, ParkWaker, RawSignalChannel, SignalChannelBindExt,
+        define_waker_set, BoundSignalChannel, ParkSignalChannelExt, ParkWaker, RawSignalChannel,
     };
 
     use super::*;
@@ -292,7 +292,7 @@ mod test {
                 let signal = Arc::new(RawSignalChannel::new(MyWakerSet::default()));
                 let task = shutdown
                     .clone()
-                    .spawn_signal(signal.bind_clone(0b1))
+                    .spawn_signal(BoundSignalChannel::new(signal.clone(), 0b1))
                     .unwrap();
 
                 subscriber_barrier.wait();
@@ -303,7 +303,7 @@ mod test {
 
                 assert!(shutdown
                     .clone()
-                    .spawn_signal(signal.bind_clone(0b1))
+                    .spawn_signal(BoundSignalChannel::new(signal.clone(), 0b1))
                     .is_err());
 
                 drop(task);
