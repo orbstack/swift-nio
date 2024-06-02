@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/orbstack/macvirt/scon/agent/envutil"
@@ -28,6 +29,11 @@ const (
 
 	ShellSentinel = "<SHELL>"
 )
+
+var haveNixOSLocaleArchive = sync.OnceValue(func() bool {
+	_, err := os.Stat("/run/current-system/sw/lib/locale/locale-archive")
+	return err == nil
+})
 
 type SpawnProcessArgs struct {
 	CombinedArgs []string
@@ -310,6 +316,11 @@ func SpawnProcessImpl(a *AgentServer, args *SpawnProcessArgs, childFiles []*os.F
 					args.Env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/" + u.Uid + "/bus"
 					args.Env["XDG_SESSION_TYPE"] = "tty"
 					args.Env["XDG_SESSION_CLASS"] = "user"
+				}
+
+				// work around https://github.com/NixOS/nixpkgs/issues/295411 to prevent https://github.com/orbstack/orbstack/issues/1154
+				if haveNixOSLocaleArchive() {
+					args.Env["LOCALE_ARCHIVE"] = "/run/current-system/sw/lib/locale/locale-archive"
 				}
 			}
 		}
