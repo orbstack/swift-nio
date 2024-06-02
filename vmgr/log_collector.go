@@ -77,6 +77,14 @@ func (e *DataCorruptionError) Error() string {
 	return "data corruption: " + e.Err.Error()
 }
 
+type OutOfMemoryError struct {
+	Err error
+}
+
+func (e *OutOfMemoryError) Error() string {
+	return "out of memory: " + e.Err.Error()
+}
+
 type KernelWarning struct {
 	Err error
 }
@@ -219,11 +227,16 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 						if strings.Contains(panicLog, "DATA IS LIKELY CORRUPTED") || strings.Contains(panicLog, "MissingDataPartition") {
 							err = &DataCorruptionError{Err: msg}
 							stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataCorruption}
+							sentry.CaptureException(err)
+						} else if strings.Contains(line, "System is deadlocked on memory") {
+							// OOM is normal. don't report to sentry at all
+							err = &OutOfMemoryError{Err: msg}
+							stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonOutOfMemory}
 						} else {
 							err = &KernelPanicError{Err: msg}
 							stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonKernelPanic}
+							sentry.CaptureException(err)
 						}
-						sentry.CaptureException(err)
 					})
 				} else if strings.Contains(line, "] BTRFS info (device vdb1: state E): forced readonly") {
 					// too many i/o errors: force shut down. clean shutdown won't work due to read-only fs

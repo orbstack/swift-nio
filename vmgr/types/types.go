@@ -24,6 +24,7 @@ const (
 	StopReasonHealthCheck
 	StopReasonDataCorruption
 	StopReasonIOError
+	StopReasonOutOfMemory
 )
 
 type StopRequest struct {
