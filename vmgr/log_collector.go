@@ -94,16 +94,22 @@ func (e *KernelWarning) Error() string {
 }
 
 type KernelLogRecorder struct {
-	mu     sync.Mutex
-	buf    bytes.Buffer
-	active bool
+	mu  sync.Mutex
+	buf bytes.Buffer
+
+	timer    *time.Timer
+	callback func(output string)
+}
+
+func (r *KernelLogRecorder) activeLocked() bool {
+	return r.callback != nil
 }
 
 func (r *KernelLogRecorder) Write(p []byte) (n int, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if !r.active {
+	if !r.activeLocked() {
 		return len(p), nil
 	}
 	return r.buf.Write(p)
@@ -113,7 +119,7 @@ func (r *KernelLogRecorder) WriteString(s string) (n int, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if !r.active {
+	if !r.activeLocked() {
 		return len(s), nil
 	}
 	return r.buf.WriteString(s)
@@ -123,24 +129,39 @@ func (r *KernelLogRecorder) Start(duration time.Duration, callback func(output s
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.active {
+	if r.activeLocked() {
 		return
 	}
 
-	r.active = true
 	r.buf.Reset()
 
-	time.AfterFunc(duration, func() {
-		r.mu.Lock()
-		defer r.mu.Unlock()
+	r.callback = callback
+	r.timer = time.AfterFunc(duration, r.timerCallback)
+}
 
-		if !r.active {
-			return
-		}
+func (r *KernelLogRecorder) timerCallback() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-		r.active = false
-		callback(r.buf.String())
-	})
+	r.timer = nil
+	if r.callback != nil {
+		r.callback(r.buf.String())
+		r.callback = nil
+	}
+}
+
+func (r *KernelLogRecorder) Flush() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.timer != nil {
+		r.timer.Stop()
+		r.timer = nil
+	}
+	if r.callback != nil {
+		r.callback(r.buf.String())
+		r.callback = nil
+	}
 }
 
 func matchWarnPattern(line string) bool {
@@ -180,7 +201,7 @@ func tryReadLogHistory(path string, numLines int) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- struct{}) (*os.File, error) {
+func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- struct{}, shutdownWg *sync.WaitGroup) (*os.File, error) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		return nil, err
@@ -195,8 +216,13 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 	warnRecorder := &KernelLogRecorder{}
 	kernelLogWriter := io.MultiWriter(panicRecorder, warnRecorder)
 
+	shutdownWg.Add(1)
 	go func() {
-		defer func() { _ = w.Close() }()
+		defer shutdownWg.Done()
+		defer func() { _ = r.Close() }()
+		defer panicRecorder.Flush()
+		defer warnRecorder.Flush()
+
 		// copy each line and prefix it
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {

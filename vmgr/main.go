@@ -642,6 +642,7 @@ func runVmManager() {
 
 	logrus.Debug("configuring VM")
 	healthCheckCh := make(chan struct{}, 1)
+	shutdownWg := &sync.WaitGroup{}
 	vnetwork, vm := CreateVm(monitor, &VmParams{
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
@@ -668,7 +669,7 @@ func runVmManager() {
 
 		StopCh:        stopCh,
 		HealthCheckCh: healthCheckCh,
-	})
+	}, shutdownWg)
 	defer vnetwork.Close()
 	if monitor != rsvm.Monitor {
 		defer runOne("flush disk", flushDisk)
@@ -954,6 +955,26 @@ func runVmManager() {
 					logrus.WithError(err).Error("vmcontrol stop hook failed")
 					return
 				}
+
+				// close files (console pipe)
+				err = vm.Close()
+				if err != nil {
+					logrus.WithError(err).Error("VM close failed")
+					return
+				}
+
+				// wait for shutdown tasks
+				// (flush console pipe)
+				shutdownWg.Wait()
+
+				// non-blocking select to see if there's a pending stop request that gives us a reason
+				select {
+				case stopReq := <-stopCh:
+					logrus.WithField("reason", stopReq.Reason).Debug("backfilling stop reason")
+					lastStopReason = stopReq.Reason
+				default:
+				}
+
 				return
 			case vmm.MachineStateError:
 				logrus.Error("[VM] error")

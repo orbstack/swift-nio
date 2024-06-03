@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/orbstack/macvirt/scon/util"
@@ -139,7 +140,7 @@ func RunRinitVm() (*RinitData, error) {
 	return &RinitData{Data: data}, nil
 }
 
-func CreateVm(monitor vmm.Monitor, params *VmParams) (*vnet.Network, vmm.Machine) {
+func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup) (*vnet.Network, vmm.Machine) {
 	cmdline := []string{
 		// boot
 		"init=/opt/orb/vinit",
@@ -248,7 +249,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams) (*vnet.Network, vmm.Machine
 		case ConsoleLog:
 			conRead, err = os.Open("/dev/null")
 			check(err)
-			conWrite, err = NewConsoleLogPipe(params.StopCh, params.HealthCheckCh)
+			conWrite, err = NewConsoleLogPipe(params.StopCh, params.HealthCheckCh, shutdownWg)
 			check(err)
 		}
 
