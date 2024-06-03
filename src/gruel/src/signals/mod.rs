@@ -11,9 +11,6 @@ pub use multiplex::*;
 mod std_wakers;
 pub use std_wakers::*;
 
-mod mio;
-pub use mio::*;
-
 #[cfg(all(test, not(loom)))]
 mod tests {
     use std::{sync::Barrier, thread, time::Duration};

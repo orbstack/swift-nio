@@ -33,7 +33,7 @@ impl Balloon {
 }
 
 impl SignalMultiplexHandler for Balloon {
-    fn process(&mut self) {
+    fn process(&mut self, _cx: &mut ()) {
         let taken = self.signal.take(BalloonSignalMask::all());
 
         if taken.intersects(BalloonSignalMask::IFQ) {
