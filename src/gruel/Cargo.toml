@@ -12,7 +12,7 @@ crossbeam-channel = "0.5.13"
 derive-where = "1.2.7"
 generational-arena = "0.2.9"
 memmage = { version = "0.1.0", path = "../memmage" }
-mio = "0.8.11"
+mio = { version = "0.8.11", features = ["os-poll"] }
 newt = { version = "0.1.0", path = "../newt" }
 parking_lot = "0.12.1"
 scopeguard = "1.2.0"
