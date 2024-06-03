@@ -2,7 +2,7 @@ use crate::legacy::Gic;
 use crate::virtio::descriptor_utils::{Reader, Writer};
 
 use super::super::{Queue, VIRTIO_MMIO_INT_VRING};
-use super::device::{BlockDeviceSignalMask, BlockDeviceWakers, CacheType, DiskProperties};
+use super::device::{BlockDevSignalMask, BlockDevWakers, CacheType, DiskProperties};
 
 use gruel::{ParkSignalChannelExt, SignalChannel};
 use nix::errno::Errno;
@@ -51,7 +51,7 @@ unsafe impl ByteValued for RequestHeader {}
 
 pub struct BlockWorker {
     queue: Queue,
-    signals: Arc<SignalChannel<BlockDeviceSignalMask, BlockDeviceWakers>>,
+    signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
     interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
@@ -75,7 +75,7 @@ impl BlockWorker {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         queue: Queue,
-        signals: Arc<SignalChannel<BlockDeviceSignalMask, BlockDeviceWakers>>,
+        signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
         interrupt_status: Arc<AtomicUsize>,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
@@ -101,18 +101,18 @@ impl BlockWorker {
     }
 
     fn work(mut self) {
-        let mask = BlockDeviceSignalMask::MAIN_QUEUE | BlockDeviceSignalMask::STOP_WORKER;
+        let mask = BlockDevSignalMask::MAIN_QUEUE | BlockDevSignalMask::STOP_WORKER;
 
         loop {
             self.signals.wait_on_park(mask);
 
             let taken = self.signals.take(mask);
 
-            if taken.intersects(BlockDeviceSignalMask::MAIN_QUEUE) {
+            if taken.intersects(BlockDevSignalMask::MAIN_QUEUE) {
                 self.process_virtio_queues();
             }
 
-            if taken.intersects(BlockDeviceSignalMask::STOP_WORKER) {
+            if taken.intersects(BlockDevSignalMask::STOP_WORKER) {
                 break;
             }
         }
@@ -274,7 +274,7 @@ impl BlockWorker {
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
         } else {
-            self.signals.assert(BlockDeviceSignalMask::INTERRUPT);
+            self.signals.assert(BlockDevSignalMask::INTERRUPT);
         }
     }
 }

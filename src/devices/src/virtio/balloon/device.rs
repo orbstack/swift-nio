@@ -19,14 +19,14 @@ use hvf::Parkable;
 
 define_waker_set! {
     #[derive(Default)]
-    pub struct BalloonDeviceWakers {
+    pub(crate) struct BalloonWakers {
         pub dynamic: DynamicallyBoundWaker,
     }
 }
 
 bitflags::bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-    pub struct BalloonDeviceSignalMask: u64 {
+    pub(crate) struct BalloonSignalMask: u64 {
         // Inflate queue.
         const IFQ = 1 << 0;
 
@@ -46,17 +46,16 @@ bitflags::bitflags! {
     }
 }
 
-pub const BALLOON_DEVICE_QUEUE_RANGE: BitFlagRange<BalloonDeviceSignalMask> =
-    make_bit_flag_range!([
-        BalloonDeviceSignalMask::IFQ,
-        BalloonDeviceSignalMask::DFQ,
-        BalloonDeviceSignalMask::STQ,
-        BalloonDeviceSignalMask::PHQ,
-        BalloonDeviceSignalMask::FRQ,
-    ]);
+pub(crate) const BALLOON_QUEUE_SIGS: BitFlagRange<BalloonSignalMask> = make_bit_flag_range!([
+    BalloonSignalMask::IFQ,
+    BalloonSignalMask::DFQ,
+    BalloonSignalMask::STQ,
+    BalloonSignalMask::PHQ,
+    BalloonSignalMask::FRQ,
+]);
 
 define_num_enum! {
-    pub enum BalloonDeviceQueues {
+    pub(crate) enum BalloonQueues {
         IFQ,
         DFQ,
         STQ,
@@ -88,8 +87,8 @@ pub struct VirtioBalloonConfig {
 unsafe impl ByteValued for VirtioBalloonConfig {}
 
 pub struct Balloon {
-    pub(crate) signal: Arc<SignalChannel<BalloonDeviceSignalMask, BalloonDeviceWakers>>,
-    pub(crate) queues: NumEnumMap<BalloonDeviceQueues, VirtQueue>,
+    pub(crate) signal: Arc<SignalChannel<BalloonSignalMask, BalloonWakers>>,
+    pub(crate) queues: NumEnumMap<BalloonQueues, VirtQueue>,
     pub(crate) avail_features: u64,
     pub(crate) acked_features: u64,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
@@ -105,7 +104,7 @@ impl Balloon {
         let config = VirtioBalloonConfig::default();
 
         Ok(Balloon {
-            signal: Arc::new(SignalChannel::new(BalloonDeviceWakers::default())),
+            signal: Arc::new(SignalChannel::new(BalloonWakers::default())),
             queues: NumEnumMap::from_iter(queues),
             avail_features: AVAIL_FEATURES,
             acked_features: 0,
@@ -147,7 +146,7 @@ impl Balloon {
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
         } else {
-            self.signal.assert(BalloonDeviceSignalMask::INTERRUPT);
+            self.signal.assert(BalloonSignalMask::INTERRUPT);
         }
     }
 
@@ -161,7 +160,7 @@ impl Balloon {
 
         let mut have_used = false;
 
-        while let Some(head) = self.queues[BalloonDeviceQueues::FRQ].pop(mem) {
+        while let Some(head) = self.queues[BalloonQueues::FRQ].pop(mem) {
             have_used = true;
 
             // the idea:
@@ -193,7 +192,7 @@ impl Balloon {
             }
 
             self.parker.as_ref().unwrap().unpark(unpark_task);
-            if let Err(e) = self.queues[BalloonDeviceQueues::FRQ].add_used(mem, index, 0) {
+            if let Err(e) = self.queues[BalloonQueues::FRQ].add_used(mem, index, 0) {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
         }
@@ -228,11 +227,11 @@ impl VirtioDevice for Balloon {
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(self.signal.clone(), BALLOON_DEVICE_QUEUE_RANGE)
+        VirtioQueueSignals::new(self.signal.clone(), BALLOON_QUEUE_SIGS)
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        BoundSignalChannelRef::new(&*self.signal, BalloonDeviceSignalMask::INTERRUPT)
+        BoundSignalChannelRef::new(&*self.signal, BalloonSignalMask::INTERRUPT)
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

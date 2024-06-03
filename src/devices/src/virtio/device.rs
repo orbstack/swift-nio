@@ -48,7 +48,7 @@ impl VirtioQueueSignals {
     }
 
     pub fn assert(&self, queue: usize) {
-        if let Some(mask) = self.range.get(queue) {
+        if let Some(mask) = self.range.opt_get(queue) {
             self.signal.assert(mask);
         }
     }

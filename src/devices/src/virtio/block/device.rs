@@ -44,25 +44,25 @@ const USE_ASYNC_WORKER: bool = false;
 
 define_waker_set! {
     #[derive(Default)]
-    pub struct BlockDeviceWakers {
+    pub struct BlockDevWakers {
         parker: ParkWaker,
     }
 }
 
 bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-    pub struct BlockDeviceSignalMask: u64 {
+    pub struct BlockDevSignalMask: u64 {
         const MAIN_QUEUE = 1 << 0;
         const INTERRUPT = 1 << 1;
         const STOP_WORKER = 1 << 2;
     }
 }
 
-pub const BLOCK_DEVICE_QUEUE_RANGE: BitFlagRange<BlockDeviceSignalMask> =
-    make_bit_flag_range!([BlockDeviceSignalMask::MAIN_QUEUE]);
+pub const BLOCK_QUEUE_SIGS: BitFlagRange<BlockDevSignalMask> =
+    make_bit_flag_range!([BlockDevSignalMask::MAIN_QUEUE]);
 
 define_num_enum! {
-    pub enum BlockDeviceQueues {
+    pub enum BlockDevQueues {
         Main,
     }
 }
@@ -270,8 +270,8 @@ pub struct Block {
     config: VirtioBlkConfig,
 
     // Transport related fields.
-    pub(crate) signals: Arc<SignalChannel<BlockDeviceSignalMask, BlockDeviceWakers>>,
-    pub(crate) queues: NumEnumMap<BlockDeviceQueues, Queue>,
+    pub(crate) signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
+    pub(crate) queues: NumEnumMap<BlockDevQueues, Queue>,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
     pub(crate) device_state: DeviceState,
 
@@ -336,7 +336,7 @@ impl Block {
             avail_features,
             acked_features: 0u64,
             interrupt_status: Arc::new(AtomicUsize::new(0)),
-            signals: Arc::new(SignalChannel::new(BlockDeviceWakers::default())),
+            signals: Arc::new(SignalChannel::new(BlockDevWakers::default())),
             queues,
             device_state: DeviceState::Inactive,
             intc: None,
@@ -380,11 +380,11 @@ impl VirtioDevice for Block {
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(self.signals.clone(), BLOCK_DEVICE_QUEUE_RANGE)
+        VirtioQueueSignals::new(self.signals.clone(), BLOCK_QUEUE_SIGS)
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        BoundSignalChannelRef::new(&*self.signals, BlockDeviceSignalMask::INTERRUPT)
+        BoundSignalChannelRef::new(&*self.signals, BlockDevSignalMask::INTERRUPT)
     }
 
     /// Returns the current device interrupt status.
@@ -439,7 +439,7 @@ impl VirtioDevice for Block {
         }
 
         let event_idx: bool = (self.acked_features & (1 << VIRTIO_RING_F_EVENT_IDX)) != 0;
-        self.queues[BlockDeviceQueues::Main].set_event_idx(event_idx);
+        self.queues[BlockDevQueues::Main].set_event_idx(event_idx);
 
         let disk = match self.disk.take() {
             Some(d) => d,
@@ -452,7 +452,7 @@ impl VirtioDevice for Block {
         };
 
         let worker = BlockWorker::new(
-            self.queues[BlockDeviceQueues::Main].clone(),
+            self.queues[BlockDevQueues::Main].clone(),
             self.signals.clone(),
             self.interrupt_status.clone(),
             self.intc.clone(),
@@ -472,7 +472,7 @@ impl VirtioDevice for Block {
 
     fn reset(&mut self) -> bool {
         if let Some(worker) = self.worker_thread.take() {
-            self.signals.assert(BlockDeviceSignalMask::STOP_WORKER);
+            self.signals.assert(BlockDevSignalMask::STOP_WORKER);
             if let Err(e) = worker.join() {
                 error!("error waiting for worker thread: {:?}", e);
             }

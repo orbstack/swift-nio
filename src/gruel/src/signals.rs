@@ -808,13 +808,19 @@ pub fn process_signals_multiplexed(
                 flag ^= 1 << i_bit;
                 let i = i_cell * 64 + i_bit;
 
-                handlers[i].process();
+                tracing::info_span!("process multiplexed signals").in_scope(|| {
+                    tracing::trace!(
+                        "Processing signals from `{}`",
+                        handlers[i].debug_type_name(),
+                    );
+                    handlers[i].process();
+                });
 
                 #[cfg(debug_assertions)]
                 for (signal_idx, signal) in handler_signals[i_cell].iter().enumerate() {
                     if signal.could_take(u64::MAX) {
                         tracing::warn!(
-                            "Signal multiplex handler of type {} ignored some events from its subscribed \
+                            "Signal multiplex handler of type `{}` ignored some events from its subscribed \
                              signal at index {signal_idx}; this could cause unexpected behavior.",
                             handlers[i].debug_type_name(),
                         );

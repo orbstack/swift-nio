@@ -4,7 +4,7 @@ use gruel::{RawSignalChannel, SignalChannel, SignalMultiplexHandler};
 use memmage::{CastableRef, CloneDynRef};
 
 use super::device::Balloon;
-use crate::virtio::balloon::device::BalloonDeviceSignalMask;
+use crate::virtio::balloon::device::BalloonSignalMask;
 
 impl Balloon {
     pub(crate) fn handle_ifq_event(&mut self) {
@@ -34,25 +34,25 @@ impl Balloon {
 
 impl SignalMultiplexHandler for Balloon {
     fn process(&mut self) {
-        let taken = self.signal.take(BalloonDeviceSignalMask::all());
+        let taken = self.signal.take(BalloonSignalMask::all());
 
-        if taken.intersects(BalloonDeviceSignalMask::IFQ) {
+        if taken.intersects(BalloonSignalMask::IFQ) {
             self.handle_ifq_event();
         }
 
-        if taken.intersects(BalloonDeviceSignalMask::DFQ) {
+        if taken.intersects(BalloonSignalMask::DFQ) {
             self.handle_dfq_event();
         }
 
-        if taken.intersects(BalloonDeviceSignalMask::STQ) {
+        if taken.intersects(BalloonSignalMask::STQ) {
             self.handle_stq_event();
         }
 
-        if taken.intersects(BalloonDeviceSignalMask::PHQ) {
+        if taken.intersects(BalloonSignalMask::PHQ) {
             self.handle_phq_event();
         }
 
-        if taken.intersects(BalloonDeviceSignalMask::FRQ) {
+        if taken.intersects(BalloonSignalMask::FRQ) {
             self.handle_frq_event();
         }
     }
