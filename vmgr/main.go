@@ -478,7 +478,10 @@ func runVmManager() {
 			hub := sentry.CurrentHub()
 			hub.Recover(err)
 
-			panic(err)
+			// don't panic yet here -- we want to make it to lastStopReason's os.Exit call
+			// log at fatal level but don't exit yet
+			// we've also already lost the stack trace anyway
+			logrus.StandardLogger().Fatalf("panic: %v", err)
 		}
 	}()
 	// recover from fatal-log panic:
