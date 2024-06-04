@@ -7,7 +7,7 @@
 
 use bitflags::bitflags;
 use gruel::{define_waker_set, BoundSignalChannelRef, ParkWaker, SignalChannel};
-use newt::{define_num_enum, make_bit_flag_range, BitFlagRange, NumEnumMap};
+use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
 use std::cmp;
 use std::convert::From;
 use std::fs::{File, OpenOptions};
@@ -57,9 +57,6 @@ bitflags! {
         const STOP_WORKER = 1 << 2;
     }
 }
-
-pub const BLOCK_QUEUE_SIGS: BitFlagRange<BlockDevSignalMask> =
-    make_bit_flag_range!([BlockDevSignalMask::MAIN_QUEUE]);
 
 define_num_enum! {
     pub enum BlockDevQueues {
@@ -380,7 +377,10 @@ impl VirtioDevice for Block {
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(self.signals.clone(), BLOCK_QUEUE_SIGS)
+        VirtioQueueSignals::new(
+            self.signals.clone(),
+            make_bit_flag_range!([BlockDevSignalMask::MAIN_QUEUE]),
+        )
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {

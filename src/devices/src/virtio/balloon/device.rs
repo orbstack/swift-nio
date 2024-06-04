@@ -1,5 +1,5 @@
 use gruel::{define_waker_set, BoundSignalChannelRef, DynamicallyBoundWaker, SignalChannel};
-use newt::{define_num_enum, make_bit_flag_range, BitFlagRange, NumEnumMap};
+use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
 use std::cmp;
 use std::convert::TryInto;
 use std::io::Write;
@@ -46,14 +46,6 @@ bitflags::bitflags! {
     }
 }
 
-pub(crate) const BALLOON_QUEUE_SIGS: BitFlagRange<BalloonSignalMask> = make_bit_flag_range!([
-    BalloonSignalMask::IFQ,
-    BalloonSignalMask::DFQ,
-    BalloonSignalMask::STQ,
-    BalloonSignalMask::PHQ,
-    BalloonSignalMask::FRQ,
-]);
-
 define_num_enum! {
     pub(crate) enum BalloonQueues {
         IFQ,
@@ -64,7 +56,6 @@ define_num_enum! {
     }
 }
 
-// Supported features.
 pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64
     | 1 << uapi::VIRTIO_BALLOON_F_STATS_VQ as u64
     | 1 << uapi::VIRTIO_BALLOON_F_FREE_PAGE_HINT as u64
@@ -122,6 +113,7 @@ impl Balloon {
             .iter()
             .map(|&max_size| VirtQueue::new(max_size))
             .collect();
+
         Self::with_queues(queues)
     }
 
@@ -227,7 +219,16 @@ impl VirtioDevice for Balloon {
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(self.signal.clone(), BALLOON_QUEUE_SIGS)
+        VirtioQueueSignals::new(
+            self.signal.clone(),
+            make_bit_flag_range!([
+                BalloonSignalMask::IFQ,
+                BalloonSignalMask::DFQ,
+                BalloonSignalMask::STQ,
+                BalloonSignalMask::PHQ,
+                BalloonSignalMask::FRQ,
+            ]),
+        )
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
