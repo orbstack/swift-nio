@@ -83,16 +83,22 @@ func openTerminal(_ command: String, _ args: [String]) async throws {
     // write command to tmp file
     // use cleanup function to do escape
     // and to work around Warp not running with "; exit 0", kill ppid. clean exit not needed
+    // Warp also sets working dir to script path, so go to home if so
     let command = """
     #!/bin/sh -e
     cleanup() {
         rm -f \(escapeShellArg(tmpFile.path))
         kill -9 $PPID
     }
+
+    if [[ "$PWD" == \(escapeShellArg(tmpDir.path))* ]]; then
+        cd ~
+    fi
+
     trap cleanup EXIT
     \(escapeShellArgs([command] + args))
     """
-    try command.write(to: tmpFile, atomically: true, encoding: .utf8)
+    try command.write(to: tmpFile, atomically: false, encoding: .utf8)
 
     // make tmp file executable
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tmpFile.path)
