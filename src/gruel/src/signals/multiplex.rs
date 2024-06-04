@@ -1,10 +1,10 @@
 use std::{
-    collections::HashMap,
     io,
-    sync::{atomic::AtomicBool, Arc, Mutex},
+    sync::{atomic::AtomicBool, Arc},
 };
 
 use memmage::CloneDynRef;
+use smallbox::SmallBox;
 
 use crate::{
     util::{dangling_unit, Parker},
@@ -26,48 +26,6 @@ pub trait SignalMultiplexHandler<C: ?Sized = ()> {
 
     fn debug_type_name(&self) -> &'static str {
         std::any::type_name::<Self>()
-    }
-}
-
-impl<C, T> SignalMultiplexHandler<C> for Arc<std::sync::Mutex<T>>
-where
-    C: ?Sized,
-    T: ?Sized + SignalMultiplexHandler<C>,
-{
-    fn process(&mut self, cx: &mut C) {
-        self.lock().unwrap().process(cx);
-    }
-
-    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
-        self.lock().unwrap().signals()
-    }
-}
-
-impl<C, T> SignalMultiplexHandler<C> for Arc<std::sync::RwLock<T>>
-where
-    C: ?Sized,
-    T: ?Sized + SignalMultiplexHandler<C>,
-{
-    fn process(&mut self, cx: &mut C) {
-        self.write().unwrap().process(cx);
-    }
-
-    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
-        self.read().unwrap().signals()
-    }
-}
-
-impl<C, T> SignalMultiplexHandler<C> for std::rc::Rc<std::cell::RefCell<T>>
-where
-    C: ?Sized,
-    T: ?Sized + SignalMultiplexHandler<C>,
-{
-    fn process(&mut self, cx: &mut C) {
-        self.borrow_mut().process(cx);
-    }
-
-    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
-        self.borrow().signals()
     }
 }
 
@@ -161,7 +119,7 @@ impl MultiplexParker for ParkMultiplexParker {
 
 // === Core === //
 
-pub fn process_signals_multiplexed_shutdown<C: ?Sized>(
+pub fn multiplex_signals_with_shutdown<C: ?Sized>(
     shutdown: &ShutdownSignal,
     handlers: &mut [&mut dyn SignalMultiplexHandler<C>],
     mut parker: impl MultiplexParker<SubscriberFacade = C>,
@@ -178,10 +136,10 @@ pub fn process_signals_multiplexed_shutdown<C: ?Sized>(
         }
     });
 
-    process_signals_multiplexed(handlers, &should_stop, parker);
+    multiplex_signals(handlers, &should_stop, parker);
 }
 
-pub fn process_signals_multiplexed<C: ?Sized>(
+pub fn multiplex_signals<C: ?Sized>(
     handlers: &mut [&mut dyn SignalMultiplexHandler<C>],
     should_stop: &AtomicBool,
     mut parker: impl MultiplexParker<SubscriberFacade = C>,
@@ -288,12 +246,11 @@ pub struct MioDispatcher {
     poll: mio::Poll,
     events: mio::Events,
     abort_waker: Arc<mio::Waker>,
-    ptr_to_handler: HashMap<usize, mio::Token>,
-    handlers: Vec<Arc<Mutex<dyn MioMultiplexHandler>>>,
+    handlers: Vec<SmallBox<dyn MioMultiplexHandler, *const ()>>,
 }
 
 pub trait MioMultiplexHandler: 'static {
-    fn process(&mut self);
+    fn process(&mut self, event: &mio::event::Event);
 }
 
 impl MioDispatcher {
@@ -308,7 +265,6 @@ impl MioDispatcher {
             poll,
             events,
             abort_waker: Arc::new(abort_waker),
-            ptr_to_handler: HashMap::default(),
             handlers: Vec::new(),
         })
     }
@@ -321,25 +277,21 @@ impl MioDispatcher {
         &mut self,
         source: &mut impl mio::event::Source,
         interests: mio::Interest,
-        subscriber: &Arc<Mutex<dyn MioMultiplexHandler>>,
-    ) -> io::Result<()> {
-        let token = *self
-            .ptr_to_handler
-            .entry(Arc::as_ptr(subscriber) as *const () as usize)
-            .or_insert_with(|| {
-                let token = mio::Token(self.handlers.len());
-                self.handlers.push(subscriber.clone());
-                token
-            });
+        handler: impl MioMultiplexHandler,
+    ) -> io::Result<mio::Token> {
+        let token = mio::Token(self.handlers.len());
+        self.handlers.push(smallbox::smallbox!(handler));
 
-        self.poll.registry().register(source, token, interests)
+        self.poll.registry().register(source, token, interests)?;
+
+        Ok(token)
     }
 
     pub fn run(&mut self) -> io::Result<()> {
         self.poll.poll(&mut self.events, None)?;
 
         for event in self.events.iter() {
-            self.handlers[event.token().0].lock().unwrap().process();
+            self.handlers[event.token().0].process(event);
         }
 
         Ok(())

@@ -627,6 +627,7 @@ dependencies = [
  "newt",
  "parking_lot",
  "scopeguard",
+ "smallbox",
  "thiserror",
  "tracing",
 ]
