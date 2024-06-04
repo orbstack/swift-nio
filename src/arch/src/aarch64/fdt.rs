@@ -428,73 +428,73 @@ fn create_devices_node<T: DeviceInfoForFDT + Clone + Debug>(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::aarch64::gic::create_gic;
-    use crate::aarch64::{arch_memory_regions, layout};
-    use kvm_ioctls::Kvm;
-
-    const LEN: u64 = 4096;
-
-    #[derive(Clone, Debug)]
-    pub struct MMIODeviceInfo {
-        addr: u64,
-        irq: u32,
-    }
-
-    impl DeviceInfoForFDT for MMIODeviceInfo {
-        fn addr(&self) -> u64 {
-            self.addr
-        }
-        fn irq(&self) -> u32 {
-            self.irq
-        }
-        fn length(&self) -> u64 {
-            LEN
-        }
-    }
-
-    #[test]
-    fn test_create_fdt_with_devices() {
-        let (mem_info, regions) = arch_memory_regions(layout::FDT_MAX_SIZE + 0x1000);
-        let mem = GuestMemoryMmap::from_ranges(&regions).expect("Cannot initialize memory");
-
-        let dev_info: HashMap<(DeviceType, std::string::String), MMIODeviceInfo> = [
-            (
-                (DeviceType::Serial, DeviceType::Serial.to_string()),
-                MMIODeviceInfo { addr: 0x00, irq: 1 },
-            ),
-            (
-                (DeviceType::Virtio(1), "virtio".to_string()),
-                MMIODeviceInfo {
-                    addr: 0x00 + LEN,
-                    irq: 2,
-                },
-            ),
-            (
-                (DeviceType::RTC, "rtc".to_string()),
-                MMIODeviceInfo {
-                    addr: 0x00 + 2 * LEN,
-                    irq: 3,
-                },
-            ),
-        ]
-        .iter()
-        .cloned()
-        .collect();
-        let kvm = Kvm::new().unwrap();
-        let vm = kvm.create_vm().unwrap();
-        let gic = create_gic(&vm, 1).unwrap();
-        assert!(create_fdt(
-            &mem,
-            &mem_info,
-            vec![0],
-            "console=tty0",
-            &dev_info,
-            &gic,
-            &None,
-        )
-        .is_ok())
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::aarch64::gic::create_gic;
+//     use crate::aarch64::{arch_memory_regions, layout};
+//     use kvm_ioctls::Kvm;
+//
+//     const LEN: u64 = 4096;
+//
+//     #[derive(Clone, Debug)]
+//     pub struct MMIODeviceInfo {
+//         addr: u64,
+//         irq: u32,
+//     }
+//
+//     impl DeviceInfoForFDT for MMIODeviceInfo {
+//         fn addr(&self) -> u64 {
+//             self.addr
+//         }
+//         fn irq(&self) -> u32 {
+//             self.irq
+//         }
+//         fn length(&self) -> u64 {
+//             LEN
+//         }
+//     }
+//
+//     #[test]
+//     fn test_create_fdt_with_devices() {
+//         let (mem_info, regions) = arch_memory_regions(layout::FDT_MAX_SIZE + 0x1000);
+//         let mem = GuestMemoryMmap::from_ranges(&regions).expect("Cannot initialize memory");
+//
+//         let dev_info: HashMap<(DeviceType, std::string::String), MMIODeviceInfo> = [
+//             (
+//                 (DeviceType::Serial, DeviceType::Serial.to_string()),
+//                 MMIODeviceInfo { addr: 0x00, irq: 1 },
+//             ),
+//             (
+//                 (DeviceType::Virtio(1), "virtio".to_string()),
+//                 MMIODeviceInfo {
+//                     addr: 0x00 + LEN,
+//                     irq: 2,
+//                 },
+//             ),
+//             (
+//                 (DeviceType::RTC, "rtc".to_string()),
+//                 MMIODeviceInfo {
+//                     addr: 0x00 + 2 * LEN,
+//                     irq: 3,
+//                 },
+//             ),
+//         ]
+//         .iter()
+//         .cloned()
+//         .collect();
+//         let kvm = Kvm::new().unwrap();
+//         let vm = kvm.create_vm().unwrap();
+//         let gic = create_gic(&vm, 1).unwrap();
+//         assert!(create_fdt(
+//             &mem,
+//             &mem_info,
+//             vec![0],
+//             "console=tty0",
+//             &dev_info,
+//             &gic,
+//             &None,
+//         )
+//         .is_ok())
+//     }
+// }

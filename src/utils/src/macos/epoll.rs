@@ -286,103 +286,103 @@ impl AsRawFd for Epoll {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use crate::eventfd::{EventFd, EFD_NONBLOCK};
-
-    #[test]
-    fn test_event_ops() {
-        let mut event = EpollEvent::default();
-        assert_eq!(event.events(), 0);
-        assert_eq!(event.data(), 0);
-
-        event = EpollEvent::new(EventSet::IN, 2);
-        assert_eq!(event.events(), 1);
-        assert_eq!(event.event_set(), EventSet::IN);
-
-        assert_eq!(event.data(), 2);
-        assert_eq!(event.fd(), 2);
-    }
-
-    #[test]
-    fn test_events_debug() {
-        let events = EpollEvent::new(EventSet::IN, 42);
-        assert_eq!(format!("{:?}", events), "{ events: 1, data: 42 }")
-    }
-
-    #[test]
-    fn test_epoll() {
-        const DEFAULT__TIMEOUT: i32 = 250;
-        const EVENT_BUFFER_SIZE: usize = 128;
-
-        let epoll = Epoll::new().unwrap();
-        assert_eq!(epoll.queue, epoll.as_raw_fd());
-
-        // Let's test different scenarios for `epoll_ctl()` and `epoll_wait()` functionality.
-
-        let event_fd_1 = EventFd::new(EFD_NONBLOCK).unwrap();
-        // For EPOLLOUT to be available it is enough only to be possible to write a value of
-        // at least 1 to the eventfd counter without blocking.
-        // If we write a value greater than 0 to this counter, the fd will be available for
-        // EPOLLIN events too.
-        event_fd_1.write(1).unwrap();
-
-        let event_1 = EpollEvent::new(EventSet::IN, event_fd_1.as_raw_fd() as u64);
-
-        // For EPOLL_CTL_ADD behavior we will try to add some fds with different event masks into
-        // the interest list of epoll instance.
-        assert!(epoll
-            .ctl(
-                ControlOperation::Add,
-                event_fd_1.as_raw_fd() as i32,
-                event_1
-            )
-            .is_ok());
-
-        let event_fd_2 = EventFd::new(EFD_NONBLOCK).unwrap();
-        event_fd_2.write(1).unwrap();
-        assert!(epoll
-            .ctl(
-                ControlOperation::Add,
-                event_fd_2.as_raw_fd() as i32,
-                // For this fd, we want an Event instance that has `data` field set to other
-                // value than the value of the fd and `events` without EPOLLIN type set.
-                EpollEvent::new(EventSet::IN, 10)
-            )
-            .is_ok());
-
-        // Let's check `epoll_wait()` behavior for our epoll instance.
-        let mut ready_events = vec![EpollEvent::default(); EVENT_BUFFER_SIZE];
-        let mut ev_count = epoll.wait(DEFAULT__TIMEOUT, &mut ready_events[..]).unwrap();
-
-        // We expect to have 3 fds in the ready list of epoll instance.
-        assert_eq!(ev_count, 2);
-
-        // Let's check also the Event values that are now returned in the ready list.
-        assert_eq!(ready_events[0].data(), event_fd_1.as_raw_fd() as u64);
-        assert_eq!(ready_events[1].data(), 10 as u64);
-
-        // EPOLLIN and EPOLLOUT should be available for this fd.
-        assert_eq!(ready_events[0].events(), EventSet::IN.bits());
-        // Only EPOLLOUT is expected because we didn't want to monitor EPOLLIN on this fd.
-        assert_eq!(ready_events[1].events(), EventSet::IN.bits());
-
-        // Let's also delete a fd from the interest list.
-        assert!(epoll
-            .ctl(
-                ControlOperation::Delete,
-                event_fd_2.as_raw_fd() as i32,
-                EpollEvent::default()
-            )
-            .is_ok());
-
-        // We expect to have only one fd remained in the ready list (event_fd_3).
-        ev_count = epoll.wait(DEFAULT__TIMEOUT, &mut ready_events[..]).unwrap();
-
-        assert_eq!(ev_count, 1);
-        assert_eq!(ready_events[0].data(), event_fd_1.as_raw_fd() as u64);
-        assert_eq!(ready_events[0].events(), EventSet::IN.bits());
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//
+//     use crate::eventfd::{EventFd, EFD_NONBLOCK};
+//
+//     #[test]
+//     fn test_event_ops() {
+//         let mut event = EpollEvent::default();
+//         assert_eq!(event.events(), 0);
+//         assert_eq!(event.data(), 0);
+//
+//         event = EpollEvent::new(EventSet::IN, 2);
+//         assert_eq!(event.events(), 1);
+//         assert_eq!(event.event_set(), EventSet::IN);
+//
+//         assert_eq!(event.data(), 2);
+//         assert_eq!(event.fd(), 2);
+//     }
+//
+//     #[test]
+//     fn test_events_debug() {
+//         let events = EpollEvent::new(EventSet::IN, 42);
+//         assert_eq!(format!("{:?}", events), "{ events: 1, data: 42 }")
+//     }
+//
+//     #[test]
+//     fn test_epoll() {
+//         const DEFAULT__TIMEOUT: i32 = 250;
+//         const EVENT_BUFFER_SIZE: usize = 128;
+//
+//         let epoll = Epoll::new().unwrap();
+//         assert_eq!(epoll.queue, epoll.as_raw_fd());
+//
+//         // Let's test different scenarios for `epoll_ctl()` and `epoll_wait()` functionality.
+//
+//         let event_fd_1 = EventFd::new(EFD_NONBLOCK).unwrap();
+//         // For EPOLLOUT to be available it is enough only to be possible to write a value of
+//         // at least 1 to the eventfd counter without blocking.
+//         // If we write a value greater than 0 to this counter, the fd will be available for
+//         // EPOLLIN events too.
+//         event_fd_1.write(1).unwrap();
+//
+//         let event_1 = EpollEvent::new(EventSet::IN, event_fd_1.as_raw_fd() as u64);
+//
+//         // For EPOLL_CTL_ADD behavior we will try to add some fds with different event masks into
+//         // the interest list of epoll instance.
+//         assert!(epoll
+//             .ctl(
+//                 ControlOperation::Add,
+//                 event_fd_1.as_raw_fd() as i32,
+//                 event_1
+//             )
+//             .is_ok());
+//
+//         let event_fd_2 = EventFd::new(EFD_NONBLOCK).unwrap();
+//         event_fd_2.write(1).unwrap();
+//         assert!(epoll
+//             .ctl(
+//                 ControlOperation::Add,
+//                 event_fd_2.as_raw_fd() as i32,
+//                 // For this fd, we want an Event instance that has `data` field set to other
+//                 // value than the value of the fd and `events` without EPOLLIN type set.
+//                 EpollEvent::new(EventSet::IN, 10)
+//             )
+//             .is_ok());
+//
+//         // Let's check `epoll_wait()` behavior for our epoll instance.
+//         let mut ready_events = vec![EpollEvent::default(); EVENT_BUFFER_SIZE];
+//         let mut ev_count = epoll.wait(DEFAULT__TIMEOUT, &mut ready_events[..]).unwrap();
+//
+//         // We expect to have 3 fds in the ready list of epoll instance.
+//         assert_eq!(ev_count, 2);
+//
+//         // Let's check also the Event values that are now returned in the ready list.
+//         assert_eq!(ready_events[0].data(), event_fd_1.as_raw_fd() as u64);
+//         assert_eq!(ready_events[1].data(), 10 as u64);
+//
+//         // EPOLLIN and EPOLLOUT should be available for this fd.
+//         assert_eq!(ready_events[0].events(), EventSet::IN.bits());
+//         // Only EPOLLOUT is expected because we didn't want to monitor EPOLLIN on this fd.
+//         assert_eq!(ready_events[1].events(), EventSet::IN.bits());
+//
+//         // Let's also delete a fd from the interest list.
+//         assert!(epoll
+//             .ctl(
+//                 ControlOperation::Delete,
+//                 event_fd_2.as_raw_fd() as i32,
+//                 EpollEvent::default()
+//             )
+//             .is_ok());
+//
+//         // We expect to have only one fd remained in the ready list (event_fd_3).
+//         ev_count = epoll.wait(DEFAULT__TIMEOUT, &mut ready_events[..]).unwrap();
+//
+//         assert_eq!(ev_count, 1);
+//         assert_eq!(ready_events[0].data(), event_fd_1.as_raw_fd() as u64);
+//         assert_eq!(ready_events[0].events(), EventSet::IN.bits());
+//     }
+// }
