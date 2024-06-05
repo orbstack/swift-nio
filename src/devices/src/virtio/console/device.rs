@@ -1,9 +1,13 @@
-use gruel::BoundSignalChannelRef;
+use bitflags::bitflags;
+use gruel::{
+    define_waker_set, BoundSignalChannel, BoundSignalChannelRef, DynamicallyBoundWaker,
+    SignalChannel,
+};
+use newt::{make_bit_flag_range, BitFlagRange};
 use std::cmp;
 use std::io::Write;
 use std::iter::zip;
 use std::mem::{size_of, size_of_val};
-use std::os::unix::io::{AsRawFd, RawFd};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use utils::Mutex;
@@ -12,9 +16,7 @@ use libc::TIOCGWINSZ;
 use utils::eventfd::EventFd;
 use vm_memory::{ByteValued, Bytes, GuestMemoryMmap};
 
-use super::super::{
-    ActivateError, ActivateResult, ConsoleError, DeviceState, Queue as VirtQueue, VirtioDevice,
-};
+use super::super::{ActivateResult, ConsoleError, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::{defs, defs::control_event, defs::uapi};
 use crate::legacy::Gic;
 use crate::virtio::console::console_control::{
@@ -27,6 +29,27 @@ use crate::virtio::console::port_queue_mapping::{
     num_queues, port_id_to_queue_idx, QueueDirection,
 };
 use crate::virtio::{PortDescription, VirtioQueueSignals, VmmExitObserver};
+
+define_waker_set! {
+    #[derive(Default)]
+    pub(crate) struct ConsoleWakers {
+        dynamic: DynamicallyBoundWaker,
+    }
+}
+
+bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+    pub(crate) struct ConsoleSignalMask: u64 {
+        const CONTROL_RXQ_CONTROL = 1 << 0;
+        const ACTIVATE = 1 << 1;
+        const SIGWINCH = 1 << 2;
+        const DUMMY_INTERRUPT = 1 << 3;
+        const QUEUE_EVENTS = u64::MAX << 4;
+    }
+}
+
+pub(crate) const CONSOLE_QUEUE_SIGS: BitFlagRange<ConsoleSignalMask> =
+    make_bit_flag_range!(mask ConsoleSignalMask::QUEUE_EVENTS);
 
 pub(crate) const CONTROL_RXQ_INDEX: usize = 2;
 pub(crate) const CONTROL_TXQ_INDEX: usize = 3;
@@ -83,13 +106,10 @@ pub struct Console {
     pub(crate) ports: Vec<Port>,
 
     pub(crate) queues: Vec<VirtQueue>,
-    pub(crate) queue_events: Vec<EventFd>,
+    pub(crate) signals: Arc<SignalChannel<ConsoleSignalMask, ConsoleWakers>>,
 
     pub(crate) avail_features: u64,
     pub(crate) acked_features: u64,
-
-    pub(crate) activate_evt: EventFd,
-    pub(crate) sigwinch_evt: EventFd,
 
     config: VirtioConsoleConfig,
 }
@@ -117,18 +137,20 @@ impl Console {
             .map(|(port_id, description)| Port::new(port_id, description))
             .collect();
 
+        let signals = Arc::new(SignalChannel::new(ConsoleWakers::default()));
+        let control = ConsoleControl::new(BoundSignalChannel::new(
+            signals.clone(),
+            ConsoleSignalMask::CONTROL_RXQ_CONTROL,
+        ));
+
         Ok(Console {
             irq: IRQSignaler::new(),
-            control: ConsoleControl::new(),
+            control,
             ports,
             queues,
-            queue_events,
+            signals,
             avail_features: AVAIL_FEATURES,
             acked_features: 0,
-            activate_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK)
-                .map_err(ConsoleError::EventFd)?,
-            sigwinch_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK)
-                .map_err(ConsoleError::EventFd)?,
             device_state: DeviceState::Inactive,
             config,
         })
@@ -140,10 +162,6 @@ impl Console {
 
     pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
         self.irq.set_intc(intc)
-    }
-
-    pub fn get_sigwinch_fd(&self) -> RawFd {
-        self.sigwinch_evt.as_raw_fd()
     }
 
     pub fn update_console_size(&mut self, cols: u16, rows: u16) {
@@ -314,11 +332,11 @@ impl VirtioDevice for Console {
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        todo!(); // TODO: Gruel port
+        VirtioQueueSignals::new(self.signals.clone(), CONSOLE_QUEUE_SIGS)
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        todo!(); // TODO: Gruel port
+        BoundSignalChannel::new(&*self.signals, ConsoleSignalMask::DUMMY_INTERRUPT)
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {
@@ -352,11 +370,7 @@ impl VirtioDevice for Console {
     }
 
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
-        if self.activate_evt.write(1).is_err() {
-            error!("Cannot write to activate_evt");
-            return Err(ActivateError::BadActivate);
-        }
-
+        self.signals.assert(ConsoleSignalMask::ACTIVATE);
         self.device_state = DeviceState::Activated(mem);
 
         Ok(())

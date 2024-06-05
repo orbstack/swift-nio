@@ -1249,9 +1249,10 @@ fn attach_console_devices(
         console.lock().unwrap().set_intc(intc);
     }
 
-    event_manager
-        .add_subscriber(console.clone())
-        .map_err(RegisterEvent)?;
+    // TODO: Gruel port
+    // event_manager
+    //     .add_subscriber(console.clone())
+    //     .map_err(RegisterEvent)?;
 
     #[cfg(target_os = "linux")]
     register_sigwinch_handler(console.lock().unwrap().get_sigwinch_fd())

@@ -1,10 +1,9 @@
+use gruel::ArcBoundSignalChannel;
 use std::collections::VecDeque;
 use std::ops::Deref;
 use std::sync::Arc;
 use utils::Mutex;
 
-use utils::eventfd::EventFd;
-use utils::eventfd::EFD_NONBLOCK;
 use vm_memory::{ByteValued, GuestMemoryMmap};
 
 use crate::virtio::console::defs::control_event::{
@@ -59,14 +58,14 @@ impl Deref for Payload {
 // Utility for sending commands into control rx queue
 pub struct ConsoleControl {
     queue: Mutex<VecDeque<Payload>>,
-    queue_evt: EventFd,
+    control_rxq_control: ArcBoundSignalChannel,
 }
 
 impl ConsoleControl {
-    pub fn new() -> Arc<Self> {
+    pub fn new(control_rxq_control: ArcBoundSignalChannel) -> Arc<Self> {
         Arc::new(Self {
             queue: Default::default(),
-            queue_evt: EventFd::new(EFD_NONBLOCK).unwrap(),
+            control_rxq_control,
         })
     }
 
@@ -131,23 +130,15 @@ impl ConsoleControl {
         queue.pop_front()
     }
 
-    pub fn queue_evt(&self) -> &EventFd {
-        &self.queue_evt
-    }
-
     fn push_msg(&self, msg: VirtioConsoleControl) {
         let mut queue = self.queue.lock().expect("Poisoned lock");
         queue.push_back(Payload::ConsoleControl(msg));
-        if let Err(e) = self.queue_evt.write(1) {
-            tracing::trace!("ConsoleControl failed to write to notify {e}")
-        }
+        self.control_rxq_control.assert();
     }
 
     fn push_vec(&self, buf: Vec<u8>) {
         let mut queue = self.queue.lock().expect("Poisoned lock");
         queue.push_back(Payload::Bytes(buf));
-        if let Err(e) = self.queue_evt.write(1) {
-            tracing::trace!("ConsoleControl failed to write to notify {e}")
-        }
+        self.control_rxq_control.assert();
     }
 }
