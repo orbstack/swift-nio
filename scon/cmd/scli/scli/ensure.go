@@ -55,6 +55,10 @@ func shouldUpdateVmgr() (string, bool) {
 }
 
 func tryPrintUpdateWarning() {
+	if conf.Debug() {
+		return
+	}
+
 	needsUpdate, err := vmclient.IsUpdatePending()
 	if err != nil {
 		return
