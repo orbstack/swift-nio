@@ -1,4 +1,6 @@
-use gruel::BoundSignalChannelRef;
+use bitflags::bitflags;
+use gruel::{define_waker_set, BoundSignalChannelRef, ParkWaker, SignalChannel};
+use newt::{make_bit_flag_range, BitFlagRange};
 use std::cmp;
 use std::io::Write;
 use std::sync::atomic::AtomicUsize;
@@ -6,7 +8,6 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use utils::Mutex;
 
-use utils::eventfd::{EventFd, EFD_NONBLOCK};
 use virtio_bindings::{virtio_config::VIRTIO_F_VERSION_1, virtio_ring::VIRTIO_RING_F_EVENT_IDX};
 use vm_memory::{ByteValued, GuestMemoryMmap};
 
@@ -21,6 +22,27 @@ use super::{defs, defs::uapi};
 use super::{passthrough, FsCallbacks, NfsInfo};
 use crate::legacy::Gic;
 use crate::virtio::VirtioQueueSignals;
+
+define_waker_set! {
+    #[derive(Default)]
+    pub(crate) struct FsWakers {
+        park: ParkWaker,
+    }
+}
+
+bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+    pub(crate) struct FsSignalMask: u64 {
+        const INTERRUPT = 1 << 0;
+        const SHUTDOWN_WORKER = 1 << 1;
+        const QUEUES = u64::MAX << 2;
+    }
+}
+
+pub(crate) const FS_QUEUE_SIGS: BitFlagRange<FsSignalMask> =
+    make_bit_flag_range!(mask FsSignalMask::QUEUES);
+
+pub(crate) type FsSignalChannel = SignalChannel<FsSignalMask, FsWakers>;
 
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
@@ -42,18 +64,16 @@ unsafe impl ByteValued for VirtioFsConfig {}
 
 pub struct Fs {
     queues: Vec<VirtQueue>,
-    queue_events: Vec<EventFd>,
+    signals: Arc<FsSignalChannel>,
     avail_features: u64,
     acked_features: u64,
     interrupt_status: Arc<AtomicUsize>,
-    interrupt_evt: EventFd,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
     device_state: DeviceState,
     config: VirtioFsConfig,
     shm_region: Option<VirtioShmRegion>,
     worker_thread: Option<JoinHandle<()>>,
-    worker_stopfd: EventFd,
     server: Arc<Server<PassthroughFs>>,
 }
 
@@ -65,12 +85,6 @@ impl Fs {
         queues: Vec<VirtQueue>,
         callbacks: Option<Arc<dyn FsCallbacks>>,
     ) -> super::Result<Fs> {
-        let mut queue_events = Vec::new();
-        for _ in 0..queues.len() {
-            queue_events
-                .push(EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(FsError::EventFd)?);
-        }
-
         let avail_features = (1u64 << VIRTIO_F_VERSION_1) | (1u64 << VIRTIO_RING_F_EVENT_IDX);
 
         let allow_rosetta_ioctl = fs_id == "rosetta";
@@ -88,18 +102,16 @@ impl Fs {
 
         Ok(Fs {
             queues,
-            queue_events,
+            signals: Arc::new(SignalChannel::new(FsWakers::default())),
             avail_features,
             acked_features: 0,
             interrupt_status: Arc::new(AtomicUsize::new(0)),
-            interrupt_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(FsError::EventFd)?,
             intc: None,
             irq_line: None,
             device_state: DeviceState::Inactive,
             config,
             shm_region: None,
             worker_thread: None,
-            worker_stopfd: EventFd::new(EFD_NONBLOCK).map_err(FsError::EventFd)?,
             server: Arc::new(Server::new(
                 PassthroughFs::new(fs_cfg, callbacks.clone()).map_err(FsError::CreateServer)?,
             )),
@@ -162,11 +174,11 @@ impl VirtioDevice for Fs {
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        todo!(); // TODO: Gruel port
+        VirtioQueueSignals::new(self.signals.clone(), FS_QUEUE_SIGS)
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        todo!(); // TODO: Gruel port
+        BoundSignalChannelRef::new(&*self.signals, FsSignalMask::INTERRUPT)
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {
@@ -208,21 +220,14 @@ impl VirtioDevice for Fs {
         self.queues[defs::HPQ_INDEX].set_event_idx(event_idx);
         self.queues[defs::REQ_INDEX].set_event_idx(event_idx);
 
-        let queue_evts = self
-            .queue_events
-            .iter()
-            .map(|e| e.try_clone().unwrap())
-            .collect();
         let worker = FsWorker::new(
+            self.signals.clone(),
             self.queues.clone(),
-            queue_evts,
             self.interrupt_status.clone(),
-            self.interrupt_evt.try_clone().unwrap(),
             self.intc.clone(),
             self.irq_line,
             mem.clone(),
             self.server.clone(),
-            self.worker_stopfd.try_clone().unwrap(),
         );
         self.worker_thread = Some(worker.run());
 
@@ -243,7 +248,8 @@ impl VirtioDevice for Fs {
 
     fn reset(&mut self) -> bool {
         if let Some(worker) = self.worker_thread.take() {
-            let _ = self.worker_stopfd.write(1);
+            self.signals.assert(FsSignalMask::SHUTDOWN_WORKER);
+
             if let Err(e) = worker.join() {
                 error!("error waiting for worker thread: {:?}", e);
             }
