@@ -14,6 +14,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// WARNING: os.RemoveAll is *NOT* safe against symlink races.
+// It uses fstatat to check and only recurse into dirs, and unlink is symlink-safe.
+// But uses openat without O_NOFOLLOW to open dirs, after the fstat.
+//
+// This doesn't matter for our use cases:
+//   - container must be stopped
+//   - c.mu is held for the duration of the call, so it can't be started
+//
+// ... but DO NOT USE this if the container could be running.
 func deleteRootfs(rootfs string) error {
 	logrus.WithField("rootfs", rootfs).Debug("deleting rootfs")
 
