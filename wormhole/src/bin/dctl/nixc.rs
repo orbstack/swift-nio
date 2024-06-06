@@ -4,14 +4,12 @@ use anyhow::anyhow;
 use nix::unistd::getpid;
 use wormhole::flock::Flock;
 
-use crate::{base_img, config, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH};
+use crate::{base_img, config, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH, HIDDEN_BIN};
 
 const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
 const NIX_HOME: &str = "/nix/orb/data/home";
 
 const ENV_OUT_PATH: &str = "/nix/orb/data/.env-out";
-
-const NIX_BIN: &str = "/nix/orb/sys/.bin";
 
 pub static NUM_RUNNING_PROCS: AtomicUsize = AtomicUsize::new(0);
 
@@ -99,7 +97,7 @@ pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
 }
 
 fn new_command(bin: &str) -> Command {
-    let mut cmd = Command::new(format!("{}/{}", NIX_BIN, bin));
+    let mut cmd = Command::new(format!("{}/{}", HIDDEN_BIN, bin));
     unsafe {
         cmd
             .current_dir(ENV_PATH)

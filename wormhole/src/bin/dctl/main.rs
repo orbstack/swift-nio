@@ -1,4 +1,4 @@
-use std::{ffi::CString, fs::{self, File}, io::Write, sync::atomic::Ordering, time::{Duration, SystemTime}};
+use std::{ffi::CString, fs::{self, File}, io::Write, path::Path, sync::atomic::Ordering, time::{Duration, SystemTime}};
 
 use anyhow::anyhow;
 use colored::Colorize;
@@ -22,6 +22,8 @@ mod nixc;
 const ENV_PATH: &str = "/nix/orb/data/env";
 // just use the directory, which is guaranteed to exist on overlayfs
 const ENV_LOCK_PATH: &str = ENV_PATH;
+
+pub const HIDDEN_BIN: &str = "/nix/orb/sys/.bin";
 
 // 30 days
 // cache.nixos.org retention is supposed to be forever
@@ -290,6 +292,11 @@ fn cmd_search(query: &str, by_program: bool) -> anyhow::Result<()> {
 
 fn cmd_cnf(name: &str) -> anyhow::Result<()> {
     eprintln!("{}: command not found", name);
+
+    // don't attempt to install packages for commands that are built-in but hidden (e.g. nix)
+    if Path::new(&format!("{}/{}", HIDDEN_BIN, name)).exists() {
+        return Ok(());
+    }
 
     if let Some(pkg_name) = read_and_find_program(name)? {
         eprint!("  * install package '{}'? [y/N] ", pkg_name);
