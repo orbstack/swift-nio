@@ -215,7 +215,7 @@ impl VirtioDevice for Gpu {
     }
 
     fn queue_events(&self) -> VirtioQueueSignals {
-        todo!(); // TODO: Gruel port
+        todo!();
     }
 
     fn interrupt_evt(&self) -> &EventFd {

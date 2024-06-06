@@ -62,24 +62,23 @@ impl FsWorker {
     }
 
     fn work(mut self) {
-        let virtq_hpq_ev_fd = FS_QUEUE_SIGS.get(HPQ_INDEX);
-        let virtq_req_ev_fd = FS_QUEUE_SIGS.get(REQ_INDEX);
-        let stop_ev_fd = FsSignalMask::SHUTDOWN_WORKER;
-        let handled = virtq_hpq_ev_fd | virtq_req_ev_fd | stop_ev_fd;
+        let handled_mask = FsSignalMask::SHUTDOWN_WORKER
+            | FS_QUEUE_SIGS.get(HPQ_INDEX)
+            | FS_QUEUE_SIGS.get(REQ_INDEX);
 
         loop {
-            self.signals.wait_on_park(handled);
-            let taken = self.signals.take(handled);
+            self.signals.wait_on_park(handled_mask);
+            let taken = self.signals.take(handled_mask);
 
-            if taken.intersects(stop_ev_fd) {
+            if taken.intersects(FsSignalMask::SHUTDOWN_WORKER) {
                 return;
             }
 
-            if taken.intersects(virtq_hpq_ev_fd) {
+            if taken.intersects(FS_QUEUE_SIGS.get(HPQ_INDEX)) {
                 self.handle_event(HPQ_INDEX);
             }
 
-            if taken.intersects(virtq_req_ev_fd) {
+            if taken.intersects(FS_QUEUE_SIGS.get(REQ_INDEX)) {
                 self.handle_event(REQ_INDEX);
             }
         }

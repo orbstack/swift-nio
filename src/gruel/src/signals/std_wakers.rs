@@ -1,4 +1,9 @@
-use std::{ptr::NonNull, time::Duration};
+use std::{
+    io,
+    ptr::NonNull,
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 use parking_lot::Mutex;
 use thiserror::Error;
@@ -156,3 +161,54 @@ pub trait QueueRecvSignalChannelExt: DynamicallyBoundSignalChannelExt {
 }
 
 impl<T: DynamicallyBoundSignalChannelExt> QueueRecvSignalChannelExt for T {}
+
+// MIO
+#[derive(Default)]
+pub struct OnceMioWaker(OnceLock<Arc<mio::Waker>>);
+
+impl OnceMioWaker {
+    pub fn set_waker(&self, waker: Arc<mio::Waker>) {
+        self.0
+            .set(waker)
+            .expect("attempted to set MIO waker more than once")
+    }
+}
+
+impl Waker for OnceMioWaker {
+    fn wake(&self) {
+        if let Err(err) = self
+            .0
+            .get()
+            .expect("attempted to `wait_on_poll` before waker was set")
+            .wake()
+        {
+            tracing::error!("Failed to dispatch waker in OnceMioWaker: {err}");
+        }
+    }
+}
+
+pub trait MioChannelExt: AnySignalChannelWith<OnceMioWaker> {
+    #[track_caller]
+    fn wait_on_poll(
+        &self,
+        mask: Self::Mask,
+        poll: &mut mio::Poll,
+        events: &mut mio::Events,
+        timeout: Option<Duration>,
+    ) -> io::Result<()> {
+        debug_assert!(
+            self.raw().waker_state().0.get().is_some(),
+            "attempted to `wait_on_poll` before waker was set"
+        );
+
+        self.raw()
+            .wait(
+                Self::mask_to_u64(mask),
+                WakerIndex::of::<OnceMioWaker>(),
+                || poll.poll(events, timeout),
+            )
+            .unwrap_or(Ok(()))
+    }
+}
+
+impl<T: AnySignalChannelWith<OnceMioWaker>> MioChannelExt for T {}

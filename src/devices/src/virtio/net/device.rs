@@ -16,7 +16,9 @@ use crate::Error as DeviceError;
 use super::backend::{ReadError, WriteError};
 use super::worker::NetWorker;
 
-use gruel::BoundSignalChannelRef;
+use bitflags::bitflags;
+use gruel::{define_waker_set, BoundSignalChannelRef, OnceMioWaker, SignalChannel};
+use newt::{make_bit_flag_range, BitFlagRange};
 use std::cmp;
 use std::io::Write;
 use std::os::fd::RawFd;
@@ -34,6 +36,27 @@ use virtio_bindings::virtio_ring::VIRTIO_RING_F_EVENT_IDX;
 use vm_memory::{ByteValued, GuestMemoryError, GuestMemoryMmap};
 
 const VIRTIO_F_VERSION_1: u32 = 32;
+
+define_waker_set! {
+    #[derive(Default)]
+    pub(crate) struct NetWakers {
+        epoll: OnceMioWaker,
+    }
+}
+
+bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+    pub(crate) struct NetSignalMask: u64 {
+        const INTERRUPT = 1 << 0;
+        const SHUTDOWN_WORKER = 1 << 1;
+        const QUEUES = u64::MAX << 2;
+    }
+}
+
+pub(crate) const NET_QUEUE_SIGS: BitFlagRange<NetSignalMask> =
+    make_bit_flag_range!(mask NetSignalMask::QUEUES);
+
+pub(crate) type NetSignalChannel = SignalChannel<NetSignalMask, NetWakers>;
 
 #[derive(Debug)]
 pub enum FrontendError {
@@ -84,11 +107,9 @@ pub struct Net {
     acked_features: u64,
 
     queues: Vec<Queue>,
-    queue_evts: Vec<EventFd>,
+    signals: Arc<NetSignalChannel>,
 
     interrupt_status: Arc<AtomicUsize>,
-    interrupt_evt: EventFd,
-    stop_evt: EventFd,
 
     pub(crate) device_state: DeviceState,
 
@@ -136,11 +157,9 @@ impl Net {
             acked_features: 0u64,
 
             queues,
-            queue_evts,
+            signals: Arc::new(SignalChannel::new(NetWakers::default())),
 
             interrupt_status: Arc::new(AtomicUsize::new(0)),
-            interrupt_evt: EventFd::new(EFD_NONBLOCK).map_err(Error::EventFd)?,
-            stop_evt: EventFd::new(EFD_NONBLOCK).map_err(Error::EventFd)?,
 
             device_state: DeviceState::Inactive,
 
@@ -188,11 +207,11 @@ impl VirtioDevice for Net {
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        todo!(); // TODO: Gruel port
+        VirtioQueueSignals::new(self.signals.clone(), NET_QUEUE_SIGS)
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        todo!(); // TODO: Gruel port
+        BoundSignalChannelRef::new(&*self.signals, NetSignalMask::INTERRUPT)
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {
@@ -230,21 +249,14 @@ impl VirtioDevice for Net {
         self.queues[RX_INDEX].set_event_idx(event_idx);
         self.queues[TX_INDEX].set_event_idx(event_idx);
 
-        let queue_evts = self
-            .queue_evts
-            .iter()
-            .map(|e| e.try_clone().unwrap())
-            .collect();
         let worker = NetWorker::new(
+            self.signals.clone(),
             self.queues.clone(),
-            queue_evts,
             self.interrupt_status.clone(),
-            self.interrupt_evt.try_clone().unwrap(),
             self.intc.clone(),
             self.irq_line,
             mem.clone(),
             self.cfg_backend.clone(),
-            self.stop_evt.try_clone().unwrap(),
         );
         self.worker_thread = Some(worker.run());
 
@@ -263,7 +275,8 @@ impl VirtioDevice for Net {
 impl VmmExitObserver for Net {
     fn on_vmm_exit(&mut self) {
         debug!("Shutting down net");
-        self.stop_evt.write(1).unwrap();
+        self.signals.assert(NetSignalMask::SHUTDOWN_WORKER);
+
         if let Some(thread) = self.worker_thread.take() {
             debug!("Joining on net");
             let _ = thread.join();

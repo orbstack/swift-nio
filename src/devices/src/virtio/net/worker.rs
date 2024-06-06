@@ -6,30 +6,31 @@ use crate::virtio::{Queue, VIRTIO_MMIO_INT_VRING};
 use crate::Error as DeviceError;
 
 use super::backend::{NetBackend, ReadError, WriteError};
-use super::device::{FrontendError, RxError, TxError, VirtioNetBackend};
+use super::device::{
+    FrontendError, NetSignalChannel, NetSignalMask, RxError, TxError, VirtioNetBackend,
+    NET_QUEUE_SIGS,
+};
 use super::dgram::Dgram;
 
-use std::os::fd::AsRawFd;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{cmp, mem, result};
-use utils::epoll::{ControlOperation, Epoll, EpollEvent, EventSet};
-use utils::eventfd::EventFd;
 use utils::Mutex;
 use virtio_bindings::virtio_net::virtio_net_hdr_v1;
 use vm_memory::{Bytes, GuestAddress, GuestMemoryMmap};
+
+use gruel::{MioChannelExt, OnceMioWaker};
 
 fn vnet_hdr_len() -> usize {
     mem::size_of::<virtio_net_hdr_v1>()
 }
 
 pub struct NetWorker {
+    signals: Arc<NetSignalChannel>,
     queues: Vec<Queue>,
-    queue_evts: Vec<EventFd>,
     interrupt_status: Arc<AtomicUsize>,
-    interrupt_evt: EventFd,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
 
@@ -43,22 +44,18 @@ pub struct NetWorker {
     tx_iovec: Vec<(GuestAddress, usize)>,
     tx_frame_buf: [u8; MAX_BUFFER_SIZE],
     tx_frame_len: usize,
-
-    stop_evt: EventFd,
 }
 
 impl NetWorker {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        signals: Arc<NetSignalChannel>,
         queues: Vec<Queue>,
-        queue_evts: Vec<EventFd>,
         interrupt_status: Arc<AtomicUsize>,
-        interrupt_evt: EventFd,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
         mem: GuestMemoryMmap,
         cfg_backend: VirtioNetBackend,
-        stop_evt: EventFd,
     ) -> Self {
         let backend = match cfg_backend {
             VirtioNetBackend::Passt(fd) => Box::new(Passt::new(fd)) as Box<dyn NetBackend + Send>,
@@ -71,10 +68,9 @@ impl NetWorker {
         };
 
         Self {
+            signals,
             queues,
-            queue_evts,
             interrupt_status,
-            interrupt_evt,
             intc,
             irq_line,
 
@@ -88,8 +84,6 @@ impl NetWorker {
             tx_frame_buf: [0u8; MAX_BUFFER_SIZE],
             tx_frame_len: 0,
             tx_iovec: Vec::with_capacity(QUEUE_SIZE as usize),
-
-            stop_evt,
         }
     }
 
@@ -101,107 +95,96 @@ impl NetWorker {
     }
 
     fn work(mut self) {
-        let virtq_rx_ev_fd = self.queue_evts[RX_INDEX].as_raw_fd();
-        let virtq_tx_ev_fd = self.queue_evts[TX_INDEX].as_raw_fd();
+        // Setup epoll
+        let mut poll = mio::Poll::new().unwrap();
+        let mut events = mio::Events::with_capacity(32);
+
+        let backend_socket_token = mio::Token(0);
         let backend_socket = self.backend.raw_socket_fd();
+        poll.registry()
+            .register(
+                &mut mio::unix::SourceFd(&backend_socket),
+                backend_socket_token,
+                mio::Interest::READABLE | mio::Interest::WRITABLE,
+            )
+            .unwrap();
 
-        let epoll = Epoll::new().unwrap();
+        let waker_token = mio::Token(1);
+        let waker = mio::Waker::new(poll.registry(), waker_token).unwrap();
+        self.signals
+            .waker_state::<OnceMioWaker>()
+            .set_waker(Arc::new(waker));
 
-        let _ = epoll.ctl(
-            ControlOperation::Add,
-            virtq_rx_ev_fd,
-            &EpollEvent::new(EventSet::IN, virtq_rx_ev_fd as u64),
-        );
-        let _ = epoll.ctl(
-            ControlOperation::Add,
-            virtq_tx_ev_fd,
-            &EpollEvent::new(EventSet::IN, virtq_tx_ev_fd as u64),
-        );
-        let _ = epoll.ctl(
-            ControlOperation::Add,
-            self.stop_evt.as_raw_fd(),
-            &EpollEvent::new(EventSet::IN, self.stop_evt.as_raw_fd() as u64),
-        );
-        let _ = epoll.ctl(
-            ControlOperation::Add,
-            backend_socket,
-            &EpollEvent::new(
-                EventSet::IN | EventSet::OUT | EventSet::EDGE_TRIGGERED | EventSet::READ_HANG_UP,
-                backend_socket as u64,
-            ),
-        );
+        let handled_mask = NetSignalMask::SHUTDOWN_WORKER
+            | NET_QUEUE_SIGS.get(RX_INDEX)
+            | NET_QUEUE_SIGS.get(TX_INDEX);
 
-        'main: loop {
-            let mut epoll_events = vec![EpollEvent::new(EventSet::empty(), 0); 32];
-            match epoll.wait(epoll_events.len(), -1, epoll_events.as_mut_slice()) {
-                Ok(ev_cnt) => {
-                    for event in &epoll_events[0..ev_cnt] {
-                        let source = event.fd();
-                        let event_set = event.event_set();
-                        match event_set {
-                            EventSet::IN if source == virtq_rx_ev_fd => {
-                                self.process_rx_queue_event();
-                            }
-                            EventSet::IN if source == virtq_tx_ev_fd => {
-                                self.process_tx_queue_event();
-                            }
-                            EventSet::IN if source == self.stop_evt.as_raw_fd() => {
-                                break 'main;
-                            }
-                            _ if source == backend_socket => {
-                                if event_set.contains(EventSet::HANG_UP)
-                                    || event_set.contains(EventSet::READ_HANG_UP)
-                                {
-                                    tracing::error!("Got {event_set:?} on backend fd, virtio-net will stop working");
-                                } else {
-                                    if event_set.contains(EventSet::IN) {
-                                        self.process_backend_socket_readable()
-                                    }
+        // Start worker loop
+        // TODO: GRUEL - Ensure that the assert side of this routine fulfills its side of the queue
+        //  protocol. This needs to be done for FS as well
+        loop {
+            // Wait for epoll events
+            if let Err(err) = self
+                .signals
+                .wait_on_poll(handled_mask, &mut poll, &mut events, None)
+            {
+                debug!("vsock: failed to consume muxer epoll event: {err}");
+            }
 
-                                    if event_set.contains(EventSet::OUT) {
-                                        self.process_backend_socket_writeable()
-                                    }
-                                }
-                            }
-                            _ => {
-                                tracing::warn!(
-                                    "Received unknown event: {:?} from fd: {:?}",
-                                    event_set,
-                                    source
-                                );
-                            }
-                        }
-                    }
+            // Handle signals
+            let taken = self.signals.take(handled_mask);
+
+            if taken.intersects(NetSignalMask::SHUTDOWN_WORKER) {
+                return;
+            }
+
+            if taken.intersects(NET_QUEUE_SIGS.get(RX_INDEX)) {
+                self.process_rx_queue_event();
+            }
+
+            if taken.intersects(NET_QUEUE_SIGS.get(RX_INDEX)) {
+                self.process_tx_queue_event();
+            }
+
+            // Handle epoll events
+            for event in events.iter() {
+                if event.token() == waker_token {
+                    continue;
                 }
-                Err(e) => {
-                    debug!("vsock: failed to consume muxer epoll event: {}", e);
+
+                debug_assert_eq!(event.token(), backend_socket_token);
+
+                if event.is_read_closed() || event.is_write_closed() {
+                    tracing::error!("Got {event:?} on backend fd, virtio-net will stop working");
+                } else {
+                    if event.is_readable() {
+                        self.process_backend_socket_readable()
+                    }
+
+                    if event.is_writable() {
+                        self.process_backend_socket_writeable()
+                    }
                 }
             }
         }
     }
 
     pub(crate) fn process_rx_queue_event(&mut self) {
-        if let Err(e) = self.queue_evts[RX_INDEX].read() {
-            tracing::error!("Failed to get rx event from queue: {:?}", e);
-        }
         if let Err(e) = self.queues[RX_INDEX].disable_notification(&self.mem) {
             error!("error disabling queue notifications: {:?}", e);
         }
+
         if let Err(e) = self.process_rx() {
             tracing::error!("Failed to process rx: {e:?} (triggered by queue event)")
         };
+
         if let Err(e) = self.queues[RX_INDEX].enable_notification(&self.mem) {
             error!("error disabling queue notifications: {:?}", e);
         }
     }
 
     pub(crate) fn process_tx_queue_event(&mut self) {
-        match self.queue_evts[TX_INDEX].read() {
-            Ok(_) => self.process_tx_loop(),
-            Err(e) => {
-                tracing::error!("Failed to get tx queue event from queue: {e:?}");
-            }
-        }
+        self.process_tx_loop();
     }
 
     pub(crate) fn process_backend_socket_readable(&mut self) {
@@ -397,10 +380,8 @@ impl NetWorker {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
             Ok(())
         } else {
-            self.interrupt_evt.write(1).map_err(|e| {
-                error!("Failed to signal used queue: {:?}", e);
-                DeviceError::FailedSignalingUsedQueue(e)
-            })
+            self.signals.assert(NetSignalMask::INTERRUPT);
+            Ok(())
         }
     }
 

@@ -414,7 +414,7 @@ impl DeviceInfoForFDT for MMIODeviceInfo {
 //         }
 //
 //         fn queue_signals(&self) -> VirtioQueueSignals {
-//             todo!(); // TODO: Gruel port
+//             todo!();
 //         }
 //
 //         fn interrupt_signal(&self) -> &EventFd {
