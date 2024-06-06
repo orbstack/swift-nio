@@ -259,6 +259,7 @@ enum InstalledApps {
         "dev.warp.Warp-Preview", // WarpPreview (guess)
         "com.github.wez.wezterm", // WezTerm
         "co.zeit.hyper", // Hyper
+        "com.mitchellh.ghostty", // Ghostty
     ]
 
     // cached: lookup takes ~50 ms
@@ -281,10 +282,6 @@ enum InstalledApps {
                 }
 
                 return nil
-            }
-            .map { x in
-                print("terminal: \(x)")
-                return x
             }
             // sort by running first, then by last used
             .sorted { a, b in
