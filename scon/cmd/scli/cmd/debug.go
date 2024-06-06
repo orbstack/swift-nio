@@ -12,6 +12,8 @@ import (
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 )
@@ -132,8 +134,20 @@ Pro only: requires a Pro license for OrbStack.
 
 		scli.EnsureSconVMWithSpinner()
 
-		// don't use default (host) workdir
+		// don't use default (host) workdir,
+		// unless this for ovm or docker machine on a debug build
 		workdir := ""
+		if conf.Debug() {
+			if containerID == sshtypes.WormholeIDDocker {
+				workdir, err = os.Getwd()
+				check(err)
+			} else if containerID == sshtypes.WormholeIDHost {
+				workdir, err = os.Getwd()
+				check(err)
+				workdir = mounts.Virtiofs + workdir // includes leading /
+			}
+		}
+
 		if flagWorkdir != "" {
 			workdir = flagWorkdir
 		}
