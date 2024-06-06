@@ -1,24 +1,42 @@
-use gruel::BoundSignalChannelRef;
+use bitflags::bitflags;
+use gruel::{define_waker_set, BoundSignalChannelRef, DynamicallyBoundWaker, SignalChannel};
+use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use utils::Mutex;
 
 use rand::{rngs::OsRng, RngCore};
-use utils::eventfd::EventFd;
 use vm_memory::{Bytes, GuestMemoryMmap};
 
 use super::super::{
-    ActivateError, ActivateResult, DeviceState, Queue as VirtQueue, RngError, VirtioDevice,
-    VIRTIO_MMIO_INT_VRING,
+    ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice, VIRTIO_MMIO_INT_VRING,
 };
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
 use crate::virtio::VirtioQueueSignals;
 use crate::Error as DeviceError;
 
-// Request queue.
-pub(crate) const REQ_INDEX: usize = 0;
+define_waker_set! {
+    #[derive(Default)]
+    pub(crate) struct RngWakers {
+        dynamic: DynamicallyBoundWaker,
+    }
+}
+
+bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+    pub(crate) struct RngSignalMask: u64 {
+        const INTERRUPT = 1 << 0;
+        const REQ_QUEUE = 1 << 1;
+    }
+}
+
+define_num_enum! {
+    pub enum RngQueues {
+        Request,
+    }
+}
 
 // Supported features.
 pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64;
@@ -28,13 +46,11 @@ pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64;
 pub struct VirtioRng {}
 
 pub struct Rng {
-    pub(crate) queues: Vec<VirtQueue>,
-    pub(crate) queue_events: Vec<EventFd>,
+    pub(crate) queues: NumEnumMap<RngQueues, VirtQueue>,
+    pub(crate) signals: Arc<SignalChannel<RngSignalMask, RngWakers>>,
     pub(crate) avail_features: u64,
     pub(crate) acked_features: u64,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
-    pub(crate) interrupt_evt: EventFd,
-    pub(crate) activate_evt: EventFd,
     pub(crate) device_state: DeviceState,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
@@ -42,20 +58,12 @@ pub struct Rng {
 
 impl Rng {
     pub(crate) fn with_queues(queues: Vec<VirtQueue>) -> super::Result<Rng> {
-        let mut queue_events = Vec::new();
-        for _ in 0..queues.len() {
-            queue_events
-                .push(EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(RngError::EventFd)?);
-        }
-
         Ok(Rng {
-            queues,
-            queue_events,
+            queues: queues.into_iter().collect(),
+            signals: Arc::new(SignalChannel::new(RngWakers::default())),
             avail_features: AVAIL_FEATURES,
             acked_features: 0,
             interrupt_status: Arc::new(AtomicUsize::new(0)),
-            interrupt_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(RngError::EventFd)?,
-            activate_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(RngError::EventFd)?,
             device_state: DeviceState::Inactive,
             intc: None,
             irq_line: None,
@@ -86,10 +94,8 @@ impl Rng {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
             Ok(())
         } else {
-            self.interrupt_evt.write(1).map_err(|e| {
-                error!("Failed to signal used queue: {:?}", e);
-                DeviceError::FailedSignalingUsedQueue(e)
-            })
+            self.signals.assert(RngSignalMask::INTERRUPT);
+            Ok(())
         }
     }
 
@@ -103,7 +109,7 @@ impl Rng {
 
         let mut have_used = false;
 
-        while let Some(head) = self.queues[REQ_INDEX].pop(mem) {
+        while let Some(head) = self.queues[RngQueues::Request].pop(mem) {
             let index = head.index;
             let mut written = 0;
             for desc in head.into_iter() {
@@ -111,14 +117,14 @@ impl Rng {
                 OsRng.fill_bytes(&mut rand_bytes);
                 if let Err(e) = mem.write_slice(&rand_bytes[..], desc.addr) {
                     error!("Failed to write slice: {:?}", e);
-                    self.queues[REQ_INDEX].go_to_previous_position();
+                    self.queues[RngQueues::Request].go_to_previous_position();
                     break;
                 }
                 written += desc.len;
             }
 
             have_used = true;
-            if let Err(e) = self.queues[REQ_INDEX].add_used(mem, index, written) {
+            if let Err(e) = self.queues[RngQueues::Request].add_used(mem, index, written) {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
         }
@@ -145,19 +151,22 @@ impl VirtioDevice for Rng {
     }
 
     fn queues(&self) -> &[VirtQueue] {
-        &self.queues
+        &self.queues.0
     }
 
     fn queues_mut(&mut self) -> &mut [VirtQueue] {
-        &mut self.queues
+        &mut self.queues.0
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        todo!(); // TODO: Gruel port
+        VirtioQueueSignals::new(
+            self.signals.clone(),
+            make_bit_flag_range!([RngSignalMask::REQ_QUEUE]),
+        )
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        todo!(); // TODO: Gruel port
+        BoundSignalChannelRef::new(&*self.signals, RngSignalMask::INTERRUPT)
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {
@@ -181,22 +190,7 @@ impl VirtioDevice for Rng {
     }
 
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
-        if self.queues.len() != defs::NUM_QUEUES {
-            error!(
-                "Cannot perform activate. Expected {} queue(s), got {}",
-                defs::NUM_QUEUES,
-                self.queues.len()
-            );
-            return Err(ActivateError::BadActivate);
-        }
-
-        if self.activate_evt.write(1).is_err() {
-            error!("Cannot write to activate_evt",);
-            return Err(ActivateError::BadActivate);
-        }
-
         self.device_state = DeviceState::Activated(mem);
-
         Ok(())
     }
 

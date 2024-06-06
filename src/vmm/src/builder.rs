@@ -1395,9 +1395,10 @@ fn attach_rng_device(
 
     let rng = Arc::new(Mutex::new(devices::virtio::Rng::new().unwrap()));
 
-    event_manager
-        .add_subscriber(rng.clone())
-        .map_err(RegisterEvent)?;
+    // TODO: Gruel port
+    // event_manager
+    //     .add_subscriber(rng.clone())
+    //     .map_err(RegisterEvent)?;
 
     let id = String::from(rng.lock().unwrap().id());
 
