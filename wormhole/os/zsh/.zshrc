@@ -196,12 +196,21 @@ notify() {
     printf "\x1b]99;i=1:d=1:p=body;$2\x1b\\"
 }
 
+_orb_in_cnf=0
 command_not_found_handler() {
+    if [[ "$_orb_in_cnf" == "1" ]]; then
+        return 127
+    fi
+    _orb_in_cnf=1
+
     /nix/orb/sys/bin/dctl __command_not_found "$1"
     if [[ $? -eq 126 ]]; then
         # command was just installed
         "$@"
+        # zsh has no 'trap RETURN', but this should be enough
+        _orb_in_cnf=0
     else
+        _orb_in_cnf=0
         return 127
     fi
 }
