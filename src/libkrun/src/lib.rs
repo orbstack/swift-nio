@@ -31,6 +31,7 @@ use vmm::{
     },
     VmmShutdownHandle,
 };
+use vmm_ids::VmmShutdownPhase;
 
 #[repr(C)]
 pub struct GResultCreate {
@@ -297,15 +298,24 @@ impl Machine {
         anyhow::ensure!(self.vmm_shutdown.is_none(), "vmm already started");
 
         let mut event_manager = EventManager::new().map_err(to_anyhow_error_dbg)?;
+        let mut event_manager_2 = gruel::EventManager::new().map_err(to_anyhow_error_dbg)?;
 
         let (sender, receiver) = unbounded();
         let vmr = self
             .vmr
             .as_ref()
             .ok_or_else(|| anyhow!("already started"))?;
-        let vmm = vmm::builder::build_microvm(vmr, &mut event_manager, None, sender)
-            .map_err(to_anyhow_error)?;
+        let vmm = vmm::builder::build_microvm(
+            vmr,
+            &mut event_manager,
+            &mut event_manager_2,
+            None,
+            sender,
+        )
+        .map_err(to_anyhow_error)?;
         let exit_evt = vmm.lock().unwrap().exit_evt();
+
+        let shutdown_sig = vmm.lock().unwrap().shutdown_signal_for_subscribing();
 
         if vmr.gpu_virgl_flags.is_some() {
             let mapper_vmm = vmm.clone();
@@ -349,6 +359,12 @@ impl Machine {
                         break;
                     }
                 }
+            })?;
+
+        std::thread::Builder::new()
+            .name("VMM main loop (gruel)".to_string())
+            .spawn(move || {
+                event_manager_2.run(&shutdown_sig.phase(VmmShutdownPhase::ExitSubscribers));
             })?;
 
         self.vmm_shutdown = Some(vmm.lock().unwrap().shutdown_handle());

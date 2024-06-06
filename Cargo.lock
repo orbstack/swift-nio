@@ -780,6 +780,7 @@ dependencies = [
  "counter",
  "crossbeam-channel",
  "devices",
+ "gruel",
  "hvf",
  "libc",
  "nix 0.28.0",
@@ -791,6 +792,7 @@ dependencies = [
  "tracing-subscriber",
  "utils",
  "vmm",
+ "vmm-ids",
 ]
 
 [[package]]
@@ -1849,7 +1851,10 @@ name = "utils"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.5.0",
+ "gruel",
  "libc",
+ "memmage",
+ "mio",
  "once_cell",
  "tracing",
  "vmm-sys-util",

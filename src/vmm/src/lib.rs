@@ -31,6 +31,7 @@ use crate::linux::vstate;
 #[cfg(target_os = "macos")]
 mod macos;
 
+use gruel::{MultiShutdownSignal, ShutdownSignal};
 #[cfg(target_os = "macos")]
 pub use hvf::MemoryMapping;
 #[cfg(target_os = "macos")]
@@ -399,6 +400,10 @@ impl Vmm {
     #[cfg(target_os = "macos")]
     pub fn remove_mapping(&self, reply_sender: Sender<bool>, guest_addr: u64, len: u64) {
         self.vm.remove_mapping(reply_sender, guest_addr, len);
+    }
+
+    pub fn shutdown_signal_for_subscribing(&self) -> VmmShutdownSignal {
+        self.shutdown.clone()
     }
 }
 

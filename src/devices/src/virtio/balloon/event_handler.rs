@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use gruel::{MioDispatcher, RawSignalChannel, SignalChannel, SignalMultiplexHandler};
+use gruel::{InterestCtrl, RawSignalChannel, SignalChannel, Subscriber};
 use memmage::{CastableRef, CloneDynRef};
 
 use super::device::Balloon;
 use crate::virtio::balloon::device::BalloonSignalMask;
 
-impl SignalMultiplexHandler<MioDispatcher> for Balloon {
-    fn process(&mut self, _dispatcher: &mut MioDispatcher) {
+impl Subscriber for Balloon {
+    fn process_signals(&mut self, _ctrl: &mut InterestCtrl) {
         let taken = self.signal.take(BalloonSignalMask::all());
 
         if taken.intersects(BalloonSignalMask::IFQ) {

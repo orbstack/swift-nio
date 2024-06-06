@@ -37,6 +37,8 @@ nix = { version = "0.28.0", features = ["time"] }
 
 counter = { path = "../counter" }
 arch = { version = "0.1.0", path = "../arch" }
+gruel = { version = "0.1.0", path = "../gruel" }
+vmm-ids = { version = "0.1.0", path = "../vmm-ids" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }

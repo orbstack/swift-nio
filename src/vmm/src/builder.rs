@@ -11,6 +11,7 @@ use std::io;
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
 use std::sync::Arc;
+use utils::gruel::SubscriberMutexAdapter;
 use utils::Mutex;
 use vmm_ids::VmmShutdownSignal;
 
@@ -305,6 +306,7 @@ impl Display for StartMicrovmError {
 pub fn build_microvm(
     vm_resources: &super::resources::VmResources,
     event_manager: &mut EventManager,
+    event_manager_2: &mut gruel::EventManager, // TODO: Gruel - lol.
     _shutdown_efd: Option<EventFd>,
     #[cfg(target_os = "macos")] _map_sender: Sender<MemoryMapping>,
 ) -> std::result::Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
@@ -570,15 +572,15 @@ pub fn build_microvm(
 
     #[cfg(not(feature = "tee"))]
     if let Some(_) = vm_resources.balloon {
-        attach_balloon_device(&mut vmm, event_manager, intc.clone())?;
+        attach_balloon_device(&mut vmm, event_manager_2, intc.clone())?;
     }
     #[cfg(not(feature = "tee"))]
     if let Some(_) = vm_resources.rng {
-        attach_rng_device(&mut vmm, event_manager, intc.clone())?;
+        attach_rng_device(&mut vmm, event_manager_2, intc.clone())?;
     }
     attach_console_devices(
         &mut vmm,
-        event_manager,
+        event_manager_2,
         intc.clone(),
         vm_resources.console_output.clone(),
     )?;
@@ -1176,7 +1178,7 @@ fn attach_fs_devices(
 
 fn attach_console_devices(
     vmm: &mut Vmm,
-    event_manager: &mut EventManager,
+    event_manager: &mut gruel::EventManager,
     intc: Option<Arc<Mutex<Gic>>>,
     console_output: Option<ConsoleFds>,
 ) -> std::result::Result<(), StartMicrovmError> {
@@ -1249,10 +1251,7 @@ fn attach_console_devices(
         console.lock().unwrap().set_intc(intc);
     }
 
-    // TODO: Gruel port
-    // event_manager
-    //     .add_subscriber(console.clone())
-    //     .map_err(RegisterEvent)?;
+    event_manager.register(SubscriberMutexAdapter(console.clone()));
 
     #[cfg(target_os = "linux")]
     register_sigwinch_handler(console.lock().unwrap().get_sigwinch_fd())
@@ -1327,17 +1326,14 @@ fn attach_unixsock_vsock_device(
 #[cfg(not(feature = "tee"))]
 fn attach_balloon_device(
     vmm: &mut Vmm,
-    event_manager: &mut EventManager,
+    event_manager: &mut gruel::EventManager,
     intc: Option<Arc<Mutex<Gic>>>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
     let balloon = Arc::new(Mutex::new(devices::virtio::Balloon::new().unwrap()));
 
-    // TODO: Gruel port
-    // event_manager
-    //     .add_subscriber(balloon.clone())
-    //     .map_err(RegisterEvent)?;
+    event_manager.register(SubscriberMutexAdapter(balloon.clone()));
 
     let id = String::from(balloon.lock().unwrap().id());
 
@@ -1388,17 +1384,14 @@ fn attach_block_devices(
 #[cfg(not(feature = "tee"))]
 fn attach_rng_device(
     vmm: &mut Vmm,
-    event_manager: &mut EventManager,
+    event_manager: &mut gruel::EventManager,
     intc: Option<Arc<Mutex<Gic>>>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
     let rng = Arc::new(Mutex::new(devices::virtio::Rng::new().unwrap()));
 
-    // TODO: Gruel port
-    // event_manager
-    //     .add_subscriber(rng.clone())
-    //     .map_err(RegisterEvent)?;
+    event_manager.register(SubscriberMutexAdapter(rng.clone()));
 
     let id = String::from(rng.lock().unwrap().id());
 

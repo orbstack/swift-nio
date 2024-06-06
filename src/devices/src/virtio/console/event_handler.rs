@@ -1,4 +1,4 @@
-use gruel::{MioDispatcher, RawSignalChannel, SignalMultiplexHandler};
+use gruel::{InterestCtrl, RawSignalChannel, Subscriber};
 use memmage::{CastableRef, CloneDynRef};
 
 use super::device::{get_win_size, Console, ConsoleSignalMask, CONSOLE_QUEUE_SIGS};
@@ -29,8 +29,8 @@ impl Console {
     }
 }
 
-impl SignalMultiplexHandler<MioDispatcher> for Console {
-    fn process(&mut self, _dispatcher: &mut MioDispatcher) {
+impl Subscriber for Console {
+    fn process_signals(&mut self, _ctrl: &mut InterestCtrl<'_>) {
         let taken = self.signals.take(ConsoleSignalMask::all());
 
         if self.is_activated() {

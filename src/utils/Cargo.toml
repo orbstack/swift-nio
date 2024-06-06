@@ -10,3 +10,6 @@ libc = ">=0.2.85"
 tracing = { version = "0.1.40", features = ["release_max_level_info"] }
 once_cell = "1.19.0"
 vmm-sys-util = ">=0.11"
+gruel = { version = "0.1.0", path = "../gruel" }
+memmage = { version = "0.1.0", path = "../memmage" }
+mio = "0.8.11"

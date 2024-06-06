@@ -1,6 +1,6 @@
 use std::{
     io,
-    sync::{atomic::AtomicBool, Arc, Mutex},
+    sync::{atomic::AtomicBool, Arc},
 };
 
 use memmage::CloneDynRef;
@@ -271,7 +271,7 @@ impl EventManager {
                 let subscriber = &mut event_mgr.subscribers[subscriber_idx];
                 let subscriber_name = subscriber.debug_type_name();
 
-                subscriber.process_signal(&mut InterestCtrl {
+                subscriber.process_signals(&mut InterestCtrl {
                     poll: &mut event_mgr.poll,
                     mio_handlers: &mut event_mgr.mio_handlers,
                     subscriber_idx,
@@ -323,7 +323,7 @@ impl InterestCtrl<'_> {
 }
 
 pub trait Subscriber: 'static + Send + Sync {
-    fn process_signal(&mut self, ctl: &mut InterestCtrl<'_>);
+    fn process_signals(&mut self, ctl: &mut InterestCtrl<'_>);
 
     fn process_event(&mut self, ctl: &mut InterestCtrl<'_>, event: &mio::event::Event) {
         let _ = ctl;
@@ -334,23 +334,5 @@ pub trait Subscriber: 'static + Send + Sync {
 
     fn debug_type_name(&self) -> &'static str {
         std::any::type_name::<Self>()
-    }
-}
-
-impl<T: Subscriber> Subscriber for Arc<Mutex<T>> {
-    fn process_signal(&mut self, ctl: &mut InterestCtrl<'_>) {
-        self.lock().unwrap().process_signal(ctl)
-    }
-
-    fn process_event(&mut self, ctl: &mut InterestCtrl<'_>, event: &mio::event::Event) {
-        self.lock().unwrap().process_event(ctl, event)
-    }
-
-    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
-        self.lock().unwrap().signals()
-    }
-
-    fn debug_type_name(&self) -> &'static str {
-        std::any::type_name::<T>()
     }
 }

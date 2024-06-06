@@ -1,4 +1,4 @@
-use gruel::{MioDispatcher, RawSignalChannel, SignalMultiplexHandler};
+use gruel::{InterestCtrl, RawSignalChannel, Subscriber};
 use memmage::{CastableRef, CloneDynRef};
 
 use super::device::{Rng, RngSignalMask};
@@ -12,8 +12,8 @@ impl Rng {
     }
 }
 
-impl SignalMultiplexHandler<MioDispatcher> for Rng {
-    fn process(&mut self, _cx: &mut MioDispatcher) {
+impl Subscriber for Rng {
+    fn process_signals(&mut self, _ctrl: &mut InterestCtrl<'_>) {
         let taken = self.signals.take(RngSignalMask::all());
 
         if self.is_activated() && taken.intersects(RngSignalMask::REQ_QUEUE) {
