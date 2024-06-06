@@ -66,21 +66,24 @@ impl Waker for DynamicallyBoundWaker {
 }
 
 impl DynamicallyBoundWaker {
-    #[allow(clippy::missing_safety_doc)]
-    pub unsafe fn bind_waker(&self, waker: impl FnOnce() + Send + Sync) {
-        // Unsize the waker
+    pub fn wrap_waker<'a>(
+        waker: impl FnOnce() + Send + Sync + 'a,
+    ) -> impl FnMut() + Send + Sync + 'a {
         let mut waker = Some(waker);
-        let mut waker = move || {
+        move || {
             if let Some(waker) = waker.take() {
                 waker()
             }
-        };
+        }
+    }
 
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn bind_waker(&self, waker: &mut (impl FnMut() + Send + Sync)) {
+        // Unsize the waker
         let waker = unsafe {
             #[allow(clippy::unnecessary_cast)]
             NonNull::new_unchecked(
-                &mut waker as *mut (dyn FnMut() + Send + Sync + '_)
-                    as *mut (dyn FnMut() + Send + Sync),
+                waker as *mut (dyn FnMut() + Send + Sync + '_) as *mut (dyn FnMut() + Send + Sync),
             )
         };
 
@@ -107,7 +110,8 @@ pub trait DynamicallyBoundSignalChannelExt: AnySignalChannelWith<DynamicallyBoun
 
         // Provide it to the interned waker
         let dyn_state = raw.waker_state::<DynamicallyBoundWaker>();
-        unsafe { dyn_state.bind_waker(waker) };
+        let mut waker = DynamicallyBoundWaker::wrap_waker(waker);
+        unsafe { dyn_state.bind_waker(&mut waker) };
 
         // Bind an undo scope guard
         let _undo_guard = scopeguard::guard((), |()| {

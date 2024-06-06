@@ -96,9 +96,26 @@ pub fn multiplex_signals<C: ?Sized>(
         .collect::<Box<[_]>>();
 
     // Bind the subscriber to every handler.
+
+    // We have to be *very* careful to only borrow things that only expire after all the wait guards
+    // are gone. We also have to be careful to ensure that the `wait_guards` are dropped before the
+    // `wakers` are dropped.
+    let mut wakers = (0..handlers.len())
+        .map(|i| {
+            let slot_idx = i / 64;
+            let slot_mask = 1 << (i % 64);
+            let slot = &dirty_flags[slot_idx];
+
+            DynamicallyBoundWaker::wrap_waker(move || {
+                slot.fetch_or(slot_mask, Relaxed);
+                (unpark)();
+            })
+        })
+        .collect::<Box<_>>();
+
     let mut wait_guards = Vec::new();
 
-    for (i, _handler) in handlers.iter().enumerate() {
+    for (i, waker) in wakers.iter_mut().enumerate() {
         // Determine the bit in the dirty mask that this handler occupies.
         let slot_idx = i / 64;
         let slot_mask = 1 << (i % 64);
@@ -114,12 +131,7 @@ pub fn multiplex_signals<C: ?Sized>(
             // `DynamicallyBoundWaker` with some clever reference-counting but I don't really want
             // to implement such a complex system for such a performance-insensitive system.
             unsafe {
-                // We have to be *very* careful to only borrow things that only expire after all the
-                // wait guards are gone.
-                state.bind_waker(move || {
-                    slot.fetch_or(slot_mask, Relaxed);
-                    (unpark)();
-                });
+                state.bind_waker(waker);
             }
 
             let wait_result = signal.wait_manual(u64::MAX, 0, waiter_idx);
