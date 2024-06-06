@@ -1,15 +1,12 @@
 use std::{
     io,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{atomic::AtomicBool, Arc, Mutex},
 };
 
 use memmage::CloneDynRef;
 use smallbox::SmallBox;
 
-use crate::{
-    util::{dangling_unit, Parker},
-    DynamicallyBoundWaker, RawSignalChannel, ShutdownSignal,
-};
+use crate::{DynamicallyBoundWaker, RawSignalChannel, ShutdownSignal};
 
 #[cfg(not(loom))]
 use std::sync::atomic::{AtomicU64, Ordering::*};
@@ -17,19 +14,17 @@ use std::sync::atomic::{AtomicU64, Ordering::*};
 #[cfg(loom)]
 use loom::sync::atomic::{AtomicU64, Ordering::*};
 
-// === SignalMultiplexHandler === //
+// === Core === //
 
 pub trait SignalMultiplexHandler<C: ?Sized = ()> {
     fn process(&mut self, cx: &mut C);
 
-    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>>;
+    fn signals(&self, cx: &mut C) -> Vec<CloneDynRef<'static, RawSignalChannel>>;
 
     fn debug_type_name(&self) -> &'static str {
         std::any::type_name::<Self>()
     }
 }
-
-// === MultiplexParker === //
 
 pub trait MultiplexParker: Sized {
     type SubscriberFacade: ?Sized;
@@ -56,68 +51,6 @@ impl<T: ?Sized + MultiplexParker> MultiplexParker for &mut T {
         T::unparker(*me)
     }
 }
-
-#[derive(Debug)]
-pub struct ClosureMultiplexParker<FPark, FUnpark> {
-    park: FPark,
-    unpark: Arc<FUnpark>,
-}
-
-impl<FPark, FUnpark> ClosureMultiplexParker<FPark, FUnpark>
-where
-    FPark: FnMut(),
-    FUnpark: Fn(),
-{
-    pub fn new(park: FPark, unpark: FUnpark) -> Self {
-        Self {
-            park,
-            unpark: Arc::new(unpark),
-        }
-    }
-}
-
-impl<FPark, FUnpark> MultiplexParker for ClosureMultiplexParker<FPark, FUnpark>
-where
-    FPark: FnMut(),
-    FUnpark: Fn() + Send + Sync + 'static,
-{
-    type SubscriberFacade = ();
-
-    fn subscriber_facade(_me: &mut Self) -> &mut Self::SubscriberFacade {
-        dangling_unit()
-    }
-
-    fn park(me: &mut Self, _should_stop: &AtomicBool) {
-        (me.park)();
-    }
-
-    fn unparker(me: &mut Self) -> impl Fn() + Send + Sync + 'static {
-        let unpark = me.unpark.clone();
-        move || unpark()
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct ParkMultiplexParker(Arc<Parker>);
-
-impl MultiplexParker for ParkMultiplexParker {
-    type SubscriberFacade = ();
-
-    fn subscriber_facade(_me: &mut Self) -> &mut Self::SubscriberFacade {
-        dangling_unit()
-    }
-
-    fn park(me: &mut Self, _should_stop: &AtomicBool) {
-        me.0.park();
-    }
-
-    fn unparker(me: &mut Self) -> impl Fn() + Send + Sync + 'static {
-        let parker = me.0.clone();
-        move || parker.unpark()
-    }
-}
-
-// === Core === //
 
 pub fn multiplex_signals_with_shutdown<C: ?Sized>(
     shutdown: &ShutdownSignal,
@@ -156,9 +89,10 @@ pub fn multiplex_signals<C: ?Sized>(
     let unpark = &unpark;
 
     // Get handler signals before binding them so we can hold onto them after the binding loop.
+    let parker_facade = MultiplexParker::subscriber_facade(&mut parker);
     let handler_signals = handlers
         .iter()
-        .map(|handler| handler.signals())
+        .map(|handler| handler.signals(parker_facade))
         .collect::<Box<[_]>>();
 
     // Bind the subscriber to every handler.
@@ -240,20 +174,17 @@ pub fn multiplex_signals<C: ?Sized>(
     }
 }
 
-// === MioDispatcher === //
+// === EventManager === //
 
-pub struct MioDispatcher {
+pub struct EventManager {
     poll: mio::Poll,
     events: mio::Events,
     abort_waker: Arc<mio::Waker>,
-    handlers: Vec<SmallBox<dyn MioMultiplexHandler, *const ()>>,
+    mio_handlers: Vec<usize>,
+    subscribers: Vec<SmallBox<dyn Subscriber, *const ()>>,
 }
 
-pub trait MioMultiplexHandler: 'static {
-    fn process(&mut self, event: &mio::event::Event);
-}
-
-impl MioDispatcher {
+impl EventManager {
     const ABORT_TOKEN: mio::Token = mio::Token(usize::MAX);
 
     pub fn new() -> io::Result<Self> {
@@ -265,7 +196,8 @@ impl MioDispatcher {
             poll,
             events,
             abort_waker: Arc::new(abort_waker),
-            handlers: Vec::new(),
+            mio_handlers: Vec::new(),
+            subscribers: Vec::new(),
         })
     }
 
@@ -273,56 +205,152 @@ impl MioDispatcher {
         &self.abort_waker
     }
 
-    pub fn register(
-        &mut self,
-        source: &mut impl mio::event::Source,
-        interests: mio::Interest,
-        handler: impl MioMultiplexHandler,
-    ) -> io::Result<mio::Token> {
-        let token = mio::Token(self.handlers.len());
-        self.handlers.push(smallbox::smallbox!(handler));
-
-        self.poll.registry().register(source, token, interests)?;
-
-        Ok(token)
+    pub fn register(&mut self, handler: impl Subscriber) {
+        self.subscribers.push(smallbox::smallbox!(handler));
     }
 
-    pub fn run(&mut self) -> io::Result<()> {
-        self.poll.poll(&mut self.events, None)?;
+    pub fn run(&mut self, shutdown: &ShutdownSignal) {
+        struct DispatchParker<'a>(&'a mut EventManager);
 
-        for event in self.events.iter() {
-            self.handlers[event.token().0].process(event);
+        impl MultiplexParker for DispatchParker<'_> {
+            type SubscriberFacade = Self;
+
+            fn subscriber_facade(me: &mut Self) -> &mut Self::SubscriberFacade {
+                me
+            }
+
+            fn park(me: &mut Self, should_stop: &AtomicBool) {
+                // Poll for events
+                if let Err(err) = me.0.poll.poll(&mut me.0.events, None) {
+                    tracing::error!("failed to send process epoll signals: {err}");
+                    should_stop.store(true, Relaxed);
+                    return;
+                }
+
+                // Process events
+                for event in me.0.events.iter() {
+                    if event.token().0 == usize::MAX {
+                        continue;
+                    }
+
+                    let subscriber_idx = me.0.mio_handlers[event.token().0];
+                    let subscriber = &mut me.0.subscribers[subscriber_idx];
+                    let subscriber_name = subscriber.debug_type_name();
+
+                    subscriber.process_event(
+                        &mut InterestCtrl {
+                            poll: &mut me.0.poll,
+                            mio_handlers: &mut me.0.mio_handlers,
+                            subscriber_name,
+                            subscriber_idx,
+                        },
+                        event,
+                    );
+                }
+            }
+
+            fn unparker(me: &mut Self) -> impl Fn() + Send + Sync + 'static {
+                let waker = me.0.abort_waker.clone();
+
+                move || {
+                    if let Err(err) = waker.wake() {
+                        tracing::error!(
+                            "failed to send epoll waker signal to process non-epoll signal: {err}"
+                        );
+                    }
+                }
+            }
         }
 
-        Ok(())
+        struct SubscriberAdapter(usize);
+
+        impl<'a> SignalMultiplexHandler<DispatchParker<'a>> for SubscriberAdapter {
+            fn process(&mut self, cx: &mut DispatchParker<'a>) {
+                let event_mgr = &mut *cx.0;
+                let subscriber_idx = self.0;
+                let subscriber = &mut event_mgr.subscribers[subscriber_idx];
+                let subscriber_name = subscriber.debug_type_name();
+
+                subscriber.process_signal(&mut InterestCtrl {
+                    poll: &mut event_mgr.poll,
+                    mio_handlers: &mut event_mgr.mio_handlers,
+                    subscriber_idx,
+                    subscriber_name,
+                });
+            }
+
+            fn signals(
+                &self,
+                cx: &mut DispatchParker<'a>,
+            ) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
+                cx.0.subscribers[self.0].signals()
+            }
+        }
+
+        let mut subscriber_list = (0..self.subscribers.len())
+            .map(SubscriberAdapter)
+            .collect::<Box<_>>();
+
+        let mut subscriber_ref_list = subscriber_list
+            .iter_mut()
+            .map(|v| v as &mut dyn SignalMultiplexHandler<DispatchParker<'_>>)
+            .collect::<Box<_>>();
+
+        multiplex_signals_with_shutdown(shutdown, &mut subscriber_ref_list, DispatchParker(self));
     }
 }
 
-impl MultiplexParker for MioDispatcher {
-    type SubscriberFacade = Self;
+pub struct InterestCtrl<'a> {
+    poll: &'a mut mio::Poll,
+    mio_handlers: &'a mut Vec<usize>,
+    subscriber_idx: usize,
+    subscriber_name: &'static str,
+}
 
-    fn subscriber_facade(me: &mut Self) -> &mut Self::SubscriberFacade {
-        me
+impl InterestCtrl<'_> {
+    pub fn register(&mut self, source: &mut impl mio::event::Source, interests: mio::Interest) {
+        let token = mio::Token(self.mio_handlers.len());
+
+        if let Err(err) = self.poll.registry().register(source, token, interests) {
+            tracing::error!(
+                "`{}` failed to subscribe to an epoll target: {err}",
+                self.subscriber_name
+            );
+        }
+
+        self.mio_handlers.push(self.subscriber_idx);
+    }
+}
+
+pub trait Subscriber: 'static + Send + Sync {
+    fn process_signal(&mut self, ctl: &mut InterestCtrl<'_>);
+
+    fn process_event(&mut self, ctl: &mut InterestCtrl<'_>, event: &mio::event::Event) {
+        let _ = ctl;
+        let _ = event;
     }
 
-    fn park(me: &mut Self, should_stop: &AtomicBool) {
-        should_stop.store(true, Relaxed);
+    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>>;
 
-        if let Err(err) = me.run() {
-            tracing::error!("failed to send process epoll signals: {err}");
-            should_stop.store(true, Relaxed);
-        }
+    fn debug_type_name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+}
+
+impl<T: Subscriber> Subscriber for Arc<Mutex<T>> {
+    fn process_signal(&mut self, ctl: &mut InterestCtrl<'_>) {
+        self.lock().unwrap().process_signal(ctl)
     }
 
-    fn unparker(me: &mut Self) -> impl Fn() + Send + Sync + 'static {
-        let waker = me.abort_waker.clone();
+    fn process_event(&mut self, ctl: &mut InterestCtrl<'_>, event: &mio::event::Event) {
+        self.lock().unwrap().process_event(ctl, event)
+    }
 
-        move || {
-            if let Err(err) = waker.wake() {
-                tracing::error!(
-                    "failed to send epoll waker signal to process non-epoll signal: {err}"
-                );
-            }
-        }
+    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
+        self.lock().unwrap().signals()
+    }
+
+    fn debug_type_name(&self) -> &'static str {
+        std::any::type_name::<T>()
     }
 }

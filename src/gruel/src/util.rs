@@ -1,4 +1,4 @@
-use std::{fmt, ptr::NonNull};
+use std::fmt;
 
 // === ExtensionFor === //
 
@@ -22,12 +22,6 @@ impl fmt::Debug for FmtU64AsBits {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:b}", self.0)
     }
-}
-
-// === Memory === //
-
-pub fn dangling_unit() -> &'static mut () {
-    unsafe { NonNull::<()>::dangling().as_mut() }
 }
 
 // === Parker === //
