@@ -60,7 +60,7 @@ impl RawBitFlagRange {
 
     pub const fn opt_get(self, idx: usize) -> Option<u64> {
         if idx < self.count {
-            Some(self.base << idx)
+            Some(1 << (self.base + idx as u64))
         } else {
             None
         }

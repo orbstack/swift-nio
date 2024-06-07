@@ -49,6 +49,10 @@ impl Subscriber for Console {
             }
 
             for queue_index in 0..self.queues.len() {
+                if queue_index == CONTROL_TXQ_INDEX || queue_index == CONTROL_RXQ_INDEX {
+                    continue;
+                }
+
                 if taken.intersects(CONSOLE_QUEUE_SIGS.get(queue_index)) {
                     raise_irq = true;
                     self.notify_port_queue_event(queue_index);
