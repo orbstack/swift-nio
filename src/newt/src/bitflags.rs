@@ -36,7 +36,7 @@ impl RawBitFlagRange {
     }
 
     pub const fn new_seq<const COUNT: usize>(elems: [u64; COUNT]) -> Self {
-        let base = elems[0];
+        let base_mask = elems[0];
 
         let mut i = 0;
 
@@ -45,7 +45,7 @@ impl RawBitFlagRange {
                 panic!("each element of a `BitFlagRange` may only contain one set bit");
             }
 
-            if elems[i] != base << i {
+            if elems[i] != base_mask << i {
                 panic!(
                     "each subsequent element of a `BitFlagRange` must have its one-hot bit set \
                      one higher than the previous bit",
@@ -54,6 +54,8 @@ impl RawBitFlagRange {
 
             i += 1;
         }
+
+        let base = base_mask.trailing_zeros() as u64;
 
         Self { base, count: COUNT }
     }
