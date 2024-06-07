@@ -142,7 +142,7 @@ impl NetWorker {
                 self.process_rx_queue_event();
             }
 
-            if taken.intersects(NET_QUEUE_SIGS.get(RX_INDEX)) {
+            if taken.intersects(NET_QUEUE_SIGS.get(TX_INDEX)) {
                 self.process_tx_queue_event();
             }
 

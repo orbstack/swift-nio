@@ -34,6 +34,7 @@ pub struct VirtioShmRegion {
 pub struct VirtioQueueSignals {
     pub signal: Arc<RawSignalChannel>,
     pub range: RawBitFlagRange,
+    pub name: &'static str,
 }
 
 impl VirtioQueueSignals {
@@ -44,12 +45,19 @@ impl VirtioQueueSignals {
         Self {
             signal: signal.map(SignalChannel::raw),
             range: range.raw,
+            name: std::any::type_name::<S>(),
         }
     }
 
     pub fn assert(&self, queue: usize) {
         if let Some(mask) = self.range.opt_get(queue) {
+            tracing::trace!(
+                "Asserted queue {queue:?} in {:?} (mask: {mask:b})",
+                self.name
+            );
             self.signal.assert(mask);
+        } else {
+            tracing::warn!("Ignored queue request {queue:?} in {:?}", self.name);
         }
     }
 }
