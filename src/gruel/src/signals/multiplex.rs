@@ -106,10 +106,10 @@ pub fn multiplex_signals<C: ?Sized>(
             let slot_mask = 1 << (i % 64);
             let slot = &dirty_flags[slot_idx];
 
-            DynamicallyBoundWaker::wrap_waker(move || {
+            move || {
                 slot.fetch_or(slot_mask, Relaxed);
                 (unpark)();
-            })
+            }
         })
         .collect::<Box<_>>();
 
@@ -274,7 +274,7 @@ impl EventManager {
             }
         }
 
-        struct SubscriberAdapter(usize);
+        struct SubscriberAdapter(usize, &'static str);
 
         impl<'a> SignalMultiplexHandler<DispatchParker<'a>> for SubscriberAdapter {
             fn process(&mut self, cx: &mut DispatchParker<'a>) {
@@ -297,10 +297,17 @@ impl EventManager {
             ) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
                 cx.0.subscribers[self.0].signals()
             }
+
+            fn debug_type_name(&self) -> &'static str {
+                self.1
+            }
         }
 
-        let mut subscriber_list = (0..self.subscribers.len())
-            .map(SubscriberAdapter)
+        let mut subscriber_list = self
+            .subscribers
+            .iter()
+            .enumerate()
+            .map(|(i, subscriber)| SubscriberAdapter(i, subscriber.debug_type_name()))
             .collect::<Box<_>>();
 
         let mut subscriber_ref_list = subscriber_list
