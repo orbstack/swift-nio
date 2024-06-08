@@ -44,9 +44,6 @@ source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-mafredri-SLASH-
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-mafredri-SLASH-zsh-async )
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sindresorhus-SLASH-pure/pure.plugin.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sindresorhus-SLASH-pure )
-export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-caarlos0-SLASH-ports:$PATH"
-export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-caarlos0-SLASH-zsh-git-fetch-merge:$PATH"
-export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-caarlos0-SLASH-zsh-open-pr:$PATH"
 export PATH="$ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-bigH-SLASH-git-fuzzy/bin:$PATH"
 source $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/helper/init.zsh
 fpath+=( $ZDOTDIR/cache/https-COLON--SLASH--SLASH-github.com-SLASH-sorin-ionescu-SLASH-prezto/modules/helper )
