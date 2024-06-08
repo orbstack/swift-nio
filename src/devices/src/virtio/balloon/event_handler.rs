@@ -7,7 +7,9 @@ use super::device::Balloon;
 use crate::virtio::balloon::device::BalloonSignalMask;
 
 impl Subscriber for Balloon {
-    fn process_signals(&mut self, _ctrl: &mut InterestCtrl) {
+    type EventMeta = ();
+
+    fn process_signals(&mut self, _ctrl: &mut InterestCtrl<'_, ()>) {
         let taken = self.signal.take(BalloonSignalMask::all());
 
         if taken.intersects(BalloonSignalMask::IFQ) {

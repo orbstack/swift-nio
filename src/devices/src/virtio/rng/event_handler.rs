@@ -13,7 +13,9 @@ impl Rng {
 }
 
 impl Subscriber for Rng {
-    fn process_signals(&mut self, _ctrl: &mut InterestCtrl<'_>) {
+    type EventMeta = ();
+
+    fn process_signals(&mut self, _ctrl: &mut InterestCtrl<'_, ()>) {
         let taken = self.signals.take(RngSignalMask::all());
 
         if self.is_activated() && taken.intersects(RngSignalMask::REQ_QUEUE) {
