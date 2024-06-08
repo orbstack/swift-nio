@@ -1,5 +1,6 @@
 use std::{collections::HashMap, ffi::CString, fs::File, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
+use anyhow::anyhow;
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
 use model::WormholeConfig;
 use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgroups, setresgid, setresuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
@@ -118,9 +119,18 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
 
     // wait for it to enter ptrace-stop
     loop {
+        trace!("waitpid...");
         let res = waitpid(Pid::from_raw(pid), None)?;
+        trace!("waitpid: {:?}", res);
         match res {
+            // impossible because entire pid ns will be killed if pid 1 exits
+            WaitStatus::Exited(_, _) | WaitStatus::Signaled(_, _, _) => return Err(anyhow!("process exited")),
+            // common case
             WaitStatus::PtraceEvent(_, _, PTRACE_EVENT_STOP) => break,
+            // if also stopped by a signal (e.g. SIGILL)
+            WaitStatus::Stopped(_, _) => break,
+            // impossible because we didn't enable syscall tracing, but it does count as a stop in case someone else is tracing this process...
+            WaitStatus::PtraceSyscall(_) => break,
             _ => {}
         }
     }
