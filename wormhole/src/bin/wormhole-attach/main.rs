@@ -6,7 +6,7 @@ use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags,
 use pidfd::PidFd;
 use tracing::{debug, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
-use wormhole::{err, flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY}};
+use wormhole::{err, flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY}, paths};
 
 use crate::proc::wait_for_exit;
 
@@ -446,6 +446,8 @@ fn main() -> anyhow::Result<()> {
             env_map.insert(key.to_string(), val.to_string());
         }
     }
+    // set SHELL
+    env_map.insert("SHELL".to_string(), paths::SHELL.to_string());
     // convert back to CStrings
     let cstr_envs = env_map.iter()
         .map(|(k, v)| CString::new(format!("{}={}", k, v)))
@@ -492,6 +494,9 @@ fn main() -> anyhow::Result<()> {
             if let Err(e) = chdir(Path::new(&target_workdir)) {
                 // fail silently. this happens when workdir doesn't exist
                 debug!("failed to set working directory: {}", e);
+                env_map.insert("PWD".to_string(), "/".to_string());
+            } else {
+                env_map.insert("PWD".to_string(), target_workdir);
             }
 
             // finish attaching
