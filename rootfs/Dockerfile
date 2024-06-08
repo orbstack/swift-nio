@@ -264,7 +264,7 @@ EOT
 RUN <<EOT sh -eux
 mkdir /work
 cd /work
-wget -O docker.tar.gz "https://download.docker.com/linux/static/stable/\$(uname -m)/docker-26.1.3.tgz"
+wget -O docker.tar.gz "https://download.docker.com/linux/static/stable/\$(uname -m)/docker-26.1.4.tgz"
 tar -xvf docker.tar.gz
 mv docker/dockerd docker/docker-init /usr/local/bin/
 
