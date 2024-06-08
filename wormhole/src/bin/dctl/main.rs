@@ -32,6 +32,7 @@ const AUTO_UPDATE_INTERVAL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 // to avoid escaping strings
 const PACKAGE_ALLOWED_CHARS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.";
 
+/// Install and manage packages in OrbStack Debug Shell
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 #[command(propagate_version = true)]
