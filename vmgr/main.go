@@ -63,9 +63,12 @@ const (
 	gracefulStopTimeout    = 15 * time.Second
 	deferredCleanupTimeout = 15 * time.Second // in case of deadlock
 	sentryShutdownTimeout  = 2 * time.Second
-)
 
-const stopExitCodeBase = 100
+	// we use a small swap file for emergency OOM cases
+	swapSize = 1024 * 1024 * 1024 // 1 GiB
+
+	stopExitCodeBase = 100
+)
 
 // host -> guest
 var optionalForwardsLocalhost = map[string]string{
@@ -135,6 +138,25 @@ func streamObfAssetFile(name string) io.ReadCloser {
 		// return reader
 		return &BytesReadCloser{bytes.NewReader(decoded)}
 	}
+}
+
+func createEmptySwap() error {
+	// 0600 because this may contain sensitive memory data
+	path := conf.SwapImage()
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+	if err != nil {
+		return fmt.Errorf("open swap: %w", err)
+	}
+	defer file.Close()
+
+	// ftruncate to create sparse file
+	// TODO: EINTR safety
+	err = unix.Ftruncate(int(file.Fd()), swapSize)
+	if err != nil {
+		return fmt.Errorf("ftruncate swap: %w", err)
+	}
+
+	return nil
 }
 
 func setupDockerContext() error {
@@ -592,8 +614,11 @@ func runVmManager() {
 		logrus.Info("initializing data")
 		extractSparse(streamObfAssetFile("data.img.tar"))
 	}
-	// always overwrite swap - doesn't need persistence
-	extractSparse(streamObfAssetFile("swap.img.tar"))
+
+	// create a new empty swap img
+	_ = os.Remove(conf.SwapImage())
+	err = createEmptySwap()
+	check(err)
 
 	// remove legacy logs
 	_ = os.Remove(conf.ConsoleLog())

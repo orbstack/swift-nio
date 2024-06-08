@@ -1142,6 +1142,7 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
 
     // zram
     // size = 1x RAM
+    // no writeback
     let mem_total_kib = fs::read_to_string("/proc/meminfo")?
         .lines()
         .find(|l| l.starts_with("MemTotal:"))
@@ -1150,13 +1151,12 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
         .nth(1)
         .unwrap()
         .parse::<u64>()?;
-    fs::write("/sys/block/zram0/backing_dev", "/dev/vdc1")?;
     fs::write(
         "/sys/block/zram0/disksize",
         format!("{}", mem_total_kib * 1024),
     )?;
-    fs::write("/sys/block/zram0/writeback", "huge_idle")?;
-    // create swap
+
+    // create swap on zram
     let zram_dev = OpenOptions::new()
         .read(true)
         .write(true)
@@ -1165,8 +1165,10 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
     // enable
     enable_swap("/dev/zram0", 32767)?;
 
-    // emergency disk swap (2 GiB)
-    enable_swap("/dev/vdc2", 1)?;
+    // emergency disk swap (1 GiB)
+    let swap_dev = OpenOptions::new().read(true).write(true).open("/dev/vdc")?;
+    SwapWriter::new().write(swap_dev)?;
+    enable_swap("/dev/vdc", 1)?;
 
     Ok(())
 }
