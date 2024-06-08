@@ -72,6 +72,9 @@ const (
 
 var errDataPermission = errors.New(`Permission denied while opening data image. This is usually caused by Migration Assistant changing its owner to root. To fix it, run: "sudo chown -R $USER ~/.orbstack/data"`)
 
+// stronger than "defer runtime.KeepAlive": this even survives GC at program exit
+var keepAliveLockFile *os.File
+
 // host -> guest
 var optionalForwardsLocalhost = map[string]string{
 	// public SSH
@@ -561,16 +564,8 @@ func runVmManager() {
 		}
 	}
 	// for max safety, we never release flock. it'll be released on process exit
-	// so keep fd open
-	defer runtime.KeepAlive(lockFile)
-	/*
-		defer func() {
-			err := flock.Unlock(lockFile)
-			if err != nil {
-				logrus.WithError(err).Error("failed to unlock")
-			}
-		}()
-	*/
+	// so keep fd open, even when processing defers above
+	keepAliveLockFile = lockFile
 
 	// remove everything in run, sockets and pid
 	_ = os.RemoveAll(conf.RunDir())
