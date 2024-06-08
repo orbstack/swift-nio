@@ -1,6 +1,7 @@
 package nfsmnt
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
@@ -29,5 +30,12 @@ func MountNfs(tcpPort int) error {
 
 // use raw path (no stat/ensure dir) to prevent hang if broken
 func UnmountNfs() error {
-	return unix.Unmount(coredir.NfsMountpoint(), unix.MNT_FORCE)
+	err := unix.Unmount(coredir.NfsMountpoint(), unix.MNT_FORCE)
+	// EINVAL is normal if not mounted
+	// we can't check whether it's mounted because a stat could hang
+	if err != nil && !errors.Is(err, unix.EINVAL) {
+		return fmt.Errorf("unmount nfs: %w", err)
+	}
+
+	return nil
 }
