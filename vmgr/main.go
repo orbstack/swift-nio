@@ -70,6 +70,8 @@ const (
 	stopExitCodeBase = 100
 )
 
+var errDataPermission = errors.New(`Permission denied while opening data image. This is usually caused by Migration Assistant changing its owner to root. To fix it, run: "sudo chown -R $USER ~/.orbstack/data"`)
+
 // host -> guest
 var optionalForwardsLocalhost = map[string]string{
 	// public SSH
@@ -143,9 +145,13 @@ func streamObfAssetFile(name string) io.ReadCloser {
 func createEmptySwap() error {
 	// 0600 because this may contain sensitive memory data
 	path := conf.SwapImage()
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("open swap: %w", err)
+		if errors.Is(err, os.ErrPermission) {
+			return fmt.Errorf("%w. (%w)", errDataPermission, err)
+		} else {
+			return err
+		}
 	}
 	defer file.Close()
 
@@ -389,7 +395,7 @@ func ensureDataLock() error {
 	dataImg, err := os.OpenFile(conf.DataImage(), os.O_RDWR, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
-			return fmt.Errorf("%s. (%w)", `Permission denied while opening data image. This is usually caused by Migration Assistant changing its owner to root. To fix it, run: "sudo chown -R $USER ~/.orbstack/data"`, err)
+			return fmt.Errorf("%w. (%w)", errDataPermission, err)
 		} else {
 			return err
 		}
