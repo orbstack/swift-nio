@@ -927,6 +927,9 @@ class VmViewModel: ObservableObject {
         NSLog("daemon ready")
         do {
             try await doSetup()
+        } catch RPCError.request {
+            // connected to vmgr too fast. it probably crashed
+            // ignore and let the kqueue pid monitor handle it
         } catch {
             setError(.setupError(cause: error))
         }
