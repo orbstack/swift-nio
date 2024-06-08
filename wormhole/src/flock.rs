@@ -2,8 +2,10 @@ use std::{fs::File, os::fd::AsRawFd};
 
 use anyhow::anyhow;
 use libc::{F_RDLCK, F_UNLCK, F_WRLCK, SEEK_SET};
-use nix::{errno::Errno, fcntl::{fcntl, flock, FcntlArg, FlockArg}};
-
+use nix::{
+    errno::Errno,
+    fcntl::{fcntl, flock, FcntlArg, FlockArg},
+};
 
 // works by dropping file
 pub struct FlockGuard<T> {
@@ -52,10 +54,13 @@ impl Flock {
             l_len: 0,
             l_pid: 0,
         };
-        fcntl(file.as_raw_fd(), match wait {
-            FlockWait::Blocking => FcntlArg::F_OFD_SETLKW(&params),
-            FlockWait::NonBlocking => FcntlArg::F_OFD_SETLK(&params),
-        })?;
+        fcntl(
+            file.as_raw_fd(),
+            match wait {
+                FlockWait::Blocking => FcntlArg::F_OFD_SETLKW(&params),
+                FlockWait::NonBlocking => FcntlArg::F_OFD_SETLK(&params),
+            },
+        )?;
         Ok(Flock { _file: file })
     }
 

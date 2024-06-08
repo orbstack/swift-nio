@@ -1,7 +1,14 @@
-use std::{ffi::{c_char, CString}, ptr::null_mut};
+use std::{
+    ffi::{c_char, CString},
+    ptr::null_mut,
+};
 
 use libc::mmap;
-use nix::{errno::Errno, sys::wait::{waitpid, WaitStatus}, unistd::Pid};
+use nix::{
+    errno::Errno,
+    sys::wait::{waitpid, WaitStatus},
+    unistd::Pid,
+};
 use wormhole::err;
 
 pub fn prctl_death_sig() -> anyhow::Result<()> {
@@ -27,7 +34,16 @@ pub fn set_cmdline_name(name: &str) -> anyhow::Result<()> {
     nix::sys::prctl::set_name(&cstr)?;
 
     // mmap a new argv
-    let argv_start = unsafe { mmap(null_mut(), name.len() + 1, libc::PROT_READ | libc::PROT_WRITE, libc::MAP_ANONYMOUS | libc::MAP_PRIVATE, -1, 0) };
+    let argv_start = unsafe {
+        mmap(
+            null_mut(),
+            name.len() + 1,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_ANONYMOUS | libc::MAP_PRIVATE,
+            -1,
+            0,
+        )
+    };
     if argv_start.is_null() {
         return Err(Errno::last().into());
     }
@@ -39,13 +55,37 @@ pub fn set_cmdline_name(name: &str) -> anyhow::Result<()> {
 
         // set new argv
         let argv_end = argv_start.add(name.len() + 1);
-        if let Err(_) = err(libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_START, argv_start, 0, 0)) {
+        if let Err(_) = err(libc::prctl(
+            libc::PR_SET_MM,
+            libc::PR_SET_MM_ARG_START,
+            argv_start,
+            0,
+            0,
+        )) {
             // bounds check... have to set end first
-            err(libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_END, argv_end, 0, 0))?;
-            err(libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_START, argv_start, 0, 0))?;
+            err(libc::prctl(
+                libc::PR_SET_MM,
+                libc::PR_SET_MM_ARG_END,
+                argv_end,
+                0,
+                0,
+            ))?;
+            err(libc::prctl(
+                libc::PR_SET_MM,
+                libc::PR_SET_MM_ARG_START,
+                argv_start,
+                0,
+                0,
+            ))?;
         } else {
             // other case: start first
-            err(libc::prctl(libc::PR_SET_MM, libc::PR_SET_MM_ARG_END, argv_end, 0, 0))?;
+            err(libc::prctl(
+                libc::PR_SET_MM,
+                libc::PR_SET_MM_ARG_END,
+                argv_end,
+                0,
+                0,
+            ))?;
         }
     }
 

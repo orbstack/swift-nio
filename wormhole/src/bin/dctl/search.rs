@@ -145,7 +145,8 @@ impl SearchQuery {
 
 pub fn search_elastic(query: SearchQuery) -> anyhow::Result<Vec<ElasticSearchSource>> {
     let client = reqwest::blocking::Client::new();
-    let resp = client.post(ELASTICSEARCH_URL)
+    let resp = client
+        .post(ELASTICSEARCH_URL)
         .basic_auth(ELASTICSEARCH_USERNAME, Some(ELASTICSEARCH_PASSWORD))
         .json(&json!({
             "from": 0,
@@ -162,21 +163,25 @@ pub fn search_elastic(query: SearchQuery) -> anyhow::Result<Vec<ElasticSearchSou
         .send()?;
 
     let body = resp.json::<ElasticSearchResponse>()?;
-    Ok(body.hits.hits
-        .into_iter()
-        .map(|hit| hit._source)
-        .collect())
+    Ok(body.hits.hits.into_iter().map(|hit| hit._source).collect())
 }
 
 pub fn print_results(results: Vec<ElasticSearchSource>) {
     let len = results.len();
     for (i, source) in results.into_iter().rev().enumerate() {
         // must be available for current platform
-        if !source.package_platforms.contains(&CURRENT_PLATFORM.to_string()) {
+        if !source
+            .package_platforms
+            .contains(&CURRENT_PLATFORM.to_string())
+        {
             continue;
         }
 
-        println!("{}  {}", source.package_attr_name.bold(), source.package_pversion.dimmed());
+        println!(
+            "{}  {}",
+            source.package_attr_name.bold(),
+            source.package_pversion.dimmed()
+        );
         if let Some(desc) = source.package_description {
             println!("  {}", desc);
         } else {

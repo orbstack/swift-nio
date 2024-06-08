@@ -21,13 +21,11 @@ pub const BUILTIN_PACKAGES: &[&str] = &[
     "util-linux",
     "gnutar",
     "bc",
-
     "curl",
     "cacert",
     "iproute2",
     "iputils",
     "dig.host",
-
     "jq",
     "vim",
     "nano",
@@ -35,20 +33,14 @@ pub const BUILTIN_PACKAGES: &[&str] = &[
     "ripgrep",
     "lsd",
     "fzf",
-
     "htop",
     "lsof",
     "strace",
     "man",
-
     "nix",
     "nixVersions.nix_2_20",
-
     "git",
 ];
 
 // packages to hide from list
-pub const HIDE_BUILTIN_PACKAGES: &[&str] = &[
-    "nix",
-    "nixVersions.nix_2_20",
-];
+pub const HIDE_BUILTIN_PACKAGES: &[&str] = &["nix", "nixVersions.nix_2_20"];

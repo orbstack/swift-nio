@@ -1,10 +1,21 @@
-use std::{collections::HashMap, fs::{self, File}, io::Write, os::unix::process::CommandExt, process::{Command, ExitStatus, Output, Stdio}, sync::atomic::{AtomicUsize, Ordering}};
+use std::{
+    collections::HashMap,
+    fs::{self, File},
+    io::Write,
+    os::unix::process::CommandExt,
+    process::{Command, ExitStatus, Output, Stdio},
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use anyhow::anyhow;
 use nix::unistd::getpid;
 use wormhole::flock::Flock;
 
-use crate::{base_img, config, model::{NixFlakeArchive, WormholeEnv}, ENV_PATH, HIDDEN_BIN};
+use crate::{
+    base_img, config,
+    model::{NixFlakeArchive, WormholeEnv},
+    ENV_PATH, HIDDEN_BIN,
+};
 
 const NIX_TMPDIR: &str = "/nix/orb/data/tmp";
 const NIX_HOME: &str = "/nix/orb/data/home";
@@ -21,7 +32,11 @@ impl Drop for ProcessGuard {
     }
 }
 
-fn run_with_output_checked(action: &str, restore_if_failed: bool, cmd: &mut Command) -> anyhow::Result<Output> {
+fn run_with_output_checked(
+    action: &str,
+    restore_if_failed: bool,
+    cmd: &mut Command,
+) -> anyhow::Result<Output> {
     NUM_RUNNING_PROCS.fetch_add(1, Ordering::Relaxed);
     let _guard = ProcessGuard;
 
@@ -34,19 +49,31 @@ fn run_with_output_checked(action: &str, restore_if_failed: bool, cmd: &mut Comm
             }
 
             // also repair nix db
-            if let Err(e) = run_with_status_checked("repair nix db", false, new_command("nix-store")
-                .args(&["--verify", "--repair", "--quiet"])) {
+            if let Err(e) = run_with_status_checked(
+                "repair nix db",
+                false,
+                new_command("nix-store").args(&["--verify", "--repair", "--quiet"]),
+            ) {
                 eprintln!("failed to repair nix db: {}", e);
             }
         }
 
-        return Err(anyhow!("failed to {} ({}): {}", action, output.status, String::from_utf8_lossy(&output.stderr)));
+        return Err(anyhow!(
+            "failed to {} ({}): {}",
+            action,
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
 
     Ok(output)
 }
 
-fn run_with_status_checked(action: &str, restore_if_failed: bool, cmd: &mut Command) -> anyhow::Result<ExitStatus> {
+fn run_with_status_checked(
+    action: &str,
+    restore_if_failed: bool,
+    cmd: &mut Command,
+) -> anyhow::Result<ExitStatus> {
     NUM_RUNNING_PROCS.fetch_add(1, Ordering::Relaxed);
     let _guard = ProcessGuard;
 
@@ -59,8 +86,11 @@ fn run_with_status_checked(action: &str, restore_if_failed: bool, cmd: &mut Comm
             }
 
             // also repair nix db
-            if let Err(e) = run_with_status_checked("repair nix db", false, new_command("nix-store")
-                .args(&["--verify", "--repair", "--quiet"])) {
+            if let Err(e) = run_with_status_checked(
+                "repair nix db",
+                false,
+                new_command("nix-store").args(&["--verify", "--repair", "--quiet"]),
+            ) {
                 eprintln!("failed to repair nix db: {}", e);
             }
         }
@@ -74,21 +104,26 @@ fn run_with_status_checked(action: &str, restore_if_failed: bool, cmd: &mut Comm
 pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
     // load current flake input paths (nixpkgs source)
     /*
-{
-  "inputs": {
-    "nixpkgs": {
-      "inputs": {},
-      "path": "/nix/store/ihkdxl68qh2kcsr33z2jhvfdrpcf7xrg-source"
+    {
+      "inputs": {
+        "nixpkgs": {
+          "inputs": {},
+          "path": "/nix/store/ihkdxl68qh2kcsr33z2jhvfdrpcf7xrg-source"
+        }
+      },
+      "path": "/nix/store/zkspxz1kd4wz90lmszaycb1kzx0ff4i5-source"
     }
-  },
-  "path": "/nix/store/zkspxz1kd4wz90lmszaycb1kzx0ff4i5-source"
-}
-     */
-    let output: Output = run_with_output_checked("read flake inputs", true, new_command("nix")
-        .args(&["flake", "archive", "--json", "--dry-run", "--impure"]))?;
+         */
+    let output: Output = run_with_output_checked(
+        "read flake inputs",
+        true,
+        new_command("nix").args(&["flake", "archive", "--json", "--dry-run", "--impure"]),
+    )?;
 
     let flake_archive = serde_json::from_slice::<NixFlakeArchive>(&output.stdout)?;
-    let mut inputs = flake_archive.inputs.values()
+    let mut inputs = flake_archive
+        .inputs
+        .values()
         .map(|input| input.path.clone())
         .collect::<Vec<_>>();
     inputs.push(flake_archive.path);
@@ -99,8 +134,7 @@ pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
 fn new_command(bin: &str) -> Command {
     let mut cmd = Command::new(format!("{}/{}", HIDDEN_BIN, bin));
     unsafe {
-        cmd
-            .current_dir(ENV_PATH)
+        cmd.current_dir(ENV_PATH)
             // allow non-free pkgs (requires passing --impure to commands)
             // note: cache.nixos.org doesn't have these pkgs cached
             .env("NIXPKGS_ALLOW_UNFREE", "1")
@@ -153,8 +187,11 @@ pub fn gc_store() -> anyhow::Result<()> {
     // hold exclusive flock to make nix think we're still alive
     let _flock = Flock::new_nonblock_legacy_excl(file)?;
 
-    run_with_status_checked("GC store", false, new_command("nix-store")
-        .args(&["--gc", "--quiet"]))?;
+    run_with_status_checked(
+        "GC store",
+        false,
+        new_command("nix-store").args(&["--gc", "--quiet"]),
+    )?;
 
     // delete file
     std::fs::remove_file(format!("/nix/var/nix/temproots/{}", pid))?;
@@ -162,15 +199,19 @@ pub fn gc_store() -> anyhow::Result<()> {
 }
 
 pub fn build_flake_env() -> anyhow::Result<()> {
-    run_with_status_checked("rebuild env", true, new_command("nix")
-        .args(&["build", "--impure", "--out-link", ENV_OUT_PATH]))?;
+    run_with_status_checked(
+        "rebuild env",
+        true,
+        new_command("nix").args(&["build", "--impure", "--out-link", ENV_OUT_PATH]),
+    )?;
 
     Ok(())
 }
 
 pub fn write_flake(env: &WormholeEnv) -> anyhow::Result<()> {
     // generate pkglist
-    let pkg_list = env.packages
+    let pkg_list = env
+        .packages
         .iter()
         .map(|pkg| pkg.attr_path.clone())
         .collect::<Vec<_>>()
@@ -201,7 +242,8 @@ pub fn write_flake(env: &WormholeEnv) -> anyhow::Result<()> {
     });
   };
 }
-    "#.replace("PKGLIST", &pkg_list);
+    "#
+    .replace("PKGLIST", &pkg_list);
     fs::write(ENV_PATH.to_string() + "/flake.nix", data)?;
 
     Ok(())
@@ -216,18 +258,31 @@ pub fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<St
     // evaluating store path requires evaluating inputs, which is slow
     // and takes care of cases like "dctl install python3.name" -- string won't have a name
     //_flake: [ (_flake.neovim or null).name or null (_flake.htop or null).name or null (_flake.python3.version or null).name or null (_flake.neovasdim or null).name or null ]
-    let nix_expr_pkglist = attr_paths.iter()
+    let nix_expr_pkglist = attr_paths
+        .iter()
         .map(|name| format!("(_flake.{} or null).name or null", name))
         .collect::<Vec<_>>()
         .join(" ");
     let nix_expr = format!("_flake: [ {} ]", nix_expr_pkglist);
 
-    let output = run_with_output_checked("find packages", false, new_command("nix")
-        .args(&["eval", "--json", "--impure", "--inputs-from", ".", &format!("nixpkgs#.legacyPackages.{}", config::CURRENT_PLATFORM), "--apply"])
-        // for progress output
-        .stdin(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .arg(nix_expr))?;
+    let output = run_with_output_checked(
+        "find packages",
+        false,
+        new_command("nix")
+            .args(&[
+                "eval",
+                "--json",
+                "--impure",
+                "--inputs-from",
+                ".",
+                &format!("nixpkgs#.legacyPackages.{}", config::CURRENT_PLATFORM),
+                "--apply",
+            ])
+            // for progress output
+            .stdin(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .arg(nix_expr),
+    )?;
 
     // parse json
     let str_json = String::from_utf8_lossy(&output.stdout);
@@ -235,7 +290,8 @@ pub fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<St
 
     // - by matching index, map package attribute path to symbolic name
     // - only include non-null
-    Ok(pkg_names.into_iter()
+    Ok(pkg_names
+        .into_iter()
         .enumerate()
         .filter_map(|(i, name)| name.map(|name| (attr_paths[i].clone(), name)))
         .collect())
@@ -244,8 +300,17 @@ pub fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<St
 pub fn update_flake_lock() -> anyhow::Result<()> {
     // passing --output-lock-file suppresses "warning: creating lock file"
     // nix flake update --output-lock-file flake.lock
-    run_with_status_checked("update lock", true, new_command("nix")
-        .args(&["flake", "update", "--output-lock-file", "flake.lock", "--impure"]))?;
+    run_with_status_checked(
+        "update lock",
+        true,
+        new_command("nix").args(&[
+            "flake",
+            "update",
+            "--output-lock-file",
+            "flake.lock",
+            "--impure",
+        ]),
+    )?;
 
     Ok(())
 }

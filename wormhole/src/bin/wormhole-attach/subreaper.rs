@@ -1,6 +1,10 @@
 use std::{thread::sleep, time::Duration};
 
-use nix::{errno::Errno, sys::wait::{waitpid, WaitPidFlag, WaitStatus}, unistd::Pid};
+use nix::{
+    errno::Errno,
+    sys::wait::{waitpid, WaitPidFlag, WaitStatus},
+    unistd::Pid,
+};
 
 fn reap_last_zombies() -> anyhow::Result<()> {
     // wait up to 25 ms for zombies to exit

@@ -1,6 +1,13 @@
-use std::{ffi::CString, mem::size_of, os::fd::{AsRawFd, FromRawFd, OwnedFd}};
+use std::{
+    ffi::CString,
+    mem::size_of,
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+};
 
-use libc::{syscall, SYS_fsconfig, SYS_fsmount, SYS_fsopen, SYS_fspick, SYS_mount_setattr, SYS_move_mount, SYS_open_tree, AT_FDCWD};
+use libc::{
+    syscall, SYS_fsconfig, SYS_fsmount, SYS_fsopen, SYS_fspick, SYS_mount_setattr, SYS_move_mount,
+    SYS_open_tree, AT_FDCWD,
+};
 
 use crate::err;
 
@@ -44,14 +51,39 @@ pub fn fsopen(fstype: &str, flags: u32) -> anyhow::Result<OwnedFd> {
 
 pub fn fspick(dirfd: &OwnedFd, path: &str, flags: u32) -> anyhow::Result<OwnedFd> {
     let path = CString::new(path)?;
-    let fd = unsafe { err(syscall(SYS_fspick, dirfd.as_raw_fd(), path.into_raw(), flags))? };
+    let fd = unsafe {
+        err(syscall(
+            SYS_fspick,
+            dirfd.as_raw_fd(),
+            path.into_raw(),
+            flags,
+        ))?
+    };
     Ok(unsafe { OwnedFd::from_raw_fd(fd as i32) })
 }
 
-pub fn fsconfig(sb_fd: &OwnedFd, cmd: u32, key: Option<&str>, value: Option<&str>, flags: u32) -> anyhow::Result<()> {
+pub fn fsconfig(
+    sb_fd: &OwnedFd,
+    cmd: u32,
+    key: Option<&str>,
+    value: Option<&str>,
+    flags: u32,
+) -> anyhow::Result<()> {
     let key = key.map(|s| CString::new(s).unwrap());
     let value = value.map(|s| CString::new(s).unwrap());
-    unsafe { err(syscall(SYS_fsconfig, sb_fd.as_raw_fd(), cmd, key.as_ref().map(|s| s.as_ptr()).unwrap_or(std::ptr::null()), value.as_ref().map(|s| s.as_ptr()).unwrap_or(std::ptr::null()), flags))? };
+    unsafe {
+        err(syscall(
+            SYS_fsconfig,
+            sb_fd.as_raw_fd(),
+            cmd,
+            key.as_ref().map(|s| s.as_ptr()).unwrap_or(std::ptr::null()),
+            value
+                .as_ref()
+                .map(|s| s.as_ptr())
+                .unwrap_or(std::ptr::null()),
+            flags,
+        ))?
+    };
     Ok(())
 }
 
@@ -63,13 +95,36 @@ pub fn fsmount(sb_fd: &OwnedFd, flags: u32, attrs: u32) -> anyhow::Result<OwnedF
 pub fn move_mount(tree_fd: &OwnedFd, dest_fd: Option<&OwnedFd>, dest: &str) -> anyhow::Result<()> {
     let dest = CString::new(dest)?;
     let empty_cstring = CString::new("")?;
-    unsafe { err(syscall(SYS_move_mount, tree_fd.as_raw_fd(), empty_cstring.into_raw(), dest_fd.map(|d| d.as_raw_fd()).unwrap_or(AT_FDCWD), dest.into_raw(), MOVE_MOUNT_F_EMPTY_PATH))? };
+    unsafe {
+        err(syscall(
+            SYS_move_mount,
+            tree_fd.as_raw_fd(),
+            empty_cstring.into_raw(),
+            dest_fd.map(|d| d.as_raw_fd()).unwrap_or(AT_FDCWD),
+            dest.into_raw(),
+            MOVE_MOUNT_F_EMPTY_PATH,
+        ))?
+    };
     Ok(())
 }
 
-pub fn mount_setattr(dirfd: Option<&OwnedFd>, path: &str, flags: u32, attr: &MountAttr) -> anyhow::Result<()> {
+pub fn mount_setattr(
+    dirfd: Option<&OwnedFd>,
+    path: &str,
+    flags: u32,
+    attr: &MountAttr,
+) -> anyhow::Result<()> {
     let path = CString::new(path)?;
     let attr = attr as *const MountAttr;
-    unsafe { err(syscall(SYS_mount_setattr, dirfd.map(|d| d.as_raw_fd()).unwrap_or(AT_FDCWD), path.into_raw(), flags, attr, size_of::<MountAttr>()))? };
+    unsafe {
+        err(syscall(
+            SYS_mount_setattr,
+            dirfd.map(|d| d.as_raw_fd()).unwrap_or(AT_FDCWD),
+            path.into_raw(),
+            flags,
+            attr,
+            size_of::<MountAttr>(),
+        ))?
+    };
     Ok(())
 }

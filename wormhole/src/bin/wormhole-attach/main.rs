@@ -1,21 +1,52 @@
-use std::{collections::HashMap, ffi::CString, fs::File, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
+use std::{
+    collections::HashMap,
+    ffi::CString,
+    fs::File,
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    path::Path,
+    ptr::{null, null_mut},
+};
 
 use anyhow::anyhow;
-use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
+use libc::{
+    prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP,
+    PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
+    PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE,
+};
 use model::WormholeConfig;
-use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgroups, setresgid, setresuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
+use nix::{
+    errno::Errno,
+    fcntl::{open, openat, OFlag},
+    mount::{umount2, MntFlags, MsFlags},
+    sched::{setns, unshare, CloneFlags},
+    sys::{
+        prctl,
+        stat::{umask, Mode},
+        utsname::uname,
+        wait::{waitpid, WaitStatus},
+    },
+    unistd::{
+        access, chdir, execve, fchown, fork, getpid, setgroups, setresgid, setresuid, AccessFlags,
+        ForkResult, Gid, Pid, Uid,
+    },
+};
 use pidfd::PidFd;
 use tracing::{debug, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
-use wormhole::{err, flock::{Flock, FlockGuard, FlockMode, FlockWait}, newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY}, paths};
+use wormhole::{
+    err,
+    flock::{Flock, FlockGuard, FlockMode, FlockWait},
+    newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY},
+    paths,
+};
 
 use crate::proc::wait_for_exit;
 
 mod drm;
+mod model;
 mod pidfd;
 mod proc;
 mod subreaper;
-mod model;
 
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
 
@@ -23,18 +54,36 @@ const EXTRA_ENV: &[(&str, &str)] = &[
     ("ZDOTDIR", "/nix/orb/sys/zsh"),
     ("LESSHISTFILE", "/nix/orb/data/home/.lesshst"),
     ("GIT_SSL_CAINFO", "/nix/orb/sys/etc/ssl/certs/ca-bundle.crt"),
-    ("NIX_SSL_CERT_FILE", "/nix/orb/sys/etc/ssl/certs/ca-bundle.crt"),
+    (
+        "NIX_SSL_CERT_FILE",
+        "/nix/orb/sys/etc/ssl/certs/ca-bundle.crt",
+    ),
     ("SSL_CERT_FILE", "/nix/orb/sys/etc/ssl/certs/ca-bundle.crt"),
     ("NIX_CONF_DIR", "/nix/orb/sys/etc"),
     // not needed: compiled into ncurses, but keep this for xterm-kitty
-    ("TERMINFO_DIRS", "/nix/orb/data/.env-out/share/terminfo:/nix/orb/sys/share/terminfo"),
+    (
+        "TERMINFO_DIRS",
+        "/nix/orb/data/.env-out/share/terminfo:/nix/orb/sys/share/terminfo",
+    ),
     ("NIX_PROFILES", "/nix/orb/data/.env-out"),
-    ("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/nix/orb/data/.env-out/share:/nix/orb/sys/share"),
-    ("XDG_CONFIG_DIRS", "/etc/xdg:/nix/orb/data/.env-out/etc/xdg:/nix/orb/sys/etc/xdg"),
+    (
+        "XDG_DATA_DIRS",
+        "/usr/local/share:/usr/share:/nix/orb/data/.env-out/share:/nix/orb/sys/share",
+    ),
+    (
+        "XDG_CONFIG_DIRS",
+        "/etc/xdg:/nix/orb/data/.env-out/etc/xdg:/nix/orb/sys/etc/xdg",
+    ),
     //("MANPATH", "/nix/orb/data/.env-out/share/man:/nix/orb/sys/share/man"),
     // no NIX_PATH: we have no channels
-    ("LIBEXEC_PATH", "/nix/orb/data/.env-out/libexec:/nix/orb/sys/libexec"),
-    ("INFOPATH", "/nix/orb/data/.env-out/share/info:/nix/orb/sys/share/info"),
+    (
+        "LIBEXEC_PATH",
+        "/nix/orb/data/.env-out/libexec:/nix/orb/sys/libexec",
+    ),
+    (
+        "INFOPATH",
+        "/nix/orb/data/.env-out/share/info:/nix/orb/sys/share/info",
+    ),
     //("LESSKEYIN_SYSTEM", "/nix/store/jsyxjk9lcrvncmnpjghlp0ar258z3rdy-lessconfig"),
 
     // fixes nixos + zsh bug with duplicated chars in prompt after tab completion
@@ -42,17 +91,12 @@ const EXTRA_ENV: &[(&str, &str)] = &[
     ("LANG", "C.UTF-8"),
     // not set by scon because user=""
     ("USER", "root"),
-
     // e.g. for ~/.config/htop/htoprc
     ("XDG_CONFIG_HOME", "/nix/orb/data/home/.config"),
     // for nix and other programs, incl. .zsh_history
     ("XDG_CACHE_HOME", "/nix/orb/data/home/.cache"),
 ];
-const INHERIT_ENVS: &[&str] = &[
-    "TERM",
-    "SSH_CONNECTION",
-    "SSH_AUTH_SOCK",
-];
+const INHERIT_ENVS: &[&str] = &["TERM", "SSH_CONNECTION", "SSH_AUTH_SOCK"];
 // there's no generic solution for problematic env vars...
 // but we need to inherit env for many apps to work correctly
 const EXCLUDE_ENVS: &[&str] = &[
@@ -60,7 +104,6 @@ const EXCLUDE_ENVS: &[&str] = &[
     // checking the lib's DT_NEEDED is pointless: impossible to have a statically-linked dynamic lib
     // https://github.com/orbstack/orbstack/issues/1131
     "LD_PRELOAD",
-
     // BASH_ENV is basically bashrc, but for *all* bash instances, including #! shell scripts
     // nix has binaries like "manpath" that are bash wrapper scripts
     // if BASH_ENV script (e.g. bashrc -> nvm) runs such commands (e.g. manpath), we get infinite recursion
@@ -102,7 +145,13 @@ struct CapUserData {
     inheritable_hi: u32,
 }
 
-fn mount_common(source: &str, dest: &str, fstype: Option<&str>, flags: MsFlags, data: Option<&str>) -> anyhow::Result<()> {
+fn mount_common(
+    source: &str,
+    dest: &str,
+    fstype: Option<&str>,
+    flags: MsFlags,
+    data: Option<&str>,
+) -> anyhow::Result<()> {
     nix::mount::mount(Some(source), dest, fstype, flags, data)?;
     Ok(())
 }
@@ -124,7 +173,9 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
         trace!("waitpid: {:?}", res);
         match res {
             // impossible because entire pid ns will be killed if pid 1 exits
-            WaitStatus::Exited(_, _) | WaitStatus::Signaled(_, _, _) => return Err(anyhow!("process exited")),
+            WaitStatus::Exited(_, _) | WaitStatus::Signaled(_, _, _) => {
+                return Err(anyhow!("process exited"))
+            }
             // common case
             WaitStatus::PtraceEvent(_, _, PTRACE_EVENT_STOP) => break,
             // if also stopped by a signal (e.g. SIGILL)
@@ -137,17 +188,34 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
 
     // get instruction count in seccomp filter
     trace!("seccomp: ptrace get filter size");
-    let insn_count = unsafe { err(ptrace(PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(), pid, index, null::<sock_filter>()))? };
+    let insn_count = unsafe {
+        err(ptrace(
+            PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(),
+            pid,
+            index,
+            null::<sock_filter>(),
+        ))?
+    };
 
     // dump filter
     trace!("seccomp: dump filter");
-    let mut filter = vec![sock_filter {
-        code: 0,
-        jt: 0,
-        jf: 0,
-        k: 0,
-    }; insn_count as usize];
-    unsafe { err(ptrace(PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(), pid, index, filter.as_mut_ptr() as *mut sock_filter))? };
+    let mut filter = vec![
+        sock_filter {
+            code: 0,
+            jt: 0,
+            jf: 0,
+            k: 0,
+        };
+        insn_count as usize
+    ];
+    unsafe {
+        err(ptrace(
+            PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(),
+            pid,
+            index,
+            filter.as_mut_ptr() as *mut sock_filter,
+        ))?
+    };
 
     // detach ptrace
     trace!("seccomp: detach ptrace");
@@ -160,7 +228,14 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
     };
     // set filter
     trace!("seccomp: set filter");
-    unsafe { err(syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0, &fprog as *const sock_fprog))? };
+    unsafe {
+        err(syscall(
+            SYS_seccomp,
+            SECCOMP_SET_MODE_FILTER,
+            0,
+            &fprog as *const sock_fprog,
+        ))?
+    };
 
     Ok(())
 }
@@ -171,46 +246,59 @@ struct Mount {
 }
 
 fn parse_proc_mounts(proc_mounts: &str) -> anyhow::Result<Vec<Mount>> {
-    Ok(proc_mounts.lines()
+    Ok(proc_mounts
+        .lines()
         // skip empty lines
         .filter(|line| !line.is_empty())
         // get mount path
         .map(|line| {
             let mut iter = line.split_ascii_whitespace();
             let dest = iter.nth(1).unwrap().to_string();
-            let flags = iter.nth(1).unwrap().split(',').map(|s| s.to_string()).collect();
-            Mount {
-                dest,
-                flags,
-            }
+            let flags = iter
+                .nth(1)
+                .unwrap()
+                .split(',')
+                .map(|s| s.to_string())
+                .collect();
+            Mount { dest, flags }
         })
         .collect())
 }
 
 fn is_root_readonly(proc_mounts: &[Mount]) -> bool {
-    proc_mounts.iter()
+    proc_mounts
+        .iter()
         .any(|m| m.dest == "/" && m.flags.contains(&"ro".to_string()))
 }
 
 fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<FlockGuard<()>> {
     trace!("create_nix_dir: wait for lock");
-    let _flock = Flock::new_ofd(File::create(DIR_CREATE_LOCK)?, FlockMode::Exclusive, FlockWait::Blocking)?;
+    let _flock = Flock::new_ofd(
+        File::create(DIR_CREATE_LOCK)?,
+        FlockMode::Exclusive,
+        FlockWait::Blocking,
+    )?;
     match access("/nix", AccessFlags::F_OK) {
         Ok(_) => {
             // continue to lock
             trace!("create_nix_dir: already exists");
-        },
+        }
         Err(Errno::ENOENT) => {
             // check attributes of '/' mount to deal with read-only containers
             let is_root_readonly = is_root_readonly(proc_mounts);
             if is_root_readonly {
                 trace!("mounts: remount / as rw");
-                mount_setattr(None, "/", 0, &MountAttr {
-                    attr_set: 0,
-                    attr_clr: MOUNT_ATTR_RDONLY,
-                    propagation: 0,
-                    userns_fd: 0,
-                })?;
+                mount_setattr(
+                    None,
+                    "/",
+                    0,
+                    &MountAttr {
+                        attr_set: 0,
+                        attr_clr: MOUNT_ATTR_RDONLY,
+                        propagation: 0,
+                        userns_fd: 0,
+                    },
+                )?;
             }
 
             // use create_dir_all to avoid race with another cattach
@@ -223,26 +311,42 @@ fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<FlockGuard<()>> {
 
             if is_root_readonly {
                 trace!("mounts: remount / as ro");
-                mount_setattr(None, "/", 0, &MountAttr {
-                    attr_set: MOUNT_ATTR_RDONLY,
-                    attr_clr: 0,
-                    propagation: 0,
-                    userns_fd: 0,
-                })?;
+                mount_setattr(
+                    None,
+                    "/",
+                    0,
+                    &MountAttr {
+                        attr_set: MOUNT_ATTR_RDONLY,
+                        attr_clr: 0,
+                        propagation: 0,
+                        userns_fd: 0,
+                    },
+                )?;
             }
-        },
+        }
         Err(e) => return Err(e.into()),
     }
 
     // take a shared lock as a refcount
     trace!("create_nix_dir: take shared ref lock");
-    let ref_lock = Flock::new_ofd(File::open("/nix")?, FlockMode::Shared, FlockWait::NonBlocking)?;
+    let ref_lock = Flock::new_ofd(
+        File::open("/nix")?,
+        FlockMode::Shared,
+        FlockWait::NonBlocking,
+    )?;
     Ok(FlockGuard::new(ref_lock, ()))
 }
 
 fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyhow::Result<()> {
     // try to unmount everything on our view of /nix recursively
-    let mounts_file = unsafe { File::from_raw_fd(openat(proc_self_fd.as_raw_fd(), "mounts", OFlag::O_RDONLY | OFlag::O_CLOEXEC, Mode::empty())?) };
+    let mounts_file = unsafe {
+        File::from_raw_fd(openat(
+            proc_self_fd.as_raw_fd(),
+            "mounts",
+            OFlag::O_RDONLY | OFlag::O_CLOEXEC,
+            Mode::empty(),
+        )?)
+    };
     let proc_mounts = parse_proc_mounts(&std::io::read_to_string(mounts_file)?)?;
     for mnt in proc_mounts.iter().rev() {
         if mnt.dest == "/nix" || mnt.dest.starts_with("/nix/") {
@@ -260,7 +364,11 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
     }
 
     trace!("delete_nix_dir: wait for lock");
-    let _flock = Flock::new_ofd(File::create(DIR_CREATE_LOCK)?, FlockMode::Exclusive, FlockWait::Blocking)?;
+    let _flock = Flock::new_ofd(
+        File::create(DIR_CREATE_LOCK)?,
+        FlockMode::Exclusive,
+        FlockWait::Blocking,
+    )?;
 
     // drop our ref
     drop(nix_flock_ref);
@@ -290,12 +398,17 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
     let is_root_readonly = is_root_readonly(&proc_mounts);
     if is_root_readonly {
         trace!("mounts: remount / as rw");
-        mount_setattr(None, "/", 0, &MountAttr {
-            attr_set: 0,
-            attr_clr: MOUNT_ATTR_RDONLY,
-            propagation: 0,
-            userns_fd: 0,
-        })?;
+        mount_setattr(
+            None,
+            "/",
+            0,
+            &MountAttr {
+                attr_set: 0,
+                attr_clr: MOUNT_ATTR_RDONLY,
+                propagation: 0,
+                userns_fd: 0,
+            },
+        )?;
     }
 
     trace!("delete_nix_dir: deleting /nix");
@@ -303,12 +416,17 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
 
     if is_root_readonly {
         trace!("mounts: remount / as ro");
-        mount_setattr(None, "/", 0, &MountAttr {
-            attr_set: MOUNT_ATTR_RDONLY,
-            attr_clr: 0,
-            propagation: 0,
-            userns_fd: 0,
-        })?;
+        mount_setattr(
+            None,
+            "/",
+            0,
+            &MountAttr {
+                attr_set: MOUNT_ATTR_RDONLY,
+                attr_clr: 0,
+                propagation: 0,
+                userns_fd: 0,
+            },
+        )?;
     }
 
     Ok(())
@@ -342,17 +460,30 @@ fn main() -> anyhow::Result<()> {
     // easier to read everything here instead of keeping /proc/<pid> dirfd open for later
     trace!("read process info");
     let proc_status = std::fs::read_to_string(format!("/proc/{}/status", config.init_pid))?;
-    let oom_score_adj = std::fs::read_to_string(format!("/proc/{}/oom_score_adj", config.init_pid))?;
+    let oom_score_adj =
+        std::fs::read_to_string(format!("/proc/{}/oom_score_adj", config.init_pid))?;
     let proc_cgroup = std::fs::read_to_string(format!("/proc/{}/cgroup", config.init_pid))?;
     let proc_env = std::fs::read_to_string(format!("/proc/{}/environ", config.init_pid))?;
-    let proc_mounts = parse_proc_mounts(&std::fs::read_to_string(format!("/proc/{}/mounts", config.init_pid))?)?;
-    let num_caps = std::fs::read_to_string("/proc/sys/kernel/cap_last_cap")?.trim_end().parse::<u32>()? + 1;
+    let proc_mounts = parse_proc_mounts(&std::fs::read_to_string(format!(
+        "/proc/{}/mounts",
+        config.init_pid
+    ))?)?;
+    let num_caps = std::fs::read_to_string("/proc/sys/kernel/cap_last_cap")?
+        .trim_end()
+        .parse::<u32>()?
+        + 1;
 
     // prevent tracing
     prctl::set_dumpable(false)?;
     // prevent write-execute maps
     unsafe {
-        libc::prctl(PR_SET_MDWE, PR_MDWE_REFUSE_EXEC_GAIN | PR_MDWE_NO_INHERIT, 0, 0, 0);
+        libc::prctl(
+            PR_SET_MDWE,
+            PR_MDWE_REFUSE_EXEC_GAIN | PR_MDWE_NO_INHERIT,
+            0,
+            0,
+            0,
+        );
     }
 
     // copy before entering container mount ns
@@ -363,19 +494,38 @@ fn main() -> anyhow::Result<()> {
     // cgroupfs in mount ns is mounted in container's cgroupns
     {
         trace!("copy cgroup");
-        let cg_path = proc_cgroup.lines().next().unwrap()
-        .split(':')
-        .last()
-        .unwrap();
+        let cg_path = proc_cgroup
+            .lines()
+            .next()
+            .unwrap()
+            .split(':')
+            .last()
+            .unwrap();
         let self_pid: i32 = getpid().into();
-        std::fs::write(format!("/sys/fs/cgroup/{}/cgroup.procs", cg_path), format!("{}", self_pid))?;
+        std::fs::write(
+            format!("/sys/fs/cgroup/{}/cgroup.procs", cg_path),
+            format!("{}", self_pid),
+        )?;
     }
 
     // save dirfd of /proc/thread-self in old mount ns
-    let proc_self_fd = unsafe { OwnedFd::from_raw_fd(open("/proc/thread-self", OFlag::O_PATH | OFlag::O_CLOEXEC, Mode::empty())?) };
+    let proc_self_fd = unsafe {
+        OwnedFd::from_raw_fd(open(
+            "/proc/thread-self",
+            OFlag::O_PATH | OFlag::O_CLOEXEC,
+            Mode::empty(),
+        )?)
+    };
 
     trace!("attach most namespaces");
-    setns(&pidfd, CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWCGROUP | CloneFlags::CLONE_NEWUTS | CloneFlags::CLONE_NEWIPC | CloneFlags::CLONE_NEWNET)?;
+    setns(
+        &pidfd,
+        CloneFlags::CLONE_NEWNS
+            | CloneFlags::CLONE_NEWCGROUP
+            | CloneFlags::CLONE_NEWUTS
+            | CloneFlags::CLONE_NEWIPC
+            | CloneFlags::CLONE_NEWNET,
+    )?;
 
     // set process name
     {
@@ -401,10 +551,19 @@ fn main() -> anyhow::Result<()> {
     umask(Mode::from_bits(0o022).unwrap());
 
     trace!("parse proc status info");
-    let init_status = proc_status.lines()
+    let init_status = proc_status
+        .lines()
         .map(|line| line.split_ascii_whitespace().collect::<Vec<_>>())
         // parse into key-value <&str, Vec<String>>
-        .map(|line| (line[0], line.iter().skip(1).map(|s| s.to_string()).collect::<Vec<_>>()))
+        .map(|line| {
+            (
+                line[0],
+                line.iter()
+                    .skip(1)
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>(),
+            )
+        })
         .collect::<HashMap<_, _>>();
 
     trace!("chown stdio fds");
@@ -418,9 +577,12 @@ fn main() -> anyhow::Result<()> {
 
     trace!("copy supplementary groups");
     let groups = init_status.get("Groups:").unwrap();
-    setgroups(&groups.iter()
-        .map(|s| s.parse::<u32>().unwrap().into())
-        .collect::<Vec<_>>())?;
+    setgroups(
+        &groups
+            .iter()
+            .map(|s| s.parse::<u32>().unwrap().into())
+            .collect::<Vec<_>>(),
+    )?;
 
     trace!("copy NO_NEW_PRIVS");
     let no_new_privs = init_status.get("NoNewPrivs:").unwrap().get(0).unwrap();
@@ -432,7 +594,10 @@ fn main() -> anyhow::Result<()> {
     trace!("copy env");
     // start with container's env, then override with current /proc env
     // convert to HashMap for easy overriding
-    let mut env_map = config.container_env.unwrap_or_default().iter()
+    let mut env_map = config
+        .container_env
+        .unwrap_or_default()
+        .iter()
         .map(|s| s.as_str())
         // chain with /proc, which is &str
         .chain(proc_env.split('\0'))
@@ -444,13 +609,20 @@ fn main() -> anyhow::Result<()> {
         .filter(|(k, _)| !EXCLUDE_ENVS.contains(&k.as_str()))
         .collect::<HashMap<_, _>>();
     // edit PATH (append and prepend)
-    env_map.insert("PATH".to_string(), format!("{}:{}", PREPEND_PATH, env_map.get("PATH").unwrap_or(&"".to_string())));
+    env_map.insert(
+        "PATH".to_string(),
+        format!(
+            "{}:{}",
+            PREPEND_PATH,
+            env_map.get("PATH").unwrap_or(&"".to_string())
+        ),
+    );
     // set/overwrite extra envs
     env_map.reserve(EXTRA_ENV.len() + INHERIT_ENVS.len());
     for (k, v) in EXTRA_ENV {
         env_map.insert(k.to_string(), v.to_string());
     }
-    // inherit some envs from ssh client 
+    // inherit some envs from ssh client
     for &key in INHERIT_ENVS {
         if let Ok(val) = std::env::var(key) {
             env_map.insert(key.to_string(), val.to_string());
@@ -459,7 +631,8 @@ fn main() -> anyhow::Result<()> {
     // set SHELL
     env_map.insert("SHELL".to_string(), paths::SHELL.to_string());
     // convert back to CStrings
-    let cstr_envs = env_map.iter()
+    let cstr_envs = env_map
+        .iter()
         .map(|(k, v)| CString::new(format!("{}={}", k, v)))
         .collect::<anyhow::Result<Vec<_>, _>>()?;
 
@@ -514,16 +687,33 @@ fn main() -> anyhow::Result<()> {
             trace!("attach remaining namespaces");
             // use a separate call to detect EINVAL on NEWUSER
             setns(&pidfd, CloneFlags::CLONE_NEWPID)?; // for child
-            // entering current userns will return EINVAL. ignore that
+                                                      // entering current userns will return EINVAL. ignore that
             match setns(&pidfd, CloneFlags::CLONE_NEWUSER) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(Errno::EINVAL) => trace!("set user ns failed with EINVAL, continuing"),
                 Err(e) => return Err(e.into()),
             }
             drop(pidfd);
 
             trace!("copy rlimits");
-            for &res in &[libc::RLIMIT_CPU, libc::RLIMIT_FSIZE, libc::RLIMIT_DATA, libc::RLIMIT_STACK, libc::RLIMIT_CORE, libc::RLIMIT_RSS, libc::RLIMIT_NPROC, libc::RLIMIT_NOFILE, libc::RLIMIT_MEMLOCK, libc::RLIMIT_AS, libc::RLIMIT_LOCKS, libc::RLIMIT_SIGPENDING, libc::RLIMIT_MSGQUEUE, libc::RLIMIT_NICE, libc::RLIMIT_RTPRIO, libc::RLIMIT_RTTIME] {
+            for &res in &[
+                libc::RLIMIT_CPU,
+                libc::RLIMIT_FSIZE,
+                libc::RLIMIT_DATA,
+                libc::RLIMIT_STACK,
+                libc::RLIMIT_CORE,
+                libc::RLIMIT_RSS,
+                libc::RLIMIT_NPROC,
+                libc::RLIMIT_NOFILE,
+                libc::RLIMIT_MEMLOCK,
+                libc::RLIMIT_AS,
+                libc::RLIMIT_LOCKS,
+                libc::RLIMIT_SIGPENDING,
+                libc::RLIMIT_MSGQUEUE,
+                libc::RLIMIT_NICE,
+                libc::RLIMIT_RTPRIO,
+                libc::RLIMIT_RTTIME,
+            ] {
                 let mut rlimit = libc::rlimit {
                     rlim_cur: 0,
                     rlim_max: 0,
@@ -549,7 +739,8 @@ fn main() -> anyhow::Result<()> {
             // bounding: drop all unset caps
             // this requires CAP_SETCAP so do it before we lose eff caps
             trace!("copy capabilities: bounding");
-            let cap_bnd = u64::from_str_radix(init_status.get("CapBnd:").unwrap().get(0).unwrap(), 16)?;
+            let cap_bnd =
+                u64::from_str_radix(init_status.get("CapBnd:").unwrap().get(0).unwrap(), 16)?;
             for i in 0..num_caps {
                 if cap_bnd & (1 << i) == 0 {
                     unsafe { err(libc::prctl(PR_CAPBSET_DROP, i as i32, 0, 0, 0))? };
@@ -567,16 +758,36 @@ fn main() -> anyhow::Result<()> {
             // works because docker's seccomp filter allows capset/capget
             // order: ambient, bounding, effective, inheritable, permitted
             trace!("copy remaining capabilities");
-            let cap_inh = u64::from_str_radix(init_status.get("CapInh:").unwrap().get(0).unwrap(), 16)?;
-            let cap_prm = u64::from_str_radix(init_status.get("CapPrm:").unwrap().get(0).unwrap(), 16)?;
-            let cap_eff = u64::from_str_radix(init_status.get("CapEff:").unwrap().get(0).unwrap(), 16)?;
-            let cap_amb = u64::from_str_radix(init_status.get("CapAmb:").unwrap().get(0).unwrap(), 16)?;
+            let cap_inh =
+                u64::from_str_radix(init_status.get("CapInh:").unwrap().get(0).unwrap(), 16)?;
+            let cap_prm =
+                u64::from_str_radix(init_status.get("CapPrm:").unwrap().get(0).unwrap(), 16)?;
+            let cap_eff =
+                u64::from_str_radix(init_status.get("CapEff:").unwrap().get(0).unwrap(), 16)?;
+            let cap_amb =
+                u64::from_str_radix(init_status.get("CapAmb:").unwrap().get(0).unwrap(), 16)?;
             // ambient: clear all, then raise set caps
             trace!("copy capabilities: ambient");
-            unsafe { err(libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0))? };
+            unsafe {
+                err(libc::prctl(
+                    PR_CAP_AMBIENT,
+                    PR_CAP_AMBIENT_CLEAR_ALL,
+                    0,
+                    0,
+                    0,
+                ))?
+            };
             for i in 0..num_caps {
                 if cap_amb & (1 << i) != 0 {
-                    unsafe { err(libc::prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i as i32, 0, 0))? };
+                    unsafe {
+                        err(libc::prctl(
+                            PR_CAP_AMBIENT,
+                            PR_CAP_AMBIENT_RAISE,
+                            i as i32,
+                            0,
+                            0,
+                        ))?
+                    };
                 }
             }
             // set eff/prm/inh
@@ -593,7 +804,13 @@ fn main() -> anyhow::Result<()> {
                 permitted_hi: (cap_prm >> 32) as u32,
                 inheritable_hi: (cap_inh >> 32) as u32,
             };
-            unsafe { err(syscall(SYS_capset, &cap_user_hdr as *const CapUserHeader, &cap_user_data as *const CapUserData))? };
+            unsafe {
+                err(syscall(
+                    SYS_capset,
+                    &cap_user_hdr as *const CapUserHeader,
+                    &cap_user_data as *const CapUserData,
+                ))?
+            };
 
             // fork again...
             match unsafe { fork()? } {
@@ -637,8 +854,18 @@ fn main() -> anyhow::Result<()> {
                             proc::prctl_death_sig()?;
 
                             trace!("execve");
-                            let shell_cmd = config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
-                            execve(&CString::new("/nix/orb/sys/bin/dctl")?, &[CString::new("dctl")?, CString::new("__entrypoint")?, CString::new("--")?, CString::new(shell_cmd)?], &cstr_envs)?;
+                            let shell_cmd =
+                                config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
+                            execve(
+                                &CString::new("/nix/orb/sys/bin/dctl")?,
+                                &[
+                                    CString::new("dctl")?,
+                                    CString::new("__entrypoint")?,
+                                    CString::new("--")?,
+                                    CString::new(shell_cmd)?,
+                                ],
+                                &cstr_envs,
+                            )?;
                             unreachable!();
                         }
                     }

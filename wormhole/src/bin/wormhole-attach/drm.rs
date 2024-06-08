@@ -1,7 +1,11 @@
 use std::collections::HashSet;
 
 use anyhow::bail;
-use jwt_simple::{algorithms::{Ed25519PublicKey, EdDSAPublicKeyLike}, common::VerificationOptions, reexports::coarsetime::Duration};
+use jwt_simple::{
+    algorithms::{Ed25519PublicKey, EdDSAPublicKeyLike},
+    common::VerificationOptions,
+    reexports::coarsetime::Duration,
+};
 use serde::{Deserialize, Serialize};
 
 // larger of Go sjwt's leeway (NotBeforeLeeway)
@@ -16,7 +20,6 @@ struct AppVersion {
     code: u32,
     git: String,
 }
-
 
 #[derive(Serialize, Deserialize)]
 enum EntitlementTier {
@@ -56,13 +59,11 @@ struct DrmClaims {
     #[serde(rename = "cid")]
     client_id: String,
     */
-
     // standard: iss
 
     // standard: iat, exp, nbf
     #[serde(rename = "dvr")]
     drm_version: u32,
-
     /*
     #[serde(rename = "war")]
     warn_at: i64,
