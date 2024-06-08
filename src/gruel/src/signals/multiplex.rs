@@ -193,7 +193,7 @@ pub struct EventManager {
     events: mio::Events,
     abort_waker: Arc<mio::Waker>,
     mio_handlers: Vec<usize>,
-    subscribers: Vec<SmallBox<dyn Subscriber, *const ()>>,
+    subscribers: Vec<SmallBox<dyn Subscriber + Send + Sync, *const ()>>,
 }
 
 impl EventManager {
@@ -217,8 +217,16 @@ impl EventManager {
         &self.abort_waker
     }
 
-    pub fn register(&mut self, handler: impl Subscriber) {
+    pub fn register(&mut self, handler: impl Subscriber + Send + Sync) {
+        let subscriber_idx = self.subscribers.len();
+        let subscriber_name = handler.debug_type_name();
         self.subscribers.push(smallbox::smallbox!(handler));
+        self.subscribers[subscriber_idx].init_interests(&mut InterestCtrl {
+            poll: &mut self.poll,
+            mio_handlers: &mut self.mio_handlers,
+            subscriber_idx,
+            subscriber_name,
+        });
     }
 
     pub fn run(&mut self, shutdown: &ShutdownSignal) {
@@ -341,15 +349,23 @@ impl InterestCtrl<'_> {
     }
 }
 
-pub trait Subscriber: 'static + Send + Sync {
-    fn process_signals(&mut self, ctl: &mut InterestCtrl<'_>);
+pub trait Subscriber: 'static {
+    fn process_signals(&mut self, ctl: &mut InterestCtrl<'_>) {
+        let _ = ctl;
+    }
 
     fn process_event(&mut self, ctl: &mut InterestCtrl<'_>, event: &mio::event::Event) {
         let _ = ctl;
         let _ = event;
     }
 
-    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>>;
+    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
+        Vec::new()
+    }
+
+    fn init_interests(&self, ctl: &mut InterestCtrl<'_>) {
+        let _ = ctl;
+    }
 
     fn debug_type_name(&self) -> &'static str {
         std::any::type_name::<Self>()
