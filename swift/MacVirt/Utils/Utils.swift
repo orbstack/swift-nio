@@ -235,6 +235,12 @@ enum AppleEvents {
 
 private let dockerDesktopLastUsedThreshold: TimeInterval = 1 * 30 * 24 * 60 * 60 // 1 month
 
+struct BundleCandidate {
+    let bundle: BundleInfo
+    let running: Bool
+    let timestamp: Date
+}
+
 enum InstalledApps {
     // lazy init
     static let dockerDesktopRecentlyUsed = isDockedDesktopRecentlyUsed()
@@ -248,37 +254,51 @@ enum InstalledApps {
         return false
     }
 
+    // special case: Alacritty doesn't support opening .sh, and doesn't declare Shell
     static let alacritty = "org.alacritty"
 
-    private static let terminals = [
-        "com.googlecode.iterm2", // iTerm
-        "com.apple.Terminal", // Terminal.app
-        alacritty, // Alacritty
-        "net.kovidgoyal.kitty", // kitty
-        "dev.warp.Warp-Stable", // Warp
-        "dev.warp.Warp-Preview", // WarpPreview (guess)
-        "com.github.wez.wezterm", // WezTerm
-        "co.zeit.hyper", // Hyper
-        "com.mitchellh.ghostty", // Ghostty
+    private static let extraTerminalBundleIds = [
+        alacritty,
     ]
 
     // cached: lookup takes ~50 ms
     static let lastUsedTerminal = selectTerminal()
     static func selectTerminal() -> BundleInfo {
-        terminals
-            .compactMap { bundleId in
-                if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first,
-                   let launchDate = runningApp.launchDate,
-                   let bundleURL = runningApp.bundleURL
-                {
-                    return (bundle: BundleInfo(id: bundleId, url: bundleURL), running: true, timestamp: launchDate)
+        // (Shell, public.unix-executable) is the most reliable type:
+        // kitty = Editor for *.sh; Shell for public.unix-executable
+        // iTerm = Editor for *.sh; Shell for public.unix-executable
+        // Warp = Shell for com.apple.terminal.shell-script; Shell for public.unix-executable
+        // WezTerm = Editor for *.sh; Shell for public.unix-executable
+        // Hyper = only Shell for public.unix-executable
+        // Ghostty = Editor for *.sh; Shell for public.unix-executable
+        // VS Code = Editor for *.sh
+        let execUrl = Bundle.main.executableURL!
+        var appUrls = LSCopyApplicationURLsForURL(execUrl as CFURL, .shell)?.takeRetainedValue() as? [URL] ?? []
+
+        // find extra terminals
+        for bundleId in extraTerminalBundleIds {
+            if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+                appUrls.append(bundleUrl)
+            }
+        }
+
+        return appUrls
+            .compactMap { bundleUrl in
+                guard let attributes = NSMetadataItem(url: bundleUrl),
+                      let bundleId = attributes.value(forAttribute: kMDItemCFBundleIdentifier as String) as? String
+                      else {
+                    // to help type inference
+                    return BundleCandidate?(nil)
                 }
 
-                if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
-                   let attributes = NSMetadataItem(url: bundleUrl),
-                   let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date
+                if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first,
+                   let launchDate = runningApp.launchDate
                 {
-                    return (bundle: BundleInfo(id: bundleId, url: bundleUrl), running: false, timestamp: date)
+                    return BundleCandidate(bundle: BundleInfo(id: bundleId, url: bundleUrl), running: true, timestamp: launchDate)
+                }
+
+                if let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date {
+                    return BundleCandidate(bundle: BundleInfo(id: bundleId, url: bundleUrl), running: false, timestamp: date)
                 }
 
                 return nil
