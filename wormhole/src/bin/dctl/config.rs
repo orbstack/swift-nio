@@ -16,9 +16,11 @@ pub const BUILTIN_PACKAGES: &[&str] = &[
     "gnugrep",
     "less",
     "kitty.terminfo",
+    "contour.terminfo",
     "procps",
     "util-linux",
     "gnutar",
+    "bc",
 
     "curl",
     "cacert",
@@ -32,6 +34,7 @@ pub const BUILTIN_PACKAGES: &[&str] = &[
     "fd",
     "ripgrep",
     "lsd",
+    "fzf",
 
     "htop",
     "lsof",

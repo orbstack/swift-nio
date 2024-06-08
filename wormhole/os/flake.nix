@@ -32,6 +32,7 @@
               procps
               util-linux
               gnutar
+              bc
               # network
               curl
               cacert
@@ -45,6 +46,7 @@
               fd
               ripgrep
               lsd
+              fzf
               # system
               htop
               lsof
