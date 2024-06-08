@@ -270,6 +270,93 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	}
 }
 
+func (sv *SshServer) prepareWormhole(cmd *agent.AgentCommand, a *agent.Client, wormholeContainerID string, shellCmd string, meta *sshtypes.SshMeta) (_runOnHost bool, _mountFile *os.File, retErr error) {
+	runOnHost := false
+
+	// debug only: wormhole for VM host (ovm)
+	var wormholeResp *agent.PrepWormholeResponse
+	var rootfsFile *os.File
+	if conf.Debug() && wormholeContainerID == sshtypes.WormholeIDHost {
+		rootfsFd, err := unix.Open("/proc/thread-self/root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return false, nil, err
+		}
+		rootfsFile = os.NewFile(uintptr(rootfsFd), "rootfs")
+
+		runOnHost = true
+		wormholeResp = &agent.PrepWormholeResponse{
+			InitPid:    1,
+			WorkingDir: "/",
+		}
+	} else {
+		var err error
+		wormholeResp, rootfsFile, err = a.DockerPrepWormhole(agent.PrepWormholeArgs{
+			ContainerID: wormholeContainerID,
+		})
+		if err != nil {
+			return false, nil, err
+		}
+	}
+	defer rootfsFile.Close()
+
+	isNix, err := isNixContainer(rootfsFile)
+	if err != nil {
+		return false, nil, err
+	}
+	if isNix && meta.WormholeFallback {
+		return false, nil, &ExitError{status: 124}
+	}
+
+	wormholeMountFd, err := unix.OpenTree(unix.AT_FDCWD, mounts.WormholeUnifiedNix, unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+	if err != nil {
+		return false, nil, err
+	}
+
+	wormholeMountFile := os.NewFile(uintptr(wormholeMountFd), "wormhole mount")
+	defer func() {
+		if retErr != nil {
+			wormholeMountFile.Close()
+		}
+	}()
+
+	workDir := wormholeResp.WorkingDir
+	if meta.Pwd != "" {
+		workDir = meta.Pwd
+	}
+
+	config := &sshtypes.WormholeConfig{
+		InitPid: wormholeResp.InitPid,
+		// wormholeMountFile = dup to fd 3 in child
+		WormholeMountTreeFd: 3,
+		DrmToken:            sv.m.drm.lastResult.EntitlementToken,
+
+		// instead of launching wormhole-attach process with the container's env, we pass it separately because there are several env priorities:
+		// 1. start with container env (* from scon)
+		// 2. override with pid 1 env
+		// 3. override with required wormhole env
+		// 4. override with TERM, etc. (* from scon)
+		// #1 and #4 are both from scon, so must be separate
+		ContainerWorkdir: workDir,
+		ContainerEnv:     wormholeResp.Env,
+
+		EntryShellCmd: shellCmd,
+	}
+	configBytes, err := json.Marshal(config)
+	if err != nil {
+		return false, nil, err
+	}
+
+	cmd.User = ""
+	cmd.DoLogin = false
+	cmd.ReplaceShell = false
+	cmd.ExtraFiles = []*os.File{wormholeMountFile}
+	cmd.CombinedArgs = []string{mounts.WormholeAttach, string(configBytes)}
+	// for debugging
+	cmd.Env.SetPair("RUST_BACKTRACE=full")
+
+	return runOnHost, wormholeMountFile, nil
+}
+
 func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string, isWormhole bool) (printErr bool, err error) {
 	ptyReq, winCh, isPty := s.Pty()
 	printErr = isPty
@@ -454,61 +541,12 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		// wormhole case is different
 		runOnHost := false
 		if isWormhole {
-			// debug: wormhole for VM host (ovm)
-			var wormholeResp *agent.PrepWormholeResponse
-			var rootfsFile *os.File
-			if conf.Debug() && wormholeContainerID == sshtypes.WormholeIDHost {
-				rootfsFd, err := unix.Open("/proc/thread-self/root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
-				if err != nil {
-					return err
-				}
-				rootfsFile = os.NewFile(uintptr(rootfsFd), "rootfs")
-
-				runOnHost = true
-				wormholeResp = &agent.PrepWormholeResponse{
-					InitPid:    1,
-					WorkingDir: "/",
-				}
-			} else {
-				var err error
-				wormholeResp, rootfsFile, err = a.DockerPrepWormhole(agent.PrepWormholeArgs{
-					ContainerID: wormholeContainerID,
-				})
-				if err != nil {
-					return err
-				}
-			}
-			defer rootfsFile.Close()
-
-			isNix, err := isNixContainer(rootfsFile)
+			_runOnHost, mountFile, err := sv.prepareWormhole(cmd, a, wormholeContainerID, shellCmd, &meta)
 			if err != nil {
 				return err
 			}
-			if isNix && meta.WormholeFallback {
-				return &ExitError{status: 124}
-			}
-
-			wormholeMountFd, err := unix.OpenTree(unix.AT_FDCWD, mounts.WormholeUnifiedNix, unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
-			if err != nil {
-				return err
-			}
-
-			wormholeMountFile := os.NewFile(uintptr(wormholeMountFd), "wormhole mount")
-			defer wormholeMountFile.Close()
-
-			workDir := wormholeResp.WorkingDir
-			if meta.Pwd != "" {
-				workDir = meta.Pwd
-			}
-
-			cmd.User = ""
-			cmd.DoLogin = false
-			cmd.ReplaceShell = false
-			// will be fd 3 in child process
-			cmd.ExtraFiles = []*os.File{wormholeMountFile}
-			cmd.CombinedArgs = []string{mounts.WormholeAttach, strconv.Itoa(wormholeResp.InitPid), workDir, "3", shellCmd, sv.m.drm.lastResult.EntitlementToken}
-			// for debugging
-			cmd.Env.SetPair("RUST_BACKTRACE=full")
+			defer mountFile.Close()
+			runOnHost = _runOnHost
 		}
 
 		if runOnHost {

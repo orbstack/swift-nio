@@ -1,7 +1,8 @@
 use nix::errno::Errno;
 
-pub mod newmount;
 pub mod flock;
+pub mod newmount;
+pub mod paths;
 
 fn _err<T: IsMinusOne>(ret: T) -> nix::Result<T> {
     if ret.is_minus_one() {

@@ -266,7 +266,7 @@ func (h *VmControlServer) runEnvReport(shell string, extraArgs ...string) (*vmty
 	defer cancel()
 
 	// prepare env report command
-	shellCmd := `sh -c ` + shellescape.Quote(shellescape.QuoteCommand([]string{exePath, "report-env"}))
+	shellCmd := shellescape.QuoteCommand([]string{exePath, "report-env"})
 	// for zsh, also include ZDOTDIR, which may not necessarily be exported
 	if path.Base(shell) == "zsh" {
 		shellCmd = "export ZDOTDIR; " + shellCmd

@@ -1,6 +1,7 @@
 use std::{collections::HashMap, ffi::CString, fs::File, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path, ptr::{null, null_mut}};
 
 use libc::{prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE};
+use model::WormholeConfig;
 use nix::{errno::Errno, fcntl::{open, openat, OFlag}, mount::{umount2, MntFlags, MsFlags}, sched::{setns, unshare, CloneFlags}, sys::{prctl, stat::{umask, Mode}, utsname::uname, wait::{waitpid, WaitStatus}}, unistd::{access, chdir, execve, fchown, fork, getpid, setgroups, setresgid, setresuid, AccessFlags, ForkResult, Gid, Pid, Uid}};
 use pidfd::PidFd;
 use tracing::{debug, span, trace, Level};
@@ -13,6 +14,7 @@ mod drm;
 mod pidfd;
 mod proc;
 mod subreaper;
+mod model;
 
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
 
@@ -302,6 +304,12 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
     Ok(())
 }
 
+fn parse_config() -> anyhow::Result<WormholeConfig> {
+    let config_str = std::env::args().nth(1).unwrap();
+    let config = serde_json::from_str(&config_str)?;
+    Ok(config)
+}
+
 // this is 75% of a container runtime, but a bit more complex... since it has to clone attributes of another process instead of just knowing what to set
 // this does *not* include ALL process attributes like sched affinity, dumpable, securebits, etc. that docker doesn't set
 fn main() -> anyhow::Result<()> {
@@ -311,26 +319,23 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     // stdin, stdout, stderr are expected to be 0,1,2 and will be propagated to the child
-    // usage: attach-ctr <init_pid> <container_workdir> <fd_fusebpf_mount_tree> <command> <drm_token>
-    let init_pid = std::env::args().nth(1).unwrap().parse::<i32>()?;
-    let container_workdir = std::env::args().nth(2).unwrap();
-    let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(std::env::args().nth(3).unwrap().parse::<i32>()?) };
-    let entry_shell_cmd = std::env::args().nth(4).unwrap();
-    let drm_token = std::env::args().nth(5).unwrap();
-    trace!("entry shell cmd: {:?}", entry_shell_cmd);
-    trace!("drm token: {:?}", drm_token);
-    drm::verify_token(&drm_token)?;
+    // usage: wormhole-attach <config json>
+    let config = parse_config()?;
+    let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(config.wormhole_mount_tree_fd) };
+    trace!("entry shell cmd: {:?}", config.entry_shell_cmd);
+    trace!("drm token: {:?}", config.drm_token);
+    drm::verify_token(&config.drm_token)?;
 
     trace!("open pidfd");
-    let pidfd = PidFd::open(init_pid)?;
+    let pidfd = PidFd::open(config.init_pid)?;
 
     // easier to read everything here instead of keeping /proc/<pid> dirfd open for later
     trace!("read process info");
-    let proc_status = std::fs::read_to_string(format!("/proc/{}/status", init_pid))?;
-    let oom_score_adj = std::fs::read_to_string(format!("/proc/{}/oom_score_adj", init_pid))?;
-    let proc_cgroup = std::fs::read_to_string(format!("/proc/{}/cgroup", init_pid))?;
-    let proc_env = std::fs::read_to_string(format!("/proc/{}/environ", init_pid))?;
-    let proc_mounts = parse_proc_mounts(&std::fs::read_to_string(format!("/proc/{}/mounts", init_pid))?)?;
+    let proc_status = std::fs::read_to_string(format!("/proc/{}/status", config.init_pid))?;
+    let oom_score_adj = std::fs::read_to_string(format!("/proc/{}/oom_score_adj", config.init_pid))?;
+    let proc_cgroup = std::fs::read_to_string(format!("/proc/{}/cgroup", config.init_pid))?;
+    let proc_env = std::fs::read_to_string(format!("/proc/{}/environ", config.init_pid))?;
+    let proc_mounts = parse_proc_mounts(&std::fs::read_to_string(format!("/proc/{}/mounts", config.init_pid))?)?;
     let num_caps = std::fs::read_to_string("/proc/sys/kernel/cap_last_cap")?.trim_end().parse::<u32>()? + 1;
 
     // prevent tracing
@@ -415,8 +420,12 @@ fn main() -> anyhow::Result<()> {
 
     // copy env
     trace!("copy env");
-    // convert to HashMap, to allow for overriding
-    let mut env_map = proc_env.split('\0')
+    // start with container's env, then override with current /proc env
+    // convert to HashMap for easy overriding
+    let mut env_map = config.container_env.unwrap_or_default().iter()
+        .map(|s| s.as_str())
+        // chain with /proc, which is &str
+        .chain(proc_env.split('\0'))
         .map(|s| s.splitn(2, '=').collect::<Vec<&str>>())
         // skip invalid entries with no =
         .filter(|s| s.len() == 2)
@@ -426,7 +435,7 @@ fn main() -> anyhow::Result<()> {
         .collect::<HashMap<_, _>>();
     // edit PATH (append and prepend)
     env_map.insert("PATH".to_string(), format!("{}:{}", PREPEND_PATH, env_map.get("PATH").unwrap_or(&"".to_string())));
-    // append extra envs
+    // set/overwrite extra envs
     env_map.reserve(EXTRA_ENV.len() + INHERIT_ENVS.len());
     for (k, v) in EXTRA_ENV {
         env_map.insert(k.to_string(), v.to_string());
@@ -446,6 +455,7 @@ fn main() -> anyhow::Result<()> {
     drop(wormhole_mount_fd);
 
     trace!("fork into intermediate");
+    // SAFE: we're single-threaded so malloc and locks after fork are ok
     match unsafe { fork()? } {
         // parent 1 = host monitor
         ForkResult::Parent { child } => {
@@ -475,12 +485,10 @@ fn main() -> anyhow::Result<()> {
 
             // then chdir to requested workdir (must do / first to avoid rel path vuln)
             // can fail (falls back to /)
-            let target_workdir = if container_workdir.is_empty() {
+            let target_workdir = config.container_workdir.unwrap_or_else(|| {
                 // copy cwd of init pid
-                format!("/proc/{}/cwd", init_pid)
-            } else {
-                container_workdir
-            };
+                format!("/proc/{}/cwd", config.init_pid)
+            });
             if let Err(e) = chdir(Path::new(&target_workdir)) {
                 // fail silently. this happens when workdir doesn't exist
                 debug!("failed to set working directory: {}", e);
@@ -506,7 +514,7 @@ fn main() -> anyhow::Result<()> {
                     rlim_max: 0,
                 };
                 // read init_pid's rlimit
-                unsafe { err(prlimit(init_pid, res, null(), &mut rlimit))? };
+                unsafe { err(prlimit(config.init_pid, res, null(), &mut rlimit))? };
                 // write to self
                 unsafe { err(prlimit(0, res, &rlimit, null_mut()))? };
             }
@@ -516,7 +524,7 @@ fn main() -> anyhow::Result<()> {
             trace!("copy seccomp");
             let has_seccomp = init_status.get("Seccomp:").unwrap().get(0).unwrap() != "0";
             if has_seccomp {
-                copy_seccomp_filter(init_pid, 0)?;
+                copy_seccomp_filter(config.init_pid, 0)?;
             }
 
             // keep capabilities across UID transition
@@ -614,7 +622,8 @@ fn main() -> anyhow::Result<()> {
                             proc::prctl_death_sig()?;
 
                             trace!("execve");
-                            execve(&CString::new("/nix/orb/sys/bin/dctl")?, &[CString::new("dctl")?, CString::new("__entrypoint")?, CString::new("--")?, CString::new(entry_shell_cmd)?], &cstr_envs)?;
+                            let shell_cmd = config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
+                            execve(&CString::new("/nix/orb/sys/bin/dctl")?, &[CString::new("dctl")?, CString::new("__entrypoint")?, CString::new("--")?, CString::new(shell_cmd)?], &cstr_envs)?;
                             unreachable!();
                         }
                     }
