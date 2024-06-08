@@ -185,10 +185,13 @@ cd nix/orb/sys/zsh
 bash /build/os/zsh/clone.sh
 cp /build/os/zsh/.zshrc .zshrc
 
+# clean up PATH
+ln -s /nix/orb/sys/zsh/cache/https-COLON--SLASH--SLASH-github.com-SLASH-bigH-SLASH-git-fuzzy/bin/git-fuzzy /out/nix/orb/sys/bin/
+
 # terminfo for ghostty (nix installs kitty and contour)
-mkdir -p /nix/orb/sys/share/terminfo/{x,g}
-cp /build/os/terminfo/xterm-ghostty /nix/orb/sys/share/terminfo/x/
-cp /build/os/terminfo/ghostty /nix/orb/sys/share/terminfo/g/
+mkdir -p /out/nix/orb/sys/share/terminfo/{x,g}
+cp /build/os/terminfo/xterm-ghostty /out/nix/orb/sys/share/terminfo/x/
+cp /build/os/terminfo/ghostty /out/nix/orb/sys/share/terminfo/g/
 EOT
 COPY wormhole/os/nix.conf /out/nix/orb/sys/etc/nix.conf
 # add 'o' command
