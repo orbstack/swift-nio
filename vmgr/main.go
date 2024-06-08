@@ -612,14 +612,21 @@ func runVmManager() {
 		errorx.Fatalf("%w", err)
 	}
 
-	// state migration
-	err = migrateState()
-	check(err)
-
 	if _, err := os.Stat(conf.DataImage()); errors.Is(err, os.ErrNotExist) {
 		logrus.Info("initializing data")
 		extractSparse(streamObfAssetFile("data.img.tar"))
 	}
+
+	// wait for data.img flock
+	logrus.Debug("waiting for data lock")
+	err = ensureDataLock()
+	if err != nil {
+		errorx.Fatalf("failed to lock data: %w", err)
+	}
+
+	// state migration
+	err = migrateState()
+	check(err)
 
 	// create a new empty swap img
 	_ = os.Remove(conf.SwapImage())
@@ -632,13 +639,6 @@ func runVmManager() {
 	consoleMode := ConsoleLog
 	if useStdioConsole {
 		consoleMode = ConsoleStdio
-	}
-
-	// wait for data.img flock
-	logrus.Debug("waiting for data lock")
-	err = ensureDataLock()
-	if err != nil {
-		errorx.Fatalf("failed to lock data: %w", err)
 	}
 
 	// always prefer rsvm
