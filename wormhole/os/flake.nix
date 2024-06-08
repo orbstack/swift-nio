@@ -28,6 +28,7 @@
               gnugrep
               less
               kitty.terminfo
+              contour.terminfo
               procps
               util-linux
               gnutar

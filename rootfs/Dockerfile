@@ -184,6 +184,11 @@ mkdir -p nix/orb/sys/zsh nix/orb/sys/.base nix/orb/data/home nix/orb/data/tmp ni
 cd nix/orb/sys/zsh
 bash /build/os/zsh/clone.sh
 cp /build/os/zsh/.zshrc .zshrc
+
+# terminfo for ghostty (nix installs kitty and contour)
+mkdir -p /nix/orb/sys/share/terminfo/{x,g}
+cp /build/os/terminfo/xterm-ghostty /nix/orb/sys/share/terminfo/x/
+cp /build/os/terminfo/ghostty /nix/orb/sys/share/terminfo/g/
 EOT
 COPY wormhole/os/nix.conf /out/nix/orb/sys/etc/nix.conf
 # add 'o' command
