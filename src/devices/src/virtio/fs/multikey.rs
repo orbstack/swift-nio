@@ -7,7 +7,7 @@ use std::{
     hash::{BuildHasherDefault, Hash},
 };
 
-use dashmap::mapref::one::Ref;
+use dashmap::mapref::one::{Ref, RefMut};
 use rustc_hash::FxHasher;
 
 use super::FxDashMap;
@@ -29,17 +29,12 @@ where
     alt: FxDashMap<K2, K1>,
 }
 
-pub trait ToAltKey<K2> {
-    fn to_alt_key(&self) -> K2;
-}
-
 type S = BuildHasherDefault<FxHasher>;
 
 impl<K1, K2, V> MultikeyFxDashMap<K1, K2, V>
 where
     K1: Clone + Ord + Hash,
     K2: Clone + Ord + Hash,
-    V: ToAltKey<K2>,
 {
     /// Create a new empty MultikeyFxHashMap.
     pub fn new() -> Self {
@@ -59,6 +54,14 @@ where
         Q: Ord + ?Sized + Hash,
     {
         self.main.get(key)
+    }
+
+    pub fn get_mut<Q>(&self, key: &Q) -> Option<RefMut<K1, V, S>>
+    where
+        K1: Borrow<Q>,
+        Q: Ord + ?Sized + Hash,
+    {
+        self.main.get_mut(key)
     }
 
     /// Returns a reference to the value corresponding to the alternate key.
@@ -86,6 +89,10 @@ where
         // always add K1 first to prevent race. reverse mapping requires original to exist already
         self.main.insert(k1.clone(), v);
         // add or replace K2->K1 mapping to new K1 value
+        self.insert_alt(k1, k2)
+    }
+
+    pub fn insert_alt(&self, k1: K1, k2: K2) -> K1 {
         self.alt.entry(k2).or_insert(k1).clone()
     }
 
@@ -98,8 +105,8 @@ where
         self.main.remove(key);
     }
 
-    pub fn remove_alt(&self, value: &V) {
-        self.alt.remove(&value.to_alt_key());
+    pub fn remove_alt(&self, k2: &K2) {
+        self.alt.remove(k2);
     }
 
     pub fn contains_alt_key(&self, key: &K2) -> bool {
