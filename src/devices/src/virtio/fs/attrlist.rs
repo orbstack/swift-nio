@@ -130,7 +130,7 @@ pub fn list_dir<T: AsRawFd>(
             let mut error: Option<Errno> = None;
             if returned.commonattr & ATTR_CMN_ERROR != 0 {
                 let errno = unsafe { *(entry_p as *const u32) };
-                error = Some(nix::errno::from_i32(errno as i32).into());
+                error = Some(nix::errno::from_i32(errno as i32));
                 entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 

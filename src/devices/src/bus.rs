@@ -184,7 +184,7 @@ impl Bus {
             }
         }
 
-        if let Some(_) = hvc_id {
+        if hvc_id.is_some() {
             self.hvc_handlers.push(device);
         }
 

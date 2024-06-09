@@ -40,7 +40,7 @@ impl<T: ?Sized> Mutex<T> {
     }
 
     #[inline]
-    pub fn lock<'a>(&'a self) -> LockResult<MutexGuard<'a, T>> {
+    pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
         unsafe {
             libc::os_unfair_lock_lock(self.lock.get());
         }
@@ -51,7 +51,7 @@ impl<T: ?Sized> Mutex<T> {
     }
 
     #[inline]
-    pub fn try_lock<'a>(&'a self) -> TryLockResult<MutexGuard<'a, T>> {
+    pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
         let ok = unsafe { libc::os_unfair_lock_trylock(self.lock.get()) };
         if ok {
             Ok(MutexGuard {

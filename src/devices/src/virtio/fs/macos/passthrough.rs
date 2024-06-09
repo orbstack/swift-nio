@@ -171,7 +171,7 @@ impl Drop for HandleData {
             // this is a dir, and it had a stream open
             // closedir *closes* the fd passed to fdopendir (which is the fd that File holds)
             // so this invalidates the OwnedFd ownership
-            unsafe { libc::closedir(ds._stream as *mut libc::DIR) };
+            unsafe { libc::closedir(ds._stream) };
         } else {
             // this is a file, or a dir with no stream open
             // manually drop File to close OwnedFd
@@ -231,7 +231,7 @@ fn fstat<T: AsFd>(fd: T, host: bool) -> io::Result<bindings::stat64> {
 }
 
 fn lstat(c_path: &CStr, host: bool) -> io::Result<bindings::stat64> {
-    let mut st = nix::sys::stat::lstat(c_path.as_ref())?;
+    let mut st = nix::sys::stat::lstat(c_path)?;
 
     if !host {
         if let Some((uid, gid, mode)) = get_xattr_stat(FileRef::Path(c_path))? {
@@ -442,7 +442,7 @@ bitflags! {
 struct DevIno(pub i32, pub u64);
 
 fn st_ctime(st: &bindings::stat64) -> i64 {
-    st.st_ctime as i64 * NSEC_PER_SEC + st.st_ctime_nsec as i64
+    st.st_ctime * NSEC_PER_SEC + st.st_ctime_nsec
 }
 
 /// A file system that simply "passes through" all requests it receives to the underlying file
@@ -654,7 +654,7 @@ impl PassthroughFs {
         // not in cache: check it
         // statfs doesn't trigger TCC (only open does)
         let stf = match file_ref {
-            FileRef::Path(c_path) => statfs(c_path.as_ref()),
+            FileRef::Path(c_path) => statfs(*c_path),
             FileRef::Fd(fd) => fstatfs(fd),
         }?;
         // transmute type (repr(transparent))
@@ -676,7 +676,7 @@ impl PassthroughFs {
         name: &str,
     ) -> io::Result<(CString, NodeFlags, libc::stat)> {
         let (mut c_path, DevIno(parent_dev, parent_ino), parent_flags) =
-            self.name_to_path_and_data(parent, &name)?;
+            self.name_to_path_and_data(parent, name)?;
         // looking up nfs mountpoint should return a dummy empty dir
         // for simplicity we can always just use /var/empty
         if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
@@ -746,9 +746,7 @@ impl PassthroughFs {
 
                 // must reopen even if we have fd, to get O_EVTONLY. dup can't do that
                 let fd = match file_ref {
-                    FileRef::Path(c_path) => {
-                        nix::fcntl::open(c_path.as_ref(), oflag, Mode::empty())
-                    }
+                    FileRef::Path(c_path) => nix::fcntl::open(c_path, oflag, Mode::empty()),
                     FileRef::Fd(fd) => {
                         // TODO: faster to ask caller for c_path here
                         nix::fcntl::open(Path::new(&get_path_by_fd(fd)?), oflag, Mode::empty())
@@ -920,7 +918,7 @@ impl PassthroughFs {
                 Err(e) => {
                     error!(
                         "failed to add entry {}: {:?}",
-                        std::str::from_utf8(&name).unwrap(),
+                        std::str::from_utf8(name).unwrap(),
                         e
                     );
                     continue;
@@ -999,7 +997,7 @@ impl PassthroughFs {
         ctx: Context,
     ) -> io::Result<(bindings::stat64, Duration)> {
         let mut st = match file_ref {
-            FileRef::Path(c_path) => lstat(&c_path, false)?,
+            FileRef::Path(c_path) => lstat(c_path, false)?,
             FileRef::Fd(fd) => fstat(fd, false)?,
         };
 
@@ -1093,13 +1091,9 @@ impl PassthroughFs {
             let mtime = TimeSpec::from_timespec(mtime);
             match file_ref.as_ref() {
                 FileRef::Fd(fd) => futimens(fd.as_raw_fd(), &atime, &mtime),
-                FileRef::Path(path) => utimensat(
-                    None,
-                    path.as_ref(),
-                    &atime,
-                    &mtime,
-                    UtimensatFlags::NoFollowSymlink,
-                ),
+                FileRef::Path(path) => {
+                    utimensat(None, path, &atime, &mtime, UtimensatFlags::NoFollowSymlink)
+                }
             }?;
         }
 
@@ -1789,13 +1783,11 @@ impl FileSystem for PassthroughFs {
                 )?)
             };
 
-            if let Err(e) = set_xattr_stat(
+            set_xattr_stat(
                 FileRef::Fd(fd.as_fd()),
                 Some((ctx.uid, ctx.gid)),
                 Some(libc::S_IFREG as u32 | (mode & !(umask & 0o777))),
-            ) {
-                return Err(e);
-            }
+            )?;
 
             // Set security context
             if let Some(secctx) = &extensions.secctx {
@@ -1982,13 +1974,11 @@ impl FileSystem for PassthroughFs {
                             Mode::from_bits_truncate(0o600),
                         ) {
                             let fd = unsafe { OwnedFd::from_raw_fd(fd) };
-                            if let Err(e) = set_xattr_stat(
+                            set_xattr_stat(
                                 FileRef::Fd(fd.as_fd()),
                                 None,
                                 Some((libc::S_IFCHR | 0o600) as u32),
-                            ) {
-                                return Err(e);
-                            }
+                            )?;
                         }
                     }
 
@@ -2044,13 +2034,11 @@ impl FileSystem for PassthroughFs {
                 set_secctx(FileRef::Path(&c_path), secctx, false)?
             };
 
-            if let Err(e) = set_xattr_stat(
+            set_xattr_stat(
                 FileRef::Path(&c_path),
                 Some((ctx.uid, ctx.gid)),
                 Some(mode & !umask),
-            ) {
-                return Err(e);
-            }
+            )?;
 
             self.do_lookup(parent, name, &ctx)
         })
@@ -2116,7 +2104,7 @@ impl FileSystem for PassthroughFs {
             let c_path = self.name_to_path(parent, name)?;
 
             // Safe because this doesn't modify any memory and we check the return value.
-            symlinkat(linkname.as_ref(), None, c_path.as_ref())?;
+            symlinkat(linkname, None, c_path.as_ref())?;
 
             // Set security context
             if let Some(secctx) = &extensions.secctx {

@@ -208,7 +208,7 @@ fn create_chosen_node(
     }
 
     // KASLR
-    fdt.property_u64("kaslr-seed", OsRng::default().next_u64())?;
+    fdt.property_u64("kaslr-seed", OsRng.next_u64())?;
 
     fdt.end_node(chosen_node)?;
 

@@ -133,3 +133,9 @@ impl Drop for Parker {
         }
     }
 }
+
+impl Default for Parker {
+    fn default() -> Self {
+        Self::new()
+    }
+}

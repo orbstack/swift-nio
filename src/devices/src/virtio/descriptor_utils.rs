@@ -70,6 +70,7 @@ unsafe impl<'a> Send for Iovec<'a> {}
 unsafe impl<'a> Sync for Iovec<'a> {}
 
 impl<'a> Iovec<'a> {
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.iov.iov_len
     }
@@ -87,7 +88,7 @@ impl<'a> Iovec<'a> {
     }
 
     pub fn advance(&mut self, len: usize) {
-        self.iov.iov_base = unsafe { self.iov.iov_base.offset(len as isize) } as *mut c_void;
+        self.iov.iov_base = unsafe { self.iov.iov_base.add(len) };
         self.iov.iov_len -= len;
     }
 
@@ -236,7 +237,7 @@ impl<'a> DescriptorChainConsumer<'a> {
         // we currently only support skipping the first buffer
         if self.buffers_pos != 0
             || self.bytes_consumed != 0
-            || self._buffers_vec.get_mut().len() == 0
+            || self._buffers_vec.get_mut().is_empty()
             || self._buffers_vec.get_mut()[0].len() != offset
         {
             return Err(Error::SplitOutOfBounds(offset));

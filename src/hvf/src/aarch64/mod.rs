@@ -321,7 +321,7 @@ impl HvfVm {
     }
 
     pub fn max_ram_size() -> u64 {
-        let max_addr = 1 << Self::get_max_ipa_size() - 1;
+        let max_addr = (1 << Self::get_max_ipa_size()) - 1;
         let max_ram_addr = max_addr - MMIO_SHM_SIZE - 0x4000_0000; // shm rounding (ceil) = 1 GiB
         max_ram_addr - layout::DRAM_MEM_START
     }
@@ -411,7 +411,7 @@ extern "C" {
 fn search_8b_linear(haystack_ptr: *mut u64, needle: u64, haystack_bytes: usize) -> Option<usize> {
     let mut i = 0;
     while i < (haystack_bytes / 8) {
-        if unsafe { *haystack_ptr.offset(i as isize) } == needle as u64 {
+        if unsafe { *haystack_ptr.add(i) } == needle {
             return Some(i);
         }
         i += 1;

@@ -345,10 +345,8 @@ impl PeInterruptState {
     pub fn get_pending_irq(&self) -> Option<InterruptId> {
         if let Some(active_interrupt) = self.active_interrupt {
             Some(active_interrupt)
-        } else if let Some(pending_interrupt) = self.pending_interrupts.front() {
-            Some(*pending_interrupt)
         } else {
-            None
+            self.pending_interrupts.front().copied()
         }
     }
 
