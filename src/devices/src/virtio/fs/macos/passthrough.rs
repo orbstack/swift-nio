@@ -1537,6 +1537,15 @@ impl FileSystem for PassthroughFs {
             Some(f) => Some(get_path_by_fd(f.as_fd())?),
             None => None,
         };
+        let parent_ino = if let Some(parent_nodeid) = node.parent_nodeid {
+            let parent_node = self
+                .nodeids
+                .get(&parent_nodeid.get().into())
+                .ok_or(Errno::EBADF)?;
+            parent_node.dev_ino.1
+        } else {
+            ino
+        };
         drop(node);
 
         debug!(
@@ -1570,8 +1579,7 @@ impl FileSystem for PassthroughFs {
         if offset == 1 {
             match add_entry(
                 DirEntry {
-                    // bogus ino to skip lookup - no one cares about dt_ino
-                    ino: offset + 1 + 1,
+                    ino: parent_ino,
                     offset: 2,
                     type_: libc::DT_DIR as u32,
                     name: b"..",
