@@ -6,7 +6,6 @@ package vzf
 
 #define CGO
 #include "../../swift/GoVZF/Sources/CBridge/CBridge.h"
-#include <CoreServices/CoreServices.h>
 
 struct GResultCreate govzf_run_NewMachine(uintptr_t handle, const char* config_json_str);
 struct GResultErr govzf_run_Machine_Start(void* ptr);
@@ -25,7 +24,7 @@ struct GResultErr swext_proxy_monitor_changes(void);
 char* swext_security_get_extra_ca_certs(void);
 struct GResultErr swext_security_import_certificate(const char* cert_der_b64);
 
-struct GResultCreate swext_fsevents_monitor_dirs(const char* nfs_mount_path, const char* data_path);
+char* swext_fsevents_monitor_dirs(void);
 void* swext_fsevents_VmNotifier_new(void);
 struct GResultErr swext_fsevents_VmNotifier_start(void* ptr);
 struct GResultErr swext_fsevents_VmNotifier_updatePaths(void* ptr, const char** paths, int count);
@@ -350,18 +349,16 @@ func swext_fsevents_cb_krpc_events(ptr *C.uint8_t, len C.size_t) {
 	SwextFseventsKrpcEventsChan <- data
 }
 
-func SwextFseventsMonitorDirs(nfsMountPath string, dataPath string) (unsafe.Pointer, error) {
-	cNfsMountPath := C.CString(nfsMountPath)
-	defer C.free(unsafe.Pointer(cNfsMountPath))
-	cDataPath := C.CString(dataPath)
-	defer C.free(unsafe.Pointer(cDataPath))
+func SwextFseventsMonitorDirs() error {
+	msgC := C.swext_fsevents_monitor_dirs()
+	defer C.free(unsafe.Pointer(msgC))
+	msgStr := C.GoString(msgC)
 
-	result := C.swext_fsevents_monitor_dirs(cNfsMountPath, cDataPath)
-	if result.err != nil {
-		return nil, errFromC(result.err)
+	if msgStr != "" {
+		return errors.New(msgStr)
 	}
 
-	return result.ptr, nil
+	return nil
 }
 
 type FsVmNotifier struct {
@@ -444,25 +441,6 @@ func (n *FsVmNotifier) UpdatePaths(paths []string) error {
 
 	res := C.swext_fsevents_VmNotifier_updatePaths(n.ptr, &cPaths[0], C.int(len(paths)))
 	return errFromResult(res)
-}
-
-func FSEventStreamStart(streamRef unsafe.Pointer) error {
-	success := C.FSEventStreamStart(C.FSEventStreamRef(streamRef))
-	if success == 0 {
-		return errors.New("FSEventStreamStart failed")
-	}
-
-	return nil
-}
-
-func FSEventStreamStop(streamRef unsafe.Pointer) error {
-	C.FSEventStreamStop(C.FSEventStreamRef(streamRef))
-	return nil
-}
-
-func FSEventStreamFlushAsync(streamRef unsafe.Pointer) error {
-	C.FSEventStreamFlushAsync(C.FSEventStreamRef(streamRef))
-	return nil
 }
 
 /*
