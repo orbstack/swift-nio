@@ -420,6 +420,10 @@ struct DKImage: Codable, Equatable, Identifiable {
         if Date().timeIntervalSince(date) < nowTimeThreshold {
             return "just now"
         }
+        // fix "0001-01-01T00:00:00Z" (-62135596800): https://github.com/orbstack/orbstack/issues/1254
+        if created <= 0 {
+            return "unknown"
+        }
 
         return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
