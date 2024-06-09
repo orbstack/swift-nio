@@ -91,10 +91,10 @@ function build_one() {
     cp -rc ../assets/release/$arch_go build/assets/release/
 
     # obfuscate tars to pass notarization
+    # (notary service tries to extract 8 TiB sparse tar for analysis)
     pushd build/assets/release/$arch_go
     cat data.img.tar | base64 > data.img.tar.b64
-    cat swap.img.tar | base64 > swap.img.tar.b64
-    rm -f data.img.tar swap.img.tar
+    rm -f data.img.tar
     popd
 
     # copy bins
