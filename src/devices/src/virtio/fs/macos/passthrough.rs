@@ -55,6 +55,9 @@ use super::super::filesystem::{
 use super::super::fuse;
 use super::vnode_poll::VnodePoller;
 
+// disabled because Linux doesn't FORGET everything on unmount
+const DETECT_REFCOUNT_LEAKS: bool = false;
+
 // _IOC(_IOC_READ, 0x61, 0x22, 0x45)
 const IOCTL_ROSETTA: u32 = 0x8045_6122;
 
@@ -1384,22 +1387,19 @@ impl FileSystem for PassthroughFs {
     }
 
     fn destroy(&self) {
-        /*
-        for handle in self.handles.iter() {
-            warn!("leaked handle: nodeid={}", handle.nodeid);
-        }
-        for node in self.nodeids.iter_main() {
-            if node.nodeid == fuse::ROOT_ID {
-                continue;
-            }
+        if DETECT_REFCOUNT_LEAKS {
+            for node in self.nodeids.iter_main() {
+                if (node.key().0) == fuse::ROOT_ID {
+                    continue;
+                }
 
-            warn!(
-                "leaked node: nodeid={} refcount={}",
-                node.nodeid,
-                node.refcount.load(Ordering::Relaxed)
-            );
+                warn!(
+                    "leaked node: nodeid={} refcount={}",
+                    node.key(),
+                    node.refcount.load(Ordering::Relaxed)
+                );
+            }
         }
-        */
 
         self.handles.clear();
         self.nodeids.clear();
