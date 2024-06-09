@@ -9,7 +9,6 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::mem::size_of;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 
 use nix::errno::Errno;
 use num_traits::FromPrimitive;
@@ -69,22 +68,19 @@ impl<'a> io::Write for ZCWriter<'a> {
 }
 
 pub trait FsCallbacks: Send + Sync + Debug {
-    fn on_activity(&self);
     fn send_krpc_events(&self, krpc_buf: &[u8]);
 }
 
 pub struct Server<F: FileSystem + Sync> {
     fs: F,
     options: AtomicU64,
-    activity_notifier: Option<Arc<dyn FsCallbacks>>,
 }
 
 impl<F: FileSystem + Sync> Server<F> {
-    pub fn new(fs: F, activity_notifier: Option<Arc<dyn FsCallbacks>>) -> Server<F> {
+    pub fn new(fs: F) -> Server<F> {
         Server {
             fs,
             options: AtomicU64::new(FsOptions::empty().bits()),
-            activity_notifier,
         }
     }
 
@@ -103,10 +99,6 @@ impl<F: FileSystem + Sync> Server<F> {
 
         if in_header.len > (MAX_BUFFER_SIZE + BUFFER_HEADER_SIZE) {
             return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
-        }
-
-        if let Some(ref activity_notifier) = self.activity_notifier {
-            activity_notifier.on_activity();
         }
 
         debug!("opcode: {}", in_header.opcode);

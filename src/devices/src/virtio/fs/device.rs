@@ -100,7 +100,6 @@ impl Fs {
             worker_stopfd: EventFd::new(EFD_NONBLOCK).map_err(FsError::EventFd)?,
             server: Arc::new(Server::new(
                 PassthroughFs::new(fs_cfg, callbacks.clone()).map_err(FsError::CreateServer)?,
-                callbacks,
             )),
         })
     }

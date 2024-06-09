@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 use utils::Mutex;
 
-use devices::virtio::{FsCallbacks, Fs, FsError, NfsInfo};
+use devices::virtio::{Fs, FsCallbacks, FsError, NfsInfo};
 
 #[derive(Debug)]
 pub enum FsConfigError {
