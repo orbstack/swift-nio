@@ -45,6 +45,7 @@ counter = { version = "0.1.0", path = "../counter" }
 num-traits = "0.2.19"
 num-derive = "0.4.2"
 smol_str = "0.2.2"
+derive_more = "0.99.17"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }

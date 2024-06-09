@@ -212,8 +212,8 @@ impl VnodePoller {
             EVFILT_VNODE => {
                 if event.fflags & NOTE_EXTEND != 0 {
                     // need to use handle to prevent race if event was buffered before fd was closed
-                    let handleid = event.udata as HandleId;
-                    let hd = match self.handles.get(&handleid) {
+                    let handle = HandleId(event.udata);
+                    let hd = match self.handles.get(&handle) {
                         Some(hd) => hd,
                         // race: handle was closed before we processed the event. ignore, because it no longer matters
                         None => return Ok(None),
@@ -221,7 +221,7 @@ impl VnodePoller {
 
                     // TODO: just use nodeid for krpc
                     let path = VIRTIOFS_MOUNTPOINT.to_string() + &hd.path()?;
-                    debug!("vnode EXTEND: handle={:?} path={:?}", handleid, path);
+                    debug!("vnode EXTEND: handle={:?} path={:?}", handle, path);
                     return Ok(Some(EventResult::Krpc(path)));
                 }
             }

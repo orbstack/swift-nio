@@ -22,7 +22,13 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use crate::virtio::fs::attrlist::{self, AttrlistEntry, INLINE_ENTRIES};
+use crate::virtio::fs::filesystem::SecContext;
+use crate::virtio::fs::multikey::MultikeyFxDashMap;
+use crate::virtio::rosetta::get_rosetta_data;
+use crate::virtio::{FsCallbacks, FxDashMap, NfsInfo};
 use bitflags::bitflags;
+use derive_more::{Display, From, Into};
 use libc::{AT_FDCWD, MAXPATHLEN};
 use nix::errno::Errno;
 use nix::fcntl::OFlag;
@@ -40,12 +46,6 @@ use smallvec::SmallVec;
 use smol_str::SmolStr;
 use utils::qos::{set_thread_qos, QosClass};
 use utils::{Mutex, MutexGuard};
-
-use crate::virtio::fs::attrlist::{self, AttrlistEntry, INLINE_ENTRIES};
-use crate::virtio::fs::filesystem::SecContext;
-use crate::virtio::fs::multikey::MultikeyFxDashMap;
-use crate::virtio::rosetta::get_rosetta_data;
-use crate::virtio::{FsCallbacks, FxDashMap, NfsInfo};
 
 use super::super::bindings;
 use super::super::filesystem::{
@@ -79,8 +79,15 @@ const FALLOC_FL_KEEP_SIZE: u32 = 0x01;
 const FALLOC_FL_PUNCH_HOLE: u32 = 0x02;
 const FALLOC_FL_KEEP_SIZE_AND_PUNCH_HOLE: u32 = FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE;
 
-pub(crate) type NodeId = u64;
-pub(crate) type HandleId = u64;
+#[derive(
+    Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash, From, Into, Display,
+)]
+pub struct NodeId(pub u64);
+
+#[derive(
+    Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash, From, Into, Display,
+)]
+pub struct HandleId(pub u64);
 
 // zero is not a valid nodeid, so use this to keep Option<NodeId> the same size
 type OptionNodeId = Option<NonZeroU64>;
@@ -96,20 +103,18 @@ struct DirStream {
 unsafe impl Send for DirStream {}
 
 pub(crate) struct HandleData {
-    nodeid: NodeId,
     file: ManuallyDrop<File>,
     dirstream: Mutex<DirStream>,
 }
 
 impl HandleData {
     fn new(
-        nodeid: NodeId,
+        handle: HandleId,
         file: File,
         is_readable_file: bool,
         poller: &Option<Arc<VnodePoller>>,
     ) -> io::Result<Self> {
         let hd = HandleData {
-            nodeid,
             file: ManuallyDrop::new(file),
             dirstream: Mutex::new(DirStream {
                 _stream: std::ptr::null_mut(),
@@ -121,7 +126,7 @@ impl HandleData {
         // technically we only have to register it when read hits EOF, but that's flaky and won't actually save time, because the common case is that files (e.g. source code) will be fully read
         if is_readable_file {
             if let Some(poller) = poller {
-                poller.register(hd.file.as_fd(), hd.nodeid)?;
+                poller.register(hd.file.as_fd(), handle)?;
             }
         }
 
@@ -408,7 +413,7 @@ struct NodeData {
     dev_ino: DevIno,
 
     // state
-    refcount: AtomicU64,
+    refcount: AtomicI64,
     // for CTO consistency: clear cache on open if ctime has changed
     // must only be updated on open
     last_open_ctime: AtomicI64,
@@ -433,7 +438,8 @@ bitflags! {
     }
 }
 
-type DevIno = (i32, u64);
+#[derive(Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
+struct DevIno(pub i32, pub u64);
 
 fn st_ctime(st: &bindings::stat64) -> i64 {
     st.st_ctime as i64 * NSEC_PER_SEC + st.st_ctime_nsec as i64
@@ -474,13 +480,13 @@ impl PassthroughFs {
         let st = nix::sys::stat::stat(Path::new(&cfg.root_dir))?;
         let nodeids = MultikeyFxDashMap::new();
         nodeids.insert(
-            fuse::ROOT_ID,
-            (st.st_dev, st.st_ino),
+            NodeId(fuse::ROOT_ID),
+            DevIno(st.st_dev, st.st_ino),
             NodeData {
-                dev_ino: (st.st_dev, st.st_ino),
+                dev_ino: DevIno(st.st_dev, st.st_ino),
 
                 // refcount 2 so it can never be dropped
-                refcount: AtomicU64::new(2),
+                refcount: AtomicI64::new(2),
                 last_open_ctime: AtomicI64::new(st_ctime(&st)),
                 flags: NodeFlags::empty(),
                 fd: None,
@@ -544,7 +550,7 @@ impl PassthroughFs {
     // lstat realpath=681.85ns, volfs=895.88ns, fsgetpath=1.1478us, lstat+fsgetpath=1.8592us
     // TODO: unify with name_to_path(NodeId, Option<N>)
     fn nodeid_to_file_ref(&self, nodeid: NodeId) -> io::Result<OwnedFileRef<OwnedFd>> {
-        let ((dev, ino), _, fd) = self.get_nodeid(nodeid)?;
+        let (DevIno(dev, ino), _, fd) = self.get_nodeid(nodeid)?;
         if let Some(fd) = fd {
             Ok(OwnedFileRef::Fd(fd))
         } else {
@@ -576,7 +582,7 @@ impl PassthroughFs {
             return Err(Errno::ENOENT.into());
         }
 
-        let ((parent_device, parent_inode), parent_flags, fd) = self.get_nodeid(parent)?;
+        let (DevIno(parent_device, parent_inode), parent_flags, fd) = self.get_nodeid(parent)?;
         let path = if let Some(fd) = fd {
             // to minimize race window and support renames, get latest path from fd
             // this also allows minimal opens (EVTONLY | RDONLY)
@@ -587,7 +593,7 @@ impl PassthroughFs {
         };
 
         let cstr = CString::new(path)?;
-        Ok((cstr, (parent_device, parent_inode), parent_flags))
+        Ok((cstr, DevIno(parent_device, parent_inode), parent_flags))
     }
 
     fn name_to_path(&self, parent: NodeId, name: &str) -> io::Result<CString> {
@@ -595,7 +601,7 @@ impl PassthroughFs {
     }
 
     fn devino_to_path(&self, devino: DevIno) -> io::Result<CString> {
-        let (dev, ino) = devino;
+        let DevIno(dev, ino) = devino;
         let path = format!("/.vol/{}/{}", dev, ino);
         let cstr = CString::new(path)?;
         Ok(cstr)
@@ -669,7 +675,7 @@ impl PassthroughFs {
         parent: NodeId,
         name: &str,
     ) -> io::Result<(CString, NodeFlags, libc::stat)> {
-        let (mut c_path, (parent_dev, parent_ino), parent_flags) =
+        let (mut c_path, DevIno(parent_dev, parent_ino), parent_flags) =
             self.name_to_path_and_data(parent, &name)?;
         // looking up nfs mountpoint should return a dummy empty dir
         // for simplicity we can always just use /var/empty
@@ -705,7 +711,7 @@ impl PassthroughFs {
         st.st_gid = ctx.gid;
 
         // race OK: if we fail to find a nodeid by (dev,ino), we'll just make a new one, and old one will gradually be forgotten
-        let dev_ino = (st.st_dev, st.st_ino);
+        let dev_ino = DevIno(st.st_dev, st.st_ino);
         let nodeid = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
             // there is already a nodeid for this (dev, ino)
             // increment the refcount and return it
@@ -714,7 +720,7 @@ impl PassthroughFs {
         } else {
             // this (dev, ino) is new
             // create a new nodeid and return it
-            let mut new_nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed);
+            let mut new_nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed).into();
 
             // open fd if volfs is not supported
             // but DO NOT open char devs or block devs - could block, will likely fail, doesn't work thru virtiofs
@@ -757,13 +763,13 @@ impl PassthroughFs {
             let mut node = NodeData {
                 dev_ino,
 
-                refcount: AtomicU64::new(1),
+                refcount: AtomicI64::new(1),
                 last_open_ctime: AtomicI64::new(st_ctime(&st)),
                 flags: parent_flags,
                 fd,
                 nlink: st.st_nlink,
 
-                parent_nodeid: Some(NonZeroU64::new(parent).unwrap()),
+                parent_nodeid: Some(NonZeroU64::new(parent.0).unwrap()),
                 name: SmolStr::from(name),
             };
 
@@ -808,7 +814,7 @@ impl PassthroughFs {
         );
 
         Ok(Entry {
-            nodeid,
+            nodeid: nodeid.0,
             generation: 0,
             attr: st,
             attr_timeout: self.cfg.attr_timeout,
@@ -821,7 +827,7 @@ impl PassthroughFs {
         // race OK: primary key lookup only
         if let Some(node) = self.nodeids.get(&nodeid) {
             // decrement the refcount
-            if node.refcount.fetch_sub(count, Ordering::Relaxed) == count {
+            if node.refcount.fetch_sub(count as i64, Ordering::Relaxed) == count as i64 {
                 // count - count = 0
                 // this nodeid is no longer in use
 
@@ -860,7 +866,7 @@ impl PassthroughFs {
 
         let data = self.get_handle(nodeid, handle)?;
         // race OK: FUSE won't FORGET until all handles are closed
-        let (dev, _) = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?.dev_ino;
+        let DevIno(dev, _) = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?.dev_ino;
 
         // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries
         let (mut ds, dir_stream) = data.readdir_stream()?;
@@ -932,10 +938,10 @@ impl PassthroughFs {
         // early stat to avoid broken handle state if it fails
         let st = fstat(&file, false)?;
 
-        let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
+        let handle = self.next_handle.fetch_add(1, Ordering::Relaxed).into();
         let is_readable_file =
             !flags.contains(OFlag::O_DIRECTORY) && !flags.contains(OFlag::O_WRONLY);
-        let data = HandleData::new(nodeid, file, is_readable_file, &self.poller)?;
+        let data = HandleData::new(handle, file, is_readable_file, &self.poller)?;
 
         debug!("open_nodeid: nodeid={} -> handle={:?}", nodeid, handle);
         self.handles.insert(handle, Arc::new(data));
@@ -1177,7 +1183,7 @@ impl PassthroughFs {
         // TODO: this breaks down with hard links (dentry != node; names are diff), but that's uncommon
         let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
         let old_devino = node.dev_ino;
-        let parent = node.parent_nodeid.ok_or(Errno::ENOENT)?.get();
+        let parent = node.parent_nodeid.ok_or(Errno::ENOENT)?.get().into();
         // prevent deadlock with get_mut later, and with with_nodeid_refresh
         drop(node);
 
@@ -1192,10 +1198,10 @@ impl PassthroughFs {
             // we'll have to re-acquire the node ref later to get a write lock, so drop it to avoid doing I/O (lstat) with the lock held
             drop(node);
 
-            debug!(nodeid, ?old_devino, ?path_in_parent, "refresh_nodeid");
+            debug!(?nodeid, ?old_devino, ?path_in_parent, "refresh_nodeid");
             let st = lstat(&path_in_parent, true)?;
 
-            let new_devino = (st.st_dev, st.st_ino);
+            let new_devino = DevIno(st.st_dev, st.st_ino);
             if new_devino == old_devino {
                 // this is pretty much impossible:
                 // inode reuse should never happen this quickly, and we just checked that the error was probably caused by a stale dev/ino, because the old dev/ino no longer exists... and yet if we look it up in the parent, it's the same, implying that the dev/ino exists again?
@@ -1230,8 +1236,9 @@ impl PassthroughFs {
                 // stale means that FUSE will fail all future I/O on the old nodeid, so fail here too
                 // TODO: any better way to handle this?
                 error!(
-                    nodeid,
-                    inserted_nodeid, "refresh_nodeid: race with new lookup"
+                    ?nodeid,
+                    ?inserted_nodeid,
+                    "refresh_nodeid: race with new lookup"
                 );
                 return Err(Errno::EAGAIN.into());
             }
@@ -1531,7 +1538,7 @@ impl FileSystem for PassthroughFs {
         let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
         let parent_flags = node.flags;
         let nlink = node.nlink;
-        let (dev, ino) = node.dev_ino;
+        let DevIno(dev, ino) = node.dev_ino;
         // TODO: race still OK here because of FORGET, but need to fix
         let parent_fd_path = match node.fd.as_ref() {
             Some(f) => Some(get_path_by_fd(f.as_fd())?),
@@ -1657,7 +1664,7 @@ impl FileSystem for PassthroughFs {
                 offset + 1 + (i as u64)
             );
 
-            let lookup_entry = if self.nodeids.contains_alt_key(&(st.st_dev, st.st_ino)) {
+            let lookup_entry = if self.nodeids.contains_alt_key(&DevIno(st.st_dev, st.st_ino)) {
                 // don't return attrs for files with existing nodeids (i.e. inode struct on the linux side)
                 // this prevents a race (cargo build [st_size], rm -rf [st_nlink? not sure]) where Linux is writing to a file that's growing in size, and something else calls readdirplus on its parent dir, causing FUSE to update the existing inode's attributes with a stale size, causing the readable portion of the file to be truncated when the next rustc process tries to read from the previous compilation output
                 // it's OK for perf, because readdirplus covers two cases: (1) providing attrs to avoid lookup for a newly-seen file, and (2) updating invalidated attrs (>2h timeout, or set in inval_mask) on existing files
@@ -1672,7 +1679,7 @@ impl FileSystem for PassthroughFs {
                 let path = if let Some(ref path) = parent_fd_path {
                     CString::new(format!("{}/{}", path, entry.name)).map_err(|e| e.into())
                 } else {
-                    self.devino_to_path((st.st_dev, st.st_ino))
+                    self.devino_to_path(DevIno(st.st_dev, st.st_ino))
                 };
                 let path = match path {
                     Ok(path) => path,
@@ -1718,7 +1725,7 @@ impl FileSystem for PassthroughFs {
                     // out of space
                     // forget this entry (if we looked up a nodeid for it)
                     if new_nodeid != 0 {
-                        self.do_forget(new_nodeid, 1);
+                        self.do_forget(new_nodeid.into(), 1);
                     }
                     break;
                 }
@@ -1806,9 +1813,9 @@ impl FileSystem for PassthroughFs {
                 &ctx,
             )?;
 
-            let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
+            let handle = self.next_handle.fetch_add(1, Ordering::Relaxed).into();
             let is_readable_file = !flags.contains(OFlag::O_WRONLY);
-            let data = HandleData::new(entry.nodeid, fd.into(), is_readable_file, &self.poller)?;
+            let data = HandleData::new(handle, fd.into(), is_readable_file, &self.poller)?;
             self.handles.insert(handle, Arc::new(data));
 
             let mut opts = OpenOptions::empty();
@@ -1819,7 +1826,7 @@ impl FileSystem for PassthroughFs {
                     // check ctime, and invalidate cache if ctime has changed
                     // race OK: we'll just be missing cache for a file
                     // TODO: reuse from earlier lookup
-                    if let Some(node) = self.nodeids.get(&entry.nodeid) {
+                    if let Some(node) = self.nodeids.get(&entry.nodeid.into()) {
                         let ctime = st_ctime(&entry.attr);
                         if node.last_open_ctime.swap(ctime, Ordering::Relaxed) == ctime {
                             opts |= OpenOptions::KEEP_CACHE;
