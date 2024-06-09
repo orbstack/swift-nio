@@ -1281,7 +1281,6 @@ impl PassthroughFs {
                                 // dev/ino still exists:
                                 // this is a real ENOENT, from child
                                 // return the original error
-                                debug!("access: exists - return error");
                                 Err(e)
                             }
 
