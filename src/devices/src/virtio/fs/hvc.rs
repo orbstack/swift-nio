@@ -7,7 +7,7 @@ use vm_memory::{ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
 
 use crate::virtio::{
     descriptor_utils::{GuestIoSlice, Reader, Writer},
-    fs::server::MAX_PAGES,
+    fs::server::{HostContext, MAX_PAGES},
     FsError, HvcDevice,
 };
 
@@ -99,7 +99,8 @@ impl FsHvcDevice {
         .map_err(FsError::QueueWriter)
         .unwrap();
 
-        if let Err(e) = self.server.handle_message(reader, writer, None) {
+        let hctx = HostContext { is_sync_call: true };
+        if let Err(e) = self.server.handle_message(hctx, reader, writer, None) {
             error!("error handling message: {:?}", e);
         }
 

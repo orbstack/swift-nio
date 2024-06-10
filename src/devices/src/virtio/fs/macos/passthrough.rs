@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// Copyright 2024 Orbital Labs, LLC. All rights reserved.
+// Changes to this file are confidential and proprietary, subject to terms in the LICENSE file.
+
 use std::ffi::{CStr, CString, OsStr};
 use std::fs::set_permissions;
 use std::fs::File;
@@ -16,7 +19,6 @@ use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::os::unix::net::UnixDatagram;
 use std::path::Path;
 use std::ptr::slice_from_raw_parts;
-use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -56,7 +58,7 @@ use super::super::fuse;
 use super::vnode_poll::VnodePoller;
 
 // disabled because Linux doesn't FORGET everything on unmount
-const DETECT_REFCOUNT_LEAKS: bool = false;
+const DETECT_REFCOUNT_LEAKS: bool = true;
 
 // _IOC(_IOC_READ, 0x61, 0x22, 0x45)
 const IOCTL_ROSETTA: u32 = 0x8045_6122;
@@ -95,6 +97,25 @@ pub struct HandleId(pub u64);
 // zero is not a valid nodeid, so use this to keep Option<NodeId> the same size
 type OptionNodeId = Option<NonZeroU64>;
 
+trait StatExt {
+    fn can_open(&self) -> bool;
+    fn ctime_ns(&self) -> i64;
+}
+
+impl StatExt for bindings::stat64 {
+    fn can_open(&self) -> bool {
+        // DO NOT open FIFOs, char/block devs: could block, will likely fail, doesn't work thru virtiofs
+        match self.st_mode & libc::S_IFMT {
+            libc::S_IFBLK | libc::S_IFCHR | libc::S_IFIFO | libc::S_IFSOCK => false,
+            _ => true,
+        }
+    }
+
+    fn ctime_ns(&self) -> i64 {
+        self.st_ctime * NSEC_PER_SEC + self.st_ctime_nsec
+    }
+}
+
 struct DirStream {
     _stream: *mut libc::DIR,
     offset: i64,
@@ -106,6 +127,7 @@ struct DirStream {
 unsafe impl Send for DirStream {}
 
 pub(crate) struct HandleData {
+    node_flags: NodeFlags,
     file: ManuallyDrop<File>,
     dirstream: Mutex<DirStream>,
 }
@@ -116,8 +138,10 @@ impl HandleData {
         file: File,
         is_readable_file: bool,
         poller: &Option<Arc<VnodePoller>>,
+        node_flags: NodeFlags,
     ) -> io::Result<Self> {
         let hd = HandleData {
+            node_flags,
             file: ManuallyDrop::new(file),
             dirstream: Mutex::new(DirStream {
                 _stream: std::ptr::null_mut(),
@@ -159,6 +183,16 @@ impl HandleData {
             Ok(ds._stream)
         }
     }
+
+    fn check_io(&self, ctx: &Context) -> io::Result<()> {
+        // if in synchronous (hvc) context, force guest to retry with async worker
+        if self.node_flags.contains(NodeFlags::NO_SYNC_IO) && ctx.host.is_sync_call {
+            debug!("require async");
+            return Err(Errno::EDEADLK.into());
+        }
+
+        Ok(())
+    }
 }
 
 impl AsFd for HandleData {
@@ -189,6 +223,7 @@ enum FileRef<'a> {
     Fd(BorrowedFd<'a>),
 }
 
+// generic over OwnedFd and HandleData
 enum OwnedFileRef<F: AsFd> {
     Fd(Arc<F>),
     Path(CString),
@@ -331,19 +366,6 @@ pub enum CachePolicy {
     Always,
 }
 
-impl FromStr for CachePolicy {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "never" | "Never" | "NEVER" => Ok(CachePolicy::Never),
-            "auto" | "Auto" | "AUTO" => Ok(CachePolicy::Auto),
-            "always" | "Always" | "ALWAYS" => Ok(CachePolicy::Always),
-            _ => Err("invalid cache policy"),
-        }
-    }
-}
-
 /// Options that configure the behavior of the file system.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -437,15 +459,37 @@ struct NodeData {
 
 bitflags! {
     pub struct NodeFlags: u16 {
+        // inherited
         const LINK_AS_CLONE = 1 << 0;
+        const INHERITED_FLAGS = Self::LINK_AS_CLONE.bits;
+
+        // per-node
+        const NO_SYNC_IO = 1 << 1;
+    }
+}
+
+impl NodeData {
+    fn check_io(&self, ctx: &Context) -> io::Result<()> {
+        // if in synchronous (hvc) context, force guest to retry with async worker
+        if self.flags.contains(NodeFlags::NO_SYNC_IO) && ctx.host.is_sync_call {
+            debug!("require async");
+            return Err(Errno::EDEADLK.into());
+        }
+
+        Ok(())
     }
 }
 
 #[derive(Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[repr(packed)] // only needs align=4
 struct DevIno(pub i32, pub u64);
 
-fn st_ctime(st: &bindings::stat64) -> i64 {
-    st.st_ctime * NSEC_PER_SEC + st.st_ctime_nsec
+#[derive(Debug, Copy, Clone)]
+struct DevInfo {
+    // supports volfs?
+    volfs: bool,
+    // local or remote (e.g. nfs)
+    local: bool,
 }
 
 /// A file system that simply "passes through" all requests it receives to the underlying file
@@ -465,7 +509,7 @@ pub struct PassthroughFs {
     next_handle: AtomicU64,
 
     // volfs supported?
-    dev_info: FxDashMap<i32, bool>,
+    dev_info: FxDashMap<i32, DevInfo>,
     num_open_fds: AtomicU64,
 
     // Whether writeback caching is enabled for this directory. This will only be true when
@@ -490,7 +534,7 @@ impl PassthroughFs {
 
                 // refcount 2 so it can never be dropped
                 refcount: AtomicI64::new(2),
-                last_open_ctime: AtomicI64::new(st_ctime(&st)),
+                last_open_ctime: AtomicI64::new(st.ctime_ns()),
                 flags: NodeFlags::empty(),
                 fd: None,
                 nlink: st.st_nlink,
@@ -501,7 +545,6 @@ impl PassthroughFs {
         );
 
         let dev_info = FxDashMap::default();
-        dev_info.insert(st.st_dev, true);
 
         let handles = Arc::new(FxDashMap::default());
         let poller = match callbacks {
@@ -541,9 +584,15 @@ impl PassthroughFs {
         Ok(fs)
     }
 
-    fn get_nodeid(&self, nodeid: NodeId) -> io::Result<(DevIno, NodeFlags, Option<Arc<OwnedFd>>)> {
+    // TODO: this entire set of functions is a mess
+    fn get_nodeid(
+        &self,
+        ctx: &Context,
+        nodeid: NodeId,
+    ) -> io::Result<(DevIno, NodeFlags, Option<Arc<OwnedFd>>)> {
         // race OK: primary key lookup only
         let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
+        node.check_io(ctx)?;
         Ok((node.dev_ino, node.flags, node.fd.clone()))
     }
 
@@ -552,31 +601,53 @@ impl PassthroughFs {
     // and also cache O_EVTONLY fds and paths.
     // lstat realpath=681.85ns, volfs=895.88ns, fsgetpath=1.1478us, lstat+fsgetpath=1.8592us
     // TODO: unify with name_to_path(NodeId, Option<N>)
-    fn nodeid_to_file_ref(&self, nodeid: NodeId) -> io::Result<OwnedFileRef<OwnedFd>> {
-        let (DevIno(dev, ino), _, fd) = self.get_nodeid(nodeid)?;
+    fn nodeid_to_file_ref_and_data(
+        &self,
+        ctx: &Context,
+        nodeid: NodeId,
+    ) -> io::Result<(OwnedFileRef<OwnedFd>, NodeFlags)> {
+        let (DevIno(dev, ino), node_flags, fd) = self.get_nodeid(ctx, nodeid)?;
         if let Some(fd) = fd {
-            Ok(OwnedFileRef::Fd(fd))
+            Ok((OwnedFileRef::Fd(fd), node_flags))
         } else {
-            let path = format!("/.vol/{}/{}", dev, ino);
-            Ok(OwnedFileRef::Path(CString::new(path)?))
+            let path = self.devino_to_path(DevIno(dev, ino))?;
+            Ok((OwnedFileRef::Path(path), node_flags))
         }
     }
 
-    fn nodeid_to_path(&self, nodeid: NodeId) -> io::Result<CString> {
-        match self.nodeid_to_file_ref(nodeid)? {
-            OwnedFileRef::Path(path) => Ok(path),
+    fn nodeid_to_file_ref(
+        &self,
+        ctx: &Context,
+        nodeid: NodeId,
+    ) -> io::Result<OwnedFileRef<OwnedFd>> {
+        Ok(self.nodeid_to_file_ref_and_data(ctx, nodeid)?.0)
+    }
+
+    fn nodeid_to_path_and_data(
+        &self,
+        ctx: &Context,
+        nodeid: NodeId,
+    ) -> io::Result<(CString, NodeFlags)> {
+        let (file_ref, node_flags) = self.nodeid_to_file_ref_and_data(ctx, nodeid)?;
+        match file_ref {
+            OwnedFileRef::Path(path) => Ok((path, node_flags)),
             OwnedFileRef::Fd(fd) => {
                 // to minimize race window and support renames, get latest path from fd
                 // this also allows minimal opens (EVTONLY | RDONLY)
                 // TODO: all handlers should support Fd or Path. this is just lowest-effort impl
                 let path = get_path_by_fd(fd)?;
-                Ok(CString::new(path)?)
+                Ok((CString::new(path)?, node_flags))
             }
         }
     }
 
+    fn nodeid_to_path(&self, ctx: &Context, nodeid: NodeId) -> io::Result<CString> {
+        Ok(self.nodeid_to_path_and_data(ctx, nodeid)?.0)
+    }
+
     fn name_to_path_and_data(
         &self,
+        ctx: &Context,
         parent: NodeId,
         name: &str,
     ) -> io::Result<(CString, DevIno, NodeFlags)> {
@@ -585,7 +656,8 @@ impl PassthroughFs {
             return Err(Errno::ENOENT.into());
         }
 
-        let (DevIno(parent_device, parent_inode), parent_flags, fd) = self.get_nodeid(parent)?;
+        let (DevIno(parent_device, parent_inode), parent_flags, fd) =
+            self.get_nodeid(ctx, parent)?;
         let path = if let Some(fd) = fd {
             // to minimize race window and support renames, get latest path from fd
             // this also allows minimal opens (EVTONLY | RDONLY)
@@ -599,61 +671,31 @@ impl PassthroughFs {
         Ok((cstr, DevIno(parent_device, parent_inode), parent_flags))
     }
 
-    fn name_to_path(&self, parent: NodeId, name: &str) -> io::Result<CString> {
-        Ok(self.name_to_path_and_data(parent, name)?.0)
+    fn name_to_path(&self, ctx: &Context, parent: NodeId, name: &str) -> io::Result<CString> {
+        Ok(self.name_to_path_and_data(ctx, parent, name)?.0)
     }
 
-    fn devino_to_path(&self, devino: DevIno) -> io::Result<CString> {
-        let DevIno(dev, ino) = devino;
+    fn devino_to_path(&self, DevIno(dev, ino): DevIno) -> io::Result<CString> {
         let path = format!("/.vol/{}/{}", dev, ino);
         let cstr = CString::new(path)?;
         Ok(cstr)
     }
 
-    fn open_nodeid(&self, nodeid: NodeId, mut flags: OFlag) -> io::Result<File> {
-        // When writeback caching is enabled, the kernel may send read requests even if the
-        // userspace program opened the file write-only. So we need to ensure that we have opened
-        // the file for reading as well as writing.
-        let writeback = self.writeback.load(Ordering::Relaxed);
-        if writeback && flags & OFlag::O_ACCMODE == OFlag::O_WRONLY {
-            flags.remove(OFlag::O_ACCMODE);
-            flags |= OFlag::O_RDWR;
-        }
-
-        // When writeback caching is enabled the kernel is responsible for handling `O_APPEND`.
-        // However, this breaks atomicity as the file may have changed on disk, invalidating the
-        // cached copy of the data in the kernel and the offset that the kernel thinks is the end of
-        // the file. Just allow this for now as it is the user's responsibility to enable writeback
-        // caching only for directories that are not shared. It also means that we need to clear the
-        // `O_APPEND` flag.
-        if writeback {
-            flags.remove(OFlag::O_APPEND);
-        }
-
-        let c_path = self.nodeid_to_path(nodeid)?;
-
-        // always add O_NOFOLLOW to prevent escape via symlink race
-        // Linux will never try to open a symlink
-        flags |= OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW;
-        flags.remove(OFlag::O_EXLOCK);
-
-        let fd = nix::fcntl::open(c_path.as_ref(), flags, Mode::empty())?;
-
-        // Safe because we just opened this fd.
-        Ok(unsafe { File::from_raw_fd(fd) })
+    fn get_handle(
+        &self,
+        ctx: &Context,
+        _nodeid: NodeId,
+        handle: HandleId,
+    ) -> io::Result<Arc<HandleData>> {
+        let hd = self.handles.get(&handle).ok_or(Errno::EBADF)?;
+        hd.check_io(ctx)?;
+        Ok(hd.clone())
     }
 
-    fn get_handle(&self, _nodeid: NodeId, handle: HandleId) -> io::Result<Arc<HandleData>> {
-        self.handles
-            .get(&handle)
-            .map(|v| v.clone())
-            .ok_or(Errno::EBADF.into())
-    }
-
-    fn dev_supports_volfs(&self, dev: i32, file_ref: &FileRef) -> io::Result<bool> {
+    fn get_dev_info(&self, dev: i32, file_ref: &FileRef) -> io::Result<DevInfo> {
         // TODO: what if the mountpoint disappears, and st_dev gets reused?
-        if let Some(supported) = self.dev_info.get(&dev) {
-            return Ok(*supported);
+        if let Some(info) = self.dev_info.get(&dev) {
+            return Ok(*info);
         }
 
         // not in cache: check it
@@ -664,24 +706,25 @@ impl PassthroughFs {
         }?;
         // transmute type (repr(transparent))
         let stf = unsafe { mem::transmute::<_, libc::statfs>(stf) };
-        let supported = (stf.f_flags & libc::MNT_DOVOLFS as u32) != 0;
+        let dev_info = DevInfo {
+            volfs: (stf.f_flags & libc::MNT_DOVOLFS as u32) != 0,
+            local: (stf.f_flags & libc::MNT_LOCAL as u32) != 0,
+        };
 
-        debug!(
-            "dev_supports_volfs: dev={} ref={:?} supported={}",
-            dev, file_ref, supported
-        );
+        debug!(?dev, ?file_ref, ?dev_info, "dev_info");
         // race OK: will be the same result
-        self.dev_info.insert(dev, supported);
-        Ok(supported)
+        self.dev_info.insert(dev, dev_info);
+        Ok(dev_info)
     }
 
     fn begin_lookup(
         &self,
+        ctx: &Context,
         parent: NodeId,
         name: &str,
     ) -> io::Result<(CString, NodeFlags, libc::stat)> {
         let (mut c_path, DevIno(parent_dev, parent_ino), parent_flags) =
-            self.name_to_path_and_data(parent, name)?;
+            self.name_to_path_and_data(ctx, parent, name)?;
         // looking up nfs mountpoint should return a dummy empty dir
         // for simplicity we can always just use /var/empty
         if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
@@ -698,8 +741,10 @@ impl PassthroughFs {
     }
 
     fn do_lookup(&self, parent: NodeId, name: &str, ctx: &Context) -> io::Result<Entry> {
-        let (c_path, parent_flags, st) = self.begin_lookup(parent, name)?;
-        self.finish_lookup(parent, parent_flags, name, st, FileRef::Path(&c_path), ctx)
+        let (c_path, parent_flags, st) = self.begin_lookup(ctx, parent, name)?;
+        let (entry, _) =
+            self.finish_lookup(parent, parent_flags, name, st, FileRef::Path(&c_path), ctx)?;
+        Ok(entry)
     }
 
     fn finish_lookup(
@@ -710,29 +755,28 @@ impl PassthroughFs {
         mut st: bindings::stat64,
         file_ref: FileRef,
         ctx: &Context,
-    ) -> io::Result<Entry> {
+    ) -> io::Result<(Entry, NodeFlags)> {
         // TODO: remove on perms
         st.st_uid = ctx.uid;
         st.st_gid = ctx.gid;
 
         // race OK: if we fail to find a nodeid by (dev,ino), we'll just make a new one, and old one will gradually be forgotten
         let dev_ino = DevIno(st.st_dev, st.st_ino);
-        let nodeid = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
+        let (nodeid, node_flags) = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
+            // no check_io: caller already checked before it got the stat result
             // there is already a nodeid for this (dev, ino)
             // increment the refcount and return it
             node.refcount.fetch_add(1, Ordering::Relaxed);
-            *node.key()
+            (*node.key(), node.flags)
         } else {
             // this (dev, ino) is new
             // create a new nodeid and return it
             let mut new_nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed).into();
 
+            let dev_info = self.get_dev_info(st.st_dev, &file_ref)?;
+
             // open fd if volfs is not supported
-            // but DO NOT open char devs or block devs - could block, will likely fail, doesn't work thru virtiofs
-            let typ = st.st_mode & libc::S_IFMT;
-            let fd = if (typ != libc::S_IFCHR && typ != libc::S_IFBLK)
-                && !self.dev_supports_volfs(st.st_dev, &file_ref)?
-            {
+            let fd = if !dev_info.volfs && st.can_open() {
                 debug!("open fd");
 
                 // TODO: evict fds and cache as paths
@@ -767,8 +811,8 @@ impl PassthroughFs {
                 dev_ino,
 
                 refcount: AtomicI64::new(1),
-                last_open_ctime: AtomicI64::new(st_ctime(&st)),
-                flags: parent_flags,
+                last_open_ctime: AtomicI64::new(st.ctime_ns()),
+                flags: parent_flags & NodeFlags::INHERITED_FLAGS,
                 fd,
                 nlink: st.st_nlink,
 
@@ -781,12 +825,19 @@ impl PassthroughFs {
                 node.flags |= NodeFlags::LINK_AS_CLONE;
             }
 
+            // no sync IO on remote/network file systems
+            if !dev_info.local {
+                node.flags |= NodeFlags::NO_SYNC_IO;
+            }
+
             // deadlock OK: we're not holding a ref, since lookup returned None
+            let node_flags = node.flags;
             let inserted_nodeid = self.nodeids.insert(new_nodeid, dev_ino, node);
             if inserted_nodeid != new_nodeid {
                 // we raced with another thread, which added a nodeid for this (dev, ino)
                 // does the old nodeid still exist?
                 let found_existing = if let Some(node) = self.nodeids.get(&inserted_nodeid) {
+                    // no check_io: no IO after this point
                     // old nodeid exists. increment refcount so we can use it instead
                     node.refcount.fetch_add(1, Ordering::Relaxed);
                     true
@@ -804,7 +855,7 @@ impl PassthroughFs {
                 }
             }
 
-            new_nodeid
+            (new_nodeid, node_flags)
         };
 
         // root generation must be zero
@@ -816,19 +867,24 @@ impl PassthroughFs {
             st.st_dev, st.st_ino, file_ref, nodeid
         );
 
-        Ok(Entry {
-            nodeid: nodeid.0,
-            generation: 0,
-            attr: st,
-            attr_timeout: self.cfg.attr_timeout,
-            entry_timeout: self.cfg.entry_timeout,
-        })
+        Ok((
+            Entry {
+                nodeid: nodeid.0,
+                generation: 0,
+                attr: st,
+                attr_timeout: self.cfg.attr_timeout,
+                entry_timeout: self.cfg.entry_timeout,
+            },
+            node_flags,
+        ))
     }
 
     fn do_forget(&self, nodeid: NodeId, count: u64) {
         debug!("do_forget: nodeid={} count={}", nodeid, count);
         // race OK: primary key lookup only
         if let Some(node) = self.nodeids.get(&nodeid) {
+            // no check_io: closing a read-only fd is OK and won't trigger flush
+
             // decrement the refcount
             if node.refcount.fetch_sub(count as i64, Ordering::Relaxed) == count as i64 {
                 // count - count = 0
@@ -854,6 +910,7 @@ impl PassthroughFs {
 
     fn do_readdir<F>(
         &self,
+        ctx: &Context,
         nodeid: NodeId,
         handle: HandleId,
         size: u32,
@@ -867,9 +924,9 @@ impl PassthroughFs {
             return Ok(());
         }
 
-        let data = self.get_handle(nodeid, handle)?;
+        let data = self.get_handle(ctx, nodeid, handle)?;
         // race OK: FUSE won't FORGET until all handles are closed
-        let DevIno(dev, _) = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?.dev_ino;
+        let (DevIno(dev, _), _, _) = self.get_nodeid(ctx, nodeid)?;
 
         // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries
         let (mut ds, dir_stream) = data.readdir_stream()?;
@@ -934,28 +991,72 @@ impl PassthroughFs {
         Ok(())
     }
 
-    fn do_open(&self, nodeid: NodeId, flags: u32) -> io::Result<(Option<HandleId>, OpenOptions)> {
-        let flags = self.parse_open_flags(flags as i32);
+    fn convert_open_flags(&self, lflags: i32) -> OFlag {
+        let mut flags = unsafe { OFlag::from_bits_unchecked(lflags & libc::O_ACCMODE) };
 
-        let file = self.open_nodeid(nodeid, flags)?;
-        // early stat to avoid broken handle state if it fails
-        let st = fstat(&file, false)?;
-
-        // Linux normally won't open fifos/devs, but guest might maliciously trick us into doing it
-        // reading from one will cause us to hang on read, preventing VM stop
-        match st.st_mode & libc::S_IFMT {
-            libc::S_IFBLK | libc::S_IFCHR | libc::S_IFIFO | libc::S_IFSOCK => {
-                return Err(Errno::EOPNOTSUPP.into());
-            }
-            _ => {}
+        if (lflags & bindings::LINUX_O_NONBLOCK) != 0 {
+            flags |= OFlag::O_NONBLOCK;
+        }
+        if (lflags & bindings::LINUX_O_APPEND) != 0 {
+            flags |= OFlag::O_APPEND;
+        }
+        if (lflags & bindings::LINUX_O_CREAT) != 0 {
+            flags |= OFlag::O_CREAT;
+        }
+        if (lflags & bindings::LINUX_O_TRUNC) != 0 {
+            flags |= OFlag::O_TRUNC;
+        }
+        if (lflags & bindings::LINUX_O_EXCL) != 0 {
+            flags |= OFlag::O_EXCL;
+        }
+        if (lflags & bindings::LINUX_O_NOFOLLOW) != 0 {
+            flags |= OFlag::O_NOFOLLOW;
+        }
+        if (lflags & bindings::LINUX_O_CLOEXEC) != 0 {
+            flags |= OFlag::O_CLOEXEC;
         }
 
+        // When writeback caching is enabled, the kernel may send read requests even if the
+        // userspace program opened the file write-only. So we need to ensure that we have opened
+        // the file for reading as well as writing.
+        let writeback = self.writeback.load(Ordering::Relaxed);
+        if writeback && flags & OFlag::O_ACCMODE == OFlag::O_WRONLY {
+            flags.remove(OFlag::O_ACCMODE);
+            flags |= OFlag::O_RDWR;
+        }
+
+        // When writeback caching is enabled the kernel is responsible for handling `O_APPEND`.
+        // However, this breaks atomicity as the file may have changed on disk, invalidating the
+        // cached copy of the data in the kernel and the offset that the kernel thinks is the end of
+        // the file. Just allow this for now as it is the user's responsibility to enable writeback
+        // caching only for directories that are not shared. It also means that we need to clear the
+        // `O_APPEND` flag.
+        if writeback {
+            flags.remove(OFlag::O_APPEND);
+        }
+
+        // always add O_NOFOLLOW to prevent escape via symlink race
+        // Linux will never try to open a symlink
+        flags |= OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW;
+        flags.remove(OFlag::O_EXLOCK);
+
+        flags
+    }
+
+    fn finish_open(
+        &self,
+        file: File,
+        flags: OFlag,
+        nodeid: NodeId,
+        node_flags: NodeFlags,
+        st: bindings::stat64,
+    ) -> io::Result<(HandleId, OpenOptions)> {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed).into();
         let is_readable_file =
             !flags.contains(OFlag::O_DIRECTORY) && !flags.contains(OFlag::O_WRONLY);
-        let data = HandleData::new(handle, file, is_readable_file, &self.poller)?;
+        let data = HandleData::new(handle, file, is_readable_file, &self.poller, node_flags)?;
 
-        debug!("open_nodeid: nodeid={} -> handle={:?}", nodeid, handle);
+        debug!("finish_open: nodeid={} -> handle={:?}", nodeid, handle);
         self.handles.insert(handle, Arc::new(data));
 
         let mut opts = OpenOptions::empty();
@@ -965,21 +1066,22 @@ impl PassthroughFs {
                 opts.set(OpenOptions::DIRECT_IO, !flags.contains(OFlag::O_DIRECTORY))
             }
             CachePolicy::Auto => {
-                if !flags.contains(OFlag::O_DIRECTORY) {
-                    // file: provide CTO consistency
-                    // check ctime, and invalidate cache if ctime has changed
-                    // race OK: we'll just be missing cache for a file
-                    // fstat() is the slow part, so should be faster to release and re-acquire map ref here
-                    if let Some(node) = self.nodeids.get(&nodeid) {
-                        let ctime = st_ctime(&st);
-                        if node.last_open_ctime.swap(ctime, Ordering::Relaxed) == ctime {
-                            opts |= OpenOptions::KEEP_CACHE;
-                        }
+                // TODO: how come readdirplus never gets cached?
+                if flags.contains(OFlag::O_DIRECTORY) {
+                    opts |= OpenOptions::CACHE_DIR;
+                }
+
+                // provide CTO consistency
+                // check ctime, and invalidate dir/file cache if ctime has changed
+                // race OK: we'll just be missing cache for a file
+                // fstat() is the slow part, so should be faster to release and re-acquire map ref here
+                if let Some(node) = self.nodeids.get(&nodeid) {
+                    // no check_io: no IO here
+                    let ctime = st.ctime_ns();
+                    if node.last_open_ctime.swap(ctime, Ordering::Relaxed) == ctime {
+                        // this works for dirs because readdir data is also in inode page cache
+                        opts |= OpenOptions::KEEP_CACHE;
                     }
-                } else {
-                    // always cache directories (krpc invalidates)
-                    // TODO: FUSE protocol is bad here. setting CACHE_DIR forces use of cache -- otherwise we could do ctime CTO invalidation. not settting it means that resulting dirents won't be cached for future calls.
-                    opts |= OpenOptions::CACHE_DIR
                 }
             }
             CachePolicy::Always => {
@@ -991,11 +1093,37 @@ impl PassthroughFs {
             }
         };
 
+        Ok((handle, opts))
+    }
+
+    fn do_open(
+        &self,
+        ctx: &Context,
+        nodeid: NodeId,
+        flags: u32,
+    ) -> io::Result<(Option<HandleId>, OpenOptions)> {
+        let flags = self.convert_open_flags(flags as i32);
+        let (c_path, node_flags) = self.nodeid_to_path_and_data(ctx, nodeid)?;
+        let file =
+            unsafe { File::from_raw_fd(nix::fcntl::open(c_path.as_ref(), flags, Mode::empty())?) };
+        // early stat to avoid broken handle state if it fails
+        let st = fstat(&file, false)?;
+
+        // Linux normally won't open fifos/devs, but guest might maliciously trick us into doing it
+        // reading from one will cause us to hang on read, preventing VM stop
+        if !st.can_open() {
+            return Err(Errno::EOPNOTSUPP.into());
+        }
+
+        let (handle, opts) = self.finish_open(file, flags, nodeid, node_flags, st)?;
         Ok((Some(handle), opts))
     }
 
-    fn do_release(&self, _nodeid: NodeId, handle: HandleId) -> io::Result<()> {
+    fn do_release(&self, ctx: &Context, _nodeid: NodeId, handle: HandleId) -> io::Result<()> {
         if let dashmap::mapref::entry::Entry::Occupied(e) = self.handles.entry(handle) {
+            // check_io needed: on NFS, close() will flush if fd was written to
+            e.get().check_io(ctx)?;
+
             // We don't need to close the file here because that will happen automatically when
             // the last `Arc` is dropped.
             e.remove();
@@ -1030,7 +1158,7 @@ impl PassthroughFs {
         handle: Option<HandleId>,
         valid: SetattrValid,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        let file_ref = self.get_file_ref(nodeid, handle)?;
+        let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
 
         if valid.contains(SetattrValid::MODE) {
             // TODO: store sticky bit in xattr. don't allow suid/sgid
@@ -1116,12 +1244,12 @@ impl PassthroughFs {
 
     fn do_unlink(
         &self,
-        _ctx: Context,
+        ctx: Context,
         parent: NodeId,
         name: &CStr,
         flags: libc::c_int,
     ) -> io::Result<()> {
-        let c_path = self.name_to_path(parent, &name.to_string_lossy())?;
+        let c_path = self.name_to_path(&ctx, parent, &name.to_string_lossy())?;
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::unlinkat(AT_FDCWD, c_path.as_ptr(), flags) };
@@ -1133,49 +1261,22 @@ impl PassthroughFs {
         }
     }
 
-    fn parse_open_flags(&self, flags: i32) -> OFlag {
-        let mut mflags: i32 = flags & 0b11;
-
-        if (flags & bindings::LINUX_O_NONBLOCK) != 0 {
-            mflags |= libc::O_NONBLOCK;
-        }
-        if (flags & bindings::LINUX_O_APPEND) != 0 {
-            mflags |= libc::O_APPEND;
-        }
-        if (flags & bindings::LINUX_O_CREAT) != 0 {
-            mflags |= libc::O_CREAT;
-        }
-        if (flags & bindings::LINUX_O_TRUNC) != 0 {
-            mflags |= libc::O_TRUNC;
-        }
-        if (flags & bindings::LINUX_O_EXCL) != 0 {
-            mflags |= libc::O_EXCL;
-        }
-        if (flags & bindings::LINUX_O_NOFOLLOW) != 0 {
-            mflags |= libc::O_NOFOLLOW;
-        }
-        if (flags & bindings::LINUX_O_CLOEXEC) != 0 {
-            mflags |= libc::O_CLOEXEC;
-        }
-
-        unsafe { OFlag::from_bits_unchecked(mflags) }
-    }
-
     fn get_file_ref(
         &self,
+        ctx: &Context,
         nodeid: NodeId,
         handle: Option<HandleId>,
     ) -> io::Result<OwnedFileRef<HandleData>> {
         if let Some(handle) = handle {
-            let hd = self.get_handle(nodeid, handle)?;
+            let hd = self.get_handle(ctx, nodeid, handle)?;
             Ok(OwnedFileRef::Fd(hd))
         } else {
-            let path = self.nodeid_to_path(nodeid)?;
+            let path = self.nodeid_to_path(ctx, nodeid)?;
             Ok(OwnedFileRef::Path(path))
         }
     }
 
-    fn refresh_nodeid(&self, nodeid: NodeId) -> io::Result<()> {
+    fn refresh_nodeid(&self, ctx: &Context, nodeid: NodeId) -> io::Result<()> {
         // try to look up new dev/ino at /.vol/$PARENT/$NAME
         // very uncommon case, so we release lock before access(2) and re-acquire it here
         //
@@ -1196,13 +1297,14 @@ impl PassthroughFs {
         drop(node);
 
         // this can't recurse forever because root nodeid has no parent, and circular links are impossible
-        self.with_nodeid_refresh(parent, || {
+        self.with_nodeid_refresh(ctx, parent, || {
             // if this is a retry after refreshing parent, path_in_parent needs to be re-resolved
             // this is inefficient, but we need to get *another* read lock
             // can't get write lock yet: it could deadlock with name_to_path's read lock for parent (if same shard)
             // doesn't matter -- this path is an uncommon error recovery case
             let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
-            let path_in_parent = self.name_to_path(parent, &node.name)?;
+            node.check_io(ctx)?;
+            let path_in_parent = self.name_to_path(ctx, parent, &node.name)?;
             // we'll have to re-acquire the node ref later to get a write lock, so drop it to avoid doing I/O (lstat) with the lock held
             drop(node);
 
@@ -1229,6 +1331,7 @@ impl PassthroughFs {
             // if another thread is racing on the same path, that's OK: it should get the same dev/ino result
             debug!(?new_devino, "refresh_nodeid: updating dev/ino");
             let mut node = self.nodeids.get_mut(&nodeid).ok_or(Errno::EBADF)?;
+            // no check_io: same node as above, and no IO after this point
             // update dev/ino used for deleting from alt map
             // no one else can read it right now
             node.dev_ino = new_devino;
@@ -1267,7 +1370,7 @@ impl PassthroughFs {
     // - ideally we get linux to revalidate it before open/..., but cache inval events will always be racy
     // - propagating a special error code to trigger revalidate = nasty core VFS hacks
     // - too expensive for FUSE to revalidate on every call
-    fn with_nodeid_refresh<F, R>(&self, nodeid: NodeId, f: F) -> io::Result<R>
+    fn with_nodeid_refresh<F, R>(&self, ctx: &Context, nodeid: NodeId, f: F) -> io::Result<R>
     where
         F: Fn() -> io::Result<R>,
     {
@@ -1280,10 +1383,9 @@ impl PassthroughFs {
                 //   - dev/ino is stale
                 //     - could be caused by parent, or file unlinked+replaced
                 // to disambiguate, check whether the current dev/ino still exists
-                match self.nodeid_to_file_ref(nodeid)? {
+                match self.nodeid_to_file_ref(ctx, nodeid)? {
                     OwnedFileRef::Path(c_path) => {
                         // "path" means volfs dev/ino here
-                        debug!(?c_path, "ENOENT: check if dev/ino exists");
                         match access(c_path.as_ref(), AccessFlags::F_OK) {
                             Ok(_) => {
                                 // dev/ino still exists:
@@ -1296,7 +1398,7 @@ impl PassthroughFs {
                                 // dev/ino doesn't exist:
                                 // this is a stale nodeid
                                 // refresh it
-                                match self.refresh_nodeid(nodeid) {
+                                match self.refresh_nodeid(ctx, nodeid) {
                                     // retry if refreshed successfully
                                     Ok(_) => {
                                         debug!("retrying after refresh_nodeid");
@@ -1421,16 +1523,16 @@ impl FileSystem for PassthroughFs {
         }
     }
 
-    fn statfs(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Statvfs> {
-        self.with_nodeid_refresh(nodeid, || {
-            let c_path = self.nodeid_to_path(nodeid)?;
+    fn statfs(&self, ctx: Context, nodeid: NodeId) -> io::Result<Statvfs> {
+        self.with_nodeid_refresh(&ctx, nodeid, || {
+            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
             let stv = statvfs(c_path.as_ref())?;
             Ok(stv)
         })
     }
 
     fn lookup(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<Entry> {
-        self.with_nodeid_refresh(parent, || {
+        self.with_nodeid_refresh(&ctx, parent, || {
             debug!("lookup: {:?}", name);
             self.do_lookup(parent, &name.to_string_lossy(), &ctx)
         })
@@ -1449,24 +1551,24 @@ impl FileSystem for PassthroughFs {
 
     fn opendir(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         flags: u32,
     ) -> io::Result<(Option<HandleId>, OpenOptions)> {
-        self.with_nodeid_refresh(nodeid, || {
-            self.do_open(nodeid, flags | libc::O_DIRECTORY as u32)
+        self.with_nodeid_refresh(&ctx, nodeid, || {
+            self.do_open(&ctx, nodeid, flags | libc::O_DIRECTORY as u32)
         })
     }
 
     fn releasedir(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         _flags: u32,
         handle: HandleId,
     ) -> io::Result<()> {
         // no with_nodeid_refresh: this can't fail with ENOENT
-        self.do_release(nodeid, handle)
+        self.do_release(&ctx, nodeid, handle)
     }
 
     fn mkdir(
@@ -1478,9 +1580,9 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        self.with_nodeid_refresh(parent, || {
+        self.with_nodeid_refresh(&ctx, parent, || {
             let name = &name.to_string_lossy();
-            let c_path = self.name_to_path(parent, name)?;
+            let c_path = self.name_to_path(&ctx, parent, name)?;
 
             // Safe because this doesn't modify any memory and we check the return value.
             let res = unsafe { libc::mkdir(c_path.as_ptr(), (mode & !umask) as u16) };
@@ -1503,14 +1605,14 @@ impl FileSystem for PassthroughFs {
     }
 
     fn rmdir(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<()> {
-        self.with_nodeid_refresh(parent, || {
+        self.with_nodeid_refresh(&ctx, parent, || {
             self.do_unlink(ctx, parent, name, libc::AT_REMOVEDIR)
         })
     }
 
     fn readdir<F>(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         handle: HandleId,
         size: u32,
@@ -1521,7 +1623,7 @@ impl FileSystem for PassthroughFs {
         F: FnMut(DirEntry) -> io::Result<usize>,
     {
         // no with_nodeid_refresh: we have a handle
-        self.do_readdir(nodeid, handle, size, offset, add_entry)
+        self.do_readdir(&ctx, nodeid, handle, size, offset, add_entry)
     }
 
     fn readdirplus<F>(
@@ -1537,9 +1639,14 @@ impl FileSystem for PassthroughFs {
         F: FnMut(DirEntry, Entry) -> io::Result<usize>,
     {
         // no with_nodeid_refresh: we have a handle
+        debug!(
+            "readdirplus: nodeid={}, handle={}, size={}, offset={}",
+            nodeid, handle, size, offset
+        );
 
         // race OK: FUSE won't FORGET until all handles are closed
         let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
+        node.check_io(&ctx)?;
         let parent_flags = node.flags;
         let nlink = node.nlink;
         let DevIno(dev, ino) = node.dev_ino;
@@ -1558,16 +1665,11 @@ impl FileSystem for PassthroughFs {
             ino
         };
         drop(node);
-
-        debug!(
-            "readdirplus: nodeid={}, handle={}, size={}, offset={}",
-            nodeid, handle, size, offset
-        );
         if size == 0 {
             return Ok(());
         }
 
-        let data = self.get_handle(nodeid, handle)?;
+        let data = self.get_handle(&ctx, nodeid, handle)?;
 
         // emit "." and ".." first. according to FUSE docs, kernel does this if we don't, but that's not true (and it breaks some apps)
         if offset == 0 {
@@ -1628,7 +1730,7 @@ impl FileSystem for PassthroughFs {
                     data.readdir_stream_locked(&mut ds)?,
                     capacity as usize,
                     |name| {
-                        let (_, _, st) = self.begin_lookup(nodeid, name)?;
+                        let (_, _, st) = self.begin_lookup(&ctx, nodeid, name)?;
                         Ok(st)
                     },
                 )?
@@ -1709,6 +1811,7 @@ impl FileSystem for PassthroughFs {
                     FileRef::Path(&path),
                     &ctx,
                 )
+                .map(|(entry, _)| entry)
             };
 
             // if lookup failed, return no entry, so linux will get the error on lookup
@@ -1754,16 +1857,16 @@ impl FileSystem for PassthroughFs {
 
     fn open(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         flags: u32,
     ) -> io::Result<(Option<HandleId>, OpenOptions)> {
-        self.with_nodeid_refresh(nodeid, || self.do_open(nodeid, flags))
+        self.with_nodeid_refresh(&ctx, nodeid, || self.do_open(&ctx, nodeid, flags))
     }
 
     fn release(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         _flags: u32,
         handle: HandleId,
@@ -1772,7 +1875,7 @@ impl FileSystem for PassthroughFs {
         _lock_owner: Option<u64>,
     ) -> io::Result<()> {
         // no with_nodeid_refresh: this can't fail with ENOENT
-        self.do_release(nodeid, handle)
+        self.do_release(&ctx, nodeid, handle)
     }
 
     fn create(
@@ -1785,19 +1888,19 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<(Entry, Option<HandleId>, OpenOptions)> {
-        self.with_nodeid_refresh(parent, || {
+        self.with_nodeid_refresh(&ctx, parent, || {
             let name = &name.to_string_lossy();
-            let (c_path, _, parent_flags) = self.name_to_path_and_data(parent, name)?;
+            let (c_path, _, parent_flags) = self.name_to_path_and_data(&ctx, parent, name)?;
 
-            let flags = self.parse_open_flags(flags as i32);
+            let flags = self.convert_open_flags(flags as i32);
 
             // Safe because this doesn't modify any memory and we check the return value. We don't
             // really check `flags` because if the kernel can't handle poorly specified flags then we
             // have much bigger problems.
             let fd = unsafe {
-                OwnedFd::from_raw_fd(nix::fcntl::open(
+                File::from_raw_fd(nix::fcntl::open(
                     c_path.as_ref(),
-                    flags | OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
+                    flags | OFlag::O_CREAT,
                     Mode::from_bits_unchecked(mode as u16),
                 )?)
             };
@@ -1814,7 +1917,7 @@ impl FileSystem for PassthroughFs {
             };
 
             let st = fstat(&fd, false)?;
-            let entry = self.finish_lookup(
+            let (entry, node_flags) = self.finish_lookup(
                 parent,
                 parent_flags,
                 name,
@@ -1823,40 +1926,19 @@ impl FileSystem for PassthroughFs {
                 &ctx,
             )?;
 
-            let handle = self.next_handle.fetch_add(1, Ordering::Relaxed).into();
-            let is_readable_file = !flags.contains(OFlag::O_WRONLY);
-            let data = HandleData::new(handle, fd.into(), is_readable_file, &self.poller)?;
-            self.handles.insert(handle, Arc::new(data));
-
-            let mut opts = OpenOptions::empty();
-            match self.cfg.cache_policy {
-                CachePolicy::Never => opts |= OpenOptions::DIRECT_IO,
-                CachePolicy::Auto => {
-                    // file: provide CTO consistency
-                    // check ctime, and invalidate cache if ctime has changed
-                    // race OK: we'll just be missing cache for a file
-                    // TODO: reuse from earlier lookup
-                    if let Some(node) = self.nodeids.get(&entry.nodeid.into()) {
-                        let ctime = st_ctime(&entry.attr);
-                        if node.last_open_ctime.swap(ctime, Ordering::Relaxed) == ctime {
-                            opts |= OpenOptions::KEEP_CACHE;
-                        }
-                    }
-                }
-                CachePolicy::Always => opts |= OpenOptions::KEEP_CACHE,
-            };
-
+            let (handle, opts) =
+                self.finish_open(fd, flags, entry.nodeid.into(), node_flags, st)?;
             Ok((entry, Some(handle), opts))
         })
     }
 
     fn unlink(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<()> {
-        self.with_nodeid_refresh(parent, || self.do_unlink(ctx, parent, name, 0))
+        self.with_nodeid_refresh(&ctx, parent, || self.do_unlink(ctx, parent, name, 0))
     }
 
     fn read<W: io::Write + ZeroCopyWriter>(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         handle: HandleId,
         mut w: W,
@@ -1866,19 +1948,17 @@ impl FileSystem for PassthroughFs {
         _flags: u32,
     ) -> io::Result<usize> {
         // no with_nodeid_refresh: we have a handle
-
-        debug!("read: {:?}", nodeid);
-
-        let data = self.get_handle(nodeid, handle)?;
+        let data = self.get_handle(&ctx, nodeid, handle)?;
 
         // This is safe because write_from uses preadv64, so the underlying file descriptor
         // offset is not affected by this operation.
+        debug!("read: {:?}", nodeid);
         w.write_from(&data.file, size as usize, offset)
     }
 
     fn write<R: io::Read + ZeroCopyReader>(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         handle: HandleId,
         mut r: R,
@@ -1890,8 +1970,7 @@ impl FileSystem for PassthroughFs {
         _flags: u32,
     ) -> io::Result<usize> {
         // no with_nodeid_refresh: we have a handle
-
-        let data = self.get_handle(nodeid, handle)?;
+        let data = self.get_handle(&ctx, nodeid, handle)?;
 
         // This is safe because read_to uses pwritev64, so the underlying file descriptor
         // offset is not affected by this operation.
@@ -1914,11 +1993,11 @@ impl FileSystem for PassthroughFs {
         // if it's on nodeid, we *do* need with_nodeid_refresh
         // if not, we don't
         if handle.is_some() {
-            let file_ref = self.get_file_ref(nodeid, handle)?;
+            let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
             self.do_getattr(file_ref.as_ref(), ctx)
         } else {
-            self.with_nodeid_refresh(nodeid, || {
-                let file_ref = self.get_file_ref(nodeid, handle)?;
+            self.with_nodeid_refresh(&ctx, nodeid, || {
+                let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
                 self.do_getattr(file_ref.as_ref(), ctx)
             })
         }
@@ -1936,13 +2015,15 @@ impl FileSystem for PassthroughFs {
         if handle.is_some() {
             self.do_setattr(ctx, nodeid, attr, handle, valid)
         } else {
-            self.with_nodeid_refresh(nodeid, || self.do_setattr(ctx, nodeid, attr, handle, valid))
+            self.with_nodeid_refresh(&ctx, nodeid, || {
+                self.do_setattr(ctx, nodeid, attr, handle, valid)
+            })
         }
     }
 
     fn rename(
         &self,
-        _ctx: Context,
+        ctx: Context,
         olddir: NodeId,
         oldname: &CStr,
         newdir: NodeId,
@@ -1950,8 +2031,13 @@ impl FileSystem for PassthroughFs {
         flags: u32,
     ) -> io::Result<()> {
         // this is ugly: we have two parent nodeids, and either one could be ENOENT
-        self.with_nodeid_refresh(olddir, || {
-            self.with_nodeid_refresh(newdir, || {
+        self.with_nodeid_refresh(&ctx, olddir, || {
+            self.with_nodeid_refresh(&ctx, newdir, || {
+                // whiteout is not supported until we implement set_xattr_stat
+                if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0 {
+                    return Err(Errno::EINVAL.into());
+                }
+
                 let mut mflags: u32 = 0;
                 if ((flags as i32) & bindings::LINUX_RENAME_NOREPLACE) != 0 {
                     mflags |= libc::RENAME_EXCL;
@@ -1966,8 +2052,8 @@ impl FileSystem for PassthroughFs {
                     return Err(Errno::EINVAL.into());
                 }
 
-                let old_cpath = self.name_to_path(olddir, &oldname.to_string_lossy())?;
-                let new_cpath = self.name_to_path(newdir, &newname.to_string_lossy())?;
+                let old_cpath = self.name_to_path(&ctx, olddir, &oldname.to_string_lossy())?;
+                let new_cpath = self.name_to_path(&ctx, newdir, &newname.to_string_lossy())?;
 
                 let mut res =
                     unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
@@ -2019,14 +2105,14 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        self.with_nodeid_refresh(parent, || {
+        self.with_nodeid_refresh(&ctx, parent, || {
             debug!(
                 "mknod: parent={} name={:?} mode={:x} rdev={} umask={:x}",
                 parent, name, mode, rdev, umask
             );
 
             let name = &name.to_string_lossy();
-            let c_path = self.name_to_path(parent, name)?;
+            let c_path = self.name_to_path(&ctx, parent, name)?;
 
             // since we run as a normal user, we can't call mknod() to create chr/blk devices
             // TODO: once we support mode overrides, represent them with empty files / sockets
@@ -2071,12 +2157,12 @@ impl FileSystem for PassthroughFs {
         newname: &CStr,
     ) -> io::Result<Entry> {
         // this is also tricky -- we have two nodeids: one file, one dir
-        self.with_nodeid_refresh(nodeid, || {
-            self.with_nodeid_refresh(newparent, || {
-                let orig_c_path = self.nodeid_to_path(nodeid)?;
+        self.with_nodeid_refresh(&ctx, nodeid, || {
+            self.with_nodeid_refresh(&ctx, newparent, || {
+                let orig_c_path = self.nodeid_to_path(&ctx, nodeid)?;
                 let newname = &newname.to_string_lossy();
                 let (link_c_path, _, parent_flags) =
-                    self.name_to_path_and_data(newparent, newname)?;
+                    self.name_to_path_and_data(&ctx, newparent, newname)?;
 
                 // Safe because this doesn't modify any memory and we check the return value.
                 if parent_flags.contains(NodeFlags::LINK_AS_CLONE) {
@@ -2118,9 +2204,9 @@ impl FileSystem for PassthroughFs {
         name: &CStr,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        self.with_nodeid_refresh(parent, || {
+        self.with_nodeid_refresh(&ctx, parent, || {
             let name = &name.to_string_lossy();
-            let c_path = self.name_to_path(parent, name)?;
+            let c_path = self.name_to_path(&ctx, parent, name)?;
 
             // Safe because this doesn't modify any memory and we check the return value.
             symlinkat(linkname, None, c_path.as_ref())?;
@@ -2144,9 +2230,9 @@ impl FileSystem for PassthroughFs {
         })
     }
 
-    fn readlink(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Vec<u8>> {
-        self.with_nodeid_refresh(nodeid, || {
-            let c_path = self.nodeid_to_path(nodeid)?;
+    fn readlink(&self, ctx: Context, nodeid: NodeId) -> io::Result<Vec<u8>> {
+        self.with_nodeid_refresh(&ctx, nodeid, || {
+            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
 
             let mut buf = vec![0; libc::PATH_MAX as usize];
             let res = unsafe {
@@ -2183,13 +2269,13 @@ impl FileSystem for PassthroughFs {
 
     fn fsync(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         _datasync: bool,
         handle: HandleId,
     ) -> io::Result<()> {
         // no with_nodeid_refresh: we have a handle
-        let data = self.get_handle(nodeid, handle)?;
+        let data = self.get_handle(&ctx, nodeid, handle)?;
 
         // use barrier fsync to preserve semantics and avoid DB corruption
         // Safe because this doesn't modify any memory and we check the return value.
@@ -2217,13 +2303,13 @@ impl FileSystem for PassthroughFs {
 
     fn setxattr(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         name: &CStr,
         value: &[u8],
         flags: u32,
     ) -> io::Result<()> {
-        self.with_nodeid_refresh(nodeid, || {
+        self.with_nodeid_refresh(&ctx, nodeid, || {
             debug!(
                 "setxattr: nodeid={} name={:?} value={:?}",
                 nodeid, name, value
@@ -2245,7 +2331,7 @@ impl FileSystem for PassthroughFs {
                 mflags |= libc::XATTR_REPLACE;
             }
 
-            let c_path = self.nodeid_to_path(nodeid)?;
+            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
 
             // Safe because this doesn't modify any memory and we check the return value.
             let res = unsafe {
@@ -2268,12 +2354,12 @@ impl FileSystem for PassthroughFs {
 
     fn getxattr(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         name: &CStr,
         size: u32,
     ) -> io::Result<GetxattrReply> {
-        self.with_nodeid_refresh(nodeid, || {
+        self.with_nodeid_refresh(&ctx, nodeid, || {
             debug!("getxattr: nodeid={} name={:?}, size={}", nodeid, name, size);
 
             if !self.cfg.xattr {
@@ -2286,7 +2372,7 @@ impl FileSystem for PassthroughFs {
 
             let mut buf = vec![0; size as usize];
 
-            let c_path = self.nodeid_to_path(nodeid)?;
+            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
 
             // Safe because this will only modify the contents of `buf`
             let res = unsafe {
@@ -2323,13 +2409,13 @@ impl FileSystem for PassthroughFs {
         })
     }
 
-    fn listxattr(&self, _ctx: Context, nodeid: NodeId, size: u32) -> io::Result<ListxattrReply> {
-        self.with_nodeid_refresh(nodeid, || {
+    fn listxattr(&self, ctx: Context, nodeid: NodeId, size: u32) -> io::Result<ListxattrReply> {
+        self.with_nodeid_refresh(&ctx, nodeid, || {
             if !self.cfg.xattr {
                 return Err(Errno::ENOSYS.into());
             }
 
-            let c_path = self.nodeid_to_path(nodeid)?;
+            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
 
             // Safe because this will only modify the contents of `buf`.
             let buf = listxattr(&c_path)?;
@@ -2367,7 +2453,7 @@ impl FileSystem for PassthroughFs {
         })
     }
 
-    fn removexattr(&self, _ctx: Context, nodeid: NodeId, name: &CStr) -> io::Result<()> {
+    fn removexattr(&self, ctx: Context, nodeid: NodeId, name: &CStr) -> io::Result<()> {
         if !self.cfg.xattr {
             return Err(Errno::ENOSYS.into());
         }
@@ -2376,7 +2462,7 @@ impl FileSystem for PassthroughFs {
             return Err(Errno::EACCES.into());
         }
 
-        let c_path = self.nodeid_to_path(nodeid)?;
+        let c_path = self.nodeid_to_path(&ctx, nodeid)?;
 
         // Safe because this doesn't modify any memory and we check the return value.
         let res = unsafe { libc::removexattr(c_path.as_ptr(), name.as_ptr(), 0) };
@@ -2390,7 +2476,7 @@ impl FileSystem for PassthroughFs {
 
     fn fallocate(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         handle: HandleId,
         mode: u32,
@@ -2402,7 +2488,7 @@ impl FileSystem for PassthroughFs {
             nodeid, handle, mode, offset, length
         );
 
-        let data = self.get_handle(nodeid, handle)?;
+        let data = self.get_handle(&ctx, nodeid, handle)?;
 
         let file = &data.file;
         match mode {
@@ -2500,7 +2586,7 @@ impl FileSystem for PassthroughFs {
 
     fn lseek(
         &self,
-        _ctx: Context,
+        ctx: Context,
         nodeid: NodeId,
         handle: HandleId,
         offset: u64,
@@ -2511,7 +2597,7 @@ impl FileSystem for PassthroughFs {
             nodeid, handle, offset, whence
         );
 
-        let data = self.get_handle(nodeid, handle)?;
+        let data = self.get_handle(&ctx, nodeid, handle)?;
 
         // SEEK_DATA and SEEK_HOLE have slightly different semantics
         // in Linux vs. macOS, which means we can't support them.

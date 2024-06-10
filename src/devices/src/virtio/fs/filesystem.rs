@@ -12,6 +12,7 @@ use super::bindings;
 use super::fuse;
 
 pub use super::fuse::FsOptions;
+use super::server::HostContext;
 pub use fuse::OpenOptions;
 pub use fuse::RemovemappingOne;
 pub use fuse::SetattrValid;
@@ -319,14 +320,17 @@ pub struct Context {
 
     /// The thread group ID of the calling process.
     pub pid: libc::pid_t,
+
+    pub host: HostContext,
 }
 
-impl From<fuse::InHeader> for Context {
-    fn from(source: fuse::InHeader) -> Self {
+impl Context {
+    pub fn new(source: fuse::InHeader, host: HostContext) -> Self {
         Context {
             uid: source.uid,
             gid: source.gid,
             pid: source.pid as i32,
+            host,
         }
     }
 }
