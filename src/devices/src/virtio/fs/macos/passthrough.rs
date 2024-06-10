@@ -58,7 +58,7 @@ use super::super::fuse;
 use super::vnode_poll::VnodePoller;
 
 // disabled because Linux doesn't FORGET everything on unmount
-const DETECT_REFCOUNT_LEAKS: bool = true;
+const DETECT_REFCOUNT_LEAKS: bool = false;
 
 // _IOC(_IOC_READ, 0x61, 0x22, 0x45)
 const IOCTL_ROSETTA: u32 = 0x8045_6122;
@@ -446,6 +446,11 @@ impl Default for Config {
 }
 
 struct NodeData {
+    // cached stat info
+    // moving this here, along with packed dev_ino, saves 8 bytes (10%!)
+    flags: NodeFlags, // for flags propagated to children
+    nlink: u16,       // for getattrlistbulk buffer size
+
     dev_ino: DevIno,
 
     // state
@@ -453,10 +458,6 @@ struct NodeData {
     // for CTO consistency: clear cache on open if ctime has changed
     // must only be updated on open
     last_open_ctime: AtomicI64,
-
-    // cached stat info
-    flags: NodeFlags, // for flags propagated to children
-    nlink: u16,       // for getattrlistbulk buffer size
 
     // open fd, if volfs is not supported
     // Arc makes sure this fd won't be closed while a FS call is using it
@@ -492,6 +493,7 @@ impl NodeData {
 }
 
 #[derive(Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[repr(packed)]
 struct DevIno(pub i32, pub u64);
 
 #[derive(Debug, Copy, Clone)]
