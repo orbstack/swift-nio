@@ -759,6 +759,10 @@ impl PassthroughFs {
         st.st_uid = ctx.uid;
         st.st_gid = ctx.gid;
 
+        // root generation must be zero
+        // for other inodes, we ignore st_gen because getattrlistbulk (readdirplus) doesn't support it, so returning it here would break revalidate
+        st.st_gen = 0;
+
         // race OK: if we fail to find a nodeid by (dev,ino), we'll just make a new one, and old one will gradually be forgotten
         let dev_ino = DevIno(st.st_dev, st.st_ino);
         let (nodeid, node_flags) = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
@@ -770,7 +774,7 @@ impl PassthroughFs {
         } else {
             // this (dev, ino) is new
             // create a new nodeid and return it
-            let mut new_nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed).into();
+            let new_nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed).into();
 
             let dev_info = self.get_dev_info(st.st_dev, &file_ref)?;
 
@@ -831,35 +835,13 @@ impl PassthroughFs {
 
             // deadlock OK: we're not holding a ref, since lookup returned None
             let node_flags = node.flags;
-            let inserted_nodeid = self.nodeids.insert(new_nodeid, dev_ino, node);
-            if inserted_nodeid != new_nodeid {
-                // we raced with another thread, which added a nodeid for this (dev, ino)
-                // does the old nodeid still exist?
-                let found_existing = if let Some(node) = self.nodeids.get(&inserted_nodeid) {
-                    // no check_io: no IO after this point
-                    // old nodeid exists. increment refcount so we can use it instead
-                    node.refcount.fetch_add(1, Ordering::Relaxed);
-                    true
-                } else {
-                    // just in case it's gone, keep our new nodeid. it wasn't a duplicate after all
-                    false
-                };
-
-                if found_existing {
-                    // old nodeid exists, and we incremented its refcount
-                    // deadlock OK: we just released the read shard lock
-                    self.nodeids.remove_main(&new_nodeid);
-                    // use the old nodeid
-                    new_nodeid = inserted_nodeid;
-                }
+            if let Some(conflict_node) = self.nodeids.insert(new_nodeid, dev_ino, node) {
+                conflict_node.refcount.fetch_add(1, Ordering::Relaxed);
+                (*conflict_node.key(), conflict_node.flags)
+            } else {
+                (new_nodeid, node_flags)
             }
-
-            (new_nodeid, node_flags)
         };
-
-        // root generation must be zero
-        // for other inodes, we ignore st_gen because getattrlistbulk (readdirplus) doesn't support it, so returning it here would break revalidate
-        st.st_gen = 0;
 
         debug!(
             "finish_lookup: dev={} ino={} ref={:?} -> nodeid={}",
