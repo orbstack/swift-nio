@@ -15,7 +15,6 @@ use libc::{
     DIR_MNTSTATUS_MNTPOINT, FSOPT_ATTR_CMN_EXTENDED,
 };
 use nix::errno::Errno;
-use smallvec::SmallVec;
 use tracing::{error, trace};
 
 // __DARWIN_C_LEVEL >= __DARWIN_C_FULL
@@ -24,8 +23,6 @@ const ATTR_CMN_ERROR: u32 = 0x20000000;
 const SF_FIRMLINK: u32 = 0x00800000;
 
 const EF_NO_XATTRS: u64 = 0x00000002;
-
-pub const INLINE_ENTRIES: usize = 16;
 
 #[allow(dead_code)]
 mod vtype {
@@ -49,17 +46,14 @@ pub struct AttrlistEntry {
     pub st: Option<libc::stat>,
 }
 
-pub fn list_dir<T: AsRawFd>(
-    dirfd: T,
-    reserve_capacity: usize,
-) -> io::Result<SmallVec<[AttrlistEntry; INLINE_ENTRIES]>> {
+pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec<AttrlistEntry>> {
     // safe: we only use the part of buf that was read
     // 16384 = avg 128 bytes * 128 entries
     // to avoid compiler-inserted probe frame, don't exceed page size
     let mut buf: MaybeUninit<[u8; 16384]> = MaybeUninit::uninit();
     let buf = unsafe { buf.assume_init_mut() };
 
-    let mut entries = SmallVec::with_capacity(reserve_capacity);
+    let mut entries = Vec::with_capacity(reserve_capacity);
 
     let attrlist = attrlist {
         bitmapcount: ATTR_BIT_MAP_COUNT,
@@ -325,11 +319,11 @@ pub fn list_dir_legacy<F>(
     stream: *mut libc::DIR,
     reserve_capacity: usize,
     stat_fn: F,
-) -> io::Result<SmallVec<[AttrlistEntry; INLINE_ENTRIES]>>
+) -> io::Result<Vec<AttrlistEntry>>
 where
     F: Fn(&str) -> io::Result<libc::stat>,
 {
-    let mut entries = SmallVec::with_capacity(reserve_capacity);
+    let mut entries = Vec::with_capacity(reserve_capacity);
 
     loop {
         let dentry = unsafe { libc::readdir(stream) };

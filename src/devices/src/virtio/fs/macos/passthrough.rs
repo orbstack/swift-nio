@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use crate::virtio::fs::attrlist::{self, AttrlistEntry, INLINE_ENTRIES};
+use crate::virtio::fs::attrlist::{self, AttrlistEntry};
 use crate::virtio::fs::filesystem::SecContext;
 use crate::virtio::fs::multikey::MultikeyFxDashMap;
 use crate::virtio::rosetta::get_rosetta_data;
@@ -44,7 +44,6 @@ use nix::sys::uio::pwrite;
 use nix::unistd::{access, truncate, LinkatFlags};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
-use smallvec::SmallVec;
 use smol_str::SmolStr;
 use utils::qos::{set_thread_qos, QosClass};
 use utils::{Mutex, MutexGuard};
@@ -130,17 +129,16 @@ impl StatExt for bindings::stat64 {
 struct DirStream {
     _stream: *mut libc::DIR,
     offset: i64,
-    // OK because this is only for opened files
-    entries: Option<SmallVec<[AttrlistEntry; INLINE_ENTRIES]>>,
+    entries: Option<Vec<AttrlistEntry>>,
 }
 
 // libc::DIR is Send but not Sync
 unsafe impl Send for DirStream {}
 
 pub(crate) struct HandleData {
-    node_flags: NodeFlags,
-    file: ManuallyDrop<File>,
     dirstream: Mutex<DirStream>,
+    file: ManuallyDrop<File>,
+    node_flags: NodeFlags,
 }
 
 impl HandleData {
