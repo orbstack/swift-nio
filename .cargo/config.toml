@@ -1,0 +1,4 @@
+[env]
+# match Go linker flags for jemalloc build
+CFLAGS = "-mmacosx-version-min=12.3"
+LDFLAGS = "-mmacosx-version-min=12.3"
