@@ -632,8 +632,10 @@ impl PassthroughFs {
 
         let c_path = self.nodeid_to_path(nodeid)?;
 
-        flags |= OFlag::O_CLOEXEC;
-        flags.remove(OFlag::O_NOFOLLOW | OFlag::O_EXLOCK);
+        // always add O_NOFOLLOW to prevent escape via symlink race
+        // Linux will never try to open a symlink
+        flags |= OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW;
+        flags.remove(OFlag::O_EXLOCK);
 
         let fd = nix::fcntl::open(c_path.as_ref(), flags, Mode::empty())?;
 
