@@ -10,7 +10,8 @@ use thiserror::Error;
 
 use crate::{util::Parker, AnySignalChannelWith, Waker, WakerIndex};
 
-// Parker
+// === ParkWaker === //
+
 #[derive(Debug, Default)]
 pub struct ParkWaker(Parker);
 
@@ -47,7 +48,8 @@ pub trait ParkSignalChannelExt: AnySignalChannelWith<ParkWaker> {
 
 impl<T: AnySignalChannelWith<ParkWaker>> ParkSignalChannelExt for T {}
 
-// Dynamically Bound (or: "I heard y'all liked the convenient legacy API!")
+// === DynamicallyBoundWaker === //
+
 #[derive(Default)]
 pub struct DynamicallyBoundWaker {
     waker: Mutex<Option<NonNull<dyn FnMut() + Send + Sync>>>,
@@ -125,7 +127,8 @@ pub trait DynamicallyBoundSignalChannelExt: AnySignalChannelWith<DynamicallyBoun
 
 impl<T: AnySignalChannelWith<DynamicallyBoundWaker>> DynamicallyBoundSignalChannelExt for T {}
 
-// Queue Receiving
+// === QueueRecvSignalChannelExt === //
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Error)]
 pub enum QueueRecvError {
     #[error("queue senders have all disconnected")]
@@ -166,7 +169,8 @@ pub trait QueueRecvSignalChannelExt: DynamicallyBoundSignalChannelExt {
 
 impl<T: DynamicallyBoundSignalChannelExt> QueueRecvSignalChannelExt for T {}
 
-// MIO
+// === OnceMioWaker === //
+
 #[derive(Default)]
 pub struct OnceMioWaker(OnceLock<Arc<mio::Waker>>);
 

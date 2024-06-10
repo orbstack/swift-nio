@@ -60,26 +60,6 @@ impl<T: ?Sized + MultiplexParker> MultiplexParker for &mut T {
     }
 }
 
-pub fn multiplex_signals_with_shutdown<C: ?Sized>(
-    shutdown: &ShutdownSignal,
-    handlers: &mut [&mut dyn SignalMultiplexHandler<C>],
-    mut parker: impl MultiplexParker<SubscriberCx = C>,
-) {
-    let should_stop = Arc::new(AtomicBool::new(false));
-    let unparker = MultiplexParker::unparker(&mut parker);
-
-    let _task = shutdown.spawn_ref({
-        let should_stop = should_stop.clone();
-
-        move || {
-            should_stop.store(true, Relaxed);
-            unparker();
-        }
-    });
-
-    multiplex_signals(&should_stop, handlers, parker);
-}
-
 pub fn multiplex_signals<C: ?Sized>(
     should_stop: &AtomicBool,
     handlers: &mut [&mut dyn SignalMultiplexHandler<C>],
@@ -194,20 +174,88 @@ pub fn multiplex_signals<C: ?Sized>(
     }
 }
 
+pub fn multiplex_signals_with_shutdown<C: ?Sized>(
+    shutdown: &ShutdownSignal,
+    handlers: &mut [&mut dyn SignalMultiplexHandler<C>],
+    mut parker: impl MultiplexParker<SubscriberCx = C>,
+) {
+    let should_stop = Arc::new(AtomicBool::new(false));
+    let unparker = MultiplexParker::unparker(&mut parker);
+
+    let _task = shutdown.spawn_ref({
+        let should_stop = should_stop.clone();
+
+        move || {
+            should_stop.store(true, Relaxed);
+            unparker();
+        }
+    });
+
+    multiplex_signals(&should_stop, handlers, parker);
+}
+
 // === EventManager === //
 
+// Subscriber
+pub trait Subscriber: 'static {
+    type EventMeta: ?Sized + Send + Sync;
+
+    fn process_signals(&mut self, ctrl: &mut InterestCtrl<'_, Self::EventMeta>) {
+        let _ = ctrl;
+    }
+
+    fn process_event(
+        &mut self,
+        ctrl: &mut InterestCtrl<'_, Self::EventMeta>,
+        event: &mio::event::Event,
+        meta: &mut Self::EventMeta,
+    ) {
+        let _ = ctrl;
+        let _ = event;
+        let _ = meta;
+    }
+
+    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
+        Vec::new()
+    }
+
+    fn init_interests(&self, ctrl: &mut InterestCtrl<'_, Self::EventMeta>) {
+        let _ = ctrl;
+    }
+
+    fn debug_type_name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+}
+
+// EventManager
 pub struct EventManager {
+    // The epoll registry
     poll: mio::Poll,
+
+    // The epoll event queue
     events: mio::Events,
+
+    // The unique waker used to unpark the event manager when new *signals* are received.
     abort_waker: Arc<mio::Waker>,
+
+    // The set of user-defined `Subscriber`s. A given subscriber is typically only registered in
+    // this list once. We use a SmallBox under the assumption that most of these objects are smart
+    // pointers such as `Arc<Mutex<MySubscriber>>`.
+    subscribers: Vec<SmallBox<ErasedSubscriber, *const ErasedSubscriber>>,
+
+    // A set mapping SourceFd `Token`s to handlers, which describe the index of the subscriber to
+    // which we should deliver the event and the metadata which should be used to deliver it.
     mio_handlers: Vec<MioHandler>,
-    subscribers: Vec<SmallBox<ErasedSubscriber, *const ()>>,
 }
 
 type ErasedSubscriber = dyn Subscriber<EventMeta = dyn Any + Send + Sync> + Send + Sync;
 
 struct MioHandler {
     subscriber_idx: usize,
+
+    // This value is `None` while we pass `metadata` to a subscriber. This will always be returned
+    // to the `MioHandler` instance after the event has been processed.
     metadata: Option<smallbox::SmallBox<dyn Any + Send + Sync, u64>>,
 }
 
@@ -237,6 +285,7 @@ impl EventManager {
         S: Subscriber + Send + Sync,
         S::EventMeta: Sized,
     {
+        // An adapter to erase the metadata type of the subscriber.
         struct SubscriberEraseAdapter<T>(T);
 
         impl<S> Subscriber for SubscriberEraseAdapter<S>
@@ -276,12 +325,16 @@ impl EventManager {
             }
         }
 
+        // Register the subscriber
         let subscriber_idx = self.subscribers.len();
         let subscriber_name = handler.debug_type_name();
 
         self.subscribers
             .push(smallbox::smallbox!(SubscriberEraseAdapter(handler)));
 
+        // Allow the subscriber to register its initial interests. We ignore exit signals here since
+        // expressing the unavailability of that operation properly would probably just hurt
+        // ergonomics.
         self.subscribers[subscriber_idx].init_interests(&mut InterestCtrl {
             _ty: PhantomData,
             raw: InterestCtrlInner {
@@ -295,51 +348,66 @@ impl EventManager {
     }
 
     pub fn run(&mut self) {
+        // Signal multiple parking handler; implements park by polling for new events and also handles
+        // dispatching those events before yielding control back to the signal multiplexer.
         struct EventManagerParker<'a>(&'a mut EventManager);
 
         impl MultiplexParker for EventManagerParker<'_> {
-            type SubscriberCx = Self;
+            type SubscriberCx = EventManager;
 
-            fn subscriber_cx(me: &mut Self) -> &mut Self::SubscriberCx {
-                me
+            fn subscriber_cx(me: &mut Self) -> &mut EventManager {
+                me.0
             }
 
             fn park(me: &mut Self, should_stop: &AtomicBool) {
+                let me = &mut me.0;
+
                 // Poll for events
-                if let Err(err) = me.0.poll.poll(&mut me.0.events, None) {
+                if let Err(err) = me.poll.poll(&mut me.events, None) {
                     tracing::error!("failed to send process epoll signals: {err}");
                     should_stop.store(true, Relaxed);
                     return;
                 }
 
                 // Process events
-                for event in me.0.events.iter() {
-                    if event.token().0 == usize::MAX {
+                for event in me.events.iter() {
+                    // Ignore the waker event.
+                    if event.token() == EventManager::ABORT_TOKEN {
                         continue;
                     }
 
-                    let handler = &mut me.0.mio_handlers[event.token().0];
+                    // Figure out which subscriber we're waking up.
+                    let handler = &mut me.mio_handlers[event.token().0];
                     let subscriber_idx = handler.subscriber_idx;
-                    let mut metadata = handler.metadata.take().unwrap();
-                    let subscriber = &mut me.0.subscribers[subscriber_idx];
+                    let subscriber = &mut me.subscribers[subscriber_idx];
                     let subscriber_name = subscriber.debug_type_name();
+
+                    // Temporarily take the metadata so we can pass `mio_handlers` to `InterestCtrl`.
+                    let metadata = handler.metadata.take().unwrap();
+                    let mut mio_handlers_and_metadata = scopeguard::guard(
+                        (&mut me.mio_handlers, metadata),
+                        |(mio_handlers, metadata)| {
+                            mio_handlers[event.token().0].metadata = Some(metadata);
+                        },
+                    );
+                    let (mio_handlers, metadata) = &mut *mio_handlers_and_metadata;
 
                     subscriber.process_event(
                         &mut InterestCtrl {
                             _ty: PhantomData,
                             raw: InterestCtrlInner {
-                                poll: &mut me.0.poll,
-                                mio_handlers: &mut me.0.mio_handlers,
+                                poll: &mut me.poll,
+                                mio_handlers,
                                 subscriber_idx,
                                 subscriber_name,
                                 should_stop,
                             },
                         },
                         event,
-                        &mut *metadata,
+                        &mut **metadata,
                     );
 
-                    me.0.mio_handlers[event.token().0].metadata = Some(metadata);
+                    // (`mio_handlers_and_metadata` dropped here before the loop runs again)
                 }
             }
 
@@ -358,9 +426,8 @@ impl EventManager {
 
         struct EventManagerSubscriber(usize, &'static str);
 
-        impl<'a> SignalMultiplexHandler<EventManagerParker<'a>> for EventManagerSubscriber {
-            fn process(&mut self, should_stop: &AtomicBool, cx: &mut EventManagerParker<'a>) {
-                let event_mgr = &mut *cx.0;
+        impl SignalMultiplexHandler<EventManager> for EventManagerSubscriber {
+            fn process(&mut self, should_stop: &AtomicBool, event_mgr: &mut EventManager) {
                 let subscriber_idx = self.0;
                 let subscriber = &mut event_mgr.subscribers[subscriber_idx];
                 let subscriber_name = subscriber.debug_type_name();
@@ -380,9 +447,9 @@ impl EventManager {
             fn signals(
                 &self,
                 _should_stop: &AtomicBool,
-                cx: &mut EventManagerParker<'a>,
+                event_mgr: &mut EventManager,
             ) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
-                cx.0.subscribers[self.0].signals()
+                event_mgr.subscribers[self.0].signals()
             }
 
             fn debug_type_name(&self) -> &'static str {
@@ -399,7 +466,7 @@ impl EventManager {
 
         let mut subscriber_ref_list = subscriber_list
             .iter_mut()
-            .map(|v| v as &mut dyn SignalMultiplexHandler<EventManagerParker<'_>>)
+            .map(|v| v as &mut dyn SignalMultiplexHandler<EventManager>)
             .collect::<Box<_>>();
 
         multiplex_signals(
@@ -410,12 +477,14 @@ impl EventManager {
     }
 }
 
+// InterestCtrl
 #[repr(transparent)]
 pub struct InterestCtrl<'a, Meta: ?Sized> {
     _ty: PhantomData<fn() -> Meta>,
     raw: InterestCtrlInner<'a>,
 }
 
+// We need this inner type to ensure that we can cast the `Meta` phantom parameter safely.
 struct InterestCtrlInner<'a> {
     poll: &'a mut mio::Poll,
     mio_handlers: &'a mut Vec<MioHandler>,
@@ -429,6 +498,12 @@ impl<'a, Meta: ?Sized> InterestCtrl<'a, Meta> {
         unsafe { &mut *(self as *mut Self as *mut InterestCtrl<'a, NewMeta>) }
     }
 
+    // FIXME: Gruel
+    //
+    // NOTE: The semantics of this method are a bit weird. It doesn't do anything in `init_interests`
+    // since the event manager isn't even running yet and it still allows other events in the event
+    // buffer to be handled by subscribers. This behavior was chosen because it's what `polly` did
+    // so a more in-depth investigation of this is necessary.
     pub fn stop(&mut self) {
         self.raw.should_stop.store(true, Relaxed);
     }
@@ -461,36 +536,5 @@ impl InterestCtrl<'_, RawFd> {
     pub fn register_fd(&mut self, source: &impl AsRawFd, interests: mio::Interest) {
         let source = source.as_raw_fd();
         self.register(&mut SourceFd(&source), interests, source);
-    }
-}
-
-pub trait Subscriber: 'static {
-    type EventMeta: ?Sized + Send + Sync;
-
-    fn process_signals(&mut self, ctrl: &mut InterestCtrl<'_, Self::EventMeta>) {
-        let _ = ctrl;
-    }
-
-    fn process_event(
-        &mut self,
-        ctrl: &mut InterestCtrl<'_, Self::EventMeta>,
-        event: &mio::event::Event,
-        meta: &mut Self::EventMeta,
-    ) {
-        let _ = ctrl;
-        let _ = event;
-        let _ = meta;
-    }
-
-    fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
-        Vec::new()
-    }
-
-    fn init_interests(&self, ctrl: &mut InterestCtrl<'_, Self::EventMeta>) {
-        let _ = ctrl;
-    }
-
-    fn debug_type_name(&self) -> &'static str {
-        std::any::type_name::<Self>()
     }
 }

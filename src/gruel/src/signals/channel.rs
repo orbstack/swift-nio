@@ -31,6 +31,10 @@ impl<W: ?Sized + WakerSet> fmt::Debug for RawSignalChannel<W> {
                 &FmtU64AsBits(self.asserted_mask.load(Relaxed)),
             )
             .field(
+                "wake_up_mask",
+                &FmtDebugUsingDisplay(self.wake_up_mask.load(Relaxed)),
+            )
+            .field(
                 "active_waker",
                 &FmtDebugUsingDisplay(self.wakers.name_of(self.active_waker.load(Relaxed))),
             )
@@ -91,12 +95,14 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
 // Unfortunately, the following guarantees are *not* yet made:
 //
 // 1. It is possible that a waker will be called and a task will be skipped at the same time. This
-//    could potentially be fixed but doing so isn't too useful considering limitation 2.
+//    could potentially be fixed with some atomic to keep track of who's responsible for waking up
+//    the thread.
 //
 // 2. It is possible that a wake call from an earlier `wait` can be so delayed that it ends up being
-//    called in the context of a subsequent `wait`. This cannot be prevented without blocking the
-//    `wait` call on completion of its wakers.
+//    called in the context of a subsequent `wait`. This could also potentially be fixed by assigning
+//    a session generation to a given wake-up.
 //
+// These two limitations would likely have to be resolved in tandem.
 impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
     pub fn wait_manual(
         &self,
@@ -178,10 +184,9 @@ impl<W: ?Sized + WakerSet> RawSignalChannel<W> {
         self.asserted_mask.fetch_and(!mask, Relaxed) & mask
     }
 
+    // If this method returns true, we know that a subsequent call to `take` with this mask will return
+    // a non-empty result.
     pub fn could_take(&self, mask: u64) -> bool {
-        // (mimics `take`)
-        fence(SeqCst);
-
         self.asserted_mask.load(Relaxed) & mask != 0
     }
 }
