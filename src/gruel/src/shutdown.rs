@@ -7,7 +7,7 @@ use std::sync::{
 use derive_where::derive_where;
 use generational_arena::{Arena, Index};
 use newt::{NumEnum, NumEnumMap};
-use parking_lot::{Condvar, Mutex};
+use std::sync::{Condvar, Mutex};
 use thiserror::Error;
 
 use crate::{util::ExtensionFor, ArcBoundSignalChannel};
@@ -138,7 +138,7 @@ impl ShutdownSignal {
     where
         F: 'static + Send + Sync + FnOnce(),
     {
-        let mut guard = self.0.state.lock();
+        let mut guard = self.0.state.lock().unwrap();
 
         if guard.shutting_down {
             return Err(ShutdownAlreadyRequested { kick });
@@ -167,7 +167,7 @@ impl ShutdownSignal {
     }
 
     pub fn shutdown(&self) {
-        let mut guard = self.0.state.lock();
+        let mut guard = self.0.state.lock().unwrap();
         if guard.shutting_down {
             return;
         }
@@ -180,7 +180,7 @@ impl ShutdownSignal {
         }
 
         if !guard.tasks.is_empty() {
-            self.0.condvar.wait(&mut guard);
+            guard = self.0.condvar.wait(guard).unwrap();
         }
 
         assert!(guard.tasks.is_empty());
@@ -203,7 +203,7 @@ impl ShutdownTask {
 
 impl Drop for ShutdownTask {
     fn drop(&mut self) {
-        let mut guard = self.signal.0.state.lock();
+        let mut guard = self.signal.0.state.lock().unwrap();
 
         guard.tasks.remove(self.index);
         if guard.shutting_down && guard.tasks.is_empty() {

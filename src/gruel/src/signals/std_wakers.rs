@@ -1,11 +1,10 @@
 use std::{
     io,
     ptr::NonNull,
-    sync::{Arc, OnceLock},
+    sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
 
-use parking_lot::Mutex;
 use thiserror::Error;
 
 use crate::{util::Parker, AnySignalChannelWith, Waker, WakerIndex};
@@ -61,7 +60,7 @@ unsafe impl Sync for DynamicallyBoundWaker {}
 
 impl Waker for DynamicallyBoundWaker {
     fn wake(&self) {
-        if let Some(waker) = self.waker.lock().as_mut() {
+        if let Some(waker) = self.waker.lock().unwrap().as_mut() {
             (unsafe { waker.as_mut() })()
         }
     }
@@ -89,14 +88,14 @@ impl DynamicallyBoundWaker {
             )
         };
 
-        let mut curr_waker = self.waker.lock();
+        let mut curr_waker = self.waker.lock().unwrap();
         assert!(curr_waker.is_none());
 
         *curr_waker = Some(waker);
     }
 
     pub fn clear_waker(&self) {
-        *self.waker.lock() = None;
+        *self.waker.lock().unwrap() = None;
     }
 }
 

@@ -169,35 +169,35 @@ cfgenius::cond! {
     } else {
         // Fallback
         mod park {
-            use std::time::Duration;
+            use std::{time::Duration, sync::{Condvar, Mutex}};
 
             #[derive(Debug, Default)]
             pub struct Parker {
-                state: parking_lot::Mutex<bool>,
-                condvar: parking_lot::Condvar,
+                state: Mutex<bool>,
+                condvar: Condvar,
             }
 
             impl Parker {
                 pub fn park(&self) {
-                    let mut state = self.state.lock();
+                    let mut state = self.state.lock().unwrap();
 
                     while !*state {
-                        self.condvar.wait(&mut state);
+                        state = self.condvar.wait(state).unwrap();
                     }
 
                     *state = false;
                 }
 
                 pub fn park_timeout(&self, timeout: Duration) {
-                    let mut state = self.state.lock();
+                    let mut state = self.state.lock().unwrap();
                     if !*state {
-                        self.condvar.wait_for(&mut state, timeout);
+                        state = self.condvar.wait_timeout(state, timeout).unwrap().0;
                     }
                     *state = false;
                 }
 
                 pub fn unpark(&self) {
-                    *self.state.lock() = true;
+                    *self.state.lock().unwrap() = true;
                     self.condvar.notify_all();
                 }
             }

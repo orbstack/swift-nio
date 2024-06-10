@@ -14,7 +14,6 @@ generational-arena = "0.2.9"
 memmage = { version = "0.1.0", path = "../memmage" }
 mio = { version = "0.8.11", features = ["os-poll"] }
 newt = { version = "0.1.0", path = "../newt" }
-parking_lot = "0.12.1"
 scopeguard = "1.2.0"
 smallbox = "0.8.2"
 thiserror = "1.0.58"

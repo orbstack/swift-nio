@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use parking_lot::{Condvar, Mutex};
+use std::sync::{Condvar, Mutex};
 use thiserror::Error;
 
 // === State === //
@@ -21,7 +21,7 @@ struct State {
 
 impl StartupInner {
     pub fn abort(&self) {
-        let mut state = self.state.lock();
+        let mut state = self.state.lock().unwrap();
         if state.pending_starts == 0 || state.pending_starts == usize::MAX {
             return;
         }
@@ -83,13 +83,13 @@ impl StartupSignal {
     }
 
     pub fn wait(&self) -> Result<(), StartupAbortedError> {
-        let mut guard = self.0.state.lock();
+        let mut guard = self.0.state.lock().unwrap();
 
         if let Some(early) = guard.interpret_as_result() {
             return early;
         }
 
-        self.0.condvar.wait(&mut guard);
+        guard = self.0.condvar.wait(guard).unwrap();
 
         guard.interpret_as_result().unwrap()
     }
@@ -99,7 +99,7 @@ impl StartupSignal {
         // This is not exactly the same of the clone handler, hence the
         // duplication.
         {
-            let mut guard = self.0.state.lock();
+            let mut guard = self.0.state.lock().unwrap();
 
             if guard.pending_starts == usize::MAX {
                 guard.pending_starts = 1;
@@ -125,7 +125,7 @@ impl Clone for StartupTask {
     fn clone(&self) -> Self {
         let clone = Self(self.0.clone());
         {
-            let mut state = clone.0.state.lock();
+            let mut state = clone.0.state.lock().unwrap();
             debug_assert!(state.pending_starts != 0);
 
             state.pending_starts = state.pending_starts.saturating_add(1);
@@ -153,7 +153,7 @@ impl StartupTask {
     pub fn success_keeping(self) -> StartupSignal {
         let signal = self.into_signal_no_rc();
 
-        let mut state = signal.0.state.lock();
+        let mut state = signal.0.state.lock().unwrap();
 
         if state.pending_starts != usize::MAX {
             state.pending_starts -= 1;

@@ -37,7 +37,6 @@ once_cell = "1.19.0"
 serde = { version = "1.0.197", features = ["derive"] }
 anyhow = "1.0.82"
 rustc-hash = "1.1.0"
-parking_lot = "0.12.1"
 dashmap = "5.5.3"
 smallvec = "1.13.2"
 counter = { version = "0.1.0", path = "../counter" }
