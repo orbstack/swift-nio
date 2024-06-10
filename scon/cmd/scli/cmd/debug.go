@@ -112,7 +112,7 @@ var debugCmd = &cobra.Command{
 
 You can also use 'dctl' in the debug shell to install and remove packages.
 
-Pro only: requires a Pro license for OrbStack.
+Pro only: requires an OrbStack Pro license.
 `,
 	Example: "  " + appid.ShortCmd + " debug mysql1",
 	Args:    cobra.ArbitraryArgs,
