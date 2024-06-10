@@ -87,6 +87,18 @@ where
         }
     }
 
+    pub fn get_alt_mut<Q2>(&self, key: &Q2) -> Option<RefMut<K1, V, S>>
+    where
+        K2: Borrow<Q2>,
+        Q2: Ord + ?Sized + Hash,
+    {
+        if let Some(k) = self.alt.get(key) {
+            self.get_mut(&k)
+        } else {
+            None
+        }
+    }
+
     /// Inserts a new entry into the map with the given keys and value.
     pub fn insert(&self, k1: K1, k2: K2, v: V) -> Option<Ref<K1, V, S>> {
         let entry2 = self.alt.entry(k2.clone());

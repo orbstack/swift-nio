@@ -89,6 +89,12 @@ const FALLOC_FL_KEEP_SIZE_AND_PUNCH_HOLE: u32 = FALLOC_FL_KEEP_SIZE | FALLOC_FL_
 )]
 pub struct NodeId(pub u64);
 
+impl NodeId {
+    pub fn option(self) -> OptionNodeId {
+        NonZeroU64::new(self.0)
+    }
+}
+
 #[derive(
     Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash, From, Into, Display,
 )]
@@ -100,6 +106,7 @@ type OptionNodeId = Option<NonZeroU64>;
 trait StatExt {
     fn can_open(&self) -> bool;
     fn ctime_ns(&self) -> i64;
+    fn dev_ino(&self) -> DevIno;
 }
 
 impl StatExt for bindings::stat64 {
@@ -113,6 +120,10 @@ impl StatExt for bindings::stat64 {
 
     fn ctime_ns(&self) -> i64 {
         self.st_ctime * NSEC_PER_SEC + self.st_ctime_nsec
+    }
+
+    fn dev_ino(&self) -> DevIno {
+        DevIno(self.st_dev, self.st_ino)
     }
 }
 
@@ -527,9 +538,9 @@ impl PassthroughFs {
         let nodeids = MultikeyFxDashMap::new();
         nodeids.insert(
             NodeId(fuse::ROOT_ID),
-            DevIno(st.st_dev, st.st_ino),
+            st.dev_ino(),
             NodeData {
-                dev_ino: DevIno(st.st_dev, st.st_ino),
+                dev_ino: st.dev_ino(),
 
                 // refcount 2 so it can never be dropped
                 refcount: AtomicI64::new(2),
@@ -599,7 +610,6 @@ impl PassthroughFs {
     // but worst-case scenario: we can use public APIs (fsgetpath) to get the path,
     // and also cache O_EVTONLY fds and paths.
     // lstat realpath=681.85ns, volfs=895.88ns, fsgetpath=1.1478us, lstat+fsgetpath=1.8592us
-    // TODO: unify with name_to_path(NodeId, Option<N>)
     fn nodeid_to_file_ref_and_data(
         &self,
         ctx: &Context,
@@ -764,7 +774,7 @@ impl PassthroughFs {
         st.st_gen = 0;
 
         // race OK: if we fail to find a nodeid by (dev,ino), we'll just make a new one, and old one will gradually be forgotten
-        let dev_ino = DevIno(st.st_dev, st.st_ino);
+        let dev_ino = st.dev_ino();
         let (nodeid, node_flags) = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
             // no check_io: caller already checked before it got the stat result
             // there is already a nodeid for this (dev, ino)
@@ -819,7 +829,7 @@ impl PassthroughFs {
                 fd,
                 nlink: st.st_nlink,
 
-                parent_nodeid: Some(NonZeroU64::new(parent.0).unwrap()),
+                parent_nodeid: parent.option(),
                 name: SmolStr::from(name),
             };
 
@@ -1269,8 +1279,7 @@ impl PassthroughFs {
         //   - linux should not be trying to access it by old name. that wouldn't work anyway
         //   - stale dev/ino is not possible if accessing by new name
         //   - if linux renamed it, we'll update the name
-        // TODO: actually update the name on rename. linux does in dcache
-        // TODO: this breaks down with hard links (dentry != node; names are diff), but that's uncommon
+        // TODO: this breaks down with hard links. fix by storing SmallVec of links ((parent,name)) in NodeData
         let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
         let old_devino = node.dev_ino;
         let parent = node.parent_nodeid.ok_or(Errno::ENOENT)?.get().into();
@@ -1292,7 +1301,7 @@ impl PassthroughFs {
             debug!(?nodeid, ?old_devino, ?path_in_parent, "refresh_nodeid");
             let st = lstat(&path_in_parent, true)?;
 
-            let new_devino = DevIno(st.st_dev, st.st_ino);
+            let new_devino = st.dev_ino();
             if new_devino == old_devino {
                 // this is pretty much impossible:
                 // inode reuse should never happen this quickly, and we just checked that the error was probably caused by a stale dev/ino, because the old dev/ino no longer exists... and yet if we look it up in the parent, it's the same, implying that the dev/ino exists again?
@@ -1759,7 +1768,7 @@ impl FileSystem for PassthroughFs {
                 offset + 1 + (i as u64)
             );
 
-            let lookup_entry = if self.nodeids.contains_alt_key(&DevIno(st.st_dev, st.st_ino)) {
+            let lookup_entry = if self.nodeids.contains_alt_key(&st.dev_ino()) {
                 // don't return attrs for files with existing nodeids (i.e. inode struct on the linux side)
                 // this prevents a race (cargo build [st_size], rm -rf [st_nlink? not sure]) where Linux is writing to a file that's growing in size, and something else calls readdirplus on its parent dir, causing FUSE to update the existing inode's attributes with a stale size, causing the readable portion of the file to be truncated when the next rustc process tries to read from the previous compilation output
                 // it's OK for perf, because readdirplus covers two cases: (1) providing attrs to avoid lookup for a newly-seen file, and (2) updating invalidated attrs (>2h timeout, or set in inval_mask) on existing files
@@ -1774,7 +1783,7 @@ impl FileSystem for PassthroughFs {
                 let path = if let Some(ref path) = parent_fd_path {
                     CString::new(format!("{}/{}", path, entry.name)).map_err(|e| e.into())
                 } else {
-                    self.devino_to_path(DevIno(st.st_dev, st.st_ino))
+                    self.devino_to_path(st.dev_ino())
                 };
                 let path = match path {
                     Ok(path) => path,
@@ -2033,8 +2042,9 @@ impl FileSystem for PassthroughFs {
                     return Err(Errno::EINVAL.into());
                 }
 
+                let newname = newname.to_string_lossy();
                 let old_cpath = self.name_to_path(&ctx, olddir, &oldname.to_string_lossy())?;
-                let new_cpath = self.name_to_path(&ctx, newdir, &newname.to_string_lossy())?;
+                let new_cpath = self.name_to_path(&ctx, newdir, &newname)?;
 
                 let mut res =
                     unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
@@ -2066,6 +2076,14 @@ impl FileSystem for PassthroughFs {
                                 Some((libc::S_IFCHR | 0o600) as u32),
                             )?;
                         }
+                    }
+
+                    // update parent info
+                    // TODO: avoid stat
+                    let st = lstat(new_cpath.as_ref(), true)?;
+                    if let Some(mut node) = self.nodeids.get_alt_mut(&st.dev_ino()) {
+                        node.parent_nodeid = newdir.option();
+                        node.name = SmolStr::new(newname);
                     }
 
                     Ok(())
