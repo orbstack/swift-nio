@@ -783,7 +783,7 @@ impl PassthroughFs {
                 debug!("open fd");
 
                 // TODO: evict fds and cache as paths
-                if self.num_open_fds.fetch_add(1, Ordering::Relaxed) > MAX_PATH_FDS {
+                if self.num_open_fds.fetch_add(1, Ordering::Relaxed) >= MAX_PATH_FDS {
                     self.num_open_fds.fetch_sub(1, Ordering::Relaxed);
                     return Err(Errno::ENFILE.into());
                 }
