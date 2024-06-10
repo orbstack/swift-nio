@@ -188,7 +188,7 @@ func doMount(spec Spec) error {
 	}
 
 	// Call mount(2) with the serialized nfs_mount_args message.
-	mountFlags := 0
+	mountFlags := unix.MNT_NOATIME
 	if vmconfig.Get().MountHideShared {
 		mountFlags |= unix.MNT_DONTBROWSE
 	}
