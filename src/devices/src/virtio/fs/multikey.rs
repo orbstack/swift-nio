@@ -7,10 +7,7 @@ use std::{
     hash::{BuildHasherDefault, Hash},
 };
 
-use dashmap::mapref::{
-    entry::Entry,
-    one::{Ref, RefMut},
-};
+use dashmap::mapref::one::{Ref, RefMut};
 use rustc_hash::FxHasher;
 
 use super::FxDashMap;
@@ -100,18 +97,11 @@ where
     }
 
     /// Inserts a new entry into the map with the given keys and value.
-    pub fn insert(&self, k1: K1, k2: K2, v: V) -> Option<Ref<K1, V, S>> {
-        let entry2 = self.alt.entry(k2.clone());
-        if let Entry::Occupied(ref e) = entry2 {
-            if let Some(existing) = self.main.get(&e.get()) {
-                return Some(existing);
-            }
-        }
-
-        let entry1 = self.main.entry(k1.clone());
-        entry1.insert(v);
-        entry2.insert(k1.clone());
-        None
+    pub fn insert(&self, k1: K1, k2: K2, v: V) -> K1 {
+        // always add K1 first to prevent race. reverse mapping requires original to exist already
+        self.main.insert(k1.clone(), v);
+        // add or replace K2->K1 mapping to new K1 value
+        self.insert_alt(k1, k2)
     }
 
     pub fn insert_alt(&self, k1: K1, k2: K2) -> K1 {
