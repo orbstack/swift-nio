@@ -704,6 +704,8 @@ impl Vcpu {
 
         parker.register_vcpu(hvf_vcpuid, thread::current());
 
+        devices::virtio::fs::macos::iopolicy::prepare_vcpu_for_hvc().unwrap();
+
         // notify init done (everything is registered)
         init_sender.send(true).unwrap();
 
