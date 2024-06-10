@@ -7,9 +7,6 @@ pub type VmmShutdownSignal = MultiShutdownSignal<VmmShutdownPhase>;
 
 define_num_enum! {
     pub enum VmmShutdownPhase {
-        /// Shut-down `EventManager` loop.
-        ExitSubscribers,
-
         /// Pauses execution of all vCPUs, letting them wait to destroy themselves. This should
         /// happen before everything else because vCPUs exiting the loop could actually initiate the
         /// shutdown.
@@ -26,10 +23,6 @@ define_num_enum! {
 
         /// Destroy the virtualization framework.
         HvfDestroy,
-
-        /// Notify the `libkrun` worker that it can close its worker thread and notify the
-        /// embedder.
-        NotifyLibkrunWorker,
     }
 }
 

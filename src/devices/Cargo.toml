@@ -28,7 +28,6 @@ zerocopy-derive = { version = "0.6.3" }
 
 arch = { path = "../arch" }
 utils = { path = "../utils" }
-polly = { path = "../polly" }
 gicv3 = { path = "../gicv3" }
 rutabaga_gfx = { path = "../rutabaga_gfx", features = [
     "virgl_renderer",

@@ -18,7 +18,6 @@ use devices;
 use devices::legacy::Gic;
 use devices::BusDevice;
 use kernel::cmdline as kernel_cmdline;
-use polly::event_manager::EventManager;
 use utils::eventfd::EventFd;
 
 use crate::vstate::Vm;
@@ -232,17 +231,19 @@ impl MMIODeviceManager {
         &mut self,
         _vm: &Vm,
         intc: Option<Arc<Mutex<devices::legacy::Gic>>>,
-        event_manager: &mut EventManager,
+        event_manager: &mut gruel::EventManager,
         shutdown_efd: EventFd,
     ) -> Result<()> {
         // Attaching the GPIO device.
+
+        use utils::gruel::SubscriberMutexAdapter;
         let gpio_evt = EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(Error::EventFd)?;
         let gpio = Arc::new(Mutex::new(devices::legacy::Gpio::new(
             shutdown_efd,
             gpio_evt.try_clone().map_err(Error::EventFd)?,
         )));
 
-        event_manager.add_subscriber(gpio.clone()).unwrap();
+        event_manager.register(SubscriberMutexAdapter(gpio.clone()));
 
         if self.irq > self.last_irq {
             return Err(Error::IrqsExhausted);

@@ -24,7 +24,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
 dependencies = [
  "cfg-if",
- "getrandom",
  "once_cell",
  "version_check",
  "zerocopy 0.7.34",
@@ -465,7 +464,6 @@ dependencies = [
  "num-traits",
  "once_cell",
  "parking_lot",
- "polly",
  "rand",
  "rustc-hash",
  "rutabaga_gfx",
@@ -785,14 +783,12 @@ dependencies = [
  "libc",
  "nix 0.28.0",
  "once_cell",
- "polly",
  "serde",
  "serde_json",
  "tracing",
  "tracing-subscriber",
  "utils",
  "vmm",
- "vmm-ids",
 ]
 
 [[package]]
@@ -1270,15 +1266,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81b30686a7d9c3e010b84284bdd26a29f2138574f52f5eb6f794fc0ad924e705"
 dependencies = [
  "plotters-backend",
-]
-
-[[package]]
-name = "polly"
-version = "0.0.1"
-dependencies = [
- "ahash",
- "libc",
- "utils",
 ]
 
 [[package]]
@@ -1927,8 +1914,8 @@ dependencies = [
  "kvm-bindings",
  "kvm-ioctls",
  "libc",
+ "mio",
  "nix 0.24.3",
- "polly",
  "procfs",
  "scopeguard",
  "serde",

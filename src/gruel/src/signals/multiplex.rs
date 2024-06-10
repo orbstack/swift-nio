@@ -77,12 +77,12 @@ pub fn multiplex_signals_with_shutdown<C: ?Sized>(
         }
     });
 
-    multiplex_signals(handlers, &should_stop, parker);
+    multiplex_signals(&should_stop, handlers, parker);
 }
 
 pub fn multiplex_signals<C: ?Sized>(
-    handlers: &mut [&mut dyn SignalMultiplexHandler<C>],
     should_stop: &AtomicBool,
+    handlers: &mut [&mut dyn SignalMultiplexHandler<C>],
     mut parker: impl MultiplexParker<SubscriberCx = C>,
 ) {
     // Create a bitflag for quickly determining which handlers are dirty.
@@ -294,7 +294,7 @@ impl EventManager {
         });
     }
 
-    pub fn run(&mut self, shutdown: &ShutdownSignal) {
+    pub fn run(&mut self) {
         struct EventManagerParker<'a>(&'a mut EventManager);
 
         impl MultiplexParker for EventManagerParker<'_> {
@@ -402,8 +402,8 @@ impl EventManager {
             .map(|v| v as &mut dyn SignalMultiplexHandler<EventManagerParker<'_>>)
             .collect::<Box<_>>();
 
-        multiplex_signals_with_shutdown(
-            shutdown,
+        multiplex_signals(
+            &AtomicBool::new(false),
             &mut subscriber_ref_list,
             EventManagerParker(self),
         );

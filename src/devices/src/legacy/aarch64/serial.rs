@@ -6,15 +6,16 @@
 //! This module implements an ARM PrimeCell UART(PL011).
 //!
 
+use gruel::{InterestCtrl, Subscriber};
+use mio::Interest;
 use std::collections::VecDeque;
 use std::fmt;
+use std::os::fd::RawFd;
 use std::sync::Arc;
 use std::{io, result};
 use utils::Mutex;
 
-use polly::event_manager::{EventManager, Subscriber};
 use utils::byte_order::{read_le_u32, write_le_u32};
-use utils::epoll::{EpollEvent, EventSet};
 use utils::eventfd::EventFd;
 
 use crate::bus::BusDevice;
@@ -390,44 +391,44 @@ impl BusDevice for Serial {
 }
 
 impl Subscriber for Serial {
-    /// Handle a read event (EPOLLIN) on the serial input fd.
-    fn process(&mut self, event: &EpollEvent, _: &mut EventManager) {
-        let source = event.fd();
-        let event_set = event.event_set();
+    type EventMeta = RawFd;
 
-        // TODO: also check for errors. Pending high level discussions on how we want
-        // to handle errors in devices.
-        let supported_events = EventSet::IN;
-        if !supported_events.contains(event_set) {
-            warn!(
-                "Received unknown event: {:?} from source: {:?}",
-                event_set, source
-            );
+    fn process_event(
+        &mut self,
+        _ctrl: &mut InterestCtrl<'_, RawFd>,
+        event: &mio::event::Event,
+        &mut source: &mut RawFd,
+    ) {
+        if !event.is_readable() {
+            warn!("Received unknown event: {event:?} from source: {source:?}");
             return;
         }
 
-        if let Some(input) = self.input.as_mut() {
-            if input.as_raw_fd() == source {
-                let mut out = [0u8; 32];
-                match input.read(&mut out[..]) {
-                    Ok(count) => {
-                        self.queue_input_bytes(&out[..count])
-                            .unwrap_or_else(|e| warn!("Serial error on input: {}", e));
-                    }
-                    Err(e) => {
-                        warn!("error while reading stdin: {:?}", e);
-                    }
-                }
+        let Some(input) = self.input.as_mut() else {
+            return;
+        };
+
+        if input.as_raw_fd() != source {
+            return;
+        }
+
+        let mut out = [0u8; 32];
+        match input.read(&mut out[..]) {
+            Ok(count) => {
+                self.queue_input_bytes(&out[..count])
+                    .unwrap_or_else(|e| warn!("Serial error on input: {}", e));
+            }
+            Err(e) => {
+                warn!("error while reading stdin: {:?}", e);
             }
         }
     }
 
-    /// Initial registration of pollable objects.
-    /// If serial input is present, register the serial input FD as readable.
-    fn interest_list(&self) -> Vec<EpollEvent> {
-        match &self.input {
-            Some(input) => vec![EpollEvent::new(EventSet::IN, input.as_raw_fd() as u64)],
-            None => vec![],
-        }
+    fn init_interests(&self, ctrl: &mut InterestCtrl<'_, RawFd>) {
+        let Some(input) = &self.input else {
+            return;
+        };
+
+        ctrl.register_fd(&input.as_raw_fd(), Interest::READABLE);
     }
 }

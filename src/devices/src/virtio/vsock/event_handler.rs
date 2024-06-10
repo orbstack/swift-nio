@@ -5,39 +5,37 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
-use std::os::unix::io::AsRawFd;
+use std::os::{fd::RawFd, unix::io::AsRawFd};
 
-use polly::event_manager::{EventManager, Subscriber};
-use utils::epoll::{EpollEvent, EventSet};
+use gruel::{InterestCtrl, Subscriber};
+use mio::Interest;
 
 use super::device::{Vsock, EVQ_INDEX, RXQ_INDEX, TXQ_INDEX};
 use crate::virtio::VirtioDevice;
 
 impl Vsock {
-    pub(crate) fn handle_rxq_event(&mut self, event: &EpollEvent) -> bool {
+    pub(crate) fn handle_rxq_event(&mut self, event: &mio::event::Event) -> bool {
         debug!("vsock: RX queue event");
 
-        let event_set = event.event_set();
-        if event_set != EventSet::IN {
-            warn!("vsock: rxq unexpected event {:?}", event_set);
+        if !event.is_readable() {
+            warn!("vsock: rxq unexpected event {event:?}");
             return false;
         }
 
         let mut raise_irq = false;
         if let Err(e) = self.queue_events[RXQ_INDEX].read() {
-            error!("Failed to get vsock rx queue event: {:?}", e);
+            error!("Failed to get vsock rx queue event: {e:?}");
         } else {
             raise_irq |= self.process_stream_rx();
         }
         raise_irq
     }
 
-    pub(crate) fn handle_txq_event(&mut self, event: &EpollEvent) -> bool {
+    pub(crate) fn handle_txq_event(&mut self, event: &mio::event::Event) -> bool {
         debug!("vsock: TX queue event");
 
-        let event_set = event.event_set();
-        if event_set != EventSet::IN {
-            warn!("vsock: txq unexpected event {:?}", event_set);
+        if !event.is_readable() {
+            warn!("vsock: txq unexpected event {event:?}");
             return false;
         }
 
@@ -56,70 +54,42 @@ impl Vsock {
         raise_irq
     }
 
-    fn handle_evq_event(&mut self, event: &EpollEvent) -> bool {
+    fn handle_evq_event(&mut self, event: &mio::event::Event) -> bool {
         debug!("vsock: event queue event");
 
-        let event_set = event.event_set();
-        if event_set != EventSet::IN {
-            warn!("vsock: evq unexpected event {:?}", event_set);
+        if !event.is_readable() {
+            warn!("vsock: evq unexpected event {event:?}");
             return false;
         }
 
         if let Err(e) = self.queue_events[EVQ_INDEX].read() {
             error!("Failed to consume vsock evq event: {:?}", e);
         }
-        false
+
+        true
     }
 
-    fn handle_activate_event(&self, event_manager: &mut EventManager) {
+    fn handle_activate_event(&self, ctrl: &mut InterestCtrl<RawFd>) {
         debug!("vsock: activate event");
+
         if let Err(e) = self.activate_evt.read() {
             error!("Failed to consume vsock activate event: {:?}", e);
         }
 
-        // The subscriber must exist as we previously registered activate_evt via
-        // `interest_list()`.
-        let self_subscriber = event_manager
-            .subscriber(self.activate_evt.as_raw_fd())
-            .unwrap();
-
-        event_manager
-            .register(
-                self.queue_events[RXQ_INDEX].as_raw_fd(),
-                EpollEvent::new(
-                    EventSet::IN,
-                    self.queue_events[RXQ_INDEX].as_raw_fd() as u64,
-                ),
-                self_subscriber.clone(),
-            )
-            .unwrap_or_else(|e| {
-                error!("Failed to register vsock rxq with event manager: {:?}", e);
-            });
-
-        event_manager
-            .register(
-                self.queue_events[TXQ_INDEX].as_raw_fd(),
-                EpollEvent::new(
-                    EventSet::IN,
-                    self.queue_events[TXQ_INDEX].as_raw_fd() as u64,
-                ),
-                self_subscriber.clone(),
-            )
-            .unwrap_or_else(|e| {
-                error!("Failed to register vsock txq with event manager: {:?}", e);
-            });
-
-        event_manager
-            .unregister(self.activate_evt.as_raw_fd())
-            .unwrap_or_else(|e| {
-                error!("Failed to unregister vsock activate evt: {:?}", e);
-            })
+        ctrl.register_fd(&self.queue_events[RXQ_INDEX], Interest::READABLE);
+        ctrl.register_fd(&self.queue_events[TXQ_INDEX], Interest::READABLE);
     }
 }
 
 impl Subscriber for Vsock {
-    fn process(&mut self, event: &EpollEvent, event_manager: &mut EventManager) {
-        let source = event.fd();
+    type EventMeta = RawFd;
+
+    fn process_event(
+        &mut self,
+        ctrl: &mut InterestCtrl<'_, RawFd>,
+        event: &mio::event::Event,
+        &mut source: &mut RawFd,
+    ) {
         let rxq = self.queue_events[RXQ_INDEX].as_raw_fd();
         let txq = self.queue_events[TXQ_INDEX].as_raw_fd();
         let evq = self.queue_events[EVQ_INDEX].as_raw_fd();
@@ -138,7 +108,7 @@ impl Subscriber for Vsock {
                 }
                 */
                 _ if source == activate_evt => {
-                    self.handle_activate_event(event_manager);
+                    self.handle_activate_event(ctrl);
                 }
                 _ => warn!("Unexpected vsock event received: {:?}", source),
             }
@@ -154,10 +124,7 @@ impl Subscriber for Vsock {
         }
     }
 
-    fn interest_list(&self) -> Vec<EpollEvent> {
-        vec![EpollEvent::new(
-            EventSet::IN,
-            self.activate_evt.as_raw_fd() as u64,
-        )]
+    fn init_interests(&self, ctrl: &mut InterestCtrl<'_, Self::EventMeta>) {
+        ctrl.register_fd(&self.activate_evt, Interest::READABLE);
     }
 }

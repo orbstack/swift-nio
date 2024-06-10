@@ -5,6 +5,7 @@
 
 #[cfg(target_os = "macos")]
 use crossbeam_channel::{unbounded, Sender};
+use gruel::EventManager;
 use std::fmt::{Display, Formatter};
 use std::io;
 #[cfg(target_os = "linux")]
@@ -59,7 +60,6 @@ use arch::InitrdConfig;
 use kvm_bindings::KVM_MAX_CPUID_ENTRIES;
 use libc::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use nix::unistd::isatty;
-use polly::event_manager::{Error as EventManagerError, EventManager};
 use utils::eventfd::EventFd;
 use utils::time::TimestampUs;
 #[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
@@ -114,8 +114,6 @@ pub enum StartMicrovmError {
     RegisterBalloonDevice(device_manager::mmio::Error),
     /// Cannot initialize a MMIO Block Device or add a device to the MMIO Bus.
     RegisterBlockDevice(device_manager::mmio::Error),
-    /// Cannot register an EventHandler.
-    RegisterEvent(EventManagerError),
     /// Cannot initialize a MMIO Fs Device or add ad device to the MMIO Bus.
     RegisterFsDevice(device_manager::mmio::Error),
     /// Cannot register SIGWINCH event file descriptor.
@@ -217,7 +215,6 @@ impl Display for StartMicrovmError {
                     "Cannot initialize a MMIO Block Device or add a device to the MMIO Bus. {err_msg}"
                 )
             }
-            RegisterEvent(ref err) => write!(f, "Cannot register EventHandler. {err:?}"),
             RegisterFsDevice(ref err) => {
                 let mut err_msg = format!("{err}");
                 err_msg = err_msg.replace('\"', "");
@@ -306,7 +303,6 @@ impl Display for StartMicrovmError {
 pub fn build_microvm(
     vm_resources: &super::resources::VmResources,
     event_manager: &mut EventManager,
-    event_manager_2: &mut gruel::EventManager, // TODO: Gruel - lol.
     _shutdown_efd: Option<EventFd>,
     #[cfg(target_os = "macos")] _map_sender: Sender<MemoryMapping>,
 ) -> std::result::Result<Arc<Mutex<Vmm>>, StartMicrovmError> {
@@ -572,15 +568,15 @@ pub fn build_microvm(
 
     #[cfg(not(feature = "tee"))]
     if let Some(_) = vm_resources.balloon {
-        attach_balloon_device(&mut vmm, event_manager_2, intc.clone())?;
+        attach_balloon_device(&mut vmm, event_manager, intc.clone())?;
     }
     #[cfg(not(feature = "tee"))]
     if let Some(_) = vm_resources.rng {
-        attach_rng_device(&mut vmm, event_manager_2, intc.clone())?;
+        attach_rng_device(&mut vmm, event_manager, intc.clone())?;
     }
     attach_console_devices(
         &mut vmm,
-        event_manager_2,
+        event_manager,
         intc.clone(),
         vm_resources.console_output.clone(),
     )?;
@@ -669,9 +665,7 @@ pub fn build_microvm(
     // but we don't want to change the event_manager interface
     #[allow(clippy::arc_with_non_send_sync)]
     let vmm = Arc::new(Mutex::new(vmm));
-    event_manager
-        .add_subscriber(vmm.clone())
-        .map_err(StartMicrovmError::RegisterEvent)?;
+    event_manager.register(SubscriberMutexAdapter(vmm.clone()));
 
     Ok(vmm)
 }
@@ -857,14 +851,7 @@ pub fn setup_serial_device(
     let has_input = input.is_some();
     let serial = Arc::new(Mutex::new(Serial::new(interrupt_evt, out, input)));
     if has_input {
-        if let Err(e) = event_manager.add_subscriber(serial.clone()) {
-            // TODO: We just log this message, and immediately return Ok, instead of returning the
-            // actual error because this operation always fails with EPERM when adding a fd which
-            // has been redirected to /dev/null via dup2 (this may happen inside the jailer).
-            // Find a better solution to this (and think about the state of the serial device
-            // while we're at it).
-            warn!("Could not add serial input event to epoll: {:?}", e);
-        }
+        event_manager.register(SubscriberMutexAdapter(serial.clone()));
     }
     Ok(serial)
 }
@@ -1302,9 +1289,7 @@ fn attach_unixsock_vsock_device(
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
-    event_manager
-        .add_subscriber(unix_vsock.clone())
-        .map_err(RegisterEvent)?;
+    event_manager.register(SubscriberMutexAdapter(unix_vsock.clone()));
 
     let id = String::from(unix_vsock.lock().unwrap().id());
 

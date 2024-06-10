@@ -17,7 +17,6 @@ use hvf::check_cpuid;
 use hvf::{HvfVm, MemoryMapping};
 use libc::strdup;
 use once_cell::sync::Lazy;
-use polly::event_manager::EventManager;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 #[cfg(target_arch = "aarch64")]
@@ -31,7 +30,6 @@ use vmm::{
     },
     VmmShutdownHandle,
 };
-use vmm_ids::VmmShutdownPhase;
 
 #[repr(C)]
 pub struct GResultCreate {
@@ -297,25 +295,15 @@ impl Machine {
     pub fn start(&mut self) -> anyhow::Result<()> {
         anyhow::ensure!(self.vmm_shutdown.is_none(), "vmm already started");
 
-        let mut event_manager = EventManager::new().map_err(to_anyhow_error_dbg)?;
-        let mut event_manager_2 = gruel::EventManager::new().map_err(to_anyhow_error_dbg)?;
+        let mut event_manager = gruel::EventManager::new().map_err(to_anyhow_error_dbg)?;
 
         let (sender, receiver) = unbounded();
         let vmr = self
             .vmr
             .as_ref()
             .ok_or_else(|| anyhow!("already started"))?;
-        let vmm = vmm::builder::build_microvm(
-            vmr,
-            &mut event_manager,
-            &mut event_manager_2,
-            None,
-            sender,
-        )
-        .map_err(to_anyhow_error)?;
-        let exit_evt = vmm.lock().unwrap().exit_evt();
-
-        let shutdown_sig = vmm.lock().unwrap().shutdown_signal_for_subscribing();
+        let vmm = vmm::builder::build_microvm(vmr, &mut event_manager, None, sender)
+            .map_err(to_anyhow_error)?;
 
         if vmr.gpu_virgl_flags.is_some() {
             let mapper_vmm = vmm.clone();
@@ -345,26 +333,11 @@ impl Machine {
                 let counter_display = counter::default_env_filter()
                     .map(|filter| counter::display_every(filter, Duration::from_millis(1000)));
 
-                loop {
-                    event_manager.run().unwrap();
+                event_manager.run();
 
-                    if event_manager
-                        .last_ready_events()
-                        .iter()
-                        .any(|ev| ev.fd() == exit_evt)
-                    {
-                        drop(counter_display);
-                        tracing::info!("VM successfully torn-down.");
-                        unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
-                        break;
-                    }
-                }
-            })?;
-
-        std::thread::Builder::new()
-            .name("VMM main loop (gruel)".to_string())
-            .spawn(move || {
-                event_manager_2.run(&shutdown_sig.phase(VmmShutdownPhase::ExitSubscribers));
+                drop(counter_display);
+                tracing::info!("VM successfully torn-down.");
+                unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
             })?;
 
         self.vmm_shutdown = Some(vmm.lock().unwrap().shutdown_handle());

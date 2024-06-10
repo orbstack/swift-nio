@@ -7,15 +7,15 @@
 //! This module implements an ARM PrimeCell General Purpose Input/Output(PL061) to support gracefully poweroff microvm from external.
 //!
 
+use gruel::{InterestCtrl, Subscriber};
+use mio::Interest;
 use std::fmt;
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, RawFd};
 use std::result;
 use std::sync::Arc;
 use utils::Mutex;
 
-use polly::event_manager::{EventManager, Subscriber};
 use utils::byte_order::{read_le_u32, write_le_u32};
-use utils::epoll::{EpollEvent, EventSet};
 use utils::eventfd::EventFd;
 
 use crate::bus::BusDevice;
@@ -233,9 +233,14 @@ impl BusDevice for Gpio {
 }
 
 impl Subscriber for Gpio {
-    fn process(&mut self, event: &EpollEvent, _event_manager: &mut EventManager) {
-        let source = event.fd();
+    type EventMeta = RawFd;
 
+    fn process_event(
+        &mut self,
+        _ctrl: &mut InterestCtrl<'_, Self::EventMeta>,
+        _event: &mio::event::Event,
+        &mut source: &mut RawFd,
+    ) {
         match source {
             _ if source == self.shutdown_efd.as_raw_fd() => {
                 _ = self.shutdown_efd.read();
@@ -246,10 +251,7 @@ impl Subscriber for Gpio {
         }
     }
 
-    fn interest_list(&self) -> Vec<EpollEvent> {
-        vec![EpollEvent::new(
-            EventSet::IN,
-            self.shutdown_efd.as_raw_fd() as u64,
-        )]
+    fn init_interests(&self, ctrl: &mut InterestCtrl<'_, Self::EventMeta>) {
+        ctrl.register_fd(&self.shutdown_efd, Interest::READABLE);
     }
 }

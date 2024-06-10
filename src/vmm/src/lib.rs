@@ -31,11 +31,12 @@ use crate::linux::vstate;
 #[cfg(target_os = "macos")]
 mod macos;
 
-use gruel::{MultiShutdownSignal, ShutdownSignal};
+use gruel::{MultiShutdownSignal, ShutdownSignal, Subscriber};
 #[cfg(target_os = "macos")]
 pub use hvf::MemoryMapping;
 #[cfg(target_os = "macos")]
 use macos::vstate;
+use mio::Interest;
 use vmm_config::kernel_bundle::KernelBundle;
 use vmm_ids::VmmShutdownSignal;
 
@@ -68,8 +69,6 @@ use crossbeam_channel::Sender;
 use devices::virtio::VmmExitObserver;
 use devices::BusDevice;
 use kernel::cmdline::Cmdline as KernelCmdline;
-use polly::event_manager::{self, EventManager, Subscriber};
-use utils::epoll::{EpollEvent, EventSet};
 use utils::eventfd::EventFd;
 use utils::time::TimestampUs;
 use vm_memory::{GuestAddress, GuestMemoryMmap};
@@ -87,8 +86,6 @@ pub enum Error {
     CreateLegacyDevice(device_manager::legacy::Error),
     /// Cannot read from an Event file descriptor.
     EventFd(io::Error),
-    /// Polly error wrapper.
-    EventManager(event_manager::Error),
     /// I8042 Error.
     I8042Error(devices::legacy::I8042DeviceError),
     /// Cannot access kernel file.
@@ -134,7 +131,6 @@ impl Display for Error {
             #[cfg(target_arch = "x86_64")]
             CreateLegacyDevice(e) => write!(f, "Error creating legacy device: {e:?}"),
             EventFd(e) => write!(f, "Event fd error: {e}"),
-            EventManager(e) => write!(f, "Event manager error: {e:?}"),
             I8042Error(e) => write!(f, "I8042 error: {e}"),
             KernelFile(e) => write!(f, "Cannot access kernel file: {e}"),
             KvmContext(e) => write!(f, "Failed to validate KVM support: {e:?}"),
@@ -408,25 +404,31 @@ impl Vmm {
 }
 
 impl Subscriber for Vmm {
-    /// Handle a read event (EPOLLIN).
-    fn process(&mut self, event: &EpollEvent, _: &mut EventManager) {
-        let source = event.fd();
-        let event_set = event.event_set();
+    type EventMeta = RawFd;
 
-        if source == self.exit_evt.as_raw_fd() && event_set == EventSet::IN {
+    fn process_event(
+        &mut self,
+        ctrl: &mut gruel::InterestCtrl<'_, RawFd>,
+        event: &mio::event::Event,
+        &mut source: &mut RawFd,
+    ) {
+        if source == self.exit_evt.as_raw_fd() && event.is_readable() {
             let _ = self.exit_evt.read();
             self.shutdown.shutdown();
             self.wait_for_observers_to_exit();
             self.vm.destroy_hvf();
+
+            // FIXME: Gruel
+            // You might be thinking: what happens if other subscribers handle events after this? And,
+            // the answer is: no clue! `polly` did things this way so I'm leaving it like that for
+            // now but we should really find a better shutdown order.
+            ctrl.stop();
         } else {
             error!("Spurious EventManager event for handler: Vmm");
         }
     }
 
-    fn interest_list(&self) -> Vec<EpollEvent> {
-        vec![EpollEvent::new(
-            EventSet::IN,
-            self.exit_evt.as_raw_fd() as u64,
-        )]
+    fn init_interests(&self, ctrl: &mut gruel::InterestCtrl<'_, RawFd>) {
+        ctrl.register_fd(&self.exit_evt, Interest::READABLE);
     }
 }
