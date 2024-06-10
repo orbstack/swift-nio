@@ -120,8 +120,6 @@ impl NetWorker {
             | NET_QUEUE_SIGS.get(TX_INDEX);
 
         // Start worker loop
-        // TODO: GRUEL - Ensure that the assert side of this routine fulfills its side of the queue
-        //  protocol. This needs to be done for FS as well
         loop {
             // Wait for epoll events
             if let Err(err) = self
