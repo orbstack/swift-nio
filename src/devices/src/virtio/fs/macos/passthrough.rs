@@ -941,6 +941,15 @@ impl PassthroughFs {
         // early stat to avoid broken handle state if it fails
         let st = fstat(&file, false)?;
 
+        // Linux normally won't open fifos/devs, but guest might maliciously trick us into doing it
+        // reading from one will cause us to hang on read, preventing VM stop
+        match st.st_mode & libc::S_IFMT {
+            libc::S_IFBLK | libc::S_IFCHR | libc::S_IFIFO | libc::S_IFSOCK => {
+                return Err(Errno::EOPNOTSUPP.into());
+            }
+            _ => {}
+        }
+
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed).into();
         let is_readable_file =
             !flags.contains(OFlag::O_DIRECTORY) && !flags.contains(OFlag::O_WRONLY);
