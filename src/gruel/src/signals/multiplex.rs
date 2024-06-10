@@ -2,10 +2,12 @@ use std::{
     any::Any,
     io,
     marker::PhantomData,
+    os::fd::{AsRawFd, RawFd},
     sync::{atomic::AtomicBool, Arc},
 };
 
 use memmage::CloneDynRef;
+use mio::unix::SourceFd;
 use smallbox::SmallBox;
 
 use crate::{DynamicallyBoundWaker, RawSignalChannel, ShutdownSignal};
@@ -19,9 +21,13 @@ use loom::sync::atomic::{AtomicU64, Ordering::*};
 // === Core === //
 
 pub trait SignalMultiplexHandler<C: ?Sized = ()> {
-    fn process(&mut self, cx: &mut C);
+    fn process(&mut self, should_stop: &AtomicBool, cx: &mut C);
 
-    fn signals(&self, cx: &mut C) -> Vec<CloneDynRef<'static, RawSignalChannel>>;
+    fn signals(
+        &self,
+        should_stop: &AtomicBool,
+        cx: &mut C,
+    ) -> Vec<CloneDynRef<'static, RawSignalChannel>>;
 
     fn debug_type_name(&self) -> &'static str {
         std::any::type_name::<Self>()
@@ -29,9 +35,9 @@ pub trait SignalMultiplexHandler<C: ?Sized = ()> {
 }
 
 pub trait MultiplexParker: Sized {
-    type SubscriberFacade: ?Sized;
+    type SubscriberCx: ?Sized;
 
-    fn subscriber_facade(me: &mut Self) -> &mut Self::SubscriberFacade;
+    fn subscriber_cx(me: &mut Self) -> &mut Self::SubscriberCx;
 
     fn park(me: &mut Self, should_stop: &AtomicBool);
 
@@ -39,10 +45,10 @@ pub trait MultiplexParker: Sized {
 }
 
 impl<T: ?Sized + MultiplexParker> MultiplexParker for &mut T {
-    type SubscriberFacade = T::SubscriberFacade;
+    type SubscriberCx = T::SubscriberCx;
 
-    fn subscriber_facade(me: &mut Self) -> &mut Self::SubscriberFacade {
-        T::subscriber_facade(me)
+    fn subscriber_cx(me: &mut Self) -> &mut Self::SubscriberCx {
+        T::subscriber_cx(me)
     }
 
     fn park(me: &mut Self, should_stop: &AtomicBool) {
@@ -57,7 +63,7 @@ impl<T: ?Sized + MultiplexParker> MultiplexParker for &mut T {
 pub fn multiplex_signals_with_shutdown<C: ?Sized>(
     shutdown: &ShutdownSignal,
     handlers: &mut [&mut dyn SignalMultiplexHandler<C>],
-    mut parker: impl MultiplexParker<SubscriberFacade = C>,
+    mut parker: impl MultiplexParker<SubscriberCx = C>,
 ) {
     let should_stop = Arc::new(AtomicBool::new(false));
     let unparker = MultiplexParker::unparker(&mut parker);
@@ -77,7 +83,7 @@ pub fn multiplex_signals_with_shutdown<C: ?Sized>(
 pub fn multiplex_signals<C: ?Sized>(
     handlers: &mut [&mut dyn SignalMultiplexHandler<C>],
     should_stop: &AtomicBool,
-    mut parker: impl MultiplexParker<SubscriberFacade = C>,
+    mut parker: impl MultiplexParker<SubscriberCx = C>,
 ) {
     // Create a bitflag for quickly determining which handlers are dirty.
     let dirty_flags = (0..(handlers.len() + 63) / 64)
@@ -91,10 +97,10 @@ pub fn multiplex_signals<C: ?Sized>(
     let unpark = &unpark;
 
     // Get handler signals before binding them so we can hold onto them after the binding loop.
-    let parker_facade = MultiplexParker::subscriber_facade(&mut parker);
+    let parker_facade = MultiplexParker::subscriber_cx(&mut parker);
     let handler_signals = handlers
         .iter()
-        .map(|handler| handler.signals(parker_facade))
+        .map(|handler| handler.signals(should_stop, parker_facade))
         .collect::<Box<[_]>>();
 
     // Bind the subscriber to every handler.
@@ -151,7 +157,7 @@ pub fn multiplex_signals<C: ?Sized>(
 
     // Process events
     while !should_stop.load(Relaxed) {
-        let parker_facade = MultiplexParker::subscriber_facade(&mut parker);
+        let parker_facade = MultiplexParker::subscriber_cx(&mut parker);
 
         for (i_cell, flag) in dirty_flags.iter().enumerate() {
             let mut flag = flag.swap(0, Relaxed);
@@ -165,7 +171,7 @@ pub fn multiplex_signals<C: ?Sized>(
                         "Processing signals from `{}`",
                         handlers[i].debug_type_name(),
                     );
-                    handlers[i].process(parker_facade);
+                    handlers[i].process(should_stop, parker_facade);
                 });
 
                 #[cfg(debug_assertions)]
@@ -283,6 +289,7 @@ impl EventManager {
                 mio_handlers: &mut self.mio_handlers,
                 subscriber_idx,
                 subscriber_name,
+                should_stop: &AtomicBool::new(true),
             },
         });
     }
@@ -291,9 +298,9 @@ impl EventManager {
         struct EventManagerParker<'a>(&'a mut EventManager);
 
         impl MultiplexParker for EventManagerParker<'_> {
-            type SubscriberFacade = Self;
+            type SubscriberCx = Self;
 
-            fn subscriber_facade(me: &mut Self) -> &mut Self::SubscriberFacade {
+            fn subscriber_cx(me: &mut Self) -> &mut Self::SubscriberCx {
                 me
             }
 
@@ -325,10 +332,11 @@ impl EventManager {
                                 mio_handlers: &mut me.0.mio_handlers,
                                 subscriber_idx,
                                 subscriber_name,
+                                should_stop,
                             },
                         },
                         event,
-                        &mut metadata,
+                        &mut *metadata,
                     );
 
                     me.0.mio_handlers[event.token().0].metadata = Some(metadata);
@@ -351,7 +359,7 @@ impl EventManager {
         struct EventManagerSubscriber(usize, &'static str);
 
         impl<'a> SignalMultiplexHandler<EventManagerParker<'a>> for EventManagerSubscriber {
-            fn process(&mut self, cx: &mut EventManagerParker<'a>) {
+            fn process(&mut self, should_stop: &AtomicBool, cx: &mut EventManagerParker<'a>) {
                 let event_mgr = &mut *cx.0;
                 let subscriber_idx = self.0;
                 let subscriber = &mut event_mgr.subscribers[subscriber_idx];
@@ -364,12 +372,14 @@ impl EventManager {
                         mio_handlers: &mut event_mgr.mio_handlers,
                         subscriber_idx,
                         subscriber_name,
+                        should_stop,
                     },
                 });
             }
 
             fn signals(
                 &self,
+                _should_stop: &AtomicBool,
                 cx: &mut EventManagerParker<'a>,
             ) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
                 cx.0.subscribers[self.0].signals()
@@ -411,11 +421,16 @@ struct InterestCtrlInner<'a> {
     mio_handlers: &'a mut Vec<MioHandler>,
     subscriber_idx: usize,
     subscriber_name: &'static str,
+    should_stop: &'a AtomicBool,
 }
 
 impl<'a, Meta: ?Sized> InterestCtrl<'a, Meta> {
     pub fn cast_meta<NewMeta: ?Sized>(&mut self) -> &mut InterestCtrl<'a, NewMeta> {
         unsafe { &mut *(self as *mut Self as *mut InterestCtrl<'a, NewMeta>) }
+    }
+
+    pub fn stop(&mut self) {
+        self.raw.should_stop.store(true, Relaxed);
     }
 }
 
@@ -439,6 +454,13 @@ impl<'a, Meta: 'static + Send + Sync> InterestCtrl<'a, Meta> {
             subscriber_idx: self.raw.subscriber_idx,
             metadata: Some(smallbox::smallbox!(metadata)),
         });
+    }
+}
+
+impl InterestCtrl<'_, RawFd> {
+    pub fn register_fd(&mut self, source: &impl AsRawFd, interests: mio::Interest) {
+        let source = source.as_raw_fd();
+        self.register(&mut SourceFd(&source), interests, source);
     }
 }
 
