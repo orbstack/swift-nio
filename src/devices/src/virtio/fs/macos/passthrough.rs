@@ -481,7 +481,6 @@ impl NodeData {
 }
 
 #[derive(Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
-#[repr(packed)] // only needs align=4
 struct DevIno(pub i32, pub u64);
 
 #[derive(Debug, Copy, Clone)]
