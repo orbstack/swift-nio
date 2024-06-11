@@ -59,8 +59,22 @@ use super::vnode_poll::VnodePoller;
 // disabled because Linux doesn't FORGET everything on unmount
 const DETECT_REFCOUNT_LEAKS: bool = false;
 
-// _IOC(_IOC_READ, 0x61, 0x22, 0x45)
-const IOCTL_ROSETTA: u32 = 0x8045_6122;
+const IOC_NONE: u8 = 0;
+#[allow(dead_code)]
+const IOC_WRITE: u8 = 1;
+const IOC_READ: u8 = 2;
+
+const fn _ioc(dir: u8, typ: u8, nr: u8, size: u16) -> u32 {
+    (size as u32) << 16 | (dir as u32) << 30 | (typ as u32) << 8 | nr as u32
+}
+
+const IOCTL_ROSETTA_KEY: u32 = _ioc(IOC_READ, 0x61, 0x22, 0x45);
+// macOS 13-14: nr=0x22. macOS 15: nr=0x25
+// data and len are the same, so ignore nr
+const IOCTL_ROSETTA_KEY_MASK: u32 = !_ioc(IOC_NONE, 0, 0xff, 0);
+
+const IOCTL_ROSETTA_AOT_CONFIG: u32 = _ioc(IOC_READ, 0x61, 0x23, 0x80);
+const IOCTL_ROSETTA_TSO_FALLBACK: u32 = _ioc(IOC_NONE, 0x61, 0x24, 0);
 
 const STAT_XATTR_KEY: &[u8] = b"user.orbstack.override_stat\0";
 
@@ -2654,14 +2668,34 @@ impl FileSystem for PassthroughFs {
         _in_size: u32,
         out_size: u32,
     ) -> io::Result<Vec<u8>> {
-        if self.cfg.allow_rosetta_ioctl && cmd == IOCTL_ROSETTA {
-            let resp = get_rosetta_data();
-            if resp.len() >= out_size as usize {
-                debug!("returning rosetta data: {:?}", &resp[..out_size as usize]);
-                return Ok(resp[..out_size as usize].to_vec());
+        if self.cfg.allow_rosetta_ioctl {
+            match cmd {
+                // version-agnostic mask: match on dir/type/size; ignore nr
+                x if x & IOCTL_ROSETTA_KEY_MASK == IOCTL_ROSETTA_KEY & IOCTL_ROSETTA_KEY_MASK => {
+                    let resp = get_rosetta_data();
+                    if resp.len() >= out_size as usize {
+                        info!("returning rosetta data: {:?}", &resp[..out_size as usize]);
+                        return Ok(resp[..out_size as usize].to_vec());
+                    }
+                }
+
+                // filling with all 1 means: AOT on, with abstract socket, path = all 1
+                // this prevents it from creating ~/.cache/rosetta (and AOT connection always fails)
+                IOCTL_ROSETTA_AOT_CONFIG => {
+                    info!("returning AOT config");
+                    let data = vec![1u8; out_size as usize];
+                    return Ok(data);
+                }
+
+                IOCTL_ROSETTA_TSO_FALLBACK => {
+                    info!("TSO fallback");
+                    return Ok(Vec::new());
+                }
+
+                _ => {}
             }
         }
 
-        Err(Errno::ENOSYS.into())
+        Err(Errno::ENOTTY.into())
     }
 }
