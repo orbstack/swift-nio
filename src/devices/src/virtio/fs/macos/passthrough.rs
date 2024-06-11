@@ -111,10 +111,10 @@ trait StatExt {
 impl StatExt for bindings::stat64 {
     fn can_open(&self) -> bool {
         // DO NOT open FIFOs, char/block devs: could block, will likely fail, doesn't work thru virtiofs
-        match self.st_mode & libc::S_IFMT {
-            libc::S_IFBLK | libc::S_IFCHR | libc::S_IFIFO | libc::S_IFSOCK => false,
-            _ => true,
-        }
+        !matches!(
+            self.st_mode & libc::S_IFMT,
+            libc::S_IFBLK | libc::S_IFCHR | libc::S_IFIFO | libc::S_IFSOCK
+        )
     }
 
     fn ctime_ns(&self) -> i64 {
@@ -1061,9 +1061,8 @@ impl PassthroughFs {
         st: bindings::stat64,
     ) -> io::Result<(HandleId, OpenOptions)> {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed).into();
-        let is_readable_file =
-            !flags.contains(OFlag::O_DIRECTORY) && !flags.contains(OFlag::O_WRONLY);
-        let data = HandleData::new(handle, file, is_readable_file, &self.poller, node_flags)?;
+        let is_readonly = !flags.contains(OFlag::O_DIRECTORY | OFlag::O_WRONLY | OFlag::O_RDWR);
+        let data = HandleData::new(handle, file, is_readonly, &self.poller, node_flags)?;
 
         debug!("finish_open: nodeid={} -> handle={:?}", nodeid, handle);
         self.handles.insert(handle, Arc::new(data));
