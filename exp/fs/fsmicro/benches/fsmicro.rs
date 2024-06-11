@@ -4,7 +4,7 @@ use std::{
 
 use criterion::{ criterion_group, criterion_main, Criterion};
 use nix::{
-    fcntl::{open, OFlag}, libc::clonefile, sys::{
+    fcntl::{open, OFlag}, sys::{
         stat::{fstat, lstat, Mode},
         uio::pwrite,
     }, unistd::{linkat, mkdir, unlink, LinkatFlags}
@@ -72,13 +72,15 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let _ = unlink("c");
     c.bench_function("link+unlink file", |b| {
         b.iter(|| {
-            let _ = linkat(None, "a", None, "c", LinkatFlags::NoSymlinkFollow).unwrap();
+            linkat(None, "a", None, "c", LinkatFlags::NoSymlinkFollow).unwrap();
             unlink("c").unwrap();
         })
     });
 
     #[cfg(target_os = "macos")]
     c.bench_function("clone+unlink file", |b| {
+        use nix::libc::clonefile;
+
         let str_a = CString::new("a").unwrap();
         let str_c = CString::new("c").unwrap();
         b.iter(|| {
