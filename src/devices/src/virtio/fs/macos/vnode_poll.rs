@@ -25,7 +25,7 @@ const IDENT_STOP: u64 = 1;
 const KEVENT_FLAG_IMMEDIATE: u32 = 1;
 
 pub struct VnodePoller {
-    kqueue: OwnedFd,
+    kq: Kqueue,
     callbacks: Arc<dyn FsCallbacks>,
     handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
 }
@@ -74,12 +74,10 @@ impl VnodePoller {
     pub fn new(
         callbacks: Arc<dyn FsCallbacks>,
         handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
-    ) -> nix::Result<Self> {
-        let fd = kqueue()?;
-        let fd = unsafe { OwnedFd::from_raw_fd(fd) };
-
+    ) -> std::io::Result<Self> {
+        let kq = Kqueue::new()?;
         let poller = VnodePoller {
-            kqueue: fd,
+            kq,
             callbacks,
             handles,
         };
@@ -92,7 +90,7 @@ impl VnodePoller {
             fflags: NOTE_FFCOPY,
             ..default_kevent()
         };
-        poller.kevent(&[waker], &mut [], KEVENT_FLAG_IMMEDIATE)?;
+        poller.kq.kevent(&[waker], &mut [], KEVENT_FLAG_IMMEDIATE)?;
 
         Ok(poller)
     }
@@ -109,7 +107,8 @@ impl VnodePoller {
             udata: handle_id.into(),
             ..default_kevent()
         };
-        self.kevent(&[new_event], &mut [], KEVENT_FLAG_IMMEDIATE)?;
+        self.kq
+            .kevent(&[new_event], &mut [], KEVENT_FLAG_IMMEDIATE)?;
         Ok(())
     }
 
@@ -123,7 +122,8 @@ impl VnodePoller {
             udata: handle_id.into(),
             ..default_kevent()
         };
-        self.kevent(&[new_event], &mut [], KEVENT_FLAG_IMMEDIATE)?;
+        self.kq
+            .kevent(&[new_event], &mut [], KEVENT_FLAG_IMMEDIATE)?;
         Ok(())
     }
 
@@ -135,7 +135,7 @@ impl VnodePoller {
             fflags: NOTE_FFCOPY | NOTE_TRIGGER,
             ..default_kevent()
         };
-        self.kevent(&[waker], &mut [], KEVENT_FLAG_IMMEDIATE)?;
+        self.kq.kevent(&[waker], &mut [], KEVENT_FLAG_IMMEDIATE)?;
 
         Ok(())
     }
@@ -146,7 +146,7 @@ impl VnodePoller {
             let mut events_buf = unsafe { events_buf.assume_init() };
 
             // long-running wait with no timeout, for initial set of events in a new batch
-            match self.kevent(&[], &mut events_buf, 0) {
+            match self.kq.kevent(&[], &mut events_buf, 0) {
                 Err(Errno::EINTR) => continue,
                 Err(e) => return Err(e.into()),
 
@@ -162,7 +162,7 @@ impl VnodePoller {
             // we just got woken up by a new batch of events, so there might be more
             // keep draining events until there are no more
             loop {
-                match self.kevent(&[], &mut events_buf, KEVENT_FLAG_IMMEDIATE) {
+                match self.kq.kevent(&[], &mut events_buf, KEVENT_FLAG_IMMEDIATE) {
                     Ok(0) => break,
                     Err(Errno::EINTR) => continue,
                     Err(e) => return Err(e.into()),
@@ -272,6 +272,26 @@ impl VnodePoller {
         debug!("send_krpc_events: len={} -> {:?}", buf.len(), buf);
         self.callbacks.send_krpc_events(&buf);
     }
+}
+
+fn default_kevent() -> kevent64_s {
+    kevent64_s {
+        ident: 0,
+        filter: 0,
+        flags: 0,
+        fflags: 0,
+        data: 0,
+        udata: 0,
+        ext: [0; 2],
+    }
+}
+
+struct Kqueue(OwnedFd);
+
+impl Kqueue {
+    fn new() -> std::io::Result<Self> {
+        Ok(Kqueue(unsafe { OwnedFd::from_raw_fd(kqueue()?) }))
+    }
 
     fn kevent(
         &self,
@@ -281,7 +301,7 @@ impl VnodePoller {
     ) -> nix::Result<usize> {
         let ret = unsafe {
             libc::kevent64(
-                self.kqueue.as_raw_fd(),
+                self.0.as_raw_fd(),
                 changes.as_ptr(),
                 changes.len() as libc::c_int,
                 events_buf.as_mut_ptr(),
@@ -295,17 +315,5 @@ impl VnodePoller {
         }
 
         Ok(ret as usize)
-    }
-}
-
-fn default_kevent() -> kevent64_s {
-    kevent64_s {
-        ident: 0,
-        filter: 0,
-        flags: 0,
-        fflags: 0,
-        data: 0,
-        udata: 0,
-        ext: [0; 2],
     }
 }
