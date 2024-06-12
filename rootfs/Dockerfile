@@ -200,7 +200,7 @@ COPY --from=rust-build /out/dctl /out/nix/orb/sys/bin/
 # Generate Rosetta deltas (need Debian for bsdiff)
 FROM debian as rosetta-deltas
 RUN apt-get update && \
-    apt-get install -y curl python3.11 bsdiff b3sum
+    apt-get install -y curl python3.11 bsdiff b3sum parallel
 # Use the previous version of 7zip, as 24.05 contains a change that breaks our script
 RUN <<EOT sh -eux
 ARCH=amd64
