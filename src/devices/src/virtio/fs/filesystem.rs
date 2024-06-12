@@ -652,9 +652,13 @@ pub trait FileSystem {
         ctx: Context,
         inode: Self::NodeId,
         flags: u32,
-    ) -> io::Result<(Option<Self::Handle>, OpenOptions)> {
+    ) -> io::Result<(
+        Option<Self::Handle>,
+        Option<(bindings::stat64, Duration)>,
+        OpenOptions,
+    )> {
         // Matches the behavior of libfuse.
-        Ok((None, OpenOptions::empty()))
+        Ok((None, None, OpenOptions::empty()))
     }
 
     /// Create and open a file.
@@ -957,9 +961,13 @@ pub trait FileSystem {
         ctx: Context,
         inode: Self::NodeId,
         flags: u32,
-    ) -> io::Result<(Option<Self::Handle>, OpenOptions)> {
+    ) -> io::Result<(
+        Option<Self::Handle>,
+        Option<(bindings::stat64, Duration)>,
+        OpenOptions,
+    )> {
         // Matches the behavior of libfuse.
-        Ok((None, OpenOptions::empty()))
+        Ok((None, None, OpenOptions::empty()))
     }
 
     /// Read a directory.

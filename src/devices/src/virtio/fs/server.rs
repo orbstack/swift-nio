@@ -586,14 +586,24 @@ impl<F: FileSystem + Sync> Server<F> {
             in_header.nodeid.into(),
             flags,
         ) {
-            Ok((handle, opts)) => {
+            Ok((handle, attrs, opts)) => {
                 let out = OpenOut {
                     fh: handle.map(Into::into).unwrap_or(0),
                     open_flags: opts.bits(),
                     ..Default::default()
                 };
 
-                reply_ok(Some(out), None, in_header.unique, w)
+                let attr_out = attrs.map(|(st, timeout)| AttrOut {
+                    attr_valid: timeout.as_secs(),
+                    attr_valid_nsec: timeout.subsec_nanos(),
+                    dummy: 0,
+                    attr: st.into(),
+                });
+
+                match attr_out {
+                    Some(a) => reply_ok(Some(out), Some(a.as_slice()), in_header.unique, w),
+                    None => reply_ok(Some(out), None, in_header.unique, w),
+                }
             }
             Err(e) => reply_error(e, in_header.unique, w),
         }
@@ -1047,14 +1057,24 @@ impl<F: FileSystem + Sync> Server<F> {
             in_header.nodeid.into(),
             flags,
         ) {
-            Ok((handle, opts)) => {
+            Ok((handle, attrs, opts)) => {
                 let out = OpenOut {
                     fh: handle.map(Into::into).unwrap_or(0),
                     open_flags: opts.bits(),
                     ..Default::default()
                 };
 
-                reply_ok(Some(out), None, in_header.unique, w)
+                let attr_out = attrs.map(|(st, timeout)| AttrOut {
+                    attr_valid: timeout.as_secs(),
+                    attr_valid_nsec: timeout.subsec_nanos(),
+                    dummy: 0,
+                    attr: st.into(),
+                });
+
+                match attr_out {
+                    Some(a) => reply_ok(Some(out), Some(a.as_slice()), in_header.unique, w),
+                    None => reply_ok(Some(out), None, in_header.unique, w),
+                }
             }
             Err(e) => reply_error(e, in_header.unique, w),
         }
