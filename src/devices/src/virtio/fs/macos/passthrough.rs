@@ -54,6 +54,7 @@ use super::super::filesystem::{
     OpenOptions, SetattrValid, ZeroCopyReader, ZeroCopyWriter,
 };
 use super::super::fuse;
+use super::sys::fsgetpath_exists;
 use super::vnode_poll::VnodePoller;
 
 // disabled because Linux doesn't FORGET everything on unmount
@@ -638,6 +639,7 @@ impl PassthroughFs {
         }
     }
 
+    #[allow(dead_code)]
     fn nodeid_to_file_ref(
         &self,
         ctx: &Context,
@@ -1416,46 +1418,37 @@ impl PassthroughFs {
                 //   - dev/ino is stale
                 //     - could be caused by parent, or file unlinked+replaced
                 // to disambiguate, check whether the current dev/ino still exists
-                match self.nodeid_to_file_ref(ctx, nodeid)? {
-                    OwnedFileRef::Path(c_path) => {
-                        // "path" means volfs dev/ino here
-                        match access(c_path.as_ref(), AccessFlags::F_OK) {
+                let (DevIno(dev, ino), _, _) = self.get_nodeid(ctx, nodeid)?;
+
+                match fsgetpath_exists(dev, ino) {
+                    Ok(true) => {
+                        // dev/ino still exists:
+                        // this is a real ENOENT, from child
+                        // return the original error
+                        Err(e)
+                    }
+
+                    Ok(false) => {
+                        // dev/ino doesn't exist:
+                        // this is a stale nodeid
+                        // refresh it
+                        match self.refresh_nodeid(ctx, nodeid) {
+                            // retry if refreshed successfully
                             Ok(_) => {
-                                // dev/ino still exists:
-                                // this is a real ENOENT, from child
-                                // return the original error
-                                Err(e)
+                                debug!("retrying after refresh_nodeid");
+                                f()
                             }
-
-                            Err(Errno::ENOENT) => {
-                                // dev/ino doesn't exist:
-                                // this is a stale nodeid
-                                // refresh it
-                                match self.refresh_nodeid(ctx, nodeid) {
-                                    // retry if refreshed successfully
-                                    Ok(_) => {
-                                        debug!("retrying after refresh_nodeid");
-                                        f()
-                                    }
-                                    Err(e) => {
-                                        // refresh failed: return the original error
-                                        debug!(?e, "refresh_nodeid failed");
-                                        Err(e)
-                                    }
-                                }
-                            }
-
-                            // for any other error, ignore and return the original error
-                            Err(_) => {
-                                debug!("failed to check if dev/ino exists: {:?}", e);
+                            Err(e2) => {
+                                // refresh failed: return the *original* error (ENOENT)
+                                debug!(?e2, "refresh_nodeid failed");
                                 Err(e)
                             }
                         }
                     }
 
-                    OwnedFileRef::Fd(_) => {
-                        // fd-based nodeids can't be stale: their path is resolved on every use
-                        // return the original error
+                    // for any other error, ignore and return the original error
+                    Err(e2) => {
+                        debug!("failed to check if dev/ino exists: {:?}", e2);
                         Err(e)
                     }
                 }
