@@ -1347,11 +1347,10 @@ impl PassthroughFs {
 
             let new_devino = st.dev_ino();
             if new_devino == old_devino {
-                // this is pretty much impossible:
-                // inode reuse should never happen this quickly, and we just checked that the error was probably caused by a stale dev/ino, because the old dev/ino no longer exists... and yet if we look it up in the parent, it's the same, implying that the dev/ino exists again?
-                // on Linux this is possible if we race with an unlink + linkat(AT_EMPTY_PATH), but not on macOS
-                // return an error to prevent retry
-                return Err(Errno::EAGAIN.into());
+                // this could happen if two threads race on the ENOENT handling path:
+                // one finishes refresh_nodeid before the other one starts and reads old_devino
+                // this counts as a success, which is OK and can't loop forever because
+                return Ok(());
             }
 
             // we got a new dev/ino
