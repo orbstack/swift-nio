@@ -2695,7 +2695,7 @@ impl FileSystem for PassthroughFs {
                 x if x & IOCTL_ROSETTA_KEY_MASK == IOCTL_ROSETTA_KEY & IOCTL_ROSETTA_KEY_MASK => {
                     let resp = get_rosetta_data();
                     if resp.len() >= out_size as usize {
-                        info!("returning rosetta data: {:?}", &resp[..out_size as usize]);
+                        debug!("returning rosetta data: {:?}", &resp[..out_size as usize]);
                         return Ok(resp[..out_size as usize].to_vec());
                     }
                 }
@@ -2703,13 +2703,13 @@ impl FileSystem for PassthroughFs {
                 // filling with all 1 means: AOT on, with abstract socket, path = all 1
                 // this prevents it from creating ~/.cache/rosetta (and AOT connection always fails)
                 IOCTL_ROSETTA_AOT_CONFIG => {
-                    info!("returning AOT config");
+                    debug!("returning AOT config");
                     let data = vec![1u8; out_size as usize];
                     return Ok(data);
                 }
 
                 IOCTL_ROSETTA_TSO_FALLBACK => {
-                    info!("TSO fallback");
+                    debug!("TSO fallback");
                     return Ok(Vec::new());
                 }
 
