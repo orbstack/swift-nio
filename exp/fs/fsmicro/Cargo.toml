@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 fxhash = "0.2.1"
 hdrhistogram = "7.5.4"
+libc = "0.2.155"
 nix = { version = "0.24.1", features = ["poll"] }
 
 [dev-dependencies]

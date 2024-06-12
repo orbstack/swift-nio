@@ -4,14 +4,23 @@ use std::{
 
 use criterion::{ criterion_group, criterion_main, Criterion};
 use nix::{
-    fcntl::{open, OFlag}, sys::{
+    errno::Errno, fcntl::{open, OFlag}, sys::{
         stat::{fstat, lstat, Mode},
         uio::pwrite,
-    }, unistd::{linkat, mkdir, unlink, LinkatFlags}
+    }, unistd::{access, linkat, mkdir, unlink, AccessFlags, LinkatFlags}
 };
 
 #[cfg(target_os = "macos")]
 const CLONE_NOFOLLOW: u32 = 0x0001;
+
+extern "C" {
+    fn fsgetpath(
+        restrict_buf: *mut libc::c_char,
+        buflen: libc::size_t,
+        fsid: *const libc::fsid_t,
+        obj_id: u64,
+    ) -> libc::c_int;
+}
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let _ = unlink("a");
@@ -89,6 +98,27 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             unlink("c").unwrap();
         })
     });
+
+    #[cfg(target_os = "macos")]
+    {
+        let existing_st = lstat(".").unwrap();
+        c.bench_function("fsgetpath ENOENT check", |b| {
+            b.iter(|| {
+                let fsid = [existing_st.st_dev+9, 0];
+                let ret = unsafe { fsgetpath(std::ptr::null_mut(), 1, &fsid as *const i32 as *const libc::fsid_t, existing_st.st_ino) };
+                assert_eq!(ret, -1);
+                assert_eq!(Errno::last(), Errno::ENOENT);
+            })
+        });
+
+        c.bench_function("access ENOENT check", |b| {
+            b.iter(|| {
+                let path = CString::new(format!("/.vol/{}/{}", existing_st.st_dev + 9, existing_st.st_ino)).unwrap();
+                let res = access(path.as_ref(), AccessFlags::F_OK);
+                assert_eq!(res, Err(Errno::ENOENT));
+            })
+        });
+    }
 
     let _ = remove_dir("b");
     c.bench_function("create+delete dir", |b| {
