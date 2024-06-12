@@ -81,7 +81,7 @@ var (
 	// for testing only
 	ImageToOldestVersion = map[string]string{
 		ImageAlma:   "8",
-		ImageAlpine: "3.15",
+		ImageAlpine: "3.17",
 		//ImageArch:      "current",
 		ImageCentos: "8-Stream",
 		ImageDebian: "buster",

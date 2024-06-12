@@ -81,7 +81,7 @@ enum Distro: String, CaseIterable {
         // DON'T FORGET TO UPDATE scon/images/images.go!
         switch self {
         case .alma: return [v("8"), v("9")]
-        case .alpine: return [v("edge"), v("3.16"), v("3.17"), v("3.18"), v("3.20")]
+        case .alpine: return [v("edge"), v("3.17"), v("3.18"), v("3.20")]
         case .arch: return [v("current", as: "Latest")]
         case .centos: return [ /* v("7"), */ v("8-Stream", as: "8 (Stream)"), v("9-Stream", as: "9 (Stream)")]
         case .debian: return [v("buster", as: "10 (Buster)"), v("bullseye", as: "11 (Bullseye)"), v("trixie", as: "13 (Trixie, testing)"), v("bookworm", as: "12 (Bookworm)")]
