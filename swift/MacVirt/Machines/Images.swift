@@ -86,7 +86,7 @@ enum Distro: String, CaseIterable {
         case .centos: return [ /* v("7"), */ v("8-Stream", as: "8 (Stream)"), v("9-Stream", as: "9 (Stream)")]
         case .debian: return [v("buster", as: "10 (Buster)"), v("bullseye", as: "11 (Bullseye)"), v("trixie", as: "13 (Trixie, testing)"), v("bookworm", as: "12 (Bookworm)")]
         case .devuan: return [v("beowulf", as: "Beowulf"), v("chimaera", as: "Chimaera"), v("daedalus", as: "Daedalus")]
-        case .fedora: return [v("38"), v("39"), v("40")]
+        case .fedora: return [v("39"), v("40")]
         case .gentoo: return [v("current", as: "Latest")]
         case .kali: return [v("current", as: "Latest")]
         case .nixos: return [v("unstable", as: "Unstable"), v("23.11")]
