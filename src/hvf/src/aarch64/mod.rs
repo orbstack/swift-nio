@@ -465,6 +465,9 @@ impl HvfVcpu {
         self.write_raw_reg(hv_reg_t_HV_REG_CPSR, PSTATE_FAULT_BITS_64)?;
         self.write_raw_reg(hv_reg_t_HV_REG_PC, entry_addr)?;
         self.write_raw_reg(hv_reg_t_HV_REG_X0, fdt_addr)?;
+        self.write_raw_reg(hv_reg_t_HV_REG_X1, 0)?;
+        self.write_raw_reg(hv_reg_t_HV_REG_X2, 0)?;
+        self.write_raw_reg(hv_reg_t_HV_REG_X3, 0)?;
         self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, mpidr)?;
         if enable_tso {
             self.allow_actlr = true;
