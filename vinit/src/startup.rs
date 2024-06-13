@@ -604,12 +604,8 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
                     old_size_mib, new_size_mib
                 );
             }
-            Ordering::Equal => {
-                eprintln!(
-                    "WARNING: Attempted to resize data partition from {} MiB to {} MiB?",
-                    old_size_mib, new_size_mib
-                );
-            }
+            // normal: we always call this
+            Ordering::Equal => {}
         }
     }
     Ok(())
