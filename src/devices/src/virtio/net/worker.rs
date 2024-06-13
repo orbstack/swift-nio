@@ -156,11 +156,11 @@ impl NetWorker {
                     tracing::error!("Got {event:?} on backend fd, virtio-net will stop working");
                 } else {
                     if event.is_readable() {
-                        self.process_backend_socket_readable()
+                        self.process_backend_socket_readable();
                     }
 
                     if event.is_writable() {
-                        self.process_backend_socket_writeable()
+                        self.process_backend_socket_writeable();
                     }
                 }
             }

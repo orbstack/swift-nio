@@ -70,7 +70,7 @@ impl TimesyncThread {
                     .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
                 if let Some(intc) = &self.intc {
                     intc.lock().unwrap().set_irq(self.irq_line.unwrap());
-                } else if let Err(e) = self.interrupt_evt.write(1) {
+                } else if let Err(e) = self.interrupt_evt.write() {
                     warn!("failed to signal used queue: {:?}", e);
                 }
             }

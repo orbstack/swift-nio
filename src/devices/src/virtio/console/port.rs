@@ -184,7 +184,7 @@ impl Port {
                     )
                 }
             }
-            stopfd.write(1).unwrap();
+            stopfd.write().unwrap();
             if let Some(rx_thread) = mem::take(rx_thread) {
                 rx_thread.thread().unpark();
                 if let Err(e) = rx_thread.join() {

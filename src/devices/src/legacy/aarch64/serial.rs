@@ -313,7 +313,7 @@ impl Serial {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
             Ok(())
         } else {
-            self.interrupt_evt.write(1)
+            self.interrupt_evt.write()
         }
     }
 }

@@ -199,7 +199,7 @@ impl VmmShutdownHandle {
     pub fn request_shutdown(&self) {
         tracing::debug!("Requesting hard shutdown for VMM");
 
-        if let Err(e) = self.0.write(1) {
+        if let Err(e) = self.0.write() {
             error!("Failed to signal hard shutdown request: {}", e);
         }
     }

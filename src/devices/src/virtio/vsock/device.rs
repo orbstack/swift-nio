@@ -137,7 +137,7 @@ impl Vsock {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
             Ok(())
         } else {
-            self.interrupt_evt.write(1).map_err(|e| {
+            self.interrupt_evt.write().map_err(|e| {
                 error!("Failed to signal used queue: {:?}", e);
                 DeviceError::FailedSignalingUsedQueue(e)
             })
@@ -314,7 +314,7 @@ impl VirtioDevice for Vsock {
             return Err(ActivateError::BadActivate);
         }
 
-        if self.activate_evt.write(1).is_err() {
+        if self.activate_evt.write().is_err() {
             error!("Cannot write to activate_evt",);
             return Err(ActivateError::BadActivate);
         }

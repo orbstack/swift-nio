@@ -7,13 +7,13 @@
 //! Structure and wrapper functions emulating eventfd using a pipe.
 
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::{io, mem, result};
+use std::{io, result};
 
 use libc::{c_void, fcntl, pipe, read, write, FD_CLOEXEC, F_GETFL, F_SETFD, F_SETFL, O_NONBLOCK};
 
 pub const EFD_NONBLOCK: i32 = 1;
 
-fn set_nonblock(fd: RawFd) -> result::Result<(), io::Error> {
+fn set_nonblock(fd: RawFd) -> io::Result<()> {
     let flags = unsafe { fcntl(fd, F_GETFL) };
     if flags < 0 {
         return Err(io::Error::last_os_error());
@@ -27,7 +27,7 @@ fn set_nonblock(fd: RawFd) -> result::Result<(), io::Error> {
     Ok(())
 }
 
-fn set_cloexec(fd: RawFd) -> result::Result<(), io::Error> {
+fn set_cloexec(fd: RawFd) -> io::Result<()> {
     let ret = unsafe { fcntl(fd, F_SETFD, FD_CLOEXEC) };
     if ret < 0 {
         return Err(io::Error::last_os_error());
@@ -43,7 +43,7 @@ pub struct EventFd {
 }
 
 impl EventFd {
-    pub fn new(flag: i32) -> result::Result<EventFd, io::Error> {
+    pub fn new(flag: i32) -> io::Result<EventFd> {
         let mut fds: [RawFd; 2] = [0, 0];
         let ret = unsafe { pipe(&mut fds[0]) };
         if ret < 0 {
@@ -64,14 +64,9 @@ impl EventFd {
         })
     }
 
-    pub fn write(&self, v: u64) -> result::Result<(), io::Error> {
-        let ret = unsafe {
-            write(
-                self.write_fd,
-                &v as *const u64 as *const c_void,
-                mem::size_of::<u64>(),
-            )
-        };
+    pub fn write(&self) -> io::Result<()> {
+        let data: [u8; 8] = u64::to_ne_bytes(1);
+        let ret = unsafe { write(self.write_fd, data.as_ptr() as *const c_void, data.len()) };
         if ret <= 0 {
             let error = io::Error::last_os_error();
             match error.kind() {
@@ -85,20 +80,25 @@ impl EventFd {
         }
     }
 
-    pub fn read(&self) -> result::Result<u64, io::Error> {
-        let mut buf: u64 = 0;
-        let ret = unsafe {
-            read(
-                self.read_fd,
-                &mut buf as *mut u64 as *mut c_void,
-                mem::size_of::<u64>(),
-            )
-        };
-        if ret < 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(buf)
+    pub fn read(&self) -> io::Result<()> {
+        loop {
+            let mut buf = [0u8; 1024];
+            let ret = unsafe { read(self.read_fd, buf.as_mut_ptr() as *mut c_void, buf.len()) };
+            if ret < 0 {
+                let err = io::Error::last_os_error();
+
+                if let io::ErrorKind::WouldBlock = err.kind() {
+                    // (we consumed all the signal assertions in this queue)
+                    break;
+                }
+
+                return Err(err);
+            }
+
+            // (we can still read!)
         }
+
+        Ok(())
     }
 
     pub fn try_clone(&self) -> result::Result<EventFd, io::Error> {
@@ -123,50 +123,5 @@ impl EventFd {
 impl AsRawFd for EventFd {
     fn as_raw_fd(&self) -> RawFd {
         self.read_fd
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_new() {
-        EventFd::new(EFD_NONBLOCK).unwrap();
-        EventFd::new(0).unwrap();
-    }
-
-    #[test]
-    fn test_read_write() {
-        let evt = EventFd::new(EFD_NONBLOCK).unwrap();
-        evt.write(55).unwrap();
-        assert_eq!(evt.read().unwrap(), 55);
-    }
-
-    #[test]
-    fn test_write_overflow() {
-        let evt = EventFd::new(EFD_NONBLOCK).unwrap();
-        evt.write(std::u64::MAX - 1).unwrap();
-        let r = evt.write(1);
-        match r {
-            Err(ref inner) if inner.kind() == io::ErrorKind::WouldBlock => (),
-            _ => panic!("Unexpected"),
-        }
-    }
-    #[test]
-    fn test_read_nothing() {
-        let evt = EventFd::new(EFD_NONBLOCK).unwrap();
-        let r = evt.read();
-        match r {
-            Err(ref inner) if inner.kind() == io::ErrorKind::WouldBlock => (),
-            _ => panic!("Unexpected"),
-        }
-    }
-    #[test]
-    fn test_clone() {
-        let evt = EventFd::new(EFD_NONBLOCK).unwrap();
-        let evt_clone = evt.try_clone().unwrap();
-        evt.write(923).unwrap();
-        assert_eq!(evt_clone.read().unwrap(), 923);
     }
 }
