@@ -1432,141 +1432,143 @@ fn attach_gpu_device(
     Ok(())
 }
 
-// #[cfg(test)]
-// pub mod tests {
-//     use super::*;
-//
-//     fn default_guest_memory(
-//         mem_size_mib: usize,
-//     ) -> std::result::Result<(GuestMemoryMmap, ArchMemoryInfo), StartMicrovmError> {
-//         let kernel_guest_addr: u64 = 0x1000;
-//         let kernel_size: usize = 0x1000;
-//         let kernel_host_addr: u64 = 0x1000;
-//
-//         let kernel_region = unsafe {
-//             MmapRegion::build_raw(kernel_host_addr as *mut _, kernel_size, 0, 0).unwrap()
-//         };
-//
-//         create_guest_memory(mem_size_mib, kernel_region, kernel_guest_addr, kernel_size)
-//     }
-//
-//     #[test]
-//     #[cfg(target_arch = "x86_64")]
-//     fn test_create_vcpus_x86_64() {
-//         let vcpu_count = 2;
-//
-//         let (guest_memory, _arch_memory_info) = default_guest_memory(128).unwrap();
-//         let mut vm = setup_vm(&guest_memory).unwrap();
-//         setup_interrupt_controller(&mut vm).unwrap();
-//         let vcpu_config = VcpuConfig {
-//             vcpu_count,
-//             ht_enabled: false,
-//             cpu_template: None,
-//         };
-//
-//         // Dummy entry_addr, vcpus will not boot.
-//         let entry_addr = GuestAddress(0);
-//         let bus = devices::Bus::new();
-//         let vcpu_vec = create_vcpus_x86_64(
-//             &vm,
-//             &vcpu_config,
-//             &guest_memory,
-//             entry_addr,
-//             TimestampUs::default(),
-//             &bus,
-//             &EventFd::new(utils::eventfd::EFD_NONBLOCK).unwrap(),
-//         )
-//         .unwrap();
-//         assert_eq!(vcpu_vec.len(), vcpu_count as usize);
-//     }
-//
-//     #[test]
-//     #[cfg(target_arch = "aarch64")]
-//     fn test_create_vcpus_aarch64() {
-//         let guest_memory = create_guest_memory(128).unwrap();
-//         let vm = setup_vm(&guest_memory).unwrap();
-//         let vcpu_count = 2;
-//
-//         let vcpu_config = VcpuConfig {
-//             vcpu_count,
-//             ht_enabled: false,
-//             cpu_template: None,
-//         };
-//
-//         // Dummy entry_addr, vcpus will not boot.
-//         let entry_addr = GuestAddress(0);
-//         let vcpu_vec = create_vcpus_aarch64(
-//             &vm,
-//             &vcpu_config,
-//             &guest_memory,
-//             entry_addr,
-//             TimestampUs::default(),
-//             &EventFd::new(utils::eventfd::EFD_NONBLOCK).unwrap(),
-//         )
-//         .unwrap();
-//         assert_eq!(vcpu_vec.len(), vcpu_count as usize);
-//     }
-//
-//     #[test]
-//     fn test_error_messages() {
-//         use crate::builder::StartMicrovmError::*;
-//         let err = AttachBlockDevice(io::Error::from_raw_os_error(0));
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = CreateRateLimiter(io::Error::from_raw_os_error(0));
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = Internal(Error::Serial(io::Error::from_raw_os_error(0)));
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = KernelCmdline(String::from("dummy --cmdline"));
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = KernelBundle(vm_memory::mmap::MmapRegionError::InvalidPointer);
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = LoadCommandline(kernel::cmdline::Error::TooLarge);
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = MicroVMAlreadyRunning;
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = MissingKernelConfig;
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = MissingMemSizeConfig;
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = NetDeviceNotConfigured;
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = OpenBlockDevice(io::Error::from_raw_os_error(0));
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = RegisterBlockDevice(device_manager::mmio::Error::EventFd(
-//             io::Error::from_raw_os_error(0),
-//         ));
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = RegisterEvent(EventManagerError::EpollCreate(
-//             io::Error::from_raw_os_error(0),
-//         ));
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = RegisterNetDevice(device_manager::mmio::Error::EventFd(
-//             io::Error::from_raw_os_error(0),
-//         ));
-//         let _ = format!("{}{:?}", err, err);
-//
-//         let err = RegisterVsockDevice(device_manager::mmio::Error::EventFd(
-//             io::Error::from_raw_os_error(0),
-//         ));
-//         let _ = format!("{}{:?}", err, err);
-//     }
-//
-//     #[test]
-//     fn test_kernel_cmdline_err_to_startuvm_err() {
-//         let err = StartMicrovmError::from(kernel::cmdline::Error::HasSpace);
-//         let _ = format!("{}{:?}", err, err);
-//     }
-// }
+/*
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    fn default_guest_memory(
+        mem_size_mib: usize,
+    ) -> std::result::Result<(GuestMemoryMmap, ArchMemoryInfo), StartMicrovmError> {
+        let kernel_guest_addr: u64 = 0x1000;
+        let kernel_size: usize = 0x1000;
+        let kernel_host_addr: u64 = 0x1000;
+
+        let kernel_region = unsafe {
+            MmapRegion::build_raw(kernel_host_addr as *mut _, kernel_size, 0, 0).unwrap()
+        };
+
+        create_guest_memory(mem_size_mib, kernel_region, kernel_guest_addr, kernel_size)
+    }
+
+    #[test]
+    #[cfg(target_arch = "x86_64")]
+    fn test_create_vcpus_x86_64() {
+        let vcpu_count = 2;
+
+        let (guest_memory, _arch_memory_info) = default_guest_memory(128).unwrap();
+        let mut vm = setup_vm(&guest_memory).unwrap();
+        setup_interrupt_controller(&mut vm).unwrap();
+        let vcpu_config = VcpuConfig {
+            vcpu_count,
+            ht_enabled: false,
+            cpu_template: None,
+        };
+
+        // Dummy entry_addr, vcpus will not boot.
+        let entry_addr = GuestAddress(0);
+        let bus = devices::Bus::new();
+        let vcpu_vec = create_vcpus_x86_64(
+            &vm,
+            &vcpu_config,
+            &guest_memory,
+            entry_addr,
+            TimestampUs::default(),
+            &bus,
+            &EventFd::new(utils::eventfd::EFD_NONBLOCK).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(vcpu_vec.len(), vcpu_count as usize);
+    }
+
+    #[test]
+    #[cfg(target_arch = "aarch64")]
+    fn test_create_vcpus_aarch64() {
+        let guest_memory = create_guest_memory(128).unwrap();
+        let vm = setup_vm(&guest_memory).unwrap();
+        let vcpu_count = 2;
+
+        let vcpu_config = VcpuConfig {
+            vcpu_count,
+            ht_enabled: false,
+            cpu_template: None,
+        };
+
+        // Dummy entry_addr, vcpus will not boot.
+        let entry_addr = GuestAddress(0);
+        let vcpu_vec = create_vcpus_aarch64(
+            &vm,
+            &vcpu_config,
+            &guest_memory,
+            entry_addr,
+            TimestampUs::default(),
+            &EventFd::new(utils::eventfd::EFD_NONBLOCK).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(vcpu_vec.len(), vcpu_count as usize);
+    }
+
+    #[test]
+    fn test_error_messages() {
+        use crate::builder::StartMicrovmError::*;
+        let err = AttachBlockDevice(io::Error::from_raw_os_error(0));
+        let _ = format!("{}{:?}", err, err);
+
+        let err = CreateRateLimiter(io::Error::from_raw_os_error(0));
+        let _ = format!("{}{:?}", err, err);
+
+        let err = Internal(Error::Serial(io::Error::from_raw_os_error(0)));
+        let _ = format!("{}{:?}", err, err);
+
+        let err = KernelCmdline(String::from("dummy --cmdline"));
+        let _ = format!("{}{:?}", err, err);
+
+        let err = KernelBundle(vm_memory::mmap::MmapRegionError::InvalidPointer);
+        let _ = format!("{}{:?}", err, err);
+
+        let err = LoadCommandline(kernel::cmdline::Error::TooLarge);
+        let _ = format!("{}{:?}", err, err);
+
+        let err = MicroVMAlreadyRunning;
+        let _ = format!("{}{:?}", err, err);
+
+        let err = MissingKernelConfig;
+        let _ = format!("{}{:?}", err, err);
+
+        let err = MissingMemSizeConfig;
+        let _ = format!("{}{:?}", err, err);
+
+        let err = NetDeviceNotConfigured;
+        let _ = format!("{}{:?}", err, err);
+
+        let err = OpenBlockDevice(io::Error::from_raw_os_error(0));
+        let _ = format!("{}{:?}", err, err);
+
+        let err = RegisterBlockDevice(device_manager::mmio::Error::EventFd(
+            io::Error::from_raw_os_error(0),
+        ));
+        let _ = format!("{}{:?}", err, err);
+
+        let err = RegisterEvent(EventManagerError::EpollCreate(
+            io::Error::from_raw_os_error(0),
+        ));
+        let _ = format!("{}{:?}", err, err);
+
+        let err = RegisterNetDevice(device_manager::mmio::Error::EventFd(
+            io::Error::from_raw_os_error(0),
+        ));
+        let _ = format!("{}{:?}", err, err);
+
+        let err = RegisterVsockDevice(device_manager::mmio::Error::EventFd(
+            io::Error::from_raw_os_error(0),
+        ));
+        let _ = format!("{}{:?}", err, err);
+    }
+
+    #[test]
+    fn test_kernel_cmdline_err_to_startuvm_err() {
+        let err = StartMicrovmError::from(kernel::cmdline::Error::HasSpace);
+        let _ = format!("{}{:?}", err, err);
+    }
+}
+*/
