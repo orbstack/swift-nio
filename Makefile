@@ -1,4 +1,4 @@
-.PHONY: x86 x86-test arm-test arm
+.PHONY: x86 x86-test arm-test arm test-gruel
 
 x86-test: x86
 	ssh mini rm -f /tmp/kruntest
