@@ -335,283 +335,285 @@ impl DeviceInfoForFDT for MMIODeviceInfo {
     }
 }
 
-// #[cfg(test)]
-// #[cfg(target_arch = "aarch64")]
-// mod tests {
-//     use super::super::super::builder;
-//     use super::*;
-//     use arch;
-//     use devices::virtio::{ActivateResult, Queue, VirtioDevice, VirtioQueueSignals};
-//     use std::sync::atomic::AtomicUsize;
-//     use std::sync::Arc;
-//     use utils::errno;
-//     use utils::eventfd::EventFd;
-//     use vm_memory::{GuestAddress, GuestMemoryMmap};
-//
-//     const QUEUE_SIZES: &[u16] = &[64];
-//
-//     impl MMIODeviceManager {
-//         fn register_virtio_device(
-//             &mut self,
-//             vm: &VmFd,
-//             guest_mem: GuestMemoryMmap,
-//             device: Arc<Mutex<dyn devices::virtio::VirtioDevice>>,
-//             cmdline: &mut kernel_cmdline::Cmdline,
-//             type_id: u32,
-//             device_id: &str,
-//         ) -> Result<u64> {
-//             let mmio_device = devices::virtio::MmioTransport::new(guest_mem, device);
-//             let (mmio_base, _irq) =
-//                 self.register_mmio_device(vm, mmio_device, type_id, device_id.to_string())?;
-//             #[cfg(target_arch = "x86_64")]
-//             self.add_device_to_cmdline(cmdline, mmio_base, _irq)?;
-//             Ok(mmio_base)
-//         }
-//     }
-//
-//     #[allow(dead_code)]
-//     struct DummyDevice {
-//         dummy: u32,
-//         queues: Vec<Queue>,
-//         queue_evts: [EventFd; 1],
-//         interrupt_evt: EventFd,
-//     }
-//
-//     impl DummyDevice {
-//         pub fn new() -> Self {
-//             DummyDevice {
-//                 dummy: 0,
-//                 queues: QUEUE_SIZES.iter().map(|&s| Queue::new(s)).collect(),
-//                 queue_evts: [
-//                     EventFd::new(utils::eventfd::EFD_NONBLOCK).expect("cannot create eventFD")
-//                 ],
-//                 interrupt_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK)
-//                     .expect("cannot create eventFD"),
-//             }
-//         }
-//     }
-//
-//     impl devices::virtio::VirtioDevice for DummyDevice {
-//         fn avail_features(&self) -> u64 {
-//             0
-//         }
-//
-//         fn acked_features(&self) -> u64 {
-//             0
-//         }
-//
-//         fn set_acked_features(&mut self, _: u64) {}
-//
-//         fn device_type(&self) -> u32 {
-//             0
-//         }
-//
-//         fn queues(&self) -> &[Queue] {
-//             &self.queues
-//         }
-//
-//         fn queues_mut(&mut self) -> &mut [Queue] {
-//             &mut self.queues
-//         }
-//
-//         fn queue_signals(&self) -> VirtioQueueSignals {
-//             todo!();
-//         }
-//
-//         fn interrupt_signal(&self) -> &EventFd {
-//             &self.interrupt_evt
-//         }
-//
-//         fn interrupt_status(&self) -> Arc<AtomicUsize> {
-//             Arc::new(AtomicUsize::new(0))
-//         }
-//
-//         fn ack_features_by_page(&mut self, page: u32, value: u32) {
-//             let _ = page;
-//             let _ = value;
-//         }
-//
-//         fn read_config(&self, offset: u64, data: &mut [u8]) {
-//             let _ = offset;
-//             let _ = data;
-//         }
-//
-//         fn write_config(&mut self, offset: u64, data: &[u8]) {
-//             let _ = offset;
-//             let _ = data;
-//         }
-//
-//         fn activate(&mut self, _: GuestMemoryMmap) -> ActivateResult {
-//             Ok(())
-//         }
-//
-//         fn is_activated(&self) -> bool {
-//             false
-//         }
-//     }
-//
-//     #[test]
-//     fn test_register_virtio_device() {
-//         let start_addr1 = GuestAddress(0x0);
-//         let start_addr2 = GuestAddress(0x1000);
-//         let guest_mem =
-//             GuestMemoryMmap::from_ranges(&[(start_addr1, 0x1000), (start_addr2, 0x1000)]).unwrap();
-//         let mut vm = builder::setup_kvm_vm(&guest_mem).unwrap();
-//         let mut device_manager =
-//             MMIODeviceManager::new(&mut 0xd000_0000, (arch::IRQ_BASE, arch::IRQ_MAX));
-//
-//         let mut cmdline = kernel_cmdline::Cmdline::new(4096);
-//         let dummy = Arc::new(Mutex::new(DummyDevice::new()));
-//         #[cfg(target_arch = "x86_64")]
-//         assert!(builder::setup_interrupt_controller(&mut vm).is_ok());
-//         #[cfg(target_arch = "aarch64")]
-//         assert!(builder::setup_interrupt_controller(&mut vm, 1).is_ok());
-//
-//         assert!(device_manager
-//             .register_virtio_device(vm.fd(), guest_mem, dummy, &mut cmdline, 0, "dummy")
-//             .is_ok());
-//     }
-//
-//     #[test]
-//     fn test_register_too_many_devices() {
-//         let start_addr1 = GuestAddress(0x0);
-//         let start_addr2 = GuestAddress(0x1000);
-//         let guest_mem =
-//             GuestMemoryMmap::from_ranges(&[(start_addr1, 0x1000), (start_addr2, 0x1000)]).unwrap();
-//         let mut vm = builder::setup_kvm_vm(&guest_mem).unwrap();
-//         let mut device_manager =
-//             MMIODeviceManager::new(&mut 0xd000_0000, (arch::IRQ_BASE, arch::IRQ_MAX));
-//
-//         let mut cmdline = kernel_cmdline::Cmdline::new(4096);
-//         #[cfg(target_arch = "x86_64")]
-//         assert!(builder::setup_interrupt_controller(&mut vm).is_ok());
-//         #[cfg(target_arch = "aarch64")]
-//         assert!(builder::setup_interrupt_controller(&mut vm, 1).is_ok());
-//
-//         for _i in arch::IRQ_BASE..=arch::IRQ_MAX {
-//             device_manager
-//                 .register_virtio_device(
-//                     vm.fd(),
-//                     guest_mem.clone(),
-//                     Arc::new(Mutex::new(DummyDevice::new())),
-//                     &mut cmdline,
-//                     0,
-//                     "dummy1",
-//                 )
-//                 .unwrap();
-//         }
-//         assert_eq!(
-//             format!(
-//                 "{}",
-//                 device_manager
-//                     .register_virtio_device(
-//                         vm.fd(),
-//                         guest_mem,
-//                         Arc::new(Mutex::new(DummyDevice::new())),
-//                         &mut cmdline,
-//                         0,
-//                         "dummy2"
-//                     )
-//                     .unwrap_err()
-//             ),
-//             "no more IRQs are available".to_string()
-//         );
-//     }
-//
-//     #[test]
-//     fn test_dummy_device() {
-//         let dummy = DummyDevice::new();
-//         assert_eq!(dummy.device_type(), 0);
-//         assert_eq!(dummy.queues().len(), QUEUE_SIZES.len());
-//     }
-//
-//     #[test]
-//     fn test_error_messages() {
-//         let device_manager =
-//             MMIODeviceManager::new(&mut 0xd000_0000, (arch::IRQ_BASE, arch::IRQ_MAX));
-//         let mut cmdline = kernel_cmdline::Cmdline::new(4096);
-//         let e = Error::Cmdline(
-//             cmdline
-//                 .insert(
-//                     "virtio_mmio=device",
-//                     &format!(
-//                         "{}K@0x{:08x}:{}",
-//                         MMIO_LEN / 1024,
-//                         device_manager.mmio_base,
-//                         device_manager.irq
-//                     ),
-//                 )
-//                 .unwrap_err(),
-//         );
-//         assert_eq!(
-//             format!("{}", e),
-//             format!(
-//                 "unable to add device to kernel command line: {}",
-//                 kernel_cmdline::Error::HasEquals
-//             ),
-//         );
-//         assert_eq!(
-//             format!("{}", Error::UpdateFailed),
-//             "failed to update the mmio device"
-//         );
-//         assert_eq!(
-//             format!("{}", Error::BusError(devices::BusError::Overlap)),
-//             format!(
-//                 "failed to perform bus operation: {}",
-//                 devices::BusError::Overlap
-//             )
-//         );
-//         assert_eq!(
-//             format!("{}", Error::IrqsExhausted),
-//             "no more IRQs are available"
-//         );
-//         assert_eq!(
-//             format!("{}", Error::RegisterIoEvent(errno::Error::new(0))),
-//             format!("failed to register IO event: {}", errno::Error::new(0))
-//         );
-//         assert_eq!(
-//             format!("{}", Error::RegisterIrqFd(errno::Error::new(0))),
-//             format!("failed to register irqfd: {}", errno::Error::new(0))
-//         );
-//     }
-//
-//     #[test]
-//     fn test_device_info() {
-//         let start_addr1 = GuestAddress(0x0);
-//         let start_addr2 = GuestAddress(0x1000);
-//         let guest_mem =
-//             GuestMemoryMmap::from_ranges(&[(start_addr1, 0x1000), (start_addr2, 0x1000)]).unwrap();
-//         let vm = builder::setup_kvm_vm(&guest_mem).unwrap();
-//         let mut device_manager =
-//             MMIODeviceManager::new(&mut 0xd000_0000, (arch::IRQ_BASE, arch::IRQ_MAX));
-//         let mut cmdline = kernel_cmdline::Cmdline::new(4096);
-//         let dummy = Arc::new(Mutex::new(DummyDevice::new()));
-//
-//         let type_id = 0;
-//         let id = String::from("foo");
-//         if let Ok(addr) = device_manager.register_virtio_device(
-//             vm.fd(),
-//             guest_mem,
-//             dummy,
-//             &mut cmdline,
-//             type_id,
-//             &id,
-//         ) {
-//             assert!(device_manager
-//                 .get_device(DeviceType::Virtio(type_id), &id)
-//                 .is_some());
-//             assert_eq!(
-//                 addr,
-//                 device_manager.id_to_dev_info[&(DeviceType::Virtio(type_id), id.clone())].addr
-//             );
-//             assert_eq!(
-//                 arch::IRQ_BASE,
-//                 device_manager.id_to_dev_info[&(DeviceType::Virtio(type_id), id.clone())].irq
-//             );
-//         }
-//         let id = "bar";
-//         assert!(device_manager
-//             .get_device(DeviceType::Virtio(type_id), &id)
-//             .is_none());
-//     }
-// }
+/*
+#[cfg(test)]
+#[cfg(target_arch = "aarch64")]
+mod tests {
+    use super::super::super::builder;
+    use super::*;
+    use arch;
+    use devices::virtio::{ActivateResult, Queue, VirtioDevice, VirtioQueueSignals};
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::Arc;
+    use utils::errno;
+    use utils::eventfd::EventFd;
+    use vm_memory::{GuestAddress, GuestMemoryMmap};
+
+    const QUEUE_SIZES: &[u16] = &[64];
+
+    impl MMIODeviceManager {
+        fn register_virtio_device(
+            &mut self,
+            vm: &VmFd,
+            guest_mem: GuestMemoryMmap,
+            device: Arc<Mutex<dyn devices::virtio::VirtioDevice>>,
+            cmdline: &mut kernel_cmdline::Cmdline,
+            type_id: u32,
+            device_id: &str,
+        ) -> Result<u64> {
+            let mmio_device = devices::virtio::MmioTransport::new(guest_mem, device);
+            let (mmio_base, _irq) =
+                self.register_mmio_device(vm, mmio_device, type_id, device_id.to_string())?;
+            #[cfg(target_arch = "x86_64")]
+            self.add_device_to_cmdline(cmdline, mmio_base, _irq)?;
+            Ok(mmio_base)
+        }
+    }
+
+    #[allow(dead_code)]
+    struct DummyDevice {
+        dummy: u32,
+        queues: Vec<Queue>,
+        queue_evts: [EventFd; 1],
+        interrupt_evt: EventFd,
+    }
+
+    impl DummyDevice {
+        pub fn new() -> Self {
+            DummyDevice {
+                dummy: 0,
+                queues: QUEUE_SIZES.iter().map(|&s| Queue::new(s)).collect(),
+                queue_evts: [
+                    EventFd::new(utils::eventfd::EFD_NONBLOCK).expect("cannot create eventFD")
+                ],
+                interrupt_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK)
+                    .expect("cannot create eventFD"),
+            }
+        }
+    }
+
+    impl devices::virtio::VirtioDevice for DummyDevice {
+        fn avail_features(&self) -> u64 {
+            0
+        }
+
+        fn acked_features(&self) -> u64 {
+            0
+        }
+
+        fn set_acked_features(&mut self, _: u64) {}
+
+        fn device_type(&self) -> u32 {
+            0
+        }
+
+        fn queues(&self) -> &[Queue] {
+            &self.queues
+        }
+
+        fn queues_mut(&mut self) -> &mut [Queue] {
+            &mut self.queues
+        }
+
+        fn queue_signals(&self) -> VirtioQueueSignals {
+            todo!();
+        }
+
+        fn interrupt_signal(&self) -> &EventFd {
+            &self.interrupt_evt
+        }
+
+        fn interrupt_status(&self) -> Arc<AtomicUsize> {
+            Arc::new(AtomicUsize::new(0))
+        }
+
+        fn ack_features_by_page(&mut self, page: u32, value: u32) {
+            let _ = page;
+            let _ = value;
+        }
+
+        fn read_config(&self, offset: u64, data: &mut [u8]) {
+            let _ = offset;
+            let _ = data;
+        }
+
+        fn write_config(&mut self, offset: u64, data: &[u8]) {
+            let _ = offset;
+            let _ = data;
+        }
+
+        fn activate(&mut self, _: GuestMemoryMmap) -> ActivateResult {
+            Ok(())
+        }
+
+        fn is_activated(&self) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn test_register_virtio_device() {
+        let start_addr1 = GuestAddress(0x0);
+        let start_addr2 = GuestAddress(0x1000);
+        let guest_mem =
+            GuestMemoryMmap::from_ranges(&[(start_addr1, 0x1000), (start_addr2, 0x1000)]).unwrap();
+        let mut vm = builder::setup_kvm_vm(&guest_mem).unwrap();
+        let mut device_manager =
+            MMIODeviceManager::new(&mut 0xd000_0000, (arch::IRQ_BASE, arch::IRQ_MAX));
+
+        let mut cmdline = kernel_cmdline::Cmdline::new(4096);
+        let dummy = Arc::new(Mutex::new(DummyDevice::new()));
+        #[cfg(target_arch = "x86_64")]
+        assert!(builder::setup_interrupt_controller(&mut vm).is_ok());
+        #[cfg(target_arch = "aarch64")]
+        assert!(builder::setup_interrupt_controller(&mut vm, 1).is_ok());
+
+        assert!(device_manager
+            .register_virtio_device(vm.fd(), guest_mem, dummy, &mut cmdline, 0, "dummy")
+            .is_ok());
+    }
+
+    #[test]
+    fn test_register_too_many_devices() {
+        let start_addr1 = GuestAddress(0x0);
+        let start_addr2 = GuestAddress(0x1000);
+        let guest_mem =
+            GuestMemoryMmap::from_ranges(&[(start_addr1, 0x1000), (start_addr2, 0x1000)]).unwrap();
+        let mut vm = builder::setup_kvm_vm(&guest_mem).unwrap();
+        let mut device_manager =
+            MMIODeviceManager::new(&mut 0xd000_0000, (arch::IRQ_BASE, arch::IRQ_MAX));
+
+        let mut cmdline = kernel_cmdline::Cmdline::new(4096);
+        #[cfg(target_arch = "x86_64")]
+        assert!(builder::setup_interrupt_controller(&mut vm).is_ok());
+        #[cfg(target_arch = "aarch64")]
+        assert!(builder::setup_interrupt_controller(&mut vm, 1).is_ok());
+
+        for _i in arch::IRQ_BASE..=arch::IRQ_MAX {
+            device_manager
+                .register_virtio_device(
+                    vm.fd(),
+                    guest_mem.clone(),
+                    Arc::new(Mutex::new(DummyDevice::new())),
+                    &mut cmdline,
+                    0,
+                    "dummy1",
+                )
+                .unwrap();
+        }
+        assert_eq!(
+            format!(
+                "{}",
+                device_manager
+                    .register_virtio_device(
+                        vm.fd(),
+                        guest_mem,
+                        Arc::new(Mutex::new(DummyDevice::new())),
+                        &mut cmdline,
+                        0,
+                        "dummy2"
+                    )
+                    .unwrap_err()
+            ),
+            "no more IRQs are available".to_string()
+        );
+    }
+
+    #[test]
+    fn test_dummy_device() {
+        let dummy = DummyDevice::new();
+        assert_eq!(dummy.device_type(), 0);
+        assert_eq!(dummy.queues().len(), QUEUE_SIZES.len());
+    }
+
+    #[test]
+    fn test_error_messages() {
+        let device_manager =
+            MMIODeviceManager::new(&mut 0xd000_0000, (arch::IRQ_BASE, arch::IRQ_MAX));
+        let mut cmdline = kernel_cmdline::Cmdline::new(4096);
+        let e = Error::Cmdline(
+            cmdline
+                .insert(
+                    "virtio_mmio=device",
+                    &format!(
+                        "{}K@0x{:08x}:{}",
+                        MMIO_LEN / 1024,
+                        device_manager.mmio_base,
+                        device_manager.irq
+                    ),
+                )
+                .unwrap_err(),
+        );
+        assert_eq!(
+            format!("{}", e),
+            format!(
+                "unable to add device to kernel command line: {}",
+                kernel_cmdline::Error::HasEquals
+            ),
+        );
+        assert_eq!(
+            format!("{}", Error::UpdateFailed),
+            "failed to update the mmio device"
+        );
+        assert_eq!(
+            format!("{}", Error::BusError(devices::BusError::Overlap)),
+            format!(
+                "failed to perform bus operation: {}",
+                devices::BusError::Overlap
+            )
+        );
+        assert_eq!(
+            format!("{}", Error::IrqsExhausted),
+            "no more IRQs are available"
+        );
+        assert_eq!(
+            format!("{}", Error::RegisterIoEvent(errno::Error::new(0))),
+            format!("failed to register IO event: {}", errno::Error::new(0))
+        );
+        assert_eq!(
+            format!("{}", Error::RegisterIrqFd(errno::Error::new(0))),
+            format!("failed to register irqfd: {}", errno::Error::new(0))
+        );
+    }
+
+    #[test]
+    fn test_device_info() {
+        let start_addr1 = GuestAddress(0x0);
+        let start_addr2 = GuestAddress(0x1000);
+        let guest_mem =
+            GuestMemoryMmap::from_ranges(&[(start_addr1, 0x1000), (start_addr2, 0x1000)]).unwrap();
+        let vm = builder::setup_kvm_vm(&guest_mem).unwrap();
+        let mut device_manager =
+            MMIODeviceManager::new(&mut 0xd000_0000, (arch::IRQ_BASE, arch::IRQ_MAX));
+        let mut cmdline = kernel_cmdline::Cmdline::new(4096);
+        let dummy = Arc::new(Mutex::new(DummyDevice::new()));
+
+        let type_id = 0;
+        let id = String::from("foo");
+        if let Ok(addr) = device_manager.register_virtio_device(
+            vm.fd(),
+            guest_mem,
+            dummy,
+            &mut cmdline,
+            type_id,
+            &id,
+        ) {
+            assert!(device_manager
+                .get_device(DeviceType::Virtio(type_id), &id)
+                .is_some());
+            assert_eq!(
+                addr,
+                device_manager.id_to_dev_info[&(DeviceType::Virtio(type_id), id.clone())].addr
+            );
+            assert_eq!(
+                arch::IRQ_BASE,
+                device_manager.id_to_dev_info[&(DeviceType::Virtio(type_id), id.clone())].irq
+            );
+        }
+        let id = "bar";
+        assert!(device_manager
+            .get_device(DeviceType::Virtio(type_id), &id)
+            .is_none());
+    }
+}
+*/

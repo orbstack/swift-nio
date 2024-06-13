@@ -324,105 +324,107 @@ impl VmResources {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::resources::VmResources;
-//     use crate::vmm_config::boot_source::BootSourceConfig;
-//     use crate::vmm_config::machine_config::{CpuFeaturesTemplate, VmConfig, VmConfigError};
-//     use crate::vmm_config::vsock::tests::{default_config, TempSockFile};
-//     use crate::vstate::VcpuConfig;
-//     use utils::tempfile::TempFile;
-//
-//     fn default_boot_cfg() -> BootSourceConfig {
-//         BootSourceConfig {
-//             kernel_cmdline_prolog: None,
-//             kernel_cmdline_epilog: None,
-//         }
-//     }
-//
-//     fn default_vm_resources() -> VmResources {
-//         VmResources {
-//             vm_config: VmConfig::default(),
-//             boot_config: default_boot_cfg(),
-//             kernel_bundle: Default::default(),
-//             fs: Default::default(),
-//             vsock: Default::default(),
-//             #[cfg(feature = "net")]
-//             net_builder: Default::default(),
-//             gpu_virgl_flags: None,
-//             console_output: None,
-//         }
-//     }
-//
-//     #[test]
-//     fn test_vcpu_config() {
-//         let vm_resources = default_vm_resources();
-//         let expected_vcpu_config = VcpuConfig {
-//             vcpu_count: vm_resources.vm_config().vcpu_count.unwrap(),
-//             ht_enabled: vm_resources.vm_config().ht_enabled.unwrap(),
-//             cpu_template: vm_resources.vm_config().cpu_template,
-//         };
-//
-//         let vcpu_config = vm_resources.vcpu_config();
-//         assert_eq!(vcpu_config, expected_vcpu_config);
-//     }
-//
-//     #[test]
-//     fn test_vm_config() {
-//         let vm_resources = default_vm_resources();
-//         let expected_vm_cfg = VmConfig::default();
-//
-//         assert_eq!(vm_resources.vm_config(), &expected_vm_cfg);
-//     }
-//
-//     #[test]
-//     fn test_set_vm_config() {
-//         let mut vm_resources = default_vm_resources();
-//         let mut aux_vm_config = VmConfig {
-//             vcpu_count: Some(32),
-//             mem_size_mib: Some(512),
-//             ht_enabled: Some(true),
-//             cpu_template: Some(CpuFeaturesTemplate::T2),
-//         };
-//
-//         assert_ne!(vm_resources.vm_config, aux_vm_config);
-//         vm_resources.set_vm_config(&aux_vm_config).unwrap();
-//         assert_eq!(vm_resources.vm_config, aux_vm_config);
-//
-//         // Invalid vcpu count.
-//         aux_vm_config.vcpu_count = Some(0);
-//         assert_eq!(
-//             vm_resources.set_vm_config(&aux_vm_config),
-//             Err(VmConfigError::InvalidVcpuCount)
-//         );
-//         aux_vm_config.vcpu_count = Some(33);
-//         assert_eq!(
-//             vm_resources.set_vm_config(&aux_vm_config),
-//             Err(VmConfigError::InvalidVcpuCount)
-//         );
-//         aux_vm_config.vcpu_count = Some(32);
-//
-//         // Invalid mem_size_mib.
-//         aux_vm_config.mem_size_mib = Some(0);
-//         assert_eq!(
-//             vm_resources.set_vm_config(&aux_vm_config),
-//             Err(VmConfigError::InvalidMemorySize)
-//         );
-//     }
-//
-//     #[test]
-//     fn test_set_vsock_device() {
-//         let mut vm_resources = default_vm_resources();
-//         let tmp_sock_file = TempSockFile::new(TempFile::new().unwrap());
-//         let new_vsock_cfg = default_config(&tmp_sock_file);
-//         assert!(vm_resources.vsock.get().is_none());
-//         vm_resources
-//             .set_vsock_device(new_vsock_cfg.clone())
-//             .unwrap();
-//         let actual_vsock_cfg = vm_resources.vsock.get().unwrap();
-//         assert_eq!(
-//             actual_vsock_cfg.lock().unwrap().id(),
-//             &new_vsock_cfg.vsock_id
-//         );
-//     }
-// }
+/*
+#[cfg(test)]
+mod tests {
+    use crate::resources::VmResources;
+    use crate::vmm_config::boot_source::BootSourceConfig;
+    use crate::vmm_config::machine_config::{CpuFeaturesTemplate, VmConfig, VmConfigError};
+    use crate::vmm_config::vsock::tests::{default_config, TempSockFile};
+    use crate::vstate::VcpuConfig;
+    use utils::tempfile::TempFile;
+
+    fn default_boot_cfg() -> BootSourceConfig {
+        BootSourceConfig {
+            kernel_cmdline_prolog: None,
+            kernel_cmdline_epilog: None,
+        }
+    }
+
+    fn default_vm_resources() -> VmResources {
+        VmResources {
+            vm_config: VmConfig::default(),
+            boot_config: default_boot_cfg(),
+            kernel_bundle: Default::default(),
+            fs: Default::default(),
+            vsock: Default::default(),
+            #[cfg(feature = "net")]
+            net_builder: Default::default(),
+            gpu_virgl_flags: None,
+            console_output: None,
+        }
+    }
+
+    #[test]
+    fn test_vcpu_config() {
+        let vm_resources = default_vm_resources();
+        let expected_vcpu_config = VcpuConfig {
+            vcpu_count: vm_resources.vm_config().vcpu_count.unwrap(),
+            ht_enabled: vm_resources.vm_config().ht_enabled.unwrap(),
+            cpu_template: vm_resources.vm_config().cpu_template,
+        };
+
+        let vcpu_config = vm_resources.vcpu_config();
+        assert_eq!(vcpu_config, expected_vcpu_config);
+    }
+
+    #[test]
+    fn test_vm_config() {
+        let vm_resources = default_vm_resources();
+        let expected_vm_cfg = VmConfig::default();
+
+        assert_eq!(vm_resources.vm_config(), &expected_vm_cfg);
+    }
+
+    #[test]
+    fn test_set_vm_config() {
+        let mut vm_resources = default_vm_resources();
+        let mut aux_vm_config = VmConfig {
+            vcpu_count: Some(32),
+            mem_size_mib: Some(512),
+            ht_enabled: Some(true),
+            cpu_template: Some(CpuFeaturesTemplate::T2),
+        };
+
+        assert_ne!(vm_resources.vm_config, aux_vm_config);
+        vm_resources.set_vm_config(&aux_vm_config).unwrap();
+        assert_eq!(vm_resources.vm_config, aux_vm_config);
+
+        // Invalid vcpu count.
+        aux_vm_config.vcpu_count = Some(0);
+        assert_eq!(
+            vm_resources.set_vm_config(&aux_vm_config),
+            Err(VmConfigError::InvalidVcpuCount)
+        );
+        aux_vm_config.vcpu_count = Some(33);
+        assert_eq!(
+            vm_resources.set_vm_config(&aux_vm_config),
+            Err(VmConfigError::InvalidVcpuCount)
+        );
+        aux_vm_config.vcpu_count = Some(32);
+
+        // Invalid mem_size_mib.
+        aux_vm_config.mem_size_mib = Some(0);
+        assert_eq!(
+            vm_resources.set_vm_config(&aux_vm_config),
+            Err(VmConfigError::InvalidMemorySize)
+        );
+    }
+
+    #[test]
+    fn test_set_vsock_device() {
+        let mut vm_resources = default_vm_resources();
+        let tmp_sock_file = TempSockFile::new(TempFile::new().unwrap());
+        let new_vsock_cfg = default_config(&tmp_sock_file);
+        assert!(vm_resources.vsock.get().is_none());
+        vm_resources
+            .set_vsock_device(new_vsock_cfg.clone())
+            .unwrap();
+        let actual_vsock_cfg = vm_resources.vsock.get().unwrap();
+        assert_eq!(
+            actual_vsock_cfg.lock().unwrap().id(),
+            &new_vsock_cfg.vsock_id
+        );
+    }
+}
+*/

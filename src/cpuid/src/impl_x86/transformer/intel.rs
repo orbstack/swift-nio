@@ -152,216 +152,218 @@ impl CpuidTransformer for IntelCpuidTransformer {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::impl_x86::cpu_leaf::leaf_0xb::LEVEL_TYPE_CORE;
-//     use crate::impl_x86::cpu_leaf::leaf_0xb::LEVEL_TYPE_INVALID;
-//     use crate::impl_x86::cpu_leaf::leaf_0xb::LEVEL_TYPE_THREAD;
-//     use crate::impl_x86::transformer::VmSpec;
-//     use kvm_bindings::kvm_cpuid_entry2;
-//
-//     #[test]
-//     fn test_update_feature_info_entry() {
-//         use crate::impl_x86::cpu_leaf::leaf_0x1::*;
-//
-//         let vm_spec = VmSpec::new(0, 1, false).expect("Error creating vm_spec");
-//         let mut entry = kvm_cpuid_entry2 {
-//             function: leaf_0x1::LEAF_NUM,
-//             index: 0,
-//             flags: 0,
-//             eax: 0,
-//             ebx: 0,
-//             ecx: 0,
-//             edx: 0,
-//             padding: [0, 0, 0],
-//         };
-//
-//         assert!(update_feature_info_entry(&mut entry, &vm_spec).is_ok());
-//
-//         assert!(entry.ecx.read_bit(ecx::TSC_DEADLINE_TIMER_BITINDEX));
-//     }
-//
-//     #[test]
-//     fn test_update_perf_mon_entry() {
-//         let vm_spec = VmSpec::new(0, 1, false).expect("Error creating vm_spec");
-//         let mut entry = kvm_cpuid_entry2 {
-//             function: leaf_0xa::LEAF_NUM,
-//             index: 0,
-//             flags: 0,
-//             eax: 1,
-//             ebx: 1,
-//             ecx: 1,
-//             edx: 1,
-//             padding: [0, 0, 0],
-//         };
-//
-//         assert!(update_perf_mon_entry(&mut entry, &vm_spec).is_ok());
-//
-//         assert_eq!(entry.eax, 0);
-//         assert_eq!(entry.ebx, 0);
-//         assert_eq!(entry.ecx, 0);
-//         assert_eq!(entry.edx, 0);
-//     }
-//
-//     fn check_update_deterministic_cache_entry(
-//         cpu_count: u8,
-//         ht_enabled: bool,
-//         cache_level: u32,
-//         expected_max_cores_per_package: u32,
-//     ) {
-//         use crate::impl_x86::cpu_leaf::leaf_0x4::*;
-//
-//         let vm_spec = VmSpec::new(0, cpu_count, ht_enabled).expect("Error creating vm_spec");
-//         let mut entry = kvm_cpuid_entry2 {
-//             function: 0x0,
-//             index: 0,
-//             flags: 0,
-//             eax: *(0_u32).write_bits_in_range(&eax::CACHE_LEVEL_BITRANGE, cache_level),
-//             ebx: 0,
-//             ecx: 0,
-//             edx: 0,
-//             padding: [0, 0, 0],
-//         };
-//
-//         assert!(update_deterministic_cache_entry(&mut entry, &vm_spec).is_ok());
-//
-//         assert!(
-//             entry
-//                 .eax
-//                 .read_bits_in_range(&eax::MAX_CORES_PER_PACKAGE_BITRANGE)
-//                 == expected_max_cores_per_package
-//         );
-//     }
-//
-//     fn check_update_extended_cache_topology_entry(
-//         cpu_count: u8,
-//         ht_enabled: bool,
-//         index: u32,
-//         expected_apicid: u32,
-//         expected_num_logical_processors: u32,
-//         expected_level_type: u32,
-//     ) {
-//         use crate::impl_x86::cpu_leaf::leaf_0xb::*;
-//
-//         let vm_spec = VmSpec::new(0, cpu_count, ht_enabled).expect("Error creating vm_spec");
-//         let mut entry = kvm_cpuid_entry2 {
-//             function: 0x0,
-//             index,
-//             flags: 0,
-//             eax: 0,
-//             ebx: 0,
-//             ecx: 0,
-//             edx: 0,
-//             padding: [0, 0, 0],
-//         };
-//
-//         assert!(update_extended_cache_topology_entry(&mut entry, &vm_spec).is_ok());
-//
-//         assert!(entry.eax.read_bits_in_range(&eax::APICID_BITRANGE) == expected_apicid);
-//         assert!(
-//             entry
-//                 .ebx
-//                 .read_bits_in_range(&ebx::NUM_LOGICAL_PROCESSORS_BITRANGE)
-//                 == expected_num_logical_processors
-//         );
-//         assert!(entry.ecx.read_bits_in_range(&ecx::LEVEL_TYPE_BITRANGE) == expected_level_type);
-//         assert!(entry.ecx.read_bits_in_range(&ecx::LEVEL_NUMBER_BITRANGE) == index);
-//     }
-//
-//     #[test]
-//     fn test_1vcpu_ht_off() {
-//         // test update_deterministic_cache_entry
-//         // test L1
-//         check_update_deterministic_cache_entry(1, false, 1, 0);
-//         // test L2
-//         check_update_deterministic_cache_entry(1, false, 2, 0);
-//         // test L3
-//         check_update_deterministic_cache_entry(1, false, 3, 0);
-//
-//         // test update_extended_cache_topology_entry
-//         // index 0
-//         check_update_extended_cache_topology_entry(1, false, 0, 0, 1, LEVEL_TYPE_CORE);
-//         // index 1
-//         check_update_extended_cache_topology_entry(
-//             1,
-//             false,
-//             1,
-//             LEAFBH_INDEX1_APICID,
-//             0,
-//             LEVEL_TYPE_INVALID,
-//         );
-//     }
-//
-//     #[test]
-//     fn test_1vcpu_ht_on() {
-//         // test update_deterministic_cache_entry
-//         // test L1
-//         check_update_deterministic_cache_entry(1, true, 1, 0);
-//         // test L2
-//         check_update_deterministic_cache_entry(1, true, 2, 0);
-//         // test L3
-//         check_update_deterministic_cache_entry(1, true, 3, 0);
-//
-//         // test update_extended_cache_topology_entry
-//         // index 0
-//         check_update_extended_cache_topology_entry(1, true, 0, 0, 1, LEVEL_TYPE_CORE);
-//         // index 1
-//         check_update_extended_cache_topology_entry(
-//             1,
-//             true,
-//             1,
-//             LEAFBH_INDEX1_APICID,
-//             0,
-//             LEVEL_TYPE_INVALID,
-//         );
-//     }
-//
-//     #[test]
-//     fn test_2vcpu_ht_off() {
-//         // test update_deterministic_cache_entry
-//         // test L1
-//         check_update_deterministic_cache_entry(2, false, 1, 1);
-//         // test L2
-//         check_update_deterministic_cache_entry(2, false, 2, 1);
-//         // test L3
-//         check_update_deterministic_cache_entry(2, false, 3, 1);
-//
-//         // test update_extended_cache_topology_entry
-//         // index 0
-//         check_update_extended_cache_topology_entry(2, false, 0, 0, 1, LEVEL_TYPE_THREAD);
-//         // index 1
-//         check_update_extended_cache_topology_entry(
-//             2,
-//             false,
-//             1,
-//             LEAFBH_INDEX1_APICID,
-//             2,
-//             LEVEL_TYPE_CORE,
-//         );
-//     }
-//
-//     #[test]
-//     fn test_2vcpu_ht_on() {
-//         // test update_deterministic_cache_entry
-//         // test L1
-//         check_update_deterministic_cache_entry(2, true, 1, 1);
-//         // test L2
-//         check_update_deterministic_cache_entry(2, true, 2, 1);
-//         // test L3
-//         check_update_deterministic_cache_entry(2, true, 3, 1);
-//
-//         // test update_extended_cache_topology_entry
-//         // index 0
-//         check_update_extended_cache_topology_entry(2, true, 0, 1, 2, LEVEL_TYPE_THREAD);
-//         // index 1
-//         check_update_extended_cache_topology_entry(
-//             2,
-//             true,
-//             1,
-//             LEAFBH_INDEX1_APICID,
-//             2,
-//             LEVEL_TYPE_CORE,
-//         );
-//     }
-// }
+/*
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::impl_x86::cpu_leaf::leaf_0xb::LEVEL_TYPE_CORE;
+    use crate::impl_x86::cpu_leaf::leaf_0xb::LEVEL_TYPE_INVALID;
+    use crate::impl_x86::cpu_leaf::leaf_0xb::LEVEL_TYPE_THREAD;
+    use crate::impl_x86::transformer::VmSpec;
+    use kvm_bindings::kvm_cpuid_entry2;
+
+    #[test]
+    fn test_update_feature_info_entry() {
+        use crate::impl_x86::cpu_leaf::leaf_0x1::*;
+
+        let vm_spec = VmSpec::new(0, 1, false).expect("Error creating vm_spec");
+        let mut entry = kvm_cpuid_entry2 {
+            function: leaf_0x1::LEAF_NUM,
+            index: 0,
+            flags: 0,
+            eax: 0,
+            ebx: 0,
+            ecx: 0,
+            edx: 0,
+            padding: [0, 0, 0],
+        };
+
+        assert!(update_feature_info_entry(&mut entry, &vm_spec).is_ok());
+
+        assert!(entry.ecx.read_bit(ecx::TSC_DEADLINE_TIMER_BITINDEX));
+    }
+
+    #[test]
+    fn test_update_perf_mon_entry() {
+        let vm_spec = VmSpec::new(0, 1, false).expect("Error creating vm_spec");
+        let mut entry = kvm_cpuid_entry2 {
+            function: leaf_0xa::LEAF_NUM,
+            index: 0,
+            flags: 0,
+            eax: 1,
+            ebx: 1,
+            ecx: 1,
+            edx: 1,
+            padding: [0, 0, 0],
+        };
+
+        assert!(update_perf_mon_entry(&mut entry, &vm_spec).is_ok());
+
+        assert_eq!(entry.eax, 0);
+        assert_eq!(entry.ebx, 0);
+        assert_eq!(entry.ecx, 0);
+        assert_eq!(entry.edx, 0);
+    }
+
+    fn check_update_deterministic_cache_entry(
+        cpu_count: u8,
+        ht_enabled: bool,
+        cache_level: u32,
+        expected_max_cores_per_package: u32,
+    ) {
+        use crate::impl_x86::cpu_leaf::leaf_0x4::*;
+
+        let vm_spec = VmSpec::new(0, cpu_count, ht_enabled).expect("Error creating vm_spec");
+        let mut entry = kvm_cpuid_entry2 {
+            function: 0x0,
+            index: 0,
+            flags: 0,
+            eax: *(0_u32).write_bits_in_range(&eax::CACHE_LEVEL_BITRANGE, cache_level),
+            ebx: 0,
+            ecx: 0,
+            edx: 0,
+            padding: [0, 0, 0],
+        };
+
+        assert!(update_deterministic_cache_entry(&mut entry, &vm_spec).is_ok());
+
+        assert!(
+            entry
+                .eax
+                .read_bits_in_range(&eax::MAX_CORES_PER_PACKAGE_BITRANGE)
+                == expected_max_cores_per_package
+        );
+    }
+
+    fn check_update_extended_cache_topology_entry(
+        cpu_count: u8,
+        ht_enabled: bool,
+        index: u32,
+        expected_apicid: u32,
+        expected_num_logical_processors: u32,
+        expected_level_type: u32,
+    ) {
+        use crate::impl_x86::cpu_leaf::leaf_0xb::*;
+
+        let vm_spec = VmSpec::new(0, cpu_count, ht_enabled).expect("Error creating vm_spec");
+        let mut entry = kvm_cpuid_entry2 {
+            function: 0x0,
+            index,
+            flags: 0,
+            eax: 0,
+            ebx: 0,
+            ecx: 0,
+            edx: 0,
+            padding: [0, 0, 0],
+        };
+
+        assert!(update_extended_cache_topology_entry(&mut entry, &vm_spec).is_ok());
+
+        assert!(entry.eax.read_bits_in_range(&eax::APICID_BITRANGE) == expected_apicid);
+        assert!(
+            entry
+                .ebx
+                .read_bits_in_range(&ebx::NUM_LOGICAL_PROCESSORS_BITRANGE)
+                == expected_num_logical_processors
+        );
+        assert!(entry.ecx.read_bits_in_range(&ecx::LEVEL_TYPE_BITRANGE) == expected_level_type);
+        assert!(entry.ecx.read_bits_in_range(&ecx::LEVEL_NUMBER_BITRANGE) == index);
+    }
+
+    #[test]
+    fn test_1vcpu_ht_off() {
+        // test update_deterministic_cache_entry
+        // test L1
+        check_update_deterministic_cache_entry(1, false, 1, 0);
+        // test L2
+        check_update_deterministic_cache_entry(1, false, 2, 0);
+        // test L3
+        check_update_deterministic_cache_entry(1, false, 3, 0);
+
+        // test update_extended_cache_topology_entry
+        // index 0
+        check_update_extended_cache_topology_entry(1, false, 0, 0, 1, LEVEL_TYPE_CORE);
+        // index 1
+        check_update_extended_cache_topology_entry(
+            1,
+            false,
+            1,
+            LEAFBH_INDEX1_APICID,
+            0,
+            LEVEL_TYPE_INVALID,
+        );
+    }
+
+    #[test]
+    fn test_1vcpu_ht_on() {
+        // test update_deterministic_cache_entry
+        // test L1
+        check_update_deterministic_cache_entry(1, true, 1, 0);
+        // test L2
+        check_update_deterministic_cache_entry(1, true, 2, 0);
+        // test L3
+        check_update_deterministic_cache_entry(1, true, 3, 0);
+
+        // test update_extended_cache_topology_entry
+        // index 0
+        check_update_extended_cache_topology_entry(1, true, 0, 0, 1, LEVEL_TYPE_CORE);
+        // index 1
+        check_update_extended_cache_topology_entry(
+            1,
+            true,
+            1,
+            LEAFBH_INDEX1_APICID,
+            0,
+            LEVEL_TYPE_INVALID,
+        );
+    }
+
+    #[test]
+    fn test_2vcpu_ht_off() {
+        // test update_deterministic_cache_entry
+        // test L1
+        check_update_deterministic_cache_entry(2, false, 1, 1);
+        // test L2
+        check_update_deterministic_cache_entry(2, false, 2, 1);
+        // test L3
+        check_update_deterministic_cache_entry(2, false, 3, 1);
+
+        // test update_extended_cache_topology_entry
+        // index 0
+        check_update_extended_cache_topology_entry(2, false, 0, 0, 1, LEVEL_TYPE_THREAD);
+        // index 1
+        check_update_extended_cache_topology_entry(
+            2,
+            false,
+            1,
+            LEAFBH_INDEX1_APICID,
+            2,
+            LEVEL_TYPE_CORE,
+        );
+    }
+
+    #[test]
+    fn test_2vcpu_ht_on() {
+        // test update_deterministic_cache_entry
+        // test L1
+        check_update_deterministic_cache_entry(2, true, 1, 1);
+        // test L2
+        check_update_deterministic_cache_entry(2, true, 2, 1);
+        // test L3
+        check_update_deterministic_cache_entry(2, true, 3, 1);
+
+        // test update_extended_cache_topology_entry
+        // index 0
+        check_update_extended_cache_topology_entry(2, true, 0, 1, 2, LEVEL_TYPE_THREAD);
+        // index 1
+        check_update_extended_cache_topology_entry(
+            2,
+            true,
+            1,
+            LEAFBH_INDEX1_APICID,
+            2,
+            LEVEL_TYPE_CORE,
+        );
+    }
+}
+*/

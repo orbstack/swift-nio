@@ -321,113 +321,115 @@ fn add_e820_entry(
     Ok(())
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use arch_gen::x86::bootparam::e820entry;
-//
-//     const KERNEL_LOAD_ADDR: u64 = 0x0100_0000;
-//     const KERNEL_SIZE: usize = 0x01E0_0000;
-//
-//     #[test]
-//     fn regions_lt_4gb() {
-//         let (_info, regions) = arch_memory_regions(1usize << 29, KERNEL_LOAD_ADDR, KERNEL_SIZE);
-//         assert_eq!(3, regions.len());
-//         assert_eq!(GuestAddress(0), regions[0].0);
-//         assert_eq!(KERNEL_LOAD_ADDR as usize, regions[0].1);
-//         assert_eq!(
-//             GuestAddress(KERNEL_LOAD_ADDR + KERNEL_SIZE as u64),
-//             regions[1].0
-//         );
-//         assert_eq!(1usize << 29, regions[1].1);
-//     }
-//
-//     #[test]
-//     fn regions_gt_4gb() {
-//         let (_info, regions) =
-//             arch_memory_regions((1usize << 32) + 0x8000, KERNEL_LOAD_ADDR, KERNEL_SIZE);
-//         assert_eq!(4, regions.len());
-//         assert_eq!(GuestAddress(0), regions[0].0);
-//         assert_eq!(KERNEL_LOAD_ADDR as usize, regions[0].1);
-//         assert_eq!(
-//             GuestAddress(KERNEL_LOAD_ADDR + KERNEL_SIZE as u64),
-//             regions[1].0
-//         );
-//         assert_eq!(GuestAddress(1u64 << 32), regions[2].0);
-//     }
-//
-//     #[test]
-//     fn test_system_configuration() {
-//         let no_vcpus = 4;
-//         let gm = GuestMemoryMmap::from_ranges(&[(GuestAddress(0), 0x10000)]).unwrap();
-//         let info = ArchMemoryInfo::default();
-//         let config_err = configure_system(&gm, &info, GuestAddress(0), 0, &None, 1);
-//         assert!(config_err.is_err());
-//         #[cfg(not(feature = "tee"))]
-//         assert_eq!(
-//             config_err.unwrap_err(),
-//             super::Error::MpTableSetup(mptable::Error::NotEnoughMemory)
-//         );
-//
-//         // Now assigning some memory that falls before the 32bit memory hole.
-//         let mem_size = 128 << 20;
-//         let (arch_mem_info, arch_mem_regions) =
-//             arch_memory_regions(mem_size, KERNEL_LOAD_ADDR, KERNEL_SIZE);
-//         let gm = GuestMemoryMmap::from_ranges(&arch_mem_regions).unwrap();
-//         configure_system(&gm, &arch_mem_info, GuestAddress(0), 0, &None, no_vcpus).unwrap();
-//
-//         // Now assigning some memory that is equal to the start of the 32bit memory hole.
-//         let mem_size = 3328 << 20;
-//         let (arch_mem_info, arch_mem_regions) =
-//             arch_memory_regions(mem_size, KERNEL_LOAD_ADDR, KERNEL_SIZE);
-//         let gm = GuestMemoryMmap::from_ranges(&arch_mem_regions).unwrap();
-//         configure_system(&gm, &arch_mem_info, GuestAddress(0), 0, &None, no_vcpus).unwrap();
-//
-//         // Now assigning some memory that falls after the 32bit memory hole.
-//         let mem_size = 3330 << 20;
-//         let (arch_mem_info, arch_mem_regions) =
-//             arch_memory_regions(mem_size, KERNEL_LOAD_ADDR, KERNEL_SIZE);
-//         let gm = GuestMemoryMmap::from_ranges(&arch_mem_regions).unwrap();
-//         configure_system(&gm, &arch_mem_info, GuestAddress(0), 0, &None, no_vcpus).unwrap();
-//     }
-//
-//     #[test]
-//     fn test_add_e820_entry() {
-//         let e820_map = [(e820entry {
-//             addr: 0x1,
-//             size: 4,
-//             type_: 1,
-//         }); 128];
-//
-//         let expected_params = boot_params {
-//             e820_map,
-//             e820_entries: 1,
-//             ..Default::default()
-//         };
-//
-//         let mut params: boot_params = Default::default();
-//         add_e820_entry(
-//             &mut params,
-//             e820_map[0].addr,
-//             e820_map[0].size,
-//             e820_map[0].type_,
-//         )
-//         .unwrap();
-//         assert_eq!(
-//             format!("{:?}", params.e820_map[0]),
-//             format!("{:?}", expected_params.e820_map[0])
-//         );
-//         assert_eq!(params.e820_entries, expected_params.e820_entries);
-//
-//         // Exercise the scenario where the field storing the length of the e820 entry table is
-//         // is bigger than the allocated memory.
-//         params.e820_entries = params.e820_map.len() as u8 + 1;
-//         assert!(add_e820_entry(
-//             &mut params,
-//             e820_map[0].addr,
-//             e820_map[0].size,
-//             e820_map[0].type_
-//         )
-//         .is_err());
-//     }
-// }
+/*
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arch_gen::x86::bootparam::e820entry;
+
+    const KERNEL_LOAD_ADDR: u64 = 0x0100_0000;
+    const KERNEL_SIZE: usize = 0x01E0_0000;
+
+    #[test]
+    fn regions_lt_4gb() {
+        let (_info, regions) = arch_memory_regions(1usize << 29, KERNEL_LOAD_ADDR, KERNEL_SIZE);
+        assert_eq!(3, regions.len());
+        assert_eq!(GuestAddress(0), regions[0].0);
+        assert_eq!(KERNEL_LOAD_ADDR as usize, regions[0].1);
+        assert_eq!(
+            GuestAddress(KERNEL_LOAD_ADDR + KERNEL_SIZE as u64),
+            regions[1].0
+        );
+        assert_eq!(1usize << 29, regions[1].1);
+    }
+
+    #[test]
+    fn regions_gt_4gb() {
+        let (_info, regions) =
+            arch_memory_regions((1usize << 32) + 0x8000, KERNEL_LOAD_ADDR, KERNEL_SIZE);
+        assert_eq!(4, regions.len());
+        assert_eq!(GuestAddress(0), regions[0].0);
+        assert_eq!(KERNEL_LOAD_ADDR as usize, regions[0].1);
+        assert_eq!(
+            GuestAddress(KERNEL_LOAD_ADDR + KERNEL_SIZE as u64),
+            regions[1].0
+        );
+        assert_eq!(GuestAddress(1u64 << 32), regions[2].0);
+    }
+
+    #[test]
+    fn test_system_configuration() {
+        let no_vcpus = 4;
+        let gm = GuestMemoryMmap::from_ranges(&[(GuestAddress(0), 0x10000)]).unwrap();
+        let info = ArchMemoryInfo::default();
+        let config_err = configure_system(&gm, &info, GuestAddress(0), 0, &None, 1);
+        assert!(config_err.is_err());
+        #[cfg(not(feature = "tee"))]
+        assert_eq!(
+            config_err.unwrap_err(),
+            super::Error::MpTableSetup(mptable::Error::NotEnoughMemory)
+        );
+
+        // Now assigning some memory that falls before the 32bit memory hole.
+        let mem_size = 128 << 20;
+        let (arch_mem_info, arch_mem_regions) =
+            arch_memory_regions(mem_size, KERNEL_LOAD_ADDR, KERNEL_SIZE);
+        let gm = GuestMemoryMmap::from_ranges(&arch_mem_regions).unwrap();
+        configure_system(&gm, &arch_mem_info, GuestAddress(0), 0, &None, no_vcpus).unwrap();
+
+        // Now assigning some memory that is equal to the start of the 32bit memory hole.
+        let mem_size = 3328 << 20;
+        let (arch_mem_info, arch_mem_regions) =
+            arch_memory_regions(mem_size, KERNEL_LOAD_ADDR, KERNEL_SIZE);
+        let gm = GuestMemoryMmap::from_ranges(&arch_mem_regions).unwrap();
+        configure_system(&gm, &arch_mem_info, GuestAddress(0), 0, &None, no_vcpus).unwrap();
+
+        // Now assigning some memory that falls after the 32bit memory hole.
+        let mem_size = 3330 << 20;
+        let (arch_mem_info, arch_mem_regions) =
+            arch_memory_regions(mem_size, KERNEL_LOAD_ADDR, KERNEL_SIZE);
+        let gm = GuestMemoryMmap::from_ranges(&arch_mem_regions).unwrap();
+        configure_system(&gm, &arch_mem_info, GuestAddress(0), 0, &None, no_vcpus).unwrap();
+    }
+
+    #[test]
+    fn test_add_e820_entry() {
+        let e820_map = [(e820entry {
+            addr: 0x1,
+            size: 4,
+            type_: 1,
+        }); 128];
+
+        let expected_params = boot_params {
+            e820_map,
+            e820_entries: 1,
+            ..Default::default()
+        };
+
+        let mut params: boot_params = Default::default();
+        add_e820_entry(
+            &mut params,
+            e820_map[0].addr,
+            e820_map[0].size,
+            e820_map[0].type_,
+        )
+        .unwrap();
+        assert_eq!(
+            format!("{:?}", params.e820_map[0]),
+            format!("{:?}", expected_params.e820_map[0])
+        );
+        assert_eq!(params.e820_entries, expected_params.e820_entries);
+
+        // Exercise the scenario where the field storing the length of the e820 entry table is
+        // is bigger than the allocated memory.
+        params.e820_entries = params.e820_map.len() as u8 + 1;
+        assert!(add_e820_entry(
+            &mut params,
+            e820_map[0].addr,
+            e820_map[0].size,
+            e820_map[0].type_
+        )
+        .is_err());
+    }
+}
+*/
