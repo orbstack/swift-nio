@@ -25,16 +25,8 @@ fn _fsgetpath(
 }
 
 // faster than access(format!("/.vol/$DEV/$INO"), F_OK)
-pub fn fsgetpath_exists(dev: i32, ino: u64) -> nix::Result<bool> {
-    // TODO: shouldn't rely on this...
-    let fsid = [dev, 0];
-
-    match _fsgetpath(
-        std::ptr::null_mut(),
-        1,
-        &fsid as *const i32 as *const libc::fsid_t,
-        ino,
-    ) {
+pub fn fsgetpath_exists(fsid: libc::fsid_t, ino: u64) -> nix::Result<bool> {
+    match _fsgetpath(std::ptr::null_mut(), 1, &fsid as *const libc::fsid_t, ino) {
         // should never succeed, but if it somehow does, the path definitely exists
         Ok(_) => Ok(true),
 

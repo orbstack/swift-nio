@@ -6,6 +6,7 @@
 // Changes to this file are confidential and proprietary, subject to terms in the LICENSE file.
 
 use std::ffi::{CStr, CString, OsStr};
+use std::fmt::Debug;
 use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
@@ -247,14 +248,25 @@ enum FileRef<'a> {
     Fd(BorrowedFd<'a>),
 }
 
+trait AsFileRef {
+    fn as_ref(&self) -> FileRef<'_>;
+}
+
+impl<'a> AsFileRef for FileRef<'a> {
+    fn as_ref(&self) -> FileRef<'a> {
+        *self
+    }
+}
+
+#[derive(Clone, Debug)]
 // generic over OwnedFd and HandleData
 enum OwnedFileRef<F: AsFd> {
     Fd(Arc<F>),
     Path(CString),
 }
 
-impl<F: AsFd> OwnedFileRef<F> {
-    fn as_ref(&self) -> FileRef {
+impl<F: AsFd> AsFileRef for OwnedFileRef<F> {
+    fn as_ref(&self) -> FileRef<'_> {
         match self {
             OwnedFileRef::Fd(fd) => FileRef::Fd(fd.as_fd()),
             OwnedFileRef::Path(path) => FileRef::Path(path),
@@ -515,6 +527,8 @@ struct DevInfo {
     volfs: bool,
     // local or remote (e.g. nfs)
     local: bool,
+    // fsid for fsgetpath
+    fsid: libc::fsid_t,
 }
 
 /// A file system that simply "passes through" all requests it receives to the underlying file
@@ -717,7 +731,11 @@ impl PassthroughFs {
         Ok(hd.clone())
     }
 
-    fn get_dev_info(&self, dev: i32, file_ref: &FileRef) -> io::Result<DevInfo> {
+    fn get_dev_info<F, R>(&self, dev: i32, file_ref_fn: F) -> io::Result<DevInfo>
+    where
+        F: FnOnce() -> io::Result<R>,
+        R: AsFileRef + Debug,
+    {
         // TODO: what if the mountpoint disappears, and st_dev gets reused?
         if let Some(info) = self.dev_info.get(&dev) {
             return Ok(*info);
@@ -725,15 +743,17 @@ impl PassthroughFs {
 
         // not in cache: check it
         // statfs doesn't trigger TCC (only open does)
-        let stf = match file_ref {
-            FileRef::Path(c_path) => statfs(*c_path),
-            FileRef::Fd(fd) => fstatfs(fd),
+        let file_ref = file_ref_fn()?;
+        let stf = match file_ref.as_ref() {
+            FileRef::Path(c_path) => statfs(c_path),
+            FileRef::Fd(fd) => fstatfs(&fd),
         }?;
         // transmute type (repr(transparent))
         let stf = unsafe { mem::transmute::<_, libc::statfs>(stf) };
         let dev_info = DevInfo {
             volfs: (stf.f_flags & libc::MNT_DOVOLFS as u32) != 0,
             local: (stf.f_flags & libc::MNT_LOCAL as u32) != 0,
+            fsid: stf.f_fsid,
         };
 
         debug!(?dev, ?file_ref, ?dev_info, "dev_info");
@@ -798,7 +818,7 @@ impl PassthroughFs {
             // create a new nodeid and return it
             let mut new_nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed).into();
 
-            let dev_info = self.get_dev_info(st.st_dev, &file_ref)?;
+            let dev_info = self.get_dev_info(st.st_dev, || Ok(file_ref))?;
 
             // open fd if volfs is not supported
             let fd = if !dev_info.volfs && st.can_open() {
@@ -1426,7 +1446,8 @@ impl PassthroughFs {
                     return Err(e);
                 }
 
-                match fsgetpath_exists(dev, ino) {
+                let dev_info = self.get_dev_info(dev, || self.nodeid_to_file_ref(ctx, nodeid))?;
+                match fsgetpath_exists(dev_info.fsid, ino) {
                     Ok(true) => {
                         // dev/ino still exists:
                         // this is a real ENOENT, from child
