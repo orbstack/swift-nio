@@ -1418,7 +1418,13 @@ impl PassthroughFs {
                 //   - dev/ino is stale
                 //     - could be caused by parent, or file unlinked+replaced
                 // to disambiguate, check whether the current dev/ino still exists
-                let (DevIno(dev, ino), _, _) = self.get_nodeid(ctx, nodeid)?;
+                let (DevIno(dev, ino), _, fd) = self.get_nodeid(ctx, nodeid)?;
+
+                // stale dev/ino does not apply to fd-based nodeids, at least not in the same way: we'd have to reopen the fd
+                // fsgetpath also won't work on such filesystems (ENOTSUP), so don't try
+                if fd.is_some() {
+                    return Err(e);
+                }
 
                 match fsgetpath_exists(dev, ino) {
                     Ok(true) => {
