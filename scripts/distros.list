@@ -1,6 +1,5 @@
 almalinux:8
 almalinux:9
-alpine:3.16
 alpine:3.17
 alpine:3.18
 alpine:3.19
@@ -23,7 +22,6 @@ debian:trixie
 devuan:beowulf
 devuan:chimaera
 devuan:daedalus
-fedora:38
 fedora:39
 fedora:40
 funtoo:next
