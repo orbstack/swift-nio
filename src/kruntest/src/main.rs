@@ -26,7 +26,7 @@ fn main() -> anyhow::Result<()> {
         cmdline: "clocksource=tsc tsc=reliable earlycon=uart,io,0x3f8 console=hvc0 apic=verbose ro root=/dev/vda init=/bin/sh"
             .to_string(),
         #[cfg(target_arch = "aarch64")]
-        cmdline: "".to_string(),
+        cmdline: "console=hvc0 root=/dev/vda init=/bin/sh".to_string(),
         initrd: None,
         console: Some(ConsoleSpec {
             read_fd: 0,
