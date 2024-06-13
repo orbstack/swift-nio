@@ -8,6 +8,353 @@ pub const API_TO_BE_DEPRECATED_WATCHOS: u32 = 100000;
 pub const __API_TO_BE_DEPRECATED_MACCATALYST: u32 = 100000;
 pub const API_TO_BE_DEPRECATED_DRIVERKIT: u32 = 100000;
 pub const API_TO_BE_DEPRECATED_VISIONOS: u32 = 100000;
+pub const __MAC_10_0: u32 = 1000;
+pub const __MAC_10_1: u32 = 1010;
+pub const __MAC_10_2: u32 = 1020;
+pub const __MAC_10_3: u32 = 1030;
+pub const __MAC_10_4: u32 = 1040;
+pub const __MAC_10_5: u32 = 1050;
+pub const __MAC_10_6: u32 = 1060;
+pub const __MAC_10_7: u32 = 1070;
+pub const __MAC_10_8: u32 = 1080;
+pub const __MAC_10_9: u32 = 1090;
+pub const __MAC_10_10: u32 = 101000;
+pub const __MAC_10_10_2: u32 = 101002;
+pub const __MAC_10_10_3: u32 = 101003;
+pub const __MAC_10_11: u32 = 101100;
+pub const __MAC_10_11_2: u32 = 101102;
+pub const __MAC_10_11_3: u32 = 101103;
+pub const __MAC_10_11_4: u32 = 101104;
+pub const __MAC_10_12: u32 = 101200;
+pub const __MAC_10_12_1: u32 = 101201;
+pub const __MAC_10_12_2: u32 = 101202;
+pub const __MAC_10_12_4: u32 = 101204;
+pub const __MAC_10_13: u32 = 101300;
+pub const __MAC_10_13_1: u32 = 101301;
+pub const __MAC_10_13_2: u32 = 101302;
+pub const __MAC_10_13_4: u32 = 101304;
+pub const __MAC_10_14: u32 = 101400;
+pub const __MAC_10_14_1: u32 = 101401;
+pub const __MAC_10_14_4: u32 = 101404;
+pub const __MAC_10_14_5: u32 = 101405;
+pub const __MAC_10_14_6: u32 = 101406;
+pub const __MAC_10_15: u32 = 101500;
+pub const __MAC_10_15_1: u32 = 101501;
+pub const __MAC_10_15_4: u32 = 101504;
+pub const __MAC_10_16: u32 = 101600;
+pub const __MAC_11_0: u32 = 110000;
+pub const __MAC_11_1: u32 = 110100;
+pub const __MAC_11_3: u32 = 110300;
+pub const __MAC_11_4: u32 = 110400;
+pub const __MAC_11_5: u32 = 110500;
+pub const __MAC_11_6: u32 = 110600;
+pub const __MAC_12_0: u32 = 120000;
+pub const __MAC_12_1: u32 = 120100;
+pub const __MAC_12_2: u32 = 120200;
+pub const __MAC_12_3: u32 = 120300;
+pub const __MAC_12_4: u32 = 120400;
+pub const __MAC_12_5: u32 = 120500;
+pub const __MAC_12_6: u32 = 120600;
+pub const __MAC_12_7: u32 = 120700;
+pub const __MAC_13_0: u32 = 130000;
+pub const __MAC_13_1: u32 = 130100;
+pub const __MAC_13_2: u32 = 130200;
+pub const __MAC_13_3: u32 = 130300;
+pub const __MAC_13_4: u32 = 130400;
+pub const __MAC_13_5: u32 = 130500;
+pub const __MAC_13_6: u32 = 130600;
+pub const __MAC_14_0: u32 = 140000;
+pub const __MAC_14_1: u32 = 140100;
+pub const __MAC_14_2: u32 = 140200;
+pub const __MAC_14_3: u32 = 140300;
+pub const __MAC_14_4: u32 = 140400;
+pub const __MAC_14_5: u32 = 140500;
+pub const __MAC_15_0: u32 = 150000;
+pub const __IPHONE_2_0: u32 = 20000;
+pub const __IPHONE_2_1: u32 = 20100;
+pub const __IPHONE_2_2: u32 = 20200;
+pub const __IPHONE_3_0: u32 = 30000;
+pub const __IPHONE_3_1: u32 = 30100;
+pub const __IPHONE_3_2: u32 = 30200;
+pub const __IPHONE_4_0: u32 = 40000;
+pub const __IPHONE_4_1: u32 = 40100;
+pub const __IPHONE_4_2: u32 = 40200;
+pub const __IPHONE_4_3: u32 = 40300;
+pub const __IPHONE_5_0: u32 = 50000;
+pub const __IPHONE_5_1: u32 = 50100;
+pub const __IPHONE_6_0: u32 = 60000;
+pub const __IPHONE_6_1: u32 = 60100;
+pub const __IPHONE_7_0: u32 = 70000;
+pub const __IPHONE_7_1: u32 = 70100;
+pub const __IPHONE_8_0: u32 = 80000;
+pub const __IPHONE_8_1: u32 = 80100;
+pub const __IPHONE_8_2: u32 = 80200;
+pub const __IPHONE_8_3: u32 = 80300;
+pub const __IPHONE_8_4: u32 = 80400;
+pub const __IPHONE_9_0: u32 = 90000;
+pub const __IPHONE_9_1: u32 = 90100;
+pub const __IPHONE_9_2: u32 = 90200;
+pub const __IPHONE_9_3: u32 = 90300;
+pub const __IPHONE_10_0: u32 = 100000;
+pub const __IPHONE_10_1: u32 = 100100;
+pub const __IPHONE_10_2: u32 = 100200;
+pub const __IPHONE_10_3: u32 = 100300;
+pub const __IPHONE_11_0: u32 = 110000;
+pub const __IPHONE_11_1: u32 = 110100;
+pub const __IPHONE_11_2: u32 = 110200;
+pub const __IPHONE_11_3: u32 = 110300;
+pub const __IPHONE_11_4: u32 = 110400;
+pub const __IPHONE_12_0: u32 = 120000;
+pub const __IPHONE_12_1: u32 = 120100;
+pub const __IPHONE_12_2: u32 = 120200;
+pub const __IPHONE_12_3: u32 = 120300;
+pub const __IPHONE_12_4: u32 = 120400;
+pub const __IPHONE_13_0: u32 = 130000;
+pub const __IPHONE_13_1: u32 = 130100;
+pub const __IPHONE_13_2: u32 = 130200;
+pub const __IPHONE_13_3: u32 = 130300;
+pub const __IPHONE_13_4: u32 = 130400;
+pub const __IPHONE_13_5: u32 = 130500;
+pub const __IPHONE_13_6: u32 = 130600;
+pub const __IPHONE_13_7: u32 = 130700;
+pub const __IPHONE_14_0: u32 = 140000;
+pub const __IPHONE_14_1: u32 = 140100;
+pub const __IPHONE_14_2: u32 = 140200;
+pub const __IPHONE_14_3: u32 = 140300;
+pub const __IPHONE_14_5: u32 = 140500;
+pub const __IPHONE_14_4: u32 = 140400;
+pub const __IPHONE_14_6: u32 = 140600;
+pub const __IPHONE_14_7: u32 = 140700;
+pub const __IPHONE_14_8: u32 = 140800;
+pub const __IPHONE_15_0: u32 = 150000;
+pub const __IPHONE_15_1: u32 = 150100;
+pub const __IPHONE_15_2: u32 = 150200;
+pub const __IPHONE_15_3: u32 = 150300;
+pub const __IPHONE_15_4: u32 = 150400;
+pub const __IPHONE_15_5: u32 = 150500;
+pub const __IPHONE_15_6: u32 = 150600;
+pub const __IPHONE_15_7: u32 = 150700;
+pub const __IPHONE_15_8: u32 = 150800;
+pub const __IPHONE_16_0: u32 = 160000;
+pub const __IPHONE_16_1: u32 = 160100;
+pub const __IPHONE_16_2: u32 = 160200;
+pub const __IPHONE_16_3: u32 = 160300;
+pub const __IPHONE_16_4: u32 = 160400;
+pub const __IPHONE_16_5: u32 = 160500;
+pub const __IPHONE_16_6: u32 = 160600;
+pub const __IPHONE_16_7: u32 = 160700;
+pub const __IPHONE_17_0: u32 = 170000;
+pub const __IPHONE_17_1: u32 = 170100;
+pub const __IPHONE_17_2: u32 = 170200;
+pub const __IPHONE_17_3: u32 = 170300;
+pub const __IPHONE_17_4: u32 = 170400;
+pub const __IPHONE_17_5: u32 = 170500;
+pub const __IPHONE_18_0: u32 = 180000;
+pub const __WATCHOS_1_0: u32 = 10000;
+pub const __WATCHOS_2_0: u32 = 20000;
+pub const __WATCHOS_2_1: u32 = 20100;
+pub const __WATCHOS_2_2: u32 = 20200;
+pub const __WATCHOS_3_0: u32 = 30000;
+pub const __WATCHOS_3_1: u32 = 30100;
+pub const __WATCHOS_3_1_1: u32 = 30101;
+pub const __WATCHOS_3_2: u32 = 30200;
+pub const __WATCHOS_4_0: u32 = 40000;
+pub const __WATCHOS_4_1: u32 = 40100;
+pub const __WATCHOS_4_2: u32 = 40200;
+pub const __WATCHOS_4_3: u32 = 40300;
+pub const __WATCHOS_5_0: u32 = 50000;
+pub const __WATCHOS_5_1: u32 = 50100;
+pub const __WATCHOS_5_2: u32 = 50200;
+pub const __WATCHOS_5_3: u32 = 50300;
+pub const __WATCHOS_6_0: u32 = 60000;
+pub const __WATCHOS_6_1: u32 = 60100;
+pub const __WATCHOS_6_2: u32 = 60200;
+pub const __WATCHOS_7_0: u32 = 70000;
+pub const __WATCHOS_7_1: u32 = 70100;
+pub const __WATCHOS_7_2: u32 = 70200;
+pub const __WATCHOS_7_3: u32 = 70300;
+pub const __WATCHOS_7_4: u32 = 70400;
+pub const __WATCHOS_7_5: u32 = 70500;
+pub const __WATCHOS_7_6: u32 = 70600;
+pub const __WATCHOS_8_0: u32 = 80000;
+pub const __WATCHOS_8_1: u32 = 80100;
+pub const __WATCHOS_8_3: u32 = 80300;
+pub const __WATCHOS_8_4: u32 = 80400;
+pub const __WATCHOS_8_5: u32 = 80500;
+pub const __WATCHOS_8_6: u32 = 80600;
+pub const __WATCHOS_8_7: u32 = 80700;
+pub const __WATCHOS_8_8: u32 = 80800;
+pub const __WATCHOS_9_0: u32 = 90000;
+pub const __WATCHOS_9_1: u32 = 90100;
+pub const __WATCHOS_9_2: u32 = 90200;
+pub const __WATCHOS_9_3: u32 = 90300;
+pub const __WATCHOS_9_4: u32 = 90400;
+pub const __WATCHOS_9_5: u32 = 90500;
+pub const __WATCHOS_9_6: u32 = 90600;
+pub const __WATCHOS_10_0: u32 = 100000;
+pub const __WATCHOS_10_1: u32 = 100100;
+pub const __WATCHOS_10_2: u32 = 100200;
+pub const __WATCHOS_10_3: u32 = 100300;
+pub const __WATCHOS_10_4: u32 = 100400;
+pub const __WATCHOS_10_5: u32 = 100500;
+pub const __WATCHOS_11_0: u32 = 110000;
+pub const __TVOS_9_0: u32 = 90000;
+pub const __TVOS_9_1: u32 = 90100;
+pub const __TVOS_9_2: u32 = 90200;
+pub const __TVOS_10_0: u32 = 100000;
+pub const __TVOS_10_0_1: u32 = 100001;
+pub const __TVOS_10_1: u32 = 100100;
+pub const __TVOS_10_2: u32 = 100200;
+pub const __TVOS_11_0: u32 = 110000;
+pub const __TVOS_11_1: u32 = 110100;
+pub const __TVOS_11_2: u32 = 110200;
+pub const __TVOS_11_3: u32 = 110300;
+pub const __TVOS_11_4: u32 = 110400;
+pub const __TVOS_12_0: u32 = 120000;
+pub const __TVOS_12_1: u32 = 120100;
+pub const __TVOS_12_2: u32 = 120200;
+pub const __TVOS_12_3: u32 = 120300;
+pub const __TVOS_12_4: u32 = 120400;
+pub const __TVOS_13_0: u32 = 130000;
+pub const __TVOS_13_2: u32 = 130200;
+pub const __TVOS_13_3: u32 = 130300;
+pub const __TVOS_13_4: u32 = 130400;
+pub const __TVOS_14_0: u32 = 140000;
+pub const __TVOS_14_1: u32 = 140100;
+pub const __TVOS_14_2: u32 = 140200;
+pub const __TVOS_14_3: u32 = 140300;
+pub const __TVOS_14_5: u32 = 140500;
+pub const __TVOS_14_6: u32 = 140600;
+pub const __TVOS_14_7: u32 = 140700;
+pub const __TVOS_15_0: u32 = 150000;
+pub const __TVOS_15_1: u32 = 150100;
+pub const __TVOS_15_2: u32 = 150200;
+pub const __TVOS_15_3: u32 = 150300;
+pub const __TVOS_15_4: u32 = 150400;
+pub const __TVOS_15_5: u32 = 150500;
+pub const __TVOS_15_6: u32 = 150600;
+pub const __TVOS_16_0: u32 = 160000;
+pub const __TVOS_16_1: u32 = 160100;
+pub const __TVOS_16_2: u32 = 160200;
+pub const __TVOS_16_3: u32 = 160300;
+pub const __TVOS_16_4: u32 = 160400;
+pub const __TVOS_16_5: u32 = 160500;
+pub const __TVOS_16_6: u32 = 160600;
+pub const __TVOS_17_0: u32 = 170000;
+pub const __TVOS_17_1: u32 = 170100;
+pub const __TVOS_17_2: u32 = 170200;
+pub const __TVOS_17_3: u32 = 170300;
+pub const __TVOS_17_4: u32 = 170400;
+pub const __TVOS_17_5: u32 = 170500;
+pub const __TVOS_18_0: u32 = 180000;
+pub const __BRIDGEOS_2_0: u32 = 20000;
+pub const __BRIDGEOS_3_0: u32 = 30000;
+pub const __BRIDGEOS_3_1: u32 = 30100;
+pub const __BRIDGEOS_3_4: u32 = 30400;
+pub const __BRIDGEOS_4_0: u32 = 40000;
+pub const __BRIDGEOS_4_1: u32 = 40100;
+pub const __BRIDGEOS_5_0: u32 = 50000;
+pub const __BRIDGEOS_5_1: u32 = 50100;
+pub const __BRIDGEOS_5_3: u32 = 50300;
+pub const __BRIDGEOS_6_0: u32 = 60000;
+pub const __BRIDGEOS_6_2: u32 = 60200;
+pub const __BRIDGEOS_6_4: u32 = 60400;
+pub const __BRIDGEOS_6_5: u32 = 60500;
+pub const __BRIDGEOS_6_6: u32 = 60600;
+pub const __BRIDGEOS_7_0: u32 = 70000;
+pub const __BRIDGEOS_7_1: u32 = 70100;
+pub const __BRIDGEOS_7_2: u32 = 70200;
+pub const __BRIDGEOS_7_3: u32 = 70300;
+pub const __BRIDGEOS_7_4: u32 = 70400;
+pub const __BRIDGEOS_7_6: u32 = 70600;
+pub const __BRIDGEOS_8_0: u32 = 80000;
+pub const __BRIDGEOS_8_1: u32 = 80100;
+pub const __BRIDGEOS_8_2: u32 = 80200;
+pub const __BRIDGEOS_8_3: u32 = 80300;
+pub const __BRIDGEOS_8_4: u32 = 80400;
+pub const __BRIDGEOS_8_5: u32 = 80500;
+pub const __BRIDGEOS_9_0: u32 = 90000;
+pub const __DRIVERKIT_19_0: u32 = 190000;
+pub const __DRIVERKIT_20_0: u32 = 200000;
+pub const __DRIVERKIT_21_0: u32 = 210000;
+pub const __DRIVERKIT_22_0: u32 = 220000;
+pub const __DRIVERKIT_22_4: u32 = 220400;
+pub const __DRIVERKIT_22_5: u32 = 220500;
+pub const __DRIVERKIT_22_6: u32 = 220600;
+pub const __DRIVERKIT_23_0: u32 = 230000;
+pub const __DRIVERKIT_23_1: u32 = 230100;
+pub const __DRIVERKIT_23_2: u32 = 230200;
+pub const __DRIVERKIT_23_3: u32 = 230300;
+pub const __DRIVERKIT_23_4: u32 = 230400;
+pub const __DRIVERKIT_23_5: u32 = 230500;
+pub const __DRIVERKIT_24_0: u32 = 240000;
+pub const __VISIONOS_1_0: u32 = 10000;
+pub const __VISIONOS_1_1: u32 = 10100;
+pub const __VISIONOS_1_2: u32 = 10200;
+pub const __VISIONOS_2_0: u32 = 20000;
+pub const MAC_OS_X_VERSION_10_0: u32 = 1000;
+pub const MAC_OS_X_VERSION_10_1: u32 = 1010;
+pub const MAC_OS_X_VERSION_10_2: u32 = 1020;
+pub const MAC_OS_X_VERSION_10_3: u32 = 1030;
+pub const MAC_OS_X_VERSION_10_4: u32 = 1040;
+pub const MAC_OS_X_VERSION_10_5: u32 = 1050;
+pub const MAC_OS_X_VERSION_10_6: u32 = 1060;
+pub const MAC_OS_X_VERSION_10_7: u32 = 1070;
+pub const MAC_OS_X_VERSION_10_8: u32 = 1080;
+pub const MAC_OS_X_VERSION_10_9: u32 = 1090;
+pub const MAC_OS_X_VERSION_10_10: u32 = 101000;
+pub const MAC_OS_X_VERSION_10_10_2: u32 = 101002;
+pub const MAC_OS_X_VERSION_10_10_3: u32 = 101003;
+pub const MAC_OS_X_VERSION_10_11: u32 = 101100;
+pub const MAC_OS_X_VERSION_10_11_2: u32 = 101102;
+pub const MAC_OS_X_VERSION_10_11_3: u32 = 101103;
+pub const MAC_OS_X_VERSION_10_11_4: u32 = 101104;
+pub const MAC_OS_X_VERSION_10_12: u32 = 101200;
+pub const MAC_OS_X_VERSION_10_12_1: u32 = 101201;
+pub const MAC_OS_X_VERSION_10_12_2: u32 = 101202;
+pub const MAC_OS_X_VERSION_10_12_4: u32 = 101204;
+pub const MAC_OS_X_VERSION_10_13: u32 = 101300;
+pub const MAC_OS_X_VERSION_10_13_1: u32 = 101301;
+pub const MAC_OS_X_VERSION_10_13_2: u32 = 101302;
+pub const MAC_OS_X_VERSION_10_13_4: u32 = 101304;
+pub const MAC_OS_X_VERSION_10_14: u32 = 101400;
+pub const MAC_OS_X_VERSION_10_14_1: u32 = 101401;
+pub const MAC_OS_X_VERSION_10_14_4: u32 = 101404;
+pub const MAC_OS_X_VERSION_10_14_5: u32 = 101405;
+pub const MAC_OS_X_VERSION_10_14_6: u32 = 101406;
+pub const MAC_OS_X_VERSION_10_15: u32 = 101500;
+pub const MAC_OS_X_VERSION_10_15_1: u32 = 101501;
+pub const MAC_OS_X_VERSION_10_15_4: u32 = 101504;
+pub const MAC_OS_X_VERSION_10_16: u32 = 101600;
+pub const MAC_OS_VERSION_11_0: u32 = 110000;
+pub const MAC_OS_VERSION_11_1: u32 = 110100;
+pub const MAC_OS_VERSION_11_3: u32 = 110300;
+pub const MAC_OS_VERSION_11_4: u32 = 110400;
+pub const MAC_OS_VERSION_11_5: u32 = 110500;
+pub const MAC_OS_VERSION_11_6: u32 = 110600;
+pub const MAC_OS_VERSION_12_0: u32 = 120000;
+pub const MAC_OS_VERSION_12_1: u32 = 120100;
+pub const MAC_OS_VERSION_12_2: u32 = 120200;
+pub const MAC_OS_VERSION_12_3: u32 = 120300;
+pub const MAC_OS_VERSION_12_4: u32 = 120400;
+pub const MAC_OS_VERSION_12_5: u32 = 120500;
+pub const MAC_OS_VERSION_12_6: u32 = 120600;
+pub const MAC_OS_VERSION_12_7: u32 = 120700;
+pub const MAC_OS_VERSION_13_0: u32 = 130000;
+pub const MAC_OS_VERSION_13_1: u32 = 130100;
+pub const MAC_OS_VERSION_13_2: u32 = 130200;
+pub const MAC_OS_VERSION_13_3: u32 = 130300;
+pub const MAC_OS_VERSION_13_4: u32 = 130400;
+pub const MAC_OS_VERSION_13_5: u32 = 130500;
+pub const MAC_OS_VERSION_13_6: u32 = 130600;
+pub const MAC_OS_VERSION_14_0: u32 = 140000;
+pub const MAC_OS_VERSION_14_1: u32 = 140100;
+pub const MAC_OS_VERSION_14_2: u32 = 140200;
+pub const MAC_OS_VERSION_14_3: u32 = 140300;
+pub const MAC_OS_VERSION_14_4: u32 = 140400;
+pub const MAC_OS_VERSION_14_5: u32 = 140500;
+pub const MAC_OS_VERSION_15_0: u32 = 150000;
+pub const __MAC_OS_X_VERSION_MAX_ALLOWED: u32 = 150000;
 pub const __ENABLE_LEGACY_MAC_AVAILABILITY: u32 = 1;
 pub const __has_safe_buffers: u32 = 1;
 pub const __DARWIN_ONLY_64_BIT_INO_T: u32 = 1;
@@ -92,10 +439,10 @@ pub const _QUAD_LOWWORD: u32 = 0;
 pub const __DARWIN_LITTLE_ENDIAN: u32 = 1234;
 pub const __DARWIN_BIG_ENDIAN: u32 = 4321;
 pub const __DARWIN_PDP_ENDIAN: u32 = 3412;
-pub const __DARWIN_BYTE_ORDER: u32 = 1234;
 pub const LITTLE_ENDIAN: u32 = 1234;
 pub const BIG_ENDIAN: u32 = 4321;
 pub const PDP_ENDIAN: u32 = 3412;
+pub const __DARWIN_BYTE_ORDER: u32 = 1234;
 pub const BYTE_ORDER: u32 = 1234;
 pub const __API_TO_BE_DEPRECATED: u32 = 100000;
 pub const __API_TO_BE_DEPRECATED_MACOS: u32 = 100000;
@@ -104,336 +451,6 @@ pub const __API_TO_BE_DEPRECATED_WATCHOS: u32 = 100000;
 pub const __API_TO_BE_DEPRECATED_TVOS: u32 = 100000;
 pub const __API_TO_BE_DEPRECATED_DRIVERKIT: u32 = 100000;
 pub const __API_TO_BE_DEPRECATED_VISIONOS: u32 = 100000;
-pub const __MAC_10_0: u32 = 1000;
-pub const __MAC_10_1: u32 = 1010;
-pub const __MAC_10_2: u32 = 1020;
-pub const __MAC_10_3: u32 = 1030;
-pub const __MAC_10_4: u32 = 1040;
-pub const __MAC_10_5: u32 = 1050;
-pub const __MAC_10_6: u32 = 1060;
-pub const __MAC_10_7: u32 = 1070;
-pub const __MAC_10_8: u32 = 1080;
-pub const __MAC_10_9: u32 = 1090;
-pub const __MAC_10_10: u32 = 101000;
-pub const __MAC_10_10_2: u32 = 101002;
-pub const __MAC_10_10_3: u32 = 101003;
-pub const __MAC_10_11: u32 = 101100;
-pub const __MAC_10_11_2: u32 = 101102;
-pub const __MAC_10_11_3: u32 = 101103;
-pub const __MAC_10_11_4: u32 = 101104;
-pub const __MAC_10_12: u32 = 101200;
-pub const __MAC_10_12_1: u32 = 101201;
-pub const __MAC_10_12_2: u32 = 101202;
-pub const __MAC_10_12_4: u32 = 101204;
-pub const __MAC_10_13: u32 = 101300;
-pub const __MAC_10_13_1: u32 = 101301;
-pub const __MAC_10_13_2: u32 = 101302;
-pub const __MAC_10_13_4: u32 = 101304;
-pub const __MAC_10_14: u32 = 101400;
-pub const __MAC_10_14_1: u32 = 101401;
-pub const __MAC_10_14_4: u32 = 101404;
-pub const __MAC_10_14_5: u32 = 101405;
-pub const __MAC_10_14_6: u32 = 101406;
-pub const __MAC_10_15: u32 = 101500;
-pub const __MAC_10_15_1: u32 = 101501;
-pub const __MAC_10_15_4: u32 = 101504;
-pub const __MAC_10_16: u32 = 101600;
-pub const __MAC_11_0: u32 = 110000;
-pub const __MAC_11_1: u32 = 110100;
-pub const __MAC_11_3: u32 = 110300;
-pub const __MAC_11_4: u32 = 110400;
-pub const __MAC_11_5: u32 = 110500;
-pub const __MAC_11_6: u32 = 110600;
-pub const __MAC_12_0: u32 = 120000;
-pub const __MAC_12_1: u32 = 120100;
-pub const __MAC_12_2: u32 = 120200;
-pub const __MAC_12_3: u32 = 120300;
-pub const __MAC_12_4: u32 = 120400;
-pub const __MAC_12_5: u32 = 120500;
-pub const __MAC_12_6: u32 = 120600;
-pub const __MAC_12_7: u32 = 120700;
-pub const __MAC_13_0: u32 = 130000;
-pub const __MAC_13_1: u32 = 130100;
-pub const __MAC_13_2: u32 = 130200;
-pub const __MAC_13_3: u32 = 130300;
-pub const __MAC_13_4: u32 = 130400;
-pub const __MAC_13_5: u32 = 130500;
-pub const __MAC_13_6: u32 = 130600;
-pub const __MAC_14_0: u32 = 140000;
-pub const __MAC_14_1: u32 = 140100;
-pub const __MAC_14_2: u32 = 140200;
-pub const __MAC_14_3: u32 = 140300;
-pub const __MAC_14_4: u32 = 140400;
-pub const __IPHONE_2_0: u32 = 20000;
-pub const __IPHONE_2_1: u32 = 20100;
-pub const __IPHONE_2_2: u32 = 20200;
-pub const __IPHONE_3_0: u32 = 30000;
-pub const __IPHONE_3_1: u32 = 30100;
-pub const __IPHONE_3_2: u32 = 30200;
-pub const __IPHONE_4_0: u32 = 40000;
-pub const __IPHONE_4_1: u32 = 40100;
-pub const __IPHONE_4_2: u32 = 40200;
-pub const __IPHONE_4_3: u32 = 40300;
-pub const __IPHONE_5_0: u32 = 50000;
-pub const __IPHONE_5_1: u32 = 50100;
-pub const __IPHONE_6_0: u32 = 60000;
-pub const __IPHONE_6_1: u32 = 60100;
-pub const __IPHONE_7_0: u32 = 70000;
-pub const __IPHONE_7_1: u32 = 70100;
-pub const __IPHONE_8_0: u32 = 80000;
-pub const __IPHONE_8_1: u32 = 80100;
-pub const __IPHONE_8_2: u32 = 80200;
-pub const __IPHONE_8_3: u32 = 80300;
-pub const __IPHONE_8_4: u32 = 80400;
-pub const __IPHONE_9_0: u32 = 90000;
-pub const __IPHONE_9_1: u32 = 90100;
-pub const __IPHONE_9_2: u32 = 90200;
-pub const __IPHONE_9_3: u32 = 90300;
-pub const __IPHONE_10_0: u32 = 100000;
-pub const __IPHONE_10_1: u32 = 100100;
-pub const __IPHONE_10_2: u32 = 100200;
-pub const __IPHONE_10_3: u32 = 100300;
-pub const __IPHONE_11_0: u32 = 110000;
-pub const __IPHONE_11_1: u32 = 110100;
-pub const __IPHONE_11_2: u32 = 110200;
-pub const __IPHONE_11_3: u32 = 110300;
-pub const __IPHONE_11_4: u32 = 110400;
-pub const __IPHONE_12_0: u32 = 120000;
-pub const __IPHONE_12_1: u32 = 120100;
-pub const __IPHONE_12_2: u32 = 120200;
-pub const __IPHONE_12_3: u32 = 120300;
-pub const __IPHONE_12_4: u32 = 120400;
-pub const __IPHONE_13_0: u32 = 130000;
-pub const __IPHONE_13_1: u32 = 130100;
-pub const __IPHONE_13_2: u32 = 130200;
-pub const __IPHONE_13_3: u32 = 130300;
-pub const __IPHONE_13_4: u32 = 130400;
-pub const __IPHONE_13_5: u32 = 130500;
-pub const __IPHONE_13_6: u32 = 130600;
-pub const __IPHONE_13_7: u32 = 130700;
-pub const __IPHONE_14_0: u32 = 140000;
-pub const __IPHONE_14_1: u32 = 140100;
-pub const __IPHONE_14_2: u32 = 140200;
-pub const __IPHONE_14_3: u32 = 140300;
-pub const __IPHONE_14_5: u32 = 140500;
-pub const __IPHONE_14_4: u32 = 140400;
-pub const __IPHONE_14_6: u32 = 140600;
-pub const __IPHONE_14_7: u32 = 140700;
-pub const __IPHONE_14_8: u32 = 140800;
-pub const __IPHONE_15_0: u32 = 150000;
-pub const __IPHONE_15_1: u32 = 150100;
-pub const __IPHONE_15_2: u32 = 150200;
-pub const __IPHONE_15_3: u32 = 150300;
-pub const __IPHONE_15_4: u32 = 150400;
-pub const __IPHONE_15_5: u32 = 150500;
-pub const __IPHONE_15_6: u32 = 150600;
-pub const __IPHONE_15_7: u32 = 150700;
-pub const __IPHONE_15_8: u32 = 150800;
-pub const __IPHONE_16_0: u32 = 160000;
-pub const __IPHONE_16_1: u32 = 160100;
-pub const __IPHONE_16_2: u32 = 160200;
-pub const __IPHONE_16_3: u32 = 160300;
-pub const __IPHONE_16_4: u32 = 160400;
-pub const __IPHONE_16_5: u32 = 160500;
-pub const __IPHONE_16_6: u32 = 160600;
-pub const __IPHONE_16_7: u32 = 160700;
-pub const __IPHONE_17_0: u32 = 170000;
-pub const __IPHONE_17_1: u32 = 170100;
-pub const __IPHONE_17_2: u32 = 170200;
-pub const __IPHONE_17_3: u32 = 170300;
-pub const __IPHONE_17_4: u32 = 170400;
-pub const __WATCHOS_1_0: u32 = 10000;
-pub const __WATCHOS_2_0: u32 = 20000;
-pub const __WATCHOS_2_1: u32 = 20100;
-pub const __WATCHOS_2_2: u32 = 20200;
-pub const __WATCHOS_3_0: u32 = 30000;
-pub const __WATCHOS_3_1: u32 = 30100;
-pub const __WATCHOS_3_1_1: u32 = 30101;
-pub const __WATCHOS_3_2: u32 = 30200;
-pub const __WATCHOS_4_0: u32 = 40000;
-pub const __WATCHOS_4_1: u32 = 40100;
-pub const __WATCHOS_4_2: u32 = 40200;
-pub const __WATCHOS_4_3: u32 = 40300;
-pub const __WATCHOS_5_0: u32 = 50000;
-pub const __WATCHOS_5_1: u32 = 50100;
-pub const __WATCHOS_5_2: u32 = 50200;
-pub const __WATCHOS_5_3: u32 = 50300;
-pub const __WATCHOS_6_0: u32 = 60000;
-pub const __WATCHOS_6_1: u32 = 60100;
-pub const __WATCHOS_6_2: u32 = 60200;
-pub const __WATCHOS_7_0: u32 = 70000;
-pub const __WATCHOS_7_1: u32 = 70100;
-pub const __WATCHOS_7_2: u32 = 70200;
-pub const __WATCHOS_7_3: u32 = 70300;
-pub const __WATCHOS_7_4: u32 = 70400;
-pub const __WATCHOS_7_5: u32 = 70500;
-pub const __WATCHOS_7_6: u32 = 70600;
-pub const __WATCHOS_8_0: u32 = 80000;
-pub const __WATCHOS_8_1: u32 = 80100;
-pub const __WATCHOS_8_3: u32 = 80300;
-pub const __WATCHOS_8_4: u32 = 80400;
-pub const __WATCHOS_8_5: u32 = 80500;
-pub const __WATCHOS_8_6: u32 = 80600;
-pub const __WATCHOS_8_7: u32 = 80700;
-pub const __WATCHOS_8_8: u32 = 80800;
-pub const __WATCHOS_9_0: u32 = 90000;
-pub const __WATCHOS_9_1: u32 = 90100;
-pub const __WATCHOS_9_2: u32 = 90200;
-pub const __WATCHOS_9_3: u32 = 90300;
-pub const __WATCHOS_9_4: u32 = 90400;
-pub const __WATCHOS_9_5: u32 = 90500;
-pub const __WATCHOS_9_6: u32 = 90600;
-pub const __WATCHOS_10_0: u32 = 100000;
-pub const __WATCHOS_10_1: u32 = 100100;
-pub const __WATCHOS_10_2: u32 = 100200;
-pub const __WATCHOS_10_3: u32 = 100300;
-pub const __WATCHOS_10_4: u32 = 100400;
-pub const __TVOS_9_0: u32 = 90000;
-pub const __TVOS_9_1: u32 = 90100;
-pub const __TVOS_9_2: u32 = 90200;
-pub const __TVOS_10_0: u32 = 100000;
-pub const __TVOS_10_0_1: u32 = 100001;
-pub const __TVOS_10_1: u32 = 100100;
-pub const __TVOS_10_2: u32 = 100200;
-pub const __TVOS_11_0: u32 = 110000;
-pub const __TVOS_11_1: u32 = 110100;
-pub const __TVOS_11_2: u32 = 110200;
-pub const __TVOS_11_3: u32 = 110300;
-pub const __TVOS_11_4: u32 = 110400;
-pub const __TVOS_12_0: u32 = 120000;
-pub const __TVOS_12_1: u32 = 120100;
-pub const __TVOS_12_2: u32 = 120200;
-pub const __TVOS_12_3: u32 = 120300;
-pub const __TVOS_12_4: u32 = 120400;
-pub const __TVOS_13_0: u32 = 130000;
-pub const __TVOS_13_2: u32 = 130200;
-pub const __TVOS_13_3: u32 = 130300;
-pub const __TVOS_13_4: u32 = 130400;
-pub const __TVOS_14_0: u32 = 140000;
-pub const __TVOS_14_1: u32 = 140100;
-pub const __TVOS_14_2: u32 = 140200;
-pub const __TVOS_14_3: u32 = 140300;
-pub const __TVOS_14_5: u32 = 140500;
-pub const __TVOS_14_6: u32 = 140600;
-pub const __TVOS_14_7: u32 = 140700;
-pub const __TVOS_15_0: u32 = 150000;
-pub const __TVOS_15_1: u32 = 150100;
-pub const __TVOS_15_2: u32 = 150200;
-pub const __TVOS_15_3: u32 = 150300;
-pub const __TVOS_15_4: u32 = 150400;
-pub const __TVOS_15_5: u32 = 150500;
-pub const __TVOS_15_6: u32 = 150600;
-pub const __TVOS_16_0: u32 = 160000;
-pub const __TVOS_16_1: u32 = 160100;
-pub const __TVOS_16_2: u32 = 160200;
-pub const __TVOS_16_3: u32 = 160300;
-pub const __TVOS_16_4: u32 = 160400;
-pub const __TVOS_16_5: u32 = 160500;
-pub const __TVOS_16_6: u32 = 160600;
-pub const __TVOS_17_0: u32 = 170000;
-pub const __TVOS_17_1: u32 = 170100;
-pub const __TVOS_17_2: u32 = 170200;
-pub const __TVOS_17_3: u32 = 170300;
-pub const __TVOS_17_4: u32 = 170400;
-pub const __BRIDGEOS_2_0: u32 = 20000;
-pub const __BRIDGEOS_3_0: u32 = 30000;
-pub const __BRIDGEOS_3_1: u32 = 30100;
-pub const __BRIDGEOS_3_4: u32 = 30400;
-pub const __BRIDGEOS_4_0: u32 = 40000;
-pub const __BRIDGEOS_4_1: u32 = 40100;
-pub const __BRIDGEOS_5_0: u32 = 50000;
-pub const __BRIDGEOS_5_1: u32 = 50100;
-pub const __BRIDGEOS_5_3: u32 = 50300;
-pub const __BRIDGEOS_6_0: u32 = 60000;
-pub const __BRIDGEOS_6_2: u32 = 60200;
-pub const __BRIDGEOS_6_4: u32 = 60400;
-pub const __BRIDGEOS_6_5: u32 = 60500;
-pub const __BRIDGEOS_6_6: u32 = 60600;
-pub const __BRIDGEOS_7_0: u32 = 70000;
-pub const __BRIDGEOS_7_1: u32 = 70100;
-pub const __BRIDGEOS_7_2: u32 = 70200;
-pub const __BRIDGEOS_7_3: u32 = 70300;
-pub const __BRIDGEOS_7_4: u32 = 70400;
-pub const __BRIDGEOS_7_6: u32 = 70600;
-pub const __BRIDGEOS_8_0: u32 = 80000;
-pub const __BRIDGEOS_8_1: u32 = 80100;
-pub const __BRIDGEOS_8_2: u32 = 80200;
-pub const __BRIDGEOS_8_3: u32 = 80300;
-pub const __BRIDGEOS_8_4: u32 = 80400;
-pub const __DRIVERKIT_19_0: u32 = 190000;
-pub const __DRIVERKIT_20_0: u32 = 200000;
-pub const __DRIVERKIT_21_0: u32 = 210000;
-pub const __DRIVERKIT_22_0: u32 = 220000;
-pub const __DRIVERKIT_22_4: u32 = 220400;
-pub const __DRIVERKIT_22_5: u32 = 220500;
-pub const __DRIVERKIT_22_6: u32 = 220600;
-pub const __DRIVERKIT_23_0: u32 = 230000;
-pub const __DRIVERKIT_23_1: u32 = 230100;
-pub const __DRIVERKIT_23_2: u32 = 230200;
-pub const __DRIVERKIT_23_3: u32 = 230300;
-pub const __DRIVERKIT_23_4: u32 = 230400;
-pub const __VISIONOS_1_0: u32 = 10000;
-pub const __VISIONOS_1_1: u32 = 10100;
-pub const MAC_OS_X_VERSION_10_0: u32 = 1000;
-pub const MAC_OS_X_VERSION_10_1: u32 = 1010;
-pub const MAC_OS_X_VERSION_10_2: u32 = 1020;
-pub const MAC_OS_X_VERSION_10_3: u32 = 1030;
-pub const MAC_OS_X_VERSION_10_4: u32 = 1040;
-pub const MAC_OS_X_VERSION_10_5: u32 = 1050;
-pub const MAC_OS_X_VERSION_10_6: u32 = 1060;
-pub const MAC_OS_X_VERSION_10_7: u32 = 1070;
-pub const MAC_OS_X_VERSION_10_8: u32 = 1080;
-pub const MAC_OS_X_VERSION_10_9: u32 = 1090;
-pub const MAC_OS_X_VERSION_10_10: u32 = 101000;
-pub const MAC_OS_X_VERSION_10_10_2: u32 = 101002;
-pub const MAC_OS_X_VERSION_10_10_3: u32 = 101003;
-pub const MAC_OS_X_VERSION_10_11: u32 = 101100;
-pub const MAC_OS_X_VERSION_10_11_2: u32 = 101102;
-pub const MAC_OS_X_VERSION_10_11_3: u32 = 101103;
-pub const MAC_OS_X_VERSION_10_11_4: u32 = 101104;
-pub const MAC_OS_X_VERSION_10_12: u32 = 101200;
-pub const MAC_OS_X_VERSION_10_12_1: u32 = 101201;
-pub const MAC_OS_X_VERSION_10_12_2: u32 = 101202;
-pub const MAC_OS_X_VERSION_10_12_4: u32 = 101204;
-pub const MAC_OS_X_VERSION_10_13: u32 = 101300;
-pub const MAC_OS_X_VERSION_10_13_1: u32 = 101301;
-pub const MAC_OS_X_VERSION_10_13_2: u32 = 101302;
-pub const MAC_OS_X_VERSION_10_13_4: u32 = 101304;
-pub const MAC_OS_X_VERSION_10_14: u32 = 101400;
-pub const MAC_OS_X_VERSION_10_14_1: u32 = 101401;
-pub const MAC_OS_X_VERSION_10_14_4: u32 = 101404;
-pub const MAC_OS_X_VERSION_10_14_5: u32 = 101405;
-pub const MAC_OS_X_VERSION_10_14_6: u32 = 101406;
-pub const MAC_OS_X_VERSION_10_15: u32 = 101500;
-pub const MAC_OS_X_VERSION_10_15_1: u32 = 101501;
-pub const MAC_OS_X_VERSION_10_15_4: u32 = 101504;
-pub const MAC_OS_X_VERSION_10_16: u32 = 101600;
-pub const MAC_OS_VERSION_11_0: u32 = 110000;
-pub const MAC_OS_VERSION_11_1: u32 = 110100;
-pub const MAC_OS_VERSION_11_3: u32 = 110300;
-pub const MAC_OS_VERSION_11_4: u32 = 110400;
-pub const MAC_OS_VERSION_11_5: u32 = 110500;
-pub const MAC_OS_VERSION_11_6: u32 = 110600;
-pub const MAC_OS_VERSION_12_0: u32 = 120000;
-pub const MAC_OS_VERSION_12_1: u32 = 120100;
-pub const MAC_OS_VERSION_12_2: u32 = 120200;
-pub const MAC_OS_VERSION_12_3: u32 = 120300;
-pub const MAC_OS_VERSION_12_4: u32 = 120400;
-pub const MAC_OS_VERSION_12_5: u32 = 120500;
-pub const MAC_OS_VERSION_12_6: u32 = 120600;
-pub const MAC_OS_VERSION_12_7: u32 = 120700;
-pub const MAC_OS_VERSION_13_0: u32 = 130000;
-pub const MAC_OS_VERSION_13_1: u32 = 130100;
-pub const MAC_OS_VERSION_13_2: u32 = 130200;
-pub const MAC_OS_VERSION_13_3: u32 = 130300;
-pub const MAC_OS_VERSION_13_4: u32 = 130400;
-pub const MAC_OS_VERSION_13_5: u32 = 130500;
-pub const MAC_OS_VERSION_13_6: u32 = 130600;
-pub const MAC_OS_VERSION_14_0: u32 = 140000;
-pub const MAC_OS_VERSION_14_1: u32 = 140100;
-pub const MAC_OS_VERSION_14_2: u32 = 140200;
-pub const MAC_OS_VERSION_14_3: u32 = 140300;
-pub const MAC_OS_VERSION_14_4: u32 = 140400;
 pub const __DARWIN_FD_SETSIZE: u32 = 1024;
 pub const __DARWIN_NBBY: u32 = 8;
 pub const NBBY: u32 = 8;
@@ -1090,6 +1107,8 @@ pub type __darwin_pthread_once_t = _opaque_pthread_once_t;
 pub type __darwin_pthread_rwlock_t = _opaque_pthread_rwlock_t;
 pub type __darwin_pthread_rwlockattr_t = _opaque_pthread_rwlockattr_t;
 pub type __darwin_pthread_t = *mut _opaque_pthread_t;
+pub type intmax_t = ::std::os::raw::c_long;
+pub type uintmax_t = ::std::os::raw::c_ulong;
 pub type u_int8_t = ::std::os::raw::c_uchar;
 pub type u_int16_t = ::std::os::raw::c_ushort;
 pub type u_int32_t = ::std::os::raw::c_uint;
@@ -1103,98 +1122,6 @@ pub type user_ulong_t = u_int64_t;
 pub type user_time_t = i64;
 pub type user_off_t = i64;
 pub type syscall_arg_t = u_int64_t;
-pub type intmax_t = ::std::os::raw::c_long;
-pub type uintmax_t = ::std::os::raw::c_ulong;
-#[repr(C, packed)]
-#[derive(Debug, Copy, Clone)]
-pub struct _OSUnalignedU16 {
-    pub __val: u16,
-}
-#[test]
-fn bindgen_test_layout__OSUnalignedU16() {
-    const UNINIT: ::std::mem::MaybeUninit<_OSUnalignedU16> = ::std::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::std::mem::size_of::<_OSUnalignedU16>(),
-        2usize,
-        concat!("Size of: ", stringify!(_OSUnalignedU16))
-    );
-    assert_eq!(
-        ::std::mem::align_of::<_OSUnalignedU16>(),
-        1usize,
-        concat!("Alignment of ", stringify!(_OSUnalignedU16))
-    );
-    assert_eq!(
-        unsafe { ::std::ptr::addr_of!((*ptr).__val) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_OSUnalignedU16),
-            "::",
-            stringify!(__val)
-        )
-    );
-}
-#[repr(C, packed)]
-#[derive(Debug, Copy, Clone)]
-pub struct _OSUnalignedU32 {
-    pub __val: u32,
-}
-#[test]
-fn bindgen_test_layout__OSUnalignedU32() {
-    const UNINIT: ::std::mem::MaybeUninit<_OSUnalignedU32> = ::std::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::std::mem::size_of::<_OSUnalignedU32>(),
-        4usize,
-        concat!("Size of: ", stringify!(_OSUnalignedU32))
-    );
-    assert_eq!(
-        ::std::mem::align_of::<_OSUnalignedU32>(),
-        1usize,
-        concat!("Alignment of ", stringify!(_OSUnalignedU32))
-    );
-    assert_eq!(
-        unsafe { ::std::ptr::addr_of!((*ptr).__val) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_OSUnalignedU32),
-            "::",
-            stringify!(__val)
-        )
-    );
-}
-#[repr(C, packed)]
-#[derive(Debug, Copy, Clone)]
-pub struct _OSUnalignedU64 {
-    pub __val: u64,
-}
-#[test]
-fn bindgen_test_layout__OSUnalignedU64() {
-    const UNINIT: ::std::mem::MaybeUninit<_OSUnalignedU64> = ::std::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::std::mem::size_of::<_OSUnalignedU64>(),
-        8usize,
-        concat!("Size of: ", stringify!(_OSUnalignedU64))
-    );
-    assert_eq!(
-        ::std::mem::align_of::<_OSUnalignedU64>(),
-        1usize,
-        concat!("Alignment of ", stringify!(_OSUnalignedU64))
-    );
-    assert_eq!(
-        unsafe { ::std::ptr::addr_of!((*ptr).__val) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_OSUnalignedU64),
-            "::",
-            stringify!(__val)
-        )
-    );
-}
 pub type u_char = ::std::os::raw::c_uchar;
 pub type u_short = ::std::os::raw::c_ushort;
 pub type u_int = ::std::os::raw::c_uint;
@@ -1298,7 +1225,7 @@ pub const HV_MEMORY_READ: _bindgen_ty_2 = 1;
 pub const HV_MEMORY_WRITE: _bindgen_ty_2 = 2;
 pub const HV_MEMORY_EXEC: _bindgen_ty_2 = 4;
 pub type _bindgen_ty_2 = ::std::os::raw::c_uint;
-#[doc = " @typedef    hv_memory_flags_t\n @abstract   Guest physical memory region permissions for hv_vm_map()\n             and hv_vm_protect()"]
+#[doc = "@abstract Guest physical memory region permissions for hv_vm_map() and hv_vm_protect()"]
 pub type hv_memory_flags_t = u64;
 extern "C" {
     pub fn os_retain(object: *mut ::std::os::raw::c_void) -> *mut ::std::os::raw::c_void;
@@ -1308,11 +1235,3220 @@ extern "C" {
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
+pub struct hv_gic_config_s {
+    _unused: [u8; 0],
+}
+pub type hv_gic_config_t = *mut hv_gic_config_s;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct hv_gic_state_s {
+    _unused: [u8; 0],
+}
+pub type hv_gic_state_t = *mut hv_gic_state_s;
+pub const hv_gic_intid_t_HV_GIC_INT_PERFORMANCE_MONITOR: hv_gic_intid_t = 23;
+pub const hv_gic_intid_t_HV_GIC_INT_MAINTENANCE: hv_gic_intid_t = 25;
+pub const hv_gic_intid_t_HV_GIC_INT_EL2_PHYSICAL_TIMER: hv_gic_intid_t = 26;
+pub const hv_gic_intid_t_HV_GIC_INT_EL1_VIRTUAL_TIMER: hv_gic_intid_t = 27;
+pub const hv_gic_intid_t_HV_GIC_INT_EL1_PHYSICAL_TIMER: hv_gic_intid_t = 30;
+pub type hv_gic_intid_t = u16;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_CTLR: hv_gic_distributor_reg_t = 0;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_TYPER: hv_gic_distributor_reg_t = 4;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR0: hv_gic_distributor_reg_t =
+    128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR1: hv_gic_distributor_reg_t =
+    132;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR2: hv_gic_distributor_reg_t =
+    136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR3: hv_gic_distributor_reg_t =
+    140;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR4: hv_gic_distributor_reg_t =
+    144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR5: hv_gic_distributor_reg_t =
+    148;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR6: hv_gic_distributor_reg_t =
+    152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR7: hv_gic_distributor_reg_t =
+    156;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR8: hv_gic_distributor_reg_t =
+    160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR9: hv_gic_distributor_reg_t =
+    164;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR10: hv_gic_distributor_reg_t =
+    168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR11: hv_gic_distributor_reg_t =
+    172;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR12: hv_gic_distributor_reg_t =
+    176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR13: hv_gic_distributor_reg_t =
+    180;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR14: hv_gic_distributor_reg_t =
+    184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR15: hv_gic_distributor_reg_t =
+    188;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR16: hv_gic_distributor_reg_t =
+    192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR17: hv_gic_distributor_reg_t =
+    196;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR18: hv_gic_distributor_reg_t =
+    200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR19: hv_gic_distributor_reg_t =
+    204;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR20: hv_gic_distributor_reg_t =
+    208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR21: hv_gic_distributor_reg_t =
+    212;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR22: hv_gic_distributor_reg_t =
+    216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR23: hv_gic_distributor_reg_t =
+    220;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR24: hv_gic_distributor_reg_t =
+    224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR25: hv_gic_distributor_reg_t =
+    228;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR26: hv_gic_distributor_reg_t =
+    232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR27: hv_gic_distributor_reg_t =
+    236;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR28: hv_gic_distributor_reg_t =
+    240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR29: hv_gic_distributor_reg_t =
+    244;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR30: hv_gic_distributor_reg_t =
+    248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IGROUPR31: hv_gic_distributor_reg_t =
+    252;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER0:
+    hv_gic_distributor_reg_t = 256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER1:
+    hv_gic_distributor_reg_t = 260;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER2:
+    hv_gic_distributor_reg_t = 264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER3:
+    hv_gic_distributor_reg_t = 268;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER4:
+    hv_gic_distributor_reg_t = 272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER5:
+    hv_gic_distributor_reg_t = 276;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER6:
+    hv_gic_distributor_reg_t = 280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER7:
+    hv_gic_distributor_reg_t = 284;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER8:
+    hv_gic_distributor_reg_t = 288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER9:
+    hv_gic_distributor_reg_t = 292;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER10:
+    hv_gic_distributor_reg_t = 296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER11:
+    hv_gic_distributor_reg_t = 300;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER12:
+    hv_gic_distributor_reg_t = 304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER13:
+    hv_gic_distributor_reg_t = 308;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER14:
+    hv_gic_distributor_reg_t = 312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER15:
+    hv_gic_distributor_reg_t = 316;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER16:
+    hv_gic_distributor_reg_t = 320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER17:
+    hv_gic_distributor_reg_t = 324;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER18:
+    hv_gic_distributor_reg_t = 328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER19:
+    hv_gic_distributor_reg_t = 332;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER20:
+    hv_gic_distributor_reg_t = 336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER21:
+    hv_gic_distributor_reg_t = 340;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER22:
+    hv_gic_distributor_reg_t = 344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER23:
+    hv_gic_distributor_reg_t = 348;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER24:
+    hv_gic_distributor_reg_t = 352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER25:
+    hv_gic_distributor_reg_t = 356;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER26:
+    hv_gic_distributor_reg_t = 360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER27:
+    hv_gic_distributor_reg_t = 364;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER28:
+    hv_gic_distributor_reg_t = 368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER29:
+    hv_gic_distributor_reg_t = 372;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER30:
+    hv_gic_distributor_reg_t = 376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISENABLER31:
+    hv_gic_distributor_reg_t = 380;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER0:
+    hv_gic_distributor_reg_t = 384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER1:
+    hv_gic_distributor_reg_t = 388;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER2:
+    hv_gic_distributor_reg_t = 392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER3:
+    hv_gic_distributor_reg_t = 396;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER4:
+    hv_gic_distributor_reg_t = 400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER5:
+    hv_gic_distributor_reg_t = 404;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER6:
+    hv_gic_distributor_reg_t = 408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER7:
+    hv_gic_distributor_reg_t = 412;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER8:
+    hv_gic_distributor_reg_t = 416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER9:
+    hv_gic_distributor_reg_t = 420;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER10:
+    hv_gic_distributor_reg_t = 424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER11:
+    hv_gic_distributor_reg_t = 428;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER12:
+    hv_gic_distributor_reg_t = 432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER13:
+    hv_gic_distributor_reg_t = 436;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER14:
+    hv_gic_distributor_reg_t = 440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER15:
+    hv_gic_distributor_reg_t = 444;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER16:
+    hv_gic_distributor_reg_t = 448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER17:
+    hv_gic_distributor_reg_t = 452;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER18:
+    hv_gic_distributor_reg_t = 456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER19:
+    hv_gic_distributor_reg_t = 460;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER20:
+    hv_gic_distributor_reg_t = 464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER21:
+    hv_gic_distributor_reg_t = 468;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER22:
+    hv_gic_distributor_reg_t = 472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER23:
+    hv_gic_distributor_reg_t = 476;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER24:
+    hv_gic_distributor_reg_t = 480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER25:
+    hv_gic_distributor_reg_t = 484;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER26:
+    hv_gic_distributor_reg_t = 488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER27:
+    hv_gic_distributor_reg_t = 492;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER28:
+    hv_gic_distributor_reg_t = 496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER29:
+    hv_gic_distributor_reg_t = 500;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER30:
+    hv_gic_distributor_reg_t = 504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICENABLER31:
+    hv_gic_distributor_reg_t = 508;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR0: hv_gic_distributor_reg_t =
+    512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR1: hv_gic_distributor_reg_t =
+    516;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR2: hv_gic_distributor_reg_t =
+    520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR3: hv_gic_distributor_reg_t =
+    524;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR4: hv_gic_distributor_reg_t =
+    528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR5: hv_gic_distributor_reg_t =
+    532;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR6: hv_gic_distributor_reg_t =
+    536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR7: hv_gic_distributor_reg_t =
+    540;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR8: hv_gic_distributor_reg_t =
+    544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR9: hv_gic_distributor_reg_t =
+    548;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR10: hv_gic_distributor_reg_t =
+    552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR11: hv_gic_distributor_reg_t =
+    556;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR12: hv_gic_distributor_reg_t =
+    560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR13: hv_gic_distributor_reg_t =
+    564;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR14: hv_gic_distributor_reg_t =
+    568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR15: hv_gic_distributor_reg_t =
+    572;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR16: hv_gic_distributor_reg_t =
+    576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR17: hv_gic_distributor_reg_t =
+    580;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR18: hv_gic_distributor_reg_t =
+    584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR19: hv_gic_distributor_reg_t =
+    588;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR20: hv_gic_distributor_reg_t =
+    592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR21: hv_gic_distributor_reg_t =
+    596;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR22: hv_gic_distributor_reg_t =
+    600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR23: hv_gic_distributor_reg_t =
+    604;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR24: hv_gic_distributor_reg_t =
+    608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR25: hv_gic_distributor_reg_t =
+    612;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR26: hv_gic_distributor_reg_t =
+    616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR27: hv_gic_distributor_reg_t =
+    620;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR28: hv_gic_distributor_reg_t =
+    624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR29: hv_gic_distributor_reg_t =
+    628;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR30: hv_gic_distributor_reg_t =
+    632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISPENDR31: hv_gic_distributor_reg_t =
+    636;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR0: hv_gic_distributor_reg_t =
+    640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR1: hv_gic_distributor_reg_t =
+    644;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR2: hv_gic_distributor_reg_t =
+    648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR3: hv_gic_distributor_reg_t =
+    652;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR4: hv_gic_distributor_reg_t =
+    656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR5: hv_gic_distributor_reg_t =
+    660;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR6: hv_gic_distributor_reg_t =
+    664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR7: hv_gic_distributor_reg_t =
+    668;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR8: hv_gic_distributor_reg_t =
+    672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR9: hv_gic_distributor_reg_t =
+    676;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR10: hv_gic_distributor_reg_t =
+    680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR11: hv_gic_distributor_reg_t =
+    684;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR12: hv_gic_distributor_reg_t =
+    688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR13: hv_gic_distributor_reg_t =
+    692;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR14: hv_gic_distributor_reg_t =
+    696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR15: hv_gic_distributor_reg_t =
+    700;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR16: hv_gic_distributor_reg_t =
+    704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR17: hv_gic_distributor_reg_t =
+    708;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR18: hv_gic_distributor_reg_t =
+    712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR19: hv_gic_distributor_reg_t =
+    716;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR20: hv_gic_distributor_reg_t =
+    720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR21: hv_gic_distributor_reg_t =
+    724;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR22: hv_gic_distributor_reg_t =
+    728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR23: hv_gic_distributor_reg_t =
+    732;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR24: hv_gic_distributor_reg_t =
+    736;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR25: hv_gic_distributor_reg_t =
+    740;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR26: hv_gic_distributor_reg_t =
+    744;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR27: hv_gic_distributor_reg_t =
+    748;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR28: hv_gic_distributor_reg_t =
+    752;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR29: hv_gic_distributor_reg_t =
+    756;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR30: hv_gic_distributor_reg_t =
+    760;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICPENDR31: hv_gic_distributor_reg_t =
+    764;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER0:
+    hv_gic_distributor_reg_t = 768;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER1:
+    hv_gic_distributor_reg_t = 772;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER2:
+    hv_gic_distributor_reg_t = 776;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER3:
+    hv_gic_distributor_reg_t = 780;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER4:
+    hv_gic_distributor_reg_t = 784;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER5:
+    hv_gic_distributor_reg_t = 788;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER6:
+    hv_gic_distributor_reg_t = 792;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER7:
+    hv_gic_distributor_reg_t = 796;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER8:
+    hv_gic_distributor_reg_t = 800;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER9:
+    hv_gic_distributor_reg_t = 804;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER10:
+    hv_gic_distributor_reg_t = 808;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER11:
+    hv_gic_distributor_reg_t = 812;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER12:
+    hv_gic_distributor_reg_t = 816;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER13:
+    hv_gic_distributor_reg_t = 820;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER14:
+    hv_gic_distributor_reg_t = 824;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER15:
+    hv_gic_distributor_reg_t = 828;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER16:
+    hv_gic_distributor_reg_t = 832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER17:
+    hv_gic_distributor_reg_t = 836;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER18:
+    hv_gic_distributor_reg_t = 840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER19:
+    hv_gic_distributor_reg_t = 844;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER20:
+    hv_gic_distributor_reg_t = 848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER21:
+    hv_gic_distributor_reg_t = 852;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER22:
+    hv_gic_distributor_reg_t = 856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER23:
+    hv_gic_distributor_reg_t = 860;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER24:
+    hv_gic_distributor_reg_t = 864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER25:
+    hv_gic_distributor_reg_t = 868;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER26:
+    hv_gic_distributor_reg_t = 872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER27:
+    hv_gic_distributor_reg_t = 876;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER28:
+    hv_gic_distributor_reg_t = 880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER29:
+    hv_gic_distributor_reg_t = 884;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER30:
+    hv_gic_distributor_reg_t = 888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ISACTIVER31:
+    hv_gic_distributor_reg_t = 892;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER0:
+    hv_gic_distributor_reg_t = 896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER1:
+    hv_gic_distributor_reg_t = 900;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER2:
+    hv_gic_distributor_reg_t = 904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER3:
+    hv_gic_distributor_reg_t = 908;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER4:
+    hv_gic_distributor_reg_t = 912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER5:
+    hv_gic_distributor_reg_t = 916;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER6:
+    hv_gic_distributor_reg_t = 920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER7:
+    hv_gic_distributor_reg_t = 924;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER8:
+    hv_gic_distributor_reg_t = 928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER9:
+    hv_gic_distributor_reg_t = 932;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER10:
+    hv_gic_distributor_reg_t = 936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER11:
+    hv_gic_distributor_reg_t = 940;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER12:
+    hv_gic_distributor_reg_t = 944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER13:
+    hv_gic_distributor_reg_t = 948;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER14:
+    hv_gic_distributor_reg_t = 952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER15:
+    hv_gic_distributor_reg_t = 956;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER16:
+    hv_gic_distributor_reg_t = 960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER17:
+    hv_gic_distributor_reg_t = 964;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER18:
+    hv_gic_distributor_reg_t = 968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER19:
+    hv_gic_distributor_reg_t = 972;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER20:
+    hv_gic_distributor_reg_t = 976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER21:
+    hv_gic_distributor_reg_t = 980;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER22:
+    hv_gic_distributor_reg_t = 984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER23:
+    hv_gic_distributor_reg_t = 988;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER24:
+    hv_gic_distributor_reg_t = 992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER25:
+    hv_gic_distributor_reg_t = 996;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER26:
+    hv_gic_distributor_reg_t = 1000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER27:
+    hv_gic_distributor_reg_t = 1004;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER28:
+    hv_gic_distributor_reg_t = 1008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER29:
+    hv_gic_distributor_reg_t = 1012;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER30:
+    hv_gic_distributor_reg_t = 1016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICACTIVER31:
+    hv_gic_distributor_reg_t = 1020;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR0:
+    hv_gic_distributor_reg_t = 1024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR1:
+    hv_gic_distributor_reg_t = 1028;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR2:
+    hv_gic_distributor_reg_t = 1032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR3:
+    hv_gic_distributor_reg_t = 1036;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR4:
+    hv_gic_distributor_reg_t = 1040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR5:
+    hv_gic_distributor_reg_t = 1044;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR6:
+    hv_gic_distributor_reg_t = 1048;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR7:
+    hv_gic_distributor_reg_t = 1052;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR8:
+    hv_gic_distributor_reg_t = 1056;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR9:
+    hv_gic_distributor_reg_t = 1060;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR10:
+    hv_gic_distributor_reg_t = 1064;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR11:
+    hv_gic_distributor_reg_t = 1068;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR12:
+    hv_gic_distributor_reg_t = 1072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR13:
+    hv_gic_distributor_reg_t = 1076;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR14:
+    hv_gic_distributor_reg_t = 1080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR15:
+    hv_gic_distributor_reg_t = 1084;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR16:
+    hv_gic_distributor_reg_t = 1088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR17:
+    hv_gic_distributor_reg_t = 1092;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR18:
+    hv_gic_distributor_reg_t = 1096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR19:
+    hv_gic_distributor_reg_t = 1100;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR20:
+    hv_gic_distributor_reg_t = 1104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR21:
+    hv_gic_distributor_reg_t = 1108;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR22:
+    hv_gic_distributor_reg_t = 1112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR23:
+    hv_gic_distributor_reg_t = 1116;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR24:
+    hv_gic_distributor_reg_t = 1120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR25:
+    hv_gic_distributor_reg_t = 1124;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR26:
+    hv_gic_distributor_reg_t = 1128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR27:
+    hv_gic_distributor_reg_t = 1132;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR28:
+    hv_gic_distributor_reg_t = 1136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR29:
+    hv_gic_distributor_reg_t = 1140;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR30:
+    hv_gic_distributor_reg_t = 1144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR31:
+    hv_gic_distributor_reg_t = 1148;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR32:
+    hv_gic_distributor_reg_t = 1152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR33:
+    hv_gic_distributor_reg_t = 1156;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR34:
+    hv_gic_distributor_reg_t = 1160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR35:
+    hv_gic_distributor_reg_t = 1164;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR36:
+    hv_gic_distributor_reg_t = 1168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR37:
+    hv_gic_distributor_reg_t = 1172;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR38:
+    hv_gic_distributor_reg_t = 1176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR39:
+    hv_gic_distributor_reg_t = 1180;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR40:
+    hv_gic_distributor_reg_t = 1184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR41:
+    hv_gic_distributor_reg_t = 1188;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR42:
+    hv_gic_distributor_reg_t = 1192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR43:
+    hv_gic_distributor_reg_t = 1196;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR44:
+    hv_gic_distributor_reg_t = 1200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR45:
+    hv_gic_distributor_reg_t = 1204;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR46:
+    hv_gic_distributor_reg_t = 1208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR47:
+    hv_gic_distributor_reg_t = 1212;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR48:
+    hv_gic_distributor_reg_t = 1216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR49:
+    hv_gic_distributor_reg_t = 1220;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR50:
+    hv_gic_distributor_reg_t = 1224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR51:
+    hv_gic_distributor_reg_t = 1228;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR52:
+    hv_gic_distributor_reg_t = 1232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR53:
+    hv_gic_distributor_reg_t = 1236;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR54:
+    hv_gic_distributor_reg_t = 1240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR55:
+    hv_gic_distributor_reg_t = 1244;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR56:
+    hv_gic_distributor_reg_t = 1248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR57:
+    hv_gic_distributor_reg_t = 1252;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR58:
+    hv_gic_distributor_reg_t = 1256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR59:
+    hv_gic_distributor_reg_t = 1260;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR60:
+    hv_gic_distributor_reg_t = 1264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR61:
+    hv_gic_distributor_reg_t = 1268;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR62:
+    hv_gic_distributor_reg_t = 1272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR63:
+    hv_gic_distributor_reg_t = 1276;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR64:
+    hv_gic_distributor_reg_t = 1280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR65:
+    hv_gic_distributor_reg_t = 1284;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR66:
+    hv_gic_distributor_reg_t = 1288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR67:
+    hv_gic_distributor_reg_t = 1292;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR68:
+    hv_gic_distributor_reg_t = 1296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR69:
+    hv_gic_distributor_reg_t = 1300;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR70:
+    hv_gic_distributor_reg_t = 1304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR71:
+    hv_gic_distributor_reg_t = 1308;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR72:
+    hv_gic_distributor_reg_t = 1312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR73:
+    hv_gic_distributor_reg_t = 1316;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR74:
+    hv_gic_distributor_reg_t = 1320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR75:
+    hv_gic_distributor_reg_t = 1324;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR76:
+    hv_gic_distributor_reg_t = 1328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR77:
+    hv_gic_distributor_reg_t = 1332;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR78:
+    hv_gic_distributor_reg_t = 1336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR79:
+    hv_gic_distributor_reg_t = 1340;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR80:
+    hv_gic_distributor_reg_t = 1344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR81:
+    hv_gic_distributor_reg_t = 1348;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR82:
+    hv_gic_distributor_reg_t = 1352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR83:
+    hv_gic_distributor_reg_t = 1356;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR84:
+    hv_gic_distributor_reg_t = 1360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR85:
+    hv_gic_distributor_reg_t = 1364;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR86:
+    hv_gic_distributor_reg_t = 1368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR87:
+    hv_gic_distributor_reg_t = 1372;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR88:
+    hv_gic_distributor_reg_t = 1376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR89:
+    hv_gic_distributor_reg_t = 1380;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR90:
+    hv_gic_distributor_reg_t = 1384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR91:
+    hv_gic_distributor_reg_t = 1388;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR92:
+    hv_gic_distributor_reg_t = 1392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR93:
+    hv_gic_distributor_reg_t = 1396;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR94:
+    hv_gic_distributor_reg_t = 1400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR95:
+    hv_gic_distributor_reg_t = 1404;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR96:
+    hv_gic_distributor_reg_t = 1408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR97:
+    hv_gic_distributor_reg_t = 1412;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR98:
+    hv_gic_distributor_reg_t = 1416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR99:
+    hv_gic_distributor_reg_t = 1420;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR100:
+    hv_gic_distributor_reg_t = 1424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR101:
+    hv_gic_distributor_reg_t = 1428;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR102:
+    hv_gic_distributor_reg_t = 1432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR103:
+    hv_gic_distributor_reg_t = 1436;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR104:
+    hv_gic_distributor_reg_t = 1440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR105:
+    hv_gic_distributor_reg_t = 1444;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR106:
+    hv_gic_distributor_reg_t = 1448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR107:
+    hv_gic_distributor_reg_t = 1452;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR108:
+    hv_gic_distributor_reg_t = 1456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR109:
+    hv_gic_distributor_reg_t = 1460;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR110:
+    hv_gic_distributor_reg_t = 1464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR111:
+    hv_gic_distributor_reg_t = 1468;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR112:
+    hv_gic_distributor_reg_t = 1472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR113:
+    hv_gic_distributor_reg_t = 1476;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR114:
+    hv_gic_distributor_reg_t = 1480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR115:
+    hv_gic_distributor_reg_t = 1484;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR116:
+    hv_gic_distributor_reg_t = 1488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR117:
+    hv_gic_distributor_reg_t = 1492;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR118:
+    hv_gic_distributor_reg_t = 1496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR119:
+    hv_gic_distributor_reg_t = 1500;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR120:
+    hv_gic_distributor_reg_t = 1504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR121:
+    hv_gic_distributor_reg_t = 1508;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR122:
+    hv_gic_distributor_reg_t = 1512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR123:
+    hv_gic_distributor_reg_t = 1516;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR124:
+    hv_gic_distributor_reg_t = 1520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR125:
+    hv_gic_distributor_reg_t = 1524;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR126:
+    hv_gic_distributor_reg_t = 1528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR127:
+    hv_gic_distributor_reg_t = 1532;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR128:
+    hv_gic_distributor_reg_t = 1536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR129:
+    hv_gic_distributor_reg_t = 1540;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR130:
+    hv_gic_distributor_reg_t = 1544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR131:
+    hv_gic_distributor_reg_t = 1548;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR132:
+    hv_gic_distributor_reg_t = 1552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR133:
+    hv_gic_distributor_reg_t = 1556;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR134:
+    hv_gic_distributor_reg_t = 1560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR135:
+    hv_gic_distributor_reg_t = 1564;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR136:
+    hv_gic_distributor_reg_t = 1568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR137:
+    hv_gic_distributor_reg_t = 1572;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR138:
+    hv_gic_distributor_reg_t = 1576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR139:
+    hv_gic_distributor_reg_t = 1580;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR140:
+    hv_gic_distributor_reg_t = 1584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR141:
+    hv_gic_distributor_reg_t = 1588;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR142:
+    hv_gic_distributor_reg_t = 1592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR143:
+    hv_gic_distributor_reg_t = 1596;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR144:
+    hv_gic_distributor_reg_t = 1600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR145:
+    hv_gic_distributor_reg_t = 1604;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR146:
+    hv_gic_distributor_reg_t = 1608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR147:
+    hv_gic_distributor_reg_t = 1612;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR148:
+    hv_gic_distributor_reg_t = 1616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR149:
+    hv_gic_distributor_reg_t = 1620;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR150:
+    hv_gic_distributor_reg_t = 1624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR151:
+    hv_gic_distributor_reg_t = 1628;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR152:
+    hv_gic_distributor_reg_t = 1632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR153:
+    hv_gic_distributor_reg_t = 1636;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR154:
+    hv_gic_distributor_reg_t = 1640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR155:
+    hv_gic_distributor_reg_t = 1644;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR156:
+    hv_gic_distributor_reg_t = 1648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR157:
+    hv_gic_distributor_reg_t = 1652;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR158:
+    hv_gic_distributor_reg_t = 1656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR159:
+    hv_gic_distributor_reg_t = 1660;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR160:
+    hv_gic_distributor_reg_t = 1664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR161:
+    hv_gic_distributor_reg_t = 1668;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR162:
+    hv_gic_distributor_reg_t = 1672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR163:
+    hv_gic_distributor_reg_t = 1676;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR164:
+    hv_gic_distributor_reg_t = 1680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR165:
+    hv_gic_distributor_reg_t = 1684;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR166:
+    hv_gic_distributor_reg_t = 1688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR167:
+    hv_gic_distributor_reg_t = 1692;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR168:
+    hv_gic_distributor_reg_t = 1696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR169:
+    hv_gic_distributor_reg_t = 1700;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR170:
+    hv_gic_distributor_reg_t = 1704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR171:
+    hv_gic_distributor_reg_t = 1708;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR172:
+    hv_gic_distributor_reg_t = 1712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR173:
+    hv_gic_distributor_reg_t = 1716;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR174:
+    hv_gic_distributor_reg_t = 1720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR175:
+    hv_gic_distributor_reg_t = 1724;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR176:
+    hv_gic_distributor_reg_t = 1728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR177:
+    hv_gic_distributor_reg_t = 1732;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR178:
+    hv_gic_distributor_reg_t = 1736;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR179:
+    hv_gic_distributor_reg_t = 1740;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR180:
+    hv_gic_distributor_reg_t = 1744;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR181:
+    hv_gic_distributor_reg_t = 1748;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR182:
+    hv_gic_distributor_reg_t = 1752;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR183:
+    hv_gic_distributor_reg_t = 1756;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR184:
+    hv_gic_distributor_reg_t = 1760;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR185:
+    hv_gic_distributor_reg_t = 1764;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR186:
+    hv_gic_distributor_reg_t = 1768;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR187:
+    hv_gic_distributor_reg_t = 1772;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR188:
+    hv_gic_distributor_reg_t = 1776;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR189:
+    hv_gic_distributor_reg_t = 1780;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR190:
+    hv_gic_distributor_reg_t = 1784;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR191:
+    hv_gic_distributor_reg_t = 1788;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR192:
+    hv_gic_distributor_reg_t = 1792;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR193:
+    hv_gic_distributor_reg_t = 1796;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR194:
+    hv_gic_distributor_reg_t = 1800;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR195:
+    hv_gic_distributor_reg_t = 1804;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR196:
+    hv_gic_distributor_reg_t = 1808;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR197:
+    hv_gic_distributor_reg_t = 1812;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR198:
+    hv_gic_distributor_reg_t = 1816;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR199:
+    hv_gic_distributor_reg_t = 1820;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR200:
+    hv_gic_distributor_reg_t = 1824;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR201:
+    hv_gic_distributor_reg_t = 1828;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR202:
+    hv_gic_distributor_reg_t = 1832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR203:
+    hv_gic_distributor_reg_t = 1836;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR204:
+    hv_gic_distributor_reg_t = 1840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR205:
+    hv_gic_distributor_reg_t = 1844;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR206:
+    hv_gic_distributor_reg_t = 1848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR207:
+    hv_gic_distributor_reg_t = 1852;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR208:
+    hv_gic_distributor_reg_t = 1856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR209:
+    hv_gic_distributor_reg_t = 1860;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR210:
+    hv_gic_distributor_reg_t = 1864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR211:
+    hv_gic_distributor_reg_t = 1868;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR212:
+    hv_gic_distributor_reg_t = 1872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR213:
+    hv_gic_distributor_reg_t = 1876;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR214:
+    hv_gic_distributor_reg_t = 1880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR215:
+    hv_gic_distributor_reg_t = 1884;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR216:
+    hv_gic_distributor_reg_t = 1888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR217:
+    hv_gic_distributor_reg_t = 1892;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR218:
+    hv_gic_distributor_reg_t = 1896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR219:
+    hv_gic_distributor_reg_t = 1900;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR220:
+    hv_gic_distributor_reg_t = 1904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR221:
+    hv_gic_distributor_reg_t = 1908;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR222:
+    hv_gic_distributor_reg_t = 1912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR223:
+    hv_gic_distributor_reg_t = 1916;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR224:
+    hv_gic_distributor_reg_t = 1920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR225:
+    hv_gic_distributor_reg_t = 1924;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR226:
+    hv_gic_distributor_reg_t = 1928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR227:
+    hv_gic_distributor_reg_t = 1932;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR228:
+    hv_gic_distributor_reg_t = 1936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR229:
+    hv_gic_distributor_reg_t = 1940;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR230:
+    hv_gic_distributor_reg_t = 1944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR231:
+    hv_gic_distributor_reg_t = 1948;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR232:
+    hv_gic_distributor_reg_t = 1952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR233:
+    hv_gic_distributor_reg_t = 1956;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR234:
+    hv_gic_distributor_reg_t = 1960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR235:
+    hv_gic_distributor_reg_t = 1964;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR236:
+    hv_gic_distributor_reg_t = 1968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR237:
+    hv_gic_distributor_reg_t = 1972;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR238:
+    hv_gic_distributor_reg_t = 1976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR239:
+    hv_gic_distributor_reg_t = 1980;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR240:
+    hv_gic_distributor_reg_t = 1984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR241:
+    hv_gic_distributor_reg_t = 1988;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR242:
+    hv_gic_distributor_reg_t = 1992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR243:
+    hv_gic_distributor_reg_t = 1996;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR244:
+    hv_gic_distributor_reg_t = 2000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR245:
+    hv_gic_distributor_reg_t = 2004;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR246:
+    hv_gic_distributor_reg_t = 2008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR247:
+    hv_gic_distributor_reg_t = 2012;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR248:
+    hv_gic_distributor_reg_t = 2016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR249:
+    hv_gic_distributor_reg_t = 2020;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR250:
+    hv_gic_distributor_reg_t = 2024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR251:
+    hv_gic_distributor_reg_t = 2028;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR252:
+    hv_gic_distributor_reg_t = 2032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR253:
+    hv_gic_distributor_reg_t = 2036;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IPRIORITYR254:
+    hv_gic_distributor_reg_t = 2040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR0: hv_gic_distributor_reg_t =
+    3072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR1: hv_gic_distributor_reg_t =
+    3076;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR2: hv_gic_distributor_reg_t =
+    3080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR3: hv_gic_distributor_reg_t =
+    3084;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR4: hv_gic_distributor_reg_t =
+    3088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR5: hv_gic_distributor_reg_t =
+    3092;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR6: hv_gic_distributor_reg_t =
+    3096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR7: hv_gic_distributor_reg_t =
+    3100;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR8: hv_gic_distributor_reg_t =
+    3104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR9: hv_gic_distributor_reg_t =
+    3108;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR10: hv_gic_distributor_reg_t =
+    3112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR11: hv_gic_distributor_reg_t =
+    3116;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR12: hv_gic_distributor_reg_t =
+    3120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR13: hv_gic_distributor_reg_t =
+    3124;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR14: hv_gic_distributor_reg_t =
+    3128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR15: hv_gic_distributor_reg_t =
+    3132;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR16: hv_gic_distributor_reg_t =
+    3136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR17: hv_gic_distributor_reg_t =
+    3140;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR18: hv_gic_distributor_reg_t =
+    3144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR19: hv_gic_distributor_reg_t =
+    3148;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR20: hv_gic_distributor_reg_t =
+    3152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR21: hv_gic_distributor_reg_t =
+    3156;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR22: hv_gic_distributor_reg_t =
+    3160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR23: hv_gic_distributor_reg_t =
+    3164;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR24: hv_gic_distributor_reg_t =
+    3168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR25: hv_gic_distributor_reg_t =
+    3172;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR26: hv_gic_distributor_reg_t =
+    3176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR27: hv_gic_distributor_reg_t =
+    3180;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR28: hv_gic_distributor_reg_t =
+    3184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR29: hv_gic_distributor_reg_t =
+    3188;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR30: hv_gic_distributor_reg_t =
+    3192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR31: hv_gic_distributor_reg_t =
+    3196;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR32: hv_gic_distributor_reg_t =
+    3200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR33: hv_gic_distributor_reg_t =
+    3204;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR34: hv_gic_distributor_reg_t =
+    3208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR35: hv_gic_distributor_reg_t =
+    3212;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR36: hv_gic_distributor_reg_t =
+    3216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR37: hv_gic_distributor_reg_t =
+    3220;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR38: hv_gic_distributor_reg_t =
+    3224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR39: hv_gic_distributor_reg_t =
+    3228;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR40: hv_gic_distributor_reg_t =
+    3232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR41: hv_gic_distributor_reg_t =
+    3236;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR42: hv_gic_distributor_reg_t =
+    3240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR43: hv_gic_distributor_reg_t =
+    3244;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR44: hv_gic_distributor_reg_t =
+    3248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR45: hv_gic_distributor_reg_t =
+    3252;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR46: hv_gic_distributor_reg_t =
+    3256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR47: hv_gic_distributor_reg_t =
+    3260;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR48: hv_gic_distributor_reg_t =
+    3264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR49: hv_gic_distributor_reg_t =
+    3268;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR50: hv_gic_distributor_reg_t =
+    3272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR51: hv_gic_distributor_reg_t =
+    3276;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR52: hv_gic_distributor_reg_t =
+    3280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR53: hv_gic_distributor_reg_t =
+    3284;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR54: hv_gic_distributor_reg_t =
+    3288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR55: hv_gic_distributor_reg_t =
+    3292;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR56: hv_gic_distributor_reg_t =
+    3296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR57: hv_gic_distributor_reg_t =
+    3300;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR58: hv_gic_distributor_reg_t =
+    3304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR59: hv_gic_distributor_reg_t =
+    3308;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR60: hv_gic_distributor_reg_t =
+    3312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR61: hv_gic_distributor_reg_t =
+    3316;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR62: hv_gic_distributor_reg_t =
+    3320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_ICFGR63: hv_gic_distributor_reg_t =
+    3324;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER32: hv_gic_distributor_reg_t =
+    24832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER33: hv_gic_distributor_reg_t =
+    24840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER34: hv_gic_distributor_reg_t =
+    24848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER35: hv_gic_distributor_reg_t =
+    24856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER36: hv_gic_distributor_reg_t =
+    24864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER37: hv_gic_distributor_reg_t =
+    24872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER38: hv_gic_distributor_reg_t =
+    24880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER39: hv_gic_distributor_reg_t =
+    24888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER40: hv_gic_distributor_reg_t =
+    24896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER41: hv_gic_distributor_reg_t =
+    24904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER42: hv_gic_distributor_reg_t =
+    24912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER43: hv_gic_distributor_reg_t =
+    24920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER44: hv_gic_distributor_reg_t =
+    24928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER45: hv_gic_distributor_reg_t =
+    24936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER46: hv_gic_distributor_reg_t =
+    24944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER47: hv_gic_distributor_reg_t =
+    24952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER48: hv_gic_distributor_reg_t =
+    24960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER49: hv_gic_distributor_reg_t =
+    24968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER50: hv_gic_distributor_reg_t =
+    24976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER51: hv_gic_distributor_reg_t =
+    24984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER52: hv_gic_distributor_reg_t =
+    24992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER53: hv_gic_distributor_reg_t =
+    25000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER54: hv_gic_distributor_reg_t =
+    25008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER55: hv_gic_distributor_reg_t =
+    25016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER56: hv_gic_distributor_reg_t =
+    25024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER57: hv_gic_distributor_reg_t =
+    25032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER58: hv_gic_distributor_reg_t =
+    25040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER59: hv_gic_distributor_reg_t =
+    25048;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER60: hv_gic_distributor_reg_t =
+    25056;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER61: hv_gic_distributor_reg_t =
+    25064;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER62: hv_gic_distributor_reg_t =
+    25072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER63: hv_gic_distributor_reg_t =
+    25080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER64: hv_gic_distributor_reg_t =
+    25088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER65: hv_gic_distributor_reg_t =
+    25096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER66: hv_gic_distributor_reg_t =
+    25104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER67: hv_gic_distributor_reg_t =
+    25112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER68: hv_gic_distributor_reg_t =
+    25120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER69: hv_gic_distributor_reg_t =
+    25128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER70: hv_gic_distributor_reg_t =
+    25136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER71: hv_gic_distributor_reg_t =
+    25144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER72: hv_gic_distributor_reg_t =
+    25152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER73: hv_gic_distributor_reg_t =
+    25160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER74: hv_gic_distributor_reg_t =
+    25168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER75: hv_gic_distributor_reg_t =
+    25176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER76: hv_gic_distributor_reg_t =
+    25184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER77: hv_gic_distributor_reg_t =
+    25192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER78: hv_gic_distributor_reg_t =
+    25200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER79: hv_gic_distributor_reg_t =
+    25208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER80: hv_gic_distributor_reg_t =
+    25216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER81: hv_gic_distributor_reg_t =
+    25224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER82: hv_gic_distributor_reg_t =
+    25232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER83: hv_gic_distributor_reg_t =
+    25240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER84: hv_gic_distributor_reg_t =
+    25248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER85: hv_gic_distributor_reg_t =
+    25256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER86: hv_gic_distributor_reg_t =
+    25264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER87: hv_gic_distributor_reg_t =
+    25272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER88: hv_gic_distributor_reg_t =
+    25280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER89: hv_gic_distributor_reg_t =
+    25288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER90: hv_gic_distributor_reg_t =
+    25296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER91: hv_gic_distributor_reg_t =
+    25304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER92: hv_gic_distributor_reg_t =
+    25312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER93: hv_gic_distributor_reg_t =
+    25320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER94: hv_gic_distributor_reg_t =
+    25328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER95: hv_gic_distributor_reg_t =
+    25336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER96: hv_gic_distributor_reg_t =
+    25344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER97: hv_gic_distributor_reg_t =
+    25352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER98: hv_gic_distributor_reg_t =
+    25360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER99: hv_gic_distributor_reg_t =
+    25368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER100:
+    hv_gic_distributor_reg_t = 25376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER101:
+    hv_gic_distributor_reg_t = 25384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER102:
+    hv_gic_distributor_reg_t = 25392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER103:
+    hv_gic_distributor_reg_t = 25400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER104:
+    hv_gic_distributor_reg_t = 25408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER105:
+    hv_gic_distributor_reg_t = 25416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER106:
+    hv_gic_distributor_reg_t = 25424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER107:
+    hv_gic_distributor_reg_t = 25432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER108:
+    hv_gic_distributor_reg_t = 25440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER109:
+    hv_gic_distributor_reg_t = 25448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER110:
+    hv_gic_distributor_reg_t = 25456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER111:
+    hv_gic_distributor_reg_t = 25464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER112:
+    hv_gic_distributor_reg_t = 25472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER113:
+    hv_gic_distributor_reg_t = 25480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER114:
+    hv_gic_distributor_reg_t = 25488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER115:
+    hv_gic_distributor_reg_t = 25496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER116:
+    hv_gic_distributor_reg_t = 25504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER117:
+    hv_gic_distributor_reg_t = 25512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER118:
+    hv_gic_distributor_reg_t = 25520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER119:
+    hv_gic_distributor_reg_t = 25528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER120:
+    hv_gic_distributor_reg_t = 25536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER121:
+    hv_gic_distributor_reg_t = 25544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER122:
+    hv_gic_distributor_reg_t = 25552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER123:
+    hv_gic_distributor_reg_t = 25560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER124:
+    hv_gic_distributor_reg_t = 25568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER125:
+    hv_gic_distributor_reg_t = 25576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER126:
+    hv_gic_distributor_reg_t = 25584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER127:
+    hv_gic_distributor_reg_t = 25592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER128:
+    hv_gic_distributor_reg_t = 25600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER129:
+    hv_gic_distributor_reg_t = 25608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER130:
+    hv_gic_distributor_reg_t = 25616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER131:
+    hv_gic_distributor_reg_t = 25624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER132:
+    hv_gic_distributor_reg_t = 25632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER133:
+    hv_gic_distributor_reg_t = 25640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER134:
+    hv_gic_distributor_reg_t = 25648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER135:
+    hv_gic_distributor_reg_t = 25656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER136:
+    hv_gic_distributor_reg_t = 25664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER137:
+    hv_gic_distributor_reg_t = 25672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER138:
+    hv_gic_distributor_reg_t = 25680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER139:
+    hv_gic_distributor_reg_t = 25688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER140:
+    hv_gic_distributor_reg_t = 25696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER141:
+    hv_gic_distributor_reg_t = 25704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER142:
+    hv_gic_distributor_reg_t = 25712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER143:
+    hv_gic_distributor_reg_t = 25720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER144:
+    hv_gic_distributor_reg_t = 25728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER145:
+    hv_gic_distributor_reg_t = 25736;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER146:
+    hv_gic_distributor_reg_t = 25744;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER147:
+    hv_gic_distributor_reg_t = 25752;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER148:
+    hv_gic_distributor_reg_t = 25760;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER149:
+    hv_gic_distributor_reg_t = 25768;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER150:
+    hv_gic_distributor_reg_t = 25776;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER151:
+    hv_gic_distributor_reg_t = 25784;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER152:
+    hv_gic_distributor_reg_t = 25792;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER153:
+    hv_gic_distributor_reg_t = 25800;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER154:
+    hv_gic_distributor_reg_t = 25808;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER155:
+    hv_gic_distributor_reg_t = 25816;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER156:
+    hv_gic_distributor_reg_t = 25824;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER157:
+    hv_gic_distributor_reg_t = 25832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER158:
+    hv_gic_distributor_reg_t = 25840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER159:
+    hv_gic_distributor_reg_t = 25848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER160:
+    hv_gic_distributor_reg_t = 25856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER161:
+    hv_gic_distributor_reg_t = 25864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER162:
+    hv_gic_distributor_reg_t = 25872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER163:
+    hv_gic_distributor_reg_t = 25880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER164:
+    hv_gic_distributor_reg_t = 25888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER165:
+    hv_gic_distributor_reg_t = 25896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER166:
+    hv_gic_distributor_reg_t = 25904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER167:
+    hv_gic_distributor_reg_t = 25912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER168:
+    hv_gic_distributor_reg_t = 25920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER169:
+    hv_gic_distributor_reg_t = 25928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER170:
+    hv_gic_distributor_reg_t = 25936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER171:
+    hv_gic_distributor_reg_t = 25944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER172:
+    hv_gic_distributor_reg_t = 25952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER173:
+    hv_gic_distributor_reg_t = 25960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER174:
+    hv_gic_distributor_reg_t = 25968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER175:
+    hv_gic_distributor_reg_t = 25976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER176:
+    hv_gic_distributor_reg_t = 25984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER177:
+    hv_gic_distributor_reg_t = 25992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER178:
+    hv_gic_distributor_reg_t = 26000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER179:
+    hv_gic_distributor_reg_t = 26008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER180:
+    hv_gic_distributor_reg_t = 26016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER181:
+    hv_gic_distributor_reg_t = 26024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER182:
+    hv_gic_distributor_reg_t = 26032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER183:
+    hv_gic_distributor_reg_t = 26040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER184:
+    hv_gic_distributor_reg_t = 26048;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER185:
+    hv_gic_distributor_reg_t = 26056;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER186:
+    hv_gic_distributor_reg_t = 26064;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER187:
+    hv_gic_distributor_reg_t = 26072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER188:
+    hv_gic_distributor_reg_t = 26080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER189:
+    hv_gic_distributor_reg_t = 26088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER190:
+    hv_gic_distributor_reg_t = 26096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER191:
+    hv_gic_distributor_reg_t = 26104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER192:
+    hv_gic_distributor_reg_t = 26112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER193:
+    hv_gic_distributor_reg_t = 26120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER194:
+    hv_gic_distributor_reg_t = 26128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER195:
+    hv_gic_distributor_reg_t = 26136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER196:
+    hv_gic_distributor_reg_t = 26144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER197:
+    hv_gic_distributor_reg_t = 26152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER198:
+    hv_gic_distributor_reg_t = 26160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER199:
+    hv_gic_distributor_reg_t = 26168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER200:
+    hv_gic_distributor_reg_t = 26176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER201:
+    hv_gic_distributor_reg_t = 26184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER202:
+    hv_gic_distributor_reg_t = 26192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER203:
+    hv_gic_distributor_reg_t = 26200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER204:
+    hv_gic_distributor_reg_t = 26208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER205:
+    hv_gic_distributor_reg_t = 26216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER206:
+    hv_gic_distributor_reg_t = 26224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER207:
+    hv_gic_distributor_reg_t = 26232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER208:
+    hv_gic_distributor_reg_t = 26240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER209:
+    hv_gic_distributor_reg_t = 26248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER210:
+    hv_gic_distributor_reg_t = 26256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER211:
+    hv_gic_distributor_reg_t = 26264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER212:
+    hv_gic_distributor_reg_t = 26272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER213:
+    hv_gic_distributor_reg_t = 26280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER214:
+    hv_gic_distributor_reg_t = 26288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER215:
+    hv_gic_distributor_reg_t = 26296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER216:
+    hv_gic_distributor_reg_t = 26304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER217:
+    hv_gic_distributor_reg_t = 26312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER218:
+    hv_gic_distributor_reg_t = 26320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER219:
+    hv_gic_distributor_reg_t = 26328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER220:
+    hv_gic_distributor_reg_t = 26336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER221:
+    hv_gic_distributor_reg_t = 26344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER222:
+    hv_gic_distributor_reg_t = 26352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER223:
+    hv_gic_distributor_reg_t = 26360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER224:
+    hv_gic_distributor_reg_t = 26368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER225:
+    hv_gic_distributor_reg_t = 26376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER226:
+    hv_gic_distributor_reg_t = 26384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER227:
+    hv_gic_distributor_reg_t = 26392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER228:
+    hv_gic_distributor_reg_t = 26400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER229:
+    hv_gic_distributor_reg_t = 26408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER230:
+    hv_gic_distributor_reg_t = 26416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER231:
+    hv_gic_distributor_reg_t = 26424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER232:
+    hv_gic_distributor_reg_t = 26432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER233:
+    hv_gic_distributor_reg_t = 26440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER234:
+    hv_gic_distributor_reg_t = 26448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER235:
+    hv_gic_distributor_reg_t = 26456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER236:
+    hv_gic_distributor_reg_t = 26464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER237:
+    hv_gic_distributor_reg_t = 26472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER238:
+    hv_gic_distributor_reg_t = 26480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER239:
+    hv_gic_distributor_reg_t = 26488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER240:
+    hv_gic_distributor_reg_t = 26496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER241:
+    hv_gic_distributor_reg_t = 26504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER242:
+    hv_gic_distributor_reg_t = 26512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER243:
+    hv_gic_distributor_reg_t = 26520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER244:
+    hv_gic_distributor_reg_t = 26528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER245:
+    hv_gic_distributor_reg_t = 26536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER246:
+    hv_gic_distributor_reg_t = 26544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER247:
+    hv_gic_distributor_reg_t = 26552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER248:
+    hv_gic_distributor_reg_t = 26560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER249:
+    hv_gic_distributor_reg_t = 26568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER250:
+    hv_gic_distributor_reg_t = 26576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER251:
+    hv_gic_distributor_reg_t = 26584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER252:
+    hv_gic_distributor_reg_t = 26592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER253:
+    hv_gic_distributor_reg_t = 26600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER254:
+    hv_gic_distributor_reg_t = 26608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER255:
+    hv_gic_distributor_reg_t = 26616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER256:
+    hv_gic_distributor_reg_t = 26624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER257:
+    hv_gic_distributor_reg_t = 26632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER258:
+    hv_gic_distributor_reg_t = 26640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER259:
+    hv_gic_distributor_reg_t = 26648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER260:
+    hv_gic_distributor_reg_t = 26656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER261:
+    hv_gic_distributor_reg_t = 26664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER262:
+    hv_gic_distributor_reg_t = 26672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER263:
+    hv_gic_distributor_reg_t = 26680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER264:
+    hv_gic_distributor_reg_t = 26688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER265:
+    hv_gic_distributor_reg_t = 26696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER266:
+    hv_gic_distributor_reg_t = 26704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER267:
+    hv_gic_distributor_reg_t = 26712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER268:
+    hv_gic_distributor_reg_t = 26720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER269:
+    hv_gic_distributor_reg_t = 26728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER270:
+    hv_gic_distributor_reg_t = 26736;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER271:
+    hv_gic_distributor_reg_t = 26744;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER272:
+    hv_gic_distributor_reg_t = 26752;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER273:
+    hv_gic_distributor_reg_t = 26760;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER274:
+    hv_gic_distributor_reg_t = 26768;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER275:
+    hv_gic_distributor_reg_t = 26776;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER276:
+    hv_gic_distributor_reg_t = 26784;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER277:
+    hv_gic_distributor_reg_t = 26792;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER278:
+    hv_gic_distributor_reg_t = 26800;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER279:
+    hv_gic_distributor_reg_t = 26808;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER280:
+    hv_gic_distributor_reg_t = 26816;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER281:
+    hv_gic_distributor_reg_t = 26824;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER282:
+    hv_gic_distributor_reg_t = 26832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER283:
+    hv_gic_distributor_reg_t = 26840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER284:
+    hv_gic_distributor_reg_t = 26848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER285:
+    hv_gic_distributor_reg_t = 26856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER286:
+    hv_gic_distributor_reg_t = 26864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER287:
+    hv_gic_distributor_reg_t = 26872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER288:
+    hv_gic_distributor_reg_t = 26880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER289:
+    hv_gic_distributor_reg_t = 26888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER290:
+    hv_gic_distributor_reg_t = 26896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER291:
+    hv_gic_distributor_reg_t = 26904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER292:
+    hv_gic_distributor_reg_t = 26912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER293:
+    hv_gic_distributor_reg_t = 26920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER294:
+    hv_gic_distributor_reg_t = 26928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER295:
+    hv_gic_distributor_reg_t = 26936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER296:
+    hv_gic_distributor_reg_t = 26944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER297:
+    hv_gic_distributor_reg_t = 26952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER298:
+    hv_gic_distributor_reg_t = 26960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER299:
+    hv_gic_distributor_reg_t = 26968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER300:
+    hv_gic_distributor_reg_t = 26976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER301:
+    hv_gic_distributor_reg_t = 26984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER302:
+    hv_gic_distributor_reg_t = 26992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER303:
+    hv_gic_distributor_reg_t = 27000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER304:
+    hv_gic_distributor_reg_t = 27008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER305:
+    hv_gic_distributor_reg_t = 27016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER306:
+    hv_gic_distributor_reg_t = 27024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER307:
+    hv_gic_distributor_reg_t = 27032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER308:
+    hv_gic_distributor_reg_t = 27040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER309:
+    hv_gic_distributor_reg_t = 27048;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER310:
+    hv_gic_distributor_reg_t = 27056;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER311:
+    hv_gic_distributor_reg_t = 27064;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER312:
+    hv_gic_distributor_reg_t = 27072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER313:
+    hv_gic_distributor_reg_t = 27080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER314:
+    hv_gic_distributor_reg_t = 27088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER315:
+    hv_gic_distributor_reg_t = 27096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER316:
+    hv_gic_distributor_reg_t = 27104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER317:
+    hv_gic_distributor_reg_t = 27112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER318:
+    hv_gic_distributor_reg_t = 27120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER319:
+    hv_gic_distributor_reg_t = 27128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER320:
+    hv_gic_distributor_reg_t = 27136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER321:
+    hv_gic_distributor_reg_t = 27144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER322:
+    hv_gic_distributor_reg_t = 27152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER323:
+    hv_gic_distributor_reg_t = 27160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER324:
+    hv_gic_distributor_reg_t = 27168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER325:
+    hv_gic_distributor_reg_t = 27176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER326:
+    hv_gic_distributor_reg_t = 27184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER327:
+    hv_gic_distributor_reg_t = 27192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER328:
+    hv_gic_distributor_reg_t = 27200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER329:
+    hv_gic_distributor_reg_t = 27208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER330:
+    hv_gic_distributor_reg_t = 27216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER331:
+    hv_gic_distributor_reg_t = 27224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER332:
+    hv_gic_distributor_reg_t = 27232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER333:
+    hv_gic_distributor_reg_t = 27240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER334:
+    hv_gic_distributor_reg_t = 27248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER335:
+    hv_gic_distributor_reg_t = 27256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER336:
+    hv_gic_distributor_reg_t = 27264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER337:
+    hv_gic_distributor_reg_t = 27272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER338:
+    hv_gic_distributor_reg_t = 27280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER339:
+    hv_gic_distributor_reg_t = 27288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER340:
+    hv_gic_distributor_reg_t = 27296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER341:
+    hv_gic_distributor_reg_t = 27304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER342:
+    hv_gic_distributor_reg_t = 27312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER343:
+    hv_gic_distributor_reg_t = 27320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER344:
+    hv_gic_distributor_reg_t = 27328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER345:
+    hv_gic_distributor_reg_t = 27336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER346:
+    hv_gic_distributor_reg_t = 27344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER347:
+    hv_gic_distributor_reg_t = 27352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER348:
+    hv_gic_distributor_reg_t = 27360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER349:
+    hv_gic_distributor_reg_t = 27368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER350:
+    hv_gic_distributor_reg_t = 27376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER351:
+    hv_gic_distributor_reg_t = 27384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER352:
+    hv_gic_distributor_reg_t = 27392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER353:
+    hv_gic_distributor_reg_t = 27400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER354:
+    hv_gic_distributor_reg_t = 27408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER355:
+    hv_gic_distributor_reg_t = 27416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER356:
+    hv_gic_distributor_reg_t = 27424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER357:
+    hv_gic_distributor_reg_t = 27432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER358:
+    hv_gic_distributor_reg_t = 27440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER359:
+    hv_gic_distributor_reg_t = 27448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER360:
+    hv_gic_distributor_reg_t = 27456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER361:
+    hv_gic_distributor_reg_t = 27464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER362:
+    hv_gic_distributor_reg_t = 27472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER363:
+    hv_gic_distributor_reg_t = 27480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER364:
+    hv_gic_distributor_reg_t = 27488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER365:
+    hv_gic_distributor_reg_t = 27496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER366:
+    hv_gic_distributor_reg_t = 27504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER367:
+    hv_gic_distributor_reg_t = 27512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER368:
+    hv_gic_distributor_reg_t = 27520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER369:
+    hv_gic_distributor_reg_t = 27528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER370:
+    hv_gic_distributor_reg_t = 27536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER371:
+    hv_gic_distributor_reg_t = 27544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER372:
+    hv_gic_distributor_reg_t = 27552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER373:
+    hv_gic_distributor_reg_t = 27560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER374:
+    hv_gic_distributor_reg_t = 27568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER375:
+    hv_gic_distributor_reg_t = 27576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER376:
+    hv_gic_distributor_reg_t = 27584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER377:
+    hv_gic_distributor_reg_t = 27592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER378:
+    hv_gic_distributor_reg_t = 27600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER379:
+    hv_gic_distributor_reg_t = 27608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER380:
+    hv_gic_distributor_reg_t = 27616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER381:
+    hv_gic_distributor_reg_t = 27624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER382:
+    hv_gic_distributor_reg_t = 27632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER383:
+    hv_gic_distributor_reg_t = 27640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER384:
+    hv_gic_distributor_reg_t = 27648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER385:
+    hv_gic_distributor_reg_t = 27656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER386:
+    hv_gic_distributor_reg_t = 27664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER387:
+    hv_gic_distributor_reg_t = 27672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER388:
+    hv_gic_distributor_reg_t = 27680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER389:
+    hv_gic_distributor_reg_t = 27688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER390:
+    hv_gic_distributor_reg_t = 27696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER391:
+    hv_gic_distributor_reg_t = 27704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER392:
+    hv_gic_distributor_reg_t = 27712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER393:
+    hv_gic_distributor_reg_t = 27720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER394:
+    hv_gic_distributor_reg_t = 27728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER395:
+    hv_gic_distributor_reg_t = 27736;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER396:
+    hv_gic_distributor_reg_t = 27744;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER397:
+    hv_gic_distributor_reg_t = 27752;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER398:
+    hv_gic_distributor_reg_t = 27760;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER399:
+    hv_gic_distributor_reg_t = 27768;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER400:
+    hv_gic_distributor_reg_t = 27776;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER401:
+    hv_gic_distributor_reg_t = 27784;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER402:
+    hv_gic_distributor_reg_t = 27792;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER403:
+    hv_gic_distributor_reg_t = 27800;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER404:
+    hv_gic_distributor_reg_t = 27808;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER405:
+    hv_gic_distributor_reg_t = 27816;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER406:
+    hv_gic_distributor_reg_t = 27824;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER407:
+    hv_gic_distributor_reg_t = 27832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER408:
+    hv_gic_distributor_reg_t = 27840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER409:
+    hv_gic_distributor_reg_t = 27848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER410:
+    hv_gic_distributor_reg_t = 27856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER411:
+    hv_gic_distributor_reg_t = 27864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER412:
+    hv_gic_distributor_reg_t = 27872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER413:
+    hv_gic_distributor_reg_t = 27880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER414:
+    hv_gic_distributor_reg_t = 27888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER415:
+    hv_gic_distributor_reg_t = 27896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER416:
+    hv_gic_distributor_reg_t = 27904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER417:
+    hv_gic_distributor_reg_t = 27912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER418:
+    hv_gic_distributor_reg_t = 27920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER419:
+    hv_gic_distributor_reg_t = 27928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER420:
+    hv_gic_distributor_reg_t = 27936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER421:
+    hv_gic_distributor_reg_t = 27944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER422:
+    hv_gic_distributor_reg_t = 27952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER423:
+    hv_gic_distributor_reg_t = 27960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER424:
+    hv_gic_distributor_reg_t = 27968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER425:
+    hv_gic_distributor_reg_t = 27976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER426:
+    hv_gic_distributor_reg_t = 27984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER427:
+    hv_gic_distributor_reg_t = 27992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER428:
+    hv_gic_distributor_reg_t = 28000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER429:
+    hv_gic_distributor_reg_t = 28008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER430:
+    hv_gic_distributor_reg_t = 28016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER431:
+    hv_gic_distributor_reg_t = 28024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER432:
+    hv_gic_distributor_reg_t = 28032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER433:
+    hv_gic_distributor_reg_t = 28040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER434:
+    hv_gic_distributor_reg_t = 28048;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER435:
+    hv_gic_distributor_reg_t = 28056;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER436:
+    hv_gic_distributor_reg_t = 28064;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER437:
+    hv_gic_distributor_reg_t = 28072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER438:
+    hv_gic_distributor_reg_t = 28080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER439:
+    hv_gic_distributor_reg_t = 28088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER440:
+    hv_gic_distributor_reg_t = 28096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER441:
+    hv_gic_distributor_reg_t = 28104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER442:
+    hv_gic_distributor_reg_t = 28112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER443:
+    hv_gic_distributor_reg_t = 28120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER444:
+    hv_gic_distributor_reg_t = 28128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER445:
+    hv_gic_distributor_reg_t = 28136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER446:
+    hv_gic_distributor_reg_t = 28144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER447:
+    hv_gic_distributor_reg_t = 28152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER448:
+    hv_gic_distributor_reg_t = 28160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER449:
+    hv_gic_distributor_reg_t = 28168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER450:
+    hv_gic_distributor_reg_t = 28176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER451:
+    hv_gic_distributor_reg_t = 28184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER452:
+    hv_gic_distributor_reg_t = 28192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER453:
+    hv_gic_distributor_reg_t = 28200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER454:
+    hv_gic_distributor_reg_t = 28208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER455:
+    hv_gic_distributor_reg_t = 28216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER456:
+    hv_gic_distributor_reg_t = 28224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER457:
+    hv_gic_distributor_reg_t = 28232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER458:
+    hv_gic_distributor_reg_t = 28240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER459:
+    hv_gic_distributor_reg_t = 28248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER460:
+    hv_gic_distributor_reg_t = 28256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER461:
+    hv_gic_distributor_reg_t = 28264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER462:
+    hv_gic_distributor_reg_t = 28272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER463:
+    hv_gic_distributor_reg_t = 28280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER464:
+    hv_gic_distributor_reg_t = 28288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER465:
+    hv_gic_distributor_reg_t = 28296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER466:
+    hv_gic_distributor_reg_t = 28304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER467:
+    hv_gic_distributor_reg_t = 28312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER468:
+    hv_gic_distributor_reg_t = 28320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER469:
+    hv_gic_distributor_reg_t = 28328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER470:
+    hv_gic_distributor_reg_t = 28336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER471:
+    hv_gic_distributor_reg_t = 28344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER472:
+    hv_gic_distributor_reg_t = 28352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER473:
+    hv_gic_distributor_reg_t = 28360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER474:
+    hv_gic_distributor_reg_t = 28368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER475:
+    hv_gic_distributor_reg_t = 28376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER476:
+    hv_gic_distributor_reg_t = 28384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER477:
+    hv_gic_distributor_reg_t = 28392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER478:
+    hv_gic_distributor_reg_t = 28400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER479:
+    hv_gic_distributor_reg_t = 28408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER480:
+    hv_gic_distributor_reg_t = 28416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER481:
+    hv_gic_distributor_reg_t = 28424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER482:
+    hv_gic_distributor_reg_t = 28432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER483:
+    hv_gic_distributor_reg_t = 28440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER484:
+    hv_gic_distributor_reg_t = 28448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER485:
+    hv_gic_distributor_reg_t = 28456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER486:
+    hv_gic_distributor_reg_t = 28464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER487:
+    hv_gic_distributor_reg_t = 28472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER488:
+    hv_gic_distributor_reg_t = 28480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER489:
+    hv_gic_distributor_reg_t = 28488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER490:
+    hv_gic_distributor_reg_t = 28496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER491:
+    hv_gic_distributor_reg_t = 28504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER492:
+    hv_gic_distributor_reg_t = 28512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER493:
+    hv_gic_distributor_reg_t = 28520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER494:
+    hv_gic_distributor_reg_t = 28528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER495:
+    hv_gic_distributor_reg_t = 28536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER496:
+    hv_gic_distributor_reg_t = 28544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER497:
+    hv_gic_distributor_reg_t = 28552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER498:
+    hv_gic_distributor_reg_t = 28560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER499:
+    hv_gic_distributor_reg_t = 28568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER500:
+    hv_gic_distributor_reg_t = 28576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER501:
+    hv_gic_distributor_reg_t = 28584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER502:
+    hv_gic_distributor_reg_t = 28592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER503:
+    hv_gic_distributor_reg_t = 28600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER504:
+    hv_gic_distributor_reg_t = 28608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER505:
+    hv_gic_distributor_reg_t = 28616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER506:
+    hv_gic_distributor_reg_t = 28624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER507:
+    hv_gic_distributor_reg_t = 28632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER508:
+    hv_gic_distributor_reg_t = 28640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER509:
+    hv_gic_distributor_reg_t = 28648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER510:
+    hv_gic_distributor_reg_t = 28656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER511:
+    hv_gic_distributor_reg_t = 28664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER512:
+    hv_gic_distributor_reg_t = 28672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER513:
+    hv_gic_distributor_reg_t = 28680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER514:
+    hv_gic_distributor_reg_t = 28688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER515:
+    hv_gic_distributor_reg_t = 28696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER516:
+    hv_gic_distributor_reg_t = 28704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER517:
+    hv_gic_distributor_reg_t = 28712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER518:
+    hv_gic_distributor_reg_t = 28720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER519:
+    hv_gic_distributor_reg_t = 28728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER520:
+    hv_gic_distributor_reg_t = 28736;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER521:
+    hv_gic_distributor_reg_t = 28744;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER522:
+    hv_gic_distributor_reg_t = 28752;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER523:
+    hv_gic_distributor_reg_t = 28760;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER524:
+    hv_gic_distributor_reg_t = 28768;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER525:
+    hv_gic_distributor_reg_t = 28776;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER526:
+    hv_gic_distributor_reg_t = 28784;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER527:
+    hv_gic_distributor_reg_t = 28792;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER528:
+    hv_gic_distributor_reg_t = 28800;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER529:
+    hv_gic_distributor_reg_t = 28808;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER530:
+    hv_gic_distributor_reg_t = 28816;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER531:
+    hv_gic_distributor_reg_t = 28824;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER532:
+    hv_gic_distributor_reg_t = 28832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER533:
+    hv_gic_distributor_reg_t = 28840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER534:
+    hv_gic_distributor_reg_t = 28848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER535:
+    hv_gic_distributor_reg_t = 28856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER536:
+    hv_gic_distributor_reg_t = 28864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER537:
+    hv_gic_distributor_reg_t = 28872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER538:
+    hv_gic_distributor_reg_t = 28880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER539:
+    hv_gic_distributor_reg_t = 28888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER540:
+    hv_gic_distributor_reg_t = 28896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER541:
+    hv_gic_distributor_reg_t = 28904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER542:
+    hv_gic_distributor_reg_t = 28912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER543:
+    hv_gic_distributor_reg_t = 28920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER544:
+    hv_gic_distributor_reg_t = 28928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER545:
+    hv_gic_distributor_reg_t = 28936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER546:
+    hv_gic_distributor_reg_t = 28944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER547:
+    hv_gic_distributor_reg_t = 28952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER548:
+    hv_gic_distributor_reg_t = 28960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER549:
+    hv_gic_distributor_reg_t = 28968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER550:
+    hv_gic_distributor_reg_t = 28976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER551:
+    hv_gic_distributor_reg_t = 28984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER552:
+    hv_gic_distributor_reg_t = 28992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER553:
+    hv_gic_distributor_reg_t = 29000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER554:
+    hv_gic_distributor_reg_t = 29008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER555:
+    hv_gic_distributor_reg_t = 29016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER556:
+    hv_gic_distributor_reg_t = 29024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER557:
+    hv_gic_distributor_reg_t = 29032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER558:
+    hv_gic_distributor_reg_t = 29040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER559:
+    hv_gic_distributor_reg_t = 29048;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER560:
+    hv_gic_distributor_reg_t = 29056;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER561:
+    hv_gic_distributor_reg_t = 29064;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER562:
+    hv_gic_distributor_reg_t = 29072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER563:
+    hv_gic_distributor_reg_t = 29080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER564:
+    hv_gic_distributor_reg_t = 29088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER565:
+    hv_gic_distributor_reg_t = 29096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER566:
+    hv_gic_distributor_reg_t = 29104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER567:
+    hv_gic_distributor_reg_t = 29112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER568:
+    hv_gic_distributor_reg_t = 29120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER569:
+    hv_gic_distributor_reg_t = 29128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER570:
+    hv_gic_distributor_reg_t = 29136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER571:
+    hv_gic_distributor_reg_t = 29144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER572:
+    hv_gic_distributor_reg_t = 29152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER573:
+    hv_gic_distributor_reg_t = 29160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER574:
+    hv_gic_distributor_reg_t = 29168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER575:
+    hv_gic_distributor_reg_t = 29176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER576:
+    hv_gic_distributor_reg_t = 29184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER577:
+    hv_gic_distributor_reg_t = 29192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER578:
+    hv_gic_distributor_reg_t = 29200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER579:
+    hv_gic_distributor_reg_t = 29208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER580:
+    hv_gic_distributor_reg_t = 29216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER581:
+    hv_gic_distributor_reg_t = 29224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER582:
+    hv_gic_distributor_reg_t = 29232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER583:
+    hv_gic_distributor_reg_t = 29240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER584:
+    hv_gic_distributor_reg_t = 29248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER585:
+    hv_gic_distributor_reg_t = 29256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER586:
+    hv_gic_distributor_reg_t = 29264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER587:
+    hv_gic_distributor_reg_t = 29272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER588:
+    hv_gic_distributor_reg_t = 29280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER589:
+    hv_gic_distributor_reg_t = 29288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER590:
+    hv_gic_distributor_reg_t = 29296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER591:
+    hv_gic_distributor_reg_t = 29304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER592:
+    hv_gic_distributor_reg_t = 29312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER593:
+    hv_gic_distributor_reg_t = 29320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER594:
+    hv_gic_distributor_reg_t = 29328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER595:
+    hv_gic_distributor_reg_t = 29336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER596:
+    hv_gic_distributor_reg_t = 29344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER597:
+    hv_gic_distributor_reg_t = 29352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER598:
+    hv_gic_distributor_reg_t = 29360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER599:
+    hv_gic_distributor_reg_t = 29368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER600:
+    hv_gic_distributor_reg_t = 29376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER601:
+    hv_gic_distributor_reg_t = 29384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER602:
+    hv_gic_distributor_reg_t = 29392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER603:
+    hv_gic_distributor_reg_t = 29400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER604:
+    hv_gic_distributor_reg_t = 29408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER605:
+    hv_gic_distributor_reg_t = 29416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER606:
+    hv_gic_distributor_reg_t = 29424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER607:
+    hv_gic_distributor_reg_t = 29432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER608:
+    hv_gic_distributor_reg_t = 29440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER609:
+    hv_gic_distributor_reg_t = 29448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER610:
+    hv_gic_distributor_reg_t = 29456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER611:
+    hv_gic_distributor_reg_t = 29464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER612:
+    hv_gic_distributor_reg_t = 29472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER613:
+    hv_gic_distributor_reg_t = 29480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER614:
+    hv_gic_distributor_reg_t = 29488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER615:
+    hv_gic_distributor_reg_t = 29496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER616:
+    hv_gic_distributor_reg_t = 29504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER617:
+    hv_gic_distributor_reg_t = 29512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER618:
+    hv_gic_distributor_reg_t = 29520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER619:
+    hv_gic_distributor_reg_t = 29528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER620:
+    hv_gic_distributor_reg_t = 29536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER621:
+    hv_gic_distributor_reg_t = 29544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER622:
+    hv_gic_distributor_reg_t = 29552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER623:
+    hv_gic_distributor_reg_t = 29560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER624:
+    hv_gic_distributor_reg_t = 29568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER625:
+    hv_gic_distributor_reg_t = 29576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER626:
+    hv_gic_distributor_reg_t = 29584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER627:
+    hv_gic_distributor_reg_t = 29592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER628:
+    hv_gic_distributor_reg_t = 29600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER629:
+    hv_gic_distributor_reg_t = 29608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER630:
+    hv_gic_distributor_reg_t = 29616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER631:
+    hv_gic_distributor_reg_t = 29624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER632:
+    hv_gic_distributor_reg_t = 29632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER633:
+    hv_gic_distributor_reg_t = 29640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER634:
+    hv_gic_distributor_reg_t = 29648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER635:
+    hv_gic_distributor_reg_t = 29656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER636:
+    hv_gic_distributor_reg_t = 29664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER637:
+    hv_gic_distributor_reg_t = 29672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER638:
+    hv_gic_distributor_reg_t = 29680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER639:
+    hv_gic_distributor_reg_t = 29688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER640:
+    hv_gic_distributor_reg_t = 29696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER641:
+    hv_gic_distributor_reg_t = 29704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER642:
+    hv_gic_distributor_reg_t = 29712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER643:
+    hv_gic_distributor_reg_t = 29720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER644:
+    hv_gic_distributor_reg_t = 29728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER645:
+    hv_gic_distributor_reg_t = 29736;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER646:
+    hv_gic_distributor_reg_t = 29744;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER647:
+    hv_gic_distributor_reg_t = 29752;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER648:
+    hv_gic_distributor_reg_t = 29760;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER649:
+    hv_gic_distributor_reg_t = 29768;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER650:
+    hv_gic_distributor_reg_t = 29776;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER651:
+    hv_gic_distributor_reg_t = 29784;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER652:
+    hv_gic_distributor_reg_t = 29792;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER653:
+    hv_gic_distributor_reg_t = 29800;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER654:
+    hv_gic_distributor_reg_t = 29808;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER655:
+    hv_gic_distributor_reg_t = 29816;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER656:
+    hv_gic_distributor_reg_t = 29824;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER657:
+    hv_gic_distributor_reg_t = 29832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER658:
+    hv_gic_distributor_reg_t = 29840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER659:
+    hv_gic_distributor_reg_t = 29848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER660:
+    hv_gic_distributor_reg_t = 29856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER661:
+    hv_gic_distributor_reg_t = 29864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER662:
+    hv_gic_distributor_reg_t = 29872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER663:
+    hv_gic_distributor_reg_t = 29880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER664:
+    hv_gic_distributor_reg_t = 29888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER665:
+    hv_gic_distributor_reg_t = 29896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER666:
+    hv_gic_distributor_reg_t = 29904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER667:
+    hv_gic_distributor_reg_t = 29912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER668:
+    hv_gic_distributor_reg_t = 29920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER669:
+    hv_gic_distributor_reg_t = 29928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER670:
+    hv_gic_distributor_reg_t = 29936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER671:
+    hv_gic_distributor_reg_t = 29944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER672:
+    hv_gic_distributor_reg_t = 29952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER673:
+    hv_gic_distributor_reg_t = 29960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER674:
+    hv_gic_distributor_reg_t = 29968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER675:
+    hv_gic_distributor_reg_t = 29976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER676:
+    hv_gic_distributor_reg_t = 29984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER677:
+    hv_gic_distributor_reg_t = 29992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER678:
+    hv_gic_distributor_reg_t = 30000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER679:
+    hv_gic_distributor_reg_t = 30008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER680:
+    hv_gic_distributor_reg_t = 30016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER681:
+    hv_gic_distributor_reg_t = 30024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER682:
+    hv_gic_distributor_reg_t = 30032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER683:
+    hv_gic_distributor_reg_t = 30040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER684:
+    hv_gic_distributor_reg_t = 30048;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER685:
+    hv_gic_distributor_reg_t = 30056;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER686:
+    hv_gic_distributor_reg_t = 30064;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER687:
+    hv_gic_distributor_reg_t = 30072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER688:
+    hv_gic_distributor_reg_t = 30080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER689:
+    hv_gic_distributor_reg_t = 30088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER690:
+    hv_gic_distributor_reg_t = 30096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER691:
+    hv_gic_distributor_reg_t = 30104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER692:
+    hv_gic_distributor_reg_t = 30112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER693:
+    hv_gic_distributor_reg_t = 30120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER694:
+    hv_gic_distributor_reg_t = 30128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER695:
+    hv_gic_distributor_reg_t = 30136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER696:
+    hv_gic_distributor_reg_t = 30144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER697:
+    hv_gic_distributor_reg_t = 30152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER698:
+    hv_gic_distributor_reg_t = 30160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER699:
+    hv_gic_distributor_reg_t = 30168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER700:
+    hv_gic_distributor_reg_t = 30176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER701:
+    hv_gic_distributor_reg_t = 30184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER702:
+    hv_gic_distributor_reg_t = 30192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER703:
+    hv_gic_distributor_reg_t = 30200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER704:
+    hv_gic_distributor_reg_t = 30208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER705:
+    hv_gic_distributor_reg_t = 30216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER706:
+    hv_gic_distributor_reg_t = 30224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER707:
+    hv_gic_distributor_reg_t = 30232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER708:
+    hv_gic_distributor_reg_t = 30240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER709:
+    hv_gic_distributor_reg_t = 30248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER710:
+    hv_gic_distributor_reg_t = 30256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER711:
+    hv_gic_distributor_reg_t = 30264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER712:
+    hv_gic_distributor_reg_t = 30272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER713:
+    hv_gic_distributor_reg_t = 30280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER714:
+    hv_gic_distributor_reg_t = 30288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER715:
+    hv_gic_distributor_reg_t = 30296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER716:
+    hv_gic_distributor_reg_t = 30304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER717:
+    hv_gic_distributor_reg_t = 30312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER718:
+    hv_gic_distributor_reg_t = 30320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER719:
+    hv_gic_distributor_reg_t = 30328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER720:
+    hv_gic_distributor_reg_t = 30336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER721:
+    hv_gic_distributor_reg_t = 30344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER722:
+    hv_gic_distributor_reg_t = 30352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER723:
+    hv_gic_distributor_reg_t = 30360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER724:
+    hv_gic_distributor_reg_t = 30368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER725:
+    hv_gic_distributor_reg_t = 30376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER726:
+    hv_gic_distributor_reg_t = 30384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER727:
+    hv_gic_distributor_reg_t = 30392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER728:
+    hv_gic_distributor_reg_t = 30400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER729:
+    hv_gic_distributor_reg_t = 30408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER730:
+    hv_gic_distributor_reg_t = 30416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER731:
+    hv_gic_distributor_reg_t = 30424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER732:
+    hv_gic_distributor_reg_t = 30432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER733:
+    hv_gic_distributor_reg_t = 30440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER734:
+    hv_gic_distributor_reg_t = 30448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER735:
+    hv_gic_distributor_reg_t = 30456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER736:
+    hv_gic_distributor_reg_t = 30464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER737:
+    hv_gic_distributor_reg_t = 30472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER738:
+    hv_gic_distributor_reg_t = 30480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER739:
+    hv_gic_distributor_reg_t = 30488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER740:
+    hv_gic_distributor_reg_t = 30496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER741:
+    hv_gic_distributor_reg_t = 30504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER742:
+    hv_gic_distributor_reg_t = 30512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER743:
+    hv_gic_distributor_reg_t = 30520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER744:
+    hv_gic_distributor_reg_t = 30528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER745:
+    hv_gic_distributor_reg_t = 30536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER746:
+    hv_gic_distributor_reg_t = 30544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER747:
+    hv_gic_distributor_reg_t = 30552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER748:
+    hv_gic_distributor_reg_t = 30560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER749:
+    hv_gic_distributor_reg_t = 30568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER750:
+    hv_gic_distributor_reg_t = 30576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER751:
+    hv_gic_distributor_reg_t = 30584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER752:
+    hv_gic_distributor_reg_t = 30592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER753:
+    hv_gic_distributor_reg_t = 30600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER754:
+    hv_gic_distributor_reg_t = 30608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER755:
+    hv_gic_distributor_reg_t = 30616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER756:
+    hv_gic_distributor_reg_t = 30624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER757:
+    hv_gic_distributor_reg_t = 30632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER758:
+    hv_gic_distributor_reg_t = 30640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER759:
+    hv_gic_distributor_reg_t = 30648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER760:
+    hv_gic_distributor_reg_t = 30656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER761:
+    hv_gic_distributor_reg_t = 30664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER762:
+    hv_gic_distributor_reg_t = 30672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER763:
+    hv_gic_distributor_reg_t = 30680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER764:
+    hv_gic_distributor_reg_t = 30688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER765:
+    hv_gic_distributor_reg_t = 30696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER766:
+    hv_gic_distributor_reg_t = 30704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER767:
+    hv_gic_distributor_reg_t = 30712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER768:
+    hv_gic_distributor_reg_t = 30720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER769:
+    hv_gic_distributor_reg_t = 30728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER770:
+    hv_gic_distributor_reg_t = 30736;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER771:
+    hv_gic_distributor_reg_t = 30744;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER772:
+    hv_gic_distributor_reg_t = 30752;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER773:
+    hv_gic_distributor_reg_t = 30760;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER774:
+    hv_gic_distributor_reg_t = 30768;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER775:
+    hv_gic_distributor_reg_t = 30776;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER776:
+    hv_gic_distributor_reg_t = 30784;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER777:
+    hv_gic_distributor_reg_t = 30792;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER778:
+    hv_gic_distributor_reg_t = 30800;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER779:
+    hv_gic_distributor_reg_t = 30808;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER780:
+    hv_gic_distributor_reg_t = 30816;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER781:
+    hv_gic_distributor_reg_t = 30824;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER782:
+    hv_gic_distributor_reg_t = 30832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER783:
+    hv_gic_distributor_reg_t = 30840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER784:
+    hv_gic_distributor_reg_t = 30848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER785:
+    hv_gic_distributor_reg_t = 30856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER786:
+    hv_gic_distributor_reg_t = 30864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER787:
+    hv_gic_distributor_reg_t = 30872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER788:
+    hv_gic_distributor_reg_t = 30880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER789:
+    hv_gic_distributor_reg_t = 30888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER790:
+    hv_gic_distributor_reg_t = 30896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER791:
+    hv_gic_distributor_reg_t = 30904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER792:
+    hv_gic_distributor_reg_t = 30912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER793:
+    hv_gic_distributor_reg_t = 30920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER794:
+    hv_gic_distributor_reg_t = 30928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER795:
+    hv_gic_distributor_reg_t = 30936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER796:
+    hv_gic_distributor_reg_t = 30944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER797:
+    hv_gic_distributor_reg_t = 30952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER798:
+    hv_gic_distributor_reg_t = 30960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER799:
+    hv_gic_distributor_reg_t = 30968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER800:
+    hv_gic_distributor_reg_t = 30976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER801:
+    hv_gic_distributor_reg_t = 30984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER802:
+    hv_gic_distributor_reg_t = 30992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER803:
+    hv_gic_distributor_reg_t = 31000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER804:
+    hv_gic_distributor_reg_t = 31008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER805:
+    hv_gic_distributor_reg_t = 31016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER806:
+    hv_gic_distributor_reg_t = 31024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER807:
+    hv_gic_distributor_reg_t = 31032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER808:
+    hv_gic_distributor_reg_t = 31040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER809:
+    hv_gic_distributor_reg_t = 31048;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER810:
+    hv_gic_distributor_reg_t = 31056;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER811:
+    hv_gic_distributor_reg_t = 31064;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER812:
+    hv_gic_distributor_reg_t = 31072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER813:
+    hv_gic_distributor_reg_t = 31080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER814:
+    hv_gic_distributor_reg_t = 31088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER815:
+    hv_gic_distributor_reg_t = 31096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER816:
+    hv_gic_distributor_reg_t = 31104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER817:
+    hv_gic_distributor_reg_t = 31112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER818:
+    hv_gic_distributor_reg_t = 31120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER819:
+    hv_gic_distributor_reg_t = 31128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER820:
+    hv_gic_distributor_reg_t = 31136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER821:
+    hv_gic_distributor_reg_t = 31144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER822:
+    hv_gic_distributor_reg_t = 31152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER823:
+    hv_gic_distributor_reg_t = 31160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER824:
+    hv_gic_distributor_reg_t = 31168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER825:
+    hv_gic_distributor_reg_t = 31176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER826:
+    hv_gic_distributor_reg_t = 31184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER827:
+    hv_gic_distributor_reg_t = 31192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER828:
+    hv_gic_distributor_reg_t = 31200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER829:
+    hv_gic_distributor_reg_t = 31208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER830:
+    hv_gic_distributor_reg_t = 31216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER831:
+    hv_gic_distributor_reg_t = 31224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER832:
+    hv_gic_distributor_reg_t = 31232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER833:
+    hv_gic_distributor_reg_t = 31240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER834:
+    hv_gic_distributor_reg_t = 31248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER835:
+    hv_gic_distributor_reg_t = 31256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER836:
+    hv_gic_distributor_reg_t = 31264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER837:
+    hv_gic_distributor_reg_t = 31272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER838:
+    hv_gic_distributor_reg_t = 31280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER839:
+    hv_gic_distributor_reg_t = 31288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER840:
+    hv_gic_distributor_reg_t = 31296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER841:
+    hv_gic_distributor_reg_t = 31304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER842:
+    hv_gic_distributor_reg_t = 31312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER843:
+    hv_gic_distributor_reg_t = 31320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER844:
+    hv_gic_distributor_reg_t = 31328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER845:
+    hv_gic_distributor_reg_t = 31336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER846:
+    hv_gic_distributor_reg_t = 31344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER847:
+    hv_gic_distributor_reg_t = 31352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER848:
+    hv_gic_distributor_reg_t = 31360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER849:
+    hv_gic_distributor_reg_t = 31368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER850:
+    hv_gic_distributor_reg_t = 31376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER851:
+    hv_gic_distributor_reg_t = 31384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER852:
+    hv_gic_distributor_reg_t = 31392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER853:
+    hv_gic_distributor_reg_t = 31400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER854:
+    hv_gic_distributor_reg_t = 31408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER855:
+    hv_gic_distributor_reg_t = 31416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER856:
+    hv_gic_distributor_reg_t = 31424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER857:
+    hv_gic_distributor_reg_t = 31432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER858:
+    hv_gic_distributor_reg_t = 31440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER859:
+    hv_gic_distributor_reg_t = 31448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER860:
+    hv_gic_distributor_reg_t = 31456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER861:
+    hv_gic_distributor_reg_t = 31464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER862:
+    hv_gic_distributor_reg_t = 31472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER863:
+    hv_gic_distributor_reg_t = 31480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER864:
+    hv_gic_distributor_reg_t = 31488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER865:
+    hv_gic_distributor_reg_t = 31496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER866:
+    hv_gic_distributor_reg_t = 31504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER867:
+    hv_gic_distributor_reg_t = 31512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER868:
+    hv_gic_distributor_reg_t = 31520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER869:
+    hv_gic_distributor_reg_t = 31528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER870:
+    hv_gic_distributor_reg_t = 31536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER871:
+    hv_gic_distributor_reg_t = 31544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER872:
+    hv_gic_distributor_reg_t = 31552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER873:
+    hv_gic_distributor_reg_t = 31560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER874:
+    hv_gic_distributor_reg_t = 31568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER875:
+    hv_gic_distributor_reg_t = 31576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER876:
+    hv_gic_distributor_reg_t = 31584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER877:
+    hv_gic_distributor_reg_t = 31592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER878:
+    hv_gic_distributor_reg_t = 31600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER879:
+    hv_gic_distributor_reg_t = 31608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER880:
+    hv_gic_distributor_reg_t = 31616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER881:
+    hv_gic_distributor_reg_t = 31624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER882:
+    hv_gic_distributor_reg_t = 31632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER883:
+    hv_gic_distributor_reg_t = 31640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER884:
+    hv_gic_distributor_reg_t = 31648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER885:
+    hv_gic_distributor_reg_t = 31656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER886:
+    hv_gic_distributor_reg_t = 31664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER887:
+    hv_gic_distributor_reg_t = 31672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER888:
+    hv_gic_distributor_reg_t = 31680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER889:
+    hv_gic_distributor_reg_t = 31688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER890:
+    hv_gic_distributor_reg_t = 31696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER891:
+    hv_gic_distributor_reg_t = 31704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER892:
+    hv_gic_distributor_reg_t = 31712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER893:
+    hv_gic_distributor_reg_t = 31720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER894:
+    hv_gic_distributor_reg_t = 31728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER895:
+    hv_gic_distributor_reg_t = 31736;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER896:
+    hv_gic_distributor_reg_t = 31744;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER897:
+    hv_gic_distributor_reg_t = 31752;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER898:
+    hv_gic_distributor_reg_t = 31760;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER899:
+    hv_gic_distributor_reg_t = 31768;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER900:
+    hv_gic_distributor_reg_t = 31776;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER901:
+    hv_gic_distributor_reg_t = 31784;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER902:
+    hv_gic_distributor_reg_t = 31792;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER903:
+    hv_gic_distributor_reg_t = 31800;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER904:
+    hv_gic_distributor_reg_t = 31808;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER905:
+    hv_gic_distributor_reg_t = 31816;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER906:
+    hv_gic_distributor_reg_t = 31824;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER907:
+    hv_gic_distributor_reg_t = 31832;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER908:
+    hv_gic_distributor_reg_t = 31840;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER909:
+    hv_gic_distributor_reg_t = 31848;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER910:
+    hv_gic_distributor_reg_t = 31856;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER911:
+    hv_gic_distributor_reg_t = 31864;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER912:
+    hv_gic_distributor_reg_t = 31872;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER913:
+    hv_gic_distributor_reg_t = 31880;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER914:
+    hv_gic_distributor_reg_t = 31888;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER915:
+    hv_gic_distributor_reg_t = 31896;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER916:
+    hv_gic_distributor_reg_t = 31904;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER917:
+    hv_gic_distributor_reg_t = 31912;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER918:
+    hv_gic_distributor_reg_t = 31920;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER919:
+    hv_gic_distributor_reg_t = 31928;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER920:
+    hv_gic_distributor_reg_t = 31936;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER921:
+    hv_gic_distributor_reg_t = 31944;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER922:
+    hv_gic_distributor_reg_t = 31952;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER923:
+    hv_gic_distributor_reg_t = 31960;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER924:
+    hv_gic_distributor_reg_t = 31968;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER925:
+    hv_gic_distributor_reg_t = 31976;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER926:
+    hv_gic_distributor_reg_t = 31984;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER927:
+    hv_gic_distributor_reg_t = 31992;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER928:
+    hv_gic_distributor_reg_t = 32000;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER929:
+    hv_gic_distributor_reg_t = 32008;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER930:
+    hv_gic_distributor_reg_t = 32016;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER931:
+    hv_gic_distributor_reg_t = 32024;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER932:
+    hv_gic_distributor_reg_t = 32032;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER933:
+    hv_gic_distributor_reg_t = 32040;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER934:
+    hv_gic_distributor_reg_t = 32048;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER935:
+    hv_gic_distributor_reg_t = 32056;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER936:
+    hv_gic_distributor_reg_t = 32064;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER937:
+    hv_gic_distributor_reg_t = 32072;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER938:
+    hv_gic_distributor_reg_t = 32080;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER939:
+    hv_gic_distributor_reg_t = 32088;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER940:
+    hv_gic_distributor_reg_t = 32096;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER941:
+    hv_gic_distributor_reg_t = 32104;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER942:
+    hv_gic_distributor_reg_t = 32112;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER943:
+    hv_gic_distributor_reg_t = 32120;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER944:
+    hv_gic_distributor_reg_t = 32128;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER945:
+    hv_gic_distributor_reg_t = 32136;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER946:
+    hv_gic_distributor_reg_t = 32144;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER947:
+    hv_gic_distributor_reg_t = 32152;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER948:
+    hv_gic_distributor_reg_t = 32160;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER949:
+    hv_gic_distributor_reg_t = 32168;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER950:
+    hv_gic_distributor_reg_t = 32176;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER951:
+    hv_gic_distributor_reg_t = 32184;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER952:
+    hv_gic_distributor_reg_t = 32192;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER953:
+    hv_gic_distributor_reg_t = 32200;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER954:
+    hv_gic_distributor_reg_t = 32208;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER955:
+    hv_gic_distributor_reg_t = 32216;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER956:
+    hv_gic_distributor_reg_t = 32224;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER957:
+    hv_gic_distributor_reg_t = 32232;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER958:
+    hv_gic_distributor_reg_t = 32240;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER959:
+    hv_gic_distributor_reg_t = 32248;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER960:
+    hv_gic_distributor_reg_t = 32256;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER961:
+    hv_gic_distributor_reg_t = 32264;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER962:
+    hv_gic_distributor_reg_t = 32272;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER963:
+    hv_gic_distributor_reg_t = 32280;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER964:
+    hv_gic_distributor_reg_t = 32288;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER965:
+    hv_gic_distributor_reg_t = 32296;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER966:
+    hv_gic_distributor_reg_t = 32304;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER967:
+    hv_gic_distributor_reg_t = 32312;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER968:
+    hv_gic_distributor_reg_t = 32320;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER969:
+    hv_gic_distributor_reg_t = 32328;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER970:
+    hv_gic_distributor_reg_t = 32336;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER971:
+    hv_gic_distributor_reg_t = 32344;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER972:
+    hv_gic_distributor_reg_t = 32352;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER973:
+    hv_gic_distributor_reg_t = 32360;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER974:
+    hv_gic_distributor_reg_t = 32368;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER975:
+    hv_gic_distributor_reg_t = 32376;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER976:
+    hv_gic_distributor_reg_t = 32384;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER977:
+    hv_gic_distributor_reg_t = 32392;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER978:
+    hv_gic_distributor_reg_t = 32400;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER979:
+    hv_gic_distributor_reg_t = 32408;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER980:
+    hv_gic_distributor_reg_t = 32416;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER981:
+    hv_gic_distributor_reg_t = 32424;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER982:
+    hv_gic_distributor_reg_t = 32432;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER983:
+    hv_gic_distributor_reg_t = 32440;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER984:
+    hv_gic_distributor_reg_t = 32448;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER985:
+    hv_gic_distributor_reg_t = 32456;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER986:
+    hv_gic_distributor_reg_t = 32464;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER987:
+    hv_gic_distributor_reg_t = 32472;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER988:
+    hv_gic_distributor_reg_t = 32480;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER989:
+    hv_gic_distributor_reg_t = 32488;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER990:
+    hv_gic_distributor_reg_t = 32496;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER991:
+    hv_gic_distributor_reg_t = 32504;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER992:
+    hv_gic_distributor_reg_t = 32512;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER993:
+    hv_gic_distributor_reg_t = 32520;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER994:
+    hv_gic_distributor_reg_t = 32528;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER995:
+    hv_gic_distributor_reg_t = 32536;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER996:
+    hv_gic_distributor_reg_t = 32544;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER997:
+    hv_gic_distributor_reg_t = 32552;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER998:
+    hv_gic_distributor_reg_t = 32560;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER999:
+    hv_gic_distributor_reg_t = 32568;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1000:
+    hv_gic_distributor_reg_t = 32576;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1001:
+    hv_gic_distributor_reg_t = 32584;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1002:
+    hv_gic_distributor_reg_t = 32592;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1003:
+    hv_gic_distributor_reg_t = 32600;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1004:
+    hv_gic_distributor_reg_t = 32608;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1005:
+    hv_gic_distributor_reg_t = 32616;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1006:
+    hv_gic_distributor_reg_t = 32624;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1007:
+    hv_gic_distributor_reg_t = 32632;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1008:
+    hv_gic_distributor_reg_t = 32640;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1009:
+    hv_gic_distributor_reg_t = 32648;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1010:
+    hv_gic_distributor_reg_t = 32656;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1011:
+    hv_gic_distributor_reg_t = 32664;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1012:
+    hv_gic_distributor_reg_t = 32672;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1013:
+    hv_gic_distributor_reg_t = 32680;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1014:
+    hv_gic_distributor_reg_t = 32688;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1015:
+    hv_gic_distributor_reg_t = 32696;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1016:
+    hv_gic_distributor_reg_t = 32704;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1017:
+    hv_gic_distributor_reg_t = 32712;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1018:
+    hv_gic_distributor_reg_t = 32720;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_IROUTER1019:
+    hv_gic_distributor_reg_t = 32728;
+pub const hv_gic_distributor_reg_t_HV_GIC_DISTRIBUTOR_REG_GICD_PIDR2: hv_gic_distributor_reg_t =
+    65512;
+pub type hv_gic_distributor_reg_t = u16;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_TYPER:
+    hv_gic_redistributor_reg_t = 8;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_PIDR2:
+    hv_gic_redistributor_reg_t = 65512;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_IGROUPR0:
+    hv_gic_redistributor_reg_t = 65664;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_ISENABLER0:
+    hv_gic_redistributor_reg_t = 65792;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_ICENABLER0:
+    hv_gic_redistributor_reg_t = 65920;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_ISPENDR0:
+    hv_gic_redistributor_reg_t = 66048;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_ICPENDR0:
+    hv_gic_redistributor_reg_t = 66176;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_ISACTIVER0:
+    hv_gic_redistributor_reg_t = 66304;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_ICACTIVER0:
+    hv_gic_redistributor_reg_t = 66432;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_IPRIORITYR0:
+    hv_gic_redistributor_reg_t = 66560;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_IPRIORITYR1:
+    hv_gic_redistributor_reg_t = 66564;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_IPRIORITYR2:
+    hv_gic_redistributor_reg_t = 66568;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_IPRIORITYR3:
+    hv_gic_redistributor_reg_t = 66572;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_IPRIORITYR4:
+    hv_gic_redistributor_reg_t = 66576;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_IPRIORITYR5:
+    hv_gic_redistributor_reg_t = 66580;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_IPRIORITYR6:
+    hv_gic_redistributor_reg_t = 66584;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_IPRIORITYR7:
+    hv_gic_redistributor_reg_t = 66588;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_ICFGR0:
+    hv_gic_redistributor_reg_t = 68608;
+pub const hv_gic_redistributor_reg_t_HV_GIC_REDISTRIBUTOR_REG_GICR_ICFGR1:
+    hv_gic_redistributor_reg_t = 68612;
+pub type hv_gic_redistributor_reg_t = u32;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_PMR_EL1: hv_gic_icc_reg_t = 49712;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_IAR0_EL1: hv_gic_icc_reg_t = 50752;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_EOIR0_EL1: hv_gic_icc_reg_t = 50753;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_HPPIR0_EL1: hv_gic_icc_reg_t = 50754;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_BPR0_EL1: hv_gic_icc_reg_t = 50755;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_AP0R0_EL1: hv_gic_icc_reg_t = 50756;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_AP0R1_EL1: hv_gic_icc_reg_t = 50757;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_AP0R2_EL1: hv_gic_icc_reg_t = 50758;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_AP0R3_EL1: hv_gic_icc_reg_t = 50759;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_AP1R0_EL1: hv_gic_icc_reg_t = 50760;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_AP1R1_EL1: hv_gic_icc_reg_t = 50761;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_AP1R2_EL1: hv_gic_icc_reg_t = 50762;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_AP1R3_EL1: hv_gic_icc_reg_t = 50763;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_DIR_EL1: hv_gic_icc_reg_t = 50777;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_RPR_EL1: hv_gic_icc_reg_t = 50779;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_SGI1R_EL1: hv_gic_icc_reg_t = 50781;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_SGI0R_EL1: hv_gic_icc_reg_t = 50783;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_IAR1_EL1: hv_gic_icc_reg_t = 50784;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_EOIR1_EL1: hv_gic_icc_reg_t = 50785;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_HPPIR1_EL1: hv_gic_icc_reg_t = 50786;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_BPR1_EL1: hv_gic_icc_reg_t = 50787;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_CTLR_EL1: hv_gic_icc_reg_t = 50788;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_SRE_EL1: hv_gic_icc_reg_t = 50789;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_IGRPEN0_EL1: hv_gic_icc_reg_t = 50790;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_IGRPEN1_EL1: hv_gic_icc_reg_t = 50791;
+pub const hv_gic_icc_reg_t_HV_GIC_ICC_REG_SRE_EL2: hv_gic_icc_reg_t = 58957;
+pub type hv_gic_icc_reg_t = u16;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_AP0R0_EL2: hv_gic_ich_reg_t = 58944;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_AP0R1_EL2: hv_gic_ich_reg_t = 58945;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_AP0R2_EL2: hv_gic_ich_reg_t = 58946;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_AP0R3_EL2: hv_gic_ich_reg_t = 58947;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_AP1R0_EL2: hv_gic_ich_reg_t = 58952;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_AP1R1_EL2: hv_gic_ich_reg_t = 58953;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_AP1R2_EL2: hv_gic_ich_reg_t = 58954;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_AP1R3_EL2: hv_gic_ich_reg_t = 58955;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_HCR_EL2: hv_gic_ich_reg_t = 58968;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_VTR_EL2: hv_gic_ich_reg_t = 58969;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_MISR_EL2: hv_gic_ich_reg_t = 58970;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_EISR_EL2: hv_gic_ich_reg_t = 58971;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_ELRSR_EL2: hv_gic_ich_reg_t = 58973;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_VMCR_EL2: hv_gic_ich_reg_t = 58975;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR0_EL2: hv_gic_ich_reg_t = 58976;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR1_EL2: hv_gic_ich_reg_t = 58977;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR2_EL2: hv_gic_ich_reg_t = 58978;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR3_EL2: hv_gic_ich_reg_t = 58979;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR4_EL2: hv_gic_ich_reg_t = 58980;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR5_EL2: hv_gic_ich_reg_t = 58981;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR6_EL2: hv_gic_ich_reg_t = 58982;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR7_EL2: hv_gic_ich_reg_t = 58983;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR8_EL2: hv_gic_ich_reg_t = 58984;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR9_EL2: hv_gic_ich_reg_t = 58985;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR10_EL2: hv_gic_ich_reg_t = 58986;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR11_EL2: hv_gic_ich_reg_t = 58987;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR12_EL2: hv_gic_ich_reg_t = 58988;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR13_EL2: hv_gic_ich_reg_t = 58989;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR14_EL2: hv_gic_ich_reg_t = 58990;
+pub const hv_gic_ich_reg_t_HV_GIC_ICH_REG_LR15_EL2: hv_gic_ich_reg_t = 58991;
+pub type hv_gic_ich_reg_t = u16;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_PMR_EL1: hv_gic_icv_reg_t = 49712;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_IAR0_EL1: hv_gic_icv_reg_t = 50752;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_EOIR0_EL1: hv_gic_icv_reg_t = 50753;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_HPPIR0_EL1: hv_gic_icv_reg_t = 50754;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_BPR0_EL1: hv_gic_icv_reg_t = 50755;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_AP0R0_EL1: hv_gic_icv_reg_t = 50756;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_AP0R1_EL1: hv_gic_icv_reg_t = 50757;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_AP0R2_EL1: hv_gic_icv_reg_t = 50758;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_AP0R3_EL1: hv_gic_icv_reg_t = 50759;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_AP1R0_EL1: hv_gic_icv_reg_t = 50760;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_AP1R1_EL1: hv_gic_icv_reg_t = 50761;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_AP1R2_EL1: hv_gic_icv_reg_t = 50762;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_AP1R3_EL1: hv_gic_icv_reg_t = 50763;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_DIR_EL1: hv_gic_icv_reg_t = 50777;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_RPR_EL1: hv_gic_icv_reg_t = 50779;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_IAR1_EL1: hv_gic_icv_reg_t = 50784;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_EOIR1_EL1: hv_gic_icv_reg_t = 50785;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_HPPIR1_EL1: hv_gic_icv_reg_t = 50786;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_BPR1_EL1: hv_gic_icv_reg_t = 50787;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_CTLR_EL1: hv_gic_icv_reg_t = 50788;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_SRE_EL1: hv_gic_icv_reg_t = 50789;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_IGRPEN0_EL1: hv_gic_icv_reg_t = 50790;
+pub const hv_gic_icv_reg_t_HV_GIC_ICV_REG_IGRPEN1_EL1: hv_gic_icv_reg_t = 50791;
+pub type hv_gic_icv_reg_t = u16;
+pub const hv_gic_msi_reg_t_HV_GIC_REG_GICM_TYPER: hv_gic_msi_reg_t = 8;
+pub const hv_gic_msi_reg_t_HV_GIC_REG_GICM_SET_SPI_NSR: hv_gic_msi_reg_t = 64;
+pub type hv_gic_msi_reg_t = u16;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub struct hv_vm_config_s {
     _unused: [u8; 0],
 }
 pub type hv_vm_config_t = *mut hv_vm_config_s;
-#[doc = " @typedef    hv_ipa_t\n @abstract   Type of an Intermediate Physical Address (a guest physical address)"]
+#[doc = "@abstract Type of an Intermediate Physical Address (a guest physical address)"]
 pub type hv_ipa_t = u64;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -1320,18 +4456,18 @@ pub struct hv_vcpu_config_s {
     _unused: [u8; 0],
 }
 pub type hv_vcpu_config_t = *mut hv_vcpu_config_s;
-#[doc = " @typedef    hv_vcpu_t\n @abstract   Type of a vcpu instance ID"]
+#[doc = "@abstract Type of a vcpu instance ID"]
 pub type hv_vcpu_t = u64;
 pub const hv_exit_reason_t_HV_EXIT_REASON_CANCELED: hv_exit_reason_t = 0;
 pub const hv_exit_reason_t_HV_EXIT_REASON_EXCEPTION: hv_exit_reason_t = 1;
 pub const hv_exit_reason_t_HV_EXIT_REASON_VTIMER_ACTIVATED: hv_exit_reason_t = 2;
 pub const hv_exit_reason_t_HV_EXIT_REASON_UNKNOWN: hv_exit_reason_t = 3;
 pub type hv_exit_reason_t = u32;
-#[doc = " @typedef    hv_exception_syndrome_t\n @abstract   Type of a vcpu exception syndrome (Corresponds to ESR_EL2)."]
+#[doc = "@abstract Type of a vcpu exception syndrome (Corresponds to ESR_ELx)."]
 pub type hv_exception_syndrome_t = u64;
-#[doc = " @typedef    hv_exception_address_t\n @abstract   Type of a vcpu exception virtual address. (Corresponds to FAR_EL2)."]
+#[doc = "@abstract Type of a vcpu exception virtual address. (Corresponds to FAR_ELx)."]
 pub type hv_exception_address_t = u64;
-#[doc = " @typedef    hv_vcpu_exit_exception_t\n @abstract   Contains details of a vcpu exception."]
+#[doc = "@abstract Contains details of a vcpu exception."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct hv_vcpu_exit_exception_t {
@@ -1385,7 +4521,7 @@ fn bindgen_test_layout_hv_vcpu_exit_exception_t() {
         )
     );
 }
-#[doc = " @typedef    hv_vcpu_exit_t\n @abstract   Contains information about an exit from the vcpu to the host."]
+#[doc = "@abstract Contains information about an exit from the vcpu to the host."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct hv_vcpu_exit_t {
@@ -1427,7 +4563,7 @@ fn bindgen_test_layout_hv_vcpu_exit_t() {
         )
     );
 }
-#[doc = " @typedef    hv_simd_fp_uchar16_t\n @abstract   Value of an ARM SIMD&FP register."]
+#[doc = "@abstract Value of an ARM SIMD&FP register."]
 pub type hv_simd_fp_uchar16_t = u128;
 pub const hv_reg_t_HV_REG_X0: hv_reg_t = 0;
 pub const hv_reg_t_HV_REG_X1: hv_reg_t = 1;
@@ -1578,6 +4714,7 @@ pub const hv_sys_reg_t_HV_SYS_REG_ID_AA64MMFR0_EL1: hv_sys_reg_t = 49208;
 pub const hv_sys_reg_t_HV_SYS_REG_ID_AA64MMFR1_EL1: hv_sys_reg_t = 49209;
 pub const hv_sys_reg_t_HV_SYS_REG_ID_AA64MMFR2_EL1: hv_sys_reg_t = 49210;
 pub const hv_sys_reg_t_HV_SYS_REG_SCTLR_EL1: hv_sys_reg_t = 49280;
+pub const hv_sys_reg_t_HV_SYS_REG_ACTLR_EL1: hv_sys_reg_t = 49281;
 pub const hv_sys_reg_t_HV_SYS_REG_CPACR_EL1: hv_sys_reg_t = 49282;
 pub const hv_sys_reg_t_HV_SYS_REG_TTBR0_EL1: hv_sys_reg_t = 49408;
 pub const hv_sys_reg_t_HV_SYS_REG_TTBR1_EL1: hv_sys_reg_t = 49409;
@@ -1612,6 +4749,34 @@ pub const hv_sys_reg_t_HV_SYS_REG_TPIDRRO_EL0: hv_sys_reg_t = 56963;
 pub const hv_sys_reg_t_HV_SYS_REG_CNTV_CTL_EL0: hv_sys_reg_t = 57113;
 pub const hv_sys_reg_t_HV_SYS_REG_CNTV_CVAL_EL0: hv_sys_reg_t = 57114;
 pub const hv_sys_reg_t_HV_SYS_REG_SP_EL1: hv_sys_reg_t = 57864;
+pub const hv_sys_reg_t_HV_SYS_REG_CNTP_CTL_EL0: hv_sys_reg_t = 57105;
+pub const hv_sys_reg_t_HV_SYS_REG_CNTP_CVAL_EL0: hv_sys_reg_t = 57106;
+pub const hv_sys_reg_t_HV_SYS_REG_CNTP_TVAL_EL0: hv_sys_reg_t = 57104;
+pub const hv_sys_reg_t_HV_SYS_REG_CNTHCTL_EL2: hv_sys_reg_t = 59144;
+pub const hv_sys_reg_t_HV_SYS_REG_CNTHP_CTL_EL2: hv_sys_reg_t = 59153;
+pub const hv_sys_reg_t_HV_SYS_REG_CNTHP_CVAL_EL2: hv_sys_reg_t = 59154;
+pub const hv_sys_reg_t_HV_SYS_REG_CNTHP_TVAL_EL2: hv_sys_reg_t = 59152;
+pub const hv_sys_reg_t_HV_SYS_REG_CNTVOFF_EL2: hv_sys_reg_t = 59139;
+pub const hv_sys_reg_t_HV_SYS_REG_CPTR_EL2: hv_sys_reg_t = 57482;
+pub const hv_sys_reg_t_HV_SYS_REG_ELR_EL2: hv_sys_reg_t = 57857;
+pub const hv_sys_reg_t_HV_SYS_REG_ESR_EL2: hv_sys_reg_t = 58000;
+pub const hv_sys_reg_t_HV_SYS_REG_FAR_EL2: hv_sys_reg_t = 58112;
+pub const hv_sys_reg_t_HV_SYS_REG_HCR_EL2: hv_sys_reg_t = 57480;
+pub const hv_sys_reg_t_HV_SYS_REG_HPFAR_EL2: hv_sys_reg_t = 58116;
+pub const hv_sys_reg_t_HV_SYS_REG_MAIR_EL2: hv_sys_reg_t = 58640;
+pub const hv_sys_reg_t_HV_SYS_REG_MDCR_EL2: hv_sys_reg_t = 57369;
+pub const hv_sys_reg_t_HV_SYS_REG_SCTLR_EL2: hv_sys_reg_t = 57472;
+pub const hv_sys_reg_t_HV_SYS_REG_SPSR_EL2: hv_sys_reg_t = 57856;
+pub const hv_sys_reg_t_HV_SYS_REG_SP_EL2: hv_sys_reg_t = 61960;
+pub const hv_sys_reg_t_HV_SYS_REG_TCR_EL2: hv_sys_reg_t = 57602;
+pub const hv_sys_reg_t_HV_SYS_REG_TPIDR_EL2: hv_sys_reg_t = 59010;
+pub const hv_sys_reg_t_HV_SYS_REG_TTBR0_EL2: hv_sys_reg_t = 57600;
+pub const hv_sys_reg_t_HV_SYS_REG_TTBR1_EL2: hv_sys_reg_t = 57601;
+pub const hv_sys_reg_t_HV_SYS_REG_VBAR_EL2: hv_sys_reg_t = 58880;
+pub const hv_sys_reg_t_HV_SYS_REG_VMPIDR_EL2: hv_sys_reg_t = 57349;
+pub const hv_sys_reg_t_HV_SYS_REG_VPIDR_EL2: hv_sys_reg_t = 57344;
+pub const hv_sys_reg_t_HV_SYS_REG_VTCR_EL2: hv_sys_reg_t = 57610;
+pub const hv_sys_reg_t_HV_SYS_REG_VTTBR_EL2: hv_sys_reg_t = 57608;
 pub type hv_sys_reg_t = u16;
 pub const hv_interrupt_type_t_HV_INTERRUPT_TYPE_IRQ: hv_interrupt_type_t = 0;
 pub const hv_interrupt_type_t_HV_INTERRUPT_TYPE_FIQ: hv_interrupt_type_t = 1;
@@ -1620,7 +4785,7 @@ pub const hv_cache_type_t_HV_CACHE_TYPE_DATA: hv_cache_type_t = 0;
 pub const hv_cache_type_t_HV_CACHE_TYPE_INSTRUCTION: hv_cache_type_t = 1;
 pub type hv_cache_type_t = u32;
 extern "C" {
-    #[doc = " @function   hv_vcpu_create\n @abstract   Creates a vCPU instance for the current thread\n @param      vcpu   Pointer to the ID of the vCPU instance (written on success)\n @param      exit   Pointer to pointer to the vcpu exit information\n                    (written on success)\n @param      config Configuration.\n @result     0 on success or error code\n @discussion Each thread can only have one vCPU associated at a time."]
+    #[doc = "@abstract Creates a vCPU instance for the current thread\n@param vcpu Pointer to the ID of the vCPU instance (written on success)\n@param exit Pointer to pointer to the vcpu exit information (written on success)\n@param config Configuration.\n@result 0 on success or error code\n@discussion Each thread can only have one vCPU associated at a time."]
     pub fn hv_vcpu_create(
         vcpu: *mut hv_vcpu_t,
         exit: *mut *mut hv_vcpu_exit_t,
@@ -1628,19 +4793,19 @@ extern "C" {
     ) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_destroy\n @abstract   Destroys the vCPU instance associated with the current thread\n @param      vcpu  ID of the vCPU instance\n @result     0 on success or error code\n @discussion\n             Must be called by the owning thread"]
+    #[doc = "@abstract Destroys the vCPU instance associated with the current thread\n@param vcpu ID of the vCPU instance\n@result 0 on success or error code\n@discussion\nMust be called by the owning thread"]
     pub fn hv_vcpu_destroy(vcpu: hv_vcpu_t) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_get_reg\n @abstract   Returns the current value of a vCPU register.\n @param      vcpu    ID of the vCPU instance\n @param      reg  ID of the register.\n @param      value   Pointer to the register value.\n @result     0 on success or error code\n @discussion\n             Must be called by the owning thread"]
+    #[doc = "@abstract Returns the current value of a vCPU register.\n@param vcpu ID of the vCPU instance\n@param reg ID of the register.\n@param value Pointer to the register value.\n@result 0 on success or error code\n@discussion\nMust be called by the owning thread"]
     pub fn hv_vcpu_get_reg(vcpu: hv_vcpu_t, reg: hv_reg_t, value: *mut u64) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_set_reg\n @abstract   Sets the value of a vCPU register.\n @param      vcpu    ID of the vCPU instance\n @param      reg  ID of the register.\n @param      value  The register value.\n @result     0 on success or error code\n @discussion\n             Must be called by the owning thread"]
+    #[doc = "@abstract Sets the value of a vCPU register.\n@param vcpu ID of the vCPU instance\n@param reg ID of the register.\n@param value The register value.\n@result 0 on success or error code\n@discussion\nMust be called by the owning thread"]
     pub fn hv_vcpu_set_reg(vcpu: hv_vcpu_t, reg: hv_reg_t, value: u64) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_get_simd_fp_reg\n @abstract   Returns the current value of a vCPU SIMD&FP register\n @param      vcpu    ID of the vCPU instance\n @param      reg  ID of the SIMD&FP register.\n @param      value   Pointer to the register value.\n @result     0 on success or error code\n @discussion\n             Must be called by the owning thread"]
+    #[doc = "@abstract Returns the current value of a vCPU SIMD&FP register\n@param vcpu ID of the vCPU instance\n@param reg ID of the SIMD&FP register.\n@param value Pointer to the register value.\n@result 0 on success or error code\n@discussion\nMust be called by the owning thread\n\nIn streaming SVE mode, the SIMD Q registers are aliased to the bottom 128 bits of the\ncorresponding Z register, and any modification will reflect on the Z register state."]
     pub fn hv_vcpu_get_simd_fp_reg(
         vcpu: hv_vcpu_t,
         reg: hv_simd_fp_reg_t,
@@ -1648,7 +4813,7 @@ extern "C" {
     ) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_set_simd_fp_reg\n @abstract   Sets the value of a vCPU SIMD&FP register\n @param      vcpu    ID of the vCPU instance\n @param      reg  ID of the register.\n @param      value  The register value.\n @result     0 on success or error code\n @discussion\n             Must be called by the owning thread"]
+    #[doc = "@abstract Sets the value of a vCPU SIMD&FP register\n@param vcpu ID of the vCPU instance\n@param reg ID of the register.\n@param value The register value.\n@result 0 on success or error code\n@discussion\nMust be called by the owning thread\n\nIn streaming SVE mode, the SIMD Q registers are aliased to the bottom 128 bits of the\ncorresponding Z register, and any modification will reflect on the Z register state."]
     pub fn hv_vcpu_set_simd_fp_reg(
         vcpu: hv_vcpu_t,
         reg: hv_simd_fp_reg_t,
@@ -1656,15 +4821,15 @@ extern "C" {
     ) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_get_sys_reg\n @abstract   Returns the current value of a vCPU system register\n @param      vcpu    ID of the vCPU instance\n @param      reg  ID of the system register.\n @param      value   Pointer to the system register value.\n @result     0 on success or error code\n @discussion\n             Must be called by the owning thread"]
+    #[doc = "@abstract Returns the current value of a vCPU system register\n@param vcpu ID of the vCPU instance\n@param reg ID of the system register.\n@param value Pointer to the system register value.\n@result 0 on success or error code\n@discussion\nMust be called by the owning thread"]
     pub fn hv_vcpu_get_sys_reg(vcpu: hv_vcpu_t, reg: hv_sys_reg_t, value: *mut u64) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_set_sys_reg\n @abstract   Sets the value of a vCPU system register\n @param      vcpu    ID of the vCPU instance\n @param      reg  ID of the system register.\n @param      value  The system register value.\n @result     0 on success or error code\n @discussion\n             Must be called by the owning thread"]
+    #[doc = "@abstract Sets the value of a vCPU system register\n@param vcpu ID of the vCPU instance\n@param reg ID of the system register.\n@param value The system register value.\n@result 0 on success or error code\n@discussion\nMust be called by the owning thread"]
     pub fn hv_vcpu_set_sys_reg(vcpu: hv_vcpu_t, reg: hv_sys_reg_t, value: u64) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_get_pending_interrupt.\n @abstract   Gets pending interrupts for a vcpu.\n @param      vcpu ID of the vcpu instance.\n @param      type Interrupt type.\n @param      pending Returns whether the interrupt is pending or not.\n @discussion\n             Must be called by the owning thread."]
+    #[doc = "@abstract Gets pending interrupts for a vcpu.\n@param vcpu ID of the vcpu instance.\n@param type Interrupt type.\n@param pending Returns whether the interrupt is pending or not.\n@discussion\nMust be called by the owning thread."]
     pub fn hv_vcpu_get_pending_interrupt(
         vcpu: hv_vcpu_t,
         type_: hv_interrupt_type_t,
@@ -1672,7 +4837,7 @@ extern "C" {
     ) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_set_pending_interrupt.\n @abstract   Sets pending interrupts for a vcpu.\n @param      vcpu ID of the vcpu instance.\n @param      type Interrupt type.\n @param      pending Whether the interrupt is pending or not.\n @discussion\n             Must be called by the owning thread.\n             The pending interrupts automatically cleared after hv_vcpu_run returns. It is expected that\n             hv_vcpu_set_pending_interrupt be called before every hv_vcpu_run to set pending interrupts."]
+    #[doc = "@abstract Sets pending interrupts for a vcpu.\n@param vcpu ID of the vcpu instance.\n@param type Interrupt type.\n@param pending Whether the interrupt is pending or not.\n@discussion\nMust be called by the owning thread.\nThe pending interrupts automatically cleared after hv_vcpu_run returns. It is expected that\nhv_vcpu_set_pending_interrupt be called before every hv_vcpu_run to set pending interrupts."]
     pub fn hv_vcpu_set_pending_interrupt(
         vcpu: hv_vcpu_t,
         type_: hv_interrupt_type_t,
@@ -1680,51 +4845,247 @@ extern "C" {
     ) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function hv_vcpu_get_trap_debug_exceptions.\n @abstract Get whether debug exceptions in the guest are trapped to the host.\n @param    vcpu ID of the vcpu instance.\n @param    value Pointer to the result.\n @discussion\n             Must be called by the owning thread."]
+    #[doc = "@abstract Get whether debug exceptions in the guest are trapped to the host.\n@param vcpu ID of the vcpu instance.\n@param value Pointer to the result.\n@discussion\nMust be called by the owning thread."]
     pub fn hv_vcpu_get_trap_debug_exceptions(vcpu: hv_vcpu_t, value: *mut bool) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function hv_vcpu_set_trap_debug_exceptions.\n @abstract Set whether debug exceptions in the guest are trapped to the host.\n @param    vcpu ID of the vcpu instance.\n @param    value If true, debug exceptions in the guest are trapped to the host\n @discussion\n             Must be called by the owning thread."]
+    #[doc = "@abstract Set whether debug exceptions in the guest are trapped to the host.\n@param vcpu ID of the vcpu instance.\n@param value If true, debug exceptions in the guest are trapped to the host\n@discussion\nMust be called by the owning thread."]
     pub fn hv_vcpu_set_trap_debug_exceptions(vcpu: hv_vcpu_t, value: bool) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function hv_vcpu_get_trap_debug_reg_accesses.\n @abstract Get whether debug register accesses in the guest are trapped to the host.\n @param    vcpu ID of the vcpu instance.\n @param    value Pointer to the result.\n @discussion\n             Must be called by the owning thread.\n             This includes the DBGBCR<n>_EL1, DBGBVR<n>_EL1, DBGWCR<n>_EL1,\n             DBGWVR<n>_EL1 and MDSCR_EL1 registers."]
+    #[doc = "@abstract Get whether debug register accesses in the guest are trapped to the host.\n@param vcpu ID of the vcpu instance.\n@param value Pointer to the result.\n@discussion\nMust be called by the owning thread.\nThis includes the DBGBCR<n>_EL1, DBGBVR<n>_EL1, DBGWCR<n>_EL1,\nDBGWVR<n>_EL1 and MDSCR_EL1 registers."]
     pub fn hv_vcpu_get_trap_debug_reg_accesses(vcpu: hv_vcpu_t, value: *mut bool) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function hv_vcpu_set_trap_debug_reg_accesses.\n @abstract Set whether debug register accesses in the guest are trapped to the host.\n @param    vcpu ID of the vcpu instance.\n @param    value If true, debug register accesses in the guest are trapped to the host.\n @discussion\n             Must be called by the owning thread.\n             This includes the DBGBCR<n>_EL1, DBGBVR<n>_EL1, DBGWCR<n>_EL1,\n             DBGWVR<n>_EL1 and MDSCR_EL1 registers."]
+    #[doc = "@abstract Set whether debug register accesses in the guest are trapped to the host.\n@param vcpu ID of the vcpu instance.\n@param value If true, debug register accesses in the guest are trapped to the host.\n@discussion\nMust be called by the owning thread.\nThis includes the DBGBCR<n>_EL1, DBGBVR<n>_EL1, DBGWCR<n>_EL1,\nDBGWVR<n>_EL1 and MDSCR_EL1 registers."]
     pub fn hv_vcpu_set_trap_debug_reg_accesses(vcpu: hv_vcpu_t, value: bool) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_run\n @abstract   Executes a vCPU\n @param      vcpu  ID of the vCPU instance\n @result     0 on success or error code\n @discussion\n             Call blocks until the next exit from the vCPU or the\n             execution is canceled using hv_vcpus_exit.\n\n             Must be called by the owning thread"]
+    #[doc = "@abstract Executes a vCPU\n@param vcpu ID of the vCPU instance\n@result 0 on success or error code\n@discussion\nCall blocks until the next exit from the vCPU or the\nexecution is canceled using hv_vcpus_exit.\n\nMust be called by the owning thread"]
     pub fn hv_vcpu_run(vcpu: hv_vcpu_t) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpus_exit\n @abstract   Forces an immediate exit of a set of vcpus of the VM.\n @param      vcpus       Pointer to a list of vcpu IDs\n @param      vcpu_count  Number of vcpus in the list\n @result     0 on success or error code\n @discussion\n             If a vcpu is not running, the next time hv_vcpu_run is called for the corresponding\n             vcpu, it will return immediately without entering the guest."]
+    #[doc = "@abstract Forces an immediate exit of a set of vcpus of the VM.\n@param vcpus Pointer to a list of vcpu IDs\n@param vcpu_count  Number of vcpus in the list\n@result 0 on success or error code\n@discussion\nIf a vcpu is not running, the next time hv_vcpu_run is called for the corresponding\nvcpu, it will return immediately without entering the guest."]
     pub fn hv_vcpus_exit(vcpus: *mut hv_vcpu_t, vcpu_count: u32) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_get_exec_time\n @abstract   Returns the cumulative execution time of a vCPU in units of\n             mach_absolute_time()\n @param      vcpu  vCPU ID\n @param      time  Pointer to execution time value (written on success)\n @result     0 on success or error code\n @discussion\n             Must be called by the owning thread"]
+    #[doc = "@abstract Returns the cumulative execution time of a vCPU in units of mach_absolute_time().\n@param vcpu vCPU ID\n@param time Pointer to execution time value (written on success)\n@result 0 on success or error code\n@discussion\nMust be called by the owning thread"]
     pub fn hv_vcpu_get_exec_time(vcpu: hv_vcpu_t, time: *mut u64) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_get_vtimer_mask\n @abstract   Gets the VTimer mask.\n @param      vcpu  ID of the vcpu instance.\n @param      vtimer_is_masked Value of the mask.\n @result     0 on success or error code."]
+    #[doc = "@abstract Gets the VTimer mask.\n@param vcpu ID of the vcpu instance.\n@param vtimer_is_masked Value of the mask.\n@result 0 on success or error code."]
     pub fn hv_vcpu_get_vtimer_mask(vcpu: hv_vcpu_t, vtimer_is_masked: *mut bool) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_set_vtimer_mask\n @abstract   Sets the VTimer mask.\n @param      vcpu  ID of the vcpu instance.\n @param      vtimer_is_masked New value of the mask.\n @result     0 on success or error code.\n @discussion\n             When the mask is set, the vCPU does not exit if the VTimer times out.\n\n             After hv_vcpu_run() returns with the exit reason\n             HV_EXIT_REASON_VTIMER_ACTIVATED, the timer is masked automatically.\n             The vCPU will not exit with this reason again until the masked is cleared\n             even when hv_vcpu_run() is called with the VTimer interrupt in a\n             pending state.\n\n             After receiving a HV_EXIT_REASON_VTIMER_ACTIVATED exit reason,\n             the caller of hv_vcpu_run() is expected to make the interrupt\n             corresponding to the VTimer pending in the guest's virtual\n             interrupt controller and to be able to detect when\n             the guest has completed servicing this interrupt. For example,\n             when emulating a GIC, this function should be called when\n             deactivating an interrupt whose ID matches that of the VTimer."]
+    #[doc = "@abstract Sets the VTimer mask.\n@param vcpu ID of the vcpu instance.\n@param vtimer_is_masked New value of the mask.\n@result 0 on success or error code.\n@discussion\nWhen the mask is set, the vCPU does not exit if the VTimer times out.\n\nAfter hv_vcpu_run() returns with the exit reason\nHV_EXIT_REASON_VTIMER_ACTIVATED, the timer is masked automatically.\nThe vCPU will not exit with this reason again until the masked is cleared\neven when hv_vcpu_run() is called with the VTimer interrupt in a\npending state.\n\nAfter receiving a HV_EXIT_REASON_VTIMER_ACTIVATED exit reason,\nthe caller of hv_vcpu_run() is expected to make the interrupt\ncorresponding to the VTimer pending in the guest's virtual\ninterrupt controller and to be able to detect when\nthe guest has completed servicing this interrupt. For example,\nwhen emulating a GIC, this function should be called when\ndeactivating an interrupt whose ID matches that of the VTimer."]
     pub fn hv_vcpu_set_vtimer_mask(vcpu: hv_vcpu_t, vtimer_is_masked: bool) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_get_vtimer_offset\n @abstract   Gets the VTimer offset.\n @param      vcpu  ID of the vCPU instance.\n @param      vtimer_offset Pointer to VTimer offset. (Written on success).\n @result     0 on success or error code.\n @seealso    hv_vcpu_set_vtimer_offset"]
+    #[doc = "@abstract Gets the VTimer offset.\n@param vcpu ID of the vCPU instance.\n@param vtimer_offset Pointer to VTimer offset. (Written on success).\n@result 0 on success or error code.\n@seealso hv_vcpu_set_vtimer_offset"]
     pub fn hv_vcpu_get_vtimer_offset(vcpu: hv_vcpu_t, vtimer_offset: *mut u64) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_set_vtimer_offset\n @abstract   Sets the VTimer offset.\n @param      vcpu  ID of the vCPU instance.\n @param      vtimer_offset New VTimer offset.\n @result     0 on success or error code.\n @discussion\n             This specifies how the CNTVCT_EL0 register relates to mach_absolute_time():\n\n             CNTVCT_EL0 = mach_absolute_time() - vtimer_offset."]
+    #[doc = "@abstract Sets the VTimer offset.\n@param vcpu ID of the vCPU instance.\n@param vtimer_offset New VTimer offset.\n@result 0 on success or error code.\n@discussion\nThis specifies how the CNTVCT_EL0 register relates to mach_absolute_time():\n\nCNTVCT_EL0 = mach_absolute_time() - vtimer_offset."]
     pub fn hv_vcpu_set_vtimer_offset(vcpu: hv_vcpu_t, vtimer_offset: u64) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vcpu_config_create\n @abstract   Creates a vcpu configuration object.\n @result     A new vcpu configuration object. This should be released with os_release\n             when no longer used."]
+    #[doc = "@abstract Create a GIC v3 device for a VM configuration.\n@param gic_config GIC configuration object.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nThis function can be used to create an ARM Generic Interrupt Controller\n(GIC) v3 device. There must only be a single instance of this device per\nvirtual machine. The device supports a distributor, redistributors, msi and\nGIC CPU system registers. When EL2 is enabled, the device supports GIC\nhypervisor control registers which are used by the guest hypervisor for\ninjecting interrupts to its guest. hv_vcpu_{get/set}_interrupt functions\nare unsupported for injecting interrupts to a nested guest.\n\nThe hv_gic_create() API must only be called after a virtual machine has\nbeen created. It must also be done before vCPU's have been created so that\nGIC CPU system resources can be allocated. If either of these conditions\naren't met an error is returned.\n\nGIC v3 uses affinity based interrupt routing. vCPU's must set affinity\nvalues in their MPIDR_EL1 register. Once the virtual machine vcpus are\nrunning, its topology is considered final. Destroy vcpus only when you are\ntearing down the virtual machine.\n\nGIC MSI support is only provided if both an MSI region base address is\nconfigured and an MSI interrupt range is set."]
+    pub fn hv_gic_create(gic_config: hv_gic_config_t) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Trigger a Shared Peripheral Interrupt (SPI).\n@param intid Interrupt number of the SPI.\n@param level High or low level for an interrupt. Setting level also\ncauses an edge on the line for an edge triggered interrupt.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nLevel interrupts can be caused by setting a level value. If you want to\ncause an edge interrupt, call with a level of true. A level of false, for\nan edge interrupt will be ignored.\n\nAn interrupt identifier outside of hv_gic_get_spi_interrupt_range() or in\nthe MSI interrupt range will return a HV_BAD_ARGUMENT error code."]
+    pub fn hv_gic_set_spi(intid: u32, level: bool) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Send a Message Signaled Interrupt (MSI).\n@param address Guest physical address for message based SPI.\n@param intid Interrupt identifier for the message based SPI.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nUse the address of the HV_GIC_REG_GICM_SET_SPI_NSR register in the MSI frame."]
+    pub fn hv_gic_send_msi(address: hv_ipa_t, intid: u32) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Read a GIC distributor register.\n@param reg GIC distributor register enum.\n@param value Pointer to distributor register value (written on success).\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nGIC distributor register enum values are equal to the device register\noffsets defined in the ARM GIC v3 specification. The client can use the\noffset alternatively, while looping through large register arrays."]
+    pub fn hv_gic_get_distributor_reg(
+        reg: hv_gic_distributor_reg_t,
+        value: *mut u64,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Write a GIC distributor register.\n@param reg GIC distributor register enum.\n@param value GIC distributor register value to be written.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nGIC distributor register enum values are equal to the device register\noffsets defined in the ARM GIC v3 specification. The client can use the\noffset alternatively, while looping through large register arrays."]
+    pub fn hv_gic_set_distributor_reg(reg: hv_gic_distributor_reg_t, value: u64) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the redistributor base guest physical address for the given vcpu.\n@param vcpu Handle for the vcpu.\n@param redistributor_base_address Pointer to the redistributor base guest physical address (written on success).\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nMust be called after the affinity of the given vCPU has been set in its MPIDR_EL1 register."]
+    pub fn hv_gic_get_redistributor_base(
+        vcpu: hv_vcpu_t,
+        redistributor_base_address: *mut hv_ipa_t,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Read a GIC redistributor register.\n@param vcpu Redistributor block for the vcpu.\n@param reg GIC redistributor register enum.\n@param value Pointer to redistributor register value (written on success).\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nMust be called by the owning thread.\n\nGIC redistributor register enum values are equal to the device register\noffsets defined in the ARM GIC v3 specification. The client can use the\noffset alternatively, while looping through large register arrays."]
+    pub fn hv_gic_get_redistributor_reg(
+        vcpu: hv_vcpu_t,
+        reg: hv_gic_redistributor_reg_t,
+        value: *mut u64,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Write a GIC redistributor register.\n@param vcpu Redistributor block for the vcpu.\n@param reg GIC redistributor register enum.\n@param value GIC redistributor register value to be written.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nMust be called by the owning thread.\n\nGIC redistributor register enum values are equal to the device register\noffsets defined in the ARM GIC v3 specification. The client can use the\noffset alternatively, while looping through large register arrays."]
+    pub fn hv_gic_set_redistributor_reg(
+        vcpu: hv_vcpu_t,
+        reg: hv_gic_redistributor_reg_t,
+        value: u64,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Read a GIC ICC cpu system register.\n@param vcpu Handle for the vcpu.\n@param reg GIC ICC system register enum.\n@param value Pointer to ICC register value (written on success).\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nMust be called by the owning thread."]
+    pub fn hv_gic_get_icc_reg(
+        vcpu: hv_vcpu_t,
+        reg: hv_gic_icc_reg_t,
+        value: *mut u64,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Write a GIC ICC cpu system register.\n@param vcpu Handle for the vcpu.\n@param reg GIC ICC system register enum.\n@param value GIC ICC register value to be written.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nMust be called by the owning thread."]
+    pub fn hv_gic_set_icc_reg(vcpu: hv_vcpu_t, reg: hv_gic_icc_reg_t, value: u64) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Read a GIC ICH virtualization control system register.\n@param vcpu Handle for the vcpu.\n@param reg GIC ICH system register enum.\n@param value Pointer to ICH register value (written on success).\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nICH registers are only available when EL2 is enabled, otherwise returns\nan error.\n\nMust be called by the owning thread."]
+    pub fn hv_gic_get_ich_reg(
+        vcpu: hv_vcpu_t,
+        reg: hv_gic_ich_reg_t,
+        value: *mut u64,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Write a GIC ICH virtualization control system register.\n@param vcpu Handle for the vcpu.\n@param reg GIC ICH system register enum.\n@param value GIC ICH register value to be written.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nICH registers are only available when EL2 is enabled, otherwise returns\nan error.\n\nMust be called by the owning thread."]
+    pub fn hv_gic_set_ich_reg(vcpu: hv_vcpu_t, reg: hv_gic_ich_reg_t, value: u64) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Read a GIC ICV system register.\n@param vcpu Handle for the vcpu.\n@param reg GIC ICV system register enum.\n@param value Pointer to ICV register value (written on success).\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nICV registers are only available when EL2 is enabled, otherwise returns\nan error.\n\nMust be called by the owning thread."]
+    pub fn hv_gic_get_icv_reg(
+        vcpu: hv_vcpu_t,
+        reg: hv_gic_icv_reg_t,
+        value: *mut u64,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Write a GIC ICV system register.\n@param vcpu Handle for the vcpu.\n@param reg GIC ICV system register enum.\n@param value GIC ICV register value to be written.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nICV registers are only available when EL2 is enabled, otherwise returns\nan error.\n\nMust be called by the owning thread."]
+    pub fn hv_gic_set_icv_reg(vcpu: hv_vcpu_t, reg: hv_gic_icv_reg_t, value: u64) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Read a GIC distributor MSI register.\n@param reg GIC distributor MSI register enum.\n@param value Pointer to distributor MSI register value (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_get_msi_reg(reg: hv_gic_msi_reg_t, value: *mut u64) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Write a GIC distributor MSI register.\n@param reg GIC distributor MSI register enum.\n@param value GIC distributor MSI register value to be written.\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_set_msi_reg(reg: hv_gic_msi_reg_t, value: u64) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Set state for GIC device to be restored.\n@param gic_state_data Pointer to the state buffer to set GIC with.\n@param gic_state_size Size of GIC state buffer.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nGIC state can only be restored after a GIC device and vcpus have been\ncreated and must be done before vcpu's are run. The rest of the virtual\nmachine including GIC CPU registers must also be restored compatibly with\nthe gic_state.\n\nIn some cases hv_gic_set_state() can fail if a software update has changed\nthe host in a way that would be incompatible with the previous format."]
+    pub fn hv_gic_set_state(
+        gic_state_data: *const ::std::os::raw::c_void,
+        gic_state_size: usize,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Reset the GIC device.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nWhen the virtual machine is being reset, call this function to reset the\nGIC distributor, redistributor registers and the internal state of the\ndevice."]
+    pub fn hv_gic_reset() -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Create a GIC configuration object\n@result hv_gic_config_t A new GIC configuration object. Release with os_release\nwhen no longer needed.\n@discussion\nCreate the GIC configuration after the virtual machine has been created."]
+    pub fn hv_gic_config_create() -> hv_gic_config_t;
+}
+extern "C" {
+    #[doc = "@abstract Set the GIC distributor region base address.\n@param config GIC configuration object.\n@param distributor_base_address Guest physical address for distributor.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nGuest physical address for distributor base aligned to byte value\nreturned by hv_gic_get_distributor_base_alignment."]
+    pub fn hv_gic_config_set_distributor_base(
+        config: hv_gic_config_t,
+        distributor_base_address: hv_ipa_t,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Set the GIC redistributor region base address.\n@param config GIC configuration object.\n@param redistributor_base_address Guest physical address for redistributor.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nGuest physical address for redistributor base aligned to byte value\nreturned by hv_gic_get_redistributor_base_alignment. The redistributor\nregion will contain redistributors for all vCPUs supported by the\nvirtual machine."]
+    pub fn hv_gic_config_set_redistributor_base(
+        config: hv_gic_config_t,
+        redistributor_base_address: hv_ipa_t,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Set the GIC MSI region base address.\n@param config GIC configuration object.\n@param msi_region_base_address Guest physical address for MSI region.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nGuest physical address for MSI region base aligned to byte value\nreturned by hv_gic_get_msi_region_base_alignment.\n\nFor MSI support, you also need to set the interrupt range with\nhv_gic_config_set_msi_interrupt_range()."]
+    pub fn hv_gic_config_set_msi_region_base(
+        config: hv_gic_config_t,
+        msi_region_base_address: hv_ipa_t,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Sets the range of MSIs supported.\n@param config GIC configuration object.\n@param msi_intid_base Lowest MSI interrupt number.\n@param msi_intid_count Number of MSIs.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nConfigures the range of identifiers supported for MSIs. If it is outside of\nthe range given by hv_gic_get_spi_interrupt_range() an error will be\nreturned.\n\nFor MSI support, you also need to set the region base address with\nhv_gic_config_set_msi_region_base()."]
+    pub fn hv_gic_config_set_msi_interrupt_range(
+        config: hv_gic_config_t,
+        msi_intid_base: u32,
+        msi_intid_count: u32,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the size in bytes of the GIC distributor region.\n@param distributor_size Pointer to GIC distributor region size (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_get_distributor_size(distributor_size: *mut usize) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the alignment in bytes for the base address of the GIC distributor region.\n@param distributor_base_alignment Pointer to GIC distributor base address alignment (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_get_distributor_base_alignment(
+        distributor_base_alignment: *mut usize,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the total size in bytes of the GIC redistributor region.\n@param redistributor_region_size Pointer to GIC redistributor region size (written on success).\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nProvides the total size of the GIC redistributor regions supported. Each\nredistributor is two 64 kilobyte frames per vCPU and is contiguously\nplaced."]
+    pub fn hv_gic_get_redistributor_region_size(
+        redistributor_region_size: *mut usize,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the size in bytes of a single GIC redistributor.\n@param redistributor_size Pointer to GIC redistributor region size (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_get_redistributor_size(redistributor_size: *mut usize) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the alignment in bytes for the base address of the GIC redistributor region.\n@param redistributor_base_alignment Pointer to GIC redistributor base address alignment (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_get_redistributor_base_alignment(
+        redistributor_base_alignment: *mut usize,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the size in bytes of the GIC MSI region.\n@param msi_region_size Pointer to GIC MSI region size (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_get_msi_region_size(msi_region_size: *mut usize) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the alignment in bytes for the base address of the GIC MSI region.\n@param msi_region_base_alignment Pointer to GIC MSI region base address alignment (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_get_msi_region_base_alignment(
+        msi_region_base_alignment: *mut usize,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the range of SPIs supported.\n@param spi_intid_base Pointer to the lowest SPI number (written on success).\n@param spi_intid_count Pointer to the number of SPIs supported (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_get_spi_interrupt_range(
+        spi_intid_base: *mut u32,
+        spi_intid_count: *mut u32,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Gets the interrupt id for reserved interrupts.\n@param interrupt Enum value for reserved interrupts.\n@param intid Pointer to the interrupt number (written on success).\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nProvides the interrupt id for interrupts that are reserved by the\nhypervisor framework."]
+    pub fn hv_gic_get_intid(interrupt: hv_gic_intid_t, intid: *mut u32) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Create a GIC state object.\n@result hv_gic_state_t A new GIC state object that is representative of the current GIC state.\nThis should be released with os_release when no longer used.\n@discussion\nThe function returns no object if the current GIC state can not be represented in a GIC\nstate object, or if there is no GIC present in the virtual machine.\n\nThe virtual machine must be in a stopped state prior to calling this function."]
+    pub fn hv_gic_state_create() -> hv_gic_state_t;
+}
+extern "C" {
+    #[doc = "@abstract Get size of buffer required for GIC state.\n@param state GIC state object.\n@param gic_state_size Pointer to GIC data size (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_gic_state_get_size(state: hv_gic_state_t, gic_state_size: *mut usize) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Get the state data for GIC.\n@param state GIC state object.\n@param gic_state_data Pointer to GIC state buffer (written on success).\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion\nThe function returns an opaque data buffer that contains the complete\nserialized state of the device, except for the GIC cpu registers. The data\ncan be written to a file and is stable. It is also versioned for detecting\nincompatibilities on restore of the state. The size of this GIC state buffer\nmust be at least as large as the size returned by hv_gic_state_get_size().\n\nGIC CPU system registers can be read separately, and saved to restore the\ncpu state for the virtual machine."]
+    pub fn hv_gic_state_get_data(
+        state: hv_gic_state_t,
+        gic_state_data: *mut ::std::os::raw::c_void,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Creates a vcpu configuration object.\n@result A new vcpu configuration object. This should be released with os_release when no longer used."]
     pub fn hv_vcpu_config_create() -> hv_vcpu_config_t;
 }
 pub const hv_feature_reg_t_HV_FEATURE_REG_ID_AA64DFR0_EL1: hv_feature_reg_t = 0;
@@ -1741,7 +5102,7 @@ pub const hv_feature_reg_t_HV_FEATURE_REG_CLIDR_EL1: hv_feature_reg_t = 10;
 pub const hv_feature_reg_t_HV_FEATURE_REG_DCZID_EL0: hv_feature_reg_t = 11;
 pub type hv_feature_reg_t = u32;
 extern "C" {
-    #[doc = " @function  hv_vcpu_config_get_feature_reg\n @abstract  For a vcpu configuration, return the given feature register value.\n @param     config Configuration.\n @param     feature_reg The feature register.\n @param     value Pointer to the feature register value.\n @result    0 on success or error code."]
+    #[doc = "@abstract For a vcpu configuration, return the given feature register value.\n@param config Configuration.\n@param feature_reg The feature register.\n@param value Pointer to the feature register value.\n@result 0 on success or error code."]
     pub fn hv_vcpu_config_get_feature_reg(
         config: hv_vcpu_config_t,
         feature_reg: hv_feature_reg_t,
@@ -1749,7 +5110,7 @@ extern "C" {
     ) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function  hv_vcpu_config_get_ccs_idr_el1_sys_reg\n @abstract  For a vcpu configuration, return the given CCSIDR_EL1 values for a given cache type\n @param     config Configuration.\n @param     cache_type The cache type.\n @param     values Pointer to the CCSIDR_EL1 register values.\n @result    0 on success or error code."]
+    #[doc = "@abstract For a vcpu configuration, return the given CCSIDR_EL1 values for a given cache type\n@param config Configuration.\n@param cache_type The cache type.\n@param values Pointer to the CCSIDR_EL1 register values.\n@result 0 on success or error code."]
     pub fn hv_vcpu_config_get_ccsidr_el1_sys_reg_values(
         config: hv_vcpu_config_t,
         cache_type: hv_cache_type_t,
@@ -1757,19 +5118,19 @@ extern "C" {
     ) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_get_max_vcpu_count\n @abstract   Return the maximum number of vcpus supported.\n @param      max_vcpu_count Pointer to the max vcpu count (written on success).\n @result     HV_SUCCESS on success, an error code otherwise."]
+    #[doc = "@abstract Return the maximum number of vcpus supported.\n@param max_vcpu_count Pointer to the max vcpu count (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
     pub fn hv_vm_get_max_vcpu_count(max_vcpu_count: *mut u32) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_create\n @abstract   Creates a VM instance for the current process.\n @param      config Configuration. Pass NULL for the default configuration.\n @result     HV_SUCCESS on success, an error code otherwise."]
+    #[doc = "@abstract Creates a VM instance for the current process.\n@param config Configuration. Pass NULL for the default configuration.\n@result HV_SUCCESS on success, an error code otherwise."]
     pub fn hv_vm_create(config: hv_vm_config_t) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_destroy\n @abstract   Destroys the VM instance associated with the current process.\n @result     HV_SUCCESS on success, an error code otherwise."]
+    #[doc = "@abstract Destroys the VM instance associated with the current process.\n@result HV_SUCCESS on success, an error code otherwise."]
     pub fn hv_vm_destroy() -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_map\n @abstract   Maps a region in the virtual address space of the current process\n             into the guest physical address space of the VM.\n @param      addr   Page aligned virtual address in the current process\n @param      ipa    Page aligned address in the guest physical address space\n @param      size   Size in bytes of the region to be mapped (must be a multiple of the page size)\n @param      flags  READ, WRITE and EXECUTE permissions of the region\n @result     HV_SUCCESS on success, an error code otherwise."]
+    #[doc = "@abstract Maps a region in the virtual address space of the current process into the guest physical address space of the VM.\n@param addr Page aligned virtual address in the current process\n@param ipa Page aligned address in the guest physical address space\n@param size Size in bytes of the region to be mapped (must be a multiple of the page size)\n@param flags READ, WRITE and EXECUTE permissions of the region\n@result HV_SUCCESS on success, an error code otherwise."]
     pub fn hv_vm_map(
         addr: *mut ::std::os::raw::c_void,
         ipa: hv_ipa_t,
@@ -1778,42 +5139,57 @@ extern "C" {
     ) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_unmap\n @abstract   Unmaps a region in the guest physical address space of the VM.\n @param      ipa   Page aligned address in the guest physical address space\n @param      size  Size in bytes of the region to be unmapped (must be a multiple of the page size)\n @result     HV_SUCCESS on success, an error code otherwise."]
+    #[doc = "@abstract Unmaps a region in the guest physical address space of the VM.\n@param ipa Page aligned address in the guest physical address space\n@param size Size in bytes of the region to be unmapped (must be a multiple of the page size)\n@result HV_SUCCESS on success, an error code otherwise."]
     pub fn hv_vm_unmap(ipa: hv_ipa_t, size: usize) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_protect\n @abstract   Modifies the permissions of a region in the guest physical\n             address space of the VM.\n @param      ipa    Page aligned address in the guest physical address space\n @param      size   Size in bytes of the region to be modified (must be a multiple of the page size)\n @param      flags  New READ, WRITE and EXECUTE permissions of the region\n @result     HV_SUCCESS on success, an error code otherwise."]
+    #[doc = "@abstract Modifies the permissions of a region in the guest physical address space of the VM.\n@param ipa Page aligned address in the guest physical address space\n@param size Size in bytes of the region to be modified (must be a multiple of the page size)\n@param flags New READ, WRITE and EXECUTE permissions of the region\n@result HV_SUCCESS on success, an error code otherwise."]
     pub fn hv_vm_protect(ipa: hv_ipa_t, size: usize, flags: hv_memory_flags_t) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_config_create\n @abstract   Creates a virtual machine configuration object.\n @result     A new virtual machine configuration object. This should be released with os_release\n             when no longer used."]
+    #[doc = "@abstract Creates a virtual machine configuration object.\n@result A new virtual machine configuration object. This should be released with os_release\nwhen no longer used."]
     pub fn hv_vm_config_create() -> hv_vm_config_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_config_get_max_ipa_size\n @abstract   Return the maximum intermediate physical address bit length.\n @param      ipa_bit_length Pointer to bit length (written on success)\n @result     HV_SUCCESS on success, an error code otherwise.\n @discussion The bit length is the number of valid bits from an intermediate physical address (IPA).\n             For example, max IPA bit length of 36 means only the least significant 36 bits\n             of an IPA are valid, and covers a 64GB range."]
+    #[doc = "@abstract Return the maximum intermediate physical address bit length.\n@param ipa_bit_length Pointer to bit length (written on success)\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion The bit length is the number of valid bits from an intermediate physical address (IPA).\nFor example, max IPA bit length of 36 means only the least significant 36 bits\nof an IPA are valid, and covers a 64GB range."]
     pub fn hv_vm_config_get_max_ipa_size(ipa_bit_length: *mut u32) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_config_get_default_ipa_size\n @abstract   Return the default intermediate physical address bit length.\n @param      ipa_bit_length Pointer to bit length (written on success)\n @result     HV_SUCCESS on success, an error code otherwise.\n @discussion This default IPA size is used if the IPA size is not set explicitly."]
+    #[doc = "@abstract Return the default intermediate physical address bit length.\n@param ipa_bit_length Pointer to bit length (written on success)\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion This default IPA size is used if the IPA size is not set explicitly."]
     pub fn hv_vm_config_get_default_ipa_size(ipa_bit_length: *mut u32) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_config_set_ipa_size\n @abstract   Set intermediate physical address bit length in virtual machine configuration.\n @param      config Configuration.\n @param      ipa_bit_length intermediate physical address bit length.\n @result     HV_SUCCESS on success, an error code otherwise.\n @discussion VM IPA size should be no greater than the max IPA size from\n             hv_vm_config_get_max_ipa_size().\n @see        hv_vm_config_get_max_ipa_size"]
+    #[doc = "@abstract Set intermediate physical address bit length in virtual machine configuration.\n@param config Configuration.\n@param ipa_bit_length intermediate physical address bit length.\n@result HV_SUCCESS on success, an error code otherwise.\n@discussion VM IPA size should be no greater than the max IPA size from hv_vm_config_get_max_ipa_size().\n@see hv_vm_config_get_max_ipa_size"]
     pub fn hv_vm_config_set_ipa_size(config: hv_vm_config_t, ipa_bit_length: u32) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_config_get_ipa_size\n @abstract   Return intermediate physical address bit length in configuration.\n @param      config Configuration.\n @param      ipa_bit_length Pointer to bit length (written on success)\n @result     HV_SUCCESS on success, an error code otherwise."]
+    #[doc = "@abstract Return intermediate physical address bit length in configuration.\n@param config Configuration.\n@param ipa_bit_length Pointer to bit length (written on success)\n@result HV_SUCCESS on success, an error code otherwise."]
     pub fn hv_vm_config_get_ipa_size(
         config: hv_vm_config_t,
         ipa_bit_length: *mut u32,
     ) -> hv_return_t;
 }
+extern "C" {
+    #[doc = "@abstract Return whether or not EL2 is supported on the current platform.\n@param el2_supported Pointer to whether or not EL2 is supported (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_vm_config_get_el2_supported(el2_supported: *mut bool) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Return whether or not EL2 is enabled for a VM configuration.\n@param config Configuration.\n@param el2_enabled Pointer to whether or not EL2 is enabled (written on success).\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_vm_config_get_el2_enabled(
+        config: hv_vm_config_t,
+        el2_enabled: *mut bool,
+    ) -> hv_return_t;
+}
+extern "C" {
+    #[doc = "@abstract Set whether or not EL2 is enabled for a VM configuration.\n@param config Configuration.\n@param el2_enabled Whether or not to enable EL2.\n@result HV_SUCCESS on success, an error code otherwise."]
+    pub fn hv_vm_config_set_el2_enabled(config: hv_vm_config_t, el2_enabled: bool) -> hv_return_t;
+}
 pub const HV_ALLOCATE_DEFAULT: _bindgen_ty_3 = 0;
-#[doc = " @enum       hv_allocate_flags_t\n @abstract   Memory allocation flags"]
+#[doc = "@abstract Memory allocation flags"]
 pub type _bindgen_ty_3 = ::std::os::raw::c_uint;
 pub type hv_allocate_flags_t = u64;
 extern "C" {
-    #[doc = " @function   hv_vm_allocate\n @abstract   Allocate anonymous memory suitable to be mapped as guest memory\n @param      uvap   Returned virtual address of the allocated memory\n @param      size   Size in bytes of the region to be allocated\n @param      flags  Memory allocation flags\n @result     0 on success or error code\n @discussion\n             The memory is allocated with VM_PROT_DEFAULT permissions\n             This API enables accurate memory accounting of the allocations\n             it creates\n             Size must be a multiple of PAGE_SIZE\n             Memory returned by this API should be deallocated with\n             hv_vm_deallocate"]
+    #[doc = "@abstract Allocate anonymous memory suitable to be mapped as guest memory\n@param uvap Returned virtual address of the allocated memory\n@param size Size in bytes of the region to be allocated\n@param flags Memory allocation flags\n@result 0 on success or error code\n@discussion\nThe memory is allocated with VM_PROT_DEFAULT permissions\nThis API enables accurate memory accounting of the allocations\nit creates\nSize must be a multiple of PAGE_SIZE\nMemory returned by this API should be deallocated with\nhv_vm_deallocate"]
     pub fn hv_vm_allocate(
         uvap: *mut *mut ::std::os::raw::c_void,
         size: usize,
@@ -1821,7 +5197,7 @@ extern "C" {
     ) -> hv_return_t;
 }
 extern "C" {
-    #[doc = " @function   hv_vm_deallocate\n @abstract   Deallocate memory previously allocated by hv_vm_allocate\n @param      uva    Virtual address of the allocated memory\n @param      size   Size in bytes of the region to be deallocated\n @result     0 on success or error code"]
+    #[doc = "@abstract Deallocate memory previously allocated by hv_vm_allocate\n@param uva Virtual address of the allocated memory\n@param size Size in bytes of the region to be deallocated\n@result 0 on success or error code"]
     pub fn hv_vm_deallocate(uva: *mut ::std::os::raw::c_void, size: usize) -> hv_return_t;
 }
 pub type __builtin_va_list = *mut ::std::os::raw::c_char;
