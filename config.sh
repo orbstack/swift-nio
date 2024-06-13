@@ -15,7 +15,7 @@ NOTARY_KEYCHAIN_PROFILE=main
 #
 
 # Sparkle CLI tools
-SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/bin
+SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/Sparkle/bin
 
 # for uploading debug symbols (login required too)
 SENTRY_ORG=kdrag0n
