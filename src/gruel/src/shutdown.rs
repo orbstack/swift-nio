@@ -98,11 +98,11 @@ impl<P: NumEnum> MultiShutdownSignal<P> {
         }
 
         for (phase, signal) in self.inner.signals.iter() {
-            let _phase_span = tracing::info_span!("multi-phase shutdown phase").entered();
-            tracing::info!("Beginning shutdown phase: {phase:?}");
+            let _phase_span = tracing::trace_span!("multi-phase shutdown phase").entered();
+            tracing::trace!("Beginning shutdown phase: {phase:?}");
             signal.shutdown();
         }
-        tracing::info!("Completed all shutdown phases on `MultiShutdownSignal`");
+        tracing::trace!("Completed all shutdown phases on `MultiShutdownSignal`");
     }
 }
 

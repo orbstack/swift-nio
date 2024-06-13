@@ -774,7 +774,7 @@ impl Vcpu {
             debug_assert!(signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
 
             let Ok(park_task_tmp) = parker.process_park_commands(&*signal, park_task) else {
-                info!(
+                error!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );
                 break;
@@ -949,7 +949,7 @@ impl Vcpu {
             debug_assert!(signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
 
             let Ok(park_task_tmp) = parker.process_park_commands(&*signal, park_task) else {
-                info!(
+                error!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );
                 break;

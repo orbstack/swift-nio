@@ -146,7 +146,7 @@ pub fn multiplex_signals<C: ?Sized>(
                 flag ^= 1 << i_bit;
                 let i = i_cell * 64 + i_bit;
 
-                tracing::info_span!("process multiplexed signals").in_scope(|| {
+                tracing::trace_span!("process multiplexed signals").in_scope(|| {
                     tracing::trace!(
                         "Processing signals from `{}`",
                         handlers[i].debug_type_name(),
