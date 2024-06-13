@@ -34,7 +34,7 @@ var (
 		"loop",
 		"nbd",
 		"zram",
-		"vdc2", // allow swapoff
+		"vdc", // allow swapoff
 	}
 
 	// unfortunately we CANNOT exclude zram0 for non-isolated machines,
