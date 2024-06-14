@@ -8,7 +8,10 @@ pub struct Parker {
 impl Parker {
     pub fn pause(&self) -> Result<StartupTask, StartupAbortedError> {
         // Ensure that the unpause signal can't be completed immediately.
-        let unpause_task = self.unpause_signal.resurrect_cloned();
+        let unpause_task = self
+            .unpause_signal
+            .resurrect_cloned()
+            .expect("`pause` is poisoned");
 
         // Wait for everything to pause and, once that's done, give out an unpause task.
         self.pause_signal.wait().map(|_| unpause_task)
@@ -22,7 +25,7 @@ impl Parker {
         let _ = self.unpause_signal.wait();
 
         // Resurrect the pause task.
-        pause_task.resurrect()
+        pause_task.resurrect().unwrap()
     }
 }
 

@@ -124,13 +124,15 @@ impl VmParker {
 impl Parkable for VmParker {
     fn register_vcpu(&self, vcpu: ArcVcpuSignal) -> StartupTask {
         self.vcpus.lock().unwrap().push(vcpu);
-        self.park_signal.resurrect_cloned()
+
+        // Won't panic: `park_signal` is only ever used in a panic-less context
+        self.park_signal.resurrect_cloned().unwrap()
     }
 
     fn park(&self) -> std::result::Result<StartupTask, StartupAbortedError> {
         // Resurrect the unpark task. We do this here to ensure that parking vCPUs don't
         // immediately exit.
-        let unpark_task = self.unpark_signal.resurrect_cloned();
+        let unpark_task = self.unpark_signal.resurrect_cloned().expect("`unpark_signal` poisoned");
 
         // Let's send a pause signal to every vCPU. They will receive and honor this since this
         // signal is never asserted outside of `park` (or when the signal is aborted)
@@ -192,7 +194,8 @@ impl Parkable for VmParker {
         self.unpark_signal.wait()?;
 
         // And we're back in business!
-        Ok(park_task.resurrect())
+        // Won't panic: `park_signal` is only ever used in a panic-less context
+        Ok(park_task.resurrect().unwrap())
     }
 }
 

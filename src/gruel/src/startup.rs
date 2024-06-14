@@ -4,12 +4,13 @@ use std::{
     sync::Arc,
 };
 
-use std::sync::{Condvar, Mutex};
+use parking_lot::{Condvar, Mutex};
 use thiserror::Error;
 
 // === State === //
 
 struct StartupInner {
+    // N.B. we use parking-lot's mutex to avoid spurious wake-ups since they harm correctness.
     state: Mutex<State>,
     condvar: Condvar,
 }
@@ -21,7 +22,7 @@ struct State {
 
 impl StartupInner {
     pub fn abort(&self) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock();
         if state.pending_starts == 0 || state.pending_starts == usize::MAX {
             return;
         }
@@ -83,35 +84,43 @@ impl StartupSignal {
     }
 
     pub fn wait(&self) -> Result<(), StartupAbortedError> {
-        let mut guard = self.0.state.lock().unwrap();
+        let mut guard = self.0.state.lock();
 
         if let Some(early) = guard.interpret_as_result() {
             return early;
         }
 
-        guard = self.0.condvar.wait(guard).unwrap();
+        self.0.condvar.wait(&mut guard);
 
-        guard.interpret_as_result().unwrap()
+        // N.B. it is possible that a thread may race the `condvar` notification here and resurrect
+        // the signal after a successful or unsuccessful assertion. Hence, we may have to handle values
+        // other than `0` or `usize::MAX`. This has the expected behavior except for when the signal
+        // is resurrected and then aborted, in which case, it will report the abort rather than the
+        // initial success. This is acceptable because `abort` is always an error scenario.
+        //
+        // Note: `condvar.wait` will only wake-up if the signal truly ever has gone to zero since
+        // `parking_lot` does not allow spurious wake-ups.
+        guard.interpret_as_result().unwrap_or(Ok(()))
     }
 
-    pub fn resurrect(self) -> StartupTask {
+    pub fn resurrect(self) -> Result<StartupTask, StartupAbortedError> {
         // Increment RC
         // This is not exactly the same of the clone handler, hence the
         // duplication.
         {
-            let mut guard = self.0.state.lock().unwrap();
+            let mut guard = self.0.state.lock();
 
             if guard.pending_starts == usize::MAX {
-                guard.pending_starts = 1;
+                return Err(StartupAbortedError);
             } else {
                 guard.pending_starts += 1;
             }
         }
 
-        StartupTask(ManuallyDrop::new(self.0))
+        Ok(StartupTask(ManuallyDrop::new(self.0)))
     }
 
-    pub fn resurrect_cloned(&self) -> StartupTask {
+    pub fn resurrect_cloned(&self) -> Result<StartupTask, StartupAbortedError> {
         self.clone().resurrect()
     }
 }
@@ -125,7 +134,7 @@ impl Clone for StartupTask {
     fn clone(&self) -> Self {
         let clone = Self(self.0.clone());
         {
-            let mut state = clone.0.state.lock().unwrap();
+            let mut state = clone.0.state.lock();
             debug_assert!(state.pending_starts != 0);
 
             state.pending_starts = state.pending_starts.saturating_add(1);
@@ -153,7 +162,7 @@ impl StartupTask {
     pub fn success_keeping(self) -> StartupSignal {
         let signal = self.into_signal_no_rc();
 
-        let mut state = signal.0.state.lock().unwrap();
+        let mut state = signal.0.state.lock();
 
         if state.pending_starts != usize::MAX {
             state.pending_starts -= 1;
@@ -171,12 +180,6 @@ impl StartupTask {
 
     pub fn abort(self) {
         drop(self);
-    }
-
-    pub fn abort_keeping(self) -> StartupSignal {
-        let signal = self.into_signal_no_rc();
-        signal.abort();
-        signal
     }
 
     pub fn abort_ref(&self) {
