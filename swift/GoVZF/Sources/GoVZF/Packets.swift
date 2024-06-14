@@ -59,7 +59,7 @@ struct Packet {
     }
 
     init(iov: UnsafeMutablePointer<iovec>, len: Int) {
-        data = iov[0].iov_base!
+        data = iov[0].iov_base
         self.len = len
     }
 
@@ -688,7 +688,7 @@ class GuestReader {
         source = DispatchSource.makeReadSource(fileDescriptor: guestFd, queue: vmnetPktQueue)
         source.setEventHandler { [self] in
             // read from
-            let buf = iovs[0].iov_base!
+            let buf = iovs[0].iov_base
             let n = read(guestFd, buf, Int(maxPacketSize))
             guard n > 0 else {
                 if errno != EAGAIN, errno != EWOULDBLOCK {
