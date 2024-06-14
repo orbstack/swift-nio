@@ -6,7 +6,7 @@ use std::cell::Cell;
 use std::cmp;
 use std::fmt::{self, Display};
 use std::fs::File;
-use std::io::{self, IoSlice, IoSliceMut, Read, Write};
+use std::io::{self, IoSlice, Read, Write};
 use std::marker::PhantomData;
 use std::mem::{size_of, MaybeUninit};
 use std::ops::Deref;
@@ -16,7 +16,7 @@ use std::result;
 
 use crate::virtio::queue::DescriptorChain;
 use libc::c_void;
-use nix::sys::uio::{preadv, pwritev, readv, writev};
+use nix::sys::uio::{pwritev, writev};
 use smallvec::SmallVec;
 use vm_memory::{
     Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap,
@@ -95,16 +95,6 @@ impl<'a> Iovec<'a> {
     pub fn slice_to_std(iovs: &'a [Iovec<'a>]) -> &'a [IoSlice<'a>] {
         // safe: std IoSlice is guaranteed to be ABI compatible with iovec
         unsafe { std::slice::from_raw_parts(iovs.as_ptr() as *const IoSlice<'a>, iovs.len()) }
-    }
-
-    pub fn slice_to_std_mut(iovs: &'a [Iovec<'a>]) -> &'a mut [IoSliceMut<'a>] {
-        // UNSAFE! but nix requires &mut [IoSliceMut] and doesn't actually mutate it, so it's ok...
-        unsafe {
-            std::slice::from_raw_parts_mut(
-                iovs.as_ptr() as *const IoSliceMut<'a> as *mut IoSliceMut<'a>,
-                iovs.len(),
-            )
-        }
     }
 }
 
@@ -534,7 +524,26 @@ impl<'a> Writer<'a> {
     /// there isn't enough data in the descriptor chain buffer.
     pub fn write_from(&mut self, src: &mut File, count: usize) -> io::Result<usize> {
         self.buffer.consume(count, |bufs| {
-            readv(src.as_raw_fd(), Iovec::slice_to_std_mut(bufs)).map_err(|e| e.into())
+            // This `libc` command corresponds to the following `nix` command:
+            //
+            // ```
+            // nix::sys::uio::readv(src.as_raw_fd(), bufs).map_err(|e| e.into())
+            // ```
+            //
+            // We're not using `nix` directly since it assumes that the slice must be `&mut`, even
+            // though `readv` doesn't actually mutate the `iovec` structure itself—only the memory
+            // they point to.
+            let res = unsafe {
+                libc::readv(
+                    src.as_raw_fd(),
+                    bufs.as_ptr() as *const libc::iovec,
+                    bufs.len() as std::ffi::c_int,
+                )
+            };
+
+            nix::errno::Errno::result(res)
+                .map(|r| r as usize)
+                .map_err(|e| e.into())
         })
     }
 
@@ -544,7 +553,32 @@ impl<'a> Writer<'a> {
     /// there isn't enough data in the descriptor chain buffer.
     pub fn write_from_at(&mut self, src: &File, count: usize, off: u64) -> io::Result<usize> {
         self.buffer.consume(count, |bufs| {
-            preadv(src.as_raw_fd(), Iovec::slice_to_std_mut(bufs), off as i64).map_err(|e| e.into())
+            // This `libc` command corresponds to the following `nix` command:
+            //
+            // ```
+            // nix::sys::uio::preadv(src.as_raw_fd(), bufs, off as i64).map_err(|e| e.into())
+            // ```
+            //
+            // We're not using `nix` directly since it assumes that the slice must be `&mut`, even
+            // though `readv` doesn't actually mutate the `iovec` structure itself—only the memory
+            // they point to.
+
+            // Not needed unless OrbStack starts targeting embedded hardware.
+            // #[cfg(target_env = "uclibc")]
+            // let offset = offset as libc::off64_t; // uclibc doesn't use off_t
+
+            let res = unsafe {
+                libc::preadv(
+                    src.as_raw_fd(),
+                    bufs.as_ptr() as *const libc::iovec,
+                    bufs.len() as std::ffi::c_int,
+                    off as i64,
+                )
+            };
+
+            nix::errno::Errno::result(res)
+                .map(|r| r as usize)
+                .map_err(|e| e.into())
         })
     }
 
@@ -616,6 +650,7 @@ pub enum DescriptorType {
 
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
+#[allow(non_camel_case_types)]
 struct virtq_desc {
     addr: Le64,
     len: Le32,
@@ -668,6 +703,7 @@ pub fn create_descriptor_chain(
     DescriptorChain::checked_new(memory, descriptor_array_addr, 0x100, 0).ok_or(Error::InvalidChain)
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1114,3 +1150,4 @@ mod tests {
         );
     }
 }
+*/
