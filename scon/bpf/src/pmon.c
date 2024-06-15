@@ -102,7 +102,7 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     // Go side debounces and reads /proc/net
-    __uint(max_entries, 4096); // min - can't go lower
+    __uint(max_entries, 16384); // min = page size, so be conservative
 } notify_ring SEC(".maps");
 
 static bool check_netns(void *ctx) {
