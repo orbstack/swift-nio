@@ -26,6 +26,8 @@ once_cell = "1.19.0"
 num-derive = "0.4.2"
 num-traits = "0.2.19"
 utils = { version = "0.1.0", path = "../utils" }
+mach2 = "0.4.2"
+scopeguard = "1.2.0"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 cpuid = { path = "../cpuid" }

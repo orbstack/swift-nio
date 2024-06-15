@@ -1468,18 +1468,6 @@ impl HvfVcpu {
     }
 }
 
-pub unsafe fn vm_allocate(size: usize) -> Result<*mut c_void, Error> {
-    let mut ptr: *mut c_void = std::ptr::null_mut();
-    let ret = unsafe { hv_vm_allocate(&mut ptr, size, HV_ALLOCATE_DEFAULT as u64) };
-    HvfError::result(ret).map_err(Error::VmAllocate)?;
-    Ok(ptr)
-}
-
-pub unsafe fn vm_deallocate(ptr: *mut c_void, size: usize) -> Result<(), Error> {
-    let ret = unsafe { hv_vm_deallocate(ptr, size) };
-    HvfError::result(ret).map_err(Error::VmDeallocate)
-}
-
 pub fn vcpu_id_to_mpidr(vcpu_id: u64) -> u64 {
     vcpu_id << 8
 }
