@@ -693,8 +693,7 @@ func runVmManager() {
 		NetworkNat:         useNat,
 		NetworkHostBridges: 2, // machine + VlanRouter
 		MacAddressPrefix:   netconf.GuestMACPrefix,
-		// doesn't work on vzf so let's just hide it
-		Balloon: false,
+		Balloon: true,
 		Rng:     true,
 		// no longer used (NFS is now TCP)
 		Vsock:    false,
