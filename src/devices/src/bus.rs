@@ -90,18 +90,27 @@ impl LocklessBusDevice for ErasedBusDevice {
 
 /// A variant of [`BusDevice`] which assumes that operations can be performed without external
 /// synchronization.
+#[allow(unused_variables)]
 pub trait LocklessBusDevice: 'static + Send + Sync {
-    fn read(&self, vcpuid: u64, offset: u64, data: &mut [u8]);
+    fn read(&self, vcpuid: u64, offset: u64, data: &mut [u8]) {}
 
-    fn write(&self, vcpuid: u64, offset: u64, data: &[u8]);
+    fn write(&self, vcpuid: u64, offset: u64, data: &[u8]) {}
 
-    fn interrupt(&self, irq_mask: u32) -> io::Result<()>;
+    fn interrupt(&self, irq_mask: u32) -> io::Result<()> {
+        Ok(())
+    }
 
-    fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64;
+    fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64 {
+        unimplemented!()
+    }
 
-    fn write_sysreg(&self, vcpuid: u64, reg: u64, value: u64);
+    fn write_sysreg(&self, vcpuid: u64, reg: u64, value: u64) {
+        unimplemented!()
+    }
 
-    fn iter_sysregs(&self) -> Vec<u64>;
+    fn iter_sysregs(&self) -> Vec<u64> {
+        Vec::new()
+    }
 
     fn clone_erased(&self) -> ErasedBusDevice;
 

@@ -160,11 +160,13 @@ pub trait VirtioDevice: Send {
         None
     }
 
-    fn supports_sync_event(&self) -> bool {
-        false
+    fn sync_events(&self) -> Option<Arc<dyn SyncEventHandlerSet>> {
+        None
     }
+}
 
-    fn handle_sync_event(&mut self, _queue: u32) {}
+pub trait SyncEventHandlerSet: Send + Sync {
+    fn process(&self, queue: u32);
 }
 
 pub trait HvcDevice: Send + Sync {

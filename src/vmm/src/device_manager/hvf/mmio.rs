@@ -95,7 +95,7 @@ impl MMIODeviceManager {
     /// Register an already created MMIO device to be used via MMIO transport.
     pub fn register_mmio_device(
         &mut self,
-        mut mmio_device: devices::virtio::MmioTransport,
+        mmio_device: devices::virtio::MmioTransport,
         type_id: u32,
         device_id: String,
     ) -> Result<(u64, u32)> {
@@ -109,7 +109,7 @@ impl MMIODeviceManager {
         mmio_device.locked_device().set_irq_line(self.irq);
 
         self.bus
-            .insert(Arc::new(Mutex::new(mmio_device)), self.mmio_base, MMIO_LEN)
+            .insert(mmio_device, self.mmio_base, MMIO_LEN)
             .map_err(Error::BusError)?;
         let ret = (self.mmio_base, self.irq);
         self.id_to_dev_info.insert(

@@ -38,9 +38,10 @@ use super::{
 };
 
 use crate::legacy::Gic;
-use crate::virtio::{ActivateError, VirtioQueueSignals};
+use crate::virtio::{ActivateError, SyncEventHandlerSet, VirtioQueueSignals};
 
-const USE_ASYNC_WORKER: bool = false;
+// TODO: Go back to sync worker
+const USE_ASYNC_WORKER: bool = true;
 
 define_waker_set! {
     #[derive(Default)]
@@ -483,13 +484,19 @@ impl VirtioDevice for Block {
         true
     }
 
-    fn supports_sync_event(&self) -> bool {
-        !USE_ASYNC_WORKER
+    fn sync_events(&self) -> Option<Arc<dyn SyncEventHandlerSet>> {
+        assert!(USE_ASYNC_WORKER);
+        None
     }
 
-    fn handle_sync_event(&mut self, _queue: u32) {
-        if let Some(ref mut worker) = self.worker {
-            worker.process_virtio_queues();
-        }
-    }
+    // TODO: Go back to sync worker
+    //     fn supports_sync_event(&self) -> bool {
+    //         !USE_ASYNC_WORKER
+    //     }
+    //
+    //     fn handle_sync_event(&mut self, _queue: u32) {
+    //         if let Some(ref mut worker) = self.worker {
+    //             worker.process_virtio_queues();
+    //         }
+    //     }
 }

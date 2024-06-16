@@ -7,7 +7,7 @@
 
 use counter::RateCounter;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use utils::{Mutex, MutexGuard};
 
 use utils::byte_order;
@@ -15,7 +15,8 @@ use vm_memory::{GuestAddress, GuestMemoryMmap};
 
 use super::device_status;
 use super::*;
-use crate::bus::BusDevice;
+use crate::bus::LocklessBusDevice;
+use crate::ErasedBusDevice;
 
 //TODO crosvm uses 0 here, but IIRC virtio specified some other vendor id that should be used
 const VENDOR_ID: u32 = 0;
@@ -45,8 +46,17 @@ counter::counter! {
 ///
 /// Typically one page (4096 bytes) of MMIO address space is sufficient to handle this transport
 /// and inner virtio device.
-pub struct MmioTransport {
+#[derive(Clone)]
+pub struct MmioTransport(Arc<MmioTransportInner>);
+
+struct MmioTransportInner {
     device: Arc<Mutex<dyn VirtioDevice>>,
+    sync_events: Option<Arc<dyn SyncEventHandlerSet>>,
+    queue_signals: OnceLock<VirtioQueueSignals>,
+    locked: Mutex<MmioTransportLocked>,
+}
+
+struct MmioTransportLocked {
     // The register where feature bits are stored.
     pub(crate) features_select: u32,
     // The register where features page is selected.
@@ -56,59 +66,65 @@ pub struct MmioTransport {
     pub(crate) config_generation: u32,
     mem: GuestMemoryMmap,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
-    queue_signals: Option<VirtioQueueSignals>,
     shm_region_select: u32,
-    supports_sync_event: bool,
 }
 
 impl MmioTransport {
     /// Constructs a new MMIO transport for the given virtio device.
-    pub fn new(mem: GuestMemoryMmap, device: Arc<Mutex<dyn VirtioDevice>>) -> MmioTransport {
+    pub fn new(mem: GuestMemoryMmap, device: Arc<Mutex<dyn VirtioDevice>>) -> Self {
         let locked_device = device.lock().unwrap();
         let interrupt_status = locked_device.interrupt_status();
-        let supports_sync_event = locked_device.supports_sync_event();
-
+        let sync_events = locked_device.sync_events();
         drop(locked_device);
 
-        MmioTransport {
+        Self(Arc::new(MmioTransportInner {
             device,
-            features_select: 0,
-            acked_features_select: 0,
-            queue_select: 0,
-            device_status: device_status::INIT,
-            config_generation: 0,
-            mem,
-            interrupt_status,
-            queue_signals: None,
-            shm_region_select: 0,
-            supports_sync_event,
-        }
+            sync_events,
+            queue_signals: OnceLock::new(),
+            locked: Mutex::new(MmioTransportLocked {
+                features_select: 0,
+                acked_features_select: 0,
+                queue_select: 0,
+                device_status: device_status::INIT,
+                config_generation: 0,
+                mem,
+                interrupt_status,
+                shm_region_select: 0,
+            }),
+        }))
     }
 
     pub fn locked_device(&self) -> MutexGuard<dyn VirtioDevice + 'static> {
-        self.device.lock().expect("Poisoned device lock")
+        self.0.device.lock().expect("Poisoned device lock")
     }
 
     // Gets the encapsulated VirtioDevice.
     pub fn device(&self) -> Arc<Mutex<dyn VirtioDevice>> {
-        self.device.clone()
+        self.0.device.clone()
     }
 
-    pub fn register_queue_signals(&mut self, signals: VirtioQueueSignals) {
-        debug_assert!(self.queue_signals.is_none());
-
-        self.queue_signals = Some(signals);
+    pub fn register_queue_signals(&self, signals: VirtioQueueSignals) {
+        self.0
+            .queue_signals
+            .set(signals)
+            .expect("queue signals already initialized");
     }
 
+    fn locked_state(&self) -> MutexGuard<MmioTransportLocked> {
+        self.0.locked.lock().unwrap()
+    }
+}
+
+impl MmioTransportLocked {
     fn check_device_status(&self, set: u32, clr: u32) -> bool {
         self.device_status & (set | clr) == set
     }
 
-    fn with_queue<U, F>(&self, d: U, f: F) -> U
+    fn with_queue<U, F>(&self, transport: &MmioTransport, d: U, f: F) -> U
     where
         F: FnOnce(&Queue) -> U,
     {
-        match self
+        match transport
             .locked_device()
             .queues()
             .get(self.queue_select as usize)
@@ -118,8 +134,8 @@ impl MmioTransport {
         }
     }
 
-    fn with_queue_mut<F: FnOnce(&mut Queue)>(&mut self, f: F) -> bool {
-        if let Some(queue) = self
+    fn with_queue_mut<F: FnOnce(&mut Queue)>(&mut self, transport: &MmioTransport, f: F) -> bool {
+        if let Some(queue) = transport
             .locked_device()
             .queues_mut()
             .get_mut(self.queue_select as usize)
@@ -131,9 +147,9 @@ impl MmioTransport {
         }
     }
 
-    fn update_queue_field<F: FnOnce(&mut Queue)>(&mut self, f: F) {
+    fn update_queue_field<F: FnOnce(&mut Queue)>(&mut self, transport: &MmioTransport, f: F) {
         if self.check_device_status(device_status::FEATURES_OK, device_status::FAILED) {
-            self.with_queue_mut(f);
+            self.with_queue_mut(transport, f);
         } else {
             warn!(
                 "update virtio queue in invalid state 0x{:x}",
@@ -142,8 +158,8 @@ impl MmioTransport {
         }
     }
 
-    fn reset(&mut self) {
-        if self.locked_device().is_activated() {
+    fn reset(&mut self, transport: &MmioTransport) {
+        if transport.locked_device().is_activated() {
             warn!("reset device while it's still in active state");
         }
         self.features_select = 0;
@@ -151,11 +167,12 @@ impl MmioTransport {
         self.queue_select = 0;
         self.interrupt_status.store(0, Ordering::SeqCst);
         self.device_status = device_status::INIT;
+
         // . Keep interrupt_evt and queue_evts as is. There may be pending
         //   notifications in those eventfds, but nothing will happen other
         //   than supurious wakeups.
         // . Do not reset config_generation and keep it monotonically increasing
-        for queue in self.locked_device().queues_mut() {
+        for queue in transport.locked_device().queues_mut() {
             *queue = Queue::new(queue.get_max_size());
         }
     }
@@ -168,7 +185,7 @@ impl MmioTransport {
     /// a device status bit. If the driver sets the FAILED bit, the driver MUST later reset
     /// the device before attempting to re-initialize.
     #[allow(unused_assignments)]
-    fn set_device_status(&mut self, status: u32) {
+    fn set_device_status(&mut self, transport: &MmioTransport, status: u32) {
         use device_status::*;
         // match changed bits
         match !self.device_status & status {
@@ -183,9 +200,10 @@ impl MmioTransport {
             }
             DRIVER_OK if self.device_status == (ACKNOWLEDGE | DRIVER | FEATURES_OK) => {
                 self.device_status = status;
-                let device_activated = self.locked_device().is_activated();
+                let device_activated = transport.locked_device().is_activated();
                 if !device_activated {
-                    self.locked_device()
+                    transport
+                        .locked_device()
                         .activate(self.mem.clone())
                         .expect("Failed to activate device");
                 }
@@ -195,14 +213,14 @@ impl MmioTransport {
                 self.device_status |= FAILED;
             }
             _ if status == 0 => {
-                if self.locked_device().is_activated() && !self.locked_device().reset() {
+                if transport.locked_device().is_activated() && !transport.locked_device().reset() {
                     self.device_status |= FAILED;
                 }
 
                 // If the backend device driver doesn't support reset,
                 // just leave the device marked as FAILED.
                 if self.device_status & FAILED == 0 {
-                    self.reset();
+                    self.reset(transport);
                 }
             }
             _ => {
@@ -215,8 +233,8 @@ impl MmioTransport {
     }
 }
 
-impl BusDevice for MmioTransport {
-    fn read(&mut self, _vcpuid: u64, offset: u64, data: &mut [u8]) {
+impl LocklessBusDevice for MmioTransport {
+    fn read(&self, _vcpuid: u64, offset: u64, data: &mut [u8]) {
         match offset {
             0x00..=0xff if data.len() == 4 => {
                 let v = match offset {
@@ -225,22 +243,28 @@ impl BusDevice for MmioTransport {
                     0x08 => self.locked_device().device_type(),
                     0x0c => VENDOR_ID, // vendor id
                     0x10 => {
+                        let state = self.locked_state();
                         let mut features = self
                             .locked_device()
-                            .avail_features_by_page(self.features_select);
-                        if self.features_select == 1 {
+                            .avail_features_by_page(state.features_select);
+
+                        if state.features_select == 1 {
                             features |= 0x1; // enable support of VirtIO Version 1
                         }
                         features
                     }
-                    0x34 => self.with_queue(0, |q| u32::from(q.get_max_size())),
-                    0x44 => self.with_queue(0, |q| q.ready as u32),
-                    0x60 => self.interrupt_status.load(Ordering::SeqCst) as u32,
-                    0x70 => self.device_status,
-                    0xfc => self.config_generation,
+                    0x34 => self
+                        .locked_state()
+                        .with_queue(self, 0, |q| u32::from(q.get_max_size())),
+                    0x44 => self.locked_state().with_queue(self, 0, |q| q.ready as u32),
+                    0x60 => self.locked_state().interrupt_status.load(Ordering::SeqCst) as u32,
+                    0x70 => self.locked_state().device_status,
+                    0xfc => self.locked_state().config_generation,
                     0xb0..=0xbc => {
+                        let state = self.locked_state();
+
                         // For no SHM region or invalid region the kernel looks for length of -1
-                        let (shm_base, shm_len) = if self.shm_region_select > 1 {
+                        let (shm_base, shm_len) = if state.shm_region_select > 1 {
                             (0, !0)
                         } else {
                             match self.locked_device().shm_region() {
@@ -277,7 +301,7 @@ impl BusDevice for MmioTransport {
         };
     }
 
-    fn write(&mut self, _vcpuid: u64, offset: u64, data: &[u8]) {
+    fn write(&self, _vcpuid: u64, offset: u64, data: &[u8]) {
         fn hi(v: &mut GuestAddress, x: u32) {
             *v = (*v & 0xffff_ffff) | (u64::from(x) << 32)
         }
@@ -290,58 +314,79 @@ impl BusDevice for MmioTransport {
             0x00..=0xff if data.len() == 4 => {
                 let v = byte_order::read_le_u32(data);
                 match offset {
-                    0x14 => self.features_select = v,
+                    0x14 => self.locked_state().features_select = v,
                     0x20 => {
-                        if self.check_device_status(
+                        let state = self.locked_state();
+
+                        if state.check_device_status(
                             device_status::DRIVER,
                             device_status::FEATURES_OK | device_status::FAILED,
                         ) {
                             self.locked_device()
-                                .ack_features_by_page(self.acked_features_select, v);
+                                .ack_features_by_page(state.acked_features_select, v);
                         } else {
                             warn!(
                                 "ack virtio features in invalid state 0x{:x}",
-                                self.device_status
+                                state.device_status
                             );
                         }
                     }
-                    0x24 => self.acked_features_select = v,
-                    0x30 => self.queue_select = v,
-                    0x38 => self.update_queue_field(|q| q.size = v as u16),
-                    0x44 => self.update_queue_field(|q| q.ready = v == 1),
+                    0x24 => self.locked_state().acked_features_select = v,
+                    0x30 => self.locked_state().queue_select = v,
+                    0x38 => self
+                        .locked_state()
+                        .update_queue_field(self, |q| q.size = v as u16),
+                    0x44 => self
+                        .locked_state()
+                        .update_queue_field(self, |q| q.ready = v == 1),
                     0x50 => {
-                        if self.supports_sync_event {
+                        if let Some(sync_events) = &self.0.sync_events {
                             COUNT_NOTIFY_SYNC.count();
-                            self.device.lock().unwrap().handle_sync_event(v);
+                            sync_events.process(v);
                         } else {
                             COUNT_NOTIFY_WORKER.count();
 
-                            if let Some(signals) = self.queue_signals.as_ref() {
+                            if let Some(signals) = self.0.queue_signals.get() {
                                 signals.assert(v as usize);
                             }
                         }
                     }
                     0x64 => {
-                        if self.check_device_status(device_status::DRIVER_OK, 0) {
-                            self.interrupt_status
+                        let state = self.locked_state();
+                        if state.check_device_status(device_status::DRIVER_OK, 0) {
+                            state
+                                .interrupt_status
                                 .fetch_and(!(v as usize), Ordering::SeqCst);
                         }
                     }
-                    0x70 => self.set_device_status(v),
-                    0x80 => self.update_queue_field(|q| lo(&mut q.desc_table, v)),
-                    0x84 => self.update_queue_field(|q| hi(&mut q.desc_table, v)),
-                    0x90 => self.update_queue_field(|q| lo(&mut q.avail_ring, v)),
-                    0x94 => self.update_queue_field(|q| hi(&mut q.avail_ring, v)),
-                    0xa0 => self.update_queue_field(|q| lo(&mut q.used_ring, v)),
-                    0xa4 => self.update_queue_field(|q| hi(&mut q.used_ring, v)),
-                    0xac => self.shm_region_select = v,
+                    0x70 => self.locked_state().set_device_status(self, v),
+                    0x80 => self
+                        .locked_state()
+                        .update_queue_field(self, |q| lo(&mut q.desc_table, v)),
+                    0x84 => self
+                        .locked_state()
+                        .update_queue_field(self, |q| hi(&mut q.desc_table, v)),
+                    0x90 => self
+                        .locked_state()
+                        .update_queue_field(self, |q| lo(&mut q.avail_ring, v)),
+                    0x94 => self
+                        .locked_state()
+                        .update_queue_field(self, |q| hi(&mut q.avail_ring, v)),
+                    0xa0 => self
+                        .locked_state()
+                        .update_queue_field(self, |q| lo(&mut q.used_ring, v)),
+                    0xa4 => self
+                        .locked_state()
+                        .update_queue_field(self, |q| hi(&mut q.used_ring, v)),
+                    0xac => self.locked_state().shm_region_select = v,
                     _ => {
                         warn!("unknown virtio mmio register write: 0x{:x}", offset);
                     }
                 }
             }
             0x100..=0xfff => {
-                if self.check_device_status(device_status::DRIVER, device_status::FAILED) {
+                let state = self.locked_state();
+                if state.check_device_status(device_status::DRIVER, device_status::FAILED) {
                     self.locked_device().write_config(offset - 0x100, data)
                 } else {
                     warn!("can not write to device config data area before driver is ready");
@@ -358,13 +403,18 @@ impl BusDevice for MmioTransport {
     }
 
     fn interrupt(&self, irq_mask: u32) -> std::io::Result<()> {
-        self.interrupt_status
+        self.locked_state()
+            .interrupt_status
             .fetch_or(irq_mask as usize, Ordering::SeqCst);
 
         // interrupt_evt() is safe to unwrap because the inner interrupt_evt is initialized in the
         // constructor.
         self.locked_device().interrupt_signal().assert();
         Ok(())
+    }
+
+    fn clone_erased(&self) -> ErasedBusDevice {
+        ErasedBusDevice::new(self.clone())
     }
 }
 
