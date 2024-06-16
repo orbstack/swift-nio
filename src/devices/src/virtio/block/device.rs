@@ -7,7 +7,7 @@
 
 use bitflags::bitflags;
 use gruel::{define_waker_set, BoundSignalChannelRef, ParkWaker, SignalChannel};
-use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
+use newt::{make_bit_flag_range, BitFlagRange};
 use std::cmp;
 use std::convert::From;
 use std::fs::{File, OpenOptions};
@@ -20,7 +20,7 @@ use std::os::macos::fs::MetadataExt;
 use std::path::PathBuf;
 use std::result;
 use std::sync::atomic::AtomicUsize;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 use utils::Mutex;
 
@@ -32,16 +32,18 @@ use virtio_bindings::{
 use vm_memory::{ByteValued, GuestMemoryMmap};
 
 use super::worker::BlockWorker;
+use super::QUEUE_SIZE;
 use super::{
     super::{ActivateResult, DeviceState, Queue, VirtioDevice, TYPE_BLOCK},
-    Error, QUEUE_SIZES, SECTOR_SHIFT, SECTOR_SIZE,
+    Error, SECTOR_SHIFT, SECTOR_SIZE,
 };
 
 use crate::legacy::Gic;
-use crate::virtio::{ActivateError, SyncEventHandlerSet, VirtioQueueSignals};
+use crate::virtio::{
+    ActivateError, ErasedSyncEventHandlerSet, SyncEventHandlerSet, VirtioQueueSignals,
+};
 
-// TODO: Go back to sync worker
-const USE_ASYNC_WORKER: bool = true;
+const USE_ASYNC_WORKER: bool = false;
 
 define_waker_set! {
     #[derive(Default)]
@@ -53,17 +55,14 @@ define_waker_set! {
 bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
     pub struct BlockDevSignalMask: u64 {
-        const MAIN_QUEUE = 1 << 0;
         const INTERRUPT = 1 << 1;
         const STOP_WORKER = 1 << 2;
+        const QUEUES = u64::MAX << 3;
     }
 }
 
-define_num_enum! {
-    pub enum BlockDevQueues {
-        Main,
-    }
-}
+pub(crate) const BLOCK_QUEUE_SIGS: BitFlagRange<BlockDevSignalMask> =
+    make_bit_flag_range!(mask BlockDevSignalMask::QUEUES);
 
 /// Configuration options for disk caching.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -259,8 +258,7 @@ pub struct Block {
     cache_type: CacheType,
     disk_image_path: String,
     is_disk_read_only: bool,
-    worker: Option<BlockWorker>,
-    worker_thread: Option<JoinHandle<()>>,
+    worker_mode: BlockWorkerMode,
 
     // Virtio fields.
     pub(crate) avail_features: u64,
@@ -269,7 +267,7 @@ pub struct Block {
 
     // Transport related fields.
     pub(crate) signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
-    pub(crate) queues: NumEnumMap<BlockDevQueues, Queue>,
+    pub(crate) queues: Box<[Queue]>,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
     pub(crate) device_state: DeviceState,
 
@@ -282,6 +280,11 @@ pub struct Block {
     irq_line: Option<u32>,
 }
 
+enum BlockWorkerMode {
+    Sync(BlockSyncWorkerSet),
+    Async(Option<JoinHandle<()>>),
+}
+
 impl Block {
     /// Create a new virtio block device that operates on the given file.
     ///
@@ -292,6 +295,7 @@ impl Block {
         cache_type: CacheType,
         disk_image_path: String,
         is_disk_read_only: bool,
+        vcpu_count: usize,
     ) -> io::Result<Block> {
         let disk_properties =
             DiskProperties::new(disk_image_path.clone(), is_disk_read_only, cache_type)?;
@@ -301,17 +305,27 @@ impl Block {
             | (1u64 << VIRTIO_BLK_F_DISCARD)
             | (1u64 << VIRTIO_BLK_F_WRITE_ZEROES)
             | (1u64 << VIRTIO_BLK_F_SEG_MAX)
-            | (1u64 << VIRTIO_RING_F_EVENT_IDX);
+            | (1u64 << VIRTIO_RING_F_EVENT_IDX)
+            | (1u64 << VIRTIO_BLK_F_MQ);
 
         if is_disk_read_only {
             avail_features |= 1u64 << VIRTIO_BLK_F_RO;
         };
 
-        let queues = QUEUE_SIZES.iter().map(|&s| Queue::new(s)).collect();
+        let queue_count = if USE_ASYNC_WORKER {
+            1 // This must be one!
+        } else {
+            vcpu_count.min(BLOCK_QUEUE_SIGS.count())
+        };
+
+        let queues = (0..queue_count)
+            .map(|_| Queue::new(QUEUE_SIZE))
+            .collect::<Box<_>>();
 
         let config = VirtioBlkConfig {
             capacity: disk_properties.nsectors(),
             size_max: 0,
+            num_queues: queues.len() as u16,
             // QUEUE_SIZE - 2
             seg_max: 254,
             max_discard_sectors: u32::MAX,
@@ -339,8 +353,11 @@ impl Block {
             device_state: DeviceState::Inactive,
             intc: None,
             irq_line: None,
-            worker: None,
-            worker_thread: None,
+            worker_mode: if USE_ASYNC_WORKER {
+                BlockWorkerMode::Async(None)
+            } else {
+                BlockWorkerMode::Sync(BlockSyncWorkerSet(Arc::new(RwLock::new(Box::new([])))))
+            },
         })
     }
 
@@ -370,18 +387,15 @@ impl VirtioDevice for Block {
     }
 
     fn queues(&self) -> &[Queue] {
-        &self.queues.0
+        &self.queues
     }
 
     fn queues_mut(&mut self) -> &mut [Queue] {
-        &mut self.queues.0
+        &mut self.queues
     }
 
     fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(
-            self.signals.clone(),
-            make_bit_flag_range!([BlockDevSignalMask::MAIN_QUEUE]),
-        )
+        VirtioQueueSignals::new(self.signals.clone(), BLOCK_QUEUE_SIGS)
     }
 
     fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
@@ -435,36 +449,43 @@ impl VirtioDevice for Block {
     }
 
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
-        if self.worker.is_some() {
-            panic!("virtio_blk: worker thread already exists");
+        assert!(matches!(self.device_state, DeviceState::Inactive));
+
+        let mut workers = Vec::new();
+
+        for queue in self.queues.iter_mut() {
+            let event_idx: bool = (self.acked_features & (1 << VIRTIO_RING_F_EVENT_IDX)) != 0;
+            queue.set_event_idx(event_idx);
+
+            let disk = match self.disk.take() {
+                Some(d) => d,
+                None => DiskProperties::new(
+                    self.disk_image_path.clone(),
+                    self.is_disk_read_only,
+                    self.cache_type,
+                )
+                .map_err(|_| ActivateError::BadActivate)?,
+            };
+
+            workers.push(BlockWorker::new(
+                queue.clone(),
+                self.signals.clone(),
+                self.interrupt_status.clone(),
+                self.intc.clone(),
+                self.irq_line,
+                mem.clone(),
+                disk,
+            ));
         }
 
-        let event_idx: bool = (self.acked_features & (1 << VIRTIO_RING_F_EVENT_IDX)) != 0;
-        self.queues[BlockDevQueues::Main].set_event_idx(event_idx);
-
-        let disk = match self.disk.take() {
-            Some(d) => d,
-            None => DiskProperties::new(
-                self.disk_image_path.clone(),
-                self.is_disk_read_only,
-                self.cache_type,
-            )
-            .map_err(|_| ActivateError::BadActivate)?,
-        };
-
-        let worker = BlockWorker::new(
-            self.queues[BlockDevQueues::Main].clone(),
-            self.signals.clone(),
-            self.interrupt_status.clone(),
-            self.intc.clone(),
-            self.irq_line,
-            mem.clone(),
-            disk,
-        );
-        if USE_ASYNC_WORKER {
-            self.worker_thread = Some(worker.run());
-        } else {
-            self.worker = Some(worker);
+        match &mut self.worker_mode {
+            BlockWorkerMode::Sync(state) => {
+                *state.0.write().unwrap() = workers.into_iter().map(Mutex::new).collect();
+            }
+            BlockWorkerMode::Async(state) => {
+                assert_eq!(workers.len(), 1);
+                *state = Some(workers.into_iter().next().unwrap().run());
+            }
         }
 
         self.device_state = DeviceState::Activated(mem);
@@ -472,31 +493,40 @@ impl VirtioDevice for Block {
     }
 
     fn reset(&mut self) -> bool {
-        if let Some(worker) = self.worker_thread.take() {
-            self.signals.assert(BlockDevSignalMask::STOP_WORKER);
-            if let Err(e) = worker.join() {
-                error!("error waiting for worker thread: {:?}", e);
+        match &mut self.worker_mode {
+            BlockWorkerMode::Sync(state) => {
+                *state.0.write().unwrap() = Box::new([]);
+            }
+            BlockWorkerMode::Async(worker) => {
+                self.signals.assert(BlockDevSignalMask::STOP_WORKER);
+
+                if let Some(worker) = worker.take() {
+                    if let Err(e) = worker.join() {
+                        error!("error waiting for worker thread: {:?}", e);
+                    }
+                }
             }
         }
 
-        self.worker.take();
         self.device_state = DeviceState::Inactive;
         true
     }
 
-    fn sync_events(&self) -> Option<Arc<dyn SyncEventHandlerSet>> {
-        assert!(USE_ASYNC_WORKER);
-        None
+    fn sync_events(&self) -> Option<ErasedSyncEventHandlerSet> {
+        match &self.worker_mode {
+            BlockWorkerMode::Sync(state) => Some(smallbox::smallbox!(state.clone())),
+            BlockWorkerMode::Async(_) => None,
+        }
     }
+}
 
-    // TODO: Go back to sync worker
-    //     fn supports_sync_event(&self) -> bool {
-    //         !USE_ASYNC_WORKER
-    //     }
-    //
-    //     fn handle_sync_event(&mut self, _queue: u32) {
-    //         if let Some(ref mut worker) = self.worker {
-    //             worker.process_virtio_queues();
-    //         }
-    //     }
+#[derive(Clone)]
+struct BlockSyncWorkerSet(Arc<RwLock<Box<[Mutex<BlockWorker>]>>>);
+
+impl SyncEventHandlerSet for BlockSyncWorkerSet {
+    fn process(&self, queue: u32) {
+        if let Some(worker) = self.0.read().unwrap().get(queue as usize) {
+            worker.lock().unwrap().process_virtio_queues();
+        }
+    }
 }

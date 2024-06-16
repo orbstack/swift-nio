@@ -262,8 +262,12 @@ impl VmResources {
     }
 
     #[cfg(feature = "blk")]
-    pub fn add_block_device(&mut self, config: BlockDeviceConfig) -> Result<BlockConfigError> {
-        self.block.insert(config)
+    pub fn add_block_device(
+        &mut self,
+        vcpu_count: u8,
+        config: BlockDeviceConfig,
+    ) -> Result<BlockConfigError> {
+        self.block.insert(vcpu_count, config)
     }
 
     /// Sets a vsock device to be attached when the VM starts.

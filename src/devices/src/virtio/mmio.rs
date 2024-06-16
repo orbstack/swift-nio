@@ -51,7 +51,7 @@ pub struct MmioTransport(Arc<MmioTransportInner>);
 
 struct MmioTransportInner {
     device: Arc<Mutex<dyn VirtioDevice>>,
-    sync_events: Option<Arc<dyn SyncEventHandlerSet>>,
+    sync_events: Option<ErasedSyncEventHandlerSet>,
     queue_signals: OnceLock<VirtioQueueSignals>,
     locked: Mutex<MmioTransportLocked>,
 }

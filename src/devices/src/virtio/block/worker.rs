@@ -2,7 +2,9 @@ use crate::legacy::Gic;
 use crate::virtio::descriptor_utils::{Reader, Writer};
 
 use super::super::{Queue, VIRTIO_MMIO_INT_VRING};
-use super::device::{BlockDevSignalMask, BlockDevWakers, CacheType, DiskProperties};
+use super::device::{
+    BlockDevSignalMask, BlockDevWakers, CacheType, DiskProperties, BLOCK_QUEUE_SIGS,
+};
 
 use gruel::{ParkSignalChannelExt, SignalChannel};
 use nix::errno::Errno;
@@ -101,14 +103,16 @@ impl BlockWorker {
     }
 
     fn work(mut self) {
-        let mask = BlockDevSignalMask::MAIN_QUEUE | BlockDevSignalMask::STOP_WORKER;
+        // Async BlockWorkers imply the use of only a single worker queue
+        let queue_mask = BLOCK_QUEUE_SIGS.get(0);
+        let mask = queue_mask | BlockDevSignalMask::STOP_WORKER;
 
         loop {
             self.signals.wait_on_park(mask);
 
             let taken = self.signals.take(mask);
 
-            if taken.intersects(BlockDevSignalMask::MAIN_QUEUE) {
+            if taken.intersects(queue_mask) {
                 self.process_virtio_queues();
             }
 

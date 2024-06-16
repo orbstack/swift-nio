@@ -246,33 +246,42 @@ impl Machine {
 
         // disks
         if let Some(disk_rootfs) = &spec.disk_rootfs {
-            vmr.add_block_device(BlockDeviceConfig {
-                block_id: "vda".to_string(),
-                cache_type: CacheType::Writeback,
-                disk_image_path: disk_rootfs.clone(),
-                is_disk_read_only: true,
-                is_disk_root: true,
-            })
+            vmr.add_block_device(
+                vmr.vcpu_config().vcpu_count,
+                BlockDeviceConfig {
+                    block_id: "vda".to_string(),
+                    cache_type: CacheType::Writeback,
+                    disk_image_path: disk_rootfs.clone(),
+                    is_disk_read_only: true,
+                    is_disk_root: true,
+                },
+            )
             .map_err(to_anyhow_error)?;
         }
         if let Some(disk_data) = &spec.disk_data {
-            vmr.add_block_device(BlockDeviceConfig {
-                block_id: "vdb".to_string(),
-                cache_type: CacheType::Writeback,
-                disk_image_path: disk_data.clone(),
-                is_disk_read_only: false,
-                is_disk_root: false,
-            })
+            vmr.add_block_device(
+                vmr.vcpu_config().vcpu_count,
+                BlockDeviceConfig {
+                    block_id: "vdb".to_string(),
+                    cache_type: CacheType::Writeback,
+                    disk_image_path: disk_data.clone(),
+                    is_disk_read_only: false,
+                    is_disk_root: false,
+                },
+            )
             .map_err(to_anyhow_error)?;
         }
         if let Some(disk_swap) = &spec.disk_swap {
-            vmr.add_block_device(BlockDeviceConfig {
-                block_id: "vdc".to_string(),
-                cache_type: CacheType::Writeback,
-                disk_image_path: disk_swap.clone(),
-                is_disk_read_only: false,
-                is_disk_root: false,
-            })
+            vmr.add_block_device(
+                vmr.vcpu_config().vcpu_count,
+                BlockDeviceConfig {
+                    block_id: "vdc".to_string(),
+                    cache_type: CacheType::Writeback,
+                    disk_image_path: disk_swap.clone(),
+                    is_disk_read_only: false,
+                    is_disk_root: false,
+                },
+            )
             .map_err(to_anyhow_error)?;
         }
 

@@ -15,6 +15,7 @@ use gruel::{BoundSignalChannelRef, RawSignalChannel, SignalChannel};
 use memmage::CastableRef;
 use newt::{BitFlagRange, RawBitFlagRange};
 use vm_memory::{GuestAddress, GuestMemoryMmap};
+use smallbox::SmallBox;
 
 /// Enum that indicates if a VirtioDevice is inactive or has been activated
 /// and memory attached to it.
@@ -160,10 +161,12 @@ pub trait VirtioDevice: Send {
         None
     }
 
-    fn sync_events(&self) -> Option<Arc<dyn SyncEventHandlerSet>> {
+    fn sync_events(&self) -> Option<ErasedSyncEventHandlerSet> {
         None
     }
 }
+
+pub type ErasedSyncEventHandlerSet = SmallBox<dyn SyncEventHandlerSet, *mut [()]>;
 
 pub trait SyncEventHandlerSet: Send + Sync {
     fn process(&self, queue: u32);

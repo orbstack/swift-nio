@@ -43,19 +43,20 @@ impl BlockBuilder {
         }
     }
 
-    pub fn insert(&mut self, config: BlockDeviceConfig) -> Result<()> {
-        let block_dev = Arc::new(Mutex::new(Self::create_block(config)?));
+    pub fn insert(&mut self, vcpu_count: u8, config: BlockDeviceConfig) -> Result<()> {
+        let block_dev = Arc::new(Mutex::new(Self::create_block(vcpu_count, config)?));
         self.list.push_back(block_dev);
         Ok(())
     }
 
-    pub fn create_block(config: BlockDeviceConfig) -> Result<Block> {
+    pub fn create_block(vcpu_count: u8, config: BlockDeviceConfig) -> Result<Block> {
         devices::virtio::Block::new(
             config.block_id,
             None,
             config.cache_type,
             config.disk_image_path,
             config.is_disk_read_only,
+            vcpu_count as usize,
         )
         .map_err(BlockConfigError::CreateBlockDevice)
     }
