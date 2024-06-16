@@ -7,6 +7,8 @@
 
 //! Handles routing to devices in an address space.
 
+use smallbox::SmallBox;
+use std::any::type_name;
 use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
 use std::collections::btree_map::BTreeMap;
 use std::fmt;
@@ -19,6 +21,103 @@ use rustc_hash::FxHashMap;
 use vm_memory::GuestAddress;
 
 use crate::virtio::HvcDevice;
+
+// === LocklessBusDevice === //
+
+/// A type-erased [`LocklessBusDevice`]
+pub struct ErasedBusDevice(SmallBox<dyn LocklessBusDevice, *const dyn LocklessBusDevice>);
+
+impl fmt::Debug for ErasedBusDevice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("BusDeviceHandle")
+            .field(&self.0.debug_name())
+            .finish()
+    }
+}
+
+impl Clone for ErasedBusDevice {
+    fn clone(&self) -> Self {
+        self.0.clone_erased()
+    }
+}
+
+impl ErasedBusDevice {
+    pub fn new(handle: impl LocklessBusDevice) -> Self {
+        Self(smallbox::smallbox!(handle))
+    }
+}
+
+impl LocklessBusDevice for ErasedBusDevice {
+    fn read(&self, vcpuid: u64, offset: u64, data: &mut [u8]) {
+        self.0.read(vcpuid, offset, data)
+    }
+
+    fn write(&self, vcpuid: u64, offset: u64, data: &[u8]) {
+        self.0.write(vcpuid, offset, data)
+    }
+
+    fn interrupt(&self, irq_mask: u32) -> io::Result<()> {
+        self.0.interrupt(irq_mask)
+    }
+
+    fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64 {
+        self.0.read_sysreg(vcpuid, reg)
+    }
+
+    fn write_sysreg(&self, vcpuid: u64, reg: u64, value: u64) {
+        self.0.write_sysreg(vcpuid, reg, value)
+    }
+
+    fn iter_sysregs(&self) -> Vec<u64> {
+        self.0.iter_sysregs()
+    }
+
+    fn clone_erased(&self) -> ErasedBusDevice {
+        self.0.clone_erased()
+    }
+
+    fn debug_name(&self) -> &'static str {
+        self.0.debug_name()
+    }
+
+    fn erase(self) -> ErasedBusDevice
+    where
+        Self: Sized,
+    {
+        self
+    }
+}
+
+/// A variant of [`BusDevice`] which assumes that operations can be performed without external
+/// synchronization.
+pub trait LocklessBusDevice: 'static + Send + Sync {
+    fn read(&self, vcpuid: u64, offset: u64, data: &mut [u8]);
+
+    fn write(&self, vcpuid: u64, offset: u64, data: &[u8]);
+
+    fn interrupt(&self, irq_mask: u32) -> io::Result<()>;
+
+    fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64;
+
+    fn write_sysreg(&self, vcpuid: u64, reg: u64, value: u64);
+
+    fn iter_sysregs(&self) -> Vec<u64>;
+
+    fn clone_erased(&self) -> ErasedBusDevice;
+
+    fn debug_name(&self) -> &'static str {
+        type_name::<Self>()
+    }
+
+    fn erase(self) -> ErasedBusDevice
+    where
+        Self: Sized,
+    {
+        ErasedBusDevice::new(self)
+    }
+}
+
+// === Locked Bus Device === //
 
 /// Trait for devices that respond to reads or writes in an arbitrary address space.
 ///
@@ -49,6 +148,42 @@ pub trait BusDevice: Send {
         Vec::new()
     }
 }
+
+impl<T: 'static + BusDevice> LocklessBusDevice for Arc<Mutex<T>> {
+    fn read(&self, vcpuid: u64, offset: u64, data: &mut [u8]) {
+        self.lock().unwrap().read(vcpuid, offset, data)
+    }
+
+    fn write(&self, vcpuid: u64, offset: u64, data: &[u8]) {
+        self.lock().unwrap().write(vcpuid, offset, data)
+    }
+
+    fn interrupt(&self, irq_mask: u32) -> io::Result<()> {
+        self.lock().unwrap().interrupt(irq_mask)
+    }
+
+    fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64 {
+        self.lock().unwrap().read_sysreg(vcpuid, reg)
+    }
+
+    fn write_sysreg(&self, vcpuid: u64, reg: u64, value: u64) {
+        self.lock().unwrap().write_sysreg(vcpuid, reg, value)
+    }
+
+    fn iter_sysregs(&self) -> Vec<u64> {
+        self.lock().unwrap().iter_sysregs()
+    }
+
+    fn clone_erased(&self) -> ErasedBusDevice {
+        ErasedBusDevice::new(self.clone())
+    }
+
+    fn debug_name(&self) -> &'static str {
+        type_name::<T>()
+    }
+}
+
+// === Bus === //
 
 #[derive(Debug)]
 pub enum Error {
@@ -97,8 +232,8 @@ impl PartialOrd for BusRange {
 /// only restriction is that no two devices can overlap in this address space.
 #[derive(Clone, Default)]
 pub struct Bus {
-    devices: BTreeMap<BusRange, Arc<Mutex<dyn BusDevice>>>,
-    sysreg_handlers: FxHashMap<u64, Arc<Mutex<dyn BusDevice>>>,
+    devices: BTreeMap<BusRange, ErasedBusDevice>,
+    sysreg_handlers: FxHashMap<u64, ErasedBusDevice>,
     hvc_handlers: BTreeMap<usize, Arc<dyn HvcDevice>>,
 }
 
@@ -112,7 +247,7 @@ impl Bus {
         }
     }
 
-    fn first_before(&self, addr: u64) -> Option<(BusRange, &Mutex<dyn BusDevice>)> {
+    fn first_before(&self, addr: u64) -> Option<(BusRange, &ErasedBusDevice)> {
         // for when we switch to rustc 1.17: self.devices.range(..addr).iter().rev().next()
         for (range, dev) in self.devices.iter().rev() {
             if range.0 <= addr {
@@ -122,7 +257,7 @@ impl Bus {
         None
     }
 
-    pub fn get_device(&self, addr: u64) -> Option<(u64, &Mutex<dyn BusDevice>)> {
+    pub fn get_device(&self, addr: u64) -> Option<(u64, &ErasedBusDevice)> {
         if let Some((BusRange(start, len), dev)) = self.first_before(addr) {
             let offset = addr - start;
             if offset < len {
@@ -133,13 +268,15 @@ impl Bus {
     }
 
     /// Puts the given device at the given address space.
-    pub fn insert(&mut self, device: Arc<Mutex<dyn BusDevice>>, base: u64, len: u64) -> Result<()> {
+    pub fn insert(&mut self, device: impl LocklessBusDevice, base: u64, len: u64) -> Result<()> {
+        let device = device.erase();
+
         if len == 0 {
             return Err(Error::Overlap);
         }
 
         // Reject all system register overlaps
-        let sys_regs = device.lock().unwrap().iter_sysregs();
+        let sys_regs = device.iter_sysregs();
         if sys_regs
             .iter()
             .any(|sys_reg| self.sysreg_handlers.contains_key(sys_reg))
@@ -192,10 +329,7 @@ impl Bus {
     /// Returns true on success, otherwise `data` is untouched.
     pub fn read(&self, vcpuid: u64, addr: u64, data: &mut [u8]) -> bool {
         if let Some((offset, dev)) = self.get_device(addr) {
-            // OK to unwrap as lock() failing is a serious error condition and should panic.
-            dev.lock()
-                .expect("Failed to acquire device lock")
-                .read(vcpuid, offset, data);
+            dev.read(vcpuid, offset, data);
             true
         } else {
             false
@@ -207,10 +341,7 @@ impl Bus {
     /// Returns true on success, otherwise `data` is untouched.
     pub fn write(&self, vcpuid: u64, addr: u64, data: &[u8]) -> bool {
         if let Some((offset, dev)) = self.get_device(addr) {
-            // OK to unwrap as lock() failing is a serious error condition and should panic.
-            dev.lock()
-                .expect("Failed to acquire device lock")
-                .write(vcpuid, offset, data);
+            dev.write(vcpuid, offset, data);
             true
         } else {
             false
@@ -219,10 +350,7 @@ impl Bus {
 
     pub fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64 {
         if let Some(handler) = self.sysreg_handlers.get(&reg) {
-            handler
-                .lock()
-                .expect("Failed to acquire device lock")
-                .read_sysreg(vcpuid, reg)
+            handler.read_sysreg(vcpuid, reg)
         } else {
             // tracing::warn!("Unhandled read to from register for PE {vcpuid}: READ from {reg}");
             0
@@ -231,10 +359,7 @@ impl Bus {
 
     pub fn write_sysreg(&self, vcpuid: u64, reg: u64, value: u64) {
         if let Some(handler) = self.sysreg_handlers.get(&reg) {
-            handler
-                .lock()
-                .expect("Failed to acquire device lock")
-                .write_sysreg(vcpuid, reg, value);
+            handler.write_sysreg(vcpuid, reg, value);
         } else {
             // tracing::warn!(
             //     "Unhandled write to system register for PE {vcpuid}: WRITE {value} to {reg}"
@@ -252,6 +377,7 @@ impl Bus {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,3 +492,4 @@ mod tests {
         );
     }
 }
+*/

@@ -13,10 +13,9 @@ use utils::Mutex;
 #[cfg(target_arch = "aarch64")]
 use arch::aarch64::DeviceInfoForFDT;
 use arch::DeviceType;
-use devices;
+use devices::{self, ErasedBusDevice};
 
 use devices::legacy::Gic;
-use devices::BusDevice;
 use kernel::cmdline as kernel_cmdline;
 use utils::eventfd::EventFd;
 
@@ -297,11 +296,7 @@ impl MMIODeviceManager {
     }
 
     /// Gets the the specified device.
-    pub fn get_device(
-        &self,
-        device_type: DeviceType,
-        device_id: &str,
-    ) -> Option<&Mutex<dyn BusDevice>> {
+    pub fn get_device(&self, device_type: DeviceType, device_id: &str) -> Option<&ErasedBusDevice> {
         if let Some(dev_info) = self
             .id_to_dev_info
             .get(&(device_type, device_id.to_string()))

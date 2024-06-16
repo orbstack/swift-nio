@@ -496,6 +496,7 @@ dependencies = [
  "rustc-hash",
  "rutabaga_gfx",
  "serde",
+ "smallbox",
  "smallvec",
  "smol_str",
  "thiserror",

@@ -65,7 +65,7 @@ use arch::InitrdConfig;
 #[cfg(target_os = "macos")]
 use crossbeam_channel::Sender;
 use devices::virtio::VmmExitObserver;
-use devices::BusDevice;
+use devices::{BusDevice, ErasedBusDevice};
 use kernel::cmdline::Cmdline as KernelCmdline;
 use utils::eventfd::EventFd;
 use utils::time::TimestampUs;
@@ -217,7 +217,7 @@ impl Vmm {
         &self,
         device_type: DeviceType,
         device_id: &str,
-    ) -> Option<&Mutex<dyn BusDevice>> {
+    ) -> Option<&ErasedBusDevice> {
         self.mmio_device_manager.get_device(device_type, device_id)
     }
 
