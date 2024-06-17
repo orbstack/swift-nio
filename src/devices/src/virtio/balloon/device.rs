@@ -152,42 +152,49 @@ impl Balloon {
 
         let mut have_used = false;
 
+        let mut free_ranges = Vec::new();
+
         while let Some(head) = self.queues[BalloonQueues::FRQ].pop(mem) {
             have_used = true;
-
-            // the idea:
-            // to work around macos bug,
-            // force vcpus to exit and park them
-            // hv_vm_unmap
-            // madvise
-            // remap
-            // and unpark
-            let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
-                break;
-            };
 
             let index = head.index;
             for desc in head.into_iter() {
                 let host_addr = mem.get_host_address(desc.addr).unwrap();
+                free_ranges.push((host_addr, desc.len));
                 debug!(
                     "balloon: should release guest_addr={:?} host_addr={:p} len={}",
                     desc.addr, host_addr, desc.len
                 );
-                unsafe {
-                    let res = libc::madvise(
-                        host_addr as *mut libc::c_void,
-                        desc.len.try_into().unwrap(),
-                        libc::MADV_FREE_REUSABLE,
-                    );
-                    debug!("ballon res = {:?}", res);
-                };
             }
 
-            self.parker.as_ref().unwrap().unpark(unpark_task);
             if let Err(e) = self.queues[BalloonQueues::FRQ].add_used(mem, index, 0) {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
         }
+
+        // the idea:
+        // to work around macos bug,
+        // force vcpus to exit and park them
+        // hv_vm_unmap
+        // madvise
+        // remap
+        // and unpark
+        let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
+            return have_used;
+        };
+        for (host_addr, len) in free_ranges {
+            unsafe {
+                let res = libc::madvise(
+                    host_addr as *mut libc::c_void,
+                    len.try_into().unwrap(),
+                    libc::MADV_FREE_REUSABLE,
+                );
+                if res == -1 {
+                    error!("madvise failed: {:?}", std::io::Error::last_os_error());
+                }
+            };
+        }
+        self.parker.as_ref().unwrap().unpark(unpark_task);
 
         have_used
     }

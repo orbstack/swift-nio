@@ -11,6 +11,8 @@ use gruel::StartupAbortedError;
 use gruel::StartupSignal;
 use gruel::StartupTask;
 use gruel::Waker;
+use hvf::on_vm_park;
+use hvf::on_vm_unpark;
 use hvf::HvVcpuRef;
 use std::io;
 use std::result;
@@ -150,16 +152,17 @@ impl Parkable for VmParker {
         self.park_signal.wait()?;
 
         // Now, we can unmap the vCPU memory.
-        let regions = self.regions.lock().unwrap();
-        for region in regions.iter() {
-            debug!(
-                "unmap_memory: {:x} {:x}",
-                region.guest_start_addr, region.size
-            );
-            self.hvf_vm
-                .unmap_memory(region.guest_start_addr, region.size)
-                .unwrap();
-        }
+        // let regions = self.regions.lock().unwrap();
+        // for region in regions.iter() {
+        //     debug!(
+        //         "unmap_memory: {:x} {:x}",
+        //         region.guest_start_addr, region.size
+        //     );
+        //     self.hvf_vm
+        //         .unmap_memory(region.guest_start_addr, region.size)
+        //         .unwrap();
+        // }
+        on_vm_park().unwrap();
 
         // From there, we just have to give the consumer the unpark task so they can eventually
         // resolve it.
@@ -168,16 +171,17 @@ impl Parkable for VmParker {
 
     fn unpark(&self, unpark_task: StartupTask) {
         // Make sure we remap all regions before resolving the startup task.
-        let regions = self.regions.lock().unwrap();
-        for region in regions.iter() {
-            debug!(
-                "map_memory: {:x} {:x} {:x}",
-                region.host_start_addr, region.guest_start_addr, region.size
-            );
-            self.hvf_vm
-                .map_memory(region.host_start_addr, region.guest_start_addr, region.size)
-                .unwrap();
-        }
+        // let regions = self.regions.lock().unwrap();
+        // for region in regions.iter() {
+        //     debug!(
+        //         "map_memory: {:x} {:x} {:x}",
+        //         region.host_start_addr, region.guest_start_addr, region.size
+        //     );
+        //     self.hvf_vm
+        //         .map_memory(region.host_start_addr, region.guest_start_addr, region.size)
+        //         .unwrap();
+        // }
+        on_vm_unpark().unwrap();
 
         unpark_task.success();
     }

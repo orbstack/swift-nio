@@ -1,6 +1,6 @@
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
-use std::{cell::Cell, mem::size_of, process::Command};
+use std::{cell::Cell, mem::size_of, process::Command, sync::Mutex};
 
 use libc::{c_void, mach_host_self, madvise, memory_object_t, VM_FLAGS_PURGABLE, VM_MAKE_TAG};
 use mach2::{
@@ -21,6 +21,7 @@ use mach2::{
     vm_statistics::{VM_FLAGS_ANYWHERE, VM_FLAGS_OVERWRITE},
     vm_types::{mach_vm_address_t, mach_vm_size_t, natural_t, vm_size_t},
 };
+use once_cell::sync::Lazy;
 use vm_memory::{GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::*;
@@ -127,6 +128,66 @@ fn debug_madvise(host_addr: mach_vm_address_t, size: mach_vm_size_t) -> anyhow::
     }
 }
 
+static VM_ALLOCATION: Lazy<Mutex<Option<VmAllocation>>> = Lazy::new(|| Mutex::new(None));
+
+struct VmAllocation {
+    host_base_addr: *mut c_void,
+    regions: Vec<VmRegion>,
+}
+
+unsafe impl Send for VmAllocation {}
+
+struct VmRegion {
+    host_addr: *mut c_void,
+    guest_addr: GuestAddress,
+    size: usize,
+    entry_port: mach_port_t,
+}
+
+pub fn on_vm_park() -> anyhow::Result<()> {
+    // let guard = VM_ALLOCATION.lock().unwrap();
+    // let alloc_info = guard.as_ref().unwrap();
+    // for region in &alloc_info.regions {
+    //     println!("unmap: {:p} ({:x})", region.host_addr, region.size);
+    //     let ret = unsafe {
+    //         mach_vm_deallocate(mach_task_self(), region.host_addr as _, region.size as _)
+    //     };
+    //     if ret != KERN_SUCCESS {
+    //         panic!("failed to deallocate host memory: error {}", ret);
+    //     }
+    // }
+
+    Ok(())
+}
+
+pub fn on_vm_unpark() -> anyhow::Result<()> {
+    let guard = VM_ALLOCATION.lock().unwrap();
+    let alloc_info = guard.as_ref().unwrap();
+    for region in &alloc_info.regions {
+        println!("remap: {:p} ({:x})", region.host_addr, region.size);
+        let ret = unsafe {
+            mach_vm_map(
+                mach_task_self(),
+                &region.host_addr as *const _ as *mut _,
+                region.size as _,
+                0,
+                VM_FLAGS_OVERWRITE | VM_MAKE_TAG(250) as i32,
+                region.entry_port,
+                0,
+                0,
+                VM_PROT_READ | VM_PROT_WRITE,
+                VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
+                VM_INHERIT_NONE,
+            )
+        };
+        if ret != KERN_SUCCESS {
+            panic!("failed to map host memory: error {}", ret);
+        }
+    }
+
+    Ok(())
+}
+
 fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     // reserve contiguous address space, and hold onto it to prevent races until we're done mapping everything
     // this is ONLY for reserving address space; we never actually use this mapping
@@ -163,6 +224,7 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
 
     // mach_vm_map splits the requested size into 128 MiB (ANON_CHUNK_SIZE) chunks for mach pager
     // max chunk size is 4 GiB,
+    let mut regions = Vec::new();
     let mut off = 0;
     while off < size {
         let req_entry_size = std::cmp::min(MACH_CHUNK_SIZE as mach_vm_size_t, size - off);
@@ -253,6 +315,13 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
             ));
         }
 
+        regions.push(VmRegion {
+            host_addr: entry_addr as *mut c_void,
+            guest_addr: GuestAddress(off),
+            size: entry_size as usize,
+            entry_port: *entry_port,
+        });
+
         off += entry_size;
     }
 
@@ -322,6 +391,13 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     std::mem::forget(map_guard);
 
     // debug_madvise(host_addr, size)?;
+
+    let alloc_info = VmAllocation {
+        host_base_addr: host_addr as *mut c_void,
+        regions,
+    };
+
+    VM_ALLOCATION.lock().unwrap().get_or_insert(alloc_info);
 
     Ok(host_addr as *mut c_void)
 }
