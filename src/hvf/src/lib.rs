@@ -5,10 +5,17 @@ use std::{cell::Cell, mem::size_of, process::Command, sync::Mutex};
 use libc::{c_void, mach_host_self, madvise, memory_object_t, VM_FLAGS_PURGABLE, VM_MAKE_TAG};
 use mach2::{
     kern_return::{kern_return_t, KERN_SUCCESS},
-    mach_port::mach_port_deallocate,
+    mach_port::{
+        mach_port_allocate, mach_port_deallocate, mach_port_insert_right, mach_port_mod_refs,
+    },
     mach_types::{host_t, mem_entry_name_port_t, task_t, TASK_NULL},
-    message::mach_msg_type_number_t,
-    port::mach_port_t,
+    message::{
+        mach_msg, mach_msg_body_t, mach_msg_header_t, mach_msg_port_descriptor_t, mach_msg_send,
+        mach_msg_trailer_t, mach_msg_type_number_t, MACH_MSGH_BITS, MACH_MSGH_BITS_COMPLEX,
+        MACH_MSG_PORT_DESCRIPTOR, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG,
+    },
+    port::{mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE, MACH_PORT_RIGHT_SEND},
+    task::{task_get_special_port, task_special_port_t, TASK_BOOTSTRAP_PORT},
     traps::mach_task_self,
     vm::{
         mach_make_memory_entry_64, mach_vm_deallocate, mach_vm_map, mach_vm_purgable_control,
@@ -46,6 +53,23 @@ const MAP_MEM_PURGABLE: i32 = 0x040000;
 
 const VM_LEDGER_TAG_DEFAULT: libc::c_int = 0x00000001;
 
+#[derive(Default, Debug)]
+#[repr(C)]
+struct MachMsgWithTrailer {
+    header: mach_msg_header_t,
+    body: mach_msg_body_t,
+    port: mach_msg_port_descriptor_t,
+    trailer: mach_msg_trailer_t,
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+struct MachMsg {
+    header: mach_msg_header_t,
+    body: mach_msg_body_t,
+    port: mach_msg_port_descriptor_t,
+}
+
 extern "C" {
     fn mach_memory_entry_ownership(
         mem_entry: mem_entry_name_port_t,
@@ -61,6 +85,12 @@ extern "C" {
         permission: vm_prot_t,
         pager: memory_object_t,
         entry_handle: *mut mach_port_t,
+    ) -> kern_return_t;
+
+    fn task_set_special_port(
+        task: task_t,
+        which_port: task_special_port_t,
+        special_port: mach_port_t,
     ) -> kern_return_t;
 }
 
@@ -145,17 +175,17 @@ struct VmRegion {
 }
 
 pub fn on_vm_park() -> anyhow::Result<()> {
-    // let guard = VM_ALLOCATION.lock().unwrap();
-    // let alloc_info = guard.as_ref().unwrap();
-    // for region in &alloc_info.regions {
-    //     println!("unmap: {:p} ({:x})", region.host_addr, region.size);
-    //     let ret = unsafe {
-    //         mach_vm_deallocate(mach_task_self(), region.host_addr as _, region.size as _)
-    //     };
-    //     if ret != KERN_SUCCESS {
-    //         panic!("failed to deallocate host memory: error {}", ret);
-    //     }
-    // }
+    let guard = VM_ALLOCATION.lock().unwrap();
+    let alloc_info = guard.as_ref().unwrap();
+    for region in &alloc_info.regions {
+        println!("unmap: {:p} ({:x})", region.host_addr, region.size);
+        let ret = unsafe {
+            mach_vm_deallocate(mach_task_self(), region.host_addr as _, region.size as _)
+        };
+        if ret != KERN_SUCCESS {
+            panic!("failed to deallocate host memory: error {}", ret);
+        }
+    }
 
     Ok(())
 }
@@ -186,6 +216,246 @@ pub fn on_vm_unpark() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn send_port(remote_port: mach_port_t, port: mach_port_t) -> anyhow::Result<()> {
+    let mut msg = MachMsg {
+        header: mach_msg_header_t {
+            msgh_size: size_of::<MachMsg>() as u32,
+            msgh_remote_port: remote_port,
+            msgh_local_port: MACH_PORT_NULL,
+            msgh_bits: MACH_MSGH_BITS(MACH_MSG_TYPE_COPY_SEND, 0) | MACH_MSGH_BITS_COMPLEX,
+            ..Default::default()
+        },
+        body: mach_msg_body_t {
+            msgh_descriptor_count: 1,
+        },
+        port: mach_msg_port_descriptor_t {
+            name: port,
+            disposition: MACH_MSG_TYPE_COPY_SEND as u8,
+            type_: MACH_MSG_PORT_DESCRIPTOR as u8,
+            ..Default::default()
+        },
+    };
+    println!("sending port {:?} to {:?}", port, remote_port);
+
+    let ret = unsafe { mach_msg_send(&mut msg.header) };
+    if ret != KERN_SUCCESS {
+        return Err(anyhow::anyhow!(
+            "failed to send port: mach_msg_send: error {}",
+            ret
+        ));
+    }
+
+    Ok(())
+}
+
+fn recv_port(recv_port: mach_port_t) -> anyhow::Result<mach_port_t> {
+    let mut msg = MachMsgWithTrailer::default();
+
+    let ret = unsafe {
+        mach_msg(
+            &mut msg.header,
+            MACH_RCV_MSG,
+            0,
+            size_of::<MachMsgWithTrailer>() as u32,
+            recv_port,
+            0,
+            0,
+        )
+    };
+    if ret != KERN_SUCCESS {
+        println!("failed to recv port: mach_msg: error {}", ret);
+        panic!();
+    }
+
+    Ok(msg.port.name)
+}
+
+fn fork_and_disown(entry_port: mach_port_t) -> anyhow::Result<()> {
+    // get old bootstrap port
+    let mut old_bootstrap_port: mach_port_t = 0;
+    let ret = unsafe {
+        task_get_special_port(
+            mach_task_self(),
+            TASK_BOOTSTRAP_PORT,
+            &mut old_bootstrap_port,
+        )
+    };
+    if ret != KERN_SUCCESS {
+        return Err(anyhow::anyhow!(
+            "failed to fork and disown: task_get_special_port: error {}",
+            ret
+        ));
+    }
+
+    println!("old bootstrap port = {:?}", old_bootstrap_port);
+
+    // allocate new port for IPC
+    let mut ipc_port: mach_port_t = 0;
+    let ret =
+        unsafe { mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &mut ipc_port) };
+    if ret != KERN_SUCCESS {
+        return Err(anyhow::anyhow!(
+            "failed to fork and disown: mach_port_allocate: error {}",
+            ret
+        ));
+    }
+
+    println!("ipc port = {:?}", ipc_port);
+
+    // give it a send right
+    let ret = unsafe {
+        mach_port_insert_right(
+            mach_task_self(),
+            ipc_port,
+            ipc_port,
+            MACH_MSG_TYPE_MAKE_SEND,
+        )
+    };
+    if ret != KERN_SUCCESS {
+        return Err(anyhow::anyhow!(
+            "failed to fork and disown: mach_port_insert_right: error {}",
+            ret
+        ));
+    }
+
+    // set new bootstrap port
+    let ret = unsafe { task_set_special_port(mach_task_self(), TASK_BOOTSTRAP_PORT, ipc_port) };
+    if ret != KERN_SUCCESS {
+        return Err(anyhow::anyhow!(
+            "failed to fork and disown: task_set_special_port: error {}",
+            ret
+        ));
+    }
+
+    // read it back
+    let mut read_back_port: mach_port_t = 0;
+    let ret = unsafe {
+        task_get_special_port(mach_task_self(), TASK_BOOTSTRAP_PORT, &mut read_back_port)
+    };
+    if ret != KERN_SUCCESS {
+        return Err(anyhow::anyhow!(
+            "failed to fork and disown: task_get_special_port: error {}",
+            ret
+        ));
+    }
+
+    println!("read back port = {:?}", read_back_port);
+
+    // fork
+    let ret = unsafe { libc::fork() };
+    if ret == -1 {
+        return Err(anyhow::anyhow!(
+            "failed to fork: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+
+    // parent process
+    if ret > 0 {
+        // restore old bootstrap port
+        let ret = unsafe {
+            task_set_special_port(mach_task_self(), TASK_BOOTSTRAP_PORT, old_bootstrap_port)
+        };
+        if ret != KERN_SUCCESS {
+            return Err(anyhow::anyhow!(
+                "failed to fork and disown: task_set_special_port: error {}",
+                ret
+            ));
+        }
+        // recv secondary IPC port from child
+        let secondary_ipc_port = recv_port(ipc_port).unwrap();
+
+        println!("received port from child: {:?}", secondary_ipc_port);
+
+        // inc send right on entry port
+        let ret =
+            unsafe { mach_port_mod_refs(mach_task_self(), entry_port, MACH_PORT_RIGHT_SEND, 1) };
+        if ret != KERN_SUCCESS {
+            return Err(anyhow::anyhow!(
+                "failed to fork and disown: mach_port_mod_refs: error {}",
+                ret
+            ));
+        }
+
+        // send mem port to child
+        send_port(secondary_ipc_port, entry_port)?;
+
+        return Ok(());
+    }
+
+    // child process
+    println!("in child!");
+
+    // get bootstrap port
+    println!("getting bootstrap port...");
+    let mut ipc_port: mach_port_t = 0;
+    let ret =
+        unsafe { task_get_special_port(mach_task_self(), TASK_BOOTSTRAP_PORT, &mut ipc_port) };
+    if ret != KERN_SUCCESS {
+        println!(
+            "[child] failed to get bootstrap port: task_get_special_port: error {}",
+            ret
+        );
+        panic!();
+    }
+
+    // allocate a port to receive the memory entry port
+    println!("[child] allocating port...");
+    let mut child_port: mach_port_t = 0;
+    let ret =
+        unsafe { mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &mut child_port) };
+    if ret != KERN_SUCCESS {
+        println!("[child] failed to allocate port: error {}", ret);
+        panic!();
+    }
+
+    // give it a send right
+    println!("[child] inserting right...");
+    let ret = unsafe {
+        mach_port_insert_right(
+            mach_task_self(),
+            child_port,
+            child_port,
+            MACH_MSG_TYPE_MAKE_SEND,
+        )
+    };
+    if ret != KERN_SUCCESS {
+        println!("[child] failed to insert right: error {}", ret);
+        panic!();
+    }
+
+    println!("[child] child port = {:?}", child_port);
+
+    // send this port to the parent, via bootstrap_port
+    send_port(ipc_port, child_port)?;
+
+    println!("sent port to parent; waiting for entry port...");
+
+    // recv entry port
+    let child_entry_port = recv_port(child_port)?;
+
+    println!("[child] port = {:?}", child_entry_port);
+
+    // take ownership of entry port
+    let ret = unsafe {
+        mach_memory_entry_ownership(child_entry_port, mach_task_self(), VM_LEDGER_TAG_DEFAULT, 0)
+    };
+    if ret != KERN_SUCCESS {
+        println!(
+            "[child] failed to take ownership of entry port: error {}",
+            ret
+        );
+        panic!();
+    }
+
+    // hang forever
+    loop {
+        unsafe {
+            libc::sleep(1);
+        }
+    }
 }
 
 fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
@@ -242,7 +512,7 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
                 &mut entry_size,
                 entry_addr,
                 MAP_MEM_NAMED_CREATE
-                    // | MAP_MEM_LEDGER_TAGGED
+                    | MAP_MEM_LEDGER_TAGGED
                     | VM_PROT_READ
                     | VM_PROT_WRITE
                     | VM_PROT_EXECUTE,
@@ -280,6 +550,8 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
                 entry_size
             ));
         }
+
+        fork_and_disown(*entry_port)?;
 
         // let ret = unsafe {
         //     mach_memory_entry_ownership(*entry_port, TASK_NULL, VM_LEDGER_TAG_DEFAULT, 0)

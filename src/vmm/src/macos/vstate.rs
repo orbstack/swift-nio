@@ -170,6 +170,8 @@ impl Parkable for VmParker {
     }
 
     fn unpark(&self, unpark_task: StartupTask) {
+        on_vm_unpark().unwrap();
+
         // Make sure we remap all regions before resolving the startup task.
         let regions = self.regions.lock().unwrap();
         for region in regions.iter() {
@@ -181,7 +183,6 @@ impl Parkable for VmParker {
                 .map_memory(region.host_start_addr, region.guest_start_addr, region.size)
                 .unwrap();
         }
-        on_vm_unpark().unwrap();
 
         unpark_task.success();
     }
