@@ -458,11 +458,7 @@ fn fork_and_disown(entry_port: mach_port_t) -> anyhow::Result<()> {
     }
 }
 
-pub fn free_block(
-    guest_addr: GuestAddress,
-    host_addr: *mut c_void,
-    size: usize,
-) -> anyhow::Result<()> {
+fn new_chunks_at(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
     let mut off: mach_vm_size_t = 0;
     while off < size as mach_vm_size_t {
         let req_entry_size = std::cmp::min(
@@ -535,6 +531,16 @@ pub fn free_block(
         off += entry_size;
     }
 
+    Ok(())
+}
+
+pub fn free_block(
+    guest_addr: GuestAddress,
+    host_addr: *mut c_void,
+    size: usize,
+) -> anyhow::Result<()> {
+    new_chunks_at(host_addr, size)?;
+
     HvfVm::unmap_memory_static(guest_addr.raw_value(), size as u64)?;
     HvfVm::map_memory_static(host_addr as u64, guest_addr.raw_value(), size as u64)?;
 
@@ -578,107 +584,7 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     // mach_vm_map splits the requested size into 128 MiB (ANON_CHUNK_SIZE) chunks for mach pager
     // max chunk size is 4 GiB,
     let mut regions = Vec::new();
-    let mut off = 0;
-    while off < size {
-        let req_entry_size = std::cmp::min(MACH_CHUNK_SIZE as mach_vm_size_t, size - off);
-        let mut entry_size = req_entry_size;
-        let mut entry_addr = host_addr + off;
-
-        println!(
-            "VM copy @ entry_addr={:x} size={:x}",
-            entry_addr, entry_size
-        );
-        let mut entry_port: mach_port_t = 0;
-        let ret = unsafe {
-            mach_make_memory_entry_64(
-                mach_task_self(),
-                &mut entry_size,
-                entry_addr,
-                MAP_MEM_NAMED_CREATE
-                    | MAP_MEM_LEDGER_TAGGED
-                    | VM_PROT_READ
-                    | VM_PROT_WRITE
-                    | VM_PROT_EXECUTE,
-                // MAP_MEM_VM_COPY | MAP_MEM_RT,
-                &mut entry_port,
-                0,
-            )
-            // mach_memory_object_memory_entry(
-            //     mach_host_self(),
-            //     true,
-            //     entry_size as vm_size_t,
-            //     VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE | VM_FLAGS_PURGABLE,
-            //     0,
-            //     &mut entry_port,
-            // )
-        };
-        if ret != KERN_SUCCESS {
-            return Err(anyhow::anyhow!(
-                "failed to allocate host memory: mach_make_memory_entry_64: error {}",
-                ret
-            ));
-        }
-
-        // named entry no longer needed after mapping
-        let entry_port = scopeguard::guard(entry_port, |port| {
-            unsafe { mach_port_deallocate(mach_task_self(), port) };
-        });
-        println!("entry_port={:?}", entry_port);
-
-        // validate entry
-        if entry_size != req_entry_size {
-            return Err(anyhow::anyhow!(
-                "failed to allocate host memory: requested size {} != actual size {}",
-                size,
-                entry_size
-            ));
-        }
-
-        // fork_and_disown(*entry_port)?;
-
-        // let ret = unsafe {
-        //     mach_memory_entry_ownership(*entry_port, TASK_NULL, VM_LEDGER_TAG_DEFAULT, 0)
-        // };
-        // if ret != KERN_SUCCESS {
-        //     return Err(anyhow::anyhow!(
-        //         "failed to allocate host memory: mach_memory_entry_ownership: error {}",
-        //         ret
-        //     ));
-        // }
-
-        // map it
-        let ret = unsafe {
-            mach_vm_map(
-                mach_task_self(),
-                &mut entry_addr,
-                entry_size,
-                0,
-                VM_FLAGS_OVERWRITE | VM_MAKE_TAG(250) as i32,
-                *entry_port,
-                0,
-                0,
-                VM_PROT_READ | VM_PROT_WRITE,
-                VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
-                VM_INHERIT_NONE,
-            )
-            // mach_vm_region(target_task, address, size, flavor, info, infoCnt, object_name)
-        };
-        if ret != KERN_SUCCESS {
-            return Err(anyhow::anyhow!(
-                "failed to allocate host memory: mach_vm_map: error {}",
-                ret
-            ));
-        }
-
-        regions.push(VmRegion {
-            host_addr: entry_addr as *mut c_void,
-            guest_addr: GuestAddress(off),
-            size: entry_size as usize,
-            entry_port: *entry_port,
-        });
-
-        off += entry_size;
-    }
+    new_chunks_at(host_addr as *mut c_void, size as usize)?;
 
     // let req_entry_size = size;
     // let mut entry_size = req_entry_size;
