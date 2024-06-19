@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
     // map memory in chunks
     TIME_BLOCK_EACH(mach_make_entry_and_map, NUM_CHUNKS, {
         for_each_chunk(addr, base_addr) {
-            new_entry_chunk_at(task, addr, CHUNK_BYTES);
+            new_purgable_chunk_at(task, addr, CHUNK_BYTES);
         }
     });
 
@@ -119,6 +119,14 @@ int main(int argc, char **argv) {
         }
     });
 
+    // clear purgable chunks
+    TIME_BLOCK_EACH(purge_purgable, NUM_CHUNKS, {
+        for_each_chunk(addr, base_addr) {
+            int state = VM_PURGABLE_EMPTY;
+            CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
+        }
+    });
+
     // touch all of the memory
     for (int i = 0; i < 3; i++) {
         TIME_BLOCK_EACH(touch_memory, NUM_PAGES, {
@@ -129,7 +137,7 @@ int main(int argc, char **argv) {
     // map memory in chunks
     TIME_BLOCK_EACH(mach_make_entry_and_map, NUM_CHUNKS, {
         for_each_chunk(addr, base_addr) {
-            new_entry_chunk_at(task, addr, CHUNK_BYTES);
+            new_purgable_chunk_at(task, addr, CHUNK_BYTES);
         }
     });
 
