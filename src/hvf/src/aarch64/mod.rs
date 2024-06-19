@@ -667,6 +667,27 @@ impl HvfVm {
         let max_ram_addr = max_addr - MMIO_SHM_SIZE - 0x4000_0000; // shm rounding (ceil) = 1 GiB
         Ok(max_ram_addr - layout::DRAM_MEM_START)
     }
+
+    pub fn map_memory_static(
+        host_start_addr: u64,
+        guest_start_addr: u64,
+        size: u64,
+    ) -> Result<(), Error> {
+        let ret = unsafe {
+            hv_vm_map(
+                host_start_addr as *mut core::ffi::c_void,
+                guest_start_addr,
+                size as usize,
+                (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC).into(),
+            )
+        };
+        HvfError::result(ret).map_err(Error::MemoryMap)
+    }
+
+    pub fn unmap_memory_static(guest_start_addr: u64, size: u64) -> Result<(), Error> {
+        let ret = unsafe { hv_vm_unmap(guest_start_addr, size as usize) };
+        HvfError::result(ret).map_err(Error::MemoryUnmap)
+    }
 }
 
 #[derive(Debug)]

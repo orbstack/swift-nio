@@ -160,7 +160,7 @@ impl Balloon {
             let index = head.index;
             for desc in head.into_iter() {
                 let host_addr = mem.get_host_address(desc.addr).unwrap();
-                free_ranges.push((host_addr, desc.len));
+                free_ranges.push((desc.addr, host_addr, desc.len));
                 debug!(
                     "balloon: should release guest_addr={:?} host_addr={:p} len={}",
                     desc.addr, host_addr, desc.len
@@ -182,17 +182,18 @@ impl Balloon {
         let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
             return have_used;
         };
-        for (host_addr, len) in free_ranges {
-            unsafe {
-                let res = libc::madvise(
-                    host_addr as *mut libc::c_void,
-                    len.try_into().unwrap(),
-                    libc::MADV_FREE_REUSABLE,
-                );
-                if res == -1 {
-                    error!("madvise failed: {:?}", std::io::Error::last_os_error());
-                }
-            };
+        for (guest_addr, host_addr, len) in free_ranges {
+            hvf::free_block(guest_addr, host_addr as *mut libc::c_void, len as usize).unwrap();
+            // unsafe {
+            //     let res = libc::madvise(
+            //         host_addr as *mut libc::c_void,
+            //         len.try_into().unwrap(),
+            //         libc::MADV_FREE_REUSABLE,
+            //     );
+            //     if res == -1 {
+            //         error!("madvise failed: {:?}", std::io::Error::last_os_error());
+            //     }
+            // };
         }
         self.parker.as_ref().unwrap().unpark(unpark_task);
 
