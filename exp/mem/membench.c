@@ -102,6 +102,12 @@ int main(int argc, char **argv) {
 
     CHECK_HV(hv_vm_create(NULL));
 
+    TIME_BLOCK_EACH(mach_task_self, 1000, {
+        for (int i = 0; i < 1000; i++) {
+            mach_task_self();
+        }
+    });
+
     // reserve contig address space
     mach_vm_address_t base_addr = 0;
     // reserve space
@@ -134,6 +140,8 @@ int main(int argc, char **argv) {
     TIME_BLOCK_EACH(purge_purgable, NUM_CHUNKS, {
         for_each_chunk(addr, base_addr) {
             int state = VM_PURGABLE_EMPTY;
+            CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
+            state = VM_PURGABLE_NONVOLATILE;
             CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
         }
     });
@@ -175,6 +183,8 @@ int main(int argc, char **argv) {
             new_purgable_chunk_at(task, addr, CHUNK_BYTES);
         }
     });
+
+    // sleep(100000);
 
     return 0;
 }
