@@ -18,14 +18,14 @@ use mach2::{
     task::{task_get_special_port, task_special_port_t, TASK_BOOTSTRAP_PORT},
     traps::mach_task_self,
     vm::{
-        mach_make_memory_entry_64, mach_vm_deallocate, mach_vm_map, mach_vm_purgable_control,
-        mach_vm_region, mach_vm_region_recurse,
+        mach_make_memory_entry_64, mach_vm_allocate, mach_vm_deallocate, mach_vm_map,
+        mach_vm_purgable_control, mach_vm_region, mach_vm_region_recurse,
     },
     vm_inherit::VM_INHERIT_NONE,
     vm_prot::{vm_prot_t, VM_PROT_EXECUTE, VM_PROT_READ, VM_PROT_WRITE},
-    vm_purgable::{VM_PURGABLE_NONVOLATILE, VM_PURGABLE_SET_STATE},
+    vm_purgable::{VM_PURGABLE_EMPTY, VM_PURGABLE_NONVOLATILE, VM_PURGABLE_SET_STATE},
     vm_region::{vm_region_submap_info_64, vm_region_submap_info_data_64_t},
-    vm_statistics::{VM_FLAGS_ANYWHERE, VM_FLAGS_OVERWRITE},
+    vm_statistics::{VM_FLAGS_ANYWHERE, VM_FLAGS_FIXED, VM_FLAGS_OVERWRITE},
     vm_types::{mach_vm_address_t, mach_vm_size_t, natural_t, vm_size_t},
 };
 use once_cell::sync::Lazy;
@@ -461,69 +461,23 @@ fn fork_and_disown(entry_port: mach_port_t) -> anyhow::Result<()> {
 fn new_chunks_at(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
     let mut off: mach_vm_size_t = 0;
     while off < size as mach_vm_size_t {
-        let req_entry_size = std::cmp::min(
+        let entry_size = std::cmp::min(
             MACH_CHUNK_SIZE as mach_vm_size_t,
             size as mach_vm_size_t - off,
         );
-        let mut entry_size = req_entry_size;
         let mut entry_addr = host_addr as mach_vm_address_t + off;
 
-        let mut entry_port: mach_port_t = 0;
         let ret = unsafe {
-            mach_make_memory_entry_64(
-                mach_task_self(),
-                &mut entry_size,
-                entry_addr,
-                MAP_MEM_NAMED_CREATE
-                    | MAP_MEM_LEDGER_TAGGED
-                    | VM_PROT_READ
-                    | VM_PROT_WRITE
-                    | VM_PROT_EXECUTE,
-                // MAP_MEM_VM_COPY | MAP_MEM_RT,
-                &mut entry_port,
-                0,
-            )
-        };
-        if ret != KERN_SUCCESS {
-            return Err(anyhow::anyhow!(
-                "failed to allocate host memory: mach_make_memory_entry_64: error {}",
-                ret
-            ));
-        }
-
-        // named entry no longer needed after mapping
-        let entry_port = scopeguard::guard(entry_port, |port| {
-            unsafe { mach_port_deallocate(mach_task_self(), port) };
-        });
-
-        // validate entry
-        if entry_size != req_entry_size {
-            return Err(anyhow::anyhow!(
-                "failed to allocate host memory: requested size {} != actual size {}",
-                size,
-                entry_size
-            ));
-        }
-
-        // map it
-        let ret = unsafe {
-            mach_vm_map(
+            mach_vm_allocate(
                 mach_task_self(),
                 &mut entry_addr,
                 entry_size,
-                0,
-                VM_FLAGS_OVERWRITE | VM_MAKE_TAG(250) as i32,
-                *entry_port,
-                0,
-                0,
-                VM_PROT_READ | VM_PROT_WRITE,
-                VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
-                VM_INHERIT_NONE,
+                VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_FLAGS_PURGABLE | VM_MAKE_TAG(250) as i32,
             )
         };
         if ret != KERN_SUCCESS {
             return Err(anyhow::anyhow!(
-                "failed to allocate host memory: mach_vm_map: error {}",
+                "failed to allocate host memory: mach_vm_allocate: error {}",
                 ret
             ));
         }
@@ -539,10 +493,48 @@ pub fn free_block(
     host_addr: *mut c_void,
     size: usize,
 ) -> anyhow::Result<()> {
-    new_chunks_at(host_addr, size)?;
+    let mut off: mach_vm_size_t = 0;
+    while off < size as mach_vm_size_t {
+        let entry_size = std::cmp::min(
+            MACH_CHUNK_SIZE as mach_vm_size_t,
+            size as mach_vm_size_t - off,
+        );
+        let entry_addr = host_addr as mach_vm_address_t + off;
 
-    HvfVm::unmap_memory_static(guest_addr.raw_value(), size as u64)?;
-    HvfVm::map_memory_static(host_addr as u64, guest_addr.raw_value(), size as u64)?;
+        let mut state = VM_PURGABLE_EMPTY;
+        let ret = unsafe {
+            mach_vm_purgable_control(
+                mach_task_self(),
+                entry_addr,
+                VM_PURGABLE_SET_STATE,
+                &mut state,
+            )
+        };
+        if ret != KERN_SUCCESS {
+            return Err(anyhow::anyhow!(
+                "failed to deallocate host memory: mach_vm_purgable_control: error {}",
+                ret
+            ));
+        }
+
+        state = VM_PURGABLE_NONVOLATILE;
+        let ret = unsafe {
+            mach_vm_purgable_control(
+                mach_task_self(),
+                entry_addr,
+                VM_PURGABLE_SET_STATE,
+                &mut state,
+            )
+        };
+        if ret != KERN_SUCCESS {
+            return Err(anyhow::anyhow!(
+                "failed to deallocate host memory: mach_vm_purgable_control: error {}",
+                ret
+            ));
+        }
+
+        off += entry_size;
+    }
 
     Ok(())
 }
