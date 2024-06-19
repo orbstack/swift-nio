@@ -572,7 +572,7 @@ pub fn build_microvm(
 
     #[cfg(not(feature = "tee"))]
     if let Some(_) = vm_resources.balloon {
-        attach_balloon_device(&mut vmm, event_manager, intc.clone())?;
+        attach_balloon_device(&mut vmm, intc.clone())?;
     }
     #[cfg(not(feature = "tee"))]
     if let Some(_) = vm_resources.rng {
@@ -1317,14 +1317,12 @@ fn attach_unixsock_vsock_device(
 #[cfg(not(feature = "tee"))]
 fn attach_balloon_device(
     vmm: &mut Vmm,
-    event_manager: &mut gruel::EventManager,
     intc: Option<Arc<Mutex<Gic>>>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
-    let balloon = Arc::new(Mutex::new(devices::virtio::Balloon::new().unwrap()));
-
-    event_manager.register(SubscriberMutexAdapter(balloon.clone()));
+    let balloon = devices::virtio::Balloon::new().unwrap();
+    vmm.exit_observers.push(balloon.clone());
 
     let id = String::from(balloon.lock().unwrap().id());
 

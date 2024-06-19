@@ -1,10 +1,12 @@
-use gruel::{define_waker_set, BoundSignalChannelRef, DynamicallyBoundWaker, SignalChannel};
+use gruel::{
+    define_waker_set, BoundSignalChannelRef, ParkSignalChannelExt, ParkWaker, SignalChannel,
+};
 use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
 use std::cmp;
-use std::convert::TryInto;
 use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
+use std::thread;
 use utils::Mutex;
 
 use vm_memory::{ByteValued, GuestMemory, GuestMemoryMmap};
@@ -14,13 +16,13 @@ use super::super::{
 };
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
-use crate::virtio::VirtioQueueSignals;
+use crate::virtio::{VirtioQueueSignals, VmmExitObserver};
 use hvf::Parkable;
 
 define_waker_set! {
     #[derive(Default)]
     pub(crate) struct BalloonWakers {
-        pub dynamic: DynamicallyBoundWaker,
+        pub parker: ParkWaker,
     }
 }
 
@@ -43,6 +45,8 @@ bitflags::bitflags! {
         const FRQ = 1 << 4;
 
         const INTERRUPT = 1 << 5;
+
+        const SHUTDOWN_WORKER = 1 << 6;
     }
 }
 
@@ -61,6 +65,8 @@ pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64
     | 1 << uapi::VIRTIO_BALLOON_F_FREE_PAGE_HINT as u64
     | 1 << uapi::VIRTIO_BALLOON_F_REPORTING as u64;
 
+pub(crate) type BalloonSignal = SignalChannel<BalloonSignalMask, BalloonWakers>;
+
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C, packed)]
 pub struct VirtioBalloonConfig {
@@ -78,12 +84,14 @@ pub struct VirtioBalloonConfig {
 unsafe impl ByteValued for VirtioBalloonConfig {}
 
 pub struct Balloon {
-    pub(crate) signal: Arc<SignalChannel<BalloonSignalMask, BalloonWakers>>,
+    self_ref: Weak<Mutex<Self>>,
+    pub(crate) signal: Arc<BalloonSignal>,
     pub(crate) queues: NumEnumMap<BalloonQueues, VirtQueue>,
     pub(crate) avail_features: u64,
     pub(crate) acked_features: u64,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
     pub(crate) device_state: DeviceState,
+    worker: Option<thread::JoinHandle<()>>,
     config: VirtioBalloonConfig,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
@@ -91,24 +99,28 @@ pub struct Balloon {
 }
 
 impl Balloon {
-    pub(crate) fn with_queues(queues: Vec<VirtQueue>) -> super::Result<Balloon> {
+    pub(crate) fn with_queues(queues: Vec<VirtQueue>) -> super::Result<Arc<Mutex<Balloon>>> {
         let config = VirtioBalloonConfig::default();
 
-        Ok(Balloon {
-            signal: Arc::new(SignalChannel::new(BalloonWakers::default())),
-            queues: NumEnumMap::from_iter(queues),
-            avail_features: AVAIL_FEATURES,
-            acked_features: 0,
-            interrupt_status: Arc::new(AtomicUsize::new(0)),
-            device_state: DeviceState::Inactive,
-            config,
-            intc: None,
-            irq_line: None,
-            parker: None,
-        })
+        Ok(Arc::new_cyclic(|self_ref| {
+            Mutex::new(Balloon {
+                self_ref: self_ref.clone(),
+                signal: Arc::new(SignalChannel::new(BalloonWakers::default())),
+                queues: NumEnumMap::from_iter(queues),
+                avail_features: AVAIL_FEATURES,
+                acked_features: 0,
+                interrupt_status: Arc::new(AtomicUsize::new(0)),
+                device_state: DeviceState::Inactive,
+                worker: None,
+                config,
+                intc: None,
+                irq_line: None,
+                parker: None,
+            })
+        }))
     }
 
-    pub fn new() -> super::Result<Balloon> {
+    pub fn new() -> super::Result<Arc<Mutex<Balloon>>> {
         let queues: Vec<VirtQueue> = defs::QUEUE_SIZES
             .iter()
             .map(|&max_size| VirtQueue::new(max_size))
@@ -199,6 +211,44 @@ impl Balloon {
 
         have_used
     }
+
+    fn run_worker(me: Arc<Mutex<Self>>, signal: Arc<BalloonSignal>) {
+        loop {
+            signal.wait_on_park(BalloonSignalMask::all());
+
+            let taken = signal.take(BalloonSignalMask::all());
+
+            if taken.intersects(BalloonSignalMask::SHUTDOWN_WORKER) {
+                break;
+            }
+
+            if taken.intersects(BalloonSignalMask::IFQ) {
+                error!("balloon: unsupported inflate queue event");
+            }
+
+            if taken.intersects(BalloonSignalMask::DFQ) {
+                error!("balloon: unsupported deflate queue event");
+            }
+
+            if taken.intersects(BalloonSignalMask::STQ) {
+                debug!("balloon: stats queue event (ignored)");
+            }
+
+            if taken.intersects(BalloonSignalMask::PHQ) {
+                error!("balloon: unsupported page-hinting queue event");
+            }
+
+            if taken.intersects(BalloonSignalMask::FRQ) {
+                debug!("balloon: free-page reporting queue event");
+
+                let mut me = me.lock().unwrap();
+
+                if me.process_frq() {
+                    me.signal_used_queue();
+                }
+            }
+        }
+    }
 }
 
 impl VirtioDevice for Balloon {
@@ -276,7 +326,30 @@ impl VirtioDevice for Balloon {
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
         self.device_state = DeviceState::Activated(mem);
 
+        if self.worker.is_none() {
+            let me = self.self_ref.upgrade().unwrap();
+            let signal = self.signal.clone();
+
+            self.worker = Some(
+                thread::Builder::new()
+                    .name("balloon thread".to_string())
+                    .spawn(move || Self::run_worker(me, signal))
+                    .expect("failed to spawn balloon worker"),
+            );
+        }
+
         Ok(())
+    }
+
+    fn reset(&mut self) -> bool {
+        if let Some(worker) = self.worker.take() {
+            self.signal.assert(BalloonSignalMask::SHUTDOWN_WORKER);
+            if let Err(err) = worker.join() {
+                error!("Failed to shutdown balloon worker: {err:?}");
+            }
+        }
+
+        true
     }
 
     fn is_activated(&self) -> bool {
@@ -284,5 +357,11 @@ impl VirtioDevice for Balloon {
             DeviceState::Inactive => false,
             DeviceState::Activated(_) => true,
         }
+    }
+}
+
+impl VmmExitObserver for Balloon {
+    fn on_vmm_exit(&mut self) {
+        self.reset();
     }
 }

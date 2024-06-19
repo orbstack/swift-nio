@@ -1,5 +1,4 @@
 mod device;
-mod event_handler;
 
 pub use self::defs::uapi::VIRTIO_ID_BALLOON as TYPE_BALLOON;
 pub use self::device::Balloon;
