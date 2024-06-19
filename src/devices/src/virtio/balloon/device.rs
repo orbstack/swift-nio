@@ -179,9 +179,9 @@ impl Balloon {
         // madvise
         // remap
         // and unpark
-        let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
-            return have_used;
-        };
+        // let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
+        //     return have_used;
+        // };
         for (guest_addr, host_addr, len) in free_ranges {
             hvf::free_block(guest_addr, host_addr as *mut libc::c_void, len as usize).unwrap();
             // unsafe {
@@ -195,7 +195,7 @@ impl Balloon {
             //     }
             // };
         }
-        self.parker.as_ref().unwrap().unpark(unpark_task);
+        // self.parker.as_ref().unwrap().unpark(unpark_task);
 
         have_used
     }
