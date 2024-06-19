@@ -4,6 +4,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <Hypervisor/Hypervisor.h>
 
 #include <mach/mach.h>
 #include <mach/mach_init.h>
@@ -28,10 +29,18 @@ void __check_posix(int err, const char *msg) {
     }
 }
 
+void __check_hv(hv_return_t hv, const char *msg) {
+    if (hv != HV_SUCCESS) {
+        fprintf(stderr, "%s: %d\n", msg, hv);
+        exit(1);
+    }
+}
+
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 #define CHECK_MACH(kr) __check_mach(kr, "mach error at " __FILE__ ":" TOSTRING(__LINE__))
 #define CHECK_POSIX(err) __check_posix(err, "posix error at " __FILE__ ":" TOSTRING(__LINE__))
+#define CHECK_HV(hv) __check_hv(hv, "hypervisor error at " __FILE__ ":" TOSTRING(__LINE__))
 
 #define TIME_BLOCK(name, block) \
     { \
@@ -91,6 +100,8 @@ int main(int argc, char **argv) {
     mach_port_t host = mach_host_self();
     mach_port_t task = mach_task_self();
 
+    CHECK_HV(hv_vm_create(NULL));
+
     // reserve contig address space
     mach_vm_address_t base_addr = 0;
     // reserve space
@@ -124,6 +135,30 @@ int main(int argc, char **argv) {
         for_each_chunk(addr, base_addr) {
             int state = VM_PURGABLE_EMPTY;
             CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
+        }
+    });
+
+    // map all into HV, in one big call
+    TIME_BLOCK(hv_map_all, {
+        CHECK_HV(hv_vm_map((void*)base_addr, base_addr, TOTAL_BYTES, HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC));
+    });
+
+    // unmap all from HV, in one big call
+    TIME_BLOCK(hv_unmap_all, {
+        CHECK_HV(hv_vm_unmap(base_addr, TOTAL_BYTES));
+    });
+
+    // map into HV, chunk by chunk
+    TIME_BLOCK_EACH(hv_map_each, NUM_CHUNKS, {
+        for_each_chunk(addr, base_addr) {
+            CHECK_HV(hv_vm_map((void*)addr, addr, CHUNK_BYTES, HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC));
+        }
+    });
+
+    // unmap from HV, chunk by chunk
+    TIME_BLOCK_EACH(hv_unmap_each, NUM_CHUNKS, {
+        for_each_chunk(addr, base_addr) {
+            CHECK_HV(hv_vm_unmap(addr, CHUNK_BYTES));
         }
     });
 
