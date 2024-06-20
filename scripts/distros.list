@@ -13,7 +13,6 @@ amazonlinux:2023
 archlinux:current
 busybox:1.36.1
 centos:7
-centos:8-Stream
 centos:9-Stream
 debian:bookworm
 debian:bullseye
