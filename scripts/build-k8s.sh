@@ -11,12 +11,18 @@ orb start
 echo "Cloning repos"
 
 cd ../vendor
-[[ ! -d "k3s" ]] && git clone -b $BRANCH git@github.com:orbstack/k3s || :
+if [[ ! -d "k3s" ]]; then
+  git clone -b $BRANCH git@github.com:orbstack/k3s
+fi
 
 pushd k3s
 pushd forks
-[[ ! -d "kubernetes" ]] && git clone -b $BRANCH git@github.com:orbstack/kubernetes || :
-[[ ! -d "cri-dockerd" ]] && git clone -b $BRANCH git@github.com:orbstack/cri-dockerd || :
+if [[ ! -d "kubernetes" ]]; then
+  git clone -b $BRANCH git@github.com:orbstack/kubernetes
+fi
+if [[ ! -d "cri-dockerd" ]]; then
+  git clone -b $BRANCH git@github.com:orbstack/cri-dockerd
+fi
 popd
 
 echo "Building"
