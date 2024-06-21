@@ -22,7 +22,7 @@ COPY scon /build/scon
 COPY vmgr /build/vmgr
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
-<<EOT sh -eux
+    <<EOT sh -eux
 cd /build/vmgr
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/macctl ./cmd/macctl
 strip /out/macctl
@@ -31,14 +31,14 @@ ARG TYPE=release
 # eBPF
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
-<<EOT sh -eux
+    <<EOT sh -eux
 cd /build/scon
 make bpfgen
 EOT
 # Go
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
-<<EOT sh -eux
+    <<EOT sh -eux
 cd /build/scon
 mkdir -p /out && ./build-release.sh /out ${TYPE}
 EOT
@@ -53,7 +53,7 @@ ARG TYPE=release
 # Rust can't deal with arch change in target/
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/build/vinit/target,id=${ARCH} \
-<<EOT sh -eux
+    <<EOT sh -eux
 cd /build/vinit
 if [[ "$TYPE" == "debug" ]]; then
     cargo build
@@ -68,7 +68,7 @@ COPY wormhole /build/wormhole
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/build/wormhole/target,id=${ARCH} \
     --mount=type=ssh,required=true \
-<<EOT sh -eux
+    <<EOT sh -eux
 cd /build/wormhole
 if [[ "$TYPE" == "debug" ]]; then
     cargo build
@@ -84,7 +84,7 @@ RUN apk add --no-cache libseccomp-dev libseccomp-static
 COPY rootfs/pkgs/runc.patch /build/
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
-<<EOT sh -eux
+    <<EOT sh -eux
 mkdir /out
 cd /build
 git clone --depth 1 -b v1.1.12 https://github.com/opencontainers/runc
@@ -131,7 +131,7 @@ find . -print0 | cpio -o -H newc -R 0:0 -0 > /out/ri.cpio
 EOT
 
 # Build wormhole's debugos rootfs
-FROM nix-base as nix-build
+FROM nix-base AS nix-build
 RUN <<EOT sh -eux
 # disable seccomp to fix rosetta build
 echo 'filter-syscalls = false' >> /etc/nix/nix.conf
@@ -143,7 +143,7 @@ nix-env -iA nixpkgs.git nixpkgs.sqlite nixpkgs.gnutar nixpkgs.curl nixpkgs.xz
 EOT
 COPY wormhole/os /build/os
 RUN --mount=type=cache,target=/nix-cache \
-<<EOT sh -eux
+    <<EOT sh -eux
 mkdir /build-result
 cd /build-result
 # TODO: cache with --store /nix-cache --eval-store local
@@ -198,7 +198,7 @@ COPY wormhole/os/nix.conf /out/nix/orb/sys/etc/nix.conf
 COPY --from=rust-build /out/dctl /out/nix/orb/sys/bin/
 
 # Generate Rosetta deltas (need Debian for bsdiff)
-FROM debian as rosetta-deltas
+FROM debian AS rosetta-deltas
 RUN apt-get update && \
     apt-get install -y curl python3.11 bsdiff b3sum parallel
 # Use the previous version of 7zip, as 24.05 contains a change that breaks our script
@@ -233,7 +233,7 @@ RUN apk add --no-cache \
     # Docker engine deps
     ca-certificates \
     # important to pin version for security
-    runc=1.1.12-r3 \
+    runc=1.1.13-r0 \
     containerd \
     # support Docker build from git repos
     git \
@@ -244,8 +244,8 @@ RUN apk add --no-cache \
     tzdata \
     # for kubectl port-forward
     socat
-    # for tls proxy
-    #ipset
+# for tls proxy
+#ipset
 
 # workaround: latest ipset edge 7.20-r0 segfaults
 RUN <<EOT sh -eux
@@ -326,7 +326,7 @@ COPY rootfs/utils/docker-init.sh /opt/init
 ##########################################################################
 # Patched qemu for arm64
 # newer qemu 7.2 breaks openssl rsa verification
-FROM stable-base as pkgbuild-qemu
+FROM stable-base AS pkgbuild-qemu
 
 # deps for build, qemu
 RUN apk add --no-cache \
@@ -355,7 +355,7 @@ EOT
 
 # TODO fix cache
 RUN --mount=type=cache,target=/work/qemu/build2 \
-<<EOT sh -eux
+    <<EOT sh -eux
 cd /work/qemu
 export CFLAGS="-O2 -flto=auto"
 ./configure \
@@ -388,7 +388,7 @@ export CFLAGS="-O2 -flto=auto"
 EOT
 
 RUN --mount=type=cache,target=/work/qemu/build2 \
-<<EOT sh -eux
+    <<EOT sh -eux
 if [[ "\$(uname -m)" != "aarch64" ]]; then
     echo "skip"
     mkdir /out
@@ -587,6 +587,6 @@ mkfs.erofs -Efragments -Eztailpacking --ignore-mtime /images/rootfs.img /rootfs 
 EOT
 
 # speed up exporting images by skipping /rootfs
-FROM packer as images
+FROM packer AS images
 COPY --from=pack-images /images /images
 COPY --from=initrd-build /out/ri.cpio /images/ri.cpio
