@@ -1,0 +1,13 @@
+❯ sudo perf bench sched pipe
+# Running 'sched/pipe' benchmark:
+# Executed 1000000 pipe operations between two processes
+
+     Total time: 19.261 [sec]
+
+      19.261172 usecs/op
+          51917 ops/sec
+
+❯ hyperfine './hackbench -pTl 10000'
+Benchmark 1: ./hackbench -pTl 10000
+  Time (mean ± σ):      2.507 s ±  0.078 s    [User: 7.398 s, System: 30.310 s]
+  Range (min … max):    2.391 s …  2.685 s    10 runs
