@@ -28,6 +28,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use tracing::{debug, error};
 
 use counter::RateCounter;
@@ -97,40 +99,80 @@ arm64_sys_reg!(SYSREG_MASK, 0x3, 0x7, 0x7, 0xf, 0xf);
 static HVF_OPTIONAL: Lazy<Option<Container<HvfOptional>>> =
     Lazy::new(|| unsafe { Container::load_self() }.ok());
 
+#[derive(thiserror::Error, Debug, FromPrimitive)]
+#[repr(i32)]
+pub enum HvfError {
+    #[error("error")]
+    Error = HV_ERROR,
+    #[error("busy")]
+    Busy = HV_BUSY,
+    #[error("bad argument")]
+    BadArgument = HV_BAD_ARGUMENT,
+    #[error("illegal guest state")]
+    IllegalGuestState = HV_ILLEGAL_GUEST_STATE,
+    #[error("no resources")]
+    NoResources = HV_NO_RESOURCES,
+    #[error("no device")]
+    NoDevice = HV_NO_DEVICE,
+    #[error("denied")]
+    Denied = HV_DENIED,
+    #[error("unsupported")]
+    Unsupported = HV_UNSUPPORTED,
+    #[error("unknown")]
+    Unknown = -1,
+}
+
+impl HvfError {
+    fn result(ret: hv_return_t) -> Result<(), Self> {
+        match ret {
+            HV_SUCCESS => Ok(()),
+            _ => Err(HvfError::from_i32(ret).unwrap_or(HvfError::Unknown)),
+        }
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("memory map")]
-    MemoryMap,
-    #[error("memory unmap")]
-    MemoryUnmap,
-    #[error("vcpu create")]
-    VcpuCreate,
-    #[error("vcpu initial registers")]
-    VcpuInitialRegisters,
-    #[error("vcpu read register")]
-    VcpuReadRegister,
-    #[error("vcpu read system register")]
-    VcpuReadSystemRegister,
-    #[error("vcpu request exit")]
-    VcpuRequestExit,
-    #[error("vcpu run")]
-    VcpuRun,
-    #[error("vcpu set pending irq")]
-    VcpuSetPendingIrq,
-    #[error("vcpu set register")]
-    VcpuSetRegister,
-    #[error("vcpu set system register")]
-    VcpuSetSystemRegister,
-    #[error("vcpu set vtimer mask")]
-    VcpuSetVtimerMask,
-    #[error("vm config set ipa size")]
-    VmConfigSetIpaSize,
-    #[error("vm create")]
-    VmCreate,
-    #[error("vm allocate")]
-    VmAllocate,
+    #[error("memory map: {0}")]
+    MemoryMap(HvfError),
+    #[error("memory unmap: {0}")]
+    MemoryUnmap(HvfError),
+    #[error("vcpu create: {0}")]
+    VcpuCreate(HvfError),
+    #[error("vcpu initial registers: {0}")]
+    VcpuInitialRegisters(HvfError),
+    #[error("vcpu read register: {0}")]
+    VcpuReadRegister(HvfError),
+    #[error("vcpu read system register: {0}")]
+    VcpuReadSystemRegister(HvfError),
+    #[error("vcpu request exit: {0}")]
+    VcpuRequestExit(HvfError),
+    #[error("vcpu run: {0}")]
+    VcpuRun(HvfError),
+    #[error("vcpu set pending irq: {0}")]
+    VcpuSetPendingIrq(HvfError),
+    #[error("vcpu set register: {0}")]
+    VcpuSetRegister(HvfError),
+    #[error("vcpu set system register: {0}")]
+    VcpuSetSystemRegister(HvfError),
+    #[error("vcpu set vtimer mask: {0}")]
+    VcpuSetVtimerMask(HvfError),
+    #[error("vm config set ipa size: {0}")]
+    VmConfigSetIpaSize(HvfError),
+    #[error("vm config enable nested virt: {0}")]
+    VmConfigEnableNestedVirt(HvfError),
+    #[error("vm create: {0}")]
+    VmCreate(HvfError),
+    #[error("vm allocate: {0}")]
+    VmAllocate(HvfError),
+    #[error("vm deallocate: {0}")]
+    VmDeallocate(HvfError),
     #[error("host CPU doesn't support assigning {0} bits of VM memory")]
     VmConfigIpaSizeLimit(u32),
+    #[error("vm config get default ipa size: {0}")]
+    VmConfigGetDefaultIpaSize(HvfError),
+    #[error("vm config get max ipa size: {0}")]
+    VmConfigGetMaxIpaSize(HvfError),
     #[error("guest memory map")]
     GetGuestMemory,
 }
@@ -149,12 +191,7 @@ pub enum InterruptType {
 pub fn vcpu_request_exit(hv_vcpu: HvVcpuRef) -> Result<(), Error> {
     let mut vcpu: u64 = hv_vcpu.0;
     let ret = unsafe { hv_vcpus_exit(&mut vcpu, 1) };
-
-    if ret != HV_SUCCESS {
-        Err(Error::VcpuRequestExit)
-    } else {
-        Ok(())
-    }
+    HvfError::result(ret).map_err(Error::VcpuRequestExit)
 }
 
 pub fn vcpu_set_pending_irq(
@@ -168,22 +205,12 @@ pub fn vcpu_set_pending_irq(
     };
 
     let ret = unsafe { hv_vcpu_set_pending_interrupt(hv_vcpu.0, _type, pending) };
-
-    if ret != HV_SUCCESS {
-        Err(Error::VcpuSetPendingIrq)
-    } else {
-        Ok(())
-    }
+    HvfError::result(ret).map_err(Error::VcpuSetPendingIrq)
 }
 
 pub fn vcpu_set_vtimer_mask(hv_vcpu: HvVcpuRef, masked: bool) -> Result<(), Error> {
     let ret = unsafe { hv_vcpu_set_vtimer_mask(hv_vcpu.0, masked) };
-
-    if ret != HV_SUCCESS {
-        Err(Error::VcpuSetVtimerMask)
-    } else {
-        Ok(())
-    }
+    HvfError::result(ret).map_err(Error::VcpuSetVtimerMask)
 }
 
 pub type VcpuId = u64;
@@ -232,9 +259,9 @@ impl HvfVm {
         // how many IPA bits do we need? check highest guest mem address
         let ipa_bits = guest_mem.last_addr().raw_value().ilog2() + 1;
         debug!("IPA size: {} bits", ipa_bits);
-        if ipa_bits > Self::get_default_ipa_size() {
+        if ipa_bits > Self::get_default_ipa_size()? {
             // if we need more than default, make sure HW supports it
-            if ipa_bits > Self::get_max_ipa_size() {
+            if ipa_bits > Self::get_max_ipa_size()? {
                 return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
             }
 
@@ -245,17 +272,13 @@ impl HvfVm {
                     .unwrap()
                     .hv_vm_config_set_ipa_size(config, ipa_bits)
             };
-            if ret != HV_SUCCESS {
-                return Err(Error::VmConfigSetIpaSize);
-            }
+            HvfError::result(ret).map_err(Error::VmConfigSetIpaSize)?;
         }
 
         let ret = unsafe { hv_vm_create(config) };
-        if ret != HV_SUCCESS {
-            Err(Error::VmCreate)
-        } else {
-            Ok(Self {})
-        }
+        HvfError::result(ret).map_err(Error::VmCreate)?;
+
+        Ok(Self {})
     }
 
     pub fn map_memory(
@@ -272,62 +295,53 @@ impl HvfVm {
                 (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC).into(),
             )
         };
-        if ret != HV_SUCCESS {
-            Err(Error::MemoryMap)
-        } else {
-            Ok(())
-        }
+        HvfError::result(ret).map_err(Error::MemoryMap)
     }
 
     pub fn unmap_memory(&self, guest_start_addr: u64, size: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vm_unmap(guest_start_addr, size as usize) };
-        if ret != HV_SUCCESS {
-            Err(Error::MemoryUnmap)
-        } else {
-            Ok(())
-        }
+        HvfError::result(ret).map_err(Error::MemoryUnmap)
     }
 
     pub fn force_exits(&self, vcpu_ids: &mut Vec<hv_vcpu_t>) -> Result<(), Error> {
         let ret = unsafe { hv_vcpus_exit(vcpu_ids.as_mut_ptr(), vcpu_ids.len() as u32) };
-        if ret != HV_SUCCESS {
-            Err(Error::VcpuRequestExit)
-        } else {
-            Ok(())
-        }
+        HvfError::result(ret).map_err(Error::VcpuRequestExit)
     }
 
     pub fn destroy(&self) {
-        let res = unsafe { hv_vm_destroy() };
-        if res != 0 {
-            error!("Failed to destroy HVF VM: {res}");
+        let ret = unsafe { hv_vm_destroy() };
+        if let Err(e) = HvfError::result(ret) {
+            error!("Failed to destroy VM: {:?}", e);
         }
     }
 
-    fn get_default_ipa_size() -> u32 {
+    fn get_default_ipa_size() -> Result<u32, Error> {
         if let Some(hvf_optional) = HVF_OPTIONAL.as_ref() {
             let mut ipa_bit_length: u32 = 0;
-            unsafe { hvf_optional.hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
-            ipa_bit_length
+            let ret =
+                unsafe { hvf_optional.hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
+            HvfError::result(ret).map_err(Error::VmConfigGetDefaultIpaSize)?;
+            Ok(ipa_bit_length)
         } else {
-            36
+            Ok(36)
         }
     }
 
-    fn get_max_ipa_size() -> u32 {
+    fn get_max_ipa_size() -> Result<u32, Error> {
         if let Some(hvf_optional) = HVF_OPTIONAL.as_ref() {
             let mut ipa_bit_length: u32 = 0;
-            unsafe { hvf_optional.hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
-            ipa_bit_length
+            let ret = unsafe { hvf_optional.hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
+            HvfError::result(ret).map_err(Error::VmConfigGetMaxIpaSize)?;
+            Ok(ipa_bit_length)
         } else {
-            36
+            Ok(36)
         }
     }
 
-    pub fn max_ram_size() -> u64 {
-        let max_addr = (1 << Self::get_max_ipa_size()) - 1;
+    pub fn max_ram_size() -> Result<u64, Error> {
+        let max_addr = (1 << Self::get_max_ipa_size()?) - 1;
         let max_ram_addr = max_addr - MMIO_SHM_SIZE - 0x4000_0000; // shm rounding (ceil) = 1 GiB
-        max_ram_addr - layout::DRAM_MEM_START
+        Ok(max_ram_addr - layout::DRAM_MEM_START)
     }
 }
 
@@ -438,9 +452,7 @@ impl HvfVcpu {
                 std::ptr::null_mut(),
             )
         };
-        if ret != HV_SUCCESS {
-            return Err(Error::VcpuCreate);
-        }
+        HvfError::result(ret).map_err(Error::VcpuCreate)?;
 
         Ok(Self {
             parker,
@@ -492,20 +504,13 @@ impl HvfVcpu {
     pub fn read_raw_reg(&self, reg: u32) -> Result<u64, Error> {
         let mut val: u64 = 0;
         let ret = unsafe { hv_vcpu_get_reg(self.hv_vcpu.0, reg, &mut val) };
-        if ret != HV_SUCCESS {
-            Err(Error::VcpuReadRegister)
-        } else {
-            Ok(val)
-        }
+        HvfError::result(ret).map_err(Error::VcpuReadRegister)?;
+        Ok(val)
     }
 
     pub fn write_raw_reg(&mut self, reg: u32, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_set_reg(self.hv_vcpu.0, reg, val) };
-        if ret != HV_SUCCESS {
-            Err(Error::VcpuSetRegister)
-        } else {
-            Ok(())
-        }
+        HvfError::result(ret).map_err(Error::VcpuSetRegister)
     }
 
     pub fn read_gp_reg(&self, reg: u32) -> Result<u64, Error> {
@@ -532,20 +537,13 @@ impl HvfVcpu {
     fn read_sys_reg(&self, reg: u16) -> Result<u64, Error> {
         let mut val: u64 = 0;
         let ret = unsafe { hv_vcpu_get_sys_reg(self.hv_vcpu.0, reg, &mut val) };
-        if ret != HV_SUCCESS {
-            Err(Error::VcpuReadSystemRegister)
-        } else {
-            Ok(val)
-        }
+        HvfError::result(ret).map_err(Error::VcpuReadSystemRegister)?;
+        Ok(val)
     }
 
     fn write_sys_reg(&mut self, reg: u16, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_set_sys_reg(self.hv_vcpu.0, reg, val) };
-        if ret != HV_SUCCESS {
-            Err(Error::VcpuSetSystemRegister)
-        } else {
-            Ok(())
-        }
+        HvfError::result(ret).map_err(Error::VcpuSetSystemRegister)
     }
 
     fn write_actlr_el1(&mut self, new_value: u64) -> Result<(), Error> {
@@ -568,7 +566,7 @@ impl HvfVcpu {
         // this is actually in a global array indexed by vcpuid
         let vcpu_ptr = unsafe { _hv_vcpu_get_context(self.hv_vcpu.0) };
         if vcpu_ptr.is_null() {
-            return Err(Error::VcpuInitialRegisters);
+            return Err(Error::VcpuInitialRegisters(HvfError::Unknown));
         }
 
         // back up sctlr_el1
@@ -585,7 +583,7 @@ impl HvfVcpu {
             self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_SCTLR_EL1, SYS_REG_SENTINEL)?;
 
             let sctlr_offset = search_8b_linear(vcpu_ptr as *mut u64, SYS_REG_SENTINEL, 4096)
-                .ok_or(Error::VcpuInitialRegisters)?;
+                .ok_or(Error::VcpuInitialRegisters(HvfError::Unknown))?;
             // actlr_el1 (0xc081) has always been before sctlr_el1 (0xc080)
             // TODO: impossible to do this better? (setting all sysregs and finding holes doesn't work -- there are too many holes)
             actlr_el1_offset = sctlr_offset as isize * 8 - 8;
@@ -642,9 +640,7 @@ impl HvfVcpu {
         }
 
         let ret = unsafe { hv_vcpu_run(self.hv_vcpu.0) };
-        if ret != HV_SUCCESS {
-            return Err(Error::VcpuRun);
-        }
+        HvfError::result(ret).map_err(Error::VcpuRun)?;
 
         COUNT_EXIT_TOTAL.count();
 
@@ -673,6 +669,14 @@ impl HvfVcpu {
 
                         self.pending_advance_pc = true;
                         VcpuExit::SecureMonitorCall
+                    }
+                    EC_IABT_LOW => {
+                        panic!(
+                            "instruction abort: syndrome={:x} va={:x} pa={:x}",
+                            syndrome,
+                            vcpu_exit.exception.virtual_address,
+                            vcpu_exit.exception.physical_address
+                        );
                     }
                     EC_SYSTEMREGISTERTRAP => {
                         let is_read: bool = (syndrome & 1) != 0;
@@ -873,20 +877,13 @@ impl HvfVcpu {
 pub unsafe fn vm_allocate(size: usize) -> Result<*mut c_void, Error> {
     let mut ptr: *mut c_void = std::ptr::null_mut();
     let ret = unsafe { hv_vm_allocate(&mut ptr, size, HV_ALLOCATE_DEFAULT as u64) };
-    if ret != HV_SUCCESS {
-        Err(Error::VmAllocate)
-    } else {
-        Ok(ptr)
-    }
+    HvfError::result(ret).map_err(Error::VmAllocate)?;
+    Ok(ptr)
 }
 
 pub unsafe fn vm_deallocate(ptr: *mut c_void, size: usize) -> Result<(), Error> {
     let ret = unsafe { hv_vm_deallocate(ptr, size) };
-    if ret != HV_SUCCESS {
-        Err(Error::VmAllocate)
-    } else {
-        Ok(())
-    }
+    HvfError::result(ret).map_err(Error::VmDeallocate)
 }
 
 pub fn vcpu_id_to_mpidr(vcpu_id: u64) -> u64 {

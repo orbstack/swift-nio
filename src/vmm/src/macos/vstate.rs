@@ -132,7 +132,10 @@ impl Parkable for VmParker {
     fn park(&self) -> std::result::Result<StartupTask, StartupAbortedError> {
         // Resurrect the unpark task. We do this here to ensure that parking vCPUs don't
         // immediately exit.
-        let unpark_task = self.unpark_signal.resurrect_cloned().expect("`unpark_signal` poisoned");
+        let unpark_task = self
+            .unpark_signal
+            .resurrect_cloned()
+            .expect("`unpark_signal` poisoned");
 
         // Let's send a pause signal to every vCPU. They will receive and honor this since this
         // signal is never asserted outside of `park` (or when the signal is aborted)
@@ -754,7 +757,7 @@ impl Vcpu {
         // Setup the vCPU
         hvf_vcpu
             .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_tso)
-            .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
+            .unwrap_or_else(|e| panic!("Can't set HVF vCPU {} initial state: {}", hvf_vcpuid, e));
 
         // Create a guard for loop exit
         let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());

@@ -133,7 +133,7 @@ impl Machine {
         // clamp memory
         let mem_size = spec
             .memory
-            .min(HvfVm::max_ram_size() as usize)
+            .min(HvfVm::max_ram_size()? as usize)
             .min(system_total_memory());
 
         // resources

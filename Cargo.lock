@@ -678,6 +678,8 @@ dependencies = [
  "iced-x86",
  "libc",
  "nix 0.28.0",
+ "num-derive",
+ "num-traits",
  "once_cell",
  "rustc-hash",
  "thiserror",
