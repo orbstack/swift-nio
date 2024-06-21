@@ -6,7 +6,7 @@ use std::{boxed::Box, result};
 /// Errors thrown while setting up the GIC.
 #[derive(Debug)]
 pub enum Error {}
-type Result<T> = result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Error>;
 
 /// Trait for GIC devices.
 pub trait GICDevice: Send {
@@ -71,7 +71,7 @@ pub trait GICDevice: Send {
 /// Create a GIC device.
 ///
 /// It will try to create by default a GICv3 device.
-pub fn create_gic(vcpu_count: u64) -> Result<Box<dyn GICDevice>> {
+pub fn create_userspace_gic(vcpu_count: u64) -> Result<Box<dyn GICDevice>> {
     // super::gicv2::GICv2::new(vcpu_count)
-    super::gicv3::GICv3::new(vcpu_count)
+    super::gicv3::UserspaceGICv3::new(vcpu_count)
 }

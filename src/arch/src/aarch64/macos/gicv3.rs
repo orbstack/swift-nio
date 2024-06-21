@@ -17,12 +17,12 @@ type Result<T> = result::Result<T, Error>;
 
 /// This is just a placeholder for building the FDT entry.
 /// The actual emulated GICv3 is in devices/legacy.
-pub struct GICv3 {
+pub struct UserspaceGICv3 {
     vcpu_count: u64,
     reg_props: [u64; 4],
 }
 
-impl GICv3 {
+impl UserspaceGICv3 {
     pub fn mapped_range() -> MmioRange {
         MmioRange::new(
             super::super::layout::MAPPED_IO_START - size_of::<GicFullMap>() as u64,
@@ -49,7 +49,7 @@ impl GICv3 {
     }
 }
 
-impl GICDevice for GICv3 {
+impl GICDevice for UserspaceGICv3 {
     fn version() -> u32 {
         0
     }
@@ -74,7 +74,7 @@ impl GICDevice for GICv3 {
     }
 
     fn create_device(vcpu_count: u64) -> Box<dyn GICDevice> {
-        Box::new(GICv3 {
+        Box::new(UserspaceGICv3 {
             vcpu_count, // reg : Specifies base physical address(s) and size of the GIC registers, in the following order:
             reg_props: [
                 // - GIC Distributor interface (GICD)

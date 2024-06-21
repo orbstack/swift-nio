@@ -209,7 +209,7 @@ impl Vm {
         vcpu_count: u8,
         guest_mem: &GuestMemoryMmap,
     ) -> Result<Self> {
-        let hvf_vm = HvfVm::new(guest_mem).map_err(Error::VmSetup)?;
+        let hvf_vm = HvfVm::new(guest_mem, vcpu_count).map_err(Error::VmSetup)?;
 
         Ok(Vm {
             shutdown,
@@ -252,8 +252,14 @@ impl Vm {
 
     #[cfg(target_arch = "aarch64")]
     pub fn setup_irqchip(&mut self, vcpu_count: u8) -> Result<()> {
-        self.irqchip_handle =
-            Some(arch::aarch64::gic::create_gic(vcpu_count.into()).map_err(Error::SetupGIC)?);
+        self.irqchip_handle = if let Some(gic) = self.hvf_vm.get_fdt_gic() {
+            Some(gic)
+        } else {
+            Some(
+                arch::aarch64::gic::create_userspace_gic(vcpu_count.into())
+                    .map_err(Error::SetupGIC)?,
+            )
+        };
         Ok(())
     }
 

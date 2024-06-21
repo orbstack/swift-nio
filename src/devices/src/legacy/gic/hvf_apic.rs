@@ -1,6 +1,3 @@
-// Copyright 2021 Red Hat, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 use hvf::HvfVm;
 
 use super::{UserspaceGicImpl, WfeThread};

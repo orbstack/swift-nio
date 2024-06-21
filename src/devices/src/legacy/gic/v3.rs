@@ -6,7 +6,7 @@ use vmm_ids::VcpuSignalMask;
 
 use super::{Gic, GicVcpuHandle, UserspaceGicImpl, WfeThread};
 
-use arch::aarch64::{gicv3::GICv3, layout::GTIMER_VIRT};
+use arch::aarch64::{gicv3::UserspaceGICv3, layout::GTIMER_VIRT};
 pub use gicv3::mmio::GicSysReg;
 use gicv3::{
     device::{Affinity, GicV3EventHandler, InterruptId, PeId, PeInterruptState},
@@ -27,11 +27,11 @@ const TIMER_INT_ID: InterruptId = InterruptId(GTIMER_VIRT + 16);
 
 impl UserspaceGicImpl for UserspaceGicV3 {
     fn get_addr(&self) -> u64 {
-        GICv3::mapped_range().start
+        UserspaceGICv3::mapped_range().start
     }
 
     fn get_size(&self) -> u64 {
-        GICv3::mapped_range().size()
+        UserspaceGICv3::mapped_range().size()
     }
 
     fn read(&mut self, vcpuid: u64, offset: u64, data: &mut [u8]) {

@@ -5,5 +5,7 @@ mod multiplexer;
 mod v3;
 #[cfg(target_arch = "aarch64")]
 pub use v3::GicSysReg;
+#[cfg(target_arch = "aarch64")]
+mod hvf_gic;
 
 pub use multiplexer::*;
