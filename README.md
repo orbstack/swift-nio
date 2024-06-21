@@ -17,6 +17,7 @@
 
 **If you're not working on Kubernetes or the Linux kernel, check Slack for prebuilt binaries to speed this up.**
 
+1. `brew install rustup go && rustup-init`
 1. Install and start a [release build of OrbStack](https://orbstack.dev/download)
 1. Add `GOPRIVATE=github.com/orbstack/*-macvirt` to global shell environment (`~/.profile`)
 1. Install GitHub CLI: `brew install gh`
