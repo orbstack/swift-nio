@@ -102,6 +102,12 @@ impl GicV3 {
                     active
                 } else if let Some(front) = pe_int_state.pending_interrupts.pop_front() {
                     pe_int_state.active_interrupt = Some(front);
+                    drop(pe_int_state);
+
+                    if front.kind().is_shared() {
+                        self.acknowledge_spi(handler, front);
+                    }
+
                     front
                 } else {
                     InterruptId(1023)

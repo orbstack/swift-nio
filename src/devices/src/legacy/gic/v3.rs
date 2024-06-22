@@ -78,6 +78,7 @@ impl UserspaceGicImpl for UserspaceGicV3 {
             &mut HvfGicEventHandler {
                 wfe_threads: &mut self.wfe_threads,
             },
+            None,
             InterruptId(irq_line),
         );
     }
@@ -165,6 +166,6 @@ impl GicVcpuHandle for GicV3VcpuHandle {
     }
 
     fn set_vtimer_irq(&mut self) {
-        self.0.lock().unwrap().push_interrupt(TIMER_INT_ID);
+        self.0.lock().unwrap().push_local_interrupt(TIMER_INT_ID);
     }
 }

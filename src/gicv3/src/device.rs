@@ -91,6 +91,16 @@ pub enum InterruptKind {
     SoftwareGenerated,
 }
 
+impl InterruptKind {
+    pub fn is_shared(self) -> bool {
+        matches!(self, Self::SharedPeripheral)
+    }
+
+    pub fn is_local(self) -> bool {
+        !self.is_shared()
+    }
+}
+
 /// An identifier for a CPU which gives information about its location.
 ///
 /// For example, these could formatted as follows:
@@ -162,7 +172,7 @@ pub struct PeId(pub u64);
 
 /// The number of bits used to encode a priority value, from 4 to 8.
 // N.B. We have to set this to something less than `6` to ensure that `gic_cpu_sys_reg_init` doesn't
-// write to `ICC_AP1R1_EL1`, which causes an EL exception for some reason.
+// write to `ICC_AP1R1_EL1`, which causes an unrecoverable EL exception for some reason.
 pub const PRIORITY_BITS: u64 = 4;
 
 pub trait GicV3EventHandler {
@@ -181,7 +191,8 @@ pub trait GicV3EventHandler {
 pub struct GicV3 {
     // TODO: Replace with index vectors and, perhaps, perform an SOA transform to make bitmask queries
     //  considerably quicker. Also, a lot of bitmask handling could be done using CTZ.
-    pub global_int_configs: FxHashMap<InterruptId, InterruptConfig>,
+    pub shared_int_configs: FxHashMap<InterruptId, InterruptConfig>,
+    pub shared_int_queues: FxHashMap<InterruptId, GlobalInterruptState>,
     pub local_int_configs: FxHashMap<(PeId, InterruptId), InterruptConfig>,
     pub pe_states: FxHashMap<PeId, PeState>,
     pub affinity_to_pe: FxHashMap<Affinity, PeId>,
@@ -204,7 +215,7 @@ impl GicV3 {
                 .entry((pe, id))
                 .or_insert_with(|| InterruptConfig::new(pe, id))
         } else {
-            self.global_int_configs
+            self.shared_int_configs
                 .entry(id)
                 .or_insert_with(|| InterruptConfig::new(pe, id))
         }
@@ -225,16 +236,55 @@ impl GicV3 {
         })
     }
 
-    pub fn send_spi(&mut self, handler: &mut impl GicV3EventHandler, int_id: InterruptId) {
+    pub fn send_spi(
+        &mut self,
+        handler: &mut impl GicV3EventHandler,
+        pe: Option<PeId>,
+        int_id: InterruptId,
+    ) {
         assert_eq!(int_id.kind(), InterruptKind::SharedPeripheral);
         COUNT_SPI.count();
 
-        // HACK: We just send the SPI to the first PE we find but I don't think that's spec-compliant,
-        //  technically? I think Linux just configures a specific PE as the only one capable of
-        //  receiving these events but I may be wrong.
-        if let Some((pe, pe_state)) = self.pe_states.iter_mut().next() {
-            Self::send_interrupt_inner(handler, *pe, pe_state, int_id, true);
+        // Determine target PE
+        let (&pe, pe_state) = match &pe {
+            Some(pe) => (pe, self.pe_states.get_mut(pe).unwrap()),
+            // HACK: We just send the SPI to the first PE we find but I don't think that's
+            // spec-compliant, technically? It looks like all PEs can accept SPIs, though, so it's
+            // probably fine for Linux.
+            None => self.pe_states.iter_mut().next().unwrap(),
+        };
+
+        // Ensure that no one else is asserting this SPI on a different PE. If they are, we need to
+        // get in line because, otherwise, Linux will ignore the concurrent SPI.
+        let queue = self.shared_int_queues.entry(int_id).or_default();
+        queue.deliver_to.push_back(pe);
+
+        if queue.deliver_to.len() > 1 {
+            return;
         }
+
+        // Otherwise, deliver the SPI!
+        Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, true);
+    }
+
+    pub fn acknowledge_spi(&mut self, handler: &mut impl GicV3EventHandler, int_id: InterruptId) {
+        let Some(int) = self.shared_int_queues.get_mut(&int_id) else {
+            return;
+        };
+
+        int.deliver_to.pop_front();
+
+        let Some(&new_pe) = int.deliver_to.front() else {
+            return;
+        };
+
+        Self::deliver_interrupt_to_pe(
+            handler,
+            new_pe,
+            self.pe_states.get_mut(&new_pe).unwrap(),
+            int_id,
+            true,
+        );
     }
 
     pub fn send_ppi(
@@ -248,10 +298,10 @@ impl GicV3 {
         COUNT_PPI.count();
 
         let pe_state = self.pe_states.get_mut(&pe).unwrap();
-        Self::send_interrupt_inner(handler, pe, pe_state, int_id, !is_local);
+        Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, !is_local);
     }
 
-    pub fn send_interrupt_inner(
+    pub fn deliver_interrupt_to_pe(
         handler: &mut impl GicV3EventHandler,
         pe: PeId,
         pe_state: &mut PeState,
@@ -277,7 +327,11 @@ impl GicV3 {
         // we must push to the back of the queue, and not the front, in order for PV GIC to work
         // otherwise the next peeked interrupt could change between vmenter and vmexit (which is when we prcoess the deferred IAR1)
         // due to PV GIC, if we ever dedupe interrupts, it's fine -- we just need to allow 2 copies of each interrupt (e.g. 2 bitmasks) to make sure that any new interrupt delivered between when guest was supposed to IAR1, and when it was supposed to EOIR1, is not missed (because normally IAR1 dequeues and would make it no longer a duplicate when re-asserted)
-        pe_state.int_state.lock().unwrap().push_interrupt(int_id);
+        pe_state
+            .int_state
+            .lock()
+            .unwrap()
+            .push_interrupt_inner(int_id);
 
         if needs_kick {
             handler.kick_vcpu_for_irq(pe);
@@ -355,7 +409,13 @@ impl PeInterruptState {
         }
     }
 
-    pub fn push_interrupt(&mut self, int_id: InterruptId) {
+    pub fn push_local_interrupt(&mut self, int_id: InterruptId) {
+        // Shared interrupts have to pass through the GIC
+        debug_assert!(int_id.kind().is_local());
+        self.push_interrupt_inner(int_id);
+    }
+
+    fn push_interrupt_inner(&mut self, int_id: InterruptId) {
         // If there's already more than 1 interrupt pending (uncommon case), make sure we only push
         // at most one duplicate. Any additional ones are just bad for performance, and searching
         // here is definitely worth the saved vmexits. For perf, avoid the scan unless there are
@@ -374,4 +434,9 @@ impl PeInterruptState {
 
         self.pending_interrupts.push_back(int_id);
     }
+}
+
+#[derive(Debug, Default)]
+pub struct GlobalInterruptState {
+    pub deliver_to: VecDeque<PeId>,
 }

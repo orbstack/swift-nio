@@ -168,7 +168,7 @@ impl GicV3 {
                 if irm {
                     for (target_pe, pe_state) in &mut self.pe_states {
                         if pe != *target_pe {
-                            Self::send_interrupt_inner(handler, pe, pe_state, int_id, true);
+                            Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, true);
                         }
                     }
                 } else {
@@ -177,7 +177,7 @@ impl GicV3 {
                         let target_pe = self.affinity_to_pe(target_aff).unwrap();
                         let pe_state = self.pe_states.get_mut(&target_pe).unwrap();
 
-                        Self::send_interrupt_inner(handler, target_pe, pe_state, int_id, true);
+                        Self::deliver_interrupt_to_pe(handler, target_pe, pe_state, int_id, true);
                     }
 
                     COUNT_IPI_SINGLE.count();
