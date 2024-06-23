@@ -235,7 +235,7 @@ func (c *Container) configureLxc() error {
 		addDevOptional := func(node string) {
 			if err := addInitDevice(c, node); err != nil {
 				// this is only warning - devices are optional
-				logrus.WithError(err).WithField("node", node).Warn("add device failed")
+				logrus.WithError(err).WithField("node", node).Debug("add device failed")
 			}
 		}
 		bind := func(src, dst, opts string) {
