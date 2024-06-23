@@ -221,7 +221,7 @@ pub enum ParkError {
 pub struct HvfVm {}
 
 impl HvfVm {
-    pub fn new(_guest_mem: &GuestMemoryMmap) -> Result<Self, Error> {
+    pub fn new(_guest_mem: &GuestMemoryMmap, _vcpu_count: u8) -> Result<Self, Error> {
         let ret = unsafe { hv_vm_create((HV_VM_DEFAULT | HV_VM_ACCEL_APIC) as u64) };
         if ret != HV_SUCCESS {
             return Err(Error::VmCreate);
@@ -305,8 +305,8 @@ impl HvfVm {
     }
 
     // x86 IPA size is always larger than system RAM, so just clamp to total system RAM
-    pub fn max_ram_size() -> u64 {
-        u64::MAX
+    pub fn max_ram_size() -> Result<u64, Error> {
+        Ok(u64::MAX)
     }
 }
 

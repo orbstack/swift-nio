@@ -165,7 +165,7 @@ impl Serial {
     }
 
     fn trigger_interrupt(&mut self) -> io::Result<()> {
-        self.interrupt_evt.write(1)
+        self.interrupt_evt.write()
     }
 
     fn iir_reset(&mut self) {
