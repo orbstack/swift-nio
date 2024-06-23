@@ -151,25 +151,20 @@ pub fn multiplex_signals<C: ?Sized>(
                         "Processing signals from `{}`",
                         handlers[i].debug_type_name(),
                     );
+
                     handlers[i].process(should_stop, parker_facade);
                 });
-
-                #[cfg(debug_assertions)]
-                for (signal_idx, signal) in handler_signals[i_cell].iter().enumerate() {
-                    if signal.could_take(u64::MAX) {
-                        tracing::warn!(
-                            "Signal multiplex handler of type `{}` ignored some events from its \
-                             subscribed signal at index {signal_idx}; this could cause unexpected \
-                             behavior.",
-                            handlers[i].debug_type_name(),
-                        );
-                    }
-                }
             }
         }
 
-        // Although we don't redo another `wait` operation here, this routine is still guaranteed not
-        // to miss any events because `park` holds unpark tickets.
+        // Although we don't re-run `wait`, this logic is still correct. `take` and `assert` both
+        // modify the `asserted_mask` atomically, either `take` will successfully grab `assert`'s
+        // result and the subscriber will observe the signal—or `assert` will occur after the `take`
+        // and will call the `wake` closure, which calls `unpark`. Since `unpark` is expected to
+        // store wake-up tickets, this is fine.
+        //
+        // HAZARD: the subscriber *must* grab all signals from the channel in one `take` operation
+        // since signals are edge-triggered on the OR of all signals in the mask.
         MultiplexParker::park(&mut parker, should_stop);
     }
 }
@@ -536,5 +531,67 @@ impl InterestCtrl<'_, RawFd> {
     pub fn register_fd(&mut self, source: &impl AsRawFd, interests: mio::Interest) {
         let source = source.as_raw_fd();
         self.register(&mut SourceFd(&source), interests, source);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::thread;
+
+    use super::*;
+
+    #[test]
+    fn spam_subscriber() {
+        define_waker_set! {
+            #[derive(Default)]
+            pub struct MyWakers {
+                pub dynamic: DynamicallyBoundWaker,
+            }
+        }
+
+        struct MySubscriber {
+            signal: Arc<RawSignalChannel<MyWakers>>,
+            counter: u32,
+        }
+
+        impl Subscriber for MySubscriber {
+            type EventMeta = ();
+
+            fn process_signals(&mut self, ctrl: &mut InterestCtrl<'_, Self::EventMeta>) {
+                // Expect a signal.
+                if self.signal.take(u64::MAX) == 0 {
+                    return;
+                }
+
+                // Attempt to wake-up this subscriber a reasonable number of times.
+                self.counter += 1;
+
+                if self.counter > 10_000 {
+                    ctrl.stop();
+                }
+            }
+
+            fn signals(&self) -> Vec<CloneDynRef<'static, RawSignalChannel>> {
+                vec![CloneDynRef::new(self.signal.clone() as Arc<_>)]
+            }
+        }
+
+        let mut em = EventManager::new().unwrap();
+        let signal = Arc::new(RawSignalChannel::new(MyWakers::default()));
+        em.register(MySubscriber {
+            signal: signal.clone(),
+            counter: 0,
+        });
+
+        let should_run = &AtomicBool::new(true);
+        thread::scope(|s| {
+            s.spawn(|| {
+                while should_run.load(Relaxed) {
+                    signal.assert(u64::MAX);
+                }
+            });
+            em.run();
+            should_run.store(false, Relaxed);
+        });
     }
 }
