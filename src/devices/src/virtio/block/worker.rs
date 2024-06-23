@@ -279,11 +279,6 @@ impl BlockWorker {
         self.interrupt_status
             .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
-            tracing::info!(
-                "Notifying vCPU no. {} on IRQ line {}",
-                self.target_vcpu,
-                self.irq_line.unwrap(),
-            );
             intc.lock()
                 .unwrap()
                 .set_irq_for_vcpu(Some(self.target_vcpu), self.irq_line.unwrap());

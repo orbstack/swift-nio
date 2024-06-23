@@ -525,11 +525,7 @@ impl VirtioDevice for Block {
 struct BlockSyncWorkerSet(Arc<RwLock<Box<[Mutex<BlockWorker>]>>>);
 
 impl SyncEventHandlerSet for BlockSyncWorkerSet {
-    fn process(&self, vcpuid: u64, queue: u32) {
-        if vcpuid != queue as u64 {
-            tracing::warn!("Wrong vCPU triggered block device! ({vcpuid} != {queue})");
-        }
-
+    fn process(&self, _vcpuid: u64, queue: u32) {
         if let Some(worker) = self.0.read().unwrap().get(queue as usize) {
             worker.lock().unwrap().process_virtio_queues();
         }
