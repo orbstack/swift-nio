@@ -1,9 +1,13 @@
-.PHONY: app serve pub r2
+.PHONY: app serve pub r2 clean
 
 app:
 	@cd rootfs; make release
 	@cd bins; make
 	@./build-app.sh
+
+clean:
+	@go clean -cache
+	@rm -fr vendor/libkrun/target swift/GoVZF/.build swift/DerivedData
 
 serve:
 	@cd updates; python3 -m http.server
