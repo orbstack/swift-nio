@@ -501,6 +501,10 @@ pub fn free_block(
         );
         let entry_addr = host_addr as mach_vm_address_t + off;
 
+        if entry_size < MACH_CHUNK_SIZE as mach_vm_size_t {
+            break;
+        }
+
         let mut state = VM_PURGABLE_EMPTY;
         let ret = unsafe {
             mach_vm_purgable_control(
