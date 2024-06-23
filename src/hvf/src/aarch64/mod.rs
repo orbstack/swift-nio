@@ -281,6 +281,8 @@ struct HvfOptional15 {
     hv_gic_get_distributor_size: unsafe extern "C" fn(distributor_size: *mut usize) -> hv_return_t,
     hv_gic_get_redistributor_region_size:
         unsafe extern "C" fn(redistributor_region_size: *mut usize) -> hv_return_t,
+    hv_gic_get_intid:
+        unsafe extern "C" fn(interrupt: hv_gic_intid_t, intid: *mut u32) -> hv_return_t,
     hv_gic_config_set_distributor_base: unsafe extern "C" fn(
         config: hv_gic_config_t,
         distributor_base_address: hv_ipa_t,
@@ -289,9 +291,18 @@ struct HvfOptional15 {
         config: hv_gic_config_t,
         redistributor_base_address: hv_ipa_t,
     ) -> hv_return_t,
+    hv_gic_create: unsafe extern "C" fn(config: hv_gic_config_t) -> hv_return_t,
+
+    hv_gic_set_spi: unsafe extern "C" fn(intid: u32, level: bool) -> hv_return_t,
 
     hv_vm_config_set_el2_enabled:
         unsafe extern "C" fn(config: hv_vm_config_t, el2_enabled: bool) -> hv_return_t,
+}
+
+macro_rules! call_optional {
+    ($optional: expr, $method: ident, $($args: expr),*) => {
+        $optional.as_ref().unwrap().$method($($args),*)
+    };
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -346,7 +357,14 @@ impl GICDevice for FdtGic {
 
     fn fdt_maint_irq(&self) -> u32 {
         let mut irq = 0;
-        let ret = unsafe { hv_gic_get_intid(hv_gic_intid_t_HV_GIC_INT_MAINTENANCE, &mut irq) };
+        let ret = unsafe {
+            call_optional!(
+                OPTIONAL15,
+                hv_gic_get_intid,
+                hv_gic_intid_t_HV_GIC_INT_MAINTENANCE,
+                &mut irq
+            )
+        };
         HvfError::result(ret).map_err(Error::GicGetIntid).unwrap();
         irq
     }
@@ -362,12 +380,6 @@ impl GICDevice for FdtGic {
     fn init_device_attributes(_gic_device: &Box<dyn GICDevice>) -> gic::Result<()> {
         unimplemented!();
     }
-}
-
-macro_rules! call_optional {
-    ($optional: expr, $method: ident, $($args: expr),*) => {
-        $optional.as_ref().unwrap().$method($($args),*)
-    };
 }
 
 struct VmConfig {
@@ -473,7 +485,7 @@ impl GicConfig {
     }
 
     fn create_gic(&self) -> Result<(), Error> {
-        let ret = unsafe { hv_gic_create(self.ptr) };
+        let ret = unsafe { call_optional!(OPTIONAL15, hv_gic_create, self.ptr) };
         HvfError::result(ret).map_err(Error::GicCreate)
     }
 }
@@ -554,7 +566,7 @@ impl HvfVm {
     }
 
     pub fn assert_spi(&self, irq: u32) -> Result<(), Error> {
-        let ret = unsafe { hv_gic_set_spi(irq, true) };
+        let ret = unsafe { call_optional!(OPTIONAL15, hv_gic_set_spi, irq, true) };
         HvfError::result(ret).map_err(Error::GicAssertSpi)
     }
 
