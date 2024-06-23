@@ -83,7 +83,7 @@ var (
 		ImageAlma:   "8",
 		ImageAlpine: "3.17",
 		//ImageArch:      "current",
-		ImageCentos: "8-Stream",
+		ImageCentos: "9-Stream",
 		ImageDebian: "buster",
 		ImageDevuan: "beowulf",
 		ImageFedora: "39",
