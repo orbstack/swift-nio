@@ -59,18 +59,21 @@ counter::counter! {
     COUNT_EXIT_VTIMER in "hvf.vmexit.vtimer": RateCounter = RateCounter::new(FILTER);
 }
 
+// macOS 15 knobs
 const USE_HVF_GIC: bool = false;
+const ENABLE_NESTED_VIRT: bool = false;
 
 const HV_EXIT_REASON_CANCELED: hv_exit_reason_t = 0;
 const HV_EXIT_REASON_EXCEPTION: hv_exit_reason_t = 1;
 const HV_EXIT_REASON_VTIMER_ACTIVATED: hv_exit_reason_t = 2;
 
 const PSR_MODE_EL1H: u64 = 0x0000_0005;
+const PSR_MODE_EL2H: u64 = 0x0000_0009;
 const PSR_F_BIT: u64 = 0x0000_0040;
 const PSR_I_BIT: u64 = 0x0000_0080;
 const PSR_A_BIT: u64 = 0x0000_0100;
 const PSR_D_BIT: u64 = 0x0000_0200;
-const INITIAL_PSTATE: u64 = PSR_MODE_EL1H | PSR_A_BIT | PSR_F_BIT | PSR_I_BIT | PSR_D_BIT;
+const INITIAL_PSTATE: u64 = PSR_A_BIT | PSR_F_BIT | PSR_I_BIT | PSR_D_BIT;
 
 const EC_WFX_TRAP: u64 = 0x1;
 const EC_AA64_HVC: u64 = 0x16;
@@ -286,6 +289,9 @@ struct HvfOptional15 {
         config: hv_gic_config_t,
         redistributor_base_address: hv_ipa_t,
     ) -> hv_return_t,
+
+    hv_vm_config_set_el2_enabled:
+        unsafe extern "C" fn(config: hv_vm_config_t, el2_enabled: bool) -> hv_return_t,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -378,14 +384,20 @@ impl VmConfig {
         }
     }
 
+    fn ptr(&self) -> hv_vm_config_t {
+        self.ptr
+    }
+
     fn set_ipa_size(&self, ipa_bits: u32) -> Result<(), Error> {
         let ret =
             unsafe { call_optional!(OPTIONAL12, hv_vm_config_set_ipa_size, self.ptr, ipa_bits) };
         HvfError::result(ret).map_err(Error::VmConfigSetIpaSize)
     }
 
-    fn ptr(&self) -> hv_vm_config_t {
-        self.ptr
+    fn set_el2_enabled(&self, enabled: bool) -> Result<(), Error> {
+        let ret =
+            unsafe { call_optional!(OPTIONAL15, hv_vm_config_set_el2_enabled, self.ptr, enabled) };
+        HvfError::result(ret).map_err(Error::VmConfigSetEl2Enabled)
     }
 }
 
@@ -478,7 +490,7 @@ impl HvfVm {
             if ipa_bits > Self::get_max_ipa_size()? {
                 return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
             }
-            let Some(config) = config.as_ref() else {
+            let Some(ref config) = config else {
                 return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
             };
 
@@ -486,8 +498,15 @@ impl HvfVm {
             config.set_ipa_size(ipa_bits)?;
         }
 
+        if ENABLE_NESTED_VIRT {
+            // our GIC impl doesn't support EL2
+            // we'd also need a custom HVC interface to set ICH regs for injection
+            assert!(USE_HVF_GIC);
+            config.as_ref().unwrap().set_el2_enabled(true)?;
+        }
+
         let gic_config = GicConfig::new();
-        let gic_props = if let Some(gic_config) = gic_config.as_ref() {
+        let gic_props = if let Some(ref gic_config) = gic_config {
             let dist_size = GicConfig::get_distributor_size()?;
             let redist_total_size = GicConfig::get_redistributor_region_size()?;
 
@@ -736,17 +755,26 @@ impl HvfVcpu {
         mpidr: u64,
         enable_tso: bool,
     ) -> Result<(), Error> {
-        self.write_raw_reg(hv_reg_t_HV_REG_CPSR, INITIAL_PSTATE)?;
+        // enable TSO first. this breaks after setting CPSR to EL2
+        if enable_tso {
+            self.allow_actlr = true;
+            self.write_actlr_el1(ACTLR_EL1_MYSTERY | ACTLR_EL1_EN_TSO)?;
+        }
+
+        let initial_el = if ENABLE_NESTED_VIRT {
+            PSR_MODE_EL2H
+        } else {
+            PSR_MODE_EL1H
+        };
+        self.write_raw_reg(hv_reg_t_HV_REG_CPSR, INITIAL_PSTATE | initial_el)?;
+
         self.write_raw_reg(hv_reg_t_HV_REG_PC, entry_addr)?;
         self.write_raw_reg(hv_reg_t_HV_REG_X0, fdt_addr)?;
         self.write_raw_reg(hv_reg_t_HV_REG_X1, 0)?;
         self.write_raw_reg(hv_reg_t_HV_REG_X2, 0)?;
         self.write_raw_reg(hv_reg_t_HV_REG_X3, 0)?;
         self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, mpidr)?;
-        if enable_tso {
-            self.allow_actlr = true;
-            self.write_actlr_el1(ACTLR_EL1_MYSTERY | ACTLR_EL1_EN_TSO)?;
-        }
+
         Ok(())
     }
 
