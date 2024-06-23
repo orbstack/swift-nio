@@ -41,7 +41,7 @@ impl UserspaceGicImpl for HvfGic {
 
     // === IRQ Assertion === //
 
-    fn set_irq(&mut self, irq_line: u32) {
+    fn set_irq(&mut self, _vcpuid: Option<u64>, irq_line: u32) {
         debug!("asserting gic irq {}", irq_line);
         self.hvf_vm.assert_spi(irq_line).unwrap();
     }

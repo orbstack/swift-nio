@@ -169,7 +169,7 @@ pub trait VirtioDevice: Send {
 pub type ErasedSyncEventHandlerSet = SmallBox<dyn SyncEventHandlerSet, *mut [()]>;
 
 pub trait SyncEventHandlerSet: Send + Sync {
-    fn process(&self, queue: u32);
+    fn process(&self, vcpuid: u64, queue: u32);
 }
 
 pub trait HvcDevice: Send + Sync {

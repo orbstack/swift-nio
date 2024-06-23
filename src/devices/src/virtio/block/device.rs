@@ -453,7 +453,7 @@ impl VirtioDevice for Block {
 
         let mut workers = Vec::new();
 
-        for queue in self.queues.iter_mut() {
+        for (queue_index, queue) in self.queues.iter_mut().enumerate() {
             let event_idx: bool = (self.acked_features & (1 << VIRTIO_RING_F_EVENT_IDX)) != 0;
             queue.set_event_idx(event_idx);
 
@@ -473,6 +473,7 @@ impl VirtioDevice for Block {
                 self.interrupt_status.clone(),
                 self.intc.clone(),
                 self.irq_line,
+                queue_index as u64,
                 mem.clone(),
                 disk,
             ));
@@ -524,7 +525,11 @@ impl VirtioDevice for Block {
 struct BlockSyncWorkerSet(Arc<RwLock<Box<[Mutex<BlockWorker>]>>>);
 
 impl SyncEventHandlerSet for BlockSyncWorkerSet {
-    fn process(&self, queue: u32) {
+    fn process(&self, vcpuid: u64, queue: u32) {
+        if vcpuid != queue as u64 {
+            tracing::warn!("Wrong vCPU triggered block device! ({vcpuid} != {queue})");
+        }
+
         if let Some(worker) = self.0.read().unwrap().get(queue as usize) {
             worker.lock().unwrap().process_virtio_queues();
         }

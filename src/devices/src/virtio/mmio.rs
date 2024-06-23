@@ -301,7 +301,7 @@ impl LocklessBusDevice for MmioTransport {
         };
     }
 
-    fn write(&self, _vcpuid: u64, offset: u64, data: &[u8]) {
+    fn write(&self, vcpuid: u64, offset: u64, data: &[u8]) {
         fn hi(v: &mut GuestAddress, x: u32) {
             *v = (*v & 0xffff_ffff) | (u64::from(x) << 32)
         }
@@ -342,7 +342,7 @@ impl LocklessBusDevice for MmioTransport {
                     0x50 => {
                         if let Some(sync_events) = &self.0.sync_events {
                             COUNT_NOTIFY_SYNC.count();
-                            sync_events.process(v);
+                            sync_events.process(vcpuid, v);
                         } else {
                             COUNT_NOTIFY_WORKER.count();
 

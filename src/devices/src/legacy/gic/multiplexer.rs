@@ -46,7 +46,11 @@ impl Gic {
     }
 
     pub fn set_irq(&mut self, irq_line: u32) {
-        self.0.set_irq(irq_line)
+        self.set_irq_for_vcpu(None, irq_line)
+    }
+
+    pub fn set_irq_for_vcpu(&mut self, vcpuid: Option<u64>, irq_line: u32) {
+        self.0.set_irq(vcpuid, irq_line)
     }
 
     pub fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread) {
@@ -121,7 +125,7 @@ pub trait UserspaceGicImpl: 'static + Send {
 
     // === IRQ Assertion === //
 
-    fn set_irq(&mut self, irq_line: u32);
+    fn set_irq(&mut self, vcpuid: Option<u64>, irq_line: u32);
 
     // === VCPU management === //
 

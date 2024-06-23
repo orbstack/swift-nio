@@ -57,6 +57,7 @@ pub struct BlockWorker {
     interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
+    target_vcpu: u64,
 
     mem: GuestMemoryMmap,
     disk: DiskProperties,
@@ -81,6 +82,7 @@ impl BlockWorker {
         interrupt_status: Arc<AtomicUsize>,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
+        target_vcpu: u64,
         mem: GuestMemoryMmap,
         disk: DiskProperties,
     ) -> Self {
@@ -90,6 +92,7 @@ impl BlockWorker {
             interrupt_status,
             intc,
             irq_line,
+            target_vcpu,
 
             mem,
             disk,
@@ -276,7 +279,14 @@ impl BlockWorker {
         self.interrupt_status
             .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
-            intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+            tracing::info!(
+                "Notifying vCPU no. {} on IRQ line {}",
+                self.target_vcpu,
+                self.irq_line.unwrap(),
+            );
+            intc.lock()
+                .unwrap()
+                .set_irq_for_vcpu(Some(self.target_vcpu), self.irq_line.unwrap());
         } else {
             self.signals.assert(BlockDevSignalMask::INTERRUPT);
         }

@@ -73,12 +73,12 @@ impl UserspaceGicImpl for UserspaceGicV3 {
         );
     }
 
-    fn set_irq(&mut self, irq_line: u32) {
+    fn set_irq(&mut self, vcpuid: Option<u64>, irq_line: u32) {
         self.gic.send_spi(
             &mut HvfGicEventHandler {
                 wfe_threads: &mut self.wfe_threads,
             },
-            None,
+            vcpuid.map(PeId),
             InterruptId(irq_line),
         );
     }
