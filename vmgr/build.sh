@@ -8,6 +8,8 @@ VMGR_BIN="OrbStack Helper"
 # default dev signing cert
 source ../config.sh
 
+GO="${GO:-go}"
+
 # translate Go to Swift arch
 if [[ "${GOARCH:-arm64}" == "arm64" ]]; then
     GOARCH="arm64"
@@ -43,11 +45,11 @@ if [[ -f "$BIN_OUT" ]]; then
     fi
 fi
 
-go generate ./conf/appver ./drm/killswitch
+$GO generate ./conf/appver ./drm/killswitch
 
 CGO_CFLAGS="-mmacosx-version-min=12.3" \
 CGO_LDFLAGS="-mmacosx-version-min=12.3" \
-go build -buildmode=pie -ldflags="-extldflags \"$SWIFT_LIB_PATH $RUST_LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
+$GO build -buildmode=pie -ldflags="-extldflags \"$SWIFT_LIB_PATH $RUST_LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
 
 # strip for release
 codesign_flags=(-f)
