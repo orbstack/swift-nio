@@ -230,7 +230,7 @@ func (s *SconServer) InternalGuiReportStarted(ctx context.Context) error {
 		err = c.UseAgent(func(a *agent.Client) error {
 			return a.DockerGuiReportStarted()
 		})
-		if err != nil {
+		if err != nil && !errors.Is(err, ErrMachineNotRunning) {
 			logrus.WithError(err).Error("failed to report docker gui started")
 		}
 	}
