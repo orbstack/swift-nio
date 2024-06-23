@@ -294,7 +294,7 @@ func New(opts *Options) (stack.LinkEndpoint, error) {
 		if isSocket {
 			if opts.GSOMaxSize != 0 {
 				if opts.GvisorGSOEnabled {
-					e.gsoKind = stack.GvisorGSOSupported
+					e.gsoKind = stack.GVisorGSOSupported
 				} else {
 					e.gsoKind = stack.HostGSOSupported
 				}
@@ -402,6 +402,11 @@ func (e *endpoint) LinkAddress() tcpip.LinkAddress {
 	return e.addr
 }
 
+// SetLinkAddress implements stack.LinkEndpoint.SetLinkAddress.
+func (e *endpoint) SetLinkAddress(addr tcpip.LinkAddress) {
+	panic("SetLinkAddress not supported")
+}
+
 // Wait implements stack.LinkEndpoint.Wait. It waits for the endpoint to stop
 // reading from its FD.
 func (e *endpoint) Wait() {
@@ -459,7 +464,7 @@ const (
 )
 
 // AddHeader implements stack.LinkEndpoint.AddHeader.
-func (e *endpoint) AddHeader(pkt stack.PacketBufferPtr) {
+func (e *endpoint) AddHeader(pkt *stack.PacketBuffer) {
 	if e.hdrSize > 0 {
 		// Add ethernet header if needed.
 		eth := header.Ethernet(pkt.LinkHeader().Push(header.EthernetMinimumSize))
@@ -471,14 +476,14 @@ func (e *endpoint) AddHeader(pkt stack.PacketBufferPtr) {
 	}
 }
 
-func (e *endpoint) parseHeader(pkt stack.PacketBufferPtr) bool {
+func (e *endpoint) parseHeader(pkt *stack.PacketBuffer) bool {
 	_, ok := pkt.LinkHeader().Consume(e.hdrSize)
 	return ok
 
 }
 
 // ParseHeader implements stack.LinkEndpoint.ParseHeader.
-func (e *endpoint) ParseHeader(pkt stack.PacketBufferPtr) bool {
+func (e *endpoint) ParseHeader(pkt *stack.PacketBuffer) bool {
 	if e.hdrSize > 0 {
 		return e.parseHeader(pkt)
 	}
@@ -487,7 +492,7 @@ func (e *endpoint) ParseHeader(pkt stack.PacketBufferPtr) bool {
 
 // writePacket writes outbound packets to the file descriptor. If it is not
 // currently writable, the packet is dropped.
-func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
+func (e *endpoint) writePacket(pkt *stack.PacketBuffer) tcpip.Error {
 	//println("send pkt")
 	fdInfo := e.fds[pkt.Hash%uint32(len(e.fds))]
 	fd := fdInfo.fd
@@ -519,17 +524,36 @@ func (e *endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
 		vnetHdrBuf = vnetHdr.marshal()
 	}
 
+	views, offset := pkt.AsViewList()
+	var skipped int
+	var view *buffer.View
+	for view = views.Front(); view != nil && offset >= view.Size(); view = view.Next() {
+		offset -= view.Size()
+		skipped++
+	}
+
+	// We've made it to the usable views.
+	numIovecs := views.Len() - skipped
+	if len(vnetHdrBuf) != 0 {
+		numIovecs++
+	}
+	if numIovecs > rawfile.MaxIovs {
+		numIovecs = rawfile.MaxIovs
+	}
+
 	// Allocate small iovec arrays on the stack.
 	var iovecsArr [8]unix.Iovec
 	iovecs := iovecsArr[:0]
-	iovecs = rawfile.AppendIovecFromBytes(iovecs, vnetHdrBuf, e.writevMaxIovs)
-	pkt.ForEachView(func(v *buffer.View) {
-		iovecs = rawfile.AppendIovecFromBytes(iovecs, v.AsSlice(), e.writevMaxIovs)
-	})
+	iovecs = rawfile.AppendIovecFromBytes(iovecs, vnetHdrBuf, numIovecs)
+	// At most one slice has a non-zero offset.
+	iovecs = rawfile.AppendIovecFromBytes(iovecs, view.AsSlice()[offset:], numIovecs)
+	for view = view.Next(); view != nil; view = view.Next() {
+		iovecs = rawfile.AppendIovecFromBytes(iovecs, view.AsSlice(), numIovecs)
+	}
 	return rawfile.NonBlockingWriteIovec(fd, iovecs)
 }
 
-func (e *endpoint) sendBatch(_ fdInfo, pkts []stack.PacketBufferPtr) (int, tcpip.Error) {
+func (e *endpoint) sendBatch(_ fdInfo, pkts []*stack.PacketBuffer) (int, tcpip.Error) {
 	var written int
 	var err tcpip.Error
 	for written < len(pkts) {
@@ -600,6 +624,9 @@ func (e *endpoint) ARPHardwareType() header.ARPHardwareType {
 	return header.ARPHardwareNone
 }
 
+// Close implements stack.LinkEndpoint.
+func (e *endpoint) Close() {}
+
 // InjectableEndpoint is an injectable fd-based endpoint. The endpoint writes
 // to the FD, but does not read from it. All reads come from injected packets.
 type InjectableEndpoint struct {
@@ -615,7 +642,7 @@ func (e *InjectableEndpoint) Attach(dispatcher stack.NetworkDispatcher) {
 }
 
 // InjectInbound injects an inbound packet.
-func (e *InjectableEndpoint) InjectInbound(protocol tcpip.NetworkProtocolNumber, pkt stack.PacketBufferPtr) {
+func (e *InjectableEndpoint) InjectInbound(protocol tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) {
 	e.dispatcher.DeliverNetworkPacket(protocol, pkt)
 }
 

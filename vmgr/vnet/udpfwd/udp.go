@@ -32,12 +32,12 @@ type udpManager struct {
 }
 
 type icmpSender interface {
-	InjectDestUnreachable6(stack.PacketBufferPtr, header.ICMPv6Code) error
+	InjectDestUnreachable6(*stack.PacketBuffer, header.ICMPv6Code) error
 }
 
 // private API
 type udpPrivateEndpoint interface {
-	HandlePacket(id stack.TransportEndpointID, pkt stack.PacketBufferPtr)
+	HandlePacket(id stack.TransportEndpointID, pkt *stack.PacketBuffer)
 }
 
 // SO_REUSEPORT requires an explicit IP bind, not wildcard
@@ -146,6 +146,8 @@ func (m *udpManager) dialUDPSourceBind(srcPort int, daddr *net.UDPAddr, srcWildc
 }
 
 func (m *udpManager) handleNewPacket(r *udp.ForwarderRequest) {
+	defer r.Packet().DecRef()
+
 	localAddress := r.ID().LocalAddress
 	if !netutil.ShouldForward(localAddress) {
 		return
