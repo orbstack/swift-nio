@@ -1,26 +1,15 @@
 package conf
 
 import (
-	"path"
 	"strings"
-
-	"github.com/orbstack/macvirt/scon/conf"
-)
-
-const (
-	debugXcodeBundle = "/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/Build/Products/Debug/OrbStack.app"
 )
 
 func findAuxiliaryExe(name string) (string, error) {
-	if conf.Debug() {
-		return HomeDir() + debugXcodeBundle + "/Contents/MacOS/" + name, nil
-	}
-
 	exeDir, err := ExecutableDir()
 	if err != nil {
 		return "", err
 	}
-	return path.Join(exeDir, name), nil
+	return exeDir + "/", nil
 }
 
 func FindSparkleExe() (string, error) {
@@ -32,10 +21,6 @@ func FindGuihelperExe() (string, error) {
 }
 
 func FindAppBundle() (string, error) {
-	if conf.Debug() {
-		return HomeDir() + debugXcodeBundle, nil
-	}
-
 	exeDir, err := ExecutableDir()
 	if err != nil {
 		return "", err

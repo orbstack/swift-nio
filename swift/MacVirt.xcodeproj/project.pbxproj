@@ -1034,7 +1034,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "cd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\n";
+			shellScript = "# symlink assets in debug\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n    rm -rf \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\n    ln -sf \"$PWD/../assets\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\nfi\n\ncd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\n";
 		};
 		D86F35482997A5B700DADC6F /* Set version from Git */ = {
 			isa = PBXShellScriptBuildPhase;

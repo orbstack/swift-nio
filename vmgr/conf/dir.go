@@ -67,11 +67,6 @@ func SwapImage() string {
 }
 
 func ExecutableDir() (string, error) {
-	// TODO better debug path
-	if Debug() {
-		return HomeDir() + "/code/projects/macvirt/cli-bin", nil
-	}
-
 	selfExe, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("get exe path: %w", err)
@@ -90,7 +85,13 @@ func ExecutableDir() (string, error) {
 		return rootContentsPath + "/MacOS", nil
 	}
 
-	return filepath.Dir(selfExe), nil
+	selfDir := filepath.Dir(selfExe)
+	if Debug() {
+		// in debug, it's $MACVIRT/out/OrbStack Helper.app/Contents/MacOS
+		selfDir += "/../../../../swift/DerivedData/MacVirt/Build/Products/Debug/OrbStack.app/Contents/MacOS"
+	}
+
+	return selfDir, nil
 }
 
 func MustExecutableDir() string {

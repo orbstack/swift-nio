@@ -1,3 +1,5 @@
+_SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 # Code signing
 # signing ID must be changed in other places too
 VMGR_SIGNING_ID="dev.kdrag0n.MacVirt.vmgr"
@@ -15,7 +17,7 @@ NOTARY_KEYCHAIN_PROFILE=main
 #
 
 # Sparkle CLI tools
-SPARKLE_BIN=~/Library/Developer/Xcode/DerivedData/MacVirt-cvlazugpvgfgozfesiozsrqnzfat/SourcePackages/artifacts/sparkle/Sparkle/bin
+SPARKLE_BIN="$_SCRIPT_DIR/swift/DerivedData/MacVirt/SourcePackages/artifacts/sparkle/Sparkle/bin"
 
 # for uploading debug symbols (login required too)
 SENTRY_ORG=kdrag0n
@@ -23,6 +25,9 @@ SENTRY_PROJECT=orbstack
 
 CDN_BASE_URL=https://cdn-updates.orbstack.dev
 
-_SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+#
+# Local overrides
+#
+
 source "$_SCRIPT_DIR/config.local.sh" || :
 unset _SCRIPT_DIR
