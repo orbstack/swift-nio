@@ -90,7 +90,7 @@ pub fn create_fdt<T: DeviceInfoForFDT + Clone + Debug>(
 
     // Header or the root node as per above mentioned documentation.
     let root_node = fdt.begin_node("root")?;
-    fdt.property_string("compatible", "linux,dummy-virt")?;
+    fdt.property_string("compatible", "orbstack,virt")?;
     // For info on #address-cells and size-cells read "Note about cells and address representation"
     // from the above mentioned txt file.
     fdt.property_u32("#address-cells", ADDRESS_CELLS)?;
