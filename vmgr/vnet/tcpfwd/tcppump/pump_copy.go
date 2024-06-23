@@ -3,6 +3,7 @@ package tcppump
 import (
 	"errors"
 	"io"
+	"net"
 
 	"github.com/orbstack/macvirt/vmgr/util/ewma"
 )
@@ -21,21 +22,31 @@ const (
 	ewmaWeight = 1.0 / 128.0
 )
 
+func isTcpOrUnix(conn any) bool {
+	if _, ok := conn.(*net.TCPConn); ok {
+		return true
+	}
+	// checking for interfaces is cleaner, but this is how the Linux spliceTo impl does it too
+	if _, ok := conn.(*net.UnixConn); ok {
+		return true
+	}
+	return false
+}
+
 // io.CopyBuffer with ewma
 // TODO: study generics, gcshape stenciling, dictionaries. does this get devirtualized? do we need monomorphized copies?
 func CopyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err error) {
-	// If the reader has a WriteTo method, use it to do the copy.
-	// Avoids an allocation and a copy.
-	if wt, ok := src.(io.WriterTo); ok {
-		return wt.WriteTo(dst)
-	}
-	// Similarly, if the writer has a ReadFrom method, use it to do the copy.
-	// MOD: but only if BOTH sides have it. (i.e. both are tcp or unix)
-	if rt, ok := dst.(io.ReaderFrom); ok {
-		if _, ok := src.(io.ReaderFrom); ok {
+	// to avoid generic fallbacks to io.Copy when a gvisor conn is used,
+	// only use WriteTo/ReadFrom if both sides support splice. (i.e. both are tcp or unix)
+	if isTcpOrUnix(dst) && isTcpOrUnix(src) {
+		if wt, ok := src.(io.WriterTo); ok {
+			return wt.WriteTo(dst)
+		}
+		if rt, ok := dst.(io.ReaderFrom); ok {
 			return rt.ReadFrom(src)
 		}
 	}
+
 	if buf == nil {
 		// TODO use gvisor view pooling
 		// this is also good to avoid allocating buffer if using ReadFrom
