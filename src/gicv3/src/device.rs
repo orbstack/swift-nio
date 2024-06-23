@@ -35,7 +35,8 @@ impl InterruptId {
             1056..=1119 => InterruptKind::PrivatePeripheral,
             32..=1019 => InterruptKind::SharedPeripheral,
             4096..=5119 => InterruptKind::SharedPeripheral,
-            // 1023 is special, but Linux tries configure these via GICD_ICFGR
+            // These are special interrupt numbers but Linux configures them on the distributor so
+            // these have to be advertised SPIs—even if nothing ever gets delivered to them.
             1020..=1023 => InterruptKind::SharedPeripheral,
             1024..=8191 => unreachable!("reserved"),
             _ => unreachable!("LPI interrupt ID is too big"),
@@ -257,10 +258,21 @@ impl GicV3 {
         // Ensure that no one else is asserting this SPI on a different PE. If they are, we need to
         // get in line because, otherwise, Linux will ignore the concurrent SPI.
         let queue = self.shared_int_queues.entry(int_id).or_default();
-        queue.deliver_to.push_back(pe);
 
-        if queue.deliver_to.len() > 1 {
-            return;
+        if queue.deliver_to.is_empty() {
+            // No one else is handling this SPI right now so we can deliver ours.
+            queue.deliver_to.push_back(pe);
+        } else {
+            // Another PE is handling this SPI. Add that PE to the backlog but eliminate duplicates
+            // *within the backlog section of the array* to avoid live-lock if the interrupt handler
+            // is handling interrupts slower than we produce them. We can eliminate interrupts in the
+            // backlog since the state we're trying to notify the CPU of is already going to be observed
+            // when the first instance of this interrupt is delivered. We ignore the front of the
+            // iterator since the handler may have missed the state we just set.
+            if !queue.deliver_to.iter().skip(1).any(|&v| v == pe) {
+                queue.deliver_to.push_back(pe);
+                tracing::info!("SPI backlog for {int_id:?} = {}", queue.deliver_to.len());
+            }
         }
 
         // Otherwise, deliver the SPI!
