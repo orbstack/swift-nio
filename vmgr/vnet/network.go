@@ -237,6 +237,7 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 
 	// Disable SACK for performance
 	// SACK causes high iperf3 retransmits through machine bridge/NAT (10-50/sec @ 65k MTU, 50-500/sec @ 1500 MTU + TSO)
+	// also, with 10 parallel flows, some will get stuck at very low or zero throughput (iperf3 -P 10, gvisor sending)
 	// gvisor SACK is broken: https://github.com/google/gvisor/issues/7406
 	// TODO: why does veth and TSO affect it?
 	{
@@ -261,8 +262,11 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		}
 	}
 
+	// gvisor's cubic implements HyStart, which takes 2 sec to ramp to max throughput
+	// reno is good for ultra low RTT: https://github.com/google/gvisor/pull/10287#issuecomment-2060026101
+	// with 10 parallel flows this peaks lower than the best cubic runs, but it's more consistent
 	{
-		opt := tcpip.CongestionControlOption("cubic")
+		opt := tcpip.CongestionControlOption("reno")
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {
 			return nil, errors.New(err.String())
 		}

@@ -64,7 +64,7 @@ func NewForwarder(s *stack.Stack, rcvWnd, maxInFlight int, handler func(*Forward
 //
 // This function is expected to be passed as an argument to the
 // stack.SetTransportProtocolHandler function.
-func (f *Forwarder) HandlePacket(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+func (f *Forwarder) HandlePacket(id stack.TransportEndpointID, pkt *stack.PacketBuffer) bool {
 	fPkt := pkt.Clone()
 	fRefDecNeeded := true
 	defer func() {
@@ -123,7 +123,7 @@ type ForwarderRequest struct {
 	forwarder  *Forwarder
 	segment    *segment
 	synOptions header.TCPSynOptions
-	Pkt        stack.PacketBufferPtr
+	Pkt        *stack.PacketBuffer
 }
 
 // ID returns the 4-tuple (src address, src port, dst address, dst port) that

@@ -16,20 +16,21 @@ package boot
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/hostos"
 	"gvisor.dev/gvisor/pkg/log"
+	"gvisor.dev/gvisor/pkg/sentry/kernel"
+	"gvisor.dev/gvisor/pkg/sentry/socket/netfilter"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/ethernet"
 	"gvisor.dev/gvisor/pkg/tcpip/link/fdbased"
 	"gvisor.dev/gvisor/pkg/tcpip/link/loopback"
-	"gvisor.dev/gvisor/pkg/tcpip/link/packetsocket"
 	"gvisor.dev/gvisor/pkg/tcpip/link/qdisc/fifo"
 	"gvisor.dev/gvisor/pkg/tcpip/link/sniffer"
 	"gvisor.dev/gvisor/pkg/tcpip/link/xdp"
@@ -68,7 +69,8 @@ var (
 
 // Network exposes methods that can be used to configure a network stack.
 type Network struct {
-	Stack *stack.Stack
+	Stack  *stack.Stack
+	Kernel *kernel.Kernel
 }
 
 // Route represents a route in the network stack.
@@ -96,8 +98,8 @@ type FDBasedLink struct {
 	Addresses         []IPWithPrefix
 	Routes            []Route
 	GSOMaxSize        uint32
-	GvisorGSOEnabled  bool
-	GvisorGROTimeout  time.Duration
+	GVisorGSOEnabled  bool
+	GVisorGRO         bool
 	TXChecksumOffload bool
 	RXChecksumOffload bool
 	LinkAddress       net.HardwareAddr
@@ -107,7 +109,23 @@ type FDBasedLink struct {
 	// NumChannels controls how many underlying FDs are to be used to
 	// create this endpoint.
 	NumChannels int
+
+	// ProcessorsPerChannel controls how many goroutines are used to handle
+	// packets on each channel.
+	ProcessorsPerChannel int
 }
+
+// BindOpt indicates whether the sentry or runsc process is responsible for
+// binding the AF_XDP socket.
+type BindOpt int
+
+const (
+	// BindSentry indicates the sentry process must call bind.
+	BindSentry BindOpt = iota
+
+	// BindRunsc indicates the runsc process must call bind.
+	BindRunsc
+)
 
 // XDPLink configures an XDP link.
 type XDPLink struct {
@@ -121,7 +139,8 @@ type XDPLink struct {
 	LinkAddress       net.HardwareAddr
 	QDisc             config.QueueingDiscipline
 	Neighbors         []Neighbor
-	GvisorGROTimeout  time.Duration
+	GVisorGRO         bool
+	Bind              BindOpt
 
 	// NumChannels controls how many underlying FDs are to be used to
 	// create this endpoint.
@@ -130,10 +149,10 @@ type XDPLink struct {
 
 // LoopbackLink configures a loopback link.
 type LoopbackLink struct {
-	Name             string
-	Addresses        []IPWithPrefix
-	Routes           []Route
-	GvisorGROTimeout time.Duration
+	Name      string
+	Addresses []IPWithPrefix
+	Routes    []Route
+	GVisorGRO bool
 }
 
 // CreateLinksAndRoutesArgs are arguments to CreateLinkAndRoutes.
@@ -152,6 +171,17 @@ type CreateLinksAndRoutesArgs struct {
 
 	// PCAP indicates that FilePayload also contains a PCAP log file.
 	PCAP bool
+
+	// LogPackets indicates that packets should be logged.
+	LogPackets bool
+
+	// NATBlob indicates whether FilePayload also contains an iptables NAT
+	// ruleset.
+	NATBlob bool
+
+	// DisconnectOk indicates that link endpoints should have the capability
+	// CapabilityDisconnectOk set.
+	DisconnectOk bool
 }
 
 // IPWithPrefix is an address with its subnet prefix length.
@@ -194,10 +224,23 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 	for _, l := range args.FDBasedLinks {
 		wantFDs += l.NumChannels
 	}
-	if len(args.XDPLinks) > 0 {
-		wantFDs += 4
+	for _, link := range args.XDPLinks {
+		// We have to keep several FDs alive when the sentry is
+		// responsible for binding, but when runsc binds we only expect
+		// the AF_XDP socket itself.
+		switch v := link.Bind; v {
+		case BindSentry:
+			wantFDs += 4
+		case BindRunsc:
+			wantFDs++
+		default:
+			return fmt.Errorf("unknown bind value: %d", v)
+		}
 	}
 	if args.PCAP {
+		wantFDs++
+	}
+	if args.NATBlob {
 		wantFDs++
 	}
 	if got := len(args.FilePayload.Files); got != wantFDs {
@@ -212,15 +255,15 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 
 	// Loopback normally appear before other interfaces.
 	for _, link := range args.LoopbackLinks {
-		nicID++
+		nicID = tcpip.NICID(n.Stack.UniqueID())
 		nicids[link.Name] = nicID
 
-		linkEP := packetsocket.New(ethernet.New(loopback.New()))
+		linkEP := ethernet.New(loopback.New())
 
 		log.Infof("Enabling loopback interface %q with id %d on addresses %+v", link.Name, nicID, link.Addresses)
 		opts := stack.NICOptions{
-			Name:       link.Name,
-			GROTimeout: link.GvisorGROTimeout,
+			Name:               link.Name,
+			DeliverLinkPackets: true,
 		}
 		if err := n.createNICWithAddrs(nicID, linkEP, opts, link.Addresses); err != nil {
 			return err
@@ -237,6 +280,7 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 	}
 
 	// Setup fdbased or XDP links.
+	fdOffset := 0
 	if len(args.FDBasedLinks) > 0 {
 		// Choose a dispatch mode.
 		dispatchMode := fdbased.RecvMMsg
@@ -245,12 +289,14 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 			return err
 		}
 		if version.AtLeast(5, 6) {
-			dispatchMode = fdbased.PacketMMap
+			// TODO(b/333120887): Switch back to using the packet mmap dispatcher when
+			// we have the performance data to justify it.
+			// dispatchMode = fdbased.PacketMMap
+			// log.Infof("Host kernel version >= 5.6, using to packet mmap to dispatch")
 		} else {
-			log.Infof("Host kernel version < 5.6, falling back to RecvMMsg dispatch")
+			log.Infof("Host kernel version < 5.6, using to RecvMMsg to dispatch")
 		}
 
-		fdOffset := 0
 		for _, link := range args.FDBasedLinks {
 			nicID++
 			nicids[link.Name] = nicID
@@ -271,38 +317,54 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 			log.Infof("gso max size is: %d", link.GSOMaxSize)
 
 			linkEP, err := fdbased.New(&fdbased.Options{
-				FDs:                FDs,
-				MTU:                uint32(link.MTU),
-				EthernetHeader:     mac != "",
-				Address:            mac,
-				PacketDispatchMode: dispatchMode,
-				GSOMaxSize:         link.GSOMaxSize,
-				GvisorGSOEnabled:   link.GvisorGSOEnabled,
-				TXChecksumOffload:  link.TXChecksumOffload,
-				RXChecksumOffload:  link.RXChecksumOffload,
+				FDs:                  FDs,
+				MTU:                  uint32(link.MTU),
+				EthernetHeader:       mac != "",
+				Address:              mac,
+				PacketDispatchMode:   dispatchMode,
+				GSOMaxSize:           link.GSOMaxSize,
+				GVisorGSOEnabled:     link.GVisorGSOEnabled,
+				TXChecksumOffload:    link.TXChecksumOffload,
+				RXChecksumOffload:    link.RXChecksumOffload,
+				GRO:                  link.GVisorGRO,
+				ProcessorsPerChannel: link.ProcessorsPerChannel,
+				DisconnectOk:         args.DisconnectOk,
 			})
 			if err != nil {
 				return err
 			}
 
-			// Wrap linkEP in a sniffer to enable packet logging.
-			sniffEP := sniffer.New(packetsocket.New(linkEP))
+			// Setup packet logging if requested.
+			if args.PCAP {
+				newFD, err := unix.Dup(int(args.FilePayload.Files[fdOffset].Fd()))
+				if err != nil {
+					return fmt.Errorf("failed to dup pcap FD: %v", err)
+				}
+				const packetTruncateSize = 4096
+				linkEP, err = sniffer.NewWithWriter(linkEP, os.NewFile(uintptr(newFD), "pcap-file"), packetTruncateSize)
+				if err != nil {
+					return fmt.Errorf("failed to create PCAP logger: %v", err)
+				}
+				fdOffset++
+			} else if args.LogPackets {
+				linkEP = sniffer.New(linkEP)
+			}
 
 			var qDisc stack.QueueingDiscipline
 			switch link.QDisc {
 			case config.QDiscNone:
 			case config.QDiscFIFO:
 				log.Infof("Enabling FIFO QDisc on %q", link.Name)
-				qDisc = fifo.New(sniffEP, runtime.GOMAXPROCS(0), 1000)
+				qDisc = fifo.New(linkEP, runtime.GOMAXPROCS(0), 1000)
 			}
 
 			log.Infof("Enabling interface %q with id %d on addresses %+v (%v) w/ %d channels", link.Name, nicID, link.Addresses, mac, link.NumChannels)
 			opts := stack.NICOptions{
-				Name:       link.Name,
-				QDisc:      qDisc,
-				GROTimeout: link.GvisorGROTimeout,
+				Name:               link.Name,
+				QDisc:              qDisc,
+				DeliverLinkPackets: true,
 			}
-			if err := n.createNICWithAddrs(nicID, sniffEP, opts, link.Addresses); err != nil {
+			if err := n.createNICWithAddrs(nicID, linkEP, opts, link.Addresses); err != nil {
 				return err
 			}
 
@@ -329,7 +391,6 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 		nicids[link.Name] = nicID
 
 		// Get the AF_XDP socket.
-		fdOffset := 0
 		oldFD := args.FilePayload.Files[fdOffset].Fd()
 		fd, err := unix.Dup(int(oldFD))
 		if err != nil {
@@ -337,18 +398,21 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 		}
 		fdOffset++
 
-		// The parent process sends several other FDs in order
-		// to keep them open and alive. These are for BPF
-		// programs and maps that, if closed, will break the
-		// dispatcher.
-		for _, fdName := range []string{"program-fd", "sockmap-fd", "link-fd"} {
-			oldFD := args.FilePayload.Files[fdOffset].Fd()
-			if _, err := unix.Dup(int(oldFD)); err != nil {
-				return fmt.Errorf("failed to dup %s with FD %d: %v", fdName, oldFD, err)
+		// When the sentry is responsible for binding, the runsc
+		// process sends several other FDs in order to keep them open
+		// and alive. These are for BPF programs and maps that, if
+		// closed, will break the dispatcher.
+		if link.Bind == BindSentry {
+			for _, fdName := range []string{"program-fd", "sockmap-fd", "link-fd"} {
+				oldFD := args.FilePayload.Files[fdOffset].Fd()
+				if _, err := unix.Dup(int(oldFD)); err != nil {
+					return fmt.Errorf("failed to dup %s with FD %d: %v", fdName, oldFD, err)
+				}
+				fdOffset++
 			}
-			fdOffset++
 		}
 
+		// Setup packet logging if requested.
 		mac := tcpip.LinkAddress(link.LinkAddress)
 		linkEP, err := xdp.New(&xdp.Options{
 			FD:                fd,
@@ -356,26 +420,27 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 			TXChecksumOffload: link.TXChecksumOffload,
 			RXChecksumOffload: link.RXChecksumOffload,
 			InterfaceIndex:    link.InterfaceIndex,
+			Bind:              link.Bind == BindSentry,
+			GRO:               link.GVisorGRO,
+			DisconnectOk:      args.DisconnectOk,
 		})
 		if err != nil {
 			return err
 		}
 
-		// Wrap linkEP in a sniffer to enable packet logging.
-		var sniffEP stack.LinkEndpoint
 		if args.PCAP {
 			newFD, err := unix.Dup(int(args.FilePayload.Files[fdOffset].Fd()))
 			if err != nil {
 				return fmt.Errorf("failed to dup pcap FD: %v", err)
 			}
 			const packetTruncateSize = 4096
-			sniffEP, err = sniffer.NewWithWriter(packetsocket.New(linkEP), os.NewFile(uintptr(newFD), "pcap-file"), packetTruncateSize)
+			linkEP, err = sniffer.NewWithWriter(linkEP, os.NewFile(uintptr(newFD), "pcap-file"), packetTruncateSize)
 			if err != nil {
 				return fmt.Errorf("failed to create PCAP logger: %v", err)
 			}
 			fdOffset++
-		} else {
-			sniffEP = sniffer.New(packetsocket.New(linkEP))
+		} else if args.LogPackets {
+			linkEP = sniffer.New(linkEP)
 		}
 
 		var qDisc stack.QueueingDiscipline
@@ -383,16 +448,16 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 		case config.QDiscNone:
 		case config.QDiscFIFO:
 			log.Infof("Enabling FIFO QDisc on %q", link.Name)
-			qDisc = fifo.New(sniffEP, runtime.GOMAXPROCS(0), 1000)
+			qDisc = fifo.New(linkEP, runtime.GOMAXPROCS(0), 1000)
 		}
 
 		log.Infof("Enabling interface %q with id %d on addresses %+v (%v) w/ %d channels", link.Name, nicID, link.Addresses, mac, link.NumChannels)
 		opts := stack.NICOptions{
-			Name:       link.Name,
-			QDisc:      qDisc,
-			GROTimeout: link.GvisorGROTimeout,
+			Name:               link.Name,
+			QDisc:              qDisc,
+			DeliverLinkPackets: true,
 		}
-		if err := n.createNICWithAddrs(nicID, sniffEP, opts, link.Addresses); err != nil {
+		if err := n.createNICWithAddrs(nicID, linkEP, opts, link.Addresses); err != nil {
 			return err
 		}
 
@@ -437,6 +502,20 @@ func (n *Network) CreateLinksAndRoutes(args *CreateLinksAndRoutesArgs, _ *struct
 
 	log.Infof("Setting routes %+v", routes)
 	n.Stack.SetRouteTable(routes)
+
+	// Set NAT table rules if necessary.
+	if args.NATBlob {
+		log.Infof("Replacing NAT table")
+		iptReplaceBlob, err := io.ReadAll(args.FilePayload.Files[fdOffset])
+		if err != nil {
+			return fmt.Errorf("failed to read iptables blob: %v", err)
+		}
+		fdOffset++
+		if err := netfilter.SetEntries(n.Kernel.RootUserNamespace(), n.Stack, iptReplaceBlob, false); err != nil {
+			return fmt.Errorf("failed to SetEntries: %v", err)
+		}
+	}
+
 	return nil
 }
 

@@ -15,6 +15,7 @@
 package kernel
 
 import (
+	goContext "context"
 	"sync/atomic"
 
 	"gvisor.dev/gvisor/pkg/abi/linux"
@@ -238,7 +239,7 @@ type ThreadGroup struct {
 	execed bool
 
 	// oldRSeqCritical is the thread group's old rseq critical region.
-	oldRSeqCritical atomic.Value `state:".(*OldRSeqCriticalRegion)"`
+	oldRSeqCritical atomic.Pointer[OldRSeqCriticalRegion] `state:".(*OldRSeqCriticalRegion)"`
 
 	// tty is the thread group's controlling terminal. If nil, there is no
 	// controlling terminal.
@@ -289,11 +290,11 @@ func (k *Kernel) NewThreadGroup(pidns *PIDNamespace, sh *SignalHandlers, termina
 
 // saveOldRSeqCritical is invoked by stateify.
 func (tg *ThreadGroup) saveOldRSeqCritical() *OldRSeqCriticalRegion {
-	return tg.oldRSeqCritical.Load().(*OldRSeqCriticalRegion)
+	return tg.oldRSeqCritical.Load()
 }
 
 // loadOldRSeqCritical is invoked by stateify.
-func (tg *ThreadGroup) loadOldRSeqCritical(r *OldRSeqCriticalRegion) {
+func (tg *ThreadGroup) loadOldRSeqCritical(_ goContext.Context, r *OldRSeqCriticalRegion) {
 	tg.oldRSeqCritical.Store(r)
 }
 
@@ -321,7 +322,16 @@ func (tg *ThreadGroup) Release(ctx context.Context) {
 	for _, it := range tg.timers {
 		its = append(its, it)
 	}
-	tg.timers = make(map[linux.TimerID]*IntervalTimer) // nil maps can't be saved
+	clear(tg.timers) // nil maps can't be saved
+	// Disassociate from the tty if we have one.
+	if tg.tty != nil {
+		tg.tty.mu.Lock()
+		if tg.tty.tg == tg {
+			tg.tty.tg = nil
+		}
+		tg.tty.mu.Unlock()
+		tg.tty = nil
+	}
 	tg.signalHandlers.mu.Unlock()
 	tg.pidns.owner.mu.Unlock()
 	for _, it := range its {
@@ -376,7 +386,12 @@ func (tg *ThreadGroup) SetControllingTTY(tty *TTY, steal bool, isReadable bool) 
 
 	// "The calling process must be a session leader and not have a
 	// controlling terminal already." - tty_ioctl(4)
-	if tg.processGroup.session.leader != tg || tg.tty != nil {
+	if tg.processGroup.session.leader != tg {
+		return linuxerr.EINVAL
+	}
+	if tg.tty == tty {
+		return nil
+	} else if tg.tty != nil {
 		return linuxerr.EINVAL
 	}
 

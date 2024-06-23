@@ -3,6 +3,8 @@
 package auth
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/state"
 )
 
@@ -48,10 +50,10 @@ func (c *Credentials) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(12, &c.UserNamespace)
 }
 
-func (c *Credentials) afterLoad() {}
+func (c *Credentials) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (c *Credentials) StateLoad(stateSourceObject state.Source) {
+func (c *Credentials) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &c.RealKUID)
 	stateSourceObject.Load(1, &c.EffectiveKUID)
 	stateSourceObject.Load(2, &c.SavedKUID)
@@ -89,10 +91,10 @@ func (i *IDMapEntry) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(2, &i.Length)
 }
 
-func (i *IDMapEntry) afterLoad() {}
+func (i *IDMapEntry) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (i *IDMapEntry) StateLoad(stateSourceObject state.Source) {
+func (i *IDMapEntry) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &i.FirstID)
 	stateSourceObject.Load(1, &i.FirstParentID)
 	stateSourceObject.Load(2, &i.Length)
@@ -118,10 +120,10 @@ func (r *idMapRange) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &r.End)
 }
 
-func (r *idMapRange) afterLoad() {}
+func (r *idMapRange) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (r *idMapRange) StateLoad(stateSourceObject state.Source) {
+func (r *idMapRange) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.Start)
 	stateSourceObject.Load(1, &r.End)
 }
@@ -141,16 +143,16 @@ func (s *idMapSet) beforeSave() {}
 // +checklocksignore
 func (s *idMapSet) StateSave(stateSinkObject state.Sink) {
 	s.beforeSave()
-	var rootValue *idMapSegmentDataSlices
+	var rootValue []idMapFlatSegment
 	rootValue = s.saveRoot()
 	stateSinkObject.SaveValue(0, rootValue)
 }
 
-func (s *idMapSet) afterLoad() {}
+func (s *idMapSet) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *idMapSet) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.LoadValue(0, new(*idMapSegmentDataSlices), func(y any) { s.loadRoot(y.(*idMapSegmentDataSlices)) })
+func (s *idMapSet) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.LoadValue(0, new([]idMapFlatSegment), func(y any) { s.loadRoot(ctx, y.([]idMapFlatSegment)) })
 }
 
 func (n *idMapnode) StateTypeName() string {
@@ -185,10 +187,10 @@ func (n *idMapnode) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(7, &n.children)
 }
 
-func (n *idMapnode) afterLoad() {}
+func (n *idMapnode) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (n *idMapnode) StateLoad(stateSourceObject state.Source) {
+func (n *idMapnode) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &n.nrSegments)
 	stateSourceObject.Load(1, &n.parent)
 	stateSourceObject.Load(2, &n.parentIndex)
@@ -199,35 +201,97 @@ func (n *idMapnode) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(7, &n.children)
 }
 
-func (i *idMapSegmentDataSlices) StateTypeName() string {
-	return "pkg/sentry/kernel/auth.idMapSegmentDataSlices"
+func (i *idMapFlatSegment) StateTypeName() string {
+	return "pkg/sentry/kernel/auth.idMapFlatSegment"
 }
 
-func (i *idMapSegmentDataSlices) StateFields() []string {
+func (i *idMapFlatSegment) StateFields() []string {
 	return []string{
 		"Start",
 		"End",
-		"Values",
+		"Value",
 	}
 }
 
-func (i *idMapSegmentDataSlices) beforeSave() {}
+func (i *idMapFlatSegment) beforeSave() {}
 
 // +checklocksignore
-func (i *idMapSegmentDataSlices) StateSave(stateSinkObject state.Sink) {
+func (i *idMapFlatSegment) StateSave(stateSinkObject state.Sink) {
 	i.beforeSave()
 	stateSinkObject.Save(0, &i.Start)
 	stateSinkObject.Save(1, &i.End)
-	stateSinkObject.Save(2, &i.Values)
+	stateSinkObject.Save(2, &i.Value)
 }
 
-func (i *idMapSegmentDataSlices) afterLoad() {}
+func (i *idMapFlatSegment) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (i *idMapSegmentDataSlices) StateLoad(stateSourceObject state.Source) {
+func (i *idMapFlatSegment) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &i.Start)
 	stateSourceObject.Load(1, &i.End)
-	stateSourceObject.Load(2, &i.Values)
+	stateSourceObject.Load(2, &i.Value)
+}
+
+func (k *Key) StateTypeName() string {
+	return "pkg/sentry/kernel/auth.Key"
+}
+
+func (k *Key) StateFields() []string {
+	return []string{
+		"ID",
+		"Description",
+		"kuid",
+		"kgid",
+		"perms",
+	}
+}
+
+func (k *Key) beforeSave() {}
+
+// +checklocksignore
+func (k *Key) StateSave(stateSinkObject state.Sink) {
+	k.beforeSave()
+	stateSinkObject.Save(0, &k.ID)
+	stateSinkObject.Save(1, &k.Description)
+	stateSinkObject.Save(2, &k.kuid)
+	stateSinkObject.Save(3, &k.kgid)
+	stateSinkObject.Save(4, &k.perms)
+}
+
+func (k *Key) afterLoad(context.Context) {}
+
+// +checklocksignore
+func (k *Key) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &k.ID)
+	stateSourceObject.Load(1, &k.Description)
+	stateSourceObject.Load(2, &k.kuid)
+	stateSourceObject.Load(3, &k.kgid)
+	stateSourceObject.Load(4, &k.perms)
+}
+
+func (s *KeySet) StateTypeName() string {
+	return "pkg/sentry/kernel/auth.KeySet"
+}
+
+func (s *KeySet) StateFields() []string {
+	return []string{
+		"keys",
+	}
+}
+
+func (s *KeySet) beforeSave() {}
+
+// +checklocksignore
+func (s *KeySet) StateSave(stateSinkObject state.Sink) {
+	s.beforeSave()
+	stateSinkObject.Save(0, &s.keys)
+}
+
+func (s *KeySet) afterLoad(context.Context) {}
+
+// +checklocksignore
+func (s *KeySet) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &s.keys)
 }
 
 func (ns *UserNamespace) StateTypeName() string {
@@ -238,6 +302,7 @@ func (ns *UserNamespace) StateFields() []string {
 	return []string{
 		"parent",
 		"owner",
+		"Keys",
 		"uidMapFromParent",
 		"uidMapToParent",
 		"gidMapFromParent",
@@ -252,22 +317,24 @@ func (ns *UserNamespace) StateSave(stateSinkObject state.Sink) {
 	ns.beforeSave()
 	stateSinkObject.Save(0, &ns.parent)
 	stateSinkObject.Save(1, &ns.owner)
-	stateSinkObject.Save(2, &ns.uidMapFromParent)
-	stateSinkObject.Save(3, &ns.uidMapToParent)
-	stateSinkObject.Save(4, &ns.gidMapFromParent)
-	stateSinkObject.Save(5, &ns.gidMapToParent)
+	stateSinkObject.Save(2, &ns.Keys)
+	stateSinkObject.Save(3, &ns.uidMapFromParent)
+	stateSinkObject.Save(4, &ns.uidMapToParent)
+	stateSinkObject.Save(5, &ns.gidMapFromParent)
+	stateSinkObject.Save(6, &ns.gidMapToParent)
 }
 
-func (ns *UserNamespace) afterLoad() {}
+func (ns *UserNamespace) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (ns *UserNamespace) StateLoad(stateSourceObject state.Source) {
+func (ns *UserNamespace) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &ns.parent)
 	stateSourceObject.Load(1, &ns.owner)
-	stateSourceObject.Load(2, &ns.uidMapFromParent)
-	stateSourceObject.Load(3, &ns.uidMapToParent)
-	stateSourceObject.Load(4, &ns.gidMapFromParent)
-	stateSourceObject.Load(5, &ns.gidMapToParent)
+	stateSourceObject.Load(2, &ns.Keys)
+	stateSourceObject.Load(3, &ns.uidMapFromParent)
+	stateSourceObject.Load(4, &ns.uidMapToParent)
+	stateSourceObject.Load(5, &ns.gidMapFromParent)
+	stateSourceObject.Load(6, &ns.gidMapToParent)
 }
 
 func init() {
@@ -276,6 +343,8 @@ func init() {
 	state.Register((*idMapRange)(nil))
 	state.Register((*idMapSet)(nil))
 	state.Register((*idMapnode)(nil))
-	state.Register((*idMapSegmentDataSlices)(nil))
+	state.Register((*idMapFlatSegment)(nil))
+	state.Register((*Key)(nil))
+	state.Register((*KeySet)(nil))
 	state.Register((*UserNamespace)(nil))
 }

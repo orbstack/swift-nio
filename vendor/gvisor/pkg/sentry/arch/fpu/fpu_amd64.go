@@ -70,8 +70,13 @@ const (
 func initX86FPState(data *byte, useXsave bool)
 
 func newX86FPStateSlice() State {
-	size, align := cpuid.HostFeatureSet().ExtendedStateSize()
-	capacity := size + FP_XSTATE_MAGIC2_SIZE
+	maxsize, align := cpuid.HostFeatureSet().ExtendedStateSize()
+	// We need capacity to be large enough to hold AMX bytes because of
+	// ptrace. PTRACE_SETREGSET/GETREGSET assume that AMX portions should
+	// always be used.
+	// TODO(gvisor.dev/issues/9896): Implement AMX Support.
+	capacity := maxsize + FP_XSTATE_MAGIC2_SIZE
+	size := maxsize - cpuid.HostFeatureSet().AMXExtendedStateSize()
 	// Always use at least 4096 bytes.
 	//
 	// For the KVM platform, this state is a fixed 4096 bytes, so make sure
@@ -111,9 +116,7 @@ func (s *State) Fork() State {
 // Reset resets s to its initial state.
 func (s *State) Reset() {
 	f := *s
-	for i := range f {
-		f[i] = 0
-	}
+	clear(f)
 	initX86FPState(&f[0], cpuid.HostFeatureSet().UseXsave())
 }
 
@@ -131,6 +134,8 @@ func InitHostState() {
 		hostXCR0Mask = featureSet.ValidXCR0Mask()
 		hostUseXsave = featureSet.UseXsave()
 		hostFPSize, _ = featureSet.ExtendedStateSize()
+		// TODO(gvisor.dev/issues/9896): Implement AMX Support.
+		hostFPSize = hostFPSize - featureSet.AMXExtendedStateSize()
 	})
 }
 
@@ -194,6 +199,7 @@ const (
 	// xstateBVOffset is the offset in bytes of the XSTATE_BV field in an x86
 	// XSAVE area.
 	xstateBVOffset = 512
+	xcompBVOffset  = 520
 
 	// xsaveHeaderZeroedOffset and xsaveHeaderZeroedBytes indicate parts of the
 	// XSAVE header that we coerce to zero: "Bytes 15:8 of the XSAVE header is
@@ -269,9 +275,7 @@ func (s *State) SanitizeUser(featureSet cpuid.FeatureSet) {
 		hostarch.ByteOrder.PutUint64(f[xstateBVOffset:], xstateBV)
 		// Force XCOMP_BV and reserved bytes in the XSAVE header to 0.
 		reserved := f[xsaveHeaderZeroedOffset : xsaveHeaderZeroedOffset+xsaveHeaderZeroedBytes]
-		for i := range reserved {
-			reserved[i] = 0
-		}
+		clear(reserved)
 	}
 }
 
@@ -378,7 +382,11 @@ func (s *State) AfterLoad() {
 	}
 	if hostFeatureSet.UseXsave() {
 		if err := safecopy.CheckXstate(s.BytePointer()); err != nil {
-			panic(fmt.Sprintf("incompatible state: %s (%#v)", err, *s))
+			xcompBV := uint64(0)
+			if len(old) >= xcompBVOffset+8 {
+				xcompBV = hostarch.ByteOrder.Uint64(old[xcompBVOffset:])
+			}
+			panic(fmt.Sprintf("incompatible state: %s\nlen(old)=%d len(new)=%d supportedBV=%#x XSTATE_BV=%#x XCOMP_BV=%#x", err, len(old), len(*s), supportedBV, savedBV, xcompBV))
 		}
 	}
 }

@@ -14,14 +14,6 @@
 
 package nvgpu
 
-// HasRMCtrlFD is a type constraint for UVM parameter structs containing a
-// RMCtrlFD field. This is necessary because, as of this writing (Go 1.20),
-// there is no way to enable field access using a Go type constraint.
-type HasRMCtrlFD interface {
-	GetRMCtrlFD() int32
-	SetRMCtrlFD(int32)
-}
-
 // UVM ioctl commands.
 const (
 	// From kernel-open/nvidia-uvm/uvm_linux_ioctl.h:
@@ -35,15 +27,22 @@ const (
 	UVM_UNREGISTER_GPU_VASPACE         = 26
 	UVM_REGISTER_CHANNEL               = 27
 	UVM_UNREGISTER_CHANNEL             = 28
+	UVM_SET_RANGE_GROUP                = 31
 	UVM_MAP_EXTERNAL_ALLOCATION        = 33
 	UVM_FREE                           = 34
 	UVM_REGISTER_GPU                   = 37
 	UVM_UNREGISTER_GPU                 = 38
 	UVM_PAGEABLE_MEM_ACCESS            = 39
+	UVM_SET_PREFERRED_LOCATION         = 42
+	UVM_DISABLE_READ_DUPLICATION       = 45
+	UVM_MIGRATE_RANGE_GROUP            = 53
+	UVM_TOOLS_READ_PROCESS_MEMORY      = 62
+	UVM_TOOLS_WRITE_PROCESS_MEMORY     = 63
 	UVM_MAP_DYNAMIC_PARALLELISM_REGION = 65
 	UVM_ALLOC_SEMAPHORE_POOL           = 68
 	UVM_VALIDATE_VA_RANGE              = 72
 	UVM_CREATE_EXTERNAL_RANGE          = 73
+	UVM_MM_INITIALIZE                  = 75
 )
 
 // +marshal
@@ -74,30 +73,32 @@ type UVM_DESTROY_RANGE_GROUP_PARAMS struct {
 
 // +marshal
 type UVM_REGISTER_GPU_VASPACE_PARAMS struct {
-	GPUUUID  [16]uint8
+	GPUUUID  NvUUID
 	RMCtrlFD int32
 	HClient  Handle
 	HVASpace Handle
 	RMStatus uint32
 }
 
-func (p *UVM_REGISTER_GPU_VASPACE_PARAMS) GetRMCtrlFD() int32 {
+// GetFrontendFD implements HasFrontendFD.GetFrontendFD.
+func (p *UVM_REGISTER_GPU_VASPACE_PARAMS) GetFrontendFD() int32 {
 	return p.RMCtrlFD
 }
 
-func (p *UVM_REGISTER_GPU_VASPACE_PARAMS) SetRMCtrlFD(fd int32) {
+// SetFrontendFD implements HasFrontendFD.SetFrontendFD.
+func (p *UVM_REGISTER_GPU_VASPACE_PARAMS) SetFrontendFD(fd int32) {
 	p.RMCtrlFD = fd
 }
 
 // +marshal
 type UVM_UNREGISTER_GPU_VASPACE_PARAMS struct {
-	GPUUUID  [16]uint8
+	GPUUUID  NvUUID
 	RMStatus uint32
 }
 
 // +marshal
 type UVM_REGISTER_CHANNEL_PARAMS struct {
-	GPUUUID  [16]uint8
+	GPUUUID  NvUUID
 	RMCtrlFD int32
 	HClient  Handle
 	HChannel Handle
@@ -108,20 +109,31 @@ type UVM_REGISTER_CHANNEL_PARAMS struct {
 	Pad0     [4]byte
 }
 
-func (p *UVM_REGISTER_CHANNEL_PARAMS) GetRMCtrlFD() int32 {
+// GetFrontendFD implements HasFrontendFD.GetFrontendFD.
+func (p *UVM_REGISTER_CHANNEL_PARAMS) GetFrontendFD() int32 {
 	return p.RMCtrlFD
 }
 
-func (p *UVM_REGISTER_CHANNEL_PARAMS) SetRMCtrlFD(fd int32) {
+// SetFrontendFD implements HasFrontendFD.SetFrontendFD.
+func (p *UVM_REGISTER_CHANNEL_PARAMS) SetFrontendFD(fd int32) {
 	p.RMCtrlFD = fd
 }
 
 // +marshal
 type UVM_UNREGISTER_CHANNEL_PARAMS struct {
-	GPUUUID  [16]uint8
+	GPUUUID  NvUUID
 	HClient  Handle
 	HChannel Handle
 	RMStatus uint32
+}
+
+// +marshal
+type UVM_SET_RANGE_GROUP_PARAMS struct {
+	RangeGroupID  uint64
+	RequestedBase uint64
+	Length        uint64
+	RMStatus      uint32
+	Pad0          [4]byte
 }
 
 // +marshal
@@ -137,11 +149,36 @@ type UVM_MAP_EXTERNAL_ALLOCATION_PARAMS struct {
 	RMStatus           uint32
 }
 
-func (p *UVM_MAP_EXTERNAL_ALLOCATION_PARAMS) GetRMCtrlFD() int32 {
+// GetFrontendFD implements HasFrontendFD.GetFrontendFD.
+func (p *UVM_MAP_EXTERNAL_ALLOCATION_PARAMS) GetFrontendFD() int32 {
 	return p.RMCtrlFD
 }
 
-func (p *UVM_MAP_EXTERNAL_ALLOCATION_PARAMS) SetRMCtrlFD(fd int32) {
+// SetFrontendFD implements HasFrontendFD.SetFrontendFD.
+func (p *UVM_MAP_EXTERNAL_ALLOCATION_PARAMS) SetFrontendFD(fd int32) {
+	p.RMCtrlFD = fd
+}
+
+// +marshal
+type UVM_MAP_EXTERNAL_ALLOCATION_PARAMS_V550 struct {
+	Base               uint64
+	Length             uint64
+	Offset             uint64
+	PerGPUAttributes   [UVM_MAX_GPUS_V2]UvmGpuMappingAttributes
+	GPUAttributesCount uint64
+	RMCtrlFD           int32
+	HClient            Handle
+	HMemory            Handle
+	RMStatus           uint32
+}
+
+// GetFrontendFD implements HasFrontendFD.GetFrontendFD.
+func (p *UVM_MAP_EXTERNAL_ALLOCATION_PARAMS_V550) GetFrontendFD() int32 {
+	return p.RMCtrlFD
+}
+
+// SetFrontendFD implements HasFrontendFD.SetFrontendFD.
+func (p *UVM_MAP_EXTERNAL_ALLOCATION_PARAMS_V550) SetFrontendFD(fd int32) {
 	p.RMCtrlFD = fd
 }
 
@@ -155,7 +192,7 @@ type UVM_FREE_PARAMS struct {
 
 // +marshal
 type UVM_REGISTER_GPU_PARAMS struct {
-	GPUUUID     [16]uint8
+	GPUUUID     NvUUID
 	NumaEnabled uint8
 	Pad         [3]byte
 	NumaNodeID  int32
@@ -165,17 +202,19 @@ type UVM_REGISTER_GPU_PARAMS struct {
 	RMStatus    uint32
 }
 
-func (p *UVM_REGISTER_GPU_PARAMS) GetRMCtrlFD() int32 {
+// GetFrontendFD implements HasFrontendFD.GetFrontendFD.
+func (p *UVM_REGISTER_GPU_PARAMS) GetFrontendFD() int32 {
 	return p.RMCtrlFD
 }
 
-func (p *UVM_REGISTER_GPU_PARAMS) SetRMCtrlFD(fd int32) {
+// SetFrontendFD implements HasFrontendFD.SetFrontendFD.
+func (p *UVM_REGISTER_GPU_PARAMS) SetFrontendFD(fd int32) {
 	p.RMCtrlFD = fd
 }
 
 // +marshal
 type UVM_UNREGISTER_GPU_PARAMS struct {
-	GPUUUID  [16]uint8
+	GPUUUID  NvUUID
 	RMStatus uint32
 }
 
@@ -187,10 +226,64 @@ type UVM_PAGEABLE_MEM_ACCESS_PARAMS struct {
 }
 
 // +marshal
+type UVM_SET_PREFERRED_LOCATION_PARAMS struct {
+	RequestedBase     uint64
+	Length            uint64
+	PreferredLocation NvUUID
+	RMStatus          uint32
+	Pad0              [4]byte
+}
+
+// +marshal
+type UVM_SET_PREFERRED_LOCATION_PARAMS_V550 struct {
+	RequestedBase        uint64
+	Length               uint64
+	PreferredLocation    NvUUID
+	PreferredCPUNumaNode int32
+	RMStatus             uint32
+}
+
+// +marshal
+type UVM_DISABLE_READ_DUPLICATION_PARAMS struct {
+	RequestedBase uint64
+	Length        uint64
+	RMStatus      uint32
+	Pad0          [4]byte
+}
+
+// +marshal
+type UVM_MIGRATE_RANGE_GROUP_PARAMS struct {
+	RangeGroupID    uint64
+	DestinationUUID NvUUID
+	RMStatus        uint32
+	Pad0            [4]byte
+}
+
+// +marshal
+type UVM_TOOLS_READ_PROCESS_MEMORY_PARAMS struct {
+	Buffer    uint64
+	Size      uint64
+	TargetVA  uint64
+	BytesRead uint64
+	RMStatus  uint32
+	Pad0      [4]byte
+}
+
+// +marshal
+type UVM_TOOLS_WRITE_PROCESS_MEMORY_PARAMS struct {
+	Buffer       uint64
+	Size         uint64
+	TargetVA     uint64
+	BytesWritten uint64
+	RMStatus     uint32
+	Pad0         [4]byte
+}
+
+// +marshal
 type UVM_MAP_DYNAMIC_PARALLELISM_REGION_PARAMS struct {
 	Base     uint64
 	Length   uint64
-	GPUUUID  [16]uint8
+	GPUUUID  NvUUID
 	RMStatus uint32
 	Pad0     [4]byte
 }
@@ -200,6 +293,16 @@ type UVM_ALLOC_SEMAPHORE_POOL_PARAMS struct {
 	Base               uint64
 	Length             uint64
 	PerGPUAttributes   [UVM_MAX_GPUS]UvmGpuMappingAttributes
+	GPUAttributesCount uint64
+	RMStatus           uint32
+	Pad0               [4]byte
+}
+
+// +marshal
+type UVM_ALLOC_SEMAPHORE_POOL_PARAMS_V550 struct {
+	Base               uint64
+	Length             uint64
+	PerGPUAttributes   [UVM_MAX_GPUS_V2]UvmGpuMappingAttributes
 	GPUAttributesCount uint64
 	RMStatus           uint32
 	Pad0               [4]byte
@@ -221,13 +324,22 @@ type UVM_CREATE_EXTERNAL_RANGE_PARAMS struct {
 	Pad0     [4]byte
 }
 
+// +marshal
+type UVM_MM_INITIALIZE_PARAMS struct {
+	UvmFD  int32
+	Status uint32
+}
+
 // From kernel-open/nvidia-uvm/uvm_types.h:
 
-const UVM_MAX_GPUS = NV_MAX_DEVICES
+const (
+	UVM_MAX_GPUS    = NV_MAX_DEVICES
+	UVM_MAX_GPUS_V2 = NV_MAX_DEVICES * NV_MAX_SUBDEVICES
+)
 
 // +marshal
 type UvmGpuMappingAttributes struct {
-	GPUUUID            [16]byte
+	GPUUUID            NvUUID
 	GPUMappingType     uint32
 	GPUCachingType     uint32
 	GPUFormatType      uint32

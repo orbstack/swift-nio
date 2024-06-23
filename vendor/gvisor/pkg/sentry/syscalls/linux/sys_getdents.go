@@ -43,7 +43,8 @@ const DirentStructBytesWithoutName = 8 + 8 + 2 + 1 + 1
 func getdents(t *kernel.Task, args arch.SyscallArguments, isGetdents64 bool) (uintptr, *kernel.SyscallControl, error) {
 	fd := args[0].Int()
 	addr := args[1].Pointer()
-	size := int(args[2].Uint())
+	size := args[2].Int()
+
 	if size < DirentStructBytesWithoutName {
 		return 0, nil, linuxerr.EINVAL
 	}
@@ -64,7 +65,7 @@ func getdents(t *kernel.Task, args arch.SyscallArguments, isGetdents64 bool) (ui
 		return 0, nil, err
 	}
 
-	cb := getGetdentsCallback(t, int(allowedSize), size, isGetdents64)
+	cb := getGetdentsCallback(t, int(allowedSize), int(size), isGetdents64)
 	err = file.IterDirents(t, cb)
 	n, _ := t.CopyOutBytes(addr, cb.buf[:cb.copied])
 
@@ -150,9 +151,7 @@ func (cb *getdentsCallback) Handle(dirent vfs.Dirent) error {
 		// Zero out all remaining bytes in buf, including the NUL terminator
 		// after dirent.Name.
 		bufTail := buf[19+len(dirent.Name):]
-		for i := range bufTail {
-			bufTail[i] = 0
-		}
+		clear(bufTail)
 		cb.copied += size
 	} else {
 		// struct linux_dirent {
@@ -188,9 +187,7 @@ func (cb *getdentsCallback) Handle(dirent vfs.Dirent) error {
 		// after dirent.Name and the zero padding byte between the name and
 		// dirent type.
 		bufTail := buf[18+len(dirent.Name) : size-1]
-		for i := range bufTail {
-			bufTail[i] = 0
-		}
+		clear(bufTail)
 		buf[size-1] = dirent.Type
 		cb.copied += size
 	}

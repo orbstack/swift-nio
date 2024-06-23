@@ -209,7 +209,7 @@ func (w *worker) work(compress bool, level int) {
 }
 
 type hashPool struct {
-	// mu protexts the hash list.
+	// mu protects the hash list.
 	mu sync.Mutex
 
 	// key is the key used to create hash objects.
@@ -407,17 +407,6 @@ var errNewBuffer = errors.New("buffer ready")
 
 // ErrHashMismatch is returned if the hash does not match.
 var ErrHashMismatch = errors.New("hash mismatch")
-
-// ReadByte implements wire.Reader.ReadByte.
-func (r *Reader) ReadByte() (byte, error) {
-	var p [1]byte
-	n, err := r.Read(p[:])
-	if n != 1 {
-		return p[0], err
-	}
-	// Suppress EOF.
-	return p[0], nil
-}
 
 // Read implements io.Reader.Read.
 func (r *Reader) Read(p []byte) (int, error) {
@@ -659,21 +648,6 @@ func (w *Writer) flush(c *chunk) error {
 	return nil
 }
 
-// WriteByte implements wire.Writer.WriteByte.
-//
-// Note that this implementation is necessary on the object itself, as an
-// interface-based dispatch cannot tell whether the array backing the slice
-// escapes, therefore the all bytes written will generate an escape.
-func (w *Writer) WriteByte(b byte) error {
-	var p [1]byte
-	p[0] = b
-	n, err := w.Write(p[:])
-	if n != 1 {
-		return err
-	}
-	return nil
-}
-
 // Write implements io.Writer.Write.
 func (w *Writer) Write(p []byte) (int, error) {
 	w.mu.Lock()
@@ -690,27 +664,30 @@ func (w *Writer) Write(p []byte) (int, error) {
 		pendingInline = 0
 	)
 	callback := func(c *chunk) error {
-		if pendingPre == 0 && pendingInline > 0 {
+		if pendingPre > 0 {
+			pendingPre--
+			err := w.flush(c)
+			c.uncompressed.Reset()
+			bufPool.Put(c.uncompressed)
+			return err
+		}
+		if pendingInline > 0 {
 			pendingInline--
 			return w.flush(c)
 		}
-		if pendingPre > 0 {
-			pendingPre--
-		}
-		err := w.flush(c)
-		c.uncompressed.Reset()
-		bufPool.Put(c.uncompressed)
-		return err
+		panic("both pendingPre and pendingInline exhausted")
 	}
 
 	for done := 0; done < len(p); {
 		// Construct an inline buffer if we're doing an inline
 		// encoding; see above regarding the bytes.MinRead constraint.
+		inline := false
 		if w.buf.Len() == 0 && len(p) >= done+int(w.chunkSize) && len(p) >= done+bytes.MinRead {
 			bufPool.Put(w.buf) // Return to the pool; never scheduled.
 			w.buf = bytes.NewBuffer(p[done : done+int(w.chunkSize)])
 			done += int(w.chunkSize)
 			pendingInline++
+			inline = true
 		}
 
 		// Do we need to flush w.buf? Note that this case should be hit
@@ -719,6 +696,9 @@ func (w *Writer) Write(p []byte) (int, error) {
 		if left == 0 {
 			if err := w.schedule(newChunk(nil, nil, nil, w.buf), callback); err != nil {
 				return done, err
+			}
+			if !inline {
+				pendingPre++
 			}
 			// Reset the buffer, since this has now been scheduled
 			// for compression. Note that this may be trampled

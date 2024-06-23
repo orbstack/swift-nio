@@ -18,27 +18,29 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/google/subcommands"
-	"golang.org/x/sys/unix"
-	"gvisor.dev/gvisor/pkg/log"
+	"gvisor.dev/gvisor/pkg/sentry/pgalloc"
 	"gvisor.dev/gvisor/pkg/state/statefile"
 	"gvisor.dev/gvisor/runsc/cmd/util"
 	"gvisor.dev/gvisor/runsc/config"
 	"gvisor.dev/gvisor/runsc/container"
 	"gvisor.dev/gvisor/runsc/flag"
-	"gvisor.dev/gvisor/runsc/specutils"
 )
-
-// File containing the container's saved image/state within the given image-path's directory.
-const checkpointFileName = "checkpoint.img"
 
 // Checkpoint implements subcommands.Command for the "checkpoint" command.
 type Checkpoint struct {
-	imagePath    string
-	leaveRunning bool
-	compression  CheckpointCompression
+	imagePath                 string
+	leaveRunning              bool
+	compression               CheckpointCompression
+	excludeCommittedZeroPages bool
+
+	// direct indicates whether O_DIRECT should be used for writing the
+	// checkpoint pages file. It bypasses the kernel page cache. It is beneficial
+	// if the checkpoint files are not expected to be read again on this host.
+	// For example, if the checkpoint files will be stored on a network block
+	// device, which will be detached after the checkpoint is done.
+	direct bool
 }
 
 // Name implements subcommands.Command.Name.
@@ -61,7 +63,9 @@ func (*Checkpoint) Usage() string {
 func (c *Checkpoint) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&c.imagePath, "image-path", "", "directory path to saved container image")
 	f.BoolVar(&c.leaveRunning, "leave-running", false, "restart the container after checkpointing")
-	f.Var(newCheckpointCompressionValue(statefile.CompressionLevelFlateBestSpeed, &c.compression), "compression", "compress checkpoint image on disk. Values: none|flate-best-speed.")
+	f.Var(newCheckpointCompressionValue(statefile.CompressionLevelDefault, &c.compression), "compression", "compress checkpoint image on disk. Values: none|flate-best-speed.")
+	f.BoolVar(&c.excludeCommittedZeroPages, "exclude-committed-zero-pages", false, "exclude committed zero-filled pages from checkpoint")
+	f.BoolVar(&c.direct, "direct", false, "use O_DIRECT for writing checkpoint pages file")
 
 	// Unimplemented flags necessary for compatibility with docker.
 	var wp string
@@ -77,7 +81,6 @@ func (c *Checkpoint) Execute(_ context.Context, f *flag.FlagSet, args ...any) su
 
 	id := f.Arg(0)
 	conf := args[0].(*config.Config)
-	waitStatus := args[1].(*unix.WaitStatus)
 
 	cont, err := container.Load(conf.RootDir, container.FullID{ContainerID: id}, container.LoadOpts{})
 	if err != nil {
@@ -92,71 +95,21 @@ func (c *Checkpoint) Execute(_ context.Context, f *flag.FlagSet, args ...any) su
 		util.Fatalf("making directories at path provided: %v", err)
 	}
 
-	fullImagePath := filepath.Join(c.imagePath, checkpointFileName)
-
-	// Create the image file and open for writing.
-	file, err := os.OpenFile(fullImagePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0644)
-	if err != nil {
-		util.Fatalf("os.OpenFile(%q) failed: %v", fullImagePath, err)
+	sOpts := statefile.Options{
+		Compression: c.compression.Level(),
 	}
-	defer file.Close()
+	mfOpts := pgalloc.SaveOpts{
+		ExcludeCommittedZeroPages: c.excludeCommittedZeroPages,
+	}
 
-	if err := cont.Checkpoint(file, statefile.Options{Compression: c.compression.Level()}); err != nil {
+	if c.leaveRunning {
+		// Do not destroy the sandbox after saving.
+		sOpts.Resume = true
+	}
+
+	if err := cont.Checkpoint(c.imagePath, c.direct, sOpts, mfOpts); err != nil {
 		util.Fatalf("checkpoint failed: %v", err)
 	}
-
-	if !c.leaveRunning {
-		return subcommands.ExitSuccess
-	}
-
-	// TODO(b/110843694): Make it possible to restore into same container.
-	// For now, we can fake it by destroying the container and making a
-	// new container with the same ID. This hack does not work with docker
-	// which uses the container pid to ensure that the restore-container is
-	// actually the same as the checkpoint-container. By restoring into
-	// the same container, we will solve the docker incompatibility.
-
-	// Restore into new container with same ID.
-	bundleDir := cont.BundleDir
-	if bundleDir == "" {
-		util.Fatalf("setting bundleDir")
-	}
-
-	spec, err := specutils.ReadSpec(bundleDir, conf)
-	if err != nil {
-		util.Fatalf("reading spec: %v", err)
-	}
-
-	specutils.LogSpecDebug(spec, conf.OCISeccomp)
-
-	if cont.ConsoleSocket != "" {
-		log.Warningf("ignoring console socket since it cannot be restored")
-	}
-
-	if err := cont.Destroy(); err != nil {
-		util.Fatalf("destroying container: %v", err)
-	}
-
-	contArgs := container.Args{
-		ID:        id,
-		Spec:      spec,
-		BundleDir: bundleDir,
-	}
-	cont, err = container.New(conf, contArgs)
-	if err != nil {
-		util.Fatalf("restoring container: %v", err)
-	}
-	defer cont.Destroy()
-
-	if err := cont.Restore(conf, fullImagePath); err != nil {
-		util.Fatalf("starting container: %v", err)
-	}
-
-	ws, err := cont.Wait()
-	if err != nil {
-		util.Fatalf("Error waiting for container: %v", err)
-	}
-	*waitStatus = ws
 
 	return subcommands.ExitSuccess
 }

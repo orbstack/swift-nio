@@ -3,6 +3,8 @@
 package futex
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/state"
 )
 
@@ -26,11 +28,11 @@ func (p *AtomicPtrBucket) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.SaveValue(0, ptrValue)
 }
 
-func (p *AtomicPtrBucket) afterLoad() {}
+func (p *AtomicPtrBucket) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (p *AtomicPtrBucket) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.LoadValue(0, new(*bucket), func(y any) { p.loadPtr(y.(*bucket)) })
+func (p *AtomicPtrBucket) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.LoadValue(0, new(*bucket), func(y any) { p.loadPtr(ctx, y.(*bucket)) })
 }
 
 func init() {

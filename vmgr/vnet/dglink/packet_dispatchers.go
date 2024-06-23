@@ -214,6 +214,9 @@ type recvMMsgDispatcher struct {
 	// array is passed as the parameter to recvmmsg call to retrieve
 	// potentially more than 1 packet per unix.
 	msgHdrs []rawfile.MMsgHdr
+
+	// pkts is reused to avoid allocations.
+	pkts stack.PacketBufferList
 }
 
 const (
@@ -300,52 +303,30 @@ func (d *recvMMsgDispatcher) dispatch() (bool, tcpip.Error) {
 	if nMsgs == -1 || err != nil {
 		return false, err
 	}
-	// Process each of received packets.
-	// Keep a list of packets so we can DecRef outside of the loop.
-	var pkts stack.PacketBufferList
 
 	// MOD: d.e.mu RWMutex removed
 	dsp := d.e.dispatcher
 
-	defer func() { pkts.DecRef() }()
+	defer d.pkts.Reset()
 	for k := 0; k < nMsgs; k++ {
 		n := int(d.msgHdrs[k].Len)
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 			Payload: d.bufs[k].pullBuffer(n),
 		})
-		pkts.PushBack(pkt)
+		d.pkts.PushBack(pkt)
 
 		// Mark that this iovec has been processed.
 		d.msgHdrs[k].Msg.Iovlen = 0
 
-		var p tcpip.NetworkProtocolNumber
 		if d.e.hdrSize > 0 {
 			hdr, ok := pkt.LinkHeader().Consume(d.e.hdrSize)
 			if !ok {
 				return false, nil
 			}
-			p = header.Ethernet(hdr).Type()
-		} else {
-			// We don't get any indication of what the packet is, so try to guess
-			// if it's an IPv4 or IPv6 packet.
-			// IP version information is at the first octet, so pulling up 1 byte.
-			h, ok := pkt.Data().PullUp(1)
-			if !ok {
-				// Skip this packet.
-				continue
-			}
-			switch header.IPVersion(h) {
-			case header.IPv4Version:
-				p = header.IPv4ProtocolNumber
-			case header.IPv6Version:
-				p = header.IPv6ProtocolNumber
-			default:
-				// Skip this packet.
-				continue
-			}
+			pkt.NetworkProtocolNumber = header.Ethernet(hdr).Type()
 		}
-
-		dsp.DeliverNetworkPacket(p, pkt)
+		pkt.RXChecksumValidated = d.e.caps&stack.CapabilityRXChecksumOffload != 0
+		dsp.DeliverNetworkPacket(pkt.NetworkProtocolNumber, pkt)
 	}
 
 	return true, nil

@@ -3,6 +3,8 @@
 package pgalloc
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/state"
 )
 
@@ -26,10 +28,10 @@ func (r *EvictableRange) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &r.End)
 }
 
-func (r *EvictableRange) afterLoad() {}
+func (r *EvictableRange) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (r *EvictableRange) StateLoad(stateSourceObject state.Source) {
+func (r *EvictableRange) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.Start)
 	stateSourceObject.Load(1, &r.End)
 }
@@ -49,16 +51,16 @@ func (s *evictableRangeSet) beforeSave() {}
 // +checklocksignore
 func (s *evictableRangeSet) StateSave(stateSinkObject state.Sink) {
 	s.beforeSave()
-	var rootValue *evictableRangeSegmentDataSlices
+	var rootValue []evictableRangeFlatSegment
 	rootValue = s.saveRoot()
 	stateSinkObject.SaveValue(0, rootValue)
 }
 
-func (s *evictableRangeSet) afterLoad() {}
+func (s *evictableRangeSet) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *evictableRangeSet) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.LoadValue(0, new(*evictableRangeSegmentDataSlices), func(y any) { s.loadRoot(y.(*evictableRangeSegmentDataSlices)) })
+func (s *evictableRangeSet) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.LoadValue(0, new([]evictableRangeFlatSegment), func(y any) { s.loadRoot(ctx, y.([]evictableRangeFlatSegment)) })
 }
 
 func (n *evictableRangenode) StateTypeName() string {
@@ -93,10 +95,10 @@ func (n *evictableRangenode) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(7, &n.children)
 }
 
-func (n *evictableRangenode) afterLoad() {}
+func (n *evictableRangenode) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (n *evictableRangenode) StateLoad(stateSourceObject state.Source) {
+func (n *evictableRangenode) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &n.nrSegments)
 	stateSourceObject.Load(1, &n.parent)
 	stateSourceObject.Load(2, &n.parentIndex)
@@ -107,35 +109,35 @@ func (n *evictableRangenode) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(7, &n.children)
 }
 
-func (e *evictableRangeSegmentDataSlices) StateTypeName() string {
-	return "pkg/sentry/pgalloc.evictableRangeSegmentDataSlices"
+func (e *evictableRangeFlatSegment) StateTypeName() string {
+	return "pkg/sentry/pgalloc.evictableRangeFlatSegment"
 }
 
-func (e *evictableRangeSegmentDataSlices) StateFields() []string {
+func (e *evictableRangeFlatSegment) StateFields() []string {
 	return []string{
 		"Start",
 		"End",
-		"Values",
+		"Value",
 	}
 }
 
-func (e *evictableRangeSegmentDataSlices) beforeSave() {}
+func (e *evictableRangeFlatSegment) beforeSave() {}
 
 // +checklocksignore
-func (e *evictableRangeSegmentDataSlices) StateSave(stateSinkObject state.Sink) {
+func (e *evictableRangeFlatSegment) StateSave(stateSinkObject state.Sink) {
 	e.beforeSave()
 	stateSinkObject.Save(0, &e.Start)
 	stateSinkObject.Save(1, &e.End)
-	stateSinkObject.Save(2, &e.Values)
+	stateSinkObject.Save(2, &e.Value)
 }
 
-func (e *evictableRangeSegmentDataSlices) afterLoad() {}
+func (e *evictableRangeFlatSegment) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (e *evictableRangeSegmentDataSlices) StateLoad(stateSourceObject state.Source) {
+func (e *evictableRangeFlatSegment) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &e.Start)
 	stateSourceObject.Load(1, &e.End)
-	stateSourceObject.Load(2, &e.Values)
+	stateSourceObject.Load(2, &e.Value)
 }
 
 func (u *usageInfo) StateTypeName() string {
@@ -162,10 +164,10 @@ func (u *usageInfo) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(3, &u.memCgID)
 }
 
-func (u *usageInfo) afterLoad() {}
+func (u *usageInfo) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (u *usageInfo) StateLoad(stateSourceObject state.Source) {
+func (u *usageInfo) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &u.kind)
 	stateSourceObject.Load(1, &u.knownCommitted)
 	stateSourceObject.Load(2, &u.refs)
@@ -187,16 +189,16 @@ func (s *reclaimSet) beforeSave() {}
 // +checklocksignore
 func (s *reclaimSet) StateSave(stateSinkObject state.Sink) {
 	s.beforeSave()
-	var rootValue *reclaimSegmentDataSlices
+	var rootValue []reclaimFlatSegment
 	rootValue = s.saveRoot()
 	stateSinkObject.SaveValue(0, rootValue)
 }
 
-func (s *reclaimSet) afterLoad() {}
+func (s *reclaimSet) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *reclaimSet) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.LoadValue(0, new(*reclaimSegmentDataSlices), func(y any) { s.loadRoot(y.(*reclaimSegmentDataSlices)) })
+func (s *reclaimSet) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.LoadValue(0, new([]reclaimFlatSegment), func(y any) { s.loadRoot(ctx, y.([]reclaimFlatSegment)) })
 }
 
 func (n *reclaimnode) StateTypeName() string {
@@ -231,10 +233,10 @@ func (n *reclaimnode) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(7, &n.children)
 }
 
-func (n *reclaimnode) afterLoad() {}
+func (n *reclaimnode) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (n *reclaimnode) StateLoad(stateSourceObject state.Source) {
+func (n *reclaimnode) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &n.nrSegments)
 	stateSourceObject.Load(1, &n.parent)
 	stateSourceObject.Load(2, &n.parentIndex)
@@ -245,35 +247,35 @@ func (n *reclaimnode) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(7, &n.children)
 }
 
-func (r *reclaimSegmentDataSlices) StateTypeName() string {
-	return "pkg/sentry/pgalloc.reclaimSegmentDataSlices"
+func (r *reclaimFlatSegment) StateTypeName() string {
+	return "pkg/sentry/pgalloc.reclaimFlatSegment"
 }
 
-func (r *reclaimSegmentDataSlices) StateFields() []string {
+func (r *reclaimFlatSegment) StateFields() []string {
 	return []string{
 		"Start",
 		"End",
-		"Values",
+		"Value",
 	}
 }
 
-func (r *reclaimSegmentDataSlices) beforeSave() {}
+func (r *reclaimFlatSegment) beforeSave() {}
 
 // +checklocksignore
-func (r *reclaimSegmentDataSlices) StateSave(stateSinkObject state.Sink) {
+func (r *reclaimFlatSegment) StateSave(stateSinkObject state.Sink) {
 	r.beforeSave()
 	stateSinkObject.Save(0, &r.Start)
 	stateSinkObject.Save(1, &r.End)
-	stateSinkObject.Save(2, &r.Values)
+	stateSinkObject.Save(2, &r.Value)
 }
 
-func (r *reclaimSegmentDataSlices) afterLoad() {}
+func (r *reclaimFlatSegment) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (r *reclaimSegmentDataSlices) StateLoad(stateSourceObject state.Source) {
+func (r *reclaimFlatSegment) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.Start)
 	stateSourceObject.Load(1, &r.End)
-	stateSourceObject.Load(2, &r.Values)
+	stateSourceObject.Load(2, &r.Value)
 }
 
 func (s *usageSet) StateTypeName() string {
@@ -291,16 +293,16 @@ func (s *usageSet) beforeSave() {}
 // +checklocksignore
 func (s *usageSet) StateSave(stateSinkObject state.Sink) {
 	s.beforeSave()
-	var rootValue *usageSegmentDataSlices
+	var rootValue []usageFlatSegment
 	rootValue = s.saveRoot()
 	stateSinkObject.SaveValue(0, rootValue)
 }
 
-func (s *usageSet) afterLoad() {}
+func (s *usageSet) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *usageSet) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.LoadValue(0, new(*usageSegmentDataSlices), func(y any) { s.loadRoot(y.(*usageSegmentDataSlices)) })
+func (s *usageSet) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.LoadValue(0, new([]usageFlatSegment), func(y any) { s.loadRoot(ctx, y.([]usageFlatSegment)) })
 }
 
 func (n *usagenode) StateTypeName() string {
@@ -335,10 +337,10 @@ func (n *usagenode) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(7, &n.children)
 }
 
-func (n *usagenode) afterLoad() {}
+func (n *usagenode) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (n *usagenode) StateLoad(stateSourceObject state.Source) {
+func (n *usagenode) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &n.nrSegments)
 	stateSourceObject.Load(1, &n.parent)
 	stateSourceObject.Load(2, &n.parentIndex)
@@ -349,47 +351,47 @@ func (n *usagenode) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(7, &n.children)
 }
 
-func (u *usageSegmentDataSlices) StateTypeName() string {
-	return "pkg/sentry/pgalloc.usageSegmentDataSlices"
+func (u *usageFlatSegment) StateTypeName() string {
+	return "pkg/sentry/pgalloc.usageFlatSegment"
 }
 
-func (u *usageSegmentDataSlices) StateFields() []string {
+func (u *usageFlatSegment) StateFields() []string {
 	return []string{
 		"Start",
 		"End",
-		"Values",
+		"Value",
 	}
 }
 
-func (u *usageSegmentDataSlices) beforeSave() {}
+func (u *usageFlatSegment) beforeSave() {}
 
 // +checklocksignore
-func (u *usageSegmentDataSlices) StateSave(stateSinkObject state.Sink) {
+func (u *usageFlatSegment) StateSave(stateSinkObject state.Sink) {
 	u.beforeSave()
 	stateSinkObject.Save(0, &u.Start)
 	stateSinkObject.Save(1, &u.End)
-	stateSinkObject.Save(2, &u.Values)
+	stateSinkObject.Save(2, &u.Value)
 }
 
-func (u *usageSegmentDataSlices) afterLoad() {}
+func (u *usageFlatSegment) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (u *usageSegmentDataSlices) StateLoad(stateSourceObject state.Source) {
+func (u *usageFlatSegment) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &u.Start)
 	stateSourceObject.Load(1, &u.End)
-	stateSourceObject.Load(2, &u.Values)
+	stateSourceObject.Load(2, &u.Value)
 }
 
 func init() {
 	state.Register((*EvictableRange)(nil))
 	state.Register((*evictableRangeSet)(nil))
 	state.Register((*evictableRangenode)(nil))
-	state.Register((*evictableRangeSegmentDataSlices)(nil))
+	state.Register((*evictableRangeFlatSegment)(nil))
 	state.Register((*usageInfo)(nil))
 	state.Register((*reclaimSet)(nil))
 	state.Register((*reclaimnode)(nil))
-	state.Register((*reclaimSegmentDataSlices)(nil))
+	state.Register((*reclaimFlatSegment)(nil))
 	state.Register((*usageSet)(nil))
 	state.Register((*usagenode)(nil))
-	state.Register((*usageSegmentDataSlices)(nil))
+	state.Register((*usageFlatSegment)(nil))
 }

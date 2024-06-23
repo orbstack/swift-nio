@@ -15,6 +15,7 @@
 package host
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -23,7 +24,19 @@ import (
 	"gvisor.dev/gvisor/pkg/hostarch"
 	"gvisor.dev/gvisor/pkg/safemem"
 	"gvisor.dev/gvisor/pkg/sentry/hostfd"
+	"gvisor.dev/gvisor/pkg/sentry/vfs"
 )
+
+// MakeRestoreID creates a RestoreID for a given application FD. The application
+// FD remains the same between restores, e.g. stdout=2 before and after restore,
+// but the host FD that is maps to can change between restores. This ID is used
+// to map application FDs to their respective FD after a restore happens.
+func MakeRestoreID(containerName string, fd int) vfs.RestoreID {
+	return vfs.RestoreID{
+		ContainerName: containerName,
+		Path:          fmt.Sprintf("host:%d", fd),
+	}
+}
 
 // beforeSave is invoked by stateify.
 func (i *inode) beforeSave() {
@@ -57,7 +70,14 @@ func (i *inode) beforeSave() {
 }
 
 // afterLoad is invoked by stateify.
-func (i *inode) afterLoad() {
+func (i *inode) afterLoad(ctx context.Context) {
+	fdmap := vfs.RestoreFilesystemFDMapFromContext(ctx)
+	fd, ok := fdmap[i.restoreKey]
+	if !ok {
+		panic(fmt.Sprintf("no host FD available for %+v, map: %v", i.restoreKey, fdmap))
+	}
+	i.hostFD = fd
+
 	if i.epollable {
 		if err := unix.SetNonblock(i.hostFD, true); err != nil {
 			panic(fmt.Sprintf("host.inode.afterLoad: failed to set host FD %d non-blocking: %v", i.hostFD, err))

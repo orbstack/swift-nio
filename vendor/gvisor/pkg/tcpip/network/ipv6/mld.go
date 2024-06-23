@@ -57,6 +57,8 @@ type MLDEndpoint interface {
 }
 
 // MLDOptions holds options for MLD.
+//
+// +stateify savable
 type MLDOptions struct {
 	// Enabled indicates whether MLD will be performed.
 	//
@@ -74,6 +76,8 @@ var _ ip.MulticastGroupProtocol = (*mldState)(nil)
 // mldState is the per-interface MLD state.
 //
 // mldState.init MUST be called to initialize the MLD state.
+//
+// +stateify savable
 type mldState struct {
 	// The IPv6 endpoint this mldState is for.
 	ep *endpoint
@@ -230,7 +234,7 @@ func (*mldState) V2QueryMaxRespCodeToV1Delay(code uint16) time.Duration {
 func (mld *mldState) init(ep *endpoint) {
 	mld.ep = ep
 	mld.genericMulticastProtocol.Init(&ep.mu.RWMutex, ip.GenericMulticastProtocolOptions{
-		Rand:                      ep.protocol.stack.Rand(),
+		Rand:                      ep.protocol.stack.InsecureRNG(),
 		Clock:                     ep.protocol.stack.Clock(),
 		Protocol:                  mld,
 		MaxUnsolicitedReportDelay: UnsolicitedReportIntervalMax,
@@ -308,7 +312,7 @@ func (mld *mldState) softLeaveAll() {
 	mld.genericMulticastProtocol.MakeAllNonMemberLocked()
 }
 
-// initializeAll attemps to initialize the MLD state for each group that has
+// initializeAll attempts to initialize the MLD state for each group that has
 // been joined locally.
 //
 // Precondition: mld.ep.mu must be locked.

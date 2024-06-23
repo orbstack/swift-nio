@@ -3,6 +3,7 @@ package icmpfwd
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/netip"
 	"os"
@@ -52,11 +53,11 @@ type IcmpFwd struct {
 	gatewayAddr6    tcpip.Address
 }
 
-func newFlowLabel(s *stack.Stack) uint32 {
-	return uint32(s.Rand().Int31n(0xfffff))
+func newFlowLabel() uint32 {
+	return uint32(rand.Int31n(0xfffff))
 }
 
-func extractPacketPayload(pkt stack.PacketBufferPtr) []byte {
+func extractPacketPayload(pkt *stack.PacketBuffer) []byte {
 	// ToView().AsSlice() includes Ethernet header
 	// HeaderSize() includes ALL headers: Ethernet + IP + ICMP
 	// We want to strip Ethernet+IP and leave ICMP (or whatever the transport is)
@@ -142,19 +143,19 @@ func (i *IcmpFwd) Close() error {
 }
 
 func (i *IcmpFwd) ProxyRequests() {
-	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber4, func(id stack.TransportEndpointID, pkt *stack.PacketBuffer) bool {
 		i.lastSourceAddr4 = pkt.Network().SourceAddress()
 		return i.sendPacket(pkt)
 	})
 
-	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber6, func(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+	i.stack.SetTransportProtocolHandler(gvicmp.ProtocolNumber6, func(id stack.TransportEndpointID, pkt *stack.PacketBuffer) bool {
 		i.lastSourceAddr6 = pkt.Network().SourceAddress()
 		return i.sendPacket(pkt)
 	})
 }
 
 // handleICMPMessage parses ICMP packets and proxies them if possible.
-func (i *IcmpFwd) sendPacket(pkt stack.PacketBufferPtr) bool {
+func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("panic: %v", r)
@@ -427,7 +428,7 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 	ipHdr := header.IPv6(replyMsg)
 	ipHdr.SetPayloadLength(uint16(len(msg)))
 	ipHdr.SetHopLimit(uint8(cm.HopLimit))
-	ipHdr.SetTOS(uint8(cm.TrafficClass), newFlowLabel(i.stack))
+	ipHdr.SetTOS(uint8(cm.TrafficClass), newFlowLabel())
 	ipHdr.SetDestinationAddress(i.lastSourceAddr6)
 	ipHdr.SetSourceAddress(tcpip.AddrFrom16Slice(addr.(*net.UDPAddr).IP.To16()))
 	ipHdr.SetNextHeader(uint8(gvicmp.ProtocolNumber6))
@@ -500,7 +501,7 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 }
 
 // for now, only ipv6 because we really need it in case there's no IPv6 on host
-func (i *IcmpFwd) InjectDestUnreachable6(pkt stack.PacketBufferPtr, code header.ICMPv6Code) error {
+func (i *IcmpFwd) InjectDestUnreachable6(pkt *stack.PacketBuffer, code header.ICMPv6Code) error {
 	// Make a new IP header
 	// TODO do this better
 	payload := append(pkt.NetworkHeader().View().ToSlice(), extractPacketPayload(pkt)...)
@@ -518,7 +519,7 @@ func (i *IcmpFwd) InjectDestUnreachable6(pkt stack.PacketBufferPtr, code header.
 	ipHdr.SetPayloadLength(uint16(len(msg) - header.IPv6MinimumSize))
 	ipHdr.SetHopLimit(64)
 	// TODO traffic class
-	ipHdr.SetTOS(0, newFlowLabel(i.stack))
+	ipHdr.SetTOS(0, newFlowLabel())
 	ipHdr.SetDestinationAddress(i.lastSourceAddr6)
 	ipHdr.SetSourceAddress(i.gatewayAddr6)
 	ipHdr.SetNextHeader(uint8(gvicmp.ProtocolNumber6))
@@ -540,7 +541,7 @@ func (i *IcmpFwd) InjectDestUnreachable6(pkt stack.PacketBufferPtr, code header.
 	return i.sendReply(ipv6.ProtocolNumber, i.gatewayAddr6, i.lastSourceAddr6, msg)
 }
 
-func (i *IcmpFwd) InjectDestUnreachable4(pkt stack.PacketBufferPtr, code header.ICMPv4Code) error {
+func (i *IcmpFwd) InjectDestUnreachable4(pkt *stack.PacketBuffer, code header.ICMPv4Code) error {
 	// Make a new IP header
 	// TODO do this better
 	payload := append(pkt.NetworkHeader().View().ToSlice(), extractPacketPayload(pkt)...)

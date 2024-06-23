@@ -15,12 +15,14 @@
 package netstack
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 // afterLoad is invoked by stateify.
-func (s *Stack) afterLoad() {
-	s.Stack = stack.StackFromEnv // FIXME(b/36201077)
+func (s *Stack) afterLoad(ctx context.Context) {
+	s.Stack = stack.RestoreStackFromContext(ctx)
 	if s.Stack == nil {
 		panic("can't restore without netstack/tcpip/stack.Stack")
 	}

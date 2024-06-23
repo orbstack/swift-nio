@@ -16,16 +16,18 @@
 #include "textflag.h"
 
 // CPU offsets.
-#define CPU_REGISTERS    64  // +checkoffset . CPU.registers
-#define CPU_FPU_STATE    280 // +checkoffset . CPU.floatingPointState
+#define CPU_REGISTERS    72  // +checkoffset . CPU.registers
+#define CPU_FPU_STATE    288 // +checkoffset . CPU.floatingPointState
 #define CPU_ARCH_STATE   16  // +checkoffset . CPU.CPUArchState
 #define CPU_ERROR_CODE   CPU_ARCH_STATE+0  // +checkoffset . CPUArchState.errorCode
 #define CPU_ERROR_TYPE   CPU_ARCH_STATE+8  // +checkoffset . CPUArchState.errorType
 #define CPU_VECTOR       CPU_ARCH_STATE+16 // +checkoffset . CPUArchState.vector
 #define CPU_FAULT_ADDR   CPU_ARCH_STATE+24 // +checkoffset . CPUArchState.faultAddr
 #define CPU_ENTRY        CPU_ARCH_STATE+32 // +checkoffset . CPUArchState.kernelEntry
-#define CPU_HAS_XSAVE    CPU_ARCH_STATE+40 // +checkoffset . CPUArchState.hasXSAVE
-#define CPU_HAS_XSAVEOPT CPU_ARCH_STATE+41 // +checkoffset . CPUArchState.hasXSAVEOPT
+#define CPU_APP_GS_BASE        CPU_ARCH_STATE+40 // +checkoffset . CPUArchState.appGsBase
+#define CPU_HAS_XSAVE    CPU_ARCH_STATE+48 // +checkoffset . CPUArchState.hasXSAVE
+#define CPU_HAS_XSAVEOPT CPU_ARCH_STATE+49 // +checkoffset . CPUArchState.hasXSAVEOPT
+#define CPU_HAS_FSGSBASE CPU_ARCH_STATE+50 // +checkoffset . CPUArchState.hasFSGSBASE
 
 #define ENTRY_SCRATCH0   256 // +checkoffset . kernelEntry.scratch0
 #define ENTRY_STACK_TOP  264 // +checkoffset . kernelEntry.stackTop
@@ -85,6 +87,14 @@
 #define PTRACE_SS       160 // +checkoffset linux PtraceRegs.Ss
 #define PTRACE_FS_BASE  168 // +checkoffset linux PtraceRegs.Fs_base
 #define PTRACE_GS_BASE  176 // +checkoffset linux PtraceRegs.Gs_base
+
+// The value for XCR0 is defined to xsave/xrstor everything except for PKRU and
+// AMX regions.
+// TODO(gvisor.dev/issues/9896): Implement AMX support.
+// TODO(gvisor.dev/issues/10087): Implement PKRU support.
+#define XCR0_DISABLED_MASK ((1 << 9) | (1 << 17) | (1 << 18))
+#define XCR0_EAX (0xffffffff ^ XCR0_DISABLED_MASK)
+#define XCR0_EDX 0xffffffff
 
 // Saves a register set.
 //
@@ -224,11 +234,9 @@ TEXT ·doSwitchToUser(SB),NOSPLIT,$16-48
 	MOVB ·hasXSAVE(SB), BX
 	TESTB BX, BX
 	JZ no_xrstor
-	// Use xrstor to restore all available fp state. For now, we restore
-	// everything unconditionally by setting the implicit operand edx:eax
-	// (the "requested feature bitmap") to all 1's.
-	MOVL $0xffffffff, AX
-	MOVL $0xffffffff, DX
+	// Use xrstor to restore all available fp state.
+	MOVL $XCR0_EAX, AX
+	MOVL $XCR0_EDX, DX
 	BYTE $0x48; BYTE $0x0f; BYTE $0xae; BYTE $0x2f // XRSTOR64 0(DI)
 	JMP fprestore_done
 no_xrstor:
@@ -240,10 +248,13 @@ fprestore_done:
 	MOVQ regs+8(FP), R8
 	SWAP_GS()
 	MOVQ PTRACE_GS_BASE(R8), AX
+	CMPQ AX, CPU_APP_GS_BASE(SI)
+	JE skip_gs
+	MOVQ AX, CPU_APP_GS_BASE(SI)
 	PUSHQ AX
 	CALL ·writeGS(SB)
 	POPQ AX
-
+skip_gs:
 	// Call sysret() or iret().
 	MOVQ userCR3+24(FP), CX
 	MOVQ needIRET+32(FP), R9
@@ -269,9 +280,8 @@ done_sysret_or_iret:
 	TESTB BX, BX
 	JZ no_xsave
 	// Use xsave/xsaveopt to save all extended state.
-	// We save everything unconditionally by setting RFBM to all 1's.
-	MOVL $0xffffffff, AX
-	MOVL $0xffffffff, DX
+	MOVL $XCR0_EAX, AX
+	MOVL $XCR0_EDX, DX
 	TESTB CX, CX
 	JZ no_xsaveopt
 	BYTE $0x48; BYTE $0x0f; BYTE $0xae; BYTE $0x37; // XSAVEOPT64 0(DI)
@@ -411,6 +421,12 @@ TEXT ·start(SB),NOSPLIT|NOFRAME,$0
 	CALL ·writeFS(SB)
 	POPQ BX
 
+	MOVQ CPU_APP_GS_BASE(AX),BX
+	PUSHQ BX
+	CALL ·writeGS(SB)
+	POPQ BX
+	SWAP_GS()
+
 	// First argument (CPU) already at bottom of stack.
 	CALL ·startGo(SB) // Call Go hook.
 	JMP ·resume(SB)   // Restore to registers.
@@ -439,6 +455,14 @@ user:
 	MOVQ CX,  PTRACE_RAX(AX)               // Save everything else.
 	MOVQ CX,  PTRACE_ORIGRAX(AX)
 
+	CMPB CPU_HAS_FSGSBASE(GS), $1
+	JNE sysenter_skip_gs
+	SWAP_GS()
+	BYTE $0xf3; BYTE $0x48; BYTE $0x0f; BYTE $0xae; BYTE $0xcb; // rdgsbase rbx
+	MOVQ BX, PTRACE_GS_BASE(AX)
+	SWAP_GS()
+
+sysenter_skip_gs:
 	MOVQ ENTRY_CPU_SELF(GS), AX            // Load vCPU.
 	MOVQ CPU_REGISTERS+PTRACE_RSP(AX), SP  // Get stacks.
 	MOVQ $0, CPU_ERROR_CODE(AX)            // Clear error code.
@@ -493,9 +517,8 @@ kernel:
 	TESTB BX, BX
 	JZ no_xsave
 	// Use xsave/xsaveopt to save all extended state.
-	// We save everything unconditionally by setting RFBM to all 1's.
-	MOVL $0xffffffff, AX
-	MOVL $0xffffffff, DX
+	MOVL $XCR0_EAX, AX
+	MOVL $XCR0_EDX, DX
 	TESTB CX, CX
 	JZ no_xsaveopt
 	BYTE $0x48; BYTE $0x0f; BYTE $0xae; BYTE $0x37; // XSAVEOPT64 0(DI)
@@ -561,6 +584,13 @@ user:
 	POPQ BX                                 // Restore original AX.
 	MOVQ BX, PTRACE_RAX(AX)                 // Save it.
 	MOVQ BX, PTRACE_ORIGRAX(AX)
+	CMPB CPU_HAS_FSGSBASE(GS), $1
+	JNE exception_skip_gs
+	SWAP_GS()
+	BYTE $0xf3; BYTE $0x48; BYTE $0x0f; BYTE $0xae; BYTE $0xcb; // rdgsbase rbx
+	MOVQ BX, PTRACE_GS_BASE(AX)
+	SWAP_GS()
+exception_skip_gs:
 	MOVQ 16(SP), BX; MOVQ BX, PTRACE_RIP(AX)
 	MOVQ 24(SP), CX; MOVQ CX, PTRACE_CS(AX)
 	MOVQ 32(SP), DX; MOVQ DX, PTRACE_FLAGS(AX)
@@ -618,9 +648,8 @@ kernel:
 	TESTB BX, BX
 	JZ no_xsave
 	// Use xsave/xsaveopt to save all extended state.
-	// We save everything unconditionally by setting RFBM to all 1's.
-	MOVL $0xffffffff, AX
-	MOVL $0xffffffff, DX
+	MOVL $XCR0_EAX, AX
+	MOVL $XCR0_EDX, DX
 	TESTB CX, CX
 	JZ no_xsaveopt
 	BYTE $0x48; BYTE $0x0f; BYTE $0xae; BYTE $0x37; // XSAVEOPT64 0(DI)

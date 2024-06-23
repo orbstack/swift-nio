@@ -127,14 +127,13 @@ func dumpRegs(regs *arch.Registers) string {
 }
 
 // adjustInitregsRip adjust the current register RIP value to
-// be just before the system call instruction excution
+// be just before the system call instruction execution
 func (t *thread) adjustInitRegsRip() {
 	t.initRegs.Rip -= initRegsRipAdjustment
 }
 
 // Pass the expected PPID to the child via R15 when creating stub process.
 func initChildProcessPPID(initregs *arch.Registers, ppid int32) {
-	initregs.R15 = uint64(ppid)
 	// Rbx has to be set to 1 when creating stub process.
 	initregs.Rbx = _NEW_STUB
 }
@@ -184,22 +183,22 @@ func appendArchSeccompRules(rules []seccomp.RuleSet) []seccomp.RuleSet {
 	return append(rules, []seccomp.RuleSet{
 		// Rules for trapping vsyscall access.
 		{
-			Rules: seccomp.SyscallRules{
-				unix.SYS_GETTIMEOFDAY: {},
-				unix.SYS_TIME:         {},
-				unix.SYS_GETCPU:       {}, // SYS_GETCPU was not defined in package syscall on amd64.
-			},
+			Rules: seccomp.MakeSyscallRules(map[uintptr]seccomp.SyscallRule{
+				unix.SYS_GETTIMEOFDAY: seccomp.MatchAll{},
+				unix.SYS_TIME:         seccomp.MatchAll{},
+				unix.SYS_GETCPU:       seccomp.MatchAll{}, // SYS_GETCPU was not defined in package syscall on amd64.
+			}),
 			Action:   linux.SECCOMP_RET_TRAP,
 			Vsyscall: true,
 		},
 		{
-			Rules: seccomp.SyscallRules{
-				unix.SYS_ARCH_PRCTL: []seccomp.Rule{
-					{seccomp.EqualTo(linux.ARCH_SET_CPUID), seccomp.EqualTo(0)},
-					{seccomp.EqualTo(linux.ARCH_SET_FS)},
-					{seccomp.EqualTo(linux.ARCH_GET_FS)},
+			Rules: seccomp.MakeSyscallRules(map[uintptr]seccomp.SyscallRule{
+				unix.SYS_ARCH_PRCTL: seccomp.Or{
+					seccomp.PerArg{seccomp.EqualTo(linux.ARCH_SET_CPUID), seccomp.EqualTo(0)},
+					seccomp.PerArg{seccomp.EqualTo(linux.ARCH_SET_FS)},
+					seccomp.PerArg{seccomp.EqualTo(linux.ARCH_GET_FS)},
 				},
-			},
+			}),
 			Action: linux.SECCOMP_RET_ALLOW,
 		},
 	}...)

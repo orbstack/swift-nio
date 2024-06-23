@@ -21,6 +21,7 @@ import (
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/abi/linux"
+	"gvisor.dev/gvisor/pkg/bpf"
 	"gvisor.dev/gvisor/pkg/hostarch"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/safecopy"
@@ -54,17 +55,25 @@ func unsafeSlice(addr uintptr, length int) (slice []byte) {
 // seccomp system call to apply these filters.
 //
 //go:nosplit
-func prepareSeccompRules(stubSysmsgStart, stubSysmsgRules, stubSysmsgRulesLen uintptr) {
-
+func prepareSeccompRules(stubSysmsgStart,
+	stubSysmsgRules, stubSysmsgRulesLen,
+	stubSyscallRules, stubSyscallRulesLen uintptr) {
 	instrs := sysmsgThreadRules(stubSysmsgStart)
-	progLen := len(instrs) * int(unsafe.Sizeof(linux.BPFInstruction{}))
-	progPtr := stubSysmsgRules + unsafe.Sizeof(linux.SockFprog{})
+	copySeccompRulesToStub(instrs, stubSysmsgRules, stubSysmsgRulesLen)
 
-	if progLen+int(unsafe.Sizeof(linux.SockFprog{})) > int(stubSysmsgRulesLen) {
+	instrs = sysmsgSyscallNotifyRules()
+	copySeccompRulesToStub(instrs, stubSyscallRules, stubSyscallRulesLen)
+}
+
+func copySeccompRulesToStub(instrs []bpf.Instruction, stubAddr, size uintptr) {
+	progLen := len(instrs) * int(unsafe.Sizeof(bpf.Instruction{}))
+	progPtr := stubAddr + unsafe.Sizeof(linux.SockFprog{})
+
+	if progLen+int(unsafe.Sizeof(linux.SockFprog{})) > int(size) {
 		panic("not enough space for sysmsg seccomp rules")
 	}
 
-	var targetSlice []linux.BPFInstruction
+	var targetSlice []bpf.Instruction
 	sh := (*reflect.SliceHeader)(unsafe.Pointer(&targetSlice))
 	sh.Data = progPtr
 	sh.Cap = len(instrs)
@@ -75,15 +84,14 @@ func prepareSeccompRules(stubSysmsgStart, stubSysmsgRules, stubSysmsgRulesLen ui
 	// stubSysmsgRules and progPtr are addresses from a stub mapping which
 	// is mapped once and never moved, so it is safe to use unsafe.Pointer
 	// this way for them.
-	sockProg := (*linux.SockFprog)(unsafe.Pointer(stubSysmsgRules))
+	sockProg := (*linux.SockFprog)(unsafe.Pointer(stubAddr))
 	sockProg.Len = uint16(len(instrs))
 	sockProg.Filter = (*linux.BPFInstruction)(unsafe.Pointer(progPtr))
-
 	// Make the seccomp rules stub read-only.
 	if _, _, errno := unix.RawSyscall(
 		unix.SYS_MPROTECT,
-		stubSysmsgRules,
-		stubSysmsgRulesLen,
+		stubAddr,
+		size,
 		unix.PROT_READ); errno != 0 {
 		panic("mprotect failed: " + errno.Error())
 	}
@@ -127,8 +135,11 @@ func stubInit() {
 	mapLen, _ = hostarch.PageRoundUp(mapLen + uintptr(stubSysmsgLen))
 
 	stubSysmsgRules = mapLen
-	stubSysmsgRulesLen = hostarch.PageSize * 4
+	stubSysmsgRulesLen = hostarch.PageSize * 2
 	mapLen += stubSysmsgRulesLen
+	stubSyscallRules = mapLen
+	stubSyscallRulesLen = hostarch.PageSize
+	mapLen += stubSyscallRulesLen
 
 	stubROMapEnd = mapLen
 	// Add a guard page.
@@ -138,7 +149,7 @@ func stubInit() {
 	// Allocate maxGuestThreads plus ONE because each per-thread stack
 	// has to be aligned to sysmsg.PerThreadMemSize.
 	// Look at sysmsg/sighandler.c:sysmsg_addr() for more details.
-	mapLen, _ = hostarch.PageRoundUp(mapLen + sysmsg.PerThreadMemSize*(maxSystemThreads+1))
+	mapLen, _ = hostarch.PageRoundUp(mapLen + sysmsg.PerThreadMemSize*(uintptr(maxChildThreads+1)))
 
 	// Allocate context queue region
 	stubContextQueueRegion = mapLen
@@ -211,6 +222,7 @@ func stubInit() {
 		stubSysmsgStack += sysmsg.PerThreadMemSize - offset
 	}
 	stubSysmsgRules += stubStart
+	stubSyscallRules += stubStart
 
 	targetSlice = unsafeSlice(stubSysmsgStart, stubSysmsgLen)
 	copy(targetSlice, sysmsg.SighandlerBlob)
@@ -229,7 +241,9 @@ func stubInit() {
 	p = (*uint64)(unsafe.Pointer(stubSysmsgStart + uintptr(sysmsg.Sighandler_blob_offset____export_spinning_queue_addr)))
 	*p = uint64(stubSpinningThreadQueueAddr)
 
-	prepareSeccompRules(stubSysmsgStart, stubSysmsgRules, stubSysmsgRulesLen)
+	prepareSeccompRules(stubSysmsgStart,
+		stubSysmsgRules, stubSysmsgRulesLen,
+		stubSyscallRules, stubSyscallRulesLen)
 
 	// Make the stub executable.
 	if _, _, errno := unix.RawSyscall(

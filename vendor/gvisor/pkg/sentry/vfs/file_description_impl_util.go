@@ -16,6 +16,7 @@ package vfs
 
 import (
 	"bytes"
+	goContext "context"
 	"io"
 	"math"
 
@@ -255,8 +256,6 @@ func (s *StaticData) Generate(ctx context.Context, buf *bytes.Buffer) error {
 
 // WritableDynamicBytesSource extends DynamicBytesSource to allow writes to the
 // underlying source.
-//
-// TODO(b/179825241): Make utility for integer-based writable files.
 type WritableDynamicBytesSource interface {
 	DynamicBytesSource
 
@@ -289,7 +288,7 @@ func (fd *DynamicBytesFileDescriptionImpl) saveBuf() []byte {
 	return fd.buf.Bytes()
 }
 
-func (fd *DynamicBytesFileDescriptionImpl) loadBuf(p []byte) {
+func (fd *DynamicBytesFileDescriptionImpl) loadBuf(_ goContext.Context, p []byte) {
 	fd.buf.Write(p)
 }
 

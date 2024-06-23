@@ -126,52 +126,52 @@ type AIOContext struct {
 }
 
 // destroy marks the context dead.
-func (ctx *AIOContext) destroy() {
-	ctx.mu.Lock()
-	defer ctx.mu.Unlock()
-	ctx.dead = true
-	ctx.checkForDone()
+func (aio *AIOContext) destroy() {
+	aio.mu.Lock()
+	defer aio.mu.Unlock()
+	aio.dead = true
+	aio.checkForDone()
 }
 
 // Preconditions: ctx.mu must be held by caller.
-func (ctx *AIOContext) checkForDone() {
-	if ctx.dead && ctx.outstanding == 0 {
-		close(ctx.requestReady)
-		ctx.requestReady = nil
+func (aio *AIOContext) checkForDone() {
+	if aio.dead && aio.outstanding == 0 {
+		close(aio.requestReady)
+		aio.requestReady = nil
 	}
 }
 
 // Prepare reserves space for a new request, returning nil if available.
 // Returns EAGAIN if the context is busy and EINVAL if the context is dead.
-func (ctx *AIOContext) Prepare() error {
-	ctx.mu.Lock()
-	defer ctx.mu.Unlock()
-	if ctx.dead {
+func (aio *AIOContext) Prepare() error {
+	aio.mu.Lock()
+	defer aio.mu.Unlock()
+	if aio.dead {
 		// Context died after the caller looked it up.
 		return linuxerr.EINVAL
 	}
-	if ctx.outstanding >= ctx.maxOutstanding {
+	if aio.outstanding >= aio.maxOutstanding {
 		// Context is busy.
 		return linuxerr.EAGAIN
 	}
-	ctx.outstanding++
+	aio.outstanding++
 	return nil
 }
 
 // PopRequest pops a completed request if available, this function does not do
 // any blocking. Returns false if no request is available.
-func (ctx *AIOContext) PopRequest() (any, bool) {
-	ctx.mu.Lock()
-	defer ctx.mu.Unlock()
+func (aio *AIOContext) PopRequest() (any, bool) {
+	aio.mu.Lock()
+	defer aio.mu.Unlock()
 
 	// Is there anything ready?
-	if e := ctx.results.Front(); e != nil {
-		if ctx.outstanding == 0 {
+	if e := aio.results.Front(); e != nil {
+		if aio.outstanding == 0 {
 			panic("AIOContext outstanding is going negative")
 		}
-		ctx.outstanding--
-		ctx.results.Remove(e)
-		ctx.checkForDone()
+		aio.outstanding--
+		aio.results.Remove(e)
+		aio.checkForDone()
 		return e.data, true
 	}
 	return nil, false
@@ -179,17 +179,17 @@ func (ctx *AIOContext) PopRequest() (any, bool) {
 
 // FinishRequest finishes a pending request. It queues up the data
 // and notifies listeners.
-func (ctx *AIOContext) FinishRequest(data any) {
-	ctx.mu.Lock()
-	defer ctx.mu.Unlock()
+func (aio *AIOContext) FinishRequest(data any) {
+	aio.mu.Lock()
+	defer aio.mu.Unlock()
 
 	// Push to the list and notify opportunistically. The channel notify
 	// here is guaranteed to be safe because outstanding must be non-zero.
 	// The requestReady channel is only closed when outstanding reaches zero.
-	ctx.results.PushBack(&ioResult{data: data})
+	aio.results.PushBack(&ioResult{data: data})
 
 	select {
-	case ctx.requestReady <- struct{}{}:
+	case aio.requestReady <- struct{}{}:
 	default:
 	}
 }
@@ -197,46 +197,46 @@ func (ctx *AIOContext) FinishRequest(data any) {
 // WaitChannel returns a channel that is notified when an AIO request is
 // completed. Returns nil if the context is destroyed and there are no more
 // outstanding requests.
-func (ctx *AIOContext) WaitChannel() chan struct{} {
-	ctx.mu.Lock()
-	defer ctx.mu.Unlock()
-	return ctx.requestReady
+func (aio *AIOContext) WaitChannel() chan struct{} {
+	aio.mu.Lock()
+	defer aio.mu.Unlock()
+	return aio.requestReady
 }
 
 // Dead returns true if the context has been destroyed.
-func (ctx *AIOContext) Dead() bool {
-	ctx.mu.Lock()
-	defer ctx.mu.Unlock()
-	return ctx.dead
+func (aio *AIOContext) Dead() bool {
+	aio.mu.Lock()
+	defer aio.mu.Unlock()
+	return aio.dead
 }
 
 // CancelPendingRequest forgets about a request that hasn't yet completed.
-func (ctx *AIOContext) CancelPendingRequest() {
-	ctx.mu.Lock()
-	defer ctx.mu.Unlock()
+func (aio *AIOContext) CancelPendingRequest() {
+	aio.mu.Lock()
+	defer aio.mu.Unlock()
 
-	if ctx.outstanding == 0 {
+	if aio.outstanding == 0 {
 		panic("AIOContext outstanding is going negative")
 	}
-	ctx.outstanding--
-	ctx.checkForDone()
+	aio.outstanding--
+	aio.checkForDone()
 }
 
 // Drain drops all completed requests. Pending requests remain untouched.
-func (ctx *AIOContext) Drain() {
-	ctx.mu.Lock()
-	defer ctx.mu.Unlock()
+func (aio *AIOContext) Drain() {
+	aio.mu.Lock()
+	defer aio.mu.Unlock()
 
-	if ctx.outstanding == 0 {
+	if aio.outstanding == 0 {
 		return
 	}
-	size := uint32(ctx.results.Len())
-	if ctx.outstanding < size {
+	size := uint32(aio.results.Len())
+	if aio.outstanding < size {
 		panic("AIOContext outstanding is going negative")
 	}
-	ctx.outstanding -= size
-	ctx.results.Reset()
-	ctx.checkForDone()
+	aio.outstanding -= size
+	aio.results.Reset()
+	aio.checkForDone()
 }
 
 // aioMappable implements memmap.MappingIdentity and memmap.Mappable for AIO
@@ -246,18 +246,18 @@ func (ctx *AIOContext) Drain() {
 type aioMappable struct {
 	aioMappableRefs
 
-	mfp pgalloc.MemoryFileProvider
-	fr  memmap.FileRange
+	mf *pgalloc.MemoryFile `state:"nosave"`
+	fr memmap.FileRange
 }
 
 var aioRingBufferSize = uint64(hostarch.Addr(linux.AIORingSize).MustRoundUp())
 
-func newAIOMappable(ctx context.Context, mfp pgalloc.MemoryFileProvider) (*aioMappable, error) {
-	fr, err := mfp.MemoryFile().Allocate(aioRingBufferSize, pgalloc.AllocOpts{Kind: usage.Anonymous, MemCgID: pgalloc.MemoryCgroupIDFromContext(ctx)})
+func newAIOMappable(ctx context.Context, mf *pgalloc.MemoryFile) (*aioMappable, error) {
+	fr, err := mf.Allocate(aioRingBufferSize, pgalloc.AllocOpts{Kind: usage.Anonymous, MemCgID: pgalloc.MemoryCgroupIDFromContext(ctx)})
 	if err != nil {
 		return nil, err
 	}
-	m := aioMappable{mfp: mfp, fr: fr}
+	m := aioMappable{mf: mf, fr: fr}
 	m.InitRefs()
 	return &m, nil
 }
@@ -265,7 +265,7 @@ func newAIOMappable(ctx context.Context, mfp pgalloc.MemoryFileProvider) (*aioMa
 // DecRef implements refs.RefCounter.DecRef.
 func (m *aioMappable) DecRef(ctx context.Context) {
 	m.aioMappableRefs.DecRef(func() {
-		m.mfp.MemoryFile().DecRef(m.fr)
+		m.mf.DecRef(m.fr)
 	})
 }
 
@@ -346,7 +346,7 @@ func (m *aioMappable) Translate(ctx context.Context, required, optional memmap.M
 		return []memmap.Translation{
 			{
 				Source: source,
-				File:   m.mfp.MemoryFile(),
+				File:   m.mf,
 				Offset: m.fr.Start + source.Start,
 				Perms:  hostarch.AnyAccess,
 			},
@@ -368,7 +368,7 @@ func (mm *MemoryManager) NewAIOContext(ctx context.Context, events uint32) (uint
 	// libaio peeks inside looking for a magic number. This function allocates
 	// a page per context and keeps it set to zeroes to ensure it will not
 	// match AIO_RING_MAGIC and make libaio happy.
-	m, err := newAIOMappable(ctx, mm.mfp)
+	m, err := newAIOMappable(ctx, mm.mf)
 	if err != nil {
 		return 0, err
 	}

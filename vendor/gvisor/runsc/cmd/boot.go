@@ -32,6 +32,7 @@ import (
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/coretag"
 	"gvisor.dev/gvisor/pkg/cpuid"
+	"gvisor.dev/gvisor/pkg/fd"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/metric"
 	"gvisor.dev/gvisor/pkg/ring0"
@@ -81,14 +82,17 @@ type Boot struct {
 	// ioFDs is the list of FDs used to connect to FS gofers.
 	ioFDs intFlags
 
-	// overlayFilestoreFDs are FDs to the regular files that will back the tmpfs
-	// upper mount in the overlay mounts.
-	overlayFilestoreFDs intFlags
+	// devIoFD is the FD to connect to dev gofer.
+	devIoFD int
 
-	// overlayMediums contains information about how the gofer mounts have been
-	// overlaid. The first entry is for rootfs and the following entries are for
-	// bind mounts in Spec.Mounts (in the same order).
-	overlayMediums boot.OverlayMediumFlags
+	// goferFilestoreFDs are FDs to the regular files that will back the tmpfs or
+	// overlayfs mount for certain gofer mounts.
+	goferFilestoreFDs intFlags
+
+	// goferMountConfs contains information about how the gofer mounts have been
+	// configured. The first entry is for rootfs and the following entries are
+	// for bind mounts in Spec.Mounts (in the same order).
+	goferMountConfs boot.GoferMountConfFlags
 
 	// stdioFDs are the fds for stdin, stdout, and stderr. They must be
 	// provided in that order.
@@ -125,12 +129,16 @@ type Boot struct {
 
 	// mountsFD is the file descriptor to read list of mounts after they have
 	// been resolved (direct paths, no symlinks). They are resolved outside the
-	// sandbox (e.g. gofer) and sent through this FD.
+	// sandbox (e.g. gofer) and sent through this FD. When mountsFD is not
+	// provided, there is no cleaning required for mounts and the mounts in
+	// the spec can be used as is.
 	mountsFD int
 
 	podInitConfigFD int
 
 	sinkFDs intFlags
+
+	saveFDs intFlags
 
 	// pidns is set if the sandbox is in its own pid namespace.
 	pidns bool
@@ -147,6 +155,13 @@ type Boot struct {
 	// FDs for profile data.
 	profileFDs profile.FDArgs
 
+	// profilingMetricsFD is a file descriptor to write Sentry metrics data to.
+	profilingMetricsFD int
+
+	// profilingMetricsLossy sets whether profilingMetricsFD is a lossy channel.
+	// If so, the format used to write to it will contain a checksum.
+	profilingMetricsLossy bool
+
 	// procMountSyncFD is a file descriptor that has to be closed when the
 	// procfs mount isn't needed anymore.
 	procMountSyncFD int
@@ -155,6 +170,9 @@ type Boot struct {
 	// boot process should invoke setuid/setgid for root user. This is mainly
 	// used to synchronize rootless user namespace initialization.
 	syncUsernsFD int
+
+	// nvidiaDriverVersion is the Nvidia driver version on the host.
+	nvidiaDriverVersion string
 }
 
 // Name implements subcommands.Command.Name.
@@ -185,25 +203,30 @@ func (b *Boot) SetFlags(f *flag.FlagSet) {
 	f.Uint64Var(&b.totalHostMem, "total-host-memory", 0, "total memory reported by host /proc/meminfo")
 	f.BoolVar(&b.attached, "attached", false, "if attached is true, kills the sandbox process when the parent process terminates")
 	f.StringVar(&b.productName, "product-name", "", "value to show in /sys/devices/virtual/dmi/id/product_name")
+	f.StringVar(&b.nvidiaDriverVersion, "nvidia-driver-version", "", "Nvidia driver version on the host")
 
 	// Open FDs that are donated to the sandbox.
 	f.IntVar(&b.specFD, "spec-fd", -1, "required fd with the container spec")
 	f.IntVar(&b.controllerFD, "controller-fd", -1, "required FD of a stream socket for the control server that must be donated to this process")
 	f.IntVar(&b.deviceFD, "device-fd", -1, "FD for the platform device file")
-	f.Var(&b.ioFDs, "io-fds", "list of FDs to connect gofer clients. They must follow this order: root first, then mounts as defined in the spec")
+	f.Var(&b.ioFDs, "io-fds", "list of image FDs and/or socket FDs to connect gofer clients. They must follow this order: root first, then mounts as defined in the spec")
+	f.IntVar(&b.devIoFD, "dev-io-fd", -1, "FD to connect dev gofer client")
 	f.Var(&b.stdioFDs, "stdio-fds", "list of FDs containing sandbox stdin, stdout, and stderr in that order")
 	f.Var(&b.passFDs, "pass-fd", "mapping of host to guest FDs. They must be in M:N format. M is the host and N the guest descriptor.")
 	f.IntVar(&b.execFD, "exec-fd", -1, "host file descriptor used for program execution.")
-	f.Var(&b.overlayFilestoreFDs, "overlay-filestore-fds", "FDs to the regular files that will back the tmpfs upper mount in the overlay mounts.")
-	f.Var(&b.overlayMediums, "overlay-mediums", "information about how the gofer mounts have been overlaid.")
+	f.Var(&b.goferFilestoreFDs, "gofer-filestore-fds", "FDs to the regular files that will back the overlayfs or tmpfs mount if a gofer mount is to be overlaid.")
+	f.Var(&b.goferMountConfs, "gofer-mount-confs", "information about how the gofer mounts have been configured.")
 	f.IntVar(&b.userLogFD, "user-log-fd", 0, "file descriptor to write user logs to. 0 means no logging.")
 	f.IntVar(&b.startSyncFD, "start-sync-fd", -1, "required FD to used to synchronize sandbox startup")
-	f.IntVar(&b.mountsFD, "mounts-fd", -1, "mountsFD is the file descriptor to read list of mounts after they have been resolved (direct paths, no symlinks).")
+	f.IntVar(&b.mountsFD, "mounts-fd", -1, "mountsFD is an optional file descriptor to read list of mounts after they have been resolved (direct paths, no symlinks).")
 	f.IntVar(&b.podInitConfigFD, "pod-init-config-fd", -1, "file descriptor to the pod init configuration file.")
 	f.Var(&b.sinkFDs, "sink-fds", "ordered list of file descriptors to be used by the sinks defined in --pod-init-config.")
+	f.Var(&b.saveFDs, "save-fds", "ordered list of file descriptors to be used save checkpoints. Order: kernel state, page metadata, page file")
 
 	// Profiling flags.
 	b.profileFDs.SetFromFlags(f)
+	f.IntVar(&b.profilingMetricsFD, "profiling-metrics-fd", -1, "file descriptor to write sentry profiling metrics.")
+	f.BoolVar(&b.profilingMetricsLossy, "profiling-metrics-fd-lossy", false, "if true, treat the sentry profiling metrics FD as lossy and write a checksum to it.")
 }
 
 // Execute implements subcommands.Command.Execute.  It starts a sandbox in a
@@ -373,15 +396,18 @@ func (b *Boot) Execute(_ context.Context, f *flag.FlagSet, args ...any) subcomma
 		}
 	}
 
-	// Read resolved mount list and replace the original one from the spec.
-	mountsFile := os.NewFile(uintptr(b.mountsFD), "mounts file")
-	cleanMounts, err := specutils.ReadMounts(mountsFile)
-	if err != nil {
+	// When mountsFD is not provided, there is no cleaning required.
+	if b.mountsFD >= 0 {
+		// Read resolved mount list and replace the original one from the spec.
+		mountsFile := os.NewFile(uintptr(b.mountsFD), "mounts file")
+		cleanMounts, err := specutils.ReadMounts(mountsFile)
+		if err != nil {
+			mountsFile.Close()
+			util.Fatalf("Error reading mounts file: %v", err)
+		}
 		mountsFile.Close()
-		util.Fatalf("Error reading mounts file: %v", err)
+		spec.Mounts = cleanMounts
 	}
-	mountsFile.Close()
-	spec.Mounts = cleanMounts
 
 	if conf.DirectFS {
 		// sandbox should run with a umask of 0, because we want to preserve file
@@ -413,13 +439,14 @@ func (b *Boot) Execute(_ context.Context, f *flag.FlagSet, args ...any) subcomma
 		Spec:                spec,
 		Conf:                conf,
 		ControllerFD:        b.controllerFD,
-		Device:              os.NewFile(uintptr(b.deviceFD), "platform device"),
+		Device:              fd.New(b.deviceFD),
 		GoferFDs:            b.ioFDs.GetArray(),
+		DevGoferFD:          b.devIoFD,
 		StdioFDs:            b.stdioFDs.GetArray(),
 		PassFDs:             b.passFDs.GetArray(),
 		ExecFD:              b.execFD,
-		OverlayFilestoreFDs: b.overlayFilestoreFDs.GetArray(),
-		OverlayMediums:      b.overlayMediums.GetArray(),
+		GoferFilestoreFDs:   b.goferFilestoreFDs.GetArray(),
+		GoferMountConfs:     b.goferMountConfs.GetArray(),
 		NumCPU:              b.cpuNum,
 		TotalMem:            b.totalMem,
 		TotalHostMem:        b.totalHostMem,
@@ -428,6 +455,8 @@ func (b *Boot) Execute(_ context.Context, f *flag.FlagSet, args ...any) subcomma
 		PodInitConfigFD:     b.podInitConfigFD,
 		SinkFDs:             b.sinkFDs.GetArray(),
 		ProfileOpts:         b.profileFDs.ToOpts(),
+		NvidiaDriverVersion: b.nvidiaDriverVersion,
+		SaveFDs:             b.saveFDs.GetFDs(),
 	}
 	l, err := boot.New(bootArgs)
 	if err != nil {
@@ -451,8 +480,13 @@ func (b *Boot) Execute(_ context.Context, f *flag.FlagSet, args ...any) subcomma
 	// but before the start-sync file is notified, as the parent process needs to query for
 	// registered metrics prior to sending the start signal.
 	metric.Initialize()
-	if metric.ProfilingMetricWriter != nil {
-		if err := metric.StartProfilingMetrics(conf.ProfilingMetrics, time.Duration(conf.ProfilingMetricsRate)*time.Microsecond); err != nil {
+	if b.profilingMetricsFD != -1 {
+		if err := metric.StartProfilingMetrics(metric.ProfilingMetricsOptions[*os.File]{
+			Sink:    os.NewFile(uintptr(b.profilingMetricsFD), "metrics file"),
+			Lossy:   b.profilingMetricsLossy,
+			Metrics: conf.ProfilingMetrics,
+			Rate:    time.Duration(conf.ProfilingMetricsRate) * time.Microsecond,
+		}); err != nil {
 			l.Destroy()
 			util.Fatalf("unable to start profiling metrics: %v", err)
 		}

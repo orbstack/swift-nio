@@ -188,9 +188,9 @@ func (s *sender) schedulePTO() {
 // https://tools.ietf.org/html/draft-ietf-tcpm-rack-08#section-7.5.2.
 //
 // +checklocks:s.ep.mu
-func (s *sender) probeTimerExpired() {
-	if s.probeTimer.isZero() || !s.probeTimer.checkExpiration() {
-		return
+func (s *sender) probeTimerExpired() tcpip.Error {
+	if s.probeTimer.isUninitialized() || !s.probeTimer.checkExpiration() {
+		return nil
 	}
 
 	var dataSent bool
@@ -231,7 +231,7 @@ func (s *sender) probeTimerExpired() {
 	// not the probe timer. This ensures that the sender does not send repeated,
 	// back-to-back tail loss probes.
 	s.postXmit(dataSent, false /* shouldScheduleProbe */)
-	return
+	return nil
 }
 
 // detectTLPRecovery detects if recovery was accomplished by the loss probes
@@ -357,11 +357,13 @@ func (rc *rackControl) detectLoss(rcvTime tcpip.MonotonicTime) int {
 	var timeout time.Duration
 	numLost := 0
 	for seg := rc.snd.writeList.Front(); seg != nil && seg.xmitCount != 0; seg = seg.Next() {
-		if rc.snd.ep.scoreboard.IsSACKED(seg.sackBlock()) {
+		// xmitCount can be 0 for packets that are broken up for PMTUD.
+		// The initial transmission "doesn't count" WRT loss detection.
+		if rc.snd.ep.scoreboard.IsSACKED(seg.sackBlock()) || seg.xmitCount == 0 {
 			continue
 		}
 
-		if seg.lost && seg.xmitCount == 1 {
+		if seg.lost && seg.xmitCount > 1 {
 			numLost++
 			continue
 		}
@@ -388,14 +390,14 @@ func (rc *rackControl) detectLoss(rcvTime tcpip.MonotonicTime) int {
 // before the reorder timer expired.
 //
 // +checklocks:rc.snd.ep.mu
-func (rc *rackControl) reorderTimerExpired() {
-	if rc.snd.reorderTimer.isZero() || !rc.snd.reorderTimer.checkExpiration() {
-		return
+func (rc *rackControl) reorderTimerExpired() tcpip.Error {
+	if rc.snd.reorderTimer.isUninitialized() || !rc.snd.reorderTimer.checkExpiration() {
+		return nil
 	}
 
 	numLost := rc.detectLoss(rc.snd.ep.stack.Clock().NowMonotonic())
 	if numLost == 0 {
-		return
+		return nil
 	}
 
 	fastRetransmit := false
@@ -406,7 +408,7 @@ func (rc *rackControl) reorderTimerExpired() {
 	}
 
 	rc.DoRecovery(nil, fastRetransmit)
-	return
+	return nil
 }
 
 // DoRecovery implements lossRecovery.DoRecovery.

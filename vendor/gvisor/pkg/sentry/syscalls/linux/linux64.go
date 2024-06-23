@@ -302,7 +302,7 @@ var AMD64 = &kernel.SyscallTable{
 		247: syscalls.Supported("waitid", Waitid),
 		248: syscalls.Error("add_key", linuxerr.EACCES, "Not available to user.", nil),
 		249: syscalls.Error("request_key", linuxerr.EACCES, "Not available to user.", nil),
-		250: syscalls.Error("keyctl", linuxerr.EACCES, "Not available to user.", nil),
+		250: syscalls.PartiallySupported("keyctl", Keyctl, "Only supports session keyrings with zero keys in them.", nil),
 		251: syscalls.CapError("ioprio_set", linux.CAP_SYS_ADMIN, "", nil), // requires cap_sys_nice or cap_sys_admin (depending)
 		252: syscalls.CapError("ioprio_get", linux.CAP_SYS_ADMIN, "", nil), // requires cap_sys_nice or cap_sys_admin (depending)
 		253: syscalls.PartiallySupportedPoint("inotify_init", InotifyInit, PointInotifyInit, "inotify events are only available inside the sandbox.", nil),
@@ -362,8 +362,8 @@ var AMD64 = &kernel.SyscallTable{
 		307: syscalls.Supported("sendmmsg", SendMMsg),
 		308: syscalls.Supported("setns", Setns),
 		309: syscalls.Supported("getcpu", Getcpu),
-		310: syscalls.ErrorWithEvent("process_vm_readv", linuxerr.ENOSYS, "", []string{"gvisor.dev/issue/158"}),  // TODO(b/260724654)
-		311: syscalls.ErrorWithEvent("process_vm_writev", linuxerr.ENOSYS, "", []string{"gvisor.dev/issue/158"}), // TODO(b/260724654)
+		310: syscalls.Supported("process_vm_readv", ProcessVMReadv),
+		311: syscalls.Supported("process_vm_writev", ProcessVMWritev),
 		312: syscalls.CapError("kcmp", linux.CAP_SYS_PTRACE, "", nil),
 		313: syscalls.CapError("finit_module", linux.CAP_SYS_MODULE, "", nil),
 		314: syscalls.ErrorWithEvent("sched_setattr", linuxerr.ENOSYS, "gVisor does not implement a scheduler.", []string{"gvisor.dev/issue/264"}), // TODO(b/118902272)
@@ -650,7 +650,7 @@ var ARM64 = &kernel.SyscallTable{
 		216: syscalls.Supported("mremap", Mremap),
 		217: syscalls.Error("add_key", linuxerr.EACCES, "Not available to user.", nil),
 		218: syscalls.Error("request_key", linuxerr.EACCES, "Not available to user.", nil),
-		219: syscalls.Error("keyctl", linuxerr.EACCES, "Not available to user.", nil),
+		219: syscalls.PartiallySupported("keyctl", Keyctl, "Only supports session keyrings with zero keys in them.", nil),
 		220: syscalls.PartiallySupportedPoint("clone", Clone, PointClone, "Options CLONE_PIDFD, CLONE_NEWCGROUP, CLONE_PARENT, CLONE_NEWTIME, CLONE_CLEAR_SIGHAND, and CLONE_SYSVSEM not supported.", nil),
 		221: syscalls.SupportedPoint("execve", Execve, PointExecve),
 		222: syscalls.Supported("mmap", Mmap),
@@ -685,8 +685,8 @@ var ARM64 = &kernel.SyscallTable{
 		267: syscalls.Supported("syncfs", Syncfs),
 		268: syscalls.Supported("setns", Setns),
 		269: syscalls.Supported("sendmmsg", SendMMsg),
-		270: syscalls.ErrorWithEvent("process_vm_readv", linuxerr.ENOSYS, "", []string{"gvisor.dev/issue/158"}),  // TODO(b/260724654)
-		271: syscalls.ErrorWithEvent("process_vm_writev", linuxerr.ENOSYS, "", []string{"gvisor.dev/issue/158"}), // TODO(b/260724654)
+		270: syscalls.Supported("process_vm_readv", ProcessVMReadv),
+		271: syscalls.Supported("process_vm_writev", ProcessVMWritev),
 		272: syscalls.CapError("kcmp", linux.CAP_SYS_PTRACE, "", nil),
 		273: syscalls.CapError("finit_module", linux.CAP_SYS_MODULE, "", nil),
 		274: syscalls.ErrorWithEvent("sched_setattr", linuxerr.ENOSYS, "gVisor does not implement a scheduler.", []string{"gvisor.dev/issue/264"}), // TODO(b/118902272)

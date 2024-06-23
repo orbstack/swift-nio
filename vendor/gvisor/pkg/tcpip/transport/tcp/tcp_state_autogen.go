@@ -3,6 +3,8 @@
 package tcp
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/state"
 )
 
@@ -23,20 +25,20 @@ func (a *acceptQueue) beforeSave() {}
 // +checklocksignore
 func (a *acceptQueue) StateSave(stateSinkObject state.Sink) {
 	a.beforeSave()
-	var endpointsValue []*endpoint
+	var endpointsValue []*Endpoint
 	endpointsValue = a.saveEndpoints()
 	stateSinkObject.SaveValue(0, endpointsValue)
 	stateSinkObject.Save(1, &a.pendingEndpoints)
 	stateSinkObject.Save(2, &a.capacity)
 }
 
-func (a *acceptQueue) afterLoad() {}
+func (a *acceptQueue) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (a *acceptQueue) StateLoad(stateSourceObject state.Source) {
+func (a *acceptQueue) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(1, &a.pendingEndpoints)
 	stateSourceObject.Load(2, &a.capacity)
-	stateSourceObject.LoadValue(0, new([]*endpoint), func(y any) { a.loadEndpoints(y.([]*endpoint)) })
+	stateSourceObject.LoadValue(0, new([]*Endpoint), func(y any) { a.loadEndpoints(ctx, y.([]*Endpoint)) })
 }
 
 func (h *handshake) StateTypeName() string {
@@ -89,10 +91,10 @@ func (h *handshake) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(16, &h.sampleRTTWithTSOnly)
 }
 
-func (h *handshake) afterLoad() {}
+func (h *handshake) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (h *handshake) StateLoad(stateSourceObject state.Source) {
+func (h *handshake) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &h.ep)
 	stateSourceObject.Load(1, &h.listenEP)
 	stateSourceObject.Load(2, &h.state)
@@ -134,13 +136,125 @@ func (c *cubicState) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(2, &c.s)
 }
 
-func (c *cubicState) afterLoad() {}
+func (c *cubicState) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (c *cubicState) StateLoad(stateSourceObject state.Source) {
+func (c *cubicState) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &c.TCPCubicState)
 	stateSourceObject.Load(1, &c.numCongestionEvents)
 	stateSourceObject.Load(2, &c.s)
+}
+
+func (q *epQueue) StateTypeName() string {
+	return "pkg/tcpip/transport/tcp.epQueue"
+}
+
+func (q *epQueue) StateFields() []string {
+	return []string{
+		"list",
+	}
+}
+
+func (q *epQueue) beforeSave() {}
+
+// +checklocksignore
+func (q *epQueue) StateSave(stateSinkObject state.Sink) {
+	q.beforeSave()
+	stateSinkObject.Save(0, &q.list)
+}
+
+func (q *epQueue) afterLoad(context.Context) {}
+
+// +checklocksignore
+func (q *epQueue) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &q.list)
+}
+
+func (p *processor) StateTypeName() string {
+	return "pkg/tcpip/transport/tcp.processor"
+}
+
+func (p *processor) StateFields() []string {
+	return []string{
+		"epQ",
+		"sleeper",
+	}
+}
+
+func (p *processor) beforeSave() {}
+
+// +checklocksignore
+func (p *processor) StateSave(stateSinkObject state.Sink) {
+	p.beforeSave()
+	stateSinkObject.Save(0, &p.epQ)
+	stateSinkObject.Save(1, &p.sleeper)
+}
+
+func (p *processor) afterLoad(context.Context) {}
+
+// +checklocksignore
+func (p *processor) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &p.epQ)
+	stateSourceObject.Load(1, &p.sleeper)
+}
+
+func (d *dispatcher) StateTypeName() string {
+	return "pkg/tcpip/transport/tcp.dispatcher"
+}
+
+func (d *dispatcher) StateFields() []string {
+	return []string{
+		"processors",
+		"hasher",
+		"paused",
+		"closed",
+	}
+}
+
+func (d *dispatcher) beforeSave() {}
+
+// +checklocksignore
+func (d *dispatcher) StateSave(stateSinkObject state.Sink) {
+	d.beforeSave()
+	stateSinkObject.Save(0, &d.processors)
+	stateSinkObject.Save(1, &d.hasher)
+	stateSinkObject.Save(2, &d.paused)
+	stateSinkObject.Save(3, &d.closed)
+}
+
+func (d *dispatcher) afterLoad(context.Context) {}
+
+// +checklocksignore
+func (d *dispatcher) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &d.processors)
+	stateSourceObject.Load(1, &d.hasher)
+	stateSourceObject.Load(2, &d.paused)
+	stateSourceObject.Load(3, &d.closed)
+}
+
+func (j *jenkinsHasher) StateTypeName() string {
+	return "pkg/tcpip/transport/tcp.jenkinsHasher"
+}
+
+func (j *jenkinsHasher) StateFields() []string {
+	return []string{
+		"seed",
+	}
+}
+
+func (j *jenkinsHasher) beforeSave() {}
+
+// +checklocksignore
+func (j *jenkinsHasher) StateSave(stateSinkObject state.Sink) {
+	j.beforeSave()
+	stateSinkObject.Save(0, &j.seed)
+}
+
+func (j *jenkinsHasher) afterLoad(context.Context) {}
+
+// +checklocksignore
+func (j *jenkinsHasher) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &j.seed)
 }
 
 func (s *SACKInfo) StateTypeName() string {
@@ -163,10 +277,10 @@ func (s *SACKInfo) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &s.NumBlocks)
 }
 
-func (s *SACKInfo) afterLoad() {}
+func (s *SACKInfo) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *SACKInfo) StateLoad(stateSourceObject state.Source) {
+func (s *SACKInfo) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &s.Blocks)
 	stateSourceObject.Load(1, &s.NumBlocks)
 }
@@ -201,10 +315,10 @@ func (r *ReceiveErrors) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(6, &r.WantZeroRcvWindow)
 }
 
-func (r *ReceiveErrors) afterLoad() {}
+func (r *ReceiveErrors) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (r *ReceiveErrors) StateLoad(stateSourceObject state.Source) {
+func (r *ReceiveErrors) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.ReceiveErrors)
 	stateSourceObject.Load(1, &r.SegmentQueueDropped)
 	stateSourceObject.Load(2, &r.ChecksumErrors)
@@ -242,10 +356,10 @@ func (s *SendErrors) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(5, &s.Timeouts)
 }
 
-func (s *SendErrors) afterLoad() {}
+func (s *SendErrors) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *SendErrors) StateLoad(stateSourceObject state.Source) {
+func (s *SendErrors) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &s.SendErrors)
 	stateSourceObject.Load(1, &s.SegmentSendToNetworkFailed)
 	stateSourceObject.Load(2, &s.SynSendToNetworkFailed)
@@ -284,10 +398,10 @@ func (s *Stats) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(6, &s.WriteErrors)
 }
 
-func (s *Stats) afterLoad() {}
+func (s *Stats) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *Stats) StateLoad(stateSourceObject state.Source) {
+func (s *Stats) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &s.SegmentsReceived)
 	stateSourceObject.Load(1, &s.SegmentsSent)
 	stateSourceObject.Load(2, &s.FailedConnectionAttempts)
@@ -315,18 +429,18 @@ func (sq *sndQueueInfo) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(0, &sq.TCPSndBufState)
 }
 
-func (sq *sndQueueInfo) afterLoad() {}
+func (sq *sndQueueInfo) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (sq *sndQueueInfo) StateLoad(stateSourceObject state.Source) {
+func (sq *sndQueueInfo) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &sq.TCPSndBufState)
 }
 
-func (e *endpoint) StateTypeName() string {
-	return "pkg/tcpip/transport/tcp.endpoint"
+func (e *Endpoint) StateTypeName() string {
+	return "pkg/tcpip/transport/tcp.Endpoint"
 }
 
-func (e *endpoint) StateFields() []string {
+func (e *Endpoint) StateFields() []string {
 	return []string{
 		"TCPEndpointStateInner",
 		"TransportEndpointInfo",
@@ -380,11 +494,12 @@ func (e *endpoint) StateFields() []string {
 		"owner",
 		"ops",
 		"lastOutOfWindowAckTime",
+		"pmtud",
 	}
 }
 
 // +checklocksignore
-func (e *endpoint) StateSave(stateSinkObject state.Sink) {
+func (e *Endpoint) StateSave(stateSinkObject state.Sink) {
 	e.beforeSave()
 	var stateValue EndpointState
 	stateValue = e.saveState()
@@ -440,10 +555,11 @@ func (e *endpoint) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(49, &e.owner)
 	stateSinkObject.Save(50, &e.ops)
 	stateSinkObject.Save(51, &e.lastOutOfWindowAckTime)
+	stateSinkObject.Save(52, &e.pmtud)
 }
 
 // +checklocksignore
-func (e *endpoint) StateLoad(stateSourceObject state.Source) {
+func (e *Endpoint) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &e.TCPEndpointStateInner)
 	stateSourceObject.Load(1, &e.TransportEndpointInfo)
 	stateSourceObject.Load(2, &e.DefaultSocketOptionsHandler)
@@ -495,8 +611,9 @@ func (e *endpoint) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(49, &e.owner)
 	stateSourceObject.Load(50, &e.ops)
 	stateSourceObject.Load(51, &e.lastOutOfWindowAckTime)
-	stateSourceObject.LoadValue(11, new(EndpointState), func(y any) { e.loadState(y.(EndpointState)) })
-	stateSourceObject.AfterLoad(e.afterLoad)
+	stateSourceObject.Load(52, &e.pmtud)
+	stateSourceObject.LoadValue(11, new(EndpointState), func(y any) { e.loadState(ctx, y.(EndpointState)) })
+	stateSourceObject.AfterLoad(func() { e.afterLoad(ctx) })
 }
 
 func (k *keepalive) StateTypeName() string {
@@ -523,14 +640,96 @@ func (k *keepalive) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(3, &k.unacked)
 }
 
-func (k *keepalive) afterLoad() {}
+func (k *keepalive) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (k *keepalive) StateLoad(stateSourceObject state.Source) {
+func (k *keepalive) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &k.idle)
 	stateSourceObject.Load(1, &k.interval)
 	stateSourceObject.Load(2, &k.count)
 	stateSourceObject.Load(3, &k.unacked)
+}
+
+func (p *protocol) StateTypeName() string {
+	return "pkg/tcpip/transport/tcp.protocol"
+}
+
+func (p *protocol) StateFields() []string {
+	return []string{
+		"stack",
+		"sackEnabled",
+		"recovery",
+		"delayEnabled",
+		"alwaysUseSynCookies",
+		"sendBufferSize",
+		"recvBufferSize",
+		"congestionControl",
+		"availableCongestionControl",
+		"moderateReceiveBuffer",
+		"lingerTimeout",
+		"timeWaitTimeout",
+		"timeWaitReuse",
+		"minRTO",
+		"maxRTO",
+		"maxRetries",
+		"synRetries",
+		"dispatcher",
+		"seqnumSecret",
+		"tsOffsetSecret",
+	}
+}
+
+func (p *protocol) beforeSave() {}
+
+// +checklocksignore
+func (p *protocol) StateSave(stateSinkObject state.Sink) {
+	p.beforeSave()
+	stateSinkObject.Save(0, &p.stack)
+	stateSinkObject.Save(1, &p.sackEnabled)
+	stateSinkObject.Save(2, &p.recovery)
+	stateSinkObject.Save(3, &p.delayEnabled)
+	stateSinkObject.Save(4, &p.alwaysUseSynCookies)
+	stateSinkObject.Save(5, &p.sendBufferSize)
+	stateSinkObject.Save(6, &p.recvBufferSize)
+	stateSinkObject.Save(7, &p.congestionControl)
+	stateSinkObject.Save(8, &p.availableCongestionControl)
+	stateSinkObject.Save(9, &p.moderateReceiveBuffer)
+	stateSinkObject.Save(10, &p.lingerTimeout)
+	stateSinkObject.Save(11, &p.timeWaitTimeout)
+	stateSinkObject.Save(12, &p.timeWaitReuse)
+	stateSinkObject.Save(13, &p.minRTO)
+	stateSinkObject.Save(14, &p.maxRTO)
+	stateSinkObject.Save(15, &p.maxRetries)
+	stateSinkObject.Save(16, &p.synRetries)
+	stateSinkObject.Save(17, &p.dispatcher)
+	stateSinkObject.Save(18, &p.seqnumSecret)
+	stateSinkObject.Save(19, &p.tsOffsetSecret)
+}
+
+func (p *protocol) afterLoad(context.Context) {}
+
+// +checklocksignore
+func (p *protocol) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &p.stack)
+	stateSourceObject.Load(1, &p.sackEnabled)
+	stateSourceObject.Load(2, &p.recovery)
+	stateSourceObject.Load(3, &p.delayEnabled)
+	stateSourceObject.Load(4, &p.alwaysUseSynCookies)
+	stateSourceObject.Load(5, &p.sendBufferSize)
+	stateSourceObject.Load(6, &p.recvBufferSize)
+	stateSourceObject.Load(7, &p.congestionControl)
+	stateSourceObject.Load(8, &p.availableCongestionControl)
+	stateSourceObject.Load(9, &p.moderateReceiveBuffer)
+	stateSourceObject.Load(10, &p.lingerTimeout)
+	stateSourceObject.Load(11, &p.timeWaitTimeout)
+	stateSourceObject.Load(12, &p.timeWaitReuse)
+	stateSourceObject.Load(13, &p.minRTO)
+	stateSourceObject.Load(14, &p.maxRTO)
+	stateSourceObject.Load(15, &p.maxRetries)
+	stateSourceObject.Load(16, &p.synRetries)
+	stateSourceObject.Load(17, &p.dispatcher)
+	stateSourceObject.Load(18, &p.seqnumSecret)
+	stateSourceObject.Load(19, &p.tsOffsetSecret)
 }
 
 func (rc *rackControl) StateTypeName() string {
@@ -561,10 +760,10 @@ func (rc *rackControl) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(5, &rc.snd)
 }
 
-func (rc *rackControl) afterLoad() {}
+func (rc *rackControl) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (rc *rackControl) StateLoad(stateSourceObject state.Source) {
+func (rc *rackControl) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &rc.TCPRACKState)
 	stateSourceObject.Load(1, &rc.exitedRecovery)
 	stateSourceObject.Load(2, &rc.minRTT)
@@ -605,10 +804,10 @@ func (r *receiver) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(7, &r.lastRcvdAckTime)
 }
 
-func (r *receiver) afterLoad() {}
+func (r *receiver) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (r *receiver) StateLoad(stateSourceObject state.Source) {
+func (r *receiver) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.TCPReceiverState)
 	stateSourceObject.Load(1, &r.ep)
 	stateSourceObject.Load(2, &r.rcvWnd)
@@ -637,10 +836,10 @@ func (r *renoState) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(0, &r.s)
 }
 
-func (r *renoState) afterLoad() {}
+func (r *renoState) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (r *renoState) StateLoad(stateSourceObject state.Source) {
+func (r *renoState) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.s)
 }
 
@@ -662,10 +861,10 @@ func (rr *renoRecovery) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(0, &rr.s)
 }
 
-func (rr *renoRecovery) afterLoad() {}
+func (rr *renoRecovery) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (rr *renoRecovery) StateLoad(stateSourceObject state.Source) {
+func (rr *renoRecovery) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &rr.s)
 }
 
@@ -687,10 +886,10 @@ func (sr *sackRecovery) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(0, &sr.s)
 }
 
-func (sr *sackRecovery) afterLoad() {}
+func (sr *sackRecovery) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (sr *sackRecovery) StateLoad(stateSourceObject state.Source) {
+func (sr *sackRecovery) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &sr.s)
 }
 
@@ -714,10 +913,10 @@ func (s *SACKScoreboard) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &s.maxSACKED)
 }
 
-func (s *SACKScoreboard) afterLoad() {}
+func (s *SACKScoreboard) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *SACKScoreboard) StateLoad(stateSourceObject state.Source) {
+func (s *SACKScoreboard) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &s.smss)
 	stateSourceObject.Load(1, &s.maxSACKED)
 }
@@ -780,10 +979,10 @@ func (s *segment) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(19, &s.lost)
 }
 
-func (s *segment) afterLoad() {}
+func (s *segment) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *segment) StateLoad(stateSourceObject state.Source) {
+func (s *segment) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &s.segmentEntry)
 	stateSourceObject.Load(1, &s.segmentRefs)
 	stateSourceObject.Load(2, &s.ep)
@@ -803,7 +1002,7 @@ func (s *segment) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(17, &s.acked)
 	stateSourceObject.Load(18, &s.dataMemSize)
 	stateSourceObject.Load(19, &s.lost)
-	stateSourceObject.LoadValue(12, new([]byte), func(y any) { s.loadOptions(y.([]byte)) })
+	stateSourceObject.LoadValue(12, new([]byte), func(y any) { s.loadOptions(ctx, y.([]byte)) })
 }
 
 func (q *segmentQueue) StateTypeName() string {
@@ -828,10 +1027,10 @@ func (q *segmentQueue) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(2, &q.frozen)
 }
 
-func (q *segmentQueue) afterLoad() {}
+func (q *segmentQueue) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (q *segmentQueue) StateLoad(stateSourceObject state.Source) {
+func (q *segmentQueue) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.LoadWait(0, &q.list)
 	stateSourceObject.Load(1, &q.ep)
 	stateSourceObject.Load(2, &q.frozen)
@@ -859,6 +1058,7 @@ func (s *sender) StateFields() []string {
 		"rc",
 		"spuriousRecovery",
 		"retransmitTS",
+		"startCork",
 	}
 }
 
@@ -883,12 +1083,13 @@ func (s *sender) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(13, &s.rc)
 	stateSinkObject.Save(14, &s.spuriousRecovery)
 	stateSinkObject.Save(15, &s.retransmitTS)
+	stateSinkObject.Save(16, &s.startCork)
 }
 
-func (s *sender) afterLoad() {}
+func (s *sender) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *sender) StateLoad(stateSourceObject state.Source) {
+func (s *sender) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &s.TCPSenderState)
 	stateSourceObject.Load(1, &s.ep)
 	stateSourceObject.Load(2, &s.lr)
@@ -905,6 +1106,7 @@ func (s *sender) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(13, &s.rc)
 	stateSourceObject.Load(14, &s.spuriousRecovery)
 	stateSourceObject.Load(15, &s.retransmitTS)
+	stateSourceObject.Load(16, &s.startCork)
 }
 
 func (r *rtt) StateTypeName() string {
@@ -925,10 +1127,10 @@ func (r *rtt) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(0, &r.TCPRTTState)
 }
 
-func (r *rtt) afterLoad() {}
+func (r *rtt) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (r *rtt) StateLoad(stateSourceObject state.Source) {
+func (r *rtt) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.TCPRTTState)
 }
 
@@ -952,10 +1154,10 @@ func (l *endpointList) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &l.tail)
 }
 
-func (l *endpointList) afterLoad() {}
+func (l *endpointList) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (l *endpointList) StateLoad(stateSourceObject state.Source) {
+func (l *endpointList) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &l.head)
 	stateSourceObject.Load(1, &l.tail)
 }
@@ -980,10 +1182,10 @@ func (e *endpointEntry) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &e.prev)
 }
 
-func (e *endpointEntry) afterLoad() {}
+func (e *endpointEntry) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (e *endpointEntry) StateLoad(stateSourceObject state.Source) {
+func (e *endpointEntry) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &e.next)
 	stateSourceObject.Load(1, &e.prev)
 }
@@ -1008,10 +1210,10 @@ func (l *segmentList) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &l.tail)
 }
 
-func (l *segmentList) afterLoad() {}
+func (l *segmentList) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (l *segmentList) StateLoad(stateSourceObject state.Source) {
+func (l *segmentList) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &l.head)
 	stateSourceObject.Load(1, &l.tail)
 }
@@ -1036,10 +1238,10 @@ func (e *segmentEntry) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &e.prev)
 }
 
-func (e *segmentEntry) afterLoad() {}
+func (e *segmentEntry) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (e *segmentEntry) StateLoad(stateSourceObject state.Source) {
+func (e *segmentEntry) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &e.next)
 	stateSourceObject.Load(1, &e.prev)
 }
@@ -1063,22 +1265,27 @@ func (r *segmentRefs) StateSave(stateSinkObject state.Sink) {
 }
 
 // +checklocksignore
-func (r *segmentRefs) StateLoad(stateSourceObject state.Source) {
+func (r *segmentRefs) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.refCount)
-	stateSourceObject.AfterLoad(r.afterLoad)
+	stateSourceObject.AfterLoad(func() { r.afterLoad(ctx) })
 }
 
 func init() {
 	state.Register((*acceptQueue)(nil))
 	state.Register((*handshake)(nil))
 	state.Register((*cubicState)(nil))
+	state.Register((*epQueue)(nil))
+	state.Register((*processor)(nil))
+	state.Register((*dispatcher)(nil))
+	state.Register((*jenkinsHasher)(nil))
 	state.Register((*SACKInfo)(nil))
 	state.Register((*ReceiveErrors)(nil))
 	state.Register((*SendErrors)(nil))
 	state.Register((*Stats)(nil))
 	state.Register((*sndQueueInfo)(nil))
-	state.Register((*endpoint)(nil))
+	state.Register((*Endpoint)(nil))
 	state.Register((*keepalive)(nil))
+	state.Register((*protocol)(nil))
 	state.Register((*rackControl)(nil))
 	state.Register((*receiver)(nil))
 	state.Register((*renoState)(nil))

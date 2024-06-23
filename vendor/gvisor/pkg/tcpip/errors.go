@@ -274,6 +274,19 @@ func (*ErrDuplicateNICID) IgnoreStats() bool {
 }
 func (*ErrDuplicateNICID) String() string { return "duplicate nic id" }
 
+// ErrInvalidNICID indicates the operation used an invalid NIC ID.
+//
+// +stateify savable
+type ErrInvalidNICID struct{}
+
+func (*ErrInvalidNICID) isError() {}
+
+// IgnoreStats implements Error.
+func (*ErrInvalidNICID) IgnoreStats() bool {
+	return false
+}
+func (*ErrInvalidNICID) String() string { return "invalid nic id" }
+
 // ErrInvalidEndpointState indicates the endpoint is in an invalid state.
 //
 // +stateify savable
@@ -589,7 +602,7 @@ func (*ErrMissingRequiredFields) isError() {}
 func (*ErrMissingRequiredFields) IgnoreStats() bool {
 	return true
 }
-func (*ErrMissingRequiredFields) String() string { return "mising required fields" }
+func (*ErrMissingRequiredFields) String() string { return "missing required fields" }
 
 // ErrMulticastInputCannotBeOutput indicates that an input interface matches an
 // output interface in the same multicast route.

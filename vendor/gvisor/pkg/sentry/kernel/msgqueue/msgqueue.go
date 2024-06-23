@@ -86,7 +86,7 @@ type Queue struct {
 	// messages is a list of sent messages.
 	messages msgList
 
-	// sendTime is the last time a msgsnd was perfomed.
+	// sendTime is the last time a msgsnd was performed.
 	sendTime ktime.Time
 
 	// receiveTime is the last time a msgrcv was performed.
@@ -194,7 +194,7 @@ func (r *Registry) newQueueLocked(ctx context.Context, key ipc.Key, creds *auth.
 
 // Remove removes the queue with specified ID. All waiters (readers and
 // writers) and writers will be awakened and fail. Remove will return an error
-// if the ID is invalid, or the the user doesn't have privileges.
+// if the ID is invalid, or the user doesn't have privileges.
 func (r *Registry) Remove(id ipc.ID, creds *auth.Credentials) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -424,7 +424,7 @@ func (q *Queue) pop(ctx context.Context, creds *auth.Credentials, mType int64, m
 		msg = q.msgOfTypeLessThan(-1 * mType)
 	}
 
-	// If no message exists, return a blocking singal.
+	// If no message exists, return a blocking signal.
 	if msg == nil {
 		return nil, linuxerr.EWOULDBLOCK
 	}
@@ -491,7 +491,7 @@ func (q *Queue) msgOfType(mType int64, except bool) *Message {
 	return nil
 }
 
-// msgOfTypeLessThan return the the first message with the lowest type less
+// msgOfTypeLessThan return the first message with the lowest type less
 // than or equal to mType, nil if no such message exists.
 //
 // Precondition: caller must hold q.mu.

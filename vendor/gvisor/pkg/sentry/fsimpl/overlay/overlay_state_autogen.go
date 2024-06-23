@@ -3,6 +3,8 @@
 package overlay
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/state"
 )
 
@@ -32,10 +34,10 @@ func (fd *directoryFD) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(4, &fd.dirents)
 }
 
-func (fd *directoryFD) afterLoad() {}
+func (fd *directoryFD) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (fd *directoryFD) StateLoad(stateSourceObject state.Source) {
+func (fd *directoryFD) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &fd.fileDescription)
 	stateSourceObject.Load(1, &fd.DirectoryFileDescriptionDefaultImpl)
 	stateSourceObject.Load(2, &fd.DentryMetadataFileDescriptionImpl)
@@ -58,10 +60,10 @@ func (fstype *FilesystemType) StateSave(stateSinkObject state.Sink) {
 	fstype.beforeSave()
 }
 
-func (fstype *FilesystemType) afterLoad() {}
+func (fstype *FilesystemType) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (fstype *FilesystemType) StateLoad(stateSourceObject state.Source) {
+func (fstype *FilesystemType) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 }
 
 func (f *FilesystemOptions) StateTypeName() string {
@@ -84,10 +86,10 @@ func (f *FilesystemOptions) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &f.LowerRoots)
 }
 
-func (f *FilesystemOptions) afterLoad() {}
+func (f *FilesystemOptions) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (f *FilesystemOptions) StateLoad(stateSourceObject state.Source) {
+func (f *FilesystemOptions) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &f.UpperRoot)
 	stateSourceObject.Load(1, &f.LowerRoots)
 }
@@ -124,10 +126,10 @@ func (fs *filesystem) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(7, &fs.maxFilenameLen)
 }
 
-func (fs *filesystem) afterLoad() {}
+func (fs *filesystem) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (fs *filesystem) StateLoad(stateSourceObject state.Source) {
+func (fs *filesystem) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &fs.vfsfs)
 	stateSourceObject.Load(1, &fs.opts)
 	stateSourceObject.Load(2, &fs.creds)
@@ -158,10 +160,10 @@ func (l *layerDevNumber) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &l.minor)
 }
 
-func (l *layerDevNumber) afterLoad() {}
+func (l *layerDevNumber) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (l *layerDevNumber) StateLoad(stateSourceObject state.Source) {
+func (l *layerDevNumber) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &l.major)
 	stateSourceObject.Load(1, &l.minor)
 }
@@ -186,10 +188,10 @@ func (l *layerDevNoAndIno) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &l.ino)
 }
 
-func (l *layerDevNoAndIno) afterLoad() {}
+func (l *layerDevNoAndIno) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (l *layerDevNoAndIno) StateLoad(stateSourceObject state.Source) {
+func (l *layerDevNoAndIno) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &l.layerDevNumber)
 	stateSourceObject.Load(1, &l.ino)
 }
@@ -230,6 +232,9 @@ func (d *dentry) beforeSave() {}
 // +checklocksignore
 func (d *dentry) StateSave(stateSinkObject state.Sink) {
 	d.beforeSave()
+	var parentValue *dentry
+	parentValue = d.saveParent()
+	stateSinkObject.SaveValue(7, parentValue)
 	stateSinkObject.Save(0, &d.vfsd)
 	stateSinkObject.Save(1, &d.refs)
 	stateSinkObject.Save(2, &d.fs)
@@ -237,7 +242,6 @@ func (d *dentry) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(4, &d.uid)
 	stateSinkObject.Save(5, &d.gid)
 	stateSinkObject.Save(6, &d.copiedUp)
-	stateSinkObject.Save(7, &d.parent)
 	stateSinkObject.Save(8, &d.name)
 	stateSinkObject.Save(9, &d.children)
 	stateSinkObject.Save(10, &d.dirents)
@@ -255,7 +259,7 @@ func (d *dentry) StateSave(stateSinkObject state.Sink) {
 }
 
 // +checklocksignore
-func (d *dentry) StateLoad(stateSourceObject state.Source) {
+func (d *dentry) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &d.vfsd)
 	stateSourceObject.Load(1, &d.refs)
 	stateSourceObject.Load(2, &d.fs)
@@ -263,7 +267,6 @@ func (d *dentry) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(4, &d.uid)
 	stateSourceObject.Load(5, &d.gid)
 	stateSourceObject.Load(6, &d.copiedUp)
-	stateSourceObject.Load(7, &d.parent)
 	stateSourceObject.Load(8, &d.name)
 	stateSourceObject.Load(9, &d.children)
 	stateSourceObject.Load(10, &d.dirents)
@@ -278,7 +281,8 @@ func (d *dentry) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(19, &d.isMappable)
 	stateSourceObject.Load(20, &d.locks)
 	stateSourceObject.Load(21, &d.watches)
-	stateSourceObject.AfterLoad(d.afterLoad)
+	stateSourceObject.LoadValue(7, new(*dentry), func(y any) { d.loadParent(ctx, y.(*dentry)) })
+	stateSourceObject.AfterLoad(func() { d.afterLoad(ctx) })
 }
 
 func (fd *fileDescription) StateTypeName() string {
@@ -303,10 +307,10 @@ func (fd *fileDescription) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(2, &fd.LockFD)
 }
 
-func (fd *fileDescription) afterLoad() {}
+func (fd *fileDescription) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (fd *fileDescription) StateLoad(stateSourceObject state.Source) {
+func (fd *fileDescription) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &fd.vfsfd)
 	stateSourceObject.Load(1, &fd.FileDescriptionDefaultImpl)
 	stateSourceObject.Load(2, &fd.LockFD)
@@ -336,10 +340,10 @@ func (fd *regularFileFD) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(3, &fd.cachedFlags)
 }
 
-func (fd *regularFileFD) afterLoad() {}
+func (fd *regularFileFD) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (fd *regularFileFD) StateLoad(stateSourceObject state.Source) {
+func (fd *regularFileFD) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &fd.fileDescription)
 	stateSourceObject.Load(1, &fd.copiedUp)
 	stateSourceObject.Load(2, &fd.cachedFD)

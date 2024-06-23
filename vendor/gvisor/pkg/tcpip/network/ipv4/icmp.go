@@ -236,8 +236,7 @@ func (e *endpoint) checkLocalAddress(addr tcpip.Address) bool {
 		return true
 	}
 
-	if addressEndpoint := e.AcquireAssignedAddress(addr, false, stack.NeverPrimaryEndpoint); addressEndpoint != nil {
-		addressEndpoint.DecRef()
+	if addressEndpoint := e.AcquireAssignedAddress(addr, false, stack.NeverPrimaryEndpoint, true /* readOnly */); addressEndpoint != nil {
 		return true
 	}
 	return false
@@ -247,7 +246,7 @@ func (e *endpoint) checkLocalAddress(addr tcpip.Address) bool {
 // of the original packet that caused the ICMP one to be sent. This information
 // is used to find out which transport endpoint must be notified about the ICMP
 // packet. We only expect the payload, not the enclosing ICMP packet.
-func (e *endpoint) handleControl(errInfo stack.TransportError, pkt stack.PacketBufferPtr) {
+func (e *endpoint) handleControl(errInfo stack.TransportError, pkt *stack.PacketBuffer) {
 	h, ok := pkt.Data().PullUp(header.IPv4MinimumSize)
 	if !ok {
 		return
@@ -284,7 +283,7 @@ func (e *endpoint) handleControl(errInfo stack.TransportError, pkt stack.PacketB
 	e.dispatcher.DeliverTransportError(srcAddr, dstAddr, ProtocolNumber, p, errInfo, pkt)
 }
 
-func (e *endpoint) handleICMP(pkt stack.PacketBufferPtr) {
+func (e *endpoint) handleICMP(pkt *stack.PacketBuffer) {
 	received := e.stats.icmp.packetsReceived
 	h := header.ICMPv4(pkt.TransportHeader().Slice())
 	if len(h) < header.ICMPv4MinimumSize {
@@ -611,7 +610,7 @@ func (*icmpReasonHostUnreachable) isICMPReason() {}
 // the problematic packet. It incorporates as much of that packet as
 // possible as well as any error metadata as is available. returnError
 // expects pkt to hold a valid IPv4 packet as per the wire format.
-func (p *protocol) returnError(reason icmpReason, pkt stack.PacketBufferPtr, deliveredLocally bool) tcpip.Error {
+func (p *protocol) returnError(reason icmpReason, pkt *stack.PacketBuffer, deliveredLocally bool) tcpip.Error {
 	origIPHdr := header.IPv4(pkt.NetworkHeader().Slice())
 	origIPHdrSrc := origIPHdr.SourceAddress()
 	origIPHdrDst := origIPHdr.DestinationAddress()
@@ -811,7 +810,7 @@ func (p *protocol) returnError(reason icmpReason, pkt stack.PacketBufferPtr, del
 }
 
 // OnReassemblyTimeout implements fragmentation.TimeoutHandler.
-func (p *protocol) OnReassemblyTimeout(pkt stack.PacketBufferPtr) {
+func (p *protocol) OnReassemblyTimeout(pkt *stack.PacketBuffer) {
 	// OnReassemblyTimeout sends a Time Exceeded Message, as per RFC 792:
 	//
 	//   If a host reassembling a fragmented datagram cannot complete the
@@ -820,7 +819,7 @@ func (p *protocol) OnReassemblyTimeout(pkt stack.PacketBufferPtr) {
 	//
 	//   If fragment zero is not available then no time exceeded need be sent at
 	//   all.
-	if !pkt.IsNil() {
+	if pkt != nil {
 		p.returnError(&icmpReasonReassemblyTimeout{}, pkt, true /* deliveredLocally */)
 	}
 }

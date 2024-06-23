@@ -3,6 +3,8 @@
 package lock
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/state"
 )
 
@@ -26,10 +28,10 @@ func (o *OwnerInfo) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &o.OFD)
 }
 
-func (o *OwnerInfo) afterLoad() {}
+func (o *OwnerInfo) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (o *OwnerInfo) StateLoad(stateSourceObject state.Source) {
+func (o *OwnerInfo) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &o.PID)
 	stateSourceObject.Load(1, &o.OFD)
 }
@@ -56,10 +58,10 @@ func (l *Lock) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(2, &l.WriterInfo)
 }
 
-func (l *Lock) afterLoad() {}
+func (l *Lock) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (l *Lock) StateLoad(stateSourceObject state.Source) {
+func (l *Lock) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &l.Readers)
 	stateSourceObject.Load(1, &l.Writer)
 	stateSourceObject.Load(2, &l.WriterInfo)
@@ -85,10 +87,10 @@ func (l *Locks) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &l.blockedQueue)
 }
 
-func (l *Locks) afterLoad() {}
+func (l *Locks) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (l *Locks) StateLoad(stateSourceObject state.Source) {
+func (l *Locks) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &l.locks)
 	stateSourceObject.Load(1, &l.blockedQueue)
 }
@@ -113,10 +115,10 @@ func (r *LockRange) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &r.End)
 }
 
-func (r *LockRange) afterLoad() {}
+func (r *LockRange) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (r *LockRange) StateLoad(stateSourceObject state.Source) {
+func (r *LockRange) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.Start)
 	stateSourceObject.Load(1, &r.End)
 }
@@ -136,16 +138,16 @@ func (s *LockSet) beforeSave() {}
 // +checklocksignore
 func (s *LockSet) StateSave(stateSinkObject state.Sink) {
 	s.beforeSave()
-	var rootValue *LockSegmentDataSlices
+	var rootValue []LockFlatSegment
 	rootValue = s.saveRoot()
 	stateSinkObject.SaveValue(0, rootValue)
 }
 
-func (s *LockSet) afterLoad() {}
+func (s *LockSet) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (s *LockSet) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.LoadValue(0, new(*LockSegmentDataSlices), func(y any) { s.loadRoot(y.(*LockSegmentDataSlices)) })
+func (s *LockSet) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.LoadValue(0, new([]LockFlatSegment), func(y any) { s.loadRoot(ctx, y.([]LockFlatSegment)) })
 }
 
 func (n *Locknode) StateTypeName() string {
@@ -180,10 +182,10 @@ func (n *Locknode) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(7, &n.children)
 }
 
-func (n *Locknode) afterLoad() {}
+func (n *Locknode) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (n *Locknode) StateLoad(stateSourceObject state.Source) {
+func (n *Locknode) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &n.nrSegments)
 	stateSourceObject.Load(1, &n.parent)
 	stateSourceObject.Load(2, &n.parentIndex)
@@ -194,35 +196,35 @@ func (n *Locknode) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(7, &n.children)
 }
 
-func (l *LockSegmentDataSlices) StateTypeName() string {
-	return "pkg/sentry/fsimpl/lock.LockSegmentDataSlices"
+func (l *LockFlatSegment) StateTypeName() string {
+	return "pkg/sentry/fsimpl/lock.LockFlatSegment"
 }
 
-func (l *LockSegmentDataSlices) StateFields() []string {
+func (l *LockFlatSegment) StateFields() []string {
 	return []string{
 		"Start",
 		"End",
-		"Values",
+		"Value",
 	}
 }
 
-func (l *LockSegmentDataSlices) beforeSave() {}
+func (l *LockFlatSegment) beforeSave() {}
 
 // +checklocksignore
-func (l *LockSegmentDataSlices) StateSave(stateSinkObject state.Sink) {
+func (l *LockFlatSegment) StateSave(stateSinkObject state.Sink) {
 	l.beforeSave()
 	stateSinkObject.Save(0, &l.Start)
 	stateSinkObject.Save(1, &l.End)
-	stateSinkObject.Save(2, &l.Values)
+	stateSinkObject.Save(2, &l.Value)
 }
 
-func (l *LockSegmentDataSlices) afterLoad() {}
+func (l *LockFlatSegment) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (l *LockSegmentDataSlices) StateLoad(stateSourceObject state.Source) {
+func (l *LockFlatSegment) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &l.Start)
 	stateSourceObject.Load(1, &l.End)
-	stateSourceObject.Load(2, &l.Values)
+	stateSourceObject.Load(2, &l.Value)
 }
 
 func init() {
@@ -232,5 +234,5 @@ func init() {
 	state.Register((*LockRange)(nil))
 	state.Register((*LockSet)(nil))
 	state.Register((*Locknode)(nil))
-	state.Register((*LockSegmentDataSlices)(nil))
+	state.Register((*LockFlatSegment)(nil))
 }

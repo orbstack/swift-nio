@@ -25,6 +25,7 @@ import (
 var _ stack.NetworkDispatcher = (*endpoint)(nil)
 var _ stack.LinkEndpoint = (*endpoint)(nil)
 
+// +stateify savable
 type endpoint struct {
 	nested.Endpoint
 }
@@ -40,7 +41,7 @@ func New(lower stack.LinkEndpoint) stack.LinkEndpoint {
 }
 
 // DeliverNetworkPacket implements stack.NetworkDispatcher.
-func (e *endpoint) DeliverNetworkPacket(protocol tcpip.NetworkProtocolNumber, pkt stack.PacketBufferPtr) {
+func (e *endpoint) DeliverNetworkPacket(protocol tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) {
 	e.Endpoint.DeliverLinkPacket(protocol, pkt)
 
 	e.Endpoint.DeliverNetworkPacket(protocol, pkt)

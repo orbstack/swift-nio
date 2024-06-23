@@ -23,6 +23,7 @@ import (
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/abi/linux"
+	"gvisor.dev/gvisor/pkg/atomicbitops"
 	"gvisor.dev/gvisor/pkg/hostarch"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/pool"
@@ -85,6 +86,8 @@ type thread struct {
 	//
 	// These are used for the register set for system calls.
 	initRegs arch.Registers
+
+	logPrefix atomic.Pointer[string]
 }
 
 // requestThread is used to request a new sysmsg thread. A thread identifier will
@@ -98,15 +101,16 @@ type requestStub struct {
 	done chan *thread
 }
 
-// maxSysmsgThreads specifies the maximum number of system threads that a
-// subprocess can create in context decoupled mode.
-// TODO(b/268366549): Replace maxSystemThreads below.
-var maxSysmsgThreads = runtime.GOMAXPROCS(0)
+// maxSysmsgThreads is the maximum number of sysmsg threads that a subprocess
+// can create. It is based on GOMAXPROCS and set once, so it must be set after
+// GOMAXPROCS has been adjusted (see loader.go:Args.NumCPU).
+var maxSysmsgThreads = 0
+
+// maxChildThreads is the max number of all child system threads that a
+// subprocess can create, including sysmsg threads.
+var maxChildThreads = 0
 
 const (
-	// maxSystemThreads specifies the maximum number of system threads that a
-	// subprocess may create in order to process the contexts.
-	maxSystemThreads = 4096
 	// maxGuestContexts specifies the maximum number of task contexts that a
 	// subprocess can handle.
 	maxGuestContexts = 4095
@@ -132,8 +136,8 @@ type subprocess struct {
 	mu sync.Mutex
 
 	// faultedContexts is the set of contexts for which it's possible that
-	// context.lastFaultSP == this subprocess.
-	faultedContexts map[*context]struct{}
+	// platformContext.lastFaultSP == this subprocess.
+	faultedContexts map[*platformContext]struct{}
 
 	// sysmsgStackPool is a pool of available sysmsg stacks.
 	sysmsgStackPool pool.Pool
@@ -169,9 +173,12 @@ type subprocess struct {
 	// contextQueue is a queue of all contexts that are ready to switch back to
 	// user mode.
 	contextQueue *contextQueue
+
+	// dead indicates whether the subprocess is alive or not.
+	dead atomicbitops.Bool
 }
 
-func (s *subprocess) initSyscallThread(ptraceThread *thread) error {
+func (s *subprocess) initSyscallThread(ptraceThread *thread, seccompNotify bool) error {
 	s.syscallThreadMu.Lock()
 	defer s.syscallThreadMu.Unlock()
 
@@ -186,7 +193,7 @@ func (s *subprocess) initSyscallThread(ptraceThread *thread) error {
 		thread:  ptraceThread,
 	}
 
-	if err := t.init(); err != nil {
+	if err := t.init(seccompNotify); err != nil {
 		panic(fmt.Sprintf("failed to create a syscall thread"))
 	}
 	s.syscallThread = &t
@@ -194,6 +201,16 @@ func (s *subprocess) initSyscallThread(ptraceThread *thread) error {
 	s.syscallThread.detach()
 
 	return nil
+}
+
+func handlePtraceSyscallRequestError(req any, format string, values ...any) {
+	switch req.(type) {
+	case requestThread:
+		req.(requestThread).thread <- nil
+	case requestStub:
+		req.(requestStub).done <- nil
+	}
+	log.Warningf("handlePtraceSyscallRequest failed: "+format, values...)
 }
 
 // handlePtraceSyscallRequest executes system calls that can't be run via
@@ -204,18 +221,20 @@ func (s *subprocess) handlePtraceSyscallRequest(req any) {
 	defer s.syscallThreadMu.Unlock()
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	s.syscallThread.attach()
+	if err := s.syscallThread.attach(); err != nil {
+		handlePtraceSyscallRequestError(req, err.Error())
+		return
+	}
 	defer s.syscallThread.detach()
 
 	ptraceThread := s.syscallThread.thread
 
-	switch req.(type) {
+	switch r := req.(type) {
 	case requestThread:
-		r := req.(requestThread)
 		t, err := ptraceThread.clone()
 		if err != nil {
-			// Should not happen: not recoverable.
-			panic(fmt.Sprintf("error initializing first thread: %v", err))
+			handlePtraceSyscallRequestError(req, "error initializing thread: %v", err)
+			return
 		}
 
 		// Since the new thread was created with
@@ -225,30 +244,47 @@ func (s *subprocess) handlePtraceSyscallRequest(req any) {
 		// SIGSTOP before the SIGSTOP was delivered, in which
 		// case that signal would be delivered before SIGSTOP.)
 		if sig := t.wait(stopped); sig != unix.SIGSTOP {
-			panic(fmt.Sprintf("error waiting for new clone: expected SIGSTOP, got %v", sig))
+			handlePtraceSyscallRequestError(req, "error waiting for new clone: expected SIGSTOP, got %v", sig)
+			return
+		}
+
+		t.initRegs = ptraceThread.initRegs
+		// Set the parent death signal to SIGKILL.
+		_, err = t.syscallIgnoreInterrupt(&t.initRegs, unix.SYS_PRCTL,
+			arch.SyscallArgument{Value: linux.PR_SET_PDEATHSIG},
+			arch.SyscallArgument{Value: uintptr(unix.SIGKILL)},
+			arch.SyscallArgument{Value: 0},
+			arch.SyscallArgument{Value: 0},
+			arch.SyscallArgument{Value: 0},
+			arch.SyscallArgument{Value: 0},
+		)
+		if err != nil {
+			handlePtraceSyscallRequestError(req, "prctl: %v", err)
+			return
 		}
 
 		id, ok := s.sysmsgStackPool.Get()
 		if !ok {
-			panic("unable to allocate a sysmsg stub thread")
+			handlePtraceSyscallRequestError(req, "unable to allocate a sysmsg stub thread")
+			return
 		}
 		t.sysmsgStackID = id
 
 		if _, _, e := unix.RawSyscall(unix.SYS_TGKILL, uintptr(t.tgid), uintptr(t.tid), uintptr(unix.SIGSTOP)); e != 0 {
-			panic(fmt.Sprintf("tkill failed: %v", e))
+			handlePtraceSyscallRequestError(req, "tkill failed: %v", e)
+			return
 		}
 
 		// Detach the thread.
 		t.detach()
-		t.initRegs = ptraceThread.initRegs
 
 		// Return the thread.
 		r.thread <- t
 	case requestStub:
-		r := req.(requestStub)
 		t, err := ptraceThread.createStub()
 		if err != nil {
-			panic(fmt.Sprintf("unable to create a stub process: %s", err))
+			handlePtraceSyscallRequestError(req, "unable to create a stub process: %v", err)
+			return
 		}
 		r.done <- t
 
@@ -260,7 +296,13 @@ func (s *subprocess) handlePtraceSyscallRequest(req any) {
 // This will either be a newly created subprocess, or one from the global pool.
 // The create function will be called in the latter case, which is guaranteed
 // to happen with the runtime thread locked.
-func newSubprocess(create func() (*thread, error), memoryFile *pgalloc.MemoryFile) (*subprocess, error) {
+//
+// seccompNotify indicates a ways of comunications with syscall threads.
+// If it is false, futex-s are used. Otherwise, seccomp-unotify is used.
+// seccomp-unotify can't be used for the source pool process, because it is a
+// parent of all other stub processes, but only one filter can be installed
+// with SECCOMP_FILTER_FLAG_NEW_LISTENER.
+func newSubprocess(create func() (*thread, error), memoryFile *pgalloc.MemoryFile, seccompNotify bool) (*subprocess, error) {
 	if sp := globalPool.fetchAvailable(); sp != nil {
 		sp.subprocessRefs.InitRefs()
 		sp.usertrap = usertrap.New()
@@ -276,8 +318,8 @@ func newSubprocess(create func() (*thread, error), memoryFile *pgalloc.MemoryFil
 	// Ready.
 	sp := &subprocess{
 		requests:          requests,
-		faultedContexts:   make(map[*context]struct{}),
-		sysmsgStackPool:   pool.Pool{Start: 0, Limit: maxSystemThreads},
+		faultedContexts:   make(map[*platformContext]struct{}),
+		sysmsgStackPool:   pool.Pool{Start: 0, Limit: uint64(maxChildThreads)},
 		threadContextPool: pool.Pool{Start: 0, Limit: maxGuestContexts},
 		memoryFile:        memoryFile,
 		sysmsgThreads:     make(map[uint32]*sysmsgThread),
@@ -293,7 +335,7 @@ func newSubprocess(create func() (*thread, error), memoryFile *pgalloc.MemoryFil
 	}
 	sp.sysmsgInitRegs = ptraceThread.initRegs
 
-	if err := sp.initSyscallThread(ptraceThread); err != nil {
+	if err := sp.initSyscallThread(ptraceThread, seccompNotify); err != nil {
 		return nil, err
 	}
 
@@ -313,12 +355,15 @@ func newSubprocess(create func() (*thread, error), memoryFile *pgalloc.MemoryFil
 	sp.mapSharedRegions()
 	sp.mapPrivateRegions()
 
-	// Create the initial sysmsg thread.
-	atomic.AddUint32(&sp.contextQueue.numThreadsToWakeup, 1)
-	if err := sp.createSysmsgThread(); err != nil {
-		return nil, err
+	// The main stub doesn't need sysmsg threads.
+	if seccompNotify {
+		// Create the initial sysmsg thread.
+		atomic.AddUint32(&sp.contextQueue.numThreadsToWakeup, 1)
+		if err := sp.createSysmsgThread(); err != nil {
+			return nil, err
+		}
+		sp.numSysmsgThreads++
 	}
-	sp.numSysmsgThreads++
 
 	return sp, nil
 }
@@ -415,7 +460,7 @@ func (s *subprocess) unmap() {
 
 // Release kills the subprocess.
 //
-// Just kidding! We can't safely co-ordinate the detaching of all the
+// Just kidding! We can't safely coordinate the detaching of all the
 // tracees (since the tracers are random runtime threads, and the process
 // won't exit until tracers have been notifier).
 //
@@ -423,36 +468,28 @@ func (s *subprocess) unmap() {
 // globalPool. This has the added benefit of reducing creation time for new
 // subprocesses.
 func (s *subprocess) Release() {
+	if !s.alive() {
+		return
+	}
 	s.unmap()
 	s.DecRef(s.release)
 }
 
 // release returns the subprocess to the global pool.
 func (s *subprocess) release() {
-	globalPool.markAvailable(s)
-}
-
-// newThread creates a new traced thread.
-//
-// Precondition: the OS thread must be locked.
-func (s *subprocess) newThread() *thread {
-	// Ask the first thread to create a new one.
-	var r requestThread
-	r.thread = make(chan *thread)
-	s.requests <- r
-	t := <-r.thread
-
-	// Attach the subprocess to this one.
-	t.attach()
-
-	// Return the new thread, which is now bound.
-	return t
+	if s.alive() {
+		globalPool.markAvailable(s)
+		return
+	}
+	if s.syscallThread != nil && s.syscallThread.seccompNotify != nil {
+		s.syscallThread.seccompNotify.Close()
+	}
 }
 
 // attach attaches to the thread.
-func (t *thread) attach() {
+func (t *thread) attach() error {
 	if _, _, errno := unix.RawSyscall6(unix.SYS_PTRACE, unix.PTRACE_ATTACH, uintptr(t.tid), 0, 0, 0, 0); errno != 0 {
-		panic(fmt.Sprintf("unable to attach: %v", errno))
+		return fmt.Errorf("unable to attach: %v", errno)
 	}
 
 	// PTRACE_ATTACH sends SIGSTOP, and wakes the tracee if it was already
@@ -460,11 +497,12 @@ func (t *thread) attach() {
 	// newSubprocess), so we always expect to see signal-delivery-stop with
 	// SIGSTOP.
 	if sig := t.wait(stopped); sig != unix.SIGSTOP {
-		panic(fmt.Sprintf("wait failed: expected SIGSTOP, got %v", sig))
+		return fmt.Errorf("wait failed: expected SIGSTOP, got %v", sig)
 	}
 
 	// Initialize options.
 	t.init()
+	return nil
 }
 
 func (t *thread) grabInitRegs() {
@@ -500,9 +538,28 @@ const (
 	killed
 )
 
+func (t *thread) loadLogPrefix() *string {
+	p := t.logPrefix.Load()
+	if p == nil {
+		prefix := fmt.Sprintf("[% 4d:% 4d] ", t.tgid, t.tid)
+		t.logPrefix.Store(&prefix)
+		p = &prefix
+	}
+	return p
+}
+
+// Debugf logs with the debugging severity.
 func (t *thread) Debugf(format string, v ...any) {
-	prefix := fmt.Sprintf("%8d:", t.tid)
-	log.DebugfAtDepth(1, prefix+format, v...)
+	if log.IsLogging(log.Debug) {
+		log.DebugfAtDepth(1, *t.loadLogPrefix()+format, v...)
+	}
+}
+
+// Warningf logs with the warning severity.
+func (t *thread) Warningf(format string, v ...any) {
+	if log.IsLogging(log.Warning) {
+		log.WarningfAtDepth(1, *t.loadLogPrefix()+format, v...)
+	}
 }
 
 func (t *thread) dumpAndPanic(message string) {
@@ -589,7 +646,12 @@ func (t *thread) wait(outcome waitOutcome) unix.Signal {
 	}
 }
 
-// destroy kills the thread.
+// kill kills the thread;
+func (t *thread) kill() {
+	unix.Tgkill(int(t.tgid), int(t.tid), unix.Signal(unix.SIGKILL))
+}
+
+// destroy kills and waits on the thread.
 //
 // Note that this should not be used in the general case; the death of threads
 // will typically cause the death of the parent. This is a utility method for
@@ -688,10 +750,7 @@ func (s *subprocess) incAwakeContexts() {
 	if nr > uint32(maxSysmsgThreads) {
 		return
 	}
-	nr = nrMaxAwakeStubThreads.Add(1)
-	if nr > fastPathContextLimit {
-		dispatcher.disableStubFastPath()
-	}
+	fastpath.nrMaxAwakeStubThreads.Add(1)
 }
 
 func (s *subprocess) decAwakeContexts() {
@@ -699,7 +758,7 @@ func (s *subprocess) decAwakeContexts() {
 	if nr >= uint32(maxSysmsgThreads) {
 		return
 	}
-	nrMaxAwakeStubThreads.Add(^uint32(0))
+	fastpath.nrMaxAwakeStubThreads.Add(^uint32(0))
 }
 
 // switchToApp is called from the main SwitchToApp entrypoint.
@@ -707,7 +766,7 @@ func (s *subprocess) decAwakeContexts() {
 // This function returns true on a system call, false on a signal.
 // The second return value is true if a syscall instruction can be replaced on
 // a function call.
-func (s *subprocess) switchToApp(c *context, ac *arch.Context64) (isSyscall bool, shouldPatchSyscall bool, err error) {
+func (s *subprocess) switchToApp(c *platformContext, ac *arch.Context64) (isSyscall bool, shouldPatchSyscall bool, err *platform.ContextError) {
 	// Reset necessary registers.
 	regs := &ac.StateData().Regs
 	s.resetSysemuRegs(regs)
@@ -734,19 +793,22 @@ func (s *subprocess) switchToApp(c *context, ac *arch.Context64) (isSyscall bool
 		ctx.sleeping = false
 		s.incAwakeContexts()
 	}
-	stubFastPathEnabled := dispatcher.stubFastPathEnabled()
 	ctx.setState(sysmsg.ContextStateNone)
-	s.contextQueue.add(ctx, stubFastPathEnabled)
-	s.waitOnState(ctx, stubFastPathEnabled)
+	if err := s.contextQueue.add(ctx); err != nil {
+		return false, false, err
+	}
+
+	if err := s.waitOnState(ctx); err != nil {
+		return false, false, corruptedSharedMemoryErr(err.Error())
+	}
 
 	// Check if there's been an error.
 	threadID := ctx.threadID()
 	if threadID != invalidThreadID {
 		if sysThread, ok := s.sysmsgThreads[threadID]; ok && sysThread.msg.Err != 0 {
-			msg := sysThread.msg
-			panic(fmt.Sprintf("stub thread %d failed: err 0x%x line %d: %s", sysThread.thread.tid, msg.Err, msg.Line, msg))
+			return false, false, sysThread.msg.ConvertSysmsgErr()
 		}
-		log.Warningf("systrap: found unexpected ThreadContext.ThreadID field, expected %d found %d", invalidThreadID, threadID)
+		return false, false, corruptedSharedMemoryErr(fmt.Sprintf("found unexpected ThreadContext.ThreadID field, expected %d found %d", invalidThreadID, threadID))
 	}
 
 	// Copy register state locally.
@@ -770,18 +832,16 @@ func (s *subprocess) switchToApp(c *context, ac *arch.Context64) (isSyscall bool
 		updateSyscallRegs(regs)
 		return true, shouldPatchSyscall, nil
 	} else if ctxState != sysmsg.ContextStateFault {
-		panic(fmt.Sprintf("unknown context state: %v", ctxState))
+		return false, false, corruptedSharedMemoryErr(fmt.Sprintf("unknown context state: %v", ctxState))
 	}
 
 	return false, false, nil
 }
 
-func (s *subprocess) waitOnState(ctx *sharedContext, stubFastPathEnabled bool) {
+func (s *subprocess) waitOnState(ctx *sharedContext) error {
 	ctx.kicked = false
 	slowPath := false
-	start := cputicks()
-	ctx.startWaitingTS = start
-	if !stubFastPathEnabled || atomic.LoadUint32(&s.contextQueue.numActiveThreads) == 0 {
+	if !s.contextQueue.fastPathEnabled() || atomic.LoadUint32(&s.contextQueue.numActiveThreads) == 0 {
 		ctx.kicked = s.kickSysmsgThread()
 	}
 	for curState := ctx.state(); curState == sysmsg.ContextStateNone; curState = ctx.state() {
@@ -811,12 +871,17 @@ func (s *subprocess) waitOnState(ctx *sharedContext, stubFastPathEnabled bool) {
 				ctx.kicked = s.kickSysmsgThread()
 			}
 
-			ctx.sleepOnState(curState)
+			if err := ctx.sleepOnState(curState); err != nil {
+				return err
+			}
 		}
 	}
 
-	ctx.resetAcked()
+	ctx.recordLatency()
+	ctx.resetLatencyMeasures()
 	ctx.enableSentryFastPath()
+
+	return nil
 }
 
 // canKickSysmsgThread returns true if a new thread can be kicked.
@@ -844,6 +909,8 @@ func (s *subprocess) canKickSysmsgThread() (bool, uint32) {
 	return true, nrActiveThreads
 }
 
+// kickSysmsgThread returns true if it was able to wake up or create a new sysmsg
+// stub thread.
 func (s *subprocess) kickSysmsgThread() bool {
 	kick, _ := s.canKickSysmsgThread()
 	if !kick {
@@ -856,6 +923,7 @@ func (s *subprocess) kickSysmsgThread() bool {
 		s.sysmsgThreadsMu.Unlock()
 		return false
 	}
+	numTimesStubKicked.Increment()
 	atomic.AddUint32(&s.contextQueue.numThreadsToWakeup, 1)
 	if s.numSysmsgThreads < maxSysmsgThreads && s.numSysmsgThreads < int(nrThreads) {
 		s.numSysmsgThreads++
@@ -871,7 +939,7 @@ func (s *subprocess) kickSysmsgThread() bool {
 	}
 	s.contextQueue.wakeupSysmsgThread()
 
-	return false
+	return true
 }
 
 // syscall executes the given system call without handling interruptions.
@@ -923,13 +991,13 @@ func (s *subprocess) Unmap(addr hostarch.Addr, length uint64) {
 		unix.SYS_MUNMAP,
 		arch.SyscallArgument{Value: uintptr(addr)},
 		arch.SyscallArgument{Value: uintptr(length)})
-	if err != nil {
+	if err != nil && err != errDeadSubprocess {
 		// We never expect this to happen.
 		panic(fmt.Sprintf("munmap(%x, %x)) failed: %v", addr, length, err))
 	}
 }
 
-func (s *subprocess) PullFullState(c *context, ac *arch.Context64) error {
+func (s *subprocess) PullFullState(c *platformContext, ac *arch.Context64) error {
 	if !c.sharedContext.isActiveInSubprocess(s) {
 		panic("Attempted to PullFullState for context that is not used in subprocess")
 	}
@@ -937,15 +1005,22 @@ func (s *subprocess) PullFullState(c *context, ac *arch.Context64) error {
 	return nil
 }
 
-var sysmsgThreadPriority int
+var (
+	sysmsgThreadPriorityOnce sync.Once
+	sysmsgThreadPriority     int
+)
 
+// initSysmsgThreadPriority looks at the current priority of the process
+// and updates `sysmsgThreadPriority` accordingly.
 func initSysmsgThreadPriority() {
-	prio, err := unix.Getpriority(unix.PRIO_PROCESS, 0)
-	if err != nil {
-		panic("unable to get current scheduling priority")
-	}
-	// Sysmsg threads are executed with a priority one lower than the Sentry.
-	sysmsgThreadPriority = 20 - prio + 1
+	sysmsgThreadPriorityOnce.Do(func() {
+		prio, err := unix.Getpriority(unix.PRIO_PROCESS, 0)
+		if err != nil {
+			panic("unable to get current scheduling priority")
+		}
+		// Sysmsg threads are executed with a priority one lower than the Sentry.
+		sysmsgThreadPriority = 20 - prio + 1
+	})
 }
 
 // createSysmsgThread creates a new sysmsg thread.
@@ -956,10 +1031,15 @@ func (s *subprocess) createSysmsgThread() error {
 	r.thread = make(chan *thread)
 	s.requests <- r
 	p := <-r.thread
+	if p == nil {
+		return fmt.Errorf("createSysmsgThread: failed to get clone")
+	}
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	p.attach()
+	if err := p.attach(); err != nil {
+		return err
+	}
 
 	// Skip SIGSTOP.
 	if _, _, errno := unix.RawSyscall6(unix.SYS_PTRACE, unix.PTRACE_CONT, uintptr(p.tid), 0, 0, 0, 0); errno != 0 {
@@ -1100,7 +1180,7 @@ func (s *subprocess) PostFork() {
 // activateContext activates the context in this subprocess.
 // No-op if the context is already active within the subprocess; if not,
 // deactivates it from its last subprocess.
-func (s *subprocess) activateContext(c *context) error {
+func (s *subprocess) activateContext(c *platformContext) error {
 	if !c.sharedContext.isActiveInSubprocess(s) {
 		c.sharedContext.release()
 		c.sharedContext = nil

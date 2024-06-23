@@ -15,25 +15,33 @@
 package accel
 
 import (
-	"fmt"
-
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/abi/gasket"
 	"gvisor.dev/gvisor/pkg/abi/linux"
+	"gvisor.dev/gvisor/pkg/abi/tpu"
 	"gvisor.dev/gvisor/pkg/cleanup"
 	"gvisor.dev/gvisor/pkg/context"
 	"gvisor.dev/gvisor/pkg/errors/linuxerr"
 	"gvisor.dev/gvisor/pkg/hostarch"
+	"gvisor.dev/gvisor/pkg/sentry/devices/tpuproxy"
 	"gvisor.dev/gvisor/pkg/sentry/fsimpl/eventfd"
 	"gvisor.dev/gvisor/pkg/sentry/kernel"
 	"gvisor.dev/gvisor/pkg/sentry/memmap"
 	"gvisor.dev/gvisor/pkg/sentry/mm"
 )
 
-func gasketMapBufferIoctl(ctx context.Context, t *kernel.Task, hostFd int32, fd *accelFD, paramsAddr hostarch.Addr) (uintptr, error) {
+func gasketMapBufferIoctl(ctx context.Context, t *kernel.Task, hostFd int32, fd *tpuV4FD, paramsAddr hostarch.Addr) (uintptr, error) {
 	var userIoctlParams gasket.GasketPageTableIoctl
 	if _, err := userIoctlParams.CopyIn(t, paramsAddr); err != nil {
 		return 0, err
+	}
+
+	numberOfPageTables := tpu.NumberOfTPUV4PageTables
+	if fd.device.lite {
+		numberOfPageTables = tpu.NumberOfTPUV4litePageTables
+	}
+	if userIoctlParams.PageTableIndex >= numberOfPageTables {
+		return 0, linuxerr.EFAULT
 	}
 
 	tmm := t.MemoryManager()
@@ -45,6 +53,23 @@ func gasketMapBufferIoctl(ctx context.Context, t *kernel.Task, hostFd int32, fd 
 	if !ar.IsPageAligned() || (userIoctlParams.Size/hostarch.PageSize) == 0 {
 		return 0, linuxerr.EINVAL
 	}
+
+	devAddr := userIoctlParams.DeviceAddress
+	// The kernel driver does not enforce page alignment on the device
+	// address although it will be implicitly rounded down to a page
+	// boundary. We do it explicitly because it simplifies tracking
+	// of allocated ranges in 'devAddrSet'.
+	devAddr &^= (hostarch.PageSize - 1)
+
+	// Make sure that the device address range can be mapped.
+	devar := DevAddrRange{
+		devAddr,
+		devAddr + userIoctlParams.Size,
+	}
+	if !devar.WellFormed() {
+		return 0, linuxerr.EINVAL
+	}
+
 	// Reserve a range in our address space.
 	m, _, errno := unix.RawSyscall6(unix.SYS_MMAP, 0 /* addr */, uintptr(ar.Length()), unix.PROT_NONE, unix.MAP_PRIVATE|unix.MAP_ANONYMOUS, ^uintptr(0) /* fd */, 0 /* offset */)
 	if errno != 0 {
@@ -79,7 +104,7 @@ func gasketMapBufferIoctl(ctx context.Context, t *kernel.Task, hostFd int32, fd 
 	}
 	sentryIoctlParams := userIoctlParams
 	sentryIoctlParams.HostAddress = uint64(m)
-	n, err := ioctlInvokePtrArg(hostFd, gasket.GASKET_IOCTL_MAP_BUFFER, &sentryIoctlParams)
+	n, err := tpuproxy.IOCTLInvokePtrArg[gasket.Ioctl](hostFd, gasket.GASKET_IOCTL_MAP_BUFFER, &sentryIoctlParams)
 	if err != nil {
 		return n, err
 	}
@@ -89,28 +114,44 @@ func gasketMapBufferIoctl(ctx context.Context, t *kernel.Task, hostFd int32, fd 
 
 	fd.device.mu.Lock()
 	defer fd.device.mu.Unlock()
-	devAddr := userIoctlParams.DeviceAddress
 	for _, pr := range prs {
 		rlen := uint64(pr.Source.Length())
-		if !fd.device.devAddrSet.Add(DevAddrRange{
+		fd.device.devAddrSet.InsertRange(DevAddrRange{
 			devAddr,
 			devAddr + rlen,
-		}, pinnedAccelMem{pinnedRange: pr, pageTableIndex: userIoctlParams.PageTableIndex}) {
-			panic(fmt.Sprintf("unexpected overlap of devaddr range [%#x-%#x)", devAddr, devAddr+rlen))
-		}
+		}, pinnedAccelMem{pinnedRange: pr, pageTableIndex: userIoctlParams.PageTableIndex})
 		devAddr += rlen
 	}
 	return n, nil
 }
 
-func gasketUnmapBufferIoctl(ctx context.Context, t *kernel.Task, hostFd int32, fd *accelFD, paramsAddr hostarch.Addr) (uintptr, error) {
+func gasketUnmapBufferIoctl(ctx context.Context, t *kernel.Task, hostFd int32, fd *tpuV4FD, paramsAddr hostarch.Addr) (uintptr, error) {
 	var userIoctlParams gasket.GasketPageTableIoctl
 	if _, err := userIoctlParams.CopyIn(t, paramsAddr); err != nil {
 		return 0, err
 	}
+
+	numberOfPageTables := tpu.NumberOfTPUV4PageTables
+	if fd.device.lite {
+		numberOfPageTables = tpu.NumberOfTPUV4litePageTables
+	}
+	if userIoctlParams.PageTableIndex >= numberOfPageTables {
+		return 0, linuxerr.EFAULT
+	}
+
+	devAddr := userIoctlParams.DeviceAddress
+	devAddr &^= (hostarch.PageSize - 1)
+	devar := DevAddrRange{
+		devAddr,
+		devAddr + userIoctlParams.Size,
+	}
+	if !devar.WellFormed() {
+		return 0, linuxerr.EINVAL
+	}
+
 	sentryIoctlParams := userIoctlParams
 	sentryIoctlParams.HostAddress = 0 // clobber this value, it's unused.
-	n, err := ioctlInvokePtrArg(hostFd, gasket.GASKET_IOCTL_UNMAP_BUFFER, &sentryIoctlParams)
+	n, err := tpuproxy.IOCTLInvokePtrArg[gasket.Ioctl](hostFd, gasket.GASKET_IOCTL_UNMAP_BUFFER, &sentryIoctlParams)
 	if err != nil {
 		return n, err
 	}
@@ -129,10 +170,27 @@ func gasketUnmapBufferIoctl(ctx context.Context, t *kernel.Task, hostFd int32, f
 	return n, nil
 }
 
-func gasketInterruptMappingIoctl(ctx context.Context, t *kernel.Task, hostFd int32, paramsAddr hostarch.Addr) (uintptr, error) {
+func gasketInterruptMappingIoctl(ctx context.Context, t *kernel.Task, hostFd int32, paramsAddr hostarch.Addr, lite bool) (uintptr, error) {
 	var userIoctlParams gasket.GasketInterruptMapping
 	if _, err := userIoctlParams.CopyIn(t, paramsAddr); err != nil {
 		return 0, err
+	}
+
+	sizeOfInterruptList := tpu.SizeOfTPUV4InterruptList
+	interruptMap := tpu.TPUV4InterruptsMap
+	if lite {
+		sizeOfInterruptList = tpu.SizeOfTPUV4liteInterruptList
+		interruptMap = tpu.TPUV4liteInterruptsMap
+	}
+	if userIoctlParams.Interrupt >= sizeOfInterruptList {
+		return 0, linuxerr.EINVAL
+	}
+	barRegMap, ok := interruptMap[userIoctlParams.BarIndex]
+	if !ok {
+		return 0, linuxerr.EINVAL
+	}
+	if _, ok := barRegMap[userIoctlParams.RegOffset]; !ok {
+		return 0, linuxerr.EINVAL
 	}
 
 	// Check that 'userEventFD.Eventfd' is an eventfd.
@@ -153,7 +211,7 @@ func gasketInterruptMappingIoctl(ctx context.Context, t *kernel.Task, hostFd int
 
 	sentryIoctlParams := userIoctlParams
 	sentryIoctlParams.EventFD = uint64(eventfd)
-	n, err := ioctlInvokePtrArg(hostFd, gasket.GASKET_IOCTL_REGISTER_INTERRUPT, &sentryIoctlParams)
+	n, err := tpuproxy.IOCTLInvokePtrArg[gasket.Ioctl](hostFd, gasket.GASKET_IOCTL_REGISTER_INTERRUPT, &sentryIoctlParams)
 	if err != nil {
 		return n, err
 	}

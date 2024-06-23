@@ -3,6 +3,8 @@
 package tun
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/state"
 )
 
@@ -28,14 +30,45 @@ func (d *Device) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(3, &d.flags)
 }
 
-func (d *Device) afterLoad() {}
+func (d *Device) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (d *Device) StateLoad(stateSourceObject state.Source) {
+func (d *Device) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &d.Queue)
 	stateSourceObject.Load(1, &d.endpoint)
 	stateSourceObject.Load(2, &d.notifyHandle)
 	stateSourceObject.Load(3, &d.flags)
+}
+
+func (f *Flags) StateTypeName() string {
+	return "pkg/tcpip/link/tun.Flags"
+}
+
+func (f *Flags) StateFields() []string {
+	return []string{
+		"TUN",
+		"TAP",
+		"NoPacketInfo",
+	}
+}
+
+func (f *Flags) beforeSave() {}
+
+// +checklocksignore
+func (f *Flags) StateSave(stateSinkObject state.Sink) {
+	f.beforeSave()
+	stateSinkObject.Save(0, &f.TUN)
+	stateSinkObject.Save(1, &f.TAP)
+	stateSinkObject.Save(2, &f.NoPacketInfo)
+}
+
+func (f *Flags) afterLoad(context.Context) {}
+
+// +checklocksignore
+func (f *Flags) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &f.TUN)
+	stateSourceObject.Load(1, &f.TAP)
+	stateSourceObject.Load(2, &f.NoPacketInfo)
 }
 
 func (r *tunEndpointRefs) StateTypeName() string {
@@ -57,12 +90,13 @@ func (r *tunEndpointRefs) StateSave(stateSinkObject state.Sink) {
 }
 
 // +checklocksignore
-func (r *tunEndpointRefs) StateLoad(stateSourceObject state.Source) {
+func (r *tunEndpointRefs) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &r.refCount)
-	stateSourceObject.AfterLoad(r.afterLoad)
+	stateSourceObject.AfterLoad(func() { r.afterLoad(ctx) })
 }
 
 func init() {
 	state.Register((*Device)(nil))
+	state.Register((*Flags)(nil))
 	state.Register((*tunEndpointRefs)(nil))
 }

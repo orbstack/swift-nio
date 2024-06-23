@@ -3,6 +3,8 @@
 package icmp
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/state"
 )
 
@@ -38,17 +40,17 @@ func (p *icmpPacket) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(6, &p.ttlOrHopLimit)
 }
 
-func (p *icmpPacket) afterLoad() {}
+func (p *icmpPacket) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (p *icmpPacket) StateLoad(stateSourceObject state.Source) {
+func (p *icmpPacket) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &p.icmpPacketEntry)
 	stateSourceObject.Load(1, &p.senderAddress)
 	stateSourceObject.Load(2, &p.packetInfo)
 	stateSourceObject.Load(3, &p.data)
 	stateSourceObject.Load(5, &p.tosOrTClass)
 	stateSourceObject.Load(6, &p.ttlOrHopLimit)
-	stateSourceObject.LoadValue(4, new(int64), func(y any) { p.loadReceivedAt(y.(int64)) })
+	stateSourceObject.LoadValue(4, new(int64), func(y any) { p.loadReceivedAt(ctx, y.(int64)) })
 }
 
 func (e *endpoint) StateTypeName() string {
@@ -92,7 +94,7 @@ func (e *endpoint) StateSave(stateSinkObject state.Sink) {
 }
 
 // +checklocksignore
-func (e *endpoint) StateLoad(stateSourceObject state.Source) {
+func (e *endpoint) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &e.DefaultSocketOptionsHandler)
 	stateSourceObject.Load(1, &e.transProto)
 	stateSourceObject.Load(2, &e.waiterQueue)
@@ -106,7 +108,7 @@ func (e *endpoint) StateLoad(stateSourceObject state.Source) {
 	stateSourceObject.Load(10, &e.rcvClosed)
 	stateSourceObject.Load(11, &e.frozen)
 	stateSourceObject.Load(12, &e.ident)
-	stateSourceObject.AfterLoad(e.afterLoad)
+	stateSourceObject.AfterLoad(func() { e.afterLoad(ctx) })
 }
 
 func (l *icmpPacketList) StateTypeName() string {
@@ -129,10 +131,10 @@ func (l *icmpPacketList) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &l.tail)
 }
 
-func (l *icmpPacketList) afterLoad() {}
+func (l *icmpPacketList) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (l *icmpPacketList) StateLoad(stateSourceObject state.Source) {
+func (l *icmpPacketList) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &l.head)
 	stateSourceObject.Load(1, &l.tail)
 }
@@ -157,12 +159,40 @@ func (e *icmpPacketEntry) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.Save(1, &e.prev)
 }
 
-func (e *icmpPacketEntry) afterLoad() {}
+func (e *icmpPacketEntry) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (e *icmpPacketEntry) StateLoad(stateSourceObject state.Source) {
+func (e *icmpPacketEntry) StateLoad(ctx context.Context, stateSourceObject state.Source) {
 	stateSourceObject.Load(0, &e.next)
 	stateSourceObject.Load(1, &e.prev)
+}
+
+func (p *protocol) StateTypeName() string {
+	return "pkg/tcpip/transport/icmp.protocol"
+}
+
+func (p *protocol) StateFields() []string {
+	return []string{
+		"stack",
+		"number",
+	}
+}
+
+func (p *protocol) beforeSave() {}
+
+// +checklocksignore
+func (p *protocol) StateSave(stateSinkObject state.Sink) {
+	p.beforeSave()
+	stateSinkObject.Save(0, &p.stack)
+	stateSinkObject.Save(1, &p.number)
+}
+
+func (p *protocol) afterLoad(context.Context) {}
+
+// +checklocksignore
+func (p *protocol) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.Load(0, &p.stack)
+	stateSourceObject.Load(1, &p.number)
 }
 
 func init() {
@@ -170,4 +200,5 @@ func init() {
 	state.Register((*endpoint)(nil))
 	state.Register((*icmpPacketList)(nil))
 	state.Register((*icmpPacketEntry)(nil))
+	state.Register((*protocol)(nil))
 }

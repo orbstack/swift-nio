@@ -21,7 +21,6 @@ import (
 
 	"gvisor.dev/gvisor/pkg/abi/linux"
 	"gvisor.dev/gvisor/pkg/atomicbitops"
-	"gvisor.dev/gvisor/pkg/bpf"
 	"gvisor.dev/gvisor/pkg/errors/linuxerr"
 	"gvisor.dev/gvisor/pkg/hostarch"
 	"gvisor.dev/gvisor/pkg/metric"
@@ -35,6 +34,17 @@ import (
 	"gvisor.dev/gvisor/pkg/sentry/vfs"
 	"gvisor.dev/gvisor/pkg/sync"
 	"gvisor.dev/gvisor/pkg/waiter"
+)
+
+// TaskOrigin indicates how the task was initially created.
+type TaskOrigin int
+
+const (
+	// OriginUnknown indicates that task creation source is not known (or not important).
+	OriginUnknown TaskOrigin = iota
+
+	// OriginExec indicates that task was created due to an exec request inside a container.
+	OriginExec
 )
 
 // Task represents a thread of execution in the untrusted app.  It
@@ -320,15 +330,13 @@ type Task struct {
 	goroutineStopped sync.WaitGroup `state:"nosave"`
 
 	// ptraceTracer is the task that is ptrace-attached to this one. If
-	// ptraceTracer is nil, this task is not being traced. Note that due to
-	// atomic.Value limitations (atomic.Value.Store(nil) panics), a nil
-	// ptraceTracer is always represented as a typed nil (i.e. (*Task)(nil)).
+	// ptraceTracer is nil, this task is not being traced.
 	//
 	// ptraceTracer is protected by the TaskSet mutex, and accessed with atomic
 	// operations. This allows paths that wouldn't otherwise lock the TaskSet
 	// mutex, notably the syscall path, to check if ptraceTracer is nil without
 	// additional synchronization.
-	ptraceTracer atomic.Value `state:".(*Task)"`
+	ptraceTracer atomic.Pointer[Task] `state:".(*Task)"`
 
 	// ptraceTracees is the set of tasks that this task is ptrace-attached to.
 	//
@@ -414,7 +422,7 @@ type Task struct {
 
 	// logPrefix is a string containing the task's thread ID in the root PID
 	// namespace, and is prepended to log messages emitted by Task.Infof etc.
-	logPrefix atomic.Value `state:"nosave"`
+	logPrefix atomic.Pointer[string] `state:"nosave"`
 
 	// traceContext and traceTask are both used for tracing, and are
 	// updated along with the logPrefix in updateInfoLocked.
@@ -441,11 +449,6 @@ type Task struct {
 	// ipcns is protected by mu. ipcns is owned by the task goroutine.
 	ipcns *IPCNamespace
 
-	// abstractSockets tracks abstract sockets that are in use.
-	//
-	// abstractSockets is protected by mu.
-	abstractSockets *AbstractSocketNamespace
-
 	// mountNamespace is the task's mount namespace.
 	//
 	// It is protected by mu. It is owned by the task goroutine.
@@ -456,12 +459,12 @@ type Task struct {
 	// parentDeathSignal is protected by mu.
 	parentDeathSignal linux.Signal
 
-	// syscallFilters is all seccomp-bpf syscall filters applicable to the
-	// task, in the order in which they were installed. The type of the atomic
-	// is []bpf.Program. Writing needs to be protected by the signal mutex.
+	// seccomp contains all seccomp-bpf syscall filters applicable to the task.
+	// The type of the atomic is *taskSeccomp.
+	// Writing needs to be protected by the signal mutex.
 	//
-	// syscallFilters is owned by the task goroutine.
-	syscallFilters atomic.Value `state:".([]bpf.Program)"`
+	// seccomp is owned by the task goroutine.
+	seccomp atomic.Pointer[taskSeccomp] `state:".(*taskSeccomp)"`
 
 	// If cleartid is non-zero, treat it as a pointer to a ThreadID in the
 	// task's virtual address space; when the task exits, set the pointed-to
@@ -597,44 +600,53 @@ type Task struct {
 	//
 	// The userCounters pointer is exclusive to the task goroutine, but the
 	// userCounters instance must be atomically accessed.
-	userCounters *userCounters
+	userCounters *UserCounters
+
+	// sessionKeyring is a pointer to the task's session keyring, if set.
+	// It is guaranteed to be of type "keyring".
+	//
+	// +checklocks:mu
+	sessionKeyring *auth.Key
+
+	// Origin is the origin of the task.
+	Origin TaskOrigin
 }
 
 // Task related metrics
 var (
 	// syscallCounter is a metric that tracks how many syscalls the sentry has
 	// executed.
-	syscallCounter = metric.MustCreateNewProfilingUint64Metric(
+	syscallCounter = metric.SentryProfiling.MustCreateNewUint64Metric(
 		"/task/syscalls", false, "The number of syscalls the sentry has executed for the user.")
 
 	// faultCounter is a metric that tracks how many faults the sentry has had to
 	// handle.
-	faultCounter = metric.MustCreateNewProfilingUint64Metric(
+	faultCounter = metric.SentryProfiling.MustCreateNewUint64Metric(
 		"/task/faults", false, "The number of faults the sentry has handled.")
 )
 
 func (t *Task) savePtraceTracer() *Task {
-	return t.ptraceTracer.Load().(*Task)
+	return t.ptraceTracer.Load()
 }
 
-func (t *Task) loadPtraceTracer(tracer *Task) {
+func (t *Task) loadPtraceTracer(_ gocontext.Context, tracer *Task) {
 	t.ptraceTracer.Store(tracer)
 }
 
-func (t *Task) saveSyscallFilters() []bpf.Program {
-	if f := t.syscallFilters.Load(); f != nil {
-		return f.([]bpf.Program)
-	}
-	return nil
+func (t *Task) saveSeccomp() *taskSeccomp {
+	return t.seccomp.Load()
 }
 
-func (t *Task) loadSyscallFilters(filters []bpf.Program) {
-	t.syscallFilters.Store(filters)
+func (t *Task) loadSeccomp(_ gocontext.Context, seccompData *taskSeccomp) {
+	t.seccomp.Store(seccompData)
 }
 
 // afterLoad is invoked by stateify.
-func (t *Task) afterLoad() {
+func (t *Task) afterLoad(gocontext.Context) {
 	t.updateInfoLocked()
+	if ts := t.seccomp.Load(); ts != nil {
+		ts.populateCache(t)
+	}
 	t.interruptChan = make(chan struct{}, 1)
 	t.gosched.State = TaskGoroutineNonexistent
 	if t.stop != nil {
@@ -773,7 +785,7 @@ func (t *Task) NewFDFrom(minFD int32, file *vfs.FileDescription, flags FDFlags) 
 // This automatically passes the task as the context.
 //
 // Precondition: same as FDTable.
-func (t *Task) NewFDAt(fd int32, file *vfs.FileDescription, flags FDFlags) error {
+func (t *Task) NewFDAt(fd int32, file *vfs.FileDescription, flags FDFlags) (*vfs.FileDescription, error) {
 	return t.fdTable.NewFDAt(t, fd, file, flags)
 }
 
@@ -803,14 +815,15 @@ func (t *Task) GetMountNamespace() *vfs.MountNamespace {
 	return mntns
 }
 
-// AbstractSockets returns t's AbstractSocketNamespace.
-func (t *Task) AbstractSockets() *AbstractSocketNamespace {
-	return t.abstractSockets
-}
-
 // ContainerID returns t's container ID.
 func (t *Task) ContainerID() string {
 	return t.containerID
+}
+
+// RestoreContainerID sets t's container ID in case the restored container ID
+// is different from when it was saved.
+func (t *Task) RestoreContainerID(cid string) {
+	t.containerID = cid
 }
 
 // OOMScoreAdj gets the task's thread group's OOM score adjustment.

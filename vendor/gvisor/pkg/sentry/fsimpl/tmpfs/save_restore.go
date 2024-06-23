@@ -14,11 +14,69 @@
 
 package tmpfs
 
-// afterLoad is called by stateify.
-func (fs *filesystem) afterLoad() {
-	if fs.privateMF {
-		// TODO(b/271612187): Add S/R support.
-		panic("S/R not supported for private memory files")
+import (
+	goContext "context"
+	"fmt"
+
+	"gvisor.dev/gvisor/pkg/context"
+	"gvisor.dev/gvisor/pkg/sentry/pgalloc"
+	"gvisor.dev/gvisor/pkg/sentry/vfs"
+)
+
+// saveMf is called by stateify.
+func (fs *filesystem) saveMf() string {
+	if !fs.mf.IsSavable() {
+		panic(fmt.Sprintf("Can't save tmpfs filesystem because its MemoryFile is not savable: %v", fs.mf))
 	}
-	fs.mf = fs.mfp.MemoryFile()
+	return fs.mf.RestoreID()
+}
+
+// loadMf is called by stateify.
+func (fs *filesystem) loadMf(ctx goContext.Context, restoreID string) {
+	if restoreID == "" {
+		fs.mf = pgalloc.MemoryFileFromContext(ctx)
+		return
+	}
+	mfmap := pgalloc.MemoryFileMapFromContext(ctx)
+	if mfmap == nil {
+		panic("CtxMemoryFileMap was not provided")
+	}
+	mf, ok := mfmap[restoreID]
+	if !ok {
+		panic(fmt.Sprintf("Memory file for %q not found in CtxMemoryFileMap", restoreID))
+	}
+	fs.mf = mf
+}
+
+// saveParent is called by stateify.
+func (d *dentry) saveParent() *dentry {
+	return d.parent.Load()
+}
+
+// loadParent is called by stateify.
+func (d *dentry) loadParent(_ goContext.Context, parent *dentry) {
+	d.parent.Store(parent)
+}
+
+// PrepareSave implements vfs.FilesystemImplSaveRestoreExtension.PrepareSave.
+func (fs *filesystem) PrepareSave(ctx context.Context) error {
+	restoreID := fs.mf.RestoreID()
+	if restoreID == "" {
+		return nil
+	}
+	mfmap := pgalloc.MemoryFileMapFromContext(ctx)
+	if mfmap == nil {
+		return fmt.Errorf("CtxMemoryFileMap was not provided")
+	}
+	if _, ok := mfmap[restoreID]; ok {
+		return fmt.Errorf("memory file for %q already exists in CtxMemoryFileMap", restoreID)
+	}
+	mfmap[restoreID] = fs.mf
+	return nil
+}
+
+// CompleteRestore implements
+// vfs.FilesystemImplSaveRestoreExtension.CompleteRestore.
+func (fs *filesystem) CompleteRestore(ctx context.Context, opts vfs.CompleteRestoreOptions) error {
+	return nil
 }

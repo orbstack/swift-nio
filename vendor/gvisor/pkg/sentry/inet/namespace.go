@@ -15,6 +15,8 @@
 package inet
 
 import (
+	goContext "context"
+
 	"gvisor.dev/gvisor/pkg/context"
 	"gvisor.dev/gvisor/pkg/sentry/fsimpl/nsfs"
 	"gvisor.dev/gvisor/pkg/sentry/kernel/auth"
@@ -40,6 +42,9 @@ type Namespace struct {
 	isRoot bool
 
 	userNS *auth.UserNamespace
+
+	// abstractSockets tracks abstract sockets that are in use.
+	abstractSockets AbstractSocketNamespace
 }
 
 // NewRootNamespace creates the root network namespace, with creator
@@ -52,6 +57,7 @@ func NewRootNamespace(stack Stack, creator NetworkStackCreator, userNS *auth.Use
 		isRoot:  true,
 		userNS:  userNS,
 	}
+	n.abstractSockets.init()
 	return n
 }
 
@@ -125,6 +131,12 @@ func (n *Namespace) RestoreRootStack(stack Stack) {
 	n.stack = stack
 }
 
+// ResetStack resets the stack in the network namespace to nil. This should
+// only be called when restoring kernel.
+func (n *Namespace) ResetStack() {
+	n.stack = nil
+}
+
 func (n *Namespace) init() {
 	// Root network namespace will have stack assigned later.
 	if n.isRoot {
@@ -137,11 +149,17 @@ func (n *Namespace) init() {
 			panic(err)
 		}
 	}
+	n.abstractSockets.init()
 }
 
 // afterLoad is invoked by stateify.
-func (n *Namespace) afterLoad() {
+func (n *Namespace) afterLoad(goContext.Context) {
 	n.init()
+}
+
+// AbstractSockets returns AbstractSocketNamespace.
+func (n *Namespace) AbstractSockets() *AbstractSocketNamespace {
+	return &n.abstractSockets
 }
 
 // NetworkStackCreator allows new instances of a network stack to be created. It

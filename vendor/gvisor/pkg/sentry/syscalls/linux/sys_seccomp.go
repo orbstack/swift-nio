@@ -59,11 +59,21 @@ func seccomp(t *kernel.Task, mode, flags uint64, addr hostarch.Addr) error {
 	if _, err := fprog.CopyIn(t, addr); err != nil {
 		return err
 	}
+	if fprog.Len == 0 || fprog.Len > bpf.MaxInstructions {
+		// If the filter is already over the maximum number of instructions,
+		// do not go further and attempt to optimize the bytecode to make it
+		// smaller.
+		return linuxerr.EINVAL
+	}
 	filter := make([]linux.BPFInstruction, int(fprog.Len))
 	if _, err := linux.CopyBPFInstructionSliceIn(t, hostarch.Addr(fprog.Filter), filter); err != nil {
 		return err
 	}
-	compiledFilter, err := bpf.Compile(filter)
+	bpfFilter := make([]bpf.Instruction, len(filter))
+	for i, ins := range filter {
+		bpfFilter[i] = bpf.Instruction(ins)
+	}
+	compiledFilter, err := bpf.Compile(bpfFilter, true /* optimize */)
 	if err != nil {
 		t.Debugf("Invalid seccomp-bpf filter: %v", err)
 		return linuxerr.EINVAL

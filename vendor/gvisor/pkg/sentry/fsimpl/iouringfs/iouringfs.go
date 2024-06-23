@@ -50,7 +50,7 @@ type FileDescription struct {
 	vfs.DentryMetadataFileDescriptionImpl
 	vfs.NoLockFD
 
-	mfp pgalloc.MemoryFileProvider
+	mf *pgalloc.MemoryFile `state:"nosave"`
 
 	rbmf  ringsBufferFile
 	sqemf sqEntriesFile
@@ -59,7 +59,7 @@ type FileDescription struct {
 	// processed. This is either 0 for not running, or 1 for running.
 	running atomicbitops.Uint32
 	// runC is used to wake up serialized task goroutines waiting for any
-	// concurrent processors of the submisison queue.
+	// concurrent processors of the submission queue.
 	runC chan struct{} `state:"nosave"`
 
 	ioRings linux.IORings
@@ -95,9 +95,9 @@ func New(ctx context.Context, vfsObj *vfs.VirtualFilesystem, entries uint32, par
 	vd := vfsObj.NewAnonVirtualDentry("[io_uring]")
 	defer vd.DecRef(ctx)
 
-	mfp := pgalloc.MemoryFileProviderFromContext(ctx)
-	if mfp == nil {
-		panic(fmt.Sprintf("context.Context %T lacks non-nil value for key %T", ctx, pgalloc.CtxMemoryFileProvider))
+	mf := pgalloc.MemoryFileFromContext(ctx)
+	if mf == nil {
+		panic(fmt.Sprintf("context.Context %T lacks non-nil value for key %T", ctx, pgalloc.CtxMemoryFile))
 	}
 
 	numSqEntries, ok := roundUpPowerOfTwo(entries)
@@ -123,7 +123,6 @@ func New(ctx context.Context, vfsObj *vfs.VirtualFilesystem, entries uint32, par
 		numSqEntries*uint32((*linux.IORingIndex)(nil).SizeBytes()))
 	ringsBufferSize = uint64(hostarch.Addr(ringsBufferSize).MustRoundUp())
 
-	mf := mfp.MemoryFile()
 	memCgID := pgalloc.MemoryCgroupIDFromContext(ctx)
 	rbfr, err := mf.Allocate(ringsBufferSize, pgalloc.AllocOpts{Kind: usage.Anonymous, MemCgID: memCgID})
 	if err != nil {
@@ -139,7 +138,7 @@ func New(ctx context.Context, vfsObj *vfs.VirtualFilesystem, entries uint32, par
 	}
 
 	iouringfd := &FileDescription{
-		mfp: mfp,
+		mf: mf,
 		rbmf: ringsBufferFile{
 			fr: rbfr,
 		},
@@ -215,18 +214,15 @@ func New(ctx context.Context, vfsObj *vfs.VirtualFilesystem, entries uint32, par
 
 // Release implements vfs.FileDescriptionImpl.Release.
 func (fd *FileDescription) Release(ctx context.Context) {
-	mf := pgalloc.MemoryFileProviderFromContext(ctx).MemoryFile()
-	mf.DecRef(fd.rbmf.fr)
-	mf.DecRef(fd.sqemf.fr)
+	fd.mf.DecRef(fd.rbmf.fr)
+	fd.mf.DecRef(fd.sqemf.fr)
 }
 
 // mapSharedBuffers caches internal mappings for the ring's shared memory
 // regions.
 func (fd *FileDescription) mapSharedBuffers() error {
-	mf := fd.mfp.MemoryFile()
-
 	// Mapping for the IORings header struct.
-	rb, err := mf.MapInternal(fd.rbmf.fr, hostarch.ReadWrite)
+	rb, err := fd.mf.MapInternal(fd.rbmf.fr, hostarch.ReadWrite)
 	if err != nil {
 		return err
 	}
@@ -242,7 +238,7 @@ func (fd *FileDescription) mapSharedBuffers() error {
 	fd.cqesBuf.init(cqes)
 
 	// Mapping for the SQEs array.
-	sqes, err := mf.MapInternal(fd.sqemf.fr, hostarch.ReadWrite)
+	sqes, err := fd.mf.MapInternal(fd.sqemf.fr, hostarch.ReadWrite)
 	if err != nil {
 		return err
 	}
@@ -299,7 +295,7 @@ func (fd *FileDescription) ProcessSubmissions(t *kernel.Task, toSubmit uint32, m
 	// Task B (entering, sleeping)                        | Task A (active, releasing)
 	// ---------------------------------------------------+-------------------------
 	//                                                    | fd.running.Store(0)
-	// for !fd.running.CompareAndSwap(0, 1) { // Succeess |
+	// for !fd.running.CompareAndSwap(0, 1) { // Success |
 	//                                                    | nonblockingSend(runC) // Missed!
 	//     t.Block(fd.runC) // Will block forever         |
 	// }
@@ -382,7 +378,7 @@ func (fd *FileDescription) ProcessSubmissions(t *kernel.Task, toSubmit uint32, m
 		overflowPtr := atomicUint32AtOffset(view, int(cqOff.Overflow))
 
 		// Load the pointers once, so we work with a stable value. Particularly,
-		// usersapce can update the SQ tail at any time.
+		// userspace can update the SQ tail at any time.
 		sqHead := sqHeadPtr.Load()
 		sqTail := sqTailPtr.Load()
 
@@ -572,7 +568,7 @@ func (sqemf *sqEntriesFile) Translate(ctx context.Context, required, optional me
 		return []memmap.Translation{
 			{
 				Source: source,
-				File:   pgalloc.MemoryFileProviderFromContext(ctx).MemoryFile(),
+				File:   pgalloc.MemoryFileFromContext(ctx),
 				Offset: sqemf.fr.Start + source.Start,
 				Perms:  at,
 			},
@@ -618,7 +614,7 @@ func (rbmf *ringsBufferFile) Translate(ctx context.Context, required, optional m
 		return []memmap.Translation{
 			{
 				Source: source,
-				File:   pgalloc.MemoryFileProviderFromContext(ctx).MemoryFile(),
+				File:   pgalloc.MemoryFileFromContext(ctx),
 				Offset: rbmf.fr.Start + source.Start,
 				Perms:  at,
 			},

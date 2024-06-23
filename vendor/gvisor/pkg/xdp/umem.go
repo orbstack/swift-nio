@@ -25,7 +25,7 @@ import (
 )
 
 // TODO(b/240191988): There's some kind of memory corruption bug that occurs
-// occasionally. This occured even before TX was supported.
+// occasionally. This occurred even before TX was supported.
 
 // TODO(b/240191988): We can hold locks for less time if we accept a more
 // obtuse API. For example, CompletionQueue.FreeAll doesn't need to hold a
@@ -39,7 +39,7 @@ type UMEM struct {
 	// sockfd is the underlying AF_XDP socket.
 	sockfd uint32
 
-	// frameMask masks the lower bits of an adderess to get the frame's
+	// frameMask masks the lower bits of an address to get the frame's
 	// address.
 	frameMask uint64
 

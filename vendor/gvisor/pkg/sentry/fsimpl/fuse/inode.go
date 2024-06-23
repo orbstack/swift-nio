@@ -16,10 +16,10 @@ package fuse
 
 import (
 	"fmt"
-	"sync"
-	"time"
+	gotime "time"
 
 	"gvisor.dev/gvisor/pkg/abi/linux"
+
 	"gvisor.dev/gvisor/pkg/atomicbitops"
 	"gvisor.dev/gvisor/pkg/context"
 	"gvisor.dev/gvisor/pkg/errors/linuxerr"
@@ -29,7 +29,9 @@ import (
 	"gvisor.dev/gvisor/pkg/sentry/fsimpl/kernfs"
 	"gvisor.dev/gvisor/pkg/sentry/kernel"
 	"gvisor.dev/gvisor/pkg/sentry/kernel/auth"
+	"gvisor.dev/gvisor/pkg/sentry/kernel/time"
 	"gvisor.dev/gvisor/pkg/sentry/vfs"
+	"gvisor.dev/gvisor/pkg/sync"
 )
 
 // +stateify savable
@@ -44,7 +46,6 @@ type fileHandle struct {
 // +stateify savable
 type inode struct {
 	inodeRefs
-	kernfs.InodeAlwaysValid
 	kernfs.InodeNotAnonymous
 	kernfs.InodeNotSymlink
 	kernfs.InodeWatches
@@ -54,15 +55,24 @@ type inode struct {
 	// the owning filesystem. fs is immutable.
 	fs *filesystem
 
-	// nodeID is a unique id which identifies the inode between userspace
-	// and the sentry. Immutable.
-	nodeID uint64
+	// nodeID is a unique id which identifies the inode between userspace and
+	// the sentry. generation is used to distinguish inodes in case of nodeID
+	// reuse. Both are immutable.
+	nodeID     uint64
+	generation uint64
+
+	// entryTime is the time at which the entry must be revalidated. Reading
+	// entryTime requires either using entryTimeSeq and SeqAtomicLoadTime, or
+	// that attrMu is locked. Writing entryTime requires that attrMu is locked
+	// and that entryTimeSeq is in a writer critical section.
+	entryTimeSeq sync.SeqCount `state:"nosave"`
+	entryTime    time.Time
 
 	// attrVersion is the version of the last attribute change.
 	attrVersion atomicbitops.Uint64
 
-	// attrTime is the time until the attributes are valid.
-	attrTime uint64
+	// attrTime is the time at which the attributes become invalid.
+	attrTime time.Time
 
 	// link is result of following a symbolic link.
 	link string
@@ -75,7 +85,7 @@ type inode struct {
 	watches vfs.Watches
 
 	// attrMu protects the attributes of this inode.
-	attrMu sync.Mutex
+	attrMu sync.Mutex `state:"nosave"`
 
 	// +checklocks:attrMu
 	ino atomicbitops.Uint64 // Stat data, not accessed for path walking.
@@ -162,7 +172,7 @@ func (i *inode) touchCMtime() {
 	i.ctime.Store(now)
 }
 
-// touchAtime updates the atime attribut to be the current time.
+// touchAtime updates the atime attribute to be the current time.
 //
 // +checklocks:i.attrMu
 func (i *inode) touchAtime() {
@@ -189,6 +199,12 @@ func (i *inode) init(creds *auth.Credentials, devMajor, devMinor uint32, nodeid 
 	i.ctime.Store(now)
 }
 
+// +checklocks:i.attrMu
+func (i *inode) updateEntryTime(entrySec, entryNSec int64) {
+	entryTime := time.FromTimespec(linux.Timespec{Sec: entrySec, Nsec: entryNSec})
+	SeqAtomicStoreTime(&i.entryTimeSeq, &i.entryTime, i.fs.clock.Now().AddTime(entryTime))
+}
+
 // CheckPermissions implements kernfs.Inode.CheckPermissions.
 func (i *inode) CheckPermissions(ctx context.Context, creds *auth.Credentials, ats vfs.AccessTypes) error {
 	// Since FUSE operations are ultimately backed by a userspace process (the
@@ -197,7 +213,7 @@ func (i *inode) CheckPermissions(ctx context.Context, creds *auth.Credentials, a
 	// default FUSE only allows the mount owner to interact with the
 	// filesystem. This explicitly excludes setuid/setgid processes.
 	//
-	// This behaviour can be overriden with the 'allow_other' mount option.
+	// This behaviour can be overridden with the 'allow_other' mount option.
 	//
 	// See fs/fuse/dir.c:fuse_allow_current_process() in Linux.
 	if !i.fs.opts.allowOther {
@@ -219,7 +235,7 @@ func (i *inode) CheckPermissions(ctx context.Context, creds *auth.Credentials, a
 	refreshed := false
 	opts := vfs.StatOptions{Mask: linux.STATX_MODE | linux.STATX_UID | linux.STATX_GID}
 	if i.fs.opts.defaultPermissions || (ats.MayExec() && i.filemode().FileType() == linux.S_IFREG) {
-		if uint64(i.fs.clock.Now().Nanoseconds()) > i.attrTime {
+		if i.fs.clock.Now().After(i.attrTime) {
 			refreshed = true
 			if _, err := i.getAttr(ctx, i.fs.VFSFilesystem(), opts, 0, 0); err != nil {
 				return err
@@ -292,6 +308,19 @@ func (i *inode) Open(ctx context.Context, rp *vfs.ResolvingPath, d *kernfs.Dentr
 	// FOPEN_KEEP_CACHE is the default flag for noOpen.
 	fd.OpenFlag = linux.FOPEN_KEEP_CACHE
 
+	truncateRegFile := opts.Flags&linux.O_TRUNC != 0 && i.filemode().FileType() == linux.S_IFREG
+	if truncateRegFile && (i.fh.new || !i.fs.conn.atomicOTrunc) {
+		// If the regular file needs to be truncated, but the connection doesn't
+		// support O_TRUNC or if we are optimizing away the Open RPC, then manually
+		// truncate the file *before* Open. As per libfuse, "If [atomic O_TRUNC is]
+		// disabled, and an application specifies O_TRUNC, fuse first calls
+		// truncate() and then open() with O_TRUNC filtered out.".
+		opts := vfs.SetStatOptions{Stat: linux.Statx{Size: 0, Mask: linux.STATX_SIZE}}
+		if err := i.setAttr(ctx, i.fs.VFSFilesystem(), auth.CredentialsFromContext(ctx), opts, fhOptions{useFh: false}); err != nil {
+			return nil, err
+		}
+	}
+
 	if i.fh.new {
 		fd.OpenFlag = i.fh.flags
 		fd.Fh = i.fh.handle
@@ -300,7 +329,7 @@ func (i *inode) Open(ctx context.Context, rp *vfs.ResolvingPath, d *kernfs.Dentr
 		// opening a directory.
 	} else if !i.fs.conn.noOpen || i.filemode().IsDir() {
 		in := linux.FUSEOpenIn{Flags: opts.Flags & ^uint32(linux.O_CREAT|linux.O_EXCL|linux.O_NOCTTY)}
-		// Truncating with SETATTR instead of O_TRUNC, so clear the flag.
+		// Clear O_TRUNC if the server doesn't support it.
 		if !i.fs.conn.atomicOTrunc {
 			in.Flags &= ^uint32(linux.O_TRUNC)
 		}
@@ -323,6 +352,14 @@ func (i *inode) Open(ctx context.Context, rp *vfs.ResolvingPath, d *kernfs.Dentr
 			}
 			fd.OpenFlag = out.OpenFlag
 			fd.Fh = out.Fh
+			// Open was successful. Update inode's size if atomicOTrunc && O_TRUNC.
+			if truncateRegFile && i.fs.conn.atomicOTrunc {
+				i.fs.conn.mu.Lock()
+				i.attrVersion.Store(i.fs.conn.attributeVersion.Add(1))
+				i.fs.conn.mu.Unlock()
+				i.size.Store(0)
+				i.touchCMtime()
+			}
 		}
 	}
 	if i.filemode().IsDir() {
@@ -338,26 +375,51 @@ func (i *inode) Open(ctx context.Context, rp *vfs.ResolvingPath, d *kernfs.Dentr
 		fd.Nonseekable = true
 	}
 
-	// If atomicOTrunc and O_TRUNC are set, just update the inode's version number
-	// and set its size to 0 since the truncation is handled by the FUSE daemon.
-	// Otherwise send a separate SETATTR to truncate the file size.
-	if opts.Flags&linux.O_TRUNC != 0 && i.filemode().FileType() == linux.S_IFREG {
-		if i.fs.conn.atomicOTrunc {
-			i.fs.conn.mu.Lock()
-			i.attrVersion.Store(i.fs.conn.attributeVersion.Add(1))
-			i.fs.conn.mu.Unlock()
-			i.size.Store(0)
-			i.touchCMtime()
-		} else {
-			opts := vfs.SetStatOptions{Stat: linux.Statx{Size: 0, Mask: linux.STATX_SIZE}}
-			i.setAttr(ctx, i.fs.VFSFilesystem(), auth.CredentialsFromContext(ctx), opts, fhOptions{useFh: true, fh: i.fh.handle})
-		}
-	}
-
 	if err := fd.vfsfd.Init(fdImpl, opts.Flags, rp.Mount(), d.VFSDentry(), fdOptions); err != nil {
 		return nil, err
 	}
 	return &fd.vfsfd, nil
+}
+
+func (i *inode) Valid(ctx context.Context, parent *kernfs.Dentry, name string) bool {
+	now := i.fs.clock.Now()
+	if entryTime := SeqAtomicLoadTime(&i.entryTimeSeq, &i.entryTime); entryTime.After(now) {
+		return true
+	}
+
+	i.attrMu.Lock()
+	defer i.attrMu.Unlock()
+	if i.entryTime.After(now) {
+		return true
+	}
+
+	in := linux.FUSELookupIn{Name: linux.CString(name)}
+	req := i.fs.conn.NewRequest(auth.CredentialsFromContext(ctx), pidFromContext(ctx), parent.Inode().(*inode).nodeID, linux.FUSE_LOOKUP, &in)
+	res, err := i.fs.conn.Call(ctx, req)
+	if err != nil {
+		return false
+	}
+	if res.Error() != nil {
+		return false
+	}
+	var out linux.FUSEEntryOut
+	if res.UnmarshalPayload(&out) != nil {
+		return false
+	}
+	if i.nodeID != out.NodeID {
+		return false
+	}
+	// Don't enforce fuse_invalid_attr() => fuse_valid_type(),
+	// fuse_valid_size() since inode.updateAttrs() and its callers
+	// don't. But do enforce fuse_stale_inode():
+	if i.generation != out.Generation {
+		return false
+	}
+	if (i.mode.RacyLoad()^out.Attr.Mode)&linux.S_IFMT != 0 {
+		return false
+	}
+	i.updateEntryTime(int64(out.EntryValid), int64(out.EntryValidNSec))
+	return true
 }
 
 // Lookup implements kernfs.Inode.Lookup.
@@ -503,7 +565,7 @@ func (i *inode) newEntry(ctx context.Context, name string, fileType linux.FileMo
 	if opcode != linux.FUSE_LOOKUP && ((out.Attr.Mode&linux.S_IFMT)^uint32(fileType) != 0 || out.NodeID == 0 || out.NodeID == linux.FUSE_ROOT_ID) {
 		return nil, linuxerr.EIO
 	}
-	child := i.fs.newInode(ctx, out.NodeID, out.Attr)
+	child := i.fs.newInode(ctx, out.FUSEEntryOut)
 	if opcode == linux.FUSE_CREATE {
 		// File handler is returned by fuse server at a time of file create.
 		// Save it temporary in a created child, so Open could return it when invoked
@@ -539,7 +601,7 @@ func (i *inode) Readlink(ctx context.Context, mnt *vfs.Mount) (string, error) {
 		}
 		i.link = string(res.data[res.hdr.SizeBytes():])
 		if !mnt.Options().ReadOnly {
-			i.attrTime = 0
+			i.attrTime = time.ZeroTime
 		}
 	}
 	return i.link, nil
@@ -549,7 +611,7 @@ func (i *inode) Readlink(ctx context.Context, mnt *vfs.Mount) (string, error) {
 //
 // +checklocks:i.attrMu
 func (i *inode) getFUSEAttr() linux.FUSEAttr {
-	ns := time.Second.Nanoseconds()
+	ns := gotime.Second.Nanoseconds()
 	return linux.FUSEAttr{
 		Ino:       i.nodeID,
 		UID:       i.uid.Load(),
@@ -661,7 +723,7 @@ func (i *inode) getAttr(ctx context.Context, fs *vfs.Filesystem, opts vfs.StatOp
 		return i.getFUSEAttr(), nil
 	}
 	i.fs.conn.mu.Unlock()
-	i.updateAttrs(out.Attr, out.AttrValid)
+	i.updateAttrs(out.Attr, int64(out.AttrValid), int64(out.AttrValidNsec))
 	return out.Attr, nil
 }
 
@@ -804,16 +866,16 @@ func (i *inode) setAttr(ctx context.Context, fs *vfs.Filesystem, creds *auth.Cre
 	if err := res.UnmarshalPayload(&out); err != nil {
 		return err
 	}
-	i.updateAttrs(out.Attr, out.AttrValid)
+	i.updateAttrs(out.Attr, int64(out.AttrValid), int64(out.AttrValidNsec))
 	return nil
 }
 
 // +checklocks:i.attrMu
-func (i *inode) updateAttrs(attr linux.FUSEAttr, attrTimeout uint64) {
+func (i *inode) updateAttrs(attr linux.FUSEAttr, validSec, validNSec int64) {
 	i.fs.conn.mu.Lock()
 	i.attrVersion.Store(i.fs.conn.attributeVersion.Add(1))
 	i.fs.conn.mu.Unlock()
-	i.attrTime = attrTimeout
+	i.attrTime = i.fs.clock.Now().AddTime(time.FromTimespec(linux.Timespec{Sec: validSec, Nsec: validNSec}))
 
 	i.ino.Store(attr.Ino)
 

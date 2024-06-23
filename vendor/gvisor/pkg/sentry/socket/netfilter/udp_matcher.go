@@ -19,7 +19,6 @@ import (
 
 	"gvisor.dev/gvisor/pkg/abi/linux"
 	"gvisor.dev/gvisor/pkg/marshal"
-	"gvisor.dev/gvisor/pkg/sentry/kernel"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
@@ -38,6 +37,10 @@ func (udpMarshaler) name() string {
 	return matcherNameUDP
 }
 
+func (udpMarshaler) revision() uint8 {
+	return 0
+}
+
 // marshal implements matchMaker.marshal.
 func (udpMarshaler) marshal(mr matcher) []byte {
 	matcher := mr.(*UDPMatcher)
@@ -51,7 +54,7 @@ func (udpMarshaler) marshal(mr matcher) []byte {
 }
 
 // unmarshal implements matchMaker.unmarshal.
-func (udpMarshaler) unmarshal(_ *kernel.Task, buf []byte, filter stack.IPHeaderFilter) (stack.Matcher, error) {
+func (udpMarshaler) unmarshal(_ IDMapper, buf []byte, filter stack.IPHeaderFilter) (stack.Matcher, error) {
 	if len(buf) < linux.SizeOfXTUDP {
 		return nil, fmt.Errorf("buf has insufficient size for UDP match: %d", len(buf))
 	}
@@ -91,8 +94,12 @@ func (*UDPMatcher) name() string {
 	return matcherNameUDP
 }
 
+func (*UDPMatcher) revision() uint8 {
+	return 0
+}
+
 // Match implements Matcher.Match.
-func (um *UDPMatcher) Match(hook stack.Hook, pkt stack.PacketBufferPtr, _, _ string) (bool, bool) {
+func (um *UDPMatcher) Match(hook stack.Hook, pkt *stack.PacketBuffer, _, _ string) (bool, bool) {
 	switch pkt.NetworkProtocolNumber {
 	case header.IPv4ProtocolNumber:
 		netHeader := header.IPv4(pkt.NetworkHeader().Slice())
