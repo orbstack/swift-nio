@@ -82,12 +82,13 @@ Host %s
 
 	// debug VM ssh server
 	if conf.Debug() {
-		sshConfigSection += `
+		sshConfigSection += fmt.Sprintf(`
 Host ovm
   Hostname 127.0.0.1
   User root
   Port 2222
-`
+  IdentityFile %s/id_ed25519
+`, relHome)
 	}
 
 	// write extra config atomically - openssh reads it on-demand after match

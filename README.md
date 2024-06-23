@@ -39,8 +39,6 @@
 1. Create `config.local.sh` in repo root with `SIGNING_CERT_DEV="..."`
     - Search for "Apple Development" in Keychain Access and copy the full certificate name
     - Example: `Apple Development: Danny Lin (A2LS84RQFY)`
-1. Add your SSH public key to `rootfs/config/authorized_keys`
-    - You can commit and push this as a PR
 1. Build Kubernetes: `./scripts/build-k8s.sh`
 1. Build debug vmgr: `cd vmgr; make`
 1. Build debug rootfs: `cd rootfs; make`

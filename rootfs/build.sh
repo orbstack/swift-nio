@@ -47,6 +47,9 @@ if [[ "$(uname -m)" == "aarch64" ]] || [[ "$(uname -m)" == "arm64" ]]; then
     HOST_ARCH="arm64"
 fi
 
+# reuse orbstack key for debug sshd
+cp ~/.orbstack/ssh/id_ed25519.pub config/authorized_keys
+
 # build packer and images
 # TODO: migrate to buildx bake
 docker build --build-arg TYPE=$BTYPE --build-arg ARCH=$ARCH --build-arg HOST_ARCH=$HOST_ARCH \
