@@ -58,44 +58,42 @@ func (a *AgentServer) DockerFastDf(_ None, reply *dockertypes.SystemDf) error {
 		return err
 	}
 
-	volsToDf := make(map[string]*dockertypes.Volume, len(vols))
-	// -s: total only, not individual recursive subdirs
-	// '-x' makes it much slower
-	dfArgs := []string{"du", "-s"}
 	for _, v := range vols {
 		if v.Driver != "local" || v.Scope != "local" || len(v.Options) > 0 {
 			continue
 		}
 
-		volsToDf[v.Mountpoint] = v
-		dfArgs = append(dfArgs, v.Mountpoint)
-	}
-
-	// run all in one df command
-	// doesn't follow symlinks
-	// TODO: change cwd to improve perf (less path resolution)
-	out, err := util.RunWithOutput(dfArgs...)
-	if err != nil {
-		return err
-	}
-
-	// parse output
-	for _, line := range strings.Split(out, "\n") {
-		// format: size (in 1KiB units) \t path
-		sz, path, ok := strings.Cut(line, "\t")
-		if !ok {
-			continue
-		}
-
-		szKib, err := strconv.ParseInt(sz, 10, 64)
+		// run one df command per volume
+		// TODO: fix race on concurrent symlink modification (not a security-critical context)
+		// TODO: change cwd to improve perf (less path resolution)
+		out, err := util.RunWithOutput("du", "-s", v.Mountpoint)
 		if err != nil {
-			logrus.WithError(err).Error("failed to parse df output")
-			continue
+			if strings.Contains(err.Error(), ": No such file or directory") {
+				// race: volume was removed
+				continue
+			} else {
+				return err
+			}
 		}
 
-		if vol, ok := volsToDf[path]; ok {
-			vol.UsageData = &dockertypes.VolumeUsageData{
-				Size: szKib * 1024,
+		// parse output
+		for _, line := range strings.Split(out, "\n") {
+			// format: size (in 1KiB units) \t path
+			sz, path, ok := strings.Cut(line, "\t")
+			if !ok {
+				continue
+			}
+
+			szKib, err := strconv.ParseInt(sz, 10, 64)
+			if err != nil {
+				logrus.WithError(err).Error("failed to parse df output")
+				continue
+			}
+
+			if path == v.Mountpoint {
+				v.UsageData = &dockertypes.VolumeUsageData{
+					Size: szKib * 1024,
+				}
 			}
 		}
 	}
