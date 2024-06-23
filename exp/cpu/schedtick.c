@@ -52,6 +52,8 @@ int main()
     uint16_t total_gap_ticks = 0;
     uint64_t end_time = start + to_ticks(RUN_SECS * NSEC_PER_SEC);
 
+    printf("cntfrq %llu\n", cntfrq());
+
     // burn cpu for 1s to ramp frequency
     busy_loop(1 * NSEC_PER_SEC);
 
