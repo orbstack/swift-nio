@@ -75,7 +75,7 @@ func SpawnDaemon(newBuildID string) (int, error) {
 	}
 	out, err := util.Run(args...)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("start vmgr: %w", err)
 	}
 
 	pid, err := strconv.Atoi(strings.TrimSpace(out))

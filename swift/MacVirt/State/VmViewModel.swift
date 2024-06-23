@@ -680,7 +680,10 @@ class VmViewModel: ObservableObject {
         state = .spawning
         return Task {
             do {
-                let newPidStr = try await runProcessChecked(AppConfig.vmgrExe, ["spawn-daemon"])
+                // resolve symlinks in path to fix bundle ID resolution on launch
+                let vmgrExePath = URL(fileURLWithPath: AppConfig.vmgrExe).resolvingSymlinksInPath().path
+
+                let newPidStr = try await runProcessChecked(vmgrExePath, ["spawn-daemon"])
                 let newPid = Int(newPidStr.trimmingCharacters(in: .whitespacesAndNewlines))
                 guard let newPid else {
                     throw VmError.spawnError(cause: ProcessError(status: 0, output: "Invalid pid: \(newPidStr)"))

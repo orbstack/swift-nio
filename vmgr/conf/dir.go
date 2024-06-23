@@ -87,8 +87,14 @@ func ExecutableDir() (string, error) {
 
 	selfDir := filepath.Dir(selfExe)
 	if Debug() {
-		// in debug, it's $MACVIRT/out/OrbStack Helper.app/Contents/MacOS
-		selfDir += "/../../../../swift/DerivedData/MacVirt/Build/Products/Debug/OrbStack.app/Contents/MacOS"
+		// in debug, we are $MACVIRT/out/OrbStack Helper.app/Contents/MacOS (vmgr) or $MACVIRT/out/scli (scli)
+		// find the /out/ part to get repo root
+		outIndex := strings.Index(selfDir, "/out")
+		if outIndex == -1 {
+			return "", fmt.Errorf("unexpected debug path: %s", selfDir)
+		}
+		selfDir = selfDir[:outIndex]
+		selfDir += "/swift/DerivedData/MacVirt/Build/Products/Debug/OrbStack.app/Contents/MacOS"
 	}
 
 	return selfDir, nil

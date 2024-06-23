@@ -15,8 +15,8 @@ enum AppConfig {
     static let vmgrExeName = "OrbStack Helper"
     #if DEBUG
         static let debug = true
-        // we're at $macvirt/swift/DerivedData/MacVirt/Build/Products/Debug/OrbStack.app
-        static let vmgrExe = "\(Bundle.main.bundlePath)/../../../../../../../out/\(vmgrExeName).app/Contents/MacOS/\(vmgrExeName)"
+        // TODO: dedupe and fix ext-swift version
+        static let vmgrExe = "\(Bundle.main.bundlePath)/Contents/Frameworks/\(vmgrExeName).app/Contents/MacOS/\(vmgrExeName)"
         static let apiBaseUrl = "http://localhost:8400"
     #else
         static let debug = false

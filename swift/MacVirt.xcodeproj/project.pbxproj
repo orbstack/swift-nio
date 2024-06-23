@@ -1034,7 +1034,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "# symlink assets in debug\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n    rm -rf \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\n    ln -sf \"$PWD/../assets\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\nfi\n\ncd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\n";
+			shellScript = "# symlink assets and binaries in debug\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n    rm -rf \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\n    ln -sf \"$PWD/../assets\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\n    \n    for path in \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/MacOS/xbin\"/*; do\n        rm -f \"$path\"\n        ln -sf \"$PWD/../bins/out/$(uname -m)/$(basename \"$path\")\" \"$path\"\n    done\n    \n    rm -f \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/MacOS/scli\"\n    ln -sf \"$PWD/../out/scli\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/MacOS/scli\"\n\n    rm -fr \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Frameworks/OrbStack Helper.app\"\n    ln -sf \"$PWD/../out/OrbStack Helper.app\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Frameworks/OrbStack Helper.app\"\nfi\n\ncd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\n";
 		};
 		D86F35482997A5B700DADC6F /* Set version from Git */ = {
 			isa = PBXShellScriptBuildPhase;
