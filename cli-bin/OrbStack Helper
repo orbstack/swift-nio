@@ -1,4 +1,0 @@
-#!/bin/sh
-cd "$(dirname "$0")"
-# run it with the correct bundle path, unlike a symlink
-exec "../out/OrbStack Helper.app/Contents/MacOS/OrbStack Helper" "$@"
