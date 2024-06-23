@@ -271,7 +271,7 @@ impl GicV3 {
             // iterator since the handler may have missed the state we just set.
             if !queue.deliver_to.iter().skip(1).any(|&v| v == pe) {
                 queue.deliver_to.push_back(pe);
-                tracing::info!("SPI backlog for {int_id:?} = {}", queue.deliver_to.len());
+                tracing::trace!("SPI backlog for {int_id:?} = {}", queue.deliver_to.len());
             }
         }
 
