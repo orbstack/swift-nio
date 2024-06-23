@@ -638,7 +638,7 @@ func runVmManager() {
 
 	// always prefer rsvm
 	var monitor vmm.Monitor = rsvm.Monitor
-	if conf.Debug() && os.Getenv("VMM") == "vzf" {
+	if conf.Debug() && os.Getenv("ORB_VMM") == "vzf" {
 		// in debug, allow vzf override for testing
 		monitor = vzf.Monitor
 	}
@@ -669,6 +669,12 @@ func runVmManager() {
 		logrus.WithError(err).Error("failed to unmount nfs")
 	}
 
+	// kernel
+	kernelPath := conf.GetAssetFile("kernel")
+	if conf.Debug() && os.Getenv("ORB_KERNEL") != "" {
+		kernelPath = os.Getenv("ORB_KERNEL")
+	} 
+
 	logrus.Debug("configuring VM")
 	healthCheckCh := make(chan struct{}, 1)
 	shutdownWg := &sync.WaitGroup{}
@@ -676,7 +682,7 @@ func runVmManager() {
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
 		Memory: vmconfig.Get().MemoryMiB,
-		Kernel: conf.GetAssetFile("kernel"),
+		Kernel: kernelPath,
 		// this one uses gvproxy ssh
 		Console:            consoleMode,
 		DiskRootfs:         conf.GetAssetFile("rootfs.img"),
