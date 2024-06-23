@@ -19,6 +19,9 @@ import (
 	"fmt"
 	"time"
 
+	"gvisor.dev/gvisor/pkg/context"
+	"gvisor.dev/gvisor/pkg/sentry/socket/netlink/nlmsg"
+	"gvisor.dev/gvisor/pkg/syserr"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
@@ -59,6 +62,11 @@ func (s *TestStack) Destroy() {
 func (s *TestStack) RemoveInterface(idx int32) error {
 	delete(s.InterfacesMap, idx)
 	return nil
+}
+
+// SetInterface implements Stack.
+func (s *TestStack) SetInterface(ctx context.Context, msg *nlmsg.Message) *syserr.Error {
+	panic("unimplemented")
 }
 
 // InterfaceAddrs implements Stack.
@@ -151,6 +159,9 @@ func (s *TestStack) RouteTable() []Route {
 
 // Pause implements Stack.
 func (s *TestStack) Pause() {}
+
+// Restore implements Stack.
+func (s *TestStack) Restore() {}
 
 // Resume implements Stack.
 func (s *TestStack) Resume() {}

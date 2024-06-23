@@ -14,24 +14,44 @@
 
 package nvgpu
 
-// Class handles, from src/nvidia/generated/g_allclasses.h.
+import (
+	"fmt"
+)
+
+// ClassID is a client class ID, in the sense of
+// src/nvidia/src/kernel/rmapi/resource_desc.h:RS_RESOURCE_DESC::externalClassID.
+//
+// +marshal
+type ClassID uint32
+
+// String implements fmt.Stringer.String.
+func (id ClassID) String() string {
+	// Include leading zeroes for easier searchability, both here and in
+	// g_allclasses.h.
+	return fmt.Sprintf("0x%08x", uint32(id))
+}
+
+// Class IDs, from src/nvidia/generated/g_allclasses.h.
 const (
 	NV01_ROOT                        = 0x00000000
 	NV01_ROOT_NON_PRIV               = 0x00000001
 	NV01_MEMORY_SYSTEM               = 0x0000003e
+	NV01_MEMORY_LOCAL_USER           = 0x00000040
 	NV01_ROOT_CLIENT                 = 0x00000041
 	NV01_MEMORY_SYSTEM_OS_DESCRIPTOR = 0x00000071
 	NV01_EVENT_OS_EVENT              = 0x00000079
 	NV01_DEVICE_0                    = 0x00000080
+	NV_MEMORY_FABRIC                 = 0x000000f8
 	NV20_SUBDEVICE_0                 = 0x00002080
+	NV2081_BINAPI                    = 0x00002081
+	NV50_P2P                         = 0x0000503b
 	NV50_THIRD_PARTY_P2P             = 0x0000503c
+	NV50_MEMORY_VIRTUAL              = 0x000050a0
 	GT200_DEBUGGER                   = 0x000083de
 	GF100_SUBDEVICE_MASTER           = 0x000090e6
 	FERMI_CONTEXT_SHARE_A            = 0x00009067
 	FERMI_VASPACE_A                  = 0x000090f1
 	KEPLER_CHANNEL_GROUP_A           = 0x0000a06c
-	VOLTA_USERMODE_A                 = 0x0000c361
-	VOLTA_CHANNEL_GPFIFO_A           = 0x0000c36f
 	TURING_USERMODE_A                = 0x0000c461
 	TURING_CHANNEL_GPFIFO_A          = 0x0000c46f
 	AMPERE_CHANNEL_GPFIFO_A          = 0x0000c56f
@@ -42,18 +62,21 @@ const (
 	AMPERE_COMPUTE_A                 = 0x0000c6c0
 	AMPERE_DMA_COPY_B                = 0x0000c7b5
 	AMPERE_COMPUTE_B                 = 0x0000c7c0
+	HOPPER_CHANNEL_GPFIFO_A          = 0x0000c86f
 	HOPPER_DMA_COPY_A                = 0x0000c8b5
 	ADA_COMPUTE_A                    = 0x0000c9c0
+	NV_CONFIDENTIAL_COMPUTE          = 0x0000cb33
+	HOPPER_SEC2_WORK_LAUNCH_A        = 0x0000cba2
 	HOPPER_COMPUTE_A                 = 0x0000cbc0
 )
 
-// Class handles for older generations that are not supported by the open source
-// driver. Volta was the last such generation. These are defined in files under
-// src/common/sdk/nvidia/inc/class/.
-const (
-	VOLTA_COMPUTE_A  = 0x0000c3c0
-	VOLTA_DMA_COPY_A = 0x0000c3b5
-)
+// NV2081_ALLOC_PARAMETERS is the alloc params type for NV2081_BINAPI, from
+// src/common/sdk/nvidia/inc/class/cl2081.h.
+//
+// +marshal
+type NV2081_ALLOC_PARAMETERS struct {
+	Reserved uint32
+}
 
 // NV0005_ALLOC_PARAMETERS is the alloc params type for NV01_EVENT_OS_EVENT,
 // from src/common/sdk/nvidia/inc/class/cl0005.h.
@@ -91,6 +114,72 @@ type NV0080_ALLOC_PARAMETERS struct {
 // +marshal
 type NV2080_ALLOC_PARAMETERS struct {
 	SubDeviceID uint32
+}
+
+// NV_MEMORY_ALLOCATION_PARAMS is the alloc params type for various NV*_MEMORY*
+// allocation classes, from src/common/sdk/nvidia/inc/nvos.h.
+//
+// +marshal
+type NV_MEMORY_ALLOCATION_PARAMS struct {
+	Owner         uint32
+	Type          uint32
+	Flags         uint32
+	Width         uint32
+	Height        uint32
+	Pitch         int32
+	Attr          uint32
+	Attr2         uint32
+	Format        uint32
+	ComprCovg     uint32
+	ZcullCovg     uint32
+	_             uint32
+	RangeLo       uint64
+	RangeHi       uint64
+	Size          uint64
+	Alignment     uint64
+	Offset        uint64
+	Limit         uint64
+	Address       P64
+	CtagOffset    uint32
+	HVASpace      Handle
+	InternalFlags uint32
+	Tag           uint32
+}
+
+// NV_MEMORY_ALLOCATION_PARAMS_V545 is the updated version of
+// NV_MEMORY_ALLOCATION_PARAMS since 545.23.06.
+//
+// +marshal
+type NV_MEMORY_ALLOCATION_PARAMS_V545 struct {
+	NV_MEMORY_ALLOCATION_PARAMS
+	NumaNode int32
+	_        uint32
+}
+
+// NV503B_BAR1_P2P_DMA_INFO from src/common/sdk/nvidia/inc/class/cl503b.h.
+//
+// +marshal
+type NV503B_BAR1_P2P_DMA_INFO struct {
+	DmaAddress uint64
+	DmaSize    uint64
+}
+
+// NV503B_ALLOC_PARAMETERS is the alloc params type for NV50_P2P, from
+// src/common/sdk/nvidia/inc/class/cl503b.h.
+//
+// +marshal
+type NV503B_ALLOC_PARAMETERS struct {
+	HSubDevice                 Handle
+	HPeerSubDevice             Handle
+	SubDevicePeerIDMask        uint32
+	PeerSubDevicePeerIDMask    uint32
+	MailboxBar1Addr            uint64
+	MailboxTotalSize           uint32
+	Flags                      uint32
+	SubDeviceEgmPeerIDMask     uint32
+	PeerSubDeviceEgmPeerIDMask uint32
+	L2pBar1P2PDmaInfo          NV503B_BAR1_P2P_DMA_INFO
+	P2lBar1P2PDmaInfo          NV503B_BAR1_P2P_DMA_INFO
 }
 
 // NV503C_ALLOC_PARAMETERS is the alloc params type for NV50_THIRD_PARTY_P2P,
@@ -189,6 +278,9 @@ type NV_CHANNEL_ALLOC_PARAMS struct {
 	ECCErrorNotifierMem NV_MEMORY_DESC_PARAMS
 	ProcessID           uint32
 	SubProcessID        uint32
+	EncryptIv           [CC_CHAN_ALLOC_IV_SIZE_DWORD]uint32
+	DecryptIv           [CC_CHAN_ALLOC_IV_SIZE_DWORD]uint32
+	HmacNonce           [CC_CHAN_ALLOC_NONCE_SIZE_DWORD]uint32
 }
 
 // NVB0B5_ALLOCATION_PARAMETERS is the alloc param type for TURING_DMA_COPY_A,
@@ -219,4 +311,33 @@ type NV_GR_ALLOCATION_PARAMETERS struct {
 type NV_HOPPER_USERMODE_A_PARAMS struct {
 	Bar1Mapping uint8
 	Priv        uint8
+}
+
+// +marshal
+type nv00f8Map struct {
+	offset  uint64
+	hVidMem Handle
+	flags   uint32
+}
+
+// NV00F8_ALLOCATION_PARAMETERS is the alloc param type for NV_MEMORY_FABRIC,
+// from src/common/sdk/nvidia/inc/class/cl00f8.h.
+//
+// +marshal
+type NV00F8_ALLOCATION_PARAMETERS struct {
+	Alignment  uint64
+	AllocSize  uint64
+	PageSize   uint64
+	AllocFlags uint32
+	_          uint32
+	Map        nv00f8Map
+}
+
+// NV_CONFIDENTIAL_COMPUTE_ALLOC_PARAMS is the alloc param type for
+// NV_CONFIDENTIAL_COMPUTE, from src/common/sdk/nvidia/inc/class/clcb33.h.
+//
+// +marshal
+type NV_CONFIDENTIAL_COMPUTE_ALLOC_PARAMS struct {
+	Handle Handle
+	_      uint32
 }

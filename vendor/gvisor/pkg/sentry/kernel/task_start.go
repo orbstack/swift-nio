@@ -81,13 +81,10 @@ type TaskConfig struct {
 	// IPCNamespace is the IPCNamespace of the new task.
 	IPCNamespace *IPCNamespace
 
-	// AbstractSocketNamespace is the AbstractSocketNamespace of the new task.
-	AbstractSocketNamespace *AbstractSocketNamespace
-
 	// MountNamespace is the MountNamespace of the new task.
 	MountNamespace *vfs.MountNamespace
 
-	// RSeqAddr is a pointer to the the userspace linux.RSeq structure.
+	// RSeqAddr is a pointer to the userspace linux.RSeq structure.
 	RSeqAddr hostarch.Addr
 
 	// RSeqSignature is the signature that the rseq abort IP must be signed
@@ -101,7 +98,13 @@ type TaskConfig struct {
 	InitialCgroups map[Cgroup]struct{}
 
 	// UserCounters is user resource counters.
-	UserCounters *userCounters
+	UserCounters *UserCounters
+
+	// SessionKeyring is the session keyring associated with the parent task.
+	// It may be nil.
+	SessionKeyring *auth.Key
+
+	Origin TaskOrigin
 }
 
 // NewTask creates a new task defined by cfg.
@@ -148,34 +151,34 @@ func (ts *TaskSet) newTask(ctx context.Context, cfg *TaskConfig) (*Task, error) 
 			parent:   cfg.Parent,
 			children: make(map[*Task]struct{}),
 		},
-		runState:        (*runApp)(nil),
-		interruptChan:   make(chan struct{}, 1),
-		signalMask:      atomicbitops.FromUint64(uint64(cfg.SignalMask)),
-		signalStack:     linux.SignalStack{Flags: linux.SS_DISABLE},
-		image:           *image,
-		fsContext:       cfg.FSContext,
-		fdTable:         cfg.FDTable,
-		k:               cfg.Kernel,
-		ptraceTracees:   make(map[*Task]struct{}),
-		allowedCPUMask:  cfg.AllowedCPUMask.Copy(),
-		ioUsage:         &usage.IO{},
-		niceness:        cfg.Niceness,
-		utsns:           cfg.UTSNamespace,
-		ipcns:           cfg.IPCNamespace,
-		abstractSockets: cfg.AbstractSocketNamespace,
-		mountNamespace:  cfg.MountNamespace,
-		rseqCPU:         -1,
-		rseqAddr:        cfg.RSeqAddr,
-		rseqSignature:   cfg.RSeqSignature,
-		futexWaiter:     futex.NewWaiter(),
-		containerID:     cfg.ContainerID,
-		cgroups:         make(map[Cgroup]struct{}),
-		userCounters:    cfg.UserCounters,
+		runState:       (*runApp)(nil),
+		interruptChan:  make(chan struct{}, 1),
+		signalMask:     atomicbitops.FromUint64(uint64(cfg.SignalMask)),
+		signalStack:    linux.SignalStack{Flags: linux.SS_DISABLE},
+		image:          *image,
+		fsContext:      cfg.FSContext,
+		fdTable:        cfg.FDTable,
+		k:              cfg.Kernel,
+		ptraceTracees:  make(map[*Task]struct{}),
+		allowedCPUMask: cfg.AllowedCPUMask.Copy(),
+		ioUsage:        &usage.IO{},
+		niceness:       cfg.Niceness,
+		utsns:          cfg.UTSNamespace,
+		ipcns:          cfg.IPCNamespace,
+		mountNamespace: cfg.MountNamespace,
+		rseqCPU:        -1,
+		rseqAddr:       cfg.RSeqAddr,
+		rseqSignature:  cfg.RSeqSignature,
+		futexWaiter:    futex.NewWaiter(),
+		containerID:    cfg.ContainerID,
+		cgroups:        make(map[Cgroup]struct{}),
+		userCounters:   cfg.UserCounters,
+		sessionKeyring: cfg.SessionKeyring,
+		Origin:         cfg.Origin,
 	}
 	t.netns = cfg.NetworkNamespace
 	t.creds.Store(cfg.Credentials)
 	t.endStopCond.L = &t.tg.signalHandlers.mu
-	t.ptraceTracer.Store((*Task)(nil))
 	// We don't construct t.blockingTimer until Task.run(); see that function
 	// for justification.
 
@@ -184,7 +187,7 @@ func (ts *TaskSet) newTask(ctx context.Context, cfg *TaskConfig) (*Task, error) 
 		charged, committed bool
 	)
 
-	// Reserve cgroup PIDs controller charge. This is either commited when the
+	// Reserve cgroup PIDs controller charge. This is either committed when the
 	// new task enters the cgroup below, or rolled back on failure.
 	//
 	// We may also get here from a non-task context (for example, when

@@ -317,7 +317,7 @@ func (t *Task) SetYAMAException(tracer *Task) {
 
 // Tracer returns t's ptrace Tracer.
 func (t *Task) Tracer() *Task {
-	return t.ptraceTracer.Load().(*Task)
+	return t.ptraceTracer.Load()
 }
 
 // hasTracer returns true if t has a ptrace tracer attached.
@@ -584,8 +584,7 @@ func (t *Task) exitPtrace() {
 		// this is consistent with Linux.
 		target.forgetTracerLocked()
 	}
-	// "nil maps cannot be saved"
-	t.ptraceTracees = make(map[*Task]struct{})
+	clear(t.ptraceTracees) // nil maps cannot be saved
 
 	if t.ptraceYAMAExceptionAdded {
 		delete(t.k.ptraceExceptions, t)
@@ -606,7 +605,7 @@ func (t *Task) forgetTracerLocked() {
 	t.ptraceOpts = ptraceOptions{}
 	t.ptraceSyscallMode = ptraceSyscallNone
 	t.ptraceSinglestep = false
-	t.ptraceTracer.Store((*Task)(nil))
+	t.ptraceTracer.Store(nil)
 	if t.exitTracerNotified && !t.exitTracerAcked {
 		t.exitTracerAcked = true
 		t.exitNotifyLocked(true)

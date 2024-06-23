@@ -26,6 +26,8 @@ import (
 )
 
 // fileDescription implements vfs.FileDescriptionImpl for fuse.
+//
+// +stateify savable
 type fileDescription struct {
 	vfsfd vfs.FileDescription
 	vfs.FileDescriptionDefaultImpl
@@ -90,6 +92,21 @@ func (fd *fileDescription) Release(ctx context.Context) {
 	req := conn.NewRequest(auth.CredentialsFromContext(ctx), pidFromContext(ctx), inode.nodeID, opcode, &in)
 	// The reply will be ignored since no callback is defined in asyncCallBack().
 	conn.CallAsync(ctx, req)
+}
+
+// OnClose implements vfs.FileDescriptionImpl.OnClose.
+func (fd *fileDescription) OnClose(ctx context.Context) error {
+	inode := fd.inode()
+	conn := inode.fs.conn
+	inode.attrMu.Lock()
+	defer inode.attrMu.Unlock()
+
+	in := linux.FUSEFlushIn{
+		Fh:        fd.Fh,
+		LockOwner: 0, // TODO(gvisor.dev/issue/3245): file lock
+	}
+	req := conn.NewRequest(auth.CredentialsFromContext(ctx), pidFromContext(ctx), inode.nodeID, linux.FUSE_FLUSH, &in)
+	return conn.CallAsync(ctx, req)
 }
 
 // PRead implements vfs.FileDescriptionImpl.PRead.

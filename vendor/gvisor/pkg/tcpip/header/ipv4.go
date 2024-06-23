@@ -346,6 +346,18 @@ func (b IPv4) DestinationAddress() tcpip.Address {
 	return tcpip.AddrFrom4([4]byte(b[dstAddr : dstAddr+IPv4AddressSize]))
 }
 
+// SourceAddressSlice returns the "source address" field of the IPv4 header as a
+// byte slice.
+func (b IPv4) SourceAddressSlice() []byte {
+	return []byte(b[srcAddr : srcAddr+IPv4AddressSize])
+}
+
+// DestinationAddressSlice returns the "destination address" field of the IPv4
+// header as a byte slice.
+func (b IPv4) DestinationAddressSlice() []byte {
+	return []byte(b[dstAddr : dstAddr+IPv4AddressSize])
+}
+
 // SetSourceAddressWithChecksumUpdate implements ChecksummableNetwork.
 func (b IPv4) SetSourceAddressWithChecksumUpdate(new tcpip.Address) {
 	b.SetChecksum(^checksumUpdate2ByteAlignedAddress(^b.Checksum(), b.SourceAddress(), new))
@@ -559,7 +571,7 @@ func IsV4LoopbackAddress(addr tcpip.Address) bool {
 
 // ========================= Options ==========================
 
-// An IPv4OptionType can hold the valuse for the Type in an IPv4 option.
+// An IPv4OptionType can hold the value for the Type in an IPv4 option.
 type IPv4OptionType byte
 
 // These constants are needed to identify individual options in the option list.
@@ -1137,9 +1149,7 @@ func (s IPv4OptionsSerializer) Serialize(b []byte) uint8 {
 	//  header ends on a 32 bit boundary. The padding is zero.
 	padded := padIPv4OptionsLength(total)
 	b = b[:padded-total]
-	for i := range b {
-		b[i] = 0
-	}
+	clear(b)
 	return padded
 }
 

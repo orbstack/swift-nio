@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/gofrs/flock"
-	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sync"
 )
@@ -113,15 +112,8 @@ func Load(rootDir string, id FullID, opts LoadOpts) (*Container, error) {
 		//
 		// This is inherently racy.
 		switch c.Status {
-		case Created:
-			if !c.IsSandboxRunning() {
-				// Sandbox no longer exists, so this container definitely does not exist.
-				c.changeStatus(Stopped)
-			}
-		case Running:
-			if err := c.SignalContainer(unix.Signal(0), false); err != nil {
-				c.changeStatus(Stopped)
-			}
+		case Created, Running:
+			c.CheckStopped()
 		}
 	}
 

@@ -65,7 +65,7 @@ func (mm *MemoryManager) HandleUserFault(ctx context.Context, addr hostarch.Addr
 	mm.activeMu.DowngradeLock()
 
 	// Map the faulted page into the active AddressSpace.
-	err = mm.mapASLocked(pseg, ar, false)
+	err = mm.mapASLocked(pseg, ar, memmap.PlatformEffectDefault)
 	mm.activeMu.RUnlock()
 	return err
 }
@@ -131,9 +131,9 @@ func (mm *MemoryManager) MMap(ctx context.Context, opts memmap.MMapOpts) (hostar
 	// mm/util.c:vm_mmap_pgoff() => mm/gup.c:__mm_populate() =>
 	// populate_vma_page_range(). Confirm this behavior.
 	switch {
-	case opts.Precommit || opts.MLockMode == memmap.MLockEager:
-		// Get pmas and map with precommit as requested.
-		mm.populateVMAAndUnlock(ctx, vseg, ar, true)
+	case opts.PlatformEffect >= memmap.PlatformEffectPopulate || opts.MLockMode == memmap.MLockEager:
+		// Get pmas and map as requested.
+		mm.populateVMAAndUnlock(ctx, vseg, ar, opts.PlatformEffect)
 
 	case opts.Mappable == nil && length <= privateAllocUnit:
 		// NOTE(b/63077076, b/63360184): Get pmas and map eagerly in the hope
@@ -142,7 +142,7 @@ func (mm *MemoryManager) MMap(ctx context.Context, opts memmap.MMapOpts) (hostar
 		// memmap.Mappable.Translate is unknown; and only for small mappings,
 		// to avoid needing to allocate large amounts of memory that we may
 		// subsequently need to checkpoint.
-		mm.populateVMAAndUnlock(ctx, vseg, ar, false)
+		mm.populateVMAAndUnlock(ctx, vseg, ar, memmap.PlatformEffectDefault)
 
 	default:
 		mm.mappingMu.Unlock()
@@ -161,7 +161,7 @@ func (mm *MemoryManager) MMap(ctx context.Context, opts memmap.MMapOpts) (hostar
 // Preconditions:
 //   - mm.mappingMu must be locked.
 //   - vseg.Range().IsSupersetOf(ar).
-func (mm *MemoryManager) populateVMA(ctx context.Context, vseg vmaIterator, ar hostarch.AddrRange, precommit bool) {
+func (mm *MemoryManager) populateVMA(ctx context.Context, vseg vmaIterator, ar hostarch.AddrRange, platformEffect memmap.MMapPlatformEffect) {
 	if !vseg.ValuePtr().effectivePerms.Any() {
 		// Linux doesn't populate inaccessible pages. See
 		// mm/gup.c:populate_vma_page_range.
@@ -193,7 +193,7 @@ func (mm *MemoryManager) populateVMA(ctx context.Context, vseg vmaIterator, ar h
 	mm.activeMu.DowngradeLock()
 
 	// As above, errors are silently ignored.
-	mm.mapASLocked(pseg, ar, precommit)
+	mm.mapASLocked(pseg, ar, platformEffect)
 	mm.activeMu.RUnlock()
 }
 
@@ -208,7 +208,7 @@ func (mm *MemoryManager) populateVMA(ctx context.Context, vseg vmaIterator, ar h
 //
 // Postconditions: mm.mappingMu will be unlocked.
 // +checklocksrelease:mm.mappingMu
-func (mm *MemoryManager) populateVMAAndUnlock(ctx context.Context, vseg vmaIterator, ar hostarch.AddrRange, precommit bool) {
+func (mm *MemoryManager) populateVMAAndUnlock(ctx context.Context, vseg vmaIterator, ar hostarch.AddrRange, platformEffect memmap.MMapPlatformEffect) {
 	// See populateVMA above for commentary.
 	if !vseg.ValuePtr().effectivePerms.Any() {
 		mm.mappingMu.Unlock()
@@ -234,7 +234,7 @@ func (mm *MemoryManager) populateVMAAndUnlock(ctx context.Context, vseg vmaItera
 	}
 
 	mm.activeMu.DowngradeLock()
-	mm.mapASLocked(pseg, ar, precommit)
+	mm.mapASLocked(pseg, ar, platformEffect)
 	mm.activeMu.RUnlock()
 }
 
@@ -454,7 +454,7 @@ func (mm *MemoryManager) MRemap(ctx context.Context, oldAddr hostarch.Addr, oldS
 		}, droppedIDs)
 		if err == nil {
 			if vma.mlockMode == memmap.MLockEager {
-				mm.populateVMA(ctx, vseg, ar, true)
+				mm.populateVMA(ctx, vseg, ar, memmap.PlatformEffectCommit)
 			}
 			return oldAddr, nil
 		}
@@ -561,7 +561,7 @@ func (mm *MemoryManager) MRemap(ctx context.Context, oldAddr hostarch.Addr, oldS
 		if vma.mlockMode != memmap.MLockNone {
 			mm.lockedAS += uint64(newAR.Length())
 			if vma.mlockMode == memmap.MLockEager {
-				mm.populateVMA(ctx, vseg, newAR, true)
+				mm.populateVMA(ctx, vseg, newAR, memmap.PlatformEffectCommit)
 			}
 		}
 		return newAR.Start, nil
@@ -605,7 +605,7 @@ func (mm *MemoryManager) MRemap(ctx context.Context, oldAddr hostarch.Addr, oldS
 	}
 
 	if vma.mlockMode == memmap.MLockEager {
-		mm.populateVMA(ctx, vseg, newAR, true)
+		mm.populateVMA(ctx, vseg, newAR, memmap.PlatformEffectCommit)
 	}
 
 	return newAR.Start, nil
@@ -657,10 +657,10 @@ func (mm *MemoryManager) MProtect(addr hostarch.Addr, length uint64, realPerms h
 	mm.activeMu.Lock()
 	defer mm.activeMu.Unlock()
 	defer func() {
-		mm.vmas.MergeRange(ar)
-		mm.vmas.MergeAdjacent(ar)
-		mm.pmas.MergeRange(ar)
-		mm.pmas.MergeAdjacent(ar)
+		mm.vmas.MergeInsideRange(ar)
+		mm.vmas.MergeOutsideRange(ar)
+		mm.pmas.MergeInsideRange(ar)
+		mm.pmas.MergeOutsideRange(ar)
 	}()
 	pseg := mm.pmas.LowerBoundSegment(ar.Start)
 	var didUnmapAS bool
@@ -796,7 +796,7 @@ func (mm *MemoryManager) Brk(ctx context.Context, addr hostarch.Addr) (hostarch.
 		}
 		mm.brk.End = addr
 		if mm.defMLockMode == memmap.MLockEager {
-			mm.populateVMAAndUnlock(ctx, vseg, ar, true)
+			mm.populateVMAAndUnlock(ctx, vseg, ar, memmap.PlatformEffectCommit)
 		} else {
 			mm.mappingMu.Unlock()
 		}
@@ -869,8 +869,8 @@ func (mm *MemoryManager) MLock(ctx context.Context, addr hostarch.Addr, length u
 		}
 		vseg, _ = vseg.NextNonEmpty()
 	}
-	mm.vmas.MergeRange(ar)
-	mm.vmas.MergeAdjacent(ar)
+	mm.vmas.MergeInsideRange(ar)
+	mm.vmas.MergeOutsideRange(ar)
 	if unmapped {
 		mm.mappingMu.Unlock()
 		return linuxerr.ENOMEM
@@ -909,7 +909,7 @@ func (mm *MemoryManager) MLock(ctx context.Context, addr hostarch.Addr, length u
 		mm.mappingMu.RUnlock()
 		if mm.as != nil {
 			mm.activeMu.DowngradeLock()
-			err := mm.mapASLocked(mm.pmas.LowerBoundSegment(ar.Start), ar, true /* precommit */)
+			err := mm.mapASLocked(mm.pmas.LowerBoundSegment(ar.Start), ar, memmap.PlatformEffectCommit)
 			mm.activeMu.RUnlock()
 			if err != nil {
 				return err
@@ -993,7 +993,7 @@ func (mm *MemoryManager) MLockAll(ctx context.Context, opts MLockAllOpts) error 
 		mm.mappingMu.RUnlock()
 		if mm.as != nil {
 			mm.activeMu.DowngradeLock()
-			mm.mapASLocked(mm.pmas.FirstSegment(), mm.applicationAddrRange(), true /* precommit */)
+			mm.mapASLocked(mm.pmas.FirstSegment(), mm.applicationAddrRange(), memmap.PlatformEffectCommit)
 			mm.activeMu.RUnlock()
 		} else {
 			mm.activeMu.Unlock()
@@ -1034,8 +1034,8 @@ func (mm *MemoryManager) SetNumaPolicy(addr hostarch.Addr, length uint64, policy
 	mm.mappingMu.Lock()
 	defer mm.mappingMu.Unlock()
 	defer func() {
-		mm.vmas.MergeRange(ar)
-		mm.vmas.MergeAdjacent(ar)
+		mm.vmas.MergeInsideRange(ar)
+		mm.vmas.MergeOutsideRange(ar)
 	}()
 	vseg := mm.vmas.LowerBoundSegment(ar.Start)
 	lastEnd := ar.Start
@@ -1067,8 +1067,8 @@ func (mm *MemoryManager) SetDontFork(addr hostarch.Addr, length uint64, dontfork
 	mm.mappingMu.Lock()
 	defer mm.mappingMu.Unlock()
 	defer func() {
-		mm.vmas.MergeRange(ar)
-		mm.vmas.MergeAdjacent(ar)
+		mm.vmas.MergeInsideRange(ar)
+		mm.vmas.MergeOutsideRange(ar)
 	}()
 
 	for vseg := mm.vmas.LowerBoundSegment(ar.Start); vseg.Ok() && vseg.Start() < ar.End; vseg = vseg.NextSegment() {
@@ -1119,12 +1119,9 @@ func (mm *MemoryManager) Decommit(addr hostarch.Addr, length uint64) error {
 			if !didUnmapAS {
 				// Unmap all of ar, not just pseg.Range(), to minimize host
 				// syscalls. AddressSpace mappings must be removed before
-				// mm.decPrivateRef().
+				// pma.file.DecRef().
 				mm.unmapASLocked(ar)
 				didUnmapAS = true
-			}
-			if pma.private {
-				mm.decPrivateRef(pseg.fileRange())
 			}
 			pma.file.DecRef(pseg.fileRange())
 			mm.removeRSSLocked(pseg.Range())

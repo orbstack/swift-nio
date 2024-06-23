@@ -24,6 +24,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"sync"
 
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/abi/linux"
@@ -69,8 +70,8 @@ var procSelfFD *rwfd.FD
 
 // OpenProcSelfFD opens the /proc/self/fd directory, which will be used to
 // reopen file descriptors.
-func OpenProcSelfFD() error {
-	d, err := unix.Open("/proc/self/fd", unix.O_RDONLY|unix.O_DIRECTORY, 0)
+func OpenProcSelfFD(path string) error {
+	d, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY, 0)
 	if err != nil {
 		return fmt.Errorf("error opening /proc/self/fd: %v", err)
 	}
@@ -478,6 +479,14 @@ func (fd *controlFDLisa) WalkStat(path lisafs.StringArray, recordStat func(linux
 	return nil
 }
 
+// Used to log rejected fifo/uds operations, one time each.
+var (
+	logRejectedFifoOpenOnce   sync.Once
+	logRejectedUdsOpenOnce    sync.Once
+	logRejectedUdsCreateOnce  sync.Once
+	logRejectedUdsConnectOnce sync.Once
+)
+
 // Open implements lisafs.ControlFDImpl.Open.
 func (fd *controlFDLisa) Open(flags uint32) (*lisafs.OpenFD, int, error) {
 	ftype := fd.FileType()
@@ -485,10 +494,16 @@ func (fd *controlFDLisa) Open(flags uint32) (*lisafs.OpenFD, int, error) {
 	switch ftype {
 	case unix.S_IFIFO:
 		if !server.config.HostFifo.AllowOpen() {
+			logRejectedFifoOpenOnce.Do(func() {
+				log.Warningf("Rejecting attempt to open fifo/pipe from host filesystem: %q. If you want to allow this, set flag --host-fifo=open", fd.ControlFD.Node().FilePath())
+			})
 			return nil, -1, unix.EPERM
 		}
 	case unix.S_IFSOCK:
 		if !server.config.HostUDS.AllowOpen() {
+			logRejectedUdsOpenOnce.Do(func() {
+				log.Warningf("Rejecting attempt to open unix domain socket from host filesystem. If you want to allow this, set flag --host-uds=open", fd.ControlFD.Node().FilePath())
+			})
 			return nil, -1, unix.EPERM
 		}
 	}
@@ -771,6 +786,9 @@ func isSockTypeSupported(sockType uint32) bool {
 // Connect implements lisafs.ControlFDImpl.Connect.
 func (fd *controlFDLisa) Connect(sockType uint32) (int, error) {
 	if !fd.Conn().ServerImpl().(*LisafsServer).config.HostUDS.AllowOpen() {
+		logRejectedUdsConnectOnce.Do(func() {
+			log.Warningf("Rejecting attempt to connect to unix domain socket from host filesystem: %q. If you want to allow this, set flag --host-uds=open", fd.ControlFD.Node().FilePath())
+		})
 		return -1, unix.EPERM
 	}
 
@@ -803,6 +821,9 @@ func (fd *controlFDLisa) Connect(sockType uint32) (int, error) {
 // BindAt implements lisafs.ControlFDImpl.BindAt.
 func (fd *controlFDLisa) BindAt(name string, sockType uint32, mode linux.FileMode, uid lisafs.UID, gid lisafs.GID) (*lisafs.ControlFD, linux.Statx, *lisafs.BoundSocketFD, int, error) {
 	if !fd.Conn().ServerImpl().(*LisafsServer).config.HostUDS.AllowCreate() {
+		logRejectedUdsCreateOnce.Do(func() {
+			log.Warningf("Rejecting attempt to create unix domain socket from host filesystem: %q. If you want to allow this, set flag --host-uds=create", name)
+		})
 		return nil, linux.Statx{}, nil, -1, unix.EPERM
 	}
 
@@ -901,7 +922,9 @@ func (fd *controlFDLisa) Renamed() {
 
 // GetXattr implements lisafs.ControlFDImpl.GetXattr.
 func (fd *controlFDLisa) GetXattr(name string, size uint32, getValueBuf func(uint32) []byte) (uint16, error) {
-	return 0, unix.EOPNOTSUPP
+	data := getValueBuf(size)
+	xattrSize, err := unix.Fgetxattr(fd.hostFD, name, data)
+	return uint16(xattrSize), err
 }
 
 // SetXattr implements lisafs.ControlFDImpl.SetXattr.
@@ -1020,7 +1043,7 @@ func (fd *openFDLisa) Getdent64(count uint32, seek0 bool, recordDirent func(lisa
 			break
 		}
 
-		fsutil.ParseDirents(direntsBuf[:n], func(ino uint64, off int64, ftype uint8, name string, reclen uint16) bool {
+		fsutil.ParseDirents(direntsBuf[:n], func(ino uint64, off int64, ftype uint8, name string, reclen uint16) {
 			dirent := lisafs.Dirent64{
 				Ino:  primitive.Uint64(ino),
 				Off:  primitive.Uint64(off),
@@ -1034,13 +1057,12 @@ func (fd *openFDLisa) Getdent64(count uint32, seek0 bool, recordDirent func(lisa
 			stat, err := fsutil.StatAt(fd.hostFD, name)
 			if err != nil {
 				log.Warningf("Getdent64: skipping file %q with failed stat, err: %v", path.Join(fd.ControlFD().FD().Node().FilePath(), name), err)
-				return true
+				return
 			}
 			dirent.DevMinor = primitive.Uint32(unix.Minor(stat.Dev))
 			dirent.DevMajor = primitive.Uint32(unix.Major(stat.Dev))
 			recordDirent(dirent)
 			bytesRead += int(reclen)
-			return true
 		})
 	}
 	return nil

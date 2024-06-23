@@ -50,6 +50,14 @@ type TaskImage struct {
 
 	// st is the task's syscall table.
 	st *SyscallTable `state:".(syscallTableInfo)"`
+
+	// fileCaps is the image's extended attribute named security.capability.
+	fileCaps string
+}
+
+// FileCaps return the task image's security.capability extended attribute.
+func (image *TaskImage) FileCaps() string {
+	return image.fileCaps
 }
 
 // release releases all resources held by the TaskImage. release is called by
@@ -138,17 +146,17 @@ func (t *Task) Stack() *arch.Stack {
 // args.MemoryManager does not need to be set by the caller.
 func (k *Kernel) LoadTaskImage(ctx context.Context, args loader.LoadArgs) (*TaskImage, *syserr.Error) {
 	// Prepare a new user address space to load into.
-	m := mm.NewMemoryManager(k, k, k.SleepForAddressSpaceActivation)
+	m := mm.NewMemoryManager(k, k.mf, k.SleepForAddressSpaceActivation)
 	defer m.DecUsers(ctx)
 	args.MemoryManager = m
 
-	os, ac, name, err := loader.Load(ctx, args, k.extraAuxv, k.vdso)
+	info, err := loader.Load(ctx, args, k.extraAuxv, k.vdso)
 	if err != nil {
 		return nil, err
 	}
 
 	// Lookup our new syscall table.
-	st, ok := LookupSyscallTable(os, ac.Arch())
+	st, ok := LookupSyscallTable(info.OS, info.Arch.Arch())
 	if !ok {
 		// No syscall table found. This means that the ELF binary does not match
 		// the architecture.
@@ -159,10 +167,11 @@ func (k *Kernel) LoadTaskImage(ctx context.Context, args loader.LoadArgs) (*Task
 		panic("Failed to increment users count on new MM")
 	}
 	return &TaskImage{
-		Name:          name,
-		Arch:          ac,
+		Name:          info.Name,
+		Arch:          info.Arch,
 		MemoryManager: m,
 		fu:            k.futexes.Fork(),
 		st:            st,
+		fileCaps:      info.FileCaps,
 	}, nil
 }

@@ -21,9 +21,11 @@ import (
 
 	"gvisor.dev/gvisor/pkg/context"
 	"gvisor.dev/gvisor/pkg/errors/linuxerr"
+	"gvisor.dev/gvisor/pkg/fd"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sentry/inet"
 	"gvisor.dev/gvisor/pkg/sentry/kernel"
+	"gvisor.dev/gvisor/pkg/sentry/pgalloc"
 	"gvisor.dev/gvisor/pkg/sentry/time"
 	"gvisor.dev/gvisor/pkg/sentry/vfs"
 	"gvisor.dev/gvisor/pkg/sentry/watchdog"
@@ -48,14 +50,28 @@ type SaveOpts struct {
 	// Destination is the save target.
 	Destination io.Writer
 
+	// PagesMetadata is the file into which MemoryFile metadata is stored if
+	// PagesMetadata is non-nil. Otherwise this content is stored in Destination.
+	PagesMetadata *fd.FD
+
+	// PagesFile is the file in which all MemoryFile pages are stored if
+	// PagesFile is non-nil. Otherwise this content is stored in Destination.
+	PagesFile *fd.FD
+
 	// Key is used for state integrity check.
 	Key []byte
 
 	// Metadata is save metadata.
 	Metadata map[string]string
 
+	// MemoryFileSaveOpts is passed to calls to pgalloc.MemoryFile.SaveTo().
+	MemoryFileSaveOpts pgalloc.SaveOpts
+
 	// Callback is called prior to unpause, with any save error.
 	Callback func(err error)
+
+	// Resume indicates if the statefile is used for save-resume.
+	Resume bool
 }
 
 // Save saves the system state.
@@ -83,7 +99,7 @@ func (opts SaveOpts) Save(ctx context.Context, k *kernel.Kernel, w *watchdog.Wat
 		err = ErrStateFile{err}
 	} else {
 		// Save the kernel.
-		err = k.SaveTo(ctx, wc)
+		err = k.SaveTo(ctx, wc, opts.PagesMetadata, opts.PagesFile, opts.MemoryFileSaveOpts)
 
 		// ENOSPC is a state file error. This error can only come from
 		// writing the state file, and not from fs.FileOperations.Fsync
@@ -102,8 +118,16 @@ func (opts SaveOpts) Save(ctx context.Context, k *kernel.Kernel, w *watchdog.Wat
 
 // LoadOpts contains load-related options.
 type LoadOpts struct {
-	// Destination is the load source.
+	// Source is the load source.
 	Source io.Reader
+
+	// PagesMetadata is the file into which MemoryFile metadata is stored if
+	// PagesMetadata is non-nil. Otherwise this content is stored in Source.
+	PagesMetadata *fd.FD
+
+	// PagesFile is the file in which all MemoryFile pages are stored if
+	// PagesFile is non-nil. Otherwise this content is stored in Source.
+	PagesFile *fd.FD
 
 	// Key is used for state integrity check.
 	Key []byte
@@ -120,5 +144,5 @@ func (opts LoadOpts) Load(ctx context.Context, k *kernel.Kernel, timeReady chan 
 	previousMetadata = m
 
 	// Restore the Kernel object graph.
-	return k.LoadFrom(ctx, r, timeReady, n, clocks, vfsOpts)
+	return k.LoadFrom(ctx, r, opts.PagesMetadata, opts.PagesFile, timeReady, n, clocks, vfsOpts)
 }

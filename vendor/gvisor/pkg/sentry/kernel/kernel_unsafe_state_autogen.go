@@ -3,6 +3,8 @@
 package kernel
 
 import (
+	"context"
+
 	"gvisor.dev/gvisor/pkg/state"
 )
 
@@ -26,11 +28,11 @@ func (p *descriptorBucketSliceAtomicPtr) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.SaveValue(0, ptrValue)
 }
 
-func (p *descriptorBucketSliceAtomicPtr) afterLoad() {}
+func (p *descriptorBucketSliceAtomicPtr) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (p *descriptorBucketSliceAtomicPtr) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.LoadValue(0, new(*descriptorBucketSlice), func(y any) { p.loadPtr(y.(*descriptorBucketSlice)) })
+func (p *descriptorBucketSliceAtomicPtr) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.LoadValue(0, new(*descriptorBucketSlice), func(y any) { p.loadPtr(ctx, y.(*descriptorBucketSlice)) })
 }
 
 func (p *descriptorBucketAtomicPtr) StateTypeName() string {
@@ -53,11 +55,11 @@ func (p *descriptorBucketAtomicPtr) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.SaveValue(0, ptrValue)
 }
 
-func (p *descriptorBucketAtomicPtr) afterLoad() {}
+func (p *descriptorBucketAtomicPtr) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (p *descriptorBucketAtomicPtr) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.LoadValue(0, new(*descriptorBucket), func(y any) { p.loadPtr(y.(*descriptorBucket)) })
+func (p *descriptorBucketAtomicPtr) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.LoadValue(0, new(*descriptorBucket), func(y any) { p.loadPtr(ctx, y.(*descriptorBucket)) })
 }
 
 func (p *descriptorAtomicPtr) StateTypeName() string {
@@ -80,11 +82,11 @@ func (p *descriptorAtomicPtr) StateSave(stateSinkObject state.Sink) {
 	stateSinkObject.SaveValue(0, ptrValue)
 }
 
-func (p *descriptorAtomicPtr) afterLoad() {}
+func (p *descriptorAtomicPtr) afterLoad(context.Context) {}
 
 // +checklocksignore
-func (p *descriptorAtomicPtr) StateLoad(stateSourceObject state.Source) {
-	stateSourceObject.LoadValue(0, new(*descriptor), func(y any) { p.loadPtr(y.(*descriptor)) })
+func (p *descriptorAtomicPtr) StateLoad(ctx context.Context, stateSourceObject state.Source) {
+	stateSourceObject.LoadValue(0, new(*descriptor), func(y any) { p.loadPtr(ctx, y.(*descriptor)) })
 }
 
 func init() {

@@ -15,6 +15,7 @@
 package gofer
 
 import (
+	goContext "context"
 	"fmt"
 	"io"
 
@@ -26,16 +27,8 @@ import (
 	"gvisor.dev/gvisor/pkg/hostarch"
 	"gvisor.dev/gvisor/pkg/refs"
 	"gvisor.dev/gvisor/pkg/safemem"
+	"gvisor.dev/gvisor/pkg/sentry/pgalloc"
 	"gvisor.dev/gvisor/pkg/sentry/vfs"
-)
-
-type saveRestoreContextID int
-
-const (
-	// CtxRestoreServerFDMap is a Context.Value key for a map[string]int
-	// mapping filesystem unique IDs (cf. InternalFilesystemOptions.UniqueID)
-	// to host FDs.
-	CtxRestoreServerFDMap saveRestoreContextID = iota
 )
 
 // +stateify savable
@@ -44,9 +37,9 @@ type savedDentryRW struct {
 	write bool
 }
 
-// PreprareSave implements vfs.FilesystemImplSaveRestoreExtension.PrepareSave.
+// PrepareSave implements vfs.FilesystemImplSaveRestoreExtension.PrepareSave.
 func (fs *filesystem) PrepareSave(ctx context.Context) error {
-	if len(fs.iopts.UniqueID) == 0 {
+	if len(fs.iopts.UniqueID.Path) == 0 {
 		return fmt.Errorf("gofer.filesystem with no UniqueID cannot be saved")
 	}
 
@@ -119,11 +112,16 @@ func (d *dentry) prepareSaveRecursive(ctx context.Context) error {
 	}
 	d.childrenMu.Lock()
 	defer d.childrenMu.Unlock()
-	for _, child := range d.children {
-		if child != nil {
-			if err := child.prepareSaveRecursive(ctx); err != nil {
-				return err
-			}
+	for childName, child := range d.children {
+		if child == nil {
+			// Unsaved filesystem state may change across save/restore. Remove
+			// negative entries from d.children to ensure that files created
+			// after save are visible after restore.
+			delete(d.children, childName)
+			continue
+		}
+		if err := child.prepareSaveRecursive(ctx); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -137,7 +135,12 @@ func (d *dentry) beforeSave() {
 }
 
 // afterLoad is invoked by stateify.
-func (d *dentry) afterLoad() {
+func (fs *filesystem) afterLoad(ctx goContext.Context) {
+	fs.mf = pgalloc.MemoryFileFromContext(ctx)
+}
+
+// afterLoad is invoked by stateify.
+func (d *dentry) afterLoad(goContext.Context) {
 	d.readFD = atomicbitops.FromInt32(-1)
 	d.writeFD = atomicbitops.FromInt32(-1)
 	d.mmapFD = atomicbitops.FromInt32(-1)
@@ -147,12 +150,12 @@ func (d *dentry) afterLoad() {
 }
 
 // afterLoad is invoked by stateify.
-func (d *directfsDentry) afterLoad() {
+func (d *directfsDentry) afterLoad(goContext.Context) {
 	d.controlFD = -1
 }
 
 // afterLoad is invoked by stateify.
-func (d *dentryPlatformFile) afterLoad() {
+func (d *dentryPlatformFile) afterLoad(goContext.Context) {
 	if d.hostFileMapper.IsInited() {
 		// Ensure that we don't call d.hostFileMapper.Init() again.
 		d.hostFileMapperInitOnce.Do(func() {})
@@ -160,7 +163,7 @@ func (d *dentryPlatformFile) afterLoad() {
 }
 
 // afterLoad is invoked by stateify.
-func (fd *specialFileFD) afterLoad() {
+func (fd *specialFileFD) afterLoad(goContext.Context) {
 	fd.handle.fd = -1
 	if fd.hostFileMapper.IsInited() {
 		// Ensure that we don't call fd.hostFileMapper.Init() again.
@@ -168,17 +171,26 @@ func (fd *specialFileFD) afterLoad() {
 	}
 }
 
+// saveParent is called by stateify.
+func (d *dentry) saveParent() *dentry {
+	return d.parent.Load()
+}
+
+// loadParent is called by stateify.
+func (d *dentry) loadParent(_ goContext.Context, parent *dentry) {
+	d.parent.Store(parent)
+}
+
 // CompleteRestore implements
 // vfs.FilesystemImplSaveRestoreExtension.CompleteRestore.
 func (fs *filesystem) CompleteRestore(ctx context.Context, opts vfs.CompleteRestoreOptions) error {
-	fdmapv := ctx.Value(CtxRestoreServerFDMap)
-	if fdmapv == nil {
+	fdmap := vfs.RestoreFilesystemFDMapFromContext(ctx)
+	if fdmap == nil {
 		return fmt.Errorf("no server FD map available")
 	}
-	fdmap := fdmapv.(map[string]int)
 	fd, ok := fdmap[fs.iopts.UniqueID]
 	if !ok {
-		return fmt.Errorf("no server FD available for filesystem with unique ID %q", fs.iopts.UniqueID)
+		return fmt.Errorf("no server FD available for filesystem with unique ID %+v, map: %v", fs.iopts.UniqueID, fdmap)
 	}
 	fs.opts.fd = fd
 	fs.inoByKey = make(map[inoKey]uint64)

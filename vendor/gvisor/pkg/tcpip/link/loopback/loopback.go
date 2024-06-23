@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package loopback provides the implemention of loopback data-link layer
+// Package loopback provides the implementation of loopback data-link layer
 // endpoints. Such endpoints just turn outbound packets into inbound ones.
 //
 // Loopback endpoints can be used in the networking stack by calling New() to
@@ -28,8 +28,9 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
+// +stateify savable
 type endpoint struct {
-	mu sync.RWMutex
+	mu sync.RWMutex `state:"nosave"`
 	// +checklocks:mu
 	dispatcher stack.NetworkDispatcher
 }
@@ -78,6 +79,9 @@ func (*endpoint) LinkAddress() tcpip.LinkAddress {
 	return ""
 }
 
+// SetLinkAddress implements stack.LinkEndpoint.SetLinkAddress.
+func (*endpoint) SetLinkAddress(tcpip.LinkAddress) {}
+
 // Wait implements stack.LinkEndpoint.Wait.
 func (*endpoint) Wait() {}
 
@@ -108,7 +112,10 @@ func (*endpoint) ARPHardwareType() header.ARPHardwareType {
 }
 
 // AddHeader implements stack.LinkEndpoint.
-func (*endpoint) AddHeader(stack.PacketBufferPtr) {}
+func (*endpoint) AddHeader(*stack.PacketBuffer) {}
 
 // ParseHeader implements stack.LinkEndpoint.
-func (*endpoint) ParseHeader(stack.PacketBufferPtr) bool { return true }
+func (*endpoint) ParseHeader(*stack.PacketBuffer) bool { return true }
+
+// Close implements stack.LinkEndpoint.
+func (*endpoint) Close() {}

@@ -36,10 +36,6 @@ type serverEndpoint struct {
 	// bufferSize is immutable.
 	bufferSize uint32
 
-	// addr is the local address of this endpoint.
-	// addr is immutable
-	addr tcpip.LinkAddress
-
 	// rx is the receive queue.
 	rx serverRx
 
@@ -70,7 +66,7 @@ type serverEndpoint struct {
 	onClosed func(tcpip.Error)
 
 	// mu protects the following fields.
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	// tx is the transmit queue.
 	// +checklocks:mu
@@ -79,6 +75,11 @@ type serverEndpoint struct {
 	// workerStarted specifies whether the worker goroutine was started.
 	// +checklocks:mu
 	workerStarted bool
+
+	// addr is the local address of this endpoint.
+	//
+	// +checklocks:mu
+	addr tcpip.LinkAddress
 }
 
 // NewServerEndpoint creates a new shared-memory-based endpoint. Buffers will be
@@ -199,11 +200,22 @@ func (e *serverEndpoint) MaxHeaderLength() uint16 {
 // LinkAddress implements stack.LinkEndpoint.LinkAddress. It returns the local
 // link address.
 func (e *serverEndpoint) LinkAddress() tcpip.LinkAddress {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	return e.addr
 }
 
+// SetLinkAddress implements stack.LinkEndpoint.SetLinkAddress.
+func (e *serverEndpoint) SetLinkAddress(addr tcpip.LinkAddress) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.addr = addr
+}
+
 // AddHeader implements stack.LinkEndpoint.AddHeader.
-func (e *serverEndpoint) AddHeader(pkt stack.PacketBufferPtr) {
+func (e *serverEndpoint) AddHeader(pkt *stack.PacketBuffer) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	// Add ethernet header if needed.
 	if len(e.addr) == 0 {
 		return
@@ -217,13 +229,15 @@ func (e *serverEndpoint) AddHeader(pkt stack.PacketBufferPtr) {
 	})
 }
 
-func (e *serverEndpoint) parseHeader(pkt stack.PacketBufferPtr) bool {
+func (e *serverEndpoint) parseHeader(pkt *stack.PacketBuffer) bool {
 	_, ok := pkt.LinkHeader().Consume(header.EthernetMinimumSize)
 	return ok
 }
 
 // ParseHeader implements stack.LinkEndpoint.ParseHeader.
-func (e *serverEndpoint) ParseHeader(pkt stack.PacketBufferPtr) bool {
+func (e *serverEndpoint) ParseHeader(pkt *stack.PacketBuffer) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	// Add ethernet header if needed.
 	if len(e.addr) == 0 {
 		return true
@@ -232,13 +246,13 @@ func (e *serverEndpoint) ParseHeader(pkt stack.PacketBufferPtr) bool {
 	return e.parseHeader(pkt)
 }
 
-func (e *serverEndpoint) AddVirtioNetHeader(pkt stack.PacketBufferPtr) {
+func (e *serverEndpoint) AddVirtioNetHeader(pkt *stack.PacketBuffer) {
 	virtio := header.VirtioNetHeader(pkt.VirtioNetHeader().Push(header.VirtioNetHeaderSize))
 	virtio.Encode(&header.VirtioNetHeaderFields{})
 }
 
 // +checklocks:e.mu
-func (e *serverEndpoint) writePacketLocked(r stack.RouteInfo, protocol tcpip.NetworkProtocolNumber, pkt stack.PacketBufferPtr) tcpip.Error {
+func (e *serverEndpoint) writePacketLocked(r stack.RouteInfo, protocol tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) tcpip.Error {
 	if e.virtioNetHeaderRequired {
 		e.AddVirtioNetHeader(pkt)
 	}
@@ -254,7 +268,7 @@ func (e *serverEndpoint) writePacketLocked(r stack.RouteInfo, protocol tcpip.Net
 // WritePacket writes outbound packets to the file descriptor. If it is not
 // currently writable, the packet is dropped.
 // WritePacket implements stack.LinkEndpoint.WritePacket.
-func (e *serverEndpoint) WritePacket(_ stack.RouteInfo, _ tcpip.NetworkProtocolNumber, pkt stack.PacketBufferPtr) tcpip.Error {
+func (e *serverEndpoint) WritePacket(_ stack.RouteInfo, _ tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) tcpip.Error {
 	// Transmit the packet.
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -319,7 +333,10 @@ func (e *serverEndpoint) dispatchLoop(d stack.NetworkDispatcher) {
 			}
 		}
 		var proto tcpip.NetworkProtocolNumber
-		if len(e.addr) != 0 {
+		e.mu.RLock()
+		addrLen := len(e.addr)
+		e.mu.RUnlock()
+		if addrLen != 0 {
 			if !e.parseHeader(pkt) {
 				pkt.DecRef()
 				continue

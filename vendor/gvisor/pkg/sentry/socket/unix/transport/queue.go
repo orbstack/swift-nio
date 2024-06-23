@@ -15,6 +15,7 @@
 package transport
 
 import (
+	"gvisor.dev/gvisor/pkg/atomicbitops"
 	"gvisor.dev/gvisor/pkg/context"
 	"gvisor.dev/gvisor/pkg/syserr"
 	"gvisor.dev/gvisor/pkg/waiter"
@@ -30,7 +31,7 @@ type queue struct {
 	WriterQueue *waiter.Queue
 
 	mu       queueMutex `state:"nosave"`
-	closed   bool
+	closed   atomicbitops.Bool
 	unread   bool
 	used     int64
 	limit    int64
@@ -45,8 +46,12 @@ type queue struct {
 // q.WriterQueue.Notify(waiter.WritableEvents)
 func (q *queue) Close() {
 	q.mu.Lock()
-	q.closed = true
+	q.closed.Store(true)
 	q.mu.Unlock()
+}
+
+func (q *queue) isClosed() bool {
+	return q.closed.Load()
 }
 
 // Reset empties the queue and Releases all of the Entries.
@@ -80,7 +85,7 @@ func (q *queue) IsReadable() bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	return q.closed || q.dataList.Front() != nil
+	return q.closed.RacyLoad() || q.dataList.Front() != nil
 }
 
 // bufWritable returns true if there is space for writing.
@@ -98,7 +103,7 @@ func (q *queue) IsWritable() bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	return q.closed || q.bufWritable()
+	return q.closed.RacyLoad() || q.bufWritable()
 }
 
 // Enqueue adds an entry to the data queue if room is available.
@@ -115,7 +120,7 @@ func (q *queue) IsWritable() bool {
 func (q *queue) Enqueue(ctx context.Context, data [][]byte, c ControlMessages, from Address, discardEmpty bool, truncate bool) (l int64, notify bool, err *syserr.Error) {
 	q.mu.Lock()
 
-	if q.closed {
+	if q.closed.RacyLoad() {
 		q.mu.Unlock()
 		return 0, false, syserr.ErrClosedForSend
 	}
@@ -162,7 +167,7 @@ func (q *queue) Enqueue(ctx context.Context, data [][]byte, c ControlMessages, f
 		b = b[n:]
 	}
 
-	notify = q.dataList.Front() == nil
+	notify = true
 	q.used += l
 	q.dataList.PushBack(&message{
 		Data:    v,
@@ -184,7 +189,7 @@ func (q *queue) Dequeue() (e *message, notify bool, err *syserr.Error) {
 
 	if q.dataList.Front() == nil {
 		err := syserr.ErrWouldBlock
-		if q.closed {
+		if q.closed.RacyLoad() {
 			err = syserr.ErrClosedForReceive
 			if q.unread {
 				err = syserr.ErrConnectionReset
@@ -195,13 +200,11 @@ func (q *queue) Dequeue() (e *message, notify bool, err *syserr.Error) {
 		return nil, false, err
 	}
 
-	notify = !q.bufWritable()
-
 	e = q.dataList.Front()
 	q.dataList.Remove(e)
 	q.used -= e.Length()
 
-	notify = notify && q.bufWritable()
+	notify = q.bufWritable()
 
 	q.mu.Unlock()
 
@@ -215,7 +218,7 @@ func (q *queue) Peek() (*message, *syserr.Error) {
 
 	if q.dataList.Front() == nil {
 		err := syserr.ErrWouldBlock
-		if q.closed {
+		if q.closed.RacyLoad() {
 			if err = syserr.ErrClosedForReceive; q.unread {
 				err = syserr.ErrConnectionReset
 			}

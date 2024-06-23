@@ -28,12 +28,14 @@ import (
 // concurrency guards.
 //
 // See the tests in this package for example usage.
+//
+// +stateify savable
 type Endpoint struct {
 	child    stack.LinkEndpoint
 	embedder stack.NetworkDispatcher
 
 	// mu protects dispatcher.
-	mu         sync.RWMutex
+	mu         sync.RWMutex `state:"nosave"`
 	dispatcher stack.NetworkDispatcher
 }
 
@@ -51,7 +53,7 @@ func (e *Endpoint) Init(child stack.LinkEndpoint, embedder stack.NetworkDispatch
 }
 
 // DeliverNetworkPacket implements stack.NetworkDispatcher.
-func (e *Endpoint) DeliverNetworkPacket(protocol tcpip.NetworkProtocolNumber, pkt stack.PacketBufferPtr) {
+func (e *Endpoint) DeliverNetworkPacket(protocol tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) {
 	e.mu.RLock()
 	d := e.dispatcher
 	e.mu.RUnlock()
@@ -61,7 +63,7 @@ func (e *Endpoint) DeliverNetworkPacket(protocol tcpip.NetworkProtocolNumber, pk
 }
 
 // DeliverLinkPacket implements stack.NetworkDispatcher.
-func (e *Endpoint) DeliverLinkPacket(protocol tcpip.NetworkProtocolNumber, pkt stack.PacketBufferPtr) {
+func (e *Endpoint) DeliverLinkPacket(protocol tcpip.NetworkProtocolNumber, pkt *stack.PacketBuffer) {
 	e.mu.RLock()
 	d := e.dispatcher
 	e.mu.RUnlock()
@@ -112,6 +114,13 @@ func (e *Endpoint) LinkAddress() tcpip.LinkAddress {
 	return e.child.LinkAddress()
 }
 
+// SetLinkAddress implements stack.LinkEndpoint.SetLinkAddress.
+func (e *Endpoint) SetLinkAddress(addr tcpip.LinkAddress) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.child.SetLinkAddress(addr)
+}
+
 // WritePackets implements stack.LinkEndpoint.
 func (e *Endpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error) {
 	return e.child.WritePackets(pkts)
@@ -144,11 +153,16 @@ func (e *Endpoint) ARPHardwareType() header.ARPHardwareType {
 }
 
 // AddHeader implements stack.LinkEndpoint.AddHeader.
-func (e *Endpoint) AddHeader(pkt stack.PacketBufferPtr) {
+func (e *Endpoint) AddHeader(pkt *stack.PacketBuffer) {
 	e.child.AddHeader(pkt)
 }
 
 // ParseHeader implements stack.LinkEndpoint.ParseHeader.
-func (e *Endpoint) ParseHeader(pkt stack.PacketBufferPtr) bool {
+func (e *Endpoint) ParseHeader(pkt *stack.PacketBuffer) bool {
 	return e.child.ParseHeader(pkt)
+}
+
+// Close implements stack.LinkEndpoint.
+func (e *Endpoint) Close() {
+	e.child.Close()
 }

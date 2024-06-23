@@ -23,94 +23,61 @@ import (
 
 // Filters returns seccomp-bpf filters for this package.
 func Filters() seccomp.SyscallRules {
-	nonNegativeFD := seccomp.NonNegativeFDCheck()
-	return seccomp.SyscallRules{
-		unix.SYS_OPENAT: []seccomp.Rule{
-			{
-				// All paths that we openat() are absolute, so we pass a dirfd
-				// of -1 (which is invalid for relative paths, but ignored for
-				// absolute paths) to hedge against bugs involving AT_FDCWD or
-				// real dirfds.
-				seccomp.EqualTo(^uintptr(0)),
-				seccomp.MatchAny{},
-				seccomp.MaskedEqual(unix.O_CREAT|unix.O_NOFOLLOW, unix.O_NOFOLLOW),
-				seccomp.MatchAny{},
-			},
+	return seccomp.MakeSyscallRules(map[uintptr]seccomp.SyscallRule{
+		unix.SYS_OPENAT: seccomp.PerArg{
+			// All paths that we openat() are absolute, so we pass a dirfd
+			// of -1 (which is invalid for relative paths, but ignored for
+			// absolute paths) to hedge against bugs involving AT_FDCWD or
+			// real dirfds.
+			seccomp.EqualTo(^uintptr(0)),
+			seccomp.AnyValue{},
+			seccomp.MaskedEqual(unix.O_CREAT|unix.O_NOFOLLOW, unix.O_NOFOLLOW),
+			seccomp.AnyValue{},
 		},
-		unix.SYS_GETDENTS64: {},
-		unix.SYS_IOCTL: []seccomp.Rule{
-			{
-				nonNegativeFD,
+		unix.SYS_GETDENTS64: seccomp.MatchAll{},
+		unix.SYS_IOCTL: seccomp.Or{
+			seccomp.PerArg{
+				seccomp.NonNegativeFD{},
 				seccomp.EqualTo(gasket.GASKET_IOCTL_RESET),
 			},
-			{
-				nonNegativeFD,
-				seccomp.EqualTo(gasket.GASKET_IOCTL_SET_EVENTFD),
-			},
-			{
-				nonNegativeFD,
-				seccomp.EqualTo(gasket.GASKET_IOCTL_CLEAR_EVENTFD),
-			},
-			{
-				nonNegativeFD,
-				seccomp.EqualTo(gasket.GASKET_IOCTL_NUMBER_PAGE_TABLES),
-			},
-			{
-				nonNegativeFD,
-				seccomp.EqualTo(gasket.GASKET_IOCTL_PAGE_TABLE_SIZE),
-			},
-			{
-				nonNegativeFD,
-				seccomp.EqualTo(gasket.GASKET_IOCTL_SIMPLE_PAGE_TABLE_SIZE),
-			},
-			{
-				nonNegativeFD,
-				seccomp.EqualTo(gasket.GASKET_IOCTL_PARTITION_PAGE_TABLE),
-			},
-			{
-				nonNegativeFD,
+			seccomp.PerArg{
+				seccomp.NonNegativeFD{},
 				seccomp.EqualTo(gasket.GASKET_IOCTL_MAP_BUFFER),
 			},
-			{
-				nonNegativeFD,
+			seccomp.PerArg{
+				seccomp.NonNegativeFD{},
 				seccomp.EqualTo(gasket.GASKET_IOCTL_UNMAP_BUFFER),
 			},
-			{
-				nonNegativeFD,
+			seccomp.PerArg{
+				seccomp.NonNegativeFD{},
 				seccomp.EqualTo(gasket.GASKET_IOCTL_CLEAR_INTERRUPT_COUNTS),
 			},
-			{
-				nonNegativeFD,
+			seccomp.PerArg{
+				seccomp.NonNegativeFD{},
 				seccomp.EqualTo(gasket.GASKET_IOCTL_REGISTER_INTERRUPT),
 			},
-			{
-				nonNegativeFD,
+			seccomp.PerArg{
+				seccomp.NonNegativeFD{},
 				seccomp.EqualTo(gasket.GASKET_IOCTL_UNREGISTER_INTERRUPT),
 			},
-			{
-				nonNegativeFD,
-				seccomp.EqualTo(gasket.GASKET_IOCTL_MAP_DMA_BUF),
-			},
 		},
-		unix.SYS_EVENTFD2: []seccomp.Rule{
-			{
-				seccomp.MatchAny{},
+		unix.SYS_EVENTFD2: seccomp.Or{
+			seccomp.PerArg{
+				seccomp.AnyValue{},
 				seccomp.EqualTo(linux.EFD_NONBLOCK),
 			},
-			{
-				seccomp.MatchAny{},
+			seccomp.PerArg{
+				seccomp.AnyValue{},
 				seccomp.EqualTo(linux.EFD_NONBLOCK | linux.EFD_SEMAPHORE),
 			},
 		},
-		unix.SYS_MREMAP: []seccomp.Rule{
-			{
-				seccomp.MatchAny{},
-				seccomp.EqualTo(0), /* old_size */
-				seccomp.MatchAny{},
-				seccomp.EqualTo(linux.MREMAP_MAYMOVE | linux.MREMAP_FIXED),
-				seccomp.MatchAny{},
-				seccomp.EqualTo(0),
-			},
+		unix.SYS_MREMAP: seccomp.PerArg{
+			seccomp.AnyValue{},
+			seccomp.EqualTo(0), /* old_size */
+			seccomp.AnyValue{},
+			seccomp.EqualTo(linux.MREMAP_MAYMOVE | linux.MREMAP_FIXED),
+			seccomp.AnyValue{},
+			seccomp.EqualTo(0),
 		},
-	}
+	})
 }

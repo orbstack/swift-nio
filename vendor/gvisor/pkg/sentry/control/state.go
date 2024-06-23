@@ -16,10 +16,12 @@ package control
 
 import (
 	"errors"
+	"fmt"
 
 	"gvisor.dev/gvisor/pkg/abi/linux"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sentry/kernel"
+	"gvisor.dev/gvisor/pkg/sentry/pgalloc"
 	"gvisor.dev/gvisor/pkg/sentry/state"
 	"gvisor.dev/gvisor/pkg/sentry/watchdog"
 	"gvisor.dev/gvisor/pkg/urpc"
@@ -43,33 +45,70 @@ type SaveOpts struct {
 	// Metadata is the set of metadata to prepend to the state file.
 	Metadata map[string]string `json:"metadata"`
 
-	// FilePayload contains the destination for the state.
+	// MemoryFileSaveOpts is passed to calls to pgalloc.MemoryFile.SaveTo().
+	MemoryFileSaveOpts pgalloc.SaveOpts
+
+	// HavePagesFile indicates whether the pages file and its corresponding
+	// metadata file is provided.
+	HavePagesFile bool `json:"have_pages_file"`
+
+	// FilePayload contains the following:
+	// 1. checkpoint state file.
+	// 2. optional checkpoint pages metadata file.
+	// 3. optional checkpoint pages file.
 	urpc.FilePayload
+
+	// Resume indicates if the sandbox process should continue running
+	// after checkpointing.
+	Resume bool
 }
 
 // Save saves the running system.
 func (s *State) Save(o *SaveOpts, _ *struct{}) error {
-	// Create an output stream.
-	if len(o.FilePayload.Files) != 1 {
-		return ErrInvalidFiles
+	wantFiles := 1
+	if o.HavePagesFile {
+		wantFiles += 2
 	}
-	defer o.FilePayload.Files[0].Close()
+	if gotFiles := len(o.FilePayload.Files); gotFiles != wantFiles {
+		return fmt.Errorf("got %d files, wanted %d", gotFiles, wantFiles)
+	}
 
 	// Save to the first provided stream.
+	stateFile, err := o.ReleaseFD(0)
+	if err != nil {
+		return err
+	}
+	defer stateFile.Close()
 	saveOpts := state.SaveOpts{
-		Destination: o.FilePayload.Files[0],
-		Key:         o.Key,
-		Metadata:    o.Metadata,
+		Destination:        stateFile,
+		Key:                o.Key,
+		Metadata:           o.Metadata,
+		MemoryFileSaveOpts: o.MemoryFileSaveOpts,
 		Callback: func(err error) {
 			if err == nil {
 				log.Infof("Save succeeded: exiting...")
 				s.Kernel.SetSaveSuccess(false /* autosave */)
 			} else {
-				log.Warningf("Save failed: exiting...")
+				log.Warningf("Save failed: %v", err)
 				s.Kernel.SetSaveError(err)
 			}
-			s.Kernel.Kill(linux.WaitStatusExit(0))
+			if !o.Resume {
+				s.Kernel.Kill(linux.WaitStatusExit(0))
+			}
 		},
+	}
+	if o.HavePagesFile {
+		saveOpts.PagesMetadata, err = o.ReleaseFD(1)
+		if err != nil {
+			return err
+		}
+		defer saveOpts.PagesMetadata.Close()
+
+		saveOpts.PagesFile, err = o.ReleaseFD(2)
+		if err != nil {
+			return err
+		}
+		defer saveOpts.PagesFile.Close()
 	}
 	return saveOpts.Save(s.Kernel.SupervisorContext(), s.Kernel, s.Watchdog)
 }

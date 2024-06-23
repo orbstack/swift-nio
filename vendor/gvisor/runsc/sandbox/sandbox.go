@@ -24,6 +24,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -34,15 +35,20 @@ import (
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
+	"gvisor.dev/gvisor/pkg/abi/linux"
 	"gvisor.dev/gvisor/pkg/atomicbitops"
 	"gvisor.dev/gvisor/pkg/cleanup"
 	"gvisor.dev/gvisor/pkg/control/client"
 	"gvisor.dev/gvisor/pkg/control/server"
 	"gvisor.dev/gvisor/pkg/coverage"
+	"gvisor.dev/gvisor/pkg/fd"
 	"gvisor.dev/gvisor/pkg/log"
 	metricpb "gvisor.dev/gvisor/pkg/metric/metric_go_proto"
 	"gvisor.dev/gvisor/pkg/prometheus"
 	"gvisor.dev/gvisor/pkg/sentry/control"
+	"gvisor.dev/gvisor/pkg/sentry/devices/nvproxy"
+	"gvisor.dev/gvisor/pkg/sentry/fsimpl/erofs"
+	"gvisor.dev/gvisor/pkg/sentry/pgalloc"
 	"gvisor.dev/gvisor/pkg/sentry/platform"
 	"gvisor.dev/gvisor/pkg/sentry/seccheck"
 	"gvisor.dev/gvisor/pkg/state/statefile"
@@ -68,25 +74,23 @@ const (
 )
 
 // createControlSocket finds a location and creates the socket used to
-// communicate with the sandbox.
+// communicate with the sandbox. The socket is a UDS on the host filesystem.
+//
+// Note that abstract sockets are *not* used, because any user can connect to
+// them. There is no file mode protecting abstract sockets.
 func createControlSocket(rootDir, id string) (string, int, error) {
 	name := fmt.Sprintf("runsc-%s.sock", id)
 
 	// Only use absolute paths to guarantee resolution from anywhere.
-	var paths []string
 	for _, dir := range []string{rootDir, "/var/run", "/run", "/tmp"} {
-		paths = append(paths, filepath.Join(dir, name))
-	}
-	// If nothing else worked, use the abstract namespace.
-	paths = append(paths, fmt.Sprintf("\x00runsc-sandbox.%s", id))
-
-	for _, path := range paths {
+		path := filepath.Join(dir, name)
 		log.Debugf("Attempting to create socket file %q", path)
 		fd, err := server.CreateSocket(path)
 		if err == nil {
 			log.Debugf("Using socket file %q", path)
 			return path, fd, nil
 		}
+		log.Debugf("Failed to create socket file %q: %v", path, err)
 	}
 	return "", -1, fmt.Errorf("unable to find location to write socket file")
 }
@@ -176,8 +180,9 @@ type Sandbox struct {
 	// created.
 	MetricServerAddress string `json:"metricServerAddress"`
 
-	// ControlAddress is the uRPC address used to connect to the sandbox.
-	ControlAddress string `json:"control_address"`
+	// ControlSocketPath is the path to the sandbox's uRPC server socket.
+	// Connections to the sandbox are made through this.
+	ControlSocketPath string `json:"controlSocketPath"`
 
 	// MountHints provides extra information about container mounts that apply
 	// to the entire pod.
@@ -222,19 +227,22 @@ type Args struct {
 	// UserLog is the filename to send user-visible logs to. It may be empty.
 	UserLog string
 
-	// IOFiles is the list of files that connect to a gofer endpoint for the
-	// mounts points using Gofers. They must be in the same order as mounts
-	// appear in the spec.
+	// IOFiles is the list of image files and/or socket files that connect to
+	// a gofer endpoint for the mount points using Gofers. They must be in the
+	// same order as mounts appear in the spec.
 	IOFiles []*os.File
 
-	// OverlayFilestoreFiles are the regular files that will back the tmpfs upper
-	// mount in the overlay mounts.
-	OverlayFilestoreFiles []*os.File
+	// File that connects to a gofer endpoint for a device mount point at /dev.
+	DevIOFile *os.File
 
-	// OverlayMediums contains information about how the gofer mounts have been
-	// overlaid. The first entry is for rootfs and the following entries are for
-	// bind mounts in Spec.Mounts (in the same order).
-	OverlayMediums boot.OverlayMediumFlags
+	// GoferFilestoreFiles are the regular files that will back the overlayfs or
+	// tmpfs mount if a gofer mount is to be overlaid.
+	GoferFilestoreFiles []*os.File
+
+	// GoferMountConfs contains information about how the gofer mounts have been
+	// configured. The first entry is for rootfs and the following entries are
+	// for bind mounts in Spec.Mounts (in the same order).
+	GoferMountConfs boot.GoferMountConfFlags
 
 	// MountHints provides extra information about containers mounts that apply
 	// to the entire pod.
@@ -398,7 +406,7 @@ func (s *Sandbox) StartRoot(conf *config.Config) error {
 }
 
 // StartSubcontainer starts running a sub-container inside the sandbox.
-func (s *Sandbox) StartSubcontainer(spec *specs.Spec, conf *config.Config, cid string, stdios, goferFiles, overlayFilestoreFiles []*os.File, overlayMediums []boot.OverlayMedium) error {
+func (s *Sandbox) StartSubcontainer(spec *specs.Spec, conf *config.Config, cid string, stdios, goferFiles, goferFilestores []*os.File, devIOFile *os.File, goferConfs []boot.GoferMountConf) error {
 	log.Debugf("Start sub-container %q in sandbox %q, PID: %d", cid, s.ID, s.Pid.load())
 
 	if err := s.configureStdios(conf, stdios); err != nil {
@@ -408,22 +416,26 @@ func (s *Sandbox) StartSubcontainer(spec *specs.Spec, conf *config.Config, cid s
 
 	// The payload contains (in this specific order):
 	// * stdin/stdout/stderr (optional: only present when not using TTY)
-	// * The subcontainer's overlay filestore files (optional: only present when
-	//   host file backed overlay is configured)
+	// * The subcontainer's gofer filestore files (optional)
+	// * The subcontainer's dev gofer file (optional)
 	// * Gofer files.
 	payload := urpc.FilePayload{}
 	payload.Files = append(payload.Files, stdios...)
-	payload.Files = append(payload.Files, overlayFilestoreFiles...)
+	payload.Files = append(payload.Files, goferFilestores...)
+	if devIOFile != nil {
+		payload.Files = append(payload.Files, devIOFile)
+	}
 	payload.Files = append(payload.Files, goferFiles...)
 
 	// Start running the container.
 	args := boot.StartArgs{
-		Spec:                   spec,
-		Conf:                   conf,
-		CID:                    cid,
-		NumOverlayFilestoreFDs: len(overlayFilestoreFiles),
-		OverlayMediums:         overlayMediums,
-		FilePayload:            payload,
+		Spec:                 spec,
+		Conf:                 conf,
+		CID:                  cid,
+		NumGoferFilestoreFDs: len(goferFilestores),
+		IsDevIoFilePresent:   devIOFile != nil,
+		GoferMountConfs:      goferConfs,
+		FilePayload:          payload,
 	}
 	if err := s.call(boot.ContMgrStartSubcontainer, &args, nil); err != nil {
 		return fmt.Errorf("starting sub-container %v: %w", spec.Process.Args, err)
@@ -432,20 +444,47 @@ func (s *Sandbox) StartSubcontainer(spec *specs.Spec, conf *config.Config, cid s
 }
 
 // Restore sends the restore call for a container in the sandbox.
-func (s *Sandbox) Restore(conf *config.Config, cid string, filename string) error {
-	log.Debugf("Restore sandbox %q", s.ID)
+func (s *Sandbox) Restore(conf *config.Config, cid string, imagePath string, direct bool) error {
+	log.Debugf("Restore sandbox %q from path %q", s.ID, imagePath)
 
-	rf, err := os.Open(filename)
+	stateFileName := path.Join(imagePath, boot.CheckpointStateFileName)
+	sf, err := os.Open(stateFileName)
 	if err != nil {
-		return fmt.Errorf("opening restore file %q failed: %v", filename, err)
+		return fmt.Errorf("opening state file %q failed: %v", stateFileName, err)
 	}
-	defer rf.Close()
+	defer sf.Close()
 
 	opt := boot.RestoreOpts{
 		FilePayload: urpc.FilePayload{
-			Files: []*os.File{rf},
+			Files: []*os.File{sf},
 		},
-		SandboxID: s.ID,
+	}
+
+	// If the pages file exists, we must pass it in.
+	pagesFileName := path.Join(imagePath, boot.CheckpointPagesFileName)
+	pagesReadFlags := os.O_RDONLY
+	if direct {
+		// The contents are page-aligned, so it can be opened with O_DIRECT.
+		pagesReadFlags |= syscall.O_DIRECT
+	}
+	if pf, err := os.OpenFile(pagesFileName, pagesReadFlags, 0); err == nil {
+		defer pf.Close()
+		pagesMetadataFileName := path.Join(imagePath, boot.CheckpointPagesMetadataFileName)
+		pmf, err := os.Open(pagesMetadataFileName)
+		if err != nil {
+			return fmt.Errorf("opening restore image file %q failed: %v", pagesMetadataFileName, err)
+		}
+		defer pmf.Close()
+
+		opt.HavePagesFile = true
+		opt.FilePayload.Files = append(opt.FilePayload.Files, pmf, pf)
+		log.Infof("Found page files for sandbox %q. Page metadata: %q, pages: %q", s.ID, pagesMetadataFileName, pagesFileName)
+
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("opening restore pages file %q failed: %v", pagesFileName, err)
+
+	} else {
+		log.Infof("Using single checkpoint file for sandbox %q", s.ID)
 	}
 
 	// If the platform needs a device FD we must pass it in.
@@ -453,7 +492,8 @@ func (s *Sandbox) Restore(conf *config.Config, cid string, filename string) erro
 		return err
 	} else if deviceFile != nil {
 		defer deviceFile.Close()
-		opt.FilePayload.Files = append(opt.FilePayload.Files, deviceFile)
+		opt.HaveDeviceFile = true
+		opt.FilePayload.Files = append(opt.FilePayload.Files, deviceFile.ReleaseToFile("device file"))
 	}
 
 	conn, err := s.sandboxConnect()
@@ -472,6 +512,44 @@ func (s *Sandbox) Restore(conf *config.Config, cid string, filename string) erro
 		return fmt.Errorf("restoring container %q: %v", cid, err)
 	}
 
+	return nil
+}
+
+// RestoreSubcontainer sends the restore call for a sub-container in the sandbox.
+func (s *Sandbox) RestoreSubcontainer(spec *specs.Spec, conf *config.Config, cid string, stdios, goferFiles, goferFilestoreFiles []*os.File, devIOFile *os.File, goferMountConf []boot.GoferMountConf) error {
+	log.Debugf("Restore sub-container %q in sandbox %q, PID: %d", cid, s.ID, s.Pid.load())
+
+	if err := s.configureStdios(conf, stdios); err != nil {
+		return err
+	}
+	s.fixPidns(spec)
+
+	// The payload contains (in this specific order):
+	// * stdin/stdout/stderr (optional: only present when not using TTY)
+	// * The subcontainer's overlay filestore files (optional: only present when
+	//   host file backed overlay is configured)
+	// * Gofer files.
+	payload := urpc.FilePayload{}
+	payload.Files = append(payload.Files, stdios...)
+	payload.Files = append(payload.Files, goferFilestoreFiles...)
+	if devIOFile != nil {
+		payload.Files = append(payload.Files, devIOFile)
+	}
+	payload.Files = append(payload.Files, goferFiles...)
+
+	// Start running the container.
+	args := boot.StartArgs{
+		Spec:                 spec,
+		Conf:                 conf,
+		CID:                  cid,
+		NumGoferFilestoreFDs: len(goferFilestoreFiles),
+		IsDevIoFilePresent:   devIOFile != nil,
+		GoferMountConfs:      goferMountConf,
+		FilePayload:          payload,
+	}
+	if err := s.call(boot.ContMgrRestoreSubcontainer, &args, nil); err != nil {
+		return fmt.Errorf("starting sub-container %v: %w", spec.Process.Args, err)
+	}
 	return nil
 }
 
@@ -602,7 +680,19 @@ func (s *Sandbox) PortForward(opts *boot.PortForwardOpts) error {
 
 func (s *Sandbox) sandboxConnect() (*urpc.Client, error) {
 	log.Debugf("Connecting to sandbox %q", s.ID)
-	conn, err := client.ConnectTo(s.ControlAddress)
+	path := s.ControlSocketPath
+	if len(path) >= linux.UnixPathMax {
+		// This is not an abstract socket path. It is a filesystem path.
+		// UDS connect fails when the len(socket path) >= UNIX_PATH_MAX. Instead
+		// open the socket using open(2) and use /proc to refer to the open FD.
+		sockFD, err := unix.Open(path, unix.O_PATH, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open socket at %q", path)
+		}
+		defer unix.Close(sockFD)
+		path = filepath.Join("/proc/self/fd", fmt.Sprintf("%d", sockFD))
+	}
+	conn, err := client.ConnectTo(path)
 	if err != nil {
 		return nil, s.connError(err)
 	}
@@ -626,6 +716,11 @@ func (s *Sandbox) connError(err error) error {
 // createSandboxProcess starts the sandbox as a subprocess by running the "boot"
 // command, passing in the bundle dir.
 func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyncFile *os.File) error {
+	// Ensure we don't leak FDs to the sandbox process.
+	if err := SetCloExeOnAllFDs(); err != nil {
+		return fmt.Errorf("setting CLOEXEC on all FDs: %w", err)
+	}
+
 	donations := donation.Agency{}
 	defer donations.Close()
 
@@ -684,9 +779,6 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 			return err
 		}
 	}
-	if err := donations.DonateDebugLogFile("profiling-metrics-fd", conf.ProfilingMetricsLog, "metrics", test); err != nil {
-		return err
-	}
 
 	// Relay all the config flags to the sandbox process.
 	cmd := exec.Command(specutils.ExePath, conf.ToFlags()...)
@@ -717,7 +809,8 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 
 	// If there is a gofer, sends all socket ends to the sandbox.
 	donations.DonateAndClose("io-fds", args.IOFiles...)
-	donations.DonateAndClose("overlay-filestore-fds", args.OverlayFilestoreFiles...)
+	donations.DonateAndClose("dev-io-fd", args.DevIOFile)
+	donations.DonateAndClose("gofer-filestore-fds", args.GoferFilestoreFiles...)
 	donations.DonateAndClose("mounts-fd", args.MountsFile)
 	donations.Donate("start-sync-fd", startSyncFile)
 	if err := donations.OpenAndDonate("user-log-fd", args.UserLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND); err != nil {
@@ -740,16 +833,16 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 		return err
 	}
 
-	// Pass overlay mediums.
-	cmd.Args = append(cmd.Args, "--overlay-mediums="+args.OverlayMediums.String())
+	// Pass gofer mount configs.
+	cmd.Args = append(cmd.Args, "--gofer-mount-confs="+args.GoferMountConfs.String())
 
 	// Create a socket for the control server and donate it to the sandbox.
-	controlAddress, sockFD, err := createControlSocket(conf.RootDir, s.ID)
+	controlSocketPath, sockFD, err := createControlSocket(conf.RootDir, s.ID)
 	if err != nil {
-		return fmt.Errorf("creating control socket %q: %v", s.ControlAddress, err)
+		return fmt.Errorf("failed to create control socket: %v", err)
 	}
-	log.Infof("Control socket: %q", s.ControlAddress)
-	s.ControlAddress = controlAddress
+	s.ControlSocketPath = controlSocketPath
+	log.Infof("Control socket path: %q", s.ControlSocketPath)
 	donations.DonateAndClose("controller-fd", os.NewFile(uintptr(sockFD), "control_server_socket"))
 
 	specFile, err := specutils.OpenSpec(args.BundleDir)
@@ -763,6 +856,18 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 	}
 	donations.DonateAndClose("sink-fds", args.SinkFiles...)
 
+	if len(conf.TestOnlyAutosaveImagePath) != 0 {
+		files, err := createSaveFiles(conf.TestOnlyAutosaveImagePath, false, statefile.CompressionLevelFlateBestSpeed)
+		if err != nil {
+			return fmt.Errorf("failed to create auto save files: %w", err)
+		}
+		donations.DonateAndClose("save-fds", files...)
+	}
+
+	if err := createSandboxProcessExtra(conf, args, &donations); err != nil {
+		return err
+	}
+
 	gPlatform, err := platform.Lookup(conf.Platform)
 	if err != nil {
 		return fmt.Errorf("cannot look up platform: %w", err)
@@ -770,7 +875,7 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 	if deviceFile, err := gPlatform.OpenDevice(conf.PlatformDevicePath); err != nil {
 		return fmt.Errorf("opening device file for platform %q: %v", conf.Platform, err)
 	} else if deviceFile != nil {
-		donations.DonateAndClose("device-fd", deviceFile)
+		donations.DonateAndClose("device-fd", deviceFile.ReleaseToFile("device file"))
 	}
 
 	// TODO(b/151157106): syscall tests fail by timeout if asyncpreemptoff
@@ -799,6 +904,14 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 		log.Infof("Sandbox will be started in a new PID namespace")
 		nss = append(nss, specs.LinuxNamespace{Type: specs.PIDNamespace})
 		cmd.Args = append(cmd.Args, "--pidns=true")
+	}
+
+	if specutils.NVProxyEnabled(args.Spec, conf) {
+		version, err := getNvproxyDriverVersion(conf)
+		if err != nil {
+			return fmt.Errorf("failed to get Nvidia driver version: %w", err)
+		}
+		cmd.Args = append(cmd.Args, "--nvidia-driver-version="+version)
 	}
 
 	// Joins the network namespace if network is enabled. the sandbox talks
@@ -978,6 +1091,15 @@ func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyn
 	// Note: this must be done right after "cmd.SysProcAttr.Ctty" is set above
 	// because it relies on stdin being the next FD donated.
 	donations.Donate("stdio-fds", stdios[:]...)
+	if conf.ProfilingMetricsLog == "-" {
+		donations.Donate("profiling-metrics-fd", stdios[1])
+		cmd.Args = append(cmd.Args, "--profiling-metrics-fd-lossy=true")
+	} else if conf.ProfilingMetricsLog != "" {
+		if err := donations.DonateDebugLogFile("profiling-metrics-fd", conf.ProfilingMetricsLog, "metrics", test); err != nil {
+			return err
+		}
+		cmd.Args = append(cmd.Args, "--profiling-metrics-fd-lossy=false")
+	}
 
 	totalSysMem, err := totalSystemMemory()
 	if err != nil {
@@ -1154,10 +1276,10 @@ func (s *Sandbox) IsRootContainer(cid string) bool {
 // is idempotent.
 func (s *Sandbox) destroy() error {
 	log.Debugf("Destroying sandbox %q", s.ID)
-	// Only delete the control file if it exists and is not an abstract UDS.
-	if len(s.ControlAddress) > 0 && s.ControlAddress[0] != 0 {
-		if err := os.Remove(s.ControlAddress); err != nil {
-			log.Warningf("failed to delete control socket file %q: %v", s.ControlAddress, err)
+	// Only delete the control file if it exists.
+	if len(s.ControlSocketPath) > 0 {
+		if err := os.Remove(s.ControlSocketPath); err != nil {
+			log.Warningf("failed to delete control socket file %q: %v", s.ControlSocketPath, err)
 		}
 	}
 	pid := s.Pid.load()
@@ -1221,13 +1343,27 @@ func (s *Sandbox) SignalProcess(cid string, pid int32, sig unix.Signal, fgProces
 
 // Checkpoint sends the checkpoint call for a container in the sandbox.
 // The statefile will be written to f.
-func (s *Sandbox) Checkpoint(cid string, f *os.File, options statefile.Options) error {
-	log.Debugf("Checkpoint sandbox %q, options %+v", s.ID, options)
+func (s *Sandbox) Checkpoint(cid string, imagePath string, direct bool, sfOpts statefile.Options, mfOpts pgalloc.SaveOpts) error {
+	log.Debugf("Checkpoint sandbox %q, statefile options %+v, MemoryFile options %+v", s.ID, sfOpts, mfOpts)
+
+	files, err := createSaveFiles(imagePath, direct, sfOpts.Compression)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		for _, f := range files {
+			_ = f.Close()
+		}
+	}()
+
 	opt := control.SaveOpts{
-		Metadata: options.WriteToMetadata(map[string]string{}),
+		Metadata:           sfOpts.WriteToMetadata(map[string]string{}),
+		MemoryFileSaveOpts: mfOpts,
 		FilePayload: urpc.FilePayload{
-			Files: []*os.File{f},
+			Files: files,
 		},
+		HavePagesFile: len(files) > 1,
+		Resume:        sfOpts.Resume,
 	}
 
 	if err := s.call(boot.ContMgrCheckpoint, &opt, nil); err != nil {
@@ -1236,10 +1372,50 @@ func (s *Sandbox) Checkpoint(cid string, f *os.File, options statefile.Options) 
 	return nil
 }
 
+// createSaveFiles creates the files used by checkpoint to save the state. They are returned in
+// the following order: sentry state, page metadata, page file. This is the same order expected by
+// RPCs and argument passing to the sandbox.
+func createSaveFiles(path string, direct bool, compression statefile.CompressionLevel) ([]*os.File, error) {
+	var files []*os.File
+
+	stateFilePath := filepath.Join(path, boot.CheckpointStateFileName)
+	f, err := os.OpenFile(stateFilePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("creating checkpoint state file %q: %w", stateFilePath, err)
+	}
+	files = append(files, f)
+
+	// When there is no compression, MemoryFile contents are page-aligned.
+	// It is beneficial to store them separately so certain optimizations can be
+	// applied during restore. See Restore().
+	if compression == statefile.CompressionLevelNone {
+		pagesMetadataFilePath := filepath.Join(path, boot.CheckpointPagesMetadataFileName)
+		f, err = os.OpenFile(pagesMetadataFilePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("creating checkpoint pages metadata file %q: %w", pagesMetadataFilePath, err)
+		}
+		files = append(files, f)
+
+		pagesFilePath := filepath.Join(path, boot.CheckpointPagesFileName)
+		pagesWriteFlags := os.O_CREATE | os.O_EXCL | os.O_RDWR
+		if direct {
+			// The writes will be page-aligned, so it can be opened with O_DIRECT.
+			pagesWriteFlags |= syscall.O_DIRECT
+		}
+		f, err := os.OpenFile(pagesFilePath, pagesWriteFlags, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("creating checkpoint pages file %q: %w", pagesFilePath, err)
+		}
+		files = append(files, f)
+	}
+
+	return files, nil
+}
+
 // Pause sends the pause call for a container in the sandbox.
 func (s *Sandbox) Pause(cid string) error {
 	log.Debugf("Pause sandbox %q", s.ID)
-	if err := s.call(boot.LifecyclePause, nil, nil); err != nil {
+	if err := s.call(boot.ContMgrPause, nil, nil); err != nil {
 		return fmt.Errorf("pausing container %q: %w", cid, err)
 	}
 	return nil
@@ -1248,7 +1424,7 @@ func (s *Sandbox) Pause(cid string) error {
 // Resume sends the resume call for a container in the sandbox.
 func (s *Sandbox) Resume(cid string) error {
 	log.Debugf("Resume sandbox %q", s.ID)
-	if err := s.call(boot.LifecycleResume, nil, nil); err != nil {
+	if err := s.call(boot.ContMgrResume, nil, nil); err != nil {
 		return fmt.Errorf("resuming container %q: %w", cid, err)
 	}
 	return nil
@@ -1310,14 +1486,12 @@ func (s *Sandbox) ExportMetrics(opts control.MetricsExportOpts) (*prometheus.Sna
 // IsRunning returns true if the sandbox or gofer process is running.
 func (s *Sandbox) IsRunning() bool {
 	pid := s.Pid.load()
-	if pid != 0 {
-		// Send a signal 0 to the sandbox process.
-		if err := unix.Kill(pid, 0); err == nil {
-			// Succeeded, process is running.
-			return true
-		}
+	if pid == 0 {
+		return false
 	}
-	return false
+	// Send a signal 0 to the sandbox process. If it succeeds, the sandbox
+	// process is running.
+	return unix.Kill(pid, 0) == nil
 }
 
 // Stacks collects and returns all stacks for the sandbox.
@@ -1415,7 +1589,10 @@ func (s *Sandbox) destroyContainer(cid string) error {
 	return nil
 }
 
+// waitForStopped waits for the sandbox to actually stop.
+// This should only be called when the sandbox is known to be shutting down.
 func (s *Sandbox) waitForStopped() error {
+	const waitTimeout = 2 * time.Minute
 	if s.child {
 		s.statusMu.Lock()
 		defer s.statusMu.Unlock()
@@ -1431,8 +1608,7 @@ func (s *Sandbox) waitForStopped() error {
 		s.Pid.store(0)
 		return nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 	defer cancel()
 	b := backoff.WithContext(backoff.NewConstantBackOff(100*time.Millisecond), ctx)
 	op := func() error {
@@ -1471,7 +1647,7 @@ func (s *Sandbox) configureStdios(conf *config.Config, stdios []*os.File) error 
 // deviceFileForPlatform opens the device file for the given platform. If the
 // platform does not need a device file, then nil is returned.
 // devicePath may be empty to use a sane platform-specific default.
-func deviceFileForPlatform(name, devicePath string) (*os.File, error) {
+func deviceFileForPlatform(name, devicePath string) (*fd.FD, error) {
 	p, err := platform.Lookup(name)
 	if err != nil {
 		return nil, err
@@ -1482,6 +1658,21 @@ func deviceFileForPlatform(name, devicePath string) (*os.File, error) {
 		return nil, fmt.Errorf("opening device file for platform %q: %w", name, err)
 	}
 	return f, nil
+}
+
+// getNvproxyDriverVersion returns the NVIDIA driver ABI version to use by
+// nvproxy.
+func getNvproxyDriverVersion(conf *config.Config) (string, error) {
+	switch conf.NVProxyDriverVersion {
+	case "":
+		return nvproxy.HostDriverVersion()
+	case "latest":
+		nvproxy.Init()
+		return nvproxy.LatestDriver().String(), nil
+	default:
+		version, err := nvproxy.DriverVersionFrom(conf.NVProxyDriverVersion)
+		return version.String(), err
+	}
 }
 
 // checkBinaryPermissions verifies that the required binary bits are set on
@@ -1647,4 +1838,88 @@ func SetUserMappings(spec *specs.Spec, pid int) error {
 		return fmt.Errorf("newgidmap failed: %w", err)
 	}
 	return nil
+}
+
+// Mount mounts a filesystem in a container.
+func (s *Sandbox) Mount(cid, fstype, src, dest string) error {
+	var files []*os.File
+	switch fstype {
+	case erofs.Name:
+		if imageFile, err := os.Open(src); err != nil {
+			return fmt.Errorf("opening %s: %v", src, err)
+		} else {
+			files = append(files, imageFile)
+		}
+
+	default:
+		return fmt.Errorf("unsupported filesystem type: %v", fstype)
+	}
+
+	args := boot.MountArgs{
+		ContainerID: cid,
+		Source:      src,
+		Destination: dest,
+		FsType:      fstype,
+		FilePayload: urpc.FilePayload{Files: files},
+	}
+	return s.call(boot.ContMgrMount, &args, nil)
+}
+
+// ContainerRuntimeState returns the runtime state of a container.
+func (s *Sandbox) ContainerRuntimeState(cid string) (boot.ContainerRuntimeState, error) {
+	log.Debugf("ContainerRuntimeState, sandbox: %q, cid: %q", s.ID, cid)
+	var state boot.ContainerRuntimeState
+	if err := s.call(boot.ContMgrContainerRuntimeState, &cid, &state); err != nil {
+		return boot.RuntimeStateInvalid, fmt.Errorf("getting container state (CID: %q): %w", cid, err)
+	}
+	log.Debugf("ContainerRuntimeState, sandbox: %q, cid: %q, state: %v", s.ID, cid, state)
+	return state, nil
+}
+
+func setCloExeOnAllFDs() error {
+	f, err := os.Open("/proc/self/fd")
+	if err != nil {
+		return fmt.Errorf("failed to open /proc/self/fd: %w", err)
+
+	}
+	defer f.Close()
+	for {
+		dents, err := f.Readdirnames(256)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return fmt.Errorf("failed to read /proc/self/fd: %w", err)
+		}
+		for _, dent := range dents {
+			fd, err := strconv.Atoi(dent)
+			if err != nil {
+				return fmt.Errorf("failed to convert /proc/self/fd entry %q to int: %w", dent, err)
+			}
+			if fd == int(f.Fd()) {
+				continue
+			}
+			flags, _, errno := unix.RawSyscall(unix.SYS_FCNTL, uintptr(fd), unix.F_GETFD, 0)
+			if errno != 0 {
+				return fmt.Errorf("error getting descriptor flags: %w", errno)
+			}
+			if flags&unix.FD_CLOEXEC != 0 {
+				continue
+			}
+			flags |= unix.FD_CLOEXEC
+			if _, _, errno := unix.RawSyscall(unix.SYS_FCNTL, uintptr(fd), unix.F_SETFD, flags); errno != 0 {
+				return fmt.Errorf("error setting CLOEXEC: %w", errno)
+			}
+		}
+	}
+	return nil
+}
+
+var setCloseExecOnce sync.Once
+
+// SetCloExeOnAllFDs sets CLOEXEC on all FDs in /proc/self/fd. This avoids
+// leaking inherited FDs from the parent (caller) to subprocesses created.
+func SetCloExeOnAllFDs() (retErr error) {
+	// Sufficient to do this only once per runsc invocation. Avoid double work.
+	setCloseExecOnce.Do(func() { retErr = setCloExeOnAllFDs() })
+	return
 }

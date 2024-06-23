@@ -111,6 +111,9 @@ type StartContainerArgs struct {
 	// the root group if not set explicitly.
 	KGID auth.KGID `json:"KGID"`
 
+	// User is the user string used to retrieve UID/GID.
+	User string `json:"user"`
+
 	// ContainerID is the container for the process being executed.
 	ContainerID string `json:"container_id"`
 
@@ -198,9 +201,30 @@ func (l *Lifecycle) StartContainer(args *StartContainerArgs, _ *uint32) error {
 		return fmt.Errorf("FilePayload.Files and DonatedFDs must have same number of elements (%d != %d)", len(args.Files), len(args.DonatedFDs))
 	}
 
+	l.mu.RLock()
+	mntns, ok := l.MountNamespacesMap[args.ContainerID]
+	if !ok {
+		l.mu.RUnlock()
+		return fmt.Errorf("mount namespace is nil for %s", args.ContainerID)
+	}
+	l.mu.RUnlock()
+
+	uid := args.KUID
+	gid := args.KGID
+	if args.User != "" {
+		if uid != 0 || gid != 0 {
+			return fmt.Errorf("container spec specified both an explicit UID/GID and a user name, only one or the other may be provided")
+		}
+		var err error
+		uid, gid, err = user.GetExecUIDGIDFromUser(l.Kernel.SupervisorContext(), mntns, args.User)
+		if err != nil {
+			return fmt.Errorf("couldn't retrieve UID and GID for user %v, err: %v", args.User, err)
+		}
+	}
+
 	creds := auth.NewUserCredentials(
-		args.KUID,
-		args.KGID,
+		uid,
+		gid,
 		nil, /* extraKGIDs */
 		nil, /* capabilities */
 		l.Kernel.RootUserNamespace())
@@ -225,17 +249,16 @@ func (l *Lifecycle) StartContainer(args *StartContainerArgs, _ *uint32) error {
 		Filename: args.Filename,
 		Argv:     args.Argv,
 		// Order Envv before SecretEnvv.
-		Envv:                    append(args.Envv, args.SecretEnvv...),
-		WorkingDirectory:        args.WorkingDirectory,
-		Credentials:             creds,
-		Umask:                   0022,
-		Limits:                  ls,
-		MaxSymlinkTraversals:    linux.MaxSymlinkTraversals,
-		UTSNamespace:            l.Kernel.RootUTSNamespace(),
-		IPCNamespace:            l.Kernel.RootIPCNamespace(),
-		AbstractSocketNamespace: l.Kernel.RootAbstractSocketNamespace(),
-		ContainerID:             args.ContainerID,
-		PIDNamespace:            pidNs,
+		Envv:                 append(args.Envv, args.SecretEnvv...),
+		WorkingDirectory:     args.WorkingDirectory,
+		Credentials:          creds,
+		Umask:                0022,
+		Limits:               ls,
+		MaxSymlinkTraversals: linux.MaxSymlinkTraversals,
+		UTSNamespace:         l.Kernel.RootUTSNamespace(),
+		IPCNamespace:         l.Kernel.RootIPCNamespace(),
+		ContainerID:          args.ContainerID,
+		PIDNamespace:         pidNs,
 	}
 
 	ctx := initArgs.NewContext(l.Kernel)
@@ -256,19 +279,13 @@ func (l *Lifecycle) StartContainer(args *StartContainerArgs, _ *uint32) error {
 	for i, appFD := range args.DonatedFDs {
 		fdMap[appFD] = hostFDs[i]
 	}
-	if _, err := fdimport.Import(ctx, fdTable, false, args.KUID, args.KGID, fdMap); err != nil {
+	// Use ContainerID since containers don't have names here.
+	if _, err := fdimport.Import(ctx, fdTable, false, args.KUID, args.KGID, fdMap, initArgs.ContainerID); err != nil {
 		return fmt.Errorf("error importing host files: %w", err)
 	}
 	initArgs.FDTable = fdTable
 
-	l.mu.RLock()
-	mntns, ok := l.MountNamespacesMap[initArgs.ContainerID]
-	if !ok {
-		l.mu.RUnlock()
-		return fmt.Errorf("mount namespace is nil for %s", initArgs.ContainerID)
-	}
 	initArgs.MountNamespace = mntns
-	l.mu.RUnlock()
 	initArgs.MountNamespace.IncRef()
 
 	if args.ResolveBinaryPath {
@@ -370,18 +387,6 @@ func (l *Lifecycle) reap(containerID string, tg *kernel.ThreadGroup) {
 		ContainerId: containerID,
 		ExitStatus:  uint32(tg.ExitStatus()),
 	})
-}
-
-// Pause pauses all tasks, blocking until they are stopped.
-func (l *Lifecycle) Pause(_, _ *struct{}) error {
-	l.Kernel.Pause()
-	return nil
-}
-
-// Resume resumes all tasks.
-func (l *Lifecycle) Resume(_, _ *struct{}) error {
-	l.Kernel.Unpause()
-	return nil
 }
 
 // Shutdown sends signal to destroy the sentry/sandbox.

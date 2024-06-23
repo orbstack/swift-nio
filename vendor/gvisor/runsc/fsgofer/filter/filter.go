@@ -27,6 +27,7 @@ type Options struct {
 	UDSOpenEnabled   bool
 	UDSCreateEnabled bool
 	ProfileEnabled   bool
+	DirectFS         bool
 }
 
 // Install installs seccomp filters.
@@ -53,7 +54,12 @@ func Install(opt Options) error {
 	// when not enabled.
 	s.Merge(instrumentationFilters())
 
-	return seccomp.Install(s, seccomp.DenyNewExecMappings)
+	// When DirectFS is not enabled, filters for LisaFS are installed.
+	if !opt.DirectFS {
+		s.Merge(lisafsFilters)
+	}
+
+	return seccomp.Install(s, seccomp.DenyNewExecMappings, seccomp.DefaultProgramOptions())
 }
 
 // report writes a warning message to the log.

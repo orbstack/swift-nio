@@ -19,6 +19,14 @@ const (
 	RM_GSS_LEGACY_MASK = 0x00008000
 )
 
+// From src/nvidia/inc/kernel/rmapi/param_copy.h:
+const (
+	// RMAPI_PARAM_COPY_MAX_PARAMS_SIZE is the size limit imposed while copying
+	// "embedded pointers" in rmapi parameter structs.
+	// See src/nvidia/src/kernel/rmapi/param_copy.c:rmapiParamsAcquire().
+	RMAPI_PARAM_COPY_MAX_PARAMS_SIZE = 1 * 1024 * 1024
+)
+
 // From src/common/sdk/nvidia/inc/ctrl/ctrlxxxx.h:
 
 // +marshal
@@ -44,6 +52,8 @@ const (
 	NV0000_CTRL_CMD_GPU_GET_PCI_INFO      = 0x21b
 	NV0000_CTRL_CMD_GPU_QUERY_DRAIN_STATE = 0x279
 	NV0000_CTRL_CMD_GPU_GET_MEMOP_ENABLE  = 0x27b
+	NV0000_CTRL_CMD_GPU_ASYNC_ATTACH_ID   = 0x289
+	NV0000_CTRL_CMD_GPU_WAIT_ATTACH_ID    = 0x290
 )
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000syncgpuboost.h:
@@ -55,9 +65,100 @@ const (
 const (
 	NV0000_CTRL_CMD_SYSTEM_GET_BUILD_VERSION   = 0x101
 	NV0000_CTRL_CMD_SYSTEM_GET_P2P_CAPS        = 0x127
+	NV0000_CTRL_CMD_SYSTEM_GET_P2P_CAPS_V2     = 0x12b
 	NV0000_CTRL_CMD_SYSTEM_GET_FABRIC_STATUS   = 0x136
 	NV0000_CTRL_CMD_SYSTEM_GET_P2P_CAPS_MATRIX = 0x13a
+	NV0000_CTRL_CMD_SYSTEM_GET_FEATURES        = 0x1f0
 )
+
+// From src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000unix.h:
+const (
+	NV0000_CTRL_CMD_OS_UNIX_EXPORT_OBJECT_TO_FD    = 0x3d05
+	NV0000_CTRL_CMD_OS_UNIX_IMPORT_OBJECT_FROM_FD  = 0x3d06
+	NV0000_CTRL_CMD_OS_UNIX_GET_EXPORT_OBJECT_INFO = 0x3d08
+	NV0000_OS_UNIX_EXPORT_OBJECT_FD_BUFFER_SIZE    = 64
+)
+
+// +marshal
+type NV0000_CTRL_OS_UNIX_GET_EXPORT_OBJECT_INFO_PARAMS struct {
+	FD             int32
+	DeviceInstance uint32
+	MaxObjects     uint16
+	Pad            [2]byte
+	Metadata       [NV0000_OS_UNIX_EXPORT_OBJECT_FD_BUFFER_SIZE]uint8
+}
+
+// GetFrontendFD implements HasFrontendFD.GetFrontendFD.
+func (p *NV0000_CTRL_OS_UNIX_GET_EXPORT_OBJECT_INFO_PARAMS) GetFrontendFD() int32 {
+	return p.FD
+}
+
+// SetFrontendFD implements HasFrontendFD.SetFrontendFD.
+func (p *NV0000_CTRL_OS_UNIX_GET_EXPORT_OBJECT_INFO_PARAMS) SetFrontendFD(fd int32) {
+	p.FD = fd
+}
+
+// +marshal
+type NV0000_CTRL_OS_UNIX_GET_EXPORT_OBJECT_INFO_PARAMS_V545 struct {
+	FD             int32
+	DeviceInstance uint32
+	GpuInstanceID  uint32
+	MaxObjects     uint16
+	Pad            [2]byte
+	Metadata       [NV0000_OS_UNIX_EXPORT_OBJECT_FD_BUFFER_SIZE]uint8
+}
+
+// GetFrontendFD implements HasFrontendFD.GetFrontendFD.
+func (p *NV0000_CTRL_OS_UNIX_GET_EXPORT_OBJECT_INFO_PARAMS_V545) GetFrontendFD() int32 {
+	return p.FD
+}
+
+// SetFrontendFD implements HasFrontendFD.SetFrontendFD.
+func (p *NV0000_CTRL_OS_UNIX_GET_EXPORT_OBJECT_INFO_PARAMS_V545) SetFrontendFD(fd int32) {
+	p.FD = fd
+}
+
+// +marshal
+type NV0000_CTRL_OS_UNIX_EXPORT_OBJECT struct {
+	Type uint32 // enum NV0000_CTRL_OS_UNIX_EXPORT_OBJECT_TYPE
+	// These fields are inside union `data`, in struct `rmObject`.
+	HDevice Handle
+	HParent Handle
+	HObject Handle
+}
+
+// +marshal
+type NV0000_CTRL_OS_UNIX_EXPORT_OBJECT_TO_FD_PARAMS struct {
+	Object NV0000_CTRL_OS_UNIX_EXPORT_OBJECT
+	FD     int32
+	Flags  uint32
+}
+
+// GetFrontendFD implements HasFrontendFD.GetFrontendFD.
+func (p *NV0000_CTRL_OS_UNIX_EXPORT_OBJECT_TO_FD_PARAMS) GetFrontendFD() int32 {
+	return p.FD
+}
+
+// SetFrontendFD implements HasFrontendFD.SetFrontendFD.
+func (p *NV0000_CTRL_OS_UNIX_EXPORT_OBJECT_TO_FD_PARAMS) SetFrontendFD(fd int32) {
+	p.FD = fd
+}
+
+// +marshal
+type NV0000_CTRL_OS_UNIX_IMPORT_OBJECT_FROM_FD_PARAMS struct {
+	FD     int32
+	Object NV0000_CTRL_OS_UNIX_EXPORT_OBJECT
+}
+
+// GetFrontendFD implements HasFrontendFD.GetFrontendFD.
+func (p *NV0000_CTRL_OS_UNIX_IMPORT_OBJECT_FROM_FD_PARAMS) GetFrontendFD() int32 {
+	return p.FD
+}
+
+// SetFrontendFD implements HasFrontendFD.SetFrontendFD.
+func (p *NV0000_CTRL_OS_UNIX_IMPORT_OBJECT_FROM_FD_PARAMS) SetFrontendFD(fd int32) {
+	p.FD = fd
+}
 
 // +marshal
 type NV0000_CTRL_SYSTEM_GET_BUILD_VERSION_PARAMS struct {
@@ -68,6 +169,18 @@ type NV0000_CTRL_SYSTEM_GET_BUILD_VERSION_PARAMS struct {
 	PTitleBuffer             P64
 	ChangelistNumber         uint32
 	OfficialChangelistNumber uint32
+}
+
+// From src/common/sdk/nvidia/inc/ctrl/ctrl0041.h
+const (
+	NV0041_CTRL_CMD_GET_SURFACE_INFO = 0x410110
+)
+
+// +marshal
+type NV0041_CTRL_GET_SURFACE_INFO_PARAMS struct {
+	SurfaceInfoListSize uint32
+	Pad                 [4]byte
+	SurfaceInfoList     P64
 }
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080fb.h:
@@ -90,11 +203,19 @@ type NV0080_CTRL_FIFO_GET_CHANNELLIST_PARAMS struct {
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080gpu.h:
 const (
+	NV0080_CTRL_CMD_GPU_GET_CLASSLIST              = 0x800201
 	NV0080_CTRL_CMD_GPU_GET_NUM_SUBDEVICES         = 0x800280
 	NV0080_CTRL_CMD_GPU_QUERY_SW_STATE_PERSISTENCE = 0x800288
 	NV0080_CTRL_CMD_GPU_GET_VIRTUALIZATION_MODE    = 0x800289
 	NV0080_CTRL_CMD_GPU_GET_CLASSLIST_V2           = 0x800292
 )
+
+// +marshal
+type NV0080_CTRL_GPU_GET_CLASSLIST_PARAMS struct {
+	NumClasses uint32
+	Pad        [4]byte
+	ClassList  P64
+}
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080gr.h:
 
@@ -110,12 +231,18 @@ const (
 	NV0080_CTRL_CMD_HOST_GET_CAPS_V2 = 0x801402
 )
 
+// From src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080perf.h:
+const (
+	NV0080_CTRL_CMD_PERF_CUDA_LIMIT_SET_CONTROL = 0x801909
+)
+
 // From src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080bus.h:
 const (
 	NV2080_CTRL_CMD_BUS_GET_PCI_INFO                   = 0x20801801
 	NV2080_CTRL_CMD_BUS_GET_PCI_BAR_INFO               = 0x20801803
 	NV2080_CTRL_CMD_BUS_GET_INFO_V2                    = 0x20801823
 	NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS = 0x2080182a
+	NV2080_CTRL_CMD_BUS_GET_C2C_INFO                   = 0x2080182b
 )
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080ce.h:
@@ -133,6 +260,11 @@ const (
 	NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS = 0x2080110b
 
 	NV2080_CTRL_FIFO_DISABLE_CHANNELS_MAX_ENTRIES = 64
+)
+
+// From src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080flcn.h:
+const (
+	NV2080_CTRL_CMD_FLCN_GET_CTX_BUFFER_SIZE = 0x20803125
 )
 
 // +marshal
@@ -161,19 +293,22 @@ const (
 	NV2080_CTRL_CMD_GPU_GET_GID_INFO                     = 0x2080014a
 	NV2080_CTRL_CMD_GPU_GET_ENGINES_V2                   = 0x20800170
 	NV2080_CTRL_CMD_GPU_GET_ACTIVE_PARTITION_IDS         = 0x2080018b
+	NV2080_CTRL_CMD_GPU_GET_PIDS                         = 0x2080018d
+	NV2080_CTRL_CMD_GPU_GET_PID_INFO                     = 0x2080018e
 	NV2080_CTRL_CMD_GPU_GET_COMPUTE_POLICY_CONFIG        = 0x20800195
 	NV2080_CTRL_CMD_GET_GPU_FABRIC_PROBE_INFO            = 0x208001a3
 )
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080gr.h:
 const (
-	NV2080_CTRL_CMD_GR_GET_INFO                  = 0x20801201
-	NV2080_CTRL_CMD_GR_SET_CTXSW_PREEMPTION_MODE = 0x20801210
-	NV2080_CTRL_CMD_GR_GET_CTX_BUFFER_SIZE       = 0x20801218
-	NV2080_CTRL_CMD_GR_GET_GLOBAL_SM_ORDER       = 0x2080121b
-	NV2080_CTRL_CMD_GR_GET_CAPS_V2               = 0x20801227
-	NV2080_CTRL_CMD_GR_GET_GPC_MASK              = 0x2080122a
-	NV2080_CTRL_CMD_GR_GET_TPC_MASK              = 0x2080122b
+	NV2080_CTRL_CMD_GR_GET_INFO                   = 0x20801201
+	NV2080_CTRL_CMD_GR_SET_CTXSW_PREEMPTION_MODE  = 0x20801210
+	NV2080_CTRL_CMD_GR_GET_CTX_BUFFER_SIZE        = 0x20801218
+	NV2080_CTRL_CMD_GR_GET_GLOBAL_SM_ORDER        = 0x2080121b
+	NV2080_CTRL_CMD_GR_GET_CAPS_V2                = 0x20801227
+	NV2080_CTRL_CMD_GR_GET_GPC_MASK               = 0x2080122a
+	NV2080_CTRL_CMD_GR_GET_TPC_MASK               = 0x2080122b
+	NV2080_CTRL_CMD_GR_GET_SM_ISSUE_RATE_MODIFIER = 0x20801230
 )
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080gsp.h:
@@ -197,6 +332,7 @@ const (
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080nvlink.h:
 const (
+	NV2080_CTRL_CMD_NVLINK_GET_NVLINK_CAPS   = 0x20803001
 	NV2080_CTRL_CMD_NVLINK_GET_NVLINK_STATUS = 0x20803002
 )
 
@@ -224,6 +360,13 @@ const (
 	NV503C_CTRL_CMD_UNREGISTER_VIDMEM = 0x503c0105
 )
 
+// +marshal
+type NV503C_CTRL_REGISTER_VA_SPACE_PARAMS struct {
+	HVASpace     Handle
+	Pad          [4]byte
+	VASpaceToken uint64
+}
+
 // From src/common/sdk/nvidia/inc/ctrl/ctrl83de/ctrl83dedebug.h:
 const (
 	NV83DE_CTRL_CMD_DEBUG_SET_EXCEPTION_MASK        = 0x83de0309
@@ -237,6 +380,11 @@ const (
 	NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN = 0xc36f0108
 )
 
+// From src/common/sdk/nvidia/inc/ctrl/ctrlc56f.h:
+const (
+	NVC56F_CTRL_CMD_GET_KMB = 0xc56f010b
+)
+
 // From src/common/sdk/nvidia/inc/ctrl/ctrl906f.h:
 const (
 	NV906F_CTRL_CMD_RESET_CHANNEL = 0x906f0102
@@ -244,7 +392,6 @@ const (
 
 // From src/common/sdk/nvidia/inc/ctrl/ctrl90e6.h:
 const (
-	NV90E6_CTRL_CMD_MASTER_GET_ERROR_INTR_OFFSET_MASK                = 0x90e60101
 	NV90E6_CTRL_CMD_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK = 0x90e60102
 )
 
@@ -253,4 +400,16 @@ const (
 	NVA06C_CTRL_CMD_GPFIFO_SCHEDULE = 0xa06c0101
 	NVA06C_CTRL_CMD_SET_TIMESLICE   = 0xa06c0103
 	NVA06C_CTRL_CMD_PREEMPT         = 0xa06c0105
+)
+
+// From src/common/sdk/nvidia/inc/ctrl/ctrla06f/ctrla06fgpfifo.h:
+const (
+	NVA06F_CTRL_CMD_GPFIFO_SCHEDULE = 0xa06f0103
+)
+
+// From src/common/sdk/nvidia/inc/ctrl/ctrlcb33.h:
+const (
+	NV_CONF_COMPUTE_CTRL_CMD_SYSTEM_GET_CAPABILITIES     = 0xcb330101
+	NV_CONF_COMPUTE_CTRL_CMD_SYSTEM_GET_GPUS_STATE       = 0xcb330104
+	NV_CONF_COMPUTE_CTRL_CMD_GPU_GET_NUM_SECURE_CHANNELS = 0xcb33010b
 )

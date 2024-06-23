@@ -460,7 +460,10 @@ func (s *Server) StartHandling(client *unet.Socket) {
 // will be closed after completing any pending RPCs. This method will block
 // until all clients have disconnected.
 //
-// timeout is the time for clients to complete ongoing RPCs.
+// timeout is the time for clients to complete pending RPCs. After timeout
+// expires, all clients are drained (i.e. their ongoing RPC is allowed to
+// complete) and closed. Any new RPCs will not be processed. Note that ongoing
+// RPCs are *not* interrupted or cancelled.
 func (s *Server) Stop(timeout time.Duration) {
 	// Call any Stop callbacks.
 	for _, stopper := range s.stoppers {
@@ -569,7 +572,7 @@ func marshal(s *unet.Socket, v any, fs []*os.File) error {
 	return nil
 }
 
-// unmarhsal receives an FD (optional) and unmarshals the given struct.
+// unmarshal receives an FD (optional) and unmarshals the given struct.
 func unmarshal(s *unet.Socket, v any) ([]*os.File, error) {
 	// Receive a single byte.
 	r := s.Reader(true)
@@ -597,7 +600,7 @@ func unmarshal(s *unet.Socket, v any) ([]*os.File, error) {
 	// instead of the default float type for those intermediate values, such
 	// that when they get re-encoded, their values are not printed out in
 	// floating-point formats such as 1e9, which could not be decoded to
-	// explicitly typed intergers later.
+	// explicitly typed integers later.
 	d.UseNumber()
 	if err := d.Decode(v); err != nil {
 		log.Warningf("urpc: error decoding: %s", err.Error())
