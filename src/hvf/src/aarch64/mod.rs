@@ -100,7 +100,12 @@ macro_rules! arm64_sys_reg {
 
 arm64_sys_reg!(SYSREG_MASK, 0x3, 0x7, 0x7, 0xf, 0xf);
 
-static HVF_OPTIONAL: Lazy<Option<Container<HvfOptional>>> =
+// macOS 12+ APIs
+static OPTIONAL12: Lazy<Option<Container<HvfOptional12>>> =
+    Lazy::new(|| unsafe { Container::load_self() }.ok());
+
+// macOS 15+ APIs
+static OPTIONAL15: Lazy<Option<Container<HvfOptional15>>> =
     Lazy::new(|| unsafe { Container::load_self() }.ok());
 
 #[derive(thiserror::Error, Debug, FromPrimitive)]
@@ -258,13 +263,29 @@ pub trait Parkable: Send + Sync {
 }
 
 #[derive(WrapperApi)]
-struct HvfOptional {
+struct HvfOptional12 {
     hv_vm_config_create: unsafe extern "C" fn() -> hv_vm_config_t,
     hv_vm_config_get_max_ipa_size: unsafe extern "C" fn(ipa_bit_length: *mut u32) -> hv_return_t,
     hv_vm_config_get_default_ipa_size:
         unsafe extern "C" fn(ipa_bit_length: *mut u32) -> hv_return_t,
     hv_vm_config_set_ipa_size:
         unsafe extern "C" fn(config: hv_vm_config_t, ipa_bit_length: u32) -> hv_return_t,
+}
+
+#[derive(WrapperApi)]
+struct HvfOptional15 {
+    hv_gic_config_create: unsafe extern "C" fn() -> hv_gic_config_t,
+    hv_gic_get_distributor_size: unsafe extern "C" fn(distributor_size: *mut usize) -> hv_return_t,
+    hv_gic_get_redistributor_region_size:
+        unsafe extern "C" fn(redistributor_region_size: *mut usize) -> hv_return_t,
+    hv_gic_config_set_distributor_base: unsafe extern "C" fn(
+        config: hv_gic_config_t,
+        distributor_base_address: hv_ipa_t,
+    ) -> hv_return_t,
+    hv_gic_config_set_redistributor_base: unsafe extern "C" fn(
+        config: hv_gic_config_t,
+        redistributor_base_address: hv_ipa_t,
+    ) -> hv_return_t,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -337,15 +358,117 @@ impl GICDevice for FdtGic {
     }
 }
 
+macro_rules! call_optional {
+    ($optional: expr, $method: ident, $($args: expr),*) => {
+        $optional.as_ref().unwrap().$method($($args),*)
+    };
+}
+
+struct VmConfig {
+    ptr: hv_vm_config_t,
+}
+
+impl VmConfig {
+    fn new() -> Option<Self> {
+        if let Some(hvf_optional) = OPTIONAL12.as_ref() {
+            let ptr = unsafe { hvf_optional.hv_vm_config_create() };
+            Some(Self { ptr })
+        } else {
+            None
+        }
+    }
+
+    fn set_ipa_size(&self, ipa_bits: u32) -> Result<(), Error> {
+        let ret =
+            unsafe { call_optional!(OPTIONAL12, hv_vm_config_set_ipa_size, self.ptr, ipa_bits) };
+        HvfError::result(ret).map_err(Error::VmConfigSetIpaSize)
+    }
+
+    fn ptr(&self) -> hv_vm_config_t {
+        self.ptr
+    }
+}
+
+impl Drop for VmConfig {
+    fn drop(&mut self) {
+        unsafe { os_release(self.ptr as *mut c_void) };
+    }
+}
+
+struct GicConfig {
+    ptr: hv_gic_config_t,
+}
+
+impl GicConfig {
+    fn new() -> Option<Self> {
+        if !USE_HVF_GIC {
+            return None;
+        }
+
+        if let Some(hvf_optional) = OPTIONAL15.as_ref() {
+            let ptr = unsafe { hvf_optional.hv_gic_config_create() };
+            Some(Self { ptr })
+        } else {
+            // TODO: fail with None when macOS 15 is stable
+            // this is a loud failure for testing
+            panic!("GIC API not available");
+        }
+    }
+
+    fn get_distributor_size() -> Result<usize, Error> {
+        let mut dist_size: usize = 0;
+        let ret =
+            unsafe { call_optional!(OPTIONAL15, hv_gic_get_distributor_size, &mut dist_size) };
+        HvfError::result(ret).map_err(Error::GicGetDistributorSize)?;
+        Ok(dist_size)
+    }
+
+    fn get_redistributor_region_size() -> Result<usize, Error> {
+        let mut redist_total_size: usize = 0;
+        let ret = unsafe {
+            call_optional!(
+                OPTIONAL15,
+                hv_gic_get_redistributor_region_size,
+                &mut redist_total_size
+            )
+        };
+        HvfError::result(ret).map_err(Error::GicGetRedistributorSize)?;
+        Ok(redist_total_size)
+    }
+
+    fn set_distributor_base(&self, dist_base: u64) -> Result<(), Error> {
+        let ret = unsafe {
+            call_optional!(
+                OPTIONAL15,
+                hv_gic_config_set_distributor_base,
+                self.ptr,
+                dist_base
+            )
+        };
+        HvfError::result(ret).map_err(Error::GicConfigSetDistributorBase)
+    }
+
+    fn set_redistributor_base(&self, redist_base: u64) -> Result<(), Error> {
+        let ret = unsafe {
+            call_optional!(
+                OPTIONAL15,
+                hv_gic_config_set_redistributor_base,
+                self.ptr,
+                redist_base
+            )
+        };
+        HvfError::result(ret).map_err(Error::GicConfigSetRedistributorBase)
+    }
+
+    fn create_gic(&self) -> Result<(), Error> {
+        let ret = unsafe { hv_gic_create(self.ptr) };
+        HvfError::result(ret).map_err(Error::GicCreate)
+    }
+}
+
 impl HvfVm {
     pub fn new(guest_mem: &GuestMemoryMmap, vcpu_count: u8) -> Result<Self, Error> {
-        // safe: infallible
-        let config = if let Some(hvf_optional) = HVF_OPTIONAL.as_ref() {
-            unsafe { hvf_optional.hv_vm_config_create() }
-        } else {
-            std::ptr::null_mut()
-        };
-        // TODO: scopeguard os_release
+        let config = VmConfig::new();
 
         // how many IPA bits do we need? check highest guest mem address
         let ipa_bits = guest_mem.last_addr().raw_value().ilog2() + 1;
@@ -355,61 +478,49 @@ impl HvfVm {
             if ipa_bits > Self::get_max_ipa_size()? {
                 return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
             }
+            let Some(config) = config.as_ref() else {
+                return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
+            };
 
             // it's supported. set it
-            let ret = unsafe {
-                HVF_OPTIONAL
-                    .as_ref()
-                    .unwrap()
-                    .hv_vm_config_set_ipa_size(config, ipa_bits)
-            };
-            HvfError::result(ret).map_err(Error::VmConfigSetIpaSize)?;
+            config.set_ipa_size(ipa_bits)?;
         }
 
-        let (gic_config, gic_props) = if USE_HVF_GIC {
-            let gic_config = unsafe { hv_gic_config_create() };
-            if gic_config.is_null() {
-                return Err(Error::GicConfigCreate);
-            }
-
-            let mut dist_size: usize = 0;
-            let ret = unsafe { hv_gic_get_distributor_size(&mut dist_size) };
-            HvfError::result(ret).map_err(Error::GicGetDistributorSize)?;
-
-            let mut redist_total_size: usize = 0;
-            let ret = unsafe { hv_gic_get_redistributor_region_size(&mut redist_total_size) };
-            HvfError::result(ret).map_err(Error::GicGetRedistributorSize)?;
+        let gic_config = GicConfig::new();
+        let gic_props = if let Some(gic_config) = gic_config.as_ref() {
+            let dist_size = GicConfig::get_distributor_size()?;
+            let redist_total_size = GicConfig::get_redistributor_region_size()?;
 
             let dist_base = layout::MAPPED_IO_START - dist_size as u64;
-            let ret = unsafe { hv_gic_config_set_distributor_base(gic_config, dist_base) };
-            HvfError::result(ret).map_err(Error::GicConfigSetDistributorBase)?;
+            gic_config.set_distributor_base(dist_base)?;
 
             let redist_base = dist_base - redist_total_size as u64;
-            let ret = unsafe { hv_gic_config_set_redistributor_base(gic_config, redist_base) };
-            HvfError::result(ret).map_err(Error::GicConfigSetRedistributorBase)?;
+            gic_config.set_redistributor_base(redist_base)?;
 
-            (
-                gic_config,
-                Some(GicProps {
-                    dist_base,
-                    dist_size: dist_size as u64,
-                    redist_base,
-                    redist_total_size: redist_total_size as u64,
-                    vcpu_count: vcpu_count as u64,
-                }),
-            )
+            Some(GicProps {
+                dist_base,
+                dist_size: dist_size as u64,
+                redist_base,
+                redist_total_size: redist_total_size as u64,
+                vcpu_count: vcpu_count as u64,
+            })
         } else {
-            (std::ptr::null_mut(), None)
+            None
         };
 
-        let ret = unsafe { hv_vm_create(config) };
+        let ret = unsafe {
+            hv_vm_create(
+                config
+                    .as_ref()
+                    .map(|c| c.ptr())
+                    .unwrap_or(std::ptr::null_mut()),
+            )
+        };
         HvfError::result(ret).map_err(Error::VmCreate)?;
 
         // GIC must be created after VM
-        if !gic_config.is_null() {
-            let ret = unsafe { hv_gic_create(gic_config) };
-            HvfError::result(ret).map_err(Error::GicCreate)?;
-            unsafe { os_release(gic_config as *mut c_void) };
+        if let Some(gic_config) = gic_config {
+            gic_config.create_gic()?;
         }
 
         Ok(Self { gic_props })
@@ -463,7 +574,7 @@ impl HvfVm {
     }
 
     fn get_default_ipa_size() -> Result<u32, Error> {
-        if let Some(hvf_optional) = HVF_OPTIONAL.as_ref() {
+        if let Some(hvf_optional) = OPTIONAL12.as_ref() {
             let mut ipa_bit_length: u32 = 0;
             let ret =
                 unsafe { hvf_optional.hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
@@ -475,7 +586,7 @@ impl HvfVm {
     }
 
     fn get_max_ipa_size() -> Result<u32, Error> {
-        if let Some(hvf_optional) = HVF_OPTIONAL.as_ref() {
+        if let Some(hvf_optional) = OPTIONAL12.as_ref() {
             let mut ipa_bit_length: u32 = 0;
             let ret = unsafe { hvf_optional.hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
             HvfError::result(ret).map_err(Error::VmConfigGetMaxIpaSize)?;
