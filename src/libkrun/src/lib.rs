@@ -337,7 +337,7 @@ impl Machine {
                 event_manager.run();
 
                 drop(counter_display);
-                tracing::info!("VM successfully torn-down.");
+                tracing::info!("VM stopped");
                 unsafe { rsvm_go_on_state_change(MACHINE_STATE_STOPPED) };
             })?;
 
