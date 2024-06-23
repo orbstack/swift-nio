@@ -380,6 +380,11 @@ fn listxattr(c_path: &CStr) -> nix::Result<Vec<u8>> {
     }
 }
 
+fn ebadf(nodeid: NodeId) -> io::Error {
+    error!("node not found: {}", nodeid);
+    Errno::EBADF.into()
+}
+
 /// The caching policy that the file system should report to the FUSE client. By default the FUSE
 /// protocol uses close-to-open consistency. This means that any cached contents of the file are
 /// invalidated the next time that file is opened.
@@ -631,7 +636,7 @@ impl PassthroughFs {
         nodeid: NodeId,
     ) -> io::Result<(DevIno, NodeFlags, Option<Arc<OwnedFd>>)> {
         // race OK: primary key lookup only
-        let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
+        let node = self.nodeids.get(&nodeid).ok_or_else(|| ebadf(nodeid))?;
         node.check_io(ctx)?;
         Ok((node.dev_ino, node.flags, node.fd.clone()))
     }
@@ -1349,7 +1354,7 @@ impl PassthroughFs {
         //   - stale dev/ino is not possible if accessing by new name
         //   - if linux renamed it, we'll update the name
         // TODO: this breaks down with hard links. fix by storing SmallVec of links ((parent,name)) in NodeData
-        let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
+        let node = self.nodeids.get(&nodeid).ok_or_else(|| ebadf(nodeid))?;
         let old_devino = node.dev_ino;
         let parent = node.parent_nodeid.ok_or(Errno::ENOENT)?.get().into();
         // prevent deadlock with get_mut later, and with with_nodeid_refresh
@@ -1361,7 +1366,7 @@ impl PassthroughFs {
             // this is inefficient, but we need to get *another* read lock
             // can't get write lock yet: it could deadlock with name_to_path's read lock for parent (if same shard)
             // doesn't matter -- this path is an uncommon error recovery case
-            let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
+            let node = self.nodeids.get(&nodeid).ok_or_else(|| ebadf(nodeid))?;
             node.check_io(ctx)?;
             let path_in_parent = self.name_to_path(ctx, parent, &node.name)?;
             // we'll have to re-acquire the node ref later to get a write lock, so drop it to avoid doing I/O (lstat) with the lock held
@@ -1388,7 +1393,7 @@ impl PassthroughFs {
 
             // if another thread is racing on the same path, that's OK: it should get the same dev/ino result
             debug!(?new_devino, "refresh_nodeid: updating dev/ino");
-            let mut node = self.nodeids.get_mut(&nodeid).ok_or(Errno::EBADF)?;
+            let mut node = self.nodeids.get_mut(&nodeid).ok_or_else(|| ebadf(nodeid))?;
             // no check_io: same node as above, and no IO after this point
             // update dev/ino used for deleting from alt map
             // no one else can read it right now
@@ -1705,7 +1710,7 @@ impl FileSystem for PassthroughFs {
         );
 
         // race OK: FUSE won't FORGET until all handles are closed
-        let node = self.nodeids.get(&nodeid).ok_or(Errno::EBADF)?;
+        let node = self.nodeids.get(&nodeid).ok_or_else(|| ebadf(nodeid))?;
         node.check_io(&ctx)?;
         let parent_flags = node.flags;
         let nlink = node.nlink;
