@@ -673,12 +673,12 @@ func runVmManager() {
 	kernelPath := conf.GetAssetFile("kernel")
 	if conf.Debug() && os.Getenv("ORB_KERNEL") != "" {
 		kernelPath = os.Getenv("ORB_KERNEL")
-	} 
+	}
 
 	logrus.Debug("configuring VM")
 	healthCheckCh := make(chan struct{}, 1)
 	shutdownWg := &sync.WaitGroup{}
-	vnetwork, vm := CreateVm(monitor, &VmParams{
+	vnetwork, vm, err := CreateVm(monitor, &VmParams{
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
 		Memory: vmconfig.Get().MemoryMiB,
@@ -705,6 +705,7 @@ func runVmManager() {
 		StopCh:        stopCh,
 		HealthCheckCh: healthCheckCh,
 	}, shutdownWg)
+	check(err)
 	defer vnetwork.Close()
 	if monitor != rsvm.Monitor {
 		defer runOne("flush disk", flushDisk)

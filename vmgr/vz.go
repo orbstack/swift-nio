@@ -140,7 +140,7 @@ func RunRinitVm() (*RinitData, error) {
 	return &RinitData{Data: data}, nil
 }
 
-func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup) (*vnet.Network, vmm.Machine) {
+func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup) (*vnet.Network, vmm.Machine, error) {
 	cmdline := []string{
 		// boot
 		"init=/opt/orb/vinit",
@@ -213,18 +213,24 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		// follow symlinks (no lstat). safe because it's guaranteed to be unmounted,
 		// and FUSE server never follows symlinks -- every lookup returns symlinks
 		dirStat, err := os.Stat(dirPath)
-		check(err)
+		if err != nil {
+			return nil, nil, err
+		}
 		dirStatSys := dirStat.Sys().(*syscall.Stat_t)
 
 		// same for parent. needed to handle lookup case (with no preceding readdir)
 		parentDirPath := filepath.Dir(coredir.NfsMountpoint())
 		parentDirStat, err := os.Stat(parentDirPath)
-		check(err)
+		if err != nil {
+			return nil, nil, err
+		}
 		parentDirStatSys := parentDirStat.Sys().(*syscall.Stat_t)
 
 		// also stat /var/empty
 		emptyDirStat, err := os.Stat("/var/empty")
-		check(err)
+		if err != nil {
+			return nil, nil, err
+		}
 		emptyDirStatSys := emptyDirStat.Sys().(*syscall.Stat_t)
 
 		spec.NfsInfo = &vmm.NfsInfo{
@@ -248,9 +254,13 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 			conWrite = os.Stdout
 		case ConsoleLog:
 			conRead, err = os.Open("/dev/null")
-			check(err)
+			if err != nil {
+				return nil, nil, err
+			}
 			conWrite, err = NewConsoleLogPipe(params.StopCh, params.HealthCheckCh, shutdownWg)
-			check(err)
+			if err != nil {
+				return nil, nil, fmt.Errorf("new console log pipe: %w", err)
+			}
 		}
 
 		spec.Console = &vmm.ConsoleSpec{
@@ -270,7 +280,9 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 			LinkMTU:      uint32(mtu),
 			WantsVnetHdr: monitor.NetworkWantsVnetHdrV1(),
 		})
-		check(err)
+		if err != nil {
+			return nil, nil, fmt.Errorf("start vnet: %w", err)
+		}
 		vnetwork = newNetwork
 
 		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(gvnetFile)))
@@ -280,7 +292,9 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 	for i := 0; i < params.NetworkHostBridges; i++ {
 		// host bridges are only reserved, not
 		file0, fd1, err := vnet.NewUnixgramPair()
-		check(err)
+		if err != nil {
+			return nil, nil, fmt.Errorf("new unixgram pair: %w", err)
+		}
 
 		// use util.GetFd to preserve nonblock
 		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(file0)))
@@ -288,7 +302,9 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 
 		// keep fd1 for bridge management
 		err = vnetwork.AddHostBridgeFd(fd1)
-		check(err)
+		if err != nil {
+			return nil, nil, fmt.Errorf("add host bridge fd: %w", err)
+		}
 	}
 	if params.NetworkPairFile != nil {
 		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(params.NetworkPairFile)))
@@ -298,13 +314,18 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 	// install Rosetta
 	if params.Rosetta {
 		rosettaStatus, err := vzf.SwextInstallRosetta()
-		check(err)
+		if err != nil {
+			return nil, nil, fmt.Errorf("install rosetta: %w", err)
+		}
+
 		if rosettaStatus != vzf.RosettaStatusInstalled {
 			logrus.Info("Rosetta not supported or install canceled; saving preference")
 			err := vmconfig.Update(func(c *vmconfig.VmConfig) {
 				c.Rosetta = false
 			})
-			check(err)
+			if err != nil {
+				return nil, nil, fmt.Errorf("save rosetta preference: %w", err)
+			}
 
 			params.Rosetta = false
 			spec.Rosetta = false
@@ -314,7 +335,9 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 	// must retain files or they get closed by Go finalizer!
 	// causes flaky console
 	vm, err := monitor.NewMachine(&spec, retainFiles)
-	check(err)
+	if err != nil {
+		return nil, nil, fmt.Errorf("new machine: %w", err)
+	}
 
 	if params.Rosetta {
 		// if it's not VZF, we need to get rinit data from VZF
@@ -343,5 +366,5 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		}
 	}
 
-	return vnetwork, vm
+	return vnetwork, vm, nil
 }
