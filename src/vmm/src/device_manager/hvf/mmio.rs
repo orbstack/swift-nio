@@ -6,6 +6,7 @@
 // found in the THIRD-PARTY file.
 
 use std::collections::HashMap;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::{fmt, io};
 use utils::Mutex;
@@ -92,6 +93,60 @@ impl MMIODeviceManager {
         }
     }
 
+    pub fn register_mmio_device_mq(
+        &mut self,
+        mmio_device: devices::virtio::MmioTransport,
+        type_id: u32,
+        device_id: String,
+        allocate_mq: bool,
+    ) -> Result<(u64, u32)> {
+        // Setup queue delivery signals
+        let queue_signals = mmio_device.locked_device().queue_signals();
+        mmio_device.register_queue_signals(queue_signals);
+
+        // Setup primary IRQ
+        let irq_base = self.irq;
+        if self.irq > self.last_irq {
+            return Err(Error::IrqsExhausted);
+        }
+
+        mmio_device.locked_device().set_irq_line(self.irq);
+        self.irq += 1;
+
+        // Setup multi-queue IRQs
+        if allocate_mq {
+            let mut device = mmio_device.locked_device();
+            let queue_count = device.queues().len() as u32;
+
+            if self.irq + queue_count > self.last_irq {
+                return Err(Error::IrqsExhausted);
+            }
+
+            let first_irq = self.irq;
+            self.irq += queue_count;
+            device.set_irq_line_mq(first_irq..self.irq);
+        }
+
+        // Setup MMIO
+        let mmio_base = self.mmio_base;
+        self.bus
+            .insert(mmio_device, mmio_base, MMIO_LEN)
+            .map_err(Error::BusError)?;
+        self.mmio_base += MMIO_LEN;
+
+        // Register in FDT/command-line
+        self.id_to_dev_info.insert(
+            (DeviceType::Virtio(type_id), device_id),
+            MMIODeviceInfo {
+                addr: mmio_base,
+                len: MMIO_LEN,
+                irq: irq_base..=(self.irq - 1),
+            },
+        );
+
+        Ok((mmio_base, irq_base))
+    }
+
     /// Register an already created MMIO device to be used via MMIO transport.
     pub fn register_mmio_device(
         &mut self,
@@ -99,31 +154,7 @@ impl MMIODeviceManager {
         type_id: u32,
         device_id: String,
     ) -> Result<(u64, u32)> {
-        if self.irq > self.last_irq {
-            return Err(Error::IrqsExhausted);
-        }
-
-        let queue_signals = mmio_device.locked_device().queue_signals();
-        mmio_device.register_queue_signals(queue_signals);
-
-        mmio_device.locked_device().set_irq_line(self.irq);
-
-        self.bus
-            .insert(mmio_device, self.mmio_base, MMIO_LEN)
-            .map_err(Error::BusError)?;
-        let ret = (self.mmio_base, self.irq);
-        self.id_to_dev_info.insert(
-            (DeviceType::Virtio(type_id), device_id),
-            MMIODeviceInfo {
-                addr: self.mmio_base,
-                len: MMIO_LEN,
-                irq: self.irq,
-            },
-        );
-        self.mmio_base += MMIO_LEN;
-        self.irq += 1;
-
-        Ok(ret)
+        self.register_mmio_device_mq(mmio_device, type_id, device_id, false)
     }
 
     /// Append a registered MMIO device to the kernel cmdline.
@@ -183,7 +214,7 @@ impl MMIODeviceManager {
             MMIODeviceInfo {
                 addr: ret,
                 len: MMIO_LEN,
-                irq: self.irq,
+                irq: self.irq..=self.irq,
             },
         );
 
@@ -214,7 +245,7 @@ impl MMIODeviceManager {
             MMIODeviceInfo {
                 addr: ret,
                 len: MMIO_LEN,
-                irq: self.irq,
+                irq: self.irq..=self.irq,
             },
         );
 
@@ -264,7 +295,7 @@ impl MMIODeviceManager {
             MMIODeviceInfo {
                 addr: ret,
                 len: MMIO_LEN,
-                irq: self.irq,
+                irq: self.irq..=self.irq,
             },
         );
 
@@ -313,7 +344,7 @@ impl MMIODeviceManager {
 #[derive(Clone, Debug)]
 pub struct MMIODeviceInfo {
     addr: u64,
-    irq: u32,
+    irq: RangeInclusive<u32>,
     len: u64,
 }
 
@@ -322,9 +353,10 @@ impl DeviceInfoForFDT for MMIODeviceInfo {
     fn addr(&self) -> u64 {
         self.addr
     }
-    fn irq(&self) -> u32 {
-        self.irq
+    fn irq(&self) -> impl Iterator<Item = u32> {
+        self.irq.clone()
     }
+
     fn length(&self) -> u64 {
         self.len
     }

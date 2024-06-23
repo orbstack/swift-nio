@@ -47,8 +47,8 @@ const IRQ_TYPE_LEVEL_HI: u32 = 4;
 pub trait DeviceInfoForFDT {
     /// Returns the address where this device will be loaded.
     fn addr(&self) -> u64;
-    /// Returns the associated interrupt for this device.
-    fn irq(&self) -> u32;
+    /// Returns the associated interrupt(s) for this device.
+    fn irq(&self) -> impl Iterator<Item = u32>;
     /// Returns the amount of memory that needs to be reserved for this device.
     fn length(&self) -> u64;
 }
@@ -296,6 +296,15 @@ fn create_psci_node(fdt: &mut FdtWriter) -> Result<()> {
     Ok(())
 }
 
+fn generate_spi_list_prop(irqs: impl IntoIterator<Item = u32>, edge: u32) -> Vec<u8> {
+    generate_prop32(
+        &irqs
+            .into_iter()
+            .flat_map(|irq| [GIC_FDT_IRQ_TYPE_SPI, irq - 32, edge])
+            .collect::<Vec<_>>(),
+    )
+}
+
 fn create_virtio_node<T: DeviceInfoForFDT + Clone + Debug>(
     fdt: &mut FdtWriter,
     dev_info: &T,
@@ -304,11 +313,7 @@ fn create_virtio_node<T: DeviceInfoForFDT + Clone + Debug>(
     #[cfg(target_os = "linux")]
     let irq = generate_prop32(&[GIC_FDT_IRQ_TYPE_SPI, dev_info.irq(), IRQ_TYPE_EDGE_RISING]);
     #[cfg(target_os = "macos")]
-    let irq = generate_prop32(&[
-        GIC_FDT_IRQ_TYPE_SPI,
-        dev_info.irq() - 32,
-        IRQ_TYPE_EDGE_RISING,
-    ]);
+    let irq = generate_spi_list_prop(dev_info.irq(), IRQ_TYPE_EDGE_RISING);
 
     let virtio_node = fdt.begin_node(&format!("virtio_mmio@{:x}", dev_info.addr()))?;
     fdt.property_string("compatible", "virtio,mmio")?;
@@ -325,7 +330,7 @@ fn create_serial_node<T: DeviceInfoForFDT + Clone + Debug>(
     dev_info: &T,
 ) -> Result<()> {
     let serial_reg_prop = generate_prop64(&[dev_info.addr(), dev_info.length()]);
-    let irq = generate_prop32(&[GIC_FDT_IRQ_TYPE_SPI, dev_info.irq(), IRQ_TYPE_EDGE_RISING]);
+    let irq = generate_spi_list_prop(dev_info.irq(), IRQ_TYPE_EDGE_RISING);
 
     let node = fdt.begin_node(&format!("uart@{:x}", dev_info.addr()))?;
     fdt.property_string("compatible", "arm,pl011")?;
@@ -348,7 +353,7 @@ fn create_rtc_node<T: DeviceInfoForFDT + Clone + Debug>(
     #[cfg(target_os = "linux")]
     let irq = generate_prop32(&[GIC_FDT_IRQ_TYPE_SPI, dev_info.irq(), IRQ_TYPE_LEVEL_HI]);
     #[cfg(target_os = "macos")]
-    let irq = generate_prop32(&[GIC_FDT_IRQ_TYPE_SPI, dev_info.irq() - 32, IRQ_TYPE_LEVEL_HI]);
+    let irq = generate_spi_list_prop(dev_info.irq(), IRQ_TYPE_LEVEL_HI);
     let rtc_node = fdt.begin_node(&format!("rtc@{:x}", dev_info.addr()))?;
     fdt.property("compatible", compatible)?;
     fdt.property("reg", &rtc_reg_prop)?;
@@ -367,11 +372,7 @@ fn create_gpio_node<T: DeviceInfoForFDT + Clone + Debug>(
     let compatible = b"arm,pl061\0arm,primecell\0";
 
     let gpio_reg_prop = generate_prop64(&[dev_info.addr(), dev_info.length()]);
-    let irq = generate_prop32(&[
-        GIC_FDT_IRQ_TYPE_SPI,
-        dev_info.irq() - 32,
-        IRQ_TYPE_EDGE_RISING,
-    ]);
+    let irq = generate_spi_list_prop(dev_info.irq(), IRQ_TYPE_EDGE_RISING);
 
     let gpio_node = fdt.begin_node(&format!("pl061@{:x}", dev_info.addr()))?;
     fdt.property("compatible", compatible)?;
