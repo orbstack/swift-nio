@@ -148,7 +148,8 @@ impl Machine {
         .map_err(to_anyhow_error)?;
 
         // kernel
-        let mut kernel_data = std::fs::read(&spec.kernel)?;
+        let mut kernel_data =
+            std::fs::read(&spec.kernel).map_err(|e| anyhow!("read kernel: {}", e))?;
         #[cfg(target_arch = "aarch64")]
         {
             // pad up to page size boundary
