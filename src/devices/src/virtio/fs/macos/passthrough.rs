@@ -1334,6 +1334,8 @@ impl PassthroughFs {
         }
     }
 
+    // this can't return EBADF, or any error, to the caller:
+    // any errors are replaced with the original error, as this would've been a failed recovery attempt
     fn refresh_nodeid(&self, ctx: &Context, nodeid: NodeId) -> io::Result<()> {
         // try to look up new dev/ino at /.vol/$PARENT/$NAME
         // very uncommon case, so we release lock before access(2) and re-acquire it here
@@ -1713,15 +1715,12 @@ impl FileSystem for PassthroughFs {
             Some(f) => Some(get_path_by_fd(f.as_fd())?),
             None => None,
         };
-        let parent_ino = if let Some(parent_nodeid) = node.parent_nodeid {
-            let parent_node = self
-                .nodeids
-                .get(&parent_nodeid.get().into())
-                .ok_or(Errno::EBADF)?;
-            parent_node.dev_ino.1
-        } else {
-            ino
-        };
+        // use parent nodeid to get an accurate ino for '..' if possible, but fail gracefully if renamed
+        let parent_ino = node
+            .parent_nodeid
+            .map(|p| self.nodeids.get(&p.get().into()).map(|n| n.dev_ino.1))
+            .flatten()
+            .unwrap_or(u64::MAX);
         drop(node);
         if size == 0 {
             return Ok(());
