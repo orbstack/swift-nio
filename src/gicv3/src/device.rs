@@ -35,7 +35,8 @@ impl InterruptId {
             1056..=1119 => InterruptKind::PrivatePeripheral,
             32..=1019 => InterruptKind::SharedPeripheral,
             4096..=5119 => InterruptKind::SharedPeripheral,
-            1020..=1023 => unreachable!("special interrupt number"),
+            // 1023 is special, but Linux tries configure these via GICD_ICFGR
+            1020..=1023 => InterruptKind::SharedPeripheral,
             1024..=8191 => unreachable!("reserved"),
             _ => unreachable!("LPI interrupt ID is too big"),
         }

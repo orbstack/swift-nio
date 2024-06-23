@@ -418,7 +418,7 @@ impl GicV3 {
                 .set_range(5, 7, 0)
                 // ITLinesNumber, bits [4:0]: For the INTID range 32 to 1019, indicates the maximum SPI supported.
                 // If the value of this field is N, the maximum SPI INTID is 32(N+1) minus 1. For example, 00011 specifies that the maximum SPI INTID in is 127.
-                .set_range(0, 4, 0b00011)
+                .set_range(0, 4, 0b11111)
                 .0
         });
 
