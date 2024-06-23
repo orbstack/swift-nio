@@ -215,3 +215,12 @@ cargo install --locked cargo-about
 ```
 
 Then run `scripts/gen-licenses.sh`.
+
+## Release builds
+
+- `brew install pnpm`
+- Get Developer ID Application certificate and key
+- Import "OrbStack vmgr Developer ID Application" provisioning profile
+- `notarytool store-credentials`
+- Add R2 credentials to rclone
+- Add Sparkle key to keychain
