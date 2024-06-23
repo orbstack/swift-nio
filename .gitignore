@@ -3,6 +3,6 @@
 .DS_Store
 *.pcap
 *.zip
-/updates/
+/updates
 /out/
 /config.local.sh
