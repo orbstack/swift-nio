@@ -286,6 +286,7 @@ func (c *Container) configureLxc() error {
 		addDevOptional("/dev/net/tun")
 		addDevOptional("/dev/ppp")
 		addDevOptional("/dev/vhost-net")
+		addDevOptional("/dev/kvm")
 		if !c.config.Isolated {
 			addDevOptional("/dev/kmsg")
 			addDevOptional("/dev/loop-control")
@@ -295,6 +296,7 @@ func (c *Container) configureLxc() error {
 			addDevOptional("/dev/binder")
 			addDevOptional("/dev/vndbinder")
 			addDevOptional("/dev/hwbinder")
+			addDevOptional("/dev/vhost-vsock")
 
 			// add /dev/vdb1 to make k3s happy
 			// it only needs stat, but no harm in letting people access this if they need to for whatever reason
