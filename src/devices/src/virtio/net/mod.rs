@@ -14,8 +14,6 @@ pub const TX_INDEX: usize = 1;
 mod backend;
 pub mod device;
 mod dgram;
-mod gvproxy;
-mod passt;
 mod worker;
 
 pub use self::device::Net;

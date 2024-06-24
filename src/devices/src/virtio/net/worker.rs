@@ -1,6 +1,4 @@
 use crate::legacy::Gic;
-use crate::virtio::net::gvproxy::Gvproxy;
-use crate::virtio::net::passt::Passt;
 use crate::virtio::net::{MAX_BUFFER_SIZE, QUEUE_SIZE, RX_INDEX, TX_INDEX};
 use crate::virtio::{Queue, VIRTIO_MMIO_INT_VRING};
 use crate::Error as DeviceError;
@@ -58,10 +56,6 @@ impl NetWorker {
         cfg_backend: VirtioNetBackend,
     ) -> Self {
         let backend = match cfg_backend {
-            VirtioNetBackend::Passt(fd) => Box::new(Passt::new(fd)) as Box<dyn NetBackend + Send>,
-            VirtioNetBackend::Gvproxy(path) => {
-                Box::new(Gvproxy::new(path).unwrap()) as Box<dyn NetBackend + Send>
-            }
             VirtioNetBackend::Dgram(fd) => {
                 Box::new(Dgram::new(fd).unwrap()) as Box<dyn NetBackend + Send>
             }
@@ -198,19 +192,7 @@ impl NetWorker {
     }
 
     pub(crate) fn process_backend_socket_writeable(&mut self) {
-        match self
-            .backend
-            .try_finish_write(vnet_hdr_len(), &self.tx_frame_buf[..self.tx_frame_len])
-        {
-            Ok(()) => self.process_tx_loop(),
-            Err(WriteError::PartialWrite | WriteError::NothingWritten) => {}
-            Err(e @ WriteError::Internal(_)) => {
-                tracing::error!("Failed to finish write: {e:?}");
-            }
-            Err(e @ WriteError::ProcessNotRunning) => {
-                tracing::debug!("Failed to finish write: {e:?}");
-            }
-        }
+        self.process_tx_loop()
     }
 
     fn process_rx(&mut self) -> result::Result<(), RxError> {
@@ -275,16 +257,6 @@ impl NetWorker {
     fn process_tx(&mut self) -> result::Result<(), TxError> {
         let tx_queue = &mut self.queues[TX_INDEX];
 
-        if self.backend.has_unfinished_write()
-            && self
-                .backend
-                .try_finish_write(vnet_hdr_len(), &self.tx_frame_buf[..self.tx_frame_len])
-                .is_err()
-        {
-            tracing::trace!("Cannot process tx because of unfinished partial write!");
-            return Ok(());
-        }
-
         let mut raise_irq = false;
 
         while let Some(head) = tx_queue.pop(&self.mem) {
@@ -337,25 +309,6 @@ impl NetWorker {
                 }
                 Err(WriteError::NothingWritten) => {
                     tx_queue.undo_pop();
-                    break;
-                }
-                Err(WriteError::PartialWrite) => {
-                    tracing::trace!("process_tx: partial write");
-                    /*
-                    This situation should be pretty rare, assuming reasonably sized socket buffers.
-                    We have written only a part of a frame to the backend socket (the socket is full).
-
-                    The frame we have read from the guest remains in tx_frame_buf, and will be sent
-                    later.
-
-                    Note that we cannot wait for the backend to process our sending frames, because
-                    the backend could be blocked on sending a remainder of a frame to us - us waiting
-                    for backend would cause a deadlock.
-                     */
-                    tx_queue
-                        .add_used(&self.mem, head_index, 0)
-                        .map_err(TxError::QueueError)?;
-                    raise_irq = true;
                     break;
                 }
                 Err(e @ WriteError::Internal(_) | e @ WriteError::ProcessNotRunning) => {

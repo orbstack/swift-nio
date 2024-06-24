@@ -66,9 +66,6 @@ impl NetBackend for Dgram {
     ///               (such as vnet header), that can be overwritten.
     ///               must be >= PASST_HEADER_LEN
     /// * `buf` - the buffer to write to passt, `buf[..hdr_len]` may be overwritten
-    ///
-    /// If this function returns WriteError::PartialWrite, you have to finish the write using
-    /// try_finish_write.
     fn write_frame(&mut self, hdr_len: usize, buf: &mut [u8]) -> Result<(), WriteError> {
         let ret =
             send(self.fd, &buf[hdr_len..], MsgFlags::empty()).map_err(WriteError::Internal)?;
@@ -77,15 +74,6 @@ impl NetBackend for Dgram {
             buf.len() - hdr_len,
             ret
         );
-        Ok(())
-    }
-
-    fn has_unfinished_write(&self) -> bool {
-        false
-    }
-
-    fn try_finish_write(&mut self, _hdr_len: usize, _buf: &[u8]) -> Result<(), WriteError> {
-        // The Dgram backend doesn't do partial writes.
         Ok(())
     }
 
