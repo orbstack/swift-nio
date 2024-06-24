@@ -288,11 +288,20 @@ impl NetWorker {
                     raise_irq = true;
                 }
                 Err(WriteError::NothingWritten) => {
+                    // we'll get a writable event when the backend is ready again
+                    // stop processing the queue, as nothing will go through
+                    // with tiny buffers (64k buf = 1 pkt), this is *much* better for throughput: 75 gbps vs. 50 mbos
                     tx_queue.undo_pop();
                     break;
                 }
                 Err(e @ WriteError::Internal(_) | e @ WriteError::ProcessNotRunning) => {
-                    return Err(TxError::Backend(e))
+                    // notify and drop the packet
+                    tx_queue
+                        .add_used(&self.mem, head_index, 0)
+                        .map_err(TxError::QueueError)?;
+                    raise_irq = true;
+
+                    error!("Failed to write frame to backend: {:?}", e);
                 }
             }
         }

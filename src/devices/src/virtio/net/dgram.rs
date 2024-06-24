@@ -1,3 +1,4 @@
+use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::sys::socket::{recv, MsgFlags};
 use nix::sys::uio::writev;
@@ -77,8 +78,12 @@ impl NetBackend for Dgram {
             return Err(WriteError::Internal(nix::Error::EINVAL));
         }
 
-        writev(self.fd, Iovec::slice_to_std(iovs)).map_err(WriteError::Internal)?;
-        Ok(())
+        match writev(self.fd, Iovec::slice_to_std(iovs)) {
+            Ok(_) => Ok(()),
+            Err(Errno::ENOBUFS | Errno::EAGAIN) => Err(WriteError::NothingWritten),
+            Err(Errno::EPIPE) => Err(WriteError::ProcessNotRunning),
+            Err(e) => Err(WriteError::Internal(e)),
+        }
     }
 
     fn raw_socket_fd(&self) -> RawFd {
