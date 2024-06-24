@@ -1097,11 +1097,11 @@ fn create_vcpus_aarch64(
     Ok(vcpus)
 }
 
-/// Attaches an MmioTransport device to the device manager.
-fn attach_mmio_device(
+fn attach_mmio_device_mq(
     vmm: &mut Vmm,
     id: String,
     device: MmioTransport,
+    allocate_mq: bool,
 ) -> std::result::Result<(), device_manager::mmio::Error> {
     let type_id = device
         .device()
@@ -1115,15 +1115,25 @@ fn attach_mmio_device(
         vmm.mmio_device_manager
             .register_mmio_device(vmm.vm.fd(), device, type_id, id)?;
     #[cfg(target_os = "macos")]
-    let (_mmio_base, _irq) = vmm
-        .mmio_device_manager
-        .register_mmio_device(device, type_id, id)?;
+    let (_mmio_base, _irq) =
+        vmm.mmio_device_manager
+            .register_mmio_device_mq(device, type_id, id, allocate_mq)?;
 
+    // FIXME: MQ - Apparently, `register_mmio_device` isn't enough for x86??
     #[cfg(target_arch = "x86_64")]
     vmm.mmio_device_manager
         .add_device_to_cmdline(_cmdline, _mmio_base, _irq)?;
 
     Ok(())
+}
+
+/// Attaches an MmioTransport device to the device manager.
+fn attach_mmio_device(
+    vmm: &mut Vmm,
+    id: String,
+    device: MmioTransport,
+) -> std::result::Result<(), device_manager::mmio::Error> {
+    attach_mmio_device_mq(vmm, id, device, false)
 }
 
 #[cfg(not(feature = "tee"))]
@@ -1370,10 +1380,11 @@ fn attach_block_devices(
         }
 
         // The device mutex mustn't be locked here otherwise it will deadlock.
-        attach_mmio_device(
+        attach_mmio_device_mq(
             vmm,
             id,
             MmioTransport::new(vmm.guest_memory().clone(), block.clone()),
+            true,
         )
         .map_err(RegisterBlockDevice)?;
     }

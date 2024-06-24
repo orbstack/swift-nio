@@ -122,9 +122,8 @@ impl MMIODeviceManager {
                 return Err(Error::IrqsExhausted);
             }
 
-            let first_irq = self.irq;
+            device.set_irq_line_mq(self.irq);
             self.irq += queue_count;
-            device.set_irq_line_mq(first_irq..self.irq);
         }
 
         // Setup MMIO

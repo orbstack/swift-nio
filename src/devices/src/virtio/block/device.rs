@@ -277,12 +277,18 @@ pub struct Block {
 
     // Interrupt specific fields.
     intc: Option<Arc<Mutex<Gic>>>,
-    irq_line: Option<u32>,
+    irq_line: Option<BlockIrqMode>,
 }
 
 enum BlockWorkerMode {
     Sync(BlockSyncWorkerSet),
     Async(Option<JoinHandle<()>>),
+}
+
+#[derive(Debug, Copy, Clone)]
+enum BlockIrqMode {
+    Single(u32),
+    Range(u32),
 }
 
 impl Block {
@@ -408,7 +414,11 @@ impl VirtioDevice for Block {
     }
 
     fn set_irq_line(&mut self, irq: u32) {
-        self.irq_line = Some(irq);
+        self.irq_line = Some(BlockIrqMode::Single(irq));
+    }
+
+    fn set_irq_line_mq(&mut self, first_queue_irq: u32) {
+        self.irq_line = Some(BlockIrqMode::Range(first_queue_irq));
     }
 
     fn avail_features(&self) -> u64 {
@@ -452,6 +462,9 @@ impl VirtioDevice for Block {
         assert!(matches!(self.device_state, DeviceState::Inactive));
 
         let mut workers = Vec::new();
+        let irq_line = self
+            .irq_line
+            .expect("`irq_line` never initialized before activation");
 
         for (queue_index, queue) in self.queues.iter_mut().enumerate() {
             let event_idx: bool = (self.acked_features & (1 << VIRTIO_RING_F_EVENT_IDX)) != 0;
@@ -472,7 +485,10 @@ impl VirtioDevice for Block {
                 self.signals.clone(),
                 self.interrupt_status.clone(),
                 self.intc.clone(),
-                self.irq_line,
+                match irq_line {
+                    BlockIrqMode::Single(single) => single,
+                    BlockIrqMode::Range(base) => base + queue_index as u32,
+                },
                 queue_index as u64,
                 mem.clone(),
                 disk,

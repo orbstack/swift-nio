@@ -7,7 +7,6 @@
 
 use std::{
     any::type_name,
-    ops::Range,
     sync::{atomic::AtomicUsize, Arc},
 };
 
@@ -104,8 +103,8 @@ pub trait VirtioDevice: Send {
 
     /// Sets the multi-queue irq line list assigned to this device. This will have the same number
     /// of entries as the device has queues.
-    fn set_irq_line_mq(&mut self, queue_irqs: Range<u32>) {
-        let _ = queue_irqs;
+    fn set_irq_line_mq(&mut self, first_queue_irq: u32) {
+        let _ = first_queue_irq;
         tracing::warn!(
             "`set_irq_line_mq` called on `{}`, a device which does not have any special handling for MQ",
             type_name::<Self>(),

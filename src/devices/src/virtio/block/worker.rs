@@ -56,7 +56,7 @@ pub struct BlockWorker {
     signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
     interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
-    irq_line: Option<u32>,
+    irq_line: u32,
     target_vcpu: u64,
 
     mem: GuestMemoryMmap,
@@ -81,7 +81,7 @@ impl BlockWorker {
         signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
         interrupt_status: Arc<AtomicUsize>,
         intc: Option<Arc<Mutex<Gic>>>,
-        irq_line: Option<u32>,
+        irq_line: u32,
         target_vcpu: u64,
         mem: GuestMemoryMmap,
         disk: DiskProperties,
@@ -281,7 +281,7 @@ impl BlockWorker {
         if let Some(intc) = &self.intc {
             intc.lock()
                 .unwrap()
-                .set_irq_for_vcpu(Some(self.target_vcpu), self.irq_line.unwrap());
+                .set_irq_for_vcpu(Some(self.target_vcpu), self.irq_line);
         } else {
             self.signals.assert(BlockDevSignalMask::INTERRUPT);
         }
