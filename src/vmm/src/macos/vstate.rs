@@ -760,11 +760,6 @@ impl Vcpu {
 
         let entry_addr = entry_addr.raw_value();
 
-        // Setup the vCPU
-        hvf_vcpu
-            .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_tso)
-            .unwrap_or_else(|e| panic!("Can't set HVF vCPU {} initial state: {}", hvf_vcpuid, e));
-
         // Create a guard for loop exit
         let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());
         let vcpu_loop_exit_guard = scopeguard::guard((), |()| {
@@ -772,6 +767,11 @@ impl Vcpu {
         });
 
         let vcpu_loop_exit_guard = (vcpu_loop_exit_guard, cpu_shutdown_task);
+
+        // Setup the vCPU
+        hvf_vcpu
+            .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_tso)
+            .unwrap_or_else(|e| panic!("Can't set HVF vCPU {} initial state: {}", hvf_vcpuid, e));
 
         // Finally, start virtualization!
         let mut intc_vcpu_handle = self.intc.lock().unwrap().get_vcpu_handle(hvf_vcpuid);
@@ -937,11 +937,6 @@ impl Vcpu {
 
         let entry_addr = entry_addr.raw_value();
 
-        // Setup the vCPU
-        hvf_vcpu
-            .set_initial_state(entry_addr, self.cpu_index() != 0)
-            .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
-
         // Create a guard for loop exit
         let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());
         let vcpu_loop_exit_guard = scopeguard::guard((), |()| {
@@ -949,6 +944,11 @@ impl Vcpu {
         });
 
         let vcpu_loop_exit_guard = (vcpu_loop_exit_guard, cpu_shutdown_task);
+
+        // Setup the vCPU
+        hvf_vcpu
+            .set_initial_state(entry_addr, self.cpu_index() != 0)
+            .unwrap_or_else(|_| panic!("Can't set HVF vCPU {} initial state", hvf_vcpuid));
 
         // Finally, start virtualization!
         loop {
