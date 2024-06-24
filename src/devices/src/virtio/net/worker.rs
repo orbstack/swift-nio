@@ -1,6 +1,6 @@
 use crate::legacy::Gic;
 use crate::virtio::descriptor_utils::Iovec;
-use crate::virtio::net::{MAX_BUFFER_SIZE, QUEUE_SIZE, RX_INDEX, TX_INDEX};
+use crate::virtio::net::{QUEUE_SIZE, RX_INDEX, TX_INDEX};
 use crate::virtio::{Queue, VIRTIO_MMIO_INT_VRING};
 use crate::Error as DeviceError;
 
@@ -18,7 +18,7 @@ use std::thread::{self, JoinHandle};
 use std::{mem, result};
 use utils::Mutex;
 use virtio_bindings::virtio_net::virtio_net_hdr_v1;
-use vm_memory::{Bytes, GuestMemory, GuestMemoryMmap};
+use vm_memory::{GuestMemory, GuestMemoryMmap};
 
 use gruel::{MioChannelExt, OnceMioWaker};
 
@@ -36,11 +36,8 @@ pub struct NetWorker {
     mem: GuestMemoryMmap,
     backend: Box<dyn NetBackend + Send>,
 
-    rx_frame_buf: [u8; MAX_BUFFER_SIZE],
-    rx_frame_buf_len: usize,
-    rx_has_deferred_frame: bool,
-
-    tx_iovec: Vec<Iovec<'static>>,
+    iovecs: Vec<Iovec<'static>>,
+    mtu: u16,
 }
 
 impl NetWorker {
@@ -53,6 +50,7 @@ impl NetWorker {
         irq_line: Option<u32>,
         mem: GuestMemoryMmap,
         cfg_backend: VirtioNetBackend,
+        mtu: u16,
     ) -> Self {
         let backend = match cfg_backend {
             VirtioNetBackend::Dgram(fd) => {
@@ -70,11 +68,8 @@ impl NetWorker {
             mem,
             backend,
 
-            rx_frame_buf: [0u8; MAX_BUFFER_SIZE],
-            rx_frame_buf_len: 0,
-            rx_has_deferred_frame: false,
-
-            tx_iovec: Vec::with_capacity(QUEUE_SIZE as usize),
+            iovecs: Vec::with_capacity(QUEUE_SIZE as usize),
+            mtu,
         }
     }
 
@@ -163,7 +158,7 @@ impl NetWorker {
             error!("error disabling queue notifications: {:?}", e);
         }
 
-        if let Err(e) = self.process_rx() {
+        if let Err(e) = self.process_rx_loop() {
             tracing::error!("Failed to process rx: {e:?} (triggered by queue event)")
         };
 
@@ -180,7 +175,7 @@ impl NetWorker {
         if let Err(e) = self.queues[RX_INDEX].enable_notification(&self.mem) {
             error!("error disabling queue notifications: {:?}", e);
         }
-        if let Err(e) = self.process_rx() {
+        if let Err(e) = self.process_rx_loop() {
             tracing::error!("Failed to process rx: {e:?} (triggered by backend socket readable)");
         };
         if let Err(e) = self.queues[RX_INDEX].disable_notification(&self.mem) {
@@ -192,32 +187,20 @@ impl NetWorker {
         self.process_tx_loop()
     }
 
-    fn process_rx(&mut self) -> result::Result<(), RxError> {
-        // if we have a deferred frame we try to process it first,
-        // if that is not possible, we don't continue processing other frames
-        if self.rx_has_deferred_frame {
-            if self.write_frame_to_guest() {
-                self.rx_has_deferred_frame = false;
-            } else {
-                return Ok(());
-            }
-        }
-
+    fn process_rx_loop(&mut self) -> result::Result<(), RxError> {
         let mut signal_queue = false;
 
         // Read as many frames as possible.
         let result = loop {
-            match self.read_into_rx_frame_buf_from_backend() {
+            match self.read_frame_to_guest() {
                 Ok(()) => {
-                    if self.write_frame_to_guest() {
-                        signal_queue = true;
-                    } else {
-                        self.rx_has_deferred_frame = true;
-                        break Ok(());
-                    }
+                    signal_queue = true;
                 }
-                Err(ReadError::NothingRead) => break Ok(()),
-                Err(e @ ReadError::Internal(_)) => break Err(RxError::Backend(e)),
+                // backend socket readable will trigger this
+                Err(FrontendError::Backend(ReadError::NothingRead)) => break Ok(()),
+                // rx queue signal will trigger this
+                Err(FrontendError::EmptyQueue) => break Ok(()),
+                Err(e) => break Err(RxError::Frontend(e)),
             }
         };
 
@@ -260,16 +243,16 @@ impl NetWorker {
             let head_index = head.index;
             let mut next_desc = Some(head);
 
-            self.tx_iovec.clear();
+            self.iovecs.clear();
             while let Some(desc) = next_desc {
                 if desc.is_write_only() {
-                    self.tx_iovec.clear();
+                    self.iovecs.clear();
                     break;
                 }
 
                 match self.mem.get_slice(desc.addr, desc.len as usize) {
                     Ok(vs) => {
-                        self.tx_iovec.push(Iovec::from_static(vs));
+                        self.iovecs.push(Iovec::from_static(vs));
                     }
                     Err(e) => {
                         tracing::error!("Failed to get slice: {:?}", e);
@@ -280,7 +263,7 @@ impl NetWorker {
                 next_desc = desc.next_descriptor();
             }
 
-            match self.backend.write_frame(vnet_hdr_len(), &mut self.tx_iovec) {
+            match self.backend.write_frame(vnet_hdr_len(), &mut self.iovecs) {
                 Ok(()) => {
                     tx_queue
                         .add_used(&self.mem, head_index, 0)
@@ -326,82 +309,63 @@ impl NetWorker {
     }
 
     // Copies a single frame from `self.rx_frame_buf` into the guest.
-    fn write_frame_to_guest_impl(&mut self) -> result::Result<(), FrontendError> {
-        let mut result: std::result::Result<(), FrontendError> = Ok(());
-
+    fn read_frame_to_guest(&mut self) -> result::Result<(), FrontendError> {
         let queue = &mut self.queues[RX_INDEX];
         let head_descriptor = queue
             .pop(&self.mem)
             .ok_or_else(|| FrontendError::EmptyQueue)?;
         let head_index = head_descriptor.index;
 
-        let mut frame_slice = &self.rx_frame_buf[..self.rx_frame_buf_len];
+        let result = (|| {
+            self.iovecs.clear();
+            let mut total_len = 0;
+            let mut maybe_next_descriptor = Some(head_descriptor);
+            while let Some(descriptor) = &maybe_next_descriptor {
+                if !descriptor.is_write_only() {
+                    return Err(FrontendError::ReadOnlyDescriptor);
+                }
 
-        let frame_len = frame_slice.len();
-        let mut maybe_next_descriptor = Some(head_descriptor);
-        while let Some(descriptor) = &maybe_next_descriptor {
-            if frame_slice.is_empty() {
-                break;
+                let vs = self
+                    .mem
+                    .get_slice(descriptor.addr, descriptor.len as usize)
+                    .map_err(FrontendError::GuestMemory)?;
+                self.iovecs.push(Iovec::from_static(vs));
+                total_len += vs.len();
+
+                maybe_next_descriptor = descriptor.next_descriptor();
+            }
+            if total_len < vnet_hdr_len() + self.mtu as usize {
+                tracing::error!("Receiving buffer is too small to hold frame of max size");
+                return Err(FrontendError::DescriptorChainTooSmall);
             }
 
-            if !descriptor.is_write_only() {
-                result = Err(FrontendError::ReadOnlyDescriptor);
-                break;
+            let frame_len = self
+                .backend
+                .read_frame(&self.iovecs)
+                .map_err(FrontendError::Backend)?;
+            Ok(frame_len)
+        })();
+
+        match result {
+            Ok(used_len) => {
+                // Mark the descriptor chain as used.
+                queue
+                    .add_used(&self.mem, head_index, used_len as u32)
+                    .map_err(FrontendError::QueueError)?;
+                Ok(())
             }
-
-            let len = std::cmp::min(frame_slice.len(), descriptor.len as usize);
-            match self.mem.write_slice(&frame_slice[..len], descriptor.addr) {
-                Ok(()) => {
-                    frame_slice = &frame_slice[len..];
-                }
-                Err(e) => {
-                    tracing::error!("Failed to write slice: {:?}", e);
-                    result = Err(FrontendError::GuestMemory(e));
-                    break;
-                }
-            };
-
-            maybe_next_descriptor = descriptor.next_descriptor();
-        }
-        if result.is_ok() && !frame_slice.is_empty() {
-            tracing::warn!("Receiving buffer is too small to hold frame of current size");
-            result = Err(FrontendError::DescriptorChainTooSmall);
-        }
-
-        // Mark the descriptor chain as used. If an error occurred, skip the descriptor chain.
-        let used_len = if result.is_err() { 0 } else { frame_len as u32 };
-        queue
-            .add_used(&self.mem, head_index, used_len)
-            .map_err(FrontendError::QueueError)?;
-        result
-    }
-
-    // Copies a single frame from `self.rx_frame_buf` into the guest. In case of an error retries
-    // the operation if possible. Returns true if the operation was successfull.
-    fn write_frame_to_guest(&mut self) -> bool {
-        let max_iterations = self.queues[RX_INDEX].actual_size();
-        for _ in 0..max_iterations {
-            match self.write_frame_to_guest_impl() {
-                Ok(()) => return true,
-                Err(FrontendError::EmptyQueue) => {
-                    // retry
-                    continue;
-                }
-                Err(_) => {
-                    // retry
-                    continue;
-                }
+            Err(FrontendError::Backend(ReadError::NothingRead)) => {
+                // If the backend has no data to read, push the head descriptor back to the queue.
+                queue.undo_pop();
+                Err(FrontendError::Backend(ReadError::NothingRead))
+            }
+            Err(e) => {
+                // Mark the descriptor chain as used. If an error occurred, skip the descriptor chain.
+                queue
+                    .add_used(&self.mem, head_index, 0)
+                    .map_err(FrontendError::QueueError)?;
+                Err(e)
             }
         }
-
-        false
-    }
-
-    /// Fills self.rx_frame_buf with an ethernet frame from backend and prepends virtio_net_hdr to it
-    fn read_into_rx_frame_buf_from_backend(&mut self) -> result::Result<(), ReadError> {
-        // we expect backend to return a vnet hdr
-        let len = self.backend.read_frame(&mut self.rx_frame_buf)?;
-        self.rx_frame_buf_len = len;
-        Ok(())
     }
 }

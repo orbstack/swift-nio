@@ -1,12 +1,22 @@
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
-use nix::sys::socket::{recv, MsgFlags};
 use nix::sys::uio::writev;
 use std::os::fd::{AsRawFd, RawFd};
 
 use crate::virtio::descriptor_utils::Iovec;
 
 use super::backend::{ConnectError, NetBackend, ReadError, WriteError};
+
+fn readv<F: AsRawFd>(fd: F, iov: &[Iovec]) -> Result<usize, Errno> {
+    let ret = unsafe {
+        libc::readv(
+            fd.as_raw_fd(),
+            iov.as_ptr() as *const libc::iovec,
+            iov.len() as i32,
+        )
+    };
+    Errno::result(ret).map(|r| r as usize)
+}
 
 pub struct Dgram {
     fd: RawFd,
@@ -48,13 +58,10 @@ impl Dgram {
 
 impl NetBackend for Dgram {
     /// Try to read a frame from passt. If no bytes are available reports ReadError::NothingRead
-    fn read_frame(&mut self, buf: &mut [u8]) -> Result<usize, ReadError> {
-        let frame_length = match recv(self.fd, buf, MsgFlags::empty()) {
+    fn read_frame(&mut self, buf: &[Iovec]) -> Result<usize, ReadError> {
+        let frame_length = match readv(self.fd, buf) {
             Ok(f) => f,
-            #[allow(unreachable_patterns)]
-            Err(nix::Error::EAGAIN | nix::Error::EWOULDBLOCK) => {
-                return Err(ReadError::NothingRead)
-            }
+            Err(Errno::EAGAIN) => return Err(ReadError::NothingRead),
             Err(e) => {
                 return Err(ReadError::Internal(e));
             }

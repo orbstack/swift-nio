@@ -64,11 +64,12 @@ pub enum FrontendError {
     GuestMemory(GuestMemoryError),
     QueueError(QueueError),
     ReadOnlyDescriptor,
+    Backend(ReadError),
 }
 
 #[derive(Debug)]
 pub enum RxError {
-    Backend(ReadError),
+    Frontend(FrontendError),
     DeviceError(DeviceError),
 }
 
@@ -254,6 +255,7 @@ impl VirtioDevice for Net {
             self.irq_line,
             mem.clone(),
             self.cfg_backend.clone(),
+            self.config.mtu,
         );
         self.worker_thread = Some(worker.run());
 
