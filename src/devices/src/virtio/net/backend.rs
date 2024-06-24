@@ -1,12 +1,9 @@
 use std::os::fd::RawFd;
 
+use crate::virtio::descriptor_utils::Iovec;
+
 #[derive(Debug)]
-pub enum ConnectError {
-    InvalidAddress(nix::Error),
-    CreateSocket(nix::Error),
-    Binding(nix::Error),
-    SendingMagic(nix::Error),
-}
+pub enum ConnectError {}
 
 #[derive(Debug)]
 pub enum ReadError {
@@ -28,6 +25,6 @@ pub enum WriteError {
 
 pub trait NetBackend {
     fn read_frame(&mut self, buf: &mut [u8]) -> Result<usize, ReadError>;
-    fn write_frame(&mut self, hdr_len: usize, buf: &mut [u8]) -> Result<(), WriteError>;
+    fn write_frame(&mut self, hdr_len: usize, iovs: &mut [Iovec]) -> Result<(), WriteError>;
     fn raw_socket_fd(&self) -> RawFd;
 }

@@ -1,6 +1,9 @@
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
-use nix::sys::socket::{recv, send, MsgFlags};
+use nix::sys::socket::{recv, MsgFlags};
+use nix::sys::uio::writev;
 use std::os::fd::{AsRawFd, RawFd};
+
+use crate::virtio::descriptor_utils::Iovec;
 
 use super::backend::{ConnectError, NetBackend, ReadError, WriteError};
 
@@ -66,14 +69,15 @@ impl NetBackend for Dgram {
     ///               (such as vnet header), that can be overwritten.
     ///               must be >= PASST_HEADER_LEN
     /// * `buf` - the buffer to write to passt, `buf[..hdr_len]` may be overwritten
-    fn write_frame(&mut self, hdr_len: usize, buf: &mut [u8]) -> Result<(), WriteError> {
-        let ret =
-            send(self.fd, &buf[hdr_len..], MsgFlags::empty()).map_err(WriteError::Internal)?;
-        debug!(
-            "Written frame size={}, written={}",
-            buf.len() - hdr_len,
-            ret
-        );
+    fn write_frame(&mut self, hdr_len: usize, iovs: &mut [Iovec]) -> Result<(), WriteError> {
+        // skip header
+        if !iovs.is_empty() && iovs[0].len() >= hdr_len {
+            iovs[0].advance(hdr_len);
+        } else {
+            return Err(WriteError::Internal(nix::Error::EINVAL));
+        }
+
+        writev(self.fd, Iovec::slice_to_std(iovs)).map_err(WriteError::Internal)?;
         Ok(())
     }
 

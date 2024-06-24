@@ -98,6 +98,18 @@ impl<'a> Iovec<'a> {
     }
 }
 
+impl Iovec<'static> {
+    pub fn from_static(slice: VolatileSlice) -> Self {
+        Iovec {
+            iov: libc::iovec {
+                iov_base: slice.ptr_guard_mut().as_ptr() as *mut c_void,
+                iov_len: slice.len(),
+            },
+            _phantom: PhantomData,
+        }
+    }
+}
+
 impl<'a> From<VolatileSlice<'a>> for Iovec<'a> {
     fn from(slice: VolatileSlice<'a>) -> Self {
         Iovec {

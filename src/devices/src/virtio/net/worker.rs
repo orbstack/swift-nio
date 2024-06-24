@@ -1,4 +1,5 @@
 use crate::legacy::Gic;
+use crate::virtio::descriptor_utils::Iovec;
 use crate::virtio::net::{MAX_BUFFER_SIZE, QUEUE_SIZE, RX_INDEX, TX_INDEX};
 use crate::virtio::{Queue, VIRTIO_MMIO_INT_VRING};
 use crate::Error as DeviceError;
@@ -14,10 +15,10 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use std::{cmp, mem, result};
+use std::{mem, result};
 use utils::Mutex;
 use virtio_bindings::virtio_net::virtio_net_hdr_v1;
-use vm_memory::{Bytes, GuestAddress, GuestMemoryMmap};
+use vm_memory::{Bytes, GuestMemory, GuestMemoryMmap};
 
 use gruel::{MioChannelExt, OnceMioWaker};
 
@@ -39,9 +40,7 @@ pub struct NetWorker {
     rx_frame_buf_len: usize,
     rx_has_deferred_frame: bool,
 
-    tx_iovec: Vec<(GuestAddress, usize)>,
-    tx_frame_buf: [u8; MAX_BUFFER_SIZE],
-    tx_frame_len: usize,
+    tx_iovec: Vec<Iovec<'static>>,
 }
 
 impl NetWorker {
@@ -75,8 +74,6 @@ impl NetWorker {
             rx_frame_buf_len: 0,
             rx_has_deferred_frame: false,
 
-            tx_frame_buf: [0u8; MAX_BUFFER_SIZE],
-            tx_frame_len: 0,
             tx_iovec: Vec::with_capacity(QUEUE_SIZE as usize),
         }
     }
@@ -261,7 +258,6 @@ impl NetWorker {
 
         while let Some(head) = tx_queue.pop(&self.mem) {
             let head_index = head.index;
-            let mut read_count = 0;
             let mut next_desc = Some(head);
 
             self.tx_iovec.clear();
@@ -270,38 +266,22 @@ impl NetWorker {
                     self.tx_iovec.clear();
                     break;
                 }
-                self.tx_iovec.push((desc.addr, desc.len as usize));
-                read_count += desc.len as usize;
-                next_desc = desc.next_descriptor();
-            }
 
-            // Copy buffer from across multiple descriptors.
-            read_count = 0;
-            for (desc_addr, desc_len) in self.tx_iovec.drain(..) {
-                let limit = cmp::min(read_count + desc_len, self.tx_frame_buf.len());
-
-                let read_result = self
-                    .mem
-                    .read_slice(&mut self.tx_frame_buf[read_count..limit], desc_addr);
-                match read_result {
-                    Ok(()) => {
-                        read_count += limit - read_count;
+                match self.mem.get_slice(desc.addr, desc.len as usize) {
+                    Ok(vs) => {
+                        self.tx_iovec.push(Iovec::from_static(vs));
                     }
                     Err(e) => {
-                        tracing::error!("Failed to read slice: {:?}", e);
-                        read_count = 0;
+                        tracing::error!("Failed to get slice: {:?}", e);
                         break;
                     }
                 }
+
+                next_desc = desc.next_descriptor();
             }
 
-            self.tx_frame_len = read_count;
-            match self
-                .backend
-                .write_frame(vnet_hdr_len(), &mut self.tx_frame_buf[..read_count])
-            {
+            match self.backend.write_frame(vnet_hdr_len(), &mut self.tx_iovec) {
                 Ok(()) => {
-                    self.tx_frame_len = 0;
                     tx_queue
                         .add_used(&self.mem, head_index, 0)
                         .map_err(TxError::QueueError)?;
