@@ -32,7 +32,7 @@ use crate::virtio::rosetta::get_rosetta_data;
 use crate::virtio::{FsCallbacks, FxDashMap, NfsInfo};
 use bitflags::bitflags;
 use derive_more::{Display, From, Into};
-use libc::{AT_FDCWD, MAXPATHLEN};
+use libc::{AT_FDCWD, MAXPATHLEN, SEEK_DATA, SEEK_HOLE};
 use nix::errno::Errno;
 use nix::fcntl::OFlag;
 use nix::sys::stat::fchmod;
@@ -98,6 +98,9 @@ const CLONE_NOFOLLOW: u32 = 0x0001;
 const FALLOC_FL_KEEP_SIZE: u32 = 0x01;
 const FALLOC_FL_PUNCH_HOLE: u32 = 0x02;
 const FALLOC_FL_KEEP_SIZE_AND_PUNCH_HOLE: u32 = FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE;
+
+const LINUX_SEEK_DATA: u32 = 3;
+const LINUX_SEEK_HOLE: u32 = 4;
 
 #[derive(
     Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash, From, Into, Display,
@@ -2674,31 +2677,24 @@ impl FileSystem for PassthroughFs {
 
         let data = self.get_handle(&ctx, nodeid, handle)?;
 
-        // SEEK_DATA and SEEK_HOLE have slightly different semantics
-        // in Linux vs. macOS, which means we can't support them.
-        let mwhence = if whence == 3 {
-            // SEEK_DATA
-            return Ok(offset);
-        } else if whence == 4 {
-            // SEEK_HOLE
-            libc::SEEK_END
-        } else {
-            whence as i32
+        // FUSE will only send SEEK_DATA and SEEK_HOLE.
+        // it handles SEEK_SET, SEEK_CUR, SEEK_END itself
+        let mac_whence = match whence {
+            // this behavior used to be different:
+            //   - Linux: if offset is in a data region, return offset
+            //   - macOS: if offset is in a data region, return offset of *next* data region
+            //   - macOS: can also return multiple adjacent, contiguous data regions
+            // however, at least as of macOS 14.5, it's the same
+            // implementation is in closed-source APFS so we can't check exactly when it changed
+            LINUX_SEEK_DATA => SEEK_DATA,
+            LINUX_SEEK_HOLE => SEEK_HOLE,
+            _ => return Err(Errno::EINVAL.into()),
         };
 
-        // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe {
-            libc::lseek(
-                data.file.as_raw_fd(),
-                offset as bindings::off64_t,
-                mwhence as libc::c_int,
-            )
-        };
-        if res == -1 {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(res as u64)
-        }
+        // result only depends on file and offset, not current pos, so this doesn't need an exclusive lock
+        let len = unsafe { libc::lseek(data.file.as_raw_fd(), offset as i64, mac_whence) };
+        Errno::result(len)?;
+        Ok(len as u64)
     }
 
     #[allow(clippy::too_many_arguments)]
