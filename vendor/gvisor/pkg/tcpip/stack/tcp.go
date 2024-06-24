@@ -25,6 +25,14 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/seqnum"
 )
 
+// cwnd can't be larger than max receive window (65535 << 14, with window scaling)
+// gvisor measures cwnd in packets, so use # packets instead of MSS
+// exceeding this can cause cwnd limit calculation (in bytes) to overflow, especially on 32-bit
+const maxCwnd = 1 << header.MaxWndScale
+
+// and as a sanity check, prevent stalls (0 cwnd) and negative cwnd
+const minCwnd = 1
+
 // contextID is this package's type for context.Context.Value keys.
 type contextID int
 
@@ -330,6 +338,10 @@ type TCPSenderState struct {
 
 	// SpuriousRecovery indicates if the sender entered recovery spuriously.
 	SpuriousRecovery bool
+}
+
+func (s *TCPSenderState) SetSndCwnd(val int) {
+	s.SndCwnd = max(min(val, maxCwnd), minCwnd)
 }
 
 // TCPSACKInfo holds TCP SACK related information for a given TCP endpoint.

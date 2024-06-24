@@ -45,7 +45,7 @@ func (r *renoState) updateSlowStart(packetsAcked int) int {
 	}
 
 	packetsAcked -= newcwnd - r.s.SndCwnd
-	r.s.SndCwnd = newcwnd
+	r.s.SetSndCwnd(newcwnd)
 	return packetsAcked
 }
 
@@ -98,7 +98,7 @@ func (r *renoState) HandleRTOExpired() {
 	// Reduce the congestion window to 1, i.e., enter slow-start. Per
 	// RFC 5681, page 7, we must use 1 regardless of the value of the
 	// initial congestion window.
-	r.s.SndCwnd = 1
+	r.s.SetSndCwnd(1)
 }
 
 // PostRecovery implements congestionControl.PostRecovery.

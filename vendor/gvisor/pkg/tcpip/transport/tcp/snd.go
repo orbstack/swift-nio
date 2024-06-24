@@ -270,7 +270,7 @@ func newSender(ep *Endpoint, iss, irs seqnum.Value, sndWnd seqnum.Size, mss uint
 // returns a handle to it. It also initializes the sndCwnd and sndSsThresh to
 // their initial values.
 func (s *sender) initCongestionControl(congestionControlName tcpip.CongestionControlOption) congestionControl {
-	s.SndCwnd = InitialCwnd
+	s.SetSndCwnd(InitialCwnd)
 	s.Ssthresh = InitialSsthresh
 
 	switch congestionControlName {
@@ -913,6 +913,10 @@ func (s *sender) maybeSendSegment(seg *segment, limit int, end seqnum.Value) (se
 		}
 
 		if seg.payloadSize() > available {
+			if available < 0 {
+				panic(fmt.Sprintf("available < 0: available=%d seg.payloadSize()=%d limit=%d s.MaxPayloadSize=%d", available, seg.payloadSize(), limit, s.MaxPayloadSize))
+			}
+
 			// A negative value causes splitSeg to panic anyways, so just panic
 			// earlier to get more information about the cause.
 			s.splitSeg(seg, available)
@@ -1022,13 +1026,16 @@ func (s *sender) sendData() {
 	// the retrasmission timeout."
 	if !s.FastRecovery.Active && s.state != tcpip.RTORecovery && s.ep.stack.Clock().NowMonotonic().Sub(s.LastSendTime) > s.RTO {
 		if s.SndCwnd > InitialCwnd {
-			s.SndCwnd = InitialCwnd
+			s.SetSndCwnd(InitialCwnd)
 		}
 	}
 
 	var dataSent bool
 	for seg := s.writeNext; seg != nil && s.Outstanding < s.SndCwnd; seg = seg.Next() {
 		cwndLimit := (s.SndCwnd - s.Outstanding) * s.MaxPayloadSize
+		if cwndLimit < 0 {
+			panic(fmt.Sprintf("cwndLimit < 0: cwndLimit=%d limit=%d s.SndCwnd=%d s.Outstanding=%d s.MaxPayloadSize=%d", cwndLimit, limit, s.SndCwnd, s.Outstanding, s.MaxPayloadSize))
+		}
 		if cwndLimit < limit {
 			limit = cwndLimit
 		}
@@ -1063,7 +1070,7 @@ func (s *sender) enterRecovery() {
 	// See : https://tools.ietf.org/html/rfc5681#section-3.2 Step 3.
 	// We inflate the cwnd by 3 to account for the 3 packets which triggered
 	// the 3 duplicate ACKs and are now not in flight.
-	s.SndCwnd = s.Ssthresh + 3
+	s.SetSndCwnd(s.Ssthresh + 3)
 	s.SackedOut = 0
 	s.DupAckCount = 0
 	s.FastRecovery.First = s.SndUna
@@ -1098,7 +1105,7 @@ func (s *sender) leaveRecovery() {
 	s.DupAckCount = 0
 
 	// Deflate cwnd. It had been artificially inflated when new dups arrived.
-	s.SndCwnd = s.Ssthresh
+	s.SetSndCwnd(s.Ssthresh)
 	s.cc.PostRecovery()
 }
 
