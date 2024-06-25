@@ -1737,6 +1737,7 @@ impl FileSystem for PassthroughFs {
         let data = self.get_handle(&ctx, nodeid, handle)?;
 
         // emit "." and ".." first. according to FUSE docs, kernel does this if we don't, but that's not true (and it breaks some apps)
+        // skip dirstream lock if only reading . and ..
         if offset == 0 {
             match add_entry(
                 DirEntry {
@@ -1772,8 +1773,13 @@ impl FileSystem for PassthroughFs {
             offset = 2;
         }
 
-        // skip dirstream lock if only reading . and ..
         let mut ds = data.dirstream.lock().unwrap();
+        // rewind and re-read dir if necessary (other offsets are vec-based)
+        let ds_offset = offset - 2;
+        if ds_offset == 0 && ds.offset != 0 {
+            ds.offset = 0;
+            ds.entries = None;
+        }
 
         // read entries if not already done
         let entries = if let Some(entries) = ds.entries.as_ref() {
@@ -1804,10 +1810,10 @@ impl FileSystem for PassthroughFs {
             };
 
             ds.entries = Some(entries);
+            ds.offset = 1; // just can't be 0
             ds.entries.as_ref().unwrap()
         };
 
-        let ds_offset = offset - 2;
         if ds_offset >= entries.len() as u64 {
             return Ok(());
         }
