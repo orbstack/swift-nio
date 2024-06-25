@@ -52,7 +52,7 @@ fn run_with_output_checked(
             if let Err(e) = run_with_status_checked(
                 "repair nix db",
                 false,
-                new_command("nix-store").args(&["--verify", "--repair", "--quiet"]),
+                new_command("nix-store").args(["--verify", "--repair", "--quiet"]),
             ) {
                 eprintln!("failed to repair nix db: {}", e);
             }
@@ -89,7 +89,7 @@ fn run_with_status_checked(
             if let Err(e) = run_with_status_checked(
                 "repair nix db",
                 false,
-                new_command("nix-store").args(&["--verify", "--repair", "--quiet"]),
+                new_command("nix-store").args(["--verify", "--repair", "--quiet"]),
             ) {
                 eprintln!("failed to repair nix db: {}", e);
             }
@@ -117,7 +117,7 @@ pub fn read_flake_inputs() -> anyhow::Result<Vec<String>> {
     let output: Output = run_with_output_checked(
         "read flake inputs",
         true,
-        new_command("nix").args(&["flake", "archive", "--json", "--dry-run", "--impure"]),
+        new_command("nix").args(["flake", "archive", "--json", "--dry-run", "--impure"]),
     )?;
 
     let flake_archive = serde_json::from_slice::<NixFlakeArchive>(&output.stdout)?;
@@ -190,7 +190,7 @@ pub fn gc_store() -> anyhow::Result<()> {
     run_with_status_checked(
         "GC store",
         false,
-        new_command("nix-store").args(&["--gc", "--quiet"]),
+        new_command("nix-store").args(["--gc", "--quiet"]),
     )?;
 
     // delete file
@@ -202,7 +202,7 @@ pub fn build_flake_env() -> anyhow::Result<()> {
     run_with_status_checked(
         "rebuild env",
         true,
-        new_command("nix").args(&["build", "--impure", "--out-link", ENV_OUT_PATH]),
+        new_command("nix").args(["build", "--impure", "--out-link", ENV_OUT_PATH]),
     )?;
 
     Ok(())
@@ -269,7 +269,7 @@ pub fn resolve_package_names(attr_paths: &[String]) -> anyhow::Result<HashMap<St
         "find packages",
         false,
         new_command("nix")
-            .args(&[
+            .args([
                 "eval",
                 "--json",
                 "--impure",
@@ -303,7 +303,7 @@ pub fn update_flake_lock() -> anyhow::Result<()> {
     run_with_status_checked(
         "update lock",
         true,
-        new_command("nix").args(&[
+        new_command("nix").args([
             "flake",
             "update",
             "--output-lock-file",

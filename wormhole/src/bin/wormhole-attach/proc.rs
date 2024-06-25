@@ -55,13 +55,15 @@ pub fn set_cmdline_name(name: &str) -> anyhow::Result<()> {
 
         // set new argv
         let argv_end = argv_start.add(name.len() + 1);
-        if let Err(_) = err(libc::prctl(
+        if err(libc::prctl(
             libc::PR_SET_MM,
             libc::PR_SET_MM_ARG_START,
             argv_start,
             0,
             0,
-        )) {
+        ))
+        .is_err()
+        {
             // bounds check... have to set end first
             err(libc::prctl(
                 libc::PR_SET_MM,

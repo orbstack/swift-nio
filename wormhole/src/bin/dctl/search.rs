@@ -188,7 +188,7 @@ pub fn print_results(results: Vec<ElasticSearchSource>) {
             println!("  (no description)");
         }
         if i < len - 1 {
-            println!("");
+            println!();
         }
     }
 

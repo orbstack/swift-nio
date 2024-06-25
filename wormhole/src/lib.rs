@@ -6,7 +6,7 @@ pub mod paths;
 
 fn _err<T: IsMinusOne>(ret: T) -> nix::Result<T> {
     if ret.is_minus_one() {
-        Err(Errno::last().into())
+        Err(Errno::last())
     } else {
         Ok(ret)
     }

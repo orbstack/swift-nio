@@ -165,8 +165,8 @@ fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
 
         // validate package name
         if !attr_path.chars().all(|c| PACKAGE_ALLOWED_CHARS.contains(c))
-            || attr_path.starts_with(".")
-            || attr_path.ends_with(".")
+            || attr_path.starts_with('.')
+            || attr_path.ends_with('.')
         {
             return Err(anyhow!(
                 "package name '{}' contains invalid characters",
@@ -294,7 +294,7 @@ fn cmd_list() -> anyhow::Result<()> {
 
     // add synthetic packages for builtins
     for pkg in BUILTIN_PACKAGES {
-        if HIDE_BUILTIN_PACKAGES.contains(&pkg) {
+        if HIDE_BUILTIN_PACKAGES.contains(pkg) {
             continue;
         }
 
@@ -325,7 +325,7 @@ fn do_upgrade(env: &mut WormholeEnv) -> anyhow::Result<()> {
 
     // update last_updated_at
     env.last_updated_at = SystemTime::now();
-    write_env(&env)?;
+    write_env(env)?;
 
     Ok(())
 }

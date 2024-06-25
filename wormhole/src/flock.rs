@@ -83,7 +83,7 @@ pub enum FlockMode {
 }
 
 impl FlockMode {
-    fn to_type(self) -> i16 {
+    fn to_type(&self) -> i16 {
         match self {
             FlockMode::Exclusive => F_WRLCK as i16,
             FlockMode::Shared => F_RDLCK as i16,

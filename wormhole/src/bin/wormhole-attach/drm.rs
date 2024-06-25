@@ -76,9 +76,11 @@ pub fn verify_token(token: &str) -> anyhow::Result<()> {
     let pk_bytes = include_bytes!("../../../jwt-prod.pub.bin");
     let pk = Ed25519PublicKey::from_bytes(pk_bytes)?;
 
-    let mut options = VerificationOptions::default();
-    options.time_tolerance = Some(Duration::from_secs(NOT_BEFORE_LEEWAY));
-    options.allowed_audiences = Some(HashSet::from([APP_NAME.to_string()]));
+    let options = VerificationOptions {
+        time_tolerance: Some(Duration::from_secs(NOT_BEFORE_LEEWAY)),
+        allowed_audiences: Some(HashSet::from([APP_NAME.to_string()])),
+        ..VerificationOptions::default()
+    };
 
     let claims = pk.verify_token::<DrmClaims>(token, Some(options))?;
 

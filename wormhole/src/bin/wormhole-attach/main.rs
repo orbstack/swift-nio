@@ -213,7 +213,7 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
             PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(),
             pid,
             index,
-            filter.as_mut_ptr() as *mut sock_filter,
+            filter.as_mut_ptr(),
         ))?
     };
 
@@ -374,7 +374,7 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
     drop(nix_flock_ref);
 
     // check whether we created /nix
-    if let None = xattr::get("/nix", "user.orbstack.wormhole")? {
+    if xattr::get("/nix", "user.orbstack.wormhole")?.is_none() {
         // we didn't create /nix, so don't delete it
         trace!("delete_nix_dir: /nix not created by us");
         return Ok(());
@@ -569,7 +569,7 @@ fn main() -> anyhow::Result<()> {
     trace!("chown stdio fds");
     let uid = "0";
     let uid: Uid = uid.parse::<u32>()?.into();
-    let gid = init_status.get("Gid:").unwrap().get(0).unwrap();
+    let gid = init_status.get("Gid:").unwrap().first().unwrap();
     let gid: Gid = gid.parse::<u32>()?.into();
     fchown(0, Some(uid), Some(gid))?;
     fchown(1, Some(uid), Some(gid))?;
@@ -585,7 +585,7 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     trace!("copy NO_NEW_PRIVS");
-    let no_new_privs = init_status.get("NoNewPrivs:").unwrap().get(0).unwrap();
+    let no_new_privs = init_status.get("NoNewPrivs:").unwrap().first().unwrap();
     if no_new_privs == "1" {
         prctl::set_no_new_privs()?;
     }
@@ -727,7 +727,7 @@ fn main() -> anyhow::Result<()> {
             // copy seccomp:
             // use ptrace + PTRACE_SECCOMP_GET_FILTER to dump BPF filters
             trace!("copy seccomp");
-            let has_seccomp = init_status.get("Seccomp:").unwrap().get(0).unwrap() != "0";
+            let has_seccomp = init_status.get("Seccomp:").unwrap().first().unwrap() != "0";
             if has_seccomp {
                 copy_seccomp_filter(config.init_pid, 0)?;
             }
@@ -740,7 +740,7 @@ fn main() -> anyhow::Result<()> {
             // this requires CAP_SETCAP so do it before we lose eff caps
             trace!("copy capabilities: bounding");
             let cap_bnd =
-                u64::from_str_radix(init_status.get("CapBnd:").unwrap().get(0).unwrap(), 16)?;
+                u64::from_str_radix(init_status.get("CapBnd:").unwrap().first().unwrap(), 16)?;
             for i in 0..num_caps {
                 if cap_bnd & (1 << i) == 0 {
                     unsafe { err(libc::prctl(PR_CAPBSET_DROP, i as i32, 0, 0, 0))? };
@@ -759,13 +759,13 @@ fn main() -> anyhow::Result<()> {
             // order: ambient, bounding, effective, inheritable, permitted
             trace!("copy remaining capabilities");
             let cap_inh =
-                u64::from_str_radix(init_status.get("CapInh:").unwrap().get(0).unwrap(), 16)?;
+                u64::from_str_radix(init_status.get("CapInh:").unwrap().first().unwrap(), 16)?;
             let cap_prm =
-                u64::from_str_radix(init_status.get("CapPrm:").unwrap().get(0).unwrap(), 16)?;
+                u64::from_str_radix(init_status.get("CapPrm:").unwrap().first().unwrap(), 16)?;
             let cap_eff =
-                u64::from_str_radix(init_status.get("CapEff:").unwrap().get(0).unwrap(), 16)?;
+                u64::from_str_radix(init_status.get("CapEff:").unwrap().first().unwrap(), 16)?;
             let cap_amb =
-                u64::from_str_radix(init_status.get("CapAmb:").unwrap().get(0).unwrap(), 16)?;
+                u64::from_str_radix(init_status.get("CapAmb:").unwrap().first().unwrap(), 16)?;
             // ambient: clear all, then raise set caps
             trace!("copy capabilities: ambient");
             unsafe {
