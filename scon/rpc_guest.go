@@ -94,6 +94,7 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 		// this is a recursive mount (open_tree was called with AT_RECURSIVE)
 		// now unmount undesired /proc, /dev, /sys recursively
 		// too many files and not very useful
+		// TODO: scan for all pseudo filesystems
 		err = unix.Unmount(destPath+"/proc", unix.MNT_DETACH)
 		if err != nil && !errors.Is(err, unix.EINVAL) {
 			// EINVAL = not mounted
