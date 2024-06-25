@@ -164,7 +164,7 @@ impl HandleData {
     fn new(
         handle: HandleId,
         file: File,
-        is_readable_file: bool,
+        is_readonly_reg: bool,
         poller: &Option<Arc<VnodePoller>>,
         node_flags: NodeFlags,
     ) -> io::Result<Self> {
@@ -179,7 +179,7 @@ impl HandleData {
         };
 
         // technically we only have to register it when read hits EOF, but that's flaky and won't actually save time, because the common case is that files (e.g. source code) will be fully read
-        if is_readable_file {
+        if is_readonly_reg {
             if let Some(poller) = poller {
                 poller.register(hd.file.as_fd(), handle)?;
             }
@@ -1106,8 +1106,10 @@ impl PassthroughFs {
         st: bindings::stat64,
     ) -> io::Result<(HandleId, OpenOptions)> {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed).into();
-        let is_readonly = !flags.contains(OFlag::O_DIRECTORY | OFlag::O_WRONLY | OFlag::O_RDWR);
-        let data = HandleData::new(handle, file, is_readonly, &self.poller, node_flags)?;
+        // only register regular files that are read-only
+        let is_readonly_reg =
+            !flags.intersects(OFlag::O_DIRECTORY | OFlag::O_WRONLY | OFlag::O_RDWR);
+        let data = HandleData::new(handle, file, is_readonly_reg, &self.poller, node_flags)?;
 
         debug!("finish_open: nodeid={} -> handle={:?}", nodeid, handle);
         self.handles.insert(handle, Arc::new(data));
