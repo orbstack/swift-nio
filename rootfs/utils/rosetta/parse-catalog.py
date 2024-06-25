@@ -9,7 +9,7 @@ src_version_prefixes = [
     # 14.x
     '23',
     # 15.x
-    '24',
+    '24', # latest: 24A5279h
 ]
 # macOS 14 beta 6
 target_version = '23A344'
