@@ -16,9 +16,17 @@
     ];
 
   users.users.{{.Username}} = {
-    isNormalUser = true;{{if .Password}}
+    uid = {{.UID}};{{if .Password}}
     hashedPassword = "{{.Password}}";{{end}}
     extraGroups = [ "wheel" ];
+
+    # simulate isNormalUser, but with an arbitrary UID
+    isSystemUser = true;
+    group = "users";
+    createHome = true;
+    home = "/home/{{.Username}}";
+    homeMode = "700";
+    useDefaultShell = true;
   };{{if .NoPassword}}
 
   security.sudo.wheelNeedsPassword = false;{{end}}{{if .Password}}

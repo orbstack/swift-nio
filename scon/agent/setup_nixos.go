@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -37,6 +38,7 @@ func configureSystemNixos(args InitialSetupArgs) error {
 		Timezone     string
 		Certificates string
 		StateVersion string
+		UID          int
 	}
 
 	username := args.Username
@@ -62,7 +64,11 @@ func configureSystemNixos(args InitialSetupArgs) error {
 		Timezone:     args.Timezone,
 		Certificates: string(extraCertsData),
 		StateVersion: args.Version,
+		UID:          args.Uid,
 	})
+	if err != nil {
+		return fmt.Errorf("execute template: %w", err)
+	}
 
 	err = os.WriteFile("/etc/nixos/configuration.nix", configuration.Bytes(), 0644)
 	if err != nil {
