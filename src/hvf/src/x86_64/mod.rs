@@ -2077,9 +2077,10 @@ pub fn check_cpuid() -> Result<(), Error> {
 
     match model {
         // Haswell
-        0x3c | 0x3f | 0x45 | 0x46 => Ok(()),
+        // TODO: officially drop these, or fix shutdown on boot
+        //0x3c | 0x3f | 0x45 | 0x46 => Ok(()),
         // Broadwell
-        0x3d | 0x47 | 0x4f | 0x56 => Ok(()),
+        //0x3d | 0x47 | 0x4f | 0x56 => Ok(()),
         // Skylake
         0x4e | 0x5e | 0x55 => Ok(()),
         // Kaby Lake, Coffee Lake
