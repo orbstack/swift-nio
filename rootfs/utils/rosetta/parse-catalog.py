@@ -12,7 +12,7 @@ src_version_prefixes = [
     '24', # latest: 24A5279h
 ]
 # macOS 14 beta 6
-target_version = '23A344'
+target_version = '24A5279h'
 
 for product in catalog['Products'].values():
     mac_build_version = product['ExtendedMetaInfo']['BuildVersion']
