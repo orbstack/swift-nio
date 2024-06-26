@@ -42,7 +42,7 @@ use nix::sys::statvfs::statvfs;
 use nix::sys::statvfs::Statvfs;
 use nix::sys::time::TimeSpec;
 use nix::sys::uio::pwrite;
-use nix::unistd::{access, truncate, LinkatFlags};
+use nix::unistd::{access, lseek, truncate, LinkatFlags, Whence};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
 use smol_str::SmolStr;
@@ -1779,6 +1779,7 @@ impl FileSystem for PassthroughFs {
         // rewind and re-read dir if necessary (other offsets are vec-based)
         let ds_offset = offset - 2;
         if ds_offset == 0 && ds.offset != 0 {
+            lseek(data.file.as_raw_fd(), 0, Whence::SeekSet)?;
             ds.offset = 0;
             ds.entries = None;
         }
@@ -1811,8 +1812,8 @@ impl FileSystem for PassthroughFs {
                 attrlist::list_dir(data.file.as_fd(), capacity as usize)?
             };
 
+            ds.offset = entries.len() as i64;
             ds.entries = Some(entries);
-            ds.offset = 1; // just can't be 0
             ds.entries.as_ref().unwrap()
         };
 
