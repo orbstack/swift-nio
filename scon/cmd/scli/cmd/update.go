@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 
@@ -30,6 +31,7 @@ This includes the Linux kernel, Docker, the CLI, GUI app, and other components.
 		bundlePath, err := conf.FindAppBundle()
 		checkCLI(err)
 
+		// TODO: fix sparkle-cli update
 		cmd := exec.Command("open", "-a", bundlePath, appid.UrlUpdate, "--args", "--check-updates")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -42,6 +44,7 @@ This includes the Linux kernel, Docker, the CLI, GUI app, and other components.
 			}
 		}
 
+		fmt.Println("OrbStack updater will open in a new window.")
 		return nil
 	},
 }
