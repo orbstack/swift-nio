@@ -215,7 +215,7 @@ func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {
 	start := time.Now()
 	for {
 		if time.Since(start) > timeout {
-			return nil, errors.New("timed out waiting for network")
+			return nil, fmt.Errorf("machine didn't start in %v (missing IP address)", timeout)
 		}
 
 		ips, err := c.lxc.IPAddresses()
