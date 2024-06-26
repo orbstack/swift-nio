@@ -770,7 +770,7 @@ impl HvfVcpu {
         // enable TSO first. this breaks after setting CPSR to EL2
         if enable_tso {
             self.allow_actlr = true;
-            self.write_actlr_el1(ACTLR_EL1_MYSTERY | ACTLR_EL1_EN_TSO)?;
+            self.write_actlr_el1(ACTLR_EL1_MYSTERY)?;
         }
 
         let initial_el = if ENABLE_NESTED_VIRT {
