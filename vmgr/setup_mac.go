@@ -587,7 +587,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 			}).Debug("checking for lineBase in profile")
 			if !strings.Contains(profileScript, lineBase) {
 				// if not, add it
-				profileScript += fmt.Sprintf("\n# Added by %s: command-line tools and integration\n%s\n", appid.UserAppName, line)
+				profileScript += fmt.Sprintf("\n# Added by %s: command-line tools and integration\n# Comment this line if you don't want it to be added again.\n%s\n", appid.UserAppName, line)
 				err = os.WriteFile(profilePath, []byte(profileScript), 0644)
 				if err != nil {
 					// if profile is read-only, e.g. with nix home-manager
