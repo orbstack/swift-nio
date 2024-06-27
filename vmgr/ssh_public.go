@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/alessio/shellescape"
 	"github.com/mikesmitty/edkey"
@@ -129,9 +130,14 @@ Host ovm
 			}
 		}
 
+		// don't add if it's already there
+		lineBase := fmt.Sprintf("Include %s/config", syssetup.MakeHomeRelative(conf.ExtraSshDir()))
+		if strings.Contains(string(sshConfig), lineBase) {
+			return nil
+		}
+
 		// prepend, or it doesn't work
-		includeLine := fmt.Sprintf("Include %s/config", syssetup.MakeHomeRelative(conf.ExtraSshDir()))
-		sshConfig = append([]byte(includeLine+"\n\n"), sshConfig...)
+		sshConfig = append([]byte(fmt.Sprintf("# Added by %s: 'orb' SSH host for Linux machines\n# This only works if it's at the top of ssh_config (before any Host blocks).\n# Comment this line if you don't want it to be added again.\n%s\n\n", appid.UserAppName, lineBase)), sshConfig...)
 		err = os.WriteFile(userConfigPath, sshConfig, 0644)
 		// ignore permission errors and warn in case user has nix home-manager for .ssh
 		if err != nil {
