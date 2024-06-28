@@ -77,7 +77,7 @@ func configureSystemNixos(args InitialSetupArgs) error {
 
 	// rebuild
 	logrus.Debug("Rebuilding system")
-	err = rebuildNixos()
+	err = util.Run("sh", "-lc", "nixos-rebuild boot")
 	if err != nil {
 		return err
 	}

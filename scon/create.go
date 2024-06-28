@@ -122,9 +122,36 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 	}
 
 	// setup
-	err = c.setupInitial(args)
+	setupArgs, err := c.setupInitial(args)
 	if err != nil {
 		err = fmt.Errorf("setup: %w", err)
+		return
+	}
+
+	// reboot NixOS to not run into weird errors (https://github.com/orbstack/macvirt/pull/111#issuecomment-2155174982)
+	if c.Image.Distro == images.DistroNixos {
+		c.mu.Lock()
+		_, err = c.stopLocked(StopOptions{Force: false, Internal: true})
+		c.mu.Unlock()
+		if err != nil {
+			err = fmt.Errorf("stop (nixos reboot): %w", err)
+			return
+		}
+
+		c.mu.Lock()
+		err = c.startLocked(true /* isInternal */)
+		c.mu.Unlock()
+		if err != nil {
+			err = fmt.Errorf("stop (nixos reboot): %w", err)
+			return
+		}
+	}
+
+	err = c.UseAgent(func(a *agent.Client) error {
+		return a.InitialSetupTwo(*setupArgs)
+	})
+	if err != nil {
+		err = fmt.Errorf("setup: %w")
 		return
 	}
 
@@ -146,17 +173,17 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 	return
 }
 
-func (c *Container) setupInitial(args *types.CreateRequest) error {
+func (c *Container) setupInitial(args *types.CreateRequest) (*agent.InitialSetupArgs, error) {
 	// get host user
 	hostUser, err := c.manager.host.GetUser()
 	if err != nil {
-		return fmt.Errorf("get user: %w", err)
+		return nil, fmt.Errorf("get user: %w", err)
 	}
 
 	// get host timezone
 	hostTimezone, err := c.manager.host.GetTimezone()
 	if err != nil {
-		return fmt.Errorf("get timezone: %w", err)
+		return nil, fmt.Errorf("get timezone: %w", err)
 	}
 
 	// always wait for network
@@ -166,7 +193,7 @@ func (c *Container) setupInitial(args *types.CreateRequest) error {
 	var ips []string
 	ips, err = c.waitIPAddrs(startStopTimeout)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	logrus.WithField("container", c.Name).WithField("ips", ips).Info("network is up")
 
@@ -175,27 +202,30 @@ func (c *Container) setupInitial(args *types.CreateRequest) error {
 		"uid":      hostUser.Uid,
 		"username": c.config.DefaultUsername,
 	}).Info("running initial setup")
-	err = c.UseAgent(func(a *agent.Client) error {
-		return a.InitialSetup(agent.InitialSetupArgs{
-			Username:    c.config.DefaultUsername,
-			Uid:         hostUser.Uid,
-			HostHomeDir: hostUser.HomeDir,
 
-			Password: args.UserPassword,
-			Distro:   c.Image.Distro,
-			Version:  c.Image.Version,
-			Timezone: hostTimezone,
-		})
+	setupArgs := agent.InitialSetupArgs{
+		Username:    c.config.DefaultUsername,
+		Uid:         hostUser.Uid,
+		HostHomeDir: hostUser.HomeDir,
+
+		Password:        args.UserPassword,
+		Distro:          c.Image.Distro,
+		Version:         c.Image.Version,
+		Timezone:        hostTimezone,
+	}
+
+	err = c.UseAgent(func(a *agent.Client) error {
+		return a.InitialSetupOne(setupArgs)
 	})
 	if err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) {
-			return errors.New("do initial setup: canceled by machine shutdown")
+			return nil, errors.New("do initial setup: canceled by machine shutdown")
 		} else {
-			return fmt.Errorf("do initial setup: %w", err)
+			return nil, fmt.Errorf("do initial setup: %w", err)
 		}
 	}
 
-	return nil
+	return &setupArgs, nil
 }
 
 func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {
