@@ -624,10 +624,6 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     let data_flags = MsFlags::MS_NOATIME;
     let fs_type = FsType::detect(DATA_DEV)?;
     match fs_type {
-        FsType::Bcachefs => {
-            mount(DATA_DEV, "/data", "bcachefs", data_flags, Some("discard")).unwrap();
-        }
-
         FsType::Btrfs => {
             if let Err(e) = mount(DATA_DEV, "/data", "btrfs", data_flags, Some(BTRFS_OPTIONS)) {
                 eprintln!(" !!! Failed to mount data: {}", e);
@@ -644,6 +640,43 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
                     return Err(e);
                 }
             }
+        }
+
+        FsType::Bcachefs => {
+            mount(DATA_DEV, "/data", "bcachefs", data_flags, Some("discard")).unwrap();
+        }
+
+        FsType::Xfs => {
+            mount(
+                DATA_DEV,
+                "/data",
+                "xfs",
+                data_flags,
+                Some("prjquota,discard"),
+            )
+            .unwrap();
+        }
+
+        FsType::Ext4 => {
+            mount(
+                DATA_DEV,
+                "/data",
+                "ext4",
+                data_flags,
+                Some("prjquota,discard"),
+            )
+            .unwrap();
+        }
+
+        FsType::F2fs => {
+            mount(
+                DATA_DEV,
+                "/data",
+                "f2fs",
+                data_flags,
+                Some("prjquota,discard"),
+            )
+            .unwrap();
         }
     }
 
