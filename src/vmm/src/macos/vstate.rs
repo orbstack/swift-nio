@@ -5,6 +5,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
+use gruel::ParkSignalChannelExt;
+use gruel::SignalChannel;
 use gruel::StartupAbortedError;
 use gruel::StartupSignal;
 use gruel::StartupTask;
@@ -683,8 +685,7 @@ impl Vcpu {
     pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
         use gruel::{
             define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
-            ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,
-            ShutdownAlreadyRequestedExt, SignalChannel,
+            ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
         };
         use vmm_ids::VmmShutdownPhase;
 
@@ -702,6 +703,13 @@ impl Vcpu {
             fn wake(&self) {
                 hvf::vcpu_request_exit(self.0).unwrap();
             }
+        }
+
+        fn wait_for_pvlock(signal: &Arc<SignalChannel<VcpuSignalMask, VcpuWakerSet>>) {
+            // checking should_wait makes PV lock ineffective due to pending IRQs,
+            // even though IRQs are disabled while waiting on a PV lock.
+            // spurious wakeups are OK as this is just a hint to try locking again.
+            signal.wait_on_park(VcpuSignalMask::all());
         }
 
         // Create the underlying HVF vCPU.
@@ -842,10 +850,8 @@ impl Vcpu {
 
                 // PV-lock
                 Ok(VcpuEmulation::PvlockPark) => {
-                    // checking should_wait makes PV lock ineffective due to pending IRQs,
-                    // even though IRQs are disabled while waiting on a PV lock.
-                    // spurious wakeups are OK as this is just a hint to try locking again.
-                    signal.wait_on_park(VcpuSignalMask::all());
+                    // separate function so it shows up in debug spindumps
+                    wait_for_pvlock(&signal);
                 }
                 Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {
                     self.intc.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
