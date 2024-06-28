@@ -32,7 +32,6 @@ use nix::{
 };
 use tracing::log::debug;
 
-use crate::service::{Service, ServiceTracker};
 use crate::{
     action::SystemAction,
     blockdev,
@@ -40,6 +39,10 @@ use crate::{
         sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_MASK, SWAP_FLAG_PRIO_SHIFT,
     },
     vcontrol, InitError, SystemInfo, Timeline, DEBUG,
+};
+use crate::{
+    filesystem::FsType,
+    service::{Service, ServiceTracker},
 };
 use tokio::sync::{mpsc::Sender, Mutex};
 
@@ -69,6 +72,9 @@ const FS_CORRUPTED_MSG: &str = r#"
 !! Giving up and shutting down now.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 "#;
+
+const DATA_DEV: &str = "/dev/vdb1";
+const BTRFS_OPTIONS: &str = "discard,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs";
 
 // binfmt magics
 const ELF_MAGIC_X86_64: &str =
@@ -576,10 +582,8 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     if let Some(value) = sys_info.seed_configs.get("data_size") {
         let new_size_mib = value.parse::<u64>()?;
         // get existing size
-        let old_size_mib = blockdev::getsize64("/dev/vdb1")
-            .map_err(InitError::MissingDataPartition)?
-            / 1024
-            / 1024;
+        let old_size_mib =
+            blockdev::getsize64(DATA_DEV).map_err(InitError::MissingDataPartition)? / 1024 / 1024;
 
         // for safety, only allow increasing size
         match new_size_mib.cmp(&old_size_mib) {
@@ -618,20 +622,28 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     // data
     // first try with regular mount, then try usebackuproot
     let data_flags = MsFlags::MS_NOATIME;
-    let fs_options = "discard,space_cache=v2,ssd,nodatacow,nodatasum,quota_statfs";
-    if let Err(e) = mount("/dev/vdb1", "/data", "btrfs", data_flags, Some(fs_options)) {
-        eprintln!(" !!! Failed to mount data: {}", e);
-        println!(" [*] Attempting to recover data");
-        if let Err(e) = mount(
-            "/dev/vdb1",
-            "/data",
-            "btrfs",
-            data_flags,
-            Some(format!("{},rescue=usebackuproot", fs_options).as_str()),
-        ) {
-            eprintln!(" !!! Failed to recover data: {}", e);
-            eprintln!("{}", FS_CORRUPTED_MSG);
-            return Err(e);
+    let fs_type = FsType::detect(DATA_DEV)?;
+    match fs_type {
+        FsType::Bcachefs => {
+            mount(DATA_DEV, "/data", "bcachefs", data_flags, Some("discard")).unwrap();
+        }
+
+        FsType::Btrfs => {
+            if let Err(e) = mount(DATA_DEV, "/data", "btrfs", data_flags, Some(BTRFS_OPTIONS)) {
+                eprintln!(" !!! Failed to mount data: {}", e);
+                println!(" [*] Attempting to recover data");
+                if let Err(e) = mount(
+                    DATA_DEV,
+                    "/data",
+                    "btrfs",
+                    data_flags,
+                    Some(format!("{},rescue=usebackuproot", BTRFS_OPTIONS).as_str()),
+                ) {
+                    eprintln!(" !!! Failed to recover data: {}", e);
+                    eprintln!("{}", FS_CORRUPTED_MSG);
+                    return Err(e);
+                }
+            }
         }
     }
 

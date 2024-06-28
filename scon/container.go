@@ -79,7 +79,8 @@ type Container struct {
 
 func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Container, error) {
 	id := record.ID
-	dir := m.subdir("containers", id)
+	// m.subdir calls MkdirAll
+	dir := m.dataDir + "/containers/" + id
 
 	c := &Container{
 		ID:      record.ID,
@@ -95,21 +96,22 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 
 	// special-case hooks for docker
 	if c.builtin && c.Image.Distro == images.ImageDocker {
-		hooks, err := newDockerHooks()
+		hooks, err := newDockerHooks(m)
 		if err != nil {
 			return nil, err
 		}
 		c.hooks = hooks
 	}
 
-	// create lxc
-	err := c.initLxc()
+	// create parent as subvolume first
+	err := c.manager.fsOps.CreateSubvolumeIfNotExists(c.dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create subvolume: %w", err)
 	}
 
-	// ensure rootfs exists. we'll need it eventually: nfs, create, and start.
-	err = os.MkdirAll(c.rootfsDir, 0755)
+	// create lxc
+	// this also creates rootfs dir
+	err = c.initLxc()
 	if err != nil {
 		return nil, err
 	}

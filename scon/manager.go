@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util/fsops"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
@@ -43,6 +44,7 @@ type ConManager struct {
 	seccompPolicyPaths [_seccompPolicyMax]string
 	agentExe           *os.File
 	kernelVersion      string
+	fsOps              fsops.FSOps
 
 	// state
 	containersByID   map[string]*Container
@@ -52,9 +54,9 @@ type ConManager struct {
 	dockerProxy      *DockerProxy
 
 	// services
-	db             *Database
-	host           *hclient.Client
-	bpf            *bpf.GlobalBpfManager
+	db   *Database
+	host *hclient.Client
+	bpf  *bpf.GlobalBpfManager
 	// TODO make this its own machine?
 	k8sEnabled        bool
 	k8sExposeServices bool
@@ -135,6 +137,11 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 	}
 	kernelVersion := string(uname.Release[:bytes.IndexByte(uname.Release[:], 0)])
 
+	fsOps, err := fsops.NewForFS(conf.C().DataFsDir)
+	if err != nil {
+		return nil, fmt.Errorf("new fsops: %w", err)
+	}
+
 	mgr := &ConManager{
 		dataDir:            dataDir,
 		tmpDir:             tmpDir,
@@ -142,6 +149,7 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		seccompPolicyPaths: seccompPolicyPaths,
 		agentExe:           agentExe,
 		kernelVersion:      kernelVersion,
+		fsOps:              fsOps,
 
 		containersByID:   make(map[string]*Container),
 		containersByName: make(map[string]*Container),
@@ -340,7 +348,7 @@ func (m *ConManager) cleanupCaches() error {
 	}
 	for _, f := range files {
 		if _, ok := m.containersByID[f.Name()]; !ok {
-			err = deleteRootfs(path.Join(containersDir, f.Name()))
+			err = m.deleteRootfs(path.Join(containersDir, f.Name()))
 			if err != nil {
 				logrus.WithError(err).WithField("container", f.Name()).Error("failed to remove orphaned rootfs")
 			}

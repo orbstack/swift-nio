@@ -30,6 +30,7 @@ mod action;
 use action::SystemAction;
 use tracing::debug;
 mod blockdev;
+mod filesystem;
 mod loopback;
 mod pidfd;
 #[cfg(target_arch = "aarch64")]

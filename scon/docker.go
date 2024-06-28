@@ -155,17 +155,19 @@ type DockerDaemonFeatures struct {
 }
 
 type DockerHooks struct {
-	rootfs *securefs.FS
+	rootfs  *securefs.FS
+	manager *ConManager
 }
 
-func newDockerHooks() (*DockerHooks, error) {
+func newDockerHooks(manager *ConManager) (*DockerHooks, error) {
 	rootfs, err := securefs.NewFromPath(conf.C().DockerRootfs)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DockerHooks{
-		rootfs: rootfs,
+		rootfs:  rootfs,
+		manager: manager,
 	}, nil
 }
 
@@ -180,13 +182,13 @@ type SimplevisorStatus struct {
 }
 
 func (h *DockerHooks) createDataDirs() error {
-	err := os.MkdirAll(conf.C().DockerDataDir, 0755)
+	err := h.manager.fsOps.CreateSubvolumeIfNotExists(conf.C().DockerDataDir)
 	if err != nil {
 		return err
 	}
 
 	// and k8s
-	err = os.MkdirAll(conf.C().K8sDataDir, 0755)
+	err = h.manager.fsOps.CreateSubvolumeIfNotExists(conf.C().K8sDataDir)
 	if err != nil {
 		return err
 	}

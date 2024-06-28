@@ -17,8 +17,7 @@ import (
 	_ "github.com/orbstack/macvirt/scon/earlyinit"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/killswitch"
-	"github.com/orbstack/macvirt/scon/util"
-	"github.com/orbstack/macvirt/scon/util/btrfs"
+	"github.com/orbstack/macvirt/scon/util/fsops"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -147,15 +146,14 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 	}
 
 	go runOne("resize fs", func() error {
-		// resize filesystem
 		logrus.Debug("resizing filesystem")
-		err := btrfs.FilesystemResize(conf.C().DataFsDir, "max")
+		err = mgr.fsOps.ResizeToMax(conf.C().DataFsDir)
 		if err != nil {
 			return err
 		}
 
 		// syncfs on fd
-		fd, err := unix.Open(conf.C().DataFsDir, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+		fd, err := unix.Open(conf.C().DataFsDir, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 		if err != nil {
 			return fmt.Errorf("open fs dir: %w", err)
 		}
@@ -199,30 +197,17 @@ func runContainerManager() {
 		if err := recover(); err != nil {
 			// add ENOSPC/EDQUOT error info
 			if e, ok := err.(error); ok && (errors.Is(e, unix.ENOSPC) || errors.Is(e, unix.EDQUOT)) {
-				usage, err2 := util.RunWithOutput("btrfs", "filesystem", "usage", conf.C().DataFsDir)
+				fsOps, err2 := fsops.NewForFS(conf.C().DataFsDir)
 				if err2 != nil {
-					logrus.WithError(err2).Error("failed to get FS usage")
-					usage = fmt.Sprintf("[failed to get FS usage: %v]", err2)
-				}
-
-				qgroup, err2 := util.RunWithOutput("btrfs", "qgroup", "show", "-r", "-e", conf.C().DataFsDir)
-				if err2 != nil {
-					logrus.WithError(err2).Error("failed to get QG info")
-					qgroup = fmt.Sprintf("[failed to get QG info: %v]", err2)
+					logrus.WithError(err2).Error("failed to create fsops")
 				} else {
-					// strip first line so it's less obvious what this is
-					qgroup = strings.Join(strings.Split(qgroup, "\n")[1:], "\n")
+					debugInfo, err2 := fsOps.DumpDebugInfo(conf.C().DataFsDir)
+					if err2 != nil {
+						logrus.WithError(err2).Error("failed to get fs debug info")
+					} else {
+						err = fmt.Errorf("%w\n\n%s", e, debugInfo)
+					}
 				}
-
-				// now try to recover, but don't auto reboot
-				// usage=0 means to deallocate only unused data/metadata blocks and release them back to general alloc pool, so it doesn't require any scratch space to complete
-				balanceOut, err2 := util.RunWithOutput("btrfs", "balance", "start", "-dusage=0", "-musage=0", conf.C().DataFsDir)
-				if err2 != nil {
-					logrus.WithError(err2).Error("failed to recover FS space")
-					balanceOut = fmt.Sprintf("[failed to recover FS space: %v]", err2)
-				}
-
-				err = fmt.Errorf("%w\n\nUsage:\n%s\n\nQG:\n%s\n\nRecovery: %s", e, usage, qgroup, balanceOut)
 			}
 
 			sentry.CurrentHub().Recover(err)

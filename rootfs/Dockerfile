@@ -435,7 +435,7 @@ RUN apk add --no-cache \
 ARG TYPE=release
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
-    apk add --no-cache neovim iproute2 agetty openssh htop strace tcpdump fish go lxc-dev alpine-sdk llvm clang linux-headers libbpf-dev
+    apk add --no-cache neovim iproute2 agetty openssh htop strace tcpdump fish go lxc-dev alpine-sdk llvm clang linux-headers libbpf-dev bcachefs-tools
 fi
 EOT
 

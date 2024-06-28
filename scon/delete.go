@@ -23,7 +23,7 @@ import (
 //   - c.mu is held for the duration of the call, so it can't be started
 //
 // ... but DO NOT USE this if the container could be running.
-func deleteRootfs(rootfs string) error {
+func (m *ConManager) deleteRootfs(rootfs string) error {
 	logrus.WithField("rootfs", rootfs).Debug("deleting rootfs")
 
 	// swapoff on all swapfiles
@@ -53,44 +53,14 @@ func deleteRootfs(rootfs string) error {
 		}
 	}
 
-	// list and delete btrfs subvolumes first
+	// list and delete btrfs subvolumes
 	// lxd can leave read-only subvols:
-	rawList, err := util.WithDefaultOom2(func() (string, error) {
-		// -o excludes volumes after it
-		return util.RunWithOutput("btrfs", "subvolume", "list", rootfs)
-	})
+	err = m.fsOps.DeleteSubvolumesRecursive(rootfs)
 	if err != nil {
-		return fmt.Errorf("list subvolumes: %w", err)
+		return fmt.Errorf("delete subvolumes: %w", err)
 	}
 
-	// delete any that fall under this path
-	lines := strings.Split(rawList, "\n")
-	// iterate in reverse order so the order is naturally correct
-	deleteArgs := []string{"btrfs", "subvolume", "delete"}
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := lines[i]
-		if !strings.HasPrefix(line, "ID") {
-			continue
-		}
-
-		fields := strings.Fields(line)
-		subvolPath := conf.C().DataFsDir + "/" + fields[8]
-		if strings.HasPrefix(subvolPath, rootfs+"/") {
-			deleteArgs = append(deleteArgs, subvolPath)
-		}
-	}
-
-	if len(deleteArgs) > 3 {
-		logrus.WithField("subvols", deleteArgs[3:]).Debug("deleting subvolumes")
-		err = util.WithDefaultOom1(func() error {
-			return util.Run(deleteArgs...)
-		})
-		if err != nil {
-			return fmt.Errorf("delete subvolumes: %w", err)
-		}
-	}
-
-	// delete the entire directory
+	// delete the entire directory, if it still exists
 	err = os.RemoveAll(rootfs)
 	if err != nil {
 		if errors.Is(err, unix.EPERM) {
@@ -107,6 +77,8 @@ func deleteRootfs(rootfs string) error {
 			if err != nil {
 				return fmt.Errorf("remove all x2: %w", err)
 			}
+		} else if errors.Is(err, unix.ENOENT) {
+			// it was a subvolume, and DeleteSubvolumesRecursive deleted the whole thing
 		} else {
 			return fmt.Errorf("remove all: %w", err)
 		}
@@ -134,12 +106,12 @@ func (c *Container) deleteDockerLocked(k8sOnly bool) error {
 
 	// delete the entire directory
 	if !k8sOnly {
-		err = deleteRootfs(conf.C().DockerDataDir)
+		err = c.manager.deleteRootfs(conf.C().DockerDataDir)
 		if err != nil {
 			return fmt.Errorf("delete docker data: %w", err)
 		}
 	}
-	err = deleteRootfs(conf.C().K8sDataDir)
+	err = c.manager.deleteRootfs(conf.C().K8sDataDir)
 	if err != nil {
 		return fmt.Errorf("delete k8s data: %w", err)
 	}
@@ -189,7 +161,7 @@ func (c *Container) deleteLocked(isInternal bool) error {
 	}
 
 	// delete the entire directory
-	err = deleteRootfs(c.dir)
+	err = c.manager.deleteRootfs(c.dir)
 	if err != nil {
 		return fmt.Errorf("delete rootfs: %w", err)
 	}

@@ -477,7 +477,6 @@ func (c *Container) configureLxc() error {
 	}
 
 	c.rootfsDir = rootfs
-
 	return nil
 }
 
@@ -550,7 +549,7 @@ func (m *ConManager) restoreContainers() ([]*Container, error) {
 
 	var pendingStarts []*Container
 	for _, record := range records {
-		c, shouldStart, err := m.restoreOneLocked(record, true)
+		c, shouldStart, err := m.restoreOneLocked(record)
 		if err != nil {
 			logrus.WithError(err).WithField("container", record.Name).Error("failed to restore container")
 			continue
@@ -587,7 +586,7 @@ func (m *ConManager) insertContainerLocked(c *Container) error {
 	return nil
 }
 
-func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrite bool) (*Container, bool, error) {
+func (m *ConManager) restoreOneLocked(record *types.ContainerRecord) (*Container, bool, error) {
 	// fix/upgrade container record:
 	// isolated = false
 	// empty (old/unset) default username -> set to default host user
@@ -613,7 +612,7 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, canOverwrit
 
 	err = m.insertContainerLocked(c)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("duplicate in database: %w", err)
 	}
 
 	shouldStart := record.State == types.ContainerStateRunning

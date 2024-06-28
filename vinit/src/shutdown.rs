@@ -27,7 +27,10 @@ use crate::{loopback, InitError, Timeline, DEBUG};
 const UNMOUNT_ITERATION_LIMIT: usize = 10;
 const DATA_FILESYSTEM_TYPES: &[&str] = &[
     // unmount data-share virtiofs to sync changes and forget fds
-    "virtiofs", "btrfs",
+    "virtiofs",
+    // and all data filesystems we might use
+    // this only includes filesystems mounted on ovm
+    "btrfs", "bcachefs", "ext4", "xfs", "f2fs",
 ];
 const ROSETTA_VIRTIOFS_TAG: &str = "rosetta";
 
@@ -173,7 +176,7 @@ fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
         let target = parts.next().unwrap();
         let fstype = parts.next().unwrap();
 
-        // only unmount data filesystems
+        // to save time, only unmount data filesystems
         if DATA_FILESYSTEM_TYPES.contains(&fstype) {
             // HACK: exclude Rosetta virtiofs
             // unnecessary, and I'm not confident about krpc/rvfs code handling it correctly
