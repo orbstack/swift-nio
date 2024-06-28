@@ -163,7 +163,11 @@ func (sv *SshServer) handleConn(s ssh.Session) {
 	s.Exit(0)
 }
 
-func (sv *SshServer) resolveUser(userReq string) (container *Container, user string, isWormhole bool, err error) {
+func isDefaultUserComp(user string) bool {
+	return user == "[default]" || user == "default"
+}
+
+func (sv *SshServer) resolveUser(userReq string) (c *Container, user string, isWormhole bool, err error) {
 	// user and container
 	userParts := strings.Split(userReq, "@")
 	if len(userParts) > 2 {
@@ -176,61 +180,51 @@ func (sv *SshServer) resolveUser(userReq string) (container *Container, user str
 		containerName = userParts[1]
 	} else {
 		// default user = host user
-		user, err = sv.m.defaultUser()
-		if err != nil {
-			return
-		}
+		user = "[default]"
 		containerName = userParts[0]
 	}
 
-	container, err = sv.m.GetByName(containerName)
-	// try default container
-	if err != nil && len(userParts) == 1 {
-		// default container?
-		var defaultContainer *Container
-		defaultContainer, _, err = sv.m.GetDefaultContainer()
+	// if we only got one component, and it's not default, try it as a container first
+	if !isDefaultUserComp(containerName) {
+		c, err = sv.m.GetByName(containerName)
+		// if not found, and there was a requested user AND container, bail
+		if err != nil && len(userParts) == 2 {
+			return
+		}
+	}
+
+	if c == nil {
+		// fallback path: either default container was requested,
+		// or we got one component and it wasn't a valid container name, so try it as a user
+		c, err = sv.m.GetDefaultContainer()
 		if err != nil {
 			if errors.Is(err, ErrNoMachines) {
-				err = fmt.Errorf("%s", noMachinesMsg)
+				err = fmt.Errorf("%s\n\n%s", err, noMachinesMsg)
 			}
 			return
 		}
-		defaultContainerName := defaultContainer.Name
-		if containerName == "default" {
-			containerName = defaultContainerName
-		}
-
-		container, err = sv.m.GetByName(defaultContainerName)
-		if err == nil {
-			containerName = defaultContainerName
-			user = userParts[0]
-		}
-	}
-	if err != nil {
-		err = fmt.Errorf("machine not found: %s", containerName)
-		return
 	}
 
 	// default user?
-	if user == "[default]" || user == "default" {
-		user = container.config.DefaultUsername
+	if isDefaultUserComp(user) {
+		user = c.config.DefaultUsername
 	}
 
-	if container.ID == ContainerIDDocker && strings.HasPrefix(user, "wormhole:") {
+	if c.ID == ContainerIDDocker && strings.HasPrefix(user, "wormhole:") {
 		// wormhole is OK on release builds
 		isWormhole = true
 		user = user[len("wormhole:"):]
-	} else if !conf.Debug() && container.builtin {
+	} else if !conf.Debug() && c.builtin {
 		err = fmt.Errorf("cannot enter builtin machine: %s", containerName)
 		return
 	}
 
-	if !container.Running() {
+	if !c.Running() {
 		logrus.WithFields(logrus.Fields{
 			"container": containerName,
 		}).Info("starting container for ssh")
 
-		err = container.Start()
+		err = c.Start()
 		if err != nil {
 			return
 		}

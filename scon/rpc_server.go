@@ -67,14 +67,9 @@ func (s *SconServer) GetByName(ctx context.Context, req types.GetByNameRequest) 
 }
 
 func (s *SconServer) GetDefaultContainer(ctx context.Context) (*types.ContainerRecord, error) {
-	c, isExplicit, err := s.m.GetDefaultContainer()
+	c, err := s.m.GetDefaultContainer()
 	if err != nil {
 		return nil, err
-	}
-
-	// no explicit default = nil
-	if !isExplicit {
-		return nil, nil
 	}
 
 	return c.toRecord(), nil

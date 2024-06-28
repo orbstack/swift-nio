@@ -23,8 +23,6 @@ const (
 	ksDnsLastQueries     = "dnsLastQueries"
 
 	bktContainers = "containers"
-
-	containerIDLastUsed = "01GRWR24S00000000LAST0USED"
 )
 
 type DnsLastQueries struct {

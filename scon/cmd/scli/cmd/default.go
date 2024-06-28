@@ -16,10 +16,7 @@ var defaultCmd = &cobra.Command{
 	Use:     "default [NAME/ID]",
 	Aliases: []string{"set-default", "get-default"},
 	Short:   "Get or set the default machine",
-	Long: `Get or set the default machine used when running commands without specifying a machine.
-
-You can remove the default machine by passing "none" as the machine name.
-If no default is set, the most recently-used machine will be used instead.
+	Long: `Get or set the default machine used for commands.
 
 Use "orb config" to change the default username.
 `,
@@ -39,24 +36,16 @@ Use "orb config" to change the default username.
 			}
 		} else {
 			// set
-			if args[0] == "none" {
-				// remove default
-				err := scli.Client().SetDefaultContainer(nil)
-				checkCLI(err)
-			} else {
-				// set default:
-
-				// try ID first
-				c, err := scli.Client().GetByID(args[0])
-				if err != nil {
-					// try name
-					c, err = scli.Client().GetByName(args[0])
-				}
-				checkCLI(err)
-
-				err = scli.Client().SetDefaultContainer(c)
-				checkCLI(err)
+			// try ID first
+			c, err := scli.Client().GetByID(args[0])
+			if err != nil {
+				// try name
+				c, err = scli.Client().GetByName(args[0])
 			}
+			checkCLI(err)
+
+			err = scli.Client().SetDefaultContainer(c)
+			checkCLI(err)
 		}
 
 		return nil

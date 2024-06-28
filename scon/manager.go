@@ -493,66 +493,38 @@ func (m *ConManager) defaultUser() (string, error) {
 	return hostUser.Username, nil
 }
 
-func (m *ConManager) GetDefaultContainer() (*Container, bool, error) {
-	// look up default ID first
-	id, err := m.db.GetDefaultContainerID()
-	isExplicit := true
-	defaultID := id
-	if err != nil || id == "" || id == containerIDLastUsed {
-		isExplicit = false
-
-		// fallback to last-used, or if explicitly set
-		id, err = m.db.GetLastContainerID()
-		if err != nil {
-			// pick first non-builtin container
-			for _, c := range m.ListContainers() {
-				if c.builtin {
-					continue
-				}
-
-				id = c.ID
-				break
-			}
-		}
-	}
-
-	// we have an ID now, so look it up
-	c, err := m.GetByID(id)
-	if err != nil && id != "" {
-		// ID no longer exists.
-		// pick first non-builtin container
-		isExplicit = false
-		for _, c := range m.ListContainers() {
-			if c.builtin {
-				continue
-			}
-
-			id = c.ID
-			break
-		}
-
-		c, err = m.GetByID(id)
-	}
+func (m *ConManager) GetDefaultContainer() (*Container, error) {
+	// look up default
+	defaultID, err := m.db.GetDefaultContainerID()
 	if err != nil {
-		return nil, false, ErrNoMachines
+		return nil, err
 	}
-	// if we had a non-last-used default ID, and it no longer exists, make this the new default
-	if defaultID != "" && defaultID != containerIDLastUsed {
-		err = m.db.SetDefaultContainerID(id)
-		if err != nil {
-			return nil, false, err
+	c, err := m.GetByID(defaultID)
+	if err == nil {
+		return c, nil
+	}
+
+	// failed to get default. either
+	//   - there is no default ID set; or
+	//   - there was, but it got deleted
+	// look for a new container, in alphabetical order
+	for _, c := range m.ListContainers() {
+		if !c.builtin {
+			// set it as default and return it
+			err = m.SetDefaultContainer(c)
+			if err != nil {
+				return nil, err
+			}
+
+			return c, nil
 		}
 	}
 
-	return c, isExplicit, nil
+	// none found
+	return nil, ErrNoMachines
 }
 
 func (m *ConManager) SetDefaultContainer(c *Container) error {
-	if c == nil {
-		// nil = last-used
-		return m.db.SetDefaultContainerID(containerIDLastUsed)
-	}
-
 	return m.db.SetDefaultContainerID(c.ID)
 }
 
