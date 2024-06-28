@@ -168,6 +168,8 @@ pub const PRIORITY_BITS: u64 = 4;
 pub trait GicV3EventHandler {
     fn kick_vcpu_for_irq(&mut self, pe: PeId);
 
+    fn kick_vcpu_for_pvlock(&mut self, pe: PeId);
+
     fn handle_custom_eoi(&mut self, pe: PeId, int_id: InterruptId);
 
     fn get_affinity(&mut self, pe: PeId) -> Affinity;

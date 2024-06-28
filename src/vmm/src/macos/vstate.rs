@@ -799,6 +799,9 @@ impl Vcpu {
                 // us so there's no real performance reason for doing this.
             }
 
+            // If a PV lock was released, just re-enter the vCPU so that the guest handles it.
+            let _ = signal.take(VcpuSignalMask::PVLOCK);
+
             // Run emulation
             let emulation = signal.wait(VcpuSignalMask::all(), VcpuWakerSet::hvf, || {
                 self.run_emulation(&mut hvf_vcpu, &mut *intc_vcpu_handle)
@@ -839,10 +842,13 @@ impl Vcpu {
 
                 // PV-lock
                 Ok(VcpuEmulation::PvlockPark) => {
-                    // TODO: actually park and unpark after gruel migration
-                    std::thread::yield_now();
+                    // should_wait check makes this ineffective
+                    // doesn't matter anyway because IRQs are disabled when calling pvlock park
+                    signal.wait_on_park(VcpuSignalMask::all());
                 }
-                Ok(VcpuEmulation::PvlockUnpark(_vcpuid)) => {}
+                Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {
+                    self.intc.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
+                }
             }
         }
 

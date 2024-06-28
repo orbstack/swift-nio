@@ -45,6 +45,10 @@ bitflags::bitflags! {
         /// Pause the vCPU for a balloon operation.
         const PAUSE = 1 << 3;
 
+        // Wake up the vCPU to acquire a PV spinlock that's now unlocked.
+        #[cfg(target_arch = "aarch64")]
+        const PVLOCK = 1 << 4;
+
         // TODO: We might actually just not want this.
         const ANY_SHUTDOWN = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits();
     }
