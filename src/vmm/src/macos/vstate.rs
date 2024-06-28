@@ -30,7 +30,7 @@ use arch;
 use arch::aarch64::gic::GICDevice;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use devices::legacy::{Gic, GicVcpuHandle, WfeThread};
-use hvf::{HvfVcpu, HvfVm, ParkError, Parkable, VcpuExit, VcpuId};
+use hvf::{HvfVcpu, HvfVm, Parkable, VcpuExit};
 use utils::eventfd::EventFd;
 use vm_memory::{
     Address, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap, GuestMemoryRegion,
@@ -241,8 +241,8 @@ impl Vm {
                 .map_err(Error::SetUserMemoryRegion)?;
             map_regions.push(MapRegion {
                 host_start_addr: host_addr as u64,
-                guest_start_addr: region.start_addr().raw_value() as u64,
-                size: region.len() as u64,
+                guest_start_addr: region.start_addr().raw_value(),
+                size: region.len(),
             });
         }
 
@@ -686,7 +686,7 @@ impl Vcpu {
             ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,
             ShutdownAlreadyRequestedExt, SignalChannel,
         };
-        use vmm_ids::{VcpuSignalMask, VmmShutdownPhase};
+        use vmm_ids::VmmShutdownPhase;
 
         define_waker_set! {
             struct VcpuWakerSet {
@@ -842,8 +842,9 @@ impl Vcpu {
 
                 // PV-lock
                 Ok(VcpuEmulation::PvlockPark) => {
-                    // should_wait check makes this ineffective
-                    // doesn't matter anyway because IRQs are disabled when calling pvlock park
+                    // checking should_wait makes PV lock ineffective due to pending IRQs,
+                    // even though IRQs are disabled while waiting on a PV lock.
+                    // spurious wakeups are OK as this is just a hint to try locking again.
                     signal.wait_on_park(VcpuSignalMask::all());
                 }
                 Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {

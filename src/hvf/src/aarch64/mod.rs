@@ -36,8 +36,8 @@ use tracing::{debug, error};
 use counter::RateCounter;
 
 use crate::hypercalls::{
-    PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION, RSVM_FEATURES,
-    RSVM_IO_REQ, RSVM_PVGIC_SET_ADDR, RSVM_SET_ACTLR_EL1, VZF_PVLOCK_KICK, VZF_PVLOCK_WAIT,
+    ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK,
+    ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
 };
 
 extern "C" {
@@ -510,6 +510,8 @@ impl HvfVm {
             config.set_ipa_size(ipa_bits)?;
         }
 
+        // we use this to prevent an invalid debug feature combination
+        #[allow(clippy::assertions_on_constants)]
         if ENABLE_NESTED_VIRT {
             // our GIC impl doesn't support EL2
             // we'd also need a custom HVC interface to set ICH regs for injection
@@ -681,6 +683,7 @@ bitflags! {
 }
 
 // no atomics because it's on the same CPU, but must be volatile
+// kernel: pvg_cpu_state
 #[derive(Debug, Clone, Copy)]
 struct PvgicVcpuState {
     flags: PvgicFlags,
@@ -1107,19 +1110,19 @@ impl HvfVcpu {
                 return Ok(VcpuExit::CpuOn(mpidr, entry, context_id));
             }
 
-            RSVM_FEATURES => {
+            ORBVM_FEATURES => {
                 self.write_raw_reg(hv_reg_t_HV_REG_X0, 0)?;
                 return Ok(VcpuExit::HypervisorCall);
             }
 
-            RSVM_IO_REQ => {
+            ORBVM_IO_REQUEST => {
                 COUNT_EXIT_HVC_VIRTIOFS.count();
                 let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
                 let args_ptr = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as usize;
                 return Ok(VcpuExit::HypervisorIoCall { dev_id, args_ptr });
             }
 
-            RSVM_PVGIC_SET_ADDR => {
+            ORBVM_PVGIC_SET_STATE => {
                 if USE_HVF_GIC {
                     None
                 } else {
@@ -1135,7 +1138,7 @@ impl HvfVcpu {
                 }
             }
 
-            RSVM_SET_ACTLR_EL1 => {
+            ORBVM_SET_ACTLR_EL1 => {
                 COUNT_EXIT_HVC_ACTLR.count();
 
                 if self.allow_actlr {
@@ -1146,12 +1149,12 @@ impl HvfVcpu {
                 return Ok(VcpuExit::HypervisorCall);
             }
 
-            VZF_PVLOCK_WAIT => {
+            ORBVM_PVLOCK_WFK => {
                 COUNT_EXIT_HVC_PVLOCK_WAIT.count();
                 return Ok(VcpuExit::PvlockPark);
             }
 
-            VZF_PVLOCK_KICK => {
+            ORBVM_PVLOCK_KICK => {
                 COUNT_EXIT_HVC_PVLOCK_KICK.count();
                 let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 return Ok(VcpuExit::PvlockUnpark(vcpuid));
