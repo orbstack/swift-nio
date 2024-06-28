@@ -197,65 +197,6 @@ func (h *HcontrolServer) GetSSHAgentSockets(_ None, reply *htypes.SSHAgentSocket
 	return nil
 }
 
-// format is similar to ini
-func parseGitConfig(data string) (map[string]string, error) {
-	lines := strings.Split(strings.ReplaceAll(data, "\r", ""), "\n")
-	config := make(map[string]string)
-	var currentSection string
-	for _, line := range lines {
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			currentSection = strings.Trim(line, "[]")
-			continue
-		}
-
-		// remove all contents of line after '#'
-		line = strings.Split(line, "#")[0]
-		// trim spaces
-		line = strings.TrimSpace(line)
-
-		// split by first '='
-		k, v, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-
-		// trim spaces
-		k = strings.TrimSpace(k)
-		v = strings.TrimSpace(v)
-
-		config[currentSection+"."+k] = v
-	}
-
-	return config, nil
-}
-
-func (h *HcontrolServer) GetGitConfig(_ None, reply *map[string]string) error {
-	// https://git-scm.com/docs/git-config#Documentation/git-config.txt---global
-	// yes, we're hardcoding $XDG_CONFIG_HOME, but meh.
-	// TODO: read all files? is it worth the complexity for correctness? (https://git-scm.com/docs/git-config#FILES)
-	for _, file := range []string{".gitconfig", ".config/git/config"} {
-		data, err := os.ReadFile(conf.HomeDir() + "/" + file)
-		if err != nil && errors.Is(err, os.ErrNotExist) {
-			continue
-		} else if err != nil {
-			return err
-		}
-
-		config, err := parseGitConfig(string(data))
-		if err != nil {
-			return err
-		}
-
-		config["gitConfigPath"] = file
-
-		*reply = config
-		return nil
-	}
-
-	*reply = nil
-	return nil
-}
-
 func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error {
 	result := h.drmClient.LastResult()
 	if result != nil {

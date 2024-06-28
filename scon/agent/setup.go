@@ -58,8 +58,11 @@ WatchdogSec=0
 )
 
 type InitialSetupArgs struct {
-	Username    string
-	Uid         int
+	Username string
+	Uid      int
+
+	Isolated bool
+	// "" if isolated (to avoid info leak)
 	HostHomeDir string
 
 	Password          string
@@ -67,14 +70,6 @@ type InitialSetupArgs struct {
 	Version           string
 	SSHAuthorizedKeys []string
 	Timezone          string
-	BasicGitConfigs   BasicGitConfigs
-}
-
-type BasicGitConfigs struct {
-	Email         string
-	Name          string
-	DefaultBranch string
-	Path          string
 }
 
 func selectShell() (string, error) {
@@ -188,7 +183,7 @@ func deleteDefaultUsers() error {
 
 func configureSystemStandard(args InitialSetupArgs) error {
 	if args.Password == "" {
-		// add sudoers.d file
+		// add sudoers.d file if there's no password
 		logrus.Debug("Adding sudoers.d file")
 		sudoersLine := args.Username + " ALL=(ALL) NOPASSWD:ALL"
 		err := os.MkdirAll("/etc/sudoers.d", 0750)
@@ -215,6 +210,7 @@ func configureSystemStandard(args InitialSetupArgs) error {
 	// set timezone
 	// don't use systemd timedatectl. it can change the system clock sometimes (+8h for pst)
 	// glibc will reload eventually so it's ok
+	// NOTE: this is a very tiny info leak into isolated machines, but it's fine
 	logrus.WithField("timezone", args.Timezone).Debug("Setting timezone")
 
 	os.Remove("/etc/localtime")
@@ -295,44 +291,46 @@ func configureSystemStandard(args InitialSetupArgs) error {
 		}
 	}
 
-	// link extra certs
-	logrus.Debug("linking extra certificates")
-	if _, err := exec.LookPath("update-ca-certificates"); err == nil {
-		// debian scripts
-		logrus.Debug("using update-ca-certificates")
-		err = os.MkdirAll("/usr/local/share/ca-certificates", 0755)
-		if err != nil {
-			return err
-		}
-		err = os.Symlink(mounts.ExtraCerts, "/usr/local/share/ca-certificates/orbstack-extra-certs.crt")
-		if err != nil {
-			return err
-		}
-		err = util.Run("update-ca-certificates")
-		if err != nil {
-			return err
-		}
-	} else if _, err := exec.LookPath("update-ca-trust"); err == nil {
-		// p11-kit
-		logrus.Debug("using update-ca-trust")
-		// arch /etc/ca-certificates/trust-source/anchors
-		if _, err := os.Stat("/etc/ca-certificates/trust-source/anchors"); err == nil {
-			err = os.Symlink(mounts.ExtraCerts, "/etc/ca-certificates/trust-source/anchors/orbstack-extra-certs.crt")
+	if !args.Isolated {
+		// link extra certs
+		logrus.Debug("linking extra certificates")
+		if _, err := exec.LookPath("update-ca-certificates"); err == nil {
+			// debian scripts
+			logrus.Debug("using update-ca-certificates")
+			err = os.MkdirAll("/usr/local/share/ca-certificates", 0755)
 			if err != nil {
 				return err
 			}
-		} else if _, err := os.Stat("/etc/pki/ca-trust/source/anchors"); err == nil {
-			err = os.Symlink(mounts.ExtraCerts, "/etc/pki/ca-trust/source/anchors/orbstack-extra-certs.crt")
+			err = os.Symlink(mounts.ExtraCerts, "/usr/local/share/ca-certificates/orbstack-extra-certs.crt")
 			if err != nil {
 				return err
 			}
-		} else {
-			return errors.New("no trust-source/anchors directory found")
-		}
+			err = util.Run("update-ca-certificates")
+			if err != nil {
+				return err
+			}
+		} else if _, err := exec.LookPath("update-ca-trust"); err == nil {
+			// p11-kit
+			logrus.Debug("using update-ca-trust")
+			// arch /etc/ca-certificates/trust-source/anchors
+			if _, err := os.Stat("/etc/ca-certificates/trust-source/anchors"); err == nil {
+				err = os.Symlink(mounts.ExtraCerts, "/etc/ca-certificates/trust-source/anchors/orbstack-extra-certs.crt")
+				if err != nil {
+					return err
+				}
+			} else if _, err := os.Stat("/etc/pki/ca-trust/source/anchors"); err == nil {
+				err = os.Symlink(mounts.ExtraCerts, "/etc/pki/ca-trust/source/anchors/orbstack-extra-certs.crt")
+				if err != nil {
+					return err
+				}
+			} else {
+				return errors.New("no trust-source/anchors directory found")
+			}
 
-		err = util.Run("update-ca-trust")
-		if err != nil {
-			return err
+			err = util.Run("update-ca-trust")
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -549,62 +547,34 @@ func (a *AgentServer) InitialSetup(args InitialSetupArgs, _ *None) error {
 		}
 	}
 
-	// write gitconfig
-	if args.BasicGitConfigs.Email != "" && args.BasicGitConfigs.Name != "" {
-		logrus.Debug("Writing gitconfig")
-		gitConfig := fmt.Sprintf(`# Basic config generated from your macOS config by %s.
-# Feel free to edit it or symlink /Users/%s/%s instead.
-
-[user]
-	name = %s
-	email = %s
-`, appid.UserAppName, args.Username, args.BasicGitConfigs.Path, args.BasicGitConfigs.Name, args.BasicGitConfigs.Email)
-
-		if args.BasicGitConfigs.DefaultBranch != "" {
-			gitConfig += fmt.Sprintf(`
-[init]
-	defaultBranch = %s
-`, args.BasicGitConfigs.DefaultBranch)
-		}
-
-		err = os.WriteFile(home+"/.gitconfig", []byte(gitConfig), 0644)
-		if err != nil {
+	if !args.Isolated {
+		// symlink id_* ssh keys in case user has encrypted keys w/o agent
+		logrus.Debug("Symlinking ssh keys")
+		hostHome := mounts.Virtiofs + args.HostHomeDir
+		sshFiles, err := os.ReadDir(hostHome + "/.ssh")
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-
-		// chown
-		err = os.Chown(home+"/.gitconfig", uid, gid)
-		if err != nil {
-			return err
-		}
-	}
-
-	// symlink id_* ssh keys in case user has encrypted keys w/o agent
-	logrus.Debug("Symlinking ssh keys")
-	hostHome := mounts.Virtiofs + args.HostHomeDir
-	sshFiles, err := os.ReadDir(hostHome + "/.ssh")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err == nil {
-		for _, sshFile := range sshFiles {
-			if strings.HasPrefix(sshFile.Name(), "id_") {
-				logrus.WithField("file", sshFile.Name()).Debug("Symlinking ssh key")
-				err = os.MkdirAll(home+"/.ssh", 0700)
-				if err != nil {
-					return err
-				}
-				err = os.Chown(home+"/.ssh", uid, gid)
-				if err != nil {
-					return err
-				}
-				err = os.Symlink(hostHome+"/.ssh/"+sshFile.Name(), home+"/.ssh/"+sshFile.Name())
-				if err != nil {
-					return err
-				}
-				err = os.Lchown(home+"/.ssh/"+sshFile.Name(), uid, gid)
-				if err != nil {
-					return err
+		if err == nil {
+			for _, sshFile := range sshFiles {
+				if strings.HasPrefix(sshFile.Name(), "id_") {
+					logrus.WithField("file", sshFile.Name()).Debug("Symlinking ssh key")
+					err = os.MkdirAll(home+"/.ssh", 0700)
+					if err != nil {
+						return err
+					}
+					err = os.Chown(home+"/.ssh", uid, gid)
+					if err != nil {
+						return err
+					}
+					err = os.Symlink(hostHome+"/.ssh/"+sshFile.Name(), home+"/.ssh/"+sshFile.Name())
+					if err != nil {
+						return err
+					}
+					err = os.Lchown(home+"/.ssh/"+sshFile.Name(), uid, gid)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}

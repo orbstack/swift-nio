@@ -84,16 +84,6 @@ func (c *Client) GetSSHAgentSockets() (*htypes.SSHAgentSockets, error) {
 	return &socks, nil
 }
 
-func (c *Client) GetGitConfig() (map[string]string, error) {
-	var config map[string]string
-	err := c.rpc.Call("hc.GetGitConfig", None{}, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	return config, nil
-}
-
 func (c *Client) GetLastDrmResult() (*drmtypes.Result, error) {
 	var result *drmtypes.Result
 	err := c.rpc.Call("hc.GetLastDrmResult", None{}, &result)

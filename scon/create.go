@@ -159,18 +159,6 @@ func (c *Container) setupInitial(args *types.CreateRequest) error {
 		return fmt.Errorf("get timezone: %w", err)
 	}
 
-	// get git configs
-	var gitConfigs agent.BasicGitConfigs
-	hostGitConfigs, err := c.manager.host.GetGitConfig()
-	if err != nil {
-		logrus.WithError(err).Warn("failed to get host git configs")
-	} else if hostGitConfigs != nil {
-		gitConfigs.Name = hostGitConfigs["user.name"]
-		gitConfigs.Email = hostGitConfigs["user.email"]
-		gitConfigs.DefaultBranch = hostGitConfigs["init.defaultBranch"]
-		gitConfigs.Path = hostGitConfigs["gitConfigPath"]
-	}
-
 	// always wait for network
 	// even if we don't need it for setup, it ensures that resolved has started if necesary,
 	// and systemctl will work
@@ -193,11 +181,10 @@ func (c *Container) setupInitial(args *types.CreateRequest) error {
 			Uid:         hostUser.Uid,
 			HostHomeDir: hostUser.HomeDir,
 
-			Password:        args.UserPassword,
-			Distro:          c.Image.Distro,
-			Version:         c.Image.Version,
-			Timezone:        hostTimezone,
-			BasicGitConfigs: gitConfigs,
+			Password: args.UserPassword,
+			Distro:   c.Image.Distro,
+			Version:  c.Image.Version,
+			Timezone: hostTimezone,
 		})
 	})
 	if err != nil {
