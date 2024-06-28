@@ -31,6 +31,8 @@ func OSToClientEnv(osEnv envutil.EnvMap, transFns TranslatorFuncs) (envutil.EnvM
 	}
 
 	// include all LC_* to match macOS ssh_config
+	// although we exclude LANG, LC_* is probably OK because the user was more explicit about it,
+	// and it probably doesn't cause as many issues with ncurses, perl, etc.
 	for k, v := range osEnv {
 		if strings.HasPrefix(k, "LC_") {
 			clientEnv[k] = v

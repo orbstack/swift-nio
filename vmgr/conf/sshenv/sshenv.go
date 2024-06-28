@@ -15,7 +15,8 @@ var (
 		"COLORTERM",
 
 		// match macOS /etc/ssh/ssh_config: LANG, LC_*
-		"LANG",
+		// exclude LANG: too many issues with locale not being available in machine
+		//"LANG",
 		// LC_* logic is somewhere else
 
 		// default programs depends on PATH
