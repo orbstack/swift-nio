@@ -25,12 +25,26 @@ use crate::{loopback, InitError, Timeline, DEBUG};
 
 // only includes root namespace
 const UNMOUNT_ITERATION_LIMIT: usize = 10;
-const DATA_FILESYSTEM_TYPES: &[&str] = &[
-    // unmount data-share virtiofs to sync changes and forget fds
-    "virtiofs",
-    // and all data filesystems we might use
-    // this only includes filesystems mounted on ovm
-    "btrfs", "bcachefs", "ext4", "xfs", "f2fs",
+// safer to exclude known pseudo-filesystems,
+// to avoid accidentally skipping new data-related ones
+// overlayfs is tempting to exclude, but we use for data, not only for /opt!
+const SKIP_UNMOUNT_FSTYPES: &[&str] = &[
+    "tmpfs",
+    "nfsd",
+    "cgroup2",
+    "bpf",
+    "tracefs",
+    "binfmt_misc",
+    "fusectl",
+    "mqueue",
+    "debugfs",
+    "securityfs",
+    "devpts",
+    "devtmpfs",
+    "proc",
+    "sysfs",
+    "erofs",
+    "squashfs",
 ];
 const ROSETTA_VIRTIOFS_TAG: &str = "rosetta";
 
@@ -177,10 +191,14 @@ fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
         let fstype = parts.next().unwrap();
 
         // to save time, only unmount data filesystems
-        if DATA_FILESYSTEM_TYPES.contains(&fstype) {
+        if !SKIP_UNMOUNT_FSTYPES.contains(&fstype) {
             // HACK: exclude Rosetta virtiofs
-            // unnecessary, and I'm not confident about krpc/rvfs code handling it correctly
+            // unnecessary, and I'm not confident that krpc/rvfs will handle it correctly
             if fstype == "virtiofs" && source == ROSETTA_VIRTIOFS_TAG {
+                continue;
+            }
+            // also don't unmount / (read-only boot rootfs)
+            if target == "/" {
                 continue;
             }
 
@@ -189,7 +207,7 @@ fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
             if !target.starts_with("/nfs") {
                 println!("  -  Unmounting {}", target);
             }
-            // TODO: MNT_DETACH?
+            // TODO: MNT_DETACH? but then how do we wait for it to actually be dropped before reboot()?
             if let Err(e) = umount2(target, MntFlags::MNT_FORCE) {
                 println!(" !!! Failed to unmount {}: {}", target, e);
             } else {
