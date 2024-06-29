@@ -139,9 +139,10 @@ echo 'filter-syscalls = false' >> /etc/nix/nix.conf
 echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf
 nix-channel --update
 # for zsh cloning and CNF processing
-nix-env -iA nixpkgs.git nixpkgs.sqlite nixpkgs.gnutar nixpkgs.curl nixpkgs.xz
+nix-env -iA nixpkgs.git nixpkgs.sqlite nixpkgs.gnutar nixpkgs.curl nixpkgs.xz nixpkgs.python3
 EOT
 COPY wormhole/os /build/os
+COPY wormhole/cnf-gpt /build/cnf-gpt
 RUN --mount=type=cache,target=/nix-cache \
     <<EOT sh -eux
 mkdir /build-result
@@ -149,11 +150,6 @@ cd /build-result
 # TODO: cache with --store /nix-cache --eval-store local
 nix build /build/os
 tar xzf result
-
-# download CNF database
-mkdir /cnf
-cd /cnf
-curl -L https://nixos.org/channels/nixos-unstable/nixexprs.tar.xz | tar -xJvf - --wildcards '*/programs.sqlite'
 
 mkdir /out
 cd /out
@@ -177,8 +173,9 @@ rm -fr nix/store/*-python3-*
 # need this to make it work for containers without CAP_DAC_OVERRIDE, even with uid=0 gid=0
 chmod 755 nix/store
 
-# convert CNF database
-sqlite3 -csv /cnf/*/programs.sqlite "select name, package from Programs where system = '\$(uname -m)-linux';" > nix/orb/sys/.programs.csv
+# always use latest DB, and then merge overrides
+/build/cnf-gpt/download-db.sh > /build/cnf.csv
+/build/cnf-gpt/merge-overrides.py /build/cnf.csv /build/cnf-gpt/overrides.csv nix/orb/sys/.programs.csv
 
 mkdir -p nix/orb/sys/zsh nix/orb/sys/.base nix/orb/data/home nix/orb/data/tmp nix/orb/data/env nix/var
 cd nix/orb/sys/zsh
