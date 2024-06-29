@@ -3,6 +3,8 @@ package hcsrv
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/miekg/dns"
+	"github.com/mikesmitty/edkey"
 	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
@@ -42,6 +45,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/services/sshagent"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -111,6 +115,9 @@ type HcontrolServer struct {
 	k8sClient         *kubernetes.Clientset
 	k8sNotifyDebounce *vmgrsyncx.LeadingFuncDebounce
 	k8sInformerStopCh chan struct{}
+
+	// not exposed by net/rpc because it's not a method
+	InternalEnsurePublicSSHKey func() error
 }
 
 func (h *HcontrolServer) Ping(_ *None, _ *None) error {
@@ -167,7 +174,14 @@ func (h *HcontrolServer) GetTimezone(_ *None, reply *string) error {
 	return nil
 }
 
+// for publish SSH server
 func (h *HcontrolServer) GetSSHAuthorizedKeys(_ None, reply *string) error {
+	// generate key to avoid race if host setup hasn't run yet
+	err := h.InternalEnsurePublicSSHKey()
+	if err != nil {
+		return err
+	}
+
 	customKey, err := os.ReadFile(conf.ExtraSshDir() + "/id_ed25519.pub")
 	if err != nil {
 		return err
@@ -726,6 +740,36 @@ func (h *HcontrolServer) ImportTLSCertificate(_ None, reply *None) error {
 
 type None struct{}
 
+func generatePublicSSHKey() error {
+	pk, sk, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return err
+	}
+
+	sshPk, err := ssh.NewPublicKey(pk)
+	if err != nil {
+		return err
+	}
+
+	pemKey := &pem.Block{
+		Type:  "OPENSSH PRIVATE KEY",
+		Bytes: edkey.MarshalED25519PrivateKey(sk),
+	}
+	sshSkText := pem.EncodeToMemory(pemKey)
+	sshPkText := ssh.MarshalAuthorizedKey(sshPk)
+
+	err = os.WriteFile(conf.ExtraSshDir()+"/id_ed25519", sshSkText, 0600)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(conf.ExtraSshDir()+"/id_ed25519.pub", sshPkText, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func ListenHcontrol(n *vnet.Network, address tcpip.Address, drmClient *drm.DrmClient) (*HcontrolServer, error) {
 	server := &HcontrolServer{
 		n:            n,
@@ -733,6 +777,20 @@ func ListenHcontrol(n *vnet.Network, address tcpip.Address, drmClient *drm.DrmCl
 		fsnotifyRefs: make(map[string]int),
 		// TODO: start hostMdns for LAN mDNS
 	}
+	server.InternalEnsurePublicSSHKey = sync.OnceValue(func() error {
+		// generate key if necessary
+		_, err1 := os.Stat(conf.ExtraSshDir() + "/id_ed25519")
+		_, err2 := os.Stat(conf.ExtraSshDir() + "/id_ed25519.pub")
+		if errors.Is(err1, os.ErrNotExist) || errors.Is(err2, os.ErrNotExist) {
+			err := generatePublicSSHKey()
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
 	rpcServer := rpc.NewServer()
 	rpcServer.RegisterName("hc", server)
 

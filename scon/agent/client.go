@@ -132,9 +132,9 @@ func (c *Client) StopProxyUDP(spec ProxySpec) error {
 	return nil
 }
 
-func (c *Client) InitialSetupOne(args InitialSetupArgs) error {
+func (c *Client) InitialSetupStage1(args InitialSetupArgs) error {
 	var none None
-	err := c.rpc.Call("a.InitialSetupOne", args, &none)
+	err := c.rpc.Call("a.InitialSetupStage1", args, &none)
 	if err != nil {
 		return err
 	}
@@ -142,9 +142,9 @@ func (c *Client) InitialSetupOne(args InitialSetupArgs) error {
 	return nil
 }
 
-func (c *Client) InitialSetupTwo(args InitialSetupArgs) error {
+func (c *Client) InitialSetupStage2(args InitialSetupArgs) error {
 	var none None
-	err := c.rpc.Call("a.InitialSetupTwo", args, &none)
+	err := c.rpc.Call("a.InitialSetupStage2", args, &none)
 	if err != nil {
 		return err
 	}

@@ -148,7 +148,7 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 	}
 
 	err = c.UseAgent(func(a *agent.Client) error {
-		return a.InitialSetupTwo(*setupArgs)
+		return a.InitialSetupStage2(*setupArgs)
 	})
 	if err != nil {
 		err = fmt.Errorf("setup: %w")
@@ -208,14 +208,14 @@ func (c *Container) setupInitial(args *types.CreateRequest) (*agent.InitialSetup
 		Uid:         hostUser.Uid,
 		HostHomeDir: hostUser.HomeDir,
 
-		Password:        args.UserPassword,
-		Distro:          c.Image.Distro,
-		Version:         c.Image.Version,
-		Timezone:        hostTimezone,
+		Password: args.UserPassword,
+		Distro:   c.Image.Distro,
+		Version:  c.Image.Version,
+		Timezone: hostTimezone,
 	}
 
 	err = c.UseAgent(func(a *agent.Client) error {
-		return a.InitialSetupOne(setupArgs)
+		return a.InitialSetupStage1(setupArgs)
 	})
 	if err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) {

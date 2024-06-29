@@ -438,7 +438,7 @@ func (a *AgentServer) createUserAndGroup(username string, uid int, gid int, shel
 	return nil
 }
 
-func (a *AgentServer) InitialSetupOne(args InitialSetupArgs, _ *None) error {
+func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 	// if this is a cloud-init image, wait for cloud-init to finish before we do anything
 	// fixes errors like: ('ssh_authkey_fingerprints', KeyError("getpwnam(): name not found: 'ubuntu'"))
 	err := util.Run("cloud-init", "status", "--wait")
@@ -513,7 +513,7 @@ func (a *AgentServer) InitialSetupOne(args InitialSetupArgs, _ *None) error {
 	return nil
 }
 
-func (a *AgentServer) InitialSetupTwo(args InitialSetupArgs, _ *None) error {
+func (a *AgentServer) InitialSetupStage2(args InitialSetupArgs, _ *None) error {
 	// look up new user info (home, uid, gid)
 	u, err := user.Lookup(args.Username)
 	if err != nil {

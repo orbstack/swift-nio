@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/ed25519"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -10,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/alessio/shellescape"
-	"github.com/mikesmitty/edkey"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
@@ -18,40 +15,15 @@ import (
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/util/sshconfig"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
-func generatePublicSSHKey() error {
-	pk, sk, err := ed25519.GenerateKey(nil)
+func (s *VmControlServer) setupPublicSSH() error {
+	// generate key first -- don't write config pointing to non-existent key
+	err := s.hcontrol.InternalEnsurePublicSSHKey()
 	if err != nil {
 		return err
 	}
 
-	sshPk, err := ssh.NewPublicKey(pk)
-	if err != nil {
-		return err
-	}
-
-	pemKey := &pem.Block{
-		Type:  "OPENSSH PRIVATE KEY",
-		Bytes: edkey.MarshalED25519PrivateKey(sk),
-	}
-	sshSkText := pem.EncodeToMemory(pemKey)
-	sshPkText := ssh.MarshalAuthorizedKey(sshPk)
-
-	err = os.WriteFile(conf.ExtraSshDir()+"/id_ed25519", sshSkText, 0600)
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile(conf.ExtraSshDir()+"/id_ed25519.pub", sshPkText, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func setupPublicSSH() error {
 	// ssh-proxy-fdpass is to ensure VM start
 	exePath, err := os.Executable()
 	if err != nil {
@@ -96,16 +68,6 @@ Host ovm
 	err = util.WriteFileAtomic(conf.ExtraSshDir()+"/config", []byte(sshConfigSection), 0644)
 	if err != nil {
 		return err
-	}
-
-	// generate key if necessary
-	_, err1 := os.Stat(conf.ExtraSshDir() + "/id_ed25519")
-	_, err2 := os.Stat(conf.ExtraSshDir() + "/id_ed25519.pub")
-	if errors.Is(err1, os.ErrNotExist) || errors.Is(err2, os.ErrNotExist) {
-		err = generatePublicSSHKey()
-		if err != nil {
-			return err
-		}
 	}
 
 	// check for existing "orb" host
