@@ -188,6 +188,8 @@ extension Defaults.Keys {
 
     static let updatesOptinChannel = Key<String>("updates_optinChannel", default: "stable", suite: suite)
 
+    static let showMoveToApplications = Key<Bool>("onboarding_showMoveToApplicationsPopup", default: true, suite: suite)
+    
     // set to -1 if user has
     static let networkHttpsDismissCount = Key<Int>("network_httpsDismissCount", default: 0, suite: suite)
 

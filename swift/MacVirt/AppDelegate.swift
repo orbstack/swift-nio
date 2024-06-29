@@ -25,7 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // don't allow opening duplicate app instance - just activate old one
         // skip vmgr executables because there used to be a bug where it would open with same bundle id as GUI
         // need to keep the fix around for a long time due to update
-        if let existingApp = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
+        if !CommandLine.arguments.contains("--allow-duplicate"), let existingApp = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
             .first(where: { $0 != NSRunningApplication.current && $0.executableURL?.lastPathComponent != AppConfig.vmgrExeName })
         {
             print("App is already running")
@@ -40,8 +40,110 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             // but we want to avoid creating SwiftUI windows at all in order to avoid triggering .onAppear initLaunch
             exit(0)
         }
+        
+        // Current running instance does not reside in /Applications
+        // Ask the user if they want to move it
+        if shouldPromptToMoveApplication() {
+            let alert = NSAlert()
+            
+            alert.messageText = "Move to Applications?"
+            alert.informativeText = "I can move myself to the Applications folder if you'd like."
+            
+            alert.addButton(withTitle: "Move")
+            alert.addButton(withTitle: "Don't Move")
+            
+            Defaults[.showMoveToApplications] = false // no matter the choice, this'll be set to false. let's just do it here
+            
+            if alert.runModal() == .alertFirstButtonReturn {
+                moveToApplicationsButtonClicked()
+            }
+        }
+    }
+    
+    func shouldPromptToMoveApplication() -> Bool {
+        return !Bundle.main.bundlePath.hasPrefix("/Applications/") && Defaults[.showMoveToApplications]
+    }
+    
+    @MainActor
+    func moveToApplicationsButtonClicked() { // Handles replacements, too
+        Task {
+            do {
+                if vmModel.state == .running {
+                    do {
+                        try await vmModel.stop()
+                    } catch {
+#if DEBUG
+                        throw StringError("Can't move app while background service is running (\(error))")
+#else
+                        throw StringError("Can't move app while background service is running")
+#endif
+                    }
+                }
+                
+                let fm = FileManager.default
+                let newAppURL = URL(fileURLWithPath: "/Applications/OrbStack.app")
+                
+                let needDestAuth = fm.fileExists(atPath: newAppURL.path) /* if it already exists, then we'll just need permissions anyway (from testing.. :/) */
+                let needAuth = needDestAuth || !fm.isWritableFile(atPath: "/Applications")
+                
+                if needAuth {
+                    let deleteCommand = "rm -rf \(escapeShellArg(newAppURL.path))"
+                    let copyCommand = "cp -pR \(escapeShellArg(Bundle.main.bundlePath)) \(escapeShellArg(newAppURL.path))"
+                    
+                    // Update LaunchServicesDB, touch can be used to update an app: https://github.com/sparkle-project/Sparkle/blob/3a9734538a38b35107962d6e8c5975cdabaeb56d/Sparkle/SUFileManager.m#L483
+                    let touchCommand = "touch \(escapeShellArg(newAppURL.path))"
+                    try runAsAdmin(script: "\(deleteCommand) && \(copyCommand) && \(touchCommand)", prompt: "OrbStack wants to move itself to the Applications folder")
+                } else {
+                    do {
+                        try FileManager.default.moveItem(at: Bundle.main.bundleURL, to: newAppURL)
+                    } catch {
+                        try FileManager.default.copyItem(at: Bundle.main.bundleURL, to: newAppURL)
+                    }
+                    
+                    // update LaunchServicesDB (Sparkle does this, we're also using open+futimes to follow symlinks)
+                    let fd = open(newAppURL.path, O_RDONLY | O_SYMLINK | O_CLOEXEC)
+                    defer { close(fd) }
+                    
+                    if fd != -1 {
+                        futimes(fd, nil)
+                    }
+                }
+                
+                
+                launchNewInstance(atURL: newAppURL)
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "Failed to move OrbStack.app to /Applications"
+                alert.informativeText = error.localizedDescription
+                alert.addButton(withTitle: "OK")
+                alert.window.isRestorable = false
+                
+                alert.runModal()
+            }
+        }
     }
 
+    func launchNewInstance(atURL url: URL) {
+        // to stop any wonky behaviour (because Bundle.main would point to the old location)
+        // We re-launch the app from the /Applications path
+        
+        let conf = NSWorkspace.OpenConfiguration()
+        conf.createsNewApplicationInstance = true
+        conf.activates = true
+        
+        // OrbStack eliminates any duplicate instances, however, when re-launching the app,
+        // we will have 2 instances just for a split second, before we terminate the old instance
+        // so we pass this flag to keep the new instance happy
+        conf.arguments = ["--allow-duplicate"]
+        NSWorkspace.shared.openApplication(at: url, configuration: conf) { _, _ in
+            exit(EXIT_SUCCESS) // exit once the new app is launched
+        }
+    }
+    
+    @objc func noThanksButtonWasClicked(sender: NSButton) {
+        sender.window?.close()
+    }
+    
     func applicationDidFinishLaunching(_: Notification) {
         if !AppConfig.debug {
             SentrySDK.start { options in

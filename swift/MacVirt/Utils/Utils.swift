@@ -47,11 +47,14 @@ func killswitchExpired() -> Bool {
     }
 }
 
-struct AppleScriptError: Error {
+struct AppleScriptError: CustomStringConvertible, LocalizedError, Error {
     let output: String
+    
+    var errorDescription: String? { output }
+    var description: String { output }
 }
 
-private func escapeShellArg(_ arg: String) -> String {
+func escapeShellArg(_ arg: String) -> String {
     return "'" + arg.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }
 
@@ -338,4 +341,16 @@ enum Users {
 enum K8sConstants {
     static let context = "orbstack"
     static let apiResId = K8SResourceId.service(namespace: "default", name: "kubernetes")
+}
+
+// App Mover needs to manually throw an error in one case, so I feel as though making a generic error type
+// would be better than an enum with one case
+struct StringError: CustomStringConvertible, Error, LocalizedError {
+    let description: String
+    
+    init(_ description: String) {
+        self.description = description
+    }
+    
+    var errorDescription: String? { description }
 }
