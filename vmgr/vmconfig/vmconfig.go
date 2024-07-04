@@ -145,6 +145,15 @@ func Get() *VmConfig {
 	err = json.Unmarshal(data, &config)
 	check(err)
 
+	// apply debug overlay on debug builds
+	if coredir.Debug() {
+		data, err := os.ReadFile(coredir.VmConfigFileDebug())
+		if err == nil {
+			err = json.Unmarshal(data, &config)
+			check(err)
+		}
+	}
+
 	err = config.Validate()
 	if err != nil {
 		errorx.Fatalf("Invalid config: %w", err)
