@@ -49,11 +49,11 @@
     1. Install dependencies: `sudo pacman -Syu base-devel bc cpio clang lld llvm pahole`
     1. `git clone git@github.com:orbstack/linux-macvirt-priv`
         - Must be on Linux file system due to case sensitivity (run `cd` — should be in /home, not /Users)
-    1. `git checkout mac-6.7.x` (current dev branch)
+    1. `git checkout mac-6.9.x` (current dev branch)
     1. `source setup.sh`
     1. `restore_config`
     1. `marm`
-    1. Copy `out/arch/arm64/boot/Image` to `assets/debug/arm64/kernel` in repo root
+    1. `sync_out $PATH_TO_MACVIRT_CLONE` (errors due to missing x86 outputs are OK)
 1. Quit the release build of OrbStack
 1. Set Xcode > Settings > Locations > Derived Data to "Relative"
 1. Build and run app in Xcode
