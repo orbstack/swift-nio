@@ -7,8 +7,10 @@ package drmcore
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/keybase/go-keychain"
+	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
@@ -20,10 +22,14 @@ const (
 	keychainAccessGroup = "HUAQ24HBR6.dev.orbstack"
 
 	// bumped when migrating to access group
-	keychainAccountDrm    = "license_state2"
-	keychainAccountDrmOld = "license_state"
-	keychainLabelDrm      = "OrbStack account" // user-facing "Name"
-	keychainLabelDrmOld   = "OrbStack"         // user-facing "Name"
+	keychainAccountDrm      = "license_state2"
+	keychainAccountDrmDebug = "license_state2_debug"
+	keychainAccountDrmOld   = "license_state"
+
+	// user-facing "Name"
+	keychainLabelDrm      = "OrbStack account"
+	keychainLabelDrmDebug = "OrbStack account (Debug)"
+	keychainLabelDrmOld   = "OrbStack"
 
 	// for TLS proxy
 	keychainLabelTLS   = "OrbStack CA data"
@@ -55,8 +61,24 @@ func SaveRefreshToken(refreshToken string) error {
 	return nil
 }
 
+func keychainAccount() string {
+	if conf.Debug() && os.Getenv("ORB_DRM_DEBUG") == "1" {
+		return keychainAccountDrmDebug
+	} else {
+		return keychainAccountDrm
+	}
+}
+
+func keychainAccountLabel() string {
+	if conf.Debug() && os.Getenv("ORB_DRM_DEBUG") == "1" {
+		return keychainLabelDrmDebug
+	} else {
+		return keychainLabelDrm
+	}
+}
+
 func ReadKeychainDrmState() ([]byte, error) {
-	data, err := readGenericPassword(keychainAccountDrm, keychainLabelDrm)
+	data, err := readGenericPassword(keychainAccount(), keychainAccountLabel())
 	if err != nil {
 		// retry w/ old, for seamless migration
 		// next SetKeychainState call should move it
@@ -100,7 +122,7 @@ func SetKeychainDrmState(data []byte) error {
 	// delete pre-migration if necessary
 	_ = keychain.DeleteGenericPasswordItem(keychainService, keychainAccountDrmOld)
 
-	err := setGenericPassword(keychainAccountDrm, keychainLabelDrm, data)
+	err := setGenericPassword(keychainAccount(), keychainAccountLabel(), data)
 	if err != nil {
 		return err
 	}
