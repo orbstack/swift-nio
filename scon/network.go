@@ -13,11 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/go-iptables/iptables"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
-	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/nftables"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -50,29 +49,27 @@ var vnetGuestIP6 = net.ParseIP(netconf.VnetGuestIP6)
 type Network struct {
 	bridge         *netlink.Bridge
 	mtu            int
-	cleanupNAT     func() error
 	dnsmasqProcess *os.Process
 	dataDir        string
 
 	mdnsRegistry *mdnsRegistry
 
-	iptablesMu  sync.Mutex
-	iptForwards map[sysnet.ListenerKey]iptablesForwardMeta
-	iptBlocks   map[netip.Prefix]struct{}
+	nftablesMu  sync.Mutex
+	nftForwards map[sysnet.ListenerKey]nftablesForwardMeta
+	nftBlocks   map[netip.Prefix]struct{}
 }
 
-type iptablesForwardMeta struct {
-	internalPort     uint16
-	internalListenIP net.IP
-	toMachineIP      net.IP
+type nftablesForwardMeta struct {
+	internalPort uint16
+	toMachineIP  net.IP
 }
 
 func NewNetwork(dataDir string, host *hclient.Client, db *Database, manager *ConManager) *Network {
 	return &Network{
 		dataDir:      dataDir,
 		mdnsRegistry: newMdnsRegistry(host, db, manager),
-		iptForwards:  make(map[sysnet.ListenerKey]iptablesForwardMeta),
-		iptBlocks:    make(map[netip.Prefix]struct{}),
+		nftForwards:  make(map[sysnet.ListenerKey]nftablesForwardMeta),
+		nftBlocks:    make(map[netip.Prefix]struct{}),
 	}
 }
 
@@ -98,22 +95,38 @@ func (n *Network) Start() error {
 	}
 	n.dnsmasqProcess = proc
 
-	// configure NAT
-	cleanupNAT, err := setupAllNat()
+	// apply nftables
+	err = nftables.ApplyConfig(nftables.ConfigVM, map[string]string{
+		"IF_VNET":                           ifVnet,
+		"IF_BRIDGE":                         ifBridge,
+		"SCON_WEB_INDEX_IP4":                netconf.SconWebIndexIP4,
+		"SCON_WEB_INDEX_IP6":                netconf.SconWebIndexIP6,
+		"SCON_HOST_BRIDGE_IP4":              netconf.SconHostBridgeIP4,
+		"SCON_HOST_BRIDGE_IP6":              netconf.SconHostBridgeIP6,
+		"MAC_DOCKER":                        MACAddrDocker,
+		"VNET_SECURE_SVC_IP4":               netconf.VnetSecureSvcIP4,
+		"PORT_SECURE_SVC_DOCKER_REMOTE_CTX": strconv.Itoa(ports.SecureSvcDockerRemoteCtx),
+		"SCON_SUBNET4":                      netconf.SconSubnet4CIDR,
+		"SCON_SUBNET6":                      netconf.SconSubnet6CIDR,
+		"VNET_SUBNET4":                      netconf.VnetSubnet4CIDR,
+		"VNET_SUBNET6":                      netconf.VnetSubnet6CIDR,
+
+		// port forward dest
+		"INTERNAL_LISTEN_IP4": netconf.VnetGuestIP4,
+		"INTERNAL_LISTEN_IP6": netconf.VnetGuestIP6,
+	})
 	if err != nil {
 		return err
 	}
-	n.cleanupNAT = cleanupNAT
 
-	// start static iptables forward for k8s server
+	// start static nftables forward for k8s server
 	// avoid taking a real forward slot - it could interfere with localhost autofwd
-	err = n.toggleIptablesForward("-A", sysnet.ListenerKey{
+	err = n.addDelNftablesForward("add", sysnet.ListenerKey{
 		AddrPort: netip.AddrPortFrom(netipIPv4Loopback, ports.DockerMachineK8s),
 		Proto:    sysnet.ProtoTCP,
-	}, iptablesForwardMeta{
-		internalPort:     ports.GuestK8s,
-		internalListenIP: net.ParseIP(netconf.VnetGuestIP4),
-		toMachineIP:      sconDocker4,
+	}, nftablesForwardMeta{
+		internalPort: ports.GuestK8s,
+		toMachineIP:  sconDocker4,
 	})
 	if err != nil {
 		return err
@@ -213,111 +226,110 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 	return cmd.Process, nil
 }
 
-func (n *Network) toggleIptablesForward(action string, key sysnet.ListenerKey, meta iptablesForwardMeta) error {
-	// MASQUERADE not needed
-	// this preserves source IP from host vnet, which works due to ip forward
-	return util.Run(iptCmdFor(key.Addr()),
-		"-t", "nat",
-		action, "PREROUTING",
-		"-i", ifVnet,
-		"-d", meta.internalListenIP.String(),
-		"-p", string(key.Proto),
-		"--dport", strconv.Itoa(int(meta.internalPort)),
-		"-j", "DNAT",
-		"--to-destination", net.JoinHostPort(meta.toMachineIP.String(), strconv.Itoa(int(key.Port()))))
+func (n *Network) addDelNftablesForward(action string, key sysnet.ListenerKey, meta nftablesForwardMeta) error {
+	mapProto := "tcp"
+	if key.Proto == sysnet.ProtoUDP {
+		mapProto = "udp"
+	}
+
+	mapFamily := "4"
+	if meta.toMachineIP.To4() == nil {
+		mapFamily = "6"
+	}
+
+	return nftables.Run(action, "element", "inet", "vm", mapProto+"_port_forwards"+mapFamily, fmt.Sprintf("{ %d : %v . %d }", meta.internalPort, meta.toMachineIP, key.Port()))
 }
 
-func (n *Network) StartIptablesForward(key sysnet.ListenerKey, internalPort uint16, internalListenIP net.IP, toMachineIP net.IP) error {
-	n.iptablesMu.Lock()
-	defer n.iptablesMu.Unlock()
+func (n *Network) StartNftablesForward(key sysnet.ListenerKey, internalPort uint16, internalListenIP net.IP, toMachineIP net.IP) error {
+	n.nftablesMu.Lock()
+	defer n.nftablesMu.Unlock()
 
-	if _, ok := n.iptForwards[key]; ok {
-		return fmt.Errorf("iptables forward already exists: %s", key)
+	if _, ok := n.nftForwards[key]; ok {
+		return fmt.Errorf("nftables forward already exists: %s", key)
 	}
 
-	meta := iptablesForwardMeta{
-		internalPort:     internalPort,
-		internalListenIP: internalListenIP,
-		toMachineIP:      toMachineIP,
+	meta := nftablesForwardMeta{
+		internalPort: internalPort,
+		toMachineIP:  toMachineIP,
 	}
-	err := n.toggleIptablesForward("-A", key, meta)
+	err := n.addDelNftablesForward("add", key, meta)
 	if err != nil {
 		return err
 	}
 
-	n.iptForwards[key] = meta
+	n.nftForwards[key] = meta
 	return nil
 }
 
-func (n *Network) StopIptablesForward(key sysnet.ListenerKey) error {
-	n.iptablesMu.Lock()
-	defer n.iptablesMu.Unlock()
+func (n *Network) StopNftablesForward(key sysnet.ListenerKey) error {
+	n.nftablesMu.Lock()
+	defer n.nftablesMu.Unlock()
 
-	meta, ok := n.iptForwards[key]
+	meta, ok := n.nftForwards[key]
 	if !ok {
 		// normal - we always go through this path
 		return nil
 	}
 
-	err := n.toggleIptablesForward("-D", key, meta)
+	err := n.addDelNftablesForward("del", key, meta)
 	if err != nil {
 		return err
 	}
 
-	delete(n.iptForwards, key)
+	delete(n.nftForwards, key)
 	return nil
 }
 
-func iptCmdFor(addr netip.Addr) string {
-	// avoid 4-in-6 issues
-	if !addr.Is4() {
-		return "ip6tables"
+func nftMapSuffixFor(prefix netip.Prefix) string {
+	if prefix.Addr().Is4() {
+		return "4"
+	} else {
+		return "6"
 	}
-	return "iptables"
 }
 
-func (n *Network) BlockIptablesForward(prefix netip.Prefix) error {
+func (n *Network) BlockNftablesForward(prefix netip.Prefix) error {
 	// to prevent issues if we actually decide to use routing in the future, we only block it for outgoing traffic
 	// also filter by docker machine. it's an edge case, but machines should actually be allowed to forward to containers (e.g. *.local), at least until we add ip routes to VM. need to filter by MAC instead of IP because ip forward keeps source IP
-	err := util.Run(iptCmdFor(prefix.Addr()), "-t", "filter", "-I", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-d", prefix.String(), "-m", "mac", "--mac-source", MACAddrDocker, "-j", "DROP")
+	err := nftables.Run("add", "element", "inet", "vm", "block_docker_subnets"+nftMapSuffixFor(prefix), fmt.Sprintf("{ %v }", prefix))
 	if err != nil {
 		return err
 	}
 
-	n.iptablesMu.Lock()
-	defer n.iptablesMu.Unlock()
-	n.iptBlocks[prefix] = struct{}{}
+	n.nftablesMu.Lock()
+	defer n.nftablesMu.Unlock()
+	n.nftBlocks[prefix] = struct{}{}
 	return nil
 }
 
-func (n *Network) unblockIptablesForwardLockedBase(prefix netip.Prefix) error {
-	return util.Run(iptCmdFor(prefix.Addr()), "-t", "filter", "-D", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-d", prefix.String(), "-m", "mac", "--mac-source", MACAddrDocker, "-j", "DROP")
+func (n *Network) unblockNftablesForwardLockedBase(prefix netip.Prefix) error {
+	return nftables.Run("del", "element", "inet", "vm", "block_docker_subnets"+nftMapSuffixFor(prefix), fmt.Sprintf("{ %v }", prefix))
 }
 
-func (n *Network) UnblockIptablesForward(prefix netip.Prefix) error {
-	err := n.unblockIptablesForwardLockedBase(prefix)
+func (n *Network) UnblockNftablesForward(prefix netip.Prefix) error {
+	err := n.unblockNftablesForwardLockedBase(prefix)
 	if err != nil {
 		return err
 	}
 
-	n.iptablesMu.Lock()
-	defer n.iptablesMu.Unlock()
-	delete(n.iptBlocks, prefix)
+	n.nftablesMu.Lock()
+	defer n.nftablesMu.Unlock()
+	delete(n.nftBlocks, prefix)
 	return nil
 }
 
-func (n *Network) ClearIptablesForwardBlocks() error {
-	n.iptablesMu.Lock()
-	defer n.iptablesMu.Unlock()
+func (n *Network) ClearNftablesForwardBlocks() error {
+	n.nftablesMu.Lock()
+	defer n.nftablesMu.Unlock()
 
-	for prefix := range n.iptBlocks {
-		err := n.unblockIptablesForwardLockedBase(prefix)
+	for prefix := range n.nftBlocks {
+		err := n.unblockNftablesForwardLockedBase(prefix)
 		if err != nil {
 			return err
 		}
 	}
 
-	clear(n.iptBlocks)
+	clear(n.nftBlocks)
 	return nil
 }
 
@@ -328,13 +340,6 @@ func (n *Network) Close() error {
 			logrus.WithError(err).Error("failed to delete bridge")
 		}
 		n.bridge = nil
-	}
-	if n.cleanupNAT != nil {
-		err := n.cleanupNAT()
-		if err != nil {
-			logrus.WithError(err).Error("failed to cleanup NAT")
-		}
-		n.cleanupNAT = nil
 	}
 	if n.dnsmasqProcess != nil {
 		err := n.dnsmasqProcess.Kill()
@@ -407,161 +412,6 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 	}
 
 	return bridge, nil
-}
-
-func setupAllNat() (func() error, error) {
-	cleanup4, err := setupOneNat(iptables.ProtocolIPv4, netconf.SconSubnet4CIDR, netconf.VnetSecureSvcIP4, netconf.SconHostBridgeIP4, netconf.SconWebIndexIP4)
-	if err != nil {
-		return nil, err
-	}
-
-	cleanup6, err := setupOneNat(iptables.ProtocolIPv6, netconf.SconSubnet6CIDR, "", netconf.SconHostBridgeIP6, netconf.SconWebIndexIP6)
-	if err != nil {
-		_ = cleanup4()
-		return nil, err
-	}
-
-	return func() error {
-		err1 := cleanup4()
-		err2 := cleanup6()
-		if err1 != nil {
-			return err1
-		}
-		return err2
-	}, nil
-}
-
-func setupOneNat(proto iptables.Protocol, netmask string, secureSvcIP string, hostBridgeIP string, webIndexIP string) (func() error, error) {
-	ipt, err := iptables.New(iptables.IPFamily(proto), iptables.Timeout(10))
-	if err != nil {
-		return nil, err
-	}
-
-	// flush it. we own iptables
-	err = ipt.ClearAll()
-	if err != nil {
-		return nil, err
-	}
-
-	// NAT: gvisor only accepts packets with our source IP
-	// filtering by output interface fixes multicast
-	// can't filter by input interface (-i) in POSTROUTING
-	rules := [][]string{{"nat", "POSTROUTING", "-s", netmask, "-o", ifVnet, "-j", "MASQUERADE"}}
-
-	// related/established
-	rules = append(rules, []string{"filter", "INPUT", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"})
-
-	// localhost
-	rules = append(rules, []string{"filter", "INPUT", "-i", "lo", "-j", "ACCEPT"})
-
-	// host: allow mac gvisor vnet to access anything
-	rules = append(rules, []string{"filter", "INPUT", "-i", ifVnet, "-j", "ACCEPT"})
-
-	// icmp: allow all ICMP for ping and neighbor solicitation
-	if proto == iptables.ProtocolIPv4 {
-		rules = append(rules, []string{"filter", "INPUT", "-p", "icmp", "-j", "ACCEPT"})
-	} else {
-		rules = append(rules, []string{"filter", "INPUT", "-p", "icmpv6", "-j", "ACCEPT"})
-	}
-
-	// 67/udp: allow machines to use DHCP v4 server (dnsmasq)
-	if proto == iptables.ProtocolIPv4 {
-		rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-p", "udp", "--dport", "67", "-j", "ACCEPT"})
-	}
-
-	// 5353/udp: allow machines to use mDNS server
-	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-p", "udp", "--dport", "5353", "-j", "ACCEPT"})
-
-	// allow mac host bridge to access web server ports 80 and 443
-	// block machines because it could leak info to isolated machines
-	// TODO this needs ip/mac spoofing protection
-	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "-s", hostBridgeIP, "-d", webIndexIP, "--proto", "tcp", "-m", "multiport", "--dports", "80,443", "-j", "ACCEPT"})
-
-	// explicitly block machines from accessing VM init-net servers that are intended for host vmgr to connect to
-	rules = append(rules, []string{"filter", "INPUT", "-i", ifBridge, "--proto", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"})
-
-	/*
-	 * forward
-	 */
-
-	// limit access to secure services
-	if secureSvcIP != "" {
-		// allow secureSvcIP:SecureSvcDockerRemoteCtx from docker
-		// will be covered by MAC protection from isolated machines in the future
-		// non-isolated machines can already access any socket by running commands on host
-		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-m", "mac", "--mac-source", MACAddrDocker, "-d", secureSvcIP, "--dport", strconv.Itoa(ports.SecureSvcDockerRemoteCtx), "-j", "ACCEPT"})
-
-		// block other secure svc
-		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "--proto", "tcp", "-d", secureSvcIP, "-j", "REJECT", "--reject-with", "tcp-reset"})
-		// and for UDP and other protocols too
-		rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "-d", secureSvcIP, "-j", "DROP"})
-	}
-
-	// allow machines to access any internet address, via gvisor
-	// this includes private IPs and everything else
-	// don't allow forwarding to any other interfaces we may add to machine in the future
-	rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "-o", ifVnet, "-j", "ACCEPT"})
-	// reverse forward uses MASQUERADE but it's still subject to FORWARD
-	// can't filter by ctstate ESTABLISHED/RELATED because DNAT port forwards use this path too
-	rules = append(rules, []string{"filter", "FORWARD", "-i", ifVnet, "-o", ifBridge, "-j", "ACCEPT"})
-
-	// now, the real purpose of policy=DROP for FORWARD is to prevent routing loops
-	// to do so, we prepend/delete rules when creating bridges
-	// Linux will never ip-forward conbr0 subnet to eth0 since it's a local route on conbr0, so no need to worry about that. only vlan bridges are at risk because the netns is different, and because we do L3 forwarding for them
-
-	// allow machines to talk to each other, and to macOS host bridge IP
-	// this is bridge but still counts as forward
-	rules = append(rules, []string{"filter", "FORWARD", "-i", ifBridge, "-o", ifBridge, "-j", "ACCEPT"})
-
-	/*
-	 * raw security
-	 */
-
-	// reverse path filter for internal services
-	// prevents machines from hijacking existing internal TCP conns
-	// we don't do this for all IPs for performance, and because it could cause issues with NAT64 fib routing
-	// but the vnet subnet is usually not perf critical
-	// rule: raw -> [conntrack] -> mangle -> nat -> filter
-	if proto == iptables.ProtocolIPv4 {
-		rules = append(rules, []string{"raw", "PREROUTING", "-i", ifBridge, "-d", netconf.VnetSubnet4CIDR, "-m", "rpfilter", "--invert", "-j", "DROP"})
-	} else {
-		rules = append(rules, []string{"raw", "PREROUTING", "-i", ifBridge, "-d", netconf.VnetSubnet6CIDR, "-m", "rpfilter", "--invert", "-j", "DROP"})
-	}
-
-	// add rules
-	for _, rule := range rules {
-		err = ipt.Append(rule[0], rule[1], rule[2:]...)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// rules added. it's now safe to change policies to DROP
-	// INPUT: policy DROP for security.
-	err = ipt.ChangePolicy("filter", "INPUT", "DROP")
-	if err != nil {
-		return nil, err
-	}
-
-	return func() error {
-		var errs []error
-		// revert policy
-		err := ipt.ChangePolicy("filter", "INPUT", "ACCEPT")
-		if err != nil {
-			errs = append(errs, err)
-		}
-
-		// iterate in reverse order
-		for i := len(rules) - 1; i >= 0; i-- {
-			rule := rules[i]
-			err := ipt.Delete(rule[0], rule[1], rule[2:]...)
-			if err != nil {
-				errs = append(errs, err)
-			}
-		}
-
-		return errors.Join(errs...)
-	}, nil
 }
 
 func getDefaultMTU() (int, error) {

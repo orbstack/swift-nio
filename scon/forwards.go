@@ -90,7 +90,7 @@ func filterListeners(listeners []sysnet.ListenerInfo, forceK8sLocalhost bool) []
 // dockerd starts userland proxy to reserve the port, *before* it adds iptables rules
 // so if we look at iptables too soon, rule won't be there
 // and if we do it later after pmon's nft-change trigger, the forward may already have been set up, so we won't check UseIptables again
-func addContainerIptablesForward(c *Container, spec sysnet.ListenerInfo, internalPort uint16, internalListenIP net.IP) error {
+func addContainerNftablesForward(c *Container, spec sysnet.ListenerInfo, internalPort uint16, internalListenIP net.IP) error {
 	var toMachineIP net.IP
 	var err error
 	if spec.Addr().Is4() {
@@ -102,7 +102,7 @@ func addContainerIptablesForward(c *Container, spec sysnet.ListenerInfo, interna
 		return fmt.Errorf("get container IP: %w", err)
 	}
 
-	err = c.manager.net.StartIptablesForward(spec.ListenerKey, internalPort, internalListenIP, toMachineIP)
+	err = c.manager.net.StartNftablesForward(spec.ListenerKey, internalPort, internalListenIP, toMachineIP)
 	if err != nil {
 		return err
 	}
@@ -187,16 +187,16 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 
 		// enable iptables acceleration if eligible (soft fail)
 		// if we do this later, first conn could be slow
-		if spec.UseIptables() || agentResult.IsDockerPstub {
-			err = addContainerIptablesForward(c, spec, internalPort, internalListenIP)
+		if spec.UseNftables() || agentResult.IsDockerPstub {
+			err = addContainerNftablesForward(c, spec, internalPort, internalListenIP)
 			if err != nil {
-				logrus.WithError(err).Error("failed to add iptables forward")
+				logrus.WithError(err).Error("failed to add nftables forward")
 			} else {
 				defer func() {
 					if retErr != nil {
-						err2 := m.net.StopIptablesForward(spec.ListenerKey)
+						err2 := m.net.StopNftablesForward(spec.ListenerKey)
 						if err2 != nil {
-							logrus.WithError(err2).Error("failed to stop iptables forward after error")
+							logrus.WithError(err2).Error("failed to stop nftables forward after error")
 						}
 					}
 				}()
@@ -251,16 +251,16 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 		// enable iptables acceleration if eligible (soft fail)
 		// if we do this later, first conn could be slow
 		// this is especially important for UDP because userspace UDP proxy is subject to timeouts
-		if spec.UseIptables() || agentResult.IsDockerPstub {
-			err = addContainerIptablesForward(c, spec, internalPort, internalListenIP)
+		if spec.UseNftables() || agentResult.IsDockerPstub {
+			err = addContainerNftablesForward(c, spec, internalPort, internalListenIP)
 			if err != nil {
-				logrus.WithError(err).Error("failed to add iptables forward")
+				logrus.WithError(err).Error("failed to add nftables forward")
 			} else {
 				defer func() {
 					if retErr != nil {
-						err2 := m.net.StopIptablesForward(spec.ListenerKey)
+						err2 := m.net.StopNftablesForward(spec.ListenerKey)
 						if err2 != nil {
-							logrus.WithError(err2).Error("failed to stop iptables forward after error")
+							logrus.WithError(err2).Error("failed to stop nftables forward after error")
 						}
 					}
 				}()
@@ -314,9 +314,9 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ListenerInfo
 		return err
 	}
 
-	// remove iptables acceleration
+	// remove nftables acceleration
 	// spec.UseIptables / pstub state might change, so look up by key and remove it if it exists
-	err = m.net.StopIptablesForward(spec.ListenerKey)
+	err = m.net.StopNftablesForward(spec.ListenerKey)
 	if err != nil {
 		return err
 	}

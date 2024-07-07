@@ -765,10 +765,10 @@ func (h *DockerHooks) PostStop(c *Container) error {
 		return fmt.Errorf("clear docker state: %w", err)
 	}
 
-	// clear blocked iptables forwards
-	err = c.manager.net.ClearIptablesForwardBlocks()
+	// clear blocked nftables forwards
+	err = c.manager.net.ClearNftablesForwardBlocks()
 	if err != nil {
-		return fmt.Errorf("clear iptables: %w", err)
+		return fmt.Errorf("clear nftables: %w", err)
 	}
 
 	// unmount NFS images, volumes, containers

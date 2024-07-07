@@ -24,7 +24,7 @@ func (c *Container) GetIPAddrs() ([]net.IP, error) {
 }
 
 func (c *Container) getIP4Locked() (net.IP, error) {
-	// fastpath for iptables forward
+	// fastpath for static IPs (nftables forward cares about perf)
 	if c.ID == ContainerIDDocker {
 		return sconDocker4, nil
 	}
@@ -44,7 +44,7 @@ func (c *Container) getIP4Locked() (net.IP, error) {
 }
 
 func (c *Container) getIP6Locked() (net.IP, error) {
-	// fastpath for iptables forward
+	// fastpath for static IPs (nftables forward cares about perf)
 	if c.ID == ContainerIDDocker {
 		return sconDocker6, nil
 	}

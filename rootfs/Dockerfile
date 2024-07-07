@@ -223,6 +223,7 @@ FROM base AS docker
 RUN apk add --no-cache \
     ip6tables \
     iptables \
+    nftables \
     openssl \
     shadow-uidmap \
     xz \
@@ -417,7 +418,7 @@ RUN apk add --no-cache \
     # disk
     sfdisk \
     # scon deps
-    lxc-libs tar squashfs-tools ca-certificates dnsmasq iptables ip6tables xz btrfs-progs \
+    lxc-libs tar squashfs-tools ca-certificates dnsmasq nftables xz btrfs-progs \
     # modprobe metadata (UNINSTALLED later in release)
     kmod \
     # qemu for other archs, common between x86 and arm.

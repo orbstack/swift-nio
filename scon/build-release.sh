@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 
-set -eufo pipefail
+set -euo pipefail
 
 out="${1:-.}"
 tags="${2:-release}"
+
+# strip comments
+sed -ie 's/^\s*#.*$//g' nftables/*.conf
 
 # must be static
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -tags "$tags" -o $out ./cmd/scon-agent

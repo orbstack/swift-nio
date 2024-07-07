@@ -133,29 +133,29 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 		}
 	}()
 
-	// add iptables rule to block FORWARD to this subnet
+	// add nftables rule to block FORWARD to this subnet
 	// prevents routing loop if host pings a non-existent k8s service ip, and docker machine tries to fulfill
 	// we *could* instead add a DROP rule to FORWARD in the docker machine, effectively binding it so that it only forwards to one interface. but since k8s has no interface, that's not possible. this solution allows sharing the code path
 	// we could *also* block outgoing conns to this on the host side, using BridgeRouteMon, but that's racy: vmnet doesn't return until it succeeds, at which point interface is already up and we're too late. if we optimistically block it too early, then it could disrupt traffic on user's conflicting subnets. it's also far more complicated wrt. renewal when conflicting subnets appear/disappear on the host.
 	if config.IP4Subnet.IsValid() {
-		err = s.m.net.BlockIptablesForward(config.IP4Subnet)
+		err = s.m.net.BlockNftablesForward(config.IP4Subnet)
 		if err != nil {
-			return fmt.Errorf("block iptables forward: %w", err)
+			return fmt.Errorf("block nftables forward: %w", err)
 		}
 		defer func() {
 			if retErr != nil {
-				_ = s.m.net.UnblockIptablesForward(config.IP4Subnet)
+				_ = s.m.net.UnblockNftablesForward(config.IP4Subnet)
 			}
 		}()
 	}
 	if config.IP6Subnet.IsValid() {
-		err = s.m.net.BlockIptablesForward(config.IP6Subnet)
+		err = s.m.net.BlockNftablesForward(config.IP6Subnet)
 		if err != nil {
-			return fmt.Errorf("block iptables forward: %w", err)
+			return fmt.Errorf("block nftables forward: %w", err)
 		}
 		defer func() {
 			if retErr != nil {
-				_ = s.m.net.UnblockIptablesForward(config.IP6Subnet)
+				_ = s.m.net.UnblockNftablesForward(config.IP6Subnet)
 			}
 		}()
 	}
@@ -316,15 +316,15 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 
 	// unblock forwarding in case this conflicts with user's networks
 	if config.IP4Subnet.IsValid() {
-		err = s.m.net.UnblockIptablesForward(config.IP4Subnet)
+		err = s.m.net.UnblockNftablesForward(config.IP4Subnet)
 		if err != nil {
-			return fmt.Errorf("unblock iptables forward: %w", err)
+			return fmt.Errorf("unblock nftables forward: %w", err)
 		}
 	}
 	if config.IP6Subnet.IsValid() {
-		err = s.m.net.UnblockIptablesForward(config.IP6Subnet)
+		err = s.m.net.UnblockNftablesForward(config.IP6Subnet)
 		if err != nil {
-			return fmt.Errorf("unblock iptables forward: %w", err)
+			return fmt.Errorf("unblock nftables forward: %w", err)
 		}
 	}
 

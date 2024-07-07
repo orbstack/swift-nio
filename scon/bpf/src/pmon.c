@@ -360,10 +360,10 @@ int pmon_sendmsg6(struct bpf_sock_addr *ctx) {
 }
 
 /*
- * iptables
+ * nftables/iptables
  *
  * matches NFT_MSG_NEWRULE and NFT_MSG_DELRULE
- * works because docker machine uses iptables-nft
+ * hooking nft works because docker machine uses iptables-nft
  */
 
 static int nft_change_common(void) {

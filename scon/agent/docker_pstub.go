@@ -28,7 +28,7 @@ type pstubServerInfo struct {
 	DialIP net.IP
 }
 
-// Docker userland-proxy server to reduce memory usage, speed up startup, and track listeners easily for iptables accel
+// Docker userland-proxy server to reduce memory usage, speed up startup, and track listeners easily for nftables accel
 func NewPstubServer() (*PstubServer, error) {
 	l, err := util.ListenUnixWithPerms("/run/pstub.sock", 0600, 0, 0)
 	if err != nil {
