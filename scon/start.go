@@ -392,7 +392,6 @@ func (c *Container) configureLxc() error {
 
 		// network
 		set("lxc.net.0.type", "veth")
-		// TODO try router
 		set("lxc.net.0.veth.mode", "bridge")
 		set("lxc.net.0.link", ifBridge)
 		set("lxc.net.0.mtu", strconv.Itoa(m.net.mtu))

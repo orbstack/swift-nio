@@ -419,6 +419,8 @@ RUN apk add --no-cache \
     sfdisk \
     # scon deps
     lxc-libs tar squashfs-tools ca-certificates dnsmasq nftables xz btrfs-progs \
+    # even though we use nftables, we need ip(6)tables to list listeners in container netns
+    iptables ip6tables \
     # modprobe metadata (UNINSTALLED later in release)
     kmod \
     # qemu for other archs, common between x86 and arm.

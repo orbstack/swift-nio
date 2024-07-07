@@ -271,7 +271,7 @@ func (n *Network) StopNftablesForward(key sysnet.ListenerKey) error {
 		return nil
 	}
 
-	err := n.addDelNftablesForward("del", key, meta)
+	err := n.addDelNftablesForward("delete", key, meta)
 	if err != nil {
 		return err
 	}
@@ -303,7 +303,7 @@ func (n *Network) BlockNftablesForward(prefix netip.Prefix) error {
 }
 
 func (n *Network) unblockNftablesForwardLockedBase(prefix netip.Prefix) error {
-	return nftables.Run("del", "element", "inet", "vm", "block_docker_subnets"+nftMapSuffixFor(prefix), fmt.Sprintf("{ %v }", prefix))
+	return nftables.Run("delete", "element", "inet", "vm", "block_docker_subnets"+nftMapSuffixFor(prefix), fmt.Sprintf("{ %v }", prefix))
 }
 
 func (n *Network) UnblockNftablesForward(prefix netip.Prefix) error {
