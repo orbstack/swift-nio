@@ -230,7 +230,7 @@ RUN apk add --no-cache \
     # Docker engine deps
     ca-certificates \
     # important to pin version for security
-    runc=1.1.13-r0 \
+    runc=1.1.13-r1 \
     containerd \
     # support Docker build from git repos
     git \
