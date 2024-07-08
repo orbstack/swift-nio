@@ -712,12 +712,6 @@ func (h *DockerHooks) PostStop(c *Container) error {
 		return fmt.Errorf("clear docker state: %w", err)
 	}
 
-	// clear blocked nftables forwards
-	err = c.manager.net.ClearNftablesForwardBlocks()
-	if err != nil {
-		return fmt.Errorf("clear nftables: %w", err)
-	}
-
 	// unmount NFS images, volumes, containers
 	err = c.manager.nfsForAll.UnmountAll("docker/")
 	if err != nil {

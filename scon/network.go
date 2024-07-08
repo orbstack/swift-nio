@@ -288,51 +288,6 @@ func nftMapSuffixFor(prefix netip.Prefix) string {
 	}
 }
 
-func (n *Network) BlockNftablesForward(prefix netip.Prefix) error {
-	// to prevent issues if we actually decide to use routing in the future, we only block it for outgoing traffic
-	// also filter by docker machine. it's an edge case, but machines should actually be allowed to forward to containers (e.g. *.local), at least until we add ip routes to VM. need to filter by MAC instead of IP because ip forward keeps source IP
-	err := nftables.Run("add", "element", "inet", "vm", "block_docker_subnets"+nftMapSuffixFor(prefix), fmt.Sprintf("{ %v }", prefix))
-	if err != nil {
-		return err
-	}
-
-	n.nftablesMu.Lock()
-	defer n.nftablesMu.Unlock()
-	n.nftBlocks[prefix] = struct{}{}
-	return nil
-}
-
-func (n *Network) unblockNftablesForwardLockedBase(prefix netip.Prefix) error {
-	return nftables.Run("delete", "element", "inet", "vm", "block_docker_subnets"+nftMapSuffixFor(prefix), fmt.Sprintf("{ %v }", prefix))
-}
-
-func (n *Network) UnblockNftablesForward(prefix netip.Prefix) error {
-	err := n.unblockNftablesForwardLockedBase(prefix)
-	if err != nil {
-		return err
-	}
-
-	n.nftablesMu.Lock()
-	defer n.nftablesMu.Unlock()
-	delete(n.nftBlocks, prefix)
-	return nil
-}
-
-func (n *Network) ClearNftablesForwardBlocks() error {
-	n.nftablesMu.Lock()
-	defer n.nftablesMu.Unlock()
-
-	for prefix := range n.nftBlocks {
-		err := n.unblockNftablesForwardLockedBase(prefix)
-		if err != nil {
-			return err
-		}
-	}
-
-	clear(n.nftBlocks)
-	return nil
-}
-
 func (n *Network) Close() error {
 	if n.bridge != nil {
 		err := netlink.LinkDel(n.bridge)

@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/orbstack/macvirt/scon/agent"
+	"github.com/orbstack/macvirt/scon/nftables"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
@@ -133,33 +134,6 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 		}
 	}()
 
-	// add nftables rule to block FORWARD to this subnet
-	// prevents routing loop if host pings a non-existent k8s service ip, and docker machine tries to fulfill
-	// we *could* instead add a DROP rule to FORWARD in the docker machine, effectively binding it so that it only forwards to one interface. but since k8s has no interface, that's not possible. this solution allows sharing the code path
-	// we could *also* block outgoing conns to this on the host side, using BridgeRouteMon, but that's racy: vmnet doesn't return until it succeeds, at which point interface is already up and we're too late. if we optimistically block it too early, then it could disrupt traffic on user's conflicting subnets. it's also far more complicated wrt. renewal when conflicting subnets appear/disappear on the host.
-	if config.IP4Subnet.IsValid() {
-		err = s.m.net.BlockNftablesForward(config.IP4Subnet)
-		if err != nil {
-			return fmt.Errorf("block nftables forward: %w", err)
-		}
-		defer func() {
-			if retErr != nil {
-				_ = s.m.net.UnblockNftablesForward(config.IP4Subnet)
-			}
-		}()
-	}
-	if config.IP6Subnet.IsValid() {
-		err = s.m.net.BlockNftablesForward(config.IP6Subnet)
-		if err != nil {
-			return fmt.Errorf("block nftables forward: %w", err)
-		}
-		defer func() {
-			if retErr != nil {
-				_ = s.m.net.UnblockNftablesForward(config.IP6Subnet)
-			}
-		}()
-	}
-
 	// now enter the container's netns... (interface is in there)
 	_, err = withContainerNetns(s.dockerMachine, func() (_ struct{}, retErr2 error) {
 		defer func() {
@@ -179,6 +153,12 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 		err = enableProxyArp(macvlan.Name)
 		if err != nil {
 			return struct{}{}, fmt.Errorf("enable proxy arp: %w", err)
+		}
+
+		// routing loop protection
+		err = nftables.Run("add", "element", "inet", "orbstack", "host_bridge_ports", fmt.Sprintf("{ %s }", macvlan.Name))
+		if err != nil {
+			return struct{}{}, fmt.Errorf("add host bridge port to nftables: %w", err)
 		}
 
 		// bring it up
@@ -279,33 +259,26 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 	// now enter the container's netns...
 	_, err = withContainerNetns(s.dockerMachine, func() (struct{}, error) {
 		// delete the link
+		ifName := fmt.Sprintf("%s%d", agent.DockerBridgeMirrorPrefix, vlanId)
 		err := netlink.LinkDel(&netlink.GenericLink{
 			LinkAttrs: netlink.LinkAttrs{
-				Name: fmt.Sprintf("%s%d", agent.DockerBridgeMirrorPrefix, vlanId),
+				Name: ifName,
 			},
 		})
 		if err != nil {
 			return struct{}{}, fmt.Errorf("delete mirror link: %w", err)
 		}
 
+		// remove routing loop protection
+		err = nftables.Run("delete", "element", "inet", "orbstack", "host_bridge_ports", fmt.Sprintf("{ %s }", ifName))
+		if err != nil {
+			return struct{}{}, fmt.Errorf("delete host bridge port from nftables: %w", err)
+		}
+
 		return struct{}{}, nil
 	})
 	if err != nil {
 		return err
-	}
-
-	// unblock forwarding in case this conflicts with user's networks
-	if config.IP4Subnet.IsValid() {
-		err = s.m.net.UnblockNftablesForward(config.IP4Subnet)
-		if err != nil {
-			return fmt.Errorf("unblock nftables forward: %w", err)
-		}
-	}
-	if config.IP6Subnet.IsValid() {
-		err = s.m.net.UnblockNftablesForward(config.IP6Subnet)
-		if err != nil {
-			return fmt.Errorf("unblock nftables forward: %w", err)
-		}
 	}
 
 	return nil
