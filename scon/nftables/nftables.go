@@ -14,6 +14,10 @@ func Run(args ...string) error {
 }
 
 func ApplyConfig(baseConfig string, vars map[string]string) error {
+	return Run(FormatConfig(baseConfig, vars))
+}
+
+func FormatConfig(baseConfig string, vars map[string]string) string {
 	var defines string
 	for k, v := range vars {
 		defines += fmt.Sprintf("define %s = %s\n", k, v)
@@ -34,5 +38,5 @@ func ApplyConfig(baseConfig string, vars map[string]string) error {
 		baseConfig = strings.ReplaceAll(baseConfig, " counter", " ")
 	}
 
-	return Run(defines + baseConfig)
+	return defines + baseConfig
 }

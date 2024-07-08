@@ -221,8 +221,10 @@ FROM base AS docker
 
 # removed: xfsprogs e2fsprogs btrfs-progs
 RUN apk add --no-cache \
+    # docker/k8s require iptables
     ip6tables \
     iptables \
+    # ... even though we use nftables
     nftables \
     openssl \
     shadow-uidmap \
@@ -242,21 +244,6 @@ RUN apk add --no-cache \
     tzdata \
     # for kubectl port-forward
     socat
-# for tls proxy
-#ipset
-
-# workaround: latest ipset edge 7.20-r0 segfaults
-RUN <<EOT sh -eux
-if [[ "\$(uname -m)" == "x86_64" ]]; then
-    wget https://dl-cdn.alpinelinux.org/alpine/v3.19/main/x86_64/ipset-7.19-r2.apk
-    apk add --no-cache --no-network ./ipset-7.19-r2.apk
-    rm -f ipset-7.19-r2.apk
-else
-    wget https://dl-cdn.alpinelinux.org/alpine/v3.19/main/aarch64/ipset-7.19-r2.apk
-    apk add --no-cache --no-network ./ipset-7.19-r2.apk
-    rm -f ipset-7.19-r2.apk
-fi
-EOT
 
 # Official Docker engine build
 RUN <<EOT sh -eux

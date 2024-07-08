@@ -17,6 +17,7 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/dockerdb"
 	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/nftables"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
@@ -70,26 +71,6 @@ var dockerInitCommands = [][]string{
 	// compat for kruise expecting containerd OR docker+dockershim: https://github.com/openkruise/kruise/blob/4e80be556726e60f54abaa3e8ba133ce114c4f64/pkg/daemon/criruntime/factory.go#L200
 	{"ln", "-sf", "/var/run/k3s/cri-dockerd/cri-dockerd.sock", "/var/run/dockershim.sock"},
 
-	{"iptables", "-t", "nat", "-N", "ORB-PREROUTING"},
-	{"iptables", "-t", "nat", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
-	// 172.17.0.1 IP gateway compat. people hard code this...
-	{"iptables", "-t", "nat", "-A", "ORB-PREROUTING", "!", "-s", "172.17.0.0/16", "-d", "172.17.0.1", "-j", "DNAT", "--to-destination", "198.19.249.2"},
-	{"iptables", "-t", "nat", "-N", "ORB-POSTROUTING"},
-	{"iptables", "-t", "nat", "-A", "POSTROUTING", "-j", "ORB-POSTROUTING"},
-	// "fix" ipv4 docker port forward source IPs. normally docker only does DNAT w/o MASQUERADE to preserve source IP, but our source IP is internal vnet and people expect it to come from the machine like normal linux loopback
-	// needed because people make assumptions about source IPs
-	// IMPORTANT: we CANNOT masquerade for NAT64 10.183 IP because cfwd needs it as a port scanning signal, and mark will be lost when it reaches the container
-	{"iptables", "-t", "nat", "-A", "ORB-POSTROUTING", "-s", "198.19.248.1/32", "!", "-d", "127.0.0.0/8", "!", "-o", "eth0", "-j", "MASQUERADE"},
-
-	{"ip6tables", "-t", "nat", "-N", "ORB-POSTROUTING"},
-	{"ip6tables", "-t", "nat", "-A", "POSTROUTING", "-j", "ORB-POSTROUTING"},
-	// masquerade outgoing IPv6 traffic to internet, from a ULA that's not ours. fixes kind ipv6 access
-	{"ip6tables", "-t", "nat", "-N", "ORB-POSTROUTING-S1"},
-	{"ip6tables", "-t", "nat", "-A", "ORB-POSTROUTING-S1", "!", "-s", "fd07:b51a:cc66::/64", "-j", "MASQUERADE"},
-	{"ip6tables", "-t", "nat", "-A", "ORB-POSTROUTING", "-s", "fc00::/7", "-o", "eth0", "-j", "ORB-POSTROUTING-S1"},
-	// "fix" ipv6 docker port forward source IPs. same logic as v4 - currently useless b/c v6 uses userspace proxy
-	{"ip6tables", "-t", "nat", "-A", "ORB-POSTROUTING", "-s", "fd07:b51a:cc66:f0::1/128", "!", "-d", "::1/128", "!", "-o", "eth0", "-j", "MASQUERADE"},
-
 	// TLS proxy: special listener address for TPROXY redirect
 	{"ip", "addr", "add", netconf.VnetTlsProxyIP4 + "/32", "dev", "lo"},
 	{"ip", "addr", "add", netconf.VnetTlsProxyIP6 + "/128", "dev", "lo"},
@@ -99,45 +80,17 @@ var dockerInitCommands = [][]string{
 	{"ip", "rule", "add", "fwmark", netconf.DockerMarkTlsProxyLocalRouteStr, "table", "984"},
 	{"ip", "route", "add", "local", "default", "dev", "lo", "table", "984"},
 
-	// mixed ipv4 and ipv6 hash set
-	{"ipset", "create", agent.IpsetHostBridge4, "hash:net"},
-	{"ipset", "create", agent.IpsetGateway4, "hash:ip"},
-	{"ipset", "create", agent.IpsetHostBridge6, "hash:net", "family", "inet6"},
-	{"ipset", "create", agent.IpsetGateway6, "hash:ip", "family", "inet6"},
-
-	// prepare chains for TLS proxy
-	{"iptables", "-t", "mangle", "-N", "ORB-PREROUTING"},
-	{"iptables", "-t", "mangle", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
-	{"iptables", "-t", "mangle", "-N", "ORB-OUTPUT"},
-	{"iptables", "-t", "mangle", "-A", "OUTPUT", "-j", "ORB-OUTPUT"},
-
-	// *** TLS proxy (v4)
-	// complicated routing to make source IP spoofing work:
-	// 1. outgoing socket has SO_MARK set to TlsProxyUpstreamMarkStr
-	// 2. on OUTPUT path, save the OUTGOING mark to conntrack metadata for this 5-tuple
-	{"iptables", "-t", "mangle", "-A", "ORB-OUTPUT", "-m", "mark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "CONNMARK", "--save-mark"},
-	// 3. on *input* PREROUTING path, restore the mark from conntrack metadata
-	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "connmark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "CONNMARK", "--restore-mark"},
-	// 4. on *input* path ONLY, *change* mark from OUTGOING (UpstreamMark) to LOCAL_ROUTE (LocalRouteMark)
-	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
-	{"iptables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "MARK", "--set-mark", netconf.DockerMarkTlsProxyLocalRouteStr},
-
-	// prepare chains for TLS proxy
-	{"ip6tables", "-t", "mangle", "-N", "ORB-PREROUTING"},
-	{"ip6tables", "-t", "mangle", "-A", "PREROUTING", "-j", "ORB-PREROUTING"},
-	{"ip6tables", "-t", "mangle", "-N", "ORB-OUTPUT"},
-	{"ip6tables", "-t", "mangle", "-A", "OUTPUT", "-j", "ORB-OUTPUT"},
-
-	// *** TLS proxy (v6)
-	// complicated routing to make source IP spoofing work:
-	// 1. outgoing socket has SO_MARK set to TlsProxyUpstreamMarkStr
-	// 2. on OUTPUT path, save the OUTGOING mark to conntrack metadata for this 5-tuple
-	{"ip6tables", "-t", "mangle", "-A", "ORB-OUTPUT", "-m", "mark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "CONNMARK", "--save-mark"},
-	// 3. on *input* PREROUTING path, restore the mark from conntrack metadata
-	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "connmark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "CONNMARK", "--restore-mark"},
-	// 4. on *input* path ONLY, *change* mark from OUTGOING (UpstreamMark) to LOCAL_ROUTE (LocalRouteMark)
-	// this achieves asymmetrical routing: packets with this mark are *outgoing* on egress path, and hijacked to *loopback* on ingress path
-	{"ip6tables", "-t", "mangle", "-A", "ORB-PREROUTING", "-m", "mark", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "MARK", "--set-mark", netconf.DockerMarkTlsProxyLocalRouteStr},
+	{"nft", nftables.FormatConfig(nftables.ConfigDocker, map[string]string{
+		"IF_SCON":                           "eth0",
+		"DOCKER_MARK_TLS_PROXY_UPSTREAM":    netconf.DockerMarkTlsProxyUpstreamStr,
+		"DOCKER_MARK_TLS_PROXY_LOCAL_ROUTE": netconf.DockerMarkTlsProxyLocalRouteStr,
+		"VNET_TLS_PROXY_IP4":                netconf.VnetTlsProxyIP4,
+		"VNET_TLS_PROXY_IP6":                netconf.VnetTlsProxyIP6,
+		"PORT_DOCKER_MACHINE_TLS_PROXY":     ports.DockerMachineTlsProxyStr,
+		"VNET_GATEWAY_IP4":                  netconf.VnetGatewayIP4,
+		"VNET_GATEWAY_IP6":                  netconf.VnetGatewayIP6,
+		"SCON_SUBNET6_CIDR":                 netconf.SconSubnet6CIDR,
+	})},
 }
 
 // changes here:
@@ -589,9 +542,9 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		},
 		DepServices: [][]string{},
 	}
-	// add TLS proxy iptables rules
+	// add TLS proxy nftables rules
 	if c.manager.vmConfig.NetworkHttps {
-		svConfig.InitCommands = append(svConfig.InitCommands, agent.DockerTlsInitCommands("-A")...)
+		svConfig.InitCommands = append(svConfig.InitCommands, agent.DockerTlsAddCommand)
 	}
 	// add k8s service
 	if c.manager.k8sEnabled {
@@ -619,13 +572,6 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			k8sCmd = append(k8sCmd, "--enable-pprof")
 		}
 		svConfig.DepServices = append(svConfig.DepServices, k8sCmd)
-
-		// add iptables rule to fix leaking 192.168.194.129:443 api server conns causing CrashLoopBackOff when services start and try to connect to api server
-		// DROP in PREROUTING works because
-		//   - prevents route from being resolved for the flow at conntrack level, so it tries again when pod retries SYN
-		//   - KUBE rule is prepended so it takes priority once it's ready
-		//   - can't use raw or prerouting because it would take prio over real k8s one
-		// only do this for k8s to prevent issues if user has subnet conflict and only uses docker
 
 		// remove old config symlink
 		_ = h.rootfs.Remove("/etc/rancher/k3s/k3s.yaml")

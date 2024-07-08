@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/nftables"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -20,10 +21,10 @@ const (
 )
 
 const (
-	IpsetHostBridge4 = "orb-tp4"
-	IpsetGateway4    = "orb-tp4-gw"
-	IpsetHostBridge6 = "orb-tp6"
-	IpsetGateway6    = "orb-tp6-gw"
+	NfsetBridgeSubnets4  = "docker_bridge_subnets4"
+	NfsetBridgeGateways4 = "docker_bridge_gateways4"
+	NfsetBridgeSubnets6  = "docker_bridge_subnets6"
+	NfsetBridgeGateways6 = "docker_bridge_gateways6"
 )
 
 func compareNetworks(a, b dockertypes.Network) int {
@@ -94,6 +95,10 @@ func (d *DockerAgent) refreshNetworks() error {
 
 	// skip DOCKER-ISOLATION-STAGE-1 chain to allow cross-bridge traffic
 	// jump from FORWARD gets restored on every bridge creation, and STAGE-2 jumps are inserted, so we have to delete and reinsert
+	// can't use nftables to override:
+	//   - accept = continue across tables; drop = immediate stop
+	//   - can't make ours last (prio+1): that only works within chains
+	//   - can't add a chain to iptables-nft's table: it complains
 	_ = util.Run("iptables", "-D", "DOCKER-ISOLATION-STAGE-1", "-j", "RETURN")
 	err := util.Run("iptables", "-I", "DOCKER-ISOLATION-STAGE-1", "-j", "RETURN")
 	if err != nil {
@@ -139,6 +144,22 @@ func (d *DockerAgent) refreshNetworks() error {
 		if err != nil {
 			logrus.WithError(err).Error("failed to add network")
 		}
+	}
+
+	dockerBridgeIfaces := make([]string, 0, len(newNetworks)+1)
+	for _, n := range newNetworks {
+		if n.Driver != "bridge" || n.Scope != "local" {
+			continue
+		}
+
+		dockerBridgeIfaces = append(dockerBridgeIfaces, dockerNetworkToInterfaceName(&n))
+	}
+	dockerBridgeIfaces = append(dockerBridgeIfaces, "eth0")
+
+	// update flowtable
+	err = nftables.Run("add", "flowtable", "inet", "orbstack", "ft", fmt.Sprintf("{ hook ingress priority filter; devices = { %s }; }", strings.Join(dockerBridgeIfaces, ", ")))
+	if err != nil {
+		return fmt.Errorf("update nft interfaces: %w", err)
 	}
 
 	d.lastNetworks = newNetworks
@@ -224,6 +245,10 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 	}, true
 }
 
+func editNftablesSet(action, setName, element string) error {
+	return nftables.Run(action, "element", "inet", "orbstack", setName, "{ "+element+" }")
+}
+
 func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 	config, ok := dockerNetworkToBridgeConfig(network)
 	if !ok {
@@ -237,25 +262,30 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		return err
 	}
 
-	// add host and gateway IPs to ipsets
+	err = editNftablesSet("add", "docker_bridges", dockerNetworkToInterfaceName(&network))
+	if err != nil {
+		return err
+	}
+
+	// add host and gateway IPs to nfsets
 	if config.IP4Subnet.IsValid() {
-		err = util.Run("ipset", "add", IpsetHostBridge4, config.IP4Subnet.String())
+		err = editNftablesSet("add", NfsetBridgeSubnets4, config.IP4Subnet.String())
 		if err != nil {
 			logrus.WithError(err).WithField("net", config.IP4Subnet).Error("failed to add bridge net to set")
 		}
 
-		err = util.Run("ipset", "add", IpsetGateway4, config.IP4Gateway.String())
+		err = editNftablesSet("add", NfsetBridgeGateways4, config.IP4Gateway.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", config.IP4Gateway).Error("failed to add gateway ip to set")
 		}
 	}
 	if config.IP6Subnet.IsValid() {
-		err = util.Run("ipset", "add", IpsetHostBridge6, config.IP6Subnet.String())
+		err = editNftablesSet("add", NfsetBridgeSubnets6, config.IP6Subnet.String())
 		if err != nil {
 			logrus.WithError(err).WithField("net", config.IP6Subnet).Error("failed to add bridge net to set")
 		}
 
-		err = util.Run("ipset", "add", IpsetGateway6, config.IP6Gateway.String())
+		err = editNftablesSet("add", NfsetBridgeGateways6, config.IP6Gateway.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", config.IP6Gateway).Error("failed to add gateway ip to set")
 		}
@@ -277,25 +307,30 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 		return err
 	}
 
-	// remove host and gateway IPs from ipsets
+	err = editNftablesSet("delete", "docker_bridges", dockerNetworkToInterfaceName(&network))
+	if err != nil {
+		return err
+	}
+
+	// remove host and gateway IPs from nfsets
 	if config.IP4Subnet.IsValid() {
-		err = util.Run("ipset", "del", IpsetHostBridge4, config.IP4Subnet.String())
+		err = editNftablesSet("delete", NfsetBridgeSubnets4, config.IP4Subnet.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", config.IP4Subnet).Error("failed to remove bridge net from set")
 		}
 
-		err = util.Run("ipset", "del", IpsetGateway4, config.IP4Gateway.String())
+		err = editNftablesSet("delete", NfsetBridgeGateways4, config.IP4Gateway.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", config.IP4Gateway).Error("failed to remove gateway ip from set")
 		}
 	}
 	if config.IP6Subnet.IsValid() {
-		err = util.Run("ipset", "del", IpsetHostBridge6, config.IP6Subnet.String())
+		err = editNftablesSet("delete", NfsetBridgeSubnets6, config.IP6Subnet.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", config.IP6Subnet).Error("failed to remove bridge net from set")
 		}
 
-		err = util.Run("ipset", "del", IpsetGateway6, config.IP6Gateway.String())
+		err = editNftablesSet("delete", NfsetBridgeGateways6, config.IP6Gateway.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", config.IP6Gateway).Error("failed to remove gateway ip from set")
 		}

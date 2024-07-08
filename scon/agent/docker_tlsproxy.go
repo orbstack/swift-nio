@@ -31,6 +31,11 @@ const (
 	hostDialLRUSize = 250
 )
 
+// TPROXY: redirect incoming port 443 traffic to containers to our proxies
+// exclude our gateway IP (pkttype host) to avoid breaking port forward access
+var DockerTlsAddCommand = []string{"nft", "add", "rule", "inet", "orbstack", "early-prerouting-dynamic", "jump early-prerouting-tproxy"}
+var DockerTlsDeleteCommand = []string{"nft", "flush", "chain", "inet", "orbstack", "early-prerouting-dynamic"}
+
 type tlsProxy struct {
 	hostDialLRU *lru.Cache[string, hostDialInfo]
 
@@ -42,19 +47,6 @@ type hostDialInfo struct {
 	// *net.TCPAddr would be nice, but Dialer has no context-aware DialTCP
 	// https://github.com/golang/go/issues/49097
 	dialAddr string
-}
-
-func DockerTlsInitCommands(action string) [][]string {
-	return [][]string{
-		// TPROXY: redirect incoming port 443 traffic to containers to our proxies
-		// exclude gateway to avoid interfering with user's port 443 forwards
-		{"iptables", "-t", "mangle", action, "ORB-PREROUTING", "-m", "set", "--match-set", IpsetHostBridge4, "dst", "-m", "set", "!", "--match-set", IpsetGateway4, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP4, "--tproxy-mark", netconf.DockerMarkTlsProxyLocalRouteStr},
-
-		// TPROXY redirect incoming port 443 traffic to containers to our proxy
-		// exclude gateway to avoid interfering with user's port 443 forwards
-		// TODO - reuse same proxy dest port for ports 80 and 22
-		{"ip6tables", "-t", "mangle", action, "ORB-PREROUTING", "-m", "set", "--match-set", IpsetHostBridge6, "dst", "-m", "set", "!", "--match-set", IpsetGateway6, "dst", "-p", "tcp", "-m", "multiport", "--dports", "443", "-m", "mark", "!", "--mark", netconf.DockerMarkTlsProxyUpstreamStr, "-j", "TPROXY", "--on-port", ports.DockerMachineTlsProxyStr, "--on-ip", netconf.VnetTlsProxyIP6, "--tproxy-mark", netconf.DockerMarkTlsProxyLocalRouteStr},
-	}
 }
 
 func newTLSProxy(host *hclient.Client) (*tlsProxy, error) {
@@ -117,16 +109,16 @@ func (t *tlsProxy) dispatchConn(conn net.Conn) (bool, error) {
 	case 22:
 		// SSH
 		// TODO: redirect to machine
-		return false, nil // should never get here: not yet implemented in iptables
+		return false, nil // should never get here: not yet implemented in nftables
 	case 80:
 		// HTTP
 		// TODO: userspace HTTP probing
-		return false, nil // should never get here: not yet implemented in iptables
+		return false, nil // should never get here: not yet implemented in nftables
 	case 443:
 		// continue and pass this to HTTPS TLS proxy
 		return true, nil
 	default:
-		// unknown port. should never get here unless iptables rules are broken
+		// unknown port. should never get here unless nftables rules are broken
 		return false, fmt.Errorf("unknown dest port: %d", destPort)
 	}
 }
@@ -355,20 +347,16 @@ func (d *DockerAgent) OnVmconfigUpdate(config *vmconfig.VmConfig) error {
 	}
 
 	if new {
-		// add rules
-		for _, cmd := range DockerTlsInitCommands("-A") {
-			err := util.Run(cmd...)
-			if err != nil {
-				return err
-			}
+		// add rule
+		err := util.Run(DockerTlsAddCommand...)
+		if err != nil {
+			return err
 		}
 	} else {
-		// remove rules
-		for _, cmd := range DockerTlsInitCommands("-D") {
-			err := util.Run(cmd...)
-			if err != nil {
-				return err
-			}
+		// remove rule
+		err := util.Run(DockerTlsDeleteCommand...)
+		if err != nil {
+			return err
 		}
 	}
 
