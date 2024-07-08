@@ -9,7 +9,7 @@ func findAuxiliaryExe(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return exeDir + "/", nil
+	return exeDir + "/" + name, nil
 }
 
 func FindSparkleExe() (string, error) {
