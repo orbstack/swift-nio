@@ -55,7 +55,6 @@ type ContainerBpfManager struct {
 	lfwdBlockedPortRefs map[uint16]int
 
 	cfwdNetnsProg      *ebpf.Program
-	cfwdHostIps        *ebpf.Map
 	cfwdContainerMetas *ebpf.Map
 	cfwdAttachedNsKeys map[string]*link.NetNsLink
 }
@@ -210,7 +209,6 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 
 	b.lfwdBlockedPorts = objs.lfwdMaps.BlockedPorts
 	// cfwd: attached to each docker container netns, but not the machine itself
-	b.cfwdHostIps = objs.lfwdMaps.CfwdHostIps
 	b.cfwdContainerMetas = objs.lfwdMaps.CfwdContainerMetas
 	b.cfwdNetnsProg = objs.CfwdSkLookup
 	return nil
@@ -294,28 +292,6 @@ func ipToCfwdKey(ip net.IP) lfwdCfwdIpKey {
 	// also map 4-in-6
 	copy((*[16]byte)(unsafe.Pointer(&key.Ip6or4))[:], ip.To16())
 	return key
-}
-
-func (b *ContainerBpfManager) CfwdAddHostIP(ip net.IP) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	if b.cfwdHostIps == nil {
-		return nil
-	}
-
-	return b.cfwdHostIps.Put(ipToCfwdKey(ip), byte(1))
-}
-
-func (b *ContainerBpfManager) CfwdRemoveHostIP(ip net.IP) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	if b.cfwdHostIps == nil {
-		return nil
-	}
-
-	return b.cfwdHostIps.Delete(ipToCfwdKey(ip))
 }
 
 func (b *ContainerBpfManager) CfwdAddContainerMeta(ip net.IP, meta CfwdContainerMeta) error {

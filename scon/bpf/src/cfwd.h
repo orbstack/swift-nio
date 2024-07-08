@@ -19,18 +19,6 @@ struct cfwd_ip_key {
     __be32 ip6or4[4]; // network byte order
 };
 
-struct cfwd_host_ip {
-    __u8 unused;
-};
-
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(map_flags, BPF_F_NO_PREALLOC);
-    __uint(max_entries, 16); // macOS max = 8 vlan bridges
-    __type(key, struct cfwd_ip_key);
-    __type(value, struct cfwd_host_ip);
-} cfwd_host_ips SEC(".maps");
-
 // explicit http ports
 struct cfwd_container_meta {
     __u16 http_port;
@@ -123,27 +111,17 @@ static bool cfwd_try_port_range(struct bpf_sk_lookup *ctx, int start, int end) {
     return ctx->sk != NULL;
 }
 
-// verify src addr: must be macOS host bridge IP. works b/c it's over bridge, not NAT
-// and a special case for NAT64 source IP. see bnat for why we need this weird IP
 static bool cfwd_should_redirect_for_ip(struct bpf_sk_lookup *ctx) {
-    // NAT64 for mDNS
-    if (ctx->family == AF_INET && ctx->remote_ip4 == NAT64_SRC_IP4) {
-        return true;
-    }
-
-    struct cfwd_ip_key host_ip_key;
-    if (ctx->family == AF_INET) {
-        // make 4-in-6 mapped IP
-        host_ip_key.ip6or4[0] = 0;
-        host_ip_key.ip6or4[1] = 0;
-        host_ip_key.ip6or4[2] = bpf_htonl(0xffff);
-        host_ip_key.ip6or4[3] = ctx->remote_ip4;
-    } else {
-        memcpy(host_ip_key.ip6or4, ctx->remote_ip6, 16);
-    }
-
-    struct cfwd_host_ip *host_ip = bpf_map_lookup_elem(&cfwd_host_ips, &host_ip_key);
-    return host_ip != NULL;
+    // we used to only redirect port 80 if connecting from macOS, but it's hard to propagate the "source OS" info to containers: marks don't persist, and we need to masquerade the source IP seen by users' servers so that it's more intuitive. NAT64 would require reserving 3 IPs in each docker subnet (.0 for macOS v4, .1 for Linux machine, .254 for macOS NAT64) if we want unique IPs that fall within the bridge subnet (which people use for filtering). it's really complicated
+    // redirecting from all source IPs is also more intuitive, as people expect cross-container domains to work just like they do from macOS.
+    //
+    // the only case in which this could break is:
+    //   - container has both a port 80 and a non-80 server, both HTTP
+    //   - a client container, or a healthcheck, quickly makes requests to the port 80 server while the server container is still starting
+    //   - the non-80 server starts before 80
+    // => requests go to the wrong server temporarily
+    // but this should be a very rare case, compared to the advantages of redirecting for all source IPs.
+    return true;
 }
 
 static struct cfwd_container_meta *cfwd_get_meta(struct bpf_sk_lookup *ctx) {
