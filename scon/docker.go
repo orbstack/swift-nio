@@ -311,6 +311,10 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// fix https://github.com/orbstack/orbstack/issues/1237 (workaround for k3s bug)
 	cm.set("lxc.sysctl.net.ipv6.conf.all.forwarding", "1")
 
+	// disable ptrace restrictions: not needed with pid ns-per-container, and breaks rosetta debug server
+	// https://github.com/orbstack/orbstack/issues/1317
+	cm.set("lxc.sysctl.kernel.yama.ptrace_scope", "0")
+
 	return conf.C().DockerRootfs, nil
 }
 
