@@ -431,10 +431,16 @@ class VmViewModel: ObservableObject {
 
     // MARK: - New
 
-    @PublishedAppStorage("selectedTab") var selectedTab = NavTabId.dockerContainers
+    @PublishedAppStorage("selectedTab") var selectedTab = NavTabId.dockerContainers {
+        willSet {
+            if newValue == .dockerContainers, dockerSortingMethod == .size { dockerSortingMethod = .none }
+        }
+    }
+    
     @Published var searchText = ""
     @Published var initialDockerContainerSelection: Set<DockerContainerId> = []
     @Published var presentAuth = false
+    @Published var dockerSortingMethod: DockerSortMethod = .none
 
     // the user's choice when the window is big enough
     var sidebarPrefersCollapsed = false

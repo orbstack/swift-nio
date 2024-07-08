@@ -21,7 +21,7 @@ struct DockerVolumesRootView: View {
             let filteredVolumes = volumes.filter { volume in
                 searchQuery.isEmpty ||
                     volume.name.localizedCaseInsensitiveContains(searchQuery)
-            }
+            }.sort(accordingTo: vmModel.dockerSortingMethod, model: vmModel)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             VStack(spacing: 0) {

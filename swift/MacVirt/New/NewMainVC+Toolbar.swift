@@ -72,6 +72,8 @@ extension NewMainViewController: NSToolbarDelegate {
         case .licenseBadge:
             return licenseBadgeItem
 
+        case .sortList:
+            return sortListItem
         default:
             break
         }

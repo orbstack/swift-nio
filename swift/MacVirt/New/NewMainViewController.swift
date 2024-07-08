@@ -154,6 +154,42 @@ class NewMainViewController: NSViewController {
         item.searchField.delegate = self
         return item
     }()
+    
+    func makeIndividualSortingNSMenuItem(method sortMethod: DockerSortMethod, menu: NSMenu) -> NSMenuItem {
+        let item = ClosureMenuItem(title: sortMethod.description) {
+            self.model.dockerSortingMethod = sortMethod
+            
+            menu.items = self.makeAllSortingNSMenuItems(forMenu: menu) // refresh item states
+            
+            // for some reason after clicking on an item it'll automatically hide just the first one????? so
+            // this is why we need this workaround (wtf appkit??)
+            for item in menu.items { item.isHidden = false }
+        }
+        // Don't set item.state here, it'll be set in menuWillOpen
+        // this is so that, if a user selects "size" in another tab
+        // and switches to one where it's not allowed (Docker Containers)
+        // we'll automatically switch the state for the default one that the app switches to
+        item.tag = sortMethod.rawValue
+        return item
+    }
+    
+    func makeAllSortingNSMenuItems(forMenu menu: NSMenu) -> [NSMenuItem] {
+        let menuItems = DockerSortMethod.allCases.map { method in
+            makeIndividualSortingNSMenuItem(method: method, menu: menu)
+        }
+        
+        return menuItems
+    }
+    
+    lazy var sortListItem = {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.delegate = self
+        menu.identifier = .sortListItemMenu
+        menu.items = makeAllSortingNSMenuItems(forMenu: menu)
+        
+        return self.makeMenuToolbarItem(itemIdentifier: .sortList, icon: "arrow.up.arrow.down", title: "Sort", requiresVmRunning: false, menu: menu)
+    }()
 
     lazy var licenseBadgeItem = {
         let item = NSToolbarItem(itemIdentifier: .licenseBadge)
@@ -269,11 +305,8 @@ extension NewMainViewController {
         icon: String,
         title: String,
         requiresVmRunning: Bool = true,
-        menuItems: [NSMenuItem]
+        menu: NSMenu
     ) -> NSMenuToolbarItem {
-        let menu = NSMenu(title: title)
-        menu.items = menuItems
-
         let item = NSMenuToolbarItem(itemIdentifier: itemIdentifier)
         item.menu = menu
         item.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)!
@@ -287,5 +320,32 @@ extension NewMainViewController {
         }
 
         return item
+    }
+    
+    func makeMenuToolbarItem(
+        itemIdentifier: NSToolbarItem.Identifier,
+        icon: String,
+        title: String,
+        requiresVmRunning: Bool = true,
+        menuItems: [NSMenuItem]
+    ) -> NSMenuToolbarItem {
+        let menu = NSMenu(title: title)
+        menu.items = menuItems
+
+        return self.makeMenuToolbarItem(itemIdentifier: itemIdentifier, icon: icon, title: title, requiresVmRunning: requiresVmRunning, menu: menu)
+    }
+}
+
+extension NewMainViewController: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu.identifier == .sortListItemMenu else { return }
+        for item in menu.items {
+            if item.tag == DockerSortMethod.size.rawValue {
+                // Disable "size" sorting option if we're in dockerContainers
+                item.isEnabled = (model.selectedTab != .dockerContainers)
+            }
+            
+            item.state = (model.dockerSortingMethod.rawValue == item.tag) ? .on : .off
+        }
     }
 }

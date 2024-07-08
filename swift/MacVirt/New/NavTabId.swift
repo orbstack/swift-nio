@@ -24,10 +24,9 @@ enum NavTabId: String {
         case .dockerContainers:
             return [.dockerContainersFilter, .searchItem]
         case .dockerVolumes:
-            return [.dockerVolumesOpen, .dockerVolumesNew, .searchItem]
+            return [.sortList, .dockerVolumesOpen, .dockerVolumesNew, .searchItem]
         case .dockerImages:
-            return [.dockerImagesOpen, .searchItem]
-
+            return [.sortList, .dockerImagesOpen, .searchItem]
         case .k8sPods:
             return [.k8sEnable, .k8sPodsFilter, .searchItem]
         case .k8sServices:
@@ -62,6 +61,7 @@ extension NSToolbarItem.Identifier {
     static let searchItem = NSToolbarItem.Identifier("searchItem")
 
     static let licenseBadge = NSToolbarItem.Identifier("licenseBadge")
+    static let sortList = NSToolbarItem.Identifier("sortList")
 
     static let inspectorTrackingSeparatorCompat = {
         if #available(macOS 14.0, *) {
@@ -76,4 +76,8 @@ extension NSToolbarItem.Identifier {
     static let trailingItems: [NSToolbarItem.Identifier] =
         // macOS 14 .toggleInspector starts in disabled state, until a selection is made. custom one works
         [.inspectorTrackingSeparatorCompat, .flexibleSpace, .licenseBadge, .toggleInspectorButton]
+}
+
+extension NSUserInterfaceItemIdentifier {
+    static let sortListItemMenu = NSUserInterfaceItemIdentifier("sortListItemMenu")
 }

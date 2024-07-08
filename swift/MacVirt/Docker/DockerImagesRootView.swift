@@ -20,7 +20,7 @@ struct DockerImagesRootView: View {
                 searchQuery.isEmpty ||
                 image.id.localizedCaseInsensitiveContains(searchQuery) ||
                 image.summary.repoTags?.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
-            }
+            }.sort(accordingTo: vmModel.dockerSortingMethod, model: vmModel)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             VStack(spacing: 0) {

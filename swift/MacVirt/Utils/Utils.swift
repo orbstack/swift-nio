@@ -343,6 +343,24 @@ enum K8sConstants {
     static let apiResId = K8SResourceId.service(namespace: "default", name: "kubernetes")
 }
 
+class ClosureMenuItem: NSMenuItem {
+    let closureAction: () -> Void
+    
+    init(title: String, action: @escaping () -> Void) {
+        self.closureAction = action
+        super.init(title: title, action: #selector(performAction), keyEquivalent: "")
+        self.target = self
+    }
+    
+    @objc func performAction() {
+        closureAction()
+    }
+    
+    required init(coder: NSCoder) {
+        fatalError("Not implemented")
+    }
+}
+
 // App Mover needs to manually throw an error in one case, so I feel as though making a generic error type
 // would be better than an enum with one case
 struct StringError: CustomStringConvertible, Error, LocalizedError {

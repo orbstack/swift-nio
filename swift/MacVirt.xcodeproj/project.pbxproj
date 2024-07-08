@@ -76,6 +76,7 @@
 		B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */; };
 		B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B88B9296701977A1F286 /* CodeInfo.swift */; };
 		B118BF9432DE5B82D325A31E /* DockerComposeGroupDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC5ED0519B7B337DA8D6 /* DockerComposeGroupDetails.swift */; };
+		CE44F2D72C259BA600965CC2 /* DockerSortMethod.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE44F2D62C259BA600965CC2 /* DockerSortMethod.swift */; };
 		D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */; };
 		D80443E12A1B404E00ED59C5 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */; };
 		D80443E22A1B404E00ED59C5 /* OnboardingRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A22A1B404E00ED59C5 /* OnboardingRootView.swift */; };
@@ -328,6 +329,7 @@
 		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
 		B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugSettingsView.swift; sourceTree = "<group>"; };
 		B118BF9EECAAD96ED8ACFB10 /* DetailsStack.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DetailsStack.swift; sourceTree = "<group>"; };
+		CE44F2D62C259BA600965CC2 /* DockerSortMethod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerSortMethod.swift; sourceTree = "<group>"; };
 		D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingCreateView.swift; sourceTree = "<group>"; };
 		D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
 		D80443A22A1B404E00ED59C5 /* OnboardingRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
@@ -590,6 +592,7 @@
 				B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */,
 				B118B103C2DE982C1219D12E /* Data+Base64URL.swift */,
 				B118B4E4BEA14F3804B048B1 /* CustomLink.swift */,
+				CE44F2D62C259BA600965CC2 /* DockerSortMethod.swift */,
 				B118B9305764473F5CD0B8A4 /* AKList.swift */,
 				B118B06A59C6893760E5F9AA /* ThinEnvironment.swift */,
 				B118B56B2F68D469F76481FD /* CopyableText.swift */,
@@ -1161,6 +1164,7 @@
 				D80444052A1B404E00ED59C5 /* DockerVolumesRootView.swift in Sources */,
 				D80444062A1B404E00ED59C5 /* DockerUI.swift in Sources */,
 				D80443EC2A1B404E00ED59C5 /* MachinesUI.swift in Sources */,
+				CE44F2D72C259BA600965CC2 /* DockerSortMethod.swift in Sources */,
 				D804440F2A1B404E00ED59C5 /* NetworkSettingsView.swift in Sources */,
 				D80443F82A1B404E00ED59C5 /* WindowTracker.swift in Sources */,
 				D80444072A1B404E00ED59C5 /* DockerContainersRootView.swift in Sources */,

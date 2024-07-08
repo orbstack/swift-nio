@@ -253,10 +253,6 @@ enum DockerContainerLists {
 
         // convert to list items
         for (var group, var containers) in composeGroups {
-            // sort
-            containers.sort { a, b in
-                a.userName < b.userName
-            }
 
             let children = containers.map { DockerListItem.container($0) }
             // if ANY container in the group is running, show the group as running
@@ -301,6 +297,7 @@ enum DockerContainerLists {
             }
             return a.containerName < b.containerName
         }
+        
         stoppedItems.sort { a, b in
             if a.isGroup != b.isGroup {
                 return a.isGroup
