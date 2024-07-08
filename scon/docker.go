@@ -90,6 +90,7 @@ var dockerInitCommands = [][]string{
 		"VNET_GATEWAY_IP4":                  netconf.VnetGatewayIP4,
 		"VNET_GATEWAY_IP6":                  netconf.VnetGatewayIP6,
 		"SCON_SUBNET6_CIDR":                 netconf.SconSubnet6CIDR,
+		"NAT64_SOURCE_IP4":                  netconf.NAT64SourceIP4,
 	})},
 }
 
