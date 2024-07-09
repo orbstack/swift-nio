@@ -11,7 +11,7 @@
   - Starts `scon`
 - `scon`: Container manager that runs containers ("machines") in the VM. (Go)
   - Includes BPF programs (C)
-- `orbfs`: Experimental hybrid sync file system (Rust)
+- `wormhole`: Debug Shell
 
 ## Developer onboarding
 
