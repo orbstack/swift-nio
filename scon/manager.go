@@ -155,10 +155,9 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		containersByID:   make(map[string]*Container),
 		containersByName: make(map[string]*Container),
 
-		db:       db,
-		host:     hc,
-		bpf:      bpfMgr,
-		wormhole: NewWormholeManager(),
+		db:   db,
+		host: hc,
+		bpf:  bpfMgr,
 
 		forwards: make(map[sysnet.ListenerKey]ForwardState),
 
@@ -172,6 +171,7 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 
 		vmConfig: initConfig.VmConfig,
 	}
+	mgr.wormhole = NewWormholeManager(mgr)
 	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host, mgr.db, mgr)
 	mgr.nfsForAll = NewMultiNfsMirror(mgr.nfsRoot, mgr.nfsForMachines)
 	mgr.uiEventDebounce = *syncx.NewLeadingFuncDebounce(uitypes.UIEventDebounce, func() {

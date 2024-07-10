@@ -57,3 +57,9 @@ var (
 		"all_proxy",
 	}
 )
+
+const (
+	_                     = iota
+	SigWormholeMountsBusy = 124
+	SigNeedsProLicense
+)

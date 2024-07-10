@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/termios"
 	"github.com/sirupsen/logrus"
@@ -401,7 +402,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 		// check for Pro license
 		if !sv.m.drm.isLicensed() {
-			err = &ExitError{status: 125}
+			err = &ExitError{status: sshenv.SigNeedsProLicense}
 			return
 		}
 	}
@@ -575,13 +576,6 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		if err != nil {
 			logrus.WithError(err).Error("end user session failed")
 		}
-
-		if isWormhole {
-			err = sv.m.wormhole.OnSessionEnd()
-			if err != nil {
-				logrus.WithError(err).Error("end wormhole session failed")
-			}
-		}
 	}()
 
 	// now that the command has been started, don't print errors to pty
@@ -629,6 +623,19 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		logrus.Error("wait err: ", err)
 		return
 	}
+
+	if isWormhole {
+		shouldUnmountWormhole := true
+		if status == sshenv.SigWormholeMountsBusy {
+			shouldUnmountWormhole = false
+			status = 0
+		}
+		err = sv.m.wormhole.OnSessionEnd(shouldUnmountWormhole)
+		if err != nil {
+			logrus.WithError(err).Error("end wormhole session failed")
+		}
+	}
+
 	if status != 0 {
 		err = &ExitError{status: status}
 		return

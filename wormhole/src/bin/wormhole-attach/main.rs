@@ -4,6 +4,7 @@ use std::{
     fs::File,
     os::fd::{AsRawFd, FromRawFd, OwnedFd},
     path::Path,
+    process,
     ptr::{null, null_mut},
 };
 
@@ -39,6 +40,8 @@ use wormhole::{
     newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY},
     paths,
 };
+
+const SIGNAL_WORMHOLE_MOUNTS_BUSY: i32 = 124;
 
 use crate::proc::wait_for_exit;
 
@@ -338,7 +341,14 @@ fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<FlockGuard<()>> {
     Ok(FlockGuard::new(ref_lock, ()))
 }
 
-fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyhow::Result<()> {
+enum DeleteNixDirResult {
+    Success,
+    Busy,
+    NotOurNix,
+    ActiveRefs,
+}
+
+fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyhow::Result<DeleteNixDirResult> {
     // try to unmount everything on our view of /nix recursively
     let mounts_file = unsafe {
         File::from_raw_fd(openat(
@@ -357,7 +367,7 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
                 Err(Errno::EBUSY) => {
                     // still in use (bg / forked process)
                     trace!("delete_nix_dir: mounts still in use");
-                    return Ok(());
+                    return Ok(DeleteNixDirResult::Busy);
                 }
                 Err(e) => return Err(e.into()),
             }
@@ -378,7 +388,7 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
     if xattr::get("/nix", "user.orbstack.wormhole")?.is_none() {
         // we didn't create /nix, so don't delete it
         trace!("delete_nix_dir: /nix not created by us");
-        return Ok(());
+        return Ok(DeleteNixDirResult::NotOurNix);
     }
 
     // check whether there are any remaining refs
@@ -388,7 +398,7 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
     } else {
         // there are still active refs, so we can't delete /nix
         trace!("delete_nix_dir: refs still active");
-        return Ok(());
+        return Ok(DeleteNixDirResult::ActiveRefs);
     }
 
     // good to go for deletion:
@@ -430,7 +440,7 @@ fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyh
         )?;
     }
 
-    Ok(())
+    Ok(DeleteNixDirResult::Success)
 }
 
 fn parse_config() -> anyhow::Result<WormholeConfig> {
@@ -656,7 +666,11 @@ fn main() -> anyhow::Result<()> {
             wait_for_exit(child)?;
 
             // try to delete /nix
-            delete_nix_dir(&proc_self_fd, nix_flock_ref)?;
+            if let DeleteNixDirResult::Busy = delete_nix_dir(&proc_self_fd, nix_flock_ref)? {
+                // return value was false, so we did not complete deleting nix dir. return an exit code to signify that unmount wormhole overlay will make everything explode
+                trace!("signaling to scon that mounts are still busy");
+                process::exit(SIGNAL_WORMHOLE_MOUNTS_BUSY);
+            }
         }
 
         // child 1 = intermediate

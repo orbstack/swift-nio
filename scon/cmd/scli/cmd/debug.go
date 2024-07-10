@@ -14,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
@@ -185,8 +186,7 @@ Pro only: requires an OrbStack Pro license.
 			os.Exit(1)
 		}
 
-		// 125 = requires Pro
-		if exitCode == 125 {
+		if exitCode == sshenv.SigNeedsProLicense {
 			if flagFallback {
 				fmt.Fprintln(os.Stderr, color.New(color.FgBlue).Sprintf(`%s making it easy to debug any container (even minimal/distroless).
 It also allows installing over 80,000 packages.

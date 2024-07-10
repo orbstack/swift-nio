@@ -19,11 +19,12 @@ type WormholeManager struct {
 	sessionCount int32
 
 	// either base + binds are mounted, or none are
-	isMounted bool
+	isMounted  bool
+	conManager *ConManager
 }
 
-func NewWormholeManager() *WormholeManager {
-	return &WormholeManager{sessionCount: 0}
+func NewWormholeManager(cm *ConManager) *WormholeManager {
+	return &WormholeManager{sessionCount: 0, conManager: cm}
 }
 
 func (m *WormholeManager) OnSessionStart() (retErr error) {
@@ -33,94 +34,99 @@ func (m *WormholeManager) OnSessionStart() (retErr error) {
 	m.sessionCount++
 	logrus.WithFields(logrus.Fields{"newCount": m.sessionCount}).Debug("new wormhole session")
 
-	if m.sessionCount == 1 && !m.isMounted {
-		logrus.Debug("mounting wormhole")
+	if m.sessionCount != 1 || m.isMounted {
+		return nil
+	}
 
-		err := unix.Mount("wormhole", mounts.WormholeOverlay, "overlay", unix.MS_NOATIME, "lowerdir=/opt/wormhole-rootfs,upperdir=/data/wormhole/overlay/upper,workdir=/data/wormhole/overlay/work")
+	logrus.Debug("mounting wormhole")
+
+	err := unix.Mount("wormhole", mounts.WormholeOverlay, "overlay", unix.MS_NOATIME, "lowerdir=/opt/wormhole-rootfs,upperdir=/data/wormhole/overlay/upper,workdir=/data/wormhole/overlay/work")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if retErr != nil {
+			_ = unix.Unmount(mounts.WormholeOverlay, 0)
+		}
+	}()
+
+	for _, subpath := range wormholeBindMounts {
+		src := mounts.WormholeOverlayNix + "/" + subpath
+		dst := mounts.WormholeUnifiedNix + "/" + subpath
+		err := unix.Mount(src, dst, "", unix.MS_BIND, "")
 		if err != nil {
-			return err
+			return fmt.Errorf("mount %s -> %s: %w", src, dst, err)
 		}
 		defer func() {
 			if retErr != nil {
-				_ = unix.Unmount(mounts.WormholeOverlay, 0)
+				_ = unix.Unmount(dst, 0)
 			}
 		}()
-
-		for _, subpath := range wormholeBindMounts {
-			src := mounts.WormholeOverlayNix + "/" + subpath
-			dst := mounts.WormholeUnifiedNix + "/" + subpath
-			err := unix.Mount(src, dst, "", unix.MS_BIND, "")
-			if err != nil {
-				return fmt.Errorf("mount %s -> %s: %w", src, dst, err)
-			}
-			defer func() {
-				if retErr != nil {
-					_ = unix.Unmount(dst, 0)
-				}
-			}()
-		}
-
-		m.isMounted = true
 	}
+
+	m.isMounted = true
 
 	return nil
 }
 
-func (m *WormholeManager) OnSessionEnd() error {
+func (m *WormholeManager) OnSessionEnd(shouldUnmountWormhole bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.sessionCount--
 	logrus.WithFields(logrus.Fields{"newCount": m.sessionCount}).Debug("discarding wormhole session")
 
-	if m.sessionCount == 0 && m.isMounted {
-		logrus.Debug("unmounting wormhole")
+	if m.sessionCount != 0 || !m.isMounted || !shouldUnmountWormhole {
+		logrus.Debugf("not unmounting wormhole, m.sessionCount: %v, m.isMounted: %v, shouldUnmountWormhole: %v", m.sessionCount, m.isMounted, shouldUnmountWormhole)
+		return nil
+	}
 
-		// detach all bind mounts first
-		// should always succeed
-		for _, path := range wormholeBindMounts {
-			dst := mounts.WormholeUnifiedNix + "/" + path
-			err := unix.Unmount(dst, unix.MNT_DETACH)
-			if err != nil && !errors.Is(err, unix.EINVAL) {
-				// EINVAL = not mounted (???)
-				return fmt.Errorf("unmount %s: %w", dst, err)
-			}
+	logrus.Debug("unmounting wormhole")
+
+	// detach all bind mounts first
+	// should always succeed
+	for _, path := range wormholeBindMounts {
+		dst := mounts.WormholeUnifiedNix + "/" + path
+		err := unix.Unmount(dst, unix.MNT_DETACH)
+		if err != nil && !errors.Is(err, unix.EINVAL) {
+			// EINVAL = not mounted (???)
+			return fmt.Errorf("unmount %s: %w", dst, err)
 		}
-		defer func() {
-			if m.isMounted {
-				// if we didn't unmount, restore bind mounts to make state consistent again
-				for _, path := range wormholeBindMounts {
-					src := mounts.WormholeOverlayNix + "/" + path
-					dst := mounts.WormholeUnifiedNix + "/" + path
-					err := unix.Mount(src, dst, "", unix.MS_BIND, "")
-					if err != nil {
-						logrus.WithError(err).Errorf("failed to restore bind mount %s -> %s", src, dst)
-					}
+	}
+	defer func() {
+		if m.isMounted {
+			// if we didn't unmount, restore bind mounts to make state consistent again
+			for _, path := range wormholeBindMounts {
+				src := mounts.WormholeOverlayNix + "/" + path
+				dst := mounts.WormholeUnifiedNix + "/" + path
+				err := unix.Mount(src, dst, "", unix.MS_BIND, "")
+				if err != nil {
+					logrus.WithError(err).Errorf("failed to restore bind mount %s -> %s", src, dst)
 				}
 			}
-		}()
-
-		// try to unmount overlay
-		err := unix.Unmount(mounts.WormholeOverlay, 0)
-		if err != nil {
-			// TODO: this never returns EBUSY, even if it's in use???
-			if errors.Is(err, unix.EBUSY) {
-				// leave it mounted and return success; don't change m.isMounted
-				// this happens when background processes still have fds open
-				logrus.Warn("wormhole still in use, skipping unmount")
-				return nil
-			} else if errors.Is(err, unix.EINVAL) {
-				// not mounted (???)
-				logrus.Warn("wormhole not mounted, skipping unmount")
-			} else {
-				// got a different error
-				// this must mean the FS is broken, so don't try to recover bind mounts
-				return err
-			}
 		}
+	}()
 
-		m.isMounted = false
+	// try to unmount overlay
+	err := unix.Unmount(mounts.WormholeOverlay, 0)
+	if err != nil {
+		// TODO: this never returns EBUSY, even if it's in use???
+		if errors.Is(err, unix.EBUSY) {
+			// leave it mounted and return success; don't change m.isMounted
+			// this happens when background processes still have fds open
+			logrus.Warn("wormhole still in use, skipping unmount")
+			return nil
+		} else if errors.Is(err, unix.EINVAL) {
+			// not mounted (???)
+			logrus.Warn("wormhole not mounted, skipping unmount")
+		} else {
+			// got a different error
+			// this must mean the FS is broken, so don't try to recover bind mounts
+			return err
+		}
 	}
+
+	m.isMounted = false
 
 	return nil
 }
@@ -134,7 +140,7 @@ func (m *WormholeManager) NukeData() error {
 		return fmt.Errorf("%s", "Please exit all Debug Shell sessions before using this command.")
 	}
 
-	err := deleteRootfs("/data/wormhole/overlay/upper")
+	err := m.conManager.deleteRootfs("/data/wormhole/overlay/upper")
 	if err != nil {
 		return err
 	}
