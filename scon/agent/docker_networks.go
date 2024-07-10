@@ -321,9 +321,10 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 			logrus.WithError(err).WithField("ip", config.IP4Subnet).Error("failed to remove bridge net from set")
 		}
 
-		err = editNftablesSet("delete", NfsetBridgeHostIps4, config.IP4Gateway.String())
+		hostIP := config.HostIP4().IP
+		err = editNftablesSet("delete", NfsetBridgeHostIps4, hostIP.String())
 		if err != nil {
-			logrus.WithError(err).WithField("ip", config.IP4Gateway).Error("failed to remove gateway ip from set")
+			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove gateway ip from set")
 		}
 	}
 	if config.IP6Subnet.IsValid() {
@@ -332,9 +333,10 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 			logrus.WithError(err).WithField("ip", config.IP6Subnet).Error("failed to remove bridge net from set")
 		}
 
-		err = editNftablesSet("delete", NfsetBridgeHostIps6, config.IP6Gateway.String())
+		hostIP := config.HostIP6().IP
+		err = editNftablesSet("delete", NfsetBridgeHostIps6, hostIP.String())
 		if err != nil {
-			logrus.WithError(err).WithField("ip", config.IP6Gateway).Error("failed to remove gateway ip from set")
+			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove gateway ip from set")
 		}
 	}
 
