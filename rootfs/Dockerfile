@@ -205,7 +205,7 @@ if [ "\$(uname -m)" = "aarch64" ]; then
     ARCH=arm64
 fi
 
-curl -o 7z.deb https://snapshot.debian.org/archive/debian/20240411T144035Z/pool/main/7/7zip/7zip_23.01%2Bdfsg-12_\$ARCH.deb
+curl -Lo 7z.deb https://snapshot.debian.org/archive/debian/20240411T144035Z/pool/main/7/7zip/7zip_23.01%2Bdfsg-12_\$ARCH.deb
 apt install -f ./7z.deb
 EOT
 COPY rootfs/utils/rosetta /work/
