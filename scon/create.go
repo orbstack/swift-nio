@@ -235,6 +235,10 @@ func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {
 			return nil, fmt.Errorf("machine didn't start in %v (missing IP address)", timeout)
 		}
 
+		if !c.lxc.Running() {
+			return nil, fmt.Errorf("machine crashed on startup")
+		}
+
 		ips, err := c.lxc.IPAddresses()
 		if err != nil {
 			continue
