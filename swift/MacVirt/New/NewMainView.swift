@@ -32,7 +32,6 @@ struct NewMainView: View {
         }
         .onAppear {
             windowTracker.openMainWindowCount += 1
-            model.initLaunch()
 
             // DO NOT use .task{} here.
             // start tasks should NOT be canceled

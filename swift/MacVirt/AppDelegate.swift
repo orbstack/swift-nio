@@ -58,6 +58,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 moveToApplicationsButtonClicked()
             }
         }
+      
+        vmModel.initLaunch()
     }
     
     func shouldPromptToMoveApplication() -> Bool {
