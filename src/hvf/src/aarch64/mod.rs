@@ -1161,8 +1161,7 @@ impl HvfVcpu {
             }
 
             _ => {
-                debug!("HVC call unhandled");
-                None
+                panic!("unhandled HVC: 0x{:x}", val);
             }
         };
 
