@@ -48,7 +48,7 @@ impl UserspaceGicImpl for HvfApic {
         unimplemented!()
     }
 
-    fn kick_vcpu(&mut self, _vcpuid: u64) {
+    fn kick_vcpu_for_pvlock(&mut self, _vcpuid: u64) {
         todo!()
     }
 }
