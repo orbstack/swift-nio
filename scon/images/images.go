@@ -91,7 +91,7 @@ var (
 		//ImageKali:      "current",
 		ImageNixos:     "22.11",
 		ImageOpeneuler: "20.03",
-		ImageOpensuse:  "15.4",
+		ImageOpensuse:  "15.5",
 		ImageOracle:    "8",
 		ImageRocky:     "8",
 		ImageUbuntu:    "bionic",
