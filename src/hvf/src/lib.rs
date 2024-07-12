@@ -1,6 +1,6 @@
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
-use std::{cell::Cell, mem::size_of, process::Command, sync::Mutex};
+use std::{cell::Cell, mem::size_of, ops::BitAnd, process::Command, sync::Mutex};
 
 use libc::{c_void, mach_host_self, madvise, memory_object_t, VM_FLAGS_PURGABLE, VM_MAKE_TAG};
 use mach2::{
@@ -30,7 +30,7 @@ use mach2::{
 };
 use once_cell::sync::Lazy;
 use tracing::error;
-use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
+use vm_memory::{Address, GuestAddress, GuestMemory, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::*;
 
@@ -43,7 +43,8 @@ mod hypercalls;
 
 const VM_FLAGS_4GB_CHUNK: i32 = 4;
 
-const MACH_CHUNK_SIZE: usize = 16384;
+const PAGE_SIZE: usize = 16384;
+const MACH_CHUNK_SIZE: usize = 2097152;
 
 const MAP_MEM_RT: i32 = 7;
 const MAP_MEM_LEDGER_TAGGED: i32 = 0x002000;
@@ -489,57 +490,167 @@ fn new_chunks_at(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn free_block(
+static BOUNCE_BUFFER: Lazy<Mutex<Vec<u8>>> = Lazy::new(|| vec![0; MACH_CHUNK_SIZE].into());
+
+fn purge_chunk(entry_addr: mach_vm_address_t) -> anyhow::Result<()> {
+    let mut state = VM_PURGABLE_EMPTY;
+    let ret = unsafe {
+        mach_vm_purgable_control(
+            mach_task_self(),
+            entry_addr,
+            VM_PURGABLE_SET_STATE,
+            &mut state,
+        )
+    };
+    if ret != KERN_SUCCESS {
+        return Err(anyhow::anyhow!(
+            "failed to deallocate host memory: mach_vm_purgable_control: error {}",
+            ret
+        ));
+    }
+
+    state = VM_PURGABLE_NONVOLATILE;
+    let ret = unsafe {
+        mach_vm_purgable_control(
+            mach_task_self(),
+            entry_addr,
+            VM_PURGABLE_SET_STATE,
+            &mut state,
+        )
+    };
+    if ret != KERN_SUCCESS {
+        return Err(anyhow::anyhow!(
+            "failed to deallocate host memory: mach_vm_purgable_control: error {}",
+            ret
+        ));
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Interval<N: Copy + Ord> {
+    start_incl: N,
+    end_excl: N,
+}
+
+impl<N: Copy + Ord> Interval<N> {
+    pub fn new(start_incl: N, end_excl: N) -> Self {
+        Self {
+            start_incl,
+            end_excl,
+        }
+    }
+}
+
+enum Intersection<N: Copy + Ord> {
+    None,
+    Partial(Interval<N>),
+    Full,
+}
+
+impl<N: Copy + Ord> BitAnd for Interval<N> {
+    type Output = Intersection<N>;
+
+    fn bitand(self, other: Self) -> Self::Output {
+        // no intersection?
+        if self.end_excl <= other.start_incl || self.start_incl >= other.end_excl {
+            return Intersection::None;
+        }
+
+        // full intersection?
+        if self.start_incl <= other.start_incl && self.end_excl >= other.end_excl {
+            return Intersection::Full;
+        }
+
+        // partial intersection
+        let start_incl = std::cmp::max(self.start_incl, other.start_incl);
+        let end_excl = std::cmp::min(self.end_excl, other.end_excl);
+        Intersection::Partial(Interval::new(start_incl, end_excl))
+    }
+}
+
+pub unsafe fn free_range(
+    guest_mem: &GuestMemoryMmap,
     guest_addr: GuestAddress,
     host_addr: *mut c_void,
     size: usize,
 ) -> anyhow::Result<()> {
-    let mut off: mach_vm_size_t = 0;
-    while off < size as mach_vm_size_t {
-        let entry_size = std::cmp::min(
-            MACH_CHUNK_SIZE as mach_vm_size_t,
-            size as mach_vm_size_t - off,
-        );
-        let entry_addr = host_addr as mach_vm_address_t + off;
+    // TODO: on machine create, assert / round mem size up to MACH_CHUNK_SIZE
+    let mut bounce_buffer = BOUNCE_BUFFER.lock().unwrap();
 
-        if entry_size < MACH_CHUNK_SIZE as mach_vm_size_t {
-            error!("entry_size < MACH_CHUNK_SIZE: {}", entry_size);
-            break;
+    // zero the freed range
+    // TODO: skip this
+    unsafe {
+        std::ptr::write_bytes(host_addr, 0, size);
+    }
+
+    // find lowest chunk containing host_addr
+    let free_interval = Interval::new(host_addr as usize, host_addr as usize + size);
+    let chunk_base_addr = host_addr as usize / MACH_CHUNK_SIZE * MACH_CHUNK_SIZE;
+    let chunk_end_addr = host_addr as usize + size;
+    tracing::info!(
+        "free_range: chunk_base_addr={:x} chunk_end_addr={:x} size={:x}",
+        chunk_base_addr,
+        chunk_end_addr,
+        size,
+    );
+    for chunk_addr in (chunk_base_addr..chunk_end_addr).step_by(MACH_CHUNK_SIZE) {
+        tracing::info!("free_range chunk: chunk_addr={:x}", chunk_addr);
+
+        // copy non-intersecting part into bounce buffer
+        let intersection = free_interval & Interval::new(chunk_addr, chunk_addr + MACH_CHUNK_SIZE);
+        match intersection {
+            Intersection::None => continue,
+            Intersection::Full => {}
+            Intersection::Partial(intersection) => {
+                // copy leading segment
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        chunk_addr as *const u8,
+                        bounce_buffer.as_mut_ptr(),
+                        intersection.start_incl - chunk_addr,
+                    )
+                };
+
+                // copy trailing segment
+                let chunk_seg2_addr = intersection.end_excl;
+                let bounce_seg2_addr = bounce_buffer.as_mut_ptr().add(chunk_seg2_addr - chunk_addr);
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        chunk_seg2_addr as *const u8,
+                        bounce_seg2_addr,
+                        MACH_CHUNK_SIZE - (chunk_seg2_addr - chunk_addr),
+                    )
+                };
+            }
         }
 
-        let mut state = VM_PURGABLE_EMPTY;
-        let ret = unsafe {
-            mach_vm_purgable_control(
-                mach_task_self(),
-                entry_addr,
-                VM_PURGABLE_SET_STATE,
-                &mut state,
-            )
-        };
-        if ret != KERN_SUCCESS {
-            return Err(anyhow::anyhow!(
-                "failed to deallocate host memory: mach_vm_purgable_control: error {}",
-                ret
-            ));
-        }
+        // clear entire chunk
+        purge_chunk(chunk_addr as mach_vm_address_t)?;
 
-        state = VM_PURGABLE_NONVOLATILE;
-        let ret = unsafe {
-            mach_vm_purgable_control(
-                mach_task_self(),
-                entry_addr,
-                VM_PURGABLE_SET_STATE,
-                &mut state,
-            )
-        };
-        if ret != KERN_SUCCESS {
-            return Err(anyhow::anyhow!(
-                "failed to deallocate host memory: mach_vm_purgable_control: error {}",
-                ret
-            ));
-        }
+        // copy used pages back
+        if let Intersection::Partial(intersection) = intersection {
+            // copy leading segment
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    bounce_buffer.as_ptr(),
+                    chunk_addr as *mut u8,
+                    intersection.start_incl - chunk_addr,
+                )
+            };
 
-        off += entry_size;
+            // copy trailing segment
+            let chunk_seg2_addr = intersection.end_excl;
+            let bounce_seg2_addr = bounce_buffer.as_ptr().add(chunk_seg2_addr - chunk_addr);
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    bounce_seg2_addr,
+                    chunk_seg2_addr as *mut u8,
+                    MACH_CHUNK_SIZE - (chunk_seg2_addr - chunk_addr),
+                )
+            };
+        }
     }
 
     Ok(())

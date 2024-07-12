@@ -195,7 +195,15 @@ impl Balloon {
         //     return have_used;
         // };
         for (guest_addr, host_addr, len) in free_ranges {
-            hvf::free_block(guest_addr, host_addr as *mut libc::c_void, len as usize).unwrap();
+            unsafe {
+                hvf::free_range(
+                    mem,
+                    guest_addr,
+                    host_addr as *mut libc::c_void,
+                    len as usize,
+                )
+                .unwrap()
+            };
             // unsafe {
             //     let res = libc::madvise(
             //         host_addr as *mut libc::c_void,
