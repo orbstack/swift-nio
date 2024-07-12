@@ -303,6 +303,14 @@ func (h *HcontrolServer) RemoveFsnotifyRef(path string, _ *None) error {
 	return nil
 }
 
+func (h *HcontrolServer) RefreshHostBridge(recreate bool, _ *None) error {
+	if !vmconfig.Get().NetworkBridge {
+		return nil
+	}
+
+	return h.n.CreateSconMachineHostBridge(recreate)
+}
+
 func (h *HcontrolServer) AddDockerBridge(config sgtypes.DockerBridgeConfig, reply *int) error {
 	index, err := h.n.AddVlanBridge(config)
 	if err != nil {

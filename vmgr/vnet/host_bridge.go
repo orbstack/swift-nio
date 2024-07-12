@@ -119,7 +119,7 @@ func (n *Network) ClearVlanBridges(includeScon bool) error {
 
 func (n *Network) enableHostBridges() error {
 	// create scon machine host bridge
-	err := n.CreateSconMachineHostBridge()
+	err := n.CreateSconMachineHostBridge(true)
 	if err != nil {
 		return err
 	}
@@ -291,13 +291,16 @@ func deriveBridgeConfigUuid(config sgtypes.DockerBridgeConfig) string {
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", uuidBytes[0:4], uuidBytes[4:6], uuidBytes[6:8], uuidBytes[8:10], uuidBytes[10:16])
 }
 
-func (n *Network) CreateSconMachineHostBridge() error {
+func (n *Network) CreateSconMachineHostBridge(recreate bool) error {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
 
 	// recreate if needed
 	oldBrnet := n.hostBridges[brIndexSconMachine]
 	if oldBrnet != nil {
+		if !recreate {
+			return nil
+		}
 		logrus.Debug("renewing scon machine host bridge")
 		oldBrnet.Close()
 	} else {
@@ -308,7 +311,7 @@ func (n *Network) CreateSconMachineHostBridge() error {
 		prefix4 := netip.MustParsePrefix(netconf.SconSubnet4CIDR)
 		prefix6 := netip.MustParsePrefix(netconf.SconSubnet6CIDR)
 		defer n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, prefix4, prefix6, func() error {
-			return n.CreateSconMachineHostBridge()
+			return n.CreateSconMachineHostBridge(true)
 		})
 
 		// if this is the first time, check if there's an existing VPN or LAN route.

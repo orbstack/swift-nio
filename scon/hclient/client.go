@@ -129,6 +129,11 @@ func (c *Client) RemoveFsnotifyRef(path string) error {
 	return c.rpc.Call("hc.RemoveFsnotifyRef", path, &none)
 }
 
+func (c *Client) RefreshHostBridge(recreate bool) error {
+	var none None
+	return c.rpc.Call("hc.RefreshHostBridge", recreate, &none)
+}
+
 func (c *Client) AddDockerBridge(config sgtypes.DockerBridgeConfig) (int, error) {
 	var vlanId int
 	err := c.rpc.Call("hc.AddDockerBridge", config, &vlanId)

@@ -57,6 +57,8 @@ type Network struct {
 	nftablesMu  sync.Mutex
 	nftForwards map[sysnet.ListenerKey]nftablesForwardMeta
 	nftBlocks   map[netip.Prefix]struct{}
+
+	hostClient *hclient.Client
 }
 
 type nftablesForwardMeta struct {
@@ -70,6 +72,7 @@ func NewNetwork(dataDir string, host *hclient.Client, db *Database, manager *Con
 		mdnsRegistry: newMdnsRegistry(host, db, manager),
 		nftForwards:  make(map[sysnet.ListenerKey]nftablesForwardMeta),
 		nftBlocks:    make(map[netip.Prefix]struct{}),
+		hostClient:   host,
 	}
 }
 
@@ -86,6 +89,12 @@ func (n *Network) Start() error {
 		return err
 	}
 	n.bridge = bridge
+	// not explicitly necesary for normal use, since host bridge will get added when vmconfig is set
+	// however, if scon restarts, that host bridge will disappear and needs to be readded
+	runOne("refresh host bridge", func() error {
+		logrus.Debug("refreshing host bridge")
+		return n.hostClient.RefreshHostBridge(false)
+	})
 
 	// start dnsmasq
 	logrus.Debug("starting dnsmasq")

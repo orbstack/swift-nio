@@ -738,7 +738,7 @@ func runVmManager() {
 		return nil
 	})
 	if vmconfig.Get().NetworkBridge {
-		runAsyncInitTask("scon host bridge", vnetwork.CreateSconMachineHostBridge)
+		runAsyncInitTask("scon host bridge", func() error { return vnetwork.CreateSconMachineHostBridge(true) })
 	}
 
 	// Start DRM
