@@ -29,6 +29,7 @@ use mach2::{
     vm_types::{mach_vm_address_t, mach_vm_size_t, natural_t, vm_size_t},
 };
 use once_cell::sync::Lazy;
+use tracing::error;
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::*;
@@ -502,6 +503,7 @@ pub fn free_block(
         let entry_addr = host_addr as mach_vm_address_t + off;
 
         if entry_size < MACH_CHUNK_SIZE as mach_vm_size_t {
+            error!("entry_size < MACH_CHUNK_SIZE: {}", entry_size);
             break;
         }
 
