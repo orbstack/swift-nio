@@ -2,6 +2,7 @@
 mod x86_64;
 use std::{cell::Cell, mem::size_of, ops::BitAnd, process::Command, sync::Mutex};
 
+use anyhow::anyhow;
 use libc::{c_void, mach_host_self, madvise, memory_object_t, VM_FLAGS_PURGABLE, VM_MAKE_TAG};
 use mach2::{
     kern_return::{kern_return_t, KERN_SUCCESS},
@@ -19,7 +20,7 @@ use mach2::{
     traps::mach_task_self,
     vm::{
         mach_make_memory_entry_64, mach_vm_allocate, mach_vm_deallocate, mach_vm_map,
-        mach_vm_purgable_control, mach_vm_region, mach_vm_region_recurse,
+        mach_vm_purgable_control, mach_vm_region, mach_vm_region_recurse, mach_vm_remap,
     },
     vm_inherit::VM_INHERIT_NONE,
     vm_prot::{vm_prot_t, VM_PROT_EXECUTE, VM_PROT_READ, VM_PROT_WRITE},
@@ -28,6 +29,7 @@ use mach2::{
     vm_statistics::{VM_FLAGS_ANYWHERE, VM_FLAGS_FIXED, VM_FLAGS_OVERWRITE},
     vm_types::{mach_vm_address_t, mach_vm_size_t, natural_t, vm_size_t},
 };
+use nix::errno::Errno;
 use once_cell::sync::Lazy;
 use tracing::error;
 use vm_memory::{Address, GuestAddress, GuestMemory, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
@@ -163,7 +165,6 @@ fn debug_madvise(host_addr: mach_vm_address_t, size: mach_vm_size_t) -> anyhow::
 static VM_ALLOCATION: Lazy<Mutex<Option<VmAllocation>>> = Lazy::new(|| Mutex::new(None));
 
 struct VmAllocation {
-    host_base_addr: *mut c_void,
     regions: Vec<VmRegion>,
 }
 
@@ -171,9 +172,7 @@ unsafe impl Send for VmAllocation {}
 
 struct VmRegion {
     host_addr: *mut c_void,
-    guest_addr: GuestAddress,
     size: usize,
-    entry_port: mach_port_t,
 }
 
 pub fn on_vm_park() -> anyhow::Result<()> {
@@ -193,29 +192,36 @@ pub fn on_vm_park() -> anyhow::Result<()> {
 }
 
 pub fn on_vm_unpark() -> anyhow::Result<()> {
-    // let guard = VM_ALLOCATION.lock().unwrap();
-    // let alloc_info = guard.as_ref().unwrap();
-    // for region in &alloc_info.regions {
-    //     println!("remap: {:p} ({:x})", region.host_addr, region.size);
-    //     let ret = unsafe {
-    //         mach_vm_map(
-    //             mach_task_self(),
-    //             &region.host_addr as *const _ as *mut _,
-    //             region.size as _,
-    //             0,
-    //             VM_FLAGS_OVERWRITE | VM_MAKE_TAG(250) as i32,
-    //             region.entry_port,
-    //             0,
-    //             0,
-    //             VM_PROT_READ | VM_PROT_WRITE,
-    //             VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
-    //             VM_INHERIT_NONE,
-    //         )
-    //     };
-    //     if ret != KERN_SUCCESS {
-    //         panic!("failed to map host memory: error {}", ret);
-    //     }
-    // }
+    let _span = tracing::info_span!("remap_user").entered();
+
+    let guard = VM_ALLOCATION.lock().unwrap();
+    let alloc_info = guard.as_ref().unwrap();
+    for region in &alloc_info.regions {
+        // println!("remap: {:p} ({:x})", region.host_addr, region.size);
+
+        // clear double accounting
+        let mut target_address = region.host_addr as mach_vm_address_t;
+        let mut cur_prot = VM_PROT_READ | VM_PROT_WRITE;
+        let mut max_prot = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
+        let ret = unsafe {
+            mach_vm_remap(
+                mach_task_self(),
+                &mut target_address,
+                region.size as mach_vm_size_t,
+                0,
+                VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
+                mach_task_self(),
+                region.host_addr as mach_vm_address_t,
+                0,
+                &mut cur_prot,
+                &mut max_prot,
+                VM_INHERIT_NONE,
+            )
+        };
+        if ret != KERN_SUCCESS {
+            panic!("failed to remap host memory: error {}", ret);
+        }
+    }
 
     Ok(())
 }
@@ -576,82 +582,25 @@ pub unsafe fn free_range(
     host_addr: *mut c_void,
     size: usize,
 ) -> anyhow::Result<()> {
-    // TODO: on machine create, assert / round mem size up to MACH_CHUNK_SIZE
-    let mut bounce_buffer = BOUNCE_BUFFER.lock().unwrap();
-
-    // zero the freed range
-    // TODO: skip this
-    unsafe {
-        std::ptr::write_bytes(host_addr, 0, size);
+    // let _span = tracing::info_span!("free_range", size = size).entered();
+    // start and end must be page-aligned
+    if host_addr as usize % PAGE_SIZE != 0 {
+        return Err(anyhow!(
+            "guest address must be page-aligned: {:x}",
+            guest_addr.raw_value()
+        ));
+    }
+    if size % PAGE_SIZE != 0 {
+        return Err(anyhow!("size must be page-aligned: {}", size));
     }
 
-    // find lowest chunk containing host_addr
-    let free_interval = Interval::new(host_addr as usize, host_addr as usize + size);
-    let chunk_base_addr = host_addr as usize / MACH_CHUNK_SIZE * MACH_CHUNK_SIZE;
-    let chunk_end_addr = host_addr as usize + size;
-    tracing::info!(
-        "free_range: chunk_base_addr={:x} chunk_end_addr={:x} size={:x}",
-        chunk_base_addr,
-        chunk_end_addr,
-        size,
-    );
-    for chunk_addr in (chunk_base_addr..chunk_end_addr).step_by(MACH_CHUNK_SIZE) {
-        tracing::info!("free_range chunk: chunk_addr={:x}", chunk_addr);
+    // madvise on host address
+    let ret = madvise(host_addr, size, libc::MADV_FREE_REUSABLE);
+    Errno::result(ret).map_err(|e| anyhow!("failed to madvise: {}", e))?;
 
-        // copy non-intersecting part into bounce buffer
-        let intersection = free_interval & Interval::new(chunk_addr, chunk_addr + MACH_CHUNK_SIZE);
-        match intersection {
-            Intersection::None => continue,
-            Intersection::Full => {}
-            Intersection::Partial(intersection) => {
-                // copy leading segment
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        chunk_addr as *const u8,
-                        bounce_buffer.as_mut_ptr(),
-                        intersection.start_incl - chunk_addr,
-                    )
-                };
-
-                // copy trailing segment
-                let chunk_seg2_addr = intersection.end_excl;
-                let bounce_seg2_addr = bounce_buffer.as_mut_ptr().add(chunk_seg2_addr - chunk_addr);
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        chunk_seg2_addr as *const u8,
-                        bounce_seg2_addr,
-                        MACH_CHUNK_SIZE - (chunk_seg2_addr - chunk_addr),
-                    )
-                };
-            }
-        }
-
-        // clear entire chunk
-        purge_chunk(chunk_addr as mach_vm_address_t)?;
-
-        // copy used pages back
-        if let Intersection::Partial(intersection) = intersection {
-            // copy leading segment
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    bounce_buffer.as_ptr(),
-                    chunk_addr as *mut u8,
-                    intersection.start_incl - chunk_addr,
-                )
-            };
-
-            // copy trailing segment
-            let chunk_seg2_addr = intersection.end_excl;
-            let bounce_seg2_addr = bounce_buffer.as_ptr().add(chunk_seg2_addr - chunk_addr);
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    bounce_seg2_addr,
-                    chunk_seg2_addr as *mut u8,
-                    MACH_CHUNK_SIZE - (chunk_seg2_addr - chunk_addr),
-                )
-            };
-        }
-    }
+    // clear this range from hv pmap ledger
+    HvfVm::unmap_memory_static(guest_addr.raw_value(), size as u64)?;
+    HvfVm::map_memory_static(host_addr as u64, guest_addr.raw_value(), size as u64)?;
 
     Ok(())
 }
@@ -671,7 +620,6 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
             0,
             0,
             0,
-            // we don't actually use this mapping, so fail loudly if something tries to use it
             VM_PROT_READ | VM_PROT_WRITE,
             VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
             // safe: we won't fork while mapping, and child won't be in the middle of this mapping code
@@ -686,14 +634,14 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     }
 
     // on failure, deallocate all chunks
-    let map_guard = scopeguard::guard((), |_| {
-        unsafe { mach_vm_deallocate(mach_task_self(), host_addr, size) };
-    });
+    // let map_guard = scopeguard::guard((), |_| {
+    //     unsafe { mach_vm_deallocate(mach_task_self(), host_addr, size) };
+    // });
 
-    // mach_vm_map splits the requested size into 128 MiB (ANON_CHUNK_SIZE) chunks for mach pager
-    // max chunk size is 4 GiB,
-    let mut regions = Vec::new();
-    new_chunks_at(host_addr as *mut c_void, size as usize)?;
+    // // mach_vm_map splits the requested size into 128 MiB (ANON_CHUNK_SIZE) chunks for mach pager
+    // // max chunk size is 4 GiB,
+    // let mut regions = Vec::new();
+    // new_chunks_at(host_addr as *mut c_void, size as usize)?;
 
     // let req_entry_size = size;
     // let mut entry_size = req_entry_size;
@@ -758,13 +706,16 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
 
     // we've replaced all mach chunks, so no longer need to deallocate reserved space
     // (all chunks are now from mach_make_memory_entry_64)
-    std::mem::forget(map_guard);
+    // std::mem::forget(map_guard);
 
-    // debug_madvise(host_addr, size)?;
+    // // debug_madvise(host_addr, size)?;
 
+    // TODO: on x86 this can be multiple regions, just not shm
     let alloc_info = VmAllocation {
-        host_base_addr: host_addr as *mut c_void,
-        regions,
+        regions: vec![VmRegion {
+            host_addr: host_addr as *mut c_void,
+            size: size as usize,
+        }],
     };
 
     VM_ALLOCATION.lock().unwrap().get_or_insert(alloc_info);

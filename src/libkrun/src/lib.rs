@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use tracing_subscriber::fmt::format::FmtSpan;
 use utils::Mutex;
 
 use anyhow::{anyhow, Context};
@@ -422,7 +423,9 @@ fn init_logger_once() {
     static INIT: Once = Once::new();
 
     INIT.call_once(|| {
-        tracing_subscriber::fmt::init();
+        tracing_subscriber::fmt::fmt()
+            .with_span_events(FmtSpan::CLOSE)
+            .init();
     });
 }
 
