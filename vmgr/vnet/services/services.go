@@ -10,6 +10,7 @@ import (
 	hcsrv "github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol"
 	sshsrv "github.com/orbstack/macvirt/vmgr/vnet/services/hostssh"
 	ntpsrv "github.com/orbstack/macvirt/vmgr/vnet/services/ntp"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/sshagent"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
 	"github.com/sirupsen/logrus"
@@ -50,9 +51,21 @@ var (
 	}
 )
 
-func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) *hcsrv.HcontrolServer {
+type NetServices struct {
+	HcServer    *hcsrv.HcontrolServer
+	ReadyEvents *readyevents.ReadyEventsService
+}
+
+func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) (*NetServices, error) {
 	addr := netutil.ParseTcpipAddress(netconf.VnetServicesIP4)
 	secureAddr := netutil.ParseTcpipAddress(netconf.VnetSecureSvcIP4)
+
+	// HID service (8302)
+	readyEvents, err := readyevents.ListenReadyEventsService(n.Stack, secureAddr)
+	if err != nil {
+		logrus.Error("Failed to start HID server: ", err)
+		return nil, err
+	}
 
 	// DNS (53): using system resolver
 	dnsServer, err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts, reverseDnsHosts)
@@ -92,7 +105,10 @@ func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) *hcsrv.Hcontrol
 	}
 
 	n.DockerRemoteCtxForward = dockerCtxForward
-	return hcServer
+	return &NetServices{
+		HcServer:    hcServer,
+		ReadyEvents: readyEvents,
+	}, nil
 }
 
 func ListenHostDockerRemoteCtx(stack *stack.Stack, address tcpip.Address) (*tcpfwd.UnixNATForward, error) {

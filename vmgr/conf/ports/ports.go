@@ -29,6 +29,7 @@ const (
 	SecureSvcHostSSH         = 22
 	SecureSvcHostSSHAgent    = 23
 	SecureSvcHcontrol        = 8300
+	SecureSvcReadyEvents     = 8302
 	SecureSvcDockerRemoteCtx = 2376
 
 	DockerMachineK8s         = 26443
