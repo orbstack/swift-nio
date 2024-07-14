@@ -63,7 +63,6 @@ springdalelinux:9
 ubuntu:bionic
 ubuntu:focal
 ubuntu:jammy
-ubuntu:lunar
 ubuntu:mantic
 ubuntu:noble
 ubuntu:xenial
