@@ -99,7 +99,6 @@ enum Distro: String, CaseIterable {
                 v("bionic", as: "18.04 LTS (Bionic Beaver)"),
                 v("focal", as: "20.04 LTS (Focal Fossa)"),
                 v("jammy", as: "22.04 LTS (Jammy Jellyfish)"),
-                v("lunar", as: "23.04 (Lunar Lobster)"),
                 v("mantic", as: "23.10 (Mantic Minotaur)"),
                 v("noble", as: "24.04 LTS (Noble Numbat)"),
             ]
