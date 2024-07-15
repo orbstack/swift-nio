@@ -1,0 +1,5 @@
+kprobe:folio_mark_accessed
+{
+    printf("folio_mark_accessed: %s", kstack());
+}
+
