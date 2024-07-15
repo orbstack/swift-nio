@@ -184,6 +184,8 @@ impl Balloon {
             }
         }
 
+        let total_bytes = free_ranges.iter().map(|(_, _, len)| len).sum::<u32>();
+
         // the idea:
         // to work around macos bug,
         // force vcpus to exit and park them
@@ -191,7 +193,11 @@ impl Balloon {
         // madvise
         // remap
         // and unpark
-        let span = tracing::info_span!("balloon", free_ranges = free_ranges.len()).entered();
+        let span = tracing::info_span!(
+            "balloon",
+            num_ranges = free_ranges.len(),
+            size_kib = total_bytes / 1024,
+        );
         let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
             return have_used;
         };
@@ -205,16 +211,6 @@ impl Balloon {
                 )
                 .unwrap()
             };
-            // unsafe {
-            //     let res = libc::madvise(
-            //         host_addr as *mut libc::c_void,
-            //         len.try_into().unwrap(),
-            //         libc::MADV_FREE_REUSABLE,
-            //     );
-            //     if res == -1 {
-            //         error!("madvise failed: {:?}", std::io::Error::last_os_error());
-            //     }
-            // };
         }
         self.parker.as_ref().unwrap().unpark(unpark_task);
         drop(span);

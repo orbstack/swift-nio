@@ -198,6 +198,10 @@ pub fn on_vm_unpark() -> anyhow::Result<()> {
     let alloc_info = guard.as_ref().unwrap();
     for region in &alloc_info.regions {
         // println!("remap: {:p} ({:x})", region.host_addr, region.size);
+        println!(
+            "submap before: {:?}",
+            get_submap_info(region.host_addr as _, region.size as _).unwrap(),
+        );
 
         // clear double accounting
         let mut target_address = region.host_addr as mach_vm_address_t;
@@ -221,6 +225,10 @@ pub fn on_vm_unpark() -> anyhow::Result<()> {
         if ret != KERN_SUCCESS {
             panic!("failed to remap host memory: error {}", ret);
         }
+        println!(
+            "submap after: {:?}",
+            get_submap_info(region.host_addr as _, region.size as _).unwrap(),
+        );
     }
 
     Ok(())
@@ -708,7 +716,7 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     // (all chunks are now from mach_make_memory_entry_64)
     // std::mem::forget(map_guard);
 
-    // // debug_madvise(host_addr, size)?;
+    // debug_madvise(host_addr, size)?;
 
     // TODO: on x86 this can be multiple regions, just not shm
     let alloc_info = VmAllocation {
