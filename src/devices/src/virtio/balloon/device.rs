@@ -199,9 +199,9 @@ impl Balloon {
             size_kib = total_bytes / 1024,
         )
         .entered();
-        let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
-            return have_used;
-        };
+        // let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
+        //     return have_used;
+        // };
         for (guest_addr, host_addr, len) in free_ranges {
             unsafe {
                 hvf::free_range(
@@ -213,7 +213,7 @@ impl Balloon {
                 .unwrap()
             };
         }
-        self.parker.as_ref().unwrap().unpark(unpark_task);
+        // self.parker.as_ref().unwrap().unpark(unpark_task);
         drop(span);
 
         have_used
