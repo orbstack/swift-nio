@@ -496,7 +496,8 @@ func (m *ConManager) defaultUser() (string, error) {
 func (m *ConManager) GetDefaultContainer() (*Container, error) {
 	// look up default
 	defaultID, err := m.db.GetDefaultContainerID()
-	if err != nil {
+	// db key doesn't exist on new installs
+	if err != nil && !errors.Is(err, ErrKeyNotFound) {
 		return nil, err
 	}
 	c, err := m.GetByID(defaultID)
