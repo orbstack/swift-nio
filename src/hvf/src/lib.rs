@@ -806,7 +806,7 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     VM_ALLOCATION.get_or_init(|| {
         // spawn thread to periodically remap and fix double accounting
         std::thread::spawn(|| loop {
-            std::thread::sleep(std::time::Duration::from_secs(15));
+            std::thread::sleep(std::time::Duration::from_secs(30));
             remap_all().unwrap();
         });
 
