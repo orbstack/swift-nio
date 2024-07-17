@@ -1,0 +1,12 @@
+{
+  "name": "pptr",
+  "version": "1.0.0",
+  "main": "index.mjs",
+  "scripts": {},
+  "author": "",
+  "license": "UNLICENSED",
+  "description": "",
+  "dependencies": {
+    "puppeteer": "^22.13.0"
+  }
+}
