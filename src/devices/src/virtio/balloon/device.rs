@@ -193,15 +193,12 @@ impl Balloon {
         // madvise
         // remap
         // and unpark
-        let span = tracing::info_span!(
+        let _span = tracing::info_span!(
             "balloon",
             num_ranges = free_ranges.len(),
             size_kib = total_bytes / 1024,
         )
         .entered();
-        // let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
-        //     return have_used;
-        // };
         hvf::set_balloon(true);
         let _guard = scopeguard::guard((), |_| hvf::set_balloon(false));
         for (guest_addr, host_addr, len) in free_ranges {
@@ -215,8 +212,6 @@ impl Balloon {
                 .unwrap()
             };
         }
-        // self.parker.as_ref().unwrap().unpark(unpark_task);
-        drop(span);
 
         have_used
     }

@@ -5,7 +5,7 @@ use std::{
     mem::size_of,
     ops::BitAnd,
     process::Command,
-    sync::{atomic::AtomicBool, Condvar, Mutex},
+    sync::{atomic::AtomicBool, Condvar, Mutex, OnceLock},
 };
 
 use anyhow::anyhow;
@@ -209,12 +209,13 @@ fn debug_madvise(host_addr: mach_vm_address_t, size: mach_vm_size_t) -> anyhow::
     }
 }
 
-static VM_ALLOCATION: Lazy<Mutex<Option<VmAllocation>>> = Lazy::new(|| Mutex::new(None));
+static VM_ALLOCATION: OnceLock<VmAllocation> = OnceLock::new();
 
 struct VmAllocation {
     regions: Vec<VmRegion>,
 }
 
+unsafe impl Sync for VmAllocation {}
 unsafe impl Send for VmAllocation {}
 
 struct VmRegion {
@@ -247,8 +248,7 @@ pub fn remap_all() -> anyhow::Result<()> {
     // TODO: only remap if we've racked up enoguh double accounting. this accounts for most of the cost of unparking. we also need that to do periodic remap if no balloon action happens
     let _span = tracing::info_span!("remap_user").entered();
 
-    let guard = VM_ALLOCATION.lock().unwrap();
-    let alloc_info = guard.as_ref().unwrap();
+    let alloc_info = VM_ALLOCATION.get().unwrap();
     for region in &alloc_info.regions {
         // println!("remap: {:p} ({:x})", region.host_addr, region.size);
         // println!(
@@ -677,7 +677,8 @@ pub unsafe fn free_range(
     let ret = madvise(host_addr, size, libc::MADV_FREE_REUSABLE);
     Errno::result(ret).map_err(|e| anyhow!("failed to madvise: {}", e))?;
 
-    // clear this range from hv pmap ledger
+    // clear this range from hv pmap ledger:
+    // there's no other way to clear from hv pmap, and we *will* incur this cost at some point
     HvfVm::unmap_memory_static(guest_addr.raw_value(), size as u64)?;
     HvfVm::map_memory_static(host_addr as u64, guest_addr.raw_value(), size as u64)?;
 
@@ -797,7 +798,15 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
         }],
     };
 
-    VM_ALLOCATION.lock().unwrap().get_or_insert(alloc_info);
+    VM_ALLOCATION.get_or_init(|| {
+        // spawn thread to periodically remap and fix double accounting
+        std::thread::spawn(|| loop {
+            std::thread::sleep(std::time::Duration::from_secs(15));
+            remap_all().unwrap();
+        });
+
+        alloc_info
+    });
 
     Ok(host_addr as *mut c_void)
 }
