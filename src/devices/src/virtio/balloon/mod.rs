@@ -6,7 +6,7 @@ pub use self::device::Balloon;
 mod defs {
     pub const BALLOON_DEV_ID: &str = "virtio_balloon";
     pub const NUM_QUEUES: usize = 5;
-    pub const QUEUE_SIZES: &[u16] = &[256; NUM_QUEUES];
+    pub const QUEUE_SIZES: &[u16] = &[4096; NUM_QUEUES];
 
     pub mod uapi {
         pub const VIRTIO_F_VERSION_1: u32 = 32;
