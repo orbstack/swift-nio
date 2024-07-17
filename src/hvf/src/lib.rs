@@ -1,6 +1,12 @@
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
-use std::{cell::Cell, mem::size_of, ops::BitAnd, process::Command, sync::Mutex};
+use std::{
+    cell::Cell,
+    mem::size_of,
+    ops::BitAnd,
+    process::Command,
+    sync::{atomic::AtomicBool, Condvar, Mutex},
+};
 
 use anyhow::anyhow;
 use libc::{
@@ -35,7 +41,10 @@ use mach2::{
 use nix::errno::Errno;
 use once_cell::sync::Lazy;
 use tracing::error;
-use vm_memory::{Address, GuestAddress, GuestMemory, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
+use vm_memory::{
+    Address, GuestAddress, GuestMemory, GuestMemoryMmap, GuestMemoryRegion, GuestRegionMmap,
+    MmapRegion,
+};
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::*;
 
@@ -628,6 +637,24 @@ impl<N: Copy + Ord> BitAnd for Interval<N> {
     }
 }
 
+static BALLOON_CONDVAR: Lazy<(Mutex<bool>, Condvar)> =
+    Lazy::new(|| (Mutex::new(false), Condvar::new()));
+
+pub fn wait_for_balloon() {
+    let (lock, cvar) = &*BALLOON_CONDVAR;
+    let mut guard = lock.lock().unwrap();
+    while *guard {
+        guard = cvar.wait(guard).unwrap();
+    }
+}
+
+pub fn set_balloon(in_balloon: bool) {
+    let (lock, cvar) = &*BALLOON_CONDVAR;
+    let mut guard = lock.lock().unwrap();
+    *guard = in_balloon;
+    cvar.notify_all();
+}
+
 pub unsafe fn free_range(
     guest_mem: &GuestMemoryMmap,
     guest_addr: GuestAddress,
@@ -651,8 +678,15 @@ pub unsafe fn free_range(
     Errno::result(ret).map_err(|e| anyhow!("failed to madvise: {}", e))?;
 
     // clear this range from hv pmap ledger
-    HvfVm::unmap_memory_static(guest_addr.raw_value(), size as u64)?;
-    HvfVm::map_memory_static(host_addr as u64, guest_addr.raw_value(), size as u64)?;
+    // HvfVm::unmap_memory_static(guest_addr.raw_value(), size as u64)?;
+    // HvfVm::map_memory_static(host_addr as u64, guest_addr.raw_value(), size as u64)?;
+    let region = guest_mem.iter().next().unwrap();
+    HvfVm::unmap_memory_static(region.start_addr().raw_value(), region.len())?;
+    HvfVm::map_memory_static(
+        guest_mem.get_host_address(region.start_addr()).unwrap() as u64,
+        region.start_addr().raw_value(),
+        region.len(),
+    )?;
 
     Ok(())
 }

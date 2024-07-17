@@ -36,7 +36,7 @@ use std::time::Duration;
 use crossbeam_channel::Sender;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use counter::RateCounter;
 
@@ -44,6 +44,7 @@ use crate::hypercalls::{
     ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK,
     ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
 };
+use crate::wait_for_balloon;
 
 extern "C" {
     pub fn mach_absolute_time() -> u64;
@@ -1026,12 +1027,21 @@ impl HvfVcpu {
                         VcpuExit::SecureMonitorCall
                     }
                     EC_IABT_LOW => {
-                        panic!(
-                            "instruction abort: syndrome={:x} va={:x} pa={:x}",
-                            syndrome,
-                            vcpu_exit.exception.virtual_address,
-                            vcpu_exit.exception.physical_address
-                        );
+                        if self
+                            .guest_mem
+                            .address_in_range(GuestAddress(vcpu_exit.exception.physical_address))
+                        {
+                            warn!("instruction abort during balloon");
+                            wait_for_balloon();
+                            VcpuExit::Canceled
+                        } else {
+                            panic!(
+                                "instruction abort: syndrome={:x} va={:x} pa={:x}",
+                                syndrome,
+                                vcpu_exit.exception.virtual_address,
+                                vcpu_exit.exception.physical_address
+                            );
+                        }
                     }
                     EC_SYSTEMREGISTERTRAP => {
                         let is_read: bool = (syndrome & 1) != 0;
@@ -1145,6 +1155,11 @@ impl HvfVcpu {
         };
 
         Ok((exit, exit_actions))
+    }
+
+    pub fn clear_pending_mmio(&mut self) {
+        self.pending_mmio_read = None;
+        self.pending_advance_pc = false;
     }
 
     fn handle_hvc(&mut self) -> Result<VcpuExit, Error> {

@@ -202,6 +202,8 @@ impl Balloon {
         // let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
         //     return have_used;
         // };
+        hvf::set_balloon(true);
+        let _guard = scopeguard::guard((), |_| hvf::set_balloon(false));
         for (guest_addr, host_addr, len) in free_ranges {
             unsafe {
                 hvf::free_range(
