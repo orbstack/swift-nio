@@ -679,8 +679,13 @@ pub unsafe fn free_range(
 
     // clear this range from hv pmap ledger:
     // there's no other way to clear from hv pmap, and we *will* incur this cost at some point
-    HvfVm::unmap_memory_static(guest_addr.raw_value(), size as u64)?;
-    HvfVm::map_memory_static(host_addr as u64, guest_addr.raw_value(), size as u64)?;
+    // hv_vm_protect(0) then (RWX) is slightly faster than unmap+map, and does the same thing (including split+coalesce)
+    HvfVm::protect_memory_static(guest_addr.raw_value(), size as u64, 0)?;
+    HvfVm::protect_memory_static(
+        guest_addr.raw_value(),
+        size as u64,
+        (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC) as _,
+    )?;
 
     Ok(())
 }

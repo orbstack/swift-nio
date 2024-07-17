@@ -46,6 +46,8 @@ use crate::hypercalls::{
 };
 use crate::wait_for_balloon;
 
+pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
+
 extern "C" {
     pub fn mach_absolute_time() -> u64;
 }
@@ -688,6 +690,15 @@ impl HvfVm {
     pub fn unmap_memory_static(guest_start_addr: u64, size: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vm_unmap(guest_start_addr, size as usize) };
         HvfError::result(ret).map_err(Error::MemoryUnmap)
+    }
+
+    pub fn protect_memory_static(
+        guest_start_addr: u64,
+        size: u64,
+        flags: hv_memory_flags_t,
+    ) -> Result<(), Error> {
+        let ret = unsafe { hv_vm_protect(guest_start_addr, size as usize, flags) };
+        HvfError::result(ret).map_err(Error::MemoryMap)
     }
 }
 
