@@ -7,6 +7,7 @@ use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread;
+use std::time::Instant;
 use utils::Mutex;
 
 use vm_memory::{ByteValued, GuestMemory, GuestMemoryMmap};
@@ -164,19 +165,27 @@ impl Balloon {
 
         let mut have_used = false;
 
-        let mut free_ranges = Vec::new();
-
+        let before = Instant::now();
+        hvf::set_balloon(true);
+        let _guard = scopeguard::guard((), |_| hvf::set_balloon(false));
+        let mut total_bytes = 0;
+        let mut num_ranges = 0;
         while let Some(head) = self.queues[BalloonQueues::FRQ].pop(mem) {
             have_used = true;
 
             let index = head.index;
             for desc in head.into_iter() {
                 let host_addr = mem.get_host_address(desc.addr).unwrap();
-                free_ranges.push((desc.addr, host_addr, desc.len));
+                num_ranges += 1;
+                total_bytes += desc.len as u64;
+
                 debug!(
                     "balloon: should release guest_addr={:?} host_addr={:p} len={}",
                     desc.addr, host_addr, desc.len
                 );
+                unsafe {
+                    hvf::free_range(mem, desc.addr, host_addr as *mut _, desc.len as usize).unwrap()
+                };
             }
 
             if let Err(e) = self.queues[BalloonQueues::FRQ].add_used(mem, index, 0) {
@@ -184,34 +193,12 @@ impl Balloon {
             }
         }
 
-        let total_bytes = free_ranges.iter().map(|(_, _, len)| len).sum::<u32>();
-
-        // the idea:
-        // to work around macos bug,
-        // force vcpus to exit and park them
-        // hv_vm_unmap
-        // madvise
-        // remap
-        // and unpark
-        let _span = tracing::info_span!(
-            "balloon",
-            num_ranges = free_ranges.len(),
-            size_kib = total_bytes / 1024,
-        )
-        .entered();
-        hvf::set_balloon(true);
-        let _guard = scopeguard::guard((), |_| hvf::set_balloon(false));
-        for (guest_addr, host_addr, len) in free_ranges {
-            unsafe {
-                hvf::free_range(
-                    mem,
-                    guest_addr,
-                    host_addr as *mut libc::c_void,
-                    len as usize,
-                )
-                .unwrap()
-            };
-        }
+        info!(
+            "ranges={:?} kib={}  time={:?}",
+            num_ranges,
+            total_bytes / 1024,
+            before.elapsed()
+        );
 
         have_used
     }
