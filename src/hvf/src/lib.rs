@@ -3,7 +3,10 @@ mod x86_64;
 use std::{cell::Cell, mem::size_of, ops::BitAnd, process::Command, sync::Mutex};
 
 use anyhow::anyhow;
-use libc::{c_void, mach_host_self, madvise, memory_object_t, VM_FLAGS_PURGABLE, VM_MAKE_TAG};
+use libc::{
+    c_void, getpid, mach_host_self, madvise, memory_object_t, proc_pidinfo, sysctlbyname,
+    VM_FLAGS_PURGABLE, VM_MAKE_TAG,
+};
 use mach2::{
     kern_return::{kern_return_t, KERN_SUCCESS},
     mach_port::{
@@ -98,33 +101,68 @@ extern "C" {
     ) -> kern_return_t;
 }
 
+#[derive(Default, Debug, Clone, Copy)]
+#[repr(C)]
+struct proc_regioninfo {
+    pri_protection: u32,
+    pri_max_protection: u32,
+    pri_inheritance: u32,
+    pri_flags: u32, /* shared, external pager, is submap */
+    pri_offset: u64,
+    pri_behavior: u32,
+    pri_user_wired_count: u32,
+    pri_user_tag: u32,
+    pri_pages_resident: u32,
+    pri_pages_shared_now_private: u32,
+    pri_pages_swapped_out: u32,
+    pri_pages_dirtied: u32,
+    pri_ref_count: u32,
+    pri_shadow_depth: u32,
+    pri_share_mode: u32,
+    pri_private_pages_resident: u32,
+    pri_shared_pages_resident: u32,
+    pri_obj_id: u32,
+    pri_depth: u32,
+    pri_address: u64,
+    pri_size: u64,
+}
+
+const PROC_PIDREGIONINFO: i32 = 7;
+
+extern "C" {
+    fn task_self_region_footprint_set(enable: bool);
+}
+
 fn get_submap_info(
     mut host_addr: mach_vm_address_t,
     mut size: mach_vm_size_t,
-) -> anyhow::Result<vm_region_submap_info_64> {
-    let mut nesting_level = 0;
-    let mut submap_info: vm_region_submap_info_64 = Default::default();
-    // VM_REGION_SUBMAP_INFO_COUNT_64
-    let mut info_count = (size_of::<vm_region_submap_info_data_64_t>() / size_of::<natural_t>())
-        as mach_msg_type_number_t;
+) -> anyhow::Result<proc_regioninfo> {
+    let mut info: proc_regioninfo = Default::default();
+    let mut old_self_region_footprint: u32 = 0;
+    let mut len = size_of::<u32>();
+    let mut new_self_region_footprint: u32 = 1;
     let ret = unsafe {
-        mach_vm_region_recurse(
-            mach_task_self(),
-            &mut host_addr,
-            &mut size,
-            &mut nesting_level,
-            &mut submap_info as *mut _ as *mut i32,
-            &mut info_count,
+        sysctlbyname(
+            c"vm.self_region_footprint".as_ptr(),
+            &mut old_self_region_footprint as *mut _ as *mut _,
+            &mut len,
+            &mut new_self_region_footprint as *mut _ as *mut _,
+            size_of::<u32>() as _,
         )
     };
-    if ret != KERN_SUCCESS {
-        return Err(anyhow::anyhow!(
-            "failed to allocate host memory: mach_vm_region_recurse: error {}",
-            ret
-        ));
-    }
+    Errno::result(ret)?;
+    let ret = unsafe {
+        proc_pidinfo(
+            getpid(),
+            PROC_PIDREGIONINFO,
+            host_addr,
+            &mut info as *mut _ as *mut _,
+            size_of::<proc_regioninfo>() as i32,
+        )
+    };
+    Errno::result(ret)?;
 
-    Ok(submap_info)
+    Ok(info)
 }
 
 fn debug_madvise(host_addr: mach_vm_address_t, size: mach_vm_size_t) -> anyhow::Result<()> {
@@ -192,16 +230,22 @@ pub fn on_vm_park() -> anyhow::Result<()> {
 }
 
 pub fn on_vm_unpark() -> anyhow::Result<()> {
+    // remap_all()?;
+    Ok(())
+}
+
+pub fn remap_all() -> anyhow::Result<()> {
+    // TODO: only remap if we've racked up enoguh double accounting. this accounts for most of the cost of unparking. we also need that to do periodic remap if no balloon action happens
     let _span = tracing::info_span!("remap_user").entered();
 
     let guard = VM_ALLOCATION.lock().unwrap();
     let alloc_info = guard.as_ref().unwrap();
     for region in &alloc_info.regions {
         // println!("remap: {:p} ({:x})", region.host_addr, region.size);
-        println!(
-            "submap before: {:?}",
-            get_submap_info(region.host_addr as _, region.size as _).unwrap(),
-        );
+        // println!(
+        //     "submap before: {:?}",
+        //     get_submap_info(region.host_addr as _, region.size as _).unwrap(),
+        // );
 
         // clear double accounting
         let mut target_address = region.host_addr as mach_vm_address_t;
@@ -225,10 +269,10 @@ pub fn on_vm_unpark() -> anyhow::Result<()> {
         if ret != KERN_SUCCESS {
             panic!("failed to remap host memory: error {}", ret);
         }
-        println!(
-            "submap after: {:?}",
-            get_submap_info(region.host_addr as _, region.size as _).unwrap(),
-        );
+        // println!(
+        //     "submap after: {:?}",
+        //     get_submap_info(region.host_addr as _, region.size as _).unwrap(),
+        // );
     }
 
     Ok(())

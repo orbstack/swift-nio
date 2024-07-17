@@ -197,7 +197,8 @@ impl Balloon {
             "balloon",
             num_ranges = free_ranges.len(),
             size_kib = total_bytes / 1024,
-        );
+        )
+        .entered();
         let Ok(unpark_task) = self.parker.as_ref().unwrap().park() else {
             return have_used;
         };
