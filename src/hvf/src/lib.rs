@@ -678,15 +678,8 @@ pub unsafe fn free_range(
     Errno::result(ret).map_err(|e| anyhow!("failed to madvise: {}", e))?;
 
     // clear this range from hv pmap ledger
-    // HvfVm::unmap_memory_static(guest_addr.raw_value(), size as u64)?;
-    // HvfVm::map_memory_static(host_addr as u64, guest_addr.raw_value(), size as u64)?;
-    let region = guest_mem.iter().next().unwrap();
-    HvfVm::unmap_memory_static(region.start_addr().raw_value(), region.len())?;
-    HvfVm::map_memory_static(
-        guest_mem.get_host_address(region.start_addr()).unwrap() as u64,
-        region.start_addr().raw_value(),
-        region.len(),
-    )?;
+    HvfVm::unmap_memory_static(guest_addr.raw_value(), size as u64)?;
+    HvfVm::map_memory_static(host_addr as u64, guest_addr.raw_value(), size as u64)?;
 
     Ok(())
 }
