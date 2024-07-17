@@ -545,11 +545,15 @@ impl Vcpu {
                 Ok(VcpuEmulation::Handled)
             }
             VcpuExit::MmioRead(addr, data) => {
-                mmio_bus.read(vcpuid, addr, data);
+                if !mmio_bus.read(vcpuid, addr, data) {
+                    panic!("unhandled MMIO read at address 0x{:x}", addr);
+                }
                 Ok(VcpuEmulation::Handled)
             }
             VcpuExit::MmioWrite(addr, data) => {
-                mmio_bus.write(vcpuid, addr, data);
+                if !mmio_bus.write(vcpuid, addr, data) {
+                    panic!("unhandled MMIO write at address 0x{:x}", addr);
+                }
                 Ok(VcpuEmulation::Handled)
             }
             VcpuExit::SecureMonitorCall => {
@@ -647,13 +651,17 @@ impl Vcpu {
                 }
                 VcpuExit::MmioRead(addr, data) => {
                     if let Some(ref mmio_bus) = self.mmio_bus {
-                        mmio_bus.read(vcpuid as u64, addr, data);
+                        if !mmio_bus.read(vcpuid as u64, addr, data) {
+                            panic!("unhandled MMIO read at address 0x{:x}", addr);
+                        }
                     }
                     Ok(VcpuEmulation::Handled)
                 }
                 VcpuExit::MmioWrite(addr, data) => {
                     if let Some(ref mmio_bus) = self.mmio_bus {
-                        mmio_bus.write(vcpuid as u64, addr, data);
+                        if !mmio_bus.write(vcpuid as u64, addr, data) {
+                            panic!("unhandled MMIO write at address 0x{:x}", addr);
+                        }
                     }
                     Ok(VcpuEmulation::Handled)
                 }
