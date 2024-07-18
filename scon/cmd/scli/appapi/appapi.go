@@ -15,7 +15,7 @@ import (
 
 const (
 	baseURLRelease = "https://api-license.orbstack.dev/api/v1"
-	// this way we still use proxy
+	// this way we still use proxy. http.ProxyFromEnvironment ignores localhost
 	baseURLDebug = "http://0.0.0.0:8400/api/v1"
 )
 
