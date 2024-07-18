@@ -1,13 +1,12 @@
 package cmd
 
 import (
-	"github.com/orbstack/macvirt/scon/cmd/scli/appapi"
-	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
-	"github.com/orbstack/macvirt/scon/util"
+	"os"
+
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
-	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -30,48 +29,19 @@ If you are already logged in, this command will do nothing unless you add --forc
 	Example: "  " + appid.ShortCmd + " login",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// login CLI is in vmgr so we get the right keychain access group
+		// otherwise we'd have to give scli its own wrapper app bundle, signing ID, and provisioning profile
 		vmgrExe, err := vmclient.FindVmgrExe()
 		checkCLI(err)
-		if err := util.Run(vmgrExe, "_check-refresh-token"); err == nil && !flagForce {
-			cmd.Println("Already logged in.")
-			return nil
+
+		forceArg := "false"
+		if flagForce {
+			forceArg = "true"
 		}
 
-		client := appapi.NewClient()
-
-		// generate a token
-		var startResp drmtypes.StartAppAuthResponse
-		err = client.Post("/app/start_auth", drmtypes.StartAppAuthRequest{
-			SsoDomain: flagDomain,
-		}, &startResp)
+		// multi-threaded exec is safe: it terminates other threads
+		err = unix.Exec(vmgrExe, []string{vmgrExe, "_login", forceArg, flagDomain}, os.Environ())
 		checkCLI(err)
-
-		// print
-		cmd.Println("Finish logging in at: " + startResp.AuthURL)
-
-		// open url in browser
-		err = util.Run("open", startResp.AuthURL)
-		checkCLI(err)
-
-		// wait
-		var waitResp drmtypes.WaitAppAuthResponse
-		spinner := spinutil.Start("blue", "Waiting for login...")
-		err = client.LongGet("/app/wait_auth?id="+startResp.SessionID, &waitResp)
-		spinner.Stop()
-		checkCLI(err)
-
-		// save token
-		// err = drmcore.SaveRefreshToken(waitResp.RefreshToken)
-		// checkCLI(err)
-		//TODO
-		err = util.Run(vmgrExe, "_set-refresh-token", waitResp.RefreshToken)
-		checkCLI(err)
-
-		// if running, update it in vmgr so it takes effect
-		if vmclient.IsRunning() {
-			err = vmclient.Client().InternalUpdateToken(waitResp.RefreshToken)
-			checkCLI(err)
-		}
 
 		return nil
 	},

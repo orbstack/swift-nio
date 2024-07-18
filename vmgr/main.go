@@ -1044,10 +1044,10 @@ func main() {
 		runReportEnv()
 	case "uninstall-privhelper":
 		runUninstallPrivhelper()
-	case "_set-refresh-token":
-		runSetRefreshToken()
-	case "_check-refresh-token":
-		runCheckRefreshToken()
+	case "_login":
+		runLogin()
+	case "_logout":
+		runLogout()
 	case "vmgr", "":
 		runVmManager()
 	default:

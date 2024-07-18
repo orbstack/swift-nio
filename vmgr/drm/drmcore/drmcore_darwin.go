@@ -92,6 +92,19 @@ func ReadKeychainDrmState() ([]byte, error) {
 	return data, nil
 }
 
+func HasRefreshToken() bool {
+	data, err := ReadKeychainDrmState()
+	if err == nil {
+		var state drmtypes.PersistentState
+		err = json.Unmarshal(data, &state)
+		if err == nil && state.RefreshToken != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func readGenericPassword(account, label string) ([]byte, error) {
 	return keychain.GetGenericPassword(keychainService, account, label, keychainAccessGroup)
 }

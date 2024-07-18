@@ -1,10 +1,12 @@
 package cmd
 
 import (
-	"github.com/orbstack/macvirt/scon/util"
+	"os"
+
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
 )
 
 func init() {
@@ -19,16 +21,13 @@ var logoutCmd = &cobra.Command{
 	Example: "  " + appid.ShortCmd + " logout",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// shell out to vmgr, like login
 		vmgrExe, err := vmclient.FindVmgrExe()
 		checkCLI(err)
-		err = util.Run(vmgrExe, "_set-refresh-token", "")
-		checkCLI(err)
 
-		// if running, update it in vmgr so it takes effect
-		if vmclient.IsRunning() {
-			err = vmclient.Client().InternalUpdateToken("")
-			checkCLI(err)
-		}
+		// multi-threaded exec is safe: it terminates other threads
+		err = unix.Exec(vmgrExe, []string{vmgrExe, "_logout"}, os.Environ())
+		checkCLI(err)
 
 		return nil
 	},
