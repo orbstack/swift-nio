@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/conf"
@@ -19,7 +20,7 @@ const (
 )
 
 func baseURL() string {
-	if conf.Debug() {
+	if conf.Debug() && os.Getenv("ORB_DRM_DEBUG") == "1" {
 		return baseURLDebug
 	} else {
 		return baseURLRelease
