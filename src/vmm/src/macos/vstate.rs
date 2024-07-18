@@ -184,11 +184,11 @@ impl Parkable for VmParker {
 
     fn process_park_commands(
         &self,
-        signal: &VcpuSignal,
+        taken: VcpuSignalMask,
         park_task: StartupTask,
     ) -> std::result::Result<StartupTask, StartupAbortedError> {
         // Check whether the signal needs to be resolved.
-        if signal.take(VcpuSignalMask::PAUSE).is_empty() {
+        if !taken.contains(VcpuSignalMask::PAUSE) {
             return Ok(park_task);
         }
 
@@ -805,14 +805,15 @@ impl Vcpu {
 
         loop {
             // Handle events
-            if !signal.take(VcpuSignalMask::EXIT_LOOP).is_empty() {
+            let taken = signal.take(VcpuSignalMask::all());
+            if taken.contains(VcpuSignalMask::EXIT_LOOP) {
                 break;
             }
 
             // (this should never happen if we haven't exited the loop yet)
-            debug_assert!(signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
+            debug_assert!(!taken.contains(VcpuSignalMask::DESTROY_VM));
 
-            let Ok(park_task_tmp) = parker.process_park_commands(&*signal, park_task) else {
+            let Ok(park_task_tmp) = parker.process_park_commands(taken, park_task) else {
                 error!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );
@@ -820,14 +821,15 @@ impl Vcpu {
             };
             park_task = park_task_tmp;
 
-            if !signal.take(VcpuSignalMask::INTERRUPT).is_empty() {
+            if taken.contains(VcpuSignalMask::INTERRUPT) {
                 // Although we could theoretically use this to signal the presence of an interrupt,
                 // we already use the lockless GIC handle to determine which interrupt was sent to
                 // us so there's no real performance reason for doing this.
             }
 
-            // If a PV lock was released, just re-enter the vCPU so that the guest handles it.
-            let _ = signal.take(VcpuSignalMask::PVLOCK);
+            if taken.contains(VcpuSignalMask::PVLOCK) {
+                // If a PV lock was released, just re-enter the vCPU so that the guest handles it.
+            }
 
             #[cfg(target_arch = "aarch64")]
             if taken.contains(VcpuSignalMask::DUMP_DEBUG) {

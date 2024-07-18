@@ -22,7 +22,7 @@ use vm_memory::{
 };
 
 use dlopen::wrapper::{Container, WrapperApi};
-use vmm_ids::{ArcVcpuSignal, VcpuSignal};
+use vmm_ids::{ArcVcpuSignal, VcpuSignalMask};
 
 use std::arch::asm;
 use std::convert::TryInto;
@@ -291,7 +291,7 @@ pub trait Parkable: Send + Sync {
 
     fn process_park_commands(
         &self,
-        signal: &VcpuSignal,
+        taken: VcpuSignalMask,
         park_task: StartupTask,
     ) -> Result<StartupTask, StartupAbortedError>;
 
