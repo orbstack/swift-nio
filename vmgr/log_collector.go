@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +20,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/types"
-	"github.com/orbstack/macvirt/vmgr/util"
+	"github.com/orbstack/macvirt/vmgr/util/debugutil"
 	"github.com/sirupsen/logrus"
 )
 
@@ -168,16 +167,6 @@ func (r *KernelLogRecorder) Flush() {
 	}
 }
 
-func sampleStacks() {
-	logrus.Warn("sampling stacks due to VM hang")
-	_, err := util.Run("sample", "-f", conf.VmgrSampleLog(), strconv.Itoa(os.Getpid()), "1" /*second*/)
-	if err != nil {
-		logrus.WithError(err).Error("failed to sample stacks")
-	}
-
-	logrus.Warn("stacks sampled")
-}
-
 func matchWarnPattern(line string) bool {
 	for _, pattern := range kernelWarnPatterns {
 		if strings.Contains(line, pattern) {
@@ -293,7 +282,7 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 
 					// RCU stall means the VM is frozen. sample stacks for debugging
 					if strings.Contains(line, kernelWarnPatternRcuStall) {
-						go sampleStacks()
+						go debugutil.SampleStacks()
 					}
 
 					// trigger a health check in case of RCU stall / netdev watchdog

@@ -39,6 +39,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
+	"github.com/orbstack/macvirt/vmgr/util/debugutil"
 	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/orbstack/macvirt/vmgr/vclient"
@@ -822,7 +823,7 @@ func runVmManager() {
 
 			case unix.SIGUSR1:
 				// sample stacks to debug hangs
-				go sampleStacks()
+				go debugutil.SampleStacks()
 			}
 		}
 	}()

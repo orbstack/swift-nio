@@ -16,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/types"
+	"github.com/orbstack/macvirt/vmgr/util/debugutil"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
@@ -233,14 +234,19 @@ func (vc *VClient) healthCheck() {
 		//TODO require multiple failures
 		logrus.WithError(err).Error("health check failed")
 
-		// if it was because of a timeout, then we should shut down. vm is dead
+		// if it was because of a timeout, then we should sample stacks. vm is dead
 		// but only if awake before AND after check, and not recently slept
-		if stopOnHealthCheckFail &&
-			matchTimeoutError(err) &&
+		if matchTimeoutError(err) &&
 			awakeBefore &&
 			!iokit.IsAsleep() &&
 			!iokit.SleepOrWakeWithin(healthCheckSleepWakeGracePeriod) {
-			vc.requestStopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonHealthCheck}
+			// too many false positives to stop on health check failures, so disable it for now
+			if stopOnHealthCheckFail {
+				vc.requestStopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonHealthCheck}
+			}
+
+			// ... but always sample stacks to get debug info in case there's a hang
+			go debugutil.SampleStacks()
 		}
 	}
 }
