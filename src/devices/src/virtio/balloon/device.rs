@@ -1,16 +1,18 @@
+use bitfield::bitfield;
 use gruel::{
     define_waker_set, BoundSignalChannelRef, ParkSignalChannelExt, ParkWaker, SignalChannel,
 };
 use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
 use std::cmp;
 use std::io::Write;
+use std::mem::size_of;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::Instant;
 use utils::Mutex;
 
-use vm_memory::{ByteValued, GuestMemory, GuestMemoryMmap};
+use vm_memory::{ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap};
 
 use super::super::{
     ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice, VIRTIO_MMIO_INT_VRING,
@@ -60,6 +62,29 @@ define_num_enum! {
         FRQ,
     }
 }
+
+// kernel: orbvm_virtballoon_frp_request
+#[derive(Copy, Clone, Debug)]
+#[repr(C)]
+struct OrbvmVirtballoonFrpRequest {
+    type_: u32,
+    guest_page_size: u32,
+}
+
+unsafe impl ByteValued for OrbvmVirtballoonFrpRequest {}
+
+bitfield! {
+    #[derive(Copy, Clone)]
+    #[repr(transparent)]
+    struct PrDesc(u64);
+    impl Debug;
+
+    phys_addr, _: 51, 0;
+    order, _: 62, 52;
+    present, _: 63;
+}
+
+const FRP_TYPE_FREE: u32 = 0;
 
 pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64
     | 1 << uapi::VIRTIO_BALLOON_F_STATS_VQ as u64
@@ -174,18 +199,59 @@ impl Balloon {
             have_used = true;
 
             let index = head.index;
-            for desc in head.into_iter() {
-                let host_addr = mem.get_host_address(desc.addr).unwrap();
-                num_ranges += 1;
-                total_bytes += desc.len as u64;
 
+            // first descriptor = request header
+            let mut iter = head.into_iter();
+            let req_desc = iter.next().unwrap();
+            if req_desc.len as usize != size_of::<OrbvmVirtballoonFrpRequest>() {
+                panic!("balloon: invalid request descriptor length");
+            }
+
+            let req = mem
+                .read_obj::<OrbvmVirtballoonFrpRequest>(req_desc.addr)
+                .unwrap();
+            assert!(req.type_ == FRP_TYPE_FREE);
+
+            // second descriptor = prdesc buffer
+            let prdescs_desc = iter.next().unwrap();
+            if req_desc.len % size_of::<PrDesc>() as u32 != 0 {
+                panic!("balloon: invalid prdesc buffer length");
+            }
+
+            // iterate through prdescs
+            let slice = mem
+                .get_slice(prdescs_desc.addr, prdescs_desc.len as usize)
+                .unwrap();
+            let slice_ptr = slice.ptr_guard();
+            // turn it into a slice
+            let prdescs = unsafe {
+                std::slice::from_raw_parts(
+                    slice_ptr.as_ptr() as *const PrDesc,
+                    slice.len() / size_of::<PrDesc>(),
+                )
+            };
+            for prdesc in prdescs {
+                // entry was invalidated in-place to avoid shifting array
+                if !prdesc.present() {
+                    continue;
+                }
+
+                let guest_addr = GuestAddress(prdesc.phys_addr());
+                let size = (req.guest_page_size << prdesc.order()) as usize;
+                // bounds check
+                let host_addr = mem.get_slice(guest_addr, size).unwrap().ptr_guard();
+
+                // free this range
                 debug!(
                     "balloon: should release guest_addr={:?} host_addr={:p} len={}",
-                    desc.addr, host_addr, desc.len
+                    guest_addr,
+                    host_addr.as_ptr(),
+                    size
                 );
-                unsafe {
-                    hvf::free_range(mem, desc.addr, host_addr as *mut _, desc.len as usize).unwrap()
-                };
+                unsafe { hvf::free_range(guest_addr, host_addr.as_ptr() as *mut _, size).unwrap() };
+
+                num_ranges += 1;
+                total_bytes += size as u64;
             }
 
             if let Err(e) = self.queues[BalloonQueues::FRQ].add_used(mem, index, 0) {

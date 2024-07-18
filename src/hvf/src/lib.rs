@@ -656,7 +656,6 @@ pub fn set_balloon(in_balloon: bool) {
 }
 
 pub unsafe fn free_range(
-    guest_mem: &GuestMemoryMmap,
     guest_addr: GuestAddress,
     host_addr: *mut c_void,
     size: usize,

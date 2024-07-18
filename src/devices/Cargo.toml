@@ -50,6 +50,7 @@ newt = { version = "0.1.0", path = "../newt" }
 memmage = { version = "0.1.0", path = "../memmage" }
 mio = { version = "0.8.11", features = ["os-poll", "os-ext"] }
 scopeguard = "1.2.0"
+bitfield = "0.15.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }
