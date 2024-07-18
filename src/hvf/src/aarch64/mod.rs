@@ -15,6 +15,8 @@ use bindings::*;
 use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
 use gruel::{StartupAbortedError, StartupTask};
+use libc::{madvise, MADV_FREE_REUSE};
+use nix::errno::Errno;
 use once_cell::sync::Lazy;
 use utils::kernel_symbols::CompactSystemMap;
 use vm_memory::{
@@ -41,8 +43,9 @@ use tracing::{debug, error, warn};
 use counter::RateCounter;
 
 use crate::hypercalls::{
-    ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK,
-    ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
+    ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_MADVISE_REUSE, ORBVM_PVGIC_SET_STATE,
+    ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE,
+    PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
 };
 use crate::wait_for_balloon;
 
@@ -1238,6 +1241,26 @@ impl HvfVcpu {
                 COUNT_EXIT_HVC_PVLOCK_KICK.count();
                 let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 return Ok(VcpuExit::PvlockUnpark(vcpuid));
+            }
+
+            ORBVM_MADVISE_REUSE => {
+                let addr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                let len = self.read_raw_reg(hv_reg_t_HV_REG_X2)?;
+                let ret = unsafe {
+                    madvise(
+                        self.guest_mem
+                            .get_slice(GuestAddress(addr), len as usize)
+                            .unwrap()
+                            .ptr_guard_mut()
+                            .as_ptr() as *mut _,
+                        len as usize,
+                        MADV_FREE_REUSE,
+                    )
+                };
+                if let Err(e) = Errno::result(ret) {
+                    error!("madvise reuse failed: {:?}", e);
+                }
+                return Ok(VcpuExit::HypervisorCall);
             }
 
             _ => {
