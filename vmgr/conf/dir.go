@@ -182,6 +182,10 @@ func VmgrLog1() string {
 	return LogDir() + "/vmgr.1.log"
 }
 
+func VmgrSampleLog() string {
+	return LogDir() + "/vmgr.sample.log"
+}
+
 func VmgrVersionFile() string {
 	return RunDir() + "/vmgr.version"
 }

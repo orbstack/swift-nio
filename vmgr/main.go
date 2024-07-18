@@ -800,24 +800,29 @@ func runVmManager() {
 	// Listen for signals
 	go func() {
 		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT)
+		signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT, unix.SIGUSR1)
 
 		sigints := 0
-		for {
-			sig := <-signalCh
-			if sig == unix.SIGINT {
+		for sig := range signalCh {
+			switch sig {
+			case unix.SIGINT:
 				sigints++
-			} else {
-				sigints = 0
-			}
+				if sigints >= 2 {
+					// two SIGINT = force stop
+					logrus.Info("Received SIGINT twice, forcing stop")
+					stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonSignal}
+				} else {
+					logrus.Info("Received signal, requesting stop")
+					stopCh <- types.StopRequest{Type: types.StopTypeGraceful, Reason: types.StopReasonSignal}
+				}
 
-			if sigints >= 2 {
-				// two SIGINT = force stop
-				logrus.Info("Received SIGINT twice, forcing stop")
-				stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonSignal}
-			} else {
+			case unix.SIGTERM, unix.SIGQUIT:
 				logrus.Info("Received signal, requesting stop")
 				stopCh <- types.StopRequest{Type: types.StopTypeGraceful, Reason: types.StopReasonSignal}
+
+			case unix.SIGUSR1:
+				// sample stacks to debug hangs
+				go sampleStacks()
 			}
 		}
 	}()

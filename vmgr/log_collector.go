@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/types"
+	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,6 +31,8 @@ const (
 )
 
 const kernelWarnRecordDuration = 500 * time.Millisecond
+
+const kernelWarnPatternRcuStall = "] rcu: INFO:"
 
 var (
 	// this is just informational. we rely on health check (vcontrol client) to detect real VM freeze
@@ -41,7 +45,7 @@ var (
 		// netdev watchdog: ] NETDEV WATCHDOG: eth0 (virtio_net): transmit queue 0 timed out
 		"] NETDEV WATCHDOG:",
 		// RCU stall
-		"] rcu: INFO:",
+		kernelWarnPatternRcuStall,
 		// kfence memory safety issue
 		"] BUG: KFENCE",
 		// TODO: add NFS broken conn?
@@ -56,7 +60,7 @@ func init() {
 	// remove RCU stall on x86. it's normal due to timekeeping
 	if runtime.GOARCH == "amd64" {
 		kernelWarnPatterns = slices.DeleteFunc(kernelWarnPatterns, func(s string) bool {
-			return s == "] rcu: INFO:"
+			return s == kernelWarnPatternRcuStall
 		})
 	}
 }
@@ -162,6 +166,16 @@ func (r *KernelLogRecorder) Flush() {
 		r.callback(r.buf.String())
 		r.callback = nil
 	}
+}
+
+func sampleStacks() {
+	logrus.Warn("sampling stacks due to VM hang")
+	_, err := util.Run("sample", "-f", conf.VmgrSampleLog(), strconv.Itoa(os.Getpid()), "1" /*second*/)
+	if err != nil {
+		logrus.WithError(err).Error("failed to sample stacks")
+	}
+
+	logrus.Warn("stacks sampled")
 }
 
 func matchWarnPattern(line string) bool {
@@ -276,6 +290,11 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 							Err: errors.New(output),
 						})
 					})
+
+					// RCU stall means the VM is frozen. sample stacks for debugging
+					if strings.Contains(line, kernelWarnPatternRcuStall) {
+						go sampleStacks()
+					}
 
 					// trigger a health check in case of RCU stall / netdev watchdog
 					select {
