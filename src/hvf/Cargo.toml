@@ -28,6 +28,7 @@ num-traits = "0.2.19"
 utils = { version = "0.1.0", path = "../utils" }
 mach2 = "0.4.2"
 scopeguard = "1.2.0"
+utils = { path = "../utils" }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 cpuid = { path = "../cpuid" }

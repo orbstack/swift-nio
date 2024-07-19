@@ -53,8 +53,6 @@ mod aarch64;
 #[cfg(target_arch = "aarch64")]
 pub use aarch64::*;
 
-mod hypercalls;
-
 const VM_FLAGS_4GB_CHUNK: i32 = 4;
 
 const PAGE_SIZE: usize = 16384;

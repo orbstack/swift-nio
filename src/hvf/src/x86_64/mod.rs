@@ -42,7 +42,7 @@ use std::thread::Thread;
 use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
-use crate::hypercalls::{ORBVM_FEATURES, ORBVM_IO_REQUEST};
+use utils::hypercalls::{ORBVM_FEATURES, ORBVM_IO_REQUEST};
 
 const LAPIC_TPR: u32 = 0x80;
 
@@ -324,7 +324,7 @@ pub enum VcpuExit<'a> {
     HypervisorCall,
     HypervisorIoCall {
         dev_id: usize,
-        args_ptr: usize,
+        args_addr: GuestAddress,
     },
     MmioRead(u64, &'a mut [u8]),
     MmioWrite(u64, &'a [u8]),
@@ -819,10 +819,10 @@ impl HvfVcpu {
 
                             ORBVM_IO_REQUEST => {
                                 let arg1 = self.read_reg(hv_x86_reg_t_HV_X86_RBX)?;
-                                let arg2 = self.read_reg(hv_x86_reg_t_HV_X86_RCX)?;
+                                let arg2 = GuestAddress(self.read_reg(hv_x86_reg_t_HV_X86_RCX)?);
                                 Ok(VcpuExit::HypervisorIoCall {
                                     dev_id: arg1 as usize,
-                                    args_ptr: arg2 as usize,
+                                    args_addr: arg2,
                                 })
                             }
                             _ => Ok(VcpuExit::HypervisorCall),

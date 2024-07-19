@@ -553,12 +553,12 @@ impl Vcpu {
                 debug!("vCPU {} HVC", vcpuid);
                 Ok(VcpuEmulation::Handled)
             }
-            VcpuExit::HypervisorIoCall { dev_id, args_ptr } => {
+            VcpuExit::HypervisorIoCall { dev_id, args_addr } => {
                 debug!(
-                    "vCPU {} HVC IO: dev_id={} args_ptr={}",
-                    vcpuid, dev_id, args_ptr
+                    "vCPU {} HVC IO: dev_id={} args_addr={:?}",
+                    vcpuid, dev_id, args_addr
                 );
-                let ret = mmio_bus.call_hvc(dev_id, args_ptr);
+                let ret = mmio_bus.call_hvc(dev_id, args_addr);
                 hvf_vcpu.write_gp_reg(0, ret as u64).unwrap();
                 Ok(VcpuEmulation::Handled)
             }
@@ -672,13 +672,13 @@ impl Vcpu {
                     debug!("vCPU {} HVC", vcpuid);
                     Ok(VcpuEmulation::Handled)
                 }
-                VcpuExit::HypervisorIoCall { dev_id, args_ptr } => {
+                VcpuExit::HypervisorIoCall { dev_id, args_addr } => {
                     debug!(
-                        "vCPU {} HVC IO: dev_id={} args_ptr={}",
-                        vcpuid, dev_id, args_ptr
+                        "vCPU {} HVC IO: dev_id={} args_addr={}",
+                        vcpuid, dev_id, args_addr
                     );
                     if let Some(ref mmio_bus) = self.mmio_bus {
-                        let ret = mmio_bus.call_hvc(dev_id, args_ptr);
+                        let ret = mmio_bus.call_hvc(dev_id, args_addr);
                         hvf_vcpu.write_reg(HV_X86_RAX, ret as u64).unwrap();
                     }
                     Ok(VcpuEmulation::Handled)

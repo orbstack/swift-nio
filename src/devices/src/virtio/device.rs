@@ -14,7 +14,7 @@ use super::{ActivateResult, Queue};
 use gruel::{BoundSignalChannelRef, RawSignalChannel, SignalChannel};
 use memmage::CastableRef;
 use newt::{BitFlagRange, RawBitFlagRange};
-use vm_memory::GuestMemoryMmap;
+use vm_memory::{GuestAddress, GuestMemoryMmap};
 
 /// Enum that indicates if a VirtioDevice is inactive or has been activated
 /// and memory attached to it.
@@ -168,7 +168,7 @@ pub trait VirtioDevice: Send {
 }
 
 pub trait HvcDevice: Send + Sync {
-    fn call_hvc(&self, _args_ptr: usize) -> i64;
+    fn call_hvc(&self, args_addr: GuestAddress) -> i64;
     fn hvc_id(&self) -> Option<usize>;
 }
 

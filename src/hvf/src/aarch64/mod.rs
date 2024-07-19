@@ -42,12 +42,12 @@ use tracing::{debug, error, warn};
 
 use counter::RateCounter;
 
-use crate::hypercalls::{
+use crate::wait_for_balloon;
+use utils::hypercalls::{
     ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_MADVISE_REUSE, ORBVM_PVGIC_SET_STATE,
     ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE,
     PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
 };
-use crate::wait_for_balloon;
 
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 
@@ -713,7 +713,7 @@ pub enum VcpuExit<'a> {
     HypervisorCall,
     HypervisorIoCall {
         dev_id: usize,
-        args_ptr: usize,
+        args_addr: GuestAddress,
     },
     MmioRead(u64, &'a mut [u8]),
     MmioWrite(u64, &'a [u8]),
@@ -1201,8 +1201,8 @@ impl HvfVcpu {
             ORBVM_IO_REQUEST => {
                 COUNT_EXIT_HVC_VIRTIOFS.count();
                 let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
-                let args_ptr = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as usize;
-                return Ok(VcpuExit::HypervisorIoCall { dev_id, args_ptr });
+                let args_addr = GuestAddress(self.read_raw_reg(hv_reg_t_HV_REG_X2)?);
+                return Ok(VcpuExit::HypervisorIoCall { dev_id, args_addr });
             }
 
             ORBVM_PVGIC_SET_STATE => {

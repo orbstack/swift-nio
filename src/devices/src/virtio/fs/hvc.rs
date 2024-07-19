@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use vm_memory::{ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
+use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
 
 use crate::virtio::{
     descriptor_utils::{GuestIoSlice, Reader, Writer},
@@ -37,9 +37,8 @@ impl FsHvcDevice {
         Self { mem, server }
     }
 
-    pub fn handle_hvc(&self, args_ptr: usize) -> anyhow::Result<i64> {
+    pub fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<i64> {
         // read args struct
-        let args_addr = GuestAddress(args_ptr as u64);
         let args: RsvmArgs = self.mem.read_obj(args_addr)?;
 
         if args.in_numargs as usize > args.in_args.len() {
@@ -54,7 +53,7 @@ impl FsHvcDevice {
         let mut pages = unsafe { pages.assume_init() };
         let mut in_pages: &[GuestIoSlice] = &[];
         let mut out_pages: &[GuestIoSlice] = &[];
-        let pages_addr = GuestAddress(args_ptr as u64 + size_of::<RsvmArgs>() as u64);
+        let pages_addr = args_addr.unchecked_add(size_of::<RsvmArgs>() as u64);
         if args.in_pages != 0 {
             self.mem.read_slice(
                 unsafe {
@@ -109,8 +108,8 @@ impl FsHvcDevice {
 }
 
 impl HvcDevice for FsHvcDevice {
-    fn call_hvc(&self, args_ptr: usize) -> i64 {
-        match self.handle_hvc(args_ptr) {
+    fn call_hvc(&self, args_addr: GuestAddress) -> i64 {
+        match self.handle_hvc(args_addr) {
             Ok(ret) => ret,
             Err(e) => {
                 error!("error handling HVC: {:?}", e);

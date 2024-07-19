@@ -46,6 +46,7 @@ use nix::unistd::{access, lseek, truncate, LinkatFlags, Whence};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
 use smol_str::SmolStr;
+use utils::hypercalls::{HVC_DEVICE_VIRTIOFS_ROOT, HVC_DEVICE_VIRTIOFS_ROSETTA};
 use utils::qos::{set_thread_qos, QosClass};
 use utils::{Mutex, MutexGuard};
 
@@ -1546,7 +1547,11 @@ impl FileSystem for PassthroughFs {
     type Handle = HandleId;
 
     fn hvc_id(&self) -> Option<usize> {
-        Some(if self.cfg.root_dir == "/" { 0 } else { 1 })
+        Some(if self.cfg.root_dir == "/" {
+            HVC_DEVICE_VIRTIOFS_ROOT
+        } else {
+            HVC_DEVICE_VIRTIOFS_ROSETTA
+        })
     }
 
     fn init(&self, capable: FsOptions) -> io::Result<FsOptions> {

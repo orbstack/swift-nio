@@ -16,6 +16,7 @@ use std::sync::Arc;
 use utils::Mutex;
 
 use rustc_hash::FxHashMap;
+use vm_memory::GuestAddress;
 
 use crate::virtio::HvcDevice;
 
@@ -246,9 +247,9 @@ impl Bus {
         }
     }
 
-    pub fn call_hvc(&self, dev_id: usize, args_ptr: usize) -> i64 {
+    pub fn call_hvc(&self, dev_id: usize, args_addr: GuestAddress) -> i64 {
         if let Some(handler) = self.hvc_handlers.get(dev_id) {
-            handler.call_hvc(args_ptr)
+            handler.call_hvc(args_addr)
         } else {
             error!("unhandled io HVC call");
             -1
