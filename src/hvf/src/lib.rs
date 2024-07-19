@@ -687,6 +687,30 @@ pub unsafe fn free_range(
     Ok(())
 }
 
+pub unsafe fn reuse_range(
+    guest_addr: GuestAddress,
+    host_addr: *mut c_void,
+    size: usize,
+) -> anyhow::Result<()> {
+    // let _span = tracing::info_span!("free_range", size = size).entered();
+    // start and end must be page-aligned
+    if host_addr as usize % PAGE_SIZE != 0 {
+        return Err(anyhow!(
+            "guest address must be page-aligned: {:x}",
+            guest_addr.raw_value()
+        ));
+    }
+    if size % PAGE_SIZE != 0 {
+        return Err(anyhow!("size must be page-aligned: {}", size));
+    }
+
+    // madvise on host address
+    let ret = madvise(host_addr, size, libc::MADV_FREE_REUSE);
+    Errno::result(ret).map_err(|e| anyhow!("failed to madvise: {}", e))?;
+
+    Ok(())
+}
+
 fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     // reserve contiguous address space, and hold onto it to prevent races until we're done mapping everything
     // this is ONLY for reserving address space; we never actually use this mapping

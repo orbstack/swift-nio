@@ -571,11 +571,11 @@ pub fn build_microvm(
     };
 
     #[cfg(not(feature = "tee"))]
-    if let Some(_) = vm_resources.balloon {
+    if vm_resources.balloon.is_some() {
         attach_balloon_device(&mut vmm, intc.clone())?;
     }
     #[cfg(not(feature = "tee"))]
-    if let Some(_) = vm_resources.rng {
+    if vm_resources.rng.is_some() {
         attach_rng_device(&mut vmm, event_manager, intc.clone())?;
     }
     attach_console_devices(
@@ -1331,6 +1331,17 @@ fn attach_balloon_device(
     }
 
     balloon.lock().unwrap().set_parker(vmm.parker.clone());
+
+    // add HVC device
+    vmm.mmio_device_manager
+        .bus
+        .insert_hvc(Arc::new(
+            balloon
+                .lock()
+                .unwrap()
+                .create_hvc_device(vmm.guest_memory().clone()),
+        ))
+        .unwrap();
 
     // The device mutex mustn't be locked here otherwise it will deadlock.
     attach_mmio_device(
