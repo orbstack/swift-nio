@@ -4,6 +4,7 @@ use gruel::{
     define_waker_set, BoundSignalChannelRef, ParkSignalChannelExt, ParkWaker, SignalChannel,
 };
 use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
+use rangemap::RangeSet;
 use std::cmp;
 use std::collections::VecDeque;
 use std::io::Write;
@@ -15,7 +16,7 @@ use std::time::Instant;
 use utils::hypercalls::HVC_DEVICE_BALLOON;
 use utils::Mutex;
 
-use vm_memory::{ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap};
+use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap};
 
 use super::super::{
     ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice, VIRTIO_MMIO_INT_VRING,
@@ -283,9 +284,12 @@ impl Balloon {
         req: OrbvmFprRequest,
         prdescs: &[PrDesc],
     ) -> anyhow::Result<()> {
-        let before = Instant::now();
+        let before1 = Instant::now();
         let mut total_bytes = 0;
         let mut num_ranges = 0;
+
+        // try to simplify ranges
+        let mut ranges = RangeSet::new();
 
         for prdesc in prdescs {
             // entry was invalidated in-place to avoid shifting array
@@ -293,18 +297,23 @@ impl Balloon {
                 continue;
             }
 
-            let guest_addr = GuestAddress(prdesc.phys_addr());
+            let guest_addr = prdesc.phys_addr();
             let size = (req.guest_page_size << prdesc.order()) as usize;
-            // bounds check
-            let host_addr = mem.get_slice(guest_addr, size)?.ptr_guard();
 
             // free this range
-            debug!(
-                "should release guest_addr={:?} host_addr={:p} len={}",
-                guest_addr,
-                host_addr.as_ptr(),
-                size
-            );
+            ranges.insert(guest_addr..(guest_addr + size as u64));
+
+            num_ranges += 1;
+            total_bytes += size as u64;
+        }
+        let before = Instant::now();
+
+        for range in ranges.iter() {
+            // bounds check
+            let guest_addr = GuestAddress(range.start);
+            let size = (range.end - range.start) as usize;
+            let host_addr = mem.get_slice(guest_addr, size)?.ptr_guard();
+
             match req.type_ {
                 FPR_TYPE_FREE => {
                     unsafe { hvf::free_range(guest_addr, host_addr.as_ptr() as *mut _, size)? };
@@ -316,21 +325,20 @@ impl Balloon {
                     error!("unknown free-page-report type");
                 }
             }
-
-            num_ranges += 1;
-            total_bytes += size as u64;
         }
 
         info!(
-            "[{}] ranges={:?} kib={}  time={:?}",
+            "[{}] ranges={:?} (->{}) kib={}  time={:?}  opt={:?}",
             if req.type_ == FPR_TYPE_FREE {
                 "free"
             } else {
                 "reuse"
             },
             num_ranges,
+            ranges.len(),
             total_bytes / 1024,
-            before.elapsed()
+            before.elapsed(),
+            before.duration_since(before1),
         );
 
         Ok(())
