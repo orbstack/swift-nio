@@ -247,18 +247,29 @@ fn cmd_uninstall(attr_paths: &[String]) -> anyhow::Result<()> {
     let mut env = read_env()?;
     let mut removed_names = Vec::new();
     for attr_path in attr_paths {
-        if BUILTIN_PACKAGES.contains(&attr_path.as_str()) {
+        let installed_builtin = BUILTIN_PACKAGES.contains(&attr_path.as_str());
+        let installed_in_env = env.packages.iter().any(|p| p.attr_path == *attr_path);
+
+        if installed_builtin && !installed_in_env {
             eprintln!(
                 "{}",
                 format!("cannot uninstall builtin package {}", attr_path).red()
             );
             continue;
-        }
-
-        // make sure pkg is installed
-        if !env.packages.iter().any(|p| p.attr_path == *attr_path) {
+        } else if !installed_in_env {
             eprintln!("{}", format!("package '{}' not installed", attr_path).red());
             continue;
+        }
+
+        if installed_builtin {
+            eprintln!(
+                "{}",
+                format!(
+                    "package '{}' will still be available via the builtin environment",
+                    attr_path
+                )
+                .yellow()
+            );
         }
 
         // remove package from env
