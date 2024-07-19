@@ -515,7 +515,7 @@ impl Vcpu {
         use std::sync::atomic::Ordering;
 
         use devices::legacy::GicSysReg;
-        use hvf::{wait_for_balloon, ExitActions};
+        use hvf::ExitActions;
 
         let vcpuid = hvf_vcpu.id();
         let pending_irq = intc_handle.get_pending_irq(&self.intc).map(|i| i.0);
@@ -564,29 +564,13 @@ impl Vcpu {
             }
             VcpuExit::MmioRead(addr, data) => {
                 if !mmio_bus.read(vcpuid, addr, data) {
-                    // unhandled MMIO read:
-                    // either invalid address, or system RAM faulted (due to balloon)
-                    if self.guest_mem.address_in_range(GuestAddress(addr)) {
-                        // faulted during balloon, and falls within system RAM. retry insn
-                        wait_for_balloon();
-                        hvf_vcpu.clear_pending_mmio();
-                    } else {
-                        panic!("unhandled MMIO read at address 0x{:x}", addr);
-                    }
+                    panic!("unhandled memory read at address 0x{:x}", addr);
                 }
                 Ok(VcpuEmulation::Handled)
             }
             VcpuExit::MmioWrite(addr, data) => {
                 if !mmio_bus.write(vcpuid, addr, data) {
-                    // unhandled MMIO write:
-                    // either invalid address, or system RAM faulted (due to balloon)
-                    if self.guest_mem.address_in_range(GuestAddress(addr)) {
-                        // faulted during balloon, and falls within system RAM. retry insn
-                        wait_for_balloon();
-                        hvf_vcpu.clear_pending_mmio();
-                    } else {
-                        panic!("unhandled MMIO write at address 0x{:x}", addr);
-                    }
+                    panic!("unhandled memory write at address 0x{:x}", addr);
                 }
                 Ok(VcpuEmulation::Handled)
             }
@@ -686,7 +670,7 @@ impl Vcpu {
                 VcpuExit::MmioRead(addr, data) => {
                     if let Some(ref mmio_bus) = self.mmio_bus {
                         if !mmio_bus.read(vcpuid as u64, addr, data) {
-                            panic!("unhandled MMIO read at address 0x{:x}", addr);
+                            panic!("unhandled memory read at address 0x{:x}", addr);
                         }
                     }
                     Ok(VcpuEmulation::Handled)
@@ -694,7 +678,7 @@ impl Vcpu {
                 VcpuExit::MmioWrite(addr, data) => {
                     if let Some(ref mmio_bus) = self.mmio_bus {
                         if !mmio_bus.write(vcpuid as u64, addr, data) {
-                            panic!("unhandled MMIO write at address 0x{:x}", addr);
+                            panic!("unhandled memory write at address 0x{:x}", addr);
                         }
                     }
                     Ok(VcpuEmulation::Handled)

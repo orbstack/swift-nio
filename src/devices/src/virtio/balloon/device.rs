@@ -216,10 +216,6 @@ impl Balloon {
 
         let mut have_used = false;
 
-        // balloon guard is only needed here due to map/unmap
-        hvf::set_balloon(true);
-        let _guard = scopeguard::guard((), |_| hvf::set_balloon(false));
-
         while let Some(head) = self.queues[BalloonQueues::FRQ].pop(mem) {
             have_used = true;
 

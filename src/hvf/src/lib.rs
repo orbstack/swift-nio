@@ -643,24 +643,6 @@ impl<N: Copy + Ord> BitAnd for Interval<N> {
     }
 }
 
-static BALLOON_CONDVAR: Lazy<(Mutex<bool>, Condvar)> =
-    Lazy::new(|| (Mutex::new(false), Condvar::new()));
-
-pub fn wait_for_balloon() {
-    let (lock, cvar) = &*BALLOON_CONDVAR;
-    let mut guard = lock.lock().unwrap();
-    while *guard {
-        guard = cvar.wait(guard).unwrap();
-    }
-}
-
-pub fn set_balloon(in_balloon: bool) {
-    let (lock, cvar) = &*BALLOON_CONDVAR;
-    let mut guard = lock.lock().unwrap();
-    *guard = in_balloon;
-    cvar.notify_all();
-}
-
 pub unsafe fn free_range(
     guest_addr: GuestAddress,
     host_addr: *mut c_void,

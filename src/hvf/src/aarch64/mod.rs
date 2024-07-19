@@ -42,7 +42,6 @@ use tracing::{debug, error, warn};
 
 use counter::RateCounter;
 
-use crate::wait_for_balloon;
 use utils::hypercalls::{
     ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_MADVISE_REUSE, ORBVM_PVGIC_SET_STATE,
     ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE,
@@ -1041,21 +1040,12 @@ impl HvfVcpu {
                         VcpuExit::SecureMonitorCall
                     }
                     EC_IABT_LOW => {
-                        if self
-                            .guest_mem
-                            .address_in_range(GuestAddress(vcpu_exit.exception.physical_address))
-                        {
-                            warn!("instruction abort during balloon");
-                            wait_for_balloon();
-                            VcpuExit::Canceled
-                        } else {
-                            panic!(
-                                "instruction abort: syndrome={:x} va={:x} pa={:x}",
-                                syndrome,
-                                vcpu_exit.exception.virtual_address,
-                                vcpu_exit.exception.physical_address
-                            );
-                        }
+                        panic!(
+                            "instruction abort: syndrome={:x} va={:x} pa={:x}",
+                            syndrome,
+                            vcpu_exit.exception.virtual_address,
+                            vcpu_exit.exception.physical_address
+                        );
                     }
                     EC_SYSTEMREGISTERTRAP => {
                         let is_read: bool = (syndrome & 1) != 0;
