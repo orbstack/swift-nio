@@ -99,7 +99,7 @@ impl PartialOrd for BusRange {
 pub struct Bus {
     devices: BTreeMap<BusRange, Arc<Mutex<dyn BusDevice>>>,
     sysreg_handlers: FxHashMap<u64, Arc<Mutex<dyn BusDevice>>>,
-    hvc_handlers: Vec<Arc<dyn HvcDevice>>,
+    hvc_handlers: BTreeMap<usize, Arc<dyn HvcDevice>>,
 }
 
 impl Bus {
@@ -108,7 +108,7 @@ impl Bus {
         Bus {
             devices: BTreeMap::new(),
             sysreg_handlers: FxHashMap::default(),
-            hvc_handlers: Vec::new(),
+            hvc_handlers: BTreeMap::new(),
         }
     }
 
@@ -176,17 +176,12 @@ impl Bus {
     }
 
     pub fn insert_hvc(&mut self, device: Arc<dyn HvcDevice>) -> Result<()> {
-        // reject HVC overlaps
-        let hvc_id = device.hvc_id();
-        let next_hvc_id = self.hvc_handlers.len();
-        if let Some(hvc_id) = hvc_id {
-            if hvc_id != next_hvc_id {
+        if let Some(hvc_id) = device.hvc_id() {
+            if self.hvc_handlers.contains_key(&hvc_id) {
                 return Err(Error::Overlap);
             }
-        }
 
-        if hvc_id.is_some() {
-            self.hvc_handlers.push(device);
+            self.hvc_handlers.insert(hvc_id, device);
         }
 
         Ok(())
@@ -248,7 +243,7 @@ impl Bus {
     }
 
     pub fn call_hvc(&self, dev_id: usize, args_addr: GuestAddress) -> i64 {
-        if let Some(handler) = self.hvc_handlers.get(dev_id) {
+        if let Some(handler) = self.hvc_handlers.get(&dev_id) {
             handler.call_hvc(args_addr)
         } else {
             error!("unhandled io HVC call");
