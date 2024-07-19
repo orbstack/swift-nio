@@ -729,7 +729,8 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
             &mut host_addr,
             size,
             0,
-            VM_FLAGS_ANYWHERE | VM_MAKE_TAG(250) as i32,
+            // runtime perf doesn't matter: we'll never fault on these chunks, so use big chunks to speed up reservation
+            VM_FLAGS_ANYWHERE | VM_FLAGS_4GB_CHUNK | VM_MAKE_TAG(250) as i32,
             0,
             0,
             0,
