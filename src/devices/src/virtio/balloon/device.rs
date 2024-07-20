@@ -4,9 +4,8 @@ use gruel::{
     define_waker_set, BoundSignalChannelRef, ParkSignalChannelExt, ParkWaker, SignalChannel,
 };
 use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
-use rangemap::RangeSet;
+use std::cell::RefCell;
 use std::cmp;
-use std::collections::VecDeque;
 use std::io::Write;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -142,7 +141,7 @@ pub struct Balloon {
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
     parker: Option<Arc<dyn Parkable>>,
-    queued: QueuedReport,
+    queued: RefCell<QueuedReport>,
 }
 
 impl Balloon {
@@ -163,10 +162,10 @@ impl Balloon {
                 intc: None,
                 irq_line: None,
                 parker: None,
-                queued: QueuedReport {
+                queued: RefCell::new(QueuedReport {
                     req: None,
                     descs: Vec::new(),
-                },
+                }),
             })
         }))
     }
@@ -264,11 +263,12 @@ impl Balloon {
 
         // iterate through prdescs
         let slice = mem.get_slice(prdescs_desc.addr, prdescs_desc.len as usize)?;
-        let slice_ptr = slice.ptr_guard();
+        let slice_ptr = slice.ptr_guard_mut();
         // turn it into a slice
+        // guest contract *does* allow us to mutate this
         let prdescs = unsafe {
-            std::slice::from_raw_parts(
-                slice_ptr.as_ptr() as *const PrDesc,
+            std::slice::from_raw_parts_mut(
+                slice_ptr.as_ptr() as *mut PrDesc,
                 slice.len() / size_of::<PrDesc>(),
             )
         };
@@ -281,36 +281,17 @@ impl Balloon {
         &self,
         mem: &GuestMemoryMmap,
         req: OrbvmFprRequest,
-        prdescs: &[PrDesc],
+        prdescs: &mut [PrDesc],
     ) -> anyhow::Result<()> {
-        let before1 = Instant::now();
         let mut total_bytes = 0;
         let mut num_ranges = 0;
 
-        // try to simplify ranges
-        let mut ranges = RangeSet::new();
-
-        for prdesc in prdescs {
-            // entry was invalidated in-place to avoid shifting array
-            if !prdesc.present() {
-                continue;
-            }
-
-            let guest_addr = prdesc.phys_addr();
-            let size = (req.guest_page_size << prdesc.order()) as usize;
-
-            // free this range
-            ranges.insert(guest_addr..(guest_addr + size as u64));
-
-            num_ranges += 1;
-            total_bytes += size as u64;
-        }
+        // simplify and merge ranges
         let before = Instant::now();
-
-        for range in ranges.iter() {
+        for_each_merge_range(prdescs, req.guest_page_size as u64, |range| {
             // bounds check
-            let guest_addr = GuestAddress(range.start);
-            let size = (range.end - range.start) as usize;
+            let guest_addr = GuestAddress(range.0);
+            let size = (range.1 - range.0) as usize;
             let host_addr = mem.get_slice(guest_addr, size)?.ptr_guard();
 
             match req.type_ {
@@ -324,20 +305,23 @@ impl Balloon {
                     error!("unknown free-page-report type");
                 }
             }
-        }
+
+            num_ranges += 1;
+            total_bytes += size as u64;
+            Ok::<_, anyhow::Error>(())
+        })?;
 
         info!(
-            "[{}] ranges={:?} (->{}) kib={}  time={:?}  opt={:?}",
+            "[{}] ranges={:?} (->{}) kib={}  time={:?}",
             if req.type_ == FPR_TYPE_FREE {
                 "free"
             } else {
                 "reuse"
             },
+            prdescs.len(),
             num_ranges,
-            ranges.len(),
             total_bytes / 1024,
             before.elapsed(),
-            before.duration_since(before1),
         );
 
         Ok(())
@@ -351,11 +335,12 @@ impl Balloon {
             DeviceState::Inactive => unreachable!(),
         };
 
-        if let Some(req) = self.queued.req.take() {
-            if let Err(e) = self.process_one_fpr(mem, req, &self.queued.descs) {
+        let mut queued = self.queued.borrow_mut();
+        if let Some(req) = queued.req.take() {
+            if let Err(e) = self.process_one_fpr(mem, req, &mut queued.descs) {
                 error!("failed to process queued FPR: {:?}", e);
             }
-            self.queued.descs.clear();
+            queued.descs.clear();
         }
     }
 
@@ -384,21 +369,23 @@ impl Balloon {
         };
 
         // add to queue
-        match self.queued.req {
+        let queued = self.queued.get_mut();
+        match queued.req {
             // merge with existing req
             Some(other_req) => {
                 if other_req.type_ != req.type_ || other_req.guest_page_size != req.guest_page_size
                 {
+                    // async queued FPR is currently only used for UNREPORT
                     return Err(anyhow!("inconsistent FPR requests"));
                 }
             }
 
             // new req
             None => {
-                self.queued.req = Some(req);
+                queued.req = Some(req);
             }
         }
-        self.queued.descs.extend_from_slice(slice);
+        queued.descs.extend_from_slice(slice);
 
         Ok(())
     }
@@ -587,4 +574,41 @@ impl HvcDevice for BalloonHvcDevice {
     fn hvc_id(&self) -> Option<usize> {
         Some(HVC_DEVICE_BALLOON)
     }
+}
+
+fn for_each_merge_range<E>(
+    ranges: &mut [PrDesc],
+    guest_page_size: u64,
+    mut f: impl FnMut((u64, u64)) -> std::result::Result<(), E>,
+) -> std::result::Result<(), E> {
+    // sort by start addr
+    ranges.sort_unstable_by_key(|a| a.phys_addr());
+
+    let mut curr_range = None;
+
+    for prdesc in ranges {
+        let start = prdesc.phys_addr();
+        let size = guest_page_size << prdesc.order();
+        let end = start + size;
+
+        if let Some((curr_start, curr_end)) = &mut curr_range {
+            if start <= *curr_end {
+                // Our range can be extended
+                *curr_end = (*curr_end).max(end);
+            } else {
+                // We need a new range.
+                f((*curr_start, *curr_end))?;
+
+                curr_range = Some((start, end));
+            }
+        } else {
+            curr_range = Some((start, end));
+        }
+    }
+
+    if let Some(range) = curr_range {
+        f(range)?;
+    }
+
+    Ok(())
 }
