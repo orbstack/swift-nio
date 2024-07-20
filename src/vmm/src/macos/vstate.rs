@@ -202,6 +202,12 @@ impl Parkable for VmParker {
         // Won't panic: `park_signal` is only ever used in a panic-less context
         Ok(park_task.resurrect().unwrap())
     }
+
+    fn dump_debug(&self) {
+        for cpu in &*self.vcpus.lock().unwrap() {
+            cpu.assert(VcpuSignalMask::DUMP_DEBUG);
+        }
+    }
 }
 
 impl Vm {
@@ -351,6 +357,9 @@ pub struct Vcpu {
     #[cfg(target_arch = "aarch64")]
     intc: Arc<Mutex<Gic>>,
 
+    #[cfg(target_arch = "aarch64")]
+    csmap_path: Option<Arc<String>>,
+
     #[cfg(target_arch = "x86_64")]
     hvf_vm: HvfVm,
 
@@ -381,6 +390,7 @@ impl Vcpu {
         _create_ts: TimestampUs,
         intc: Arc<Mutex<Gic>>,
         shutdown: VmmShutdownSignal,
+        csmap_path: Option<Arc<String>>,
     ) -> Result<Self> {
         Ok(Vcpu {
             id,
@@ -394,6 +404,7 @@ impl Vcpu {
             mpidr: 0,
             intc,
             shutdown,
+            csmap_path,
         })
     }
 
@@ -817,6 +828,15 @@ impl Vcpu {
 
             // If a PV lock was released, just re-enter the vCPU so that the guest handles it.
             let _ = signal.take(VcpuSignalMask::PVLOCK);
+
+            #[cfg(target_arch = "aarch64")]
+            if taken.contains(VcpuSignalMask::DUMP_DEBUG) {
+                // dump state
+                match hvf_vcpu.dump_debug(self.csmap_path.as_ref().map(|p| p.as_str())) {
+                    Ok(dump) => info!("vCPU {} state:\n{}", hvf_vcpuid, dump),
+                    Err(e) => error!("Failed to dump vCPU state: {}", e),
+                }
+            }
 
             // Run emulation
             let emulation = signal.wait(VcpuSignalMask::all(), VcpuWakerSet::hvf, || {

@@ -31,7 +31,7 @@ use crate::linux::vstate;
 #[cfg(target_os = "macos")]
 mod macos;
 
-use gruel::{MultiShutdownSignal, ShutdownSignal, Subscriber};
+use gruel::Subscriber;
 #[cfg(target_os = "macos")]
 pub use hvf::MemoryMapping;
 #[cfg(target_os = "macos")]
@@ -45,9 +45,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::os::fd::RawFd;
 use std::os::unix::io::AsRawFd;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 #[cfg(target_os = "linux")]
 use std::time::Duration;
 use utils::Mutex;
@@ -400,6 +398,10 @@ impl Vmm {
 
     pub fn shutdown_signal_for_subscribing(&self) -> VmmShutdownSignal {
         self.shutdown.clone()
+    }
+
+    pub fn dump_debug(&self) {
+        self.parker.dump_debug();
     }
 }
 

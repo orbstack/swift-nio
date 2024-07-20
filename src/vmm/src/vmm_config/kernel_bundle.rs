@@ -16,6 +16,7 @@ pub struct KernelBundle {
     pub load_range: Range<usize>,
     pub guest_addr: u64,
     pub entry_addr: u64,
+    pub csmap_path: Option<String>,
     #[cfg(target_arch = "x86_64")]
     pub params: BootParamsWrapper,
 }

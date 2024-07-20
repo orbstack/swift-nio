@@ -16,6 +16,7 @@ use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
 use gruel::{StartupAbortedError, StartupTask};
 use once_cell::sync::Lazy;
+use utils::kernel_symbols::CompactSystemMap;
 use vm_memory::{
     Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap, VolatileMemory,
 };
@@ -26,6 +27,7 @@ use vmm_ids::{ArcVcpuSignal, VcpuSignal};
 use std::arch::asm;
 use std::convert::TryInto;
 use std::ffi::c_void;
+use std::fmt::Write;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
@@ -70,8 +72,15 @@ const HV_EXIT_REASON_CANCELED: hv_exit_reason_t = 0;
 const HV_EXIT_REASON_EXCEPTION: hv_exit_reason_t = 1;
 const HV_EXIT_REASON_VTIMER_ACTIVATED: hv_exit_reason_t = 2;
 
+const DEBUG_STACK_DEPTH_LIMIT: usize = 128;
+
+const PSR_MODE_EL0T: u64 = 0x0000_0000;
+const PSR_MODE_EL1T: u64 = 0x0000_0004;
 const PSR_MODE_EL1H: u64 = 0x0000_0005;
+const PSR_MODE_EL2T: u64 = 0x0000_0008;
 const PSR_MODE_EL2H: u64 = 0x0000_0009;
+const PSR_MODE_MASK: u64 = 0x0000_000f;
+
 const PSR_F_BIT: u64 = 0x0000_0040;
 const PSR_I_BIT: u64 = 0x0000_0080;
 const PSR_A_BIT: u64 = 0x0000_0100;
@@ -285,6 +294,8 @@ pub trait Parkable: Send + Sync {
         signal: &VcpuSignal,
         park_task: StartupTask,
     ) -> Result<StartupTask, StartupAbortedError>;
+
+    fn dump_debug(&self);
 }
 
 #[derive(WrapperApi)]
@@ -1194,7 +1205,7 @@ impl HvfVcpu {
 
     // from cloud-hypervisor: https://github.com/cloud-hypervisor/cloud-hypervisor/blob/29675cfe687dde124dd71ccaf31c0562938f1564/vmm/src/cpu.rs#L1670C66-L1818C6
     // license: Copyright © 2020, Oracle and/or its affiliates. Apache-2.0 AND BSD-3-Clause
-    fn translate_gva(&self, gva: u64) -> Result<u64, Error> {
+    fn translate_gva(&self, gva: u64) -> Result<GuestAddress, Error> {
         let tcr_el1: u64 = self
             .read_sys_reg(hv_sys_reg_t_HV_SYS_REG_TCR_EL1)
             .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
@@ -1210,7 +1221,7 @@ impl HvfVcpu {
         let high_range = extract_bits_64!(gva, 55, 1);
         if high_range == 0 {
             error!("VA (0x{:x}) range is not supported!", gva);
-            return Ok(gva);
+            return Ok(GuestAddress(gva));
         }
 
         // High range size offset
@@ -1222,7 +1233,7 @@ impl HvfVcpu {
 
         if tsz == 0 {
             error!("VA translation is not ready!");
-            return Ok(gva);
+            return Ok(GuestAddress(gva));
         }
 
         // VA size is determined by TCR_BL1.T1SZ
@@ -1252,9 +1263,9 @@ impl HvfVcpu {
             5 => 48,
             6 => 52,
             _ => {
-                return Err(Error::TranslateVirtualAddress(anyhow!(format!(
+                return Err(Error::TranslateVirtualAddress(anyhow!(
                     "PA range not supported {pa_range}"
-                ))))
+                )))
             }
         };
 
@@ -1325,7 +1336,128 @@ impl HvfVcpu {
         descaddr &= !(page_size - 1);
         descaddr |= gva & (page_size - 1);
 
-        Ok(descaddr)
+        Ok(GuestAddress(descaddr))
+    }
+
+    pub fn dump_debug(&self, csmap_path: Option<&str>) -> anyhow::Result<String> {
+        let mut buf = String::new();
+
+        writeln!(buf, "------ vCPU {} ------", self.id())?;
+        writeln!(
+            buf,
+            // spaces for alignment with TPIDR_EL1
+            "PC: 0x{:016x}      LR: 0x{:016x}  FP: 0x{:016x}",
+            self.read_raw_reg(hv_reg_t_HV_REG_PC)?,
+            self.read_raw_reg(hv_reg_t_HV_REG_LR)?,
+            self.read_raw_reg(hv_reg_t_HV_REG_FP)?
+        )?;
+        let cpsr_mode = self.read_raw_reg(hv_reg_t_HV_REG_CPSR)? & PSR_MODE_MASK;
+        let el_str = match cpsr_mode {
+            PSR_MODE_EL0T => "EL0t",
+            PSR_MODE_EL1T => "EL1t",
+            PSR_MODE_EL1H => "EL1h",
+            PSR_MODE_EL2T => "EL2t",
+            PSR_MODE_EL2H => "EL2h",
+            _ => "unknown",
+        };
+        writeln!(
+            buf,
+            "SP_EL1: 0x{:016x}  TPIDR_EL1: 0x{:016x}  VBAR_EL1: 0x{:016x}",
+            self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_SP_EL1)?,
+            self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_TPIDR_EL1)?,
+            self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_VBAR_EL1)?,
+        )?;
+        writeln!(buf, "PSTATE(el): {}", el_str)?;
+        writeln!(buf)?;
+
+        match cpsr_mode {
+            PSR_MODE_EL1T | PSR_MODE_EL1H => {
+                writeln!(buf, "Registers:")?;
+                // group 3 regs per line
+                for i in 0..32 {
+                    write!(
+                        buf,
+                        "x{:<2}: 0x{:016x}  ",
+                        i,
+                        self.read_raw_reg(hv_reg_t_HV_REG_X0 + i)?
+                    )?;
+                    if (i + 1) % 3 == 0 {
+                        writeln!(buf)?;
+                    }
+                }
+                // terminate last reg
+                writeln!(buf)?;
+                // blank line
+                writeln!(buf)?;
+
+                writeln!(buf, "Stack:")?;
+                if let Some(csmap_path) = csmap_path {
+                    if let Err(e) = self.add_debug_stack(&mut buf, csmap_path) {
+                        writeln!(buf, "<failed to dump stack: {}>", e)?;
+                    }
+                } else {
+                    writeln!(buf, "<no stack: no System.map>")?;
+                }
+            }
+            _ => {
+                writeln!(buf, "<no stack: not in EL1>")?;
+            }
+        }
+
+        Ok(buf)
+    }
+
+    fn add_debug_stack(&self, buf: &mut String, csmap_path: &str) -> anyhow::Result<()> {
+        // walk stack, with depth limit to protect against malicious/corrupted stack
+        let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
+        let lr = self.read_raw_reg(hv_reg_t_HV_REG_LR)?;
+        // start with just PC and LR
+        let mut stack = vec![pc, lr];
+        // then start looking at FP
+        let mut fp = self.read_raw_reg(hv_reg_t_HV_REG_FP)?;
+        for _ in 0..DEBUG_STACK_DEPTH_LIMIT {
+            // mem[FP+8] = frame's LR
+            let frame_lr = self.guest_mem.read_obj(self.translate_gva(fp + 8)?)?;
+            if frame_lr == 0 {
+                // reached end of stack
+                break;
+            }
+
+            stack.push(frame_lr);
+
+            // mem[FP] = link to last FP
+            fp = self.guest_mem.read_obj(self.translate_gva(fp)?)?;
+        }
+
+        // load compact System.map from file system
+        // we can't find KASLR offset without symbols, and addrs are useless without KASLR offset
+        let csmap = CompactSystemMap::from_slice(&std::fs::read(csmap_path)?)?;
+
+        // find KASLR offset from exception table:
+        // VBAR_EL1 = &vectors
+        let vbar_el1 = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_VBAR_EL1)?;
+        // find "vectors"
+        let vectors_addr = csmap
+            .symbol_to_vaddr("vectors")
+            .ok_or_else(|| anyhow!("symbol 'vectors' not found in System.map"))?;
+        // calculate KASLR offset
+        let kaslr_offset = vbar_el1 - vectors_addr;
+
+        for (i, vaddr) in stack.iter().enumerate() {
+            // subtract KASLR offset to get vaddr in System.map
+            let vaddr = vaddr - kaslr_offset;
+            // lookup symbol in System.map
+            match csmap.vaddr_to_symbol(vaddr) {
+                Some((name, offset)) => {
+                    writeln!(buf, "  {:>3}: {}+{}", i, name, offset)?;
+                }
+                None => {
+                    writeln!(buf, "  {:>3}: UNKNOWN+0x{:016x}", i, vaddr)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn destroy(self) {

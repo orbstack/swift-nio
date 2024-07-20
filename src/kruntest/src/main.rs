@@ -22,6 +22,7 @@ fn main() -> anyhow::Result<()> {
         // 8 GiB
         memory: 8 * 1024 * 1024 * 1024,
         kernel: home_dir.clone() + "/kernel",
+        kernel_csmap: None,
         #[cfg(target_arch = "x86_64")]
         cmdline: "clocksource=tsc tsc=reliable earlycon=uart,io,0x3f8 console=hvc0 apic=verbose ro root=/dev/vda init=/bin/sh"
             .to_string(),

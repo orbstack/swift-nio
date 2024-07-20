@@ -28,7 +28,7 @@ use vmm::{
         block::BlockDeviceConfig, boot_source::BootSourceConfig, fs::FsDeviceConfig,
         machine_config::VmConfig, net::NetworkInterfaceConfig, vsock::VsockDeviceConfig,
     },
-    VmmShutdownHandle,
+    Vmm, VmmShutdownHandle,
 };
 
 #[repr(C)]
@@ -37,9 +37,37 @@ pub struct GResultCreate {
     err: *const c_char,
 }
 
+impl GResultCreate {
+    pub fn from_result(r: anyhow::Result<*mut c_void>) -> GResultCreate {
+        match r {
+            Ok(ptr) => GResultCreate {
+                ptr,
+                err: std::ptr::null(),
+            },
+            Err(e) => GResultCreate {
+                ptr: std::ptr::null_mut(),
+                err: return_owned_cstr(&e.to_string()),
+            },
+        }
+    }
+}
+
 #[repr(C)]
 pub struct GResultErr {
     err: *const c_char,
+}
+
+impl GResultErr {
+    pub fn from_result<T>(r: Result<T, anyhow::Error>) -> GResultErr {
+        match r {
+            Ok(_) => GResultErr {
+                err: std::ptr::null(),
+            },
+            Err(e) => GResultErr {
+                err: return_owned_cstr(&e.to_string()),
+            },
+        }
+    }
 }
 
 #[repr(C)]
@@ -61,6 +89,7 @@ pub struct VzSpec {
     pub cpus: u8,
     pub memory: usize,
     pub kernel: String,
+    pub kernel_csmap: Option<String>,
     pub cmdline: String,
     pub initrd: Option<String>,
     pub console: Option<ConsoleSpec>,
@@ -113,6 +142,7 @@ impl FsCallbacks for GoFsCallbacks {
 
 pub struct Machine {
     vmr: Option<VmResources>,
+    vmm: Option<Arc<Mutex<Vmm>>>,
     vmm_shutdown: Option<VmmShutdownHandle>,
 }
 
@@ -164,6 +194,7 @@ impl Machine {
                 data: kernel_data,
                 guest_addr: arch::aarch64::get_kernel_start(),
                 entry_addr: arch::aarch64::get_kernel_start(),
+                csmap_path: spec.kernel_csmap.clone(),
             })
             .map_err(to_anyhow_error)?;
         }
@@ -179,7 +210,7 @@ impl Machine {
         .map_err(to_anyhow_error)?;
 
         // initrd
-        if let Some(_) = &spec.initrd {
+        if spec.initrd.is_some() {
             return Err(anyhow!("initrd is not supported"));
         }
 
@@ -289,6 +320,7 @@ impl Machine {
 
         Ok(Machine {
             vmr: Some(vmr),
+            vmm: None,
             vmm_shutdown: None,
         })
     }
@@ -342,7 +374,19 @@ impl Machine {
             })?;
 
         self.vmm_shutdown = Some(vmm.lock().unwrap().shutdown_handle());
+        self.vmm = Some(vmm);
         self.vmr = None;
+        Ok(())
+    }
+
+    pub fn dump_debug(&self) -> anyhow::Result<()> {
+        let vmm = self
+            .vmm
+            .as_ref()
+            .ok_or_else(|| anyhow!("not started"))?
+            .lock()
+            .unwrap();
+        vmm.dump_debug();
         Ok(())
     }
 
@@ -353,6 +397,14 @@ impl Machine {
             .request_shutdown();
 
         Ok(())
+    }
+
+    fn with<T>(ptr: *mut c_void, f: impl FnOnce(&mut Machine) -> T) -> T {
+        assert_eq!(ptr as usize, VM_PTR, "invalid pointer");
+
+        let mut option = GLOBAL_VM.lock().unwrap();
+        let machine = option.as_mut().unwrap();
+        f(machine)
     }
 }
 
@@ -375,20 +427,20 @@ fn init_logger_once() {
 }
 
 #[no_mangle]
-pub extern "C" fn rsvm_set_rinit_data(ptr: *const c_void, size: usize) {
+pub unsafe extern "C" fn rsvm_set_rinit_data(ptr: *const c_void, size: usize) {
     devices::virtio::fs::rosetta::set_rosetta_data(unsafe {
         std::slice::from_raw_parts(ptr as *const u8, size)
     });
 }
 
 #[no_mangle]
-pub extern "C" fn rsvm_new_machine(
+pub unsafe extern "C" fn rsvm_new_machine(
     go_handle: *mut c_void,
     spec_json: *const c_char,
 ) -> GResultCreate {
     init_logger_once();
 
-    fn inner(_: *mut c_void, spec_json: *const c_char) -> anyhow::Result<*mut c_void> {
+    GResultCreate::from_result((|| {
         let spec = unsafe { CStr::from_ptr(spec_json) };
         let spec = spec.to_str()?;
         let spec: VzSpec = serde_json::from_str(spec)?;
@@ -398,22 +450,11 @@ pub extern "C" fn rsvm_new_machine(
         *GLOBAL_VM.lock().unwrap() = Some(machine);
 
         Ok(VM_PTR as *mut c_void)
-    }
-
-    match inner(go_handle, spec_json) {
-        Ok(ptr) => GResultCreate {
-            ptr,
-            err: std::ptr::null(),
-        },
-        Err(e) => GResultCreate {
-            ptr: std::ptr::null_mut(),
-            err: return_owned_cstr(&e.to_string()),
-        },
-    }
+    })())
 }
 
 #[no_mangle]
-pub extern "C" fn rsvm_machine_destroy(ptr: *mut c_void) {
+pub unsafe extern "C" fn rsvm_machine_destroy(ptr: *mut c_void) {
     if ptr as usize != VM_PTR {
         return;
     }
@@ -422,47 +463,18 @@ pub extern "C" fn rsvm_machine_destroy(ptr: *mut c_void) {
 }
 
 #[no_mangle]
-pub extern "C" fn rsvm_machine_start(ptr: *mut c_void) -> GResultErr {
-    fn inner(ptr: *mut c_void) -> anyhow::Result<()> {
-        assert_eq!(ptr as usize, VM_PTR, "invalid pointer");
-
-        let mut option = GLOBAL_VM.lock().unwrap();
-        let machine = option.as_mut().unwrap();
-        machine.start()?;
-
-        Ok(())
-    }
-
-    match inner(ptr) {
-        Ok(()) => GResultErr {
-            err: std::ptr::null(),
-        },
-        Err(e) => GResultErr {
-            err: return_owned_cstr(&e.to_string()),
-        },
-    }
+pub unsafe extern "C" fn rsvm_machine_start(ptr: *mut c_void) -> GResultErr {
+    GResultErr::from_result(Machine::with(ptr, |machine| machine.start()))
 }
 
 #[no_mangle]
-pub extern "C" fn rsvm_machine_stop(ptr: *mut c_void) -> GResultErr {
-    fn inner(ptr: *mut c_void) -> anyhow::Result<()> {
-        assert_eq!(ptr as usize, VM_PTR, "invalid pointer");
+pub unsafe extern "C" fn rsvm_machine_dump_debug(ptr: *mut c_void) -> GResultErr {
+    GResultErr::from_result(Machine::with(ptr, |machine| machine.dump_debug()))
+}
 
-        let mut option = GLOBAL_VM.lock().unwrap();
-        let machine = option.as_mut().unwrap();
-        machine.stop()?;
-
-        Ok(())
-    }
-
-    match inner(ptr) {
-        Ok(()) => GResultErr {
-            err: std::ptr::null(),
-        },
-        Err(e) => GResultErr {
-            err: return_owned_cstr(&e.to_string()),
-        },
-    }
+#[no_mangle]
+pub unsafe extern "C" fn rsvm_machine_stop(ptr: *mut c_void) -> GResultErr {
+    GResultErr::from_result(Machine::with(ptr, |machine| machine.stop()))
 }
 
 pub const MACHINE_STATE_STOPPED: u32 = 0;

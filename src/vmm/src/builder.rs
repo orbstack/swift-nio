@@ -527,6 +527,10 @@ pub fn build_microvm(
             &exit_evt,
             intc.clone().unwrap(),
             &shutdown,
+            kernel_bundle
+                .csmap_path
+                .as_ref()
+                .map(|s| Arc::new(s.clone())),
         )
         .map_err(StartMicrovmError::Internal)?;
 
@@ -1057,6 +1061,7 @@ fn create_vcpus_aarch64(
     exit_evt: &EventFd,
     intc: Arc<Mutex<Gic>>,
     shutdown: &VmmShutdownSignal,
+    csmap_path: Option<Arc<String>>,
 ) -> super::Result<Vec<Vcpu>> {
     let mut vcpus = Vec::with_capacity(vcpu_config.vcpu_count as usize);
     let mut boot_senders = Vec::with_capacity(vcpu_config.vcpu_count as usize);
@@ -1073,6 +1078,7 @@ fn create_vcpus_aarch64(
             request_ts.clone(),
             intc.clone(),
             shutdown.clone(),
+            csmap_path.clone(),
         )
         .map_err(Error::Vcpu)?;
 

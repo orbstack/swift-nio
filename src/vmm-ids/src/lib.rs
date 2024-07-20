@@ -49,6 +49,10 @@ bitflags::bitflags! {
         #[cfg(target_arch = "aarch64")]
         const PVLOCK = 1 << 4;
 
+        /// Dump the vCPU state for debugging.
+        #[cfg(target_arch = "aarch64")]
+        const DUMP_DEBUG = 1 << 5;
+
         // TODO: We might actually just not want this.
         const ANY_SHUTDOWN = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits();
     }
