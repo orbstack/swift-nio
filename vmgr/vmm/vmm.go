@@ -39,6 +39,7 @@ type VzSpec struct {
 	Cpus             int          `json:"cpus"`
 	Memory           uint64       `json:"memory"`
 	Kernel           string       `json:"kernel"`
+	KernelCsmap      string       `json:"kernelCsmap,omitempty"`
 	Cmdline          string       `json:"cmdline"`
 	Initrd           string       `json:"initrd,omitempty"`
 	Console          *ConsoleSpec `json:"console"`
@@ -75,5 +76,6 @@ type Machine interface {
 	Resume() error
 	ConnectVsock(port uint32) (net.Conn, error)
 	StateChan() <-chan MachineState
+	DumpDebug() error
 	Close() error
 }

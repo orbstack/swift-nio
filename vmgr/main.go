@@ -682,8 +682,9 @@ func runVmManager() {
 	vnetwork, vm, err := CreateVm(monitor, &VmParams{
 		Cpus: vmconfig.Get().CPU,
 		// default memory algo = 1/3 of host memory, max 10 GB
-		Memory: vmconfig.Get().MemoryMiB,
-		Kernel: kernelPath,
+		Memory:      vmconfig.Get().MemoryMiB,
+		Kernel:      kernelPath,
+		KernelCsmap: kernelPath + ".csmap",
 		// this one uses gvproxy ssh
 		Console:            consoleMode,
 		DiskRootfs:         conf.GetAssetFile("rootfs.img"),
@@ -693,8 +694,8 @@ func runVmManager() {
 		NetworkNat:         useNat,
 		NetworkHostBridges: 2, // machine + VlanRouter
 		MacAddressPrefix:   netconf.GuestMACPrefix,
-		Balloon: true,
-		Rng:     true,
+		Balloon:            true,
+		Rng:                true,
 		// no longer used (NFS is now TCP)
 		Vsock:    false,
 		Virtiofs: true,
@@ -822,7 +823,7 @@ func runVmManager() {
 
 			case unix.SIGUSR1:
 				// sample stacks to debug hangs
-				go debugutil.SampleStacks()
+				go debugutil.SampleStacks(vm)
 			}
 		}
 	}()

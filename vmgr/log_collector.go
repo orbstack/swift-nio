@@ -21,6 +21,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/util/debugutil"
+	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/sirupsen/logrus"
 )
 
@@ -204,12 +205,16 @@ func tryReadLogHistory(path string, numLines int) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- struct{}, shutdownWg *sync.WaitGroup) (*os.File, error) {
-	r, w, err := os.Pipe()
-	if err != nil {
-		return nil, err
-	}
+type ConsoleProcessor struct {
+	mu       sync.Mutex
+	_machine vmm.Machine
 
+	stopCh        chan<- types.StopRequest
+	healthCheckCh chan<- struct{}
+	shutdownWg    *sync.WaitGroup
+}
+
+func (p *ConsoleProcessor) Start(r *os.File) {
 	kernelPrefix := color.New(color.FgMagenta, color.Bold).Sprint("👾 kernel | ")
 	consolePrefix := color.New(color.FgYellow, color.Bold).Sprint("🐧 system | ")
 	magenta := color.New(color.FgMagenta).SprintFunc()
@@ -219,9 +224,9 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 	warnRecorder := &KernelLogRecorder{}
 	kernelLogWriter := io.MultiWriter(panicRecorder, warnRecorder)
 
-	shutdownWg.Add(1)
+	p.shutdownWg.Add(1)
 	go func() {
-		defer shutdownWg.Done()
+		defer p.shutdownWg.Done()
 		defer func() { _ = r.Close() }()
 		defer panicRecorder.Flush()
 		defer warnRecorder.Flush()
@@ -255,15 +260,15 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 						// we want to know about the rate of data corruption errors, but don't let it pollute real panics
 						if strings.Contains(panicLog, "DATA IS LIKELY CORRUPTED") || strings.Contains(panicLog, "MissingDataPartition") {
 							err = &DataCorruptionError{Err: msg}
-							stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataCorruption}
+							p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataCorruption}
 							sentry.CaptureException(err)
 						} else if strings.Contains(line, "System is deadlocked on memory") {
 							// OOM is normal. don't report to sentry at all
 							err = &OutOfMemoryError{Err: msg}
-							stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonOutOfMemory}
+							p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonOutOfMemory}
 						} else {
 							err = &KernelPanicError{Err: msg}
-							stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonKernelPanic}
+							p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonKernelPanic}
 							sentry.CaptureException(err)
 						}
 					})
@@ -271,7 +276,7 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 					// too many i/o errors: force shut down. clean shutdown won't work due to read-only fs
 					// can happen if very low space on disk
 					// everything blows up if fs is read-only
-					stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonIOError}
+					p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonIOError}
 				} else if matchWarnPattern(line) {
 					// record warning log
 					warnRecorder.Start(kernelWarnRecordDuration, func(output string) {
@@ -282,12 +287,12 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 
 					// RCU stall means the VM is frozen. sample stacks for debugging
 					if strings.Contains(line, kernelWarnPatternRcuStall) {
-						go debugutil.SampleStacks()
+						go debugutil.SampleStacks(p.machine())
 					}
 
 					// trigger a health check in case of RCU stall / netdev watchdog
 					select {
-					case healthCheckCh <- struct{}{}:
+					case p.healthCheckCh <- struct{}{}:
 					default:
 					}
 				} else if strings.Contains(line, "] Out of memory: Killed process") {
@@ -317,6 +322,34 @@ func NewConsoleLogPipe(stopCh chan<- types.StopRequest, healthCheckCh chan<- str
 			}
 		}
 	}()
+}
 
-	return w, nil
+func (p *ConsoleProcessor) machine() vmm.Machine {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p._machine
+}
+
+func (p *ConsoleProcessor) SetMachine(machine vmm.Machine) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p._machine = machine
+}
+
+func NewConsoleProcessor(stopCh chan<- types.StopRequest, healthCheckCh chan<- struct{}, shutdownWg *sync.WaitGroup) (*ConsoleProcessor, *os.File, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	p := &ConsoleProcessor{
+		stopCh:        stopCh,
+		healthCheckCh: healthCheckCh,
+		shutdownWg:    shutdownWg,
+	}
+	p.Start(r)
+
+	return p, w, nil
 }

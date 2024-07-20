@@ -230,6 +230,10 @@ func (m *machine) ConnectVsock(port uint32) (net.Conn, error) {
 	return conn, nil
 }
 
+func (m *machine) DumpDebug() error {
+	return errors.New("unimplemented")
+}
+
 func (m *machine) Close() error {
 	// if we try to get write lock, and ConnectVsock is hanging b/c VM is frozen,
 	// then we'll wait forever. Instead, CAS the pointer.

@@ -246,7 +246,7 @@ func (vc *VClient) healthCheck() {
 			}
 
 			// ... but always sample stacks to get debug info in case there's a hang
-			go debugutil.SampleStacks()
+			go debugutil.SampleStacks(vc.vm)
 		}
 	}
 }

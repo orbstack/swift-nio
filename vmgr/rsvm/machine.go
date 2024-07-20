@@ -22,6 +22,7 @@ struct GResultIntErr {
 
 struct GResultCreate rsvm_new_machine(uintptr_t handle, const char* config_json_str);
 struct GResultErr rsvm_machine_start(void* ptr);
+struct GResultErr rsvm_machine_dump_debug(void* ptr);
 struct GResultErr rsvm_machine_stop(void* ptr);
 void rsvm_machine_destroy(void* ptr);
 
@@ -160,23 +161,29 @@ func (m *machine) ForceStop() error {
 }
 
 func (m *machine) RequestStop() error {
-	panic("unimplemented")
+	return errors.New("unimplemented")
 }
 
 func (m *machine) Pause() error {
-	panic("unimplemented")
+	return errors.New("unimplemented")
 }
 
 func (m *machine) Resume() error {
-	panic("unimplemented")
+	return errors.New("unimplemented")
 }
 
 func (m *machine) ConnectVsock(port uint32) (net.Conn, error) {
-	panic("unimplemented")
+	return nil, errors.New("unimplemented")
 }
 
 func (m *machine) StateChan() <-chan vmm.MachineState {
 	return stateChan
+}
+
+func (m *machine) DumpDebug() error {
+	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
+		return C.rsvm_machine_dump_debug(ptr)
+	})
 }
 
 func (m *machine) Close() error {

@@ -37,6 +37,7 @@ type VmParams struct {
 	Cpus               int
 	Memory             uint64
 	Kernel             string
+	KernelCsmap        string
 	Console            ConsoleMode
 	DiskRootfs         string
 	DiskData           string
@@ -190,6 +191,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		Cpus:             params.Cpus,
 		Memory:           params.Memory * 1024 * 1024,
 		Kernel:           params.Kernel,
+		KernelCsmap:      params.KernelCsmap,
 		Cmdline:          strings.Join(cmdline, " "),
 		MacAddressPrefix: params.MacAddressPrefix,
 		NetworkNat:       params.NetworkNat,
@@ -246,6 +248,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 
 	// Console
 	var err error
+	var conProcessor *ConsoleProcessor
 	retainFiles := []*os.File{}
 	if params.Console != ConsoleNone {
 		var conRead, conWrite *os.File
@@ -258,9 +261,9 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 			if err != nil {
 				return nil, nil, err
 			}
-			conWrite, err = NewConsoleLogPipe(params.StopCh, params.HealthCheckCh, shutdownWg)
+			conProcessor, conWrite, err = NewConsoleProcessor(params.StopCh, params.HealthCheckCh, shutdownWg)
 			if err != nil {
-				return nil, nil, fmt.Errorf("new console log pipe: %w", err)
+				return nil, nil, fmt.Errorf("new console processor: %w", err)
 			}
 		}
 
@@ -338,6 +341,11 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 	vm, err := monitor.NewMachine(&spec, retainFiles)
 	if err != nil {
 		return nil, nil, fmt.Errorf("new machine: %w", err)
+	}
+
+	// set machine on conProcessor
+	if conProcessor != nil {
+		conProcessor.SetMachine(vm)
 	}
 
 	if params.Rosetta {
