@@ -417,7 +417,6 @@ func swext_fsevents_VmNotifier_stop(ptr: UnsafeMutableRawPointer) {
 
 @_cdecl("swext_fsevents_VmNotifier_finalize")
 func swext_fsevents_VmNotifier_finalize(ptr: UnsafeMutableRawPointer) {
-    let notifier = Unmanaged<VmNotifier>.fromOpaque(ptr).takeUnretainedValue()
+    let notifier = Unmanaged<VmNotifier>.fromOpaque(ptr).takeRetainedValue()
     notifier.stop()
-    Unmanaged<VmNotifier>.fromOpaque(ptr).release()
 }

@@ -416,5 +416,5 @@ func run_Machine_ConnectVsock(ptr: UnsafeMutableRawPointer, port: UInt32) -> GRe
 @_cdecl("govzf_run_Machine_finalize")
 func run_Machine_finalize(ptr: UnsafeMutableRawPointer) {
     // drop long-lived Go ref
-    Unmanaged<VmWrapper>.fromOpaque(ptr).release()
+    let _ = Unmanaged<VmWrapper>.fromOpaque(ptr).takeRetainedValue()
 }
