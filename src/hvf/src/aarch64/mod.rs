@@ -8,6 +8,7 @@
 #[allow(non_upper_case_globals)]
 #[allow(deref_nullptr)]
 mod bindings;
+use anyhow::anyhow;
 use arch::aarch64::gic::{self, GICDevice};
 use arch::aarch64::{layout, MMIO_SHM_SIZE};
 use bindings::*;
@@ -15,7 +16,9 @@ use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
 use gruel::{StartupAbortedError, StartupTask};
 use once_cell::sync::Lazy;
-use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap, VolatileMemory};
+use vm_memory::{
+    Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap, VolatileMemory,
+};
 
 use dlopen::wrapper::{Container, WrapperApi};
 use vmm_ids::{ArcVcpuSignal, VcpuSignal};
@@ -102,6 +105,23 @@ macro_rules! arm64_sys_reg {
 }
 
 arm64_sys_reg!(SYSREG_MASK, 0x3, 0x7, 0x7, 0xf, 0xf);
+
+/// Extract the specified bits of a 64-bit integer.
+/// For example, to extrace 2 bits from offset 1 (zero based) of `6u64`,
+/// following expression should return 3 (`0b11`):
+/// `extract_bits_64!(0b0000_0110u64, 1, 2)`
+///
+macro_rules! extract_bits_64 {
+    ($value: tt, $offset: tt, $length: tt) => {
+        ($value >> $offset) & (!0u64 >> (64 - $length))
+    };
+}
+
+macro_rules! extract_bits_64_without_offset {
+    ($value: tt, $length: tt) => {
+        $value & (!0u64 >> (64 - $length))
+    };
+}
 
 // macOS 12+ APIs
 static OPTIONAL12: Lazy<Option<Container<HvfOptional12>>> =
@@ -211,6 +231,8 @@ pub enum Error {
     GicGetSpiRange(HvfError),
     #[error("gic config set msi size: {0}")]
     GicConfigSetMsiSize(HvfError),
+    #[error("translate virtual address: {0}")]
+    TranslateVirtualAddress(anyhow::Error),
 }
 
 /// Messages for requesting memory maps/unmaps.
@@ -1168,6 +1190,142 @@ impl HvfVcpu {
         // SMCCC not supported
         self.write_raw_reg(hv_reg_t_HV_REG_X0, ret.unwrap_or(-1i64 as u64))?;
         Ok(VcpuExit::HypervisorCall)
+    }
+
+    // from cloud-hypervisor: https://github.com/cloud-hypervisor/cloud-hypervisor/blob/29675cfe687dde124dd71ccaf31c0562938f1564/vmm/src/cpu.rs#L1670C66-L1818C6
+    // license: Copyright © 2020, Oracle and/or its affiliates. Apache-2.0 AND BSD-3-Clause
+    fn translate_gva(&self, gva: u64) -> Result<u64, Error> {
+        let tcr_el1: u64 = self
+            .read_sys_reg(hv_sys_reg_t_HV_SYS_REG_TCR_EL1)
+            .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
+        let ttbr1_el1: u64 = self
+            .read_sys_reg(hv_sys_reg_t_HV_SYS_REG_TTBR1_EL1)
+            .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
+        let id_aa64mmfr0_el1: u64 = self
+            .read_sys_reg(hv_sys_reg_t_HV_SYS_REG_ID_AA64MMFR0_EL1)
+            .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
+
+        // Bit 55 of the VA determines the range, high (0xFFFxxx...)
+        // or low (0x000xxx...).
+        let high_range = extract_bits_64!(gva, 55, 1);
+        if high_range == 0 {
+            error!("VA (0x{:x}) range is not supported!", gva);
+            return Ok(gva);
+        }
+
+        // High range size offset
+        let tsz = extract_bits_64!(tcr_el1, 16, 6);
+        // Granule size
+        let tg = extract_bits_64!(tcr_el1, 30, 2);
+        // Indication of 48-bits (0) or 52-bits (1) for FEAT_LPA2
+        let ds = extract_bits_64!(tcr_el1, 59, 1);
+
+        if tsz == 0 {
+            error!("VA translation is not ready!");
+            return Ok(gva);
+        }
+
+        // VA size is determined by TCR_BL1.T1SZ
+        let va_size = 64 - tsz;
+        // Number of bits in VA consumed in each level of translation
+        let stride = match tg {
+            3 => 13, // 64KB granule size
+            1 => 11, // 16KB granule size
+            _ => 9,  // 4KB, default
+        };
+        // Starting level of walking
+        let mut level = 4 - (va_size - 4) / stride;
+
+        // PA or IPA size is determined
+        let tcr_ips = extract_bits_64!(tcr_el1, 32, 3);
+        let pa_range = extract_bits_64_without_offset!(id_aa64mmfr0_el1, 4);
+        // The IPA size in TCR_BL1 and PA Range in ID_AA64MMFR0_EL1 should match.
+        // To be safe, we use the minimum value if they are different.
+        let pa_range = std::cmp::min(tcr_ips, pa_range);
+        // PA size in bits
+        let pa_size = match pa_range {
+            0 => 32,
+            1 => 36,
+            2 => 40,
+            3 => 42,
+            4 => 44,
+            5 => 48,
+            6 => 52,
+            _ => {
+                return Err(Error::TranslateVirtualAddress(anyhow!(format!(
+                    "PA range not supported {pa_range}"
+                ))))
+            }
+        };
+
+        let indexmask_grainsize = (!0u64) >> (64 - (stride + 3));
+        let mut indexmask = (!0u64) >> (64 - (va_size - (stride * (4 - level))));
+        // If FEAT_LPA2 is present, the translation table descriptor holds
+        // 50 bits of the table address of next level.
+        // Otherwise, it is 48 bits.
+        let descaddrmask = if ds == 1 {
+            !0u64 >> (64 - 50) // mask with 50 least significant bits
+        } else {
+            !0u64 >> (64 - 48) // mask with 48 least significant bits
+        };
+        let descaddrmask = descaddrmask & !indexmask_grainsize;
+
+        // Translation table base address
+        let mut descaddr: u64 = extract_bits_64_without_offset!(ttbr1_el1, 48);
+        // In the case of FEAT_LPA and FEAT_LPA2, the initial translation table
+        // address bits [48:51] comes from TTBR1_EL1 bits [2:5].
+        if pa_size == 52 {
+            descaddr |= extract_bits_64!(ttbr1_el1, 2, 4) << 48;
+        }
+
+        // Loop through tables of each level
+        loop {
+            // Table offset for current level
+            let table_offset: u64 = (gva >> (stride * (4 - level))) & indexmask;
+            descaddr |= table_offset;
+            descaddr &= !7u64;
+
+            let mut buf = [0; 8];
+            self.guest_mem
+                .read(&mut buf, GuestAddress(descaddr))
+                .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
+            let descriptor = u64::from_le_bytes(buf);
+
+            descaddr = descriptor & descaddrmask;
+            // In the case of FEAT_LPA, the next-level translation table address
+            // bits [48:51] comes from bits [12:15] of the current descriptor.
+            // For FEAT_LPA2, the next-level translation table address
+            // bits [50:51] comes from bits [8:9] of the current descriptor,
+            // bits [48:49] comes from bits [48:49] of the descriptor which was
+            // handled previously.
+            if pa_size == 52 {
+                if ds == 1 {
+                    // FEAT_LPA2
+                    descaddr |= extract_bits_64!(descriptor, 8, 2) << 50;
+                } else {
+                    // FEAT_LPA
+                    descaddr |= extract_bits_64!(descriptor, 12, 4) << 48;
+                }
+            }
+
+            if (descriptor & 2) != 0 && (level < 3) {
+                // This is a table entry. Go down to next level.
+                level += 1;
+                indexmask = indexmask_grainsize;
+                continue;
+            }
+
+            break;
+        }
+
+        // We have reached either:
+        // - a page entry at level 3 or
+        // - a block entry at level 1 or 2
+        let page_size = 1u64 << ((stride * (4 - level)) + 3);
+        descaddr &= !(page_size - 1);
+        descaddr |= gva & (page_size - 1);
+
+        Ok(descaddr)
     }
 
     pub fn destroy(self) {
