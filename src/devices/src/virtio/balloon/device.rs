@@ -125,7 +125,7 @@ pub struct VirtioBalloonConfig {
 unsafe impl ByteValued for VirtioBalloonConfig {}
 
 struct QueuedReport {
-    req: OrbvmFprRequest,
+    req: Option<OrbvmFprRequest>,
     descs: Vec<PrDesc>,
 }
 
@@ -142,7 +142,7 @@ pub struct Balloon {
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
     parker: Option<Arc<dyn Parkable>>,
-    queued_reports: VecDeque<QueuedReport>,
+    queued: QueuedReport,
 }
 
 impl Balloon {
@@ -163,7 +163,10 @@ impl Balloon {
                 intc: None,
                 irq_line: None,
                 parker: None,
-                queued_reports: VecDeque::new(),
+                queued: QueuedReport {
+                    req: None,
+                    descs: Vec::new(),
+                },
             })
         }))
     }
@@ -348,14 +351,21 @@ impl Balloon {
             DeviceState::Inactive => unreachable!(),
         };
 
-        while let Some(qr) = self.queued_reports.pop_front() {
-            if let Err(e) = self.process_one_fpr(mem, qr.req, &qr.descs) {
+        if let Some(req) = self.queued.req.take() {
+            if let Err(e) = self.process_one_fpr(mem, req, &self.queued.descs) {
                 error!("failed to process queued FPR: {:?}", e);
             }
+            self.queued.descs.clear();
         }
     }
 
     fn queue_fpr(&mut self, args_addr: GuestAddress) -> anyhow::Result<()> {
+        // (u64)-1 means kick
+        if args_addr.raw_value() == u64::MAX {
+            self.signal.assert(BalloonSignalMask::REUSE);
+            return Ok(());
+        }
+
         let mem = match self.device_state {
             DeviceState::Activated(ref mem) => mem,
             DeviceState::Inactive => return Err(anyhow!("HVC call on inactive device")),
@@ -374,13 +384,21 @@ impl Balloon {
         };
 
         // add to queue
-        self.queued_reports.push_back(QueuedReport {
-            req,
-            descs: slice.to_vec(),
-        });
+        match self.queued.req {
+            // merge with existing req
+            Some(other_req) => {
+                if other_req.type_ != req.type_ || other_req.guest_page_size != req.guest_page_size
+                {
+                    return Err(anyhow!("inconsistent FPR requests"));
+                }
+            }
 
-        // assert signal
-        self.signal.assert(BalloonSignalMask::REUSE);
+            // new req
+            None => {
+                self.queued.req = Some(req);
+            }
+        }
+        self.queued.descs.extend_from_slice(slice);
 
         Ok(())
     }
