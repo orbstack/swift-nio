@@ -181,7 +181,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 	// dogfood: disable swiotlb to save 64M reserved memory
 	// TODO enable this for everyon, stress test all devices, test on x86
 	if conf.Debug() {
-		cmdline = append(cmdline, "swiotlb=noforce", "iommu=off")
+		cmdline = append(cmdline, "swiotlb=noforce")
 	}
 	logrus.Debug("cmdline", cmdline)
 
