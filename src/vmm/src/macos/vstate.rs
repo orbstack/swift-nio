@@ -878,9 +878,12 @@ impl Vcpu {
 
                 // PV-lock
                 Ok(VcpuEmulation::PvlockPark) => {
-                    std::thread::yield_now();
+                    // separate function so it shows up in debug spindumps
+                    wait_for_pvlock(&signal);
                 }
-                Ok(VcpuEmulation::PvlockUnpark(_vcpuid)) => {}
+                Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {
+                    self.intc.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
+                }
             }
         }
 
