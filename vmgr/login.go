@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -11,11 +10,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/drmcore"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/util"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
-)
-
-var (
-	errCLIPanic = errors.New("cli panic")
 )
 
 func checkCLI(err error) {
@@ -23,8 +19,7 @@ func checkCLI(err error) {
 		red := color.New(color.FgRed).FprintlnFunc()
 		red(os.Stderr, err)
 
-		// may need to do cleanup, so don't exit
-		panic(errCLIPanic)
+		os.Exit(1)
 	}
 }
 
@@ -74,6 +69,8 @@ func runLogin() {
 }
 
 func runLogout() {
+	defer errorx.RecoverCLI()
+
 	err := drmcore.SaveRefreshToken("")
 	checkCLI(err)
 
