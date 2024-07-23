@@ -1,0 +1,6 @@
+IndentWidth: 4
+AlignEscapedNewlines: DontAlign
+ColumnLimit: 100
+AllowShortIfStatementsOnASingleLine: WithoutElse
+BreakAfterAttributes: Never
+AllowShortFunctionsOnASingleLine: None
