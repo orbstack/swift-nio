@@ -569,8 +569,9 @@ comp_alg=lz4hc
 if [[ "$TYPE" == "debug" ]]; then
     comp_alg=lz4
 fi
-# -Ededupe is too slow
-mkfs.erofs -Efragments -Eztailpacking --ignore-mtime /images/rootfs.img /rootfs -z \$comp_alg
+# -Ededupe: too slow, little gain
+# -C 16384: allow big pcluster up to 16k (better compression, and matches macOS page size for I/O)
+mkfs.erofs -C 16384 -Efragments -Eztailpacking --ignore-mtime /images/rootfs.img /rootfs -z \$comp_alg
 EOT
 
 # speed up exporting images by skipping /rootfs
