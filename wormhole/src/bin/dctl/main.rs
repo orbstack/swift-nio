@@ -166,10 +166,7 @@ fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
         if env.packages.iter().any(|p| p.attr_path == *attr_path)
             || BUILTIN_PACKAGES.contains(&attr_path.as_str())
         {
-            eprintln!(
-                "{}",
-                format!("package '{}' already installed", attr_path).red()
-            );
+            eprintln!("{}", format!("already installed: {attr_path}").yellow());
             continue;
         }
 
@@ -227,17 +224,20 @@ fn cmd_install(attr_paths: &[String]) -> anyhow::Result<()> {
         }
     }
 
-    let symbolic_names = new_names.join(" ");
+    for new in &new_names {
+        eprintln!("{}", format!("installed: {new}").green());
+    }
+
     println!(
-        "{}",
+        "\n{}",
         format!(
-            "installed {} package{}: {}",
+            "{} package{} installed",
             new_names.len(),
-            if new_names.len() == 1 { "" } else { "s" },
-            symbolic_names
+            if new_names.len() == 1 { "" } else { "s" }
         )
         .green()
     );
+
     Ok(())
 }
 
