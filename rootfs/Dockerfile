@@ -557,24 +557,32 @@ LABEL type=$TYPE
 # Final images
 FROM --platform=${HOST_ARCH} debian AS packer
 RUN apt-get update && \
-    apt-get install -y btrfs-progs erofs-utils libarchive-tools qemu-utils fdisk
+    apt-get install -y btrfs-progs erofs-utils libarchive-tools qemu-utils fdisk python3
 RUN mkdir /images
 
 # rootfs
 FROM packer AS pack-images
+COPY rootfs/utils/dedupe-files.py /
 COPY --from=rootfs / /rootfs
 ARG TYPE=release
 RUN <<EOT bash -eux
+# dedupe identical files by making hard links
+find /rootfs -type f -print0 | xargs -0 sha256sum > /checksums
+python3 /dedupe-files.py /checksums
+
 comp_alg=lz4hc
 if [[ "$TYPE" == "debug" ]]; then
     comp_alg=lz4
 fi
+
 # -Ededupe: too slow, little gain
 # -C 16384: allow big pcluster up to 16k (better compression, and matches macOS page size for I/O)
 mkfs.erofs -C 16384 -Efragments -Eztailpacking --ignore-mtime /images/rootfs.img /rootfs -z \$comp_alg
 EOT
 
 # speed up exporting images by skipping /rootfs
+# this is based on packer so that we don't have to build another image for preseed data generation
 FROM packer AS images
+COPY --from=pack-images /checksums /
 COPY --from=pack-images /images /images
 COPY --from=initrd-build /out/ri.cpio /images/ri.cpio
