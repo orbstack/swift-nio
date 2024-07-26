@@ -13,9 +13,11 @@ mem_types = {
     'free': np.array([255, 255, 255], dtype=np.uint8), # white
     'file': np.array([255, 0, 0], dtype=np.uint8), # red
     'anon': np.array([0, 255, 0], dtype=np.uint8), # green
+    'anon_misc': np.array([0, 255, 255], dtype=np.uint8), # cyan
     #'misc_ram': np.array([255, 255, 0], dtype=np.uint8), # yellow
     'slab': np.array([0, 0, 255], dtype=np.uint8), # blue
     'unknown': np.array([255, 0, 255], dtype=np.uint8), # magenta
+    'unknown_flags': np.array([255, 255, 0], dtype=np.uint8), # yellow
 }
 
 pixels = []
@@ -69,19 +71,25 @@ with open('/proc/kpageflags', 'rb') as f:
         if flags & (1 << 16): # COMPOUND_TAIL
             mem_type = last_compound_type
             compound_count += 1
-        if flags & (1 << 10): # BUDDY
+        elif flags & (1 << 10): # BUDDY
             mem_type = 'free'
         elif flags & (1 << 7): # SLAB
             mem_type = 'slab'
-        elif flags & (1 << 14) or flags & (1 << 12): # SWAPBACKED or ANON
+        elif flags & (1 << 12): # ANON
             mem_type = 'anon'
+        elif flags & (1 << 14): # SWAPBACKED
+            mem_type = 'anon_misc'
         elif flags & (1 << 5): # LRU (and not ANON)
             mem_type = 'file'
         elif flags & (1 << 20): # NOPAGE
             continue
         else:
             #print(f'unknown flags: {join_flags(flags)}')
-            mem_type = 'unknown'
+            if flags != 0:
+                # print(f'unknown flags: {join_flags(flags)} {flags}')
+                mem_type = 'unknown_flags'
+            else:
+                mem_type = 'unknown'
 
         # save last compound head's flags
         if flags & (1 << 15): # COMPOUND_HEAD
