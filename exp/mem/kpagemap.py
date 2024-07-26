@@ -18,6 +18,7 @@ mem_types = {
     'slab': np.array([0, 0, 255], dtype=np.uint8), # blue
     'unknown': np.array([255, 0, 255], dtype=np.uint8), # magenta
     'unknown_flags': np.array([255, 255, 0], dtype=np.uint8), # yellow
+    'pgtable': np.array([0, 255, 255], dtype=np.uint8), # cyan
 }
 
 pixels = []
@@ -53,7 +54,8 @@ totals_with_order = collections.defaultdict(lambda: collections.defaultdict(int)
 # 23. BALLOON
 # 24. ZERO_PAGE
 # 25. IDLE
-flag_names = ['LOCKED', 'ERROR', 'REFERENCED', 'UPTODATE', 'DIRTY', 'LRU', 'ACTIVE', 'SLAB', 'WRITEBACK', 'RECLAIM', 'BUDDY', 'MMAP', 'ANON', 'SWAPCACHE', 'SWAPBACKED', 'COMPOUND_HEAD', 'COMPOUND_TAIL', 'HUGE', 'UNEVICTABLE', 'HWPOISON', 'NOPAGE', 'KSM', 'THP', 'BALLOON', 'ZERO_PAGE', 'IDLE']
+# 26. PGTABLE
+flag_names = ['LOCKED', 'ERROR', 'REFERENCED', 'UPTODATE', 'DIRTY', 'LRU', 'ACTIVE', 'SLAB', 'WRITEBACK', 'RECLAIM', 'BUDDY', 'MMAP', 'ANON', 'SWAPCACHE', 'SWAPBACKED', 'COMPOUND_HEAD', 'COMPOUND_TAIL', 'HUGE', 'UNEVICTABLE', 'HWPOISON', 'NOPAGE', 'KSM', 'THP', 'BALLOON', 'ZERO_PAGE', 'IDLE', 'PGTABLE']
 def join_flags(flags):
     return ','.join([flag_names[i] for i in range(len(flag_names)) if flags & (1 << i)])
 
@@ -81,10 +83,11 @@ with open('/proc/kpageflags', 'rb') as f:
             mem_type = 'anon_misc'
         elif flags & (1 << 5): # LRU (and not ANON)
             mem_type = 'file'
+        elif flags & (1 << 26): # PGTABLE
+            mem_type = 'pgtable'
         elif flags & (1 << 20): # NOPAGE
             continue
         else:
-            #print(f'unknown flags: {join_flags(flags)}')
             if flags != 0:
                 # print(f'unknown flags: {join_flags(flags)} {flags}')
                 mem_type = 'unknown_flags'
