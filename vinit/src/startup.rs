@@ -327,6 +327,14 @@ fn apply_perf_tuning_early() -> Result<(), Box<dyn Error>> {
     // low cost in practice (no IPI for idle CPUs): https://docs.kernel.org/RCU/Design/Expedited-Grace-Periods/Expedited-Grace-Periods.html
     // do it here instead of kernel to make it less obvious. as early as possible in userspace
     fs::write("/sys/kernel/rcu_expedited", "1")?;
+
+    // mTHP: multi-size THP, aka large anon folios
+    // on fault, if eligible, kernel will always round address down and try to allocate order-2 (16K) folios on 4K-page systems
+    // good for perf in lieu of 16K pages, but main purpose is to reduce 4K-16K fragmentation for balloon on arm64
+    // do it early to minimize 4K allocations on boot
+    // fail gracefully if THP is off
+    _ = fs::write("/sys/kernel/mm/transparent_hugepage/hugepages-16kB/enabled", "always");
+
     Ok(())
 }
 

@@ -152,6 +152,10 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		// Kernel tuning
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
+		// give slab allocator 16K (4 pages) at a time, to reduce 4K-16K fragmentation for arm64 balloon
+		// should also be good for perf
+		// TODO: disable on 16k kernels
+		"slab_min_order=2",
 		// rcu_nocbs is in kernel
 		// Drivers
 		"nbd.nbds_max=4",    // fast boot
