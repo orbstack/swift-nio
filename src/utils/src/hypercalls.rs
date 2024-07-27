@@ -21,8 +21,10 @@ pub const ORBVM_IO_REQUEST: u32 = orbvm_hvc_id(4);
 pub const ORBVM_PVGIC_SET_STATE: u32 = orbvm_hvc_id(5);
 // kernel: ORBVM_SET_REG
 pub const ORBVM_SET_ACTLR_EL1: u32 = orbvm_hvc_id(6);
-// kernel: ORBVM_MEM_UNREPORT
+// kernel: ORBVM_MADVISE_REUSE
 pub const ORBVM_MADVISE_REUSE: u32 = orbvm_hvc_id(7);
+// kernel: ORBVM_MADVISE_REUSABLE
+pub const ORBVM_MADVISE_REUSABLE: u32 = orbvm_hvc_id(8);
 
 // HVC I/O device IDs
 pub const HVC_DEVICE_VIRTIOFS_ROOT: usize = 0;
