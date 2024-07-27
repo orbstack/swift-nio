@@ -66,6 +66,7 @@ kernel/crypto/crypto_algapi.ko
 kernel/crypto/aead.ko
 kernel/crypto/geniv.ko
 kernel/crypto/crypto_skcipher.ko
+kernel/crypto/bpf_crypto_skcipher.ko
 kernel/crypto/seqiv.ko
 kernel/crypto/echainiv.ko
 kernel/crypto/crypto_hash.ko
@@ -152,6 +153,7 @@ kernel/lib/ts_kmp.ko
 kernel/lib/ts_bm.ko
 kernel/lib/ts_fsm.ko
 kernel/lib/glob.ko
+kernel/lib/dim/dimlib.ko
 kernel/lib/asn1_decoder.ko
 kernel/lib/oid_registry.ko
 kernel/drivers/acpi/processor.ko
