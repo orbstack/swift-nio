@@ -724,11 +724,16 @@ impl Vcpu {
             }
         }
 
+        // separate function so that this shows up in debug spindumps
+        // this is debug *info*, not debug_assertions, so it includes release-with-debug
+        #[cfg_attr(debug, inline(never))]
         fn wait_for_pvlock(signal: &Arc<SignalChannel<VcpuSignalMask, VcpuWakerSet>>) {
-            // checking should_wait makes PV lock ineffective due to pending IRQs,
-            // even though IRQs are disabled while waiting on a PV lock.
-            // spurious wakeups are OK as this is just a hint to try locking again.
-            signal.wait_on_park(VcpuSignalMask::all());
+            // allow spurious wakeups from IRQs, as it's just a hint to try locking again.
+            // pending IRQs will be sent when DAIF is restored after a spurious wakeup.
+            signal.wait_on_park(VcpuSignalMask::ALL_WAIT | VcpuSignalMask::PVLOCK);
+
+            // if there's a pending PV lock token (either new or existing), consume it
+            _ = signal.take(VcpuSignalMask::PVLOCK);
         }
 
         // Create the underlying HVF vCPU.
@@ -805,7 +810,7 @@ impl Vcpu {
 
         loop {
             // Handle events
-            let taken = signal.take(VcpuSignalMask::all());
+            let taken = signal.take(VcpuSignalMask::ALL_WAIT);
             if taken.contains(VcpuSignalMask::EXIT_LOOP) {
                 break;
             }
@@ -827,10 +832,6 @@ impl Vcpu {
                 // us so there's no real performance reason for doing this.
             }
 
-            if taken.contains(VcpuSignalMask::PVLOCK) {
-                // If a PV lock was released, just re-enter the vCPU so that the guest handles it.
-            }
-
             #[cfg(target_arch = "aarch64")]
             if taken.contains(VcpuSignalMask::DUMP_DEBUG) {
                 // dump state
@@ -841,7 +842,7 @@ impl Vcpu {
             }
 
             // Run emulation
-            let emulation = signal.wait(VcpuSignalMask::all(), VcpuWakerSet::hvf, || {
+            let emulation = signal.wait(VcpuSignalMask::ALL_WAIT, VcpuWakerSet::hvf, || {
                 self.run_emulation(&mut hvf_vcpu, &mut *intc_vcpu_handle)
             });
 
@@ -862,13 +863,13 @@ impl Vcpu {
                 // idea.
                 Ok(VcpuEmulation::WaitForEvent) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
-                        signal.wait_on_park(VcpuSignalMask::all());
+                        signal.wait_on_park(VcpuSignalMask::ALL_WAIT);
                     }
                 }
                 Ok(VcpuEmulation::WaitForEventExpired) => {}
                 Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
-                        signal.wait_on_park_timeout(VcpuSignalMask::all(), timeout);
+                        signal.wait_on_park_timeout(VcpuSignalMask::ALL_WAIT, timeout);
                     }
                 }
 
@@ -880,7 +881,6 @@ impl Vcpu {
 
                 // PV-lock
                 Ok(VcpuEmulation::PvlockPark) => {
-                    // separate function so it shows up in debug spindumps
                     wait_for_pvlock(&signal);
                 }
                 Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {
@@ -1012,7 +1012,7 @@ impl Vcpu {
             park_task = park_task_tmp;
 
             // Run emulation
-            let emulation = signal.wait(VcpuSignalMask::all(), VcpuWakerSet::hvf, || {
+            let emulation = signal.wait(VcpuSignalMask::ALL_WAIT, VcpuWakerSet::hvf, || {
                 self.run_emulation(&mut hvf_vcpu)
             });
 
