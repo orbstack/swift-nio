@@ -60,7 +60,7 @@ pub struct BlockWorker {
     target_vcpu: u64,
 
     mem: GuestMemoryMmap,
-    disk: DiskProperties,
+    disk: Arc<DiskProperties>,
 
     last_flushed_at: Instant,
 }
@@ -84,7 +84,7 @@ impl BlockWorker {
         irq_line: u32,
         target_vcpu: u64,
         mem: GuestMemoryMmap,
-        disk: DiskProperties,
+        disk: Arc<DiskProperties>,
     ) -> Self {
         Self {
             queue,
@@ -198,9 +198,15 @@ impl BlockWorker {
                 if data_len % 512 != 0 {
                     Err(RequestError::InvalidDataLength)
                 } else {
+                    let mut off = request_header.sector as usize * 512;
                     writer
-                        .write_from_at(&self.disk.file, data_len, request_header.sector * 512)
-                        .map_err(RequestError::WritingToDescriptor)
+                        .for_each_iovec(data_len, |iov| {
+                            let n = self.disk.mapped_file.read_to_iovec(off, iov).unwrap();
+                            off += n;
+                            Ok(())
+                        })
+                        .map_err(RequestError::WritingToDescriptor)?;
+                    Ok(data_len)
                 }
             }
             VIRTIO_BLK_T_OUT => {
@@ -209,7 +215,7 @@ impl BlockWorker {
                     Err(RequestError::InvalidDataLength)
                 } else {
                     reader
-                        .read_to_at(&self.disk.file, data_len, request_header.sector * 512)
+                        .read_to_at(self.disk.file(), data_len, request_header.sector * 512)
                         .map_err(RequestError::ReadingFromDescriptor)
                 }
             }
@@ -245,8 +251,10 @@ impl BlockWorker {
                     // F_FULLFSYNC is very expensive on Apple SSDs, so only do it every 1000ms (leading edge)
                     // barrier suffices for integrity; F_FULLFSYNC is only for persistence on shutdown
                     if Instant::now() - self.last_flushed_at > FLUSH_INTERVAL {
-                        let diskfile = self.disk.file_mut();
-                        diskfile.sync_all().map_err(RequestError::FlushingToDisk)?;
+                        self.disk
+                            .file()
+                            .sync_all()
+                            .map_err(RequestError::FlushingToDisk)?;
                         // get timestamp *after* sync
                         // clock_gettime is much cheaper than fsync
                         self.last_flushed_at = Instant::now();

@@ -624,6 +624,19 @@ impl<'a> Writer<'a> {
     pub fn split_at(&mut self, offset: usize) -> Result<Writer<'a>> {
         self.buffer.split_at(offset).map(|buffer| Writer { buffer })
     }
+
+    pub fn for_each_iovec(
+        &mut self,
+        count: usize,
+        mut f: impl FnMut(&Iovec) -> io::Result<()>,
+    ) -> io::Result<usize> {
+        self.buffer.consume(count, |bufs| {
+            for buf in bufs {
+                f(buf)?;
+            }
+            Ok(count)
+        })
+    }
 }
 
 impl<'a> io::Write for Writer<'a> {

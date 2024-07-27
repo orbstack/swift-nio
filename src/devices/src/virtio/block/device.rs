@@ -31,6 +31,7 @@ use virtio_bindings::{
 };
 use vm_memory::{ByteValued, GuestMemoryMmap};
 
+use super::mmap::MappedFile;
 use super::worker::BlockWorker;
 use super::QUEUE_SIZE;
 use super::{
@@ -80,7 +81,7 @@ pub enum CacheType {
 /// Helper object for setting up all `Block` fields derived from its backing file.
 pub(crate) struct DiskProperties {
     cache_type: CacheType,
-    pub(crate) file: File,
+    pub(crate) mapped_file: MappedFile,
     nsectors: u64,
     image_id: Vec<u8>,
     read_only: bool,
@@ -108,17 +109,21 @@ impl DiskProperties {
             );
         }
 
+        // TODO handle error
+        let image_id = Self::build_disk_image_id(&disk_image);
+        let mapped_file = MappedFile::map(disk_image, disk_size as usize).unwrap();
+
         Ok(Self {
             cache_type,
             nsectors: disk_size >> SECTOR_SHIFT,
-            image_id: Self::build_disk_image_id(&disk_image),
-            file: disk_image,
+            image_id,
+            mapped_file,
             read_only: is_disk_read_only,
         })
     }
 
-    pub fn file_mut(&mut self) -> &mut File {
-        &mut self.file
+    pub fn file(&self) -> &File {
+        self.mapped_file.file()
     }
 
     pub fn nsectors(&self) -> u64 {
@@ -130,7 +135,7 @@ impl DiskProperties {
     }
 
     pub fn fsync_barrier(&self) -> std::io::Result<()> {
-        let ret = unsafe { libc::fcntl(self.file.as_raw_fd(), libc::F_BARRIERFSYNC, 0) };
+        let ret = unsafe { libc::fcntl(self.file().as_raw_fd(), libc::F_BARRIERFSYNC, 0) };
         if ret == -1 {
             return Err(std::io::Error::last_os_error());
         }
@@ -145,7 +150,7 @@ impl DiskProperties {
             fp_length: len as off_t,
         };
 
-        let ret = unsafe { libc::fcntl(self.file.as_raw_fd(), libc::F_PUNCHHOLE, &punchhole) };
+        let ret = unsafe { libc::fcntl(self.file().as_raw_fd(), libc::F_PUNCHHOLE, &punchhole) };
         if ret == -1 {
             return Err(std::io::Error::last_os_error());
         }
@@ -194,12 +199,8 @@ impl Drop for DiskProperties {
 
         match self.cache_type {
             CacheType::Writeback => {
-                // flush() first to force any cached data out.
-                if self.file.flush().is_err() {
-                    error!("Failed to flush block data on drop.");
-                }
                 // Sync data out to physical media on host.
-                if self.file.sync_all().is_err() {
+                if self.file().sync_all().is_err() {
                     error!("Failed to sync block data on drop.")
                 }
             }
@@ -254,7 +255,7 @@ unsafe impl ByteValued for VirtioBlkConfig {}
 /// Virtio device for exposing block level read/write operations on a host file.
 pub struct Block {
     // Host file and properties.
-    disk: Option<DiskProperties>,
+    disk: Arc<DiskProperties>,
     cache_type: CacheType,
     disk_image_path: String,
     is_disk_read_only: bool,
@@ -347,7 +348,7 @@ impl Block {
             id,
             partuuid,
             config,
-            disk: Some(disk_properties),
+            disk: Arc::new(disk_properties),
             cache_type,
             disk_image_path,
             is_disk_read_only,
@@ -470,16 +471,6 @@ impl VirtioDevice for Block {
             let event_idx: bool = (self.acked_features & (1 << VIRTIO_RING_F_EVENT_IDX)) != 0;
             queue.set_event_idx(event_idx);
 
-            let disk = match self.disk.take() {
-                Some(d) => d,
-                None => DiskProperties::new(
-                    self.disk_image_path.clone(),
-                    self.is_disk_read_only,
-                    self.cache_type,
-                )
-                .map_err(|_| ActivateError::BadActivate)?,
-            };
-
             workers.push(BlockWorker::new(
                 queue.clone(),
                 self.signals.clone(),
@@ -491,7 +482,7 @@ impl VirtioDevice for Block {
                 },
                 queue_index as u64,
                 mem.clone(),
-                disk,
+                self.disk.clone(),
             ));
         }
 
