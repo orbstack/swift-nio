@@ -333,7 +333,10 @@ fn apply_perf_tuning_early() -> Result<(), Box<dyn Error>> {
     // good for perf in lieu of 16K pages, but main purpose is to reduce 4K-16K fragmentation for balloon on arm64
     // do it early to minimize 4K allocations on boot
     // fail gracefully if THP is off
-    _ = fs::write("/sys/kernel/mm/transparent_hugepage/hugepages-16kB/enabled", "always");
+    _ = fs::write(
+        "/sys/kernel/mm/transparent_hugepage/hugepages-16kB/enabled",
+        "always",
+    );
 
     Ok(())
 }
@@ -385,19 +388,6 @@ fn apply_perf_tuning_late() -> Result<(), Box<dyn Error>> {
     // security
     sysctl("fs.protected_hardlinks", "1")?;
     sysctl("fs.protected_symlinks", "1")?;
-
-    // block - disk performance tuning
-    // this is slow (80 ms per disk), so do it in parallel
-    let mut handles = vec![];
-    for disk in ["vda", "vdb", "vdc"].iter() {
-        let disk = disk.to_string();
-        handles.push(std::thread::spawn(move || {
-            fs::write(format!("/sys/block/{}/queue/scheduler", disk), "none").unwrap();
-        }));
-    }
-    for handle in handles {
-        handle.join().unwrap();
-    }
 
     Ok(())
 }
