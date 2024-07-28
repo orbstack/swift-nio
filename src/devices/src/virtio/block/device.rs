@@ -8,10 +8,11 @@
 use bitflags::bitflags;
 use gruel::{define_waker_set, BoundSignalChannelRef, ParkWaker, SignalChannel};
 use newt::{make_bit_flag_range, BitFlagRange};
+use nix::errno::Errno;
 use std::cmp;
 use std::convert::From;
 use std::fs::{File, OpenOptions};
-use std::io::{self, Seek, SeekFrom, Write};
+use std::io::{self, Write};
 use std::os::fd::AsRawFd;
 #[cfg(target_os = "linux")]
 use std::os::linux::fs::MetadataExt;
@@ -19,9 +20,11 @@ use std::os::linux::fs::MetadataExt;
 use std::os::macos::fs::MetadataExt;
 use std::path::PathBuf;
 use std::result;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+use std::time::Duration;
+use utils::time::{get_time, ClockType};
 use utils::Mutex;
 
 use libc::{fpunchhole_t, off_t};
@@ -40,9 +43,9 @@ use super::{
 };
 
 use crate::legacy::Gic;
-use crate::virtio::{
-    ActivateError, ErasedSyncEventHandlerSet, SyncEventHandlerSet, VirtioQueueSignals,
-};
+use crate::virtio::{ErasedSyncEventHandlerSet, SyncEventHandlerSet, VirtioQueueSignals};
+
+const FLUSH_INTERVAL_NS: u64 = Duration::from_millis(1000).as_nanos() as u64;
 
 const USE_ASYNC_WORKER: bool = false;
 
@@ -85,6 +88,9 @@ pub(crate) struct DiskProperties {
     nsectors: u64,
     image_id: Vec<u8>,
     read_only: bool,
+    fs_block_size: u64,
+
+    last_flushed_at: AtomicU64,
 }
 
 impl DiskProperties {
@@ -93,11 +99,13 @@ impl DiskProperties {
         is_disk_read_only: bool,
         cache_type: CacheType,
     ) -> io::Result<Self> {
-        let mut disk_image = OpenOptions::new()
+        let disk_image = OpenOptions::new()
             .read(true)
             .write(!is_disk_read_only)
             .open(PathBuf::from(&disk_image_path))?;
-        let disk_size = disk_image.seek(SeekFrom::End(0))?;
+        let disk_metadata = disk_image.metadata()?;
+        let disk_size = disk_metadata.len();
+        let fs_block_size = disk_metadata.st_blksize();
 
         // We only support disk size, which uses the first two words of the configuration space.
         // If the image is not a multiple of the sector size, the tail bits are not exposed.
@@ -107,6 +115,16 @@ impl DiskProperties {
                  the remainder will not be visible to the guest.",
                 disk_size, SECTOR_SIZE
             );
+        }
+
+        if fs_block_size % SECTOR_SIZE != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "File system block size {} is not a multiple of sector size {}",
+                    fs_block_size, SECTOR_SIZE
+                ),
+            ));
         }
 
         // TODO handle error
@@ -119,6 +137,9 @@ impl DiskProperties {
             image_id,
             mapped_file,
             read_only: is_disk_read_only,
+            fs_block_size,
+            // this is technically wrong on system boot, but it doesn't matter
+            last_flushed_at: AtomicU64::new(0),
         })
     }
 
@@ -134,11 +155,38 @@ impl DiskProperties {
         &self.image_id
     }
 
-    pub fn fsync_barrier(&self) -> std::io::Result<()> {
+    fn fsync_barrier(&self) -> std::io::Result<()> {
         let ret = unsafe { libc::fcntl(self.file().as_raw_fd(), libc::F_BARRIERFSYNC, 0) };
-        if ret == -1 {
-            return Err(std::io::Error::last_os_error());
+        Errno::result(ret)?;
+        Ok(())
+    }
+
+    pub fn flush(&self) -> std::io::Result<()> {
+        match self.cache_type {
+            CacheType::Unsafe => {
+                // noop
+                return Ok(());
+            }
+            CacheType::Writeback => {
+                // continue and do flush
+            }
         }
+
+        // F_FULLFSYNC is very expensive on Apple SSDs, so only do it every 1000ms (leading edge)
+        // barrier suffices for integrity; F_FULLFSYNC is only for persistence on shutdown
+        if get_time(ClockType::Monotonic) - self.last_flushed_at.load(Ordering::Relaxed)
+            > FLUSH_INTERVAL_NS
+        {
+            self.file().sync_all()?;
+
+            // save timestamp *after* sync:
+            // fsync is slow, so a lot of time may have passed. make sure we don't flush again too early
+            self.last_flushed_at
+                .store(get_time(ClockType::Monotonic), Ordering::Relaxed);
+        } else {
+            self.fsync_barrier()?;
+        }
+
         Ok(())
     }
 
@@ -151,9 +199,7 @@ impl DiskProperties {
         };
 
         let ret = unsafe { libc::fcntl(self.file().as_raw_fd(), libc::F_PUNCHHOLE, &punchhole) };
-        if ret == -1 {
-            return Err(std::io::Error::last_os_error());
-        }
+        Errno::result(ret)?;
         Ok(())
     }
 
@@ -184,10 +230,6 @@ impl DiskProperties {
             }
         }
         default_id
-    }
-
-    pub fn cache_type(&self) -> CacheType {
-        self.cache_type
     }
 }
 
@@ -256,9 +298,6 @@ unsafe impl ByteValued for VirtioBlkConfig {}
 pub struct Block {
     // Host file and properties.
     disk: Arc<DiskProperties>,
-    cache_type: CacheType,
-    disk_image_path: String,
-    is_disk_read_only: bool,
     worker_mode: BlockWorkerMode,
 
     // Virtio fields.
@@ -333,13 +372,13 @@ impl Block {
             capacity: disk_properties.nsectors(),
             size_max: 0,
             num_queues: queues.len() as u16,
-            // QUEUE_SIZE - 2
-            seg_max: 254,
+            seg_max: QUEUE_SIZE as u32 - 2,
             max_discard_sectors: u32::MAX,
-            max_discard_seg: 32,
-            discard_sector_alignment: 65536 / 512, // 64k
+            max_discard_seg: QUEUE_SIZE as u32 - 2,
+            // holes must be aligned to FS block size
+            discard_sector_alignment: (disk_properties.fs_block_size / SECTOR_SIZE) as u32,
             max_write_zeroes_sectors: u32::MAX,
-            max_write_zeroes_seg: 32,
+            max_write_zeroes_seg: QUEUE_SIZE as u32 - 2,
             write_zeroes_may_unmap: 1,
             ..Default::default()
         };
@@ -349,9 +388,6 @@ impl Block {
             partuuid,
             config,
             disk: Arc::new(disk_properties),
-            cache_type,
-            disk_image_path,
-            is_disk_read_only,
             avail_features,
             acked_features: 0u64,
             interrupt_status: Arc::new(AtomicUsize::new(0)),

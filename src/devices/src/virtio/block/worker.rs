@@ -2,9 +2,7 @@ use crate::legacy::Gic;
 use crate::virtio::descriptor_utils::{Reader, Writer};
 
 use super::super::{Queue, VIRTIO_MMIO_INT_VRING};
-use super::device::{
-    BlockDevSignalMask, BlockDevWakers, CacheType, DiskProperties, BLOCK_QUEUE_SIGS,
-};
+use super::device::{BlockDevSignalMask, BlockDevWakers, DiskProperties, BLOCK_QUEUE_SIGS};
 
 use gruel::{ParkSignalChannelExt, SignalChannel};
 use nix::errno::Errno;
@@ -14,12 +12,9 @@ use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, Instant};
 use utils::Mutex;
 use virtio_bindings::virtio_blk::*;
 use vm_memory::{ByteValued, GuestMemoryMmap};
-
-const FLUSH_INTERVAL: Duration = Duration::from_millis(1000);
 
 #[derive(Debug)]
 pub enum RequestError {
@@ -61,8 +56,6 @@ pub struct BlockWorker {
 
     mem: GuestMemoryMmap,
     disk: Arc<DiskProperties>,
-
-    last_flushed_at: Instant,
 }
 
 #[repr(C)]
@@ -96,8 +89,6 @@ impl BlockWorker {
 
             mem,
             disk,
-
-            last_flushed_at: Instant::now(),
         }
     }
 
@@ -246,27 +237,10 @@ impl BlockWorker {
                 }
                 Ok(reader.bytes_read())
             }
-            VIRTIO_BLK_T_FLUSH => match self.disk.cache_type() {
-                CacheType::Writeback => {
-                    // F_FULLFSYNC is very expensive on Apple SSDs, so only do it every 1000ms (leading edge)
-                    // barrier suffices for integrity; F_FULLFSYNC is only for persistence on shutdown
-                    if Instant::now() - self.last_flushed_at > FLUSH_INTERVAL {
-                        self.disk
-                            .file()
-                            .sync_all()
-                            .map_err(RequestError::FlushingToDisk)?;
-                        // get timestamp *after* sync
-                        // clock_gettime is much cheaper than fsync
-                        self.last_flushed_at = Instant::now();
-                    } else {
-                        self.disk
-                            .fsync_barrier()
-                            .map_err(RequestError::FlushingToDisk)?;
-                    }
-                    Ok(0)
-                }
-                CacheType::Unsafe => Ok(0),
-            },
+            VIRTIO_BLK_T_FLUSH => {
+                self.disk.flush().map_err(RequestError::FlushingToDisk)?;
+                Ok(0)
+            }
             VIRTIO_BLK_T_GET_ID => {
                 let data_len = writer.available_bytes();
                 let disk_id = self.disk.image_id();
