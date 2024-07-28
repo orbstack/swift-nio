@@ -35,14 +35,12 @@ use vmm_ids::{ArcVcpuSignal, VcpuSignal};
 use core::panic;
 use std::arch::x86_64::{__cpuid, __cpuid_count};
 use std::convert::TryInto;
-use std::ffi::c_void;
 use std::sync::Arc;
-use std::thread::Thread;
 
 use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
-use utils::hypercalls::{ORBVM_FEATURES, ORBVM_IO_REQUEST};
+use utils::hypercalls::{HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST};
 
 const LAPIC_TPR: u32 = 0x80;
 
@@ -813,7 +811,15 @@ impl HvfVcpu {
                         let call_id = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? as u32;
                         match call_id {
                             ORBVM_FEATURES => {
-                                self.write_reg(hv_x86_reg_t_HV_X86_RAX, 0)?;
+                                let device_id = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? as usize;
+                                let value = match device_id {
+                                    // virtiofs
+                                    HVC_DEVICE_VIRTIOFS_ROOT => 0,
+                                    // unknown devices
+                                    _ => 1,
+                                };
+
+                                self.write_reg(hv_x86_reg_t_HV_X86_RAX, value)?;
                                 Ok(VcpuExit::HypervisorCall)
                             }
 

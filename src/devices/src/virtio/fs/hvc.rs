@@ -16,7 +16,7 @@ use super::{macos::passthrough::PassthroughFs, server::Server};
 // TODO: packed, without Rust complaining about alignment
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-struct RsvmArgs {
+struct OrbvmArgs {
     in_numargs: u32,
     out_numargs: u32,
     in_pages: u32,
@@ -25,7 +25,7 @@ struct RsvmArgs {
     out_args: [GuestIoSlice; 3],
 }
 
-unsafe impl ByteValued for RsvmArgs {}
+unsafe impl ByteValued for OrbvmArgs {}
 
 pub struct FsHvcDevice {
     mem: GuestMemoryMmap,
@@ -39,7 +39,7 @@ impl FsHvcDevice {
 
     pub fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<i64> {
         // read args struct
-        let args: RsvmArgs = self.mem.read_obj(args_addr)?;
+        let args: OrbvmArgs = self.mem.read_obj(args_addr)?;
 
         if args.in_numargs as usize > args.in_args.len() {
             todo!();
@@ -53,7 +53,7 @@ impl FsHvcDevice {
         let mut pages = unsafe { pages.assume_init() };
         let mut in_pages: &[GuestIoSlice] = &[];
         let mut out_pages: &[GuestIoSlice] = &[];
-        let pages_addr = args_addr.unchecked_add(size_of::<RsvmArgs>() as u64);
+        let pages_addr = args_addr.unchecked_add(size_of::<OrbvmArgs>() as u64);
         if args.in_pages != 0 {
             self.mem.read_slice(
                 unsafe {
