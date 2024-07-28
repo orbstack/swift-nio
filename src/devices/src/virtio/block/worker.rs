@@ -180,9 +180,9 @@ impl BlockWorker {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
 
-            if self.queue.needs_notification(mem).unwrap() {
-                self.signal_used_queue();
-            }
+            // if self.queue.needs_notification(mem).unwrap() {
+            //     self.signal_used_queue();
+            // }
         }
     }
 
