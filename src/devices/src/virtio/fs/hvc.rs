@@ -8,7 +8,7 @@ use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
 use crate::virtio::{
     descriptor_utils::{GuestIoSlice, Reader, Writer},
     fs::server::{HostContext, MAX_PAGES},
-    FsError, HvcDevice,
+    HvcDevice,
 };
 
 use super::{macos::passthrough::PassthroughFs, server::Server};
@@ -87,16 +87,12 @@ impl FsHvcDevice {
             &self.mem,
             &args.in_args[..args.in_numargs as usize],
             in_pages,
-        )
-        .map_err(FsError::QueueReader)
-        .unwrap();
+        )?;
         let writer = Writer::new_from_slices(
             &self.mem,
             &args.out_args[..args.out_numargs as usize],
             out_pages,
-        )
-        .map_err(FsError::QueueWriter)
-        .unwrap();
+        )?;
 
         let hctx = HostContext { is_sync_call: true };
         if let Err(e) = self.server.handle_message(hctx, reader, writer, None) {
