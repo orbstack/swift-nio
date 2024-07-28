@@ -386,6 +386,13 @@ impl<'a> Reader<'a> {
         })
     }
 
+    pub fn consume<F>(&mut self, count: usize, f: F) -> io::Result<usize>
+    where
+        F: FnOnce(&[Iovec]) -> io::Result<usize>,
+    {
+        self.buffer.consume(count, f)
+    }
+
     pub fn read_exact_to(&mut self, dst: &mut File, mut count: usize) -> io::Result<()> {
         while count > 0 {
             match self.read_to(dst, count) {

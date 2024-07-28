@@ -3,6 +3,7 @@ use crate::virtio::descriptor_utils::{Reader, Writer};
 
 use super::super::{Queue, VIRTIO_MMIO_INT_VRING};
 use super::device::{BlockDevSignalMask, BlockDevWakers, DiskProperties, BLOCK_QUEUE_SIGS};
+use super::SECTOR_SIZE;
 
 use gruel::{ParkSignalChannelExt, SignalChannel};
 use nix::errno::Errno;
@@ -185,28 +186,31 @@ impl BlockWorker {
     ) -> result::Result<usize, RequestError> {
         match request_header.request_type {
             VIRTIO_BLK_T_IN => {
-                let data_len = writer.available_bytes() - 1;
-                if data_len % 512 != 0 {
+                let data_len = writer.available_bytes() as u64 - 1;
+                if data_len % SECTOR_SIZE != 0 {
                     Err(RequestError::InvalidDataLength)
                 } else {
-                    let mut off = request_header.sector as usize * 512;
+                    let mut off = request_header.sector * SECTOR_SIZE;
                     writer
-                        .for_each_iovec(data_len, |iov| {
-                            let n = self.disk.mapped_file.read_to_iovec(off, iov).unwrap();
-                            off += n;
+                        .for_each_iovec(data_len as usize, |iov| {
+                            let n = self.disk.read_to_iovec(off as usize, iov)?;
+                            off += n as u64;
                             Ok(())
                         })
                         .map_err(RequestError::WritingToDescriptor)?;
-                    Ok(data_len)
+                    Ok(data_len as usize)
                 }
             }
             VIRTIO_BLK_T_OUT => {
-                let data_len = reader.available_bytes();
-                if data_len % 512 != 0 {
+                let data_len = reader.available_bytes() as u64;
+                if data_len % SECTOR_SIZE != 0 {
                     Err(RequestError::InvalidDataLength)
                 } else {
+                    let offset = request_header.sector * SECTOR_SIZE;
                     reader
-                        .read_to_at(self.disk.file(), data_len, request_header.sector * 512)
+                        .consume(data_len as usize, |bufs| {
+                            self.disk.write_iovecs(offset, bufs)
+                        })
                         .map_err(RequestError::ReadingFromDescriptor)
                 }
             }
@@ -216,13 +220,10 @@ impl BlockWorker {
                         .read_obj()
                         .map_err(RequestError::ReadingFromDescriptor)?;
 
-                    let offset = seg.sector * 512;
-                    let len = (seg.num_sectors * 512) as u64;
-                    if offset + len > self.disk.nsectors() * 512 {
-                        return Err(RequestError::InvalidDataLength);
-                    }
+                    let offset = seg.sector * SECTOR_SIZE;
+                    let len = seg.num_sectors as u64 * SECTOR_SIZE;
 
-                    match self.disk.punch_hole(offset as usize, len as usize) {
+                    match self.disk.punch_hole(offset, len) {
                         Ok(_) => (),
                         Err(_) => {
                             // only diff: DISCARD fails gracefully and is ignored; WRITE_ZEROES needs a fallback if not supported by FS

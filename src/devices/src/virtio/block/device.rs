@@ -9,6 +9,7 @@ use bitflags::bitflags;
 use gruel::{define_waker_set, BoundSignalChannelRef, ParkWaker, SignalChannel};
 use newt::{make_bit_flag_range, BitFlagRange};
 use nix::errno::Errno;
+use nix::sys::uio::pwritev;
 use std::cmp;
 use std::convert::From;
 use std::fs::{File, OpenOptions};
@@ -43,6 +44,7 @@ use super::{
 };
 
 use crate::legacy::Gic;
+use crate::virtio::descriptor_utils::Iovec;
 use crate::virtio::{ErasedSyncEventHandlerSet, SyncEventHandlerSet, VirtioQueueSignals};
 
 const FLUSH_INTERVAL_NS: u64 = Duration::from_millis(1000).as_nanos() as u64;
@@ -84,7 +86,7 @@ pub enum CacheType {
 /// Helper object for setting up all `Block` fields derived from its backing file.
 pub(crate) struct DiskProperties {
     cache_type: CacheType,
-    pub(crate) mapped_file: MappedFile,
+    mapped_file: MappedFile,
     nsectors: u64,
     image_id: Vec<u8>,
     read_only: bool,
@@ -127,9 +129,8 @@ impl DiskProperties {
             ));
         }
 
-        // TODO handle error
         let image_id = Self::build_disk_image_id(&disk_image);
-        let mapped_file = MappedFile::map(disk_image, disk_size as usize).unwrap();
+        let mapped_file = MappedFile::map(disk_image, disk_size as usize)?;
 
         Ok(Self {
             cache_type,
@@ -143,7 +144,7 @@ impl DiskProperties {
         })
     }
 
-    pub fn file(&self) -> &File {
+    fn file(&self) -> &File {
         self.mapped_file.file()
     }
 
@@ -151,8 +152,35 @@ impl DiskProperties {
         self.nsectors
     }
 
+    pub fn size(&self) -> u64 {
+        self.nsectors * SECTOR_SIZE
+    }
+
     pub fn image_id(&self) -> &[u8] {
         &self.image_id
+    }
+
+    pub fn read_to_iovec(&self, offset: usize, iov: &Iovec) -> io::Result<usize> {
+        // mapped_file does bounds check
+        self.mapped_file.read_to_iovec(offset, iov)
+    }
+
+    pub fn write_iovecs(&self, offset: u64, iovecs: &[Iovec]) -> io::Result<usize> {
+        // bounds check
+        let len = iovecs.iter().map(|iov| iov.len()).sum::<usize>();
+        if offset.saturating_add(len as u64) > self.size() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "write out of bounds",
+            ));
+        }
+
+        let n = pwritev(
+            self.file().as_raw_fd(),
+            Iovec::slice_to_std(iovecs),
+            offset as i64,
+        )?;
+        Ok(n)
     }
 
     fn fsync_barrier(&self) -> std::io::Result<()> {
@@ -168,7 +196,7 @@ impl DiskProperties {
                 return Ok(());
             }
             CacheType::Writeback => {
-                // continue and do flush
+                // continue and flush
             }
         }
 
@@ -190,7 +218,15 @@ impl DiskProperties {
         Ok(())
     }
 
-    pub fn punch_hole(&self, offset: usize, len: usize) -> std::io::Result<()> {
+    pub fn punch_hole(&self, offset: u64, len: u64) -> std::io::Result<()> {
+        // bounds check
+        if offset.saturating_add(len) > self.size() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "punch hole out of bounds",
+            ));
+        }
+
         let punchhole = fpunchhole_t {
             fp_flags: 0,
             reserved: 0,

@@ -1,6 +1,4 @@
-use std::{fs::File, os::fd::AsRawFd};
-
-use anyhow::anyhow;
+use std::{fs::File, io, os::fd::AsRawFd};
 
 use crate::virtio::descriptor_utils::Iovec;
 
@@ -14,7 +12,7 @@ unsafe impl Send for MappedFile {}
 unsafe impl Sync for MappedFile {}
 
 impl MappedFile {
-    pub fn map(file: File, size: usize) -> anyhow::Result<Self> {
+    pub fn map(file: File, size: usize) -> io::Result<Self> {
         let addr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -26,7 +24,7 @@ impl MappedFile {
             )
         };
         if addr == libc::MAP_FAILED {
-            return Err(anyhow!("mmap failed: {}", std::io::Error::last_os_error()));
+            return Err(io::Error::last_os_error());
         }
 
         Ok(MappedFile {
@@ -40,11 +38,14 @@ impl MappedFile {
         &self.file
     }
 
-    pub fn read_to_iovec(&self, off: usize, iov: &Iovec) -> anyhow::Result<usize> {
-        let len = iov.len();
+    pub fn read_to_iovec(&self, off: usize, iov: &Iovec) -> io::Result<usize> {
         // bounds check
+        let len = iov.len();
         if off.saturating_add(len) > self.size {
-            return Err(anyhow!("read out of bounds"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "read out of bounds",
+            ));
         }
 
         let src = unsafe { self.addr.add(off) };
