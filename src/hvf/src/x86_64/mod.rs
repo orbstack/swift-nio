@@ -40,7 +40,9 @@ use std::sync::Arc;
 use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
-use utils::hypercalls::{HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST};
+use utils::hypercalls::{
+    HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST,
+};
 
 const LAPIC_TPR: u32 = 0x80;
 
@@ -815,6 +817,8 @@ impl HvfVcpu {
                                 let value = match device_id {
                                     // virtiofs
                                     HVC_DEVICE_VIRTIOFS_ROOT => 0,
+                                    // block
+                                    HVC_DEVICE_BLOCK_START => 0,
                                     // unknown devices
                                     _ => 1,
                                 };

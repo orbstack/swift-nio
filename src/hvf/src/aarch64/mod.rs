@@ -43,9 +43,10 @@ use tracing::{debug, error};
 use counter::RateCounter;
 
 use utils::hypercalls::{
-    HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_MADVISE_REUSABLE,
-    ORBVM_MADVISE_REUSE, ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK,
-    ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
+    HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST,
+    ORBVM_MADVISE_REUSABLE, ORBVM_MADVISE_REUSE, ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK,
+    ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF,
+    PSCI_RESET, PSCI_VERSION,
 };
 
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
@@ -1188,6 +1189,8 @@ impl HvfVcpu {
                 let value = match device_id {
                     // virtiofs
                     HVC_DEVICE_VIRTIOFS_ROOT => 0,
+                    // block
+                    HVC_DEVICE_BLOCK_START => 0,
                     // unknown devices
                     _ => 1,
                 };

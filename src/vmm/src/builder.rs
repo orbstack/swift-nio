@@ -1173,7 +1173,6 @@ fn attach_fs_devices(
                     .create_hvc_device(vmm.guest_memory().clone()),
             ))
             .unwrap();
-        //.map_err(RegisterFsDevice)?;
     }
 
     Ok(())
@@ -1372,7 +1371,7 @@ fn attach_block_devices(
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
-    for block in block_devs.list.iter() {
+    for (i, block) in block_devs.list.iter().enumerate() {
         let id = String::from(block.lock().unwrap().id());
 
         if let Some(ref intc) = intc {
@@ -1387,6 +1386,16 @@ fn attach_block_devices(
             true,
         )
         .map_err(RegisterBlockDevice)?;
+
+        vmm.mmio_device_manager
+            .bus
+            .insert_hvc(Arc::new(
+                block
+                    .lock()
+                    .unwrap()
+                    .create_hvc_device(vmm.guest_memory().clone(), i),
+            ))
+            .unwrap();
     }
 
     Ok(())

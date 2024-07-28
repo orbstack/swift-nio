@@ -35,6 +35,7 @@ use virtio_bindings::{
 };
 use vm_memory::{ByteValued, GuestMemoryMmap};
 
+use super::hvc::BlockHvcDevice;
 use super::mmap::MappedFile;
 use super::worker::BlockWorker;
 use super::QUEUE_SIZE;
@@ -457,6 +458,10 @@ impl Block {
     /// Specifies if this block device is read only.
     pub fn is_read_only(&self) -> bool {
         self.avail_features & (1u64 << VIRTIO_BLK_F_RO) != 0
+    }
+
+    pub fn create_hvc_device(&self, mem: GuestMemoryMmap, index: usize) -> BlockHvcDevice {
+        BlockHvcDevice::new(mem, self.disk.clone(), index)
     }
 }
 
