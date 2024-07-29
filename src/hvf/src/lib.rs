@@ -33,6 +33,7 @@ use mach2::{
         mach_vm_purgable_control, mach_vm_region, mach_vm_region_recurse, mach_vm_remap,
     },
     vm_inherit::VM_INHERIT_NONE,
+    vm_page_size::vm_page_size,
     vm_prot::{vm_prot_t, VM_PROT_EXECUTE, VM_PROT_READ, VM_PROT_WRITE},
     vm_purgable::{VM_PURGABLE_EMPTY, VM_PURGABLE_NONVOLATILE, VM_PURGABLE_SET_STATE},
     vm_region::{vm_region_submap_info_64, vm_region_submap_info_data_64_t},
@@ -57,7 +58,6 @@ pub use aarch64::*;
 
 const VM_FLAGS_4GB_CHUNK: i32 = 4;
 
-const PAGE_SIZE: usize = 16384;
 const MACH_CHUNK_SIZE: usize = 8 * 1024 * 1024; // 8 MiB
 
 const MAP_MEM_RT: i32 = 7;
@@ -83,6 +83,10 @@ pub trait Parkable: Send + Sync {
     ) -> Result<StartupTask, StartupAbortedError>;
 
     fn dump_debug(&self);
+}
+
+fn page_size() -> usize {
+    unsafe { vm_page_size }
 }
 
 #[derive(Default, Debug)]
@@ -668,13 +672,13 @@ pub unsafe fn free_range(
 ) -> anyhow::Result<()> {
     // let _span = tracing::info_span!("free_range", size = size).entered();
     // start and end must be page-aligned
-    if host_addr as usize % PAGE_SIZE != 0 {
+    if host_addr as usize % page_size() != 0 {
         return Err(anyhow!(
             "guest address must be page-aligned: {:x}",
             guest_addr.raw_value()
         ));
     }
-    if size % PAGE_SIZE != 0 {
+    if size % page_size() != 0 {
         return Err(anyhow!("size must be page-aligned: {}", size));
     }
 
@@ -702,13 +706,13 @@ pub unsafe fn reuse_range(
 ) -> anyhow::Result<()> {
     // let _span = tracing::info_span!("free_range", size = size).entered();
     // start and end must be page-aligned
-    if host_addr as usize % PAGE_SIZE != 0 {
+    if host_addr as usize % page_size() != 0 {
         return Err(anyhow!(
             "guest address must be page-aligned: {:x}",
             guest_addr.raw_value()
         ));
     }
-    if size % PAGE_SIZE != 0 {
+    if size % page_size() != 0 {
         return Err(anyhow!("size must be page-aligned: {}", size));
     }
 
