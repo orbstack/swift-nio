@@ -1,6 +1,5 @@
 use hvf::HvfVm;
 use rustc_hash::FxHashMap;
-use vmm_ids::VcpuSignalMask;
 
 use super::{UserspaceGicImpl, WfeThread};
 

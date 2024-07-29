@@ -65,7 +65,7 @@ use arch::InitrdConfig;
 #[cfg(target_os = "macos")]
 use crossbeam_channel::Sender;
 use devices::virtio::VmmExitObserver;
-use devices::{BusDevice, ErasedBusDevice};
+use devices::ErasedBusDevice;
 use kernel::cmdline::Cmdline as KernelCmdline;
 use utils::eventfd::EventFd;
 use utils::time::TimestampUs;

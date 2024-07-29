@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::anyhow;
+use gruel::{StartupAbortedError, StartupTask};
 use libc::{
     c_void, getpid, mach_host_self, madvise, memory_object_t, proc_pidinfo, sysctlbyname,
     VM_FLAGS_PURGABLE, VM_MAKE_TAG,
@@ -45,6 +46,7 @@ use vm_memory::{
     Address, GuestAddress, GuestMemory, GuestMemoryMmap, GuestMemoryRegion, GuestRegionMmap,
     MmapRegion,
 };
+use vmm_ids::{ArcVcpuSignal, VcpuSignalMask};
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::*;
 
@@ -66,6 +68,22 @@ const MAP_MEM_VM_SHARE: i32 = 0x400000;
 const MAP_MEM_PURGABLE: i32 = 0x040000;
 
 const VM_LEDGER_TAG_DEFAULT: libc::c_int = 0x00000001;
+
+pub trait Parkable: Send + Sync {
+    fn park(&self) -> Result<StartupTask, StartupAbortedError>;
+
+    fn unpark(&self, unpark_task: StartupTask);
+
+    fn register_vcpu(&self, vcpu: ArcVcpuSignal) -> StartupTask;
+
+    fn process_park_commands(
+        &self,
+        taken: VcpuSignalMask,
+        park_task: StartupTask,
+    ) -> Result<StartupTask, StartupAbortedError>;
+
+    fn dump_debug(&self);
+}
 
 #[derive(Default, Debug)]
 #[repr(C)]

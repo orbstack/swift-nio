@@ -27,11 +27,9 @@ use arch_gen::x86::msr_index::{
 use bindings::*;
 #[cfg(target_arch = "x86_64")]
 use cpuid::{kvm_cpuid_entry2, CpuidTransformer, IntelCpuidTransformer, VmSpec};
-use gruel::{StartupAbortedError, StartupTask};
 use iced_x86::{Code, Decoder, DecoderOptions, Instruction, Register};
 use rustc_hash::FxHashMap;
 use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryMmap};
-use vmm_ids::{ArcVcpuSignal, VcpuSignal};
 
 use core::panic;
 use std::arch::x86_64::{__cpuid, __cpuid_count};
@@ -44,6 +42,8 @@ use tracing::{debug, error};
 use utils::hypercalls::{
     HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST,
 };
+
+use crate::Parkable;
 
 const LAPIC_TPR: u32 = 0x80;
 
@@ -198,20 +198,6 @@ pub fn vcpu_request_exit(vcpuid: hv_vcpuid_t) -> Result<(), Error> {
 pub struct HvVcpuRef(pub hv_vcpuid_t);
 
 pub type VcpuId = u32;
-
-pub trait Parkable: Send + Sync {
-    fn park(&self) -> Result<StartupTask, StartupAbortedError>;
-
-    fn unpark(&self, unpark_task: StartupTask);
-
-    fn register_vcpu(&self, vcpu: ArcVcpuSignal) -> StartupTask;
-
-    fn process_park_commands(
-        &self,
-        signal: &VcpuSignal,
-        park_task: StartupTask,
-    ) -> Result<StartupTask, StartupAbortedError>;
-}
 
 #[derive(Debug, Copy, Clone)]
 pub enum ParkError {
@@ -1873,7 +1859,7 @@ impl HvfVcpu {
         ] {
             let value = match self.read_vmcs(*field_id) {
                 Ok(value) => value,
-                Err(e) => continue,
+                Err(_) => continue,
             };
             println!("{field_name} = {value:016x}");
         }

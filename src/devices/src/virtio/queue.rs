@@ -136,20 +136,6 @@ impl VirtqUsedElem {
     }
 }
 
-#[cfg(any(test, feature = "test-utils"))]
-#[allow(clippy::len_without_is_empty)]
-impl VirtqUsedElem {
-    /// Get the index of the used descriptor chain.
-    pub fn id(&self) -> u32 {
-        self.id.into()
-    }
-
-    /// Get `length` field of the used ring entry.
-    pub fn len(&self) -> u32 {
-        self.len.into()
-    }
-}
-
 // SAFETY: This is safe because `VirtqUsedElem` contains only wrappers over POD types
 // and all accesses through safe `vm-memory` API will validate any garbage that could be
 // included in there.
@@ -1145,11 +1131,11 @@ pub(crate) mod tests {
         assert_eq!(vq.used.idx.get(), 0);
 
         //index too large
-        q.add_used(m, 16, 0x1000);
+        q.add_used(m, 16, 0x1000).unwrap();
         assert_eq!(vq.used.idx.get(), 0);
 
         //should be ok
-        q.add_used(m, 1, 0x1000);
+        q.add_used(m, 1, 0x1000).unwrap();
         assert_eq!(vq.used.idx.get(), 1);
         let x = vq.used.ring[0].get();
         assert_eq!(x.id, 1);

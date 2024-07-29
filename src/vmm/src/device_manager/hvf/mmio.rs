@@ -146,16 +146,6 @@ impl MMIODeviceManager {
         Ok((mmio_base, irq_base))
     }
 
-    /// Register an already created MMIO device to be used via MMIO transport.
-    pub fn register_mmio_device(
-        &mut self,
-        mmio_device: devices::virtio::MmioTransport,
-        type_id: u32,
-        device_id: String,
-    ) -> Result<(u64, u32)> {
-        self.register_mmio_device_mq(mmio_device, type_id, device_id, false)
-    }
-
     /// Append a registered MMIO device to the kernel cmdline.
     #[cfg(target_arch = "x86_64")]
     pub fn add_device_to_cmdline(

@@ -1,5 +1,3 @@
-use std::io;
-
 use nix::errno::Errno;
 
 extern "C" {

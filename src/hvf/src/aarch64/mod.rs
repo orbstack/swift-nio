@@ -16,7 +16,6 @@ use arch::ArchMemoryInfo;
 use bindings::*;
 use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
-use gruel::{StartupAbortedError, StartupTask};
 use libc::{madvise, MADV_FREE_REUSABLE, MADV_FREE_REUSE};
 use nix::errno::Errno;
 use once_cell::sync::Lazy;
@@ -26,7 +25,6 @@ use vm_memory::{
 };
 
 use dlopen::wrapper::{Container, WrapperApi};
-use vmm_ids::{ArcVcpuSignal, VcpuSignalMask};
 
 use std::arch::asm;
 use std::convert::TryInto;
@@ -34,7 +32,6 @@ use std::ffi::c_void;
 use std::fmt::Write;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicIsize, Ordering};
-use std::sync::Arc;
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
@@ -289,22 +286,6 @@ pub fn vcpu_set_vtimer_mask(hv_vcpu: HvVcpuRef, masked: bool) -> Result<(), Erro
 }
 
 pub type VcpuId = u64;
-
-pub trait Parkable: Send + Sync {
-    fn park(&self) -> Result<StartupTask, StartupAbortedError>;
-
-    fn unpark(&self, unpark_task: StartupTask);
-
-    fn register_vcpu(&self, vcpu: ArcVcpuSignal) -> StartupTask;
-
-    fn process_park_commands(
-        &self,
-        taken: VcpuSignalMask,
-        park_task: StartupTask,
-    ) -> Result<StartupTask, StartupAbortedError>;
-
-    fn dump_debug(&self);
-}
 
 #[derive(WrapperApi)]
 struct HvfOptional12 {
@@ -769,7 +750,6 @@ unsafe impl ByteValued for PvgicVcpuState {}
 pub struct HvVcpuRef(pub hv_vcpu_t);
 
 pub struct HvfVcpu {
-    parker: Arc<dyn Parkable>,
     hv_vcpu: HvVcpuRef,
     vcpu_exit_ptr: *mut hv_vcpu_exit_t,
     cntfrq: u64,
@@ -801,7 +781,7 @@ fn search_8b_linear(haystack_ptr: *mut u64, needle: u64, haystack_bytes: usize) 
 }
 
 impl HvfVcpu {
-    pub fn new(parker: Arc<dyn Parkable>, guest_mem: GuestMemoryMmap) -> Result<Self, Error> {
+    pub fn new(guest_mem: GuestMemoryMmap) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpu_t = 0;
         let mut vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
 
@@ -818,7 +798,6 @@ impl HvfVcpu {
         HvfError::result(ret).map_err(Error::VcpuCreate)?;
 
         Ok(Self {
-            parker,
             hv_vcpu: HvVcpuRef(vcpuid),
             vcpu_exit_ptr,
             cntfrq,

@@ -22,7 +22,6 @@ use std::thread::{self, Thread};
 use std::time::Duration;
 use utils::Mutex;
 use vmm_ids::ArcVcpuSignal;
-use vmm_ids::VcpuSignal;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
 
@@ -82,15 +81,14 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// A wrapper around creating and using a VM.
 pub struct Vm {
-    shutdown: VmmShutdownSignal,
     pub hvf_vm: HvfVm,
     parker: Arc<VmParker>,
     #[cfg(target_arch = "aarch64")]
     irqchip_handle: Option<Box<dyn GICDevice>>,
 }
 
+#[derive(Default)]
 pub struct VmParker {
-    hvf_vm: HvfVm,
     vcpus: Mutex<Vec<ArcVcpuSignal>>,
 
     /// Tasks here represent vCPUs which have yet to park.
@@ -98,32 +96,6 @@ pub struct VmParker {
 
     /// Tasks here represent parker threads which have yet to finish their operations e.g. balloon.
     unpark_signal: StartupSignal,
-
-    /// These are the regions mapped to the VM.
-    regions: Mutex<Vec<MapRegion>>,
-}
-
-pub struct MapRegion {
-    host_start_addr: u64,
-    guest_start_addr: u64,
-    size: u64,
-}
-
-impl VmParker {
-    pub fn new(hvf_vm: HvfVm) -> Self {
-        Self {
-            hvf_vm,
-            vcpus: Default::default(),
-            park_signal: Default::default(),
-            unpark_signal: Default::default(),
-            regions: Default::default(),
-        }
-    }
-
-    pub fn set_regions(&self, new_regions: Vec<MapRegion>) {
-        let mut regions = self.regions.lock().unwrap();
-        *regions = new_regions;
-    }
 }
 
 impl Parkable for VmParker {
@@ -223,7 +195,7 @@ impl Vm {
 
         Ok(Vm {
             hvf_vm: hvf_vm.clone(),
-            parker: Arc::new(VmParker::new(hvf_vm.clone())),
+            parker: Arc::new(VmParker::default()),
             #[cfg(target_arch = "aarch64")]
             irqchip_handle: None,
         })
@@ -231,7 +203,6 @@ impl Vm {
 
     /// Initializes the guest memory.
     pub fn memory_init(&mut self, guest_mem: &GuestMemoryMmap) -> Result<()> {
-        let mut map_regions = Vec::new();
         for region in guest_mem.iter() {
             // It's safe to unwrap because the guest address is valid.
             let host_addr = guest_mem.get_host_address(region.start_addr()).unwrap();
@@ -248,14 +219,8 @@ impl Vm {
                     region.len(),
                 )
                 .map_err(Error::SetUserMemoryRegion)?;
-            map_regions.push(MapRegion {
-                host_start_addr: host_addr as u64,
-                guest_start_addr: region.start_addr().raw_value(),
-                size: region.len(),
-            });
         }
 
-        self.parker.set_regions(map_regions);
         Ok(())
     }
 
@@ -752,8 +717,7 @@ impl Vcpu {
         }
 
         // Create the underlying HVF vCPU.
-        let mut hvf_vcpu =
-            HvfVcpu::new(parker.clone(), self.guest_mem.clone()).expect("Can't create HVF vCPU");
+        let mut hvf_vcpu = HvfVcpu::new(self.guest_mem.clone()).expect("Can't create HVF vCPU");
 
         let hvf_vcpuid = hvf_vcpu.id();
         let hvf_vcpu_ref = hvf_vcpu.vcpu_ref();

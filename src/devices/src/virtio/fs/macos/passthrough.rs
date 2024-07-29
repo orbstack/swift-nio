@@ -37,7 +37,7 @@ use nix::errno::Errno;
 use nix::fcntl::OFlag;
 use nix::sys::stat::fchmod;
 use nix::sys::stat::{futimens, utimensat, Mode, UtimensatFlags};
-use nix::sys::statfs::{fstatfs, statfs};
+use nix::sys::statfs::{fstatfs, statfs, Statfs};
 use nix::sys::statvfs::statvfs;
 use nix::sys::statvfs::Statvfs;
 use nix::sys::time::TimeSpec;
@@ -759,7 +759,7 @@ impl PassthroughFs {
             FileRef::Fd(fd) => fstatfs(&fd),
         }?;
         // transmute type (repr(transparent))
-        let stf = unsafe { mem::transmute::<_, libc::statfs>(stf) };
+        let stf = unsafe { mem::transmute::<Statfs, libc::statfs>(stf) };
         let dev_info = DevInfo {
             volfs: (stf.f_flags & libc::MNT_DOVOLFS as u32) != 0,
             local: (stf.f_flags & libc::MNT_LOCAL as u32) != 0,
@@ -1249,13 +1249,13 @@ impl PassthroughFs {
                 attr.st_uid
             } else {
                 // Cannot use -1 here because these are unsigned values.
-                std::u32::MAX
+                u32::MAX
             };
             let gid = if valid.contains(SetattrValid::GID) {
                 attr.st_gid
             } else {
                 // Cannot use -1 here because these are unsigned values.
-                std::u32::MAX
+                u32::MAX
             };
 
             set_xattr_stat(file_ref.as_ref(), Some((uid, gid)), None)?;
@@ -1733,8 +1733,7 @@ impl FileSystem for PassthroughFs {
         // use parent nodeid to get an accurate ino for '..' if possible, but fail gracefully if renamed
         let parent_ino = node
             .parent_nodeid
-            .map(|p| self.nodeids.get(&p.get().into()).map(|n| n.dev_ino.1))
-            .flatten()
+            .and_then(|p| self.nodeids.get(&p.get().into()).map(|n| n.dev_ino.1))
             .unwrap_or(u64::MAX);
         drop(node);
         if size == 0 {
