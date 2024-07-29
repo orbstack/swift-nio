@@ -6,6 +6,7 @@
 
 //! Structure and wrapper functions emulating eventfd using a pipe.
 
+use std::mem::MaybeUninit;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::{io, result};
 
@@ -82,7 +83,8 @@ impl EventFd {
 
     pub fn read(&self) -> io::Result<()> {
         loop {
-            let mut buf = [0u8; 1024];
+            let mut buf = MaybeUninit::<[u8; 1024]>::uninit();
+            let buf = unsafe { buf.assume_init_mut() };
             let ret = unsafe { read(self.read_fd, buf.as_mut_ptr() as *mut c_void, buf.len()) };
             if ret < 0 {
                 let err = io::Error::last_os_error();

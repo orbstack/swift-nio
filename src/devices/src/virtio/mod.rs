@@ -19,7 +19,6 @@ pub mod block;
 pub mod console;
 pub mod descriptor_utils;
 pub mod device;
-pub mod file_traits;
 #[cfg(not(feature = "tee"))]
 pub mod fs;
 #[cfg(feature = "gpu")]

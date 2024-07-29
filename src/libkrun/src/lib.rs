@@ -179,17 +179,9 @@ impl Machine {
         .map_err(to_anyhow_error)?;
 
         // kernel
-        let mut kernel_data =
-            std::fs::read(&spec.kernel).map_err(|e| anyhow!("read kernel: {}", e))?;
+        let kernel_data = std::fs::read(&spec.kernel).map_err(|e| anyhow!("read kernel: {}", e))?;
         #[cfg(target_arch = "aarch64")]
         {
-            // pad up to page size boundary
-            let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-            kernel_data.resize(
-                (kernel_data.len() + page_size - 1) / page_size * page_size,
-                0,
-            );
-
             vmr.set_kernel_bundle(KernelBundle {
                 load_range: 0..kernel_data.len(),
                 data: kernel_data,
@@ -349,7 +341,7 @@ impl Machine {
             .map_err(to_anyhow_error)?;
 
         if vmr.gpu_virgl_flags.is_some() {
-            let mapper_vmm = vmm.clone();
+            let vmm = vmm.clone();
             std::thread::Builder::new()
                 .name("VMM GPU mapper".to_string())
                 .spawn(move || loop {
@@ -359,11 +351,11 @@ impl Machine {
                             break;
                         }
                         Ok(m) => match m {
-                            MemoryMapping::AddMapping(s, h, g, l) => {
-                                mapper_vmm.lock().unwrap().add_mapping(s, h, g, l)
-                            }
+                            MemoryMapping::AddMapping(s, h, g, l) => unsafe {
+                                vmm.lock().unwrap().add_mapping(s, h as *mut u8, g, l)
+                            },
                             MemoryMapping::RemoveMapping(s, g, l) => {
-                                mapper_vmm.lock().unwrap().remove_mapping(s, g, l)
+                                vmm.lock().unwrap().remove_mapping(s, g, l)
                             }
                         },
                     }
@@ -439,9 +431,9 @@ fn init_logger_once() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsvm_set_rinit_data(ptr: *const c_void, size: usize) {
+pub unsafe extern "C" fn rsvm_set_rinit_data(ptr: *const u8, size: usize) {
     devices::virtio::fs::rosetta::set_rosetta_data(unsafe {
-        std::slice::from_raw_parts(ptr as *const u8, size)
+        std::slice::from_raw_parts(ptr, size)
     });
 }
 
@@ -454,8 +446,7 @@ pub unsafe extern "C" fn rsvm_new_machine(
 
     GResultCreate::from_result((|| {
         let spec = unsafe { CStr::from_ptr(spec_json) };
-        let spec = spec.to_str()?;
-        let spec: VzSpec = serde_json::from_str(spec)?;
+        let spec: VzSpec = serde_json::from_str(spec.to_str()?)?;
 
         let machine = Machine::new(&spec)?;
         // save to global

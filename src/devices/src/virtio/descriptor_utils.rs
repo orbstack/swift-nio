@@ -75,7 +75,7 @@ impl<'a> Iovec<'a> {
         self.iov.iov_len
     }
 
-    pub fn set_len(&mut self, len: usize) {
+    pub unsafe fn set_len(&mut self, len: usize) {
         self.iov.iov_len = len;
     }
 
@@ -88,6 +88,10 @@ impl<'a> Iovec<'a> {
     }
 
     pub fn advance(&mut self, len: usize) {
+        if len > self.iov.iov_len {
+            panic!("advancing iovec beyond its length");
+        }
+
         self.iov.iov_base = unsafe { self.iov.iov_base.add(len) };
         self.iov.iov_len -= len;
     }
@@ -198,9 +202,9 @@ impl<'a> DescriptorChainConsumer<'a> {
         for (i, slice) in bufs.iter_mut().enumerate() {
             if bufs_len + slice.len() >= count {
                 last_slice_index = Some(i);
-                // cut this last slice short so it's not larger than len
+                // cut this last slice short so it's not larger than requested count
                 last_slice_len = slice.len();
-                slice.set_len(count - bufs_len);
+                unsafe { slice.set_len(count - bufs_len) };
                 break;
             }
 
@@ -217,7 +221,7 @@ impl<'a> DescriptorChainConsumer<'a> {
         let bytes_consumed = f(&bufs[..last_slice_index + 1])?;
 
         // restore last slice
-        bufs[last_slice_index].set_len(last_slice_len);
+        unsafe { bufs[last_slice_index].set_len(last_slice_len) };
 
         // advance buffers
         self.advance_buffers(bytes_consumed);

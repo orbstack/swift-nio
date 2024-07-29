@@ -248,7 +248,7 @@ impl Epoll {
                 ptr::null(),
                 0,
                 kevs.as_mut_ptr() as *mut libc::kevent,
-                max_events as i32,
+                std::cmp::min(max_events as i32, kevs.len() as i32),
                 std::ptr::null(),
             )
         };

@@ -67,10 +67,10 @@ pub(crate) fn get_win_size() -> (u16, u16) {
         xpixel: u16,
         ypixel: u16,
     }
-    let ws: WS = WS::default();
+    let mut ws: WS = WS::default();
 
     unsafe {
-        libc::ioctl(0, TIOCGWINSZ, &ws);
+        libc::ioctl(0, TIOCGWINSZ, &mut ws);
     }
 
     (ws.cols, ws.rows)

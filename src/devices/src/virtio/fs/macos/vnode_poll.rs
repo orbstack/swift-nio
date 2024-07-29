@@ -1,5 +1,5 @@
 use std::{
-    mem::{size_of, MaybeUninit},
+    mem::size_of,
     os::fd::{AsRawFd, FromRawFd, OwnedFd},
     sync::Arc,
     time::Duration,
@@ -142,10 +142,9 @@ impl VnodePoller {
     }
 
     pub fn main_loop(&self) -> anyhow::Result<()> {
-        loop {
-            let events_buf = MaybeUninit::<[kevent64_s; 512]>::uninit();
-            let mut events_buf = unsafe { events_buf.assume_init() };
+        let mut events_buf = vec![default_kevent(); 512];
 
+        loop {
             // long-running wait with no timeout, for initial set of events in a new batch
             match self.kq.kevent(&[], &mut events_buf, 0) {
                 Err(Errno::EINTR) => continue,

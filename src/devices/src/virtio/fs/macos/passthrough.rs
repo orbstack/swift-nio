@@ -11,7 +11,8 @@ use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
 use std::io;
-use std::mem::{self, ManuallyDrop};
+use std::marker::PhantomData;
+use std::mem::{self, ManuallyDrop, MaybeUninit};
 use std::num::NonZeroU64;
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
@@ -19,7 +20,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::os::unix::net::UnixDatagram;
 use std::path::Path;
-use std::ptr::slice_from_raw_parts;
+use std::ptr::{slice_from_raw_parts, NonNull};
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -48,7 +49,7 @@ use nix::unistd::{mkfifo, AccessFlags};
 use smol_str::SmolStr;
 use utils::hypercalls::{HVC_DEVICE_VIRTIOFS_ROOT, HVC_DEVICE_VIRTIOFS_ROSETTA};
 use utils::qos::{set_thread_qos, QosClass};
-use utils::{Mutex, MutexGuard};
+use utils::Mutex;
 
 use super::super::bindings;
 use super::super::filesystem::{
@@ -80,6 +81,10 @@ const IOCTL_ROSETTA_AOT_CONFIG: u32 = _ioc(IOC_READ, 0x61, 0x23, 0x80);
 const IOCTL_ROSETTA_TSO_FALLBACK: u32 = _ioc(IOC_NONE, 0x61, 0x24, 0);
 
 const STAT_XATTR_KEY: &[u8] = b"user.orbstack.override_stat\0";
+
+// set a 1M limit on xattr size to prevent DoS via vec allocation
+// on macOS it's basically unlimited since getxattr has an offset arg for resource forks, but not on Linux
+const MAX_XATTR_SIZE: usize = 1024 * 1024;
 
 // pnpm and uv prefer clone, then fall back to hardlinks
 // hard links are very slow on APFS (~170us to link+unlink) vs. clone (~65us)
@@ -146,17 +151,29 @@ impl StatExt for bindings::stat64 {
     }
 }
 
-struct DirStream {
-    _stream: *mut libc::DIR,
+struct DirState {
+    stream: Option<NonNull<libc::DIR>>,
     offset: i64,
     entries: Option<Vec<AttrlistEntry>>,
 }
 
 // libc::DIR is Send but not Sync
-unsafe impl Send for DirStream {}
+unsafe impl Send for DirState {}
+
+// make sure libc::DIR can't be used unless DirState is locked
+struct DirStreamGuard<'a> {
+    dir: *mut libc::DIR,
+    state: PhantomData<&'a mut DirState>,
+}
+
+impl<'a> DirStreamGuard<'a> {
+    fn as_ptr(&self) -> *mut libc::DIR {
+        self.dir
+    }
+}
 
 pub(crate) struct HandleData {
-    dirstream: Mutex<DirStream>,
+    dir: Mutex<DirState>,
     file: ManuallyDrop<File>,
     node_flags: NodeFlags,
 }
@@ -172,8 +189,8 @@ impl HandleData {
         let hd = HandleData {
             node_flags,
             file: ManuallyDrop::new(file),
-            dirstream: Mutex::new(DirStream {
-                _stream: std::ptr::null_mut(),
+            dir: Mutex::new(DirState {
+                stream: None,
                 offset: 0,
                 entries: None,
             }),
@@ -193,23 +210,23 @@ impl HandleData {
         get_path_by_fd(self.file.as_fd())
     }
 
-    fn readdir_stream(&self) -> io::Result<(MutexGuard<DirStream>, *mut libc::DIR)> {
-        let mut ds = self.dirstream.lock().unwrap();
-        let dir_stream = self.readdir_stream_locked(&mut ds)?;
-        Ok((ds, dir_stream))
-    }
-
-    fn readdir_stream_locked(&self, ds: &mut DirStream) -> io::Result<*mut libc::DIR> {
+    fn readdir_stream(&self, ds: &mut DirState) -> io::Result<DirStreamGuard> {
         // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries, or only uses getattrlistbulk
-        if ds._stream.is_null() {
-            let dir = unsafe { libc::fdopendir(self.file.as_raw_fd()) };
-            if dir.is_null() {
-                return Err(io::Error::last_os_error());
-            }
-            ds._stream = dir;
-            Ok(dir)
+        if let Some(s) = ds.stream {
+            Ok(DirStreamGuard {
+                dir: s.as_ptr(),
+                state: PhantomData,
+            })
         } else {
-            Ok(ds._stream)
+            let dir = unsafe { libc::fdopendir(self.file.as_raw_fd()) };
+            ds.stream = match NonNull::new(dir) {
+                Some(s) => Some(s),
+                None => return Err(io::Error::last_os_error()),
+            };
+            Ok(DirStreamGuard {
+                dir,
+                state: PhantomData,
+            })
         }
     }
 
@@ -232,12 +249,12 @@ impl AsFd for HandleData {
 
 impl Drop for HandleData {
     fn drop(&mut self) {
-        let ds = self.dirstream.lock().unwrap();
-        if !ds._stream.is_null() {
+        let ds = self.dir.lock().unwrap();
+        if let Some(stream) = ds.stream {
             // this is a dir, and it had a stream open
             // closedir *closes* the fd passed to fdopendir (which is the fd that File holds)
             // so this invalidates the OwnedFd ownership
-            unsafe { libc::closedir(ds._stream) };
+            unsafe { libc::closedir(stream.as_ptr()) };
         } else {
             // this is a file, or a dir with no stream open
             // manually drop File to close OwnedFd
@@ -329,7 +346,8 @@ fn lstat(c_path: &CStr, host: bool) -> io::Result<bindings::stat64> {
 pub fn get_path_by_fd<T: AsRawFd>(fd: T) -> io::Result<String> {
     // allocate it on stack
     debug!("get_path_by_fd: fd={}", fd.as_raw_fd());
-    let mut path_buf = [0u8; MAXPATHLEN as usize];
+    let path_buf = MaybeUninit::<[u8; MAXPATHLEN as usize]>::uninit();
+    let mut path_buf = unsafe { path_buf.assume_init() };
     // safe: F_GETPATH is limited to MAXPATHLEN
     let ret = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETPATH, &mut path_buf) };
     if ret == -1 {
@@ -355,11 +373,7 @@ fn listxattr(c_path: &CStr) -> nix::Result<Vec<u8>> {
                 0,
             )
         };
-        if ret == -1 {
-            return Err(nix::Error::last());
-        }
-
-        Ok(ret as usize)
+        Errno::result(ret).map(|size| size as usize)
     }
 
     let mut buf = vec![0u8; 512];
@@ -984,16 +998,17 @@ impl PassthroughFs {
         let (DevIno(dev, _), _, _) = self.get_nodeid(ctx, nodeid)?;
 
         // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries
-        let (mut ds, dir_stream) = data.readdir_stream()?;
+        let mut ds = data.dir.lock().unwrap();
+        let stream = data.readdir_stream(&mut ds)?;
 
         if (offset as i64) != ds.offset {
-            unsafe { libc::seekdir(dir_stream, offset as i64) };
+            unsafe { libc::seekdir(stream.as_ptr(), offset as i64) };
         }
 
         loop {
-            ds.offset = unsafe { libc::telldir(dir_stream) };
+            ds.offset = unsafe { libc::telldir(stream.as_ptr()) };
 
-            let dentry = unsafe { libc::readdir(dir_stream) };
+            let dentry = unsafe { libc::readdir(stream.as_ptr()) };
             if dentry.is_null() {
                 break;
             }
@@ -1028,7 +1043,7 @@ impl PassthroughFs {
             match res {
                 Ok(size) => {
                     if size == 0 {
-                        unsafe { libc::seekdir(dir_stream, ds.offset) };
+                        unsafe { libc::seekdir(stream.as_ptr(), ds.offset) };
                         break;
                     }
                 }
@@ -1779,7 +1794,7 @@ impl FileSystem for PassthroughFs {
             offset = 2;
         }
 
-        let mut ds = data.dirstream.lock().unwrap();
+        let mut ds = data.dir.lock().unwrap();
         // rewind and re-read dir if necessary (other offsets are vec-based)
         let ds_offset = offset - 2;
         if ds_offset == 0 && ds.offset != 0 {
@@ -1805,7 +1820,7 @@ impl FileSystem for PassthroughFs {
 
             let entries = if use_legacy {
                 attrlist::list_dir_legacy(
-                    data.readdir_stream_locked(&mut ds)?,
+                    data.readdir_stream(&mut ds)?.as_ptr(),
                     capacity as usize,
                     |name| {
                         let (_, _, st) = self.begin_lookup(&ctx, nodeid, name)?;
@@ -2461,6 +2476,10 @@ impl FileSystem for PassthroughFs {
                 return Err(Errno::EACCES.into());
             }
 
+            if size > MAX_XATTR_SIZE as u32 {
+                return Err(Errno::E2BIG.into());
+            }
+
             let mut buf = vec![0; size as usize];
 
             let c_path = self.nodeid_to_path(&ctx, nodeid)?;
@@ -2472,7 +2491,7 @@ impl FileSystem for PassthroughFs {
                         c_path.as_ptr(),
                         name.as_ptr(),
                         std::ptr::null_mut(),
-                        size as libc::size_t,
+                        0,
                         0,
                         0,
                     )

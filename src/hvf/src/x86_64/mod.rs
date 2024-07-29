@@ -217,17 +217,17 @@ impl HvfVm {
         Ok(Self {})
     }
 
-    pub fn map_memory(
+    pub unsafe fn map_memory(
         &self,
-        host_start_addr: u64,
-        guest_start_addr: u64,
-        size: u64,
+        host_start_addr: *mut u8,
+        guest_start_addr: GuestAddress,
+        size: usize,
     ) -> Result<(), Error> {
         let ret = unsafe {
             hv_vm_map(
-                host_start_addr as *mut core::ffi::c_void,
-                guest_start_addr,
-                size as usize,
+                host_start_addr as *mut std::ffi::c_void,
+                guest_start_addr.raw_value(),
+                size,
                 (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC).into(),
             )
         };
@@ -238,8 +238,8 @@ impl HvfVm {
         }
     }
 
-    pub fn unmap_memory(&self, guest_start_addr: u64, size: u64) -> Result<(), Error> {
-        let ret = unsafe { hv_vm_unmap(guest_start_addr, size as usize) };
+    pub fn unmap_memory(&self, guest_start_addr: GuestAddress, size: usize) -> Result<(), Error> {
+        let ret = unsafe { hv_vm_unmap(guest_start_addr.raw_value(), size) };
         if ret != HV_SUCCESS {
             Err(Error::MemoryUnmap)
         } else {
@@ -247,8 +247,9 @@ impl HvfVm {
         }
     }
 
-    pub fn force_exits(&self, vcpu_ids: &mut Vec<hv_vcpuid_t>) -> Result<(), Error> {
-        let ret = unsafe { hv_vcpu_interrupt(vcpu_ids.as_mut_ptr(), vcpu_ids.len() as u32) };
+    pub fn force_exits(&self, vcpu_ids: &[hv_vcpu_t]) -> Result<(), Error> {
+        // HVF won't mutate this
+        let ret = unsafe { hv_vcpu_interrupt(vcpu_ids.as_ptr() as *mut _, vcpu_ids.len() as u32) };
         if ret != HV_SUCCESS {
             Err(Error::VcpuRequestExit)
         } else {
@@ -607,7 +608,7 @@ impl HvfVcpu {
     }
 
     #[allow(non_upper_case_globals)]
-    pub fn read_reg(&self, reg: u32) -> Result<u64, Error> {
+    pub fn read_reg(&self, reg: hv_x86_reg_t) -> Result<u64, Error> {
         // CR0/CR3 have special handling in HVF, which messes up our state
         match reg {
             hv_x86_reg_t_HV_X86_CR0 => return self.read_vmcs(VMCS_GUEST_CR0),
@@ -626,7 +627,7 @@ impl HvfVcpu {
     }
 
     #[allow(non_upper_case_globals)]
-    pub fn write_reg(&self, reg: u32, val: u64) -> Result<(), Error> {
+    pub fn write_reg(&self, reg: hv_x86_reg_t, val: u64) -> Result<(), Error> {
         // CR0/CR3 have special handling in HVF, which messes up our states
         match reg {
             hv_x86_reg_t_HV_X86_CR0 => {

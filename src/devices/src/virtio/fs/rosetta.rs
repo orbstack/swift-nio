@@ -10,7 +10,7 @@ static ROSETTA_INIT_DONE_COND: Lazy<Arc<(Mutex<bool>, Condvar)>> = Lazy::new(|| 
 });
 
 pub fn set_rosetta_data(data: &[u8]) {
-    ROSETTA_DATA.write().unwrap().extend_from_slice(data);
+    *ROSETTA_DATA.write().unwrap() = data.to_vec();
 
     let (lock, cvar) = &**ROSETTA_INIT_DONE_COND;
     let mut flag = lock.lock().unwrap();

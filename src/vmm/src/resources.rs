@@ -201,17 +201,6 @@ impl VmResources {
     }
 
     pub fn set_kernel_bundle(&mut self, kernel_bundle: KernelBundle) -> Result<KernelBundleError> {
-        // Safe because this call just returns the page size and doesn't have any side effects.
-        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-
-        if (kernel_bundle.guest_addr as usize) & (page_size - 1) != 0 {
-            return Err(KernelBundleError::InvalidGuestAddress);
-        }
-
-        if kernel_bundle.data.len() & (page_size - 1) != 0 {
-            return Err(KernelBundleError::InvalidSize);
-        }
-
         self.kernel_bundle = Some(kernel_bundle);
         Ok(())
     }

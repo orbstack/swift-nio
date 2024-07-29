@@ -183,13 +183,11 @@ impl Vm {
                 region.start_addr().raw_value(),
                 region.len()
             );
-            self.hvf_vm
-                .map_memory(
-                    host_addr as u64,
-                    region.start_addr().raw_value(),
-                    region.len(),
-                )
-                .map_err(Error::SetUserMemoryRegion)?;
+            unsafe {
+                self.hvf_vm
+                    .map_memory(host_addr, region.start_addr(), region.len() as usize)
+                    .map_err(Error::SetUserMemoryRegion)?;
+            }
         }
 
         Ok(())
@@ -220,14 +218,14 @@ impl Vm {
         self.irqchip_handle.as_ref().unwrap()
     }
 
-    pub fn add_mapping(
+    pub unsafe fn add_mapping(
         &self,
         reply_sender: Sender<bool>,
-        host_addr: u64,
-        guest_addr: u64,
-        len: u64,
+        host_addr: *mut u8,
+        guest_addr: GuestAddress,
+        len: usize,
     ) {
-        debug!("add_mapping: host_addr={host_addr:x}, guest_addr={guest_addr:x}, len={len}");
+        debug!("add_mapping: host_addr={host_addr:?}, guest_addr={guest_addr:?}, len={len}");
         if let Err(e) = self.hvf_vm.unmap_memory(guest_addr, len) {
             error!("Error removing memory map: {:?}", e);
         }
@@ -240,8 +238,8 @@ impl Vm {
         }
     }
 
-    pub fn remove_mapping(&self, reply_sender: Sender<bool>, guest_addr: u64, len: u64) {
-        debug!("remove_mapping: guest_addr={guest_addr:x}, len={len}");
+    pub fn remove_mapping(&self, reply_sender: Sender<bool>, guest_addr: GuestAddress, len: usize) {
+        debug!("remove_mapping: guest_addr={guest_addr:?}, len={len}");
         if let Err(e) = self.hvf_vm.unmap_memory(guest_addr, len) {
             error!("Error removing memory map: {:?}", e);
             reply_sender.send(false).unwrap();

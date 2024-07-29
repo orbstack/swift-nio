@@ -46,6 +46,13 @@ pub struct AttrlistEntry {
     pub st: Option<libc::stat>,
 }
 
+unsafe fn read_and_advance<T: Copy>(p: &mut *const u8) -> T {
+    let val = unsafe { (*p as *const T).read_unaligned() };
+    // min alignment = 4 bytes (according to man page)
+    *p = unsafe { p.add(std::cmp::max(size_of::<T>(), 4)) };
+    val
+}
+
 pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec<AttrlistEntry>> {
     // safe: we only use the part of buf that was read
     // 16384 = avg 128 bytes * 128 entries
@@ -105,13 +112,12 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
 
         let mut p = buf.as_ptr();
         for i in 0..n {
-            let entry_len = unsafe { (p as *const u32).read_unaligned() };
-            trace!(n, i, entry_len, rem = buf.len(), "advance entry");
+            let mut entry_p = p;
             // entry_len includes u32 size
-            let mut entry_p = unsafe { p.add(size_of::<u32>()) };
+            let entry_len: u32 = unsafe { read_and_advance(&mut entry_p) };
+            trace!(n, i, entry_len, rem = buf.len(), "advance entry");
 
-            let returned = unsafe { *(entry_p as *const libc::attribute_set_t) };
-            entry_p = unsafe { entry_p.add(size_of::<libc::attribute_set_t>()) };
+            let returned: libc::attribute_set_t = unsafe { read_and_advance(&mut entry_p) };
 
             let mut entry = AttrlistEntry {
                 name: String::new(),
@@ -123,13 +129,13 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
 
             let mut error: Option<Errno> = None;
             if returned.commonattr & ATTR_CMN_ERROR != 0 {
-                let errno = unsafe { *(entry_p as *const u32) };
-                error = Some(nix::errno::from_i32(errno as i32));
-                entry_p = unsafe { entry_p.add(size_of::<u32>()) };
+                let errno = unsafe { read_and_advance::<i32>(&mut entry_p) };
+                error = Some(nix::errno::from_i32(errno));
             }
 
             if returned.commonattr & ATTR_CMN_NAME != 0 {
-                let name_ref = unsafe { *(entry_p as *const libc::attrreference_t) };
+                let name_ref =
+                    unsafe { (entry_p as *const libc::attrreference_t).read_unaligned() };
                 let name_ptr = unsafe { entry_p.add(name_ref.attr_dataoffset as usize) };
                 let name_len = name_ref.attr_length as usize - 1;
                 // we trust kernel to return valid utf-8 names
@@ -141,12 +147,11 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
             }
 
             if returned.commonattr & ATTR_CMN_DEVID != 0 {
-                st.st_dev = unsafe { (entry_p as *const libc::dev_t).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<libc::dev_t>()) };
+                st.st_dev = unsafe { read_and_advance::<libc::dev_t>(&mut entry_p) };
             }
 
             if returned.commonattr & ATTR_CMN_OBJTYPE != 0 {
-                let typ = unsafe { (entry_p as *const u32).read_unaligned() };
+                let typ = unsafe { read_and_advance::<u32>(&mut entry_p) };
                 st.st_mode = match typ {
                     vtype::VREG => libc::S_IFREG,
                     vtype::VDIR => libc::S_IFDIR,
@@ -162,139 +167,113 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
                         0
                     }
                 };
-                entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
             if returned.commonattr & ATTR_CMN_CRTIME != 0 {
-                let time = unsafe { (entry_p as *const libc::timespec).read_unaligned() };
+                let time = unsafe { read_and_advance::<libc::timespec>(&mut entry_p) };
                 st.st_birthtime = time.tv_sec;
                 st.st_birthtime_nsec = time.tv_nsec;
-                entry_p = unsafe { entry_p.add(size_of::<libc::timespec>()) };
             }
 
             if returned.commonattr & ATTR_CMN_MODTIME != 0 {
-                let time = unsafe { (entry_p as *const libc::timespec).read_unaligned() };
+                let time = unsafe { read_and_advance::<libc::timespec>(&mut entry_p) };
                 st.st_mtime = time.tv_sec;
                 st.st_mtime_nsec = time.tv_nsec;
-                entry_p = unsafe { entry_p.add(size_of::<libc::timespec>()) };
             }
 
             if returned.commonattr & ATTR_CMN_CHGTIME != 0 {
-                let time = unsafe { (entry_p as *const libc::timespec).read_unaligned() };
+                let time = unsafe { read_and_advance::<libc::timespec>(&mut entry_p) };
                 st.st_ctime = time.tv_sec;
                 st.st_ctime_nsec = time.tv_nsec;
-                entry_p = unsafe { entry_p.add(size_of::<libc::timespec>()) };
             } else {
                 // TODO substitute with mtime for unsupported FS?
             }
 
             if returned.commonattr & ATTR_CMN_ACCTIME != 0 {
-                let time = unsafe { (entry_p as *const libc::timespec).read_unaligned() };
+                let time = unsafe { read_and_advance::<libc::timespec>(&mut entry_p) };
                 st.st_atime = time.tv_sec;
                 st.st_atime_nsec = time.tv_nsec;
-                entry_p = unsafe { entry_p.add(size_of::<libc::timespec>()) };
             }
 
             if returned.commonattr & ATTR_CMN_OWNERID != 0 {
-                st.st_uid = unsafe { (entry_p as *const libc::uid_t).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<libc::uid_t>()) };
+                st.st_uid = unsafe { read_and_advance::<libc::uid_t>(&mut entry_p) };
             }
 
             if returned.commonattr & ATTR_CMN_GRPID != 0 {
-                st.st_gid = unsafe { (entry_p as *const libc::gid_t).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<libc::gid_t>()) };
+                st.st_gid = unsafe { read_and_advance::<libc::gid_t>(&mut entry_p) };
             }
 
             if returned.commonattr & ATTR_CMN_ACCESSMASK != 0 {
-                st.st_mode |= unsafe { (entry_p as *const u16).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<u32>()) };
+                st.st_mode |= unsafe { read_and_advance::<u16>(&mut entry_p) };
             }
 
             if returned.commonattr & ATTR_CMN_FLAGS != 0 {
-                st.st_flags = unsafe { (entry_p as *const u32).read_unaligned() };
+                st.st_flags = unsafe { read_and_advance::<u32>(&mut entry_p) };
                 // firmlinks are bind mounts, but with no mountpoint
                 // they require the same special treatment as mountpoints:
                 // readdir inode != inode on stat (but device is the same, because it's on the same FS)
                 if st.st_flags & SF_FIRMLINK != 0 {
                     entry.is_mountpoint = true;
                 }
-                entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
             // getattrlist doesn't support st_gen
             // ATTR_CMN_GEN_COUNT = number of times file has been *modified*
 
             if returned.commonattr & ATTR_CMN_FILEID != 0 {
-                let ino = unsafe { (entry_p as *const u64).read_unaligned() };
-                st.st_ino = ino;
-                entry_p = unsafe { entry_p.add(size_of::<u64>()) };
+                st.st_ino = unsafe { read_and_advance::<u64>(&mut entry_p) };
             }
 
             if returned.dirattr & ATTR_DIR_ENTRYCOUNT != 0 {
                 // add 2 for "." and "..", like st_nlink on most filesystems
-                st.st_nlink = 2 + unsafe { (entry_p as *const u16).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<u32>()) };
+                st.st_nlink = 2 + unsafe { read_and_advance::<u16>(&mut entry_p) };
             }
 
             if returned.dirattr & ATTR_DIR_MOUNTSTATUS != 0 {
-                let flags = unsafe { (entry_p as *const u32).read_unaligned() };
+                let flags = unsafe { read_and_advance::<u32>(&mut entry_p) };
                 if flags & DIR_MNTSTATUS_MNTPOINT != 0 {
                     entry.is_mountpoint = true;
                 }
-                entry_p = unsafe { entry_p.add(size_of::<u32>()) };
             }
 
             if returned.dirattr & ATTR_DIR_ALLOCSIZE != 0 {
                 // always 512-blocks, regardless of st_blksize
-                st.st_blocks = unsafe { (entry_p as *const i64).read_unaligned() } / 512;
-                entry_p = unsafe { entry_p.add(size_of::<u64>()) };
+                st.st_blocks = unsafe { read_and_advance::<i64>(&mut entry_p) } / 512;
             }
 
             if returned.dirattr & ATTR_DIR_IOBLOCKSIZE != 0 {
-                st.st_blksize = unsafe { (entry_p as *const i32).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<u32>()) };
+                st.st_blksize = unsafe { read_and_advance::<i32>(&mut entry_p) };
             }
 
             if returned.dirattr & ATTR_DIR_DATALENGTH != 0 {
-                st.st_size = unsafe { (entry_p as *const i64).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<u64>()) };
+                st.st_size = unsafe { read_and_advance::<i64>(&mut entry_p) };
             }
 
             if returned.fileattr & ATTR_FILE_LINKCOUNT != 0 {
-                st.st_nlink = unsafe { (entry_p as *const u16).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<u32>()) };
+                st.st_nlink = unsafe { read_and_advance::<u16>(&mut entry_p) };
             }
 
             if returned.fileattr & ATTR_FILE_IOBLOCKSIZE != 0 {
-                st.st_blksize = unsafe { (entry_p as *const i32).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<u32>()) };
+                st.st_blksize = unsafe { read_and_advance::<i32>(&mut entry_p) };
             }
 
             if returned.fileattr & ATTR_FILE_DEVTYPE != 0 {
-                st.st_rdev = unsafe { (entry_p as *const libc::dev_t).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<libc::dev_t>()) };
+                st.st_rdev = unsafe { read_and_advance::<libc::dev_t>(&mut entry_p) };
             }
 
             if returned.fileattr & ATTR_FILE_DATALENGTH != 0 {
-                st.st_size = unsafe { (entry_p as *const libc::off_t).read_unaligned() };
-                entry_p = unsafe { entry_p.add(size_of::<libc::off_t>()) };
+                st.st_size = unsafe { read_and_advance::<libc::off_t>(&mut entry_p) };
             }
 
             if returned.fileattr & ATTR_FILE_DATAALLOCSIZE != 0 {
                 // always 512-blocks, regardless of st_blksize
-                st.st_blocks = unsafe { (entry_p as *const libc::off_t).read_unaligned() } / 512;
-                entry_p = unsafe { entry_p.add(size_of::<libc::off_t>()) };
+                st.st_blocks = unsafe { read_and_advance::<libc::off_t>(&mut entry_p) } / 512;
             }
 
             if returned.forkattr & ATTR_CMNEXT_EXT_FLAGS != 0 {
-                let flags = unsafe { (entry_p as *const u64).read_unaligned() };
+                let flags = unsafe { read_and_advance::<u64>(&mut entry_p) };
                 if flags & EF_NO_XATTRS == 0 {
                     // TODO need to read xattrs for this entry
-                }
-
-                #[allow(unused_assignments)]
-                {
-                    entry_p = unsafe { entry_p.add(size_of::<u64>()) };
                 }
             }
 

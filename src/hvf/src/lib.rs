@@ -16,6 +16,7 @@ use mach2::{
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
 use nix::errno::Errno;
+use tracing::error;
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 use vmm_ids::{ArcVcpuSignal, VcpuSignalMask};
 #[cfg(target_arch = "x86_64")]
@@ -25,6 +26,9 @@ pub use x86_64::*;
 mod aarch64;
 #[cfg(target_arch = "aarch64")]
 pub use aarch64::*;
+
+const MEMORY_REMAP_INTERVAL: Duration = Duration::from_secs(30);
+const MEMORY_REGION_TAG: u8 = 250; // application specific tag space
 
 const VM_FLAGS_4GB_CHUNK: i32 = 4;
 
@@ -51,68 +55,53 @@ fn page_size() -> usize {
 }
 
 unsafe fn remap_region(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
-    // TODO: only remap if we've racked up enoguh double accounting. this accounts for most of the cost of unparking. we also need that to do periodic remap if no balloon action happens
-    let _span = tracing::info_span!("remap_user").entered();
-
     // clear double accounting
     let mut target_address = host_addr as mach_vm_address_t;
     let mut cur_prot = VM_PROT_READ | VM_PROT_WRITE;
     let mut max_prot = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
-    let ret = unsafe {
-        mach_vm_remap(
-            mach_task_self(),
-            &mut target_address,
-            size as mach_vm_size_t,
-            0,
-            VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
-            mach_task_self(),
-            host_addr as mach_vm_address_t,
-            0,
-            &mut cur_prot,
-            &mut max_prot,
-            VM_INHERIT_NONE,
-        )
-    };
+    let ret = mach_vm_remap(
+        mach_task_self(),
+        &mut target_address,
+        size as mach_vm_size_t,
+        0,
+        VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
+        mach_task_self(),
+        host_addr as mach_vm_address_t,
+        0,
+        &mut cur_prot,
+        &mut max_prot,
+        VM_INHERIT_NONE,
+    );
     if ret != KERN_SUCCESS {
-        panic!("failed to remap host memory: error {}", ret);
+        return Err(anyhow!("error {}", ret));
     }
 
     Ok(())
 }
 
-unsafe fn new_chunks_at(host_addr: *mut c_void, total_size: usize) -> anyhow::Result<()> {
-    let mut off: mach_vm_size_t = 0;
-    while off < total_size as mach_vm_size_t {
-        let entry_size = std::cmp::min(
-            MACH_CHUNK_SIZE as mach_vm_size_t,
-            total_size as mach_vm_size_t - off,
+unsafe fn new_chunks_at(host_base_addr: *mut c_void, total_size: usize) -> anyhow::Result<()> {
+    let host_end_addr = host_base_addr as usize + total_size;
+    for addr in (host_base_addr as usize..host_end_addr).step_by(MACH_CHUNK_SIZE) {
+        let mut entry_addr = addr as mach_vm_address_t;
+        let entry_size = std::cmp::min(MACH_CHUNK_SIZE, host_end_addr - addr) as mach_vm_size_t;
+
+        let ret = mach_vm_map(
+            mach_task_self(),
+            &mut entry_addr,
+            entry_size,
+            0,
+            VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_MAKE_TAG(MEMORY_REGION_TAG) as i32,
+            0,
+            0,
+            0,
+            VM_PROT_READ | VM_PROT_WRITE,
+            VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
+            // safe: we won't fork while mapping, and child won't be in the middle of this mapping code
+            VM_INHERIT_NONE,
         );
-        let mut entry_addr = host_addr as mach_vm_address_t + off;
-
-        let ret = unsafe {
-            mach_vm_map(
-                mach_task_self(),
-                &mut entry_addr,
-                entry_size,
-                0,
-                VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_MAKE_TAG(250) as i32,
-                0,
-                0,
-                0,
-                VM_PROT_READ | VM_PROT_WRITE,
-                VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
-                // safe: we won't fork while mapping, and child won't be in the middle of this mapping code
-                VM_INHERIT_NONE,
-            )
-        };
         if ret != KERN_SUCCESS {
-            return Err(anyhow::anyhow!(
-                "failed to allocate host memory: mach_vm_map: error {}",
-                ret
-            ));
+            return Err(anyhow::anyhow!("allocate host memory: error {}", ret));
         }
-
-        off += entry_size;
     }
 
     Ok(())
@@ -127,8 +116,8 @@ pub unsafe fn free_range(
     // start and end must be page-aligned
     if host_addr as usize % page_size() != 0 {
         return Err(anyhow!(
-            "guest address must be page-aligned: {:x}",
-            guest_addr.raw_value()
+            "address must be page-aligned: {:x}",
+            host_addr as usize
         ));
     }
     if size % page_size() != 0 {
@@ -137,7 +126,7 @@ pub unsafe fn free_range(
 
     // madvise on host address
     let ret = madvise(host_addr, size, libc::MADV_FREE_REUSABLE);
-    Errno::result(ret).map_err(|e| anyhow!("failed to madvise: {}", e))?;
+    Errno::result(ret).map_err(|e| anyhow!("free: {}", e))?;
 
     // clear this range from hv pmap ledger:
     // there's no other way to clear from hv pmap, and we *will* incur this cost at some point
@@ -152,17 +141,13 @@ pub unsafe fn free_range(
     Ok(())
 }
 
-pub unsafe fn reuse_range(
-    guest_addr: GuestAddress,
-    host_addr: *mut c_void,
-    size: usize,
-) -> anyhow::Result<()> {
+pub unsafe fn reuse_range(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
     // let _span = tracing::info_span!("free_range", size = size).entered();
     // start and end must be page-aligned
     if host_addr as usize % page_size() != 0 {
         return Err(anyhow!(
-            "guest address must be page-aligned: {:x}",
-            guest_addr.raw_value()
+            "address must be page-aligned: {:x}",
+            host_addr as usize
         ));
     }
     if size % page_size() != 0 {
@@ -171,7 +156,7 @@ pub unsafe fn reuse_range(
 
     // madvise on host address
     let ret = madvise(host_addr, size, libc::MADV_FREE_REUSE);
-    Errno::result(ret).map_err(|e| anyhow!("failed to madvise: {}", e))?;
+    Errno::result(ret).map_err(|e| anyhow!("reuse: {}", e))?;
 
     Ok(())
 }
@@ -187,7 +172,7 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
             size,
             0,
             // runtime perf doesn't matter: we'll never fault on these chunks, so use big chunks to speed up reservation
-            VM_FLAGS_ANYWHERE | VM_FLAGS_4GB_CHUNK | VM_MAKE_TAG(250) as i32,
+            VM_FLAGS_ANYWHERE | VM_FLAGS_4GB_CHUNK | VM_MAKE_TAG(MEMORY_REGION_TAG) as i32,
             0,
             0,
             0,
@@ -198,10 +183,7 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
         )
     };
     if ret != KERN_SUCCESS {
-        return Err(anyhow::anyhow!(
-            "failed to allocate host memory: error {}",
-            ret
-        ));
+        return Err(anyhow::anyhow!("reserve host memory: error {}", ret));
     }
 
     // on failure, deallocate all chunks
@@ -217,8 +199,11 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
 
     // spawn thread to periodically remap and fix double accounting
     std::thread::spawn(move || loop {
-        sleep(Duration::from_secs(30));
-        unsafe { remap_region(host_addr as *mut c_void, size as usize).unwrap() }
+        sleep(MEMORY_REMAP_INTERVAL);
+
+        if let Err(e) = unsafe { remap_region(host_addr as *mut c_void, size as usize) } {
+            error!("remap failed: {:?}", e);
+        }
     });
 
     Ok(host_addr as *mut c_void)
@@ -236,6 +221,7 @@ pub fn allocate_guest_memory(ranges: &[(GuestAddress, usize)]) -> anyhow::Result
     let regions = ranges
         .iter()
         .map(|(guest_base, size)| {
+            // these two checks guarantee that host addr is also page-aligned
             if guest_base.raw_value() % page_size() as u64 != 0 {
                 return Err(anyhow!(
                     "guest address must be page-aligned: {:x}",

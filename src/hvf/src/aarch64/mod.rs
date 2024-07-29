@@ -248,8 +248,8 @@ pub enum Error {
 
 /// Messages for requesting memory maps/unmaps.
 pub enum MemoryMapping {
-    AddMapping(Sender<bool>, u64, u64, u64),
-    RemoveMapping(Sender<bool>, u64, u64),
+    AddMapping(Sender<bool>, usize, GuestAddress, usize),
+    RemoveMapping(Sender<bool>, GuestAddress, usize),
 }
 
 pub enum InterruptType {
@@ -258,7 +258,7 @@ pub enum InterruptType {
 }
 
 pub fn vcpu_request_exit(hv_vcpu: HvVcpuRef) -> Result<(), Error> {
-    let mut vcpu: u64 = hv_vcpu.0;
+    let mut vcpu: hv_vcpu_t = hv_vcpu.0;
     let ret = unsafe { hv_vcpus_exit(&mut vcpu, 1) };
     HvfError::result(ret).map_err(Error::VcpuRequestExit)
 }
@@ -591,30 +591,31 @@ impl HvfVm {
         HvfError::result(ret).map_err(Error::GicAssertSpi)
     }
 
-    pub fn map_memory(
+    pub unsafe fn map_memory(
         &self,
-        host_start_addr: u64,
-        guest_start_addr: u64,
-        size: u64,
+        host_start_addr: *mut u8,
+        guest_start_addr: GuestAddress,
+        size: usize,
     ) -> Result<(), Error> {
         let ret = unsafe {
             hv_vm_map(
-                host_start_addr as *mut core::ffi::c_void,
-                guest_start_addr,
-                size as usize,
+                host_start_addr as *mut c_void,
+                guest_start_addr.raw_value(),
+                size,
                 (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC).into(),
             )
         };
         HvfError::result(ret).map_err(Error::MemoryMap)
     }
 
-    pub fn unmap_memory(&self, guest_start_addr: u64, size: u64) -> Result<(), Error> {
-        let ret = unsafe { hv_vm_unmap(guest_start_addr, size as usize) };
+    pub fn unmap_memory(&self, guest_start_addr: GuestAddress, size: usize) -> Result<(), Error> {
+        let ret = unsafe { hv_vm_unmap(guest_start_addr.raw_value(), size) };
         HvfError::result(ret).map_err(Error::MemoryUnmap)
     }
 
-    pub fn force_exits(&self, vcpu_ids: &mut Vec<hv_vcpu_t>) -> Result<(), Error> {
-        let ret = unsafe { hv_vcpus_exit(vcpu_ids.as_mut_ptr(), vcpu_ids.len() as u32) };
+    pub fn force_exits(&self, vcpu_ids: &[hv_vcpu_t]) -> Result<(), Error> {
+        // HVF won't mutate this
+        let ret = unsafe { hv_vcpus_exit(vcpu_ids.as_ptr() as *mut _, vcpu_ids.len() as u32) };
         HvfError::result(ret).map_err(Error::VcpuRequestExit)
     }
 
@@ -766,7 +767,11 @@ extern "C" {
 }
 
 // must be 8-byte aligned, so go in units of 8 bytes
-fn search_8b_linear(haystack_ptr: *mut u64, needle: u64, haystack_bytes: usize) -> Option<usize> {
+unsafe fn search_8b_linear(
+    haystack_ptr: *mut u64,
+    needle: u64,
+    haystack_bytes: usize,
+) -> Option<usize> {
     let mut i = 0;
     while i < (haystack_bytes / 8) {
         if unsafe { *haystack_ptr.add(i) } == needle {
@@ -849,14 +854,14 @@ impl HvfVcpu {
         self.hv_vcpu
     }
 
-    pub fn read_raw_reg(&self, reg: u32) -> Result<u64, Error> {
+    pub fn read_raw_reg(&self, reg: hv_reg_t) -> Result<u64, Error> {
         let mut val: u64 = 0;
         let ret = unsafe { hv_vcpu_get_reg(self.hv_vcpu.0, reg, &mut val) };
         HvfError::result(ret).map_err(Error::VcpuReadRegister)?;
         Ok(val)
     }
 
-    pub fn write_raw_reg(&mut self, reg: u32, val: u64) -> Result<(), Error> {
+    pub fn write_raw_reg(&mut self, reg: hv_reg_t, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_set_reg(self.hv_vcpu.0, reg, val) };
         HvfError::result(ret).map_err(Error::VcpuSetRegister)
     }
@@ -882,14 +887,14 @@ impl HvfVcpu {
         }
     }
 
-    fn read_sys_reg(&self, reg: u16) -> Result<u64, Error> {
+    fn read_sys_reg(&self, reg: hv_sys_reg_t) -> Result<u64, Error> {
         let mut val: u64 = 0;
         let ret = unsafe { hv_vcpu_get_sys_reg(self.hv_vcpu.0, reg, &mut val) };
         HvfError::result(ret).map_err(Error::VcpuReadSystemRegister)?;
         Ok(val)
     }
 
-    fn write_sys_reg(&mut self, reg: u16, val: u64) -> Result<(), Error> {
+    fn write_sys_reg(&mut self, reg: hv_sys_reg_t, val: u64) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_set_sys_reg(self.hv_vcpu.0, reg, val) };
         HvfError::result(ret).map_err(Error::VcpuSetSystemRegister)
     }
@@ -930,8 +935,10 @@ impl HvfVcpu {
             // set sctlr_el1 to sentinel value
             self.write_sys_reg(hv_sys_reg_t_HV_SYS_REG_SCTLR_EL1, SYS_REG_SENTINEL)?;
 
-            let sctlr_offset = search_8b_linear(vcpu_ptr as *mut u64, SYS_REG_SENTINEL, 4096)
-                .ok_or(Error::VcpuInitialRegisters(HvfError::Unknown))?;
+            let sctlr_offset = unsafe {
+                search_8b_linear(vcpu_ptr as *mut u64, SYS_REG_SENTINEL, 4096)
+                    .ok_or(Error::VcpuInitialRegisters(HvfError::Unknown))?
+            };
             // actlr_el1 (0xc081) has always been before sctlr_el1 (0xc080)
             // TODO: impossible to do this better? (setting all sysregs and finding holes doesn't work -- there are too many holes)
             actlr_el1_offset = sctlr_offset as isize * 8 - 8;
@@ -987,6 +994,7 @@ impl HvfVcpu {
             }
         }
 
+        // this FFI call acts as a barrier for pvgic read/write
         let ret = unsafe { hv_vcpu_run(self.hv_vcpu.0) };
         HvfError::result(ret).map_err(Error::VcpuRun)?;
 

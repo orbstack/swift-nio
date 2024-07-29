@@ -41,7 +41,10 @@ impl MappedFile {
     pub fn read_to_iovec(&self, off: usize, iov: &Iovec) -> io::Result<usize> {
         // bounds check
         let len = iov.len();
-        if off.saturating_add(len) > self.size {
+        let end_off = off
+            .checked_add(len)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "read out of bounds"))?;
+        if end_off > self.size {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "read out of bounds",
@@ -51,6 +54,17 @@ impl MappedFile {
         let src = unsafe { self.addr.add(off) };
         unsafe { std::ptr::copy_nonoverlapping(src, iov.addr_mut(), len) }
         Ok(len)
+    }
+
+    pub fn get_host_addr(&self, off: usize, len: usize) -> anyhow::Result<*const u8> {
+        let end_off = off
+            .checked_add(len)
+            .ok_or_else(|| anyhow::anyhow!("addr out of bounds"))?;
+        if end_off > self.size {
+            return Err(anyhow::anyhow!("addr out of bounds"));
+        }
+
+        Ok(unsafe { self.addr.add(off) })
     }
 }
 
