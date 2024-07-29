@@ -1,4 +1,5 @@
 *.png
 /membench
 /memhog
+/devmem
 __pycache__/
