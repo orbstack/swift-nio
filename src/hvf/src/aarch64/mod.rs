@@ -1520,6 +1520,10 @@ impl HvfVcpu {
 
             // mem[FP] = link to last FP
             fp = self.guest_mem.read_obj(self.translate_gva(fp)?)?;
+            if fp == 0 {
+                // reached end of stack
+                break;
+            }
         }
 
         // load compact System.map from file system
@@ -1529,16 +1533,28 @@ impl HvfVcpu {
         // find KASLR offset from exception table:
         // VBAR_EL1 = &vectors
         let vbar_el1 = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_VBAR_EL1)?;
-        // find "vectors"
-        let vectors_addr = csmap
-            .symbol_to_vaddr("vectors")
-            .ok_or_else(|| anyhow!("symbol 'vectors' not found in System.map"))?;
         // calculate KASLR offset
-        let kaslr_offset = vbar_el1 - vectors_addr;
+        let kaslr_offset = if vbar_el1 == 0 {
+            // early boot; vbar_el1 hasn't been set yet, and neither has KASLR
+            // this should instead be the offset from PA to image VA
+            let text_addr = csmap
+                .symbol_to_vaddr("_text")
+                .ok_or_else(|| anyhow!("symbol '_text' not found in System.map"))?;
 
-        for (i, vaddr) in stack.iter().enumerate() {
+            (text_addr - DRAM_MEM_START) as i64
+        } else {
+            // find "vectors"
+            let vectors_addr = csmap
+                .symbol_to_vaddr("vectors")
+                .ok_or_else(|| anyhow!("symbol 'vectors' not found in System.map"))?;
+
+            // KASLR offset is subtracted
+            -((vbar_el1 - vectors_addr) as i64)
+        };
+
+        for (i, addr) in stack.iter().enumerate() {
             // subtract KASLR offset to get vaddr in System.map
-            let vaddr = vaddr - kaslr_offset;
+            let vaddr = addr.wrapping_add_signed(kaslr_offset);
             // lookup symbol in System.map
             match csmap.vaddr_to_symbol(vaddr) {
                 Some((name, offset)) => {
