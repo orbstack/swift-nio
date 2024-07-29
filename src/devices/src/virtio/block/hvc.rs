@@ -45,6 +45,10 @@ impl OrbvmBlkReqHeader {
         mem: &GuestMemoryMmap,
         mut f: impl FnMut(usize, Iovec<'static>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
+        if self.nr_segs as usize > MAX_SEGS {
+            return Err(anyhow!("too many segments"));
+        }
+
         let mut off = self.start_off as usize;
 
         // read segs
@@ -105,9 +109,6 @@ impl BlockHvcDevice {
 
     fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<()> {
         let hdr = self.mem.read_obj::<OrbvmBlkReqHeader>(args_addr)?;
-        if hdr.nr_segs as usize > MAX_SEGS {
-            return Err(anyhow!("too many segments"));
-        }
 
         debug!(
             "block hvc: type_: {}, flags: {:?}, nr_segs: {}, start_off: {}",
