@@ -10,7 +10,9 @@
 mod bindings;
 use anyhow::anyhow;
 use arch::aarch64::gic::{self, GICDevice};
-use arch::aarch64::{layout, MMIO_SHM_SIZE};
+use arch::aarch64::layout::DRAM_MEM_START;
+use arch::aarch64::{layout, DAX_SIZE};
+use arch::ArchMemoryInfo;
 use bindings::*;
 use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
@@ -530,11 +532,11 @@ impl GicConfig {
 }
 
 impl HvfVm {
-    pub fn new(guest_mem: &GuestMemoryMmap, vcpu_count: u8) -> Result<Self, Error> {
+    pub fn new(mem_info: &ArchMemoryInfo, vcpu_count: u8) -> Result<Self, Error> {
         let config = VmConfig::new();
 
         // how many IPA bits do we need? check highest guest mem address
-        let ipa_bits = guest_mem.last_addr().raw_value().ilog2() + 1;
+        let ipa_bits = (mem_info.last_addr_excl().raw_value() - 1).ilog2() + 1;
         debug!("IPA size: {} bits", ipa_bits);
         if ipa_bits > Self::get_default_ipa_size()? {
             // if we need more than default, make sure HW supports it
@@ -670,7 +672,7 @@ impl HvfVm {
 
     pub fn max_ram_size() -> Result<u64, Error> {
         let max_addr = (1 << Self::get_max_ipa_size()?) - 1;
-        let max_ram_addr = max_addr - MMIO_SHM_SIZE - 0x4000_0000; // shm rounding (ceil) = 1 GiB
+        let max_ram_addr = max_addr - DAX_SIZE - 0x4000_0000; // shm rounding (ceil) = 1 GiB
         Ok(max_ram_addr - layout::DRAM_MEM_START)
     }
 

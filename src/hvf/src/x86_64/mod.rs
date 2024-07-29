@@ -13,6 +13,7 @@ mod reg_init;
 use arch::x86_64::gdt::{encode_kvm_segment_ar, kvm_segment};
 use arch::x86_64::mptable::{APIC_DEFAULT_PHYS_BASE, IO_APIC_DEFAULT_PHYS_BASE};
 use arch::x86_64::regs::kvm_sregs;
+use arch::ArchMemoryInfo;
 use arch_gen::x86::msr_index::{
     MSR_MTRRcap, MSR_MTRRdefType, MSR_MTRRfix16K_80000, MSR_MTRRfix16K_A0000, MSR_MTRRfix4K_C0000,
     MSR_MTRRfix4K_C8000, MSR_MTRRfix4K_D0000, MSR_MTRRfix4K_D8000, MSR_MTRRfix4K_E0000,
@@ -221,7 +222,7 @@ pub enum ParkError {
 pub struct HvfVm {}
 
 impl HvfVm {
-    pub fn new(_guest_mem: &GuestMemoryMmap, _vcpu_count: u8) -> Result<Self, Error> {
+    pub fn new(_mem_info: &ArchMemoryInfo, _vcpu_count: u8) -> Result<Self, Error> {
         let ret = unsafe { hv_vm_create((HV_VM_DEFAULT | HV_VM_ACCEL_APIC) as u64) };
         if ret != HV_SUCCESS {
             return Err(Error::VmCreate);

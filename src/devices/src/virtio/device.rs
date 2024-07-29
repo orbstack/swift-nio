@@ -14,8 +14,8 @@ use super::{ActivateResult, Queue};
 use gruel::{BoundSignalChannelRef, RawSignalChannel, SignalChannel};
 use memmage::CastableRef;
 use newt::{BitFlagRange, RawBitFlagRange};
-use vm_memory::{GuestAddress, GuestMemoryMmap};
 use smallbox::SmallBox;
+use vm_memory::{GuestAddress, GuestMemoryMmap};
 
 /// Enum that indicates if a VirtioDevice is inactive or has been activated
 /// and memory attached to it.
@@ -26,8 +26,7 @@ pub enum DeviceState {
 
 #[derive(Clone)]
 pub struct VirtioShmRegion {
-    pub host_addr: u64,
-    pub guest_addr: u64,
+    pub guest_addr: GuestAddress,
     pub size: usize,
 }
 

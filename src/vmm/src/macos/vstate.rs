@@ -5,6 +5,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
+use arch::ArchMemoryInfo;
 use gruel::ParkSignalChannelExt;
 use gruel::SignalChannel;
 use gruel::StartupAbortedError;
@@ -217,15 +218,10 @@ impl Parkable for VmParker {
 
 impl Vm {
     /// Constructs a new `Vm` using the given `Kvm` instance.
-    pub fn new(
-        shutdown: VmmShutdownSignal,
-        vcpu_count: u8,
-        guest_mem: &GuestMemoryMmap,
-    ) -> Result<Self> {
-        let hvf_vm = HvfVm::new(guest_mem, vcpu_count).map_err(Error::VmSetup)?;
+    pub fn new(vcpu_count: u8, mem_info: &ArchMemoryInfo) -> Result<Self> {
+        let hvf_vm = HvfVm::new(mem_info, vcpu_count).map_err(Error::VmSetup)?;
 
         Ok(Vm {
-            shutdown,
             hvf_vm: hvf_vm.clone(),
             parker: Arc::new(VmParker::new(hvf_vm.clone())),
             #[cfg(target_arch = "aarch64")]

@@ -117,7 +117,7 @@ impl FsWorker {
                 .map_err(FsError::QueueWriter)
                 .unwrap();
 
-            if let Err(e) = self.server.handle_message(hctx, reader, writer, None) {
+            if let Err(e) = self.server.handle_message(hctx, reader, writer) {
                 error!("error handling message: {:?}", e);
             }
 

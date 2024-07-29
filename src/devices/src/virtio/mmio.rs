@@ -11,7 +11,7 @@ use std::sync::{Arc, OnceLock};
 use utils::{Mutex, MutexGuard};
 
 use utils::byte_order;
-use vm_memory::{GuestAddress, GuestMemoryMmap};
+use vm_memory::{Address, GuestAddress, GuestMemoryMmap};
 
 use super::device_status;
 use super::*;
@@ -268,7 +268,7 @@ impl LocklessBusDevice for MmioTransport {
                             (0, !0)
                         } else {
                             match self.locked_device().shm_region() {
-                                Some(region) => (region.guest_addr, region.size as u64),
+                                Some(region) => (region.guest_addr.raw_value(), region.size as u64),
                                 None => (0, !0),
                             }
                         };

@@ -23,7 +23,6 @@ use super::filesystem::{
 use super::fuse::*;
 use super::{FsError as Error, Result};
 use crate::virtio::linux_errno::linux_errno_raw;
-use crate::virtio::VirtioShmRegion;
 
 // MUST change rsvm_args in kernel to match (num pages)
 const MAX_BUFFER_SIZE: u32 = 524288;
@@ -94,13 +93,7 @@ impl<F: FileSystem + Sync> Server<F> {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    pub fn handle_message(
-        &self,
-        hctx: HostContext,
-        mut r: Reader,
-        w: Writer,
-        shm_region: Option<&VirtioShmRegion>,
-    ) -> Result<usize> {
+    pub fn handle_message(&self, hctx: HostContext, mut r: Reader, w: Writer) -> Result<usize> {
         let in_header: InHeader = r.read_obj().map_err(Error::DecodeMessage)?;
 
         if in_header.len > (MAX_BUFFER_SIZE + BUFFER_HEADER_SIZE) {
@@ -155,20 +148,6 @@ impl<F: FileSystem + Sync> Server<F> {
             Some(Opcode::Rename2) => self.rename2(hctx, in_header, r, w),
             Some(Opcode::Lseek) => self.lseek(hctx, in_header, r, w),
             Some(Opcode::CopyFileRange) => self.copyfilerange(hctx, in_header, r, w),
-            Some(Opcode::SetupMapping) => {
-                if let Some(shm) = shm_region {
-                    self.setupmapping(hctx, in_header, r, w, shm.host_addr, shm.size as u64)
-                } else {
-                    reply_error(Errno::ENOSYS.into(), in_header.unique, w)
-                }
-            }
-            Some(Opcode::RemoveMapping) => {
-                if let Some(shm) = shm_region {
-                    self.removemapping(hctx, in_header, r, w, shm.host_addr, shm.size as u64)
-                } else {
-                    reply_error(Errno::ENOSYS.into(), in_header.unique, w)
-                }
-            }
             _ => reply_error(Errno::ENOSYS.into(), in_header.unique, w),
         }
     }
@@ -1027,8 +1006,8 @@ impl<F: FileSystem + Sync> Server<F> {
                     max_readahead,
                     flags: enabled as u32,
                     // never stall background requests
-                    max_background: ::std::u16::MAX,
-                    congestion_threshold: (::std::u16::MAX / 4) * 3,
+                    max_background: u16::MAX,
+                    congestion_threshold: (u16::MAX / 4) * 3,
                     max_write: MAX_BUFFER_SIZE,
                     time_gran: 1, // nanoseconds
                     max_pages: MAX_PAGES.try_into().unwrap(),
@@ -1544,77 +1523,6 @@ impl<F: FileSystem + Sync> Server<F> {
             Err(e) => reply_error(e, in_header.unique, w),
         }
     }
-
-    fn setupmapping(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-        host_shm_base: u64,
-        shm_size: u64,
-    ) -> Result<usize> {
-        let SetupmappingIn {
-            fh,
-            foffset,
-            len,
-            flags,
-            moffset,
-        } = r.read_obj().map_err(Error::DecodeMessage)?;
-
-        match self.fs.setupmapping(
-            Context::new(in_header, hctx),
-            in_header.nodeid.into(),
-            fh.into(),
-            foffset,
-            len,
-            flags,
-            moffset,
-            host_shm_base,
-            shm_size,
-        ) {
-            Ok(()) => reply_ok(None::<u8>, None, in_header.unique, w),
-            Err(e) => reply_error(e, in_header.unique, w),
-        }
-    }
-
-    fn removemapping(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-        host_shm_base: u64,
-        shm_size: u64,
-    ) -> Result<usize> {
-        let RemovemappingIn { count } = r.read_obj().map_err(Error::DecodeMessage)?;
-
-        if let Some(size) = (count as usize).checked_mul(size_of::<RemovemappingOne>()) {
-            if size > MAX_BUFFER_SIZE as usize {
-                return reply_error(Errno::ENOMEM.into(), in_header.unique, w);
-            }
-        } else {
-            return reply_error(Errno::EOVERFLOW.into(), in_header.unique, w);
-        }
-
-        let mut requests = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            requests.push(
-                r.read_obj::<RemovemappingOne>()
-                    .map_err(Error::DecodeMessage)?,
-            );
-        }
-
-        match self.fs.removemapping(
-            Context::new(in_header, hctx),
-            requests,
-            host_shm_base,
-            shm_size,
-        ) {
-            Ok(()) => reply_ok(None::<u8>, None, in_header.unique, w),
-            Err(e) => reply_error(e, in_header.unique, w),
-        }
-    }
 }
 
 fn reply_ok<T: ByteValued>(
@@ -1693,7 +1601,7 @@ fn add_dirent(
     d: DirEntry,
     entry: Option<Entry>,
 ) -> io::Result<usize> {
-    if d.name.len() > ::std::u32::MAX as usize {
+    if d.name.len() > u32::MAX as usize {
         return Err(Errno::EOVERFLOW.into());
     }
 

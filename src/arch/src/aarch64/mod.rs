@@ -36,37 +36,32 @@ pub enum Error {
 /// The start of the memory area reserved for MMIO devices.
 pub const MMIO_MEM_START: u64 = layout::MAPPED_IO_START;
 /// The size of the MMIO shared memory area used by virtio-fs DAX.
-pub const MMIO_SHM_SIZE: u64 = 1 << 33;
+pub const DAX_SIZE: u64 = 8 * 1024 * 1024 * 1024; // 8 GiB
 
 pub use self::fdt::DeviceInfoForFDT;
 use crate::DeviceType;
 
 /// Returns a Vec of the valid memory addresses for aarch64.
 /// See [`layout`](layout) module for a drawing of the specific memory model for this platform.
-pub fn arch_memory_regions(size: usize) -> (ArchMemoryInfo, Vec<(GuestAddress, usize)>) {
-    let dram_size = min(size as u64, layout::DRAM_MEM_MAX_SIZE) as usize;
-    let ram_last_addr = layout::DRAM_MEM_START + (dram_size as u64);
+pub fn arch_memory_regions(size: usize) -> ArchMemoryInfo {
+    let ram_size = min(size as u64, layout::DRAM_MEM_MAX_SIZE) as usize;
+    let ram_last_addr = layout::DRAM_MEM_START + (ram_size as u64);
     let shm_start_addr = ((ram_last_addr / 0x4000_0000) + 1) * 0x4000_0000;
-    let info = ArchMemoryInfo {
-        ram_last_addr,
-        shm_start_addr,
-        shm_size: MMIO_SHM_SIZE,
-    };
-    let regions = if cfg!(feature = "efi") {
+    let ram_regions = if cfg!(feature = "efi") {
         vec![
             // Space for loading EDK2 and its variables
             (GuestAddress(0u64), 0x800_0000),
-            (GuestAddress(layout::DRAM_MEM_START), dram_size),
-            (GuestAddress(shm_start_addr), MMIO_SHM_SIZE as usize),
+            (GuestAddress(layout::DRAM_MEM_START), ram_size),
         ]
     } else {
-        vec![
-            (GuestAddress(layout::DRAM_MEM_START), dram_size),
-            (GuestAddress(shm_start_addr), MMIO_SHM_SIZE as usize),
-        ]
+        vec![(GuestAddress(layout::DRAM_MEM_START), ram_size)]
     };
 
-    (info, regions)
+    ArchMemoryInfo {
+        ram_regions,
+        ram_last_addr_excl: GuestAddress(ram_last_addr),
+        dax_regions: vec![(GuestAddress(shm_start_addr), DAX_SIZE as usize)],
+    }
 }
 
 /// Configures the system and should be called once per vm before starting vcpu threads.
@@ -141,6 +136,7 @@ pub fn get_fdt_addr(_mem: &GuestMemoryMmap) -> u64 {
     layout::DRAM_MEM_START
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,3 +172,4 @@ mod tests {
         assert_eq!(get_fdt_addr(&mem), 0x1000 + layout::DRAM_MEM_START);
     }
 }
+*/

@@ -65,7 +65,6 @@ use utils::time::TimestampUs;
 #[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
 use vm_memory::mmap::GuestRegionMmap;
 use vm_memory::Bytes;
-use vm_memory::GuestMemory;
 use vm_memory::{GuestAddress, GuestMemoryMmap};
 
 #[cfg(feature = "efi")]
@@ -352,7 +351,7 @@ pub fn build_microvm(
 
     #[cfg(not(feature = "tee"))]
     #[allow(unused_mut)]
-    let mut vm = setup_vm(shutdown.clone(), &guest_memory, vcpu_config.vcpu_count)?;
+    let mut vm = setup_vm(&arch_memory_info, &guest_memory, vcpu_config.vcpu_count)?;
 
     #[cfg(feature = "tee")]
     let (kvm, mut vm) = {
@@ -547,13 +546,10 @@ pub fn build_microvm(
     }
 
     #[cfg(not(feature = "tee"))]
-    let _shm_region = Some(VirtioShmRegion {
-        host_addr: guest_memory
-            .get_host_address(GuestAddress(arch_memory_info.shm_start_addr))
-            .unwrap() as u64,
-        guest_addr: arch_memory_info.shm_start_addr,
-        size: arch_memory_info.shm_size as usize,
-    });
+    let _shm_region = VirtioShmRegion {
+        guest_addr: arch_memory_info.dax_regions[0].0,
+        size: arch_memory_info.dax_regions[0].1,
+    };
 
     let mut vmm = Vmm {
         guest_memory,
@@ -743,9 +739,9 @@ pub fn create_guest_memory(
     kernel_load_addr: u64,
 ) -> std::result::Result<(GuestMemoryMmap, ArchMemoryInfo), StartMicrovmError> {
     let mem_size = mem_size_mib << 20;
-    let (arch_mem_info, arch_mem_regions) = arch::arch_memory_regions(mem_size);
+    let arch_mem_info = arch::arch_memory_regions(mem_size);
 
-    let guest_mem = hvf::allocate_guest_memory(&arch_mem_regions)
+    let guest_mem = hvf::allocate_guest_memory(&arch_mem_info.ram_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem
@@ -811,11 +807,11 @@ pub(crate) fn setup_vm(
 }
 #[cfg(target_os = "macos")]
 pub(crate) fn setup_vm(
-    shutdown: VmmShutdownSignal,
+    mem_info: &ArchMemoryInfo,
     guest_memory: &GuestMemoryMmap,
     vcpu_count: u8,
 ) -> std::result::Result<Vm, StartMicrovmError> {
-    let mut vm = Vm::new(shutdown, vcpu_count, guest_memory)
+    let mut vm = Vm::new(vcpu_count, mem_info)
         .map_err(Error::Vm)
         .map_err(StartMicrovmError::Internal)?;
     vm.memory_init(guest_memory)

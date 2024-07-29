@@ -91,48 +91,36 @@ pub fn arch_memory_regions(
     size: usize,
     kernel_load_addr: u64,
     kernel_size: usize,
-) -> (ArchMemoryInfo, Vec<(GuestAddress, usize)>) {
+) -> ArchMemoryInfo {
     if size < (kernel_load_addr + kernel_size as u64) as usize {
         panic!("Kernel doesn't fit in RAM");
     }
 
     // It's safe to cast MMIO_MEM_START to usize because it fits in a u32 variable
     // (It points to an address in the 32 bit space).
-    let (ram_last_addr, shm_start_addr, regions) = match size.checked_sub(MMIO_MEM_START as usize) {
+    match size.checked_sub(MMIO_MEM_START as usize) {
         // case1: guest memory fits before the gap
-        None | Some(0) => {
-            let ram_last_addr = size as u64;
-            let shm_start_addr = FIRST_ADDR_PAST_32BITS;
-            (
-                ram_last_addr,
-                shm_start_addr,
-                vec![
-                    (GuestAddress(0), size),
-                    (GuestAddress(FIRST_ADDR_PAST_32BITS), MMIO_SHM_SIZE as usize),
-                ],
-            )
-        }
+        None | Some(0) => ArchMemoryInfo {
+            ram_regions: vec![(GuestAddress(0), size)],
+            ram_last_addr_excl: GuestAddress(size as u64),
+
+            dax_regions: vec![(GuestAddress(FIRST_ADDR_PAST_32BITS), MMIO_SHM_SIZE as usize)],
+        },
         // case2: guest memory extends beyond the gap
         Some(remaining) => {
             let ram_last_addr = FIRST_ADDR_PAST_32BITS + remaining as u64;
             let shm_start_addr = ((ram_last_addr / 0x4000_0000) + 1) * 0x4000_0000;
-            (
-                ram_last_addr,
-                shm_start_addr,
-                vec![
+            ArchMemoryInfo {
+                ram_regions: vec![
                     (GuestAddress(0), MMIO_MEM_START as usize),
                     (GuestAddress(FIRST_ADDR_PAST_32BITS), remaining),
-                    (GuestAddress(shm_start_addr), MMIO_SHM_SIZE as usize),
                 ],
-            )
+                ram_last_addr_excl: GuestAddress(ram_last_addr),
+
+                dax_regions: vec![(GuestAddress(shm_start_addr), MMIO_SHM_SIZE as usize)],
+            }
         }
-    };
-    let info = ArchMemoryInfo {
-        ram_last_addr,
-        shm_start_addr,
-        shm_size: MMIO_SHM_SIZE,
-    };
-    (info, regions)
+    }
 }
 
 /// Returns a Vec of the valid memory addresses.
@@ -261,7 +249,7 @@ pub fn configure_system(
 
     add_e820_entry(&mut params.0, 0, EBDA_START, E820_RAM)?;
 
-    let last_addr = GuestAddress(arch_memory_info.ram_last_addr);
+    let last_addr = arch_memory_info.ram_last_addr_excl.unchecked_sub(1);
     if last_addr < end_32bit_gap_start {
         add_e820_entry(
             &mut params.0,
