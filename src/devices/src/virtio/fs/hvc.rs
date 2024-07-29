@@ -3,6 +3,7 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::anyhow;
 use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
 
 use crate::virtio::{
@@ -42,10 +43,19 @@ impl FsHvcDevice {
         let args: OrbvmArgs = self.mem.read_obj(args_addr)?;
 
         if args.in_numargs as usize > args.in_args.len() {
-            todo!();
+            return Err(anyhow!("too many input args"));
         }
         if args.out_numargs as usize > args.out_args.len() {
-            todo!();
+            return Err(anyhow!("too many output args"));
+        }
+        if args.in_pages > MAX_PAGES {
+            return Err(anyhow!("too many input pages"));
+        }
+        if args.out_pages > MAX_PAGES {
+            return Err(anyhow!("too many output pages"));
+        }
+        if args.in_pages != 0 && args.out_pages != 0 {
+            return Err(anyhow!("cannot have both input and output pages"));
         }
 
         // read pages
