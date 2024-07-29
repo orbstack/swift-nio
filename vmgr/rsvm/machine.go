@@ -75,7 +75,7 @@ func rsvm_go_on_state_change(state int) {
 
 type machine struct {
 	mu     sync.RWMutex
-	ptr    atomicUnsafePointer
+	ptr    unsafe.Pointer
 	handle cgo.Handle
 
 	retainFiles []*os.File
@@ -117,7 +117,7 @@ func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machi
 	}
 
 	// set ptr
-	vm.ptr.Store(result.ptr)
+	vm.ptr = result.ptr
 	// ref ok: this just drops Go ref; Swift ref is still held if alive
 	runtime.SetFinalizer(vm, (*machine).Close)
 
@@ -127,24 +127,22 @@ func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machi
 func (m *machine) callGenericErr(fn func(unsafe.Pointer) C.struct_GResultErr) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	ptr := m.ptr.Load()
-	if ptr == nil {
+	if m.ptr == nil {
 		return errors.New("machine closed")
 	}
 
-	res := fn(ptr)
+	res := fn(m.ptr)
 	return errFromC(res.err)
 }
 
 func (m *machine) callGenericErrInt(fn func(unsafe.Pointer) C.struct_GResultIntErr) (int64, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	ptr := m.ptr.Load()
-	if ptr == nil {
+	if m.ptr == nil {
 		return 0, errors.New("machine closed")
 	}
 
-	res := fn(ptr)
+	res := fn(m.ptr)
 	return int64(res.value), errFromC(res.err)
 }
 
@@ -187,18 +185,20 @@ func (m *machine) DumpDebug() error {
 }
 
 func (m *machine) Close() error {
-	// if we try to get write lock, and ConnectVsock is hanging b/c VM is frozen,
-	// then we'll wait forever. Instead, CAS the pointer.
-	// Hacky but this seems like the best solution.
-	// TODO: we could race in between when a ConnectVsock call got the pointer, and when Swift side took a ref
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	// drop our long-lived ref, but don't delete the handle until Swift deinit's
-	ptr := m.ptr.Swap(nil)
-	if ptr != nil {
-		C.rsvm_machine_destroy(ptr)
+	// drop our long-lived ref
+	if m.ptr != nil {
+		C.rsvm_machine_destroy(m.ptr)
+		m.ptr = nil
+	} else {
+		// already closed
+		return nil
 	}
+
+	// Rust side isn't Arc, so we can also delete the handle
+	m.handle.Delete()
 
 	for _, f := range m.retainFiles {
 		f.Close()
