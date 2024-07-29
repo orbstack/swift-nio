@@ -789,41 +789,38 @@ fn vm_allocate(mut size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
 // on macOS, use the HVF API to allocate guest memory. it seems to use mach APIs
 // standard mmap causes 2x overaccounting in Activity Monitor's "Memory" tab
 pub fn allocate_guest_memory(ranges: &[(GuestAddress, usize)]) -> anyhow::Result<GuestMemoryMmap> {
+    // allocate one big contiguous region on the host, so that there are no holes when
+    // reading from guest memory. each size and base must be page-aligned
+    let total_size = ranges.iter().map(|(_, size)| *size).sum::<usize>();
+    let host_base_addr = vm_allocate(total_size as mach_vm_size_t)?;
+    let mut host_cur_addr = host_base_addr;
+
     let regions = ranges
         .iter()
         .map(|(guest_base, size)| {
-            // let host_addr = unsafe {
-            //     libc::mmap(
-            //         std::ptr::null_mut(),
-            //         *size,
-            //         libc::PROT_READ | libc::PROT_WRITE,
-            //         libc::MAP_ANONYMOUS | libc::MAP_SHARED,
-            //         // tag for easy identification in vmmap
-            //         libc::VM_MAKE_TAG(250) as i32,
-            //         0,
-            //     )
-            // };
-            // if host_addr == libc::MAP_FAILED {
-            //     return Err(anyhow::anyhow!(
-            //         "failed to allocate host memory: {}",
-            //         Errno::last()
-            //     ));
-            // }
-
-            let host_addr = vm_allocate(*size as mach_vm_size_t)?;
+            if guest_base.raw_value() % page_size() as u64 != 0 {
+                return Err(anyhow!(
+                    "guest address must be page-aligned: {:x}",
+                    guest_base.raw_value()
+                ));
+            }
+            if size % page_size() != 0 {
+                return Err(anyhow!("size must be page-aligned: {}", size));
+            }
 
             let region = unsafe {
                 MmapRegion::build_raw(
-                    host_addr as *mut u8,
+                    host_cur_addr as *mut u8,
                     *size,
                     libc::PROT_READ | libc::PROT_WRITE,
-                    libc::MAP_ANONYMOUS | libc::MAP_NORESERVE | libc::MAP_PRIVATE,
+                    libc::MAP_ANON | libc::MAP_PRIVATE,
                 )
-                .map_err(|e| anyhow::anyhow!("failed to create mmap region: {}", e))?
-            };
+            }
+            .map_err(|e| anyhow!("create mmap region: {}", e))?;
+            host_cur_addr = unsafe { host_cur_addr.add(*size) };
 
             GuestRegionMmap::new(region, *guest_base)
-                .map_err(|e| anyhow::anyhow!("failed to create guest memory region: {}", e))
+                .map_err(|e| anyhow!("create guest memory region: {}", e))
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
 
