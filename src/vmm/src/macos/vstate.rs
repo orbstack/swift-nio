@@ -560,13 +560,25 @@ impl Vcpu {
             }
             VcpuExit::MmioRead(addr, data) => {
                 if !mmio_bus.read(vcpuid, addr, data) {
-                    panic!("unhandled memory read at address 0x{:x}", addr);
+                    panic!(
+                        "unhandled memory read at address 0x{:x}. stack: {}",
+                        addr,
+                        hvf_vcpu
+                            .dump_debug(self.csmap_path.as_ref().map(|p| p.as_str()))
+                            .unwrap_or_else(|e| format!("<{:?}>", e))
+                    );
                 }
                 Ok(VcpuEmulation::Handled)
             }
             VcpuExit::MmioWrite(addr, data) => {
                 if !mmio_bus.write(vcpuid, addr, data) {
-                    panic!("unhandled memory write at address 0x{:x}", addr);
+                    panic!(
+                        "unhandled memory write at address 0x{:x}. stack: {}",
+                        addr,
+                        hvf_vcpu
+                            .dump_debug(self.csmap_path.as_ref().map(|p| p.as_str()))
+                            .unwrap_or_else(|e| format!("<{:?}>", e))
+                    );
                 }
                 Ok(VcpuEmulation::Handled)
             }
