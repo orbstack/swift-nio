@@ -45,14 +45,14 @@ fn sglist_to_rutabaga_iovecs(
 ) -> Result<Vec<RutabagaIovec>> {
     if vecs
         .iter()
-        .any(|&(addr, len)| mem.get_slice(addr, len).is_err())
+        .any(|&(addr, len)| mem.get_slice_fast(addr, len).is_err())
     {
         return Err(GpuError::GuestMemory);
     }
 
     let mut rutabaga_iovecs: Vec<RutabagaIovec> = Vec::new();
     for &(addr, len) in vecs {
-        let slice = mem.get_slice(addr, len).unwrap();
+        let slice = mem.get_slice_fast(addr, len).unwrap();
         rutabaga_iovecs.push(RutabagaIovec {
             base: slice.ptr_guard_mut().as_ptr() as *mut c_void,
             len,

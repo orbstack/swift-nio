@@ -10,6 +10,7 @@ use std::iter::zip;
 use std::mem::{size_of, size_of_val};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
+use utils::memory::GuestMemoryExt;
 use utils::Mutex;
 
 use libc::TIOCGWINSZ;
@@ -219,7 +220,7 @@ impl Console {
         while let Some(head) = tx_queue.pop(mem) {
             raise_irq = true;
 
-            let cmd: VirtioConsoleControl = match mem.read_obj(head.addr) {
+            let cmd: VirtioConsoleControl = match mem.read_obj_fast(head.addr) {
                 Ok(cmd) => cmd,
                 Err(e) => {
                     tracing::error!(

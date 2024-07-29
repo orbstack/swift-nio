@@ -102,7 +102,8 @@ impl GicV3 {
 
                 // This replicates a quirk relied upon by `gic_has_group0` where really high
                 // priorities are disregarded.
-                if priority == BitPack::one_hot((8 - super::device::PRIORITY_BITS) as usize) {
+                if priority == BitPack::<u64>::one_hot((8 - super::device::PRIORITY_BITS) as usize)
+                {
                     priority = 0;
                 }
 

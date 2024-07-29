@@ -42,6 +42,7 @@ use tracing::{debug, error};
 use utils::hypercalls::{
     HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST,
 };
+use utils::memory::GuestMemoryExt;
 
 use crate::Parkable;
 
@@ -1411,7 +1412,7 @@ impl HvfVcpu {
         let pml4_addr = self.read_reg(hv_x86_reg_t_HV_X86_CR3)? & 0xfffffffffffff000;
         let pml4: u64 = self
             .guest_mem
-            .read_obj(GuestAddress(pml4_addr + (pml4_index * 8)))
+            .read_obj_fast(GuestAddress(pml4_addr + (pml4_index * 8)))
             .map_err(|_| Error::VcpuPageWalk)?;
         if pml4 & PTE_PRESENT == 0 {
             return Err(Error::VcpuPageWalk);
@@ -1422,7 +1423,7 @@ impl HvfVcpu {
         let pdp_addr = pml4 & (0xffffffffff << 12);
         let pdp: u64 = self
             .guest_mem
-            .read_obj(GuestAddress(pdp_addr + (pdp_index * 8)))
+            .read_obj_fast(GuestAddress(pdp_addr + (pdp_index * 8)))
             .map_err(|_| Error::VcpuPageWalk)?;
         if pdp & PTE_PRESENT == 0 {
             return Err(Error::VcpuPageWalk);
@@ -1438,7 +1439,7 @@ impl HvfVcpu {
         let pd_addr = pdp & (0xffffffffff << 12);
         let pd: u64 = self
             .guest_mem
-            .read_obj(GuestAddress(pd_addr + (pd_index * 8)))
+            .read_obj_fast(GuestAddress(pd_addr + (pd_index * 8)))
             .map_err(|_| Error::VcpuPageWalk)?;
         if pd & PTE_PRESENT == 0 {
             return Err(Error::VcpuPageWalk);
@@ -1454,7 +1455,7 @@ impl HvfVcpu {
         let pt_addr = pd & (0xffffffffff << 12);
         let pt: u64 = self
             .guest_mem
-            .read_obj(GuestAddress(pt_addr + (pt_index * 8)))
+            .read_obj_fast(GuestAddress(pt_addr + (pt_index * 8)))
             .map_err(|_| Error::VcpuPageWalk)?;
         if pt & PTE_PRESENT == 0 {
             return Err(Error::VcpuPageWalk);

@@ -1887,6 +1887,7 @@ dependencies = [
  "mio",
  "once_cell",
  "tracing",
+ "vm-memory",
  "vmm-sys-util",
 ]
 

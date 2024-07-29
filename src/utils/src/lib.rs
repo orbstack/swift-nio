@@ -29,6 +29,7 @@ pub mod time;
 
 pub mod gruel;
 pub mod kernel_symbols;
+pub mod memory;
 
 mod os_unfair_lock;
 pub use os_unfair_lock::{Mutex, MutexGuard};

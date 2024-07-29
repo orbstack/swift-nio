@@ -6,21 +6,22 @@ use std::cell::Cell;
 use std::cmp;
 use std::fmt::{self, Display};
 use std::fs::File;
-use std::io::{self, IoSlice, Read, Write};
+use std::io::{self, IoSlice, Write};
 use std::marker::PhantomData;
-use std::mem::{size_of, MaybeUninit};
-use std::ops::Deref;
+use std::mem::size_of;
 use std::os::fd::AsRawFd;
 use std::ptr::copy_nonoverlapping;
 use std::result;
 
 use crate::virtio::queue::DescriptorChain;
 use libc::c_void;
+use nix::errno::Errno;
 use nix::sys::uio::{pwritev, writev};
 use smallvec::SmallVec;
+use utils::memory::GuestMemoryExt;
 use vm_memory::{
-    Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap,
-    GuestMemoryRegion, Le16, Le32, Le64, VolatileMemory, VolatileMemoryError, VolatileSlice,
+    Address, ByteValued, Bytes, GuestAddress, GuestMemoryError, GuestMemoryMmap, Le16, Le32, Le64,
+    VolatileMemoryError, VolatileSlice,
 };
 
 const INLINE_IOVECS: usize = 16;
@@ -239,6 +240,37 @@ impl<'a> DescriptorChainConsumer<'a> {
         Ok(bytes_consumed)
     }
 
+    fn consume_one<T>(
+        &mut self,
+        count: usize,
+        f: impl FnOnce(&Iovec) -> io::Result<T>,
+    ) -> io::Result<T> {
+        // fast path: consume the first buffer. size must match exactly
+        if let Some(slice) = self.buffers_mut().first_mut() {
+            if slice.len() == count {
+                let ret = f(slice)?;
+                self.buffers_pos += 1;
+                self.bytes_consumed += count;
+                return Ok(ret);
+            } else if slice.len() > count {
+                // slice is larger than requested
+                let ret = f(slice)?;
+                slice.advance(count);
+                self.bytes_consumed += count;
+                return Ok(ret);
+            }
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "invalid buffer size for consume_one: want {} bytes, got {:?}",
+                count,
+                self.buffers_mut().first().map(|s| s.len())
+            ),
+        ))
+    }
+
     fn split_at(&mut self, offset: usize) -> Result<DescriptorChainConsumer<'a>> {
         // we currently only support skipping the first buffer
         if self.buffers_pos != 0
@@ -263,19 +295,30 @@ impl<'a> DescriptorChainConsumer<'a> {
     }
 }
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct GuestIoSlice {
-    addr: GuestAddress,
-    len: u64,
+pub fn iovecs_from_iter(
+    mem: &GuestMemoryMmap,
+    iter: impl Iterator<Item = (GuestAddress, usize)>,
+) -> Result<SmallVec<[Iovec; INLINE_IOVECS]>> {
+    let mut total_len: usize = 0;
+    iter.map(|(addr, len)| {
+        // Verify that summing the slice sizes does not overflow.
+        // This can happen if a driver tricks a device into reading more data than
+        // fits in a `usize`.
+        total_len = total_len
+            .checked_add(len)
+            .ok_or(Error::DescriptorChainOverflow)?;
+
+        let vs = mem
+            .get_slice_fast(addr, len)
+            .map_err(Error::GuestMemoryError)?;
+        Ok(vs.into())
+    })
+    .collect()
 }
 
-impl GuestIoSlice {
-    pub fn new(addr: GuestAddress, len: usize) -> GuestIoSlice {
-        GuestIoSlice {
-            addr,
-            len: len as u64,
-        }
+impl<'a> From<DescriptorChain<'a>> for (GuestAddress, usize) {
+    fn from(desc: DescriptorChain<'a>) -> (GuestAddress, usize) {
+        (desc.addr, desc.len as usize)
     }
 }
 
@@ -293,61 +336,20 @@ pub struct Reader<'a> {
 impl<'a> Reader<'a> {
     /// Construct a new Reader wrapper over `desc_chain`.
     pub fn new(mem: &'a GuestMemoryMmap, chain: DescriptorChain<'a>) -> Result<Reader<'a>> {
-        let mut total_len: usize = 0;
-        let buffers = chain
-            .into_iter()
-            .readable()
-            .map(|desc| {
-                // Verify that summing the descriptor sizes does not overflow.
-                // This can happen if a driver tricks a device into reading more data than
-                // fits in a `usize`.
-                total_len = total_len
-                    .checked_add(desc.len as usize)
-                    .ok_or(Error::DescriptorChainOverflow)?;
-
-                let region = mem.find_region(desc.addr).ok_or(Error::FindMemoryRegion)?;
-                let offset = desc
-                    .addr
-                    .checked_sub(region.start_addr().raw_value())
-                    .unwrap();
-                region
-                    .deref()
-                    .get_slice(offset.raw_value() as usize, desc.len as usize)
-                    .map_err(Error::VolatileMemoryError)
-                    .map(|vs| vs.into())
-            })
-            .collect::<Result<SmallVec<[Iovec<'a>; INLINE_IOVECS]>>>()?;
-        Ok(Reader {
-            buffer: DescriptorChainConsumer::new(buffers),
-        })
+        Self::new_from_iter(
+            mem,
+            chain
+                .into_iter()
+                .readable()
+                .map(|desc| (desc.addr, desc.len as usize)),
+        )
     }
 
-    pub fn new_from_slices(
+    pub fn new_from_iter(
         mem: &'a GuestMemoryMmap,
-        slices1: &[GuestIoSlice],
-        slices2: &[GuestIoSlice],
+        iter: impl Iterator<Item = (GuestAddress, usize)>,
     ) -> Result<Reader<'a>> {
-        let mut total_len: usize = 0;
-        let buffers = slices1
-            .iter()
-            .chain(slices2.iter())
-            .map(|s| {
-                // Verify that summing the slice sizes does not overflow.
-                // This can happen if a driver tricks a device into reading more data than
-                // fits in a `usize`.
-                total_len = total_len
-                    .checked_add(s.len as usize)
-                    .ok_or(Error::DescriptorChainOverflow)?;
-
-                let region = mem.find_region(s.addr).ok_or(Error::FindMemoryRegion)?;
-                let offset = s.addr.checked_sub(region.start_addr().raw_value()).unwrap();
-                region
-                    .deref()
-                    .get_slice(offset.raw_value() as usize, s.len as usize)
-                    .map_err(Error::VolatileMemoryError)
-                    .map(|vs| vs.into())
-            })
-            .collect::<Result<SmallVec<[Iovec<'a>; INLINE_IOVECS]>>>()?;
+        let buffers = iovecs_from_iter(mem, iter)?;
         Ok(Reader {
             buffer: DescriptorChainConsumer::new(buffers),
         })
@@ -355,19 +357,10 @@ impl<'a> Reader<'a> {
 
     /// Reads an object from the descriptor chain buffer.
     pub fn read_obj<T: ByteValued>(&mut self) -> io::Result<T> {
-        let mut obj = MaybeUninit::<T>::uninit();
-
-        // Safe because `MaybeUninit` guarantees that the pointer is valid for
-        // `size_of::<T>()` bytes.
-        let buf = unsafe {
-            ::std::slice::from_raw_parts_mut(obj.as_mut_ptr() as *mut u8, size_of::<T>())
-        };
-
-        self.read_exact(buf)?;
-
-        // Safe because any type that implements `ByteValued` can be considered initialized
-        // even if it is filled with random data.
-        Ok(unsafe { obj.assume_init() })
+        // this fastpath allows compiler to optimize/specialize for T, avoiding slices and memcpy
+        self.buffer.consume_one(size_of::<T>(), |iov| unsafe {
+            Ok(iov.addr().cast::<T>().read_unaligned())
+        })
     }
 
     /// Reads data from the descriptor chain buffer into a file descriptor.
@@ -469,62 +462,20 @@ pub struct Writer<'a> {
 impl<'a> Writer<'a> {
     /// Construct a new Writer wrapper over `desc_chain`.
     pub fn new(mem: &'a GuestMemoryMmap, chain: DescriptorChain<'a>) -> Result<Writer<'a>> {
-        let mut total_len: usize = 0;
-        let buffers = chain
-            .into_iter()
-            .writable()
-            .map(|desc| {
-                // Verify that summing the descriptor sizes does not overflow.
-                // This can happen if a driver tricks a device into writing more data than
-                // fits in a `usize`.
-                total_len = total_len
-                    .checked_add(desc.len as usize)
-                    .ok_or(Error::DescriptorChainOverflow)?;
-
-                let region = mem.find_region(desc.addr).ok_or(Error::FindMemoryRegion)?;
-                let offset = desc
-                    .addr
-                    .checked_sub(region.start_addr().raw_value())
-                    .unwrap();
-                region
-                    .deref()
-                    .get_slice(offset.raw_value() as usize, desc.len as usize)
-                    .map_err(Error::VolatileMemoryError)
-                    .map(|vs: VolatileSlice<()>| vs.into())
-            })
-            .collect::<Result<SmallVec<[Iovec<'a>; INLINE_IOVECS]>>>()?;
-
-        Ok(Writer {
-            buffer: DescriptorChainConsumer::new(buffers),
-        })
+        Self::new_from_iter(
+            mem,
+            chain
+                .into_iter()
+                .writable()
+                .map(|desc| (desc.addr, desc.len as usize)),
+        )
     }
 
-    pub fn new_from_slices(
+    pub fn new_from_iter(
         mem: &'a GuestMemoryMmap,
-        slices1: &[GuestIoSlice],
-        slices2: &[GuestIoSlice],
+        iter: impl Iterator<Item = (GuestAddress, usize)>,
     ) -> Result<Writer<'a>> {
-        let mut total_len: usize = 0;
-        let buffers = slices1
-            .iter()
-            .chain(slices2.iter())
-            .map(|s| {
-                // Verify that summing the slice sizes does not overflow.
-                // This can happen if a driver tricks a device into writing more data than
-                // fits in a `usize`.
-                total_len = total_len
-                    .checked_add(s.len as usize)
-                    .ok_or(Error::DescriptorChainOverflow)?;
-
-                let region = mem.find_region(s.addr).ok_or(Error::FindMemoryRegion)?;
-                let offset = s.addr.checked_sub(region.start_addr().raw_value()).unwrap();
-                region
-                    .deref()
-                    .get_slice(offset.raw_value() as usize, s.len as usize)
-                    .map_err(Error::VolatileMemoryError)
-                    .map(|vs| vs.into())
-            })
-            .collect::<Result<SmallVec<[Iovec<'a>; INLINE_IOVECS]>>>()?;
+        let buffers = iovecs_from_iter(mem, iter)?;
         Ok(Writer {
             buffer: DescriptorChainConsumer::new(buffers),
         })
@@ -532,7 +483,11 @@ impl<'a> Writer<'a> {
 
     /// Writes an object to the descriptor chain buffer.
     pub fn write_obj<T: ByteValued>(&mut self, val: T) -> io::Result<()> {
-        self.write_all(val.as_slice())
+        // this fastpath allows compiler to optimize/specialize for T, avoiding slices and memcpy
+        self.buffer.consume_one(size_of::<T>(), |iov| unsafe {
+            iov.addr_mut().cast::<T>().write_unaligned(val);
+            Ok(())
+        })
     }
 
     /// Returns number of bytes available for writing.  May return an error if the combined
@@ -564,9 +519,7 @@ impl<'a> Writer<'a> {
                 )
             };
 
-            nix::errno::Errno::result(res)
-                .map(|r| r as usize)
-                .map_err(|e| e.into())
+            Errno::result(res).map(|r| r as usize).map_err(|e| e.into())
         })
     }
 
@@ -599,9 +552,7 @@ impl<'a> Writer<'a> {
                 )
             };
 
-            nix::errno::Errno::result(res)
-                .map(|r| r as usize)
-                .map_err(|e| e.into())
+            Errno::result(res).map(|r| r as usize).map_err(|e| e.into())
         })
     }
 

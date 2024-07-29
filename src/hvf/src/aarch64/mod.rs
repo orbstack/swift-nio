@@ -18,9 +18,8 @@ use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
 use once_cell::sync::Lazy;
 use utils::kernel_symbols::CompactSystemMap;
-use vm_memory::{
-    Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap, VolatileMemory,
-};
+use utils::memory::GuestMemoryExt;
+use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
 
 use dlopen::wrapper::{Container, WrapperApi};
 
@@ -28,7 +27,6 @@ use std::arch::asm;
 use std::convert::TryInto;
 use std::ffi::c_void;
 use std::fmt::Write;
-use std::mem::size_of;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::time::Duration;
 
@@ -1197,13 +1195,11 @@ impl HvfVcpu {
                     None
                 } else {
                     let pvgic_state_addr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
-                    let slice = self
+                    let ptr = self
                         .guest_mem
-                        .get_slice(GuestAddress(pvgic_state_addr), size_of::<PvgicVcpuState>())
+                        .get_obj_ptr_aligned(GuestAddress(pvgic_state_addr))
                         .map_err(|_| Error::GetGuestMemory)?;
-                    let mut_ref =
-                        unsafe { slice.aligned_as_mut(0).map_err(|_| Error::GetGuestMemory)? };
-                    self.pvgic = Some(mut_ref as *mut PvgicVcpuState);
+                    self.pvgic = Some(ptr);
                     Some(0)
                 }
             }
@@ -1454,7 +1450,7 @@ impl HvfVcpu {
         let mut fp = self.read_raw_reg(hv_reg_t_HV_REG_FP)?;
         for _ in 0..DEBUG_STACK_DEPTH_LIMIT {
             // mem[FP+8] = frame's LR
-            let frame_lr = self.guest_mem.read_obj(self.translate_gva(fp + 8)?)?;
+            let frame_lr = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
             if frame_lr == 0 {
                 // reached end of stack
                 break;
@@ -1463,7 +1459,7 @@ impl HvfVcpu {
             stack.push(frame_lr);
 
             // mem[FP] = link to last FP
-            fp = self.guest_mem.read_obj(self.translate_gva(fp)?)?;
+            fp = self.guest_mem.read_obj_fast(self.translate_gva(fp)?)?;
             if fp == 0 {
                 // reached end of stack
                 break;

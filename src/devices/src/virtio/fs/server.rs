@@ -637,7 +637,7 @@ impl<F: FileSystem + Sync> Server<F> {
                     unique: in_header.unique,
                 };
 
-                w.write_all(out.as_slice()).map_err(Error::EncodeMessage)?;
+                w.write_obj(out).map_err(Error::EncodeMessage)?;
                 Ok(out.len as usize)
             }
             Err(e) => reply_error(e, in_header.unique, w),
@@ -1114,7 +1114,7 @@ impl<F: FileSystem + Sync> Server<F> {
                 unique: in_header.unique,
             };
 
-            w.write_all(out.as_slice()).map_err(Error::EncodeMessage)?;
+            w.write_obj(out).map_err(Error::EncodeMessage)?;
             Ok(out.len as usize)
         }
     }
@@ -1547,15 +1547,15 @@ fn reply_ok<T: ByteValued>(
         unique,
     };
 
-    w.write_all(header.as_slice())
-        .map_err(Error::EncodeMessage)?;
+    w.write_obj(header).map_err(Error::EncodeMessage)?;
 
     if let Some(out) = out {
-        w.write_all(out.as_slice()).map_err(Error::EncodeMessage)?;
+        w.write_obj(out).map_err(Error::EncodeMessage)?;
     }
 
     if let Some(data) = data {
-        w.write_all(data).map_err(Error::EncodeMessage)?;
+        // Writer doesn't do partial writes
+        w.write(data).map_err(Error::EncodeMessage)?;
     }
 
     debug_assert_eq!(len, w.bytes_written());
@@ -1582,8 +1582,7 @@ fn reply_error(e: io::Error, unique: u64, mut w: Writer) -> Result<usize> {
         unique,
     };
 
-    w.write_all(header.as_slice())
-        .map_err(Error::EncodeMessage)?;
+    w.write_obj(header).map_err(Error::EncodeMessage)?;
 
     debug_assert_eq!(header.len as usize, w.bytes_written());
     Ok(w.bytes_written())
@@ -1628,7 +1627,7 @@ fn add_dirent(
         Ok(0)
     } else {
         if let Some(entry) = entry {
-            cursor.write_all(EntryOut::from(entry).as_slice())?;
+            cursor.write_obj(EntryOut::from(entry))?;
         }
 
         let dirent = Dirent {
@@ -1638,14 +1637,15 @@ fn add_dirent(
             type_: d.type_,
         };
 
-        cursor.write_all(dirent.as_slice())?;
-        cursor.write_all(d.name)?;
+        cursor.write_obj(dirent)?;
+        // Writer doesn't do partial writes
+        _ = cursor.write(d.name)?;
 
         // We know that `dirent_len` <= `padded_dirent_len` due to the check above
         // so there's no need for checked arithmetic.
         let padding = padded_dirent_len - dirent_len;
         if padding > 0 {
-            cursor.write_all(&DIRENT_PADDING[..padding])?;
+            _ = cursor.write(&DIRENT_PADDING[..padding])?;
         }
 
         Ok(total_len)

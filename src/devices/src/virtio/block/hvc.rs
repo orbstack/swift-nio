@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
 };
 use utils::hypercalls::HVC_DEVICE_BLOCK_START;
+use utils::memory::GuestMemoryExt;
 use virtio_bindings::virtio_blk::{
     VIRTIO_BLK_T_DISCARD, VIRTIO_BLK_T_IN, VIRTIO_BLK_T_OUT, VIRTIO_BLK_T_WRITE_ZEROES,
 };
@@ -52,19 +53,8 @@ impl OrbvmBlkReqHeader {
         let mut off = self.start_off as usize;
 
         // read segs
-        let descs_buf: MaybeUninit<[BlkDesc; MAX_SEGS]> = MaybeUninit::uninit();
-        let mut descs_buf = unsafe { descs_buf.assume_init() };
         let descs_addr = args_addr.unchecked_add(size_of::<OrbvmBlkReqHeader>() as u64);
-        mem.read_slice(
-            unsafe {
-                std::slice::from_raw_parts_mut(
-                    descs_buf.as_mut_ptr() as *mut u8,
-                    size_of::<BlkDesc>() * self.nr_segs as usize,
-                )
-            },
-            descs_addr,
-        )?;
-        let descs = &descs_buf[..self.nr_segs as usize];
+        let descs: &[BlkDesc] = unsafe { mem.get_obj_slice(descs_addr, self.nr_segs as usize)? };
 
         for desc in descs {
             let len = desc.len();
@@ -108,7 +98,7 @@ impl BlockHvcDevice {
     }
 
     fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<()> {
-        let hdr = self.mem.read_obj::<OrbvmBlkReqHeader>(args_addr)?;
+        let hdr = self.mem.read_obj_fast::<OrbvmBlkReqHeader>(args_addr)?;
 
         debug!(
             "block hvc: type_: {}, flags: {:?}, nr_segs: {}, start_off: {}",

@@ -16,9 +16,10 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{mem, result};
+use utils::memory::GuestMemoryExt;
 use utils::Mutex;
 use virtio_bindings::virtio_net::virtio_net_hdr_v1;
-use vm_memory::{GuestMemory, GuestMemoryMmap};
+use vm_memory::GuestMemoryMmap;
 
 use gruel::{MioChannelExt, OnceMioWaker};
 
@@ -250,7 +251,7 @@ impl NetWorker {
                     break;
                 }
 
-                match self.mem.get_slice(desc.addr, desc.len as usize) {
+                match self.mem.get_slice_fast(desc.addr, desc.len as usize) {
                     Ok(vs) => {
                         self.iovecs.push(Iovec::from_static(vs));
                     }
@@ -327,7 +328,7 @@ impl NetWorker {
 
                 let vs = self
                     .mem
-                    .get_slice(descriptor.addr, descriptor.len as usize)
+                    .get_slice_fast(descriptor.addr, descriptor.len as usize)
                     .map_err(FrontendError::GuestMemory)?;
                 self.iovecs.push(Iovec::from_static(vs));
                 total_len += vs.len();

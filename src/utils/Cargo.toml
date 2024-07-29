@@ -15,3 +15,4 @@ memmage = { version = "0.1.0", path = "../memmage" }
 mio = "0.8.11"
 anyhow = "1.0.86"
 bincode = "=2.0.0-rc.3"
+vm-memory = { version = ">=0.13", features = ["backend-mmap"] }

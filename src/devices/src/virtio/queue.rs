@@ -9,6 +9,7 @@ use std::cmp::min;
 use std::fmt::{self, Debug, Display};
 use std::num::Wrapping;
 use std::sync::atomic::{fence, Ordering};
+use utils::memory::GuestMemoryExt;
 use virtio_bindings::virtio_ring::VRING_USED_F_NO_NOTIFY;
 use vm_memory::{
     Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap,
@@ -231,14 +232,10 @@ impl<'a> DescriptorChain<'a> {
             return None;
         }
 
-        let desc_head = match mem.checked_offset(desc_table, (index as usize) * 16) {
-            Some(a) => a,
-            None => return None,
-        };
-        mem.checked_offset(desc_head, 16)?;
+        let desc_head = desc_table.unchecked_add(index as u64 * 16);
 
         // These reads can't fail unless Guest memory is hopelessly broken.
-        let desc = match mem.read_obj::<Descriptor>(desc_head) {
+        let desc = match mem.read_obj_fast::<Descriptor>(desc_head) {
             Ok(ret) => ret,
             Err(_) => {
                 // TODO log address
@@ -481,7 +478,7 @@ impl Queue {
         // and virtq rings, so it's safe to unwrap guest memory reads and to use unchecked
         // offsets.
         let desc_index: u16 = mem
-            .read_obj(self.avail_ring.unchecked_add(u64::from(index_offset)))
+            .read_obj_fast(self.avail_ring.unchecked_add(u64::from(index_offset)))
             .unwrap();
 
         DescriptorChain::checked_new(mem, self.desc_table, self.actual_size(), desc_index).map(

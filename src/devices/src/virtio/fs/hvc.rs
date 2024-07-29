@@ -1,20 +1,33 @@
-use std::{
-    mem::{size_of, MaybeUninit},
-    sync::Arc,
-};
+use std::{mem::size_of, sync::Arc};
 
 use anyhow::anyhow;
-use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
+use bitfield::bitfield;
+use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
 
 use crate::virtio::{
-    descriptor_utils::{GuestIoSlice, Reader, Writer},
+    descriptor_utils::{Reader, Writer},
     fs::server::{HostContext, MAX_PAGES},
     HvcDevice,
 };
+use utils::memory::GuestMemoryExt;
 
 use super::{macos::passthrough::PassthroughFs, server::Server};
 
-// TODO: packed, without Rust complaining about alignment
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+struct OrbvmFuseArg {
+    addr: GuestAddress,
+    len: u64,
+}
+
+unsafe impl ByteValued for OrbvmFuseArg {}
+
+impl From<&OrbvmFuseArg> for (GuestAddress, usize) {
+    fn from(desc: &OrbvmFuseArg) -> (GuestAddress, usize) {
+        (desc.addr, desc.len as usize)
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 struct OrbvmArgs {
@@ -22,11 +35,29 @@ struct OrbvmArgs {
     out_numargs: u32,
     in_pages: u32,
     out_pages: u32,
-    in_args: [GuestIoSlice; 4],
-    out_args: [GuestIoSlice; 3],
+    in_args: [OrbvmFuseArg; 4],
+    out_args: [OrbvmFuseArg; 3],
 }
 
 unsafe impl ByteValued for OrbvmArgs {}
+
+bitfield! {
+    #[derive(Copy, Clone)]
+    #[repr(transparent)]
+    struct FsDesc(u64);
+    impl Debug;
+
+    phys_addr, _: 47, 0;
+    len, _: 63, 48;
+}
+
+unsafe impl ByteValued for FsDesc {}
+
+impl From<&FsDesc> for (GuestAddress, usize) {
+    fn from(desc: &FsDesc) -> (GuestAddress, usize) {
+        (GuestAddress(desc.phys_addr()), desc.len() as usize)
+    }
+}
 
 pub struct FsHvcDevice {
     mem: GuestMemoryMmap,
@@ -40,7 +71,7 @@ impl FsHvcDevice {
 
     pub fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<i64> {
         // read args struct
-        let args: OrbvmArgs = self.mem.read_obj(args_addr)?;
+        let args: OrbvmArgs = self.mem.read_obj_fast(args_addr)?;
 
         if args.in_numargs as usize > args.in_args.len() {
             return Err(anyhow!("too many input args"));
@@ -59,50 +90,49 @@ impl FsHvcDevice {
         }
 
         // read pages
-        let pages: MaybeUninit<[GuestIoSlice; MAX_PAGES as usize]> = MaybeUninit::uninit();
-        let mut pages = unsafe { pages.assume_init() };
-        let mut in_pages: &[GuestIoSlice] = &[];
-        let mut out_pages: &[GuestIoSlice] = &[];
         let pages_addr = args_addr.unchecked_add(size_of::<OrbvmArgs>() as u64);
-        if args.in_pages != 0 {
-            self.mem.read_slice(
-                unsafe {
-                    std::slice::from_raw_parts_mut(
-                        pages.as_mut_ptr() as *mut u8,
-                        size_of::<GuestIoSlice>() * args.in_pages as usize,
-                    )
-                },
-                pages_addr,
-            )?;
-            in_pages = &pages[..args.in_pages as usize];
-        } else if args.out_pages != 0 {
-            self.mem.read_slice(
-                unsafe {
-                    std::slice::from_raw_parts_mut(
-                        pages.as_mut_ptr() as *mut u8,
-                        size_of::<GuestIoSlice>() * args.out_pages as usize,
-                    )
-                },
-                pages_addr,
-            )?;
-            out_pages = &pages[..args.out_pages as usize];
-        }
 
-        debug!(
-            "hvc req: {:?}  in_pages={:?}  out_pages={:?}",
-            args, in_pages, out_pages
-        );
+        let reader = if args.in_pages == 0 {
+            Reader::new_from_iter(
+                &self.mem,
+                args.in_args[..args.in_numargs as usize]
+                    .iter()
+                    .map(Into::into),
+            )?
+        } else {
+            let in_pages: &[FsDesc] =
+                unsafe { self.mem.get_obj_slice(pages_addr, args.in_pages as usize)? };
+            Reader::new_from_iter(
+                &self.mem,
+                args.in_args[..args.in_numargs as usize]
+                    .iter()
+                    .map(Into::into)
+                    .chain(in_pages.iter().map(Into::into)),
+            )?
+        };
 
-        let reader = Reader::new_from_slices(
-            &self.mem,
-            &args.in_args[..args.in_numargs as usize],
-            in_pages,
-        )?;
-        let writer = Writer::new_from_slices(
-            &self.mem,
-            &args.out_args[..args.out_numargs as usize],
-            out_pages,
-        )?;
+        let writer = if args.out_pages == 0 {
+            Writer::new_from_iter(
+                &self.mem,
+                args.out_args[..args.out_numargs as usize]
+                    .iter()
+                    .map(Into::into),
+            )?
+        } else {
+            let out_pages: &[FsDesc] = unsafe {
+                self.mem
+                    .get_obj_slice(pages_addr, args.out_pages as usize)?
+            };
+            Writer::new_from_iter(
+                &self.mem,
+                args.out_args[..args.out_numargs as usize]
+                    .iter()
+                    .map(Into::into)
+                    .chain(out_pages.iter().map(Into::into)),
+            )?
+        };
+
+        debug!(?args, "hvc req");
 
         let hctx = HostContext { is_sync_call: true };
         if let Err(e) = self.server.handle_message(hctx, reader, writer) {

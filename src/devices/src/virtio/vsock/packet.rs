@@ -21,7 +21,8 @@ use std::os::raw::c_char;
 use std::result;
 
 use utils::byte_order;
-use vm_memory::{self, Address, GuestAddress, GuestMemory, GuestMemoryError};
+use utils::memory::GuestMemoryExt;
+use vm_memory::{self, Address, GuestAddress, GuestMemoryError, GuestMemoryMmap};
 
 use super::super::DescriptorChain;
 use super::defs;
@@ -187,12 +188,15 @@ pub struct VsockPacket {
     buf_size: usize,
 }
 
-fn get_host_address<T: GuestMemory>(
-    mem: &T,
+fn get_host_address(
+    mem: &GuestMemoryMmap,
     guest_addr: GuestAddress,
     size: usize,
 ) -> result::Result<*mut u8, GuestMemoryError> {
-    Ok(mem.get_slice(guest_addr, size)?.ptr_guard_mut().as_ptr())
+    Ok(mem
+        .get_slice_fast(guest_addr, size)?
+        .ptr_guard_mut()
+        .as_ptr())
 }
 
 impl VsockPacket {

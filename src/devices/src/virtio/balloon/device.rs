@@ -15,7 +15,7 @@ use std::time::Instant;
 use utils::hypercalls::HVC_DEVICE_BALLOON;
 use utils::Mutex;
 
-use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap};
+use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
 
 use super::super::{
     ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice, VIRTIO_MMIO_INT_VRING,
@@ -24,6 +24,7 @@ use super::{defs, defs::uapi};
 use crate::legacy::Gic;
 use crate::virtio::{DescriptorChain, HvcDevice, VirtioQueueSignals, VmmExitObserver};
 use hvf::Parkable;
+use utils::memory::GuestMemoryExt;
 
 define_waker_set! {
     #[derive(Default)]
@@ -96,6 +97,10 @@ bitfield! {
 }
 
 unsafe impl ByteValued for PrDesc {}
+
+// allow guest to queue up to 32 batches of 4096 FPR requests, before we start dropping them
+// this is max 128K of host memory
+const MAX_QUEUED_DESCS: usize = 4096 * 32;
 
 const FPR_TYPE_FREE: u32 = 0;
 const FPR_TYPE_UNREPORT: u32 = 1;
@@ -251,7 +256,7 @@ impl Balloon {
             return Err(anyhow!("invalid request header length"));
         }
 
-        let req = mem.read_obj::<OrbvmFprRequest>(req_desc.addr)?;
+        let req = mem.read_obj_fast::<OrbvmFprRequest>(req_desc.addr)?;
 
         // second descriptor = prdesc buffer
         let prdescs_desc = iter
@@ -262,15 +267,12 @@ impl Balloon {
         }
 
         // iterate through prdescs
-        let slice = mem.get_slice(prdescs_desc.addr, prdescs_desc.len as usize)?;
-        let slice_ptr = slice.ptr_guard_mut();
-        // turn it into a slice
         // guest contract *does* allow us to mutate this
         let prdescs = unsafe {
-            std::slice::from_raw_parts_mut(
-                slice_ptr.as_ptr() as *mut PrDesc,
-                slice.len() / size_of::<PrDesc>(),
-            )
+            mem.get_obj_slice_mut(
+                prdescs_desc.addr,
+                prdescs_desc.len as usize / size_of::<PrDesc>(),
+            )?
         };
 
         // process the request
@@ -292,14 +294,14 @@ impl Balloon {
             // bounds check
             let guest_addr = GuestAddress(range.0);
             let size = (range.1 - range.0) as usize;
-            let host_addr = mem.get_slice(guest_addr, size)?.ptr_guard();
+            let host_addr = mem.get_slice_fast(guest_addr, size)?.ptr_guard();
 
             match req.type_ {
                 FPR_TYPE_FREE => {
                     unsafe { hvf::free_range(guest_addr, host_addr.as_ptr() as *mut _, size)? };
                 }
                 FPR_TYPE_UNREPORT => {
-                    unsafe { hvf::reuse_range(guest_addr, host_addr.as_ptr() as *mut _, size)? };
+                    unsafe { hvf::reuse_range(host_addr.as_ptr() as *mut _, size)? };
                 }
                 _ => {
                     error!("unknown free-page-report type");
@@ -356,17 +358,11 @@ impl Balloon {
             DeviceState::Inactive => return Err(anyhow!("HVC call on inactive device")),
         };
 
-        let req: OrbvmFprRequest = mem.read_obj(args_addr)?;
+        let req: OrbvmFprRequest = mem.read_obj_fast(args_addr)?;
 
         // the purpose of async report is so that worker thread can process it without blocking, so copy the buffer
-        let vs = mem.get_slice(
-            GuestAddress(req.descs_addr),
-            req.nr_descs as usize * size_of::<PrDesc>(),
-        )?;
-        let ptr = vs.ptr_guard();
-        let slice = unsafe {
-            std::slice::from_raw_parts(ptr.as_ptr() as *const PrDesc, req.nr_descs as usize)
-        };
+        let slice =
+            unsafe { mem.get_obj_slice(GuestAddress(req.descs_addr), req.nr_descs as usize)? };
 
         // add to queue
         let queued = self.queued.get_mut();
@@ -385,8 +381,12 @@ impl Balloon {
                 queued.req = Some(req);
             }
         }
-        queued.descs.extend_from_slice(slice);
 
+        if queued.descs.len() + slice.len() > MAX_QUEUED_DESCS {
+            return Err(anyhow!("too many queued FPRs"));
+        }
+
+        queued.descs.extend_from_slice(slice);
         Ok(())
     }
 
