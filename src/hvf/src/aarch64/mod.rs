@@ -16,8 +16,6 @@ use arch::ArchMemoryInfo;
 use bindings::*;
 use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
-use libc::{madvise, MADV_FREE_REUSABLE, MADV_FREE_REUSE};
-use nix::errno::Errno;
 use once_cell::sync::Lazy;
 use utils::kernel_symbols::CompactSystemMap;
 use vm_memory::{
@@ -43,9 +41,8 @@ use counter::RateCounter;
 
 use utils::hypercalls::{
     HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST,
-    ORBVM_MADVISE_REUSABLE, ORBVM_MADVISE_REUSE, ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK,
-    ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF,
-    PSCI_RESET, PSCI_VERSION,
+    ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON,
+    PSCI_MIGRATE_TYPE, PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
 };
 
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
@@ -1223,46 +1220,6 @@ impl HvfVcpu {
                 COUNT_EXIT_HVC_PVLOCK_KICK.count();
                 let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 return Ok(VcpuExit::PvlockUnpark(vcpuid));
-            }
-
-            ORBVM_MADVISE_REUSE => {
-                let addr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
-                let len = self.read_raw_reg(hv_reg_t_HV_REG_X2)?;
-                let ret = unsafe {
-                    madvise(
-                        self.guest_mem
-                            .get_slice(GuestAddress(addr), len as usize)
-                            .unwrap()
-                            .ptr_guard_mut()
-                            .as_ptr() as *mut _,
-                        len as usize,
-                        MADV_FREE_REUSE,
-                    )
-                };
-                if let Err(e) = Errno::result(ret) {
-                    error!("madvise reuse failed: {:?}", e);
-                }
-                return Ok(VcpuExit::HypervisorCall);
-            }
-
-            ORBVM_MADVISE_REUSABLE => {
-                let addr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
-                let len = self.read_raw_reg(hv_reg_t_HV_REG_X2)?;
-                let ret = unsafe {
-                    madvise(
-                        self.guest_mem
-                            .get_slice(GuestAddress(addr), len as usize)
-                            .unwrap()
-                            .ptr_guard_mut()
-                            .as_ptr() as *mut _,
-                        len as usize,
-                        MADV_FREE_REUSABLE,
-                    )
-                };
-                if let Err(e) = Errno::result(ret) {
-                    error!("madvise reusable failed: {:?}", e);
-                }
-                return Ok(VcpuExit::HypervisorCall);
             }
 
             _ => {
