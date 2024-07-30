@@ -1,7 +1,6 @@
 package vnet
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -331,8 +330,8 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	udpForwarder := udpfwd.NewUdpForwarder(s, icmpFwd, hostNatIP4, hostNatIP6)
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
-	// Silence gvisor logs
-	log.SetTarget(log.GoogleEmitter{Writer: &log.Writer{Next: bytes.NewBufferString("")}})
+	// Forward gvisor logs to logrus
+	log.SetTarget(gvisorLogger{})
 
 	network := &Network{
 		Stack:        s,
