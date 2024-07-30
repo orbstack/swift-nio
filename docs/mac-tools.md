@@ -115,6 +115,26 @@ System-wide tracer for I/O calls, including files, sockets, fcntl, recvmsg, ioct
 
 Usage: `sudo fs_usage | grep -i orb`
 
+## ktrace
+
+System-wide or per-process tracer for syscalls and much more. This is the closest thing to `strace` on macOS. Works with SIP enabled.
+
+Usage: `sudo ktrace trace -Ss -f C4,S0x010c,C2,C3 -n -p $(pidof 'OrbStack Helper')`
+
+Filters:
+
+- `C4` = BSD syscalls. Arguments not included.
+- `S0x010c` = Mach syscalls. Arguments not included.
+  - High byte: class `0x01` = `DBG_MACH`
+  - Low byte: subclass `0x0c` = `DBG_MACH_EXCP_SC`
+- `C2` = Network
+- `C3` = VFS. Includes paths.
+- [List of all filters](https://github.com/apple-oss-distributions/xnu/blob/94d3b452840153a99b38a3a9659680b2a006908e/bsd/sys/kdebug.h)
+
+Tips:
+
+- Hypervisor calls are `MSC_kern_invalid_5`
+
 ## eslogger
 
 System-wide tracer for many syscalls, using the Endpoint Security framework.
@@ -127,7 +147,7 @@ Usage:
 - List events: `eslogger --list-events`
   - Then pass specific events to `eslogger`
 
-This is the closest thing to strace on macOS, but it's focused on what endpoint security sofware would want to trace, so it doesn't include all syscalls. I use a combination of spindump, fs_usage, and eslogger to plug the gaps.
+This is focused on what endpoint security sofware would want to trace, so it doesn't include all syscalls. I use a combination of spindump, fs_usage, and eslogger to plug the gaps.
 
 ## lsof
 
