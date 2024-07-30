@@ -7,6 +7,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// commented = not supported on this OS
 func TermiosToSSH(t *unix.Termios) ssh.TerminalModes {
 	m := make(ssh.TerminalModes)
 
@@ -21,13 +22,13 @@ func TermiosToSSH(t *unix.Termios) ssh.TerminalModes {
 	m[ssh.VSTART] = uint32(t.Cc[unix.VSTART])
 	m[ssh.VSTOP] = uint32(t.Cc[unix.VSTOP])
 	m[ssh.VSUSP] = uint32(t.Cc[unix.VSUSP])
-	//m[ssh.VDSUSP] = uint32(t.Cc[unix.VDSUSP])
+	// m[ssh.VDSUSP] = uint32(t.Cc[unix.VDSUSP])
 	m[ssh.VREPRINT] = uint32(t.Cc[unix.VREPRINT])
 	m[ssh.VWERASE] = uint32(t.Cc[unix.VWERASE])
 	m[ssh.VLNEXT] = uint32(t.Cc[unix.VLNEXT])
-	//m[ssh.VFLUSH] = uint32(t.Cc[unix.VFLUSH])
-	//m[ssh.VSWTCH] = uint32(t.Cc[unix.VSWTCH])
-	//m[ssh.VSTATUS] = uint32(t.Cc[unix.VSTATUS])
+	// m[ssh.VFLUSH] = uint32(t.Cc[unix.VFLUSH])
+	m[ssh.VSWTCH] = uint32(t.Cc[unix.VSWTC])
+	// m[ssh.VSTATUS] = uint32(t.Cc[unix.VSTATUS])
 	m[ssh.VDISCARD] = uint32(t.Cc[unix.VDISCARD])
 
 	// iflag
@@ -112,14 +113,20 @@ func ApplySSHToTermios(m ssh.TerminalModes, t *unix.Termios) {
 			t.Cc[unix.VSTOP] = uint8(val)
 		case ssh.VSUSP:
 			t.Cc[unix.VSUSP] = uint8(val)
-		//case ssh.VDSUSP:
+		// case ssh.VDSUSP:
+		// 	t.Cc[unix.VDSUSP] = uint8(val)
 		case ssh.VREPRINT:
 			t.Cc[unix.VREPRINT] = uint8(val)
 		case ssh.VWERASE:
 			t.Cc[unix.VWERASE] = uint8(val)
 		case ssh.VLNEXT:
 			t.Cc[unix.VLNEXT] = uint8(val)
-		//case ssh.VSTATUS:
+		// case ssh.VFLUSH:
+		// 	t.Cc[unix.VFLUSH] = uint8(val)
+		case ssh.VSWTCH:
+			t.Cc[unix.VSWTC] = uint8(val)
+		// case ssh.VSTATUS:
+		// 	t.Cc[unix.VSTATUS] = uint8(val)
 		case ssh.VDISCARD:
 			t.Cc[unix.VDISCARD] = uint8(val)
 

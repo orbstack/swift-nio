@@ -7,6 +7,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// commented = not supported on this OS
 func TermiosToSSH(t *unix.Termios) ssh.TerminalModes {
 	m := make(ssh.TerminalModes)
 
@@ -21,13 +22,13 @@ func TermiosToSSH(t *unix.Termios) ssh.TerminalModes {
 	m[ssh.VSTART] = uint32(t.Cc[unix.VSTART])
 	m[ssh.VSTOP] = uint32(t.Cc[unix.VSTOP])
 	m[ssh.VSUSP] = uint32(t.Cc[unix.VSUSP])
-	//m[ssh.VDSUSP] = uint32(t.Cc[unix.VDSUSP])
+	m[ssh.VDSUSP] = uint32(t.Cc[unix.VDSUSP])
 	m[ssh.VREPRINT] = uint32(t.Cc[unix.VREPRINT])
 	m[ssh.VWERASE] = uint32(t.Cc[unix.VWERASE])
 	m[ssh.VLNEXT] = uint32(t.Cc[unix.VLNEXT])
-	//m[ssh.VFLUSH] = uint32(t.Cc[unix.VFLUSH])
-	//m[ssh.VSWTCH] = uint32(t.Cc[unix.VSWTCH])
-	//m[ssh.VSTATUS] = uint32(t.Cc[unix.VSTATUS])
+	// m[ssh.VFLUSH] = uint32(t.Cc[unix.VFLUSH])
+	// m[ssh.VSWTCH] = uint32(t.Cc[unix.VSWTCH])
+	m[ssh.VSTATUS] = uint32(t.Cc[unix.VSTATUS])
 	m[ssh.VDISCARD] = uint32(t.Cc[unix.VDISCARD])
 
 	// iflag
@@ -38,7 +39,7 @@ func TermiosToSSH(t *unix.Termios) ssh.TerminalModes {
 	m[ssh.INLCR] = mFlag(t.Iflag & unix.INLCR)
 	m[ssh.IGNCR] = mFlag(t.Iflag & unix.IGNCR)
 	m[ssh.ICRNL] = mFlag(t.Iflag & unix.ICRNL)
-	//m[ssh.IUCLC] = mFlag(t.Iflag & unix.IUCLC)
+	// m[ssh.IUCLC] = mFlag(t.Iflag & unix.IUCLC)
 	m[ssh.IXON] = mFlag(t.Iflag & unix.IXON)
 	m[ssh.IXANY] = mFlag(t.Iflag & unix.IXANY)
 	m[ssh.IXOFF] = mFlag(t.Iflag & unix.IXOFF)
@@ -48,7 +49,7 @@ func TermiosToSSH(t *unix.Termios) ssh.TerminalModes {
 	// lflag
 	m[ssh.ISIG] = mFlag(t.Lflag & unix.ISIG)
 	m[ssh.ICANON] = mFlag(t.Lflag & unix.ICANON)
-	//m[ssh.XCASE] = mFlag(t.Lflag & unix.XCASE)
+	// m[ssh.XCASE] = mFlag(t.Lflag & unix.XCASE)
 	m[ssh.ECHO] = mFlag(t.Lflag & unix.ECHO)
 	m[ssh.ECHOE] = mFlag(t.Lflag & unix.ECHOE)
 	m[ssh.ECHOK] = mFlag(t.Lflag & unix.ECHOK)
@@ -62,7 +63,7 @@ func TermiosToSSH(t *unix.Termios) ssh.TerminalModes {
 
 	// oflag
 	m[ssh.OPOST] = mFlag(t.Oflag & unix.OPOST)
-	//m[ssh.OLCUC] = mFlag(t.Oflag & unix.OLCUC)
+	// m[ssh.OLCUC] = mFlag(t.Oflag & unix.OLCUC)
 	m[ssh.ONLCR] = mFlag(t.Oflag & unix.ONLCR)
 	m[ssh.OCRNL] = mFlag(t.Oflag & unix.OCRNL)
 	m[ssh.ONOCR] = mFlag(t.Oflag & unix.ONOCR)
@@ -112,14 +113,20 @@ func ApplySSHToTermios(m ssh.TerminalModes, t *unix.Termios) {
 			t.Cc[unix.VSTOP] = uint8(val)
 		case ssh.VSUSP:
 			t.Cc[unix.VSUSP] = uint8(val)
-		//case ssh.VDSUSP:
+		case ssh.VDSUSP:
+			t.Cc[unix.VDSUSP] = uint8(val)
 		case ssh.VREPRINT:
 			t.Cc[unix.VREPRINT] = uint8(val)
 		case ssh.VWERASE:
 			t.Cc[unix.VWERASE] = uint8(val)
 		case ssh.VLNEXT:
 			t.Cc[unix.VLNEXT] = uint8(val)
-		//case ssh.VSTATUS:
+		// case ssh.VFLUSH:
+		// 	t.Cc[unix.VFLUSH] = uint8(val)
+		// case ssh.VSWTCH:
+		// 	t.Cc[unix.VSWTCH] = uint8(val)
+		case ssh.VSTATUS:
+			t.Cc[unix.VSTATUS] = uint8(val)
 		case ssh.VDISCARD:
 			t.Cc[unix.VDISCARD] = uint8(val)
 
@@ -166,6 +173,12 @@ func ApplySSHToTermios(m ssh.TerminalModes, t *unix.Termios) {
 			} else {
 				t.Iflag &^= unix.ICRNL
 			}
+		// case ssh.IUCLC:
+		// 	if val != 0 {
+		// 		t.Iflag |= unix.IUCLC
+		// 	} else {
+		// 		t.Iflag &^= unix.IUCLC
+		// 	}
 		case ssh.IXON:
 			if val != 0 {
 				t.Iflag |= unix.IXON
@@ -278,6 +291,12 @@ func ApplySSHToTermios(m ssh.TerminalModes, t *unix.Termios) {
 			} else {
 				t.Oflag &^= unix.OPOST
 			}
+		// case ssh.OLCUC:
+		// 	if val != 0 {
+		// 		t.Oflag |= unix.OLCUC
+		// 	} else {
+		// 		t.Oflag &^= unix.OLCUC
+		// 	}
 		case ssh.ONLCR:
 			if val != 0 {
 				t.Oflag |= unix.ONLCR
