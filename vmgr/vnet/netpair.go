@@ -16,23 +16,19 @@ func NewUnixgramPair() (file0 *os.File, fd1 int, err error) {
 	// cloexec
 	unix.CloseOnExec(fds[0])
 	unix.CloseOnExec(fds[1])
+	unix.SetNonblock(fds[0], true)
+	unix.SetNonblock(fds[1], true)
 
 	err = sockets.SetLargeBuffers(fds[0])
 	if err != nil {
+		unix.Close(fds[0])
+		unix.Close(fds[1])
 		return
 	}
 	err = sockets.SetLargeBuffers(fds[1])
 	if err != nil {
-		return
-	}
-
-	// this works fine, but makes little difference
-	err = unix.SetNonblock(fds[0], true)
-	if err != nil {
-		return
-	}
-	err = unix.SetNonblock(fds[1], true)
-	if err != nil {
+		unix.Close(fds[0])
+		unix.Close(fds[1])
 		return
 	}
 

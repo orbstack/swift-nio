@@ -3,6 +3,7 @@ package flock
 import (
 	"errors"
 	"os"
+	"runtime"
 
 	"golang.org/x/sys/unix"
 )
@@ -26,6 +27,7 @@ func Lock(file *os.File) error {
 
 	// must use F_SETLK to get l_pid
 	err := unix.FcntlFlock(file.Fd(), unix.F_SETLK, &flock)
+	runtime.KeepAlive(file)
 	if err != nil {
 		return err
 	}
@@ -43,6 +45,7 @@ func WaitLock(file *os.File) error {
 
 	// must use F_SETLKW to wait
 	err := unix.FcntlFlock(file.Fd(), unix.F_SETLKW, &flock)
+	runtime.KeepAlive(file)
 	if err != nil {
 		return err
 	}
@@ -59,6 +62,7 @@ func Unlock(file *os.File) error {
 	}
 
 	err := unix.FcntlFlock(file.Fd(), unix.F_SETLK, &flock)
+	runtime.KeepAlive(file)
 	if err != nil {
 		return err
 	}

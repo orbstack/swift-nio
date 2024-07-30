@@ -36,10 +36,10 @@ func New() (StopFD, error) {
 	if err != nil {
 		return StopFD{EFD: -1}, fmt.Errorf("failed to create eventfd: %w", err)
 	}
-	unix.SetNonblock(fds[0], true)
-	unix.SetNonblock(fds[1], true)
 	unix.CloseOnExec(fds[0])
 	unix.CloseOnExec(fds[1])
+	unix.SetNonblock(fds[0], true)
+	unix.SetNonblock(fds[1], true)
 	return StopFD{EFD: fds[0], writeFD: fds[1]}, nil
 }
 

@@ -800,7 +800,7 @@ func runVmManager() {
 
 	// Listen for signals
 	go func() {
-		signalCh := make(chan os.Signal, 1)
+		signalCh := make(chan os.Signal, 4)
 		signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT, unix.SIGUSR1)
 
 		sigints := 0
