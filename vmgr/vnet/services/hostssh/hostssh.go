@@ -43,6 +43,7 @@ var (
 		ssh.SIGHUP:  unix.SIGHUP,
 		ssh.SIGILL:  unix.SIGILL,
 		ssh.SIGINT:  unix.SIGINT,
+		ssh.SIGKILL: unix.SIGKILL,
 		ssh.SIGPIPE: unix.SIGPIPE,
 		ssh.SIGQUIT: unix.SIGQUIT,
 		ssh.SIGSEGV: unix.SIGSEGV,
@@ -150,7 +151,7 @@ func handleSshConn(s ssh.Session) error {
 		}
 	}
 	// TODO: can't use pspawn because setctty is missing. need re-exec helper
-	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
+	cmd := exec.CommandContext(s.Context(), combinedArgs[0], combinedArgs[1:]...)
 	if argv0 != nil {
 		cmd.Args[0] = *argv0
 	}
@@ -187,10 +188,13 @@ func handleSshConn(s ssh.Session) error {
 
 		go func() {
 			for win := range winCh {
-				pty.Setsize(ptyF, &pty.Winsize{
+				err := pty.Setsize(ptyF, &pty.Winsize{
 					Rows: uint16(win.Height),
 					Cols: uint16(win.Width),
 				})
+				if err != nil {
+					logrus.WithError(err).Error("pty resize failed")
+				}
 			}
 		}()
 
@@ -241,8 +245,14 @@ func handleSshConn(s ssh.Session) error {
 	fwdSigChan := make(chan ssh.Signal, 1)
 	s.Signals(fwdSigChan)
 	go func() {
-		for sig := range fwdSigChan {
-			err := cmd.Process.Signal(sshSigMap[sig])
+		for sshSig := range fwdSigChan {
+			sig := sshSigMap[sshSig]
+			if sig == nil {
+				logrus.WithField("sig", sshSig).Error("unknown SSH signal")
+				return
+			}
+
+			err := cmd.Process.Signal(sig)
 			if err != nil {
 				logrus.Error("SSH signal forward failed: ", err)
 			}

@@ -242,6 +242,13 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 		return
 	}
 
+	// for dev+docker: keep a freezer ref
+	freezer := container.Freezer()
+	if freezer != nil {
+		freezer.IncRef()
+		defer freezer.DecRef()
+	}
+
 	// set as last container
 	if !container.builtin {
 		go sv.m.db.SetLastContainerID(container.ID)
@@ -305,7 +312,6 @@ func (sv *SshServer) prepareWormhole(cmd *agent.AgentCommand, a *agent.Client, w
 	if err != nil {
 		return false, nil, err
 	}
-
 	wormholeMountFile := os.NewFile(uintptr(wormholeMountFd), "wormhole mount")
 	defer func() {
 		if retErr != nil {
@@ -437,6 +443,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		if err != nil {
 			return
 		}
+		// acts as keepalive
 		defer ptyF.Close()
 		defer ttyF.Close()
 
@@ -568,20 +575,21 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	// now that the command has been started, don't print errors to pty
 	printErr = false
 
+	// kill process if session is closed
+	go func() {
+		<-s.Context().Done()
+		_ = cmd.Process.Kill()
+	}()
+
 	// forward signals
 	fwdSigChan := make(chan ssh.Signal, 1)
 	s.Signals(fwdSigChan)
 	go func() {
-		for {
-			sshSig, ok := <-fwdSigChan
+		for sshSig := range fwdSigChan {
+			sig, ok := sshSigMap[sshSig]
 			if !ok {
-				return
-			}
-
-			sig := sshSigMap[sshSig]
-			if sig == nil {
 				logrus.WithField("sig", sshSig).Error("unknown SSH signal")
-				return
+				continue
 			}
 
 			err := cmd.Process.Signal(sig)
@@ -590,13 +598,6 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			}
 		}
 	}()
-
-	// for dev+docker: keep a freezer ref
-	freezer := container.Freezer()
-	if freezer != nil {
-		freezer.IncRef()
-		defer freezer.DecRef()
-	}
 
 	// don't wait for fds to close, we close them
 	// read-side pipes will be closed after start
@@ -617,14 +618,10 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string) error {
 	// make socketpair
-	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC|unix.SOCK_NONBLOCK, 0)
 	if err != nil {
 		return err
 	}
-
-	// make socketpair nonblocking
-	_ = unix.SetNonblock(socketFds[0], true)
-	_ = unix.SetNonblock(socketFds[1], true)
 
 	// wrap them in files
 	socketF0 := os.NewFile(uintptr(socketFds[0]), "sftp-socket0")

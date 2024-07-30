@@ -35,6 +35,7 @@ var (
 		unix.SIGHUP:  ssh.SIGHUP,
 		unix.SIGILL:  ssh.SIGILL,
 		unix.SIGINT:  ssh.SIGINT,
+		unix.SIGKILL: ssh.SIGKILL,
 		unix.SIGPIPE: ssh.SIGPIPE,
 		unix.SIGQUIT: ssh.SIGQUIT,
 		unix.SIGSEGV: ssh.SIGSEGV,
@@ -168,7 +169,7 @@ func RunSSH(opts CommandOpts) (int, error) {
 
 	// forward signals
 	fwdSigChan := make(chan os.Signal, 1)
-	notifySigs := make([]os.Signal, 0)
+	notifySigs := make([]os.Signal, 0, len(sshSigMap))
 	for k := range sshSigMap {
 		notifySigs = append(notifySigs, k)
 	}
@@ -240,7 +241,12 @@ func RunSSH(opts CommandOpts) (int, error) {
 	for {
 		select {
 		case sig := <-fwdSigChan:
-			err = session.Signal(sshSigMap[sig])
+			sshSig, ok := sshSigMap[sig]
+			if !ok {
+				continue
+			}
+
+			err = session.Signal(sshSig)
 			if err != nil {
 				logrus.WithError(err).Warn("failed to forward signal")
 			}
