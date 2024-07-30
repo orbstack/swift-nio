@@ -25,7 +25,9 @@ func NewForFS(fsPath string) (FSOps, error) {
 
 	switch stf.Type {
 	case unix.BTRFS_SUPER_MAGIC:
-		return &btrfsOps{}, nil
+		return &btrfsOps{
+			mountpoint: fsPath,
+		}, nil
 	case BCACHEFS_STATFS_MAGIC:
 		return &bcachefsOps{}, nil
 

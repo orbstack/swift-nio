@@ -10,7 +10,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type btrfsOps struct{}
+type btrfsOps struct {
+	mountpoint string
+}
 
 func (b *btrfsOps) CreateSubvolumeIfNotExists(fsSubpath string) error {
 	// doesn't work properly with our legacy qgroup setup
@@ -37,7 +39,7 @@ func (b *btrfsOps) DeleteSubvolumesRecursive(fsSubpath string) error {
 		}
 
 		fields := strings.Fields(line)
-		subvolPath := fsSubpath + "/" + fields[8]
+		subvolPath := b.mountpoint + "/" + fields[8]
 		if strings.HasPrefix(subvolPath, fsSubpath+"/") {
 			deleteArgs = append(deleteArgs, subvolPath)
 		}
