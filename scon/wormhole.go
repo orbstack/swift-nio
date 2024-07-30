@@ -7,7 +7,7 @@ import (
 )
 
 func isNixContainer(rootfsFile *os.File) (bool, error) {
-	fs, err := securefs.NewFromDirfd(int(rootfsFile.Fd()))
+	fs, err := securefs.NewFromDirfd(rootfsFile)
 	if err != nil {
 		return false, err
 	}

@@ -36,3 +36,48 @@ func GetConnFd(conn syscall.Conn) int {
 	}
 	return fd
 }
+
+// this takes a ref on f.pfd to prevent it from being closed
+func UseFile(file *os.File, f func(int) error) error {
+	rawConn, err := file.SyscallConn()
+	if err != nil {
+		return err
+	}
+
+	return UseRawConn(rawConn, f)
+}
+
+func UseFile1[T1 any](file *os.File, f func(int) (T1, error)) (T1, error) {
+	rawConn, err := file.SyscallConn()
+	if err != nil {
+		var zero T1
+		return zero, err
+	}
+
+	return UseRawConn1(rawConn, f)
+}
+
+func UseRawConn(rawConn syscall.RawConn, f func(int) error) error {
+	var err2 error
+	err := rawConn.Control(func(fd uintptr) {
+		err2 = f(int(fd))
+	})
+	if err != nil {
+		return err
+	}
+
+	return err2
+}
+
+func UseRawConn1[T1 any](rawConn syscall.RawConn, f func(int) (T1, error)) (T1, error) {
+	var err2 error
+	var ret1 T1
+	err := rawConn.Control(func(fd uintptr) {
+		ret1, err2 = f(int(fd))
+	})
+	if err != nil {
+		return ret1, err
+	}
+
+	return ret1, err2
+}

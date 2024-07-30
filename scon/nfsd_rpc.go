@@ -46,8 +46,6 @@ const (
 	// parts that vary: ro,fsid=%d,anonuid=%d,anongid=%d
 	nfsExpBaseFlags = NFSEXP_INSECURE_PORT | NFSEXP_ROOTSQUASH | NFSEXP_ALLSQUASH | NFSEXP_ASYNC | NFSEXP_GATHERED_WRITES | NFSEXP_NOSUBTREECHECK | NFSEXP_FSID | NFSEXP_CROSSMOUNT | NFSEXP_QFID
 
-	nfsExpSecinfoFlags = NFSEXP_READONLY | NFSEXP_ROOTSQUASH | NFSEXP_ALLSQUASH | NFSEXP_INSECURE_PORT
-
 	// the only fsid type we use
 	FSID_NUM = 1
 
@@ -77,6 +75,7 @@ func startNfsd() error {
 	if err != nil {
 		return err
 	}
+	defer listener.Close()
 
 	listenerFile, err := listener.(*net.TCPListener).File()
 	listener.Close() // dup

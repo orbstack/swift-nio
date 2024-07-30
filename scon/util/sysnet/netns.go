@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// opened once, never closed
 var getHostNetnsFd = sync.OnceValue(func() int {
 	fd, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {

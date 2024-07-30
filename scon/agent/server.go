@@ -18,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/sirupsen/logrus"
@@ -95,11 +96,8 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		os.Exit(0)
 	}
 
-	// our only unused fd
-	os.Stdin = os.Stderr
-	os.Stdout = os.Stderr
-
 	// close executable fd now that we're running
+	// (fd number is from argv[0] = "/proc/self/fd/X")
 	parts := strings.Split(os.Args[0], "/")
 	exeFd, err := strconv.Atoi(parts[len(parts)-1])
 	if err != nil {
@@ -123,14 +121,26 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		return err
 	}
 	// replace original fd (stdin) with stderr (console) in case anything writes to it
-	unix.Dup2(int(os.Stderr.Fd()), int(rpcFile.Fd()))
+	// this closes the old rpcFile fd by replacing it with stderr
+	// rpcFile = os.Stdin, so nothing will call its finalizer
+	// avoid calling .Fd() on rpcFile, as it unsets nonblock
+	err = unix.Dup3(int(os.Stderr.Fd()), util.GetFd(rpcFile), unix.O_CLOEXEC)
+	if err != nil {
+		return err
+	}
 
 	fdxConn, err := net.FileConn(fdxFile)
 	if err != nil {
 		return err
 	}
 	// replace original fd (stdout) with stderr (console) in case anything writes to it
-	unix.Dup2(int(os.Stderr.Fd()), int(fdxFile.Fd()))
+	// this closes the old fdxFile fd by replacing it with stderr
+	// fdxFile = os.Stdout, so nothing will call its finalizer
+	// avoid calling .Fd() on fdxFile, as it unsets nonblock
+	err = unix.Dup3(int(os.Stderr.Fd()), util.GetFd(fdxFile), unix.O_CLOEXEC)
+	if err != nil {
+		return err
+	}
 
 	// just in case
 	runtime.KeepAlive(rpcFile)

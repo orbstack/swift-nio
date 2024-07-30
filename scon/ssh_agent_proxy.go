@@ -73,11 +73,12 @@ func dialAsUidGid(uid, gid uint32, network, address string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer unix.Setfsuid(oldUid)
+
 	oldGid, err := unix.SetfsgidRetGid(int(gid))
 	if err != nil {
 		return nil, err
 	}
-	defer unix.Setfsuid(oldUid)
 	defer unix.Setfsgid(oldGid)
 
 	return net.Dial(network, address)

@@ -7,12 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 
+	"github.com/orbstack/macvirt/scon/util"
 	"golang.org/x/sys/unix"
 )
 
 type FS struct {
-	dfd int
+	dfd    *os.File
+	dfdRaw syscall.RawConn
 }
 
 func NewFromPath(root string) (*FS, error) {
@@ -21,14 +24,19 @@ func NewFromPath(root string) (*FS, error) {
 		return nil, err
 	}
 
-	return &FS{
-		dfd: dfd,
-	}, nil
+	file := os.NewFile(uintptr(dfd), root)
+	return NewFromDirfd(file)
 }
 
-func NewFromDirfd(dfd int) (*FS, error) {
+func NewFromDirfd(dfd *os.File) (*FS, error) {
+	dfdRaw, err := dfd.SyscallConn()
+	if err != nil {
+		return nil, err
+	}
+
 	return &FS{
-		dfd: dfd,
+		dfd:    dfd,
+		dfdRaw: dfdRaw,
 	}, nil
 }
 
@@ -42,7 +50,7 @@ var Default = sync.OnceValue(func() *FS {
 })
 
 func (fs *FS) Close() error {
-	return unix.Close(fs.dfd)
+	return fs.dfd.Close()
 }
 
 func (fs *FS) OpenFd(name string, flag int, perm os.FileMode) (int, error) {
@@ -53,7 +61,9 @@ func (fs *FS) OpenFd(name string, flag int, perm os.FileMode) (int, error) {
 			Mode:    uint64(perm),
 			Resolve: unix.RESOLVE_IN_ROOT,
 		}
-		fd, err := unix.Openat2(fs.dfd, name, &how)
+		fd, err := util.UseRawConn1(fs.dfdRaw, func(fd int) (int, error) {
+			return unix.Openat2(fd, name, &how)
+		})
 		if err != nil {
 			// need to check for EINTR - Go issues 11180, 39237
 			// also EAGAIN in case of unsafe race

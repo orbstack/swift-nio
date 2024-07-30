@@ -16,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/scon/util/sysns"
 	"github.com/sirupsen/logrus"
@@ -325,7 +326,9 @@ func withContainerMountNs[T any](c *Container, fn func() (T, error)) (T, error) 
 	}
 	defer runtime.KeepAlive(initPidF)
 
-	return sysns.WithMountNs(int(initPidF.Fd()), fn)
+	return util.UseFile1(initPidF, func(fd int) (T, error) {
+		return sysns.WithMountNs(fd, fn)
+	})
 }
 
 func (c *Container) UseMountNs(fn func() error) error {

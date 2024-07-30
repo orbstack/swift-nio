@@ -9,13 +9,10 @@ import (
 
 func socketpair(typ int) (file0 *os.File, conn1 net.Conn, err error) {
 	// cloexec safe
-	fds, err := unix.Socketpair(unix.AF_UNIX, typ|unix.SOCK_CLOEXEC, 0)
+	fds, err := unix.Socketpair(unix.AF_UNIX, typ|unix.SOCK_CLOEXEC|unix.SOCK_NONBLOCK, 0)
 	if err != nil {
 		return
 	}
-
-	unix.SetNonblock(fds[0], true)
-	unix.SetNonblock(fds[1], true)
 
 	file0 = os.NewFile(uintptr(fds[0]), "socketpair0")
 	file1 := os.NewFile(uintptr(fds[1]), "socketpair1")

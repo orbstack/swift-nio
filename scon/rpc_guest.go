@@ -84,7 +84,7 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 			return fmt.Errorf("move mount %s: %w", destPath, err)
 		}
 
-		// make rprivate to prevent unmounts from propagating
+		// make rprivate to prevent our unmounts from propagating
 		// otherwise it breaks kind, which uses systemd, which remounts all as shared
 		err = unix.Mount("", destPath, "", unix.MS_REC|unix.MS_PRIVATE, "")
 		if err != nil {

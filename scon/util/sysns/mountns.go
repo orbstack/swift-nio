@@ -15,6 +15,7 @@ func init() {
 	runtime.LockOSThread()
 }
 
+// opened once, never closed
 var getHostMountnsFd = sync.OnceValue(func() int {
 	fd, err := unix.Open("/proc/thread-self/ns/mnt", unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {

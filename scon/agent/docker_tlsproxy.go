@@ -132,12 +132,16 @@ func (t *tlsProxy) Start() error {
 	lcfg := net.ListenConfig{
 		// set IP_TRANSPARENT to accept TPROXY connections
 		Control: func(network, address string, c syscall.RawConn) error {
-			var err error
-			c.Control(func(fd uintptr) {
+			var err2 error
+			err := c.Control(func(fd uintptr) {
 				// Go sets SO_REUSEADDR by default
-				err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
+				err2 = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
 			})
-			return err
+			if err != nil {
+				return err
+			}
+
+			return err2
 		},
 	}
 

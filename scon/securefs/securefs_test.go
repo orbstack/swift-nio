@@ -440,6 +440,7 @@ func TestDefaultFS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer f.Close()
 
 	// read file
 	var buf [10]byte
@@ -519,6 +520,7 @@ func TestCloexec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer f.Close()
 
 	// check cloexec
 	flags, err := unix.FcntlInt(f.Fd(), unix.F_GETFD, 0)
@@ -530,7 +532,7 @@ func TestCloexec(t *testing.T) {
 	}
 
 	// check dirfd cloexec
-	flags, err = unix.FcntlInt(uintptr(fs.dfd), unix.F_GETFD, 0)
+	flags, err = unix.FcntlInt(uintptr(fs.dfd.Fd()), unix.F_GETFD, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

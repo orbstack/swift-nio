@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/orbstack/macvirt/scon/agent/envutil"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/sysx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
@@ -340,6 +342,7 @@ func SpawnProcessImpl(a *AgentServer, args *SpawnProcessArgs, childFiles []*os.F
 			if err != nil {
 				return 0, 0, err
 			}
+			runtime.KeepAlive(ptyF)
 		}
 
 		// doesn't work: permission denied
@@ -600,11 +603,15 @@ func (p *PidfdProcess) Kill() error {
 }
 
 func (p *PidfdProcess) Signal(sig os.Signal) error {
-	return unix.PidfdSendSignal(int(p.f.Fd()), sig.(unix.Signal), nil, 0)
+	return util.UseFile(p.f, func(fd int) error {
+		return unix.PidfdSendSignal(fd, sig.(unix.Signal), nil, 0)
+	})
 }
 
 func (p *PidfdProcess) Wait() error {
-	return sysx.PollFd(int(p.f.Fd()), unix.POLLIN)
+	return util.UseFile(p.f, func(fd int) error {
+		return sysx.PollFd(fd, unix.POLLIN)
+	})
 }
 
 func (p *PidfdProcess) WaitStatus() (int, error) {

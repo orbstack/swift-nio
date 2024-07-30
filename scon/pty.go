@@ -2,7 +2,7 @@ package main
 
 import (
 	"os"
-	"unsafe"
+	"runtime"
 
 	"golang.org/x/sys/unix"
 )
@@ -13,6 +13,7 @@ func (c *Container) OpenPty() (pty, tty *os.File, err error) {
 	if err != nil {
 		return
 	}
+	// works as keepalive
 	defer ptsDir.Close()
 
 	// cloexec safe: O_CLOEXEC
@@ -21,12 +22,11 @@ func (c *Container) OpenPty() (pty, tty *os.File, err error) {
 		return
 	}
 	pty = os.NewFile(uintptr(ptyFd), "/dev/ptmx")
+	defer runtime.KeepAlive(pty)
 
 	// unlock
-	val := 0
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(ptyFd), unix.TIOCSPTLCK, uintptr(unsafe.Pointer(&val)))
-	if errno != 0 {
-		err = errno
+	err = unix.IoctlSetPointerInt(int(pty.Fd()), unix.TIOCSPTLCK, 0)
+	if err != nil {
 		pty.Close()
 		return
 	}
