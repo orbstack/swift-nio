@@ -14,7 +14,11 @@
 	<true/>
 	<key>com.apple.security.hypervisor</key>
 	<true/>
+	<!-- allow task_for_pid for lldb, flamegraph, etc. -->
 	<key>com.apple.security.get-task-allow</key>
+	<true/>
+	<!-- allow loading ASAN and Samply with hardened runtime enabled -->
+	<key>com.apple.security.cs.disable-library-validation</key>
 	<true/>
 	<key>com.apple.vm.networking</key>
 	<true/>

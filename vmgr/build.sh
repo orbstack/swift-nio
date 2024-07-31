@@ -49,7 +49,7 @@ $GO generate ./conf/appver ./drm/killswitch
 
 CGO_CFLAGS="-mmacosx-version-min=12.3" \
 CGO_LDFLAGS="-mmacosx-version-min=12.3" \
-$GO build -buildmode=pie -ldflags="-extldflags \"$SWIFT_LIB_PATH $RUST_LIB_PATH\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
+$GO build -buildmode=pie -ldflags="-extldflags \"$SWIFT_LIB_PATH $RUST_LIB_PATH ${EXTRA_EXTLD_FLAGS:-}\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
 
 # strip for release
 codesign_flags=(-f)

@@ -1,4 +1,4 @@
-.PHONY: run scli app serve publish vmgr
+.PHONY: run run-asan run-raw scli app serve publish vmgr vmgr-asan
 
 # dev == debug
 export RUST_BUILD_TYPE ?= release-with-debug
@@ -11,7 +11,19 @@ vmgr:
 	@cd ../vendor/libkrun; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && cargo build || cargo build --profile "$(RUST_BUILD_TYPE)"
 	@./build.sh
 
+vmgr-asan:
+	@cd ../swift; make lib-debug
+	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
+# --target: fix proc macros being built with ASAN and loaded into rustc
+	@cd ../vendor/libkrun; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && RUSTFLAGS=-Zsanitizer=address cargo +nightly build -Zbuild-std --target aarch64-apple-darwin || RUSTFLAGS=-Zsanitizer=address cargo +nightly build -Zbuild-std --target aarch64-apple-darwin --profile "$(RUST_BUILD_TYPE)"
+# link ASAN runtime
+	@EXTRA_EXTLD_FLAGS="-rpath $${HOME}/.rustup/toolchains/nightly-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib $${HOME}/.rustup/toolchains/nightly-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/librustc-nightly_rt.asan.dylib" RUST_TARGET=aarch64-apple-darwin ./build.sh
+
 run: vmgr
+	@orb stop || :
+	@"../out/OrbStack Helper.app/Contents/MacOS/OrbStack Helper" vmgr
+
+run-asan: vmgr-asan
 	@orb stop || :
 	@"../out/OrbStack Helper.app/Contents/MacOS/OrbStack Helper" vmgr
 
