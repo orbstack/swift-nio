@@ -28,6 +28,12 @@ num-traits = "0.2.19"
 mach2 = "0.4.2"
 scopeguard = "1.2.0"
 utils = { path = "../utils" }
+serde = { version = "1.0.204", features = ["derive"] }
+framehop = "0.13.0"
+wholesym = "0.7.0"
+tokio = { version = "1.39.2", features = ["rt"] }
+symbolic-demangle = "12.10.0"
+goblin = "0.8.2"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 cpuid = { path = "../cpuid" }

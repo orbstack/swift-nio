@@ -31,7 +31,9 @@ use crate::linux::vstate;
 #[cfg(target_os = "macos")]
 mod macos;
 
+use anyhow::anyhow;
 use gruel::Subscriber;
+use hvf::profiler::{Profiler, ProfilerParams};
 #[cfg(target_os = "macos")]
 pub use hvf::MemoryMapping;
 #[cfg(target_os = "macos")]
@@ -184,6 +186,8 @@ pub struct Vmm {
     vm: Vm,
     shutdown: VmmShutdownSignal,
     exit_observers: Vec<Arc<Mutex<dyn VmmExitObserver>>>,
+
+    profiler: Option<Arc<Profiler>>,
 
     // Guest VM devices.
     mmio_device_manager: MMIODeviceManager,
@@ -402,6 +406,26 @@ impl Vmm {
 
     pub fn dump_debug(&self) {
         self.parker.dump_debug();
+    }
+
+    pub fn start_profile(&mut self, params: &ProfilerParams) -> anyhow::Result<()> {
+        if self.profiler.is_some() {
+            return Err(anyhow!("already started"));
+        }
+
+        let profiler = Arc::new(Profiler::new(params.clone(), self.parker.clone()));
+        profiler.start()?;
+
+        self.profiler = Some(profiler);
+        Ok(())
+    }
+
+    pub fn stop_profile(&mut self) -> anyhow::Result<()> {
+        if let Some(profiler) = self.profiler.take() {
+            profiler.stop()?;
+        }
+
+        Ok(())
     }
 }
 

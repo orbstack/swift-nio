@@ -27,6 +27,8 @@ mod aarch64;
 #[cfg(target_arch = "aarch64")]
 pub use aarch64::*;
 
+pub mod profiler;
+
 const MEMORY_REMAP_INTERVAL: Duration = Duration::from_secs(30);
 const MEMORY_REGION_TAG: u8 = 250; // application specific tag space
 
@@ -39,7 +41,9 @@ pub trait Parkable: Send + Sync {
 
     fn unpark(&self, unpark_task: StartupTask);
 
-    fn register_vcpu(&self, vcpu: ArcVcpuSignal) -> StartupTask;
+    fn register_vcpu(&self, id: u8, vcpu: ArcVcpuSignal) -> StartupTask;
+
+    fn get_vcpu(&self, id: u8) -> Option<ArcVcpuSignal>;
 
     fn process_park_commands(
         &self,

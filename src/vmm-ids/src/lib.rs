@@ -53,6 +53,9 @@ bitflags::bitflags! {
         #[cfg(target_arch = "aarch64")]
         const DUMP_DEBUG = 1 << 5;
 
+        /// Take a sample for profiling.
+        const PROFILER_SAMPLE = 1 << 6;
+
         // TODO: We might actually just not want this.
         const ANY_SHUTDOWN = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits();
 

@@ -13,6 +13,7 @@ use gruel::StartupSignal;
 use gruel::StartupTask;
 use gruel::Waker;
 use hvf::HvVcpuRef;
+use std::collections::BTreeMap;
 use std::io;
 use std::result;
 use std::sync::Arc;
@@ -87,7 +88,7 @@ pub struct Vm {
 
 #[derive(Default)]
 pub struct VmParker {
-    vcpus: Mutex<Vec<ArcVcpuSignal>>,
+    vcpus: Mutex<BTreeMap<u8, ArcVcpuSignal>>,
 
     /// Tasks here represent vCPUs which have yet to park.
     park_signal: StartupSignal,
@@ -97,8 +98,8 @@ pub struct VmParker {
 }
 
 impl Parkable for VmParker {
-    fn register_vcpu(&self, vcpu: ArcVcpuSignal) -> StartupTask {
-        self.vcpus.lock().unwrap().push(vcpu);
+    fn register_vcpu(&self, id: u8, vcpu: ArcVcpuSignal) -> StartupTask {
+        self.vcpus.lock().unwrap().insert(id, vcpu);
 
         // Won't panic: `park_signal` is only ever used in a panic-less context
         self.park_signal.resurrect_cloned().unwrap()
@@ -114,7 +115,7 @@ impl Parkable for VmParker {
 
         // Let's send a pause signal to every vCPU. They will receive and honor this since this
         // signal is never asserted outside of `park` (or when the signal is aborted)
-        for cpu in &*self.vcpus.lock().unwrap() {
+        for (_, cpu) in &*self.vcpus.lock().unwrap() {
             cpu.assert(VcpuSignalMask::PAUSE);
         }
 
@@ -153,9 +154,13 @@ impl Parkable for VmParker {
     }
 
     fn dump_debug(&self) {
-        for cpu in &*self.vcpus.lock().unwrap() {
+        for (_, cpu) in &*self.vcpus.lock().unwrap() {
             cpu.assert(VcpuSignalMask::DUMP_DEBUG);
         }
+    }
+
+    fn get_vcpu(&self, id: u8) -> Option<ArcVcpuSignal> {
+        self.vcpus.lock().unwrap().get(&id).cloned()
     }
 }
 
@@ -722,7 +727,7 @@ impl Vcpu {
             },
         );
 
-        let mut park_task = parker.register_vcpu(signal.clone());
+        let mut park_task = parker.register_vcpu(self.cpu_index(), signal.clone());
 
         devices::virtio::fs::macos::iopolicy::prepare_vcpu_for_hvc().unwrap();
 

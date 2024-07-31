@@ -561,6 +561,7 @@ pub fn build_microvm(
         parker: vm.get_parker().clone(),
         vm,
         shutdown: shutdown.clone(),
+        profiler: None,
         mmio_device_manager,
         #[cfg(target_arch = "x86_64")]
         pio_device_manager,

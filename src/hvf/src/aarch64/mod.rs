@@ -45,6 +45,9 @@ use utils::hypercalls::{
 
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 
+use crate::profiler::symbolicator::{LinuxSymbolicator, Symbolicator};
+use crate::profiler::STACK_DEPTH_LIMIT;
+
 extern "C" {
     pub fn mach_absolute_time() -> u64;
 }
@@ -71,8 +74,6 @@ const ENABLE_NESTED_VIRT: bool = false;
 const HV_EXIT_REASON_CANCELED: hv_exit_reason_t = 0;
 const HV_EXIT_REASON_EXCEPTION: hv_exit_reason_t = 1;
 const HV_EXIT_REASON_VTIMER_ACTIVATED: hv_exit_reason_t = 2;
-
-const DEBUG_STACK_DEPTH_LIMIT: usize = 128;
 
 const PSR_MODE_EL0T: u64 = 0x0000_0000;
 const PSR_MODE_EL1T: u64 = 0x0000_0004;
@@ -1440,23 +1441,27 @@ impl HvfVcpu {
         Ok(buf)
     }
 
-    fn add_debug_stack(&self, buf: &mut String, csmap_path: &str) -> anyhow::Result<()> {
-        // walk stack, with depth limit to protect against malicious/corrupted stack
+    fn walk_stack(&self, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
         let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
         let lr = self.read_raw_reg(hv_reg_t_HV_REG_LR)?;
+
         // start with just PC and LR
-        let mut stack = vec![pc, lr];
+        f(pc);
+        f(lr);
+
         // then start looking at FP
         let mut fp = self.read_raw_reg(hv_reg_t_HV_REG_FP)?;
-        for _ in 0..DEBUG_STACK_DEPTH_LIMIT {
+        for _ in 0..STACK_DEPTH_LIMIT {
             // mem[FP+8] = frame's LR
+            // TODO: cache bounds check and gva?
             let frame_lr = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
             if frame_lr == 0 {
                 // reached end of stack
                 break;
             }
 
-            stack.push(frame_lr);
+            // TODO: handle case where frame_lr == lr
+            f(frame_lr);
 
             // mem[FP] = link to last FP
             fp = self.guest_mem.read_obj_fast(self.translate_gva(fp)?)?;
@@ -1466,6 +1471,17 @@ impl HvfVcpu {
             }
         }
 
+        Ok(())
+    }
+
+    fn sample_for_profiler(&self) -> anyhow::Result<()> {
+        let mut stack = Vec::with_capacity(STACK_DEPTH_LIMIT);
+        self.walk_stack(|addr| stack.push(addr))?;
+
+        Ok(())
+    }
+
+    fn new_symbolicator(&self, csmap_path: &str) -> anyhow::Result<LinuxSymbolicator> {
         // load compact System.map from file system
         // we can't find KASLR offset without symbols, and addrs are useless without KASLR offset
         let csmap = CompactSystemMap::from_slice(&std::fs::read(csmap_path)?)?;
@@ -1492,16 +1508,25 @@ impl HvfVcpu {
             -((vbar_el1 - vectors_addr) as i64)
         };
 
-        for (i, addr) in stack.iter().enumerate() {
-            // subtract KASLR offset to get vaddr in System.map
-            let vaddr = addr.wrapping_add_signed(kaslr_offset);
-            // lookup symbol in System.map
-            match csmap.vaddr_to_symbol(vaddr) {
+        LinuxSymbolicator::new(csmap, kaslr_offset)
+    }
+
+    fn add_debug_stack(&self, buf: &mut String, csmap_path: &str) -> anyhow::Result<()> {
+        // walk stack, with depth limit to protect against malicious/corrupted stack
+        let mut stack = Vec::new();
+        self.walk_stack(|addr| stack.push(addr))?;
+
+        let symbolicator = self.new_symbolicator(csmap_path)?;
+        for (i, &addr) in stack.iter().enumerate() {
+            match symbolicator
+                .addr_to_symbol(addr)?
+                .and_then(|s| s.symbol_offset)
+            {
                 Some((name, offset)) => {
                     writeln!(buf, "  {:>3}: {}+{}", i, name, offset)?;
                 }
                 None => {
-                    writeln!(buf, "  {:>3}: UNKNOWN+0x{:016x}", i, vaddr)?;
+                    writeln!(buf, "  {:>3}: UNKNOWN+0x{:016x}", i, addr)?;
                 }
             }
         }

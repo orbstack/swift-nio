@@ -15,7 +15,7 @@ use crossbeam_channel::unbounded;
 use devices::virtio::{net::device::VirtioNetBackend, CacheType, FsCallbacks, NfsInfo};
 #[cfg(target_arch = "x86_64")]
 use hvf::check_cpuid;
-use hvf::{HvfVm, MemoryMapping};
+use hvf::{profiler::ProfilerParams, HvfVm, MemoryMapping};
 use libc::strdup;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -401,6 +401,28 @@ impl Machine {
         Ok(())
     }
 
+    pub fn start_profile(&self, params: &ProfilerParams) -> anyhow::Result<()> {
+        let mut vmm = self
+            .vmm
+            .as_ref()
+            .ok_or_else(|| anyhow!("not started"))?
+            .lock()
+            .unwrap();
+        vmm.start_profile(params)?;
+        Ok(())
+    }
+
+    pub fn stop_profile(&self) -> anyhow::Result<()> {
+        let mut vmm = self
+            .vmm
+            .as_ref()
+            .ok_or_else(|| anyhow!("not started"))?
+            .lock()
+            .unwrap();
+        vmm.stop_profile()?;
+        Ok(())
+    }
+
     fn with<T>(ptr: *mut c_void, f: impl FnOnce(&mut Machine) -> T) -> T {
         assert_eq!(ptr as usize, VM_PTR, "invalid pointer");
 
@@ -473,6 +495,24 @@ pub unsafe extern "C" fn rsvm_machine_start(ptr: *mut c_void) -> GResultErr {
 #[no_mangle]
 pub unsafe extern "C" fn rsvm_machine_dump_debug(ptr: *mut c_void) -> GResultErr {
     GResultErr::from_result(Machine::with(ptr, |machine| machine.dump_debug()))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsvm_machine_start_profile(
+    ptr: *mut c_void,
+    params: *const u8,
+    params_len: usize,
+) -> GResultErr {
+    GResultErr::from_result(Machine::with(ptr, |machine| {
+        let params = std::slice::from_raw_parts(params, params_len);
+        let params: ProfilerParams = serde_json::from_slice(params)?;
+        machine.start_profile(&params)
+    }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rsvm_machine_stop_profile(ptr: *mut c_void) -> GResultErr {
+    GResultErr::from_result(Machine::with(ptr, |machine| machine.stop_profile()))
 }
 
 #[no_mangle]
