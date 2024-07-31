@@ -23,6 +23,8 @@ struct GResultIntErr {
 struct GResultCreate rsvm_new_machine(uintptr_t handle, const char* config_json_str);
 struct GResultErr rsvm_machine_start(void* ptr);
 struct GResultErr rsvm_machine_dump_debug(void* ptr);
+struct GResultErr rsvm_machine_start_profile(void* ptr, const char* params_json_str, size_t params_len);
+struct GResultErr rsvm_machine_stop_profile(void* ptr);
 struct GResultErr rsvm_machine_stop(void* ptr);
 void rsvm_machine_destroy(void* ptr);
 
@@ -82,6 +84,7 @@ type machine struct {
 }
 
 func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machine, error) {
+	// HVF limitation: VM is a process-global resource
 	if !vmCreated.CompareAndSwap(false, true) {
 		return nil, fmt.Errorf("only one VM can be created in a process")
 	}
@@ -181,6 +184,23 @@ func (m *machine) StateChan() <-chan vmm.MachineState {
 func (m *machine) DumpDebug() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.rsvm_machine_dump_debug(ptr)
+	})
+}
+
+func (m *machine) StartProfile(params *vmm.ProfilerParams) error {
+	data, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+
+	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
+		return C.rsvm_machine_start_profile(ptr, (*C.char)(unsafe.Pointer(&data[0])), C.size_t(len(data)))
+	})
+}
+
+func (m *machine) StopProfile() error {
+	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
+		return C.rsvm_machine_stop_profile(ptr)
 	})
 }
 

@@ -800,8 +800,8 @@ func runVmManager() {
 
 	// Listen for signals
 	go func() {
-		signalCh := make(chan os.Signal, 4)
-		signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT, unix.SIGUSR1)
+		signalCh := make(chan os.Signal, 5)
+		signal.Notify(signalCh, unix.SIGTERM, unix.SIGINT, unix.SIGQUIT, unix.SIGUSR1, unix.SIGUSR2)
 
 		sigints := 0
 		for sig := range signalCh {
@@ -824,6 +824,23 @@ func runVmManager() {
 			case unix.SIGUSR1:
 				// sample stacks to debug hangs
 				go debugutil.SampleStacks(vm)
+
+			case unix.SIGUSR2:
+				err := vm.StartProfile(&vmm.ProfilerParams{
+					SampleRate: 1000,
+					OutputPath: "/tmp/profile.txt",
+				})
+				if err != nil {
+					logrus.WithError(err).Error("failed to start profile")
+				}
+
+				go func() {
+					time.Sleep(5 * time.Second)
+					err := vm.StopProfile()
+					if err != nil {
+						logrus.WithError(err).Error("failed to stop profile")
+					}
+				}()
 			}
 		}
 	}()

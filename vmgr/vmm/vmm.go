@@ -62,6 +62,11 @@ type VzSpec struct {
 	NfsInfo *NfsInfo `json:"nfsInfo"`
 }
 
+type ProfilerParams struct {
+	SampleRate int    `json:"sample_rate"`
+	OutputPath string `json:"output_path"`
+}
+
 type Monitor interface {
 	NewMachine(c *VzSpec, retainFiles []*os.File) (Machine, error)
 	NetworkMTU() int
@@ -77,5 +82,7 @@ type Machine interface {
 	ConnectVsock(port uint32) (net.Conn, error)
 	StateChan() <-chan MachineState
 	DumpDebug() error
+	StartProfile(params *ProfilerParams) error
+	StopProfile() error
 	Close() error
 }
