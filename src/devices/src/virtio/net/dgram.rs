@@ -1,7 +1,8 @@
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::sys::uio::writev;
-use std::os::fd::{AsRawFd, RawFd};
+use std::os::fd::{AsRawFd, OwnedFd, RawFd};
+use std::sync::Arc;
 
 use crate::virtio::descriptor_utils::Iovec;
 
@@ -19,22 +20,23 @@ fn readv<F: AsRawFd>(fd: F, iov: &[Iovec]) -> Result<usize, Errno> {
 }
 
 pub struct Dgram {
-    fd: RawFd,
+    fd: Arc<OwnedFd>,
 }
 
 impl Dgram {
-    pub fn new(fd: RawFd) -> Result<Self, ConnectError> {
+    pub fn new(fd: Arc<OwnedFd>) -> Result<Self, ConnectError> {
         // macOS forces us to do this here instead of just using SockFlag::SOCK_NONBLOCK above.
-        match fcntl(fd, FcntlArg::F_GETFL) {
+        let raw_fd = fd.as_raw_fd();
+        match fcntl(raw_fd, FcntlArg::F_GETFL) {
             Ok(flags) => match OFlag::from_bits(flags) {
                 Some(flags) => {
-                    if let Err(e) = fcntl(fd, FcntlArg::F_SETFL(flags | OFlag::O_NONBLOCK)) {
-                        warn!("error switching to non-blocking: id={}, err={}", fd, e);
+                    if let Err(e) = fcntl(raw_fd, FcntlArg::F_SETFL(flags | OFlag::O_NONBLOCK)) {
+                        warn!("error switching to non-blocking: id={}, err={}", raw_fd, e);
                     }
                 }
-                None => error!("invalid fd flags id={}", fd),
+                None => error!("invalid fd flags id={}", raw_fd),
             },
-            Err(e) => error!("couldn't obtain fd flags id={}, err={}", fd, e),
+            Err(e) => error!("couldn't obtain fd flags id={}, err={}", raw_fd, e),
         };
 
         #[cfg(target_os = "macos")]
@@ -43,7 +45,7 @@ impl Dgram {
             let option_value: libc::c_int = 1;
             unsafe {
                 libc::setsockopt(
-                    fd,
+                    raw_fd,
                     libc::SOL_SOCKET,
                     libc::SO_NOSIGPIPE,
                     &option_value as *const _ as *const libc::c_void,
@@ -59,7 +61,7 @@ impl Dgram {
 impl NetBackend for Dgram {
     /// Try to read a frame from passt. If no bytes are available reports ReadError::NothingRead
     fn read_frame(&mut self, buf: &[Iovec]) -> Result<usize, ReadError> {
-        let frame_length = match readv(self.fd, buf) {
+        let frame_length = match readv(self.fd.as_raw_fd(), buf) {
             Ok(f) => f,
             Err(Errno::EAGAIN) => return Err(ReadError::NothingRead),
             Err(e) => {
@@ -85,7 +87,7 @@ impl NetBackend for Dgram {
             return Err(WriteError::Internal(nix::Error::EINVAL));
         }
 
-        match writev(self.fd, Iovec::slice_to_std(iovs)) {
+        match writev(self.fd.as_raw_fd(), Iovec::slice_to_std(iovs)) {
             Ok(_) => Ok(()),
             Err(Errno::ENOBUFS | Errno::EAGAIN) => Err(WriteError::NothingWritten),
             Err(Errno::EPIPE) => Err(WriteError::ProcessNotRunning),

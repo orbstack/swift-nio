@@ -21,7 +21,7 @@ use gruel::{define_waker_set, BoundSignalChannelRef, OnceMioWaker, SignalChannel
 use newt::{make_bit_flag_range, BitFlagRange};
 use std::cmp;
 use std::io::Write;
-use std::os::fd::RawFd;
+use std::os::fd::OwnedFd;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -94,7 +94,7 @@ unsafe impl ByteValued for VirtioNetConfig {}
 
 #[derive(Clone)]
 pub enum VirtioNetBackend {
-    Dgram(RawFd),
+    Dgram(Arc<OwnedFd>),
 }
 
 pub struct Net {
