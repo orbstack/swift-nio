@@ -10,4 +10,8 @@ GoVZF/.build/$(SWIFT_ARCH)-apple-macosx/release/libGoVZF.a: $(call rwildcard,GoV
 GoVZF/.build/$(SWIFT_ARCH)-apple-macosx/debug/libGoVZF.a: $(call rwildcard,GoVZF/Sources,*) GoVZF/Package.swift
 	@cd GoVZF && swift build -c debug --arch $(SWIFT_ARCH)
 
-.PHONY: lib-debug lib-release
+# ASAN forces rebuild
+lib-debug-asan:
+	@cd GoVZF && swift build -c debug --arch $(SWIFT_ARCH) --sanitize=address
+
+.PHONY: lib-debug lib-release lib-debug-asan
