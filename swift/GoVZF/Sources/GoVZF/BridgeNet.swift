@@ -251,9 +251,20 @@ class BridgeNetwork {
                 }
                 let totalSize = pkt.len + vnetHdrSize
                 guard ret == totalSize else {
-                    if errno != ENOBUFS {
+                    switch errno {
+                    case ENOBUFS:
+                        // socket is full. drop the packet
+                        continue
+                    case ECONNRESET, EDESTADDRREQ:
+                        // VMM stopped and closed the other side of the datagram socketpair
+                        // avoid trying to unset the event handler ourselves -- high risk of deadlock
+                        // Go should stop and close the BridgeNetwork soon
+                        // don't try to send remaining packets
+                        break
+                    default:
                         NSLog("[brnet] write error: \(errno)")
                     }
+
                     continue
                 }
             }
