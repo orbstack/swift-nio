@@ -30,7 +30,7 @@ BUILD_TYPE="${BUILD_TYPE:-debug}"
 
 # force relinking if Swift lib changed
 # if modification time of Swift lib is newer than the binary, relink
-SWIFT_LIB_PATH="../swift/GoVZF/.build/${SWIFT_ARCH}-apple-macosx/$BUILD_TYPE/libGoVZF.a"
+SWIFT_LIB_PATH="../swift/GoVZF/.build/${SWIFT_ARCH}-apple-macosx/${SWIFT_BUILD_TYPE:-$BUILD_TYPE}/libGoVZF.a"
 if [[ -f "$BIN_OUT" ]]; then
     if [[ ! -f "$SWIFT_LIB_PATH" ]] || [[ "$(stat -f "%m" "$SWIFT_LIB_PATH")" -gt "$(stat -f "%m" "$BIN_OUT")" ]]; then
         rm -f "$BIN_OUT"
@@ -38,7 +38,7 @@ if [[ -f "$BIN_OUT" ]]; then
 fi
 
 # same logic for Rust lib
-RUST_LIB_PATH="../vendor/libkrun/target/${RUST_TARGET:-}/${RUST_BUILD_TYPE:-debug}/libkrun.a"
+RUST_LIB_PATH="../vendor/libkrun/target/${RUST_TARGET:-}/${RUST_BUILD_TYPE:-$BUILD_TYPE}/libkrun.a"
 if [[ -f "$BIN_OUT" ]]; then
     if [[ ! -f "$RUST_LIB_PATH" ]] || [[ "$(stat -f "%m" "$RUST_LIB_PATH")" -gt "$(stat -f "%m" "$BIN_OUT")" ]]; then
         rm -f "$BIN_OUT"

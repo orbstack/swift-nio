@@ -5,14 +5,16 @@ export RUST_BUILD_TYPE ?= release-with-debug
 export RUST_BACKTRACE ?= full
 export RUST_LOG ?= utils::span=info
 
+export SWIFT_BUILD_TYPE ?= debug
+
 vmgr:
-	@cd ../swift; make lib-debug
+	@cd ../swift; make lib-$(SWIFT_BUILD_TYPE)
 	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
 	@cd ../vendor/libkrun; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && cargo build || cargo build --profile "$(RUST_BUILD_TYPE)"
 	@./build.sh
 
 vmgr-asan:
-	@cd ../swift; make lib-debug
+	@cd ../swift; make lib-$(SWIFT_BUILD_TYPE)
 	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
 # --target: fix proc macros being built with ASAN and loaded into rustc
 	@cd ../vendor/libkrun; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && RUSTFLAGS=-Zsanitizer=address cargo +nightly build -Zbuild-std --target aarch64-apple-darwin || RUSTFLAGS=-Zsanitizer=address cargo +nightly build -Zbuild-std --target aarch64-apple-darwin --profile "$(RUST_BUILD_TYPE)"
