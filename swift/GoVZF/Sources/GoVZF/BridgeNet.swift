@@ -9,9 +9,8 @@ import CBridge
 import Foundation
 import vmnet
 
-// vmnet is ok with concurrent queue
-// gets us from 21 -> 30 Gbps
-let vmnetPktQueue = DispatchQueue(label: "dev.orbstack.brnet.1", attributes: .concurrent)
+// serial queue because we only have one set of iovecs
+let vmnetPktQueue = DispatchQueue(label: "dev.orbstack.brnet.1")
 // avoid stop barrier deadlock by using a separate queue
 // also use serial queue to be safe in case vmnet isn't thread safe
 let vmnetControlQueue = DispatchQueue(label: "dev.orbstack.brnet.2")
@@ -128,7 +127,6 @@ class BridgeNetwork {
     private let processor: PacketProcessor
     private var guestReader: GuestReader?
     private let hostReadIovs: UnsafeMutablePointer<iovec>
-    private let vnetHdr: UnsafeMutablePointer<virtio_net_hdr_v1>
 
     private var closed = false
 
@@ -197,9 +195,6 @@ class BridgeNetwork {
             pktDescs.append(pktDesc)
         }
 
-        // vnet header buffer for outgoing packets
-        vnetHdr = UnsafeMutablePointer<virtio_net_hdr_v1>.allocate(capacity: 1)
-
         // must keep self ref to prevent deinit while referenced
         let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, vmnetPktQueue) { [self] _, _ in
             // print("num packets: \(xpc_dictionary_get_uint64(event, vmnet_estimated_packets_available_key))")
@@ -225,12 +220,13 @@ class BridgeNetwork {
 
                 var guestFd = config.guestFd
                 let pkt = Packet(desc: pktDesc)
+                var vnetHdr: virtio_net_hdr_v1
                 do {
                     let redirectToScon = try processor.processToGuest(pkt: pkt)
                     if redirectToScon {
                         guestFd = config.guestSconFd
                     }
-                    vnetHdr[0] = try processor.buildVnetHdr(pkt: pkt)
+                    vnetHdr = try processor.buildVnetHdr(pkt: pkt)
                 } catch {
                     switch error {
                     case BrnetError.dropPacket:
@@ -245,13 +241,15 @@ class BridgeNetwork {
                     }
                     continue
                 }
-                var iovs = [
-                    iovec(iov_base: vnetHdr, iov_len: vnetHdrSize),
-                    iovec(iov_base: pkt.data, iov_len: pkt.len),
-                ]
+                let ret = withUnsafeMutableBytes(of: &vnetHdr) { vnetHdrPtr in
+                    var iovs = [
+                        iovec(iov_base: vnetHdrPtr.baseAddress, iov_len: vnetHdrSize),
+                        iovec(iov_base: pkt.data, iov_len: pkt.len),
+                    ]
+                    // print("writing \(totalSize) bytes to tap")
+                    return writev(guestFd, &iovs, 2)
+                }
                 let totalSize = pkt.len + vnetHdrSize
-                // print("writing \(totalSize) bytes to tap")
-                let ret = writev(guestFd, &iovs, 2)
                 guard ret == totalSize else {
                     if errno != ENOBUFS {
                         NSLog("[brnet] write error: \(errno)")
@@ -273,7 +271,6 @@ class BridgeNetwork {
                 hostReadIovs[i].iov_base?.deallocate()
             }
             hostReadIovs.deallocate()
-            vnetHdr.deallocate()
 
             throw VmnetError.from(ret)
         }
