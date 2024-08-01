@@ -5,6 +5,10 @@ use std::{
     sync::Arc,
 };
 
+use libc::{
+    thread_basic_info, thread_flavor_t, thread_info, time_value_t, THREAD_BASIC_INFO,
+    THREAD_BASIC_INFO_COUNT,
+};
 #[allow(deprecated)] // mach2 doesn't have this
 use mach2::{
     mach_types::thread_act_t,
@@ -21,7 +25,7 @@ use super::{
     symbolicator::Symbolicator,
     time::MachAbsoluteTime,
     unwinder::{UnwindRegs, Unwinder, STACK_DEPTH_LIMIT},
-    PartialSample, Profiler, Sample, SampleCategory,
+    Frame, PartialSample, Profiler, Sample, SampleCategory,
 };
 
 pub enum SampleResult {
@@ -32,15 +36,55 @@ pub enum SampleResult {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct ThreadId(pub thread_act_t);
 
+trait TimeValueExt {
+    fn as_micros(&self) -> u64;
+}
+
+impl TimeValueExt for time_value_t {
+    fn as_micros(&self) -> u64 {
+        (self.seconds as u64) * 1_000_000 + (self.microseconds as u64)
+    }
+}
+
 pub struct ProfileeThread {
     pub port: thread_act_t,
     pub vcpu: Option<ArcVcpuHandle>,
     pub name: String,
+
+    pub last_cpu_time_us: Option<u64>,
+
+    pub added_at: MachAbsoluteTime,
+    pub stopped_at: Option<MachAbsoluteTime>,
 }
 
 impl ProfileeThread {
     pub fn id(&self) -> ThreadId {
         ThreadId(self.port)
+    }
+
+    fn get_info(&self) -> anyhow::Result<thread_basic_info> {
+        let mut info = MaybeUninit::<thread_basic_info>::uninit();
+        let mut info_count = THREAD_BASIC_INFO_COUNT;
+        unsafe {
+            check_mach!(thread_info(
+                self.port,
+                THREAD_BASIC_INFO as thread_flavor_t,
+                &mut info as *mut _ as *mut _,
+                &mut info_count,
+            ))?
+        };
+
+        let info = unsafe { info.assume_init() };
+        Ok(info)
+    }
+
+    pub fn cpu_time_delta_us(&mut self) -> anyhow::Result<u64> {
+        let info = self.get_info()?;
+        let cpu_time_us = info.user_time.as_micros() + info.system_time.as_micros();
+
+        let delta = cpu_time_us - self.last_cpu_time_us.unwrap_or(cpu_time_us);
+        self.last_cpu_time_us = Some(cpu_time_us);
+        Ok(delta)
     }
 
     fn get_unwind_regs(&self) -> anyhow::Result<UnwindRegs> {
@@ -77,7 +121,7 @@ impl ProfileeThread {
     ) -> anyhow::Result<SampleResult> {
         let sample = Sample {
             timestamp: MachAbsoluteTime::dummy(),
-            cpu_time: 0,
+            cpu_time_delta_us: 0,
 
             thread_id: self.id(),
 
@@ -114,14 +158,14 @@ impl ProfileeThread {
         host_unwinder.unwind(regs, |addr| {
             sample
                 .stack
-                .push_back((SampleCategory::HostUserspace, addr))
+                .push_back(Frame::new(SampleCategory::HostUserspace, addr))
         })?;
 
         // if thread is in HVF, trigger an exit now, so that it samples as soon as it resumes
         // for now we just check whether PC (stack[0]) is in hv_trap
         if let Some(hv_vcpu_run) = hv_vcpu_run {
-            if let Some(&(_, pc)) = sample.stack.get(1) {
-                if hv_vcpu_run.contains(&(pc as usize)) {
+            if let Some(&frame) = sample.stack.get(1) {
+                if hv_vcpu_run.contains(&(frame.addr as usize)) {
                     if let Some(vcpu) = &self.vcpu {
                         vcpu.send_profiler_sample(partial_sample);
                         // resumes thread

@@ -22,6 +22,19 @@ pub struct SymbolResult {
     pub symbol_offset: Option<(String, usize)>,
 }
 
+// TODO: just provide this info
+impl SymbolResult {
+    pub fn symbol_base(&self, frame_addr: u64) -> Option<u64> {
+        let Some(&(_, offset)) = self.symbol_offset.as_ref() else {
+            return None;
+        };
+
+        // frame_addr = symbol_addr + symbol_offset.offset
+        // so symbol_addr = frame_addr - symbol_offset.offset
+        Some(frame_addr - offset as u64)
+    }
+}
+
 pub trait Symbolicator {
     fn addr_to_symbol(&self, addr: u64) -> anyhow::Result<Option<SymbolResult>>;
 

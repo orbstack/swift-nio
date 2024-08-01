@@ -47,7 +47,7 @@ use utils::hypercalls::{
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 
 use crate::profiler::symbolicator::{LinuxSymbolicator, Symbolicator};
-use crate::profiler::{PartialSample, SampleCategory, STACK_DEPTH_LIMIT};
+use crate::profiler::{Frame, PartialSample, SampleCategory, STACK_DEPTH_LIMIT};
 
 extern "C" {
     pub fn mach_absolute_time() -> u64;
@@ -319,7 +319,7 @@ struct HvfOptional15 {
 }
 
 macro_rules! call_optional {
-    ($optional: expr, $method: ident, $($args: expr),*) => {
+    ($optional:ident.$method:ident($($args: expr),*)) => {
         $optional.as_ref().unwrap().$method($($args),*)
     };
 }
@@ -378,10 +378,7 @@ impl GICDevice for FdtGic {
         let mut irq = 0;
         let ret = unsafe {
             call_optional!(
-                OPTIONAL15,
-                hv_gic_get_intid,
-                hv_gic_intid_t_HV_GIC_INT_MAINTENANCE,
-                &mut irq
+                OPTIONAL15.hv_gic_get_intid(hv_gic_intid_t_HV_GIC_INT_MAINTENANCE, &mut irq)
             )
         };
         HvfError::result(ret).map_err(Error::GicGetIntid).unwrap();
@@ -421,13 +418,13 @@ impl VmConfig {
 
     fn set_ipa_size(&self, ipa_bits: u32) -> Result<(), Error> {
         let ret =
-            unsafe { call_optional!(OPTIONAL12, hv_vm_config_set_ipa_size, self.ptr, ipa_bits) };
+            unsafe { call_optional!(OPTIONAL12.hv_vm_config_set_ipa_size(self.ptr, ipa_bits)) };
         HvfError::result(ret).map_err(Error::VmConfigSetIpaSize)
     }
 
     fn set_el2_enabled(&self, enabled: bool) -> Result<(), Error> {
         let ret =
-            unsafe { call_optional!(OPTIONAL15, hv_vm_config_set_el2_enabled, self.ptr, enabled) };
+            unsafe { call_optional!(OPTIONAL15.hv_vm_config_set_el2_enabled(self.ptr, enabled)) };
         HvfError::result(ret).map_err(Error::VmConfigSetEl2Enabled)
     }
 }
@@ -460,8 +457,7 @@ impl GicConfig {
 
     fn get_distributor_size() -> Result<usize, Error> {
         let mut dist_size: usize = 0;
-        let ret =
-            unsafe { call_optional!(OPTIONAL15, hv_gic_get_distributor_size, &mut dist_size) };
+        let ret = unsafe { call_optional!(OPTIONAL15.hv_gic_get_distributor_size(&mut dist_size)) };
         HvfError::result(ret).map_err(Error::GicGetDistributorSize)?;
         Ok(dist_size)
     }
@@ -469,11 +465,7 @@ impl GicConfig {
     fn get_redistributor_region_size() -> Result<usize, Error> {
         let mut redist_total_size: usize = 0;
         let ret = unsafe {
-            call_optional!(
-                OPTIONAL15,
-                hv_gic_get_redistributor_region_size,
-                &mut redist_total_size
-            )
+            call_optional!(OPTIONAL15.hv_gic_get_redistributor_region_size(&mut redist_total_size))
         };
         HvfError::result(ret).map_err(Error::GicGetRedistributorSize)?;
         Ok(redist_total_size)
@@ -481,30 +473,20 @@ impl GicConfig {
 
     fn set_distributor_base(&self, dist_base: u64) -> Result<(), Error> {
         let ret = unsafe {
-            call_optional!(
-                OPTIONAL15,
-                hv_gic_config_set_distributor_base,
-                self.ptr,
-                dist_base
-            )
+            call_optional!(OPTIONAL15.hv_gic_config_set_distributor_base(self.ptr, dist_base))
         };
         HvfError::result(ret).map_err(Error::GicConfigSetDistributorBase)
     }
 
     fn set_redistributor_base(&self, redist_base: u64) -> Result<(), Error> {
         let ret = unsafe {
-            call_optional!(
-                OPTIONAL15,
-                hv_gic_config_set_redistributor_base,
-                self.ptr,
-                redist_base
-            )
+            call_optional!(OPTIONAL15.hv_gic_config_set_redistributor_base(self.ptr, redist_base))
         };
         HvfError::result(ret).map_err(Error::GicConfigSetRedistributorBase)
     }
 
     fn create_gic(&self) -> Result<(), Error> {
-        let ret = unsafe { call_optional!(OPTIONAL15, hv_gic_create, self.ptr) };
+        let ret = unsafe { call_optional!(OPTIONAL15.hv_gic_create(self.ptr)) };
         HvfError::result(ret).map_err(Error::GicCreate)
     }
 }
@@ -587,7 +569,7 @@ impl HvfVm {
     }
 
     pub fn assert_spi(&self, irq: u32) -> Result<(), Error> {
-        let ret = unsafe { call_optional!(OPTIONAL15, hv_gic_set_spi, irq, true) };
+        let ret = unsafe { call_optional!(OPTIONAL15.hv_gic_set_spi(irq, true)) };
         HvfError::result(ret).map_err(Error::GicAssertSpi)
     }
 
@@ -1483,10 +1465,10 @@ impl HvfVcpu {
             self.walk_stack(|addr| stack.push(addr))?;
 
             for &addr in stack.iter().rev() {
-                sample.prepend_stack(SampleCategory::GuestKernel, addr);
+                sample.prepend_stack(Frame::new(SampleCategory::GuestKernel, addr));
             }
         } else {
-            sample.prepend_stack(SampleCategory::GuestUserspace, 0);
+            sample.prepend_stack(Frame::new(SampleCategory::GuestUserspace, 0));
         }
 
         Ok(())

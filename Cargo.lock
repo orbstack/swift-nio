@@ -1097,6 +1097,7 @@ dependencies = [
  "rustc-hash 1.1.0",
  "scopeguard",
  "serde",
+ "serde_json",
  "smallvec",
  "symbolic-demangle",
  "thiserror",

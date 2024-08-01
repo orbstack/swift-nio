@@ -7,11 +7,12 @@ use std::{
         Arc,
     },
     thread::JoinHandle,
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use anyhow::anyhow;
 use crossbeam::queue::ArrayQueue;
+use firefox::FirefoxSampleProcessor;
 use libc::{
     thread_extended_info, thread_flavor_t, thread_info, THREAD_EXTENDED_INFO,
     THREAD_EXTENDED_INFO_COUNT,
@@ -38,6 +39,7 @@ use utils::{
 
 use crate::{VcpuHandleInner, VcpuRegistry};
 
+mod firefox;
 mod processor;
 pub mod symbolicator;
 mod thread;
@@ -63,7 +65,7 @@ macro_rules! check_mach {
     };
 }
 
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum SampleCategory {
     GuestUserspace,
     GuestKernel,
@@ -85,11 +87,23 @@ impl SampleCategory {
 #[derive(Debug, Clone)]
 struct Sample {
     timestamp: MachAbsoluteTime,
-    cpu_time: u64,
+    cpu_time_delta_us: u64,
 
     thread_id: ThreadId,
 
-    stack: VecDeque<(SampleCategory, u64)>,
+    stack: VecDeque<Frame>,
+}
+
+#[derive(Debug, Copy, Clone, PartialOrd, PartialEq, Eq, Ord, Hash)]
+pub struct Frame {
+    category: SampleCategory,
+    addr: u64,
+}
+
+impl Frame {
+    pub fn new(category: SampleCategory, addr: u64) -> Self {
+        Self { category, addr }
+    }
 }
 
 #[derive(Clone)]
@@ -103,8 +117,8 @@ impl PartialSample {
         self.profiler.add_sample(self.inner)
     }
 
-    pub fn prepend_stack(&mut self, category: SampleCategory, addr: u64) {
-        self.inner.stack.push_front((category, addr));
+    pub fn prepend_stack(&mut self, frame: Frame) {
+        self.inner.stack.push_front(frame);
     }
 }
 
@@ -117,6 +131,16 @@ pub struct ProfilerParams {
 #[derive(Clone)]
 pub struct ProfilerGuestContext {
     pub symbolicator: Option<LinuxSymbolicator>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProfileInfo {
+    pub pid: i32,
+    pub start_time: SystemTime,
+    pub start_time_abs: MachAbsoluteTime,
+    pub end_time: SystemTime,
+    pub end_time_abs: MachAbsoluteTime,
+    pub params: ProfilerParams,
 }
 
 pub struct Profiler {
@@ -173,8 +197,6 @@ impl Profiler {
     fn sampler_loop(self: &Arc<Self>, interval: Duration) -> anyhow::Result<()> {
         qos::set_thread_qos(QosClass::UserInteractive, None)?;
 
-        let threads = self.get_threads()?;
-
         // before we start, find "hv_vcpu_run" and "hv_trap"
         let symbolicator = MacSymbolicator {};
         let hv_vcpu_run = symbolicator.symbol_range("hv_vcpu_run")?;
@@ -184,6 +206,10 @@ impl Profiler {
 
         let mut host_unwinder = FramePointerUnwinder {};
         let mut framehop_unwinder = FramehopUnwinder::new()?;
+
+        let wall_start_time = SystemTime::now();
+        let start_time = MachAbsoluteTime::now();
+        let mut threads = self.get_threads(start_time)?;
 
         loop {
             // TODO: monotonic timer using absolute timeout or workgroup
@@ -199,8 +225,22 @@ impl Profiler {
                 break;
             }
 
-            for thread in &threads {
-                // TODO: check if thread ran - but wait to do this, optimize the rest as much as possible first
+            for thread in &mut threads {
+                // skip stopped threads
+                if thread.stopped_at.is_some() {
+                    continue;
+                }
+
+                // TODO: skip if 0 (after profiling and optimizing)
+                // TODO: handle stopped threads
+                let cpu_time_delta_us = match thread.cpu_time_delta_us() {
+                    Ok(delta) => delta,
+                    Err(e) => {
+                        error!("failed to get cpu time for thread {:?}: {}", thread.id(), e);
+                        continue;
+                    }
+                };
+
                 match thread.sample(
                     self,
                     &mut host_unwinder,
@@ -209,7 +249,8 @@ impl Profiler {
                     &hv_vcpu_run,
                     &hv_trap,
                 ) {
-                    Ok(SampleResult::Sample(sample)) => {
+                    Ok(SampleResult::Sample(mut sample)) => {
+                        sample.cpu_time_delta_us = cpu_time_delta_us;
                         self.add_sample(sample)?;
                     }
                     Ok(SampleResult::Queued) => {}
@@ -221,8 +262,20 @@ impl Profiler {
             }
         }
 
+        let end_time = MachAbsoluteTime::now();
+        let wall_end_time = SystemTime::now();
+
+        let info = ProfileInfo {
+            pid: unsafe { libc::getpid() },
+            start_time: wall_start_time,
+            start_time_abs: start_time,
+            end_time: wall_end_time,
+            end_time_abs: end_time,
+            params: self.params.clone(),
+        };
+
         self.stop.store(false, Ordering::Relaxed);
-        self.process_samples(&threads)?;
+        self.process_samples(&info, &threads)?;
         Ok(())
     }
 
@@ -231,7 +284,7 @@ impl Profiler {
         Ok(())
     }
 
-    fn get_threads(&self) -> anyhow::Result<Vec<ProfileeThread>> {
+    fn get_threads(&self, now: MachAbsoluteTime) -> anyhow::Result<Vec<ProfileeThread>> {
         let mut threads_list: thread_act_array_t = std::ptr::null_mut();
         let mut threads_count: mach_msg_type_number_t = 0;
         unsafe {
@@ -291,6 +344,11 @@ impl Profiler {
                 port: thread_port,
                 name,
                 vcpu,
+
+                last_cpu_time_us: None,
+
+                added_at: now,
+                stopped_at: None,
             });
         }
 
@@ -313,7 +371,11 @@ impl Profiler {
         Ok(response)
     }
 
-    fn process_samples(&self, threads: &[ProfileeThread]) -> anyhow::Result<()> {
+    fn process_samples(
+        &self,
+        info: &ProfileInfo,
+        threads: &[ProfileeThread],
+    ) -> anyhow::Result<()> {
         info!("processing samples");
 
         let samples = self.samples.lock().unwrap();
@@ -323,7 +385,8 @@ impl Profiler {
             .collect::<HashMap<_, _>>();
 
         let guest_context = self.get_guest_context(threads)?;
-        let mut processor = SampleProcessor::new(threads_map, guest_context.symbolicator.as_ref())?;
+        let mut processor =
+            FirefoxSampleProcessor::new(info, threads_map, guest_context.symbolicator.as_ref())?;
         for sample in &*samples {
             processor.process_sample(sample)?;
         }

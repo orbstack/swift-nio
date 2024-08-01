@@ -79,6 +79,10 @@ impl Unwinder for FramePointerUnwinder {
                 // reached end of stack
                 break;
             }
+            // below zero page = invalid address
+            if frame_lr < MIN_ADDR {
+                break;
+            }
 
             //println!("got LR: {:x}", frame_lr);
             // TODO: subtract LR

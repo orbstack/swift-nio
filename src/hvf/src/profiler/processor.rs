@@ -9,12 +9,12 @@ use std::{
 use tracing::error;
 
 use super::symbolicator::{CachedSymbolicator, LinuxSymbolicator};
-use super::SampleCategory;
 use super::{
     symbolicator::{MacSymbolicator, SymbolResult, Symbolicator},
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
+use super::{Frame, SampleCategory};
 
 trait AsTreeKey {
     type Key: Ord;
@@ -68,7 +68,7 @@ impl StackTree<SampleNode, <SampleNode as AsTreeKey>::Key> {
                 w,
                 "{}{} {:<5}   {}",
                 indent_str,
-                data.category.as_char(),
+                data.frame.category.as_char(),
                 child.count,
                 data
             )?;
@@ -85,8 +85,7 @@ fn image_basename(image: &str) -> &str {
 
 #[derive(Debug, Clone)]
 struct SampleNode {
-    category: SampleCategory,
-    addr: u64,
+    frame: Frame,
     symbol: Option<SymbolResult>,
 }
 
@@ -97,9 +96,9 @@ impl Display for SampleNode {
                 Some((sym, offset)) => {
                     write!(f, "{}+{}  ({})", sym, offset, image_basename(&s.image))
                 }
-                None => write!(f, "{:#x}  ({})", self.addr, image_basename(&s.image)),
+                None => write!(f, "{:#x}  ({})", self.frame.addr, image_basename(&s.image)),
             },
-            None => write!(f, "{:#x}", self.addr),
+            None => write!(f, "{:#x}", self.frame.addr),
         }
     }
 }
@@ -117,10 +116,10 @@ impl AsTreeKey for SampleNode {
     fn as_tree_key(&self) -> SymbolTreeKey {
         match &self.symbol {
             Some(s) => match &s.symbol_offset {
-                Some((sym, _)) => SymbolTreeKey::Symbol(self.category, sym.clone()),
-                None => SymbolTreeKey::Addr(self.category, self.addr),
+                Some((sym, _)) => SymbolTreeKey::Symbol(self.frame.category, sym.clone()),
+                None => SymbolTreeKey::Addr(self.frame.category, self.frame.addr),
             },
-            None => SymbolTreeKey::Addr(self.category, self.addr),
+            None => SymbolTreeKey::Addr(self.frame.category, self.frame.addr),
         }
     }
 }
@@ -167,11 +166,13 @@ impl<'a> SampleProcessor<'a> {
 
         thread_node
             .stacks
-            .insert(&mut sample.stack.iter().rev().map(|&(category, addr)| {
-                let sym_result = match category {
-                    SampleCategory::HostUserspace => self.host_symbolicator.addr_to_symbol(addr),
+            .insert(&mut sample.stack.iter().rev().map(|&frame| {
+                let sym_result = match frame.category {
+                    SampleCategory::HostUserspace => {
+                        self.host_symbolicator.addr_to_symbol(frame.addr)
+                    }
                     SampleCategory::GuestKernel => match self.guest_symbolicator {
-                        Some(s) => s.addr_to_symbol(addr),
+                        Some(s) => s.addr_to_symbol(frame.addr),
                         None => Ok(None),
                     },
                     SampleCategory::GuestUserspace => Ok(Some(SymbolResult {
@@ -184,16 +185,12 @@ impl<'a> SampleProcessor<'a> {
                 let sym = match sym_result {
                     Ok(r) => r,
                     Err(e) => {
-                        error!("failed to symbolicate addr {:x}: {}", addr, e);
+                        error!("failed to symbolicate addr {:x}: {}", frame.addr, e);
                         None
                     }
                 };
 
-                SampleNode {
-                    category,
-                    addr,
-                    symbol: sym,
-                }
+                SampleNode { frame, symbol: sym }
             }));
 
         Ok(())
