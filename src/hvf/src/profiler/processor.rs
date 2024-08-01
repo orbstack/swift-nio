@@ -8,7 +8,8 @@ use std::{
 };
 use tracing::error;
 
-use super::symbolicator::CachedSymbolicator;
+use super::symbolicator::{CachedSymbolicator, LinuxSymbolicator};
+use super::SampleCategory;
 use super::{
     symbolicator::{MacSymbolicator, SymbolResult, Symbolicator},
     thread::{ProfileeThread, ThreadId},
@@ -28,7 +29,7 @@ struct StackTree<D: Display + Clone + AsTreeKey<Key = K>, K = <D as AsTreeKey>::
     count: u64,
 }
 
-impl<D: Display + Clone + AsTreeKey<Key = K>, K: Ord> StackTree<D, K> {
+impl StackTree<SampleNode, <SampleNode as AsTreeKey>::Key> {
     pub fn new() -> Self {
         Self {
             children: BTreeMap::new(),
@@ -37,34 +38,40 @@ impl<D: Display + Clone + AsTreeKey<Key = K>, K: Ord> StackTree<D, K> {
         }
     }
 
-    pub fn insert(&mut self, stack: &[u64], addr_to_data: impl Fn(u64) -> D) {
+    pub fn insert(&mut self, stack_iter: &mut impl Iterator<Item = SampleNode>) {
         self.count += 1;
 
-        if let Some(&addr) = stack.last() {
-            let data = addr_to_data(addr);
+        if let Some(data) = stack_iter.next() {
             let mut child = self
                 .children
                 .entry(data.as_tree_key())
                 .or_insert_with(|| Rc::new(RefCell::new(StackTree::new())))
                 .borrow_mut();
             child.data = Some(data.clone());
-            child.insert(&stack[..stack.len() - 1], addr_to_data);
+            child.insert(stack_iter);
         }
     }
 
     pub fn dump(&self, w: &mut impl Write, indent: usize) -> anyhow::Result<()> {
-        // sort by count, not by symbol key
+        // sort by count (ascending), not by symbol key
         let mut children = self.children.iter().collect::<Vec<_>>();
         children.sort_by_key(|(_, c)| c.borrow().count);
 
-        for (_, child) in children {
+        for (_, child) in children.iter().rev() {
             let child = child.borrow();
             let indent_str = " ".repeat(indent * 2);
             let data = match &child.data {
                 Some(d) => d,
                 None => continue,
             };
-            writeln!(w, "{}{:>5}   {}", indent_str, child.count, data)?;
+            writeln!(
+                w,
+                "{}{} {:<5}   {}",
+                indent_str,
+                data.category.as_char(),
+                child.count,
+                data
+            )?;
             child.dump(w, indent + 1)?;
         }
 
@@ -78,6 +85,7 @@ fn image_basename(image: &str) -> &str {
 
 #[derive(Debug, Clone)]
 struct SampleNode {
+    category: SampleCategory,
     addr: u64,
     symbol: Option<SymbolResult>,
 }
@@ -89,9 +97,9 @@ impl Display for SampleNode {
                 Some((sym, offset)) => {
                     write!(f, "{}+{}  ({})", sym, offset, image_basename(&s.image))
                 }
-                None => write!(f, "{:x}  ({})", self.addr, image_basename(&s.image)),
+                None => write!(f, "{:#x}  ({})", self.addr, image_basename(&s.image)),
             },
-            None => write!(f, "{:x}", self.addr),
+            None => write!(f, "{:#x}", self.addr),
         }
     }
 }
@@ -99,8 +107,8 @@ impl Display for SampleNode {
 // it's more accurate to key by exact address, but the output is uglier
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 enum SymbolTreeKey {
-    Symbol(String),
-    Addr(u64),
+    Symbol(SampleCategory, String),
+    Addr(SampleCategory, u64),
 }
 
 impl AsTreeKey for SampleNode {
@@ -109,10 +117,10 @@ impl AsTreeKey for SampleNode {
     fn as_tree_key(&self) -> SymbolTreeKey {
         match &self.symbol {
             Some(s) => match &s.symbol_offset {
-                Some((sym, _)) => SymbolTreeKey::Symbol(sym.clone()),
-                None => SymbolTreeKey::Addr(self.addr),
+                Some((sym, _)) => SymbolTreeKey::Symbol(self.category, sym.clone()),
+                None => SymbolTreeKey::Addr(self.category, self.addr),
             },
-            None => SymbolTreeKey::Addr(self.addr),
+            None => SymbolTreeKey::Addr(self.category, self.addr),
         }
     }
 }
@@ -127,15 +135,20 @@ pub struct SampleProcessor<'a> {
 
     threads: BTreeMap<ThreadId, ThreadNode>,
     host_symbolicator: CachedSymbolicator<MacSymbolicator>,
+    guest_symbolicator: Option<&'a LinuxSymbolicator>,
 }
 
 impl<'a> SampleProcessor<'a> {
-    pub fn new(threads_map: HashMap<ThreadId, &'a ProfileeThread>) -> anyhow::Result<Self> {
+    pub fn new(
+        threads_map: HashMap<ThreadId, &'a ProfileeThread>,
+        guest_symbolicator: Option<&'a LinuxSymbolicator>,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             threads_map,
 
             threads: BTreeMap::new(),
             host_symbolicator: CachedSymbolicator::new(MacSymbolicator {}),
+            guest_symbolicator,
         })
     }
 
@@ -152,17 +165,36 @@ impl<'a> SampleProcessor<'a> {
                 stacks: StackTree::new(),
             });
 
-        thread_node.stacks.insert(&sample.stack, |addr| {
-            let sym = match self.host_symbolicator.addr_to_symbol(addr) {
-                Ok(r) => r,
-                Err(e) => {
-                    error!("failed to symbolicate addr {:x}: {}", addr, e);
-                    None
-                }
-            };
+        thread_node
+            .stacks
+            .insert(&mut sample.stack.iter().rev().map(|&(category, addr)| {
+                let sym_result = match category {
+                    SampleCategory::HostUserspace => self.host_symbolicator.addr_to_symbol(addr),
+                    SampleCategory::GuestKernel => match self.guest_symbolicator {
+                        Some(s) => s.addr_to_symbol(addr),
+                        None => Ok(None),
+                    },
+                    SampleCategory::GuestUserspace => Ok(Some(SymbolResult {
+                        image: "guest".to_string(),
+                        image_base: 0,
+                        symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
+                    })),
+                    _ => Ok(None),
+                };
+                let sym = match sym_result {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("failed to symbolicate addr {:x}: {}", addr, e);
+                        None
+                    }
+                };
 
-            SampleNode { addr, symbol: sym }
-        });
+                SampleNode {
+                    category,
+                    addr,
+                    symbol: sym,
+                }
+            }));
 
         Ok(())
     }

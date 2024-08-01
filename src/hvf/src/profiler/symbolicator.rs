@@ -100,6 +100,7 @@ impl Symbolicator for MacSymbolicator {
     }
 }
 
+#[derive(Clone)]
 pub struct LinuxSymbolicator {
     csmap: CompactSystemMap,
     kaslr_offset: i64,
@@ -134,7 +135,7 @@ impl Symbolicator for LinuxSymbolicator {
             .csmap
             .vaddr_to_symbol(vaddr)
             .map(|(symbol, offset)| SymbolResult {
-                image: "kernel".to_string(),
+                image: "linux".to_string(),
                 image_base: self.image_base,
                 symbol_offset: Some((symbol.to_string(), offset)),
             }))

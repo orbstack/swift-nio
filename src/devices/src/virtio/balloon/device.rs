@@ -23,7 +23,7 @@ use super::super::{
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
 use crate::virtio::{DescriptorChain, HvcDevice, VirtioQueueSignals, VmmExitObserver};
-use hvf::Parkable;
+use hvf::VcpuRegistry;
 use utils::memory::GuestMemoryExt;
 
 define_waker_set! {
@@ -145,7 +145,7 @@ pub struct Balloon {
     config: VirtioBalloonConfig,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
-    parker: Option<Arc<dyn Parkable>>,
+    vcpu_registry: Option<Arc<dyn VcpuRegistry>>,
     queued: RefCell<QueuedReport>,
 }
 
@@ -166,7 +166,7 @@ impl Balloon {
                 config,
                 intc: None,
                 irq_line: None,
-                parker: None,
+                vcpu_registry: None,
                 queued: RefCell::new(QueuedReport {
                     req: None,
                     descs: Vec::new(),
@@ -192,8 +192,8 @@ impl Balloon {
         self.intc = Some(intc);
     }
 
-    pub fn set_parker(&mut self, parker: Arc<dyn Parkable>) {
-        self.parker = Some(parker);
+    pub fn set_parker(&mut self, parker: Arc<dyn VcpuRegistry>) {
+        self.vcpu_registry = Some(parker);
     }
 
     pub fn create_hvc_device(&self, _mem: GuestMemoryMmap) -> BalloonHvcDevice {

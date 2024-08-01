@@ -7,4 +7,8 @@ impl MachAbsoluteTime {
     pub fn now() -> Self {
         Self(unsafe { mach_absolute_time() })
     }
+
+    pub fn dummy() -> Self {
+        Self(0)
+    }
 }

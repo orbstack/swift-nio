@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     ffi::CStr,
     mem::size_of,
     sync::{
@@ -11,6 +11,7 @@ use std::{
 };
 
 use anyhow::anyhow;
+use crossbeam::queue::ArrayQueue;
 use libc::{
     thread_extended_info, thread_flavor_t, thread_info, THREAD_EXTENDED_INFO,
     THREAD_EXTENDED_INFO_COUNT,
@@ -25,17 +26,17 @@ use mach2::{
 };
 use processor::SampleProcessor;
 use serde::{Deserialize, Serialize};
-use symbolicator::{MacSymbolicator, Symbolicator};
-use thread::{ProfileeThread, ThreadId};
+use symbolicator::{LinuxSymbolicator, MacSymbolicator, Symbolicator};
+use thread::{ProfileeThread, SampleResult, ThreadId};
 use time::MachAbsoluteTime;
 use tracing::{error, info};
-use unwinder::FramehopUnwinder;
+use unwinder::{FramePointerUnwinder, FramehopUnwinder};
 use utils::{
     qos::{self, QosClass},
     Mutex,
 };
 
-use crate::Parkable;
+use crate::{VcpuHandleInner, VcpuRegistry};
 
 mod processor;
 pub mod symbolicator;
@@ -62,13 +63,23 @@ macro_rules! check_mach {
     };
 }
 
-#[derive(Debug, Copy, Clone)]
-enum Category {
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub enum SampleCategory {
     GuestUserspace,
     GuestKernel,
     HostUserspace,
-    // TODO: how?
-    //HostKernel,
+    HostKernel,
+}
+
+impl SampleCategory {
+    fn as_char(&self) -> char {
+        match self {
+            SampleCategory::GuestUserspace => 'G',
+            SampleCategory::GuestKernel => 'K',
+            SampleCategory::HostUserspace => 'U',
+            SampleCategory::HostKernel => 'H',
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -78,8 +89,23 @@ struct Sample {
 
     thread_id: ThreadId,
 
-    category: Category,
-    stack: Vec<u64>,
+    stack: VecDeque<(SampleCategory, u64)>,
+}
+
+#[derive(Clone)]
+pub struct PartialSample {
+    inner: Sample,
+    profiler: Arc<Profiler>,
+}
+
+impl PartialSample {
+    pub fn finish(self) -> anyhow::Result<()> {
+        self.profiler.add_sample(self.inner)
+    }
+
+    pub fn prepend_stack(&mut self, category: SampleCategory, addr: u64) {
+        self.inner.stack.push_front((category, addr));
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,24 +114,32 @@ pub struct ProfilerParams {
     output_path: String,
 }
 
+#[derive(Clone)]
+pub struct ProfilerGuestContext {
+    pub symbolicator: Option<LinuxSymbolicator>,
+}
+
 pub struct Profiler {
-    parker: Arc<dyn Parkable>,
+    vcpu_registry: Arc<dyn VcpuRegistry>,
     params: ProfilerParams,
 
     stop: AtomicBool,
     join_handles: Mutex<Option<Vec<JoinHandle<()>>>>,
 
     samples: Mutex<Vec<Sample>>,
+    ingest_queue: ArrayQueue<Sample>,
 }
 
 impl Profiler {
-    pub fn new(params: ProfilerParams, parker: Arc<dyn Parkable>) -> Self {
+    pub fn new(params: ProfilerParams, vcpu_registry: Arc<dyn VcpuRegistry>) -> Self {
+        let num_vcpus = vcpu_registry.num_vcpus();
         Self {
-            parker,
+            vcpu_registry,
             params,
             stop: AtomicBool::new(false),
             join_handles: Mutex::new(None),
             samples: Mutex::new(Vec::new()),
+            ingest_queue: ArrayQueue::new(num_vcpus),
         }
     }
 
@@ -136,11 +170,10 @@ impl Profiler {
         Ok(())
     }
 
-    fn sampler_loop(&self, interval: Duration) -> anyhow::Result<()> {
+    fn sampler_loop(self: &Arc<Self>, interval: Duration) -> anyhow::Result<()> {
         qos::set_thread_qos(QosClass::UserInteractive, None)?;
 
         let threads = self.get_threads()?;
-        info!("threads: {:?}", threads);
 
         // before we start, find "hv_vcpu_run" and "hv_trap"
         let symbolicator = MacSymbolicator {};
@@ -149,37 +182,42 @@ impl Profiler {
         info!("hv_vcpu_run: {:x?}", hv_vcpu_run);
         info!("hv_trap: {:x?}", hv_trap);
 
-        let mut host_unwinder = FramehopUnwinder::new()?;
+        let mut host_unwinder = FramePointerUnwinder {};
+        let mut framehop_unwinder = FramehopUnwinder::new()?;
 
         loop {
-            if self.stop.load(Ordering::Relaxed) {
-                break;
-            }
-
             // TODO: monotonic timer using absolute timeout or workgroup
             // TODO: throttle if falling behind
             std::thread::sleep(interval);
 
-            for thread in &threads {
-                // TODO: check if thread ran
-                let (timestamp, stack) =
-                    match thread.sample(&mut host_unwinder, &hv_vcpu_run, &hv_trap) {
-                        Ok(r) => r,
-                        Err(e) => {
-                            error!("failed to sample thread {:?}: {}", thread.id(), e);
-                            continue;
-                        }
-                    };
-                let sample = Sample {
-                    timestamp,
-                    cpu_time: 0,
-
-                    thread_id: thread.id(),
-
-                    category: Category::HostUserspace,
-                    stack,
-                };
+            // ingest samples
+            while let Some(sample) = self.ingest_queue.pop() {
                 self.add_sample(sample)?;
+            }
+
+            if self.stop.load(Ordering::Relaxed) {
+                break;
+            }
+
+            for thread in &threads {
+                // TODO: check if thread ran - but wait to do this, optimize the rest as much as possible first
+                match thread.sample(
+                    self,
+                    &mut host_unwinder,
+                    &mut framehop_unwinder,
+                    &symbolicator,
+                    &hv_vcpu_run,
+                    &hv_trap,
+                ) {
+                    Ok(SampleResult::Sample(sample)) => {
+                        self.add_sample(sample)?;
+                    }
+                    Ok(SampleResult::Queued) => {}
+                    Err(e) => {
+                        error!("failed to sample thread {:?}: {}", thread.id(), e);
+                        continue;
+                    }
+                };
             }
         }
 
@@ -239,9 +277,9 @@ impl Profiler {
                 continue;
             }
 
-            let vcpu_signal = if let Some(vcpu_id) = name.strip_prefix("vcpu") {
+            let vcpu = if let Some(vcpu_id) = name.strip_prefix("vcpu") {
                 if let Ok(vcpu_id) = vcpu_id.parse::<u8>() {
-                    self.parker.get_vcpu(vcpu_id)
+                    self.vcpu_registry.get_vcpu(vcpu_id)
                 } else {
                     None
                 }
@@ -252,22 +290,40 @@ impl Profiler {
             threads.push(ProfileeThread {
                 port: thread_port,
                 name,
-                vcpu_signal,
+                vcpu,
             });
         }
 
         Ok(threads)
     }
 
+    fn get_guest_context(
+        &self,
+        threads: &[ProfileeThread],
+    ) -> anyhow::Result<ProfilerGuestContext> {
+        // to get a guest (Linux) symbolicator, ask one of the vCPUs to read the KASLR offset
+        let vcpu: &Arc<VcpuHandleInner> = threads
+            .iter()
+            .find_map(|t| t.vcpu.as_ref())
+            .ok_or_else(|| anyhow!("no vCPU threads found"))?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        vcpu.send_profiler_guest_fetch(sender);
+        let response = receiver.recv()?;
+        Ok(response)
+    }
+
     fn process_samples(&self, threads: &[ProfileeThread]) -> anyhow::Result<()> {
+        info!("processing samples");
+
         let samples = self.samples.lock().unwrap();
         let threads_map = threads
             .iter()
             .map(|t| (t.id(), t))
             .collect::<HashMap<_, _>>();
 
-        info!("processing samples");
-        let mut processor = SampleProcessor::new(threads_map)?;
+        let guest_context = self.get_guest_context(threads)?;
+        let mut processor = SampleProcessor::new(threads_map, guest_context.symbolicator.as_ref())?;
         for sample in &*samples {
             processor.process_sample(sample)?;
         }

@@ -12,6 +12,7 @@ use gruel::StartupAbortedError;
 use gruel::StartupSignal;
 use gruel::StartupTask;
 use gruel::Waker;
+use hvf::ArcVcpuHandle;
 use hvf::HvVcpuRef;
 use std::collections::BTreeMap;
 use std::io;
@@ -20,7 +21,6 @@ use std::sync::Arc;
 use std::thread::{self, Thread};
 use std::time::Duration;
 use utils::Mutex;
-use vmm_ids::ArcVcpuSignal;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
 
@@ -33,7 +33,7 @@ use arch;
 use arch::aarch64::gic::GICDevice;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use devices::legacy::{Gic, GicVcpuHandle, WfeThread};
-use hvf::{HvfVcpu, HvfVm, Parkable, VcpuExit};
+use hvf::{HvfVcpu, HvfVm, VcpuExit, VcpuRegistry};
 use utils::eventfd::EventFd;
 use vm_memory::{
     Address, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap, GuestMemoryRegion,
@@ -81,14 +81,15 @@ pub type Result<T> = result::Result<T, Error>;
 /// A wrapper around creating and using a VM.
 pub struct Vm {
     pub hvf_vm: HvfVm,
-    parker: Arc<VmParker>,
+    vcpu_registry: Arc<VcpuRegistryImpl>,
     #[cfg(target_arch = "aarch64")]
     irqchip_handle: Option<Box<dyn GICDevice>>,
 }
 
 #[derive(Default)]
-pub struct VmParker {
-    vcpus: Mutex<BTreeMap<u8, ArcVcpuSignal>>,
+pub struct VcpuRegistryImpl {
+    // TODO: merge with the old VcpuHandle
+    vcpus: Mutex<BTreeMap<u8, ArcVcpuHandle>>,
 
     /// Tasks here represent vCPUs which have yet to park.
     park_signal: StartupSignal,
@@ -97,9 +98,9 @@ pub struct VmParker {
     unpark_signal: StartupSignal,
 }
 
-impl Parkable for VmParker {
-    fn register_vcpu(&self, id: u8, vcpu: ArcVcpuSignal) -> StartupTask {
-        self.vcpus.lock().unwrap().insert(id, vcpu);
+impl VcpuRegistry for VcpuRegistryImpl {
+    fn register_vcpu(&self, id: u8, handle: ArcVcpuHandle) -> StartupTask {
+        self.vcpus.lock().unwrap().insert(id, handle);
 
         // Won't panic: `park_signal` is only ever used in a panic-less context
         self.park_signal.resurrect_cloned().unwrap()
@@ -115,8 +116,8 @@ impl Parkable for VmParker {
 
         // Let's send a pause signal to every vCPU. They will receive and honor this since this
         // signal is never asserted outside of `park` (or when the signal is aborted)
-        for (_, cpu) in &*self.vcpus.lock().unwrap() {
-            cpu.assert(VcpuSignalMask::PAUSE);
+        for cpu in self.vcpus.lock().unwrap().values() {
+            cpu.pause();
         }
 
         // Now, wait for every vCPU to enter the parked state. If a shutdown occurs, this signal will
@@ -154,12 +155,16 @@ impl Parkable for VmParker {
     }
 
     fn dump_debug(&self) {
-        for (_, cpu) in &*self.vcpus.lock().unwrap() {
-            cpu.assert(VcpuSignalMask::DUMP_DEBUG);
+        for cpu in self.vcpus.lock().unwrap().values() {
+            cpu.dump_debug();
         }
     }
 
-    fn get_vcpu(&self, id: u8) -> Option<ArcVcpuSignal> {
+    fn num_vcpus(&self) -> usize {
+        self.vcpus.lock().unwrap().len()
+    }
+
+    fn get_vcpu(&self, id: u8) -> Option<ArcVcpuHandle> {
         self.vcpus.lock().unwrap().get(&id).cloned()
     }
 }
@@ -171,7 +176,7 @@ impl Vm {
 
         Ok(Vm {
             hvf_vm: hvf_vm.clone(),
-            parker: Arc::new(VmParker::default()),
+            vcpu_registry: Arc::new(VcpuRegistryImpl::default()),
             #[cfg(target_arch = "aarch64")]
             irqchip_handle: None,
         })
@@ -253,8 +258,8 @@ impl Vm {
         }
     }
 
-    pub fn get_parker(&self) -> Arc<VmParker> {
-        self.parker.clone()
+    pub fn get_parker(&self) -> Arc<VcpuRegistryImpl> {
+        self.vcpu_registry.clone()
     }
 
     pub fn destroy_hvf(&self) {
@@ -424,7 +429,7 @@ impl Vcpu {
 
     /// Moves the vcpu to its own thread and constructs a VcpuHandle.
     /// The handle can be used to control the remote vcpu.
-    pub fn start_threaded(mut self, parker: Arc<VmParker>) -> Result<VcpuHandle> {
+    pub fn start_threaded(mut self, parker: Arc<VcpuRegistryImpl>) -> Result<VcpuHandle> {
         let (init_sender, init_receiver) = unbounded();
         let boot_sender = self.boot_senders.as_ref().unwrap()[self.cpu_index() as usize].clone();
 
@@ -655,11 +660,12 @@ impl Vcpu {
 
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "aarch64")]
-    pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
+    pub fn run(&mut self, parker: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
         use gruel::{
             define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
             ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
         };
+        use hvf::{profiler::ProfilerGuestContext, ArcVcpuHandle, VcpuHandleInner};
         use vmm_ids::VmmShutdownPhase;
 
         define_waker_set! {
@@ -727,7 +733,8 @@ impl Vcpu {
             },
         );
 
-        let mut park_task = parker.register_vcpu(self.cpu_index(), signal.clone());
+        let handle = ArcVcpuHandle::new(VcpuHandleInner::new(signal.clone()));
+        let mut park_task = parker.register_vcpu(self.cpu_index(), handle.clone());
 
         devices::virtio::fs::macos::iopolicy::prepare_vcpu_for_hvc().unwrap();
 
@@ -791,6 +798,40 @@ impl Vcpu {
                 match hvf_vcpu.dump_debug(self.csmap_path.as_ref().map(|p| p.as_str())) {
                     Ok(dump) => info!("vCPU {} state:\n{}", hvf_vcpuid, dump),
                     Err(e) => error!("Failed to dump vCPU state: {}", e),
+                }
+            }
+
+            if taken.contains(VcpuSignalMask::PROFILER_SAMPLE) {
+                if let Some(mut sample) = handle.consume_profiler_sample() {
+                    match hvf_vcpu.sample_for_profiler(&mut sample) {
+                        Ok(_) => {
+                            if let Err(e) = sample.finish() {
+                                error!("Failed to finish profiler sample: {}", e);
+                            }
+                        }
+                        // sample failed; drop it
+                        Err(e) => error!("Failed to sample vCPU: {}", e),
+                    }
+                }
+            }
+
+            if taken.contains(VcpuSignalMask::PROFILER_GUEST_FETCH) {
+                if let Some(sender) = handle.consume_profiler_guest_fetch() {
+                    let resp = ProfilerGuestContext {
+                        symbolicator: match self.csmap_path.as_ref() {
+                            Some(path) => match hvf_vcpu.new_symbolicator(path.as_str()) {
+                                Ok(symbolicator) => Some(symbolicator),
+                                Err(e) => {
+                                    error!("Failed to create symbolicator: {}", e);
+                                    None
+                                }
+                            },
+                            None => None,
+                        },
+                    };
+                    if let Err(e) = sender.send(resp) {
+                        error!("Failed to send guest fetch response: {}", e);
+                    }
                 }
             }
 
@@ -858,7 +899,7 @@ impl Vcpu {
 
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "x86_64")]
-    pub fn run(&mut self, parker: Arc<VmParker>, init_sender: Sender<bool>) {
+    pub fn run(&mut self, parker: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
         use gruel::{
             define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
             ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,

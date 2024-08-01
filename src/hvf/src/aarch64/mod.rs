@@ -17,6 +17,7 @@ use bindings::*;
 use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
 use once_cell::sync::Lazy;
+use smallvec::SmallVec;
 use utils::kernel_symbols::CompactSystemMap;
 use utils::memory::GuestMemoryExt;
 use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
@@ -46,7 +47,7 @@ use utils::hypercalls::{
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 
 use crate::profiler::symbolicator::{LinuxSymbolicator, Symbolicator};
-use crate::profiler::STACK_DEPTH_LIMIT;
+use crate::profiler::{PartialSample, SampleCategory, STACK_DEPTH_LIMIT};
 
 extern "C" {
     pub fn mach_absolute_time() -> u64;
@@ -1474,14 +1475,24 @@ impl HvfVcpu {
         Ok(())
     }
 
-    fn sample_for_profiler(&self) -> anyhow::Result<()> {
-        let mut stack = Vec::with_capacity(STACK_DEPTH_LIMIT);
-        self.walk_stack(|addr| stack.push(addr))?;
+    pub fn sample_for_profiler(&self, sample: &mut PartialSample) -> anyhow::Result<()> {
+        let cpsr = self.read_raw_reg(hv_reg_t_HV_REG_CPSR)?;
+        if cpsr & PSR_MODE_MASK == PSR_MODE_EL1H || cpsr & PSR_MODE_MASK == PSR_MODE_EL1T {
+            // needs to be in reverse order
+            let mut stack = SmallVec::<[u64; STACK_DEPTH_LIMIT]>::new();
+            self.walk_stack(|addr| stack.push(addr))?;
+
+            for &addr in stack.iter().rev() {
+                sample.prepend_stack(SampleCategory::GuestKernel, addr);
+            }
+        } else {
+            sample.prepend_stack(SampleCategory::GuestUserspace, 0);
+        }
 
         Ok(())
     }
 
-    fn new_symbolicator(&self, csmap_path: &str) -> anyhow::Result<LinuxSymbolicator> {
+    pub fn new_symbolicator(&self, csmap_path: &str) -> anyhow::Result<LinuxSymbolicator> {
         // load compact System.map from file system
         // we can't find KASLR offset without symbols, and addrs are useless without KASLR offset
         let csmap = CompactSystemMap::from_slice(&std::fs::read(csmap_path)?)?;

@@ -1,12 +1,12 @@
 use bincode::{Decode, Encode};
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, PartialEq, Debug)]
 struct CompactSystemMapSymbol {
     vaddr: u64,
     name: String,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, PartialEq, Debug)]
 pub struct CompactSystemMap {
     symbols: Vec<CompactSystemMapSymbol>,
 }

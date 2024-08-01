@@ -91,6 +91,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
 
 [[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
+
+[[package]]
 name = "arch"
 version = "0.1.0"
 dependencies = [
@@ -477,6 +483,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1137cd7e7fc0fb5d3c5a8678be38ec56e819125d8d7907411fe24ccb943faca8"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-deque",
+ "crossbeam-epoch",
+ "crossbeam-queue",
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -500,6 +519,15 @@ name = "crossbeam-epoch"
 version = "0.9.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-queue"
+version = "0.3.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df0346b5d5e76ac2fe4e327c5fd1118d6be7c51dfb18f9b7922923f287471e35"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -1046,11 +1074,13 @@ name = "hvf"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "arch",
  "arch_gen",
  "bitflags 2.6.0",
  "counter",
  "cpuid",
+ "crossbeam",
  "crossbeam-channel",
  "dlopen",
  "dlopen_derive",
@@ -1067,6 +1097,7 @@ dependencies = [
  "rustc-hash 1.1.0",
  "scopeguard",
  "serde",
+ "smallvec",
  "symbolic-demangle",
  "thiserror",
  "tokio",
@@ -3162,8 +3193,10 @@ name = "vmm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "arch",
  "codicon",
+ "crossbeam",
  "crossbeam-channel",
  "curl",
  "devices",

@@ -16,8 +16,11 @@ use crate::check_mach;
 
 pub const STACK_DEPTH_LIMIT: usize = 128;
 
-// mask out PAC signature, assuming 48-bit VA
-const PAC_MASK: u64 = u64::MAX >> 16;
+// no real address can be in __PAGEZERO
+const MIN_ADDR: u64 = 0x100000000;
+
+// mask out PAC signature, assuming 47-bit VA (machdep.virtual_address_size)
+const PAC_MASK: u64 = u64::MAX >> 17;
 
 #[derive(Debug, Copy, Clone)]
 pub struct UnwindRegs {
@@ -26,6 +29,8 @@ pub struct UnwindRegs {
     pub fp: u64,
     // used by DWARF CFI
     pub sp: u64,
+    // for Cgo stack transition: current goroutine pointer
+    pub x28: u64,
 }
 
 pub trait Unwinder {
@@ -38,32 +43,54 @@ impl Unwinder for FramePointerUnwinder {
     fn unwind(&mut self, regs: UnwindRegs, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
         // start with just PC and LR
         f(regs.pc);
-        // for lookup
-        f(regs.lr - 1);
+        // subtract 1 for lookup
+        // TODO: this logic should probably be in symbolicator?
+        f(regs.lr & PAC_MASK);
 
-        println!("walking stack: PC={:x}, LR={:x}", regs.pc, regs.lr);
+        //println!("walking stack: PC={:x}, LR={:x}", regs.pc, regs.lr);
         // then start looking at FP
         let mut fp = regs.fp;
-        for _ in 0..STACK_DEPTH_LIMIT {
+        // subtract 2 for first two frames (PC and LR)
+        for i in 0..(STACK_DEPTH_LIMIT - 2) {
+            // if bit 60 is set in FP, this is a swift async frame
+            // but FP still points to the next FP, and AsyncContext is at FP-8, so we don't have to do anything except clearing the async bit to avoid triggering the high-bit bail out check below
+            fp &= !(1 << 60);
+
+            if fp == 0 {
+                // reached end of stack
+                break;
+            }
+
+            // avoid segfaulting:
+            // high bits set = invalid address
+            // TODO: handle Cgo stacks
+            if fp & !PAC_MASK != 0 {
+                break;
+            }
+            // below zero page = invalid address
+            if fp < MIN_ADDR {
+                break;
+            }
+
             // mem[FP+8] = frame's LR
-            println!("walking stack: fp={:x}", fp);
+            //println!("walking stack: fp={:x}", fp);
             let frame_lr = unsafe { ((fp + 8) as *const u64).read() } & PAC_MASK;
             if frame_lr == 0 {
                 // reached end of stack
                 break;
             }
 
-            // TODO: handle case where frame_lr == lr
-            println!("got LR: {:x}", frame_lr);
-            f(frame_lr);
+            //println!("got LR: {:x}", frame_lr);
+            // TODO: subtract LR
+            if i == 0 && frame_lr == regs.lr {
+                // skip duplicate LR:
+            } else {
+                f(frame_lr);
+            }
 
             // mem[FP] = link to last FP
             fp = unsafe { (fp as *const u64).read() };
-            println!("got FP: {:x}", fp);
-            if fp == 0 {
-                // reached end of stack
-                break;
-            }
+            //println!("got FP: {:x}", fp);
         }
 
         Ok(())

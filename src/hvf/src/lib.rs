@@ -1,8 +1,13 @@
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
-use std::{thread::sleep, time::Duration};
+use std::{
+    sync::{mpsc::Sender, Arc},
+    thread::sleep,
+    time::Duration,
+};
 
 use anyhow::anyhow;
+use crossbeam::atomic::AtomicCell;
 use gruel::{StartupAbortedError, StartupTask};
 use libc::{c_void, madvise, VM_MAKE_TAG};
 use mach2::{
@@ -16,7 +21,9 @@ use mach2::{
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
 use nix::errno::Errno;
+use profiler::{PartialSample, ProfilerGuestContext};
 use tracing::error;
+use utils::Mutex;
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 use vmm_ids::{ArcVcpuSignal, VcpuSignalMask};
 #[cfg(target_arch = "x86_64")]
@@ -34,16 +41,62 @@ const MEMORY_REGION_TAG: u8 = 250; // application specific tag space
 
 const VM_FLAGS_4GB_CHUNK: i32 = 4;
 
-const MACH_CHUNK_SIZE: usize = 8 * 1024 * 1024; // 8 MiB
+const MACH_CHUNK_SIZE: usize = 64 * 1024 * 1024; // 8 MiB
 
-pub trait Parkable: Send + Sync {
+pub struct VcpuHandleInner {
+    signal: ArcVcpuSignal,
+    profiler_sample: AtomicCell<Option<Box<PartialSample>>>,
+    profiler_guest_fetch: Mutex<Option<Sender<ProfilerGuestContext>>>,
+}
+
+impl VcpuHandleInner {
+    pub fn new(signal: ArcVcpuSignal) -> Self {
+        Self {
+            signal,
+            profiler_sample: AtomicCell::new(None),
+            profiler_guest_fetch: Mutex::new(None),
+        }
+    }
+
+    pub fn pause(&self) {
+        self.signal.assert(VcpuSignalMask::PAUSE);
+    }
+
+    pub fn dump_debug(&self) {
+        self.signal.assert(VcpuSignalMask::DUMP_DEBUG);
+    }
+
+    pub fn send_profiler_sample(&self, sample: Box<PartialSample>) {
+        self.profiler_sample.store(Some(sample));
+        self.signal.assert(VcpuSignalMask::PROFILER_SAMPLE);
+    }
+
+    pub fn send_profiler_guest_fetch(&self, sender: Sender<ProfilerGuestContext>) {
+        *self.profiler_guest_fetch.lock().unwrap() = Some(sender);
+        self.signal.assert(VcpuSignalMask::PROFILER_GUEST_FETCH);
+    }
+
+    pub fn consume_profiler_sample(&self) -> Option<Box<PartialSample>> {
+        self.profiler_sample.swap(None)
+    }
+
+    pub fn consume_profiler_guest_fetch(&self) -> Option<Sender<ProfilerGuestContext>> {
+        self.profiler_guest_fetch.lock().unwrap().take()
+    }
+}
+
+pub type ArcVcpuHandle = Arc<VcpuHandleInner>;
+
+pub trait VcpuRegistry: Send + Sync {
     fn park(&self) -> Result<StartupTask, StartupAbortedError>;
 
     fn unpark(&self, unpark_task: StartupTask);
 
-    fn register_vcpu(&self, id: u8, vcpu: ArcVcpuSignal) -> StartupTask;
+    fn register_vcpu(&self, id: u8, vcpu: ArcVcpuHandle) -> StartupTask;
 
-    fn get_vcpu(&self, id: u8) -> Option<ArcVcpuSignal>;
+    fn num_vcpus(&self) -> usize;
+
+    fn get_vcpu(&self, id: u8) -> Option<ArcVcpuHandle>;
 
     fn process_park_commands(
         &self,
@@ -205,6 +258,7 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     std::thread::spawn(move || loop {
         sleep(MEMORY_REMAP_INTERVAL);
 
+        // TODO: stop this
         if let Err(e) = unsafe { remap_region(host_addr as *mut c_void, size as usize) } {
             error!("remap failed: {:?}", e);
         }

@@ -42,7 +42,7 @@ use mio::Interest;
 use vmm_config::kernel_bundle::KernelBundle;
 use vmm_ids::VmmShutdownSignal;
 
-use crate::macos::VmParker;
+use crate::macos::VcpuRegistryImpl;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::os::fd::RawFd;
@@ -59,7 +59,7 @@ use crate::device_manager::mmio::MMIODeviceManager;
 use crate::vstate::VcpuEvent;
 use crate::vstate::{Vcpu, VcpuHandle, Vm};
 
-use hvf::Parkable;
+use hvf::VcpuRegistry;
 
 use arch::ArchMemoryInfo;
 use arch::DeviceType;
@@ -182,7 +182,7 @@ pub struct Vmm {
 
     vcpus_handles: Vec<VcpuHandle>,
     exit_evt: EventFd,
-    parker: Arc<VmParker>,
+    vcpu_registry: Arc<VcpuRegistryImpl>,
     vm: Vm,
     shutdown: VmmShutdownSignal,
     exit_observers: Vec<Arc<Mutex<dyn VmmExitObserver>>>,
@@ -237,7 +237,7 @@ impl Vmm {
             vcpu.set_mmio_bus(self.mmio_device_manager.bus.clone());
 
             self.vcpus_handles.push(
-                vcpu.start_threaded(self.parker.clone())
+                vcpu.start_threaded(self.vcpu_registry.clone())
                     .map_err(Error::VcpuHandle)?,
             );
         }
@@ -405,7 +405,7 @@ impl Vmm {
     }
 
     pub fn dump_debug(&self) {
-        self.parker.dump_debug();
+        self.vcpu_registry.dump_debug();
     }
 
     pub fn start_profile(&mut self, params: &ProfilerParams) -> anyhow::Result<()> {
@@ -413,7 +413,7 @@ impl Vmm {
             return Err(anyhow!("already started"));
         }
 
-        let profiler = Arc::new(Profiler::new(params.clone(), self.parker.clone()));
+        let profiler = Arc::new(Profiler::new(params.clone(), self.vcpu_registry.clone()));
         profiler.start()?;
 
         self.profiler = Some(profiler);

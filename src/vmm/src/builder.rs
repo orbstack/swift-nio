@@ -558,7 +558,7 @@ pub fn build_microvm(
         vcpus_handles: Vec::new(),
         exit_evt,
         exit_observers: Vec::new(),
-        parker: vm.get_parker().clone(),
+        vcpu_registry: vm.get_parker().clone(),
         vm,
         shutdown: shutdown.clone(),
         profiler: None,
@@ -1336,7 +1336,10 @@ fn attach_balloon_device(
         balloon.lock().unwrap().set_intc(intc);
     }
 
-    balloon.lock().unwrap().set_parker(vmm.parker.clone());
+    balloon
+        .lock()
+        .unwrap()
+        .set_parker(vmm.vcpu_registry.clone());
 
     // add HVC device
     vmm.mmio_device_manager

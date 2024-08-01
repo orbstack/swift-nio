@@ -52,6 +52,9 @@ anyhow = "1.0.83"
 thiserror = "1.0.60"
 gruel = { version = "0.1.0", path = "../gruel" }
 vmm-ids = { version = "0.1.0", path = "../vmm-ids" }
+arc-swap = "1.7.1"
+hvf = { path = "../hvf" }
+crossbeam = "0.8.4"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 # cpuid = { path = "../cpuid" }
