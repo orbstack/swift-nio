@@ -61,6 +61,8 @@ func queryOne(name string, rtype uint16) ([]QueryAnswer, error) {
 
 	var sdRef C.DNSServiceRef
 	queryId := nextSeq.Add(1)
+	// kDNSServiceFlagsSuppressUnusable would be nice for filtering out AAAA if host has no IPv6,
+	// but that prevents manual queries, and ULA rules should prevent bad connection attempts
 	ret := C.start_query_record(&sdRef, C.kDNSServiceFlagsTimeout|C.kDNSServiceFlagsReturnIntermediates, 0, nameC, C.ushort(rtype), C.ushort(rclass), C.uint64_t(queryId))
 	if ret != C.kDNSServiceErr_NoError {
 		if verboseTrace {

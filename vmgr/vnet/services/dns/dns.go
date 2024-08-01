@@ -27,6 +27,8 @@ var (
 
 	// can be pretty small b/c clients don't usually cache DNS
 	ipToNameLruSize = 100
+
+	errNoNetwork = errors.New("no network")
 )
 
 type StaticHost struct {
@@ -137,15 +139,17 @@ func (h *DnsServer) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool)
 
 			isNxdomain := (err == dnssd.ErrNoSuchRecord || err == dnssd.ErrNoSuchName)
 
-			// No network? macOS returns NXDOMAIN, we return timeout
+			// No network? macOS returns "no such record"
+			// translate it to SERVFAIL
 			if isNxdomain && netutil.GetDefaultAddress4() == nil && netutil.GetDefaultAddress6() == nil {
 				if verboseTrace {
 					logrus.WithFields(logrus.Fields{
 						"name": q.Name,
 						"type": dns.TypeToString[q.Qtype],
-					}).Trace("no network, returning timeout")
+					}).Trace("no network, returning SERVFAIL")
 				}
-				return
+				// will be translated to SERVFAIL
+				err = errNoNetwork
 			}
 
 			// For domains with A but no AAAA (github.com), macOS returns "no such record".
@@ -192,23 +196,15 @@ func (h *DnsServer) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool)
 				}).Trace("got error after fallback logic")
 			}
 
-			// Default error handling
-			switch err {
-			// simulate timeout
-			case dnssd.ErrTimeout:
+			// Default error handling:
+			if errors.Is(err, dnssd.ErrTimeout) {
+				// simulate timeout
 				return
-			case dnssd.ErrServiceNotRunning:
-				return
-			case dnssd.ErrDefunctConnection:
-				return
-			case dnssd.ErrBadInterfaceIndex:
-				return
-			case dnssd.ErrFirewall:
-				return
-			// return an error
-			default:
+			} else {
+				// return SERVFAIL for immediate failure
 				msg.Rcode = mapErrorcode(err)
 			}
+
 			continue
 		}
 
