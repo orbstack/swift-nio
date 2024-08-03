@@ -25,16 +25,19 @@ use crate::{check_mach, ArcVcpuHandle};
 use super::{
     time::MachAbsoluteTime,
     unwinder::{UnwindError, UnwindRegs, Unwinder, STACK_DEPTH_LIMIT},
-    Frame, MachError, MachResult, PartialSample, Sample, SampleCategory,
+    Frame, MachError, MachResult, PartialSample, Sample, SampleCategory, SampleStack,
 };
 
 pub enum SampleResult {
     Sample(Sample),
     Queued,
+    ThreadStopped,
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum SampleError {
+    #[error("thread_get_info: {0}")]
+    ThreadGetInfo(MachError),
     #[error("thread_suspend: {0}")]
     ThreadSuspend(MachError),
     #[error("thread_get_state: {0}")]
@@ -99,11 +102,11 @@ impl ProfileeThread {
         Ok(info)
     }
 
-    pub fn cpu_time_delta_us(&mut self) -> MachResult<u64> {
+    fn get_cpu_time_delta_us(&mut self) -> MachResult<Option<u64>> {
         let info = self.get_info()?;
         let cpu_time_us = info.user_time.as_micros() + info.system_time.as_micros();
 
-        let delta = cpu_time_us - self.last_cpu_time_us.unwrap_or(cpu_time_us);
+        let delta = self.last_cpu_time_us.map(|last| cpu_time_us - last);
         self.last_cpu_time_us = Some(cpu_time_us);
         Ok(delta)
     }
@@ -133,12 +136,35 @@ impl ProfileeThread {
     // can't use anyhow::Result here: it allocates on error,
     // and we need to make sure this never allocates while another thread is suspended
     pub fn sample(
-        &self,
+        &mut self,
         host_unwinder: &mut impl Unwinder,
         thread_suspend_histogram: &mut Histogram<u64>,
         hv_vcpu_run: &Option<Range<usize>>,
         hv_trap: &Option<Range<usize>>,
     ) -> Result<SampleResult, SampleError> {
+        let cpu_time_delta_us = match self.get_cpu_time_delta_us() {
+            // no CPU time elapsed; thread is idle, and this isn't the first sample
+            Ok(Some(0)) => {
+                return Ok(SampleResult::Sample(Sample {
+                    timestamp: MachAbsoluteTime::now(),
+                    cpu_time_delta_us: 0,
+                    thread_id: self.id(),
+                    stack: SampleStack::SameAsLast,
+                }))
+            }
+
+            // some CPU has been used
+            Ok(delta) => delta,
+
+            // thread is gone
+            Err(MachError::MachSendInvalidDest) => {
+                self.stopped_at = Some(MachAbsoluteTime::now());
+                return Ok(SampleResult::ThreadStopped);
+            }
+
+            Err(e) => return Err(SampleError::ThreadGetInfo(e)),
+        };
+
         // TODO: enforce limit including guest frames
         // allocate stack upfront
         // MUST not allocate on .push
@@ -186,15 +212,18 @@ impl ProfileeThread {
 
         let sample = Sample {
             timestamp,
-            cpu_time_delta_us: 0,
+            cpu_time_delta_us: cpu_time_delta_us.unwrap_or(0) as u32,
             thread_id: self.id(),
-            stack,
+            stack: SampleStack::Stack(stack),
         };
 
         // if thread is in HVF, trigger an exit now, so that it samples as soon as it resumes
         // for now we just check whether PC (stack[0]) is in hv_trap
         if let Some(hv_vcpu_run) = hv_vcpu_run {
-            if let Some(&frame) = sample.stack.get(1) {
+            let SampleStack::Stack(stack) = &sample.stack else {
+                panic!("stack is not a stack");
+            };
+            if let Some(&frame) = stack.get(1) {
                 if hv_vcpu_run.contains(&(frame.addr as usize)) {
                     if let Some(vcpu) = &self.vcpu {
                         vcpu.send_profiler_sample(PartialSample { sample });

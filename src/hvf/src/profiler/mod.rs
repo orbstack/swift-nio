@@ -140,10 +140,14 @@ impl SampleCategory {
 struct Sample {
     timestamp: MachAbsoluteTime,
     cpu_time_delta_us: u32,
-
     thread_id: ThreadId,
+    stack: SampleStack,
+}
 
-    stack: VecDeque<Frame>,
+#[derive(Debug)]
+enum SampleStack {
+    Stack(VecDeque<Frame>),
+    SameAsLast,
 }
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq, Eq, Ord, Hash)]
@@ -170,7 +174,11 @@ pub struct PartialSample {
 
 impl PartialSample {
     pub fn prepend_stack(&mut self, frame: Frame) {
-        self.sample.stack.push_front(frame);
+        if let SampleStack::Stack(stack) = &mut self.sample.stack {
+            stack.push_front(frame);
+        } else {
+            panic!("cannot prepend to non-stack sample");
+        }
     }
 }
 
@@ -298,30 +306,16 @@ impl Profiler {
                     continue;
                 }
 
-                let cpu_time_delta_us = match thread.cpu_time_delta_us() {
-                    Ok(delta) => delta,
-                    Err(MachError::MachSendInvalidDest) => {
-                        // thread is gone
-                        thread.stopped_at = Some(MachAbsoluteTime::now());
-                        continue;
-                    }
-                    Err(e) => {
-                        error!("failed to get cpu time for thread {:?}: {}", thread.id(), e);
-                        continue;
-                    }
-                };
-
                 match thread.sample(
                     &mut host_unwinder,
                     &mut thread_suspend_histogram,
                     &hv_vcpu_run,
                     &hv_trap,
                 ) {
-                    Ok(SampleResult::Sample(mut sample)) => {
-                        sample.cpu_time_delta_us = cpu_time_delta_us as u32;
+                    Ok(SampleResult::Sample(sample)) => {
                         samples.push(sample);
                     }
-                    Ok(SampleResult::Queued) => {}
+                    Ok(SampleResult::Queued) | Ok(SampleResult::ThreadStopped) => {}
                     Err(SampleError::ThreadSuspend(MachError::MachSendInvalidDest))
                     | Err(SampleError::ThreadGetState(MachError::MachSendInvalidDest)) => {
                         // thread is gone
@@ -503,6 +497,10 @@ impl Profiler {
             .map(|t| (t.id(), t))
             .collect::<AHashMap<_, _>>();
 
+        let mut last_thread_stacks: AHashMap<ThreadId, Vec<SymbolicatedFrame>> = threads
+            .iter()
+            .map(|t| (t.id(), Vec::with_capacity(STACK_DEPTH_LIMIT)))
+            .collect();
         let mut guest_context = self.get_guest_context(threads)?;
 
         let mut host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
@@ -513,48 +511,59 @@ impl Profiler {
 
         let mut text_processor = TextSampleProcessor::new(info, threads_map.clone())?;
         let mut ff_processor = FirefoxSampleProcessor::new(info, threads_map)?;
-        let mut sframes = Vec::with_capacity(STACK_DEPTH_LIMIT);
         for sample in &mut samples {
-            // symbolicate the frames
-            // reuse the Vec buffer for performance
-            sframes.clear();
-            sample
-                .stack
-                .iter()
-                .map(|frame| {
-                    let symbol = match frame.category {
-                        SampleCategory::HostUserspace => {
-                            host_symbolicator.addr_to_symbol(frame.addr)
-                        }
-                        SampleCategory::GuestKernel => match &mut guest_context.symbolicator {
-                            Some(s) => s.addr_to_symbol(frame.addr),
-                            None => Ok(None),
-                        },
-                        SampleCategory::GuestUserspace => Ok(Some(SymbolResult {
-                            image: "guest".to_string(),
-                            image_base: 0,
-                            symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
-                        })),
-                        _ => Ok(None),
-                    }
-                    .inspect_err(|e| error!("failed to symbolicate addr {:x}: {}", frame.addr, e))
-                    .ok()
-                    .flatten();
+            let sframes = last_thread_stacks
+                .get_mut(&sample.thread_id)
+                .expect("missing thread stack");
+            match &sample.stack {
+                SampleStack::Stack(stack) => {
+                    // symbolicate the frames
+                    // reuse the Vec to avoid allocations
+                    sframes.clear();
+                    stack
+                        .iter()
+                        .map(|frame| {
+                            let symbol = match frame.category {
+                                SampleCategory::HostUserspace => {
+                                    host_symbolicator.addr_to_symbol(frame.addr)
+                                }
+                                SampleCategory::GuestKernel => {
+                                    match &mut guest_context.symbolicator {
+                                        Some(s) => s.addr_to_symbol(frame.addr),
+                                        None => Ok(None),
+                                    }
+                                }
+                                SampleCategory::GuestUserspace => Ok(Some(SymbolResult {
+                                    image: "guest".to_string(),
+                                    image_base: 0,
+                                    symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
+                                })),
+                                _ => Ok(None),
+                            }
+                            .inspect_err(|e| {
+                                error!("failed to symbolicate addr {:x}: {}", frame.addr, e)
+                            })
+                            .ok()
+                            .flatten();
 
-                    SymbolicatedFrame {
-                        frame: *frame,
-                        symbol,
-                    }
-                })
-                .for_each(|sframe| sframes.push(sframe));
+                            SymbolicatedFrame {
+                                frame: *frame,
+                                symbol,
+                            }
+                        })
+                        .for_each(|sframe| sframes.push(sframe));
+                }
+                // do nothing: we already symbolicated the last stack
+                SampleStack::SameAsLast => {}
+            }
 
             // apply transforms
-            cgo_transform.transform(&mut sframes)?;
-            irq_transform.transform(&mut sframes)?;
-            leaf_transform.transform(&mut sframes)?;
+            cgo_transform.transform(sframes)?;
+            irq_transform.transform(sframes)?;
+            leaf_transform.transform(sframes)?;
 
-            text_processor.process_sample(sample, &sframes)?;
-            ff_processor.process_sample(sample, &sframes)?;
+            text_processor.process_sample(sample, sframes)?;
+            ff_processor.process_sample(sample, sframes)?;
         }
         info!("writing to file: {}", self.params.output_path);
         text_processor.write_to_path(&self.params.output_path)?;
