@@ -22,6 +22,11 @@ const MIN_ADDR: u64 = 0x100000000;
 // mask out PAC signature, assuming 47-bit VA (machdep.virtual_address_size)
 const PAC_MASK: u64 = u64::MAX >> 17;
 
+#[derive(thiserror::Error, Debug)]
+pub enum UnwindError {}
+
+pub type Result<T> = std::result::Result<T, UnwindError>;
+
 #[derive(Debug, Copy, Clone)]
 pub struct UnwindRegs {
     pub pc: u64,
@@ -32,13 +37,13 @@ pub struct UnwindRegs {
 }
 
 pub trait Unwinder {
-    fn unwind(&mut self, regs: UnwindRegs, f: impl FnMut(u64)) -> anyhow::Result<()>;
+    fn unwind(&mut self, regs: UnwindRegs, f: impl FnMut(u64)) -> Result<()>;
 }
 
 pub struct FramePointerUnwinder {}
 
 impl Unwinder for FramePointerUnwinder {
-    fn unwind(&mut self, regs: UnwindRegs, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
+    fn unwind(&mut self, regs: UnwindRegs, mut f: impl FnMut(u64)) -> Result<()> {
         // start with just PC and LR
         f(regs.pc);
 
@@ -207,7 +212,7 @@ impl FramehopUnwinder<'_> {
 }
 
 impl Unwinder for FramehopUnwinder<'_> {
-    fn unwind(&mut self, regs: UnwindRegs, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
+    fn unwind(&mut self, regs: UnwindRegs, mut f: impl FnMut(u64)) -> Result<()> {
         let mut read_stack = |addr: u64| {
             let mut ptr: usize = 0;
             let mut ptr_size = 8;

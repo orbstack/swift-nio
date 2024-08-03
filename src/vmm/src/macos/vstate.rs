@@ -14,6 +14,7 @@ use gruel::StartupTask;
 use gruel::Waker;
 use hvf::ArcVcpuHandle;
 use hvf::HvVcpuRef;
+use hvf::VcpuProfilerState;
 use std::collections::BTreeMap;
 use std::io;
 use std::result;
@@ -312,6 +313,9 @@ pub struct Vcpu {
     vcpu_count: u8,
     #[cfg(target_arch = "x86_64")]
     ht_enabled: bool,
+
+    #[cfg(target_arch = "aarch64")]
+    profiler_state: Option<VcpuProfilerState>,
 }
 
 impl Vcpu {
@@ -350,6 +354,7 @@ impl Vcpu {
             intc,
             shutdown,
             csmap_path,
+            profiler_state: None,
         })
     }
 
@@ -801,16 +806,23 @@ impl Vcpu {
                 }
             }
 
+            if taken.contains(VcpuSignalMask::PROFILER_INIT) {
+                if let Some(req) = handle.consume_profiler_init() {
+                    self.profiler_state =
+                        Some(VcpuProfilerState::new(req.profiler, self.guest_mem.clone()));
+                    req.completion_sender.send(()).unwrap();
+                }
+            }
+
             if taken.contains(VcpuSignalMask::PROFILER_SAMPLE) {
-                if let Some(mut sample) = handle.consume_profiler_sample() {
-                    match hvf_vcpu.sample_for_profiler(&mut sample) {
-                        Ok(_) => {
-                            if let Err(e) = sample.finish() {
-                                error!("Failed to finish profiler sample: {}", e);
-                            }
+                if let Some(sample) = handle.consume_profiler_sample() {
+                    if let Some(profiler_state) = self.profiler_state.as_mut() {
+                        if let Err(e) = hvf_vcpu.finish_profiler_sample(profiler_state, sample) {
+                            // sample failed; drop it
+                            error!("Failed to sample vCPU: {}", e);
                         }
-                        // sample failed; drop it
-                        Err(e) => error!("Failed to sample vCPU: {}", e),
+                    } else {
+                        error!("Received sample request without a profiler state");
                     }
                 }
             }
@@ -832,6 +844,8 @@ impl Vcpu {
                     if let Err(e) = sender.send(resp) {
                         error!("Failed to send guest fetch response: {}", e);
                     }
+
+                    self.profiler_state = None;
                 }
             }
 

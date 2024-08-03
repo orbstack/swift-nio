@@ -18,9 +18,10 @@ use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
+use tlb::Tlb;
 use utils::kernel_symbols::CompactSystemMap;
 use utils::memory::GuestMemoryExt;
-use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemoryMmap};
+use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
 
 use dlopen::wrapper::{Container, WrapperApi};
 
@@ -29,6 +30,7 @@ use std::convert::TryInto;
 use std::ffi::c_void;
 use std::fmt::Write;
 use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
@@ -47,7 +49,9 @@ use utils::hypercalls::{
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 
 use crate::profiler::symbolicator::{LinuxSymbolicator, Symbolicator};
-use crate::profiler::{Frame, PartialSample, SampleCategory, STACK_DEPTH_LIMIT};
+use crate::profiler::{Frame, PartialSample, Profiler, SampleCategory, STACK_DEPTH_LIMIT};
+
+mod tlb;
 
 extern "C" {
     pub fn mach_absolute_time() -> u64;
@@ -730,6 +734,20 @@ struct PvgicVcpuState {
 
 unsafe impl ByteValued for PvgicVcpuState {}
 
+pub struct VcpuProfilerState {
+    tlb: Tlb<u64>,
+    pub profiler: Arc<Profiler>,
+}
+
+impl VcpuProfilerState {
+    pub fn new(profiler: Arc<Profiler>, guest_mem: GuestMemoryMmap) -> Self {
+        Self {
+            tlb: Tlb::new(guest_mem),
+            profiler,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct HvVcpuRef(pub hv_vcpu_t);
 
@@ -1317,11 +1335,10 @@ impl HvfVcpu {
             descaddr |= table_offset;
             descaddr &= !7u64;
 
-            let mut buf = [0; 8];
-            self.guest_mem
-                .read(&mut buf, GuestAddress(descaddr))
+            let descriptor: u64 = self
+                .guest_mem
+                .read_obj_fast(GuestAddress(descaddr))
                 .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
-            let descriptor = u64::from_le_bytes(buf);
 
             descaddr = descriptor & descaddrmask;
             // In the case of FEAT_LPA, the next-level translation table address
@@ -1428,7 +1445,7 @@ impl HvfVcpu {
         Ok(buf)
     }
 
-    fn walk_stack(&self, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
+    fn walk_stack(&self, tlb: &mut Tlb<u64>, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
         let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
         let lr = self.read_raw_reg(hv_reg_t_HV_REG_LR)?;
 
@@ -1454,8 +1471,8 @@ impl HvfVcpu {
             }
 
             // mem[FP+8] = frame's LR
-            // TODO: cache bounds check and gva?
-            let frame_lr = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
+            // let frame_lr = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
+            let frame_lr = tlb.read_obj(self, fp + 8)?;
             if frame_lr == 0 {
                 // reached end of stack
                 break;
@@ -1472,26 +1489,35 @@ impl HvfVcpu {
             }
 
             // mem[FP] = link to last FP
-            fp = self.guest_mem.read_obj_fast(self.translate_gva(fp)?)?;
+            fp = tlb.read_obj(self, fp)?;
         }
 
         Ok(())
     }
 
-    pub fn sample_for_profiler(&self, sample: &mut PartialSample) -> anyhow::Result<()> {
+    pub fn finish_profiler_sample(
+        &self,
+        profiler_state: &mut VcpuProfilerState,
+        mut sample: PartialSample,
+    ) -> anyhow::Result<()> {
         let cpsr = self.read_raw_reg(hv_reg_t_HV_REG_CPSR)?;
-        if cpsr & PSR_MODE_MASK == PSR_MODE_EL1H || cpsr & PSR_MODE_MASK == PSR_MODE_EL1T {
-            // needs to be in reverse order
-            let mut stack = SmallVec::<[u64; STACK_DEPTH_LIMIT]>::new();
-            self.walk_stack(|addr| stack.push(addr))?;
+        match cpsr & PSR_MODE_MASK {
+            PSR_MODE_EL1T | PSR_MODE_EL1H => {
+                // needs to be in reverse order
+                let mut stack = SmallVec::<[u64; STACK_DEPTH_LIMIT]>::new();
+                self.walk_stack(&mut profiler_state.tlb, |addr| stack.push(addr))?;
 
-            for &addr in stack.iter().rev() {
-                sample.prepend_stack(Frame::new(SampleCategory::GuestKernel, addr));
+                for &addr in stack.iter().rev() {
+                    sample.prepend_stack(Frame::new(SampleCategory::GuestKernel, addr));
+                }
             }
-        } else {
-            sample.prepend_stack(Frame::new(SampleCategory::GuestUserspace, 0));
+            PSR_MODE_EL0T => {
+                sample.prepend_stack(Frame::new(SampleCategory::GuestUserspace, 0));
+            }
+            _ => {}
         }
 
+        profiler_state.profiler.queue_sample(sample)?;
         Ok(())
     }
 
@@ -1528,9 +1554,11 @@ impl HvfVcpu {
     fn add_debug_stack(&self, buf: &mut String, csmap_path: &str) -> anyhow::Result<()> {
         // walk stack, with depth limit to protect against malicious/corrupted stack
         let mut stack = Vec::new();
-        self.walk_stack(|addr| stack.push(addr))?;
+        // this is a rare operation; don't cache the addresses
+        let mut tlb = Tlb::new(self.guest_mem.clone());
+        self.walk_stack(&mut tlb, |addr| stack.push(addr))?;
 
-        let symbolicator = self.new_symbolicator(csmap_path)?;
+        let mut symbolicator = self.new_symbolicator(csmap_path)?;
         for (i, &addr) in stack.iter().enumerate() {
             match symbolicator
                 .addr_to_symbol(addr)?

@@ -53,18 +53,21 @@ bitflags::bitflags! {
         #[cfg(target_arch = "aarch64")]
         const DUMP_DEBUG = 1 << 5;
 
+        /// Initialize the vCPU for a new profiling session.
+        const PROFILER_INIT = 1 << 6;
+
         /// Take a sample for profiling.
-        const PROFILER_SAMPLE = 1 << 6;
+        const PROFILER_SAMPLE = 1 << 7;
 
         /// Fetch the guest state for profiling.
-        const PROFILER_GUEST_FETCH = 1 << 7;
+        const PROFILER_GUEST_FETCH = 1 << 8;
 
         // TODO: We might actually just not want this.
         const ANY_SHUTDOWN = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits();
 
         // Most waiters can be woken up by any signal except PVLOCK (which is a token only consumed by PvlockWait).
         #[cfg(target_arch = "aarch64")]
-        const ALL_WAIT = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits() | Self::PAUSE.bits() | Self::INTERRUPT.bits() | Self::DUMP_DEBUG.bits() | Self::PROFILER_SAMPLE.bits() | Self::PROFILER_GUEST_FETCH.bits();
+        const ALL_WAIT = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits() | Self::PAUSE.bits() | Self::INTERRUPT.bits() | Self::DUMP_DEBUG.bits() | Self::PROFILER_INIT.bits() | Self::PROFILER_SAMPLE.bits() | Self::PROFILER_GUEST_FETCH.bits();
         #[cfg(not(target_arch = "aarch64"))]
         const ALL_WAIT = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits() | Self::PAUSE.bits();
     }

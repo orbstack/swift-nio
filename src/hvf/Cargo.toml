@@ -38,6 +38,9 @@ arc-swap = "1.7.1"
 crossbeam = { version = "0.8.4", features = ["crossbeam-queue"] }
 smallvec = "1.13.2"
 serde_json = "1.0.121"
+axum = "0.7.5"
+hdrhistogram = "7.5.4"
+ahash = "0.8.11"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 cpuid = { path = "../cpuid" }

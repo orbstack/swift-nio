@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::anyhow;
-use crossbeam::atomic::AtomicCell;
+use crossbeam::queue::ArrayQueue;
 use gruel::{StartupAbortedError, StartupTask};
 use libc::{c_void, madvise, VM_MAKE_TAG};
 use mach2::{
@@ -21,7 +21,7 @@ use mach2::{
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
 use nix::errno::Errno;
-use profiler::{PartialSample, ProfilerGuestContext};
+use profiler::{PartialSample, ProfilerGuestContext, ProfilerVcpuInit};
 use tracing::error;
 use utils::Mutex;
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
@@ -45,7 +45,8 @@ const MACH_CHUNK_SIZE: usize = 64 * 1024 * 1024; // 8 MiB
 
 pub struct VcpuHandleInner {
     signal: ArcVcpuSignal,
-    profiler_sample: AtomicCell<Option<Box<PartialSample>>>,
+    profiler_init: Mutex<Option<ProfilerVcpuInit>>,
+    profiler_sample: ArrayQueue<PartialSample>,
     profiler_guest_fetch: Mutex<Option<Sender<ProfilerGuestContext>>>,
 }
 
@@ -53,7 +54,8 @@ impl VcpuHandleInner {
     pub fn new(signal: ArcVcpuSignal) -> Self {
         Self {
             signal,
-            profiler_sample: AtomicCell::new(None),
+            profiler_init: Mutex::new(None),
+            profiler_sample: ArrayQueue::new(1),
             profiler_guest_fetch: Mutex::new(None),
         }
     }
@@ -66,8 +68,13 @@ impl VcpuHandleInner {
         self.signal.assert(VcpuSignalMask::DUMP_DEBUG);
     }
 
-    pub fn send_profiler_sample(&self, sample: Box<PartialSample>) {
-        self.profiler_sample.store(Some(sample));
+    pub fn send_profiler_init(&self, init: ProfilerVcpuInit) {
+        *self.profiler_init.lock().unwrap() = Some(init);
+        self.signal.assert(VcpuSignalMask::PROFILER_INIT);
+    }
+
+    pub fn send_profiler_sample(&self, sample: PartialSample) {
+        self.profiler_sample.force_push(sample);
         self.signal.assert(VcpuSignalMask::PROFILER_SAMPLE);
     }
 
@@ -76,8 +83,12 @@ impl VcpuHandleInner {
         self.signal.assert(VcpuSignalMask::PROFILER_GUEST_FETCH);
     }
 
-    pub fn consume_profiler_sample(&self) -> Option<Box<PartialSample>> {
-        self.profiler_sample.swap(None)
+    pub fn consume_profiler_init(&self) -> Option<ProfilerVcpuInit> {
+        self.profiler_init.lock().unwrap().take()
+    }
+
+    pub fn consume_profiler_sample(&self) -> Option<PartialSample> {
+        self.profiler_sample.pop()
     }
 
     pub fn consume_profiler_guest_fetch(&self) -> Option<Sender<ProfilerGuestContext>> {

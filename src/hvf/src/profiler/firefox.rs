@@ -1,3 +1,4 @@
+use ahash::AHashMap;
 use anyhow::anyhow;
 use serde::Serialize;
 use std::hash::Hash;
@@ -6,13 +7,11 @@ use std::time::SystemTime;
 use std::{collections::HashMap, fs::File};
 use tracing::error;
 
-use super::symbolicator::{CachedSymbolicator, LinuxSymbolicator};
 use super::{
-    symbolicator::{DladdrSymbolicator, SymbolResult, Symbolicator},
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use super::{Frame, ProfileInfo, SampleCategory};
+use super::{Frame, ProfileInfo, SampleCategory, SymbolicatedFrame};
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -23,7 +22,7 @@ struct Pid(i32);
 struct FirefoxProfile<'a> {
     meta: ProfileMeta<'a>,
     libs: &'a [Lib],
-    counters: Vec<TODO>,
+    counters: Vec<Todo>,
     profiler_overhead: Vec<ProfilerOverhead>,
     threads: Vec<FirefoxThread<'a>>,
 }
@@ -53,7 +52,7 @@ struct ProfileMeta<'a> {
     does_not_use_frame_implementation: bool,
     source_code_is_not_on_searchfox: bool,
 
-    marker_schema: Vec<TODO>,
+    marker_schema: Vec<Todo>,
 }
 
 macro_rules! table_type {
@@ -128,6 +127,7 @@ table_type!(
 );
 
 #[derive(Serialize, Debug, Clone)]
+#[allow(unused)]
 enum ThreadCPUDeltaUnit {
     #[serde(rename = "ns")]
     Nanoseconds,
@@ -242,7 +242,7 @@ struct ProfilerOverhead {
 
 type Tid = u64;
 
-type TODO = ();
+type Todo = ();
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -252,7 +252,7 @@ struct FirefoxThread<'a> {
     process_shutdown_time: Option<Milliseconds>,
     register_time: Milliseconds,
     unregister_time: Option<Milliseconds>,
-    paused_ranges: Vec<TODO>,
+    paused_ranges: Vec<Todo>,
     show_markers_in_timeline: Option<bool>,
     name: String,
     is_main_thread: bool,
@@ -281,6 +281,7 @@ type IndexIntoLibs = usize;
 type ResourceTypeEnum = u32;
 
 #[derive(Serialize, Debug, Clone, Default)]
+#[allow(unused)]
 enum WeightType {
     #[serde(rename = "samples")]
     #[default]
@@ -302,11 +303,11 @@ table_type!(FirefoxSample {
 });
 
 table_type!(RawMarker {
-    data: Option<TODO>,
+    data: Option<Todo>,
     name: IndexIntoStringTable,
     start_time: Option<Milliseconds>,
     end_time: Option<Milliseconds>,
-    phase: TODO,
+    phase: Todo,
     category: IndexIntoCategoryList,
 }, RawMarkerTable);
 
@@ -458,23 +459,18 @@ fn image_basename(image: &str) -> &str {
     image.rsplit('/').next().unwrap_or(image)
 }
 
-pub struct FirefoxSampleProcessor<'a, HS: Symbolicator> {
+pub struct FirefoxSampleProcessor<'a> {
     info: &'a ProfileInfo,
-    threads: HashMap<ThreadId, ThreadState<'a>>,
+    threads: AHashMap<ThreadId, ThreadState<'a>>,
 
     categories: KeyedTable<SampleCategory, FirefoxCategory>,
     libs: KeyedTable<String, Lib>,
-
-    host_symbolicator: &'a HS,
-    guest_symbolicator: Option<&'a LinuxSymbolicator>,
 }
 
-impl<'a, HS: Symbolicator> FirefoxSampleProcessor<'a, HS> {
+impl<'a> FirefoxSampleProcessor<'a> {
     pub fn new(
         info: &'a ProfileInfo,
-        threads_map: HashMap<ThreadId, &'a ProfileeThread>,
-        host_symbolicator: &'a HS,
-        guest_symbolicator: Option<&'a LinuxSymbolicator>,
+        threads_map: AHashMap<ThreadId, &'a ProfileeThread>,
     ) -> anyhow::Result<Self> {
         let mut categories = KeyedTable::new();
         categories.get_or_insert(
@@ -533,48 +529,27 @@ impl<'a, HS: Symbolicator> FirefoxSampleProcessor<'a, HS> {
 
             categories,
             libs: KeyedTable::new(),
-
-            host_symbolicator,
-            guest_symbolicator,
         })
     }
 
-    pub fn process_sample(&mut self, sample: &Sample) -> anyhow::Result<()> {
+    pub fn process_sample(
+        &mut self,
+        sample: &Sample,
+        sframes: &[SymbolicatedFrame],
+    ) -> anyhow::Result<()> {
         let thread = self
             .threads
             .get_mut(&sample.thread_id)
             .ok_or_else(|| anyhow!("thread not found: {:?}", sample.thread_id))?;
 
-        let stack_frames = sample
-            .stack
+        let stack_frames = sframes
             .iter()
-            .map(|&frame| {
+            .map(|sframe| {
+                let frame = sframe.frame;
+
                 // find frame for this (category, addr)
                 let ff_frame = thread.frames.get_or_insert_with(frame, || {
-                    let sym_result = match frame.category {
-                        SampleCategory::HostUserspace => {
-                            self.host_symbolicator.addr_to_symbol(frame.addr)
-                        }
-                        SampleCategory::GuestKernel => match self.guest_symbolicator {
-                            Some(s) => s.addr_to_symbol(frame.addr),
-                            None => Ok(None),
-                        },
-                        SampleCategory::GuestUserspace => Ok(Some(SymbolResult {
-                            image: "guest".to_string(),
-                            image_base: 0,
-                            symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
-                        })),
-                        _ => Ok(None),
-                    };
-                    let sym = match sym_result {
-                        Ok(r) => r,
-                        Err(e) => {
-                            error!("failed to symbolicate addr {:x}: {}", frame.addr, e);
-                            None
-                        }
-                    };
-
-                    let lib_path = sym
+                    let lib_path = sframe.symbol
                         .as_ref()
                         .map(|s| s.image.clone())
                         .unwrap_or_else(|| "<unknown>".to_string());
@@ -601,7 +576,7 @@ impl<'a, HS: Symbolicator> FirefoxSampleProcessor<'a, HS> {
                                 lib: Some(lib.1),
                             });
 
-                    let func_name = sym
+                    let func_name = sframe.symbol
                         .as_ref()
                         .and_then(|s| s.symbol_offset.as_ref().map(|(name, _)| name.clone()))
                         .unwrap_or_else(|| format!("{:#x}", frame.addr));
@@ -618,7 +593,7 @@ impl<'a, HS: Symbolicator> FirefoxSampleProcessor<'a, HS> {
                         },
                     );
 
-                    let native_symbol = sym.as_ref().and_then(|s| {
+                    let native_symbol = sframe.symbol.as_ref().and_then(|s| {
                         s.symbol_offset.as_ref().map(|(name, offset)| {
                             thread
                                 .native_symbols
@@ -644,7 +619,7 @@ impl<'a, HS: Symbolicator> FirefoxSampleProcessor<'a, HS> {
                         })
                     });
 
-                    let address = frame.addr - sym.map(|s| s.image_base).unwrap_or(0);
+                    let address = frame.addr - sframe.symbol.as_ref().map(|s| s.image_base).unwrap_or(0);
 
                     FirefoxFrame {
                         address,
@@ -670,14 +645,14 @@ impl<'a, HS: Symbolicator> FirefoxSampleProcessor<'a, HS> {
             stack: stack_index,
             time: Milliseconds((sample.timestamp - self.info.start_time_abs).millis_f64()),
             weight: 1.0,
-            thread_cpu_delta: Microseconds(sample.cpu_time_delta_us),
+            thread_cpu_delta: Microseconds(sample.cpu_time_delta_us as u64),
         });
 
         Ok(())
     }
 
     pub fn write_to_path(&self, path: &str) -> anyhow::Result<()> {
-        let mut file = File::create(path)?;
+        let file = File::create(path)?;
 
         // main thread will have the lowest mach port name
         let start_time = Milliseconds(

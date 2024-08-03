@@ -1,20 +1,15 @@
 use std::fmt::Display;
 use std::io::Write;
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, HashMap},
-    fs::File,
-    rc::Rc,
-};
-use tracing::error;
+use std::{cell::RefCell, collections::BTreeMap, fs::File, rc::Rc};
 
-use super::symbolicator::{CachedSymbolicator, LinuxSymbolicator};
+use ahash::AHashMap;
+
 use super::{
-    symbolicator::{DladdrSymbolicator, SymbolResult, Symbolicator},
+    symbolicator::SymbolResult,
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use super::{Frame, ProfileInfo, SampleCategory};
+use super::{Frame, ProfileInfo, SampleCategory, SymbolicatedFrame};
 
 trait AsTreeKey {
     type Key: Ord;
@@ -129,31 +124,29 @@ struct ThreadNode {
     stacks: StackTree<SampleNode>,
 }
 
-pub struct SampleProcessor<'a, HS: Symbolicator> {
-    threads_map: HashMap<ThreadId, &'a ProfileeThread>,
+pub struct TextSampleProcessor<'a> {
+    threads_map: AHashMap<ThreadId, &'a ProfileeThread>,
 
     threads: BTreeMap<ThreadId, ThreadNode>,
-    host_symbolicator: &'a HS,
-    guest_symbolicator: Option<&'a LinuxSymbolicator>,
 }
 
-impl<'a, HS: Symbolicator> SampleProcessor<'a, HS> {
+impl<'a> TextSampleProcessor<'a> {
     pub fn new(
         _info: &'a ProfileInfo,
-        threads_map: HashMap<ThreadId, &'a ProfileeThread>,
-        host_symbolicator: &'a HS,
-        guest_symbolicator: Option<&'a LinuxSymbolicator>,
+        threads_map: AHashMap<ThreadId, &'a ProfileeThread>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             threads_map,
 
             threads: BTreeMap::new(),
-            host_symbolicator,
-            guest_symbolicator,
         })
     }
 
-    pub fn process_sample(&mut self, sample: &Sample) -> anyhow::Result<()> {
+    pub fn process_sample(
+        &mut self,
+        sample: &Sample,
+        frames: &[SymbolicatedFrame],
+    ) -> anyhow::Result<()> {
         // process sample
         let thread_node = self
             .threads
@@ -168,31 +161,9 @@ impl<'a, HS: Symbolicator> SampleProcessor<'a, HS> {
 
         thread_node
             .stacks
-            .insert(&mut sample.stack.iter().rev().map(|&frame| {
-                let sym_result = match frame.category {
-                    SampleCategory::HostUserspace => {
-                        self.host_symbolicator.addr_to_symbol(frame.addr)
-                    }
-                    SampleCategory::GuestKernel => match self.guest_symbolicator {
-                        Some(s) => s.addr_to_symbol(frame.addr),
-                        None => Ok(None),
-                    },
-                    SampleCategory::GuestUserspace => Ok(Some(SymbolResult {
-                        image: "guest".to_string(),
-                        image_base: 0,
-                        symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
-                    })),
-                    _ => Ok(None),
-                };
-                let sym = match sym_result {
-                    Ok(r) => r,
-                    Err(e) => {
-                        error!("failed to symbolicate addr {:x}: {}", frame.addr, e);
-                        None
-                    }
-                };
-
-                SampleNode { frame, symbol: sym }
+            .insert(&mut frames.iter().rev().map(|frame| SampleNode {
+                frame: frame.frame,
+                symbol: frame.symbol.clone(),
             }));
 
         Ok(())

@@ -1,6 +1,4 @@
 use std::{
-    cell::RefCell,
-    collections::HashMap,
     ffi::{c_void, CStr, CString},
     marker::PhantomData,
     mem::MaybeUninit,
@@ -8,6 +6,7 @@ use std::{
     path::Path,
 };
 
+use ahash::AHashMap;
 use anyhow::anyhow;
 use libc::{dladdr, dlsym, Dl_info, RTLD_NEXT};
 use tokio::runtime::Runtime;
@@ -30,9 +29,9 @@ pub struct SymbolResult {
 }
 
 pub trait Symbolicator {
-    fn addr_to_symbol(&self, addr: u64) -> anyhow::Result<Option<SymbolResult>>;
+    fn addr_to_symbol(&mut self, addr: u64) -> anyhow::Result<Option<SymbolResult>>;
 
-    fn symbol_range(&self, _name: &str) -> anyhow::Result<Option<Range<usize>>> {
+    fn symbol_range(&mut self, _name: &str) -> anyhow::Result<Option<Range<usize>>> {
         Err(anyhow!("not implemented"))
     }
 }
@@ -50,7 +49,7 @@ impl DladdrSymbolicator {
 }
 
 impl Symbolicator for DladdrSymbolicator {
-    fn addr_to_symbol(&self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
+    fn addr_to_symbol(&mut self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
         let mut info = MaybeUninit::<Dl_info>::uninit();
         let ret = unsafe { dladdr(addr as *const c_void, info.as_mut_ptr()) };
         if ret == 0 {
@@ -84,7 +83,7 @@ impl Symbolicator for DladdrSymbolicator {
         }))
     }
 
-    fn symbol_range(&self, name: &str) -> anyhow::Result<Option<Range<usize>>> {
+    fn symbol_range(&mut self, name: &str) -> anyhow::Result<Option<Range<usize>>> {
         // find symbol start addr
         let name_c = CString::new(name)?;
         let start_addr = unsafe { dlsym(RTLD_NEXT, name_c.as_ptr()) };
@@ -153,7 +152,7 @@ impl LinuxSymbolicator {
 }
 
 impl Symbolicator for LinuxSymbolicator {
-    fn addr_to_symbol(&self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
+    fn addr_to_symbol(&mut self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
         // subtract KASLR offset to get vaddr in System.map
         let vaddr = addr.checked_add_signed(self.kaslr_offset).ok_or_else(|| {
             anyhow!(
@@ -180,7 +179,7 @@ impl Symbolicator for LinuxSymbolicator {
 // from the dyld shared cache. so use dladdr() as a fallback
 pub struct WholesymSymbolicator {
     dladdr: CachedSymbolicator<DladdrSymbolicator>,
-    images: RefCell<HashMap<String, SymbolMap>>,
+    images: AHashMap<String, SymbolMap>,
     manager: SymbolManager,
     rt: Runtime,
 }
@@ -189,7 +188,7 @@ impl WholesymSymbolicator {
     pub fn new() -> anyhow::Result<Self> {
         Ok(Self {
             dladdr: CachedSymbolicator::new(DladdrSymbolicator::new()?),
-            images: RefCell::new(HashMap::new()),
+            images: AHashMap::new(),
             manager: SymbolManager::with_config(SymbolManagerConfig::default()),
             rt: tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -199,7 +198,7 @@ impl WholesymSymbolicator {
 }
 
 impl Symbolicator for WholesymSymbolicator {
-    fn addr_to_symbol(&self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
+    fn addr_to_symbol(&mut self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
         let (image_path, image_base) = match self.dladdr.addr_to_symbol(addr)? {
             Some(symbol) => (symbol.image, symbol.image_base),
             None => return Ok(None),
@@ -208,9 +207,8 @@ impl Symbolicator for WholesymSymbolicator {
         let image_slice = unsafe { std::slice::from_raw_parts(image_base as *const u8, 16384) };
         let macho = MachHeader64::<LittleEndian>::parse(image_slice, 0)?;
 
-        let res: anyhow::Result<_> = self.rt.block_on(async move {
-            let mut images = self.images.borrow_mut();
-            let sym_map = if let Some(sym_map) = images.get(&image_path) {
+        let res: anyhow::Result<_> = self.rt.block_on(async {
+            let sym_map = if let Some(sym_map) = self.images.get(&image_path) {
                 sym_map
             } else {
                 let sym_map = self
@@ -226,8 +224,8 @@ impl Symbolicator for WholesymSymbolicator {
                         )),
                     )
                     .await?;
-                images.insert(image_path.clone(), sym_map);
-                images.get(&image_path).unwrap()
+                self.images.insert(image_path.clone(), sym_map);
+                self.images.get(&image_path).unwrap()
             };
 
             let symbol_offset = if let Some(info) = sym_map
@@ -260,28 +258,27 @@ impl Symbolicator for WholesymSymbolicator {
 }
 
 pub struct CachedSymbolicator<S> {
-    cache: RefCell<HashMap<u64, Option<SymbolResult>>>,
+    cache: AHashMap<u64, Option<SymbolResult>>,
     inner: S,
 }
 
 impl<S: Symbolicator> CachedSymbolicator<S> {
     pub fn new(inner: S) -> Self {
         Self {
-            cache: RefCell::new(HashMap::new()),
+            cache: AHashMap::new(),
             inner,
         }
     }
 }
 
 impl<S: Symbolicator> Symbolicator for CachedSymbolicator<S> {
-    fn addr_to_symbol(&self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
-        let mut cache = self.cache.borrow_mut();
-        if let Some(symbol) = cache.get(&addr) {
+    fn addr_to_symbol(&mut self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
+        if let Some(symbol) = self.cache.get(&addr) {
             return Ok(symbol.clone());
         }
 
         let symbol = self.inner.addr_to_symbol(addr)?;
-        cache.insert(addr, symbol.clone());
+        self.cache.insert(addr, symbol.clone());
         Ok(symbol)
     }
 }

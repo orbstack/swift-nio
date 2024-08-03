@@ -1,38 +1,47 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     ffi::CStr,
     mem::size_of,
     sync::{
         atomic::{AtomicBool, Ordering},
+        mpsc::Sender,
         Arc,
     },
     thread::JoinHandle,
     time::{Duration, SystemTime},
 };
 
+use ahash::AHashMap;
 use anyhow::anyhow;
+use buffer::SegVec;
 use crossbeam::queue::ArrayQueue;
 use firefox::FirefoxSampleProcessor;
+use hdrhistogram::Histogram;
 use libc::{
     thread_extended_info, thread_flavor_t, thread_info, THREAD_EXTENDED_INFO,
     THREAD_EXTENDED_INFO_COUNT,
 };
 use mach2::{
+    kern_return::kern_return_t,
+    mach_time::mach_wait_until,
     mach_types::{thread_act_array_t, thread_act_t},
-    message::mach_msg_type_number_t,
+    message::{mach_msg_type_number_t, MACH_SEND_INVALID_DEST},
     task::task_threads,
     traps::mach_task_self,
     vm::mach_vm_deallocate,
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
-use processor::SampleProcessor;
+use processor::TextSampleProcessor;
 use serde::{Deserialize, Serialize};
-use symbolicator::{CachedSymbolicator, DladdrSymbolicator, LinuxSymbolicator, Symbolicator};
-use thread::{ProfileeThread, SampleResult, ThreadId};
-use time::MachAbsoluteTime;
+use stats::dump_histogram;
+use symbolicator::{
+    CachedSymbolicator, DladdrSymbolicator, LinuxSymbolicator, SymbolResult, Symbolicator,
+};
+use thread::{ProfileeThread, SampleError, SampleResult, ThreadId};
+use time::{MachAbsoluteDuration, MachAbsoluteTime};
 use tracing::{error, info};
-use transform::{CgoStackTransform, LinuxIrqStackTransform, StackTransform};
-use unwinder::{FramePointerUnwinder, FramehopUnwinder};
+use transform::{CgoStackTransform, LeafCallTransform, LinuxIrqStackTransform, StackTransform};
+use unwinder::FramePointerUnwinder;
 use utils::{
     qos::{self, QosClass},
     Mutex,
@@ -40,8 +49,10 @@ use utils::{
 
 use crate::{VcpuHandleInner, VcpuRegistry};
 
+mod buffer;
 mod firefox;
 mod processor;
+mod stats;
 pub mod symbolicator;
 mod thread;
 mod time;
@@ -49,6 +60,9 @@ mod transform;
 mod unwinder;
 
 pub use unwinder::STACK_DEPTH_LIMIT;
+
+// 50 threads * 1000 Hz * 5 seconds
+const SEGMENT_SIZE: usize = 50 * 1000 * 5;
 
 const MIN_SAMPLE_INTERVAL: Duration = Duration::from_micros(100);
 const MAX_SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
@@ -62,10 +76,29 @@ macro_rules! check_mach {
         if $ret == mach2::kern_return::KERN_SUCCESS {
             Ok(())
         } else {
-            Err(anyhow::anyhow!("mach error: {}", $ret))
+            Err($crate::profiler::MachError::from_ret($ret))
         }
     };
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum MachError {
+    #[error("MACH_SEND_INVALID_DEST")]
+    MachSendInvalidDest,
+    #[error("mach error: {0}")]
+    Other(kern_return_t),
+}
+
+impl MachError {
+    fn from_ret(ret: kern_return_t) -> Self {
+        match ret {
+            MACH_SEND_INVALID_DEST => Self::MachSendInvalidDest,
+            _ => Self::Other(ret),
+        }
+    }
+}
+
+pub type MachResult<T> = Result<T, MachError>;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum SampleCategory {
@@ -100,10 +133,10 @@ impl SampleCategory {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Sample {
     timestamp: MachAbsoluteTime,
-    cpu_time_delta_us: u64,
+    cpu_time_delta_us: u32,
 
     thread_id: ThreadId,
 
@@ -122,19 +155,19 @@ impl Frame {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
+pub(crate) struct SymbolicatedFrame {
+    frame: Frame,
+    symbol: Option<SymbolResult>,
+}
+
 pub struct PartialSample {
-    inner: Sample,
-    profiler: Arc<Profiler>,
+    sample: Sample,
 }
 
 impl PartialSample {
-    pub fn finish(self) -> anyhow::Result<()> {
-        self.profiler.add_sample(self.inner)
-    }
-
     pub fn prepend_stack(&mut self, frame: Frame) {
-        self.inner.stack.push_front(frame);
+        self.sample.stack.push_front(frame);
     }
 }
 
@@ -147,6 +180,12 @@ pub struct ProfilerParams {
 #[derive(Clone)]
 pub struct ProfilerGuestContext {
     pub symbolicator: Option<LinuxSymbolicator>,
+}
+
+#[derive(Clone)]
+pub struct ProfilerVcpuInit {
+    pub profiler: Arc<Profiler>,
+    pub completion_sender: Sender<()>,
 }
 
 #[derive(Debug, Clone)]
@@ -166,7 +205,6 @@ pub struct Profiler {
     stop: AtomicBool,
     join_handles: Mutex<Option<Vec<JoinHandle<()>>>>,
 
-    samples: Mutex<Vec<Sample>>,
     ingest_queue: ArrayQueue<Sample>,
 }
 
@@ -178,7 +216,6 @@ impl Profiler {
             params,
             stop: AtomicBool::new(false),
             join_handles: Mutex::new(None),
-            samples: Mutex::new(Vec::new()),
             ingest_queue: ArrayQueue::new(num_vcpus),
         }
     }
@@ -214,7 +251,7 @@ impl Profiler {
         qos::set_thread_qos(QosClass::UserInteractive, None)?;
 
         // before we start, find "hv_vcpu_run" and "hv_trap"
-        let symbolicator = DladdrSymbolicator::new()?;
+        let mut symbolicator = DladdrSymbolicator::new()?;
         let hv_vcpu_run = symbolicator.symbol_range("hv_vcpu_run")?;
         let hv_trap = symbolicator.symbol_range("hv_trap")?;
         info!("hv_vcpu_run: {:x?}", hv_vcpu_run);
@@ -222,18 +259,29 @@ impl Profiler {
 
         let mut host_unwinder = FramePointerUnwinder {};
 
+        let mut sample_batch_histogram = Histogram::<u64>::new(3)?;
+        let mut thread_suspend_histogram = Histogram::<u64>::new(3)?;
+
+        // must be before we start adding threads, to avoid overflow
+        let profile_start_time = MachAbsoluteTime::now();
         let wall_start_time = SystemTime::now();
-        let start_time = MachAbsoluteTime::now();
-        let mut threads = self.get_threads(start_time)?;
+        let mut threads = self.get_threads()?;
 
+        let mut samples = SegVec::new();
+
+        // get time again before starting the loop
+        let interval_mach = MachAbsoluteDuration::from_duration(interval);
+        let mut next_target_time = MachAbsoluteTime::now() + interval_mach;
         loop {
-            // TODO: monotonic timer using absolute timeout or workgroup
-            // TODO: throttle if falling behind
-            std::thread::sleep(interval);
+            // try to sample at a monotonic rate
+            unsafe { check_mach!(mach_wait_until(next_target_time.0))? };
+            next_target_time += interval_mach;
 
-            // ingest samples
+            let sample_batch_start = MachAbsoluteTime::now();
+
+            // ingest queued vCPU samples
             while let Some(sample) = self.ingest_queue.pop() {
-                self.add_sample(sample)?;
+                samples.push(sample);
             }
 
             if self.stop.load(Ordering::Relaxed) {
@@ -246,53 +294,84 @@ impl Profiler {
                     continue;
                 }
 
-                // TODO: skip if 0 (after profiling and optimizing)
-                // TODO: handle stopped threads
                 let cpu_time_delta_us = match thread.cpu_time_delta_us() {
                     Ok(delta) => delta,
+                    Err(MachError::MachSendInvalidDest) => {
+                        // thread is gone
+                        thread.stopped_at = Some(MachAbsoluteTime::now());
+                        continue;
+                    }
                     Err(e) => {
                         error!("failed to get cpu time for thread {:?}: {}", thread.id(), e);
                         continue;
                     }
                 };
 
-                match thread.sample(self, &mut host_unwinder, &hv_vcpu_run, &hv_trap) {
+                match thread.sample(
+                    &mut host_unwinder,
+                    &mut thread_suspend_histogram,
+                    &hv_vcpu_run,
+                    &hv_trap,
+                ) {
                     Ok(SampleResult::Sample(mut sample)) => {
-                        sample.cpu_time_delta_us = cpu_time_delta_us;
-                        self.add_sample(sample)?;
+                        sample.cpu_time_delta_us = cpu_time_delta_us as u32;
+                        samples.push(sample);
                     }
                     Ok(SampleResult::Queued) => {}
+                    Err(SampleError::ThreadSuspend(MachError::MachSendInvalidDest))
+                    | Err(SampleError::ThreadGetState(MachError::MachSendInvalidDest)) => {
+                        // thread is gone
+                        thread.stopped_at = Some(MachAbsoluteTime::now());
+                    }
                     Err(e) => {
                         error!("failed to sample thread {:?}: {}", thread.id(), e);
                         continue;
                     }
                 };
             }
+
+            let sample_batch_end = MachAbsoluteTime::now();
+            let sample_batch_duration = sample_batch_end - sample_batch_start;
+            sample_batch_histogram.record(sample_batch_duration.nanos())?;
+
+            if sample_batch_end > next_target_time {
+                error!(
+                    "sample batch took too long: timer={:?} sampling={:?}",
+                    sample_batch_start - (next_target_time - interval_mach),
+                    sample_batch_duration
+                );
+                // prevent timer overshoot from accumulating
+                next_target_time = sample_batch_end;
+            }
         }
 
         let end_time = MachAbsoluteTime::now();
         let wall_end_time = SystemTime::now();
 
+        dump_histogram("sample batch time", &sample_batch_histogram);
+        dump_histogram("thread suspend time", &thread_suspend_histogram);
+
         let info = ProfileInfo {
             pid: unsafe { libc::getpid() },
             start_time: wall_start_time,
-            start_time_abs: start_time,
+            start_time_abs: profile_start_time,
             end_time: wall_end_time,
             end_time_abs: end_time,
             params: self.params.clone(),
         };
 
         self.stop.store(false, Ordering::Relaxed);
-        self.process_samples(&info, &threads)?;
+        self.process_samples(samples, &info, &threads)?;
         Ok(())
     }
 
-    fn add_sample(&self, sample: Sample) -> anyhow::Result<()> {
-        self.samples.lock().unwrap().push(sample);
-        Ok(())
+    pub fn queue_sample(&self, partial: PartialSample) -> anyhow::Result<()> {
+        self.ingest_queue
+            .push(partial.sample)
+            .map_err(|e| anyhow!("ingest queue full, dropping sample: {:?}", e))
     }
 
-    fn get_threads(&self, now: MachAbsoluteTime) -> anyhow::Result<Vec<ProfileeThread>> {
+    fn get_threads(self: &Arc<Self>) -> anyhow::Result<Vec<ProfileeThread>> {
         let mut threads_list: thread_act_array_t = std::ptr::null_mut();
         let mut threads_count: mach_msg_type_number_t = 0;
         unsafe {
@@ -348,16 +427,16 @@ impl Profiler {
                 None
             };
 
-            threads.push(ProfileeThread {
-                port: thread_port,
-                name,
-                vcpu,
+            if let Some(vcpu) = vcpu.as_ref() {
+                let (sender, receiver) = std::sync::mpsc::channel();
+                vcpu.send_profiler_init(ProfilerVcpuInit {
+                    profiler: self.clone(),
+                    completion_sender: sender,
+                });
+                receiver.recv()?;
+            }
 
-                last_cpu_time_us: None,
-
-                added_at: now,
-                stopped_at: None,
-            });
+            threads.push(ProfileeThread::new(thread_port, name, vcpu));
         }
 
         Ok(threads)
@@ -381,60 +460,71 @@ impl Profiler {
 
     fn process_samples(
         &self,
+        mut samples: SegVec<Sample, SEGMENT_SIZE>,
         info: &ProfileInfo,
         threads: &[ProfileeThread],
     ) -> anyhow::Result<()> {
         info!("processing samples");
 
-        let mut samples = self.samples.lock().unwrap();
         let threads_map = threads
             .iter()
             .map(|t| (t.id(), t))
-            .collect::<HashMap<_, _>>();
+            .collect::<AHashMap<_, _>>();
 
-        let guest_context = self.get_guest_context(threads)?;
+        let mut guest_context = self.get_guest_context(threads)?;
 
-        // post-process the stack
-        let host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
-        let cgo_transform = CgoStackTransform::new(&host_symbolicator);
-        for sample in &mut *samples {
-            cgo_transform.transform(&mut sample.stack)?;
-        }
-        if let Some(guest_symbolicator) = guest_context.symbolicator.as_ref() {
-            let irq_transform = LinuxIrqStackTransform::new(&host_symbolicator, guest_symbolicator);
-            for sample in &mut *samples {
-                irq_transform.transform(&mut sample.stack)?;
-            }
+        let mut host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
 
-            // let leaf_transform = LeafCallTransform::new(&host_symbolicator, guest_symbolicator);
-            // for sample in &mut *samples {
-            //     leaf_transform.transform(&mut sample.stack)?;
-            // }
-        }
+        let cgo_transform = CgoStackTransform {};
+        let irq_transform = LinuxIrqStackTransform {};
+        let leaf_transform = LeafCallTransform {};
 
-        let mut processor = SampleProcessor::new(
-            info,
-            threads_map.clone(),
-            &host_symbolicator,
-            guest_context.symbolicator.as_ref(),
-        )?;
-        for sample in &*samples {
-            processor.process_sample(sample)?;
+        let mut text_processor = TextSampleProcessor::new(info, threads_map.clone())?;
+        let mut ff_processor = FirefoxSampleProcessor::new(info, threads_map)?;
+        for sample in &mut samples {
+            // symbolicate the frames
+            let mut sframes = sample
+                .stack
+                .iter()
+                .map(|frame| {
+                    let symbol = match frame.category {
+                        SampleCategory::HostUserspace => {
+                            host_symbolicator.addr_to_symbol(frame.addr)
+                        }
+                        SampleCategory::GuestKernel => match &mut guest_context.symbolicator {
+                            Some(s) => s.addr_to_symbol(frame.addr),
+                            None => Ok(None),
+                        },
+                        SampleCategory::GuestUserspace => Ok(Some(SymbolResult {
+                            image: "guest".to_string(),
+                            image_base: 0,
+                            symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
+                        })),
+                        _ => Ok(None),
+                    }
+                    .inspect_err(|e| error!("failed to symbolicate addr {:x}: {}", frame.addr, e))
+                    .ok()
+                    .flatten();
+
+                    SymbolicatedFrame {
+                        frame: *frame,
+                        symbol,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            // apply transforms
+            cgo_transform.transform(&mut sframes)?;
+            irq_transform.transform(&mut sframes)?;
+            leaf_transform.transform(&mut sframes)?;
+
+            text_processor.process_sample(sample, &sframes)?;
+            ff_processor.process_sample(sample, &sframes)?;
         }
         info!("writing to file: {}", self.params.output_path);
-        processor.write_to_path(&self.params.output_path)?;
-
-        let mut processor = FirefoxSampleProcessor::new(
-            info,
-            threads_map,
-            &host_symbolicator,
-            guest_context.symbolicator.as_ref(),
-        )?;
-        for sample in &*samples {
-            processor.process_sample(sample)?;
-        }
+        text_processor.write_to_path(&self.params.output_path)?;
         info!("writing to file: {}.json", self.params.output_path);
-        processor.write_to_path(&(self.params.output_path.clone() + ".json"))?;
+        ff_processor.write_to_path(&(self.params.output_path.clone() + ".json"))?;
 
         Ok(())
     }
