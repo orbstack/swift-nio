@@ -112,8 +112,6 @@ impl ProfileeThread {
         &self,
         profiler: &Arc<Profiler>,
         host_unwinder: &mut impl Unwinder,
-        framehop_unwinder: &mut impl Unwinder,
-        symbolicator: &impl Symbolicator,
         hv_vcpu_run: &Option<Range<usize>>,
         hv_trap: &Option<Range<usize>>,
     ) -> anyhow::Result<SampleResult> {
@@ -153,7 +151,7 @@ impl ProfileeThread {
 
         // unwind the stack
         let regs = self.get_unwind_regs()?;
-        framehop_unwinder.unwind(regs, |addr| {
+        host_unwinder.unwind(regs, |addr| {
             sample
                 .stack
                 .push_back(Frame::new(SampleCategory::HostUserspace, addr))

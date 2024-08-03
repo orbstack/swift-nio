@@ -27,13 +27,11 @@ use mach2::{
 };
 use processor::SampleProcessor;
 use serde::{Deserialize, Serialize};
-use symbolicator::{
-    CachedSymbolicator, DladdrSymbolicator, LinuxSymbolicator, Symbolicator, WholesymSymbolicator,
-};
+use symbolicator::{CachedSymbolicator, DladdrSymbolicator, LinuxSymbolicator, Symbolicator};
 use thread::{ProfileeThread, SampleResult, ThreadId};
 use time::MachAbsoluteTime;
 use tracing::{error, info};
-use transform::{CgoStackTransform, LeafCallTransform, LinuxIrqStackTransform, StackTransform};
+use transform::{CgoStackTransform, LinuxIrqStackTransform, StackTransform};
 use unwinder::{FramePointerUnwinder, FramehopUnwinder};
 use utils::{
     qos::{self, QosClass},
@@ -223,7 +221,6 @@ impl Profiler {
         info!("hv_trap: {:x?}", hv_trap);
 
         let mut host_unwinder = FramePointerUnwinder {};
-        let mut framehop_unwinder = FramehopUnwinder::new()?;
 
         let wall_start_time = SystemTime::now();
         let start_time = MachAbsoluteTime::now();
@@ -259,14 +256,7 @@ impl Profiler {
                     }
                 };
 
-                match thread.sample(
-                    self,
-                    &mut host_unwinder,
-                    &mut framehop_unwinder,
-                    &symbolicator,
-                    &hv_vcpu_run,
-                    &hv_trap,
-                ) {
+                match thread.sample(self, &mut host_unwinder, &hv_vcpu_run, &hv_trap) {
                     Ok(SampleResult::Sample(mut sample)) => {
                         sample.cpu_time_delta_us = cpu_time_delta_us;
                         self.add_sample(sample)?;
