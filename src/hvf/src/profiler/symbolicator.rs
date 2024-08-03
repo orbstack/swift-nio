@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     ffi::{c_void, CStr, CString},
+    marker::PhantomData,
     mem::MaybeUninit,
     ops::Range,
     path::Path,
@@ -10,8 +11,14 @@ use std::{
 use anyhow::anyhow;
 use libc::{dladdr, dlsym, Dl_info, RTLD_NEXT};
 use tokio::runtime::Runtime;
+use tracing::error;
 use utils::kernel_symbols::CompactSystemMap;
 use wholesym::{
+    samply_symbols::object::{
+        macho::{MachHeader64, CPU_SUBTYPE_ARM64E},
+        read::macho::MachHeader,
+        LittleEndian,
+    },
     LookupAddress, MultiArchDisambiguator, SymbolManager, SymbolManagerConfig, SymbolMap,
 };
 
@@ -30,14 +37,24 @@ pub trait Symbolicator {
     }
 }
 
-pub struct MacSymbolicator {}
+pub struct DladdrSymbolicator {
+    _private: PhantomData<()>,
+}
 
-impl Symbolicator for MacSymbolicator {
+impl DladdrSymbolicator {
+    pub fn new() -> anyhow::Result<Self> {
+        Ok(Self {
+            _private: PhantomData,
+        })
+    }
+}
+
+impl Symbolicator for DladdrSymbolicator {
     fn addr_to_symbol(&self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
         let mut info = MaybeUninit::<Dl_info>::uninit();
         let ret = unsafe { dladdr(addr as *const c_void, info.as_mut_ptr()) };
         if ret == 0 {
-            tracing::error!("dladdr failed for address {:x}", addr);
+            error!("dladdr failed for address {:x}", addr);
             return Ok(None);
         }
         let info = unsafe { info.assume_init() };
@@ -53,6 +70,10 @@ impl Symbolicator for MacSymbolicator {
             let demangled = symbolic_demangle::demangle(&symbol);
             Some((demangled.to_string(), offset))
         } else {
+            error!(
+                "no symbol for address {:x} image={} base={:x}",
+                addr, image, image_base
+            );
             None
         };
 
@@ -154,8 +175,11 @@ impl Symbolicator for LinuxSymbolicator {
     }
 }
 
+// the only advantage of wholesym is that it can use DWARF to get source/line info,
+// and inlined frames, but it chokes trying to load arm64 (not arm64e) system libs
+// from the dyld shared cache. so use dladdr() as a fallback
 pub struct WholesymSymbolicator {
-    dladdr: CachedSymbolicator<MacSymbolicator>,
+    dladdr: CachedSymbolicator<DladdrSymbolicator>,
     images: RefCell<HashMap<String, SymbolMap>>,
     manager: SymbolManager,
     rt: Runtime,
@@ -164,7 +188,7 @@ pub struct WholesymSymbolicator {
 impl WholesymSymbolicator {
     pub fn new() -> anyhow::Result<Self> {
         Ok(Self {
-            dladdr: CachedSymbolicator::new(MacSymbolicator {}),
+            dladdr: CachedSymbolicator::new(DladdrSymbolicator::new()?),
             images: RefCell::new(HashMap::new()),
             manager: SymbolManager::with_config(SymbolManagerConfig::default()),
             rt: tokio::runtime::Builder::new_current_thread()
@@ -181,7 +205,10 @@ impl Symbolicator for WholesymSymbolicator {
             None => return Ok(None),
         };
 
-        self.rt.block_on(async move {
+        let image_slice = unsafe { std::slice::from_raw_parts(image_base as *const u8, 16384) };
+        let macho = MachHeader64::<LittleEndian>::parse(image_slice, 0)?;
+
+        let res: anyhow::Result<_> = self.rt.block_on(async move {
             let mut images = self.images.borrow_mut();
             let sym_map = if let Some(sym_map) = images.get(&image_path) {
                 sym_map
@@ -190,7 +217,13 @@ impl Symbolicator for WholesymSymbolicator {
                     .manager
                     .load_symbol_map_for_binary_at_path(
                         Path::new(&image_path),
-                        Some(MultiArchDisambiguator::BestMatchForNative),
+                        Some(MultiArchDisambiguator::Arch(
+                            if macho.cpusubtype(LittleEndian) == CPU_SUBTYPE_ARM64E {
+                                "arm64e".to_string()
+                            } else {
+                                "arm64".to_string()
+                            },
+                        )),
                     )
                     .await?;
                 images.insert(image_path.clone(), sym_map);
@@ -214,7 +247,15 @@ impl Symbolicator for WholesymSymbolicator {
                 image_base,
                 symbol_offset,
             }))
-        })
+        });
+
+        match res {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                error!(?e, "wholesym failed for address {:x}", addr);
+                self.dladdr.addr_to_symbol(addr)
+            }
+        }
     }
 }
 

@@ -8,7 +8,7 @@ use tracing::error;
 
 use super::symbolicator::{CachedSymbolicator, LinuxSymbolicator};
 use super::{
-    symbolicator::{MacSymbolicator, SymbolResult, Symbolicator},
+    symbolicator::{DladdrSymbolicator, SymbolResult, Symbolicator},
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
@@ -458,22 +458,22 @@ fn image_basename(image: &str) -> &str {
     image.rsplit('/').next().unwrap_or(image)
 }
 
-pub struct FirefoxSampleProcessor<'a> {
+pub struct FirefoxSampleProcessor<'a, HS: Symbolicator> {
     info: &'a ProfileInfo,
     threads: HashMap<ThreadId, ThreadState<'a>>,
 
     categories: KeyedTable<SampleCategory, FirefoxCategory>,
     libs: KeyedTable<String, Lib>,
 
-    host_symbolicator: &'a CachedSymbolicator<MacSymbolicator>,
+    host_symbolicator: &'a HS,
     guest_symbolicator: Option<&'a LinuxSymbolicator>,
 }
 
-impl<'a> FirefoxSampleProcessor<'a> {
+impl<'a, HS: Symbolicator> FirefoxSampleProcessor<'a, HS> {
     pub fn new(
         info: &'a ProfileInfo,
         threads_map: HashMap<ThreadId, &'a ProfileeThread>,
-        host_symbolicator: &'a CachedSymbolicator<MacSymbolicator>,
+        host_symbolicator: &'a HS,
         guest_symbolicator: Option<&'a LinuxSymbolicator>,
     ) -> anyhow::Result<Self> {
         let mut categories = KeyedTable::new();

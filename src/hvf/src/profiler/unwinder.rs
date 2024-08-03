@@ -174,7 +174,7 @@ impl FramehopUnwinder<'_> {
             if name.contains("Hypervisor") {
                 for item in macho.symbols() {
                     let (name, nlist) = item?;
-                    info!(name, ?nlist, "HV symbol");
+                    println!("HV symbol name={} nlist={:?}", name, nlist);
                 }
             }
 

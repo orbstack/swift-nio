@@ -153,7 +153,7 @@ impl ProfileeThread {
 
         // unwind the stack
         let regs = self.get_unwind_regs()?;
-        host_unwinder.unwind(regs, |addr| {
+        framehop_unwinder.unwind(regs, |addr| {
             sample
                 .stack
                 .push_back(Frame::new(SampleCategory::HostUserspace, addr))

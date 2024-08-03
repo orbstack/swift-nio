@@ -27,7 +27,9 @@ use mach2::{
 };
 use processor::SampleProcessor;
 use serde::{Deserialize, Serialize};
-use symbolicator::{CachedSymbolicator, LinuxSymbolicator, MacSymbolicator, Symbolicator};
+use symbolicator::{
+    CachedSymbolicator, DladdrSymbolicator, LinuxSymbolicator, Symbolicator, WholesymSymbolicator,
+};
 use thread::{ProfileeThread, SampleResult, ThreadId};
 use time::MachAbsoluteTime;
 use tracing::{error, info};
@@ -214,7 +216,7 @@ impl Profiler {
         qos::set_thread_qos(QosClass::UserInteractive, None)?;
 
         // before we start, find "hv_vcpu_run" and "hv_trap"
-        let symbolicator = MacSymbolicator {};
+        let symbolicator = DladdrSymbolicator::new()?;
         let hv_vcpu_run = symbolicator.symbol_range("hv_vcpu_run")?;
         let hv_trap = symbolicator.symbol_range("hv_trap")?;
         info!("hv_vcpu_run: {:x?}", hv_vcpu_run);
@@ -403,7 +405,7 @@ impl Profiler {
         let guest_context = self.get_guest_context(threads)?;
 
         // post-process the stack
-        let host_symbolicator = CachedSymbolicator::new(MacSymbolicator {});
+        let host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
         let cgo_transform = CgoStackTransform::new(&host_symbolicator);
         for sample in &mut *samples {
             cgo_transform.transform(&mut sample.stack)?;
@@ -414,10 +416,10 @@ impl Profiler {
                 irq_transform.transform(&mut sample.stack)?;
             }
 
-            let leaf_transform = LeafCallTransform::new(&host_symbolicator, guest_symbolicator);
-            for sample in &mut *samples {
-                leaf_transform.transform(&mut sample.stack)?;
-            }
+            // let leaf_transform = LeafCallTransform::new(&host_symbolicator, guest_symbolicator);
+            // for sample in &mut *samples {
+            //     leaf_transform.transform(&mut sample.stack)?;
+            // }
         }
 
         let mut processor = SampleProcessor::new(

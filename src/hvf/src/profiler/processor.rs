@@ -10,7 +10,7 @@ use tracing::error;
 
 use super::symbolicator::{CachedSymbolicator, LinuxSymbolicator};
 use super::{
-    symbolicator::{MacSymbolicator, SymbolResult, Symbolicator},
+    symbolicator::{DladdrSymbolicator, SymbolResult, Symbolicator},
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
@@ -129,19 +129,19 @@ struct ThreadNode {
     stacks: StackTree<SampleNode>,
 }
 
-pub struct SampleProcessor<'a> {
+pub struct SampleProcessor<'a, HS: Symbolicator> {
     threads_map: HashMap<ThreadId, &'a ProfileeThread>,
 
     threads: BTreeMap<ThreadId, ThreadNode>,
-    host_symbolicator: &'a CachedSymbolicator<MacSymbolicator>,
+    host_symbolicator: &'a HS,
     guest_symbolicator: Option<&'a LinuxSymbolicator>,
 }
 
-impl<'a> SampleProcessor<'a> {
+impl<'a, HS: Symbolicator> SampleProcessor<'a, HS> {
     pub fn new(
         _info: &'a ProfileInfo,
         threads_map: HashMap<ThreadId, &'a ProfileeThread>,
-        host_symbolicator: &'a CachedSymbolicator<MacSymbolicator>,
+        host_symbolicator: &'a HS,
         guest_symbolicator: Option<&'a LinuxSymbolicator>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
