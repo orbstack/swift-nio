@@ -35,6 +35,7 @@ use mach2::{
 use processor::TextSampleProcessor;
 use sched::set_realtime_scheduling;
 use serde::{Deserialize, Serialize};
+use server::FirefoxApiServer;
 use stats::dump_histogram;
 use symbolicator::{
     CachedSymbolicator, DladdrSymbolicator, LinuxSymbolicator, SymbolResult, Symbolicator,
@@ -53,8 +54,10 @@ use crate::{VcpuHandleInner, VcpuRegistry};
 
 mod buffer;
 mod firefox;
+mod ktrace;
 mod processor;
 mod sched;
+mod server;
 pub mod stats;
 pub mod symbolicator;
 mod thread;
@@ -70,7 +73,7 @@ const SEGMENT_SIZE: usize = 50 * 1000 * 5;
 const MIN_SAMPLE_INTERVAL: Duration = Duration::from_micros(100);
 const MAX_SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
 
-const THREAD_NAME_TAG: &str = "PROFILER";
+pub(crate) const THREAD_NAME_TAG: &str = "PROFILER";
 
 // use a macro to preserve anyhow stack trace
 #[macro_export]
@@ -567,8 +570,13 @@ impl Profiler {
         }
         info!("writing to file: {}", self.params.output_path);
         text_processor.write_to_path(&self.params.output_path)?;
-        info!("writing to file: {}.json", self.params.output_path);
-        ff_processor.write_to_path(&(self.params.output_path.clone() + ".json"))?;
+
+        let ff_output_path = self.params.output_path.clone() + ".json";
+        info!("writing to file: {}", &ff_output_path);
+        ff_processor.write_to_path(&ff_output_path)?;
+        if let Err(e) = FirefoxApiServer::shared().add_and_open_profile(ff_output_path) {
+            error!("failed to open in Firefox Profiler: {}", e);
+        }
 
         Ok(())
     }
