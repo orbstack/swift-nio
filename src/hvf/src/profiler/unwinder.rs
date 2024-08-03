@@ -16,7 +16,7 @@ use crate::check_mach;
 
 pub const STACK_DEPTH_LIMIT: usize = 128;
 
-// no real address can be in __PAGEZERO
+// no real address can be in __PAGEZERO (which is the full 32-bit space)
 const MIN_ADDR: u64 = 0x100000000;
 
 // mask out PAC signature, assuming 47-bit VA (machdep.virtual_address_size)
@@ -41,9 +41,13 @@ impl Unwinder for FramePointerUnwinder {
     fn unwind(&mut self, regs: UnwindRegs, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
         // start with just PC and LR
         f(regs.pc);
+
         // subtract 1 for lookup
         // TODO: this logic should probably be in symbolicator?
-        f(regs.lr & PAC_MASK);
+        let initial_lr = regs.lr & PAC_MASK;
+        if initial_lr >= MIN_ADDR {
+            f(initial_lr);
+        }
 
         //println!("walking stack: PC={:x}, LR={:x}", regs.pc, regs.lr);
         // then start looking at FP
@@ -84,7 +88,7 @@ impl Unwinder for FramePointerUnwinder {
 
             //println!("got LR: {:x}", frame_lr);
             // TODO: subtract LR
-            if i == 0 && frame_lr == regs.lr {
+            if i == 0 && frame_lr == initial_lr {
                 // skip duplicate LR if FP was already updated (i.e. not in prologue or epilogue)
             } else {
                 f(frame_lr);
