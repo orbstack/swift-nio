@@ -29,8 +29,6 @@ pub struct UnwindRegs {
     pub fp: u64,
     // used by DWARF CFI
     pub sp: u64,
-    // for Cgo stack transition: current goroutine pointer
-    pub x28: u64,
 }
 
 pub trait Unwinder {
@@ -87,7 +85,7 @@ impl Unwinder for FramePointerUnwinder {
             //println!("got LR: {:x}", frame_lr);
             // TODO: subtract LR
             if i == 0 && frame_lr == regs.lr {
-                // skip duplicate LR:
+                // skip duplicate LR if FP was already updated (i.e. not in prologue or epilogue)
             } else {
                 f(frame_lr);
             }
@@ -168,6 +166,14 @@ impl FramehopUnwinder<'_> {
                 "adding module '{name}' at {:#x}-{:#x}",
                 avma_range.start, avma_range.end
             );
+
+            if name.contains("Hypervisor") {
+                for item in macho.symbols() {
+                    let (name, nlist) = item?;
+                    info!(name, ?nlist, "HV symbol");
+                }
+            }
+
             let module = Module::new(
                 name,
                 avma_range,

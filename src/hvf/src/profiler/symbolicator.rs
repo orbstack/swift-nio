@@ -22,19 +22,6 @@ pub struct SymbolResult {
     pub symbol_offset: Option<(String, usize)>,
 }
 
-// TODO: just provide this info
-impl SymbolResult {
-    pub fn symbol_base(&self, frame_addr: u64) -> Option<u64> {
-        let Some(&(_, offset)) = self.symbol_offset.as_ref() else {
-            return None;
-        };
-
-        // frame_addr = symbol_addr + symbol_offset.offset
-        // so symbol_addr = frame_addr - symbol_offset.offset
-        Some(frame_addr - offset as u64)
-    }
-}
-
 pub trait Symbolicator {
     fn addr_to_symbol(&self, addr: u64) -> anyhow::Result<Option<SymbolResult>>;
 
@@ -128,7 +115,13 @@ impl LinuxSymbolicator {
             .ok_or_else(|| anyhow!("no _text symbol"))?;
         // kaslr_offset is signed in the direction of KASLR -> ELF
         // so negate it to get ELF -> KASLR
-        let image_base = base.wrapping_add_signed(-kaslr_offset);
+        let image_base = base.checked_add_signed(-kaslr_offset).ok_or_else(|| {
+            anyhow!(
+                "overflow: base={:#x} kaslr_offset={:#x}",
+                base,
+                kaslr_offset
+            )
+        })?;
 
         Ok(Self {
             csmap,
@@ -141,7 +134,13 @@ impl LinuxSymbolicator {
 impl Symbolicator for LinuxSymbolicator {
     fn addr_to_symbol(&self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
         // subtract KASLR offset to get vaddr in System.map
-        let vaddr = addr.wrapping_add_signed(self.kaslr_offset);
+        let vaddr = addr.checked_add_signed(self.kaslr_offset).ok_or_else(|| {
+            anyhow!(
+                "overflow: kaslr_offset={:#x} addr={:#x}",
+                self.kaslr_offset,
+                addr
+            )
+        })?;
 
         // lookup symbol in System.map
         Ok(self

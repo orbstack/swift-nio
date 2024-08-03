@@ -14,7 +14,7 @@ use super::{
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use super::{Frame, SampleCategory};
+use super::{Frame, ProfileInfo, SampleCategory};
 
 trait AsTreeKey {
     type Key: Ord;
@@ -133,20 +133,22 @@ pub struct SampleProcessor<'a> {
     threads_map: HashMap<ThreadId, &'a ProfileeThread>,
 
     threads: BTreeMap<ThreadId, ThreadNode>,
-    host_symbolicator: CachedSymbolicator<MacSymbolicator>,
+    host_symbolicator: &'a CachedSymbolicator<MacSymbolicator>,
     guest_symbolicator: Option<&'a LinuxSymbolicator>,
 }
 
 impl<'a> SampleProcessor<'a> {
     pub fn new(
+        _info: &'a ProfileInfo,
         threads_map: HashMap<ThreadId, &'a ProfileeThread>,
+        host_symbolicator: &'a CachedSymbolicator<MacSymbolicator>,
         guest_symbolicator: Option<&'a LinuxSymbolicator>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             threads_map,
 
             threads: BTreeMap::new(),
-            host_symbolicator: CachedSymbolicator::new(MacSymbolicator {}),
+            host_symbolicator,
             guest_symbolicator,
         })
     }

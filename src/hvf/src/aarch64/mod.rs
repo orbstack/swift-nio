@@ -53,6 +53,10 @@ extern "C" {
     pub fn mach_absolute_time() -> u64;
 }
 
+// kernel VA space is up to 48 bits on arm64. the EL1 split has high bits set,
+// so any address without the top 16 bits set isn't a valid kernel address
+const VA48_MASK: u64 = !(u64::MAX >> 16);
+
 counter::counter! {
     COUNT_EXIT_TOTAL in "hvf.vmexit.total": RateCounter = RateCounter::new(FILTER);
     COUNT_EXIT_HVC_ACTLR in "hvf.vmexit.hvc.actlr": RateCounter = RateCounter::new(FILTER);
@@ -1430,11 +1434,25 @@ impl HvfVcpu {
 
         // start with just PC and LR
         f(pc);
-        f(lr);
+
+        // on IRQ / exception vector entry, the CPU sets SP and PC but not LR
+        // this leads to stack traces with PC=`vectors` and LR=(userspace LR)
+        if lr & VA48_MASK == VA48_MASK {
+            f(lr);
+        }
 
         // then start looking at FP
         let mut fp = self.read_raw_reg(hv_reg_t_HV_REG_FP)?;
-        for _ in 0..STACK_DEPTH_LIMIT {
+        for i in 0..STACK_DEPTH_LIMIT {
+            if fp == 0 {
+                // reached end of stack
+                break;
+            }
+            // kernel addresses must have top bits set
+            if fp & VA48_MASK != VA48_MASK {
+                break;
+            }
+
             // mem[FP+8] = frame's LR
             // TODO: cache bounds check and gva?
             let frame_lr = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
@@ -1442,16 +1460,19 @@ impl HvfVcpu {
                 // reached end of stack
                 break;
             }
+            // kernel addresses must have top bits set
+            if frame_lr & VA48_MASK != VA48_MASK {
+                break;
+            }
 
-            // TODO: handle case where frame_lr == lr
-            f(frame_lr);
+            if i == 0 && frame_lr == lr {
+                // skip duplicate LR if FP was already updated (i.e. not in prologue or epilogue)
+            } else {
+                f(frame_lr);
+            }
 
             // mem[FP] = link to last FP
             fp = self.guest_mem.read_obj_fast(self.translate_gva(fp)?)?;
-            if fp == 0 {
-                // reached end of stack
-                break;
-            }
         }
 
         Ok(())

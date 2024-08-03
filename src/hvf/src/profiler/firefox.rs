@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::hash::Hash;
 use std::ops::Sub;
 use std::time::SystemTime;
@@ -61,7 +61,7 @@ macro_rules! table_type {
         $(#[$attr:meta])*
         $vis:vis $name:ident : $ty:ty,
     )*}, $table_type:ident$(<$table_lt:lifetime>)?$( {
-        $($extra_vis:vis $extra_name:ident : $extra_ty:ty = $extra_default:expr,)*
+        $($extra_vis:vis $extra_name:ident : $extra_ty:ty,)*
     })?) => {
         struct $base_type$(<$base_lt>)? {
             $(
@@ -69,7 +69,7 @@ macro_rules! table_type {
             )*
         }
 
-        #[derive(Serialize, Debug, Clone)]
+        #[derive(Serialize, Default, Debug, Clone)]
         #[serde(rename_all = "camelCase")]
         struct $table_type$(<$table_lt>)? {
             length: usize,
@@ -83,6 +83,8 @@ macro_rules! table_type {
         }
 
         impl$(<$table_lt>)? $table_type$(<$table_lt>)? {
+            // might not be used for all types
+            #[allow(dead_code)]
             fn push(&mut self, value: $base_type$(<$table_lt>)?) {
                 self.length += 1;
                 $(
@@ -93,14 +95,14 @@ macro_rules! table_type {
 
         impl<$($table_lt,)? _KeyType> From<&KeyedTable<_KeyType, $base_type$(<$table_lt>)?>> for $table_type$(<$table_lt>)? {
             fn from(keyed: &KeyedTable<_KeyType, $base_type$(<$table_lt>)?>) -> Self {
+                // ..Default::default() is only for structs with extra table fields
+                #[allow(clippy::needless_update)]
                 let mut table = Self {
                     length: keyed.values.len(),
                     $(
                         $name: Vec::with_capacity(keyed.values.len()),
                     )*
-                    $(
-                        $($extra_name: $extra_default,)*
-                    )?
+                    ..Default::default()
                 };
 
                 for value in &keyed.values {
@@ -110,20 +112,6 @@ macro_rules! table_type {
                 }
 
                 table
-            }
-        }
-
-        impl$(<$table_lt>)? Default for $table_type$(<$table_lt>)? {
-            fn default() -> Self {
-                Self {
-                    length: 0,
-                    $(
-                        $name: Vec::new(),
-                    )*
-                    $(
-                        $($extra_name: $extra_default,)*
-                    )?
-                }
             }
         }
     }
@@ -292,9 +280,10 @@ type IndexIntoResourceTable = isize; // can be -1
 type IndexIntoLibs = usize;
 type ResourceTypeEnum = u32;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Default)]
 enum WeightType {
     #[serde(rename = "samples")]
+    #[default]
     Samples,
     #[serde(rename = "tracing-ms")]
     TracingMs,
@@ -309,7 +298,7 @@ table_type!(FirefoxSample {
     #[serde(rename = "threadCPUDelta")]
     thread_cpu_delta: Microseconds,
 }, FirefoxSampleTable {
-    weight_type: WeightType = WeightType::Samples,
+    weight_type: WeightType,
 });
 
 table_type!(RawMarker {
@@ -380,7 +369,7 @@ struct KeyedTable<K, V> {
 impl<K: Eq + Hash, V> KeyedTable<K, V> {
     fn new() -> Self {
         Self {
-            values: vec![],
+            values: Vec::new(),
             keys: HashMap::new(),
         }
     }
@@ -443,10 +432,14 @@ impl ThreadState<'_> {
     fn insert_stack(
         &mut self,
         stack: &[(IndexIntoCategoryList, IndexIntoFrameTable)],
-    ) -> IndexIntoStackTable {
+    ) -> Option<IndexIntoStackTable> {
+        if stack.is_empty() {
+            return None;
+        }
+
         let stack_vec = stack.to_vec();
         if let Some((_, index)) = self.stacks.get(&stack_vec) {
-            return index;
+            return Some(index);
         }
 
         let (category_i, frame_i) = stack[0];
@@ -455,13 +448,9 @@ impl ThreadState<'_> {
             frame: frame_i,
             category: category_i,
             subcategory: 0,
-            prefix: if prefix_frames.is_empty() {
-                None
-            } else {
-                Some(self.insert_stack(prefix_frames))
-            },
+            prefix: self.insert_stack(prefix_frames),
         };
-        self.stacks.get_or_insert(stack_vec, ff_stack).1
+        Some(self.stacks.get_or_insert(stack_vec, ff_stack).1)
     }
 }
 
@@ -476,7 +465,7 @@ pub struct FirefoxSampleProcessor<'a> {
     categories: KeyedTable<SampleCategory, FirefoxCategory>,
     libs: KeyedTable<String, Lib>,
 
-    host_symbolicator: CachedSymbolicator<MacSymbolicator>,
+    host_symbolicator: &'a CachedSymbolicator<MacSymbolicator>,
     guest_symbolicator: Option<&'a LinuxSymbolicator>,
 }
 
@@ -484,6 +473,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
     pub fn new(
         info: &'a ProfileInfo,
         threads_map: HashMap<ThreadId, &'a ProfileeThread>,
+        host_symbolicator: &'a CachedSymbolicator<MacSymbolicator>,
         guest_symbolicator: Option<&'a LinuxSymbolicator>,
     ) -> anyhow::Result<Self> {
         let mut categories = KeyedTable::new();
@@ -544,7 +534,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
             categories,
             libs: KeyedTable::new(),
 
-            host_symbolicator: CachedSymbolicator::new(MacSymbolicator {}),
+            host_symbolicator,
             guest_symbolicator,
         })
     }
@@ -633,9 +623,18 @@ impl<'a> FirefoxSampleProcessor<'a> {
                             thread
                                 .native_symbols
                                 .get_or_insert_with((lib_path.clone(), name.clone()), || {
+                                    if *offset as u64 > frame.addr {
+                                        error!(
+                                            "symbol offset is greater than frame address: {:#x} > {:#x}",
+                                            *offset, frame.addr
+                                        );
+                                        error!("symbol = {:?}", s);
+                                        error!("frame = {:?}", frame);
+                                        error!("sample = {:?}", sample);
+                                    }
                                     NativeSymbol {
                                         lib_index: lib.1,
-                                        address: frame.addr - *offset as u64,
+                                        address: (frame.addr - *offset as u64) - s.image_base,
                                         name: thread.strings.get_or_insert_str(name),
                                         // TODO
                                         function_size: None,
@@ -668,7 +667,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
         let stack_index = thread.insert_stack(&stack_frames);
 
         thread.samples.push(FirefoxSample {
-            stack: Some(stack_index),
+            stack: stack_index,
             time: Milliseconds((sample.timestamp - self.info.start_time_abs).millis_f64()),
             weight: 1.0,
             thread_cpu_delta: Microseconds(sample.cpu_time_delta_us),

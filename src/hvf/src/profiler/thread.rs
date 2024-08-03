@@ -17,7 +17,6 @@ use mach2::{
     thread_status::ARM_THREAD_STATE64,
     vm_types::natural_t,
 };
-use vmm_ids::VcpuSignalMask;
 
 use crate::{check_mach, ArcVcpuHandle};
 
@@ -106,7 +105,6 @@ impl ProfileeThread {
             lr: state.__lr,
             fp: state.__fp,
             sp: state.__sp,
-            x28: state.__x[28],
         })
     }
 

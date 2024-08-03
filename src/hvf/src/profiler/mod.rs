@@ -27,10 +27,11 @@ use mach2::{
 };
 use processor::SampleProcessor;
 use serde::{Deserialize, Serialize};
-use symbolicator::{LinuxSymbolicator, MacSymbolicator, Symbolicator};
+use symbolicator::{CachedSymbolicator, LinuxSymbolicator, MacSymbolicator, Symbolicator};
 use thread::{ProfileeThread, SampleResult, ThreadId};
 use time::MachAbsoluteTime;
 use tracing::{error, info};
+use transform::{CgoStackTransform, LeafCallTransform, LinuxIrqStackTransform, StackTransform};
 use unwinder::{FramePointerUnwinder, FramehopUnwinder};
 use utils::{
     qos::{self, QosClass},
@@ -44,6 +45,7 @@ mod processor;
 pub mod symbolicator;
 mod thread;
 mod time;
+mod transform;
 mod unwinder;
 
 pub use unwinder::STACK_DEPTH_LIMIT;
@@ -81,6 +83,20 @@ impl SampleCategory {
             SampleCategory::HostUserspace => 'U',
             SampleCategory::HostKernel => 'H',
         }
+    }
+
+    pub fn is_guest(&self) -> bool {
+        matches!(
+            self,
+            SampleCategory::GuestUserspace | SampleCategory::GuestKernel
+        )
+    }
+
+    pub fn is_host(&self) -> bool {
+        matches!(
+            self,
+            SampleCategory::HostUserspace | SampleCategory::HostKernel
+        )
     }
 }
 
@@ -378,21 +394,56 @@ impl Profiler {
     ) -> anyhow::Result<()> {
         info!("processing samples");
 
-        let samples = self.samples.lock().unwrap();
+        let mut samples = self.samples.lock().unwrap();
         let threads_map = threads
             .iter()
             .map(|t| (t.id(), t))
             .collect::<HashMap<_, _>>();
 
         let guest_context = self.get_guest_context(threads)?;
-        let mut processor =
-            FirefoxSampleProcessor::new(info, threads_map, guest_context.symbolicator.as_ref())?;
+
+        // post-process the stack
+        let host_symbolicator = CachedSymbolicator::new(MacSymbolicator {});
+        let cgo_transform = CgoStackTransform::new(&host_symbolicator);
+        for sample in &mut *samples {
+            cgo_transform.transform(&mut sample.stack)?;
+        }
+        if let Some(guest_symbolicator) = guest_context.symbolicator.as_ref() {
+            let irq_transform = LinuxIrqStackTransform::new(&host_symbolicator, guest_symbolicator);
+            for sample in &mut *samples {
+                irq_transform.transform(&mut sample.stack)?;
+            }
+
+            let leaf_transform = LeafCallTransform::new(&host_symbolicator, guest_symbolicator);
+            for sample in &mut *samples {
+                leaf_transform.transform(&mut sample.stack)?;
+            }
+        }
+
+        let mut processor = SampleProcessor::new(
+            info,
+            threads_map.clone(),
+            &host_symbolicator,
+            guest_context.symbolicator.as_ref(),
+        )?;
         for sample in &*samples {
             processor.process_sample(sample)?;
         }
-
         info!("writing to file: {}", self.params.output_path);
         processor.write_to_path(&self.params.output_path)?;
+
+        let mut processor = FirefoxSampleProcessor::new(
+            info,
+            threads_map,
+            &host_symbolicator,
+            guest_context.symbolicator.as_ref(),
+        )?;
+        for sample in &*samples {
+            processor.process_sample(sample)?;
+        }
+        info!("writing to file: {}.json", self.params.output_path);
+        processor.write_to_path(&(self.params.output_path.clone() + ".json"))?;
+
         Ok(())
     }
 
