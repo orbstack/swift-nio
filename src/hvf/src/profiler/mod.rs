@@ -23,6 +23,7 @@ use libc::{
 };
 use mach2::{
     kern_return::kern_return_t,
+    mach_port::mach_port_deallocate,
     mach_time::mach_wait_until,
     mach_types::{thread_act_array_t, thread_act_t},
     message::{mach_msg_type_number_t, MACH_SEND_INVALID_DEST},
@@ -52,10 +53,10 @@ use crate::{VcpuHandleInner, VcpuRegistry};
 mod buffer;
 mod firefox;
 mod processor;
-mod stats;
+pub mod stats;
 pub mod symbolicator;
 mod thread;
-mod time;
+pub(crate) mod time;
 mod transform;
 mod unwinder;
 
@@ -394,52 +395,80 @@ impl Profiler {
         let thread_ports =
             unsafe { std::slice::from_raw_parts(*threads_list, threads_count as usize) };
         for &thread_port in thread_ports {
-            let mut info: thread_extended_info = unsafe { std::mem::zeroed() };
-            let mut info_count = THREAD_EXTENDED_INFO_COUNT;
-            unsafe {
-                check_mach!(thread_info(
-                    thread_port,
-                    THREAD_EXTENDED_INFO as thread_flavor_t,
-                    &mut info as *mut _ as *mut _,
-                    &mut info_count,
-                ))?
-            };
-
-            let name_bytes: &[u8] = unsafe {
-                std::slice::from_raw_parts(info.pth_name.as_ptr() as *const _, info.pth_name.len())
-            };
-            let name = CStr::from_bytes_until_nul(name_bytes)?
-                .to_string_lossy()
-                .to_string();
-
-            // exclude profiler threads
-            if name.contains(THREAD_NAME_TAG) {
-                continue;
+            match self.add_thread(&mut threads, thread_port) {
+                Ok(()) => {}
+                Err(e) => error!("failed to add thread: {}", e),
             }
-
-            let vcpu = if let Some(vcpu_id) = name.strip_prefix("vcpu") {
-                if let Ok(vcpu_id) = vcpu_id.parse::<u8>() {
-                    self.vcpu_registry.get_vcpu(vcpu_id)
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            if let Some(vcpu) = vcpu.as_ref() {
-                let (sender, receiver) = std::sync::mpsc::channel();
-                vcpu.send_profiler_init(ProfilerVcpuInit {
-                    profiler: self.clone(),
-                    completion_sender: sender,
-                });
-                receiver.recv()?;
-            }
-
-            threads.push(ProfileeThread::new(thread_port, name, vcpu));
         }
 
         Ok(threads)
+    }
+
+    fn add_thread(
+        self: &Arc<Self>,
+        threads: &mut Vec<ProfileeThread>,
+        thread_port: thread_act_t,
+    ) -> anyhow::Result<()> {
+        // make sure we drop the port if this fails
+        let thread_port = scopeguard::guard(thread_port, |p| unsafe {
+            check_mach!(mach_port_deallocate(mach_task_self(), p)).unwrap();
+        });
+
+        let mut info: thread_extended_info = unsafe { std::mem::zeroed() };
+        let mut info_count = THREAD_EXTENDED_INFO_COUNT;
+        match unsafe {
+            check_mach!(thread_info(
+                *thread_port,
+                THREAD_EXTENDED_INFO as thread_flavor_t,
+                &mut info as *mut _ as *mut _,
+                &mut info_count,
+            ))
+        } {
+            Ok(()) => {}
+            Err(MachError::MachSendInvalidDest) => {
+                // thread is gone
+                return Ok(());
+            }
+            Err(e) => return Err(e.into()),
+        }
+
+        let name_bytes: &[u8] = unsafe {
+            std::slice::from_raw_parts(info.pth_name.as_ptr() as *const _, info.pth_name.len())
+        };
+        let name = CStr::from_bytes_until_nul(name_bytes)?
+            .to_string_lossy()
+            .to_string();
+
+        // exclude profiler threads
+        if name.contains(THREAD_NAME_TAG) {
+            return Ok(());
+        }
+
+        let vcpu = if let Some(vcpu_id) = name.strip_prefix("vcpu") {
+            if let Ok(vcpu_id) = vcpu_id.parse::<u8>() {
+                self.vcpu_registry.get_vcpu(vcpu_id)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(vcpu) = vcpu.as_ref() {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            vcpu.send_profiler_init(ProfilerVcpuInit {
+                profiler: self.clone(),
+                completion_sender: sender,
+            });
+            receiver.recv()?;
+        }
+
+        threads.push(ProfileeThread::new(*thread_port, name, vcpu));
+
+        // we've added it, so now the port is owned by ProfileeThread
+        std::mem::forget(thread_port);
+
+        Ok(())
     }
 
     fn get_guest_context(
@@ -481,9 +510,12 @@ impl Profiler {
 
         let mut text_processor = TextSampleProcessor::new(info, threads_map.clone())?;
         let mut ff_processor = FirefoxSampleProcessor::new(info, threads_map)?;
+        let mut sframes = Vec::with_capacity(STACK_DEPTH_LIMIT);
         for sample in &mut samples {
             // symbolicate the frames
-            let mut sframes = sample
+            // reuse the Vec buffer for performance
+            sframes.clear();
+            sample
                 .stack
                 .iter()
                 .map(|frame| {
@@ -511,7 +543,7 @@ impl Profiler {
                         symbol,
                     }
                 })
-                .collect::<Vec<_>>();
+                .for_each(|sframe| sframes.push(sframe));
 
             // apply transforms
             cgo_transform.transform(&mut sframes)?;

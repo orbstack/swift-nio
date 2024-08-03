@@ -16,6 +16,7 @@ use arch::ArchMemoryInfo;
 use bindings::*;
 use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
+use hdrhistogram::Histogram;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
 use tlb::Tlb;
@@ -48,7 +49,9 @@ use utils::hypercalls::{
 
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 
+use crate::profiler::stats::dump_histogram;
 use crate::profiler::symbolicator::{LinuxSymbolicator, Symbolicator};
+use crate::profiler::time::MachAbsoluteTime;
 use crate::profiler::{Frame, PartialSample, Profiler, SampleCategory, STACK_DEPTH_LIMIT};
 
 mod tlb;
@@ -737,6 +740,7 @@ unsafe impl ByteValued for PvgicVcpuState {}
 pub struct VcpuProfilerState {
     tlb: Tlb<u64>,
     pub profiler: Arc<Profiler>,
+    sample_time_histogram: Histogram<u64>,
 }
 
 impl VcpuProfilerState {
@@ -744,7 +748,12 @@ impl VcpuProfilerState {
         Self {
             tlb: Tlb::new(guest_mem),
             profiler,
+            sample_time_histogram: Histogram::new(3).unwrap(),
         }
+    }
+
+    pub fn finish(&self) {
+        dump_histogram("vcpu sample time", &self.sample_time_histogram);
     }
 }
 
@@ -1500,6 +1509,8 @@ impl HvfVcpu {
         profiler_state: &mut VcpuProfilerState,
         mut sample: PartialSample,
     ) -> anyhow::Result<()> {
+        let sample_start = MachAbsoluteTime::now();
+
         let cpsr = self.read_raw_reg(hv_reg_t_HV_REG_CPSR)?;
         match cpsr & PSR_MODE_MASK {
             PSR_MODE_EL1T | PSR_MODE_EL1H => {
@@ -1518,6 +1529,11 @@ impl HvfVcpu {
         }
 
         profiler_state.profiler.queue_sample(sample)?;
+
+        let sample_end = MachAbsoluteTime::now();
+        profiler_state
+            .sample_time_histogram
+            .record((sample_end - sample_start).nanos())?;
         Ok(())
     }
 

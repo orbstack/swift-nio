@@ -845,7 +845,9 @@ impl Vcpu {
                         error!("Failed to send guest fetch response: {}", e);
                     }
 
-                    self.profiler_state = None;
+                    if let Some(profiler_state) = self.profiler_state.take() {
+                        profiler_state.finish();
+                    }
                 }
             }
 

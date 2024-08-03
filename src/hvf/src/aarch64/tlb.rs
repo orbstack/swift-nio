@@ -1,7 +1,7 @@
 use std::ptr::NonNull;
 
-use ahash::AHashMap;
 use anyhow::anyhow;
+use rustc_hash::FxHashMap;
 use utils::memory::GuestMemoryExt;
 use vm_memory::{ByteValued, GuestMemoryMmap};
 
@@ -10,7 +10,7 @@ use super::HvfVcpu;
 // fused TLB + host mmap address lookup + bounds check for a specific type
 pub struct Tlb<V: ByteValued> {
     guest_mem: GuestMemoryMmap,
-    cache: AHashMap<u64, Option<NonNull<V>>>,
+    cache: FxHashMap<u64, Option<NonNull<V>>>,
 }
 
 // the cached pointer are Send because we have GuestMemoryMmap and we only read from it
@@ -20,7 +20,7 @@ impl<V: ByteValued> Tlb<V> {
     pub fn new(guest_mem: GuestMemoryMmap) -> Self {
         Self {
             guest_mem,
-            cache: AHashMap::new(),
+            cache: FxHashMap::default(),
         }
     }
 
