@@ -19,7 +19,6 @@ use dlopen_derive::WrapperApi;
 use hdrhistogram::Histogram;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
-use tlb::Tlb;
 use utils::kernel_symbols::CompactSystemMap;
 use utils::memory::GuestMemoryExt;
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
@@ -53,8 +52,6 @@ use crate::profiler::stats::dump_histogram;
 use crate::profiler::symbolicator::{LinuxSymbolicator, Symbolicator};
 use crate::profiler::time::MachAbsoluteTime;
 use crate::profiler::{Frame, PartialSample, Profiler, SampleCategory, STACK_DEPTH_LIMIT};
-
-mod tlb;
 
 extern "C" {
     pub fn mach_absolute_time() -> u64;
@@ -738,15 +735,13 @@ struct PvgicVcpuState {
 unsafe impl ByteValued for PvgicVcpuState {}
 
 pub struct VcpuProfilerState {
-    tlb: Tlb<u64>,
     pub profiler: Arc<Profiler>,
     sample_time_histogram: Histogram<u64>,
 }
 
 impl VcpuProfilerState {
-    pub fn new(profiler: Arc<Profiler>, guest_mem: GuestMemoryMmap) -> Self {
+    pub fn new(profiler: Arc<Profiler>) -> Self {
         Self {
-            tlb: Tlb::new(guest_mem),
             profiler,
             sample_time_histogram: Histogram::new(3).unwrap(),
         }
@@ -1454,7 +1449,7 @@ impl HvfVcpu {
         Ok(buf)
     }
 
-    fn walk_stack(&self, tlb: &mut Tlb<u64>, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
+    fn walk_stack(&self, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
         let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
         let lr = self.read_raw_reg(hv_reg_t_HV_REG_LR)?;
 
@@ -1480,8 +1475,7 @@ impl HvfVcpu {
             }
 
             // mem[FP+8] = frame's LR
-            // let frame_lr = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
-            let frame_lr = tlb.read_obj(self, fp + 8)?;
+            let frame_lr = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
             if frame_lr == 0 {
                 // reached end of stack
                 break;
@@ -1498,7 +1492,7 @@ impl HvfVcpu {
             }
 
             // mem[FP] = link to last FP
-            fp = tlb.read_obj(self, fp)?;
+            fp = self.guest_mem.read_obj_fast(self.translate_gva(fp)?)?;
         }
 
         Ok(())
@@ -1516,7 +1510,7 @@ impl HvfVcpu {
             PSR_MODE_EL1T | PSR_MODE_EL1H => {
                 // needs to be in reverse order
                 let mut stack = SmallVec::<[u64; STACK_DEPTH_LIMIT]>::new();
-                self.walk_stack(&mut profiler_state.tlb, |addr| stack.push(addr))?;
+                self.walk_stack(|addr| stack.push(addr))?;
 
                 for &addr in stack.iter().rev() {
                     sample.prepend_stack(Frame::new(SampleCategory::GuestKernel, addr));
@@ -1569,10 +1563,8 @@ impl HvfVcpu {
 
     fn add_debug_stack(&self, buf: &mut String, csmap_path: &str) -> anyhow::Result<()> {
         // walk stack, with depth limit to protect against malicious/corrupted stack
-        let mut stack = Vec::new();
-        // this is a rare operation; don't cache the addresses
-        let mut tlb = Tlb::new(self.guest_mem.clone());
-        self.walk_stack(&mut tlb, |addr| stack.push(addr))?;
+        let mut stack = Vec::with_capacity(STACK_DEPTH_LIMIT);
+        self.walk_stack(|addr| stack.push(addr))?;
 
         let mut symbolicator = self.new_symbolicator(csmap_path)?;
         for (i, &addr) in stack.iter().enumerate() {

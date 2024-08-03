@@ -808,8 +808,7 @@ impl Vcpu {
 
             if taken.contains(VcpuSignalMask::PROFILER_INIT) {
                 if let Some(req) = handle.consume_profiler_init() {
-                    self.profiler_state =
-                        Some(VcpuProfilerState::new(req.profiler, self.guest_mem.clone()));
+                    self.profiler_state = Some(VcpuProfilerState::new(req.profiler));
                     req.completion_sender.send(()).unwrap();
                 }
             }

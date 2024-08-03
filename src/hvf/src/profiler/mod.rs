@@ -33,6 +33,7 @@ use mach2::{
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
 use processor::TextSampleProcessor;
+use sched::set_realtime_scheduling;
 use serde::{Deserialize, Serialize};
 use stats::dump_histogram;
 use symbolicator::{
@@ -53,6 +54,7 @@ use crate::{VcpuHandleInner, VcpuRegistry};
 mod buffer;
 mod firefox;
 mod processor;
+mod sched;
 pub mod stats;
 pub mod symbolicator;
 mod thread;
@@ -250,6 +252,7 @@ impl Profiler {
 
     fn sampler_loop(self: &Arc<Self>, interval: Duration) -> anyhow::Result<()> {
         qos::set_thread_qos(QosClass::UserInteractive, None)?;
+        set_realtime_scheduling(interval)?;
 
         // before we start, find "hv_vcpu_run" and "hv_trap"
         let mut symbolicator = DladdrSymbolicator::new()?;

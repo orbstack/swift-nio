@@ -53,7 +53,7 @@ impl AddAssign<MachAbsoluteDuration> for MachAbsoluteTime {
 }
 
 #[derive(Copy, Clone)]
-pub struct MachAbsoluteDuration(u64);
+pub struct MachAbsoluteDuration(pub u64);
 
 impl MachAbsoluteDuration {
     fn timebase() -> &'static mach_timebase_info {
