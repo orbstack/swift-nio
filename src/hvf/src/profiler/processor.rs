@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::{cell::RefCell, collections::BTreeMap, fs::File, rc::Rc};
 
 use ahash::AHashMap;
@@ -170,21 +170,22 @@ impl<'a> TextSampleProcessor<'a> {
     }
 
     pub fn write_to_path(&self, path: &str) -> anyhow::Result<()> {
-        let mut file = File::create(path)?;
+        let file = File::create(path)?;
+        let mut buf_writer = BufWriter::new(file);
 
         // sort by name, not by ID
         let mut threads = self.threads.iter().collect::<Vec<_>>();
         threads.sort_by_key(|(_, t)| t.name.clone());
         for (thread_id, thread_node) in threads {
             writeln!(
-                file,
+                buf_writer,
                 "\n\nThread '{}'  ({:#x}, {} samples)",
                 thread_node.name.as_deref().unwrap_or("unknown"),
                 thread_id.0,
                 thread_node.stacks.count
             )?;
 
-            thread_node.stacks.dump(&mut file, 1)?;
+            thread_node.stacks.dump(&mut buf_writer, 1)?;
         }
 
         Ok(())

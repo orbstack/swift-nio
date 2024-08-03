@@ -2,6 +2,7 @@ use ahash::AHashMap;
 use anyhow::anyhow;
 use serde::Serialize;
 use std::hash::Hash;
+use std::io::BufWriter;
 use std::ops::Sub;
 use std::time::SystemTime;
 use std::{collections::HashMap, fs::File};
@@ -743,7 +744,8 @@ impl<'a> FirefoxSampleProcessor<'a> {
             profiler_overhead: vec![],
         };
 
-        serde_json::to_writer(&file, &profile)?;
+        let mut buf_writer = BufWriter::new(file);
+        serde_json::to_writer(&mut buf_writer, &profile)?;
         Ok(())
     }
 }
