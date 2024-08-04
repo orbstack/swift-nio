@@ -11,13 +11,14 @@ use std::time::SystemTime;
 use std::{collections::HashMap, fs::File};
 use tracing::error;
 
+use super::buffer::SegVec;
 use super::ktrace::KtraceResults;
 use super::sched::{sysctl_string, system_total_memory};
 use super::{
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use super::{CounterState, Frame, ProfileInfo, SampleCategory, SymbolicatedFrame};
+use super::{Frame, ProfileInfo, ResourceSample, SampleCategory, SymbolicatedFrame};
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -242,7 +243,7 @@ table_type!(
         // number of times 'count' was changed since previous sample
         number: Option<u64>,
         // value
-        count: u64,
+        count: i64,
     },
     FirefoxCounterSampleTable
 );
@@ -766,31 +767,31 @@ impl<'a> FirefoxSampleProcessor<'a> {
         }
     }
 
-    pub fn add_counters(&mut self, counters: &[CounterState]) {
-        for state in counters {
-            let mut sample_table = KeyedTable::<(), FirefoxCounterSample>::new();
+    pub fn add_resources<const N: usize>(&mut self, samples: &SegVec<ResourceSample, N>) {
+        let mut mem_table = KeyedTable::<(), FirefoxCounterSample>::new();
 
-            for sample in &state.samples {
-                sample_table.force_insert(
-                    (),
-                    FirefoxCounterSample {
-                        time: Milliseconds((sample.time - self.info.start_time_abs).millis_f64()),
-                        number: None,
-                        count: sample.value,
-                    },
-                );
-            }
+        for sample in samples {
+            let time = Milliseconds((sample.time - self.info.start_time_abs).millis_f64());
 
-            self.counters.push(FirefoxCounter {
-                name: state.counter.name_raw().unwrap_or("<unnamed>").to_string(),
-                category: "Other".to_string(),
-                description: "".to_string(),
-                color: None,
-                pid: self.info.pid.into(),
-                main_thread_index: 0,
-                samples: (&sample_table).into(),
-            })
+            mem_table.force_insert(
+                (),
+                FirefoxCounterSample {
+                    time,
+                    number: None,
+                    count: sample.phys_footprint,
+                },
+            );
         }
+
+        self.counters.push(FirefoxCounter {
+            name: "phys_footprint".to_string(),
+            category: "Memory".to_string(),
+            description: "".to_string(),
+            color: None,
+            pid: self.info.pid.into(),
+            main_thread_index: 0,
+            samples: (&mem_table).into(),
+        });
     }
 
     pub fn write_to_path(

@@ -1,3 +1,7 @@
+use std::mem::MaybeUninit;
+
+use libc::{proc_pid_rusage, rusage_info_v0, RUSAGE_INFO_V0};
+use nix::errno::Errno;
 use vm_memory::ByteValued;
 
 // no real address can be in __PAGEZERO (which is the full 32-bit space)
@@ -23,4 +27,10 @@ pub unsafe fn read_host_mem_aligned<T: ByteValued>(addr: u64) -> Option<T> {
 #[inline]
 pub const fn is_valid_address(addr: u64) -> bool {
     addr >= MIN_ADDR && (addr & !PAC_MASK == 0)
+}
+
+pub fn get_phys_footprint(pid: i32) -> nix::Result<u64> {
+    let mut info = MaybeUninit::<rusage_info_v0>::uninit();
+    let ret = unsafe { proc_pid_rusage(pid, RUSAGE_INFO_V0, info.as_mut_ptr() as *mut _) };
+    Errno::result(ret).map(|_| unsafe { info.assume_init().ri_phys_footprint })
 }

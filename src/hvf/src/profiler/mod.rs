@@ -14,7 +14,6 @@ use std::{
 use ahash::AHashMap;
 use anyhow::anyhow;
 use buffer::SegVec;
-use counter::DynCounter;
 use crossbeam::queue::ArrayQueue;
 use firefox::FirefoxSampleProcessor;
 use hdrhistogram::Histogram;
@@ -247,14 +246,9 @@ impl ThreadFrameState<'_> {
     }
 }
 
-pub struct CounterSample {
-    time: MachAbsoluteTime,
-    value: u64,
-}
-
-pub struct CounterState {
-    counter: &'static dyn DynCounter,
-    samples: SegVec<CounterSample, SEGMENT_SIZE>,
+pub struct ResourceSample {
+    pub time: MachAbsoluteTime,
+    pub phys_footprint: i64,
 }
 
 pub struct Profiler {
@@ -330,14 +324,11 @@ impl Profiler {
         let mut threads = self.get_threads()?;
 
         let mut samples = SegVec::new();
-        let mut counters = counter::counters()
-            .iter()
-            .map(|&c| CounterState {
-                counter: c,
-                samples: SegVec::new(),
-            })
-            .collect::<Vec<_>>();
+        let mut resources = SegVec::new();
+        let self_pid = std::process::id() as i32;
         let ktracer = Ktracer::start(&threads)?;
+
+        let mut last_phys_footprint = memory::get_phys_footprint(self_pid)?;
 
         info!("started");
 
@@ -402,17 +393,14 @@ impl Profiler {
                 };
             }
 
-            // sample counters, if any
-            if !counters.is_empty() {
-                let counters_sample_start = MachAbsoluteTime::now();
-                for counter in &mut counters {
-                    let value = counter.counter.read_raw();
-                    counter.samples.push(CounterSample {
-                        time: counters_sample_start,
-                        value,
-                    });
-                }
-            }
+            // sample resources
+            let resources_time = MachAbsoluteTime::now();
+            let phys_footprint = memory::get_phys_footprint(self_pid)?;
+            resources.push(ResourceSample {
+                time: resources_time,
+                phys_footprint: phys_footprint as i64 - last_phys_footprint as i64,
+            });
+            last_phys_footprint = phys_footprint;
 
             let sample_batch_end = MachAbsoluteTime::now();
             let sample_batch_duration = sample_batch_end - sample_batch_start;
@@ -453,7 +441,7 @@ impl Profiler {
             samples,
             &info,
             &threads,
-            &counters,
+            &resources,
             &thread_suspend_histogram,
             ktrace_results.as_ref(),
         )?;
@@ -593,7 +581,7 @@ impl Profiler {
         mut samples: SegVec<Sample, SEGMENT_SIZE>,
         info: &ProfileInfo,
         threads: &[ProfileeThread],
-        counters: &[CounterState],
+        resources: &SegVec<ResourceSample, SEGMENT_SIZE>,
         thread_suspend_histogram: &Histogram<u64>,
         ktrace_results: Option<&KtraceResults>,
     ) -> anyhow::Result<()> {
@@ -747,7 +735,7 @@ impl Profiler {
         if let Some(ktrace_results) = ktrace_results {
             ff_processor.add_ktrace_markers(ktrace_results);
         }
-        ff_processor.add_counters(counters);
+        ff_processor.add_resources(resources);
         ff_processor.write_to_path(total_bytes, thread_suspend_histogram, &ff_output_path)?;
         if let Err(e) = FirefoxApiServer::shared().add_and_open_profile(ff_output_path) {
             error!("failed to open in Firefox Profiler: {}", e);
