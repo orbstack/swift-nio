@@ -51,6 +51,10 @@ pub trait DynCounter: Send + Sync {
 
     fn display_raw(&self, fmt: &mut fmt::Formatter<'_>, userdata: &(dyn Any + Send))
         -> fmt::Result;
+
+    fn name_raw(&self) -> Option<&'static str>;
+
+    fn read_raw(&self) -> u64;
 }
 
 impl<T: Counter> DynCounter for T {
@@ -66,6 +70,14 @@ impl<T: Counter> DynCounter for T {
     fn display_raw(&self, f: &mut fmt::Formatter<'_>, userdata: &(dyn Any + Send)) -> fmt::Result {
         self.display(f, userdata.downcast_ref::<T::Userdata>().unwrap())
     }
+
+    fn name_raw(&self) -> Option<&'static str> {
+        self.name()
+    }
+
+    fn read_raw(&self) -> u64 {
+        self.read()
+    }
 }
 
 pub trait Counter: Sized + Send + Sync {
@@ -76,6 +88,12 @@ pub trait Counter: Sized + Send + Sync {
     fn tick(&self, userdata: &mut Self::Userdata, info: IntervalInfo);
 
     fn display(&self, f: &mut fmt::Formatter, userdata: &Self::Userdata) -> fmt::Result;
+
+    fn name(&self) -> Option<&'static str> {
+        None
+    }
+
+    fn read(&self) -> u64;
 }
 
 pub trait DisableableCounter: Counter {
@@ -111,6 +129,10 @@ impl Counter for DummyCounter {
     fn display(&self, f: &mut fmt::Formatter<'_>, _userdata: &Self::Userdata) -> fmt::Result {
         f.write_str("[disabled]")
     }
+
+    fn read(&self) -> u64 {
+        0
+    }
 }
 
 // TotalCounter
@@ -140,6 +162,14 @@ impl Counter for TotalCounter {
 
     fn display(&self, f: &mut fmt::Formatter, _userdata: &Self::Userdata) -> fmt::Result {
         write!(f, "{} = {}", self.0, self.1.load(Ordering::Relaxed))
+    }
+
+    fn name(&self) -> Option<&'static str> {
+        Some(self.0)
+    }
+
+    fn read(&self) -> u64 {
+        self.1.load(Ordering::Relaxed)
     }
 }
 
@@ -203,6 +233,14 @@ impl Counter for RateCounter {
                 self.0, userdata.delta_snapshot, userdata.avg_snapshot
             )
         }
+    }
+
+    fn name(&self) -> Option<&'static str> {
+        Some(self.0)
+    }
+
+    fn read(&self) -> u64 {
+        self.1.load(Ordering::Relaxed)
     }
 }
 

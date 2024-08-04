@@ -24,7 +24,7 @@ pub struct KtraceResults {
 
 pub struct KtraceThread {
     // start time -> end time
-    faults: BTreeMap<MachAbsoluteTime, MachAbsoluteTime>,
+    pub faults: BTreeMap<MachAbsoluteTime, MachAbsoluteTime>,
     last_fault_start: Option<MachAbsoluteTime>,
 }
 

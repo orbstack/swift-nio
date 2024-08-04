@@ -11,25 +11,60 @@ use std::time::SystemTime;
 use std::{collections::HashMap, fs::File};
 use tracing::error;
 
+use super::ktrace::KtraceResults;
 use super::sched::{sysctl_string, system_total_memory};
 use super::{
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use super::{Frame, ProfileInfo, SampleCategory, SymbolicatedFrame};
+use super::{CounterState, Frame, ProfileInfo, SampleCategory, SymbolicatedFrame};
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
-struct Pid(u32);
+struct Pid(String);
+
+impl From<u32> for Pid {
+    fn from(pid: u32) -> Self {
+        Pid(pid.to_string())
+    }
+}
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct FirefoxProfile<'a> {
     meta: ProfileMeta<'a>,
     libs: &'a [Lib],
-    counters: Vec<Todo>,
+    counters: Vec<FirefoxCounter>,
     profiler_overhead: Vec<ProfilerOverhead>,
     threads: Vec<FirefoxThread<'a>>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[allow(unused)]
+enum GraphColor {
+    Blue,
+    Green,
+    Grey,
+    Ink,
+    Magenta,
+    Orange,
+    Purple,
+    Red,
+    Teal,
+    Yellow,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct FirefoxCounter {
+    name: String,
+    category: String,
+    description: String,
+    color: Option<GraphColor>,
+    pid: Pid,
+    main_thread_index: usize,
+    samples: FirefoxCounterSampleTable,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -202,14 +237,14 @@ impl Sub for Milliseconds {
 struct Microseconds(f64);
 
 table_type!(
-    CounterSample {
+    FirefoxCounterSample {
         time: Milliseconds,
         // number of times 'count' was changed since previous sample
-        number: u64,
+        number: Option<u64>,
         // value
         count: u64,
     },
-    CounterSampleTable
+    FirefoxCounterSampleTable
 );
 
 #[derive(Serialize, Debug, Clone)]
@@ -329,13 +364,27 @@ table_type!(FirefoxSample {
     weight_type: WeightType,
 });
 
+// serde can't serialize enums as integer tags
+#[derive(Serialize, Debug, Clone)]
+#[serde(transparent)]
+struct MarkerPhase(u16);
+
+#[allow(unused)]
+impl MarkerPhase {
+    pub const INSTANT: MarkerPhase = MarkerPhase(0);
+    pub const INTERVAL: MarkerPhase = MarkerPhase(1);
+    pub const INTERVAL_START: MarkerPhase = MarkerPhase(2);
+    pub const INTERVAL_END: MarkerPhase = MarkerPhase(3);
+}
+
 table_type!(RawMarker {
     data: Option<Todo>,
     name: IndexIntoStringTable,
     start_time: Option<Milliseconds>,
     end_time: Option<Milliseconds>,
-    phase: Todo,
+    phase: MarkerPhase,
     category: IndexIntoCategoryList,
+    thread_id: Option<Tid>,
 }, RawMarkerTable);
 
 table_type!(FirefoxStack {
@@ -402,6 +451,13 @@ impl<K: Eq + Hash, V> KeyedTable<K, V> {
         }
     }
 
+    fn force_insert(&mut self, key: K, value: V) -> usize {
+        let index = self.values.len();
+        self.keys.insert(key, index);
+        self.values.push(value);
+        index
+    }
+
     fn get(&self, key: &K) -> Option<(&V, usize)> {
         self.keys
             .get(key)
@@ -417,9 +473,8 @@ impl<K: Eq + Hash, V> KeyedTable<K, V> {
             (&self.values[index], index)
         } else {
             let value = f();
-            self.keys.insert(key, self.values.len());
-            self.values.push(value);
-            (&self.values[self.values.len() - 1], self.values.len() - 1)
+            let index = self.force_insert(key, value);
+            (&self.values[index], index)
         }
     }
 }
@@ -454,6 +509,7 @@ struct ThreadState<'a> {
     funcs: KeyedTable<SymbolKey, Func>,
     native_symbols: KeyedTable<SymbolKey, NativeSymbol>,
     stacks: KeyedTable<Vec<(IndexIntoCategoryList, IndexIntoFrameTable)>, FirefoxStack>,
+    raw_markers: KeyedTable<(), RawMarker>,
 }
 
 impl ThreadState<'_> {
@@ -489,6 +545,8 @@ fn image_basename(image: &str) -> &str {
 pub struct FirefoxSampleProcessor<'a> {
     info: &'a ProfileInfo,
     threads: AHashMap<ThreadId, ThreadState<'a>>,
+
+    counters: Vec<FirefoxCounter>,
 
     categories: KeyedTable<SampleCategory, FirefoxCategory>,
     libs: KeyedTable<String, Lib>,
@@ -549,10 +607,13 @@ impl<'a> FirefoxSampleProcessor<'a> {
                             funcs: KeyedTable::new(),
                             native_symbols: KeyedTable::new(),
                             stacks: KeyedTable::new(),
+                            raw_markers: KeyedTable::new(),
                         },
                     )
                 })
                 .collect(),
+
+            counters: Vec::new(),
 
             categories,
             libs: KeyedTable::new(),
@@ -678,8 +739,62 @@ impl<'a> FirefoxSampleProcessor<'a> {
         Ok(())
     }
 
+    pub fn add_ktrace_markers(&mut self, ktrace_results: &KtraceResults) {
+        for (tid, kt_thread) in ktrace_results.threads.iter() {
+            let Some(ff_thread) = self.threads.get_mut(tid) else {
+                continue;
+            };
+
+            for (start, end) in kt_thread.faults.iter() {
+                ff_thread.raw_markers.force_insert(
+                    (),
+                    RawMarker {
+                        data: None,
+                        name: ff_thread.strings.get_or_insert_str("MACH_vmfault"),
+                        start_time: Some(Milliseconds(
+                            (*start - self.info.start_time_abs).millis_f64(),
+                        )),
+                        end_time: Some(Milliseconds(
+                            (*end - self.info.start_time_abs).millis_f64(),
+                        )),
+                        phase: MarkerPhase::INTERVAL,
+                        category: self.categories.get(&SampleCategory::HostKernel).unwrap().1,
+                        thread_id: Some(tid.0),
+                    },
+                );
+            }
+        }
+    }
+
+    pub fn add_counters(&mut self, counters: &[CounterState]) {
+        for state in counters {
+            let mut sample_table = KeyedTable::<(), FirefoxCounterSample>::new();
+
+            for sample in &state.samples {
+                sample_table.force_insert(
+                    (),
+                    FirefoxCounterSample {
+                        time: Milliseconds((sample.time - self.info.start_time_abs).millis_f64()),
+                        number: None,
+                        count: sample.value,
+                    },
+                );
+            }
+
+            self.counters.push(FirefoxCounter {
+                name: state.counter.name_raw().unwrap_or("<unnamed>").to_string(),
+                category: "Other".to_string(),
+                description: "".to_string(),
+                color: None,
+                pid: self.info.pid.into(),
+                main_thread_index: 0,
+                samples: (&sample_table).into(),
+            })
+        }
+    }
+
     pub fn write_to_path(
-        &self,
+        self,
         total_bytes: usize,
         thread_suspend_histogram: &Histogram<u64>,
         path: &str,
@@ -707,7 +822,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
                 debug: cfg!(debug_assertions),
                 extensions: ExtensionTable::default(),
                 interval: Milliseconds(1000.0 / self.info.params.sample_rate as f64),
-                preprocessed_profile_version: 46,
+                preprocessed_profile_version: 49,
                 process_type: 0,
                 product: "OrbStack".to_string(),
                 sample_units: SampleUnits {
@@ -769,7 +884,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
                     resource_table: (&t.resources).into(),
                     samples: t.samples.clone(),
                     string_array: &t.strings.values,
-                    markers: RawMarkerTable::default(),
+                    markers: (&t.raw_markers).into(),
                     native_symbols: (&t.native_symbols).into(),
                     func_table: (&t.funcs).into(),
                     frame_table: (&t.frames).into(),
@@ -779,7 +894,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
                     )
                     .to_string(),
                     is_main_thread: t.thread.id == main_thread.id,
-                    pid: Pid(self.info.pid),
+                    pid: self.info.pid.into(),
                     paused_ranges: vec![],
                     process_startup_time: Milliseconds(0.0),
                     process_shutdown_time: None,
@@ -793,7 +908,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
                     show_markers_in_timeline: Some(true),
                 })
                 .collect(),
-            counters: vec![],
+            counters: self.counters,
             profiler_overhead: vec![ProfilerOverhead {
                 // not used by profiler UI
                 samples: ProfilerOverheadSampleTable::default(),
@@ -804,7 +919,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
                     sampling_count: self.info.num_samples,
                     ..Default::default()
                 }),
-                pid: Pid(self.info.pid),
+                pid: self.info.pid.into(),
                 main_thread_index: 0,
             }],
         };

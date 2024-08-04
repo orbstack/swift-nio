@@ -14,6 +14,7 @@ use std::{
 use ahash::AHashMap;
 use anyhow::anyhow;
 use buffer::SegVec;
+use counter::DynCounter;
 use crossbeam::queue::ArrayQueue;
 use firefox::FirefoxSampleProcessor;
 use hdrhistogram::Histogram;
@@ -181,7 +182,7 @@ impl Frame {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct SymbolicatedFrame {
     frame: Frame,
     symbol: Option<SymbolResult>,
@@ -212,12 +213,10 @@ pub struct ProfilerParams {
     app_commit: Option<String>,
 }
 
-#[derive(Clone)]
 pub struct ProfilerGuestContext {
     pub symbolicator: Option<LinuxSymbolicator>,
 }
 
-#[derive(Clone)]
 pub struct ProfilerVcpuInit {
     pub profiler: Arc<Profiler>,
     pub completion_sender: Sender<()>,
@@ -234,7 +233,6 @@ pub struct ProfileInfo {
     pub num_samples: usize,
 }
 
-#[derive(Debug, Clone)]
 struct ThreadFrameState<'a> {
     sframes_buf: VecDeque<SymbolicatedFrame>,
     last_orig_stack: Option<&'a VecDeque<Frame>>,
@@ -247,6 +245,16 @@ impl ThreadFrameState<'_> {
             last_orig_stack: None,
         }
     }
+}
+
+pub struct CounterSample {
+    time: MachAbsoluteTime,
+    value: u64,
+}
+
+pub struct CounterState {
+    counter: &'static dyn DynCounter,
+    samples: SegVec<CounterSample, SEGMENT_SIZE>,
 }
 
 pub struct Profiler {
@@ -310,7 +318,7 @@ impl Profiler {
         qos::set_thread_qos(QosClass::UserInteractive, None)?;
         set_realtime_scheduling(interval)?;
 
-        // before we start, find "hv_vcpu_run" and "hv_trap"
+        // find "hv_vcpu_run" for guest stack sampling
         let mut symbolicator = DladdrSymbolicator::new()?;
         let hv_vcpu_run = symbolicator.symbol_range("hv_vcpu_run")?;
 
@@ -322,6 +330,13 @@ impl Profiler {
         let mut threads = self.get_threads()?;
 
         let mut samples = SegVec::new();
+        let mut counters = counter::counters()
+            .iter()
+            .map(|&c| CounterState {
+                counter: c,
+                samples: SegVec::new(),
+            })
+            .collect::<Vec<_>>();
         let ktracer = Ktracer::start(&threads)?;
 
         info!("started");
@@ -387,6 +402,18 @@ impl Profiler {
                 };
             }
 
+            // sample counters, if any
+            if !counters.is_empty() {
+                let counters_sample_start = MachAbsoluteTime::now();
+                for counter in &mut counters {
+                    let value = counter.counter.read_raw();
+                    counter.samples.push(CounterSample {
+                        time: counters_sample_start,
+                        value,
+                    });
+                }
+            }
+
             let sample_batch_end = MachAbsoluteTime::now();
             let sample_batch_duration = sample_batch_end - sample_batch_start;
             sample_batch_histogram.record(sample_batch_duration.nanos())?;
@@ -405,7 +432,7 @@ impl Profiler {
         let end_time = MachAbsoluteTime::now();
         let wall_end_time = SystemTime::now();
 
-        let ktrace_results = ktracer.stop()?;
+        let ktrace_results = Some(ktracer.stop()?);
 
         dump_histogram("sample batch time", &sample_batch_histogram);
         dump_histogram("thread suspend time", &thread_suspend_histogram);
@@ -421,13 +448,16 @@ impl Profiler {
         };
 
         self.stop.store(false, Ordering::Relaxed);
+
         self.process_samples(
             samples,
             &info,
             &threads,
+            &counters,
             &thread_suspend_histogram,
-            &ktrace_results,
+            ktrace_results.as_ref(),
         )?;
+
         Ok(())
     }
 
@@ -563,8 +593,9 @@ impl Profiler {
         mut samples: SegVec<Sample, SEGMENT_SIZE>,
         info: &ProfileInfo,
         threads: &[ProfileeThread],
+        counters: &[CounterState],
         thread_suspend_histogram: &Histogram<u64>,
-        ktrace_results: &KtraceResults,
+        ktrace_results: Option<&KtraceResults>,
     ) -> anyhow::Result<()> {
         info!("processing samples");
 
@@ -617,38 +648,39 @@ impl Profiler {
             // this is bad, but fast and easy:
             // ktrace's vmfault injection is a special pre-symbolication transformation
             // needed because vmfaults are time-based, so samples with the same stack could have different stacks after vmfault injection
-            let sample_stack =
-                if let Some(kt_thread) = ktrace_results.threads.get(&sample.thread_id) {
-                    if kt_thread.is_time_in_fault(sample.sample_begin_time)
-                        || kt_thread.is_time_in_fault(sample.time)
-                    {
-                        // we were in a fault. let's inject a vmfault frame
+            let sample_stack = if let Some(kt_thread) =
+                ktrace_results.and_then(|r| r.threads.get(&sample.thread_id))
+            {
+                if kt_thread.is_time_in_fault(sample.sample_begin_time)
+                    || kt_thread.is_time_in_fault(sample.time)
+                {
+                    // we were in a fault. let's inject a vmfault frame
 
-                        // we always need to copy the stack for these:
-                        // - if this sample is SameAsLast, we need to copy the last unsymbolicated stack
-                        // - if this sample has a Stack, we need to copy it to modify it, because later samples might be SameAsLast but not in a fault
-                        let mut new_stack = match &sample.stack {
-                            SampleStack::Stack(stack) => stack.clone(),
-                            SampleStack::SameAsLast => thread_state
-                                .last_orig_stack
-                                .expect("no last stack to copy")
-                                .clone(),
-                        };
+                    // we always need to copy the stack for these:
+                    // - if this sample is SameAsLast, we need to copy the last unsymbolicated stack
+                    // - if this sample has a Stack, we need to copy it to modify it, because later samples might be SameAsLast but not in a fault
+                    let mut new_stack = match &sample.stack {
+                        SampleStack::Stack(stack) => stack.clone(),
+                        SampleStack::SameAsLast => thread_state
+                            .last_orig_stack
+                            .expect("no last stack to copy")
+                            .clone(),
+                    };
 
-                        // inject the frame
-                        new_stack.push_front(Frame::new(
-                            SampleCategory::HostKernel,
-                            HostKernelSymbolicator::ADDR_VMFAULT,
-                        ));
+                    // inject the frame
+                    new_stack.push_front(Frame::new(
+                        SampleCategory::HostKernel,
+                        HostKernelSymbolicator::ADDR_VMFAULT,
+                    ));
 
-                        _stack_copy = SampleStack::Stack(new_stack);
-                        &_stack_copy
-                    } else {
-                        &sample.stack
-                    }
+                    _stack_copy = SampleStack::Stack(new_stack);
+                    &_stack_copy
                 } else {
                     &sample.stack
-                };
+                }
+            } else {
+                &sample.stack
+            };
 
             let sframes = &mut thread_state.sframes_buf;
             match sample_stack {
@@ -712,6 +744,10 @@ impl Profiler {
 
         let ff_output_path = self.params.output_path.clone() + ".json";
         info!("writing to file: {}", &ff_output_path);
+        if let Some(ktrace_results) = ktrace_results {
+            ff_processor.add_ktrace_markers(ktrace_results);
+        }
+        ff_processor.add_counters(counters);
         ff_processor.write_to_path(total_bytes, thread_suspend_histogram, &ff_output_path)?;
         if let Err(e) = FirefoxApiServer::shared().add_and_open_profile(ff_output_path) {
             error!("failed to open in Firefox Profiler: {}", e);
