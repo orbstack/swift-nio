@@ -19,6 +19,7 @@ use dlopen_derive::WrapperApi;
 use hdrhistogram::Histogram;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
+use utils::extract_bits_64;
 use utils::kernel_symbols::CompactSystemMap;
 use utils::memory::GuestMemoryExt;
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
@@ -124,23 +125,6 @@ macro_rules! arm64_sys_reg {
 }
 
 arm64_sys_reg!(SYSREG_MASK, 0x3, 0x7, 0x7, 0xf, 0xf);
-
-/// Extract the specified bits of a 64-bit integer.
-/// For example, to extrace 2 bits from offset 1 (zero based) of `6u64`,
-/// following expression should return 3 (`0b11`):
-/// `extract_bits_64!(0b0000_0110u64, 1, 2)`
-///
-macro_rules! extract_bits_64 {
-    ($value: tt, $offset: tt, $length: tt) => {
-        ($value >> $offset) & (!0u64 >> (64 - $length))
-    };
-}
-
-macro_rules! extract_bits_64_without_offset {
-    ($value: tt, $length: tt) => {
-        $value & (!0u64 >> (64 - $length))
-    };
-}
 
 // macOS 12+ APIs
 static OPTIONAL12: Lazy<Option<Container<HvfOptional12>>> =
@@ -1292,7 +1276,7 @@ impl HvfVcpu {
 
         // PA or IPA size is determined
         let tcr_ips = extract_bits_64!(tcr_el1, 32, 3);
-        let pa_range = extract_bits_64_without_offset!(id_aa64mmfr0_el1, 4);
+        let pa_range = extract_bits_64!(id_aa64mmfr0_el1, 0, 4);
         // The IPA size in TCR_BL1 and PA Range in ID_AA64MMFR0_EL1 should match.
         // To be safe, we use the minimum value if they are different.
         let pa_range = std::cmp::min(tcr_ips, pa_range);
@@ -1325,7 +1309,7 @@ impl HvfVcpu {
         let descaddrmask = descaddrmask & !indexmask_grainsize;
 
         // Translation table base address
-        let mut descaddr: u64 = extract_bits_64_without_offset!(ttbr1_el1, 48);
+        let mut descaddr: u64 = extract_bits_64!(ttbr1_el1, 0, 48);
         // In the case of FEAT_LPA and FEAT_LPA2, the initial translation table
         // address bits [48:51] comes from TTBR1_EL1 bits [2:5].
         if pa_size == 52 {
