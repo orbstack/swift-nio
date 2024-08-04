@@ -16,7 +16,7 @@ use super::{Frame, ProfileInfo, SampleCategory, SymbolicatedFrame};
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
-struct Pid(i32);
+struct Pid(u32);
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -173,7 +173,11 @@ impl Sub for Milliseconds {
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(transparent)]
-struct Microseconds(u64);
+struct Microseconds(f64);
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(transparent)]
+struct Nanoseconds(u64);
 
 table_type!(
     CounterSample {
@@ -298,7 +302,7 @@ table_type!(FirefoxSample {
     time: Milliseconds,
     weight: f64,
     #[serde(rename = "threadCPUDelta")]
-    thread_cpu_delta: Microseconds,
+    thread_cpu_delta: Nanoseconds,
 }, FirefoxSampleTable {
     weight_type: WeightType,
 });
@@ -646,7 +650,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
             stack: stack_index,
             time: Milliseconds((sample.timestamp - self.info.start_time_abs).millis_f64()),
             weight: 1.0,
-            thread_cpu_delta: Microseconds(sample.cpu_time_delta_us as u64),
+            thread_cpu_delta: Nanoseconds(sample.cpu_time_delta_ns as u64),
         });
 
         Ok(())
@@ -670,12 +674,12 @@ impl<'a> FirefoxSampleProcessor<'a> {
                 .as_nanos() as f64
                 / 1_000_000.0,
         );
-        let main_thread_tid = self
+        let main_thread = self
             .threads
             .values()
-            .min_by_key(|t| t.thread.id().0)
-            .map(|t| t.thread.id().0)
-            .unwrap_or(0);
+            .min_by_key(|t| t.thread.id.0)
+            .unwrap()
+            .thread;
 
         let profile = FirefoxProfile {
             meta: ProfileMeta {
@@ -688,7 +692,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
                 product: "OrbStack".to_string(),
                 sample_units: SampleUnits {
                     event_delay: "ms".to_string(),
-                    thread_cpu_delta: ThreadCPUDeltaUnit::Microseconds,
+                    thread_cpu_delta: ThreadCPUDeltaUnit::Nanoseconds,
                     time: "ms".to_string(),
                 },
                 start_time,
@@ -709,8 +713,8 @@ impl<'a> FirefoxSampleProcessor<'a> {
                 .threads
                 .values()
                 .map(|t| FirefoxThread {
-                    tid: t.thread.id().0 as u64,
-                    name: t.thread.name.clone(),
+                    tid: t.thread.id.0,
+                    name: t.thread.display_name(),
                     // TODO: ?
                     process_type: "default".to_string(),
                     resource_table: (&t.resources).into(),
@@ -725,7 +729,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
                         std::env::current_exe().unwrap().to_str().unwrap(),
                     )
                     .to_string(),
-                    is_main_thread: t.thread.id().0 == main_thread_tid,
+                    is_main_thread: t.thread.id == main_thread.id,
                     pid: Pid(self.info.pid),
                     paused_ranges: vec![],
                     process_startup_time: Milliseconds(0.0),

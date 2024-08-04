@@ -142,7 +142,7 @@ impl SampleCategory {
 #[derive(Debug)]
 struct Sample {
     timestamp: MachAbsoluteTime,
-    cpu_time_delta_us: u32,
+    cpu_time_delta_ns: u32,
     thread_id: ThreadId,
     stack: SampleStack,
 }
@@ -204,7 +204,7 @@ pub struct ProfilerVcpuInit {
 
 #[derive(Debug, Clone)]
 pub struct ProfileInfo {
-    pub pid: i32,
+    pub pid: u32,
     pub start_time: SystemTime,
     pub start_time_abs: MachAbsoluteTime,
     pub end_time: SystemTime,
@@ -285,6 +285,7 @@ impl Profiler {
         let mut samples = SegVec::new();
 
         // get time again before starting the loop
+        let mut thread_info_histogram = Histogram::<u64>::new(3)?;
         let interval_mach = MachAbsoluteDuration::from_duration(interval);
         let mut next_target_time = MachAbsoluteTime::now() + interval_mach;
         loop {
@@ -311,6 +312,7 @@ impl Profiler {
 
                 match thread.sample(
                     &mut host_unwinder,
+                    &mut thread_info_histogram,
                     &mut thread_suspend_histogram,
                     &hv_vcpu_run,
                     &hv_trap,
@@ -325,7 +327,7 @@ impl Profiler {
                         thread.stopped_at = Some(MachAbsoluteTime::now());
                     }
                     Err(e) => {
-                        error!("failed to sample thread {:?}: {}", thread.id(), e);
+                        error!("failed to sample thread {:?}: {}", thread.id, e);
                         continue;
                     }
                 };
@@ -351,9 +353,10 @@ impl Profiler {
 
         dump_histogram("sample batch time", &sample_batch_histogram);
         dump_histogram("thread suspend time", &thread_suspend_histogram);
+        dump_histogram("thread info time", &thread_info_histogram);
 
         let info = ProfileInfo {
-            pid: unsafe { libc::getpid() },
+            pid: std::process::id(),
             start_time: wall_start_time,
             start_time_abs: profile_start_time,
             end_time: wall_end_time,
@@ -414,6 +417,14 @@ impl Profiler {
             check_mach!(mach_port_deallocate(mach_task_self(), p)).unwrap();
         });
 
+        let id = match ThreadId::from_port(*thread_port) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("failed to get thread ID: {}", e);
+                return Ok(());
+            }
+        };
+
         let mut info: thread_extended_info = unsafe { std::mem::zeroed() };
         let mut info_count = THREAD_EXTENDED_INFO_COUNT;
         match unsafe {
@@ -463,7 +474,8 @@ impl Profiler {
             receiver.recv()?;
         }
 
-        threads.push(ProfileeThread::new(*thread_port, name, vcpu));
+        let option_name = if name.is_empty() { None } else { Some(name) };
+        threads.push(ProfileeThread::new(id, *thread_port, option_name, vcpu));
 
         // we've added it, so now the port is owned by ProfileeThread
         std::mem::forget(thread_port);
@@ -497,12 +509,12 @@ impl Profiler {
 
         let threads_map = threads
             .iter()
-            .map(|t| (t.id(), t))
+            .map(|t| (t.id, t))
             .collect::<AHashMap<_, _>>();
 
         let mut last_thread_stacks: AHashMap<ThreadId, Vec<SymbolicatedFrame>> = threads
             .iter()
-            .map(|t| (t.id(), Vec::with_capacity(STACK_DEPTH_LIMIT)))
+            .map(|t| (t.id, Vec::with_capacity(STACK_DEPTH_LIMIT)))
             .collect();
         let mut guest_context = self.get_guest_context(threads)?;
 

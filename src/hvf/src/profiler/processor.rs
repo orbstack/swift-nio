@@ -155,7 +155,7 @@ impl<'a> TextSampleProcessor<'a> {
                 name: self
                     .threads_map
                     .get(&sample.thread_id)
-                    .map(|t| t.name.clone()),
+                    .and_then(|t| t.name.clone()),
                 stacks: StackTree::new(),
             });
 
@@ -175,7 +175,7 @@ impl<'a> TextSampleProcessor<'a> {
 
         // sort by name, not by ID
         let mut threads = self.threads.iter().collect::<Vec<_>>();
-        threads.sort_by_key(|(_, t)| t.name.clone());
+        // threads.sort_by_key(|(_, t)| t.name.clone());
         for (thread_id, thread_node) in threads {
             writeln!(
                 buf_writer,

@@ -17,8 +17,8 @@ impl MachAbsoluteTime {
         Self(unsafe { mach_absolute_time() })
     }
 
-    pub fn dummy() -> Self {
-        Self(0)
+    pub fn from_raw(raw: u64) -> Self {
+        Self(raw)
     }
 }
 
@@ -98,10 +98,6 @@ impl MachAbsoluteDuration {
 
     pub fn seconds(&self) -> u64 {
         self.nanos() / 1_000_000_000
-    }
-
-    pub fn dummy() -> Self {
-        Self(0)
     }
 }
 
