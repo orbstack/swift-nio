@@ -9,10 +9,9 @@ use libc::{
     proc_pidinfo, proc_threadinfo, thread_flavor_t, thread_identifier_info, thread_info,
     THREAD_IDENTIFIER_INFO, THREAD_IDENTIFIER_INFO_COUNT,
 };
-use mach2::{mach_port::mach_port_deallocate, traps::mach_task_self};
+use mach2::{mach_port::mach_port_deallocate, port::mach_port_t, traps::mach_task_self};
 #[allow(deprecated)] // mach2 doesn't have this
 use mach2::{
-    mach_types::thread_act_t,
     structs::arm_thread_state64_t,
     thread_act::{thread_get_state, thread_resume, thread_suspend},
     thread_status::ARM_THREAD_STATE64,
@@ -50,16 +49,31 @@ pub enum SampleError {
     Unwind(UnwindError),
 }
 
+#[derive(Debug)]
+pub struct MachPort(pub mach_port_t);
+
+impl MachPort {
+    pub unsafe fn from_raw(port: mach_port_t) -> Self {
+        Self(port)
+    }
+}
+
+impl Drop for MachPort {
+    fn drop(&mut self) {
+        unsafe { check_mach!(mach_port_deallocate(mach_task_self(), self.0)).unwrap() };
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct ThreadId(pub u64);
 
 impl ThreadId {
-    pub(crate) fn from_port(port: thread_act_t) -> MachResult<Self> {
+    pub(crate) fn from_port(port: &MachPort) -> MachResult<Self> {
         let mut info = MaybeUninit::<thread_identifier_info>::uninit();
         let mut info_count = THREAD_IDENTIFIER_INFO_COUNT;
         unsafe {
             check_mach!(thread_info(
-                port,
+                port.0,
                 THREAD_IDENTIFIER_INFO as thread_flavor_t,
                 &mut info as *mut _ as *mut _,
                 &mut info_count,
@@ -73,18 +87,18 @@ impl ThreadId {
 
 #[derive(Debug, Copy, Clone)]
 struct ThreadCpuInfo {
-    user_time_ns: u64,
-    system_time_ns: u64,
+    user_time_us: u64,
+    system_time_us: u64,
 }
 
 pub struct ProfileeThread {
     pub id: ThreadId,
-    pub port: thread_act_t,
+    pub port: MachPort,
     pub vcpu: Option<ArcVcpuHandle>,
     pub name: Option<String>,
     pid: u32,
 
-    pub last_cpu_time_ns: Option<u64>,
+    pub last_cpu_time_us: Option<u64>,
 
     pub added_at: MachAbsoluteTime,
     pub stopped_at: Option<MachAbsoluteTime>,
@@ -93,7 +107,7 @@ pub struct ProfileeThread {
 impl ProfileeThread {
     pub fn new(
         id: ThreadId,
-        port: thread_act_t,
+        port: MachPort,
         name: Option<String>,
         vcpu: Option<ArcVcpuHandle>,
     ) -> Self {
@@ -103,7 +117,7 @@ impl ProfileeThread {
             vcpu,
             name,
             pid: std::process::id(),
-            last_cpu_time_ns: None,
+            last_cpu_time_us: None,
             added_at: MachAbsoluteTime::now(),
             stopped_at: None,
         }
@@ -128,19 +142,27 @@ impl ProfileeThread {
         };
         Errno::result(ret)?;
 
+        // pth_flags and pth_run_state:
+        // run_state = TH_STATE_RUNNING, flags = 0: running
+        // run_state = TH_STATE_RUNNING, flags = TH_FLAGS_SWAPPED: preempted
+        // run_state = TH_STATE_WAITING: interruptible wait
+        //   * why is there both flags=SWAPPED and flags=0 for this?
+        // run_state = TH_STATE_UNINTERRUPTIBLE: uninterruptible wait
+
         let info = unsafe { info.assume_init() };
         Ok(ThreadCpuInfo {
             // kernel converts the time_value_t to nanoseconds (same as THREAD_EXTENDED_INFO)
-            user_time_ns: info.pth_user_time,
-            system_time_ns: info.pth_system_time,
+            // but the native time_value_t unit is microseconds, so no point in storing more
+            user_time_us: info.pth_user_time / 1000,
+            system_time_us: info.pth_system_time / 1000,
         })
     }
 
-    fn get_cpu_time_delta_ns(&mut self) -> nix::Result<Option<u64>> {
+    fn get_cpu_time_delta_us(&mut self) -> nix::Result<Option<u64>> {
         let info = self.get_cpu_info()?;
-        let cpu_time_ns = info.user_time_ns + info.system_time_ns;
-        let delta = self.last_cpu_time_ns.map(|last| cpu_time_ns - last);
-        self.last_cpu_time_ns = Some(cpu_time_ns);
+        let cpu_time_us = info.user_time_us + info.system_time_us;
+        let delta = self.last_cpu_time_us.map(|last| cpu_time_us - last);
+        self.last_cpu_time_us = Some(cpu_time_us);
         Ok(delta)
     }
 
@@ -150,7 +172,7 @@ impl ProfileeThread {
         let mut count = size_of::<arm_thread_state64_t>() as u32 / size_of::<natural_t>() as u32;
         unsafe {
             check_mach!(thread_get_state(
-                self.port,
+                self.port.0,
                 ARM_THREAD_STATE64,
                 state.as_mut_ptr() as *mut _,
                 &mut count,
@@ -174,19 +196,24 @@ impl ProfileeThread {
         thread_suspend_histogram: &mut Histogram<u64>,
         hv_vcpu_run: &Option<Range<usize>>,
     ) -> Result<SampleResult, SampleError> {
-        let cpu_time_delta_us = match self.get_cpu_time_delta_ns() {
+        let cpu_time_delta_us = match self.get_cpu_time_delta_us() {
             // no CPU time elapsed; thread is idle, and this isn't the first sample
             Ok(Some(0)) => {
+                let now = MachAbsoluteTime::now();
                 return Ok(SampleResult::Sample(Sample {
-                    timestamp: MachAbsoluteTime::now(),
-                    cpu_time_delta_ns: 0,
+                    time: now,
+                    sample_begin_time: now,
+                    cpu_time_delta_us: 0,
                     thread_id: self.id,
                     stack: SampleStack::SameAsLast,
-                }))
+                }));
             }
 
-            // some CPU has been used
-            Ok(delta) => delta,
+            // some CPU has been used; not first sample
+            Ok(Some(delta)) => delta as u32,
+
+            // first sample
+            Ok(None) => 0,
 
             // thread is gone
             Err(Errno::ESRCH) => {
@@ -203,7 +230,8 @@ impl ProfileeThread {
         let mut stack = VecDeque::with_capacity(STACK_DEPTH_LIMIT);
 
         // suspend the thread
-        unsafe { check_mach!(thread_suspend(self.port)).map_err(SampleError::ThreadSuspend)? };
+        let before_suspend = MachAbsoluteTime::now();
+        unsafe { check_mach!(thread_suspend(self.port.0)).map_err(SampleError::ThreadSuspend)? };
         let suspend_begin = MachAbsoluteTime::now();
 
         /*
@@ -213,9 +241,13 @@ impl ProfileeThread {
          */
 
         let _guard = scopeguard::guard((), |_| {
-            match unsafe { check_mach!(thread_resume(self.port)) } {
+            match unsafe { check_mach!(thread_resume(self.port.0)) } {
                 Ok(_) => {}
-                Err(MachError::MachSendInvalidDest) => {
+                Err(
+                    MachError::InvalidArgument
+                    | MachError::Terminated
+                    | MachError::MachSendInvalidDest,
+                ) => {
                     // thread was dying
                     return;
                 }
@@ -243,8 +275,9 @@ impl ProfileeThread {
             .map_err(SampleError::Unwind)?;
 
         let sample = Sample {
-            timestamp,
-            cpu_time_delta_ns: cpu_time_delta_us.unwrap_or(0) as u32,
+            time: timestamp,
+            sample_begin_time: before_suspend,
+            cpu_time_delta_us,
             thread_id: self.id,
             stack: SampleStack::Stack(stack),
         };
@@ -279,11 +312,5 @@ impl ProfileeThread {
         drop(_guard);
 
         Ok(SampleResult::Sample(sample))
-    }
-}
-
-impl Drop for ProfileeThread {
-    fn drop(&mut self) {
-        unsafe { check_mach!(mach_port_deallocate(mach_task_self(), self.port)).unwrap() };
     }
 }

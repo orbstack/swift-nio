@@ -17,13 +17,13 @@ use buffer::SegVec;
 use crossbeam::queue::ArrayQueue;
 use firefox::FirefoxSampleProcessor;
 use hdrhistogram::Histogram;
+use ktrace::{KtraceResults, Ktracer};
 use libc::{
     thread_extended_info, thread_flavor_t, thread_info, THREAD_EXTENDED_INFO,
     THREAD_EXTENDED_INFO_COUNT,
 };
 use mach2::{
-    kern_return::kern_return_t,
-    mach_port::mach_port_deallocate,
+    kern_return::{kern_return_t, KERN_INVALID_ARGUMENT, KERN_TERMINATED},
     mach_time::mach_wait_until,
     mach_types::{thread_act_array_t, thread_act_t},
     message::{mach_msg_type_number_t, MACH_SEND_INVALID_DEST},
@@ -40,9 +40,9 @@ use stats::dump_histogram;
 use symbolicator::{
     CachedSymbolicator, DladdrSymbolicator, LinuxSymbolicator, SymbolResult, Symbolicator,
 };
-use thread::{ProfileeThread, SampleError, SampleResult, ThreadId};
+use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId};
 use time::{MachAbsoluteDuration, MachAbsoluteTime};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use transform::{
     CgoStackTransform, LeafCallTransform, LinuxIrqStackTransform, StackTransform, SyscallTransform,
 };
@@ -57,6 +57,7 @@ use crate::{VcpuHandleInner, VcpuRegistry};
 mod buffer;
 mod firefox;
 mod ktrace;
+mod memory;
 mod processor;
 mod sched;
 mod server;
@@ -91,6 +92,12 @@ macro_rules! check_mach {
 
 #[derive(thiserror::Error, Debug)]
 pub enum MachError {
+    // kernel RPC server normally deallocates ports so that dead threads return MACH_SEND_INVALID_DEST, but sometimes there's a race: INVALID_ARGUMENT = couldn't find thread, and TERMINATED = thread still exists but is in terminated state
+    #[error("INVALID_ARGUMENT")]
+    InvalidArgument,
+    #[error("TERMINATED")]
+    Terminated,
+
     #[error("MACH_SEND_INVALID_DEST")]
     MachSendInvalidDest,
     #[error("mach error: {0}")]
@@ -100,6 +107,8 @@ pub enum MachError {
 impl MachError {
     fn from_ret(ret: kern_return_t) -> Self {
         match ret {
+            KERN_INVALID_ARGUMENT => Self::InvalidArgument,
+            KERN_TERMINATED => Self::Terminated,
             MACH_SEND_INVALID_DEST => Self::MachSendInvalidDest,
             _ => Self::Other(ret),
         }
@@ -143,8 +152,11 @@ impl SampleCategory {
 
 #[derive(Debug)]
 struct Sample {
-    timestamp: MachAbsoluteTime,
-    cpu_time_delta_ns: u32,
+    // when the sample was actually collected (i.e. after thread_suspend)
+    time: MachAbsoluteTime,
+    // when we started trying to collect the sample (i.e. before thread_suspend)
+    sample_begin_time: MachAbsoluteTime,
+    cpu_time_delta_us: u32,
     thread_id: ThreadId,
     stack: SampleStack,
 }
@@ -152,6 +164,7 @@ struct Sample {
 #[derive(Debug)]
 enum SampleStack {
     Stack(VecDeque<Frame>),
+    // doesn't change size because VecDeque uses Unique for its pointer
     SameAsLast,
 }
 
@@ -218,6 +231,21 @@ pub struct ProfileInfo {
     pub end_time_abs: MachAbsoluteTime,
     pub params: ProfilerParams,
     pub num_samples: usize,
+}
+
+#[derive(Debug, Clone)]
+struct ThreadFrameState<'a> {
+    sframes_buf: VecDeque<SymbolicatedFrame>,
+    last_orig_stack: Option<&'a VecDeque<Frame>>,
+}
+
+impl ThreadFrameState<'_> {
+    fn new() -> Self {
+        Self {
+            sframes_buf: VecDeque::new(),
+            last_orig_stack: None,
+        }
+    }
 }
 
 pub struct Profiler {
@@ -296,6 +324,7 @@ impl Profiler {
         let mut threads = self.get_threads()?;
 
         let mut samples = SegVec::new();
+        let ktracer = Ktracer::start(&threads)?;
 
         info!("started");
 
@@ -339,8 +368,16 @@ impl Profiler {
                         samples.push(sample);
                     }
                     Ok(SampleResult::Queued) | Ok(SampleResult::ThreadStopped) => {}
-                    Err(SampleError::ThreadSuspend(MachError::MachSendInvalidDest))
-                    | Err(SampleError::ThreadGetState(MachError::MachSendInvalidDest)) => {
+                    Err(SampleError::ThreadSuspend(
+                        MachError::InvalidArgument
+                        | MachError::Terminated
+                        | MachError::MachSendInvalidDest,
+                    ))
+                    | Err(SampleError::ThreadGetState(
+                        MachError::InvalidArgument
+                        | MachError::Terminated
+                        | MachError::MachSendInvalidDest,
+                    )) => {
                         // thread is gone
                         thread.stopped_at = Some(MachAbsoluteTime::now());
                     }
@@ -356,7 +393,7 @@ impl Profiler {
             sample_batch_histogram.record(sample_batch_duration.nanos())?;
 
             if sample_batch_end > next_target_time {
-                error!(
+                warn!(
                     "sample batch took too long: timer={:?} sampling={:?}",
                     sample_batch_start - (next_target_time - interval_mach),
                     sample_batch_duration
@@ -368,6 +405,8 @@ impl Profiler {
 
         let end_time = MachAbsoluteTime::now();
         let wall_end_time = SystemTime::now();
+
+        let ktrace_results = ktracer.stop()?;
 
         dump_histogram("sample batch time", &sample_batch_histogram);
         dump_histogram("thread suspend time", &thread_suspend_histogram);
@@ -383,7 +422,13 @@ impl Profiler {
         };
 
         self.stop.store(false, Ordering::Relaxed);
-        self.process_samples(samples, &info, &threads, &thread_suspend_histogram)?;
+        self.process_samples(
+            samples,
+            &info,
+            &threads,
+            &thread_suspend_histogram,
+            &ktrace_results,
+        )?;
         Ok(())
     }
 
@@ -431,11 +476,9 @@ impl Profiler {
         thread_port: thread_act_t,
     ) -> anyhow::Result<()> {
         // make sure we drop the port if this fails
-        let thread_port = scopeguard::guard(thread_port, |p| unsafe {
-            check_mach!(mach_port_deallocate(mach_task_self(), p)).unwrap();
-        });
+        let thread_port = unsafe { MachPort::from_raw(thread_port) };
 
-        let id = match ThreadId::from_port(*thread_port) {
+        let id = match ThreadId::from_port(&thread_port) {
             Ok(id) => id,
             Err(e) => {
                 error!("failed to get thread ID: {}", e);
@@ -447,14 +490,16 @@ impl Profiler {
         let mut info_count = THREAD_EXTENDED_INFO_COUNT;
         match unsafe {
             check_mach!(thread_info(
-                *thread_port,
+                thread_port.0,
                 THREAD_EXTENDED_INFO as thread_flavor_t,
                 &mut info as *mut _ as *mut _,
                 &mut info_count,
             ))
         } {
             Ok(()) => {}
-            Err(MachError::MachSendInvalidDest) => {
+            Err(
+                MachError::InvalidArgument | MachError::Terminated | MachError::MachSendInvalidDest,
+            ) => {
                 // thread is gone
                 return Ok(());
             }
@@ -493,10 +538,7 @@ impl Profiler {
         }
 
         let option_name = if name.is_empty() { None } else { Some(name) };
-        threads.push(ProfileeThread::new(id, *thread_port, option_name, vcpu));
-
-        // we've added it, so now the port is owned by ProfileeThread
-        std::mem::forget(thread_port);
+        threads.push(ProfileeThread::new(id, thread_port, option_name, vcpu));
 
         Ok(())
     }
@@ -523,6 +565,7 @@ impl Profiler {
         info: &ProfileInfo,
         threads: &[ProfileeThread],
         thread_suspend_histogram: &Histogram<u64>,
+        ktrace_results: &KtraceResults,
     ) -> anyhow::Result<()> {
         info!("processing samples");
 
@@ -531,9 +574,10 @@ impl Profiler {
             .map(|t| (t.id, t))
             .collect::<AHashMap<_, _>>();
 
-        let mut last_thread_stacks: AHashMap<ThreadId, VecDeque<SymbolicatedFrame>> = threads
+        // this also needs to be VecDeque to allow for fast push/pop/drain in StackTransforms
+        let mut thread_states: AHashMap<ThreadId, ThreadFrameState> = threads
             .iter()
-            .map(|t| (t.id, VecDeque::with_capacity(STACK_DEPTH_LIMIT)))
+            .map(|t| (t.id, ThreadFrameState::new()))
             .collect();
         let mut guest_context = self.get_guest_context(threads)?;
 
@@ -558,10 +602,53 @@ impl Profiler {
         for sample in &mut samples {
             total_bytes += size_of::<Sample>();
 
-            let sframes = last_thread_stacks
+            let thread_state = thread_states
                 .get_mut(&sample.thread_id)
                 .expect("missing thread stack");
-            match &sample.stack {
+
+            // save last original stack for SameAsLast, before we potentially inject vmfaults
+            if let SampleStack::Stack(stack) = &sample.stack {
+                thread_state.last_orig_stack = Some(stack);
+            }
+
+            // to own a potential stack copy
+            let mut _stack_copy: SampleStack;
+
+            // this is bad, but fast and easy:
+            // ktrace's vmfault injection is a special pre-symbolication transformation
+            // needed because vmfaults are time-based, so samples with the same stack could have different stacks after vmfault injection
+            let sample_stack =
+                if let Some(kt_thread) = ktrace_results.threads.get(&sample.thread_id) {
+                    if kt_thread.is_time_in_fault(sample.sample_begin_time)
+                        || kt_thread.is_time_in_fault(sample.time)
+                    {
+                        // we were in a fault. let's inject a vmfault frame
+
+                        // we always need to copy the stack for these:
+                        // - if this sample is SameAsLast, we need to copy the last unsymbolicated stack
+                        // - if this sample has a Stack, we need to copy it to modify it, because later samples might be SameAsLast but not in a fault
+                        let mut new_stack = match &sample.stack {
+                            SampleStack::Stack(stack) => stack.clone(),
+                            SampleStack::SameAsLast => thread_state
+                                .last_orig_stack
+                                .expect("no last stack to copy")
+                                .clone(),
+                        };
+
+                        // inject the frame
+                        new_stack.push_front(Frame::new(SampleCategory::HostKernel, 0));
+
+                        _stack_copy = SampleStack::Stack(new_stack);
+                        &_stack_copy
+                    } else {
+                        &sample.stack
+                    }
+                } else {
+                    &sample.stack
+                };
+
+            let sframes = &mut thread_state.sframes_buf;
+            match sample_stack {
                 SampleStack::Stack(stack) => {
                     // symbolicate the frames
                     // reuse the Vec to avoid allocations
@@ -603,7 +690,6 @@ impl Profiler {
                         })
                         .for_each(|sframe| sframes.push_back(sframe));
 
-                    // we always allocate full capacity
                     total_bytes += stack.capacity() * size_of::<Frame>();
 
                     // apply transforms

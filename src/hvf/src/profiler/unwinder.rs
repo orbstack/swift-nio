@@ -14,13 +14,9 @@ use tracing::info;
 
 use crate::check_mach;
 
+use super::memory::{is_valid_address, read_host_mem_aligned, PAC_MASK};
+
 pub const STACK_DEPTH_LIMIT: usize = 128;
-
-// no real address can be in __PAGEZERO (which is the full 32-bit space)
-const MIN_ADDR: u64 = 0x100000000;
-
-// mask out PAC signature, assuming 47-bit VA (machdep.virtual_address_size)
-const PAC_MASK: u64 = u64::MAX >> 17;
 
 #[derive(thiserror::Error, Debug)]
 pub enum UnwindError {}
@@ -47,61 +43,54 @@ impl Unwinder for FramePointerUnwinder {
         // start with just PC and LR
         f(regs.pc);
 
-        // subtract 1 for lookup
-        // TODO: this logic should probably be in symbolicator?
+        // LR may be loaded from stack, so strip PAC signature
         let initial_lr = regs.lr & PAC_MASK;
-        if initial_lr >= MIN_ADDR {
+        // validate address: LR could be used as a scratch register in the middle of the function
+        if is_valid_address(initial_lr) {
+            // TODO: subtract 1 for lookup?
             f(initial_lr);
         }
 
-        //println!("walking stack: PC={:x}, LR={:x}", regs.pc, regs.lr);
         // then start looking at FP
         let mut fp = regs.fp;
         // subtract 2 for first two frames (PC and LR)
         for i in 0..(STACK_DEPTH_LIMIT - 2) {
-            // if bit 60 is set in FP, this is a swift async frame
-            // but FP still points to the next FP, and AsyncContext is at FP-8, so we don't have to do anything except clearing the async bit to avoid triggering the high-bit bail out check below
-            fp &= !(1 << 60);
-
             if fp == 0 {
                 // reached end of stack
                 break;
             }
 
-            // avoid segfaulting:
-            // high bits set = invalid address
-            // TODO: handle Cgo stacks
-            if fp & !PAC_MASK != 0 {
-                break;
-            }
-            // below zero page = invalid address
-            if fp < MIN_ADDR {
-                break;
-            }
+            // if bit 60 is set in FP, this is a swift async frame
+            // but FP still points to the next FP, and AsyncContext is at FP-8, so we don't have to do anything except clearing the async bit to avoid triggering the high-bit bail out check below
+            fp &= !(1 << 60);
 
             // mem[FP+8] = frame's LR
-            //println!("walking stack: fp={:x}", fp);
-            let frame_lr = unsafe { ((fp + 8) as *const u64).read() } & PAC_MASK;
+            let Some(mut frame_lr) = (unsafe { read_host_mem_aligned::<u64>(fp + 8) }) else {
+                // invalid address
+                break;
+            };
+            // strip PAC signature
+            frame_lr &= PAC_MASK;
             if frame_lr == 0 {
                 // reached end of stack
                 break;
             }
-            // below zero page = invalid address
-            if frame_lr < MIN_ADDR {
+            if !is_valid_address(frame_lr) {
                 break;
             }
 
-            //println!("got LR: {:x}", frame_lr);
-            // TODO: subtract LR
             if i == 0 && frame_lr == initial_lr {
                 // skip duplicate LR if FP was already updated (i.e. not in prologue or epilogue)
             } else {
+                // TODO: subtract 1 for lookup?
                 f(frame_lr);
             }
 
             // mem[FP] = link to last FP
-            fp = unsafe { (fp as *const u64).read() };
-            //println!("got FP: {:x}", fp);
+            let Some(next_fp) = (unsafe { read_host_mem_aligned::<u64>(fp) }) else {
+                break;
+            };
+            fp = next_fp;
         }
 
         Ok(())

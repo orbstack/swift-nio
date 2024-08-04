@@ -1,6 +1,9 @@
 use std::collections::VecDeque;
 
-use super::{symbolicator::SymbolResult, Frame, SampleCategory, SymbolicatedFrame};
+use super::{
+    memory::read_host_mem_aligned, symbolicator::SymbolResult, Frame, SampleCategory,
+    SymbolicatedFrame,
+};
 
 const ARM64_INSN_SIZE: u64 = 4;
 const ARM64_INSN_SVC_0X80: u32 = 0xd4001001;
@@ -167,8 +170,11 @@ impl SyscallTransform {
 
         // XNU uses "svc 0x80" which assembles to 0xd4001001
         // read is safe: instructions should always be aligned
-        let insn = unsafe { (svc_pc as *const u32).read() };
-        insn == ARM64_INSN_SVC_0X80
+        if let Some(insn) = unsafe { read_host_mem_aligned::<u32>(svc_pc) } {
+            insn == ARM64_INSN_SVC_0X80
+        } else {
+            false
+        }
     }
 }
 

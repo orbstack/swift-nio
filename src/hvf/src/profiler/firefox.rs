@@ -201,10 +201,6 @@ impl Sub for Milliseconds {
 #[serde(transparent)]
 struct Microseconds(f64);
 
-#[derive(Serialize, Debug, Copy, Clone)]
-#[serde(transparent)]
-struct Nanoseconds(u64);
-
 table_type!(
     CounterSample {
         time: Milliseconds,
@@ -328,7 +324,7 @@ table_type!(FirefoxSample {
     time: Milliseconds,
     weight: f64,
     #[serde(rename = "threadCPUDelta")]
-    thread_cpu_delta: Nanoseconds,
+    thread_cpu_delta: Microseconds,
 }, FirefoxSampleTable {
     weight_type: WeightType,
 });
@@ -674,9 +670,9 @@ impl<'a> FirefoxSampleProcessor<'a> {
 
         thread.samples.push(FirefoxSample {
             stack: stack_index,
-            time: Milliseconds((sample.timestamp - self.info.start_time_abs).millis_f64()),
+            time: Milliseconds((sample.time - self.info.start_time_abs).millis_f64()),
             weight: 1.0,
-            thread_cpu_delta: Nanoseconds(sample.cpu_time_delta_ns as u64),
+            thread_cpu_delta: Microseconds(sample.cpu_time_delta_us as f64),
         });
 
         Ok(())
@@ -698,13 +694,6 @@ impl<'a> FirefoxSampleProcessor<'a> {
                 .as_nanos() as f64
                 / 1_000_000.0,
         );
-        let end_time = Milliseconds(
-            self.info
-                .end_time
-                .duration_since(SystemTime::UNIX_EPOCH)?
-                .as_nanos() as f64
-                / 1_000_000.0,
-        );
         let main_thread = self
             .threads
             .values()
@@ -717,19 +706,25 @@ impl<'a> FirefoxSampleProcessor<'a> {
                 categories: &self.categories.values,
                 debug: cfg!(debug_assertions),
                 extensions: ExtensionTable::default(),
-                interval: Milliseconds(1_000.0 / self.info.params.sample_rate as f64),
+                interval: Milliseconds(1000.0 / self.info.params.sample_rate as f64),
                 preprocessed_profile_version: 46,
                 process_type: 0,
                 product: "OrbStack".to_string(),
                 sample_units: SampleUnits {
                     event_delay: "ms".to_string(),
-                    thread_cpu_delta: ThreadCPUDeltaUnit::Nanoseconds,
+                    thread_cpu_delta: ThreadCPUDeltaUnit::Microseconds,
                     time: "ms".to_string(),
                 },
+                // Unix epoch time
                 start_time,
+                // our process never ended; the profile did
                 end_time: None,
-                profiling_start_time: Some(start_time),
-                profiling_end_time: Some(end_time),
+                // milliseconds relative to start
+                profiling_start_time: Some(Milliseconds(0.0)),
+                profiling_end_time: Some(Milliseconds(
+                    (self.info.end_time.duration_since(self.info.start_time)?).as_nanos() as f64
+                        / 1_000_000.0,
+                )),
                 symbolicated: true,
                 version: 24,
                 uses_only_one_stack_type: true,
