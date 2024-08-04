@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 
 use super::{
-    memory::read_host_mem_aligned, symbolicator::SymbolResult, Frame, SampleCategory,
-    SymbolicatedFrame,
+    memory::read_host_mem_aligned,
+    symbolicator::{HostKernelSymbolicator, SymbolResult},
+    Frame, SampleCategory, SymbolicatedFrame,
 };
 
 const ARM64_INSN_SIZE: u64 = 4;
@@ -206,7 +207,7 @@ impl StackTransform for SyscallTransform {
                     addr: pc.frame.addr,
                 },
                 symbol: Some(SymbolResult {
-                    image: "xnu".to_string(),
+                    image: HostKernelSymbolicator::IMAGE.to_string(),
                     image_base: 0,
                     symbol_offset: Some((format!("syscall: {}", syscall_name), 0)),
                 }),

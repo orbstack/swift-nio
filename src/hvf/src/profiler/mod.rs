@@ -38,7 +38,8 @@ use serde::{Deserialize, Serialize};
 use server::FirefoxApiServer;
 use stats::dump_histogram;
 use symbolicator::{
-    CachedSymbolicator, DladdrSymbolicator, LinuxSymbolicator, SymbolResult, Symbolicator,
+    CachedSymbolicator, DladdrSymbolicator, HostKernelSymbolicator, LinuxSymbolicator,
+    SymbolResult, Symbolicator,
 };
 use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId};
 use time::{MachAbsoluteDuration, MachAbsoluteTime};
@@ -318,9 +319,6 @@ impl Profiler {
         let mut sample_batch_histogram = Histogram::<u64>::new(3)?;
         let mut thread_suspend_histogram = Histogram::<u64>::new(3)?;
 
-        // must be before we start adding threads, to avoid overflow
-        let profile_start_time = MachAbsoluteTime::now();
-        let wall_start_time = SystemTime::now();
         let mut threads = self.get_threads()?;
 
         let mut samples = SegVec::new();
@@ -328,11 +326,12 @@ impl Profiler {
 
         info!("started");
 
-        // get time again before starting the loop
         let interval_mach = MachAbsoluteDuration::from_duration(interval);
-        let mut next_target_time = MachAbsoluteTime::now() + interval_mach;
+        let wall_start_time = SystemTime::now();
+        let profile_start_time = MachAbsoluteTime::now();
+        let mut next_target_time = profile_start_time + interval_mach;
         let stop_time = duration
-            .map(|d| MachAbsoluteTime::now() + MachAbsoluteDuration::from_duration(d))
+            .map(|d| profile_start_time + MachAbsoluteDuration::from_duration(d))
             .unwrap_or(MachAbsoluteTime::MAX);
         loop {
             // try to sample at a monotonic rate
@@ -590,6 +589,7 @@ impl Profiler {
         }
 
         let mut host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
+        let mut host_kernel_symbolicator = HostKernelSymbolicator::new()?;
 
         let cgo_transform = CgoStackTransform {};
         let irq_transform = LinuxIrqStackTransform {};
@@ -636,7 +636,10 @@ impl Profiler {
                         };
 
                         // inject the frame
-                        new_stack.push_front(Frame::new(SampleCategory::HostKernel, 0));
+                        new_stack.push_front(Frame::new(
+                            SampleCategory::HostKernel,
+                            HostKernelSymbolicator::ADDR_VMFAULT,
+                        ));
 
                         _stack_copy = SampleStack::Stack(new_stack);
                         &_stack_copy
@@ -671,11 +674,9 @@ impl Profiler {
                                     image_base: 0,
                                     symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
                                 })),
-                                SampleCategory::HostKernel => Ok(Some(SymbolResult {
-                                    image: "xnu".to_string(),
-                                    image_base: 0,
-                                    symbol_offset: Some(("<HOST KERNEL>".to_string(), 0)),
-                                })),
+                                SampleCategory::HostKernel => {
+                                    host_kernel_symbolicator.addr_to_symbol(frame.addr)
+                                }
                             }
                             .inspect_err(|e| {
                                 error!("failed to symbolicate addr {:x}: {}", frame.addr, e)
