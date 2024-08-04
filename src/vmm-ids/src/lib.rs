@@ -62,12 +62,15 @@ bitflags::bitflags! {
         /// Fetch the guest state for profiling.
         const PROFILER_GUEST_FETCH = 1 << 8;
 
+        /// Reset all profiling state.
+        const PROFILER_RESET = 1 << 9;
+
         // TODO: We might actually just not want this.
         const ANY_SHUTDOWN = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits();
 
         // Most waiters can be woken up by any signal except PVLOCK (which is a token only consumed by PvlockWait).
         #[cfg(target_arch = "aarch64")]
-        const ALL_WAIT = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits() | Self::PAUSE.bits() | Self::INTERRUPT.bits() | Self::DUMP_DEBUG.bits() | Self::PROFILER_INIT.bits() | Self::PROFILER_SAMPLE.bits() | Self::PROFILER_GUEST_FETCH.bits();
+        const ALL_WAIT = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits() | Self::PAUSE.bits() | Self::INTERRUPT.bits() | Self::DUMP_DEBUG.bits() | Self::PROFILER_INIT.bits() | Self::PROFILER_SAMPLE.bits() | Self::PROFILER_GUEST_FETCH.bits() | Self::PROFILER_RESET.bits();
         #[cfg(not(target_arch = "aarch64"))]
         const ALL_WAIT = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits() | Self::PAUSE.bits();
     }

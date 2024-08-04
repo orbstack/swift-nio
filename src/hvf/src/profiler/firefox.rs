@@ -4,10 +4,12 @@ use serde::Serialize;
 use std::hash::Hash;
 use std::io::BufWriter;
 use std::ops::Sub;
+use std::thread::available_parallelism;
 use std::time::SystemTime;
 use std::{collections::HashMap, fs::File};
 use tracing::error;
 
+use super::sched::{sysctl_string, system_total_memory};
 use super::{
     thread::{ProfileeThread, ThreadId},
     Sample,
@@ -48,12 +50,34 @@ struct ProfileMeta<'a> {
     sample_units: SampleUnits,
     imported_from: String,
 
+    main_memory: Option<usize>,
+    oscpu: Option<String>,
+    #[serde(rename = "CPUName")]
+    cpu_name: Option<String>,
+    #[serde(rename = "logicalCPUs")]
+    logical_cpus: Option<usize>,
+    misc: Option<String>,
+    #[serde(rename = "appBuildID")]
+    app_build_id: Option<String>,
+    #[serde(rename = "sourceURL")]
+    source_url: Option<String>,
+
     symbolicated: bool,
     uses_only_one_stack_type: bool,
     does_not_use_frame_implementation: bool,
     source_code_is_not_on_searchfox: bool,
 
     marker_schema: Vec<Todo>,
+    configuration: Option<ProfilerConfiguration>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ProfilerConfiguration {
+    threads: Vec<String>,
+    features: Vec<String>,
+    capacity: usize,       // 8-byte units
+    duration: Option<u64>, // seconds
 }
 
 macro_rules! table_type {
@@ -656,7 +680,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
         Ok(())
     }
 
-    pub fn write_to_path(&self, path: &str) -> anyhow::Result<()> {
+    pub fn write_to_path(&self, total_bytes: usize, path: &str) -> anyhow::Result<()> {
         let file = File::create(path)?;
 
         // main thread will have the lowest mach port name
@@ -707,6 +731,29 @@ impl<'a> FirefoxSampleProcessor<'a> {
                 marker_schema: vec![],
                 stackwalk: 1,
                 imported_from: "OrbStack".to_string(),
+                main_memory: Some(system_total_memory()),
+                oscpu: Some(format!("macOS {}", sysctl_string("kern.osproductversion")?)),
+                cpu_name: Some(sysctl_string("machdep.cpu.brand_string")?),
+                logical_cpus: Some(available_parallelism()?.get()),
+                configuration: Some(ProfilerConfiguration {
+                    threads: vec![],
+                    features: vec![],
+                    capacity: total_bytes / 8, // 8-byte units
+                    duration: self.info.params.duration_ms.map(|d| d / 1_000), // ms -> seconds
+                }),
+                app_build_id: self
+                    .info
+                    .params
+                    .app_commit
+                    .as_ref()
+                    .map(|c| c[..12].to_string()),
+                source_url: self
+                    .info
+                    .params
+                    .app_commit
+                    .as_ref()
+                    .map(|c| format!("https://github.com/orbstack/macvirt/commit/{}", c)),
+                misc: self.info.params.app_version.clone(),
             },
             libs: &self.libs.values,
             threads: self

@@ -47,7 +47,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::os::fd::RawFd;
 use std::os::unix::io::AsRawFd;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 #[cfg(target_os = "linux")]
 use std::time::Duration;
 use utils::Mutex;
@@ -187,7 +187,7 @@ pub struct Vmm {
     shutdown: VmmShutdownSignal,
     exit_observers: Vec<Arc<Mutex<dyn VmmExitObserver>>>,
 
-    profiler: Option<Arc<Profiler>>,
+    profiler: Option<Weak<Profiler>>,
 
     // Guest VM devices.
     mmio_device_manager: MMIODeviceManager,
@@ -416,13 +416,16 @@ impl Vmm {
         let profiler = Arc::new(Profiler::new(params.clone(), self.vcpu_registry.clone()));
         profiler.start()?;
 
-        self.profiler = Some(profiler);
+        // downgrade to Weak so that profiler can stop by itself without leaking memory
+        self.profiler = Some(Arc::downgrade(&profiler));
         Ok(())
     }
 
     pub fn stop_profile(&mut self) -> anyhow::Result<()> {
         if let Some(profiler) = self.profiler.take() {
-            profiler.stop()?;
+            if let Some(profiler) = profiler.upgrade() {
+                profiler.stop()?;
+            }
         }
 
         Ok(())

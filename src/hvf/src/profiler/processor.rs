@@ -173,14 +173,13 @@ impl<'a> TextSampleProcessor<'a> {
         let file = File::create(path)?;
         let mut buf_writer = BufWriter::new(file);
 
-        // sort by name, not by ID
-        let mut threads = self.threads.iter().collect::<Vec<_>>();
-        // threads.sort_by_key(|(_, t)| t.name.clone());
+        // sorted by ID
+        let threads = self.threads.iter().collect::<Vec<_>>();
         for (thread_id, thread_node) in threads {
             writeln!(
                 buf_writer,
                 "\n\nThread '{}'  ({:#x}, {} samples)",
-                thread_node.name.as_deref().unwrap_or("unknown"),
+                thread_node.name.as_deref().unwrap_or(""),
                 thread_id.0,
                 thread_node.stacks.count
             )?;

@@ -13,6 +13,8 @@ static TIMEBASE: OnceBox<mach_timebase_info> = OnceBox::new();
 pub struct MachAbsoluteTime(pub u64);
 
 impl MachAbsoluteTime {
+    pub const MAX: MachAbsoluteTime = MachAbsoluteTime(u64::MAX);
+
     pub fn now() -> Self {
         Self(unsafe { mach_absolute_time() })
     }

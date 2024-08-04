@@ -843,10 +843,12 @@ impl Vcpu {
                     if let Err(e) = sender.send(resp) {
                         error!("Failed to send guest fetch response: {}", e);
                     }
+                }
+            }
 
-                    if let Some(profiler_state) = self.profiler_state.take() {
-                        profiler_state.finish();
-                    }
+            if taken.contains(VcpuSignalMask::PROFILER_RESET) {
+                if let Some(profiler_state) = self.profiler_state.take() {
+                    profiler_state.finish();
                 }
             }
 

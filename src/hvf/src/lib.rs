@@ -83,6 +83,10 @@ impl VcpuHandleInner {
         self.signal.assert(VcpuSignalMask::PROFILER_GUEST_FETCH);
     }
 
+    pub fn send_profiler_reset(&self) {
+        self.signal.assert(VcpuSignalMask::PROFILER_RESET);
+    }
+
     pub fn consume_profiler_init(&self) -> Option<ProfilerVcpuInit> {
         self.profiler_init.lock().unwrap().take()
     }

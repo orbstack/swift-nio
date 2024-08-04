@@ -188,7 +188,12 @@ impl PartialSample {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfilerParams {
     sample_rate: u64,
+    duration_ms: Option<u64>,
     output_path: String,
+
+    app_build_number: Option<u32>,
+    app_version: Option<String>,
+    app_commit: Option<String>,
 }
 
 #[derive(Clone)]
@@ -235,12 +240,16 @@ impl Profiler {
     }
 
     pub fn start(self: &Arc<Self>) -> anyhow::Result<()> {
+        info!("starting");
+
         let interval = Duration::from_nanos(1_000_000_000 / self.params.sample_rate);
         if interval < MIN_SAMPLE_INTERVAL {
             return Err(anyhow!("sample rate too high"));
         } else if interval > MAX_SAMPLE_INTERVAL {
             return Err(anyhow!("sample rate too low"));
         }
+
+        let duration = self.params.duration_ms.map(Duration::from_millis);
 
         let mut join_handle = self.join_handles.lock().unwrap();
         if join_handle.is_some() {
@@ -253,7 +262,7 @@ impl Profiler {
             std::thread::Builder::new()
                 .name(format!("{}: sampler", THREAD_NAME_TAG))
                 .spawn(move || {
-                    self_clone.sampler_loop(interval).unwrap();
+                    self_clone.sampler_loop(interval, duration).unwrap();
                 })?,
         );
 
@@ -261,7 +270,11 @@ impl Profiler {
         Ok(())
     }
 
-    fn sampler_loop(self: &Arc<Self>, interval: Duration) -> anyhow::Result<()> {
+    fn sampler_loop(
+        self: &Arc<Self>,
+        interval: Duration,
+        duration: Option<Duration>,
+    ) -> anyhow::Result<()> {
         qos::set_thread_qos(QosClass::UserInteractive, None)?;
         set_realtime_scheduling(interval)?;
 
@@ -284,9 +297,14 @@ impl Profiler {
 
         let mut samples = SegVec::new();
 
+        info!("started");
+
         // get time again before starting the loop
         let interval_mach = MachAbsoluteDuration::from_duration(interval);
         let mut next_target_time = MachAbsoluteTime::now() + interval_mach;
+        let stop_time = duration
+            .map(|d| MachAbsoluteTime::now() + MachAbsoluteDuration::from_duration(d))
+            .unwrap_or(MachAbsoluteTime::MAX);
         loop {
             // try to sample at a monotonic rate
             unsafe { check_mach!(mach_wait_until(next_target_time.0))? };
@@ -299,6 +317,9 @@ impl Profiler {
                 samples.push(sample);
             }
 
+            if sample_batch_start >= stop_time {
+                break;
+            }
             if self.stop.load(Ordering::Relaxed) {
                 break;
             }
@@ -515,6 +536,14 @@ impl Profiler {
             .collect();
         let mut guest_context = self.get_guest_context(threads)?;
 
+        // vCPU threads are no longer needed now that we've gotten guest context
+        // tell them to drop VcpuProfilerState to avoid leaking memory
+        for thread in threads {
+            if let Some(vcpu) = thread.vcpu.as_ref() {
+                vcpu.send_profiler_reset();
+            }
+        }
+
         let mut host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
 
         let cgo_transform = CgoStackTransform {};
@@ -523,7 +552,10 @@ impl Profiler {
 
         let mut text_processor = TextSampleProcessor::new(info, threads_map.clone())?;
         let mut ff_processor = FirefoxSampleProcessor::new(info, threads_map)?;
+        let mut total_bytes = 0;
         for sample in &mut samples {
+            total_bytes += size_of::<Sample>();
+
             let sframes = last_thread_stacks
                 .get_mut(&sample.thread_id)
                 .expect("missing thread stack");
@@ -564,6 +596,9 @@ impl Profiler {
                             }
                         })
                         .for_each(|sframe| sframes.push(sframe));
+
+                    // we always allocate full capacity
+                    total_bytes += stack.capacity() * size_of::<Frame>();
                 }
                 // do nothing: we already symbolicated the last stack
                 SampleStack::SameAsLast => {}
@@ -582,7 +617,7 @@ impl Profiler {
 
         let ff_output_path = self.params.output_path.clone() + ".json";
         info!("writing to file: {}", &ff_output_path);
-        ff_processor.write_to_path(&ff_output_path)?;
+        ff_processor.write_to_path(total_bytes, &ff_output_path)?;
         if let Err(e) = FirefoxApiServer::shared().add_and_open_profile(ff_output_path) {
             error!("failed to open in Firefox Profiler: {}", e);
         }
