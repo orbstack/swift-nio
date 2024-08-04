@@ -769,8 +769,6 @@ impl<'a> FirefoxSampleProcessor<'a> {
 
     pub fn add_resources<const N: usize>(&mut self, samples: &SegVec<ResourceSample, N>) {
         let mut mem_table = KeyedTable::<(), FirefoxCounterSample>::new();
-        let mut bw_table = KeyedTable::<(), FirefoxCounterSample>::new();
-        let mut power_table = KeyedTable::<(), FirefoxCounterSample>::new();
 
         for sample in samples {
             let time = Milliseconds((sample.time - self.info.start_time_abs).millis_f64());
@@ -780,25 +778,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
                 FirefoxCounterSample {
                     time,
                     number: None,
-                    count: sample.phys_footprint_bytes_delta,
-                },
-            );
-
-            bw_table.force_insert(
-                (),
-                FirefoxCounterSample {
-                    time,
-                    number: None,
-                    count: sample.disk_io_bytes_delta,
-                },
-            );
-
-            power_table.force_insert(
-                (),
-                FirefoxCounterSample {
-                    time,
-                    number: None,
-                    count: sample.power_nj_delta,
+                    count: sample.phys_footprint,
                 },
             );
         }
@@ -811,24 +791,6 @@ impl<'a> FirefoxSampleProcessor<'a> {
             pid: self.info.pid.into(),
             main_thread_index: 0,
             samples: (&mem_table).into(),
-        });
-        self.counters.push(FirefoxCounter {
-            name: "disk_io".to_string(),
-            category: "Bandwidth".to_string(),
-            description: "".to_string(),
-            color: None,
-            pid: self.info.pid.into(),
-            main_thread_index: 0,
-            samples: (&bw_table).into(),
-        });
-        self.counters.push(FirefoxCounter {
-            name: "power".to_string(),
-            category: "power".to_string(),
-            description: "".to_string(),
-            color: None,
-            pid: self.info.pid.into(),
-            main_thread_index: 0,
-            samples: (&power_table).into(),
         });
     }
 

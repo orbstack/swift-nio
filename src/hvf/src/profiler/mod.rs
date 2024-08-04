@@ -248,9 +248,7 @@ impl ThreadFrameState<'_> {
 
 pub struct ResourceSample {
     pub time: MachAbsoluteTime,
-    pub phys_footprint_bytes_delta: i64,
-    pub disk_io_bytes_delta: i64,
-    pub power_nj_delta: i64,
+    pub phys_footprint: i64,
 }
 
 pub struct Profiler {
@@ -330,7 +328,7 @@ impl Profiler {
         let self_pid = std::process::id() as i32;
         let ktracer = Ktracer::start(&threads)?;
 
-        let mut last_rusage = memory::get_rusage_info(self_pid)?;
+        let mut last_phys_footprint = memory::get_phys_footprint(self_pid)?;
 
         info!("started");
 
@@ -397,15 +395,12 @@ impl Profiler {
 
             // sample resources
             let resources_time = MachAbsoluteTime::now();
-            let rusage = memory::get_rusage_info(self_pid)?;
+            let phys_footprint = memory::get_phys_footprint(self_pid)?;
             resources.push(ResourceSample {
                 time: resources_time,
-                phys_footprint_bytes_delta: rusage.phys_footprint_bytes as i64
-                    - last_rusage.phys_footprint_bytes as i64,
-                disk_io_bytes_delta: rusage.disk_io_bytes as i64 - last_rusage.disk_io_bytes as i64,
-                power_nj_delta: rusage.energy_nj as i64 - last_rusage.energy_nj as i64,
+                phys_footprint: phys_footprint as i64 - last_phys_footprint as i64,
             });
-            last_rusage = rusage;
+            last_phys_footprint = phys_footprint;
 
             let sample_batch_end = MachAbsoluteTime::now();
             let sample_batch_duration = sample_batch_end - sample_batch_start;
