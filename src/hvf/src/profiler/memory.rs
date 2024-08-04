@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use libc::{proc_pid_rusage, rusage_info_v0, RUSAGE_INFO_V0};
+use libc::{proc_pid_rusage, rusage_info_v0, rusage_info_v4, RUSAGE_INFO_V0, RUSAGE_INFO_V4};
 use nix::errno::Errno;
 use vm_memory::ByteValued;
 
@@ -29,8 +29,72 @@ pub const fn is_valid_address(addr: u64) -> bool {
     addr >= MIN_ADDR && (addr & !PAC_MASK == 0)
 }
 
-pub fn get_phys_footprint(pid: i32) -> nix::Result<u64> {
-    let mut info = MaybeUninit::<rusage_info_v0>::uninit();
-    let ret = unsafe { proc_pid_rusage(pid, RUSAGE_INFO_V0, info.as_mut_ptr() as *mut _) };
-    Errno::result(ret).map(|_| unsafe { info.assume_init().ri_phys_footprint })
+const RUSAGE_INFO_V6: i32 = 6;
+
+struct rusage_info_v6 {
+    pub ri_uuid: [u8; 16],
+    pub ri_user_time: u64,
+    pub ri_system_time: u64,
+    pub ri_pkg_idle_wkups: u64,
+    pub ri_interrupt_wkups: u64,
+    pub ri_pageins: u64,
+    pub ri_wired_size: u64,
+    pub ri_resident_size: u64,
+    pub ri_phys_footprint: u64,
+    pub ri_proc_start_abstime: u64,
+    pub ri_proc_exit_abstime: u64,
+    pub ri_child_user_time: u64,
+    pub ri_child_system_time: u64,
+    pub ri_child_pkg_idle_wkups: u64,
+    pub ri_child_interrupt_wkups: u64,
+    pub ri_child_pageins: u64,
+    pub ri_child_elapsed_abstime: u64,
+    pub ri_diskio_bytesread: u64,
+    pub ri_diskio_byteswritten: u64,
+    pub ri_cpu_time_qos_default: u64,
+    pub ri_cpu_time_qos_maintenance: u64,
+    pub ri_cpu_time_qos_background: u64,
+    pub ri_cpu_time_qos_utility: u64,
+    pub ri_cpu_time_qos_legacy: u64,
+    pub ri_cpu_time_qos_user_initiated: u64,
+    pub ri_cpu_time_qos_user_interactive: u64,
+    pub ri_billed_system_time: u64,
+    pub ri_serviced_system_time: u64,
+    pub ri_logical_writes: u64,
+    pub ri_lifetime_max_phys_footprint: u64,
+    pub ri_instructions: u64,
+    pub ri_cycles: u64,
+    pub ri_billed_energy: u64,
+    pub ri_serviced_energy: u64,
+    pub ri_interval_max_phys_footprint: u64,
+    pub ri_runnable_time: u64,
+    pub ri_flags: u64,
+    pub ri_user_ptime: u64,
+    pub ri_system_ptime: u64,
+    pub ri_pinstructions: u64,
+    pub ri_pcycles: u64,
+    pub ri_energy_nj: u64,
+    pub ri_penergy_nj: u64,
+    pub ri_secure_time_in_system: u64,
+    pub ri_secure_ptime_in_system: u64,
+    pub ri_reserved: [u64; 12],
+}
+
+pub struct RusageInfo {
+    pub phys_footprint_bytes: u64,
+    pub disk_io_bytes: u64,
+    pub energy_nj: u64,
+}
+
+pub fn get_rusage_info(pid: i32) -> nix::Result<RusageInfo> {
+    let mut info = MaybeUninit::<rusage_info_v6>::uninit();
+    let ret = unsafe { proc_pid_rusage(pid, RUSAGE_INFO_V6, info.as_mut_ptr() as *mut _) };
+    Errno::result(ret).map(|_| {
+        let info = unsafe { info.assume_init() };
+        RusageInfo {
+            phys_footprint_bytes: info.ri_phys_footprint,
+            disk_io_bytes: info.ri_diskio_bytesread + info.ri_diskio_byteswritten,
+            energy_nj: info.ri_energy_nj,
+        }
+    })
 }
