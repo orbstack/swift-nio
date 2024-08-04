@@ -282,9 +282,6 @@ impl Profiler {
         // before we start, find "hv_vcpu_run" and "hv_trap"
         let mut symbolicator = DladdrSymbolicator::new()?;
         let hv_vcpu_run = symbolicator.symbol_range("hv_vcpu_run")?;
-        let hv_trap = symbolicator.symbol_range("hv_trap")?;
-        info!("hv_vcpu_run: {:x?}", hv_vcpu_run);
-        info!("hv_trap: {:x?}", hv_trap);
 
         let mut host_unwinder = FramePointerUnwinder {};
 
@@ -335,7 +332,6 @@ impl Profiler {
                     &mut host_unwinder,
                     &mut thread_suspend_histogram,
                     &hv_vcpu_run,
-                    &hv_trap,
                 ) {
                     Ok(SampleResult::Sample(sample)) => {
                         samples.push(sample);

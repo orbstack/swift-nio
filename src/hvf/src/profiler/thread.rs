@@ -31,6 +31,8 @@ use super::{
 
 const PROC_PIDTHREADID64INFO: i32 = 15;
 
+const ARM64_INSN_SVC_0X80: u32 = 0xd4001001;
+
 pub enum SampleResult {
     Sample(Sample),
     Queued,
@@ -172,7 +174,6 @@ impl ProfileeThread {
         host_unwinder: &mut impl Unwinder,
         thread_suspend_histogram: &mut Histogram<u64>,
         hv_vcpu_run: &Option<Range<usize>>,
-        hv_trap: &Option<Range<usize>>,
     ) -> Result<SampleResult, SampleError> {
         let cpu_time_delta_us = match self.get_cpu_time_delta_ns() {
             // no CPU time elapsed; thread is idle, and this isn't the first sample
@@ -250,17 +251,28 @@ impl ProfileeThread {
         };
 
         // if thread is in HVF, trigger an exit now, so that it samples as soon as it resumes
-        // for now we just check whether PC (stack[0]) is in hv_trap
+        // we check for whether it's in hv_vcpu_run, and specifically in the HV syscall
+        // checking for PC in hv_trap is easier, but that's a private symbol so dlsym() can't find it,
+        // and mmapping from dyld shared cache (to get __LINKEDIT) is complicated
+        // without this, we sample kernel stacks for internal calls like _hv_vcpu_set_control_field when the guest wasn't running
         if let Some(hv_vcpu_run) = hv_vcpu_run {
             let SampleStack::Stack(stack) = &sample.stack else {
                 panic!("stack is not a stack");
             };
+
             if let Some(&frame) = stack.get(1) {
                 if hv_vcpu_run.contains(&(frame.addr as usize)) {
-                    if let Some(vcpu) = &self.vcpu {
-                        vcpu.send_profiler_sample(PartialSample { sample });
-                        // resumes thread
-                        return Ok(SampleResult::Queued);
+                    // PC = return address from syscall, incremented by the CPU when it takes the exception
+                    // so PC - 4 = syscall instruction
+                    let svc_pc = stack[0].addr - 4;
+
+                    // XNU uses "svc 0x80" which assembles to 0xd4001001
+                    if unsafe { *(svc_pc as *const u32) } == ARM64_INSN_SVC_0X80 {
+                        if let Some(vcpu) = &self.vcpu {
+                            vcpu.send_profiler_sample(PartialSample { sample });
+                            // resumes thread
+                            return Ok(SampleResult::Queued);
+                        }
                     }
                 }
             }
