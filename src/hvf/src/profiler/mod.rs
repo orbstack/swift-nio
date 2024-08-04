@@ -215,6 +215,7 @@ pub struct ProfileInfo {
     pub end_time: SystemTime,
     pub end_time_abs: MachAbsoluteTime,
     pub params: ProfilerParams,
+    pub num_samples: usize,
 }
 
 pub struct Profiler {
@@ -380,10 +381,11 @@ impl Profiler {
             end_time: wall_end_time,
             end_time_abs: end_time,
             params: self.params.clone(),
+            num_samples: samples.len(),
         };
 
         self.stop.store(false, Ordering::Relaxed);
-        self.process_samples(samples, &info, &threads)?;
+        self.process_samples(samples, &info, &threads, &thread_suspend_histogram)?;
         Ok(())
     }
 
@@ -522,6 +524,7 @@ impl Profiler {
         mut samples: SegVec<Sample, SEGMENT_SIZE>,
         info: &ProfileInfo,
         threads: &[ProfileeThread],
+        thread_suspend_histogram: &Histogram<u64>,
     ) -> anyhow::Result<()> {
         info!("processing samples");
 
@@ -617,7 +620,7 @@ impl Profiler {
 
         let ff_output_path = self.params.output_path.clone() + ".json";
         info!("writing to file: {}", &ff_output_path);
-        ff_processor.write_to_path(total_bytes, &ff_output_path)?;
+        ff_processor.write_to_path(total_bytes, thread_suspend_histogram, &ff_output_path)?;
         if let Err(e) = FirefoxApiServer::shared().add_and_open_profile(ff_output_path) {
             error!("failed to open in Firefox Profiler: {}", e);
         }

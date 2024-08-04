@@ -1,5 +1,6 @@
 use ahash::AHashMap;
 use anyhow::anyhow;
+use hdrhistogram::Histogram;
 use serde::Serialize;
 use std::hash::Hash;
 use std::io::BufWriter;
@@ -195,7 +196,7 @@ impl Sub for Milliseconds {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Default)]
 #[serde(transparent)]
 struct Microseconds(f64);
 
@@ -233,7 +234,7 @@ table_type!(
     ProfilerOverheadSampleTable
 );
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 struct ProfilerOverheadStats {
     max_cleaning: Microseconds,
@@ -257,7 +258,7 @@ struct ProfilerOverheadStats {
     overhead_durations: Microseconds,
     overhead_percentage: Microseconds,
     profiled_duration: Microseconds,
-    sampling_count: Microseconds,
+    sampling_count: usize,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -680,7 +681,12 @@ impl<'a> FirefoxSampleProcessor<'a> {
         Ok(())
     }
 
-    pub fn write_to_path(&self, total_bytes: usize, path: &str) -> anyhow::Result<()> {
+    pub fn write_to_path(
+        &self,
+        total_bytes: usize,
+        thread_suspend_histogram: &Histogram<u64>,
+        path: &str,
+    ) -> anyhow::Result<()> {
         let file = File::create(path)?;
 
         // main thread will have the lowest mach port name
@@ -792,7 +798,19 @@ impl<'a> FirefoxSampleProcessor<'a> {
                 })
                 .collect(),
             counters: vec![],
-            profiler_overhead: vec![],
+            profiler_overhead: vec![ProfilerOverhead {
+                // not used by profiler UI
+                samples: ProfilerOverheadSampleTable::default(),
+                statistics: Some(ProfilerOverheadStats {
+                    min_overhead: Microseconds((thread_suspend_histogram.min() as f64) / 1000.0),
+                    max_overhead: Microseconds((thread_suspend_histogram.max() as f64) / 1000.0),
+                    mean_overhead: Microseconds(thread_suspend_histogram.mean() / 1000.0),
+                    sampling_count: self.info.num_samples,
+                    ..Default::default()
+                }),
+                pid: Pid(self.info.pid),
+                main_thread_index: 0,
+            }],
         };
 
         let mut buf_writer = BufWriter::new(file);
