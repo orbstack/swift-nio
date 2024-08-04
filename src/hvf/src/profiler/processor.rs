@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt::Display;
 use std::io::{BufWriter, Write};
 use std::{cell::RefCell, collections::BTreeMap, fs::File, rc::Rc};
@@ -145,7 +146,7 @@ impl<'a> TextSampleProcessor<'a> {
     pub fn process_sample(
         &mut self,
         sample: &Sample,
-        frames: &[SymbolicatedFrame],
+        frames: &VecDeque<SymbolicatedFrame>,
     ) -> anyhow::Result<()> {
         // process sample
         let thread_node = self

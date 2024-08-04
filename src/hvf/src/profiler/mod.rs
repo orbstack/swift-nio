@@ -43,7 +43,9 @@ use symbolicator::{
 use thread::{ProfileeThread, SampleError, SampleResult, ThreadId};
 use time::{MachAbsoluteDuration, MachAbsoluteTime};
 use tracing::{error, info};
-use transform::{CgoStackTransform, LeafCallTransform, LinuxIrqStackTransform, StackTransform};
+use transform::{
+    CgoStackTransform, LeafCallTransform, LinuxIrqStackTransform, StackTransform, SyscallTransform,
+};
 use unwinder::FramePointerUnwinder;
 use utils::{
     qos::{self, QosClass},
@@ -529,9 +531,9 @@ impl Profiler {
             .map(|t| (t.id, t))
             .collect::<AHashMap<_, _>>();
 
-        let mut last_thread_stacks: AHashMap<ThreadId, Vec<SymbolicatedFrame>> = threads
+        let mut last_thread_stacks: AHashMap<ThreadId, VecDeque<SymbolicatedFrame>> = threads
             .iter()
-            .map(|t| (t.id, Vec::with_capacity(STACK_DEPTH_LIMIT)))
+            .map(|t| (t.id, VecDeque::with_capacity(STACK_DEPTH_LIMIT)))
             .collect();
         let mut guest_context = self.get_guest_context(threads)?;
 
@@ -548,6 +550,7 @@ impl Profiler {
         let cgo_transform = CgoStackTransform {};
         let irq_transform = LinuxIrqStackTransform {};
         let leaf_transform = LeafCallTransform {};
+        let syscall_transform = SyscallTransform {};
 
         let mut text_processor = TextSampleProcessor::new(info, threads_map.clone())?;
         let mut ff_processor = FirefoxSampleProcessor::new(info, threads_map)?;
@@ -581,7 +584,11 @@ impl Profiler {
                                     image_base: 0,
                                     symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
                                 })),
-                                _ => Ok(None),
+                                SampleCategory::HostKernel => Ok(Some(SymbolResult {
+                                    image: "xnu".to_string(),
+                                    image_base: 0,
+                                    symbol_offset: Some(("<HOST KERNEL>".to_string(), 0)),
+                                })),
                             }
                             .inspect_err(|e| {
                                 error!("failed to symbolicate addr {:x}: {}", frame.addr, e)
@@ -594,19 +601,21 @@ impl Profiler {
                                 symbol,
                             }
                         })
-                        .for_each(|sframe| sframes.push(sframe));
+                        .for_each(|sframe| sframes.push_back(sframe));
 
                     // we always allocate full capacity
                     total_bytes += stack.capacity() * size_of::<Frame>();
+
+                    // apply transforms
+                    cgo_transform.transform(sframes)?;
+                    irq_transform.transform(sframes)?;
+                    leaf_transform.transform(sframes)?;
+                    syscall_transform.transform(sframes)?;
                 }
-                // do nothing: we already symbolicated the last stack
+
+                // do nothing: we already symbolicated and transformed the last stack
                 SampleStack::SameAsLast => {}
             }
-
-            // apply transforms
-            cgo_transform.transform(sframes)?;
-            irq_transform.transform(sframes)?;
-            leaf_transform.transform(sframes)?;
 
             text_processor.process_sample(sample, sframes)?;
             ff_processor.process_sample(sample, sframes)?;

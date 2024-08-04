@@ -25,13 +25,12 @@ use crate::{check_mach, ArcVcpuHandle};
 
 use super::{
     time::MachAbsoluteTime,
+    transform::SyscallTransform,
     unwinder::{UnwindError, UnwindRegs, Unwinder, STACK_DEPTH_LIMIT},
     Frame, MachError, MachResult, PartialSample, Sample, SampleCategory, SampleStack,
 };
 
 const PROC_PIDTHREADID64INFO: i32 = 15;
-
-const ARM64_INSN_SVC_0X80: u32 = 0xd4001001;
 
 pub enum SampleResult {
     Sample(Sample),
@@ -261,18 +260,13 @@ impl ProfileeThread {
             };
 
             if let Some(&frame) = stack.get(1) {
-                if hv_vcpu_run.contains(&(frame.addr as usize)) {
-                    // PC = return address from syscall, incremented by the CPU when it takes the exception
-                    // so PC - 4 = syscall instruction
-                    let svc_pc = stack[0].addr - 4;
-
-                    // XNU uses "svc 0x80" which assembles to 0xd4001001
-                    if unsafe { *(svc_pc as *const u32) } == ARM64_INSN_SVC_0X80 {
-                        if let Some(vcpu) = &self.vcpu {
-                            vcpu.send_profiler_sample(PartialSample { sample });
-                            // resumes thread
-                            return Ok(SampleResult::Queued);
-                        }
+                if hv_vcpu_run.contains(&(frame.addr as usize))
+                    && SyscallTransform::is_syscall_pc(stack[0].addr)
+                {
+                    if let Some(vcpu) = &self.vcpu {
+                        vcpu.send_profiler_sample(PartialSample { sample });
+                        // resumes thread
+                        return Ok(SampleResult::Queued);
                     }
                 }
             }

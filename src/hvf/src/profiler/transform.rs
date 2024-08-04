@@ -1,13 +1,18 @@
-use super::{symbolicator::SymbolResult, SampleCategory, SymbolicatedFrame};
+use std::collections::VecDeque;
+
+use super::{symbolicator::SymbolResult, Frame, SampleCategory, SymbolicatedFrame};
+
+const ARM64_INSN_SIZE: u64 = 4;
+const ARM64_INSN_SVC_0X80: u32 = 0xd4001001;
 
 pub trait StackTransform {
-    fn transform(&self, stack: &mut Vec<SymbolicatedFrame>) -> anyhow::Result<()>;
+    fn transform(&self, stack: &mut VecDeque<SymbolicatedFrame>) -> anyhow::Result<()>;
 }
 
 pub struct CgoStackTransform {}
 
 impl StackTransform for CgoStackTransform {
-    fn transform(&self, stack: &mut Vec<SymbolicatedFrame>) -> anyhow::Result<()> {
+    fn transform(&self, stack: &mut VecDeque<SymbolicatedFrame>) -> anyhow::Result<()> {
         // remove everything before runtime.libcCall or runtime.asmcgocall.abi0, if it's present
         // we do need to keep runtime.libcCall to prevent partial stacks where it hasn't gotten to asmcgocall yet
         // it tends to be garbage, if it exists:
@@ -58,7 +63,15 @@ impl StackTransform for CgoStackTransform {
 pub struct LinuxIrqStackTransform {}
 
 impl StackTransform for LinuxIrqStackTransform {
-    fn transform(&self, stack: &mut Vec<SymbolicatedFrame>) -> anyhow::Result<()> {
+    fn transform(&self, stack: &mut VecDeque<SymbolicatedFrame>) -> anyhow::Result<()> {
+        // do nothing if we're not in guest code
+        // need to check before the loop because we do loop over both guest and host frames
+        if let Some(sframe) = stack.front() {
+            if !sframe.frame.category.is_guest() {
+                return Ok(());
+            }
+        }
+
         // remove everything between hv_trap and "el1h_64_irq"
         // Linux does a good job of preserving FP on IRQ stack switch,
         // but it's really hard to read profiles when IRQs are all attached to random frames
@@ -96,7 +109,7 @@ impl StackTransform for LinuxIrqStackTransform {
 pub struct LeafCallTransform {}
 
 impl StackTransform for LeafCallTransform {
-    fn transform(&self, stack: &mut Vec<SymbolicatedFrame>) -> anyhow::Result<()> {
+    fn transform(&self, stack: &mut VecDeque<SymbolicatedFrame>) -> anyhow::Result<()> {
         // if the last two frames (PC and LR) are in the same function, remove LR
         // this happens when a function calls leaf functions that don't save/restore LR from FP
         //
@@ -136,6 +149,62 @@ impl StackTransform for LeafCallTransform {
                     stack.remove(1);
                 }
             }
+        }
+
+        Ok(())
+    }
+}
+
+pub struct SyscallTransform {}
+
+impl SyscallTransform {
+    pub fn is_syscall_pc(pc: u64) -> bool {
+        // in a syscall, PC = return address from syscall, incremented by the CPU when it takes the exception
+        // so PC - 4 = syscall instruction
+        // if that's the PC from thread sampling, then we are almost certainly in a syscall
+        // (the instruction immediately after a syscall shouldn't be slow)
+        let svc_pc = pc - ARM64_INSN_SIZE;
+
+        // XNU uses "svc 0x80" which assembles to 0xd4001001
+        // read is safe: instructions should always be aligned
+        let insn = unsafe { (svc_pc as *const u32).read() };
+        insn == ARM64_INSN_SVC_0X80
+    }
+}
+
+impl StackTransform for SyscallTransform {
+    fn transform(&self, stack: &mut VecDeque<SymbolicatedFrame>) -> anyhow::Result<()> {
+        let Some(pc) = stack.front() else {
+            return Ok(());
+        };
+
+        if pc.frame.category == SampleCategory::HostUserspace
+            && SyscallTransform::is_syscall_pc(pc.frame.addr)
+        {
+            // derive a syscall name from the userspace caller's symbol
+            // this isn't really accurate, but it almost always works because macOS requires libSystem
+            // we could do better by reading and saving x16, but that adds the overhead of reading the instruction at PC (and risking faults) to the thread-suspended critical section
+            // with x16: read x16 as i64. if negative, trace_code = (Mach) 0x10c0000 + (-x16) * 4. if positive, trace code = (BSD) 0x40c0000 + (x16) * 4. look up code in /usr/share/misc/trace.codes
+            let syscall_name = match pc.symbol {
+                Some(SymbolResult {
+                    symbol_offset: Some((ref name, _)),
+                    ..
+                }) => name,
+                _ => "<unknown>",
+            };
+
+            // prepend a syscall frame to the stack
+            stack.push_front(SymbolicatedFrame {
+                frame: Frame {
+                    category: SampleCategory::HostKernel,
+                    addr: pc.frame.addr,
+                },
+                symbol: Some(SymbolResult {
+                    image: "xnu".to_string(),
+                    image_base: 0,
+                    symbol_offset: Some((format!("syscall: {}", syscall_name), 0)),
+                }),
+            });
         }
 
         Ok(())

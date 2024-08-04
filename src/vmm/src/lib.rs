@@ -409,8 +409,12 @@ impl Vmm {
     }
 
     pub fn start_profile(&mut self, params: &ProfilerParams) -> anyhow::Result<()> {
-        if self.profiler.is_some() {
-            return Err(anyhow!("already started"));
+        if let Some(profiler) = &self.profiler {
+            if profiler.upgrade().is_some() {
+                return Err(anyhow!("profiler is already running"));
+            } else {
+                self.profiler = None;
+            }
         }
 
         let profiler = Arc::new(Profiler::new(params.clone(), self.vcpu_registry.clone()));

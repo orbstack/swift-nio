@@ -2,6 +2,7 @@ use ahash::AHashMap;
 use anyhow::anyhow;
 use hdrhistogram::Histogram;
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::hash::Hash;
 use std::io::BufWriter;
 use std::ops::Sub;
@@ -36,7 +37,7 @@ struct FirefoxProfile<'a> {
 struct ProfileMeta<'a> {
     interval: Milliseconds,
     start_time: Milliseconds,
-    end_time: Milliseconds,
+    end_time: Option<Milliseconds>,
     profiling_start_time: Option<Milliseconds>,
     profiling_end_time: Option<Milliseconds>,
     process_type: u32,
@@ -184,7 +185,7 @@ struct Lib {
     code_id: Option<String>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Copy, Clone)]
 #[serde(transparent)]
 struct Milliseconds(f64);
 
@@ -196,11 +197,11 @@ impl Sub for Milliseconds {
     }
 }
 
-#[derive(Serialize, Debug, Clone, Default)]
+#[derive(Serialize, Debug, Copy, Clone, Default)]
 #[serde(transparent)]
 struct Microseconds(f64);
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Copy, Clone)]
 #[serde(transparent)]
 struct Nanoseconds(u64);
 
@@ -565,7 +566,7 @@ impl<'a> FirefoxSampleProcessor<'a> {
     pub fn process_sample(
         &mut self,
         sample: &Sample,
-        sframes: &[SymbolicatedFrame],
+        sframes: &VecDeque<SymbolicatedFrame>,
     ) -> anyhow::Result<()> {
         let thread = self
             .threads
@@ -726,9 +727,9 @@ impl<'a> FirefoxSampleProcessor<'a> {
                     time: "ms".to_string(),
                 },
                 start_time,
-                end_time,
-                profiling_start_time: None,
-                profiling_end_time: None,
+                end_time: None,
+                profiling_start_time: Some(start_time),
+                profiling_end_time: Some(end_time),
                 symbolicated: true,
                 version: 24,
                 uses_only_one_stack_type: true,
