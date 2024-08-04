@@ -285,7 +285,6 @@ impl Profiler {
         let mut samples = SegVec::new();
 
         // get time again before starting the loop
-        let mut thread_info_histogram = Histogram::<u64>::new(3)?;
         let interval_mach = MachAbsoluteDuration::from_duration(interval);
         let mut next_target_time = MachAbsoluteTime::now() + interval_mach;
         loop {
@@ -312,7 +311,6 @@ impl Profiler {
 
                 match thread.sample(
                     &mut host_unwinder,
-                    &mut thread_info_histogram,
                     &mut thread_suspend_histogram,
                     &hv_vcpu_run,
                     &hv_trap,
@@ -353,7 +351,6 @@ impl Profiler {
 
         dump_histogram("sample batch time", &sample_batch_histogram);
         dump_histogram("thread suspend time", &thread_suspend_histogram);
-        dump_histogram("thread info time", &thread_info_histogram);
 
         let info = ProfileInfo {
             pid: std::process::id(),

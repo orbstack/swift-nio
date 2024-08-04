@@ -6,9 +6,8 @@ use std::{
 
 use hdrhistogram::Histogram;
 use libc::{
-    proc_pidinfo, proc_threadinfo, thread_basic_info, thread_flavor_t, thread_identifier_info,
-    thread_info, time_value_t, THREAD_BASIC_INFO, THREAD_BASIC_INFO_COUNT, THREAD_IDENTIFIER_INFO,
-    THREAD_IDENTIFIER_INFO_COUNT,
+    proc_pidinfo, proc_threadinfo, thread_flavor_t, thread_identifier_info, thread_info,
+    THREAD_IDENTIFIER_INFO, THREAD_IDENTIFIER_INFO_COUNT,
 };
 use mach2::{mach_port::mach_port_deallocate, traps::mach_task_self};
 #[allow(deprecated)] // mach2 doesn't have this
@@ -41,7 +40,7 @@ pub enum SampleResult {
 #[derive(thiserror::Error, Debug)]
 pub enum SampleError {
     #[error("thread_info: {0}")]
-    ThreadInfo(MachError),
+    ThreadInfo(nix::Error),
     #[error("thread_suspend: {0}")]
     ThreadSuspend(MachError),
     #[error("thread_get_state: {0}")]
@@ -50,15 +49,6 @@ pub enum SampleError {
     Unwind(UnwindError),
 }
 
-trait TimeValueExt {
-    fn as_micros(&self) -> u64;
-}
-
-impl TimeValueExt for time_value_t {
-    fn as_micros(&self) -> u64 {
-        (self.seconds as u64) * 1_000_000 + (self.microseconds as u64)
-    }
-}
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct ThreadId(pub u64);
 
@@ -145,27 +135,8 @@ impl ProfileeThread {
         })
     }
 
-    fn get_cpu_info_mach(&self) -> MachResult<ThreadCpuInfo> {
-        let mut info = MaybeUninit::<thread_basic_info>::uninit();
-        let mut info_count = THREAD_BASIC_INFO_COUNT;
-        unsafe {
-            check_mach!(thread_info(
-                self.port,
-                THREAD_BASIC_INFO as thread_flavor_t,
-                &mut info as *mut _ as *mut _,
-                &mut info_count,
-            ))?
-        };
-
-        let info = unsafe { info.assume_init() };
-        Ok(ThreadCpuInfo {
-            user_time_ns: info.user_time.as_micros() * 1_000,
-            system_time_ns: info.system_time.as_micros() * 1_000,
-        })
-    }
-
-    fn get_cpu_time_delta_ns(&mut self) -> MachResult<Option<u64>> {
-        let info = self.get_cpu_info_mach()?;
+    fn get_cpu_time_delta_ns(&mut self) -> nix::Result<Option<u64>> {
+        let info = self.get_cpu_info()?;
         let cpu_time_ns = info.user_time_ns + info.system_time_ns;
         let delta = self.last_cpu_time_ns.map(|last| cpu_time_ns - last);
         self.last_cpu_time_ns = Some(cpu_time_ns);
@@ -199,12 +170,10 @@ impl ProfileeThread {
     pub fn sample(
         &mut self,
         host_unwinder: &mut impl Unwinder,
-        thread_info_histogram: &mut Histogram<u64>,
         thread_suspend_histogram: &mut Histogram<u64>,
         hv_vcpu_run: &Option<Range<usize>>,
         hv_trap: &Option<Range<usize>>,
     ) -> Result<SampleResult, SampleError> {
-        let before = MachAbsoluteTime::now();
         let cpu_time_delta_us = match self.get_cpu_time_delta_ns() {
             // no CPU time elapsed; thread is idle, and this isn't the first sample
             Ok(Some(0)) => {
@@ -220,17 +189,13 @@ impl ProfileeThread {
             Ok(delta) => delta,
 
             // thread is gone
-            Err(MachError::MachSendInvalidDest) => {
+            Err(Errno::ESRCH) => {
                 self.stopped_at = Some(MachAbsoluteTime::now());
                 return Ok(SampleResult::ThreadStopped);
             }
 
             Err(e) => return Err(SampleError::ThreadInfo(e)),
         };
-        let after = MachAbsoluteTime::now();
-        thread_info_histogram
-            .record((after - before).nanos())
-            .unwrap();
 
         // TODO: enforce limit including guest frames
         // allocate stack upfront
