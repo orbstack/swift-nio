@@ -22,6 +22,10 @@ impl MachAbsoluteTime {
     pub fn from_raw(raw: u64) -> Self {
         Self(raw)
     }
+
+    pub fn saturating_sub(self, rhs: Self) -> MachAbsoluteDuration {
+        MachAbsoluteDuration(self.0.saturating_sub(rhs.0))
+    }
 }
 
 impl Sub<MachAbsoluteTime> for MachAbsoluteTime {

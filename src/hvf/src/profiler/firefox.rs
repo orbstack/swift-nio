@@ -898,8 +898,9 @@ impl<'a> FirefoxSampleProcessor<'a> {
                     paused_ranges: vec![],
                     process_startup_time: Milliseconds(0.0),
                     process_shutdown_time: None,
+                    // threads can be added before sample collection starts
                     register_time: Milliseconds(
-                        (t.thread.added_at - self.info.start_time_abs).millis_f64(),
+                        (t.thread.added_at.saturating_sub(self.info.start_time_abs)).millis_f64(),
                     ),
                     unregister_time: t
                         .thread
