@@ -7,7 +7,8 @@ use std::{
 use hdrhistogram::Histogram;
 use libc::{
     proc_pidinfo, proc_threadinfo, thread_flavor_t, thread_identifier_info, thread_info,
-    THREAD_IDENTIFIER_INFO, THREAD_IDENTIFIER_INFO_COUNT, TH_STATE_RUNNING,
+    THREAD_IDENTIFIER_INFO, THREAD_IDENTIFIER_INFO_COUNT, TH_FLAGS_SWAPPED, TH_STATE_HALTED,
+    TH_STATE_RUNNING, TH_STATE_STOPPED, TH_STATE_UNINTERRUPTIBLE, TH_STATE_WAITING,
 };
 use mach2::{mach_port::mach_port_deallocate, port::mach_port_t, traps::mach_task_self};
 #[allow(deprecated)] // mach2 doesn't have this
@@ -23,6 +24,7 @@ use tracing::error;
 use crate::{check_mach, ArcVcpuHandle};
 
 use super::{
+    symbolicator::HostKernelSymbolicator,
     time::MachAbsoluteTime,
     transform::HostSyscallTransform,
     unwinder::{UnwindError, UnwindRegs, Unwinder, STACK_DEPTH_LIMIT},
@@ -85,11 +87,14 @@ impl ThreadId {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum ThreadState {
     Running,
-    // makes matching simpler for now
-    Other,
+    RunningPreempted,
+    Stopped,
+    Waiting,
+    Uninterruptible,
+    Halted,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -158,11 +163,20 @@ impl ProfileeThread {
         //   * why is there both flags=SWAPPED and flags=0 for this?
         // run_state = TH_STATE_UNINTERRUPTIBLE: uninterruptible wait
 
+        let mut state = match info.pth_run_state {
+            TH_STATE_RUNNING => ThreadState::Running,
+            TH_STATE_STOPPED => ThreadState::Stopped,
+            TH_STATE_WAITING => ThreadState::Waiting,
+            TH_STATE_UNINTERRUPTIBLE => ThreadState::Uninterruptible,
+            TH_STATE_HALTED => ThreadState::Halted,
+            _ => ThreadState::Running,
+        };
+        if state == ThreadState::Running && info.pth_flags & TH_FLAGS_SWAPPED != 0 {
+            state = ThreadState::RunningPreempted;
+        }
+
         Ok(ThreadCpuInfo {
-            state: match info.pth_run_state {
-                TH_STATE_RUNNING => ThreadState::Running,
-                _ => ThreadState::Other,
-            },
+            state,
 
             // kernel converts the time_value_t to nanoseconds (same as THREAD_EXTENDED_INFO)
             // but the native time_value_t unit is microseconds, so no point in storing more
@@ -171,12 +185,11 @@ impl ProfileeThread {
         })
     }
 
-    fn get_cpu_time_delta_us(&mut self) -> nix::Result<(Option<u64>, ThreadState)> {
-        let info = self.get_cpu_info()?;
+    fn cpu_time_delta_us(&mut self, info: &ThreadCpuInfo) -> Option<u64> {
         let cpu_time_us = info.user_time_us + info.system_time_us;
         let delta = self.last_cpu_time_us.map(|last| cpu_time_us - last);
         self.last_cpu_time_us = Some(cpu_time_us);
-        Ok((delta, info.state))
+        delta
     }
 
     fn get_unwind_regs(&self) -> MachResult<UnwindRegs> {
@@ -210,9 +223,24 @@ impl ProfileeThread {
         thread_suspend_histogram: &mut Histogram<u64>,
         hv_vcpu_run: &Option<Range<usize>>,
     ) -> Result<SampleResult, SampleError> {
-        let cpu_time_delta_us = match self.get_cpu_time_delta_us() {
+        let info = match self.get_cpu_info() {
+            Ok(info) => info,
+            // thread is gone
+            Err(Errno::ESRCH) => {
+                self.stopped_at = Some(MachAbsoluteTime::now());
+                return Ok(SampleResult::ThreadStopped);
+            }
+            Err(e) => return Err(SampleError::ThreadInfo(e)),
+        };
+
+        let cpu_time_delta_us = match (self.cpu_time_delta_us(&info), info.state) {
+            // no CPU time elapsed, but thread is running
+            // this can happen if it just started running and hasn't context switched yet (so kernel hasn't updated time accumulators)
+            // resampling time after suspend is unnecessary; next sample will get the accumulated time
+            (Some(0), ThreadState::Running) => 0,
+
             // no CPU time elapsed; thread is idle, and this isn't the first sample
-            Ok((Some(0), ThreadState::Other)) => {
+            (Some(0), _) => {
                 let now = MachAbsoluteTime::now();
                 return Ok(SampleResult::Sample(Sample {
                     time: now,
@@ -223,24 +251,11 @@ impl ProfileeThread {
                 }));
             }
 
-            // no CPU time elapsed, but thread is running
-            // this can happen if it just started running and hasn't context switched yet (so kernel hasn't updated time accumulators)
-            // resampling time after suspend is unnecessary; next sample will get the accumulated time
-            Ok((Some(0), ThreadState::Running)) => 0,
-
             // some CPU has been used; not first sample
-            Ok((Some(delta), _)) => delta as u32,
+            (Some(delta), _) => delta as u32,
 
             // first sample
-            Ok((None, _)) => 0,
-
-            // thread is gone
-            Err(Errno::ESRCH) => {
-                self.stopped_at = Some(MachAbsoluteTime::now());
-                return Ok(SampleResult::ThreadStopped);
-            }
-
-            Err(e) => return Err(SampleError::ThreadInfo(e)),
+            (None, _) => 0,
         };
 
         // TODO: enforce limit including guest frames
@@ -293,6 +308,36 @@ impl ProfileeThread {
             })
             .map_err(SampleError::Unwind)?;
 
+        // get this for the hv_vcpu_run check later,
+        // before we start adding synthetic frames
+        let second_userspace_frame = stack.get(1).copied();
+
+        // if thread is waiting, add a synthetic kernel frame
+        // syscall will be added in post-processing transform
+        match info.state {
+            ThreadState::RunningPreempted => stack.push_front(Frame::new(
+                FrameCategory::HostKernel,
+                HostKernelSymbolicator::ADDR_THREAD_PREEMPTED,
+            )),
+            ThreadState::Stopped => stack.push_front(Frame::new(
+                FrameCategory::HostKernel,
+                HostKernelSymbolicator::ADDR_THREAD_SUSPENDED,
+            )),
+            ThreadState::Waiting => stack.push_front(Frame::new(
+                FrameCategory::HostKernel,
+                HostKernelSymbolicator::ADDR_THREAD_WAIT,
+            )),
+            ThreadState::Uninterruptible => stack.push_front(Frame::new(
+                FrameCategory::HostKernel,
+                HostKernelSymbolicator::ADDR_THREAD_WAIT_UNINTERRUPTIBLE,
+            )),
+            ThreadState::Halted => stack.push_front(Frame::new(
+                FrameCategory::HostKernel,
+                HostKernelSymbolicator::ADDR_THREAD_HALTED,
+            )),
+            _ => {}
+        }
+
         let sample = Sample {
             time: timestamp,
             sample_begin_time: before_suspend,
@@ -311,7 +356,7 @@ impl ProfileeThread {
                 panic!("stack is not a stack");
             };
 
-            if let Some(&frame) = stack.get(1) {
+            if let Some(frame) = second_userspace_frame {
                 if hv_vcpu_run.contains(&(frame.addr as usize))
                     && HostSyscallTransform::is_syscall_pc(stack[0].addr)
                 {
