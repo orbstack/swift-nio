@@ -13,6 +13,8 @@ pub struct HostKernelSymbolicator {
 impl HostKernelSymbolicator {
     pub const IMAGE: &'static str = "xnu";
 
+    pub const MSC_HV_TRAP: &'static str = "MSC_hv_trap";
+
     const ADDR_BASE: u64 = 0xffff000000000000;
     pub const ADDR_VMFAULT: u64 = Self::ADDR_BASE + 1;
     pub const ADDR_THREAD_SUSPENDED: u64 = Self::ADDR_BASE + 2;
@@ -68,7 +70,7 @@ impl Symbolicator for HostKernelSymbolicator {
             image: Self::IMAGE.to_string(),
             image_base: 0,
             symbol_offset: match addr {
-                Self::ADDR_VMFAULT => Some(("MACH_vmfault".to_string(), 0)),
+                Self::ADDR_VMFAULT => Some(("vm_fault".to_string(), 0)),
                 Self::ADDR_THREAD_SUSPENDED => Some(("thread_suspended".to_string(), 0)),
                 Self::ADDR_THREAD_WAIT => Some(("thread_wait".to_string(), 0)),
                 Self::ADDR_THREAD_WAIT_UNINTERRUPTIBLE => {
@@ -77,7 +79,7 @@ impl Symbolicator for HostKernelSymbolicator {
                 Self::ADDR_THREAD_HALTED => Some(("thread_halted".to_string(), 0)),
 
                 // fix the "MSC_kern_invalid_5" eyesore. there's no trace code for this
-                Self::ADDR_TRACE_HV_TRAP => Some(("MSC_hv_trap".to_string(), 0)),
+                Self::ADDR_TRACE_HV_TRAP => Some((Self::MSC_HV_TRAP.to_string(), 0)),
 
                 Self::ADDR_TRACE_CODES.. => {
                     let code = (addr - Self::ADDR_TRACE_CODES) as u32;
