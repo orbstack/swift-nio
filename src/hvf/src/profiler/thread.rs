@@ -201,6 +201,8 @@ impl ProfileeThread {
             fp: state.__fp,
             #[cfg(feature = "profiler-framehop")]
             sp: state.__sp,
+
+            x16: state.__x[16],
         })
     }
 
@@ -210,7 +212,7 @@ impl ProfileeThread {
         &mut self,
         host_unwinder: &mut impl Unwinder,
         thread_suspend_histogram: &mut Histogram<u64>,
-        hv_vcpu_run: &Option<Range<usize>>,
+        hv_vcpu_run: Range<usize>,
     ) -> Result<SampleResult, SampleError> {
         let info = match self.get_cpu_info() {
             Ok(info) => info,
@@ -287,19 +289,28 @@ impl ProfileeThread {
         // the most accurate timestamp is from when the thread has just been suspended (as that may take a while if it's in a kernel call), but before we spend time collecting the stack
         let timestamp = MachAbsoluteTime::now();
 
-        // unwind the stack
+        // get registers
         let regs = self
             .get_unwind_regs()
             .map_err(SampleError::ThreadGetState)?;
+
+        // add a synthetic kernel frame if we're in a syscall
+        let in_syscall = HostSyscallTransform::is_syscall_pc(regs.pc);
+        if in_syscall {
+            // XNU ABI: syscall number is in x16
+            let syscall_num = regs.x16;
+            stack.push_back(Frame::new(
+                FrameCategory::HostKernel,
+                HostKernelSymbolicator::addr_for_syscall(syscall_num as i64),
+            ));
+        }
+
+        // unwind the stack
         host_unwinder
             .unwind(regs, |addr| {
                 stack.push_back(Frame::new(FrameCategory::HostUserspace, addr))
             })
             .map_err(SampleError::Unwind)?;
-
-        // get this for the hv_vcpu_run check later,
-        // before we start adding synthetic frames
-        let second_userspace_frame = stack.get(1).copied();
 
         // if thread is waiting, add a synthetic kernel frame
         // syscall will be added in post-processing transform
@@ -332,25 +343,17 @@ impl ProfileeThread {
         };
 
         // if thread is in HVF, trigger an exit now, so that it samples as soon as it resumes
-        // we check for whether it's in hv_vcpu_run, and specifically in the HV syscall
-        // checking for PC in hv_trap is easier, but that's a private symbol so dlsym() can't find it,
-        // and mmapping from dyld shared cache (to get __LINKEDIT) is complicated
-        // without this, we sample kernel stacks for internal calls like _hv_vcpu_set_control_field when the guest wasn't running
-        if let Some(hv_vcpu_run) = hv_vcpu_run {
-            let SampleStack::Stack(stack) = &sample.stack else {
-                panic!("stack is not a stack");
-            };
-
-            if let Some(frame) = second_userspace_frame {
-                if hv_vcpu_run.contains(&(frame.addr as usize))
-                    && HostSyscallTransform::is_syscall_pc(stack[0].addr)
-                {
-                    if let Some(vcpu) = &self.vcpu {
-                        vcpu.send_profiler_sample(PartialSample { sample });
-                        // resumes thread
-                        return Ok(SampleResult::Queued);
-                    }
-                }
+        // we check for whether it's in hv_vcpu_run's HV syscall
+        if in_syscall
+            && regs.x16 == HostSyscallTransform::SYSCALL_MACH_HV_TRAP_ARM64
+            // LR=hv_vcpu_run because PC=hv_trap
+            // TODO: on macOS 15, we'll have to eat the cost of scanning many stack frames, because hv_vcpu_run calls C++ code, and x0 is clobbered with the return value
+            && hv_vcpu_run.contains(&(regs.lr as usize))
+        {
+            if let Some(vcpu) = &self.vcpu {
+                vcpu.send_profiler_sample(PartialSample { sample });
+                // resumes thread
+                return Ok(SampleResult::Queued);
             }
         }
 

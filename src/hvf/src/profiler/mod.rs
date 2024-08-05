@@ -42,9 +42,7 @@ use symbolicator::{
 use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId};
 use time::{MachAbsoluteDuration, MachAbsoluteTime};
 use tracing::{error, info, warn};
-use transform::{
-    CgoTransform, HostSyscallTransform, LeafCallTransform, LinuxIrqTransform, StackTransform,
-};
+use transform::{CgoTransform, LeafCallTransform, LinuxIrqTransform, StackTransform};
 use unwinder::FramePointerUnwinder;
 use utils::{
     qos::{self, QosClass},
@@ -345,7 +343,8 @@ impl Profiler {
 
         // find "hv_vcpu_run" for guest stack sampling
         let mut symbolicator = DladdrSymbolicator::new()?;
-        let hv_vcpu_run = symbolicator.symbol_range("hv_vcpu_run")?;
+        // for unwinder perf, just use a range that matches nothing if the symbol can't be found
+        let hv_vcpu_run = symbolicator.symbol_range("hv_vcpu_run")?.unwrap_or(0..0);
 
         let mut host_unwinder = FramePointerUnwinder {};
 
@@ -398,7 +397,7 @@ impl Profiler {
                 match thread.sample(
                     &mut host_unwinder,
                     &mut thread_suspend_histogram,
-                    &hv_vcpu_run,
+                    hv_vcpu_run.clone(),
                 ) {
                     Ok(SampleResult::Sample(sample)) => {
                         samples.push(sample);
@@ -551,6 +550,12 @@ impl Profiler {
 
         let id = match ThreadId::from_port(&thread_port) {
             Ok(id) => id,
+            Err(
+                MachError::InvalidArgument | MachError::Terminated | MachError::MachSendInvalidDest,
+            ) => {
+                // thread is gone
+                return Ok(());
+            }
             Err(e) => {
                 error!("failed to get thread ID: {}", e);
                 return Ok(());
@@ -659,7 +664,6 @@ impl Profiler {
             Box::new(CgoTransform {}),
             Box::new(LinuxIrqTransform {}),
             Box::new(LeafCallTransform {}),
-            Box::new(HostSyscallTransform {}),
         ];
 
         let mut text_exporter = TextExporter::new(&prof.info, &threads_map)?;

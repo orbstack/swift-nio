@@ -14,6 +14,8 @@ const ARM64_INSN_SVC_0X80: u32 = 0xd4001001;
 pub struct HostSyscallTransform {}
 
 impl HostSyscallTransform {
+    pub const SYSCALL_MACH_HV_TRAP_ARM64: u64 = (-0x5i64) as u64;
+
     pub fn is_syscall_pc(pc: u64) -> bool {
         // in a syscall, PC = return address from syscall, incremented by the CPU when it takes the exception
         // so PC - 4 = syscall instruction

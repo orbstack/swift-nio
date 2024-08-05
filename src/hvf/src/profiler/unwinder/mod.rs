@@ -21,6 +21,8 @@ pub struct UnwindRegs {
     // used by DWARF CFI
     #[cfg(feature = "profiler-framehop")]
     pub sp: u64,
+
+    pub x16: u64,
 }
 
 pub trait Unwinder {
