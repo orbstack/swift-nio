@@ -7,8 +7,8 @@ use std::{
 use hdrhistogram::Histogram;
 use libc::{
     proc_pidinfo, proc_threadinfo, thread_flavor_t, thread_identifier_info, thread_info,
-    THREAD_IDENTIFIER_INFO, THREAD_IDENTIFIER_INFO_COUNT, TH_FLAGS_SWAPPED, TH_STATE_HALTED,
-    TH_STATE_RUNNING, TH_STATE_STOPPED, TH_STATE_UNINTERRUPTIBLE, TH_STATE_WAITING,
+    THREAD_IDENTIFIER_INFO, THREAD_IDENTIFIER_INFO_COUNT, TH_STATE_HALTED, TH_STATE_RUNNING,
+    TH_STATE_STOPPED, TH_STATE_UNINTERRUPTIBLE, TH_STATE_WAITING,
 };
 use mach2::{mach_port::mach_port_deallocate, port::mach_port_t, traps::mach_task_self};
 #[allow(deprecated)] // mach2 doesn't have this
@@ -90,7 +90,6 @@ impl ThreadId {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum ThreadState {
     Running,
-    RunningPreempted,
     Stopped,
     Waiting,
     Uninterruptible,
@@ -156,27 +155,17 @@ impl ProfileeThread {
         Errno::result(ret)?;
         let info = unsafe { info.assume_init() };
 
-        // pth_flags and pth_run_state:
-        // run_state = TH_STATE_RUNNING, flags = 0: running
-        // run_state = TH_STATE_RUNNING, flags = TH_FLAGS_SWAPPED: preempted
-        // run_state = TH_STATE_WAITING: interruptible wait
-        //   * why is there both flags=SWAPPED and flags=0 for this?
-        // run_state = TH_STATE_UNINTERRUPTIBLE: uninterruptible wait
-
-        let mut state = match info.pth_run_state {
-            TH_STATE_RUNNING => ThreadState::Running,
-            TH_STATE_STOPPED => ThreadState::Stopped,
-            TH_STATE_WAITING => ThreadState::Waiting,
-            TH_STATE_UNINTERRUPTIBLE => ThreadState::Uninterruptible,
-            TH_STATE_HALTED => ThreadState::Halted,
-            _ => ThreadState::Running,
-        };
-        if state == ThreadState::Running && info.pth_flags & TH_FLAGS_SWAPPED != 0 {
-            state = ThreadState::RunningPreempted;
-        }
-
         Ok(ThreadCpuInfo {
-            state,
+            // pth_flags|=TH_FLAGS_SWAPPED means preempted, but adding that makes stacks messy
+            // TODO: add preemption markers instead
+            state: match info.pth_run_state {
+                TH_STATE_RUNNING => ThreadState::Running,
+                TH_STATE_STOPPED => ThreadState::Stopped,
+                TH_STATE_WAITING => ThreadState::Waiting,
+                TH_STATE_UNINTERRUPTIBLE => ThreadState::Uninterruptible,
+                TH_STATE_HALTED => ThreadState::Halted,
+                _ => ThreadState::Running,
+            },
 
             // kernel converts the time_value_t to nanoseconds (same as THREAD_EXTENDED_INFO)
             // but the native time_value_t unit is microseconds, so no point in storing more
@@ -315,10 +304,6 @@ impl ProfileeThread {
         // if thread is waiting, add a synthetic kernel frame
         // syscall will be added in post-processing transform
         match info.state {
-            ThreadState::RunningPreempted => stack.push_front(Frame::new(
-                FrameCategory::HostKernel,
-                HostKernelSymbolicator::ADDR_THREAD_PREEMPTED,
-            )),
             ThreadState::Stopped => stack.push_front(Frame::new(
                 FrameCategory::HostKernel,
                 HostKernelSymbolicator::ADDR_THREAD_SUSPENDED,

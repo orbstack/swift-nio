@@ -12,7 +12,6 @@ impl HostKernelSymbolicator {
     pub const ADDR_THREAD_WAIT: u64 = Self::ADDR_BASE + 3;
     pub const ADDR_THREAD_WAIT_UNINTERRUPTIBLE: u64 = Self::ADDR_BASE + 4;
     pub const ADDR_THREAD_HALTED: u64 = Self::ADDR_BASE + 5;
-    pub const ADDR_THREAD_PREEMPTED: u64 = Self::ADDR_BASE + 6;
 
     pub fn new() -> anyhow::Result<Self> {
         Ok(Self {})
@@ -32,7 +31,6 @@ impl Symbolicator for HostKernelSymbolicator {
                     Some(("thread_wait_uninterruptible".to_string(), 0))
                 }
                 Self::ADDR_THREAD_HALTED => Some(("thread_halted".to_string(), 0)),
-                Self::ADDR_THREAD_PREEMPTED => Some(("thread_preempted".to_string(), 0)),
                 _ => None,
             },
         }))
