@@ -16,7 +16,6 @@ use arch::ArchMemoryInfo;
 use bindings::*;
 use bitflags::bitflags;
 use dlopen_derive::WrapperApi;
-use hdrhistogram::Histogram;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
 use utils::extract_bits_64;
@@ -49,10 +48,11 @@ use utils::hypercalls::{
 
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 
-use crate::profiler::stats::dump_histogram;
 use crate::profiler::symbolicator::{LinuxSymbolicator, Symbolicator};
 use crate::profiler::time::MachAbsoluteTime;
-use crate::profiler::{Frame, PartialSample, Profiler, SampleCategory, STACK_DEPTH_LIMIT};
+use crate::profiler::{
+    self, Frame, PartialSample, Profiler, SampleCategory, VcpuProfilerResults, STACK_DEPTH_LIMIT,
+};
 
 extern "C" {
     pub fn mach_absolute_time() -> u64;
@@ -565,6 +565,8 @@ impl HvfVm {
         HvfError::result(ret).map_err(Error::GicAssertSpi)
     }
 
+    /// # Safety
+    /// host_start_addr must be a mapped, contiguous host memory region of at least `size` bytes
     pub unsafe fn map_memory(
         &self,
         host_start_addr: *mut u8,
@@ -720,19 +722,22 @@ unsafe impl ByteValued for PvgicVcpuState {}
 
 pub struct VcpuProfilerState {
     pub profiler: Arc<Profiler>,
-    sample_time_histogram: Histogram<u64>,
+    histograms: profiler::VcpuHistograms,
 }
 
 impl VcpuProfilerState {
-    pub fn new(profiler: Arc<Profiler>) -> Self {
-        Self {
+    pub fn new(profiler: Arc<Profiler>) -> anyhow::Result<Self> {
+        Ok(Self {
             profiler,
-            sample_time_histogram: Histogram::new(3).unwrap(),
-        }
+            histograms: profiler::VcpuHistograms::new()?,
+        })
     }
 
-    pub fn finish(&self) {
-        dump_histogram("vcpu sample time", &self.sample_time_histogram);
+    pub fn finish(self, sender: Sender<VcpuProfilerResults>) -> anyhow::Result<()> {
+        sender.send(VcpuProfilerResults {
+            histograms: self.histograms,
+        })?;
+        Ok(())
     }
 }
 
@@ -1506,12 +1511,19 @@ impl HvfVcpu {
             _ => {}
         }
 
+        let sample_timestamp = sample.timestamp();
         profiler_state.profiler.queue_sample(sample)?;
 
         let sample_end = MachAbsoluteTime::now();
         profiler_state
-            .sample_time_histogram
+            .histograms
+            .sample_time
             .record((sample_end - sample_start).nanos())?;
+        profiler_state
+            .histograms
+            .resume_and_sample
+            .record((sample_end - sample_timestamp).nanos())?;
+
         Ok(())
     }
 

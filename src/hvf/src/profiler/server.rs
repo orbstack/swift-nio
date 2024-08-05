@@ -105,6 +105,8 @@ impl FirefoxApiServer {
             urlencoding::encode(&profile_url)
         );
 
+        info!("Open this profile URL: {}", url);
+
         // run the 'open' command
         // TODO: posix_spawn
         let _ = Command::new("open").arg(url).output()?;

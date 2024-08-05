@@ -6,7 +6,7 @@ use std::cell::Cell;
 use std::cmp;
 use std::fmt::{self, Display};
 use std::fs::File;
-use std::io::{self, IoSlice, Write};
+use std::io::{self, IoSlice};
 use std::marker::PhantomData;
 use std::mem::size_of;
 use std::os::fd::AsRawFd;
@@ -76,6 +76,8 @@ impl<'a> Iovec<'a> {
         self.iov.iov_len
     }
 
+    /// # Safety
+    /// The underlying iov_base memory must have at least `len` bytes allocated.
     pub unsafe fn set_len(&mut self, len: usize) {
         self.iov.iov_len = len;
     }

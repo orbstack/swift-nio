@@ -808,8 +808,10 @@ impl Vcpu {
 
             if taken.contains(VcpuSignalMask::PROFILER_INIT) {
                 if let Some(req) = handle.consume_profiler_init() {
-                    self.profiler_state = Some(VcpuProfilerState::new(req.profiler));
-                    req.completion_sender.send(()).unwrap();
+                    self.profiler_state = Some(VcpuProfilerState::new(req.profiler).unwrap());
+                    if let Err(e) = req.completion_sender.send(()) {
+                        error!("Failed to send profiler init completion: {}", e);
+                    }
                 }
             }
 
@@ -846,9 +848,14 @@ impl Vcpu {
                 }
             }
 
-            if taken.contains(VcpuSignalMask::PROFILER_RESET) {
-                if let Some(profiler_state) = self.profiler_state.take() {
-                    profiler_state.finish();
+            if taken.contains(VcpuSignalMask::PROFILER_FINISH) {
+                if let Some(sender) = handle.consume_profiler_finish() {
+                    // if there's no profiler_state, we'll drop the Sender, causing a RecvError on the other side
+                    if let Some(profiler_state) = self.profiler_state.take() {
+                        if let Err(e) = profiler_state.finish(sender) {
+                            error!("Failed to finish profiler: {}", e);
+                        }
+                    }
                 }
             }
 

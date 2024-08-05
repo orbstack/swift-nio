@@ -1,13 +1,10 @@
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
-use std::{
-    sync::{mpsc::Sender, Arc},
-    thread::sleep,
-    time::Duration,
-};
+use std::{sync::Arc, thread::sleep, time::Duration};
 
 use anyhow::anyhow;
 use crossbeam::queue::ArrayQueue;
+use crossbeam_channel::Sender;
 use gruel::{StartupAbortedError, StartupTask};
 use libc::{c_void, madvise, VM_MAKE_TAG};
 use mach2::{
@@ -21,7 +18,7 @@ use mach2::{
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
 use nix::errno::Errno;
-use profiler::{PartialSample, ProfilerGuestContext, ProfilerVcpuInit};
+use profiler::{PartialSample, ProfilerGuestContext, ProfilerVcpuInit, VcpuProfilerResults};
 use tracing::error;
 use utils::Mutex;
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
@@ -48,6 +45,7 @@ pub struct VcpuHandleInner {
     profiler_init: Mutex<Option<ProfilerVcpuInit>>,
     profiler_sample: ArrayQueue<PartialSample>,
     profiler_guest_fetch: Mutex<Option<Sender<ProfilerGuestContext>>>,
+    profiler_finish: Mutex<Option<Sender<VcpuProfilerResults>>>,
 }
 
 impl VcpuHandleInner {
@@ -57,6 +55,7 @@ impl VcpuHandleInner {
             profiler_init: Mutex::new(None),
             profiler_sample: ArrayQueue::new(1),
             profiler_guest_fetch: Mutex::new(None),
+            profiler_finish: Mutex::new(None),
         }
     }
 
@@ -83,8 +82,9 @@ impl VcpuHandleInner {
         self.signal.assert(VcpuSignalMask::PROFILER_GUEST_FETCH);
     }
 
-    pub fn send_profiler_reset(&self) {
-        self.signal.assert(VcpuSignalMask::PROFILER_RESET);
+    pub fn send_profiler_finish(&self, sender: Sender<VcpuProfilerResults>) {
+        *self.profiler_finish.lock().unwrap() = Some(sender);
+        self.signal.assert(VcpuSignalMask::PROFILER_FINISH);
     }
 
     pub fn consume_profiler_init(&self) -> Option<ProfilerVcpuInit> {
@@ -97,6 +97,10 @@ impl VcpuHandleInner {
 
     pub fn consume_profiler_guest_fetch(&self) -> Option<Sender<ProfilerGuestContext>> {
         self.profiler_guest_fetch.lock().unwrap().take()
+    }
+
+    pub fn consume_profiler_finish(&self) -> Option<Sender<VcpuProfilerResults>> {
+        self.profiler_finish.lock().unwrap().take()
     }
 }
 
@@ -179,6 +183,8 @@ unsafe fn new_chunks_at(host_base_addr: *mut c_void, total_size: usize) -> anyho
     Ok(())
 }
 
+/// # Safety
+/// host_addr must be a mapped, contiguous host memory region of at least `size` bytes
 pub unsafe fn free_range(
     guest_addr: GuestAddress,
     host_addr: *mut c_void,
@@ -213,6 +219,8 @@ pub unsafe fn free_range(
     Ok(())
 }
 
+/// # Safety
+/// host_addr must be a mapped, contiguous host memory region of at least `size` bytes
 pub unsafe fn reuse_range(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
     // let _span = tracing::info_span!("free_range", size = size).entered();
     // start and end must be page-aligned

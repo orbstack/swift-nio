@@ -4,7 +4,6 @@ use std::{
     mem::size_of,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::Sender,
         Arc,
     },
     thread::JoinHandle,
@@ -15,6 +14,7 @@ use ahash::AHashMap;
 use anyhow::anyhow;
 use buffer::SegVec;
 use crossbeam::queue::ArrayQueue;
+use crossbeam_channel::Sender;
 use firefox::FirefoxSampleProcessor;
 use hdrhistogram::Histogram;
 use ktrace::{KtraceResults, Ktracer};
@@ -36,7 +36,6 @@ use processor::TextSampleProcessor;
 use sched::set_realtime_scheduling;
 use serde::{Deserialize, Serialize};
 use server::FirefoxApiServer;
-use stats::dump_histogram;
 use symbolicator::{
     CachedSymbolicator, DladdrSymbolicator, HostKernelSymbolicator, LinuxSymbolicator,
     SymbolResult, Symbolicator,
@@ -192,6 +191,10 @@ pub struct PartialSample {
 }
 
 impl PartialSample {
+    pub fn timestamp(&self) -> MachAbsoluteTime {
+        self.sample.time
+    }
+
     pub fn prepend_stack(&mut self, frame: Frame) {
         if let SampleStack::Stack(stack) = &mut self.sample.stack {
             stack.push_front(frame);
@@ -216,6 +219,24 @@ pub struct ProfilerGuestContext {
     pub symbolicator: Option<LinuxSymbolicator>,
 }
 
+pub struct VcpuProfilerResults {
+    pub histograms: VcpuHistograms,
+}
+
+pub struct VcpuHistograms {
+    pub sample_time: Histogram<u64>,
+    pub resume_and_sample: Histogram<u64>,
+}
+
+impl VcpuHistograms {
+    pub fn new() -> anyhow::Result<Self> {
+        Ok(Self {
+            sample_time: Histogram::<u64>::new(3)?,
+            resume_and_sample: Histogram::<u64>::new(3)?,
+        })
+    }
+}
+
 pub struct ProfilerVcpuInit {
     pub profiler: Arc<Profiler>,
     pub completion_sender: Sender<()>,
@@ -230,6 +251,17 @@ pub struct ProfileInfo {
     pub end_time_abs: MachAbsoluteTime,
     pub params: ProfilerParams,
     pub num_samples: usize,
+}
+
+pub struct ProfileResults {
+    info: ProfileInfo,
+    samples: SegVec<Sample, SEGMENT_SIZE>,
+    threads: Vec<ProfileeThread>,
+    resources: SegVec<ResourceSample, SEGMENT_SIZE>,
+    sample_batch_histogram: Histogram<u64>,
+    thread_suspend_histogram: Histogram<u64>,
+    vcpu_agg_histograms: VcpuHistograms,
+    ktrace: Option<KtraceResults>,
 }
 
 struct ThreadFrameState<'a> {
@@ -291,6 +323,7 @@ impl Profiler {
         }
         let mut handles = Vec::new();
 
+        self.stop.store(false, Ordering::Relaxed);
         let self_clone = self.clone();
         handles.push(
             std::thread::Builder::new()
@@ -420,31 +453,54 @@ impl Profiler {
         let end_time = MachAbsoluteTime::now();
         let wall_end_time = SystemTime::now();
 
+        // stop ktrace
         let ktrace_results = Some(ktracer.stop()?);
 
-        dump_histogram("sample batch time", &sample_batch_histogram);
-        dump_histogram("thread suspend time", &thread_suspend_histogram);
+        // get symbolication context from one vCPU
+        let guest_context = self.get_guest_context(&threads)?;
 
-        let info = ProfileInfo {
-            pid: std::process::id(),
-            start_time: wall_start_time,
-            start_time_abs: profile_start_time,
-            end_time: wall_end_time,
-            end_time_abs: end_time,
-            params: self.params.clone(),
-            num_samples: samples.len(),
+        // vCPU threads are no longer needed now that we've gotten guest context
+        // tell them to drop VcpuProfilerState to avoid leaking memory
+        let mut vcpu_agg_histograms = VcpuHistograms {
+            sample_time: Histogram::<u64>::new(3)?,
+            resume_and_sample: Histogram::<u64>::new(3)?,
         };
 
-        self.stop.store(false, Ordering::Relaxed);
+        for thread in &threads {
+            if let Some(vcpu) = thread.vcpu.as_ref() {
+                let (sender, receiver) = crossbeam::channel::bounded(1);
+                vcpu.send_profiler_finish(sender);
+                let results = receiver.recv()?;
 
-        self.process_samples(
+                // aggregate vCPU histograms. per-vCPU is too much data to make sense of
+                vcpu_agg_histograms
+                    .sample_time
+                    .add(results.histograms.sample_time)?;
+                vcpu_agg_histograms
+                    .resume_and_sample
+                    .add(results.histograms.resume_and_sample)?;
+            }
+        }
+
+        let results = ProfileResults {
+            info: ProfileInfo {
+                pid: std::process::id(),
+                start_time: wall_start_time,
+                start_time_abs: profile_start_time,
+                end_time: wall_end_time,
+                end_time_abs: end_time,
+                params: self.params.clone(),
+                num_samples: samples.len(),
+            },
             samples,
-            &info,
-            &threads,
-            &resources,
-            &thread_suspend_histogram,
-            ktrace_results.as_ref(),
-        )?;
+            threads,
+            resources,
+            sample_batch_histogram,
+            thread_suspend_histogram,
+            vcpu_agg_histograms,
+            ktrace: ktrace_results,
+        };
+        self.process_samples(guest_context, results)?;
 
         Ok(())
     }
@@ -546,11 +602,13 @@ impl Profiler {
         };
 
         if let Some(vcpu) = vcpu.as_ref() {
-            let (sender, receiver) = std::sync::mpsc::channel();
+            let (sender, receiver) = crossbeam::channel::bounded(1);
             vcpu.send_profiler_init(ProfilerVcpuInit {
                 profiler: self.clone(),
                 completion_sender: sender,
             });
+
+            // wait for init, so that vcpu init samples don't show up in the profile
             receiver.recv()?;
         }
 
@@ -570,7 +628,7 @@ impl Profiler {
             .find_map(|t| t.vcpu.as_ref())
             .ok_or_else(|| anyhow!("no vCPU threads found"))?;
 
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = crossbeam::channel::bounded(1);
         vcpu.send_profiler_guest_fetch(sender);
         let response = receiver.recv()?;
         Ok(response)
@@ -578,34 +636,23 @@ impl Profiler {
 
     fn process_samples(
         &self,
-        mut samples: SegVec<Sample, SEGMENT_SIZE>,
-        info: &ProfileInfo,
-        threads: &[ProfileeThread],
-        resources: &SegVec<ResourceSample, SEGMENT_SIZE>,
-        thread_suspend_histogram: &Histogram<u64>,
-        ktrace_results: Option<&KtraceResults>,
+        mut guest_context: ProfilerGuestContext,
+        mut prof: ProfileResults,
     ) -> anyhow::Result<()> {
         info!("processing samples");
 
-        let threads_map = threads
+        let threads_map = prof
+            .threads
             .iter()
             .map(|t| (t.id, t))
             .collect::<AHashMap<_, _>>();
 
         // this also needs to be VecDeque to allow for fast push/pop/drain in StackTransforms
-        let mut thread_states: AHashMap<ThreadId, ThreadFrameState> = threads
+        let mut thread_states: AHashMap<ThreadId, ThreadFrameState> = prof
+            .threads
             .iter()
             .map(|t| (t.id, ThreadFrameState::new()))
             .collect();
-        let mut guest_context = self.get_guest_context(threads)?;
-
-        // vCPU threads are no longer needed now that we've gotten guest context
-        // tell them to drop VcpuProfilerState to avoid leaking memory
-        for thread in threads {
-            if let Some(vcpu) = thread.vcpu.as_ref() {
-                vcpu.send_profiler_reset();
-            }
-        }
 
         let mut host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
         let mut host_kernel_symbolicator = HostKernelSymbolicator::new()?;
@@ -615,10 +662,10 @@ impl Profiler {
         let leaf_transform = LeafCallTransform {};
         let syscall_transform = SyscallTransform {};
 
-        let mut text_processor = TextSampleProcessor::new(info, threads_map.clone())?;
-        let mut ff_processor = FirefoxSampleProcessor::new(info, threads_map)?;
+        let mut text_processor = TextSampleProcessor::new(&prof.info, threads_map.clone())?;
+        let mut ff_processor = FirefoxSampleProcessor::new(&prof.info, threads_map)?;
         let mut total_bytes = 0;
-        for sample in &mut samples {
+        for sample in &mut prof.samples {
             total_bytes += size_of::<Sample>();
 
             let thread_state = thread_states
@@ -636,8 +683,10 @@ impl Profiler {
             // this is bad, but fast and easy:
             // ktrace's vmfault injection is a special pre-symbolication transformation
             // needed because vmfaults are time-based, so samples with the same stack could have different stacks after vmfault injection
-            let sample_stack = if let Some(kt_thread) =
-                ktrace_results.and_then(|r| r.threads.get(&sample.thread_id))
+            let sample_stack = if let Some(kt_thread) = prof
+                .ktrace
+                .as_ref()
+                .and_then(|r| r.threads.get(&sample.thread_id))
             {
                 if kt_thread.is_time_in_fault(sample.sample_begin_time)
                     || kt_thread.is_time_in_fault(sample.time)
@@ -728,15 +777,15 @@ impl Profiler {
             ff_processor.process_sample(sample, sframes)?;
         }
         info!("writing to file: {}", self.params.output_path);
-        text_processor.write_to_path(&self.params.output_path)?;
+        text_processor.write_to_path(&prof, &self.params.output_path)?;
 
         let ff_output_path = self.params.output_path.clone() + ".json";
         info!("writing to file: {}", &ff_output_path);
-        if let Some(ktrace_results) = ktrace_results {
+        if let Some(ktrace_results) = &prof.ktrace {
             ff_processor.add_ktrace_markers(ktrace_results);
         }
-        ff_processor.add_resources(resources);
-        ff_processor.write_to_path(total_bytes, thread_suspend_histogram, &ff_output_path)?;
+        ff_processor.add_resources(&prof.resources);
+        ff_processor.write_to_path(&prof, total_bytes, &ff_output_path)?;
         if let Err(e) = FirefoxApiServer::shared().add_and_open_profile(ff_output_path) {
             error!("failed to open in Firefox Profiler: {}", e);
         }

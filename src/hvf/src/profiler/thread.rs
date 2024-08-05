@@ -7,7 +7,7 @@ use std::{
 use hdrhistogram::Histogram;
 use libc::{
     proc_pidinfo, proc_threadinfo, thread_flavor_t, thread_identifier_info, thread_info,
-    THREAD_IDENTIFIER_INFO, THREAD_IDENTIFIER_INFO_COUNT,
+    THREAD_IDENTIFIER_INFO, THREAD_IDENTIFIER_INFO_COUNT, TH_STATE_RUNNING,
 };
 use mach2::{mach_port::mach_port_deallocate, port::mach_port_t, traps::mach_task_self};
 #[allow(deprecated)] // mach2 doesn't have this
@@ -86,7 +86,15 @@ impl ThreadId {
 }
 
 #[derive(Debug, Copy, Clone)]
+enum ThreadState {
+    Running,
+    // makes matching simpler for now
+    Other,
+}
+
+#[derive(Debug, Copy, Clone)]
 struct ThreadCpuInfo {
+    state: ThreadState,
     user_time_us: u64,
     system_time_us: u64,
 }
@@ -141,6 +149,7 @@ impl ProfileeThread {
             )
         };
         Errno::result(ret)?;
+        let info = unsafe { info.assume_init() };
 
         // pth_flags and pth_run_state:
         // run_state = TH_STATE_RUNNING, flags = 0: running
@@ -149,8 +158,12 @@ impl ProfileeThread {
         //   * why is there both flags=SWAPPED and flags=0 for this?
         // run_state = TH_STATE_UNINTERRUPTIBLE: uninterruptible wait
 
-        let info = unsafe { info.assume_init() };
         Ok(ThreadCpuInfo {
+            state: match info.pth_run_state {
+                TH_STATE_RUNNING => ThreadState::Running,
+                _ => ThreadState::Other,
+            },
+
             // kernel converts the time_value_t to nanoseconds (same as THREAD_EXTENDED_INFO)
             // but the native time_value_t unit is microseconds, so no point in storing more
             user_time_us: info.pth_user_time / 1000,
@@ -158,12 +171,12 @@ impl ProfileeThread {
         })
     }
 
-    fn get_cpu_time_delta_us(&mut self) -> nix::Result<Option<u64>> {
+    fn get_cpu_time_delta_us(&mut self) -> nix::Result<(Option<u64>, ThreadState)> {
         let info = self.get_cpu_info()?;
         let cpu_time_us = info.user_time_us + info.system_time_us;
         let delta = self.last_cpu_time_us.map(|last| cpu_time_us - last);
         self.last_cpu_time_us = Some(cpu_time_us);
-        Ok(delta)
+        Ok((delta, info.state))
     }
 
     fn get_unwind_regs(&self) -> MachResult<UnwindRegs> {
@@ -198,7 +211,7 @@ impl ProfileeThread {
     ) -> Result<SampleResult, SampleError> {
         let cpu_time_delta_us = match self.get_cpu_time_delta_us() {
             // no CPU time elapsed; thread is idle, and this isn't the first sample
-            Ok(Some(0)) => {
+            Ok((Some(0), ThreadState::Other)) => {
                 let now = MachAbsoluteTime::now();
                 return Ok(SampleResult::Sample(Sample {
                     time: now,
@@ -209,11 +222,16 @@ impl ProfileeThread {
                 }));
             }
 
+            // no CPU time elapsed, but thread is running
+            // this can happen if it just started running and hasn't context switched yet (so kernel hasn't updated time accumulators)
+            // resampling time after suspend is unnecessary; next sample will get the accumulated time
+            Ok((Some(0), ThreadState::Running)) => 0,
+
             // some CPU has been used; not first sample
-            Ok(Some(delta)) => delta as u32,
+            Ok((Some(delta), _)) => delta as u32,
 
             // first sample
-            Ok(None) => 0,
+            Ok((None, _)) => 0,
 
             // thread is gone
             Err(Errno::ESRCH) => {

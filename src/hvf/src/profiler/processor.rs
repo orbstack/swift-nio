@@ -4,13 +4,16 @@ use std::io::{BufWriter, Write};
 use std::{cell::RefCell, collections::BTreeMap, fs::File, rc::Rc};
 
 use ahash::AHashMap;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
 
+use super::stats::HistogramExt;
 use super::{
     symbolicator::SymbolResult,
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use super::{Frame, ProfileInfo, SampleCategory, SymbolicatedFrame};
+use super::{Frame, ProfileInfo, ProfileResults, SampleCategory, SymbolicatedFrame};
 
 trait AsTreeKey {
     type Key: Ord;
@@ -126,6 +129,7 @@ struct ThreadNode {
 }
 
 pub struct TextSampleProcessor<'a> {
+    info: &'a ProfileInfo,
     threads_map: AHashMap<ThreadId, &'a ProfileeThread>,
 
     threads: BTreeMap<ThreadId, ThreadNode>,
@@ -133,10 +137,11 @@ pub struct TextSampleProcessor<'a> {
 
 impl<'a> TextSampleProcessor<'a> {
     pub fn new(
-        _info: &'a ProfileInfo,
+        info: &'a ProfileInfo,
         threads_map: AHashMap<ThreadId, &'a ProfileeThread>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
+            info,
             threads_map,
 
             threads: BTreeMap::new(),
@@ -170,23 +175,67 @@ impl<'a> TextSampleProcessor<'a> {
         Ok(())
     }
 
-    pub fn write_to_path(&self, path: &str) -> anyhow::Result<()> {
+    pub fn write_to_path(&self, prof: &ProfileResults, path: &str) -> anyhow::Result<()> {
         let file = File::create(path)?;
-        let mut buf_writer = BufWriter::new(file);
+        let mut w = BufWriter::new(file);
+
+        // write basic info
+        writeln!(
+            w,
+            "App version: {}",
+            self.info.params.app_version.as_deref().unwrap_or(""),
+        )?;
+        writeln!(
+            w,
+            "App build number: {}",
+            self.info.params.app_build_number.unwrap_or(0),
+        )?;
+        writeln!(
+            w,
+            "App commit: {}",
+            self.info.params.app_commit.as_deref().unwrap_or(""),
+        )?;
+        writeln!(w, "Executable: {}", std::env::current_exe()?.display(),)?;
+        writeln!(w)?;
+
+        writeln!(w, "PID: {}", self.info.pid)?;
+        let start_time: OffsetDateTime = self.info.start_time.into();
+        writeln!(w, "Started at: {}", start_time.format(&Rfc2822)?)?;
+        writeln!(
+            w,
+            "Duration: {:?}",
+            self.info.end_time_abs - self.info.start_time_abs
+        )?;
+        writeln!(w, "Samples: {}", self.info.num_samples)?;
+        writeln!(w, "Sample rate: {} Hz", self.info.params.sample_rate)?;
 
         // sorted by ID
         let threads = self.threads.iter().collect::<Vec<_>>();
         for (thread_id, thread_node) in threads {
             writeln!(
-                buf_writer,
+                w,
                 "\n\nThread '{}'  ({:#x}, {} samples)",
                 thread_node.name.as_deref().unwrap_or(""),
                 thread_id.0,
                 thread_node.stacks.count
             )?;
 
-            thread_node.stacks.dump(&mut buf_writer, 1)?;
+            thread_node.stacks.dump(&mut w, 1)?;
         }
+
+        // histograms
+        writeln!(w, "\n\n\nProfiler overhead:")?;
+        prof.sample_batch_histogram
+            .dump(&mut w, "Sampler loop iteration — all threads (ns)")?;
+        prof.thread_suspend_histogram
+            .dump(&mut w, "Thread suspend + host stack sampling (ns)")?;
+        prof.vcpu_agg_histograms
+            .sample_time
+            .dump(&mut w, "vCPU sampling (ns)")?;
+        prof.vcpu_agg_histograms.resume_and_sample.dump(
+            &mut w,
+            "vCPU total overhead — suspended + host sampling + resume + guest sampling (ns)",
+        )?;
 
         Ok(())
     }

@@ -1,6 +1,5 @@
 use ahash::AHashMap;
 use anyhow::anyhow;
-use hdrhistogram::Histogram;
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::hash::Hash;
@@ -18,7 +17,9 @@ use super::{
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use super::{Frame, ProfileInfo, ResourceSample, SampleCategory, SymbolicatedFrame};
+use super::{
+    Frame, ProfileInfo, ProfileResults, ResourceSample, SampleCategory, SymbolicatedFrame,
+};
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -796,8 +797,8 @@ impl<'a> FirefoxSampleProcessor<'a> {
 
     pub fn write_to_path(
         self,
+        prof: &ProfileResults,
         total_bytes: usize,
-        thread_suspend_histogram: &Histogram<u64>,
         path: &str,
     ) -> anyhow::Result<()> {
         let file = File::create(path)?;
@@ -914,10 +915,45 @@ impl<'a> FirefoxSampleProcessor<'a> {
             profiler_overhead: vec![ProfilerOverhead {
                 // not used by profiler UI
                 samples: ProfilerOverheadSampleTable::default(),
+
+                // Firefox Profiler doesn't let us set names for these, so:
+                // Overhead = total sampler loop time to sample a batch of all threads
+                // Cleaning = time for vCPU to sample guest stack
+                // Interval = total time a vCPU was unable to run guest code. (time between thread_suspend completion, and vCPU finishing sampling. includes resume and scheduler/runnable overhead)
+                // Lockings = time to sample host stack while thread is suspended. (time between thread_suspended and thread_resume)
                 statistics: Some(ProfilerOverheadStats {
-                    min_overhead: Microseconds((thread_suspend_histogram.min() as f64) / 1000.0),
-                    max_overhead: Microseconds((thread_suspend_histogram.max() as f64) / 1000.0),
-                    mean_overhead: Microseconds(thread_suspend_histogram.mean() / 1000.0),
+                    min_overhead: Microseconds((prof.sample_batch_histogram.min() as f64) / 1000.0),
+                    max_overhead: Microseconds((prof.sample_batch_histogram.max() as f64) / 1000.0),
+                    mean_overhead: Microseconds(prof.sample_batch_histogram.mean() / 1000.0),
+
+                    min_lockings: Microseconds(
+                        (prof.thread_suspend_histogram.min() as f64) / 1000.0,
+                    ),
+                    max_lockings: Microseconds(
+                        (prof.thread_suspend_histogram.max() as f64) / 1000.0,
+                    ),
+                    mean_lockings: Microseconds(prof.thread_suspend_histogram.mean() / 1000.0),
+
+                    min_cleaning: Microseconds(
+                        (prof.vcpu_agg_histograms.sample_time.min() as f64) / 1000.0,
+                    ),
+                    max_cleaning: Microseconds(
+                        (prof.vcpu_agg_histograms.sample_time.max() as f64) / 1000.0,
+                    ),
+                    mean_cleaning: Microseconds(
+                        prof.vcpu_agg_histograms.sample_time.mean() / 1000.0,
+                    ),
+
+                    min_interval: Microseconds(
+                        (prof.vcpu_agg_histograms.resume_and_sample.min() as f64) / 1000.0,
+                    ),
+                    max_interval: Microseconds(
+                        (prof.vcpu_agg_histograms.resume_and_sample.max() as f64) / 1000.0,
+                    ),
+                    mean_interval: Microseconds(
+                        prof.vcpu_agg_histograms.resume_and_sample.mean() / 1000.0,
+                    ),
+
                     sampling_count: self.info.num_samples,
                     ..Default::default()
                 }),

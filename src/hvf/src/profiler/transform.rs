@@ -181,13 +181,17 @@ impl SyscallTransform {
 
 impl StackTransform for SyscallTransform {
     fn transform(&self, stack: &mut VecDeque<SymbolicatedFrame>) -> anyhow::Result<()> {
-        let Some(pc) = stack.front() else {
+        // find the first host userspace frame, not necessarily the front of the stack
+        // this makes it work for hv_trap, nested MACH_vmfaults in syscalls, etc.
+        let Some((index, pc)) = stack
+            .iter()
+            .enumerate()
+            .find(|&(_, sframe)| sframe.frame.category == SampleCategory::HostUserspace)
+        else {
             return Ok(());
         };
 
-        if pc.frame.category == SampleCategory::HostUserspace
-            && SyscallTransform::is_syscall_pc(pc.frame.addr)
-        {
+        if SyscallTransform::is_syscall_pc(pc.frame.addr) {
             // derive a syscall name from the userspace caller's symbol
             // this isn't really accurate, but it almost always works because macOS requires libSystem
             // we could do better by reading and saving x16, but that adds the overhead of reading the instruction at PC (and risking faults) to the thread-suspended critical section
@@ -200,18 +204,21 @@ impl StackTransform for SyscallTransform {
                 _ => "<unknown>",
             };
 
-            // prepend a syscall frame to the stack
-            stack.push_front(SymbolicatedFrame {
-                frame: Frame {
-                    category: SampleCategory::HostKernel,
-                    addr: pc.frame.addr,
+            // insert a syscall frame below this
+            stack.insert(
+                index,
+                SymbolicatedFrame {
+                    frame: Frame {
+                        category: SampleCategory::HostKernel,
+                        addr: pc.frame.addr,
+                    },
+                    symbol: Some(SymbolResult {
+                        image: HostKernelSymbolicator::IMAGE.to_string(),
+                        image_base: 0,
+                        symbol_offset: Some((format!("syscall: {}", syscall_name), 0)),
+                    }),
                 },
-                symbol: Some(SymbolResult {
-                    image: HostKernelSymbolicator::IMAGE.to_string(),
-                    image_base: 0,
-                    symbol_offset: Some((format!("syscall: {}", syscall_name), 0)),
-                }),
-            });
+            );
         }
 
         Ok(())
