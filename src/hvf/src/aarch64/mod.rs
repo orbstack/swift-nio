@@ -48,10 +48,11 @@ use utils::hypercalls::{
 
 pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 
-use crate::profiler::symbolicator::{LinuxSymbolicator, Symbolicator};
+use crate::profiler::arch::{is_hypercall_insn, ARM64_INSN_SIZE};
+use crate::profiler::symbolicator::{HostKernelSymbolicator, LinuxSymbolicator, Symbolicator};
 use crate::profiler::time::MachAbsoluteTime;
 use crate::profiler::{
-    self, Frame, PartialSample, Profiler, FrameCategory, VcpuProfilerResults, STACK_DEPTH_LIMIT,
+    self, Frame, FrameCategory, PartialSample, Profiler, VcpuProfilerResults, STACK_DEPTH_LIMIT,
 };
 
 extern "C" {
@@ -1438,8 +1439,7 @@ impl HvfVcpu {
         Ok(buf)
     }
 
-    fn walk_stack(&self, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
-        let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
+    fn walk_stack(&self, pc: u64, mut f: impl FnMut(u64)) -> anyhow::Result<()> {
         let lr = self.read_raw_reg(hv_reg_t_HV_REG_LR)?;
 
         // start with just PC and LR
@@ -1497,12 +1497,27 @@ impl HvfVcpu {
         let cpsr = self.read_raw_reg(hv_reg_t_HV_REG_CPSR)?;
         match cpsr & PSR_MODE_MASK {
             PSR_MODE_EL1T | PSR_MODE_EL1H => {
+                let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
+
                 // needs to be in reverse order
                 let mut stack = SmallVec::<[u64; STACK_DEPTH_LIMIT]>::new();
-                self.walk_stack(|addr| stack.push(addr))?;
+                self.walk_stack(pc, |addr| stack.push(addr))?;
 
                 for &addr in stack.iter().rev() {
                     sample.prepend_stack(Frame::new(FrameCategory::GuestKernel, addr));
+                }
+
+                // if PC would be returning from a hypercall (PC-4 = HVC), we're in host kernel overhead
+                // need to be careful when reading this because of BPF vmalloc_exec regions
+                if let Ok(gpa) = self.translate_gva(pc - ARM64_INSN_SIZE) {
+                    if let Ok(last_insn) = self.guest_mem.read_obj_fast::<u32>(gpa) {
+                        if is_hypercall_insn(last_insn) {
+                            sample.prepend_stack(Frame::new(
+                                FrameCategory::HostKernel,
+                                HostKernelSymbolicator::ADDR_HANDLE_HVC,
+                            ));
+                        }
+                    }
                 }
             }
             PSR_MODE_EL0T => {
@@ -1559,8 +1574,9 @@ impl HvfVcpu {
 
     fn add_debug_stack(&self, buf: &mut String, csmap_path: &str) -> anyhow::Result<()> {
         // walk stack, with depth limit to protect against malicious/corrupted stack
+        let pc = self.read_raw_reg(hv_reg_t_HV_REG_PC)?;
         let mut stack = Vec::with_capacity(STACK_DEPTH_LIMIT);
-        self.walk_stack(|addr| stack.push(addr))?;
+        self.walk_stack(pc, |addr| stack.push(addr))?;
 
         let mut symbolicator = self.new_symbolicator(csmap_path)?;
         for (i, &addr) in stack.iter().enumerate() {

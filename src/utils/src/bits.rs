@@ -14,3 +14,15 @@ macro_rules! extract_bits_64 {
         ($value >> $offset) & (!0u64 >> (64 - $length))
     };
 }
+
+#[macro_export]
+macro_rules! extract_bits_32 {
+    // fix warning when offset=0
+    ($value: expr, 0, $length: expr) => {
+        $value & (!0u32 >> (32 - $length))
+    };
+
+    ($value: expr, $offset: expr, $length: expr) => {
+        ($value >> $offset) & (!0u32 >> (32 - $length))
+    };
+}

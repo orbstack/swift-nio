@@ -51,6 +51,7 @@ use utils::{
 
 use crate::{VcpuHandleInner, VcpuRegistry};
 
+pub(crate) mod arch;
 mod buffer;
 mod exporter;
 mod ktrace;

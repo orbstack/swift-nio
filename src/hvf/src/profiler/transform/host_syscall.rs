@@ -1,15 +1,13 @@
 use std::collections::VecDeque;
 
 use crate::profiler::{
+    arch::{ARM64_INSN_SIZE, ARM64_INSN_SVC_0X80},
     memory::read_host_mem_aligned,
     symbolicator::{HostKernelSymbolicator, SymbolResult},
     Frame, FrameCategory, SymbolicatedFrame,
 };
 
 use super::StackTransform;
-
-const ARM64_INSN_SIZE: u64 = 4;
-const ARM64_INSN_SVC_0X80: u32 = 0xd4001001;
 
 pub struct HostSyscallTransform {}
 

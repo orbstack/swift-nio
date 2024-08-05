@@ -21,6 +21,7 @@ impl HostKernelSymbolicator {
     pub const ADDR_THREAD_WAIT: u64 = Self::ADDR_BASE + 3;
     pub const ADDR_THREAD_WAIT_UNINTERRUPTIBLE: u64 = Self::ADDR_BASE + 4;
     pub const ADDR_THREAD_HALTED: u64 = Self::ADDR_BASE + 5;
+    pub const ADDR_HANDLE_HVC: u64 = Self::ADDR_BASE + 6;
 
     // use ktrace codes to map BSD and Mach syscall numberes to names in a maintainable way
     const ADDR_TRACE_CODES: u64 = Self::ADDR_BASE + 0x1000;
@@ -77,6 +78,7 @@ impl Symbolicator for HostKernelSymbolicator {
                     Some(("thread_wait_uninterruptible".to_string(), 0))
                 }
                 Self::ADDR_THREAD_HALTED => Some(("thread_halted".to_string(), 0)),
+                Self::ADDR_HANDLE_HVC => Some(("handle_hvc".to_string(), 0)),
 
                 // fix the "MSC_kern_invalid_5" eyesore. there's no trace code for this
                 Self::ADDR_TRACE_HV_TRAP => Some((Self::MSC_HV_TRAP.to_string(), 0)),
