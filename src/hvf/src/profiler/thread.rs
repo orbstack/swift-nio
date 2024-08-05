@@ -205,7 +205,7 @@ impl ProfileeThread {
         thread_suspend_histogram: &mut Histogram<u64>,
         hv_vcpu_run: Range<usize>,
     ) -> Result<SampleResult, SampleError> {
-        let info = match self.get_cpu_info() {
+        let mut info = match self.get_cpu_info() {
             Ok(info) => info,
             // thread is gone
             Err(Errno::ESRCH) => {
@@ -229,7 +229,6 @@ impl ProfileeThread {
         }
 
         let cpu_time_delta_us = info.cpu_time_us - self.last_cpu_info.map_or(0, |i| i.cpu_time_us);
-        self.last_cpu_info = Some(info);
 
         // TODO: enforce limit including guest frames
         // allocate stack upfront
@@ -285,7 +284,14 @@ impl ProfileeThread {
                 FrameCategory::HostKernel,
                 HostKernelSymbolicator::addr_for_syscall(syscall_num as i64),
             ));
+        } else if info.state == ThreadState::Waiting || info.state == ThreadState::Uninterruptible {
+            // if we're not in a syscall, it's not possible for us to be in thread_wait or uninterruptible
+            // this was a race: thread was waiting when we checked the state, but it returned before we suspended it
+            info.state = ThreadState::Running;
         }
+
+        // don't save the cpu info until we're done changing it to what we actually sampled
+        self.last_cpu_info = Some(info);
 
         // unwind the stack
         host_unwinder
