@@ -6,8 +6,15 @@ pub struct FramePointerUnwinder {}
 
 impl Unwinder for FramePointerUnwinder {
     fn unwind(&mut self, regs: UnwindRegs, mut f: impl FnMut(u64)) -> super::Result<()> {
-        // start with just PC and LR
+        // start with just PC
         f(regs.pc);
+
+        // unlike most frame pointer unwinders, we consider LR part of the stack
+        // this means we can catch leaf calls that don't save/restore LR -- which is a really common case
+        // this does nothing for tail calls; no unwinder can deal with them
+        // as a result, we have to:
+        // 1. validate LR. compiler is allowed to use it as a scratch register, since the epilogue will restore LR from the stack frame
+        // 2. dedupe LR and first frame's LR, in case we're past the epilogue, and LR has already been pushed to the stack
 
         // LR may be loaded from stack, so strip PAC signature
         let initial_lr = regs.lr & PAC_MASK;
