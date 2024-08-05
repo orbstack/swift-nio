@@ -24,7 +24,7 @@ use crate::{check_mach, ArcVcpuHandle};
 
 use super::{
     time::MachAbsoluteTime,
-    transform::SyscallTransform,
+    transform::HostSyscallTransform,
     unwinder::{UnwindError, UnwindRegs, Unwinder, STACK_DEPTH_LIMIT},
     Frame, MachError, MachResult, PartialSample, Sample, SampleCategory, SampleStack,
 };
@@ -197,6 +197,7 @@ impl ProfileeThread {
             pc: state.__pc,
             lr: state.__lr,
             fp: state.__fp,
+            #[cfg(feature = "profiler-framehop")]
             sp: state.__sp,
         })
     }
@@ -312,7 +313,7 @@ impl ProfileeThread {
 
             if let Some(&frame) = stack.get(1) {
                 if hv_vcpu_run.contains(&(frame.addr as usize))
-                    && SyscallTransform::is_syscall_pc(stack[0].addr)
+                    && HostSyscallTransform::is_syscall_pc(stack[0].addr)
                 {
                     if let Some(vcpu) = &self.vcpu {
                         vcpu.send_profiler_sample(PartialSample { sample });

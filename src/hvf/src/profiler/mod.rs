@@ -15,7 +15,7 @@ use anyhow::anyhow;
 use buffer::SegVec;
 use crossbeam::queue::ArrayQueue;
 use crossbeam_channel::Sender;
-use firefox::FirefoxSampleProcessor;
+use exporter::{FirefoxExporter, TextExporter};
 use hdrhistogram::Histogram;
 use ktrace::{KtraceResults, Ktracer};
 use libc::{
@@ -32,7 +32,6 @@ use mach2::{
     vm::mach_vm_deallocate,
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
-use processor::TextSampleProcessor;
 use sched::set_realtime_scheduling;
 use serde::{Deserialize, Serialize};
 use server::FirefoxApiServer;
@@ -44,7 +43,7 @@ use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId};
 use time::{MachAbsoluteDuration, MachAbsoluteTime};
 use tracing::{error, info, warn};
 use transform::{
-    CgoStackTransform, LeafCallTransform, LinuxIrqStackTransform, StackTransform, SyscallTransform,
+    CgoTransform, HostSyscallTransform, LeafCallTransform, LinuxIrqTransform, StackTransform,
 };
 use unwinder::FramePointerUnwinder;
 use utils::{
@@ -55,10 +54,9 @@ use utils::{
 use crate::{VcpuHandleInner, VcpuRegistry};
 
 mod buffer;
-mod firefox;
+mod exporter;
 mod ktrace;
 mod memory;
-mod processor;
 mod sched;
 mod server;
 pub mod stats;
@@ -657,13 +655,15 @@ impl Profiler {
         let mut host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
         let mut host_kernel_symbolicator = HostKernelSymbolicator::new()?;
 
-        let cgo_transform = CgoStackTransform {};
-        let irq_transform = LinuxIrqStackTransform {};
-        let leaf_transform = LeafCallTransform {};
-        let syscall_transform = SyscallTransform {};
+        let transforms: Vec<Box<dyn StackTransform>> = vec![
+            Box::new(CgoTransform {}),
+            Box::new(LinuxIrqTransform {}),
+            Box::new(LeafCallTransform {}),
+            Box::new(HostSyscallTransform {}),
+        ];
 
-        let mut text_processor = TextSampleProcessor::new(&prof.info, threads_map.clone())?;
-        let mut ff_processor = FirefoxSampleProcessor::new(&prof.info, threads_map)?;
+        let mut text_exporter = TextExporter::new(&prof.info, threads_map.clone())?;
+        let mut ff_exporter = FirefoxExporter::new(&prof.info, threads_map)?;
         let mut total_bytes = 0;
         for sample in &mut prof.samples {
             total_bytes += size_of::<Sample>();
@@ -763,29 +763,28 @@ impl Profiler {
                     total_bytes += stack.capacity() * size_of::<Frame>();
 
                     // apply transforms
-                    cgo_transform.transform(sframes)?;
-                    irq_transform.transform(sframes)?;
-                    leaf_transform.transform(sframes)?;
-                    syscall_transform.transform(sframes)?;
+                    for transform in &transforms {
+                        transform.transform(sframes)?;
+                    }
                 }
 
                 // do nothing: we already symbolicated and transformed the last stack
                 SampleStack::SameAsLast => {}
             }
 
-            text_processor.process_sample(sample, sframes)?;
-            ff_processor.process_sample(sample, sframes)?;
+            text_exporter.process_sample(sample, sframes)?;
+            ff_exporter.process_sample(sample, sframes)?;
         }
         info!("writing to file: {}", self.params.output_path);
-        text_processor.write_to_path(&prof, &self.params.output_path)?;
+        text_exporter.write_to_path(&prof, &self.params.output_path)?;
 
         let ff_output_path = self.params.output_path.clone() + ".json";
         info!("writing to file: {}", &ff_output_path);
         if let Some(ktrace_results) = &prof.ktrace {
-            ff_processor.add_ktrace_markers(ktrace_results);
+            ff_exporter.add_ktrace_markers(ktrace_results);
         }
-        ff_processor.add_resources(&prof.resources);
-        ff_processor.write_to_path(&prof, total_bytes, &ff_output_path)?;
+        ff_exporter.add_resources(&prof.resources);
+        ff_exporter.write_to_path(&prof, total_bytes, &ff_output_path)?;
         if let Err(e) = FirefoxApiServer::shared().add_and_open_profile(ff_output_path) {
             error!("failed to open in Firefox Profiler: {}", e);
         }

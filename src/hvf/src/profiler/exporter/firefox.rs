@@ -10,14 +10,15 @@ use std::time::SystemTime;
 use std::{collections::HashMap, fs::File};
 use tracing::error;
 
-use super::buffer::SegVec;
-use super::ktrace::KtraceResults;
-use super::sched::{sysctl_string, system_total_memory};
-use super::{
+use crate::profiler::buffer::SegVec;
+use crate::profiler::ktrace::KtraceResults;
+use crate::profiler::memory::system_total_memory;
+use crate::profiler::sched::sysctl_string;
+use crate::profiler::{
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use super::{
+use crate::profiler::{
     Frame, ProfileInfo, ProfileResults, ResourceSample, SampleCategory, SymbolicatedFrame,
 };
 
@@ -544,7 +545,7 @@ fn image_basename(image: &str) -> &str {
     image.rsplit('/').next().unwrap_or(image)
 }
 
-pub struct FirefoxSampleProcessor<'a> {
+pub struct FirefoxExporter<'a> {
     info: &'a ProfileInfo,
     threads: AHashMap<ThreadId, ThreadState<'a>>,
 
@@ -554,7 +555,7 @@ pub struct FirefoxSampleProcessor<'a> {
     libs: KeyedTable<String, Lib>,
 }
 
-impl<'a> FirefoxSampleProcessor<'a> {
+impl<'a> FirefoxExporter<'a> {
     pub fn new(
         info: &'a ProfileInfo,
         threads_map: AHashMap<ThreadId, &'a ProfileeThread>,

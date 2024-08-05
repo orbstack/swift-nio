@@ -34,3 +34,9 @@ pub fn get_phys_footprint(pid: i32) -> nix::Result<u64> {
     let ret = unsafe { proc_pid_rusage(pid, RUSAGE_INFO_V0, info.as_mut_ptr() as *mut _) };
     Errno::result(ret).map(|_| unsafe { info.assume_init().ri_phys_footprint })
 }
+
+pub fn system_total_memory() -> usize {
+    let pages = unsafe { libc::sysconf(libc::_SC_PHYS_PAGES) };
+    let page_size = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) };
+    pages as usize * page_size as usize
+}

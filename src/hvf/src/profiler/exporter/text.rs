@@ -7,13 +7,13 @@ use ahash::AHashMap;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use super::stats::HistogramExt;
-use super::{
-    symbolicator::SymbolResult,
+use crate::profiler::stats::HistogramExt;
+use crate::profiler::symbolicator::SymbolResult;
+use crate::profiler::{
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use super::{Frame, ProfileInfo, ProfileResults, SampleCategory, SymbolicatedFrame};
+use crate::profiler::{Frame, ProfileInfo, ProfileResults, SampleCategory, SymbolicatedFrame};
 
 trait AsTreeKey {
     type Key: Ord;
@@ -78,7 +78,7 @@ impl StackTree<SampleNode, <SampleNode as AsTreeKey>::Key> {
     }
 }
 
-fn image_basename(image: &str) -> &str {
+fn basename(image: &str) -> &str {
     image.rsplit('/').next().unwrap_or(image)
 }
 
@@ -93,9 +93,9 @@ impl Display for SampleNode {
         match &self.symbol {
             Some(s) => match &s.symbol_offset {
                 Some((sym, offset)) => {
-                    write!(f, "{}+{}  ({})", sym, offset, image_basename(&s.image))
+                    write!(f, "{}+{}  ({})", sym, offset, basename(&s.image))
                 }
-                None => write!(f, "{:#x}  ({})", self.frame.addr, image_basename(&s.image)),
+                None => write!(f, "{:#x}  ({})", self.frame.addr, basename(&s.image)),
             },
             None => write!(f, "{:#x}", self.frame.addr),
         }
@@ -128,14 +128,14 @@ struct ThreadNode {
     stacks: StackTree<SampleNode>,
 }
 
-pub struct TextSampleProcessor<'a> {
+pub struct TextExporter<'a> {
     info: &'a ProfileInfo,
     threads_map: AHashMap<ThreadId, &'a ProfileeThread>,
 
     threads: BTreeMap<ThreadId, ThreadNode>,
 }
 
-impl<'a> TextSampleProcessor<'a> {
+impl<'a> TextExporter<'a> {
     pub fn new(
         info: &'a ProfileInfo,
         threads_map: AHashMap<ThreadId, &'a ProfileeThread>,

@@ -59,9 +59,3 @@ pub fn sysctl_string(name: &str) -> nix::Result<String> {
 
     Ok(String::from_utf8_lossy(&buf).to_string())
 }
-
-pub fn system_total_memory() -> usize {
-    let pages = unsafe { libc::sysconf(libc::_SC_PHYS_PAGES) };
-    let page_size = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) };
-    pages as usize * page_size as usize
-}
