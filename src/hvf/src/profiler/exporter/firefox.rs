@@ -19,7 +19,7 @@ use crate::profiler::{
     Sample,
 };
 use crate::profiler::{
-    Frame, ProfileInfo, ProfileResults, ResourceSample, SampleCategory, SymbolicatedFrame,
+    Frame, FrameCategory, ProfileInfo, ProfileResults, ResourceSample, SymbolicatedFrame,
 };
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
@@ -551,18 +551,18 @@ pub struct FirefoxExporter<'a> {
 
     counters: Vec<FirefoxCounter>,
 
-    categories: KeyedTable<SampleCategory, FirefoxCategory>,
+    categories: KeyedTable<FrameCategory, FirefoxCategory>,
     libs: KeyedTable<String, Lib>,
 }
 
 impl<'a> FirefoxExporter<'a> {
     pub fn new(
         info: &'a ProfileInfo,
-        threads_map: AHashMap<ThreadId, &'a ProfileeThread>,
+        threads_map: &'a AHashMap<ThreadId, &'a ProfileeThread>,
     ) -> anyhow::Result<Self> {
         let mut categories = KeyedTable::new();
         categories.get_or_insert(
-            SampleCategory::GuestUserspace,
+            FrameCategory::GuestUserspace,
             FirefoxCategory {
                 name: "Guest Userspace".to_string(),
                 color: "grey".to_string(),
@@ -570,7 +570,7 @@ impl<'a> FirefoxExporter<'a> {
             },
         );
         categories.get_or_insert(
-            SampleCategory::GuestKernel,
+            FrameCategory::GuestKernel,
             FirefoxCategory {
                 name: "Guest Kernel".to_string(),
                 color: "green".to_string(),
@@ -578,7 +578,7 @@ impl<'a> FirefoxExporter<'a> {
             },
         );
         categories.get_or_insert(
-            SampleCategory::HostUserspace,
+            FrameCategory::HostUserspace,
             FirefoxCategory {
                 name: "Host Userspace".to_string(),
                 color: "yellow".to_string(),
@@ -586,7 +586,7 @@ impl<'a> FirefoxExporter<'a> {
             },
         );
         categories.get_or_insert(
-            SampleCategory::HostKernel,
+            FrameCategory::HostKernel,
             FirefoxCategory {
                 name: "Host Kernel".to_string(),
                 color: "blue".to_string(),
@@ -597,8 +597,8 @@ impl<'a> FirefoxExporter<'a> {
         Ok(Self {
             info,
             threads: threads_map
-                .into_iter()
-                .map(|(id, thread)| {
+                .iter()
+                .map(|(&id, &thread)| {
                     (
                         id,
                         ThreadState {
@@ -761,7 +761,7 @@ impl<'a> FirefoxExporter<'a> {
                             (*end - self.info.start_time_abs).millis_f64(),
                         )),
                         phase: MarkerPhase::INTERVAL,
-                        category: self.categories.get(&SampleCategory::HostKernel).unwrap().1,
+                        category: self.categories.get(&FrameCategory::HostKernel).unwrap().1,
                         thread_id: Some(tid.0),
                     },
                 );

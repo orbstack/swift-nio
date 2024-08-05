@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use crate::profiler::{
     memory::read_host_mem_aligned,
     symbolicator::{HostKernelSymbolicator, SymbolResult},
-    Frame, SampleCategory, SymbolicatedFrame,
+    Frame, FrameCategory, SymbolicatedFrame,
 };
 
 use super::StackTransform;
@@ -38,7 +38,7 @@ impl StackTransform for HostSyscallTransform {
         let Some((index, pc)) = stack
             .iter()
             .enumerate()
-            .find(|&(_, sframe)| sframe.frame.category == SampleCategory::HostUserspace)
+            .find(|&(_, sframe)| sframe.frame.category == FrameCategory::HostUserspace)
         else {
             return Ok(());
         };
@@ -61,7 +61,7 @@ impl StackTransform for HostSyscallTransform {
                 index,
                 SymbolicatedFrame {
                     frame: Frame {
-                        category: SampleCategory::HostKernel,
+                        category: FrameCategory::HostKernel,
                         addr: pc.frame.addr,
                     },
                     symbol: Some(SymbolResult {

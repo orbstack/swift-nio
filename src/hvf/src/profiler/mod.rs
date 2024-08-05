@@ -116,34 +116,34 @@ impl MachError {
 pub type MachResult<T> = Result<T, MachError>;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub enum SampleCategory {
+pub enum FrameCategory {
     GuestUserspace,
     GuestKernel,
     HostUserspace,
     HostKernel,
 }
 
-impl SampleCategory {
+impl FrameCategory {
     fn as_char(&self) -> char {
         match self {
-            SampleCategory::GuestUserspace => 'G',
-            SampleCategory::GuestKernel => 'K',
-            SampleCategory::HostUserspace => 'U',
-            SampleCategory::HostKernel => 'H',
+            FrameCategory::GuestUserspace => 'G',
+            FrameCategory::GuestKernel => 'K',
+            FrameCategory::HostUserspace => 'U',
+            FrameCategory::HostKernel => 'H',
         }
     }
 
     pub fn is_guest(&self) -> bool {
         matches!(
             self,
-            SampleCategory::GuestUserspace | SampleCategory::GuestKernel
+            FrameCategory::GuestUserspace | FrameCategory::GuestKernel
         )
     }
 
     pub fn is_host(&self) -> bool {
         matches!(
             self,
-            SampleCategory::HostUserspace | SampleCategory::HostKernel
+            FrameCategory::HostUserspace | FrameCategory::HostKernel
         )
     }
 }
@@ -168,12 +168,12 @@ enum SampleStack {
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq, Eq, Ord, Hash)]
 pub struct Frame {
-    category: SampleCategory,
+    category: FrameCategory,
     addr: u64,
 }
 
 impl Frame {
-    pub fn new(category: SampleCategory, addr: u64) -> Self {
+    pub fn new(category: FrameCategory, addr: u64) -> Self {
         Self { category, addr }
     }
 }
@@ -662,8 +662,8 @@ impl Profiler {
             Box::new(HostSyscallTransform {}),
         ];
 
-        let mut text_exporter = TextExporter::new(&prof.info, threads_map.clone())?;
-        let mut ff_exporter = FirefoxExporter::new(&prof.info, threads_map)?;
+        let mut text_exporter = TextExporter::new(&prof.info, &threads_map)?;
+        let mut ff_exporter = FirefoxExporter::new(&prof.info, &threads_map)?;
         let mut total_bytes = 0;
         for sample in &mut prof.samples {
             total_bytes += size_of::<Sample>();
@@ -706,7 +706,7 @@ impl Profiler {
 
                     // inject the frame
                     new_stack.push_front(Frame::new(
-                        SampleCategory::HostKernel,
+                        FrameCategory::HostKernel,
                         HostKernelSymbolicator::ADDR_VMFAULT,
                     ));
 
@@ -729,21 +729,21 @@ impl Profiler {
                         .iter()
                         .map(|frame| {
                             let symbol = match frame.category {
-                                SampleCategory::HostUserspace => {
+                                FrameCategory::HostUserspace => {
                                     host_symbolicator.addr_to_symbol(frame.addr)
                                 }
-                                SampleCategory::GuestKernel => {
+                                FrameCategory::GuestKernel => {
                                     match &mut guest_context.symbolicator {
                                         Some(s) => s.addr_to_symbol(frame.addr),
                                         None => Ok(None),
                                     }
                                 }
-                                SampleCategory::GuestUserspace => Ok(Some(SymbolResult {
+                                FrameCategory::GuestUserspace => Ok(Some(SymbolResult {
                                     image: "guest".to_string(),
                                     image_base: 0,
                                     symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
                                 })),
-                                SampleCategory::HostKernel => {
+                                FrameCategory::HostKernel => {
                                     host_kernel_symbolicator.addr_to_symbol(frame.addr)
                                 }
                             }

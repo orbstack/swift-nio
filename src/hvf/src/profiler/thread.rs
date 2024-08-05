@@ -26,7 +26,7 @@ use super::{
     time::MachAbsoluteTime,
     transform::HostSyscallTransform,
     unwinder::{UnwindError, UnwindRegs, Unwinder, STACK_DEPTH_LIMIT},
-    Frame, MachError, MachResult, PartialSample, Sample, SampleCategory, SampleStack,
+    Frame, FrameCategory, MachError, MachResult, PartialSample, Sample, SampleStack,
 };
 
 const PROC_PIDTHREADID64INFO: i32 = 15;
@@ -289,7 +289,7 @@ impl ProfileeThread {
             .map_err(SampleError::ThreadGetState)?;
         host_unwinder
             .unwind(regs, |addr| {
-                stack.push_back(Frame::new(SampleCategory::HostUserspace, addr))
+                stack.push_back(Frame::new(FrameCategory::HostUserspace, addr))
             })
             .map_err(SampleError::Unwind)?;
 

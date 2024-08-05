@@ -13,7 +13,7 @@ use crate::profiler::{
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use crate::profiler::{Frame, ProfileInfo, ProfileResults, SampleCategory, SymbolicatedFrame};
+use crate::profiler::{Frame, ProfileInfo, ProfileResults, FrameCategory, SymbolicatedFrame};
 
 trait AsTreeKey {
     type Key: Ord;
@@ -105,8 +105,8 @@ impl Display for SampleNode {
 // it's more accurate to key by exact address, but the output is uglier
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 enum SymbolTreeKey {
-    Symbol(SampleCategory, String),
-    Addr(SampleCategory, u64),
+    Symbol(FrameCategory, String),
+    Addr(FrameCategory, u64),
 }
 
 impl AsTreeKey for SampleNode {
@@ -130,7 +130,7 @@ struct ThreadNode {
 
 pub struct TextExporter<'a> {
     info: &'a ProfileInfo,
-    threads_map: AHashMap<ThreadId, &'a ProfileeThread>,
+    threads_map: &'a AHashMap<ThreadId, &'a ProfileeThread>,
 
     threads: BTreeMap<ThreadId, ThreadNode>,
 }
@@ -138,7 +138,7 @@ pub struct TextExporter<'a> {
 impl<'a> TextExporter<'a> {
     pub fn new(
         info: &'a ProfileInfo,
-        threads_map: AHashMap<ThreadId, &'a ProfileeThread>,
+        threads_map: &'a AHashMap<ThreadId, &'a ProfileeThread>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             info,

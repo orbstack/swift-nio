@@ -51,7 +51,7 @@ pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 use crate::profiler::symbolicator::{LinuxSymbolicator, Symbolicator};
 use crate::profiler::time::MachAbsoluteTime;
 use crate::profiler::{
-    self, Frame, PartialSample, Profiler, SampleCategory, VcpuProfilerResults, STACK_DEPTH_LIMIT,
+    self, Frame, PartialSample, Profiler, FrameCategory, VcpuProfilerResults, STACK_DEPTH_LIMIT,
 };
 
 extern "C" {
@@ -1502,11 +1502,11 @@ impl HvfVcpu {
                 self.walk_stack(|addr| stack.push(addr))?;
 
                 for &addr in stack.iter().rev() {
-                    sample.prepend_stack(Frame::new(SampleCategory::GuestKernel, addr));
+                    sample.prepend_stack(Frame::new(FrameCategory::GuestKernel, addr));
                 }
             }
             PSR_MODE_EL0T => {
-                sample.prepend_stack(Frame::new(SampleCategory::GuestUserspace, 0));
+                sample.prepend_stack(Frame::new(FrameCategory::GuestUserspace, 0));
             }
             _ => {}
         }
