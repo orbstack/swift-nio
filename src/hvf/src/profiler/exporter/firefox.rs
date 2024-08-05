@@ -734,7 +734,7 @@ impl<'a> FirefoxExporter<'a> {
 
         thread.samples.push(FirefoxSample {
             stack: stack_index,
-            time: Milliseconds((sample.time - self.info.start_time_abs).millis_f64()),
+            time: Milliseconds((sample.time() - self.info.start_time_abs).millis_f64()),
             weight: 1.0,
             thread_cpu_delta: Microseconds(sample.cpu_time_delta_us as f64),
         });

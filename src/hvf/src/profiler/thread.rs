@@ -88,7 +88,7 @@ impl ThreadId {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum ThreadState {
+pub enum ThreadState {
     Running,
     Stopped,
     Waiting,
@@ -96,11 +96,10 @@ enum ThreadState {
     Halted,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 struct ThreadCpuInfo {
     state: ThreadState,
-    user_time_us: u64,
-    system_time_us: u64,
+    cpu_time_us: u64,
 }
 
 pub struct ProfileeThread {
@@ -110,7 +109,7 @@ pub struct ProfileeThread {
     pub name: Option<String>,
     pid: u32,
 
-    pub last_cpu_time_us: Option<u64>,
+    last_cpu_info: Option<ThreadCpuInfo>,
 
     pub added_at: MachAbsoluteTime,
     pub stopped_at: Option<MachAbsoluteTime>,
@@ -129,7 +128,7 @@ impl ProfileeThread {
             vcpu,
             name,
             pid: std::process::id(),
-            last_cpu_time_us: None,
+            last_cpu_info: None,
             added_at: MachAbsoluteTime::now(),
             stopped_at: None,
         }
@@ -169,16 +168,8 @@ impl ProfileeThread {
 
             // kernel converts the time_value_t to nanoseconds (same as THREAD_EXTENDED_INFO)
             // but the native time_value_t unit is microseconds, so no point in storing more
-            user_time_us: info.pth_user_time / 1000,
-            system_time_us: info.pth_system_time / 1000,
+            cpu_time_us: info.pth_user_time / 1000 + info.pth_system_time / 1000,
         })
-    }
-
-    fn cpu_time_delta_us(&mut self, info: &ThreadCpuInfo) -> Option<u64> {
-        let cpu_time_us = info.user_time_us + info.system_time_us;
-        let delta = self.last_cpu_time_us.map(|last| cpu_time_us - last);
-        self.last_cpu_time_us = Some(cpu_time_us);
-        delta
     }
 
     fn get_unwind_regs(&self) -> MachResult<UnwindRegs> {
@@ -224,30 +215,21 @@ impl ProfileeThread {
             Err(e) => return Err(SampleError::ThreadInfo(e)),
         };
 
-        let cpu_time_delta_us = match (self.cpu_time_delta_us(&info), info.state) {
-            // no CPU time elapsed, but thread is running
-            // this can happen if it just started running and hasn't context switched yet (so kernel hasn't updated time accumulators)
-            // resampling time after suspend is unnecessary; next sample will get the accumulated time
-            (Some(0), ThreadState::Running) => 0,
+        if info.state != ThreadState::Running && self.last_cpu_info == Some(info) {
+            // no CPU time elapsed, thread state hasn't changed, thread isn't running, not first sample
+            let now = MachAbsoluteTime::now();
+            return Ok(SampleResult::Sample(Sample {
+                sample_begin_time: now,
+                timestamp_offset: 0,
+                cpu_time_delta_us: 0,
+                thread_id: self.id,
+                thread_state: info.state,
+                stack: SampleStack::SameAsLast,
+            }));
+        }
 
-            // no CPU time elapsed; thread is idle, and this isn't the first sample
-            (Some(0), _) => {
-                let now = MachAbsoluteTime::now();
-                return Ok(SampleResult::Sample(Sample {
-                    time: now,
-                    sample_begin_time: now,
-                    cpu_time_delta_us: 0,
-                    thread_id: self.id,
-                    stack: SampleStack::SameAsLast,
-                }));
-            }
-
-            // some CPU has been used; not first sample
-            (Some(delta), _) => delta as u32,
-
-            // first sample
-            (None, _) => 0,
-        };
+        let cpu_time_delta_us = info.cpu_time_us - self.last_cpu_info.map_or(0, |i| i.cpu_time_us);
+        self.last_cpu_info = Some(info);
 
         // TODO: enforce limit including guest frames
         // allocate stack upfront
@@ -312,33 +294,12 @@ impl ProfileeThread {
             })
             .map_err(SampleError::Unwind)?;
 
-        // if thread is waiting, add a synthetic kernel frame
-        // syscall will be added in post-processing transform
-        match info.state {
-            ThreadState::Stopped => stack.push_front(Frame::new(
-                FrameCategory::HostKernel,
-                HostKernelSymbolicator::ADDR_THREAD_SUSPENDED,
-            )),
-            ThreadState::Waiting => stack.push_front(Frame::new(
-                FrameCategory::HostKernel,
-                HostKernelSymbolicator::ADDR_THREAD_WAIT,
-            )),
-            ThreadState::Uninterruptible => stack.push_front(Frame::new(
-                FrameCategory::HostKernel,
-                HostKernelSymbolicator::ADDR_THREAD_WAIT_UNINTERRUPTIBLE,
-            )),
-            ThreadState::Halted => stack.push_front(Frame::new(
-                FrameCategory::HostKernel,
-                HostKernelSymbolicator::ADDR_THREAD_HALTED,
-            )),
-            _ => {}
-        }
-
         let sample = Sample {
-            time: timestamp,
             sample_begin_time: before_suspend,
-            cpu_time_delta_us,
+            timestamp_offset: (timestamp - before_suspend).0 as u32,
+            cpu_time_delta_us: cpu_time_delta_us as u32,
             thread_id: self.id,
+            thread_state: info.state,
             stack: SampleStack::Stack(stack),
         };
 

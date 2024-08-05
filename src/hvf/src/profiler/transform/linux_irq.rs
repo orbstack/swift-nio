@@ -8,14 +8,6 @@ pub struct LinuxIrqTransform {}
 
 impl StackTransform for LinuxIrqTransform {
     fn transform(&self, stack: &mut VecDeque<SymbolicatedFrame>) -> anyhow::Result<()> {
-        // do nothing if we're not in guest code
-        // need to check before the loop because we do loop over both guest and host frames
-        if let Some(sframe) = stack.front() {
-            if !sframe.frame.category.is_guest() {
-                return Ok(());
-            }
-        }
-
         // remove everything between hv_trap and "el1h_64_irq"
         // Linux does a good job of preserving FP on IRQ stack switch,
         // but it's really hard to read profiles when IRQs are all attached to random frames

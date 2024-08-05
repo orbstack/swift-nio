@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::profiler::{symbolicator::SymbolResult, SymbolicatedFrame};
+use crate::profiler::{symbolicator::SymbolResult, FrameCategory, SymbolicatedFrame};
 
 use super::StackTransform;
 
@@ -17,12 +17,18 @@ impl StackTransform for LeafCallTransform {
         // figure out whether the LR is from a leaf call, and it isn't too bad in practice.
         // if we have a non-negligible amount of recursion, it'll be more than one frame
 
-        if stack.len() < 2 {
+        // skip over host kernel frames. they're synthetic; the frames above them could have leaf call issues
+        let start_i = stack
+            .iter()
+            .position(|sframe| sframe.frame.category == FrameCategory::HostKernel)
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        if start_i + 2 >= stack.len() {
             return Ok(());
         }
 
-        let pc = &stack[0];
-        let lr = &stack[1];
+        let pc = &stack[start_i];
+        let lr = &stack[start_i + 1];
         if pc.frame.category != lr.frame.category {
             return Ok(());
         }
@@ -44,7 +50,7 @@ impl StackTransform for LeafCallTransform {
                 if pc_image == lr_image && pc_base == lr_base && pc_name == lr_name {
                     // remove LR, not PC. PC is the code we're actually running now;
                     // LR should not be in the stack
-                    stack.remove(1);
+                    stack.remove(start_i + 1);
                 }
             }
         }

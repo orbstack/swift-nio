@@ -72,6 +72,10 @@ impl MachAbsoluteDuration {
         })
     }
 
+    pub fn from_raw(raw: u64) -> Self {
+        Self(raw)
+    }
+
     pub fn nanos(&self) -> u64 {
         let timebase = Self::timebase();
         self.0 * timebase.numer as u64 / timebase.denom as u64

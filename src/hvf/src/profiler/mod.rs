@@ -39,7 +39,7 @@ use symbolicator::{
     CachedSymbolicator, DladdrSymbolicator, HostKernelSymbolicator, LinuxSymbolicator,
     SymbolResult, Symbolicator,
 };
-use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId};
+use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId, ThreadState};
 use time::{MachAbsoluteDuration, MachAbsoluteTime};
 use tracing::{error, info, warn};
 use transform::{CgoTransform, LeafCallTransform, LinuxIrqTransform, StackTransform};
@@ -148,13 +148,23 @@ impl FrameCategory {
 
 #[derive(Debug)]
 struct Sample {
-    // when the sample was actually collected (i.e. after thread_suspend)
-    time: MachAbsoluteTime,
     // when we started trying to collect the sample (i.e. before thread_suspend)
     sample_begin_time: MachAbsoluteTime,
+    // when the sample was actually collected (i.e. after thread_suspend)
+    // note: this is an offset from sample_begin_time to save space
+    timestamp_offset: u32,
     cpu_time_delta_us: u32,
+
     thread_id: ThreadId,
+    thread_state: ThreadState,
+
     stack: SampleStack,
+}
+
+impl Sample {
+    pub fn time(&self) -> MachAbsoluteTime {
+        self.sample_begin_time + MachAbsoluteDuration::from_raw(self.timestamp_offset as u64)
+    }
 }
 
 #[derive(Debug)]
@@ -162,6 +172,26 @@ enum SampleStack {
     Stack(VecDeque<Frame>),
     // doesn't change size because VecDeque uses Unique for its pointer
     SameAsLast,
+}
+
+impl SampleStack {
+    pub fn maybe_inject_thread_state(&mut self, thread_state: ThreadState) {
+        if let SampleStack::Stack(stack) = self {
+            let thread_state_addr = match thread_state {
+                ThreadState::Stopped => Some(HostKernelSymbolicator::ADDR_THREAD_SUSPENDED),
+                ThreadState::Waiting => Some(HostKernelSymbolicator::ADDR_THREAD_WAIT),
+                ThreadState::Uninterruptible => {
+                    Some(HostKernelSymbolicator::ADDR_THREAD_WAIT_UNINTERRUPTIBLE)
+                }
+                ThreadState::Halted => Some(HostKernelSymbolicator::ADDR_THREAD_HALTED),
+                _ => None,
+            };
+
+            if let Some(addr) = thread_state_addr {
+                stack.push_front(Frame::new(FrameCategory::HostKernel, addr));
+            }
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq, Eq, Ord, Hash)]
@@ -188,7 +218,7 @@ pub struct PartialSample {
 
 impl PartialSample {
     pub fn timestamp(&self) -> MachAbsoluteTime {
-        self.sample.time
+        self.sample.time()
     }
 
     pub fn prepend_stack(&mut self, frame: Frame) {
@@ -277,6 +307,35 @@ impl ThreadFrameState<'_> {
 pub struct ResourceSample {
     pub time: MachAbsoluteTime,
     pub phys_footprint: i64,
+}
+
+struct Symbolicators<'a, HS, HKS, GS> {
+    host: &'a mut HS,
+    host_kernel: &'a mut HKS,
+    guest: Option<&'a mut GS>,
+}
+
+impl<'a, HS: Symbolicator, HKS: Symbolicator, GS: Symbolicator> Symbolicators<'a, HS, HKS, GS> {
+    pub fn symbolicate_frame(&mut self, frame: Frame) -> SymbolicatedFrame {
+        let symbol = match frame.category {
+            FrameCategory::HostUserspace => self.host.addr_to_symbol(frame.addr),
+            FrameCategory::GuestKernel => match &mut self.guest {
+                Some(s) => s.addr_to_symbol(frame.addr),
+                None => Ok(None),
+            },
+            FrameCategory::GuestUserspace => Ok(Some(SymbolResult {
+                image: "guest".to_string(),
+                image_base: 0,
+                symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
+            })),
+            FrameCategory::HostKernel => self.host_kernel.addr_to_symbol(frame.addr),
+        }
+        .inspect_err(|e| error!("failed to symbolicate addr {:x}: {}", frame.addr, e))
+        .ok()
+        .flatten();
+
+        SymbolicatedFrame { frame, symbol }
+    }
 }
 
 pub struct Profiler {
@@ -660,6 +719,12 @@ impl Profiler {
         let mut host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
         let mut host_kernel_symbolicator = HostKernelSymbolicator::new()?;
 
+        let mut symbolicators = Symbolicators {
+            host: &mut host_symbolicator,
+            host_kernel: &mut host_kernel_symbolicator,
+            guest: guest_context.symbolicator.as_mut(),
+        };
+
         let transforms: Vec<Box<dyn StackTransform>> = vec![
             Box::new(CgoTransform {}),
             Box::new(LinuxIrqTransform {}),
@@ -676,50 +741,64 @@ impl Profiler {
                 .get_mut(&sample.thread_id)
                 .expect("missing thread stack");
 
-            // save last original stack for SameAsLast, before we potentially inject vmfaults
-            if let SampleStack::Stack(stack) = &sample.stack {
-                thread_state.last_orig_stack = Some(stack);
-            }
-
             // to own a potential stack copy
             let mut _stack_copy: SampleStack;
 
             // this is bad, but fast and easy:
             // ktrace's vmfault injection is a special pre-symbolication transformation
             // needed because vmfaults are time-based, so samples with the same stack could have different stacks after vmfault injection
-            let sample_stack = if let Some(kt_thread) = prof
+            let in_vmfault = if let Some(kt_thread) = prof
                 .ktrace
                 .as_ref()
                 .and_then(|r| r.threads.get(&sample.thread_id))
             {
-                if kt_thread.is_time_in_fault(sample.sample_begin_time)
-                    || kt_thread.is_time_in_fault(sample.time)
-                {
-                    // we were in a fault. let's inject a vmfault frame
-
-                    // we always need to copy the stack for these:
-                    // - if this sample is SameAsLast, we need to copy the last unsymbolicated stack
-                    // - if this sample has a Stack, we need to copy it to modify it, because later samples might be SameAsLast but not in a fault
-                    let mut new_stack = match &sample.stack {
-                        SampleStack::Stack(stack) => stack.clone(),
-                        SampleStack::SameAsLast => thread_state
-                            .last_orig_stack
-                            .expect("no last stack to copy")
-                            .clone(),
-                    };
-
-                    // inject the frame
-                    new_stack.push_front(Frame::new(
-                        FrameCategory::HostKernel,
-                        HostKernelSymbolicator::ADDR_VMFAULT,
-                    ));
-
-                    _stack_copy = SampleStack::Stack(new_stack);
-                    &_stack_copy
-                } else {
-                    &sample.stack
-                }
+                kt_thread.is_time_in_fault(sample.sample_begin_time)
+                    || kt_thread.is_time_in_fault(sample.time())
             } else {
+                false
+            };
+
+            let sample_stack = if in_vmfault {
+                // we were in a fault. let's inject a vmfault frame
+
+                // we always need to copy the stack for these:
+                // - if this sample is SameAsLast, we need to copy the last unsymbolicated stack
+                // - if this sample has a Stack, we need to copy it to modify it, because later samples might be SameAsLast but not in a fault
+                let mut new_stack = match &sample.stack {
+                    SampleStack::Stack(stack) => {
+                        // save last original stack for SameAsLast, before we change it
+                        thread_state.last_orig_stack = Some(stack);
+
+                        stack.clone()
+                    }
+                    SampleStack::SameAsLast => thread_state
+                        .last_orig_stack
+                        .expect("no last stack to copy")
+                        .clone(),
+                };
+
+                // inject the frame
+                new_stack.push_front(Frame::new(
+                    FrameCategory::HostKernel,
+                    HostKernelSymbolicator::ADDR_VMFAULT,
+                ));
+
+                _stack_copy = SampleStack::Stack(new_stack);
+                _stack_copy.maybe_inject_thread_state(sample.thread_state);
+                &_stack_copy
+            } else {
+                // if thread is waiting, add a synthetic kernel frame
+                // must be done in post-processing to avoid breaking MSC_hv_trap and other checks
+                // must only be done if this sample has its own stack, because we always resample on state change
+                sample.stack.maybe_inject_thread_state(sample.thread_state);
+
+                if let SampleStack::Stack(stack) = &sample.stack {
+                    // save last original stack for SameAsLast
+                    // we can consider this the original stack because a SameAsLast frame that has a different thread state will be resampled
+                    // TODO: fix this whole mess by giving each sample a pointer to the last stack
+                    thread_state.last_orig_stack = Some(stack);
+                }
+
                 &sample.stack
             };
 
@@ -729,40 +808,9 @@ impl Profiler {
                     // symbolicate the frames
                     // reuse the Vec to avoid allocations
                     sframes.clear();
-                    stack
-                        .iter()
-                        .map(|frame| {
-                            let symbol = match frame.category {
-                                FrameCategory::HostUserspace => {
-                                    host_symbolicator.addr_to_symbol(frame.addr)
-                                }
-                                FrameCategory::GuestKernel => {
-                                    match &mut guest_context.symbolicator {
-                                        Some(s) => s.addr_to_symbol(frame.addr),
-                                        None => Ok(None),
-                                    }
-                                }
-                                FrameCategory::GuestUserspace => Ok(Some(SymbolResult {
-                                    image: "guest".to_string(),
-                                    image_base: 0,
-                                    symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
-                                })),
-                                FrameCategory::HostKernel => {
-                                    host_kernel_symbolicator.addr_to_symbol(frame.addr)
-                                }
-                            }
-                            .inspect_err(|e| {
-                                error!("failed to symbolicate addr {:x}: {}", frame.addr, e)
-                            })
-                            .ok()
-                            .flatten();
-
-                            SymbolicatedFrame {
-                                frame: *frame,
-                                symbol,
-                            }
-                        })
-                        .for_each(|sframe| sframes.push_back(sframe));
+                    for frame in stack {
+                        sframes.push_back(symbolicators.symbolicate_frame(*frame));
+                    }
 
                     total_bytes += stack.capacity() * size_of::<Frame>();
 
