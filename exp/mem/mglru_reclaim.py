@@ -1,3 +1,5 @@
+import time
+
 DEBUG = True
 
 def main():
@@ -27,4 +29,6 @@ def main():
             nr_gens += 1
 
 if __name__ == '__main__':
-    main()
+    while True:
+        time.sleep(60)
+        main()
