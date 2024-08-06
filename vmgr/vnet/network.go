@@ -245,7 +245,11 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 			return nil, errors.New(err.String())
 		}
 	}
-	// Our network link is pretty much perfect. We control this on the external end instead
+	// our network link is low-latency
+	// it never makes sense to use this:
+	// - for internal RPCs, we should be buffering it enough
+	// - for localhost RPC clients (e.g. docker socket), client should be buffering it enough, and we naturally get a bit of buffering from the host TCP stack
+	// - for internet conns, it'll be buffered on the network if the server chooses to, so we should never delay it more when sending to the guest
 	{
 		opt := tcpip.TCPDelayEnabled(false)
 		if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &opt); err != nil {

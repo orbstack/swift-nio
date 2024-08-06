@@ -174,12 +174,10 @@ func (f *TcpHostForward) handleConn(conn net.Conn) {
 	}
 	defer virtConn.Close()
 
-	// other port doesn't matter, only service does (client port should be ephemeral)
-	err = setExtNodelay(conn.(*net.TCPConn), 0)
-	if err != nil {
-		logrus.WithError(err).Error("set ext opts failed")
-		return
-	}
+	// keep TCP_NODELAY enabled:
+	// it's for the sender side, going out to the external client
+	// if Linux has TCP_NODELAY on, we should preserve that
+	// if Linux has it off, we'll only receive data as quickly as we receive and ACK it, which is probably the right pace
 
 	pump2SpTcpGv(conn.(*net.TCPConn), virtConn)
 }

@@ -5,7 +5,6 @@ import (
 	"syscall"
 
 	"github.com/orbstack/macvirt/scon/util/netx"
-	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/sockets"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
@@ -15,7 +14,6 @@ type StreamVsockHostForward struct {
 	listener        net.Listener
 	dialer          func() (net.Conn, error)
 	requireLoopback bool
-	nfsMode         bool
 }
 
 func StartTcpVsockHostForward(listenAddr string, dialer func() (net.Conn, error)) (*StreamVsockHostForward, error) {
@@ -28,7 +26,6 @@ func StartTcpVsockHostForward(listenAddr string, dialer func() (net.Conn, error)
 		listener:        listener,
 		dialer:          dialer,
 		requireLoopback: requireLoopback,
-		nfsMode:         true,
 	}
 
 	go f.listen()
@@ -45,7 +42,6 @@ func StartUnixVsockHostForward(listenAddr string, dialer func() (net.Conn, error
 		listener:        listener,
 		dialer:          dialer,
 		requireLoopback: false,
-		nfsMode:         false,
 	}
 
 	go f.listen()
@@ -97,7 +93,7 @@ func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
 		return
 	}
 
-	rawConn, _ = conn.(syscall.Conn).SyscallConn()
+	rawConn, err = conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return
 	}
@@ -111,17 +107,8 @@ func (f *StreamVsockHostForward) handleConn(conn net.Conn) {
 		return
 	}
 
-	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		otherPort := 0 // vsock port is not considered
-		if f.nfsMode {
-			otherPort = ports.GuestNFS
-		}
-		err = setExtNodelay(tcpConn, otherPort)
-		if err != nil {
-			logrus.WithError(err).Error("set ext opts failed")
-			return
-		}
-	}
+	// keep TCP_NODELAY on:
+	// anything that uses vsock cares about latency
 
 	// specialized fast paths
 	virtUnixConn := virtConn.(*net.UnixConn)
