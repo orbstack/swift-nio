@@ -64,7 +64,12 @@ type VzSpec struct {
 
 type ProfilerParams struct {
 	SampleRate int    `json:"sample_rate"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
 	OutputPath string `json:"output_path"`
+
+	AppBuildNumber int    `json:"app_build_number,omitempty"`
+	AppVersion     string `json:"app_version,omitempty"`
+	AppCommit      string `json:"app_commit,omitempty"`
 }
 
 type Monitor interface {

@@ -828,19 +828,16 @@ func runVmManager() {
 			case unix.SIGUSR2:
 				err := vm.StartProfile(&vmm.ProfilerParams{
 					SampleRate: 1000,
-					OutputPath: "/tmp/profile.txt",
+					DurationMs: (10 * time.Second).Milliseconds(),
+					OutputPath: fmt.Sprintf("/tmp/orbstack-profile_%s.txt", time.Now().Format("2006-01-02_15-04-05")),
+
+					AppBuildNumber: appver.Get().Code,
+					AppVersion:     appver.Get().Short,
+					AppCommit:      appver.Get().GitCommit,
 				})
 				if err != nil {
 					logrus.WithError(err).Error("failed to start profile")
 				}
-
-				go func() {
-					time.Sleep(5 * time.Second)
-					err := vm.StopProfile()
-					if err != nil {
-						logrus.WithError(err).Error("failed to stop profile")
-					}
-				}()
 			}
 		}
 	}()
