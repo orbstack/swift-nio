@@ -1,5 +1,7 @@
 *.png
 /membench
+/membench_linux
 /memhog
 /devmem
 __pycache__/
+memcpy-apple.S

@@ -58,10 +58,10 @@ void __check_hv(hv_return_t hv, const char *msg) {
         printf(#name ": %llu us  (each: %llu ns)\n", (name##_end - name##_start) / 1000, (name##_end - name##_start) / count); \
     }
 
-#define TOTAL_BYTES (8ULL * 1024 * 1024 * 1024) // GiB
+#define TOTAL_BYTES (1ULL * 1024 * 1024 * 1024) // GiB
 #define CHUNK_BYTES 16384ULL
 // #define CHUNK_BYTES (128ULL * 1024 * 1024) // 128 MiB
-// #define CHUNK_BYTES (1ULL * 1024 * 1024) // 1 MiB
+// #define CHUNK_BYTES (2ULL * 1024 * 1024) // 2 MiB
 // #define CHUNK_BYTES (64ULL * 1024) // 64 KiB
 
 #define NUM_CHUNKS (TOTAL_BYTES / CHUNK_BYTES)
@@ -94,6 +94,21 @@ void new_entry_chunk_at(mach_port_t task, mach_vm_address_t addr, mach_vm_size_t
 
 void new_purgable_chunk_at(mach_port_t task, mach_vm_address_t addr, mach_vm_size_t chunk_size) {
     CHECK_MACH(mach_vm_allocate(task, &addr, chunk_size, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_FLAGS_PURGABLE | VM_MAKE_TAG(250)));
+}
+
+static int memvcmp(void *memory, unsigned char val, unsigned int size)
+{
+    unsigned char *mm = (unsigned char*)memory;
+    return (*mm == val) && memcmp(mm, mm + 1, size - 1) == 0;
+}
+
+void memcpy_nonzero_pages(char *dst, char *src, size_t size) {
+    for (char *srcp = src; srcp < src + size; srcp += PAGE_SIZE) {
+        char *dstp = dst + (srcp - src);
+        if (!memvcmp(srcp, 0, PAGE_SIZE)) {
+            memcpy(dstp, srcp, PAGE_SIZE);
+        }
+    }
 }
 
 int main(int argc, char **argv) {
@@ -177,12 +192,49 @@ int main(int argc, char **argv) {
         });
     }
 
-    // map memory in chunks
-    TIME_BLOCK_EACH(mach_make_entry_and_map, NUM_CHUNKS, {
-        for_each_chunk(addr, base_addr) {
-            new_purgable_chunk_at(task, addr, CHUNK_BYTES);
-        }
-    });
+    // // map memory in chunks
+    // TIME_BLOCK_EACH(mach_make_entry_and_map, NUM_CHUNKS, {
+    //     for_each_chunk(addr, base_addr) {
+    //         new_purgable_chunk_at(task, addr, CHUNK_BYTES);
+    //     }
+    // });
+
+    // unmap memory in chunks
+    // TIME_BLOCK_EACH(mach_unmap, NUM_CHUNKS, {
+    //     for_each_chunk(addr, base_addr) {
+    //         CHECK_MACH(mach_vm_deallocate(task, addr, CHUNK_BYTES));
+    //     }
+    // });
+
+    volatile char *target_buf = malloc(CHUNK_BYTES * NUM_CHUNKS);
+    if (target_buf == NULL) {
+        perror("malloc");
+        exit(1);
+    }
+    for (int i = 0; i < 10; i++) {
+        TIME_BLOCK_EACH(memcpy_chunk, NUM_CHUNKS, {
+            for_each_chunk(addr, base_addr) {
+                volatile char *target = target_buf + (addr - base_addr);
+                memcpy(target, (void *)addr, CHUNK_BYTES);
+                *(volatile uint8_t *)target = 0x00;
+            }
+        });
+    };
+
+    // char *tmp_buf = malloc(CHUNK_BYTES);
+    // TIME_BLOCK_EACH(copy_purge_chunk, NUM_CHUNKS, {
+    //     for_each_chunk(addr, base_addr) {
+    //         char *target = target_buf + (addr - base_addr);
+    //         memcpy(tmp_buf, (void *)addr, CHUNK_BYTES);
+
+    //         int state = VM_PURGABLE_EMPTY;
+    //         CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
+    //         state = VM_PURGABLE_NONVOLATILE;
+    //         CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
+
+    //         memcpy((void *)addr, tmp_buf, CHUNK_BYTES);
+    //     }
+    // });
 
     // sleep(100000);
 
