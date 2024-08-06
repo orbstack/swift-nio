@@ -152,7 +152,9 @@ func newDrmClient() *DrmClient {
 
 				// use same proxy as VM network
 				proxy := vnetwork.Proxy.GetHTTPSProxyURL()
-				dlog("using proxy: ", proxy)
+				if proxy != nil {
+					dlog("using proxy: ", proxy)
+				}
 				return proxy, nil
 			},
 		},
