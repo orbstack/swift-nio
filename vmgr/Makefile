@@ -7,6 +7,10 @@ export RUST_LOG ?= utils::span=info
 
 export SWIFT_BUILD_TYPE ?= debug
 
+# workaround for Cargo .cargo/config.toml bug: https://github.com/rust-lang/cargo/issues/14350
+CXXFLAGS += -mmacosx-version-min=12.3
+export CXXFLAGS
+
 vmgr: clone-libkrun
 	@cd ../swift; make lib-$(SWIFT_BUILD_TYPE)
 	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
