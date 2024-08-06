@@ -356,7 +356,8 @@ impl Profiler {
             params,
             stop: AtomicBool::new(false),
             join_handles: Mutex::new(None),
-            ingest_queue: ArrayQueue::new(num_vcpus),
+            // enough for last batch to finish (if raced) + new batch
+            ingest_queue: ArrayQueue::new(num_vcpus * 2),
         }
     }
 
