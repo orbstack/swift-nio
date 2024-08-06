@@ -826,17 +826,19 @@ func runVmManager() {
 				go debugutil.SampleStacks(vm)
 
 			case unix.SIGUSR2:
-				err := vm.StartProfile(&vmm.ProfilerParams{
-					SampleRate: 1000,
-					DurationMs: (10 * time.Second).Milliseconds(),
-					OutputPath: fmt.Sprintf("/tmp/orbstack-profile_%s.txt", time.Now().Format("2006-01-02_15-04-05")),
+				if conf.Debug() {
+					err := vm.StartProfile(&vmm.ProfilerParams{
+						SampleRate: 1000,
+						DurationMs: (10 * time.Second).Milliseconds(),
+						OutputPath: fmt.Sprintf("/tmp/orbstack-profile_%s.txt", time.Now().Format("2006-01-02_15-04-05")),
 
-					AppBuildNumber: appver.Get().Code,
-					AppVersion:     appver.Get().Short,
-					AppCommit:      appver.Get().GitCommit,
-				})
-				if err != nil {
-					logrus.WithError(err).Error("failed to start profile")
+						AppBuildNumber: appver.Get().Code,
+						AppVersion:     appver.Get().Short,
+						AppCommit:      appver.Get().GitCommit,
+					})
+					if err != nil {
+						logrus.WithError(err).Error("failed to start profile")
+					}
 				}
 			}
 		}
