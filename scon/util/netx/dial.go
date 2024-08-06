@@ -3,6 +3,7 @@ package netx
 import (
 	"net"
 	"os"
+	"time"
 )
 
 func DialTCP(network string, laddr, raddr *net.TCPAddr) (*net.TCPConn, error) {
@@ -18,6 +19,19 @@ func DialTCP(network string, laddr, raddr *net.TCPAddr) (*net.TCPConn, error) {
 
 func Dial(network, address string) (net.Conn, error) {
 	conn, err := net.Dial(network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	// disable keepalive
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		tcpConn.SetKeepAlive(false)
+	}
+	return conn, nil
+}
+
+func DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	conn, err := net.DialTimeout(network, address, timeout)
 	if err != nil {
 		return nil, err
 	}

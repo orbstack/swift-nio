@@ -23,7 +23,7 @@ const (
 
 func IsRunning() bool {
 	// try dialing
-	conn, err := net.Dial("unix", conf.VmControlSocket())
+	conn, err := net.DialTimeout("unix", conf.VmControlSocket(), startTimeout)
 	if err != nil {
 		return false
 	}
