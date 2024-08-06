@@ -20,18 +20,17 @@ use once_cell::sync::Lazy;
 use smallvec::SmallVec;
 use utils::extract_bits_64;
 use utils::kernel_symbols::CompactSystemMap;
+use utils::mach_time::MachAbsoluteTime;
 use utils::memory::GuestMemoryExt;
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
 
 use dlopen::wrapper::{Container, WrapperApi};
 
-use std::arch::asm;
 use std::convert::TryInto;
 use std::ffi::c_void;
 use std::fmt::Write;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 
 use crossbeam_channel::Sender;
 use num_derive::FromPrimitive;
@@ -50,14 +49,9 @@ pub use bindings::{HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE};
 
 use crate::profiler::arch::{is_hypercall_insn, ARM64_INSN_SIZE};
 use crate::profiler::symbolicator::{HostKernelSymbolicator, LinuxSymbolicator, Symbolicator};
-use crate::profiler::time::MachAbsoluteTime;
 use crate::profiler::{
     self, Frame, FrameCategory, PartialSample, Profiler, VcpuProfilerResults, STACK_DEPTH_LIMIT,
 };
-
-extern "C" {
-    pub fn mach_absolute_time() -> u64;
-}
 
 // kernel VA space is up to 48 bits on arm64. the EL1 split has high bits set,
 // so any address without the top 16 bits set isn't a valid kernel address
@@ -74,7 +68,6 @@ counter::counter! {
     COUNT_EXIT_SYSREG in "hvf.vmexit.sysreg": RateCounter = RateCounter::new(FILTER);
     COUNT_EXIT_WFE_INDEFINITE in "hvf.vmexit.wfe.indefinite": RateCounter = RateCounter::new(FILTER);
     COUNT_EXIT_WFE_TIMED in "hvf.vmexit.wfe.timed": RateCounter = RateCounter::new(FILTER);
-    COUNT_EXIT_WFE_EXPIRED in "hvf.vmexit.wfe.expired": RateCounter = RateCounter::new(FILTER);
     COUNT_EXIT_VTIMER in "hvf.vmexit.vtimer": RateCounter = RateCounter::new(FILTER);
 }
 
@@ -684,8 +677,7 @@ pub enum VcpuExit<'a> {
     },
     VtimerActivated,
     WaitForEvent,
-    WaitForEventExpired,
-    WaitForEventTimeout(Duration),
+    WaitForEventDeadline(MachAbsoluteTime),
     PvlockPark,
     PvlockUnpark(u64),
 }
@@ -748,7 +740,6 @@ pub struct HvVcpuRef(pub hv_vcpu_t);
 pub struct HvfVcpu {
     hv_vcpu: HvVcpuRef,
     vcpu_exit_ptr: *mut hv_vcpu_exit_t,
-    cntfrq: u64,
     mmio_buf: [u8; 8],
     pending_mmio_read: Option<MmioRead>,
     pending_advance_pc: bool,
@@ -785,9 +776,6 @@ impl HvfVcpu {
         let mut vcpuid: hv_vcpu_t = 0;
         let mut vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
 
-        let cntfrq: u64;
-        unsafe { asm!("mrs {}, cntfrq_el0", out(reg) cntfrq) };
-
         let ret = unsafe {
             hv_vcpu_create(
                 &mut vcpuid,
@@ -800,7 +788,6 @@ impl HvfVcpu {
         Ok(Self {
             hv_vcpu: HvVcpuRef(vcpuid),
             vcpu_exit_ptr,
-            cntfrq,
             mmio_buf: [0; 8],
             pending_mmio_read: None,
             pending_advance_pc: false,
@@ -1107,19 +1094,10 @@ impl HvfVcpu {
                             COUNT_EXIT_WFE_INDEFINITE.count();
                             VcpuExit::WaitForEvent
                         } else {
-                            let cval = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CVAL_EL0)?;
-                            let now = unsafe { mach_absolute_time() };
-
-                            if now > cval {
-                                COUNT_EXIT_WFE_EXPIRED.count();
-                                VcpuExit::WaitForEventExpired
-                            } else {
-                                let timeout = Duration::from_nanos(
-                                    (cval - now) * (1_000_000_000 / self.cntfrq),
-                                );
-                                COUNT_EXIT_WFE_TIMED.count();
-                                VcpuExit::WaitForEventTimeout(timeout)
-                            }
+                            let deadline =
+                                self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CVAL_EL0)?;
+                            COUNT_EXIT_WFE_TIMED.count();
+                            VcpuExit::WaitForEventDeadline(MachAbsoluteTime::from_raw(deadline))
                         }
                     }
 

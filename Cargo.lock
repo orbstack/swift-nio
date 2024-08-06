@@ -3326,6 +3326,7 @@ dependencies = [
  "bitflags 2.6.0",
  "gruel",
  "libc",
+ "mach2",
  "memmage",
  "mio 0.8.11",
  "once_cell",

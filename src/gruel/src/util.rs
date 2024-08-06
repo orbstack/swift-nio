@@ -26,6 +26,12 @@ impl fmt::Debug for FmtU64AsBits {
 
 // === Parker === //
 
+#[derive(Debug)]
+pub enum ParkResult {
+    Unparked,
+    TimedOut,
+}
+
 cfgenius::define! {
     enable_specialized_park = true()
 }
@@ -76,6 +82,8 @@ cfgenius::cond! {
                 time::Duration,
             };
 
+            use crate::util::ParkResult;
+
             type dispatch_semaphore_t = *mut std::ffi::c_void;
             type dispatch_time_t = u64;
 
@@ -125,9 +133,9 @@ cfgenius::cond! {
                     self.state.swap(EMPTY, Acquire);
                 }
 
-                pub fn park_timeout(&self, timeout: Duration) {
+                pub fn park_timeout(&self, timeout: Duration) -> ParkResult {
                     if self.state.fetch_sub(1, Acquire) == NOTIFIED {
-                        return;
+                        return ParkResult::Unparked;
                     }
 
                     let nanos = timeout.as_nanos().try_into().unwrap_or(i64::MAX);
@@ -142,11 +150,17 @@ cfgenius::cond! {
                         // thread is about to call semaphore_signal. We must wait for that
                         // to happen to ensure the semaphore count is reset.
                         while unsafe { dispatch_semaphore_wait(self.semaphore, DISPATCH_TIME_FOREVER) } != 0 {}
+                        ParkResult::Unparked
                     } else {
                         // Either a timeout occurred and we reset the state before any thread
                         // tried to wake us up, or we were woken up and reset the state,
                         // making sure to observe the state change with acquire ordering.
                         // Either way, the semaphore counter is now zero again.
+                        if timeout {
+                            ParkResult::TimedOut
+                        } else {
+                            ParkResult::Unparked
+                        }
                     }
                 }
 

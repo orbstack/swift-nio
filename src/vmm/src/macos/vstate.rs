@@ -21,6 +21,7 @@ use std::result;
 use std::sync::Arc;
 use std::thread::{self, Thread};
 use std::time::Duration;
+use utils::mach_time::MachAbsoluteTime;
 use utils::Mutex;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
@@ -39,6 +40,8 @@ use utils::eventfd::EventFd;
 use vm_memory::{
     Address, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap, GuestMemoryRegion,
 };
+
+const TIMER_THROTTLE_INTERVAL: Duration = Duration::from_micros(1000);
 
 /// Errors associated with the wrappers over KVM ioctls.
 #[derive(thiserror::Error, Debug)]
@@ -316,6 +319,8 @@ pub struct Vcpu {
 
     #[cfg(target_arch = "aarch64")]
     profiler_state: Option<VcpuProfilerState>,
+
+    last_timer_wakeup: MachAbsoluteTime,
 }
 
 impl Vcpu {
@@ -355,6 +360,7 @@ impl Vcpu {
             shutdown,
             csmap_path,
             profiler_state: None,
+            last_timer_wakeup: MachAbsoluteTime(0),
         })
     }
 
@@ -567,13 +573,12 @@ impl Vcpu {
                 debug!("vCPU {} WaitForEvent", vcpuid);
                 Ok(VcpuEmulation::WaitForEvent)
             }
-            VcpuExit::WaitForEventExpired => {
-                debug!("vCPU {} WaitForEventExpired", vcpuid);
-                Ok(VcpuEmulation::WaitForEventExpired)
-            }
-            VcpuExit::WaitForEventTimeout(duration) => {
-                debug!("vCPU {} WaitForEventTimeout timeout={:?}", vcpuid, duration);
-                Ok(VcpuEmulation::WaitForEventTimeout(duration))
+            VcpuExit::WaitForEventDeadline(deadline) => {
+                debug!(
+                    "vCPU {} WaitForEventDeadline deadline={:?}",
+                    vcpuid, deadline
+                );
+                Ok(VcpuEmulation::WaitForEventDeadline(deadline))
             }
             VcpuExit::PvlockPark => Ok(VcpuEmulation::PvlockPark),
             VcpuExit::PvlockUnpark(vcpu) => Ok(VcpuEmulation::PvlockUnpark(vcpu)),
@@ -668,9 +673,10 @@ impl Vcpu {
     pub fn run(&mut self, parker: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
         use gruel::{
             define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
-            ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
+            ParkResult, ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
         };
         use hvf::{profiler::ProfilerGuestContext, ArcVcpuHandle, VcpuHandleInner};
+        use utils::mach_time::MachAbsoluteDuration;
         use vmm_ids::VmmShutdownPhase;
 
         define_waker_set! {
@@ -866,7 +872,7 @@ impl Vcpu {
 
             // Handle emulation result
             let Some(emulation) = emulation else {
-                // This is a VM exit, which has no side-effects.
+                // This VM exit has no side-effects.
                 continue;
             };
 
@@ -885,9 +891,31 @@ impl Vcpu {
                     }
                 }
                 Ok(VcpuEmulation::WaitForEventExpired) => {}
-                Ok(VcpuEmulation::WaitForEventTimeout(timeout)) => {
+                Ok(VcpuEmulation::WaitForEventDeadline(mut deadline)) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
-                        signal.wait_on_park_timeout(VcpuSignalMask::ALL_WAIT, timeout);
+                        // throttle timer wakeups to fix battery drain from badly-behaved guest apps
+                        deadline = deadline.max(
+                            self.last_timer_wakeup
+                                + MachAbsoluteDuration::from_duration(TIMER_THROTTLE_INTERVAL),
+                        );
+
+                        // convert to duration for parker
+                        let now = MachAbsoluteTime::now();
+                        if now >= deadline {
+                            // deadline already passed
+                            continue;
+                        }
+
+                        let timeout = deadline - now;
+                        if let Some(ParkResult::TimedOut) = signal
+                            .wait_on_park_timeout(VcpuSignalMask::ALL_WAIT, timeout.as_duration())
+                        {
+                            // unparked due to timer expiry
+                            // record time for throttling
+                            // don't bother to get time again; it should be close enough
+                            // we don't always want to update last_timer_wakeup on park, because IPI/IRQ wakeups shouldn't be throttled
+                            self.last_timer_wakeup = deadline;
+                        }
                     }
                 }
 
@@ -897,7 +925,7 @@ impl Vcpu {
                     break;
                 }
 
-                // PV-lock
+                // PV spinlocks
                 Ok(VcpuEmulation::PvlockPark) => {
                     wait_for_pvlock(&signal);
                 }
@@ -1121,7 +1149,7 @@ enum VcpuEmulation {
     #[cfg(target_arch = "aarch64")]
     WaitForEventExpired,
     #[cfg(target_arch = "aarch64")]
-    WaitForEventTimeout(Duration),
+    WaitForEventDeadline(MachAbsoluteTime),
     #[cfg(target_arch = "aarch64")]
     PvlockPark,
     #[cfg(target_arch = "aarch64")]

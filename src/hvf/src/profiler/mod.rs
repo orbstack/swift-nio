@@ -40,10 +40,10 @@ use symbolicator::{
     SymbolResult, Symbolicator,
 };
 use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId, ThreadState};
-use time::{MachAbsoluteDuration, MachAbsoluteTime};
 use tracing::{error, info, warn};
 use transform::{CgoTransform, LeafCallTransform, LinuxIrqTransform, StackTransform};
 use unwinder::FramePointerUnwinder;
+use utils::mach_time::{MachAbsoluteDuration, MachAbsoluteTime};
 use utils::{
     qos::{self, QosClass},
     Mutex,
@@ -61,7 +61,6 @@ mod server;
 pub mod stats;
 pub mod symbolicator;
 mod thread;
-pub(crate) mod time;
 mod transform;
 mod unwinder;
 

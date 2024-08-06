@@ -6,10 +6,9 @@ use mach2::thread_policy::{
     THREAD_TIME_CONSTRAINT_POLICY_COUNT,
 };
 use nix::errno::Errno;
+use utils::mach_time::MachAbsoluteDuration;
 
 use crate::check_mach;
-
-use super::time::MachAbsoluteDuration;
 
 pub fn set_realtime_scheduling(interval: Duration) -> anyhow::Result<()> {
     let policy = thread_time_constraint_policy_data_t {

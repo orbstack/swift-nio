@@ -20,12 +20,12 @@ use mach2::{
 };
 use nix::errno::Errno;
 use tracing::error;
+use utils::mach_time::MachAbsoluteTime;
 
 use crate::{check_mach, ArcVcpuHandle};
 
 use super::{
     symbolicator::HostKernelSymbolicator,
-    time::MachAbsoluteTime,
     transform::HostSyscallTransform,
     unwinder::{UnwindError, UnwindRegs, Unwinder, STACK_DEPTH_LIMIT},
     Frame, FrameCategory, MachError, MachResult, PartialSample, Sample, SampleStack,
@@ -49,6 +49,8 @@ pub enum SampleError {
     ThreadGetState(MachError),
     #[error("unwind: {0}")]
     Unwind(UnwindError),
+    #[error("cpu time overflow")]
+    CpuTimeOverflow,
 }
 
 #[derive(Debug)]
@@ -100,6 +102,8 @@ pub enum ThreadState {
 struct ThreadCpuInfo {
     state: ThreadState,
     cpu_time_us: u64,
+
+    raw_info: proc_threadinfo,
 }
 
 pub struct ProfileeThread {
@@ -169,6 +173,8 @@ impl ProfileeThread {
             // kernel converts the time_value_t to nanoseconds (same as THREAD_EXTENDED_INFO)
             // but the native time_value_t unit is microseconds, so no point in storing more
             cpu_time_us: info.pth_user_time / 1000 + info.pth_system_time / 1000,
+
+            raw_info: info,
         })
     }
 
@@ -228,7 +234,19 @@ impl ProfileeThread {
             }));
         }
 
-        let cpu_time_delta_us = info.cpu_time_us - self.last_cpu_info.map_or(0, |i| i.cpu_time_us);
+        let Some(cpu_time_delta_us) = info
+            .cpu_time_us
+            .checked_sub(self.last_cpu_info.map_or(0, |i| i.cpu_time_us))
+        else {
+            // subtraction overflowed, meaning that cpu time went backwards
+            // macOS kernel bug: this can happen if we race and read info from a stopping thread
+            if info.cpu_time_us == 0 {
+                return Ok(SampleResult::ThreadStopped);
+            } else {
+                // should never happen
+                return Err(SampleError::CpuTimeOverflow);
+            }
+        };
 
         // TODO: enforce limit including guest frames
         // allocate stack upfront

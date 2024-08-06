@@ -6,3 +6,4 @@ mod util;
 pub use shutdown::*;
 pub use signals::*;
 pub use startup::*;
+pub use util::ParkResult;

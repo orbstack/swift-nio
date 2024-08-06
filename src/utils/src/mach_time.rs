@@ -5,9 +5,6 @@ use std::{
 };
 
 use mach2::mach_time::{mach_absolute_time, mach_timebase_info};
-use once_cell::race::OnceBox;
-
-static TIMEBASE: OnceBox<mach_timebase_info> = OnceBox::new();
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct MachAbsoluteTime(pub u64);
@@ -62,14 +59,13 @@ impl AddAssign<MachAbsoluteDuration> for MachAbsoluteTime {
 pub struct MachAbsoluteDuration(pub u64);
 
 impl MachAbsoluteDuration {
-    fn timebase() -> &'static mach_timebase_info {
-        TIMEBASE.get_or_init(|| {
-            let mut timebase = MaybeUninit::<mach_timebase_info>::uninit();
-            unsafe {
-                mach_timebase_info(timebase.as_mut_ptr());
-                Box::new(timebase.assume_init())
-            }
-        })
+    fn timebase() -> mach_timebase_info {
+        let mut timebase = MaybeUninit::uninit();
+        unsafe {
+            // cached in libsystem, without barrier/lock
+            mach_timebase_info(timebase.as_mut_ptr());
+            timebase.assume_init()
+        }
     }
 
     pub fn from_raw(raw: u64) -> Self {

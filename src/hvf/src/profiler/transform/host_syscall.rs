@@ -15,6 +15,11 @@ impl HostSyscallTransform {
     pub const SYSCALL_MACH_HV_TRAP_ARM64: u64 = (-0x5i64) as u64;
 
     pub fn is_syscall_pc(pc: u64) -> bool {
+        // PC=0 is never valid, and the subtraction below will overflow
+        if pc == 0 {
+            return false;
+        }
+
         // in a syscall, PC = return address from syscall, incremented by the CPU when it takes the exception
         // so PC - 4 = syscall instruction
         // if that's the PC from thread sampling, then we are almost certainly in a syscall

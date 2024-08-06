@@ -7,7 +7,10 @@ use std::{
 
 use thiserror::Error;
 
-use crate::{util::Parker, AnySignalChannelWith, Waker, WakerIndex};
+use crate::{
+    util::{ParkResult, Parker},
+    AnySignalChannelWith, Waker, WakerIndex,
+};
 
 // === ParkWaker === //
 
@@ -35,13 +38,13 @@ pub trait ParkSignalChannelExt: AnySignalChannelWith<ParkWaker> {
         }
     }
 
-    fn wait_on_park_timeout(&self, mask: Self::Mask, timeout: Duration) {
+    fn wait_on_park_timeout(&self, mask: Self::Mask, timeout: Duration) -> Option<ParkResult> {
         let raw = self.raw();
         let mask = Self::mask_to_u64(mask);
 
         raw.wait(mask, WakerIndex::of::<ParkWaker>(), || {
-            raw.waker_state::<ParkWaker>().0.park_timeout(timeout);
-        });
+            raw.waker_state::<ParkWaker>().0.park_timeout(timeout)
+        })
     }
 }
 

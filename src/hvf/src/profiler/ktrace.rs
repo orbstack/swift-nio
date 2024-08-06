@@ -11,10 +11,10 @@ use nix::{
     unistd::Pid,
 };
 use tracing::error;
+use utils::mach_time::MachAbsoluteTime;
 
 use super::{
     thread::{ProfileeThread, ThreadId},
-    time::MachAbsoluteTime,
     THREAD_NAME_TAG,
 };
 
