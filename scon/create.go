@@ -151,7 +151,7 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 		return a.InitialSetupStage2(*setupArgs)
 	})
 	if err != nil {
-		err = fmt.Errorf("setup: %w")
+		err = fmt.Errorf("setup: %w", err)
 		return
 	}
 
