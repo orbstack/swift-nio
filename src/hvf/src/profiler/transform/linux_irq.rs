@@ -1,6 +1,9 @@
 use std::collections::VecDeque;
 
-use crate::profiler::{symbolicator::SymbolResult, FrameCategory, SymbolicatedFrame};
+use crate::profiler::{
+    symbolicator::{HostKernelSymbolicator, SymbolResult},
+    FrameCategory, SymbolicatedFrame,
+};
 
 use super::StackTransform;
 
@@ -28,8 +31,10 @@ impl StackTransform for LinuxIrqTransform {
                     }
                 }
 
-                // once we get to hv_trap, remove everything between it and el1h_64_irq
-                if sframe.frame.category == FrameCategory::HostUserspace && name == "hv_trap" {
+                // once we get to MSC_hv_trap, remove everything between it and el1h_64_irq
+                if sframe.frame.category == FrameCategory::HostKernel
+                    && name == HostKernelSymbolicator::MSC_HV_TRAP
+                {
                     if let Some(irq_idx) = irq_idx {
                         stack.drain((irq_idx + 1)..i);
                         break;
