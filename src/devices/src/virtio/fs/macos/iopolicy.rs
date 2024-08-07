@@ -1,11 +1,16 @@
+use anyhow::anyhow;
+use nix::errno::Errno;
+
 extern "C" {
     fn setiopolicy_np(iotype: libc::c_int, scope: libc::c_int, policy: libc::c_int) -> libc::c_int;
 }
 
+const IOPOL_TYPE_VFS_ATIME_UPDATES: libc::c_int = 2;
 const IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES: libc::c_int = 3;
 
 const IOPOL_SCOPE_THREAD: libc::c_int = 1;
 
+const IOPOL_ATIME_UPDATES_OFF: libc::c_int = 1;
 const IOPOL_MATERIALIZE_DATALESS_FILES_OFF: libc::c_int = 1;
 
 pub fn prepare_vcpu_for_hvc() -> anyhow::Result<()> {
@@ -18,9 +23,17 @@ pub fn prepare_vcpu_for_hvc() -> anyhow::Result<()> {
             IOPOL_MATERIALIZE_DATALESS_FILES_OFF,
         )
     };
-    if ret != 0 {
-        return Err(anyhow::anyhow!("failed to set io policy: {}", ret));
-    }
+    Errno::result(ret).map_err(|e| anyhow!("set io policy: {}", e))?;
+
+    // also reduce the risk of atime updates causing stalls
+    let ret = unsafe {
+        setiopolicy_np(
+            IOPOL_TYPE_VFS_ATIME_UPDATES,
+            IOPOL_SCOPE_THREAD,
+            IOPOL_ATIME_UPDATES_OFF,
+        )
+    };
+    Errno::result(ret).map_err(|e| anyhow!("set io policy: {}", e))?;
 
     Ok(())
 }
