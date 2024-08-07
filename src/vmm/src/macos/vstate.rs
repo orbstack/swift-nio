@@ -321,7 +321,6 @@ pub struct Vcpu {
 
     hvf_vm: Arc<HvfVm>,
 
-    #[cfg(target_arch = "x86_64")]
     vcpu_count: u8,
     #[cfg(target_arch = "x86_64")]
     ht_enabled: bool,
@@ -371,6 +370,7 @@ impl Vcpu {
             csmap_path,
             profiler_state: None,
             last_timer_wakeup: MachAbsoluteTime(0),
+            vcpu_count: 0,
         })
     }
 
@@ -428,13 +428,14 @@ impl Vcpu {
     pub fn configure_aarch64(
         &mut self,
         guest_mem: &GuestMemoryMmap,
-        enable_tso: bool,
+        vcpu_config: &VcpuConfig,
     ) -> Result<()> {
         use hvf::VcpuId;
 
         self.mpidr = VcpuId(self.id as u64).to_mpidr();
         self.fdt_addr = arch::aarch64::get_fdt_addr(guest_mem);
-        self.enable_tso = enable_tso;
+        self.enable_tso = vcpu_config.enable_tso;
+        self.vcpu_count = vcpu_config.vcpu_count;
 
         Ok(())
     }
@@ -940,10 +941,20 @@ impl Vcpu {
 
                 // PV spinlocks
                 Ok(VcpuEmulation::PvlockPark) => {
-                    wait_for_pvlock(&signal);
+                    // in the kernel, we take the PV lock path unconditionally for performance,
+                    // and modified it to always initialize the PV node hash table so that it
+                    // doesn't panic. however, spinlock contention is still possible with 1 vCPU
+                    // if the lock holder is a preempted task, and IRQs aren't disabled.
+                    //
+                    // fix this by making PV locks a no-op on 1-vCPU systems, forcing spin+retry
+                    if self.vcpu_count != 1 {
+                        wait_for_pvlock(&signal);
+                    }
                 }
                 Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {
-                    self.intc.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
+                    if self.vcpu_count != 1 {
+                        self.intc.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
+                    }
                 }
             }
         }
