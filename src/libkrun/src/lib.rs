@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 use utils::Mutex;
 
 use anyhow::{anyhow, Context};
@@ -451,6 +451,7 @@ fn init_logger_once() {
 
     INIT.call_once(|| {
         tracing_subscriber::fmt::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
             .with_span_events(FmtSpan::CLOSE)
             .init();
     });
