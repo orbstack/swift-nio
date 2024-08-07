@@ -21,7 +21,7 @@ use hvf::{profiler::ProfilerParams, HvfVm, MemoryMapping};
 use libc::strdup;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{error, level_filters::LevelFilter};
 #[cfg(target_arch = "aarch64")]
 use vmm::vmm_config::kernel_bundle::KernelBundle;
 use vmm::{
@@ -451,7 +451,11 @@ fn init_logger_once() {
 
     INIT.call_once(|| {
         tracing_subscriber::fmt::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
+            .with_env_filter(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::INFO.into())
+                    .from_env_lossy(),
+            )
             .with_span_events(FmtSpan::CLOSE)
             .init();
     });
