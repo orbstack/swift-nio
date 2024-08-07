@@ -1,4 +1,5 @@
 use counter::RateCounter;
+use hvf::{HvfVcpu, VcpuId};
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use utils::Mutex;
@@ -137,7 +138,7 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
 
     // https://developer.arm.com/documentation/ddi0595/2021-12/AArch64-Registers/MPIDR-EL1--Multiprocessor-Affinity-Register
     fn get_affinity(&mut self, pe: PeId) -> Affinity {
-        let mpidr = BitPack(hvf::vcpu_id_to_mpidr(pe.0));
+        let mpidr = BitPack(VcpuId(pe.0).to_mpidr());
         let aff3 = mpidr.get_range(32, 39);
         let aff2 = mpidr.get_range(16, 23);
         let aff1 = mpidr.get_range(8, 15);
@@ -149,7 +150,7 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
     fn handle_custom_eoi(&mut self, pe: PeId, int_id: InterruptId) {
         if int_id == TIMER_INT_ID {
             let waker = self.wfe_threads.get(&pe).unwrap();
-            hvf::vcpu_set_vtimer_mask(waker.hv_vcpu, false).unwrap();
+            HvfVcpu::set_vtimer_mask(waker.hv_vcpu, false).unwrap();
         }
     }
 }

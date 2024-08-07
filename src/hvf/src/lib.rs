@@ -1,5 +1,3 @@
-#[cfg(target_arch = "x86_64")]
-mod x86_64;
 use std::{sync::Arc, thread::sleep, time::Duration};
 
 use anyhow::anyhow;
@@ -23,6 +21,9 @@ use tracing::error;
 use utils::Mutex;
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 use vmm_ids::{ArcVcpuSignal, VcpuSignalMask};
+
+#[cfg(target_arch = "x86_64")]
+mod x86_64;
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::*;
 
@@ -209,12 +210,8 @@ pub unsafe fn free_range(
     // clear this range from hv pmap ledger:
     // there's no other way to clear from hv pmap, and we *will* incur this cost at some point
     // hv_vm_protect(0) then (RWX) is slightly faster than unmap+map, and does the same thing (including split+coalesce)
-    HvfVm::protect_memory_static(guest_addr.raw_value(), size as u64, 0)?;
-    HvfVm::protect_memory_static(
-        guest_addr.raw_value(),
-        size as u64,
-        (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC) as _,
-    )?;
+    HvfVm::protect_memory_static(guest_addr.raw_value(), size as u64, MemoryFlags::NONE)?;
+    HvfVm::protect_memory_static(guest_addr.raw_value(), size as u64, MemoryFlags::RWX)?;
 
     Ok(())
 }

@@ -14,6 +14,7 @@ use gruel::StartupTask;
 use gruel::Waker;
 use hvf::ArcVcpuHandle;
 use hvf::HvVcpuRef;
+use hvf::MemoryFlags;
 use hvf::VcpuProfilerState;
 use std::collections::BTreeMap;
 use std::io;
@@ -199,7 +200,12 @@ impl Vm {
             );
             unsafe {
                 self.hvf_vm
-                    .map_memory(host_addr, region.start_addr(), region.len() as usize)
+                    .map_memory(
+                        host_addr,
+                        region.start_addr(),
+                        region.len() as usize,
+                        MemoryFlags::RWX,
+                    )
                     .map_err(Error::SetUserMemoryRegion)?;
             }
         }
@@ -244,7 +250,12 @@ impl Vm {
             error!("Error removing memory map: {:?}", e);
         }
 
-        if let Err(e) = self.hvf_vm.map_memory(host_addr, guest_addr, len) {
+        if let Err(e) = self.hvf_vm.map_memory(
+            host_addr,
+            guest_addr,
+            len,
+            MemoryFlags::READ | MemoryFlags::WRITE,
+        ) {
             error!("Error adding memory map: {:?}", e);
             reply_sender.send(false).unwrap();
         } else {
@@ -420,7 +431,9 @@ impl Vcpu {
         guest_mem: &GuestMemoryMmap,
         enable_tso: bool,
     ) -> Result<()> {
-        self.mpidr = hvf::vcpu_id_to_mpidr(self.id as u64);
+        use hvf::VcpuId;
+
+        self.mpidr = VcpuId(self.id as u64).to_mpidr();
         self.fdt_addr = arch::aarch64::get_fdt_addr(guest_mem);
         self.enable_tso = enable_tso;
 
@@ -691,7 +704,7 @@ impl Vcpu {
 
         impl Waker for HvfWaker {
             fn wake(&self) {
-                hvf::vcpu_request_exit(self.0).unwrap();
+                HvfVcpu::request_exit(self.0).unwrap();
             }
         }
 

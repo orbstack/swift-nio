@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use bitfield::bitfield;
 use bitflags::bitflags;
-use hvf::HvfVm;
+use hvf::{HvfVm, MemoryFlags};
 use smallvec::SmallVec;
 use std::collections::HashMap;
 use std::{mem::size_of, sync::Arc};
@@ -185,6 +185,7 @@ impl BlockHvcDevice {
                     host_addr as u64,
                     guest_addr.raw_value(),
                     chunk_size as u64,
+                    MemoryFlags::READ,
                 )?;
                 mappings.insert(guest_addr.raw_value(), chunk_size);
             }
