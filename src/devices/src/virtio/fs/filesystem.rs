@@ -12,6 +12,7 @@ use super::bindings;
 use super::fuse;
 
 pub use super::fuse::FsOptions;
+use super::passthrough::NodeId;
 use super::server::HostContext;
 pub use fuse::OpenOptions;
 pub use fuse::RemovemappingOne;
@@ -26,7 +27,7 @@ pub struct Entry {
     /// negative entry. Returning `ENOENT` also means a negative entry but setting this to `0`
     /// allows the kernel to cache the negative result for `entry_timeout`. The value should be
     /// produced by converting a `FileSystem::Inode` into a `u64`.
-    pub nodeid: u64,
+    pub nodeid: NodeId,
 
     /// The generation number for this `Entry`. Typically used for network file systems. An `inode`
     /// / `generation` pair must be unique over the lifetime of the file system (rather than just
@@ -53,7 +54,7 @@ pub struct Entry {
 impl Default for Entry {
     fn default() -> Self {
         Entry {
-            nodeid: 0,
+            nodeid: NodeId(0),
             generation: 0,
             attr: unsafe { std::mem::zeroed() },
             attr_timeout: Duration::from_secs(0),
@@ -65,7 +66,7 @@ impl Default for Entry {
 impl From<Entry> for fuse::EntryOut {
     fn from(entry: Entry) -> fuse::EntryOut {
         fuse::EntryOut {
-            nodeid: entry.nodeid,
+            nodeid: entry.nodeid.0,
             generation: entry.generation,
             entry_valid: entry.entry_timeout.as_secs(),
             attr_valid: entry.attr_timeout.as_secs(),

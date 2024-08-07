@@ -121,10 +121,6 @@ where
         self.alt.remove(k2);
     }
 
-    pub fn contains_alt_key(&self, key: &K2) -> bool {
-        self.alt.contains_key(key)
-    }
-
     pub fn entry(&self, key: K1) -> dashmap::mapref::entry::Entry<K1, V, S> {
         self.main.entry(key)
     }

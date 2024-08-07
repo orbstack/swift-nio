@@ -816,6 +816,19 @@ impl PassthroughFs {
         Ok(entry)
     }
 
+    fn filter_stat(&self, ctx: &Context, nodeid: NodeId, st: &mut bindings::stat64) {
+        // TODO: remove when we add perms support
+        st.st_uid = ctx.uid;
+        st.st_gid = ctx.gid;
+
+        // root generation must be zero
+        // for other inodes, we ignore st_gen because getattrlistbulk (readdirplus) doesn't support it, so returning it here would break revalidate
+        st.st_gen = 0;
+
+        // return nodeid as st_ino to avoid collisions across host fileesystems, as st_dev is always the same
+        st.st_ino = nodeid.0;
+    }
+
     fn finish_lookup(
         &self,
         parent: NodeId,
@@ -825,10 +838,6 @@ impl PassthroughFs {
         file_ref: FileRef,
         ctx: &Context,
     ) -> io::Result<(Entry, NodeFlags)> {
-        // TODO: remove on perms
-        st.st_uid = ctx.uid;
-        st.st_gid = ctx.gid;
-
         // race OK: if we fail to find a nodeid by (dev,ino), we'll just make a new one, and old one will gradually be forgotten
         let dev_ino = st.dev_ino();
         let (nodeid, node_flags) = if let Some(node) = self.nodeids.get_alt(&dev_ino) {
@@ -927,18 +936,16 @@ impl PassthroughFs {
             (new_nodeid, node_flags)
         };
 
-        // root generation must be zero
-        // for other inodes, we ignore st_gen because getattrlistbulk (readdirplus) doesn't support it, so returning it here would break revalidate
-        st.st_gen = 0;
-
         debug!(
             "finish_lookup: dev={} ino={} ref={:?} -> nodeid={}",
             st.st_dev, st.st_ino, file_ref, nodeid
         );
 
+        self.filter_stat(ctx, nodeid, &mut st);
+
         Ok((
             Entry {
-                nodeid: nodeid.0,
+                nodeid,
                 generation: 0,
                 attr: st,
                 attr_timeout: self.cfg.attr_timeout,
@@ -1031,9 +1038,17 @@ impl PassthroughFs {
                 }
             }
 
+            // attempt to resolve (dev, ino) to the right nodeid
+            let dt_ino = if let Some(node) = self.nodeids.get_alt(&DevIno(dev, ino)) {
+                node.key().0
+            } else {
+                // if we can't find it, just use st_ino
+                ino
+            };
+
             let res = unsafe {
                 add_entry(DirEntry {
-                    ino,
+                    ino: dt_ino,
                     offset: (ds.offset + 1) as u64,
                     type_: u32::from((*dentry).d_type),
                     name,
@@ -1191,7 +1206,7 @@ impl PassthroughFs {
         }
 
         let (handle, opts) = self.finish_open(file, flags, nodeid, node_flags, st)?;
-        let attr = self.finish_getattr(ctx, st)?;
+        let attr = self.finish_getattr(ctx, nodeid, st)?;
         Ok((Some(handle), Some(attr), opts))
     }
 
@@ -1213,24 +1228,23 @@ impl PassthroughFs {
         &self,
         file_ref: FileRef,
         ctx: Context,
+        nodeid: NodeId,
     ) -> io::Result<(bindings::stat64, Duration)> {
         let st = match file_ref {
             FileRef::Path(c_path) => lstat(c_path, false)?,
             FileRef::Fd(fd) => fstat(fd, false)?,
         };
 
-        self.finish_getattr(&ctx, st)
+        self.finish_getattr(&ctx, nodeid, st)
     }
 
     fn finish_getattr(
         &self,
         ctx: &Context,
+        nodeid: NodeId,
         mut st: bindings::stat64,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        // TODO: remove on perms
-        st.st_uid = ctx.uid;
-        st.st_gid = ctx.gid;
-
+        self.filter_stat(ctx, nodeid, &mut st);
         Ok((st, self.cfg.attr_timeout))
     }
 
@@ -1323,7 +1337,7 @@ impl PassthroughFs {
             }?;
         }
 
-        self.do_getattr(file_ref.as_ref(), ctx)
+        self.do_getattr(file_ref.as_ref(), ctx, nodeid)
     }
 
     fn do_unlink(
@@ -1745,11 +1759,7 @@ impl FileSystem for PassthroughFs {
             Some(f) => Some(get_path_by_fd(f.as_fd())?),
             None => None,
         };
-        // use parent nodeid to get an accurate ino for '..' if possible, but fail gracefully if renamed
-        let parent_ino = node
-            .parent_nodeid
-            .and_then(|p| self.nodeids.get(&p.get().into()).map(|n| n.dev_ino.1))
-            .unwrap_or(u64::MAX);
+        let parent_nodeid = node.parent_nodeid.map(|n| n.get()).unwrap_or(u64::MAX);
         drop(node);
         if size == 0 {
             return Ok(());
@@ -1762,7 +1772,7 @@ impl FileSystem for PassthroughFs {
         if offset == 0 {
             match add_entry(
                 DirEntry {
-                    ino,
+                    ino: nodeid.0,
                     offset: 1,
                     type_: libc::DT_DIR as u32,
                     name: b".",
@@ -1779,7 +1789,7 @@ impl FileSystem for PassthroughFs {
         if offset == 1 {
             match add_entry(
                 DirEntry {
-                    ino: parent_ino,
+                    ino: parent_nodeid,
                     offset: 2,
                     type_: libc::DT_DIR as u32,
                     name: b"..",
@@ -1871,16 +1881,19 @@ impl FileSystem for PassthroughFs {
                 offset + 1 + (i as u64)
             );
 
-            let lookup_entry = if self.nodeids.contains_alt_key(&st.dev_ino()) {
+            let result = if let Some(node) = self.nodeids.get_alt(&st.dev_ino()) {
                 // don't return attrs for files with existing nodeids (i.e. inode struct on the linux side)
                 // this prevents a race (cargo build [st_size], rm -rf [st_nlink? not sure]) where Linux is writing to a file that's growing in size, and something else calls readdirplus on its parent dir, causing FUSE to update the existing inode's attributes with a stale size, causing the readable portion of the file to be truncated when the next rustc process tries to read from the previous compilation output
                 // it's OK for perf, because readdirplus covers two cases: (1) providing attrs to avoid lookup for a newly-seen file, and (2) updating invalidated attrs (>2h timeout, or set in inval_mask) on existing files
                 // we only really care about the former case. for the latter case, inval_mask is rarely set in perf-critical contexts, and readdirplus is unlikely to help with the >2h timeout (would the first revalidation call be preceded by readdirplus?)
                 // if the 2h-timeout case turns out to be important, we can record last-attr-update timestamp in NodeData and return attrs if expired. races won't happen 2 hours apart
-                Ok(Entry::default())
+
+                // this entry does, however, need a valid nodeid so we can fill dt_ino
+                Ok((Some(*node.key()), Entry::default()))
             } else if entry.is_mountpoint {
                 // mountpoints must be looked up again. getattrlistbulk returns the orig fs mountpoint dir
                 self.do_lookup(nodeid, &entry.name, &ctx)
+                    .map(|entry| (Some(entry.nodeid), entry))
             } else {
                 // only do path lookup once
                 let path = if let Some(ref path) = parent_fd_path {
@@ -1904,14 +1917,15 @@ impl FileSystem for PassthroughFs {
                     FileRef::Path(&path),
                     &ctx,
                 )
-                .map(|(entry, _)| entry)
+                .map(|(entry, _)| (Some(entry.nodeid), entry))
             };
 
             // if lookup failed, return no entry, so linux will get the error on lookup
-            let lookup_entry = lookup_entry.unwrap_or_default();
-
+            let (entry_nodeid, lookup_entry) = result.unwrap_or((None, Entry::default()));
+            let new_nodeid = lookup_entry.nodeid;
             let dir_entry = DirEntry {
-                ino: st.st_ino,
+                // can't be 0
+                ino: entry_nodeid.map(|n| n.0).unwrap_or(ino),
                 offset: offset + 1 + (i as u64),
                 // same values on macOS and Linux
                 type_: match st.st_mode & libc::S_IFMT {
@@ -1927,13 +1941,14 @@ impl FileSystem for PassthroughFs {
                 name: entry.name.as_bytes(),
             };
 
-            let new_nodeid = lookup_entry.nodeid;
+            debug!(?dir_entry, ?lookup_entry, "readdirplus entry");
+
             match add_entry(dir_entry, lookup_entry) {
                 Ok(0) => {
                     // out of space
-                    // forget this entry (if we looked up a nodeid for it)
-                    if new_nodeid != 0 {
-                        self.do_forget(new_nodeid.into(), 1);
+                    // forget this entry (only if we looked up a potentially *new* nodeid for it)
+                    if new_nodeid != NodeId(0) {
+                        self.do_forget(new_nodeid, 1);
                     }
                     break;
                 }
@@ -2023,8 +2038,7 @@ impl FileSystem for PassthroughFs {
                 &ctx,
             )?;
 
-            let (handle, opts) =
-                self.finish_open(fd, flags, entry.nodeid.into(), node_flags, st)?;
+            let (handle, opts) = self.finish_open(fd, flags, entry.nodeid, node_flags, st)?;
             Ok((entry, Some(handle), opts))
         })
     }
@@ -2091,11 +2105,11 @@ impl FileSystem for PassthroughFs {
         // if not, we don't
         if handle.is_some() {
             let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
-            self.do_getattr(file_ref.as_ref(), ctx)
+            self.do_getattr(file_ref.as_ref(), ctx, nodeid)
         } else {
             self.with_nodeid_refresh(&ctx, nodeid, || {
                 let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
-                self.do_getattr(file_ref.as_ref(), ctx)
+                self.do_getattr(file_ref.as_ref(), ctx, nodeid)
             })
         }
     }
@@ -2323,6 +2337,8 @@ impl FileSystem for PassthroughFs {
             };
 
             let mut entry = self.do_lookup(parent, name, &ctx)?;
+
+            // update xattr stat, and make sure it's reflected by current stat
             let mode = libc::S_IFLNK | 0o777;
             set_xattr_stat(
                 FileRef::Path(&c_path),
@@ -2332,6 +2348,7 @@ impl FileSystem for PassthroughFs {
             entry.attr.st_uid = ctx.uid;
             entry.attr.st_gid = ctx.gid;
             entry.attr.st_mode = mode;
+
             Ok(entry)
         })
     }

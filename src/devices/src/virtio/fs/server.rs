@@ -1279,7 +1279,7 @@ impl<F: FileSystem + Sync> Server<F> {
         ) {
             Ok((entry, handle, opts)) => {
                 let entry_out = EntryOut {
-                    nodeid: entry.nodeid,
+                    nodeid: entry.nodeid.0,
                     generation: entry.generation,
                     entry_valid: entry.entry_timeout.as_secs(),
                     attr_valid: entry.attr_timeout.as_secs(),
