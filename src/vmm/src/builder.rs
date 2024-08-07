@@ -1051,10 +1051,10 @@ fn create_vcpus_aarch64(
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 fn create_vcpus_aarch64(
-    _vm: &mut Vm,
+    vm: &mut Vm,
     vcpu_config: &VcpuConfig,
     guest_mem: &GuestMemoryMmap,
-    request_ts: TimestampUs,
+    _request_ts: TimestampUs,
     exit_evt: &EventFd,
     intc: Arc<Mutex<Gic>>,
     shutdown: &VmmShutdownSignal,
@@ -1072,7 +1072,7 @@ fn create_vcpus_aarch64(
             boot_receiver,
             exit_evt.try_clone().map_err(Error::EventFd)?,
             guest_mem.clone(),
-            request_ts.clone(),
+            vm,
             intc.clone(),
             shutdown.clone(),
             csmap_path.clone(),
@@ -1327,7 +1327,7 @@ fn attach_balloon_device(
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
-    let balloon = devices::virtio::Balloon::new().unwrap();
+    let balloon = devices::virtio::Balloon::new(vmm.vm.hvf_vm.clone()).unwrap();
     vmm.exit_observers.push(balloon.clone());
 
     let id = String::from(balloon.lock().unwrap().id());
@@ -1394,12 +1394,11 @@ fn attach_block_devices(
 
         vmm.mmio_device_manager
             .bus
-            .insert_hvc(Arc::new(
-                block
-                    .lock()
-                    .unwrap()
-                    .create_hvc_device(vmm.guest_memory().clone(), i),
-            ))
+            .insert_hvc(Arc::new(block.lock().unwrap().create_hvc_device(
+                vmm.guest_memory().clone(),
+                vmm.vm.hvf_vm.clone(),
+                i,
+            )))
             .unwrap();
     }
 

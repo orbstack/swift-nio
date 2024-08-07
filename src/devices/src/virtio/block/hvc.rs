@@ -91,6 +91,7 @@ pub struct BlockHvcDevice {
     mem: GuestMemoryMmap,
     disk: Arc<DiskProperties>,
     shm_region: Option<VirtioShmRegion>,
+    hvf_vm: Arc<HvfVm>,
     index: usize,
     mappings: Mutex<HashMap<u64, usize>>,
 }
@@ -100,12 +101,14 @@ impl BlockHvcDevice {
         mem: GuestMemoryMmap,
         disk: Arc<DiskProperties>,
         shm_region: Option<VirtioShmRegion>,
+        hvf_vm: Arc<HvfVm>,
         index: usize,
     ) -> Self {
         BlockHvcDevice {
             mem,
             disk,
             shm_region,
+            hvf_vm,
             index,
             mappings: Mutex::new(HashMap::new()),
         }
@@ -179,14 +182,17 @@ impl BlockHvcDevice {
                 );
                 let mut mappings = self.mappings.lock().unwrap();
                 if let Some(old_chunk_size) = mappings.remove(&guest_addr.raw_value()) {
-                    HvfVm::unmap_memory_static(guest_addr.raw_value(), old_chunk_size as u64)?;
+                    self.hvf_vm.unmap_memory(guest_addr, old_chunk_size)?;
                 }
-                HvfVm::map_memory_static(
-                    host_addr as u64,
-                    guest_addr.raw_value(),
-                    chunk_size as u64,
-                    MemoryFlags::READ,
-                )?;
+                unsafe {
+                    self.hvf_vm.map_memory(
+                        // read-only
+                        host_addr as *mut u8,
+                        guest_addr,
+                        chunk_size,
+                        MemoryFlags::READ,
+                    )?
+                };
                 mappings.insert(guest_addr.raw_value(), chunk_size);
             }
 

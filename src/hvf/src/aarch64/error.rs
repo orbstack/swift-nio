@@ -44,6 +44,8 @@ pub enum Error {
     MemoryMap(HvfError),
     #[error("memory unmap: {0}")]
     MemoryUnmap(HvfError),
+    #[error("memory protect: {0}")]
+    MemoryProtect(HvfError),
     #[error("vcpu create: {0}")]
     VcpuCreate(HvfError),
     #[error("vcpu initial registers: {0}")]

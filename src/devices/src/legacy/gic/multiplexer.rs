@@ -1,6 +1,8 @@
 // Copyright 2021 Red Hat, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use gicv3::device::InterruptId;
 use utils::Mutex;
 use vmm_ids::ArcVcpuSignal;
@@ -22,7 +24,7 @@ pub struct Gic(Box<dyn UserspaceGicImpl>);
 
 impl Gic {
     #[cfg(target_arch = "aarch64")]
-    pub fn new(hvf_vm: &HvfVm) -> Self {
+    pub fn new(hvf_vm: &Arc<HvfVm>) -> Self {
         use super::hvf_gic::HvfGic;
 
         if hvf_vm.gic_props.is_some() {

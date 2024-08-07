@@ -7,6 +7,7 @@
 
 use bitflags::bitflags;
 use gruel::{define_waker_set, BoundSignalChannelRef, ParkWaker, SignalChannel};
+use hvf::HvfVm;
 use newt::{make_bit_flag_range, BitFlagRange};
 use nix::errno::Errno;
 use nix::sys::uio::pwritev;
@@ -473,8 +474,19 @@ impl Block {
         self.avail_features & (1u64 << VIRTIO_BLK_F_RO) != 0
     }
 
-    pub fn create_hvc_device(&self, mem: GuestMemoryMmap, index: usize) -> BlockHvcDevice {
-        BlockHvcDevice::new(mem, self.disk.clone(), self.shm_region.clone(), index)
+    pub fn create_hvc_device(
+        &self,
+        mem: GuestMemoryMmap,
+        hvf_vm: Arc<HvfVm>,
+        index: usize,
+    ) -> BlockHvcDevice {
+        BlockHvcDevice::new(
+            mem,
+            self.disk.clone(),
+            self.shm_region.clone(),
+            hvf_vm,
+            index,
+        )
     }
 }
 

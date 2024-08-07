@@ -1,23 +1,23 @@
+use std::ffi::c_void;
+
 use arch::aarch64::gic::GICDevice;
 use arch::aarch64::{layout, DAX_SIZE};
 use arch::ArchMemoryInfo;
 use bitflags::bitflags;
 use vm_memory::{Address, GuestAddress};
 
-use std::ffi::c_void;
-
 use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
-use crate::aarch64::bindings::hv_vm_create;
+use crate::aarch64::bindings::{hv_vm_create, hv_vm_protect};
 use crate::aarch64::hvf_gic::GicConfig;
 use crate::aarch64::vm_config::VmConfig;
 use crate::aarch64::weak_link::OPTIONAL15;
 use crate::{call_optional, Error, HvfError};
 
 use super::bindings::{
-    hv_memory_flags_t, hv_vcpu_t, hv_vcpus_exit, hv_vm_destroy, hv_vm_map, hv_vm_protect,
-    hv_vm_unmap, HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE,
+    hv_memory_flags_t, hv_vcpu_t, hv_vcpus_exit, hv_vm_destroy, hv_vm_map, hv_vm_unmap,
+    HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE,
 };
 use super::hvf_gic::{FdtGic, GicProps};
 use super::weak_link::OPTIONAL12;
@@ -37,7 +37,7 @@ pub enum ParkError {
     CanNoLongerPark,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct HvfVm {
     pub gic_props: Option<GicProps>,
 }
@@ -160,6 +160,16 @@ impl HvfVm {
         HvfError::result(ret).map_err(Error::MemoryUnmap)
     }
 
+    pub fn protect_memory(
+        &self,
+        guest_start_addr: GuestAddress,
+        size: usize,
+        flags: MemoryFlags,
+    ) -> Result<(), Error> {
+        let ret = unsafe { hv_vm_protect(guest_start_addr.raw_value(), size, flags.bits()) };
+        HvfError::result(ret).map_err(Error::MemoryProtect)
+    }
+
     pub fn force_exits(&self, vcpu_ids: &[hv_vcpu_t]) -> Result<(), Error> {
         // HVF won't mutate this
         let ret = unsafe { hv_vcpus_exit(vcpu_ids.as_ptr() as *mut _, vcpu_ids.len() as u32) };
@@ -200,36 +210,5 @@ impl HvfVm {
         let max_addr = (1 << Self::get_max_ipa_size()?) - 1;
         let max_ram_addr = max_addr - DAX_SIZE - 0x4000_0000; // shm rounding (ceil) = 1 GiB
         Ok(max_ram_addr - layout::DRAM_MEM_START)
-    }
-
-    pub fn map_memory_static(
-        host_start_addr: u64,
-        guest_start_addr: u64,
-        size: u64,
-        flags: MemoryFlags,
-    ) -> Result<(), Error> {
-        let ret = unsafe {
-            hv_vm_map(
-                host_start_addr as *mut core::ffi::c_void,
-                guest_start_addr,
-                size as usize,
-                flags.bits(),
-            )
-        };
-        HvfError::result(ret).map_err(Error::MemoryMap)
-    }
-
-    pub fn unmap_memory_static(guest_start_addr: u64, size: u64) -> Result<(), Error> {
-        let ret = unsafe { hv_vm_unmap(guest_start_addr, size as usize) };
-        HvfError::result(ret).map_err(Error::MemoryUnmap)
-    }
-
-    pub fn protect_memory_static(
-        guest_start_addr: u64,
-        size: u64,
-        flags: MemoryFlags,
-    ) -> Result<(), Error> {
-        let ret = unsafe { hv_vm_protect(guest_start_addr, size as usize, flags.bits()) };
-        HvfError::result(ret).map_err(Error::MemoryMap)
     }
 }

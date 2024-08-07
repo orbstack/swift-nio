@@ -4,7 +4,7 @@ pub const PSCI_POWER_OFF: u32 = 0x8400_0008;
 pub const PSCI_RESET: u32 = 0x8400_0009;
 pub const PSCI_CPU_ON: u32 = 0xc400_0003;
 
-// SMCCC: (fast call, 64-bit, vendor hyp owner, ID)
+// SMCCC: (fast call, 64-bit, vendor hyp owner, 0xe000 +ID)
 const fn orbvm_hvc_id(id: u32) -> u32 {
     0xc600_e000 + id
 }
@@ -28,3 +28,8 @@ pub const HVC_DEVICE_VIRTIOFS_ROSETTA: usize = 1;
 pub const HVC_DEVICE_BALLOON: usize = 1000;
 
 pub const HVC_DEVICE_BLOCK_START: usize = 2000;
+
+pub const SMCCC_RET_SUCCESS: i64 = 0;
+pub const SMCCC_RET_NOT_SUPPORTED: i64 = -1;
+pub const SMCCC_RET_NOT_REQUIRED: i64 = -2;
+pub const SMCCC_RET_INVALID_PARAMETER: i64 = -3;

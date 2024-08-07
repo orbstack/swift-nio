@@ -8,6 +8,7 @@ mod bindings;
 
 mod error;
 mod hvf_gic;
+mod private;
 mod pvgic;
 mod vcpu;
 mod vm;

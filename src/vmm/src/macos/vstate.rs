@@ -27,7 +27,6 @@ use utils::Mutex;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
 
-use super::super::TimestampUs;
 use crate::vmm_config::machine_config::CpuFeaturesTemplate;
 use crate::VmmShutdownHandle;
 
@@ -85,7 +84,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// A wrapper around creating and using a VM.
 pub struct Vm {
-    pub hvf_vm: HvfVm,
+    pub hvf_vm: Arc<HvfVm>,
     vcpu_registry: Arc<VcpuRegistryImpl>,
     #[cfg(target_arch = "aarch64")]
     irqchip_handle: Option<Box<dyn GICDevice>>,
@@ -180,7 +179,7 @@ impl Vm {
         let hvf_vm = HvfVm::new(mem_info, vcpu_count).map_err(Error::VmSetup)?;
 
         Ok(Vm {
-            hvf_vm: hvf_vm.clone(),
+            hvf_vm: Arc::new(hvf_vm),
             vcpu_registry: Arc::new(VcpuRegistryImpl::default()),
             #[cfg(target_arch = "aarch64")]
             irqchip_handle: None,
@@ -320,8 +319,7 @@ pub struct Vcpu {
     #[cfg(target_arch = "aarch64")]
     csmap_path: Option<Arc<String>>,
 
-    #[cfg(target_arch = "x86_64")]
-    hvf_vm: HvfVm,
+    hvf_vm: Arc<HvfVm>,
 
     #[cfg(target_arch = "x86_64")]
     vcpu_count: u8,
@@ -352,7 +350,7 @@ impl Vcpu {
         boot_receiver: Receiver<GuestAddress>,
         exit_evt: EventFd,
         guest_mem: GuestMemoryMmap,
-        _create_ts: TimestampUs,
+        vm: &Vm,
         intc: Arc<Mutex<Gic>>,
         shutdown: VmmShutdownSignal,
         csmap_path: Option<Arc<String>>,
@@ -366,6 +364,7 @@ impl Vcpu {
             mmio_bus: None,
             exit_evt,
             guest_mem,
+            hvf_vm: vm.hvf_vm.clone(),
             mpidr: 0,
             intc,
             shutdown,
@@ -721,7 +720,8 @@ impl Vcpu {
         }
 
         // Create the underlying HVF vCPU.
-        let mut hvf_vcpu = HvfVcpu::new(self.guest_mem.clone()).expect("Can't create HVF vCPU");
+        let mut hvf_vcpu = HvfVcpu::new(self.guest_mem.clone(), self.hvf_vm.clone())
+            .expect("Can't create HVF vCPU");
 
         let hvf_vcpuid = hvf_vcpu.id();
         let hvf_vcpu_ref = hvf_vcpu.vcpu_ref();

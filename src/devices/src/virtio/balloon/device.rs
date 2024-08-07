@@ -23,7 +23,7 @@ use super::super::{
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
 use crate::virtio::{DescriptorChain, HvcDevice, VirtioQueueSignals, VmmExitObserver};
-use hvf::VcpuRegistry;
+use hvf::{HvfVm, VcpuRegistry};
 use utils::memory::GuestMemoryExt;
 
 define_waker_set! {
@@ -147,10 +147,14 @@ pub struct Balloon {
     irq_line: Option<u32>,
     vcpu_registry: Option<Arc<dyn VcpuRegistry>>,
     queued: RefCell<QueuedReport>,
+    hvf_vm: Arc<HvfVm>,
 }
 
 impl Balloon {
-    pub(crate) fn with_queues(queues: Vec<VirtQueue>) -> super::Result<Arc<Mutex<Balloon>>> {
+    pub(crate) fn with_queues(
+        queues: Vec<VirtQueue>,
+        hvf_vm: Arc<HvfVm>,
+    ) -> super::Result<Arc<Mutex<Balloon>>> {
         let config = VirtioBalloonConfig::default();
 
         Ok(Arc::new_cyclic(|self_ref| {
@@ -171,17 +175,18 @@ impl Balloon {
                     req: None,
                     descs: Vec::new(),
                 }),
+                hvf_vm,
             })
         }))
     }
 
-    pub fn new() -> super::Result<Arc<Mutex<Balloon>>> {
+    pub fn new(hvf_vm: Arc<HvfVm>) -> super::Result<Arc<Mutex<Balloon>>> {
         let queues: Vec<VirtQueue> = defs::QUEUE_SIZES
             .iter()
             .map(|&max_size| VirtQueue::new(max_size))
             .collect();
 
-        Self::with_queues(queues)
+        Self::with_queues(queues, hvf_vm)
     }
 
     pub fn id(&self) -> &str {
@@ -298,7 +303,14 @@ impl Balloon {
 
             match req.type_ {
                 FPR_TYPE_FREE => {
-                    unsafe { hvf::free_range(guest_addr, host_addr.as_ptr() as *mut _, size)? };
+                    unsafe {
+                        hvf::free_range(
+                            &self.hvf_vm,
+                            guest_addr,
+                            host_addr.as_ptr() as *mut _,
+                            size,
+                        )?
+                    };
                 }
                 FPR_TYPE_UNREPORT => {
                     unsafe { hvf::reuse_range(host_addr.as_ptr() as *mut _, size)? };

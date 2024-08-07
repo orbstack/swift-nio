@@ -187,6 +187,7 @@ unsafe fn new_chunks_at(host_base_addr: *mut c_void, total_size: usize) -> anyho
 /// # Safety
 /// host_addr must be a mapped, contiguous host memory region of at least `size` bytes
 pub unsafe fn free_range(
+    hvf_vm: &HvfVm,
     guest_addr: GuestAddress,
     host_addr: *mut c_void,
     size: usize,
@@ -210,8 +211,8 @@ pub unsafe fn free_range(
     // clear this range from hv pmap ledger:
     // there's no other way to clear from hv pmap, and we *will* incur this cost at some point
     // hv_vm_protect(0) then (RWX) is slightly faster than unmap+map, and does the same thing (including split+coalesce)
-    HvfVm::protect_memory_static(guest_addr.raw_value(), size as u64, MemoryFlags::NONE)?;
-    HvfVm::protect_memory_static(guest_addr.raw_value(), size as u64, MemoryFlags::RWX)?;
+    hvf_vm.protect_memory(guest_addr, size, MemoryFlags::NONE)?;
+    hvf_vm.protect_memory(guest_addr, size, MemoryFlags::RWX)?;
 
     Ok(())
 }

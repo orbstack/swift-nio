@@ -1,15 +1,17 @@
+use std::sync::Arc;
+
 use hvf::HvfVm;
 use rustc_hash::FxHashMap;
 
 use super::{UserspaceGicImpl, WfeThread};
 
 pub struct HvfGic {
-    hvf_vm: HvfVm,
+    hvf_vm: Arc<HvfVm>,
     vcpus: FxHashMap<u64, WfeThread>,
 }
 
 impl HvfGic {
-    pub fn new(hvf_vm: HvfVm) -> Self {
+    pub fn new(hvf_vm: Arc<HvfVm>) -> Self {
         Self {
             hvf_vm,
             vcpus: FxHashMap::default(),

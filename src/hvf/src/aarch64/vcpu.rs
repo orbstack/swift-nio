@@ -11,7 +11,6 @@ use utils::memory::GuestMemoryExt;
 use vm_memory::{GuestAddress, GuestMemoryMmap};
 
 use std::convert::TryInto;
-use std::ffi::c_void;
 use std::fmt::Write;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
@@ -51,9 +50,10 @@ use super::bindings::{
     hv_vcpu_get_reg, hv_vcpu_get_sys_reg, hv_vcpu_run, hv_vcpu_set_pending_interrupt,
     hv_vcpu_set_reg, hv_vcpu_set_sys_reg, hv_vcpu_set_vtimer_mask, hv_vcpu_t, hv_vcpus_exit,
 };
+use super::private::_hv_vcpu_get_context;
 use super::pvgic::{ExitActions, PvgicFlags, PvgicVcpuState};
 use super::vm::ENABLE_NESTED_VIRT;
-use super::{Error, HvfError};
+use super::{Error, HvfError, HvfVm};
 
 // kernel VA space is up to 48 bits on arm64. the EL1 split has high bits set,
 // so any address without the top 16 bits set isn't a valid kernel address
@@ -196,30 +196,12 @@ pub struct HvfVcpu {
 
     guest_mem: GuestMemoryMmap,
     pvgic: Option<*mut PvgicVcpuState>,
-}
 
-extern "C" {
-    pub fn _hv_vcpu_get_context(vcpu: hv_vcpu_t) -> *mut c_void;
-}
-
-// must be 8-byte aligned, so go in units of 8 bytes
-unsafe fn search_8b_linear(
-    haystack_ptr: *mut u64,
-    needle: u64,
-    haystack_bytes: usize,
-) -> Option<usize> {
-    let mut i = 0;
-    while i < (haystack_bytes / 8) {
-        if unsafe { *haystack_ptr.add(i) } == needle {
-            return Some(i);
-        }
-        i += 1;
-    }
-    None
+    hvf_vm: Arc<HvfVm>,
 }
 
 impl HvfVcpu {
-    pub fn new(guest_mem: GuestMemoryMmap) -> Result<Self, Error> {
+    pub fn new(guest_mem: GuestMemoryMmap, hvf_vm: Arc<HvfVm>) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpu_t = 0;
         let mut vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
 
@@ -244,6 +226,8 @@ impl HvfVcpu {
 
             guest_mem,
             pvgic: None,
+
+            hvf_vm,
         })
     }
 
@@ -1048,4 +1032,20 @@ impl HvfVcpu {
         let ret = unsafe { hv_vcpu_set_vtimer_mask(hv_vcpu.0, masked) };
         HvfError::result(ret).map_err(Error::VcpuSetVtimerMask)
     }
+}
+
+// must be 8-byte aligned, so go in units of 8 bytes
+unsafe fn search_8b_linear(
+    haystack_ptr: *mut u64,
+    needle: u64,
+    haystack_bytes: usize,
+) -> Option<usize> {
+    let mut i = 0;
+    while i < (haystack_bytes / 8) {
+        if unsafe { *haystack_ptr.add(i) } == needle {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
 }
