@@ -450,6 +450,9 @@ func (h *virtioNetHdrV1) marshal() []byte {
 
 		8: byte(h.csumOffset),
 		9: byte(h.csumOffset >> 8),
+
+		10: byte(h.numBuffers),
+		11: byte(h.numBuffers >> 8),
 	}
 	return buf[:]
 }
