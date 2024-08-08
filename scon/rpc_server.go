@@ -105,7 +105,7 @@ func (s *SconServer) ContainerStop(ctx context.Context, record types.ContainerRe
 	}
 
 	return c.Stop(StopOptions{
-		Force: false,
+		KillProcesses: false,
 	})
 }
 

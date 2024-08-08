@@ -20,8 +20,8 @@ var (
 )
 
 type StopOptions struct {
-	Force    bool
-	Internal bool
+	KillProcesses     bool
+	ManagerIsStopping bool
 }
 
 func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState, err error) {
@@ -30,7 +30,7 @@ func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState,
 		return oldState, nil
 	}
 
-	if !opts.Internal && c.manager.stopping {
+	if !opts.ManagerIsStopping && c.manager.stopping {
 		return oldState, ErrStopping
 	}
 
@@ -66,7 +66,7 @@ func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState,
 	}
 
 	// graceful attempt first; ignore failure
-	if !opts.Force {
+	if !opts.KillProcesses {
 		err = c.lxc.Shutdown(gracefulShutdownTimeout)
 		if err != nil {
 			logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")
@@ -106,7 +106,7 @@ func (c *Container) stopForManagerShutdown() error {
 	defer c.mu.Unlock()
 
 	_, err := c.stopLocked(StopOptions{
-		Internal: true,
+		ManagerIsStopping: true,
 	})
 	return err
 }

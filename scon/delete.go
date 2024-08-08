@@ -89,7 +89,7 @@ func (m *ConManager) deleteRootfs(rootfs string) error {
 
 func (c *Container) deleteDockerLocked(k8sOnly bool) error {
 	_, err := c.stopLocked(StopOptions{
-		Force: true, // don't care about data
+		KillProcesses: true, // don't care about data
 	})
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func (c *Container) deleteLocked(isInternal bool) error {
 	}
 
 	_, err := c.stopLocked(StopOptions{
-		Force: true, // don't care about data
+		KillProcesses: true, // don't care about data
 	})
 	if err != nil {
 		return err

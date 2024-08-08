@@ -131,7 +131,7 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 	// reboot NixOS to not run into weird errors (https://github.com/orbstack/macvirt/pull/111#issuecomment-2155174982)
 	if c.Image.Distro == images.DistroNixos {
 		c.mu.Lock()
-		_, err = c.stopLocked(StopOptions{Force: false, Internal: true})
+		_, err = c.stopLocked(StopOptions{KillProcesses: false, ManagerIsStopping: false})
 		c.mu.Unlock()
 		if err != nil {
 			err = fmt.Errorf("stop (nixos reboot): %w", err)
