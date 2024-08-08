@@ -60,10 +60,10 @@ func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) (*NetServices, 
 	addr := netutil.ParseTcpipAddress(netconf.VnetServicesIP4)
 	secureAddr := netutil.ParseTcpipAddress(netconf.VnetSecureSvcIP4)
 
-	// HID service (8302)
+	// Ready events service (8302)
 	readyEvents, err := readyevents.ListenReadyEventsService(n.Stack, secureAddr)
 	if err != nil {
-		logrus.Error("Failed to start HID server: ", err)
+		logrus.Error("Failed to start ReadyEvents server: ", err)
 		return nil, err
 	}
 
