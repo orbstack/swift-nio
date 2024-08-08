@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
 	"github.com/orbstack/macvirt/vmgr/vzf"
@@ -14,7 +14,7 @@ import (
 )
 
 type VmNotifier struct {
-	mu      sync.Mutex
+	mu      syncx.Mutex
 	paths   []string
 	swext   *vzf.FsVmNotifier
 	network *vnet.Network

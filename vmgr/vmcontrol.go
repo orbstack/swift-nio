@@ -12,7 +12,6 @@ import (
 	"path"
 	"runtime"
 	"runtime/pprof"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -64,7 +63,7 @@ type VmControlServer struct {
 	hcontrol     *hcsrv.HcontrolServer
 
 	setupDone            bool
-	setupMu              sync.Mutex
+	setupMu              syncx.Mutex
 	setupEnvChan         atomic.Pointer[chan *vmtypes.EnvReport]
 	setupUserDetailsOnce func() (*UserDetails, error)
 

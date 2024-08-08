@@ -74,9 +74,9 @@ var (
 )
 
 type DrmClient struct {
-	mu         sync.Mutex
-	checkMu    sync.Mutex
-	keychainMu sync.Mutex // can hang on permission prompt
+	mu         syncx.Mutex
+	checkMu    syncx.Mutex
+	keychainMu syncx.Mutex // can hang on permission prompt
 	verifier   *sjwt.Verifier
 	http       *http.Client
 	apiBaseURL string
@@ -92,7 +92,7 @@ type DrmClient struct {
 	// late init
 	vnet *vnet.Network
 	// can hang if guest service is taking too long to start
-	sconInternalMu  sync.Mutex
+	sconInternalMu  syncx.Mutex
 	sconInternal    *isclient.Client
 	sconHasReported bool
 	restored        syncx.CondBool

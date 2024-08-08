@@ -7,10 +7,10 @@ import (
 	"math"
 	"net"
 	"os"
-	"sync"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/dglink"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
@@ -65,10 +65,10 @@ type Network struct {
 
 	// mapped by host side. guest side can be duplicated
 	hostForwards  map[string]HostForward
-	hostForwardMu sync.Mutex
+	hostForwardMu syncx.Mutex
 
 	// bridges
-	hostBridgeMu           sync.Mutex
+	hostBridgeMu           syncx.Mutex
 	hostBridgeFds          []int
 	hostBridges            []HostBridge
 	bridgeRouteMon         *bridge.RouteMon

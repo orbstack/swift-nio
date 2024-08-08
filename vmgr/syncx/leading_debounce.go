@@ -1,15 +1,14 @@
 package syncx
 
 import (
-	"sync"
 	"time"
 )
 
 // leading debounce: call immediately, then ignore calls for duration. DO not reset the timer
 type LeadingFuncDebounce struct {
 	// avoid blocking callers if func is slow
-	mu       sync.Mutex
-	funcMu   sync.Mutex
+	mu       Mutex
+	funcMu   Mutex
 	fn       func()
 	duration time.Duration
 	timer    *time.Timer

@@ -3,14 +3,14 @@ package coredir
 import (
 	"errors"
 	"os"
-	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 )
 
 var (
-	ensuredDirsMu sync.Mutex
+	ensuredDirsMu syncx.Mutex
 	ensuredDirs   = make(map[string]string)
 )
 

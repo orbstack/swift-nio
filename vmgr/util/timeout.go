@@ -2,8 +2,9 @@ package util
 
 import (
 	"context"
-	"sync"
 	"time"
+
+	"github.com/orbstack/macvirt/vmgr/syncx"
 )
 
 func WithTimeout0(fn func(), timeout time.Duration) error {
@@ -25,7 +26,7 @@ func WithTimeout2[T any](fn func() (T, error), timeout time.Duration) (T, error)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	var outputMu sync.Mutex
+	var outputMu syncx.Mutex
 	var result T
 	err := context.DeadlineExceeded
 	go func() {

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/util/simplerate"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
@@ -91,12 +91,12 @@ func NewRouteMon() (*RouteMon, error) {
 
 type RouteMon struct {
 	// pretty fast - usually not many networks and just a few mask ops, no need for LPM tree
-	subnetsMu sync.Mutex
+	subnetsMu syncx.Mutex
 	// +1 for scon machines
 	// value type for fast iteration on each route packet
 	subnets [MaxVlanInterfaces + 1]MonitoredSubnet
 
-	renewMu       sync.Mutex // separate mutex to prevent deadlock
+	renewMu       syncx.Mutex // separate mutex to prevent deadlock
 	renewLimiter  *simplerate.Limiter
 	renewDebounce syncx.FuncDebounce
 

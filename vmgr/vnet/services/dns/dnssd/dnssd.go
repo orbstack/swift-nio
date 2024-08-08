@@ -24,12 +24,12 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sync"
 	"sync/atomic"
 	"unsafe"
 
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,7 +38,7 @@ const maxCnameRecursion = 16
 
 var (
 	queryMap   = map[uint64]*queryState{}
-	queryMapMu = sync.Mutex{}
+	queryMapMu = syncx.Mutex{}
 
 	// guarantees no overlap
 	nextSeq atomic.Uint64

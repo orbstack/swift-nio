@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/newtwork"
 	"github.com/sirupsen/logrus"
@@ -18,7 +19,7 @@ import (
 type ReadyHandler func(string)
 
 type Service struct {
-	mutex         sync.Mutex
+	mutex         syncx.Mutex
 	serviceStates map[string]*serviceState
 }
 

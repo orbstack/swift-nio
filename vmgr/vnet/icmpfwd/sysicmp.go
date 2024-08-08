@@ -7,8 +7,8 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"sync"
 
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/udpfwd"
@@ -41,9 +41,9 @@ type IcmpFwd struct {
 	stack   *stack.Stack
 	nicId   tcpip.NICID
 	conn4   *goipv4.PacketConn
-	conn4Mu sync.Mutex
+	conn4Mu syncx.Mutex
 	conn6   *goipv6.PacketConn
-	conn6Mu sync.Mutex
+	conn6Mu syncx.Mutex
 
 	// to send reply packets
 	// TODO proper connection tracking

@@ -18,9 +18,9 @@ import (
 	"errors"
 	"io"
 	"net"
-	"sync"
 	"time"
 
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,7 +32,7 @@ import (
 // from the real time and adjust for a single leap second.
 type Server struct {
 	net.PacketConn
-	mu       sync.Mutex    // protects offset, leapTime, and leapType.
+	mu       syncx.Mutex   // protects offset, leapTime, and leapType.
 	offset   time.Duration // see SetTime
 	leapTime time.Time     // see SetLeapSecond
 	leapType LeapIndicator

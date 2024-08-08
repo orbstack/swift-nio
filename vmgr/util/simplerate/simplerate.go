@@ -1,13 +1,14 @@
 package simplerate
 
 import (
-	"sync"
 	"time"
+
+	"github.com/orbstack/macvirt/vmgr/syncx"
 )
 
 // a simple N-events in X-time sliding window limiter
 type Limiter struct {
-	mu    sync.Mutex
+	mu    syncx.Mutex
 	slots []time.Time
 
 	nEvents int

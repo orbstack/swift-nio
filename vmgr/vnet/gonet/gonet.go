@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/log"
 	"gvisor.dev/gvisor/pkg/sync"
@@ -141,7 +142,7 @@ func (l *TCPListener) Addr() net.Addr {
 
 type deadlineTimer struct {
 	// mu protects the fields below.
-	mu sync.Mutex
+	mu syncx.Mutex
 
 	readTimer     *time.Timer
 	readCancelCh  chan struct{}
@@ -250,7 +251,7 @@ type TCPConn struct {
 	// Lock ordering:
 	// If both readMu and deadlineTimer.mu are to be used in a single
 	// request, readMu must be acquired before deadlineTimer.mu.
-	readMu sync.Mutex
+	readMu syncx.Mutex
 }
 
 // NewTCPConn creates a new TCPConn.

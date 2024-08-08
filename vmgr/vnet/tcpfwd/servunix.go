@@ -2,8 +2,8 @@ package tcpfwd
 
 import (
 	"net"
-	"sync"
 
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
@@ -14,7 +14,7 @@ import (
 
 type UnixNATForward struct {
 	listener    net.Listener
-	mu          sync.Mutex
+	mu          syncx.Mutex
 	connectAddr string
 	isSshAgent  bool
 }

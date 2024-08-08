@@ -64,6 +64,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/sirupsen/logrus"
@@ -374,7 +375,7 @@ func SwextFseventsMonitorDirs() error {
 }
 
 type FsVmNotifier struct {
-	mu  sync.Mutex
+	mu  syncx.Mutex
 	ptr unsafe.Pointer
 }
 

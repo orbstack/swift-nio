@@ -9,11 +9,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/util/netx"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/gvaddr"
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy"
@@ -38,13 +37,13 @@ type ProxyManager struct {
 	hostNatIP4 tcpip.Address
 	hostNatIP6 tcpip.Address
 
-	dialerMu      sync.Mutex
+	dialerMu      syncx.Mutex
 	dialerAll     proxy.ContextDialer
 	dialerHttp    proxy.ContextDialer
 	dialerHttps   proxy.ContextDialer
 	perHostFilter *proxy.PerHost
 
-	httpMu            sync.Mutex
+	httpMu            syncx.Mutex
 	requiresHttpProxy bool
 	httpRevProxy      *httpReverseProxy
 

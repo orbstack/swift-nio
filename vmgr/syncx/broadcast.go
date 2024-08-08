@@ -1,9 +1,7 @@
 package syncx
 
-import "sync"
-
 type Broadcaster[T any] struct {
-	mu          sync.Mutex
+	mu          Mutex
 	subscribers []chan T
 }
 

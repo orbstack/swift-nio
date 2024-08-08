@@ -33,6 +33,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	vmgrsyncx "github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
@@ -104,14 +105,14 @@ type HcontrolServer struct {
 	Vclient   *vclient.VClient
 	HostMdns  *hostmdns.HostMdnsServer
 
-	fsnotifyMu   sync.Mutex
+	fsnotifyMu   syncx.Mutex
 	fsnotifyRefs map[string]int
 	FsNotifier   *fsnotify.VmNotifier
 
 	NfsPort    int
 	nfsMounted bool
 
-	k8sMu             sync.Mutex
+	k8sMu             syncx.Mutex
 	k8sClient         *kubernetes.Clientset
 	k8sNotifyDebounce *vmgrsyncx.LeadingFuncDebounce
 	k8sInformerStopCh chan struct{}

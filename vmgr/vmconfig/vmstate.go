@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 
 var (
 	globalState   *VmgrState
-	globalStateMu sync.Mutex
+	globalStateMu syncx.Mutex
 )
 
 type VmgrState struct {

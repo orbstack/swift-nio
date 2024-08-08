@@ -8,7 +8,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
@@ -27,7 +26,7 @@ const (
 
 var (
 	globalConfig   *VmConfig
-	globalConfigMu sync.Mutex
+	globalConfigMu syncx.Mutex
 
 	diffBroadcaster = syncx.NewBroadcaster[VmConfigChange]()
 )

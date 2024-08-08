@@ -8,10 +8,10 @@ import (
 	"io"
 	"net"
 	"net/netip"
-	"sync"
 	"syscall"
 	"time"
 
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -58,13 +58,13 @@ type UDPProxy struct {
 	listener       net.PacketConn
 	dialer         func(*net.UDPAddr) (net.Conn, error)
 	connTrackTable connTrackMap
-	connTrackLock  sync.Mutex
+	connTrackLock  syncx.Mutex
 	trackExtConn   bool
 }
 
 // External connection source addr -> local (virtual) source addr
 var localExtConns = make(map[connTrackKey]*net.UDPAddr)
-var localExtConnsLock sync.Mutex
+var localExtConnsLock syncx.Mutex
 
 func LookupExternalConn(localAddr *net.UDPAddr) *net.UDPAddr {
 	localExtConnsLock.Lock()

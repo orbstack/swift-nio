@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/util/debugutil"
 	"github.com/orbstack/macvirt/vmgr/vmm"
@@ -98,7 +99,7 @@ func (e *KernelWarning) Error() string {
 }
 
 type KernelLogRecorder struct {
-	mu  sync.Mutex
+	mu  syncx.Mutex
 	buf bytes.Buffer
 
 	timer    *time.Timer
@@ -206,7 +207,7 @@ func tryReadLogHistory(path string, numLines int) (string, error) {
 }
 
 type ConsoleProcessor struct {
-	mu       sync.Mutex
+	mu       syncx.Mutex
 	_machine vmm.Machine
 
 	stopCh        chan<- types.StopRequest
