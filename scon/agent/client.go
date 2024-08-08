@@ -378,7 +378,7 @@ func (c *Client) EndUserSession(user string) error {
 	return nil
 }
 
-func (c *Client) GetAgentPidFd() error {
+func (c *Client) MonitorAgentPidFd() error {
 	if c.process.Load() != nil {
 		return errors.New("agent pidfd already set")
 	}
@@ -407,6 +407,15 @@ func (c *Client) SyntheticWarnStop() error {
 	}
 
 	return process.Signal(stopWarningSignal)
+}
+
+func (c *Client) WaitStop() error {
+	process := c.process.Load()
+	if process == nil {
+		return errors.New("no agent pidfd process")
+	}
+
+	return process.Wait()
 }
 
 type UpdateHostnameArgs struct {

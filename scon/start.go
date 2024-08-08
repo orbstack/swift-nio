@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -973,9 +974,37 @@ func (c *Container) postStartAsync(a *agent.Client) error {
 	c.triggerListenersUpdate(bpf.LtypeAll)
 
 	// get agent's pidfd
-	err = a.GetAgentPidFd()
+	err = a.MonitorAgentPidFd()
 	if err != nil {
 		return fmt.Errorf("get agent pidfd: %w", err)
+	}
+
+	// postStartAsync runs asynchronously, so we can reuse this goroutine
+
+	// wait for agent to stop
+	_ = a.WaitStop()
+
+	// if agent crashed and container is still running, stop the container
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	err = c.useAgentLocked(func(currentAgent *agent.Client) error {
+		// if this is the current agent, then container is still running and has a reference to this agent
+		if currentAgent == a {
+			logrus.WithField("container", c.Name).Error("agent crashed, stopping container")
+			_, err := c.stopLocked(StopOptions{
+				KillProcesses:     false,
+				ManagerIsStopping: false,
+			})
+			return err
+		} else {
+			return nil
+		}
+	})
+	// if container isn't running, we're fine
+	// otherwise something's wrong
+	if err != nil && !errors.Is(err, ErrMachineNotRunning) {
+		logrus.WithError(err).WithField("container", c.Name).Error("failed to stop container after agent crash")
 	}
 
 	return nil
