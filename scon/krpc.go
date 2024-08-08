@@ -3,10 +3,10 @@ package main
 import (
 	"net"
 	"os"
-	"strconv"
 
-	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -16,7 +16,7 @@ const (
 )
 
 func RunKrpcInitiator() error {
-	listener, err := netx.Listen("tcp", vnetGuestIP4.String()+":"+strconv.Itoa(ports.GuestKrpc))
+	listener, err := listenAndReportReady("tcp", readyclient.ServiceKrpc, netconf.VnetGuestIP4, ports.GuestKrpc)
 	if err != nil {
 		return err
 	}

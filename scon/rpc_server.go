@@ -14,9 +14,10 @@ import (
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
 	"github.com/sirupsen/logrus"
 )
 
@@ -266,10 +267,9 @@ func (s *SconServer) Serve() error {
 	})
 	defer bridge.Close()
 
-	listenIP := vnetGuestIP4
-	listenAddrPort := net.JoinHostPort(listenIP.String(), strconv.Itoa(ports.GuestScon))
 	// need to use netx listener to disable keepalive
-	listener, err := netx.Listen("tcp", listenAddrPort)
+	listenAddrPort := net.JoinHostPort(netconf.VnetGuestIP4, strconv.Itoa(ports.GuestScon))
+	listener, err := listenAndReportReady("tcp", readyclient.ServiceSconRPC, netconf.VnetGuestIP4, ports.GuestScon)
 	if err != nil {
 		return err
 	}

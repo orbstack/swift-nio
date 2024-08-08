@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"strconv"
 	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
@@ -18,7 +17,7 @@ import (
 
 type ReadyHandler func(string)
 
-type ReadyEventsService struct {
+type Service struct {
 	mutex         sync.Mutex
 	serviceStates map[string]*serviceState
 }
@@ -33,7 +32,7 @@ type serviceState struct {
 	ready sync.RWMutex
 }
 
-func ListenReadyEventsService(stack *stack.Stack, addr tcpip.Address) (*ReadyEventsService, error) {
+func ListenReadyEventsService(stack *stack.Stack, addr tcpip.Address) (*Service, error) {
 	listener, err := gonet.ListenTCP(stack, tcpip.FullAddress{
 		Addr: addr,
 		Port: ports.SecureSvcReadyEvents,
@@ -43,7 +42,7 @@ func ListenReadyEventsService(stack *stack.Stack, addr tcpip.Address) (*ReadyEve
 		return nil, err
 	}
 
-	s := &ReadyEventsService{
+	s := &Service{
 		serviceStates: make(map[string]*serviceState),
 	}
 
@@ -71,10 +70,7 @@ func ListenReadyEventsService(stack *stack.Stack, addr tcpip.Address) (*ReadyEve
 				if b != (byte)('\n') {
 					accum = append(accum, b)
 				} else {
-					logrus.Infof(
-						"ReadyEvents was notified that %s is ready",
-						strconv.Quote(string(accum)),
-					)
+					logrus.WithField("service", string(accum)).Info("service is ready")
 					s.MarkReady(string(accum))
 					accum = nil
 				}
@@ -85,7 +81,7 @@ func ListenReadyEventsService(stack *stack.Stack, addr tcpip.Address) (*ReadyEve
 	return s, nil
 }
 
-func (s *ReadyEventsService) MarkReady(name string) {
+func (s *Service) MarkReady(name string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -110,7 +106,7 @@ func (s *ReadyEventsService) MarkReady(name string) {
 	}
 }
 
-func (s *ReadyEventsService) getServiceStateForWaitingLocked(name string) *serviceState {
+func (s *Service) getServiceStateForWaitingLocked(name string) *serviceState {
 	state := s.serviceStates[name]
 
 	// If the service doesn't exist, create it.
@@ -126,7 +122,7 @@ func (s *ReadyEventsService) getServiceStateForWaitingLocked(name string) *servi
 	return state
 }
 
-func (s *ReadyEventsService) WaitForReady(name string) {
+func (s *Service) WaitForReady(name string) {
 	state := func() *serviceState {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
@@ -138,7 +134,7 @@ func (s *ReadyEventsService) WaitForReady(name string) {
 	state.ready.RUnlock()
 }
 
-func (s *ReadyEventsService) PushReadyHandler(name string, handler ReadyHandler) {
+func (s *Service) PushReadyHandler(name string, handler ReadyHandler) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

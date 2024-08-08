@@ -8,6 +8,7 @@ import (
 
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
@@ -36,7 +37,7 @@ func NewVmNotifier(network *vnet.Network) (*VmNotifier, error) {
 func (n *VmNotifier) Run() error {
 	n.swext.Start()
 
-	conn, err := n.network.DialGuestTCPRetry(context.TODO(), ports.GuestKrpc)
+	conn, err := n.network.WaitDialGuestTCP(context.TODO(), readyclient.ServiceKrpc, ports.GuestKrpc)
 	if err != nil {
 		return fmt.Errorf("dial guest: %w", err)
 	}

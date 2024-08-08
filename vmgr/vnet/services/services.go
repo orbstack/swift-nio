@@ -52,8 +52,8 @@ var (
 )
 
 type NetServices struct {
-	HcServer    *hcsrv.HcontrolServer
-	ReadyEvents *readyevents.ReadyEventsService
+	Hcontrol    *hcsrv.HcontrolServer
+	ReadyEvents *readyevents.Service
 }
 
 func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) (*NetServices, error) {
@@ -66,6 +66,7 @@ func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) (*NetServices, 
 		logrus.Error("Failed to start ReadyEvents server: ", err)
 		return nil, err
 	}
+	n.ReadyEvents = readyEvents
 
 	// DNS (53): using system resolver
 	dnsServer, err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts, reverseDnsHosts)
@@ -106,7 +107,7 @@ func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) (*NetServices, 
 
 	n.DockerRemoteCtxForward = dockerCtxForward
 	return &NetServices{
-		HcServer:    hcServer,
+		Hcontrol:    hcServer,
 		ReadyEvents: readyEvents,
 	}, nil
 }

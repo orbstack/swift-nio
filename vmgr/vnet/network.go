@@ -3,13 +3,11 @@ package vnet
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"net"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
@@ -19,6 +17,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/icmpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/udpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/vnettypes"
@@ -41,10 +40,6 @@ import (
 const (
 	capturePcap = false
 	nicID       = 1
-
-	// TODO event based startup
-	guestDialRetryInterval = 250 * time.Millisecond
-	guestDialRetryTimeout  = 15 * time.Second
 )
 
 type HostBridge interface {
@@ -83,6 +78,7 @@ type Network struct {
 
 	// services we need references to
 	DockerRemoteCtxForward *tcpfwd.UnixNATForward
+	ReadyEvents            *readyevents.Service
 }
 
 type NetOptions struct {
@@ -400,19 +396,7 @@ func (n *Network) DialGuestTCP(ctx context.Context, port uint16) (net.Conn, erro
 	}, ipv4.ProtocolNumber)
 }
 
-func (n *Network) DialGuestTCPRetry(ctx context.Context, port uint16) (net.Conn, error) {
-	ctx, cancel := context.WithTimeout(ctx, guestDialRetryTimeout)
-	defer cancel()
-
-	start := time.Now()
-	for {
-		conn, err := n.DialGuestTCP(ctx, port)
-		if err == nil {
-			return conn, nil
-		}
-		if time.Since(start) > guestDialRetryTimeout {
-			return nil, fmt.Errorf("retries exhausted: %w", err)
-		}
-		time.Sleep(guestDialRetryInterval)
-	}
+func (n *Network) WaitDialGuestTCP(ctx context.Context, service string, port uint16) (net.Conn, error) {
+	n.ReadyEvents.WaitForReady(service)
+	return n.DialGuestTCP(ctx, port)
 }

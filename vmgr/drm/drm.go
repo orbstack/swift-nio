@@ -29,6 +29,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/vmgr/vnet"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
@@ -89,7 +90,9 @@ type DrmClient struct {
 	startTime    timex.MonoSleepTime
 
 	// late init
-	vnet            *vnet.Network
+	vnet *vnet.Network
+	// can hang if guest service is taking too long to start
+	sconInternalMu  sync.Mutex
 	sconInternal    *isclient.Client
 	sconHasReported bool
 	restored        syncx.CondBool
@@ -419,8 +422,8 @@ func (c *DrmClient) reportToScon(result *drmtypes.Result) error {
 
 // TODO move out of drm client
 func (c *DrmClient) UseSconInternalClient(fn func(*isclient.Client) error) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.sconInternalMu.Lock()
+	defer c.sconInternalMu.Unlock()
 
 	if c.sconInternal == nil || c.sconInternal.Ping() != nil {
 		if c.sconInternal != nil {
@@ -430,8 +433,7 @@ func (c *DrmClient) UseSconInternalClient(fn func(*isclient.Client) error) error
 
 		// connect
 		dlog("dial scon internal rpc")
-		// important: retry. if it fails, drm could fail when it shouldn't, and ~/OrbStack bind mounts won't work
-		conn, err := c.vnet.DialGuestTCPRetry(context.TODO(), ports.GuestSconRPCInternal)
+		conn, err := c.vnet.WaitDialGuestTCP(context.TODO(), readyclient.ServiceSconRPCInternal, ports.GuestSconRPCInternal)
 		if err != nil {
 			return err
 		}

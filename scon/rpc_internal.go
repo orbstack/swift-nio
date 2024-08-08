@@ -1,16 +1,15 @@
 package main
 
 import (
-	"net"
 	"net/rpc"
-	"strconv"
 
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/agent"
-	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
 )
 
 type SconInternalServer struct {
@@ -69,14 +68,11 @@ func ListenSconInternal(m *ConManager, drmMonitor *DrmMonitor) (*SconInternalSer
 		return nil, err
 	}
 
-	listener, err := netx.Listen("tcp", net.JoinHostPort(vnetGuestIP4.String(), strconv.Itoa(ports.GuestSconRPCInternal)))
+	listener, err := listenAndReportReady("tcp", readyclient.ServiceSconRPCInternal, netconf.VnetGuestIP4, ports.GuestSconRPCInternal)
 	if err != nil {
 		return nil, err
 	}
 
-	go func() {
-		rpcServer.Accept(listener)
-	}()
-
+	go rpcServer.Accept(listener)
 	return server, nil
 }

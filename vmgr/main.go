@@ -763,14 +763,13 @@ func runVmManager() {
 	// Services
 	services, err := services.StartNetServices(vnetwork, drmClient)
 	check(err)
-	hcServer := services.HcServer
 
 	// TODO: for LAN mDNS - refresh default interface
-	//vnetwork.SetOnRefreshMdns(hcServer.HostMdns.UpdateInterfaces)
+	//vnetwork.SetOnRefreshMdns(services.Hcontrol.HostMdns.UpdateInterfaces)
 
 	// VM control server client
 	vc, err := vclient.NewWithNetwork(vnetwork, vm, stopCh, healthCheckCh)
-	hcServer.Vclient = vc
+	services.Hcontrol.Vclient = vc
 	check(err)
 	defer vc.Close()
 	err = vc.StartBackground()
@@ -780,7 +779,7 @@ func runVmManager() {
 	fsNotifier, err := fsnotify.NewVmNotifier(vnetwork)
 	check(err)
 	defer fsNotifier.Close()
-	hcServer.FsNotifier = fsNotifier
+	services.Hcontrol.FsNotifier = fsNotifier
 	go runOne("fsnotify proxy", fsNotifier.Run)
 
 	if useStdioConsole {
@@ -857,7 +856,7 @@ func runVmManager() {
 		dockerClient: makeDockerClient(),
 		drm:          drmClient,
 		network:      vnetwork,
-		hcontrol:     hcServer,
+		hcontrol:     services.Hcontrol,
 	}
 	controlServer.setupUserDetailsOnce = sync.OnceValues(controlServer.doGetUserDetailsAndSetupEnv)
 	controlServer.uiEventDebounce = *syncx.NewLeadingFuncDebounce(uitypes.UIEventDebounce, func() {
@@ -919,7 +918,7 @@ func runVmManager() {
 		errorx.Fatalf("host forward failed: %w", err)
 	}
 	nfsPort := nfsFwd.(*tcpfwd.TcpHostForward).TcpPort()
-	hcServer.NfsPort = nfsPort
+	services.Hcontrol.NfsPort = nfsPort
 
 	defer os.Remove(conf.DockerSocket())
 	defer os.Remove(conf.SconRPCSocket())
@@ -949,7 +948,7 @@ func runVmManager() {
 	defer os.Remove(conf.StatusFileRunning())
 
 	// Mount NFS
-	defer hcServer.InternalUnmountNfs()
+	defer services.Hcontrol.InternalUnmountNfs()
 
 	// the last defer: deadlock breaker
 	defer enforceStopDeadline()
@@ -981,7 +980,7 @@ func runVmManager() {
 			logrus.WithField("reason", stopReq.Reason).Info("stop requested")
 			lastStopReason = stopReq.Reason
 			// attempt to unmount nfs first
-			_ = hcServer.InternalUnmountNfs()
+			_ = services.Hcontrol.InternalUnmountNfs()
 
 			go func() {
 				switch stopReq.Type {
