@@ -71,6 +71,7 @@ func startNfsd() error {
 	}
 
 	// listen on IPv4 port 2049 on vnet interface, nonblock off
+	// can't use netx: we cast to *net.TCPListener here
 	listener, err := net.Listen("tcp", nfsdListenAddr+":"+strconv.Itoa(ports.GuestNFS))
 	if err != nil {
 		return err

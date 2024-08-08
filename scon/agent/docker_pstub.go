@@ -13,6 +13,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/sirupsen/logrus"
 )
@@ -143,7 +144,7 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 	// we only support TCP and UDP, no SCTP
 	switch proto {
 	case "tcp":
-		l, err := net.ListenTCP("tcp"+ipVer, &net.TCPAddr{
+		l, err := netx.ListenTCP("tcp"+ipVer, &net.TCPAddr{
 			IP:   hostIP,
 			Port: hostPort,
 		})

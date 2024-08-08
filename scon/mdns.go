@@ -18,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/templates"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -212,7 +213,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		},
 	}
 	go runOne("dns index server (http, v4)", func() error {
-		l, err := net.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "80"))
+		l, err := netx.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "80"))
 		if err != nil {
 			return err
 		}
@@ -220,14 +221,14 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	})
 	go runOne("dns index server (http, v6)", func() error {
 		// breaks with DAD on bridge interface
-		l, err := net.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "80"))
+		l, err := netx.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "80"))
 		if err != nil {
 			return err
 		}
 		return r.httpServer.Serve(l)
 	})
 	go runOne("dns index server (https, v4)", func() error {
-		l, err := net.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "443"))
+		l, err := netx.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "443"))
 		if err != nil {
 			return err
 		}
@@ -235,7 +236,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	})
 	go runOne("dns index server (https, v6)", func() error {
 		// breaks with DAD on bridge interface
-		l, err := net.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "443"))
+		l, err := netx.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "443"))
 		if err != nil {
 			return err
 		}

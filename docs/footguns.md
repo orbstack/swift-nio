@@ -1,5 +1,12 @@
 # Footguns
 
+## TLDR to avoid these
+
+### Go
+
+- Use package `netx` for connections and listeners, not `net`
+- Use `util.UseFile`, not `file.Fd()`
+
 ## Unix
 
 - `O_NONBLOCK` can be set on files, but it doesn't do anything.
@@ -54,6 +61,12 @@
 - Cgo auto-pins unsafe.Pointer arguments for the duration of the call
 - There's no way to handle uncaught panics globally. The process will abort.
 - Use `errors.Is(err, ...)`. Don't compare errors with `err ==`
+
+### Network
+
+- All TCP connections have `TCP_NODELAY` set by default
+- All TCP connections have keepalive on by default, including listeners
+- `SO_REUSEADDR`
 
 ### Syscalls
 

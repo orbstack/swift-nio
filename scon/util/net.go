@@ -3,6 +3,8 @@ package util
 import (
 	"net"
 	"os"
+
+	"github.com/orbstack/macvirt/scon/util/netx"
 )
 
 func DefaultAddress4() net.IP {
@@ -26,7 +28,7 @@ func DefaultAddress6() net.IP {
 func ListenUnixWithPerms(path string, perms os.FileMode, uid, gid int) (net.Listener, error) {
 	_ = os.Remove(path)
 
-	listener, err := net.Listen("unix", path)
+	listener, err := netx.Listen("unix", path)
 	if err != nil {
 		return nil, err
 	}

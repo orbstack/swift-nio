@@ -22,7 +22,7 @@ const (
 
 func findFreeTCPPort() (int, error) {
 	// zero-port listener
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	listener, err := netx.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return 0, err
 	}
