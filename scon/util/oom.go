@@ -2,14 +2,14 @@ package util
 
 import (
 	"os"
-	"sync"
 
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 )
 
 var (
 	oomBlockRefcount = 0
-	oomBlockMu       sync.Mutex
+	oomBlockMu       syncx.Mutex
 
 	oomScoreAdjDefault = "0"
 	oomScoreAdjScon    = "-950"

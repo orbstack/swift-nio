@@ -6,11 +6,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -25,7 +25,7 @@ type NfsMirrorManager struct {
 	roDir string
 	rwDir string
 
-	mu    sync.Mutex
+	mu    syncx.Mutex
 	dests map[string]nfsMountEntry
 
 	nextFsid        int

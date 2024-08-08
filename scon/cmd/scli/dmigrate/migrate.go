@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/alitto/pond"
@@ -16,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockerconf"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/sirupsen/logrus"
 )
@@ -40,10 +40,10 @@ type Migrator struct {
 	destClient   *dockerclient.Client
 	rawSrcSocket string
 
-	mu           sync.Mutex
+	mu           syncx.Mutex
 	networkIDMap map[string]string
 
-	ctrPauseRefsMu sync.Mutex
+	ctrPauseRefsMu syncx.Mutex
 	ctrPauseRefs   map[string]int
 	entityFinishCh chan struct{}
 
@@ -74,7 +74,7 @@ type entitySpec struct {
 }
 
 type errorTracker struct {
-	mu     sync.Mutex
+	mu     syncx.Mutex
 	errors []error
 }
 

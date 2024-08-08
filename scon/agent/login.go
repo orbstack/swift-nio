@@ -2,17 +2,17 @@ package agent
 
 import (
 	"os/exec"
-	"sync"
 
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 )
 
 type LoginManager struct {
-	refsMu   sync.Mutex
+	refsMu   syncx.Mutex
 	userRefs map[string]int
 
-	actionMu sync.Mutex
+	actionMu syncx.Mutex
 }
 
 func NewLoginManager() *LoginManager {

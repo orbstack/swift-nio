@@ -8,20 +8,20 @@ import (
 	"net"
 	"net/netip"
 	"strings"
-	"sync"
 
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 )
 
 type PstubServer struct {
 	unixListener net.Listener
 
-	mu         sync.Mutex
+	mu         syncx.Mutex
 	serverKeys map[sysnet.ListenerKey]pstubServerInfo
 }
 

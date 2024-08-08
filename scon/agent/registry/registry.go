@@ -3,14 +3,14 @@ package registry
 import (
 	"net"
 	"strconv"
-	"sync"
 	"sync/atomic"
 
 	"github.com/orbstack/macvirt/scon/util/netx"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 )
 
 type LocalTCPRegistry struct {
-	mu    sync.Mutex
+	mu    syncx.Mutex
 	ports map[uint16]*localTCPListener
 }
 

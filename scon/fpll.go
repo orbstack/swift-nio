@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"sync"
+
+	"github.com/orbstack/macvirt/vmgr/syncx"
 )
 
 type FpllManager struct {
-	mu        sync.Mutex
+	mu        syncx.Mutex
 	processes map[string]*os.Process
 }
 

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/armon/go-radix"
@@ -109,7 +108,7 @@ const (
 )
 
 type mdnsRegistry struct {
-	mu sync.Mutex
+	mu syncx.Mutex
 	// we store reversed name to do longest prefix match as longest-suffix
 	// this allows subdomain wildcards and custom domains to work properly
 	tree *radix.Tree

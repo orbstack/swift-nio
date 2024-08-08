@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/conf"
@@ -19,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/scon/nftables"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -54,7 +54,7 @@ type Network struct {
 
 	mdnsRegistry *mdnsRegistry
 
-	nftablesMu  sync.Mutex
+	nftablesMu  syncx.Mutex
 	nftForwards map[sysnet.ListenerKey]nftablesForwardMeta
 	nftBlocks   map[netip.Prefix]struct{}
 
