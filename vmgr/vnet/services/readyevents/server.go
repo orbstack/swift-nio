@@ -30,7 +30,7 @@ type serviceState struct {
 
 	// Not synchronized by `ReadyEventsService.mutex`. In fact, don't hold that
 	// lock while waiting on this one.
-	ready sync.RWMutex
+	ready sync.WaitGroup
 }
 
 func ListenReadyEventsService(stack *stack.Stack, addr tcpip.Address) (*Service, error) {
@@ -98,7 +98,7 @@ func (s *Service) MarkReady(name string) {
 		state.isReady = true
 
 		// Unblock readers waiting for the service to be ready
-		state.ready.Unlock()
+		state.ready.Done()
 
 		// Call ready callbacks
 		for _, handler := range state.handlers {
@@ -113,10 +113,7 @@ func (s *Service) getServiceStateForWaitingLocked(name string) *serviceState {
 	// If the service doesn't exist, create it.
 	if state == nil {
 		state = &serviceState{}
-
-		// This will be unlocked once the service is ready.
-		state.ready.Lock()
-
+		state.ready.Add(1)
 		s.serviceStates[name] = state
 	}
 
@@ -130,9 +127,7 @@ func (s *Service) WaitForReady(name string) {
 		return s.getServiceStateForWaitingLocked(name)
 	}()
 
-	// Wait for a read lock to be acquired and then release it to avoid exhausting the reader counter.
-	state.ready.RLock()
-	state.ready.RUnlock()
+	state.ready.Wait()
 }
 
 func (s *Service) PushReadyHandler(name string, handler ReadyHandler) {
