@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/orbstack/macvirt/scon/agent"
-	"github.com/orbstack/macvirt/scon/nftables"
+	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
@@ -156,7 +156,7 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 		}
 
 		// routing loop protection
-		err = nftables.Run("add", "element", "inet", "orbstack", "host_bridge_ports", fmt.Sprintf("{ %s }", macvlan.Name))
+		err = nft.Run("add", "element", "inet", "orbstack", "host_bridge_ports", fmt.Sprintf("{ %s }", macvlan.Name))
 		if err != nil {
 			return struct{}{}, fmt.Errorf("add host bridge port to nftables: %w", err)
 		}
@@ -270,7 +270,7 @@ func (s *SconGuestServer) DockerRemoveBridge(config sgtypes.DockerBridgeConfig, 
 		}
 
 		// remove routing loop protection
-		err = nftables.Run("delete", "element", "inet", "orbstack", "host_bridge_ports", fmt.Sprintf("{ %s }", ifName))
+		err = nft.Run("delete", "element", "inet", "orbstack", "host_bridge_ports", fmt.Sprintf("{ %s }", ifName))
 		if err != nil {
 			return struct{}{}, fmt.Errorf("delete host bridge port from nftables: %w", err)
 		}

@@ -17,7 +17,7 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/dockerdb"
 	"github.com/orbstack/macvirt/scon/images"
-	"github.com/orbstack/macvirt/scon/nftables"
+	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
@@ -80,7 +80,7 @@ var dockerInitCommands = [][]string{
 	{"ip", "rule", "add", "fwmark", netconf.DockerMarkTlsProxyLocalRouteStr, "table", "984"},
 	{"ip", "route", "add", "local", "default", "dev", "lo", "table", "984"},
 
-	{"nft", nftables.FormatConfig(nftables.ConfigDocker, map[string]string{
+	{"nft", nft.FormatConfig(nft.ConfigDocker, map[string]string{
 		"IF_SCON":                           "eth0",
 		"DOCKER_MARK_TLS_PROXY_UPSTREAM":    netconf.DockerMarkTlsProxyUpstreamStr,
 		"DOCKER_MARK_TLS_PROXY_LOCAL_ROUTE": netconf.DockerMarkTlsProxyLocalRouteStr,

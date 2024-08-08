@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/orbstack/macvirt/scon/nftables"
+	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -157,7 +157,7 @@ func (d *DockerAgent) refreshNetworks() error {
 	dockerBridgeIfaces = append(dockerBridgeIfaces, "eth0")
 
 	// update flowtable
-	err = nftables.Run("add", "flowtable", "inet", "orbstack", "ft", fmt.Sprintf("{ hook ingress priority filter; devices = { %s }; }", strings.Join(dockerBridgeIfaces, ", ")))
+	err = nft.Run("add", "flowtable", "inet", "orbstack", "ft", fmt.Sprintf("{ hook ingress priority filter; devices = { %s }; }", strings.Join(dockerBridgeIfaces, ", ")))
 	if err != nil {
 		return fmt.Errorf("update nft interfaces: %w", err)
 	}
@@ -246,7 +246,7 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 }
 
 func editNftablesSet(action, setName, element string) error {
-	return nftables.Run(action, "element", "inet", "orbstack", setName, "{ "+element+" }")
+	return nft.Run(action, "element", "inet", "orbstack", setName, "{ "+element+" }")
 }
 
 func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {

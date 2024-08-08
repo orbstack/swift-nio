@@ -6,7 +6,7 @@ out="${1:-.}"
 tags="${2:-release}"
 
 # strip comments
-sed -ie 's/^\s*#.*$//g' nftables/*.conf
+sed -ie 's/^\s*#.*$//g' nft/*.conf
 
 # must be static
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -tags "$tags" -o $out ./cmd/scon-agent

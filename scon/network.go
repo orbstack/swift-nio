@@ -15,7 +15,7 @@ import (
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
-	"github.com/orbstack/macvirt/scon/nftables"
+	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/syncx"
@@ -105,8 +105,9 @@ func (n *Network) Start() error {
 	n.dnsmasqProcess = proc
 
 	// apply nftables
-	err = nftables.ApplyConfig(nftables.ConfigVM, map[string]string{
+	err = nft.ApplyConfig(nft.ConfigVM, map[string]string{
 		"IF_VNET":                           ifVnet,
+		"IF_VNET_MACHINE":                   ifVmnetMachine,
 		"IF_BRIDGE":                         ifBridge,
 		"SCON_WEB_INDEX_IP4":                netconf.SconWebIndexIP4,
 		"SCON_WEB_INDEX_IP6":                netconf.SconWebIndexIP6,
@@ -246,7 +247,7 @@ func (n *Network) addDelNftablesForward(action string, key sysnet.ListenerKey, m
 		mapFamily = "6"
 	}
 
-	return nftables.Run(action, "element", "inet", "vm", mapProto+"_port_forwards"+mapFamily, fmt.Sprintf("{ %d : %v . %d }", meta.internalPort, meta.toMachineIP, key.Port()))
+	return nft.Run(action, "element", "inet", "vm", mapProto+"_port_forwards"+mapFamily, fmt.Sprintf("{ %d : %v . %d }", meta.internalPort, meta.toMachineIP, key.Port()))
 }
 
 func (n *Network) StartNftablesForward(key sysnet.ListenerKey, internalPort uint16, internalListenIP net.IP, toMachineIP net.IP) error {
