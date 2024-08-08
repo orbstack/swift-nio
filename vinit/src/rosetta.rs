@@ -1,6 +1,6 @@
+use anyhow::anyhow;
 use qbsdiff::Bspatch;
 use std::{
-    error::Error,
     fs::{self, File},
     os::fd::AsRawFd,
     process::Command,
@@ -22,7 +22,7 @@ pub enum RosettaError {
     #[error("unknown build: {}", .0)]
     UnknownBuild(String),
     #[error("other error: {}", .0)]
-    Other(#[from] Box<dyn Error>),
+    Other(#[from] anyhow::Error),
 }
 
 /*
@@ -41,7 +41,7 @@ mod ioctl {
 }
 
 // redirect new_file ioctls to real_rosetta
-pub fn adopt_rvfs_files(real_rosetta: File, new_file: File) -> Result<(), Box<dyn Error>> {
+pub fn adopt_rvfs_files(real_rosetta: File, new_file: File) -> anyhow::Result<()> {
     let krpc_dev = File::open("/dev/krpc")?;
     unsafe {
         ioctl::adopt_rvfs_fd0(krpc_dev.as_raw_fd(), real_rosetta.as_raw_fd() as u64)?;
@@ -114,16 +114,23 @@ pub fn find_and_apply_patch(source_data: &[u8], dest_path: &str) -> Result<(), R
     Ok(())
 }
 
-pub fn get_version(rosetta_path: &str) -> Result<String, Box<dyn Error>> {
+pub fn get_version(rosetta_path: &str) -> anyhow::Result<String> {
     // run it to get the version
     let output = Command::new(rosetta_path).output()?;
 
     // get last line
     let output = String::from_utf8(output.stderr)?;
-    let last_line = output.trim().lines().last().ok_or("no output")?;
+    let last_line = output
+        .trim()
+        .lines()
+        .last()
+        .ok_or_else(|| anyhow!("no output"))?;
 
     // parse version: last field
-    let version = last_line.split_whitespace().last().ok_or("no version")?;
+    let version = last_line
+        .split_whitespace()
+        .last()
+        .ok_or_else(|| anyhow!("no version"))?;
 
     Ok(version.into())
 }

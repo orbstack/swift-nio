@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     fs::{self, DirEntry},
     io,
     os::fd::AsRawFd,
@@ -53,7 +52,7 @@ const PROCESS_SIGKILL_TIMEOUT: Duration = Duration::from_secs(5);
 
 const PF_KTHREAD: u32 = 0x00200000;
 
-fn is_process_kthread(pid: i32) -> Result<bool, Box<dyn Error>> {
+fn is_process_kthread(pid: i32) -> anyhow::Result<bool> {
     // check for PF_KTHREAD flag in /proc/<pid>/stat
     // checking readlink(/proc/<pid>/exe) == ENOENT is unreliable, sometimes skips exiting processes
     // we shouldn't kill them because they won't exit
@@ -78,7 +77,7 @@ fn is_process_kthread(pid: i32) -> Result<bool, Box<dyn Error>> {
 fn kill_one_entry(
     entry: Result<DirEntry, io::Error>,
     signal: Signal,
-) -> Result<Option<PidFd>, Box<dyn Error>> {
+) -> anyhow::Result<Option<PidFd>> {
     let filename = entry?.file_name();
     if let Ok(pid) = filename.to_str().unwrap().parse::<i32>() {
         // skip pid 1
@@ -138,7 +137,7 @@ fn broadcast_signal(signal: Signal) -> nix::Result<Vec<PidFd>> {
     Ok(pidfds)
 }
 
-fn unmount_one_loopback(entry: Result<DirEntry, io::Error>) -> Result<bool, Box<dyn Error>> {
+fn unmount_one_loopback(entry: Result<DirEntry, io::Error>) -> anyhow::Result<bool> {
     let filename = entry?.file_name();
     let bdev = filename.to_str().unwrap();
     if bdev.starts_with("loop") {
@@ -158,7 +157,7 @@ fn unmount_one_loopback(entry: Result<DirEntry, io::Error>) -> Result<bool, Box<
     Ok(false)
 }
 
-fn unmount_all_loopback() -> Result<bool, Box<dyn Error>> {
+fn unmount_all_loopback() -> anyhow::Result<bool> {
     let mut made_progress = false;
 
     // loopback
@@ -178,7 +177,7 @@ fn unmount_all_loopback() -> Result<bool, Box<dyn Error>> {
     Ok(made_progress)
 }
 
-fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
+fn unmount_all_filesystems() -> anyhow::Result<bool> {
     let mut made_progress = false;
 
     // filesystems
@@ -219,7 +218,7 @@ fn unmount_all_filesystems() -> Result<bool, Box<dyn Error>> {
     Ok(made_progress)
 }
 
-fn unmount_all_round() -> Result<bool, Box<dyn Error>> {
+fn unmount_all_round() -> anyhow::Result<bool> {
     let mut made_progress = false;
 
     // loop
@@ -235,7 +234,7 @@ fn unmount_all_round() -> Result<bool, Box<dyn Error>> {
     Ok(made_progress)
 }
 
-async fn stop_nfs() -> Result<(), Box<dyn Error>> {
+async fn stop_nfs() -> anyhow::Result<()> {
     let _guard = PROCESS_WAIT_LOCK.lock().await;
 
     // flush kernel nfsd cache after scon (rpc channel client) stops
@@ -255,7 +254,7 @@ async fn stop_nfs() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn wait_for_pidfds_exit(pidfds: Vec<PidFd>, timeout: Duration) -> Result<(), Box<dyn Error>> {
+async fn wait_for_pidfds_exit(pidfds: Vec<PidFd>, timeout: Duration) -> anyhow::Result<()> {
     let futures = pidfds
         .iter()
         .map(|pidfd| async move {
@@ -274,7 +273,7 @@ async fn wait_for_pidfds_exit(pidfds: Vec<PidFd>, timeout: Duration) -> Result<(
     Ok(())
 }
 
-pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> Result<(), Box<dyn Error>> {
+pub async fn main(service_tracker: Arc<Mutex<ServiceTracker>>) -> anyhow::Result<()> {
     let mut timeline = Timeline::new();
     timeline.begin("Shutting down");
 

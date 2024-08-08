@@ -1,7 +1,6 @@
 use std::{
     cmp::Ordering,
     env,
-    error::Error,
     fs::{self, OpenOptions, Permissions},
     io::Write,
     net::UdpSocket,
@@ -94,7 +93,7 @@ const ELF_MAGIC_X86_64: &str =
 const ELF_MASK_X86_64: &str =
     r#"\xff\xff\xff\xff\xff\xfe\xfe\x00\x34\x34\x34\xff\xff\xff\xff\xff\xfe\xff\xff\xff"#;
 
-fn set_basic_env() -> Result<(), Box<dyn Error>> {
+fn set_basic_env() -> anyhow::Result<()> {
     // umask: self write, others read
     umask(Mode::from_bits_truncate(0o022));
 
@@ -124,7 +123,7 @@ fn mount_common(
     fstype: Option<&str>,
     flags: MsFlags,
     data: Option<&str>,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     if let Err(e) = nix::mount::mount(Some(source), dest, fstype, flags, data) {
         return Err(InitError::Mount {
             source: source.to_string(),
@@ -143,11 +142,11 @@ fn mount(
     fstype: &str,
     flags: MsFlags,
     data: Option<&str>,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     mount_common(source, dest, Some(fstype), flags, data)
 }
 
-fn bind_mount(source: &str, dest: &str, flags: Option<MsFlags>) -> Result<(), Box<dyn Error>> {
+fn bind_mount(source: &str, dest: &str, flags: Option<MsFlags>) -> anyhow::Result<()> {
     mount_common(
         source,
         dest,
@@ -157,19 +156,19 @@ fn bind_mount(source: &str, dest: &str, flags: Option<MsFlags>) -> Result<(), Bo
     )
 }
 
-fn bind_mount_ro(source: &str, dest: &str) -> Result<(), Box<dyn Error>> {
+fn bind_mount_ro(source: &str, dest: &str) -> anyhow::Result<()> {
     bind_mount(source, dest, None)?;
     // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
     bind_mount(dest, dest, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY))?;
     Ok(())
 }
 
-fn seal_read_only(path: &str) -> Result<(), Box<dyn Error>> {
+fn seal_read_only(path: &str) -> anyhow::Result<()> {
     // prevents machines from reopening /proc/<agent>/exe as writable. CVE-2019-5736
     bind_mount_ro(path, path)
 }
 
-fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
+fn setup_overlayfs() -> anyhow::Result<()> {
     let merged_flags = MsFlags::MS_NOATIME;
     // secure flags for overlay
     // this is used for Docker rootfs so don't pass "noexec". or people can't install packages in Docker machine
@@ -211,7 +210,7 @@ fn setup_overlayfs() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
+fn mount_pseudo_fs() -> anyhow::Result<()> {
     let secure_flags =
         MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_RELATIME;
     let dev_flags = MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_RELATIME;
@@ -328,7 +327,7 @@ fn mount_pseudo_fs() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn apply_perf_tuning_early() -> Result<(), Box<dyn Error>> {
+fn apply_perf_tuning_early() -> anyhow::Result<()> {
     // expedited RCU
     // speeds up container startup ~2x:
     // machine startup 4x: 260 -> 40 ms
@@ -349,7 +348,7 @@ fn apply_perf_tuning_early() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn apply_perf_tuning_late() -> Result<(), Box<dyn Error>> {
+fn apply_perf_tuning_late() -> anyhow::Result<()> {
     // reduce idle cpu usage
     sysctl("vm.compaction_proactiveness", "0")?;
     sysctl("vm.stat_interval", "30")?;
@@ -400,7 +399,7 @@ fn apply_perf_tuning_late() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn setup_network() -> Result<(), Box<dyn Error>> {
+async fn setup_network() -> anyhow::Result<()> {
     // don't send IPv6 router solicitations
     sysctl("net.ipv6.conf.all.accept_ra", "0")?;
     sysctl("net.ipv6.conf.default.accept_ra", "0")?;
@@ -574,7 +573,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn sync_clock(allow_backward: bool) -> Result<(), Box<dyn Error>> {
+pub fn sync_clock(allow_backward: bool) -> anyhow::Result<()> {
     // sync clock immediately at boot (if RTC is wrong) or on wake (until chrony kicks in)
     // RTC can supposedly be wrong at boot: https://news.ycombinator.com/item?id=36185786
     let socket = UdpSocket::bind("0.0.0.0:0")?;
@@ -598,7 +597,7 @@ pub fn sync_clock(allow_backward: bool) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+fn resize_data(sys_info: &SystemInfo) -> anyhow::Result<()> {
     // resize data partition
     // scon resizes the filesystem
     if let Some(value) = sys_info.seed_configs.get("data_size") {
@@ -637,7 +636,7 @@ fn resize_data(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn mount_data() -> Result<(), Box<dyn Error>> {
+fn mount_data() -> anyhow::Result<()> {
     // virtiofs share
     mount("mac", "/mnt/mac", "virtiofs", MsFlags::MS_RELATIME, None)?;
 
@@ -705,7 +704,7 @@ fn mount_data() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn create_noindex_flags(dir: &str) -> Result<(), Box<dyn Error>> {
+fn create_noindex_flags(dir: &str) -> anyhow::Result<()> {
     // attempt to reduce NFS CPU usage from macOS indexing
     fs::write(format!("{}/.metadata_never_index", dir), "").unwrap();
     fs::write(format!("{}/.metadata-never-index", dir), "").unwrap();
@@ -718,7 +717,7 @@ fn create_noindex_flags(dir: &str) -> Result<(), Box<dyn Error>> {
 }
 
 // a mirror dirs is a tmpfs dir with ro and rw binds, meant for exporting over nfs (possibly as subdir)
-fn create_mirror_dir(dir: &str) -> Result<(String, String), Box<dyn Error>> {
+fn create_mirror_dir(dir: &str) -> anyhow::Result<(String, String)> {
     let ro_dir = format!("{}/ro", dir);
     let rw_dir = format!("{}/rw", dir);
 
@@ -736,7 +735,7 @@ fn create_mirror_dir(dir: &str) -> Result<(String, String), Box<dyn Error>> {
     Ok((ro_dir, rw_dir))
 }
 
-fn init_nfs() -> Result<(), Box<dyn Error>> {
+fn init_nfs() -> anyhow::Result<()> {
     // mount name is visible in machines bind mount, so use vanity name
     // we use this same tmpfs for all mirror dirs
     mount(
@@ -770,7 +769,7 @@ fn init_nfs() -> Result<(), Box<dyn Error>> {
 // btrfs COW means that setting perms requires a new metadata block
 // that's not possible if qgroup is set to exactly used, or negative, resulting in ENOSPC on boot
 // so avoid changing perms if not necessary
-fn maybe_set_permissions(path: &str, mode: u32) -> Result<(), Box<dyn Error>> {
+fn maybe_set_permissions(path: &str, mode: u32) -> anyhow::Result<()> {
     // only set if it's different
     let current_mode = fs::metadata(path)?.permissions().mode();
     if (current_mode & 0o777) != mode {
@@ -779,7 +778,7 @@ fn maybe_set_permissions(path: &str, mode: u32) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn init_data() -> Result<(), Box<dyn Error>> {
+fn init_data() -> anyhow::Result<()> {
     // guest tools
     fs::create_dir_all("/data/guest-state/bin/cmdlinks")?;
     maybe_set_permissions("/data/guest-state/bin", 0o755)?;
@@ -839,7 +838,7 @@ fn add_binfmt(
     mask: Option<&str>,
     interpreter: &str,
     flags: &str,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     let offset = 0;
     let buf = format!(
         ":{}:M:{}:{}:{}:{}:{}",
@@ -855,7 +854,7 @@ fn add_binfmt(
 }
 
 #[cfg(target_arch = "x86_64")]
-fn setup_arch_emulators(_sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+fn setup_arch_emulators(_sys_info: &SystemInfo) -> anyhow::Result<()> {
     // arm64 qemu
     add_binfmt(
         "qemu-aarch64",
@@ -868,7 +867,7 @@ fn setup_arch_emulators(_sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
+fn prepare_rosetta_bin() -> anyhow::Result<bool> {
     use crate::rosetta::{self, RosettaError};
 
     // create tmpfs that allows exec
@@ -916,7 +915,7 @@ fn prepare_rosetta_bin() -> Result<bool, Box<dyn Error>> {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn prepare_rstub(host_build: &str) -> Result<(), Box<dyn Error>> {
+fn prepare_rstub(host_build: &str) -> anyhow::Result<()> {
     use crate::rosetta::RSTUB_FLAG_TSO_WORKAROUND;
 
     // copy rstub binary
@@ -957,7 +956,7 @@ fn prepare_rstub(host_build: &str) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn setup_arch_emulators_early() -> Result<(), Box<dyn Error>> {
+fn setup_arch_emulators_early() -> anyhow::Result<()> {
     // install a dummy to prevent the native architecture from being emulated
     // MUST BE EARLY, or we could break execs sometimes when racing with other steps
     // this is the name used by ubuntu binfmt
@@ -976,7 +975,7 @@ fn setup_arch_emulators_early() -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+fn setup_arch_emulators(sys_info: &SystemInfo) -> anyhow::Result<()> {
     // we always register qemu, but flags change if using Rosetta
     let mut qemu_flags = "POCF".to_string();
 
@@ -1082,7 +1081,7 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn setup_binfmt(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
+fn setup_binfmt(sys_info: &SystemInfo) -> anyhow::Result<()> {
     setup_arch_emulators(sys_info)?;
 
     // qemu for 32-bit ARM
@@ -1169,7 +1168,7 @@ fn setup_binfmt(sys_info: &SystemInfo) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn enable_swap(path: &str, priority: i32) -> Result<(), Box<dyn Error>> {
+fn enable_swap(path: &str, priority: i32) -> anyhow::Result<()> {
     unsafe {
         let path = std::ffi::CString::new(path)?;
         // allow discard to free zram pages
@@ -1187,7 +1186,7 @@ fn enable_swap(path: &str, priority: i32) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn setup_memory() -> Result<(), Box<dyn Error>> {
+fn setup_memory() -> anyhow::Result<()> {
     // prevent us from getting swapped out in case of memory pressure
     // (~8 ms, so it's in this async task)
     // ... but it allocates ~100M of memory! way more than the RSS of ~27M for vinit
@@ -1239,7 +1238,7 @@ fn setup_memory() -> Result<(), Box<dyn Error>> {
 async fn start_services(
     service_tracker: Arc<Mutex<ServiceTracker>>,
     sys_info: &SystemInfo,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     let mut service_tracker = service_tracker.lock().await;
 
     // chrony
@@ -1281,7 +1280,7 @@ async fn start_services(
 pub async fn main(
     service_tracker: Arc<Mutex<ServiceTracker>>,
     action_tx: Sender<SystemAction>,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     let mut timeline = Timeline::new();
     let boot_start = Instant::now();
 

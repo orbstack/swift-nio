@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    error::Error,
     fs::{self},
     process::ExitStatus,
     sync::Arc,
@@ -78,7 +77,7 @@ pub enum InitError {
         error: std::io::Error,
     },
     #[error("missing data partition: {}", .0)]
-    MissingDataPartition(Box<dyn Error>),
+    MissingDataPartition(#[from] anyhow::Error),
     #[error("invalid elf")]
     InvalidElf,
 }
@@ -91,7 +90,7 @@ struct SystemInfo {
 }
 
 impl SystemInfo {
-    fn read() -> Result<SystemInfo, Box<dyn Error>> {
+    fn read() -> anyhow::Result<SystemInfo> {
         // trim newline
         let kernel_version = fs::read_to_string("/proc/sys/kernel/osrelease")?
             .trim()
@@ -147,7 +146,7 @@ impl Timeline {
 async fn reap_children(
     service_tracker: Arc<Mutex<ServiceTracker>>,
     action_tx: Sender<SystemAction>,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     loop {
         let _guard = PROCESS_WAIT_LOCK.lock().await;
         let wstatus = match waitpid(None, Some(WaitPidFlag::WNOHANG)) {
@@ -204,7 +203,7 @@ async fn reap_children(
     Ok(())
 }
 
-async fn main_wrapped() -> Result<(), Box<dyn Error>> {
+async fn main_wrapped() -> anyhow::Result<()> {
     if getpid() != Pid::from_raw(1) {
         return Err(InitError::NotPid1.into());
     }

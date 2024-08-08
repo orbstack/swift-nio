@@ -1,4 +1,4 @@
-use std::{error::Error, fs, time::Instant};
+use std::{fs, time::Instant};
 
 const ROSETTA_FINGERPRINT_SALT: &[u8] = b"orb\x00rosetta\x00fp";
 const ROSETTA_BUFFER: usize = 524288;
@@ -29,7 +29,7 @@ fn apply_xof(hasher: &mut blake3::Hasher, patch: &mut [u8]) {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     // read source data (arg 1)
     let args = std::env::args().collect::<Vec<_>>();
     let source_data = fs::read(&args[1])?;

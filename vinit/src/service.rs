@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    error::Error,
     fmt::{Display, Formatter},
     fs,
     process::Command,
@@ -95,7 +94,7 @@ impl ServiceTracker {
         }
     }
 
-    pub fn spawn(&mut self, service: Service, cmd: &mut Command) -> Result<(), Box<dyn Error>> {
+    pub fn spawn(&mut self, service: Service, cmd: &mut Command) -> anyhow::Result<()> {
         let pid = cmd
             .spawn()
             .map_err(|e| InitError::SpawnService { service, error: e })?
@@ -124,7 +123,7 @@ impl ServiceTracker {
         Ok(())
     }
 
-    pub async fn restart(&mut self, service: Service) -> Result<(), Box<dyn Error>> {
+    pub async fn restart(&mut self, service: Service) -> anyhow::Result<()> {
         if !service.restartable || self.shutting_down {
             return Ok(());
         }

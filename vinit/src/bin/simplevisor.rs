@@ -1,11 +1,11 @@
 use std::{
-    error::Error,
     fs::{self, remove_file},
     os::unix::{fs::symlink, net::UnixDatagram, process::ExitStatusExt},
     process::Command,
     sync::{Arc, Mutex},
 };
 
+use anyhow::anyhow;
 use nix::{
     sys::signal::{kill, Signal},
     unistd::Pid,
@@ -40,7 +40,7 @@ struct SimplevisorStatus {
 // - when any process exits, exit with the same exit code
 //
 // we keep tini around for signal forwarding
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     // get config from env
     let config_str = std::env::var("SIMPLEVISOR_CONFIG")?;
     let config: SimplevisorConfig = serde_json::from_str(&config_str)?;
@@ -58,7 +58,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             .args(&init_command[1..])
             .status()?;
         if !status.success() {
-            return Err(format!("init command {:?} failed with {}", init_command, status).into());
+            return Err(anyhow!(
+                "init command {:?} failed with {}",
+                init_command,
+                status
+            ));
         }
     }
 

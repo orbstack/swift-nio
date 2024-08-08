@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use serde::Serialize;
 use tokio::net::UnixDatagram;
 
@@ -34,10 +32,7 @@ struct RequestBurst {
     // this one doesn't need padding. request > reply len
 }
 
-pub async fn send_burst_request(
-    n_good_samples: u32,
-    n_total_samples: u32,
-) -> Result<(), Box<dyn Error>> {
+pub async fn send_burst_request(n_good_samples: u32, n_total_samples: u32) -> anyhow::Result<()> {
     // don't care because we never read reply
     let seq = 1;
     let request = RequestBurst {

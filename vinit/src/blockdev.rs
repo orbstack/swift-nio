@@ -1,5 +1,5 @@
 use nix::libc::size_t;
-use std::{error::Error, os::fd::AsRawFd};
+use std::os::fd::AsRawFd;
 
 mod ioctl {
     use super::*;
@@ -7,7 +7,7 @@ mod ioctl {
     nix::ioctl_read!(blkgetsize64, 0x12, 114, size_t);
 }
 
-pub fn getsize64(path: &str) -> Result<u64, Box<dyn Error>> {
+pub fn getsize64(path: &str) -> anyhow::Result<u64> {
     let file = std::fs::File::open(path)?;
     let fd = file.as_raw_fd();
     let mut size: size_t = 0;
