@@ -273,6 +273,7 @@ kernel/drivers/firmware/arm_scpi.ko
 kernel/drivers/firmware/arm_scmi/scmi-core.ko
 kernel/drivers/firmware/arm_scmi/scmi-module.ko
 kernel/drivers/hid/hid.ko
+kernel/drivers/hid/uhid.ko
 kernel/drivers/hid/hid-generic.ko
 kernel/drivers/hid/hid-logitech.ko
 kernel/drivers/hid/hid-lg-g15.ko
