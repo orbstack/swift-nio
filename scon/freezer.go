@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/lxc/go-lxc"
-	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 )
 

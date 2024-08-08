@@ -16,11 +16,11 @@ import (
 	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/templates"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 )

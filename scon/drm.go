@@ -7,9 +7,9 @@ import (
 
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/killswitch"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

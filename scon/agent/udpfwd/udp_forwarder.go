@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/orbstack/macvirt/scon/syncx"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

@@ -14,11 +14,11 @@ import (
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/images"
-	"github.com/orbstack/macvirt/scon/syncx"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/scon/util/sysns"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
