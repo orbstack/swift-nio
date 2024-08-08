@@ -16,9 +16,17 @@ use std::{
 
 use anyhow::anyhow;
 use elf::{endian::NativeEndian, ElfStream};
+use futures::StreamExt;
 use futures_util::TryStreamExt;
 use mkswap::SwapWriter;
-use netlink_packet_route::FR_ACT_TO_TBL;
+use netlink_packet_core::{
+    NetlinkMessage, NetlinkPayload, NLM_F_ACK, NLM_F_CREATE, NLM_F_REPLACE, NLM_F_REQUEST,
+};
+use netlink_packet_route::{
+    rule::RuleAction,
+    tc::{TcAttribute, TcHandle, TcMessage},
+    RouteNetlinkMessage,
+};
 use nix::{
     libc::{self, RLIM_INFINITY},
     mount::MsFlags,
@@ -408,7 +416,7 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     sysctl("net.ipv6.conf.all.forwarding", "1")?;
 
     // connect to rtnetlink
-    let (conn, handle, _) = rtnetlink::new_connection()?;
+    let (conn, mut handle, _) = rtnetlink::new_connection()?;
     let conn_task = tokio::spawn(conn);
     let mut ip_link = handle.link();
     let ip_addr = handle.address();
@@ -505,16 +513,14 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
     // ingress route from translated IPv4 source address to Docker machine (which does IP forward to containers)
     // create ip rule for fwmark from BPF clsact program
     // ip rule add fwmark 0xe97bd031 table 64
-    let mut fwmark_rule = ip_rule
+    ip_rule
         .add()
         .v4()
-        .table(64) // table ID is not exposed to BPF
-        .action(FR_ACT_TO_TBL);
-    fwmark_rule
-        .message_mut()
-        .nlas
-        .push(netlink_packet_route::rule::Nla::FwMark(NAT64_FWMARK));
-    fwmark_rule.execute().await.unwrap();
+        .table_id(64) // table ID is not exposed to BPF
+        .fw_mark(NAT64_FWMARK)
+        .action(RuleAction::ToTable)
+        .execute()
+        .await?;
     // ip route add default via 198.19.249.2 table 64
     // ip_route.add().v4()
     //     .gateway(NAT64_DOCKER_MACHINE_IP4.parse().unwrap())
@@ -545,6 +551,24 @@ async fn setup_network() -> Result<(), Box<dyn Error>> {
         .up()
         .execute()
         .await?;
+
+    // set qdisc on all physical interfaces
+    for eth in &[eth0, eth1, eth2] {
+        let mut msg = TcMessage::with_index(eth.header.index as i32);
+        msg.header.parent = TcHandle::ROOT;
+        msg.header.handle = TcHandle::UNSPEC;
+        msg.attributes
+            .push(TcAttribute::Kind("fq_codel".to_string()));
+        let mut req = NetlinkMessage::from(RouteNetlinkMessage::NewQueueDiscipline(msg));
+        req.header.flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_REPLACE;
+
+        let mut response = handle.request(req)?;
+        while let Some(message) = response.next().await {
+            if let NetlinkPayload::Error(err) = message.payload {
+                return Err(rtnetlink::Error::NetlinkError(err).into());
+            }
+        }
+    }
 
     conn_task.abort();
     Ok(())
