@@ -45,7 +45,7 @@ use crate::{
     helpers::{
         sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_MASK, SWAP_FLAG_PRIO_SHIFT,
     },
-    vcontrol, InitError, SystemInfo, Timeline, DEBUG,
+    memory, vcontrol, InitError, SystemInfo, Timeline, DEBUG,
 };
 use crate::{
     filesystem::FsType,
@@ -1349,6 +1349,9 @@ pub async fn main(
 
     timeline.begin("Start services");
     start_services(service_tracker.clone(), &sys_info).await?;
+
+    // start memory reclaim worker
+    tokio::spawn(memory::reclaim_worker());
 
     timeline.begin("Done!");
 

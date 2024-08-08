@@ -31,6 +31,7 @@ use tracing::debug;
 mod blockdev;
 mod filesystem;
 mod loopback;
+mod memory;
 mod pidfd;
 #[cfg(target_arch = "aarch64")]
 mod rosetta;
