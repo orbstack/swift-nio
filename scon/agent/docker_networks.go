@@ -91,7 +91,7 @@ func (d *DockerAgent) filterNewNetworks(nets []dockertypes.Network) ([]dockertyp
 }
 
 func (d *DockerAgent) refreshNetworks() error {
-	// no mu needed: FuncDebounce has mutex
+	// no mu needed: FuncDebounce has mutex, and d.lastNetworks is atomic
 
 	// skip DOCKER-ISOLATION-STAGE-1 chain to allow cross-bridge traffic
 	// jump from FORWARD gets restored on every bridge creation, and STAGE-2 jumps are inserted, so we have to delete and reinsert
@@ -125,7 +125,12 @@ func (d *DockerAgent) refreshNetworks() error {
 	}
 
 	// diff
-	removed, added := util.DiffSlicesKey(d.lastNetworks, newNetworks)
+	lastNetworksPtr := d.lastNetworks.Load()
+	var lastNetworks []dockertypes.Network
+	if lastNetworksPtr != nil {
+		lastNetworks = *lastNetworksPtr
+	}
+	removed, added := util.DiffSlicesKey(lastNetworks, newNetworks)
 	slices.SortStableFunc(removed, compareNetworks)
 	slices.SortStableFunc(added, compareNetworks)
 
@@ -146,24 +151,38 @@ func (d *DockerAgent) refreshNetworks() error {
 		}
 	}
 
-	dockerBridgeIfaces := make([]string, 0, len(newNetworks)+1)
-	for _, n := range newNetworks {
+	d.lastNetworks.Store(&newNetworks)
+
+	// if we raced with refreshContainers, new containers on new bridges won't have been added to the flowtable, so refresh it
+	err = d.refreshFlowtable()
+	if err != nil {
+		// vague error for public logs
+		logrus.WithError(err).Error("failed to refresh FT")
+	}
+
+	return nil
+}
+
+func (d *DockerAgent) refreshFlowtable() error {
+	networksPtr := d.lastNetworks.Load()
+	if networksPtr == nil {
+		return nil
+	}
+	networks := *networksPtr
+
+	// only look for ports on docker bridges, not k8s
+	// flowtable is likely to break k8s routing
+	bridges := make([]string, 0, len(networks)+1)
+	for _, n := range networks {
 		if n.Driver != "bridge" || n.Scope != "local" {
 			continue
 		}
 
-		dockerBridgeIfaces = append(dockerBridgeIfaces, dockerNetworkToInterfaceName(&n))
-	}
-	dockerBridgeIfaces = append(dockerBridgeIfaces, "eth0")
-
-	// update flowtable
-	err = nft.Run("add", "flowtable", "inet", "orbstack", "ft", fmt.Sprintf("{ hook ingress priority filter; devices = { %s }; }", strings.Join(dockerBridgeIfaces, ", ")))
-	if err != nil {
-		return fmt.Errorf("update nft interfaces: %w", err)
+		bridges = append(bridges, dockerNetworkToInterfaceName(&n))
 	}
 
-	d.lastNetworks = newNetworks
-	return nil
+	// always add eth0; we forward/NAT to it
+	return nft.RefreshFlowtableBridgePorts("orbstack", "ft", bridges, []string{"eth0"}, nil)
 }
 
 func dockerNetworkToInterfaceName(n *dockertypes.Network) string {

@@ -54,7 +54,7 @@ type DockerAgent struct {
 
 	containerBinds map[string][]string
 	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
-	lastNetworks   []dockertypes.Network
+	lastNetworks   atomic.Pointer[[]dockertypes.Network]
 	lastVolumes    []*dockertypes.Volume
 
 	lastImages     []*sgtypes.TaggedImage

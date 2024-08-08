@@ -170,6 +170,13 @@ func (c *Container) onStopLocked() error {
 		return err
 	}
 
+	go func() {
+		err := c.manager.net.RefreshFlowtable()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to refresh FT")
+		}
+	}()
+
 	if c.hooks != nil {
 		err := c.hooks.PostStop(c)
 		if err != nil {

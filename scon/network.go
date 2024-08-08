@@ -107,7 +107,6 @@ func (n *Network) Start() error {
 	// apply nftables
 	err = nft.ApplyConfig(nft.ConfigVM, map[string]string{
 		"IF_VNET":                           ifVnet,
-		"IF_VNET_MACHINE":                   ifVmnetMachine,
 		"IF_BRIDGE":                         ifBridge,
 		"SCON_WEB_INDEX_IP4":                netconf.SconWebIndexIP4,
 		"SCON_WEB_INDEX_IP6":                netconf.SconWebIndexIP6,
@@ -290,12 +289,11 @@ func (n *Network) StopNftablesForward(key sysnet.ListenerKey) error {
 	return nil
 }
 
-func nftMapSuffixFor(prefix netip.Prefix) string {
-	if prefix.Addr().Is4() {
-		return "4"
-	} else {
-		return "6"
-	}
+func (n *Network) RefreshFlowtable() error {
+	// TODO: fix race if a container stops between netlink list and nftables add
+	// duplicate port = EEXIST
+	// TODO: stop excluding eth1. flowtable breaks NAT64 reply route
+	return nft.RefreshFlowtableBridgePorts("vm", "ft", []string{ifBridge}, []string{ifVnet}, []string{ifVmnetMachine})
 }
 
 func (n *Network) Close() error {

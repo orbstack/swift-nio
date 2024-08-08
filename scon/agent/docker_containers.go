@@ -106,6 +106,13 @@ func (d *DockerAgent) refreshContainers() error {
 	}
 
 	d.lastContainers = newContainers
+
+	// we could have new bridge ports now
+	err = d.refreshFlowtable()
+	if err != nil {
+		logrus.WithError(err).Error("failed to refresh FT")
+	}
+
 	return nil
 }
 

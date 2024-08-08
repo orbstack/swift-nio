@@ -4,12 +4,15 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
 )
+
+const ConnectTimeout = 15 * time.Second
 
 type SconClient struct {
 	rpc *jrpc2.Client

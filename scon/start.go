@@ -762,6 +762,13 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 		return err
 	}
 
+	go func() {
+		err := c.manager.net.RefreshFlowtable()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to refresh FT")
+		}
+	}()
+
 	logrus.WithField("container", c.Name).Info("container started")
 
 	return nil
