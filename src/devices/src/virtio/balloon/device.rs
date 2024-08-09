@@ -325,7 +325,7 @@ impl Balloon {
             Ok::<_, anyhow::Error>(())
         })?;
 
-        info!(
+        debug!(
             "[{}] ranges={:?} (->{}) kib={}  time={:?}",
             if req.type_ == FPR_TYPE_FREE {
                 "free"
