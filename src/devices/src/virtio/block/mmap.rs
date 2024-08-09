@@ -41,9 +41,7 @@ impl MappedFile {
     pub fn read_to_iovec(&self, off: usize, iov: &Iovec) -> io::Result<usize> {
         // bounds check
         let len = iov.len();
-        let end_off = off
-            .checked_add(len)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "read out of bounds"))?;
+        let end_off = off.saturating_add(len);
         if end_off > self.size {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,

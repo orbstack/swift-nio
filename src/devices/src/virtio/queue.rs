@@ -513,10 +513,7 @@ impl Queue {
         // This can not overflow an u64 since it is working with relatively small numbers compared
         // to u64::MAX.
         let offset = VIRTQ_USED_RING_HEADER_SIZE + next_used_index * VIRTQ_USED_ELEMENT_SIZE;
-        let addr = self
-            .used_ring
-            .checked_add(offset)
-            .ok_or(Error::AddressOverflow)?;
+        let addr = self.used_ring.unchecked_add(offset);
         mem.write_obj(VirtqUsedElem::new(head_index.into(), len), addr)
             .map_err(Error::GuestMemory)?;
 
@@ -525,9 +522,7 @@ impl Queue {
 
         mem.store(
             self.next_used.0,
-            self.used_ring
-                .checked_add(2)
-                .ok_or(Error::AddressOverflow)?,
+            self.used_ring.unchecked_add(2),
             Ordering::Release,
         )
         .map_err(Error::GuestMemory)
@@ -570,10 +565,7 @@ impl Queue {
         // to u64::MAX.
         let avail_event_offset =
             VIRTQ_USED_RING_HEADER_SIZE + VIRTQ_USED_ELEMENT_SIZE * u64::from(self.size);
-        let addr = self
-            .used_ring
-            .checked_add(avail_event_offset)
-            .ok_or(Error::AddressOverflow)?;
+        let addr = self.used_ring.unchecked_add(avail_event_offset);
 
         mem.store(val, addr, order).map_err(Error::GuestMemory)
     }
@@ -699,10 +691,7 @@ impl Queue {
     /// This is written by the driver, to indicate the next slot that will be filled in the avail
     /// ring.
     fn avail_idx(&self, mem: &GuestMemoryMmap, order: Ordering) -> Result<Wrapping<u16>, Error> {
-        let addr = self
-            .avail_ring
-            .checked_add(2)
-            .ok_or(Error::AddressOverflow)?;
+        let addr = self.avail_ring.unchecked_add(2);
 
         mem.load(addr, order)
             .map(Wrapping)
