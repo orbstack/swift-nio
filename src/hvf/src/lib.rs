@@ -39,7 +39,10 @@ const MEMORY_REGION_TAG: u8 = 250; // application specific tag space
 
 const VM_FLAGS_4GB_CHUNK: i32 = 4;
 
-const MACH_CHUNK_SIZE: usize = 64 * 1024 * 1024; // 8 MiB
+// use smaller 4 MiB anon chunks for guest memory
+// good for performance because faults that add a page take the object's write lock,
+// which is especially relevant when we use REUSABLE to purge pages
+const MACH_CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
 pub struct VcpuHandleInner {
     signal: ArcVcpuSignal,
