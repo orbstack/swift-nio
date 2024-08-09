@@ -87,8 +87,8 @@ impl Ktracer {
                 let mut line = String::new();
                 let n = reader.read_line(&mut line)?;
                 if n == 0 {
-                    // EOF
-                    return Err(anyhow!("ktrace output is empty"));
+                    // no output: sudo was denied, or authorized too late
+                    return Ok(KtraceResults { threads });
                 }
                 if line != "abstime                           delta(us)(duration)    debug-id                             arg1             arg2             arg3             arg4             thread-id        cpu  process-name(pid)                             \n" {
                     return Err(anyhow!("unexpected ktrace header: {:?}", line));
