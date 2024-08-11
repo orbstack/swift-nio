@@ -187,7 +187,7 @@ impl DiskProperties {
         Ok(n)
     }
 
-    pub fn get_host_addr(&self, offset: usize, len: usize) -> anyhow::Result<*const u8> {
+    pub fn get_host_addr(&self, offset: usize, len: usize) -> io::Result<*const u8> {
         self.mapped_file.get_host_addr(offset, len)
     }
 

@@ -51,6 +51,8 @@ memmage = { version = "0.1.0", path = "../memmage" }
 mio = { version = "0.8.11", features = ["os-poll", "os-ext"] }
 bitfield = "0.15.0"
 smallbox = "0.8.2"
+mach2 = "0.4.2"
+parking_lot = "0.12.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }
