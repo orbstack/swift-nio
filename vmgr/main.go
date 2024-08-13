@@ -67,8 +67,6 @@ const (
 
 	// we use a small swap file for emergency OOM cases
 	swapSize = 1024 * 1024 * 1024 // 1 GiB
-
-	stopExitCodeBase = 100
 )
 
 var errDataPermission = errors.New(`Permission denied while opening data image. This is usually caused by Migration Assistant changing its owner to root. To fix it, run: "sudo chown -R $USER ~/.orbstack/data"`)
@@ -473,8 +471,9 @@ func runVmManager() {
 	// propagate stop reason via exit code
 	lastStopReason := types.StopReasonUnknownCrash
 	defer func() {
-		if lastStopReason > types.Start_UnexpectedStopReasons {
-			os.Exit(stopExitCodeBase + int(lastStopReason-types.Start_UnexpectedStopReasons))
+		code := lastStopReason.ExitCode()
+		if code != -1 {
+			os.Exit(code)
 		}
 	}()
 
