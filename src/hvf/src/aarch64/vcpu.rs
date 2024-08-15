@@ -21,9 +21,9 @@ use tracing::{debug, error};
 use counter::RateCounter;
 
 use utils::hypercalls::{
-    OrbvmFeatures, ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK,
-    ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF,
-    PSCI_RESET, PSCI_VERSION,
+    OrbvmFeatures, ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_MMIO_WRITE32, ORBVM_PVGIC_SET_STATE,
+    ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE,
+    PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
 };
 
 use crate::aarch64::bindings::{
@@ -627,6 +627,16 @@ impl HvfVcpu {
                 COUNT_EXIT_HVC_PVLOCK_KICK.count();
                 let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 return Ok(VcpuExit::PvlockUnpark(vcpuid));
+            }
+
+            ORBVM_MMIO_WRITE32 => {
+                let pa = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                let val = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as u32;
+
+                self.mmio_buf[0..4].copy_from_slice(&val.to_le_bytes());
+
+                COUNT_EXIT_MMIO_WRITE.count();
+                return Ok(VcpuExit::MmioWrite(pa, &self.mmio_buf[0..4]));
             }
 
             _ => {

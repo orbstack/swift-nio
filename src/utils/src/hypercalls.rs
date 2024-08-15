@@ -23,12 +23,15 @@ pub const ORBVM_IO_REQUEST: u32 = orbvm_hvc_id(4);
 pub const ORBVM_PVGIC_SET_STATE: u32 = orbvm_hvc_id(5);
 // kernel: ORBVM_SET_REG
 pub const ORBVM_SET_ACTLR_EL1: u32 = orbvm_hvc_id(6);
+// kernel: ORBVM_MMIO_WRITE32
+pub const ORBVM_MMIO_WRITE32: u32 = orbvm_hvc_id(7);
 
 bitflags! {
     pub struct OrbvmFeatures: u64 {
         // kernel: ORBVM_FEAT_*
         const FS = 1 << 0;
         const BLK = 1 << 1;
+        const MMIO = 1 << 2;
     }
 }
 
