@@ -194,7 +194,7 @@ impl Machine {
             .map_err(to_anyhow_error)?;
         }
         #[cfg(target_arch = "x86_64")]
-        vmr.set_kernel_bzimage(kernel_data)
+        vmr.set_kernel_bzimage(kernel_data, spec.kernel_csmap.clone())
             .map_err(to_anyhow_error)?;
 
         // cmdline

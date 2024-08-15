@@ -15,7 +15,6 @@ use std::fmt::Write;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
 
-use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
 use counter::RateCounter;
@@ -33,9 +32,8 @@ use crate::aarch64::bindings::{
 use crate::aarch64::vm::USE_HVF_GIC;
 use crate::profiler::arch::{is_hypercall_insn, ARM64_INSN_SIZE};
 use crate::profiler::symbolicator::{HostKernelSymbolicator, LinuxSymbolicator, Symbolicator};
-use crate::profiler::{
-    self, Frame, FrameCategory, PartialSample, Profiler, VcpuProfilerResults, STACK_DEPTH_LIMIT,
-};
+use crate::profiler::{Frame, FrameCategory, PartialSample, STACK_DEPTH_LIMIT};
+use crate::VcpuProfilerState;
 
 use super::bindings::{
     hv_exit_reason_t_HV_EXIT_REASON_CANCELED, hv_exit_reason_t_HV_EXIT_REASON_EXCEPTION,
@@ -160,27 +158,6 @@ struct MmioRead {
     srt: u32,
 }
 
-pub struct VcpuProfilerState {
-    pub profiler: Arc<Profiler>,
-    histograms: profiler::VcpuHistograms,
-}
-
-impl VcpuProfilerState {
-    pub fn new(profiler: Arc<Profiler>) -> anyhow::Result<Self> {
-        Ok(Self {
-            profiler,
-            histograms: profiler::VcpuHistograms::new()?,
-        })
-    }
-
-    pub fn finish(self, sender: Sender<VcpuProfilerResults>) -> anyhow::Result<()> {
-        sender.send(VcpuProfilerResults {
-            histograms: self.histograms,
-        })?;
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct HvVcpuRef(hv_vcpu_t);
 
@@ -197,7 +174,7 @@ pub struct HvfVcpu {
     guest_mem: GuestMemoryMmap,
     pvgic: Option<*mut PvgicVcpuState>,
 
-    hvf_vm: Arc<HvfVm>,
+    _hvf_vm: Arc<HvfVm>,
 }
 
 impl HvfVcpu {
@@ -227,7 +204,7 @@ impl HvfVcpu {
             guest_mem,
             pvgic: None,
 
-            hvf_vm,
+            _hvf_vm: hvf_vm,
         })
     }
 

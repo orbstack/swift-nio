@@ -11,11 +11,8 @@ use libc::{
     TH_STATE_STOPPED, TH_STATE_UNINTERRUPTIBLE, TH_STATE_WAITING,
 };
 use mach2::{mach_port::mach_port_deallocate, port::mach_port_t, traps::mach_task_self};
-#[allow(deprecated)] // mach2 doesn't have this
 use mach2::{
-    structs::arm_thread_state64_t,
     thread_act::{thread_get_state, thread_resume, thread_suspend},
-    thread_status::ARM_THREAD_STATE64,
     vm_types::natural_t,
 };
 use nix::errno::Errno;
@@ -178,7 +175,10 @@ impl ProfileeThread {
         })
     }
 
+    #[cfg(target_arch = "aarch64")]
     fn get_unwind_regs(&self) -> MachResult<UnwindRegs> {
+        use mach2::{structs::arm_thread_state64_t, thread_status::ARM_THREAD_STATE64};
+
         // get thread state
         let mut state = MaybeUninit::<arm_thread_state64_t>::uninit();
         let mut count = size_of::<arm_thread_state64_t>() as u32 / size_of::<natural_t>() as u32;
@@ -199,7 +199,35 @@ impl ProfileeThread {
             #[cfg(feature = "profiler-framehop")]
             sp: state.__sp,
 
-            x16: state.__x[16],
+            syscall_num: state.__x[16],
+        })
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    fn get_unwind_regs(&self) -> MachResult<UnwindRegs> {
+        use mach2::{structs::x86_thread_state64_t, thread_status::x86_THREAD_STATE64};
+
+        // get thread state
+        let mut state = MaybeUninit::<x86_thread_state64_t>::uninit();
+        let mut count = size_of::<x86_thread_state64_t>() as u32 / size_of::<natural_t>() as u32;
+        unsafe {
+            check_mach!(thread_get_state(
+                self.port.0,
+                x86_THREAD_STATE64,
+                state.as_mut_ptr() as *mut _,
+                &mut count,
+            ))?
+        };
+        let state = unsafe { state.assume_init() };
+
+        Ok(UnwindRegs {
+            pc: state.__rip,
+            lr: state.__rbp,
+            fp: state.__rbp,
+            #[cfg(feature = "profiler-framehop")]
+            sp: state.__rsp,
+
+            syscall_num: state.__rax,
         })
     }
 
@@ -300,7 +328,7 @@ impl ProfileeThread {
         let in_syscall = HostSyscallTransform::is_syscall_pc(regs.pc);
         if in_syscall {
             // XNU ABI: syscall number is in x16
-            let syscall_num = regs.x16;
+            let syscall_num = regs.syscall_num;
             stack.push_back(Frame::new(
                 FrameCategory::HostKernel,
                 HostKernelSymbolicator::addr_for_syscall(syscall_num as i64),
@@ -331,7 +359,7 @@ impl ProfileeThread {
         // if thread is in HVF, trigger an exit now, so that it samples as soon as it resumes
         // we check for whether it's in hv_vcpu_run's HV syscall
         if in_syscall
-            && regs.x16 == HostSyscallTransform::SYSCALL_MACH_HV_TRAP_ARM64
+            && regs.syscall_num == HostSyscallTransform::SYSCALL_MACH_HV_TRAP_ARM64
             // LR=hv_vcpu_run because PC=hv_trap
             // TODO: on macOS 15, we'll have to eat the cost of scanning many stack frames, because hv_vcpu_run calls C++ code, and x0 is clobbered with the return value
             && hv_vcpu_run.contains(&(regs.lr as usize))

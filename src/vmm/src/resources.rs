@@ -206,7 +206,11 @@ impl VmResources {
     }
 
     #[cfg(target_arch = "x86_64")]
-    pub fn set_kernel_bzimage(&mut self, mut bzimage: Vec<u8>) -> Result<KernelBundleError> {
+    pub fn set_kernel_bzimage(
+        &mut self,
+        mut bzimage: Vec<u8>,
+        csmap_path: Option<String>,
+    ) -> Result<KernelBundleError> {
         let info = x86_64::bzimage::load_bzimage(&mut bzimage)
             .map_err(|e| KernelBundleError::Bzimage(e.into()))?;
         self.kernel_bundle = Some(KernelBundle {
@@ -214,6 +218,7 @@ impl VmResources {
             load_range: info.load_range,
             guest_addr: info.guest_addr,
             entry_addr: info.entry_addr,
+            csmap_path,
             params: info.params,
         });
         Ok(())

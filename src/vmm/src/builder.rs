@@ -679,10 +679,9 @@ pub fn create_guest_memory(
     kernel_load_addr: u64,
 ) -> std::result::Result<(GuestMemoryMmap, ArchMemoryInfo), StartMicrovmError> {
     let mem_size = mem_size_mib << 20;
-    let (arch_mem_info, arch_mem_regions) =
-        arch::arch_memory_regions(mem_size, kernel_load_addr, kernel_data.len());
+    let arch_mem_info = arch::arch_memory_regions(mem_size, kernel_load_addr, kernel_data.len());
 
-    let guest_mem = hvf::allocate_guest_memory(&arch_mem_regions)
+    let guest_mem = hvf::allocate_guest_memory(&arch_mem_info.ram_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem

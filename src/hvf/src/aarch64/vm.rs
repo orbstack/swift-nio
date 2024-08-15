@@ -6,7 +6,6 @@ use arch::ArchMemoryInfo;
 use bitflags::bitflags;
 use vm_memory::{Address, GuestAddress};
 
-use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
 use crate::aarch64::bindings::{hv_vm_create, hv_vm_protect};
@@ -25,12 +24,6 @@ use super::weak_link::OPTIONAL12;
 // macOS 15 knobs
 pub const USE_HVF_GIC: bool = false;
 pub const ENABLE_NESTED_VIRT: bool = false;
-
-/// Messages for requesting memory maps/unmaps.
-pub enum MemoryMapping {
-    AddMapping(Sender<bool>, usize, GuestAddress, usize),
-    RemoveMapping(Sender<bool>, GuestAddress, usize),
-}
 
 #[derive(Debug, Copy, Clone)]
 pub enum ParkError {

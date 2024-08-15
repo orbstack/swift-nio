@@ -25,6 +25,7 @@ use arch_gen::x86::msr_index::{
     MSR_RAPL_POWER_UNIT, MSR_SMI_COUNT, MSR_SYSCALL_MASK,
 };
 use bindings::*;
+use bitflags::bitflags;
 #[cfg(target_arch = "x86_64")]
 use cpuid::{kvm_cpuid_entry2, CpuidTransformer, IntelCpuidTransformer, VmSpec};
 use iced_x86::{Code, Decoder, DecoderOptions, Instruction, Register};
@@ -44,7 +45,7 @@ use utils::hypercalls::{
 };
 use utils::memory::GuestMemoryExt;
 
-use crate::Parkable;
+use crate::VcpuRegistry;
 
 const LAPIC_TPR: u32 = 0x80;
 
@@ -104,6 +105,17 @@ const IA32_PAT_DEFAULT: u64 = pat_value(0, PAT_WRITE_BACK)
     | pat_value(5, PAT_WRITE_THROUGH)
     | pat_value(6, PAT_UNCACHED)
     | pat_value(7, PAT_UNCACHEABLE);
+
+bitflags! {
+    pub struct MemoryFlags: hv_memory_flags_t {
+        const READ = HV_MEMORY_READ as hv_memory_flags_t;
+        const WRITE = HV_MEMORY_WRITE as hv_memory_flags_t;
+        const EXEC = HV_MEMORY_EXEC as hv_memory_flags_t;
+
+        const NONE = 0;
+        const RWX = Self::READ.bits() | Self::WRITE.bits() | Self::EXEC.bits();
+    }
+}
 
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum Error {
@@ -169,18 +181,14 @@ pub enum Error {
     VmIoapicWrite,
     #[error("ioapic assert irq")]
     VmIoapicAssertIrq,
+    #[error("vm protect")]
+    VmProtect,
     #[error("vcpu startup ap")]
     VcpuStartupAp,
     #[error("vm allocate")]
     VmAllocate,
     #[error("Intel CPUs older than Skylake (6th generation) or newer than Ice Lake (10th generation), the newest CPU ever shipped in an Intel Mac, are not supported. Downgrade to OrbStack v1.5.1 or older at your own risk: https://go.orbstack.dev/intel-gen5-downgrade")]
     CpuUnsupported,
-}
-
-/// Messages for requesting memory maps/unmaps.
-pub enum MemoryMapping {
-    AddMapping(Sender<bool>, u64, u64, u64),
-    RemoveMapping(Sender<bool>, u64, u64),
 }
 
 pub fn vcpu_request_exit(vcpuid: hv_vcpuid_t) -> Result<(), Error> {
@@ -223,13 +231,14 @@ impl HvfVm {
         host_start_addr: *mut u8,
         guest_start_addr: GuestAddress,
         size: usize,
+        flags: MemoryFlags,
     ) -> Result<(), Error> {
         let ret = unsafe {
             hv_vm_map(
                 host_start_addr as *mut std::ffi::c_void,
                 guest_start_addr.raw_value(),
                 size,
-                (HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC).into(),
+                flags.bits(),
             )
         };
         if ret != HV_SUCCESS {
@@ -248,7 +257,7 @@ impl HvfVm {
         }
     }
 
-    pub fn force_exits(&self, vcpu_ids: &[hv_vcpu_t]) -> Result<(), Error> {
+    pub fn force_exits(&self, vcpu_ids: &[hv_vcpuid_t]) -> Result<(), Error> {
         // HVF won't mutate this
         let ret = unsafe { hv_vcpu_interrupt(vcpu_ids.as_ptr() as *mut _, vcpu_ids.len() as u32) };
         if ret != HV_SUCCESS {
@@ -281,6 +290,20 @@ impl HvfVm {
         let ret = unsafe { hv_vm_ioapic_pulse_irq(irq) };
         if ret != HV_SUCCESS {
             Err(Error::VmIoapicAssertIrq)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn protect_memory(
+        &self,
+        guest_start_addr: GuestAddress,
+        size: usize,
+        flags: MemoryFlags,
+    ) -> Result<(), Error> {
+        let ret = unsafe { hv_vm_protect(guest_start_addr.raw_value(), size, flags.bits()) };
+        if ret != HV_SUCCESS {
+            Err(Error::VmProtect)
         } else {
             Ok(())
         }
@@ -339,7 +362,7 @@ struct InsnCacheKey {
 }
 
 pub struct HvfVcpu {
-    parker: Arc<dyn Parkable>,
+    registry: Arc<dyn VcpuRegistry>,
     hv_vcpu: hv_vcpuid_t,
     guest_mem: GuestMemoryMmap,
     hvf_vm: HvfVm,
@@ -362,7 +385,7 @@ pub struct HvfVcpu {
 
 impl HvfVcpu {
     pub fn new(
-        parker: Arc<dyn Parkable>,
+        registry: Arc<dyn VcpuRegistry>,
         guest_mem: GuestMemoryMmap,
         hvf_vm: &HvfVm,
         vcpu_count: u8,
@@ -391,7 +414,7 @@ impl HvfVcpu {
         cr0_mask1 &= !(CR0_PG | CR0_PE);
 
         let vcpu = Self {
-            parker,
+            registry,
             hv_vcpu,
             guest_mem,
             hvf_vm: hvf_vm.clone(),

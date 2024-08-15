@@ -1,8 +1,6 @@
 use std::collections::VecDeque;
 
 use crate::profiler::{
-    arch::{ARM64_INSN_SIZE, ARM64_INSN_SVC_0X80},
-    memory::read_host_mem_aligned,
     symbolicator::{HostKernelSymbolicator, SymbolResult},
     Frame, FrameCategory, SymbolicatedFrame,
 };
@@ -14,7 +12,13 @@ pub struct HostSyscallTransform {}
 impl HostSyscallTransform {
     pub const SYSCALL_MACH_HV_TRAP_ARM64: u64 = (-0x5i64) as u64;
 
+    #[cfg(target_arch = "aarch64")]
     pub fn is_syscall_pc(pc: u64) -> bool {
+        use crate::profiler::{
+            arch::{ARM64_INSN_SIZE, ARM64_INSN_SVC_0X80},
+            memory::read_host_mem_aligned,
+        };
+
         // PC=0 is never valid, and the subtraction below will overflow
         if pc == 0 {
             return false;
@@ -33,6 +37,12 @@ impl HostSyscallTransform {
         } else {
             false
         }
+    }
+
+    #[cfg(not(target_arch = "aarch64"))]
+    pub fn is_syscall_pc(_pc: u64) -> bool {
+        // TODO
+        false
     }
 }
 

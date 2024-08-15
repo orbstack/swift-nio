@@ -22,7 +22,8 @@ pub struct UnwindRegs {
     #[cfg(feature = "profiler-framehop")]
     pub sp: u64,
 
-    pub x16: u64,
+    // x16 on arm64
+    pub syscall_num: u64,
 }
 
 pub trait Unwinder {

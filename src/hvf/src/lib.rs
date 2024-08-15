@@ -16,7 +16,9 @@ use mach2::{
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
 use nix::errno::Errno;
-use profiler::{PartialSample, ProfilerGuestContext, ProfilerVcpuInit, VcpuProfilerResults};
+use profiler::{
+    PartialSample, Profiler, ProfilerGuestContext, ProfilerVcpuInit, VcpuProfilerResults,
+};
 use tracing::error;
 use utils::Mutex;
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
@@ -44,6 +46,33 @@ const VM_FLAGS_4GB_CHUNK: i32 = 4;
 // which is especially relevant when we use REUSABLE to purge pages
 const MACH_CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
+/// Messages for requesting memory maps/unmaps.
+pub enum MemoryMapping {
+    AddMapping(Sender<bool>, usize, GuestAddress, usize),
+    RemoveMapping(Sender<bool>, GuestAddress, usize),
+}
+
+pub struct VcpuProfilerState {
+    pub profiler: Arc<Profiler>,
+    histograms: profiler::VcpuHistograms,
+}
+
+impl VcpuProfilerState {
+    pub fn new(profiler: Arc<Profiler>) -> anyhow::Result<Self> {
+        Ok(Self {
+            profiler,
+            histograms: profiler::VcpuHistograms::new()?,
+        })
+    }
+
+    pub fn finish(self, sender: Sender<VcpuProfilerResults>) -> anyhow::Result<()> {
+        sender.send(VcpuProfilerResults {
+            histograms: self.histograms,
+        })?;
+        Ok(())
+    }
+}
+
 pub struct VcpuHandleInner {
     signal: ArcVcpuSignal,
     profiler_init: Mutex<Option<ProfilerVcpuInit>>,
@@ -68,7 +97,10 @@ impl VcpuHandleInner {
     }
 
     pub fn dump_debug(&self) {
+        #[cfg(target_arch = "aarch64")]
         self.signal.assert(VcpuSignalMask::DUMP_DEBUG);
+        #[cfg(not(target_arch = "aarch64"))]
+        tracing::error!("dump_debug not supported on this architecture");
     }
 
     pub fn send_profiler_init(&self, init: ProfilerVcpuInit) {

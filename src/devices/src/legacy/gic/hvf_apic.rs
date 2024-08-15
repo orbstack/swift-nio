@@ -33,7 +33,7 @@ impl UserspaceGicImpl for HvfApic {
 
     // === IRQ Assertion === //
 
-    fn set_irq(&mut self, irq_line: u32) {
+    fn set_irq(&mut self, vcpuid: Option<u64>, irq_line: u32) {
         debug!("asserting ioapic irq {}", irq_line);
         self.hvf_vm.assert_ioapic_irq(irq_line as i32).unwrap();
     }

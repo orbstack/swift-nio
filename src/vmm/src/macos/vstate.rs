@@ -394,6 +394,7 @@ impl Vcpu {
             hvf_vm: vm.hvf_vm.clone(),
             vcpu_count: 0,
             ht_enabled: false,
+            last_timer_wakeup: MachAbsoluteTime(0),
         })
     }
 
@@ -633,7 +634,7 @@ impl Vcpu {
                 }
                 VcpuExit::HypervisorIoCall { dev_id, args_addr } => {
                     debug!(
-                        "vCPU {} HVC IO: dev_id={} args_addr={}",
+                        "vCPU {} HVC IO: dev_id={} args_addr={:?}",
                         vcpuid, dev_id, args_addr
                     );
                     if let Some(ref mmio_bus) = self.mmio_bus {
@@ -981,6 +982,7 @@ impl Vcpu {
             ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,
             ShutdownAlreadyRequestedExt, SignalChannel,
         };
+        use hvf::VcpuHandleInner;
         use vmm_ids::VmmShutdownPhase;
 
         define_waker_set! {
@@ -1034,7 +1036,8 @@ impl Vcpu {
             .unwrap_or_run_now();
 
         // Register the vCPU with the parker
-        let mut park_task = parker.register_vcpu(signal.clone());
+        let handle = ArcVcpuHandle::new(VcpuHandleInner::new(signal.clone()));
+        let mut park_task = parker.register_vcpu(self.cpu_index(), handle.clone());
 
         // Notify init done (everything is registered)
         // TODO: We should be using startup signals for these to reduce the number of thread wake-ups.
@@ -1066,14 +1069,12 @@ impl Vcpu {
         // Finally, start virtualization!
         loop {
             // Handle events
-            if !signal.take(VcpuSignalMask::EXIT_LOOP).is_empty() {
+            let taken = signal.take(VcpuSignalMask::ALL_WAIT);
+            if taken.contains(VcpuSignalMask::EXIT_LOOP) {
                 break;
             }
 
-            // (this should never happen if we haven't exited the loop yet)
-            debug_assert!(signal.take(VcpuSignalMask::DESTROY_VM).is_empty());
-
-            let Ok(park_task_tmp) = parker.process_park_commands(&*signal, park_task) else {
+            let Ok(park_task_tmp) = parker.process_park_commands(taken, park_task) else {
                 error!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );
