@@ -114,7 +114,7 @@ impl MMIODeviceManager {
         self.irq += 1;
 
         // Setup multi-queue IRQs
-        if allocate_mq {
+        if allocate_mq && cfg!(target_arch = "aarch64") {
             let mut device = mmio_device.locked_device();
             let queue_count = device.queues().len() as u32;
 
