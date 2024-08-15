@@ -11,9 +11,7 @@ use std::{
 };
 
 use super::{ActivateResult, Queue};
-use gruel::{BoundSignalChannelRef, RawSignalChannel, SignalChannel};
-use memmage::CastableRef;
-use newt::{BitFlagRange, RawBitFlagRange};
+use gruel::ArcBoundSignalChannel;
 use smallbox::SmallBox;
 use vm_memory::{GuestAddress, GuestMemoryMmap};
 
@@ -28,38 +26,6 @@ pub enum DeviceState {
 pub struct VirtioShmRegion {
     pub guest_addr: GuestAddress,
     pub size: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct VirtioQueueSignals {
-    pub signal: Arc<RawSignalChannel>,
-    pub range: RawBitFlagRange,
-    pub name: &'static str,
-}
-
-impl VirtioQueueSignals {
-    pub fn new<S: bitflags::Flags<Bits = u64>>(
-        signal: Arc<SignalChannel<S>>,
-        range: BitFlagRange<S>,
-    ) -> Self {
-        Self {
-            signal: signal.map(SignalChannel::raw),
-            range: range.raw,
-            name: std::any::type_name::<S>(),
-        }
-    }
-
-    pub fn assert(&self, queue: usize) {
-        if let Some(mask) = self.range.opt_get(queue) {
-            tracing::trace!(
-                "Asserted queue {queue:?} in {:?} (mask: {mask:b})",
-                self.name
-            );
-            self.signal.assert(mask);
-        } else {
-            tracing::warn!("Ignored queue request {queue:?} in {:?}", self.name);
-        }
-    }
 }
 
 /// Trait for virtio devices to be driven by a virtio transport.
@@ -89,10 +55,7 @@ pub trait VirtioDevice: Send {
     fn queues_mut(&mut self) -> &mut [Queue];
 
     /// Returns the device queues event fds.
-    fn queue_signals(&self) -> VirtioQueueSignals;
-
-    /// Returns the device interrupt eventfd.
-    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_>;
+    fn queue_signals(&self) -> Vec<ArcBoundSignalChannel>;
 
     /// Returns the current device interrupt status.
     fn interrupt_status(&self) -> Arc<AtomicUsize>;

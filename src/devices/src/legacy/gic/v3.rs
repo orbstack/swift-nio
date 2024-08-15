@@ -121,7 +121,7 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
             .get(&pe)
             .unwrap()
             .signal
-            .assert(VcpuSignalMask::INTERRUPT);
+            .assert(VcpuSignalMask::IRQ);
 
         COUNT_VCPU_KICK.count();
     }

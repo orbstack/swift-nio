@@ -435,10 +435,6 @@ mod tests {
             todo!();
         }
 
-        fn interrupt_signal(&self) -> &EventFd {
-            &self.interrupt_evt
-        }
-
         fn interrupt_status(&self) -> Arc<AtomicUsize> {
             Arc::new(AtomicUsize::new(0))
         }

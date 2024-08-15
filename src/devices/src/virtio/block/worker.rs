@@ -2,7 +2,7 @@ use crate::legacy::Gic;
 use crate::virtio::descriptor_utils::{Reader, Writer};
 
 use super::super::{Queue, VIRTIO_MMIO_INT_VRING};
-use super::device::{BlockDevSignalMask, BlockDevWakers, DiskProperties, BLOCK_QUEUE_SIGS};
+use super::device::{BlockDevSignalMask, BlockDevWakers, DiskProperties};
 use super::SECTOR_SIZE;
 
 use gruel::{ParkSignalChannelExt, SignalChannel};
@@ -99,15 +99,14 @@ impl BlockWorker {
 
     fn work(mut self) {
         // Async BlockWorkers imply the use of only a single worker queue
-        let queue_mask = BLOCK_QUEUE_SIGS.get(0);
-        let mask = queue_mask | BlockDevSignalMask::STOP_WORKER;
+        let mask = BlockDevSignalMask::REQ | BlockDevSignalMask::STOP_WORKER;
 
         loop {
             self.signals.wait_on_park(mask);
 
             let taken = self.signals.take(mask);
 
-            if taken.intersects(queue_mask) {
+            if taken.intersects(BlockDevSignalMask::REQ) {
                 self.process_virtio_queues();
             }
 
@@ -172,9 +171,9 @@ impl BlockWorker {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
 
-            // if self.queue.needs_notification(mem).unwrap() {
-            //     self.signal_used_queue();
-            // }
+            if self.queue.needs_notification(mem).unwrap() {
+                self.signal_used_queue();
+            }
         }
     }
 
@@ -265,8 +264,6 @@ impl BlockWorker {
             intc.lock()
                 .unwrap()
                 .set_irq_for_vcpu(Some(self.target_vcpu), self.irq_line);
-        } else {
-            self.signals.assert(BlockDevSignalMask::INTERRUPT);
         }
     }
 }

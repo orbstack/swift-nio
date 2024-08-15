@@ -8,17 +8,16 @@ use crate::legacy::Gic;
 use crate::virtio::net::{Error, Result};
 use crate::virtio::net::{QUEUE_SIZES, RX_INDEX, TX_INDEX};
 use crate::virtio::queue::Error as QueueError;
-use crate::virtio::{
-    ActivateResult, DeviceState, Queue, VirtioDevice, VirtioQueueSignals, VmmExitObserver, TYPE_NET,
-};
+use crate::virtio::{ActivateResult, DeviceState, Queue, VirtioDevice, VmmExitObserver, TYPE_NET};
 use crate::Error as DeviceError;
 
 use super::backend::{ReadError, WriteError};
 use super::worker::NetWorker;
 
 use bitflags::bitflags;
-use gruel::{define_waker_set, BoundSignalChannelRef, OnceMioWaker, SignalChannel};
-use newt::{make_bit_flag_range, BitFlagRange};
+use gruel::{
+    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, OnceMioWaker, SignalChannel,
+};
 use std::cmp;
 use std::io::Write;
 use std::os::fd::OwnedFd;
@@ -46,14 +45,11 @@ define_waker_set! {
 bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
     pub(crate) struct NetSignalMask: u64 {
-        const INTERRUPT = 1 << 0;
-        const SHUTDOWN_WORKER = 1 << 1;
-        const QUEUES = u64::MAX << 2;
+        const SHUTDOWN_WORKER = 1 << 0;
+        const RX = 1 << 1;
+        const TX = 1 << 2;
     }
 }
-
-pub(crate) const NET_QUEUE_SIGS: BitFlagRange<NetSignalMask> =
-    make_bit_flag_range!(mask NetSignalMask::QUEUES);
 
 pub(crate) type NetSignalChannel = SignalChannel<NetSignalMask, NetWakers>;
 
@@ -204,12 +200,11 @@ impl VirtioDevice for Net {
         &mut self.queues
     }
 
-    fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(self.signals.clone(), NET_QUEUE_SIGS)
-    }
-
-    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        BoundSignalChannelRef::new(&*self.signals, NetSignalMask::INTERRUPT)
+    fn queue_signals(&self) -> Vec<ArcBoundSignalChannel> {
+        vec![
+            BoundSignalChannel::new(self.signals.clone(), NetSignalMask::RX),
+            BoundSignalChannel::new(self.signals.clone(), NetSignalMask::TX),
+        ]
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

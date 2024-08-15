@@ -6,6 +6,7 @@
 // found in the THIRD-PARTY file.
 
 use counter::RateCounter;
+use gruel::ArcBoundSignalChannel;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use utils::{Mutex, MutexGuard};
@@ -52,7 +53,7 @@ pub struct MmioTransport(Arc<MmioTransportInner>);
 struct MmioTransportInner {
     device: Arc<Mutex<dyn VirtioDevice>>,
     sync_events: Option<ErasedSyncEventHandlerSet>,
-    queue_signals: OnceLock<VirtioQueueSignals>,
+    queue_signals: OnceLock<Vec<ArcBoundSignalChannel>>,
     locked: Mutex<MmioTransportLocked>,
 }
 
@@ -103,7 +104,7 @@ impl MmioTransport {
         self.0.device.clone()
     }
 
-    pub fn register_queue_signals(&self, signals: VirtioQueueSignals) {
+    pub fn register_queue_signals(&self, signals: Vec<ArcBoundSignalChannel>) {
         self.0
             .queue_signals
             .set(signals)
@@ -346,9 +347,10 @@ impl LocklessBusDevice for MmioTransport {
                         } else {
                             COUNT_NOTIFY_WORKER.count();
 
-                            if let Some(signals) = self.0.queue_signals.get() {
-                                signals.assert(v as usize);
-                            }
+                            let signals =
+                                self.0.queue_signals.get().expect("queue signals not set");
+                            let signal = signals.get(v as usize).expect("invalid queue index");
+                            signal.assert();
                         }
                     }
                     0x64 => {
@@ -400,17 +402,6 @@ impl LocklessBusDevice for MmioTransport {
                 );
             }
         }
-    }
-
-    fn interrupt(&self, irq_mask: u32) -> std::io::Result<()> {
-        self.locked_state()
-            .interrupt_status
-            .fetch_or(irq_mask as usize, Ordering::SeqCst);
-
-        // interrupt_evt() is safe to unwrap because the inner interrupt_evt is initialized in the
-        // constructor.
-        self.locked_device().interrupt_signal().assert();
-        Ok(())
     }
 
     fn clone_erased(&self) -> ErasedBusDevice {
@@ -502,10 +493,6 @@ pub(crate) mod tests {
         }
 
         fn queue_signals(&self) -> VirtioQueueSignals {
-            todo!();
-        }
-
-        fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
             todo!();
         }
 

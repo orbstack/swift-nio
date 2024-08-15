@@ -1,6 +1,8 @@
 use bitflags::bitflags;
-use gruel::{define_waker_set, BoundSignalChannelRef, ParkWaker, SignalChannel};
-use newt::{make_bit_flag_range, BitFlagRange};
+use gruel::{
+    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, BoundSignalChannelRef, ParkWaker,
+    SignalChannel,
+};
 use std::cmp;
 use std::io::Write;
 use std::sync::atomic::AtomicUsize;
@@ -21,7 +23,6 @@ use super::worker::FsWorker;
 use super::{defs, defs::uapi};
 use super::{passthrough, FsCallbacks, NfsInfo};
 use crate::legacy::Gic;
-use crate::virtio::VirtioQueueSignals;
 
 define_waker_set! {
     #[derive(Default)]
@@ -33,14 +34,11 @@ define_waker_set! {
 bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
     pub(crate) struct FsSignalMask: u64 {
-        const INTERRUPT = 1 << 0;
-        const SHUTDOWN_WORKER = 1 << 1;
-        const QUEUES = u64::MAX << 2;
+        const SHUTDOWN_WORKER = 1 << 0;
+        const HPQ = 1 << 1;
+        const REQ = 1 << 2;
     }
 }
-
-pub(crate) const FS_QUEUE_SIGS: BitFlagRange<FsSignalMask> =
-    make_bit_flag_range!(mask FsSignalMask::QUEUES);
 
 pub(crate) type FsSignalChannel = SignalChannel<FsSignalMask, FsWakers>;
 
@@ -173,12 +171,11 @@ impl VirtioDevice for Fs {
         &mut self.queues
     }
 
-    fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(self.signals.clone(), FS_QUEUE_SIGS)
-    }
-
-    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        BoundSignalChannelRef::new(&*self.signals, FsSignalMask::INTERRUPT)
+    fn queue_signals(&self) -> Vec<ArcBoundSignalChannel> {
+        vec![
+            BoundSignalChannel::new(self.signals.clone(), FsSignalMask::HPQ),
+            BoundSignalChannel::new(self.signals.clone(), FsSignalMask::REQ),
+        ]
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

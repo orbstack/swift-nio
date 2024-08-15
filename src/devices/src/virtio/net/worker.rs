@@ -7,7 +7,6 @@ use crate::Error as DeviceError;
 use super::backend::{NetBackend, ReadError, WriteError};
 use super::device::{
     FrontendError, NetSignalChannel, NetSignalMask, RxError, TxError, VirtioNetBackend,
-    NET_QUEUE_SIGS,
 };
 use super::dgram::Dgram;
 
@@ -102,9 +101,7 @@ impl NetWorker {
             .waker_state::<OnceMioWaker>()
             .set_waker(Arc::new(waker));
 
-        let handled_mask = NetSignalMask::SHUTDOWN_WORKER
-            | NET_QUEUE_SIGS.get(RX_INDEX)
-            | NET_QUEUE_SIGS.get(TX_INDEX);
+        let handled_mask = NetSignalMask::SHUTDOWN_WORKER | NetSignalMask::RX | NetSignalMask::TX;
 
         // Start worker loop
         loop {
@@ -123,11 +120,11 @@ impl NetWorker {
                 return;
             }
 
-            if taken.intersects(NET_QUEUE_SIGS.get(RX_INDEX)) {
+            if taken.intersects(NetSignalMask::RX) {
                 self.process_rx_queue_event();
             }
 
-            if taken.intersects(NET_QUEUE_SIGS.get(TX_INDEX)) {
+            if taken.intersects(NetSignalMask::TX) {
                 self.process_tx_queue_event();
             }
 
@@ -302,11 +299,8 @@ impl NetWorker {
             .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
-            Ok(())
-        } else {
-            self.signals.assert(NetSignalMask::INTERRUPT);
-            Ok(())
         }
+        Ok(())
     }
 
     // Copies a single frame from `self.rx_frame_buf` into the guest.

@@ -1,9 +1,10 @@
 use anyhow::anyhow;
 use bitfield::bitfield;
 use gruel::{
-    define_waker_set, BoundSignalChannelRef, ParkSignalChannelExt, ParkWaker, SignalChannel,
+    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, ParkSignalChannelExt, ParkWaker,
+    SignalChannel,
 };
-use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
+use newt::{define_num_enum, NumEnumMap};
 use std::cell::RefCell;
 use std::cmp;
 use std::io::Write;
@@ -22,7 +23,7 @@ use super::super::{
 };
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
-use crate::virtio::{DescriptorChain, HvcDevice, VirtioQueueSignals, VmmExitObserver};
+use crate::virtio::{DescriptorChain, HvcDevice, VmmExitObserver};
 use hvf::{HvfVm, VcpuRegistry};
 use utils::memory::GuestMemoryExt;
 
@@ -55,9 +56,7 @@ bitflags::bitflags! {
         // guest doesn't need a completion IRQ for this, but it must be processed before FRQ
         const REUSE = 1 << 5;
 
-        const INTERRUPT = 1 << 6;
-
-        const SHUTDOWN_WORKER = 1 << 7;
+        const SHUTDOWN_WORKER = 1 << 6;
     }
 }
 
@@ -213,8 +212,6 @@ impl Balloon {
 
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
-        } else {
-            self.signal.assert(BalloonSignalMask::INTERRUPT);
         }
     }
 
@@ -471,21 +468,14 @@ impl VirtioDevice for Balloon {
         &mut self.queues.0
     }
 
-    fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(
-            self.signal.clone(),
-            make_bit_flag_range!([
-                BalloonSignalMask::IFQ,
-                BalloonSignalMask::DFQ,
-                BalloonSignalMask::STQ,
-                BalloonSignalMask::PHQ,
-                BalloonSignalMask::FRQ,
-            ]),
-        )
-    }
-
-    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        BoundSignalChannelRef::new(&*self.signal, BalloonSignalMask::INTERRUPT)
+    fn queue_signals(&self) -> Vec<ArcBoundSignalChannel> {
+        vec![
+            BoundSignalChannel::new(self.signal.clone(), BalloonSignalMask::IFQ),
+            BoundSignalChannel::new(self.signal.clone(), BalloonSignalMask::DFQ),
+            BoundSignalChannel::new(self.signal.clone(), BalloonSignalMask::STQ),
+            BoundSignalChannel::new(self.signal.clone(), BalloonSignalMask::PHQ),
+            BoundSignalChannel::new(self.signal.clone(), BalloonSignalMask::FRQ),
+        ]
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

@@ -56,10 +56,6 @@ impl LocklessBusDevice for ErasedBusDevice {
         self.0.write(vcpuid, offset, data)
     }
 
-    fn interrupt(&self, irq_mask: u32) -> io::Result<()> {
-        self.0.interrupt(irq_mask)
-    }
-
     fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64 {
         self.0.read_sysreg(vcpuid, reg)
     }
@@ -165,10 +161,6 @@ impl<T: 'static + BusDevice> LocklessBusDevice for Arc<Mutex<T>> {
 
     fn write(&self, vcpuid: u64, offset: u64, data: &[u8]) {
         self.lock().unwrap().write(vcpuid, offset, data)
-    }
-
-    fn interrupt(&self, irq_mask: u32) -> io::Result<()> {
-        self.lock().unwrap().interrupt(irq_mask)
     }
 
     fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64 {

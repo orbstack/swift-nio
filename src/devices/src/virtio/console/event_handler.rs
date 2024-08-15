@@ -1,8 +1,7 @@
 use gruel::{InterestCtrl, RawSignalChannel, Subscriber};
 use memmage::{CastableRef, CloneDynRef};
 
-use super::device::{get_win_size, Console, ConsoleSignalMask, CONSOLE_QUEUE_SIGS};
-use crate::virtio::console::device::{CONTROL_RXQ_INDEX, CONTROL_TXQ_INDEX};
+use super::device::{get_win_size, Console, ConsoleSignalMask};
 use crate::virtio::console::port_queue_mapping::{queue_idx_to_port_id, QueueDirection};
 use crate::virtio::device::VirtioDevice;
 
@@ -38,7 +37,7 @@ impl Subscriber for Console {
         if self.is_activated() {
             let mut raise_irq = false;
 
-            if taken.intersects(CONSOLE_QUEUE_SIGS.get(CONTROL_TXQ_INDEX)) {
+            if taken.intersects(ConsoleSignalMask::CONTROL_TXQ) {
                 raise_irq |= self.process_control_tx();
             }
 
@@ -46,19 +45,15 @@ impl Subscriber for Console {
                 raise_irq |= self.process_control_rx();
             }
 
-            if taken.intersects(CONSOLE_QUEUE_SIGS.get(CONTROL_RXQ_INDEX)) {
+            // TODO: add back multi-port support
+            if taken.intersects(ConsoleSignalMask::RXQ) {
                 raise_irq = true;
+                self.notify_port_queue_event(0);
             }
 
-            for queue_index in 0..self.queues.len() {
-                if queue_index == CONTROL_TXQ_INDEX || queue_index == CONTROL_RXQ_INDEX {
-                    continue;
-                }
-
-                if taken.intersects(CONSOLE_QUEUE_SIGS.get(queue_index)) {
-                    raise_irq = true;
-                    self.notify_port_queue_event(queue_index);
-                }
+            if taken.intersects(ConsoleSignalMask::TXQ) {
+                raise_irq = true;
+                self.notify_port_queue_event(1);
             }
 
             if taken.intersects(ConsoleSignalMask::SIGWINCH) {

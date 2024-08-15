@@ -1,9 +1,8 @@
 use bitflags::bitflags;
 use gruel::{
-    define_waker_set, BoundSignalChannel, BoundSignalChannelRef, DynamicallyBoundWaker,
+    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, DynamicallyBoundWaker,
     SignalChannel,
 };
-use newt::{make_bit_flag_range, BitFlagRange};
 use std::cmp;
 use std::io::Write;
 use std::iter::zip;
@@ -29,7 +28,7 @@ use crate::virtio::console::port::Port;
 use crate::virtio::console::port_queue_mapping::{
     num_queues, port_id_to_queue_idx, QueueDirection,
 };
-use crate::virtio::{PortDescription, VirtioQueueSignals, VmmExitObserver};
+use crate::virtio::{PortDescription, VmmExitObserver};
 
 define_waker_set! {
     #[derive(Default)]
@@ -44,13 +43,13 @@ bitflags! {
         const CONTROL_RXQ_CONTROL = 1 << 0;
         const ACTIVATE = 1 << 1;
         const SIGWINCH = 1 << 2;
-        const DUMMY_INTERRUPT = 1 << 3;
-        const QUEUE_EVENTS = u64::MAX << 4;
+
+        const RXQ = 1 << 3;
+        const TXQ = 1 << 4;
+        const CONTROL_RXQ = 1 << 5;
+        const CONTROL_TXQ = 1 << 6;
     }
 }
-
-pub(crate) const CONSOLE_QUEUE_SIGS: BitFlagRange<ConsoleSignalMask> =
-    make_bit_flag_range!(mask ConsoleSignalMask::QUEUE_EVENTS);
 
 pub(crate) const CONTROL_RXQ_INDEX: usize = 2;
 pub(crate) const CONTROL_TXQ_INDEX: usize = 3;
@@ -122,6 +121,9 @@ impl Console {
             matches!(ports[0], PortDescription::Console { .. }),
             "First port must be a console"
         );
+
+        // TODO: add back multi-port support
+        assert!(ports.len() == 1, "Only one port is supported");
 
         let num_queues = num_queues(ports.len());
         let queues = vec![VirtQueue::new(QUEUE_SIZE); num_queues];
@@ -332,12 +334,14 @@ impl VirtioDevice for Console {
         &mut self.queues
     }
 
-    fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(self.signals.clone(), CONSOLE_QUEUE_SIGS)
-    }
-
-    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        BoundSignalChannel::new(&*self.signals, ConsoleSignalMask::DUMMY_INTERRUPT)
+    fn queue_signals(&self) -> Vec<ArcBoundSignalChannel> {
+        vec![
+            // TODO: add back multi-port support
+            BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::RXQ),
+            BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::TXQ),
+            BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::CONTROL_RXQ),
+            BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::CONTROL_TXQ),
+        ]
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {

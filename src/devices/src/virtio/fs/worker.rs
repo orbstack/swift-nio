@@ -10,7 +10,7 @@ use vm_memory::GuestMemoryMmap;
 use super::super::{FsError, Queue, VIRTIO_MMIO_INT_VRING};
 use super::defs::{HPQ_INDEX, REQ_INDEX};
 use super::descriptor_utils::{Reader, Writer};
-use super::device::{FsSignalChannel, FsSignalMask, FS_QUEUE_SIGS};
+use super::device::{FsSignalChannel, FsSignalMask};
 use super::passthrough::PassthroughFs;
 use super::server::{HostContext, Server};
 use crate::legacy::Gic;
@@ -62,9 +62,7 @@ impl FsWorker {
     }
 
     fn work(mut self) {
-        let handled_mask = FsSignalMask::SHUTDOWN_WORKER
-            | FS_QUEUE_SIGS.get(HPQ_INDEX)
-            | FS_QUEUE_SIGS.get(REQ_INDEX);
+        let handled_mask = FsSignalMask::SHUTDOWN_WORKER | FsSignalMask::HPQ | FsSignalMask::REQ;
 
         loop {
             self.signals.wait_on_park(handled_mask);
@@ -74,11 +72,11 @@ impl FsWorker {
                 return;
             }
 
-            if taken.intersects(FS_QUEUE_SIGS.get(HPQ_INDEX)) {
+            if taken.intersects(FsSignalMask::HPQ) {
                 self.handle_event(HPQ_INDEX);
             }
 
-            if taken.intersects(FS_QUEUE_SIGS.get(REQ_INDEX)) {
+            if taken.intersects(FsSignalMask::REQ) {
                 self.handle_event(REQ_INDEX);
             }
         }

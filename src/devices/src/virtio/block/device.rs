@@ -6,9 +6,10 @@
 // found in the THIRD-PARTY file.
 
 use bitflags::bitflags;
-use gruel::{define_waker_set, BoundSignalChannelRef, ParkWaker, SignalChannel};
+use gruel::{
+    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, ParkWaker, SignalChannel,
+};
 use hvf::HvfVm;
-use newt::{make_bit_flag_range, BitFlagRange};
 use nix::errno::Errno;
 use nix::sys::uio::pwritev;
 use std::cmp;
@@ -47,13 +48,11 @@ use super::{
 
 use crate::legacy::Gic;
 use crate::virtio::descriptor_utils::Iovec;
-use crate::virtio::{
-    ErasedSyncEventHandlerSet, SyncEventHandlerSet, VirtioQueueSignals, VirtioShmRegion,
-};
+use crate::virtio::{ErasedSyncEventHandlerSet, SyncEventHandlerSet, VirtioShmRegion};
 
 const FLUSH_INTERVAL_NS: u64 = Duration::from_millis(1000).as_nanos() as u64;
 
-const USE_ASYNC_WORKER: bool = false;
+const USE_ASYNC_WORKER: bool = true;
 
 define_waker_set! {
     #[derive(Default)]
@@ -65,14 +64,10 @@ define_waker_set! {
 bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
     pub struct BlockDevSignalMask: u64 {
-        const INTERRUPT = 1 << 1;
-        const STOP_WORKER = 1 << 2;
-        const QUEUES = u64::MAX << 3;
+        const STOP_WORKER = 1 << 0;
+        const REQ = 1 << 1;
     }
 }
-
-pub(crate) const BLOCK_QUEUE_SIGS: BitFlagRange<BlockDevSignalMask> =
-    make_bit_flag_range!(mask BlockDevSignalMask::QUEUES);
 
 /// Configuration options for disk caching.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -350,8 +345,8 @@ pub struct Block {
     config: VirtioBlkConfig,
 
     // Transport related fields.
-    pub(crate) signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
     pub(crate) queues: Box<[Queue]>,
+    pub(crate) signals: Box<[Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>]>,
     pub(crate) interrupt_status: Arc<AtomicUsize>,
     pub(crate) device_state: DeviceState,
 
@@ -368,7 +363,7 @@ pub struct Block {
 
 enum BlockWorkerMode {
     Sync(BlockSyncWorkerSet),
-    Async(Option<JoinHandle<()>>),
+    Async(Option<Vec<JoinHandle<()>>>),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -404,12 +399,7 @@ impl Block {
             avail_features |= 1u64 << VIRTIO_BLK_F_RO;
         };
 
-        let queue_count = if USE_ASYNC_WORKER {
-            1 // This must be one!
-        } else {
-            vcpu_count.min(BLOCK_QUEUE_SIGS.count())
-        };
-
+        let queue_count = vcpu_count;
         let queues = (0..queue_count)
             .map(|_| Queue::new(QUEUE_SIZE))
             .collect::<Box<_>>();
@@ -437,8 +427,10 @@ impl Block {
             avail_features,
             acked_features: 0u64,
             interrupt_status: Arc::new(AtomicUsize::new(0)),
-            signals: Arc::new(SignalChannel::new(BlockDevWakers::default())),
             queues,
+            signals: (0..queue_count)
+                .map(|_| Arc::new(SignalChannel::new(BlockDevWakers::default())))
+                .collect::<Box<_>>(),
             device_state: DeviceState::Inactive,
             intc: None,
             irq_line: None,
@@ -503,12 +495,11 @@ impl VirtioDevice for Block {
         &mut self.queues
     }
 
-    fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(self.signals.clone(), BLOCK_QUEUE_SIGS)
-    }
-
-    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        BoundSignalChannelRef::new(&*self.signals, BlockDevSignalMask::INTERRUPT)
+    fn queue_signals(&self) -> Vec<ArcBoundSignalChannel> {
+        self.signals
+            .iter()
+            .map(|s| BoundSignalChannel::new(s.clone(), BlockDevSignalMask::REQ))
+            .collect()
     }
 
     /// Returns the current device interrupt status.
@@ -569,13 +560,15 @@ impl VirtioDevice for Block {
             .irq_line
             .expect("`irq_line` never initialized before activation");
 
-        for (queue_index, queue) in self.queues.iter_mut().enumerate() {
+        for ((queue_index, queue), signal) in
+            self.queues.iter_mut().enumerate().zip(self.signals.iter())
+        {
             let event_idx: bool = (self.acked_features & (1 << VIRTIO_RING_F_EVENT_IDX)) != 0;
             queue.set_event_idx(event_idx);
 
             workers.push(BlockWorker::new(
                 queue.clone(),
-                self.signals.clone(),
+                signal.clone(),
                 self.interrupt_status.clone(),
                 self.intc.clone(),
                 match irq_line {
@@ -593,8 +586,7 @@ impl VirtioDevice for Block {
                 *state.0.write().unwrap() = workers.into_iter().map(Mutex::new).collect();
             }
             BlockWorkerMode::Async(state) => {
-                assert_eq!(workers.len(), 1);
-                *state = Some(workers.into_iter().next().unwrap().run());
+                *state = Some(workers.into_iter().map(|w| w.run()).collect());
             }
         }
 
@@ -608,11 +600,15 @@ impl VirtioDevice for Block {
                 *state.0.write().unwrap() = Box::new([]);
             }
             BlockWorkerMode::Async(worker) => {
-                self.signals.assert(BlockDevSignalMask::STOP_WORKER);
+                for signal in self.signals.iter() {
+                    signal.assert(BlockDevSignalMask::STOP_WORKER);
+                }
 
-                if let Some(worker) = worker.take() {
-                    if let Err(e) = worker.join() {
-                        error!("error waiting for worker thread: {:?}", e);
+                if let Some(workers) = worker.take() {
+                    for worker in workers {
+                        if let Err(e) = worker.join() {
+                            error!("error waiting for worker thread: {:?}", e);
+                        }
                     }
                 }
             }

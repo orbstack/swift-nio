@@ -811,7 +811,7 @@ impl Vcpu {
             };
             park_task = park_task_tmp;
 
-            if taken.contains(VcpuSignalMask::INTERRUPT) {
+            if taken.contains(VcpuSignalMask::IRQ) {
                 // Although we could theoretically use this to signal the presence of an interrupt,
                 // we already use the lockless GIC handle to determine which interrupt was sent to
                 // us so there's no real performance reason for doing this.

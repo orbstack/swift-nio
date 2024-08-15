@@ -40,7 +40,7 @@ bitflags::bitflags! {
 
         /// Wake-up the vCPU for an interrupt. This is only used on `aarch64` for the GIC.
         #[cfg(target_arch = "aarch64")]
-        const INTERRUPT = 1 << 2;
+        const IRQ = 1 << 2;
 
         /// Pause the vCPU for a balloon operation.
         const PAUSE = 1 << 3;
@@ -70,7 +70,7 @@ bitflags::bitflags! {
 
         // Most waiters can be woken up by any signal except PVLOCK (which is a token only consumed by PvlockWait).
         #[cfg(target_arch = "aarch64")]
-        const ALL_WAIT = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits() | Self::PAUSE.bits() | Self::INTERRUPT.bits() | Self::DUMP_DEBUG.bits() | Self::PROFILER_INIT.bits() | Self::PROFILER_SAMPLE.bits() | Self::PROFILER_GUEST_FETCH.bits() | Self::PROFILER_FINISH.bits();
+        const ALL_WAIT = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits() | Self::PAUSE.bits() | Self::IRQ.bits() | Self::DUMP_DEBUG.bits() | Self::PROFILER_INIT.bits() | Self::PROFILER_SAMPLE.bits() | Self::PROFILER_GUEST_FETCH.bits() | Self::PROFILER_FINISH.bits();
         #[cfg(not(target_arch = "aarch64"))]
         const ALL_WAIT = Self::EXIT_LOOP.bits() | Self::DESTROY_VM.bits() | Self::PAUSE.bits();
     }

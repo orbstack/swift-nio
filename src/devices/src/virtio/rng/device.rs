@@ -1,6 +1,9 @@
 use bitflags::bitflags;
-use gruel::{define_waker_set, BoundSignalChannelRef, DynamicallyBoundWaker, SignalChannel};
-use newt::{define_num_enum, make_bit_flag_range, NumEnumMap};
+use gruel::{
+    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, DynamicallyBoundWaker,
+    SignalChannel,
+};
+use newt::{define_num_enum, NumEnumMap};
 use std::result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -14,7 +17,6 @@ use super::super::{
 };
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
-use crate::virtio::VirtioQueueSignals;
 use crate::Error as DeviceError;
 
 define_waker_set! {
@@ -27,8 +29,7 @@ define_waker_set! {
 bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
     pub(crate) struct RngSignalMask: u64 {
-        const INTERRUPT = 1 << 0;
-        const REQ_QUEUE = 1 << 1;
+        const REQ_QUEUE = 1 << 0;
     }
 }
 
@@ -92,11 +93,8 @@ impl Rng {
             .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
-            Ok(())
-        } else {
-            self.signals.assert(RngSignalMask::INTERRUPT);
-            Ok(())
         }
+        Ok(())
     }
 
     pub fn process_req(&mut self) -> bool {
@@ -158,15 +156,11 @@ impl VirtioDevice for Rng {
         &mut self.queues.0
     }
 
-    fn queue_signals(&self) -> VirtioQueueSignals {
-        VirtioQueueSignals::new(
+    fn queue_signals(&self) -> Vec<ArcBoundSignalChannel> {
+        vec![BoundSignalChannel::new(
             self.signals.clone(),
-            make_bit_flag_range!([RngSignalMask::REQ_QUEUE]),
-        )
-    }
-
-    fn interrupt_signal(&self) -> BoundSignalChannelRef<'_> {
-        BoundSignalChannelRef::new(&*self.signals, RngSignalMask::INTERRUPT)
+            RngSignalMask::REQ_QUEUE,
+        )]
     }
 
     fn interrupt_status(&self) -> Arc<AtomicUsize> {
