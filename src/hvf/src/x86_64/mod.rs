@@ -41,7 +41,8 @@ use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
 use utils::hypercalls::{
-    HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST,
+    OrbvmFeatures, HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES,
+    ORBVM_IO_REQUEST, ORBVM_MMIO_WRITE32,
 };
 use utils::memory::GuestMemoryExt;
 
@@ -825,17 +826,12 @@ impl HvfVcpu {
                         let call_id = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? as u32;
                         match call_id {
                             ORBVM_FEATURES => {
-                                let device_id = self.read_reg(hv_x86_reg_t_HV_X86_RAX)? as usize;
-                                let value = match device_id {
-                                    // virtiofs
-                                    HVC_DEVICE_VIRTIOFS_ROOT => 0,
-                                    // block
-                                    HVC_DEVICE_BLOCK_START => 0,
-                                    // unknown devices
-                                    _ => 1,
-                                };
+                                // SMCCC default return value = -1, but faulty implementations might leave x0 unchanged or set x0=0
+                                // this makes it unambiguous
+                                let mask = self.read_reg(hv_x86_reg_t_HV_X86_RBX)?;
+                                let supported = OrbvmFeatures::all();
 
-                                self.write_reg(hv_x86_reg_t_HV_X86_RAX, value)?;
+                                self.write_reg(hv_x86_reg_t_HV_X86_RAX, supported.bits() & mask)?;
                                 Ok(VcpuExit::HypervisorCall)
                             }
 
@@ -847,6 +843,15 @@ impl HvfVcpu {
                                     args_addr: arg2,
                                 })
                             }
+
+                            ORBVM_MMIO_WRITE32 => {
+                                let gpa = self.read_reg(hv_x86_reg_t_HV_X86_RBX)?;
+                                let val = self.read_reg(hv_x86_reg_t_HV_X86_RCX)? as u32;
+
+                                self.mmio_buf[0..4].copy_from_slice(&val.to_le_bytes());
+                                Ok(VcpuExit::MmioWrite(gpa, &self.mmio_buf[0..4]))
+                            }
+
                             _ => Ok(VcpuExit::HypervisorCall),
                         }
                     }
