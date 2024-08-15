@@ -293,6 +293,9 @@ impl ProfileeThread {
             .get_unwind_regs()
             .map_err(SampleError::ThreadGetState)?;
 
+        // save cpu info before changing it
+        self.last_cpu_info = Some(info);
+
         // add a synthetic kernel frame if we're in a syscall
         let in_syscall = HostSyscallTransform::is_syscall_pc(regs.pc);
         if in_syscall {
@@ -305,11 +308,9 @@ impl ProfileeThread {
         } else if info.state == ThreadState::Waiting || info.state == ThreadState::Uninterruptible {
             // if we're not in a syscall, it's not possible for us to be in thread_wait or uninterruptible
             // this was a race: thread was waiting when we checked the state, but it returned before we suspended it
+            // must change this *after* saving, so that last_cpu_info check works when transitioning from Waiting -> Running
             info.state = ThreadState::Running;
         }
-
-        // don't save the cpu info until we're done changing it to what we actually sampled
-        self.last_cpu_info = Some(info);
 
         // unwind the stack
         host_unwinder
