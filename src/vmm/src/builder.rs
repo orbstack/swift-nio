@@ -596,7 +596,7 @@ pub fn build_microvm(
     #[cfg(not(feature = "tee"))]
     attach_fs_devices(&mut vmm, &vm_resources.fs, None, intc.clone())?;
     #[cfg(feature = "blk")]
-    attach_block_devices(&mut vmm, &vm_resources.block, intc.clone(), &_shm_region)?;
+    attach_block_devices(&mut vmm, &vm_resources.block, intc.clone())?;
     if let Some(vsock) = vm_resources.vsock.get() {
         attach_unixsock_vsock_device(&mut vmm, vsock, event_manager, intc.clone())?;
         vmm.kernel_cmdline.insert_str("tsi_hijack")?;
@@ -1079,7 +1079,7 @@ fn create_vcpus_aarch64(
         )
         .map_err(Error::Vcpu)?;
 
-        vcpu.configure_aarch64(guest_mem, &vcpu_config)
+        vcpu.configure_aarch64(guest_mem, vcpu_config)
             .map_err(Error::Vcpu)?;
 
         vcpus.push(vcpu);
@@ -1368,7 +1368,6 @@ fn attach_block_devices(
     vmm: &mut Vmm,
     block_devs: &BlockBuilder,
     intc: Option<Arc<Mutex<Gic>>>,
-    shm_region: &VirtioShmRegion,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
@@ -1377,10 +1376,6 @@ fn attach_block_devices(
 
         if let Some(ref intc) = intc {
             block.lock().unwrap().set_intc(intc.clone());
-        }
-
-        if i == 1 {
-            block.lock().unwrap().set_shm_region(shm_region.clone());
         }
 
         // The device mutex mustn't be locked here otherwise it will deadlock.
@@ -1394,11 +1389,12 @@ fn attach_block_devices(
 
         vmm.mmio_device_manager
             .bus
-            .insert_hvc(Arc::new(block.lock().unwrap().create_hvc_device(
-                vmm.guest_memory().clone(),
-                vmm.vm.hvf_vm.clone(),
-                i,
-            )))
+            .insert_hvc(Arc::new(
+                block
+                    .lock()
+                    .unwrap()
+                    .create_hvc_device(vmm.guest_memory().clone(), i),
+            ))
             .unwrap();
     }
 

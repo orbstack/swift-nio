@@ -1,23 +1,19 @@
 use anyhow::anyhow;
 use bitfield::bitfield;
 use bitflags::bitflags;
-use hvf::{HvfVm, MemoryFlags};
 use smallvec::SmallVec;
-use std::collections::HashMap;
 use std::{mem::size_of, sync::Arc};
+use utils::hypercalls::HVC_DEVICE_BLOCK_START;
 use utils::memory::GuestMemoryExt;
-use utils::{hypercalls::HVC_DEVICE_BLOCK_START, Mutex};
 use virtio_bindings::virtio_blk::{
     VIRTIO_BLK_T_DISCARD, VIRTIO_BLK_T_FLUSH, VIRTIO_BLK_T_IN, VIRTIO_BLK_T_OUT,
     VIRTIO_BLK_T_WRITE_ZEROES,
 };
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap};
 
-use crate::virtio::{descriptor_utils::Iovec, HvcDevice, VirtioShmRegion};
+use crate::virtio::{descriptor_utils::Iovec, HvcDevice};
 
 use super::{device::DiskProperties, SECTOR_SIZE};
-
-const ORBVM_BLK_DAX_CHUNK_SIZE: usize = 64 * 1024 * 1024; // 64 MiB
 
 const MAX_SEGS: usize = 256;
 
@@ -102,28 +98,12 @@ impl BlkDesc {
 pub struct BlockHvcDevice {
     mem: GuestMemoryMmap,
     disk: Arc<DiskProperties>,
-    shm_region: Option<VirtioShmRegion>,
-    hvf_vm: Arc<HvfVm>,
     index: usize,
-    mappings: Mutex<HashMap<u64, usize>>,
 }
 
 impl BlockHvcDevice {
-    pub(crate) fn new(
-        mem: GuestMemoryMmap,
-        disk: Arc<DiskProperties>,
-        shm_region: Option<VirtioShmRegion>,
-        hvf_vm: Arc<HvfVm>,
-        index: usize,
-    ) -> Self {
-        BlockHvcDevice {
-            mem,
-            disk,
-            shm_region,
-            hvf_vm,
-            index,
-            mappings: Mutex::new(HashMap::new()),
-        }
+    pub(crate) fn new(mem: GuestMemoryMmap, disk: Arc<DiskProperties>, index: usize) -> Self {
+        BlockHvcDevice { mem, disk, index }
     }
 
     fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<()> {
@@ -178,43 +158,6 @@ impl BlockHvcDevice {
                         .punch_hole(off, desc.len() as u64)
                         .map_err(|e| anyhow!("discard failed: {:?}", e))
                 })?;
-            }
-
-            64 => {
-                let slot_index = hdr.nr_segs as usize;
-                // clamp to end, if full chunk size would exceed it
-                let chunk_size = std::cmp::min(
-                    ORBVM_BLK_DAX_CHUNK_SIZE,
-                    self.disk.size() as usize - hdr.start_off as usize,
-                );
-                let host_addr = self
-                    .disk
-                    .get_host_addr(hdr.start_off as usize, chunk_size)?;
-                let dax_region = self.shm_region.as_ref().unwrap();
-                let guest_addr = dax_region
-                    .guest_addr
-                    .checked_add(slot_index as u64 * ORBVM_BLK_DAX_CHUNK_SIZE as u64)
-                    .unwrap();
-
-                info!(
-                    "block hvc: map dax chunk: host_addr: 0x{:x}, guest_addr: 0x{:x}",
-                    host_addr as u64,
-                    guest_addr.raw_value()
-                );
-                let mut mappings = self.mappings.lock().unwrap();
-                if let Some(old_chunk_size) = mappings.remove(&guest_addr.raw_value()) {
-                    self.hvf_vm.unmap_memory(guest_addr, old_chunk_size)?;
-                }
-                unsafe {
-                    self.hvf_vm.map_memory(
-                        // read-only
-                        host_addr as *mut u8,
-                        guest_addr,
-                        chunk_size,
-                        MemoryFlags::READ,
-                    )?
-                };
-                mappings.insert(guest_addr.raw_value(), chunk_size);
             }
 
             _ => {
