@@ -1,12 +1,12 @@
 use std::{
-    ffi::CString, fs::remove_dir, os::fd::{AsRawFd, FromRawFd, OwnedFd}
+    ffi::CString, fs::remove_dir, io::{IoSlice, IoSliceMut}, os::fd::{AsRawFd, FromRawFd, OwnedFd}
 };
 
 use criterion::{ criterion_group, criterion_main, Criterion};
 use nix::{
     errno::Errno, fcntl::{open, OFlag}, sys::{
         stat::{fstat, lstat, Mode},
-        uio::pwrite,
+        uio::{pread, preadv, pwrite, pwritev},
     }, unistd::{access, linkat, mkdir, unlink, AccessFlags, LinkatFlags}
 };
 
@@ -71,10 +71,63 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("write file", |b| {
+    let mut buf = [0u8; 1024];
+    c.bench_function("pwrite file 1024b", |b| {
         b.iter(|| {
-            let buf = [0u8; 1024];
             pwrite(file.as_raw_fd(), &buf, 0).unwrap();
+        })
+    });
+    c.bench_function("pwritev file 1024b", |b| {
+        b.iter(|| {
+            pwritev(file.as_raw_fd(), &[
+                IoSlice::new(&buf),
+            ], 0).unwrap();
+        })
+    });
+
+    c.bench_function("pread file 1024b", |b| {
+        b.iter(|| {
+            pread(file.as_raw_fd(), &mut buf, 0).unwrap();
+        })
+    });
+    c.bench_function("preadv file 1024b", |b| {
+        b.iter(|| {
+            preadv(file.as_raw_fd(), &mut [
+                IoSliceMut::new(&mut buf),
+            ], 0).unwrap();
+        })
+    });
+
+    let mut large_buf = [0u8; 16384];
+    c.bench_function("pwrite file 16384b", |b| {
+        b.iter(|| {
+            pwrite(file.as_raw_fd(), &large_buf, 0).unwrap();
+        })
+    });
+
+    c.bench_function("pread file 16384b", |b| {
+        b.iter(|| {
+            pread(file.as_raw_fd(), &mut large_buf, 0).unwrap();
+        })
+    });
+
+    c.bench_function("write+F_BARRIERFSYNC file", |b| {
+        b.iter(|| {
+            pwrite(file.as_raw_fd(), &buf, 0).unwrap();
+            let ret = unsafe {
+                libc::fcntl(file.as_raw_fd(), libc::F_BARRIERFSYNC, 0)
+            };
+            assert_eq!(ret, 0);
+        })
+    });
+
+    c.bench_function("write+F_FULLFSYNC file", |b| {
+        b.iter(|| {
+            pwrite(file.as_raw_fd(), &buf, 0).unwrap();
+            let ret = unsafe {
+                libc::fcntl(file.as_raw_fd(), libc::F_FULLFSYNC, 0)
+            };
+            assert_eq!(ret, 0);
         })
     });
 
