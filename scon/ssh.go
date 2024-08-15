@@ -583,6 +583,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 	// forward signals
 	fwdSigChan := make(chan ssh.Signal, 1)
+	defer close(fwdSigChan)
 	s.Signals(fwdSigChan)
 	go func() {
 		for sshSig := range fwdSigChan {
@@ -594,7 +595,11 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 			err := cmd.Process.Signal(sig)
 			if err != nil {
-				logrus.Error("SSH signal forward failed: ", err)
+				if errors.Is(err, os.ErrProcessDone) {
+					return
+				} else {
+					logrus.Error("SSH signal forward failed: ", err)
+				}
 			}
 		}
 	}()
