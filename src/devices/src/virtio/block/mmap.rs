@@ -123,10 +123,10 @@ impl RangeRegistry {
         }
 
         // save old handler first to prevent race
-        if MMAP_RANGES.old_action.get().is_some() {
-            return Err(anyhow!("old action already set"));
-        }
-        MMAP_RANGES.old_action.get_or_init(|| old_action);
+        MMAP_RANGES
+            .old_action
+            .set(old_action)
+            .map_err(|_| anyhow!("old handler already set"))?;
 
         // install new signal handler
         let new_action = sigaction {
