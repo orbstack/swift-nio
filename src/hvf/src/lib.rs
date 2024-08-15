@@ -279,14 +279,17 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     std::mem::forget(map_guard);
 
     // spawn thread to periodically remap and fix double accounting
-    std::thread::spawn(move || loop {
-        sleep(MEMORY_REMAP_INTERVAL);
+    std::thread::Builder::new()
+        // vague user-facing name
+        .name("VMA".to_string())
+        .spawn(move || loop {
+            sleep(MEMORY_REMAP_INTERVAL);
 
-        // TODO: stop this
-        if let Err(e) = unsafe { remap_region(host_addr as *mut c_void, size as usize) } {
-            error!("remap failed: {:?}", e);
-        }
-    });
+            // TODO: stop this
+            if let Err(e) = unsafe { remap_region(host_addr as *mut c_void, size as usize) } {
+                error!("remap failed: {:?}", e);
+            }
+        })?;
 
     Ok(host_addr as *mut c_void)
 }

@@ -94,7 +94,10 @@ impl BlockWorker {
     }
 
     pub fn run(self) -> thread::JoinHandle<()> {
-        thread::spawn(|| self.work())
+        thread::Builder::new()
+            .name(format!("block worker {}", self.target_vcpu))
+            .spawn(|| self.work())
+            .unwrap()
     }
 
     fn work(mut self) {
