@@ -504,10 +504,10 @@ impl HvfVcpu {
                                 _ => panic!("unsupported mmio len={len}"),
                             };
 
-                            COUNT_EXIT_MMIO_READ.count();
+                            COUNT_EXIT_MMIO_WRITE.count();
                             VcpuExit::MmioWrite(pa, &self.mmio_buf[0..len])
                         } else {
-                            COUNT_EXIT_MMIO_WRITE.count();
+                            COUNT_EXIT_MMIO_READ.count();
                             self.pending_mmio_read = Some(MmioRead { addr: pa, srt, len });
                             VcpuExit::MmioRead(pa, &mut self.mmio_buf[0..len])
                         }
