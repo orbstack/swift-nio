@@ -21,9 +21,9 @@ use tracing::{debug, error};
 use counter::RateCounter;
 
 use utils::hypercalls::{
-    HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES, ORBVM_IO_REQUEST,
-    ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON,
-    PSCI_MIGRATE_TYPE, PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
+    OrbvmFeatures, ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_PVGIC_SET_STATE, ORBVM_PVLOCK_KICK,
+    ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE, PSCI_POWER_OFF,
+    PSCI_RESET, PSCI_VERSION,
 };
 
 use crate::aarch64::bindings::{
@@ -579,18 +579,11 @@ impl HvfVcpu {
             }
 
             ORBVM_FEATURES => {
-                let device_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
-                let value = match device_id {
-                    // virtiofs
-                    HVC_DEVICE_VIRTIOFS_ROOT => 0,
-                    // block
-                    HVC_DEVICE_BLOCK_START => 0,
-                    // unknown devices
-                    _ => 1,
-                };
-
-                self.write_raw_reg(hv_reg_t_HV_REG_X0, value)?;
-                return Ok(VcpuExit::HypervisorCall);
+                // SMCCC default return value = -1, but faulty implementations might leave x0 unchanged or set x0=0
+                // this makes it unambiguous
+                let mask = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                let supported = OrbvmFeatures::all();
+                Some(supported.bits() & mask)
             }
 
             ORBVM_IO_REQUEST => {
