@@ -8,7 +8,8 @@ use std::{mem::size_of, sync::Arc};
 use utils::memory::GuestMemoryExt;
 use utils::{hypercalls::HVC_DEVICE_BLOCK_START, Mutex};
 use virtio_bindings::virtio_blk::{
-    VIRTIO_BLK_T_DISCARD, VIRTIO_BLK_T_IN, VIRTIO_BLK_T_OUT, VIRTIO_BLK_T_WRITE_ZEROES,
+    VIRTIO_BLK_T_DISCARD, VIRTIO_BLK_T_FLUSH, VIRTIO_BLK_T_IN, VIRTIO_BLK_T_OUT,
+    VIRTIO_BLK_T_WRITE_ZEROES,
 };
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap};
 
@@ -41,31 +42,42 @@ struct OrbvmBlkReqHeader {
 unsafe impl ByteValued for OrbvmBlkReqHeader {}
 
 impl OrbvmBlkReqHeader {
-    fn for_each_iovec(
+    fn for_each_desc(
         &self,
         args_addr: GuestAddress,
         mem: &GuestMemoryMmap,
-        mut f: impl FnMut(usize, Iovec<'static>) -> anyhow::Result<()>,
+        mut f: impl FnMut(&BlkDesc) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         if self.nr_segs as usize > MAX_SEGS {
             return Err(anyhow!("too many segments"));
         }
-
-        let mut off = self.start_off as usize;
 
         // read segs
         let descs_addr = args_addr.unchecked_add(size_of::<OrbvmBlkReqHeader>() as u64);
         let descs: &[BlkDesc] = unsafe { mem.get_obj_slice(descs_addr, self.nr_segs as usize)? };
 
         for desc in descs {
+            f(desc)?;
+        }
+
+        Ok(())
+    }
+
+    fn for_each_iovec(
+        &self,
+        args_addr: GuestAddress,
+        mem: &GuestMemoryMmap,
+        mut f: impl FnMut(usize, Iovec<'static>) -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
+        let mut off = self.start_off as usize;
+        self.for_each_desc(args_addr, mem, |desc| {
             let len = desc.len();
             let vs = mem.get_slice(GuestAddress(desc.phys_addr()), len)?;
             let iov = Iovec::from_static(vs);
             f(off, iov)?;
             off += len;
-        }
-
-        Ok(())
+            Ok(())
+        })
     }
 }
 
@@ -153,10 +165,19 @@ impl BlockHvcDevice {
                 }
             }
 
-            VIRTIO_BLK_T_DISCARD | VIRTIO_BLK_T_WRITE_ZEROES => {
+            VIRTIO_BLK_T_FLUSH => {
                 self.disk
-                    .punch_hole(hdr.start_off, hdr.discard_len)
-                    .map_err(|e| anyhow!("discard failed: {:?}", e))?;
+                    .flush()
+                    .map_err(|e| anyhow!("flush failed: {:?}", e))?;
+            }
+
+            VIRTIO_BLK_T_DISCARD | VIRTIO_BLK_T_WRITE_ZEROES => {
+                hdr.for_each_desc(args_addr, &self.mem, |desc| {
+                    let off = desc.phys_addr() * SECTOR_SIZE;
+                    self.disk
+                        .punch_hole(off, desc.len() as u64)
+                        .map_err(|e| anyhow!("discard failed: {:?}", e))
+                })?;
             }
 
             64 => {
