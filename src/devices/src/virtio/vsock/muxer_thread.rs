@@ -1,12 +1,10 @@
 use std::os::unix::io::RawFd;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 use utils::Mutex;
 
 use super::super::super::legacy::Gic;
 use super::super::Queue as VirtQueue;
-use super::super::VIRTIO_MMIO_INT_VRING;
 use super::muxer::{push_packet, MuxerRx, ProxyMap};
 use super::muxer_rxq::MuxerRxQ;
 use super::proxy::{ProxyRemoval, ProxyUpdate};
@@ -26,7 +24,6 @@ pub struct MuxerThread {
     mem: GuestMemoryMmap,
     queue: Arc<Mutex<VirtQueue>>,
     interrupt_evt: EventFd,
-    interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
     reaper_sender: Sender<u64>,
@@ -42,7 +39,6 @@ impl MuxerThread {
         mem: GuestMemoryMmap,
         queue: Arc<Mutex<VirtQueue>>,
         interrupt_evt: EventFd,
-        interrupt_status: Arc<AtomicUsize>,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
         reaper_sender: Sender<u64>,
@@ -55,7 +51,6 @@ impl MuxerThread {
             mem,
             queue,
             interrupt_evt,
-            interrupt_status,
             intc,
             irq_line,
             reaper_sender,
@@ -138,8 +133,6 @@ impl MuxerThread {
 
         if should_signal {
             debug!("signal IRQ");
-            self.interrupt_status
-                .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
             if let Some(intc) = &self.intc {
                 intc.lock().unwrap().set_irq(self.irq_line.unwrap());
             } else if let Err(e) = self.interrupt_evt.write() {

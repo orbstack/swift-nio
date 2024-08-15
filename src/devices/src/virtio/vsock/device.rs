@@ -5,11 +5,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
-use gruel::{ArcBoundSignalChannel, BoundSignalChannelRef};
+use gruel::ArcBoundSignalChannel;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::result;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use utils::Mutex;
 
@@ -20,7 +19,6 @@ use vm_memory::GuestMemoryMmap;
 use super::super::super::Error as DeviceError;
 use super::super::{
     ActivateError, ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice, VsockError,
-    VIRTIO_MMIO_INT_VRING,
 };
 use super::muxer::VsockMuxer;
 use super::packet::VsockPacket;
@@ -48,7 +46,6 @@ pub struct Vsock {
     pub(crate) queue_events: Vec<EventFd>,
     pub(crate) avail_features: u64,
     pub(crate) acked_features: u64,
-    pub(crate) interrupt_status: Arc<AtomicUsize>,
     pub(crate) interrupt_evt: EventFd,
     pub(crate) activate_evt: EventFd,
     pub(crate) device_state: DeviceState,
@@ -74,7 +71,6 @@ impl Vsock {
 
         let interrupt_evt =
             EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(VsockError::EventFd)?;
-        let interrupt_status = Arc::new(AtomicUsize::new(0));
 
         Ok(Vsock {
             cid,
@@ -82,7 +78,6 @@ impl Vsock {
                 cid,
                 host_port_map,
                 interrupt_evt.try_clone().unwrap(),
-                interrupt_status.clone(),
                 unix_ipc_port_map,
             ),
             queue_rx,
@@ -91,7 +86,6 @@ impl Vsock {
             queue_events,
             avail_features: AVAIL_FEATURES,
             acked_features: 0,
-            interrupt_status,
             interrupt_evt,
             activate_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK)
                 .map_err(VsockError::EventFd)?,
@@ -130,8 +124,6 @@ impl Vsock {
     /// available.
     pub fn signal_used_queue(&self) -> result::Result<(), DeviceError> {
         debug!("vsock: raising IRQ");
-        self.interrupt_status
-            .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
             Ok(())
@@ -264,10 +256,6 @@ impl VirtioDevice for Vsock {
 
     fn queue_signals(&self) -> Vec<ArcBoundSignalChannel> {
         todo!(); // TODO: Gruel port
-    }
-
-    fn interrupt_status(&self) -> Arc<AtomicUsize> {
-        self.interrupt_status.clone()
     }
 
     fn set_irq_line(&mut self, irq: u32) {

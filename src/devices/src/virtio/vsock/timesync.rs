@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time;
@@ -6,7 +5,6 @@ use utils::Mutex;
 
 use super::super::super::legacy::Gic;
 use super::super::Queue as VirtQueue;
-use super::super::VIRTIO_MMIO_INT_VRING;
 use super::defs::uapi;
 use super::packet::VsockPacket;
 
@@ -22,7 +20,6 @@ pub struct TimesyncThread {
     mem: GuestMemoryMmap,
     queue_mutex: Arc<Mutex<VirtQueue>>,
     interrupt_evt: EventFd,
-    interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
 }
@@ -33,7 +30,6 @@ impl TimesyncThread {
         mem: GuestMemoryMmap,
         queue_mutex: Arc<Mutex<VirtQueue>>,
         interrupt_evt: EventFd,
-        interrupt_status: Arc<AtomicUsize>,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
     ) -> Self {
@@ -42,7 +38,6 @@ impl TimesyncThread {
             mem,
             queue_mutex,
             interrupt_evt,
-            interrupt_status,
             intc,
             irq_line,
         }
@@ -66,8 +61,6 @@ impl TimesyncThread {
                 {
                     error!("failed to add used elements to the queue: {:?}", e);
                 }
-                self.interrupt_status
-                    .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
                 if let Some(intc) = &self.intc {
                     intc.lock().unwrap().set_irq(self.irq_line.unwrap());
                 } else if let Err(e) = self.interrupt_evt.write() {

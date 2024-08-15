@@ -362,10 +362,6 @@ mod tests {
             &self.interrupt_evt
         }
 
-        fn interrupt_status(&self) -> Arc<AtomicUsize> {
-            Arc::new(AtomicUsize::new(0))
-        }
-
         fn ack_features_by_page(&mut self, page: u32, value: u32) {
             let _ = page;
             let _ = value;

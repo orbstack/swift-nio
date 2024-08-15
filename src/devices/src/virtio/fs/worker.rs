@@ -1,5 +1,4 @@
 use gruel::ParkSignalChannelExt;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 use utils::qos::{set_thread_qos, QosClass};
@@ -7,7 +6,7 @@ use utils::Mutex;
 
 use vm_memory::GuestMemoryMmap;
 
-use super::super::{FsError, Queue, VIRTIO_MMIO_INT_VRING};
+use super::super::{FsError, Queue};
 use super::defs::{HPQ_INDEX, REQ_INDEX};
 use super::descriptor_utils::{Reader, Writer};
 use super::device::{FsSignalChannel, FsSignalMask};
@@ -18,7 +17,6 @@ use crate::legacy::Gic;
 pub struct FsWorker {
     signals: Arc<FsSignalChannel>,
     queues: Vec<Queue>,
-    interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
 
@@ -31,7 +29,6 @@ impl FsWorker {
     pub fn new(
         signals: Arc<FsSignalChannel>,
         queues: Vec<Queue>,
-        interrupt_status: Arc<AtomicUsize>,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
         mem: GuestMemoryMmap,
@@ -40,7 +37,6 @@ impl FsWorker {
         Self {
             signals,
             queues,
-            interrupt_status,
             intc,
             irq_line,
 
@@ -124,8 +120,6 @@ impl FsWorker {
             }
 
             if queue.needs_notification(&self.mem).unwrap() {
-                self.interrupt_status
-                    .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
                 if let Some(intc) = &self.intc {
                     intc.lock().unwrap().set_irq(self.irq_line.unwrap());
                 }

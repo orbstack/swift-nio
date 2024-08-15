@@ -75,7 +75,6 @@ impl Gpu {
             queue_events,
             avail_features: AVAIL_FEATURES,
             acked_features: 0,
-            interrupt_status: Arc::new(AtomicUsize::new(0)),
             interrupt_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(GpuError::EventFd)?,
             activate_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(GpuError::EventFd)?,
             device_state: DeviceState::Inactive,

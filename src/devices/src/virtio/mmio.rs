@@ -7,7 +7,6 @@
 
 use counter::RateCounter;
 use gruel::ArcBoundSignalChannel;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use utils::{Mutex, MutexGuard};
 
@@ -66,7 +65,6 @@ struct MmioTransportLocked {
     pub(crate) device_status: u32,
     pub(crate) config_generation: u32,
     mem: GuestMemoryMmap,
-    pub(crate) interrupt_status: Arc<AtomicUsize>,
     shm_region_select: u32,
 }
 
@@ -74,7 +72,6 @@ impl MmioTransport {
     /// Constructs a new MMIO transport for the given virtio device.
     pub fn new(mem: GuestMemoryMmap, device: Arc<Mutex<dyn VirtioDevice>>) -> Self {
         let locked_device = device.lock().unwrap();
-        let interrupt_status = locked_device.interrupt_status();
         let sync_events = locked_device.sync_events();
         drop(locked_device);
 
@@ -89,7 +86,6 @@ impl MmioTransport {
                 device_status: device_status::INIT,
                 config_generation: 0,
                 mem,
-                interrupt_status,
                 shm_region_select: 0,
             }),
         }))
@@ -166,7 +162,6 @@ impl MmioTransportLocked {
         self.features_select = 0;
         self.acked_features_select = 0;
         self.queue_select = 0;
-        self.interrupt_status.store(0, Ordering::SeqCst);
         self.device_status = device_status::INIT;
 
         // . Keep interrupt_evt and queue_evts as is. There may be pending
@@ -258,7 +253,8 @@ impl LocklessBusDevice for MmioTransport {
                         .locked_state()
                         .with_queue(self, 0, |q| u32::from(q.get_max_size())),
                     0x44 => self.locked_state().with_queue(self, 0, |q| q.ready as u32),
-                    0x60 => self.locked_state().interrupt_status.load(Ordering::SeqCst) as u32,
+                    // we don't support config change interrupts, and we have no spurious interrupts, so this is always VRING
+                    0x60 => VIRTIO_MMIO_INT_VRING,
                     0x70 => self.locked_state().device_status,
                     0xfc => self.locked_state().config_generation,
                     0xb0..=0xbc => {
@@ -353,14 +349,8 @@ impl LocklessBusDevice for MmioTransport {
                             signal.assert();
                         }
                     }
-                    0x64 => {
-                        let state = self.locked_state();
-                        if state.check_device_status(device_status::DRIVER_OK, 0) {
-                            state
-                                .interrupt_status
-                                .fetch_and(!(v as usize), Ordering::SeqCst);
-                        }
-                    }
+                    // no-op: we don't keep track of interrupt status
+                    0x64 => {}
                     0x70 => self.locked_state().set_device_status(self, v),
                     0x80 => self
                         .locked_state()
@@ -423,7 +413,6 @@ pub(crate) mod tests {
         acked_features: u64,
         avail_features: u64,
         interrupt_evt: EventFd,
-        interrupt_status: Arc<AtomicUsize>,
         queue_evts: Vec<EventFd>,
         queues: Vec<Queue>,
         device_activated: bool,
@@ -436,7 +425,6 @@ pub(crate) mod tests {
                 acked_features: 0,
                 avail_features: 0,
                 interrupt_evt: EventFd::new(utils::eventfd::EFD_NONBLOCK).unwrap(),
-                interrupt_status: Arc::new(AtomicUsize::new(0)),
                 queue_evts: vec![
                     EventFd::new(utils::eventfd::EFD_NONBLOCK).unwrap(),
                     EventFd::new(utils::eventfd::EFD_NONBLOCK).unwrap(),
@@ -494,10 +482,6 @@ pub(crate) mod tests {
 
         fn queue_signals(&self) -> VirtioQueueSignals {
             todo!();
-        }
-
-        fn interrupt_status(&self) -> Arc<AtomicUsize> {
-            self.interrupt_status.clone()
         }
 
         fn set_irq_line(&mut self, _irq: u32) {}
@@ -589,7 +573,6 @@ pub(crate) mod tests {
         d.read(0, 0x44, &mut buf[..]);
         assert_eq!(read_le_u32(&buf[..]), false as u32);
 
-        d.interrupt_status.store(111, Ordering::SeqCst);
         d.read(0, 0x60, &mut buf[..]);
         assert_eq!(read_le_u32(&buf[..]), 111);
 
@@ -744,10 +727,8 @@ pub(crate) mod tests {
                 | device_status::DRIVER_OK,
         );
 
-        d.interrupt_status.store(0b10_1010, Ordering::Relaxed);
         write_le_u32(&mut buf[..], 0b111);
         d.write(0, 0x64, &buf[..]);
-        assert_eq!(d.interrupt_status.load(Ordering::Relaxed), 0b10_1000);
 
         // Write to an invalid address in generic register range.
         write_le_u32(&mut buf[..], 0xf);

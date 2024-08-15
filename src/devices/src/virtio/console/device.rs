@@ -7,7 +7,6 @@ use std::cmp;
 use std::io::Write;
 use std::iter::zip;
 use std::mem::{size_of, size_of_val};
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use utils::memory::GuestMemoryExt;
 use utils::Mutex;
@@ -342,10 +341,6 @@ impl VirtioDevice for Console {
             BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::CONTROL_RXQ),
             BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::CONTROL_TXQ),
         ]
-    }
-
-    fn interrupt_status(&self) -> Arc<AtomicUsize> {
-        self.irq.interrupt_status()
     }
 
     fn set_irq_line(&mut self, irq: u32) {

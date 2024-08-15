@@ -5,10 +5,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
-use std::{
-    any::type_name,
-    sync::{atomic::AtomicUsize, Arc},
-};
+use std::any::type_name;
 
 use super::{ActivateResult, Queue};
 use gruel::ArcBoundSignalChannel;
@@ -32,7 +29,7 @@ pub struct VirtioShmRegion {
 ///
 /// The lifecycle of a virtio device is to be moved to a virtio transport, which will then query the
 /// device. The virtio devices needs to create queues, events and event fds for interrupts and expose
-/// them to the transport via get_queues/get_queue_events/get_interrupt/get_interrupt_status fns.
+/// them to the transport via get_queues/get_queue_events/get_interrupt fns.
 pub trait VirtioDevice: Send {
     /// Get the available features offered by device.
     fn avail_features(&self) -> u64;
@@ -56,9 +53,6 @@ pub trait VirtioDevice: Send {
 
     /// Returns the device queues event fds.
     fn queue_signals(&self) -> Vec<ArcBoundSignalChannel>;
-
-    /// Returns the current device interrupt status.
-    fn interrupt_status(&self) -> Arc<AtomicUsize>;
 
     /// Sets the irq line assigned to this device
     fn set_irq_line(&mut self, irq: u32);

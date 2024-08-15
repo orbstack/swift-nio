@@ -9,7 +9,6 @@ use std::cell::RefCell;
 use std::cmp;
 use std::io::Write;
 use std::mem::size_of;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::Instant;
@@ -18,9 +17,7 @@ use utils::Mutex;
 
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
 
-use super::super::{
-    ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice, VIRTIO_MMIO_INT_VRING,
-};
+use super::super::{ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
 use crate::virtio::{DescriptorChain, HvcDevice, VmmExitObserver};
@@ -138,7 +135,6 @@ pub struct Balloon {
     pub(crate) queues: NumEnumMap<BalloonQueues, VirtQueue>,
     pub(crate) avail_features: u64,
     pub(crate) acked_features: u64,
-    pub(crate) interrupt_status: Arc<AtomicUsize>,
     pub(crate) device_state: DeviceState,
     worker: Option<thread::JoinHandle<()>>,
     config: VirtioBalloonConfig,
@@ -163,7 +159,6 @@ impl Balloon {
                 queues: NumEnumMap::from_iter(queues),
                 avail_features: AVAIL_FEATURES,
                 acked_features: 0,
-                interrupt_status: Arc::new(AtomicUsize::new(0)),
                 device_state: DeviceState::Inactive,
                 worker: None,
                 config,
@@ -206,9 +201,6 @@ impl Balloon {
 
     pub fn signal_used_queue(&self) {
         debug!("raising IRQ");
-
-        self.interrupt_status
-            .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
 
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
@@ -476,10 +468,6 @@ impl VirtioDevice for Balloon {
             BoundSignalChannel::new(self.signal.clone(), BalloonSignalMask::PHQ),
             BoundSignalChannel::new(self.signal.clone(), BalloonSignalMask::FRQ),
         ]
-    }
-
-    fn interrupt_status(&self) -> Arc<AtomicUsize> {
-        self.interrupt_status.clone()
     }
 
     fn set_irq_line(&mut self, irq: u32) {

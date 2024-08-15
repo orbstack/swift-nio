@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 use std::os::unix::io::RawFd;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use utils::Mutex;
 
 use super::super::super::legacy::Gic;
 use super::super::Queue as VirtQueue;
-use super::super::VIRTIO_MMIO_INT_VRING;
 use super::defs;
 use super::defs::uapi;
 use super::muxer_rxq::{rx_to_pkt, MuxerRxQ};
@@ -107,7 +105,6 @@ pub struct VsockMuxer {
     rxq: Arc<Mutex<MuxerRxQ>>,
     epoll: Epoll,
     interrupt_evt: EventFd,
-    interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
     proxy_map: ProxyMap,
@@ -120,7 +117,6 @@ impl VsockMuxer {
         cid: u64,
         host_port_map: Option<HashMap<u16, u16>>,
         interrupt_evt: EventFd,
-        interrupt_status: Arc<AtomicUsize>,
         unix_ipc_port_map: Option<HashMap<u32, PathBuf>>,
     ) -> Self {
         VsockMuxer {
@@ -131,7 +127,6 @@ impl VsockMuxer {
             rxq: Arc::new(Mutex::new(MuxerRxQ::new())),
             epoll: Epoll::new().unwrap(),
             interrupt_evt,
-            interrupt_status,
             intc: None,
             irq_line: None,
             proxy_map: Arc::new(RwLock::new(HashMap::new())),
@@ -159,7 +154,6 @@ impl VsockMuxer {
                 mem.clone(),
                 queue.clone(),
                 self.interrupt_evt.try_clone().unwrap(),
-                self.interrupt_status.clone(),
                 intc.clone(),
                 irq_line,
             );
@@ -176,7 +170,6 @@ impl VsockMuxer {
             mem,
             queue,
             self.interrupt_evt.try_clone().unwrap(),
-            self.interrupt_status.clone(),
             intc,
             irq_line,
             sender.clone(),
@@ -239,8 +232,6 @@ impl VsockMuxer {
         }
 
         if update.signal_queue {
-            self.interrupt_status
-                .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
             if let Some(intc) = &self.intc {
                 intc.lock().unwrap().set_irq(self.irq_line.unwrap());
             } else if let Err(e) = self.interrupt_evt.write() {

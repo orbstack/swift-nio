@@ -1,7 +1,7 @@
 use crate::legacy::Gic;
 use crate::virtio::descriptor_utils::Iovec;
 use crate::virtio::net::{QUEUE_SIZE, RX_INDEX, TX_INDEX};
-use crate::virtio::{Queue, VIRTIO_MMIO_INT_VRING};
+use crate::virtio::Queue;
 use crate::Error as DeviceError;
 
 use super::backend::{NetBackend, ReadError, WriteError};
@@ -10,8 +10,6 @@ use super::device::{
 };
 use super::dgram::Dgram;
 
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{mem, result};
@@ -29,7 +27,6 @@ fn vnet_hdr_len() -> usize {
 pub struct NetWorker {
     signals: Arc<NetSignalChannel>,
     queues: Vec<Queue>,
-    interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
 
@@ -45,7 +42,6 @@ impl NetWorker {
     pub fn new(
         signals: Arc<NetSignalChannel>,
         queues: Vec<Queue>,
-        interrupt_status: Arc<AtomicUsize>,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
         mem: GuestMemoryMmap,
@@ -61,7 +57,6 @@ impl NetWorker {
         Self {
             signals,
             queues,
-            interrupt_status,
             intc,
             irq_line,
 
@@ -295,8 +290,6 @@ impl NetWorker {
     }
 
     fn signal_used_queue(&mut self) -> result::Result<(), DeviceError> {
-        self.interrupt_status
-            .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
         }

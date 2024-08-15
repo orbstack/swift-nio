@@ -1,11 +1,9 @@
 use bitflags::bitflags;
 use gruel::{
-    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, BoundSignalChannelRef, ParkWaker,
-    SignalChannel,
+    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, ParkWaker, SignalChannel,
 };
 use std::cmp;
 use std::io::Write;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use utils::Mutex;
@@ -65,7 +63,6 @@ pub struct Fs {
     signals: Arc<FsSignalChannel>,
     avail_features: u64,
     acked_features: u64,
-    interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
     device_state: DeviceState,
@@ -103,7 +100,6 @@ impl Fs {
             signals: Arc::new(SignalChannel::new(FsWakers::default())),
             avail_features,
             acked_features: 0,
-            interrupt_status: Arc::new(AtomicUsize::new(0)),
             intc: None,
             irq_line: None,
             device_state: DeviceState::Inactive,
@@ -178,10 +174,6 @@ impl VirtioDevice for Fs {
         ]
     }
 
-    fn interrupt_status(&self) -> Arc<AtomicUsize> {
-        self.interrupt_status.clone()
-    }
-
     fn set_irq_line(&mut self, irq: u32) {
         self.irq_line = Some(irq);
     }
@@ -220,7 +212,6 @@ impl VirtioDevice for Fs {
         let worker = FsWorker::new(
             self.signals.clone(),
             self.queues.clone(),
-            self.interrupt_status.clone(),
             self.intc.clone(),
             self.irq_line,
             mem.clone(),

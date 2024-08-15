@@ -5,16 +5,13 @@ use gruel::{
 };
 use newt::{define_num_enum, NumEnumMap};
 use std::result;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use utils::Mutex;
 
 use rand::{rngs::OsRng, RngCore};
 use vm_memory::{Bytes, GuestMemoryMmap};
 
-use super::super::{
-    ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice, VIRTIO_MMIO_INT_VRING,
-};
+use super::super::{ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
 use crate::Error as DeviceError;
@@ -51,7 +48,6 @@ pub struct Rng {
     pub(crate) signals: Arc<SignalChannel<RngSignalMask, RngWakers>>,
     pub(crate) avail_features: u64,
     pub(crate) acked_features: u64,
-    pub(crate) interrupt_status: Arc<AtomicUsize>,
     pub(crate) device_state: DeviceState,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
@@ -64,7 +60,6 @@ impl Rng {
             signals: Arc::new(SignalChannel::new(RngWakers::default())),
             avail_features: AVAIL_FEATURES,
             acked_features: 0,
-            interrupt_status: Arc::new(AtomicUsize::new(0)),
             device_state: DeviceState::Inactive,
             intc: None,
             irq_line: None,
@@ -89,8 +84,6 @@ impl Rng {
 
     pub fn signal_used_queue(&self) -> result::Result<(), DeviceError> {
         debug!("rng: raising IRQ");
-        self.interrupt_status
-            .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
         }
@@ -161,10 +154,6 @@ impl VirtioDevice for Rng {
             self.signals.clone(),
             RngSignalMask::REQ_QUEUE,
         )]
-    }
-
-    fn interrupt_status(&self) -> Arc<AtomicUsize> {
-        self.interrupt_status.clone()
     }
 
     fn set_irq_line(&mut self, irq: u32) {

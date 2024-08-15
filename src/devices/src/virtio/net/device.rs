@@ -21,7 +21,6 @@ use gruel::{
 use std::cmp;
 use std::io::Write;
 use std::os::fd::OwnedFd;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use utils::eventfd::{EventFd, EFD_NONBLOCK};
@@ -103,8 +102,6 @@ pub struct Net {
     queues: Vec<Queue>,
     signals: Arc<NetSignalChannel>,
 
-    interrupt_status: Arc<AtomicUsize>,
-
     pub(crate) device_state: DeviceState,
 
     intc: Option<Arc<Mutex<Gic>>>,
@@ -152,8 +149,6 @@ impl Net {
 
             queues,
             signals: Arc::new(SignalChannel::new(NetWakers::default())),
-
-            interrupt_status: Arc::new(AtomicUsize::new(0)),
 
             device_state: DeviceState::Inactive,
 
@@ -207,10 +202,6 @@ impl VirtioDevice for Net {
         ]
     }
 
-    fn interrupt_status(&self) -> Arc<AtomicUsize> {
-        self.interrupt_status.clone()
-    }
-
     fn set_irq_line(&mut self, irq: u32) {
         self.irq_line = Some(irq);
     }
@@ -245,7 +236,6 @@ impl VirtioDevice for Net {
         let worker = NetWorker::new(
             self.signals.clone(),
             self.queues.clone(),
-            self.interrupt_status.clone(),
             self.intc.clone(),
             self.irq_line,
             mem.clone(),

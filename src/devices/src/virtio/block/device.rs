@@ -23,7 +23,7 @@ use std::os::linux::fs::MetadataExt;
 use std::os::macos::fs::MetadataExt;
 use std::path::PathBuf;
 use std::result;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -347,7 +347,6 @@ pub struct Block {
     // Transport related fields.
     pub(crate) queues: Box<[Queue]>,
     pub(crate) signals: Box<[Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>]>,
-    pub(crate) interrupt_status: Arc<AtomicUsize>,
     pub(crate) device_state: DeviceState,
 
     // Implementation specific fields.
@@ -426,7 +425,6 @@ impl Block {
             disk: Arc::new(disk_properties),
             avail_features,
             acked_features: 0u64,
-            interrupt_status: Arc::new(AtomicUsize::new(0)),
             queues,
             signals: (0..queue_count)
                 .map(|_| Arc::new(SignalChannel::new(BlockDevWakers::default())))
@@ -502,11 +500,6 @@ impl VirtioDevice for Block {
             .collect()
     }
 
-    /// Returns the current device interrupt status.
-    fn interrupt_status(&self) -> Arc<AtomicUsize> {
-        self.interrupt_status.clone()
-    }
-
     fn set_irq_line(&mut self, irq: u32) {
         self.irq_line = Some(BlockIrqMode::Single(irq));
     }
@@ -569,7 +562,6 @@ impl VirtioDevice for Block {
             workers.push(BlockWorker::new(
                 queue.clone(),
                 signal.clone(),
-                self.interrupt_status.clone(),
                 self.intc.clone(),
                 match irq_line {
                     BlockIrqMode::Single(single) => single,

@@ -1,7 +1,7 @@
 use crate::legacy::Gic;
 use crate::virtio::descriptor_utils::{Reader, Writer};
 
-use super::super::{Queue, VIRTIO_MMIO_INT_VRING};
+use super::super::Queue;
 use super::device::{BlockDevSignalMask, BlockDevWakers, DiskProperties};
 use super::SECTOR_SIZE;
 
@@ -10,7 +10,6 @@ use nix::errno::Errno;
 use std::io::{self, Write};
 use std::mem::size_of;
 use std::result;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 use utils::Mutex;
@@ -50,7 +49,6 @@ unsafe impl ByteValued for RequestHeader {}
 pub struct BlockWorker {
     queue: Queue,
     signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
-    interrupt_status: Arc<AtomicUsize>,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: u32,
     target_vcpu: u64,
@@ -73,7 +71,6 @@ impl BlockWorker {
     pub fn new(
         queue: Queue,
         signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
-        interrupt_status: Arc<AtomicUsize>,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: u32,
         target_vcpu: u64,
@@ -83,7 +80,6 @@ impl BlockWorker {
         Self {
             queue,
             signals,
-            interrupt_status,
             intc,
             irq_line,
             target_vcpu,
@@ -261,8 +257,6 @@ impl BlockWorker {
     }
 
     fn signal_used_queue(&self) {
-        self.interrupt_status
-            .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
             intc.lock()
                 .unwrap()
