@@ -129,13 +129,7 @@ static void send_notify(__u8 dirty_flags) {
 static bool cancel_udp_notify(struct fwd_meta *meta, void *ctx) {
     if (meta->udp_notify_pending) {
         __u64 cookie = bpf_get_socket_cookie(ctx);
-        // workaround for kernel bug: cancel timer first, then delete, to avoid deadlock
-        // between timer_cb deleting self from map, and another thread deleting timer from map and waiting for cancel
-        struct udp_meta *udp = bpf_map_lookup_elem(&udp_meta_map, &cookie);
-        if (udp != NULL) {
-            // WA for deadlock: cancel while not under map lock
-            bpf_timer_cancel(&udp->notify_timer);
-        }
+        // in kernel <6.10, this could deadlock if we don't lookup and call bpf_timer_cancel first
         bpf_map_delete_elem(&udp_meta_map, &cookie);
         meta->udp_notify_pending = false;
         return true; // canceled
