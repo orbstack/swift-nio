@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Sergio Lopez <slp@sinrega.org>"]
 edition = "2021"
 
+[features]
+profiler-framehop = ["dep:framehop"]
+profiler-wholesym = ["dep:wholesym"]
+
 [dependencies]
 crossbeam-channel = "0.5"
 iced-x86 = "1.21.0"
@@ -29,9 +33,9 @@ mach2 = "0.4.2"
 scopeguard = "1.2.0"
 utils = { path = "../utils" }
 serde = { version = "1.0.204", features = ["derive"] }
-framehop = "0.13.0"
-wholesym = "0.7.0"
-tokio = { version = "1.39.2", features = ["rt"] }
+framehop = { version = "0.13.0", optional = true }
+wholesym = { version = "0.7.0", optional = true }
+tokio = { version = "1.39.2", features = ["fs", "rt"] }
 symbolic-demangle = "12.10.0"
 goblin = "0.8.2"
 arc-swap = "1.7.1"
@@ -41,7 +45,7 @@ serde_json = "1.0.121"
 axum = "0.7.5"
 hdrhistogram = "7.5.4"
 ahash = "0.8.11"
-tokio-util = "0.7.11"
+tokio-util = { version = "0.7.11", features = ["io"] }
 futures = "0.3.30"
 uuid = { version = "1.10.0", features = ["v4"] }
 urlencoding = "2.1.3"
