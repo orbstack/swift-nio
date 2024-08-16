@@ -152,6 +152,9 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		// Kernel tuning
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
+		// don't reserve 64M (wasting struct pages) for bounce buffers
+		// all 64 bits are DMA-able
+		"swiotlb=noforce",
 		// give slab allocator 16K (4 pages) at a time, to reduce 4K-16K fragmentation for arm64 balloon
 		// should also be good for perf
 		// TODO: disable on 16k kernels
@@ -183,11 +186,6 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		if params.Console == ConsoleLog && !term.IsTerminal(int(os.Stdout.Fd())) {
 			cmdline = append(cmdline, "orb.console_is_pipe")
 		}
-	}
-	// dogfood: disable swiotlb to save 64M reserved memory
-	// TODO enable this for everyon, stress test all devices, test on x86
-	if conf.Debug() {
-		cmdline = append(cmdline, "swiotlb=noforce")
 	}
 	logrus.Debug("cmdline", cmdline)
 
