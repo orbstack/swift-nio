@@ -5,8 +5,8 @@ ARG HOST_ARCH=amd64
 FROM alpine:20240807 AS base
 FROM alpine:3.20 AS stable-base
 FROM debian:sid-slim AS debian
-FROM rust:1.76-alpine3.19 AS rust-base
-FROM nixos/nix:2.20.5 AS nix-base
+FROM rust:1.80-alpine3.20 AS rust-base
+FROM nixos/nix:2.24.2 AS nix-base
 
 
 
@@ -197,7 +197,7 @@ COPY --from=rust-build /out/dctl /out/nix/orb/sys/bin/
 # Generate Rosetta deltas (need Debian for bsdiff)
 FROM debian AS rosetta-deltas
 RUN apt-get update && \
-    apt-get install -y curl python3.11 bsdiff b3sum parallel
+    apt-get install -y curl python3 bsdiff b3sum parallel
 # Use the previous version of 7zip, as 24.05 contains a change that breaks our script
 RUN <<EOT sh -eux
 ARCH=amd64
