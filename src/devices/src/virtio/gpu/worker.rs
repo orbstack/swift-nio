@@ -31,7 +31,6 @@ pub struct Worker {
     receiver: Receiver<u64>,
     mem: GuestMemoryMmap,
     queue_ctl: Arc<Mutex<VirtQueue>>,
-    interrupt_status: Arc<AtomicUsize>,
     interrupt_evt: EventFd,
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
@@ -47,7 +46,6 @@ impl Worker {
         receiver: Receiver<u64>,
         mem: GuestMemoryMmap,
         queue_ctl: Arc<Mutex<VirtQueue>>,
-        interrupt_status: Arc<AtomicUsize>,
         interrupt_evt: EventFd,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
@@ -59,7 +57,6 @@ impl Worker {
             receiver,
             mem,
             queue_ctl,
-            interrupt_status,
             interrupt_evt,
             intc,
             irq_line,
@@ -81,7 +78,6 @@ impl Worker {
         let mut virtio_gpu = VirtioGpu::new(
             self.mem.clone(),
             self.queue_ctl.clone(),
-            self.interrupt_status.clone(),
             self.interrupt_evt.try_clone().unwrap(),
             self.intc.clone(),
             self.irq_line,
@@ -102,8 +98,6 @@ impl Worker {
 
     pub fn signal_used_queue(&self) -> result::Result<(), DeviceError> {
         debug!("gpu: raising IRQ");
-        self.interrupt_status
-            .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
             Ok(())

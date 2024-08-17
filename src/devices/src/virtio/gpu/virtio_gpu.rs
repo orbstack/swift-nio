@@ -111,7 +111,6 @@ impl VirtioGpu {
         mem: GuestMemoryMmap,
         queue_ctl: Arc<Mutex<VirtQueue>>,
         fence_state: Arc<Mutex<FenceState>>,
-        interrupt_status: Arc<AtomicUsize>,
         interrupt_evt: EventFd,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
@@ -151,7 +150,6 @@ impl VirtioGpu {
                         error!("failed to add used elements to the queue: {:?}", e);
                     }
 
-                    interrupt_status.fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
                     if let Some(intc) = &intc {
                         intc.lock().unwrap().set_irq(irq_line.unwrap());
                     } else if let Err(e) = interrupt_evt.write(1) {
@@ -172,7 +170,6 @@ impl VirtioGpu {
     pub fn new(
         mem: GuestMemoryMmap,
         queue_ctl: Arc<Mutex<VirtQueue>>,
-        interrupt_status: Arc<AtomicUsize>,
         interrupt_evt: EventFd,
         intc: Option<Arc<Mutex<Gic>>>,
         irq_line: Option<u32>,
@@ -207,7 +204,6 @@ impl VirtioGpu {
             mem,
             queue_ctl.clone(),
             fence_state.clone(),
-            interrupt_status,
             interrupt_evt,
             intc,
             irq_line,

@@ -40,7 +40,6 @@ pub struct Gpu {
     pub(crate) queue_events: Vec<EventFd>,
     pub(crate) avail_features: u64,
     pub(crate) acked_features: u64,
-    pub(crate) interrupt_status: Arc<AtomicUsize>,
     pub(crate) interrupt_evt: EventFd,
     pub(crate) activate_evt: EventFd,
     pub(crate) device_state: DeviceState,
@@ -119,8 +118,6 @@ impl Gpu {
 
     pub fn signal_used_queue(&self) -> result::Result<(), DeviceError> {
         debug!("gpu: raising IRQ");
-        self.interrupt_status
-            .fetch_or(VIRTIO_MMIO_INT_VRING as usize, Ordering::SeqCst);
         if let Some(intc) = &self.intc {
             intc.lock().unwrap().set_irq(self.irq_line.unwrap());
             Ok(())
@@ -221,10 +218,6 @@ impl VirtioDevice for Gpu {
         &self.interrupt_evt
     }
 
-    fn interrupt_status(&self) -> Arc<AtomicUsize> {
-        self.interrupt_status.clone()
-    }
-
     fn set_irq_line(&mut self, irq: u32) {
         self.irq_line = Some(irq);
     }
@@ -281,7 +274,6 @@ impl VirtioDevice for Gpu {
             receiver,
             mem.clone(),
             self.queue_ctl.clone(),
-            self.interrupt_status.clone(),
             self.interrupt_evt.try_clone().unwrap(),
             self.intc.clone(),
             self.irq_line,
