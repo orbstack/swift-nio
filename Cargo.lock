@@ -3400,7 +3400,6 @@ name = "vmm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "arc-swap",
  "arch",
  "codicon",
  "crossbeam",
