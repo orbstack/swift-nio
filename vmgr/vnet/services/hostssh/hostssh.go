@@ -243,7 +243,12 @@ func handleSshConn(s ssh.Session) error {
 
 	// forward signals
 	fwdSigChan := make(chan ssh.Signal, 1)
+	// on stop, unregister the channel first, then close it
+	// sends are protected by the session mutex, so sends to the old channel are not possible after this
+	// this won't deadlock: the goroutine will keep consuming signals until the channel is closed,
+	// and the channel isn't closed until after nothing can send to it anymore
 	defer close(fwdSigChan)
+	defer s.Signals(nil)
 	s.Signals(fwdSigChan)
 	go func() {
 		for sshSig := range fwdSigChan {
