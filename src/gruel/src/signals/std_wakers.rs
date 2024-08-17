@@ -215,7 +215,13 @@ pub trait MioChannelExt: AnySignalChannelWith<OnceMioWaker> {
             .wait(
                 Self::mask_to_u64(mask),
                 WakerIndex::of::<OnceMioWaker>(),
-                || poll.poll(events, timeout),
+                || loop {
+                    match poll.poll(events, timeout) {
+                        Ok(_) => break Ok(()),
+                        Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                        Err(e) => break Err(e),
+                    }
+                },
             )
             .unwrap_or(Ok(()))
     }
