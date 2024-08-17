@@ -32,6 +32,7 @@ bitflags! {
         const FS = 1 << 0;
         const BLK = 1 << 1;
         const MMIO = 1 << 2;
+        const CONSOLE = 1 << 3;
     }
 }
 
@@ -39,8 +40,10 @@ bitflags! {
 pub const HVC_DEVICE_VIRTIOFS_ROOT: usize = 0;
 pub const HVC_DEVICE_VIRTIOFS_ROSETTA: usize = 1;
 pub const HVC_DEVICE_BALLOON: usize = 1000;
-
 pub const HVC_DEVICE_BLOCK_START: usize = 2000;
+pub const HVC_DEVICE_CONSOLE_START: usize = 3000;
+
+pub const ORBVM_CONSOLE_REQ_WRITE: u16 = 0;
 
 pub const SMCCC_RET_SUCCESS: i64 = 0;
 pub const SMCCC_RET_NOT_SUPPORTED: i64 = -1;

@@ -1255,6 +1255,17 @@ fn attach_console_devices(
     register_sigwinch_handler(console.lock().unwrap().get_sigwinch_fd())
         .map_err(RegisterFsSigwinch)?;
 
+    // add HVC device
+    vmm.mmio_device_manager
+        .bus
+        .insert_hvc(Arc::new(
+            console
+                .lock()
+                .unwrap()
+                .create_hvc_device(vmm.guest_memory().clone()),
+        ))
+        .unwrap();
+
     // The device mutex mustn't be locked here otherwise it will deadlock.
     attach_mmio_device(
         vmm,

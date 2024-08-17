@@ -16,6 +16,7 @@ use utils::eventfd::EventFd;
 use vm_memory::{ByteValued, Bytes, GuestMemoryMmap};
 
 use super::super::{ActivateResult, ConsoleError, DeviceState, Queue as VirtQueue, VirtioDevice};
+use super::hvc::ConsoleHvcDevice;
 use super::{defs, defs::control_event, defs::uapi};
 use crate::legacy::Gic;
 use crate::virtio::console::console_control::{
@@ -305,6 +306,10 @@ impl Console {
         }
 
         raise_irq
+    }
+
+    pub fn create_hvc_device(&self, mem: GuestMemoryMmap) -> ConsoleHvcDevice {
+        ConsoleHvcDevice::new(mem, self.ports.first().and_then(|p| p.output.clone()))
     }
 }
 

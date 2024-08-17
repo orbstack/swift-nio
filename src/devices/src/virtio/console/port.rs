@@ -46,7 +46,7 @@ pub(crate) struct Port {
     represents_console: bool,
     state: PortState,
     input: Option<Arc<Mutex<Box<dyn PortInput + Send>>>>,
-    output: Option<Arc<Mutex<Box<dyn PortOutput + Send>>>>,
+    pub(crate) output: Option<Arc<Mutex<Box<dyn PortOutput + Send>>>>,
 }
 
 impl Port {

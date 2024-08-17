@@ -1,6 +1,7 @@
 mod console_control;
 mod device;
 mod event_handler;
+pub mod hvc;
 mod irq_signaler;
 mod port;
 pub mod port_io;
