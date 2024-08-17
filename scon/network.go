@@ -174,7 +174,8 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 		"--keep-in-foreground",
 		"--bind-interfaces",
 		"--strict-order",
-		"--pid-file=", // disable pid file
+		"--pid-file=",              // disable pid file
+		"--log-facility=/dev/null", // suppress logs
 
 		"--listen-address=" + netconf.SconGatewayIP4,
 		"--listen-address=" + netconf.SconGatewayIP6,
