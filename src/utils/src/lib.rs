@@ -27,11 +27,12 @@ pub mod span;
 pub mod syscall;
 pub mod time;
 
+pub mod bits;
+pub mod fd;
 pub mod gruel;
 pub mod kernel_symbols;
-pub mod memory;
-pub mod bits;
 pub mod mach_time;
+pub mod memory;
 
 mod os_unfair_lock;
 pub use os_unfair_lock::{Mutex, MutexGuard};

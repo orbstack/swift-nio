@@ -3,18 +3,19 @@ use std::arch::x86_64::__cpuid_count;
 use std::{
     ffi::{c_char, CStr, CString},
     fmt,
-    os::{fd::RawFd, raw::c_void},
+    os::{
+        fd::{OwnedFd, RawFd},
+        raw::c_void,
+    },
     sync::Arc,
     time::Duration,
 };
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
-use utils::Mutex;
+use utils::{fd::dup_fd, Mutex};
 
 use anyhow::{anyhow, Context};
 use crossbeam_channel::unbounded;
-use devices::virtio::{
-    net::device::VirtioNetBackend, port_io::dup_raw_fd_into_owned, CacheType, FsCallbacks, NfsInfo,
-};
+use devices::virtio::{net::device::VirtioNetBackend, CacheType, FsCallbacks, NfsInfo};
 #[cfg(target_arch = "x86_64")]
 use hvf::check_cpuid;
 use hvf::{profiler::ProfilerParams, HvfVm, MemoryMapping};
@@ -225,7 +226,7 @@ impl Machine {
             let mac_addr = format!("{}:{:02x}", spec.mac_address_prefix, i + 1);
 
             // make an owned copy of the fd
-            let owned_fd = Arc::new(dup_raw_fd_into_owned(net_fd)?);
+            let owned_fd = Arc::new(dup_fd(net_fd)?);
             vmr.add_network_interface(NetworkInterfaceConfig {
                 iface_id: format!("eth{}", i),
                 backend: VirtioNetBackend::Dgram(owned_fd),

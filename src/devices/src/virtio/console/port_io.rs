@@ -1,9 +1,10 @@
 use std::fs::File;
 use std::io::{self, ErrorKind};
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
+use std::os::fd::{AsRawFd, OwnedFd, RawFd};
 
 use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use nix::errno::Errno;
+use utils::fd::dup_fd;
 use vm_memory::bitmap::Bitmap;
 use vm_memory::{VolatileMemoryError, VolatileSlice, WriteVolatile};
 
@@ -20,7 +21,7 @@ pub trait PortOutput {
 }
 
 pub fn stdin() -> Result<Box<dyn PortInput + Send>, nix::Error> {
-    let fd = dup_raw_fd_into_owned(STDIN_FILENO)?;
+    let fd = dup_fd(STDIN_FILENO)?;
     make_non_blocking(&fd)?;
     Ok(Box::new(PortInputFd(fd)))
 }
@@ -38,7 +39,7 @@ pub fn input_empty() -> Result<Box<dyn PortInput + Send>, nix::Error> {
 }
 
 pub fn input_from_raw_fd_dup(fd: RawFd) -> Result<Box<dyn PortInput + Send>, nix::Error> {
-    let fd = dup_raw_fd_into_owned(fd)?;
+    let fd = dup_fd(fd)?;
     make_non_blocking(&fd)?;
     Ok(Box::new(PortInputFd(fd)))
 }
@@ -48,7 +49,7 @@ pub fn output_file(file: File) -> Result<Box<dyn PortOutput + Send>, nix::Error>
 }
 
 pub fn output_to_raw_fd_dup(fd: RawFd) -> Result<Box<dyn PortOutput + Send>, nix::Error> {
-    let fd = dup_raw_fd_into_owned(fd)?;
+    let fd = dup_fd(fd)?;
     Ok(Box::new(PortOutputFd(fd)))
 }
 
@@ -121,16 +122,6 @@ impl PortOutput for PortOutputFd {
     fn ready_fd(&self) -> Option<RawFd> {
         Some(self.as_raw_fd())
     }
-}
-
-pub fn dup_raw_fd_into_owned(raw_fd: RawFd) -> Result<OwnedFd, nix::Error> {
-    let fd = unsafe { fcntl(raw_fd, libc::F_DUPFD_CLOEXEC, 3) };
-    if fd == -1 {
-        return Err(nix::Error::last());
-    }
-
-    // SAFETY: the fd is valid because dup succeeded
-    Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
 
 fn make_non_blocking(as_rw_fd: &impl AsRawFd) -> Result<(), nix::Error> {
