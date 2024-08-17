@@ -477,8 +477,6 @@ impl Vcpu {
         hvf_vcpu: &mut HvfVcpu,
         intc_handle: &mut dyn GicVcpuHandle,
     ) -> Result<VcpuEmulation> {
-        use std::sync::atomic::Ordering;
-
         use devices::legacy::GicSysReg;
         use hvf::ExitActions;
 
@@ -905,7 +903,6 @@ impl Vcpu {
                         signal.wait_on_park(VcpuSignalMask::ALL_WAIT);
                     }
                 }
-                Ok(VcpuEmulation::WaitForEventExpired) => {}
                 Ok(VcpuEmulation::WaitForEventDeadline(mut deadline)) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
                         // throttle timer wakeups to fix battery drain from badly-behaved guest apps
@@ -922,7 +919,7 @@ impl Vcpu {
                         }
 
                         let timeout = deadline - now;
-                        if let Some(ParkResult::TimedOut) = signal
+                        if let ParkResult::TimedOut = signal
                             .wait_on_park_timeout(VcpuSignalMask::ALL_WAIT, timeout.as_duration())
                         {
                             // unparked due to timer expiry
@@ -1171,8 +1168,6 @@ enum VcpuEmulation {
     Stopped,
     #[cfg(target_arch = "aarch64")]
     WaitForEvent,
-    #[cfg(target_arch = "aarch64")]
-    WaitForEventExpired,
     #[cfg(target_arch = "aarch64")]
     WaitForEventDeadline(MachAbsoluteTime),
     #[cfg(target_arch = "aarch64")]
