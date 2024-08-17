@@ -1,3 +1,5 @@
+use std::sync::atomic::{compiler_fence, Ordering};
+
 use vm_memory::{
     Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap, GuestMemoryRegion,
     MemoryRegionAddress, VolatileSlice,
@@ -11,7 +13,7 @@ pub trait GuestMemoryExt {
         len: usize,
     ) -> vm_memory::GuestMemoryResult<VolatileSlice>;
 
-    unsafe fn get_obj_ptr_unaligned<T: ByteValued>(
+    fn get_obj_ptr_unaligned<T: ByteValued>(
         &self,
         addr: GuestAddress,
     ) -> vm_memory::GuestMemoryResult<*mut T> {
@@ -23,7 +25,7 @@ pub trait GuestMemoryExt {
         &self,
         addr: GuestAddress,
     ) -> vm_memory::GuestMemoryResult<*mut T> {
-        let ptr = unsafe { self.get_obj_ptr_unaligned(addr)? };
+        let ptr = self.get_obj_ptr_unaligned(addr)?;
         // check alignment
         if (ptr as usize) % std::mem::align_of::<T>() != 0 {
             return Err(vm_memory::guest_memory::Error::HostAddressNotAvailable);
@@ -33,8 +35,17 @@ pub trait GuestMemoryExt {
 
     fn read_obj_fast<T: ByteValued>(&self, addr: GuestAddress) -> vm_memory::GuestMemoryResult<T> {
         // faster than calling memcpy, and deals with unaligned ptrs (so no need to check)
-        let ptr = unsafe { self.get_obj_ptr_unaligned(addr)? };
+        let ptr = self.get_obj_ptr_unaligned(addr)?;
+
+        // this codegen is *not* equivalent to read_unaligned code seen in libstd!
+        // MaybeUninit + copy_nonoverlapping compiles to memcpy; this doesn't
         let obj = unsafe { std::ptr::read_unaligned(ptr) };
+
+        // make sure the compiler doesn't do a double-read (potentially causing TOCTOU) after we start doing bounds checks
+        // read_volatile has inefficient codegen (64-bit reads for the entire object, including padding)
+        // this still allows optimizations like `ldp q0, q1, [x0]` to read 256 bits at once
+        compiler_fence(Ordering::SeqCst);
+
         Ok(obj)
     }
 
