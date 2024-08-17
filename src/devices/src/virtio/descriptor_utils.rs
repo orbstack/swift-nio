@@ -306,7 +306,9 @@ pub fn iovecs_from_iter(
         // Verify that summing the slice sizes does not overflow.
         // This can happen if a driver tricks a device into reading more data than
         // fits in a `usize`.
-        total_len = total_len.saturating_add(len);
+        total_len = total_len
+            .checked_add(len)
+            .ok_or(Error::DescriptorChainOverflow)?;
 
         let vs = mem
             .get_slice_fast(addr, len)
