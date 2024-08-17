@@ -17,7 +17,7 @@ pub(crate) fn process_tx(
     stop: Arc<AtomicBool>,
 ) {
     loop {
-        let Some(head) = pop_head_blocking(&mut queue, &mem, &irq, &stop) else {
+        let Some(head) = pop_head_blocking(&mut queue, &mem, &stop) else {
             return;
         };
 
@@ -48,6 +48,8 @@ pub(crate) fn process_tx(
             if let Err(e) = queue.add_used(&mem, head_index, bytes_written as u32) {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
+
+            irq.signal_used_queue("tx processed");
         }
     }
 }
@@ -55,14 +57,12 @@ pub(crate) fn process_tx(
 fn pop_head_blocking<'mem>(
     queue: &mut Queue,
     mem: &'mem GuestMemoryMmap,
-    irq: &IRQSignaler,
     stop: &AtomicBool,
 ) -> Option<DescriptorChain<'mem>> {
     loop {
         match queue.pop(mem) {
             Some(descriptor) => break Some(descriptor),
             None => {
-                irq.signal_used_queue("tx queue empty, parking");
                 thread::park();
                 if stop.load(Ordering::Acquire) {
                     break None;

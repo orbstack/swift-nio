@@ -49,6 +49,8 @@ pub(crate) fn process_rx(
             if let Err(e) = queue.add_used(mem, head_index, bytes_read as u32) {
                 error!("failed to add used elements to the queue: {:?}", e);
             }
+
+            irq.signal_used_queue("rx processed");
         }
 
         // We signal_used_queue only when we get WouldBlock or EOF

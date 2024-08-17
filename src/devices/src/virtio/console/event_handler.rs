@@ -47,12 +47,10 @@ impl Subscriber for Console {
 
             // TODO: add back multi-port support
             if taken.intersects(ConsoleSignalMask::RXQ) {
-                raise_irq = true;
                 self.notify_port_queue_event(0);
             }
 
             if taken.intersects(ConsoleSignalMask::TXQ) {
-                raise_irq = true;
                 self.notify_port_queue_event(1);
             }
 
