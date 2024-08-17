@@ -197,6 +197,7 @@ unsafe fn new_chunks_at(host_base_addr: *mut c_void, total_size: usize) -> anyho
         let mut entry_addr = addr as mach_vm_address_t;
         let entry_size = std::cmp::min(MACH_CHUNK_SIZE, host_end_addr - addr) as mach_vm_size_t;
 
+        // these are pmap-accounted regions, so they get double-accounted, but madvise works
         let ret = mach_vm_map(
             mach_task_self(),
             &mut entry_addr,
@@ -326,8 +327,6 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     Ok(host_addr as *mut c_void)
 }
 
-// on macOS, use the HVF API to allocate guest memory. it seems to use mach APIs
-// standard mmap causes 2x overaccounting in Activity Monitor's "Memory" tab
 pub fn allocate_guest_memory(ranges: &[(GuestAddress, usize)]) -> anyhow::Result<GuestMemoryMmap> {
     // allocate one big contiguous region on the host, so that there are no holes when
     // reading from guest memory. each size and base must be page-aligned
