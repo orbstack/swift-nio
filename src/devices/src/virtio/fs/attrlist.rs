@@ -1,7 +1,7 @@
 use std::{
     ffi::CStr,
     io,
-    mem::{size_of, MaybeUninit},
+    mem::{size_of, size_of_val, MaybeUninit},
     os::fd::AsRawFd,
 };
 
@@ -54,12 +54,6 @@ unsafe fn read_and_advance<T: Copy>(p: &mut *const u8) -> T {
 }
 
 pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec<AttrlistEntry>> {
-    // safe: we only use the part of buf that was read
-    // 16384 = avg 128 bytes * 128 entries
-    // to avoid compiler-inserted probe frame, don't exceed page size
-    let mut buf: MaybeUninit<[u8; 16384]> = MaybeUninit::uninit();
-    let buf = unsafe { buf.assume_init_mut() };
-
     let mut entries = Vec::with_capacity(reserve_capacity);
 
     let attrlist = attrlist {
@@ -94,12 +88,16 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
     };
 
     loop {
+        // safe: we only use the part of buf that was read
+        // 16384 = avg 128 bytes * 128 entries
+        // to avoid compiler-inserted probe frame, don't exceed page size
+        let mut buf: MaybeUninit<[u8; 16384]> = MaybeUninit::uninit();
         let n = unsafe {
             getattrlistbulk(
                 dirfd.as_raw_fd(),
                 &attrlist as *const attrlist as *mut libc::c_void,
                 buf.as_mut_ptr() as *mut libc::c_void,
-                buf.len(),
+                size_of_val(&buf),
                 (FSOPT_ATTR_CMN_EXTENDED) as u64,
             )
         };
@@ -110,12 +108,12 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
             break;
         }
 
-        let mut p = buf.as_ptr();
+        let mut p = buf.as_ptr() as *const u8;
         for i in 0..n {
             let mut entry_p = p;
             // entry_len includes u32 size
             let entry_len: u32 = unsafe { read_and_advance(&mut entry_p) };
-            trace!(n, i, entry_len, rem = buf.len(), "advance entry");
+            trace!(n, i, entry_len, "advance entry");
 
             let returned: libc::attribute_set_t = unsafe { read_and_advance(&mut entry_p) };
 

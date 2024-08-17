@@ -346,18 +346,15 @@ fn lstat(c_path: &CStr, host: bool) -> io::Result<bindings::stat64> {
 pub fn get_path_by_fd<T: AsRawFd>(fd: T) -> io::Result<String> {
     // allocate it on stack
     debug!("get_path_by_fd: fd={}", fd.as_raw_fd());
-    let path_buf = MaybeUninit::<[u8; MAXPATHLEN as usize]>::uninit();
-    let mut path_buf = unsafe { path_buf.assume_init() };
+    let mut path_buf = MaybeUninit::<[u8; MAXPATHLEN as usize]>::uninit();
     // safe: F_GETPATH is limited to MAXPATHLEN
-    let ret = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETPATH, &mut path_buf) };
+    let ret = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETPATH, path_buf.as_mut_ptr()) };
     if ret == -1 {
         return Err(io::Error::last_os_error());
     }
 
-    // cstr to find length
-    let cstr = CStr::from_bytes_until_nul(&path_buf).map_err(|_| Errno::EINVAL)?; // different from NulError
-
-    // safe: kernel guarantees UTF-8
+    // safe: kernel guarantees UTF-8 and null termination
+    let cstr = unsafe { CStr::from_ptr(path_buf.as_ptr() as *const _) };
     Ok(unsafe { String::from_utf8_unchecked(cstr.to_bytes().to_vec()) })
 }
 
