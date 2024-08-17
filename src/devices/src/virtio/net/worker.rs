@@ -10,6 +10,7 @@ use super::device::{
 };
 use super::dgram::Dgram;
 
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{mem, result};
@@ -33,7 +34,7 @@ pub struct NetWorker {
     mem: GuestMemoryMmap,
     backend: Box<dyn NetBackend + Send>,
 
-    iovecs: Vec<Iovec<'static>>,
+    iovecs_buf: IovecsBuffer,
     mtu: u16,
 }
 
@@ -63,7 +64,7 @@ impl NetWorker {
             mem,
             backend,
 
-            iovecs: Vec::with_capacity(QUEUE_SIZE as usize),
+            iovecs_buf: IovecsBuffer::with_capacity(QUEUE_SIZE as usize),
             mtu,
         }
     }
@@ -236,16 +237,15 @@ impl NetWorker {
             let head_index = head.index;
             let mut next_desc = Some(head);
 
-            self.iovecs.clear();
+            let mut iovecs = self.iovecs_buf.get();
             while let Some(desc) = next_desc {
                 if desc.is_write_only() {
-                    self.iovecs.clear();
                     break;
                 }
 
                 match self.mem.get_slice_fast(desc.addr, desc.len as usize) {
                     Ok(vs) => {
-                        self.iovecs.push(Iovec::from_static(vs));
+                        iovecs.push(Iovec::from(vs));
                     }
                     Err(e) => {
                         tracing::error!("Failed to get slice: {:?}", e);
@@ -256,7 +256,7 @@ impl NetWorker {
                 next_desc = desc.next_descriptor();
             }
 
-            match self.backend.write_frame(vnet_hdr_len(), &mut self.iovecs) {
+            match self.backend.write_frame(vnet_hdr_len(), &mut iovecs) {
                 Ok(()) => {
                     tx_queue
                         .add_used(&self.mem, head_index, 0)
@@ -305,7 +305,7 @@ impl NetWorker {
         let head_index = head_descriptor.index;
 
         let result = (|| {
-            self.iovecs.clear();
+            let mut iovecs = self.iovecs_buf.get();
             let mut total_len = 0;
             let mut maybe_next_descriptor = Some(head_descriptor);
             while let Some(descriptor) = &maybe_next_descriptor {
@@ -317,7 +317,7 @@ impl NetWorker {
                     .mem
                     .get_slice_fast(descriptor.addr, descriptor.len as usize)
                     .map_err(FrontendError::GuestMemory)?;
-                self.iovecs.push(Iovec::from_static(vs));
+                iovecs.push(Iovec::from(vs));
                 total_len += vs.len();
 
                 maybe_next_descriptor = descriptor.next_descriptor();
@@ -329,7 +329,7 @@ impl NetWorker {
 
             let frame_len = self
                 .backend
-                .read_frame(&self.iovecs)
+                .read_frame(&iovecs)
                 .map_err(FrontendError::Backend)?;
             Ok(frame_len)
         })();
@@ -355,5 +355,43 @@ impl NetWorker {
                 Err(e)
             }
         }
+    }
+}
+
+// allow reusing a buffer for iovecs, but bind lifetime to the usage scope
+struct IovecsBuffer(Vec<Iovec<'static>>);
+
+impl IovecsBuffer {
+    fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+
+    fn get<'a>(&'a mut self) -> IovecsBufferRef<'a> {
+        let r = unsafe {
+            std::mem::transmute::<&mut Vec<Iovec<'static>>, &mut Vec<Iovec<'a>>>(&mut self.0)
+        };
+        IovecsBufferRef(r)
+    }
+}
+
+struct IovecsBufferRef<'a>(&'a mut Vec<Iovec<'a>>);
+
+impl<'a> Deref for IovecsBufferRef<'a> {
+    type Target = Vec<Iovec<'a>>;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl<'a> DerefMut for IovecsBufferRef<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
+    }
+}
+
+impl<'a> Drop for IovecsBufferRef<'a> {
+    fn drop(&mut self) {
+        self.0.clear();
     }
 }

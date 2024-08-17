@@ -59,17 +59,17 @@ impl OrbvmBlkReqHeader {
         Ok(())
     }
 
-    fn for_each_iovec(
+    fn for_each_iovec<'a>(
         &self,
         args_addr: GuestAddress,
-        mem: &GuestMemoryMmap,
-        mut f: impl FnMut(usize, Iovec<'static>) -> anyhow::Result<()>,
+        mem: &'a GuestMemoryMmap,
+        mut f: impl FnMut(usize, Iovec<'a>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         let mut off = self.start_off as usize;
         self.for_each_desc(args_addr, mem, |desc| {
             let len = desc.len();
             let vs = mem.get_slice(GuestAddress(desc.phys_addr()), len)?;
-            let iov = Iovec::from_static(vs);
+            let iov = Iovec::from(vs);
             f(off, iov)?;
             off += len;
             Ok(())
