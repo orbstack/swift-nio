@@ -2,8 +2,8 @@
 
 # Base image versions
 ARG HOST_ARCH=amd64
-FROM alpine:20230329 AS base
-FROM alpine:3.18 AS stable-base
+FROM alpine:20240807 AS base
+FROM alpine:3.20 AS stable-base
 FROM debian:sid-slim AS debian
 FROM rust:1.76-alpine3.19 AS rust-base
 FROM nixos/nix:2.20.5 AS nix-base
@@ -220,7 +220,9 @@ RUN --mount=type=cache,target=/work/cache \
 FROM base AS docker
 
 # removed: xfsprogs e2fsprogs btrfs-progs
-RUN apk add --no-cache \
+# apk upgrade first to make sure base dep versions match what these new packages expect
+# do it in the same layer to make sure it's always synchronized with apk add
+RUN apk upgrade --no-cache && apk add --no-cache \
     # docker/k8s require iptables
     ip6tables \
     iptables \
@@ -315,6 +317,7 @@ FROM stable-base AS pkgbuild-qemu
 
 # deps for build, qemu
 RUN apk add --no-cache \
+    curl \
     alpine-sdk git \
     meson bash alsa-lib-dev bison capstone-dev curl-dev flex glib-dev glib-static gnutls-dev gtk+3.0-dev libaio-dev libcap-dev libcap-ng-dev libjpeg-turbo-dev libnfs-dev libpng-dev libseccomp-dev libslirp-dev libssh-dev liburing-dev libusb-dev libxml2-dev linux-headers lzo-dev ncurses-dev numactl-dev perl pulseaudio-dev python3 py3-sphinx py3-sphinx_rtd_theme sdl2-dev snappy-dev spice-dev texinfo usbredir-dev util-linux-dev vde2-dev virglrenderer-dev vte3-dev xfsprogs-dev zlib-dev zlib-static zstd-dev
 RUN <<EOT sh -eux
@@ -399,7 +402,9 @@ EOT
 FROM base AS rootfs
 
 # Dependencies
-RUN apk add --no-cache \
+# apk upgrade first to make sure base dep versions match what these new packages expect
+# do it in the same layer to make sure it's always synchronized with apk add
+RUN apk upgrade --no-cache && apk add --no-cache \
     # basic
     chrony eudev \
     # disk
