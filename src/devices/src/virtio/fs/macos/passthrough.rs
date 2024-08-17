@@ -161,12 +161,12 @@ struct DirState {
 unsafe impl Send for DirState {}
 
 // make sure libc::DIR can't be used unless DirState is locked
-struct DirStreamGuard<'a> {
+struct DirStreamRef<'a> {
     dir: *mut libc::DIR,
     state: PhantomData<&'a mut DirState>,
 }
 
-impl<'a> DirStreamGuard<'a> {
+impl<'a> DirStreamRef<'a> {
     fn as_ptr(&self) -> *mut libc::DIR {
         self.dir
     }
@@ -210,10 +210,10 @@ impl HandleData {
         get_path_by_fd(self.file.as_fd())
     }
 
-    fn readdir_stream(&self, ds: &mut DirState) -> io::Result<DirStreamGuard> {
+    fn readdir_stream(&self, ds: &mut DirState) -> io::Result<DirStreamRef> {
         // dir stream is opened lazily in case client calls opendir() then releasedir() without ever reading entries, or only uses getattrlistbulk
         if let Some(s) = ds.stream {
-            Ok(DirStreamGuard {
+            Ok(DirStreamRef {
                 dir: s.as_ptr(),
                 state: PhantomData,
             })
@@ -223,7 +223,7 @@ impl HandleData {
                 Some(s) => Some(s),
                 None => return Err(io::Error::last_os_error()),
             };
-            Ok(DirStreamGuard {
+            Ok(DirStreamRef {
                 dir,
                 state: PhantomData,
             })
