@@ -259,10 +259,16 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 			conRead = os.Stdin
 			conWrite = os.Stdout
 		case ConsoleLog:
-			conRead, err = os.Open("/dev/null")
+			// libkrun can't register /dev/null with kqueue for read readiness notifications, so make a pipe
+			var conReadWrite *os.File
+			conRead, conReadWrite, err = os.Pipe()
 			if err != nil {
 				return nil, nil, err
 			}
+
+			// TODO: save this and write sysrqs to it
+			conReadWrite.Close()
+
 			conProcessor, conWrite, err = NewConsoleProcessor(params.StopCh, params.HealthCheckCh, shutdownWg)
 			if err != nil {
 				return nil, nil, fmt.Errorf("new console processor: %w", err)
