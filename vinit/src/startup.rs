@@ -4,9 +4,12 @@ use std::{
     fs::{self, OpenOptions, Permissions},
     io::Write,
     net::UdpSocket,
-    os::unix::{
-        fs::chroot,
-        prelude::{FileExt, PermissionsExt},
+    os::{
+        fd::AsRawFd,
+        unix::{
+            fs::chroot,
+            prelude::{FileExt, PermissionsExt},
+        },
     },
     process::{Command, Stdio},
     sync::Arc,
@@ -27,7 +30,7 @@ use netlink_packet_route::{
     RouteNetlinkMessage,
 };
 use nix::{
-    libc::{self, RLIM_INFINITY},
+    libc::{self, RLIM_INFINITY, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO},
     mount::MsFlags,
     sys::{
         resource::{setrlimit, Resource},
@@ -35,7 +38,7 @@ use nix::{
         time::TimeSpec,
     },
     time::{clock_gettime, clock_settime, ClockId},
-    unistd::sethostname,
+    unistd::{dup2, sethostname},
 };
 use tracing::log::debug;
 
@@ -1277,6 +1280,29 @@ async fn start_services(
     Ok(())
 }
 
+fn switch_console(cmdline: &[String]) -> anyhow::Result<()> {
+    for arg in cmdline {
+        if arg.starts_with("orb.console=") {
+            let console_path = arg.split_at("orb.console=".len()).1;
+            let console = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(console_path)?;
+
+            // replace stdin, stdout, stderr
+            // don't set CLOEXEC: these fds should be inherited
+            let console_fd = console.as_raw_fd();
+            dup2(console_fd, STDIN_FILENO)?;
+            dup2(console_fd, STDOUT_FILENO)?;
+            dup2(console_fd, STDERR_FILENO)?;
+
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn main(
     service_tracker: Arc<Mutex<ServiceTracker>>,
     action_tx: Sender<SystemAction>,
@@ -1296,6 +1322,11 @@ pub async fn main(
     // system info
     // only works after pseudo-fs mounted
     let sys_info = SystemInfo::read()?;
+
+    // switch userspace stdout console to vport as early as possible, to reduce CPU usage
+    // ttys use spinlocks, so writing to hvc0 spinloops and blocks the vCPU if the host's pipe is full
+    switch_console(&sys_info.cmdline)?;
+
     println!("  -  Kernel version: {}", sys_info.kernel_version);
 
     timeline.begin("Network");

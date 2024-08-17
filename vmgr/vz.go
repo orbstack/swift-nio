@@ -186,6 +186,14 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		if params.Console == ConsoleLog && !term.IsTerminal(int(os.Stdout.Fd())) {
 			cmdline = append(cmdline, "orb.console_is_pipe")
 		}
+
+		// if possible, use vport instead of HVC for userspace writes, so that guest waits on IRQ if pipe is full instead of spinning
+		// kernel can only use HVC
+		if monitor == rsvm.Monitor {
+			// TODO: index could change from virtio2
+			// port index = 2 (0 = console, 1 = stdin, 2 = stdout)
+			cmdline = append(cmdline, "orb.console=/dev/vport2p2")
+		}
 	}
 	logrus.Debug("cmdline", cmdline)
 
