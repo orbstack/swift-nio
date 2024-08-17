@@ -11,7 +11,7 @@ use virtio_bindings::virtio_blk::{
 };
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap};
 
-use crate::virtio::{descriptor_utils::Iovec, HvcDevice};
+use crate::{hvc::HvcDevice, virtio::descriptor_utils::Iovec};
 
 use super::{device::DiskProperties, SECTOR_SIZE};
 

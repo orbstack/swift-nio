@@ -20,7 +20,7 @@ use utils::Mutex;
 use rustc_hash::FxHashMap;
 use vm_memory::GuestAddress;
 
-use crate::virtio::HvcDevice;
+use crate::hvc::HvcDevice;
 
 // === LocklessBusDevice === //
 

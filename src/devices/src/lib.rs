@@ -13,6 +13,7 @@ extern crate tracing;
 use std::io;
 
 mod bus;
+pub mod hvc;
 pub mod legacy;
 pub mod virtio;
 

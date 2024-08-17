@@ -4,11 +4,10 @@ use anyhow::anyhow;
 use bitfield::bitfield;
 use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
 
-use crate::virtio::{
+use crate::{hvc::HvcDevice, virtio::{
     descriptor_utils::{Reader, Writer},
     fs::server::{HostContext, MAX_PAGES},
-    HvcDevice,
-};
+}};
 use utils::memory::GuestMemoryExt;
 
 use super::{macos::passthrough::PassthroughFs, server::Server};

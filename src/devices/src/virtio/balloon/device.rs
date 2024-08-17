@@ -19,8 +19,9 @@ use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
 
 use super::super::{ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::{defs, defs::uapi};
+use crate::hvc::HvcDevice;
 use crate::legacy::Gic;
-use crate::virtio::{DescriptorChain, HvcDevice, VmmExitObserver};
+use crate::virtio::{DescriptorChain, VmmExitObserver};
 use hvf::{HvfVm, VcpuRegistry};
 use utils::memory::GuestMemoryExt;
 

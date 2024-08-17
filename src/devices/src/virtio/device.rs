@@ -138,11 +138,6 @@ pub trait SyncEventHandlerSet: Send + Sync {
     fn process(&self, vcpuid: u64, queue: u32);
 }
 
-pub trait HvcDevice: Send + Sync {
-    fn call_hvc(&self, args_addr: GuestAddress) -> i64;
-    fn hvc_id(&self) -> Option<usize>;
-}
-
 pub trait VmmExitObserver: Send {
     fn type_name(&self) -> &'static str {
         type_name::<Self>()

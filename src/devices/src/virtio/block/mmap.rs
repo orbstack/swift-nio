@@ -153,7 +153,6 @@ impl RangeRegistry {
         info: *const libc::siginfo_t,
         uap: *const libc::ucontext_t,
     ) {
-        // malloc-safe: this will never see an in-progress OnceLock set
         // TODO: unlikely, but this could call free if it got the last ref...
         if let Some(ranges) = MMAP_RANGES.inner.get().map(|r| r.load()) {
             let addr = (*info).si_addr as usize;

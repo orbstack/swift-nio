@@ -8,7 +8,7 @@ use utils::{
 };
 use vm_memory::{ByteValued, GuestAddress, GuestMemoryMmap};
 
-use crate::virtio::HvcDevice;
+use crate::hvc::HvcDevice;
 
 use super::port_io::PortOutput;
 
