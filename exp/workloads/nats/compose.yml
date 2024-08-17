@@ -1,0 +1,881 @@
+name: nats-large-cluster
+services:
+  nats:
+    image: nats
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "7422:7422"
+      - "8222:8222"
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-seed.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-1:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-2:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-3:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-4:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-5:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-6:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-7:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-8:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-9:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-10:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-11:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-12:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]   
+  nats-13:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-14:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-15:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-16:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-17:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-18:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-19:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-20:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-21:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-22:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-23:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-24:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"] 
+  nats-25:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-26:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-27:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-28:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-29:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-30:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-31:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-32:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-33:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-34:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-35:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-36:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]   
+  nats-37:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-38:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-39:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-40:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-41:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-42:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-43:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-44:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-45:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-46:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-47:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-48:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"] 
+  nats-49:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-50:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-51:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-52:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-53:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-54:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-55:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-56:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-57:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-58:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-59:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-60:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]   
+  nats-61:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-62:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-63:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-64:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-65:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-66:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-67:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-68:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-69:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-70:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-71:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-72:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"] 
+  nats-73:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-74:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-75:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-76:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-77:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-78:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-79:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-80:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-81:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-82:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-83:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-84:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]   
+  nats-85:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-86:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-87:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-88:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-89:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-90:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-91:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-92:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-93:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-94:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-95:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-96:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"] 
+  nats-97:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-98:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-99:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-100:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-101:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-102:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-103:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-104:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-105:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-106:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-107:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-108:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]   
+  nats-109:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-110:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-111:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-112:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-113:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-114:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-115:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-116:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-117:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-118:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-119:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-120:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"] 
+  nats-121:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-122:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-123:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-124:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-125:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-126:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-127:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-128:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-129:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-130:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-131:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-132:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]   
+  nats-133:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-134:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-135:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-136:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-137:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-138:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-139:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-140:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-141:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]    
+  nats-142:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-143:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"]
+  nats-144:
+    image: nats
+    command: "-c /etc/nats/nats-server.conf"
+    volumes:
+      - ./nats-node.conf:/etc/nats/nats-server.conf
+    networks: ["nats"] 
+
+networks:
+  nats:
+    name: nats
