@@ -100,12 +100,12 @@ impl NetWorker {
 
         // Start worker loop
         loop {
-            // Wait for epoll events
-            if let Err(err) = self
+            if let Err(e) = self
                 .signals
                 .wait_on_poll(handled_mask, &mut poll, &mut events, None)
             {
-                debug!("vsock: failed to consume muxer epoll event: {err}");
+                error!("Failed to wait on poll: {:?}", e);
+                break;
             }
 
             // Handle signals
