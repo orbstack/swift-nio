@@ -272,7 +272,7 @@ impl Vm {
         }
     }
 
-    pub fn get_parker(&self) -> Arc<VcpuRegistryImpl> {
+    pub fn vcpu_registry(&self) -> Arc<VcpuRegistryImpl> {
         self.vcpu_registry.clone()
     }
 
@@ -454,14 +454,14 @@ impl Vcpu {
 
     /// Moves the vcpu to its own thread and constructs a VcpuHandle.
     /// The handle can be used to control the remote vcpu.
-    pub fn start_threaded(mut self, parker: Arc<VcpuRegistryImpl>) -> Result<VcpuHandle> {
+    pub fn start_threaded(mut self, registry: Arc<VcpuRegistryImpl>) -> Result<VcpuHandle> {
         let (init_sender, init_receiver) = unbounded();
         let boot_sender = self.boot_senders.as_ref().unwrap()[self.cpu_index() as usize].clone();
 
         let vcpu_thread = thread::Builder::new()
             .name(format!("vcpu{}", self.cpu_index()))
             .spawn(move || {
-                self.run(parker, init_sender);
+                self.run(registry, init_sender);
             })
             .map_err(Error::VcpuSpawn)?;
 
@@ -684,7 +684,7 @@ impl Vcpu {
 
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "aarch64")]
-    pub fn run(&mut self, parker: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
+    pub fn run(&mut self, registry: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
         use gruel::{
             define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
             ParkResult, ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
@@ -750,7 +750,7 @@ impl Vcpu {
             )
             .unwrap_or_run_now();
 
-        // Register the vCPU with the interrupt controller and the parker
+        // Register the vCPU with the interrupt controller and the registry
         self.intc.lock().unwrap().register_vcpu(
             hvf_vcpuid,
             WfeThread {
@@ -760,7 +760,7 @@ impl Vcpu {
         );
 
         let handle = ArcVcpuHandle::new(VcpuHandleInner::new(signal.clone()));
-        let mut park_task = parker.register_vcpu(self.cpu_index(), handle.clone());
+        let mut park_task = registry.register_vcpu(self.cpu_index(), handle.clone());
 
         devices::virtio::fs::macos::iopolicy::prepare_vcpu_for_hvc().unwrap();
 
@@ -804,7 +804,7 @@ impl Vcpu {
             // (this should never happen if we haven't exited the loop yet)
             debug_assert!(!taken.contains(VcpuSignalMask::DESTROY_VM));
 
-            let Ok(park_task_tmp) = parker.process_park_commands(taken, park_task) else {
+            let Ok(park_task_tmp) = registry.process_park_commands(taken, park_task) else {
                 error!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );
@@ -976,7 +976,7 @@ impl Vcpu {
 
     /// Main loop of the vCPU thread.
     #[cfg(target_arch = "x86_64")]
-    pub fn run(&mut self, parker: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
+    pub fn run(&mut self, registry: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
         use gruel::{
             define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
             ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,
@@ -1003,7 +1003,7 @@ impl Vcpu {
 
         // Create the underlying HVF vCPU.
         let mut hvf_vcpu = HvfVcpu::new(
-            parker.clone(),
+            registry.clone(),
             self.guest_mem.clone(),
             &self.hvf_vm,
             self.vcpu_count,
@@ -1035,9 +1035,9 @@ impl Vcpu {
             )
             .unwrap_or_run_now();
 
-        // Register the vCPU with the parker
+        // Register the vCPU with the registry
         let handle = ArcVcpuHandle::new(VcpuHandleInner::new(signal.clone()));
-        let mut park_task = parker.register_vcpu(self.cpu_index(), handle.clone());
+        let mut park_task = registry.register_vcpu(self.cpu_index(), handle.clone());
 
         // Notify init done (everything is registered)
         // TODO: We should be using startup signals for these to reduce the number of thread wake-ups.
@@ -1074,7 +1074,7 @@ impl Vcpu {
                 break;
             }
 
-            let Ok(park_task_tmp) = parker.process_park_commands(taken, park_task) else {
+            let Ok(park_task_tmp) = registry.process_park_commands(taken, park_task) else {
                 error!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );

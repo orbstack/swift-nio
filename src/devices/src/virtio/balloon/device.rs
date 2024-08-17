@@ -191,8 +191,8 @@ impl Balloon {
         self.intc = Some(intc);
     }
 
-    pub fn set_parker(&mut self, parker: Arc<dyn VcpuRegistry>) {
-        self.vcpu_registry = Some(parker);
+    pub fn set_vcpu_registry(&mut self, vcpu_registry: Arc<dyn VcpuRegistry>) {
+        self.vcpu_registry = Some(vcpu_registry);
     }
 
     pub fn create_hvc_device(&self, _mem: GuestMemoryMmap) -> BalloonHvcDevice {
