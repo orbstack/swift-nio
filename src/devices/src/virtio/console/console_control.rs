@@ -77,6 +77,7 @@ impl ConsoleControl {
         })
     }
 
+    #[allow(dead_code)]
     pub fn console_resize(&self, port_id: u32, new_size: VirtioConsoleResize) {
         let mut buf = Vec::new();
         buf.extend(

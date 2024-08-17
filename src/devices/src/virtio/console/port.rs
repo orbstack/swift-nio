@@ -1,5 +1,5 @@
+use gruel::SignalChannel;
 use std::borrow::Cow;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::{mem, thread};
@@ -7,12 +7,12 @@ use utils::Mutex;
 
 use vm_memory::GuestMemoryMmap;
 
-use crate::virtio::console::console_control::ConsoleControl;
 use crate::virtio::console::irq_signaler::IRQSignaler;
 use crate::virtio::console::port_io::{PortInput, PortOutput};
-use crate::virtio::console::process_rx::process_rx;
-use crate::virtio::console::process_tx::process_tx;
 use crate::virtio::Queue;
+
+use super::device::{PortSignalMask, PortWakers};
+use super::port_worker::PortWorker;
 
 pub enum PortDescription {
     Console {
@@ -31,19 +31,15 @@ pub enum PortDescription {
 
 enum PortState {
     Inactive,
-    Active {
-        stopfd: utils::eventfd::EventFd,
-        stop: Arc<AtomicBool>,
-        rx_thread: Option<JoinHandle<()>>,
-        tx_thread: Option<JoinHandle<()>>,
-    },
+    Active(JoinHandle<()>),
 }
 
 pub(crate) struct Port {
-    port_id: u32,
+    pub(crate) port_id: u32,
     /// Empty if no name given
     name: Cow<'static, str>,
     represents_console: bool,
+    pub(crate) signal: Arc<SignalChannel<PortSignalMask, PortWakers>>,
     state: PortState,
     input: Option<Arc<Mutex<Box<dyn PortInput + Send>>>>,
     pub(crate) output: Option<Arc<Mutex<Box<dyn PortOutput + Send>>>>,
@@ -56,6 +52,7 @@ impl Port {
                 port_id,
                 name: "".into(),
                 represents_console: true,
+                signal: Arc::new(SignalChannel::new(PortWakers::default())),
                 state: PortState::Inactive,
                 input: Some(Arc::new(Mutex::new(input.unwrap()))),
                 output: Some(Arc::new(Mutex::new(output.unwrap()))),
@@ -64,6 +61,7 @@ impl Port {
                 port_id,
                 name,
                 represents_console: false,
+                signal: Arc::new(SignalChannel::new(PortWakers::default())),
                 state: PortState::Inactive,
                 input: Some(Arc::new(Mutex::new(input))),
                 output: None,
@@ -72,6 +70,7 @@ impl Port {
                 port_id,
                 name,
                 represents_console: false,
+                signal: Arc::new(SignalChannel::new(PortWakers::default())),
                 state: PortState::Inactive,
                 input: None,
                 output: Some(Arc::new(Mutex::new(output))),
@@ -87,113 +86,42 @@ impl Port {
         self.represents_console
     }
 
-    pub fn notify_rx(&self) {
-        if let PortState::Active {
-            rx_thread: Some(handle),
-            ..
-        } = &self.state
-        {
-            handle.thread().unpark()
-        }
-    }
-
-    pub fn notify_tx(&self) {
-        if let PortState::Active {
-            tx_thread: Some(handle),
-            ..
-        } = &self.state
-        {
-            handle.thread().unpark()
-        }
-    }
-
     pub fn start(
         &mut self,
         mem: GuestMemoryMmap,
         rx_queue: Queue,
         tx_queue: Queue,
         irq_signaler: IRQSignaler,
-        control: Arc<ConsoleControl>,
     ) {
-        if let PortState::Active { .. } = &mut self.state {
+        if let PortState::Active(_) = &mut self.state {
             self.shutdown();
         };
 
         let input = self.input.as_ref().cloned();
         let output = self.output.as_ref().cloned();
 
-        let stopfd = utils::eventfd::EventFd::new(utils::eventfd::EFD_NONBLOCK)
-            .expect("Failed to create EventFd for interrupt_evt");
-        let stop = Arc::new(AtomicBool::new(false));
+        let mut worker = PortWorker::new(
+            mem,
+            rx_queue,
+            tx_queue,
+            irq_signaler,
+            self.signal.clone(),
+            input,
+            output,
+        );
 
-        let rx_thread = input.map(|input| {
-            let mem = mem.clone();
-            let irq_signaler = irq_signaler.clone();
-            let port_id = self.port_id;
-            let stopfd = stopfd.try_clone().unwrap();
-            let stop = stop.clone();
+        let thread = thread::Builder::new()
+            .name(format!("console port {}", self.port_id))
+            .spawn(move || worker.run())
+            .expect("failed to spawn thread");
 
-            thread::Builder::new()
-                .name("console port rx".to_string())
-                .spawn(move || {
-                    process_rx(
-                        mem,
-                        rx_queue,
-                        irq_signaler,
-                        input,
-                        control,
-                        port_id,
-                        stopfd,
-                        stop,
-                    )
-                })
-                .expect("failed to spawn thread")
-        });
-
-        let tx_thread = output.map(|output| {
-            let stop = stop.clone();
-            thread::Builder::new()
-                .name("console port tx".to_string())
-                .spawn(move || process_tx(mem, tx_queue, irq_signaler, output, stop))
-                .expect("failed to spawn thread")
-        });
-
-        self.state = PortState::Active {
-            stopfd,
-            stop,
-            rx_thread,
-            tx_thread,
-        }
+        self.state = PortState::Active(thread);
     }
 
     pub fn shutdown(&mut self) {
-        if let PortState::Active {
-            stopfd,
-            stop,
-            tx_thread,
-            rx_thread,
-        } = &mut self.state
-        {
-            stop.store(true, Ordering::Release);
-            if let Some(tx_thread) = mem::take(tx_thread) {
-                tx_thread.thread().unpark();
-                if let Err(e) = tx_thread.join() {
-                    tracing::error!(
-                        "Failed to flush tx for port {port_id}, thread panicked: {e:?}",
-                        port_id = self.port_id
-                    )
-                }
-            }
-            stopfd.write().unwrap();
-            if let Some(rx_thread) = mem::take(rx_thread) {
-                rx_thread.thread().unpark();
-                if let Err(e) = rx_thread.join() {
-                    tracing::error!(
-                        "Failed to flush tx for port {port_id}, thread panicked: {e:?}",
-                        port_id = self.port_id
-                    )
-                }
-            }
-        };
+        if let PortState::Active(handle) = mem::replace(&mut self.state, PortState::Inactive) {
+            self.signal.assert(PortSignalMask::STOP);
+            handle.join().expect("failed to join thread");
+        }
     }
 }

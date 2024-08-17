@@ -1,32 +1,8 @@
 use gruel::{InterestCtrl, RawSignalChannel, Subscriber};
 use memmage::{CastableRef, CloneDynRef};
 
-use super::device::{get_win_size, Console, ConsoleSignalMask};
-use crate::virtio::console::port_queue_mapping::{queue_idx_to_port_id, QueueDirection};
+use super::device::{Console, ConsoleSignalMask};
 use crate::virtio::device::VirtioDevice;
-
-impl Console {
-    fn notify_port_queue_event(&mut self, queue_index: usize) {
-        let (direction, port_id) = queue_idx_to_port_id(queue_index);
-        match direction {
-            QueueDirection::Rx => {
-                tracing::trace!("Notify rx (queue event)");
-                self.ports[port_id].notify_rx()
-            }
-            QueueDirection::Tx => {
-                tracing::trace!("Notify tx (queue event)");
-                self.ports[port_id].notify_tx()
-            }
-        }
-    }
-
-    fn handle_sigwinch_event(&mut self) {
-        debug!("console: SIGWINCH event");
-
-        let (cols, rows) = get_win_size();
-        self.update_console_size(cols, rows);
-    }
-}
 
 impl Subscriber for Console {
     type EventMeta = ();
@@ -37,25 +13,14 @@ impl Subscriber for Console {
         if self.is_activated() {
             let mut raise_irq = false;
 
+            // ignore new CONTROL_RXQ buffers: we only fill it when we have something to send
+
             if taken.intersects(ConsoleSignalMask::CONTROL_TXQ) {
                 raise_irq |= self.process_control_tx();
             }
 
-            if taken.intersects(ConsoleSignalMask::CONTROL_RXQ_CONTROL) {
+            if taken.intersects(ConsoleSignalMask::FILL_CONTROL_RXQ) {
                 raise_irq |= self.process_control_rx();
-            }
-
-            // TODO: add back multi-port support
-            if taken.intersects(ConsoleSignalMask::RXQ) {
-                self.notify_port_queue_event(0);
-            }
-
-            if taken.intersects(ConsoleSignalMask::TXQ) {
-                self.notify_port_queue_event(1);
-            }
-
-            if taken.intersects(ConsoleSignalMask::SIGWINCH) {
-                self.handle_sigwinch_event();
             }
 
             if raise_irq {

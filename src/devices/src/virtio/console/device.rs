@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 use gruel::{
-    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, DynamicallyBoundWaker,
-    SignalChannel,
+    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, DynamicMioWaker,
+    DynamicallyBoundWaker, SignalChannel,
 };
 use std::cmp;
 use std::io::Write;
@@ -12,16 +12,13 @@ use utils::memory::GuestMemoryExt;
 use utils::Mutex;
 
 use libc::TIOCGWINSZ;
-use utils::eventfd::EventFd;
 use vm_memory::{ByteValued, Bytes, GuestMemoryMmap};
 
-use super::super::{ActivateResult, ConsoleError, DeviceState, Queue as VirtQueue, VirtioDevice};
+use super::super::{ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::hvc::ConsoleHvcDevice;
 use super::{defs, defs::control_event, defs::uapi};
 use crate::legacy::Gic;
-use crate::virtio::console::console_control::{
-    ConsoleControl, VirtioConsoleControl, VirtioConsoleResize,
-};
+use crate::virtio::console::console_control::{ConsoleControl, VirtioConsoleControl};
 use crate::virtio::console::defs::QUEUE_SIZE;
 use crate::virtio::console::irq_signaler::IRQSignaler;
 use crate::virtio::console::port::Port;
@@ -35,19 +32,29 @@ define_waker_set! {
     pub(crate) struct ConsoleWakers {
         dynamic: DynamicallyBoundWaker,
     }
+
+    #[derive(Default)]
+    pub(crate) struct PortWakers {
+        mio: DynamicMioWaker,
+    }
 }
 
 bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
     pub(crate) struct ConsoleSignalMask: u64 {
-        const CONTROL_RXQ_CONTROL = 1 << 0;
-        const ACTIVATE = 1 << 1;
-        const SIGWINCH = 1 << 2;
+        const RXQ = 1 << 0;
+        const TXQ = 1 << 1;
+        const CONTROL_RXQ = 1 << 2;
+        const CONTROL_TXQ = 1 << 3;
 
-        const RXQ = 1 << 3;
-        const TXQ = 1 << 4;
-        const CONTROL_RXQ = 1 << 5;
-        const CONTROL_TXQ = 1 << 6;
+        const FILL_CONTROL_RXQ = 1 << 4;
+    }
+
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+    pub(crate) struct PortSignalMask: u64 {
+        const STOP = 1 << 0;
+        const RXQ = 1 << 1;
+        const TXQ = 1 << 2;
     }
 }
 
@@ -122,17 +129,8 @@ impl Console {
             "First port must be a console"
         );
 
-        // TODO: add back multi-port support
-        assert!(ports.len() == 1, "Only one port is supported");
-
         let num_queues = num_queues(ports.len());
         let queues = vec![VirtQueue::new(QUEUE_SIZE); num_queues];
-
-        let mut queue_events = Vec::new();
-        for _ in 0..queues.len() {
-            queue_events
-                .push(EventFd::new(utils::eventfd::EFD_NONBLOCK).map_err(ConsoleError::EventFd)?);
-        }
 
         let (cols, rows) = get_win_size();
         let config = VirtioConsoleConfig::new(cols, rows, ports.len() as u32);
@@ -143,7 +141,7 @@ impl Console {
         let signals = Arc::new(SignalChannel::new(ConsoleWakers::default()));
         let control = ConsoleControl::new(BoundSignalChannel::new(
             signals.clone(),
-            ConsoleSignalMask::CONTROL_RXQ_CONTROL,
+            ConsoleSignalMask::FILL_CONTROL_RXQ,
         ));
 
         Ok(Console {
@@ -165,13 +163,6 @@ impl Console {
 
     pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
         self.irq.set_intc(intc)
-    }
-
-    pub fn update_console_size(&mut self, cols: u16, rows: u16) {
-        tracing::debug!("update_console_size: {} {}", cols, rows);
-        // Note that we currently only support resizing on the first/main console
-        self.control
-            .console_resize(0, VirtioConsoleResize { rows, cols });
     }
 
     pub(crate) fn process_control_rx(&mut self) -> bool {
@@ -301,15 +292,17 @@ impl Console {
                 self.queues[port_id_to_queue_idx(QueueDirection::Rx, port_id)].clone(),
                 self.queues[port_id_to_queue_idx(QueueDirection::Tx, port_id)].clone(),
                 self.irq.clone(),
-                self.control.clone(),
             );
         }
 
         raise_irq
     }
 
-    pub fn create_hvc_device(&self, mem: GuestMemoryMmap) -> ConsoleHvcDevice {
-        ConsoleHvcDevice::new(mem, self.ports.first().and_then(|p| p.output.clone()))
+    pub fn create_hvc_devices(&self, mem: &GuestMemoryMmap) -> Vec<ConsoleHvcDevice> {
+        self.ports
+            .iter()
+            .map(|port| ConsoleHvcDevice::new(mem.clone(), port.port_id, port.output.clone()))
+            .collect()
     }
 }
 
@@ -339,13 +332,26 @@ impl VirtioDevice for Console {
     }
 
     fn queue_signals(&self) -> Vec<ArcBoundSignalChannel> {
-        vec![
-            // TODO: add back multi-port support
-            BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::RXQ),
-            BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::TXQ),
+        let mut signals = vec![
+            BoundSignalChannel::new(self.ports[0].signal.clone(), PortSignalMask::RXQ),
+            BoundSignalChannel::new(self.ports[0].signal.clone(), PortSignalMask::TXQ),
             BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::CONTROL_RXQ),
             BoundSignalChannel::new(self.signals.clone(), ConsoleSignalMask::CONTROL_TXQ),
-        ]
+        ];
+
+        for port in &self.ports[1..] {
+            signals.push(BoundSignalChannel::new(
+                port.signal.clone(),
+                PortSignalMask::RXQ,
+            ));
+
+            signals.push(BoundSignalChannel::new(
+                port.signal.clone(),
+                PortSignalMask::TXQ,
+            ));
+        }
+
+        signals
     }
 
     fn set_irq_line(&mut self, irq: u32) {
@@ -375,9 +381,7 @@ impl VirtioDevice for Console {
     }
 
     fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
-        self.signals.assert(ConsoleSignalMask::ACTIVATE);
         self.device_state = DeviceState::Activated(mem);
-
         Ok(())
     }
 

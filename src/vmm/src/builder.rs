@@ -1178,15 +1178,25 @@ fn attach_console_devices(
     vmm: &mut Vmm,
     event_manager: &mut gruel::EventManager,
     intc: Option<Arc<Mutex<Gic>>>,
-    console_output: Option<ConsoleFds>,
+    console_spec: Option<ConsoleFds>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
-    let ports = if let Some(console_output) = console_output {
-        vec![PortDescription::Console {
-            input: Some(port_io::input_from_raw_fd_dup(console_output.read_fd).unwrap()),
-            output: Some(port_io::output_to_raw_fd_dup(console_output.write_fd).unwrap()),
-        }]
+    let ports = if let Some(console_spec) = console_spec {
+        vec![
+            PortDescription::Console {
+                input: Some(port_io::input_from_raw_fd_dup(console_spec.read_fd).unwrap()),
+                output: Some(port_io::output_to_raw_fd_dup(console_spec.write_fd).unwrap()),
+            },
+            PortDescription::InputPipe {
+                name: "orb-stdin".into(),
+                input: port_io::input_from_raw_fd_dup(console_spec.read_fd).unwrap(),
+            },
+            PortDescription::OutputPipe {
+                name: "orb-stdout".into(),
+                output: port_io::output_to_raw_fd_dup(console_spec.write_fd).unwrap(),
+            },
+        ]
     } else {
         let stdin_is_terminal = isatty(STDIN_FILENO).unwrap_or(false);
         let stdout_is_terminal = isatty(STDOUT_FILENO).unwrap_or(false);
@@ -1255,16 +1265,17 @@ fn attach_console_devices(
     register_sigwinch_handler(console.lock().unwrap().get_sigwinch_fd())
         .map_err(RegisterFsSigwinch)?;
 
-    // add HVC device
-    vmm.mmio_device_manager
-        .bus
-        .insert_hvc(Arc::new(
-            console
-                .lock()
-                .unwrap()
-                .create_hvc_device(vmm.guest_memory().clone()),
-        ))
-        .unwrap();
+    // add HVC devices
+    for device in console
+        .lock()
+        .unwrap()
+        .create_hvc_devices(vmm.guest_memory())
+    {
+        vmm.mmio_device_manager
+            .bus
+            .insert_hvc(Arc::new(device))
+            .unwrap();
+    }
 
     // The device mutex mustn't be locked here otherwise it will deadlock.
     attach_mmio_device(

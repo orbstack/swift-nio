@@ -11,6 +11,8 @@ const fn orbvm_hvc_id(id: u32) -> u32 {
     0xc600_e000 + id
 }
 
+// kernel code uses more obscure constant names because code may become public
+
 // kernel: ORBVM_FEATURES
 pub const ORBVM_FEATURES: u32 = orbvm_hvc_id(1);
 // kernel: ORBVM_WFK
@@ -28,6 +30,7 @@ pub const ORBVM_MMIO_WRITE32: u32 = orbvm_hvc_id(7);
 
 bitflags! {
     pub struct OrbvmFeatures: u64 {
+        // to test disabling a feature, just comment it here
         // kernel: ORBVM_FEAT_*
         const FS = 1 << 0;
         const BLK = 1 << 1;

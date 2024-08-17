@@ -24,15 +24,21 @@ unsafe impl ByteValued for OrbvmConsoleReq {}
 
 pub struct ConsoleHvcDevice {
     mem: GuestMemoryMmap,
+    port_id: u32,
     output: Option<Arc<Mutex<Box<dyn PortOutput + Send>>>>,
 }
 
 impl ConsoleHvcDevice {
     pub fn new(
         mem: GuestMemoryMmap,
+        port_id: u32,
         output: Option<Arc<Mutex<Box<dyn PortOutput + Send>>>>,
     ) -> Self {
-        Self { mem, output }
+        Self {
+            mem,
+            port_id,
+            output,
+        }
     }
 
     fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<i64> {
@@ -75,6 +81,6 @@ impl HvcDevice for ConsoleHvcDevice {
     }
 
     fn hvc_id(&self) -> Option<usize> {
-        Some(HVC_DEVICE_CONSOLE_START)
+        Some(HVC_DEVICE_CONSOLE_START + self.port_id as usize)
     }
 }

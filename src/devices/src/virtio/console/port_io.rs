@@ -4,22 +4,19 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 
 use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use nix::errno::Errno;
-use nix::poll::{poll, PollFd, PollFlags};
-use utils::eventfd::EventFd;
-use utils::eventfd::EFD_NONBLOCK;
 use vm_memory::bitmap::Bitmap;
 use vm_memory::{VolatileMemoryError, VolatileSlice, WriteVolatile};
 
 pub trait PortInput {
     fn read_volatile(&mut self, buf: &mut VolatileSlice) -> Result<usize, io::Error>;
 
-    fn wait_until_readable(&self, stopfd: Option<&EventFd>);
+    fn ready_fd(&self) -> Option<RawFd>;
 }
 
 pub trait PortOutput {
     fn write_volatile(&mut self, buf: &VolatileSlice) -> Result<usize, io::Error>;
 
-    fn wait_until_writable(&self);
+    fn ready_fd(&self) -> Option<RawFd>;
 }
 
 pub fn stdin() -> Result<Box<dyn PortInput + Send>, nix::Error> {
@@ -97,13 +94,8 @@ impl PortInput for PortInputFd {
         }
     }
 
-    fn wait_until_readable(&self, stopfd: Option<&EventFd>) {
-        let mut poll_fds = Vec::new();
-        poll_fds.push(PollFd::new(self.as_raw_fd(), PollFlags::POLLIN));
-        if let Some(stopfd) = stopfd {
-            poll_fds.push(PollFd::new(stopfd.as_raw_fd(), PollFlags::POLLIN));
-        }
-        poll(&mut poll_fds, -1).expect("Failed to poll");
+    fn ready_fd(&self) -> Option<RawFd> {
+        Some(self.as_raw_fd())
     }
 }
 
@@ -126,9 +118,8 @@ impl PortOutput for PortOutputFd {
         })
     }
 
-    fn wait_until_writable(&self) {
-        let mut poll_fds = [PollFd::new(self.as_raw_fd(), PollFlags::POLLOUT)];
-        poll(&mut poll_fds, -1).expect("Failed to poll");
+    fn ready_fd(&self) -> Option<RawFd> {
+        Some(self.as_raw_fd())
     }
 }
 
@@ -199,43 +190,8 @@ impl PortOutput for PortOutputLog {
         Ok(buf.len())
     }
 
-    fn wait_until_writable(&self) {}
-}
-
-pub struct PortInputSigInt {
-    sigint_evt: EventFd,
-}
-
-impl PortInputSigInt {
-    pub fn new() -> Self {
-        PortInputSigInt {
-            sigint_evt: EventFd::new(EFD_NONBLOCK)
-                .expect("Failed to create EventFd for SIGINT signaling"),
-        }
-    }
-
-    pub fn sigint_evt(&self) -> &EventFd {
-        &self.sigint_evt
-    }
-}
-
-impl Default for PortInputSigInt {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PortInput for PortInputSigInt {
-    fn read_volatile(&mut self, buf: &mut VolatileSlice) -> Result<usize, io::Error> {
-        self.sigint_evt.read()?;
-        tracing::trace!("SIGINT received");
-        buf.copy_from(&[3u8]); //ASCII 'ETX' -> generates SIGINIT in a terminal
-        Ok(1)
-    }
-
-    fn wait_until_readable(&self, _stopfd: Option<&EventFd>) {
-        let mut poll_fds = [PollFd::new(self.sigint_evt.as_raw_fd(), PollFlags::POLLIN)];
-        poll(&mut poll_fds, -1).expect("Failed to poll");
+    fn ready_fd(&self) -> Option<RawFd> {
+        None
     }
 }
 
@@ -258,7 +214,7 @@ impl PortInput for PortInputEmpty {
         Ok(0)
     }
 
-    fn wait_until_readable(&self, _stopfd: Option<&EventFd>) {
-        std::thread::sleep(std::time::Duration::MAX);
+    fn ready_fd(&self) -> Option<RawFd> {
+        None
     }
 }
