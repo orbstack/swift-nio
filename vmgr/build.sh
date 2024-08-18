@@ -47,6 +47,9 @@ fi
 
 $GO generate ./conf/appver ./drm/killswitch
 
+# Apple M1 is ARMv8.4 + most v8.5 extensions (SB, SSBS, CCDP, FRINT3264, SPECRESTRICT, ALTERNATIVENZCV)
+# just use v8.4 for simplicity -- we mainly care about LSE atomics
+GOARM64="v8.4" \
 CGO_CFLAGS="-mmacosx-version-min=12.3" \
 CGO_LDFLAGS="-mmacosx-version-min=12.3" \
 $GO build -buildmode=pie -ldflags="-extldflags \"$SWIFT_LIB_PATH $RUST_LIB_PATH ${EXTRA_EXTLD_FLAGS:-}\" ${EXTRA_LDFLAGS:-}" -o "$BIN_OUT" "$@"
