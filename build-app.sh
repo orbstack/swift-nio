@@ -51,7 +51,10 @@ function build_one() {
 
     # build rust lib
     pushd vendor/libkrun
-    cargo build --package krun --release --target $arch_rust
+    # hide source code paths
+    # $HOME is for ~/.cargo/registry/...
+    RUSTFLAGS="--remap-path-prefix $HOME=/Users/build --remap-path-prefix $PWD=/src" \
+        cargo build --package krun --release --target $arch_rust
     popd
 
     # build go (vmgr and scon)
