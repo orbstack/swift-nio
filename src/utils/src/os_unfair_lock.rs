@@ -9,7 +9,17 @@ use std::default::Default;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Drop};
-use std::sync::{LockResult, TryLockError, TryLockResult};
+use std::sync::{LockResult, OnceLock, TryLockError, TryLockResult};
+
+use libc::os_unfair_lock_t;
+
+// this is public API on macOS 15.0+, so it's safe to use
+// older versions of macOS had private, with the same flag value
+const OS_UNFAIR_LOCK_FLAG_ADAPTIVE_SPIN: u32 = 0x00040000;
+
+type OsUnfairLockLockWithFlags = unsafe extern "C" fn(os_unfair_lock_t, u32);
+
+static OS_UNFAIR_LOCK_LOCK_WITH_FLAGS: OnceLock<OsUnfairLockLockWithFlags> = OnceLock::new();
 
 pub struct Mutex<T: ?Sized> {
     pub lock: UnsafeCell<libc::os_unfair_lock>,
@@ -27,6 +37,32 @@ pub struct MutexGuard<'a, T: ?Sized> {
 unsafe impl<T: ?Sized + Send> Sync for Mutex<T> {}
 unsafe impl<T: ?Sized + Send> Send for Mutex<T> {}
 
+#[cold]
+fn find_os_unfair_lock_lock_with_flags() -> OsUnfairLockLockWithFlags {
+    unsafe {
+        // public API on macOS 15.0+
+        let sym = libc::dlsym(
+            libc::RTLD_DEFAULT,
+            c"os_unfair_lock_lock_with_flags".as_ptr(),
+        );
+        if !sym.is_null() {
+            return std::mem::transmute::<*mut libc::c_void, OsUnfairLockLockWithFlags>(sym);
+        }
+
+        // private API on older macOS
+        let sym = libc::dlsym(
+            libc::RTLD_DEFAULT,
+            c"os_unfair_lock_lock_with_options".as_ptr(),
+        );
+        if !sym.is_null() {
+            return std::mem::transmute::<*mut libc::c_void, OsUnfairLockLockWithFlags>(sym);
+        }
+    }
+
+    // no version of macOS can be missing both APIs
+    panic!("lock API not found");
+}
+
 impl<T: ?Sized> Mutex<T> {
     #[inline]
     pub const fn new(value: T) -> Self
@@ -41,9 +77,25 @@ impl<T: ?Sized> Mutex<T> {
 
     #[inline]
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
-        unsafe {
-            libc::os_unfair_lock_lock(self.lock.get());
+        // fastpath: do a trylock first
+        let ok = unsafe { libc::os_unfair_lock_trylock(self.lock.get()) };
+        if ok {
+            return Ok(MutexGuard {
+                mutex: self,
+                pd: PhantomData,
+            });
         }
+
+        // slowpath: adaptive spin in kernel
+        // we do this after trylock to avoid the overhead of atomics / OnceLock in the fastpath
+        let os_unfair_lock_lock_with_flags =
+            OS_UNFAIR_LOCK_LOCK_WITH_FLAGS.get_or_init(find_os_unfair_lock_lock_with_flags);
+
+        unsafe {
+            // adaptive spin, in kernel, only if owner is on-core
+            os_unfair_lock_lock_with_flags(self.lock.get(), OS_UNFAIR_LOCK_FLAG_ADAPTIVE_SPIN);
+        }
+
         Ok(MutexGuard {
             mutex: self,
             pd: PhantomData,
