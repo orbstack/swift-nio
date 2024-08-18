@@ -6,9 +6,10 @@ use std::{
 };
 
 use libc::{dladdr, dlsym, Dl_info, RTLD_NEXT};
+use smallvec::smallvec;
 use tracing::error;
 
-use super::{SymbolResult, Symbolicator};
+use super::{SymbolFunc, SymbolResult, SymbolResults, Symbolicator};
 
 pub struct DladdrSymbolicator {
     _private: PhantomData<()>,
@@ -23,12 +24,12 @@ impl DladdrSymbolicator {
 }
 
 impl Symbolicator for DladdrSymbolicator {
-    fn addr_to_symbol(&mut self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
-        let mut info = MaybeUninit::<Dl_info>::uninit();
+    fn addr_to_symbols(&mut self, addr: u64) -> anyhow::Result<SymbolResults> {
+        let mut info: MaybeUninit<Dl_info> = MaybeUninit::<Dl_info>::uninit();
         let ret = unsafe { dladdr(addr as *const c_void, info.as_mut_ptr()) };
         if ret == 0 {
             error!("dladdr failed for address {:x}", addr);
-            return Ok(None);
+            return Ok(smallvec![]);
         }
         let info = unsafe { info.assume_init() };
 
@@ -37,11 +38,11 @@ impl Symbolicator for DladdrSymbolicator {
             .to_string();
         let image_base = info.dli_fbase as u64;
 
-        let symbol_offset = if !info.dli_sname.is_null() {
+        let function = if !info.dli_sname.is_null() {
             let symbol = unsafe { CStr::from_ptr(info.dli_sname) }.to_string_lossy();
             let offset = (addr - info.dli_saddr as u64) as usize;
             let demangled = symbolic_demangle::demangle(&symbol);
-            Some((demangled.to_string(), offset))
+            Some(SymbolFunc::Function(demangled.to_string(), offset))
         } else {
             error!(
                 "no symbol for address {:x} image={} base={:x}",
@@ -50,11 +51,12 @@ impl Symbolicator for DladdrSymbolicator {
             None
         };
 
-        Ok(Some(SymbolResult {
+        Ok(smallvec![SymbolResult {
             image,
             image_base,
-            symbol_offset,
-        }))
+            function,
+            source: None,
+        }])
     }
 
     fn symbol_range(&mut self, name: &str) -> anyhow::Result<Option<Range<usize>>> {

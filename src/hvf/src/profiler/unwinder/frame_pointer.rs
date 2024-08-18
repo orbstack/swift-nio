@@ -20,8 +20,8 @@ impl Unwinder for FramePointerUnwinder {
         let initial_lr = regs.lr & PAC_MASK;
         // validate address: LR could be used as a scratch register in the middle of the function
         if is_valid_address(initial_lr) {
-            // TODO: subtract 1 for lookup?
-            f(initial_lr);
+            // subtract 1 so lookup lands on branch instruction
+            f(initial_lr - 1);
         }
 
         // then start looking at FP
@@ -55,8 +55,8 @@ impl Unwinder for FramePointerUnwinder {
             if i == 0 && frame_lr == initial_lr {
                 // skip duplicate LR if FP was already updated (i.e. not in prologue or epilogue)
             } else {
-                // TODO: subtract 1 for lookup?
-                f(frame_lr);
+                // subtract 1 so lookup lands on branch instruction
+                f(frame_lr - 1);
             }
 
             // mem[FP] = link to last FP

@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::profiler::{
-    symbolicator::{HostKernelSymbolicator, SymbolResult},
+    symbolicator::{HostKernelSymbolicator, SymbolFunc, SymbolResult},
     FrameCategory, SymbolicatedFrame,
 };
 
@@ -17,9 +17,9 @@ impl StackTransform for LinuxIrqTransform {
         let mut irq_idx = None;
         for (i, sframe) in stack.iter().enumerate() {
             if let Some(SymbolResult {
-                symbol_offset: Some((ref name, _)),
+                function: Some(SymbolFunc::Function(ref name, _)),
                 ..
-            }) = sframe.symbol
+            }) = sframe.real_symbol()
             {
                 // once we get to el1h_64_irq, remember where it was
                 if sframe.frame.category == FrameCategory::GuestKernel && name == "el1h_64_irq" {

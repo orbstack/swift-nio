@@ -31,7 +31,9 @@ use crate::aarch64::bindings::{
 };
 use crate::aarch64::vm::USE_HVF_GIC;
 use crate::profiler::arch::{is_hypercall_insn, ARM64_INSN_SIZE};
-use crate::profiler::symbolicator::{HostKernelSymbolicator, LinuxSymbolicator, Symbolicator};
+use crate::profiler::symbolicator::{
+    HostKernelSymbolicator, LinuxSymbolicator, SymbolFunc, Symbolicator,
+};
 use crate::profiler::{Frame, FrameCategory, PartialSample, STACK_DEPTH_LIMIT};
 use crate::VcpuProfilerState;
 
@@ -838,7 +840,8 @@ impl HvfVcpu {
         // on IRQ / exception vector entry, the CPU sets SP and PC but not LR
         // this leads to stack traces with PC=`vectors` and LR=(userspace LR)
         if lr & VA48_MASK == VA48_MASK {
-            f(lr);
+            // subtract 1 so lookup lands on branch instruction
+            f(lr - 1);
         }
 
         // then start looking at FP
@@ -854,7 +857,7 @@ impl HvfVcpu {
             }
 
             // mem[FP+8] = frame's LR
-            let frame_lr = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
+            let frame_lr: u64 = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
             if frame_lr == 0 {
                 // reached end of stack
                 break;
@@ -867,7 +870,8 @@ impl HvfVcpu {
             if i == 0 && frame_lr == lr {
                 // skip duplicate LR if FP was already updated (i.e. not in prologue or epilogue)
             } else {
-                f(frame_lr);
+                // subtract 1 so lookup lands on branch instruction
+                f(frame_lr - 1);
             }
 
             // mem[FP] = link to last FP
@@ -959,7 +963,7 @@ impl HvfVcpu {
             -((vbar_el1 - vectors_addr) as i64)
         };
 
-        LinuxSymbolicator::new(csmap, kaslr_offset)
+        LinuxSymbolicator::new(csmap, csmap_path, kaslr_offset)
     }
 
     fn add_debug_stack(&self, buf: &mut String, csmap_path: &str) -> anyhow::Result<()> {
@@ -969,16 +973,23 @@ impl HvfVcpu {
         self.walk_stack(pc, |addr| stack.push(addr))?;
 
         let mut symbolicator = self.new_symbolicator(csmap_path)?;
-        for (i, &addr) in stack.iter().enumerate() {
-            match symbolicator
-                .addr_to_symbol(addr)?
-                .and_then(|s| s.symbol_offset)
-            {
-                Some((name, offset)) => {
-                    writeln!(buf, "  {:>3}: {}+{}", i, name, offset)?;
-                }
-                None => {
-                    writeln!(buf, "  {:>3}: UNKNOWN+0x{:016x}", i, addr)?;
+        for addr in stack {
+            let symbols = symbolicator.addr_to_symbols(addr)?;
+            if symbols.is_empty() {
+                writeln!(buf, "  UNKNOWN+0x{:016x}", addr)?;
+            } else {
+                for sym in symbols {
+                    match sym.function {
+                        Some(SymbolFunc::Function(symbol, offset)) => {
+                            writeln!(buf, "  {}+{}", symbol, offset)?;
+                        }
+                        Some(SymbolFunc::Inlined(symbol)) => {
+                            writeln!(buf, "  [inlined] {}", symbol)?;
+                        }
+                        None => {
+                            writeln!(buf, "  UNKNOWN+0x{:016x}", addr)?;
+                        }
+                    }
                 }
             }
         }

@@ -1,7 +1,9 @@
 use std::collections::VecDeque;
 
+use smallvec::smallvec;
+
 use crate::profiler::{
-    symbolicator::{HostKernelSymbolicator, SymbolResult},
+    symbolicator::{HostKernelSymbolicator, SymbolFunc, SymbolResult},
     Frame, FrameCategory, SymbolicatedFrame,
 };
 
@@ -63,9 +65,9 @@ impl StackTransform for HostSyscallTransform {
             // this isn't really accurate, but it almost always works because macOS requires libSystem
             // we could do better by reading and saving x16, but that adds the overhead of reading the instruction at PC (and risking faults) to the thread-suspended critical section
             // with x16: read x16 as i64. if negative, trace_code = (Mach) 0x10c0000 + (-x16) * 4. if positive, trace code = (BSD) 0x40c0000 + (x16) * 4. look up code in /usr/share/misc/trace.codes
-            let syscall_name = match pc.symbol {
+            let syscall_name = match pc.real_symbol() {
                 Some(SymbolResult {
-                    symbol_offset: Some((ref name, _)),
+                    function: Some(SymbolFunc::Function(ref name, _)),
                     ..
                 }) => name,
                 _ => "<unknown>",
@@ -79,11 +81,12 @@ impl StackTransform for HostSyscallTransform {
                         category: FrameCategory::HostKernel,
                         addr: pc.frame.addr,
                     },
-                    symbol: Some(SymbolResult {
+                    symbols: smallvec![SymbolResult {
                         image: HostKernelSymbolicator::IMAGE.to_string(),
                         image_base: 0,
-                        symbol_offset: Some((format!("syscall: {}", syscall_name), 0)),
-                    }),
+                        function: Some(SymbolFunc::Function(format!("syscall: {}", syscall_name), 0)),
+                        source: None,
+                    }],
                 },
             );
         }

@@ -1,6 +1,9 @@
 use std::collections::VecDeque;
 
-use crate::profiler::{symbolicator::SymbolResult, SymbolicatedFrame};
+use crate::profiler::{
+    symbolicator::{SymbolFunc, SymbolResult},
+    SymbolicatedFrame,
+};
 
 use super::StackTransform;
 
@@ -38,9 +41,9 @@ impl StackTransform for CgoTransform {
             }
 
             if let Some(SymbolResult {
-                symbol_offset: Some((ref name, _)),
+                function: Some(SymbolFunc::Function(ref name, _)),
                 ..
-            }) = sframe.symbol
+            }) = sframe.real_symbol()
             {
                 if (name == "runtime.libcCall" || name == "runtime.asmcgocall.abi0")
                     && i != stack.len() - 1

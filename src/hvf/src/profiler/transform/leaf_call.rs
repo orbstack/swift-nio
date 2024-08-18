@@ -1,6 +1,9 @@
 use std::collections::VecDeque;
 
-use crate::profiler::{symbolicator::SymbolResult, FrameCategory, SymbolicatedFrame};
+use crate::profiler::{
+    symbolicator::{SymbolFunc, SymbolResult},
+    FrameCategory, SymbolicatedFrame,
+};
 
 use super::StackTransform;
 
@@ -36,16 +39,16 @@ impl StackTransform for LeafCallTransform {
         if let Some(SymbolResult {
             image: ref pc_image,
             image_base: pc_base,
-            symbol_offset: Some((ref pc_name, _)),
+            function: Some(SymbolFunc::Function(ref pc_name, _)),
             ..
-        }) = pc.symbol
+        }) = pc.real_symbol()
         {
             if let Some(SymbolResult {
                 image: ref lr_image,
                 image_base: lr_base,
-                symbol_offset: Some((ref lr_name, _)),
+                function: Some(SymbolFunc::Function(ref lr_name, _)),
                 ..
-            }) = lr.symbol
+            }) = lr.real_symbol()
             {
                 if pc_image == lr_image && pc_base == lr_base && pc_name == lr_name {
                     // remove LR, not PC. PC is the code we're actually running now;

@@ -1,9 +1,9 @@
 use ahash::AHashMap;
 
-use super::{SymbolResult, Symbolicator};
+use super::{SymbolResults, Symbolicator};
 
 pub struct CachedSymbolicator<S> {
-    cache: AHashMap<u64, Option<SymbolResult>>,
+    cache: AHashMap<u64, SymbolResults>,
     inner: S,
 }
 
@@ -17,13 +17,13 @@ impl<S: Symbolicator> CachedSymbolicator<S> {
 }
 
 impl<S: Symbolicator> Symbolicator for CachedSymbolicator<S> {
-    fn addr_to_symbol(&mut self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
-        if let Some(symbol) = self.cache.get(&addr) {
-            return Ok(symbol.clone());
+    fn addr_to_symbols(&mut self, addr: u64) -> anyhow::Result<SymbolResults> {
+        if let Some(symbols) = self.cache.get(&addr) {
+            return Ok(symbols.clone());
         }
 
-        let symbol = self.inner.addr_to_symbol(addr)?;
-        self.cache.insert(addr, symbol.clone());
-        Ok(symbol)
+        let symbols = self.inner.addr_to_symbols(addr)?;
+        self.cache.insert(addr, symbols.clone());
+        Ok(symbols)
     }
 }

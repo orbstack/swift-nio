@@ -8,12 +8,12 @@ use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
 use crate::profiler::stats::HistogramExt;
-use crate::profiler::symbolicator::SymbolResult;
+use crate::profiler::symbolicator::{SymbolFunc, SymbolResult};
 use crate::profiler::{
     thread::{ProfileeThread, ThreadId},
     Sample,
 };
-use crate::profiler::{Frame, ProfileInfo, ProfileResults, FrameCategory, SymbolicatedFrame};
+use crate::profiler::{Frame, FrameCategory, ProfileInfo, ProfileResults, SymbolicatedFrame};
 
 trait AsTreeKey {
     type Key: Ord;
@@ -91,9 +91,12 @@ struct SampleNode {
 impl Display for SampleNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.symbol {
-            Some(s) => match &s.symbol_offset {
-                Some((sym, offset)) => {
+            Some(s) => match &s.function {
+                Some(SymbolFunc::Function(sym, offset)) => {
                     write!(f, "{}+{}  ({})", sym, offset, basename(&s.image))
+                }
+                Some(SymbolFunc::Inlined(sym)) => {
+                    write!(f, "[inlined] {}  ({})", sym, basename(&s.image))
                 }
                 None => write!(f, "{:#x}  ({})", self.frame.addr, basename(&s.image)),
             },
@@ -114,8 +117,8 @@ impl AsTreeKey for SampleNode {
 
     fn as_tree_key(&self) -> SymbolTreeKey {
         match &self.symbol {
-            Some(s) => match &s.symbol_offset {
-                Some((sym, _)) => SymbolTreeKey::Symbol(self.frame.category, sym.clone()),
+            Some(s) => match &s.function {
+                Some(func) => SymbolTreeKey::Symbol(self.frame.category, func.name().to_string()),
                 None => SymbolTreeKey::Addr(self.frame.category, self.frame.addr),
             },
             None => SymbolTreeKey::Addr(self.frame.category, self.frame.addr),
@@ -167,9 +170,12 @@ impl<'a> TextExporter<'a> {
 
         thread_node
             .stacks
-            .insert(&mut frames.iter().rev().map(|frame| SampleNode {
-                frame: frame.frame,
-                symbol: frame.symbol.clone(),
+            // top -> bottom
+            .insert(&mut frames.iter().rev().flat_map(|sframe| {
+                sframe.iter_symbols().map(|s| SampleNode {
+                    frame: sframe.frame,
+                    symbol: s.cloned(),
+                })
             }));
 
         Ok(())

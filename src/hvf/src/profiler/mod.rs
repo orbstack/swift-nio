@@ -35,9 +35,10 @@ use mach2::{
 use sched::set_realtime_scheduling;
 use serde::{Deserialize, Serialize};
 use server::FirefoxApiServer;
+use smallvec::smallvec;
 use symbolicator::{
-    CachedSymbolicator, DladdrSymbolicator, HostKernelSymbolicator, LinuxSymbolicator,
-    SymbolResult, Symbolicator,
+    DladdrSymbolicator, HostDwarfSymbolicator, HostKernelSymbolicator, LinuxSymbolicator,
+    SymbolFunc, SymbolResult, SymbolResults, Symbolicator,
 };
 use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId, ThreadState};
 use tracing::{error, info, warn};
@@ -53,6 +54,7 @@ use crate::{VcpuHandleInner, VcpuRegistry};
 
 pub(crate) mod arch;
 mod buffer;
+mod dyld;
 mod exporter;
 mod ktrace;
 mod memory;
@@ -209,7 +211,26 @@ impl Frame {
 #[derive(Debug)]
 pub(crate) struct SymbolicatedFrame {
     frame: Frame,
-    symbol: Option<SymbolResult>,
+    // first = symbol at PC, rest = inlined
+    symbols: SymbolResults,
+}
+
+impl SymbolicatedFrame {
+    // always guaranteed to have at least one Option<SymbolResult>:
+    // [0] = symbol at PC, not accounting for inlined frames
+    pub fn real_symbol(&self) -> Option<&SymbolResult> {
+        self.symbols.first()
+    }
+
+    // iterator that always includes at least one element (None) if not symbolicated
+    pub fn iter_symbols(&self) -> impl Iterator<Item = Option<&SymbolResult>> {
+        let none_count = if self.symbols.is_empty() { 1 } else { 0 };
+
+        self.symbols
+            .iter()
+            .map(Some)
+            .chain(std::iter::once(None).take(none_count))
+    }
 }
 
 pub struct PartialSample {
@@ -317,24 +338,25 @@ struct Symbolicators<'a, HS, HKS, GS> {
 
 impl<'a, HS: Symbolicator, HKS: Symbolicator, GS: Symbolicator> Symbolicators<'a, HS, HKS, GS> {
     pub fn symbolicate_frame(&mut self, frame: Frame) -> SymbolicatedFrame {
-        let symbol = match frame.category {
-            FrameCategory::HostUserspace => self.host.addr_to_symbol(frame.addr),
+        let symbols = match frame.category {
+            FrameCategory::HostUserspace => self.host.addr_to_symbols(frame.addr),
             FrameCategory::GuestKernel => match &mut self.guest {
-                Some(s) => s.addr_to_symbol(frame.addr),
-                None => Ok(None),
+                Some(s) => s.addr_to_symbols(frame.addr),
+                None => Ok(smallvec![]),
             },
-            FrameCategory::GuestUserspace => Ok(Some(SymbolResult {
+            FrameCategory::GuestUserspace => Ok(smallvec![SymbolResult {
                 image: "guest".to_string(),
                 image_base: 0,
-                symbol_offset: Some(("<GUEST USERSPACE>".to_string(), 0)),
-            })),
-            FrameCategory::HostKernel => self.host_kernel.addr_to_symbol(frame.addr),
+                function: Some(SymbolFunc::Function("<GUEST USERSPACE>".to_string(), 0)),
+                source: None,
+            }]),
+            FrameCategory::HostKernel => self.host_kernel.addr_to_symbols(frame.addr),
         }
         .inspect_err(|e| error!("failed to symbolicate addr {:x}: {}", frame.addr, e))
         .ok()
-        .flatten();
+        .unwrap_or_else(|| smallvec![]);
 
-        SymbolicatedFrame { frame, symbol }
+        SymbolicatedFrame { frame, symbols }
     }
 }
 
@@ -717,7 +739,7 @@ impl Profiler {
             .map(|t| (t.id, ThreadFrameState::new()))
             .collect();
 
-        let mut host_symbolicator = CachedSymbolicator::new(DladdrSymbolicator::new()?);
+        let mut host_symbolicator = HostDwarfSymbolicator::new()?;
         let mut host_kernel_symbolicator = HostKernelSymbolicator::new()?;
 
         let mut symbolicators = Symbolicators {

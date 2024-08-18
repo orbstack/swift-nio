@@ -1,6 +1,6 @@
 use ahash::AHashMap;
-use anyhow::anyhow;
 use serde::Serialize;
+use smallvec::SmallVec;
 use std::collections::VecDeque;
 use std::hash::Hash;
 use std::io::BufWriter;
@@ -20,6 +20,7 @@ use crate::profiler::{
 };
 use crate::profiler::{
     Frame, FrameCategory, ProfileInfo, ProfileResults, ResourceSample, SymbolicatedFrame,
+    STACK_DEPTH_LIMIT,
 };
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
@@ -506,7 +507,7 @@ type SymbolKey = (String, String);
 struct ThreadState<'a> {
     thread: &'a ProfileeThread,
     resources: KeyedTable<String, Resource>,
-    frames: KeyedTable<Frame, FirefoxFrame>,
+    frames: KeyedTable<(Frame, usize), FirefoxFrame>,
     samples: FirefoxSampleTable,
     strings: KeyedTable<String, String>,
     funcs: KeyedTable<SymbolKey, Func>,
@@ -631,45 +632,70 @@ impl<'a> FirefoxExporter<'a> {
         let thread = self
             .threads
             .get_mut(&sample.thread_id)
-            .ok_or_else(|| anyhow!("thread not found: {:?}", sample.thread_id))?;
+            .expect("thread not found");
 
-        let stack_frames = sframes
-            .iter()
-            .map(|sframe| {
-                let frame = sframe.frame;
+        let mut stack_frames = SmallVec::<[_; STACK_DEPTH_LIMIT]>::new();
+        for sframe in sframes {
+            let frame = sframe.frame;
 
+            let lib_path = sframe
+                .real_symbol()
+                .map(|s| s.image.clone())
+                .unwrap_or_else(|| "<unknown>".to_string());
+
+            let lib = self.libs.get_or_insert_with(lib_path.clone(), || Lib {
+                arch: "arm64".to_string(),
+                name: image_basename(&lib_path).to_string(),
+                path: lib_path.clone(),
+                debug_name: image_basename(&lib_path).to_string(),
+                debug_path: lib_path.clone(),
+                // TODO: hash?
+                breakpad_id: lib_path.clone(),
+                code_id: None,
+            });
+
+            let resource = thread
+                .resources
+                .get_or_insert_with(lib_path.clone(), || Resource {
+                    name: thread.strings.get_or_insert_str(image_basename(&lib_path)),
+                    // TODO: what is this?
+                    type_: 1,
+                    host: None,
+                    lib: Some(lib.1),
+                });
+
+            let native_symbol = sframe.real_symbol().as_ref().and_then(|s| {
+                s.function.as_ref().map(|func| {
+                    let (name, offset) = func.name_offset();
+                    thread
+                        .native_symbols
+                        .get_or_insert_with((lib_path.clone(), name.to_string()), || {
+                            if offset as u64 > frame.addr {
+                                error!(
+                                    "symbol offset is greater than frame address: {:#x} > {:#x}",
+                                    offset, frame.addr
+                                );
+                                error!("symbol = {:?}", s);
+                                error!("frame = {:?}", frame);
+                                error!("sample = {:?}", sample);
+                            }
+                            NativeSymbol {
+                                lib_index: lib.1,
+                                address: (frame.addr - offset as u64) - s.image_base,
+                                name: thread.strings.get_or_insert_str(name),
+                                // TODO
+                                function_size: None,
+                            }
+                        })
+                        .1
+                })
+            });
+
+            for (i, symbol) in sframe.iter_symbols().enumerate() {
                 // find frame for this (category, addr)
-                let ff_frame = thread.frames.get_or_insert_with(frame, || {
-                    let lib_path = sframe.symbol
-                        .as_ref()
-                        .map(|s| s.image.clone())
-                        .unwrap_or_else(|| "<unknown>".to_string());
-
-                    let lib = self.libs.get_or_insert_with(lib_path.clone(), || Lib {
-                        arch: "arm64".to_string(),
-                        name: image_basename(&lib_path).to_string(),
-                        path: lib_path.clone(),
-                        debug_name: image_basename(&lib_path).to_string(),
-                        debug_path: lib_path.clone(),
-                        // TODO: hash?
-                        breakpad_id: lib_path.clone(),
-                        code_id: None,
-                    });
-
-                    let resource =
-                        thread
-                            .resources
-                            .get_or_insert_with(lib_path.clone(), || Resource {
-                                name: thread.strings.get_or_insert_str(image_basename(&lib_path)),
-                                // TODO: what is this?
-                                type_: 1,
-                                host: None,
-                                lib: Some(lib.1),
-                            });
-
-                    let func_name = sframe.symbol
-                        .as_ref()
-                        .and_then(|s| s.symbol_offset.as_ref().map(|(name, _)| name.clone()))
+                let ff_frame = thread.frames.get_or_insert_with((frame, i), || {
+                    let func_name = symbol
+                        .and_then(|s| s.function.as_ref().map(|f| f.name().to_string()))
                         .unwrap_or_else(|| format!("{:#x}", frame.addr));
                     let func = thread.funcs.get_or_insert_with(
                         (lib_path.clone(), func_name.clone()),
@@ -684,37 +710,11 @@ impl<'a> FirefoxExporter<'a> {
                         },
                     );
 
-                    let native_symbol = sframe.symbol.as_ref().and_then(|s| {
-                        s.symbol_offset.as_ref().map(|(name, offset)| {
-                            thread
-                                .native_symbols
-                                .get_or_insert_with((lib_path.clone(), name.clone()), || {
-                                    if *offset as u64 > frame.addr {
-                                        error!(
-                                            "symbol offset is greater than frame address: {:#x} > {:#x}",
-                                            *offset, frame.addr
-                                        );
-                                        error!("symbol = {:?}", s);
-                                        error!("frame = {:?}", frame);
-                                        error!("sample = {:?}", sample);
-                                    }
-                                    NativeSymbol {
-                                        lib_index: lib.1,
-                                        address: (frame.addr - *offset as u64) - s.image_base,
-                                        name: thread.strings.get_or_insert_str(name),
-                                        // TODO
-                                        function_size: None,
-                                    }
-                                })
-                                .1
-                        })
-                    });
-
-                    let address = frame.addr - sframe.symbol.as_ref().map(|s| s.image_base).unwrap_or(0);
+                    let address = frame.addr - symbol.map(|s| s.image_base).unwrap_or(0);
 
                     FirefoxFrame {
                         address,
-                        inline_depth: 0,
+                        inline_depth: i as u32,
                         category: Some(self.categories.get(&frame.category).unwrap().1),
                         subcategory: Some(0),
                         func: func.1,
@@ -726,9 +726,9 @@ impl<'a> FirefoxExporter<'a> {
                     }
                 });
 
-                (ff_frame.0.category.unwrap(), ff_frame.1)
-            })
-            .collect::<Vec<_>>();
+                stack_frames.push((ff_frame.0.category.unwrap(), ff_frame.1));
+            }
+        }
 
         let stack_index = thread.insert_stack(&stack_frames);
 

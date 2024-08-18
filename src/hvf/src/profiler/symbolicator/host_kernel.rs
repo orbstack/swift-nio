@@ -1,9 +1,10 @@
 use ahash::AHashMap;
 use anyhow::anyhow;
+use smallvec::smallvec;
 
 use crate::profiler::transform::HostSyscallTransform;
 
-use super::{SymbolResult, Symbolicator};
+use super::{SymbolFunc, SymbolResult, SymbolResults, Symbolicator};
 
 // fake symbolicator to inject host kernel ktrace events
 pub struct HostKernelSymbolicator {
@@ -66,22 +67,28 @@ impl HostKernelSymbolicator {
 }
 
 impl Symbolicator for HostKernelSymbolicator {
-    fn addr_to_symbol(&mut self, addr: u64) -> anyhow::Result<Option<SymbolResult>> {
-        Ok(Some(SymbolResult {
+    fn addr_to_symbols(&mut self, addr: u64) -> anyhow::Result<SymbolResults> {
+        Ok(smallvec![SymbolResult {
             image: Self::IMAGE.to_string(),
             image_base: 0,
-            symbol_offset: match addr {
-                Self::ADDR_VMFAULT => Some(("vm_fault".to_string(), 0)),
-                Self::ADDR_THREAD_SUSPENDED => Some(("thread_suspended".to_string(), 0)),
-                Self::ADDR_THREAD_WAIT => Some(("thread_wait".to_string(), 0)),
+            function: match addr {
+                Self::ADDR_VMFAULT => Some(SymbolFunc::Function("vm_fault".to_string(), 0)),
+                Self::ADDR_THREAD_SUSPENDED =>
+                    Some(SymbolFunc::Function("thread_suspended".to_string(), 0)),
+                Self::ADDR_THREAD_WAIT => Some(SymbolFunc::Function("thread_wait".to_string(), 0)),
                 Self::ADDR_THREAD_WAIT_UNINTERRUPTIBLE => {
-                    Some(("thread_wait_uninterruptible".to_string(), 0))
+                    Some(SymbolFunc::Function(
+                        "thread_wait_uninterruptible".to_string(),
+                        0,
+                    ))
                 }
-                Self::ADDR_THREAD_HALTED => Some(("thread_halted".to_string(), 0)),
-                Self::ADDR_HANDLE_HVC => Some(("handle_hvc".to_string(), 0)),
+                Self::ADDR_THREAD_HALTED =>
+                    Some(SymbolFunc::Function("thread_halted".to_string(), 0)),
+                Self::ADDR_HANDLE_HVC => Some(SymbolFunc::Function("handle_hvc".to_string(), 0)),
 
                 // fix the "MSC_kern_invalid_5" eyesore. there's no trace code for this
-                Self::ADDR_TRACE_HV_TRAP => Some((Self::MSC_HV_TRAP.to_string(), 0)),
+                Self::ADDR_TRACE_HV_TRAP =>
+                    Some(SymbolFunc::Function(Self::MSC_HV_TRAP.to_string(), 0)),
 
                 Self::ADDR_TRACE_CODES.. => {
                     let code = (addr - Self::ADDR_TRACE_CODES) as u32;
@@ -90,11 +97,12 @@ impl Symbolicator for HostKernelSymbolicator {
                         .get(&code)
                         .cloned()
                         .unwrap_or_else(|| format!("TRACE_unknown_{:x}", code));
-                    Some((name, 0))
+                    Some(SymbolFunc::Function(name, 0))
                 }
 
                 _ => None,
             },
-        }))
+            source: None,
+        }])
     }
 }
