@@ -51,7 +51,7 @@ function build_one() {
 
     # build rust lib
     pushd vendor/libkrun
-    cargo build --release --target $arch_rust
+    cargo build --package krun --release --target $arch_rust
     popd
 
     # build go (vmgr and scon)
