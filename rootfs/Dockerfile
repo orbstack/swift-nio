@@ -17,6 +17,7 @@ RUN apk add --no-cache go alpine-sdk lxc-dev bash \
     llvm clang linux-headers libbpf-dev
 # must build vmgr and scon together because they depend on each other
 FROM go-base AS go-build
+ENV GOTOOLCHAIN=auto
 COPY vendor /build/vendor
 COPY scon /build/scon
 COPY vmgr /build/vmgr
