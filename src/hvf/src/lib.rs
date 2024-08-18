@@ -20,7 +20,7 @@ use profiler::{
     PartialSample, Profiler, ProfilerGuestContext, ProfilerVcpuInit, VcpuProfilerResults,
 };
 use tracing::error;
-use utils::Mutex;
+use utils::{macos::sysctl::os_major_version, Mutex};
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 use vmm_ids::{ArcVcpuSignal, VcpuSignalMask};
 
@@ -246,9 +246,17 @@ pub unsafe fn free_range(
 
     // clear this range from hv pmap ledger:
     // there's no other way to clear from hv pmap, and we *will* incur this cost at some point
-    // hv_vm_protect(0) then (RWX) is slightly faster than unmap+map, and does the same thing (including split+coalesce)
-    hvf_vm.protect_memory(guest_addr, size, MemoryFlags::NONE)?;
-    hvf_vm.protect_memory(guest_addr, size, MemoryFlags::RWX)?;
+
+    // hv_vm_protect(NONE) then (RWX) is slightly faster than unmap+map, and does the same thing (including split+coalesce)
+    // however, protect doesn't work on macOS 15 beta 5, but unmap+map still does
+    // TODO: investigate why
+    if os_major_version() >= 15 {
+        hvf_vm.unmap_memory(guest_addr, size)?;
+        hvf_vm.map_memory(host_addr as *mut u8, guest_addr, size, MemoryFlags::RWX)?;
+    } else {
+        hvf_vm.protect_memory(guest_addr, size, MemoryFlags::NONE)?;
+        hvf_vm.protect_memory(guest_addr, size, MemoryFlags::RWX)?;
+    }
 
     Ok(())
 }

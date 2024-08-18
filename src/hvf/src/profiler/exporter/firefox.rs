@@ -9,11 +9,11 @@ use std::thread::available_parallelism;
 use std::time::SystemTime;
 use std::{collections::HashMap, fs::File};
 use tracing::error;
+use utils::macos::sysctl::sysctl_string;
 
 use crate::profiler::buffer::SegVec;
 use crate::profiler::ktrace::KtraceResults;
 use crate::profiler::memory::system_total_memory;
-use crate::profiler::sched::sysctl_string;
 use crate::profiler::{
     thread::{ProfileeThread, ThreadId},
     Sample,
