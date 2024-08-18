@@ -4,6 +4,8 @@ use std::io::{BufWriter, Write};
 use std::{cell::RefCell, collections::BTreeMap, fs::File, rc::Rc};
 
 use ahash::AHashMap;
+use string_interner::symbol::SymbolU32;
+use string_interner::{DefaultBackend, StringInterner};
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
@@ -18,7 +20,7 @@ use crate::profiler::{Frame, FrameCategory, ProfileInfo, ProfileResults, Symboli
 trait AsTreeKey {
     type Key: Ord;
 
-    fn as_tree_key(&self) -> Self::Key;
+    fn as_tree_key(&self, interner: &mut StringInterner<DefaultBackend>) -> Self::Key;
 }
 
 struct StackTree<D: Display + Clone + AsTreeKey<Key = K>, K = <D as AsTreeKey>::Key> {
@@ -37,17 +39,24 @@ impl StackTree<SampleNode, <SampleNode as AsTreeKey>::Key> {
         }
     }
 
-    pub fn insert(&mut self, stack_iter: &mut impl Iterator<Item = SampleNode>) {
+    pub fn insert<'a>(
+        &mut self,
+        interner: &mut StringInterner<DefaultBackend>,
+        stack_iter: &mut impl Iterator<Item = SampleNodeRef<'a>>,
+    ) {
         self.count += 1;
 
         if let Some(data) = stack_iter.next() {
             let mut child = self
                 .children
-                .entry(data.as_tree_key())
+                .entry(data.as_tree_key(interner))
                 .or_insert_with(|| Rc::new(RefCell::new(StackTree::new())))
                 .borrow_mut();
-            child.data = Some(data.clone());
-            child.insert(stack_iter);
+            child.data = Some(SampleNode {
+                frame: data.frame,
+                symbol: data.symbol.cloned(),
+            });
+            child.insert(interner, stack_iter);
         }
     }
 
@@ -96,7 +105,7 @@ impl Display for SampleNode {
                     write!(f, "{}+{}  ({})", sym, offset, basename(&s.image))
                 }
                 Some(SymbolFunc::Inlined(sym)) => {
-                    write!(f, "[inlined] {}  ({})", sym, basename(&s.image))
+                    write!(f, "[inl] {}  ({})", sym, basename(&s.image))
                 }
                 None => write!(f, "{:#x}  ({})", self.frame.addr, basename(&s.image)),
             },
@@ -108,21 +117,40 @@ impl Display for SampleNode {
 // it's more accurate to key by exact address, but the output is uglier
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 enum SymbolTreeKey {
-    Symbol(FrameCategory, String),
+    Symbol(FrameCategory, SymbolU32),
     Addr(FrameCategory, u64),
+}
+
+struct SampleNodeRef<'a> {
+    frame: Frame,
+    symbol: Option<&'a SymbolResult>,
+}
+
+impl<'a> AsTreeKey for SampleNodeRef<'a> {
+    type Key = SymbolTreeKey;
+
+    fn as_tree_key(&self, interner: &mut StringInterner<DefaultBackend>) -> SymbolTreeKey {
+        match &self.symbol {
+            Some(s) => match &s.function {
+                Some(func) => {
+                    SymbolTreeKey::Symbol(self.frame.category, interner.get_or_intern(func.name()))
+                }
+                None => SymbolTreeKey::Addr(self.frame.category, self.frame.addr),
+            },
+            None => SymbolTreeKey::Addr(self.frame.category, self.frame.addr),
+        }
+    }
 }
 
 impl AsTreeKey for SampleNode {
     type Key = SymbolTreeKey;
 
-    fn as_tree_key(&self) -> SymbolTreeKey {
-        match &self.symbol {
-            Some(s) => match &s.function {
-                Some(func) => SymbolTreeKey::Symbol(self.frame.category, func.name().to_string()),
-                None => SymbolTreeKey::Addr(self.frame.category, self.frame.addr),
-            },
-            None => SymbolTreeKey::Addr(self.frame.category, self.frame.addr),
+    fn as_tree_key(&self, interner: &mut StringInterner<DefaultBackend>) -> SymbolTreeKey {
+        SampleNodeRef {
+            frame: self.frame,
+            symbol: self.symbol.as_ref(),
         }
+        .as_tree_key(interner)
     }
 }
 
@@ -136,6 +164,7 @@ pub struct TextExporter<'a> {
     threads_map: &'a AHashMap<ThreadId, &'a ProfileeThread>,
 
     threads: BTreeMap<ThreadId, ThreadNode>,
+    interner: StringInterner<DefaultBackend>,
 }
 
 impl<'a> TextExporter<'a> {
@@ -148,6 +177,7 @@ impl<'a> TextExporter<'a> {
             threads_map,
 
             threads: BTreeMap::new(),
+            interner: StringInterner::new(),
         })
     }
 
@@ -171,12 +201,15 @@ impl<'a> TextExporter<'a> {
         thread_node
             .stacks
             // top -> bottom
-            .insert(&mut frames.iter().rev().flat_map(|sframe| {
-                sframe.iter_symbols().map(|s| SampleNode {
-                    frame: sframe.frame,
-                    symbol: s.cloned(),
-                })
-            }));
+            .insert(
+                &mut self.interner,
+                &mut frames.iter().rev().flat_map(|sframe| {
+                    sframe.iter_symbols().map(|s| SampleNodeRef {
+                        frame: sframe.frame,
+                        symbol: s,
+                    })
+                }),
+            );
 
         Ok(())
     }

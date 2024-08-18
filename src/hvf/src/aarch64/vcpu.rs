@@ -984,7 +984,7 @@ impl HvfVcpu {
                             writeln!(buf, "  {}+{}", symbol, offset)?;
                         }
                         Some(SymbolFunc::Inlined(symbol)) => {
-                            writeln!(buf, "  [inlined] {}", symbol)?;
+                            writeln!(buf, "  [inl] {}", symbol)?;
                         }
                         None => {
                             writeln!(buf, "  UNKNOWN+0x{:016x}", addr)?;

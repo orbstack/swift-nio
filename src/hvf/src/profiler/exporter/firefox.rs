@@ -2,12 +2,12 @@ use ahash::AHashMap;
 use serde::Serialize;
 use smallvec::SmallVec;
 use std::collections::VecDeque;
+use std::fs::File;
 use std::hash::Hash;
 use std::io::BufWriter;
 use std::ops::Sub;
 use std::thread::available_parallelism;
 use std::time::SystemTime;
-use std::{collections::HashMap, fs::File};
 use tracing::error;
 use utils::macos::sysctl::sysctl_string;
 
@@ -444,14 +444,14 @@ table_type!(NativeSymbol {
 
 struct KeyedTable<K, V> {
     values: Vec<V>,
-    keys: HashMap<K, usize>,
+    keys: AHashMap<K, usize>,
 }
 
 impl<K: Eq + Hash, V> KeyedTable<K, V> {
     fn new() -> Self {
         Self {
             values: Vec::new(),
-            keys: HashMap::new(),
+            keys: AHashMap::new(),
         }
     }
 

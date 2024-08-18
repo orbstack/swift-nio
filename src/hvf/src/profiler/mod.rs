@@ -37,8 +37,8 @@ use serde::{Deserialize, Serialize};
 use server::FirefoxApiServer;
 use smallvec::smallvec;
 use symbolicator::{
-    DladdrSymbolicator, HostDwarfSymbolicator, HostKernelSymbolicator, LinuxSymbolicator,
-    SymbolFunc, SymbolResult, SymbolResults, Symbolicator,
+    CachedSymbolicator, DladdrSymbolicator, HostDwarfSymbolicator, HostKernelSymbolicator,
+    LinuxSymbolicator, SymbolFunc, SymbolResult, SymbolResults, Symbolicator,
 };
 use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId, ThreadState};
 use tracing::{error, info, warn};
@@ -739,7 +739,7 @@ impl Profiler {
             .map(|t| (t.id, ThreadFrameState::new()))
             .collect();
 
-        let mut host_symbolicator = HostDwarfSymbolicator::new()?;
+        let mut host_symbolicator = CachedSymbolicator::new(HostDwarfSymbolicator::new()?);
         let mut host_kernel_symbolicator = HostKernelSymbolicator::new()?;
 
         let mut symbolicators = Symbolicators {

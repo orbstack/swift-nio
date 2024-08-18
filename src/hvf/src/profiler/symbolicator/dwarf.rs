@@ -6,9 +6,7 @@ use tracing::error;
 
 use crate::profiler::dyld::{self, LoadedImage};
 
-use super::{
-    CachedSymbolicator, DladdrSymbolicator, SymbolFunc, SymbolResult, SymbolResults, Symbolicator,
-};
+use super::{DladdrSymbolicator, SymbolFunc, SymbolResult, SymbolResults, Symbolicator};
 
 struct DwarfImage {
     image: LoadedImage,
@@ -16,7 +14,7 @@ struct DwarfImage {
 }
 
 pub struct HostDwarfSymbolicator {
-    dladdr: CachedSymbolicator<DladdrSymbolicator>,
+    dladdr: DladdrSymbolicator,
     images: BTreeMap<usize, DwarfImage>,
 }
 
@@ -43,7 +41,7 @@ impl HostDwarfSymbolicator {
 
         Ok(HostDwarfSymbolicator {
             // fallback
-            dladdr: CachedSymbolicator::new(DladdrSymbolicator::new()?),
+            dladdr: DladdrSymbolicator::new()?,
             images,
         })
     }
