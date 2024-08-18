@@ -252,7 +252,7 @@ RUN apk upgrade --no-cache && apk add --no-cache \
 RUN <<EOT sh -eux
 mkdir /work
 cd /work
-wget -O docker.tar.gz "https://download.docker.com/linux/static/stable/\$(uname -m)/docker-26.1.4.tgz"
+wget -O docker.tar.gz "https://download.docker.com/linux/static/stable/\$(uname -m)/docker-27.1.2.tgz"
 tar -xvf docker.tar.gz
 mv docker/dockerd docker/docker-init /usr/local/bin/
 
