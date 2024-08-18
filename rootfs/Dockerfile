@@ -474,7 +474,7 @@ mv /opt/orbstack-guest/lib/modules/0.0.0 /opt/orbstack-guest/lib/modules/current
 
 if [[ "$TYPE" == "debug" ]]; then
     chown 0600 /etc/ssh/*key*
-    sed -i 's|/bin/ash|/usr/bin/fish|' /etc/passwd
+    sed -i 's|/bin/sh|/usr/bin/fish|' /etc/passwd
     echo 'hvc0::respawn:/sbin/agetty -L hvc0 115200 vt100 --autologin root' >> /etc/inittab
 else
     # release
