@@ -1,8 +1,8 @@
-use std::{error::Error, ffi::c_int, io::{Read, Write}, mem::size_of, os::{fd::{AsFd, AsRawFd, FromRawFd, OwnedFd}, raw::c_void}, sync::{atomic::{AtomicU64, Ordering}, Arc}, time::{Duration, Instant}};
+use std::{error::Error, ffi::c_int, io::{Read, Write}, mem::size_of, os::{fd::{AsFd, AsRawFd, FromRawFd, OwnedFd}, raw::c_void, unix::thread::JoinHandleExt}, sync::{atomic::{AtomicU64, Ordering}, Arc}, time::{Duration, Instant}};
 
 use hdrhistogram::Histogram;
-use libc::{clockid_t, kevent64_s, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_FFNOP, NOTE_TRIGGER};
-use mach2::{kern_return::KERN_SUCCESS, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, message::{mach_msg, mach_msg_header_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, traps::mach_task_self, vm_types::natural_t};
+use libc::{clockid_t, kevent64_s, pthread_mach_thread_np, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_FFNOP, NOTE_TRIGGER};
+use mach2::{kern_return::{kern_return_t, KERN_ABORTED, KERN_SUCCESS}, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, mach_types::thread_act_t, message::{mach_msg, mach_msg_header_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, traps::mach_task_self, vm_types::natural_t};
 use mio::{Events, Poll, Token, Waker};
 use nix::errno::Errno;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::unix::pipe::pipe, sync::Notify};
@@ -51,9 +51,15 @@ enum Method {
     KqueueEvfiltUser,
     MachPort,
     KqueueMachPort,
+    MachWaitUntil,
 }
 
 use std::{sync::{Condvar, Mutex}};
+
+extern "C" {
+    fn thread_abort(thread: thread_act_t) -> kern_return_t;
+    fn thread_abort_safely(thread: thread_act_t) -> kern_return_t;
+}
 
 #[derive(Debug, Default)]
 pub struct Parker {
@@ -291,6 +297,12 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                 Method::MachPort => {
                     recv_from_mach_port(mach_port);
                 }
+                Method::MachWaitUntil => {
+                    let ret = unsafe { mach_wait_until(u64::MAX) };
+                    if ret != 0 && ret != KERN_ABORTED {
+                        panic!("mach_wait_until failed: {}", ret);
+                    }
+                }
             }
             let send_ts = last_ts.load(Ordering::Relaxed);
             if send_ts == 0 {
@@ -305,6 +317,10 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
     });
 
     let thread = handle.thread();
+    let mach_thread = unsafe { pthread_mach_thread_np(handle.as_pthread_t()) };
+    if mach_thread == MACH_PORT_NULL {
+        panic!("pthread_mach_thread_np failed");
+    }
     let mut do_wake = || {
         match method {
             Method::Futex => {
@@ -336,6 +352,12 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
             Method::KqueueMachPort | Method::MachPort => {
                 send_to_mach_port(mach_port);
             }
+            Method::MachWaitUntil => {
+                let ret = unsafe { thread_abort(mach_thread) };
+                if ret != 0 {
+                    panic!("thread_abort failed: {}", ret);
+                }
+            }
         }
     };
     let start_ts = now_ns();
@@ -354,7 +376,10 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         // avoid cluttering spindump with nanosleep / semaphore overhead
         // std::thread::sleep(Duration::from_millis(1));
         let deadline = unsafe { mach_absolute_time() } + nsec_to_mabs(Duration::from_millis(1).as_nanos() as u64);
-        unsafe { mach_wait_until(deadline) };
+        let ret = unsafe { mach_wait_until(deadline) };
+        if ret != 0 {
+            panic!("mach_wait_until failed: {}", ret);
+        }
     }
 
     // stop
@@ -374,8 +399,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // test_method(Method::SemThreadPark)?;
     // test_method(Method::PthreadMutexCondvar)?;
     // test_method(Method::MioKqueueEvfiltUser)?;
-    test_method(Method::KqueueEvfiltUser)?;
+    // test_method(Method::KqueueEvfiltUser)?;
     // test_method(Method::KqueueMachPort)?;
+    test_method(Method::MachWaitUntil)?;
 
     // broken
     // test_method(Method::MachPort)?;
