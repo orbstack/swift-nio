@@ -185,7 +185,7 @@ impl HvcDevice for BlockHvcDevice {
         match self.handle_hvc(args_addr) {
             Ok(_) => 0,
             Err(e) => {
-                error!("block hvc failed: {:?}", e);
+                error!("block req failed: {}", e);
                 -1
             }
         }

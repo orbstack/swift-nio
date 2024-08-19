@@ -128,7 +128,7 @@ impl DiskProperties {
         }
 
         let image_id = Self::build_disk_image_id(&disk_image);
-        let mapped_file = MappedFile::new(disk_image, disk_size as usize, disk_image_path)?;
+        let mapped_file = MappedFile::new(disk_image, disk_size as usize)?;
 
         Ok(Self {
             cache_type,
