@@ -7,6 +7,8 @@ use mio::{Events, Poll, Token, Waker};
 use nix::errno::Errno;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::unix::pipe::pipe, sync::Notify};
 
+mod park;
+
 const NS: u64 = 1;
 const US: u64 = 1000 * NS;
 const MS: u64 = 1000 * US;
@@ -45,7 +47,8 @@ fn nsec_to_mabs(nsec: u64) -> u64 {
 enum Method {
     Futex,
     Pipe,
-    SemThreadPark,
+    StdThreadPark,
+    DispatchSemaphoreParker,
     MioKqueueEvfiltUser,
     PthreadMutexCondvar,
     KqueueEvfiltUser,
@@ -273,7 +276,10 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         panic!("sigaction failed: {}", ret);
     }
 
+    let parker = Arc::new(park::Parker::default());
+
     // spawn reader
+    let parker_clone = parker.clone();
     let pthread_parker_clone = pthread_parker.clone();
     let kq_clone = kq.clone();
     let handle = std::thread::spawn(move || {
@@ -299,8 +305,11 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                         break;
                     }
                 }
-                Method::SemThreadPark => {
+                Method::StdThreadPark => {
                     std::thread::park();
+                }
+                Method::DispatchSemaphoreParker => {
+                    parker_clone.park();
                 }
                 Method::MioKqueueEvfiltUser => {
                     poll.poll(&mut events, None).unwrap();
@@ -361,8 +370,11 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
             Method::Pipe => {
                 let _ = wfile.write(&1u64.to_le_bytes()).unwrap();
             }
-            Method::SemThreadPark => {
+            Method::StdThreadPark => {
                 thread.unpark();
+            }
+            Method::DispatchSemaphoreParker => {
+                parker.unpark();
             }
             Method::MioKqueueEvfiltUser => {
                 waker.wake().unwrap();
@@ -432,11 +444,12 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
 fn main() -> Result<(), Box<dyn Error>> {
     // test_method(Method::Futex)?;
     // test_method(Method::Pipe)?;
-    // test_method(Method::SemThreadPark)?;
+    test_method(Method::StdThreadPark)?;
+    test_method(Method::DispatchSemaphoreParker)?;
     // test_method(Method::PthreadMutexCondvar)?;
     // test_method(Method::MioKqueueEvfiltUser)?;
-    test_method(Method::KqueueEvfiltUser)?;
-    test_method(Method::KqueueEvfiltUserSignal)?;
+    // test_method(Method::KqueueEvfiltUser)?;
+    // test_method(Method::KqueueEvfiltUserSignal)?;
     // test_method(Method::KqueueMachPort)?;
     // test_method(Method::MachWaitUntil)?;
     // test_method(Method::MachWaitUntilSignal)?;
