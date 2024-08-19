@@ -273,7 +273,7 @@ func (p *ConsoleProcessor) Start(r *os.File) {
 							sentry.CaptureException(err)
 						}
 					})
-				} else if strings.Contains(line, "] BTRFS info (device vdb1: state E): forced readonly") {
+				} else if strings.Contains(line, "] I/O error, dev vdb, sector") {
 					// too many i/o errors: force shut down. clean shutdown won't work due to read-only fs
 					// can happen if very low space on disk
 					// everything blows up if fs is read-only
