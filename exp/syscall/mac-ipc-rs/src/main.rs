@@ -1,8 +1,8 @@
-use std::{error::Error, ffi::c_int, io::{Read, Write}, mem::size_of, os::{fd::{AsFd, AsRawFd, FromRawFd, OwnedFd}, raw::c_void, unix::thread::JoinHandleExt}, sync::{atomic::{AtomicU64, Ordering}, Arc}, time::{Duration, Instant}};
+use std::{error::Error, ffi::c_int, io::{Read, Write}, mem::{size_of, MaybeUninit}, os::{fd::{AsFd, AsRawFd, FromRawFd, OwnedFd}, raw::c_void, unix::thread::JoinHandleExt}, sync::{atomic::{AtomicU64, Ordering}, Arc}, time::{Duration, Instant}};
 
 use hdrhistogram::Histogram;
-use libc::{clockid_t, kevent64_s, pthread_kill, pthread_mach_thread_np, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_FFNOP, NOTE_TRIGGER};
-use mach2::{kern_return::{kern_return_t, KERN_ABORTED, KERN_SUCCESS}, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, mach_types::thread_act_t, message::{mach_msg, mach_msg_header_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, semaphore::{semaphore_create}, sync_policy::SYNC_POLICY_FIFO, traps::mach_task_self, vm_types::natural_t};
+use libc::{clockid_t, kevent64_s, pthread_cpu_number_np, pthread_kill, pthread_mach_thread_np, pthread_self, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_FFNOP, NOTE_TRIGGER};
+use mach2::{clock_types::mach_timespec_t, kern_return::{kern_return_t, KERN_ABORTED, KERN_SUCCESS}, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, mach_types::thread_act_t, message::{mach_msg, mach_msg_header_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, semaphore::semaphore_create, sync_policy::SYNC_POLICY_FIFO, thread_policy::{thread_policy_set, thread_time_constraint_policy_data_t, THREAD_TIME_CONSTRAINT_POLICY, THREAD_TIME_CONSTRAINT_POLICY_COUNT}, traps::mach_task_self, vm_types::natural_t};
 use mio::{Events, Poll, Token, Waker};
 use nix::errno::Errno;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::unix::pipe::pipe, sync::Notify};
@@ -28,6 +28,9 @@ const WAKE_TOKEN: Token = Token(1);
 type dispatch_semaphore_t = *mut std::ffi::c_void;
 type dispatch_time_t = u64;
 
+// we don't actually want this timeout to go off
+const HANDOFF_TIMEOUT_NS: u64 = 999 * MS;
+
 extern "C" {
     fn os_sync_wake_by_address_any(addr: *const c_void, size: usize, flags: u32) -> c_int;
     fn os_sync_wait_on_address(addr: *mut c_void, value: u64, size: usize, flags: u32) -> c_int;
@@ -44,6 +47,8 @@ extern "C" {
     // mach2 is wrong
     fn semaphore_wait(semaphore: mach_port_t) -> kern_return_t;
     fn semaphore_signal(semaphore: mach_port_t) -> kern_return_t;
+    fn semaphore_wait_signal(wait_semaphore: mach_port_t, signal_semaphore: mach_port_t) -> kern_return_t;
+    fn semaphore_timedwait_signal(wait_semaphore: mach_port_t, signal_semaphore: mach_port_t, wait_time: mach_timespec_t) -> kern_return_t;
 }
 
 fn now_ns() -> u64 {
@@ -62,6 +67,7 @@ enum Method {
     Pipe,
     StdThreadPark,
     MachSemaphore,
+    MachSemaphoreHandoff,
     DispatchSemaphore,
     DispatchSemaphoreParker,
     MioKqueueEvfiltUser,
@@ -80,6 +86,80 @@ extern "C" {
     fn thread_abort(thread: thread_act_t) -> kern_return_t;
     fn thread_abort_safely(thread: thread_act_t) -> kern_return_t;
 }
+
+#[derive(Copy, Clone)]
+pub struct MachAbsoluteDuration(pub u64);
+
+impl MachAbsoluteDuration {
+    fn timebase() -> mach_timebase_info {
+        let mut timebase = MaybeUninit::uninit();
+        unsafe {
+            // cached in libsystem, without barrier/lock
+            mach_timebase_info(timebase.as_mut_ptr());
+            timebase.assume_init()
+        }
+    }
+
+    pub fn from_raw(raw: u64) -> Self {
+        Self(raw)
+    }
+
+    pub fn nanos(&self) -> u64 {
+        let timebase = Self::timebase();
+        self.0 * timebase.numer as u64 / timebase.denom as u64
+    }
+
+    pub fn from_nanos(nanos: u64) -> Self {
+        let timebase = Self::timebase();
+        Self(nanos * timebase.denom as u64 / timebase.numer as u64)
+    }
+
+    pub fn from_duration(dur: std::time::Duration) -> Self {
+        Self::from_nanos(dur.as_nanos() as u64)
+    }
+
+    pub fn as_duration(&self) -> std::time::Duration {
+        std::time::Duration::from_nanos(self.nanos())
+    }
+
+    pub fn micros(&self) -> u64 {
+        self.nanos() / 1_000
+    }
+
+    pub fn millis(&self) -> u64 {
+        self.nanos() / 1_000_000
+    }
+
+    pub fn millis_f64(&self) -> f64 {
+        self.nanos() as f64 / 1_000_000.0
+    }
+
+    pub fn seconds(&self) -> u64 {
+        self.nanos() / 1_000_000_000
+    }
+}
+
+fn set_realtime_scheduling(interval: Duration) {
+    let policy = thread_time_constraint_policy_data_t {
+        period: 0,
+        computation: MachAbsoluteDuration::from_duration(interval / 2).0 as u32,
+        constraint: MachAbsoluteDuration::from_duration(interval).0 as u32,
+        preemptible: 0,
+    };
+
+    let ret = unsafe {
+        thread_policy_set(
+            pthread_mach_thread_np(pthread_self()),
+            THREAD_TIME_CONSTRAINT_POLICY,
+            &policy as *const _ as *mut _,
+            THREAD_TIME_CONSTRAINT_POLICY_COUNT,
+        )
+    };
+    if ret != 0 {
+        panic!("thread_policy_set failed: {}", ret);
+    }
+}
+
 
 const DISPATCH_TIME_NOW: dispatch_time_t = 0;
 const DISPATCH_TIME_FOREVER: dispatch_time_t = !0;
@@ -232,7 +312,7 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
     let mut wfile = unsafe { std::fs::File::from_raw_fd(wfd.as_raw_fd()) };
 
     // 0 = abort
-    let last_ts = Arc::new(AtomicU64::new(0));
+    let last_ts = Arc::new(AtomicU64::new(1));
     let last_ts_clone = last_ts.clone();
 
     let mut poll = Poll::new()?;
@@ -286,11 +366,28 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
     let dispatch_sem = unsafe { dispatch_semaphore_create(0) } as usize;
 
     // create mach semaphore
-    let mut mach_sem = 0;
-    let ret = unsafe { semaphore_create(mach_task_self(), &mut mach_sem, SYNC_POLICY_FIFO, 0) };
+    let mut mach_worker_sem = 0;
+    let ret = unsafe { semaphore_create(mach_task_self(), &mut mach_worker_sem, SYNC_POLICY_FIFO, 0) };
     if ret != KERN_SUCCESS {
         panic!("semaphore_create failed: {}", ret);
     }
+
+    let mut mach_completion_sem = 0;
+    let ret = unsafe { semaphore_create(mach_task_self(), &mut mach_completion_sem, SYNC_POLICY_FIFO, 0) };
+    if ret != KERN_SUCCESS {
+        panic!("semaphore_create failed: {}", ret);
+    }
+
+    // prime a waiter on completion sem:
+    // worker will signal it first, then wait on worker sem
+    // subsequent handoffs work because worker waits on worker sem and signals completion sem
+    // since it's FIFO, this will consume the first wakeup
+    std::thread::spawn(move || {
+        let ret = unsafe { semaphore_wait(mach_completion_sem) };
+        if ret != KERN_SUCCESS {
+            panic!("initial semaphore_wait failed: {}", ret);
+        }
+    });
 
     // set SIGURG handler
     let sigurg = libc::SIGURG;
@@ -306,6 +403,13 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
 
     let parker = Arc::new(park::Parker::default());
 
+    if matches!(method, Method::MachSemaphoreHandoff) {
+        // with realtime scheduling, handoff works better
+        // without RT, it works, but the threads get migrated *very* frequently which hurts perf
+        // they stay on P cluster due to high CPU usage, but every 10-20 calls they get migrated
+        set_realtime_scheduling(Duration::from_millis(1));
+    }
+
     // spawn reader
     let parker_clone = parker.clone();
     let pthread_parker_clone = pthread_parker.clone();
@@ -313,6 +417,10 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
     let handle = std::thread::spawn(move || {
         let futex_val = futex_val_raw as *mut u64;
         let last_ts = last_ts_clone;
+
+        if matches!(method, Method::MachSemaphoreHandoff) {
+            set_realtime_scheduling(Duration::from_millis(1));
+        }
 
         // in usec
         let mut histogram = Histogram::<u64>::new_with_bounds(1, u64::MAX, 3).unwrap();
@@ -337,7 +445,16 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                     std::thread::park();
                 }
                 Method::MachSemaphore => {
-                    unsafe { semaphore_wait(mach_sem) };
+                    unsafe { semaphore_wait(mach_worker_sem) };
+                    // let mut cpu_number_out = 0;
+                    // unsafe { pthread_cpu_number_np(&mut cpu_number_out) };
+                    // println!("-> {}", cpu_number_out);
+                }
+                Method::MachSemaphoreHandoff => {
+                    unsafe { semaphore_wait_signal(mach_worker_sem, mach_completion_sem) };
+                    // let mut cpu_number_out = 0;
+                    // unsafe { pthread_cpu_number_np(&mut cpu_number_out) };
+                    // println!("-> {}", cpu_number_out);
                 }
                 Method::DispatchSemaphore => {
                     unsafe { dispatch_semaphore_wait(dispatch_sem as *mut c_void, DISPATCH_TIME_FOREVER) };
@@ -386,6 +503,14 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         }
 
         print_histogram("WAKEE", &histogram);
+
+        // on stop, signal completion
+        if matches!(method, Method::MachSemaphoreHandoff) {
+            let ret = unsafe { semaphore_signal(mach_completion_sem) };
+            if ret != KERN_SUCCESS {
+                panic!("semaphore_signal failed: {}", ret);
+            }
+        }
     });
 
     let thread = handle.thread();
@@ -408,9 +533,21 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                 thread.unpark();
             }
             Method::MachSemaphore => {
-                let ret = unsafe { semaphore_signal(mach_sem) };
+                // let mut cpu_number_out = 0;
+                // unsafe { pthread_cpu_number_np(&mut cpu_number_out) };
+                // print!("{} ", cpu_number_out);
+                let ret = unsafe { semaphore_signal(mach_worker_sem) };
                 if ret != KERN_SUCCESS {
                     panic!("semaphore_signal failed: {}", ret);
+                }
+            }
+            Method::MachSemaphoreHandoff => {
+                // let mut cpu_number_out = 0;
+                // unsafe { pthread_cpu_number_np(&mut cpu_number_out) };
+                // print!("{} ", cpu_number_out);
+                let ret = unsafe { semaphore_timedwait_signal(mach_completion_sem, mach_worker_sem, mach_timespec_t { tv_sec: 0, tv_nsec: HANDOFF_TIMEOUT_NS as i32 }) };
+                if ret != KERN_SUCCESS {
+                    panic!("semaphore_timedwait_signal failed: {}", ret);
                 }
             }
             Method::DispatchSemaphore => {
@@ -458,14 +595,21 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         if send_ts - start_ts > DURATION {
             break;
         }
-        last_ts.store(send_ts, Ordering::Relaxed);
-        let before_wake = now_ns();
-        do_wake();
-        let after_wake = now_ns();
-        waker_histogram.record(after_wake - before_wake).unwrap();
+        let res = last_ts.compare_exchange(1, send_ts, Ordering::Relaxed, Ordering::Relaxed);
 
-        // avoid cluttering spindump with nanosleep / semaphore overhead
-        // std::thread::sleep(Duration::from_millis(1));
+        // wake again if needed
+        if res == Ok(1) {
+            let before_wake = now_ns();
+            do_wake();
+            let after_wake = now_ns();
+            waker_histogram.record(after_wake - before_wake).unwrap();
+        }
+
+        // for handoff we care about busy loop performance, so don't sleep
+        if matches!(method, Method::MachSemaphoreHandoff) {
+            continue;
+        }
+
         let deadline = unsafe { mach_absolute_time() } + nsec_to_mabs(Duration::from_millis(1).as_nanos() as u64);
         let ret = unsafe { mach_wait_until(deadline) };
         if ret != 0 {
@@ -488,9 +632,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     // test_method(Method::Futex)?;
     // test_method(Method::Pipe)?;
     // test_method(Method::StdThreadPark)?;
-    test_method(Method::MachSemaphore)?;
+    // test_method(Method::MachSemaphore)?;
+    test_method(Method::MachSemaphoreHandoff)?;
     // test_method(Method::DispatchSemaphore)?;
-    test_method(Method::DispatchSemaphoreParker)?;
+    // test_method(Method::DispatchSemaphoreParker)?;
     // test_method(Method::PthreadMutexCondvar)?;
     // test_method(Method::MioKqueueEvfiltUser)?;
     // test_method(Method::KqueueEvfiltUser)?;
