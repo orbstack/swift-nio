@@ -455,6 +455,7 @@ impl Vcpu {
         let vcpu_thread = thread::Builder::new()
             .name(format!("vcpu{}", self.cpu_index()))
             .spawn(move || {
+                devices::virtio::fs::macos::iopolicy::prepare_vcpu_for_hvc().unwrap();
                 self.run(registry, init_sender);
             })
             .map_err(Error::VcpuSpawn)?;
@@ -753,8 +754,6 @@ impl Vcpu {
 
         let handle = ArcVcpuHandle::new(VcpuHandleInner::new(signal.clone()));
         let mut park_task = registry.register_vcpu(self.cpu_index(), handle.clone());
-
-        devices::virtio::fs::macos::iopolicy::prepare_vcpu_for_hvc().unwrap();
 
         // Notify init done (everything is registered)
         // TODO: We should be using startup signals for these to reduce the number of thread wake-ups.
