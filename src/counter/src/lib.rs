@@ -53,8 +53,6 @@ pub trait DynCounter: Send + Sync {
         -> fmt::Result;
 
     fn name_raw(&self) -> Option<&'static str>;
-
-    fn read_raw(&self) -> u64;
 }
 
 impl<T: Counter> DynCounter for T {
@@ -74,10 +72,6 @@ impl<T: Counter> DynCounter for T {
     fn name_raw(&self) -> Option<&'static str> {
         self.name()
     }
-
-    fn read_raw(&self) -> u64 {
-        self.read()
-    }
 }
 
 pub trait Counter: Sized + Send + Sync {
@@ -92,8 +86,6 @@ pub trait Counter: Sized + Send + Sync {
     fn name(&self) -> Option<&'static str> {
         None
     }
-
-    fn read(&self) -> u64;
 }
 
 pub trait DisableableCounter: Counter {
@@ -129,10 +121,6 @@ impl Counter for DummyCounter {
     fn display(&self, f: &mut fmt::Formatter<'_>, _userdata: &Self::Userdata) -> fmt::Result {
         f.write_str("[disabled]")
     }
-
-    fn read(&self) -> u64 {
-        0
-    }
 }
 
 // TotalCounter
@@ -166,10 +154,6 @@ impl Counter for TotalCounter {
 
     fn name(&self) -> Option<&'static str> {
         Some(self.0)
-    }
-
-    fn read(&self) -> u64 {
-        self.1.load(Ordering::Relaxed)
     }
 }
 
@@ -237,10 +221,6 @@ impl Counter for RateCounter {
 
     fn name(&self) -> Option<&'static str> {
         Some(self.0)
-    }
-
-    fn read(&self) -> u64 {
-        self.1.load(Ordering::Relaxed)
     }
 }
 
