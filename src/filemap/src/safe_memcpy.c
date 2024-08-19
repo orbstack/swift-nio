@@ -39,8 +39,7 @@ int filemap_safe_memcpy(void *dst, const void *src, size_t n) {
         atomic_store_explicit(&state->in_setjmp, false, memory_order_relaxed);
         return 0;
     } else {
-        atomic_signal_fence(memory_order_seq_cst);
-        atomic_store_explicit(&state->in_setjmp, false, memory_order_relaxed);
+        // in_setjmp was already reset by signal handler
         return -1;
     }
 }
@@ -52,6 +51,11 @@ int filemap_safe_memcpy(void *dst, const void *src, size_t n) {
 void filemap_signal_handler(int signum, siginfo_t *info, void *uap) {
     struct filemap_thread_state *state = &thread_state;
     if (atomic_load_explicit(&state->in_setjmp, memory_order_relaxed)) {
+        // clear in_setjmp here to prevent infinite loop on signal unmask if the siglongjmp target causes SIGBUS or SIGSEGV
+        atomic_store_explicit(&state->in_setjmp, false, memory_order_relaxed);
+        // order before unmask and siglongjmp
+        atomic_signal_fence(memory_order_relaxed);
+
         // we don't use SA_NODEFER (to prevent), so unmask the signal
         // otherwise, after siglongjmp, we get stuck in an infinite signal loop in the kernel (on memcpy) because the signal is still masked
         // sigsetjmp(..., 1) saves sigprocmask at the cost of an extra syscall
