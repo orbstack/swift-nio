@@ -25,12 +25,21 @@ const KEVENT_FLAG_IMMEDIATE: u32 = 1;
 
 const WAKE_TOKEN: Token = Token(1);
 
+type dispatch_semaphore_t = *mut std::ffi::c_void;
+type dispatch_time_t = u64;
+
 extern "C" {
     fn os_sync_wake_by_address_any(addr: *const c_void, size: usize, flags: u32) -> c_int;
     fn os_sync_wait_on_address(addr: *mut c_void, value: u64, size: usize, flags: u32) -> c_int;
     fn clock_gettime_nsec_np(clock_id: clockid_t) -> u64;
 
     fn mach_port_set_attributes(task: mach_port_t, name: mach_port_t, flavor: u32, info: *const c_void, count: u32) -> c_int;
+
+    fn dispatch_time(when: dispatch_time_t, delta: i64) -> dispatch_time_t;
+    fn dispatch_semaphore_create(val: isize) -> dispatch_semaphore_t;
+    fn dispatch_semaphore_wait(dsema: dispatch_semaphore_t, timeout: dispatch_time_t) -> isize;
+    fn dispatch_semaphore_signal(dsema: dispatch_semaphore_t) -> isize;
+    fn dispatch_release(object: *mut std::ffi::c_void);
 }
 
 fn now_ns() -> u64 {
@@ -48,6 +57,7 @@ enum Method {
     Futex,
     Pipe,
     StdThreadPark,
+    DispatchSemaphore,
     DispatchSemaphoreParker,
     MioKqueueEvfiltUser,
     PthreadMutexCondvar,
@@ -65,6 +75,9 @@ extern "C" {
     fn thread_abort(thread: thread_act_t) -> kern_return_t;
     fn thread_abort_safely(thread: thread_act_t) -> kern_return_t;
 }
+
+const DISPATCH_TIME_NOW: dispatch_time_t = 0;
+const DISPATCH_TIME_FOREVER: dispatch_time_t = !0;
 
 #[derive(Debug, Default)]
 pub struct Parker {
@@ -264,6 +277,8 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         ..default_kevent()
     }], &mut [], KEVENT_FLAG_IMMEDIATE)?;
 
+    let dispatch_sem = unsafe { dispatch_semaphore_create(0) } as usize;
+
     // set SIGURG handler
     let sigurg = libc::SIGURG;
     let sa = libc::sigaction {
@@ -307,6 +322,9 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                 }
                 Method::StdThreadPark => {
                     std::thread::park();
+                }
+                Method::DispatchSemaphore => {
+                    unsafe { dispatch_semaphore_wait(dispatch_sem as *mut c_void, DISPATCH_TIME_FOREVER) };
                 }
                 Method::DispatchSemaphoreParker => {
                     parker_clone.park();
@@ -372,6 +390,9 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
             }
             Method::StdThreadPark => {
                 thread.unpark();
+            }
+            Method::DispatchSemaphore => {
+                unsafe { dispatch_semaphore_signal(dispatch_sem as *mut c_void) };
             }
             Method::DispatchSemaphoreParker => {
                 parker.unpark();
@@ -445,7 +466,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // test_method(Method::Futex)?;
     // test_method(Method::Pipe)?;
     test_method(Method::StdThreadPark)?;
-    test_method(Method::DispatchSemaphoreParker)?;
+    test_method(Method::DispatchSemaphore)?;
+    // test_method(Method::DispatchSemaphoreParker)?;
     // test_method(Method::PthreadMutexCondvar)?;
     // test_method(Method::MioKqueueEvfiltUser)?;
     // test_method(Method::KqueueEvfiltUser)?;
