@@ -47,7 +47,7 @@ use super::{
 
 use crate::legacy::Gic;
 use crate::virtio::descriptor_utils::Iovec;
-use crate::virtio::{ErasedSyncEventHandlerSet, SyncEventHandlerSet, VirtioShmRegion};
+use crate::virtio::{ErasedSyncEventHandlerSet, SyncEventHandlerSet};
 
 const FLUSH_INTERVAL_NS: u64 = Duration::from_millis(1000).as_nanos() as u64;
 
@@ -351,8 +351,6 @@ pub struct Block {
     // Interrupt specific fields.
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<BlockIrqMode>,
-
-    shm_region: Option<VirtioShmRegion>,
 }
 
 enum BlockWorkerMode {
@@ -432,16 +430,11 @@ impl Block {
             } else {
                 BlockWorkerMode::Sync(BlockSyncWorkerSet(Arc::new(RwLock::new(Box::new([])))))
             },
-            shm_region: None,
         })
     }
 
     pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
         self.intc = Some(intc);
-    }
-
-    pub fn set_shm_region(&mut self, shm_region: VirtioShmRegion) {
-        self.shm_region = Some(shm_region);
     }
 
     /// Provides the ID of this block device.
@@ -599,10 +592,6 @@ impl VirtioDevice for Block {
             BlockWorkerMode::Sync(state) => Some(smallbox::smallbox!(state.clone())),
             BlockWorkerMode::Async(_) => None,
         }
-    }
-
-    fn shm_region(&self) -> Option<&VirtioShmRegion> {
-        self.shm_region.as_ref()
     }
 }
 
