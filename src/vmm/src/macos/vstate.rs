@@ -606,16 +606,16 @@ impl Vcpu {
                 intc_handle.set_vtimer_irq();
                 VcpuEmulation::Handled
             }
-            VcpuExit::WaitForEvent => {
-                debug!("vCPU {} WaitForEvent", vcpuid);
-                VcpuEmulation::WaitForEvent
+            VcpuExit::WaitForInterrupt => {
+                debug!("vCPU {} WaitForInterrupt", vcpuid);
+                VcpuEmulation::WaitForInterrupt
             }
-            VcpuExit::WaitForEventDeadline(deadline) => {
+            VcpuExit::WaitForInterruptDeadline(deadline) => {
                 debug!(
-                    "vCPU {} WaitForEventDeadline deadline={:?}",
+                    "vCPU {} WaitForInterruptDeadline deadline={:?}",
                     vcpuid, deadline
                 );
-                VcpuEmulation::WaitForEventDeadline(deadline)
+                VcpuEmulation::WaitForInterruptDeadline(deadline)
             }
             VcpuExit::PvlockPark => VcpuEmulation::PvlockPark,
             VcpuExit::PvlockUnpark(vcpu) => VcpuEmulation::PvlockUnpark(vcpu),
@@ -909,12 +909,12 @@ impl Vcpu {
                 // wake-up signal on new interrupts, we don't re-assert it for self-PPI and EOI so
                 // making sure that the guest doesn't WFE while an IRQ is pending seems like a smart
                 // idea.
-                VcpuEmulation::WaitForEvent => {
+                VcpuEmulation::WaitForInterrupt => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
                         signal.wait_on_park(VcpuSignalMask::ALL_WAIT);
                     }
                 }
-                VcpuEmulation::WaitForEventDeadline(mut deadline) => {
+                VcpuEmulation::WaitForInterruptDeadline(mut deadline) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
                         // throttle timer wakeups to fix battery drain from badly-behaved guest apps
                         deadline = deadline.max(
@@ -1156,9 +1156,9 @@ enum VcpuEmulation {
     Handled,
     Stopped,
     #[cfg(target_arch = "aarch64")]
-    WaitForEvent,
+    WaitForInterrupt,
     #[cfg(target_arch = "aarch64")]
-    WaitForEventDeadline(MachAbsoluteTime),
+    WaitForInterruptDeadline(MachAbsoluteTime),
     #[cfg(target_arch = "aarch64")]
     PvlockPark,
     #[cfg(target_arch = "aarch64")]

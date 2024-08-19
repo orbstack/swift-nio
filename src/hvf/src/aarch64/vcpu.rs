@@ -148,8 +148,8 @@ pub enum VcpuExit<'a> {
         is_read: bool,
     },
     VtimerActivated,
-    WaitForEvent,
-    WaitForEventDeadline(MachAbsoluteTime),
+    WaitForInterrupt,
+    WaitForInterruptDeadline(MachAbsoluteTime),
     PvlockPark,
     PvlockUnpark(u64),
 }
@@ -501,17 +501,28 @@ impl HvfVcpu {
 
                     EC_WFX_TRAP => {
                         debug!("WFX exit");
-                        let ctl = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CTL_EL0)?;
 
                         self.pending_advance_pc = true;
-                        if ((ctl & 1) == 0) || (ctl & 2) != 0 {
-                            COUNT_EXIT_WFE_INDEFINITE.count();
-                            VcpuExit::WaitForEvent
+
+                        let is_wfi = syndrome & 0x1 == 0;
+                        if is_wfi {
+                            let ctl = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CTL_EL0)?;
+
+                            if ((ctl & 1) == 0) || (ctl & 2) != 0 {
+                                COUNT_EXIT_WFE_INDEFINITE.count();
+                                VcpuExit::WaitForInterrupt
+                            } else {
+                                let deadline =
+                                    self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CVAL_EL0)?;
+                                COUNT_EXIT_WFE_TIMED.count();
+                                VcpuExit::WaitForInterruptDeadline(MachAbsoluteTime::from_raw(
+                                    deadline,
+                                ))
+                            }
                         } else {
-                            let deadline =
-                                self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CVAL_EL0)?;
-                            COUNT_EXIT_WFE_TIMED.count();
-                            VcpuExit::WaitForEventDeadline(MachAbsoluteTime::from_raw(deadline))
+                            // WFE should be a yield, as it's used in spin loops
+                            // TODO: does HVF trap WFE?
+                            VcpuExit::Canceled
                         }
                     }
 
