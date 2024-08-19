@@ -1,7 +1,7 @@
 use std::{error::Error, ffi::c_int, io::{Read, Write}, mem::size_of, os::{fd::{AsFd, AsRawFd, FromRawFd, OwnedFd}, raw::c_void}, sync::{atomic::{AtomicU64, Ordering}, Arc}, time::{Duration, Instant}};
 
 use hdrhistogram::Histogram;
-use libc::{clockid_t, kevent64_s, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_TRIGGER};
+use libc::{clockid_t, kevent64_s, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_FFNOP, NOTE_TRIGGER};
 use mach2::{kern_return::KERN_SUCCESS, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, message::{mach_msg, mach_msg_header_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, traps::mach_task_self, vm_types::natural_t};
 use mio::{Events, Poll, Token, Waker};
 use nix::errno::Errno;
@@ -234,7 +234,7 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         ident: IDENT_WAKER,
         filter: EVFILT_USER,
         flags: EV_ADD | EV_CLEAR,
-        fflags: NOTE_FFCOPY,
+        fflags: 0,
         ..default_kevent()
     }], &mut [], KEVENT_FLAG_IMMEDIATE)?;
 
@@ -329,7 +329,7 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                     ident: IDENT_WAKER,
                     filter: EVFILT_USER,
                     flags: EV_ENABLE,
-                    fflags: NOTE_FFCOPY | NOTE_TRIGGER,
+                    fflags: NOTE_FFNOP | NOTE_TRIGGER,
                     ..default_kevent()
                 }], &mut [], KEVENT_FLAG_IMMEDIATE).unwrap();
             }
@@ -369,13 +369,13 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
 
 
 fn main() -> Result<(), Box<dyn Error>> {
-    test_method(Method::Futex)?;
-    test_method(Method::Pipe)?;
-    test_method(Method::SemThreadPark)?;
-    test_method(Method::PthreadMutexCondvar)?;
-    test_method(Method::MioKqueueEvfiltUser)?;
+    // test_method(Method::Futex)?;
+    // test_method(Method::Pipe)?;
+    // test_method(Method::SemThreadPark)?;
+    // test_method(Method::PthreadMutexCondvar)?;
+    // test_method(Method::MioKqueueEvfiltUser)?;
     test_method(Method::KqueueEvfiltUser)?;
-    test_method(Method::KqueueMachPort)?;
+    // test_method(Method::KqueueMachPort)?;
 
     // broken
     // test_method(Method::MachPort)?;
