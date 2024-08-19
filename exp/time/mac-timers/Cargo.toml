@@ -1,0 +1,18 @@
+[package]
+name = "osx-timers"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hdrhistogram = "7.5.4"
+libc = "0.2.156"
+mach2 = "0.4.2"
+smallvec = "1.13.2"
+thiserror = "1.0.63"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "clock_bench"
+harness = false
