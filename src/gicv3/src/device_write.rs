@@ -15,7 +15,6 @@ use crate::{
 
 counter::counter! {
     COUNT_EOI in "gic.sys.write.eoi": RateCounter = RateCounter::new(FILTER);
-    COUNT_EOI_WITH_PENDING in "gic.sys.write.eoi.pending": RateCounter = RateCounter::new(FILTER);
 
     COUNT_IPI_SINGLE in "gic.sys.write.ipi.single": RateCounter = RateCounter::new(FILTER);
 
@@ -76,12 +75,10 @@ impl GicV3 {
                 assert_eq!(pe_int_state.active_interrupt, Some(int_id));
 
                 pe_int_state.active_interrupt = None;
+                drop(pe_int_state);
                 handler.handle_custom_eoi(pe, int_id);
 
                 COUNT_EOI.count();
-                if !pe_int_state.pending_interrupts.is_empty() {
-                    COUNT_EOI_WITH_PENDING.count();
-                }
             }
 
             GicSysReg::ICC_HPPIR0_EL1 => todo!(),
