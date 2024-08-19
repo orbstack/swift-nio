@@ -1236,8 +1236,6 @@ dependencies = [
  "libc",
  "mach2",
  "nix 0.28.0",
- "num-derive",
- "num-traits",
  "once_cell",
  "rustc-hash 1.1.0",
  "scopeguard",

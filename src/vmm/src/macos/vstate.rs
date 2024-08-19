@@ -137,16 +137,10 @@ impl VcpuRegistry for VcpuRegistryImpl {
         unpark_task.success();
     }
 
-    fn process_park_commands(
+    fn vcpu_handle_park(
         &self,
-        taken: VcpuSignalMask,
         park_task: StartupTask,
     ) -> std::result::Result<StartupTask, StartupAbortedError> {
-        // Check whether the signal needs to be resolved.
-        if !taken.contains(VcpuSignalMask::PAUSE) {
-            return Ok(park_task);
-        }
-
         // Tell the parker that we successfully parked.
         let park_task = park_task.success_keeping();
 
@@ -476,7 +470,7 @@ impl Vcpu {
         &mut self,
         hvf_vcpu: &mut HvfVcpu,
         intc_handle: &mut dyn GicVcpuHandle,
-    ) -> Result<VcpuEmulation> {
+    ) -> VcpuEmulation {
         use devices::legacy::GicSysReg;
         use hvf::ExitActions;
 
@@ -494,11 +488,11 @@ impl Vcpu {
         match exit {
             VcpuExit::Breakpoint => {
                 debug!("vCPU {} breakpoint", vcpuid);
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::Canceled => {
                 debug!("vCPU {} canceled", vcpuid);
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::CpuOn(mpidr, entry, context_id) => {
                 debug!(
@@ -510,11 +504,11 @@ impl Vcpu {
                 if let Some(sender) = boot_senders.get(cpuid) {
                     sender.send(GuestAddress(entry)).unwrap()
                 }
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::HypervisorCall => {
                 debug!("vCPU {} HVC", vcpuid);
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::HypervisorIoCall { dev_id, args_addr } => {
                 debug!(
@@ -523,7 +517,7 @@ impl Vcpu {
                 );
                 let ret = mmio_bus.call_hvc(dev_id, args_addr);
                 hvf_vcpu.write_gp_reg(0, ret as u64).unwrap();
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::MmioRead(addr, data) => {
                 if !mmio_bus.read(vcpuid, addr, data) {
@@ -535,7 +529,7 @@ impl Vcpu {
                             .unwrap_or_else(|e| format!("<{:?}>", e))
                     );
                 }
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::MmioWrite(addr, data) => {
                 if !mmio_bus.write(vcpuid, addr, data) {
@@ -547,15 +541,15 @@ impl Vcpu {
                             .unwrap_or_else(|e| format!("<{:?}>", e))
                     );
                 }
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::SecureMonitorCall => {
                 debug!("vCPU {} SMC", vcpuid);
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::Shutdown => {
                 debug!("vCPU {} received shutdown signal", vcpuid);
-                Ok(VcpuEmulation::Stopped)
+                VcpuEmulation::Stopped
             }
             VcpuExit::SystemRegister {
                 sys_reg,
@@ -574,26 +568,26 @@ impl Vcpu {
                     );
                 }
 
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::VtimerActivated => {
                 debug!("vCPU {} VtimerActivated", vcpuid);
                 intc_handle.set_vtimer_irq();
-                Ok(VcpuEmulation::Handled)
+                VcpuEmulation::Handled
             }
             VcpuExit::WaitForEvent => {
                 debug!("vCPU {} WaitForEvent", vcpuid);
-                Ok(VcpuEmulation::WaitForEvent)
+                VcpuEmulation::WaitForEvent
             }
             VcpuExit::WaitForEventDeadline(deadline) => {
                 debug!(
                     "vCPU {} WaitForEventDeadline deadline={:?}",
                     vcpuid, deadline
                 );
-                Ok(VcpuEmulation::WaitForEventDeadline(deadline))
+                VcpuEmulation::WaitForEventDeadline(deadline)
             }
-            VcpuExit::PvlockPark => Ok(VcpuEmulation::PvlockPark),
-            VcpuExit::PvlockUnpark(vcpu) => Ok(VcpuEmulation::PvlockUnpark(vcpu)),
+            VcpuExit::PvlockPark => VcpuEmulation::PvlockPark,
+            VcpuExit::PvlockUnpark(vcpu) => VcpuEmulation::PvlockUnpark(vcpu),
         }
     }
 
@@ -802,13 +796,15 @@ impl Vcpu {
             // (this should never happen if we haven't exited the loop yet)
             debug_assert!(!taken.contains(VcpuSignalMask::DESTROY_VM));
 
-            let Ok(park_task_tmp) = registry.process_park_commands(taken, park_task) else {
-                error!(
+            if taken.contains(VcpuSignalMask::PAUSE) {
+                let Ok(tmp) = registry.vcpu_handle_park(park_task) else {
+                    error!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );
-                break;
-            };
-            park_task = park_task_tmp;
+                    break;
+                };
+                park_task = tmp;
+            }
 
             if taken.contains(VcpuSignalMask::IRQ) {
                 // Although we could theoretically use this to signal the presence of an interrupt,
@@ -891,19 +887,19 @@ impl Vcpu {
 
             match emulation {
                 // Emulation ran successfully, continue.
-                Ok(VcpuEmulation::Handled) => {}
+                VcpuEmulation::Handled => {}
 
                 // Wait for an external event.
                 // N.B. we check `vcpu_should_wait` here since, although we consistently assert the
                 // wake-up signal on new interrupts, we don't re-assert it for self-PPI and EOI so
                 // making sure that the guest doesn't WFE while an IRQ is pending seems like a smart
                 // idea.
-                Ok(VcpuEmulation::WaitForEvent) => {
+                VcpuEmulation::WaitForEvent => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
                         signal.wait_on_park(VcpuSignalMask::ALL_WAIT);
                     }
                 }
-                Ok(VcpuEmulation::WaitForEventDeadline(mut deadline)) => {
+                VcpuEmulation::WaitForEventDeadline(mut deadline) => {
                     if intc_vcpu_handle.should_wait(&self.intc) {
                         // throttle timer wakeups to fix battery drain from badly-behaved guest apps
                         deadline = deadline.max(
@@ -933,12 +929,12 @@ impl Vcpu {
 
                 // The guest was rebooted or halted. No need to check for the shutdown signal—we
                 // can't re-renter the VM anyways.Emulation errors lead to vCPU exit.
-                Ok(VcpuEmulation::Stopped) | Err(_) => {
+                VcpuEmulation::Stopped => {
                     break;
                 }
 
                 // PV spinlocks
-                Ok(VcpuEmulation::PvlockPark) => {
+                VcpuEmulation::PvlockPark => {
                     // in the kernel, we take the PV lock path unconditionally for performance,
                     // and modified it to always initialize the PV node hash table so that it
                     // doesn't panic. however, spinlock contention is still possible with 1 vCPU
@@ -949,7 +945,7 @@ impl Vcpu {
                         wait_for_pvlock(&signal);
                     }
                 }
-                Ok(VcpuEmulation::PvlockUnpark(vcpuid)) => {
+                VcpuEmulation::PvlockUnpark(vcpuid) => {
                     if self.vcpu_count != 1 {
                         self.intc.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
                     }
@@ -1071,13 +1067,15 @@ impl Vcpu {
                 break;
             }
 
-            let Ok(park_task_tmp) = registry.process_park_commands(taken, park_task) else {
-                error!(
+            if taken.contains(VcpuSignalMask::PAUSE) {
+                let Ok(tmp) = registry.vcpu_handle_park(park_task) else {
+                    error!(
                     "Thread responsible for unparking vCPUs aborted the operation; shutting down!"
                 );
-                break;
-            };
-            park_task = park_task_tmp;
+                    break;
+                };
+                park_task = tmp;
+            }
 
             // Run emulation
             let emulation = signal.wait(VcpuSignalMask::ALL_WAIT, VcpuWakerSet::hvf, || {

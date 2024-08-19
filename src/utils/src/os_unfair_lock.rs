@@ -79,13 +79,21 @@ impl<T: ?Sized> Mutex<T> {
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
         // fastpath: do a trylock first
         let ok = unsafe { libc::os_unfair_lock_trylock(self.lock.get()) };
-        if ok {
-            return Ok(MutexGuard {
-                mutex: self,
-                pd: PhantomData,
-            });
+        if !ok {
+            self.lock_slowpath();
         }
 
+        Ok(MutexGuard {
+            mutex: self,
+            pd: PhantomData,
+        })
+    }
+
+    // outline this to reduce I-cache footprint
+    // we're always making a syscall here, which dwarfs the cost of the function call
+    #[cold]
+    #[inline(never)]
+    fn lock_slowpath(&self) {
         // slowpath: adaptive spin in kernel
         // we do this after trylock to avoid the overhead of atomics / OnceLock in the fastpath
         let os_unfair_lock_lock_with_flags =
@@ -95,11 +103,6 @@ impl<T: ?Sized> Mutex<T> {
             // adaptive spin, in kernel, only if owner is on-core
             os_unfair_lock_lock_with_flags(self.lock.get(), OS_UNFAIR_LOCK_FLAG_ADAPTIVE_SPIN);
         }
-
-        Ok(MutexGuard {
-            mutex: self,
-            pd: PhantomData,
-        })
     }
 
     #[inline]

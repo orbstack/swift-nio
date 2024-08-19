@@ -153,11 +153,7 @@ pub trait VcpuRegistry: Send + Sync {
 
     fn get_vcpu(&self, id: u8) -> Option<ArcVcpuHandle>;
 
-    fn process_park_commands(
-        &self,
-        taken: VcpuSignalMask,
-        park_task: StartupTask,
-    ) -> Result<StartupTask, StartupAbortedError>;
+    fn vcpu_handle_park(&self, park_task: StartupTask) -> Result<StartupTask, StartupAbortedError>;
 
     fn dump_debug(&self);
 }

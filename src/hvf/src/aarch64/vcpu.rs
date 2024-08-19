@@ -355,7 +355,8 @@ impl HvfVcpu {
     pub fn run(&mut self, pending_irq: Option<u32>) -> Result<(VcpuExit, ExitActions), Error> {
         let mut exit_actions = ExitActions::empty();
 
-        if let Some(mmio_read) = self.pending_mmio_read.take() {
+        // .take() is slower
+        if let Some(mmio_read) = &self.pending_mmio_read {
             if mmio_read.srt < 31 {
                 let val = match mmio_read.len {
                     1 => u8::from_le_bytes(self.mmio_buf[0..1].try_into().unwrap()) as u64,
@@ -370,6 +371,8 @@ impl HvfVcpu {
 
                 self.write_raw_reg(hv_reg_t_HV_REG_X0 + mmio_read.srt, val)?;
             }
+
+            self.pending_mmio_read = None;
         }
 
         if self.pending_advance_pc {
@@ -633,13 +636,13 @@ impl HvfVcpu {
     fn translate_gva(&self, gva: u64) -> Result<GuestAddress, Error> {
         let tcr_el1: u64 = self
             .read_sys_reg(hv_sys_reg_t_HV_SYS_REG_TCR_EL1)
-            .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
+            .map_err(|_| Error::TranslateVirtualAddress)?;
         let ttbr1_el1: u64 = self
             .read_sys_reg(hv_sys_reg_t_HV_SYS_REG_TTBR1_EL1)
-            .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
+            .map_err(|_| Error::TranslateVirtualAddress)?;
         let id_aa64mmfr0_el1: u64 = self
             .read_sys_reg(hv_sys_reg_t_HV_SYS_REG_ID_AA64MMFR0_EL1)
-            .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
+            .map_err(|_| Error::TranslateVirtualAddress)?;
 
         // Bit 55 of the VA determines the range, high (0xFFFxxx...)
         // or low (0x000xxx...).
@@ -687,11 +690,7 @@ impl HvfVcpu {
             4 => 44,
             5 => 48,
             6 => 52,
-            _ => {
-                return Err(Error::TranslateVirtualAddress(anyhow!(
-                    "PA range not supported {pa_range}"
-                )))
-            }
+            _ => return Err(Error::TranslateVirtualAddressPaNotSupported),
         };
 
         let indexmask_grainsize = (!0u64) >> (64 - (stride + 3));
@@ -724,7 +723,7 @@ impl HvfVcpu {
             let descriptor: u64 = self
                 .guest_mem
                 .read_obj_fast(GuestAddress(descaddr))
-                .map_err(|e| Error::TranslateVirtualAddress(e.into()))?;
+                .map_err(|_| Error::TranslateVirtualAddress)?;
 
             descaddr = descriptor & descaddrmask;
             // In the case of FEAT_LPA, the next-level translation table address

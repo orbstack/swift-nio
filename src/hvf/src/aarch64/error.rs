@@ -1,39 +1,51 @@
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
-
 use super::bindings::{
     hv_return_t, HV_BAD_ARGUMENT, HV_BUSY, HV_DENIED, HV_ERROR, HV_ILLEGAL_GUEST_STATE,
     HV_NO_DEVICE, HV_NO_RESOURCES, HV_SUCCESS, HV_UNSUPPORTED,
 };
 
-#[derive(thiserror::Error, Debug, FromPrimitive)]
-#[repr(i32)]
+#[derive(thiserror::Error, Debug)]
 pub enum HvfError {
     #[error("error")]
-    Error = HV_ERROR,
+    Error,
     #[error("busy")]
-    Busy = HV_BUSY,
+    Busy,
     #[error("bad argument")]
-    BadArgument = HV_BAD_ARGUMENT,
+    BadArgument,
     #[error("illegal guest state")]
-    IllegalGuestState = HV_ILLEGAL_GUEST_STATE,
+    IllegalGuestState,
     #[error("no resources")]
-    NoResources = HV_NO_RESOURCES,
+    NoResources,
     #[error("no device")]
-    NoDevice = HV_NO_DEVICE,
+    NoDevice,
     #[error("denied")]
-    Denied = HV_DENIED,
+    Denied,
     #[error("unsupported")]
-    Unsupported = HV_UNSUPPORTED,
+    Unsupported,
     #[error("unknown")]
-    Unknown = -1,
+    Unknown,
 }
 
 impl HvfError {
     pub(crate) fn result(ret: hv_return_t) -> Result<(), Self> {
         match ret {
             HV_SUCCESS => Ok(()),
-            _ => Err(HvfError::from_i32(ret).unwrap_or(HvfError::Unknown)),
+            _ => Err(Self::from_i32(ret)),
+        }
+    }
+
+    // results in much better codegen for the common case
+    #[cold]
+    fn from_i32(ret: hv_return_t) -> Self {
+        match ret {
+            HV_ERROR => HvfError::Error,
+            HV_BUSY => HvfError::Busy,
+            HV_BAD_ARGUMENT => HvfError::BadArgument,
+            HV_ILLEGAL_GUEST_STATE => HvfError::IllegalGuestState,
+            HV_NO_RESOURCES => HvfError::NoResources,
+            HV_NO_DEVICE => HvfError::NoDevice,
+            HV_DENIED => HvfError::Denied,
+            HV_UNSUPPORTED => HvfError::Unsupported,
+            _ => HvfError::Unknown,
         }
     }
 }
@@ -108,6 +120,8 @@ pub enum Error {
     GicGetSpiRange(HvfError),
     #[error("gic config set msi size: {0}")]
     GicConfigSetMsiSize(HvfError),
-    #[error("translate virtual address: {0}")]
-    TranslateVirtualAddress(anyhow::Error),
+    #[error("translate virtual address")]
+    TranslateVirtualAddress,
+    #[error("translate virtual address: pa not supported")]
+    TranslateVirtualAddressPaNotSupported,
 }
