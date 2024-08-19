@@ -2,7 +2,7 @@ use std::{error::Error, ffi::c_int, io::{Read, Write}, mem::size_of, os::{fd::{A
 
 use hdrhistogram::Histogram;
 use libc::{clockid_t, kevent64_s, pthread_kill, pthread_mach_thread_np, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_FFNOP, NOTE_TRIGGER};
-use mach2::{kern_return::{kern_return_t, KERN_ABORTED, KERN_SUCCESS}, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, mach_types::thread_act_t, message::{mach_msg, mach_msg_header_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, traps::mach_task_self, vm_types::natural_t};
+use mach2::{kern_return::{kern_return_t, KERN_ABORTED, KERN_SUCCESS}, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, mach_types::thread_act_t, message::{mach_msg, mach_msg_header_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, semaphore::{semaphore_create}, sync_policy::SYNC_POLICY_FIFO, traps::mach_task_self, vm_types::natural_t};
 use mio::{Events, Poll, Token, Waker};
 use nix::errno::Errno;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::unix::pipe::pipe, sync::Notify};
@@ -40,6 +40,10 @@ extern "C" {
     fn dispatch_semaphore_wait(dsema: dispatch_semaphore_t, timeout: dispatch_time_t) -> isize;
     fn dispatch_semaphore_signal(dsema: dispatch_semaphore_t) -> isize;
     fn dispatch_release(object: *mut std::ffi::c_void);
+
+    // mach2 is wrong
+    fn semaphore_wait(semaphore: mach_port_t) -> kern_return_t;
+    fn semaphore_signal(semaphore: mach_port_t) -> kern_return_t;
 }
 
 fn now_ns() -> u64 {
@@ -57,6 +61,7 @@ enum Method {
     Futex,
     Pipe,
     StdThreadPark,
+    MachSemaphore,
     DispatchSemaphore,
     DispatchSemaphoreParker,
     MioKqueueEvfiltUser,
@@ -277,7 +282,15 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         ..default_kevent()
     }], &mut [], KEVENT_FLAG_IMMEDIATE)?;
 
+    // create dispatch semaphore
     let dispatch_sem = unsafe { dispatch_semaphore_create(0) } as usize;
+
+    // create mach semaphore
+    let mut mach_sem = 0;
+    let ret = unsafe { semaphore_create(mach_task_self(), &mut mach_sem, SYNC_POLICY_FIFO, 0) };
+    if ret != KERN_SUCCESS {
+        panic!("semaphore_create failed: {}", ret);
+    }
 
     // set SIGURG handler
     let sigurg = libc::SIGURG;
@@ -322,6 +335,9 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                 }
                 Method::StdThreadPark => {
                     std::thread::park();
+                }
+                Method::MachSemaphore => {
+                    unsafe { semaphore_wait(mach_sem) };
                 }
                 Method::DispatchSemaphore => {
                     unsafe { dispatch_semaphore_wait(dispatch_sem as *mut c_void, DISPATCH_TIME_FOREVER) };
@@ -390,6 +406,12 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
             }
             Method::StdThreadPark => {
                 thread.unpark();
+            }
+            Method::MachSemaphore => {
+                let ret = unsafe { semaphore_signal(mach_sem) };
+                if ret != KERN_SUCCESS {
+                    panic!("semaphore_signal failed: {}", ret);
+                }
             }
             Method::DispatchSemaphore => {
                 unsafe { dispatch_semaphore_signal(dispatch_sem as *mut c_void) };
@@ -465,9 +487,10 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
 fn main() -> Result<(), Box<dyn Error>> {
     // test_method(Method::Futex)?;
     // test_method(Method::Pipe)?;
-    test_method(Method::StdThreadPark)?;
-    test_method(Method::DispatchSemaphore)?;
-    // test_method(Method::DispatchSemaphoreParker)?;
+    // test_method(Method::StdThreadPark)?;
+    test_method(Method::MachSemaphore)?;
+    // test_method(Method::DispatchSemaphore)?;
+    test_method(Method::DispatchSemaphoreParker)?;
     // test_method(Method::PthreadMutexCondvar)?;
     // test_method(Method::MioKqueueEvfiltUser)?;
     // test_method(Method::KqueueEvfiltUser)?;
