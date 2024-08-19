@@ -1,7 +1,7 @@
 use std::{error::Error, ffi::c_int, io::{Read, Write}, mem::size_of, os::{fd::{AsFd, AsRawFd, FromRawFd, OwnedFd}, raw::c_void, unix::thread::JoinHandleExt}, sync::{atomic::{AtomicU64, Ordering}, Arc}, time::{Duration, Instant}};
 
 use hdrhistogram::Histogram;
-use libc::{clockid_t, kevent64_s, pthread_mach_thread_np, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_FFNOP, NOTE_TRIGGER};
+use libc::{clockid_t, kevent64_s, pthread_kill, pthread_mach_thread_np, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_FFNOP, NOTE_TRIGGER};
 use mach2::{kern_return::{kern_return_t, KERN_ABORTED, KERN_SUCCESS}, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, mach_types::thread_act_t, message::{mach_msg, mach_msg_header_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, traps::mach_task_self, vm_types::natural_t};
 use mio::{Events, Poll, Token, Waker};
 use nix::errno::Errno;
@@ -49,9 +49,11 @@ enum Method {
     MioKqueueEvfiltUser,
     PthreadMutexCondvar,
     KqueueEvfiltUser,
+    KqueueEvfiltUserSignal,
     MachPort,
     KqueueMachPort,
     MachWaitUntil,
+    MachWaitUntilSignal,
 }
 
 use std::{sync::{Condvar, Mutex}};
@@ -194,6 +196,10 @@ fn print_histogram(label: &str, histogram: &Histogram<u64>) {
     println!("    p99.9: {:.1} us", histogram.value_at_quantile(0.999) as f64 / 1000.0);
 }
 
+fn signal_handler(_: c_int) {
+    // do nothing
+}
+
 #[inline]
 fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
     println!();
@@ -255,6 +261,18 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         ..default_kevent()
     }], &mut [], KEVENT_FLAG_IMMEDIATE)?;
 
+    // set SIGURG handler
+    let sigurg = libc::SIGURG;
+    let sa = libc::sigaction {
+        sa_sigaction: signal_handler as usize,
+        sa_mask: 0,
+        sa_flags: 0,
+    };
+    let ret = unsafe { libc::sigaction(sigurg, &sa, std::ptr::null_mut()) };
+    if ret != 0 {
+        panic!("sigaction failed: {}", ret);
+    }
+
     // spawn reader
     let pthread_parker_clone = pthread_parker.clone();
     let kq_clone = kq.clone();
@@ -294,19 +312,30 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                 Method::KqueueEvfiltUser | Method::KqueueMachPort => {
                     kq_clone.kevent(&[], &mut events_buf, 0).unwrap();
                 }
+                Method::KqueueEvfiltUserSignal => {
+                    match kq_clone._kevent(&[], &mut events_buf, 0) {
+                        Ok(_) => {}
+                        Err(Errno::EINTR) => {}
+                        Err(e) => panic!("kevent failed: {}", e),
+                    }
+                }
                 Method::MachPort => {
                     recv_from_mach_port(mach_port);
                 }
-                Method::MachWaitUntil => {
+                Method::MachWaitUntil | Method::MachWaitUntilSignal => {
                     let ret = unsafe { mach_wait_until(u64::MAX) };
                     if ret != 0 && ret != KERN_ABORTED {
                         panic!("mach_wait_until failed: {}", ret);
                     }
                 }
             }
-            let send_ts = last_ts.load(Ordering::Relaxed);
+            let send_ts = last_ts.swap(1, Ordering::Relaxed);
             if send_ts == 0 {
                 break;
+            }
+            if send_ts == 1 {
+                // spurious wakeup
+                continue;
             }
             let recv_ts = now_ns();
             let latency = (recv_ts - send_ts);
@@ -317,7 +346,8 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
     });
 
     let thread = handle.thread();
-    let mach_thread = unsafe { pthread_mach_thread_np(handle.as_pthread_t()) };
+    let pthread = handle.as_pthread_t();
+    let mach_thread = unsafe { pthread_mach_thread_np(pthread) };
     if mach_thread == MACH_PORT_NULL {
         panic!("pthread_mach_thread_np failed");
     }
@@ -356,6 +386,12 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                 let ret = unsafe { thread_abort(mach_thread) };
                 if ret != 0 {
                     panic!("thread_abort failed: {}", ret);
+                }
+            }
+            Method::KqueueEvfiltUserSignal | Method::MachWaitUntilSignal => {
+                let ret = unsafe { pthread_kill(pthread, libc::SIGURG) };
+                if ret != 0 {
+                    panic!("pthread_kill failed: {}", ret);
                 }
             }
         }
@@ -399,9 +435,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     // test_method(Method::SemThreadPark)?;
     // test_method(Method::PthreadMutexCondvar)?;
     // test_method(Method::MioKqueueEvfiltUser)?;
-    // test_method(Method::KqueueEvfiltUser)?;
+    test_method(Method::KqueueEvfiltUser)?;
+    test_method(Method::KqueueEvfiltUserSignal)?;
     // test_method(Method::KqueueMachPort)?;
-    test_method(Method::MachWaitUntil)?;
+    // test_method(Method::MachWaitUntil)?;
+    // test_method(Method::MachWaitUntilSignal)?;
 
     // broken
     // test_method(Method::MachPort)?;
