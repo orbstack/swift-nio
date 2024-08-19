@@ -25,6 +25,8 @@ Mach APIs are public, but not really documented and less common ones can occasio
 - Rosetta: ioctl `0x80456122` is for key, `0x45` bytes, static key, can be extracted from VZF
 - Rosetta: ioctl `0x80806123` is for AOT config, 128 bytes, byte 0 = abstract or path for Unix socket, rest = path
 - Rosetta: ioctl `0x6124` is for setting TSO at start, no side effects
+- `os_unfair_lock_lock_with_options` on macOS 14 and below
+  - This is OK because we use the public `os_unfair_lock_lock_with_flags` on macOS 15+
 
 ### Balloon
 
