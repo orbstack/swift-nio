@@ -241,19 +241,26 @@ impl<'a> DescriptorChainConsumer<'a> {
         count: usize,
         f: impl FnOnce(&Iovec) -> io::Result<T>,
     ) -> io::Result<T> {
-        // fast path: consume the first buffer. size must match exactly
+        // fast path: only consume the first buffer
         if let Some(slice) = self.buffers_mut().first_mut() {
+            #[allow(clippy::comparison_chain)] // more clear
             if slice.len() == count {
+                // slice is exactly the size requested
+                // consume the entire buffer and return
                 let ret = f(slice)?;
                 self.buffers_pos += 1;
                 self.bytes_consumed += count;
                 return Ok(ret);
             } else if slice.len() > count {
                 // slice is larger than requested
+                // consume it partially and return
                 let ret = f(slice)?;
                 slice.advance(count);
                 self.bytes_consumed += count;
                 return Ok(ret);
+            } else {
+                // fallthrough: len() < count
+                // we'd need multiple buffers
             }
         }
 
