@@ -6,7 +6,10 @@
 // found in the THIRD-PARTY file.
 
 use arch::ArchMemoryInfo;
+use gruel::define_waker_set;
+use gruel::DynamicallyBoundWaker;
 use gruel::ParkSignalChannelExt;
+use gruel::ParkWaker;
 use gruel::SignalChannel;
 use gruel::StartupAbortedError;
 use gruel::StartupSignal;
@@ -81,6 +84,28 @@ pub enum Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+define_waker_set! {
+    struct VcpuWakerSet {
+        park: ParkWaker,
+        dynamic: DynamicallyBoundWaker,
+        hvf: HvfWaker,
+    }
+}
+
+struct HvfWaker(HvVcpuRef);
+
+impl Waker for HvfWaker {
+    #[cfg(target_arch = "aarch64")]
+    fn wake(&self) {
+        HvfVcpu::request_exit(self.0).unwrap();
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    fn wake(&self) {
+        hvf::vcpu_request_exit((self.0).0).unwrap();
+    }
+}
 
 /// A wrapper around creating and using a VM.
 pub struct Vm {
@@ -471,6 +496,7 @@ impl Vcpu {
         &mut self,
         hvf_vcpu: &mut HvfVcpu,
         intc_handle: &mut dyn GicVcpuHandle,
+        signal: &SignalChannel<VcpuSignalMask, VcpuWakerSet>,
     ) -> VcpuEmulation {
         use devices::legacy::GicSysReg;
         use hvf::ExitActions;
@@ -478,7 +504,11 @@ impl Vcpu {
         let vcpuid = hvf_vcpu.id();
         let pending_irq = intc_handle.get_pending_irq(&self.intc).map(|i| i.0);
 
-        let (exit, exit_actions) = hvf_vcpu.run(pending_irq).expect("Failed to run HVF vCPU");
+        let (exit, exit_actions) = signal
+            .wait(VcpuSignalMask::ALL_WAIT, VcpuWakerSet::hvf, || {
+                hvf_vcpu.run(pending_irq).expect("Failed to run HVF vCPU")
+            })
+            .unwrap_or((VcpuExit::Canceled, ExitActions::empty()));
 
         // handle PV GIC read side effects
         let mmio_bus = self.mmio_bus.as_ref().unwrap();
@@ -594,13 +624,23 @@ impl Vcpu {
 
     /// Returns error or enum specifying whether emulation was handled or interrupted.
     #[cfg(target_arch = "x86_64")]
-    fn run_emulation(&mut self, hvf_vcpu: &mut HvfVcpu) -> Result<VcpuEmulation> {
+    fn run_emulation(
+        &mut self,
+        hvf_vcpu: &mut HvfVcpu,
+        signal: &SignalChannel<VcpuSignalMask, VcpuWakerSet>,
+    ) -> Result<VcpuEmulation> {
         use hvf::HV_X86_RAX;
         use nix::unistd::write;
 
         let vcpuid = hvf_vcpu.id();
 
-        match hvf_vcpu.run() {
+        let res = signal
+            .wait(VcpuSignalMask::ALL_WAIT, VcpuWakerSet::hvf, || {
+                hvf_vcpu.run()
+            })
+            .unwrap_or(Ok(VcpuExit::Canceled));
+
+        match res {
             Ok(exit) => match exit {
                 VcpuExit::Canceled => {
                     debug!("vCPU {} canceled", vcpuid);
@@ -679,28 +719,12 @@ impl Vcpu {
     #[cfg(target_arch = "aarch64")]
     pub fn run(&mut self, registry: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
         use gruel::{
-            define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
-            ParkResult, ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
+            BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt, ParkResult,
+            ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
         };
         use hvf::{profiler::ProfilerGuestContext, ArcVcpuHandle, VcpuHandleInner};
         use utils::mach_time::MachAbsoluteDuration;
         use vmm_ids::VmmShutdownPhase;
-
-        define_waker_set! {
-            struct VcpuWakerSet {
-                park: ParkWaker,
-                dynamic: DynamicallyBoundWaker,
-                hvf: HvfWaker,
-            }
-        }
-
-        struct HvfWaker(HvVcpuRef);
-
-        impl Waker for HvfWaker {
-            fn wake(&self) {
-                HvfVcpu::request_exit(self.0).unwrap();
-            }
-        }
 
         // separate function so that this shows up in debug spindumps
         // this is debug *info*, not debug_assertions, so it includes release-with-debug
@@ -874,15 +898,7 @@ impl Vcpu {
             }
 
             // Run emulation
-            let emulation = signal.wait(VcpuSignalMask::ALL_WAIT, VcpuWakerSet::hvf, || {
-                self.run_emulation(&mut hvf_vcpu, &mut *intc_vcpu_handle)
-            });
-
-            // Handle emulation result
-            let Some(emulation) = emulation else {
-                // This VM exit has no side-effects.
-                continue;
-            };
+            let emulation = self.run_emulation(&mut hvf_vcpu, &mut *intc_vcpu_handle, &signal);
 
             match emulation {
                 // Emulation ran successfully, continue.
@@ -970,28 +986,12 @@ impl Vcpu {
     #[cfg(target_arch = "x86_64")]
     pub fn run(&mut self, registry: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
         use gruel::{
-            define_waker_set, BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
+            BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt,
             ParkSignalChannelExt, ParkWaker, QueueRecvSignalChannelExt,
             ShutdownAlreadyRequestedExt, SignalChannel,
         };
         use hvf::VcpuHandleInner;
         use vmm_ids::VmmShutdownPhase;
-
-        define_waker_set! {
-            struct VcpuWakerSet {
-                park: ParkWaker,
-                dynamic: DynamicallyBoundWaker,
-                hvf: HvfWaker,
-            }
-        }
-
-        struct HvfWaker(u32);
-
-        impl Waker for HvfWaker {
-            fn wake(&self) {
-                hvf::vcpu_request_exit(self.0).unwrap();
-            }
-        }
 
         // Create the underlying HVF vCPU.
         let mut hvf_vcpu = HvfVcpu::new(
@@ -1009,7 +1009,7 @@ impl Vcpu {
         let signal = Arc::new(SignalChannel::new(VcpuWakerSet {
             park: ParkWaker::default(),
             dynamic: DynamicallyBoundWaker::default(),
-            hvf: HvfWaker(hvf_vcpuid),
+            hvf: HvfWaker(HvVcpuRef(hvf_vcpuid)),
         }));
         let cpu_shutdown_task = self
             .shutdown
@@ -1077,15 +1077,7 @@ impl Vcpu {
             }
 
             // Run emulation
-            let emulation = signal.wait(VcpuSignalMask::ALL_WAIT, VcpuWakerSet::hvf, || {
-                self.run_emulation(&mut hvf_vcpu)
-            });
-
-            // Handle emulation result
-            let Some(emulation) = emulation else {
-                // This is a VM exit, which has no side-effects.
-                continue;
-            };
+            let emulation = self.run_emulation(&mut hvf_vcpu, &signal);
 
             match emulation {
                 // Emulation ran successfully, continue.
