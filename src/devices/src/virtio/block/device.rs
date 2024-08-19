@@ -6,6 +6,7 @@
 // found in the THIRD-PARTY file.
 
 use bitflags::bitflags;
+use filemap::MappedFile;
 use gruel::{
     define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, ParkWaker, SignalChannel,
 };
@@ -37,7 +38,6 @@ use virtio_bindings::{
 use vm_memory::{ByteValued, GuestMemoryMmap};
 
 use super::hvc::BlockHvcDevice;
-use super::mmap::MappedFile;
 use super::worker::BlockWorker;
 use super::QUEUE_SIZE;
 use super::{
@@ -160,7 +160,7 @@ impl DiskProperties {
 
     pub fn read_to_iovec(&self, offset: usize, iov: &Iovec) -> io::Result<usize> {
         // mapped_file does bounds check
-        self.mapped_file.read_to_iovec(offset, iov)
+        self.mapped_file.read(offset, iov.as_std_mut())
     }
 
     pub fn write_iovecs(&self, offset: u64, iovecs: &[Iovec]) -> io::Result<usize> {

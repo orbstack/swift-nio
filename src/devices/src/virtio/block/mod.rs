@@ -3,7 +3,6 @@
 
 pub mod device;
 mod hvc;
-mod mmap;
 mod worker;
 
 pub use self::device::{Block, CacheType};

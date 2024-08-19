@@ -1,8 +1,8 @@
 use std::{
     fs::File,
-    io,
+    io::{self, IoSliceMut},
     ops::Range,
-    os::fd::AsRawFd,
+    os::fd::{AsRawFd, BorrowedFd},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc, OnceLock,
@@ -23,8 +23,6 @@ use mach2::{
 };
 use nix::{errno::Errno, unistd::write};
 use utils::Mutex;
-
-use crate::virtio::descriptor_utils::Iovec;
 
 static MMAP_RANGES: RangeRegistry = RangeRegistry {
     inner: OnceLock::new(),
@@ -159,9 +157,10 @@ impl RangeRegistry {
             if let Some(range) = ranges.iter().find(|r| r.contains(&addr)) {
                 // address is in mmap range
                 // print error message and exit
-                _ = write(STDOUT_FILENO, SIGBUS_PREFIX);
-                _ = write(STDOUT_FILENO, range.file_path.as_bytes());
-                _ = write(STDOUT_FILENO, SIGBUS_SUFFIX);
+                let fd = unsafe { BorrowedFd::borrow_raw(STDOUT_FILENO) };
+                _ = write(fd, SIGBUS_PREFIX);
+                _ = write(fd, range.file_path.as_bytes());
+                _ = write(fd, SIGBUS_SUFFIX);
 
                 // async-signal-safe variant that doesn't run atexit handlers
                 libc::_exit(EXIT_CODE_IO_ERROR);
@@ -290,11 +289,11 @@ impl MappedFile {
         &self.file
     }
 
-    pub fn read_to_iovec(&self, off: usize, iov: &Iovec) -> io::Result<usize> {
+    pub fn read(&self, off: usize, mut buf: IoSliceMut) -> io::Result<usize> {
         // bounds check
-        let len = iov.len();
+        let len = buf.len();
         let src = self.get_host_addr(off, len)?;
-        unsafe { std::ptr::copy_nonoverlapping(src, iov.addr_mut(), len) }
+        unsafe { std::ptr::copy_nonoverlapping(src, buf.as_mut_ptr(), len) }
         Ok(len)
     }
 

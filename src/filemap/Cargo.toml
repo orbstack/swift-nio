@@ -1,0 +1,12 @@
+[package]
+name = "filemap"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.86"
+arc-swap = "1.7.1"
+libc = "0.2.158"
+mach2 = "0.4.2"
+nix = "0.28.0"
+utils = { version = "0.1.0", path = "../utils" }

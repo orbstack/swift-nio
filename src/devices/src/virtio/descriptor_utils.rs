@@ -6,7 +6,7 @@ use std::cell::Cell;
 use std::cmp;
 use std::fmt::{self, Display};
 use std::fs::File;
-use std::io::{self, IoSlice};
+use std::io::{self, IoSlice, IoSliceMut};
 use std::marker::PhantomData;
 use std::mem::size_of;
 use std::os::fd::AsRawFd;
@@ -102,6 +102,12 @@ impl<'a> Iovec<'a> {
     pub fn slice_to_std(iovs: &'a [Iovec<'a>]) -> &'a [IoSlice<'a>] {
         // safe: std IoSlice is guaranteed to be ABI compatible with iovec
         unsafe { std::slice::from_raw_parts(iovs.as_ptr() as *const IoSlice<'a>, iovs.len()) }
+    }
+
+    pub fn as_std_mut(&self) -> IoSliceMut<'a> {
+        IoSliceMut::new(unsafe {
+            std::slice::from_raw_parts_mut(self.iov.iov_base as *mut u8, self.iov.iov_len)
+        })
     }
 }
 
