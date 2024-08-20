@@ -580,7 +580,7 @@ if [[ "$TYPE" == "debug" ]]; then
     comp_alg=lz4
 fi
 
-# -Ededupe: too slow, little gain
+# (not using) -Ededupe: too slow, little gain; our custom dedupe is faster
 # -C 16384: allow big pcluster up to 16k (better compression, and matches macOS page size for I/O)
 mkfs.erofs -C 16384 -Efragments -Eztailpacking --ignore-mtime /images/rootfs.img /rootfs -z \$comp_alg
 EOT
