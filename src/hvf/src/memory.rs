@@ -140,10 +140,11 @@ pub unsafe fn free_range(
 
     // take the host pmap lock:
     // if remap_region races between MADV_WILLNEED and MADV_FREE_REUSABLE, REUSABLE won't work, because it requires pages to be in pmap
-    let pmap = HOST_PMAP.lock().unwrap();
     // mark as REUSABLE. this subtracts from phys_footprint, sets vmp_reusable, and adds pages to the inactive queue
-    pmap.madvise_prefaulted(host_addr, size, libc::MADV_FREE_REUSABLE)?;
-    drop(pmap);
+    HOST_PMAP
+        .lock()
+        .unwrap()
+        .madvise_prefaulted(host_addr, size, libc::MADV_FREE_REUSABLE)?;
 
     // remap memory after madvise(REUSABLE), to reduce how many pmaps that it has to modify
     hvf_vm.map_memory(host_addr as *mut u8, guest_addr, size, MemoryFlags::RWX)?;
