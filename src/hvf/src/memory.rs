@@ -14,7 +14,7 @@ use mach2::{
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
 use nix::errno::Errno;
-use tracing::error;
+use tracing::{debug_span, error};
 use utils::macos::sysctl::os_major_version;
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 
@@ -41,6 +41,8 @@ fn page_size() -> usize {
 }
 
 unsafe fn remap_region(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
+    let _span = debug_span!("remap_region", size = size).entered();
+
     // clear double accounting
     let mut target_address = host_addr as mach_vm_address_t;
     let mut cur_prot = VM_PROT_READ | VM_PROT_WRITE;
@@ -198,6 +200,7 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
         // vague user-facing name
         .name("VMA".to_string())
         .spawn(move || loop {
+            // ideally this thread should have background QoS, but that'd cause it to hold pmap/PPL locks for a long time while slowly processing the remap on an E core, which would contend with other CPUs
             sleep(MEMORY_REMAP_INTERVAL);
 
             // TODO: stop this
