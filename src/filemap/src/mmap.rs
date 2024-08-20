@@ -3,7 +3,7 @@ use std::{
     io::{self, IoSliceMut},
     os::fd::AsRawFd,
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{compiler_fence, AtomicU64, Ordering},
         OnceLock,
     },
 };
@@ -97,6 +97,9 @@ impl AtomicBitmap {
     }
 
     pub fn set(&self, bit: usize) {
+        // make sure bit isn't set until after mapping/mutation is done
+        compiler_fence(Ordering::AcqRel);
+
         let chunk = bit / 64;
         let offset = bit % 64;
         self.0[chunk].fetch_or(1 << offset, Ordering::Relaxed);
