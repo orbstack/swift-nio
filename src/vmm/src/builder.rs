@@ -29,7 +29,7 @@ use devices::virtio::Net;
 use devices::virtio::VirtioShmRegion;
 use devices::virtio::{port_io, MmioTransport, PortDescription, Vsock};
 #[cfg(target_os = "macos")]
-use hvf::MemoryMapping;
+use hvf::memory::MemoryMapping;
 
 #[cfg(feature = "tee")]
 use kbs_types::Tee;
@@ -681,7 +681,7 @@ pub fn create_guest_memory(
     let mem_size = mem_size_mib << 20;
     let arch_mem_info = arch::arch_memory_regions(mem_size, kernel_load_addr, kernel_data.len());
 
-    let guest_mem = hvf::allocate_guest_memory(&arch_mem_info.ram_regions)
+    let guest_mem = hvf::memory::allocate_guest_memory(&arch_mem_info.ram_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem
@@ -741,7 +741,7 @@ pub fn create_guest_memory(
     let mem_size = mem_size_mib << 20;
     let arch_mem_info = arch::arch_memory_regions(mem_size);
 
-    let guest_mem = hvf::allocate_guest_memory(&arch_mem_info.ram_regions)
+    let guest_mem = hvf::memory::allocate_guest_memory(&arch_mem_info.ram_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem
@@ -757,7 +757,7 @@ pub fn create_guest_memory(
     let mem_size = mem_size_mib << 20;
     let (arch_mem_info, arch_mem_regions) = arch::arch_memory_regions(mem_size);
 
-    let guest_mem = hvf::allocate_guest_memory(&arch_mem_regions)
+    let guest_mem = hvf::memory::allocate_guest_memory(&arch_mem_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem.write(EDK2_BINARY, GuestAddress(0u64)).unwrap();

@@ -18,7 +18,7 @@ use crossbeam_channel::unbounded;
 use devices::virtio::{net::device::VirtioNetBackend, CacheType, FsCallbacks, NfsInfo};
 #[cfg(target_arch = "x86_64")]
 use hvf::check_cpuid;
-use hvf::{profiler::ProfilerParams, HvfVm, MemoryMapping};
+use hvf::{memory::MemoryMapping, profiler::ProfilerParams, HvfVm};
 use libc::strdup;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};

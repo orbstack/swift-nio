@@ -294,7 +294,7 @@ impl Balloon {
             match req.type_ {
                 FPR_TYPE_FREE => {
                     unsafe {
-                        hvf::free_range(
+                        hvf::memory::free_range(
                             &self.hvf_vm,
                             guest_addr,
                             host_addr.as_ptr() as *mut _,
@@ -303,7 +303,7 @@ impl Balloon {
                     };
                 }
                 FPR_TYPE_UNREPORT => {
-                    unsafe { hvf::reuse_range(host_addr.as_ptr() as *mut _, size)? };
+                    unsafe { hvf::memory::reuse_range(host_addr.as_ptr() as *mut _, size)? };
                 }
                 _ => {
                     error!("unknown free-page-report type");

@@ -35,7 +35,7 @@ use anyhow::anyhow;
 use gruel::Subscriber;
 use hvf::profiler::{Profiler, ProfilerParams};
 #[cfg(target_os = "macos")]
-pub use hvf::MemoryMapping;
+pub use hvf::memory::MemoryMapping;
 #[cfg(target_os = "macos")]
 use macos::vstate;
 use mio::Interest;
