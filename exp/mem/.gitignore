@@ -2,6 +2,7 @@
 /membench
 /membench_linux
 /memhog
+/memhog-linux
 /devmem
 __pycache__/
 memcpy-apple.S

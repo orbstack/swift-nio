@@ -58,10 +58,10 @@ void __check_hv(hv_return_t hv, const char *msg) {
         printf(#name ": %llu us  (each: %llu ns)\n", (name##_end - name##_start) / 1000, (name##_end - name##_start) / count); \
     }
 
-#define TOTAL_BYTES (1ULL * 1024 * 1024 * 1024) // GiB
-#define CHUNK_BYTES 16384ULL
+#define TOTAL_BYTES (8ULL * 1024 * 1024 * 1024) // GiB
+// #define CHUNK_BYTES 16384ULL
 // #define CHUNK_BYTES (128ULL * 1024 * 1024) // 128 MiB
-// #define CHUNK_BYTES (2ULL * 1024 * 1024) // 2 MiB
+#define CHUNK_BYTES (4ULL * 1024 * 1024) // 4 MiB
 // #define CHUNK_BYTES (64ULL * 1024) // 64 KiB
 
 #define NUM_CHUNKS (TOTAL_BYTES / CHUNK_BYTES)
@@ -73,9 +73,15 @@ void __check_hv(hv_return_t hv, const char *msg) {
 #define for_each_page(addr, base_addr) \
     for (mach_vm_address_t addr = base_addr; addr < base_addr + TOTAL_BYTES; addr += PAGE_SIZE)
 
-void touch_all_pages(mach_vm_address_t base_addr) {
+void touch_all_pages_write(mach_vm_address_t base_addr) {
     for_each_page(addr, base_addr) {
         *(volatile uint8_t *)addr = 0xaa;
+    }
+}
+
+void touch_all_pages_read(mach_vm_address_t base_addr) {
+    for_each_page(addr, base_addr) {
+        *(volatile uint8_t *)addr;
     }
 }
 
@@ -94,6 +100,16 @@ void new_entry_chunk_at(mach_port_t task, mach_vm_address_t addr, mach_vm_size_t
 
 void new_purgable_chunk_at(mach_port_t task, mach_vm_address_t addr, mach_vm_size_t chunk_size) {
     CHECK_MACH(mach_vm_allocate(task, &addr, chunk_size, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_FLAGS_PURGABLE | VM_MAKE_TAG(250)));
+}
+
+void new_regular_chunk_at(mach_port_t task, mach_vm_address_t addr, mach_vm_size_t chunk_size) {
+    CHECK_MACH(mach_vm_allocate(task, &addr, chunk_size, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_MAKE_TAG(250)));
+}
+
+void remap_all_at(mach_port_t task, mach_vm_address_t base_addr) {
+    vm_prot_t cur_protection = VM_PROT_READ | VM_PROT_WRITE;
+    vm_prot_t max_protection = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
+    CHECK_MACH(mach_vm_remap(task, &base_addr, TOTAL_BYTES, 0, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, task, base_addr, 0, &cur_protection, &max_protection, VM_INHERIT_NONE));
 }
 
 static int memvcmp(void *memory, unsigned char val, unsigned int size)
@@ -133,33 +149,72 @@ int main(int argc, char **argv) {
     // map memory in chunks
     TIME_BLOCK_EACH(mach_make_entry_and_map, NUM_CHUNKS, {
         for_each_chunk(addr, base_addr) {
-            new_purgable_chunk_at(task, addr, CHUNK_BYTES);
+            new_regular_chunk_at(task, addr, CHUNK_BYTES);
         }
     });
 
     // touch all of the memory
-    for (int i = 0; i < 3; i++) {
-        TIME_BLOCK_EACH(touch_memory, NUM_PAGES, {
-            touch_all_pages(base_addr);
-        });
-    }
+    // for (int i = 0; i < 3; i++) {
+    //     TIME_BLOCK_EACH(touch_memory, NUM_PAGES, {
+    //         touch_all_pages_write(base_addr);
+    //     });
+    // }
 
-    // madvise(REUSABLE) for all
+    TIME_BLOCK_EACH(prefault, NUM_CHUNKS, {
+        for_each_chunk(addr, base_addr) {
+            CHECK_POSIX(madvise((void *)addr, CHUNK_BYTES, MADV_WILLNEED));
+        }
+    });
+
+    // madvise(REUSABLE) for all but 1 page (all_reusable = fastpath)
     TIME_BLOCK_EACH(madvise_reusable, NUM_CHUNKS, {
         for_each_chunk(addr, base_addr) {
-            CHECK_POSIX(madvise((void *)addr, CHUNK_BYTES, MADV_FREE_REUSABLE));
+            CHECK_POSIX(madvise((void *)addr, CHUNK_BYTES - PAGE_SIZE, MADV_FREE_REUSABLE));
+        }
+    });
+
+    // remap on host
+    TIME_BLOCK(remap_all, {
+        remap_all_at(task, base_addr);
+    });
+
+    // the common case is that pages are already in the object, but need to refaulted due to a host-side remap
+    TIME_BLOCK_EACH(prefault, NUM_CHUNKS, {
+        for_each_chunk(addr, base_addr) {
+            CHECK_POSIX(madvise((void *)addr, CHUNK_BYTES, MADV_WILLNEED));
+        }
+    });
+
+    TIME_BLOCK_EACH(madvise_reusable, NUM_CHUNKS, {
+        for_each_chunk(addr, base_addr) {
+            CHECK_POSIX(madvise((void *)addr, CHUNK_BYTES - PAGE_SIZE, MADV_FREE_REUSABLE));
+        }
+    });
+
+    // now try the same thing, but with page-by-page faults
+    TIME_BLOCK(remap_all, {
+        remap_all_at(task, base_addr);
+    });
+
+    TIME_BLOCK_EACH(touch_memory, NUM_PAGES, {
+        touch_all_pages_read(base_addr);
+    });
+
+    TIME_BLOCK_EACH(madvise_reusable, NUM_CHUNKS, {
+        for_each_chunk(addr, base_addr) {
+            CHECK_POSIX(madvise((void *)addr, CHUNK_BYTES - PAGE_SIZE, MADV_FREE_REUSABLE));
         }
     });
 
     // clear purgable chunks
-    TIME_BLOCK_EACH(purge_purgable, NUM_CHUNKS, {
-        for_each_chunk(addr, base_addr) {
-            int state = VM_PURGABLE_EMPTY;
-            CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
-            state = VM_PURGABLE_NONVOLATILE;
-            CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
-        }
-    });
+    // TIME_BLOCK_EACH(purge_purgable, NUM_CHUNKS, {
+    //     for_each_chunk(addr, base_addr) {
+    //         int state = VM_PURGABLE_EMPTY;
+    //         CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
+    //         state = VM_PURGABLE_NONVOLATILE;
+    //         CHECK_MACH(mach_vm_purgable_control(task, addr, VM_PURGABLE_SET_STATE, &state));
+    //     }
+    // });
 
     // map all into HV, in one big call
     TIME_BLOCK(hv_map_all, {
@@ -188,7 +243,7 @@ int main(int argc, char **argv) {
     // touch all of the memory
     for (int i = 0; i < 3; i++) {
         TIME_BLOCK_EACH(touch_memory, NUM_PAGES, {
-            touch_all_pages(base_addr);
+            touch_all_pages_write(base_addr);
         });
     }
 
