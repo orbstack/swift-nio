@@ -578,6 +578,11 @@ fn for_each_merge_range<E>(
     let mut curr_range = None;
 
     for prdesc in ranges {
+        // skip invalidated (now free-reported) ranges
+        if !prdesc.present() {
+            continue;
+        }
+
         let start = prdesc.phys_addr();
         let size = guest_page_size << prdesc.order();
         let end = start + size;
