@@ -166,6 +166,11 @@ pub unsafe fn reuse_range(host_addr: *mut c_void, size: usize) -> anyhow::Result
     let pmap = HOST_PMAP.lock().unwrap();
     pmap.madvise_prefaulted(host_addr, size, libc::MADV_FREE_REUSE)?;
 
+    // REUSE is especially annoying, because if we WILLNEED and REUSE pages on the host, they'll all be immediately accounted to *our* pmap, and redirtied in our pmap
+    // they'll also be redirtied and accounted to the VM pmap when the fast fault fires
+    // so we need to fix double-accounting by remapping
+    pmap.remap(host_addr, size)?;
+
     Ok(())
 }
 
