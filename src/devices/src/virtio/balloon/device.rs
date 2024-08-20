@@ -506,7 +506,8 @@ impl VirtioDevice for Balloon {
 
             self.worker = Some(
                 thread::Builder::new()
-                    .name("balloon thread".to_string())
+                    // vague user-facing thread name
+                    .name("VDB".to_string())
                     .spawn(move || Self::run_worker(me, signal))
                     .expect("failed to spawn balloon worker"),
             );
