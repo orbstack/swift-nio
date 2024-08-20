@@ -348,6 +348,18 @@ fn apply_perf_tuning_early() -> anyhow::Result<()> {
         "always",
     );
 
+    // balloon free page reporting order
+    // should be equivalent to host page size (16K), as that's the freeable page granule
+    // this is order=2 on 4K kernels and order=0 on 16K kernels
+    // set it here to avoid exposing it in kernel cmdline
+    // it's ok that this isn't set early enough for the page_reporting static branch gate: something will be freed soon
+    let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+    let order_16k = (16384 / page_size).ilog2();
+    fs::write(
+        "/sys/module/page_reporting/parameters/page_reporting_order",
+        order_16k.to_string(),
+    )?;
+
     Ok(())
 }
 

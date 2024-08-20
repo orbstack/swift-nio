@@ -163,7 +163,6 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		// Drivers
 		"nbd.nbds_max=4",    // fast boot
 		"can.stats_timer=0", // periodic timer
-		"page_reporting.page_reporting_order=2",
 	}
 	if runtime.GOARCH == "amd64" {
 		// on ARM: kpti is free with E0PD
