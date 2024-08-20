@@ -15,7 +15,7 @@ use mach2::{
 };
 use nix::errno::Errno;
 use tracing::{debug_span, error};
-use utils::macos::sysctl::os_major_version;
+use utils::Mutex;
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 
 use crate::{HvfVm, MemoryFlags};
@@ -30,41 +30,63 @@ const VM_FLAGS_4GB_CHUNK: i32 = 4;
 // which is especially relevant when we use REUSABLE to purge pages
 const MACH_CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
+static HOST_PMAP: Mutex<HostPmap> = Mutex::new(HostPmap {});
+
 /// Messages for requesting memory maps/unmaps.
 pub enum MemoryMapping {
     AddMapping(Sender<bool>, usize, GuestAddress, usize),
     RemoveMapping(Sender<bool>, GuestAddress, usize),
 }
 
-fn page_size() -> usize {
-    unsafe { vm_page_size }
-}
+struct HostPmap {}
 
-unsafe fn remap_region(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
-    let _span = debug_span!("remap_region", size = size).entered();
+impl HostPmap {
+    unsafe fn remap(&self, host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
+        let _span = debug_span!("remap", size = size).entered();
 
-    // clear double accounting
-    let mut target_address = host_addr as mach_vm_address_t;
-    let mut cur_prot = VM_PROT_READ | VM_PROT_WRITE;
-    let mut max_prot = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
-    let ret = mach_vm_remap(
-        mach_task_self(),
-        &mut target_address,
-        size as mach_vm_size_t,
-        0,
-        VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
-        mach_task_self(),
-        host_addr as mach_vm_address_t,
-        0,
-        &mut cur_prot,
-        &mut max_prot,
-        VM_INHERIT_NONE,
-    );
-    if ret != KERN_SUCCESS {
-        return Err(anyhow!("error {}", ret));
+        // clear double accounting
+        // pmap_remove clears the contribution to phys_footprint, and pmap_enter on refault will add it back
+        let mut target_address = host_addr as mach_vm_address_t;
+        let mut cur_prot = VM_PROT_READ | VM_PROT_WRITE;
+        let mut max_prot = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
+        let ret = mach_vm_remap(
+            mach_task_self(),
+            &mut target_address,
+            size as mach_vm_size_t,
+            0,
+            VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
+            mach_task_self(),
+            host_addr as mach_vm_address_t,
+            0,
+            &mut cur_prot,
+            &mut max_prot,
+            VM_INHERIT_NONE,
+        );
+        if ret != KERN_SUCCESS {
+            return Err(anyhow!("error {}", ret));
+        }
+
+        Ok(())
     }
 
-    Ok(())
+    unsafe fn madvise_prefaulted(
+        &self,
+        host_addr: *mut c_void,
+        size: usize,
+        advice: libc::c_int,
+    ) -> anyhow::Result<()> {
+        // prefault all pages in this range. not optimal, but REUSE/REUSABLE only works on pages mapped in the host pmap
+        let ret = madvise(host_addr, size, libc::MADV_WILLNEED);
+        Errno::result(ret)?;
+        let ret = madvise(host_addr, size, advice);
+        Errno::result(ret)?;
+
+        Ok(())
+    }
+}
+
+fn page_size() -> usize {
+    unsafe { vm_page_size }
 }
 
 unsafe fn new_chunks_at(host_base_addr: *mut c_void, total_size: usize) -> anyhow::Result<()> {
@@ -104,35 +126,27 @@ pub unsafe fn free_range(
     host_addr: *mut c_void,
     size: usize,
 ) -> anyhow::Result<()> {
-    // let _span = tracing::info_span!("free_range", size = size).entered();
     // start and end must be page-aligned
     if host_addr as usize % page_size() != 0 {
-        return Err(anyhow!(
-            "address must be page-aligned: {:x}",
-            host_addr as usize
-        ));
+        return Err(anyhow!("unaligned address: {:x}", host_addr as usize));
     }
     if size % page_size() != 0 {
-        return Err(anyhow!("size must be page-aligned: {}", size));
+        return Err(anyhow!("unaligned size: {}", size));
     }
-
-    // madvise on host address
-    let ret = madvise(host_addr, size, libc::MADV_FREE_REUSABLE);
-    Errno::result(ret).map_err(|e| anyhow!("free: {}", e))?;
 
     // clear this range from hv pmap ledger:
-    // there's no other way to clear from hv pmap, and we *will* incur this cost at some point
+    // hv_vm_protect(NONE) then (RWX) is faster but not reliable if swapping already caused pages to be removed from pmap
+    hvf_vm.unmap_memory(guest_addr, size)?;
 
-    // hv_vm_protect(NONE) then (RWX) is slightly faster than unmap+map, and does the same thing (including split+coalesce)
-    // however, protect doesn't work on macOS 15 beta 5, but unmap+map still does
-    // TODO: investigate why
-    if os_major_version() >= 15 {
-        hvf_vm.unmap_memory(guest_addr, size)?;
-        hvf_vm.map_memory(host_addr as *mut u8, guest_addr, size, MemoryFlags::RWX)?;
-    } else {
-        hvf_vm.protect_memory(guest_addr, size, MemoryFlags::NONE)?;
-        hvf_vm.protect_memory(guest_addr, size, MemoryFlags::RWX)?;
-    }
+    // take the host pmap lock:
+    // if remap_region races between MADV_WILLNEED and MADV_FREE_REUSABLE, REUSABLE won't work, because it requires pages to be in pmap
+    let pmap = HOST_PMAP.lock().unwrap();
+    // mark as REUSABLE. this subtracts from phys_footprint, sets vmp_reusable, and adds pages to the inactive queue
+    pmap.madvise_prefaulted(host_addr, size, libc::MADV_FREE_REUSABLE)?;
+    drop(pmap);
+
+    // remap memory after madvise(REUSABLE), to reduce how many pmaps that it has to modify
+    hvf_vm.map_memory(host_addr as *mut u8, guest_addr, size, MemoryFlags::RWX)?;
 
     Ok(())
 }
@@ -140,21 +154,17 @@ pub unsafe fn free_range(
 /// # Safety
 /// host_addr must be a mapped, contiguous host memory region of at least `size` bytes
 pub unsafe fn reuse_range(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
-    // let _span = tracing::info_span!("free_range", size = size).entered();
     // start and end must be page-aligned
     if host_addr as usize % page_size() != 0 {
-        return Err(anyhow!(
-            "address must be page-aligned: {:x}",
-            host_addr as usize
-        ));
+        return Err(anyhow!("unaligned address: {:x}", host_addr as usize));
     }
     if size % page_size() != 0 {
-        return Err(anyhow!("size must be page-aligned: {}", size));
+        return Err(anyhow!("unaligned size: {}", size));
     }
 
-    // madvise on host address
-    let ret = madvise(host_addr, size, libc::MADV_FREE_REUSE);
-    Errno::result(ret).map_err(|e| anyhow!("reuse: {}", e))?;
+    // REUSE has the same requirement as above (REUSABLE): pages must be in host pmap
+    let pmap = HOST_PMAP.lock().unwrap();
+    pmap.madvise_prefaulted(host_addr, size, libc::MADV_FREE_REUSE)?;
 
     Ok(())
 }
@@ -196,6 +206,7 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     std::mem::forget(map_guard);
 
     // spawn thread to periodically remap and fix double accounting
+    // TODO: stop this
     std::thread::Builder::new()
         // vague user-facing name
         .name("VMA".to_string())
@@ -203,8 +214,9 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
             // ideally this thread should have background QoS, but that'd cause it to hold pmap/PPL locks for a long time while slowly processing the remap on an E core, which would contend with other CPUs
             sleep(MEMORY_REMAP_INTERVAL);
 
-            // TODO: stop this
-            if let Err(e) = unsafe { remap_region(host_addr as *mut c_void, size as usize) } {
+            // don't race with REUSABLE
+            let pmap = HOST_PMAP.lock().unwrap();
+            if let Err(e) = unsafe { pmap.remap(host_addr as *mut c_void, size as usize) } {
                 error!("remap failed: {:?}", e);
             }
         })?;
