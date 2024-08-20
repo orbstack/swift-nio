@@ -20,10 +20,17 @@ function upload_dsyms() {
 }
 upload_dsyms swift/out/*/dsym/OrbStack.app.dSYM &
 
+# skip delta generation for canary
+VERSION_TAG="$(git describe --tag --abbrev=0)"
+MAX_DELTAS=3
+if [[ "$VERSION_TAG" == *"-rc"* ]]; then
+    MAX_DELTAS=0
+fi
+
 # generate appcast
 # TODO support marking as critical
 CRITICAL_FLAGS=(--critical-update-version '')
-COMMON_FLAGS=(--channel beta --auto-prune-update-files --delta-compression lzfse --release-notes-url-prefix $CDN_BASE_URL'/release-notes.html#' --full-release-notes-url 'https://docs.orbstack.dev/release-notes' --maximum-versions 2 --maximum-deltas 3)
+COMMON_FLAGS=(--channel beta --auto-prune-update-files --delta-compression lzfse --release-notes-url-prefix $CDN_BASE_URL'/release-notes.html#' --full-release-notes-url 'https://docs.orbstack.dev/release-notes' --maximum-versions 2 --maximum-deltas "$MAX_DELTAS")
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix $CDN_BASE_URL/arm64/ updates/pub/arm64
 $SPARKLE_BIN/generate_appcast "${COMMON_FLAGS[@]}" --download-url-prefix $CDN_BASE_URL/amd64/ updates/pub/amd64
 
