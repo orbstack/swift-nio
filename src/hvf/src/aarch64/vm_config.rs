@@ -4,7 +4,7 @@ use crate::aarch64::weak_link::OPTIONAL15;
 use crate::call_optional;
 
 use super::bindings::{hv_vm_config_t, os_release};
-use super::weak_link::OPTIONAL12;
+use super::weak_link::OPTIONAL13;
 use super::{Error, HvfError};
 
 pub struct VmConfig {
@@ -13,7 +13,7 @@ pub struct VmConfig {
 
 impl VmConfig {
     pub fn new() -> Option<Self> {
-        if let Some(hvf_optional) = OPTIONAL12.as_ref() {
+        if let Some(hvf_optional) = OPTIONAL13.as_ref() {
             let ptr = unsafe { hvf_optional.hv_vm_config_create() };
             Some(Self { ptr })
         } else {
@@ -27,7 +27,7 @@ impl VmConfig {
 
     pub fn set_ipa_size(&self, ipa_bits: u32) -> Result<(), Error> {
         let ret =
-            unsafe { call_optional!(OPTIONAL12.hv_vm_config_set_ipa_size(self.ptr, ipa_bits)) };
+            unsafe { call_optional!(OPTIONAL13.hv_vm_config_set_ipa_size(self.ptr, ipa_bits)) };
         HvfError::result(ret).map_err(Error::VmConfigSetIpaSize)
     }
 

@@ -19,7 +19,7 @@ use super::bindings::{
     HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE,
 };
 use super::hvf_gic::{FdtGic, GicProps};
-use super::weak_link::OPTIONAL12;
+use super::weak_link::OPTIONAL13;
 
 // macOS 15 knobs
 pub const USE_HVF_GIC: bool = false;
@@ -177,7 +177,7 @@ impl HvfVm {
     }
 
     fn get_default_ipa_size() -> Result<u32, Error> {
-        if let Some(hvf_optional) = OPTIONAL12.as_ref() {
+        if let Some(hvf_optional) = OPTIONAL13.as_ref() {
             let mut ipa_bit_length: u32 = 0;
             let ret =
                 unsafe { hvf_optional.hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
@@ -189,7 +189,7 @@ impl HvfVm {
     }
 
     fn get_max_ipa_size() -> Result<u32, Error> {
-        if let Some(hvf_optional) = OPTIONAL12.as_ref() {
+        if let Some(hvf_optional) = OPTIONAL13.as_ref() {
             let mut ipa_bit_length: u32 = 0;
             let ret = unsafe { hvf_optional.hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
             HvfError::result(ret).map_err(Error::VmConfigGetMaxIpaSize)?;
