@@ -4,9 +4,9 @@
 use anyhow::anyhow;
 use arch::aarch64::layout::DRAM_MEM_START;
 use smallvec::SmallVec;
+use sysx::mach::time::MachAbsoluteTime;
 use utils::extract_bits_64;
 use utils::kernel_symbols::CompactSystemMap;
-use utils::mach_time::MachAbsoluteTime;
 use utils::memory::GuestMemoryExt;
 use vm_memory::{GuestAddress, GuestMemoryMmap};
 

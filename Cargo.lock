@@ -1257,6 +1257,7 @@ dependencies = [
  "smallvec",
  "string-interner",
  "symbolic-demangle",
+ "sysx",
  "thiserror",
  "time",
  "tokio",
@@ -3030,6 +3031,9 @@ dependencies = [
 [[package]]
 name = "sysx"
 version = "0.1.0"
+dependencies = [
+ "mach2",
+]
 
 [[package]]
 name = "termcolor"
@@ -3471,6 +3475,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sev",
+ "sysx",
  "thiserror",
  "tracing",
  "utils",

@@ -5,7 +5,7 @@ use mach2::thread_policy::{
     thread_policy_set, thread_time_constraint_policy_data_t, THREAD_TIME_CONSTRAINT_POLICY,
     THREAD_TIME_CONSTRAINT_POLICY_COUNT,
 };
-use utils::mach_time::MachAbsoluteDuration;
+use sysx::mach::time::MachAbsoluteDuration;
 
 use crate::check_mach;
 

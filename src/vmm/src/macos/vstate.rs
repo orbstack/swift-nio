@@ -25,7 +25,7 @@ use std::result;
 use std::sync::Arc;
 use std::thread::{self, Thread};
 use std::time::Duration;
-use utils::mach_time::MachAbsoluteTime;
+use sysx::mach::time::MachAbsoluteTime;
 use utils::Mutex;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
@@ -723,7 +723,7 @@ impl Vcpu {
             ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
         };
         use hvf::{profiler::ProfilerGuestContext, ArcVcpuHandle, VcpuHandleInner};
-        use utils::mach_time::MachAbsoluteDuration;
+        use sysx::mach::time::MachAbsoluteDuration;
         use vmm_ids::VmmShutdownPhase;
 
         // separate function so that this shows up in debug spindumps

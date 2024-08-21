@@ -10,8 +10,8 @@ use nix::{
     sys::signal::{kill, Signal},
     unistd::Pid,
 };
+use sysx::mach::time::MachAbsoluteTime;
 use tracing::error;
-use utils::mach_time::MachAbsoluteTime;
 
 use super::{
     thread::{ProfileeThread, ThreadId},

@@ -54,6 +54,7 @@ gruel = { version = "0.1.0", path = "../gruel" }
 vmm-ids = { version = "0.1.0", path = "../vmm-ids" }
 hvf = { path = "../hvf" }
 crossbeam = "0.8.4"
+sysx = { version = "0.1.0", path = "../sysx" }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 # cpuid = { path = "../cpuid" }

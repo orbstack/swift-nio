@@ -16,8 +16,8 @@ use mach2::{
     vm_types::natural_t,
 };
 use nix::errno::Errno;
+use sysx::mach::time::MachAbsoluteTime;
 use tracing::error;
-use utils::mach_time::MachAbsoluteTime;
 
 use crate::{check_mach, ArcVcpuHandle};
 

@@ -40,11 +40,11 @@ use symbolicator::{
     CachedSymbolicator, DladdrSymbolicator, HostDwarfSymbolicator, HostKernelSymbolicator,
     LinuxSymbolicator, SymbolFunc, SymbolResult, SymbolResults, Symbolicator,
 };
+use sysx::mach::time::{MachAbsoluteDuration, MachAbsoluteTime};
 use thread::{MachPort, ProfileeThread, SampleError, SampleResult, ThreadId, ThreadState};
 use tracing::{error, info, warn};
 use transform::{CgoTransform, LeafCallTransform, LinuxIrqTransform, StackTransform};
 use unwinder::FramePointerUnwinder;
-use utils::mach_time::{MachAbsoluteDuration, MachAbsoluteTime};
 use utils::{
     qos::{self, QosClass},
     Mutex,

@@ -51,6 +51,7 @@ tower-http = { version = "0.5.2", features = ["cors"] }
 time = { version = "0.3.36", features = ["formatting"] }
 addr2line = "0.24.1"
 string-interner = "0.17.0"
+sysx = { version = "0.1.0", path = "../sysx" }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 cpuid = { path = "../cpuid" }
