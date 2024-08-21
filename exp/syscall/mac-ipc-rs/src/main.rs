@@ -2,7 +2,7 @@ use std::{error::Error, ffi::c_int, io::{Read, Write}, mem::{size_of, MaybeUnini
 
 use hdrhistogram::Histogram;
 use libc::{clockid_t, kevent64_s, pthread_cpu_number_np, pthread_kill, pthread_mach_thread_np, pthread_self, CLOCK_UPTIME_RAW, EVFILT_MACHPORT, EVFILT_USER, EV_ADD, EV_CLEAR, EV_ENABLE, NOTE_FFCOPY, NOTE_FFNOP, NOTE_TRIGGER};
-use mach2::{clock_types::mach_timespec_t, kern_return::{kern_return_t, KERN_ABORTED, KERN_SUCCESS}, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, mach_types::thread_act_t, message::{mach_msg, mach_msg_header_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, semaphore::semaphore_create, sync_policy::SYNC_POLICY_FIFO, thread_policy::{thread_policy_set, thread_time_constraint_policy_data_t, THREAD_TIME_CONSTRAINT_POLICY, THREAD_TIME_CONSTRAINT_POLICY_COUNT}, traps::mach_task_self, vm_types::natural_t};
+use mach2::{clock_types::mach_timespec_t, kern_return::{kern_return_t, KERN_ABORTED, KERN_SUCCESS}, mach_port::{mach_port_allocate, mach_port_insert_right}, mach_time::{mach_absolute_time, mach_timebase_info, mach_wait_until}, mach_types::thread_act_t, message::{mach_msg, mach_msg_header_t, mach_msg_timeout_t, MACH_MSGH_BITS, MACH_MSG_TYPE_COPY_SEND, MACH_MSG_TYPE_MAKE_SEND, MACH_RCV_MSG, MACH_RCV_OVERWRITE, MACH_SEND_MSG, MACH_SEND_NO_BUFFER, MACH_SEND_TIMED_OUT, MACH_SEND_TIMEOUT}, port::{mach_port_limits_t, mach_port_name_t, mach_port_t, MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE}, semaphore::semaphore_create, sync_policy::SYNC_POLICY_FIFO, thread_policy::{thread_policy_set, thread_time_constraint_policy_data_t, THREAD_TIME_CONSTRAINT_POLICY, THREAD_TIME_CONSTRAINT_POLICY_COUNT}, traps::mach_task_self, vm_types::natural_t};
 use mio::{Events, Poll, Token, Waker};
 use nix::errno::Errno;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::unix::pipe::pipe, sync::Notify};
@@ -22,6 +22,9 @@ const MACH_PORT_LIMITS_INFO_COUNT: u32 = std::mem::size_of::<mach_port_limits_t>
 
 const IDENT_WAKER: u64 = 1;
 const KEVENT_FLAG_IMMEDIATE: u32 = 1;
+
+const SWITCH_OPTION_NONE: libc::c_int = 0;
+const SWITCH_OPTION_WAIT: libc::c_int = 2;
 
 const WAKE_TOKEN: Token = Token(1);
 
@@ -49,6 +52,8 @@ extern "C" {
     fn semaphore_signal(semaphore: mach_port_t) -> kern_return_t;
     fn semaphore_wait_signal(wait_semaphore: mach_port_t, signal_semaphore: mach_port_t) -> kern_return_t;
     fn semaphore_timedwait_signal(wait_semaphore: mach_port_t, signal_semaphore: mach_port_t, wait_time: mach_timespec_t) -> kern_return_t;
+
+    fn thread_switch(thread_name: mach_port_name_t, option: libc::c_int, option_time: mach_msg_timeout_t) -> kern_return_t;
 }
 
 fn now_ns() -> u64 {
@@ -68,6 +73,7 @@ enum Method {
     StdThreadPark,
     MachSemaphore,
     MachSemaphoreHandoff,
+    MachSemaphoreThreadSwitch,
     DispatchSemaphore,
     DispatchSemaphoreParker,
     MioKqueueEvfiltUser,
@@ -410,6 +416,8 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         set_realtime_scheduling(Duration::from_millis(1));
     }
 
+    let mach_main_thread = unsafe { pthread_mach_thread_np(pthread_self()) };
+
     // spawn reader
     let parker_clone = parker.clone();
     let pthread_parker_clone = pthread_parker.clone();
@@ -455,6 +463,22 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                     // let mut cpu_number_out = 0;
                     // unsafe { pthread_cpu_number_np(&mut cpu_number_out) };
                     // println!("-> {}", cpu_number_out);
+                }
+                Method::MachSemaphoreThreadSwitch => {
+                    // signal main thread
+                    let ret = unsafe { semaphore_signal(mach_completion_sem) };
+                    if ret != KERN_SUCCESS {
+                        panic!("semaphore_signal failed: {}", ret);
+                    }
+
+                    // context switch to main thread for completion
+                    let ret = unsafe { thread_switch(mach_main_thread, SWITCH_OPTION_NONE, 0) };
+                    if ret != KERN_SUCCESS {
+                        panic!("thread_switch failed: {}", ret);
+                    }
+
+                    // wait on semaphore so that we can be made runnable again
+                    unsafe { semaphore_wait(mach_worker_sem) };
                 }
                 Method::DispatchSemaphore => {
                     unsafe { dispatch_semaphore_wait(dispatch_sem as *mut c_void, DISPATCH_TIME_FOREVER) };
@@ -505,7 +529,7 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         print_histogram("WAKEE", &histogram);
 
         // on stop, signal completion
-        if matches!(method, Method::MachSemaphoreHandoff) {
+        if matches!(method, Method::MachSemaphoreHandoff | Method::MachSemaphoreThreadSwitch) {
             let ret = unsafe { semaphore_signal(mach_completion_sem) };
             if ret != KERN_SUCCESS {
                 panic!("semaphore_signal failed: {}", ret);
@@ -515,8 +539,8 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
 
     let thread = handle.thread();
     let pthread = handle.as_pthread_t();
-    let mach_thread = unsafe { pthread_mach_thread_np(pthread) };
-    if mach_thread == MACH_PORT_NULL {
+    let mach_worker_thread = unsafe { pthread_mach_thread_np(pthread) };
+    if mach_worker_thread == MACH_PORT_NULL {
         panic!("pthread_mach_thread_np failed");
     }
     let mut do_wake = || {
@@ -550,6 +574,27 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                     panic!("semaphore_timedwait_signal failed: {}", ret);
                 }
             }
+            Method::MachSemaphoreThreadSwitch => {
+                // make it runnable, using semaphore
+                let ret = unsafe { semaphore_signal(mach_worker_sem) };
+                if ret != KERN_SUCCESS {
+                    panic!("semaphore_signal failed: {}", ret);
+                }
+
+                // context switch to it
+                // we can't put this thread in wait state, because then thread_abort can wake it up
+                // worker must be able to make us runnable so we need to wake on semaphore
+                let ret = unsafe { thread_switch(mach_worker_thread, SWITCH_OPTION_NONE, 0) };
+                if ret != KERN_SUCCESS {
+                    panic!("thread_switch failed: {}", ret);
+                }
+
+                // wait on completion semaphore
+                let ret = unsafe { semaphore_wait(mach_completion_sem) };
+                if ret != KERN_SUCCESS {
+                    panic!("semaphore_wait failed: {}", ret);
+                }
+            }
             Method::DispatchSemaphore => {
                 unsafe { dispatch_semaphore_signal(dispatch_sem as *mut c_void) };
             }
@@ -575,7 +620,7 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                 send_to_mach_port(mach_port);
             }
             Method::MachWaitUntil => {
-                let ret = unsafe { thread_abort(mach_thread) };
+                let ret = unsafe { thread_abort(mach_worker_thread) };
                 if ret != 0 {
                     panic!("thread_abort failed: {}", ret);
                 }
@@ -633,11 +678,12 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
 
 
 fn main() -> Result<(), Box<dyn Error>> {
-    test_method(Method::Futex)?;
+    // test_method(Method::Futex)?;
     // test_method(Method::Pipe)?;
     // test_method(Method::StdThreadPark)?;
     test_method(Method::MachSemaphore)?;
     // test_method(Method::MachSemaphoreHandoff)?;
+    test_method(Method::MachSemaphoreThreadSwitch)?;
     // test_method(Method::DispatchSemaphore)?;
     // test_method(Method::DispatchSemaphoreParker)?;
     // test_method(Method::PthreadMutexCondvar)?;
