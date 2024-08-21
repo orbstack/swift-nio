@@ -17,7 +17,6 @@ pub use macos::epoll;
 #[cfg(target_os = "macos")]
 pub use macos::eventfd;
 pub mod hypercalls;
-pub mod parker;
 pub mod qos;
 pub mod rand;
 #[cfg(target_os = "linux")]
