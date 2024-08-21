@@ -80,6 +80,10 @@ const IOCTL_ROSETTA_KEY_MASK: u32 = !_ioc(IOC_NONE, 0, 0xff, 0);
 const IOCTL_ROSETTA_AOT_CONFIG: u32 = _ioc(IOC_READ, 0x61, 0x23, 0x80);
 const IOCTL_ROSETTA_TSO_FALLBACK: u32 = _ioc(IOC_NONE, 0x61, 0x24, 0);
 
+// filling with all 1 means: AOT on, with abstract socket, path = all 1
+// this prevents it from creating ~/.cache/rosetta (and AOT connection always fails)
+const ROSETTA_AOT_CONFIG: [u8; 0x80] = [0x1; 128];
+
 const STAT_XATTR_KEY: &[u8] = b"user.orbstack.override_stat\0";
 
 // set a 1M limit on xattr size to prevent DoS via vec allocation
@@ -2754,29 +2758,28 @@ impl FileSystem for PassthroughFs {
         _arg: u64,
         _in_size: u32,
         out_size: u32,
-    ) -> io::Result<Vec<u8>> {
+    ) -> io::Result<&[u8]> {
         if self.cfg.allow_rosetta_ioctl {
             match cmd {
                 // version-agnostic mask: match on dir/type/size; ignore nr
                 x if x & IOCTL_ROSETTA_KEY_MASK == IOCTL_ROSETTA_KEY & IOCTL_ROSETTA_KEY_MASK => {
-                    let resp = get_rosetta_data();
-                    if resp.len() >= out_size as usize {
-                        debug!("returning rosetta data: {:?}", &resp[..out_size as usize]);
-                        return Ok(resp[..out_size as usize].to_vec());
+                    let payload = get_rosetta_data();
+                    if payload.len() >= out_size as usize {
+                        let resp = &payload[..out_size as usize];
+                        debug!("returning rosetta data: {:?}", resp);
+                        return Ok(resp);
                     }
                 }
 
-                // filling with all 1 means: AOT on, with abstract socket, path = all 1
-                // this prevents it from creating ~/.cache/rosetta (and AOT connection always fails)
                 IOCTL_ROSETTA_AOT_CONFIG => {
                     debug!("returning AOT config");
-                    let data = vec![1u8; out_size as usize];
-                    return Ok(data);
+                    return Ok(&ROSETTA_AOT_CONFIG);
                 }
 
                 IOCTL_ROSETTA_TSO_FALLBACK => {
                     debug!("TSO fallback");
-                    return Ok(Vec::new());
+                    // empty response
+                    return Ok(&[]);
                 }
 
                 _ => {}

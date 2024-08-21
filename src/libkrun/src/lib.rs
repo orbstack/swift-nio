@@ -463,10 +463,11 @@ fn init_logger_once() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rsvm_set_rinit_data(ptr: *const u8, size: usize) {
-    devices::virtio::fs::rosetta::set_rosetta_data(unsafe {
+pub unsafe extern "C" fn rsvm_set_rinit_data(ptr: *const u8, size: usize) -> GResultErr {
+    let res = devices::virtio::fs::rosetta::set_rosetta_data(unsafe {
         std::slice::from_raw_parts(ptr, size)
     });
+    GResultErr::from_result(res)
 }
 
 #[no_mangle]

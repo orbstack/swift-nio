@@ -1175,7 +1175,7 @@ pub trait FileSystem {
         arg: u64,
         in_size: u32,
         out_size: u32,
-    ) -> io::Result<Vec<u8>> {
+    ) -> io::Result<&[u8]> {
         Err(Errno::ENOSYS.into())
     }
 
