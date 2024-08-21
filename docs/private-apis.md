@@ -20,7 +20,7 @@ Mach APIs are public, but not really documented and less common ones can occasio
 - HVF: `ACTLR_EL1` is assumed to be at `offsetof(SCTLR_EL1) - 8` in the vCPU block
 - HVF / M1–M3 CPU: `ACTLR_EL1_EnTSO` = bit 1; Rosetta also uses `ACTLR_EL1_MYSTERY` which is `0x200`
 - IOKitHID: `kIOHIDRequiresTCCAuthorizationKey` = `RequiresTCCAuthorization` on device
-- Mach (public): `mach_vm_map`, `mach_vm_remap`, `mach_vm_deallocate`
+- Mach (public): `mach_vm_map`, `mach_vm_remap`, `mach_vm_deallocate`, `semaphore_*`
 - Rosetta: Linux executable is at `/Library/Apple/usr/libexec/oah/RosettaLinux/rosetta`
 - Rosetta: ioctl `0x80456122` is for key, `0x45` bytes, static key, can be extracted from VZF
 - Rosetta: ioctl `0x80806123` is for AOT config, 128 bytes, byte 0 = abstract or path for Unix socket, rest = path
