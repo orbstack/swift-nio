@@ -24,7 +24,10 @@ const IDENT_WAKER: u64 = 1;
 const KEVENT_FLAG_IMMEDIATE: u32 = 1;
 
 const SWITCH_OPTION_NONE: libc::c_int = 0;
+const SWITCH_OPTION_DEPRESS: libc::c_int = 1;
 const SWITCH_OPTION_WAIT: libc::c_int = 2;
+
+const REALTIME_SCHEDULING: bool = true;
 
 const WAKE_TOKEN: Token = Token(1);
 
@@ -73,7 +76,7 @@ enum Method {
     StdThreadPark,
     MachSemaphore,
     MachSemaphoreHandoff,
-    MachSemaphoreThreadSwitch,
+    ThreadSwitch,
     DispatchSemaphore,
     DispatchSemaphoreParker,
     MioKqueueEvfiltUser,
@@ -409,7 +412,7 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
 
     let parker = Arc::new(park::Parker::default());
 
-    if matches!(method, Method::MachSemaphoreHandoff) {
+    if REALTIME_SCHEDULING {
         // with realtime scheduling, handoff works better
         // without RT, it works, but the threads get migrated *very* frequently which hurts perf
         // they stay on P cluster due to high CPU usage, but every 10-20 calls they get migrated
@@ -426,7 +429,7 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         let futex_val = futex_val_raw as *mut u64;
         let last_ts = last_ts_clone;
 
-        if matches!(method, Method::MachSemaphoreHandoff) {
+        if REALTIME_SCHEDULING {
             set_realtime_scheduling(Duration::from_millis(1));
         }
 
@@ -464,21 +467,12 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                     // unsafe { pthread_cpu_number_np(&mut cpu_number_out) };
                     // println!("-> {}", cpu_number_out);
                 }
-                Method::MachSemaphoreThreadSwitch => {
-                    // signal main thread
-                    let ret = unsafe { semaphore_signal(mach_completion_sem) };
-                    if ret != KERN_SUCCESS {
-                        panic!("semaphore_signal failed: {}", ret);
-                    }
-
+                Method::ThreadSwitch => {
                     // context switch to main thread for completion
-                    let ret = unsafe { thread_switch(mach_main_thread, SWITCH_OPTION_NONE, 0) };
+                    let ret = unsafe { thread_switch(mach_main_thread, SWITCH_OPTION_DEPRESS, 100) };
                     if ret != KERN_SUCCESS {
                         panic!("thread_switch failed: {}", ret);
                     }
-
-                    // wait on semaphore so that we can be made runnable again
-                    unsafe { semaphore_wait(mach_worker_sem) };
                 }
                 Method::DispatchSemaphore => {
                     unsafe { dispatch_semaphore_wait(dispatch_sem as *mut c_void, DISPATCH_TIME_FOREVER) };
@@ -529,7 +523,7 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
         print_histogram("WAKEE", &histogram);
 
         // on stop, signal completion
-        if matches!(method, Method::MachSemaphoreHandoff | Method::MachSemaphoreThreadSwitch) {
+        if matches!(method, Method::MachSemaphoreHandoff) {
             let ret = unsafe { semaphore_signal(mach_completion_sem) };
             if ret != KERN_SUCCESS {
                 panic!("semaphore_signal failed: {}", ret);
@@ -574,25 +568,12 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
                     panic!("semaphore_timedwait_signal failed: {}", ret);
                 }
             }
-            Method::MachSemaphoreThreadSwitch => {
-                // make it runnable, using semaphore
-                let ret = unsafe { semaphore_signal(mach_worker_sem) };
-                if ret != KERN_SUCCESS {
-                    panic!("semaphore_signal failed: {}", ret);
-                }
-
+            Method::ThreadSwitch => {
                 // context switch to it
-                // we can't put this thread in wait state, because then thread_abort can wake it up
-                // worker must be able to make us runnable so we need to wake on semaphore
-                let ret = unsafe { thread_switch(mach_worker_thread, SWITCH_OPTION_NONE, 0) };
+                // depress removes need for a semaphore: we are still technically runnable, just not going to run for duration of timeout
+                let ret = unsafe { thread_switch(mach_worker_thread, SWITCH_OPTION_DEPRESS, 100) };
                 if ret != KERN_SUCCESS {
                     panic!("thread_switch failed: {}", ret);
-                }
-
-                // wait on completion semaphore
-                let ret = unsafe { semaphore_wait(mach_completion_sem) };
-                if ret != KERN_SUCCESS {
-                    panic!("semaphore_wait failed: {}", ret);
                 }
             }
             Method::DispatchSemaphore => {
@@ -682,8 +663,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // test_method(Method::Pipe)?;
     // test_method(Method::StdThreadPark)?;
     test_method(Method::MachSemaphore)?;
-    // test_method(Method::MachSemaphoreHandoff)?;
-    test_method(Method::MachSemaphoreThreadSwitch)?;
+    test_method(Method::MachSemaphoreHandoff)?;
+    test_method(Method::ThreadSwitch)?;
     // test_method(Method::DispatchSemaphore)?;
     // test_method(Method::DispatchSemaphoreParker)?;
     // test_method(Method::PthreadMutexCondvar)?;
