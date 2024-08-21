@@ -28,7 +28,7 @@ struct GResultErr rsvm_machine_stop_profile(void* ptr);
 struct GResultErr rsvm_machine_stop(void* ptr);
 void rsvm_machine_destroy(void* ptr);
 
-void rsvm_set_rinit_data(const char* ptr, size_t len);
+struct GResultErr rsvm_set_rinit_data(const char* ptr, size_t len);
 */
 import "C"
 
@@ -228,6 +228,7 @@ func (m *machine) Close() error {
 	return nil
 }
 
-func SetRinitData(data []byte) {
-	C.rsvm_set_rinit_data(C.CString(string(data)), C.size_t(len(data)))
+func SetRinitData(data []byte) error {
+	res := C.rsvm_set_rinit_data(C.CString(string(data)), C.size_t(len(data)))
+	return errFromC(res.err)
 }

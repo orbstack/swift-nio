@@ -374,7 +374,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 					logrus.WithError(err).Error("failed to run rinit")
 
 					// set empty data (to prevent hang), then force shutdown
-					rsvm.SetRinitData([]byte{})
+					_ = rsvm.SetRinitData([]byte{})
 					err = vm.ForceStop()
 					if err != nil {
 						logrus.WithError(err).Error("failed to force stop VM after rinit")
@@ -385,7 +385,10 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 
 				// report to rsvm
 				logrus.Debug("finishing rinit")
-				rsvm.SetRinitData(rinitData.Data)
+				err = rsvm.SetRinitData(rinitData.Data)
+				if err != nil {
+					logrus.WithError(err).Error("failed to set rdata")
+				}
 			}()
 		}
 	}
