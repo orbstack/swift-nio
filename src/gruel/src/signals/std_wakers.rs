@@ -5,12 +5,10 @@ use std::{
     time::Duration,
 };
 
+use sysx::sync::parker::ParkResult;
 use thiserror::Error;
 
-use crate::{
-    util::{ParkResult, Parker},
-    AnySignalChannelWith, Waker, WakerIndex,
-};
+use crate::{util::Parker, AnySignalChannelWith, Waker, WakerIndex};
 
 // === ParkWaker === //
 

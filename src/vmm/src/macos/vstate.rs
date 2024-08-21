@@ -719,11 +719,11 @@ impl Vcpu {
     #[cfg(target_arch = "aarch64")]
     pub fn run(&mut self, registry: Arc<VcpuRegistryImpl>, init_sender: Sender<bool>) {
         use gruel::{
-            BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt, ParkResult,
-            ParkWaker, QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
+            BoundSignalChannel, DynamicallyBoundWaker, MultiShutdownSignalExt, ParkWaker,
+            QueueRecvSignalChannelExt, ShutdownAlreadyRequestedExt,
         };
         use hvf::{profiler::ProfilerGuestContext, ArcVcpuHandle, VcpuHandleInner};
-        use sysx::mach::time::MachAbsoluteDuration;
+        use sysx::{mach::time::MachAbsoluteDuration, sync::parker::ParkResult};
         use vmm_ids::VmmShutdownPhase;
 
         // separate function so that this shows up in debug spindumps

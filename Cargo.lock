@@ -1121,6 +1121,7 @@ dependencies = [
  "parking_lot",
  "scopeguard",
  "smallbox",
+ "sysx",
  "thiserror",
  "tracing",
 ]
