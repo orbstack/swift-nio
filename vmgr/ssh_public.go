@@ -14,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/util/sshconfig"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/sirupsen/logrus"
 )
 
@@ -98,8 +99,14 @@ Host ovm
 			return nil
 		}
 
+		// if we've already tried to add it, don't add it again
+		if vmconfig.GetState().SetupState.SshEdited {
+			logrus.Infof("not editing ssh config (%s), as we have already done so once", userConfigPath)
+			return nil
+		}
+
 		// prepend, or it doesn't work
-		sshConfig = append([]byte(fmt.Sprintf("# Added by %s: 'orb' SSH host for Linux machines\n# This only works if it's at the top of ssh_config (before any Host blocks).\n# Comment this line if you don't want it to be added again.\n%s\n\n", appid.UserAppName, lineBase)), sshConfig...)
+		sshConfig = append([]byte(fmt.Sprintf("# Added by %s: 'orb' SSH host for Linux machines\n# This only works if it's at the top of ssh_config (before any Host blocks).\n# This won't be added again if you remove it.\n%s\n\n", appid.UserAppName, lineBase)), sshConfig...)
 		err = os.WriteFile(userConfigPath, sshConfig, 0644)
 		// ignore permission errors and warn in case user has nix home-manager for .ssh
 		if err != nil {
@@ -108,6 +115,15 @@ Host ovm
 			} else {
 				return err
 			}
+		}
+
+		// record that we've edited ssh before
+		err = vmconfig.UpdateState(func(state *vmconfig.VmgrState) error {
+			state.SetupState.SshEdited = true
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 

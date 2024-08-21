@@ -23,11 +23,17 @@ var (
 	globalStateMu syncx.Mutex
 )
 
+type VmgrSetupState struct {
+	EditedShellProfiles []string `json:"editedShellProfiles"`
+	SshEdited           bool     `json:"sshEdited"`
+}
+
 type VmgrState struct {
-	LegacyVersion uint   `json:"version,omitempty"`
-	MajorVersion  uint   `json:"majorVersion"`
-	MinorVersion  uint   `json:"minorVersion"`
-	Arch          string `json:"arch"`
+	LegacyVersion uint           `json:"version,omitempty"`
+	MajorVersion  uint           `json:"majorVersion"`
+	MinorVersion  uint           `json:"minorVersion"`
+	Arch          string         `json:"arch"`
+	SetupState    VmgrSetupState `json:"setupState"`
 }
 
 func (c *VmgrState) Validate() error {
@@ -109,5 +115,9 @@ func defaultState() *VmgrState {
 		MajorVersion: CurrentMajorVersion,
 		MinorVersion: CurrentMinorVersion,
 		Arch:         runtime.GOARCH,
+		SetupState: VmgrSetupState{
+			EditedShellProfiles: []string{},
+			SshEdited:           false,
+		},
 	}
 }

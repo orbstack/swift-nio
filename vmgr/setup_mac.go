@@ -423,6 +423,115 @@ func setDockerConfigEnv(value string) error {
 	return nil
 }
 
+func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, targetCmdPath *PathInfo, pathItems []string) (bool, *string, error) {
+	// always try to add to profile and/or ask user to add to $PATH
+	// if there's no existing (home/system) path to link to, we *require* a shell $PATH
+	shellPathRequired := targetCmdPath == nil
+	// is the PATH already there?
+	if slices.Contains(pathItems, conf.CliBinDir()) || slices.Contains(pathItems, conf.CliXbinDir()) || slices.Contains(pathItems, conf.UserAppBinDir()) {
+		return false, nil, nil
+	}
+
+	// do we recognize this shell?
+	shellBase := filepath.Base(details.Shell)
+
+	if slices.Contains(vmconfig.GetState().SetupState.EditedShellProfiles, shellBase) {
+		logrus.Infof("not attempting to modify shell profile for %s (%s), as we have already done so once", shellBase, details.Shell)
+		return false, nil, nil
+	}
+
+	var profilePath string
+	var initSnippetPath string
+	switch shellBase {
+	case "zsh":
+		// what's the ZDOTDIR?
+		// no need for -i (interactive), ZDOTDIR must be in .zshenv
+		zdotdir := details.EnvZDOTDIR
+		if zdotdir == "" {
+			zdotdir = details.Home
+		}
+		profilePath = zdotdir + "/.zprofile"
+		initSnippetPath = conf.ShellInitDir() + "/init.zsh"
+		fallthrough
+	case "bash":
+		if profilePath == "" {
+			// prefer bash_profile, otherwise use profile
+			profilePath = details.Home + "/.bash_profile"
+			if err := unix.Access(profilePath, unix.F_OK); errors.Is(err, os.ErrNotExist) {
+				profilePath = details.Home + "/.profile"
+			}
+			initSnippetPath = conf.ShellInitDir() + "/init.bash"
+		}
+
+		// common logic for bash and zsh
+		profileData, err := os.ReadFile(profilePath)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				// we'll create it
+				profileData = []byte{}
+			} else {
+				return false, nil, err
+			}
+		}
+		profileScript := string(profileData)
+
+		// is it already there?
+		// no quote: need ~/ to stay intact
+		// we only check for the base (source %s) because:
+		//   - 2>/dev/null was added later
+		//   - user can edit it
+		lineBase := fmt.Sprintf(`source %s`, syssetup.MakeHomeRelative(initSnippetPath))
+		line := fmt.Sprintf(`%s 2>/dev/null || :`, lineBase)
+		logrus.WithFields(logrus.Fields{
+			"shell":    shellBase,
+			"file":     profilePath,
+			"lineBase": lineBase,
+		}).Debug("checking for lineBase in profile")
+		if !strings.Contains(profileScript, lineBase) {
+			// if not, add it
+			profileScript += fmt.Sprintf("\n# Added by %s: command-line tools and integration\n# This won't be added again if you remove it.\n%s\n", appid.UserAppName, line)
+			err = os.WriteFile(profilePath, []byte(profileScript), 0644)
+			if err != nil {
+				// if profile is read-only, e.g. with nix home-manager
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"shell": shellBase,
+					"file":  profilePath,
+				}).Warn("failed to write shell profile")
+			} else {
+				// success
+				// not important enough to nag user if we can link to an existing path
+				var alertProfileChangedPath *string
+				if shellPathRequired {
+					relProfilePath := syssetup.MakeHomeRelative(profilePath)
+					alertProfileChangedPath = &relProfilePath
+				}
+				logrus.Info("modified shell profile")
+
+				// record that we have added it
+				err = vmconfig.UpdateState(func(state *vmconfig.VmgrState) error {
+					state.SetupState.EditedShellProfiles = append(state.SetupState.EditedShellProfiles, shellBase)
+					return nil
+				})
+				if err != nil {
+					return false, nil, err
+				}
+
+				return false, alertProfileChangedPath, nil
+			}
+		}
+	default:
+		// we don't know how to deal with this.
+		// just ask the user to add it to their path
+		if shellPathRequired {
+			logrus.Info("unknown shell, asking user to add bins to PATH")
+			return true, nil, nil
+		}
+		// if shell path isn't required, it's ok, let it slide. not important
+	}
+
+	return false, nil, nil
+}
+
 /*
 for commands:
 1. ~/bin IF exists AND in path (or ~/.local/bin)
@@ -529,91 +638,9 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		return nil, err
 	}
 
-	// always try to add to profile and/or ask user to add to $PATH
-	var askAddPath bool
-	var alertProfileChangedPath *string
-	// if there's no existing (home/system) path to link to, we *require* a shell $PATH
-	shellPathRequired := targetCmdPath == nil
-	// is the PATH already there?
-	if !slices.Contains(pathItems, conf.CliBinDir()) && !slices.Contains(pathItems, conf.CliXbinDir()) && !slices.Contains(pathItems, conf.UserAppBinDir()) {
-		// do we recognize this shell?
-		shellBase := filepath.Base(details.Shell)
-		var profilePath string
-		var initSnippetPath string
-		switch shellBase {
-		case "zsh":
-			// what's the ZDOTDIR?
-			// no need for -i (interactive), ZDOTDIR must be in .zshenv
-			zdotdir := details.EnvZDOTDIR
-			if zdotdir == "" {
-				zdotdir = details.Home
-			}
-			profilePath = zdotdir + "/.zprofile"
-			initSnippetPath = conf.ShellInitDir() + "/init.zsh"
-			fallthrough
-		case "bash":
-			if profilePath == "" {
-				// prefer bash_profile, otherwise use profile
-				profilePath = details.Home + "/.bash_profile"
-				if err := unix.Access(profilePath, unix.F_OK); errors.Is(err, os.ErrNotExist) {
-					profilePath = details.Home + "/.profile"
-				}
-				initSnippetPath = conf.ShellInitDir() + "/init.bash"
-			}
-
-			// common logic for bash and zsh
-			profileData, err := os.ReadFile(profilePath)
-			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					// we'll create it
-					profileData = []byte{}
-				} else {
-					return nil, err
-				}
-			}
-			profileScript := string(profileData)
-
-			// is it already there?
-			// no quote: need ~/ to stay intact
-			// we only check for the base (source %s) because:
-			//   - 2>/dev/null was added later
-			//   - user can edit it
-			lineBase := fmt.Sprintf(`source %s`, syssetup.MakeHomeRelative(initSnippetPath))
-			line := fmt.Sprintf(`%s 2>/dev/null || :`, lineBase)
-			logrus.WithFields(logrus.Fields{
-				"shell":    shellBase,
-				"file":     profilePath,
-				"lineBase": lineBase,
-			}).Debug("checking for lineBase in profile")
-			if !strings.Contains(profileScript, lineBase) {
-				// if not, add it
-				profileScript += fmt.Sprintf("\n# Added by %s: command-line tools and integration\n# Comment this line if you don't want it to be added again.\n%s\n", appid.UserAppName, line)
-				err = os.WriteFile(profilePath, []byte(profileScript), 0644)
-				if err != nil {
-					// if profile is read-only, e.g. with nix home-manager
-					logrus.WithError(err).WithFields(logrus.Fields{
-						"shell": shellBase,
-						"file":  profilePath,
-					}).Warn("failed to write shell profile")
-				} else {
-					// success
-					// not important enough to nag user if we can link to an existing path
-					if shellPathRequired {
-						relProfilePath := syssetup.MakeHomeRelative(profilePath)
-						alertProfileChangedPath = &relProfilePath
-					}
-					logrus.Info("modified shell profile")
-				}
-			}
-		default:
-			// we don't know how to deal with this.
-			// just ask the user to add it to their path
-			if shellPathRequired {
-				logrus.Info("unknown shell, asking user to add bins to PATH")
-				askAddPath = true
-			}
-			// if shell path isn't required, it's ok, let it slide. not important
-		}
+	askAddPath, alertProfileChangedPath, err := s.tryModifyShellProfile(details, targetCmdPath, pathItems)
+	if err != nil {
+		return nil, err
 	}
 
 	// only add to PATH if ~/.orbstack
