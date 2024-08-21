@@ -588,6 +588,10 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
             }
         }
     };
+
+    // avoid race: wait for worker to start (hack to simplify benchmarking)
+    std::thread::sleep(Duration::from_millis(100));
+
     let start_ts = now_ns();
     let mut waker_histogram = Histogram::<u64>::new_with_bounds(1, u64::MAX, 3).unwrap();
     loop {
@@ -629,11 +633,11 @@ fn test_method(method: Method) -> Result<(), Box<dyn Error>> {
 
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // test_method(Method::Futex)?;
+    test_method(Method::Futex)?;
     // test_method(Method::Pipe)?;
     // test_method(Method::StdThreadPark)?;
-    // test_method(Method::MachSemaphore)?;
-    test_method(Method::MachSemaphoreHandoff)?;
+    test_method(Method::MachSemaphore)?;
+    // test_method(Method::MachSemaphoreHandoff)?;
     // test_method(Method::DispatchSemaphore)?;
     // test_method(Method::DispatchSemaphoreParker)?;
     // test_method(Method::PthreadMutexCondvar)?;
