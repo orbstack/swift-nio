@@ -472,7 +472,8 @@ pub unsafe extern "C" fn rsvm_set_rinit_data(ptr: *const u8, size: usize) -> GRe
 
 #[no_mangle]
 pub unsafe extern "C" fn rsvm_new_machine(
-    go_handle: *mut c_void,
+    // unused: currently no callbacks, but keep the handle for future use
+    _go_handle: *mut c_void,
     spec_json: *const c_char,
 ) -> GResultCreate {
     init_logger_once();
