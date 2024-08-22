@@ -10,6 +10,7 @@ import Foundation
 import vmnet
 
 // serial queue because we only have one set of iovecs
+// vague user-facing thread/queue name
 let vmnetPktQueue = DispatchQueue(label: "dev.orbstack.brnet.1")
 // avoid stop barrier deadlock by using a separate queue
 // also use serial queue to be safe in case vmnet isn't thread safe
@@ -72,6 +73,13 @@ enum BrnetError: Error {
 
     case dropPacket
     case redirectToHost
+}
+
+enum GuestWriteError: Error {
+    case bufferFull
+    case backendDied
+    case shortWrite
+    case errno(Int32)
 }
 
 private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) throws -> (interface_ref, xpc_object_t) {
@@ -241,31 +249,30 @@ class BridgeNetwork {
                     }
                     continue
                 }
-                let ret = withUnsafeMutableBytes(of: &vnetHdr) { vnetHdrPtr in
-                    var iovs = [
-                        iovec(iov_base: vnetHdrPtr.baseAddress, iov_len: vnetHdrSize),
-                        iovec(iov_base: pkt.data, iov_len: pkt.len),
-                    ]
-                    // print("writing \(totalSize) bytes to tap")
-                    return writev(guestFd, &iovs, 2)
-                }
-                let totalSize = pkt.len + vnetHdrSize
-                guard ret == totalSize else {
-                    switch errno {
-                    case ENOBUFS:
+                
+                let totalLen = pkt.len + vnetHdrSize
+                do {
+                    try withUnsafeMutableBytes(of: &vnetHdr) { vnetHdrPtr in
+                        var iovs = [
+                            iovec(iov_base: vnetHdrPtr.baseAddress, iov_len: vnetHdrSize),
+                            iovec(iov_base: pkt.data, iov_len: pkt.len),
+                        ]
+                        try self.writeToGuest(fd: guestFd, iovs: &iovs, numIovs: 2, totalLen: totalLen)
+                    }
+                } catch {
+                    switch error {
+                    case GuestWriteError.bufferFull:
                         // socket is full. drop the packet
                         continue
-                    case ECONNRESET, EDESTADDRREQ:
+                    case GuestWriteError.backendDied:
                         // VMM stopped and closed the other side of the datagram socketpair
                         // avoid trying to unset the event handler ourselves -- high risk of deadlock
                         // Go should stop and close the BridgeNetwork soon
                         // don't try to send remaining packets
                         break
                     default:
-                        NSLog("[brnet] write error: \(errno)")
+                        NSLog("[brnet] write error: \(error)")
                     }
-
-                    continue
                 }
             }
 
@@ -325,6 +332,24 @@ class BridgeNetwork {
                 NSLog("[brnet] host write error: \(VmnetError.from(ret2))")
                 return
             }
+        }
+    }
+
+    func writeToGuest(fd: Int32, iovs: UnsafePointer<iovec>, numIovs: Int32, totalLen: Int) throws {
+        let ret = writev(fd, iovs, numIovs)
+        guard ret != -1 else {
+            switch errno {
+            case ENOBUFS:
+                throw GuestWriteError.bufferFull
+            case ECONNRESET, EDESTADDRREQ:
+                throw GuestWriteError.backendDied
+            default:
+                throw GuestWriteError.errno(errno)
+            }
+        }
+
+        if ret != totalLen {
+            throw GuestWriteError.shortWrite
         }
     }
 

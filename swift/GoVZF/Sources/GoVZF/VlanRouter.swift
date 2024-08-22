@@ -29,38 +29,16 @@ struct VlanRouterConfig: Codable {
 class VlanRouter {
     // static circular array of slots
     private var interfaces: [BridgeNetwork?]
-    private var guestReader: GuestReader!
+    private var guestReader: GuestReader?
     private let pathMonitor = NWPathMonitor()
 
+    private let macPrefix: [UInt8]
+
     init(config: VlanRouterConfig) {
+        macPrefix = config.macPrefix
+    
         interfaces = [BridgeNetwork?](repeating: nil, count: config.maxVlanInterfaces)
-        guestReader = GuestReader(guestFd: config.guestFd, maxPacketSize: maxPossiblePacketSize,
-                                  onPacket: { [self] iov, len in
-                                      let pkt = Packet(iov: iov, len: len)
-                                      do {
-                                          let ifi = try PacketProcessor.extractInterfaceIndexToHost(pkt: pkt, macPrefix: config.macPrefix)
-                                          if ifi == ifiBroadcast {
-                                              // broadcast to all interfaces
-                                              for bridge in interfaces {
-                                                  if let bridge {
-                                                      bridge.tryWriteToHost(iov: iov, len: len)
-                                                  }
-                                              }
-                                          } else {
-                                              // unicast
-                                              let bridge = try interfaceAt(index: ifi)
-                                              bridge.tryWriteToHost(iov: iov, len: len)
-                                          }
-                                      } catch {
-                                          switch error {
-                                          case BrnetError.interfaceNotFound:
-                                              // normal that some packets get dropped for no vlan match
-                                              break
-                                          default:
-                                              NSLog("[brnet/router] failed to extract pkt routing info: \(error)")
-                                          }
-                                      }
-                                  })
+        guestReader = GuestReader(guestFd: config.guestFd, maxPacketSize: maxPossiblePacketSize, onPacket: self.onPacket)
 
         // monitor route for renewal
         // more reliable per-NWConnection UDP pathUpdateHandler, which is more granular:
@@ -76,6 +54,33 @@ class VlanRouter {
             swext_net_cb_path_changed()
         }
         pathMonitor.start(queue: routerQueue)
+    }
+    
+    func onPacket(iov: UnsafeMutablePointer<iovec>, len: Int) {
+        let pkt = Packet(iov: iov, len: len)
+        do {
+            let ifi = try PacketProcessor.extractInterfaceIndexToHost(pkt: pkt, macPrefix: self.macPrefix)
+            if ifi == ifiBroadcast {
+                // broadcast to all interfaces
+                for bridge in interfaces {
+                    if let bridge {
+                        bridge.tryWriteToHost(iov: iov, len: len)
+                    }
+                }
+            } else {
+                // unicast
+                let bridge = try interfaceAt(index: ifi)
+                bridge.tryWriteToHost(iov: iov, len: len)
+            }
+        } catch {
+            switch error {
+            case BrnetError.interfaceNotFound:
+                // normal that some packets get dropped for no vlan match
+                break
+            default:
+                NSLog("[brnet/router] invalid MAC or routing info: \(error)")
+            }
+        }
     }
 
     func addBridge(config: BridgeNetworkConfig) throws -> BrnetInterfaceIndex {
@@ -150,7 +155,7 @@ class VlanRouter {
         // clear all bridges
         clearBridges()
         // close guest reader (breaks ref cycle by dropping handler ref)
-        guestReader.close()
+        guestReader?.close()
     }
 }
 
