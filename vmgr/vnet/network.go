@@ -7,11 +7,13 @@ import (
 	"math"
 	"net"
 	"os"
+	"runtime/cgo"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
+	"github.com/orbstack/macvirt/vmgr/vnet/cblink"
 	"github.com/orbstack/macvirt/vmgr/vnet/dglink"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/icmpfwd"
@@ -127,7 +129,7 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 			// also, we don't strictly need -8 on MTU, only GSOMaxSize. but just make it match to avoid issues
 			linkOpts.MTU -= uint32(dglink.VirtioNetHdrSize + 8)
 		} else {
-			// TODO: why do we still need this for IPv6? gisor bug?
+			// TODO: why do we still need this for IPv6? gvisor bug?
 			// above is -18 with v0 vnet hdr. -8 and -10 are not enough.
 			linkOpts.MTU -= 16
 		}
@@ -150,6 +152,65 @@ func StartUnixgramPair(opts NetOptions) (*Network, *os.File, error) {
 	network.file0 = file0
 	network.fd1 = fd1
 	return network, file0, nil
+}
+
+func StartCallbackPair(opts NetOptions, cb cblink.Callbacks) (*Network, cgo.Handle, error) {
+	macAddr, err := tcpip.ParseMACAddress(netconf.HostMACVnet)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	linkOpts := cblink.Options{
+		Callbacks:      cb,
+		MTU:            opts.LinkMTU,
+		EthernetHeader: true,
+		Address:        macAddr,
+		// only enable GSO for high MTU
+		GSOMaxSize: 0,
+		// if GSO is enabled, we add a virtio_net_hdr
+		GvisorGSOEnabled:  false,
+		TXChecksumOffload: opts.WantsVnetHdr,
+		RXChecksumOffload: opts.WantsVnetHdr,
+	}
+
+	// for high MTU, add double virtio_net_hdr for GSO/TSO metadata
+	// for low MTU, don't touch it or we'd end up with 1490 MTU.
+	// (no point anyway because there's no GSO to do at 1500)
+	//
+	// this causes asymmetric MTU:
+	// - guest -> host: 65535 (TSO from 1500)
+	// - host -> guest: 65517 (65535 - 10 (vnet_hdr) - 8 (ipv6 overhead))
+	// but that's ok, because official MTU on the Linux side is 1500. 65535 is a TSO detail
+	if opts.LinkMTU > vnettypes.BaseMTU {
+		// in the VZF case this subtracts from MTU because the VM gets a double vnet hdr
+		// with RSVM the vnet hdr is separate from the 65535 max
+		if !opts.WantsVnetHdr {
+			// IPv6 gets truncated without -8 bytes on GSOMaxSize. TODO: why?
+			// also, we don't strictly need -8 on MTU, only GSOMaxSize. but just make it match to avoid issues
+			linkOpts.MTU -= uint32(cblink.VirtioNetHdrSize + 8)
+		} else {
+			// TODO: why do we still need this for IPv6? gvisor bug?
+			// above is -18 with v0 vnet hdr. -8 and -10 are not enough.
+			linkOpts.MTU -= 16
+		}
+
+		// we use GSO *with* high MTU just to give Linux kernel the GSO/TSO metadata
+		// so it can split for mtu-1500 bridges like Docker Compose
+		linkOpts.GSOMaxSize = linkOpts.MTU
+	}
+
+	nicEp, err := cblink.New(&linkOpts)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	network, err := startNet(opts, nicEp)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	epHandle := cgo.NewHandle(nicEp)
+	return network, epHandle, nil
 }
 
 func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {

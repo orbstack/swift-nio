@@ -47,6 +47,8 @@ type VzSpec struct {
 	MacAddressPrefix string       `json:"macAddressPrefix"`
 	NetworkNat       bool         `json:"networkNat"`
 	NetworkFds       []int        `json:"networkFds"`
+	NetworkGvisor    uintptr      `json:"networkGvisor,omitempty"`
+	NetworkSwift     []uintptr    `json:"networkSwift"`
 	Rng              bool         `json:"rng"`
 	DiskRootfs       string       `json:"diskRootfs,omitempty"`
 	DiskData         string       `json:"diskData,omitempty"`

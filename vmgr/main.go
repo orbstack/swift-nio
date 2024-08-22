@@ -428,7 +428,7 @@ func filterStacks(str string) string {
 	var newStacks []string
 	for _, stk := range strings.Split(str, "\n\n") {
 		// problem is in host bridge
-		if strings.Contains(stk, "/vnet/") && !strings.Contains(stk, "gvisor") && !strings.Contains(stk, "gonet") && !strings.Contains(stk, "dglink") {
+		if strings.Contains(stk, "/vnet/") && !strings.Contains(stk, "gvisor") && !strings.Contains(stk, "gonet") && !strings.Contains(stk, "dglink") && !strings.Contains(stk, "cblink") {
 			newStacks = append(newStacks, stk)
 		}
 	}

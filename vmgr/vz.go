@@ -141,7 +141,7 @@ func RunRinitVm() (*RinitData, error) {
 	return &RinitData{Data: data}, nil
 }
 
-func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup) (*vnet.Network, vmm.Machine, error) {
+func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup) (retNet *vnet.Network, retMachine vmm.Machine, retErr error) {
 	cmdline := []string{
 		// boot
 		"init=/opt/orb/vinit",
@@ -204,6 +204,8 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		Cmdline:          strings.Join(cmdline, " "),
 		MacAddressPrefix: params.MacAddressPrefix,
 		NetworkNat:       params.NetworkNat,
+		// must be empty vec, not null, for rust
+		NetworkSwift: []uintptr{},
 		/* fds populated below */
 		Rng:        params.Rng,
 		DiskRootfs: params.DiskRootfs,
@@ -295,18 +297,37 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 	// gvnet
 	var vnetwork *vnet.Network
 	if params.NetworkVnet {
-		newNetwork, gvnetFile, err := vnet.StartUnixgramPair(vnet.NetOptions{
+		opts := vnet.NetOptions{
 			LinkMTU:      uint32(mtu),
 			WantsVnetHdr: monitor.NetworkWantsVnetHdrV1(),
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("start vnet: %w", err)
 		}
-		vnetwork = newNetwork
 
-		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(gvnetFile)))
-		// already retained by network, but doesn't hurt
-		retainFiles = append(retainFiles, gvnetFile)
+		if monitor == rsvm.Monitor {
+			// vnet = index 0
+			cb := rsvm.NewNetCallbacks(rsvm.HandleGvisor)
+			newNetwork, netHandle, err := vnet.StartCallbackPair(opts, cb)
+			if err != nil {
+				return nil, nil, fmt.Errorf("start vnet: %w", err)
+			}
+			defer func() {
+				if retErr != nil {
+					netHandle.Delete()
+				}
+			}()
+			vnetwork = newNetwork
+
+			spec.NetworkGvisor = uintptr(netHandle)
+		} else {
+			newNetwork, gvnetFile, err := vnet.StartUnixgramPair(opts)
+			if err != nil {
+				return nil, nil, fmt.Errorf("start vnet: %w", err)
+			}
+			vnetwork = newNetwork
+
+			spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(gvnetFile)))
+			// already retained by network, but doesn't hurt
+			retainFiles = append(retainFiles, gvnetFile)
+		}
 	}
 	for i := 0; i < params.NetworkHostBridges; i++ {
 		// host bridges are only reserved, not
