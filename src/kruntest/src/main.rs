@@ -1,6 +1,6 @@
-use std::process::exit;
+use std::{ffi::c_void, process::exit};
 
-use krun::{ConsoleSpec, Machine, VzSpec, MACHINE_STATE_STOPPED};
+use krun::machine::{ConsoleSpec, Machine, VzSpec, MACHINE_STATE_STOPPED};
 
 #[no_mangle]
 pub extern "C" fn rsvm_go_on_state_change(state: u32) {
@@ -11,6 +11,26 @@ pub extern "C" fn rsvm_go_on_state_change(state: u32) {
 
 #[no_mangle]
 pub extern "C" fn swext_fsevents_cb_krpc_events(_krpc_buf: *const u8, _krpc_buf_len: usize) {}
+
+#[no_mangle]
+pub extern "C" fn rsvm_go_gvisor_network_write_packet(
+    _handle: *mut c_void,
+    _iovs: *const libc::iovec,
+    _num_iovs: usize,
+    _total_len: usize,
+) -> i32 {
+    -libc::ENOSYS
+}
+
+#[no_mangle]
+pub extern "C" fn swext_network_write_packet(
+    _handle: *mut c_void,
+    _iovs: *const libc::iovec,
+    _num_iovs: usize,
+    _total_len: usize,
+) -> i32 {
+    -libc::ENOSYS
+}
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
@@ -37,6 +57,8 @@ fn main() -> anyhow::Result<()> {
         mac_address_prefix: "00:00:00:00:00".to_string(),
         network_nat: false,
         network_fds: Vec::new(),
+        network_gvisor: None,
+        network_swift: vec![],
         rng: false,
         disk_rootfs: Some(home_dir + "/alpine.img"),
         disk_data: None,
