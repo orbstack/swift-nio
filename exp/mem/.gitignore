@@ -2,6 +2,7 @@
 /membench
 /membench_linux
 /memhog
+/memhog-workingset
 /memhog-linux
 /devmem
 __pycache__/
