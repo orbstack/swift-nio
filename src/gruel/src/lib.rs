@@ -1,3 +1,4 @@
+pub mod mpsc;
 mod shutdown;
 mod signals;
 mod startup;

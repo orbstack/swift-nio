@@ -1112,6 +1112,7 @@ dependencies = [
  "cfgenius",
  "counter",
  "crossbeam-channel",
+ "crossbeam-queue",
  "derive-where",
  "generational-arena",
  "loom",
