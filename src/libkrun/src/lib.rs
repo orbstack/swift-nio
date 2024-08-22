@@ -247,7 +247,8 @@ impl Machine {
                 vmr.vcpu_config().vcpu_count,
                 BlockDeviceConfig {
                     block_id: "vda".to_string(),
-                    cache_type: CacheType::Writeback,
+                    // this disk is read-only, so no need to flush
+                    cache_type: CacheType::Unsafe,
                     disk_image_path: disk_rootfs.clone(),
                     is_disk_read_only: true,
                     is_disk_root: true,
@@ -273,7 +274,8 @@ impl Machine {
                 vmr.vcpu_config().vcpu_count,
                 BlockDeviceConfig {
                     block_id: "vdc".to_string(),
-                    cache_type: CacheType::Writeback,
+                    // swap is transient and will never be reused on shutdown, so no need to flush
+                    cache_type: CacheType::Unsafe,
                     disk_image_path: disk_swap.clone(),
                     is_disk_read_only: false,
                     is_disk_root: false,
