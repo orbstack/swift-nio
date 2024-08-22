@@ -1,2 +1,4 @@
 /vmexit
 /spinloop
+/vmexit_mmio
+/vmfault
