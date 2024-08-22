@@ -365,7 +365,7 @@ impl ProfileeThread {
             && hv_vcpu_run.contains(&(regs.lr as usize))
         {
             if let Some(vcpu) = &self.vcpu {
-                vcpu.send_profiler_sample(PartialSample { sample });
+                let _ = vcpu.profiler_sample.send(PartialSample { sample });
                 // resumes thread
                 return Ok(SampleResult::Queued);
             }

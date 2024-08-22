@@ -548,7 +548,7 @@ impl Profiler {
         for thread in &threads {
             if let Some(vcpu) = thread.vcpu.as_ref() {
                 let (sender, receiver) = crossbeam::channel::bounded(1);
-                vcpu.send_profiler_finish(sender);
+                vcpu.profiler_finish.send(sender)?;
                 let results = receiver.recv()?;
 
                 // aggregate vCPU histograms. per-vCPU is too much data to make sense of
@@ -688,10 +688,10 @@ impl Profiler {
 
         if let Some(vcpu) = vcpu.as_ref() {
             let (sender, receiver) = crossbeam::channel::bounded(1);
-            vcpu.send_profiler_init(ProfilerVcpuInit {
+            vcpu.profiler_init.send(ProfilerVcpuInit {
                 profiler: self.clone(),
                 completion_sender: sender,
-            });
+            })?;
 
             // wait for init, so that vcpu init samples don't show up in the profile
             receiver.recv()?;
@@ -714,7 +714,7 @@ impl Profiler {
             .ok_or_else(|| anyhow!("no vCPU threads found"))?;
 
         let (sender, receiver) = crossbeam::channel::bounded(1);
-        vcpu.send_profiler_guest_fetch(sender);
+        vcpu.profiler_guest_fetch.send(sender)?;
         let response = receiver.recv()?;
         Ok(response)
     }

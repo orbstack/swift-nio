@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use crossbeam::queue::ArrayQueue;
 use crossbeam_channel::Sender;
-use gruel::{StartupAbortedError, StartupTask};
+use gruel::{mpsc::SignalMpsc, SignalChannel, StartupAbortedError, StartupTask, WakerSet};
 use profiler::{
     PartialSample, Profiler, ProfilerGuestContext, ProfilerVcpuInit, VcpuProfilerResults,
 };
-use utils::Mutex;
 use vmm_ids::{ArcVcpuSignal, VcpuSignalMask};
 
 #[cfg(target_arch = "x86_64")]
@@ -45,20 +43,24 @@ impl VcpuProfilerState {
 
 pub struct VcpuHandleInner {
     signal: ArcVcpuSignal,
-    profiler_init: Mutex<Option<ProfilerVcpuInit>>,
-    profiler_sample: ArrayQueue<PartialSample>,
-    profiler_guest_fetch: Mutex<Option<Sender<ProfilerGuestContext>>>,
-    profiler_finish: Mutex<Option<Sender<VcpuProfilerResults>>>,
+    pub profiler_init: SignalMpsc<ProfilerVcpuInit>,
+    pub profiler_sample: SignalMpsc<PartialSample>,
+    pub profiler_guest_fetch: SignalMpsc<Sender<ProfilerGuestContext>>,
+    pub profiler_finish: SignalMpsc<Sender<VcpuProfilerResults>>,
 }
 
 impl VcpuHandleInner {
-    pub fn new(signal: ArcVcpuSignal) -> Self {
+    pub fn new<W: WakerSet>(signal: &Arc<SignalChannel<VcpuSignalMask, W>>) -> Self {
         Self {
-            signal,
-            profiler_init: Mutex::new(None),
-            profiler_sample: ArrayQueue::new(1),
-            profiler_guest_fetch: Mutex::new(None),
-            profiler_finish: Mutex::new(None),
+            signal: signal.clone(),
+            profiler_init: SignalMpsc::with_capacity(1, signal, VcpuSignalMask::PROFILER_INIT),
+            profiler_sample: SignalMpsc::with_capacity(1, signal, VcpuSignalMask::PROFILER_SAMPLE),
+            profiler_guest_fetch: SignalMpsc::with_capacity(
+                1,
+                signal,
+                VcpuSignalMask::PROFILER_GUEST_FETCH,
+            ),
+            profiler_finish: SignalMpsc::with_capacity(1, signal, VcpuSignalMask::PROFILER_FINISH),
         }
     }
 
@@ -71,42 +73,6 @@ impl VcpuHandleInner {
         self.signal.assert(VcpuSignalMask::DUMP_DEBUG);
         #[cfg(not(target_arch = "aarch64"))]
         tracing::error!("dump_debug not supported on this architecture");
-    }
-
-    pub fn send_profiler_init(&self, init: ProfilerVcpuInit) {
-        *self.profiler_init.lock().unwrap() = Some(init);
-        self.signal.assert(VcpuSignalMask::PROFILER_INIT);
-    }
-
-    pub fn send_profiler_sample(&self, sample: PartialSample) {
-        self.profiler_sample.force_push(sample);
-        self.signal.assert(VcpuSignalMask::PROFILER_SAMPLE);
-    }
-
-    pub fn send_profiler_guest_fetch(&self, sender: Sender<ProfilerGuestContext>) {
-        *self.profiler_guest_fetch.lock().unwrap() = Some(sender);
-        self.signal.assert(VcpuSignalMask::PROFILER_GUEST_FETCH);
-    }
-
-    pub fn send_profiler_finish(&self, sender: Sender<VcpuProfilerResults>) {
-        *self.profiler_finish.lock().unwrap() = Some(sender);
-        self.signal.assert(VcpuSignalMask::PROFILER_FINISH);
-    }
-
-    pub fn consume_profiler_init(&self) -> Option<ProfilerVcpuInit> {
-        self.profiler_init.lock().unwrap().take()
-    }
-
-    pub fn consume_profiler_sample(&self) -> Option<PartialSample> {
-        self.profiler_sample.pop()
-    }
-
-    pub fn consume_profiler_guest_fetch(&self) -> Option<Sender<ProfilerGuestContext>> {
-        self.profiler_guest_fetch.lock().unwrap().take()
-    }
-
-    pub fn consume_profiler_finish(&self) -> Option<Sender<VcpuProfilerResults>> {
-        self.profiler_finish.lock().unwrap().take()
     }
 }
 

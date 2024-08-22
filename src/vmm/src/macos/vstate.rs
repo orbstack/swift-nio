@@ -776,7 +776,7 @@ impl Vcpu {
             },
         );
 
-        let handle = ArcVcpuHandle::new(VcpuHandleInner::new(signal.clone()));
+        let handle = ArcVcpuHandle::new(VcpuHandleInner::new(&signal));
         let mut park_task = registry.register_vcpu(self.cpu_index(), handle.clone());
 
         // Notify init done (everything is registered)
@@ -845,7 +845,7 @@ impl Vcpu {
             }
 
             if taken.contains(VcpuSignalMask::PROFILER_INIT) {
-                if let Some(req) = handle.consume_profiler_init() {
+                if let Some(req) = handle.profiler_init.recv_one() {
                     self.profiler_state = Some(VcpuProfilerState::new(req.profiler).unwrap());
                     if let Err(e) = req.completion_sender.send(()) {
                         error!("Failed to send profiler init completion: {}", e);
@@ -854,7 +854,7 @@ impl Vcpu {
             }
 
             if taken.contains(VcpuSignalMask::PROFILER_SAMPLE) {
-                if let Some(sample) = handle.consume_profiler_sample() {
+                if let Some(sample) = handle.profiler_sample.recv_one() {
                     if let Some(profiler_state) = self.profiler_state.as_mut() {
                         if let Err(e) = hvf_vcpu.finish_profiler_sample(profiler_state, sample) {
                             // sample failed; drop it
@@ -867,7 +867,7 @@ impl Vcpu {
             }
 
             if taken.contains(VcpuSignalMask::PROFILER_GUEST_FETCH) {
-                if let Some(sender) = handle.consume_profiler_guest_fetch() {
+                if let Some(sender) = handle.profiler_guest_fetch.recv_one() {
                     let resp = ProfilerGuestContext {
                         symbolicator: match self.csmap_path.as_ref() {
                             Some(path) => match hvf_vcpu.new_symbolicator(path.as_str()) {
@@ -887,7 +887,7 @@ impl Vcpu {
             }
 
             if taken.contains(VcpuSignalMask::PROFILER_FINISH) {
-                if let Some(sender) = handle.consume_profiler_finish() {
+                if let Some(sender) = handle.profiler_finish.recv_one() {
                     // if there's no profiler_state, we'll drop the Sender, causing a RecvError on the other side
                     if let Some(profiler_state) = self.profiler_state.take() {
                         if let Err(e) = profiler_state.finish(sender) {
