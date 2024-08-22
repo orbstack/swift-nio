@@ -36,8 +36,8 @@ func doGenericErr(_ block: @escaping () async throws -> Void) -> GResultErr {
 
 func doGenericErr<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, _ block: @escaping (T) async throws -> Void) -> GResultErr {
     let result = ResultWrapper<GResultErr>()
+    let obj = Unmanaged<T>.fromOpaque(ptr).takeUnretainedValue()
     Task.detached {
-        let obj = Unmanaged<T>.fromOpaque(ptr).takeUnretainedValue()
         do {
             try await block(obj)
             result.set(GResultErr(err: nil))
@@ -72,8 +72,8 @@ func doGenericErr<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, _ block: @escapi
 
 func doGenericErrInt<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, _ block: @escaping (T) async throws -> Int64) -> GResultIntErr {
     let result = ResultWrapper<GResultIntErr>()
+    let obj = Unmanaged<T>.fromOpaque(ptr).takeUnretainedValue()
     Task.detached {
-        let obj = Unmanaged<T>.fromOpaque(ptr).takeUnretainedValue()
         do {
             let value = try await block(obj)
             result.set(GResultIntErr(value: value, err: nil))
