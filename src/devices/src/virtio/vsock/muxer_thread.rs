@@ -1,3 +1,4 @@
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::io::RawFd;
 use std::sync::Arc;
 use std::thread;
@@ -116,7 +117,7 @@ impl MuxerThread {
                 id,
                 local_port,
                 peer_port,
-                accept_fd,
+                unsafe { OwnedFd::from_raw_fd(accept_fd) },
                 self.mem.clone(),
                 self.queue.clone(),
                 self.rxq.clone(),

@@ -11,7 +11,7 @@ use libc::{
     kevent64_s, EVFILT_USER, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, EV_ENABLE, NOTE_EXTEND,
     NOTE_FFCOPY, NOTE_TRIGGER,
 };
-use nix::{errno::Errno, sys::event::kqueue};
+use nix::errno::Errno;
 use zerocopy::AsBytes;
 
 use crate::virtio::{FsCallbacks, FxDashMap};
@@ -290,7 +290,9 @@ struct Kqueue(OwnedFd);
 
 impl Kqueue {
     fn new() -> std::io::Result<Self> {
-        Ok(Kqueue(unsafe { OwnedFd::from_raw_fd(kqueue()?) }))
+        let fd = unsafe { libc::kqueue() };
+        let fd = Errno::result(fd)?;
+        Ok(Kqueue(unsafe { OwnedFd::from_raw_fd(fd) }))
     }
 
     fn kevent(

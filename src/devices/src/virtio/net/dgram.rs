@@ -1,7 +1,7 @@
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::sys::uio::writev;
-use std::os::fd::{AsRawFd, OwnedFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, OwnedFd, RawFd};
 use std::sync::Arc;
 
 use crate::virtio::descriptor_utils::Iovec;
@@ -87,7 +87,7 @@ impl NetBackend for Dgram {
             return Err(WriteError::Internal(nix::Error::EINVAL));
         }
 
-        match writev(self.fd.as_raw_fd(), Iovec::slice_to_std(iovs)) {
+        match writev(self.fd.as_fd(), Iovec::slice_to_std(iovs)) {
             Ok(_) => Ok(()),
             Err(Errno::ENOBUFS | Errno::EAGAIN) => Err(WriteError::NothingWritten),
             Err(Errno::EPIPE) => Err(WriteError::ProcessNotRunning),

@@ -173,11 +173,7 @@ impl DiskProperties {
             ));
         }
 
-        let n = pwritev(
-            self.file().as_raw_fd(),
-            Iovec::slice_to_std(iovecs),
-            offset as i64,
-        )?;
+        let n = pwritev(self.file(), Iovec::slice_to_std(iovecs), offset as i64)?;
         Ok(n)
     }
 

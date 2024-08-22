@@ -128,7 +128,7 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
             let mut error: Option<Errno> = None;
             if returned.commonattr & ATTR_CMN_ERROR != 0 {
                 let errno = unsafe { read_and_advance::<i32>(&mut entry_p) };
-                error = Some(nix::errno::from_i32(errno));
+                error = Some(Errno::from_raw(errno));
             }
 
             if returned.commonattr & ATTR_CMN_NAME != 0 {

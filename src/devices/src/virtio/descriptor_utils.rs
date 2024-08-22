@@ -372,7 +372,7 @@ impl<'a> Reader<'a> {
     /// enough data in the descriptor chain buffer.
     pub fn read_to(&mut self, dst: &mut File, count: usize) -> io::Result<usize> {
         self.buffer.consume(count, |bufs| {
-            writev(dst.as_raw_fd(), Iovec::slice_to_std(bufs)).map_err(|e| e.into())
+            writev(dst, Iovec::slice_to_std(bufs)).map_err(|e| e.into())
         })
     }
 
@@ -382,7 +382,7 @@ impl<'a> Reader<'a> {
     /// enough data in the descriptor chain buffer.
     pub fn read_to_at(&mut self, dst: &File, count: usize, off: u64) -> io::Result<usize> {
         self.buffer.consume(count, |bufs| {
-            pwritev(dst.as_raw_fd(), Iovec::slice_to_std(bufs), off as i64).map_err(|e| e.into())
+            pwritev(dst, Iovec::slice_to_std(bufs), off as i64).map_err(|e| e.into())
         })
     }
 

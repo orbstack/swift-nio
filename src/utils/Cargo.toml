@@ -17,4 +17,4 @@ anyhow = "1.0.86"
 bincode = "=2.0.0-rc.3"
 vm-memory = { version = ">=0.13", features = ["backend-mmap"] }
 mach2 = "0.4.2"
-nix = "0.26.1"
+nix = "0.28.0"

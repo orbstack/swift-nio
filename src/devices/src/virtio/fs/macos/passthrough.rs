@@ -35,7 +35,7 @@ use bitflags::bitflags;
 use derive_more::{Display, From, Into};
 use libc::{AT_FDCWD, MAXPATHLEN, SEEK_DATA, SEEK_HOLE};
 use nix::errno::Errno;
-use nix::fcntl::OFlag;
+use nix::fcntl::{AtFlags, OFlag};
 use nix::sys::stat::fchmod;
 use nix::sys::stat::{futimens, utimensat, Mode, UtimensatFlags};
 use nix::sys::statfs::{fstatfs, statfs, Statfs};
@@ -43,7 +43,7 @@ use nix::sys::statvfs::statvfs;
 use nix::sys::statvfs::Statvfs;
 use nix::sys::time::TimeSpec;
 use nix::sys::uio::pwrite;
-use nix::unistd::{access, lseek, truncate, LinkatFlags, Whence};
+use nix::unistd::{access, lseek, truncate, Whence};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
 use smol_str::SmolStr;
@@ -865,12 +865,10 @@ impl PassthroughFs {
                 }
 
                 // OFlag::from_bits_truncate truncates O_SYMLINK
-                let oflag = unsafe {
-                    OFlag::from_bits_unchecked(
-                        // SYMLINK implies NOFOLLOW, but NOFOLLOW prevents actually opening the symlink
-                        libc::O_EVTONLY | libc::O_CLOEXEC | libc::O_SYMLINK,
-                    )
-                };
+                let oflag = OFlag::from_bits_retain(
+                    // SYMLINK implies NOFOLLOW, but NOFOLLOW prevents actually opening the symlink
+                    libc::O_EVTONLY | libc::O_CLOEXEC | libc::O_SYMLINK,
+                );
 
                 // must reopen even if we have fd, to get O_EVTONLY. dup can't do that
                 let fd = match file_ref {
@@ -1078,7 +1076,7 @@ impl PassthroughFs {
     }
 
     fn convert_open_flags(&self, lflags: i32) -> OFlag {
-        let mut flags = unsafe { OFlag::from_bits_unchecked(lflags & libc::O_ACCMODE) };
+        let mut flags = OFlag::from_bits_retain(lflags & libc::O_ACCMODE);
 
         if (lflags & bindings::LINUX_O_NONBLOCK) != 0 {
             flags |= OFlag::O_NONBLOCK;
@@ -1298,7 +1296,7 @@ impl PassthroughFs {
             );
 
             match file_ref.as_ref() {
-                FileRef::Fd(fd) => ftruncate(fd.as_raw_fd(), attr.st_size),
+                FileRef::Fd(fd) => ftruncate(fd, attr.st_size),
                 FileRef::Path(path) => truncate(path, attr.st_size),
             }?;
         }
@@ -2014,7 +2012,7 @@ impl FileSystem for PassthroughFs {
                 File::from_raw_fd(nix::fcntl::open(
                     c_path.as_ref(),
                     flags | OFlag::O_CREAT,
-                    Mode::from_bits_unchecked(mode as u16),
+                    Mode::from_bits_retain(mode as u16),
                 )?)
             };
 
@@ -2298,7 +2296,7 @@ impl FileSystem for PassthroughFs {
                             orig_c_path.as_ref(),
                             None,
                             link_c_path.as_ref(),
-                            LinkatFlags::NoSymlinkFollow,
+                            AtFlags::AT_SYMLINK_NOFOLLOW,
                         )?;
                     }
                 } else {
@@ -2308,7 +2306,7 @@ impl FileSystem for PassthroughFs {
                         orig_c_path.as_ref(),
                         None,
                         link_c_path.as_ref(),
-                        LinkatFlags::NoSymlinkFollow,
+                        AtFlags::AT_SYMLINK_NOFOLLOW,
                     )?;
                 }
 
@@ -2693,14 +2691,14 @@ impl FileSystem for PassthroughFs {
                 let zero_start_len = hole_start - zero_start;
                 if zero_start_len > 0 {
                     let zero_start_buf = vec![0u8; zero_start_len as usize];
-                    pwrite(file.as_raw_fd(), &zero_start_buf, zero_start)?;
+                    pwrite(file.as_fd(), &zero_start_buf, zero_start)?;
                 }
 
                 // zero the ending block
                 let zero_end_len = zero_end - hole_end;
                 if zero_end_len > 0 {
                     let zero_end_buf = vec![0u8; zero_end_len as usize];
-                    pwrite(file.as_raw_fd(), &zero_end_buf, hole_end)?;
+                    pwrite(file.as_fd(), &zero_end_buf, hole_end)?;
                 }
 
                 Ok(())

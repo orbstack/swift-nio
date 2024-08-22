@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::num::Wrapping;
+use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::sync::Arc;
 use utils::Mutex;
@@ -10,7 +11,6 @@ use nix::sys::socket::{
     bind, connect, getpeername, recv, send, sendto, socket, AddressFamily, MsgFlags, SockFlag,
     SockType, SockaddrIn,
 };
-use nix::unistd::close;
 
 #[cfg(target_os = "macos")]
 use super::super::linux_errno::linux_errno_raw;
@@ -32,7 +32,7 @@ pub struct UdpProxy {
     cid: u64,
     local_port: u32,
     peer_port: u32,
-    fd: RawFd,
+    fd: OwnedFd,
     pub status: ProxyStatus,
     sendto_addr: Option<SockaddrIn>,
     listening: bool,
@@ -63,10 +63,12 @@ impl UdpProxy {
         .map_err(ProxyError::CreatingSocket)?;
 
         // macOS forces us to do this here instead of just using SockFlag::SOCK_NONBLOCK above.
-        match fcntl(fd, FcntlArg::F_GETFL) {
+        match fcntl(fd.as_raw_fd(), FcntlArg::F_GETFL) {
             Ok(flags) => match OFlag::from_bits(flags) {
                 Some(flags) => {
-                    if let Err(e) = fcntl(fd, FcntlArg::F_SETFL(flags | OFlag::O_NONBLOCK)) {
+                    if let Err(e) =
+                        fcntl(fd.as_raw_fd(), FcntlArg::F_SETFL(flags | OFlag::O_NONBLOCK))
+                    {
                         warn!("error switching to non-blocking: id={}, err={}", id, e);
                     }
                 }
@@ -81,7 +83,7 @@ impl UdpProxy {
             let option_value: libc::c_int = 1;
             unsafe {
                 libc::setsockopt(
-                    fd,
+                    fd.as_raw_fd(),
                     libc::SOL_SOCKET,
                     libc::SO_NOSIGPIPE,
                     &option_value as *const _ as *const libc::c_void,
@@ -160,7 +162,7 @@ impl UdpProxy {
             }
             */
 
-            match recv(self.fd, &mut buf[..max_len], MsgFlags::empty()) {
+            match recv(self.fd.as_raw_fd(), &mut buf[..max_len], MsgFlags::empty()) {
                 Ok(cnt) => {
                     debug!("vsock: udp: recv cnt={}", cnt);
                     if cnt > 0 {
@@ -239,7 +241,7 @@ impl Proxy for UdpProxy {
     fn connect(&mut self, pkt: &VsockPacket, req: TsiConnectReq) -> ProxyUpdate {
         debug!("vsock: udp: connect: addr={}, port={}", req.addr, req.port);
         let res = match connect(
-            self.fd,
+            self.fd.as_raw_fd(),
             &SockaddrIn::from(SocketAddrV4::new(req.addr, req.port)),
         ) {
             Ok(()) => {
@@ -270,7 +272,7 @@ impl Proxy for UdpProxy {
 
         let mut update = ProxyUpdate::default();
         if res == 0 && !self.listening {
-            update.polling = Some((self.id, self.fd, EventSet::IN));
+            update.polling = Some((self.id, self.fd.as_raw_fd(), EventSet::IN));
         }
         update
     }
@@ -278,7 +280,7 @@ impl Proxy for UdpProxy {
     fn getpeername(&mut self, pkt: &VsockPacket) {
         debug!("vsock: udp: process_getpeername");
 
-        let name = getpeername::<SockaddrIn>(self.fd).unwrap();
+        let name = getpeername::<SockaddrIn>(self.fd.as_raw_fd()).unwrap();
         let addr = Ipv4Addr::from(name.ip());
         let data = TsiGetnameRsp {
             addr,
@@ -304,7 +306,7 @@ impl Proxy for UdpProxy {
             #[cfg(target_os = "linux")]
             let flags = MsgFlags::MSG_NOSIGNAL;
 
-            match send(self.fd, buf, flags) {
+            match send(self.fd.as_raw_fd(), buf, flags) {
                 Ok(sent) => {
                     self.tx_cnt += Wrapping(sent as u32);
                     sent as i32
@@ -330,10 +332,10 @@ impl Proxy for UdpProxy {
 
         self.sendto_addr = Some(SockaddrIn::from(SocketAddrV4::new(req.addr, req.port)));
         if !self.listening {
-            match bind(self.fd, &SockaddrIn::new(0, 0, 0, 0, 0)) {
+            match bind(self.fd.as_raw_fd(), &SockaddrIn::new(0, 0, 0, 0, 0)) {
                 Ok(_) => {
                     self.listening = true;
-                    update.polling = Some((self.id, self.fd, EventSet::IN));
+                    update.polling = Some((self.id, self.fd.as_raw_fd(), EventSet::IN));
                 }
                 Err(e) => debug!("vsock: udp_proxy: couldn't bind socket: {}", e),
             }
@@ -355,7 +357,7 @@ impl Proxy for UdpProxy {
                 #[cfg(target_os = "linux")]
                 let flags = MsgFlags::MSG_NOSIGNAL;
 
-                match sendto(self.fd, buf, &addr, flags) {
+                match sendto(self.fd.as_raw_fd(), buf, &addr, flags) {
                     Ok(sent) => {
                         self.tx_cnt += Wrapping(sent as u32);
                     }
@@ -393,7 +395,7 @@ impl Proxy for UdpProxy {
         self.peer_fwd_cnt = Wrapping(pkt.fwd_cnt());
 
         ProxyUpdate {
-            polling: Some((self.id, self.fd, EventSet::IN)),
+            polling: Some((self.id, self.fd.as_raw_fd(), EventSet::IN)),
             ..Default::default()
         }
     }
@@ -443,7 +445,7 @@ impl Proxy for UdpProxy {
 
             if self.status == ProxyStatus::WaitingCreditUpdate {
                 debug!("process_event: WaitingCreditUpdate");
-                update.polling = Some((self.id(), self.fd, EventSet::empty()));
+                update.polling = Some((self.id(), self.fd.as_raw_fd(), EventSet::empty()));
             }
         }
 
@@ -457,14 +459,6 @@ impl Proxy for UdpProxy {
 
 impl AsRawFd for UdpProxy {
     fn as_raw_fd(&self) -> RawFd {
-        self.fd
-    }
-}
-
-impl Drop for UdpProxy {
-    fn drop(&mut self) {
-        if let Err(e) = close(self.fd) {
-            warn!("error closing proxy fd: {}", e);
-        }
+        self.fd.as_raw_fd()
     }
 }
