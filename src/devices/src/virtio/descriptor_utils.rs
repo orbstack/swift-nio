@@ -82,11 +82,11 @@ impl<'a> Iovec<'a> {
         self.iov.iov_len = len;
     }
 
-    pub fn addr(&self) -> *const u8 {
+    pub fn as_ptr(&self) -> *const u8 {
         self.iov.iov_base as *const u8
     }
 
-    pub fn addr_mut(&self) -> *mut u8 {
+    pub fn as_mut_ptr(&self) -> *mut u8 {
         self.iov.iov_base as *mut u8
     }
 
@@ -362,7 +362,7 @@ impl<'a> Reader<'a> {
     pub fn read_obj<T: ByteValued>(&mut self) -> io::Result<T> {
         // this fastpath allows compiler to optimize/specialize for T, avoiding slices and memcpy
         self.buffer.consume_one(size_of::<T>(), |iov| unsafe {
-            Ok(iov.addr().cast::<T>().read_unaligned())
+            Ok(iov.as_ptr().cast::<T>().read_unaligned())
         })
     }
 
@@ -441,7 +441,7 @@ impl<'a> io::Read for Reader<'a> {
 
                 // Safe because we have already verified that `vs` points to valid memory.
                 unsafe {
-                    copy_nonoverlapping(iov.addr(), rem.as_mut_ptr(), copy_len);
+                    copy_nonoverlapping(iov.as_ptr(), rem.as_mut_ptr(), copy_len);
                 }
                 rem = &mut rem[copy_len..];
                 total += copy_len;
@@ -488,7 +488,7 @@ impl<'a> Writer<'a> {
     pub fn write_obj<T: ByteValued>(&mut self, val: T) -> io::Result<()> {
         // this fastpath allows compiler to optimize/specialize for T, avoiding slices and memcpy
         self.buffer.consume_one(size_of::<T>(), |iov| unsafe {
-            iov.addr_mut().cast::<T>().write_unaligned(val);
+            iov.as_mut_ptr().cast::<T>().write_unaligned(val);
             Ok(())
         })
     }
@@ -614,7 +614,7 @@ impl<'a> io::Write for Writer<'a> {
 
                 // Safe because we have already verified that `vs` points to valid memory.
                 unsafe {
-                    copy_nonoverlapping(rem.as_ptr(), iov.addr_mut(), copy_len);
+                    copy_nonoverlapping(rem.as_ptr(), iov.as_mut_ptr(), copy_len);
                 }
                 rem = &rem[copy_len..];
                 total += copy_len;

@@ -12,11 +12,14 @@ pub const RX_INDEX: usize = 0;
 pub const TX_INDEX: usize = 1;
 
 mod backend;
+mod callback;
 pub mod device;
 mod dgram;
 mod worker;
 
-pub use self::device::Net;
+pub use callback::{HostNetCallbacks, NetCallbacks};
+pub use device::Net;
+
 #[derive(Debug)]
 pub enum Error {
     /// EventFd error.

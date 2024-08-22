@@ -11,12 +11,15 @@ use crate::virtio::queue::Error as QueueError;
 use crate::virtio::{ActivateResult, DeviceState, Queue, VirtioDevice, VmmExitObserver, TYPE_NET};
 use crate::Error as DeviceError;
 
-use super::backend::{ReadError, WriteError};
+use super::backend::{NetBackend, ReadError, WriteError};
+use super::callback::{CallbackBackend, HostNetCallbacks};
+use super::dgram::Dgram;
 use super::worker::NetWorker;
 
 use bitflags::bitflags;
 use gruel::{
-    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, OnceMioWaker, SignalChannel,
+    define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, OnceMioWaker, ParkWaker,
+    SignalChannel,
 };
 use std::cmp;
 use std::io::Write;
@@ -37,6 +40,7 @@ const VIRTIO_F_VERSION_1: u32 = 32;
 define_waker_set! {
     #[derive(Default)]
     pub(crate) struct NetWakers {
+        park: ParkWaker,
         epoll: OnceMioWaker,
     }
 }
@@ -45,8 +49,8 @@ bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
     pub(crate) struct NetSignalMask: u64 {
         const SHUTDOWN_WORKER = 1 << 0;
-        const RX = 1 << 1;
-        const TX = 1 << 2;
+        const GUEST_RXQ = 1 << 1;
+        const GUEST_TXQ = 1 << 2;
     }
 }
 
@@ -90,6 +94,31 @@ unsafe impl ByteValued for VirtioNetConfig {}
 #[derive(Clone)]
 pub enum VirtioNetBackend {
     Dgram(Arc<OwnedFd>),
+    Callback(Arc<dyn HostNetCallbacks>),
+}
+
+impl VirtioNetBackend {
+    pub(crate) fn create(
+        self,
+        queues: &[Queue],
+        mem: &GuestMemoryMmap,
+        intc: &Option<Arc<Mutex<Gic>>>,
+        irq_line: &Option<u32>,
+    ) -> Box<dyn NetBackend + Send> {
+        match self {
+            VirtioNetBackend::Dgram(fd) => {
+                Box::new(Dgram::new(fd).unwrap()) as Box<dyn NetBackend + Send>
+            }
+
+            VirtioNetBackend::Callback(callbacks) => Box::new(CallbackBackend::new(
+                callbacks,
+                queues[RX_INDEX].clone(),
+                mem.clone(),
+                intc.clone(),
+                *irq_line,
+            )),
+        }
+    }
 }
 
 pub struct Net {
@@ -197,8 +226,8 @@ impl VirtioDevice for Net {
 
     fn queue_signals(&self) -> Vec<ArcBoundSignalChannel> {
         vec![
-            BoundSignalChannel::new(self.signals.clone(), NetSignalMask::RX),
-            BoundSignalChannel::new(self.signals.clone(), NetSignalMask::TX),
+            BoundSignalChannel::new(self.signals.clone(), NetSignalMask::GUEST_RXQ),
+            BoundSignalChannel::new(self.signals.clone(), NetSignalMask::GUEST_TXQ),
         ]
     }
 

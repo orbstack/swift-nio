@@ -95,7 +95,7 @@ impl NetBackend for Dgram {
         }
     }
 
-    fn raw_socket_fd(&self) -> RawFd {
-        self.fd.as_raw_fd()
+    fn raw_socket_fd(&self) -> Option<RawFd> {
+        Some(self.fd.as_raw_fd())
     }
 }

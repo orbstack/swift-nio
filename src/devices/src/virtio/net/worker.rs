@@ -5,6 +5,7 @@ use crate::virtio::Queue;
 use crate::Error as DeviceError;
 
 use super::backend::{NetBackend, ReadError, WriteError};
+use super::callback::CallbackBackend;
 use super::device::{
     FrontendError, NetSignalChannel, NetSignalMask, RxError, TxError, VirtioNetBackend,
 };
@@ -19,7 +20,7 @@ use utils::Mutex;
 use virtio_bindings::virtio_net::virtio_net_hdr_v1;
 use vm_memory::GuestMemoryMmap;
 
-use gruel::{MioChannelExt, OnceMioWaker};
+use gruel::{MioChannelExt, OnceMioWaker, ParkSignalChannelExt};
 
 fn vnet_hdr_len() -> usize {
     mem::size_of::<virtio_net_hdr_v1>()
@@ -49,11 +50,7 @@ impl NetWorker {
         cfg_backend: VirtioNetBackend,
         mtu: u16,
     ) -> Self {
-        let backend = match cfg_backend {
-            VirtioNetBackend::Dgram(fd) => {
-                Box::new(Dgram::new(fd).unwrap()) as Box<dyn NetBackend + Send>
-            }
-        };
+        let backend = cfg_backend.create(&queues, &mem, &intc, &irq_line);
 
         Self {
             signals,
@@ -72,20 +69,22 @@ impl NetWorker {
     pub fn run(self) -> JoinHandle<()> {
         thread::Builder::new()
             .name("net worker".to_string())
-            .spawn(|| self.work())
+            .spawn(|| match self.backend.raw_socket_fd() {
+                Some(backend_socket_fd) => self.work_mio(backend_socket_fd),
+                None => self.work_park(),
+            })
             .expect("failed to spawn thread")
     }
 
-    fn work(mut self) {
+    fn work_mio(mut self, backend_socket_fd: i32) {
         // Setup epoll
         let mut poll = mio::Poll::new().unwrap();
         let mut events = mio::Events::with_capacity(32);
 
         let backend_socket_token = mio::Token(0);
-        let backend_socket = self.backend.raw_socket_fd();
         poll.registry()
             .register(
-                &mut mio::unix::SourceFd(&backend_socket),
+                &mut mio::unix::SourceFd(&backend_socket_fd),
                 backend_socket_token,
                 mio::Interest::READABLE | mio::Interest::WRITABLE,
             )
@@ -97,7 +96,8 @@ impl NetWorker {
             .waker_state::<OnceMioWaker>()
             .set_waker(Arc::new(waker));
 
-        let handled_mask = NetSignalMask::SHUTDOWN_WORKER | NetSignalMask::RX | NetSignalMask::TX;
+        let handled_mask =
+            NetSignalMask::SHUTDOWN_WORKER | NetSignalMask::GUEST_RXQ | NetSignalMask::GUEST_TXQ;
 
         // Start worker loop
         loop {
@@ -116,11 +116,11 @@ impl NetWorker {
                 return;
             }
 
-            if taken.intersects(NetSignalMask::RX) {
+            if taken.intersects(NetSignalMask::GUEST_RXQ) {
                 self.process_rx_queue_event();
             }
 
-            if taken.intersects(NetSignalMask::TX) {
+            if taken.intersects(NetSignalMask::GUEST_TXQ) {
                 self.process_tx_queue_event();
             }
 
@@ -147,34 +147,56 @@ impl NetWorker {
         }
     }
 
-    pub(crate) fn process_rx_queue_event(&mut self) {
-        if let Err(e) = self.queues[RX_INDEX].disable_notification(&self.mem) {
-            error!("error disabling queue notifications: {:?}", e);
+    fn work_park(mut self) {
+        // we don't need to handle guest RXQ: writing to guest is only done by the backend callback
+        // gruel doesn't wake us up if an asserted signal isn't in this mask, so this saves wakeups
+        let handled_mask = NetSignalMask::SHUTDOWN_WORKER | NetSignalMask::GUEST_TXQ;
+
+        loop {
+            self.signals.wait_on_park(handled_mask);
+
+            let taken = self.signals.take(handled_mask);
+
+            if taken.intersects(NetSignalMask::SHUTDOWN_WORKER) {
+                return;
+            }
+
+            if taken.intersects(NetSignalMask::GUEST_TXQ) {
+                self.process_tx_queue_event();
+            }
         }
+    }
+
+    pub(crate) fn process_rx_queue_event(&mut self) -> bool {
+        self.queues[RX_INDEX]
+            .disable_notification(&self.mem)
+            .unwrap();
 
         if let Err(e) = self.process_rx_loop() {
             tracing::error!("Failed to process rx: {e:?} (triggered by queue event)")
         };
 
-        if let Err(e) = self.queues[RX_INDEX].enable_notification(&self.mem) {
-            error!("error disabling queue notifications: {:?}", e);
-        }
+        self.queues[RX_INDEX]
+            .enable_notification(&self.mem)
+            .unwrap()
     }
 
     pub(crate) fn process_tx_queue_event(&mut self) {
         self.process_tx_loop();
     }
 
-    pub(crate) fn process_backend_socket_readable(&mut self) {
-        if let Err(e) = self.queues[RX_INDEX].enable_notification(&self.mem) {
-            error!("error disabling queue notifications: {:?}", e);
-        }
+    pub(crate) fn process_backend_socket_readable(&mut self) -> bool {
+        self.queues[RX_INDEX]
+            .disable_notification(&self.mem)
+            .unwrap();
+
         if let Err(e) = self.process_rx_loop() {
             tracing::error!("Failed to process rx: {e:?} (triggered by backend socket readable)");
         };
-        if let Err(e) = self.queues[RX_INDEX].disable_notification(&self.mem) {
-            error!("error disabling queue notifications: {:?}", e);
-        }
+
+        self.queues[RX_INDEX]
+            .enable_notification(&self.mem)
+            .unwrap()
     }
 
     pub(crate) fn process_backend_socket_writeable(&mut self) {
@@ -237,7 +259,7 @@ impl NetWorker {
             let head_index = head.index;
             let mut next_desc = Some(head);
 
-            let mut iovecs = self.iovecs_buf.get();
+            let mut iovecs = self.iovecs_buf.clear();
             while let Some(desc) = next_desc {
                 if desc.is_write_only() {
                     break;
@@ -305,7 +327,7 @@ impl NetWorker {
         let head_index = head_descriptor.index;
 
         let result = (|| {
-            let mut iovecs = self.iovecs_buf.get();
+            let mut iovecs = self.iovecs_buf.clear();
             let mut total_len = 0;
             let mut maybe_next_descriptor = Some(head_descriptor);
             while let Some(descriptor) = &maybe_next_descriptor {
@@ -359,14 +381,14 @@ impl NetWorker {
 }
 
 // allow reusing a buffer for iovecs, but bind lifetime to the usage scope
-struct IovecsBuffer(Vec<Iovec<'static>>);
+pub struct IovecsBuffer(Vec<Iovec<'static>>);
 
 impl IovecsBuffer {
-    fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity))
     }
 
-    fn get<'a>(&'a mut self) -> IovecsBufferRef<'a> {
+    pub fn clear<'a>(&'a mut self) -> IovecsBufferRef<'a> {
         let r = unsafe {
             std::mem::transmute::<&mut Vec<Iovec<'static>>, &mut Vec<Iovec<'a>>>(&mut self.0)
         };
@@ -374,7 +396,7 @@ impl IovecsBuffer {
     }
 }
 
-struct IovecsBufferRef<'a>(&'a mut Vec<Iovec<'a>>);
+pub struct IovecsBufferRef<'a>(&'a mut Vec<Iovec<'a>>);
 
 impl<'a> Deref for IovecsBufferRef<'a> {
     type Target = Vec<Iovec<'a>>;

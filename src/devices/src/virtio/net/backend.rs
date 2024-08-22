@@ -26,5 +26,5 @@ pub enum WriteError {
 pub trait NetBackend {
     fn read_frame(&mut self, buf: &[Iovec]) -> Result<usize, ReadError>;
     fn write_frame(&mut self, hdr_len: usize, iovs: &mut [Iovec]) -> Result<(), WriteError>;
-    fn raw_socket_fd(&self) -> RawFd;
+    fn raw_socket_fd(&self) -> Option<RawFd>;
 }
