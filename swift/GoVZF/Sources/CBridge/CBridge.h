@@ -43,6 +43,11 @@ struct virtio_net_hdr_v1 {
     uint16_t num_buffers;
 } __attribute__((packed));
 
+// to avoid allocation in Swift receive path
+struct two_iovecs {
+    struct iovec iovs[2];
+};
+
 #ifndef CGO
 void govzf_event_Machine_deinit(uintptr_t vmHandle);
 void govzf_event_Machine_onStateChange(uintptr_t vmHandle, int state);

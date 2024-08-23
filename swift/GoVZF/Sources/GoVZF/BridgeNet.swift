@@ -281,13 +281,17 @@ class BridgeNetwork: NetCallbacks {
                 let totalLen = pkt.totalLen + vnetHdrSize
                 do {
                     try withUnsafeMutableBytes(of: &vnetHdr) { vnetHdrPtr in
-                        var iovs = [
+                        var iovs = two_iovecs(iovs: (
                             iovec(iov_base: vnetHdrPtr.baseAddress, iov_len: vnetHdrSize),
-                            iovec(iov_base: pkt.data, iov_len: pkt.accessibleLen),
-                        ]
+                            iovec(iov_base: pkt.data, iov_len: pkt.accessibleLen)
+                        ))
                         // we only create 1-iovec packet buffers here
                         assert(pkt.accessibleLen == pkt.totalLen)
-                        try self.writeToGuest(handle: guestHandle, iovs: &iovs, numIovs: 2, totalLen: totalLen)
+                        try withUnsafeMutablePointer(to: &iovs.iovs) { iovsPtr in
+                            try iovsPtr.withMemoryRebound(to: iovec.self, capacity: 2) { iovsPtr in
+                                try self.writeToGuest(handle: guestHandle, iovs: iovsPtr, numIovs: 2, totalLen: totalLen)
+                            }
+                        }
                     }
                 } catch {
                     switch error {
