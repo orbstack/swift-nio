@@ -1,5 +1,7 @@
 package vzf
 
+import "golang.org/x/sys/unix"
+
 var (
 	SwextProxyChangesChan = make(chan struct{}, 1)
 
@@ -35,10 +37,43 @@ type SwextUserSettings struct {
 	UpdatesOptinChannel string `json:"updatesOptinChannel"`
 }
 
+// can't use anonymous struct: an `_0` field would be private, so we need a json tag
+type netHandleRsvm struct {
+	// Swift Codable uses "_0", "_1", etc. for unlabeled associated values
+	Value uintptr `json:"_0"`
+}
+
+type netHandleFd struct {
+	Value int `json:"_0"`
+}
+
+// "algebraic" enum compatible with Swift Codable
+type NetHandle struct {
+	// zero is a valid handle value, so this has to be a pointer
+	Rsvm *netHandleRsvm `json:"rsvm,omitempty"`
+	Fd   *netHandleFd   `json:"fd,omitempty"`
+}
+
+func NetHandleFromFd(fd int) NetHandle {
+	return NetHandle{Fd: &netHandleFd{Value: fd}}
+}
+
+func NetHandleFromRsvmHandle(handle uintptr) NetHandle {
+	return NetHandle{Rsvm: &netHandleRsvm{Value: handle}}
+}
+
+func (h NetHandle) Close() error {
+	if h.Fd != nil {
+		return unix.Close(h.Fd.Value)
+	}
+	return nil
+}
+
 type BridgeNetworkConfig struct {
-	GuestFd         int  `json:"guestFd"`
-	GuestSconFd     int  `json:"guestSconFd"`
-	ShouldReadGuest bool `json:"shouldReadGuest"`
+	GuestHandle     NetHandle `json:"guestHandle"`
+	GuestSconHandle NetHandle `json:"guestSconHandle"`
+	// is BridgeNetwork directly responsible for reading from guest (i.e. owned), or is it VlanRouter?
+	OwnsGuestReader bool `json:"ownsGuestReader"`
 
 	UUID       string `json:"uuid"`
 	Ip4Address string `json:"ip4Address,omitempty"`
@@ -54,7 +89,7 @@ type BridgeNetworkConfig struct {
 }
 
 type VlanRouterConfig struct {
-	GuestFd           int      `json:"guestFd"`
-	MACPrefix         []uint16 `json:"macPrefix"`
-	MaxVlanInterfaces int      `json:"maxVlanInterfaces"`
+	GuestHandle       NetHandle `json:"guestHandle"`
+	MACPrefix         []uint16  `json:"macPrefix"`
+	MaxVlanInterfaces int       `json:"maxVlanInterfaces"`
 }

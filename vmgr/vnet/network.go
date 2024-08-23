@@ -71,7 +71,7 @@ type Network struct {
 
 	// bridges
 	hostBridgeMu           syncx.Mutex
-	hostBridgeFds          []int
+	hostBridgeHandles      []vzf.NetHandle
 	hostBridges            []HostBridge
 	bridgeRouteMon         *bridge.RouteMon
 	vlanRouter             *vzf.VlanRouter

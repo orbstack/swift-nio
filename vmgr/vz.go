@@ -205,6 +205,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		MacAddressPrefix: params.MacAddressPrefix,
 		NetworkNat:       params.NetworkNat,
 		// must be empty vec, not null, for rust
+		NetworkFds:   []int{},
 		NetworkSwift: []uintptr{},
 		/* fds populated below */
 		Rng:        params.Rng,
@@ -330,20 +331,32 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		}
 	}
 	for i := 0; i < params.NetworkHostBridges; i++ {
-		// host bridges are only reserved, not
-		file0, fd1, err := vnet.NewUnixgramPair()
-		if err != nil {
-			return nil, nil, fmt.Errorf("new unixgram pair: %w", err)
-		}
+		// Swift handles are bridge indexes
+		if monitor == rsvm.Monitor {
+			spec.NetworkSwift = append(spec.NetworkSwift, uintptr(i))
 
-		// use util.GetFd to preserve nonblock
-		spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(file0)))
-		retainFiles = append(retainFiles, file0)
+			// ... and this is now a Rust handle
+			rsvmHandle := rsvm.HandleHostBridgesStart + uintptr(i)
+			err = vnetwork.AddHostBridge(vzf.NetHandleFromRsvmHandle(rsvmHandle))
+			if err != nil {
+				return nil, nil, fmt.Errorf("add host bridge fd: %w", err)
+			}
+		} else {
+			// host bridges are reserved but backends won't be created until later
+			file0, fd1, err := vnet.NewUnixgramPair()
+			if err != nil {
+				return nil, nil, fmt.Errorf("new unixgram pair: %w", err)
+			}
 
-		// keep fd1 for bridge management
-		err = vnetwork.AddHostBridgeFd(fd1)
-		if err != nil {
-			return nil, nil, fmt.Errorf("add host bridge fd: %w", err)
+			// use util.GetFd to preserve nonblock
+			spec.NetworkFds = append(spec.NetworkFds, int(util.GetFd(file0)))
+			retainFiles = append(retainFiles, file0)
+
+			// keep fd1 for bridge management
+			err = vnetwork.AddHostBridge(vzf.NetHandleFromFd(fd1))
+			if err != nil {
+				return nil, nil, fmt.Errorf("add host bridge fd: %w", err)
+			}
 		}
 	}
 	if params.NetworkPairFile != nil {

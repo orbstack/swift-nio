@@ -13,7 +13,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -68,17 +67,17 @@ func slicePrefix6(p netip.Prefix) []uint16 {
 	return bytesToUint16(p.Addr().AsSlice()[:p.Bits()/8])
 }
 
-func (n *Network) AddHostBridgeFd(fd int) error {
+func (n *Network) AddHostBridge(handle vzf.NetHandle) error {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
 
-	n.hostBridgeFds = append(n.hostBridgeFds, fd)
+	n.hostBridgeHandles = append(n.hostBridgeHandles, handle)
 	n.hostBridges = append(n.hostBridges, nil)
 
-	if len(n.hostBridgeFds)-1 == brIndexVlanRouter {
+	if len(n.hostBridgeHandles)-1 == brIndexVlanRouter {
 		// fds[1] = vlan router
 		vlanRouter, err := vzf.SwextNewVlanRouter(vzf.VlanRouterConfig{
-			GuestFd:           fd,
+			GuestHandle:       handle,
 			MACPrefix:         brMacVlanRouterTemplate[:5], // prefix bytes
 			MaxVlanInterfaces: bridge.MaxVlanInterfaces,
 		})
@@ -179,9 +178,9 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 	}
 
 	vmnetConfig := vzf.BridgeNetworkConfig{
-		GuestFd:         n.hostBridgeFds[brIndexVlanRouter],
-		GuestSconFd:     n.hostBridgeFds[brIndexSconMachine],
-		ShouldReadGuest: false, // handled by vlan router
+		GuestHandle:     n.hostBridgeHandles[brIndexVlanRouter],
+		GuestSconHandle: n.hostBridgeHandles[brIndexSconMachine],
+		OwnsGuestReader: false, // handled by vlan router
 
 		UUID: deriveBridgeConfigUuid(config),
 		// this is a template. updated by VlanRouter when it gets index
@@ -341,9 +340,9 @@ func (n *Network) CreateSconMachineHostBridge(recreate bool) error {
 	}
 
 	config := vzf.BridgeNetworkConfig{
-		GuestFd:         n.hostBridgeFds[brIndexSconMachine],
-		GuestSconFd:     n.hostBridgeFds[brIndexSconMachine],
-		ShouldReadGuest: true,
+		GuestHandle:     n.hostBridgeHandles[brIndexSconMachine],
+		GuestSconHandle: n.hostBridgeHandles[brIndexSconMachine],
+		OwnsGuestReader: true,
 
 		UUID:       brUuidSconMachine,
 		Ip4Address: netconf.SconHostBridgeIP4,
@@ -436,8 +435,7 @@ func (n *Network) stopHostBridges() {
 	n.vlanRouter.Close()
 	n.vlanRouter = nil
 
-	// close fds
-	for _, fd := range n.hostBridgeFds {
-		unix.Close(fd)
+	for _, handle := range n.hostBridgeHandles {
+		handle.Close()
 	}
 }

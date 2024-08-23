@@ -22,6 +22,7 @@ import (
 )
 
 const HandleGvisor uintptr = 0
+const HandleHostBridgesStart uintptr = 1
 
 type NetCallbacks struct {
 	handle uintptr
