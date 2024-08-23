@@ -12,6 +12,7 @@ use vm_memory::{GuestAddress, GuestMemoryMmap};
 
 use std::convert::TryInto;
 use std::fmt::Write;
+use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
 
@@ -250,10 +251,10 @@ impl HvfVcpu {
     }
 
     pub fn read_raw_reg(&self, reg: hv_reg_t) -> Result<u64, Error> {
-        let mut val: u64 = 0;
-        let ret = unsafe { hv_vcpu_get_reg(self.hv_vcpu.0, reg, &mut val) };
+        let mut val = MaybeUninit::<u64>::uninit();
+        let ret = unsafe { hv_vcpu_get_reg(self.hv_vcpu.0, reg, val.as_mut_ptr()) };
         HvfError::result(ret).map_err(Error::VcpuReadRegister)?;
-        Ok(val)
+        Ok(unsafe { val.assume_init() })
     }
 
     pub fn write_raw_reg(&mut self, reg: hv_reg_t, val: u64) -> Result<(), Error> {
@@ -283,10 +284,10 @@ impl HvfVcpu {
     }
 
     fn read_sys_reg(&self, reg: hv_sys_reg_t) -> Result<u64, Error> {
-        let mut val: u64 = 0;
-        let ret = unsafe { hv_vcpu_get_sys_reg(self.hv_vcpu.0, reg, &mut val) };
+        let mut val = MaybeUninit::<u64>::uninit();
+        let ret = unsafe { hv_vcpu_get_sys_reg(self.hv_vcpu.0, reg, val.as_mut_ptr()) };
         HvfError::result(ret).map_err(Error::VcpuReadSystemRegister)?;
-        Ok(val)
+        Ok(unsafe { val.assume_init() })
     }
 
     fn write_sys_reg(&mut self, reg: hv_sys_reg_t, val: u64) -> Result<(), Error> {
