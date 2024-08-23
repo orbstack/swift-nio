@@ -98,7 +98,7 @@ struct HvfWaker(HvVcpuRef);
 impl Waker for HvfWaker {
     #[cfg(target_arch = "aarch64")]
     fn wake(&self) {
-        HvfVcpu::request_exit(self.0).unwrap();
+        HvfVcpu::request_exit_static(self.0).unwrap();
     }
 
     #[cfg(target_arch = "x86_64")]
@@ -938,6 +938,12 @@ impl Vcpu {
                             // don't bother to get time again; it should be close enough
                             // we don't always want to update last_timer_wakeup on park, because IPI/IRQ wakeups shouldn't be throttled
                             self.last_timer_wakeup = deadline;
+
+                            // we just woke up because the vtimer should've fired at this time
+                            // if we run the vCPU, we'll just get a VtimerActivated vmexit immediately
+                            // assert vtimer IRQ and mask it here to avoid the redundant exit
+                            intc_vcpu_handle.set_vtimer_irq();
+                            hvf_vcpu.set_vtimer_mask(true).unwrap();
                         }
                     }
                 }

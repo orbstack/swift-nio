@@ -150,7 +150,7 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
     fn handle_custom_eoi(&mut self, pe: PeId, int_id: InterruptId) {
         if int_id == TIMER_INT_ID {
             let waker = self.wfe_threads.get(&pe).unwrap();
-            HvfVcpu::set_vtimer_mask(waker.hv_vcpu, false).unwrap();
+            HvfVcpu::set_vtimer_mask_static(waker.hv_vcpu, false).unwrap();
         }
     }
 }

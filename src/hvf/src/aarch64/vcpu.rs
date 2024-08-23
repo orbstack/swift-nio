@@ -382,7 +382,7 @@ impl HvfVcpu {
         }
 
         if let Some(pending_irq) = pending_irq {
-            Self::set_pending_irq(self.hv_vcpu, InterruptType::Irq, true)?;
+            self.set_pending_irq(InterruptType::Irq, true)?;
 
             if let Some(pvgic_ptr) = self.pvgic {
                 let pvgic = unsafe { &mut *pvgic_ptr };
@@ -1007,6 +1007,10 @@ impl HvfVcpu {
         Ok(())
     }
 
+    pub fn set_vtimer_mask(&self, masked: bool) -> Result<(), Error> {
+        Self::set_vtimer_mask_static(self.hv_vcpu, masked)
+    }
+
     pub fn destroy(self) {
         let err = unsafe { hv_vcpu_destroy(self.hv_vcpu.0) };
         if err != 0 {
@@ -1014,22 +1018,19 @@ impl HvfVcpu {
         }
     }
 
-    pub fn request_exit(hv_vcpu: HvVcpuRef) -> Result<(), Error> {
+    fn set_pending_irq(&self, type_: InterruptType, pending: bool) -> Result<(), Error> {
+        let ret = unsafe { hv_vcpu_set_pending_interrupt(self.hv_vcpu.0, type_ as u32, pending) };
+        HvfError::result(ret).map_err(Error::VcpuSetPendingIrq)
+    }
+
+    pub fn request_exit_static(hv_vcpu: HvVcpuRef) -> Result<(), Error> {
         let mut vcpu: hv_vcpu_t = hv_vcpu.0;
         let ret = unsafe { hv_vcpus_exit(&mut vcpu, 1) };
         HvfError::result(ret).map_err(Error::VcpuRequestExit)
     }
 
-    pub fn set_pending_irq(
-        hv_vcpu: HvVcpuRef,
-        type_: InterruptType,
-        pending: bool,
-    ) -> Result<(), Error> {
-        let ret = unsafe { hv_vcpu_set_pending_interrupt(hv_vcpu.0, type_ as u32, pending) };
-        HvfError::result(ret).map_err(Error::VcpuSetPendingIrq)
-    }
-
-    pub fn set_vtimer_mask(hv_vcpu: HvVcpuRef, masked: bool) -> Result<(), Error> {
+    // TODO: remove this
+    pub fn set_vtimer_mask_static(hv_vcpu: HvVcpuRef, masked: bool) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_set_vtimer_mask(hv_vcpu.0, masked) };
         HvfError::result(ret).map_err(Error::VcpuSetVtimerMask)
     }
