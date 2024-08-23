@@ -79,12 +79,16 @@ impl NetBackend for Dgram {
     ///               (such as vnet header), that can be overwritten.
     ///               must be >= PASST_HEADER_LEN
     /// * `buf` - the buffer to write to passt, `buf[..hdr_len]` may be overwritten
-    fn write_frame(&mut self, hdr_len: usize, iovs: &mut [Iovec]) -> Result<(), WriteError> {
-        // skip header
-        if !iovs.is_empty() && iovs[0].len() >= hdr_len {
-            iovs[0].advance(hdr_len);
-        } else {
-            return Err(WriteError::Internal(nix::Error::EINVAL));
+    fn write_frame(&mut self, hdr_len: usize, mut iovs: &mut [Iovec]) -> Result<(), WriteError> {
+        // skip virtio-net header
+        if let Some(iov) = iovs.first_mut() {
+            #[allow(clippy::comparison_chain)]
+            if iov.len() == hdr_len {
+                // don't leave an empty iovec
+                iovs = &mut iovs[1..];
+            } else if iov.len() > hdr_len {
+                iov.advance(hdr_len);
+            }
         }
 
         match writev(self.fd.as_fd(), Iovec::slice_to_std(iovs)) {

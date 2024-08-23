@@ -58,12 +58,16 @@ impl NetBackend for CallbackBackend {
     }
 
     // write from guest to backend
-    fn write_frame(&mut self, hdr_len: usize, iovs: &mut [Iovec]) -> Result<(), WriteError> {
+    fn write_frame(&mut self, hdr_len: usize, mut iovs: &mut [Iovec]) -> Result<(), WriteError> {
         // skip virtio-net header
-        if !iovs.is_empty() && iovs[0].len() >= hdr_len {
-            iovs[0].advance(hdr_len);
-        } else {
-            return Err(WriteError::Internal(nix::Error::EINVAL));
+        if !iovs.is_empty() {
+            #[allow(clippy::comparison_chain)]
+            if iovs[0].len() == hdr_len {
+                // don't leave an empty iovec
+                iovs = &mut iovs[1..];
+            } else if iovs[0].len() > hdr_len {
+                iovs[0].advance(hdr_len);
+            }
         }
 
         let total_len = iovs.iter().map(|iov| iov.len()).sum();
