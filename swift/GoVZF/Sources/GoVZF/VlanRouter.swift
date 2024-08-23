@@ -18,7 +18,7 @@ private let routerQueue = DispatchQueue(label: "dev.orbstack.swext.router")
 private let maxPossiblePacketSize: UInt64 = 65536 + 14
 
 struct VlanRouterConfig: Codable {
-    let guestFd: Int32
+    let guestHandle: NetHandle
     let macPrefix: [UInt8]
     let maxVlanInterfaces: Int
 }
@@ -26,7 +26,7 @@ struct VlanRouterConfig: Codable {
 // serialied by routerQueue barriers
 // host->guest = macvlan, filtered by host source MAC on Linux side
 // guest->host = destination MAC or broadcast, because src MAC will be containers or Docker bridge
-class VlanRouter {
+class VlanRouter: NetCallbacks {
     // static circular array of slots
     private var interfaces: [BridgeNetwork?]
     private var guestReader: GuestReader?
@@ -38,7 +38,20 @@ class VlanRouter {
         macPrefix = config.macPrefix
     
         interfaces = [BridgeNetwork?](repeating: nil, count: config.maxVlanInterfaces)
-        guestReader = GuestReader(guestFd: config.guestFd, maxPacketSize: maxPossiblePacketSize, onPacket: self.onPacket)
+
+        // we only *read* packets from the guest, and dispatch them to BridgeNetworks
+        // each BridgeNetwork writes directly to the guest, as it has the right MAC
+        switch config.guestHandle {
+        case .rsvm:
+            // if we're using Rust handles + callbacks, don't start a reader;
+            // Rust will write all packets to the router directly
+            // just register the handle for that
+            NetworkHandles.setCallbacks(index: NetworkHandles.handleVlanRouter, cb: self)
+        case .fd(let fd):
+            guestReader = GuestReader(guestFd: fd, maxPacketSize: maxPossiblePacketSize, onPacket: { [self] iovs, numIovs, len in
+                let _ = writePacket(iovs: iovs, numIovs: numIovs, len: len)
+            })
+        }
 
         // monitor route for renewal
         // more reliable per-NWConnection UDP pathUpdateHandler, which is more granular:
@@ -55,32 +68,35 @@ class VlanRouter {
         }
         pathMonitor.start(queue: routerQueue)
     }
-    
-    func onPacket(iov: UnsafeMutablePointer<iovec>, len: Int) {
-        let pkt = Packet(iov: iov, len: len)
+
+    func writePacket(iovs: UnsafePointer<iovec>, numIovs: Int, len: Int) -> Int32 {
+        let pkt = Packet(iovs: iovs, len: len)
         do {
             let ifi = try PacketProcessor.extractInterfaceIndexToHost(pkt: pkt, macPrefix: self.macPrefix)
             if ifi == ifiBroadcast {
                 // broadcast to all interfaces
                 for bridge in interfaces {
                     if let bridge {
-                        bridge.tryWriteToHost(iov: iov, len: len)
+                        return bridge.writePacket(iovs: iovs, numIovs: numIovs, len: len)
                     }
                 }
             } else {
                 // unicast
                 let bridge = try interfaceAt(index: ifi)
-                bridge.tryWriteToHost(iov: iov, len: len)
+                return bridge.writePacket(iovs: iovs, numIovs: numIovs, len: len)
             }
         } catch {
             switch error {
             case BrnetError.interfaceNotFound:
                 // normal that some packets get dropped for no vlan match
-                break
+                return 0
             default:
                 NSLog("[brnet/router] invalid MAC or routing info: \(error)")
+                return -EINVAL
             }
         }
+
+        return 0
     }
 
     func addBridge(config: BridgeNetworkConfig) throws -> BrnetInterfaceIndex {

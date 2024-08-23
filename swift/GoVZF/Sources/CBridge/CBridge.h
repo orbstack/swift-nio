@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <sys/uio.h>
 
 struct GResultCreate {
     void* ptr;
@@ -45,6 +46,8 @@ struct virtio_net_hdr_v1 {
 #ifndef CGO
 void govzf_event_Machine_deinit(uintptr_t vmHandle);
 void govzf_event_Machine_onStateChange(uintptr_t vmHandle, int state);
+
+int rsvm_network_write_packet(uintptr_t handle, const struct iovec *iovs, size_t num_iovs, size_t total_len);
 
 void swext_proxy_cb_changed(void);
 void swext_fsevents_cb_krpc_events(uint8_t* krpc_buf, size_t krpc_buf_len);

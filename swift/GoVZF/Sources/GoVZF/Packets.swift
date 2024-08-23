@@ -50,21 +50,28 @@ struct PacketWriteOptions {
 }
 
 struct Packet {
+    // Packet is used for header processing.
+    // in multi-iovec packets, Packet can only access the first iovec. this avoids linearizing the packet or having complex iov advancing logic.
+    // it's enough because Linux allocates a single iovec for 
+    /// accessibleLen = first iovec's length; totalLen = all iovecs
     let data: UnsafeMutableRawPointer
-    let len: Int
+    let accessibleLen: Int
+    let totalLen: Int
 
     init(desc: vmpktdesc) {
         data = desc.vm_pkt_iov[0].iov_base
-        len = desc.vm_pkt_size
+        totalLen = desc.vm_pkt_size
+        accessibleLen = min(desc.vm_pkt_iov[0].iov_len, totalLen)
     }
 
-    init(iov: UnsafeMutablePointer<iovec>, len: Int) {
-        data = iov[0].iov_base
-        self.len = len
+    init(iovs: UnsafePointer<iovec>, len: Int) {
+        data = iovs[0].iov_base
+        totalLen = len
+        accessibleLen = min(iovs[0].iov_len, totalLen)
     }
 
     func load<T>(offset: Int) throws -> T {
-        if offset + MemoryLayout<T>.size > len {
+        if offset + MemoryLayout<T>.size > accessibleLen {
             throw BrnetError.invalidPacket
         }
 
@@ -72,7 +79,7 @@ struct Packet {
     }
 
     func store<T>(offset: Int, value: T) throws {
-        if offset + MemoryLayout<T>.size > len {
+        if offset + MemoryLayout<T>.size > accessibleLen {
             throw BrnetError.invalidPacket
         }
 
@@ -81,7 +88,7 @@ struct Packet {
 
     func slicePtr(offset: Int, len: Int) throws -> UnsafeMutableRawPointer {
         // bounds check
-        if len < 0 || offset + len > self.len {
+        if len < 0 || offset + len > self.accessibleLen {
             throw BrnetError.invalidPacket
         }
 
@@ -466,6 +473,9 @@ class PacketProcessor {
             return
         }
 
+        // only works with 1 iovec
+        assert(pkt.accessibleLen == pkt.totalLen)
+
         // check target address prefix
         let targetAddrPtr = try pkt.slicePtr(offset: 14 + 40 + 8, len: 16)
         guard memcmp(targetAddrPtr, ndpReplyPrefix, ndpReplyPrefix.count) == 0 else {
@@ -474,7 +484,7 @@ class PacketProcessor {
 
         // copy the entire old packet, but skip the ethernet header
         let oldPacketBuf = [UInt8](UnsafeBufferPointer(start: pkt.data.advanced(by: 14).assumingMemoryBound(to: UInt8.self),
-                                                       count: pkt.len - 14))
+                                                       count: pkt.accessibleLen - 14))
 
         // 1. new dest MAC = src MAC
         let srcMacPtr = try pkt.slicePtr(offset: macAddrSize, len: macAddrSize)
@@ -511,7 +521,7 @@ class PacketProcessor {
         let oldChecksum = try (pkt.load(offset: 14 + 40 + 2) as UInt16).bigEndian
         // need to create [UInt8] from the buffers
         let newPacketBuf = [UInt8](UnsafeBufferPointer(start: pkt.data.advanced(by: 14).assumingMemoryBound(to: UInt8.self),
-                                                       count: pkt.len - 14))
+                                                       count: pkt.accessibleLen - 14))
         let newChecksum = Checksum.update(oldChecksum: oldChecksum,
                                           oldData: oldPacketBuf, newData: newPacketBuf)
         try pkt.store(offset: 14 + 40 + 2, value: newChecksum.bigEndian)
@@ -576,7 +586,7 @@ class PacketProcessor {
         // gso: if TCP data segment > MSS (1500 - IP - TCP)
         if transportProto == IPPROTO_TCP {
             let tcpHdrLen = try ((pkt.load(offset: transportStartOff + 12) as UInt8) >> 4) * 4
-            let tcpDataLen = pkt.len - transportStartOff - Int(tcpHdrLen)
+            let tcpDataLen = pkt.totalLen - transportStartOff - Int(tcpHdrLen)
             let tcpMss = realExternalMtu - ipHdrLen - Int(tcpHdrLen)
             // print("tcp hdr len: \(tcpHdrLen)")
             // print("tcp data len: \(tcpDataLen)")
@@ -677,7 +687,7 @@ class GuestReader {
     private let iovs: UnsafeMutablePointer<iovec>
 
     init(guestFd: Int32, maxPacketSize: UInt64,
-         onPacket: @escaping (UnsafeMutablePointer<iovec>, Int) -> Void)
+         onPacket: @escaping (UnsafePointer<iovec>, Int, Int) -> Void)
     {
         iovs = UnsafeMutablePointer<iovec>.allocate(capacity: 1)
         iovs[0].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
@@ -701,7 +711,7 @@ class GuestReader {
             iovs[0].iov_len = n
 
             // dispatch
-            onPacket(iovs, n)
+            onPacket(iovs, 1, n)
         }
         source.activate()
     }

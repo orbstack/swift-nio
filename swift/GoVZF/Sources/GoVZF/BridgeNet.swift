@@ -16,7 +16,6 @@ let vmnetPktQueue = DispatchQueue(label: "dev.orbstack.brnet.1")
 // also use serial queue to be safe in case vmnet isn't thread safe
 let vmnetControlQueue = DispatchQueue(label: "dev.orbstack.brnet.2")
 
-private let dgramSockBuf = 512 * 1024
 private let maxPacketsPerRead = 64
 
 // sometimes hangs for unknown reasons
@@ -60,6 +59,35 @@ private enum VmnetError: Error {
             return .sharingServiceBusy
         default:
             return .generalFailure
+        }
+    }
+
+    func toErrno() -> Int32 {
+        switch self {
+        case .generalFailure:
+            return EIO
+        case .memFailure:
+            return ENOMEM
+        case .invalidArgument:
+            return EINVAL
+        case .setupIncomplete:
+            return ENODEV
+        case .invalidAccess:
+            return EACCES
+        case .packetTooBig:
+            return EMSGSIZE
+        case .bufferExhausted:
+            return ENOBUFS
+        case .tooManyPackets:
+            return ERANGE
+        case .sharingServiceBusy:
+            return EBUSY
+        case .noInterfaceRef:
+            return EBADF
+        case .startTimeout:
+            return ETIMEDOUT
+        case .stopTimeout:
+            return ETIMEDOUT
         }
     }
 }
@@ -109,9 +137,9 @@ private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) thr
 }
 
 struct BridgeNetworkConfig: Codable {
-    let guestFd: Int32
-    let guestSconFd: Int32
-    let shouldReadGuest: Bool
+    let guestHandle: NetHandle
+    let guestSconHandle: NetHandle
+    let ownsGuestReader: Bool
 
     let uuid: String
     let ip4Address: String?
@@ -128,7 +156,7 @@ struct BridgeNetworkConfig: Codable {
     let maxLinkMtu: Int
 }
 
-class BridgeNetwork {
+class BridgeNetwork: NetCallbacks {
     let config: BridgeNetworkConfig
 
     private let ifRef: interface_ref
@@ -226,13 +254,13 @@ class BridgeNetwork {
                     continue
                 }
 
-                var guestFd = config.guestFd
+                var guestHandle = config.guestHandle
                 let pkt = Packet(desc: pktDesc)
                 var vnetHdr: virtio_net_hdr_v1
                 do {
                     let redirectToScon = try processor.processToGuest(pkt: pkt)
                     if redirectToScon {
-                        guestFd = config.guestSconFd
+                        guestHandle = config.guestSconHandle
                     }
                     vnetHdr = try processor.buildVnetHdr(pkt: pkt)
                 } catch {
@@ -241,8 +269,8 @@ class BridgeNetwork {
                         break
                     case BrnetError.redirectToHost:
                         // redirect to host for NDP responder
-                        var iov = iovec(iov_base: pkt.data, iov_len: pkt.len)
-                        tryWriteToHost(iov: &iov, len: pkt.len)
+                        var iov = iovec(iov_base: pkt.data, iov_len: pkt.accessibleLen)
+                        _ = writePacket(iovs: &iov, numIovs: 1, len: pkt.accessibleLen)
                         continue
                     default:
                         NSLog("[brnet] error processing/building hdr: \(error)")
@@ -250,14 +278,16 @@ class BridgeNetwork {
                     continue
                 }
                 
-                let totalLen = pkt.len + vnetHdrSize
+                let totalLen = pkt.totalLen + vnetHdrSize
                 do {
                     try withUnsafeMutableBytes(of: &vnetHdr) { vnetHdrPtr in
                         var iovs = [
                             iovec(iov_base: vnetHdrPtr.baseAddress, iov_len: vnetHdrSize),
-                            iovec(iov_base: pkt.data, iov_len: pkt.len),
+                            iovec(iov_base: pkt.data, iov_len: pkt.accessibleLen),
                         ]
-                        try self.writeToGuest(fd: guestFd, iovs: &iovs, numIovs: 2, totalLen: totalLen)
+                        // we only create 1-iovec packet buffers here
+                        assert(pkt.accessibleLen == pkt.totalLen)
+                        try self.writeToGuest(handle: guestHandle, iovs: &iovs, numIovs: 2, totalLen: totalLen)
                     }
                 } catch {
                     switch error {
@@ -294,35 +324,42 @@ class BridgeNetwork {
         }
 
         // read from guest, write to vmnet
-        if config.shouldReadGuest {
-            guestReader = GuestReader(guestFd: config.guestFd, maxPacketSize: maxPacketSize,
-                                      onPacket: { [self] iov, len in
-                                          tryWriteToHost(iov: iov, len: len)
-                                      })
+        if config.ownsGuestReader {
+            // if we own the interface and read from it, register as the Rust network interface callback
+            switch config.guestHandle {
+            case .rsvm:
+                NetworkHandles.setCallbacks(index: NetworkHandles.handleSconBridge, cb: self)
+            case .fd(let fd):
+                guestReader = GuestReader(guestFd: fd, maxPacketSize: maxPacketSize,
+                                        onPacket: { [self] iovs, numIovs, len in
+                                            _ = writePacket(iovs: iovs, numIovs: numIovs, len: len)
+                                        })
+            }
         }
     }
 
-    func tryWriteToHost(iov: UnsafeMutablePointer<iovec>, len: Int) {
+    func writePacket(iovs: UnsafePointer<iovec>, numIovs: Int, len: Int) -> Int32 {
         // process packet
-        let pkt = Packet(iov: iov, len: len)
+        let pkt = Packet(iovs: iovs, len: len)
         let opts: PacketWriteOptions
         do {
             opts = try processor.processToHost(pkt: pkt)
         } catch {
             NSLog("[brnet] error processing to host: \(error)")
-            return
+            return -EINVAL
         }
 
         // write to vmnet
         var pktDesc = vmpktdesc(vm_pkt_size: len,
-                                vm_pkt_iov: iov,
-                                vm_pkt_iovcnt: 1,
+                                // shouldn't be written
+                                vm_pkt_iov: UnsafeMutablePointer(mutating: iovs),
+                                vm_pkt_iovcnt: UInt32(numIovs),
                                 vm_flags: 0)
         var pktsWritten: Int32 = 1
         let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
         guard ret2 == .VMNET_SUCCESS else {
             NSLog("[brnet] host write error: \(VmnetError.from(ret2))")
-            return
+            return VmnetError.from(ret2).toErrno()
         }
 
         // need to write again for TCP ECN SYN->RST workaround?
@@ -330,26 +367,30 @@ class BridgeNetwork {
             let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
             guard ret2 == .VMNET_SUCCESS else {
                 NSLog("[brnet] host write error: \(VmnetError.from(ret2))")
-                return
+                return VmnetError.from(ret2).toErrno()
             }
         }
+
+        return 0
     }
 
-    func writeToGuest(fd: Int32, iovs: UnsafePointer<iovec>, numIovs: Int32, totalLen: Int) throws {
-        let ret = writev(fd, iovs, numIovs)
-        guard ret != -1 else {
-            switch errno {
-            case ENOBUFS:
+    func writeToGuest(handle: NetHandle, iovs: UnsafePointer<iovec>, numIovs: Int, totalLen: Int) throws {
+        let ret = switch handle {
+        case .rsvm(let handle):
+            rsvm_network_write_packet(handle, iovs, numIovs, totalLen)
+        case .fd(let fd):
+            writev(fd, iovs, Int32(numIovs)) == -1 ? -errno : 0
+        }
+
+        guard ret >= 0 else {
+            switch ret {
+            case -EAGAIN, -EWOULDBLOCK, -ENOBUFS:
                 throw GuestWriteError.bufferFull
-            case ECONNRESET, EDESTADDRREQ:
+            case -EPIPE, -ECONNRESET, -EDESTADDRREQ:
                 throw GuestWriteError.backendDied
             default:
                 throw GuestWriteError.errno(errno)
             }
-        }
-
-        if ret != totalLen {
-            throw GuestWriteError.shortWrite
         }
     }
 
