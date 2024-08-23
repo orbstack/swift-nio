@@ -2,7 +2,6 @@
 // License: 0BSD
 
 #![cfg(any(target_os = "macos", target_os = "ios"))]
-#![cfg_attr(feature = "nightly", feature(coerce_unsized, unsize))]
 
 use std::cell::UnsafeCell;
 use std::default::Default;
@@ -171,7 +170,8 @@ impl<'a, T: ?Sized> Drop for MutexGuard<'a, T> {
 
 // extra impls: Mutex
 
-impl<T: ?Sized + Default> Default for Mutex<T> {
+// Default requires Sized
+impl<T: Default> Default for Mutex<T> {
     #[inline]
     fn default() -> Self {
         Mutex::new(T::default())
@@ -199,9 +199,6 @@ impl<T> From<T> for Mutex<T> {
     }
 }
 
-#[cfg(feature = "nightly")]
-impl<T, U> core::ops::CoerceUnsized<Mutex<U>> for Mutex<T> where T: core::ops::CoerceUnsized<U> {}
-
 // extra impls: MutexGuard
 
 impl<'a, T: ?Sized + Debug> Debug for MutexGuard<'a, T> {
@@ -218,19 +215,12 @@ impl<'a, T: ?Sized + Display> Display for MutexGuard<'a, T> {
     }
 }
 
-#[cfg(feature = "nightly")]
-impl<'a, T: ?Sized, U: ?Sized> core::ops::CoerceUnsized<MutexGuard<'a, U>> for MutexGuard<'a, T> where
-    T: core::marker::Unsize<U>
-{
-}
-
 #[cfg(test)]
 mod tests {
     use super::Mutex;
-    const TEST_CONST: Mutex<u32> = Mutex::new(42);
     #[test]
     fn basics() {
-        let m = TEST_CONST;
+        let m = Mutex::new(42u32);
         *m.lock().unwrap() += 1;
         {
             let mut g = m.try_lock().unwrap();
@@ -240,15 +230,5 @@ mod tests {
         m.assert_not_owner();
         assert_eq!(*m.lock().unwrap(), 44);
         assert_eq!(m.into_inner(), 44);
-    }
-    #[test]
-    #[cfg(feature = "nightly")]
-    fn unsize() {
-        use super::MutexGuard;
-        let m: Mutex<[u8; 1]> = Mutex::new([100]);
-        (&m as &Mutex<[u8]>).lock()[0] += 1;
-        (m.lock() as MutexGuard<'_, [u8]>)[0] += 1;
-        let n: Mutex<&'static [u8; 1]> = Mutex::new(&[200]);
-        let _: Mutex<&'static [u8]> = n;
     }
 }

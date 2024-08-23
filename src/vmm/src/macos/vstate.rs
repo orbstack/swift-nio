@@ -727,8 +727,7 @@ impl Vcpu {
         use vmm_ids::VmmShutdownPhase;
 
         // separate function so that this shows up in debug spindumps
-        // this is debug *info*, not debug_assertions, so it includes release-with-debug
-        #[cfg_attr(debug, inline(never))]
+        #[inline(never)]
         fn wait_for_pvlock(signal: &Arc<SignalChannel<VcpuSignalMask, VcpuWakerSet>>) {
             // allow spurious wakeups from IRQs, as it's just a hint to try locking again.
             // pending IRQs will be sent when DAIF is restored after a spurious wakeup.
