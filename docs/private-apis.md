@@ -7,9 +7,6 @@ Mach APIs are public, but not really documented and less common ones can occasio
 ## vmgr
 
 - NFS: raw NFS `mount` API, configuration passed as XDR
-- `recvmsg_x` BSD syscall: recvmmsg equivalent on macOS
-- RawSyscall with `SYS_RECVMSG_X`
-  - **This needs to be fixed**
 - sysctls: `kern.osversion`, `kern.osproductversion`
 
 ## krun
