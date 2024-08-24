@@ -174,10 +174,13 @@ func runContainerManager() {
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
+	disableColors := slices.Contains(os.Args[1:], "orb.console_is_pipe")
 	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
-		DisableColors:   slices.Contains(os.Args[1:], "orb.console_is_pipe"),
+		DisableColors:   disableColors,
+		// required since we output to vport, so logrus disables formatting as it thinks output isn't going to a tty
+		ForceColors: !disableColors,
 	}, "📦 scon | "))
 
 	logrus.Info("starting")
