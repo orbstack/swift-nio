@@ -70,7 +70,7 @@ impl HostPmap {
     }
 }
 
-fn page_size() -> usize {
+pub(crate) fn page_size() -> usize {
     unsafe { vm_page_size }
 }
 

@@ -1,3 +1,6 @@
+// not public exports
+#![allow(clippy::missing_safety_doc)]
+
 use std::sync::Arc;
 
 use crossbeam_channel::Sender;
@@ -18,6 +21,7 @@ mod aarch64;
 pub use aarch64::*;
 
 pub mod memory;
+pub mod memory_debug;
 pub mod profiler;
 
 pub struct VcpuProfilerState {

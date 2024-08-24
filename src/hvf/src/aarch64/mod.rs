@@ -4,6 +4,7 @@
 #[allow(non_snake_case)]
 #[allow(non_upper_case_globals)]
 #[allow(deref_nullptr)]
+#[allow(clippy::all)]
 mod bindings;
 
 mod error;
