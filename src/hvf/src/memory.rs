@@ -68,21 +68,6 @@ impl HostPmap {
 
         Ok(())
     }
-
-    unsafe fn madvise_prefaulted(
-        &self,
-        host_addr: *mut c_void,
-        size: usize,
-        advice: libc::c_int,
-    ) -> anyhow::Result<()> {
-        // prefault all pages in this range. not optimal, but REUSE/REUSABLE only works on pages mapped in the host pmap
-        let ret = madvise(host_addr, size, libc::MADV_WILLNEED);
-        Errno::result(ret)?;
-        let ret = madvise(host_addr, size, advice);
-        Errno::result(ret)?;
-
-        Ok(())
-    }
 }
 
 fn page_size() -> usize {
@@ -118,6 +103,7 @@ unsafe fn new_chunks_at(host_base_addr: *mut c_void, total_size: usize) -> anyho
     Ok(())
 }
 
+// although this ends up calling madvise page-by-page, it's still faster to use a range as large as possible because of the HVF unmap/map part
 /// # Safety
 /// host_addr must be a mapped, contiguous host memory region of at least `size` bytes
 pub unsafe fn free_range(
@@ -138,13 +124,14 @@ pub unsafe fn free_range(
     // hv_vm_protect(NONE) then (RWX) is faster but not reliable if swapping already caused pages to be removed from pmap
     hvf_vm.unmap_memory(guest_addr, size)?;
 
-    // take the host pmap lock:
-    // if remap_region races between MADV_WILLNEED and MADV_FREE_REUSABLE, REUSABLE won't work, because it requires pages to be in pmap
-    // mark as REUSABLE. this subtracts from phys_footprint, sets vmp_reusable, and adds pages to the inactive queue
-    HOST_PMAP
-        .lock()
-        .unwrap()
-        .madvise_prefaulted(host_addr, size, libc::MADV_FREE_REUSABLE)?;
+    // call madvise on each individual page, not as one large chunk
+    // this bypasses the pmap_clear_refmod_range_options optimization, which requires that pages are mapped in our pmap (which they aren't, because of periodic remapping)
+    // pmap ref/mod is the source of truth, so it prevents pageout despite vmp_dirty=FALSE
+    // this looks slow, but it's faster than the alternative of retouching/prefaulting each page to map it, which also causes memory pressure spikes if swapping
+    for addr in (host_addr as usize..host_addr as usize + size).step_by(page_size()) {
+        let ret = madvise(addr as *mut c_void, page_size(), libc::MADV_FREE_REUSABLE);
+        Errno::result(ret)?;
+    }
 
     // remap memory after madvise(REUSABLE), to reduce how many pmaps that it has to modify
     hvf_vm.map_memory(host_addr as *mut u8, guest_addr, size, MemoryFlags::RWX)?;
@@ -163,14 +150,10 @@ pub unsafe fn reuse_range(host_addr: *mut c_void, size: usize) -> anyhow::Result
         return Err(anyhow!("unaligned size: {}", size));
     }
 
-    // REUSE has the same requirement as above (REUSABLE): pages must be in host pmap
-    let pmap = HOST_PMAP.lock().unwrap();
-    pmap.madvise_prefaulted(host_addr, size, libc::MADV_FREE_REUSE)?;
-
-    // REUSE is especially annoying, because if we WILLNEED and REUSE pages on the host, they'll all be immediately accounted to *our* pmap, and redirtied in our pmap
-    // they'll also be redirtied and accounted to the VM pmap when the fast fault fires
-    // so we need to fix double-accounting by remapping
-    pmap.remap(host_addr, size)?;
+    // this can be one big call, as long as REUSABLE was set properly
+    // it iterates through pages in the object's queue -- no pmap tricks
+    let ret = madvise(host_addr, size, libc::MADV_FREE_REUSE);
+    Errno::result(ret)?;
 
     Ok(())
 }
