@@ -11,7 +11,7 @@ struct MachinesRootView: View {
     @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
 
-    @State private var selection: String?
+    @State private var selection: Set<String> = []
     @State private var creatingOpacity = 0.0
 
     var body: some View {
@@ -27,7 +27,7 @@ struct MachinesRootView: View {
                                 .environmentObject(windowTracker)
                                 .environmentObject(actionTracker)
                         }
-                        .inspectorSelection((selection != nil) ? [selection!] : [])
+                        .inspectorSelection(selection)
                     } else {
                         Spacer()
                         HStack {

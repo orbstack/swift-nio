@@ -8,8 +8,12 @@ import SwiftUI
 struct MachineContainerItem: View {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
+    @EnvironmentObject var listModel: AKListModel
 
     var record: ContainerRecord
+    var selection: Set<String> {
+        listModel.selection as! Set<String>
+    }
 
     @State private var presentConfirmDelete = false
     @State private var presentRename = false
@@ -17,6 +21,10 @@ struct MachineContainerItem: View {
     var body: some View {
         let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
         let running = record.running || vmModel.restartingMachines.contains(record.id)
+        let deletionList = resolveActionList()
+        let deleteConfirmMsg = deletionList.count > 1 ?
+            "Delete machines?" :
+            "Delete machine?"
 
         HStack {
             Image("distro_\(record.image.distro)")
@@ -51,22 +59,14 @@ struct MachineContainerItem: View {
                 ProgressIconButton(systemImage: "stop.fill",
                                    actionInProgress: actionInProgress || record.state == .creating)
                 {
-                    Task { @MainActor in
-                        await actionTracker.with(machine: record, action: .stop) {
-                            await vmModel.tryStopContainer(record)
-                        }
-                    }
+                    finishStop()
                 }
                 .help("Stop \(record.name)")
             } else {
                 ProgressIconButton(systemImage: "play.fill",
                                    actionInProgress: actionInProgress || record.state == .creating)
                 {
-                    Task { @MainActor in
-                        await actionTracker.with(machine: record, action: .start) {
-                            await vmModel.tryStartContainer(record)
-                        }
-                    }
+                    finishStart()
                 }
                 .help("Start \(record.name)")
             }
@@ -76,22 +76,14 @@ struct MachineContainerItem: View {
             Group {
                 if running {
                     Button(action: {
-                        Task { @MainActor in
-                            await actionTracker.with(machine: record, action: .stop) {
-                                await vmModel.tryStopContainer(record)
-                            }
-                        }
+                        finishStop()
                     }) {
                         Label("Stop", systemImage: "restart")
                     }
                     .disabled(actionInProgress)
                 } else {
                     Button(action: {
-                        Task { @MainActor in
-                            await actionTracker.with(machine: record, action: .start) {
-                                await vmModel.tryStartContainer(record)
-                            }
-                        }
+                        finishRestart()
                     }) {
                         Label("Start", systemImage: "restart")
                     }
@@ -99,45 +91,45 @@ struct MachineContainerItem: View {
                 }
 
                 Button(action: {
-                    Task { @MainActor in
-                        await actionTracker.with(machine: record, action: .restart) {
-                            await vmModel.tryRestartContainer(record)
-                        }
-                    }
+                    finishRestart()
                 }) {
                     Label("Restart", systemImage: "restart")
                 }
                 .disabled(actionInProgress)
             }
 
-            Divider()
+            if selection.count == 1 {
+                Divider()
 
-            Button(action: {
-                Task {
-                    await record.openInTerminal()
+                Button(action: {
+                    Task {
+                        await record.openInTerminal()
+                    }
+                }) {
+                    Label("Open Terminal", systemImage: "terminal")
                 }
-            }) {
-                Label("Open Terminal", systemImage: "terminal")
-            }
-            Button(action: {
-                record.openNfsDirectory()
-            }) {
-                Label("Open Files", systemImage: "folder")
+                Button(action: {
+                    record.openNfsDirectory()
+                }) {
+                    Label("Open Files", systemImage: "folder")
+                }
             }
 
             Divider()
 
             Group {
-                Button(action: {
-                    Task {
-                        await vmModel.trySetDefaultContainer(record)
+                if selection.count == 1 {
+                    Button(action: {
+                        Task {
+                            await vmModel.trySetDefaultContainer(record)
+                        }
+                    }) {
+                        Label("Make Default", systemImage: "star")
                     }
-                }) {
-                    Label("Make Default", systemImage: "star")
-                }
 
-                Button("Rename") {
-                    self.presentRename = true
+                    Button("Rename") {
+                        self.presentRename = true
+                    }
                 }
 
                 Button(role: .destructive, action: {
@@ -152,13 +144,15 @@ struct MachineContainerItem: View {
                 .disabled(actionInProgress)
             }
 
-            Divider()
+            if selection.count == 1 {
+                Divider()
 
-            Button("Copy Address") {
-                NSPasteboard.copy("\(record.name).orb.local")
-            }.disabled(!running || !vmModel.netBridgeAvailable)
+                Button("Copy Address") {
+                    NSPasteboard.copy("\(record.name).orb.local")
+                }.disabled(!running || !vmModel.netBridgeAvailable)
+            }
         }
-        .confirmationDialog("Delete \(record.name)?",
+        .confirmationDialog(deleteConfirmMsg,
                             isPresented: $presentConfirmDelete)
         {
             Button("Delete", role: .destructive) {
@@ -177,11 +171,70 @@ struct MachineContainerItem: View {
         }
     }
 
-    private func finishDelete() {
-        Task { @MainActor in
-            await actionTracker.with(machine: record, action: .delete) {
-                await vmModel.tryDeleteContainer(record)
+    @MainActor
+    func finishStop() {
+        for cid in resolveActionList() {
+            let container = (vmModel.containers?.first(where: { $0.id == cid }))!
+
+            Task { @MainActor in
+                await actionTracker.with(machine: container, action: .delete) {
+                    await vmModel.tryStopContainer(container)
+                }
             }
+        }
+    }
+
+    @MainActor
+    func finishStart() {
+        for cid in resolveActionList() {
+            let container = (vmModel.containers?.first(where: { $0.id == cid }))!
+
+            Task { @MainActor in
+                await actionTracker.with(machine: container, action: .delete) {
+                    await vmModel.tryStartContainer(container)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func finishRestart() {
+        for cid in resolveActionList() {
+            let container = (vmModel.containers?.first(where: { $0.id == cid }))!
+
+            Task { @MainActor in
+                await actionTracker.with(machine: container, action: .delete) {
+                    await vmModel.tryRestartContainer(container)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func finishDelete() {
+        for cid in resolveActionList() {
+            let container = (vmModel.containers?.first(where: { $0.id == cid }))!
+
+            Task { @MainActor in
+                await actionTracker.with(machine: container, action: .delete) {
+                    await vmModel.tryDeleteContainer(container)
+                }
+            }
+        }
+    }
+
+    func isSelected() -> Bool {
+        selection.contains(record.id)
+    }
+
+    @MainActor
+    func resolveActionList() -> Set<String> {
+        // if action is performed on a selected item, then use all selections
+        // otherwise only use volume
+        if isSelected() {
+            return selection
+        } else {
+            return [record.id]
         }
     }
 }
