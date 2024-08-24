@@ -16,6 +16,10 @@ impl MachAbsoluteTime {
         Self(unsafe { mach_absolute_time() })
     }
 
+    pub const fn zero() -> Self {
+        Self(0)
+    }
+
     pub fn from_raw(raw: u64) -> Self {
         Self(raw)
     }
