@@ -6,6 +6,7 @@
 #include <mach/mach_vm.h>
 #include <mach/mach_init.h>
 #include <string.h>
+#include <pthread.h>
 
 // make the compiler assemble this for us
 void guest_payload(void) __attribute__((naked));
@@ -33,26 +34,14 @@ void check_hvf(hv_return_t ret) {
 }
 
 #define ITERS 2000000
+#define WORKERS 1
 
-int main(int argc, const char * argv[]) {
-    check_hvf(hv_vm_create(NULL));
+void *worker(void* context) {
+    uint64_t anon_guest_addr = 0x80000000 + 0x100000 * (int)context;
 
     hv_vcpu_t vcpu;
     hv_vcpu_exit_t *exit_reason;
     check_hvf(hv_vcpu_create(&vcpu, &exit_reason, NULL));
-
-    // allocate guest memory
-    void *guest_mem = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (guest_mem == MAP_FAILED) {
-        perror("mmap");
-        exit(1);
-    }
-
-    // copy the guest payload into the guest memory
-    memcpy(guest_mem, guest_payload, 16384);
-
-    // map the guest memory into the guest's address space
-    check_hvf(hv_vm_map(guest_mem, 0x10000000, 16384, HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC));
 
     // allocate anon memory
     void *anon_mem = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -66,11 +55,11 @@ int main(int argc, const char * argv[]) {
     memcpy(anon_mem, &val, sizeof(val));
 
     // map the anon memory into the guest's address space
-    check_hvf(hv_vm_map(anon_mem, 0x80000000, 16384, HV_MEMORY_READ | HV_MEMORY_WRITE));
+    check_hvf(hv_vm_map(anon_mem, anon_guest_addr, 16384, HV_MEMORY_READ | HV_MEMORY_WRITE));
 
     // set the guest's instruction pointer to the start of the guest memory
     check_hvf(hv_vcpu_set_reg(vcpu, HV_REG_PC, 0x10000000));
-    check_hvf(hv_vcpu_set_reg(vcpu, HV_REG_X5, 0x80000000));
+    check_hvf(hv_vcpu_set_reg(vcpu, HV_REG_X5, anon_guest_addr));
 
     // boot in EL1, mask DAIF
     check_hvf(hv_vcpu_set_reg(vcpu, HV_REG_CPSR, 0x3c0 | 0x5));
@@ -112,25 +101,34 @@ int main(int argc, const char * argv[]) {
         // madvise(anon_mem, 16384, MADV_FREE_REUSE);
 
         // remap memory
-        // check_hvf(hv_vm_unmap(0x80000000, 16384));
+        check_hvf(hv_vm_unmap(anon_guest_addr, 16384));
 
         // trigger a fast fault
-        memcpy(anon_mem, &val, sizeof(val));
-        // madvise(anon_mem, 16384, MADV_FREE_REUSABLE);
-        // retouch it on host
-        uint64_t before = mach_absolute_time();
+        // madvise(anon_mem, 16384, MADV_FREE_REUSE);
         // memcpy(anon_mem, &val, sizeof(val));
-        mach_vm_address_t addr = (mach_vm_address_t)anon_mem;
-        int cur_prot = VM_PROT_READ | VM_PROT_WRITE;
-        int max_prot = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
-        kern_return_t ret = mach_vm_remap(mach_task_self(), &addr, 16384, 0, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, mach_task_self(), addr, 0, &cur_prot, &max_prot, VM_INHERIT_NONE);
-        if (ret != KERN_SUCCESS) {
-            return 1;
-        }
-        uint64_t after = mach_absolute_time();
-        // check_hvf(hv_vm_map(anon_mem, 0x80000000, 16384, HV_MEMORY_READ | HV_MEMORY_WRITE));
+        // // retouch it on host
+        // uint64_t before = mach_absolute_time();
+        // // memcpy(anon_mem, &val, sizeof(val));
+        // mach_vm_address_t addr = (mach_vm_address_t)anon_mem;
+        // int cur_prot = VM_PROT_READ | VM_PROT_WRITE;
+        // int max_prot = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
+        // kern_return_t ret = mach_vm_remap(mach_task_self(), &addr, 16384, 0, VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, mach_task_self(), addr, 0, &cur_prot, &max_prot, VM_INHERIT_NONE);
+        // if (ret != KERN_SUCCESS) {
+        //     exit(1);
+        // }
+        // uint64_t after = mach_absolute_time();
+        // madvise(anon_mem, 16384, MADV_FREE_REUSABLE);
 
-        acc_delta += (after - before);
+        // make a new chunk to test new page insertion speed
+        // void *anon_mem = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        // if (anon_mem == MAP_FAILED) {
+        //     perror("mmap");
+        //     exit(1);
+        // }
+
+        check_hvf(hv_vm_map(anon_mem, anon_guest_addr, 16384, HV_MEMORY_READ | HV_MEMORY_WRITE));
+
+        acc_delta += delta;//(after - before);
     }
 
     uint64_t avg_delta = acc_delta / ITERS;
@@ -158,6 +156,33 @@ int main(int argc, const char * argv[]) {
     // pure host fast fault cost = 458 ns to clear a REUSABLE fast fault, when not mapped in VM. 833ns to clear fast fault on host when mapped in both VM and host pmaps. mach_vm_remap = 1041 ns
     // TODO: spindump to see why
     printf("avg VM_fault time: %lld ns\n", avg_delta);
+
+    return NULL;
+}
+
+int main(int argc, const char * argv[]) {
+    check_hvf(hv_vm_create(NULL));
+
+    // allocate guest memory
+    void *guest_mem = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (guest_mem == MAP_FAILED) {
+        perror("mmap");
+        exit(1);
+    }
+
+    // copy the guest payload into the guest memory
+    memcpy(guest_mem, guest_payload, 16384);
+
+    // map the guest memory into the guest's address space
+    check_hvf(hv_vm_map(guest_mem, 0x10000000, 16384, HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC));
+
+    pthread_t *threads = malloc(WORKERS * sizeof(pthread_t));
+    for (int i = 0; i < WORKERS; i++) {
+        pthread_create(&threads[i], NULL, worker, (void*)i);
+    }
+    for (int i = 0; i < WORKERS; i++) {
+        pthread_join(threads[i], NULL);
+    }
 
     return 0;
 }
