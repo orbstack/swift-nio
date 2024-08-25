@@ -11,7 +11,7 @@ use mach2::{
 use thiserror::Error;
 
 use super::{
-    kern_return::KernReturn,
+    error::{MachError, MachResult},
     time::{MachAbsoluteDuration, MachAbsoluteTime},
 };
 
@@ -51,16 +51,15 @@ pub struct TimerSet<T> {
 }
 
 impl<T: Borrow<Timer>> TimerSet<T> {
-    pub fn new() -> Result<Self, KernReturn> {
+    pub fn new() -> MachResult<Self> {
         unsafe {
             let task = current_task();
             let mut port_set = 0 as mach_port_name_t;
-            KernReturn::new(mach_port_allocate(
+            MachError::result(mach_port_allocate(
                 task,
                 MACH_PORT_RIGHT_PORT_SET,
                 &mut port_set,
-            ))
-            .as_result()?;
+            ))?;
 
             Ok(Self {
                 task,
@@ -70,11 +69,10 @@ impl<T: Borrow<Timer>> TimerSet<T> {
         }
     }
 
-    pub fn add(&mut self, timer: T) -> Result<(), KernReturn> {
-        KernReturn::new(unsafe {
+    pub fn add(&mut self, timer: T) -> MachResult<()> {
+        MachError::result(unsafe {
             mach_port_move_member(self.task, timer.borrow().timer, self.port_set)
-        })
-        .as_result()?;
+        })?;
         self.timers.push(timer);
         Ok(())
     }
@@ -101,7 +99,7 @@ impl<T: Borrow<Timer>> TimerSet<T> {
 impl<T> Drop for TimerSet<T> {
     fn drop(&mut self) {
         if let Err(err) =
-            KernReturn::new(unsafe { mach_port_deallocate(self.task, self.port_set) }).as_result()
+            MachError::result(unsafe { mach_port_deallocate(self.task, self.port_set) })
         {
             eprintln!("Failed to destroy timer set: {err:?}");
         }
@@ -132,17 +130,17 @@ impl Timer {
         }
     }
 
-    pub fn arm_until(&self, timeout: MachAbsoluteTime) -> Result<(), KernReturn> {
-        KernReturn::new(unsafe { mk_timer_arm(self.timer, timeout.0) }).as_result()
+    pub fn arm_until(&self, timeout: MachAbsoluteTime) -> MachResult<()> {
+        MachError::result(unsafe { mk_timer_arm(self.timer, timeout.0) })
     }
 
-    pub fn arm_for(&self, timeout: MachAbsoluteDuration) -> Result<(), KernReturn> {
+    pub fn arm_for(&self, timeout: MachAbsoluteDuration) -> MachResult<()> {
         self.arm_until(MachAbsoluteTime::now() + timeout)
     }
 
-    pub fn cancel(&self) -> Result<u64, KernReturn> {
+    pub fn cancel(&self) -> MachResult<u64> {
         let mut res_time = 0u64;
-        KernReturn::new(unsafe { mk_timer_cancel(self.timer, &mut res_time) }).as_result()?;
+        MachError::result(unsafe { mk_timer_cancel(self.timer, &mut res_time) })?;
         Ok(res_time)
     }
 
@@ -169,7 +167,7 @@ impl Timer {
 
 impl Drop for Timer {
     fn drop(&mut self) {
-        if let Err(err) = KernReturn::new(unsafe { mk_timer_destroy(self.timer) }).as_result() {
+        if let Err(err) = MachError::result(unsafe { mk_timer_destroy(self.timer) }) {
             eprintln!("Failed to destroy timer: {err:?}");
         }
     }
