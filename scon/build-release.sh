@@ -5,7 +5,11 @@ set -euo pipefail
 out="${1:-.}"
 tags="${2:-release}"
 
-# strip comments
+# Apple M1 is ARMv8.4 + most v8.5 extensions (SB, SSBS, CCDP, FRINT3264, SPECRESTRICT, ALTERNATIVENZCV)
+# just use v8.4 for simplicity -- we mainly care about specializing for LSE atomics
+export GOARM64=v8.4
+
+# strip comments from nftables rules
 sed -ie 's/^\s*#.*$//g' nft/*.conf
 
 # must be static

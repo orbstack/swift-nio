@@ -18,6 +18,9 @@ RUN apk add --no-cache go alpine-sdk lxc-dev bash \
 # must build vmgr and scon together because they depend on each other
 FROM go-base AS go-build
 ENV GOTOOLCHAIN=auto
+# Apple M1 is ARMv8.4 + most v8.5 extensions (SB, SSBS, CCDP, FRINT3264, SPECRESTRICT, ALTERNATIVENZCV)
+# just use v8.4 for simplicity -- we mainly care about specializing for LSE atomics
+ENV GOARM64=v8.4
 COPY vendor /build/vendor
 COPY scon /build/scon
 COPY vmgr /build/vmgr
