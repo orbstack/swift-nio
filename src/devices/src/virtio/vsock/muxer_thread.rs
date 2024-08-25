@@ -25,7 +25,7 @@ pub struct MuxerThread {
     mem: GuestMemoryMmap,
     queue: Arc<Mutex<VirtQueue>>,
     interrupt_evt: EventFd,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
     reaper_sender: Sender<u64>,
 }
@@ -40,7 +40,7 @@ impl MuxerThread {
         mem: GuestMemoryMmap,
         queue: Arc<Mutex<VirtQueue>>,
         interrupt_evt: EventFd,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
         reaper_sender: Sender<u64>,
     ) -> Self {
@@ -135,7 +135,7 @@ impl MuxerThread {
         if should_signal {
             debug!("signal IRQ");
             if let Some(intc) = &self.intc {
-                intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+                intc.set_irq(self.irq_line.unwrap());
             } else if let Err(e) = self.interrupt_evt.write() {
                 warn!("failed to signal used queue: {:?}", e);
             }

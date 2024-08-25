@@ -105,7 +105,7 @@ pub struct VsockMuxer {
     rxq: Arc<Mutex<MuxerRxQ>>,
     epoll: Epoll,
     interrupt_evt: EventFd,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
     proxy_map: ProxyMap,
     reaper_sender: Option<Sender<u64>>,
@@ -139,7 +139,7 @@ impl VsockMuxer {
         &mut self,
         mem: GuestMemoryMmap,
         queue: Arc<Mutex<VirtQueue>>,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
     ) {
         self.queue = Some(queue.clone());
@@ -233,7 +233,7 @@ impl VsockMuxer {
 
         if update.signal_queue {
             if let Some(intc) = &self.intc {
-                intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+                intc.set_irq(self.irq_line.unwrap());
             } else if let Err(e) = self.interrupt_evt.write() {
                 warn!("failed to signal used queue: {:?}", e);
             }

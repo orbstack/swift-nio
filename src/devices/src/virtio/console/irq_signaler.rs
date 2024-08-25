@@ -1,11 +1,10 @@
 use std::sync::Arc;
-use utils::Mutex;
 
 use crate::legacy::Gic;
 
 #[derive(Clone)]
 pub struct IRQSignaler {
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
 }
 
@@ -21,7 +20,7 @@ impl IRQSignaler {
         tracing::trace!("signal used queue because '{reason}'");
 
         if let Some(intc) = &self.intc {
-            intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+            intc.set_irq(self.irq_line.unwrap());
         }
     }
 
@@ -30,7 +29,7 @@ impl IRQSignaler {
         todo!();
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.intc = Some(intc);
     }
 

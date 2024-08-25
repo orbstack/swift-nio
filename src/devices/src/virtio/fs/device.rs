@@ -63,7 +63,7 @@ pub struct Fs {
     signals: Arc<FsSignalChannel>,
     avail_features: u64,
     acked_features: u64,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
     device_state: DeviceState,
     config: VirtioFsConfig,
@@ -129,7 +129,7 @@ impl Fs {
         defs::FS_DEV_ID
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.intc = Some(intc);
     }
 

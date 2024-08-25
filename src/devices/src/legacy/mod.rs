@@ -25,7 +25,7 @@ use aarch64::serial;
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 pub use self::gic::GicSysReg;
 #[cfg(target_os = "macos")]
-pub use self::gic::{Gic, GicVcpuHandle, WfeThread};
+pub use self::gic::{Gic, GicBusDevice, GicVcpuHandle, WfeThread};
 #[cfg(target_arch = "aarch64")]
 pub use self::gpio::Gpio;
 pub use self::i8042::Error as I8042DeviceError;
@@ -39,11 +39,3 @@ pub use self::serial::Serial;
 // Run `rustc --explain E0225` for more details.
 /// Trait that composes the `std::io::Read` and `std::os::unix::io::AsRawFd` traits.
 pub trait ReadableFd: std::io::Read + std::os::fd::AsRawFd {}
-
-#[cfg(target_os = "linux")]
-pub struct Gic {}
-
-#[cfg(target_os = "linux")]
-impl Gic {
-    pub fn set_irq(&mut self, _irq: u32) {}
-}

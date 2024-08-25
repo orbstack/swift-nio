@@ -16,7 +16,7 @@ use arch::aarch64::DeviceInfoForFDT;
 use arch::DeviceType;
 use devices::{self, ErasedBusDevice};
 
-use devices::legacy::Gic;
+use devices::legacy::{Gic, GicBusDevice};
 use kernel::cmdline as kernel_cmdline;
 use utils::eventfd::EventFd;
 
@@ -173,7 +173,7 @@ impl MMIODeviceManager {
         &mut self,
         _vm: &Vm,
         cmdline: &mut kernel_cmdline::Cmdline,
-        intc: Option<Arc<Mutex<devices::legacy::Gic>>>,
+        intc: Option<Arc<devices::legacy::Gic>>,
         serial: Arc<Mutex<devices::legacy::Serial>>,
     ) -> Result<()> {
         if self.irq > self.last_irq {
@@ -215,7 +215,7 @@ impl MMIODeviceManager {
 
     #[cfg(target_arch = "aarch64")]
     /// Register a MMIO RTC device.
-    pub fn register_mmio_rtc(&mut self, _vm: &Vm, _intc: Option<Arc<Mutex<Gic>>>) -> Result<()> {
+    pub fn register_mmio_rtc(&mut self, _vm: &Vm, _intc: Option<Arc<Gic>>) -> Result<()> {
         if self.irq > self.last_irq {
             return Err(Error::IrqsExhausted);
         }
@@ -249,7 +249,7 @@ impl MMIODeviceManager {
     pub fn register_mmio_gpio(
         &mut self,
         _vm: &Vm,
-        intc: Option<Arc<Mutex<devices::legacy::Gic>>>,
+        intc: Option<Arc<devices::legacy::Gic>>,
         event_manager: &mut gruel::EventManager,
         shutdown_efd: EventFd,
     ) -> Result<()> {
@@ -296,14 +296,13 @@ impl MMIODeviceManager {
 
     #[cfg(target_arch = "aarch64")]
     /// Register a MMIO GIC device.
-    pub fn register_mmio_gic(&mut self, _vm: &Vm, intc: Option<Arc<Mutex<Gic>>>) -> Result<()> {
+    pub fn register_mmio_gic(&mut self, _vm: &Vm, intc: Option<Arc<Gic>>) -> Result<()> {
         if let Some(intc) = intc {
-            let (addr, size) = {
-                let intc = intc.lock().unwrap();
-                (intc.get_addr(), intc.get_size())
-            };
+            let (addr, size) = (intc.get_addr(), intc.get_size());
 
-            self.bus.insert(intc, addr, size).map_err(Error::BusError)?;
+            self.bus
+                .insert(GicBusDevice(intc), addr, size)
+                .map_err(Error::BusError)?;
         }
 
         Ok(())

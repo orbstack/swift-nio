@@ -33,7 +33,7 @@ impl CallbackBackend {
         callbacks: Arc<dyn HostNetCallbacks>,
         queue: Queue,
         mem: GuestMemoryMmap,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
     ) -> CallbackBackend {
         let guest_cb: Arc<dyn NetCallbacks> =
@@ -91,7 +91,7 @@ impl Drop for CallbackBackend {
 struct GuestCallbacksInner {
     guest_rx_queue: Queue,
     mem: GuestMemoryMmap,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
     iovecs_buf: IovecsBuffer,
 }
@@ -124,7 +124,7 @@ impl GuestCallbacksInner {
 
         if queue.needs_notification(&self.mem).unwrap() {
             if let Some(intc) = &self.intc {
-                intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+                intc.set_irq(self.irq_line.unwrap());
             }
         }
 

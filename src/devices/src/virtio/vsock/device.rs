@@ -49,7 +49,7 @@ pub struct Vsock {
     pub(crate) interrupt_evt: EventFd,
     pub(crate) activate_evt: EventFd,
     pub(crate) device_state: DeviceState,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
 }
 
@@ -112,7 +112,7 @@ impl Vsock {
         defs::VSOCK_DEV_ID
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.intc = Some(intc);
     }
 
@@ -125,7 +125,7 @@ impl Vsock {
     pub fn signal_used_queue(&self) -> result::Result<(), DeviceError> {
         debug!("vsock: raising IRQ");
         if let Some(intc) = &self.intc {
-            intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+            intc.set_irq(self.irq_line.unwrap());
             Ok(())
         } else {
             self.interrupt_evt.write().map_err(|e| {

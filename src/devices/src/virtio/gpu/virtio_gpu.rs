@@ -112,7 +112,7 @@ impl VirtioGpu {
         queue_ctl: Arc<Mutex<VirtQueue>>,
         fence_state: Arc<Mutex<FenceState>>,
         interrupt_evt: EventFd,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
     ) -> RutabagaFenceHandler {
         RutabagaFenceHandler::new(move |completed_fence: RutabagaFence| {
@@ -151,7 +151,7 @@ impl VirtioGpu {
                     }
 
                     if let Some(intc) = &intc {
-                        intc.lock().unwrap().set_irq(irq_line.unwrap());
+                        intc.set_irq(irq_line.unwrap());
                     } else if let Err(e) = interrupt_evt.write(1) {
                         error!("Failed to signal used queue: {:?}", e);
                     }
@@ -171,7 +171,7 @@ impl VirtioGpu {
         mem: GuestMemoryMmap,
         queue_ctl: Arc<Mutex<VirtQueue>>,
         interrupt_evt: EventFd,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
         virgl_flags: u32,
         #[cfg(target_os = "macos")] map_sender: Sender<MemoryMapping>,

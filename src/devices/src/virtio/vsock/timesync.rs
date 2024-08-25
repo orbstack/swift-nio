@@ -21,7 +21,7 @@ pub struct TimesyncThread {
     mem: GuestMemoryMmap,
     queue_mutex: Arc<Mutex<VirtQueue>>,
     interrupt_evt: EventFd,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
 }
 
@@ -31,7 +31,7 @@ impl TimesyncThread {
         mem: GuestMemoryMmap,
         queue_mutex: Arc<Mutex<VirtQueue>>,
         interrupt_evt: EventFd,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
     ) -> Self {
         Self {
@@ -63,7 +63,7 @@ impl TimesyncThread {
                     error!("failed to add used elements to the queue: {:?}", e);
                 }
                 if let Some(intc) = &self.intc {
-                    intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+                    intc.set_irq(self.irq_line.unwrap());
                 } else if let Err(e) = self.interrupt_evt.write() {
                     warn!("failed to signal used queue: {:?}", e);
                 }

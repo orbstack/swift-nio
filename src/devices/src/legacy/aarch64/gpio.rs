@@ -13,7 +13,6 @@ use std::fmt;
 use std::os::fd::{AsRawFd, RawFd};
 use std::result;
 use std::sync::Arc;
-use utils::Mutex;
 
 use utils::byte_order::{read_le_u32, write_le_u32};
 use utils::eventfd::EventFd;
@@ -75,7 +74,7 @@ pub struct Gpio {
     afsel: u32,
     // GPIO irq_field
     interrupt_evt: EventFd,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
     shutdown_efd: EventFd,
 }
@@ -99,7 +98,7 @@ impl Gpio {
         }
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.intc = Some(intc);
     }
 
@@ -167,7 +166,7 @@ impl Gpio {
 
     fn trigger_gpio_interrupt(&self) {
         if let Some(intc) = &self.intc {
-            intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+            intc.set_irq(self.irq_line.unwrap());
         } else if let Err(e) = self.interrupt_evt.write() {
             error!("Failed to signal used queue: {:?}", e);
         }

@@ -460,7 +460,7 @@ pub fn build_microvm(
     #[cfg(target_os = "linux")]
     let intc = None;
     #[cfg(target_os = "macos")]
-    let intc = Some(Arc::new(Mutex::new(devices::legacy::Gic::new(&vm.hvf_vm))));
+    let intc = Some(Arc::new(devices::legacy::Gic::new(&vm.hvf_vm)));
 
     #[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
     let boot_ip: GuestAddress = GuestAddress(kernel_bundle.entry_addr);
@@ -918,7 +918,7 @@ fn attach_legacy_devices(
     vm: &Vm,
     mmio_device_manager: &mut MMIODeviceManager,
     kernel_cmdline: &mut kernel::cmdline::Cmdline,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     serial: Option<Arc<Mutex<Serial>>>,
     event_manager: &mut EventManager,
     shutdown_efd: Option<EventFd>,
@@ -1055,7 +1055,7 @@ fn create_vcpus_aarch64(
     guest_mem: &GuestMemoryMmap,
     _request_ts: TimestampUs,
     exit_evt: &EventFd,
-    intc: Arc<Mutex<Gic>>,
+    intc: Arc<Gic>,
     shutdown: &VmmShutdownSignal,
     csmap_path: Option<Arc<String>>,
 ) -> super::Result<Vec<Vcpu>> {
@@ -1137,7 +1137,7 @@ fn attach_fs_devices(
     vmm: &mut Vmm,
     fs_devs: &FsBuilder,
     shm_region: Option<VirtioShmRegion>,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
@@ -1177,7 +1177,7 @@ fn attach_fs_devices(
 fn attach_console_devices(
     vmm: &mut Vmm,
     event_manager: &mut gruel::EventManager,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     console_spec: Option<ConsoleFds>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
@@ -1292,7 +1292,7 @@ fn attach_console_devices(
 fn attach_net_devices<'a>(
     vmm: &mut Vmm,
     net_devices: impl Iterator<Item = &'a Arc<Mutex<Net>>>,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
 ) -> Result<(), StartMicrovmError> {
     debug!("Attaching network devices");
     for net_device in net_devices {
@@ -1318,7 +1318,7 @@ fn attach_unixsock_vsock_device(
     vmm: &mut Vmm,
     unix_vsock: &Arc<Mutex<Vsock>>,
     event_manager: &mut EventManager,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
@@ -1344,7 +1344,7 @@ fn attach_unixsock_vsock_device(
 #[cfg(not(feature = "tee"))]
 fn attach_balloon_device(
     vmm: &mut Vmm,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
@@ -1377,7 +1377,7 @@ fn attach_balloon_device(
 fn attach_block_devices(
     vmm: &mut Vmm,
     block_devs: &BlockBuilder,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
@@ -1415,7 +1415,7 @@ fn attach_block_devices(
 fn attach_rng_device(
     vmm: &mut Vmm,
     event_manager: &mut gruel::EventManager,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
 ) -> std::result::Result<(), StartMicrovmError> {
     use self::StartMicrovmError::*;
 
@@ -1441,7 +1441,7 @@ fn attach_gpu_device(
     vmm: &mut Vmm,
     event_manager: &mut EventManager,
     shm_region: Option<VirtioShmRegion>,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     virgl_flags: u32,
     #[cfg(target_os = "macos")] map_sender: Sender<MemoryMapping>,
 ) -> std::result::Result<(), StartMicrovmError> {

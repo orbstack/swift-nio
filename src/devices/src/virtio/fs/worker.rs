@@ -2,7 +2,6 @@ use gruel::ParkSignalChannelExt;
 use std::sync::Arc;
 use std::thread;
 use utils::qos::{set_thread_qos, QosClass};
-use utils::Mutex;
 
 use vm_memory::GuestMemoryMmap;
 
@@ -17,7 +16,7 @@ use crate::legacy::Gic;
 pub struct FsWorker {
     signals: Arc<FsSignalChannel>,
     queues: Vec<Queue>,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
 
     mem: GuestMemoryMmap,
@@ -29,7 +28,7 @@ impl FsWorker {
     pub fn new(
         signals: Arc<FsSignalChannel>,
         queues: Vec<Queue>,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
         mem: GuestMemoryMmap,
         server: Arc<Server<PassthroughFs>>,
@@ -121,7 +120,7 @@ impl FsWorker {
 
             if queue.needs_notification(&self.mem).unwrap() {
                 if let Some(intc) = &self.intc {
-                    intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+                    intc.set_irq(self.irq_line.unwrap());
                 }
             }
         }

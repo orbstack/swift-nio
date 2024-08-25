@@ -13,7 +13,6 @@ use std::result;
 use std::sync::Arc;
 use std::thread;
 use utils::qos::QosClass;
-use utils::Mutex;
 use virtio_bindings::virtio_blk::*;
 use vm_memory::{ByteValued, GuestMemoryMmap};
 
@@ -50,7 +49,7 @@ unsafe impl ByteValued for RequestHeader {}
 pub struct BlockWorker {
     queue: Queue,
     signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: u32,
     target_vcpu: u64,
 
@@ -72,7 +71,7 @@ impl BlockWorker {
     pub fn new(
         queue: Queue,
         signals: Arc<SignalChannel<BlockDevSignalMask, BlockDevWakers>>,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: u32,
         target_vcpu: u64,
         mem: GuestMemoryMmap,
@@ -264,9 +263,7 @@ impl BlockWorker {
 
     fn signal_used_queue(&self) {
         if let Some(intc) = &self.intc {
-            intc.lock()
-                .unwrap()
-                .set_irq_for_vcpu(Some(self.target_vcpu), self.irq_line);
+            intc.set_irq_for_vcpu(Some(self.target_vcpu), self.irq_line);
         }
     }
 }

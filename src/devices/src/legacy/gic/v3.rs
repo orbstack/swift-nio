@@ -158,11 +158,11 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
 struct GicV3VcpuHandle(Arc<Mutex<PeInterruptState>>);
 
 impl GicVcpuHandle for GicV3VcpuHandle {
-    fn get_pending_irq(&mut self, _gic: &Mutex<Gic>) -> Option<InterruptId> {
+    fn get_pending_irq(&mut self, _gic: &Gic) -> Option<InterruptId> {
         self.0.lock().unwrap().get_pending_irq()
     }
 
-    fn should_wait(&mut self, _gic: &Mutex<Gic>) -> bool {
+    fn should_wait(&mut self, _gic: &Gic) -> bool {
         !self.0.lock().unwrap().is_irq_line_asserted()
     }
 

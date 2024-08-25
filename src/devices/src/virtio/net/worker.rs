@@ -29,7 +29,7 @@ fn vnet_hdr_len() -> usize {
 pub struct NetWorker {
     signals: Arc<NetSignalChannel>,
     queues: Vec<Queue>,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
 
     mem: GuestMemoryMmap,
@@ -44,7 +44,7 @@ impl NetWorker {
     pub fn new(
         signals: Arc<NetSignalChannel>,
         queues: Vec<Queue>,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
         mem: GuestMemoryMmap,
         cfg_backend: VirtioNetBackend,
@@ -313,7 +313,7 @@ impl NetWorker {
 
     fn signal_used_queue(&mut self) -> result::Result<(), DeviceError> {
         if let Some(intc) = &self.intc {
-            intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+            intc.set_irq(self.irq_line.unwrap());
         }
         Ok(())
     }

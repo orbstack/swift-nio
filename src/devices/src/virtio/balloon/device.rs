@@ -122,7 +122,7 @@ pub struct Balloon {
     pub(crate) device_state: DeviceState,
     worker: Option<thread::JoinHandle<()>>,
     config: VirtioBalloonConfig,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
     vcpu_registry: Option<Arc<dyn VcpuRegistry>>,
     hvf_vm: Arc<HvfVm>,
@@ -166,7 +166,7 @@ impl Balloon {
         defs::BALLOON_DEV_ID
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.intc = Some(intc);
     }
 
@@ -178,7 +178,7 @@ impl Balloon {
         debug!("raising IRQ");
 
         if let Some(intc) = &self.intc {
-            intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+            intc.set_irq(self.irq_line.unwrap());
         }
     }
 

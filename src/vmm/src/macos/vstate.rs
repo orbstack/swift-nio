@@ -334,7 +334,7 @@ pub struct Vcpu {
     mpidr: u64,
 
     #[cfg(target_arch = "aarch64")]
-    intc: Arc<Mutex<Gic>>,
+    intc: Arc<Gic>,
 
     #[cfg(target_arch = "aarch64")]
     csmap_path: Option<Arc<String>>,
@@ -370,7 +370,7 @@ impl Vcpu {
         exit_evt: EventFd,
         guest_mem: GuestMemoryMmap,
         vm: &Vm,
-        intc: Arc<Mutex<Gic>>,
+        intc: Arc<Gic>,
         shutdown: VmmShutdownSignal,
         csmap_path: Option<Arc<String>>,
     ) -> Result<Self> {
@@ -757,7 +757,7 @@ impl Vcpu {
             .unwrap_or_run_now();
 
         // Register the vCPU with the interrupt controller and the registry
-        self.intc.lock().unwrap().register_vcpu(
+        self.intc.register_vcpu(
             hvf_vcpuid,
             WfeThread {
                 hv_vcpu: hvf_vcpu.vcpu_ref(),
@@ -796,7 +796,7 @@ impl Vcpu {
             .unwrap_or_else(|e| panic!("Can't set HVF vCPU {} initial state: {}", hvf_vcpuid, e));
 
         // Finally, start virtualization!
-        let mut intc_vcpu_handle = self.intc.lock().unwrap().get_vcpu_handle(hvf_vcpuid);
+        let mut intc_vcpu_handle = self.intc.get_vcpu_handle(hvf_vcpuid);
 
         loop {
             // Handle events
@@ -949,7 +949,7 @@ impl Vcpu {
                     self.wait_for_pvlock(&signal, &mut *intc_vcpu_handle, &mut hvf_vcpu, deadline);
                 }
                 VcpuEmulation::PvlockUnpark(vcpuid) => {
-                    self.intc.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
+                    self.intc.kick_vcpu_for_pvlock(vcpuid);
                 }
             }
         }

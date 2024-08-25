@@ -32,7 +32,7 @@ pub struct Worker {
     mem: GuestMemoryMmap,
     queue_ctl: Arc<Mutex<VirtQueue>>,
     interrupt_evt: EventFd,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
     shm_region: VirtioShmRegion,
     virgl_flags: u32,
@@ -47,7 +47,7 @@ impl Worker {
         mem: GuestMemoryMmap,
         queue_ctl: Arc<Mutex<VirtQueue>>,
         interrupt_evt: EventFd,
-        intc: Option<Arc<Mutex<Gic>>>,
+        intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
         shm_region: VirtioShmRegion,
         virgl_flags: u32,
@@ -99,7 +99,7 @@ impl Worker {
     pub fn signal_used_queue(&self) -> result::Result<(), DeviceError> {
         debug!("gpu: raising IRQ");
         if let Some(intc) = &self.intc {
-            intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+            intc.set_irq(self.irq_line.unwrap());
             Ok(())
         } else {
             self.interrupt_evt.write(1).map_err(|e| {

@@ -13,7 +13,6 @@ use std::fmt;
 use std::os::fd::RawFd;
 use std::sync::Arc;
 use std::{io, result};
-use utils::Mutex;
 
 use utils::byte_order::{read_le_u32, write_le_u32};
 use utils::eventfd::EventFd;
@@ -93,7 +92,7 @@ pub struct Serial {
     read_trigger: u32,
     out: Option<Box<dyn io::Write + Send>>,
     input: Option<Box<dyn ReadableFd + Send>>,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
 }
 
@@ -181,7 +180,7 @@ impl Serial {
         Self::new(interrupt_evt, None, None)
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.intc = Some(intc);
     }
 
@@ -310,7 +309,7 @@ impl Serial {
 
     fn trigger_interrupt(&mut self) -> result::Result<(), io::Error> {
         if let Some(intc) = &self.intc {
-            intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+            intc.set_irq(self.irq_line.unwrap());
             Ok(())
         } else {
             self.interrupt_evt.write()

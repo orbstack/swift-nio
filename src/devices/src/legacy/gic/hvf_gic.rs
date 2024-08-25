@@ -66,14 +66,11 @@ impl GicImpl for HvfGic {
 struct HvfGicHandle {}
 
 impl super::GicVcpuHandle for HvfGicHandle {
-    fn get_pending_irq(
-        &mut self,
-        _gic: &utils::Mutex<super::Gic>,
-    ) -> Option<gicv3::device::InterruptId> {
+    fn get_pending_irq(&mut self, _gic: &super::Gic) -> Option<gicv3::device::InterruptId> {
         None
     }
 
-    fn should_wait(&mut self, _gic: &utils::Mutex<super::Gic>) -> bool {
+    fn should_wait(&mut self, _gic: &super::Gic) -> bool {
         unimplemented!();
     }
 

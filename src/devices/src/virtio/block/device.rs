@@ -345,7 +345,7 @@ pub struct Block {
     pub(crate) partuuid: Option<String>,
 
     // Interrupt specific fields.
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<BlockIrqMode>,
 }
 
@@ -429,7 +429,7 @@ impl Block {
         })
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.intc = Some(intc);
     }
 

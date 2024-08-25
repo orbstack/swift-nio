@@ -4,15 +4,17 @@
 use std::sync::Arc;
 
 use gicv3::device::InterruptId;
-use utils::Mutex;
+use utils::{Mutex, MutexGuard};
 use vmm_ids::ArcVcpuSignal;
 
 use hvf::{HvVcpuRef, HvfVm};
 
-use crate::bus::BusDevice;
+use crate::{ErasedBusDevice, LocklessBusDevice};
 
 #[cfg(target_arch = "x86_64")]
 use super::hvf_apic::HvfApic;
+
+// === Multiplexer === //
 
 #[derive(Debug)]
 pub struct WfeThread {
@@ -20,7 +22,7 @@ pub struct WfeThread {
     pub signal: ArcVcpuSignal,
 }
 
-pub struct Gic(Box<dyn GicImpl>);
+pub struct Gic(Mutex<Box<dyn GicImpl>>);
 
 impl Gic {
     #[cfg(target_arch = "aarch64")]
@@ -28,9 +30,9 @@ impl Gic {
         use super::hvf_gic::HvfGic;
 
         if hvf_vm.gic_props.is_some() {
-            Self(Box::new(HvfGic::new(hvf_vm.clone())))
+            Self(Mutex::new(Box::new(HvfGic::new(hvf_vm.clone()))))
         } else {
-            Self(Box::<super::v3::UserspaceGicV3>::default())
+            Self(Mutex::new(Box::<super::v3::UserspaceGicV3>::default()))
         }
     }
 
@@ -40,55 +42,70 @@ impl Gic {
     }
 
     pub fn get_addr(&self) -> u64 {
-        self.0.get_addr()
+        self.0.lock().unwrap().get_addr()
     }
 
     pub fn get_size(&self) -> u64 {
-        self.0.get_size()
+        self.0.lock().unwrap().get_size()
     }
 
-    pub fn set_irq(&mut self, irq_line: u32) {
+    pub fn set_irq(&self, irq_line: u32) {
         self.set_irq_for_vcpu(None, irq_line)
     }
 
-    pub fn set_irq_for_vcpu(&mut self, vcpuid: Option<u64>, irq_line: u32) {
-        self.0.set_irq(vcpuid, irq_line)
+    pub fn set_irq_for_vcpu(&self, vcpuid: Option<u64>, irq_line: u32) {
+        self.0.lock().unwrap().set_irq(vcpuid, irq_line)
     }
 
-    pub fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread) {
-        self.0.register_vcpu(vcpuid, wfe_thread)
+    pub fn register_vcpu(&self, vcpuid: u64, wfe_thread: WfeThread) {
+        self.0.lock().unwrap().register_vcpu(vcpuid, wfe_thread)
     }
 
-    pub fn get_vcpu_handle(&mut self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
-        self.0.get_vcpu_handle(vcpuid)
+    pub fn get_vcpu_handle(&self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
+        self.0.lock().unwrap().get_vcpu_handle(vcpuid)
     }
 
-    pub fn kick_vcpu_for_pvlock(&mut self, vcpuid: u64) {
-        self.0.kick_vcpu_for_pvlock(vcpuid);
+    pub fn kick_vcpu_for_pvlock(&self, vcpuid: u64) {
+        self.0.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
     }
 }
 
-impl BusDevice for Gic {
-    fn read(&mut self, vcpuid: u64, offset: u64, data: &mut [u8]) {
-        self.0.read(vcpuid, offset, data)
+#[derive(Clone)]
+pub struct GicBusDevice(pub Arc<Gic>);
+
+impl GicBusDevice {
+    fn lock_impl(&self) -> MutexGuard<'_, Box<dyn GicImpl>> {
+        (self.0).0.lock().unwrap()
+    }
+}
+
+impl LocklessBusDevice for GicBusDevice {
+    fn clone_erased(&self) -> ErasedBusDevice {
+        ErasedBusDevice::new(self.clone())
     }
 
-    fn write(&mut self, vcpuid: u64, offset: u64, data: &[u8]) {
-        self.0.write(vcpuid, offset, data)
+    fn read(&self, vcpuid: u64, offset: u64, data: &mut [u8]) {
+        self.lock_impl().read(vcpuid, offset, data)
+    }
+
+    fn write(&self, vcpuid: u64, offset: u64, data: &[u8]) {
+        self.lock_impl().write(vcpuid, offset, data)
     }
 
     fn iter_sysregs(&self) -> Vec<u64> {
-        self.0.iter_sysregs()
+        self.lock_impl().iter_sysregs()
     }
 
-    fn read_sysreg(&mut self, vcpuid: u64, reg: u64) -> u64 {
-        self.0.read_sysreg(vcpuid, reg)
+    fn read_sysreg(&self, vcpuid: u64, reg: u64) -> u64 {
+        self.lock_impl().read_sysreg(vcpuid, reg)
     }
 
-    fn write_sysreg(&mut self, vcpuid: u64, reg: u64, value: u64) {
-        self.0.write_sysreg(vcpuid, reg, value)
+    fn write_sysreg(&self, vcpuid: u64, reg: u64, value: u64) {
+        self.lock_impl().write_sysreg(vcpuid, reg, value)
     }
 }
+
+// === Generic Device Traits === //
 
 pub trait GicImpl: 'static + Send {
     // === MMIO === //
@@ -132,9 +149,9 @@ pub trait GicImpl: 'static + Send {
 }
 
 pub trait GicVcpuHandle: Send + Sync {
-    fn get_pending_irq(&mut self, gic: &Mutex<Gic>) -> Option<InterruptId>;
+    fn get_pending_irq(&mut self, gic: &Gic) -> Option<InterruptId>;
 
-    fn should_wait(&mut self, gic: &Mutex<Gic>) -> bool;
+    fn should_wait(&mut self, gic: &Gic) -> bool;
 
     fn set_vtimer_irq(&mut self);
 }

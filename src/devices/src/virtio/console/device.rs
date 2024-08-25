@@ -161,7 +161,7 @@ impl Console {
         defs::CONSOLE_DEV_ID
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.irq.set_intc(intc)
     }
 

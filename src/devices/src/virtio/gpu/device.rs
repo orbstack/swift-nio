@@ -44,7 +44,7 @@ pub struct Gpu {
     pub(crate) activate_evt: EventFd,
     pub(crate) device_state: DeviceState,
     shm_region: Option<VirtioShmRegion>,
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
     pub(crate) sender: Option<Sender<u64>>,
     virgl_flags: u32,
@@ -107,7 +107,7 @@ impl Gpu {
         defs::GPU_DEV_ID
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.intc = Some(intc);
     }
 
@@ -119,7 +119,7 @@ impl Gpu {
     pub fn signal_used_queue(&self) -> result::Result<(), DeviceError> {
         debug!("gpu: raising IRQ");
         if let Some(intc) = &self.intc {
-            intc.lock().unwrap().set_irq(self.irq_line.unwrap());
+            intc.set_irq(self.irq_line.unwrap());
             Ok(())
         } else {
             self.interrupt_evt.write(1).map_err(|e| {

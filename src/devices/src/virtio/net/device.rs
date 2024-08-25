@@ -102,7 +102,7 @@ impl VirtioNetBackend {
         self,
         queues: &[Queue],
         mem: &GuestMemoryMmap,
-        intc: &Option<Arc<Mutex<Gic>>>,
+        intc: &Option<Arc<Gic>>,
         irq_line: &Option<u32>,
     ) -> Box<dyn NetBackend + Send> {
         match self {
@@ -133,7 +133,7 @@ pub struct Net {
 
     pub(crate) device_state: DeviceState,
 
-    intc: Option<Arc<Mutex<Gic>>>,
+    intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
 
     config: VirtioNetConfig,
@@ -194,7 +194,7 @@ impl Net {
         &self.id
     }
 
-    pub fn set_intc(&mut self, intc: Arc<Mutex<Gic>>) {
+    pub fn set_intc(&mut self, intc: Arc<Gic>) {
         self.intc = Some(intc);
     }
 }
