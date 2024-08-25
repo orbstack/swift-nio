@@ -4,6 +4,7 @@ use super::bindings::{
 };
 
 #[derive(thiserror::Error, Debug)]
+#[must_use]
 pub enum HvfError {
     #[error("error")]
     Error,
