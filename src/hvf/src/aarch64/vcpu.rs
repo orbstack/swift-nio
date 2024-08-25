@@ -48,8 +48,9 @@ use super::bindings::{
     hv_sys_reg_t_HV_SYS_REG_SP_EL1, hv_sys_reg_t_HV_SYS_REG_TCR_EL1,
     hv_sys_reg_t_HV_SYS_REG_TPIDR_EL1, hv_sys_reg_t_HV_SYS_REG_TTBR1_EL1,
     hv_sys_reg_t_HV_SYS_REG_VBAR_EL1, hv_vcpu_create, hv_vcpu_destroy, hv_vcpu_exit_t,
-    hv_vcpu_get_reg, hv_vcpu_get_sys_reg, hv_vcpu_run, hv_vcpu_set_pending_interrupt,
-    hv_vcpu_set_reg, hv_vcpu_set_sys_reg, hv_vcpu_set_vtimer_mask, hv_vcpu_t, hv_vcpus_exit,
+    hv_vcpu_get_reg, hv_vcpu_get_sys_reg, hv_vcpu_get_vtimer_mask, hv_vcpu_run,
+    hv_vcpu_set_pending_interrupt, hv_vcpu_set_reg, hv_vcpu_set_sys_reg, hv_vcpu_set_vtimer_mask,
+    hv_vcpu_t, hv_vcpus_exit,
 };
 use super::private::_hv_vcpu_get_context;
 use super::pvgic::{ExitActions, PvgicFlags, PvgicVcpuState};
@@ -103,6 +104,9 @@ const ACTLR_EL1_MYSTERY: u64 = 0x200;
 const ACTLR_EL1_ALLOWED_MASK: u64 = ACTLR_EL1_EN_TSO | ACTLR_EL1_MYSTERY;
 static ACTLR_EL1_OFFSET: AtomicIsize = AtomicIsize::new(-1);
 
+const CNTV_CTL_EL0_ENABLE: u64 = 1 << 0;
+const CNTV_CTL_EL0_IMASK: u64 = 1 << 1;
+
 macro_rules! arm64_sys_reg {
     ($name: tt, $op0: tt, $op1: tt, $op2: tt, $crn: tt, $crm: tt) => {
         const $name: u64 = ($op0 as u64) << 20
@@ -151,7 +155,7 @@ pub enum VcpuExit<'a> {
     VtimerActivated,
     WaitForInterrupt,
     WaitForInterruptDeadline(MachAbsoluteTime),
-    PvlockPark,
+    PvlockPark(Option<MachAbsoluteTime>),
     PvlockUnpark(u64),
 }
 
@@ -507,22 +511,15 @@ impl HvfVcpu {
 
                         let is_wfi = syndrome & 0x1 == 0;
                         if is_wfi {
-                            let ctl = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CTL_EL0)?;
-
-                            if ((ctl & 1) == 0) || (ctl & 2) != 0 {
+                            if let Some(deadline) = self.get_vtimer_deadline()? {
+                                COUNT_EXIT_WFE_TIMED.count();
+                                VcpuExit::WaitForInterruptDeadline(deadline)
+                            } else {
                                 COUNT_EXIT_WFE_INDEFINITE.count();
                                 VcpuExit::WaitForInterrupt
-                            } else {
-                                let deadline =
-                                    self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CVAL_EL0)?;
-                                COUNT_EXIT_WFE_TIMED.count();
-                                VcpuExit::WaitForInterruptDeadline(MachAbsoluteTime::from_raw(
-                                    deadline,
-                                ))
                             }
                         } else {
-                            // WFE should be a yield, as it's used in spin loops
-                            // TODO: does HVF trap WFE?
+                            // HVF doesn't trap WFE, but it's normally used in spin loops
                             VcpuExit::Canceled
                         }
                     }
@@ -553,6 +550,19 @@ impl HvfVcpu {
     pub fn clear_pending_mmio(&mut self) {
         self.pending_mmio_read = None;
         self.pending_advance_pc = false;
+    }
+
+    fn get_vtimer_deadline(&self) -> Result<Option<MachAbsoluteTime>, Error> {
+        let ctl = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CTL_EL0)?;
+
+        // if ENABLE && !IMASK
+        if (ctl & CNTV_CTL_EL0_ENABLE) != 0 && (ctl & CNTV_CTL_EL0_IMASK) == 0 {
+            // mach_absolute_time = CNTVCT_EL0 + offset, for processes with HV entitlement
+            let deadline = self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_CNTV_CVAL_EL0)?;
+            Ok(Some(MachAbsoluteTime::from_raw(deadline)))
+        } else {
+            Ok(None)
+        }
     }
 
     fn handle_hvc(&mut self) -> Result<VcpuExit, Error> {
@@ -614,7 +624,19 @@ impl HvfVcpu {
 
             ORBVM_PVLOCK_WFK => {
                 COUNT_EXIT_HVC_PVLOCK_WAIT.count();
-                return Ok(VcpuExit::PvlockPark);
+
+                // cases:
+                // - wait until PvlockUnpark (no deadline, or wakes up before vtimer fires)
+                // - wait until PvlockUnpark (vtimer is masked, deadline has passed)
+                // - wake up from IPI (unparked)
+                // - wake up from vtimer firing at CNTV_CVAL_EL0 deadline
+                let deadline = if self.vtimer_masked()? {
+                    None
+                } else {
+                    self.get_vtimer_deadline()?
+                };
+
+                return Ok(VcpuExit::PvlockPark(deadline));
             }
 
             ORBVM_PVLOCK_KICK => {
@@ -1008,8 +1030,8 @@ impl HvfVcpu {
         Ok(())
     }
 
-    pub fn set_vtimer_mask(&self, masked: bool) -> Result<(), Error> {
-        Self::set_vtimer_mask_static(self.hv_vcpu, masked)
+    pub fn set_vtimer_masked(&self, masked: bool) -> Result<(), Error> {
+        Self::set_vtimer_masked_static(self.hv_vcpu, masked)
     }
 
     pub fn destroy(self) {
@@ -1024,6 +1046,13 @@ impl HvfVcpu {
         HvfError::result(ret).map_err(Error::VcpuSetPendingIrq)
     }
 
+    fn vtimer_masked(&self) -> Result<bool, Error> {
+        let mut masked: MaybeUninit<bool> = MaybeUninit::uninit();
+        let ret = unsafe { hv_vcpu_get_vtimer_mask(self.hv_vcpu.0, masked.as_mut_ptr()) };
+        HvfError::result(ret).map_err(Error::VcpuGetVtimerMask)?;
+        Ok(unsafe { masked.assume_init() })
+    }
+
     pub fn request_exit_static(hv_vcpu: HvVcpuRef) -> Result<(), Error> {
         let mut vcpu: hv_vcpu_t = hv_vcpu.0;
         let ret = unsafe { hv_vcpus_exit(&mut vcpu, 1) };
@@ -1031,7 +1060,7 @@ impl HvfVcpu {
     }
 
     // TODO: remove this
-    pub fn set_vtimer_mask_static(hv_vcpu: HvVcpuRef, masked: bool) -> Result<(), Error> {
+    pub fn set_vtimer_masked_static(hv_vcpu: HvVcpuRef, masked: bool) -> Result<(), Error> {
         let ret = unsafe { hv_vcpu_set_vtimer_mask(hv_vcpu.0, masked) };
         HvfError::result(ret).map_err(Error::VcpuSetVtimerMask)
     }

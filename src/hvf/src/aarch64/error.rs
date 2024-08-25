@@ -79,6 +79,8 @@ pub enum Error {
     VcpuSetSystemRegister(HvfError),
     #[error("vcpu set vtimer mask: {0}")]
     VcpuSetVtimerMask(HvfError),
+    #[error("vcpu get vtimer mask: {0}")]
+    VcpuGetVtimerMask(HvfError),
     #[error("vm config set ipa size: {0}")]
     VmConfigSetIpaSize(HvfError),
     #[error("vm config enable nested virt: {0}")]

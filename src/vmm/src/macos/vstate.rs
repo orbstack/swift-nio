@@ -26,6 +26,7 @@ use std::sync::Arc;
 use std::thread::{self, Thread};
 use std::time::Duration;
 use sysx::mach::time::MachAbsoluteTime;
+use sysx::sync::parker::ParkResult;
 use utils::Mutex;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
@@ -617,7 +618,7 @@ impl Vcpu {
                 );
                 VcpuEmulation::WaitForInterruptDeadline(deadline)
             }
-            VcpuExit::PvlockPark => VcpuEmulation::PvlockPark,
+            VcpuExit::PvlockPark(deadline) => VcpuEmulation::PvlockPark(deadline),
             VcpuExit::PvlockUnpark(vcpu) => VcpuEmulation::PvlockUnpark(vcpu),
         }
     }
@@ -725,17 +726,6 @@ impl Vcpu {
         use hvf::{profiler::ProfilerGuestContext, ArcVcpuHandle, VcpuHandleInner};
         use sysx::{mach::time::MachAbsoluteDuration, sync::parker::ParkResult};
         use vmm_ids::VmmShutdownPhase;
-
-        // separate function so that this shows up in debug spindumps
-        #[inline(never)]
-        fn wait_for_pvlock(signal: &Arc<SignalChannel<VcpuSignalMask, VcpuWakerSet>>) {
-            // allow spurious wakeups from IRQs, as it's just a hint to try locking again.
-            // pending IRQs will be sent when DAIF is restored after a spurious wakeup.
-            signal.wait_on_park(VcpuSignalMask::ALL_WAIT | VcpuSignalMask::PVLOCK);
-
-            // if there's a pending PV lock token (either new or existing), consume it
-            _ = signal.take(VcpuSignalMask::PVLOCK);
-        }
 
         // Create the underlying HVF vCPU.
         let mut hvf_vcpu = HvfVcpu::new(self.guest_mem.clone(), self.hvf_vm.clone())
@@ -929,8 +919,9 @@ impl Vcpu {
                         }
 
                         let timeout = deadline - now;
-                        if let ParkResult::TimedOut = signal
+                        if signal
                             .wait_on_park_timeout(VcpuSignalMask::ALL_WAIT, timeout.as_duration())
+                            == ParkResult::TimedOut
                         {
                             // unparked due to timer expiry
                             // record time for throttling
@@ -942,7 +933,7 @@ impl Vcpu {
                             // if we run the vCPU, we'll just get a VtimerActivated vmexit immediately
                             // assert vtimer IRQ and mask it here to avoid the redundant exit
                             intc_vcpu_handle.set_vtimer_irq();
-                            hvf_vcpu.set_vtimer_mask(true).unwrap();
+                            hvf_vcpu.set_vtimer_masked(true).unwrap();
                         }
                     }
                 }
@@ -954,21 +945,11 @@ impl Vcpu {
                 }
 
                 // PV spinlocks
-                VcpuEmulation::PvlockPark => {
-                    // in the kernel, we take the PV lock path unconditionally for performance,
-                    // and modified it to always initialize the PV node hash table so that it
-                    // doesn't panic. however, spinlock contention is still possible with 1 vCPU
-                    // if the lock holder is a preempted task, and IRQs aren't disabled.
-                    //
-                    // fix this by making PV locks a no-op on 1-vCPU systems, forcing spin+retry
-                    if self.vcpu_count != 1 {
-                        wait_for_pvlock(&signal);
-                    }
+                VcpuEmulation::PvlockPark(deadline) => {
+                    self.wait_for_pvlock(&signal, &mut *intc_vcpu_handle, &mut hvf_vcpu, deadline);
                 }
                 VcpuEmulation::PvlockUnpark(vcpuid) => {
-                    if self.vcpu_count != 1 {
-                        self.intc.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
-                    }
+                    self.intc.lock().unwrap().kick_vcpu_for_pvlock(vcpuid);
                 }
             }
         }
@@ -985,6 +966,55 @@ impl Vcpu {
 
         hvf_vcpu.destroy();
         drop(hvf_destroy_task);
+    }
+
+    // separate function so that this shows up in debug spindumps
+    #[inline(never)]
+    fn wait_for_pvlock(
+        &self,
+        signal: &Arc<SignalChannel<VcpuSignalMask, VcpuWakerSet>>,
+        intc_vcpu_handle: &mut dyn GicVcpuHandle,
+        hvf_vcpu: &mut HvfVcpu,
+        deadline: Option<MachAbsoluteTime>,
+    ) {
+        // although the guest disables interrupts as a futex-like race prevention
+        // when it makes the hypercall, we should still remain responsive to IRQs,
+        // IPIs, and vtimer interrupts to ensure timely wakeup. interrupts may not
+        // have been disabled when the spinlock was taken.
+        // it's especially important to handle vtimer and IPIs so that we don't deadlock
+        // if the lock holder is a non-hardirq-safe task preempted on the same vCPU as this.
+        let handled_mask = VcpuSignalMask::ALL_WAIT | VcpuSignalMask::PVLOCK;
+
+        let result = match deadline {
+            Some(deadline) => {
+                let now = MachAbsoluteTime::now();
+                if now >= deadline {
+                    ParkResult::TimedOut
+                } else {
+                    let timeout = deadline - now;
+                    signal.wait_on_park_timeout(handled_mask, timeout.as_duration())
+                }
+            }
+            None => {
+                signal.wait_on_park(handled_mask);
+                ParkResult::Unparked
+            }
+        };
+
+        // wakeup causes:
+        // - Unparked: PvlockUnpark was called
+        // - Unparked: interrupted by IRQ, IPI, or other SignalChannel assertion
+        // - TimedOut: vtimer fired
+        if result == ParkResult::TimedOut {
+            // as an optimization, fire and mask the vtimer now if timed out
+            intc_vcpu_handle.set_vtimer_irq();
+            hvf_vcpu.set_vtimer_masked(true).unwrap();
+        }
+
+        // if there's a pending PV lock token (either new or existing), consume it
+        // it's safe to consume this even if the wakeup was caised by something else,
+        // because the guest will re-enable IRQs and check the lock value upon re-entry
+        _ = signal.take(VcpuSignalMask::PVLOCK);
     }
 
     /// Main loop of the vCPU thread.
@@ -1165,7 +1195,7 @@ enum VcpuEmulation {
     #[cfg(target_arch = "aarch64")]
     WaitForInterruptDeadline(MachAbsoluteTime),
     #[cfg(target_arch = "aarch64")]
-    PvlockPark,
+    PvlockPark(Option<MachAbsoluteTime>),
     #[cfg(target_arch = "aarch64")]
     PvlockUnpark(u64),
 }
