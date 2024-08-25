@@ -216,6 +216,10 @@ impl Balloon {
             DeviceState::Inactive => unreachable!(),
         };
 
+        if let Err(e) = hvf::memory::maybe_remap() {
+            error!("failed to prepare for FPR: {:?}", e);
+        }
+
         let mut have_used = false;
 
         while let Some(head) = self.queues[BalloonQueues::FRQ].pop(mem) {

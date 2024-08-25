@@ -1,4 +1,4 @@
-use std::{thread::sleep, time::Duration};
+use std::{sync::LazyLock, thread::sleep, time::Duration};
 
 use anyhow::anyhow;
 use crossbeam_channel::Sender;
@@ -14,13 +14,17 @@ use mach2::{
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
 use nix::errno::Errno;
+use sysx::mach::{
+    time::{MachAbsoluteDuration, MachAbsoluteTime},
+    timer::Timer,
+};
 use tracing::{debug_span, error};
-use utils::Mutex;
+use utils::{qos::QosClass, Mutex};
 use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
 
 use crate::{HvfVm, MemoryFlags};
 
-const MEMORY_REMAP_INTERVAL: Duration = Duration::from_secs(30);
+// tag to identify memory in vmmap/footprint
 const MEMORY_REGION_TAG: u8 = 250; // application specific tag space
 
 const VM_FLAGS_4GB_CHUNK: i32 = 4;
@@ -30,7 +34,19 @@ const VM_FLAGS_4GB_CHUNK: i32 = 4;
 // which is especially relevant when we use REUSABLE to purge pages
 const MACH_CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
-static HOST_PMAP: Mutex<HostPmap> = Mutex::new(HostPmap {});
+// to clear double accounting caused by host touching guest memory for virtio,
+// we remap every 30 sec, even if balloon isn't doing anything
+const BACKGROUND_REMAP_INTERVAL: Duration = Duration::from_secs(30);
+
+// we also remap before every free_range batch, but it's debounced to amortize the cost (~18ms for 12 GiB if pmapped)
+const REMAP_DEBOUNCE_INTERVAL: Duration = Duration::from_millis(250);
+static REMAP_DEBOUNCE_TIMER: LazyLock<Timer> = LazyLock::new(|| Timer::new().unwrap());
+
+static HOST_PMAP: Mutex<HostPmap> = Mutex::new(HostPmap {
+    last_remapped_at: MachAbsoluteTime::zero(),
+    timer_armed: false,
+    guest_mem: None,
+});
 
 /// Messages for requesting memory maps/unmaps.
 pub enum MemoryMapping {
@@ -38,10 +54,37 @@ pub enum MemoryMapping {
     RemoveMapping(Sender<bool>, GuestAddress, usize),
 }
 
-struct HostPmap {}
+struct HostPmap {
+    last_remapped_at: MachAbsoluteTime,
+    timer_armed: bool,
+
+    guest_mem: Option<(*mut c_void, usize)>,
+}
+
+unsafe impl Send for HostPmap {}
 
 impl HostPmap {
-    unsafe fn remap(&self, host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
+    unsafe fn set_guest_mem(&mut self, host_addr: *mut c_void, size: usize) {
+        self.guest_mem = Some((host_addr, size));
+    }
+
+    pub unsafe fn maybe_remap(&mut self) -> anyhow::Result<()> {
+        // leading edge debounce: remap synchronously if enough time has passed, otherwise arm a timer
+        let now = MachAbsoluteTime::now();
+        if (now - self.last_remapped_at).as_duration() > REMAP_DEBOUNCE_INTERVAL {
+            let (host_addr, size) = self.guest_mem.ok_or_else(|| anyhow!("no guest memory"))?;
+            self.remap(host_addr, size)?;
+        } else if !self.timer_armed {
+            REMAP_DEBOUNCE_TIMER
+                .arm_for(MachAbsoluteDuration::from_duration(REMAP_DEBOUNCE_INTERVAL))
+                .unwrap();
+            self.timer_armed = true;
+        }
+
+        Ok(())
+    }
+
+    unsafe fn remap(&mut self, host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
         let _span = debug_span!("remap", size = size).entered();
 
         // clear double accounting
@@ -66,6 +109,7 @@ impl HostPmap {
             return Err(anyhow!("error {}", ret));
         }
 
+        self.last_remapped_at = MachAbsoluteTime::now();
         Ok(())
     }
 }
@@ -122,6 +166,7 @@ pub unsafe fn free_range(
 
     // clear this range from hv pmap ledger:
     // hv_vm_protect(NONE) then (RWX) is faster but not reliable if swapping already caused pages to be removed from pmap
+    // this also makes madvise faster by reducing pmap work (no need to set fast fault flags and invalidate TLB)
     hvf_vm.unmap_memory(guest_addr, size)?;
 
     // call madvise on each individual page, not as one large chunk
@@ -129,32 +174,26 @@ pub unsafe fn free_range(
     // pmap ref/mod is the source of truth, so it prevents pageout despite vmp_dirty=FALSE
     // this looks slow, but it's faster than the alternative of retouching/prefaulting each page to map it, which also causes memory pressure spikes if swapping
     for addr in (host_addr as usize..host_addr as usize + size).step_by(page_size()) {
-        let ret = madvise(addr as *mut c_void, page_size(), libc::MADV_FREE_REUSABLE);
+        let ret = madvise(addr as *mut c_void, page_size(), libc::MADV_FREE);
         Errno::result(ret)?;
     }
 
-    // remap memory after madvise(REUSABLE), to reduce how many pmaps that it has to modify
+    // leave it unmapped for madvise, so that it looks like a normal private memory object
     hvf_vm.map_memory(host_addr as *mut u8, guest_addr, size, MemoryFlags::RWX)?;
 
     Ok(())
 }
 
+// we need to remap when freeing, to clear ledgers, but it doesn't matter whether we do it before/after
+// so, to reduce pmap work and make madvise faster, do it before (debounced to amortize cost)
+pub fn maybe_remap() -> anyhow::Result<()> {
+    unsafe { HOST_PMAP.lock().unwrap().maybe_remap() }
+}
+
 /// # Safety
 /// host_addr must be a mapped, contiguous host memory region of at least `size` bytes
-pub unsafe fn reuse_range(host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
-    // start and end must be page-aligned
-    if host_addr as usize % page_size() != 0 {
-        return Err(anyhow!("unaligned address: {:x}", host_addr as usize));
-    }
-    if size % page_size() != 0 {
-        return Err(anyhow!("unaligned size: {}", size));
-    }
-
-    // this can be one big call, as long as REUSABLE was set properly
-    // it iterates through pages in the object's queue -- no pmap tricks
-    let ret = madvise(host_addr, size, libc::MADV_FREE_REUSE);
-    Errno::result(ret)?;
-
+pub unsafe fn reuse_range(_host_addr: *mut c_void, _size: usize) -> anyhow::Result<()> {
+    // MADV_FREE doesn't need this; accounting gets updated on fault
     Ok(())
 }
 
@@ -194,18 +233,41 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     // we've replaced all mach chunks, so no longer need to deallocate reserved space
     std::mem::forget(map_guard);
 
+    unsafe {
+        HOST_PMAP
+            .lock()
+            .unwrap()
+            .set_guest_mem(host_addr as *mut c_void, size as usize);
+    }
+
     // spawn thread to periodically remap and fix double accounting
     // TODO: stop this
     std::thread::Builder::new()
         // vague user-facing name
-        .name("VMA".to_string())
-        .spawn(move || loop {
-            // ideally this thread should have background QoS, but that'd cause it to hold pmap/PPL locks for a long time while slowly processing the remap on an E core, which would contend with other CPUs
-            sleep(MEMORY_REMAP_INTERVAL);
+        .name("VMA 1".to_string())
+        .spawn(move || {
+            utils::qos::set_thread_qos(QosClass::Background, None).unwrap();
 
-            // don't race with REUSABLE
-            let pmap = HOST_PMAP.lock().unwrap();
-            if let Err(e) = unsafe { pmap.remap(host_addr as *mut c_void, size as usize) } {
+            loop {
+                sleep(BACKGROUND_REMAP_INTERVAL);
+
+                // kick debounce to avoid redundant remaps within a short period of time
+                unsafe {
+                    HOST_PMAP.lock().unwrap().maybe_remap().unwrap();
+                }
+            }
+        })?;
+
+    // thread to consume debounce events and do the actual remapping
+    std::thread::Builder::new()
+        // vague user-facing name
+        .name("VMA 2".to_string())
+        .spawn(move || loop {
+            REMAP_DEBOUNCE_TIMER.wait();
+
+            // ideally this thread should have background QoS, but that'd cause it to hold pmap/PPL locks for a long time while slowly processing the remap on an E core, which would contend with other CPUs
+            let mut pmap = HOST_PMAP.lock().unwrap();
+            if let Err(e) = unsafe { pmap.maybe_remap() } {
                 error!("remap failed: {:?}", e);
             }
         })?;
