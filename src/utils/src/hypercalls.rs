@@ -42,7 +42,6 @@ bitflags! {
 // HVC I/O device IDs
 pub const HVC_DEVICE_VIRTIOFS_ROOT: usize = 0;
 pub const HVC_DEVICE_VIRTIOFS_ROSETTA: usize = 1;
-pub const HVC_DEVICE_BALLOON: usize = 1000;
 pub const HVC_DEVICE_BLOCK_START: usize = 2000;
 pub const HVC_DEVICE_CONSOLE_START: usize = 3000;
 

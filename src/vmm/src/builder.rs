@@ -1362,17 +1362,6 @@ fn attach_balloon_device(
         .unwrap()
         .set_vcpu_registry(vmm.vcpu_registry.clone());
 
-    // add HVC device
-    vmm.mmio_device_manager
-        .bus
-        .insert_hvc(Arc::new(
-            balloon
-                .lock()
-                .unwrap()
-                .create_hvc_device(vmm.guest_memory().clone()),
-        ))
-        .unwrap();
-
     // The device mutex mustn't be locked here otherwise it will deadlock.
     attach_mmio_device(
         vmm,

@@ -5,21 +5,18 @@ use gruel::{
     SignalChannel,
 };
 use newt::{define_num_enum, NumEnumMap};
-use std::cell::RefCell;
 use std::cmp;
 use std::io::Write;
 use std::mem::size_of;
 use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::Instant;
-use utils::hypercalls::HVC_DEVICE_BALLOON;
 use utils::Mutex;
 
-use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
+use vm_memory::{ByteValued, GuestAddress, GuestMemoryMmap};
 
 use super::super::{ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::{defs, defs::uapi};
-use crate::hvc::HvcDevice;
 use crate::legacy::Gic;
 use crate::virtio::{DescriptorChain, VmmExitObserver};
 use hvf::{HvfVm, VcpuRegistry};
@@ -49,10 +46,6 @@ bitflags::bitflags! {
 
         // Free page reporting queue.
         const FRQ = 1 << 4;
-
-        // async reuse submission
-        // guest doesn't need a completion IRQ for this, but it must be processed before FRQ
-        const REUSE = 1 << 5;
 
         const SHUTDOWN_WORKER = 1 << 6;
     }
@@ -95,12 +88,7 @@ bitfield! {
 
 unsafe impl ByteValued for PrDesc {}
 
-// allow guest to queue up to 32 batches of 4096 FPR requests, before we start dropping them
-// this is max 128K of host memory
-const MAX_QUEUED_DESCS: usize = 4096 * 32;
-
 const FPR_TYPE_FREE: u32 = 0;
-const FPR_TYPE_UNREPORT: u32 = 1;
 
 pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64
     | 1 << uapi::VIRTIO_BALLOON_F_STATS_VQ as u64
@@ -125,11 +113,6 @@ pub struct VirtioBalloonConfig {
 // Safe because it only has data and has no implicit padding.
 unsafe impl ByteValued for VirtioBalloonConfig {}
 
-struct QueuedReport {
-    req: Option<OrbvmFprRequest>,
-    descs: Vec<PrDesc>,
-}
-
 pub struct Balloon {
     self_ref: Weak<Mutex<Self>>,
     pub(crate) signal: Arc<BalloonSignal>,
@@ -142,7 +125,6 @@ pub struct Balloon {
     intc: Option<Arc<Mutex<Gic>>>,
     irq_line: Option<u32>,
     vcpu_registry: Option<Arc<dyn VcpuRegistry>>,
-    queued: RefCell<QueuedReport>,
     hvf_vm: Arc<HvfVm>,
 }
 
@@ -166,10 +148,6 @@ impl Balloon {
                 intc: None,
                 irq_line: None,
                 vcpu_registry: None,
-                queued: RefCell::new(QueuedReport {
-                    req: None,
-                    descs: Vec::new(),
-                }),
                 hvf_vm,
             })
         }))
@@ -194,10 +172,6 @@ impl Balloon {
 
     pub fn set_vcpu_registry(&mut self, vcpu_registry: Arc<dyn VcpuRegistry>) {
         self.vcpu_registry = Some(vcpu_registry);
-    }
-
-    pub fn create_hvc_device(&self, _mem: GuestMemoryMmap) -> BalloonHvcDevice {
-        BalloonHvcDevice::new(self.self_ref.upgrade().unwrap())
     }
 
     pub fn signal_used_queue(&self) {
@@ -306,9 +280,7 @@ impl Balloon {
                         )?
                     };
                 }
-                FPR_TYPE_UNREPORT => {
-                    unsafe { hvf::memory::reuse_range(host_addr.as_ptr() as *mut _, size)? };
-                }
+
                 _ => {
                     error!("unknown free-page-report type");
                 }
@@ -320,79 +292,13 @@ impl Balloon {
         })?;
 
         debug!(
-            "[{}] ranges={:?} (->{}) kib={}  time={:?}",
-            if req.type_ == FPR_TYPE_FREE {
-                "free"
-            } else {
-                "reuse"
-            },
+            "ranges={:?} (->{}) kib={}  time={:?}",
             prdescs.len(),
             num_ranges,
             total_bytes / 1024,
             before.elapsed(),
         );
 
-        Ok(())
-    }
-
-    fn process_queued_fprs(&mut self) {
-        debug!("process_queued_fprs()");
-        let mem = match self.device_state {
-            DeviceState::Activated(ref mem) => mem,
-            // This should never happen, it's been already validated in the event handler.
-            DeviceState::Inactive => unreachable!(),
-        };
-
-        let mut queued = self.queued.borrow_mut();
-        if let Some(req) = queued.req.take() {
-            if let Err(e) = self.process_one_fpr(mem, req, &mut queued.descs) {
-                error!("failed to process queued FPR: {:?}", e);
-            }
-            queued.descs.clear();
-        }
-    }
-
-    fn queue_fpr(&mut self, args_addr: GuestAddress) -> anyhow::Result<()> {
-        // (u64)-1 means kick
-        if args_addr.raw_value() == u64::MAX {
-            self.signal.assert(BalloonSignalMask::REUSE);
-            return Ok(());
-        }
-
-        let mem = match self.device_state {
-            DeviceState::Activated(ref mem) => mem,
-            DeviceState::Inactive => return Err(anyhow!("HVC call on inactive device")),
-        };
-
-        let req: OrbvmFprRequest = mem.read_obj_fast(args_addr)?;
-
-        // the purpose of async report is so that worker thread can process it without blocking, so copy the buffer
-        let slice =
-            unsafe { mem.get_obj_slice(GuestAddress(req.descs_addr), req.nr_descs as usize)? };
-
-        // add to queue
-        let queued = self.queued.get_mut();
-        match queued.req {
-            // merge with existing req
-            Some(other_req) => {
-                if other_req.type_ != req.type_ || other_req.guest_page_size != req.guest_page_size
-                {
-                    // async queued FPR is currently only used for UNREPORT
-                    return Err(anyhow!("inconsistent FPR requests"));
-                }
-            }
-
-            // new req
-            None => {
-                queued.req = Some(req);
-            }
-        }
-
-        if queued.descs.len() + slice.len() > MAX_QUEUED_DESCS {
-            return Err(anyhow!("too many queued FPRs"));
-        }
-
-        queued.descs.extend_from_slice(slice);
         Ok(())
     }
 
@@ -406,12 +312,7 @@ impl Balloon {
                 break;
             }
 
-            // process reuse requests first
             let mut me = me.lock().unwrap();
-            if taken.intersects(BalloonSignalMask::REUSE) {
-                debug!("async reuse event");
-                me.process_queued_fprs();
-            }
 
             if taken.intersects(BalloonSignalMask::IFQ) {
                 error!("unsupported inflate queue event");
@@ -542,33 +443,6 @@ impl VirtioDevice for Balloon {
 impl VmmExitObserver for Balloon {
     fn on_vmm_exit(&mut self) {
         self.reset();
-    }
-}
-
-pub struct BalloonHvcDevice {
-    balloon: Arc<Mutex<Balloon>>,
-}
-
-impl BalloonHvcDevice {
-    fn new(balloon: Arc<Mutex<Balloon>>) -> Self {
-        Self { balloon }
-    }
-}
-
-impl HvcDevice for BalloonHvcDevice {
-    fn call_hvc(&self, args_addr: GuestAddress) -> i64 {
-        let mut balloon = self.balloon.lock().unwrap();
-        match balloon.queue_fpr(args_addr) {
-            Ok(()) => 0,
-            Err(e) => {
-                error!("failed to queue FPR: {:?}", e);
-                -1
-            }
-        }
-    }
-
-    fn hvc_id(&self) -> Option<usize> {
-        Some(HVC_DEVICE_BALLOON)
     }
 }
 

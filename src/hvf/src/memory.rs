@@ -190,13 +190,6 @@ pub fn maybe_remap() -> anyhow::Result<()> {
     unsafe { HOST_PMAP.lock().unwrap().maybe_remap() }
 }
 
-/// # Safety
-/// host_addr must be a mapped, contiguous host memory region of at least `size` bytes
-pub unsafe fn reuse_range(_host_addr: *mut c_void, _size: usize) -> anyhow::Result<()> {
-    // MADV_FREE doesn't need this; accounting gets updated on fault
-    Ok(())
-}
-
 fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     // reserve contiguous address space atomically, and hold onto it to prevent races until we're done mapping everything
     // this is ONLY for reserving address space; we never actually use this mapping
