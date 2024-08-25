@@ -12,6 +12,7 @@ use std::mem::size_of;
 use std::result;
 use std::sync::Arc;
 use std::thread;
+use utils::qos::QosClass;
 use utils::Mutex;
 use virtio_bindings::virtio_blk::*;
 use vm_memory::{ByteValued, GuestMemoryMmap};
@@ -92,7 +93,12 @@ impl BlockWorker {
     pub fn run(self) -> thread::JoinHandle<()> {
         thread::Builder::new()
             .name(format!("block worker {}", self.target_vcpu))
-            .spawn(|| self.work())
+            .spawn(|| {
+                // worker is only used for slower requests, e.g. fsync, which waits on disk I/O
+                utils::qos::set_thread_qos(QosClass::Utility, None).unwrap();
+
+                self.work()
+            })
             .unwrap()
     }
 

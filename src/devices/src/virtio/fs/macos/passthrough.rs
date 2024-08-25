@@ -639,6 +639,7 @@ impl PassthroughFs {
             let handle = std::thread::Builder::new()
                 .name(format!("fs{} poller", fs.hvc_id().unwrap()))
                 .spawn(move || {
+                    // maintenance tasks only: cache invalidation
                     set_thread_qos(QosClass::Background, None).unwrap();
                     poller_clone.main_loop().unwrap();
                 })?;

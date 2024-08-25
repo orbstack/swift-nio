@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 use std::time;
+use utils::qos::QosClass;
 use utils::Mutex;
 
 use super::super::super::legacy::Gic;
@@ -94,7 +95,11 @@ impl TimesyncThread {
     pub fn run(mut self) {
         thread::Builder::new()
             .name("vsock timesync".to_string())
-            .spawn(move || self.work())
+            .spawn(move || {
+                // match priority of vCPU threads, so that we experience the same timer coalescing
+                utils::qos::set_thread_qos(QosClass::Default, None).unwrap();
+                self.work()
+            })
             .expect("failed to spawn thread");
     }
 }

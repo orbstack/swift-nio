@@ -49,8 +49,8 @@ impl FsWorker {
         thread::Builder::new()
             .name(format!("fs{} worker", self.server.hvc_id().unwrap_or(0)))
             .spawn(|| {
-                // these worker threads are only used for FORGET
-                set_thread_qos(QosClass::Background, None).unwrap();
+                // workers are used for NFS and other async requests, not only for FORGET
+                set_thread_qos(QosClass::Utility, None).unwrap();
 
                 self.work()
             })

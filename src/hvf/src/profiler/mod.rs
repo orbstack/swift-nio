@@ -407,6 +407,10 @@ impl Profiler {
             std::thread::Builder::new()
                 .name(format!("{}: sampler", THREAD_NAME_TAG))
                 .spawn(move || {
+                    // avoid getting scheduled out while we have a thread suspended
+                    qos::set_thread_qos(QosClass::UserInteractive, None).unwrap();
+                    set_realtime_scheduling(interval).unwrap();
+
                     self_clone.sampler_loop(interval, duration).unwrap();
                 })?,
         );
@@ -420,9 +424,6 @@ impl Profiler {
         interval: Duration,
         duration: Option<Duration>,
     ) -> anyhow::Result<()> {
-        qos::set_thread_qos(QosClass::UserInteractive, None)?;
-        set_realtime_scheduling(interval)?;
-
         // find "hv_vcpu_run" for guest stack sampling
         let mut symbolicator = DladdrSymbolicator::new()?;
         // for unwinder perf, just use a range that matches nothing if the symbol can't be found

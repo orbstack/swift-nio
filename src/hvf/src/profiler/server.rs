@@ -14,6 +14,7 @@ use tokio::net::TcpListener;
 use tokio_util::io::ReaderStream;
 use tower_http::cors::CorsLayer;
 use tracing::{error, info};
+use utils::qos::QosClass;
 
 use crate::profiler::THREAD_NAME_TAG;
 
@@ -136,6 +137,7 @@ impl FirefoxApiServer {
         std::thread::Builder::new()
             .name(format!("{}: API server", THREAD_NAME_TAG))
             .spawn(move || {
+                utils::qos::set_thread_qos(QosClass::UserInitiated, None).unwrap();
                 rt.block_on(futures::future::pending::<()>());
             })
             .unwrap();

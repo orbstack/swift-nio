@@ -12,6 +12,7 @@ use nix::{
 };
 use sysx::mach::time::MachAbsoluteTime;
 use tracing::error;
+use utils::qos::QosClass;
 
 use super::{
     thread::{ProfileeThread, ThreadId},
@@ -83,6 +84,8 @@ impl Ktracer {
         let handle = std::thread::Builder::new()
             .name(format!("{}: ktrace", THREAD_NAME_TAG))
             .spawn(move || -> anyhow::Result<KtraceResults> {
+                utils::qos::set_thread_qos(QosClass::Utility, None)?;
+
                 // make sure format is right
                 let mut line = String::new();
                 let n = reader.read_line(&mut line)?;

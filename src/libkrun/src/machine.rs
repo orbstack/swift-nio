@@ -13,7 +13,7 @@ use hvf::{profiler::ProfilerParams, HvfVm};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tracing::error;
-use utils::{fd::dup_fd, Mutex};
+use utils::{fd::dup_fd, qos::QosClass, Mutex};
 use vmm::{
     builder::ConsoleFds,
     resources::VmResources,
@@ -325,6 +325,8 @@ impl Machine {
             std::thread::Builder::new()
                 .name("VMM GPU mapper".to_string())
                 .spawn(move || loop {
+                    utils::qos::set_thread_qos(QosClass::UserInteractive, None).unwrap();
+
                     match receiver.recv() {
                         Err(e) => {
                             error!("Error in receiver: {:?}", e);
