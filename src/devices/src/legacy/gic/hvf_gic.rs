@@ -3,7 +3,7 @@ use std::sync::Arc;
 use hvf::HvfVm;
 use rustc_hash::FxHashMap;
 
-use super::{UserspaceGicImpl, WfeThread};
+use super::{GicImpl, WfeThread};
 
 pub struct HvfGic {
     hvf_vm: Arc<HvfVm>,
@@ -19,7 +19,7 @@ impl HvfGic {
     }
 }
 
-impl UserspaceGicImpl for HvfGic {
+impl GicImpl for HvfGic {
     // === MMIO === //
 
     fn get_addr(&self) -> u64 {

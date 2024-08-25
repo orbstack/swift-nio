@@ -1,6 +1,6 @@
 use hvf::HvfVm;
 
-use super::{UserspaceGicImpl, WfeThread};
+use super::{GicImpl, WfeThread};
 
 pub struct HvfApic {
     hvf_vm: HvfVm,
@@ -12,7 +12,7 @@ impl HvfApic {
     }
 }
 
-impl UserspaceGicImpl for HvfApic {
+impl GicImpl for HvfApic {
     // === MMIO === //
 
     fn get_addr(&self) -> u64 {

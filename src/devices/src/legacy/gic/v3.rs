@@ -5,7 +5,7 @@ use std::sync::Arc;
 use utils::Mutex;
 use vmm_ids::VcpuSignalMask;
 
-use super::{Gic, GicVcpuHandle, UserspaceGicImpl, WfeThread};
+use super::{Gic, GicImpl, GicVcpuHandle, WfeThread};
 
 use arch::aarch64::{gicv3::UserspaceGICv3, layout::GTIMER_VIRT};
 pub use gicv3::mmio::GicSysReg;
@@ -26,7 +26,7 @@ pub struct UserspaceGicV3 {
 
 const TIMER_INT_ID: InterruptId = InterruptId(GTIMER_VIRT + 16);
 
-impl UserspaceGicImpl for UserspaceGicV3 {
+impl GicImpl for UserspaceGicV3 {
     fn get_addr(&self) -> u64 {
         UserspaceGICv3::mapped_range().start
     }

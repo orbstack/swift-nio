@@ -20,7 +20,7 @@ pub struct WfeThread {
     pub signal: ArcVcpuSignal,
 }
 
-pub struct Gic(Box<dyn UserspaceGicImpl>);
+pub struct Gic(Box<dyn GicImpl>);
 
 impl Gic {
     #[cfg(target_arch = "aarch64")]
@@ -90,15 +90,7 @@ impl BusDevice for Gic {
     }
 }
 
-pub trait GicVcpuHandle: Send + Sync {
-    fn get_pending_irq(&mut self, gic: &Mutex<Gic>) -> Option<InterruptId>;
-
-    fn should_wait(&mut self, gic: &Mutex<Gic>) -> bool;
-
-    fn set_vtimer_irq(&mut self);
-}
-
-pub trait UserspaceGicImpl: 'static + Send {
+pub trait GicImpl: 'static + Send {
     // === MMIO === //
 
     fn get_addr(&self) -> u64;
@@ -137,4 +129,12 @@ pub trait UserspaceGicImpl: 'static + Send {
 
     // TODO: This probably shouldn't be here.
     fn kick_vcpu_for_pvlock(&mut self, vcpuid: u64);
+}
+
+pub trait GicVcpuHandle: Send + Sync {
+    fn get_pending_irq(&mut self, gic: &Mutex<Gic>) -> Option<InterruptId>;
+
+    fn should_wait(&mut self, gic: &Mutex<Gic>) -> bool;
+
+    fn set_vtimer_irq(&mut self);
 }
