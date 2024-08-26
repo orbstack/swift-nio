@@ -22,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -141,7 +142,7 @@ func RunRinitVm() (*RinitData, error) {
 	return &RinitData{Data: data}, nil
 }
 
-func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup) (retNet *vnet.Network, retMachine vmm.Machine, retErr error) {
+func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 	cmdline := []string{
 		// boot
 		"init=/opt/orb/vinit",
@@ -164,6 +165,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		"nbd.nbds_max=4",    // fast boot
 		"can.stats_timer=0", // periodic timer
 	}
+
 	if runtime.GOARCH == "amd64" {
 		// on ARM: kpti is free with E0PD
 		// But on x86, there are too many, just disable it like Docker
@@ -174,9 +176,21 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 			cmdline = append(cmdline, "hpet=disable")
 		}
 	}
+
+	if runtime.GOARCH == "arm64" {
+		// on M3+, use CNTVCTSS_EL0 to omit ISB before CNTVCT_EL0 reads
+		// this brings counter read down from 8ns -> 4ns
+		// sysctl reports FEAT_ECV as supported on M3+, but HVF masks it out because it's primarily a virtualization feature (CNTPOFF_EL2) and it doesn't support nested virt
+		if feat, err := unix.SysctlUint32("hw.optional.arm.FEAT_ECV"); err == nil && feat == 1 {
+			// depends on kernel commit to allow ID_AA64MMFR0_EL1.ECV=1
+			cmdline = append(cmdline, "id_aa64mmfr0.e=1")
+		}
+	}
+
 	if params.DiskRootfs != "" {
 		cmdline = append(cmdline, "root=/dev/vda", "rootfstype=erofs", "ro")
 	}
+
 	if params.Console != ConsoleNone {
 		// quiet kernel boot to reduce log spam when truncated in sentry and GUI
 		// disabled once init starts to preserve any debug info
@@ -194,6 +208,12 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 			cmdline = append(cmdline, "orb.console=/dev/vport2p2")
 		}
 	}
+
+	return strings.Join(cmdline, " ")
+}
+
+func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup) (retNet *vnet.Network, retMachine vmm.Machine, retErr error) {
+	cmdline := buildCmdline(monitor, params)
 	logrus.Debug("cmdline", cmdline)
 
 	spec := vmm.VzSpec{
@@ -201,7 +221,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		Memory:           params.Memory * 1024 * 1024,
 		Kernel:           params.Kernel,
 		KernelCsmap:      params.KernelCsmap,
-		Cmdline:          strings.Join(cmdline, " "),
+		Cmdline:          cmdline,
 		MacAddressPrefix: params.MacAddressPrefix,
 		NetworkNat:       params.NetworkNat,
 		// must be empty vec, not null, for rust
