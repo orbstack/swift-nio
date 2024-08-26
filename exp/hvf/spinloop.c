@@ -77,6 +77,10 @@ isb + cntvct + isb:
 Rate: 61.21M ops/sec
 Time per op: 16.34 ns
 
+cntvctss + isb:
+Rate: 81.61M ops/sec
+Time per op: 12.25 ns
+
 wfe + cntvct:
 Rate: 0.75M ops/sec
 Time per op: 1337.80 ns
@@ -107,7 +111,11 @@ void guest_payload(void) {
         // 6000 mW; 2184M loads/sec
         // "mrs x3, cntvct_el0\n"
 
+        // doesn't work on M1, M1 Max, or M3
+        // "mrs x3, S3_4_c15_c10_6\n" // ACNTVCT_EL0 (pre-standard CNTVCTSS_EL0)
+
         // 2500 mW; 245M loads/sec
+        // (aug 26) 1900 mW
         // "mrs x3, cntvctss_el0\n"
 
         // 2200 mW
@@ -118,12 +126,17 @@ void guest_payload(void) {
         // "wfe\n"
 
         // 2600 mW; 123M loads/sec
-        "isb sy\n"
-        "mrs x3, cntvct_el0\n"
+        // (aug 26) 1850 mW
+        // "isb sy\n"
+        // "mrs x3, cntvct_el0\n"
 
         // 2500 mW
         // "isb sy\n"
         // "mrs x3, cntvct_el0\n"
+        // "isb sy\n"
+
+        // (aug 26) 1750 mW
+        // "mrs x3, cntvctss_el0\n"
         // "isb sy\n"
 
         // 2500 mW
@@ -149,8 +162,11 @@ void guest_payload(void) {
         "ldr x0, [x1]\n"
         "cbnz x0, 2f\n"
         "add x8, x8, #1\n"
+
+        // comment these two instructions to make it run forever for powermetrics --samplers cpu_power
         "cmp x3, x10\n"
         "b.ge 2f\n"
+
         "b 1b\n"
         "2:\n"
         "hvc #0\n"
