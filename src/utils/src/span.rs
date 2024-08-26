@@ -1,10 +1,8 @@
 use crate::Mutex;
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, time::Duration};
 
 use once_cell::sync::Lazy;
+use sysx::mach::time::MachAbsoluteTime;
 use tracing::info;
 
 // TODO: EWMA / simple moving average?
@@ -18,14 +16,14 @@ static TAG_METRICS: Lazy<Mutex<HashMap<String, TagMetrics>>> =
 
 // simple span for profiling, in lieu of tracing::span
 pub struct Span {
-    started_at: Instant,
+    started_at: MachAbsoluteTime,
     tag: String,
 }
 
 impl Span {
     pub fn new(tag: &str) -> Span {
         Span {
-            started_at: Instant::now(),
+            started_at: MachAbsoluteTime::now(),
             tag: tag.to_string(),
         }
     }
@@ -33,7 +31,7 @@ impl Span {
 
 impl Drop for Span {
     fn drop(&mut self) {
-        let elapsed = self.started_at.elapsed();
+        let elapsed = self.started_at.elapsed().as_duration();
 
         // record metrics
         let mut metrics = TAG_METRICS.lock().unwrap();

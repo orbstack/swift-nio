@@ -10,7 +10,7 @@ use std::io::Write;
 use std::mem::size_of;
 use std::sync::{Arc, Weak};
 use std::thread;
-use std::time::Instant;
+use sysx::mach::time::MachAbsoluteTime;
 use utils::Mutex;
 
 use vm_memory::{ByteValued, GuestAddress, GuestMemoryMmap};
@@ -262,7 +262,7 @@ impl Balloon {
         let mut num_ranges = 0;
 
         // simplify and merge ranges
-        let before = Instant::now();
+        let before = MachAbsoluteTime::now();
         for_each_merge_range(prdescs, req.guest_page_size as u64, |range| {
             // bounds check
             let guest_addr = GuestAddress(range.0);

@@ -27,6 +27,10 @@ impl MachAbsoluteTime {
     pub fn saturating_sub(self, rhs: Self) -> MachAbsoluteDuration {
         MachAbsoluteDuration(self.0.saturating_sub(rhs.0))
     }
+
+    pub fn elapsed(&self) -> MachAbsoluteDuration {
+        MachAbsoluteDuration::from_raw(unsafe { mach_absolute_time() } - self.0)
+    }
 }
 
 impl Sub<MachAbsoluteTime> for MachAbsoluteTime {
