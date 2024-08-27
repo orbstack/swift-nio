@@ -19,3 +19,5 @@ vm-memory = { version = ">=0.13", features = ["backend-mmap"] }
 mach2 = "0.4.2"
 nix = "0.28.0"
 sysx = { version = "0.1.0", path = "../sysx" }
+smallvec = "1.13.2"
+bytemuck = "1.17.1"
