@@ -7,7 +7,13 @@
 // === Definitions === //
 
 use counter::RateCounter;
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::VecDeque,
+    sync::{
+        atomic::{AtomicBool, AtomicU8, Ordering::*},
+        Arc, RwLock,
+    },
+};
 use utils::Mutex;
 
 use rustc_hash::FxHashMap;
@@ -190,55 +196,114 @@ pub trait GicV3EventHandler {
 
 #[derive(Debug, Default)]
 pub struct GicV3 {
-    // TODO: Replace with index vectors and, perhaps, perform an SOA transform to make bitmask queries
-    //  considerably quicker. Also, a lot of bitmask handling could be done using CTZ.
-    pub shared_int_configs: FxHashMap<InterruptId, InterruptConfig>,
-    pub shared_int_queues: FxHashMap<InterruptId, GlobalInterruptState>,
-    pub local_int_configs: FxHashMap<(PeId, InterruptId), InterruptConfig>,
-    pub pe_states: FxHashMap<PeId, PeState>,
-    pub affinity_to_pe: FxHashMap<Affinity, PeId>,
-
-    // TODO: Are these even necessary? Although they're mentioned in the kernel, it looks like they
-    // only ever change during boot and it looks like our setup doesn't hit them.
-    pub enable_are: bool,
-    pub enable_grp_1: bool,
-    pub enable_grp_0: bool,
+    pub pe_states: RwLock<FxHashMap<PeId, PeState>>,
+    pub affinity_to_pe: RwLock<FxHashMap<Affinity, PeId>>,
+    pub shared_int_configs: RwLock<FxHashMap<InterruptId, InterruptConfig>>,
+    pub local_int_configs: RwLock<FxHashMap<(PeId, InterruptId), InterruptConfig>>,
+    pub shared_int_queues: RwLock<FxHashMap<InterruptId, GlobalInterruptState>>,
+    pub enable_are: AtomicBool,
+    pub enable_grp_1: AtomicBool,
+    pub enable_grp_0: AtomicBool,
 }
 
 impl GicV3 {
     pub fn affinity_to_pe(&self, affinity: Affinity) -> Option<PeId> {
-        self.affinity_to_pe.get(&affinity).copied()
+        self.affinity_to_pe.read().unwrap().get(&affinity).copied()
     }
 
-    pub fn interrupt_config(&mut self, pe: PeId, id: InterruptId) -> &mut InterruptConfig {
+    pub fn read_interrupt_config(&self, pe: PeId, id: InterruptId) -> InterruptConfig {
         if id.kind() == InterruptKind::PrivatePeripheral {
             self.local_int_configs
-                .entry((pe, id))
-                .or_insert_with(|| InterruptConfig::new(pe, id))
+                .read()
+                .unwrap()
+                .get(&(pe, id))
+                .cloned()
+                .unwrap_or_else(|| InterruptConfig::new(pe, id))
         } else {
             self.shared_int_configs
-                .entry(id)
-                .or_insert_with(|| InterruptConfig::new(pe, id))
+                .read()
+                .unwrap()
+                .get(&id)
+                .cloned()
+                .unwrap_or_else(|| InterruptConfig::new(pe, id))
         }
     }
 
-    pub fn pe_state(&mut self, handler: &mut impl GicV3EventHandler, pe: PeId) -> &mut PeState {
-        self.pe_states.entry(pe).or_insert_with(|| {
-            let affinity = handler.get_affinity(pe);
-            let replaced = self.affinity_to_pe.insert(affinity, pe);
+    pub fn write_interrupt_config<R>(
+        &self,
+        pe: PeId,
+        id: InterruptId,
+        f: impl FnOnce(&mut InterruptConfig) -> R,
+    ) -> R {
+        if id.kind() == InterruptKind::PrivatePeripheral {
+            f(self
+                .local_int_configs
+                .write()
+                .unwrap()
+                .entry((pe, id))
+                .or_insert_with(|| InterruptConfig::new(pe, id)))
+        } else {
+            f(self
+                .shared_int_configs
+                .write()
+                .unwrap()
+                .entry(id)
+                .or_insert_with(|| InterruptConfig::new(pe, id)))
+        }
+    }
 
-            if let Some(replaced) = replaced {
-                panic!("multiple PEs found with affinity {affinity:?}: {pe:?} and {replaced:?}");
-            }
+    pub fn pe_state<H: GicV3EventHandler, R>(
+        &self,
+        handler: &mut H,
+        pe: PeId,
+        f: impl FnOnce(&mut H, &PeState) -> R,
+    ) -> R {
+        if let Some(pe) = self.pe_states.read().unwrap().get(&pe) {
+            return f(handler, pe);
+        }
 
-            tracing::trace!("Found new PE: {pe:?} -> {affinity:?}");
+        self.pe_states
+            .write()
+            .unwrap()
+            .entry(pe)
+            .or_insert_with(|| {
+                let affinity = handler.get_affinity(pe);
+                let replaced = self.affinity_to_pe.write().unwrap().insert(affinity, pe);
 
-            PeState::new(affinity)
-        })
+                if let Some(replaced) = replaced {
+                    panic!(
+                        "multiple PEs found with affinity {affinity:?}: {pe:?} and {replaced:?}"
+                    );
+                }
+
+                tracing::trace!("Found new PE: {pe:?} -> {affinity:?}");
+
+                PeState::new(affinity)
+            });
+
+        f(handler, &self.pe_states.read().unwrap()[&pe])
+    }
+
+    pub fn shared_int_queue<R>(
+        &self,
+        int_id: InterruptId,
+        f: impl FnOnce(&GlobalInterruptState) -> R,
+    ) -> R {
+        if let Some(state) = self.shared_int_queues.read().unwrap().get(&int_id) {
+            return f(state);
+        }
+
+        self.shared_int_queues
+            .write()
+            .unwrap()
+            .entry(int_id)
+            .or_default();
+
+        f(self.shared_int_queues.read().unwrap().get(&int_id).unwrap())
     }
 
     pub fn send_spi(
-        &mut self,
+        &self,
         handler: &mut impl GicV3EventHandler,
         pe: Option<PeId>,
         int_id: InterruptId,
@@ -247,60 +312,58 @@ impl GicV3 {
         COUNT_SPI.count();
 
         // Determine target PE
+        let pe_states = self.pe_states.read().unwrap();
         let (&pe, pe_state) = match &pe {
-            Some(pe) => (pe, self.pe_states.get_mut(pe).unwrap()),
+            Some(pe) => (pe, pe_states.get(pe).unwrap()),
             // HACK: We just send the SPI to the first PE we find but I don't think that's
             // spec-compliant, technically? It looks like all PEs can accept SPIs, though, so it's
             // probably fine for Linux.
-            None => self.pe_states.iter_mut().next().unwrap(),
+            None => pe_states.iter().next().unwrap(),
         };
 
         // Ensure that no one else is asserting this SPI on a different PE. If they are, we need to
         // get in line because, otherwise, Linux will ignore the concurrent SPI.
-        let queue = self.shared_int_queues.entry(int_id).or_default();
+        self.shared_int_queue(int_id, |queue| {
+            let mut deliver_to = queue.deliver_to.lock().unwrap();
 
-        if queue.deliver_to.is_empty() {
-            // No one else is handling this SPI right now so we can deliver ours.
-            queue.deliver_to.push_back(pe);
-        } else {
-            // Another PE is handling this SPI. Add that PE to the backlog but eliminate duplicates
-            // *within the backlog section of the array* to avoid live-lock if the interrupt handler
-            // is handling interrupts slower than we produce them. We can eliminate interrupts in the
-            // backlog since the state we're trying to notify the CPU of is already going to be observed
-            // when the first instance of this interrupt is delivered. We ignore the front of the
-            // iterator since the handler may have missed the state we just set.
-            if !queue.deliver_to.iter().skip(1).any(|&v| v == pe) {
-                queue.deliver_to.push_back(pe);
-                tracing::trace!("SPI backlog for {int_id:?} = {}", queue.deliver_to.len());
+            if deliver_to.is_empty() {
+                // No one else is handling this SPI right now so we can deliver ours.
+                deliver_to.push_back(pe);
+            } else {
+                // Another PE is handling this SPI. Add that PE to the backlog but eliminate duplicates
+                // *within the backlog section of the array* to avoid live-lock if the interrupt handler
+                // is handling interrupts slower than we produce them. We can eliminate interrupts in the
+                // backlog since the state we're trying to notify the CPU of is already going to be observed
+                // when the first instance of this interrupt is delivered. We ignore the front of the
+                // iterator since the handler may have missed the state we just set.
+                if !deliver_to.iter().skip(1).any(|&v| v == pe) {
+                    deliver_to.push_back(pe);
+                    tracing::trace!("SPI backlog for {int_id:?} = {}", deliver_to.len());
+                }
             }
-        }
 
-        // Otherwise, deliver the SPI!
-        Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, true);
+            // Otherwise, deliver the SPI!
+            Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, true);
+        });
     }
 
-    pub fn acknowledge_spi(&mut self, handler: &mut impl GicV3EventHandler, int_id: InterruptId) {
-        let Some(int) = self.shared_int_queues.get_mut(&int_id) else {
-            return;
-        };
+    pub fn acknowledge_spi(&self, handler: &mut impl GicV3EventHandler, int_id: InterruptId) {
+        self.shared_int_queue(int_id, |queue| {
+            let mut deliver_to = queue.deliver_to.lock().unwrap();
+            deliver_to.pop_front();
 
-        int.deliver_to.pop_front();
+            let Some(&new_pe) = deliver_to.front() else {
+                return;
+            };
 
-        let Some(&new_pe) = int.deliver_to.front() else {
-            return;
-        };
-
-        Self::deliver_interrupt_to_pe(
-            handler,
-            new_pe,
-            self.pe_states.get_mut(&new_pe).unwrap(),
-            int_id,
-            true,
-        );
+            self.pe_state(handler, new_pe, |handler, new_pe_state| {
+                Self::deliver_interrupt_to_pe(handler, new_pe, new_pe_state, int_id, true);
+            });
+        })
     }
 
     pub fn send_ppi(
-        &mut self,
+        &self,
         handler: &mut impl GicV3EventHandler,
         pe: PeId,
         int_id: InterruptId,
@@ -309,20 +372,21 @@ impl GicV3 {
         assert_eq!(int_id.kind(), InterruptKind::PrivatePeripheral);
         COUNT_PPI.count();
 
-        let pe_state = self.pe_states.get_mut(&pe).unwrap();
-        Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, !is_local);
+        self.pe_state(handler, pe, |handler, pe_state| {
+            Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, !is_local);
+        });
     }
 
     pub fn deliver_interrupt_to_pe(
         handler: &mut impl GicV3EventHandler,
         pe: PeId,
-        pe_state: &mut PeState,
+        pe_state: &PeState,
         int_id: InterruptId,
         needs_kick: bool,
     ) {
         // Check whether the target PE can receive the interrupt
         // TODO
-        if !pe_state.is_enabled {
+        if !pe_state.is_enabled.load(Relaxed) {
             tracing::trace!(
                 "Ignoring interrupt {int_id:?} of type {:?} to {pe:?}",
                 int_id.kind()
@@ -351,7 +415,7 @@ impl GicV3 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InterruptConfig {
     pub trigger: InterruptTrigger,
     pub disabled: bool,
@@ -380,8 +444,8 @@ impl InterruptConfig {
 #[derive(Debug)]
 pub struct PeState {
     pub affinity: Affinity,
-    pub min_priority: u8,
-    pub is_enabled: bool,
+    pub min_priority: AtomicU8,
+    pub is_enabled: AtomicBool,
     pub int_state: Arc<Mutex<PeInterruptState>>,
 }
 
@@ -389,8 +453,8 @@ impl PeState {
     pub fn new(affinity: Affinity) -> Self {
         Self {
             affinity,
-            min_priority: 0,
-            is_enabled: false,
+            min_priority: AtomicU8::new(0),
+            is_enabled: AtomicBool::new(false),
             int_state: Arc::new(Mutex::new(PeInterruptState {
                 pending_interrupts: VecDeque::new(),
                 active_interrupt: None,
@@ -450,5 +514,6 @@ impl PeInterruptState {
 
 #[derive(Debug, Default)]
 pub struct GlobalInterruptState {
-    pub deliver_to: VecDeque<PeId>,
+    // TODO: Do not mutex
+    pub deliver_to: Mutex<VecDeque<PeId>>,
 }

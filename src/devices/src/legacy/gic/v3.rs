@@ -90,17 +90,13 @@ impl GicImpl for UserspaceGicV3 {
     }
 
     fn get_vcpu_handle(&mut self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
-        Box::new(GicV3VcpuHandle(
-            self.gic
-                .pe_state(
-                    &mut HvfGicEventHandler {
-                        wfe_threads: &mut self.wfe_threads,
-                    },
-                    PeId(vcpuid),
-                )
-                .int_state
-                .clone(),
-        ))
+        Box::new(GicV3VcpuHandle(self.gic.pe_state(
+            &mut HvfGicEventHandler {
+                wfe_threads: &mut self.wfe_threads,
+            },
+            PeId(vcpuid),
+            |_, state| state.int_state.clone(),
+        )))
     }
 
     fn kick_vcpu_for_pvlock(&mut self, vcpuid: u64) {

@@ -2,6 +2,8 @@
 
 use counter::RateCounter;
 
+use std::sync::atomic::Ordering::*;
+
 use crate::{
     device::{GicV3, GicV3EventHandler, InterruptId, PeId},
     mmio::{CoreLinkIdRegisters, GicFullMap, GicSysReg, GicdCtlr, Waker, GICD, GICR, SGI},
@@ -17,7 +19,7 @@ counter::counter! {
 
 impl GicV3 {
     pub fn read_sysreg(
-        &mut self,
+        &self,
         handler: &mut impl GicV3EventHandler,
         pe: PeId,
         reg: GicSysReg,
@@ -95,34 +97,37 @@ impl GicV3 {
             GicSysReg::ICC_IAR1_EL1 => {
                 COUNT_GIC_ACK.count();
 
-                let pe_state = self.pe_state(handler, pe);
-                let mut pe_int_state = pe_state.int_state.lock().unwrap();
+                self.pe_state(handler, pe, |handler, pe_state| {
+                    let mut pe_int_state = pe_state.int_state.lock().unwrap();
 
-                let active_int_id = if let Some(active) = pe_int_state.active_interrupt {
-                    active
-                } else if let Some(front) = pe_int_state.pending_interrupts.pop_front() {
-                    pe_int_state.active_interrupt = Some(front);
-                    drop(pe_int_state);
+                    let active_int_id = if let Some(active) = pe_int_state.active_interrupt {
+                        active
+                    } else if let Some(front) = pe_int_state.pending_interrupts.pop_front() {
+                        pe_int_state.active_interrupt = Some(front);
+                        drop(pe_int_state);
 
-                    if front.kind().is_shared() {
-                        self.acknowledge_spi(handler, front);
-                    }
+                        if front.kind().is_shared() {
+                            self.acknowledge_spi(handler, front);
+                        }
 
-                    front
-                } else {
-                    InterruptId(1023)
-                };
+                        front
+                    } else {
+                        InterruptId(1023)
+                    };
 
-                BitPack::default()
-                    .set_range(0, 23, active_int_id.0 as u64)
-                    .0
+                    BitPack::default()
+                        .set_range(0, 23, active_int_id.0 as u64)
+                        .0
+                })
             }
 
             GicSysReg::ICC_IGRPEN0_EL1 => todo!(),
             GicSysReg::ICC_IGRPEN1_EL1 => todo!(),
 
             // 12.2.19 ICC_PMR_EL1, Interrupt Controller Interrupt Priority Mask Register
-            GicSysReg::ICC_PMR_EL1 => self.pe_state(handler, pe).min_priority as u64,
+            GicSysReg::ICC_PMR_EL1 => self.pe_state(handler, pe, |_, pe_state| {
+                pe_state.min_priority.load(Relaxed) as u64
+            }),
             GicSysReg::ICC_RPR_EL1 => todo!(),
             GicSysReg::ICC_SGI0R_EL1 => todo!(),
             GicSysReg::ICC_SGI1R_EL1 => todo!(),
@@ -131,7 +136,7 @@ impl GicV3 {
     }
 
     pub fn read(
-        &mut self,
+        &self,
         handler: &mut impl GicV3EventHandler,
         pe: PeId,
         mut req: MmioReadRequest<'_>,
@@ -152,7 +157,7 @@ impl GicV3 {
         });
     }
 
-    pub fn read_distributor(&mut self, pe: PeId, mut req: MmioReadRequest<'_>) {
+    pub fn read_distributor(&self, pe: PeId, mut req: MmioReadRequest<'_>) {
         // Handle `GICD_PIDR2` (see section 12.1.13 of spec)
         req.handle_sub(mmio_range!(GICD, id_registers), |req| {
             Self::read_core_link_id(req, 3)
@@ -180,16 +185,16 @@ impl GicV3 {
 
             // bit 5, `ARE_NS`, is reserved for GICs with one security level. This is contrary
             // to the OSDev wiki, which claims that they're also RAO/WI but what do they know?
-            if self.enable_are {
+            if self.enable_are.load(Relaxed) {
                 flags |= GicdCtlr::ARE_S;
             }
 
-            if self.enable_grp_1 {
+            if self.enable_grp_1.load(Relaxed) {
                 // The secure version of this flag is also reserved in this context.
                 flags |= GicdCtlr::EnableGrp1NS;
             }
 
-            if self.enable_grp_0 {
+            if self.enable_grp_0.load(Relaxed) {
                 flags |= GicdCtlr::EnableGrp0;
             }
 
@@ -220,7 +225,9 @@ impl GicV3 {
         req.handle_pod_array(mmio_range!(GICD, icfgr), |idx| {
             tracing::trace!("reading from `GICD_ICFGR`");
             write_bit_array(idx, 2, |idx| {
-                let trigger = self.interrupt_config(pe, InterruptId(idx as u32)).trigger;
+                let trigger = self
+                    .read_interrupt_config(pe, InterruptId(idx as u32))
+                    .trigger;
                 tracing::trace!("{idx} = {trigger:?}");
                 trigger.to_two_bit_repr()
             })
@@ -321,7 +328,10 @@ impl GicV3 {
                 // 0b0 If read, indicates that forwarding of the corresponding interrupt is disabled.
                 // 0b1 If read, indicates that forwarding of the corresponding interrupt is enabled.
 
-                if self.interrupt_config(pe, InterruptId(idx as u32)).disabled {
+                if self
+                    .read_interrupt_config(pe, InterruptId(idx as u32))
+                    .disabled
+                {
                     0
                 } else {
                     1
@@ -465,7 +475,7 @@ impl GicV3 {
     }
 
     pub fn read_redistributor_rd_base(
-        &mut self,
+        &self,
         handler: &mut impl GicV3EventHandler,
         pe: PeId,
         mut req: MmioReadRequest<'_>,
@@ -591,7 +601,9 @@ impl GicV3 {
                 .set_range(
                     32,
                     63,
-                    self.pe_state(handler, pe).affinity.as_typer_id().into(),
+                    self.pe_state(handler, pe, |_, pe_state| {
+                        pe_state.affinity.as_typer_id().into()
+                    }),
                 )
                 // PPInum, bits [31:27]
                 //
@@ -656,7 +668,7 @@ impl GicV3 {
         });
     }
 
-    pub fn read_redistributor_sgi_base(&mut self, pe: PeId, mut req: MmioReadRequest<'_>) {
+    pub fn read_redistributor_sgi_base(&self, pe: PeId, mut req: MmioReadRequest<'_>) {
         // Handle `GICR_ICACTIVER0` (see section 12.11.3 of spec)
         req.handle_pod(mmio_range!(SGI, isactiver0), || {
             todo!();
@@ -683,7 +695,7 @@ impl GicV3 {
             assert!(idx <= 1, "extended LPI range is not supported");
 
             write_bit_array(idx, 2, |idx| {
-                self.interrupt_config(pe, InterruptId(idx as u32))
+                self.read_interrupt_config(pe, InterruptId(idx as u32))
                     .trigger
                     .to_two_bit_repr()
             })

@@ -2,6 +2,8 @@
 
 use counter::RateCounter;
 
+use std::sync::atomic::Ordering::*;
+
 use crate::{
     device::{
         Affinity, GicV3, GicV3EventHandler, InterruptId, InterruptKind, InterruptTrigger, PeId,
@@ -24,7 +26,7 @@ counter::counter! {
 
 impl GicV3 {
     pub fn write_sysreg(
-        &mut self,
+        &self,
         handler: &mut impl GicV3EventHandler,
         pe: PeId,
         reg: GicSysReg,
@@ -70,15 +72,16 @@ impl GicV3 {
             // 12.2.10 ICC_EOIR1_EL1, Interrupt Controller End Of Interrupt Register 1
             GicSysReg::ICC_EOIR1_EL1 => {
                 let int_id = InterruptId(BitPack(value).get_range(0, 23) as u32);
-                let pe_state = self.pe_state(handler, pe);
-                let mut pe_int_state = pe_state.int_state.lock().unwrap();
-                assert_eq!(pe_int_state.active_interrupt, Some(int_id));
+                self.pe_state(handler, pe, |handler, pe_state| {
+                    let mut pe_int_state = pe_state.int_state.lock().unwrap();
+                    assert_eq!(pe_int_state.active_interrupt, Some(int_id));
 
-                pe_int_state.active_interrupt = None;
-                drop(pe_int_state);
-                handler.handle_custom_eoi(pe, int_id);
+                    pe_int_state.active_interrupt = None;
+                    drop(pe_int_state);
+                    handler.handle_custom_eoi(pe, int_id);
 
-                COUNT_EOI.count();
+                    COUNT_EOI.count();
+                });
             }
 
             GicSysReg::ICC_HPPIR0_EL1 => todo!(),
@@ -89,7 +92,11 @@ impl GicV3 {
 
             // 12.2.16 ICC_IGRPEN1_EL1, Interrupt Controller Interrupt Group 1 Enable register
             GicSysReg::ICC_IGRPEN1_EL1 => {
-                self.pe_state(handler, pe).is_enabled = BitPack(value).get_bit(0);
+                self.pe_state(handler, pe, |_, pe_state| {
+                    pe_state
+                        .is_enabled
+                        .store(BitPack(value).get_bit(0), Relaxed);
+                });
             }
 
             // 12.2.19 ICC_PMR_EL1, Interrupt Controller Interrupt Priority Mask Register
@@ -105,7 +112,9 @@ impl GicV3 {
                 }
 
                 // N.B. This only affects future interrupts.
-                self.pe_state(handler, pe).min_priority = priority as u8;
+                self.pe_state(handler, pe, |_, pe_state| {
+                    pe_state.min_priority.store(priority as u8, Relaxed);
+                });
             }
 
             GicSysReg::ICC_RPR_EL1 => todo!(),
@@ -164,16 +173,17 @@ impl GicV3 {
                 // Now that the request is parsed, let's begin the interrupt procedure according
                 // to section 4.1 of the spec.
                 if irm {
-                    for (target_pe, pe_state) in &mut self.pe_states {
+                    for (target_pe, pe_state) in self.pe_states.read().unwrap().iter() {
                         if pe != *target_pe {
                             Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, true);
                         }
                     }
                 } else {
+                    let pe_states = self.pe_states.read().unwrap();
                     for aff0 in iter_set_bits(target_list_bits) {
                         let target_aff = Affinity([aff0 as u8, aff1 as u8, aff2 as u8, aff3 as u8]);
                         let target_pe = self.affinity_to_pe(target_aff).unwrap();
-                        let pe_state = self.pe_states.get_mut(&target_pe).unwrap();
+                        let pe_state = pe_states.get(&target_pe).unwrap();
 
                         Self::deliver_interrupt_to_pe(handler, target_pe, pe_state, int_id, true);
                     }
@@ -186,7 +196,7 @@ impl GicV3 {
         }
     }
 
-    pub fn write(&mut self, pe: PeId, mut req: MmioWriteRequest<'_>) {
+    pub fn write(&self, pe: PeId, mut req: MmioWriteRequest<'_>) {
         tracing::trace!("--- Write GIC MMIO, PE: {pe:?}, MEM: {:?}", req.req_range());
         COUNT_MMIO_WRITE.count();
 
@@ -203,7 +213,7 @@ impl GicV3 {
         });
     }
 
-    pub fn write_distributor(&mut self, pe: PeId, mut req: MmioWriteRequest<'_>) {
+    pub fn write_distributor(&self, pe: PeId, mut req: MmioWriteRequest<'_>) {
         // Handle `GICD_PIDR2` (see section 12.1.13 of spec)
         req.handle_sub(mmio_range!(GICD, id_registers), |req| {
             todo!();
@@ -249,7 +259,8 @@ impl GicV3 {
             //
             // N.B. Linux calls this flag `GICD_CTLR_ARE_NS` but it's actually `ARE_S`.
             // Maybe the mmio bindings are incorrect?
-            self.enable_are = val.intersects(GicdCtlr::ARE_S);
+            self.enable_are
+                .store(val.intersects(GicdCtlr::ARE_S), Relaxed);
 
             // EnableGrp1, bit [1]: Enable Group 1 interrupts.
             //
@@ -257,7 +268,8 @@ impl GicV3 {
             // - 0b1 Group 1 interrupts enabled.
             // - On a GIC reset, this field resets to an architecturally UNKNOWN value.
             //
-            self.enable_grp_1 = val.intersects(GicdCtlr::EnableGrp1NS);
+            self.enable_grp_1
+                .store(val.intersects(GicdCtlr::EnableGrp1NS), Relaxed);
 
             // EnableGrp0, bit [0]: Enable Group 0 interrupts.
             //
@@ -265,7 +277,7 @@ impl GicV3 {
             // - 0b1 Group 0 interrupts are enabled.
             // - On a GIC reset, this field resets to an architecturally UNKNOWN value.
             //
-            self.enable_grp_0 = val.intersects(GicdCtlr::EnableGrp0);
+            self.enable_grp_0.store(val.intersects(GicdCtlr::EnableGrp0), Relaxed);
         });
 
         // Handle `GICD_ICACTIVER<n>` (see section 12.9.5 of spec)
@@ -274,7 +286,7 @@ impl GicV3 {
 
             for idx in read_set_bits(idx, val) {
                 // Only "write true" has an effect.
-                self.interrupt_config(pe, InterruptId(idx)).disabled = true;
+                self.write_interrupt_config(pe, InterruptId(idx), |conf| conf.disabled = true);
             }
         });
 
@@ -291,7 +303,7 @@ impl GicV3 {
                 // For SPIs and PPIs, controls the forwarding of interrupt number 32n + x to the CPU interfaces.
                 // 0b0 If written, has no effect.
                 // 0b1 If written, disables forwarding of the corresponding interrupt.
-                self.interrupt_config(pe, InterruptId(idx)).not_forwarded = true;
+                self.write_interrupt_config(pe, InterruptId(idx), |conf| conf.not_forwarded = true);
             }
         });
 
@@ -309,7 +321,7 @@ impl GicV3 {
                 let iid = InterruptId(idx);
 
                 if iid.kind() != InterruptKind::SoftwareGenerated {
-                    self.interrupt_config(pe, iid).trigger = trigger;
+                    self.write_interrupt_config(pe, iid, |conf| conf.trigger = trigger);
                 }
             }
         });
@@ -392,8 +404,9 @@ impl GicV3 {
             let aff2 = val.get_range(16, 23);
             let aff1 = val.get_range(8, 15);
             let aff0 = val.get_range(0, 7);
-            self.interrupt_config(pe, iid).affinity =
-                Affinity([aff0 as u8, aff1 as u8, aff2 as u8, aff3 as u8]);
+            self.write_interrupt_config(pe, iid, |conf| {
+                conf.affinity = Affinity([aff0 as u8, aff1 as u8, aff2 as u8, aff3 as u8])
+            });
         });
 
         // Handle `GICD_IROUTER<n>E` (see section 12.9.23 of spec)
@@ -419,7 +432,9 @@ impl GicV3 {
                 // 0b1 If read, indicates that forwarding of the corresponding interrupt is enabled.
                 // If written, enables forwarding of the corresponding interrupt.
                 // After a write of 1 to this bit, a subsequent read of this bit returns 1.
-                self.interrupt_config(pe, InterruptId(idx)).not_forwarded = false;
+                self.write_interrupt_config(pe, InterruptId(idx), |conf| {
+                    conf.not_forwarded = false
+                });
             }
         });
 
@@ -507,7 +522,7 @@ impl GicV3 {
         // FIXME: What is this?
     }
 
-    pub fn write_redistributor_rd_base(&mut self, pe: PeId, mut req: MmioWriteRequest<'_>) {
+    pub fn write_redistributor_rd_base(&self, pe: PeId, mut req: MmioWriteRequest<'_>) {
         // Handle `GICD_PIDR2` (see section 12.1.13 of spec)
         req.handle_sub(mmio_range!(GICD, id_registers), |req| {
             todo!();
@@ -600,7 +615,7 @@ impl GicV3 {
         });
     }
 
-    pub fn write_redistributor_sgi_base(&mut self, pe: PeId, mut req: MmioWriteRequest<'_>) {
+    pub fn write_redistributor_sgi_base(&self, pe: PeId, mut req: MmioWriteRequest<'_>) {
         // Handle `GICR_ICACTIVER0` (see section 12.11.3 of spec)
         req.handle_pod(mmio_range!(SGI, icactiver0), |val| {
             tracing::trace!("writing to `GICR_ICACTIVER0`");
@@ -618,7 +633,7 @@ impl GicV3 {
                 //
                 // 0b0 If written, has no effect.
                 // 0b1 If written, deactivates the corresponding interrupt, if the interrupt is active.
-                self.interrupt_config(pe, iid).disabled = true;
+                self.write_interrupt_config(pe, iid, |conf| conf.disabled = true);
             }
         });
 
@@ -644,7 +659,7 @@ impl GicV3 {
                 //
                 // 0b0 If written, has no effect.
                 // 0b1 If written, disables forwarding of the corresponding interrupt.
-                self.interrupt_config(pe, iid).not_forwarded = true;
+                self.write_interrupt_config(pe, iid, |conf| conf.not_forwarded = true);
             }
         });
 
@@ -656,8 +671,9 @@ impl GicV3 {
         // Handle `GICR_ICFGR0`, `GICR_ICFGR1`, and `GICR_ICFGR<n>E` (see section 12.11.[7-9] of spec)
         req.handle_pod_array(mmio_range!(SGI, icfgr), |idx, val| {
             for (idx, val) in read_bit_array(idx, val, 2) {
-                self.interrupt_config(pe, InterruptId(idx)).trigger =
-                    InterruptTrigger::from_two_bit_repr(val);
+                self.write_interrupt_config(pe, InterruptId(idx), |conf| {
+                    conf.trigger = InterruptTrigger::from_two_bit_repr(val)
+                });
             }
         });
 
@@ -742,7 +758,7 @@ impl GicV3 {
                 //
                 // 0b0 If written, has no effect.
                 // 0b1 If written, enables forwarding of the corresponding interrupt.
-                self.interrupt_config(pe, iid).not_forwarded = false;
+                self.write_interrupt_config(pe, iid, |conf| conf.not_forwarded = false);
             }
         });
 
