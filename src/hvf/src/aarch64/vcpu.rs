@@ -43,7 +43,8 @@ use super::bindings::{
     hv_exit_reason_t_HV_EXIT_REASON_VTIMER_ACTIVATED, hv_interrupt_type_t_HV_INTERRUPT_TYPE_FIQ,
     hv_interrupt_type_t_HV_INTERRUPT_TYPE_IRQ, hv_reg_t, hv_reg_t_HV_REG_CPSR, hv_reg_t_HV_REG_FP,
     hv_reg_t_HV_REG_LR, hv_reg_t_HV_REG_PC, hv_reg_t_HV_REG_X0, hv_sys_reg_t,
-    hv_sys_reg_t_HV_SYS_REG_CONTEXTIDR_EL1, hv_sys_reg_t_HV_SYS_REG_ID_AA64MMFR0_EL1,
+    hv_sys_reg_t_HV_SYS_REG_CONTEXTIDR_EL1, hv_sys_reg_t_HV_SYS_REG_ESR_EL1,
+    hv_sys_reg_t_HV_SYS_REG_FAR_EL1, hv_sys_reg_t_HV_SYS_REG_ID_AA64MMFR0_EL1,
     hv_sys_reg_t_HV_SYS_REG_MPIDR_EL1, hv_sys_reg_t_HV_SYS_REG_SCTLR_EL1,
     hv_sys_reg_t_HV_SYS_REG_SP_EL1, hv_sys_reg_t_HV_SYS_REG_TCR_EL1,
     hv_sys_reg_t_HV_SYS_REG_TPIDR_EL1, hv_sys_reg_t_HV_SYS_REG_TTBR1_EL1,
@@ -823,6 +824,12 @@ impl HvfVcpu {
             self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_SP_EL1)?,
             self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_TPIDR_EL1)?,
             self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_VBAR_EL1)?,
+        )?;
+        writeln!(
+            buf,
+            "ESR_EL1: 0x{:016x}  FAR_EL1: 0x{:016x}",
+            self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_ESR_EL1)?,
+            self.read_sys_reg(hv_sys_reg_t_HV_SYS_REG_FAR_EL1)?,
         )?;
         writeln!(buf, "PSTATE(el): {}", el_str)?;
         writeln!(buf)?;
