@@ -8,7 +8,7 @@
 
 use counter::RateCounter;
 use std::{
-    collections::VecDeque,
+    collections::{hash_map, VecDeque},
     sync::{
         atomic::{AtomicBool, AtomicU8, Ordering::*},
         Arc, RwLock,
@@ -194,10 +194,11 @@ pub trait GicV3EventHandler {
 
 // === Device === //
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct GicV3 {
-    pub pe_states: RwLock<FxHashMap<PeId, PeState>>,
-    pub affinity_to_pe: RwLock<FxHashMap<Affinity, PeId>>,
+    pub pe_states: Box<[PeState]>,
+    pub affinity_to_pe: FxHashMap<Affinity, PeId>,
+
     pub shared_int_configs: RwLock<FxHashMap<InterruptId, InterruptConfig>>,
     pub local_int_configs: RwLock<FxHashMap<(PeId, InterruptId), InterruptConfig>>,
     pub shared_int_queues: RwLock<FxHashMap<InterruptId, GlobalInterruptState>>,
@@ -207,8 +208,44 @@ pub struct GicV3 {
 }
 
 impl GicV3 {
+    pub fn new(handler: &mut impl GicV3EventHandler, pe_count: u64) -> Self {
+        let mut affinity_to_pe = FxHashMap::default();
+        let pe_states = (0..pe_count)
+            .map(|pe| {
+                let pe = PeId(pe);
+                let affinity = handler.get_affinity(pe);
+
+                match affinity_to_pe.entry(affinity) {
+                    hash_map::Entry::Vacant(entry) => {
+                        entry.insert(pe);
+                    }
+                    hash_map::Entry::Occupied(entry) => {
+                        panic!(
+                            "multiple PEs found with affinity {affinity:?}: {pe:?} and {:?}",
+                            entry.get(),
+                        );
+                    }
+                }
+
+                PeState::new(affinity)
+            })
+            .collect();
+
+        Self {
+            pe_states,
+            affinity_to_pe,
+
+            shared_int_configs: Default::default(),
+            local_int_configs: Default::default(),
+            shared_int_queues: Default::default(),
+            enable_are: AtomicBool::new(false),
+            enable_grp_1: AtomicBool::new(false),
+            enable_grp_0: AtomicBool::new(false),
+        }
+    }
+
     pub fn affinity_to_pe(&self, affinity: Affinity) -> Option<PeId> {
-        self.affinity_to_pe.read().unwrap().get(&affinity).copied()
+        self.affinity_to_pe.get(&affinity).copied()
     }
 
     pub fn read_interrupt_config(&self, pe: PeId, id: InterruptId) -> InterruptConfig {
@@ -252,36 +289,8 @@ impl GicV3 {
         }
     }
 
-    pub fn pe_state<H: GicV3EventHandler, R>(
-        &self,
-        handler: &mut H,
-        pe: PeId,
-        f: impl FnOnce(&mut H, &PeState) -> R,
-    ) -> R {
-        if let Some(pe) = self.pe_states.read().unwrap().get(&pe) {
-            return f(handler, pe);
-        }
-
-        self.pe_states
-            .write()
-            .unwrap()
-            .entry(pe)
-            .or_insert_with(|| {
-                let affinity = handler.get_affinity(pe);
-                let replaced = self.affinity_to_pe.write().unwrap().insert(affinity, pe);
-
-                if let Some(replaced) = replaced {
-                    panic!(
-                        "multiple PEs found with affinity {affinity:?}: {pe:?} and {replaced:?}"
-                    );
-                }
-
-                tracing::trace!("Found new PE: {pe:?} -> {affinity:?}");
-
-                PeState::new(affinity)
-            });
-
-        f(handler, &self.pe_states.read().unwrap()[&pe])
+    pub fn pe_state(&self, pe: PeId) -> &PeState {
+        &self.pe_states[pe.0 as usize]
     }
 
     pub fn shared_int_queue<R>(
@@ -312,13 +321,12 @@ impl GicV3 {
         COUNT_SPI.count();
 
         // Determine target PE
-        let pe_states = self.pe_states.read().unwrap();
-        let (&pe, pe_state) = match &pe {
-            Some(pe) => (pe, pe_states.get(pe).unwrap()),
+        let (pe, pe_state) = match &pe {
+            Some(pe) => (*pe, self.pe_state(*pe)),
             // HACK: We just send the SPI to the first PE we find but I don't think that's
             // spec-compliant, technically? It looks like all PEs can accept SPIs, though, so it's
             // probably fine for Linux.
-            None => pe_states.iter().next().unwrap(),
+            None => (PeId(0), self.pe_states.first().unwrap()),
         };
 
         // Ensure that no one else is asserting this SPI on a different PE. If they are, we need to
@@ -356,9 +364,7 @@ impl GicV3 {
                 return;
             };
 
-            self.pe_state(handler, new_pe, |handler, new_pe_state| {
-                Self::deliver_interrupt_to_pe(handler, new_pe, new_pe_state, int_id, true);
-            });
+            Self::deliver_interrupt_to_pe(handler, new_pe, self.pe_state(new_pe), int_id, true);
         })
     }
 
@@ -372,9 +378,7 @@ impl GicV3 {
         assert_eq!(int_id.kind(), InterruptKind::PrivatePeripheral);
         COUNT_PPI.count();
 
-        self.pe_state(handler, pe, |handler, pe_state| {
-            Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, !is_local);
-        });
+        Self::deliver_interrupt_to_pe(handler, pe, self.pe_state(pe), int_id, !is_local);
     }
 
     pub fn deliver_interrupt_to_pe(

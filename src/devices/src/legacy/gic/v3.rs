@@ -18,13 +18,26 @@ counter::counter! {
     COUNT_VCPU_KICK in "gic.vcpu.kick": RateCounter = RateCounter::new(FILTER);
 }
 
-#[derive(Default)]
 pub struct UserspaceGicV3 {
     gic: gicv3::device::GicV3,
     wfe_threads: RwLock<FxHashMap<PeId, WfeThread>>,
 }
 
 const TIMER_INT_ID: InterruptId = InterruptId(GTIMER_VIRT + 16);
+
+impl UserspaceGicV3 {
+    pub fn new(pe_count: u64) -> Self {
+        let mut wfe_threads = RwLock::<FxHashMap<PeId, WfeThread>>::default();
+        let gic = gicv3::device::GicV3::new(
+            &mut HvfGicEventHandler {
+                wfe_threads: &mut wfe_threads,
+            },
+            pe_count,
+        );
+
+        Self { gic, wfe_threads }
+    }
+}
 
 impl GicImpl for UserspaceGicV3 {
     fn get_addr(&self) -> u64 {
@@ -93,13 +106,9 @@ impl GicImpl for UserspaceGicV3 {
     }
 
     fn get_vcpu_handle(&self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
-        Box::new(GicV3VcpuHandle(self.gic.pe_state(
-            &mut HvfGicEventHandler {
-                wfe_threads: &self.wfe_threads,
-            },
-            PeId(vcpuid),
-            |_, state| state.int_state.clone(),
-        )))
+        Box::new(GicV3VcpuHandle(
+            self.gic.pe_state(PeId(vcpuid)).int_state.clone(),
+        ))
     }
 
     fn kick_vcpu_for_pvlock(&self, vcpuid: u64) {

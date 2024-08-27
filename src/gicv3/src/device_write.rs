@@ -72,16 +72,15 @@ impl GicV3 {
             // 12.2.10 ICC_EOIR1_EL1, Interrupt Controller End Of Interrupt Register 1
             GicSysReg::ICC_EOIR1_EL1 => {
                 let int_id = InterruptId(BitPack(value).get_range(0, 23) as u32);
-                self.pe_state(handler, pe, |handler, pe_state| {
-                    let mut pe_int_state = pe_state.int_state.lock().unwrap();
-                    assert_eq!(pe_int_state.active_interrupt, Some(int_id));
 
-                    pe_int_state.active_interrupt = None;
-                    drop(pe_int_state);
-                    handler.handle_custom_eoi(pe, int_id);
+                let mut pe_int_state = self.pe_state(pe).int_state.lock().unwrap();
+                assert_eq!(pe_int_state.active_interrupt, Some(int_id));
 
-                    COUNT_EOI.count();
-                });
+                pe_int_state.active_interrupt = None;
+                drop(pe_int_state);
+                handler.handle_custom_eoi(pe, int_id);
+
+                COUNT_EOI.count();
             }
 
             GicSysReg::ICC_HPPIR0_EL1 => todo!(),
@@ -92,11 +91,9 @@ impl GicV3 {
 
             // 12.2.16 ICC_IGRPEN1_EL1, Interrupt Controller Interrupt Group 1 Enable register
             GicSysReg::ICC_IGRPEN1_EL1 => {
-                self.pe_state(handler, pe, |_, pe_state| {
-                    pe_state
-                        .is_enabled
-                        .store(BitPack(value).get_bit(0), Relaxed);
-                });
+                self.pe_state(pe)
+                    .is_enabled
+                    .store(BitPack(value).get_bit(0), Relaxed);
             }
 
             // 12.2.19 ICC_PMR_EL1, Interrupt Controller Interrupt Priority Mask Register
@@ -112,9 +109,9 @@ impl GicV3 {
                 }
 
                 // N.B. This only affects future interrupts.
-                self.pe_state(handler, pe, |_, pe_state| {
-                    pe_state.min_priority.store(priority as u8, Relaxed);
-                });
+                self.pe_state(pe)
+                    .min_priority
+                    .store(priority as u8, Relaxed);
             }
 
             GicSysReg::ICC_RPR_EL1 => todo!(),
@@ -173,17 +170,17 @@ impl GicV3 {
                 // Now that the request is parsed, let's begin the interrupt procedure according
                 // to section 4.1 of the spec.
                 if irm {
-                    for (target_pe, pe_state) in self.pe_states.read().unwrap().iter() {
-                        if pe != *target_pe {
+                    for (target_pe, pe_state) in self.pe_states.iter().enumerate() {
+                        let target_pe = PeId(target_pe as u64);
+                        if pe != target_pe {
                             Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, true);
                         }
                     }
                 } else {
-                    let pe_states = self.pe_states.read().unwrap();
                     for aff0 in iter_set_bits(target_list_bits) {
                         let target_aff = Affinity([aff0 as u8, aff1 as u8, aff2 as u8, aff3 as u8]);
                         let target_pe = self.affinity_to_pe(target_aff).unwrap();
-                        let pe_state = pe_states.get(&target_pe).unwrap();
+                        let pe_state = self.pe_state(target_pe);
 
                         Self::deliver_interrupt_to_pe(handler, target_pe, pe_state, int_id, true);
                     }
@@ -277,7 +274,8 @@ impl GicV3 {
             // - 0b1 Group 0 interrupts are enabled.
             // - On a GIC reset, this field resets to an architecturally UNKNOWN value.
             //
-            self.enable_grp_0.store(val.intersects(GicdCtlr::EnableGrp0), Relaxed);
+            self.enable_grp_0
+                .store(val.intersects(GicdCtlr::EnableGrp0), Relaxed);
         });
 
         // Handle `GICD_ICACTIVER<n>` (see section 12.9.5 of spec)

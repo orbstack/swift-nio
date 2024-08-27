@@ -460,7 +460,10 @@ pub fn build_microvm(
     #[cfg(target_os = "linux")]
     let intc = None;
     #[cfg(target_os = "macos")]
-    let intc = Some(Arc::new(devices::legacy::Gic::new(&vm.hvf_vm)));
+    let intc = Some(Arc::new(devices::legacy::Gic::new(
+        &vm.hvf_vm,
+        vcpu_config.vcpu_count as u64,
+    )));
 
     #[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
     let boot_ip: GuestAddress = GuestAddress(kernel_bundle.entry_addr);

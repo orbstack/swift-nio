@@ -27,7 +27,7 @@ pub struct Gic {
 
 impl Gic {
     #[cfg(target_arch = "aarch64")]
-    pub fn new(hvf_vm: &Arc<HvfVm>) -> Self {
+    pub fn new(hvf_vm: &Arc<HvfVm>, pe_count: u64) -> Self {
         use super::hvf_gic::HvfGic;
 
         if hvf_vm.gic_props.is_some() {
@@ -36,7 +36,7 @@ impl Gic {
             }
         } else {
             Self {
-                inner: Box::<super::v3::UserspaceGicV3>::default(),
+                inner: Box::new(super::v3::UserspaceGicV3::new(pe_count)),
             }
         }
     }

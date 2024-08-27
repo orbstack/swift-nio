@@ -97,37 +97,33 @@ impl GicV3 {
             GicSysReg::ICC_IAR1_EL1 => {
                 COUNT_GIC_ACK.count();
 
-                self.pe_state(handler, pe, |handler, pe_state| {
-                    let mut pe_int_state = pe_state.int_state.lock().unwrap();
+                let mut pe_int_state = self.pe_state(pe).int_state.lock().unwrap();
 
-                    let active_int_id = if let Some(active) = pe_int_state.active_interrupt {
-                        active
-                    } else if let Some(front) = pe_int_state.pending_interrupts.pop_front() {
-                        pe_int_state.active_interrupt = Some(front);
-                        drop(pe_int_state);
+                let active_int_id = if let Some(active) = pe_int_state.active_interrupt {
+                    active
+                } else if let Some(front) = pe_int_state.pending_interrupts.pop_front() {
+                    pe_int_state.active_interrupt = Some(front);
+                    drop(pe_int_state);
 
-                        if front.kind().is_shared() {
-                            self.acknowledge_spi(handler, front);
-                        }
+                    if front.kind().is_shared() {
+                        self.acknowledge_spi(handler, front);
+                    }
 
-                        front
-                    } else {
-                        InterruptId(1023)
-                    };
+                    front
+                } else {
+                    InterruptId(1023)
+                };
 
-                    BitPack::default()
-                        .set_range(0, 23, active_int_id.0 as u64)
-                        .0
-                })
+                BitPack::default()
+                    .set_range(0, 23, active_int_id.0 as u64)
+                    .0
             }
 
             GicSysReg::ICC_IGRPEN0_EL1 => todo!(),
             GicSysReg::ICC_IGRPEN1_EL1 => todo!(),
 
             // 12.2.19 ICC_PMR_EL1, Interrupt Controller Interrupt Priority Mask Register
-            GicSysReg::ICC_PMR_EL1 => self.pe_state(handler, pe, |_, pe_state| {
-                pe_state.min_priority.load(Relaxed) as u64
-            }),
+            GicSysReg::ICC_PMR_EL1 => self.pe_state(pe).min_priority.load(Relaxed) as u64,
             GicSysReg::ICC_RPR_EL1 => todo!(),
             GicSysReg::ICC_SGI0R_EL1 => todo!(),
             GicSysReg::ICC_SGI1R_EL1 => todo!(),
@@ -598,13 +594,7 @@ impl GicV3 {
             tracing::trace!("Read `GICR_TYPER`");
             BitPack::default()
                 // Affinity_Value, bits [63:32]: The identity of the PE associated with this Redistributor.
-                .set_range(
-                    32,
-                    63,
-                    self.pe_state(handler, pe, |_, pe_state| {
-                        pe_state.affinity.as_typer_id().into()
-                    }),
-                )
+                .set_range(32, 63, self.pe_state(pe).affinity.as_typer_id().into())
                 // PPInum, bits [31:27]
                 //
                 // When FEAT_GICv3p1 is not implemented, RES0.
