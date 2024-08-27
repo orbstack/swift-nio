@@ -1,21 +1,16 @@
 use std::sync::Arc;
 
 use hvf::HvfVm;
-use rustc_hash::FxHashMap;
 
 use super::{GicImpl, WfeThread};
 
 pub struct HvfGic {
     hvf_vm: Arc<HvfVm>,
-    vcpus: FxHashMap<u64, WfeThread>,
 }
 
 impl HvfGic {
     pub fn new(hvf_vm: Arc<HvfVm>) -> Self {
-        Self {
-            hvf_vm,
-            vcpus: FxHashMap::default(),
-        }
+        Self { hvf_vm }
     }
 }
 
@@ -32,34 +27,31 @@ impl GicImpl for HvfGic {
         props.dist_size + props.redist_total_size
     }
 
-    fn read(&mut self, _vcpuid: u64, _offset: u64, _data: &mut [u8]) {
-        todo!()
+    fn read(&self, _vcpuid: u64, _offset: u64, _data: &mut [u8]) {
+        unimplemented!()
     }
 
-    fn write(&mut self, _vcpuid: u64, _offset: u64, _data: &[u8]) {
-        todo!()
+    fn write(&self, _vcpuid: u64, _offset: u64, _data: &[u8]) {
+        unimplemented!()
     }
 
     // === IRQ Assertion === //
 
-    fn set_irq(&mut self, _vcpuid: Option<u64>, irq_line: u32) {
+    fn set_irq(&self, _vcpuid: Option<u64>, irq_line: u32) {
         debug!("asserting gic irq {}", irq_line);
         self.hvf_vm.assert_spi(irq_line).unwrap();
     }
 
     // === VCPU management === //
 
-    fn register_vcpu(&mut self, vcpuid: u64, wfe_thread: WfeThread) {
-        // we still need to save these for kick_vcpu to work
-        self.vcpus.insert(vcpuid, wfe_thread);
-    }
+    fn register_vcpu(&self, _vcpuid: u64, _wfe_thread: WfeThread) {}
 
-    fn get_vcpu_handle(&mut self, _vcpuid: u64) -> Box<dyn super::GicVcpuHandle> {
+    fn get_vcpu_handle(&self, _vcpuid: u64) -> Box<dyn super::GicVcpuHandle> {
         Box::new(HvfGicHandle {})
     }
 
-    fn kick_vcpu_for_pvlock(&mut self, _vcpuid: u64) {
-        todo!();
+    fn kick_vcpu_for_pvlock(&self, _vcpuid: u64) {
+        unimplemented!()
     }
 }
 
