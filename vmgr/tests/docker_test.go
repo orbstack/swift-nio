@@ -79,7 +79,6 @@ var expectDockerSystemInfo = `
   "LoggingDriver": "json-file",
   "CgroupDriver": "cgroupfs",
   "CgroupVersion": "2",
-  "NEventsListener": 1,
   "OperatingSystem": "OrbStack",
   "OSVersion": "",
   "OSType": "linux",
