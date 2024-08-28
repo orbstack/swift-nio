@@ -296,14 +296,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	return nil
 }
 
-func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName string, rootfsDir string, cloudInitUserData string) error {
-	// create temp in subdir
-	downloadDir, err := os.MkdirTemp(m.subdir("images"), "download")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(downloadDir)
-
+func getImageFromSpec(spec types.ImageSpec) (RawImage, error) {
 	// fetch index
 	var img RawImage
 	var ok bool
@@ -314,19 +307,21 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 			logrus.Info("fetching image index")
 			images, err := fetchStreamsImages()
 			if err != nil {
-				return fmt.Errorf("fetch index: %w", err)
+				return RawImage{}, fmt.Errorf("fetch index: %w", err)
 			}
 			img, ok = images[spec]
 		default:
-			return errors.New("unsupported distro: " + spec.Distro)
+			return RawImage{}, errors.New("unsupported distro: " + spec.Distro)
 		}
 	}
 	if !ok {
-		return fmt.Errorf("image not found: %v", spec)
+		return RawImage{}, fmt.Errorf("image not found: %v", spec)
 	}
+	return img, nil
+}
 
+func downloadImage(img RawImage, downloadDir string) (string, string, error) {
 	// download metadata and rootfs in parallel
-	logrus.WithField("spec", spec).Info("downloading images")
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var metadataErr, rootfsErr error
@@ -344,10 +339,66 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 
 	// check errors
 	if metadataErr != nil {
-		return fmt.Errorf("download metadata: %w", metadataErr)
+		return "", "", fmt.Errorf("download metadata: %w", metadataErr)
 	}
 	if rootfsErr != nil {
-		return fmt.Errorf("download rootfs: %w", rootfsErr)
+		return "", "", fmt.Errorf("download rootfs: %w", rootfsErr)
+	}
+
+	return rootfsFile, metaFile, nil
+}
+
+func (m *ConManager) getOrDownloadImage(spec types.ImageSpec, img RawImage, testing bool) (rootfsFile string, metaFile string, tempDir string, err error) {
+	// TODO: actual image caching, but for now, i just want to speed up tests
+	if testing {
+		downloadDir := path.Join(m.dataDir, "testing-cache", spec.Distro, spec.Version+"-"+spec.Variant, spec.Arch)
+
+		if _, err = os.Stat(downloadDir + "/rootfs"); err == nil {
+			logrus.WithField("spec", spec).Debug("using cached image for testing")
+			rootfsFile = downloadDir + "/rootfs"
+			metaFile = downloadDir + "/meta"
+			return
+		} else {
+			err = os.MkdirAll(downloadDir, 0755)
+			if err != nil {
+				return
+			}
+			logrus.WithField("spec", spec).Debug("downloading image for testing")
+			rootfsFile, metaFile, err = downloadImage(img, downloadDir)
+			if err != nil {
+				return
+			}
+
+			return
+		}
+	} else {
+		// create temp in subdir
+		tempDir, err = os.MkdirTemp(m.subdir("images"), "download")
+		if err != nil {
+			return
+		}
+
+		rootfsFile, metaFile, err = downloadImage(img, tempDir)
+		if err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName string, rootfsDir string, cloudInitUserData string, testing bool) error {
+	img, err := getImageFromSpec(spec)
+	if err != nil {
+		return err
+	}
+
+	rootfsFile, metaFile, tempDir, err := m.getOrDownloadImage(spec, img, testing)
+	if err != nil {
+		return err
+	}
+	if tempDir != "" {
+		defer os.RemoveAll(tempDir)
 	}
 
 	// extract rootfs

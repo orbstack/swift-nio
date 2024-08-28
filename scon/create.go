@@ -115,7 +115,7 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 		}
 	}()
 
-	err = m.makeRootfsWithImage(*image, c.Name, c.rootfsDir, args.CloudInitUserData)
+	err = m.makeRootfsWithImage(*image, c.Name, c.rootfsDir, args.CloudInitUserData, args.InternalForTesting)
 	if err != nil {
 		err = fmt.Errorf("make rootfs: %w", err)
 		return

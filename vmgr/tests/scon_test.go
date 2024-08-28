@@ -102,6 +102,7 @@ func TestSconCreate(t *testing.T) {
 				Arch:    arch,
 				Version: ver,
 			},
+			InternalForTesting: true,
 		})
 		checkT(t, err)
 	})
@@ -243,6 +244,7 @@ func TestSconCloudInit(t *testing.T) {
 					Distro: images.DistroToImage[distro],
 				},
 				CloudInitUserData: string(userData),
+				Testing:           true,
 			})
 			if err != nil {
 				if strings.Contains(err.Error(), "cloud-init not supported") {
