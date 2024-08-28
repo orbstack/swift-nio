@@ -1,7 +1,6 @@
 use counter::RateCounter;
 use hvf::{HvfVcpu, VcpuId};
-use rustc_hash::FxHashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock};
 use utils::Mutex;
 use vmm_ids::VcpuSignalMask;
 
@@ -20,17 +19,20 @@ counter::counter! {
 
 pub struct UserspaceGicV3 {
     gic: gicv3::device::GicV3,
-    wfe_threads: RwLock<FxHashMap<PeId, WfeThread>>,
+    wfe_threads: Box<[OnceLock<WfeThread>]>,
 }
 
 const TIMER_INT_ID: InterruptId = InterruptId(GTIMER_VIRT + 16);
 
 impl UserspaceGicV3 {
     pub fn new(pe_count: u64) -> Self {
-        let mut wfe_threads = RwLock::<FxHashMap<PeId, WfeThread>>::default();
+        let wfe_threads = (0..pe_count)
+            .map(|_| OnceLock::new())
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
         let gic = gicv3::device::GicV3::new(
             &mut HvfGicEventHandler {
-                wfe_threads: &mut wfe_threads,
+                wfe_threads: &wfe_threads,
             },
             pe_count,
         );
@@ -99,10 +101,7 @@ impl GicImpl for UserspaceGicV3 {
 
     fn register_vcpu(&self, vcpuid: u64, wfe_thread: WfeThread) {
         tracing::trace!("v3::register_vcpu({vcpuid}, {wfe_thread:?})");
-        self.wfe_threads
-            .write()
-            .unwrap()
-            .insert(PeId(vcpuid), wfe_thread);
+        self.wfe_threads[vcpuid as usize].set(wfe_thread).unwrap();
     }
 
     fn get_vcpu_handle(&self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
@@ -120,30 +119,24 @@ impl GicImpl for UserspaceGicV3 {
 }
 
 struct HvfGicEventHandler<'a> {
-    wfe_threads: &'a RwLock<FxHashMap<PeId, WfeThread>>,
+    wfe_threads: &'a [OnceLock<WfeThread>],
+}
+
+impl HvfGicEventHandler<'_> {
+    fn get_thread(&self, pe: PeId) -> &WfeThread {
+        self.wfe_threads[pe.0 as usize].get().unwrap()
+    }
 }
 
 impl GicV3EventHandler for HvfGicEventHandler<'_> {
     fn kick_vcpu_for_irq(&mut self, pe: PeId) {
-        self.wfe_threads
-            .read()
-            .unwrap()
-            .get(&pe)
-            .unwrap()
-            .signal
-            .assert(VcpuSignalMask::IRQ);
+        self.get_thread(pe).signal.assert(VcpuSignalMask::IRQ);
 
         COUNT_VCPU_KICK.count();
     }
 
     fn kick_vcpu_for_pvlock(&mut self, pe: PeId) {
-        self.wfe_threads
-            .read()
-            .unwrap()
-            .get(&pe)
-            .unwrap()
-            .signal
-            .assert(VcpuSignalMask::PVLOCK);
+        self.get_thread(pe).signal.assert(VcpuSignalMask::PVLOCK);
 
         COUNT_VCPU_KICK.count();
     }
@@ -161,8 +154,7 @@ impl GicV3EventHandler for HvfGicEventHandler<'_> {
 
     fn handle_custom_eoi(&mut self, pe: PeId, int_id: InterruptId) {
         if int_id == TIMER_INT_ID {
-            let wfe_threads = self.wfe_threads.read().unwrap();
-            HvfVcpu::set_vtimer_masked_static(wfe_threads[&pe].hv_vcpu, false).unwrap();
+            HvfVcpu::set_vtimer_masked_static(self.get_thread(pe).hv_vcpu, false).unwrap();
         }
     }
 }
