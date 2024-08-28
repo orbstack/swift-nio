@@ -3,11 +3,11 @@ package tests
 import (
 	"encoding/json"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/util"
@@ -324,8 +324,8 @@ func TestDockerSystemInfo(t *testing.T) {
 	}
 
 	// compare
-	if !reflect.DeepEqual(obj, expect) {
-		t.Fatalf("got: %+v\nwant: %+v", obj, expect)
+	if diff := pretty.Compare(obj, expect); diff != "" {
+		t.Fatalf("configs differ:\n%s", diff)
 	}
 }
 

@@ -100,6 +100,7 @@ require (
 
 require (
 	github.com/google/btree v1.1.2 // indirect
+	github.com/kylelemons/godebug v1.1.0
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/mod v0.17.0
 	golang.org/x/net v0.30.0
