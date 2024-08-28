@@ -60,7 +60,6 @@ var expectDockerSystemInfo = `
       "journald",
       "json-file",
       "local",
-      "logentries",
       "splunk",
       "syslog"
     ]
