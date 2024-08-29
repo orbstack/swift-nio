@@ -345,6 +345,20 @@ name = "bytemuck"
 version = "1.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b37c88a63ffd85d15b406896cc343916d7cf57838a847b3a6f2ca5d39a5695a"
+dependencies = [
+ "bytemuck_derive",
+]
+
+[[package]]
+name = "bytemuck_derive"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcfcc3cd946cb52f0bbfdbbcfa2f4e24f75ebb6c0e1002f7c25904fada18b9ec"
+dependencies = [
+ "proc-macro2 1.0.92",
+ "quote 1.0.37",
+ "syn 2.0.90",
+]
 
 [[package]]
 name = "byteorder"
@@ -3566,6 +3580,7 @@ dependencies = [
  "bincode 2.0.0-rc.3",
  "bitflags 2.6.0",
  "bytemuck",
+ "derive-where",
  "gruel",
  "libc",
  "mach2",
@@ -3573,6 +3588,7 @@ dependencies = [
  "mio 0.8.11",
  "nix 0.28.0",
  "once_cell",
+ "scopeguard",
  "smallvec",
  "sysx",
  "tracing",
