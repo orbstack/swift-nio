@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::{self, remove_file},
     os::unix::{fs::symlink, net::UnixDatagram, process::ExitStatusExt},
     process::Command,
@@ -13,8 +14,10 @@ use nix::{
 use serde::{Deserialize, Serialize};
 use signal_hook::iterator::Signals;
 
-const SERVICE_ID_DOCKER: usize = 0;
-const SERVICE_ID_K8S: usize = 1;
+type ServiceName = String;
+
+const SERVICE_DOCKER: &str = "docker";
+const SERVICE_K8S: &str = "k8s";
 
 struct MonitoredChild {
     process: std::process::Child,
@@ -24,13 +27,13 @@ struct MonitoredChild {
 #[derive(Clone, Deserialize)]
 struct SimplevisorConfig {
     init_commands: Vec<Vec<String>>,
-    init_services: Vec<Vec<String>>,
-    dep_services: Vec<Vec<String>>,
+    init_services: HashMap<ServiceName, Vec<String>>,
+    dep_services: HashMap<ServiceName, Vec<String>>,
 }
 
 #[derive(Serialize)]
 struct SimplevisorStatus {
-    exit_statuses: Vec<i32>,
+    exit_statuses: HashMap<ServiceName, i32>,
 }
 
 // EXTREMELY simple process supervisor:
@@ -46,7 +49,7 @@ fn main() -> anyhow::Result<()> {
     let config: SimplevisorConfig = serde_json::from_str(&config_str)?;
 
     let mut out_status = SimplevisorStatus {
-        exit_statuses: vec![-1; config.init_services.len()],
+        exit_statuses: HashMap::new(),
     };
 
     // broken: EINVAL
@@ -70,7 +73,7 @@ fn main() -> anyhow::Result<()> {
     // compat: https://docs.docker.com/desktop/extensions-sdk/guides/use-docker-socket-from-backend/
     symlink("/var/run/docker.sock", "/var/run/docker.sock.raw")?;
 
-    let children = Arc::new(Mutex::new(vec![]));
+    let children = Arc::new(Mutex::new(HashMap::new()));
     let children_clone = children.clone();
     let config_clone = config.clone();
 
@@ -89,7 +92,7 @@ fn main() -> anyhow::Result<()> {
                 println!(" [*] service 0 started");
 
                 // now start dependent services
-                for child_args in config.dep_services.iter() {
+                for (svc, child_args) in config.dep_services.iter() {
                     println!(" [*] starting dependent service");
                     let process = Command::new(&child_args[0])
                         .args(&child_args[1..])
@@ -101,13 +104,13 @@ fn main() -> anyhow::Result<()> {
                         args: child_args.clone(),
                     };
 
-                    children.lock().unwrap().push(child);
+                    children.lock().unwrap().insert(svc.clone(), child);
                 }
             }
         }
     });
 
-    for child_args in config.init_services {
+    for (svc, child_args) in config.init_services {
         let process = Command::new(&child_args[0])
             .args(&child_args[1..])
             .env("NOTIFY_SOCKET", "/run/sd.sock")
@@ -119,7 +122,7 @@ fn main() -> anyhow::Result<()> {
             args: child_args.clone(),
         };
 
-        children.lock().unwrap().push(child);
+        children.lock().unwrap().insert(svc, child);
     }
 
     let mut is_shutting_down = false;
@@ -155,12 +158,12 @@ fn main() -> anyhow::Result<()> {
         match signal {
             signal_hook::consts::SIGCHLD => {
                 // a child exited?
-                for (i, child) in children.lock().unwrap().iter_mut().enumerate() {
+                for (svc, child) in children.lock().unwrap().iter_mut() {
                     if let Some(status) = child.process.try_wait()? {
                         // we exit as soon as a child does
                         // this covers cases of dockerd and k8s crashing
                         // but on orderly shutdown (SIGTERM) we want to wait for dockerd. k8s shuts down faster
-                        println!(" [*] service {} exited with {}", i, status);
+                        println!(" [*] service {} exited with {}", svc, status);
                         let mut st_code = status.code().unwrap_or(1);
                         // check signal
                         if let Some(signal) = status.signal() {
@@ -169,12 +172,12 @@ fn main() -> anyhow::Result<()> {
                         }
 
                         // sometimes k8s exits with status 1 after SIGTERM. ignore it
-                        if is_shutting_down && st_code == 1 && i == SERVICE_ID_K8S {
+                        if is_shutting_down && st_code == 1 && svc == SERVICE_K8S {
                             st_code = 0;
                         }
 
-                        out_status.exit_statuses[i] = st_code;
-                        if !is_shutting_down || i == SERVICE_ID_DOCKER {
+                        out_status.exit_statuses.insert(svc.clone(), st_code);
+                        if !is_shutting_down || svc == SERVICE_DOCKER {
                             // write out status
                             let out_status_str = serde_json::to_string(&out_status)?;
                             fs::create_dir_all("/.orb")?;
@@ -188,8 +191,8 @@ fn main() -> anyhow::Result<()> {
 
             signal_hook::consts::SIGUSR2 => {
                 // kill children, wait for exit, then restart
-                for (i, child) in children.lock().unwrap().iter_mut().enumerate() {
-                    println!(" [*] restart service {}...", i);
+                for (svc, child) in children.lock().unwrap().iter_mut() {
+                    println!(" [*] restart service {}...", svc);
                     // TODO: speed this up with SIGKILL?
                     // should be safe with Docker because we block requests and never start a new container, but still risky, and we kill container cgroups to speed that up anyway
                     // not sure if it's safe for k8s though
@@ -198,7 +201,7 @@ fn main() -> anyhow::Result<()> {
                         Some(Signal::SIGTERM),
                     )?;
                     let status = child.process.wait()?;
-                    println!(" [*] restart service {}: exited with {}", i, status);
+                    println!(" [*] restart service {}: exited with {}", svc, status);
 
                     child.process = Command::new(&child.args[0])
                         .args(&child.args[1..])
@@ -211,7 +214,7 @@ fn main() -> anyhow::Result<()> {
                 println!(" [*] received {}", Signal::try_from(signal)?);
 
                 // forward signal to children
-                for child in children.lock().unwrap().iter() {
+                for child in children.lock().unwrap().values() {
                     kill(
                         Pid::from_raw(child.process.id() as i32),
                         Some(Signal::try_from(signal)?),

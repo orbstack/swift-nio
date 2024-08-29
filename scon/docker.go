@@ -126,13 +126,13 @@ func newDockerHooks(manager *ConManager) (*DockerHooks, error) {
 }
 
 type SimplevisorConfig struct {
-	InitCommands [][]string `json:"init_commands"`
-	InitServices [][]string `json:"init_services"`
-	DepServices  [][]string `json:"dep_services"`
+	InitCommands [][]string          `json:"init_commands"`
+	InitServices map[string][]string `json:"init_services"`
+	DepServices  map[string][]string `json:"dep_services"`
 }
 
 type SimplevisorStatus struct {
-	ExitStatuses []int `json:"exit_statuses"`
+	ExitStatuses map[string]int `json:"exit_statuses"`
 }
 
 func (h *DockerHooks) createDataDirs() error {
@@ -542,10 +542,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// must not be nil for rust
 		// CAN'T MUTATE THIS GLOBAL! make a copy if needed
 		InitCommands: dockerInitCommands,
-		InitServices: [][]string{
-			{"dockerd", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
+		InitServices: map[string][]string{
+			"docker": {"dockerd", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
 		},
-		DepServices: [][]string{},
+		DepServices: map[string][]string{},
 	}
 	// add TLS proxy nftables rules
 	if c.manager.vmConfig.NetworkHttps {
@@ -576,7 +576,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		if conf.Debug() {
 			k8sCmd = append(k8sCmd, "--enable-pprof")
 		}
-		svConfig.DepServices = append(svConfig.DepServices, k8sCmd)
+		svConfig.DepServices["k8s"] = k8sCmd
 
 		// remove old config symlink
 		_ = h.rootfs.Remove("/etc/rancher/k3s/k3s.yaml")
@@ -685,11 +685,11 @@ func (h *DockerHooks) PostStop(c *Container) error {
 		}
 
 		// check for exit statuses
-		for i, status := range svStatus.ExitStatuses {
+		for svc, status := range svStatus.ExitStatuses {
 			// -1 = did not exit before simplevisor stopped
 			// also ignore signal exits - we requested those
 			if status != 0 && status != -1 && status != (128+int(unix.SIGTERM)) && status != (128+int(unix.SIGINT)) && status != (128+int(unix.SIGKILL)) {
-				logrus.WithField("status", status).WithField("service", i).Error("docker service exited with non-zero status")
+				logrus.WithField("status", status).WithField("service", svc).Error("docker service exited with non-zero status")
 				exitStatus = status
 			}
 		}
