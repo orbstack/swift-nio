@@ -31,6 +31,7 @@ require (
 	github.com/fatih/color v1.16.0
 	github.com/flosch/pongo2/v6 v6.0.0
 	github.com/getsentry/sentry-go v0.27.0
+	github.com/google/nftables v0.2.1-0.20240805063834-b76fdc8f9022
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/miekg/dns v1.1.58
 	github.com/oklog/ulid/v2 v2.1.0
@@ -49,7 +50,6 @@ require (
 	github.com/creachadair/mds v0.10.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/nftables v0.2.1-0.20240805063834-b76fdc8f9022 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect

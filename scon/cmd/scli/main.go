@@ -11,6 +11,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/drm/killswitch"
 	"github.com/spf13/cobra"
+
+	_ "github.com/orbstack/macvirt/vmgr/netpose"
 )
 
 func main() {
