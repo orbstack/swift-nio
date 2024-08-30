@@ -10,7 +10,10 @@ use std::{
         Sub, SubAssign,
     },
     ptr::NonNull,
-    sync::Arc,
+    sync::{
+        atomic::{compiler_fence, Ordering::*},
+        Arc,
+    },
 };
 
 use derive_where::derive_where;
@@ -543,11 +546,16 @@ impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
     }
 
     pub fn write(self, value: T) {
-        unsafe { self.ptr.write_volatile(value) };
+        compiler_fence(SeqCst);
+        unsafe { self.ptr.write_unaligned(value) };
+        compiler_fence(SeqCst);
     }
 
     pub fn read(self) -> T {
-        unsafe { self.ptr.read_volatile() }
+        compiler_fence(SeqCst);
+        let value = unsafe { self.ptr.read_unaligned() };
+        compiler_fence(SeqCst);
+        value
     }
 
     pub fn get<V: bytemuck::Pod>(self, field: Field<T, V>) -> GuestRef<'a, V> {
