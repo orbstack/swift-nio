@@ -1,6 +1,7 @@
 package ioreg
 
 /*
+#cgo CFLAGS: -O2
 #cgo LDFLAGS: -framework Foundation -framework IOKit
 
 #include "ioreg.h"

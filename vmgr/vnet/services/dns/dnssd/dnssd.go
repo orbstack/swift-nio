@@ -3,6 +3,7 @@
 package dnssd
 
 /*
+#cgo CFLAGS: -O2
 #cgo CFLAGS: -Wall
 #include <dns_sd.h>
 

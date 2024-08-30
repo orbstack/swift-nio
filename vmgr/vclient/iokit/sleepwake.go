@@ -3,6 +3,7 @@
 package iokit
 
 /*
+#cgo CFLAGS: -O2
 #cgo LDFLAGS: -framework CoreFoundation -framework IOKit
 
 #include <mach/mach_port.h>
