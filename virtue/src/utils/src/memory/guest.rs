@@ -145,7 +145,7 @@ pub struct GuestMemory(Arc<GuestMemoryInner>);
 
 impl fmt::Debug for GuestMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("GuestMemory").field(&self.as_raw()).finish()
+        f.debug_tuple("GuestMemory").field(&self.as_ptr()).finish()
     }
 }
 
@@ -168,12 +168,12 @@ impl GuestMemory {
         }))
     }
 
-    pub fn as_raw(&self) -> NonNull<[u8]> {
+    pub fn as_ptr(&self) -> NonNull<[u8]> {
         self.0.reserved
     }
 
     pub fn as_slice(&self) -> GuestSlice<'_, u8> {
-        unsafe { GuestSlice::new_unchecked(self.as_raw().as_ptr()) }
+        unsafe { GuestSlice::new_unchecked(self, self.as_ptr()) }
     }
 
     pub fn byte_range(&self, range: Range<GuestAddress>) -> Option<GuestSlice<'_, u8>> {
@@ -198,7 +198,7 @@ unsafe impl Sync for GuestMemoryInner {}
 
 #[derive_where(Copy, Clone)]
 pub struct GuestSlice<'a, T: bytemuck::Pod> {
-    _ty: PhantomData<&'a [T]>,
+    memory: &'a GuestMemory,
     ptr: NonNull<[T]>,
 }
 
@@ -209,19 +209,34 @@ impl<T: bytemuck::Pod> fmt::Debug for GuestSlice<'_, T> {
 }
 
 impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
-    pub unsafe fn new_unchecked(ptr: *mut [T]) -> Self {
-        Self {
-            _ty: PhantomData,
-            ptr: NonNull::new_unchecked(ptr),
-        }
+    pub unsafe fn new_unchecked(memory: &'a GuestMemory, ptr: NonNull<[T]>) -> Self {
+        Self { memory, ptr }
     }
 
     pub fn as_ptr(self) -> NonNull<[T]> {
         self.ptr
     }
 
+    pub fn memory(self) -> &'a GuestMemory {
+        self.memory
+    }
+
     pub fn as_guest_addr(self) -> Range<GuestAddress> {
-        todo!()
+        let start = unsafe {
+            self.memory
+                .as_ptr()
+                .cast::<u8>()
+                .offset_from(self.ptr.cast::<u8>())
+        };
+
+        let end = unsafe {
+            self.memory
+                .as_ptr()
+                .cast::<u8>()
+                .offset_from(self.ptr.cast::<T>().add(self.ptr.len()).cast::<u8>())
+        };
+
+        GuestAddress::from_usize(start as usize)..GuestAddress::from_usize(end as usize)
     }
 
     #[track_caller]
@@ -244,7 +259,7 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
         let len = len / mem::size_of::<V>();
 
         GuestSlice {
-            _ty: PhantomData,
+            memory: self.memory,
             ptr: NonNull::slice_from_raw_parts(self.as_ptr().cast::<V>(), len),
         }
     }
@@ -258,7 +273,7 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
         let len = len / mem::size_of::<V>();
 
         Some(GuestSlice {
-            _ty: PhantomData,
+            memory: self.memory,
             ptr: NonNull::slice_from_raw_parts(self.as_ptr().cast::<V>(), len),
         })
     }
@@ -303,7 +318,13 @@ impl<'a, T: bytemuck::Pod> IntoIterator for GuestSlice<'a, T> {
     type IntoIter = GuestSliceIter<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        todo!()
+        GuestSliceIter {
+            cursor: unsafe { GuestRef::new_unchecked(self.memory, self.ptr.cast::<T>()) },
+            end: unsafe {
+                GuestRef::new_unchecked(self.memory, self.ptr.cast::<T>().add(self.len()))
+            },
+            len: self.len(),
+        }
     }
 }
 
@@ -322,7 +343,8 @@ impl<'a, T: bytemuck::Pod> Iterator for GuestSliceIter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         (self.cursor != self.end).then(|| {
             let curr = self.cursor;
-            self.cursor = unsafe { GuestRef::new_unchecked(self.cursor.as_ptr().as_ptr().add(1)) };
+            self.cursor =
+                unsafe { GuestRef::new_unchecked(self.cursor.memory, self.cursor.as_ptr().add(1)) };
 
             curr
         })
@@ -350,7 +372,7 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for usize {
 
     #[track_caller]
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        GuestRef::new_unchecked(target.ptr.as_ptr().cast::<T>().add(self))
+        GuestRef::new_unchecked(target.memory, target.ptr.cast::<T>().add(self))
     }
 
     #[track_caller]
@@ -513,7 +535,8 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeSized {
 
 #[derive_where(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct GuestRef<'a, T: bytemuck::Pod> {
-    _ty: PhantomData<&'a T>,
+    #[derive_where(skip)]
+    memory: &'a GuestMemory,
     ptr: NonNull<T>,
 }
 
@@ -524,24 +547,31 @@ impl<'a, T: bytemuck::Pod> fmt::Debug for GuestRef<'a, T> {
 }
 
 impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
-    pub unsafe fn new_unchecked(ptr: *mut T) -> Self {
-        Self {
-            _ty: PhantomData,
-            ptr: NonNull::new_unchecked(ptr),
-        }
+    pub unsafe fn new_unchecked(memory: &'a GuestMemory, ptr: NonNull<T>) -> Self {
+        Self { memory, ptr }
     }
 
     pub fn as_ptr(self) -> NonNull<T> {
         self.ptr
     }
 
+    pub fn memory(self) -> &'a GuestMemory {
+        self.memory
+    }
+
     pub fn as_guest_addr(self) -> GuestAddress {
-        todo!()
+        let addr = unsafe {
+            self.memory
+                .as_ptr()
+                .cast::<u8>()
+                .offset_from(self.ptr.cast::<u8>())
+        };
+        GuestAddress::from_usize(addr as usize)
     }
 
     pub fn as_mono_slice(self) -> GuestSlice<'a, T> {
         unsafe {
-            GuestSlice::new_unchecked(std::slice::from_raw_parts_mut(self.as_ptr().as_ptr(), 1))
+            GuestSlice::new_unchecked(self.memory, NonNull::slice_from_raw_parts(self.as_ptr(), 1))
         }
     }
 
@@ -560,7 +590,10 @@ impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
 
     pub fn get<V: bytemuck::Pod>(self, field: Field<T, V>) -> GuestRef<'a, V> {
         unsafe {
-            GuestRef::new_unchecked(self.ptr.as_ptr().cast::<u8>().add(field.offset).cast::<V>())
+            GuestRef::new_unchecked(
+                self.memory,
+                self.ptr.cast::<u8>().add(field.offset).cast::<V>(),
+            )
         }
     }
 }
@@ -571,10 +604,10 @@ where
 {
     pub fn as_slice(self) -> GuestSlice<'a, T> {
         unsafe {
-            GuestSlice::new_unchecked(std::slice::from_raw_parts_mut(
-                self.ptr.as_ptr().cast::<T>(),
-                N,
-            ))
+            GuestSlice::new_unchecked(
+                self.memory,
+                NonNull::slice_from_raw_parts(self.ptr.cast::<T>(), N),
+            )
         }
     }
 }
