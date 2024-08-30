@@ -54,6 +54,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
+
+	_ "github.com/orbstack/macvirt/vmgr/netpose"
 )
 
 const (
