@@ -9,7 +9,6 @@
 
 package netpose
 
-// cgo automatically compiles and links *.c in the same dir, so no need to include anything here
-
-// #cgo CFLAGS: -O2
-import "C"
+// this is in a separate package only imported on darwin,
+// because .c files aren't allowed if Cgo isn't used in the same package
+import _ "github.com/orbstack/macvirt/vmgr/netpose/internal"
