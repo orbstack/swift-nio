@@ -46,7 +46,7 @@
 1. Download binaries: `cd bins; make`
 1. Build kernel
     1. Create Arch machine in OrbStack (to get latest GCC)
-    1. Install dependencies: `sudo pacman -Syu base-devel bc cpio clang lld llvm pahole pixz`
+    1. Install dependencies: `sudo pacman -Syu base-devel bc cpio clang lld llvm pahole pixz jemalloc`
     1. `git clone git@github.com:orbstack/linux-macvirt-priv`
         - Must be on Linux file system due to case sensitivity (run `cd` — should be in /home, not /Users)
     1. `git checkout mac-6.9.x` (current dev branch)
