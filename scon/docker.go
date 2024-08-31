@@ -91,6 +91,8 @@ var dockerInitCommands = [][]string{
 		"VNET_GATEWAY_IP6":                  netconf.VnetGatewayIP6,
 		"SCON_SUBNET6_CIDR":                 netconf.SconSubnet6CIDR,
 		"NAT64_SOURCE_IP4":                  netconf.NAT64SourceIP4,
+		"K8S_MERGED_CIDR4":                  netconf.K8sMergedCIDR4,
+		"K8S_MERGED_CIDR6":                  netconf.K8sMergedCIDR6,
 	})},
 }
 
@@ -576,6 +578,9 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			k8sCmd = append(k8sCmd, "--enable-pprof")
 		}
 		svConfig.DepServices["k8s"] = k8sCmd
+
+		// add k8s postrouting chain to nftables
+		svConfig.InitCommands = append(svConfig.InitCommands, []string{"nft", "add", "rule", "inet", "orbstack", "postrouting", "jump postrouting-dynamic"})
 
 		// remove old config symlink
 		_ = h.rootfs.Remove("/etc/rancher/k3s/k3s.yaml")
