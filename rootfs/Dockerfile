@@ -309,10 +309,6 @@ ln -sf /mnt/mac/var/folders /var/
 mkdir /dockertmp
 EOT
 
-# sets up ipv6 nat
-COPY rootfs/utils/docker-init.sh /opt/init
-
-
 
 ##########################################################################
 # Patched qemu for arm64

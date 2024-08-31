@@ -242,6 +242,29 @@ impl Supervisor {
     }
 }
 
+fn init_system() -> anyhow::Result<()> {
+    // create /init.scope cgroup to remove "(containerized)" from `docker system info`
+    fs::create_dir_all("/sys/fs/cgroup/init.scope")?;
+
+    // move into it
+    let all_procs = fs::read_to_string("/sys/fs/cgroup/cgroup.procs")?;
+    fs::write("/sys/fs/cgroup/init.scope/cgroup.procs", all_procs)?;
+
+    // enable all controllers for sub-cgroups
+    let controllers = fs::read_to_string("/sys/fs/cgroup/cgroup.controllers")?;
+    fs::write(
+        "/sys/fs/cgroup/cgroup.subtree_control",
+        // prepend '+' to controller names
+        controllers
+            .split(' ')
+            .map(|c| format!("+{}", c))
+            .collect::<Vec<_>>()
+            .join(" "),
+    )?;
+
+    Ok(())
+}
+
 // EXTREMELY simple process supervisor:
 // - start processes
 // - listen for all signals and forward them to children
@@ -255,8 +278,7 @@ fn main() -> anyhow::Result<()> {
     let config: SimplevisorConfig = serde_json::from_str(&config_str)?;
     std::env::remove_var("SIMPLEVISOR_CONFIG");
 
-    // broken: EINVAL
-    //init_system()?;
+    init_system()?;
 
     // run init commands
     for init_command in config.init_commands.iter() {

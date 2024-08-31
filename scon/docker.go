@@ -248,8 +248,7 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// disable Go SIGURG preemption to reduce wakeups
 	cm.set("lxc.environment", "GODEBUG=asyncpreemptoff=1")
 
-	// dind does some setup and mounts
-	cm.set("lxc.init.cmd", "/usr/local/bin/docker-init -- /opt/init")
+	cm.set("lxc.init.cmd", "/opt/orbstack-guest/simplevisor")
 
 	err := h.createDataDirs()
 	if err != nil {
