@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/vmgr/syncx"
+	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -179,23 +180,14 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 				if newTtl != ext.lastTTL {
 					rawConn, err := ext.conn.(*net.UDPConn).SyscallConn()
 					if err != nil {
-						logrus.Error("UDP set TTL failed ", err)
+						logrus.WithError(err).Error("failed to set UDP TTL")
 					} else {
-						err = rawConn.Control(func(fd uintptr) {
-							var err error
-							if ext.conn.LocalAddr().(*net.UDPAddr).IP.To4() != nil {
-								err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TTL, int(newTtl))
-							} else {
-								err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_UNICAST_HOPS, int(newTtl))
-							}
-							if err != nil {
-								logrus.Error("UDP set TTL failed ", err)
-							}
-						})
+						err := util.SetConnTTL(rawConn, from.(*net.UDPAddr).IP.To4() == nil, int(newTtl))
 						if err != nil {
-							logrus.Error("UDP set TTL failed ", err)
+							logrus.WithError(err).Error("failed to set UDP TTL")
 						}
 					}
+
 					// if setting it this time failed, it probably won't work next time
 					ext.lastTTL = newTtl
 				}

@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/waiter"
@@ -28,6 +29,17 @@ const (
 	// set very high for nmap
 	listenBacklog = 65535
 )
+
+func getPacketTTL(pkt *stack.PacketBuffer) uint8 {
+	hdr := pkt.Network()
+	if pkt.NetworkProtocolNumber == ipv4.ProtocolNumber {
+		return hdr.(header.IPv4).TTL()
+	} else if pkt.NetworkProtocolNumber == header.IPv6ProtocolNumber {
+		return hdr.(header.IPv6).HopLimit()
+	} else {
+		return 64
+	}
+}
 
 func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address, bridgeRouteMon *bridge.RouteMon) (*tcp.Forwarder, *ProxyManager) {
 	proxyMgr := newProxyManager(hostNatIP4, hostNatIP6)
@@ -82,7 +94,8 @@ func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.
 		}
 
 		// this also handles host NAT
-		extConn, extAddr, err := proxyMgr.DialForward(targetAddr, extPort)
+		ttl := int(getPacketTTL(r.Pkt))
+		extConn, extAddr, err := proxyMgr.DialForward(targetAddr, extPort, ttl)
 		if err != nil {
 			// log level depends on proxy
 			if _, ok := err.(*ProxyDialError); ok {
@@ -96,6 +109,9 @@ func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.
 				r.Complete(true)
 			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) || errors.Is(err, unix.ENETUNREACH) {
 				logrus.Debug("inject ICMP unreachable")
+
+				// EHOSTUNREACH also applies to TTL exceeded
+				// we could ignore it and forward the real ICMP reply, but that requires translating identifier
 				if targetAddr.To4() == (tcpip.Address{}) {
 					if errors.Is(err, unix.ENETUNREACH) {
 						icmpMgr.InjectDestUnreachable6(r.Pkt, header.ICMPv6NetworkUnreachable)
@@ -109,6 +125,7 @@ func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.
 						icmpMgr.InjectDestUnreachable4(r.Pkt, header.ICMPv4HostUnreachable)
 					}
 				}
+
 				r.Complete(false)
 			} else if errors.Is(err, unix.ETIMEDOUT) || errors.Is(err, context.DeadlineExceeded) {
 				// timeout: simulate timeout by not responding

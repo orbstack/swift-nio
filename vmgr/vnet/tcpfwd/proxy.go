@@ -9,10 +9,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/syncx"
+	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/gvaddr"
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy"
@@ -151,6 +153,9 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 	p.dialerHttps = nil
 	p.httpsProxyUrl = nil
 
+	// omit TTL for conn to proxy: it doesn't make sense, and doesn't represent our outgoing connection
+	var rawTcpDialer proxy.Dialer = nil
+
 	// build exceptions list
 	p.perHostFilter = proxy.NewPerHost()
 	for _, item := range settings.ExceptionsList {
@@ -187,7 +192,7 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 			"port":   u.Port(),
 		}).Info("using proxy: override")
 
-		proxyDialer, err := proxy.FromURL(u, nil)
+		proxyDialer, err := proxy.FromURL(u, rawTcpDialer)
 		if err != nil {
 			return nil, err
 		}
@@ -230,7 +235,7 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 			}
 		}
 
-		dialer, err := proxy.SOCKS5("tcp", net.JoinHostPort(settings.SOCKSProxy, strconv.Itoa(settings.SOCKSPort)), &auth, nil)
+		dialer, err := proxy.SOCKS5("tcp", net.JoinHostPort(settings.SOCKSProxy, strconv.Itoa(settings.SOCKSPort)), &auth, rawTcpDialer)
 		if err != nil {
 			return nil, fmt.Errorf("create SOCKS proxy: %w", err)
 		}
@@ -278,7 +283,7 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 			u.User = url.UserPassword(settings.HTTPSUser, settings.HTTPSPassword)
 		}
 
-		proxyDialer, err := proxy.FromURL(u, nil)
+		proxyDialer, err := proxy.FromURL(u, rawTcpDialer)
 		if err != nil {
 			return nil, fmt.Errorf("create HTTPS proxy: %w", err)
 		}
@@ -311,7 +316,7 @@ func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL
 			u.User = url.UserPassword(settings.HTTPUser, settings.HTTPPassword)
 		}
 
-		proxyDialer, err := proxy.FromURL(u, nil)
+		proxyDialer, err := proxy.FromURL(u, rawTcpDialer)
 		if err != nil {
 			return nil, err
 		}
@@ -383,7 +388,7 @@ func (p *ProxyManager) Refresh() error {
 	return nil
 }
 
-func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, port int, tcpipAddr tcpip.Address) (tcppump.FullDuplexConn, error) {
+func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, port int, tcpipAddr tcpip.Address, ttl int) (tcppump.FullDuplexConn, error) {
 	var dialer proxy.ContextDialer
 	// skip everything if not eligible for proxying
 	if p.isProxyEligibleIPPost(tcpipAddr) {
@@ -415,7 +420,12 @@ func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, 
 	}
 
 	if dialer == nil {
-		var dialer net.Dialer
+		// propagate TTL for direct connections
+		dialer := &net.Dialer{
+			ControlContext: func(ctx context.Context, network, address string, rawConn syscall.RawConn) error {
+				return util.SetConnTTL(rawConn, network == "tcp6", ttl)
+			},
+		}
 		conn, err := dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, err
@@ -446,7 +456,7 @@ func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, 
 	return conn.(*net.TCPConn), nil
 }
 
-func (p *ProxyManager) DialForward(localAddress tcpip.Address, extPort int) (tcppump.FullDuplexConn, string, error) {
+func (p *ProxyManager) DialForward(localAddress tcpip.Address, extPort int, ttl int) (tcppump.FullDuplexConn, string, error) {
 	// host NAT: try dial preferred v4/v6 first, then fall back to the other one
 	var altHostIP tcpip.Address
 	if localAddress == p.hostNatIP4 {
@@ -461,7 +471,7 @@ func (p *ProxyManager) DialForward(localAddress tcpip.Address, extPort int) (tcp
 	ctx, cancel := context.WithTimeout(context.TODO(), tcpConnectTimeout)
 	defer cancel()
 
-	extConn, err := p.dialContextTCPInternal(ctx, extAddr, extPort, localAddress)
+	extConn, err := p.dialContextTCPInternal(ctx, extAddr, extPort, localAddress, ttl)
 	if err != nil && errors.Is(err, unix.ECONNREFUSED) && altHostIP != (tcpip.Address{}) {
 		// try the other host IP
 		// do not set localAddress or icmp unreachable logic below will send wrong protocol
@@ -469,7 +479,7 @@ func (p *ProxyManager) DialForward(localAddress tcpip.Address, extPort int) (tcp
 		extAddr = net.JoinHostPort(altHostIP.String(), strconv.Itoa(int(extPort)))
 		// don't reset timeout - localhost shouldn't take so long
 		// if it did, it was probably listen backlog full, so we don't want to retry too long
-		extConn, err = p.dialContextTCPInternal(ctx, extAddr, extPort, localAddress)
+		extConn, err = p.dialContextTCPInternal(ctx, extAddr, extPort, localAddress, ttl)
 	}
 
 	if err != nil {
