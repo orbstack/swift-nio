@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 )
 
@@ -82,31 +83,33 @@ func (a *AgentServer) ServeSftp(args *ServeSftpArgs, reply *int) error {
 	return nil
 }
 
-type DialTCPContextArgs struct {
+type DialContextArgs struct {
+	Network  string
 	AddrPort string
 	//TODO signal rpc
 }
 
-func (a *AgentServer) DialTCPContext(args *DialTCPContextArgs, reply *uint64) error {
+func (a *AgentServer) DialContext(args *DialContextArgs, reply *uint64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
 	defer cancel()
 
 	var dialer net.Dialer
-	conn, err := dialer.DialContext(ctx, "tcp", args.AddrPort)
+	conn, err := dialer.DialContext(ctx, args.Network, args.AddrPort)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 	netx.DisableKeepalive(conn)
 
-	file, err := conn.(*net.TCPConn).File()
+	rawConn, err := conn.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
 	// send fd
-	fdxSeq, err := a.fdx.SendFile(file)
+	fdxSeq, err := util.UseRawConn1(rawConn, func(fd int) (uint64, error) {
+		return a.fdx.SendFdInt(fd)
+	})
 	if err != nil {
 		return err
 	}

@@ -675,27 +675,27 @@ type localForwardChannelData struct {
 	OriginPort uint32
 }
 
-func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
-	d := localForwardChannelData{}
-	if err := gossh.Unmarshal(newChan.ExtraData(), &d); err != nil {
-		newChan.Reject(gossh.ConnectionFailed, "parse forward data: "+err.Error())
-		return
-	}
+// OpenSSH extension: streamlocal forward for Unix sockets
+// https://github.com/openssh/openssh-portable/blob/05f2b141cfcc60c7cdedf9450d2b9d390c19eaad/PROTOCOL#L322
+type streamLocalChannelData struct {
+	SocketPath string
+	Reserved1  string
+	Reserved2  uint32
+}
 
-	dest := net.JoinHostPort(d.DestAddr, strconv.FormatInt(int64(d.DestPort), 10))
-
+func (sv *SshServer) finishProxyChannelOpen(ctx ssh.Context, newChan gossh.NewChannel, network string, addrPort string) {
 	container, _, isWormhole, err := sv.resolveUser(ctx.User())
 	if err != nil {
 		newChan.Reject(gossh.ConnectionFailed, err.Error())
 		return
 	}
 	if isWormhole {
-		newChan.Reject(gossh.ConnectionFailed, "wormhole not supported")
+		newChan.Reject(gossh.ConnectionFailed, "can't forward to wormhole")
 		return
 	}
 
 	dstConn, err := UseAgentRet(container, func(a *agent.Client) (net.Conn, error) {
-		return a.DialTCPContext(dest)
+		return a.DialContext(network, addrPort)
 	})
 	if err != nil {
 		newChan.Reject(gossh.ConnectionFailed, err.Error())
@@ -704,6 +704,7 @@ func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn,
 
 	sshCh, reqs, err := newChan.Accept()
 	if err != nil {
+		logrus.WithError(err).Error("accept failed")
 		dstConn.Close()
 		return
 	}
@@ -719,6 +720,27 @@ func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn,
 		defer dstConn.Close()
 		_, _ = io.Copy(dstConn, sshCh)
 	}()
+}
+
+func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
+	d := localForwardChannelData{}
+	if err := gossh.Unmarshal(newChan.ExtraData(), &d); err != nil {
+		newChan.Reject(gossh.ConnectionFailed, "parse tcpip forward data: "+err.Error())
+		return
+	}
+
+	dest := net.JoinHostPort(d.DestAddr, strconv.FormatInt(int64(d.DestPort), 10))
+	sv.finishProxyChannelOpen(ctx, newChan, "tcp", dest)
+}
+
+func (sv *SshServer) handleStreamLocalForward(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
+	d := streamLocalChannelData{}
+	if err := gossh.Unmarshal(newChan.ExtraData(), &d); err != nil {
+		newChan.Reject(gossh.ConnectionFailed, "parse stream local forward data: "+err.Error())
+		return
+	}
+
+	sv.finishProxyChannelOpen(ctx, newChan, "unix", d.SocketPath)
 }
 
 func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, error) {
@@ -762,6 +784,7 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 	sshServerPub.Handler = sshServerPub.handleConn
 	sshServerPub.SubsystemHandlers["sftp"] = sshServerPub.handleConn
 	sshServerPub.ChannelHandlers["direct-tcpip"] = sshServerPub.handleLocalForward
+	sshServerPub.ChannelHandlers["direct-streamlocal@openssh.com"] = sshServerPub.handleStreamLocalForward
 	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
 	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyECDSA)))
 	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyRSA)))

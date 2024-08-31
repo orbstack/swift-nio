@@ -346,9 +346,10 @@ func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {
 	return exitCode, nil
 }
 
-func (c *Client) DialTCPContext(addrPort string) (*net.TCPConn, error) {
+func (c *Client) DialContext(network string, addrPort string) (net.Conn, error) {
 	var seq uint64
-	err := c.rpc.Call("a.DialTCPContext", DialTCPContextArgs{
+	err := c.rpc.Call("a.DialContext", DialContextArgs{
+		Network:  network,
 		AddrPort: addrPort,
 	}, &seq)
 	if err != nil {
@@ -365,7 +366,7 @@ func (c *Client) DialTCPContext(addrPort string) (*net.TCPConn, error) {
 		return nil, err
 	}
 
-	return conn.(*net.TCPConn), nil
+	return conn, nil
 }
 
 func (c *Client) EndUserSession(user string) error {
