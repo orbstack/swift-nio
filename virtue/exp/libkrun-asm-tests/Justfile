@@ -1,0 +1,2 @@
+run:
+    cargo run --manifest-path ../ui-test-harness/Cargo.toml -- ui-tests

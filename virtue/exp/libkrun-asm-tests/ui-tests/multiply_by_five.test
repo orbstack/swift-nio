@@ -1,0 +1,9 @@
+cargo asm multiply_by_five
+---
+    .globl    _multiply_by_five
+    .p2align    2
+_multiply_by_five:
+Lfunc_begin1:
+    .cfi_startproc
+    add w0, w0, w0, lsl #2
+    ret

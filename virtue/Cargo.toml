@@ -1,24 +1,32 @@
 [workspace]
+resolver = "2"
 members = [
     "src/counter-proc",
     "src/counter",
+    "src/filemap",
     "src/gicv3",
     "src/gruel",
     "src/kruntest",
     "src/libkrun",
-    "src/newt",
-    "src/vmm-ids",
     "src/memmage",
-    "src/filemap",
+    "src/newt",
     "src/sysx",
+    "src/vmm-ids",
 ]
-resolver = "2"
+exclude = ["exp"]
 
 [profile.release]
+lto = true
+strip = true
+
+[profile.release-with-debug]
+inherits = "release"
 lto = "thin"
+
 # libkrun builds a static library
 # we strip the final Go binary, so preserve symbols and DWARF here
 strip = false
+
 # always generate debug info so we can split it (dSYM) for release
 debug = true
 

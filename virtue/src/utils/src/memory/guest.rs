@@ -129,15 +129,6 @@ impl SubAssign<isize> for GuestAddress {
     }
 }
 
-// === Index utils === //
-
-#[cold]
-#[inline(never)]
-#[track_caller]
-fn index_out_of_bounds(i: usize, len: usize) -> ! {
-    panic!("index out of bounds ({i} >= {len})")
-}
-
 // === GuestMemory === //
 
 #[derive(Clone)]
@@ -357,6 +348,24 @@ impl<'a, T: bytemuck::Pod> Iterator for GuestSliceIter<'a, T> {
 
 // === GuestSliceIndex === //
 
+#[cold]
+#[inline(never)]
+#[track_caller]
+fn fail_index_out_of_bounds(i: usize, len: usize) -> ! {
+    panic!("index out of bounds ({i} >= {len})")
+}
+
+#[cold]
+#[inline(never)]
+#[track_caller]
+fn fail_bad_range(start: usize, end: usize, len: usize) -> ! {
+    if end > start {
+        panic!("range bounds are reversed: {start} > {end}")
+    } else {
+        panic!("range indexes out of bounds: {end} > {len}")
+    }
+}
+
 pub trait GuestSliceIndex<T> {
     type Output;
 
@@ -384,7 +393,7 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for usize {
     fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
         match self.try_get(target) {
             Some(out) => out,
-            None => index_out_of_bounds(self, target.len()),
+            None => fail_index_out_of_bounds(self, target.len()),
         }
     }
 }
@@ -394,17 +403,25 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for Range<usize> {
 
     #[track_caller]
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        let new_len = self.end.unchecked_sub(self.start);
+        GuestSlice::new_unchecked(
+            target.memory,
+            NonNull::slice_from_raw_parts(target.as_ptr().cast::<T>().add(self.start), new_len),
+        )
     }
 
     #[track_caller]
     fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
-        todo!()
+        (self.start <= self.end && self.end <= target.len())
+            .then(|| unsafe { self.get_unchecked(target) })
     }
 
     #[track_caller]
     fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        match self.clone().try_get(target) {
+            Some(out) => out,
+            None => fail_bad_range(self.start, self.end, target.len()),
+        }
     }
 }
 
@@ -432,17 +449,17 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeFull {
 
     #[track_caller]
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        *target
     }
 
     #[track_caller]
     fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
-        todo!()
+        Some(*target)
     }
 
     #[track_caller]
     fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        *target
     }
 }
 
