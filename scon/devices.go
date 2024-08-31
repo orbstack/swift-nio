@@ -34,7 +34,7 @@ func (m *ConManager) addDeviceNodeAll(src string, dst string) error {
 	return errors.Join(errs...)
 }
 
-func (m *ConManager) removeDeviceNodeAll(src string, dst string) error {
+func (m *ConManager) removeDeviceNodeAll(dst string) error {
 	m.containersMu.RLock()
 	defer m.containersMu.RUnlock()
 
@@ -72,7 +72,7 @@ func (m *ConManager) handleDeviceEvent(event *inotify.Event) {
 			}
 		} else if event.Mask&inotify.InDelete != 0 {
 			logrus.WithField("path", event.Name).Debug("removing extra device")
-			err := m.removeDeviceNodeAll(event.Name, event.Name)
+			err := m.removeDeviceNodeAll(event.Name)
 			if err != nil {
 				logrus.WithError(err).Error("failed to remove extra device")
 			}

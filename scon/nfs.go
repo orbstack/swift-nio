@@ -252,13 +252,6 @@ func (m *ConManager) onPreDeleteContainer(c *Container) error {
 	return nil
 }
 
-func bindMountNfsRoot(c *Container, src string, target string) error {
-	return c.UseMountNs(func() error {
-		// shared from machine POV is OK
-		return unix.Mount(src, target, "", unix.MS_BIND|unix.MS_REC|unix.MS_SHARED|unix.MS_RDONLY, "")
-	})
-}
-
 func (m *NfsMirrorManager) MountImage(img *dockertypes.FullImage, tag string, fs *securefs.FS) error {
 	// c8d snapshotter not supported
 	if img.GraphDriver.Name != "overlay2" {

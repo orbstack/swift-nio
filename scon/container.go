@@ -118,8 +118,9 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 	}
 
 	c.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
-		flags := atomic.SwapUint32(&c.fwdDirtyFlags, 0)
-		err := c.updateListenersNow(bpf.LtypeFlags(flags))
+		// TODO: use flags to reduce update work
+		atomic.SwapUint32(&c.fwdDirtyFlags, 0)
+		err := c.updateListenersNow()
 		if err != nil {
 			logrus.WithError(err).WithField("container", c.Name).Error("failed to update listeners")
 		}

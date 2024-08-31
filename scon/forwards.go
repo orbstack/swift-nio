@@ -478,7 +478,7 @@ func diffSlicesListenerKey(old, new []sysnet.ListenerInfo) (removed, added []sys
 }
 
 // triggered by bpf pmon
-func (c *Container) updateListenersNow(dirtyFlags bpf.LtypeFlags) error {
+func (c *Container) updateListenersNow() error {
 	// this is to prevent stopping while we're updating listeners
 	c.mu.Lock()
 	defer c.mu.Unlock()
