@@ -6,18 +6,21 @@ members = [
     "src/gruel",
     "src/kruntest",
     "src/libkrun",
-    "src/newt", "src/vmm-ids", "src/memmage", "src/filemap", "src/sysx",
+    "src/newt",
+    "src/vmm-ids",
+    "src/memmage",
+    "src/filemap",
+    "src/sysx",
 ]
 resolver = "2"
 #panic = "abort"
 
 [profile.release]
 #panic = "abort"
-lto = true
+lto = "thin"
 strip = true
 # rustflags = []
 
 [profile.release-with-debug]
 inherits = "release"
-lto = "thin"
 debug = true
