@@ -1,0 +1,9 @@
+cargo asm read_regular_ref
+---
+    .globl    _read_regular_ref
+    .p2align    2
+_read_regular_ref:
+Lfunc_begin3:
+    .cfi_startproc
+    ldr w0, [x0]
+    ret
