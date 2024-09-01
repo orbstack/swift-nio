@@ -1,25 +1,17 @@
-cargo asm index_regular_inlined
+cargo asm index_regular_inlined --simplify
 ---
-    .globl    _index_regular_inlined
-    .p2align    2
 _index_regular_inlined:
 Lfunc_begin1:
-    .cfi_startproc
     cmp x1, #5
     b.lo LBB1_2
     ldr w0, [x0, #16]
     ret
 LBB1_2:
     stp x29, x30, [sp, #-16]!
-    .cfi_def_cfa_offset 16
     mov x29, sp
-    .cfi_def_cfa w29, 16
-    .cfi_offset w30, -8
-    .cfi_offset w29, -16
 Lloh0:
     adrp x2, l___unnamed_1@PAGE
 Lloh1:
     add x2, x2, l___unnamed_1@PAGEOFF
     mov w0, #4
     bl core::panicking::panic_bounds_check
-    .loh AdrpAdd    Lloh0, Lloh1

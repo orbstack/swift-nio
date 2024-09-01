@@ -4,6 +4,8 @@ use std::{
     process::exit,
 };
 
+use owo_colors::OwoColorize;
+
 // === Write Adapters === //
 
 pub trait Preprocessor {
@@ -122,9 +124,13 @@ pub fn fmt_indent(target: impl fmt::Display, level: usize) -> impl fmt::Display 
 #[track_caller]
 pub fn log_error(e: anyhow::Error) {
     eprintln!(
-        "error at {}:\n{}",
-        Location::caller(),
-        fmt_indent(format_args!("{e:?}"), 4)
+        "{}",
+        format_args!(
+            "error at {}:\n{}",
+            Location::caller(),
+            fmt_indent(format_args!("{e:?}"), 4).red(),
+        )
+        .bright_red()
     );
 }
 

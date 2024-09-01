@@ -1,0 +1,18 @@
+cargo asm sub_index_guest --simplify
+---
+_sub_index_guest:
+Lfunc_begin4:
+    cmp x1, #3
+    b.ls LBB4_2
+    ret
+LBB4_2:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    mov x2, x1
+Lloh6:
+    adrp x3, l___unnamed_4@PAGE
+Lloh7:
+    add x3, x3, l___unnamed_4@PAGEOFF
+    mov x0, #0
+    mov w1, #4
+    bl utils::memory::guest::fail_bad_range

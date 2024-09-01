@@ -1,11 +1,6 @@
-cargo asm read_guest_ref
+cargo asm read_guest_ref --simplify
 ---
-    .globl    _read_guest_ref
-    .p2align    2
 _read_guest_ref:
-Lfunc_begin4:
-    .cfi_startproc
-    ;MEMBARRIER
+Lfunc_begin6:
     ldr w0, [x0]
-    ;MEMBARRIER
     ret

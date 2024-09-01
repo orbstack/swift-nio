@@ -1,27 +1,17 @@
-cargo asm index_guest_inlined
+cargo asm index_guest_inlined --simplify
 ---
-    .globl    _index_guest_inlined
-    .p2align    2
 _index_guest_inlined:
 Lfunc_begin2:
-    .cfi_startproc
     cmp x1, #4
     b.ls LBB2_2
-    ;MEMBARRIER
     ldr w0, [x0, #16]
-    ;MEMBARRIER
     ret
 LBB2_2:
     stp x29, x30, [sp, #-16]!
-    .cfi_def_cfa_offset 16
     mov x29, sp
-    .cfi_def_cfa w29, 16
-    .cfi_offset w30, -8
-    .cfi_offset w29, -16
 Lloh2:
     adrp x2, l___unnamed_2@PAGE
 Lloh3:
     add x2, x2, l___unnamed_2@PAGEOFF
     mov w0, #4
     bl utils::memory::guest::fail_index_out_of_bounds
-    .loh AdrpAdd    Lloh2, Lloh3

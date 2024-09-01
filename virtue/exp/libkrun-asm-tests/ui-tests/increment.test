@@ -1,11 +1,6 @@
-cargo asm increment
+cargo asm increment --simplify
 ---
-.section __TEXT,__text,regular,pure_instructions
-    .build_version macos, 11, 0
-    .globl    _increment
-    .p2align    2
 _increment:
 Lfunc_begin0:
-    .cfi_startproc
     add w0, w0, #1
     ret
