@@ -1,10 +1,15 @@
 package tests
 
 import (
+	"context"
+	_ "embed"
 	"fmt"
 	"math/rand"
 	"os"
+	"os/exec"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -13,7 +18,36 @@ import (
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/util"
+	"golang.org/x/sync/semaphore"
 )
+
+//go:embed cloud-init.yml
+var cloudInitUserData string
+
+func getTestMachineCount() int64 {
+	env, ok := os.LookupEnv("ORB_TEST_MACHINE_COUNT")
+	if !ok {
+		cpuc, err := exec.Command("sysctl", "-n", "hw.ncpu").Output()
+		if err != nil {
+			panic(fmt.Errorf("couldn't get cpu count: %w", err))
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(string(cpuc)))
+		if err != nil {
+			panic(fmt.Errorf("couldn't parse cpu count %v: %w", strings.TrimSpace(string(cpuc)), err))
+		}
+		return int64(n / 2)
+	}
+
+	n, err := strconv.Atoi(env)
+	if err != nil {
+		panic(fmt.Errorf("couldn't parse $ORB_TEST_MACHINE_COUNT value %v: %w", env, err))
+	}
+
+	return int64(n)
+}
+
+// to avoid hammering host, only run $ORB_TEST_MACHINE_COUNT (or ncpu/2) test machines at a time
+var testMachineSem = semaphore.NewWeighted(getTestMachineCount())
 
 func init() {
 	// don't try to spawn daemon
@@ -31,7 +65,7 @@ func checkT(t *testing.T, err error) {
 	}
 }
 
-func forEachDistroArchVer(t *testing.T, f func(distro, ver, arch, machineName string)) {
+func forEachDistroArchVer(t *testing.T, f func(t *testing.T, distro, ver, arch, machineName string)) {
 	t.Helper()
 	for _, distro := range images.Distros() {
 		// short test: only test alpine
@@ -43,8 +77,10 @@ func forEachDistroArchVer(t *testing.T, f func(distro, ver, arch, machineName st
 		t.Run(distro, func(t *testing.T) {
 			t.Parallel()
 
+			img := images.DistroToImage[distro]
+
 			// version combos in non-short
-			testVersions := []string{"" /*default latest*/}
+			testVersions := []string{images.ImageToLatestVersion[img]}
 			if oldestVer, ok := images.ImageToOldestVersion[distro]; ok && !testing.Short() {
 				testVersions = append(testVersions, oldestVer)
 			}
@@ -70,7 +106,7 @@ func forEachDistroArchVer(t *testing.T, f func(distro, ver, arch, machineName st
 							t.Parallel()
 
 							machineName := fmt.Sprintf("%s-%s-%s-%s", testPrefix(), distro, strings.Replace(ver, ".", "d", -1), arch)
-							f(distro, ver, arch, machineName)
+							f(t, distro, ver, arch, machineName)
 						})
 					}
 				})
@@ -79,23 +115,22 @@ func forEachDistroArchVer(t *testing.T, f func(distro, ver, arch, machineName st
 	}
 }
 
-func forEachDistroArchVerGet(t *testing.T, f func(distro, ver, arch, machineName string, c *types.ContainerRecord)) {
-	forEachDistroArchVer(t, func(distro, ver, arch, machineName string) {
-		c, err := scli.Client().GetByName(machineName)
-		checkT(t, err)
-
-		f(distro, ver, arch, machineName, c)
-	})
-}
-
 func TestSconPing(t *testing.T) {
 	err := scli.Client().Ping()
 	checkT(t, err)
 }
 
-func TestSconCreate(t *testing.T) {
-	forEachDistroArchVer(t, func(distro, ver, arch, machineName string) {
-		_, err := scli.Client().Create(types.CreateRequest{
+func TestSconMachines(t *testing.T) {
+	forEachDistroArchVer(t, func(t *testing.T, distro, ver, arch, machineName string) {
+		if os.Getenv("ORB_SKIP_TESTS") == "1" {
+			t.Skip("skipping per request")
+		}
+
+		err := testMachineSem.Acquire(context.TODO(), 1)
+		checkT(t, err)
+		defer testMachineSem.Release(1)
+
+		container, err := scli.Client().Create(types.CreateRequest{
 			Name: machineName,
 			Image: types.ImageSpec{
 				Distro:  images.DistroToImage[distro],
@@ -105,155 +140,102 @@ func TestSconCreate(t *testing.T) {
 			InternalForTesting: true,
 		})
 		checkT(t, err)
-	})
-}
 
-func TestSconList(t *testing.T) {
-	containers, err := scli.Client().ListContainers()
-	checkT(t, err)
+		t.Run("GetByName", func(t *testing.T) {
+			containers, err := scli.Client().ListContainers()
+			checkT(t, err)
 
-	forEachDistroArchVer(t, func(distro, ver, arch, machineName string) {
-		for _, c := range containers {
-			if c.Name == machineName {
-				//TODO validate image info
-				return
+			if !slices.ContainsFunc(containers, func(c types.ContainerRecord) bool {
+				return c.Name == machineName
+			}) {
+				t.Fatalf("container %s not found", machineName)
 			}
-		}
+		})
 
-		t.Fatalf("container %s not found", machineName)
-	})
-}
+		t.Run("GetByID", func(t *testing.T) {
+			c, err := scli.Client().GetByID(container.ID)
+			checkT(t, err)
 
-func TestSconGetByName(t *testing.T) {
-	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		if c.Name != machineName {
-			t.Fatalf("expected %s, got %s", machineName, c.Name)
-		}
-	})
-}
-
-func TestSconGetByID(t *testing.T) {
-	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		c2, err := scli.Client().GetByID(c.ID)
-		checkT(t, err)
-
-		if *c != *c2 {
-			t.Fatalf("expected %v, got %v", c, c2)
-		}
-	})
-}
-
-func TestSconStop(t *testing.T) {
-	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		err := scli.Client().ContainerStop(c)
-		checkT(t, err)
-	})
-}
-
-func TestSconStart(t *testing.T) {
-	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		err := scli.Client().ContainerStart(c)
-		checkT(t, err)
-	})
-}
-
-func TestSconRestart(t *testing.T) {
-	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		err := scli.Client().ContainerRestart(c)
-		checkT(t, err)
-	})
-}
-
-func TestSconRename(t *testing.T) {
-	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		err := scli.Client().ContainerRename(c, machineName+"-renamed")
-		checkT(t, err)
-
-		//TODO verify name in shell, hosts etc.
-
-		// restore name
-		err = scli.Client().ContainerRename(c, machineName)
-		checkT(t, err)
-	})
-}
-
-func TestSconGetRuntimeLogs(t *testing.T) {
-	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		lxcLogs, err := scli.Client().ContainerGetLogs(c, types.LogRuntime)
-		checkT(t, err)
-		if len(lxcLogs) == 0 {
-			t.Fatal("no logs")
-		}
-
-		//TODO verify logs
-	})
-}
-
-func TestSconGetConsoleLogs(t *testing.T) {
-	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		lxcLogs, err := scli.Client().ContainerGetLogs(c, types.LogRuntime)
-		checkT(t, err)
-		if len(lxcLogs) == 0 {
-			t.Fatal("no logs")
-		}
-
-		//TODO verify logs
-	})
-}
-
-func TestSconDelete(t *testing.T) {
-	forEachDistroArchVerGet(t, func(distro, ver, arch, machineName string, c *types.ContainerRecord) {
-		err := scli.Client().ContainerDelete(c)
-		checkT(t, err)
-	})
-}
-
-func TestSconListAfterDelete(t *testing.T) {
-	containers, err := scli.Client().ListContainers()
-	checkT(t, err)
-
-	forEachDistroArchVer(t, func(distro, ver, arch, machineName string) {
-		for _, c := range containers {
-			if c.Name == machineName {
-				t.Fatalf("container %s still exists", machineName)
+			if c.ID != container.ID && c.Name != machineName {
+				t.Fatalf("expected machine named %s with ID %s, got machine named %s with ID %s", machineName, container.ID, c.Name, c.ID)
 			}
-		}
-	})
-}
+		})
 
-func TestSconCloudInit(t *testing.T) {
-	t.Parallel()
+		t.Run("Stop", func(t *testing.T) {
+			checkT(t, scli.Client().ContainerStop(container))
+		})
 
-	userData, err := os.ReadFile("cloud-init.yml")
-	checkT(t, err)
+		t.Run("Start", func(t *testing.T) {
+			checkT(t, scli.Client().ContainerStart(container))
+		})
 
-	for _, distro := range images.Distros() {
-		// short test: only test alpine
-		if testing.Short() && distro != "alpine" {
-			continue
-		}
+		t.Run("Restart", func(t *testing.T) {
+			checkT(t, scli.Client().ContainerRestart(container))
+		})
 
-		distro := distro
-		t.Run(distro, func(t *testing.T) {
-			t.Parallel()
+		t.Run("Rename", func(t *testing.T) {
+			newName := machineName + "-renamed"
+			err := scli.Client().ContainerRename(container, newName)
+			checkT(t, err)
 
-			machineName := fmt.Sprintf("%s-clinit-%s", testPrefix(), distro)
-			c, err := scli.Client().Create(types.CreateRequest{
+			cmd := exec.Command("orb", "-m", newName)
+
+			hostnameCmd := []string{"hostname"}
+			if distro == "oracle" {
+				// Oracle Linux doesn't ship a `hostname` binary, lol
+				hostnameCmd = []string{"hostnamectl", "hostname"}
+			}
+
+			// since exec.Command("orb", "-m", machineName, hostnameCmd...) or other variations doesn't work
+			cmd.Args = append(cmd.Args, hostnameCmd...)
+
+			output, err := cmd.Output()
+			checkT(t, err)
+
+			if strings.TrimSpace(string(output)) != newName {
+				t.Fatalf("expected machine's hostname to be %s, got %s", newName, strings.TrimSpace(string(output)))
+			}
+
+			err = scli.Client().ContainerRename(container, machineName)
+			checkT(t, err)
+		})
+
+		t.Run("GetRuntimeLogs", func(t *testing.T) {
+			lxcLogs, err := scli.Client().ContainerGetLogs(container, types.LogRuntime)
+			checkT(t, err)
+			if len(lxcLogs) == 0 {
+				t.Fatal("no logs")
+			}
+		})
+
+		t.Run("GetConsoleLogs", func(t *testing.T) {
+			lxcLogs, err := scli.Client().ContainerGetLogs(container, types.LogConsole)
+			checkT(t, err)
+			if len(lxcLogs) == 0 {
+				t.Fatal("no logs")
+			}
+		})
+
+		t.Run("CloudInit", func(t *testing.T) {
+			machineName := machineName + "-cinit"
+			container, err := scli.Client().Create(types.CreateRequest{
 				Name: machineName,
 				Image: types.ImageSpec{
-					Distro: images.DistroToImage[distro],
+					Distro:  images.DistroToImage[distro],
+					Arch:    arch,
+					Version: ver,
 				},
-				CloudInitUserData: string(userData),
-				Testing:           true,
+				CloudInitUserData:  cloudInitUserData,
+				InternalForTesting: true,
 			})
 			if err != nil {
-				if strings.Contains(err.Error(), "cloud-init not supported") {
+				if strings.Contains(err.Error(), "cloud-init not supported") || strings.Contains(err.Error(), "image not found") {
 					t.Skip("cloud-init not supported")
 				} else {
 					checkT(t, err)
 				}
 			}
-			defer scli.Client().ContainerDelete(c)
+			defer scli.Client().ContainerDelete(container)
 
 			// check file
 			out, err := util.Run("orb", "-m", machineName, "cat", "/etc/cltest")
@@ -262,5 +244,13 @@ func TestSconCloudInit(t *testing.T) {
 				t.Fatalf("expected test, got: %s", out)
 			}
 		})
-	}
+
+		err = scli.Client().ContainerDelete(container)
+		checkT(t, err)
+
+		_, err = scli.Client().GetByID(container.ID)
+		if err == nil {
+			t.Fatal("was able to retrieve container by ID after deletion")
+		}
+	})
 }
