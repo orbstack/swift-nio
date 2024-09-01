@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.86"
+owo-colors = "4.0.0"
+text-diff = "0.4.0"

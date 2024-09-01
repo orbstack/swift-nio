@@ -51,13 +51,16 @@ where
     }
 }
 
-pub struct IdentPreprocessor(pub usize);
+pub struct PrefixPreprocessor<P>(pub P);
 
 pub struct IdentPreprocessorState {
     pushed_first_line: bool,
 }
 
-impl Preprocessor for IdentPreprocessor {
+impl<P> Preprocessor for PrefixPreprocessor<P>
+where
+    P: fmt::Display,
+{
     type State = IdentPreprocessorState;
 
     fn init(&self) -> Self::State {
@@ -70,18 +73,14 @@ impl Preprocessor for IdentPreprocessor {
         if !state.pushed_first_line {
             state.pushed_first_line = true;
 
-            for _ in 0..self.0 {
-                f.write_char(' ')?;
-            }
+            self.0.fmt(f)?;
         }
 
         for part in s.split_inclusive('\n') {
             f.write_str(part)?;
 
             if part.ends_with('\n') {
-                for _ in 0..self.0 {
-                    f.write_char(' ')?;
-                }
+                self.0.fmt(f)?;
             }
         }
 
@@ -89,8 +88,33 @@ impl Preprocessor for IdentPreprocessor {
     }
 }
 
+pub struct FmtFunc<F>(pub F)
+where
+    F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result;
+
+impl<F> fmt::Display for FmtFunc<F>
+where
+    F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0(f)
+    }
+}
+
+pub fn fmt_prefix(target: impl fmt::Display, prefix: impl fmt::Display) -> impl fmt::Display {
+    Preprocess(target, PrefixPreprocessor(prefix))
+}
+
 pub fn fmt_indent(target: impl fmt::Display, level: usize) -> impl fmt::Display {
-    Preprocess(target, IdentPreprocessor(level))
+    fmt_prefix(
+        target,
+        FmtFunc(move |f| {
+            for _ in 0..level {
+                f.write_char(' ')?;
+            }
+            Ok(())
+        }),
+    )
 }
 
 // === Error Printing === //

@@ -1,7 +1,14 @@
-use std::{env, fs, process::Command};
+use std::{
+    env,
+    fmt::{Display, Write},
+    fs,
+    process::Command,
+};
+
+use owo_colors::OwoColorize as _;
 
 use anyhow::Context;
-use formatter::{fmt_indent, log_error, ok_or_exit, ok_or_log};
+use formatter::{fmt_indent, fmt_prefix, log_error, ok_or_exit, ok_or_log, FmtFunc};
 
 mod formatter;
 
@@ -30,7 +37,7 @@ fn main() {
             continue;
         }
 
-        eprintln!("Running {}...", test_entry.to_string_lossy());
+        eprint!("Running {}... ", test_entry.to_string_lossy().yellow());
 
         // Parse text segment
         let Some(test_text) =
@@ -65,13 +72,35 @@ fn main() {
         let actual_output = normalize_input(&String::from_utf8_lossy(&actual_output.stdout));
 
         if actual_output != expected_output {
+            let diffs = text_diff::diff(&expected_output, &actual_output, "\n").1;
+
             eprintln!(
-                "Test failed!\nExpected:\n{}\nActual output:\n{}",
-                fmt_indent(expected_output, 4),
-                fmt_indent(actual_output, 4),
+                "{}\nDiff:\n{}\nActual output:\n{}",
+                "failed!".bright_red(),
+                fmt_indent(
+                    FmtFunc(|f| {
+                        for diff in &diffs {
+                            match diff {
+                                text_diff::Difference::Same(text) => {
+                                    fmt_prefix(text, "  ").bright_black().fmt(f)?;
+                                }
+                                text_diff::Difference::Add(text) => {
+                                    fmt_prefix(text, "+ ").bright_green().fmt(f)?;
+                                }
+                                text_diff::Difference::Rem(text) => {
+                                    fmt_prefix(text, "- ").bright_red().fmt(f)?;
+                                }
+                            }
+                            f.write_char('\n')?;
+                        }
+                        Ok(())
+                    }),
+                    4,
+                ),
+                fmt_indent(actual_output, 4).bright_blue(),
             );
         } else {
-            eprintln!("Test succeeded!");
+            eprintln!("{}", "success!".bright_green());
         }
     }
 }
