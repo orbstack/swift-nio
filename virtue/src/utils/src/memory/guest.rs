@@ -21,7 +21,7 @@ use derive_where::derive_where;
 // === GuestAddress === //
 
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct GuestAddress(usize);
+pub struct GuestAddress(pub usize);
 
 impl fmt::Debug for GuestAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -64,27 +64,69 @@ impl GuestAddress {
         self.0
     }
 
+    pub const fn add(self, rhs: usize) -> Self {
+        Self(self.0 + rhs)
+    }
+
+    pub const fn sub(self, rhs: usize) -> Self {
+        Self(self.0 - rhs)
+    }
+
+    pub const fn saturating_add(self, rhs: usize) -> Self {
+        Self(self.0.saturating_add(rhs))
+    }
+
+    pub const fn saturating_sub(self, rhs: usize) -> Self {
+        Self(self.0.saturating_sub(rhs))
+    }
+
+    pub const fn saturating_add_signed(self, rhs: isize) -> Self {
+        Self(self.0.saturating_add_signed(rhs))
+    }
+
+    pub const fn wrapping_add(self, rhs: usize) -> Self {
+        Self(self.0.wrapping_add(rhs))
+    }
+
+    pub const fn wrapping_add_signed(self, rhs: isize) -> Self {
+        Self(self.0.wrapping_add_signed(rhs))
+    }
+
+    pub const fn wrapping_sub(self, rhs: usize) -> Self {
+        Self(self.0.wrapping_sub(rhs))
+    }
+
+    pub const fn checked_add(self, rhs: usize) -> Option<Self> {
+        match self.0.checked_add(rhs) {
+            Some(v) => Some(Self(v)),
+            None => None,
+        }
+    }
+
+    pub const fn checked_add_signed(self, rhs: isize) -> Option<Self> {
+        match self.0.checked_add_signed(rhs) {
+            Some(v) => Some(Self(v)),
+            None => None,
+        }
+    }
+
+    pub const fn checked_sub(self, rhs: usize) -> Option<Self> {
+        match self.0.checked_sub(rhs) {
+            Some(v) => Some(Self(v)),
+            None => None,
+        }
+    }
+
     pub fn map_usize(self, f: impl FnOnce(usize) -> usize) -> Self {
         Self(f(self.0))
     }
-
-    // TODO: Wrapping and (explicitly) checked variants
 }
 
 impl Add<usize> for GuestAddress {
     type Output = Self;
 
     fn add(self, rhs: usize) -> Self::Output {
-        self.map_usize(|v| v + rhs)
-    }
-}
-
-impl Add<isize> for GuestAddress {
-    type Output = Self;
-
-    fn add(self, rhs: isize) -> Self::Output {
-        // TODO: Make checked
-        self.map_usize(|v| v.wrapping_add_signed(rhs))
+        self.add(rhs)
     }
 }
 
@@ -94,37 +136,16 @@ impl AddAssign<usize> for GuestAddress {
     }
 }
 
-impl AddAssign<isize> for GuestAddress {
-    fn add_assign(&mut self, rhs: isize) {
-        *self = *self + rhs;
-    }
-}
-
 impl Sub<usize> for GuestAddress {
     type Output = Self;
 
     fn sub(self, rhs: usize) -> Self::Output {
-        self.map_usize(|v| v - rhs)
-    }
-}
-
-impl Sub<isize> for GuestAddress {
-    type Output = Self;
-
-    fn sub(self, rhs: isize) -> Self::Output {
-        // TODO: Make checked
-        self.map_usize(|v| v.wrapping_add_signed(-rhs))
+        self.sub(rhs)
     }
 }
 
 impl SubAssign<usize> for GuestAddress {
     fn sub_assign(&mut self, rhs: usize) {
-        *self = *self - rhs;
-    }
-}
-
-impl SubAssign<isize> for GuestAddress {
-    fn sub_assign(&mut self, rhs: isize) {
         *self = *self - rhs;
     }
 }
@@ -163,6 +184,10 @@ impl GuestMemory {
         self.0.reserved
     }
 
+    pub fn len(&self) -> usize {
+        self.0.reserved.len()
+    }
+
     pub fn as_slice(&self) -> GuestSlice<'_, u8> {
         unsafe { GuestSlice::new_unchecked(self.as_ptr()) }
     }
@@ -174,6 +199,20 @@ impl GuestMemory {
 
     pub fn byte_range_sized(&self, base: GuestAddress, len: usize) -> Option<GuestSlice<'_, u8>> {
         self.as_slice().try_get(RangeSized::new(base.usize(), len))
+    }
+
+    pub fn range_sized(&self, base: GuestAddress, len: usize) -> Option<GuestSlice<'_, u8>> {
+        self.as_slice()
+            .cast_trunc()
+            .try_get(RangeSized::new(base.usize(), len))
+    }
+
+    pub fn address_of<T: bytemuck::Pod>(&self, ptr: GuestRef<'_, T>) -> GuestAddress {
+        let reserved_base = self.as_ptr().as_ptr().cast::<u8>() as usize;
+        let ptr_base = ptr.as_ptr().as_ptr() as usize;
+        assert!((reserved_base..(reserved_base + self.len())).contains(&ptr_base));
+
+        GuestAddress(ptr_base - reserved_base)
     }
 }
 

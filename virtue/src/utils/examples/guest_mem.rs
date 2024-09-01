@@ -10,7 +10,7 @@ fn main() {}
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 struct MyDemo {
-    a: [u32; 1024],
+    a: [u32; 999],
     b: i32,
 }
 

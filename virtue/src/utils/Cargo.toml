@@ -8,7 +8,7 @@ edition = "2021"
 anyhow = "1.0.86"
 bincode = "=2.0.0-rc.3"
 bitflags = "2.5.0"
-bytemuck = { version = "1.17.1", features = ["derive"] }
+bytemuck = { version = "1.17.1", features = ["derive", "min_const_generics"] }
 derive-where = "1.2.7"
 gruel = { version = "0.1.0", path = "../gruel" }
 libc = ">=0.2.85"
