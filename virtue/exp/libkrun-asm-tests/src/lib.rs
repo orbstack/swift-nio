@@ -16,6 +16,26 @@ pub fn index_guest_inlined(v: GuestSlice<u32>) -> u32 {
 }
 
 #[no_mangle]
+pub fn index_regular_runtime(v: &[u32], index: usize) -> u32 {
+    v[index]
+}
+
+#[no_mangle]
+pub fn index_guest_runtime(v: GuestSlice<u32>, index: usize) -> u32 {
+    v.get(index).read()
+}
+
+#[no_mangle]
+pub fn index_regular_non_pow2_runtime(v: &[[u8; 3]], index: usize) -> [u8; 3] {
+    v[index]
+}
+
+#[no_mangle]
+pub fn index_guest_non_pow2_runtime(v: GuestSlice<[u8; 3]>, index: usize) -> [u8; 3] {
+    v.get(index).read()
+}
+
+#[no_mangle]
 pub fn sub_index_regular(v: &[u8]) {
     let v = &v[0..4];
     let _ = v[0];

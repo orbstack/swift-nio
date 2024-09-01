@@ -1,0 +1,18 @@
+just asm index_guest_runtime
+---
+_index_guest_runtime:
+Lfunc_beginXX:
+    cmp x1, x2
+    b.ls LBBxx
+    ldr w0, [x0, x2, lsl #2]
+    ret
+LBBxx:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+Llohxx:
+    adrp x8, l___xx_xx@PAGE
+Llohxx:
+    add x8, x8, l___xx_xx@PAGEOFF
+    mov x0, x2
+    mov x2, x8
+    bl utils::memory::guest::fail_index_out_of_bounds

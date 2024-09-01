@@ -1,0 +1,22 @@
+just asm index_guest_non_pow2_runtime
+---
+_index_guest_non_pow2_runtime:
+Lfunc_beginXX:
+    cmp x1, x2
+    b.ls LBBxx
+    add x8, x2, x2, lsl #1
+    add x8, x0, x8
+    ldrb w9, [x8, #2]
+    ldrh w8, [x8]
+    orr w0, w8, w9, lsl #16
+    ret
+LBBxx:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+Llohxx:
+    adrp x8, l___xx_xx@PAGE
+Llohxx:
+    add x8, x8, l___xx_xx@PAGEOFF
+    mov x0, x2
+    mov x2, x8
+    bl utils::memory::guest::fail_index_out_of_bounds

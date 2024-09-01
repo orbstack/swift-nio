@@ -1,0 +1,18 @@
+just asm index_regular_runtime
+---
+_index_regular_runtime:
+Lfunc_beginXX:
+    cmp x2, x1
+    b.hs LBBxx
+    ldr w0, [x0, x2, lsl #2]
+    ret
+LBBxx:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+Llohxx:
+    adrp x8, l___xx_xx@PAGE
+Llohxx:
+    add x8, x8, l___xx_xx@PAGEOFF
+    mov x0, x2
+    mov x2, x8
+    bl core::panicking::panic_bounds_check
