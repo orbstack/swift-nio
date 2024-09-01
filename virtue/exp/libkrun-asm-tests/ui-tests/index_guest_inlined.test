@@ -1,16 +1,14 @@
-cargo asm index_guest_mem_inlined
+cargo asm index_guest_inlined
 ---
-    .globl    _index_guest_mem_inlined
+    .globl    _index_guest_inlined
     .p2align    2
-_index_guest_mem_inlined:
+_index_guest_inlined:
 Lfunc_begin2:
     .cfi_startproc
-    ldr x1, [x0, #16]
     cmp x1, #4
     b.ls LBB2_2
-    ldr x8, [x0, #8]
     ;MEMBARRIER
-    ldr w0, [x8, #16]
+    ldr w0, [x0, #16]
     ;MEMBARRIER
     ret
 LBB2_2:

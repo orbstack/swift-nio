@@ -6,12 +6,12 @@ pub fn increment(v: u32) -> u32 {
 }
 
 #[no_mangle]
-pub fn index_slice_inlined(v: &[u32]) -> u32 {
+pub fn index_regular_inlined(v: &[u32]) -> u32 {
     v[4]
 }
 
 #[no_mangle]
-pub fn index_guest_mem_inlined(v: GuestSlice<u32>) -> u32 {
+pub fn index_guest_inlined(v: GuestSlice<u32>) -> u32 {
     v.get(4).read()
 }
 

@@ -6,6 +6,6 @@ _read_guest_ref:
 Lfunc_begin4:
     .cfi_startproc
     ;MEMBARRIER
-    ldr w0, [x1]
+    ldr w0, [x0]
     ;MEMBARRIER
     ret

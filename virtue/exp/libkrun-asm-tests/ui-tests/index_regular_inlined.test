@@ -1,8 +1,8 @@
-cargo asm index_slice_inlined
+cargo asm index_regular_inlined
 ---
-    .globl    _index_slice_inlined
+    .globl    _index_regular_inlined
     .p2align    2
-_index_slice_inlined:
+_index_regular_inlined:
 Lfunc_begin1:
     .cfi_startproc
     cmp x1, #5
