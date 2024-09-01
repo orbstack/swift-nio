@@ -1,16 +1,16 @@
-cargo asm sub_index_regular --simplify
+just asm sub_index_regular
 ---
 _sub_index_regular:
-Lfunc_begin3:
+Lfunc_beginXX:
     cmp x1, #3
-    b.ls LBB3_2
+    b.ls LBBxx
     ret
-LBB3_2:
+LBBxx:
     stp x29, x30, [sp, #-16]!
     mov x29, sp
-Lloh4:
-    adrp x2, l___unnamed_3@PAGE
-Lloh5:
-    add x2, x2, l___unnamed_3@PAGEOFF
+Llohxx:
+    adrp x2, l___xx_xx@PAGE
+Llohxx:
+    add x2, x2, l___xx_xx@PAGEOFF
     mov w0, #4
     bl core::slice::index::slice_end_index_len_fail

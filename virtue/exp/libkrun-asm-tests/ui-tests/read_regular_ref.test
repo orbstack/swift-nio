@@ -1,6 +1,6 @@
-cargo asm read_regular_ref --simplify
+just asm read_regular_ref
 ---
 _read_regular_ref:
-Lfunc_begin5:
+Lfunc_beginXX:
     ldr w0, [x0]
     ret

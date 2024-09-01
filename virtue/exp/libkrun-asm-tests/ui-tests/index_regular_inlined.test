@@ -1,17 +1,17 @@
-cargo asm index_regular_inlined --simplify
+just asm index_regular_inlined
 ---
 _index_regular_inlined:
-Lfunc_begin1:
+Lfunc_beginXX:
     cmp x1, #5
-    b.lo LBB1_2
+    b.lo LBBxx
     ldr w0, [x0, #16]
     ret
-LBB1_2:
+LBBxx:
     stp x29, x30, [sp, #-16]!
     mov x29, sp
-Lloh0:
-    adrp x2, l___unnamed_1@PAGE
-Lloh1:
-    add x2, x2, l___unnamed_1@PAGEOFF
+Llohxx:
+    adrp x2, l___xx_xx@PAGE
+Llohxx:
+    add x2, x2, l___xx_xx@PAGEOFF
     mov w0, #4
     bl core::panicking::panic_bounds_check

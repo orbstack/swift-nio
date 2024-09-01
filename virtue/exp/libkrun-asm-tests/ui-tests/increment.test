@@ -1,6 +1,6 @@
-cargo asm increment --simplify
+just asm increment
 ---
 _increment:
-Lfunc_begin0:
+Lfunc_beginXX:
     add w0, w0, #1
     ret

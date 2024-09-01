@@ -1,17 +1,17 @@
-cargo asm index_guest_inlined --simplify
+just asm index_guest_inlined
 ---
 _index_guest_inlined:
-Lfunc_begin2:
+Lfunc_beginXX:
     cmp x1, #4
-    b.ls LBB2_2
+    b.ls LBBxx
     ldr w0, [x0, #16]
     ret
-LBB2_2:
+LBBxx:
     stp x29, x30, [sp, #-16]!
     mov x29, sp
-Lloh2:
-    adrp x2, l___unnamed_2@PAGE
-Lloh3:
-    add x2, x2, l___unnamed_2@PAGEOFF
+Llohxx:
+    adrp x2, l___xx_xx@PAGE
+Llohxx:
+    add x2, x2, l___xx_xx@PAGEOFF
     mov w0, #4
     bl utils::memory::guest::fail_index_out_of_bounds
