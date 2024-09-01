@@ -6,8 +6,8 @@ use std::{
     marker::PhantomData,
     mem,
     ops::{
-        Add, AddAssign, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
-        Sub, SubAssign,
+        Add, AddAssign, Bound, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+        RangeToInclusive, Sub, SubAssign,
     },
     ptr::NonNull,
     sync::{
@@ -333,6 +333,20 @@ impl<'a, T: bytemuck::Pod> Iterator for GuestSliceIter<'a, T> {
 #[cold]
 #[inline(never)]
 #[track_caller]
+fn fail_overflow_range_bound_start() -> ! {
+    panic!("range start bound at usize::MAX")
+}
+
+#[cold]
+#[inline(never)]
+#[track_caller]
+fn fail_overflow_range_bound_end() -> ! {
+    panic!("range end bound at usize::MAX")
+}
+
+#[cold]
+#[inline(never)]
+#[track_caller]
 fn fail_index_out_of_bounds(i: usize, len: usize) -> ! {
     panic!("index out of bounds ({i} >= {len})")
 }
@@ -346,6 +360,90 @@ fn fail_bad_range(start: usize, end: usize, len: usize) -> ! {
     } else {
         panic!("range indexes out of bounds: {end} > {len}")
     }
+}
+
+#[cold]
+#[inline(never)]
+#[track_caller]
+fn fail_bad_range_inclusive(start: usize, end: usize, len: usize) -> ! {
+    if end == usize::MAX {
+        fail_overflow_range_bound_end()
+    } else {
+        fail_bad_range(start, end + 1, len)
+    }
+}
+
+fn bounds_into_range_unchecked(
+    (start, end): (Bound<usize>, Bound<usize>),
+    len: usize,
+) -> Range<usize> {
+    use std::ops::Bound::*;
+
+    let start = match start {
+        Included(start) => start,
+        Excluded(start) => start + 1,
+        Unbounded => 0,
+    };
+
+    let end = match end {
+        Included(end) => end + 1,
+        Excluded(end) => end,
+        Unbounded => len,
+    };
+
+    start..end
+}
+
+pub fn bounds_into_range_checked(
+    (start, end): (Bound<usize>, Bound<usize>),
+    len: usize,
+) -> Option<Range<usize>> {
+    use std::ops::Bound::*;
+
+    let start = match start {
+        Included(start) => start,
+        Excluded(start) => start.checked_add(1)?,
+        Unbounded => 0,
+    };
+
+    let end = match end {
+        Included(end) => end.checked_add(1)?,
+        Excluded(end) => end,
+        Unbounded => len,
+    };
+
+    Some(start..end)
+}
+
+pub fn bounds_into_range_packing(
+    (start, end): (Bound<usize>, Bound<usize>),
+    len: usize,
+) -> Range<usize> {
+    use std::ops::Bound::*;
+
+    let start = match start {
+        Included(start) => start,
+        Excluded(start) => start
+            .checked_add(1)
+            .unwrap_or_else(|| fail_overflow_range_bound_start()),
+        Unbounded => 0,
+    };
+
+    let end = match end {
+        Included(end) => end
+            .checked_add(1)
+            .unwrap_or_else(|| fail_overflow_range_bound_end()),
+        Excluded(end) => end,
+        Unbounded => len,
+    };
+
+    start..end
+}
+
+fn inclusive_to_exclusive(range: RangeInclusive<usize>) -> Range<usize> {
+    // Handles exhausted ranges differently than `RangeInclusive::into_inner` since we can't easily
+    // determine the exhaustion state of ranges.
+    *range.start()..(*range.end() + 1)
 }
 
 pub trait GuestSliceIndex<T> {
@@ -412,17 +510,22 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeInclusive
 
     #[track_caller]
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        inclusive_to_exclusive(self).get_unchecked(target)
     }
 
     #[track_caller]
     fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
-        todo!()
+        (*self.end() != usize::MAX)
+            .then(|| inclusive_to_exclusive(self))
+            .and_then(|v| v.try_get(target))
     }
 
     #[track_caller]
     fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        match self.clone().try_get(target) {
+            Some(out) => out,
+            None => fail_bad_range_inclusive(*self.start(), *self.end(), target.len()),
+        }
     }
 }
 
@@ -450,17 +553,17 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeFrom<usiz
 
     #[track_caller]
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        (self.start..target.len()).get_unchecked(target)
     }
 
     #[track_caller]
     fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
-        todo!()
+        (self.start..target.len()).try_get(target)
     }
 
     #[track_caller]
     fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        (self.start..target.len()).get(target)
     }
 }
 
@@ -469,17 +572,17 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeTo<usize>
 
     #[track_caller]
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        (0..self.end).get_unchecked(target)
     }
 
     #[track_caller]
     fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
-        todo!()
+        (0..self.end).try_get(target)
     }
 
     #[track_caller]
     fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        (0..self.end).get(target)
     }
 }
 
@@ -488,17 +591,33 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeToInclusi
 
     #[track_caller]
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        (0..=self.end).get_unchecked(target)
     }
 
     #[track_caller]
     fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
-        todo!()
+        (0..=self.end).try_get(target)
     }
 
     #[track_caller]
     fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        (0..=self.end).get(target)
+    }
+}
+
+impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for (Bound<usize>, Bound<usize>) {
+    type Output = GuestSlice<'a, T>;
+
+    unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
+        bounds_into_range_unchecked(self, target.len()).get_unchecked(target)
+    }
+
+    fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
+        bounds_into_range_checked(self, target.len()).and_then(|v| v.try_get(target))
+    }
+
+    fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
+        bounds_into_range_packing(self, target.len()).get(target)
     }
 }
 
@@ -518,15 +637,17 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeSized {
     type Output = GuestSlice<'a, T>;
 
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        target.get_unchecked(self.start..).get_unchecked(..self.len)
     }
 
     fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
-        todo!()
+        target
+            .try_get(self.start..)
+            .and_then(|v| v.try_get(..self.len))
     }
 
     fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        todo!()
+        target.get(self.start..).get(..self.len)
     }
 }
 
