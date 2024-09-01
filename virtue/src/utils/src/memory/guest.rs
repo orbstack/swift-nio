@@ -201,16 +201,67 @@ impl GuestMemory {
         self.as_slice().try_get(RangeSized::new(base.usize(), len))
     }
 
-    pub fn range_sized(&self, base: GuestAddress, len: usize) -> Option<GuestSlice<'_, u8>> {
+    pub fn range_sized<T: bytemuck::Pod>(
+        &self,
+        base: GuestAddress,
+        len: usize,
+    ) -> Option<GuestSlice<'_, T>> {
         self.as_slice()
             .cast_trunc()
             .try_get(RangeSized::new(base.usize(), len))
     }
 
-    pub fn address_of<T: bytemuck::Pod>(&self, ptr: GuestRef<'_, T>) -> GuestAddress {
+    pub fn reference<T: bytemuck::Pod>(&self, addr: GuestAddress) -> Option<GuestRef<'_, T>> {
+        self.range_sized(addr, 1).map(|v| v.get(0))
+    }
+
+    pub fn owns_ref<T: bytemuck::Pod>(&self, ptr: GuestRef<'_, T>) -> bool {
+        if mem::size_of::<T>() == 0 {
+            return true;
+        }
+
         let reserved_base = self.as_ptr().as_ptr().cast::<u8>() as usize;
         let ptr_base = ptr.as_ptr().as_ptr() as usize;
-        assert!((reserved_base..(reserved_base + self.len())).contains(&ptr_base));
+
+        (reserved_base..(reserved_base + self.len())).contains(&ptr_base)
+    }
+
+    pub fn owns_slice<T: bytemuck::Pod>(&self, slice: GuestSlice<'_, T>) -> bool {
+        if mem::size_of::<T>() == 0 {
+            return true;
+        }
+
+        let reserved_base = self.as_ptr().as_ptr().cast::<u8>() as usize;
+        let ptr_base = slice.as_ptr().as_ptr().cast::<u8>() as usize;
+        (reserved_base..(reserved_base + self.len())).contains(&ptr_base)
+    }
+
+    pub fn address_of<T: bytemuck::Pod>(&self, ptr: GuestRef<'_, T>) -> GuestAddress {
+        assert!(
+            self.owns_ref(ptr),
+            "reference must be owned by this `GuestMemory`"
+        );
+
+        self.address_of_in_memory(ptr)
+    }
+
+    fn address_of_in_memory<T: bytemuck::Pod>(&self, ptr: GuestRef<'_, T>) -> GuestAddress {
+        struct NotZst<T>(T);
+
+        impl<T> NotZst<T> {
+            const IS_NOT_ZST: bool = {
+                if mem::size_of::<T>() == 0 {
+                    panic!("cannot take the guest address of a ZST");
+                }
+
+                true
+            };
+        }
+
+        assert!(NotZst::<T>::IS_NOT_ZST);
+
+        let reserved_base = self.as_ptr().as_ptr().cast::<u8>() as usize;
+        let ptr_base = ptr.as_ptr().as_ptr() as usize;
 
         GuestAddress(ptr_base - reserved_base)
     }
@@ -248,6 +299,10 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
 
     pub fn as_ptr(self) -> NonNull<[T]> {
         self.ptr
+    }
+
+    pub unsafe fn erase_lifetime(self) -> GuestSlice<'static, T> {
+        GuestSlice::new_unchecked(self.as_ptr())
     }
 
     #[track_caller]
@@ -714,6 +769,10 @@ impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
 
     pub fn as_ptr(self) -> NonNull<T> {
         self.ptr
+    }
+
+    pub unsafe fn erase_lifetime(self) -> GuestRef<'static, T> {
+        GuestRef::new_unchecked(self.as_ptr())
     }
 
     pub fn as_mono_slice(self) -> GuestSlice<'a, T> {
