@@ -6,6 +6,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/util"
 )
 
+// TODO(winter): I've seen this test sporadically fail at times, but haven't repro'd consistently. Figure out why.
 func TestBuildxContainerDriver(t *testing.T) {
 	t.Parallel()
 
