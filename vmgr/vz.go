@@ -22,7 +22,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -184,16 +183,6 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 		if monitor == vzf.Monitor {
 			// on vzf: disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
 			cmdline = append(cmdline, "hpet=disable")
-		}
-	}
-
-	if runtime.GOARCH == "arm64" {
-		// on M3+, use CNTVCTSS_EL0 to omit ISB before CNTVCT_EL0 reads
-		// this brings counter read down from 8ns -> 4ns
-		// sysctl reports FEAT_ECV as supported on M3+, but HVF masks it out because it's primarily a virtualization feature (CNTPOFF_EL2) and it doesn't support nested virt
-		if feat, err := unix.SysctlUint32("hw.optional.arm.FEAT_ECV"); err == nil && feat == 1 {
-			// depends on kernel commit to allow ID_AA64MMFR0_EL1.ECV=1
-			cmdline = append(cmdline, "id_aa64mmfr0.e=1")
 		}
 	}
 
