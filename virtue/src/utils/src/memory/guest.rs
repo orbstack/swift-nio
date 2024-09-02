@@ -896,36 +896,36 @@ impl<T: bytemuck::Pod> OwnedGuestSlice<T> {
 
     pub fn try_map<V: bytemuck::Pod, E>(
         self,
-        f: impl FnOnce(GuestSlice<'_, T>) -> Result<GuestSlice<'_, V>, E>,
+        f: impl for<'m> FnOnce(&'m GuestMemory, GuestSlice<'m, T>) -> Result<GuestSlice<'m, V>, E>,
     ) -> Result<OwnedGuestSlice<V>, E> {
-        let slice = unsafe { f(self.slice())?.erase_lifetime() };
+        let slice = unsafe { f(self.memory(), self.slice())?.erase_lifetime() };
 
         Ok(OwnedGuestSlice::new(self.into_memory(), slice))
     }
 
     pub fn map<V: bytemuck::Pod>(
         self,
-        f: impl FnOnce(GuestSlice<'_, T>) -> GuestSlice<'_, V>,
+        f: impl for<'m> FnOnce(&'m GuestMemory, GuestSlice<'m, T>) -> GuestSlice<'m, V>,
     ) -> OwnedGuestSlice<V> {
-        let slice = unsafe { f(self.slice()).erase_lifetime() };
+        let slice = unsafe { f(self.memory(), self.slice()).erase_lifetime() };
 
         OwnedGuestSlice::new(self.into_memory(), slice)
     }
 
     pub fn try_map_ref<V: bytemuck::Pod, E>(
         self,
-        f: impl FnOnce(GuestSlice<'_, T>) -> Result<GuestRef<'_, V>, E>,
+        f: impl for<'m> FnOnce(&'m GuestMemory, GuestSlice<'m, T>) -> Result<GuestRef<'m, V>, E>,
     ) -> Result<OwnedGuestRef<V>, E> {
-        let ptr = unsafe { f(self.slice())?.erase_lifetime() };
+        let ptr = unsafe { f(self.memory(), self.slice())?.erase_lifetime() };
 
         Ok(OwnedGuestRef::new(self.into_memory(), ptr))
     }
 
     pub fn map_ref<V: bytemuck::Pod>(
         self,
-        f: impl FnOnce(GuestSlice<'_, T>) -> GuestRef<'_, V>,
+        f: impl for<'m> FnOnce(&'m GuestMemory, GuestSlice<'m, T>) -> GuestRef<'m, V>,
     ) -> OwnedGuestRef<V> {
-        let ptr = unsafe { f(self.slice()).erase_lifetime() };
+        let ptr = unsafe { f(self.memory(), self.slice()).erase_lifetime() };
 
         OwnedGuestRef::new(self.into_memory(), ptr)
     }
@@ -964,18 +964,18 @@ impl<T: bytemuck::Pod> OwnedGuestRef<T> {
 
     pub fn try_map<V: bytemuck::Pod, E>(
         self,
-        f: impl FnOnce(GuestRef<'_, T>) -> Result<GuestRef<'_, V>, E>,
+        f: impl for<'m> FnOnce(&'m GuestMemory, GuestRef<'m, T>) -> Result<GuestRef<'m, V>, E>,
     ) -> Result<OwnedGuestRef<V>, E> {
-        let ptr = unsafe { f(self.ptr())?.erase_lifetime() };
+        let ptr = unsafe { f(self.memory(), self.ptr())?.erase_lifetime() };
 
         Ok(OwnedGuestRef::new(self.into_memory(), ptr))
     }
 
     pub fn map<V: bytemuck::Pod>(
         self,
-        f: impl FnOnce(GuestRef<'_, T>) -> GuestRef<'_, V>,
+        f: impl for<'m> FnOnce(&'m GuestMemory, GuestRef<'m, T>) -> GuestRef<'m, V>,
     ) -> OwnedGuestRef<V> {
-        let ptr = unsafe { f(self.ptr()).erase_lifetime() };
+        let ptr = unsafe { f(self.memory(), self.ptr()).erase_lifetime() };
 
         OwnedGuestRef::new(self.into_memory(), ptr)
     }
