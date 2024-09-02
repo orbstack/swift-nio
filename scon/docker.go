@@ -326,6 +326,11 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		return fmt.Errorf("get disk size: %w", err)
 	}
 
+	physMem, err := util.PhysicalMemory()
+	if err != nil {
+		return fmt.Errorf("get phys mem: %w", err)
+	}
+
 	globalLimit := min(diskSize*12/100, maxBuildCacheSize)
 
 	// generate base docker daemon config
@@ -382,6 +387,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 
 		// fast shutdown. people usually don't care
 		"shutdown-timeout": 1,
+
+		// match tmpfs and systemd /dev/shm default: 50% of RAM
+		// tmpfs is swappable and memcg-charged, so real memory usage is limited by memcg
+		"default-shm-size": fmt.Sprintf("%dM", physMem/2/1048576),
 	}
 
 	// read config overrides from host
