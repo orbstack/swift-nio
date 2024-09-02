@@ -305,6 +305,10 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
         GuestSlice::new_unchecked(self.as_ptr())
     }
 
+    pub fn as_owned(self, memory: GuestMemory) -> OwnedGuestSlice<T> {
+        OwnedGuestSlice::new(memory, self)
+    }
+
     #[track_caller]
     pub fn try_get<I: GuestSliceIndex<Self>>(self, idx: I) -> Option<I::Output> {
         idx.try_get(&self)
@@ -775,6 +779,10 @@ impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
         GuestRef::new_unchecked(self.as_ptr())
     }
 
+    pub fn as_owned(self, memory: GuestMemory) -> OwnedGuestRef<T> {
+        OwnedGuestRef::new(memory, self)
+    }
+
     pub fn as_mono_slice(self) -> GuestSlice<'a, T> {
         unsafe { GuestSlice::new_unchecked(NonNull::slice_from_raw_parts(self.as_ptr(), 1)) }
     }
@@ -852,3 +860,132 @@ macro_rules! field {
 }
 
 pub use field;
+
+// === Owned Guest References === //
+
+#[derive_where(Debug, Clone)]
+pub struct OwnedGuestSlice<T: bytemuck::Pod> {
+    memory: GuestMemory,
+    slice: GuestSlice<'static, T>,
+}
+
+impl<T: bytemuck::Pod> OwnedGuestSlice<T> {
+    pub fn new(memory: GuestMemory, slice: GuestSlice<'_, T>) -> Self {
+        assert!(memory.owns_slice(slice));
+        unsafe { Self::new_unchecked(memory, slice) }
+    }
+
+    pub unsafe fn new_unchecked(memory: GuestMemory, slice: GuestSlice<'_, T>) -> Self {
+        Self {
+            memory,
+            slice: slice.erase_lifetime(),
+        }
+    }
+
+    pub fn into_memory(self) -> GuestMemory {
+        self.memory
+    }
+
+    pub fn memory(&self) -> &GuestMemory {
+        &self.memory
+    }
+
+    pub fn slice(&self) -> GuestSlice<'_, T> {
+        self.slice
+    }
+
+    pub fn try_map<V: bytemuck::Pod, E>(
+        self,
+        f: impl FnOnce(GuestSlice<'_, T>) -> Result<GuestSlice<'_, V>, E>,
+    ) -> Result<OwnedGuestSlice<V>, E> {
+        let slice = unsafe { f(self.slice())?.erase_lifetime() };
+
+        Ok(OwnedGuestSlice::new(self.into_memory(), slice))
+    }
+
+    pub fn map<V: bytemuck::Pod>(
+        self,
+        f: impl FnOnce(GuestSlice<'_, T>) -> GuestSlice<'_, V>,
+    ) -> OwnedGuestSlice<V> {
+        let slice = unsafe { f(self.slice()).erase_lifetime() };
+
+        OwnedGuestSlice::new(self.into_memory(), slice)
+    }
+
+    pub fn try_map_ref<V: bytemuck::Pod, E>(
+        self,
+        f: impl FnOnce(GuestSlice<'_, T>) -> Result<GuestRef<'_, V>, E>,
+    ) -> Result<OwnedGuestRef<V>, E> {
+        let ptr = unsafe { f(self.slice())?.erase_lifetime() };
+
+        Ok(OwnedGuestRef::new(self.into_memory(), ptr))
+    }
+
+    pub fn map_ref<V: bytemuck::Pod>(
+        self,
+        f: impl FnOnce(GuestSlice<'_, T>) -> GuestRef<'_, V>,
+    ) -> OwnedGuestRef<V> {
+        let ptr = unsafe { f(self.slice()).erase_lifetime() };
+
+        OwnedGuestRef::new(self.into_memory(), ptr)
+    }
+}
+
+#[derive_where(Debug, Clone)]
+pub struct OwnedGuestRef<T: bytemuck::Pod> {
+    memory: GuestMemory,
+    ptr: GuestRef<'static, T>,
+}
+
+impl<T: bytemuck::Pod> OwnedGuestRef<T> {
+    pub fn new(memory: GuestMemory, ptr: GuestRef<'_, T>) -> Self {
+        assert!(memory.owns_ref(ptr));
+        unsafe { Self::new_unchecked(memory, ptr) }
+    }
+
+    pub unsafe fn new_unchecked(memory: GuestMemory, ptr: GuestRef<'_, T>) -> Self {
+        Self {
+            memory,
+            ptr: ptr.erase_lifetime(),
+        }
+    }
+
+    pub fn into_memory(self) -> GuestMemory {
+        self.memory
+    }
+
+    pub fn memory(&self) -> &GuestMemory {
+        &self.memory
+    }
+
+    pub fn ptr(&self) -> GuestRef<'_, T> {
+        self.ptr
+    }
+
+    pub fn try_map<V: bytemuck::Pod, E>(
+        self,
+        f: impl FnOnce(GuestRef<'_, T>) -> Result<GuestRef<'_, V>, E>,
+    ) -> Result<OwnedGuestRef<V>, E> {
+        let ptr = unsafe { f(self.ptr())?.erase_lifetime() };
+
+        Ok(OwnedGuestRef::new(self.into_memory(), ptr))
+    }
+
+    pub fn map<V: bytemuck::Pod>(
+        self,
+        f: impl FnOnce(GuestRef<'_, T>) -> GuestRef<'_, V>,
+    ) -> OwnedGuestRef<V> {
+        let ptr = unsafe { f(self.ptr()).erase_lifetime() };
+
+        OwnedGuestRef::new(self.into_memory(), ptr)
+    }
+
+    pub fn into_mono_slice(self) -> OwnedGuestSlice<T> {
+        let slice = unsafe { self.ptr().as_mono_slice().erase_lifetime() };
+        unsafe { OwnedGuestSlice::new_unchecked(self.into_memory(), slice) }
+    }
+
+    pub fn address(&self) -> GuestAddress {
+        self.memory.address_of_in_memory(self.ptr)
+    }
+}
