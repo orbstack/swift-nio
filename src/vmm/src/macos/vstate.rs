@@ -970,6 +970,7 @@ impl Vcpu {
 
     // separate function so that this shows up in debug spindumps
     #[inline(never)]
+    #[cfg(target_arch = "aarch64")]
     fn wait_for_pvlock(
         &self,
         signal: &Arc<SignalChannel<VcpuSignalMask, VcpuWakerSet>>,
@@ -1063,7 +1064,7 @@ impl Vcpu {
             .unwrap_or_run_now();
 
         // Register the vCPU with the registry
-        let handle = ArcVcpuHandle::new(VcpuHandleInner::new(signal.clone()));
+        let handle = ArcVcpuHandle::new(VcpuHandleInner::new(&signal));
         let mut park_task = registry.register_vcpu(self.cpu_index(), handle.clone());
 
         // Notify init done (everything is registered)

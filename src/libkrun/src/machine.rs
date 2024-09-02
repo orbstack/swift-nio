@@ -92,7 +92,7 @@ impl Machine {
 
         // on x86, check CPU compatibility early to return a better error
         #[cfg(target_arch = "x86_64")]
-        check_cpuid()?;
+        hvf::check_cpuid()?;
 
         // on x86, enable HT/SMT if there's an even number of vCPUs, and host has HT/SMT
         #[cfg(target_arch = "x86_64")]
@@ -486,6 +486,8 @@ fn to_anyhow_error_dbg<E: fmt::Debug>(err: E) -> anyhow::Error {
 
 #[cfg(target_arch = "x86_64")]
 fn cpuid_has_ht() -> bool {
+    use std::arch::x86_64::__cpuid_count;
+
     // topology cpuid, thread level
     let res = unsafe { __cpuid_count(0xb, 0) };
     let num_logical_processors = res.ebx & 0xff;
