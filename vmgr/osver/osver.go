@@ -1,6 +1,7 @@
 package osver
 
 import (
+	"strconv"
 	"strings"
 	"sync"
 
@@ -30,8 +31,13 @@ func IsAtLeast(v string) bool {
 	return semver.Compare(Get(), v) >= 0
 }
 
-func Major() string {
-	return strings.TrimPrefix(semver.Major(Get()), "v")
+func Major() uint16 {
+	ver, err := strconv.Atoi(strings.TrimPrefix(semver.Major(Get()), "v"))
+	if err != nil {
+		panic(err)
+	}
+
+	return uint16(ver)
 }
 
 func Build() string {

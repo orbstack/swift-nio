@@ -1,11 +1,13 @@
 use std::{
-    collections::BTreeMap,
     fs::{self},
     process::ExitStatus,
     sync::Arc,
     time::Instant,
 };
 
+use anyhow::anyhow;
+use base64::Engine;
+use filesystem::HostDiskStats;
 use nix::{
     errno::Errno,
     sys::{
@@ -16,6 +18,7 @@ use nix::{
 };
 
 mod helpers;
+use serde::Deserialize;
 use service::{Service, ServiceTracker, PROCESS_WAIT_LOCK};
 use tokio::{
     signal::unix::{signal, SignalKind},
@@ -87,8 +90,19 @@ pub enum InitError {
 #[derive(Clone)]
 struct SystemInfo {
     kernel_version: String,
-    cmdline: Vec<String>,
-    seed_configs: BTreeMap<String, String>,
+    seed: SeedData,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct SeedData {
+    data_size_mib: u64,
+    initial_disk_stats: HostDiskStats,
+
+    host_major_version: u16,
+    host_build_version: String,
+
+    console_path: String,
+    console_is_pipe: bool,
 }
 
 impl SystemInfo {
@@ -102,26 +116,17 @@ impl SystemInfo {
             .split(' ')
             .map(|s| s.to_string())
             .collect();
-        let seed_configs = cmdline
+        let seed_str = cmdline
             .iter()
-            .filter(|s| s.starts_with("orb."))
-            .map(|s| {
-                let mut parts = s.splitn(2, '=');
-                let key = parts
-                    .next()
-                    .unwrap()
-                    .strip_prefix("orb.")
-                    .unwrap()
-                    .to_string();
-                let value = parts.next().unwrap_or("").to_string();
-                (key, value)
-            })
-            .collect();
+            .find(|s| s.starts_with("orb.s="))
+            .ok_or_else(|| anyhow!("missing seed data"))?;
+        let seed_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(seed_str.strip_prefix("orb.s=").unwrap())?;
+        let seed = bincode::deserialize(&seed_bytes)?;
 
         Ok(SystemInfo {
             kernel_version,
-            cmdline,
-            seed_configs,
+            seed,
         })
     }
 }

@@ -143,11 +143,16 @@ func RunRinitVm() (*RinitData, error) {
 }
 
 func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
-	var diskStats vclient.HostDiskStats
+	seedData := vclient.SeedData{
+		DataSizeMib:      conf.DiskSize(),
+		HostMajorVersion: osver.Major(),
+		HostBuildVersion: osver.Build(),
+	}
+
 	if params.DiskData != "" {
 		imgFile, err := os.Open(params.DiskData)
 		check(err)
-		diskStats, err = vclient.GetDiskStats(imgFile)
+		seedData.InitialDiskStats, err = vclient.GetDiskStats(imgFile)
 		imgFile.Close()
 		check(err)
 	}
@@ -155,10 +160,6 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 	cmdline := []string{
 		// boot
 		"init=/opt/orb/vinit",
-		// userspace
-		fmt.Sprintf("orb.data_size=%d,%d,%d", conf.DiskSize(), diskStats.HostFsFree, diskStats.DataImgSize),
-		"orb.host_major_version=" + osver.Major(),
-		"orb.host_build_version=" + osver.Build(),
 		// Kernel tuning
 		"workqueue.power_efficient=1",
 		"cgroup.memory=nokmem,nosocket",
@@ -206,7 +207,7 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 		cmdline = append(cmdline, "console=hvc0", "quiet")
 		// disable colors if logging to file
 		if params.Console == ConsoleLog && !term.IsTerminal(int(os.Stdout.Fd())) {
-			cmdline = append(cmdline, "orb.console_is_pipe")
+			seedData.ConsoleIsPipe = true
 		}
 
 		// if possible, use vport instead of HVC for userspace writes, so that guest waits on IRQ if pipe is full instead of spinning
@@ -214,9 +215,12 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 		if monitor == rsvm.Monitor {
 			// TODO: index could change from virtio2
 			// port index = 2 (0 = console, 1 = stdin, 2 = stdout)
-			cmdline = append(cmdline, "orb.console=/dev/vport2p2")
+			seedData.ConsolePath = "/dev/vport2p2"
 		}
 	}
+
+	// userspace seed data
+	cmdline = append(cmdline, "orb.s="+seedData.EncodeToString())
 
 	return strings.Join(cmdline, " ")
 }

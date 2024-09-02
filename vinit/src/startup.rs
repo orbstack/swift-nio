@@ -16,7 +16,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::anyhow;
 use elf::{endian::NativeEndian, ElfStream};
 use futures::StreamExt;
 use futures_util::TryStreamExt;
@@ -47,7 +46,7 @@ use tracing::log::debug;
 use crate::{
     action::SystemAction,
     blockdev,
-    filesystem::{DiskManager, HostDiskStats},
+    filesystem::DiskManager,
     helpers::{
         sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_MASK, SWAP_FLAG_PRIO_SHIFT,
     },
@@ -617,39 +616,38 @@ pub fn sync_clock(allow_backward: bool) -> anyhow::Result<()> {
 fn resize_data(sys_info: &SystemInfo) -> anyhow::Result<()> {
     // resize data partition
     // scon resizes the filesystem
-    if let Some(value) = sys_info.seed_configs.get("data_size") {
-        let new_size_mib = value.split(',').next().unwrap().parse::<u64>()?;
-        // get existing size
-        let old_size_mib =
-            blockdev::getsize64(DATA_DEV).map_err(InitError::MissingDataPartition)? / 1024 / 1024;
+    let new_size_mib = sys_info.seed.data_size_mib;
+    // get existing size
+    let old_size_mib =
+        blockdev::getsize64(DATA_DEV).map_err(InitError::MissingDataPartition)? / 1024 / 1024;
 
-        // for safety, only allow increasing size
-        match new_size_mib.cmp(&old_size_mib) {
-            Ordering::Greater => {
-                // resize
-                println!("  - Resizing data to {} MiB", new_size_mib);
-                let script = format!(",{}M\n", new_size_mib);
-                let mut process = Command::new("sfdisk")
-                    .arg("--force")
-                    .arg("/dev/vdb")
-                    .stdin(Stdio::piped())
-                    .spawn()?;
-                process.stdin.take().unwrap().write_all(script.as_bytes())?;
-                let status = process.wait()?;
-                if !status.success() {
-                    return Err(InitError::ResizeDataFs(status).into());
-                }
+    // for safety, only allow increasing size
+    match new_size_mib.cmp(&old_size_mib) {
+        Ordering::Greater => {
+            // resize
+            println!("  - Resizing data to {} MiB", new_size_mib);
+            let script = format!(",{}M\n", new_size_mib);
+            let mut process = Command::new("sfdisk")
+                .arg("--force")
+                .arg("/dev/vdb")
+                .stdin(Stdio::piped())
+                .spawn()?;
+            process.stdin.take().unwrap().write_all(script.as_bytes())?;
+            let status = process.wait()?;
+            if !status.success() {
+                return Err(InitError::ResizeDataFs(status).into());
             }
-            Ordering::Less => {
-                eprintln!(
-                    "WARNING: Attempted to shrink data partition from {} MiB to {} MiB",
-                    old_size_mib, new_size_mib
-                );
-            }
-            // normal: we always call this
-            Ordering::Equal => {}
         }
+        Ordering::Less => {
+            eprintln!(
+                "WARNING: Attempted to shrink data partition from {} MiB to {} MiB",
+                old_size_mib, new_size_mib
+            );
+        }
+        // normal: we always call this
+        Ordering::Equal => {}
     }
+
     Ok(())
 }
 
@@ -718,21 +716,11 @@ fn mount_data(sys_info: &SystemInfo, disk_manager: &Mutex<DiskManager>) -> anyho
         }
     }
 
-    if let Some(value) = sys_info.seed_configs.get("data_size") {
-        let host_fs_free = value.split(',').nth(1).unwrap();
-        let data_img_size = value.split(',').nth(2).unwrap();
-
-        let stats = HostDiskStats {
-            host_fs_free: host_fs_free.parse()?,
-            data_img_size: data_img_size.parse()?,
-        };
-
-        disk_manager
-            .lock()
-            .unwrap()
-            .update_with_stats(&stats)
-            .unwrap();
-    }
+    disk_manager
+        .lock()
+        .unwrap()
+        .update_with_stats(&sys_info.seed.initial_disk_stats)
+        .unwrap();
 
     Ok(())
 }
@@ -1029,21 +1017,12 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> anyhow::Result<()> {
 
         // add preserve-argv0 flag on Sonoma Rosetta 309+
         let mut rosetta_flags = "CF(".to_string();
-        let host_major_version = sys_info
-            .seed_configs
-            .get("host_major_version")
-            .ok_or_else(|| anyhow!("Missing version"))?
-            .parse::<u32>()?;
-        if patched || host_major_version >= 14 {
+        if patched || sys_info.seed.host_major_version >= 14 {
             rosetta_flags += "P"
         }
 
         // prepare rosetta wrapper
-        let host_build: &String = sys_info
-            .seed_configs
-            .get("host_build_version")
-            .ok_or_else(|| anyhow!("Missing version"))?;
-        prepare_rstub(host_build).unwrap();
+        prepare_rstub(&sys_info.seed.host_build_version).unwrap();
 
         // if we're using Rosetta, we'll do it through the RVFS wrapper.
         // add flag to register qemu-x86_64 as a hidden handler that the RVFS wrapper can use, via comm=rvk2
@@ -1293,7 +1272,11 @@ async fn start_services(
         Command::new("/opt/orb/scon")
             .arg("mgr")
             // pass cmdline for console detection
-            .args(&sys_info.cmdline),
+            .arg(if sys_info.seed.console_is_pipe {
+                "orb.console_is_pipe"
+            } else {
+                ""
+            }),
     )?;
 
     // ssh
@@ -1310,25 +1293,19 @@ async fn start_services(
     Ok(())
 }
 
-fn switch_console(cmdline: &[String]) -> anyhow::Result<()> {
-    for arg in cmdline {
-        if arg.starts_with("orb.console=") {
-            let console_path = arg.split_at("orb.console=".len()).1;
-            let console = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open(console_path)?;
+fn switch_console(sys_info: &SystemInfo) -> anyhow::Result<()> {
+    let console_path = &sys_info.seed.console_path;
+    let console = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(console_path)?;
 
-            // replace stdin, stdout, stderr
-            // don't set CLOEXEC: these fds should be inherited
-            let console_fd = console.as_raw_fd();
-            dup2(console_fd, STDIN_FILENO)?;
-            dup2(console_fd, STDOUT_FILENO)?;
-            dup2(console_fd, STDERR_FILENO)?;
-
-            break;
-        }
-    }
+    // replace stdin, stdout, stderr
+    // don't set CLOEXEC: these fds should be inherited
+    let console_fd = console.as_raw_fd();
+    dup2(console_fd, STDIN_FILENO)?;
+    dup2(console_fd, STDOUT_FILENO)?;
+    dup2(console_fd, STDERR_FILENO)?;
 
     Ok(())
 }
@@ -1355,7 +1332,7 @@ pub async fn main(
 
     // switch userspace stdout console to vport as early as possible, to reduce CPU usage
     // ttys use spinlocks, so writing to hvc0 spinloops and blocks the vCPU if the host's pipe is full
-    switch_console(&sys_info.cmdline)?;
+    switch_console(&sys_info)?;
 
     println!("  -  Kernel version: {}", sys_info.kernel_version);
 
