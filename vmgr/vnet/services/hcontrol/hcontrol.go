@@ -18,7 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/miekg/dns"
 	"github.com/mikesmitty/edkey"
 	"github.com/orbstack/macvirt/scon/agent/tlsutil"
@@ -34,7 +33,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
-	vmgrsyncx "github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vclient"
@@ -114,7 +112,7 @@ type HcontrolServer struct {
 
 	k8sMu             syncx.Mutex
 	k8sClient         *kubernetes.Clientset
-	k8sNotifyDebounce *vmgrsyncx.LeadingFuncDebounce
+	k8sNotifyDebounce *syncx.LeadingFuncDebounce
 	k8sInformerStopCh chan struct{}
 
 	// not exposed by net/rpc because it's not a method
@@ -576,7 +574,7 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 	serviceInformer := informerFactory.Core().V1().Services()
 	serviceLister := serviceInformer.Lister()
 
-	debounce := vmgrsyncx.NewLeadingFuncDebounce(k8sUIEventDebounce, func() {
+	debounce := syncx.NewLeadingFuncDebounce(k8sUIEventDebounce, func() {
 		pods, err := podLister.List(labels.Everything())
 		if err != nil {
 			logrus.WithError(err).Error("failed to list pods")
@@ -665,16 +663,6 @@ func (h *HcontrolServer) InternalUnmountNfs() error {
 }
 
 func (h *HcontrolServer) GetInitConfig(_ None, reply *htypes.InitConfig) error {
-	// ask host to update disk stats BEFORE we open the db
-	// to recover from low space if quota was set too low last boot
-	// OK to do this before dataFsReady because btrfs qgroup rfer can exceed fs size
-	err := h.Vclient.DoCheckin()
-	if err != nil {
-		// not fatal
-		logrus.WithError(err).Error("early checkin failed")
-		sentry.CaptureException(fmt.Errorf("vc checkin: %w", err))
-	}
-
 	*reply = htypes.InitConfig{
 		VmConfig: vmconfig.Get(),
 	}

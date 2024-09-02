@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -17,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/rsvm"
 	"github.com/orbstack/macvirt/vmgr/types"
+	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
@@ -143,11 +143,20 @@ func RunRinitVm() (*RinitData, error) {
 }
 
 func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
+	var diskStats vclient.HostDiskStats
+	if params.DiskData != "" {
+		imgFile, err := os.Open(params.DiskData)
+		check(err)
+		diskStats, err = vclient.GetDiskStats(imgFile)
+		imgFile.Close()
+		check(err)
+	}
+
 	cmdline := []string{
 		// boot
 		"init=/opt/orb/vinit",
 		// userspace
-		"orb.data_size=" + strconv.FormatUint(conf.DiskSize(), 10),
+		fmt.Sprintf("orb.data_size=%d,%d,%d", conf.DiskSize(), diskStats.HostFsFree, diskStats.DataImgSize),
 		"orb.host_major_version=" + osver.Major(),
 		"orb.host_build_version=" + osver.Build(),
 		// Kernel tuning

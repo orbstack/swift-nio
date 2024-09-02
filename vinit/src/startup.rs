@@ -47,7 +47,7 @@ use tracing::log::debug;
 use crate::{
     action::SystemAction,
     blockdev,
-    filesystem::DiskManager,
+    filesystem::{DiskManager, HostDiskStats},
     helpers::{
         sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_MASK, SWAP_FLAG_PRIO_SHIFT,
     },
@@ -618,7 +618,7 @@ fn resize_data(sys_info: &SystemInfo) -> anyhow::Result<()> {
     // resize data partition
     // scon resizes the filesystem
     if let Some(value) = sys_info.seed_configs.get("data_size") {
-        let new_size_mib = value.parse::<u64>()?;
+        let new_size_mib = value.split(',').next().unwrap().parse::<u64>()?;
         // get existing size
         let old_size_mib =
             blockdev::getsize64(DATA_DEV).map_err(InitError::MissingDataPartition)? / 1024 / 1024;
@@ -653,7 +653,7 @@ fn resize_data(sys_info: &SystemInfo) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn mount_data() -> anyhow::Result<()> {
+fn mount_data(sys_info: &SystemInfo, disk_manager: &Mutex<DiskManager>) -> anyhow::Result<()> {
     // virtiofs share
     mount("mac", "/mnt/mac", "virtiofs", MsFlags::MS_RELATIME, None)?;
 
@@ -716,6 +716,22 @@ fn mount_data() -> anyhow::Result<()> {
             )
             .unwrap();
         }
+    }
+
+    if let Some(value) = sys_info.seed_configs.get("data_size") {
+        let host_fs_free = value.split(',').nth(1).unwrap();
+        let data_img_size = value.split(',').nth(2).unwrap();
+
+        let stats = HostDiskStats {
+            host_fs_free: host_fs_free.parse()?,
+            data_img_size: data_img_size.parse()?,
+        };
+
+        disk_manager
+            .lock()
+            .unwrap()
+            .update_with_stats(&stats)
+            .unwrap();
     }
 
     Ok(())
@@ -1378,7 +1394,7 @@ pub async fn main(
         resize_data(&sys_info_clone).unwrap();
 
         println!("     [*] Data");
-        mount_data().unwrap();
+        mount_data(&sys_info_clone, &disk_manager).unwrap();
         //println!("     ... Mounting data: +{}ms", stage_start.elapsed().as_millis());
     }));
     // async, no need to wait for this

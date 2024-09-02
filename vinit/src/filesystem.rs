@@ -60,10 +60,9 @@ impl FsType {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct DiskReportStats {
-    host_fs_size: u64,
-    host_fs_free: u64,
-    data_img_size: u64,
+pub struct HostDiskStats {
+    pub host_fs_free: u64,
+    pub data_img_size: u64,
 }
 
 // btrfs doesn't really have this much overhead
@@ -102,8 +101,9 @@ impl DiskManager {
         Ok(())
     }
 
-    pub fn update_with_stats(&self, stats: &DiskReportStats) -> anyhow::Result<()> {
+    pub fn update_with_stats(&self, stats: &HostDiskStats) -> anyhow::Result<()> {
         let guest_statfs = statvfs("/data")?;
+
         // (blocks - free) = df
         // (blocks - avail) = matches qgroup rfer, when we have quota statfs
         let guest_fs_size = guest_statfs.blocks() * guest_statfs.block_size();

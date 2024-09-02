@@ -15,7 +15,7 @@ use tracing::debug;
 
 use crate::{
     action::SystemAction,
-    filesystem::{DiskManager, DiskReportStats},
+    filesystem::{DiskManager, HostDiskStats},
     startup,
 };
 
@@ -66,7 +66,7 @@ async fn sys_shutdown(
 // report disk stats
 async fn disk_report_stats(
     Extension(disk_manager): Extension<Arc<Mutex<DiskManager>>>,
-    Json(payload): Json<DiskReportStats>,
+    Json(payload): Json<HostDiskStats>,
 ) -> AppResult<impl IntoResponse> {
     debug!("disk_report_stats: {:?}", payload);
     disk_manager.lock().unwrap().update_with_stats(&payload)?;

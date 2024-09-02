@@ -24,7 +24,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/logutil"
-	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -47,17 +46,6 @@ func runPprof() {
 	if err != nil {
 		logrus.WithError(err).Error("failed to start pprof server")
 	}
-}
-
-func doSystemInitTasksEarly(host *hclient.Client) (*htypes.InitConfig, error) {
-	// ask host to update disk stats BEFORE we open the db
-	// to recover from low space if quota was set too low last boot
-	config, err := host.GetInitConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	return config, nil
 }
 
 func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
@@ -229,8 +217,8 @@ func runContainerManager() {
 	hostClient, err := hclient.New(hcontrolConn)
 	check(err)
 
-	// system init tasks (early)
-	initConfig, err := doSystemInitTasksEarly(hostClient)
+	// get vmconfig
+	initConfig, err := hostClient.GetInitConfig()
 	check(err)
 
 	// create container manager

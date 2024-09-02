@@ -53,7 +53,7 @@ const (
 
 type VClient struct {
 	client    *http.Client
-	lastStats diskReportStats
+	lastStats HostDiskStats
 	dataFile  *os.File
 	vm        vmm.Machine
 
@@ -62,8 +62,7 @@ type VClient struct {
 	healthCheckReqCh <-chan struct{}
 }
 
-type diskReportStats struct {
-	HostFsSize  uint64 `json:"hostFsSize"`
+type HostDiskStats struct {
 	HostFsFree  uint64 `json:"hostFsFree"`
 	DataImgSize uint64 `json:"dataImgSize"`
 }
@@ -257,24 +256,9 @@ func (vc *VClient) DoCheckin() error {
 		return nil
 	}
 
-	var statFs unix.Statfs_t
-	err := unix.Fstatfs(int(vc.dataFile.Fd()), &statFs)
+	stats, err := GetDiskStats(vc.dataFile)
 	if err != nil {
-		return fmt.Errorf("statfs: %w", err)
-	}
-
-	var imgStat unix.Stat_t
-	err = unix.Fstat(int(vc.dataFile.Fd()), &imgStat)
-	if err != nil {
-		return fmt.Errorf("fstat: %w", err)
-	}
-
-	stats := diskReportStats{
-		HostFsSize: statFs.Blocks * uint64(statFs.Bsize),
-		// excl. reserved blocks
-		HostFsFree: statFs.Bavail * uint64(statFs.Bsize),
-		// size is apparent, we want real
-		DataImgSize: uint64(imgStat.Blocks) * 512,
+		return fmt.Errorf("get stats: %w", err)
 	}
 
 	if stats != vc.lastStats {
@@ -304,4 +288,25 @@ func (vc *VClient) Close() error {
 	vc.client.CloseIdleConnections()
 	vc.dataFile.Close()
 	return nil
+}
+
+func GetDiskStats(imgFile *os.File) (HostDiskStats, error) {
+	var statFs unix.Statfs_t
+	err := unix.Fstatfs(int(imgFile.Fd()), &statFs)
+	if err != nil {
+		return HostDiskStats{}, fmt.Errorf("statfs: %w", err)
+	}
+
+	var imgStat unix.Stat_t
+	err = unix.Fstat(int(imgFile.Fd()), &imgStat)
+	if err != nil {
+		return HostDiskStats{}, fmt.Errorf("fstat: %w", err)
+	}
+
+	return HostDiskStats{
+		// excl. reserved blocks
+		HostFsFree: statFs.Bavail * uint64(statFs.Bsize),
+		// size is apparent, we want real
+		DataImgSize: uint64(imgStat.Blocks) * 512,
+	}, nil
 }
