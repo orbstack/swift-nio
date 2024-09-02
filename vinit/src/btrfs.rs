@@ -5,7 +5,7 @@ pub const BTRFS_QGROUP_LIMIT_MAX_RFER: u32 = 1;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct btrfs_qgroup_limit {
+pub struct BtrfsQgroupLimit {
     pub flags: __u64,
     pub max_rfer: __u64,
     pub max_excl: __u64,
@@ -15,9 +15,9 @@ pub struct btrfs_qgroup_limit {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct btrfs_ioctl_qgroup_limit_args {
+pub struct BtrfsIoctlQgroupLimitArgs {
     pub qgroupid: __u64,
-    pub lim: btrfs_qgroup_limit,
+    pub lim: BtrfsQgroupLimit,
 }
 
 pub mod ioctl {
@@ -27,6 +27,6 @@ pub mod ioctl {
         qgroup_limit,
         BTRFS_IOCTL_MAGIC,
         43,
-        btrfs_ioctl_qgroup_limit_args
+        BtrfsIoctlQgroupLimitArgs
     );
 }

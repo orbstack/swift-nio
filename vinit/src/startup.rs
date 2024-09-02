@@ -12,7 +12,7 @@ use std::{
         },
     },
     process::{Command, Stdio},
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -40,11 +40,14 @@ use nix::{
     time::{clock_gettime, clock_settime, ClockId},
     unistd::{dup2, sethostname},
 };
+use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex as TMutex;
 use tracing::log::debug;
 
 use crate::{
     action::SystemAction,
     blockdev,
+    filesystem::DiskManager,
     helpers::{
         sysctl, SWAP_FLAG_DISCARD, SWAP_FLAG_PREFER, SWAP_FLAG_PRIO_MASK, SWAP_FLAG_PRIO_SHIFT,
     },
@@ -54,7 +57,6 @@ use crate::{
     filesystem::FsType,
     service::{Service, ServiceTracker},
 };
-use tokio::sync::{mpsc::Sender, Mutex};
 
 // da:9b:d0:64:e1:01
 const VNET_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x01];
@@ -1251,7 +1253,7 @@ fn setup_memory() -> anyhow::Result<()> {
 }
 
 async fn start_services(
-    service_tracker: Arc<Mutex<ServiceTracker>>,
+    service_tracker: Arc<TMutex<ServiceTracker>>,
     sys_info: &SystemInfo,
 ) -> anyhow::Result<()> {
     let mut service_tracker = service_tracker.lock().await;
@@ -1316,7 +1318,7 @@ fn switch_console(cmdline: &[String]) -> anyhow::Result<()> {
 }
 
 pub async fn main(
-    service_tracker: Arc<Mutex<ServiceTracker>>,
+    service_tracker: Arc<TMutex<ServiceTracker>>,
     action_tx: Sender<SystemAction>,
 ) -> anyhow::Result<()> {
     let mut timeline = Timeline::new();
@@ -1344,7 +1346,11 @@ pub async fn main(
     timeline.begin("Network");
     setup_network().await?;
     // start control server
-    tokio::spawn(vcontrol::server_main(action_tx.clone()));
+    let disk_manager = Arc::new(Mutex::new(DiskManager::new().unwrap()));
+    tokio::spawn(vcontrol::server_main(
+        disk_manager.clone(),
+        action_tx.clone(),
+    ));
 
     // very fast w/ kernel hack to default to "none" iosched for virtio-blk (150 ms without)
     timeline.begin("Apply system settings");
