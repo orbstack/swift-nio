@@ -64,16 +64,10 @@ var migrateDockerCmd = &cobra.Command{
 			checkCLI(err)
 		}
 
-		// image slowpath: skip a proxy layer, for perf
-		rawDockerSock := conf.DockerRemoteCtxSocket()
-		if dmigrate.RemoteIsRunning(conf.DockerRemoteCtxSocketRaw()) {
-			rawDockerSock = conf.DockerRemoteCtxSocketRaw()
-		}
-
 		destSocket := conf.DockerSocket()
 
 		migrator, err := dmigrate.NewMigratorWithUnixSockets(srcSocket, destSocket)
-		migrator.SetRawSrcSocket(rawDockerSock)
+		migrator.SetRawSrcSocket(conf.DockerRemoteCtxSocket())
 		checkCLI(err)
 
 		err = migrator.MigrateAll(dmigrate.MigrateParams{
