@@ -2297,7 +2297,8 @@ impl FileSystem for PassthroughFs {
                             orig_c_path.as_ref(),
                             None,
                             link_c_path.as_ref(),
-                            AtFlags::AT_SYMLINK_NOFOLLOW,
+                            // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
+                            AtFlags::empty(),
                         )?;
                     }
                 } else {
@@ -2307,7 +2308,8 @@ impl FileSystem for PassthroughFs {
                         orig_c_path.as_ref(),
                         None,
                         link_c_path.as_ref(),
-                        AtFlags::AT_SYMLINK_NOFOLLOW,
+                        // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
+                        AtFlags::empty(),
                     )?;
                 }
 
