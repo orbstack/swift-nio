@@ -22,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -141,6 +142,18 @@ func RunRinitVm() (*RinitData, error) {
 	return &RinitData{Data: data}, nil
 }
 
+func supportsECV() bool {
+	if runtime.GOARCH == "arm64" && osver.Major() >= 14 {
+		// macOS 13 and older misreported FEAT_ECV=1 on M1 because it used the offset for ID_AA64MMFR0.TGran16_2
+		// so only check this on macOS 14+
+		if feat, err := unix.SysctlUint32("hw.optional.arm.FEAT_ECV"); err == nil && feat == 1 {
+			return true
+		}
+	}
+
+	return false
+}
+
 func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 	seedData := vclient.SeedData{
 		DataSizeMib:      conf.DiskSize(),
@@ -184,6 +197,14 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 			// on vzf: disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
 			cmdline = append(cmdline, "hpet=disable")
 		}
+	}
+
+	// on M3+, use CNTVCTSS_EL0 to omit ISB before CNTVCT_EL0 reads
+	// this brings counter read down from 8ns -> 4ns
+	// sysctl reports FEAT_ECV as supported on M3+, but HVF masks it out because it's primarily a virtualization feature (CNTPOFF_EL2) and it doesn't support nested virt
+	if supportsECV() {
+		// depends on kernel commit to allow ID_AA64MMFR0_EL1.ECV=1
+		cmdline = append(cmdline, "id_aa64mmfr0.e=1")
 	}
 
 	if params.DiskRootfs != "" {
