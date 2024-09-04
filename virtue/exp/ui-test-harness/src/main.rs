@@ -62,6 +62,22 @@ fn main() {
             Command::new("zsh")
                 .arg("-c")
                 .arg(commands)
+                .env(
+                    "UI_TEST_NAME",
+                    test_entry
+                        .file_stem()
+                        .and_then(|v| v.to_str())
+                        .unwrap_or(""),
+                )
+                .env(
+                    "UI_TEST_PATH",
+                    test_entry
+                        .canonicalize()
+                        .ok()
+                        .as_deref()
+                        .and_then(|v| v.to_str())
+                        .unwrap_or(""),
+                )
                 .output()
                 .context("failed to run test script"),
         ) else {

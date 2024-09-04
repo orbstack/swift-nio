@@ -1,4 +1,4 @@
-just asm sub_index_guest
+just asm
 ---
 _sub_index_guest:
 Lfunc_beginXX:

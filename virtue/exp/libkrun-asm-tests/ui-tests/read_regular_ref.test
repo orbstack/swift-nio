@@ -1,4 +1,4 @@
-just asm read_regular_ref
+just asm
 ---
 _read_regular_ref:
 Lfunc_beginXX:

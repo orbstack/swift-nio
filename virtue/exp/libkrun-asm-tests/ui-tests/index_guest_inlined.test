@@ -1,4 +1,4 @@
-just asm index_guest_inlined
+just asm
 ---
 _index_guest_inlined:
 Lfunc_beginXX:

@@ -1,4 +1,4 @@
-just asm index_regular_non_pow2_runtime
+just asm
 ---
 _index_regular_non_pow2_runtime:
 Lfunc_beginXX:

@@ -1,8 +1,8 @@
 run:
     cargo run --manifest-path ../ui-test-harness/Cargo.toml -- ui-tests
 
-asm target:
-    cargo asm {{target}} --simplify \
+asm:
+    cargo asm $UI_TEST_NAME --simplify \
         | sed -Ee "s/Lfunc_begin[0-9]+/Lfunc_beginXX/g" \
         | sed -Ee "s/LBB[0-9_]+/LBBxx/g" \
         | sed -Ee "s/Lloh[0-9_]+/Llohxx/g" \

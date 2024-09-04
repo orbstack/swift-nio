@@ -1,4 +1,4 @@
-just asm index_guest_sized_constant
+just asm
 ---
 _index_guest_sized_constant:
 Lfunc_beginXX:

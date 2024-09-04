@@ -1,4 +1,4 @@
-just asm sub_index_regular
+just asm
 ---
 _sub_index_regular:
 Lfunc_beginXX:

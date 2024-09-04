@@ -1,4 +1,4 @@
-just asm index_slice_sized_runtime_2
+just asm
 ---
 _index_slice_sized_runtime_2:
 Lfunc_beginXX:

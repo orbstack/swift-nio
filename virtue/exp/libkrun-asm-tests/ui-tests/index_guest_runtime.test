@@ -1,4 +1,4 @@
-just asm index_guest_runtime
+just asm
 ---
 _index_guest_runtime:
 Lfunc_beginXX:
