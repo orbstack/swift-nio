@@ -4,4 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+criterion = "0.5.1"
 utils = { version = "0.1.0", path = "../../src/utils" }
+
+[[bench]]
+name = "bench"
+harness = false
