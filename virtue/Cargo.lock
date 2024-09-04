@@ -3591,6 +3591,7 @@ dependencies = [
  "scopeguard",
  "smallvec",
  "sysx",
+ "thiserror",
  "tracing",
  "vm-memory",
  "vmm-sys-util",

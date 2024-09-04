@@ -18,6 +18,12 @@ use std::{
 
 use derive_where::derive_where;
 
+// === Errors === //
+
+#[derive(Debug, Clone, Default, Error)]
+#[error("invalid guest address")]
+pub struct InvalidGuestAddress;
+
 // === GuestAddress === //
 
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Default)]
@@ -193,33 +199,50 @@ impl GuestMemory {
         unsafe { GuestSlice::new_unchecked(self.as_ptr()) }
     }
 
-    pub fn byte_range(&self, range: Range<GuestAddress>) -> Option<GuestSlice<'_, u8>> {
+    pub fn byte_range(
+        &self,
+        range: Range<GuestAddress>,
+    ) -> Result<GuestSlice<'_, u8>, InvalidGuestAddress> {
         self.as_slice()
             .try_get(range.start.usize()..range.end.usize())
+            .ok_or(InvalidGuestAddress)
     }
 
     pub fn range_sized<T: bytemuck::Pod>(
         &self,
         base: GuestAddress,
         len: usize,
-    ) -> Option<GuestSlice<'_, T>> {
+    ) -> Result<GuestSlice<'_, T>, InvalidGuestAddress> {
         self.as_slice()
-            .try_get(base.usize()..)?
+            .try_get(base.usize()..)
+            .ok_or(InvalidGuestAddress)?
             .cast_trunc::<T>()
             .try_get(..len)
+            .ok_or(InvalidGuestAddress)
     }
 
-    pub fn try_write<T: bytemuck::Pod>(&self, base: GuestAddress, values: &[T]) -> Option<()> {
+    pub fn try_write<T: bytemuck::Pod>(
+        &self,
+        base: GuestAddress,
+        values: &[T],
+    ) -> Result<(), InvalidGuestAddress> {
         self.range_sized(base, values.len())
             .map(|slice| slice.write_slice(values))
     }
 
-    pub fn reference<T: bytemuck::Pod>(&self, addr: GuestAddress) -> Option<GuestRef<'_, T>> {
+    pub fn reference<T: bytemuck::Pod>(
+        &self,
+        addr: GuestAddress,
+    ) -> Result<GuestRef<'_, T>, InvalidGuestAddress> {
         let max_addr = GuestAddress(self.len() - mem::size_of::<T>());
 
-        (addr <= max_addr).then(|| unsafe {
-            GuestRef::new_unchecked(self.as_ptr().cast::<u8>().add(addr.usize()).cast::<T>())
-        })
+        if addr <= max_addr {
+            Ok(unsafe {
+                GuestRef::new_unchecked(self.as_ptr().cast::<u8>().add(addr.usize()).cast::<T>())
+            })
+        } else {
+            Err(InvalidGuestAddress)
+        }
     }
 
     pub fn owns_ref<T: bytemuck::Pod>(&self, ptr: GuestRef<'_, T>) -> bool {
@@ -885,6 +908,7 @@ macro_rules! field {
 }
 
 pub use field;
+use thiserror::Error;
 
 // === Owned Guest References === //
 
