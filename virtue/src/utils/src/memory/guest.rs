@@ -20,7 +20,7 @@ use derive_where::derive_where;
 
 // === GuestAddress === //
 
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Default)]
 pub struct GuestAddress(pub usize);
 
 impl fmt::Debug for GuestAddress {
@@ -184,6 +184,7 @@ impl GuestMemory {
         self.0.reserved
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.0.reserved.len()
     }
@@ -197,22 +198,28 @@ impl GuestMemory {
             .try_get(range.start.usize()..range.end.usize())
     }
 
-    pub fn byte_range_sized(&self, base: GuestAddress, len: usize) -> Option<GuestSlice<'_, u8>> {
-        self.as_slice().try_get(RangeSized::new(base.usize(), len))
-    }
-
     pub fn range_sized<T: bytemuck::Pod>(
         &self,
         base: GuestAddress,
         len: usize,
     ) -> Option<GuestSlice<'_, T>> {
         self.as_slice()
-            .cast_trunc()
-            .try_get(RangeSized::new(base.usize(), len))
+            .try_get(base.usize()..)?
+            .cast_trunc::<T>()
+            .try_get(..len)
+    }
+
+    pub fn try_write<T: bytemuck::Pod>(&self, base: GuestAddress, values: &[T]) -> Option<()> {
+        self.range_sized(base, values.len())
+            .map(|slice| slice.write_slice(values))
     }
 
     pub fn reference<T: bytemuck::Pod>(&self, addr: GuestAddress) -> Option<GuestRef<'_, T>> {
-        self.range_sized(addr, 1).map(|v| v.get(0))
+        let max_addr = GuestAddress(self.len() - mem::size_of::<T>());
+
+        (addr <= max_addr).then(|| unsafe {
+            GuestRef::new_unchecked(self.as_ptr().cast::<u8>().add(addr.usize()).cast::<T>())
+        })
     }
 
     pub fn owns_ref<T: bytemuck::Pod>(&self, ptr: GuestRef<'_, T>) -> bool {
@@ -358,6 +365,24 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
 
     pub fn read(self, i: usize) -> T {
         self.get(i).read()
+    }
+
+    pub fn write_slice(self, slice: &[T]) {
+        compiler_fence(SeqCst);
+        unsafe {
+            self.as_ptr()
+                .as_mut()
+                .copy_from_slice(bytemuck::cast_slice(slice));
+        }
+        compiler_fence(SeqCst);
+    }
+
+    pub fn read_slice(self, slice: &mut [T]) {
+        compiler_fence(SeqCst);
+        unsafe {
+            bytemuck::cast_slice_mut(slice).copy_from_slice(self.as_ptr().as_ref());
+        }
+        compiler_fence(SeqCst);
     }
 
     pub fn len(self) -> usize {
