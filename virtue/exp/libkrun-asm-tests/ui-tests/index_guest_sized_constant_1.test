@@ -1,0 +1,18 @@
+just asm
+---
+_index_guest_sized_constant_1:
+Lfunc_beginXX:
+    ldr x8, [x0]
+    ldr x9, [x8, #24]
+    subs x9, x9, x1
+    b.hs LBBxx
+    mov x0, #0
+    mov w1, #1010
+    ret
+LBBxx:
+    ldr x8, [x8, #16]
+    add x8, x8, x1
+    cmp x9, #1010
+    csel x0, xzr, x8, lo
+    mov w1, #1010
+    ret

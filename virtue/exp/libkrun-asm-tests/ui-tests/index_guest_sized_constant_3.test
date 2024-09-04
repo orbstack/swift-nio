@@ -1,6 +1,6 @@
 just asm
 ---
-_index_guest_sized_constant:
+_index_guest_sized_constant_3:
 Lfunc_beginXX:
     ldr x8, [x0]
     ldr x9, [x8, #24]
