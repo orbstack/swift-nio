@@ -652,6 +652,7 @@ dependencies = [
  "once_cell",
  "scopeguard",
  "smallvec",
+ "thiserror",
  "tracing",
  "vm-memory",
  "vmm-sys-util",

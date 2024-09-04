@@ -1,0 +1,10 @@
+just asm index_slice_sized_runtime_2
+---
+_index_slice_sized_runtime_2:
+Lfunc_beginXX:
+    adds x8, x2, x3
+    csinv x8, x8, xzr, lo
+    cmp x8, x1
+    csel x0, x0, xzr, lo
+    mov x1, x3
+    ret

@@ -767,36 +767,6 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for (Bound<usize>,
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct RangeSized {
-    pub start: usize,
-    pub len: usize,
-}
-
-impl RangeSized {
-    pub const fn new(start: usize, len: usize) -> Self {
-        Self { start, len }
-    }
-}
-
-impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeSized {
-    type Output = GuestSlice<'a, T>;
-
-    unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        target.get_unchecked(self.start..).get_unchecked(..self.len)
-    }
-
-    fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
-        target
-            .try_get(self.start..)
-            .and_then(|v| v.try_get(..self.len))
-    }
-
-    fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
-        target.get(self.start..).get(..self.len)
-    }
-}
-
 // === GuestRef === //
 
 #[derive_where(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]

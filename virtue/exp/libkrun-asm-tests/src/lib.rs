@@ -1,4 +1,4 @@
-use utils::memory::{GuestRef, GuestSlice};
+use utils::memory::{GuestAddress, GuestMemory, GuestRef, GuestSlice};
 
 #[no_mangle]
 pub fn increment(v: u32) -> u32 {
@@ -61,4 +61,48 @@ pub fn read_regular_ref(v: &u32) -> u32 {
 #[no_mangle]
 pub fn read_guest_ref(v: GuestRef<u32>) -> u32 {
     v.read()
+}
+
+#[no_mangle]
+pub fn index_slice_sized_constant_1(v: &[u8], start: usize) -> Option<&[u8]> {
+    v.get(start..)?.get(..1010)
+}
+
+#[no_mangle]
+pub fn index_slice_sized_constant_2(v: &[u8], start: usize) -> Option<&[u8]> {
+    let end = start.saturating_add(1010);
+    if end < v.len() {
+        Some(unsafe { std::slice::from_raw_parts(v.as_ptr(), 1010) })
+    } else {
+        None
+    }
+}
+
+#[no_mangle]
+pub fn index_slice_sized_runtime_1(v: &[u8], start: usize, len: usize) -> Option<&[u8]> {
+    v.get(start..)?.get(..len)
+}
+
+#[no_mangle]
+pub fn index_slice_sized_runtime_2(v: &[u8], start: usize, len: usize) -> Option<&[u8]> {
+    let end = start.saturating_add(len);
+    if end < v.len() {
+        Some(unsafe { std::slice::from_raw_parts(v.as_ptr(), len) })
+    } else {
+        None
+    }
+}
+
+#[no_mangle]
+pub fn index_guest_sized_constant(guest: &GuestMemory, start: usize) -> Option<GuestSlice<'_, u8>> {
+    guest.range_sized(GuestAddress(start), 1010).ok()
+}
+
+#[no_mangle]
+pub fn index_guest_sized_runtime(
+    guest: &GuestMemory,
+    start: usize,
+    len: usize,
+) -> Option<GuestSlice<'_, u8>> {
+    guest.range_sized(GuestAddress(start), len).ok()
 }
