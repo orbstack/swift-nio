@@ -4,7 +4,8 @@ _index_slice_sized_runtime_2:
 Lfunc_beginXX:
     adds x8, x2, x3
     csinv x8, x8, xzr, lo
+    add x9, x0, x2
     cmp x8, x1
-    csel x0, xzr, x0, hi
+    csel x0, xzr, x9, hi
     mov x1, x3
     ret

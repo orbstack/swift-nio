@@ -72,7 +72,7 @@ pub fn index_slice_sized_constant_1(v: &[u8], start: usize) -> Option<&[u8]> {
 pub fn index_slice_sized_constant_2(v: &[u8], start: usize) -> Option<&[u8]> {
     let end = start.saturating_add(1010);
     if end <= v.len() {
-        Some(unsafe { std::slice::from_raw_parts(v.as_ptr(), 1010) })
+        Some(unsafe { std::slice::from_raw_parts(v.as_ptr().add(start), 1010) })
     } else {
         None
     }
@@ -87,7 +87,7 @@ pub fn index_slice_sized_runtime_1(v: &[u8], start: usize, len: usize) -> Option
 pub fn index_slice_sized_runtime_2(v: &[u8], start: usize, len: usize) -> Option<&[u8]> {
     let end = start.saturating_add(len);
     if end <= v.len() {
-        Some(unsafe { std::slice::from_raw_parts(v.as_ptr(), len) })
+        Some(unsafe { std::slice::from_raw_parts(v.as_ptr().add(start), len) })
     } else {
         None
     }
