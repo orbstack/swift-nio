@@ -519,6 +519,16 @@ fn fail_bad_range_inclusive(start: usize, end: usize, len: usize) -> ! {
     }
 }
 
+#[cold]
+#[inline(never)]
+#[track_caller]
+fn fail_bad_range_sized(start: usize, size: usize, len: usize) -> ! {
+    panic!(
+        "range starts at {start} and ends at {} while length is just {len}",
+        start.saturating_add(size)
+    )
+}
+
 fn bounds_into_range_unchecked(
     (start, end): (Bound<usize>, Bound<usize>),
     len: usize,
@@ -754,16 +764,55 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeToInclusi
 impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for (Bound<usize>, Bound<usize>) {
     type Output = GuestSlice<'a, T>;
 
+    #[track_caller]
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
         bounds_into_range_unchecked(self, target.len()).get_unchecked(target)
     }
 
+    #[track_caller]
     fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
         bounds_into_range_checked(self, target.len()).and_then(|v| v.try_get(target))
     }
 
+    #[track_caller]
     fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
         bounds_into_range_packing(self, target.len()).get(target)
+    }
+}
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub struct RangeSized {
+    pub base: usize,
+    pub len: usize,
+}
+
+impl RangeSized {
+    pub fn new(base: usize, len: usize) -> Self {
+        Self { base, len }
+    }
+}
+
+impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeSized {
+    type Output = GuestSlice<'a, T>;
+
+    #[track_caller]
+    unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
+        GuestSlice::new_unchecked(NonNull::slice_from_raw_parts(
+            target.as_ptr().cast::<T>().add(self.base),
+            self.len,
+        ))
+    }
+
+    #[track_caller]
+    fn try_get(self, target: &GuestSlice<'a, T>) -> Option<Self::Output> {
+        let end = self.base.saturating_add(self.len);
+        (end <= target.len()).then(|| unsafe { self.get_unchecked(target) })
+    }
+
+    #[track_caller]
+    fn get(self, target: &GuestSlice<'a, T>) -> Self::Output {
+        self.try_get(target)
+            .unwrap_or_else(|| fail_bad_range_sized(self.base, self.len, target.len()))
     }
 }
 

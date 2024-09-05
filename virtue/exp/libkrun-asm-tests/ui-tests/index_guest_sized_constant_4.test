@@ -1,10 +1,11 @@
 just asm
 ---
-_index_slice_sized_constant_2:
+_index_guest_sized_constant_4:
 Lfunc_beginXX:
     adds x8, x2, #1010
     csinv x8, x8, xzr, lo
+    add x9, x0, x2
     cmp x8, x1
-    csel x0, xzr, x0, hi
+    csel x0, xzr, x9, hi
     mov w1, #1010
     ret
