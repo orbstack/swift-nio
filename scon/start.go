@@ -801,7 +801,7 @@ func findAgentExe() (string, error) {
 
 func padAgentCmd(cmd string) string {
 	// target len = at least len(agent.ProcessName)
-	targetLen := len(agent.ProcessName)
+	targetLen := len(agent.ProcessName) + agent.ProcessNameExtraPad
 	if len(cmd) < targetLen {
 		// prepend slashes
 		cmd = strings.Repeat("/", targetLen-len(cmd)) + cmd

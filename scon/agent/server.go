@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	ProcessName = appid.AppName + "-helper"
+	ProcessName         = appid.AppName + "-helper: "
+	ProcessNameExtraPad = 100
 )
 
 type AgentServer struct {
@@ -110,8 +111,13 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	isK8s := slices.Contains(os.Args, "-k8s")
 	isTls := slices.Contains(os.Args, "-tls")
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+
 	// set process name
-	err = setProcessCmdline(ProcessName)
+	err = setProcessCmdline(ProcessName + hostname[0:min(len(hostname), ProcessNameExtraPad)])
 	if err != nil {
 		return err
 	}
@@ -147,10 +153,6 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	runtime.KeepAlive(fdxFile)
 
 	// make docker client if we're the docker container
-	hostname, err := os.Hostname()
-	if err != nil {
-		return err
-	}
 	if isDocker {
 		// remove vanity name
 		hostname = "docker"
