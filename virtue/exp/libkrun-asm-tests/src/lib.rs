@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use utils::memory::{GuestAddress, GuestMemory, GuestRef, GuestSlice, RangeSized};
 
 #[no_mangle]
@@ -76,6 +78,11 @@ pub fn index_slice_sized_constant_2(v: &[u8], start: usize) -> Option<&[u8]> {
     } else {
         None
     }
+}
+
+#[no_mangle]
+pub fn index_slice_sized_constant_3<'a>(v: &'a Arc<&'a [u8]>, start: usize) -> Option<&'a [u8]> {
+    v.get(start..)?.get(..1010)
 }
 
 #[no_mangle]
