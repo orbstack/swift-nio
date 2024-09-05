@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/alessio/shellescape"
 	"github.com/creack/pty"
@@ -116,6 +117,22 @@ var (
 		ssh.SIGTERM: unix.SIGTERM,
 		ssh.SIGUSR1: unix.SIGUSR1,
 		ssh.SIGUSR2: unix.SIGUSR2,
+	}
+
+	sshWormholeSigMap = map[ssh.Signal]os.Signal{
+		ssh.SIGABRT: unix.SIGABRT,
+		ssh.SIGALRM: unix.SIGALRM,
+		ssh.SIGFPE:  unix.SIGFPE,
+		ssh.SIGHUP:  unix.SIGHUP,
+		ssh.SIGILL:  unix.SIGILL,
+		ssh.SIGPIPE: unix.SIGPIPE,
+		ssh.SIGQUIT: unix.SIGQUIT,
+		ssh.SIGSEGV: unix.SIGSEGV,
+		ssh.SIGTERM: unix.SIGTERM,
+		ssh.SIGUSR1: unix.SIGUSR1,
+		ssh.SIGUSR2: unix.SIGUSR2,
+		ssh.SIGKILL: syscall.Signal(60),
+		ssh.SIGINT:  syscall.Signal(61),
 	}
 
 	defaultMeta = sshtypes.SshMeta{
@@ -272,16 +289,18 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	}
 }
 
-func (sv *SshServer) prepareWormhole(cmd *agent.AgentCommand, a *agent.Client, wormholeContainerID string, shellCmd string, meta *sshtypes.SshMeta) (_runOnHost bool, _mountFile *os.File, retErr error) {
+func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent.Client, container *Container, user string, wormholeContainerID string, shellCmd string, meta *sshtypes.SshMeta) (err error, printErr bool) {
 	runOnHost := false
+	printErr = false
 
 	// debug only: wormhole for VM host (ovm)
 	var wormholeResp *agent.PrepWormholeResponse
 	var rootfsFile *os.File
 	if conf.Debug() && wormholeContainerID == sshtypes.WormholeIDHost {
-		rootfsFd, err := unix.Open("/proc/thread-self/root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+		var rootfsFd int
+		rootfsFd, err = unix.Open("/proc/thread-self/root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 		if err != nil {
-			return false, nil, err
+			return
 		}
 		rootfsFile = os.NewFile(uintptr(rootfsFd), "rootfs")
 
@@ -291,36 +310,36 @@ func (sv *SshServer) prepareWormhole(cmd *agent.AgentCommand, a *agent.Client, w
 			WorkingDir: "/",
 		}
 	} else {
-		var err error
 		wormholeResp, rootfsFile, err = a.DockerPrepWormhole(agent.PrepWormholeArgs{
 			ContainerID: wormholeContainerID,
 		})
 		if err != nil {
-			return false, nil, err
+			return
 		}
 	}
 	defer rootfsFile.Close()
 
 	isNix, err := isNixContainer(rootfsFile)
 	if err != nil {
-		return false, nil, err
+		return
 	}
 	if isNix && meta.WormholeFallback {
-		return false, nil, &ExitError{status: 124}
+		err = &ExitError{status: 124}
+		return
 	}
 
 	err = sv.m.wormhole.OnSessionStart()
 	if err != nil {
-		return false, nil, err
+		return
 	}
 
 	wormholeMountFd, err := unix.OpenTree(unix.AT_FDCWD, mounts.WormholeUnifiedNix, unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 	if err != nil {
-		return false, nil, err
+		return
 	}
 	wormholeMountFile := os.NewFile(uintptr(wormholeMountFd), "wormhole mount")
 	defer func() {
-		if retErr != nil {
+		if err != nil {
 			wormholeMountFile.Close()
 		}
 	}()
@@ -330,10 +349,24 @@ func (sv *SshServer) prepareWormhole(cmd *agent.AgentCommand, a *agent.Client, w
 		workDir = meta.Pwd
 	}
 
+	exitCodePipeRead, exitCodePipeWrite, err := os.Pipe()
+	if err != nil {
+		return
+	}
+
+	logPipeRead, logPipeWrite, err := os.Pipe()
+	if err != nil {
+		return
+	}
+
+	go io.Copy(os.Stderr, logPipeRead)
+
 	config := &sshtypes.WormholeConfig{
 		InitPid: wormholeResp.InitPid,
 		// wormholeMountFile = dup to fd 3 in child
 		WormholeMountTreeFd: 3,
+		ExitCodePipeWriteFd: 4,
+		LogFd:               5,
 		DrmToken:            sv.m.drm.lastResult.EntitlementToken,
 
 		// instead of launching wormhole-attach process with the container's env, we pass it separately because there are several env priorities:
@@ -349,18 +382,90 @@ func (sv *SshServer) prepareWormhole(cmd *agent.AgentCommand, a *agent.Client, w
 	}
 	configBytes, err := json.Marshal(config)
 	if err != nil {
-		return false, nil, err
+		return
 	}
 
 	cmd.User = ""
 	cmd.DoLogin = false
 	cmd.ReplaceShell = false
-	cmd.ExtraFiles = []*os.File{wormholeMountFile}
+	cmd.ExtraFiles = []*os.File{wormholeMountFile, exitCodePipeWrite, logPipeWrite}
 	cmd.CombinedArgs = []string{mounts.WormholeAttach, string(configBytes)}
 	// for debugging
 	cmd.Env.SetPair("RUST_BACKTRACE=full")
 
-	return runOnHost, wormholeMountFile, nil
+	if runOnHost {
+		err = cmd.StartOnHost()
+	} else {
+		err = cmd.Start(a)
+	}
+	if err != nil {
+		return
+	}
+
+	printErr = false
+
+	// kill payload if session is closed
+	go func() {
+		<-s.Context().Done()
+		_ = cmd.Process.Signal(syscall.Signal(61))
+	}()
+
+	// forward signals using custom map
+	sigChan := make(chan ssh.Signal, 1)
+	defer close(sigChan)
+	defer s.Signals(nil)
+	s.Signals(sigChan)
+	go func() {
+		for sshSig := range sigChan {
+			sig, ok := sshWormholeSigMap[sshSig]
+			if !ok {
+				logrus.WithField("sig", sshSig).Error("unknown ssh signal")
+				continue
+			}
+
+			err := cmd.Process.Signal(sig)
+			if err != nil {
+				logrus.WithError(err).Error("ssh signal forward failed in wormhole")
+			}
+		}
+	}()
+
+	go func() {
+		_, err := cmd.Process.WaitStatus()
+		if err != nil {
+			logrus.WithError(err).Error("couldn't wait on wormhole")
+			return
+		}
+
+		err = sv.m.wormhole.OnSessionEnd()
+		if err != nil {
+			logrus.WithError(err).Error("end womrhole session failed")
+		}
+
+		if container.Running() {
+			if err := a.EndUserSession(user); err != nil {
+				logrus.WithError(err).Error("end user session failed")
+			}
+		}
+
+	}()
+
+	statusBytes := make([]byte, 1) // exit codes only range from 0-255 so it should be able to fit into a single byte
+	bytesRead, err := exitCodePipeRead.Read(statusBytes)
+	if err != nil {
+		return
+	}
+	if bytesRead < 1 {
+		err = fmt.Errorf("could not read exitcode from pipe")
+		return
+	}
+	status := int(statusBytes[0])
+
+	if status != 0 {
+		err = &ExitError{status: status}
+	}
+
+	return nil, false
 }
 
 func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string, isWormhole bool) (printErr bool, err error) {
@@ -544,23 +649,16 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	}
 	cmd.CombinedArgs = combinedArgs
 
-	err = container.UseAgent(func(a *agent.Client) error {
-		// wormhole case is different
-		runOnHost := false
-		if isWormhole {
-			_runOnHost, mountFile, err := sv.prepareWormhole(cmd, a, wormholeContainerID, shellCmd, &meta)
-			if err != nil {
-				return err
-			}
-			defer mountFile.Close()
-			runOnHost = _runOnHost
-		}
+	if isWormhole {
+		container.UseAgent(func(a *agent.Client) error {
+			err, printErr = sv.doWormhole(s, cmd, a, container, user, wormholeContainerID, shellCmd, &meta)
+			return nil
+		})
+		return
+	}
 
-		if runOnHost {
-			return cmd.StartOnHost()
-		} else {
-			return cmd.Start(a)
-		}
+	err = container.UseAgent(func(a *agent.Client) error {
+		return cmd.Start(a)
 	})
 	if err != nil {
 		return
@@ -622,18 +720,6 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	if err != nil {
 		logrus.Error("wait err: ", err)
 		return
-	}
-
-	if isWormhole {
-		shouldUnmountWormhole := true
-		if status == sshenv.SigWormholeMountsBusy {
-			shouldUnmountWormhole = false
-			status = 0
-		}
-		err = sv.m.wormhole.OnSessionEnd(shouldUnmountWormhole)
-		if err != nil {
-			logrus.WithError(err).Error("end wormhole session failed")
-		}
 	}
 
 	if status != 0 {

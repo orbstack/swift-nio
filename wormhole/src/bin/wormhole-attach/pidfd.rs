@@ -1,6 +1,9 @@
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
 
-use nix::libc::{syscall, SYS_pidfd_open, PIDFD_NONBLOCK};
+use nix::{
+    libc::{syscall, SYS_pidfd_open, PIDFD_NONBLOCK},
+    poll::{poll, PollFd, PollFlags},
+};
 
 pub struct PidFd(OwnedFd);
 
@@ -12,6 +15,12 @@ impl PidFd {
         }
         let fd = unsafe { OwnedFd::from_raw_fd(fd as _) };
         Ok(Self(fd))
+    }
+
+    pub fn wait(&self) -> std::io::Result<()> {
+        let pollfd = PollFd::new(&self.0, PollFlags::POLLIN);
+        poll(&mut [pollfd], -1)?;
+        Ok(())
     }
 }
 

@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct WormholeConfig {
     pub init_pid: i32,
     pub wormhole_mount_tree_fd: i32,
+    pub exit_code_pipe_write_fd: i32,
+    pub log_fd: i32,
     pub drm_token: String,
 
     pub container_env: Option<Vec<String>>,

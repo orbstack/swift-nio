@@ -1,10 +1,11 @@
 use std::{
+    borrow::Cow,
     collections::HashMap,
     ffi::CString,
     fs::File,
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    mem,
+    os::fd::{FromRawFd, OwnedFd},
     path::Path,
-    process,
     ptr::{null, null_mut},
 };
 
@@ -17,11 +18,14 @@ use libc::{
 use model::WormholeConfig;
 use nix::{
     errno::Errno,
-    fcntl::{open, openat, OFlag},
-    mount::{umount2, MntFlags, MsFlags},
+    fcntl::{open, OFlag},
+    mount::MsFlags,
     sched::{setns, unshare, CloneFlags},
     sys::{
         prctl,
+        signal::{SigSet, Signal},
+        signalfd::{SfdFlags, SignalFd},
+        socket::{socketpair, AddressFamily, SockFlag, SockType},
         stat::{umask, Mode},
         utsname::uname,
         wait::{waitpid, WaitStatus},
@@ -41,14 +45,12 @@ use wormhole::{
     paths,
 };
 
-const SIGNAL_WORMHOLE_MOUNTS_BUSY: i32 = 124;
-
-use crate::proc::wait_for_exit;
-
 mod drm;
 mod model;
+mod monitor;
 mod pidfd;
 mod proc;
+mod protocol;
 mod subreaper;
 
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
@@ -341,106 +343,14 @@ fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<FlockGuard<()>> {
     Ok(FlockGuard::new(ref_lock, ()))
 }
 
-enum DeleteNixDirResult {
-    Success,
-    Busy,
-    NotOurNix,
-    ActiveRefs,
-}
-
-fn delete_nix_dir(proc_self_fd: &OwnedFd, nix_flock_ref: FlockGuard<()>) -> anyhow::Result<DeleteNixDirResult> {
-    // try to unmount everything on our view of /nix recursively
-    let mounts_file = unsafe {
-        File::from_raw_fd(openat(
-            proc_self_fd.as_raw_fd(),
-            "mounts",
-            OFlag::O_RDONLY | OFlag::O_CLOEXEC,
-            Mode::empty(),
-        )?)
-    };
-    let proc_mounts = parse_proc_mounts(&std::io::read_to_string(mounts_file)?)?;
-    for mnt in proc_mounts.iter().rev() {
-        if mnt.dest == "/nix" || mnt.dest.starts_with("/nix/") {
-            trace!("delete_nix_dir: unmount {}", mnt.dest);
-            match umount2(Path::new(&mnt.dest), MntFlags::UMOUNT_NOFOLLOW) {
-                Ok(_) => {}
-                Err(Errno::EBUSY) => {
-                    // still in use (bg / forked process)
-                    trace!("delete_nix_dir: mounts still in use");
-                    return Ok(DeleteNixDirResult::Busy);
-                }
-                Err(e) => return Err(e.into()),
-            }
-        }
+fn sigset_add_u32(sigset: &mut SigSet, signal: u32) {
+    // this works because sigset is repr transparent
+    unsafe {
+        libc::sigaddset(
+            mem::transmute::<_, &mut libc::sigset_t>(sigset) as *mut libc::sigset_t,
+            signal as libc::c_int,
+        );
     }
-
-    trace!("delete_nix_dir: wait for lock");
-    let _flock = Flock::new_ofd(
-        File::create(DIR_CREATE_LOCK)?,
-        FlockMode::Exclusive,
-        FlockWait::Blocking,
-    )?;
-
-    // drop our ref
-    drop(nix_flock_ref);
-
-    // check whether we created /nix
-    if xattr::get("/nix", "user.orbstack.wormhole")?.is_none() {
-        // we didn't create /nix, so don't delete it
-        trace!("delete_nix_dir: /nix not created by us");
-        return Ok(DeleteNixDirResult::NotOurNix);
-    }
-
-    // check whether there are any remaining refs
-    if Flock::check_ofd(File::open("/nix")?, FlockMode::Exclusive)? {
-        // success - no refs; continue
-        trace!("delete_nix_dir: no refs");
-    } else {
-        // there are still active refs, so we can't delete /nix
-        trace!("delete_nix_dir: refs still active");
-        return Ok(DeleteNixDirResult::ActiveRefs);
-    }
-
-    // good to go for deletion:
-    // - we created it (according to xattr)
-    // - no remaining refs (according to flock)
-
-    // check attributes of '/' mount to deal with read-only containers
-    let is_root_readonly = is_root_readonly(&proc_mounts);
-    if is_root_readonly {
-        trace!("mounts: remount / as rw");
-        mount_setattr(
-            None,
-            "/",
-            0,
-            &MountAttr {
-                attr_set: 0,
-                attr_clr: MOUNT_ATTR_RDONLY,
-                propagation: 0,
-                userns_fd: 0,
-            },
-        )?;
-    }
-
-    trace!("delete_nix_dir: deleting /nix");
-    std::fs::remove_dir("/nix")?;
-
-    if is_root_readonly {
-        trace!("mounts: remount / as ro");
-        mount_setattr(
-            None,
-            "/",
-            0,
-            &MountAttr {
-                attr_set: MOUNT_ATTR_RDONLY,
-                attr_clr: 0,
-                propagation: 0,
-                userns_fd: 0,
-            },
-        )?;
-    }
-
-    Ok(DeleteNixDirResult::Success)
 }
 
 fn parse_config() -> anyhow::Result<WormholeConfig> {
@@ -519,10 +429,10 @@ fn main() -> anyhow::Result<()> {
         )?;
     }
 
-    // save dirfd of /proc/thread-self in old mount ns
-    let proc_self_fd = unsafe {
+    // save dirfd of /proc
+    let proc_fd = unsafe {
         OwnedFd::from_raw_fd(open(
-            "/proc/thread-self",
+            "/proc",
             OFlag::O_PATH | OFlag::O_CLOEXEC,
             Mode::empty(),
         )?)
@@ -607,7 +517,9 @@ fn main() -> anyhow::Result<()> {
     // convert to HashMap for easy overriding
     let mut env_map = config
         .container_env
-        .unwrap_or_default()
+        .as_ref()
+        .map(Cow::Borrowed)
+        .unwrap_or_else(|| Cow::Owned(Vec::new()))
         .iter()
         .map(|s| s.as_str())
         // chain with /proc, which is &str
@@ -651,45 +563,88 @@ fn main() -> anyhow::Result<()> {
     // close unnecessary fds
     drop(wormhole_mount_fd);
 
+    // monitor needs to be a subreaper so that it will get the container subreaper when intermediate exits
+    prctl::set_child_subreaper(true)?;
+
+    // parent needs to know when subreaper exits (after being reparented) and when wormhole signals it
+    let monitor_sfd = {
+        let mut mask = SigSet::empty();
+        // signals for forwarding
+        mask.add(Signal::SIGCHLD);
+        mask.add(Signal::SIGABRT);
+        mask.add(Signal::SIGALRM);
+        mask.add(Signal::SIGFPE);
+        mask.add(Signal::SIGHUP);
+        mask.add(Signal::SIGILL);
+        mask.add(Signal::SIGPIPE);
+        mask.add(Signal::SIGQUIT);
+        mask.add(Signal::SIGSEGV);
+        mask.add(Signal::SIGTERM);
+        mask.add(Signal::SIGUSR1);
+        mask.add(Signal::SIGUSR2);
+        sigset_add_u32(&mut mask, 60);
+        sigset_add_u32(&mut mask, 61);
+
+        mask.add(Signal::SIGINT);
+        mask.thread_block()?;
+        SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC | SfdFlags::SFD_NONBLOCK)?
+    };
+
+    // this pipe lets us communicate with the subreaper
+    let (subreaper_socket_fd, monitor_socket_fd) = socketpair(
+        AddressFamily::Unix,
+        SockType::Stream,
+        None,
+        SockFlag::SOCK_CLOEXEC,
+    )?;
+
     trace!("fork into intermediate");
     // SAFE: we're single-threaded so malloc and locks after fork are ok
     match unsafe { fork()? } {
         // parent 1 = host monitor
-        ForkResult::Parent { child } => {
+        ForkResult::Parent {
+            child: intermediate,
+        } => {
             let _span = span!(Level::TRACE, "monitor").entered();
 
             // close unnecessary fds
+            // dont close the other end of the socket because we need socket to stay open until we can finish reading messages after subreaper dies
             drop(pidfd);
 
-            // wait until child (intermediate) exits
-            trace!("waitpid");
-            wait_for_exit(child)?;
-
-            // try to delete /nix
-            if let DeleteNixDirResult::Busy = delete_nix_dir(&proc_self_fd, nix_flock_ref)? {
-                // return value was false, so we did not complete deleting nix dir. return an exit code to signify that unmount wormhole overlay will make everything explode
-                trace!("signaling to scon that mounts are still busy");
-                process::exit(SIGNAL_WORMHOLE_MOUNTS_BUSY);
-            }
+            monitor::run(
+                &config,
+                proc_fd,
+                nix_flock_ref,
+                monitor_socket_fd,
+                intermediate,
+                monitor_sfd,
+            )?;
         }
 
         // child 1 = intermediate
         ForkResult::Child => {
             let _span = span!(Level::TRACE, "inter").entered();
+            trace!("hello from child");
 
             // kill self if parent (cattach waiter) dies
             proc::prctl_death_sig()?;
 
             // close lingering fds before user-controlled chdir
             drop(nix_flock_ref);
-            drop(proc_self_fd);
+            drop(proc_fd);
+            drop(monitor_socket_fd);
+            drop(monitor_sfd);
 
             // then chdir to requested workdir (must do / first to avoid rel path vuln)
             // can fail (falls back to /)
-            let target_workdir = config.container_workdir.unwrap_or_else(|| {
-                // copy cwd of init pid
-                format!("/proc/{}/cwd", config.init_pid)
-            });
+            let target_workdir = config
+                .container_workdir
+                .as_ref()
+                .map(|val| val.clone())
+                .unwrap_or_else(|| {
+                    // copy cwd of init pid
+                    format!("/proc/{}/cwd", config.init_pid)
+                });
             if let Err(e) = chdir(Path::new(&target_workdir)) {
                 // fail silently. this happens when workdir doesn't exist
                 debug!("failed to set working directory: {}", e);
@@ -828,18 +783,23 @@ fn main() -> anyhow::Result<()> {
                 ))?
             };
 
+            let subreaper_sfd = {
+                let mut mask = SigSet::empty();
+                mask.add(Signal::SIGCHLD);
+                mask.thread_block()?;
+                SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC | SfdFlags::SFD_NONBLOCK)?
+            };
+
             // fork again...
             match unsafe { fork()? } {
                 // parent 2 = intermediate (waiter)
-                ForkResult::Parent { child } => {
-                    trace!("loop");
+                ForkResult::Parent { child: _ } => {
+                    trace!("intermediate dying");
 
                     // this process has no reason to keep existing.
                     // we only need to keep a monitor on the host, and subreaper in the pid ns
                     // once this exits, child (subreaper) will be reparented to host monitor in host pid ns
-                    // TODO exit
-                    // std::process::exit(0);
-                    wait_for_exit(child)?;
+                    std::process::exit(0);
                 }
 
                 // child 2 = subreaper
@@ -848,8 +808,6 @@ fn main() -> anyhow::Result<()> {
 
                     // become subreaper, so children get a subreaper flag at fork time
                     prctl::set_child_subreaper(true)?;
-                    // kill self if parent (cattach waiter) dies
-                    proc::prctl_death_sig()?;
 
                     // fork again...
                     trace!("fork");
@@ -858,16 +816,13 @@ fn main() -> anyhow::Result<()> {
                         ForkResult::Parent { child } => {
                             // subreaper helps us deal with zsh's zombie processes in any container where init is not a shell (e.g. distroless)
                             trace!("loop");
-                            subreaper::run(child)?;
+                            subreaper::run(&config, subreaper_socket_fd, subreaper_sfd, child)?;
+                            trace!("subreaper exited");
                         }
 
                         // child 2 = payload
                         ForkResult::Child => {
                             let _span = span!(Level::TRACE, "payload");
-
-                            // kill self if parent (cattach subreaper) dies
-                            // but allow bg processes to keep running
-                            proc::prctl_death_sig()?;
 
                             trace!("execve");
                             let shell_cmd =

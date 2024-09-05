@@ -1,12 +1,20 @@
 use std::{
     ffi::{c_char, CString},
+    fs::File,
+    os::fd::{AsRawFd, BorrowedFd, FromRawFd as _},
     ptr::null_mut,
 };
 
 use libc::mmap;
 use nix::{
+    dir::Dir,
     errno::Errno,
-    sys::wait::{waitpid, WaitStatus},
+    fcntl::{openat, AtFlags, OFlag},
+    sys::{
+        signal::Signal,
+        stat::{fstatat, Mode},
+        wait::{waitpid, WaitStatus},
+    },
     unistd::Pid,
 };
 use wormhole::err;
@@ -16,17 +24,21 @@ pub fn prctl_death_sig() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn wait_for_exit(pid: Pid) -> anyhow::Result<()> {
+pub enum ExitResult {
+    Code(i32),
+    Signal(Signal),
+}
+
+pub fn wait_for_exit<P: Into<Option<Pid>>>(pid: P) -> anyhow::Result<ExitResult> {
+    let pid: Option<Pid> = pid.into();
     loop {
         let res = waitpid(pid, None)?;
         match res {
-            WaitStatus::Exited(_, _) => break,
-            WaitStatus::Signaled(_, _, _) => break,
+            WaitStatus::Exited(_, exit_code) => break Ok(ExitResult::Code(exit_code)),
+            WaitStatus::Signaled(_, signal, _) => break Ok(ExitResult::Signal(signal)),
             _ => {}
         }
     }
-
-    Ok(())
 }
 
 pub fn set_cmdline_name(name: &str) -> anyhow::Result<()> {
@@ -92,4 +104,102 @@ pub fn set_cmdline_name(name: &str) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+pub fn iter_pids_from_dirfd(
+    proc_fd: BorrowedFd<'_>,
+) -> Result<impl Iterator<Item = Result<Pid, Errno>>, Errno> {
+    Ok(Dir::openat(
+        proc_fd.as_raw_fd(),
+        "./",
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY,
+        Mode::empty(),
+    )?
+    .into_iter()
+    .filter_map(|direntry| match direntry {
+        Ok(direntry) => {
+            if !direntry
+                .file_type()
+                .is_some_and(|filetype| matches!(filetype, nix::dir::Type::Directory))
+            {
+                return None;
+            }
+
+            let Ok(file_name) = CString::from(direntry.file_name()).into_string() else {
+                return None;
+            };
+
+            let Ok(pid) = file_name.parse::<u32>() else {
+                return None;
+            };
+
+            Some(Ok(Pid::from_raw(pid as i32)))
+        }
+        Err(err) => Some(Err(err)),
+    }))
+}
+
+pub fn get_ns_of_pid_from_dirfd(
+    proc_fd: BorrowedFd<'_>,
+    pid: Pid,
+    ns: &'static str,
+) -> Result<u64, Errno> {
+    Ok(fstatat(
+        proc_fd.as_raw_fd(),
+        format!("./{}/ns/{}", pid, ns).as_str(),
+        AtFlags::empty(),
+    )?
+    .st_ino)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ProcessState {
+    Running,
+    InterruptibleSleep,
+    UninterruptibleSleep,
+    Zombie,
+    Stopped,
+    TracingStop,
+    Dead,
+    Wakekill,
+    Waking,
+    Parked,
+    Idle,
+}
+
+pub fn get_pid_state_from_dirfd(proc_fd: BorrowedFd<'_>, pid: Pid) -> anyhow::Result<ProcessState> {
+    let file = unsafe {
+        File::from_raw_fd(openat(
+            proc_fd.as_raw_fd(),
+            format!("./{}/stat", pid).as_str(),
+            OFlag::O_RDONLY,
+            Mode::empty(),
+        )?)
+    };
+
+    let stat = std::io::read_to_string(file)?;
+
+    let status_char = stat
+        .split_ascii_whitespace()
+        .nth_back(49) // go from end because comm can contain spaces
+        .ok_or(anyhow::anyhow!("couldn't parse status file"))?
+        .trim()
+        .chars()
+        .nth(0)
+        .ok_or(anyhow::anyhow!("status char was empty?"))?;
+
+    match status_char {
+        'R' => Ok(ProcessState::Running),
+        'S' => Ok(ProcessState::InterruptibleSleep),
+        'D' => Ok(ProcessState::UninterruptibleSleep),
+        'Z' => Ok(ProcessState::Zombie),
+        'T' => Ok(ProcessState::Stopped),
+        't' => Ok(ProcessState::TracingStop),
+        'X' => Ok(ProcessState::Dead),
+        'K' => Ok(ProcessState::Wakekill),
+        'W' => Ok(ProcessState::Waking),
+        'P' => Ok(ProcessState::Parked),
+        'I' => Ok(ProcessState::Idle),
+        other => Err(anyhow::anyhow!("unrecognized state char {}", other)),
+    }
 }

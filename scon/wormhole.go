@@ -69,15 +69,15 @@ func (m *WormholeManager) OnSessionStart() (retErr error) {
 	return nil
 }
 
-func (m *WormholeManager) OnSessionEnd(shouldUnmountWormhole bool) error {
+func (m *WormholeManager) OnSessionEnd() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.sessionCount--
 	logrus.WithFields(logrus.Fields{"newCount": m.sessionCount}).Debug("discarding wormhole session")
 
-	if m.sessionCount != 0 || !m.isMounted || !shouldUnmountWormhole {
-		logrus.Debugf("not unmounting wormhole, m.sessionCount: %v, m.isMounted: %v, shouldUnmountWormhole: %v", m.sessionCount, m.isMounted, shouldUnmountWormhole)
+	if m.sessionCount != 0 || !m.isMounted {
+		logrus.Debugf("not unmounting wormhole, m.sessionCount: %v, m.isMounted: %v", m.sessionCount, m.isMounted)
 		return nil
 	}
 
