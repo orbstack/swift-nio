@@ -4,8 +4,27 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
+
+var (
+	vnetSubnet4IpNet *net.IPNet
+	vnetSubnet6IpNet *net.IPNet
+)
+
+func init() {
+	var err error
+	_, vnetSubnet4IpNet, err = net.ParseCIDR(netconf.VnetSubnet4CIDR)
+	if err != nil {
+		panic(err)
+	}
+
+	_, vnetSubnet6IpNet, err = net.ParseCIDR(netconf.VnetSubnet6CIDR)
+	if err != nil {
+		panic(err)
+	}
+}
 
 // IPv4 or IPv6, properly sized
 func ParseTcpipAddress(ip string) tcpip.Address {
@@ -43,6 +62,11 @@ func ShouldForward(addr tcpip.Address) bool {
 
 	// IPv4 broadcast (DHCP)
 	if ip.Equal(net.IPv4bcast) {
+		return false
+	}
+
+	// vnet
+	if vnetSubnet4IpNet.Contains(ip) || vnetSubnet6IpNet.Contains(ip) {
 		return false
 	}
 
