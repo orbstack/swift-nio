@@ -213,12 +213,21 @@ impl GuestMemory {
         base: GuestAddress,
         len: usize,
     ) -> Result<GuestSlice<'_, T>, InvalidGuestAddress> {
-        self.as_slice()
-            .try_get(base.usize()..)
-            .ok_or(InvalidGuestAddress)?
-            .cast_trunc::<T>()
-            .try_get(..len)
-            .ok_or(InvalidGuestAddress)
+        // Used to avoid an LLVM misoptimization. See `index_slice_sized_constant_1` and
+        // `index_slice_sized_constant_3` under `exp/libkrun-asm-tests` for an MRP of the
+        // misoptimization we're trying to avoid.
+        fn inner<T: bytemuck::Pod>(
+            slice: GuestSlice<'_, u8>,
+            base: GuestAddress,
+            len: usize,
+        ) -> Option<GuestSlice<'_, T>> {
+            slice
+                .try_get(base.usize()..)?
+                .cast_trunc::<T>()
+                .try_get(..len)
+        }
+
+        inner(self.as_slice(), base, len).ok_or(InvalidGuestAddress)
     }
 
     pub fn try_write<T: bytemuck::Pod>(
