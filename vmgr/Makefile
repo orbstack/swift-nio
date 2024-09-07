@@ -1,7 +1,7 @@
 .PHONY: run run-swift-asan run-rust-asan run-raw scli app serve publish vmgr vmgr-swift-asan vmgr-rust-asan clone-libkrun
 
 # dev == debug
-export RUST_BUILD_TYPE ?= release-with-debug
+export RUST_BUILD_TYPE ?= release
 export RUST_BACKTRACE ?= full
 export RUST_LOG ?= utils::span=info
 
