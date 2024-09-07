@@ -693,7 +693,7 @@ impl HvfVcpu {
         let high_range = extract_bits_64!(gva, 55, 1);
         if high_range == 0 {
             error!("VA (0x{:x}) range is not supported!", gva);
-            return Ok(GuestAddress::from_u64(gva));
+            return Ok(GuestAddress(gva));
         }
 
         // High range size offset
@@ -705,7 +705,7 @@ impl HvfVcpu {
 
         if tsz == 0 {
             error!("VA translation is not ready!");
-            return Ok(GuestAddress::from_u64(gva));
+            return Ok(GuestAddress(gva));
         }
 
         // VA size is determined by TCR_BL1.T1SZ
@@ -766,7 +766,7 @@ impl HvfVcpu {
 
             let descriptor = self
                 .guest_mem
-                .try_read::<u64>(GuestAddress::from_u64(descaddr))
+                .try_read::<u64>(GuestAddress(descaddr))
                 .map_err(|_| Error::TranslateVirtualAddress)?;
 
             descaddr = descriptor & descaddrmask;
@@ -803,7 +803,7 @@ impl HvfVcpu {
         descaddr &= !(page_size - 1);
         descaddr |= gva & (page_size - 1);
 
-        Ok(GuestAddress::from_u64(descaddr))
+        Ok(GuestAddress(descaddr))
     }
 
     pub fn dump_debug(&self, csmap_path: Option<&str>) -> anyhow::Result<String> {

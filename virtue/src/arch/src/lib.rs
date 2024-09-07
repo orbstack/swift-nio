@@ -7,6 +7,8 @@
 use std::fmt;
 use std::result;
 
+use utils::memory::GuestAddress;
+
 #[derive(Default)]
 pub struct ArchMemoryInfo {
     pub ram_regions: Vec<(GuestAddress, usize)>,
@@ -35,7 +37,6 @@ pub use aarch64::{
     arch_memory_regions, configure_system, get_kernel_start, initrd_load_addr,
     layout::CMDLINE_MAX_SIZE, layout::IRQ_BASE, layout::IRQ_MAX, Error, DAX_SIZE, MMIO_MEM_START,
 };
-use utils::memory::GuestAddress;
 
 /// Module for x86_64 related functionality.
 #[cfg(target_arch = "x86_64")]

@@ -52,17 +52,17 @@ pub fn arch_memory_regions(size: usize) -> ArchMemoryInfo {
     let ram_regions = if cfg!(feature = "efi") {
         vec![
             // Space for loading EDK2 and its variables
-            (GuestAddress(0), 0x800_0000),
-            (GuestAddress::from_u64(layout::DRAM_MEM_START), ram_size),
+            (GuestAddress(0u64), 0x800_0000),
+            (GuestAddress(layout::DRAM_MEM_START), ram_size),
         ]
     } else {
-        vec![(GuestAddress::from_u64(layout::DRAM_MEM_START), ram_size)]
+        vec![(GuestAddress(layout::DRAM_MEM_START), ram_size)]
     };
 
     ArchMemoryInfo {
         ram_regions,
-        ram_last_addr_excl: GuestAddress::from_u64(ram_last_addr),
-        dax_regions: vec![(GuestAddress::from_u64(shm_start_addr), DAX_SIZE as usize)],
+        ram_last_addr_excl: GuestAddress(ram_last_addr),
+        dax_regions: vec![(GuestAddress(shm_start_addr), DAX_SIZE as usize)],
     }
 }
 
@@ -107,10 +107,9 @@ pub fn get_kernel_start() -> u64 {
 /// Returns the memory address where the initrd could be loaded.
 pub fn initrd_load_addr(guest_mem: &GuestMemory, initrd_size: usize) -> super::Result<u64> {
     let round_to_pagesize = |size| (size + (super::PAGE_SIZE - 1)) & !(super::PAGE_SIZE - 1);
-
     match GuestAddress(get_fdt_addr(guest_mem)).checked_sub(round_to_pagesize(initrd_size) as u64) {
         Some(offset) => {
-            if guest_mem.reference::<u8>(offset).is_ok() {
+            if guest_mem.address_in_range(offset) {
                 Ok(offset.u64())
             } else {
                 Err(Error::InitrdAddress)
@@ -131,7 +130,7 @@ pub fn get_fdt_addr(_mem: &GuestMemory) -> u64 {
         .last_addr()
         .checked_sub(layout::FDT_MAX_SIZE as u64 - 1)
     {
-        if _mem.range_sized::<u8>(addr, 1).is_ok() {
+        if _mem.address_in_range(addr) {
             return addr.u64();
         }
     }

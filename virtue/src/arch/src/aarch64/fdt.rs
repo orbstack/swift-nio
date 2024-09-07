@@ -114,7 +114,7 @@ pub fn create_fdt<T: DeviceInfoForFDT + Clone + Debug>(
     let fdt_final = fdt.finish()?;
 
     // Write FDT to memory.
-    let fdt_address = GuestAddress::from_u64(get_fdt_addr(guest_mem));
+    let fdt_address = GuestAddress(get_fdt_addr(guest_mem));
     guest_mem
         .try_write(fdt_address, fdt_final.as_slice())
         .map_err(Error::WriteFDTToMemory)?;

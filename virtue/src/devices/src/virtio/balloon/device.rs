@@ -101,7 +101,7 @@ pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64
 pub(crate) type BalloonSignal = SignalChannel<BalloonSignalMask, BalloonWakers>;
 
 #[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
-#[repr(C)]
+#[repr(C, packed)]
 pub struct VirtioBalloonConfig {
     /* Number of pages host wants Guest to give up. */
     num_pages: u32,
@@ -265,7 +265,7 @@ impl Balloon {
 
         for_each_merge_range(&mut prdescs, req.guest_page_size as u64, |range| {
             // bounds check
-            let guest_addr = GuestAddress::from_u64(range.0);
+            let guest_addr = GuestAddress(range.0);
             let size = (range.1 - range.0) as usize;
             let host_addr = mem.range_sized::<u8>(guest_addr, size)?;
 
