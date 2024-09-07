@@ -7,7 +7,7 @@
 
 use std::result;
 
-use vm_memory::GuestMemoryMmap;
+use utils::memory::GuestMemory;
 
 /// Errors thrown while setting aarch64 registers.
 #[derive(Debug)]
@@ -27,7 +27,7 @@ type Result<T> = result::Result<T, Error>;
 /// * `cpu_id` - Index of current vcpu.
 /// * `boot_ip` - Starting instruction pointer.
 /// * `mem` - Reserved DRAM for current VM.
-pub fn setup_regs(_cpu_id: u8, _boot_ip: u64, _mem: &GuestMemoryMmap) -> Result<()> {
+pub fn setup_regs(_cpu_id: u8, _boot_ip: u64, _mem: &GuestMemory) -> Result<()> {
     Ok(())
 }
 

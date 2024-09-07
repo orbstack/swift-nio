@@ -10,11 +10,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
+use utils::memory::GuestMemory;
 use utils::Mutex;
 
 use utils::byte_order;
 use utils::eventfd::EventFd;
-use vm_memory::GuestMemoryMmap;
 
 use super::super::super::Error as DeviceError;
 use super::super::{
@@ -287,7 +287,7 @@ impl VirtioDevice for Vsock {
         );
     }
 
-    fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
+    fn activate(&mut self, mem: GuestMemory) -> ActivateResult {
         if self.queues.len() != defs::NUM_QUEUES {
             error!(
                 "Cannot perform activate. Expected {} queue(s), got {}",

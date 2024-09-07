@@ -1,8 +1,7 @@
 use std::{io, sync::Arc};
 
 use gruel::{DynamicMioChannelExt, DynamicMioWaker, SignalChannel};
-use utils::{memory::GuestMemoryExt, Mutex};
-use vm_memory::GuestMemoryMmap;
+use utils::{memory::GuestMemory, Mutex};
 
 use crate::virtio::Queue;
 
@@ -13,7 +12,7 @@ use super::{
 };
 
 pub struct PortWorker {
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     rx_queue: Queue,
     tx_queue: Queue,
     irq: IRQSignaler,
@@ -28,7 +27,7 @@ const WAKER_TOKEN: mio::Token = mio::Token(2);
 
 impl PortWorker {
     pub fn new(
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         rx_queue: Queue,
         tx_queue: Queue,
         irq: IRQSignaler,
@@ -179,8 +178,8 @@ impl PortWorker {
             let head_index = head.index;
             let mut bytes_read = 0;
             for desc in head.into_iter().writable() {
-                let mut vs = self.mem.get_slice_fast(desc.addr, desc.len as usize)?;
-                match input.read_volatile(&mut vs) {
+                let vs = self.mem.range_sized(desc.addr, desc.len as usize)?;
+                match input.read_volatile(vs) {
                     Ok(0) => {
                         // EOF
                         break;
@@ -241,7 +240,7 @@ impl PortWorker {
             let mut total_desc_len = 0;
             for desc in head.into_iter().readable() {
                 total_desc_len += desc.len as usize;
-                let mut vs = self.mem.get_slice_fast(desc.addr, desc.len as usize)?;
+                let mut vs = self.mem.range_sized(desc.addr, desc.len as usize)?;
 
                 // skip?
                 if desc.len as usize <= skip_bytes {
@@ -249,12 +248,12 @@ impl PortWorker {
                     continue;
                 } else if skip_bytes != 0 {
                     // partial write
-                    vs = vs.offset(skip_bytes).unwrap_or(vs);
+                    vs = vs.try_get(skip_bytes..).unwrap_or(vs);
                     skip_bytes = 0;
                 }
 
                 trace!("writing {} bytes", vs.len());
-                match output.write_volatile(&vs) {
+                match output.write_volatile(vs) {
                     Ok(0) => {
                         // EOF
                         break;

@@ -117,7 +117,6 @@ dependencies = [
  "rand",
  "utils",
  "vm-fdt",
- "vm-memory",
 ]
 
 [[package]]
@@ -753,6 +752,7 @@ dependencies = [
  "base64 0.22.1",
  "bitfield 0.15.0",
  "bitflags 2.6.0",
+ "bytemuck",
  "counter",
  "criterion",
  "crossbeam-channel",
@@ -785,7 +785,6 @@ dependencies = [
  "tracing",
  "utils",
  "virtio-bindings",
- "vm-memory",
  "vmm-ids",
  "zerocopy 0.6.6",
  "zerocopy-derive 0.6.6",
@@ -1271,6 +1270,7 @@ dependencies = [
  "arch_gen",
  "axum",
  "bitflags 2.6.0",
+ "bytemuck",
  "counter",
  "cpuid",
  "crossbeam",
@@ -1304,7 +1304,6 @@ dependencies = [
  "urlencoding",
  "utils",
  "uuid",
- "vm-memory",
  "vmm-ids",
  "wholesym",
 ]
@@ -1608,7 +1607,6 @@ name = "kernel"
 version = "0.1.0"
 dependencies = [
  "utils",
- "vm-memory",
 ]
 
 [[package]]
@@ -3591,9 +3589,8 @@ dependencies = [
  "scopeguard",
  "smallvec",
  "sysx",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
- "vm-memory",
  "vmm-sys-util",
 ]
 
@@ -3644,17 +3641,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e21282841a059bb62627ce8441c491f09603622cd5a21c43bfedc85a2952f23"
 
 [[package]]
-name = "vm-memory"
-version = "0.16.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1720e7240cdc739f935456eb77f370d7e9b2a3909204da1e2b47bef1137a013"
-dependencies = [
- "libc",
- "thiserror 1.0.69",
- "winapi",
-]
-
-[[package]]
 name = "vmm"
 version = "0.1.0"
 dependencies = [
@@ -3683,7 +3669,6 @@ dependencies = [
  "thiserror 1.0.69",
  "tracing",
  "utils",
- "vm-memory",
  "vmm-ids",
  "vmm-sys-util",
 ]

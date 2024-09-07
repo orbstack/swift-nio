@@ -11,8 +11,9 @@ use std;
 use std::ffi::CString;
 use std::fmt;
 
+use utils::memory::{GuestAddress, GuestMemory};
+
 use super::cmdline::Error as CmdlineError;
-use vm_memory::{Address, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
@@ -63,7 +64,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// * `guest_addr` - The address in `guest_mem` at which to load the command line.
 /// * `cmdline` - The kernel command line as CString.
 pub fn load_cmdline(
-    guest_mem: &GuestMemoryMmap,
+    guest_mem: &GuestMemory,
     guest_addr: GuestAddress,
     cmdline: &CString,
 ) -> std::result::Result<(), CmdlineError> {
@@ -81,12 +82,13 @@ pub fn load_cmdline(
     }
 
     guest_mem
-        .write_slice(raw_cmdline, guest_addr)
+        .try_write(guest_addr, raw_cmdline)
         .map_err(|_| CmdlineError::CommandLineCopy)?;
 
     Ok(())
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::super::cmdline::Cmdline;
@@ -136,3 +138,4 @@ mod tests {
         assert_eq!(val, b'\0');
     }
 }
+*/

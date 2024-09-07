@@ -2,6 +2,7 @@ use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::io::RawFd;
 use std::sync::Arc;
 use std::thread;
+use utils::memory::GuestMemory;
 use utils::Mutex;
 
 use super::super::super::legacy::Gic;
@@ -15,14 +16,13 @@ use crossbeam_channel::Sender;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use utils::epoll::{ControlOperation, Epoll, EpollEvent, EventSet};
 use utils::eventfd::EventFd;
-use vm_memory::GuestMemoryMmap;
 
 pub struct MuxerThread {
     cid: u64,
     pub epoll: Epoll,
     rxq: Arc<Mutex<MuxerRxQ>>,
     proxy_map: ProxyMap,
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     queue: Arc<Mutex<VirtQueue>>,
     interrupt_evt: EventFd,
     intc: Option<Arc<Gic>>,
@@ -37,7 +37,7 @@ impl MuxerThread {
         epoll: Epoll,
         rxq: Arc<Mutex<MuxerRxQ>>,
         proxy_map: ProxyMap,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         queue: Arc<Mutex<VirtQueue>>,
         interrupt_evt: EventFd,
         intc: Option<Arc<Gic>>,

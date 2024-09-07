@@ -1,15 +1,17 @@
 use anyhow::anyhow;
 use bitfield::bitfield;
 use bitflags::bitflags;
+use bytemuck::{Pod, Zeroable};
 use smallvec::SmallVec;
 use std::{mem::size_of, sync::Arc};
-use utils::hypercalls::HVC_DEVICE_BLOCK_START;
-use utils::memory::GuestMemoryExt;
+use utils::{
+    hypercalls::HVC_DEVICE_BLOCK_START,
+    memory::{GuestAddress, GuestMemory},
+};
 use virtio_bindings::virtio_blk::{
     VIRTIO_BLK_T_DISCARD, VIRTIO_BLK_T_FLUSH, VIRTIO_BLK_T_IN, VIRTIO_BLK_T_OUT,
     VIRTIO_BLK_T_WRITE_ZEROES,
 };
-use vm_memory::{Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap};
 
 use crate::{hvc::HvcDevice, virtio::descriptor_utils::Iovec};
 
@@ -18,42 +20,44 @@ use super::{device::DiskProperties, SECTOR_SIZE};
 const MAX_SEGS: usize = 256;
 
 bitflags! {
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Debug, Clone, Copy)]
     struct OrbvmBlkFlags: u16 {
         const PREFLUSH = 1 << 0;
         const POSTFLUSH = 1 << 1;
     }
 }
 
-#[derive(Copy, Clone)]
+unsafe impl Pod for OrbvmBlkFlags {}
+unsafe impl Zeroable for OrbvmBlkFlags {}
+
+#[derive(Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 struct OrbvmBlkReqHeader {
     type_: u16,
     flags: OrbvmBlkFlags,
     nr_segs: u16,
+    _padding0: u16,
     discard_len: u64,
     start_off: u64,
 }
-
-unsafe impl ByteValued for OrbvmBlkReqHeader {}
 
 impl OrbvmBlkReqHeader {
     fn for_each_desc(
         &self,
         args_addr: GuestAddress,
-        mem: &GuestMemoryMmap,
-        mut f: impl FnMut(&BlkDesc) -> anyhow::Result<()>,
+        mem: &GuestMemory,
+        mut f: impl FnMut(BlkDesc) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         if self.nr_segs as usize > MAX_SEGS {
             return Err(anyhow!("too many segments"));
         }
 
         // read segs
-        let descs_addr = args_addr.unchecked_add(size_of::<OrbvmBlkReqHeader>() as u64);
-        let descs: &[BlkDesc] = unsafe { mem.get_obj_slice(descs_addr, self.nr_segs as usize)? };
+        let descs_addr = args_addr.wrapping_add(size_of::<OrbvmBlkReqHeader>() as u64);
+        let descs = mem.range_sized(descs_addr, self.nr_segs as usize)?;
 
         for desc in descs {
-            f(desc)?;
+            f(desc.read())?;
         }
 
         Ok(())
@@ -62,13 +66,13 @@ impl OrbvmBlkReqHeader {
     fn for_each_iovec<'a>(
         &self,
         args_addr: GuestAddress,
-        mem: &'a GuestMemoryMmap,
+        mem: &'a GuestMemory,
         mut f: impl FnMut(usize, Iovec<'a>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         let mut off = self.start_off as usize;
         self.for_each_desc(args_addr, mem, |desc| {
             let len = desc.len();
-            let vs = mem.get_slice(GuestAddress(desc.phys_addr()), len)?;
+            let vs = mem.range_sized::<u8>(GuestAddress(desc.phys_addr()), len)?;
             let iov = Iovec::from(vs);
             f(off, iov)?;
             off += len;
@@ -87,7 +91,8 @@ bitfield! {
     len_sectors, _: 63, 48;
 }
 
-unsafe impl ByteValued for BlkDesc {}
+unsafe impl Pod for BlkDesc {}
+unsafe impl Zeroable for BlkDesc {}
 
 impl BlkDesc {
     fn len(&self) -> usize {
@@ -96,18 +101,18 @@ impl BlkDesc {
 }
 
 pub struct BlockHvcDevice {
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     disk: Arc<DiskProperties>,
     index: usize,
 }
 
 impl BlockHvcDevice {
-    pub(crate) fn new(mem: GuestMemoryMmap, disk: Arc<DiskProperties>, index: usize) -> Self {
+    pub(crate) fn new(mem: GuestMemory, disk: Arc<DiskProperties>, index: usize) -> Self {
         BlockHvcDevice { mem, disk, index }
     }
 
     fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<()> {
-        let hdr = self.mem.read_obj_fast::<OrbvmBlkReqHeader>(args_addr)?;
+        let hdr = self.mem.try_read::<OrbvmBlkReqHeader>(args_addr)?;
 
         debug!(
             "block hvc: type_: {}, flags: {:?}, nr_segs: {}, start_off: {}",

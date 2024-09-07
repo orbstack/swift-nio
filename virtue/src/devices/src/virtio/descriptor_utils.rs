@@ -14,14 +14,12 @@ use std::ptr::copy_nonoverlapping;
 use std::result;
 
 use crate::virtio::queue::DescriptorChain;
-use libc::c_void;
+use bytemuck::{Pod, Zeroable};
 use nix::errno::Errno;
 use nix::sys::uio::{pwritev, writev};
 use smallvec::SmallVec;
-use utils::memory::GuestMemoryExt;
-use vm_memory::{
-    Address, ByteValued, Bytes, GuestAddress, GuestMemoryError, GuestMemoryMmap, Le16, Le32, Le64,
-    VolatileMemoryError, VolatileSlice,
+use utils::memory::{
+    GuestAddress, GuestMemory, GuestSlice, InvalidGuestAddress, LeU16, LeU32, LeU64,
 };
 
 const INLINE_IOVECS: usize = 16;
@@ -30,11 +28,10 @@ const INLINE_IOVECS: usize = 16;
 pub enum Error {
     DescriptorChainOverflow,
     FindMemoryRegion,
-    GuestMemoryError(GuestMemoryError),
+    GuestMemoryError(InvalidGuestAddress),
     InvalidChain,
     IoError(io::Error),
     SplitOutOfBounds(usize),
-    VolatileMemoryError(VolatileMemoryError),
 }
 
 impl Display for Error {
@@ -47,11 +44,10 @@ impl Display for Error {
                 "the combined length of all the buffers in a `DescriptorChain` would overflow"
             ),
             FindMemoryRegion => write!(f, "no memory region for this address range"),
-            GuestMemoryError(e) => write!(f, "descriptor guest memory error: {e}"),
+            GuestMemoryError(e) => write!(f, "guest memory error: {e}"),
             InvalidChain => write!(f, "invalid descriptor chain"),
             IoError(e) => write!(f, "descriptor I/O error: {e}"),
             SplitOutOfBounds(off) => write!(f, "`DescriptorChain` split is out of bounds: {off}"),
-            VolatileMemoryError(e) => write!(f, "volatile memory error: {e}"),
         }
     }
 }
@@ -111,11 +107,11 @@ impl<'a> Iovec<'a> {
     }
 }
 
-impl<'a> From<VolatileSlice<'a>> for Iovec<'a> {
-    fn from(slice: VolatileSlice<'a>) -> Self {
+impl<'a> From<GuestSlice<'a, u8>> for Iovec<'a> {
+    fn from(slice: GuestSlice<'a, u8>) -> Self {
         Iovec {
             iov: libc::iovec {
-                iov_base: slice.ptr_guard_mut().as_ptr() as *mut c_void,
+                iov_base: slice.as_ptr().as_ptr().cast(),
                 iov_len: slice.len(),
             },
             _phantom: PhantomData,
@@ -299,7 +295,7 @@ impl<'a> DescriptorChainConsumer<'a> {
 }
 
 pub fn iovecs_from_iter(
-    mem: &GuestMemoryMmap,
+    mem: &GuestMemory,
     iter: impl Iterator<Item = (GuestAddress, usize)>,
 ) -> Result<SmallVec<[Iovec; INLINE_IOVECS]>> {
     let mut total_len: usize = 0;
@@ -312,7 +308,7 @@ pub fn iovecs_from_iter(
             .ok_or(Error::DescriptorChainOverflow)?;
 
         let vs = mem
-            .get_slice_fast(addr, len)
+            .range_sized::<u8>(addr, len)
             .map_err(Error::GuestMemoryError)?;
         Ok(vs.into())
     })
@@ -338,7 +334,7 @@ pub struct Reader<'a> {
 
 impl<'a> Reader<'a> {
     /// Construct a new Reader wrapper over `desc_chain`.
-    pub fn new(mem: &'a GuestMemoryMmap, chain: DescriptorChain<'a>) -> Result<Reader<'a>> {
+    pub fn new(mem: &'a GuestMemory, chain: DescriptorChain<'a>) -> Result<Reader<'a>> {
         Self::new_from_iter(
             mem,
             chain
@@ -349,7 +345,7 @@ impl<'a> Reader<'a> {
     }
 
     pub fn new_from_iter(
-        mem: &'a GuestMemoryMmap,
+        mem: &'a GuestMemory,
         iter: impl Iterator<Item = (GuestAddress, usize)>,
     ) -> Result<Reader<'a>> {
         let buffers = iovecs_from_iter(mem, iter)?;
@@ -359,7 +355,7 @@ impl<'a> Reader<'a> {
     }
 
     /// Reads an object from the descriptor chain buffer.
-    pub fn read_obj<T: ByteValued>(&mut self) -> io::Result<T> {
+    pub fn read_obj<T: Pod>(&mut self) -> io::Result<T> {
         // this fastpath allows compiler to optimize/specialize for T, avoiding slices and memcpy
         self.buffer.consume_one(size_of::<T>(), |iov| unsafe {
             Ok(iov.as_ptr().cast::<T>().read_unaligned())
@@ -464,7 +460,7 @@ pub struct Writer<'a> {
 
 impl<'a> Writer<'a> {
     /// Construct a new Writer wrapper over `desc_chain`.
-    pub fn new(mem: &'a GuestMemoryMmap, chain: DescriptorChain<'a>) -> Result<Writer<'a>> {
+    pub fn new(mem: &'a GuestMemory, chain: DescriptorChain<'a>) -> Result<Writer<'a>> {
         Self::new_from_iter(
             mem,
             chain
@@ -475,7 +471,7 @@ impl<'a> Writer<'a> {
     }
 
     pub fn new_from_iter(
-        mem: &'a GuestMemoryMmap,
+        mem: &'a GuestMemory,
         iter: impl Iterator<Item = (GuestAddress, usize)>,
     ) -> Result<Writer<'a>> {
         let buffers = iovecs_from_iter(mem, iter)?;
@@ -485,7 +481,7 @@ impl<'a> Writer<'a> {
     }
 
     /// Writes an object to the descriptor chain buffer.
-    pub fn write_obj<T: ByteValued>(&mut self, val: T) -> io::Result<()> {
+    pub fn write_obj<T: Pod>(&mut self, val: T) -> io::Result<()> {
         // this fastpath allows compiler to optimize/specialize for T, avoiding slices and memcpy
         self.buffer.consume_one(size_of::<T>(), |iov| unsafe {
             iov.as_mut_ptr().cast::<T>().write_unaligned(val);
@@ -638,22 +634,19 @@ pub enum DescriptorType {
     Writable,
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
 #[repr(C)]
 #[allow(non_camel_case_types)]
 struct virtq_desc {
-    addr: Le64,
-    len: Le32,
-    flags: Le16,
-    next: Le16,
+    addr: LeU64,
+    len: LeU32,
+    flags: LeU16,
+    next: LeU16,
 }
-
-// Safe because it only has data and has no implicit padding.
-unsafe impl ByteValued for virtq_desc {}
 
 /// Test utility function to create a descriptor chain in guest memory.
 pub fn create_descriptor_chain(
-    memory: &GuestMemoryMmap,
+    memory: &GuestMemory,
     descriptor_array_addr: GuestAddress,
     mut buffers_start_addr: GuestAddress,
     descriptors: Vec<(DescriptorType, u32)>,
@@ -671,7 +664,7 @@ pub fn create_descriptor_chain(
 
         let index = index as u16;
         let desc = virtq_desc {
-            addr: buffers_start_addr.raw_value().into(),
+            addr: buffers_start_addr.u64().into(),
             len: size.into(),
             flags: flags.into(),
             next: (index + 1).into(),
@@ -682,11 +675,11 @@ pub fn create_descriptor_chain(
             .checked_add(u64::from(offset))
             .ok_or(Error::InvalidChain)?;
 
-        let _ = memory.write_obj(
-            desc,
+        let _ = memory.try_write(
             descriptor_array_addr
                 .checked_add(u64::from(index) * std::mem::size_of::<virtq_desc>() as u64)
                 .ok_or(Error::InvalidChain)?,
+            &[desc],
         );
     }
 

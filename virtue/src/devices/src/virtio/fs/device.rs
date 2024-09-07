@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use bytemuck::{Pod, Zeroable};
 use gruel::{
     define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, ParkWaker, SignalChannel,
 };
@@ -6,10 +7,9 @@ use std::cmp;
 use std::io::Write;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use utils::Mutex;
+use utils::memory::GuestMemory;
 
 use virtio_bindings::{virtio_config::VIRTIO_F_VERSION_1, virtio_ring::VIRTIO_RING_F_EVENT_IDX};
-use vm_memory::{ByteValued, GuestMemoryMmap};
 
 use super::super::{
     ActivateResult, DeviceState, FsError, Queue as VirtQueue, VirtioDevice, VirtioShmRegion,
@@ -40,7 +40,7 @@ bitflags! {
 
 pub(crate) type FsSignalChannel = SignalChannel<FsSignalMask, FsWakers>;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Pod, Zeroable)]
 #[repr(C, packed)]
 struct VirtioFsConfig {
     tag: [u8; 36],
@@ -55,8 +55,6 @@ impl Default for VirtioFsConfig {
         }
     }
 }
-
-unsafe impl ByteValued for VirtioFsConfig {}
 
 pub struct Fs {
     queues: Vec<VirtQueue>,
@@ -137,7 +135,7 @@ impl Fs {
         self.shm_region = Some(shm_region);
     }
 
-    pub fn create_hvc_device(&self, mem: GuestMemoryMmap) -> FsHvcDevice {
+    pub fn create_hvc_device(&self, mem: GuestMemory) -> FsHvcDevice {
         FsHvcDevice::new(mem, self.server.clone())
     }
 }
@@ -179,7 +177,7 @@ impl VirtioDevice for Fs {
     }
 
     fn read_config(&self, offset: u64, mut data: &mut [u8]) {
-        let config_slice = self.config.as_slice();
+        let config_slice = bytemuck::bytes_of(&self.config);
         let config_len = config_slice.len() as u64;
         if offset >= config_len {
             error!("Failed to read config space");
@@ -200,7 +198,7 @@ impl VirtioDevice for Fs {
         );
     }
 
-    fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
+    fn activate(&mut self, mem: GuestMemory) -> ActivateResult {
         if self.worker_thread.is_some() {
             panic!("virtio_fs: worker thread already exists");
         }

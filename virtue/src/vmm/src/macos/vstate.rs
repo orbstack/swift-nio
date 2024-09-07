@@ -27,6 +27,9 @@ use std::thread::{self, Thread};
 use std::time::Duration;
 use sysx::mach::time::MachAbsoluteTime;
 use sysx::sync::parker::ParkResult;
+use utils::memory::GuestAddress;
+use utils::memory::GuestMemory;
+use utils::Mutex;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
 
@@ -40,17 +43,12 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use devices::legacy::{Gic, GicVcpuHandle, WfeThread};
 use hvf::{HvfVcpu, HvfVm, VcpuExit, VcpuRegistry};
 use utils::eventfd::EventFd;
-use vm_memory::{
-    Address, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap, GuestMemoryRegion,
-};
 
 const TIMER_THROTTLE_INTERVAL: Duration = Duration::from_micros(1000);
 
 /// Errors associated with the wrappers over KVM ioctls.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("failed to configure guest memory: {0}")]
-    GuestMemoryMmap(GuestMemoryError),
     #[error("not enough memory slots")]
     NotEnoughMemorySlots,
     #[cfg(target_arch = "aarch64")]
@@ -221,26 +219,16 @@ impl Vm {
     }
 
     /// Initializes the guest memory.
-    pub fn memory_init(&mut self, guest_mem: &GuestMemoryMmap) -> Result<()> {
-        for region in guest_mem.iter() {
-            // It's safe to unwrap because the guest address is valid.
-            let host_addr = guest_mem.get_host_address(region.start_addr()).unwrap();
-            debug!(
-                "Guest memory host_addr={:x?} guest_addr={:x?} len={:x?}",
-                host_addr,
-                region.start_addr().raw_value(),
-                region.len()
-            );
-            unsafe {
-                self.hvf_vm
-                    .map_memory(
-                        host_addr,
-                        region.start_addr(),
-                        region.len() as usize,
-                        MemoryFlags::RWX,
-                    )
-                    .map_err(Error::SetUserMemoryRegion)?;
-            }
+    pub fn memory_init(&mut self, guest_mem: &GuestMemory) -> Result<()> {
+        unsafe {
+            self.hvf_vm
+                .map_memory(
+                    guest_mem.as_ptr().as_ptr().cast::<u8>(),
+                    GuestAddress::ZERO, // (start addr)
+                    guest_mem.len(),
+                    MemoryFlags::RWX,
+                )
+                .map_err(Error::SetUserMemoryRegion)?;
         }
 
         Ok(())
@@ -335,7 +323,7 @@ pub struct Vcpu {
     boot_senders: Option<Vec<Sender<GuestAddress>>>,
     #[cfg(target_arch = "aarch64")]
     fdt_addr: u64,
-    guest_mem: GuestMemoryMmap,
+    guest_mem: GuestMemory,
     #[cfg(target_arch = "aarch64")]
     enable_tso: bool,
     mmio_bus: Option<devices::Bus>,
@@ -382,7 +370,7 @@ impl Vcpu {
         id: u8,
         boot_receiver: Receiver<GuestAddress>,
         exit_evt: EventFd,
-        guest_mem: GuestMemoryMmap,
+        guest_mem: GuestMemory,
         vm: &Vm,
         intc: Arc<Gic>,
         shutdown: VmmShutdownSignal,
@@ -462,7 +450,7 @@ impl Vcpu {
     #[cfg(target_arch = "aarch64")]
     pub fn configure_aarch64(
         &mut self,
-        guest_mem: &GuestMemoryMmap,
+        guest_mem: &GuestMemory,
         vcpu_config: &VcpuConfig,
     ) -> Result<()> {
         use hvf::VcpuId;
@@ -794,7 +782,7 @@ impl Vcpu {
             return;
         };
 
-        let entry_addr = entry_addr.raw_value();
+        let entry_addr = entry_addr.u64();
 
         // Create a guard for loop exit
         let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());

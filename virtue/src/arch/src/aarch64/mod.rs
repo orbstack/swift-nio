@@ -9,6 +9,8 @@ pub mod layout;
 
 #[cfg(target_os = "linux")]
 pub mod linux;
+use utils::memory::{GuestAddress, GuestMemory};
+
 #[cfg(target_os = "linux")]
 pub use self::linux::*;
 #[cfg(target_os = "macos")]
@@ -22,7 +24,6 @@ use std::fmt::Debug;
 
 use self::gic::GICDevice;
 use crate::ArchMemoryInfo;
-use vm_memory::{Address, GuestAddress, GuestMemory, GuestMemoryMmap};
 
 /// Errors thrown while configuring aarch64 system.
 #[derive(Debug)]
@@ -51,17 +52,17 @@ pub fn arch_memory_regions(size: usize) -> ArchMemoryInfo {
     let ram_regions = if cfg!(feature = "efi") {
         vec![
             // Space for loading EDK2 and its variables
-            (GuestAddress(0u64), 0x800_0000),
-            (GuestAddress(layout::DRAM_MEM_START), ram_size),
+            (GuestAddress(0), 0x800_0000),
+            (GuestAddress::from_u64(layout::DRAM_MEM_START), ram_size),
         ]
     } else {
-        vec![(GuestAddress(layout::DRAM_MEM_START), ram_size)]
+        vec![(GuestAddress::from_u64(layout::DRAM_MEM_START), ram_size)]
     };
 
     ArchMemoryInfo {
         ram_regions,
-        ram_last_addr_excl: GuestAddress(ram_last_addr),
-        dax_regions: vec![(GuestAddress(shm_start_addr), DAX_SIZE as usize)],
+        ram_last_addr_excl: GuestAddress::from_u64(ram_last_addr),
+        dax_regions: vec![(GuestAddress::from_u64(shm_start_addr), DAX_SIZE as usize)],
     }
 }
 
@@ -77,7 +78,7 @@ pub fn arch_memory_regions(size: usize) -> ArchMemoryInfo {
 /// * `gic_device` - The GIC device.
 /// * `initrd` - Information about an optional initrd.
 pub fn configure_system<T: DeviceInfoForFDT + Clone + Debug>(
-    guest_mem: &GuestMemoryMmap,
+    guest_mem: &GuestMemory,
     arch_memory_info: &ArchMemoryInfo,
     cmdline_cstring: &str,
     vcpu_mpidr: Vec<u64>,
@@ -104,12 +105,13 @@ pub fn get_kernel_start() -> u64 {
 }
 
 /// Returns the memory address where the initrd could be loaded.
-pub fn initrd_load_addr(guest_mem: &GuestMemoryMmap, initrd_size: usize) -> super::Result<u64> {
+pub fn initrd_load_addr(guest_mem: &GuestMemory, initrd_size: usize) -> super::Result<u64> {
     let round_to_pagesize = |size| (size + (super::PAGE_SIZE - 1)) & !(super::PAGE_SIZE - 1);
+
     match GuestAddress(get_fdt_addr(guest_mem)).checked_sub(round_to_pagesize(initrd_size) as u64) {
         Some(offset) => {
-            if guest_mem.address_in_range(offset) {
-                Ok(offset.raw_value())
+            if guest_mem.reference::<u8>(offset).is_ok() {
+                Ok(offset.u64())
             } else {
                 Err(Error::InitrdAddress)
             }
@@ -119,7 +121,7 @@ pub fn initrd_load_addr(guest_mem: &GuestMemoryMmap, initrd_size: usize) -> supe
 }
 
 // Auxiliary function to get the address where the device tree blob is loaded.
-pub fn get_fdt_addr(_mem: &GuestMemoryMmap) -> u64 {
+pub fn get_fdt_addr(_mem: &GuestMemory) -> u64 {
     // If the memory allocated is smaller than the size allocated for the FDT,
     // we return the start of the DRAM so that
     // we allow the code to try and load the FDT.
@@ -129,8 +131,8 @@ pub fn get_fdt_addr(_mem: &GuestMemoryMmap) -> u64 {
         .last_addr()
         .checked_sub(layout::FDT_MAX_SIZE as u64 - 1)
     {
-        if _mem.address_in_range(addr) {
-            return addr.raw_value();
+        if _mem.range_sized::<u8>(addr, 1).is_ok() {
+            return addr.u64();
         }
     }
 

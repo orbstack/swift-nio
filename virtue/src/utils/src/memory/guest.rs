@@ -2,21 +2,27 @@
 
 use std::{
     any::Any,
-    fmt,
+    fmt, io,
     marker::PhantomData,
     mem,
     ops::{
         Add, AddAssign, Bound, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
         RangeToInclusive, Sub, SubAssign,
     },
+    os::fd::AsRawFd,
     ptr::NonNull,
     sync::{
-        atomic::{compiler_fence, Ordering::*},
+        atomic::{
+            compiler_fence,
+            Ordering::{self as AtomicOrdering, *},
+        },
         Arc,
     },
 };
 
+use bytemuck::{Pod, Zeroable};
 use derive_where::derive_where;
+use thiserror::Error;
 
 // === Errors === //
 
@@ -26,8 +32,9 @@ pub struct InvalidGuestAddress;
 
 // === GuestAddress === //
 
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Default)]
-pub struct GuestAddress(pub usize);
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Default, Pod, Zeroable)]
+#[repr(transparent)]
+pub struct GuestAddress(pub u64);
 
 impl fmt::Debug for GuestAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -36,22 +43,22 @@ impl fmt::Debug for GuestAddress {
 }
 
 impl GuestAddress {
-    pub const MIN: Self = Self::from_u32(0);
+    pub const ZERO: Self = Self::from_u32(0);
 
     pub const fn from_u32(v: u32) -> Self {
-        Self(v as usize)
+        Self(v as u64)
     }
 
     pub const fn from_u64(v: u64) -> Self {
-        Self(v as usize)
-    }
-
-    pub const fn from_usize(v: usize) -> Self {
         Self(v)
     }
 
+    pub const fn from_usize(v: usize) -> Self {
+        Self(v as u64)
+    }
+
     pub const fn u32(self) -> Option<u32> {
-        if self.0 <= u32::MAX as usize {
+        if self.0 <= u32::MAX as u64 {
             Some(self.0 as u32)
         } else {
             None
@@ -63,95 +70,99 @@ impl GuestAddress {
     }
 
     pub const fn u64(self) -> u64 {
-        self.0 as u64
-    }
-
-    pub const fn usize(self) -> usize {
         self.0
     }
 
-    pub const fn add(self, rhs: usize) -> Self {
+    pub const fn usize(self) -> usize {
+        self.0 as usize
+    }
+
+    pub const fn add(self, rhs: u64) -> Self {
         Self(self.0 + rhs)
     }
 
-    pub const fn sub(self, rhs: usize) -> Self {
+    pub const fn sub(self, rhs: u64) -> Self {
         Self(self.0 - rhs)
     }
 
-    pub const fn saturating_add(self, rhs: usize) -> Self {
+    pub const fn saturating_add(self, rhs: u64) -> Self {
         Self(self.0.saturating_add(rhs))
     }
 
-    pub const fn saturating_sub(self, rhs: usize) -> Self {
+    pub const fn saturating_sub(self, rhs: u64) -> Self {
         Self(self.0.saturating_sub(rhs))
     }
 
-    pub const fn saturating_add_signed(self, rhs: isize) -> Self {
+    pub const fn saturating_add_signed(self, rhs: i64) -> Self {
         Self(self.0.saturating_add_signed(rhs))
     }
 
-    pub const fn wrapping_add(self, rhs: usize) -> Self {
+    pub const fn wrapping_add(self, rhs: u64) -> Self {
         Self(self.0.wrapping_add(rhs))
     }
 
-    pub const fn wrapping_add_signed(self, rhs: isize) -> Self {
+    pub const fn wrapping_add_signed(self, rhs: i64) -> Self {
         Self(self.0.wrapping_add_signed(rhs))
     }
 
-    pub const fn wrapping_sub(self, rhs: usize) -> Self {
+    pub const fn wrapping_sub(self, rhs: u64) -> Self {
         Self(self.0.wrapping_sub(rhs))
     }
 
-    pub const fn checked_add(self, rhs: usize) -> Option<Self> {
+    pub const fn checked_add(self, rhs: u64) -> Option<Self> {
         match self.0.checked_add(rhs) {
             Some(v) => Some(Self(v)),
             None => None,
         }
     }
 
-    pub const fn checked_add_signed(self, rhs: isize) -> Option<Self> {
+    pub const fn checked_add_signed(self, rhs: i64) -> Option<Self> {
         match self.0.checked_add_signed(rhs) {
             Some(v) => Some(Self(v)),
             None => None,
         }
     }
 
-    pub const fn checked_sub(self, rhs: usize) -> Option<Self> {
+    pub const fn checked_sub(self, rhs: u64) -> Option<Self> {
         match self.0.checked_sub(rhs) {
             Some(v) => Some(Self(v)),
             None => None,
         }
     }
 
+    pub fn map(self, f: impl FnOnce(u64) -> u64) -> Self {
+        Self::from_u64(f(self.u64()))
+    }
+
     pub fn map_usize(self, f: impl FnOnce(usize) -> usize) -> Self {
-        Self(f(self.0))
+        Self::from_usize(f(self.usize()))
     }
 }
 
-impl Add<usize> for GuestAddress {
+impl Add<u64> for GuestAddress {
     type Output = Self;
 
-    fn add(self, rhs: usize) -> Self::Output {
+    fn add(self, rhs: u64) -> Self::Output {
         self.add(rhs)
     }
 }
 
-impl AddAssign<usize> for GuestAddress {
-    fn add_assign(&mut self, rhs: usize) {
+impl AddAssign<u64> for GuestAddress {
+    fn add_assign(&mut self, rhs: u64) {
         *self = *self + rhs;
     }
 }
 
-impl Sub<usize> for GuestAddress {
+impl Sub<u64> for GuestAddress {
     type Output = Self;
 
-    fn sub(self, rhs: usize) -> Self::Output {
+    fn sub(self, rhs: u64) -> Self::Output {
         self.sub(rhs)
     }
 }
 
-impl SubAssign<usize> for GuestAddress {
-    fn sub_assign(&mut self, rhs: usize) {
+impl SubAssign<u64> for GuestAddress {
+    fn sub_assign(&mut self, rhs: u64) {
         *self = *self - rhs;
     }
 }
@@ -195,6 +206,10 @@ impl GuestMemory {
         self.0.reserved.len()
     }
 
+    pub fn last_addr(&self) -> GuestAddress {
+        GuestAddress::from_usize(self.len() - 1)
+    }
+
     pub fn as_slice(&self) -> GuestSlice<'_, u8> {
         unsafe { GuestSlice::new_unchecked(self.as_ptr()) }
     }
@@ -230,20 +245,11 @@ impl GuestMemory {
         inner(self.as_slice(), base, len).ok_or(InvalidGuestAddress)
     }
 
-    pub fn try_write<T: bytemuck::Pod>(
-        &self,
-        base: GuestAddress,
-        values: &[T],
-    ) -> Result<(), InvalidGuestAddress> {
-        self.range_sized(base, values.len())
-            .map(|slice| slice.write_slice(values))
-    }
-
     pub fn reference<T: bytemuck::Pod>(
         &self,
         addr: GuestAddress,
     ) -> Result<GuestRef<'_, T>, InvalidGuestAddress> {
-        let max_addr = GuestAddress(self.len() - mem::size_of::<T>());
+        let max_addr = GuestAddress::from_usize(self.len() - mem::size_of::<T>());
 
         if addr <= max_addr {
             Ok(unsafe {
@@ -302,7 +308,70 @@ impl GuestMemory {
         let reserved_base = self.as_ptr().as_ptr().cast::<u8>() as usize;
         let ptr_base = ptr.as_ptr().as_ptr() as usize;
 
-        GuestAddress(ptr_base - reserved_base)
+        GuestAddress::from_usize(ptr_base - reserved_base)
+    }
+
+    // === Forwards === //
+
+    pub fn try_write<T: bytemuck::Pod>(
+        &self,
+        base: GuestAddress,
+        values: &[T],
+    ) -> Result<(), InvalidGuestAddress> {
+        self.range_sized(base, values.len())
+            .map(|slice| slice.copy_from_slice(values))
+    }
+
+    pub fn try_read<T: bytemuck::Pod>(&self, base: GuestAddress) -> Result<T, InvalidGuestAddress> {
+        Ok(self.reference(base)?.read())
+    }
+
+    pub fn try_write_from_guest<T, V>(
+        &self,
+        base: GuestAddress,
+        len: usize,
+        target: &mut V,
+    ) -> Result<V::Result, InvalidGuestAddress>
+    where
+        T: bytemuck::Pod,
+        V: WriteFromGuest<T>,
+    {
+        Ok(self.range_sized(base, len)?.write_from_guest(target))
+    }
+
+    pub fn try_read_into_guest<T, V>(
+        &self,
+        base: GuestAddress,
+        len: usize,
+        target: &V,
+    ) -> Result<V::Result, InvalidGuestAddress>
+    where
+        T: bytemuck::Pod,
+        V: ReadIntoGuest<T>,
+    {
+        Ok(self.range_sized(base, len)?.read_into_guest(target))
+    }
+
+    pub fn try_write_atomic<T: AtomicPrimitive>(
+        &self,
+        addr: GuestAddress,
+        value: T,
+        order: AtomicOrdering,
+    ) -> Result<(), InvalidGuestAddress> {
+        self.reference(addr)?.write_atomic(value, order)?;
+        Ok(())
+    }
+
+    pub fn try_read_atomic<T: AtomicPrimitive>(
+        &self,
+        addr: GuestAddress,
+        order: AtomicOrdering,
+    ) -> Result<T, InvalidGuestAddress> {
+        self.reference(addr).and_then(|v| v.read_atomic(order))
+    }
+
+    pub fn address_in_range(&self, addr: GuestAddress) -> bool {
+        self.reference::<u8>(addr).is_ok()
     }
 }
 
@@ -399,22 +468,34 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
         self.get(i).read()
     }
 
-    pub fn write_slice(self, slice: &[T]) {
+    pub fn copy_from_slice(self, slice: &[T]) {
         compiler_fence(SeqCst);
         unsafe {
-            self.as_ptr()
-                .as_mut()
-                .copy_from_slice(bytemuck::cast_slice(slice));
+            self.as_ptr().as_mut().copy_from_slice(slice);
         }
         compiler_fence(SeqCst);
     }
 
-    pub fn read_slice(self, slice: &mut [T]) {
+    pub fn copy_to_slice(self, slice: &mut [T]) {
         compiler_fence(SeqCst);
         unsafe {
-            bytemuck::cast_slice_mut(slice).copy_from_slice(self.as_ptr().as_ref());
+            slice.copy_from_slice(self.as_ptr().as_ref());
         }
         compiler_fence(SeqCst);
+    }
+
+    pub fn write_from_guest<V>(self, target: &mut V) -> V::Result
+    where
+        V: WriteFromGuest<T>,
+    {
+        target.write_from_guest(self)
+    }
+
+    pub fn read_into_guest<V>(self, target: &V) -> V::Result
+    where
+        V: ReadIntoGuest<T>,
+    {
+        target.read_into_guest(self)
     }
 
     pub fn len(self) -> usize {
@@ -881,6 +962,25 @@ impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
     }
 }
 
+impl<'a, T: AtomicPrimitive> GuestRef<'a, T> {
+    pub fn atomic(self) -> Result<&'a T::Wrapper, InvalidGuestAddress> {
+        if self.ptr.as_ptr() as usize % mem::align_of::<T>() == 0 {
+            Ok(unsafe { self.ptr.cast::<T::Wrapper>().as_ref() })
+        } else {
+            Err(InvalidGuestAddress)
+        }
+    }
+
+    pub fn write_atomic(self, value: T, order: AtomicOrdering) -> Result<(), InvalidGuestAddress> {
+        self.atomic()?.store(value, order);
+        Ok(())
+    }
+
+    pub fn read_atomic(self, order: AtomicOrdering) -> Result<T, InvalidGuestAddress> {
+        self.atomic().map(|v| v.load(order))
+    }
+}
+
 impl<'a, T: bytemuck::Pod, const N: usize> GuestRef<'a, [T; N]>
 where
     [T; N]: bytemuck::Pod,
@@ -936,7 +1036,99 @@ macro_rules! field {
 }
 
 pub use field;
-use thiserror::Error;
+
+// === AtomicPrimitive === //
+
+pub unsafe trait AtomicPrimitive: bytemuck::Pod {
+    type Wrapper: AtomicWrapper<Primitive = Self>;
+}
+
+pub trait AtomicWrapper: Sized {
+    type Primitive: AtomicPrimitive<Wrapper = Self>;
+
+    fn store(&self, value: Self::Primitive, order: AtomicOrdering);
+
+    fn load(&self, order: AtomicOrdering) -> Self::Primitive;
+}
+
+macro_rules! impl_atomic_primitive {
+    ($( $wrapper:ty => $primitive:ty ),*$(,)?) => {$(
+        unsafe impl AtomicPrimitive for $primitive {
+            type Wrapper = $wrapper;
+        }
+
+        impl AtomicWrapper for $wrapper {
+            type Primitive = $primitive;
+
+            fn store(&self, value: Self::Primitive, order: AtomicOrdering) {
+                self.store(value, order);
+            }
+
+            fn load(&self, order: AtomicOrdering) -> Self::Primitive {
+                self.load(order)
+            }
+        }
+    )*};
+}
+
+impl_atomic_primitive! {
+    std::sync::atomic::AtomicU8 => u8,
+    std::sync::atomic::AtomicI8 => i8,
+    std::sync::atomic::AtomicU16 => u16,
+    std::sync::atomic::AtomicI16 => i16,
+    std::sync::atomic::AtomicU32 => u32,
+    std::sync::atomic::AtomicI32 => i32,
+    std::sync::atomic::AtomicU64 => u64,
+    std::sync::atomic::AtomicI64 => i64,
+    std::sync::atomic::AtomicUsize => usize,
+    std::sync::atomic::AtomicIsize => isize,
+}
+
+// === ReadIntoGuest === //
+
+pub trait ReadIntoGuest<T: bytemuck::Pod> {
+    type Result;
+
+    fn read_into_guest(&self, target: GuestSlice<'_, T>) -> Self::Result;
+}
+
+// === WriteFromGuest === //
+
+pub trait WriteFromGuest<T: bytemuck::Pod> {
+    type Result;
+
+    fn write_from_guest(&mut self, src: GuestSlice<T>) -> Self::Result;
+}
+
+impl<T: bytemuck::Pod> WriteFromGuest<T> for Vec<T> {
+    type Result = ();
+
+    fn write_from_guest(&mut self, src: GuestSlice<T>) {
+        compiler_fence(SeqCst);
+        unsafe { self.extend_from_slice(src.as_ptr().as_ref()) };
+        compiler_fence(SeqCst);
+    }
+}
+
+pub struct WritePartialFd<F>(pub F);
+
+impl<F: AsRawFd> WriteFromGuest<u8> for WritePartialFd<F> {
+    type Result = io::Result<usize>;
+
+    fn write_from_guest(&mut self, src: GuestSlice<u8>) -> Self::Result {
+        let fd = self.0.as_raw_fd();
+
+        let start = src.as_ptr().as_ptr().cast::<libc::c_void>();
+
+        let bytes_written = unsafe { libc::write(fd, start, src.len()) };
+
+        if bytes_written < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(bytes_written.try_into().unwrap())
+        }
+    }
+}
 
 // === Owned Guest References === //
 

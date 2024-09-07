@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use bytemuck::{Pod, Zeroable};
 use gruel::{
     define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, DynamicMioWaker,
     DynamicallyBoundWaker, SignalChannel,
@@ -8,11 +9,9 @@ use std::io::Write;
 use std::iter::zip;
 use std::mem::{size_of, size_of_val};
 use std::sync::Arc;
-use utils::memory::GuestMemoryExt;
-use utils::Mutex;
+use utils::memory::GuestMemory;
 
 use libc::TIOCGWINSZ;
-use vm_memory::{ByteValued, Bytes, GuestMemoryMmap};
 
 use super::super::{ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::hvc::ConsoleHvcDevice;
@@ -83,7 +82,7 @@ pub(crate) fn get_win_size() -> (u16, u16) {
     (ws.cols, ws.rows)
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
 #[repr(C, packed)]
 pub struct VirtioConsoleConfig {
     cols: u16,
@@ -91,9 +90,6 @@ pub struct VirtioConsoleConfig {
     max_nr_ports: u32,
     emerg_wr: u32,
 }
-
-// Safe because it only has data and has no implicit padding.
-unsafe impl ByteValued for VirtioConsoleConfig {}
 
 impl VirtioConsoleConfig {
     pub fn new(cols: u16, rows: u16, max_nr_ports: u32) -> Self {
@@ -174,16 +170,15 @@ impl Console {
 
         while let Some(head) = self.queues[CONTROL_RXQ_INDEX].pop(mem) {
             if let Some(buf) = self.control.queue_pop() {
-                match mem.write(&buf, head.addr) {
-                    Ok(n) => {
-                        if n != buf.len() {
-                            tracing::error!("process_control_rx: partial write");
-                        }
+                match mem.try_write(head.addr, &buf) {
+                    Ok(_) => {
                         raise_irq = true;
-                        tracing::trace!("process_control_rx wrote {n}");
-                        if let Err(e) =
-                            self.queues[CONTROL_RXQ_INDEX].add_used(mem, head.index, n as u32)
-                        {
+                        tracing::trace!("process_control_rx wrote {}", buf.len());
+                        if let Err(e) = self.queues[CONTROL_RXQ_INDEX].add_used(
+                            mem,
+                            head.index,
+                            buf.len() as u32,
+                        ) {
                             error!("failed to add used elements to the queue: {:?}", e);
                         }
                     }
@@ -213,7 +208,7 @@ impl Console {
         while let Some(head) = tx_queue.pop(mem) {
             raise_irq = true;
 
-            let cmd: VirtioConsoleControl = match mem.read_obj_fast(head.addr) {
+            let cmd = match mem.try_read::<VirtioConsoleControl>(head.addr) {
                 Ok(cmd) => cmd,
                 Err(e) => {
                     tracing::error!(
@@ -298,7 +293,7 @@ impl Console {
         raise_irq
     }
 
-    pub fn create_hvc_devices(&self, mem: &GuestMemoryMmap) -> Vec<ConsoleHvcDevice> {
+    pub fn create_hvc_devices(&self, mem: &GuestMemory) -> Vec<ConsoleHvcDevice> {
         self.ports
             .iter()
             .map(|port| ConsoleHvcDevice::new(mem.clone(), port.port_id, port.output.clone()))
@@ -359,7 +354,7 @@ impl VirtioDevice for Console {
     }
 
     fn read_config(&self, offset: u64, mut data: &mut [u8]) {
-        let config_slice = self.config.as_slice();
+        let config_slice = bytemuck::bytes_of(&self.config);
         let config_len = config_slice.len() as u64;
         if offset >= config_len {
             error!("Failed to read config space");
@@ -380,7 +375,7 @@ impl VirtioDevice for Console {
         );
     }
 
-    fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
+    fn activate(&mut self, mem: GuestMemory) -> ActivateResult {
         self.device_state = DeviceState::Activated(mem);
         Ok(())
     }

@@ -3,9 +3,8 @@ use std::borrow::Cow;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::{mem, thread};
+use utils::memory::GuestMemory;
 use utils::Mutex;
-
-use vm_memory::GuestMemoryMmap;
 
 use crate::virtio::console::irq_signaler::IRQSignaler;
 use crate::virtio::console::port_io::{PortInput, PortOutput};
@@ -88,7 +87,7 @@ impl Port {
 
     pub fn start(
         &mut self,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         rx_queue: Queue,
         tx_queue: Queue,
         irq_signaler: IRQSignaler,

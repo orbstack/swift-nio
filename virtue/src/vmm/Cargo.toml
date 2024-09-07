@@ -27,7 +27,6 @@ gpu = []
 crossbeam-channel = "0.5"
 libc = ">=0.2.39"
 tracing = { version = "0.1.40", features = ["release_max_level_info"] }
-vm-memory = { version = ">=0.13", features = ["backend-mmap"] }
 mio = { version = "0.8.11", features = ["os-poll"] }
 
 arch = { path = "../arch" }

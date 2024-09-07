@@ -17,14 +17,12 @@ pub struct ArchMemoryInfo {
 
 impl ArchMemoryInfo {
     pub fn last_addr_excl(&self) -> GuestAddress {
-        GuestAddress(
-            self.ram_regions
-                .iter()
-                .chain(self.dax_regions.iter())
-                .map(|(base, size)| base.raw_value().saturating_add(*size as u64))
-                .max()
-                .unwrap_or(0),
-        )
+        self.ram_regions
+            .iter()
+            .chain(self.dax_regions.iter())
+            .map(|(base, size)| base.map_usize(|v| v.saturating_add(*size)))
+            .max()
+            .unwrap_or(GuestAddress::ZERO)
     }
 }
 
@@ -37,8 +35,7 @@ pub use aarch64::{
     arch_memory_regions, configure_system, get_kernel_start, initrd_load_addr,
     layout::CMDLINE_MAX_SIZE, layout::IRQ_BASE, layout::IRQ_MAX, Error, DAX_SIZE, MMIO_MEM_START,
 };
-use vm_memory::Address;
-use vm_memory::GuestAddress;
+use utils::memory::GuestAddress;
 
 /// Module for x86_64 related functionality.
 #[cfg(target_arch = "x86_64")]
@@ -73,7 +70,7 @@ pub enum DeviceType {
 /// Type for passing information about the initrd in the guest memory.
 pub struct InitrdConfig {
     /// Load address of initrd in guest memory
-    pub address: vm_memory::GuestAddress,
+    pub address: GuestAddress,
     /// Size of initrd in guest memory
     pub size: usize,
 }

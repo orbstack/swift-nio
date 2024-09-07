@@ -4,6 +4,7 @@ use std::num::Wrapping;
 use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::sync::Arc;
+use utils::memory::GuestMemory;
 use utils::Mutex;
 
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
@@ -25,8 +26,6 @@ use super::packet::{
 use super::proxy::{Proxy, ProxyError, ProxyRemoval, ProxyStatus, ProxyUpdate, RecvPkt};
 use utils::epoll::EventSet;
 
-use vm_memory::GuestMemoryMmap;
-
 pub struct UdpProxy {
     pub id: u64,
     cid: u64,
@@ -36,7 +35,7 @@ pub struct UdpProxy {
     pub status: ProxyStatus,
     sendto_addr: Option<SockaddrIn>,
     listening: bool,
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     queue: Arc<Mutex<VirtQueue>>,
     rxq: Arc<Mutex<MuxerRxQ>>,
     rx_cnt: Wrapping<u32>,
@@ -50,7 +49,7 @@ impl UdpProxy {
         id: u64,
         cid: u64,
         peer_port: u32,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         queue: Arc<Mutex<VirtQueue>>,
         rxq: Arc<Mutex<MuxerRxQ>>,
     ) -> Result<Self, ProxyError> {

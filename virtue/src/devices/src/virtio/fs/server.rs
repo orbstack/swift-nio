@@ -10,9 +10,9 @@ use std::io::{self, Read, Write};
 use std::mem::size_of;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use bytemuck::Pod;
 use nix::errno::Errno;
 use num_traits::FromPrimitive;
-use vm_memory::ByteValued;
 
 use super::bindings;
 use super::descriptor_utils::{Reader, Writer};
@@ -580,7 +580,9 @@ impl<F: FileSystem + Sync> Server<F> {
                 });
 
                 match attr_out {
-                    Some(a) => reply_ok(Some(out), Some(a.as_slice()), in_header.unique, w),
+                    Some(a) => {
+                        reply_ok(Some(out), Some(bytemuck::bytes_of(&a)), in_header.unique, w)
+                    }
                     None => reply_ok(Some(out), None, in_header.unique, w),
                 }
             }
@@ -1051,7 +1053,9 @@ impl<F: FileSystem + Sync> Server<F> {
                 });
 
                 match attr_out {
-                    Some(a) => reply_ok(Some(out), Some(a.as_slice()), in_header.unique, w),
+                    Some(a) => {
+                        reply_ok(Some(out), Some(bytemuck::bytes_of(&a)), in_header.unique, w)
+                    }
                     None => reply_ok(Some(out), None, in_header.unique, w),
                 }
             }
@@ -1296,7 +1300,7 @@ impl<F: FileSystem + Sync> Server<F> {
                 // Kind of a hack to write both structs.
                 reply_ok(
                     Some(entry_out),
-                    Some(open_out.as_slice()),
+                    Some(bytemuck::bytes_of(&open_out)),
                     in_header.unique,
                     w,
                 )
@@ -1525,7 +1529,7 @@ impl<F: FileSystem + Sync> Server<F> {
     }
 }
 
-fn reply_ok<T: ByteValued>(
+fn reply_ok<T: Pod>(
     out: Option<T>,
     data: Option<&[u8]>,
     unique: u64,
@@ -1652,7 +1656,7 @@ fn add_dirent(
     }
 }
 
-fn take_object<T: ByteValued>(data: &[u8]) -> Result<(T, &[u8])> {
+fn take_object<T: Pod>(data: &[u8]) -> Result<(T, &[u8])> {
     if data.len() < size_of::<T>() {
         return Err(Error::DecodeMessage(Errno::EINVAL.into()));
     }

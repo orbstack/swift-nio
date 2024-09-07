@@ -1,9 +1,8 @@
 use gruel::ParkSignalChannelExt;
 use std::sync::Arc;
 use std::thread;
+use utils::memory::GuestMemory;
 use utils::qos::{set_thread_qos, QosClass};
-
-use vm_memory::GuestMemoryMmap;
 
 use super::super::{FsError, Queue};
 use super::defs::{HPQ_INDEX, REQ_INDEX};
@@ -19,7 +18,7 @@ pub struct FsWorker {
     intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
 
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     server: Arc<Server<PassthroughFs>>,
 }
 
@@ -30,7 +29,7 @@ impl FsWorker {
         queues: Vec<Queue>,
         intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         server: Arc<Server<PassthroughFs>>,
     ) -> Self {
         Self {

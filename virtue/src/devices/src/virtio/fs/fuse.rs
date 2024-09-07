@@ -6,9 +6,9 @@ use std::mem;
 
 use super::bindings;
 use bitflags::bitflags;
+use bytemuck::{Pod, Zeroable};
 use nix::sys::statvfs::Statvfs;
 use num_derive::FromPrimitive;
-use vm_memory::ByteValued;
 
 /// Version number of this interface.
 pub const KERNEL_VERSION: u32 = 7;
@@ -528,7 +528,7 @@ pub const FUSE_COMPAT_22_INIT_OUT_SIZE: u32 = 24;
 // because they are POD types.
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct Attr {
     pub ino: u64,
     pub size: u64,
@@ -547,7 +547,6 @@ pub struct Attr {
     pub blksize: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for Attr {}
 
 impl From<bindings::stat64> for Attr {
     fn from(st: bindings::stat64) -> Attr {
@@ -576,7 +575,7 @@ impl From<bindings::stat64> for Attr {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct Kstatfs {
     pub blocks: u64,
     pub bfree: u64,
@@ -589,7 +588,6 @@ pub struct Kstatfs {
     pub padding: u32,
     pub spare: [u32; 6],
 }
-unsafe impl ByteValued for Kstatfs {}
 
 #[cfg(target_os = "linux")]
 impl From<bindings::statvfs64> for Kstatfs {
@@ -625,14 +623,13 @@ impl From<Statvfs> for Kstatfs {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct FileLock {
     pub start: u64,
     pub end: u64,
     pub type_: u32,
     pub pid: u32, /* tgid */
 }
-unsafe impl ByteValued for FileLock {}
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, FromPrimitive)]
@@ -699,7 +696,7 @@ pub enum NotifyOpcode {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct EntryOut {
     pub nodeid: u64,      /* Inode ID */
     pub generation: u64,  /* Inode generation: nodeid:gen must be unique for the fs's lifetime */
@@ -709,93 +706,82 @@ pub struct EntryOut {
     pub attr_valid_nsec: u32,
     pub attr: Attr,
 }
-unsafe impl ByteValued for EntryOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct ForgetIn {
     pub nlookup: u64,
 }
-unsafe impl ByteValued for ForgetIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct ForgetOne {
     pub nodeid: u64,
     pub nlookup: u64,
 }
-unsafe impl ByteValued for ForgetOne {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct BatchForgetIn {
     pub count: u32,
     pub dummy: u32,
 }
-unsafe impl ByteValued for BatchForgetIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct GetattrIn {
     pub flags: u32,
     pub dummy: u32,
     pub fh: u64,
 }
-unsafe impl ByteValued for GetattrIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct AttrOut {
     pub attr_valid: u64, /* Cache timeout for the attributes */
     pub attr_valid_nsec: u32,
     pub dummy: u32,
     pub attr: Attr,
 }
-unsafe impl ByteValued for AttrOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct MknodIn {
     pub mode: u32,
     pub rdev: u32,
     pub umask: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for MknodIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct MkdirIn {
     pub mode: u32,
     pub umask: u32,
 }
-unsafe impl ByteValued for MkdirIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct RenameIn {
     pub newdir: u64,
 }
-unsafe impl ByteValued for RenameIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct Rename2In {
     pub newdir: u64,
     pub flags: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for Rename2In {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct LinkIn {
     pub oldnodeid: u64,
 }
-unsafe impl ByteValued for LinkIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct SetattrIn {
     pub valid: u32,
     pub padding: u32,
@@ -814,7 +800,6 @@ pub struct SetattrIn {
     pub gid: u32,
     pub unused5: u32,
 }
-unsafe impl ByteValued for SetattrIn {}
 
 impl From<SetattrIn> for bindings::stat64 {
     #[allow(clippy::useless_conversion)]
@@ -837,54 +822,49 @@ impl From<SetattrIn> for bindings::stat64 {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct OpenIn {
     pub flags: u32,
     pub unused: u32,
 }
-unsafe impl ByteValued for OpenIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct CreateIn {
     pub flags: u32,
     pub mode: u32,
     pub umask: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for CreateIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct OpenOut {
     pub fh: u64,
     pub open_flags: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for OpenOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct ReleaseIn {
     pub fh: u64,
     pub flags: u32,
     pub release_flags: u32,
     pub lock_owner: u64,
 }
-unsafe impl ByteValued for ReleaseIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct FlushIn {
     pub fh: u64,
     pub unused: u32,
     pub padding: u32,
     pub lock_owner: u64,
 }
-unsafe impl ByteValued for FlushIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct ReadIn {
     pub fh: u64,
     pub offset: u64,
@@ -894,10 +874,9 @@ pub struct ReadIn {
     pub flags: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for ReadIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct WriteIn {
     pub fh: u64,
     pub offset: u64,
@@ -907,58 +886,51 @@ pub struct WriteIn {
     pub flags: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for WriteIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct WriteOut {
     pub size: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for WriteOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct StatfsOut {
     pub st: Kstatfs,
 }
-unsafe impl ByteValued for StatfsOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct FsyncIn {
     pub fh: u64,
     pub fsync_flags: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for FsyncIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct SetxattrIn {
     pub size: u32,
     pub flags: u32,
 }
-unsafe impl ByteValued for SetxattrIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct GetxattrIn {
     pub size: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for GetxattrIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct GetxattrOut {
     pub size: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for GetxattrOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct LkIn {
     pub fh: u64,
     pub owner: u64,
@@ -966,43 +938,38 @@ pub struct LkIn {
     pub lk_flags: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for LkIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct LkOut {
     pub lk: FileLock,
 }
-unsafe impl ByteValued for LkOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct AccessIn {
     pub mask: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for AccessIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct InitInCompat {
     pub major: u32,
     pub minor: u32,
     pub max_readahead: u32,
     pub flags: u32,
 }
-unsafe impl ByteValued for InitInCompat {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct InitInExt {
     pub flags2: u32,
     pub unused: [u32; 11],
 }
-unsafe impl ByteValued for InitInExt {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct InitOut {
     pub major: u32,
     pub minor: u32,
@@ -1017,33 +984,29 @@ pub struct InitOut {
     pub flags2: u32,
     pub unused: [u32; 7],
 }
-unsafe impl ByteValued for InitOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct InterruptIn {
     pub unique: u64,
 }
-unsafe impl ByteValued for InterruptIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct BmapIn {
     pub block: u64,
     pub blocksize: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for BmapIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct BmapOut {
     pub block: u64,
 }
-unsafe impl ByteValued for BmapOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct IoctlIn {
     pub fh: u64,
     pub flags: u32,
@@ -1052,53 +1015,47 @@ pub struct IoctlIn {
     pub in_size: u32,
     pub out_size: u32,
 }
-unsafe impl ByteValued for IoctlIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct IoctlIovec {
     pub base: u64,
     pub len: u64,
 }
-unsafe impl ByteValued for IoctlIovec {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct IoctlOut {
     pub result: i32,
     pub flags: u32,
     pub in_iovs: u32,
     pub out_iovs: u32,
 }
-unsafe impl ByteValued for IoctlOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct PollIn {
     pub fh: u64,
     pub kh: u64,
     pub flags: u32,
     pub events: u32,
 }
-unsafe impl ByteValued for PollIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct PollOut {
     pub revents: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for PollOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct NotifyPollWakeupOut {
     pub kh: u64,
 }
-unsafe impl ByteValued for NotifyPollWakeupOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct FallocateIn {
     pub fh: u64,
     pub offset: u64,
@@ -1106,10 +1063,9 @@ pub struct FallocateIn {
     pub mode: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for FallocateIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct InHeader {
     pub len: u32,
     pub opcode: u32,
@@ -1120,19 +1076,17 @@ pub struct InHeader {
     pub pid: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for InHeader {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct OutHeader {
     pub len: u32,
     pub error: i32,
     pub unique: u64,
 }
-unsafe impl ByteValued for OutHeader {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct Dirent {
     pub ino: u64,
     pub off: u64,
@@ -1140,56 +1094,50 @@ pub struct Dirent {
     pub type_: u32,
     // char name[];
 }
-unsafe impl ByteValued for Dirent {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct Direntplus {
     pub entry_out: EntryOut,
     pub dirent: Dirent,
 }
-unsafe impl ByteValued for Direntplus {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct NotifyInvalInodeOut {
     pub ino: u64,
     pub off: i64,
     pub len: i64,
 }
-unsafe impl ByteValued for NotifyInvalInodeOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct NotifyInvalEntryOut {
     pub parent: u64,
     pub namelen: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for NotifyInvalEntryOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct NotifyDeleteOut {
     pub parent: u64,
     pub child: u64,
     pub namelen: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for NotifyDeleteOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct NotifyStoreOut {
     pub nodeid: u64,
     pub offset: u64,
     pub size: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for NotifyStoreOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct Notify_Retrieve_Out {
     pub notify_unique: u64,
     pub nodeid: u64,
@@ -1197,11 +1145,10 @@ pub struct Notify_Retrieve_Out {
     pub size: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for Notify_Retrieve_Out {}
 
 /* Matches the size of fuse_write_in */
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct NotifyRetrieveIn {
     pub dummy1: u64,
     pub offset: u64,
@@ -1210,27 +1157,24 @@ pub struct NotifyRetrieveIn {
     pub dummy3: u64,
     pub dummy4: u64,
 }
-unsafe impl ByteValued for NotifyRetrieveIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct LseekIn {
     pub fh: u64,
     pub offset: u64,
     pub whence: u32,
     pub padding: u32,
 }
-unsafe impl ByteValued for LseekIn {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct LseekOut {
     pub offset: u64,
 }
-unsafe impl ByteValued for LseekOut {}
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct CopyfilerangeIn {
     pub fh_in: u64,
     pub off_in: u64,
@@ -1240,7 +1184,6 @@ pub struct CopyfilerangeIn {
     pub len: u64,
     pub flags: u64,
 }
-unsafe impl ByteValued for CopyfilerangeIn {}
 
 bitflags! {
     #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -1251,7 +1194,7 @@ bitflags! {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct SetupmappingIn {
     pub fh: u64,
     pub foffset: u64,
@@ -1260,31 +1203,25 @@ pub struct SetupmappingIn {
     pub moffset: u64,
 }
 
-unsafe impl ByteValued for SetupmappingIn {}
-
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct RemovemappingIn {
     pub count: u32,
 }
 
-unsafe impl ByteValued for RemovemappingIn {}
-
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct RemovemappingOne {
     pub moffset: u64,
     pub len: u64,
 }
-
-unsafe impl ByteValued for RemovemappingOne {}
 
 /// Extension header
 /// `size`: total size of this extension including this header
 /// `ext_type`: type of extension
 /// This is made compatible with `SecctxHeader` by using type values > `FUSE_MAX_NR_SECCTX`
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct ExtHeader {
     pub size: u32,
     pub ext_type: u32,
@@ -1294,8 +1231,6 @@ pub struct ExtHeader {
 /// Types `0..MAX_NR_SECCTX` are reserved for `SecCtx` extension for backward compatibility.
 const MAX_NR_SECCTX: u32 = 31; // Maximum value of `SecctxHeader::nr_secctx`
 const EXT_SUP_GROUPS: u32 = 32;
-
-unsafe impl ByteValued for ExtHeader {}
 
 /// Extension type
 #[derive(Debug, Copy, Clone)]
@@ -1323,34 +1258,28 @@ impl TryFrom<u32> for ExtType {
 /// will be followed by actual context label.
 /// `Secctx`, name, context
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct Secctx {
     pub size: u32,
     pub padding: u32,
 }
 
-unsafe impl ByteValued for Secctx {}
-
 /// Contains the information about how many `Secctx` structures are being
 /// sent and what's the total size of all security contexts (including
 /// size of `SecctxHeader`).
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct SecctxHeader {
     pub size: u32,
     pub nr_secctx: u32,
 }
 
-unsafe impl ByteValued for SecctxHeader {}
-
 /// Supplementary groups extension
 /// `nr_groups`: number of supplementary groups
 /// `groups`: flexible array of group IDs
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct SuppGroups {
     pub nr_groups: u32,
     // uint32_t	groups[];
 }
-
-unsafe impl ByteValued for SuppGroups {}

@@ -2,24 +2,25 @@ use std::{mem::size_of, sync::Arc};
 
 use anyhow::anyhow;
 use bitfield::bitfield;
-use vm_memory::{Address, ByteValued, GuestAddress, GuestMemoryMmap};
+use bytemuck::{Pod, Zeroable};
+use utils::memory::{GuestAddress, GuestMemory};
 
-use crate::{hvc::HvcDevice, virtio::{
-    descriptor_utils::{Reader, Writer},
-    fs::server::{HostContext, MAX_PAGES},
-}};
-use utils::memory::GuestMemoryExt;
+use crate::{
+    hvc::HvcDevice,
+    virtio::{
+        descriptor_utils::{Reader, Writer},
+        fs::server::{HostContext, MAX_PAGES},
+    },
+};
 
 use super::{macos::passthrough::PassthroughFs, server::Server};
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Pod, Zeroable)]
 struct OrbvmFuseArg {
     addr: GuestAddress,
     len: u64,
 }
-
-unsafe impl ByteValued for OrbvmFuseArg {}
 
 impl From<&OrbvmFuseArg> for (GuestAddress, usize) {
     fn from(desc: &OrbvmFuseArg) -> (GuestAddress, usize) {
@@ -28,7 +29,7 @@ impl From<&OrbvmFuseArg> for (GuestAddress, usize) {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Pod, Zeroable)]
 struct OrbvmArgs {
     in_numargs: u32,
     out_numargs: u32,
@@ -37,8 +38,6 @@ struct OrbvmArgs {
     in_args: [OrbvmFuseArg; 4],
     out_args: [OrbvmFuseArg; 3],
 }
-
-unsafe impl ByteValued for OrbvmArgs {}
 
 bitfield! {
     #[derive(Copy, Clone)]
@@ -50,7 +49,8 @@ bitfield! {
     len, _: 63, 48;
 }
 
-unsafe impl ByteValued for FsDesc {}
+unsafe impl Pod for FsDesc {}
+unsafe impl Zeroable for FsDesc {}
 
 impl From<&FsDesc> for (GuestAddress, usize) {
     fn from(desc: &FsDesc) -> (GuestAddress, usize) {
@@ -59,18 +59,18 @@ impl From<&FsDesc> for (GuestAddress, usize) {
 }
 
 pub struct FsHvcDevice {
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     server: Arc<Server<PassthroughFs>>,
 }
 
 impl FsHvcDevice {
-    pub(crate) fn new(mem: GuestMemoryMmap, server: Arc<Server<PassthroughFs>>) -> Self {
+    pub(crate) fn new(mem: GuestMemory, server: Arc<Server<PassthroughFs>>) -> Self {
         Self { mem, server }
     }
 
     pub fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<i64> {
         // read args struct
-        let args: OrbvmArgs = self.mem.read_obj_fast(args_addr)?;
+        let args = self.mem.try_read::<OrbvmArgs>(args_addr)?;
 
         if args.in_numargs as usize > args.in_args.len() {
             return Err(anyhow!("too many input args"));
@@ -89,7 +89,7 @@ impl FsHvcDevice {
         }
 
         // read pages
-        let pages_addr = args_addr.unchecked_add(size_of::<OrbvmArgs>() as u64);
+        let pages_addr = args_addr.wrapping_add(size_of::<OrbvmArgs>() as u64);
 
         let reader = if args.in_pages == 0 {
             Reader::new_from_iter(
@@ -99,14 +99,16 @@ impl FsHvcDevice {
                     .map(Into::into),
             )?
         } else {
-            let in_pages: &[FsDesc] =
-                unsafe { self.mem.get_obj_slice(pages_addr, args.in_pages as usize)? };
+            let in_pages = self
+                .mem
+                .range_sized::<FsDesc>(pages_addr, args.in_pages as usize)?;
+
             Reader::new_from_iter(
                 &self.mem,
                 args.in_args[..args.in_numargs as usize]
                     .iter()
                     .map(Into::into)
-                    .chain(in_pages.iter().map(Into::into)),
+                    .chain(in_pages.into_iter().map(|v| (&v.read()).into())),
             )?
         };
 
@@ -118,16 +120,16 @@ impl FsHvcDevice {
                     .map(Into::into),
             )?
         } else {
-            let out_pages: &[FsDesc] = unsafe {
-                self.mem
-                    .get_obj_slice(pages_addr, args.out_pages as usize)?
-            };
+            let out_pages = self
+                .mem
+                .range_sized::<FsDesc>(pages_addr, args.out_pages as usize)?;
+
             Writer::new_from_iter(
                 &self.mem,
                 args.out_args[..args.out_numargs as usize]
                     .iter()
                     .map(Into::into)
-                    .chain(out_pages.iter().map(Into::into)),
+                    .chain(out_pages.into_iter().map(|v| (&v.read()).into())),
             )?
         };
 

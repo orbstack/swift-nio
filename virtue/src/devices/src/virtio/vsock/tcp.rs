@@ -1,10 +1,11 @@
+use nix::errno::Errno;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::num::Wrapping;
 use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::sync::Arc;
-use nix::errno::Errno;
+use utils::memory::GuestMemory;
 use utils::Mutex;
 
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
@@ -26,8 +27,6 @@ use super::packet::{
 use super::proxy::{Proxy, ProxyError, ProxyRemoval, ProxyStatus, ProxyUpdate, RecvPkt};
 use utils::epoll::EventSet;
 
-use vm_memory::GuestMemoryMmap;
-
 pub struct TcpProxy {
     id: u64,
     cid: u64,
@@ -37,7 +36,7 @@ pub struct TcpProxy {
     control_port: u32,
     fd: OwnedFd,
     pub status: ProxyStatus,
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     queue: Arc<Mutex<VirtQueue>>,
     rxq: Arc<Mutex<MuxerRxQ>>,
     rx_cnt: Wrapping<u32>,
@@ -57,7 +56,7 @@ impl TcpProxy {
         local_port: u32,
         peer_port: u32,
         control_port: u32,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         queue: Arc<Mutex<VirtQueue>>,
         rxq: Arc<Mutex<MuxerRxQ>>,
     ) -> Result<Self, ProxyError> {
@@ -130,7 +129,7 @@ impl TcpProxy {
         local_port: u32,
         peer_port: u32,
         fd: OwnedFd,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         queue: Arc<Mutex<VirtQueue>>,
         rxq: Arc<Mutex<MuxerRxQ>>,
     ) -> Self {

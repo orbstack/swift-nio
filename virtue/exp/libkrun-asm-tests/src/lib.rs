@@ -103,7 +103,9 @@ pub fn index_guest_sized_constant_1(
     guest: &GuestMemory,
     start: usize,
 ) -> Option<GuestSlice<'_, u8>> {
-    guest.range_sized(GuestAddress(start), 1010).ok()
+    guest
+        .range_sized(GuestAddress::from_usize(start), 1010)
+        .ok()
 }
 
 #[no_mangle]
@@ -136,5 +138,5 @@ pub fn index_guest_sized_runtime(
     start: usize,
     len: usize,
 ) -> Option<GuestSlice<'_, u8>> {
-    guest.range_sized(GuestAddress(start), len).ok()
+    guest.range_sized(GuestAddress::from_usize(start), len).ok()
 }

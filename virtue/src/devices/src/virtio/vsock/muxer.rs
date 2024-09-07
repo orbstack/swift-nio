@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::os::unix::io::RawFd;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use utils::memory::GuestMemory;
 use utils::Mutex;
 
 use super::super::super::legacy::Gic;
@@ -22,7 +23,6 @@ use super::VsockError;
 use crossbeam_channel::{unbounded, Sender};
 use utils::epoll::{ControlOperation, Epoll, EpollEvent, EventSet};
 use utils::eventfd::EventFd;
-use vm_memory::GuestMemoryMmap;
 
 use std::net::Ipv4Addr;
 
@@ -80,7 +80,7 @@ pub fn push_packet(
     rx: MuxerRx,
     rxq_mutex: &Arc<Mutex<MuxerRxQ>>,
     queue_mutex: &Arc<Mutex<VirtQueue>>,
-    mem: &GuestMemoryMmap,
+    mem: &GuestMemory,
 ) {
     let mut queue = queue_mutex.lock().unwrap();
     if let Some(head) = queue.pop(mem) {
@@ -101,7 +101,7 @@ pub struct VsockMuxer {
     cid: u64,
     host_port_map: Option<HashMap<u16, u16>>,
     queue: Option<Arc<Mutex<VirtQueue>>>,
-    mem: Option<GuestMemoryMmap>,
+    mem: Option<GuestMemory>,
     rxq: Arc<Mutex<MuxerRxQ>>,
     epoll: Epoll,
     interrupt_evt: EventFd,
@@ -137,7 +137,7 @@ impl VsockMuxer {
 
     pub(crate) fn activate(
         &mut self,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         queue: Arc<Mutex<VirtQueue>>,
         intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,

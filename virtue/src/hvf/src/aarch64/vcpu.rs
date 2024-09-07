@@ -5,10 +5,9 @@ use anyhow::anyhow;
 use arch::aarch64::layout::DRAM_MEM_START;
 use smallvec::SmallVec;
 use sysx::mach::time::MachAbsoluteTime;
-use utils::extract_bits_64;
 use utils::kernel_symbols::CompactSystemMap;
-use utils::memory::GuestMemoryExt;
-use vm_memory::{GuestAddress, GuestMemoryMmap};
+use utils::memory::{GuestAddress, GuestMemory, OwnedGuestRef};
+use utils::{extract_bits_64, field};
 
 use std::convert::TryInto;
 use std::fmt::Write;
@@ -179,14 +178,14 @@ pub struct HvfVcpu {
     allow_actlr: bool,
     actlr_el1_ptr: *mut u64,
 
-    guest_mem: GuestMemoryMmap,
-    pvgic: Option<*mut PvgicVcpuState>,
+    guest_mem: GuestMemory,
+    pvgic: Option<OwnedGuestRef<PvgicVcpuState>>,
 
     _hvf_vm: Arc<HvfVm>,
 }
 
 impl HvfVcpu {
-    pub fn new(guest_mem: GuestMemoryMmap, hvf_vm: Arc<HvfVm>) -> Result<Self, Error> {
+    pub fn new(guest_mem: GuestMemory, hvf_vm: Arc<HvfVm>) -> Result<Self, Error> {
         let mut vcpuid: hv_vcpu_t = 0;
         let mut vcpu_exit_ptr: *mut hv_vcpu_exit_t = std::ptr::null_mut();
 
@@ -390,11 +389,16 @@ impl HvfVcpu {
         if let Some(pending_irq) = pending_irq {
             self.set_pending_irq(InterruptType::Irq, true)?;
 
-            if let Some(pvgic_ptr) = self.pvgic {
-                let pvgic = unsafe { &mut *pvgic_ptr };
+            if let Some(pvgic) = &self.pvgic {
+                let pvgic = pvgic.ptr();
                 // if there's a pending IRQ, IAR1_EL1 always has a valid value (!= 1023)
-                pvgic.flags = PvgicFlags::IAR1_PENDING;
-                pvgic.pending_iar1_read = pending_irq;
+                pvgic
+                    .get(field!(PvgicVcpuState, flags))
+                    .write(PvgicFlags::IAR1_PENDING);
+
+                pvgic
+                    .get(field!(PvgicVcpuState, pending_iar1_read))
+                    .write(pending_irq);
             }
         }
 
@@ -405,9 +409,13 @@ impl HvfVcpu {
         COUNT_EXIT_TOTAL.count();
 
         if pending_irq.is_some() {
-            if let Some(pvgic_ptr) = self.pvgic {
-                let pvgic = unsafe { &*pvgic_ptr };
-                if pvgic.flags.contains(PvgicFlags::IAR1_READ) {
+            if let Some(pvgic) = &self.pvgic {
+                if pvgic
+                    .ptr()
+                    .get(field!(PvgicVcpuState, flags))
+                    .read()
+                    .contains(PvgicFlags::IAR1_READ)
+                {
                     // we can only return one vmexit here, so tell the emulation loop to trigger IAR1_EL1 read for side effects (dequeue)
                     // usually this will happen when the guest hits EOIR_EL1 write
                     exit_actions.insert(ExitActions::READ_IAR1_EL1);
@@ -594,7 +602,7 @@ impl HvfVcpu {
             ORBVM_IO_REQUEST => {
                 COUNT_EXIT_HVC_VIRTIOFS.count();
                 let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
-                let args_addr = GuestAddress(self.read_raw_reg(hv_reg_t_HV_REG_X2)?);
+                let args_addr = GuestAddress::from_u64(self.read_raw_reg(hv_reg_t_HV_REG_X2)?);
                 return Ok(VcpuExit::HypervisorIoCall { dev_id, args_addr });
             }
 
@@ -605,8 +613,9 @@ impl HvfVcpu {
                     let pvgic_state_addr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                     let ptr = self
                         .guest_mem
-                        .get_obj_ptr_aligned(GuestAddress(pvgic_state_addr))
-                        .map_err(|_| Error::GetGuestMemory)?;
+                        .reference(GuestAddress::from_u64(pvgic_state_addr))
+                        .map_err(|_| Error::GetGuestMemory)?
+                        .as_owned(self.guest_mem.clone());
                     self.pvgic = Some(ptr);
                     Some(0)
                 }
@@ -684,7 +693,7 @@ impl HvfVcpu {
         let high_range = extract_bits_64!(gva, 55, 1);
         if high_range == 0 {
             error!("VA (0x{:x}) range is not supported!", gva);
-            return Ok(GuestAddress(gva));
+            return Ok(GuestAddress::from_u64(gva));
         }
 
         // High range size offset
@@ -696,7 +705,7 @@ impl HvfVcpu {
 
         if tsz == 0 {
             error!("VA translation is not ready!");
-            return Ok(GuestAddress(gva));
+            return Ok(GuestAddress::from_u64(gva));
         }
 
         // VA size is determined by TCR_BL1.T1SZ
@@ -755,9 +764,9 @@ impl HvfVcpu {
             descaddr |= table_offset;
             descaddr &= !7u64;
 
-            let descriptor: u64 = self
+            let descriptor = self
                 .guest_mem
-                .read_obj_fast(GuestAddress(descaddr))
+                .try_read::<u64>(GuestAddress::from_u64(descaddr))
                 .map_err(|_| Error::TranslateVirtualAddress)?;
 
             descaddr = descriptor & descaddrmask;
@@ -794,7 +803,7 @@ impl HvfVcpu {
         descaddr &= !(page_size - 1);
         descaddr |= gva & (page_size - 1);
 
-        Ok(GuestAddress(descaddr))
+        Ok(GuestAddress::from_u64(descaddr))
     }
 
     pub fn dump_debug(&self, csmap_path: Option<&str>) -> anyhow::Result<String> {
@@ -897,7 +906,10 @@ impl HvfVcpu {
             }
 
             // mem[FP+8] = frame's LR
-            let frame_lr: u64 = self.guest_mem.read_obj_fast(self.translate_gva(fp + 8)?)?;
+            let frame_lr = self
+                .guest_mem
+                .try_read::<u64>(self.translate_gva(fp + 8)?)?;
+
             if frame_lr == 0 {
                 // reached end of stack
                 break;
@@ -915,7 +927,7 @@ impl HvfVcpu {
             }
 
             // mem[FP] = link to last FP
-            fp = self.guest_mem.read_obj_fast(self.translate_gva(fp)?)?;
+            fp = self.guest_mem.try_read::<u64>(self.translate_gva(fp)?)?;
         }
 
         Ok(())
@@ -944,8 +956,8 @@ impl HvfVcpu {
                 // if PC would be returning from a hypercall (PC-4 = HVC), we're in host kernel overhead
                 // need to be careful when reading this because of BPF vmalloc_exec regions
                 if let Ok(gpa) = self.translate_gva(pc - ARM64_INSN_SIZE) {
-                    if let Ok(last_insn) = self.guest_mem.read_obj_fast::<u32>(gpa) {
-                        if is_hypercall_insn(last_insn) {
+                    if let Ok(last_insn) = self.guest_mem.reference::<u32>(gpa) {
+                        if is_hypercall_insn(last_insn.read()) {
                             sample.prepend_stack(Frame::new(
                                 FrameCategory::HostKernel,
                                 HostKernelSymbolicator::ADDR_HANDLE_HVC,

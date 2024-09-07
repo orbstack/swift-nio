@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use bitfield::bitfield;
+use bytemuck::{Pod, Zeroable};
 use gruel::{
     define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, ParkSignalChannelExt, ParkWaker,
     SignalChannel,
@@ -10,17 +11,18 @@ use std::io::Write;
 use std::mem::size_of;
 use std::sync::{Arc, Weak};
 use std::thread;
-use sysx::mach::time::MachAbsoluteTime;
+
+use std::time::Instant;
+use utils::memory::{GuestAddress, GuestMemory, GuestSlice};
 use utils::Mutex;
 
-use vm_memory::{ByteValued, GuestAddress, GuestMemoryMmap};
+use sysx::mach::time::MachAbsoluteTime;
 
 use super::super::{ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::{defs, defs::uapi};
 use crate::legacy::Gic;
 use crate::virtio::{DescriptorChain, VmmExitObserver};
 use hvf::{HvfVm, VcpuRegistry};
-use utils::memory::GuestMemoryExt;
 
 define_waker_set! {
     #[derive(Default)]
@@ -62,7 +64,7 @@ define_num_enum! {
 }
 
 // kernel: orbvm_fpr_request
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 struct OrbvmFprRequest {
     type_: u32,
@@ -71,9 +73,9 @@ struct OrbvmFprRequest {
     // only for HVC
     descs_addr: u64,
     nr_descs: u32,
-}
 
-unsafe impl ByteValued for OrbvmFprRequest {}
+    _padding0: u32,
+}
 
 bitfield! {
     #[derive(Copy, Clone)]
@@ -86,7 +88,8 @@ bitfield! {
     present, _: 63;
 }
 
-unsafe impl ByteValued for PrDesc {}
+unsafe impl Pod for PrDesc {}
+unsafe impl Zeroable for PrDesc {}
 
 const FPR_TYPE_FREE: u32 = 0;
 
@@ -97,8 +100,8 @@ pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64
 
 pub(crate) type BalloonSignal = SignalChannel<BalloonSignalMask, BalloonWakers>;
 
-#[derive(Copy, Clone, Debug, Default)]
-#[repr(C, packed)]
+#[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
+#[repr(C)]
 pub struct VirtioBalloonConfig {
     /* Number of pages host wants Guest to give up. */
     num_pages: u32,
@@ -109,9 +112,6 @@ pub struct VirtioBalloonConfig {
     /* Stores PAGE_POISON if page poisoning is in use */
     poison_val: u32,
 }
-
-// Safe because it only has data and has no implicit padding.
-unsafe impl ByteValued for VirtioBalloonConfig {}
 
 pub struct Balloon {
     self_ref: Weak<Mutex<Self>>,
@@ -217,7 +217,7 @@ impl Balloon {
 
     fn process_one_fpr_virtio(
         &self,
-        mem: &GuestMemoryMmap,
+        mem: &GuestMemory,
         head: DescriptorChain,
     ) -> anyhow::Result<()> {
         // first descriptor = request header
@@ -229,7 +229,7 @@ impl Balloon {
             return Err(anyhow!("invalid request header length"));
         }
 
-        let req = mem.read_obj_fast::<OrbvmFprRequest>(req_desc.addr)?;
+        let req = mem.try_read::<OrbvmFprRequest>(req_desc.addr)?;
 
         // second descriptor = prdesc buffer
         let prdescs_desc = iter
@@ -241,12 +241,10 @@ impl Balloon {
 
         // iterate through prdescs
         // guest contract *does* allow us to mutate this
-        let prdescs = unsafe {
-            mem.get_obj_slice_mut(
-                prdescs_desc.addr,
-                prdescs_desc.len as usize / size_of::<PrDesc>(),
-            )?
-        };
+        let prdescs = mem.range_sized(
+            prdescs_desc.addr,
+            prdescs_desc.len as usize / size_of::<PrDesc>(),
+        )?;
 
         // process the request
         self.process_one_fpr(mem, req, prdescs)
@@ -254,20 +252,22 @@ impl Balloon {
 
     fn process_one_fpr(
         &self,
-        mem: &GuestMemoryMmap,
+        mem: &GuestMemory,
         req: OrbvmFprRequest,
-        prdescs: &mut [PrDesc],
+        prdescs: GuestSlice<'_, PrDesc>,
     ) -> anyhow::Result<()> {
         let mut total_bytes = 0;
         let mut num_ranges = 0;
 
         // simplify and merge ranges
         let before = MachAbsoluteTime::now();
-        for_each_merge_range(prdescs, req.guest_page_size as u64, |range| {
+        let mut prdescs = prdescs.into_iter().map(|v| v.read()).collect::<Box<[_]>>();
+
+        for_each_merge_range(&mut prdescs, req.guest_page_size as u64, |range| {
             // bounds check
-            let guest_addr = GuestAddress(range.0);
+            let guest_addr = GuestAddress::from_u64(range.0);
             let size = (range.1 - range.0) as usize;
-            let host_addr = mem.get_slice_fast(guest_addr, size)?.ptr_guard();
+            let host_addr = mem.range_sized::<u8>(guest_addr, size)?;
 
             match req.type_ {
                 FPR_TYPE_FREE => {
@@ -275,7 +275,7 @@ impl Balloon {
                         hvf::memory::free_range(
                             &self.hvf_vm,
                             guest_addr,
-                            host_addr.as_ptr() as *mut _,
+                            host_addr.as_ptr().as_ptr().cast(),
                             size,
                         )?
                     };
@@ -381,7 +381,7 @@ impl VirtioDevice for Balloon {
     }
 
     fn read_config(&self, offset: u64, mut data: &mut [u8]) {
-        let config_slice = self.config.as_slice();
+        let config_slice = bytemuck::bytes_of(&self.config);
         let config_len = config_slice.len() as u64;
         if offset >= config_len {
             error!("Failed to read config space");
@@ -402,7 +402,7 @@ impl VirtioDevice for Balloon {
         );
     }
 
-    fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
+    fn activate(&mut self, mem: GuestMemory) -> ActivateResult {
         self.device_state = DeviceState::Activated(mem);
 
         if self.worker.is_none() {

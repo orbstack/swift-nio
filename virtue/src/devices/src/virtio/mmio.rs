@@ -8,10 +8,10 @@
 use counter::RateCounter;
 use gruel::ArcBoundSignalChannel;
 use std::sync::{Arc, OnceLock};
+use utils::memory::{GuestAddress, GuestMemory};
 use utils::{Mutex, MutexGuard};
 
 use utils::byte_order;
-use vm_memory::{Address, GuestAddress, GuestMemoryMmap};
 
 use super::device_status;
 use super::*;
@@ -64,13 +64,13 @@ struct MmioTransportLocked {
     pub(crate) queue_select: u32,
     pub(crate) device_status: u32,
     pub(crate) config_generation: u32,
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     shm_region_select: u32,
 }
 
 impl MmioTransport {
     /// Constructs a new MMIO transport for the given virtio device.
-    pub fn new(mem: GuestMemoryMmap, device: Arc<Mutex<dyn VirtioDevice>>) -> Self {
+    pub fn new(mem: GuestMemory, device: Arc<Mutex<dyn VirtioDevice>>) -> Self {
         let locked_device = device.lock().unwrap();
         let sync_events = locked_device.sync_events();
         drop(locked_device);
@@ -265,7 +265,7 @@ impl LocklessBusDevice for MmioTransport {
                             (0, !0)
                         } else {
                             match self.locked_device().shm_region() {
-                                Some(region) => (region.guest_addr.raw_value(), region.size as u64),
+                                Some(region) => (region.guest_addr.u64(), region.size as u64),
                                 None => (0, !0),
                             }
                         };
@@ -300,11 +300,11 @@ impl LocklessBusDevice for MmioTransport {
 
     fn write(&self, vcpuid: u64, offset: u64, data: &[u8]) {
         fn hi(v: &mut GuestAddress, x: u32) {
-            *v = (*v & 0xffff_ffff) | (u64::from(x) << 32)
+            *v = v.map(|v| (v & 0xffff_ffff) | (u64::from(x) << 32))
         }
 
         fn lo(v: &mut GuestAddress, x: u32) {
-            *v = (*v & !0xffff_ffff) | u64::from(x)
+            *v = v.map(|v| (v & !0xffff_ffff) | u64::from(x))
         }
 
         match offset {

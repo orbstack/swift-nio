@@ -1,14 +1,12 @@
 // Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use vm_memory::GuestMemoryError;
-
 mod debug;
 pub mod device;
 mod hvc;
 mod worker;
 
-pub use self::device::{Block, CacheType};
+use utils::memory::InvalidGuestAddress;
 
 pub const CONFIG_SPACE_SIZE: usize = 8;
 pub const SECTOR_SHIFT: u8 = 9;
@@ -24,7 +22,7 @@ pub enum Error {
     /// Getting a block's metadata fails for any reason.
     GetFileMetadata(std::io::Error),
     /// Guest gave us bad memory addresses.
-    GuestMemory(GuestMemoryError),
+    GuestMemory(InvalidGuestAddress),
     /// The requested operation would cause a seek beyond disk end.
     InvalidOffset,
     /// Guest gave us a read only descriptor that protocol says to write to.

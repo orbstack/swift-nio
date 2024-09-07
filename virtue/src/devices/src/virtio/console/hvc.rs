@@ -1,36 +1,35 @@
 use std::{io, sync::Arc};
 
 use anyhow::anyhow;
+use bytemuck::{Pod, Zeroable};
 use utils::{
     hypercalls::{HVC_DEVICE_CONSOLE_START, ORBVM_CONSOLE_REQ_WRITE, SMCCC_RET_INVALID_PARAMETER},
-    memory::GuestMemoryExt,
+    memory::{GuestAddress, GuestMemory},
     Mutex,
 };
-use vm_memory::{ByteValued, GuestAddress, GuestMemoryMmap};
 
 use crate::hvc::HvcDevice;
 
 use super::port_io::PortOutput;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 struct OrbvmConsoleReq {
     type_: u16,
+    _pad0: [u16; 3],
     addr: GuestAddress,
     len: u64,
 }
 
-unsafe impl ByteValued for OrbvmConsoleReq {}
-
 pub struct ConsoleHvcDevice {
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     port_id: u32,
     output: Option<Arc<Mutex<Box<dyn PortOutput + Send>>>>,
 }
 
 impl ConsoleHvcDevice {
     pub fn new(
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         port_id: u32,
         output: Option<Arc<Mutex<Box<dyn PortOutput + Send>>>>,
     ) -> Self {
@@ -43,14 +42,14 @@ impl ConsoleHvcDevice {
 
     fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<i64> {
         if let Some(output) = &self.output {
-            let req: OrbvmConsoleReq = self.mem.read_obj_fast(args_addr)?;
+            let req = self.mem.try_read::<OrbvmConsoleReq>(args_addr)?;
             if req.type_ != ORBVM_CONSOLE_REQ_WRITE {
                 return Err(anyhow!("invalid request type"));
             }
 
-            let vs = self.mem.get_slice_fast(req.addr, req.len as usize)?;
+            let vs = self.mem.range_sized(req.addr, req.len as usize)?;
             let mut output = output.lock().unwrap();
-            match output.write_volatile(&vs) {
+            match output.write_volatile(vs) {
                 Ok(_) => {}
 
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {

@@ -10,13 +10,13 @@ use std::any::type_name;
 use super::{ActivateResult, Queue};
 use gruel::ArcBoundSignalChannel;
 use smallbox::SmallBox;
-use vm_memory::{GuestAddress, GuestMemoryMmap};
+use utils::memory::{GuestAddress, GuestMemory};
 
 /// Enum that indicates if a VirtioDevice is inactive or has been activated
 /// and memory attached to it.
 pub enum DeviceState {
     Inactive,
-    Activated(GuestMemoryMmap),
+    Activated(GuestMemory),
 }
 
 #[derive(Clone)]
@@ -111,7 +111,7 @@ pub trait VirtioDevice: Send {
     fn write_config(&mut self, offset: u64, data: &[u8]);
 
     /// Performs the formal activation for a device, which can be verified also with `is_activated`.
-    fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult;
+    fn activate(&mut self, mem: GuestMemory) -> ActivateResult;
 
     /// Checks if the resources of this device are activated.
     fn is_activated(&self) -> bool;

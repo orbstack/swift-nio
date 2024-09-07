@@ -17,8 +17,8 @@ use super::layout::{GTIMER_HYP, GTIMER_PHYS, GTIMER_SEC, GTIMER_VIRT};
 use crate::ArchMemoryInfo;
 use rand::rngs::OsRng;
 use rand::RngCore;
+use utils::memory::{GuestAddress, GuestMemory, InvalidGuestAddress};
 use vm_fdt::{Error as FdtError, FdtWriter};
-use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryError, GuestMemoryMmap};
 
 // This is a value for uniquely identifying the FDT node declaring the interrupt controller.
 const GIC_PHANDLE: u32 = 1;
@@ -61,7 +61,7 @@ pub enum Error {
     /// Failure in calling syscall for terminating this FDT.
     FinishFDTReserveMap(io::Error),
     /// Failure in writing FDT in memory.
-    WriteFDTToMemory(GuestMemoryError),
+    WriteFDTToMemory(InvalidGuestAddress),
 }
 type Result<T> = result::Result<T, Error>;
 
@@ -73,7 +73,7 @@ impl From<FdtError> for Error {
 
 /// Creates the flattened device tree for this aarch64 microVM.
 pub fn create_fdt<T: DeviceInfoForFDT + Clone + Debug>(
-    guest_mem: &GuestMemoryMmap,
+    guest_mem: &GuestMemory,
     arch_memory_info: &ArchMemoryInfo,
     vcpu_mpidr: Vec<u64>,
     cmdline: &str,
@@ -114,9 +114,9 @@ pub fn create_fdt<T: DeviceInfoForFDT + Clone + Debug>(
     let fdt_final = fdt.finish()?;
 
     // Write FDT to memory.
-    let fdt_address = GuestAddress(get_fdt_addr(guest_mem));
+    let fdt_address = GuestAddress::from_u64(get_fdt_addr(guest_mem));
     guest_mem
-        .write_slice(fdt_final.as_slice(), fdt_address)
+        .try_write(fdt_address, fdt_final.as_slice())
         .map_err(Error::WriteFDTToMemory)?;
     Ok(fdt_final)
 }
@@ -176,10 +176,10 @@ fn create_cpu_nodes(fdt: &mut FdtWriter, vcpu_mpidr: &[u64]) -> Result<()> {
 
 fn create_memory_node(
     fdt: &mut FdtWriter,
-    _guest_mem: &GuestMemoryMmap,
+    _guest_mem: &GuestMemory,
     arch_memory_info: &ArchMemoryInfo,
 ) -> Result<()> {
-    let mem_size = arch_memory_info.ram_last_addr_excl.raw_value() - super::layout::DRAM_MEM_START;
+    let mem_size = arch_memory_info.ram_last_addr_excl.u64() - super::layout::DRAM_MEM_START;
     // See https://github.com/torvalds/linux/blob/master/Documentation/devicetree/booting-without-of.txt#L960
     // for an explanation of this.
     let mem_reg_prop = generate_prop64(&[super::layout::DRAM_MEM_START, mem_size]);
@@ -200,10 +200,10 @@ fn create_chosen_node(
     fdt.property_string("bootargs", cmdline)?;
 
     if let Some(initrd_config) = initrd {
-        fdt.property_u64("linux,initrd-start", initrd_config.address.raw_value())?;
+        fdt.property_u64("linux,initrd-start", initrd_config.address.u64())?;
         fdt.property_u64(
             "linux,initrd-end",
-            initrd_config.address.raw_value() + initrd_config.size as u64,
+            initrd_config.address.u64() + initrd_config.size as u64,
         )?;
     }
 

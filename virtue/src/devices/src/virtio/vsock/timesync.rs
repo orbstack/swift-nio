@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 use std::time;
+use utils::memory::GuestMemory;
 use utils::qos::QosClass;
 use utils::Mutex;
 
@@ -10,7 +11,6 @@ use super::defs::uapi;
 use super::packet::VsockPacket;
 
 use utils::eventfd::EventFd;
-use vm_memory::GuestMemoryMmap;
 
 const UPDATE_INTERVAL: u64 = 60 * 1000 * 1000 * 1000;
 const SLEEP_NSECS: u64 = 2 * 1000 * 1000 * 1000;
@@ -18,7 +18,7 @@ const TSYNC_PORT: u32 = 123;
 
 pub struct TimesyncThread {
     cid: u64,
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     queue_mutex: Arc<Mutex<VirtQueue>>,
     interrupt_evt: EventFd,
     intc: Option<Arc<Gic>>,
@@ -28,7 +28,7 @@ pub struct TimesyncThread {
 impl TimesyncThread {
     pub fn new(
         cid: u64,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         queue_mutex: Arc<Mutex<VirtQueue>>,
         interrupt_evt: EventFd,
         intc: Option<Arc<Gic>>,

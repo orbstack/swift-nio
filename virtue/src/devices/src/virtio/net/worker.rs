@@ -15,10 +15,8 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{mem, result};
-use utils::memory::GuestMemoryExt;
-use utils::Mutex;
+use utils::memory::GuestMemory;
 use virtio_bindings::virtio_net::virtio_net_hdr_v1;
-use vm_memory::GuestMemoryMmap;
 
 use gruel::{MioChannelExt, OnceMioWaker, ParkSignalChannelExt};
 
@@ -32,7 +30,7 @@ pub struct NetWorker {
     intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
 
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     backend: Box<dyn NetBackend + Send>,
 
     iovecs_buf: IovecsBuffer,
@@ -46,7 +44,7 @@ impl NetWorker {
         queues: Vec<Queue>,
         intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         cfg_backend: VirtioNetBackend,
         mtu: u16,
     ) -> Self {
@@ -265,7 +263,7 @@ impl NetWorker {
                     break;
                 }
 
-                match self.mem.get_slice_fast(desc.addr, desc.len as usize) {
+                match self.mem.range_sized(desc.addr, desc.len as usize) {
                     Ok(vs) => {
                         iovecs.push(Iovec::from(vs));
                     }
@@ -337,7 +335,7 @@ impl NetWorker {
 
                 let vs = self
                     .mem
-                    .get_slice_fast(descriptor.addr, descriptor.len as usize)
+                    .range_sized(descriptor.addr, descriptor.len as usize)
                     .map_err(FrontendError::GuestMemory)?;
                 iovecs.push(Iovec::from(vs));
                 total_len += vs.len();

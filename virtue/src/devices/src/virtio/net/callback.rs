@@ -1,8 +1,7 @@
 use std::{os::fd::RawFd, sync::Arc};
 
 use nix::errno::Errno;
-use utils::{memory::GuestMemoryExt, Mutex};
-use vm_memory::GuestMemoryMmap;
+use utils::{memory::GuestMemory, Mutex};
 
 use crate::{
     legacy::Gic,
@@ -32,7 +31,7 @@ impl CallbackBackend {
     pub fn new(
         callbacks: Arc<dyn HostNetCallbacks>,
         queue: Queue,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         intc: Option<Arc<Gic>>,
         irq_line: Option<u32>,
     ) -> CallbackBackend {
@@ -90,7 +89,7 @@ impl Drop for CallbackBackend {
 
 struct GuestCallbacksInner {
     guest_rx_queue: Queue,
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     intc: Option<Arc<Gic>>,
     irq_line: Option<u32>,
     iovecs_buf: IovecsBuffer,
@@ -106,7 +105,7 @@ impl GuestCallbacksInner {
         for desc in head.into_iter() {
             let vs = self
                 .mem
-                .get_slice_fast(desc.addr, desc.len as usize)
+                .range_sized(desc.addr, desc.len as usize)
                 .map_err(|_| Errno::EFAULT)?;
             dest_iovs.push(Iovec::from(vs));
         }

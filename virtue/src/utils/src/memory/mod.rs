@@ -1,5 +1,5 @@
 mod guest;
 pub use guest::*;
 
-mod legacy;
-pub use legacy::*;
+mod endian;
+pub use endian::*;

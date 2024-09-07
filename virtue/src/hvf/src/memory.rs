@@ -1,11 +1,11 @@
-use std::{sync::LazyLock, thread::sleep, time::Duration};
+use std::{ptr::NonNull, sync::LazyLock, thread::sleep, time::Duration};
 
 use anyhow::anyhow;
 use crossbeam_channel::Sender;
-use libc::{c_void, madvise, VM_MAKE_TAG};
+use libc::{c_void, madvise, vm_deallocate, VM_MAKE_TAG};
 use mach2::{
     kern_return::KERN_SUCCESS,
-    traps::mach_task_self,
+    traps::{current_task, mach_task_self},
     vm::{mach_vm_deallocate, mach_vm_map, mach_vm_remap},
     vm_inherit::VM_INHERIT_NONE,
     vm_page_size::vm_page_size,
@@ -15,12 +15,16 @@ use mach2::{
 };
 use nix::errno::Errno;
 use sysx::mach::{
+    error::MachError,
     time::{MachAbsoluteDuration, MachAbsoluteTime},
     timer::Timer,
 };
 use tracing::{debug_span, error};
-use utils::{qos::QosClass, Mutex};
-use vm_memory::{Address, GuestAddress, GuestMemoryMmap, GuestRegionMmap, MmapRegion};
+use utils::{
+    memory::{GuestAddress, GuestMemory},
+    qos::QosClass,
+    Mutex,
+};
 
 use crate::{HvfVm, MemoryFlags};
 
@@ -268,42 +272,22 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
     Ok(host_addr as *mut c_void)
 }
 
-pub fn allocate_guest_memory(ranges: &[(GuestAddress, usize)]) -> anyhow::Result<GuestMemoryMmap> {
-    // allocate one big contiguous region on the host, so that there are no holes when
-    // reading from guest memory. each size and base must be page-aligned
-    let total_size = ranges.iter().map(|(_, size)| *size).sum::<usize>();
-    let host_base_addr = vm_allocate(total_size as mach_vm_size_t)?;
-    let mut host_cur_addr = host_base_addr;
-
-    let regions = ranges
-        .iter()
-        .map(|(guest_base, size)| {
-            // these two checks guarantee that host addr is also page-aligned
-            if guest_base.raw_value() % page_size() as u64 != 0 {
-                return Err(anyhow!(
-                    "guest address must be page-aligned: {:x}",
-                    guest_base.raw_value()
-                ));
+pub fn allocate_guest_memory(size: usize) -> anyhow::Result<GuestMemory> {
+    let base = vm_allocate(size as mach_vm_size_t)?;
+    let unreserve = {
+        let base = base as usize; // raw pointers are `!Send`.
+        move || {
+            let res = MachError::result(unsafe { vm_deallocate(current_task(), base, size) });
+            if let Err(err) = res {
+                tracing::error!("Failed to deallocate guest memory: {err}");
             }
-            if size % page_size() != 0 {
-                return Err(anyhow!("size must be page-aligned: {}", size));
-            }
+        }
+    };
 
-            let region = unsafe {
-                MmapRegion::build_raw(
-                    host_cur_addr as *mut u8,
-                    *size,
-                    libc::PROT_READ | libc::PROT_WRITE,
-                    libc::MAP_ANON | libc::MAP_PRIVATE,
-                )
-            }
-            .map_err(|e| anyhow!("create mmap region: {}", e))?;
-            host_cur_addr = unsafe { host_cur_addr.add(*size) };
-
-            GuestRegionMmap::new(region, *guest_base)
-                .map_err(|e| anyhow!("create guest memory region: {}", e))
-        })
-        .collect::<anyhow::Result<Vec<_>>>()?;
-
-    Ok(GuestMemoryMmap::from_regions(regions)?)
+    Ok(unsafe {
+        GuestMemory::new(
+            NonNull::slice_from_raw_parts(NonNull::new_unchecked(base).cast(), size),
+            unreserve,
+        )
+    })
 }

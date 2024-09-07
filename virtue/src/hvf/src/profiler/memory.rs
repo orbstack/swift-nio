@@ -1,8 +1,8 @@
 use std::mem::MaybeUninit;
 
+use bytemuck::Pod;
 use libc::{proc_pid_rusage, rusage_info_v0, RUSAGE_INFO_V0};
 use nix::errno::Errno;
-use vm_memory::ByteValued;
 
 // no real address can be in __PAGEZERO (which is the full 32-bit space)
 pub const MIN_ADDR: u64 = 0x100000000;
@@ -16,7 +16,7 @@ pub const PAC_MASK: u64 = u64::MAX >> 17;
 // another way is to get a list of valid regions, but that's error-prone in case of allocations, and slow
 // invalid addresses should be very rare so exception ports are the ideal solution
 #[inline]
-pub unsafe fn read_host_mem_aligned<T: ByteValued>(addr: u64) -> Option<T> {
+pub unsafe fn read_host_mem_aligned<T: Pod>(addr: u64) -> Option<T> {
     if is_valid_address(addr) {
         Some(unsafe { (addr as *const T).read() })
     } else {

@@ -20,10 +20,10 @@ mod timesync;
 mod udp;
 mod unix;
 
+use utils::memory::InvalidGuestAddress;
+
 pub use self::defs::uapi::VIRTIO_ID_VSOCK as TYPE_VSOCK;
 pub use self::device::Vsock;
-
-use vm_memory::GuestMemoryError;
 
 mod defs {
     /// Device ID used in MMIO device identification.
@@ -121,7 +121,7 @@ pub enum VsockError {
     /// The vsock data/buffer virtio descriptor is expected, but missing.
     BufDescMissing,
     /// Chained GuestMemoryMmap error.
-    GuestMemoryMmap(GuestMemoryError),
+    GuestMemoryMmap(InvalidGuestAddress),
     /// Bounds check failed on guest memory pointer.
     GuestMemoryBounds,
     /// The vsock header descriptor length is too small.

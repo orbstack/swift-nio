@@ -5,6 +5,7 @@ use super::super::Queue;
 use super::device::{BlockDevSignalMask, BlockDevWakers, DiskProperties};
 use super::SECTOR_SIZE;
 
+use bytemuck::{Pod, Zeroable};
 use gruel::{ParkSignalChannelExt, SignalChannel};
 use nix::errno::Errno;
 use std::io::{self, Write};
@@ -12,9 +13,9 @@ use std::mem::size_of;
 use std::result;
 use std::sync::Arc;
 use std::thread;
+use utils::memory::GuestMemory;
 use utils::qos::QosClass;
 use virtio_bindings::virtio_blk::*;
-use vm_memory::{ByteValued, GuestMemoryMmap};
 
 #[derive(Debug)]
 pub enum RequestError {
@@ -35,16 +36,13 @@ pub enum RequestError {
 ///
 /// The header simplifies reading the request from memory as all request follow
 /// the same memory layout.
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Pod, Zeroable)]
 #[repr(C)]
 pub struct RequestHeader {
     request_type: u32,
     _reserved: u32,
     sector: u64,
 }
-
-// Safe because RequestHeader only contains plain data.
-unsafe impl ByteValued for RequestHeader {}
 
 pub struct BlockWorker {
     queue: Queue,
@@ -53,18 +51,17 @@ pub struct BlockWorker {
     irq_line: u32,
     target_vcpu: u64,
 
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     disk: Arc<DiskProperties>,
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Default, Pod, Zeroable)]
 pub struct VirtioBlkDiscardWriteZeroes {
     pub sector: __le64,
     pub num_sectors: __le32,
     pub flags: __le32,
 }
-unsafe impl ByteValued for VirtioBlkDiscardWriteZeroes {}
 
 impl BlockWorker {
     #[allow(clippy::too_many_arguments)]
@@ -74,7 +71,7 @@ impl BlockWorker {
         intc: Option<Arc<Gic>>,
         irq_line: u32,
         target_vcpu: u64,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         disk: Arc<DiskProperties>,
     ) -> Self {
         Self {
@@ -134,7 +131,7 @@ impl BlockWorker {
         }
     }
 
-    fn process_queue(&mut self, mem: &GuestMemoryMmap) {
+    fn process_queue(&mut self, mem: &GuestMemory) {
         while let Some(head) = self.queue.pop(mem) {
             let mut reader = match Reader::new(mem, head.clone()) {
                 Ok(r) => r,

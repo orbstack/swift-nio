@@ -941,9 +941,9 @@ dependencies = [
  "once_cell",
  "scopeguard",
  "smallvec",
+ "sysx",
  "thiserror",
  "tracing",
- "vm-memory",
  "vmm-sys-util",
 ]
 
@@ -958,17 +958,6 @@ name = "virtue"
 version = "0.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9dcc60c0624df774c82a0ef104151231d37da4962957d691c011c852b2473314"
-
-[[package]]
-name = "vm-memory"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c3aba5064cc5f6f7740cddc8dae34d2d9a311cac69b60d942af7f3ab8fc49f4"
-dependencies = [
- "libc",
- "thiserror",
- "winapi",
-]
 
 [[package]]
 name = "vmm-sys-util"

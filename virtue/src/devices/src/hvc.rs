@@ -1,4 +1,4 @@
-use vm_memory::GuestAddress;
+use utils::memory::GuestAddress;
 
 pub trait HvcDevice: Send + Sync {
     fn call_hvc(&self, args_addr: GuestAddress) -> i64;

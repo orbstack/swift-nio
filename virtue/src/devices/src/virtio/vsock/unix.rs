@@ -8,7 +8,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::{collections::HashMap, os::fd::OwnedFd};
-use utils::Mutex;
+use utils::{memory::GuestMemory, Mutex};
 
 use nix::sys::socket::{
     accept, connect, recv, send, setsockopt, shutdown, socket, sockopt, AddressFamily, MsgFlags,
@@ -28,14 +28,12 @@ use super::packet::{TsiAcceptReq, TsiConnectReq, TsiListenReq, TsiSendtoAddr, Vs
 use super::proxy::{Proxy, ProxyError, ProxyStatus, ProxyUpdate};
 use utils::epoll::EventSet;
 
-use vm_memory::GuestMemoryMmap;
-
 pub struct UnixProxy {
     id: u64,
     cid: u64,
     fd: OwnedFd,
     pub status: ProxyStatus,
-    mem: GuestMemoryMmap,
+    mem: GuestMemory,
     queue: Arc<Mutex<VirtQueue>>,
     rxq: Arc<Mutex<MuxerRxQ>>,
     path: PathBuf,
@@ -57,7 +55,7 @@ impl UnixProxy {
         cid: u64,
         local_port: u32,
         control_port: u32,
-        mem: GuestMemoryMmap,
+        mem: GuestMemory,
         queue: Arc<Mutex<VirtQueue>>,
         rxq: Arc<Mutex<MuxerRxQ>>,
         path: PathBuf,

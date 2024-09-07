@@ -17,6 +17,7 @@ use super::dgram::Dgram;
 use super::worker::NetWorker;
 
 use bitflags::bitflags;
+use bytemuck::{Pod, Zeroable};
 use gruel::{
     define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, OnceMioWaker, ParkWaker,
     SignalChannel,
@@ -27,13 +28,12 @@ use std::os::fd::OwnedFd;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use utils::eventfd::{EventFd, EFD_NONBLOCK};
-use utils::Mutex;
+use utils::memory::{GuestMemory, InvalidGuestAddress};
 use virtio_bindings::virtio_net::{
     VIRTIO_NET_F_CSUM, VIRTIO_NET_F_GUEST_CSUM, VIRTIO_NET_F_GUEST_TSO4, VIRTIO_NET_F_GUEST_TSO6,
     VIRTIO_NET_F_HOST_TSO4, VIRTIO_NET_F_HOST_TSO6, VIRTIO_NET_F_MAC, VIRTIO_NET_F_MTU,
 };
 use virtio_bindings::virtio_ring::VIRTIO_RING_F_EVENT_IDX;
-use vm_memory::{ByteValued, GuestMemoryError, GuestMemoryMmap};
 
 const VIRTIO_F_VERSION_1: u32 = 32;
 
@@ -60,7 +60,7 @@ pub(crate) type NetSignalChannel = SignalChannel<NetSignalMask, NetWakers>;
 pub enum FrontendError {
     DescriptorChainTooSmall,
     EmptyQueue,
-    GuestMemory(GuestMemoryError),
+    GuestMemory(InvalidGuestAddress),
     QueueError(QueueError),
     ReadOnlyDescriptor,
     Backend(ReadError),
@@ -79,7 +79,7 @@ pub enum TxError {
     QueueError(QueueError),
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
 #[repr(C, packed)]
 struct VirtioNetConfig {
     mac: [u8; 6],
@@ -87,9 +87,6 @@ struct VirtioNetConfig {
     max_virtqueue_pairs: u16,
     mtu: u16,
 }
-
-// Safe because it only has data and has no implicit padding.
-unsafe impl ByteValued for VirtioNetConfig {}
 
 #[derive(Clone)]
 pub enum VirtioNetBackend {
@@ -101,7 +98,7 @@ impl VirtioNetBackend {
     pub(crate) fn create(
         self,
         queues: &[Queue],
-        mem: &GuestMemoryMmap,
+        mem: &GuestMemory,
         intc: &Option<Arc<Gic>>,
         irq_line: &Option<u32>,
     ) -> Box<dyn NetBackend + Send> {
@@ -236,7 +233,7 @@ impl VirtioDevice for Net {
     }
 
     fn read_config(&self, offset: u64, mut data: &mut [u8]) {
-        let config_slice = self.config.as_slice();
+        let config_slice = bytemuck::bytes_of(&self.config);
         let config_len = config_slice.len() as u64;
         if offset >= config_len {
             error!("Failed to read config space");
@@ -257,7 +254,7 @@ impl VirtioDevice for Net {
         );
     }
 
-    fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
+    fn activate(&mut self, mem: GuestMemory) -> ActivateResult {
         let event_idx: bool = (self.acked_features & (1 << VIRTIO_RING_F_EVENT_IDX)) != 0;
         self.queues[RX_INDEX].set_event_idx(event_idx);
         self.queues[TX_INDEX].set_event_idx(event_idx);

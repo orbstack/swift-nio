@@ -15,10 +15,10 @@ use std::fmt;
 use std::io;
 use std::result;
 use std::sync::Arc;
+use utils::memory::GuestAddress;
 use utils::Mutex;
 
 use rustc_hash::FxHashMap;
-use vm_memory::GuestAddress;
 
 use crate::hvc::HvcDevice;
 

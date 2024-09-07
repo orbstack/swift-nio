@@ -4,9 +4,9 @@ use arch::aarch64::gic::GICDevice;
 use arch::aarch64::{layout, DAX_SIZE};
 use arch::ArchMemoryInfo;
 use bitflags::bitflags;
-use vm_memory::{Address, GuestAddress};
 
 use tracing::{debug, error};
+use utils::memory::GuestAddress;
 
 use crate::aarch64::bindings::hv_vm_create;
 use crate::aarch64::hvf_gic::GicConfig;
@@ -51,7 +51,7 @@ impl HvfVm {
         let config = VmConfig::new();
 
         // how many IPA bits do we need? check highest guest mem address
-        let ipa_bits = (mem_info.last_addr_excl().raw_value() - 1).ilog2() + 1;
+        let ipa_bits = (mem_info.last_addr_excl().u64() - 1).ilog2() + 1;
         debug!("IPA size: {} bits", ipa_bits);
         if ipa_bits > Self::get_default_ipa_size()? {
             // if we need more than default, make sure HW supports it
@@ -130,7 +130,7 @@ impl HvfVm {
         let ret = unsafe {
             polyfill::vm_map(
                 host_start_addr as *mut c_void,
-                guest_start_addr.raw_value(),
+                guest_start_addr.u64(),
                 size,
                 flags.bits(),
             )
@@ -139,7 +139,7 @@ impl HvfVm {
     }
 
     pub fn unmap_memory(&self, guest_start_addr: GuestAddress, size: usize) -> Result<(), Error> {
-        let ret = unsafe { polyfill::vm_unmap(guest_start_addr.raw_value(), size) };
+        let ret = unsafe { polyfill::vm_unmap(guest_start_addr.u64(), size) };
         HvfError::result(ret).map_err(Error::MemoryUnmap)
     }
 
@@ -149,7 +149,7 @@ impl HvfVm {
         size: usize,
         flags: MemoryFlags,
     ) -> Result<(), Error> {
-        let ret = unsafe { polyfill::vm_protect(guest_start_addr.raw_value(), size, flags.bits()) };
+        let ret = unsafe { polyfill::vm_protect(guest_start_addr.u64(), size, flags.bits()) };
         HvfError::result(ret).map_err(Error::MemoryProtect)
     }
 

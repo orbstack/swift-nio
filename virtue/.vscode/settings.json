@@ -3,9 +3,11 @@
     "editor.insertSpaces": true,
     "rust-analyzer.showUnlinkedFileNotification": false,
     "rust-analyzer.linkedProjects": [
+        "Cargo.toml",
         "exp/ui-test-harness/Cargo.toml",
         "exp/libkrun-asm-tests/Cargo.toml",
     ],
+    "rust-analyzer.check.command": "check",
     // libkrun tests have not been updated in a while and spam the error console
     "rust-analyzer.cargo.unsetTest": [
         "arch", "arch_gen", "cpuid", "devices", "hvf", "kernel", "libkrun", "utils", "vmm",

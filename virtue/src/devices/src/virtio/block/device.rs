@@ -6,6 +6,7 @@
 // found in the THIRD-PARTY file.
 
 use bitflags::bitflags;
+use bytemuck::{Pod, Zeroable};
 use filemap::MappedFile;
 use gruel::{
     define_waker_set, ArcBoundSignalChannel, BoundSignalChannel, ParkWaker, SignalChannel,
@@ -27,6 +28,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 use std::time::Duration;
+use utils::memory::GuestMemory;
 use utils::time::{get_time, ClockType};
 use utils::Mutex;
 
@@ -35,7 +37,6 @@ use tracing::{error, warn};
 use virtio_bindings::{
     virtio_blk::*, virtio_config::VIRTIO_F_VERSION_1, virtio_ring::VIRTIO_RING_F_EVENT_IDX,
 };
-use vm_memory::{ByteValued, GuestMemoryMmap};
 
 use super::hvc::BlockHvcDevice;
 use super::worker::BlockWorker;
@@ -292,7 +293,7 @@ impl Drop for DiskProperties {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
 #[repr(C, packed)]
 struct VirtioBlkGeometry {
     cylinders: u16,
@@ -300,7 +301,7 @@ struct VirtioBlkGeometry {
     sectors: u8,
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, Pod, Zeroable)]
 #[repr(C, packed)]
 struct VirtioBlkTopology {
     physical_block_exp: u8,
@@ -309,7 +310,7 @@ struct VirtioBlkTopology {
     opt_io_size: u32,
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
 #[repr(C, packed)]
 struct VirtioBlkConfig {
     capacity: u64,
@@ -329,9 +330,6 @@ struct VirtioBlkConfig {
     write_zeroes_may_unmap: u8,
     unused1: [u8; 3],
 }
-
-// Safe because it only has data and has no implicit padding.
-unsafe impl ByteValued for VirtioBlkConfig {}
 
 /// Virtio device for exposing block level read/write operations on a host file.
 pub struct Block {
@@ -461,7 +459,7 @@ impl Block {
         self.avail_features & (1u64 << VIRTIO_BLK_F_RO) != 0
     }
 
-    pub fn create_hvc_device(&self, mem: GuestMemoryMmap, index: usize) -> BlockHvcDevice {
+    pub fn create_hvc_device(&self, mem: GuestMemory, index: usize) -> BlockHvcDevice {
         BlockHvcDevice::new(mem, self.disk.clone(), index)
     }
 }
@@ -507,7 +505,7 @@ impl VirtioDevice for Block {
     }
 
     fn read_config(&self, offset: u64, mut data: &mut [u8]) {
-        let config_slice = self.config.as_slice();
+        let config_slice = bytemuck::bytes_of(&self.config);
         let config_len = config_slice.len() as u64;
         if offset >= config_len {
             error!("Failed to read config space");
@@ -531,7 +529,7 @@ impl VirtioDevice for Block {
         }
     }
 
-    fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
+    fn activate(&mut self, mem: GuestMemory) -> ActivateResult {
         assert!(matches!(self.device_state, DeviceState::Inactive));
 
         let mut workers = Vec::new();

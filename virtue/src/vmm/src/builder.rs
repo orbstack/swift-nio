@@ -13,6 +13,7 @@ use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
 use std::sync::Arc;
 use utils::gruel::SubscriberMutexAdapter;
+use utils::memory::{GuestAddress, GuestMemory};
 use utils::Mutex;
 use vmm_ids::VmmShutdownSignal;
 
@@ -64,8 +65,6 @@ use utils::eventfd::EventFd;
 use utils::time::TimestampUs;
 #[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
 use vm_memory::mmap::GuestRegionMmap;
-use vm_memory::Bytes;
-use vm_memory::{GuestAddress, GuestMemoryMmap};
 
 #[cfg(feature = "efi")]
 static EDK2_BINARY: &[u8] = include_bytes!("../../../edk2/KRUN_EFI.silent.fd");
@@ -93,8 +92,6 @@ pub enum StartMicrovmError {
     Internal(Error),
     /// The kernel command line is invalid.
     KernelCmdline(String),
-    /// Cannot inject the kernel into the guest memory due to a problem with the bundle.
-    KernelBundle(vm_memory::mmap::MmapRegionError),
     /// Cannot load command line string.
     LoadCommandline(kernel::cmdline::Error),
     /// The start command was issued more than once.
@@ -164,15 +161,6 @@ impl Display for StartMicrovmError {
             InitrdRead(ref err) => write!(f, "Cannot load initrd due to an invalid image: {err}"),
             Internal(ref err) => write!(f, "Internal error while starting VM: {err}"),
             KernelCmdline(ref err) => write!(f, "Invalid kernel command line: {err}"),
-            KernelBundle(ref err) => {
-                let mut err_msg = format!("{err}");
-                err_msg = err_msg.replace('\"', "");
-                write!(
-                    f,
-                    "Cannot inject the kernel into the guest memory due to a problem with the \
-                     bundle. {err_msg}"
-                )
-            }
             LoadCommandline(ref err) => {
                 let mut err_msg = format!("{err}");
                 err_msg = err_msg.replace('\"', "");
@@ -740,15 +728,22 @@ pub fn create_guest_memory(
     mem_size_mib: usize,
     kernel_data: &[u8],
     kernel_load_addr: u64,
-) -> std::result::Result<(GuestMemoryMmap, ArchMemoryInfo), StartMicrovmError> {
+) -> std::result::Result<(GuestMemory, ArchMemoryInfo), StartMicrovmError> {
     let mem_size = mem_size_mib << 20;
     let arch_mem_info = arch::arch_memory_regions(mem_size);
 
-    let guest_mem = hvf::memory::allocate_guest_memory(&arch_mem_info.ram_regions)
+    let max_mem_addr = arch_mem_info
+        .ram_regions
+        .iter()
+        .map(|(addr, sz)| addr.usize() + sz)
+        .max()
+        .unwrap_or(0);
+
+    let guest_mem = hvf::memory::allocate_guest_memory(max_mem_addr)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem
-        .write(kernel_data, GuestAddress(kernel_load_addr))
+        .try_write(GuestAddress(kernel_load_addr), kernel_data)
         .unwrap();
     Ok((guest_mem, arch_mem_info))
 }
@@ -811,7 +806,7 @@ pub(crate) fn setup_vm(
 #[cfg(target_os = "macos")]
 pub(crate) fn setup_vm(
     mem_info: &ArchMemoryInfo,
-    guest_memory: &GuestMemoryMmap,
+    guest_memory: &GuestMemory,
     vcpu_count: u8,
 ) -> std::result::Result<Vm, StartMicrovmError> {
     let mut vm = Vm::new(vcpu_count, mem_info)
@@ -1055,7 +1050,7 @@ fn create_vcpus_aarch64(
 fn create_vcpus_aarch64(
     vm: &mut Vm,
     vcpu_config: &VcpuConfig,
-    guest_mem: &GuestMemoryMmap,
+    guest_mem: &GuestMemory,
     _request_ts: TimestampUs,
     exit_evt: &EventFd,
     intc: Arc<Gic>,

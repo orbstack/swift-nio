@@ -6,10 +6,9 @@ use gruel::{
 use newt::{define_num_enum, NumEnumMap};
 use std::result;
 use std::sync::Arc;
-use utils::Mutex;
+use utils::memory::GuestMemory;
 
 use rand::{rngs::OsRng, RngCore};
-use vm_memory::{Bytes, GuestMemoryMmap};
 
 use super::super::{ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::{defs, defs::uapi};
@@ -106,7 +105,7 @@ impl Rng {
             for desc in head.into_iter() {
                 let mut rand_bytes = vec![0u8; desc.len as usize];
                 OsRng.fill_bytes(&mut rand_bytes);
-                if let Err(e) = mem.write_slice(&rand_bytes[..], desc.addr) {
+                if let Err(e) = mem.try_write(desc.addr, &rand_bytes[..]) {
                     error!("Failed to write slice: {:?}", e);
                     self.queues[RngQueues::Request].go_to_previous_position();
                     break;
@@ -172,7 +171,7 @@ impl VirtioDevice for Rng {
         );
     }
 
-    fn activate(&mut self, mem: GuestMemoryMmap) -> ActivateResult {
+    fn activate(&mut self, mem: GuestMemory) -> ActivateResult {
         self.device_state = DeviceState::Activated(mem);
         Ok(())
     }
