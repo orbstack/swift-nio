@@ -13,14 +13,11 @@ members = [
     "src/sysx",
 ]
 resolver = "2"
-#panic = "abort"
 
 [profile.release]
-#panic = "abort"
 lto = "thin"
-strip = true
-# rustflags = []
-
-[profile.release-with-debug]
-inherits = "release"
+# libkrun builds a static library
+# we strip the final Go binary, so preserve symbols and DWARF here
+strip = false
+# always generate debug info so we can split it (dSYM) for release
 debug = true
