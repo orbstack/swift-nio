@@ -346,7 +346,7 @@ func (n *Network) CreateSconMachineHostBridge(recreate bool) error {
 
 		UUID:       brUuidSconMachine,
 		Ip4Address: netconf.SconHostBridgeIP4,
-		Ip4Mask:    netconf.SconSubnet4Mask,
+		Ip4Mask:    netconf.HostBridgeSubnet4Mask,
 		Ip6Address: netconf.SconHostBridgeIP6,
 
 		HostOverrideMAC: brMacSconHost,

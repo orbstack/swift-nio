@@ -60,11 +60,11 @@ use crate::{
 // da:9b:d0:64:e1:01
 const VNET_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x01];
 const VNET_NEIGHBORS: &[&str] = &[
-    "198.19.248.1",
-    "198.19.248.200",
-    "198.19.248.201",
-    "198.19.248.253",
-    "198.19.248.254",
+    "0.0.250.1",
+    "0.0.250.200",
+    "0.0.250.201",
+    "0.0.250.253",
+    "0.0.250.254",
     // only one IPv6: others are on ext subnet (to avoid NDP)
     "fd07:b51a:cc66:f0::1",
 ];
@@ -73,7 +73,8 @@ const VNET_NEIGHBORS: &[&str] = &[
 // da:9b:d0:54:e1:02 (SconHostBridgeMAC)
 const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x54, 0xe1, 0x02];
 const NAT64_SOURCE_ADDR: &str = "10.183.233.241";
-const NAT64_FWMARK: u32 = 0xe97bd031;
+
+const DOCKER_ROUTE_FWMARK: u32 = 0xe97bd031;
 
 const FS_CORRUPTED_MSG: &str = r#"
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -488,7 +489,7 @@ async fn setup_network() -> anyhow::Result<()> {
 
     // add IP addresses
     ip_addr
-        .add(eth0.header.index, "198.19.248.2".parse()?, 24)
+        .add(eth0.header.index, "0.0.250.2".parse()?, 24)
         .execute()
         .await?;
     // to avoid NDP, use /126 so only ::1 and ::2 are on the network
@@ -501,7 +502,7 @@ async fn setup_network() -> anyhow::Result<()> {
     ip_route
         .add()
         .v4()
-        .gateway("198.19.248.1".parse()?)
+        .gateway("0.0.250.1".parse()?)
         .execute()
         .await?;
     ip_route
@@ -543,7 +544,7 @@ async fn setup_network() -> anyhow::Result<()> {
         .add()
         .v4()
         .table_id(64) // table ID is not exposed to BPF
-        .fw_mark(NAT64_FWMARK)
+        .fw_mark(DOCKER_ROUTE_FWMARK)
         .action(RuleAction::ToTable)
         .execute()
         .await?;
@@ -606,7 +607,7 @@ pub fn sync_clock(allow_backward: bool) -> anyhow::Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_read_timeout(Some(Duration::from_secs(10)))?;
     let host_time =
-        sntpc::simple_get_time("198.19.248.200:123", socket).map_err(InitError::NtpGetTime)?;
+        sntpc::simple_get_time("0.0.250.200:123", socket).map_err(InitError::NtpGetTime)?;
 
     let sec = host_time.sec() as i64;
     let nsec = sntpc::fraction_to_nanoseconds(host_time.sec_fraction()) as i64;

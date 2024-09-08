@@ -60,6 +60,9 @@ var (
 		},
 		Builtin: true,
 		State:   types.ContainerStateRunning,
+		Config: types.MachineConfig{
+			DefaultUsername: "root",
+		},
 	}
 )
 

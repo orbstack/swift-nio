@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
@@ -16,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
+	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/templates"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -23,6 +26,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 // in the future we should add machines using container.IPAddresses() on .orb.local
@@ -52,7 +57,8 @@ const (
 )
 
 var (
-	nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
+	nat64Prefix              = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
+	domainproxySubnet4Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet4Cidr)
 
 	sconHostBridgeIp4 = net.ParseIP(netconf.SconHostBridgeIP4)
 	sconHostBridgeIp6 = net.ParseIP(netconf.SconHostBridgeIP6)
@@ -67,14 +73,22 @@ func mustParseCIDR(s string) *net.IPNet {
 }
 
 type mdnsEntry struct {
+	r *mdnsRegistry
+
+	// should match the one for mdns
+	id string
+
 	// allow *. suffix match? (false for index)
 	IsWildcard bool
 	// show in index?
 	IsHidden bool
 
 	Type MdnsEntryType
+
 	// net.IP more efficient b/c dns is in bytes
-	ips []net.IP
+
+	ip4 net.IP
+	ip6 net.IP
 
 	owningMachine   *Container
 	owningDockerCid string
@@ -108,11 +122,335 @@ const (
 	MdnsEntryStatic
 )
 
+type domainproxyInfo struct {
+	// maps domainproxy ips to container ips. we call container ips values
+	ipMap map[netip.Addr]net.IP
+
+	// maps mdns-ids (concatenation of sorted hosts with ,) to domainproxy ips
+	idMap4     map[string]netip.Addr
+	ipsFull4   bool
+	subnet4    netip.Prefix
+	lowest4    netip.Addr
+	lastAlloc4 netip.Addr
+
+	idMap6     map[string]netip.Addr
+	ipsFull6   bool
+	subnet6    netip.Prefix
+	lowest6    netip.Addr
+	lastAlloc6 netip.Addr
+}
+
+func mustAddrFromSlice(ip net.IP) netip.Addr {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		panic("failed to convert net.IP into netip.Addr")
+	}
+	return addr
+}
+
+func newDomainproxyInfo(subnet netip.Prefix, lowest netip.Addr) domainproxyInfo {
+	return domainproxyInfo{
+		ipMap: make(map[netip.Addr]net.IP),
+
+		idMap4:     make(map[string]netip.Addr),
+		ipsFull4:   false,
+		subnet4:    subnet.Masked(),
+		lowest4:    lowest,
+		lastAlloc4: lowest,
+	}
+}
+
+func (d *domainproxyInfo) setAddr(ip netip.Addr, val net.IP) {
+	if val == nil {
+		d.setAddrFreeable(ip)
+		return
+	}
+
+	if ip.Is4() {
+		nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v : %v }", ip, val))
+	}
+	if ip.Is6() {
+		nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v : %v }", ip, val))
+	}
+
+	d.ipMap[ip] = val
+	logrus.WithFields(logrus.Fields{"ip": ip, "val": val}).Debug("emmie | set addr.")
+}
+
+func (d *domainproxyInfo) setAddrFreeable(ip netip.Addr) {
+	if _, has := d.ipMap[ip]; has {
+		d.ipMap[ip] = nil
+
+		if ip.Is4() {
+			nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v }", ip))
+		}
+		if ip.Is6() {
+			nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v }", ip))
+		}
+
+		logrus.WithField("ip", ip).Debug("emmie | set addr freeable.")
+	}
+}
+
+func (d *domainproxyInfo) setIp(ip net.IP, val net.IP) {
+	d.setAddr(mustAddrFromSlice(ip), val)
+}
+
+func (d *domainproxyInfo) setIpFreeable(ip net.IP) {
+	d.setAddrFreeable(mustAddrFromSlice(ip))
+}
+
+func (d *domainproxyInfo) getAddr(ip netip.Addr) (val net.IP, has bool) {
+	val, has = d.ipMap[ip]
+	return val, has
+}
+
+func (d *domainproxyInfo) getIp(ip net.IP) (val net.IP, has bool) {
+	return d.getAddr(mustAddrFromSlice(ip))
+}
+
+// needs a mutex
+func nextAvailableIp(ipMap map[netip.Addr]net.IP, subnet netip.Prefix, lowest netip.Addr, lastAlloc *netip.Addr, ipsFull *bool) (ip netip.Addr, ok bool) {
+	ip = *lastAlloc
+
+	var freeableIp netip.Addr
+	foundFreeableIp := false
+
+	for {
+		ip = ip.Next()
+
+		// wrap around
+		if !subnet.Contains(ip) {
+			ip = lowest
+		}
+
+		val, has := ipMap[ip]
+		if !has {
+			*lastAlloc = ip
+			return ip, true
+		}
+
+		// freeable ips are zero ips. they can be reclaimed but we're hoping to reuse them for the domain they were used for originally
+		if !foundFreeableIp && val == nil {
+			freeableIp = ip
+			foundFreeableIp = true
+			// we already know that we're not gonna find any free spots. take our freeable and run!
+			if *ipsFull {
+				break
+			}
+		}
+
+		// we wrapped all the way around, we're out of ips
+		if ip == *lastAlloc {
+			*ipsFull = true
+			break
+		}
+	}
+
+	if foundFreeableIp {
+		return freeableIp, true
+	} else {
+		return ip, false
+	}
+}
+
+// needs mutex
+func (d *domainproxyInfo) claimNextAvailableIp4(id string, val net.IP) (ip netip.Addr, ok bool) {
+	if preferredAddr, has := d.idMap4[id]; has {
+		if preferredAddrVal, has := d.getAddr(preferredAddr); has && preferredAddrVal == nil {
+			d.setAddr(preferredAddr, val)
+			// id map already has the right value
+			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("emmie | claimed preferred ip.")
+			return preferredAddr, true
+		} else {
+			logrus.WithField("preferredAddr", preferredAddr).Debug("could not assign preferred ip.")
+		}
+	}
+
+	if nextAddr, ok := nextAvailableIp(d.ipMap, d.subnet4, d.lowest4, &d.lastAlloc4, &d.ipsFull4); ok {
+		d.setAddr(nextAddr, val)
+		d.idMap4[id] = nextAddr
+
+		logrus.WithFields(logrus.Fields{"id": id, "ip": nextAddr, "val": val}).Debug("emmie | claimed available ip.")
+		return nextAddr, true
+	}
+
+	logrus.WithFields(logrus.Fields{"id": id, "val": val}).Debug("emmie | failed to claim an ip")
+	return netip.Addr{}, false
+}
+
+// needs mutex
+func (d *domainproxyInfo) claimNextAvailableIp6(id string, val net.IP) (ip netip.Addr, ok bool) {
+	if preferredAddr, has := d.idMap6[id]; has {
+		if preferredAddrVal, has := d.getAddr(preferredAddr); has && preferredAddrVal == nil {
+			d.setAddr(preferredAddr, val)
+			// id map already has the right value
+			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("emmie | claimed preferred ip.")
+			return preferredAddr, true
+		} else {
+			logrus.WithFields(logrus.Fields{"id": id, "preferredAddr": preferredAddr, "val": val}).Debug("emmie | could not assign preferred ip.")
+		}
+	}
+
+	if nextAddr, ok := nextAvailableIp(d.ipMap, d.subnet6, d.lowest6, &d.lastAlloc6, &d.ipsFull6); ok {
+		d.setAddr(nextAddr, val)
+		d.idMap4[id] = nextAddr
+
+		logrus.WithFields(logrus.Fields{"id": id, "ip": nextAddr, "val": val}).Debug("emmie | claimed available ip.")
+		return nextAddr, true
+	}
+
+	logrus.WithFields(logrus.Fields{"id": id, "val": val}).Debug("emmie | failed to claim an ip")
+	return netip.Addr{}, false
+}
+
+// needs mutex
+func (d *domainproxyInfo) ensureMachineDomainproxyCorrect(id string, machine *Container) (ip4 net.IP, ip6 net.IP) {
+	logrus.WithFields(logrus.Fields{"id": id, "machine": machine}).Debug("emmie | ensure machine domainproxy correct.")
+
+	// prevent us from trying to do stuff with ids that don't make sense
+	if id == "" {
+		return
+	}
+
+	vals, err := machine.GetIPAddrs()
+	if err == nil {
+		for _, val := range vals {
+			if ip4 != nil && val.To4() != nil {
+				continue
+			}
+
+			if ip6 != nil && val.To4() == nil {
+				continue
+			}
+
+			var addr netip.Addr
+			var is4 bool
+			if val.To4() != nil {
+				is4 = true
+				if mapAddr, has := d.idMap4[id]; has {
+					addr = mapAddr
+				}
+			} else {
+				is4 = false
+				if mapAddr, has := d.idMap6[id]; has {
+					addr = mapAddr
+				}
+			}
+
+			if addr != (netip.Addr{}) {
+				if currentVal, has := d.getAddr(addr); has {
+					if is4 {
+						ip4 = addr.AsSlice()
+					} else {
+						ip6 = addr.AsSlice()
+					}
+
+					if !currentVal.Equal(val) {
+						logrus.WithFields(logrus.Fields{"id": id, "machine": machine, "currentVal": currentVal, "val": val}).Debug("emmie | domainproxy entry wrong.")
+						d.setAddr(addr, val)
+					} else {
+						logrus.WithFields(logrus.Fields{"id": id, "machine": machine, "currentVal": currentVal, "val": val}).Debug("emmie | domainproxy all good")
+					}
+					continue
+				}
+			}
+
+			// if we didn't continue, there we didnt have an ip
+			logrus.WithFields(logrus.Fields{"id": id, "machine": machine, "val": val}).Debug("emmie | domainproxy has no corresponding ip.")
+
+			if is4 {
+				if ip, ok := d.claimNextAvailableIp4(id, val); ok {
+					ip4 = ip.AsSlice()
+				}
+			} else {
+				if ip, ok := d.claimNextAvailableIp6(id, val); ok {
+					ip6 = ip.AsSlice()
+				}
+			}
+		}
+	} else {
+		logrus.WithError(err).WithField("name", machine.Name).Debug("failed to get machine IPs for DNS.")
+	}
+
+	return
+}
+
+func setupDomainProxyInterface(mtu int) error {
+	_, domainproxySubnet4, err := net.ParseCIDR(netconf.DomainproxySubnet4Cidr)
+	if err != nil {
+		return err
+	}
+
+	lo, err := netlink.LinkByName("lo")
+	if err != nil {
+		return err
+	}
+
+	route := netlink.Route{LinkIndex: lo.Attrs().Index, Dst: domainproxySubnet4, Type: unix.RTN_LOCAL, Scope: unix.RT_SCOPE_HOST, Table: 255}
+	err = netlink.RouteAdd(&route)
+	if err != nil && errors.Is(err, unix.EEXIST) {
+		logrus.Debug("route already exists, readding it")
+		err = netlink.RouteDel(&route)
+		if err != nil {
+			return err
+		}
+		err = netlink.RouteAdd(&route)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return fmt.Errorf("error adding route: %w", err)
+	}
+
+	//logrus.Debug("creating domainproxy dummy interface and enabling proxy_arp")
+
+	//link := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: netconf.DomainproxyDummyName}}
+	//err := netlink.LinkAdd(link)
+	//if err != nil && errors.Is(err, unix.EEXIST) {
+	//	logrus.Debug("domainproxy dummy already exists, recreating")
+	//	err = netlink.LinkDel(link)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	err = netlink.LinkAdd(link)
+	//} else if err != nil {
+	//	return fmt.Errorf("error adding link: %v", err)
+	//}
+
+	//err = netlink.LinkSetUp(link)
+	//if err != nil {
+	//	return err
+	//}
+
+	// _, domainproxySubnet, err := net.ParseCIDR(netconf.DomainproxySubnet4Cidr)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// route := &netlink.Route{LinkIndex: link.Index, Dst: domainproxySubnet}
+	// netlink.RouteAdd(route)
+	// if err != nil {
+	// 	return err
+	// }
+
+	//err = os.WriteFile("/proc/sys/net/ipv4/conf/"+netconf.DomainproxyDummyName+"/proxy_arp", []byte("1"), 0)
+	//if err != nil {
+	//	return err
+	//}
+
+	return nil
+}
+
 type mdnsRegistry struct {
 	mu syncx.Mutex
 	// we store reversed name to do longest prefix match as longest-suffix
 	// this allows subdomain wildcards and custom domains to work properly
 	tree *radix.Tree
+
+	// this maps container/machine ips to domainproxy ips. the domainproxy ip is what orb.local domains *actually* points to, and lets us do tls interception in an elegant way
+	// it makes sense to not have the tree map straight to domainproxy ips because each container has multiple domains, so it would make  juggling the associations more difficult if, say, one domain ended up pointed elsewhere but not the others
+	domainproxy domainproxyInfo
 
 	server             *mdns.Server
 	cacheFlushDebounce syncx.FuncDebounce
@@ -130,7 +468,11 @@ type mdnsRegistry struct {
 
 func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *mdnsRegistry {
 	r := &mdnsRegistry{
-		tree:           radix.New(),
+		tree: radix.New(),
+		domainproxy: newDomainproxyInfo(domainproxySubnet4Prefix,
+			// reserve an ip for the error page
+			domainproxySubnet4Prefix.Masked().Addr().Next(),
+		),
 		pendingFlushes: make(map[string]struct{}),
 		host:           host,
 		db:             db,
@@ -154,26 +496,25 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 
 	// add initial index record
 	r.tree.Insert(toTreeKey(mdnsIndexDomain+"."), &mdnsEntry{
+		r: r,
+
 		Type:       MdnsEntryStatic,
 		IsWildcard: false,
 		IsHidden:   true, // don't show itself
-		ips: []net.IP{
-			net.ParseIP(netconf.SconWebIndexIP4),
-			net.ParseIP(netconf.SconWebIndexIP6),
-		},
+		ip4:        net.ParseIP(netconf.SconWebIndexIP4),
+		ip6:        net.ParseIP(netconf.SconWebIndexIP6),
 	})
 
 	// add k8s alias
 	k8sIP4 := net.ParseIP(netconf.SconK8sIP4)
 	r.tree.Insert(toTreeKey("k8s.orb.local."), &mdnsEntry{
+		r: r,
+
 		Type:       MdnsEntryStatic,
 		IsWildcard: true,
 		IsHidden:   false,
-		ips: []net.IP{
-			k8sIP4,
-			// for now, use NAT64 until we do IPv6 for k8s
-			mapToNat64(k8sIP4),
-		},
+		ip4:        k8sIP4,
+		ip6:        mapToNat64(k8sIP4),
 	})
 
 	return r
@@ -336,48 +677,57 @@ func (r *mdnsRegistry) StopServer() error {
 	return nil
 }
 
-func (e mdnsEntry) IPs() []net.IP {
-	if e.owningMachine != nil {
-		ips, err := e.owningMachine.GetIPAddrs()
-		if err != nil {
-			logrus.WithError(err).WithField("name", e.owningMachine.Name).Error("failed to get machine IPs for DNS")
-			return nil
-		}
+func (e *mdnsEntry) ensureDnatCorrect() {
+	if e.id == "" {
+		return
+	}
 
-		return ips
-	} else {
-		return e.ips
+	if e.owningMachine != nil {
+		ip4, ip6 := e.r.domainproxy.ensureMachineDomainproxyCorrect(e.id, e.owningMachine)
+		e.ip4 = ip4
+		e.ip6 = ip6
 	}
 }
 
 func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl uint32) []dns.RR {
 	var records []dns.RR
-	ips := e.IPs()
+	e.ensureDnatCorrect()
 
 	// A
 	if includeV4 {
-		for _, ip := range ips {
-			if ip4 := ip.To4(); ip4 != nil {
-				// can't combine check bexcause v4 .To16() works
-				records = append(records, &dns.A{
-					Hdr: dns.RR_Header{
-						Name:   qName,
-						Rrtype: dns.TypeA,
-						Class:  dns.ClassINET | mdnsCacheFlushRrclass,
-						Ttl:    ttl,
-					},
-					A: ip4,
-				})
-			}
+		if e.ip4 != nil {
+			// can't combine check bexcause v4 .To16() works
+			records = append(records, &dns.A{
+				Hdr: dns.RR_Header{
+					Name:   qName,
+					Rrtype: dns.TypeA,
+					Class:  dns.ClassINET | mdnsCacheFlushRrclass,
+					Ttl:    ttl,
+				},
+				A: e.ip4,
+			})
 		}
 	}
 
 	// AAAA
 	if includeV6 {
-		var gotIP6 bool
-		for _, ip := range ips {
-			if ip.To4() == nil {
-				ip6 := ip.To16()
+		if e.ip6 != nil {
+			records = append(records, &dns.AAAA{
+				Hdr: dns.RR_Header{
+					Name:   qName,
+					Rrtype: dns.TypeAAAA,
+					Class:  dns.ClassINET | mdnsCacheFlushRrclass,
+					Ttl:    ttl,
+				},
+				AAAA: e.ip6,
+			})
+		} else {
+			// if we got none, use NAT64 address derived from IPv4
+			// this helps for several reasons:
+			//   - Safari (Network.framework) uses interface scoped-address for v4 mDNS response so it can't connect, but it doesn't do scope for v6
+			//   - scon machine IPv6 isn't going to conflict with anything, unlike IPv4 and Docker bridges
+			//   - we get multi-second delays when returning NSEC for AAAA (due to some unknown changes). returning both is fine
+			if e.ip4 != nil {
 				records = append(records, &dns.AAAA{
 					Hdr: dns.RR_Header{
 						Name:   qName,
@@ -385,34 +735,11 @@ func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl u
 						Class:  dns.ClassINET | mdnsCacheFlushRrclass,
 						Ttl:    ttl,
 					},
-					AAAA: ip6,
+					AAAA: mapToNat64(e.ip4),
 				})
-				gotIP6 = true
 			}
 		}
 
-		// if we got none, use NAT64 address derived from IPv4
-		// this helps for several reasons:
-		//   - Safari (Network.framework) uses interface scoped-address for v4 mDNS response so it can't connect, but it doesn't do scope for v6
-		//   - scon machine IPv6 isn't going to conflict with anything, unlike IPv4 and Docker bridges
-		//   - we get multi-second delays when returning NSEC for AAAA (due to some unknown changes). returning both is fine
-		if !gotIP6 {
-			for _, ip := range ips {
-				if ip4 := ip.To4(); ip4 != nil {
-					ip6 := mapToNat64(ip4)
-
-					records = append(records, &dns.AAAA{
-						Hdr: dns.RR_Header{
-							Name:   qName,
-							Rrtype: dns.TypeAAAA,
-							Class:  dns.ClassINET | mdnsCacheFlushRrclass,
-							Ttl:    ttl,
-						},
-						AAAA: ip6[:],
-					})
-				}
-			}
-		}
 	}
 
 	return records
@@ -560,6 +887,15 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 	return names
 }
 
+func mdnsNamesToMdnsId(dnsNames []dnsName) string {
+	names := make([]string, len(dnsNames))
+	for _, dnsName := range dnsNames {
+		names = append(names, dnsName.Name)
+	}
+	slices.Sort(names)
+	return strings.Join(names, ",")
+}
+
 // string so gofmt doesn't complain about capital
 func validateName(name string) (bool, string) {
 	if !strings.HasSuffix(name, ".local.") {
@@ -581,16 +917,16 @@ func validateName(name string) (bool, string) {
 	return true, ""
 }
 
-func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) []net.IP {
-	ips := make([]net.IP, 0, len(ctr.NetworkSettings.Networks))
+func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) []netip.Addr {
+	ips := make([]netip.Addr, 0, len(ctr.NetworkSettings.Networks))
 	for _, netSettings := range ctr.NetworkSettings.Networks {
 		ip4 := netSettings.IPAddress
-		if ip4 != "" {
-			ips = append(ips, net.ParseIP(ip4))
+		if ip, err := netip.ParseAddr(ip4); err == nil {
+			ips = append(ips, ip)
 		}
 		ip6 := netSettings.GlobalIPv6Address
-		if ip6 != "" {
-			ips = append(ips, net.ParseIP(ip6))
+		if ip, err := netip.ParseAddr(ip6); err == nil {
+			ips = append(ips, ip)
 		}
 	}
 	return ips
@@ -658,20 +994,39 @@ func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) 
 	}
 }
 
-func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.IP {
+func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 	names := r.containerToMdnsNames(ctr, true /*notifyInvalid*/)
-	ips := containerToMdnsIPs(ctr)
-	logrus.WithFields(logrus.Fields{
-		"names": names,
-		"ips":   ips,
-	}).Debug("dns: add container")
-
-	// we still *add* records if empty IPs (i.e. no netns, like k8s pods) to give them immediate NXDOMAIN in case people do $CONTAINER.orb.local, but hide them to avoid cluttering index
-	allHidden := len(ips) == 0
+	mdnsId := mdnsNamesToMdnsId(names)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := time.Now()
+
+	var ip4 net.IP
+	var ip6 net.IP
+	// we're protected by the mdnsRegistry mutex
+	// jank way of getting the first network
+	for _, network := range ctr.NetworkSettings.Networks {
+		if ip, ok := r.domainproxy.claimNextAvailableIp4(mdnsId, net.ParseIP(network.IPAddress)); ok {
+			ip4 = ip.AsSlice()
+		}
+
+		if ip, ok := r.domainproxy.claimNextAvailableIp6(mdnsId, net.ParseIP(network.GlobalIPv6Address)); ok {
+			ip6 = ip.AsSlice()
+		}
+
+		break
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"names": names,
+		"ip4":   ip4,
+		"ip6":   ip6,
+	}).Debug("dns: add container")
+
+	// we still *add* records if empty IPs (i.e. no netns, like k8s pods) to give them immediate NXDOMAIN in case people do $CONTAINER.orb.local, but hide them to avoid cluttering index
+	allHidden := ip4 == nil && ip6 == nil
+
 	for _, name := range names {
 		treeKey := toTreeKey(name.Name)
 		if _, ok := r.tree.Get(treeKey); ok {
@@ -683,11 +1038,18 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 		}
 
 		entry := &mdnsEntry{
+			r: r,
+
+			id: mdnsId,
+
 			Type:       MdnsEntryContainer,
 			IsWildcard: name.Wildcard,
 			// short-ID and aliases are hidden, real names and custom names are not
-			IsHidden:        allHidden || name.Hidden,
-			ips:             ips,
+			IsHidden: allHidden || name.Hidden,
+
+			ip4: ip4,
+			ip6: ip6,
+
 			owningDockerCid: ctr.ID,
 		}
 		r.tree.Insert(treeKey, entry)
@@ -695,16 +1057,22 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) []net.
 		// need to flush any caches? what names were we queried under? (wildcard)
 		r.maybeFlushCacheLocked(now, name.Name)
 	}
-
-	return ips
 }
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	names := r.containerToMdnsNames(ctr, false /*notifyInvalid*/)
+	mdnsId := mdnsNamesToMdnsId(names)
 	logrus.WithField("names", names).Debug("dns: remove container")
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if ip, has := r.domainproxy.idMap4[mdnsId]; has {
+		r.domainproxy.setAddrFreeable(ip)
+	}
+	if ip, has := r.domainproxy.idMap6[mdnsId]; has {
+		r.domainproxy.setAddrFreeable(ip)
+	}
 
 	now := time.Now()
 	for _, name := range names {
@@ -714,7 +1082,7 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 			entry := oldEntry.(*mdnsEntry)
 			if entry.owningDockerCid != ctr.ID {
 				logrus.WithField("name", name).Debug("dns: ignoring non-owner delete")
-				return
+				continue
 			}
 		}
 
@@ -742,12 +1110,22 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	}
 
 	entry := &mdnsEntry{
+		r: r,
+
+		id: name,
+
 		Type:       MdnsEntryMachine,
 		IsWildcard: true,
 		// machines only have one name, but hide docker
 		IsHidden:      c.builtin,
 		owningMachine: c,
+
+		ip4: nil,
+		ip6: nil,
 	}
+
+	entry.ensureDnatCorrect()
+
 	r.tree.Insert(treeKey, entry)
 
 	// need to flush any caches? what names were we queried under? (wildcard)
@@ -760,6 +1138,13 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if ip, has := r.domainproxy.idMap4[name]; has {
+		r.domainproxy.setAddrFreeable(ip)
+	}
+	if ip, has := r.domainproxy.idMap6[name]; has {
+		r.domainproxy.setAddrFreeable(ip)
+	}
 
 	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
 	treeKey := toTreeKey(name)

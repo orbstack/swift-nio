@@ -89,6 +89,12 @@ func (n *Network) Start() error {
 		return err
 	}
 	n.bridge = bridge
+
+	err = setupDomainProxyInterface(mtu)
+	if err != nil {
+		return err
+	}
+
 	// not explicitly necesary for normal use, since host bridge will get added when vmconfig is set
 	// however, if scon restarts, that host bridge will disappear and needs to be readded
 	runOne("refresh host bridge", func() error {

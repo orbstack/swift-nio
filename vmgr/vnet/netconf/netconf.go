@@ -1,7 +1,8 @@
 package netconf
 
+// 0.0.250.0/24
 const (
-	VnetSubnet4       = "198.19.248"
+	VnetSubnet4       = "0.0.250"
 	VnetSubnet4CIDR   = VnetSubnet4 + ".0/24"
 	VnetGatewayIP4    = VnetSubnet4 + ".1"
 	VnetGuestIP4      = VnetSubnet4 + ".2"
@@ -22,10 +23,16 @@ const (
 	VnetHostNatIP6    = VnetSubnet6 + ":fe"
 )
 
+// host bridge is scon subnet + proxdomain subnet
+// 198.19.248.0/23
+const (
+	HostBridgeSubnet4Mask = "255.255.254.0"
+)
+
+// 198.19.249.0/24
 const (
 	SconSubnet4       = "198.19.249"
 	SconSubnet4CIDR   = SconSubnet4 + ".0/24"
-	SconSubnet4Mask   = "255.255.255.0"
 	SconGatewayIP4    = SconSubnet4 + ".1"
 	SconDockerIP4     = SconSubnet4 + ".2"
 	SconK8sIP4        = SconDockerIP4
@@ -50,6 +57,12 @@ const (
 	NAT64SourceIP4   = "10.183.233.241"
 	// /96 prefix + /32 suffix = IPv4 10.183.233.241, mapped
 	NAT64SourceIP6 = NAT64Subnet6 + "0ab7:e9f1"
+)
+
+// 198.19.249.0/24
+const (
+	DomainproxyDummyName   = "domaindummy0"
+	DomainproxySubnet4Cidr = "198.19.248.0/24"
 )
 
 // static ARP/neighbors to save CPU

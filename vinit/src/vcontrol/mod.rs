@@ -43,7 +43,8 @@ pub async fn server_main(disk_manager: Arc<Mutex<DiskManager>>, action_tx: Sende
         );
 
     // 100.115.92.2:103
-    let addr = SocketAddr::from(([198, 19, 248, 2], 103));
+    // 0.0.250.2
+    let addr = SocketAddr::from(([0, 0, 250, 2], 103));
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
