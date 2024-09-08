@@ -249,6 +249,7 @@ impl GuestMemory {
         &self,
         addr: GuestAddress,
     ) -> Result<GuestRef<'_, T>, InvalidGuestAddress> {
+        // FIXME: Might be unsound for big structures!
         let max_addr = GuestAddress::from_usize(self.len() - mem::size_of::<T>());
 
         if addr <= max_addr {

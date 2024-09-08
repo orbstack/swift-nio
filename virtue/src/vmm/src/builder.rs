@@ -812,7 +812,7 @@ pub(crate) fn setup_vm(
     let mut vm = Vm::new(vcpu_count, mem_info)
         .map_err(Error::Vm)
         .map_err(StartMicrovmError::Internal)?;
-    vm.memory_init(guest_memory)
+    vm.memory_init(guest_memory, &mem_info.ram_regions)
         .map_err(Error::Vm)
         .map_err(StartMicrovmError::Internal)?;
     Ok(vm)

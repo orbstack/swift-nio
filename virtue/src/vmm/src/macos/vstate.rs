@@ -219,16 +219,23 @@ impl Vm {
     }
 
     /// Initializes the guest memory.
-    pub fn memory_init(&mut self, guest_mem: &GuestMemory) -> Result<()> {
-        unsafe {
-            self.hvf_vm
-                .map_memory(
-                    guest_mem.as_ptr().as_ptr().cast::<u8>(),
-                    GuestAddress::ZERO, // (start addr)
-                    guest_mem.len(),
-                    MemoryFlags::RWX,
-                )
-                .map_err(Error::SetUserMemoryRegion)?;
+    pub fn memory_init(
+        &mut self,
+        guest_mem: &GuestMemory,
+        regions: &[(GuestAddress, usize)],
+    ) -> Result<()> {
+        for &(base, len) in regions {
+            let guest_slice = guest_mem.range_sized::<u8>(base, len).unwrap();
+            unsafe {
+                self.hvf_vm
+                    .map_memory(
+                        guest_slice.as_ptr().cast::<u8>().as_ptr(),
+                        base,
+                        len,
+                        MemoryFlags::RWX,
+                    )
+                    .map_err(Error::SetUserMemoryRegion)?;
+            }
         }
 
         Ok(())
