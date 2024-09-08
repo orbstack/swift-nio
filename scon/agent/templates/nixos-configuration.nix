@@ -15,7 +15,7 @@
       ./orbstack.nix
     ];
 
-  users.users.{{.Username}} = {
+  users.users.{{.UsernameAttr}} = {
     uid = {{.UID}};{{if .Password}}
     hashedPassword = "{{.Password}}";{{end}}
     extraGroups = [ "wheel" ];

@@ -33,6 +33,7 @@ func configureSystemNixos(args InitialSetupArgs) error {
 
 	type configurationTemplateData struct {
 		Username     string
+		UsernameAttr string
 		Password     string
 		NoPassword   bool
 		Timezone     string
@@ -41,9 +42,9 @@ func configureSystemNixos(args InitialSetupArgs) error {
 		UID          int
 	}
 
-	username := args.Username
-	if !identifier.MatchString(username) {
-		username = `"` + args.Username + `"`
+	usernameAttr := args.Username
+	if !identifier.MatchString(usernameAttr) {
+		usernameAttr = `"` + args.Username + `"`
 	}
 
 	password := ""
@@ -58,7 +59,8 @@ func configureSystemNixos(args InitialSetupArgs) error {
 
 	var configuration bytes.Buffer
 	err = templates.NixOSConfiguration.Execute(&configuration, configurationTemplateData{
-		Username:     username,
+		Username:     args.Username,
+		UsernameAttr: usernameAttr,
 		Password:     password,
 		NoPassword:   password == "",
 		Timezone:     args.Timezone,
