@@ -186,7 +186,9 @@ impl GuestMemory {
     ///
     /// For this API to be sound...
     ///
-    /// - `reserved` must be valid for reads and writes for the duration of this object's existence.
+    /// - `reserved` must be reserved for the duration of this object's existence. It need *not* be
+    ///   readable nor writable.
+    ///
     /// - `reserved` must not be larger than `isize::MAX` in size.
     ///
     pub unsafe fn new(reserved: NonNull<[u8]>, unreserve: impl 'static + Send + FnOnce()) -> Self {

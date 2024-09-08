@@ -13,6 +13,7 @@ derive-where = "1.2.7"
 gruel = { version = "0.1.0", path = "../gruel" }
 libc = ">=0.2.85"
 mach2 = "0.4.2"
+memchr = "2.7.4"
 memmage = { version = "0.1.0", path = "../memmage" }
 mio = "0.8.11"
 nix = "0.28.0"
@@ -23,3 +24,6 @@ smallvec = "1.13.2"
 thiserror = "1.0.63"
 tracing = { version = "0.1.40", features = ["release_max_level_info"] }
 vmm-sys-util = ">=0.11"
+
+[build-dependencies]
+cc = "1.1.18"
