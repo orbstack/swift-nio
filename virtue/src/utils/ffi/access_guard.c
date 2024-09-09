@@ -25,16 +25,31 @@ typedef struct guarded_region {
 } guarded_region_t;
 
 typedef struct global_state {
+    // Lock taken by writers to `global_state` (i.e. `register` and `unregister`).
+    os_unfair_lock lock;
+
+    // Whether the `rcu` has been initialized and the signal handler has been installed.
+    bool is_init;
+
+    // An `rcu` controlling updates to the guarded region list.
     rcu_t *rcu;
+
+    // The head off the guarded region linked list.
     guarded_region_t * _Atomic head;
 } global_state_t;
 
 typedef struct local_state {
+    // The number of abort-absorbing scopes.
     volatile size_t scopes;
+
+    // Whether an error has occurred since the last call to `check_for_errors`.
     volatile bool had_error;
 } local_state_t;
 
-static global_state_t orb_access_guard_state_global;
+static global_state_t orb_access_guard_state_global = {
+    .lock = OS_UNFAIR_LOCK_INIT
+};
+
 static __thread local_state_t orb_access_guard_state_tls;
 
 static inline global_state_t *state_global() {
@@ -47,12 +62,19 @@ static inline local_state_t *state_tls() {
 
 // === Public API === //
 
-void orb_access_guard_init_global_state() {
-    MACH_CHECK_FATAL(rcu_create(&state_global()->rcu));
-}
-
-void orb_access_guard_register_guarded_region_locked(size_t base, size_t len, char *abort_msg_owned) {
+void orb_access_guard_register_guarded_region(size_t base, size_t len, char *abort_msg_owned) {
     global_state_t *state = state_global();
+    os_unfair_lock_lock(&state->lock);
+
+    // Ensure that the subsystem is initialized.
+    if (!state->is_init) {
+        // Initialize the rest of the structure.
+        state->is_init = true;
+        MACH_CHECK_FATAL(rcu_create(&state_global()->rcu));
+
+        // Install the signal handler!
+        // TODO
+    }
 
     // Push the region to the front of the list.
     guarded_region_t *region = calloc(sizeof(guarded_region_t), 1);
@@ -71,10 +93,13 @@ void orb_access_guard_register_guarded_region_locked(size_t base, size_t len, ch
     // compiler barrier to ensure that this publish doesn't happen after we perform a potentially
     // faulting guarded memory access.
     atomic_signal_fence(memory_order_seq_cst);
+
+    os_unfair_lock_unlock(&state->lock);
 }
 
-void orb_access_guard_unregister_guarded_region_locked(size_t base) {
+void orb_access_guard_unregister_guarded_region(size_t base) {
     global_state_t *state = state_global();
+    os_unfair_lock_lock(&state->lock);
 
     // Atomically remove the entry from the list.
     guarded_region_t *region = atomic_load_explicit(&state->head, memory_order_relaxed);
@@ -97,6 +122,8 @@ void orb_access_guard_unregister_guarded_region_locked(size_t base) {
     // Wait for all readers to forget about `region` before freeing it.
     rcu_wait_for_forgotten(state->rcu);
     free(region);
+
+    os_unfair_lock_unlock(&state->lock);
 }
 
 void orb_access_guard_start_catch() {

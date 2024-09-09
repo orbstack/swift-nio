@@ -1,12 +1,9 @@
 #![allow(clippy::missing_safety_doc)]
 
-use std::sync::Once;
-
 use crate::ffi::c_str::malloc_str;
 
 // Implemented in `utils/ffi/access_guard.c`.
 extern "C" {
-    fn orb_access_guard_init_global_state();
 
     fn orb_access_guard_register_guarded_region(
         base: usize,
@@ -23,14 +20,6 @@ extern "C" {
     fn orb_access_guard_check_for_errors() -> bool;
 }
 
-fn init_access_guard() {
-    static INIT: Once = Once::new();
-
-    INIT.call_once(|| {
-        unsafe { orb_access_guard_init_global_state() };
-    });
-}
-
 #[derive(Debug)]
 pub struct GuardedRegion {
     base: usize,
@@ -38,7 +27,6 @@ pub struct GuardedRegion {
 
 impl GuardedRegion {
     pub unsafe fn new(base: *const u8, len: usize, abort_msg: &str) -> Self {
-        init_access_guard();
         orb_access_guard_register_guarded_region(base as usize, len, malloc_str(abort_msg));
 
         Self {
