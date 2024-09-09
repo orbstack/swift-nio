@@ -1,16 +1,20 @@
 #![allow(clippy::missing_safety_doc)]
 
+use std::sync::Once;
+
 use crate::ffi::c_str::malloc_str;
 
 // Implemented in `utils/ffi/access_guard.c`.
 extern "C" {
+    fn orb_access_guard_init_global_state();
+
     fn orb_access_guard_register_guarded_region(
-        base: *const libc::c_void,
+        base: usize,
         len: usize,
         abort_msg: *const libc::c_char,
-    ) -> usize;
+    );
 
-    fn orb_access_guard_unregister_guarded_region(handle: usize);
+    fn orb_access_guard_unregister_guarded_region(base: usize);
 
     fn orb_access_guard_start_catch();
 
@@ -19,27 +23,33 @@ extern "C" {
     fn orb_access_guard_check_for_errors() -> bool;
 }
 
+fn init_access_guard() {
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| {
+        unsafe { orb_access_guard_init_global_state() };
+    });
+}
+
 #[derive(Debug)]
 pub struct GuardedRegion {
-    handle: usize,
+    base: usize,
 }
 
 impl GuardedRegion {
     pub unsafe fn new(base: *const u8, len: usize, abort_msg: &str) -> Self {
-        let handle = orb_access_guard_register_guarded_region(
-            base as *const libc::c_void,
-            len,
-            malloc_str(abort_msg),
-        );
-        Self { handle }
+        init_access_guard();
+        orb_access_guard_register_guarded_region(base as usize, len, malloc_str(abort_msg));
+
+        Self {
+            base: base as usize,
+        }
     }
 }
 
 impl Drop for GuardedRegion {
     fn drop(&mut self) {
-        unsafe {
-            orb_access_guard_unregister_guarded_region(self.handle);
-        }
+        unsafe { orb_access_guard_unregister_guarded_region(self.base) };
     }
 }
 
