@@ -498,7 +498,7 @@ macro_rules! c_enum {
         $item_vis:vis enum $item_name:ident($prim:ty) {
             $(
                 $([$variant_attr:meta])*
-                $variant_name:ident = $variant_val:literal
+                $variant_name:ident = $variant_val:expr
             ),*$(,)?
         }
     )*) => {$(
@@ -518,8 +518,14 @@ macro_rules! c_enum {
             ];
 
             pub fn try_parse(value: $prim) -> ::core::option::Option<Self> {
+                mod __values {
+                    use super::*;
+
+                    $(pub const $variant_name: $prim = $variant_val;)*
+                }
+
                 match value {
-                    $($variant_val => ::core::option::Option::Some(Self::$variant_name),)*
+                    $(__values::$variant_name => ::core::option::Option::Some(Self::$variant_name),)*
                     _ => ::core::option::Option::None,
                 }
             }

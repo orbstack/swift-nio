@@ -286,35 +286,45 @@ pub struct SGI {
 
 // === System Registers === //
 
+// sysreg encoding in ISR_EL2 masked + shifted format
+const fn sysreg(op0: u8, op1: u8, crn: u8, crm: u8, op2: u8) -> u64 {
+    // ARM DDI 0487K.a: Op0, Op2, Op1, CRn, Rt (src/dst GP reg), CRm, [1:0] direction
+    (op0 as u64) << 20
+        | (op2 as u64) << 17
+        | (op1 as u64) << 14
+        | (crn as u64) << 10
+        | (crm as u64) << 1
+}
+
 crate::c_enum! {
     #[derive(Debug, Copy, Clone, Eq, PartialEq)]
     #[allow(non_camel_case_types)]
     pub enum GicSysReg(u64) {
-        ICC_AP0R0_EL1 = 0x383010,
-        ICC_AP0R1_EL1 = 0x3A3010,
-        ICC_AP0R2_EL1 = 0x3C3010,
-        ICC_AP0R3_EL1 = 0x3E3010,
-        ICC_AP1R0_EL1 = 0x303012,
-        ICC_AP1R1_EL1 = 0x323012,
-        ICC_AP1R2_EL1 = 0x343012,
-        ICC_AP1R3_EL1 = 0x363012,
-        ICC_ASGI1R_EL1 = 0x3C3016,
-        ICC_BPR0_EL1 = 0x363010,
-        ICC_BPR1_EL1 = 0x363018,
-        ICC_CTLR_EL1 = 0x383018,
-        ICC_DIR_EL1 = 0x323016,
-        ICC_EOIR0_EL1 = 0x323010,
-        ICC_EOIR1_EL1 = 0x323018,
-        ICC_HPPIR0_EL1 = 0x343010,
-        ICC_HPPIR1_EL1 = 0x343018,
-        ICC_IAR0_EL1 = 0x303010,
-        ICC_IAR1_EL1 = 0x303018,
-        ICC_IGRPEN0_EL1 = 0x3C3018,
-        ICC_IGRPEN1_EL1 = 0x3E3018,
-        ICC_PMR_EL1 = 0x30100C,
-        ICC_RPR_EL1 = 0x363016,
-        ICC_SGI0R_EL1 = 0x3E3016,
-        ICC_SGI1R_EL1 = 0x3A3016,
-        ICC_SRE_EL1 = 0x3A3018,
+        ICC_AP0R0_EL1 = sysreg(3, 0, 12, 8, 4),
+        ICC_AP0R1_EL1 = sysreg(3, 0, 12, 8, 4 | 1),
+        ICC_AP0R2_EL1 = sysreg(3, 0, 12, 8, 4 | 2),
+        ICC_AP0R3_EL1 = sysreg(3, 0, 12, 8, 4 | 3),
+        ICC_AP1R0_EL1 = sysreg(3, 0, 12, 9, 0),
+        ICC_AP1R1_EL1 = sysreg(3, 0, 12, 9, 1),
+        ICC_AP1R2_EL1 = sysreg(3, 0, 12, 9, 2),
+        ICC_AP1R3_EL1 = sysreg(3, 0, 12, 9, 3),
+        ICC_ASGI1R_EL1 = sysreg(3, 0, 12, 11, 6),
+        ICC_BPR0_EL1 = sysreg(3, 0, 12, 8, 3),
+        ICC_BPR1_EL1 = sysreg(3, 0, 12, 12, 3),
+        ICC_CTLR_EL1 = sysreg(3, 0, 12, 12, 4),
+        ICC_DIR_EL1 = sysreg(3, 0, 12, 11, 1),
+        ICC_EOIR0_EL1 = sysreg(3, 0, 12, 8, 1),
+        ICC_EOIR1_EL1 = sysreg(3, 0, 12, 12, 1),
+        ICC_HPPIR0_EL1 = sysreg(3, 0, 12, 8, 2),
+        ICC_HPPIR1_EL1 = sysreg(3, 0, 12, 12, 2),
+        ICC_IAR0_EL1 = sysreg(3, 0, 12, 8, 0),
+        ICC_IAR1_EL1 = sysreg(3, 0, 12, 12, 0),
+        ICC_IGRPEN0_EL1 = sysreg(3, 0, 12, 12, 6),
+        ICC_IGRPEN1_EL1 = sysreg(3, 0, 12, 12, 7),
+        ICC_PMR_EL1 = sysreg(3, 0, 4, 6, 0),
+        ICC_RPR_EL1 = sysreg(3, 0, 12, 11, 3),
+        ICC_SGI0R_EL1 = sysreg(3, 0, 12, 11, 7),
+        ICC_SGI1R_EL1 = sysreg(3, 0, 12, 11, 5),
+        ICC_SRE_EL1 = sysreg(3, 0, 12, 12, 5),
     }
 }
