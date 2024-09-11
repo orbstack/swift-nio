@@ -11,7 +11,7 @@ members = [
     "src/memmage",
     "src/newt",
     "src/sysx",
-    "src/vmm-ids",
+    "src/vmm-ids", "src/sigstack",
 ]
 exclude = ["exp"]
 
