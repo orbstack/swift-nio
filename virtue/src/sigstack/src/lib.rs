@@ -2,7 +2,7 @@
 
 use std::{io, mem, ptr, sync::Mutex};
 
-pub type SignalCallback = extern "C" fn(
+pub type SignalCallback = unsafe extern "C" fn(
     signum: i32,
     info: *mut libc::siginfo_t,
     uap: *mut libc::c_void,

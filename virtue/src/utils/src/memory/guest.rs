@@ -195,6 +195,11 @@ impl GuestMemory {
         let guard = scopeguard::guard((), move |()| unreserve());
         Self(Arc::new(GuestMemoryInner {
             reserved,
+            _guarded_region: GuardedRegion::new(
+                reserved.as_ptr().cast(),
+                reserved.len(),
+                "invalid guest address",
+            ),
             _unreserve_guard: Box::new(guard),
         }))
     }
@@ -380,6 +385,7 @@ impl GuestMemory {
 
 struct GuestMemoryInner {
     reserved: NonNull<[u8]>,
+    _guarded_region: GuardedRegion,
     _unreserve_guard: Box<dyn Any + Send + Sync>,
 }
 
@@ -1039,6 +1045,8 @@ macro_rules! field {
 }
 
 pub use field;
+
+use super::GuardedRegion;
 
 // === AtomicPrimitive === //
 

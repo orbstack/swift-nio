@@ -28,9 +28,6 @@ typedef struct global_state {
     // Lock taken by writers to `global_state` (i.e. `register` and `unregister`).
     os_unfair_lock lock;
 
-    // Whether the `rcu` has been initialized and the signal handler has been installed.
-    bool is_init;
-
     // An `rcu` controlling updates to the guarded region list.
     rcu_t *rcu;
 
@@ -60,21 +57,22 @@ static inline local_state_t *state_tls() {
     return &orb_access_guard_state_tls;
 }
 
+// === Signal Handler === //
+
+bool orb_access_guard_signal_handler(int signum, siginfo_t *info, void *uap, void *userdata) {
+    printf("That was a major mistake you just committed!\n");
+    return false;
+}
+
 // === Public API === //
+
+void orb_access_guard_init() {
+    MACH_CHECK_FATAL(rcu_create(&state_global()->rcu));
+}
 
 void orb_access_guard_register_guarded_region(size_t base, size_t len, char *abort_msg_owned) {
     global_state_t *state = state_global();
     os_unfair_lock_lock(&state->lock);
-
-    // Ensure that the subsystem is initialized.
-    if (!state->is_init) {
-        // Initialize the rest of the structure.
-        state->is_init = true;
-        MACH_CHECK_FATAL(rcu_create(&state_global()->rcu));
-
-        // Install the signal handler!
-        // TODO
-    }
 
     // Push the region to the front of the list.
     guarded_region_t *region = calloc(sizeof(guarded_region_t), 1);
@@ -121,6 +119,7 @@ void orb_access_guard_unregister_guarded_region(size_t base) {
 
     // Wait for all readers to forget about `region` before freeing it.
     rcu_wait_for_forgotten(state->rcu);
+    free(region->abort_msg);
     free(region);
 
     os_unfair_lock_unlock(&state->lock);
