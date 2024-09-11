@@ -585,6 +585,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			"--tls-san", "k8s.orb.local",
 			"--tls-san", "docker.orb.local",
 			"--write-kubeconfig", "/run/kubeconfig.yml",
+			"--kubelet-arg", "--allowed-unsafe-sysctls=net.*",
 		}
 		if conf.Debug() {
 			k8sCmd = append(k8sCmd, "--enable-pprof")
