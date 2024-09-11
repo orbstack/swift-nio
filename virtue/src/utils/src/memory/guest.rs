@@ -24,7 +24,7 @@ use bytemuck::{Pod, Zeroable};
 use derive_where::derive_where;
 use thiserror::Error;
 
-use super::{catch_access_errors, GuardedRegion};
+use super::GuardedRegion;
 
 // === Helpers === //
 
@@ -41,16 +41,16 @@ fn wrap_volatile_operation<R>(f: impl FnOnce() -> R) -> R {
 #[track_caller]
 fn check_access_errors_in_debug<R>(f: impl FnOnce() -> R) -> R {
     #[cfg(debug_assertions)]
-    match catch_access_errors(f) {
+    match super::catch_access_errors(f) {
         Ok(res) => res,
-        Err(_) => panic!("attempted to access non-RAM guest memory"),
+        Err(err) => panic!(
+            "attempted to access non-RAM guest memory at address {:?}",
+            GuestAddress::from_usize(err.fault_addr - err.region_base.get())
+        ),
     }
 
     #[cfg(not(debug_assertions))]
-    {
-        let _ = addr;
-        f()
-    }
+    f()
 }
 
 // === Errors === //

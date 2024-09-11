@@ -36,12 +36,18 @@ typedef struct global_state {
     guarded_region_t * _Atomic head;
 } global_state_t;
 
+typedef struct fault_state {
+    // This value is `0` if no errors have occurred since the last check.
+    size_t region_base;
+    size_t fault_addr;
+} fault_state_t;
+
 typedef struct local_state {
     // The number of abort-absorbing scopes.
     volatile size_t scopes;
 
-    // Whether an error has occurred since the last call to `check_for_errors`.
-    volatile bool had_error;
+    // The first fault to have handled by the signal handler.
+    fault_state_t first_fault;
 } local_state_t;
 
 static global_state_t orb_access_guard_state_global = {
@@ -121,12 +127,23 @@ bool orb_access_guard_signal_handler(int signum, siginfo_t *info, void *uap_raw,
 #endif
 
     // Flag the error so userland can process it.
-    local_state->had_error = true;
+    fault_state_t fault = local_state->first_fault;
+    if (fault.region_base == 0) {
+        fault.region_base = region->base;
+        fault.fault_addr = fault_addr;
+        local_state->first_fault = fault;
+    }
 
     return true;
 
 abort:
-    printf("Encountered invalid memory operation at %zu: %s", fault_addr, region->abort_msg);
+    fprintf(
+        stderr,
+        "caught invalid memory operation in protected region at relative address 0x%zX (region starts at 0x%zX): %s\n",
+        fault_addr - region->base,
+        region->base,
+        region->abort_msg
+    );
     abort();
 }
 
@@ -199,9 +216,13 @@ void orb_access_guard_end_catch() {
     state_tls()->scopes -= 1;
 }
 
-bool orb_access_guard_check_for_errors() {
+fault_state_t orb_access_guard_check_for_errors() {
     local_state_t *tls = state_tls();
-    bool had_error = tls->had_error;
-    tls->had_error = false;
-    return had_error;
+    fault_state_t state = tls->first_fault;
+
+    if (state.region_base != 0) {
+        tls->first_fault = (fault_state_t){0, 0};
+    }
+
+    return state;
 }
