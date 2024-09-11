@@ -161,10 +161,6 @@ func VmControlSocket() string {
 	return RunDir() + "/vmcontrol.sock"
 }
 
-func HostSSHAgentSocket() string {
-	return os.Getenv("SSH_AUTH_SOCK")
-}
-
 func ConsoleLog() string {
 	return LogDir() + "/console.log"
 }
