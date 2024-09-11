@@ -24,6 +24,35 @@ use bytemuck::{Pod, Zeroable};
 use derive_where::derive_where;
 use thiserror::Error;
 
+use super::{catch_access_errors, GuardedRegion};
+
+// === Helpers === //
+
+#[track_caller]
+fn wrap_volatile_operation<R>(f: impl FnOnce() -> R) -> R {
+    check_access_errors_in_debug(|| {
+        compiler_fence(SeqCst);
+        let res = f();
+        compiler_fence(SeqCst);
+        res
+    })
+}
+
+#[track_caller]
+fn check_access_errors_in_debug<R>(f: impl FnOnce() -> R) -> R {
+    #[cfg(debug_assertions)]
+    match catch_access_errors(f) {
+        Ok(res) => res,
+        Err(_) => panic!("attempted to access non-RAM guest memory"),
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = addr;
+        f()
+    }
+}
+
 // === Errors === //
 
 #[derive(Debug, Clone, Default, Error)]
@@ -321,19 +350,24 @@ impl GuestMemory {
 
     // === Forwards === //
 
+    #[track_caller]
     pub fn try_write<T: bytemuck::Pod>(
         &self,
         base: GuestAddress,
         values: &[T],
     ) -> Result<(), InvalidGuestAddress> {
-        self.range_sized(base, values.len())
-            .map(|slice| slice.copy_from_slice(values))
+        self.range_sized(base, values.len())?
+            .copy_from_slice(values);
+
+        Ok(())
     }
 
+    #[track_caller]
     pub fn try_read<T: bytemuck::Pod>(&self, base: GuestAddress) -> Result<T, InvalidGuestAddress> {
         Ok(self.reference(base)?.read())
     }
 
+    #[track_caller]
     pub fn try_write_from_guest<T, V>(
         &self,
         base: GuestAddress,
@@ -347,6 +381,7 @@ impl GuestMemory {
         Ok(self.range_sized(base, len)?.write_from_guest(target))
     }
 
+    #[track_caller]
     pub fn try_read_into_guest<T, V>(
         &self,
         base: GuestAddress,
@@ -360,6 +395,7 @@ impl GuestMemory {
         Ok(self.range_sized(base, len)?.read_into_guest(target))
     }
 
+    #[track_caller]
     pub fn try_write_atomic<T: AtomicPrimitive>(
         &self,
         addr: GuestAddress,
@@ -370,6 +406,7 @@ impl GuestMemory {
         Ok(())
     }
 
+    #[track_caller]
     pub fn try_read_atomic<T: AtomicPrimitive>(
         &self,
         addr: GuestAddress,
@@ -477,20 +514,18 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
         self.get(i).read()
     }
 
+    #[track_caller]
     pub fn copy_from_slice(self, slice: &[T]) {
-        compiler_fence(SeqCst);
-        unsafe {
+        wrap_volatile_operation(|| unsafe {
             self.as_ptr().as_mut().copy_from_slice(slice);
-        }
-        compiler_fence(SeqCst);
+        })
     }
 
+    #[track_caller]
     pub fn copy_to_slice(self, slice: &mut [T]) {
-        compiler_fence(SeqCst);
-        unsafe {
+        wrap_volatile_operation(|| unsafe {
             slice.copy_from_slice(self.as_ptr().as_ref());
-        }
-        compiler_fence(SeqCst);
+        })
     }
 
     pub fn write_from_guest<V>(self, target: &mut V) -> V::Result
@@ -954,16 +989,11 @@ impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
     }
 
     pub fn write(self, value: T) {
-        compiler_fence(SeqCst);
-        unsafe { self.ptr.write_unaligned(value) };
-        compiler_fence(SeqCst);
+        wrap_volatile_operation(|| unsafe { self.ptr.write_unaligned(value) })
     }
 
     pub fn read(self) -> T {
-        compiler_fence(SeqCst);
-        let value = unsafe { self.ptr.read_unaligned() };
-        compiler_fence(SeqCst);
-        value
+        wrap_volatile_operation(|| unsafe { self.ptr.read_unaligned() })
     }
 
     pub fn get<V: bytemuck::Pod>(self, field: Field<T, V>) -> GuestRef<'a, V> {
@@ -972,7 +1002,7 @@ impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
 }
 
 impl<'a, T: AtomicPrimitive> GuestRef<'a, T> {
-    pub fn atomic(self) -> Result<&'a T::Wrapper, InvalidGuestAddress> {
+    fn atomic(self) -> Result<&'a T::Wrapper, InvalidGuestAddress> {
         if self.ptr.as_ptr() as usize % mem::align_of::<T>() == 0 {
             Ok(unsafe { self.ptr.cast::<T::Wrapper>().as_ref() })
         } else {
@@ -980,13 +1010,17 @@ impl<'a, T: AtomicPrimitive> GuestRef<'a, T> {
         }
     }
 
+    #[track_caller]
     pub fn write_atomic(self, value: T, order: AtomicOrdering) -> Result<(), InvalidGuestAddress> {
-        self.atomic()?.store(value, order);
-        Ok(())
+        check_access_errors_in_debug(|| {
+            self.atomic()?.store(value, order);
+            Ok(())
+        })
     }
 
+    #[track_caller]
     pub fn read_atomic(self, order: AtomicOrdering) -> Result<T, InvalidGuestAddress> {
-        self.atomic().map(|v| v.load(order))
+        check_access_errors_in_debug(|| self.atomic().map(|v| v.load(order)))
     }
 }
 
@@ -1045,8 +1079,6 @@ macro_rules! field {
 }
 
 pub use field;
-
-use super::GuardedRegion;
 
 // === AtomicPrimitive === //
 
@@ -1115,9 +1147,7 @@ impl<T: bytemuck::Pod> WriteFromGuest<T> for Vec<T> {
     type Result = ();
 
     fn write_from_guest(&mut self, src: GuestSlice<T>) {
-        compiler_fence(SeqCst);
-        unsafe { self.extend_from_slice(src.as_ptr().as_ref()) };
-        compiler_fence(SeqCst);
+        wrap_volatile_operation(|| unsafe { self.extend_from_slice(src.as_ptr().as_ref()) })
     }
 }
 

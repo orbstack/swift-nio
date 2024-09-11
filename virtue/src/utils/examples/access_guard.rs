@@ -30,4 +30,5 @@ fn main() {
     };
 
     memory.try_write(GuestAddress(0), &[0u32]).unwrap();
+    dbg!(memory.try_read::<u64>(GuestAddress(0)).unwrap());
 }

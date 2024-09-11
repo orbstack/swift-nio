@@ -2,7 +2,11 @@
 
 use std::{ptr, sync::Once};
 
+use thiserror::Error;
+
 use crate::ffi::c_str::malloc_str;
+
+// === FFI === //
 
 // Implemented in `utils/ffi/access_guard.c`.
 extern "C" {
@@ -45,6 +49,8 @@ fn orb_access_guard_ensure_init() {
     });
 }
 
+// === Wrappers === //
+
 #[derive(Debug)]
 pub struct GuardedRegion {
     base: usize,
@@ -68,17 +74,17 @@ impl Drop for GuardedRegion {
 }
 
 #[derive(Debug)]
-pub struct RegionErrorCatchGuard {
+pub struct RegionCatchGuard {
     _no_send_sync: [*const (); 0],
 }
 
-impl Default for RegionErrorCatchGuard {
+impl Default for RegionCatchGuard {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl RegionErrorCatchGuard {
+impl RegionCatchGuard {
     pub fn new() -> Self {
         unsafe { orb_access_guard_start_catch() };
 
@@ -86,7 +92,7 @@ impl RegionErrorCatchGuard {
     }
 }
 
-impl Drop for RegionErrorCatchGuard {
+impl Drop for RegionCatchGuard {
     fn drop(&mut self) {
         unsafe { orb_access_guard_end_catch() };
     }
@@ -94,4 +100,21 @@ impl Drop for RegionErrorCatchGuard {
 
 pub fn check_for_access_errors() -> bool {
     unsafe { orb_access_guard_check_for_errors() }
+}
+
+// === Higher Level Wrappers === //
+
+#[derive(Debug, Clone, Error)]
+#[error("invalid access to guarded memory")]
+pub struct GuardedMemoryAccessError;
+
+pub fn catch_access_errors<R>(f: impl FnOnce() -> R) -> Result<R, GuardedMemoryAccessError> {
+    let _guard = RegionCatchGuard::new();
+    let res = f();
+
+    if !check_for_access_errors() {
+        Ok(res)
+    } else {
+        Err(GuardedMemoryAccessError)
+    }
 }
