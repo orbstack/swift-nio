@@ -1,42 +1,26 @@
-use std::{ptr::NonNull, sync::LazyLock, thread::sleep, time::Duration};
+use std::{
+    sync::{Arc, LazyLock},
+    thread::sleep,
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use crossbeam_channel::Sender;
-use libc::{c_void, madvise, vm_deallocate, VM_MAKE_TAG};
-use mach2::{
-    kern_return::KERN_SUCCESS,
-    traps::{current_task, mach_task_self},
-    vm::{mach_vm_deallocate, mach_vm_map, mach_vm_remap},
-    vm_inherit::VM_INHERIT_NONE,
-    vm_page_size::vm_page_size,
-    vm_prot::{VM_PROT_EXECUTE, VM_PROT_READ, VM_PROT_WRITE},
-    vm_statistics::{VM_FLAGS_ANYWHERE, VM_FLAGS_FIXED, VM_FLAGS_OVERWRITE},
-    vm_types::{mach_vm_address_t, mach_vm_size_t},
-};
+use libc::{c_void, madvise};
+use mach2::vm_page_size::vm_page_size;
 use nix::errno::Errno;
 use sysx::mach::{
-    error::MachError,
     time::{MachAbsoluteDuration, MachAbsoluteTime},
     timer::Timer,
 };
-use tracing::{debug_span, error};
+use tracing::error;
 use utils::{
-    memory::{GuestAddress, GuestMemory},
+    memory::{GuestAddress, GuestMemory, MachVmGuestMemoryProvider},
     qos::QosClass,
     Mutex,
 };
 
 use crate::{HvfVm, MemoryFlags};
-
-// tag to identify memory in vmmap/footprint
-const MEMORY_REGION_TAG: u8 = 250; // application specific tag space
-
-const VM_FLAGS_4GB_CHUNK: i32 = 4;
-
-// use smaller 4 MiB anon chunks for guest memory
-// good for performance because faults that add a page take the object's write lock,
-// which is especially relevant when we use REUSABLE to purge pages
-const MACH_CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
 // to clear double accounting caused by host touching guest memory for virtio,
 // we remap every 30 sec, even if balloon isn't doing anything
@@ -62,22 +46,24 @@ struct HostPmap {
     last_remapped_at: MachAbsoluteTime,
     timer_armed: bool,
 
-    guest_mem: Option<(*mut c_void, usize)>,
+    guest_mem: Option<Arc<MachVmGuestMemoryProvider>>,
 }
 
 unsafe impl Send for HostPmap {}
 
 impl HostPmap {
-    unsafe fn set_guest_mem(&mut self, host_addr: *mut c_void, size: usize) {
-        self.guest_mem = Some((host_addr, size));
+    fn set_guest_mem(&mut self, memory: Arc<MachVmGuestMemoryProvider>) {
+        self.guest_mem = Some(memory);
     }
 
     pub unsafe fn maybe_remap(&mut self) -> anyhow::Result<()> {
         // leading edge debounce: remap synchronously if enough time has passed, otherwise arm a timer
         let now = MachAbsoluteTime::now();
         if (now - self.last_remapped_at).as_duration() > REMAP_DEBOUNCE_INTERVAL {
-            let (host_addr, size) = self.guest_mem.ok_or_else(|| anyhow!("no guest memory"))?;
-            self.remap(host_addr, size)?;
+            self.guest_mem
+                .as_ref()
+                .ok_or_else(|| anyhow!("no guest memory"))?
+                .remap()?;
         } else if !self.timer_armed {
             REMAP_DEBOUNCE_TIMER
                 .arm_for(MachAbsoluteDuration::from_duration(REMAP_DEBOUNCE_INTERVAL))
@@ -87,68 +73,10 @@ impl HostPmap {
 
         Ok(())
     }
-
-    unsafe fn remap(&mut self, host_addr: *mut c_void, size: usize) -> anyhow::Result<()> {
-        let _span = debug_span!("remap", size = size).entered();
-
-        // clear double accounting
-        // pmap_remove clears the contribution to phys_footprint, and pmap_enter on refault will add it back
-        let mut target_address = host_addr as mach_vm_address_t;
-        let mut cur_prot = VM_PROT_READ | VM_PROT_WRITE;
-        let mut max_prot = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
-        let ret = mach_vm_remap(
-            mach_task_self(),
-            &mut target_address,
-            size as mach_vm_size_t,
-            0,
-            VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE,
-            mach_task_self(),
-            host_addr as mach_vm_address_t,
-            0,
-            &mut cur_prot,
-            &mut max_prot,
-            VM_INHERIT_NONE,
-        );
-        if ret != KERN_SUCCESS {
-            return Err(anyhow!("error {}", ret));
-        }
-
-        self.last_remapped_at = MachAbsoluteTime::now();
-        Ok(())
-    }
 }
 
 pub(crate) fn page_size() -> usize {
     unsafe { vm_page_size }
-}
-
-unsafe fn new_chunks_at(host_base_addr: *mut c_void, total_size: usize) -> anyhow::Result<()> {
-    let host_end_addr = host_base_addr as usize + total_size;
-    for addr in (host_base_addr as usize..host_end_addr).step_by(MACH_CHUNK_SIZE) {
-        let mut entry_addr = addr as mach_vm_address_t;
-        let entry_size = std::cmp::min(MACH_CHUNK_SIZE, host_end_addr - addr) as mach_vm_size_t;
-
-        // these are pmap-accounted regions, so they get double-accounted, but madvise works
-        let ret = mach_vm_map(
-            mach_task_self(),
-            &mut entry_addr,
-            entry_size,
-            0,
-            VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_MAKE_TAG(MEMORY_REGION_TAG) as i32,
-            0,
-            0,
-            0,
-            VM_PROT_READ | VM_PROT_WRITE,
-            VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
-            // safe: we won't fork while mapping, and child won't be in the middle of this mapping code
-            VM_INHERIT_NONE,
-        );
-        if ret != KERN_SUCCESS {
-            return Err(anyhow::anyhow!("allocate host memory: error {}", ret));
-        }
-    }
-
-    Ok(())
 }
 
 // although this ends up calling madvise page-by-page, it's still faster to use a range as large as possible because of the HVF unmap/map part
@@ -194,48 +122,10 @@ pub fn maybe_remap() -> anyhow::Result<()> {
     unsafe { HOST_PMAP.lock().unwrap().maybe_remap() }
 }
 
-fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
-    // reserve contiguous address space atomically, and hold onto it to prevent races until we're done mapping everything
-    // this is ONLY for reserving address space; we never actually use this mapping
-    let mut host_addr: mach_vm_address_t = 0;
-    let ret = unsafe {
-        mach_vm_map(
-            mach_task_self(),
-            &mut host_addr,
-            size,
-            0,
-            // runtime perf doesn't matter: we'll never fault on these chunks, so use big chunks to speed up reservation
-            VM_FLAGS_ANYWHERE | VM_FLAGS_4GB_CHUNK | VM_MAKE_TAG(MEMORY_REGION_TAG) as i32,
-            0,
-            0,
-            0,
-            VM_PROT_READ | VM_PROT_WRITE,
-            VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
-            // safe: we won't fork while mapping, and child won't be in the middle of this mapping code
-            VM_INHERIT_NONE,
-        )
-    };
-    if ret != KERN_SUCCESS {
-        return Err(anyhow::anyhow!("reserve host memory: error {}", ret));
-    }
+pub fn allocate_guest_memory(size: usize) -> anyhow::Result<GuestMemory> {
+    let memory = Arc::new(MachVmGuestMemoryProvider::new(size)?);
 
-    // on failure, deallocate all chunks
-    let map_guard = scopeguard::guard((), |_| {
-        unsafe { mach_vm_deallocate(mach_task_self(), host_addr, size) };
-    });
-
-    // make smaller chunks
-    unsafe { new_chunks_at(host_addr as *mut c_void, size as usize)? };
-
-    // we've replaced all mach chunks, so no longer need to deallocate reserved space
-    std::mem::forget(map_guard);
-
-    unsafe {
-        HOST_PMAP
-            .lock()
-            .unwrap()
-            .set_guest_mem(host_addr as *mut c_void, size as usize);
-    }
+    HOST_PMAP.lock().unwrap().set_guest_mem(memory.clone());
 
     // spawn thread to periodically remap and fix double accounting
     // TODO: stop this
@@ -269,25 +159,5 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut c_void> {
             }
         })?;
 
-    Ok(host_addr as *mut c_void)
-}
-
-pub fn allocate_guest_memory(size: usize) -> anyhow::Result<GuestMemory> {
-    let base = vm_allocate(size as mach_vm_size_t)?;
-    let unreserve = {
-        let base = base as usize; // raw pointers are `!Send`.
-        move || {
-            let res = MachError::result(unsafe { vm_deallocate(current_task(), base, size) });
-            if let Err(err) = res {
-                tracing::error!("Failed to deallocate guest memory: {err}");
-            }
-        }
-    };
-
-    Ok(unsafe {
-        GuestMemory::new(
-            NonNull::slice_from_raw_parts(NonNull::new_unchecked(base).cast(), size),
-            unreserve,
-        )
-    })
+    Ok(GuestMemory::new(memory))
 }

@@ -11,9 +11,12 @@ pub unsafe trait CastableRef<'p>: Sized + Deref {
 
     fn into_raw(me: Self) -> *const Self::Target;
 
-    fn map<V: ?Sized>(self, convert: impl FnOnce(&Self::Target) -> &V) -> Self::WithPointee<V> {
+    fn try_map<V: ?Sized, E>(
+        self,
+        convert: impl FnOnce(&Self::Target) -> Result<&V, E>,
+    ) -> Result<Self::WithPointee<V>, E> {
         let original = &*self;
-        let converted = convert(original);
+        let converted = convert(original)?;
 
         assert_eq!(
             original as *const Self::Target as *const (),
@@ -24,7 +27,11 @@ pub unsafe trait CastableRef<'p>: Sized + Deref {
         let converted = converted as *const V;
 
         let _ = CastableRef::into_raw(self);
-        unsafe { CastableRef::from_raw(converted) }
+        Ok(unsafe { CastableRef::from_raw(converted) })
+    }
+
+    fn map<V: ?Sized>(self, convert: impl FnOnce(&Self::Target) -> &V) -> Self::WithPointee<V> {
+        self.try_map::<V, ()>(|v| Ok(convert(v))).unwrap()
     }
 }
 

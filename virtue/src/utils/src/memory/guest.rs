@@ -22,6 +22,7 @@ use std::{
 
 use bytemuck::{Pod, Zeroable};
 use derive_where::derive_where;
+use memmage::CastableRef;
 use thiserror::Error;
 
 use super::GuardedRegion;
@@ -198,14 +199,50 @@ impl SubAssign<u64> for GuestAddress {
 
 // === GuestMemory === //
 
+/// An object managing guest memory.
+///
+/// ## Safety
+///
+/// Must fulfill the contracts of its member methods.
+///
+pub unsafe trait GuestMemoryProvider: 'static + fmt::Debug + Send + Sync {
+    /// Fetches the contiguous block of reserved guest memory.
+    ///
+    /// ## Contract
+    ///
+    /// - The returned pointer must be the same for the lifetime of the object.
+    ///
+    /// - The returned pointer must be reserved for the duration of this object's existence. It need
+    ///   *not* be readable nor writable.
+    ///
+    /// - The returned pointer must not be larger than `isize::MAX` in size.
+    ///
+    fn as_ptr(&self) -> NonNull<[u8]>;
+
+    /// Upcasts the pointer into something which can be downcast.
+    fn as_any(&self) -> &(dyn Any + Send + Sync);
+}
+
 #[derive(Clone)]
 pub struct GuestMemory(Arc<GuestMemoryInner>);
 
 impl fmt::Debug for GuestMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("GuestMemory").field(&self.as_ptr()).finish()
+        f.debug_tuple("GuestMemory")
+            .field(&self.as_ptr())
+            .field(&self.0.provider)
+            .finish()
     }
 }
+
+struct GuestMemoryInner {
+    reserved: NonNull<[u8]>,
+    _guarded_region: GuardedRegion,
+    provider: Arc<dyn GuestMemoryProvider>,
+}
+
+unsafe impl Send for GuestMemoryInner {}
+unsafe impl Sync for GuestMemoryInner {}
 
 impl GuestMemory {
     /// Creates a new `GuestMemory` instance backed by `reserved`. The `unreserve` closure will be
@@ -220,21 +257,35 @@ impl GuestMemory {
     ///
     /// - `reserved` must not be larger than `isize::MAX` in size.
     ///
-    pub unsafe fn new(reserved: NonNull<[u8]>, unreserve: impl 'static + Send + FnOnce()) -> Self {
-        let guard = scopeguard::guard((), move |()| unreserve());
+    pub fn new(provider: Arc<dyn GuestMemoryProvider>) -> Self {
+        let reserved = provider.as_ptr();
+
         Self(Arc::new(GuestMemoryInner {
             reserved,
-            _guarded_region: GuardedRegion::new(
-                reserved.as_ptr().cast(),
-                reserved.len(),
-                "invalid guest address",
-            ),
-            _unreserve_guard: Box::new(guard),
+            _guarded_region: unsafe {
+                GuardedRegion::new(
+                    reserved.as_ptr().cast(),
+                    reserved.len(),
+                    "invalid guest address",
+                )
+            },
+            provider,
         }))
     }
 
     pub fn as_ptr(&self) -> NonNull<[u8]> {
         self.0.reserved
+    }
+
+    pub fn provider(&self) -> &Arc<dyn GuestMemoryProvider> {
+        &self.0.provider
+    }
+
+    pub fn provider_as<T: GuestMemoryProvider>(&self) -> Option<Arc<T>> {
+        self.provider()
+            .clone()
+            .try_map(|v| v.as_any().downcast_ref::<T>().ok_or(()))
+            .ok()
     }
 
     #[allow(clippy::len_without_is_empty)]
@@ -419,15 +470,6 @@ impl GuestMemory {
         self.reference::<u8>(addr).is_ok()
     }
 }
-
-struct GuestMemoryInner {
-    reserved: NonNull<[u8]>,
-    _guarded_region: GuardedRegion,
-    _unreserve_guard: Box<dyn Any + Send + Sync>,
-}
-
-unsafe impl Send for GuestMemoryInner {}
-unsafe impl Sync for GuestMemoryInner {}
 
 // === GuestSlice === //
 

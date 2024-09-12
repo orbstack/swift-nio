@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{error::Error, fmt::Display};
 
 use mach2::kern_return::{kern_return_t, KERN_SUCCESS};
 
@@ -118,7 +118,8 @@ pub enum MachError {
     Unknown,
 }
 
-// anyhow::Error compatibility
+impl Error for MachError {}
+
 impl Display for MachError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
