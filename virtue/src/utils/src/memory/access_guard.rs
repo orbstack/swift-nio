@@ -2,6 +2,7 @@
 
 use std::{num::NonZeroUsize, ptr, sync::Once};
 
+use sigstack::SignalVerdict;
 use thiserror::Error;
 
 use crate::ffi::c_str::malloc_str;
@@ -23,7 +24,7 @@ extern "C" {
         info: *mut libc::siginfo_t,
         uap: *mut libc::c_void,
         userdata: *mut libc::c_void,
-    ) -> libc::boolean_t;
+    ) -> SignalVerdict;
 
     fn orb_access_guard_register_guarded_region(
         base: usize,

@@ -1,9 +1,10 @@
+#include "multiplexer.h"
+
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
-
-typedef bool (*signal_callback_t)(int signum, siginfo_t *info, void *uap, void *userdata);
 
 typedef struct signal_handler {
     // The `signum` to which the handler responds.
@@ -65,6 +66,8 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
     struct sigaction *old_action = NULL;
     signal_handler_t *handler = atomic_load(&_orb_signal_handler_head);
 
+    bool force_default_handling = false;
+
     while (handler != NULL) {
         // We're only interested in descriptors pertaining to our `signum`.
         if (handler->signum != signum)
@@ -76,11 +79,26 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
             break;
         }
 
+        // If a handler has forced default handling, we're just scanning for the `extern_action`.
+        if (force_default_handling) {
+            // (we're just scanning)
+            goto next;
+        }
+
         // Otherwise, we have another callback to process.
         void *userdata = handler->callback.user_action.userdata;
-        bool absorbed_signal = handler->callback.user_action.func(signum, info, uap, userdata);
-        if (absorbed_signal) {
+        signal_verdict_t verdict = handler->callback.user_action.func(signum, info, uap, userdata);
+
+        if (verdict == SIGNAL_VERDICT_CONTINUE) {
+            // (fallthrough)
+        } else if (verdict == SIGNAL_VERDICT_HANDLED) {
+            // Let the signal return to the issuer.
             return;
+        } else if (verdict == SIGNAL_VERDICT_FORCE_DEFAULT) {
+            // We can't call the fallback handler immediately since we need the `old_action`. Hence,
+            // we set a flag to skip over the remaining handlers until we find the extern handler
+            // descriptor.
+            force_default_handling = true;
         }
 
     next:
@@ -89,10 +107,17 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
 
     // Handle chaining if the signal was never absorbed.
     if (old_action == NULL) {
-        return;
+        // We can't `abort` here since that could lead to recursively calling our multiplexing signal
+        // handler if a user subscribed to `SIGABRT`. This branch cannot be taken unless something
+        // terribly wrong has occurred so let's just get this process to exit as quickly as possible.
+        //
+        // We certainly shouldn't just ignore the signal since that could just cause the handler to
+        // repeatedly re-fault and would obscure the actual issue.
+        fprintf(stderr, "malformed signal chain descriptor: missing fallback handler for signal %d\n", signum);
+        _Exit(EXIT_FAILURE);
     }
 
-    if (old_action->sa_handler == SIG_DFL) {
+    if (force_default_handling || old_action->sa_handler == SIG_DFL) {
         // default handler: terminate, but forward to OS to get correct exit status
 
         // uninstall our signal handler

@@ -5,6 +5,7 @@
 #include <os/lock.h>
 #include <Mach/Mach.h>
 
+#include "../../sigstack/ffi/multiplexer.h"  // TODO: Patch the include-dir
 #include "utils/debug.h"
 #include "utils/rcu.h"
 
@@ -66,7 +67,7 @@ static inline local_state_t *state_tls() {
 
 // === Signal Handler === //
 
-bool orb_access_guard_signal_handler(int signum, siginfo_t *info, void *uap_raw, void *userdata) {
+signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, void *uap_raw, void *userdata) {
     global_state_t *global_state = state_global();
     local_state_t *local_state = state_tls();
 
@@ -92,7 +93,7 @@ bool orb_access_guard_signal_handler(int signum, siginfo_t *info, void *uap_raw,
         }
 
         // The address is not protected!
-        return false;
+        return SIGNAL_VERDICT_CONTINUE;
 
     addr_in_range:
         rcu_end_read(global_state->rcu, side);
@@ -134,17 +135,24 @@ bool orb_access_guard_signal_handler(int signum, siginfo_t *info, void *uap_raw,
         local_state->first_fault = fault;
     }
 
-    return true;
+    return SIGNAL_VERDICT_HANDLED;
 
 abort:
     fprintf(
         stderr,
-        "caught invalid memory operation in protected region at relative address 0x%zX (region starts at 0x%zX): %s\n",
+        "detected invalid memory operation in protected region at relative address 0x%zX (region starts at 0x%zX): %s\n",
         fault_addr - region->base,
         region->base,
         region->abort_msg
     );
-    abort();
+
+
+    // Let the default SIGBUS handler dump the process. We intentionally skip over Go's default handler.
+    //
+    // Go's default handlers seem to just dump the state of all its goroutines under the presumption
+    // that this could help debug an issue triggered by unsafe cgo usage but, in this case, the bug
+    // is purely `libkrun`'s fault so let's not spam the logs with unnecessary details.
+    return SIGNAL_VERDICT_FORCE_DEFAULT;
 }
 
 // === Public API === //

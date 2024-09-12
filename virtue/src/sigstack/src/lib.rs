@@ -2,12 +2,20 @@
 
 use std::{io, mem, ptr, sync::Mutex};
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(C)]
+pub enum SignalVerdict {
+    Continue,
+    Handle,
+    ForceDefault,
+}
+
 pub type SignalCallback = unsafe extern "C" fn(
     signum: i32,
     info: *mut libc::siginfo_t,
     uap: *mut libc::c_void,
     userdata: *mut libc::c_void,
-) -> libc::boolean_t;
+) -> SignalVerdict;
 
 extern "C" {
     fn orb_init_signal_multiplexer(signum: i32, sigaction: libc::sigaction) -> libc::boolean_t;

@@ -266,7 +266,7 @@ impl GuestMemory {
                 GuardedRegion::new(
                     reserved.as_ptr().cast(),
                     reserved.len(),
-                    "invalid guest address",
+                    "host attempted to access non-RAM memory (kernel bug?)",
                 )
             },
             provider,

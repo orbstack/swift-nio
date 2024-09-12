@@ -1,6 +1,6 @@
 fn main() {
-    println!("cargo::rerun-if-changed=src");
+    println!("cargo::rerun-if-changed=ffi");
     cc::Build::new()
-        .file("src/multiplexer.c")
+        .file("ffi/multiplexer.c")
         .compile("sigstack");
 }
