@@ -5,7 +5,7 @@
 #include <os/lock.h>
 #include <Mach/Mach.h>
 
-#include "../../sigstack/ffi/multiplexer.h"  // TODO: Patch the include-dir
+#include <orb_sigstack.h>
 #include "utils/debug.h"
 #include "utils/rcu.h"
 

@@ -2,6 +2,10 @@
 
 use std::{io, mem, ptr, sync::Mutex};
 
+// === `multiplexer.h` bindings === //
+
+pub const FFI_INCLUDE_DIR: &str = env!("FFI_INCLUDE_DIR");
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(C)]
 pub enum SignalVerdict {
@@ -16,6 +20,8 @@ pub type SignalCallback = unsafe extern "C" fn(
     uap: *mut libc::c_void,
     userdata: *mut libc::c_void,
 ) -> SignalVerdict;
+
+// === `register_handler` == //
 
 extern "C" {
     fn orb_init_signal_multiplexer(signum: i32, sigaction: libc::sigaction) -> libc::boolean_t;

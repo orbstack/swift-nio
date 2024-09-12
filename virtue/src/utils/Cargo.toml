@@ -28,3 +28,4 @@ vmm-sys-util = ">=0.11"
 
 [build-dependencies]
 cc = "1.1.18"
+sigstack = { version = "0.1.0", path = "../sigstack" }
