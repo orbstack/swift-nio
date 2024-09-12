@@ -14,7 +14,7 @@ const (
 	stopExitCodeBase = 100
 
 	// normal reasons
-	// Swift (MacVirt) and Rust (libkrun) use these constants, so use explicit values
+	// Swift (MacVirt) uses these constants, so use explicit values
 	StopReasonSignal     StopReason = 0
 	StopReasonAPI        StopReason = 1
 	StopReasonUninstall  StopReason = 2
@@ -30,6 +30,8 @@ const (
 	StopReasonIOError        StopReason = 9
 	StopReasonOutOfMemory    StopReason = 10
 	StopReasonUnknownCrash   StopReason = 11
+	StopReasonInitCrash      StopReason = 12
+	StopReasonDataEmpty      StopReason = 13
 )
 
 func (r StopReason) ExitCode() int {

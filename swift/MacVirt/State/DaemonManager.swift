@@ -17,6 +17,8 @@ private enum StopExitCode: Int {
     case ioError = 105
     case outOfMemory = 106
     case unknownCrash = 107
+    case initCrash = 108
+    case dataEmpty = 109
 }
 
 enum ExitReason: Equatable, CustomStringConvertible {
@@ -34,6 +36,8 @@ enum ExitReason: Equatable, CustomStringConvertible {
     case ioError
     case outOfMemory
     case unknownCrash
+    case initCrash
+    case dataEmpty
 
     // from signal
     case killed
@@ -66,6 +70,10 @@ enum ExitReason: Equatable, CustomStringConvertible {
             return "out of memory"
         case .unknownCrash:
             return "unknown crash"
+        case .initCrash:
+            return "failed to initialize"
+        case .dataEmpty:
+            return "data image is empty (likely due to Migration Assistant)"
 
         case .killed:
             return "killed (SIGKILL)"

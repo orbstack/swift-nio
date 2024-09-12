@@ -82,6 +82,22 @@ func (e *DataCorruptionError) Error() string {
 	return "data corruption: " + e.Err.Error()
 }
 
+type DataEmptyError struct {
+	Err error
+}
+
+func (e *DataEmptyError) Error() string {
+	return "data image is empty: " + e.Err.Error()
+}
+
+type InitCrashError struct {
+	Err error
+}
+
+func (e *InitCrashError) Error() string {
+	return "init crashed: " + e.Err.Error()
+}
+
 type OutOfMemoryError struct {
 	Err error
 }
@@ -259,10 +275,17 @@ func (p *ConsoleProcessor) Start(r *os.File) {
 						// no new line - sentry preview only shows first line
 						msg := errors.New(panicLog)
 						// we want to know about the rate of data corruption errors, but don't let it pollute real panics
-						if strings.Contains(panicLog, "DATA IS LIKELY CORRUPTED") || strings.Contains(panicLog, "MissingDataPartition") {
+						if strings.Contains(line, "] Kernel panic - not syncing: Attempted to kill init!") {
+							err = &InitCrashError{Err: msg}
+							p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonInitCrash}
+							sentry.CaptureException(err)
+						} else if strings.Contains(panicLog, "DATA IS LIKELY CORRUPTED") {
 							err = &DataCorruptionError{Err: msg}
 							p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataCorruption}
 							sentry.CaptureException(err)
+						} else if strings.Contains(panicLog, "missing data partition: No such file or directory (os error 2)") {
+							err = &DataEmptyError{Err: msg}
+							p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataEmpty}
 						} else if strings.Contains(line, "System is deadlocked on memory") {
 							// OOM is normal. don't report to sentry at all
 							err = &OutOfMemoryError{Err: msg}
