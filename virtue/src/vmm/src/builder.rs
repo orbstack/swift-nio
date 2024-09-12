@@ -732,14 +732,7 @@ pub fn create_guest_memory(
     let mem_size = mem_size_mib << 20;
     let arch_mem_info = arch::arch_memory_regions(mem_size);
 
-    let max_mem_addr = arch_mem_info
-        .ram_regions
-        .iter()
-        .map(|(addr, sz)| addr.usize() + sz)
-        .max()
-        .unwrap_or(0);
-
-    let guest_mem = hvf::memory::allocate_guest_memory(max_mem_addr)
+    let guest_mem = hvf::memory::allocate_guest_memory(&arch_mem_info.ram_regions)
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem

@@ -6,14 +6,14 @@ use mach2::{
     traps::mach_task_self,
     vm::{mach_vm_deallocate, mach_vm_map, mach_vm_remap},
     vm_inherit::VM_INHERIT_NONE,
-    vm_prot::{VM_PROT_EXECUTE, VM_PROT_READ, VM_PROT_WRITE},
+    vm_prot::{VM_PROT_EXECUTE, VM_PROT_NONE, VM_PROT_READ, VM_PROT_WRITE},
     vm_statistics::{VM_FLAGS_ANYWHERE, VM_FLAGS_FIXED, VM_FLAGS_OVERWRITE},
     vm_types::{mach_vm_address_t, mach_vm_size_t},
 };
 use sysx::mach::error::MachError;
 use tracing::debug_span;
 
-use super::GuestMemoryProvider;
+use super::{GuestAddress, GuestMemoryProvider};
 
 // === Core === //
 
@@ -21,20 +21,33 @@ use super::GuestMemoryProvider;
 pub struct MachVmGuestMemoryProvider {
     host_addr: *mut libc::c_void,
     size: usize,
+    ram_regions: Vec<(GuestAddress, usize)>,
 }
 
 unsafe impl Send for MachVmGuestMemoryProvider {}
 unsafe impl Sync for MachVmGuestMemoryProvider {}
 
 impl MachVmGuestMemoryProvider {
-    pub fn new(size: usize) -> anyhow::Result<Self> {
-        let host_addr = vm_allocate(size as mach_vm_size_t)?;
+    pub fn new(ram_regions: &[(GuestAddress, usize)]) -> anyhow::Result<Self> {
+        let &(last_base_addr, last_size) = ram_regions.last().unwrap();
+        let size = last_base_addr.0 as usize + last_size;
+        let host_addr = vm_allocate(size as mach_vm_size_t, ram_regions)?;
 
-        Ok(Self { host_addr, size })
+        Ok(Self {
+            host_addr,
+            size,
+            ram_regions: ram_regions.to_vec(),
+        })
     }
 
     pub fn remap(&self) -> anyhow::Result<()> {
-        unsafe { vm_remap(self.host_addr, self.size) }
+        for &(base, size) in &self.ram_regions {
+            unsafe {
+                vm_remap(self.host_addr.cast::<u8>().add(base.usize()).cast(), size)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -69,7 +82,10 @@ const VM_FLAGS_4GB_CHUNK: i32 = 4;
 // which is especially relevant when we use REUSABLE to purge pages
 const MACH_CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
-fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut libc::c_void> {
+fn vm_allocate(
+    size: mach_vm_size_t,
+    ram_regions: &[(GuestAddress, usize)],
+) -> anyhow::Result<*mut libc::c_void> {
     // Reserve contiguous address space atomically, and hold onto it to prevent races until we're
     // done mapping everything. This is ONLY for reserving address space; we never actually use this
     // mapping.
@@ -85,7 +101,7 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut libc::c_void> {
             0,
             0,
             0,
-            VM_PROT_READ | VM_PROT_WRITE,
+            VM_PROT_NONE,
             VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE,
             // safe: we won't fork while mapping, and child won't be in the middle of this mapping code
             VM_INHERIT_NONE,
@@ -101,7 +117,9 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut libc::c_void> {
     });
 
     // Make smaller chunks
-    unsafe { new_chunks_at(host_addr as *mut libc::c_void, size as usize)? };
+    for &(base, size) in ram_regions {
+        unsafe { new_ram_chunks_at((host_addr + base.u64()) as *mut libc::c_void, size)? };
+    }
 
     // We've replaced all mach chunks, so no longer need to deallocate reserved space
     mem::forget(map_guard);
@@ -109,7 +127,7 @@ fn vm_allocate(size: mach_vm_size_t) -> anyhow::Result<*mut libc::c_void> {
     Ok(host_addr as *mut libc::c_void)
 }
 
-unsafe fn new_chunks_at(
+unsafe fn new_ram_chunks_at(
     host_base_addr: *mut libc::c_void,
     total_size: usize,
 ) -> anyhow::Result<()> {

@@ -122,8 +122,8 @@ pub fn maybe_remap() -> anyhow::Result<()> {
     unsafe { HOST_PMAP.lock().unwrap().maybe_remap() }
 }
 
-pub fn allocate_guest_memory(size: usize) -> anyhow::Result<GuestMemory> {
-    let memory = Arc::new(MachVmGuestMemoryProvider::new(size)?);
+pub fn allocate_guest_memory(ram_regions: &[(GuestAddress, usize)]) -> anyhow::Result<GuestMemory> {
+    let memory = Arc::new(MachVmGuestMemoryProvider::new(ram_regions)?);
 
     HOST_PMAP.lock().unwrap().set_guest_mem(memory.clone());
 
