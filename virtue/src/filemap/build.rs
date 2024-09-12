@@ -1,7 +1,8 @@
 fn main() {
-    println!("cargo::rerun-if-changed=src/safe_memcpy.c");
+    println!("cargo::rerun-if-changed=ffi");
 
     cc::Build::new()
-        .file("src/safe_memcpy.c")
+        .include(sigstack::FFI_INCLUDE_DIR)
+        .file("ffi/safe_memcpy.c")
         .compile("safe_memcpy");
 }

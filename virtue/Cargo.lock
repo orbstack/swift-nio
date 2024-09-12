@@ -891,6 +891,7 @@ dependencies = [
  "libc",
  "mach2",
  "nix 0.28.0",
+ "sigstack",
  "utils",
 ]
 

@@ -8,7 +8,9 @@ anyhow = "1.0.86"
 libc = "0.2.158"
 mach2 = "0.4.2"
 nix = "0.28.0"
+sigstack = { version = "0.1.0", path = "../sigstack" }
 utils = { version = "0.1.0", path = "../utils" }
 
 [build-dependencies]
 cc = "1.0"
+sigstack = { version = "0.1.0", path = "../sigstack" }
