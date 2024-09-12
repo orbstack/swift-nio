@@ -5,43 +5,61 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
-use std::mem;
-use std::result;
-use std::slice;
-
-use libc::c_char;
+use std::{mem, result, slice};
 
 use arch_gen::x86::mpspec;
-use vm_memory::{Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryMmap};
+use bytemuck::{Pod, Zeroable};
+use libc::c_char;
+use utils::memory::{GuestAddress, GuestMemory};
 
-// This is a workaround to the Rust enforcement specifying that any implementation of a foreign
-// trait (in this case `ByteValued`) where:
-// *    the type that is implementing the trait is foreign or
-// *    all of the parameters being passed to the trait (if there are any) are also foreign
-// is prohibited.
 #[derive(Copy, Clone, Default)]
+#[repr(transparent)]
 struct MpcBusWrapper(mpspec::mpc_bus);
+
+unsafe impl Pod for MpcBusWrapper {}
+unsafe impl Zeroable for MpcBusWrapper {}
+
 #[derive(Copy, Clone, Default)]
+#[repr(transparent)]
 struct MpcCpuWrapper(mpspec::mpc_cpu);
+
+unsafe impl Pod for MpcCpuWrapper {}
+unsafe impl Zeroable for MpcCpuWrapper {}
+
 #[derive(Copy, Clone, Default)]
+#[repr(transparent)]
 struct MpcIntsrcWrapper(mpspec::mpc_intsrc);
+
+unsafe impl Pod for MpcIntsrcWrapper {}
+unsafe impl Zeroable for MpcIntsrcWrapper {}
+
 #[derive(Copy, Clone, Default)]
+#[repr(transparent)]
 struct MpcIoapicWrapper(mpspec::mpc_ioapic);
+
+unsafe impl Pod for MpcIoapicWrapper {}
+unsafe impl Zeroable for MpcIoapicWrapper {}
+
 #[derive(Copy, Clone, Default)]
+#[repr(transparent)]
 struct MpcTableWrapper(mpspec::mpc_table);
+
+unsafe impl Pod for MpcTableWrapper {}
+unsafe impl Zeroable for MpcTableWrapper {}
+
 #[derive(Copy, Clone, Default)]
+#[repr(transparent)]
 struct MpcLintsrcWrapper(mpspec::mpc_lintsrc);
+
+unsafe impl Pod for MpcLintsrcWrapper {}
+unsafe impl Zeroable for MpcLintsrcWrapper {}
+
 #[derive(Copy, Clone, Default)]
+#[repr(transparent)]
 struct MpfIntelWrapper(mpspec::mpf_intel);
 
-// These `mpspec` wrapper types are only data, reading them from data is a safe initialization.
-unsafe impl ByteValued for MpcBusWrapper {}
-unsafe impl ByteValued for MpcCpuWrapper {}
-unsafe impl ByteValued for MpcIntsrcWrapper {}
-unsafe impl ByteValued for MpcIoapicWrapper {}
-unsafe impl ByteValued for MpcTableWrapper {}
-unsafe impl ByteValued for MpcLintsrcWrapper {}
-unsafe impl ByteValued for MpfIntelWrapper {}
+unsafe impl Pod for MpfIntelWrapper {}
+unsafe impl Zeroable for MpfIntelWrapper {}
 
 // MPTABLE, describing VCPUS.
 const MPTABLE_START: u64 = 0x9fc00;
@@ -124,7 +142,7 @@ fn compute_mp_size(num_cpus: u8) -> usize {
 }
 
 /// Performs setup of the MP table for the given `num_cpus`.
-pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
+pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
     if u32::from(num_cpus) > MAX_SUPPORTED_CPUS {
         return Err(Error::TooManyCpus);
     }
@@ -147,9 +165,9 @@ pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
         return Err(Error::AddressOverflow);
     }
 
-    let buf: Vec<u8> = vec![0; mp_size];
-    mem.read_volatile_from(base_mp, &mut buf.as_slice(), mp_size)
-        .map_err(|_| Error::Clear)?;
+    mem.range_sized(base_mp, mp_size)
+        .map_err(|_| Error::Clear)?
+        .fill(0);
 
     {
         let mut mpf_intel = MpfIntelWrapper(mpspec::mpf_intel::default());
@@ -157,17 +175,17 @@ pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
         mpf_intel.0.signature = SMP_MAGIC_IDENT;
         mpf_intel.0.length = 1;
         mpf_intel.0.specification = 4;
-        mpf_intel.0.physptr = (base_mp.raw_value() + size) as u32;
+        mpf_intel.0.physptr = (base_mp.u64() + size) as u32;
         mpf_intel.0.checksum = mpf_intel_compute_checksum(&mpf_intel.0);
-        mem.write_obj(mpf_intel, base_mp)
+        mem.try_write(base_mp, &[mpf_intel])
             .map_err(|_| Error::WriteMpfIntel)?;
-        base_mp = base_mp.unchecked_add(size);
+        base_mp = base_mp.wrapping_add(size);
     }
 
     // We set the location of the mpc_table here but we can't fill it out until we have the length
     // of the entire table later.
     let table_base = base_mp;
-    base_mp = base_mp.unchecked_add(mem::size_of::<MpcTableWrapper>() as u64);
+    base_mp = base_mp.wrapping_add(mem::size_of::<MpcTableWrapper>() as u64);
 
     {
         let size = mem::size_of::<MpcCpuWrapper>() as u64;
@@ -184,9 +202,9 @@ pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
                 };
             mpc_cpu.0.cpufeature = CPU_STEPPING;
             mpc_cpu.0.featureflag = CPU_FEATURE_APIC | CPU_FEATURE_FPU;
-            mem.write_obj(mpc_cpu, base_mp)
+            mem.try_write(base_mp, &[mpc_cpu])
                 .map_err(|_| Error::WriteMpcCpu)?;
-            base_mp = base_mp.unchecked_add(size);
+            base_mp = base_mp.wrapping_add(size);
             checksum = checksum.wrapping_add(compute_checksum(&mpc_cpu.0));
         }
     }
@@ -196,9 +214,9 @@ pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
         mpc_bus.0.type_ = mpspec::MP_BUS as u8;
         mpc_bus.0.busid = 0;
         mpc_bus.0.bustype = BUS_TYPE_ISA;
-        mem.write_obj(mpc_bus, base_mp)
+        mem.try_write(base_mp, &[mpc_bus])
             .map_err(|_| Error::WriteMpcBus)?;
-        base_mp = base_mp.unchecked_add(size);
+        base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_bus.0));
     }
     {
@@ -209,9 +227,9 @@ pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
         mpc_ioapic.0.apicver = APIC_VERSION;
         mpc_ioapic.0.flags = mpspec::MPC_APIC_USABLE as u8;
         mpc_ioapic.0.apicaddr = IO_APIC_DEFAULT_PHYS_BASE;
-        mem.write_obj(mpc_ioapic, base_mp)
+        mem.try_write(base_mp, &[mpc_ioapic])
             .map_err(|_| Error::WriteMpcIoapic)?;
-        base_mp = base_mp.unchecked_add(size);
+        base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_ioapic.0));
     }
     // Per kvm_setup_default_irq_routing() in kernel
@@ -225,9 +243,9 @@ pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
         mpc_intsrc.0.srcbusirq = i;
         mpc_intsrc.0.dstapic = ioapicid;
         mpc_intsrc.0.dstirq = i;
-        mem.write_obj(mpc_intsrc, base_mp)
+        mem.try_write(base_mp, &[mpc_intsrc])
             .map_err(|_| Error::WriteMpcIntsrc)?;
-        base_mp = base_mp.unchecked_add(size);
+        base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_intsrc.0));
     }
     {
@@ -240,9 +258,9 @@ pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
         mpc_lintsrc.0.srcbusirq = 0;
         mpc_lintsrc.0.destapic = 0;
         mpc_lintsrc.0.destapiclint = 0;
-        mem.write_obj(mpc_lintsrc, base_mp)
+        mem.try_write(base_mp, &[mpc_lintsrc])
             .map_err(|_| Error::WriteMpcLintsrc)?;
-        base_mp = base_mp.unchecked_add(size);
+        base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_lintsrc.0));
     }
     {
@@ -255,9 +273,9 @@ pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
         mpc_lintsrc.0.srcbusirq = 0;
         mpc_lintsrc.0.destapic = 0xFF; /* to all local APICs */
         mpc_lintsrc.0.destapiclint = 1;
-        mem.write_obj(mpc_lintsrc, base_mp)
+        mem.try_write(base_mp, &[mpc_lintsrc])
             .map_err(|_| Error::WriteMpcLintsrc)?;
-        base_mp = base_mp.unchecked_add(size);
+        base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_lintsrc.0));
     }
 
@@ -267,16 +285,15 @@ pub fn setup_mptable(mem: &GuestMemoryMmap, num_cpus: u8) -> Result<()> {
     {
         let mut mpc_table = MpcTableWrapper(mpspec::mpc_table::default());
         mpc_table.0.signature = MPC_SIGNATURE;
-        // it's safe to use unchecked_offset_from because
         // table_end > table_base
-        mpc_table.0.length = table_end.unchecked_offset_from(table_base) as u16;
+        mpc_table.0.length = table_end.wrapping_offset_from(table_base) as u16;
         mpc_table.0.spec = MPC_SPEC;
         mpc_table.0.oem = MPC_OEM;
         mpc_table.0.productid = MPC_PRODUCT_ID;
         mpc_table.0.lapic = APIC_DEFAULT_PHYS_BASE;
         checksum = checksum.wrapping_add(compute_checksum(&mpc_table.0));
         mpc_table.0.checksum = (!checksum).wrapping_add(1) as i8;
-        mem.write_obj(mpc_table, table_base)
+        mem.try_write(table_base, &[mpc_table])
             .map_err(|_| Error::WriteMpcTable)?;
     }
 

@@ -110,6 +110,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arch_gen",
+ "bytemuck",
  "gicv3",
  "kvm-bindings",
  "kvm-ioctls",

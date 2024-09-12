@@ -292,7 +292,7 @@ impl Vmm {
             arch::x86_64::configure_system(
                 &self.guest_memory,
                 &self.arch_memory_info,
-                vm_memory::GuestAddress(arch::x86_64::layout::CMDLINE_START),
+                utils::memory::GuestAddress(arch::x86_64::layout::CMDLINE_START),
                 cmdline_len,
                 initrd,
                 vcpus.len() as u8,

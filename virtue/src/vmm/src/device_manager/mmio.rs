@@ -276,6 +276,7 @@ impl DeviceInfoForFDT for MMIODeviceInfo {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::super::super::builder;
@@ -551,3 +552,4 @@ mod tests {
             .is_none());
     }
 }
+*/

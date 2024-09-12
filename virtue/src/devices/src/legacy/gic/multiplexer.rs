@@ -42,7 +42,7 @@ impl Gic {
     }
 
     #[cfg(target_arch = "x86_64")]
-    pub fn new(hvf_vm: &HvfVm, _vcpu_count: u64) -> Self {
+    pub fn new(hvf_vm: &HvfVm, _pe_count: u64) -> Self {
         Self {
             inner: Box::new(HvfApic::new(hvf_vm.clone())),
         }

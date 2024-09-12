@@ -19,27 +19,21 @@ pub mod msr;
 /// Logic for configuring x86_64 registers.
 pub mod regs;
 
-use std::ops::Deref;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
+
+use arch_gen::x86::bootparam::{boot_params, E820_RAM};
+use bytemuck::{Pod, Zeroable};
+use utils::memory::{GuestAddress, GuestMemory};
 
 use crate::ArchMemoryInfo;
 use crate::InitrdConfig;
-use arch_gen::x86::bootparam::{boot_params, E820_RAM};
-use vm_memory::Bytes;
-use vm_memory::{
-    Address, ByteValued, GuestAddress, GuestMemory, GuestMemoryMmap, GuestMemoryRegion,
-};
 
-// This is a workaround to the Rust enforcement specifying that any implementation of a foreign
-// trait (in this case `ByteValued`) where:
-// *    the type that is implementing the trait is foreign or
-// *    all of the parameters being passed to the trait (if there are any) are also foreign
-// is prohibited.
 #[derive(Copy, Clone, Default)]
+#[repr(transparent)]
 pub struct BootParamsWrapper(boot_params);
 
-// It is safe to initialize BootParamsWrap which is a wrapper over `boot_params` (a series of ints).
-unsafe impl ByteValued for BootParamsWrapper {}
+unsafe impl Pod for BootParamsWrapper {}
+unsafe impl Zeroable for BootParamsWrapper {}
 
 impl Deref for BootParamsWrapper {
     type Target = boot_params;
@@ -182,21 +176,19 @@ pub fn get_kernel_start() -> u64 {
     layout::HIMEM_START
 }
 
-/// Returns the memory address where the initrd could be loaded.
-pub fn initrd_load_addr(guest_mem: &GuestMemoryMmap, initrd_size: usize) -> super::Result<u64> {
-    let first_region = guest_mem
-        .find_region(GuestAddress::new(0))
-        .ok_or(Error::InitrdAddress)?;
-    // It's safe to cast to usize because the size of a region can't be greater than usize.
-    let lowmem_size = first_region.len() as usize;
-
-    if lowmem_size < initrd_size {
-        return Err(Error::InitrdAddress);
-    }
-
-    let align_to_pagesize = |address| address & !(super::PAGE_SIZE - 1);
-    Ok(align_to_pagesize(lowmem_size - initrd_size) as u64)
-}
+// /// Returns the memory address where the initrd could be loaded.
+// pub fn initrd_load_addr(
+//     guest_mem: &GuestMemory,
+//     initrd_size: usize,
+//     lowmem_size: usize,
+// ) -> super::Result<u64> {
+//     if lowmem_size < initrd_size {
+//         return Err(Error::InitrdAddress);
+//     }
+//
+//     let align_to_pagesize = |address| address & !(super::PAGE_SIZE - 1);
+//     Ok(align_to_pagesize(lowmem_size - initrd_size) as u64)
+// }
 
 /// Configures the system and should be called once per vm before starting vcpu threads.
 ///
@@ -209,7 +201,7 @@ pub fn initrd_load_addr(guest_mem: &GuestMemoryMmap, initrd_size: usize) -> supe
 /// * `num_cpus` - Number of virtual CPUs the guest will have.
 #[allow(unused_variables)]
 pub fn configure_system(
-    guest_mem: &GuestMemoryMmap,
+    guest_mem: &GuestMemory,
     arch_memory_info: &ArchMemoryInfo,
     cmdline_addr: GuestAddress,
     cmdline_size: usize,
@@ -233,12 +225,12 @@ pub fn configure_system(
     params.0.hdr.type_of_loader = KERNEL_LOADER_OTHER;
     params.0.hdr.boot_flag = KERNEL_BOOT_FLAG_MAGIC;
     params.0.hdr.header = KERNEL_HDR_MAGIC;
-    params.0.hdr.cmd_line_ptr = cmdline_addr.raw_value() as u32;
+    params.0.hdr.cmd_line_ptr = cmdline_addr.u32_trunc();
     params.0.hdr.cmdline_size = cmdline_size as u32;
 
     params.0.hdr.kernel_alignment = KERNEL_MIN_ALIGNMENT_BYTES;
     if let Some(initrd_config) = initrd {
-        params.0.hdr.ramdisk_image = initrd_config.address.raw_value() as u32;
+        params.0.hdr.ramdisk_image = initrd_config.address.u32_trunc();
         params.0.hdr.ramdisk_size = initrd_config.size as u32;
     }
 
@@ -249,33 +241,30 @@ pub fn configure_system(
 
     add_e820_entry(&mut params.0, 0, EBDA_START, E820_RAM)?;
 
-    let last_addr = arch_memory_info.ram_last_addr_excl.unchecked_sub(1);
+    let last_addr = arch_memory_info.ram_last_addr_excl.wrapping_sub(1);
     if last_addr < end_32bit_gap_start {
         add_e820_entry(
             &mut params.0,
-            himem_start.raw_value(),
-            // it's safe to use unchecked_offset_from because
+            himem_start.u64(),
             // mem_end > himem_start
-            last_addr.unchecked_offset_from(himem_start) + 1,
+            last_addr.wrapping_offset_from(himem_start) + 1,
             E820_RAM,
         )?;
     } else {
         add_e820_entry(
             &mut params.0,
-            himem_start.raw_value(),
-            // it's safe to use unchecked_offset_from because
+            himem_start.u64(),
             // end_32bit_gap_start > himem_start
-            end_32bit_gap_start.unchecked_offset_from(himem_start),
+            end_32bit_gap_start.wrapping_offset_from(himem_start),
             E820_RAM,
         )?;
 
         if last_addr > first_addr_past_32bits {
             add_e820_entry(
                 &mut params.0,
-                first_addr_past_32bits.raw_value(),
-                // it's safe to use unchecked_offset_from because
+                first_addr_past_32bits.u64(),
                 // mem_end > first_addr_past_32bits
-                last_addr.unchecked_offset_from(first_addr_past_32bits) + 1,
+                last_addr.wrapping_offset_from(first_addr_past_32bits) + 1,
                 E820_RAM,
             )?;
         }
@@ -283,7 +272,7 @@ pub fn configure_system(
 
     let zero_page_addr = GuestAddress(layout::ZERO_PAGE_START);
     guest_mem
-        .write_obj(params, zero_page_addr)
+        .try_write(zero_page_addr, &[params])
         .map_err(|_| Error::ZeroPageSetup)?;
 
     Ok(())

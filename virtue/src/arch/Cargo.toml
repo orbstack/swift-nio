@@ -10,13 +10,13 @@ amd-sev = ["tee"]
 efi = []
 
 [dependencies]
-libc = ">=0.2.39"
-
-arch_gen = { path = "../arch_gen" }
-utils = { path = "../utils" }
-gicv3 = { path = "../gicv3" }
-rand = "0.8.5"
 anyhow = "1.0.83"
+arch_gen = { path = "../arch_gen" }
+bytemuck = { version = "1.17.1", features = ["derive", "min_const_generics"] }
+gicv3 = { path = "../gicv3" }
+libc = ">=0.2.39"
+rand = "0.8.5"
+utils = { path = "../utils" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 kvm-bindings = { version = ">=0.6", features = ["fam-wrappers"] }

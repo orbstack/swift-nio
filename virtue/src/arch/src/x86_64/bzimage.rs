@@ -2,7 +2,6 @@ use std::{mem::offset_of, ops::Range};
 
 use anyhow::anyhow;
 use arch_gen::x86::bootparam::boot_params;
-use vm_memory::ByteValued;
 
 use super::BootParamsWrapper;
 
@@ -30,8 +29,7 @@ pub fn load_bzimage(bzimage: &[u8]) -> anyhow::Result<KernelLoadInfo> {
     // `setup_header`, so read directly into a byte slice of the outer `boot_params` structure
     // rather than reading into `params.hdr`. The bounds check in `.get_mut()` will ensure we do not
     // read beyond the end of `boot_params`.
-    params
-        .as_mut_slice()
+    bytemuck::bytes_of_mut(&mut params)
         .get_mut(setup_header_start..setup_header_end)
         .ok_or_else(|| anyhow!("bad params bounds"))?
         .copy_from_slice(&bzimage[setup_header_start..setup_header_end]);

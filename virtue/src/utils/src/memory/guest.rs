@@ -160,6 +160,14 @@ impl GuestAddress {
         }
     }
 
+    pub const fn wrapping_offset_from(self, other: Self) -> u64 {
+        self.0.wrapping_sub(other.0)
+    }
+
+    pub const fn checked_offset_from(self, other: Self) -> Option<u64> {
+        self.0.checked_sub(other.0)
+    }
+
     pub fn map(self, f: impl FnOnce(u64) -> u64) -> Self {
         Self::from_u64(f(self.u64()))
     }
@@ -419,6 +427,16 @@ impl GuestMemory {
     }
 
     #[track_caller]
+    pub fn try_read_into_slice<T: bytemuck::Pod>(
+        &self,
+        base: GuestAddress,
+        target: &mut [T],
+    ) -> Result<(), InvalidGuestAddress> {
+        self.range_sized(base, target.len())?.copy_to_slice(target);
+        Ok(())
+    }
+
+    #[track_caller]
     pub fn try_write_from_guest<T, V>(
         &self,
         base: GuestAddress,
@@ -567,6 +585,13 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
     pub fn copy_to_slice(self, slice: &mut [T]) {
         wrap_volatile_operation(|| unsafe {
             slice.copy_from_slice(self.as_ptr().as_ref());
+        })
+    }
+
+    #[track_caller]
+    pub fn fill(self, value: T) {
+        wrap_volatile_operation(|| unsafe {
+            self.as_ptr().as_mut().fill(value);
         })
     }
 

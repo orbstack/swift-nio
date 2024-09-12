@@ -104,20 +104,20 @@ pub fn get_kernel_start() -> u64 {
     layout::DRAM_MEM_START
 }
 
-/// Returns the memory address where the initrd could be loaded.
-pub fn initrd_load_addr(guest_mem: &GuestMemory, initrd_size: usize) -> super::Result<u64> {
-    let round_to_pagesize = |size| (size + (super::PAGE_SIZE - 1)) & !(super::PAGE_SIZE - 1);
-    match GuestAddress(get_fdt_addr(guest_mem)).checked_sub(round_to_pagesize(initrd_size) as u64) {
-        Some(offset) => {
-            if guest_mem.address_in_range(offset) {
-                Ok(offset.u64())
-            } else {
-                Err(Error::InitrdAddress)
-            }
-        }
-        None => Err(Error::InitrdAddress),
-    }
-}
+// /// Returns the memory address where the initrd could be loaded.
+// pub fn initrd_load_addr(guest_mem: &GuestMemory, initrd_size: usize) -> super::Result<u64> {
+//     let round_to_pagesize = |size| (size + (super::PAGE_SIZE - 1)) & !(super::PAGE_SIZE - 1);
+//     match GuestAddress(get_fdt_addr(guest_mem)).checked_sub(round_to_pagesize(initrd_size) as u64) {
+//         Some(offset) => {
+//             if guest_mem.address_in_range(offset) {
+//                 Ok(offset.u64())
+//             } else {
+//                 Err(Error::InitrdAddress)
+//             }
+//         }
+//         None => Err(Error::InitrdAddress),
+//     }
+// }
 
 // Auxiliary function to get the address where the device tree blob is loaded.
 pub fn get_fdt_addr(_mem: &GuestMemory) -> u64 {

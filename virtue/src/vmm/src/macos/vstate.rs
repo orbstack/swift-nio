@@ -408,7 +408,7 @@ impl Vcpu {
         id: u8,
         boot_receiver: Receiver<GuestAddress>,
         exit_evt: EventFd,
-        guest_mem: GuestMemoryMmap,
+        guest_mem: GuestMemory,
         vm: &Vm,
         shutdown: VmmShutdownSignal,
     ) -> Result<Self> {
@@ -473,7 +473,7 @@ impl Vcpu {
     #[cfg(target_arch = "x86_64")]
     pub fn configure_x86_64(
         &mut self,
-        _guest_mem: &GuestMemoryMmap,
+        _guest_mem: &GuestMemory,
         vcpu_config: &VcpuConfig,
     ) -> Result<()> {
         self.vcpu_count = vcpu_config.vcpu_count;
@@ -1088,7 +1088,7 @@ impl Vcpu {
             return;
         };
 
-        let entry_addr = entry_addr.raw_value();
+        let entry_addr = entry_addr.u64();
 
         // Create a guard for loop exit
         let shutdown_handle = VmmShutdownHandle(self.exit_evt.try_clone().unwrap());

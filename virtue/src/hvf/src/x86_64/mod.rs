@@ -30,7 +30,6 @@ use bitflags::bitflags;
 use cpuid::{kvm_cpuid_entry2, CpuidTransformer, IntelCpuidTransformer, VmSpec};
 use iced_x86::{Code, Decoder, DecoderOptions, Instruction, Register};
 use rustc_hash::FxHashMap;
-use vm_memory::{Address, Bytes, GuestAddress, GuestMemoryMmap};
 
 use core::panic;
 use std::arch::x86_64::{__cpuid, __cpuid_count};
@@ -40,11 +39,13 @@ use std::sync::Arc;
 use crossbeam_channel::Sender;
 use tracing::{debug, error};
 
-use utils::hypercalls::{
-    OrbvmFeatures, HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES,
-    ORBVM_IO_REQUEST, ORBVM_MMIO_WRITE32,
+use utils::{
+    hypercalls::{
+        OrbvmFeatures, HVC_DEVICE_BLOCK_START, HVC_DEVICE_VIRTIOFS_ROOT, ORBVM_FEATURES,
+        ORBVM_IO_REQUEST, ORBVM_MMIO_WRITE32,
+    },
+    memory::{GuestAddress, GuestMemory},
 };
-use utils::memory::GuestMemoryExt;
 
 use crate::VcpuRegistry;
 
@@ -237,7 +238,7 @@ impl HvfVm {
         let ret = unsafe {
             hv_vm_map(
                 host_start_addr as *mut std::ffi::c_void,
-                guest_start_addr.raw_value(),
+                guest_start_addr.u64(),
                 size,
                 flags.bits(),
             )
@@ -250,7 +251,7 @@ impl HvfVm {
     }
 
     pub fn unmap_memory(&self, guest_start_addr: GuestAddress, size: usize) -> Result<(), Error> {
-        let ret = unsafe { hv_vm_unmap(guest_start_addr.raw_value(), size) };
+        let ret = unsafe { hv_vm_unmap(guest_start_addr.u64(), size) };
         if ret != HV_SUCCESS {
             Err(Error::MemoryUnmap)
         } else {
@@ -302,7 +303,7 @@ impl HvfVm {
         size: usize,
         flags: MemoryFlags,
     ) -> Result<(), Error> {
-        let ret = unsafe { hv_vm_protect(guest_start_addr.raw_value(), size, flags.bits()) };
+        let ret = unsafe { hv_vm_protect(guest_start_addr.u64(), size, flags.bits()) };
         if ret != HV_SUCCESS {
             Err(Error::VmProtect)
         } else {
@@ -365,7 +366,7 @@ struct InsnCacheKey {
 pub struct HvfVcpu {
     registry: Arc<dyn VcpuRegistry>,
     hv_vcpu: hv_vcpuid_t,
-    guest_mem: GuestMemoryMmap,
+    guest_mem: GuestMemory,
     hvf_vm: HvfVm,
 
     vcpu_id: u8,
@@ -387,7 +388,7 @@ pub struct HvfVcpu {
 impl HvfVcpu {
     pub fn new(
         registry: Arc<dyn VcpuRegistry>,
-        guest_mem: GuestMemoryMmap,
+        guest_mem: GuestMemory,
         hvf_vm: &HvfVm,
         vcpu_count: u8,
         ht_enabled: bool,
@@ -1436,61 +1437,61 @@ impl HvfVcpu {
         }
 
         // walk page tables
-        let pml4_index = (gva.raw_value() >> 39) & 0x1ff;
+        let pml4_index = (gva.u64() >> 39) & 0x1ff;
         let pml4_addr = self.read_reg(hv_x86_reg_t_HV_X86_CR3)? & 0xfffffffffffff000;
         let pml4: u64 = self
             .guest_mem
-            .read_obj_fast(GuestAddress(pml4_addr + (pml4_index * 8)))
+            .try_read(GuestAddress(pml4_addr + (pml4_index * 8)))
             .map_err(|_| Error::VcpuPageWalk)?;
         if pml4 & PTE_PRESENT == 0 {
             return Err(Error::VcpuPageWalk);
         }
         // PML4 has no PAGE_SIZE bit
 
-        let pdp_index = (gva.raw_value() >> 30) & 0x1ff;
+        let pdp_index = (gva.u64() >> 30) & 0x1ff;
         let pdp_addr = pml4 & (0xffffffffff << 12);
         let pdp: u64 = self
             .guest_mem
-            .read_obj_fast(GuestAddress(pdp_addr + (pdp_index * 8)))
+            .try_read(GuestAddress(pdp_addr + (pdp_index * 8)))
             .map_err(|_| Error::VcpuPageWalk)?;
         if pdp & PTE_PRESENT == 0 {
             return Err(Error::VcpuPageWalk);
         }
         if pdp & PTE_PAGE_SIZE != 0 {
             // terminate walk with 1 GiB page (30 bits)
-            let page_offset = gva.raw_value() & 0x3fffffff;
+            let page_offset = gva.u64() & 0x3fffffff;
             let page_addr = pdp & (0xffffffffff << 12);
             return Ok(GuestAddress(page_addr | page_offset));
         }
 
-        let pd_index = (gva.raw_value() >> 21) & 0x1ff;
+        let pd_index = (gva.u64() >> 21) & 0x1ff;
         let pd_addr = pdp & (0xffffffffff << 12);
         let pd: u64 = self
             .guest_mem
-            .read_obj_fast(GuestAddress(pd_addr + (pd_index * 8)))
+            .try_read(GuestAddress(pd_addr + (pd_index * 8)))
             .map_err(|_| Error::VcpuPageWalk)?;
         if pd & PTE_PRESENT == 0 {
             return Err(Error::VcpuPageWalk);
         }
         if pd & PTE_PAGE_SIZE != 0 {
             // terminate walk with 2 MiB page (21 bits)
-            let page_offset = gva.raw_value() & 0x1fffff;
+            let page_offset = gva.u64() & 0x1fffff;
             let page_addr = pd & (0xffffffffff << 12);
             return Ok(GuestAddress(page_addr | page_offset));
         }
 
-        let pt_index = (gva.raw_value() >> 12) & 0x1ff;
+        let pt_index = (gva.u64() >> 12) & 0x1ff;
         let pt_addr = pd & (0xffffffffff << 12);
         let pt: u64 = self
             .guest_mem
-            .read_obj_fast(GuestAddress(pt_addr + (pt_index * 8)))
+            .try_read(GuestAddress(pt_addr + (pt_index * 8)))
             .map_err(|_| Error::VcpuPageWalk)?;
         if pt & PTE_PRESENT == 0 {
             return Err(Error::VcpuPageWalk);
         }
         // PAGE_SIZE doesn't make sense for PT
 
-        let page_offset = gva.raw_value() & 0xfff;
+        let page_offset = gva.u64() & 0xfff;
         let page_addr = pt & (0xffffffffff << 12);
         Ok(GuestAddress(page_addr | page_offset))
     }
@@ -1514,7 +1515,7 @@ impl HvfVcpu {
 
         let mut instr_buf = [0u8; 16];
         self.guest_mem
-            .read_slice(&mut instr_buf[..instr_len as usize], rip_phys)
+            .try_read_into_slice(rip_phys, &mut instr_buf[..instr_len as usize])
             .map_err(|_| Error::VcpuReadInstruction)?;
 
         let mut decoder = Decoder::with_ip(

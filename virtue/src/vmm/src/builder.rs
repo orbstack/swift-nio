@@ -63,8 +63,6 @@ use libc::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use nix::unistd::isatty;
 use utils::eventfd::EventFd;
 use utils::time::TimestampUs;
-#[cfg(all(target_arch = "x86_64", not(feature = "tee")))]
-use vm_memory::mmap::GuestRegionMmap;
 
 #[cfg(feature = "efi")]
 static EDK2_BINARY: &[u8] = include_bytes!("../../../edk2/KRUN_EFI.silent.fd");
@@ -668,7 +666,7 @@ pub fn create_guest_memory(
     mem_size_mib: usize,
     kernel_data: &[u8],
     kernel_load_addr: u64,
-) -> std::result::Result<(GuestMemoryMmap, ArchMemoryInfo), StartMicrovmError> {
+) -> std::result::Result<(GuestMemory, ArchMemoryInfo), StartMicrovmError> {
     let mem_size = mem_size_mib << 20;
     let arch_mem_info = arch::arch_memory_regions(mem_size, kernel_load_addr, kernel_data.len());
 
@@ -676,7 +674,7 @@ pub fn create_guest_memory(
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem
-        .write(kernel_data, GuestAddress(kernel_load_addr))
+        .try_write(GuestAddress(kernel_load_addr), kernel_data)
         .unwrap();
 
     Ok((guest_mem, arch_mem_info))
@@ -976,7 +974,7 @@ fn create_vcpus_x86_64(
 fn create_vcpus_x86_64(
     vm: &Vm,
     vcpu_config: &VcpuConfig,
-    guest_mem: &GuestMemoryMmap,
+    guest_mem: &GuestMemory,
     io_bus: &devices::Bus,
     exit_evt: &EventFd,
     shutdown: &VmmShutdownSignal,
