@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/conf"
@@ -164,6 +165,18 @@ func (c *Container) deleteLocked(isInternal bool) error {
 	err = c.manager.deleteRootfs(c.dir)
 	if err != nil {
 		return fmt.Errorf("delete rootfs: %w", err)
+	}
+
+	// sync to make sure it's deleted before deleting from db
+	containingDirFd, err := unix.Open(path.Dir(c.dir), unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("open dir: %w", err)
+	}
+	defer unix.Close(containingDirFd)
+
+	err = unix.Fsync(int(containingDirFd))
+	if err != nil {
+		return fmt.Errorf("fsync dir: %w", err)
 	}
 
 	return c.manager.removeContainer(c)

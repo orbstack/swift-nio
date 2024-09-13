@@ -549,7 +549,7 @@ func (m *ConManager) restoreContainers() ([]*Container, error) {
 
 	var pendingStarts []*Container
 	for _, record := range records {
-		c, shouldStart, err := m.restoreOneLocked(record)
+		c, shouldStart, err := m.restoreOneLocked(record, false /*isNew*/)
 		if err != nil {
 			logrus.WithError(err).WithField("container", record.Name).Error("failed to restore container")
 			continue
@@ -586,7 +586,7 @@ func (m *ConManager) insertContainerLocked(c *Container) error {
 	return nil
 }
 
-func (m *ConManager) restoreOneLocked(record *types.ContainerRecord) (*Container, bool, error) {
+func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, isNew bool) (*Container, bool, error) {
 	// fix/upgrade container record:
 	// isolated = false
 	// empty (old/unset) default username -> set to default host user
@@ -605,7 +605,7 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord) (*Container
 		return nil, false, err
 	}
 
-	// important to restore creating state
+	// restore creating state early to avoid race where user can start it
 	if record.State == types.ContainerStateCreating {
 		c.setState(types.ContainerStateCreating)
 	}
@@ -615,8 +615,8 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord) (*Container
 		return nil, false, fmt.Errorf("duplicate in database: %w", err)
 	}
 
-	shouldStart := record.State == types.ContainerStateRunning
-	if record.State == types.ContainerStateDeleting {
+	// delete if interrupted during creation
+	if (!isNew && record.State == types.ContainerStateCreating) || record.State == types.ContainerStateDeleting {
 		go func() {
 			err := c.Delete()
 			if err != nil {
@@ -634,6 +634,7 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord) (*Container
 
 	m.uiEventDebounce.Call()
 
+	shouldStart := record.State == types.ContainerStateRunning
 	return c, shouldStart, nil
 }
 

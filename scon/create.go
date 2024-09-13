@@ -83,7 +83,7 @@ func (m *ConManager) beginCreate(args *types.CreateRequest) (*Container, *types.
 	m.containersMu.Lock()
 	defer m.containersMu.Unlock()
 
-	c, _, err := m.restoreOneLocked(&record)
+	c, _, err := m.restoreOneLocked(&record, true /*isNew*/)
 	if err != nil {
 		return nil, nil, fmt.Errorf("restore: %w", err)
 	}

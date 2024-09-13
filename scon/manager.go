@@ -227,7 +227,7 @@ func (m *ConManager) Start() error {
 		return err
 	}
 
-	// clean up leftover logs and rootfs
+	// clean up leftover logs
 	go runOne("cache cleanup", m.cleanupCaches)
 
 	// certs - must be early because RPC server will allow creation, which uses HTTPS
@@ -338,21 +338,6 @@ func (m *ConManager) cleanupCaches() error {
 			err = os.Remove(path.Join(logDir, f.Name()))
 			if err != nil {
 				logrus.WithError(err).WithField("file", f.Name()).Error("failed to remove orphaned log file")
-			}
-		}
-	}
-
-	// clean up rootfs
-	containersDir := m.subdir("containers")
-	files, err = os.ReadDir(containersDir)
-	if err != nil {
-		return err
-	}
-	for _, f := range files {
-		if _, ok := m.containersByID[f.Name()]; !ok {
-			err = m.deleteRootfs(path.Join(containersDir, f.Name()))
-			if err != nil {
-				logrus.WithError(err).WithField("container", f.Name()).Error("failed to remove orphaned rootfs")
 			}
 		}
 	}
