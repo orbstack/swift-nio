@@ -11,6 +11,7 @@ import (
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -20,6 +21,7 @@ var (
 	flagArch        string
 	flagSetPassword bool
 	flagUserData    string
+	flagBoxed       bool
 )
 
 func init() {
@@ -28,6 +30,9 @@ func init() {
 	createCmd.Flags().BoolVarP(&flagSetPassword, "set-password", "p", false, "Set a password for the default user")
 	createCmd.Flags().StringVarP(&flagArch, "arch", "a", "", "Override the default architecture")
 	createCmd.Flags().StringVarP(&flagUserData, "user-data", "c", "", "Path to Cloud-init user data file (for automatic setup)")
+	if conf.Debug() {
+		createCmd.Flags().BoolVarP(&flagBoxed, "boxed", "b", false, "Create a boxed machine (no integration)")
+	}
 }
 
 var createCmd = &cobra.Command{
@@ -106,8 +111,7 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 				Arch:    arch,
 			},
 			Config: types.MachineConfig{
-				// TODO
-				Isolated:        false,
+				Isolated:        flagBoxed,
 				DefaultUsername: flagUser,
 			},
 			UserPassword:      password,
