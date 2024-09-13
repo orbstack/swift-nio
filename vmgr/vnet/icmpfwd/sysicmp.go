@@ -1,6 +1,7 @@
 package icmpfwd
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -28,6 +29,8 @@ import (
 
 const (
 	maxIcmp6PktSize = 1280
+
+	ipv4FlagsFragOffOffset = 6
 )
 
 func init() {
@@ -308,14 +311,26 @@ func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
 	}()
 
 	if len(msg) < header.IPv4MinimumSize+header.ICMPv4MinimumSize {
-		return fmt.Errorf("packet too small")
+		return errors.New("packet too small")
 	}
 
-	// Fix the IP header
 	ipHdr := header.IPv4(msg)
-	// Wrong for UDP, will be fixed below
+
+	// if ip_filters are set, macOS byteswaps 16-bit fields (tlen and frag_offset/flags) in the IP header to host order
+	// swap them back to network order to make it a valid IP header
+	binary.BigEndian.PutUint16(ipHdr[header.IPv4TotalLenOffset:], binary.NativeEndian.Uint16(ipHdr[header.IPv4TotalLenOffset:]))
+	binary.BigEndian.PutUint16(ipHdr[ipv4FlagsFragOffOffset:], binary.NativeEndian.Uint16(ipHdr[ipv4FlagsFragOffOffset:]))
+
+	// validate to avoid panics, now that length is fixed
+	if !ipHdr.IsValid(len(msg)) {
+		return errors.New("invalid IP header")
+	}
+
+	// fix the IP header
+	// (still wrong for UDP, will be fixed below)
 	ipHdr.SetDestinationAddress(i.lastSourceAddr4)
-	ipHdr.SetTotalLength(uint16(len(msg))) // macOS sets 16384
+	// just in case byte swap is wrong on newer macOS
+	ipHdr.SetTotalLength(uint16(len(msg)))
 
 	// Do surgery on packet
 	icmpHdr := header.ICMPv4(ipHdr.Payload())
@@ -427,7 +442,7 @@ func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.A
 		return
 	}
 
-	// Make a new IP header
+	// Make a new packet buffer and IP header
 	replyMsg := make([]byte, len(msg)+header.IPv6MinimumSize)
 	copy(replyMsg[header.IPv6MinimumSize:], msg)
 	ipHdr := header.IPv6(replyMsg)

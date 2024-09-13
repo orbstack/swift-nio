@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/netip"
-	"syscall"
 	"time"
 
 	"github.com/orbstack/macvirt/vmgr/syncx"
@@ -108,14 +107,13 @@ func (proxy *UDPProxy) replyLoop(extConn net.Conn, clientAddr net.Addr, clientKe
 	again:
 		read, err := extConn.Read(readBuf)
 		if err != nil {
-			if err, ok := err.(*net.OpError); ok && err.Err == syscall.ECONNREFUSED {
-				// This will happen if the last write failed
-				// (e.g: nothing is actually listening on the
-				// proxied port on the container), ignore it
-				// and continue until UDPConnTrackTimeout
-				// expires:
+			if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) || errors.Is(err, unix.ENETUNREACH) || errors.Is(err, unix.ECONNREFUSED) {
+				// can happen if last write failed with ICMP port/host/network unreachable, or ARP probe failed
+				// ignore until conntrack times out, to leave it in the conntrack table for icmpfwd
 				goto again
 			}
+
+			// don't loop on other errors: could result in 100% CPU if failure is permanent/immediate
 			return
 		}
 		written, err := proxy.listener.WriteTo(readBuf[:read], clientAddr)
