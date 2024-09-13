@@ -414,7 +414,10 @@ func (c *Container) configureLxc() error {
 		bind(mounts.Opt, mounts.Opt, "ro")
 
 		// isolated containers don't get bind mounts
-		if !c.config.Isolated {
+		if c.config.Isolated {
+			set("lxc.idmap", "u 0 0 247483647")
+			set("lxc.idmap", "g 0 0 247483647")
+		} else {
 			bind(conf.C().HostMountSrc, "/mnt/mac", "")
 			// we're doing this in kernel now, to avoid showing up in `df`
 			//bind(conf.C().FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
