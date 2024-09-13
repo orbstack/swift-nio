@@ -256,6 +256,7 @@ func (c *Container) configureLxc() error {
 		// HOWEVER, we need this for isolated
 		if c.config.Isolated {
 			set("lxc.cap.drop", "sys_rawio")
+			set("lxc.cap.drop", "sys_time")
 		}
 		set("lxc.autodev", "1") // populate /dev
 
@@ -410,7 +411,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.proc.oom_score_adj", "0")
 
 		// bind mounts
-		bind(conf.C().GuestMountSrc, "/opt/orbstack-guest", "ro")
+		bind(mounts.Opt, mounts.Opt, "ro")
 
 		// isolated containers don't get bind mounts
 		if !c.config.Isolated {
