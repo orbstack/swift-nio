@@ -57,8 +57,8 @@
 
 #include <thread>
 #include "passthrough_helpers.h"
-#include "parallel_hashmap/phmap.h"
-#include "wyhash.h"
+#include "vendor/parallel_hashmap/phmap.h"
+#include "vendor/wyhash.h"
 
 /* We are re-using pointers to our `struct lo_inode` and `struct
    lo_dirp` elements as inodes. This means that we must be able to
