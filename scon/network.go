@@ -120,6 +120,11 @@ func (n *Network) Start() error {
 		"VNET_SUBNET4":                      netconf.VnetSubnet4CIDR,
 		"VNET_SUBNET6":                      netconf.VnetSubnet6CIDR,
 
+		"IFGROUP_ISOLATED": strconv.Itoa(netconf.VmIfGroupIsolated),
+
+		"MARK_NAT64":    strconv.Itoa(netconf.VmMarkNat64),
+		"MARK_ISOLATED": strconv.Itoa(netconf.VmMarkIsolated),
+
 		// port forward dest
 		"INTERNAL_LISTEN_IP4": netconf.VnetGuestIP4,
 		"INTERNAL_LISTEN_IP6": netconf.VnetGuestIP6,

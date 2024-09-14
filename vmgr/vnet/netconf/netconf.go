@@ -172,8 +172,8 @@ const (
 // marks used in VM
 // value doesn't matter
 const (
-	VmMarkHostMdns    = 0x1
-	VmMarkHostMdnsStr = "0x1"
+	VmMarkNat64    = 1
+	VmMarkIsolated = 2
 )
 
 // interface groups used in VM

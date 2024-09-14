@@ -93,7 +93,7 @@ static const __be32 XLAT_SRC_IP6[4] = IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617
 // da:9b:d0:54:e0:02 (GuestMACSconBridge)
 static const __u8 BRIDGE_GUEST_MAC[ETH_ALEN] = "\xda\x9b\xd0\x54\xe0\x02";
 
-#define MARK_NAT64 0xe97bd031
+#define MARK_NAT64 1
 
 #define IP_DF 0x4000  // Flag: "Don't Fragment"
 
