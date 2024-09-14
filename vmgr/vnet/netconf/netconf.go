@@ -175,3 +175,8 @@ const (
 	VmMarkHostMdns    = 0x1
 	VmMarkHostMdnsStr = "0x1"
 )
+
+// interface groups used in VM
+const (
+	VmIfGroupIsolated = 1
+)

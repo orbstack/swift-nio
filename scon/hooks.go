@@ -6,10 +6,13 @@ import (
 
 	"github.com/orbstack/macvirt/scon/sclient"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/vishvananda/netlink"
 )
 
 const (
 	lxcHookPostStop = "post-stop"
+	lxcHookNetIfUp  = "net-if-up"
 )
 
 func runLxcPostStop(cid string) {
@@ -24,6 +27,19 @@ func runLxcPostStop(cid string) {
 	os.Exit(0)
 }
 
+func runLxcNetIfUp() {
+	ifName := os.Getenv("LXC_NET_PEER")
+	if ifName == "" {
+		panic("LXC_NET_PEER not set")
+	}
+
+	link, err := netlink.LinkByName(ifName)
+	check(err)
+
+	err = netlink.LinkSetGroup(link, netconf.VmIfGroupIsolated)
+	check(err)
+}
+
 func runLxcHook() {
 	hook := os.Args[2]
 	cid := os.Args[3]
@@ -31,6 +47,8 @@ func runLxcHook() {
 	switch hook {
 	case lxcHookPostStop:
 		runLxcPostStop(cid)
+	case lxcHookNetIfUp:
+		runLxcNetIfUp()
 	default:
 		panic("unknown hook: " + hook)
 	}
