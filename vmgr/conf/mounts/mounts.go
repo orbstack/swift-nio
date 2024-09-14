@@ -1,7 +1,5 @@
 package mounts
 
-import "github.com/orbstack/macvirt/vmgr/conf/appid"
-
 var (
 	// linked paths don't need translation
 	// excluded: /cores /opt/homebrew, /System due to Python platform.mac_ver()
@@ -14,7 +12,7 @@ const (
 	Virtiofs      = "/mnt/mac"
 	LinuxExplicit = "/mnt/linux"
 
-	Opt             = "/opt/" + appid.AppName + "-guest"
+	Opt             = "/opt/orbstack-guest"
 	Pstub           = Opt + "/pstub"
 	WormholeAttach  = Opt + "/wormhole-attach"
 	Bin             = Opt + "/bin"
@@ -30,6 +28,8 @@ const (
 
 	BinHiprio             = Opt + "/bin-hiprio"
 	DefaultHiprioCmdLinks = BinHiprio
+
+	Data = Opt + "/data"
 
 	Run                 = Opt + "/run"
 	SshAgentSocket      = Run + "/host-ssh-agent.sock"

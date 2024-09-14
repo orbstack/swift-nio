@@ -104,13 +104,10 @@ func addInitDevice(c *Container, src string) error {
 }
 
 func addInitBindMount(c *Container, src, dst, opts string) error {
-	extraOpts := ""
-	if opts != "" {
-		extraOpts = "," + opts
-	}
+	optsArr := strings.Split(opts, ",")
 
 	isDir := false
-	if opts != "nostat" {
+	if !slices.Contains(optsArr, "nostat") {
 		stat, err := os.Stat(src)
 		if err != nil {
 			return err
@@ -123,8 +120,16 @@ func addInitBindMount(c *Container, src, dst, opts string) error {
 	bindType := "bind"
 	if isDir {
 		createType = "dir"
-		bindType = "rbind"
+		if !slices.Contains(optsArr, "norecursive") {
+			bindType = "rbind"
+		}
 	}
+
+	optsArr = slices.DeleteFunc(optsArr, func(s string) bool {
+		return s == "nostat" || s == "norecursive"
+	})
+
+	extraOpts := strings.Join(optsArr, ",")
 
 	err := c.setLxcConfig("lxc.mount.entry", fmt.Sprintf("%s %s none %s,create=%s,optional%s 0 0", src, strings.TrimPrefix(dst, "/"), bindType, createType, extraOpts))
 	if err != nil {
@@ -389,6 +394,13 @@ func (c *Container) configureLxc() error {
 			set("lxc.seccomp.profile", m.seccompPolicyPaths[policyType])
 		}
 
+		if c.config.Isolated {
+			// identity user namespace mapping to get capability restrictions without changing FS UID/GID
+			// math.MaxUint32
+			set("lxc.idmap", "u 0 0 4294967295")
+			set("lxc.idmap", "g 0 0 4294967295")
+		}
+
 		// faster ipv6 config
 		set("lxc.sysctl.net.ipv6.conf.eth0.accept_dad", "0")
 
@@ -411,13 +423,14 @@ func (c *Container) configureLxc() error {
 		set("lxc.proc.oom_score_adj", "0")
 
 		// bind mounts
-		bind(mounts.Opt, mounts.Opt, "ro")
+		bind(mounts.Opt, mounts.Opt, "ro,norecursive")
 
 		// isolated containers don't get bind mounts
-		if c.config.Isolated {
-			set("lxc.idmap", "u 0 0 247483647")
-			set("lxc.idmap", "g 0 0 247483647")
-		} else {
+		if !c.config.Isolated {
+			// guest service sockets only for non-isolated containers
+			bind(mounts.Data, mounts.Data, "ro")
+			bind(mounts.Run, mounts.Run, "ro")
+
 			bind(conf.C().HostMountSrc, "/mnt/mac", "")
 			// we're doing this in kernel now, to avoid showing up in `df`
 			//bind(conf.C().FakeSrc+"/sysctl/kernel.panic", "/proc/sys/kernel/panic", "ro")
