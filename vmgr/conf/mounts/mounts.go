@@ -39,6 +39,14 @@ const (
 	SconGuestSocket     = Run + "/scon-guest.sock"
 	ExtraCerts          = Run + "/extra-certs.crt"
 
+	HostRun                 = "/run/orbstack-guest-run"
+	HostSshAgentSocket      = HostRun + "/host-ssh-agent.sock"
+	HostSshAgentProxySocket = HostRun + "/ssh-agent-proxy.sock"
+	HostHostSSHSocket       = HostRun + "/hostssh.sock"
+	HostHcontrolSocket      = HostRun + "/hcontrol.sock"
+	HostSconGuestSocket     = HostRun + "/scon-guest.sock"
+	HostExtraCerts          = HostRun + "/extra-certs.crt"
+
 	// docker guest paths
 	DockerSocket         = "/var/run/docker.sock"
 	DockerRuncWrapSocket = "/run/rc.sock" // same on host

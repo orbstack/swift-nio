@@ -245,7 +245,7 @@ func (m *ConManager) Start() error {
 		return fmt.Errorf("write certs: %w", err)
 	}
 	// write bundle too for nixos
-	err = os.WriteFile(mounts.ExtraCerts, []byte(strings.Join(extraCerts, "\n")), 0644)
+	err = os.WriteFile(mounts.HostExtraCerts, []byte(strings.Join(extraCerts, "\n")), 0644)
 	if err != nil {
 		return err
 	}

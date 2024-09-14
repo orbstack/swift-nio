@@ -57,13 +57,13 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 
 	// start host service proxies now that we have uid/gid
 	go runOne("host service proxy host-ssh", func() error {
-		return RunHostServiceProxy(mounts.HostSSHSocket, ports.SecureSvcHostSSH, u.Uid)
+		return RunHostServiceProxy(mounts.HostHostSSHSocket, ports.SecureSvcHostSSH, u.Uid)
 	})
 	go runOne("host service proxy hcontrol", func() error {
-		return RunHostServiceProxy(mounts.HcontrolSocket, ports.SecureSvcHcontrol, u.Uid)
+		return RunHostServiceProxy(mounts.HostHcontrolSocket, ports.SecureSvcHcontrol, u.Uid)
 	})
 	go runOne("host service proxy ssh-agent", func() error {
-		return RunHostServiceProxy(mounts.SshAgentSocket, ports.SecureSvcHostSSHAgent, u.Uid)
+		return RunHostServiceProxy(mounts.HostSshAgentSocket, ports.SecureSvcHostSSHAgent, u.Uid)
 	})
 	go runOne("host service proxy ssh-agent for docker", func() error {
 		return RunHostServiceProxy(mounts.DockerSshAgentProxySocket, ports.SecureSvcHostSSHAgent, u.Uid)

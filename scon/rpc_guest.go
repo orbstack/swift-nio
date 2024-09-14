@@ -396,7 +396,7 @@ func ListenSconGuest(m *ConManager) error {
 	}
 
 	// perms: root only (it's only for docker agent)
-	listener, err := util.ListenUnixWithPerms(mounts.SconGuestSocket, 0600, 0, 0)
+	listener, err := util.ListenUnixWithPerms(mounts.HostSconGuestSocket, 0600, 0, 0)
 	if err != nil {
 		return err
 	}

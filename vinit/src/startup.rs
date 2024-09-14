@@ -321,9 +321,10 @@ fn mount_pseudo_fs() -> anyhow::Result<()> {
     fs::write("/proc/fs/nfsd/nfsv4gracetime", "1")?;
 
     // separate /opt/orbstack-guest/run
+    fs::create_dir_all("/run/orbstack-guest-run")?;
     mount(
         "orbstack",
-        "/opt/orbstack-guest/run",
+        "/run/orbstack-guest-run",
         "tmpfs",
         secure_flags,
         Some("mode=0755"),
@@ -332,6 +333,7 @@ fn mount_pseudo_fs() -> anyhow::Result<()> {
     // for security, seal all directories/files we expose to machines as read-only
     // otherwise machines can remount them as read-write
     seal_read_only("/opt/orb")?;
+    seal_read_only("/opt/orbstack-guest")?;
 
     // early race-free emulator setup on arm64
     #[cfg(target_arch = "aarch64")]
@@ -813,7 +815,6 @@ fn init_data() -> anyhow::Result<()> {
     fs::create_dir_all("/data/guest-state/bin/cmdlinks")?;
     maybe_set_permissions("/data/guest-state/bin", 0o755)?;
     maybe_set_permissions("/data/guest-state/bin/cmdlinks", 0o755)?;
-    bind_mount("/data/guest-state", "/opt/orbstack-guest/data", None)?;
 
     // wormhole overlay
     fs::create_dir_all("/data/wormhole/overlay/upper")?;

@@ -120,13 +120,11 @@ func addInitBindMount(c *Container, src, dst, opts string) error {
 	bindType := "bind"
 	if isDir {
 		createType = "dir"
-		if !slices.Contains(optsArr, "norecursive") {
-			bindType = "rbind"
-		}
+		bindType = "rbind"
 	}
 
 	optsArr = slices.DeleteFunc(optsArr, func(s string) bool {
-		return s == "nostat" || s == "norecursive"
+		return s == "nostat"
 	})
 
 	extraOpts := strings.Join(optsArr, ",")
@@ -427,13 +425,13 @@ func (c *Container) configureLxc() error {
 		set("lxc.proc.oom_score_adj", "0")
 
 		// bind mounts
-		bind(mounts.Opt, mounts.Opt, "ro,norecursive")
+		bind(mounts.Opt, mounts.Opt, "ro")
 
 		// isolated containers don't get bind mounts
 		if !c.config.Isolated {
 			// guest service sockets only for non-isolated containers
-			bind(mounts.Data, mounts.Data, "ro")
-			bind(mounts.Run, mounts.Run, "ro")
+			bind("/data/guest-state/bin/cmdlinks", mounts.Data, "ro")
+			bind(mounts.HostRun, mounts.Run, "ro")
 
 			bind(conf.C().HostMountSrc, "/mnt/mac", "")
 			// we're doing this in kernel now, to avoid showing up in `df`
