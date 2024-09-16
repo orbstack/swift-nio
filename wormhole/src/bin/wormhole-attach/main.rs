@@ -58,6 +58,7 @@ mod subreaper;
 mod subreaper_protocol;
 
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
+const PTRACE_LOCK: &str = "/dev/shm/.orb-wormhole-p.lock";
 
 const EXTRA_ENV: &[(&str, &str)] = &[
     ("ZDOTDIR", "/nix/orb/sys/zsh"),
@@ -167,6 +168,13 @@ fn mount_common(
 }
 
 fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
+    // need to lock or we can race and EPERM
+    let _flock = Flock::new_ofd(
+        File::create(PTRACE_LOCK)?,
+        FlockMode::Exclusive,
+        FlockWait::Blocking,
+    )?;
+
     // attach via ptrace
     // SECCOMP_GET_FILTER requires ptrace-stop
     // safer way to stop (no signal races): PTRACE_SEIZE, then PTRACE_INTERRUPT
@@ -281,7 +289,7 @@ fn is_root_readonly(proc_mounts: &[Mount]) -> bool {
         .any(|m| m.dest == "/" && m.flags.contains(&"ro".to_string()))
 }
 
-fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<FlockGuard<()>> {
+fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<Flock> {
     trace!("create_nix_dir: wait for lock");
     let _flock = Flock::new_ofd(
         File::create(DIR_CREATE_LOCK)?,
@@ -344,7 +352,7 @@ fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<FlockGuard<()>> {
         FlockMode::Shared,
         FlockWait::NonBlocking,
     )?;
-    Ok(FlockGuard::new(ref_lock, ()))
+    Ok(ref_lock)
 }
 
 fn sigset_add_u32(sigset: &mut SigSet, signal: u32) {

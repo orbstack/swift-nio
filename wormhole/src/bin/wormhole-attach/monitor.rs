@@ -20,11 +20,11 @@ use nix::{
         signalfd::SignalFd,
         stat::{fstatat, Mode},
     },
-    unistd::{dup2, Pid},
+    unistd::{dup2, getpid, Pid},
 };
 use tracing::trace;
 use wormhole::{
-    flock::{Flock, FlockGuard, FlockMode, FlockWait},
+    flock::{Flock, FlockMode, FlockWait},
     newmount::{mount_setattr, MountAttr, MOUNT_ATTR_RDONLY},
 };
 
@@ -49,7 +49,7 @@ enum DeleteNixDirResult {
 
 fn delete_nix_dir(
     proc_fd: BorrowedFd<'_>,
-    nix_flock_ref: FlockGuard<()>,
+    nix_flock_ref: Flock,
 ) -> anyhow::Result<DeleteNixDirResult> {
     // try to unmount everything on our view of /nix recursively
     let mounts_file = unsafe {
@@ -162,7 +162,7 @@ fn map_signal(signal: u32) -> anyhow::Result<Signal> {
 pub fn run(
     config: &WormholeConfig,
     proc_fd: OwnedFd,
-    nix_flock_ref: FlockGuard<()>,
+    nix_flock_ref: Flock,
     socket_fd: OwnedFd,
     cgroup_path: &str,
     intermediate: Pid,
@@ -195,7 +195,6 @@ fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::
 
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
     epoll.add(&sfd, EpollEvent::new(EpollFlags::EPOLLIN, 1))?;
-    epoll.add(&socket, EpollEvent::new(EpollFlags::EPOLLIN, 2))?;
 
     let mut events = [EpollEvent::empty()];
 
@@ -205,44 +204,37 @@ fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::
             bail!("expected an event on epoll return.")
         }
 
-        match events[0].data() {
-            // signalfd
-            1 => {
-                match sfd.read_signal() {
-                    Ok(Some(sig)) => {
-                        trace!(?sig, "got signal.");
+        match sfd.read_signal() {
+            Ok(Some(sig)) => {
+                trace!(?sig, "got signal.");
 
-                        // if the subreaper died (not the intermediate) it is time to cleanup
-                        if sig.ssi_signo == Signal::SIGCHLD as u32
-                            && sig.ssi_pid != intermediate.as_raw() as u32
-                            && sig.ssi_status != Signal::SIGSTOP as i32
-                        {
-                            break;
-                        }
+                // if the subreaper died (not the intermediate) it is time to cleanup
+                if sig.ssi_signo == Signal::SIGCHLD as u32
+                    && sig.ssi_pid != intermediate.as_raw() as u32
+                    && sig.ssi_status != Signal::SIGSTOP as i32
+                {
+                    break;
+                }
 
-                        // if we get a sigint, go to cleanup
-                        if sig.ssi_signo == Signal::SIGINT as u32 {
-                            break;
-                        }
+                if sig.ssi_signo == Signal::SIGCHLD as u32 {
+                    continue;
+                }
 
-                        match map_signal(sig.ssi_signo) {
-                            Ok(sig_forward) => {
-                                Message::ForwardSignal(sig_forward as i32).write_to(&socket)?;
-                            }
-                            Err(err) => trace!(?err, "couldn't map signal."),
+                // if we get a sigint, go to cleanup
+                if sig.ssi_signo == Signal::SIGINT as u32 {
+                    break;
+                }
+
+                match map_signal(sig.ssi_signo) {
+                    Ok(sig_forward) => {
+                        if let Err(err) = Message::ForwardSignal(sig_forward as i32).write_to(&socket) {
+                            trace!(?err, "couldn't forward signal via socket")
                         }
                     }
-                    result => trace!(?result, "unexpected read_signal result."),
+                    Err(err) => trace!(?err, "couldn't map signal."),
                 }
             }
-            // socket
-            2 => {
-                trace!("receiving from socket");
-                match Message::read_from(&socket)? {
-                    msg => trace!(?msg, "received unexpected message."),
-                }
-            }
-            _ => bail!("unexpected epoll return data."),
+            result => trace!(?result, "unexpected read_signal result."),
         }
     }
 
@@ -250,15 +242,13 @@ fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::
     Ok(())
 }
 
-fn cleanup(
-    proc_fd: BorrowedFd<'_>,
-    nix_flock_ref: FlockGuard<()>,
-    cgroup_path: &str,
-) -> anyhow::Result<()> {
+fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: Flock, cgroup_path: &str) -> anyhow::Result<()> {
     trace!("cleaning up.");
 
     // save the mountns so we can check if pids are in it
     let wormhole_mountns = fstatat(proc_fd.as_raw_fd(), "./self/ns/mnt", AtFlags::empty())?.st_ino;
+
+    let self_pid = getpid();
 
     let mut pids_to_kill = HashSet::new();
     loop {
@@ -267,7 +257,7 @@ fn cleanup(
             let pid = pid.inspect_err(|err| trace!(?err, "error while iterating through pids."))?;
 
             // if we kill ourselves, we exit before we're done doing things -- that's bad!
-            if pid == nix::unistd::getpid() {
+            if pid == self_pid {
                 continue;
             }
 
