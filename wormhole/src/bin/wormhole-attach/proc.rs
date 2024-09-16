@@ -13,7 +13,7 @@ use nix::{
     sys::{
         signal::Signal,
         stat::{fstatat, Mode},
-        wait::{waitpid, WaitStatus},
+        wait::{waitid, waitpid, Id, WaitPidFlag, WaitStatus},
     },
     unistd::Pid,
 };
@@ -201,5 +201,19 @@ pub fn get_pid_state_from_dirfd(proc_fd: BorrowedFd<'_>, pid: Pid) -> anyhow::Re
         'P' => Ok(ProcessState::Parked),
         'I' => Ok(ProcessState::Idle),
         other => Err(anyhow::anyhow!("unrecognized state char {}", other)),
+    }
+}
+
+/// Returns a boolean indicating whether child processes still exist
+pub fn reap_children(mut process_exited_cb: impl FnMut(Pid, i32)) -> Result<bool, Errno> {
+    loop {
+        match waitid(Id::All, WaitPidFlag::WNOHANG | WaitPidFlag::WEXITED) {
+            Ok(WaitStatus::Exited(pid, status)) => process_exited_cb(pid, status),
+            Ok(WaitStatus::Signaled(pid, signal, _)) => process_exited_cb(pid, signal as i32 + 128),
+            Ok(WaitStatus::StillAlive) => return Ok(true),
+            Ok(_) => {}
+            Err(Errno::ECHILD) => return Ok(false),
+            Err(err) => return Err(err.into()),
+        }
     }
 }

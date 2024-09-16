@@ -33,10 +33,10 @@ use crate::{
     model::WormholeConfig,
     parse_proc_mounts,
     proc::{
-        get_ns_of_pid_from_dirfd, get_pid_state_from_dirfd, iter_pids_from_dirfd, wait_for_exit,
-        ExitResult, ProcessState,
+        get_ns_of_pid_from_dirfd, get_pid_state_from_dirfd, iter_pids_from_dirfd, reap_children,
+        wait_for_exit, ExitResult, ProcessState,
     },
-    protocol::Message,
+    subreaper_protocol::Message,
     DIR_CREATE_LOCK,
 };
 
@@ -164,6 +164,7 @@ pub fn run(
     proc_fd: OwnedFd,
     nix_flock_ref: FlockGuard<()>,
     socket_fd: OwnedFd,
+    cgroup_path: &str,
     intermediate: Pid,
     sfd: SignalFd,
 ) -> anyhow::Result<()> {
@@ -184,17 +185,12 @@ pub fn run(
         trace!("intermediate failed");
     }
 
-    cleanup(proc_fd.as_fd(), nix_flock_ref)?;
+    cleanup(proc_fd.as_fd(), nix_flock_ref, cgroup_path)?;
 
     Ok(())
 }
 
-fn monitor(
-    socket: UnixStream,
-    intermediate: Pid,
-    mut sfd: SignalFd,
-) -> anyhow::Result<()> {
-
+fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::Result<()> {
     trace!("entering main event loop.");
 
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
@@ -254,7 +250,11 @@ fn monitor(
     Ok(())
 }
 
-fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: FlockGuard<()>) -> anyhow::Result<()> {
+fn cleanup(
+    proc_fd: BorrowedFd<'_>,
+    nix_flock_ref: FlockGuard<()>,
+    cgroup_path: &str,
+) -> anyhow::Result<()> {
     trace!("cleaning up.");
 
     // save the mountns so we can check if pids are in it
@@ -271,19 +271,21 @@ fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: FlockGuard<()>) -> anyhow::Re
                 continue;
             }
 
-            if let Ok(ProcessState::Stopped) = get_pid_state_from_dirfd(proc_fd.as_fd(), pid) {
-                continue;
-            }
-
             match get_ns_of_pid_from_dirfd(proc_fd.as_fd(), pid, "mnt") {
                 Ok(mountns) => {
                     if mountns == wormhole_mountns {
+                        if !matches!(
+                            get_pid_state_from_dirfd(proc_fd.as_fd(), pid),
+                            Ok(ProcessState::Stopped)
+                        ) {
+                            found_pids += 1;
+                        }
+
                         trace!(%pid, "stopping process.");
                         if let Err(err) = kill(pid, Some(Signal::SIGSTOP)) {
                             trace!(%pid, ?err, "error while stopping process. ");
                         }
                         pids_to_kill.insert(pid);
-                        found_pids += 1;
                     }
                 }
                 Err(err) => {
@@ -313,9 +315,11 @@ fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: FlockGuard<()>) -> anyhow::Re
         }
     }
 
+    reap_children(|_, _| {})?;
+
     // try to delete /nix
     if let DeleteNixDirResult::Busy = delete_nix_dir(proc_fd.as_fd(), nix_flock_ref)? {
-        trace!("MOUNTS ARE STILL BUSY? THIS SHOULDNT HAPPEN");
+        trace!("mounts are still busy, can't unmount")
     }
 
     Ok(())

@@ -18,7 +18,11 @@ use libc::{
 use model::WormholeConfig;
 use nix::{
     errno::Errno,
-    fcntl::{open, OFlag},
+    fcntl::{
+        fcntl, open,
+        FcntlArg::{self, F_GETFD},
+        FdFlag, OFlag,
+    },
     mount::MsFlags,
     sched::{setns, unshare, CloneFlags},
     sys::{
@@ -50,8 +54,8 @@ mod model;
 mod monitor;
 mod pidfd;
 mod proc;
-mod protocol;
 mod subreaper;
+mod subreaper_protocol;
 
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
 
@@ -375,6 +379,21 @@ fn main() -> anyhow::Result<()> {
     trace!("drm token: {:?}", config.drm_token);
     drm::verify_token(&config.drm_token)?;
 
+    // set cloexec on extra files passed to us
+    fcntl(
+        config.exit_code_pipe_write_fd,
+        FcntlArg::F_SETFD(
+            FdFlag::from_bits_retain(fcntl(config.exit_code_pipe_write_fd, F_GETFD)?)
+                | FdFlag::FD_CLOEXEC,
+        ),
+    )?;
+    fcntl(
+        config.log_fd,
+        FcntlArg::F_SETFD(
+            FdFlag::from_bits_retain(fcntl(config.log_fd, F_GETFD)?) | FdFlag::FD_CLOEXEC,
+        ),
+    )?;
+
     trace!("open pidfd");
     let pidfd = PidFd::open(config.init_pid)?;
 
@@ -413,21 +432,19 @@ fn main() -> anyhow::Result<()> {
     std::fs::write("/proc/self/oom_score_adj", oom_score_adj)?;
 
     // cgroupfs in mount ns is mounted in container's cgroupns
-    {
-        trace!("copy cgroup");
-        let cg_path = proc_cgroup
-            .lines()
-            .next()
-            .unwrap()
-            .split(':')
-            .last()
-            .unwrap();
-        let self_pid: i32 = getpid().into();
-        std::fs::write(
-            format!("/sys/fs/cgroup/{}/cgroup.procs", cg_path),
-            format!("{}", self_pid),
-        )?;
-    }
+    trace!("copy cgroup");
+    let cgroup_path = proc_cgroup
+        .lines()
+        .next()
+        .unwrap()
+        .split(':')
+        .last()
+        .unwrap();
+    let self_pid: i32 = getpid().into();
+    std::fs::write(
+        format!("/sys/fs/cgroup/{}/cgroup.procs", cgroup_path),
+        format!("{}", self_pid),
+    )?;
 
     // save dirfd of /proc
     let proc_fd = unsafe {
@@ -608,7 +625,7 @@ fn main() -> anyhow::Result<()> {
             let _span = span!(Level::TRACE, "monitor").entered();
 
             // close unnecessary fds
-            // dont close the other end of the socket because we need socket to stay open until we can finish reading messages after subreaper dies
+            drop(subreaper_socket_fd);
             drop(pidfd);
 
             monitor::run(
@@ -616,6 +633,7 @@ fn main() -> anyhow::Result<()> {
                 proc_fd,
                 nix_flock_ref,
                 monitor_socket_fd,
+                cgroup_path,
                 intermediate,
                 monitor_sfd,
             )?;

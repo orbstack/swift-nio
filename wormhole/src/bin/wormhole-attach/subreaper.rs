@@ -20,26 +20,12 @@ use nix::{
 };
 use tracing::trace;
 
-use crate::{model::WormholeConfig, protocol::Message};
+use crate::{model::WormholeConfig, proc::reap_children, subreaper_protocol::Message};
 
 fn return_exit_code(mut stream: impl Write, exit_code: i32) -> anyhow::Result<()> {
     stream.write_all(&[exit_code as u8])?; // should be fine since exit codes can only be 0-255
     stream.flush()?;
     Ok(())
-}
-
-/// Returns a boolean indicating whether child processes still exist
-fn reap_children(mut process_exited_cb: impl FnMut(Pid, i32)) -> Result<bool> {
-    loop {
-        match waitid(Id::All, WaitPidFlag::WNOHANG | WaitPidFlag::WEXITED) {
-            Ok(WaitStatus::Exited(pid, status)) => process_exited_cb(pid, status),
-            Ok(WaitStatus::Signaled(pid, signal, _)) => process_exited_cb(pid, signal as i32 + 128),
-            Ok(WaitStatus::StillAlive) => return Ok(true),
-            Ok(_) => {}
-            Err(Errno::ECHILD) => return Ok(false),
-            Err(err) => return Err(err.into()),
-        }
-    }
 }
 
 pub fn run(
