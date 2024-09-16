@@ -210,7 +210,7 @@ if [ "\$(uname -m)" = "aarch64" ]; then
 fi
 
 curl -Lo 7z.deb https://snapshot.debian.org/archive/debian/20240411T144035Z/pool/main/7/7zip/7zip_23.01%2Bdfsg-12_\$ARCH.deb
-apt install -f ./7z.deb
+apt-get install -y -f ./7z.deb
 EOT
 COPY rootfs/utils/rosetta /work/
 WORKDIR /work
@@ -562,7 +562,7 @@ LABEL type=$TYPE
 # Final images
 FROM --platform=${HOST_ARCH} debian AS packer
 RUN apt-get update && \
-    apt-get install -y btrfs-progs erofs-utils libarchive-tools qemu-utils fdisk python3
+    apt-get install -y btrfs-progs libarchive-tools qemu-utils fdisk python3 curl
 RUN mkdir /images
 
 # rootfs
@@ -579,6 +579,15 @@ comp_alg=lz4hc
 if [[ "$TYPE" == "debug" ]]; then
     comp_alg=lz4
 fi
+
+# mkfs.erofs v1.8 has a regression that corrupts data: https://lore.kernel.org/all/20240916073835.77470-1-danny@orbstack.dev/
+ARCH=amd64
+if [ "\$(uname -m)" = "aarch64" ]; then
+    ARCH=arm64
+fi
+
+curl -Lo erofs-utils.deb https://snapshot.debian.org/archive/debian/20240807T204422Z/pool/main/e/erofs-utils/erofs-utils_1.7.1-1%2Bb1_\$ARCH.deb
+apt-get install -y -f ./erofs-utils.deb
 
 # (not using) -Ededupe: too slow, little gain; our custom dedupe is faster
 # -C 16384: allow big pcluster up to 16k (better compression, and matches macOS page size for I/O)
