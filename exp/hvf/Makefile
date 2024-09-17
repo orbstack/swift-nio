@@ -1,4 +1,4 @@
-all: vmexit vmexit_mmio vmfault spinloop
+all: vmexit vmexit_mmio vmfault spinloop linux
 
 vmexit: vmexit.c hvf.entitlements
 	clang vmexit.c -framework Hypervisor -O2 -o vmexit
@@ -15,3 +15,10 @@ vmfault: vmfault.c hvf.entitlements
 spinloop: spinloop.c hvf.entitlements
 	clang spinloop.c -framework Hypervisor -O2 -o spinloop -mcpu=apple-m2
 	codesign -s - --entitlements hvf.entitlements -f spinloop
+
+linux: linux.c hvf.entitlements
+	clang linux.c -framework Hypervisor -O2 -o linux
+	codesign -s - --entitlements hvf.entitlements -f linux
+
+linux.dtb:
+	dtc -I dts -O dtb linux.dts -o linux.dtb

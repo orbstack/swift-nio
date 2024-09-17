@@ -1,0 +1,36 @@
+/dts-v1/;
+
+/ {
+	compatible = "orbstack,virt";
+	#address-cells = <0x02>;
+	#size-cells = <0x02>;
+	interrupt-parent = <0x01>;
+
+	cpus {
+		#address-cells = <0x02>;
+		#size-cells = <0x00>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,arm-v8";
+			enable-method = "psci";
+			reg = <0x00 0x00>;
+		};
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x00 0x10000000 0x0 134217728>;
+	};
+
+	chosen {
+		bootargs = "earlycon=pl011,mmio32,0x80000000 keep_bootcon";
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		always-on;
+		interrupts = <0x01>;
+	};
+};
+
