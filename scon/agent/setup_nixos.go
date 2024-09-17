@@ -71,6 +71,32 @@ func configureSystemNixos(args InitialSetupArgs) error {
 		password = strings.TrimSpace(hashedPassword)
 	}
 
+	lsbRelease, err := os.ReadFile("/etc/lsb-release")
+	if err != nil {
+		return err
+	}
+
+	stateVersion := ""
+	for _, line := range strings.Split(string(lsbRelease), "\n") {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, value, valid := strings.Cut(line, "=")
+		if !valid {
+			continue
+		}
+
+		if strings.TrimSpace(key) == "DISTRIB_RELEASE" {
+			stateVersion = strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(value), `"`), `"`)
+			break
+		}
+	}
+
+	if stateVersion == "" {
+		return errors.New("couldn't find DISTRIB_RELEASE in /etc/lsb-release")
+	}
+
 	var configuration bytes.Buffer
 	err = templates.NixOSConfiguration.Execute(&configuration, configurationTemplateData{
 		ConfigFile:   configFile,
@@ -80,7 +106,7 @@ func configureSystemNixos(args InitialSetupArgs) error {
 		NoPassword:   password == "",
 		Timezone:     args.Timezone,
 		Certificates: string(extraCertsData),
-		StateVersion: args.Version,
+		StateVersion: stateVersion,
 		UID:          args.Uid,
 	})
 	if err != nil {
