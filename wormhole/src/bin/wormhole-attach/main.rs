@@ -3,7 +3,8 @@ use std::{
     collections::HashMap,
     ffi::CString,
     fs::File,
-    mem,
+    io,
+    mem::{self, MaybeUninit},
     os::fd::{FromRawFd, OwnedFd},
     path::Path,
     ptr::{null, null_mut},
@@ -11,8 +12,8 @@ use std::{
 
 use anyhow::anyhow;
 use libc::{
-    prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP,
-    PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
+    prlimit, ptrace, sigset_t, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp,
+    PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
     PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE,
 };
 use model::WormholeConfig;
@@ -27,8 +28,7 @@ use nix::{
     sched::{setns, unshare, CloneFlags},
     sys::{
         prctl,
-        signal::{SigSet, Signal},
-        signalfd::{SfdFlags, SignalFd},
+        signal::Signal,
         socket::{socketpair, AddressFamily, SockFlag, SockType},
         stat::{umask, Mode},
         utsname::uname,
@@ -40,6 +40,7 @@ use nix::{
     },
 };
 use pidfd::PidFd;
+use signals::{mask_sigset, SigSet, SignalFd};
 use tracing::{debug, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
@@ -54,6 +55,7 @@ mod model;
 mod monitor;
 mod pidfd;
 mod proc;
+mod signals;
 mod subreaper;
 mod subreaper_protocol;
 
@@ -593,26 +595,24 @@ fn main() -> anyhow::Result<()> {
 
     // parent needs to know when subreaper exits (after being reparented) and when wormhole signals it
     let monitor_sfd = {
-        let mut mask = SigSet::empty();
-        // signals for forwarding
-        mask.add(Signal::SIGCHLD);
-        mask.add(Signal::SIGABRT);
-        mask.add(Signal::SIGALRM);
-        mask.add(Signal::SIGFPE);
-        mask.add(Signal::SIGHUP);
-        mask.add(Signal::SIGILL);
-        mask.add(Signal::SIGPIPE);
-        mask.add(Signal::SIGQUIT);
-        mask.add(Signal::SIGSEGV);
-        mask.add(Signal::SIGTERM);
-        mask.add(Signal::SIGUSR1);
-        mask.add(Signal::SIGUSR2);
-        sigset_add_u32(&mut mask, 60);
-        sigset_add_u32(&mut mask, 61);
+        let mut set = SigSet::empty()?;
 
-        mask.add(Signal::SIGINT);
-        mask.thread_block()?;
-        SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC | SfdFlags::SFD_NONBLOCK)?
+        set.add_signal(Signal::SIGCHLD as i32)?;
+
+        // forwarded signals
+        set.add_signal(Signal::SIGABRT as i32)?;
+        set.add_signal(Signal::SIGALRM as i32)?;
+        set.add_signal(Signal::SIGHUP as i32)?;
+        set.add_signal(Signal::SIGINT as i32)?;
+        set.add_signal(Signal::SIGQUIT as i32)?;
+        set.add_signal(Signal::SIGTERM as i32)?;
+        set.add_signal(Signal::SIGUSR1 as i32)?;
+        set.add_signal(Signal::SIGUSR2 as i32)?;
+        set.add_signal(Signal::SIGPWR as i32)?;
+
+        mask_sigset(&set, libc::SIG_BLOCK)?;
+
+        SignalFd::new(&set, libc::SFD_CLOEXEC | libc::SFD_NONBLOCK)?
     };
 
     // this pipe lets us communicate with the subreaper
@@ -810,10 +810,10 @@ fn main() -> anyhow::Result<()> {
             };
 
             let subreaper_sfd = {
-                let mut mask = SigSet::empty();
-                mask.add(Signal::SIGCHLD);
-                mask.thread_block()?;
-                SignalFd::with_flags(&mask, SfdFlags::SFD_CLOEXEC | SfdFlags::SFD_NONBLOCK)?
+                let mut set = SigSet::empty()?;
+                set.add_signal(Signal::SIGCHLD as i32)?;
+                mask_sigset(&set, libc::SIG_BLOCK)?;
+                SignalFd::new(&set, libc::SFD_CLOEXEC | libc::SFD_NONBLOCK)?
             };
 
             // fork again...

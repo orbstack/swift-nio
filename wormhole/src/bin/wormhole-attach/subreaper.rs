@@ -13,14 +13,13 @@ use nix::{
     sys::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
         signal::kill,
-        signalfd::SignalFd,
         wait::{waitid, Id, WaitPidFlag, WaitStatus},
     },
     unistd::{dup2, Pid},
 };
 use tracing::trace;
 
-use crate::{model::WormholeConfig, proc::reap_children, subreaper_protocol::Message};
+use crate::{model::WormholeConfig, proc::reap_children, signals::SignalFd, subreaper_protocol::Message};
 
 fn return_exit_code(mut stream: impl Write, exit_code: i32) -> anyhow::Result<()> {
     stream.write_all(&[exit_code as u8])?; // should be fine since exit codes can only be 0-255

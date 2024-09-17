@@ -17,7 +17,6 @@ use nix::{
     sys::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
         signal::{kill, Signal},
-        signalfd::SignalFd,
         stat::{fstatat, Mode},
     },
     unistd::{dup2, getpid, Pid},
@@ -29,15 +28,10 @@ use wormhole::{
 };
 
 use crate::{
-    is_root_readonly,
-    model::WormholeConfig,
-    parse_proc_mounts,
-    proc::{
-        get_ns_of_pid_from_dirfd, get_pid_state_from_dirfd, iter_pids_from_dirfd, reap_children,
-        wait_for_exit, ExitResult, ProcessState,
-    },
-    subreaper_protocol::Message,
-    DIR_CREATE_LOCK,
+    is_root_readonly, model::WormholeConfig, parse_proc_mounts, proc::{
+        get_ns_of_pid_from_dirfd, iter_pids_from_dirfd, reap_children,
+        wait_for_exit, ExitResult,
+    }, signals::SignalFd, subreaper_protocol::Message, DIR_CREATE_LOCK
 };
 
 enum DeleteNixDirResult {
@@ -146,10 +140,8 @@ fn delete_nix_dir(
 }
 
 fn map_signal(signal: u32) -> anyhow::Result<Signal> {
-    match signal {
-        60 => return Ok(Signal::SIGKILL),
-        61 => return Ok(Signal::SIGINT),
-        _ => (),
+    if signal == Signal::SIGPWR as u32 {
+        return Ok(Signal::SIGKILL);
     }
 
     if let Ok(fwd_signal) = (signal as i32).try_into() {
@@ -200,13 +192,19 @@ fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::
 
     // intermediate succeeded, we assume the subreaper gets reparented to us and that we will receive SIGCHLD when it exits
     loop {
-        if epoll.wait(&mut events, -1)? < 1 {
-            bail!("expected an event on epoll return.")
+        match epoll.wait(&mut events, -1) {
+            Ok(n) if n < 1 => {
+                bail!("expected an event on epoll return")
+            }
+            Err(err) => {
+                bail!("error while epolling: {}", err)
+            }
+            Ok(_) => {}
         }
 
         match sfd.read_signal() {
             Ok(Some(sig)) => {
-                trace!(?sig, "got signal.");
+                trace!(?sig, "got signal");
 
                 // if the subreaper died (not the intermediate) it is time to cleanup
                 if sig.ssi_signo == Signal::SIGCHLD as u32
@@ -227,14 +225,17 @@ fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::
 
                 match map_signal(sig.ssi_signo) {
                     Ok(sig_forward) => {
-                        if let Err(err) = Message::ForwardSignal(sig_forward as i32).write_to(&socket) {
-                            trace!(?err, "couldn't forward signal via socket")
+                        if let Err(err) =
+                            Message::ForwardSignal(sig_forward as i32).write_to(&socket)
+                        {
+                            trace!(?err, "couldn't forward signal via socket");
+                            break;
                         }
                     }
-                    Err(err) => trace!(?err, "couldn't map signal."),
+                    Err(err) => trace!(?err, "couldn't map signal"),
                 }
             }
-            result => trace!(?result, "unexpected read_signal result."),
+            result => trace!(?result, "unexpected read_signal result"),
         }
     }
 
@@ -250,11 +251,10 @@ fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: Flock, cgroup_path: &str) -> 
 
     let self_pid = getpid();
 
-    let mut pids_to_kill = HashSet::new();
     loop {
         let mut found_pids = 0;
         for pid in iter_pids_from_dirfd(proc_fd.as_fd())? {
-            let pid = pid.inspect_err(|err| trace!(?err, "error while iterating through pids."))?;
+            let pid = pid.map_err(|err| anyhow!("error while iterating through pids: {}", err))?;
 
             // if we kill ourselves, we exit before we're done doing things -- that's bad!
             if pid == self_pid {
@@ -264,18 +264,12 @@ fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: Flock, cgroup_path: &str) -> 
             match get_ns_of_pid_from_dirfd(proc_fd.as_fd(), pid, "mnt") {
                 Ok(mountns) => {
                     if mountns == wormhole_mountns {
-                        if !matches!(
-                            get_pid_state_from_dirfd(proc_fd.as_fd(), pid),
-                            Ok(ProcessState::Stopped)
-                        ) {
-                            found_pids += 1;
-                        }
+                        found_pids += 1;
 
                         trace!(%pid, "stopping process.");
-                        if let Err(err) = kill(pid, Some(Signal::SIGSTOP)) {
-                            trace!(%pid, ?err, "error while stopping process. ");
+                        if let Err(err) = kill(pid, Some(Signal::SIGKILL)) {
+                            trace!(%pid, ?err, "error while kill process");
                         }
-                        pids_to_kill.insert(pid);
                     }
                 }
                 Err(err) => {
@@ -286,26 +280,9 @@ fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: Flock, cgroup_path: &str) -> 
         if found_pids == 0 {
             break;
         }
+
+        reap_children(|_, _| {})?;
     }
-
-    for pid in pids_to_kill {
-        trace!(%pid, "killing process.");
-        let Ok(mountns) = get_ns_of_pid_from_dirfd(proc_fd.as_fd(), pid, "mnt") else {
-            trace!(%pid, "couldn't get mount ns of pid.");
-            continue;
-        };
-
-        if mountns != wormhole_mountns {
-            trace!(%pid, "pid no longer in mountns.");
-            continue;
-        }
-
-        if let Err(err) = kill(pid, Some(Signal::SIGKILL)) {
-            trace!(%pid, ?err, "error while killing process.")
-        }
-    }
-
-    reap_children(|_, _| {})?;
 
     // try to delete /nix
     if let DeleteNixDirResult::Busy = delete_nix_dir(proc_fd.as_fd(), nix_flock_ref)? {

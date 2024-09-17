@@ -152,58 +152,6 @@ pub fn get_ns_of_pid_from_dirfd(
     .st_ino)
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum ProcessState {
-    Running,
-    InterruptibleSleep,
-    UninterruptibleSleep,
-    Zombie,
-    Stopped,
-    TracingStop,
-    Dead,
-    Wakekill,
-    Waking,
-    Parked,
-    Idle,
-}
-
-pub fn get_pid_state_from_dirfd(proc_fd: BorrowedFd<'_>, pid: Pid) -> anyhow::Result<ProcessState> {
-    let file = unsafe {
-        File::from_raw_fd(openat(
-            proc_fd.as_raw_fd(),
-            format!("./{}/stat", pid).as_str(),
-            OFlag::O_RDONLY,
-            Mode::empty(),
-        )?)
-    };
-
-    let stat = std::io::read_to_string(file)?;
-
-    let status_char = stat
-        .split_ascii_whitespace()
-        .nth_back(49) // go from end because comm can contain spaces
-        .ok_or(anyhow::anyhow!("couldn't parse status file"))?
-        .trim()
-        .chars()
-        .nth(0)
-        .ok_or(anyhow::anyhow!("status char was empty?"))?;
-
-    match status_char {
-        'R' => Ok(ProcessState::Running),
-        'S' => Ok(ProcessState::InterruptibleSleep),
-        'D' => Ok(ProcessState::UninterruptibleSleep),
-        'Z' => Ok(ProcessState::Zombie),
-        'T' => Ok(ProcessState::Stopped),
-        't' => Ok(ProcessState::TracingStop),
-        'X' => Ok(ProcessState::Dead),
-        'K' => Ok(ProcessState::Wakekill),
-        'W' => Ok(ProcessState::Waking),
-        'P' => Ok(ProcessState::Parked),
-        'I' => Ok(ProcessState::Idle),
-        other => Err(anyhow::anyhow!("unrecognized state char {}", other)),
-    }
-}
-
 /// Returns a boolean indicating whether child processes still exist
 pub fn reap_children(mut process_exited_cb: impl FnMut(Pid, i32)) -> Result<bool, Errno> {
     loop {

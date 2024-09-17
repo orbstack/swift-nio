@@ -122,17 +122,13 @@ var (
 	sshWormholeSigMap = map[ssh.Signal]os.Signal{
 		ssh.SIGABRT: unix.SIGABRT,
 		ssh.SIGALRM: unix.SIGALRM,
-		ssh.SIGFPE:  unix.SIGFPE,
 		ssh.SIGHUP:  unix.SIGHUP,
-		ssh.SIGILL:  unix.SIGILL,
-		ssh.SIGPIPE: unix.SIGPIPE,
+		ssh.SIGINT:  unix.SIGINT,
 		ssh.SIGQUIT: unix.SIGQUIT,
-		ssh.SIGSEGV: unix.SIGSEGV,
 		ssh.SIGTERM: unix.SIGTERM,
 		ssh.SIGUSR1: unix.SIGUSR1,
 		ssh.SIGUSR2: unix.SIGUSR2,
-		ssh.SIGKILL: syscall.Signal(60),
-		ssh.SIGINT:  syscall.Signal(61),
+		ssh.SIGKILL: unix.SIGPWR,
 	}
 
 	defaultMeta = sshtypes.SshMeta{
