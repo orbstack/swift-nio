@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -32,6 +33,7 @@ func configureSystemNixos(args InitialSetupArgs) error {
 	}
 
 	type configurationTemplateData struct {
+		ConfigFile   string
 		Username     string
 		UsernameAttr string
 		Password     string
@@ -40,6 +42,18 @@ func configureSystemNixos(args InitialSetupArgs) error {
 		Certificates string
 		StateVersion string
 		UID          int
+	}
+
+	// TODO(winter): Remove when we drop 24.05?
+	configFile := ""
+	for _, f := range []string{"incus.nix", "lxd.nix"} {
+		if _, err = os.Stat("/etc/nixos/" + f); err == nil {
+			configFile = f
+			break
+		}
+	}
+	if configFile == "" {
+		return errors.New("couldn't find container-specific configuration")
 	}
 
 	usernameAttr := args.Username
@@ -59,6 +73,7 @@ func configureSystemNixos(args InitialSetupArgs) error {
 
 	var configuration bytes.Buffer
 	err = templates.NixOSConfiguration.Execute(&configuration, configurationTemplateData{
+		ConfigFile:   configFile,
 		Username:     args.Username,
 		UsernameAttr: usernameAttr,
 		Password:     password,
