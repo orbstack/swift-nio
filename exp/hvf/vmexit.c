@@ -103,7 +103,9 @@ int main(int argc, const char * argv[]) {
     avg_delta *= timebase.numer;
     avg_delta /= timebase.denom;
 
-    // result on M3 Max, macOS 14.6.1: 500 ns (very consistent), 625ns with sysreg read, 583ns with pending IRQ
+    // results are very consistent
+    // result on M3 Max, macOS 14.6.1: 500 ns, 625ns with sysreg read, 583ns with pending IRQ
+    // result on M3 Max, macOS 15.0: 583 ns, 666ns with sysreg read, 625ns with pending IRQ
     printf("avg HVC time: %lld ns\n", avg_delta);
 
     return 0;
