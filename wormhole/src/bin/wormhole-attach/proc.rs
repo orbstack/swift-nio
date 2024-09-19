@@ -1,7 +1,6 @@
 use std::{
     ffi::{c_char, CString},
-    fs::File,
-    os::fd::{AsRawFd, BorrowedFd, FromRawFd as _},
+    os::fd::{AsRawFd, BorrowedFd},
     ptr::null_mut,
 };
 
@@ -9,7 +8,7 @@ use libc::mmap;
 use nix::{
     dir::Dir,
     errno::Errno,
-    fcntl::{openat, AtFlags, OFlag},
+    fcntl::{AtFlags, OFlag},
     sys::{
         signal::Signal,
         stat::{fstatat, Mode},
@@ -34,8 +33,8 @@ pub fn wait_for_exit<P: Into<Option<Pid>>>(pid: P) -> anyhow::Result<ExitResult>
     loop {
         let res = waitpid(pid, None)?;
         match res {
-            WaitStatus::Exited(_, exit_code) => break Ok(ExitResult::Code(exit_code)),
-            WaitStatus::Signaled(_, signal, _) => break Ok(ExitResult::Signal(signal)),
+            WaitStatus::Exited(_, exit_code) => return Ok(ExitResult::Code(exit_code)),
+            WaitStatus::Signaled(_, signal, _) => return Ok(ExitResult::Signal(signal)),
             _ => {}
         }
     }
@@ -161,7 +160,7 @@ pub fn reap_children(mut process_exited_cb: impl FnMut(Pid, i32)) -> Result<bool
             Ok(WaitStatus::StillAlive) => return Ok(true),
             Ok(_) => {}
             Err(Errno::ECHILD) => return Ok(false),
-            Err(err) => return Err(err.into()),
+            Err(err) => return Err(err),
         }
     }
 }

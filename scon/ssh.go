@@ -9,7 +9,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/alessio/shellescape"
 	"github.com/creack/pty"
@@ -285,18 +284,17 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	}
 }
 
-func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent.Client, container *Container, user string, wormholeContainerID string, shellCmd string, meta *sshtypes.SshMeta) (err error, printErr bool) {
+func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent.Client, container *Container, user string, wormholeContainerID string, shellCmd string, meta *sshtypes.SshMeta) (retErr error, _printErr bool) {
 	runOnHost := false
-	printErr = false
+	printErr := true
 
 	// debug only: wormhole for VM host (ovm)
 	var wormholeResp *agent.PrepWormholeResponse
 	var rootfsFile *os.File
 	if conf.Debug() && wormholeContainerID == sshtypes.WormholeIDHost {
-		var rootfsFd int
-		rootfsFd, err = unix.Open("/proc/thread-self/root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+		rootfsFd, err := unix.Open("/proc/thread-self/root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 		if err != nil {
-			return
+			return err, printErr
 		}
 		rootfsFile = os.NewFile(uintptr(rootfsFd), "rootfs")
 
@@ -306,36 +304,36 @@ func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent
 			WorkingDir: "/",
 		}
 	} else {
+		var err error
 		wormholeResp, rootfsFile, err = a.DockerPrepWormhole(agent.PrepWormholeArgs{
 			ContainerID: wormholeContainerID,
 		})
 		if err != nil {
-			return
+			return err, printErr
 		}
 	}
 	defer rootfsFile.Close()
 
 	isNix, err := isNixContainer(rootfsFile)
 	if err != nil {
-		return
+		return err, printErr
 	}
 	if isNix && meta.WormholeFallback {
-		err = &ExitError{status: 124}
-		return
+		return &ExitError{status: sshenv.ExitCodeNeedsProLicense}, printErr
 	}
 
 	err = sv.m.wormhole.OnSessionStart()
 	if err != nil {
-		return
+		return err, printErr
 	}
 
 	wormholeMountFd, err := unix.OpenTree(unix.AT_FDCWD, mounts.WormholeUnifiedNix, unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 	if err != nil {
-		return
+		return err, printErr
 	}
 	wormholeMountFile := os.NewFile(uintptr(wormholeMountFd), "wormhole mount")
 	defer func() {
-		if err != nil {
+		if retErr != nil {
 			wormholeMountFile.Close()
 		}
 	}()
@@ -347,12 +345,12 @@ func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent
 
 	exitCodePipeRead, exitCodePipeWrite, err := os.Pipe()
 	if err != nil {
-		return
+		return err, printErr
 	}
 
 	logPipeRead, logPipeWrite, err := os.Pipe()
 	if err != nil {
-		return
+		return err, printErr
 	}
 
 	go io.Copy(os.Stderr, logPipeRead)
@@ -378,7 +376,7 @@ func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent
 	}
 	configBytes, err := json.Marshal(config)
 	if err != nil {
-		return
+		return err, printErr
 	}
 
 	cmd.User = ""
@@ -395,7 +393,7 @@ func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent
 		err = cmd.Start(a)
 	}
 	if err != nil {
-		return
+		return err, printErr
 	}
 
 	printErr = false
@@ -403,7 +401,7 @@ func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent
 	// kill payload if session is closed
 	go func() {
 		<-s.Context().Done()
-		_ = cmd.Process.Signal(syscall.Signal(61))
+		_ = cmd.Process.Signal(unix.SIGPWR)
 	}()
 
 	// forward signals using custom map
@@ -435,7 +433,7 @@ func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent
 
 		err = sv.m.wormhole.OnSessionEnd()
 		if err != nil {
-			logrus.WithError(err).Error("end womrhole session failed")
+			logrus.WithError(err).Error("end wormhole session failed")
 		}
 
 		if container.Running() {
@@ -447,13 +445,13 @@ func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent
 	}()
 
 	statusBytes := make([]byte, 1) // exit codes only range from 0-255 so it should be able to fit into a single byte
-	bytesRead, err := exitCodePipeRead.Read(statusBytes)
+	n, err := exitCodePipeRead.Read(statusBytes)
 	if err != nil {
-		return
+		return err, printErr
 	}
-	if bytesRead < 1 {
+	if n < 1 {
 		err = fmt.Errorf("could not read exitcode from pipe")
-		return
+		return err, printErr
 	}
 	status := int(statusBytes[0])
 
@@ -461,7 +459,7 @@ func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent
 		err = &ExitError{status: status}
 	}
 
-	return nil, false
+	return nil, printErr
 }
 
 func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string, isWormhole bool) (printErr bool, err error) {
@@ -503,7 +501,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 		// check for Pro license
 		if !sv.m.drm.isLicensed() {
-			err = &ExitError{status: sshenv.SigNeedsProLicense}
+			err = &ExitError{status: sshenv.ExitCodeNeedsProLicense}
 			return
 		}
 	}
@@ -646,10 +644,13 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	cmd.CombinedArgs = combinedArgs
 
 	if isWormhole {
-		container.UseAgent(func(a *agent.Client) error {
+		err2 := container.UseAgent(func(a *agent.Client) error {
 			err, printErr = sv.doWormhole(s, cmd, a, container, user, wormholeContainerID, shellCmd, &meta)
 			return nil
 		})
+		if err2 != nil {
+			return isPty, err2
+		}
 		return
 	}
 

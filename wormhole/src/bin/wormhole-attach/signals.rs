@@ -1,13 +1,12 @@
 use std::{
-    mem::{size_of, transmute, MaybeUninit},
+    mem::{size_of, MaybeUninit},
     os::{
         fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd},
         raw::c_int,
     },
-    ptr::{null, null_mut},
+    ptr::{null_mut},
 };
 
-use ctrlc::Signal;
 use libc::{signalfd_siginfo, sigset_t};
 
 pub struct SigSet(libc::sigset_t);
@@ -58,24 +57,24 @@ impl SignalFd {
 
     pub fn read_signal(&mut self) -> Result<Option<signalfd_siginfo>, std::io::Error> {
         unsafe {
-            let mut buffer = MaybeUninit::<[u8; size_of::<signalfd_siginfo>()]>::uninit();
+            let mut siginfo = MaybeUninit::<signalfd_siginfo>::uninit();
 
             // assume full read
             match libc::read(
                 self.0.as_raw_fd(),
-                buffer.as_mut_ptr() as *mut libc::c_void,
+                siginfo.as_mut_ptr() as *mut libc::c_void,
                 size_of::<signalfd_siginfo>(),
             ) {
                 x if x == size_of::<signalfd_siginfo>() as isize => {
-                    return Ok(Some(transmute(buffer)))
+                    Ok(Some(siginfo.assume_init()))
                 }
                 x if x < 0
                     && std::io::Error::last_os_error().raw_os_error().unwrap() == libc::EAGAIN =>
                 {
-                    return Ok(None)
+                    Ok(None)
                 }
-                x if x < 0 => return Err(std::io::Error::last_os_error()),
-                _ => unreachable!("partial read from signalfd"),
+                x if x < 0 => Err(std::io::Error::last_os_error()),
+                _ => panic!("partial read from signalfd"),
             }
         }
     }

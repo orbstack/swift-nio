@@ -186,7 +186,7 @@ Pro only: requires an OrbStack Pro license.
 			os.Exit(1)
 		}
 
-		if exitCode == sshenv.SigNeedsProLicense {
+		if exitCode == sshenv.ExitCodeNeedsProLicense {
 			if flagFallback {
 				fmt.Fprintln(os.Stderr, color.New(color.FgBlue).Sprintf(`%s making it easy to debug any container (even minimal/distroless).
 It also allows installing over 80,000 packages.

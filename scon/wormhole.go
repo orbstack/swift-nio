@@ -110,7 +110,7 @@ func (m *WormholeManager) OnSessionEnd() error {
 	// try to unmount overlay
 	err := unix.Unmount(mounts.WormholeOverlay, 0)
 	if err != nil {
-		// TODO: this never returns EBUSY, even if it's in use???
+		// beware! this may not return ebusy even when wormhole mounts are still in use. it will succeed at unmounting and later when remounted the kernel will warn about UB
 		if errors.Is(err, unix.EBUSY) {
 			// leave it mounted and return success; don't change m.isMounted
 			// this happens when background processes still have fds open
@@ -145,7 +145,7 @@ func (m *WormholeManager) NukeData() error {
 		return err
 	}
 
-	return os.Mkdir("/data/wormhole/overlay/upper", 0)
+	return os.Mkdir("/data/wormhole/overlay/upper", 0755)
 }
 
 func isNixContainer(rootfsFile *os.File) (bool, error) {

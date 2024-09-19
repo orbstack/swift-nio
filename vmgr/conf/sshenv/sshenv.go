@@ -59,7 +59,5 @@ var (
 )
 
 const (
-	_                     = iota
-	SigWormholeMountsBusy = 124
-	SigNeedsProLicense
+	ExitCodeNeedsProLicense = 125
 )

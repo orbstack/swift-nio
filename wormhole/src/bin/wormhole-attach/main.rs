@@ -1,19 +1,17 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
-    ffi::CString,
+    ffi::{c_int, CString},
     fs::File,
-    io,
-    mem::{self, MaybeUninit},
-    os::fd::{FromRawFd, OwnedFd},
+    os::fd::{FromRawFd, OwnedFd, RawFd},
     path::Path,
     ptr::{null, null_mut},
 };
 
 use anyhow::anyhow;
 use libc::{
-    prlimit, ptrace, sigset_t, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp,
-    PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
+    prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP,
+    PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
     PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE,
 };
 use model::WormholeConfig;
@@ -45,7 +43,7 @@ use tracing::{debug, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
-    flock::{Flock, FlockGuard, FlockMode, FlockWait},
+    flock::{Flock, FlockMode, FlockWait},
     newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY},
     paths,
 };
@@ -357,20 +355,17 @@ fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<Flock> {
     Ok(ref_lock)
 }
 
-fn sigset_add_u32(sigset: &mut SigSet, signal: u32) {
-    // this works because sigset is repr transparent
-    unsafe {
-        libc::sigaddset(
-            mem::transmute::<_, &mut libc::sigset_t>(sigset) as *mut libc::sigset_t,
-            signal as libc::c_int,
-        );
-    }
-}
-
 fn parse_config() -> anyhow::Result<WormholeConfig> {
     let config_str = std::env::args().nth(1).unwrap();
     let config = serde_json::from_str(&config_str)?;
     Ok(config)
+}
+
+fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
+    fcntl(
+        fd,
+        FcntlArg::F_SETFD(FdFlag::from_bits_retain(fcntl(fd, F_GETFD)?) | FdFlag::FD_CLOEXEC),
+    )
 }
 
 // this is 75% of a container runtime, but a bit more complex... since it has to clone attributes of another process instead of just knowing what to set
@@ -390,19 +385,16 @@ fn main() -> anyhow::Result<()> {
     drm::verify_token(&config.drm_token)?;
 
     // set cloexec on extra files passed to us
-    fcntl(
-        config.exit_code_pipe_write_fd,
-        FcntlArg::F_SETFD(
-            FdFlag::from_bits_retain(fcntl(config.exit_code_pipe_write_fd, F_GETFD)?)
-                | FdFlag::FD_CLOEXEC,
-        ),
-    )?;
-    fcntl(
-        config.log_fd,
-        FcntlArg::F_SETFD(
-            FdFlag::from_bits_retain(fcntl(config.log_fd, F_GETFD)?) | FdFlag::FD_CLOEXEC,
-        ),
-    )?;
+    set_cloexec(config.exit_code_pipe_write_fd)?;
+    set_cloexec(config.log_fd)?;
+    set_cloexec(config.wormhole_mount_tree_fd)?;
+
+    // set sigpipe
+    {
+        let mut set = SigSet::empty()?;
+        set.add_signal(Signal::SIGPIPE as i32)?;
+        mask_sigset(&set, libc::SIG_BLOCK)?;
+    }
 
     trace!("open pidfd");
     let pidfd = PidFd::open(config.init_pid)?;
@@ -636,13 +628,6 @@ fn main() -> anyhow::Result<()> {
             drop(subreaper_socket_fd);
             drop(pidfd);
 
-            // mask sigpipe
-            {
-                let mut set = SigSet::empty()?;
-                set.add_signal(Signal::SIGPIPE as i32)?;
-                mask_sigset(&set, libc::SIG_BLOCK)?;
-            }
-
             monitor::run(
                 &config,
                 proc_fd,
@@ -670,14 +655,10 @@ fn main() -> anyhow::Result<()> {
 
             // then chdir to requested workdir (must do / first to avoid rel path vuln)
             // can fail (falls back to /)
-            let target_workdir = config
-                .container_workdir
-                .as_ref()
-                .map(|val| val.clone())
-                .unwrap_or_else(|| {
-                    // copy cwd of init pid
-                    format!("/proc/{}/cwd", config.init_pid)
-                });
+            let target_workdir = config.container_workdir.clone().unwrap_or_else(|| {
+                // copy cwd of init pid
+                format!("/proc/{}/cwd", config.init_pid)
+            });
             if let Err(e) = chdir(Path::new(&target_workdir)) {
                 // fail silently. this happens when workdir doesn't exist
                 debug!("failed to set working directory: {}", e);
@@ -819,7 +800,9 @@ fn main() -> anyhow::Result<()> {
             let subreaper_sfd = {
                 let mut set = SigSet::empty()?;
                 set.add_signal(Signal::SIGCHLD as i32)?;
-                mask_sigset(&set, libc::SIG_BLOCK)?;
+                // keep sigpipe masked
+                set.add_signal(Signal::SIGPIPE as i32)?;
+                mask_sigset(&set, libc::SIG_SETMASK)?;
                 SignalFd::new(&set, libc::SFD_CLOEXEC | libc::SFD_NONBLOCK)?
             };
 
@@ -849,12 +832,6 @@ fn main() -> anyhow::Result<()> {
                         ForkResult::Parent { child } => {
                             // subreaper helps us deal with zsh's zombie processes in any container where init is not a shell (e.g. distroless)
 
-                            // mask sigpipe
-                            {
-                                let mut set = SigSet::empty()?;
-                                set.add_signal(Signal::SIGPIPE as i32)?;
-                                mask_sigset(&set, libc::SIG_BLOCK)?;
-                            }
                             subreaper::run(&config, subreaper_socket_fd, subreaper_sfd, child)?;
                             trace!("subreaper exited");
                         }
@@ -865,6 +842,9 @@ fn main() -> anyhow::Result<()> {
 
                             // clear our masked signals
                             mask_sigset(&SigSet::empty()?, libc::SIG_SETMASK)?;
+
+                            // die when subreaper dies
+                            proc::prctl_death_sig()?;
 
                             trace!("execve");
                             let shell_cmd =

@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	ProcessName         = appid.AppName + "-helper: "
+	ProcessName = appid.AppName + "-helper: "
+	// this lets us add the container name to the end of the process name by adding some additional padding
 	ProcessNameExtraPad = 100
 )
 
@@ -117,7 +118,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	}
 
 	// set process name
-	err = setProcessCmdline(ProcessName + hostname[0:min(len(hostname), ProcessNameExtraPad)])
+	err = setProcessCmdline(ProcessName + hostname)
 	if err != nil {
 		return err
 	}

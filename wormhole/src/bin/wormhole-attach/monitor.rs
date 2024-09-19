@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     fs::File,
     io::{stderr, stdout},
     os::{
@@ -9,7 +8,7 @@ use std::{
     path::Path,
 };
 
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use nix::{
     errno::Errno,
     fcntl::{openat, AtFlags, OFlag},
@@ -28,10 +27,15 @@ use wormhole::{
 };
 
 use crate::{
-    is_root_readonly, model::WormholeConfig, parse_proc_mounts, proc::{
-        get_ns_of_pid_from_dirfd, iter_pids_from_dirfd, reap_children,
-        wait_for_exit, ExitResult,
-    }, signals::SignalFd, subreaper_protocol::Message, DIR_CREATE_LOCK
+    is_root_readonly,
+    model::WormholeConfig,
+    parse_proc_mounts,
+    proc::{
+        get_ns_of_pid_from_dirfd, iter_pids_from_dirfd, reap_children, wait_for_exit, ExitResult,
+    },
+    signals::SignalFd,
+    subreaper_protocol::Message,
+    DIR_CREATE_LOCK,
 };
 
 enum DeleteNixDirResult {
@@ -170,9 +174,9 @@ pub fn run(
     trace!("waitpid");
     if let ExitResult::Code(0) = wait_for_exit(intermediate)? {
         if let Err(err) = monitor(socket, intermediate, sfd) {
-            trace!(?err, "monitoring errored.");
+            trace!(?err, "monitoring errored");
         }
-        trace!("monitoring finished.");
+        trace!("monitoring finished");
     } else {
         trace!("intermediate failed");
     }
@@ -183,7 +187,7 @@ pub fn run(
 }
 
 fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::Result<()> {
-    trace!("entering main event loop.");
+    trace!("entering main event loop");
 
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
     epoll.add(&sfd, EpollEvent::new(EpollFlags::EPOLLIN, 1))?;
@@ -194,34 +198,30 @@ fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::
     loop {
         match epoll.wait(&mut events, -1) {
             Ok(n) if n < 1 => {
-                bail!("expected an event on epoll return")
+                return Err(anyhow!("expected an event on epoll return"));
             }
+            Err(Errno::EINTR) => continue,
             Err(err) => {
-                bail!("error while epolling: {}", err)
+                return Err(anyhow!("error while epolling: {}", err));
             }
             Ok(_) => {}
         }
 
         match sfd.read_signal() {
+            Ok(Some(sig)) if sig.ssi_signo == Signal::SIGCHLD as u32 => {
+                let mut should_break = false;
+
+                reap_children(|pid, _| {
+                    if pid != intermediate {
+                        should_break = true;
+                    }
+                })?;
+                if should_break {
+                    break;
+                }
+            }
             Ok(Some(sig)) => {
                 trace!(?sig, "got signal");
-
-                // if the subreaper died (not the intermediate) it is time to cleanup
-                if sig.ssi_signo == Signal::SIGCHLD as u32
-                    && sig.ssi_pid != intermediate.as_raw() as u32
-                    && sig.ssi_status != Signal::SIGSTOP as i32
-                {
-                    break;
-                }
-
-                if sig.ssi_signo == Signal::SIGCHLD as u32 {
-                    continue;
-                }
-
-                // if we get a sigint, go to cleanup
-                if sig.ssi_signo == Signal::SIGINT as u32 {
-                    break;
-                }
 
                 match map_signal(sig.ssi_signo) {
                     Ok(sig_forward) => {
@@ -239,12 +239,16 @@ fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::
         }
     }
 
-    trace!("subreaper exited.");
+    trace!("subreaper exited");
     Ok(())
 }
 
-fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: Flock, cgroup_path: &str) -> anyhow::Result<()> {
-    trace!("cleaning up.");
+fn cleanup(
+    proc_fd: BorrowedFd<'_>,
+    nix_flock_ref: Flock,
+    _cgroup_path: &str,
+) -> anyhow::Result<()> {
+    trace!("cleaning up");
 
     // save the mountns so we can check if pids are in it
     let wormhole_mountns = fstatat(proc_fd.as_raw_fd(), "./self/ns/mnt", AtFlags::empty())?.st_ino;
@@ -261,21 +265,16 @@ fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: Flock, cgroup_path: &str) -> 
                 continue;
             }
 
-            match get_ns_of_pid_from_dirfd(proc_fd.as_fd(), pid, "mnt") {
-                Ok(mountns) => {
-                    if mountns == wormhole_mountns {
-                        found_pids += 1;
+            if let Ok(mountns) = get_ns_of_pid_from_dirfd(proc_fd.as_fd(), pid, "mnt") {
+                if mountns == wormhole_mountns {
+                    found_pids += 1;
 
-                        trace!(%pid, "stopping process.");
-                        if let Err(err) = kill(pid, Some(Signal::SIGKILL)) {
-                            trace!(%pid, ?err, "error while kill process");
-                        }
+                    trace!(%pid, "stopping process");
+                    if let Err(err) = kill(pid, Some(Signal::SIGKILL)) {
+                        trace!(%pid, ?err, "error while kill process");
                     }
                 }
-                Err(err) => {
-                    trace!(%pid, ?err, "error while getting process mountns");
-                }
-            };
+            }
         }
         if found_pids == 0 {
             break;

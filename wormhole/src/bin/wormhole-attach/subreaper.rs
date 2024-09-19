@@ -7,25 +7,29 @@ use std::{
     },
 };
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow};
 use nix::{
     errno::Errno,
     sys::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
-        signal::kill,
-        wait::{waitid, Id, WaitPidFlag, WaitStatus},
+        signal::{self, kill},
     },
     unistd::{dup2, Pid},
 };
 use tracing::trace;
 
-use crate::{model::WormholeConfig, proc::reap_children, signals::SignalFd, subreaper_protocol::Message};
+use crate::{
+    model::WormholeConfig, proc::reap_children, signals::SignalFd, subreaper_protocol::Message,
+};
 
 fn return_exit_code(mut stream: impl Write, exit_code: i32) -> anyhow::Result<()> {
     stream.write_all(&[exit_code as u8])?; // should be fine since exit codes can only be 0-255
     stream.flush()?;
     Ok(())
 }
+
+const EPOLL_SFD_DATA: u64 = 1;
+const EPOLL_SOCKET_DATA: u64 = 2;
 
 pub fn run(
     config: &WormholeConfig,
@@ -41,23 +45,32 @@ pub fn run(
     let socket = UnixStream::from(socket_fd);
 
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
-    epoll.add(&sfd, EpollEvent::new(EpollFlags::EPOLLIN, 1))?;
-    epoll.add(&socket, EpollEvent::new(EpollFlags::EPOLLIN, 2))?;
+    epoll.add(&sfd, EpollEvent::new(EpollFlags::EPOLLIN, EPOLL_SFD_DATA))?;
+    epoll.add(
+        &socket,
+        EpollEvent::new(EpollFlags::EPOLLIN, EPOLL_SOCKET_DATA),
+    )?;
 
     let mut events = [EpollEvent::empty()];
 
     let mut payload_pid = Some(payload_pid);
 
     loop {
-        if epoll.wait(&mut events, -1)? < 1 {
-            bail!("expected an event on epoll return.");
+        match epoll.wait(&mut events, -1) {
+            Ok(n) if n < 1 => {
+                return Err(anyhow!("expected an event on epoll return"));
+            }
+            Err(Errno::EINTR) => continue,
+            Err(err) => {
+                return Err(anyhow!("error while epolling: {}", err));
+            }
+            Ok(_) => {}
         }
 
         match events[0].data() {
-            // sfd
-            1 => match sfd.read_signal() {
-                Ok(Some(_sig)) => {
-                    trace!("caught a signal, reaping.");
+            EPOLL_SFD_DATA => match sfd.read_signal() {
+                Ok(Some(sig)) if sig.ssi_signo == signal::SIGCHLD as u32 => {
+                    trace!("caught a signal, reaping");
 
                     let mut process_exited_cb = |pid, status| {
                         if !payload_pid.is_some_and(|payload_pid| payload_pid == pid) {
@@ -67,27 +80,27 @@ pub fn run(
                         payload_pid = None;
 
                         if let Err(err) = return_exit_code(&mut exit_code_pipe_write, status) {
-                            trace!(?err, "error returning exit code.");
+                            trace!(?err, "error returning exit code");
                         }
                     };
 
                     if !reap_children(&mut process_exited_cb)? {
-                        trace!("no more children, exiting.");
+                        trace!("no more children, exiting");
                         break;
                     }
                 }
-                Ok(None) => {}
-                Err(err) => trace!(?err, "error while trying to read signal from sfd."),
+                Ok(_) => {}
+                Err(err) => trace!(?err, "error while trying to read signal from sfd"),
             },
-            // socket
-            2 => match Message::read_from(&socket)? {
+            EPOLL_SOCKET_DATA => match Message::read_from(&socket)? {
                 Message::ForwardSignal(sig) => {
+                    trace!(sig, "forwarding signal");
                     if let Some(payload_pid) = payload_pid {
                         kill(payload_pid, Some(sig.try_into()?))?;
                     }
                 }
             },
-            _ => bail!("unexpected epoll data."),
+            _ => return Err(anyhow!("unexpected epoll data")),
         }
     }
 

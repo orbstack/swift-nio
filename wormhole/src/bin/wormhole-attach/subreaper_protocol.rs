@@ -3,9 +3,8 @@ use std::{
     mem::size_of,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result};
 use serde::{Deserialize, Serialize};
-use tracing::trace;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Message {
@@ -15,11 +14,7 @@ pub enum Message {
 impl Message {
     pub fn write_to(&self, mut stream: impl Write) -> Result<()> {
         let serialized = bincode::serialize(self)?;
-        if serialized.len() > u32::MAX as usize {
-            bail!("serialized length too big");
-        }
-        trace!(len = serialized.len(), "send.");
-        let len_bytes = (serialized.len() as u32).to_be_bytes();
+        let len_bytes = u32::try_from(serialized.len())?.to_be_bytes();
         stream.write_all(&len_bytes)?;
 
         stream.write_all(&serialized)?;
@@ -32,7 +27,6 @@ impl Message {
             stream.read_exact(&mut len_bytes)?;
             u32::from_be_bytes(len_bytes) as usize
         };
-        trace!(len, "recv.");
 
         let mut serialized = vec![0_u8; len];
         stream.read_exact(&mut serialized)?;
