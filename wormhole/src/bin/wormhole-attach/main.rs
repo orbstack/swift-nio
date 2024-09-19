@@ -636,6 +636,13 @@ fn main() -> anyhow::Result<()> {
             drop(subreaper_socket_fd);
             drop(pidfd);
 
+            // mask sigpipe
+            {
+                let mut set = SigSet::empty()?;
+                set.add_signal(Signal::SIGPIPE as i32)?;
+                mask_sigset(&set, libc::SIG_BLOCK)?;
+            }
+
             monitor::run(
                 &config,
                 proc_fd,
@@ -841,7 +848,13 @@ fn main() -> anyhow::Result<()> {
                         // parent 2 = subreaper
                         ForkResult::Parent { child } => {
                             // subreaper helps us deal with zsh's zombie processes in any container where init is not a shell (e.g. distroless)
-                            trace!("loop");
+
+                            // mask sigpipe
+                            {
+                                let mut set = SigSet::empty()?;
+                                set.add_signal(Signal::SIGPIPE as i32)?;
+                                mask_sigset(&set, libc::SIG_BLOCK)?;
+                            }
                             subreaper::run(&config, subreaper_socket_fd, subreaper_sfd, child)?;
                             trace!("subreaper exited");
                         }
@@ -849,6 +862,9 @@ fn main() -> anyhow::Result<()> {
                         // child 2 = payload
                         ForkResult::Child => {
                             let _span = span!(Level::TRACE, "payload");
+
+                            // clear our masked signals
+                            mask_sigset(&SigSet::empty()?, libc::SIG_SETMASK)?;
 
                             trace!("execve");
                             let shell_cmd =
