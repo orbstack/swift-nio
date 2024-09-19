@@ -545,6 +545,11 @@ func (a *AgentServer) InitialSetupStage2(args InitialSetupArgs, _ *None) error {
 		if err == nil {
 			for _, sshFile := range sshFiles {
 				if strings.HasPrefix(sshFile.Name(), "id_") {
+					if _, err = os.Stat(home + "/.ssh/" + sshFile.Name()); err == nil {
+						logrus.WithField("file", sshFile.Name()).Debug("Not symlinking ssh key - it already exists")
+						continue
+					}
+
 					logrus.WithField("file", sshFile.Name()).Debug("Symlinking ssh key")
 					err = os.MkdirAll(home+"/.ssh", 0700)
 					if err != nil {
