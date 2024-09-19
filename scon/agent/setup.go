@@ -65,11 +65,10 @@ type InitialSetupArgs struct {
 	// "" if isolated (to avoid info leak)
 	HostHomeDir string
 
-	Password          string
-	Distro            string
-	Version           string
-	SSHAuthorizedKeys []string
-	Timezone          string
+	Password string
+	Distro   string
+	Version  string
+	Timezone string
 }
 
 func selectShell() (string, error) {
@@ -533,27 +532,6 @@ func (a *AgentServer) InitialSetupStage2(args InitialSetupArgs, _ *None) error {
 	gid, err := strconv.Atoi(u.Gid)
 	if err != nil {
 		return err
-	}
-
-	// write ssh authorized keys
-	if len(args.SSHAuthorizedKeys) > 0 {
-		logrus.Debug("Writing ssh authorized keys")
-		err = os.MkdirAll(home+"/.ssh", 0700)
-		if err != nil {
-			return err
-		}
-		err = os.Chown(home+"/.ssh", uid, gid)
-		if err != nil {
-			return err
-		}
-		err = os.WriteFile(home+"/.ssh/authorized_keys", []byte(strings.Join(args.SSHAuthorizedKeys, "\n")), 0600)
-		if err != nil {
-			return err
-		}
-		err = os.Chown(home+"/.ssh/authorized_keys", uid, gid)
-		if err != nil {
-			return err
-		}
 	}
 
 	if !args.Isolated {
