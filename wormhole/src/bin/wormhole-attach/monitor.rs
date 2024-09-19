@@ -280,9 +280,9 @@ fn cleanup(proc_fd: BorrowedFd<'_>, nix_flock_ref: Flock, cgroup_path: &str) -> 
         if found_pids == 0 {
             break;
         }
-
-        reap_children(|_, _| {})?;
     }
+
+    reap_children(|_, _| {})?;
 
     // try to delete /nix
     if let DeleteNixDirResult::Busy = delete_nix_dir(proc_fd.as_fd(), nix_flock_ref)? {
