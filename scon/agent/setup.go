@@ -164,9 +164,14 @@ func addUserToGroups(username string, addGroups []string) error {
 	return nil
 }
 
-func deleteDefaultUsers() error {
+func deleteDefaultUsers(specifiedUsername string) error {
 	for _, username := range defaultUsers {
 		if _, err := user.Lookup(username); err != nil {
+			continue
+		}
+
+		if username == specifiedUsername {
+			logrus.WithField("user", username).Debug("Skipping deletion of default user, as this is the username the user wants")
 			continue
 		}
 
@@ -461,7 +466,7 @@ func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 		}
 
 		// delete default lxd image users to avoid conflict
-		err = deleteDefaultUsers()
+		err = deleteDefaultUsers(args.Username)
 		if err != nil {
 			return err
 		}
