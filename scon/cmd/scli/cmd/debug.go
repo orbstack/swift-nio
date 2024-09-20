@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/fatih/color"
@@ -110,6 +112,100 @@ func fallbackDockerExec(containerID string) error {
 	return unix.Exec(conf.FindXbin("docker"), []string{"docker", "--context", "orbstack", "exec", "-it", containerID, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"}, os.Environ())
 }
 
+type ContainerData struct {
+	State struct {
+		Pid int
+	}
+	Config struct {
+		WorkingDir string
+		Env        []string
+	}
+}
+
+type ContextData struct {
+	Name      string
+	Endpoints struct {
+		Docker struct {
+			Host string
+		}
+	}
+}
+
+type WormholeParams struct {
+	Pid        int      `json:"init_pid"`
+	Env        []string `json:"container_env"`
+	WorkingDir string   `json:"container_workdir"`
+	ShellCmd   string   `json:"entry_shell_cmd"`
+}
+
+func debugRemote(containerID string) error {
+	containerID, context, ok := strings.Cut(containerID, "@")
+	dockerBin := conf.FindXbin("docker")
+
+	if !ok {
+		return errors.New("invalid remote context " + containerID)
+	}
+
+	cmd := exec.Command(dockerBin, "context", "inspect", context)
+	output, err := cmd.Output()
+	if err != nil {
+		return errors.New("failed to inspect context")
+	}
+
+	var contextInfo []ContextData
+	err = json.Unmarshal(output, &contextInfo)
+	if err != nil {
+		return errors.New("failed to unmarshal context")
+	}
+
+	if len(contextInfo) == 0 {
+		return errors.New("no context found")
+	}
+	dockerHost := contextInfo[0].Endpoints.Docker.Host
+	dockerHostEnv := append(os.Environ(), "DOCKER_HOST="+dockerHost)
+	fmt.Println("using dockerhost: " + dockerHost)
+
+	cmd = exec.Command(dockerBin, "inspect", containerID)
+	cmd.Env = dockerHostEnv
+	output, err = cmd.Output()
+	if err != nil {
+		return errors.New("failed to inspect container " + containerID)
+	}
+	var containerInfo []ContainerData
+	err = json.Unmarshal(output, &containerInfo)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%+v\n", containerInfo)
+
+	REGISTRY_IMAGE := "198.19.249.3:5000/wormhole-rootfs"
+	cmd = exec.Command(dockerBin, "run", "-d", "--privileged", "--pid=host", "--net=host", "--cgroupns=host", "-v", "wormhole-data:/data", REGISTRY_IMAGE)
+	cmd.Env = dockerHostEnv
+	output, err = cmd.Output()
+	if err != nil {
+		return errors.New("failed to start remote wormhole container ")
+	}
+
+	remoteContainerID := strings.TrimSpace(string(output))
+	fmt.Println("remote container id: " + remoteContainerID)
+	wormholeParams, err := json.Marshal(WormholeParams{
+		Pid:        containerInfo[0].State.Pid,
+		WorkingDir: containerInfo[0].Config.WorkingDir,
+		Env:        containerInfo[0].Config.Env,
+		ShellCmd:   "",
+	})
+	if err != nil {
+		return errors.New("failed to serialize wormhole params")
+	}
+
+	fmt.Println("wormhole params" + string(wormholeParams))
+
+	unix.Exec(dockerBin, []string{"docker", "exec", "-it", remoteContainerID, "/driver", string(wormholeParams)}, dockerHostEnv)
+
+	return nil
+}
+
 var debugCmd = &cobra.Command{
 	Use:     "debug [flags] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"wormhole"},
@@ -152,6 +248,12 @@ Pro only: requires an OrbStack Pro license.
 			return nil
 		}
 		containerID := *containerIDp
+
+		if strings.Contains(containerID, "@") {
+			// remote debug
+			return debugRemote(containerID)
+			// return nil
+		}
 
 		scli.EnsureSconVMWithSpinner()
 
