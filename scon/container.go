@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strconv"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -14,8 +15,10 @@ import (
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/cuser"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/scon/util/sysns"
 	"github.com/orbstack/macvirt/vmgr/syncx"
@@ -397,4 +400,29 @@ func (c *Container) revertStateLocked(oldState types.ContainerState) {
 	}).Debug("reverting container state")
 
 	c.setState(oldState)
+}
+
+func (c *Container) getDefaultUidGid() (int, int, error) {
+	rootfs, err := securefs.NewFromPath(c.rootfsDir)
+	if err != nil {
+		return -1, -1, fmt.Errorf("open guest rootfs: %w", err)
+	}
+	defer rootfs.Close()
+
+	guestUser, err := cuser.LookupUser(c.config.DefaultUsername, rootfs)
+	if err != nil {
+		return -1, -1, fmt.Errorf("lookup guest user: %w", err)
+	}
+
+	uid, err := strconv.Atoi(guestUser.Uid)
+	if err != nil {
+		return -1, -1, fmt.Errorf("parse guest uid: %w", err)
+	}
+
+	gid, err := strconv.Atoi(guestUser.Gid)
+	if err != nil {
+		return -1, -1, fmt.Errorf("parse guest gid: %w", err)
+	}
+
+	return uid, gid, nil
 }

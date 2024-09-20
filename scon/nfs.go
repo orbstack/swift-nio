@@ -227,7 +227,13 @@ func (m *ConManager) onRestoreContainer(c *Container) error {
 			return nil
 		}
 
-		err := m.nfsForAll.MountBind(c.rootfsDir, c.Name, -1, -1)
+		uid, gid, err := c.getDefaultUidGid()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to get default uid/gid")
+			uid, gid = -1, -1
+		}
+
+		err = m.nfsForAll.MountBind(c.rootfsDir, c.Name, uid, gid)
 		if err != nil {
 			return err
 		}

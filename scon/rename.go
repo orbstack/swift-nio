@@ -51,13 +51,24 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 	defer func() {
 		if retErr != nil {
 			_ = c.manager.nfsForAll.Unmount(newName)
-			err2 := c.manager.nfsForAll.MountBind(c.rootfsDir, oldName, -1, -1)
+			uid, gid, err2 := c.getDefaultUidGid()
+			if err2 != nil {
+				logrus.WithError(err2).Error("failed to get uid/gid after error")
+				uid, gid = -1, -1
+			}
+
+			err2 = c.manager.nfsForAll.MountBind(c.rootfsDir, oldName, uid, gid)
 			if err2 != nil {
 				logrus.WithError(err2).Error("failed to remount old name after error")
 			}
 		}
 	}()
-	err = c.manager.nfsForAll.MountBind(c.rootfsDir, newName, -1, -1)
+	uid, gid, err := c.getDefaultUidGid()
+	if err != nil {
+		logrus.WithError(err).Error("failed to get uid/gid")
+		uid, gid = -1, -1
+	}
+	err = c.manager.nfsForAll.MountBind(c.rootfsDir, newName, uid, gid)
 	if err != nil {
 		return "", err
 	}
