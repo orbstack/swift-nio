@@ -55,6 +55,9 @@ var (
 			Arch:    images.NativeArch(),
 			Variant: "default",
 		},
+		Config: types.MachineConfig{
+			DefaultUsername: "root",
+		},
 		Builtin: true,
 		State:   types.ContainerStateRunning,
 	}
