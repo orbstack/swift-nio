@@ -62,4 +62,6 @@
     "x86_64-linux"
     "i686-linux"
   ];
+
+  users.groups.orbstack.gid = 67278;
 }

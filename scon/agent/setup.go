@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -442,6 +443,38 @@ func (a *AgentServer) createUserAndGroup(username string, uid int, gid int, shel
 	return nil
 }
 
+func createOrbSocketGroup(username string) error {
+	logrus.Debug("creating orb socket group")
+	err := util.Run("groupadd", "--gid", types.OrbSocketGid, "orbstack")
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			// BusyBox
+			err = util.Run("addgroup", "-g", types.OrbSocketGid, "orbstack")
+			if err != nil {
+				return nil
+			}
+
+			// since we're here anyways, let's just finish up
+			err = util.Run("addgroup", username, "orbstack")
+			if err != nil {
+				return nil
+			}
+
+			// cool, all set!
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	err = util.Run("usermod", "-aG", "orbstack", username)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 	// if this is a cloud-init image, wait for cloud-init to finish before we do anything
 	// fixes errors like: ('ssh_authkey_fingerprints', KeyError("getpwnam(): name not found: 'ubuntu'"))
@@ -510,6 +543,18 @@ func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 		err = configureSystemStandard(args)
 		if err != nil {
 			logrus.WithError(err).Error("standard system configuration failed")
+			return err
+		}
+
+		// IMPORTANT: this must be last
+
+		if _, err = user.LookupGroupId(types.OrbSocketGid); err == nil {
+			logrus.WithError(err).Error("orb socket gid already exists")
+			return nil
+		}
+
+		err = createOrbSocketGroup(args.Username)
+		if err != nil {
 			return err
 		}
 	}

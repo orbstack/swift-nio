@@ -3,6 +3,7 @@ package main
 import (
 	"net"
 
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -14,9 +15,9 @@ type HostServiceProxy struct {
 	connectAddr *net.TCPAddr
 }
 
-func NewHostServiceProxy(unixPath string, port int, socketUidGid int) (*HostServiceProxy, error) {
-	// security: chmod 600 and chown to default user uid/gid
-	listener, err := util.ListenUnixWithPerms(unixPath, 0600, socketUidGid, socketUidGid)
+func NewHostServiceProxy(unixPath string, port int, uid int) (*HostServiceProxy, error) {
+	// security: chmod 660 and chown to guest user (for old machines)/OrbStack gid
+	listener, err := util.ListenUnixWithPerms(unixPath, 0660, uid, types.OrbSocketGidInt)
 	if err != nil {
 		return nil, err
 	}
@@ -27,8 +28,8 @@ func NewHostServiceProxy(unixPath string, port int, socketUidGid int) (*HostServ
 	}, nil
 }
 
-func RunHostServiceProxy(unixPath string, port int, socketUidGid int) error {
-	proxy, err := NewHostServiceProxy(unixPath, port, socketUidGid)
+func RunHostServiceProxy(unixPath string, port int, uid int) error {
+	proxy, err := NewHostServiceProxy(unixPath, port, uid)
 	if err != nil {
 		return err
 	}

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/sysns"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -20,8 +21,8 @@ import (
 
 // this entire thing is a hacky workaround for a VS Code bug
 // https://github.com/microsoft/vscode/issues/168202
-func RunSshAgentProxy(uid int, gid int) error {
-	listener, err := util.ListenUnixWithPerms(mounts.HostSshAgentProxySocket, 0600, uid, gid)
+func RunSshAgentProxy(uid int) error {
+	listener, err := util.ListenUnixWithPerms(mounts.HostSshAgentProxySocket, 0600, uid, types.OrbSocketGidInt)
 	if err != nil {
 		return err
 	}
