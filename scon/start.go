@@ -711,6 +711,7 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 	}
 	defer func() {
 		if retErr != nil {
+			logrus.WithError(retErr).WithField("container", c.Name).Error("failed to start container")
 			c.revertStateLocked(oldState)
 		}
 	}()
