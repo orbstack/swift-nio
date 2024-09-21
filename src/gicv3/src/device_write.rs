@@ -376,7 +376,9 @@ impl GicV3 {
         // Handle `GICD_IPRIORITYR<n>` (see section 12.9.20 of spec)
         req.handle_pod_array(mmio_range!(GICD, ipriorityr), |_idx, val| {
             tracing::trace!("writing to `GICD_IPRIORITYR`");
-            assert_eq!(0xa0, val);
+
+            // we don't support prioritization, so make sure all interrupts are configured to the same priority
+            assert_eq!(*self.requested_priority.get_or_init(|| val), val);
         });
 
         // Handle `GICD_IPRIORITYR<n>E` (see section 12.9.21 of spec)
@@ -721,7 +723,7 @@ impl GicV3 {
         // Handle `GICR_IPRIORITYR<n>` (see section 12.11.21 of spec)
         req.handle_pod_array(mmio_range!(SGI, ipriorityr), |idx, val| {
             tracing::trace!("writing to `GICR_IPRIORITYR`");
-            assert_eq!(0xa0, val);
+            assert_eq!(*self.requested_priority.get_or_init(|| val), val);
         });
 
         // Handle `GICR_IPRIORITYR<n>E` (see section 12.11.22 of spec)

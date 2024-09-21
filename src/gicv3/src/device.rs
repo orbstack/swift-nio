@@ -11,7 +11,7 @@ use std::{
     collections::{hash_map, VecDeque},
     sync::{
         atomic::{AtomicBool, AtomicU8, Ordering::*},
-        Arc, RwLock,
+        Arc, OnceLock, RwLock,
     },
 };
 use utils::Mutex;
@@ -205,6 +205,8 @@ pub struct GicV3 {
     pub enable_are: AtomicBool,
     pub enable_grp_1: AtomicBool,
     pub enable_grp_0: AtomicBool,
+
+    pub requested_priority: OnceLock<u8>,
 }
 
 impl GicV3 {
@@ -241,6 +243,8 @@ impl GicV3 {
             enable_are: AtomicBool::new(false),
             enable_grp_1: AtomicBool::new(false),
             enable_grp_0: AtomicBool::new(false),
+
+            requested_priority: OnceLock::new(),
         }
     }
 
