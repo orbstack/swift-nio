@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/orbstack/macvirt/scon/types"
 	"net/http"
 	"os"
 	"os/signal"
@@ -59,20 +60,21 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 	}
 
 	// start host service proxies now that we have uid/gid
+	// socket owners: host user (for old machines) + OrbStack GID
 	go runOne("host service proxy host-ssh", func() error {
-		return RunHostServiceProxy(mounts.HostHostSSHSocket, ports.SecureSvcHostSSH, u.Uid)
+		return RunHostServiceProxy(mounts.HostHostSSHSocket, ports.SecureSvcHostSSH, u.Uid, types.OrbSocketGidInt)
 	})
 	go runOne("host service proxy hcontrol", func() error {
-		return RunHostServiceProxy(mounts.HostHcontrolSocket, ports.SecureSvcHcontrol, u.Uid)
+		return RunHostServiceProxy(mounts.HostHcontrolSocket, ports.SecureSvcHcontrol, u.Uid, types.OrbSocketGidInt)
 	})
 	go runOne("host service proxy ssh-agent", func() error {
-		return RunHostServiceProxy(mounts.HostSshAgentSocket, ports.SecureSvcHostSSHAgent, u.Uid)
+		return RunHostServiceProxy(mounts.HostSshAgentSocket, ports.SecureSvcHostSSHAgent, u.Uid, types.OrbSocketGidInt)
 	})
 	go runOne("host service proxy ssh-agent for docker", func() error {
-		return RunHostServiceProxy(mounts.DockerSshAgentProxySocket, ports.SecureSvcHostSSHAgent, u.Uid)
+		return RunHostServiceProxy(mounts.DockerSshAgentProxySocket, ports.SecureSvcHostSSHAgent, u.Uid, types.OrbSocketGidInt)
 	})
 	go runOne("vscode ssh agent proxy", func() error {
-		return RunSshAgentProxy(u.Uid, u.Gid)
+		return RunSshAgentProxy(u.Uid, types.OrbSocketGidInt)
 	})
 
 	// setup and start nfs uid

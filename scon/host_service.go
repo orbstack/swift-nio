@@ -14,9 +14,9 @@ type HostServiceProxy struct {
 	connectAddr *net.TCPAddr
 }
 
-func NewHostServiceProxy(unixPath string, port int, socketUidGid int) (*HostServiceProxy, error) {
-	// security: chmod 600 and chown to default user uid/gid
-	listener, err := util.ListenUnixWithPerms(unixPath, 0600, socketUidGid, socketUidGid)
+func NewHostServiceProxy(unixPath string, port int, uid int, gid int) (*HostServiceProxy, error) {
+	// security: chmod 660 and chown to passed uid/gid
+	listener, err := util.ListenUnixWithPerms(unixPath, 0660, uid, gid)
 	if err != nil {
 		return nil, err
 	}
@@ -27,8 +27,8 @@ func NewHostServiceProxy(unixPath string, port int, socketUidGid int) (*HostServ
 	}, nil
 }
 
-func RunHostServiceProxy(unixPath string, port int, socketUidGid int) error {
-	proxy, err := NewHostServiceProxy(unixPath, port, socketUidGid)
+func RunHostServiceProxy(unixPath string, port int, uid int, gid int) error {
+	proxy, err := NewHostServiceProxy(unixPath, port, uid, gid)
 	if err != nil {
 		return err
 	}

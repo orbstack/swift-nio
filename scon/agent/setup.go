@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -456,6 +457,45 @@ func (a *AgentServer) createUserAndGroup(username string, uid int, gid int, shel
 	return nil
 }
 
+func createOrbSocketGroup(username string) error {
+	if _, err := user.LookupGroupId(types.OrbSocketGid); err == nil {
+		return errors.New("orbstack gid is already used")
+	}
+
+	if _, err := user.LookupGroup(types.OrbSocketGroupName); err == nil {
+		return errors.New("orbstack group name is already used")
+	}
+
+	logrus.Debug("creating orbstack socket group")
+	err := util.Run("groupadd", "--gid", types.OrbSocketGid, types.OrbSocketGroupName)
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			// BusyBox
+			err = util.Run("addgroup", "-g", types.OrbSocketGid, types.OrbSocketGroupName)
+			if err != nil {
+				return fmt.Errorf("create orbstack group: %w", err)
+			}
+
+			// since we're here anyways, let's just finish up
+			err = util.Run("addgroup", username, types.OrbSocketGroupName)
+			if err != nil {
+				return fmt.Errorf("add user to orbstack group: %w", err)
+			}
+
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	err = util.Run("usermod", "-aG", types.OrbSocketGroupName, username)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 	// if this is a cloud-init image, wait for cloud-init to finish before we do anything
 	// fixes errors like: ('ssh_authkey_fingerprints', KeyError("getpwnam(): name not found: 'ubuntu'"))
@@ -525,6 +565,13 @@ func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 		if err != nil {
 			logrus.WithError(err).Error("standard system configuration failed")
 			return err
+		}
+
+		// must be run after a.createUserAndGroups();
+		// we don't fatally error if group already exists
+		err = createOrbSocketGroup(args.Username)
+		if err != nil {
+			logrus.WithError(err).Error("failed to create orbstack socket group")
 		}
 	}
 
