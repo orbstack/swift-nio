@@ -458,7 +458,9 @@ class VmViewModel: ObservableObject {
     // TODO: fix state machine to deal with restarting
     @Published private(set) var isVmRestarting = false
     @Published private(set) var restartingMachines = Set<String>()
-    @Published private(set) var state = VmState.stopped {
+
+    // initial state is .spawning because we always call initLaunch on start
+    @Published private(set) var state = VmState.spawning {
         didSet {
             if state == .running {
                 reachedRunning = true
@@ -665,8 +667,8 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    private func spawnDaemon() throws -> Task<Void, Never>? {
-        guard state == .stopped else {
+    private func spawnDaemon(ignoreState: Bool) throws -> Task<Void, Never>? {
+        guard ignoreState || state == .stopped else {
             return nil
         }
 
@@ -683,7 +685,10 @@ class VmViewModel: ObservableObject {
         }
 
         // on MainActor
-        state = .spawning
+        if !ignoreState {
+            state = .spawning
+        }
+        
         return Task {
             do {
                 // resolve symlinks in path to fix bundle ID resolution on launch
@@ -858,7 +863,7 @@ class VmViewModel: ObservableObject {
 
     func initLaunch() {
         // do this part synchronously to avoid UI flicker on launch
-        let (spawned, task) = _trySpawnDaemon()
+        let (spawned, task) = _trySpawnDaemon(ignoreState: true)
         if !spawned {
             return
         }
@@ -872,9 +877,9 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    private func _trySpawnDaemon() -> (spawned: Bool, task: Task<Void, Never>?) {
+    private func _trySpawnDaemon(ignoreState: Bool = false) -> (spawned: Bool, task: Task<Void, Never>?) {
         do {
-            return try (true, spawnDaemon())
+            return try (true, spawnDaemon(ignoreState: ignoreState))
         } catch VmError.wrongArch {
             setError(.wrongArch)
             return (false, nil)
