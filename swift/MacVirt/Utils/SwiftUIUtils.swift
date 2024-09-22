@@ -18,20 +18,20 @@ struct WindowAccessor: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_: NSView, context _: Context) {}
+    func updateNSView(_: NSView, context: Context) {
+        context.coordinator.holder = holder
+    }
 
     func makeCoordinator() -> WindowMonitor {
-        WindowMonitor {
-            holder.window = $0
-        }
+        WindowMonitor(holder: holder)
     }
 
     class WindowMonitor: NSObject {
         private var cancellables = Set<AnyCancellable>()
-        private var onChange: (NSWindow?) -> Void
+        var holder: WindowHolder
 
-        init(_ onChange: @escaping (NSWindow?) -> Void) {
-            self.onChange = onChange
+        init(holder: WindowHolder) {
+            self.holder = holder
         }
 
         /// This function uses KVO to observe the `window` property of `view` and calls `onChange()`
@@ -40,21 +40,7 @@ struct WindowAccessor: NSViewRepresentable {
                 .removeDuplicates()
                 .dropFirst()
                 .sink { [weak self] newWindow in
-                    self?.onChange(newWindow)
-                    if let newWindow {
-                        self?.monitorClosing(of: newWindow)
-                    }
-                }
-                .store(in: &cancellables)
-        }
-
-        /// This function uses notifications to track closing of `window`
-        private func monitorClosing(of window: NSWindow) {
-            NotificationCenter.default
-                .publisher(for: NSWindow.willCloseNotification, object: window)
-                .sink { [weak self] _ in
-                    self?.onChange(nil)
-                    self?.cancellables.removeAll()
+                    self?.holder.window = newWindow
                 }
                 .store(in: &cancellables)
         }
