@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -329,10 +330,15 @@ func (c *Container) configureLxc() error {
 			bind("/sys/kernel/debug", "/sys/kernel/debug", "")
 		}
 
-		// kernel modules used to be a symlink, but bind mount plays nicer with running containers
-		// for both docker machine and docker in users' machines
-		// this makes "-v /lib/modules:/lib/modules" work when running containers
-		bind(conf.C().GuestMountSrc+"/lib/modules/current", "/lib/modules/"+c.manager.kernelVersion, "ro")
+		// kernel modules used to be a symlink, but bind mount plays nicer with docker (in machines too):
+		// people mount it with "-v /lib/modules" so
+		// however, /lib is often a symlink and LXC doesn't allow symlinks in mount dest paths, so we have to resolve it here
+		libModulesPath, err := securefs.ResolvePath(c.rootfsDir, "/lib/modules")
+		if err != nil {
+			return err
+		}
+		kernelVersionPath := strings.TrimPrefix(libModulesPath, c.rootfsDir) + "/" + c.manager.kernelVersion
+		bind(conf.C().GuestMountSrc+"/lib/modules/current", kernelVersionPath, "ro")
 
 		// nesting (proc not needed because it's rw)
 		// this is in .lxc not .orbstack because of lxc systemd-generator's conditions
