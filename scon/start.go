@@ -253,14 +253,6 @@ func (c *Container) configureLxc() error {
 		 */
 		set("lxc.pty.max", "1024")
 		set("lxc.tty.max", "0")
-		// limiting caps breaks privileged nested docker 20.10.x containers (fixed in 23.0)
-		// because of dummy debugfs, we limit CAP_SYS_RAWIO so the systemd service condition fails
-		// otherwise it tries to mount if ConditionPathExists=/sys/kernel/debug and ConditionCapability=CAP_SYS_RAWIO
-		// HOWEVER, we need this for isolated
-		if c.config.Isolated {
-			set("lxc.cap.drop", "sys_rawio")
-			set("lxc.cap.drop", "sys_time")
-		}
 		set("lxc.autodev", "1") // populate /dev
 
 		// console
@@ -394,6 +386,7 @@ func (c *Container) configureLxc() error {
 
 		if c.config.Isolated {
 			// identity user namespace mapping to get capability restrictions without changing FS UID/GID
+			// this also removes the need to drop CAP_SYS_RAWIO/CAP_SYS_TIME
 			// math.MaxUint32
 			set("lxc.idmap", "u 0 0 4294967295")
 			set("lxc.idmap", "g 0 0 4294967295")
