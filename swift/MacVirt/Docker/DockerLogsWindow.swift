@@ -66,7 +66,7 @@ private struct AnsiState: Equatable {
     }
 }
 
-private class PtyPipe: Pipe {
+private class PtyPipe: Pipe, @unchecked Sendable {
     private let _fileHandleForReading: FileHandle
     private let _fileHandleForWriting: FileHandle
 

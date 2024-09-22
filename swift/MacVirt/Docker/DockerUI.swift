@@ -252,8 +252,7 @@ enum DockerContainerLists {
         }
 
         // convert to list items
-        for (var group, var containers) in composeGroups {
-
+        for (var group, containers) in composeGroups {
             let children = containers.map { DockerListItem.container($0) }
             // if ANY container in the group is running, show the group as running
             let anyRunning = containers.contains(where: { $0.running })
