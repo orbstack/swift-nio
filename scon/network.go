@@ -107,6 +107,7 @@ func (n *Network) Start() error {
 	// apply nftables
 	err = nft.ApplyConfig(nft.ConfigVM, map[string]string{
 		"IF_VNET":                           ifVnet,
+		"IF_VMNET_MACHINE":                  ifVmnetMachine,
 		"IF_BRIDGE":                         ifBridge,
 		"SCON_WEB_INDEX_IP4":                netconf.SconWebIndexIP4,
 		"SCON_WEB_INDEX_IP6":                netconf.SconWebIndexIP6,
