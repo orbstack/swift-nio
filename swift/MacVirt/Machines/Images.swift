@@ -95,11 +95,8 @@ enum Distro: String, CaseIterable {
         case .oracle: return [v("8"), v("9")]
         case .rocky: return [v("8"), v("9")]
         case .ubuntu: return [
-                // v("xenial", as: "16.04 LTS (Xenial Xerus)"),
-                v("bionic", as: "18.04 LTS (Bionic Beaver)"),
                 v("focal", as: "20.04 LTS (Focal Fossa)"),
                 v("jammy", as: "22.04 LTS (Jammy Jellyfish)"),
-                v("mantic", as: "23.10 (Mantic Minotaur)"),
                 v("noble", as: "24.04 LTS (Noble Numbat)"),
             ]
         case .void: return [v("current", as: "Latest")]
