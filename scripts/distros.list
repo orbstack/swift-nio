@@ -58,10 +58,7 @@ slackware:current
 springdalelinux:7
 springdalelinux:8
 springdalelinux:9
-ubuntu:bionic
 ubuntu:focal
 ubuntu:jammy
-ubuntu:mantic
 ubuntu:noble
-ubuntu:xenial
 voidlinux:current
