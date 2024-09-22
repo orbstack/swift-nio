@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -155,10 +156,28 @@ func (m *NfsMirrorManager) unmountLocked(subdest string) error {
 		return err
 	}
 
-	// remove directory
-	err = os.Remove(backingPath)
-	if err != nil {
-		return err
+	if strings.HasPrefix(subdest, "docker/images/") {
+		// for images: delete now-empty subdirs
+		// other subdirs (docker/images, docker/volumes, etc. are standard and should be kept)
+
+		// for each path component... (including leaf)
+		for subdest != "docker/images" {
+			err = os.Remove(m.rwDir + subdest)
+			if err != nil && !errors.Is(err, unix.ENOTEMPTY) {
+				// ENOTEMPTY = normal, not empty
+				return err
+			}
+
+			// go to parent
+			subdest = path.Dir(subdest)
+		}
+	} else {
+		// for everything else: only delete leaf dir
+		// volumes, containers, and machines all can't have multiple levels of subdirs
+		err = os.Remove(backingPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	delete(m.dests, mountPath)
