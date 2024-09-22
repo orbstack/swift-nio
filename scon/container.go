@@ -56,7 +56,8 @@ type Container struct {
 
 	hooks ContainerHooks
 
-	lxc *lxc.Container
+	lxc           *lxc.Container
+	lxcConfigured bool
 
 	manager *ConManager
 	mu      syncx.RWMutex
@@ -84,13 +85,14 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 	dir := m.dataDir + "/containers/" + id
 
 	c := &Container{
-		ID:      record.ID,
-		Name:    record.Name,
-		Image:   record.Image,
-		builtin: record.Builtin,
-		config:  record.Config,
-		dir:     dir,
-		manager: m,
+		ID:        record.ID,
+		Name:      record.Name,
+		Image:     record.Image,
+		builtin:   record.Builtin,
+		config:    record.Config,
+		dir:       dir,
+		manager:   m,
+		rootfsDir: dir + "/rootfs",
 	}
 	// always create in stopped state
 	c.setState(types.ContainerStateStopped)

@@ -156,17 +156,16 @@ func (c *Container) initLxc() error {
 	runtime.SetFinalizer(lc, (*lxc.Container).Release)
 	c.lxc = lc
 
-	return c.configureLxc()
+	// set log file early in case we call get_state, stop, etc. before first start
+	return c.configureLxcEarly()
 }
 
-func (c *Container) configureLxc() error {
-	m := c.manager
+func (c *Container) configureLxcEarly() error {
 	lc := c.lxc
 
 	// logging
-	logPath := m.subdir("logs") + "/" + c.ID + ".log"
 	lc.ClearConfig()
-	err := lc.SetLogFile(logPath)
+	err := lc.SetLogFile(c.logPath())
 	if err != nil {
 		return err
 	}
@@ -184,13 +183,20 @@ func (c *Container) configureLxc() error {
 		}
 	}
 
+	return nil
+}
+
+// most of this is done lazily on first start:
+// makes scon start faster, and some configs require a valid rootfs
+func (c *Container) configureLxc() error {
+	m := c.manager
+
 	// configs
-	rootfs := c.dir + "/rootfs"
-	err = os.MkdirAll(rootfs, 0755)
+	err := os.MkdirAll(c.rootfsDir, 0755)
 	if err != nil {
 		return err
 	}
-	rootfs, err = filepath.EvalSymlinks(rootfs)
+	rootfs, err := filepath.EvalSymlinks(c.rootfsDir)
 	if err != nil {
 		return err
 	}
@@ -256,7 +262,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.autodev", "1") // populate /dev
 
 		// console
-		set("lxc.console.logfile", logPath+"-console")
+		set("lxc.console.logfile", c.logPath()+"-console")
 		set("lxc.console.buffer.size", "auto")
 		set("lxc.console.size", "auto")
 
@@ -488,7 +494,6 @@ func (c *Container) configureLxc() error {
 		return err
 	}
 
-	c.rootfsDir = rootfs
 	return nil
 }
 
@@ -672,6 +677,14 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 
 	if c.manager.stopping {
 		return ErrStopping
+	}
+
+	if !c.lxcConfigured {
+		err := c.configureLxc()
+		if err != nil {
+			return fmt.Errorf("configure LXC: %w", err)
+		}
+		c.lxcConfigured = true
 	}
 
 	oldState, err := c.transitionStateInternalLocked(types.ContainerStateStarting, isInternal)
