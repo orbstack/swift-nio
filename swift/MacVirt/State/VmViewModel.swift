@@ -431,7 +431,7 @@ class VmViewModel: ObservableObject {
 
     // MARK: - New
 
-    @PublishedAppStorage("selectedTab") var selectedTab = NavTabId.dockerContainers {
+    @Default(.selectedTab) var selectedTab {
         willSet {
             if newValue == .dockerContainers, dockerSortingMethod == .size { dockerSortingMethod = .none }
         }
@@ -452,8 +452,8 @@ class VmViewModel: ObservableObject {
 
     // MARK: - Filter defaults
 
-    @PublishedAppStorage("dockerFilterShowStopped") var dockerFilterShowStopped = true
-    @PublishedAppStorage("k8sFilterShowSystemNs") var k8sFilterShowSystemNs = false
+    @Default(.dockerMigrationDismissed) var dockerFilterShowStopped
+    @Default(.k8sFilterShowSystemNs) var k8sFilterShowSystemNs
 
     // TODO: fix state machine to deal with restarting
     @Published private(set) var isVmRestarting = false

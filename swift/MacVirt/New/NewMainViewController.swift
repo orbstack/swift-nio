@@ -8,6 +8,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import Defaults
 
 enum Panel {
     case sidebar
@@ -52,8 +53,8 @@ class NewMainViewController: NSViewController {
             menuItems: [menuItem1]
         )
 
-        model.$dockerFilterShowStopped.sink { [weak menuItem1] on in
-            menuItem1?.state = on ? .on : .off
+        Defaults.publisher(.dockerFilterShowStopped).sink { [weak menuItem1] change in
+            menuItem1?.state = change.newValue ? .on : .off
         }.store(in: &cancellables)
 
         return item
@@ -108,8 +109,8 @@ class NewMainViewController: NSViewController {
             menuItems: [menuItem1]
         )
 
-        model.$k8sFilterShowSystemNs.sink { [weak menuItem1] on in
-            menuItem1?.state = on ? .on : .off
+        Defaults.publisher(.k8sFilterShowSystemNs).sink { [weak menuItem1] change in
+            menuItem1?.state = change.newValue ? .on : .off
         }.store(in: &cancellables)
 
         return item
@@ -128,8 +129,8 @@ class NewMainViewController: NSViewController {
             menuItems: [menuItem1]
         )
 
-        model.$k8sFilterShowSystemNs.sink { [weak menuItem1] on in
-            menuItem1?.state = on ? .on : .off
+        Defaults.publisher(.k8sFilterShowSystemNs).sink { [weak menuItem1] change in
+            menuItem1?.state = change.newValue ? .on : .off
         }.store(in: &cancellables)
 
         return item
