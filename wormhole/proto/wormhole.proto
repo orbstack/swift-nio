@@ -1,0 +1,14 @@
+syntax = "proto3";
+package wormhole;
+
+service Wormhole {
+    rpc SendCommand(stream InputMessage) returns (stream OutputMessage);
+}
+
+message InputMessage {
+    string input = 1;
+}
+
+message OutputMessage {
+    string output = 1;
+}

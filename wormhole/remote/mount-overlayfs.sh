@@ -25,4 +25,4 @@ echo finished wormhole-unified mount bind
 # copy over the write-files to wormhole-unified
 
 
-sleep infinity
+./wormhole-server

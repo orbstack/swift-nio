@@ -3,6 +3,7 @@ module github.com/orbstack/macvirt/wormhole/remote/wormhole
 go 1.23.1
 
 require (
+	github.com/creack/pty v1.1.23 // indirect
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
