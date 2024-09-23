@@ -211,7 +211,7 @@ Get a license: https://orbstack.dev/pricing
 		}
 
 		// 124 = requested fallback mode, and container is Nix
-		if exitCode == 124 {
+		if exitCode == sshenv.ExitCodeNixDebugUnsupported {
 			fmt.Fprintln(os.Stderr, color.New(color.FgYellow).Sprint(`OrbStack Debug Shell does not yet support Nix containers.
 Falling back to 'docker exec'.
 Learn more: https://go.orbstack.dev/debug

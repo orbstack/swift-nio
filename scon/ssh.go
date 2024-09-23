@@ -319,7 +319,7 @@ func (sv *SshServer) doWormhole(s ssh.Session, cmd *agent.AgentCommand, a *agent
 		return err, printErr
 	}
 	if isNix && meta.WormholeFallback {
-		return &ExitError{status: sshenv.ExitCodeNeedsProLicense}, printErr
+		return &ExitError{status: sshenv.ExitCodeNixDebugUnsupported}, printErr
 	}
 
 	err = sv.m.wormhole.OnSessionStart()
