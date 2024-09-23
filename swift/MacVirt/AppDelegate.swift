@@ -268,6 +268,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
+    // on macOS 15.0+, SwiftUI reopen is broken unless app is compiled with Xcode 16+
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows: Bool) -> Bool {
         // normal behavior if hasVisibleWindows
         if hasVisibleWindows {
