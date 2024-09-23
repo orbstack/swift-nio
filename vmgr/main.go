@@ -75,6 +75,7 @@ var errDataPermission = errors.New(`Permission denied while opening data image. 
 
 // stronger than "defer runtime.KeepAlive": this even survives GC at program exit
 var keepAliveLockFile *os.File
+var _ = keepAliveLockFile
 
 // host -> guest
 var optionalForwardsLocalhost = map[string]string{
