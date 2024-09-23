@@ -16,13 +16,14 @@ echo mounted wormhole-overlay
 # make all rootfs ro except for some specific directories
 mount --bind -o ro $ROOTFS /mnt/wormhole-unified
 
+# copy over the write-files to wormhole-unified
 mount --bind /mnt/wormhole-overlay/nix/store /mnt/wormhole-unified/nix/store
 mount --bind /mnt/wormhole-overlay/nix/var /mnt/wormhole-unified/nix/var
 mount --bind /mnt/wormhole-overlay/nix/orb/data /mnt/wormhole-unified/nix/orb/data
 
 echo finished wormhole-unified mount bind 
 
-# copy over the write-files to wormhole-unified
+sleep infinite
 
 
-./wormhole-server
+# ./wormhole-server
