@@ -40,15 +40,28 @@ struct WindowAccessor: NSViewRepresentable {
                 .removeDuplicates()
                 .dropFirst()
                 .sink { [weak self] newWindow in
-                    self?.holder.window = newWindow
+                    // publishing within view update is UB
+                    DispatchQueue.main.async {
+                        self?.holder.windowRef = WindowRef(window: newWindow)
+                    }
                 }
                 .store(in: &cancellables)
         }
     }
 }
 
-class WindowHolder: ObservableObject {
+struct WindowRef {
     weak var window: NSWindow?
+}
+
+class WindowHolder: ObservableObject {
+    // wrapped object can't be weak
+    // need Published so that onChange(of: windowHolder.window) works
+    @Published fileprivate var windowRef = WindowRef()
+
+    var window: NSWindow? {
+        windowRef.window
+    }
 }
 
 func rectReader(_ binding: Binding<CGRect>, _ space: CoordinateSpace = .global) -> some View {
