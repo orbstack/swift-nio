@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use qbsdiff::Bspatch;
 use std::{
     fs::{self, File},
+    io::Write,
     os::fd::AsRawFd,
     process::Command,
 };
@@ -133,4 +134,48 @@ pub fn get_version(rosetta_path: &str) -> anyhow::Result<String> {
         .ok_or_else(|| anyhow!("no version"))?;
 
     Ok(version.into())
+}
+
+pub fn write_cpuinfo(path: &str) -> anyhow::Result<()> {
+    let num_cpus = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) };
+
+    let mut file = File::create(path)?;
+    for cpu_i in 0..num_cpus {
+        // trailing whitespace after "power management: " is intentional
+        // not worth making a buffered writer for this, but format! for each cpu should be faster than write! which makes a syscall for each format arg
+        let cpuinfo = format!(
+            r#"processor       : {cpu_i}
+vendor_id       : GenuineIntel
+cpu family      : 6
+model           : 44
+model name      : VirtualApple @ 2.50GHz
+stepping        : 0
+microcode       : 0x1
+cpu MHz         : 2500.000
+cache size      : 8192 KB
+physical id     : 0
+siblings        : {num_cpus}
+core id         : {cpu_i}
+cpu cores       : {num_cpus}
+apicid          : {cpu_i}
+initial apicid  : {cpu_i}
+fpu             : yes
+fpu_exception   : yes
+cpuid level     : 7
+wp              : yes
+flags           : fpu vme de tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss syscall nx rdtscp lm constant_tsc rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq dtes64 mwait ssse3 cx16 sse4_1 sse4_2 x2apic popcnt aes hypervisor lahf_lm
+bugs            : cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs itlb_multihit srbds
+bogomips        : 5000.00
+clflush size    : 64
+cache_alignment : 64
+address sizes   : 40 bits physical, 48 bits virtual
+power management: 
+
+"#
+        );
+
+        file.write_all(cpuinfo.as_bytes())?;
+    }
+
+    Ok(())
 }

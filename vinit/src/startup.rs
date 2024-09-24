@@ -972,6 +972,7 @@ fn prepare_rstub(host_build: &str) -> anyhow::Result<()> {
 fn setup_arch_emulators_early() -> anyhow::Result<()> {
     // install a dummy to prevent the native architecture from being emulated
     // MUST BE EARLY, or we could break execs sometimes when racing with other steps
+    // (exec is broken between these two steps, until we disable it)
     // this is the name used by ubuntu binfmt
     // also happens with: docker run --rm --privileged multiarch/qemu-user-static:register
     add_binfmt(
@@ -990,6 +991,8 @@ fn setup_arch_emulators_early() -> anyhow::Result<()> {
 #[cfg(target_arch = "aarch64")]
 fn setup_arch_emulators(sys_info: &SystemInfo) -> anyhow::Result<()> {
     // we always register qemu, but flags change if using Rosetta
+
+    use crate::rosetta;
     let mut qemu_flags = "POCF".to_string();
 
     if mount(
@@ -1055,6 +1058,12 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> anyhow::Result<()> {
         env::set_current_dir("/").unwrap();
         real_res.unwrap();
         real_res2.unwrap();
+
+        // write a fake x86 /proc/cpuinfo
+        rosetta::write_cpuinfo("/run/rosetta-cpuinfo")?;
+        // make it read-only
+        fs::set_permissions("/run/rosetta-cpuinfo", Permissions::from_mode(0o444))?;
+        seal_read_only("/run/rosetta-cpuinfo")?;
     } else {
         // qemu
         println!("  -  Using QEMU");

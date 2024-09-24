@@ -464,6 +464,11 @@ func (c *Container) configureLxc() error {
 			bind(nfsDirForMachines+"/ro", hostUser.HomeDir+"/"+mounts.NfsDirName, "ro,rslave")
 		}
 
+		// emulated machines get a fake /proc/cpuinfo
+		if isEmulated {
+			bind("/run/rosetta-cpuinfo", "/proc/cpuinfo", "ro")
+		}
+
 		// allow hook to override this
 		set("lxc.uts.name", c.Name)
 
