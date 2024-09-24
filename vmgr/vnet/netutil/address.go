@@ -11,6 +11,9 @@ import (
 var (
 	vnetSubnet4IpNet *net.IPNet
 	vnetSubnet6IpNet *net.IPNet
+
+	vnetHostNatIP4 net.IP
+	vnetHostNatIP6 net.IP
 )
 
 func init() {
@@ -24,6 +27,9 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	vnetHostNatIP4 = net.ParseIP(netconf.VnetHostNatIP4)
+	vnetHostNatIP6 = net.ParseIP(netconf.VnetHostNatIP6)
 }
 
 // IPv4 or IPv6, properly sized
@@ -65,9 +71,13 @@ func ShouldForward(addr tcpip.Address) bool {
 		return false
 	}
 
-	// vnet
-	if vnetSubnet4IpNet.Contains(ip) || vnetSubnet6IpNet.Contains(ip) {
-		return false
+	// vnet: block all except host NAT IPs (which do go through forward path)
+	if vnetSubnet4IpNet.Contains(ip) {
+		return vnetHostNatIP4.Equal(ip)
+	}
+
+	if vnetSubnet6IpNet.Contains(ip) {
+		return vnetHostNatIP6.Equal(ip)
 	}
 
 	return true
