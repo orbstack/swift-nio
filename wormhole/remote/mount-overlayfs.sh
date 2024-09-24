@@ -2,28 +2,27 @@
 # goal: produce a /nix directory that has everything from rootfs ro and the three specific directories (orb/data, store, var) as rw
 echo mounting overlayfs
 
-mkdir -p /data/upper /data/work
-
 ROOTFS=/wormhole-rootfs
-# /data is attached via docker volume
 UPPER=/data/upper
 WORK=/data/work
-mount -t overlay overlay -o lowerdir=$ROOTFS,upperdir=$UPPER,workdir=$WORK /mnt/wormhole-overlay
-
-echo mounted wormhole-overlay
+OVERLAY=/mnt/wormhole-overlay
+UNIFIED=/mnt/wormhole-unified
 
 
 # make all rootfs ro except for some specific directories
-mount --bind -o ro $ROOTFS /mnt/wormhole-unified
+mount ---bind $ROOTFS $UNIFIED
+mount -o remount,bind,ro $ROOTFS $UNIFIED
+
+mkdir -p $UPPER $WORK $OVERLAY $UNIFIED
+mount -t overlay overlay -o lowerdir=$ROOTFS,upperdir=$UPPER,workdir=$WORK $OVERLAY
+echo mounted overlay to $OVERLAY
 
 # copy over the write-files to wormhole-unified
-mount --bind /mnt/wormhole-overlay/nix/store /mnt/wormhole-unified/nix/store
-mount --bind /mnt/wormhole-overlay/nix/var /mnt/wormhole-unified/nix/var
-mount --bind /mnt/wormhole-overlay/nix/orb/data /mnt/wormhole-unified/nix/orb/data
+mount --bind $OVERLAY/nix/store $UNIFIED/nix/store
+mount --bind $OVERLAY/nix/var $UNIFIED/nix/var
+mount --bind $OVERLAY/nix/orb/data $UNIFIED/nix/orb/data
 
-echo finished wormhole-unified mount bind 
-
+echo mounted folders from $OVERLAY to $UNIFIED
 sleep infinite
 
 
-# ./wormhole-server

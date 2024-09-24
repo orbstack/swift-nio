@@ -675,6 +675,8 @@ fn main() -> anyhow::Result<()> {
                 intermediate,
                 monitor_sfd,
             )?;
+
+            trace!("monitor finished!!");
         }
 
         // child 1 = intermediate
@@ -919,6 +921,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
     }
+    trace!("everything finished...");
 
     Ok(())
 }

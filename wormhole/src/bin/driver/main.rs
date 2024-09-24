@@ -35,7 +35,7 @@ fn main() -> anyhow::Result<()> {
     let mut config = serde_json::from_str::<WormholeConfig>(&config_str)?;
 
     // see `doWormhole` in scon/ssh.go (~L300)
-    let wormhole_mount = open_tree("/mnt/wormhole-unified/nix", 0x80000 | 0x1 | 0x800)?;
+    let wormhole_mount = open_tree("/mnt/wormhole-unified/nix", 0x80000 | 0x1 | 0x8000)?;
     let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe()?;
     let (log_pipe_read_fd, log_pipe_write_fd) = pipe()?;
     let wormhole_mount_fd = wormhole_mount.as_raw_fd();

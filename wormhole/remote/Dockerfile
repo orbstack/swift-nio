@@ -133,7 +133,7 @@ CMD ["./mount-overlayfs.sh"]
 
 
 # kevin@orbstack macvirt % docker build --ssh default -t localhost:5000/wormhole-rootfs -f wormhole/remote/Dockerfile .
-# kevin@orbstack macvirt % docker run -it --privileged --pid host --net host -v wormhole-data:/data 198.19.249.3:5000/wormhole-rootfs /bin/sh
+# kevin@orbstack macvirt % docker run -it --privileged --pid host --net host --cgroupns=host -v wormhole-data:/data 198.19.249.3:5000/wormhole-rootfs /bin/sh
 # docker volume create wormhole-data
 # docker run -v wormhole-data:/data
 
