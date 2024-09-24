@@ -333,12 +333,16 @@ func (c *Container) configureLxc() error {
 		// kernel modules used to be a symlink, but bind mount plays nicer with docker (in machines too):
 		// people mount it with "-v /lib/modules" so
 		// however, /lib is often a symlink and LXC doesn't allow symlinks in mount dest paths, so we have to resolve it here
+		// match LXC behavior: auto-create /lib/modules
+		_ = securefs.MkdirAll(c.rootfsDir, "/lib/modules", 0755)
 		libModulesPath, err := securefs.ResolvePath(c.rootfsDir, "/lib/modules")
 		if err != nil {
-			return err
+			logrus.WithError(err).WithField("machine", c.Name).Error("failed to resolve /lib/modules")
+		} else {
+			guestPath := strings.TrimPrefix(libModulesPath, c.rootfsDir)
+			kernelVersionPath := guestPath + "/" + c.manager.kernelVersion
+			bind(conf.C().GuestMountSrc+"/lib/modules/current", kernelVersionPath, "ro")
 		}
-		kernelVersionPath := strings.TrimPrefix(libModulesPath, c.rootfsDir) + "/" + c.manager.kernelVersion
-		bind(conf.C().GuestMountSrc+"/lib/modules/current", kernelVersionPath, "ro")
 
 		// nesting (proc not needed because it's rw)
 		// this is in .lxc not .orbstack because of lxc systemd-generator's conditions

@@ -303,6 +303,7 @@ echo 'dockremap:165536:65536' >> /etc/subgid
 mkdir /mnt/mac
 mkdir /opt/orbstack-guest
 mkdir /var/lib/docker
+mkdir -p /lib/modules
 rm -rf /tmp
 ln -sf /private/tmp /tmp
 ln -sf /mnt/mac/var/folders /var/
