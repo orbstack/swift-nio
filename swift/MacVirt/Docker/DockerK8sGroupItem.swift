@@ -67,7 +67,7 @@ struct DockerK8sGroupItem: View, Equatable {
             }
 
             ProgressIconButton(systemImage: "gear", actionInProgress: false) {
-                Defaults[.selectedTab] = .k8sPods
+                Defaults[.selectedTab] = "k8s-pods"
             }
             .help("Go to Pods")
         }
@@ -100,11 +100,11 @@ struct DockerK8sGroupItem: View, Equatable {
             Divider()
 
             Button("Go to Pods") {
-                Defaults[.selectedTab] = .k8sPods
+                Defaults[.selectedTab] = "k8s-pods"
             }
 
             Button("Go to Services") {
-                Defaults[.selectedTab] = .k8sServices
+                Defaults[.selectedTab] = "k8s-services"
             }
         }
     }

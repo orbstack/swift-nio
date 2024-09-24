@@ -373,7 +373,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             icon = SystemImages.statusDot(container.statusDot)
         }
         let containerItem = newActionItem(container.userName, icon: icon) { [self] in
-            openApp(tab: .dockerContainers)
+            openApp(tab: "docker")
         }
         let submenu = containerItem.newSubmenu()
 
@@ -523,7 +523,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         let actionInProgress = actionTracker.ongoingFor(group.cid) != nil
         let icon = actionInProgress ? systemImage("circle.dotted") : systemImage("square.stack.3d.up.fill")
         let groupItem = newActionItem(group.project, icon: icon) { [self] in
-            openApp(tab: .dockerContainers)
+            openApp(tab: "docker")
         }
         let submenu = groupItem.newSubmenu()
         // supabase cli creates contaners with project label but not service, so Compose doesn't work
@@ -666,7 +666,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         return machineItem
     }
 
-    private func openApp(tab: NavTabId? = nil) {
+    private func openApp(tab: String? = nil) {
         if let tab {
             // set UserDefaults
             Defaults[.selectedTab] = tab

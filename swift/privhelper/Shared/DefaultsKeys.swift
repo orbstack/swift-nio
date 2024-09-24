@@ -157,33 +157,20 @@ class DrmState: Codable, Defaults.Serializable {
     }
 }
 
-enum NavTabId: String, Defaults.Serializable {
-    case dockerContainers = "docker"
-    case dockerVolumes = "docker-volumes"
-    case dockerImages = "docker-images"
-
-    case k8sPods = "k8s-pods"
-    case k8sServices = "k8s-services"
-
-    case machines = "machines"
-
-    case cli = "cli"
-}
-
 extension Defaults.Keys {
     // shared with swext in vmgr, which may have diff bundle ID
     private static let suite = getDefaultsSuite()
 
-    static let selectedTab = Key<NavTabId>("selectedTab", default: NavTabId.dockerContainers, suite: suite)
+    static let selectedTab = Key<String>("root_selectedTab", default: "docker", suite: suite)
 
-    static let dockerFilterShowStopped = Key<Bool>("dockerFilterShowStopped", default: true, suite: suite)
+//    static let dockerFilterShowStopped = Key<Bool>("docker_filterShowStopped", default: true, suite: suite)
     static let dockerMigrationDismissed = Key<Bool>("docker_migrationDismissed", default: false, suite: suite)
     // for AKList autosaveName
     static let docker_autosaveOutline = "docker_autosaveOutline"
 
     static let logsWordWrap = Key<Bool>("logs_wordWrap", default: true, suite: suite)
 
-    static let k8sFilterShowSystemNs = Key<Bool>("k8sFilterShowSystemNs", default: false, suite: suite)
+//    static let k8sFilterShowSystemNs = Key<Bool>("k8s_filterShowSystemNs", default: false, suite: suite)
 
     static let onboardingCompleted = Key<Bool>("onboardingCompleted", default: false, suite: suite)
 

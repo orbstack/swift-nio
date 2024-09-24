@@ -10,6 +10,7 @@
 		3C00901E2B26CBD30000DFFA /* NewMainVC+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */; };
 		3C0090232B26D7B80000DFFA /* NavTabId.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090222B26D7B80000DFFA /* NavTabId.swift */; };
 		3C0090252B2723E10000DFFA /* NewMainVC+Listen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */; };
+		3C0090272B27272E0000DFFA /* PublishedAppStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */; };
 		3C1935F22B313034009D2929 /* NewMainVC+SplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */; };
 		3C1935F42B31325D009D2929 /* SplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1935F32B31325D009D2929 /* SplitViewController.swift */; };
 		3CA2669E2B43C8C900D4DA28 /* DividedVStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA2669D2B43C8C900D4DA28 /* DividedVStack.swift */; };
@@ -264,6 +265,7 @@
 		3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+Toolbar.swift"; sourceTree = "<group>"; };
 		3C0090222B26D7B80000DFFA /* NavTabId.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavTabId.swift; sourceTree = "<group>"; };
 		3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+Listen.swift"; sourceTree = "<group>"; };
+		3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedAppStorage.swift; sourceTree = "<group>"; };
 		3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+SplitView.swift"; sourceTree = "<group>"; };
 		3C1935F32B31325D009D2929 /* SplitViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitViewController.swift; sourceTree = "<group>"; };
 		3CA2669D2B43C8C900D4DA28 /* DividedVStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DividedVStack.swift; sourceTree = "<group>"; };
@@ -499,6 +501,7 @@
 				3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */,
 				3C1935F32B31325D009D2929 /* SplitViewController.swift */,
 				3CBBBF912B1AC3E400BDBC87 /* Utilities.swift */,
+				3C0090262B27272E0000DFFA /* PublishedAppStorage.swift */,
 				3CBBBF882B1AC37700BDBC87 /* Sidebar */,
 				3CBBBF892B1AC37A00BDBC87 /* Principal */,
 				3CBBBF8A2B1AC37F00BDBC87 /* Inspector */,
@@ -1147,6 +1150,7 @@
 				3C00901E2B26CBD30000DFFA /* NewMainVC+Toolbar.swift in Sources */,
 				3CBBBF902B1AC39100BDBC87 /* InspectorView.swift in Sources */,
 				3CBBBF8C2B1AC38A00BDBC87 /* SidebarView.swift in Sources */,
+				3C0090272B27272E0000DFFA /* PublishedAppStorage.swift in Sources */,
 				D804440A2A1B404E00ED59C5 /* MacVirtApp.swift in Sources */,
 				D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */,
 				D80443FF2A1B404E00ED59C5 /* CreateVolumeView.swift in Sources */,
