@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 source config.sh
 
 pushd swift/out
