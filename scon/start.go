@@ -439,7 +439,7 @@ func (c *Container) configureLxc() error {
 		// isolated containers don't get bind mounts
 		if !c.config.Isolated {
 			// guest service sockets only for non-isolated containers
-			bind("/data/guest-state/bin/cmdlinks", mounts.Data, "ro")
+			bind("/data/guest-state", mounts.Data, "ro")
 			bind(mounts.HostRun, mounts.Run, "ro")
 
 			bind(conf.C().HostMountSrc, "/mnt/mac", "")
