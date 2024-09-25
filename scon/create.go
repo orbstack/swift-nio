@@ -169,6 +169,13 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 		}
 	}
 
+	// add to NFS
+	// restoring the container doesn't call this if state=creating
+	err = m.onRestoreContainer(c)
+	if err != nil {
+		return nil, fmt.Errorf("call restore hook: %w", err)
+	}
+
 	logrus.WithField("container", c.Name).Info("container created")
 	return
 }

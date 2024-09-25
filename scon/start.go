@@ -657,12 +657,16 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, isNew bool)
 		}()
 	}
 
-	go func() {
-		err := m.onRestoreContainer(c)
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("container restore hook failed")
-		}
-	}()
+	// if not creating or deleting, run container restore hooks
+	// this requires rootfs to exist, which may not be the case until creation is done
+	if record.State != types.ContainerStateCreating && record.State != types.ContainerStateDeleting {
+		go func() {
+			err := m.onRestoreContainer(c)
+			if err != nil {
+				logrus.WithError(err).WithField("container", c.Name).Error("container restore hook failed")
+			}
+		}()
+	}
 
 	m.uiEventDebounce.Call()
 
