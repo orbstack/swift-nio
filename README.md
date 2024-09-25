@@ -12,6 +12,7 @@
 - `scon`: Container manager that runs containers ("machines") in the VM. (Go)
   - Includes BPF programs (C)
 - `wormhole`: Debug Shell
+- `virtue`: VMM for macOS (Rust)
 
 ## Developer onboarding
 
