@@ -3,7 +3,7 @@
 app:
 	@cd rootfs; make release
 	@cd bins; make
-	@./build-app.sh
+	@scripts/build-app.sh
 
 clean:
 	@go clean -cache
@@ -13,7 +13,7 @@ serve:
 	@cd updates; python3 -m http.server
 
 pub:
-	@./publish-update.sh
+	@scripts/publish-update.sh
 
 r2:
 	# sync old builds

@@ -22,7 +22,7 @@ fi
 
 VMGR_BIN="OrbStack Helper"
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 source config.sh
 
 # Apple M1 is ARMv8.4 + most v8.5 extensions (SB, SSBS, CCDP, FRINT3264, SPECRESTRICT, ALTERNATIVENZCV)
@@ -171,5 +171,5 @@ built_dmgs=(*/*.dmg)
 popd
 
 if $PUBLISH_UPDATE; then
-    ./publish-update.sh "${built_dmgs[@]}"
+    scripts/publish-update.sh "${built_dmgs[@]}"
 fi
