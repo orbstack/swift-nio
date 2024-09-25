@@ -1,0 +1,321 @@
+use std::{
+    mem::size_of,
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    sync::Arc,
+    time::Duration,
+};
+
+use anyhow::anyhow;
+use bitflags::bitflags;
+use libc::{
+    kevent64_s, EVFILT_USER, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, EV_ENABLE, NOTE_EXTEND,
+    NOTE_FFCOPY, NOTE_TRIGGER,
+};
+use nix::errno::Errno;
+use zerocopy::AsBytes;
+
+use crate::virtio::{FsCallbacks, FxDashMap};
+
+use super::passthrough::{HandleData, HandleId};
+
+const DEBOUNCE_DURATION: Duration = Duration::from_millis(100);
+
+const IDENT_STOP: u64 = 1;
+
+const KEVENT_FLAG_IMMEDIATE: u32 = 1;
+
+pub struct VnodePoller {
+    kq: Kqueue,
+    callbacks: Arc<dyn FsCallbacks>,
+    handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
+}
+
+enum EventResult {
+    Krpc(String),
+    Stop,
+}
+
+enum EventBatchResult {
+    Stop,
+    Continue,
+}
+
+// ... we're responsible for prepending this
+const VIRTIOFS_MOUNTPOINT: &str = "/mnt/mac";
+
+const KRPC_MSG_NOTIFYPROXY_INJECT: u32 = 1;
+
+#[derive(AsBytes)]
+#[repr(C)]
+struct KrpcHeader {
+    len: u32,
+    typ: u32,
+    np: KrpcNotifyproxyInject,
+}
+
+#[derive(AsBytes)]
+#[repr(C)]
+struct KrpcNotifyproxyInject {
+    count: u64,
+}
+
+bitflags! {
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+    pub struct NpFlag: u32 {
+        const NP_FLAG_CREATE = 1 << 0;
+        const NP_FLAG_MODIFY = 1 << 1;
+        const NP_FLAG_STAT_ATTR = 1 << 2;
+        const NP_FLAG_REMOVE = 1 << 3;
+        const NP_FLAG_DIR_CHANGE = 1 << 4;
+        const NP_FLAG_RENAME = 1 << 5;
+    }
+}
+
+impl VnodePoller {
+    pub fn new(
+        callbacks: Arc<dyn FsCallbacks>,
+        handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
+    ) -> std::io::Result<Self> {
+        let kq = Kqueue::new()?;
+        let poller = VnodePoller {
+            kq,
+            callbacks,
+            handles,
+        };
+
+        // register waker
+        let waker = kevent64_s {
+            ident: IDENT_STOP,
+            filter: EVFILT_USER,
+            flags: EV_ADD | EV_CLEAR,
+            fflags: NOTE_FFCOPY,
+            ..default_kevent()
+        };
+        poller.kq.kevent(&[waker], &mut [], KEVENT_FLAG_IMMEDIATE)?;
+
+        Ok(poller)
+    }
+
+    // this should be handle id, but how to stop dupe registrations per nodeid? don't worry about it?
+    pub fn register<F: AsRawFd>(&self, fd: F, handle_id: HandleId) -> nix::Result<()> {
+        let new_event = kevent64_s {
+            ident: fd.as_raw_fd() as u64,
+            filter: EVFILT_VNODE,
+            flags: EV_ADD | EV_CLEAR,
+            // we only care about tail -f case. EXTEND should be less chatty than WRITE
+            // TODO: NOTE_DELETE for closing auto-opened fds -- or better to use fsevents for that?
+            fflags: NOTE_EXTEND,
+            udata: handle_id.into(),
+            ..default_kevent()
+        };
+        self.kq
+            .kevent(&[new_event], &mut [], KEVENT_FLAG_IMMEDIATE)?;
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn unregister<F: AsRawFd>(&self, fd: F, handle_id: HandleId) -> nix::Result<()> {
+        let new_event = kevent64_s {
+            ident: fd.as_raw_fd() as u64,
+            filter: EVFILT_VNODE,
+            flags: EV_DELETE,
+            fflags: NOTE_EXTEND,
+            udata: handle_id.into(),
+            ..default_kevent()
+        };
+        self.kq
+            .kevent(&[new_event], &mut [], KEVENT_FLAG_IMMEDIATE)?;
+        Ok(())
+    }
+
+    pub fn stop(&self) -> nix::Result<()> {
+        let waker = kevent64_s {
+            ident: IDENT_STOP,
+            filter: EVFILT_USER,
+            flags: EV_ENABLE,
+            fflags: NOTE_FFCOPY | NOTE_TRIGGER,
+            ..default_kevent()
+        };
+        self.kq.kevent(&[waker], &mut [], KEVENT_FLAG_IMMEDIATE)?;
+
+        Ok(())
+    }
+
+    pub fn main_loop(&self) -> anyhow::Result<()> {
+        let mut events_buf = vec![default_kevent(); 512];
+
+        loop {
+            // long-running wait with no timeout, for initial set of events in a new batch
+            match self.kq.kevent(&[], &mut events_buf, 0) {
+                Err(Errno::EINTR) => continue,
+                Err(e) => return Err(e.into()),
+
+                Ok(n) => {
+                    // process this batch of events first
+                    match self.process_kevents(&events_buf[0..n])? {
+                        EventBatchResult::Stop => return Ok(()),
+                        EventBatchResult::Continue => {}
+                    }
+                }
+            }
+
+            // we just got woken up by a new batch of events, so there might be more
+            // keep draining events until there are no more
+            loop {
+                match self.kq.kevent(&[], &mut events_buf, KEVENT_FLAG_IMMEDIATE) {
+                    Ok(0) => break,
+                    Err(Errno::EINTR) => continue,
+                    Err(e) => return Err(e.into()),
+
+                    Ok(n) => {
+                        // an additional set of events arrived, for the same batch
+                        match self.process_kevents(&events_buf[0..n])? {
+                            EventBatchResult::Stop => return Ok(()),
+                            EventBatchResult::Continue => {}
+                        }
+                    }
+                }
+            }
+
+            // no more events. let's debounce, then wait for next batch
+            std::thread::park_timeout(DEBOUNCE_DURATION);
+        }
+    }
+
+    fn process_kevents(&self, kevents: &[kevent64_s]) -> anyhow::Result<EventBatchResult> {
+        let mut krpc_events = Vec::with_capacity(kevents.len());
+
+        for event in kevents {
+            match self.process_kevent(event) {
+                Ok(Some(EventResult::Stop)) => return Ok(EventBatchResult::Stop),
+                Ok(Some(EventResult::Krpc(path))) => {
+                    let flags = NpFlag::NP_FLAG_MODIFY | NpFlag::NP_FLAG_STAT_ATTR;
+                    let event = (flags, path);
+                    krpc_events.push(event);
+                }
+                Ok(None) => {}
+                Err(e) => error!("error processing event: {:?}", e),
+            }
+        }
+
+        if !krpc_events.is_empty() {
+            self.send_krpc_events(&krpc_events);
+        }
+
+        Ok(EventBatchResult::Continue)
+    }
+
+    fn process_kevent(&self, event: &kevent64_s) -> anyhow::Result<Option<EventResult>> {
+        match event.filter {
+            // shutdown
+            EVFILT_USER => return Ok(Some(EventResult::Stop)),
+            EVFILT_VNODE => {
+                if event.fflags & NOTE_EXTEND != 0 {
+                    // need to use handle to prevent race if event was buffered before fd was closed
+                    let handle = HandleId(event.udata);
+                    let hd = match self.handles.get(&handle) {
+                        Some(hd) => hd,
+                        // race: handle was closed before we processed the event. ignore, because it no longer matters
+                        None => return Ok(None),
+                    };
+
+                    // TODO: just use nodeid for krpc
+                    let path = VIRTIOFS_MOUNTPOINT.to_string() + &hd.path()?;
+                    debug!("vnode EXTEND: handle={:?} path={:?}", handle, path);
+                    return Ok(Some(EventResult::Krpc(path)));
+                }
+            }
+            _ => return Err(anyhow!("unknown event filter")),
+        }
+
+        Ok(None)
+    }
+
+    fn send_krpc_events(&self, krpc_events: &[(NpFlag, String)]) {
+        let total_len =
+            // 8 byte header
+            size_of::<KrpcHeader>()
+            // u64 desc for each event
+            + 8 * krpc_events.len()
+            // total path len
+            + krpc_events
+                .iter()
+                .map(|(_, path)| path.len())
+                .sum::<usize>()
+            // null terminator for each path
+            + krpc_events.len();
+
+        let mut buf: Vec<u8> = Vec::with_capacity(total_len);
+
+        let header = KrpcHeader {
+            len: total_len as u32 - 8,
+            typ: KRPC_MSG_NOTIFYPROXY_INJECT,
+            np: KrpcNotifyproxyInject {
+                count: krpc_events.len() as u64,
+            },
+        };
+        buf.extend_from_slice(header.as_bytes());
+
+        // write descs (flags+len)
+        for (flags, path) in krpc_events {
+            let len = path.len() as u32;
+            let desc = ((len as u64) << 32) | (flags.bits() as u64);
+            buf.extend_from_slice(&desc.to_le_bytes());
+        }
+
+        // write paths
+        for (_, path) in krpc_events {
+            buf.extend_from_slice(path.as_bytes());
+            buf.push(0);
+        }
+
+        debug!("send_krpc_events: len={} -> {:?}", buf.len(), buf);
+        self.callbacks.send_krpc_events(&buf);
+    }
+}
+
+fn default_kevent() -> kevent64_s {
+    kevent64_s {
+        ident: 0,
+        filter: 0,
+        flags: 0,
+        fflags: 0,
+        data: 0,
+        udata: 0,
+        ext: [0; 2],
+    }
+}
+
+struct Kqueue(OwnedFd);
+
+impl Kqueue {
+    fn new() -> std::io::Result<Self> {
+        let fd = unsafe { libc::kqueue() };
+        let fd = Errno::result(fd)?;
+        Ok(Kqueue(unsafe { OwnedFd::from_raw_fd(fd) }))
+    }
+
+    fn kevent(
+        &self,
+        changes: &[kevent64_s],
+        events_buf: &mut [kevent64_s],
+        flags: u32,
+    ) -> nix::Result<usize> {
+        let ret = unsafe {
+            libc::kevent64(
+                self.0.as_raw_fd(),
+                changes.as_ptr(),
+                changes.len() as libc::c_int,
+                events_buf.as_mut_ptr(),
+                events_buf.len() as libc::c_int,
+                flags,
+                std::ptr::null(),
+            )
+        };
+        if ret == -1 {
+            return Err(Errno::last());
+        }
+
+        Ok(ret as usize)
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "editor.formatOnSave": true,
+    "editor.insertSpaces": true,
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    // libkrun tests have not been updated in a while and spam the error console
+    "rust-analyzer.cargo.unsetTest": [
+        "arch", "arch_gen", "cpuid", "devices", "hvf", "kernel", "libkrun", "utils", "vmm",
+    ],
+    // "rust-analyzer.cargo.target": "x86_64-apple-darwin",
+    "rust-analyzer.cargo.extraEnv": {
+        "CXXFLAGS": "-mmacosx-version-min=12.3"
+    },
+    "rust-analyzer.server.extraEnv": {
+        "CXXFLAGS": "-mmacosx-version-min=12.3"
+    },
+    "rust-analyzer.check.extraEnv": {
+        "CXXFLAGS": "-mmacosx-version-min=12.3"
+    }
+}

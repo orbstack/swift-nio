@@ -1,0 +1,96 @@
+use std::collections::VecDeque;
+
+use smallvec::smallvec;
+
+use crate::profiler::{
+    symbolicator::{HostKernelSymbolicator, SymbolFunc, SymbolResult},
+    Frame, FrameCategory, SymbolicatedFrame,
+};
+
+use super::StackTransform;
+
+pub struct HostSyscallTransform {}
+
+impl HostSyscallTransform {
+    pub const SYSCALL_MACH_HV_TRAP_ARM64: u64 = (-0x5i64) as u64;
+
+    #[cfg(target_arch = "aarch64")]
+    pub fn is_syscall_pc(pc: u64) -> bool {
+        use crate::profiler::{
+            arch::{ARM64_INSN_SIZE, ARM64_INSN_SVC_0X80},
+            memory::read_host_mem_aligned,
+        };
+
+        // PC=0 is never valid, and the subtraction below will overflow
+        if pc == 0 {
+            return false;
+        }
+
+        // in a syscall, PC = return address from syscall, incremented by the CPU when it takes the exception
+        // so PC - 4 = syscall instruction
+        // if that's the PC from thread sampling, then we are almost certainly in a syscall
+        // (the instruction immediately after a syscall shouldn't be slow)
+        let svc_pc = pc - ARM64_INSN_SIZE;
+
+        // XNU uses "svc 0x80" which assembles to 0xd4001001
+        // read is safe: instructions should always be aligned
+        if let Some(insn) = unsafe { read_host_mem_aligned::<u32>(svc_pc) } {
+            insn == ARM64_INSN_SVC_0X80
+        } else {
+            false
+        }
+    }
+
+    #[cfg(not(target_arch = "aarch64"))]
+    pub fn is_syscall_pc(_pc: u64) -> bool {
+        // TODO
+        false
+    }
+}
+
+impl StackTransform for HostSyscallTransform {
+    fn transform(&self, stack: &mut VecDeque<SymbolicatedFrame>) -> anyhow::Result<()> {
+        // find the first host userspace frame, not necessarily the front of the stack
+        // this makes it work for hv_trap, nested MACH_vmfaults in syscalls, etc.
+        let Some((index, pc)) = stack
+            .iter()
+            .enumerate()
+            .find(|&(_, sframe)| sframe.frame.category == FrameCategory::HostUserspace)
+        else {
+            return Ok(());
+        };
+
+        if HostSyscallTransform::is_syscall_pc(pc.frame.addr) {
+            // derive a syscall name from the userspace caller's symbol
+            // this isn't really accurate, but it almost always works because macOS requires libSystem
+            // we could do better by reading and saving x16, but that adds the overhead of reading the instruction at PC (and risking faults) to the thread-suspended critical section
+            // with x16: read x16 as i64. if negative, trace_code = (Mach) 0x10c0000 + (-x16) * 4. if positive, trace code = (BSD) 0x40c0000 + (x16) * 4. look up code in /usr/share/misc/trace.codes
+            let syscall_name = match pc.real_symbol() {
+                Some(SymbolResult {
+                    function: Some(SymbolFunc::Function(ref name, _)),
+                    ..
+                }) => name,
+                _ => "<unknown>",
+            };
+
+            // insert a syscall frame below this
+            stack.insert(
+                index,
+                SymbolicatedFrame {
+                    frame: Frame {
+                        category: FrameCategory::HostKernel,
+                        addr: pc.frame.addr,
+                    },
+                    symbols: smallvec![SymbolResult {
+                        image: HostKernelSymbolicator::IMAGE.to_string(),
+                        image_base: 0,
+                        function: Some(SymbolFunc::Function(format!("syscall: {}", syscall_name), 0)),
+                        source: None,
+                    }],
+                },
+            );
+        }
+
+        Ok(())
+    }
+}
