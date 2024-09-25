@@ -6,21 +6,6 @@ import Combine
 import Defaults
 import Foundation
 
-private enum StopExitCode: Int {
-    case logFatal = 1
-    case goPanic = 2
-
-    case kernelPanic = 101
-    case drm = 102
-    case healthCheck = 103
-    case dataCorruption = 104
-    case ioError = 105
-    case outOfMemory = 106
-    case unknownCrash = 107
-    case initCrash = 108
-    case dataEmpty = 109
-}
-
 enum ExitReason: Equatable, CustomStringConvertible {
     case status(Int)
     case signal(Int)
@@ -43,6 +28,37 @@ enum ExitReason: Equatable, CustomStringConvertible {
     case killed
 
     case unknown
+
+    static func from(exitCode: Int) -> ExitReason {
+        switch exitCode {
+        case 1:
+            return .logFatal
+        case 2:
+            return .goPanic
+
+        case 101:
+            return .kernelPanic
+        case 102:
+            return .drm
+        case 103:
+            return .healthCheck
+        case 104:
+            return .dataCorruption
+        case 105:
+            return .ioError
+        case 106:
+            return .outOfMemory
+        case 107:
+            return .unknownCrash
+        case 108:
+            return .initCrash
+        case 109:
+            return .dataEmpty
+
+        default:
+            return .status(exitCode)
+        }
+    }
 
     var description: String {
         switch self {
@@ -275,28 +291,7 @@ class DaemonManager {
                 }
             } else {
                 let status = waitStatus >> 8
-                switch StopExitCode(rawValue: status) {
-                case .logFatal:
-                    reason = .logFatal
-                case .goPanic:
-                    reason = .goPanic
-                case .kernelPanic:
-                    reason = .kernelPanic
-                case .outOfMemory:
-                    reason = .outOfMemory
-                case .unknownCrash:
-                    reason = .unknownCrash
-                case .drm:
-                    reason = .drm
-                case .healthCheck:
-                    reason = .healthCheck
-                case .dataCorruption:
-                    reason = .dataCorruption
-                case .ioError:
-                    reason = .ioError
-                default:
-                    reason = .status(status)
-                }
+                reason = .status(status)
             }
             // TODO: may not be right
             if pid == lastPid {
