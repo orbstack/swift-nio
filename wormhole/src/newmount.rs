@@ -6,8 +6,7 @@ use std::{
 };
 
 use libc::{
-    syscall, SYS_fsconfig, SYS_fsmount, SYS_fsopen, SYS_fspick, SYS_mount_setattr, SYS_move_mount,
-    SYS_open_tree, AT_FDCWD,
+    syscall, SYS_fsconfig, SYS_fsmount, SYS_fsopen, SYS_fspick, SYS_mount_setattr, SYS_move_mount, SYS_open_tree, SYS_umount2, AT_FDCWD
 };
 
 use crate::err;
@@ -40,7 +39,7 @@ pub struct MountAttr {
     pub userns_fd: u64,
 }
 
-pub fn open_tree(path: &str, flags: u32) -> anyhow::Result<OwnedFd> {
+pub fn open_tree(path: &str, flags: i32) -> anyhow::Result<OwnedFd> {
     let path = CString::new(path)?;
     let fd = unsafe { err(syscall(SYS_open_tree, AT_FDCWD, path.into_raw(), flags))? };
     Ok(unsafe { OwnedFd::from_raw_fd(fd as i32) })

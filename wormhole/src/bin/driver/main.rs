@@ -3,14 +3,32 @@
 // ./driver <pid> <container env> ... --> runs wormhole-attach with the proper mount / fds
 
 use std::{
-    env, ffi::CString, fs::File, io, mem, os::fd::{AsRawFd, FromRawFd}, process::Command, thread
+    env,
+    ffi::CString,
+    fs::{self, read_to_string, File},
+    io, mem,
+    os::fd::{AsRawFd, FromRawFd},
+    process::Command,
+    thread,
 };
 
 use libc::FD_CLOEXEC;
-use nix::{fcntl::{fcntl, FcntlArg::{self, F_GETFD}, FdFlag}, sys::wait::waitpid, unistd::{execve, execvp, fork, pipe, read, ForkResult}};
+use nix::{
+    fcntl::{
+        fcntl,
+        FcntlArg::{self, F_GETFD},
+        FdFlag,
+    },
+    mount::{umount2, MntFlags},
+    sys::wait::waitpid,
+    unistd::{execve, execvp, fork, pipe, read, ForkResult},
+};
 use serde::{Deserialize, Serialize};
-use wormhole::newmount::open_tree;
 use std::os::unix::process::CommandExt;
+use wormhole::{
+    flock::{Flock, FlockMode, FlockWait},
+    newmount::open_tree,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WormholeConfig {
@@ -30,34 +48,73 @@ pub struct WormholeConfig {
     pub entry_shell_cmd: Option<String>,
 }
 
+const REFCOUNT_FILE: &str = "/data/refcount";
+const REFCOUNT_LOCK: &str = "/data/refcount.lock";
+
+fn unmount_wormhole() -> anyhow::Result<()> {
+    // sometimes gets EINVAL = not mounted (??)
+    // println!("unmounting unified/nix/store");
+    // umount2("/mnt/wormhole-unified/nix/store",  MntFlags::MNT_DETACH)?;
+    // println!("unmounting unified/nix/var");
+    // umount2("/mnt/wormhole-unified/nix/var",  MntFlags::MNT_DETACH)?;
+    // println!("unmounting unified/nix/orb/data");
+    // umount2("/mnt/wormhole-unified/nix/orb/data", MntFlags::MNT_DETACH)?;
+    println!("unmounting wormhole-unified");
+    umount2("/mnt/wormhole-unified", MntFlags::empty())?;
+    Ok(())
+}
+
+fn update_refcount() -> anyhow::Result<()> {
+    let _flock = Flock::new_ofd(
+        File::create(REFCOUNT_LOCK)?,
+        FlockMode::Exclusive,
+        FlockWait::Blocking,
+    )?;
+
+    let mut refcount:i32 = fs::read_to_string(REFCOUNT_FILE)?.trim().parse()?;
+    refcount -= 1;
+
+    println!("updated refcount from {} to {}", refcount + 1, refcount);
+
+    if refcount == 0 {
+        unmount_wormhole()?;
+    }
+
+    fs::write(REFCOUNT_FILE, refcount.to_string())?;
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
+    println!("running driver");
     let config_str = std::env::args().nth(1).unwrap();
     let mut config = serde_json::from_str::<WormholeConfig>(&config_str)?;
 
     // see `doWormhole` in scon/ssh.go (~L300)
-    let wormhole_mount = open_tree("/mnt/wormhole-unified/nix", 0x80000 | 0x1 | 0x8000)?;
+    let wormhole_mount = open_tree(
+        "/mnt/wormhole-unified/nix",
+        libc::OPEN_TREE_CLOEXEC as i32 | libc::OPEN_TREE_CLONE as i32 | libc::AT_RECURSIVE,
+    )?;
     let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe()?;
     let (log_pipe_read_fd, log_pipe_write_fd) = pipe()?;
     let wormhole_mount_fd = wormhole_mount.as_raw_fd();
-
 
     // disable cloexec for fd that we pass to wormhole-attach
     fcntl(
         wormhole_mount_fd,
         FcntlArg::F_SETFD(
-            FdFlag::from_bits_truncate(fcntl(wormhole_mount_fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC
+            FdFlag::from_bits_truncate(fcntl(wormhole_mount_fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC,
         ),
     )?;
     fcntl(
         exit_code_pipe_write_fd,
         FcntlArg::F_SETFD(
-            FdFlag::from_bits_truncate(fcntl(wormhole_mount_fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC
+            FdFlag::from_bits_truncate(fcntl(wormhole_mount_fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC,
         ),
     )?;
     fcntl(
         log_pipe_write_fd,
         FcntlArg::F_SETFD(
-            FdFlag::from_bits_truncate(fcntl(wormhole_mount_fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC
+            FdFlag::from_bits_truncate(fcntl(wormhole_mount_fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC,
         ),
     )?;
 
@@ -65,20 +122,21 @@ fn main() -> anyhow::Result<()> {
     config.exit_code_pipe_write_fd = exit_code_pipe_write_fd;
     config.drm_token = String::from("eyJhbGciOiJFZERTQSIsImtpZCI6IjEiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiIiLCJlbnQiOjEsImV0cCI6MiwiZW1nIjpudWxsLCJlc3QiOm51bGwsImF1ZCI6Im1hY3ZpcnQiLCJ2ZXIiOnsiY29kZSI6MTA3MDEwMCwiZ2l0IjoiMmUzZjdlZWVhNjQ0NWEyZjZlYWI1MzM0MTkzNjBkZmU2NmZiODNkYSJ9LCJkaWQiOiI3YmE5ZjA1ZDBlMGY2NTI3MjVkYzA3NjM5Y2VmYTg2NTM2ZWVlMmU5NTc4NDk2OWVlODcwZWMyZDY2YjEzMDI0IiwiaWlkIjoiYzdlYzY1M2FmZDljMDIxNjZlZjY2Nzc2MGVkYWNmODA0ZDc4OTlhZDE3YmQ1YWIxYzU4YzE4OGVjOGYxZTExYiIsImNpZCI6ImU1NjZiZjRiNmExNjNjYTM1NGU2OGQzYmU2ZjAzZDlmNzFkMzYxZTdhMmIxNjMzZDcwMzE0MmE2ODIwNmNjNDciLCJpc3MiOiJkcm1zZXJ2ZXIiLCJpYXQiOjE3MjY2ODQyMjUsImV4cCI6MTcyNzI4OTAyNSwibmJmIjoxNzI2Njg0MjI1LCJkdnIiOjEsIndhciI6MTcyNjk3MTM3MiwibHhwIjoxNzI3NTc2MTcyfQ.asnYZORqAuIxyuusi8GVLql6GzF3oSEyyTJnQDw2F4FE11mRAJGWWm6wVWaphnyQUYptTmDvbp3VeRBg0HWGAw");
 
-
     config.log_fd = log_pipe_write_fd;
 
     let serialized = serde_json::to_string(&config)?;
     println!("wormhole config: {}", serialized);
     match unsafe { fork()? } {
         ForkResult::Child => {
-            // Prepare the command and arguments
+            println!("starting wormhole-attach");
 
-            // Execute the command
-            execvp(&CString::new("./wormhole-attach")?, &[
-                CString::new("./wormhole-attach")?,
-                CString::new(serialized)?,
-            ])?;
+            execvp(
+                &CString::new("./wormhole-attach")?,
+                &[
+                    CString::new("./wormhole-attach")?,
+                    CString::new(serialized)?,
+                ],
+            )?;
             std::process::exit(0);
         }
         ForkResult::Parent { child } => {
@@ -86,10 +144,11 @@ fn main() -> anyhow::Result<()> {
             let mut buffer = [0u8; mem::size_of::<i32>()]; // Buffer to hold 4 bytes (i32)
             read(exit_code_pipe_read_fd, &mut buffer)?;
             let num = i32::from_ne_bytes(buffer);
-            println!("debug: wormhole finished with exit code {}", num)
-        }
-    } 
+            println!("debug: wormhole finished with exit code {}", num);
 
+            update_refcount()?;
+        }
+    }
 
     // println!("Command stdout:\n{}", String::from_utf8_lossy(&output.stdout));
     // println!("Command stderr:\n{}", String::from_utf8_lossy(&output.stderr));

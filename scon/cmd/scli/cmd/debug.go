@@ -180,7 +180,7 @@ func debugRemote(containerID string) error {
 	fmt.Printf("%+v\n", containerInfo)
 
 	REGISTRY_IMAGE := "198.19.249.3:5000/wormhole-rootfs"
-	cmd = exec.Command(dockerBin, "run", "-d", "--privileged", "--pid=host", "--net=host", "--cgroupns=host", "-v", "wormhole-data:/data", REGISTRY_IMAGE)
+	cmd = exec.Command(dockerBin, "run", "-d", "--privileged", "--pid=host", "--net=host", "--cgroupns=host", "-v", "wormhole-data:/data", "-v", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared", REGISTRY_IMAGE)
 	cmd.Env = dockerHostEnv
 	output, err = cmd.Output()
 	if err != nil {
