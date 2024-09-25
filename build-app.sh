@@ -54,7 +54,7 @@ function build_one() {
     popd
 
     # build rust lib
-    pushd vendor/libkrun
+    pushd virtue
     # hide source code paths
     # $HOME is for ~/.cargo/registry/...
     RUSTFLAGS="--remap-path-prefix $HOME=/Users/build --remap-path-prefix $PWD=/src" \

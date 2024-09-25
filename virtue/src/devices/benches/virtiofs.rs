@@ -4,7 +4,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use nix::sys::stat::lstat;
 
 const TEST_PATH: &str =
-    "/Users/dragon/code/projects/macvirt/vendor/libkrun/src/vmm/src/vmm_config/boot_source.rs";
+    "/Users/dragon/code/projects/macvirt/virtue/src/vmm/src/vmm_config/boot_source.rs";
 
 extern "C" {
     fn fsgetpath(

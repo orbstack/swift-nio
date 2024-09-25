@@ -13,6 +13,6 @@
 /swift/
 /updates/
 /vendor/k3s
-/vendor/libkrun
+/virtue
 *.o
 *.pcap

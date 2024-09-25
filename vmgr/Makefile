@@ -1,4 +1,4 @@
-.PHONY: run run-swift-asan run-rust-asan run-raw scli app serve publish vmgr vmgr-swift-asan vmgr-rust-asan clone-libkrun
+.PHONY: run run-swift-asan run-rust-asan run-raw scli app serve publish vmgr vmgr-swift-asan vmgr-rust-asan
 
 # dev == debug
 export RUST_BUILD_TYPE ?= release
@@ -11,27 +11,22 @@ export SWIFT_BUILD_TYPE ?= debug
 CXXFLAGS += -mmacosx-version-min=12.3
 export CXXFLAGS
 
-vmgr: clone-libkrun
+vmgr:
 	@cd ../swift; make lib-$(SWIFT_BUILD_TYPE)
-	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
-	@cd ../vendor/libkrun; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && cargo build --package krun || cargo build --package krun --profile "$(RUST_BUILD_TYPE)"
+	@cd ../virtue; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && cargo build --package krun || cargo build --package krun --profile "$(RUST_BUILD_TYPE)"
 	@./build.sh
 
-vmgr-swift-asan: clone-libkrun
+vmgr-swift-asan:
 	@cd ../swift; make lib-$(SWIFT_BUILD_TYPE)-asan
-	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
-	@cd ../vendor/libkrun; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && cargo build --package krun || cargo build --package krun --profile "$(RUST_BUILD_TYPE)"
+	@cd ../virtue; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && cargo build --package krun || cargo build --package krun --profile "$(RUST_BUILD_TYPE)"
 	@ASAN_DIR="$(wildcard $(shell xcode-select --print-path)/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/*/lib/darwin)"; EXTRA_EXTLD_FLAGS="-rpath $${ASAN_DIR} $${ASAN_DIR}/libclang_rt.asan_osx_dynamic.dylib" ./build.sh
 
-vmgr-rust-asan: clone-libkrun
+vmgr-rust-asan:
 	@cd ../swift; make lib-$(SWIFT_BUILD_TYPE)
 # --target: fix proc macros being built with ASAN and loaded into rustc
-	@cd ../vendor/libkrun; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && RUSTFLAGS=-Zsanitizer=address cargo +nightly build -Zbuild-std --target aarch64-apple-darwin --package krun || RUSTFLAGS=-Zsanitizer=address cargo +nightly build -Zbuild-std --target aarch64-apple-darwin --package krun --profile "$(RUST_BUILD_TYPE)"
+	@cd ../virtue; [[ "$(RUST_BUILD_TYPE)" == "debug" ]] && RUSTFLAGS=-Zsanitizer=address cargo +nightly build -Zbuild-std --target aarch64-apple-darwin --package krun || RUSTFLAGS=-Zsanitizer=address cargo +nightly build -Zbuild-std --target aarch64-apple-darwin --package krun --profile "$(RUST_BUILD_TYPE)"
 # link ASAN runtime
 	@ASAN_DIR="$${HOME}/.rustup/toolchains/nightly-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib"; EXTRA_EXTLD_FLAGS="-rpath $${ASAN_DIR} $${ASAN_DIR}/librustc-nightly_rt.asan.dylib" RUST_TARGET=aarch64-apple-darwin ./build.sh
-
-clone-libkrun:
-	@[[ ! -d ../vendor/libkrun ]] && git clone git@github.com:orbstack/libkrun-macvirt ../vendor/libkrun || :
 
 run: vmgr
 	@orb stop || :

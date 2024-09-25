@@ -7,7 +7,7 @@ app:
 
 clean:
 	@go clean -cache
-	@rm -fr vendor/libkrun/target swift/GoVZF/.build swift/DerivedData
+	@rm -fr virtue/target swift/GoVZF/.build swift/DerivedData
 
 serve:
 	@cd updates; python3 -m http.server
