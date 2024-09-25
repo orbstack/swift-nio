@@ -180,15 +180,7 @@ func debugRemote(containerID string) error {
 	fmt.Printf("%+v\n", containerInfo)
 
 	REGISTRY_IMAGE := "198.19.249.3:5000/wormhole-rootfs"
-	cmd = exec.Command(dockerBin, "run", "-d", "--privileged", "--pid=host", "--net=host", "--cgroupns=host", "-v", "wormhole-data:/data", "-v", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared", REGISTRY_IMAGE)
-	cmd.Env = dockerHostEnv
-	output, err = cmd.Output()
-	if err != nil {
-		return errors.New("failed to start remote wormhole container ")
-	}
 
-	remoteContainerID := strings.TrimSpace(string(output))
-	fmt.Println("remote container id: " + remoteContainerID)
 	wormholeParams, err := json.Marshal(WormholeParams{
 		Pid:        containerInfo[0].State.Pid,
 		WorkingDir: containerInfo[0].Config.WorkingDir,
@@ -199,9 +191,19 @@ func debugRemote(containerID string) error {
 		return errors.New("failed to serialize wormhole params")
 	}
 
-	fmt.Println("wormhole params" + string(wormholeParams))
+	fmt.Println("wormhole params: " + string(wormholeParams))
+	// cmd = exec.Command(dockerBin, "run", "-", "--privileged", "--pid=host", "--net=host", "--cgroupns=host", "-v", "wormhole-data:/data", "-v", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared", REGISTRY_IMAGE)
+	// cmd.Env = dockerHostEnv
+	// output, err = cmd.Output()
+	// if err != nil {
+	// 	return errors.New("failed to start remote wormhole container ")
+	// }
 
-	unix.Exec(dockerBin, []string{"docker", "exec", "-it", remoteContainerID, "/driver", string(wormholeParams)}, dockerHostEnv)
+	// remoteContainerID := strings.TrimSpace(string(output))
+	// fmt.Println("remote container id: " + remoteContainerID)
+
+	// unix.Exec(dockerBin, []string{"docker", "exec", "-it", remoteContainerID, "/driver", string(wormholeParams)}, dockerHostEnv)
+	unix.Exec(dockerBin, []string{"docker", "run", "-it", "--privileged", "--pid=host", "--net=host", "--cgroupns=host", "-v", "wormhole-data:/data", "-v", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared", REGISTRY_IMAGE, "/driver", string(wormholeParams)}, dockerHostEnv)
 
 	return nil
 }

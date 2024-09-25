@@ -119,13 +119,8 @@ FROM base AS rootfs
 COPY --from=nix-build /out /wormhole-rootfs
 COPY --from=rust-build /out/wormhole-attach /wormhole-attach
 COPY --from=rust-build /out/driver /driver
-# COPY --from=go-build /out/wormhole-server /wormhole-server
-# COPY --from=go-build /out/wormhole-client /wormhole-client
-COPY wormhole/remote/mount-overlayfs.sh /mount-overlayfs.sh
-COPY wormhole/remote/remote-run.sh /remote-run.sh
-RUN chmod +x /mount-overlayfs.sh /remote-run.sh && mkdir -p /mnt/wormhole-overlay /mnt/wormhole-unified
 
-CMD ["./mount-overlayfs.sh"]
+CMD ["./driver"]
 
 
 # kevin@orbstack macvirt % docker build --ssh default -t localhost:5000/wormhole-rootfs -f wormhole/remote/Dockerfile .

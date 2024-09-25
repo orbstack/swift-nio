@@ -3,28 +3,23 @@
 // ./driver <pid> <container env> ... --> runs wormhole-attach with the proper mount / fds
 
 use std::{
-    env,
-    ffi::CString,
-    fs::{self, read_to_string, File},
-    io, mem,
-    os::fd::{AsRawFd, FromRawFd},
-    process::Command,
-    thread,
+    env, ffi::CString, fs::{self, read_to_string, File}, io, mem, os::fd::{AsRawFd, FromRawFd}, path::Path, process::Command, thread
 };
-
-use libc::FD_CLOEXEC;
+use tracing::{debug, span, trace, Level};
+use libc::{DIR, FD_CLOEXEC};
 use nix::{
     fcntl::{
         fcntl,
         FcntlArg::{self, F_GETFD},
         FdFlag,
     },
-    mount::{umount2, MntFlags},
+    mount::{self, mount, umount2, MntFlags, MsFlags},
     sys::wait::waitpid,
-    unistd::{execve, execvp, fork, pipe, read, ForkResult},
+    unistd::{execve, execvp, fork, pipe, read, ForkResult, ROOT},
 };
 use serde::{Deserialize, Serialize};
 use std::os::unix::process::CommandExt;
+use tracing_subscriber::fmt::format::{self, FmtSpan};
 use wormhole::{
     flock::{Flock, FlockMode, FlockWait},
     newmount::open_tree,
@@ -48,8 +43,15 @@ pub struct WormholeConfig {
     pub entry_shell_cmd: Option<String>,
 }
 
+const ROOTFS: &str = "/wormhole-rootfs";
+const UPPERDIR: &str = "/data/upper";
+const WORKDIR: &str = "/data/work";
+const WORMHOLE_OVERLAY: &str = "/mnt/wormhole-overlay";
+const WORMHOLE_UNIFIED: &str = "/mnt/wormhole-unified";
 const REFCOUNT_FILE: &str = "/data/refcount";
 const REFCOUNT_LOCK: &str = "/data/refcount.lock";
+
+const NIX_RW_DIRS: [&str; 3] = ["store", "var", "orb/data"];
 
 fn unmount_wormhole() -> anyhow::Result<()> {
     // sometimes gets EINVAL = not mounted (??)
@@ -64,17 +66,67 @@ fn unmount_wormhole() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn update_refcount() -> anyhow::Result<()> {
+fn mount_wormhole() -> anyhow::Result<()> {
+    // create upper, work, and overlay if they do not exist
+    fs::create_dir_all(UPPERDIR)?;
+    fs::create_dir_all(WORKDIR)?;
+    fs::create_dir_all(WORMHOLE_OVERLAY)?;
+    
+    trace!("mounting overlayfs");
+    let options = format!(
+            "lowerdir={},upperdir={},workdir={}",
+            ROOTFS, UPPERDIR, WORKDIR
+        );
+    mount(
+        Some("overlay"),
+        WORMHOLE_OVERLAY,
+        Some("overlay"),
+        MsFlags::empty(),
+        Some(options.as_str()),
+    )?;
+
+    trace!("creating ro wormhole-unified mount");
+    mount::<str, str, Path, Path>(
+        Some(ROOTFS),
+        WORMHOLE_UNIFIED,
+        None,
+        MsFlags::MS_BIND,
+        None,
+    )?;
+    mount::<str, str, Path, Path>(
+        Some(ROOTFS),
+        WORMHOLE_UNIFIED,
+        None,
+        MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
+        None,
+    )?;
+
+    for nix_dir in NIX_RW_DIRS {
+        trace!("mount bind from overlay to unified: {}", nix_dir);
+        mount::<str, str, Path, Path>(
+            Some(format!("{}/nix/{}", WORMHOLE_OVERLAY, nix_dir).as_str()),
+            format!("{}/nix/{}", WORMHOLE_UNIFIED, nix_dir).as_str(),
+            None,
+            MsFlags::MS_BIND,
+            None,
+        )?;
+
+    }
+    Ok(())
+}
+
+fn shutdown() -> anyhow::Result<()> {
+    trace!("shutdown");
     let _flock = Flock::new_ofd(
         File::create(REFCOUNT_LOCK)?,
         FlockMode::Exclusive,
         FlockWait::Blocking,
     )?;
 
-    let mut refcount:i32 = fs::read_to_string(REFCOUNT_FILE)?.trim().parse()?;
+    let mut refcount: i32 = fs::read_to_string(REFCOUNT_FILE)?.trim().parse()?;
     refcount -= 1;
 
-    println!("updated refcount from {} to {}", refcount + 1, refcount);
+    trace!("updated refcount from {} to {}", refcount + 1, refcount);
 
     if refcount == 0 {
         unmount_wormhole()?;
@@ -84,7 +136,32 @@ fn update_refcount() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn startup() -> anyhow::Result<()> {
+    trace!("startup");
+    let _flock = Flock::new_ofd(
+        File::create(REFCOUNT_LOCK)?,
+        FlockMode::Exclusive,
+        FlockWait::Blocking,
+    )?;
+
+    let mut refcount: i32 = fs::read_to_string(REFCOUNT_FILE)?.trim().parse()?;
+    if refcount == 0 {
+        mount_wormhole()?;
+    }
+    refcount += 1;
+    trace!("updated refcount from {} to {}", refcount - 1, refcount);
+
+    fs::write(REFCOUNT_FILE, refcount.to_string())?;
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+    .with_span_events(FmtSpan::CLOSE)
+    .with_max_level(Level::TRACE)
+    .init();
+
+    startup()?;
     println!("running driver");
     let config_str = std::env::args().nth(1).unwrap();
     let mut config = serde_json::from_str::<WormholeConfig>(&config_str)?;
@@ -125,10 +202,10 @@ fn main() -> anyhow::Result<()> {
     config.log_fd = log_pipe_write_fd;
 
     let serialized = serde_json::to_string(&config)?;
-    println!("wormhole config: {}", serialized);
+    trace!("wormhole config: {}", serialized);
     match unsafe { fork()? } {
         ForkResult::Child => {
-            println!("starting wormhole-attach");
+            trace!("starting wormhole-attach");
 
             execvp(
                 &CString::new("./wormhole-attach")?,
@@ -144,16 +221,10 @@ fn main() -> anyhow::Result<()> {
             let mut buffer = [0u8; mem::size_of::<i32>()]; // Buffer to hold 4 bytes (i32)
             read(exit_code_pipe_read_fd, &mut buffer)?;
             let num = i32::from_ne_bytes(buffer);
-            println!("debug: wormhole finished with exit code {}", num);
-
-            update_refcount()?;
+            trace!("wormhole-attach exit code: {}", num);
+            shutdown()?;
         }
     }
-
-    // println!("Command stdout:\n{}", String::from_utf8_lossy(&output.stdout));
-    // println!("Command stderr:\n{}", String::from_utf8_lossy(&output.stderr));
-    // println!("Result: {}", output.status);
-
     Ok(())
 }
 
