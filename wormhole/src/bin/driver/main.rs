@@ -2,10 +2,6 @@
 
 // ./driver <pid> <container env> ... --> runs wormhole-attach with the proper mount / fds
 
-use std::{
-    env, ffi::CString, fs::{self, read_to_string, File}, io, mem, os::fd::{AsRawFd, FromRawFd}, path::Path, process::Command, thread
-};
-use tracing::{debug, span, trace, Level};
 use libc::{DIR, FD_CLOEXEC};
 use nix::{
     fcntl::{
@@ -18,7 +14,17 @@ use nix::{
     unistd::{execve, execvp, fork, pipe, read, ForkResult, ROOT},
 };
 use serde::{Deserialize, Serialize};
-use std::os::unix::process::CommandExt;
+use std::{
+    env,
+    ffi::CString,
+    fs::{self, read_to_string, File, OpenOptions},
+    io, mem,
+    os::fd::{AsRawFd, FromRawFd},
+    path::Path,
+    process::Command,
+    thread,
+};
+use tracing::{debug, span, trace, Level};
 use tracing_subscriber::fmt::format::{self, FmtSpan};
 use wormhole::{
     flock::{Flock, FlockMode, FlockWait},
@@ -71,12 +77,12 @@ fn mount_wormhole() -> anyhow::Result<()> {
     fs::create_dir_all(UPPERDIR)?;
     fs::create_dir_all(WORKDIR)?;
     fs::create_dir_all(WORMHOLE_OVERLAY)?;
-    
+
     trace!("mounting overlayfs");
     let options = format!(
-            "lowerdir={},upperdir={},workdir={}",
-            ROOTFS, UPPERDIR, WORKDIR
-        );
+        "lowerdir={},upperdir={},workdir={}",
+        ROOTFS, UPPERDIR, WORKDIR
+    );
     mount(
         Some("overlay"),
         WORMHOLE_OVERLAY,
@@ -86,13 +92,7 @@ fn mount_wormhole() -> anyhow::Result<()> {
     )?;
 
     trace!("creating ro wormhole-unified mount");
-    mount::<str, str, Path, Path>(
-        Some(ROOTFS),
-        WORMHOLE_UNIFIED,
-        None,
-        MsFlags::MS_BIND,
-        None,
-    )?;
+    mount::<str, str, Path, Path>(Some(ROOTFS), WORMHOLE_UNIFIED, None, MsFlags::MS_BIND, None)?;
     mount::<str, str, Path, Path>(
         Some(ROOTFS),
         WORMHOLE_UNIFIED,
@@ -110,7 +110,6 @@ fn mount_wormhole() -> anyhow::Result<()> {
             MsFlags::MS_BIND,
             None,
         )?;
-
     }
     Ok(())
 }
@@ -138,13 +137,28 @@ fn shutdown() -> anyhow::Result<()> {
 
 fn startup() -> anyhow::Result<()> {
     trace!("startup");
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(true)
+        .open(REFCOUNT_LOCK)?;
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(true)
+        .open(REFCOUNT_FILE)?;
     let _flock = Flock::new_ofd(
         File::create(REFCOUNT_LOCK)?,
         FlockMode::Exclusive,
         FlockWait::Blocking,
     )?;
+    let contents = fs::read_to_string(REFCOUNT_FILE)?;
+    let mut refcount: i32 = if contents.is_empty() {
+        0
+    } else {
+        contents.trim().parse()?
+    };
 
-    let mut refcount: i32 = fs::read_to_string(REFCOUNT_FILE)?.trim().parse()?;
     if refcount == 0 {
         mount_wormhole()?;
     }
@@ -157,9 +171,9 @@ fn startup() -> anyhow::Result<()> {
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-    .with_span_events(FmtSpan::CLOSE)
-    .with_max_level(Level::TRACE)
-    .init();
+        .with_span_events(FmtSpan::CLOSE)
+        .with_max_level(Level::TRACE)
+        .init();
 
     startup()?;
     println!("running driver");
@@ -197,7 +211,7 @@ fn main() -> anyhow::Result<()> {
 
     config.wormhole_mount_tree_fd = wormhole_mount_fd.as_raw_fd();
     config.exit_code_pipe_write_fd = exit_code_pipe_write_fd;
-    config.drm_token = String::from("eyJhbGciOiJFZERTQSIsImtpZCI6IjEiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiIiLCJlbnQiOjEsImV0cCI6MiwiZW1nIjpudWxsLCJlc3QiOm51bGwsImF1ZCI6Im1hY3ZpcnQiLCJ2ZXIiOnsiY29kZSI6MTA3MDEwMCwiZ2l0IjoiMmUzZjdlZWVhNjQ0NWEyZjZlYWI1MzM0MTkzNjBkZmU2NmZiODNkYSJ9LCJkaWQiOiI3YmE5ZjA1ZDBlMGY2NTI3MjVkYzA3NjM5Y2VmYTg2NTM2ZWVlMmU5NTc4NDk2OWVlODcwZWMyZDY2YjEzMDI0IiwiaWlkIjoiYzdlYzY1M2FmZDljMDIxNjZlZjY2Nzc2MGVkYWNmODA0ZDc4OTlhZDE3YmQ1YWIxYzU4YzE4OGVjOGYxZTExYiIsImNpZCI6ImU1NjZiZjRiNmExNjNjYTM1NGU2OGQzYmU2ZjAzZDlmNzFkMzYxZTdhMmIxNjMzZDcwMzE0MmE2ODIwNmNjNDciLCJpc3MiOiJkcm1zZXJ2ZXIiLCJpYXQiOjE3MjY2ODQyMjUsImV4cCI6MTcyNzI4OTAyNSwibmJmIjoxNzI2Njg0MjI1LCJkdnIiOjEsIndhciI6MTcyNjk3MTM3MiwibHhwIjoxNzI3NTc2MTcyfQ.asnYZORqAuIxyuusi8GVLql6GzF3oSEyyTJnQDw2F4FE11mRAJGWWm6wVWaphnyQUYptTmDvbp3VeRBg0HWGAw");
+    config.drm_token = String::from("eyJhbGciOiJFZERTQSIsImtpZCI6IjEiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiIiLCJlbnQiOjEsImV0cCI6MiwiZW1nIjpudWxsLCJlc3QiOm51bGwsImF1ZCI6Im1hY3ZpcnQiLCJ2ZXIiOnsiY29kZSI6MTA3MDEwMCwiZ2l0IjoiZDRkNWY5NjAzZTYwZDQ3NDI2Yzg0ODhmODI3MTA0ZDY2MTlkNmY3YyJ9LCJkaWQiOiI3YmE5ZjA1ZDBlMGY2NTI3MjVkYzA3NjM5Y2VmYTg2NTM2ZWVlMmU5NTc4NDk2OWVlODcwZWMyZDY2YjEzMDI0IiwiaWlkIjoiYzdlYzY1M2FmZDljMDIxNjZlZjY2Nzc2MGVkYWNmODA0ZDc4OTlhZDE3YmQ1YWIxYzU4YzE4OGVjOGYxZTExYiIsImNpZCI6ImU1NjZiZjRiNmExNjNjYTM1NGU2OGQzYmU2ZjAzZDlmNzFkMzYxZTdhMmIxNjMzZDcwMzE0MmE2ODIwNmNjNDciLCJpc3MiOiJkcm1zZXJ2ZXIiLCJpYXQiOjE3MjczNzUwNjAsImV4cCI6MTcyNzk3OTg2MCwibmJmIjoxNzI3Mzc1MDYwLCJkdnIiOjEsIndhciI6MTcyNjk3MTM3MiwibHhwIjoxNzI3NTc2MTcyfQ.HpvQJJMmUJlIN-37KAYD-9hQKjW_Goarl0HR7h605UegBa-7LmBR3Fitn-jSHMt6-Yb5HPX0AZYjeOAIDSMpAA");
 
     config.log_fd = log_pipe_write_fd;
 

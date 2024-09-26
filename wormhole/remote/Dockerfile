@@ -24,30 +24,8 @@ else
     cargo build --release
 fi
 mkdir /out
-cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach target/${TYPE}/driver /out/
+cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach target/${TYPE}/client target/${TYPE}/driver /out/
 EOT
-
-# # build wormhole-server
-# FROM base AS go-base
-# RUN apk add --no-cache go alpine-sdk lxc-dev bash \
-#     llvm clang linux-headers libbpf-dev
-# # must build vmgr and scon together because they depend on each other
-# FROM go-base AS go-build
-# ENV GOTOOLCHAIN=auto
-# # Apple M1 is ARMv8.4 + most v8.5 extensions (SB, SSBS, CCDP, FRINT3264, SPECRESTRICT, ALTERNATIVENZCV)
-# # just use v8.4 for simplicity -- we mainly care about specializing for LSE atomics
-# ENV GOARM64=v8.4
-# COPY wormhole/remote/wormhole /build/wormhole
-# # wormhole server
-# RUN --mount=type=cache,target=/root/.cache/go-build \
-#     --mount=type=cache,target=/root/go/pkg \
-#     <<EOT sh -eux
-# cd /build/wormhole
-# go build -o wormhole-server ./server/server.go
-# go build -o wormhole-client ./client/client.go
-# mkdir /out
-# cp wormhole-server wormhole-client /out
-# EOT
 
 # build wormhole-rootfs
 FROM nix-base AS nix-build
@@ -118,9 +96,13 @@ COPY --from=rust-build /out/dctl /out/nix/orb/sys/bin/
 FROM base AS rootfs
 COPY --from=nix-build /out /wormhole-rootfs
 COPY --from=rust-build /out/wormhole-attach /wormhole-attach
-COPY --from=rust-build /out/driver /driver
+COPY --from=rust-build /out/driver /wormhole-start
+COPY --from=rust-build /out/client /wormhole-client
 
-CMD ["./driver"]
+
+# ENV WORMHOLE_PARAMS ""
+ENTRYPOINT ["./wormhole-start"]
+# CMD ["./wormhole-start", ${WORMHOLE_PARAMS}]
 
 
 # kevin@orbstack macvirt % docker build --ssh default -t localhost:5000/wormhole-rootfs -f wormhole/remote/Dockerfile .

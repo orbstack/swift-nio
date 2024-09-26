@@ -1,9 +1,10 @@
 use std::{
     fs::File,
-    io::{stderr, stdout},
+    io::{stderr, stdout, Read, Write},
+    net::{TcpListener, TcpStream},
     os::{
-        fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd},
-        unix::net::UnixStream,
+        fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd, RawFd},
+        unix::net::{UnixListener, UnixStream},
     },
     path::Path,
 };
@@ -16,6 +17,7 @@ use nix::{
     sys::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
         signal::{kill, Signal},
+        socket::{sendmsg, ControlMessage, MsgFlags},
         stat::{fstatat, Mode},
     },
     unistd::{dup2, getpid, Pid},
@@ -129,7 +131,8 @@ pub fn run(
     config: &WormholeConfig,
     proc_fd: OwnedFd,
     nix_flock_ref: Flock,
-    socket_fd: OwnedFd,
+    forward_signal_fd: OwnedFd,
+    send_client_socket_fd: OwnedFd,
     cgroup_path: &str,
     intermediate: Pid,
     sfd: SignalFd,
@@ -137,13 +140,38 @@ pub fn run(
     // switch over to using the log_fd. if we don't switch, logging will crash the application when stout and stderr closes!
     dup2(config.log_fd, stdout().as_raw_fd())?;
     dup2(config.log_fd, stderr().as_raw_fd())?;
+    let forward_signal_socket = UnixStream::from(forward_signal_fd);
 
-    let socket = UnixStream::from(socket_fd);
+    // let rpc_server_socket = "/rpc_server.sock2";
+    // trace!("starting rpc server");
+    // let listener = UnixListener::bind(rpc_server_socket)?;
+    // listener
+    //     .set_nonblocking(true)
+    //     .expect("Cannot set non-blocking");
 
+    // trace!("waiting for accept");
+    // match listener.accept() {
+    //     Ok((mut socket, addr)) => {
+    //         trace!("new client: {addr:?}");
+
+    //         let mut buf = [0u8; 1024];
+    //         let n = socket.read(&mut buf)?;
+
+    //         trace!("read {} bytes", n);
+    //     }
+
+    //     Err(e) => trace!("couldn't get client: {e:?}"),
+    // }
     // wait until child (intermediate) exits
     trace!("waitpid");
     if let ExitResult::Code(0) = wait_for_exit(intermediate)? {
-        if let Err(err) = monitor(socket, intermediate, sfd) {
+        if let Err(err) = monitor(
+            forward_signal_socket,
+            // listener,
+            send_client_socket_fd,
+            intermediate,
+            sfd,
+        ) {
             trace!(?err, "monitoring errored");
         }
         trace!("monitoring finished");
@@ -156,17 +184,55 @@ pub fn run(
     Ok(())
 }
 
-fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::Result<()> {
+// send the rpc client fd connection to the payload process so that they can communicate directly
+// fn send_client_fd(send_client_socket_fd: RawFd, client_fd: RawFd) -> anyhow::Result<()> {
+//     let fds = [client_fd];
+//     let cmsg = ControlMessage::ScmRights(&fds);
+//     let iov = [];
+//     sendmsg::<()>(
+//         send_client_socket_fd,
+//         &iov,
+//         &[cmsg],
+//         MsgFlags::empty(),
+//         None,
+//     )?;
+//     Ok(())
+// }
+
+fn handle_connection(mut stream: UnixStream) {
+    let mut buffer = [0; 1024];
+    match stream.read(&mut buffer) {
+        Ok(n) if n > 0 => {
+            println!("Received: {}", String::from_utf8_lossy(&buffer[..n]));
+            let _ = stream.write(b"Hello from server!\n");
+        }
+        _ => {
+            eprintln!("Failed to read from connection");
+        }
+    }
+}
+
+fn monitor(
+    forward_signal_socket: UnixStream,
+    // rpc_listener: UnixListener,
+    send_client_socket_fd: OwnedFd,
+    intermediate: Pid,
+    mut sfd: SignalFd,
+) -> anyhow::Result<()> {
     trace!("entering main event loop");
+    // let rpc_server_fd = rpc_listener.as_fd();
 
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
     epoll.add(&sfd, EpollEvent::new(EpollFlags::EPOLLIN, 1))?;
+    // epoll.add(&rpc_server_fd, EpollEvent::new(EpollFlags::EPOLLIN, 2))?;
 
-    let mut events = [EpollEvent::empty()];
+    let mut events = [EpollEvent::empty(); 2];
 
     // intermediate succeeded, we assume the subreaper gets reparented to us and that we will receive SIGCHLD when it exits
     loop {
-        match epoll.wait(&mut events, -1) {
+        let nfds = epoll.wait(&mut events, -1);
+        trace!("got epoll events: {:?}", nfds);
+        match nfds {
             Ok(n) if n < 1 => {
                 return Err(anyhow!("expected an event on epoll return"));
             }
@@ -177,35 +243,56 @@ fn monitor(socket: UnixStream, intermediate: Pid, mut sfd: SignalFd) -> anyhow::
             Ok(_) => {}
         }
 
-        match sfd.read_signal() {
-            Ok(Some(sig)) if sig.ssi_signo == Signal::SIGCHLD as u32 => {
-                let mut should_break = false;
+        for i in 0..nfds? {
+            trace!("event type: {}", events[i].data());
+            if events[i].data() == 1 {
+                match sfd.read_signal() {
+                    Ok(Some(sig)) if sig.ssi_signo == Signal::SIGCHLD as u32 => {
+                        let mut should_break = false;
 
-                reap_children(|pid, _| {
-                    if pid != intermediate {
-                        should_break = true;
-                    }
-                })?;
-                if should_break {
-                    break;
-                }
-            }
-            Ok(Some(sig)) => {
-                trace!(?sig, "got signal");
-
-                match map_signal(sig.ssi_signo) {
-                    Ok(sig_forward) => {
-                        if let Err(err) =
-                            Message::ForwardSignal(sig_forward as i32).write_to(&socket)
-                        {
-                            trace!(?err, "couldn't forward signal via socket");
+                        reap_children(|pid, _| {
+                            if pid != intermediate {
+                                should_break = true;
+                            }
+                        })?;
+                        if should_break {
                             break;
                         }
                     }
-                    Err(err) => trace!(?err, "couldn't map signal"),
+                    Ok(Some(sig)) => {
+                        trace!(?sig, "got signal");
+
+                        match map_signal(sig.ssi_signo) {
+                            Ok(sig_forward) => {
+                                if let Err(err) = Message::ForwardSignal(sig_forward as i32)
+                                    .write_to(&forward_signal_socket)
+                                {
+                                    trace!(?err, "couldn't forward signal via socket");
+                                    break;
+                                }
+                            }
+                            Err(err) => trace!(?err, "couldn't map signal"),
+                        }
+                    }
+                    result => trace!(?result, "unexpected read_signal result"),
                 }
+            } else if events[i].data() == 2 {
+                // match rpc_listener.accept() {
+                //     Ok((stream, addr)) => {
+                //         trace!("received connection from {:?}", addr);
+                //         stream.set_nonblocking(true)?;
+                //         // send to child process via unix socket and SCM_RIGHTS
+                //         trace!(
+                //             "sending client_fd {:?} to the payload process",
+                //             stream.as_raw_fd()
+                //         );
+                //         // send_client_fd(send_client_socket_fd.as_raw_fd(), stream.as_raw_fd())?;
+
+                //         handle_connection(stream);
+                //     }
+                //     Err(e) => trace!("could not accept connection {:?}", e),
+                // }
             }
-            result => trace!(?result, "unexpected read_signal result"),
         }
     }
 
