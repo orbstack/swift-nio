@@ -3,13 +3,19 @@ use std::{
     collections::HashMap,
     ffi::{c_int, CString},
     fs::File,
-    io::{stderr, stdin, stdout, IoSlice, IoSliceMut, Read},
+    io::{self, stderr, stdin, stdout, IoSlice, IoSliceMut, Read, Write},
     os::{
         fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
         unix::net::{UnixListener, UnixStream},
     },
     path::Path,
     ptr::{null, null_mut},
+    sync::{
+        atomic::{self, AtomicBool},
+        Arc, Mutex,
+    },
+    thread,
+    time::Duration,
 };
 
 use anyhow::{anyhow, Error};
@@ -28,10 +34,11 @@ use nix::{
         FdFlag, OFlag,
     },
     mount::{umount2, MntFlags, MsFlags},
+    pty::{openpty, OpenptyResult, Winsize},
     sched::{setns, unshare, CloneFlags},
     sys::{
         prctl,
-        signal::Signal,
+        signal::{kill, Signal},
         socket::{
             recv, recvmsg, send, sendmsg, socketpair, AddressFamily, ControlMessage,
             ControlMessageOwned, MsgFlags, SockFlag, SockType,
@@ -41,8 +48,8 @@ use nix::{
         wait::{waitpid, WaitStatus},
     },
     unistd::{
-        access, chdir, chroot, dup2, execve, fchown, fork, getpid, setgroups, setresgid, setresuid,
-        AccessFlags, ForkResult, Gid, Pid, Uid,
+        access, chdir, chroot, close, dup2, execve, fchown, fork, getpid, setgroups, setresgid,
+        setresuid, setsid, AccessFlags, ForkResult, Gid, Pid, Uid,
     },
 };
 use pidfd::PidFd;
@@ -981,20 +988,21 @@ fn main() -> anyhow::Result<()> {
                             let shell_cmd =
                                 config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
 
-                            dup2(rpc_client_fd, stdin().as_raw_fd())?;
-                            dup2(rpc_client_fd, stdout().as_raw_fd())?;
-                            dup2(rpc_client_fd, stderr().as_raw_fd())?;
-                            // send(rpc_client_fd, &[1, 5, 9, 13], MsgFlags::empty())?;
-                            execve(
-                                &CString::new("/nix/orb/sys/bin/dctl")?,
-                                &[
-                                    CString::new("dctl")?,
-                                    CString::new("__entrypoint")?,
-                                    CString::new("--")?,
-                                    CString::new(shell_cmd)?,
-                                ],
-                                &cstr_envs,
-                            )?;
+                            spawn_payload(rpc_client_fd, &shell_cmd, &cstr_envs)?;
+                            // dup2(rpc_client_fd, stdin().as_raw_fd())?;
+                            // dup2(rpc_client_fd, stdout().as_raw_fd())?;
+                            // dup2(rpc_client_fd, stderr().as_raw_fd())?;
+                            // // send(rpc_client_fd, &[1, 5, 9, 13], MsgFlags::empty())?;
+                            // execve(
+                            //     &CString::new("/nix/orb/sys/bin/dctl")?,
+                            //     &[
+                            //         CString::new("dctl")?,
+                            //         CString::new("__entrypoint")?,
+                            //         CString::new("--")?,
+                            //         CString::new(shell_cmd)?,
+                            //     ],
+                            //     &cstr_envs,
+                            // )?;
                             unreachable!();
                         }
                     }
@@ -1013,5 +1021,140 @@ fn main() -> anyhow::Result<()> {
     }
     trace!("everything finished...");
 
+    Ok(())
+}
+
+fn spawn_payload(
+    client_fd: RawFd,
+    shell_cmd: &str,
+    cstr_envs: &Vec<CString>,
+) -> anyhow::Result<()> {
+    let pty_result = openpty(
+        Some(&Winsize {
+            ws_row: 24,
+            ws_col: 80,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
+        }),
+        None,
+    )?;
+
+    let master_fd = pty_result.master.as_raw_fd();
+    let slave_fd = pty_result.slave.as_raw_fd();
+
+    match unsafe { fork()? } {
+        // child: payload
+        ForkResult::Child => {
+            setsid()?;
+            dup2(slave_fd, libc::STDIN_FILENO)?;
+            dup2(slave_fd, libc::STDOUT_FILENO)?;
+            dup2(slave_fd, libc::STDERR_FILENO)?;
+
+            if slave_fd > libc::STDERR_FILENO {
+                close(slave_fd).ok();
+            }
+
+            execve(
+                &CString::new("/nix/orb/sys/bin/dctl")?,
+                &[
+                    CString::new("dctl")?,
+                    CString::new("__entrypoint")?,
+                    CString::new("--")?,
+                    CString::new(shell_cmd)?,
+                ],
+                &cstr_envs,
+            )?;
+            trace!("finished execve");
+            unreachable!();
+        }
+        ForkResult::Parent { child } => {
+            let mut master_reader = unsafe { File::from_raw_fd(master_fd) };
+            let mut master_writer = master_reader.try_clone()?;
+            let mut client_reader = unsafe { File::from_raw_fd(client_fd) };
+            let mut client_writer = client_reader.try_clone()?;
+
+            set_non_blocking(&master_reader)?;
+
+            let shutdown_load = Arc::new(AtomicBool::new(false));
+            let shutdown_store = shutdown_load.clone();
+
+            trace!("creating fork parent");
+
+            let pty_to_client = thread::spawn(move || -> anyhow::Result<()> {
+                let mut buffer = [0u8; 1024];
+                loop {
+                    {
+                        if shutdown_load.load(atomic::Ordering::Relaxed) {
+                            drop(client_writer);
+                            drop(master_reader);
+                            trace!("shutting down pty_to_client");
+                            break;
+                        }
+                    }
+                    match master_reader.read(&mut buffer) {
+                        Ok(0) => {
+                            drop(client_writer);
+                            drop(master_reader);
+                            trace!("shutting down pty_to_client");
+                            break;
+                        }
+                        Ok(n) => {
+                            client_writer.write_all(&buffer[..n])?;
+                            client_writer.flush()?;
+                        }
+                        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(100));
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(())
+            });
+
+            let client_to_pty = {
+                thread::spawn(move || -> anyhow::Result<()> {
+                    let mut buffer = [0u8; 1024];
+                    loop {
+                        let n = client_reader.read(&mut buffer)?;
+                        if n == 0 {
+                            drop(master_writer);
+                            drop(client_reader);
+
+                            shutdown_store.store(true, atomic::Ordering::Relaxed);
+                            trace!("shutting down client->pty");
+                            break;
+                        }
+                        master_writer.write_all(&buffer[..n])?;
+                        master_writer.flush()?;
+                    }
+                    Ok(())
+                })
+            };
+
+            let _ = client_to_pty.join();
+            trace!("finished reading from client -> sending to pty");
+
+            let _ = pty_to_client.join();
+            trace!("finished reading from pty -> sending to client");
+
+            trace!("waiting for payload");
+
+            kill(child, Signal::SIGKILL)?;
+            waitpid(child, None)?;
+            trace!("finished waiting for payload");
+
+            Ok(())
+        }
+    }
+}
+
+fn set_non_blocking(file: &File) -> anyhow::Result<()> {
+    use nix::fcntl::{fcntl, FcntlArg, OFlag};
+    use std::os::unix::io::AsRawFd;
+
+    let fd = file.as_raw_fd();
+    let flags = fcntl(fd, FcntlArg::F_GETFL)?;
+    let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
+    fcntl(fd, FcntlArg::F_SETFL(new_flags))?;
     Ok(())
 }
