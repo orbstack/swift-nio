@@ -7,18 +7,7 @@
 
 import SwiftUI
 
-enum NavTabId: String {
-    case dockerContainers = "docker"
-    case dockerVolumes = "docker-volumes"
-    case dockerImages = "docker-images"
-
-    case k8sPods = "k8s-pods"
-    case k8sServices = "k8s-services"
-
-    case machines
-
-    case cli
-
+extension NavTabId {
     var defaultItemIdentifiers: [NSToolbarItem.Identifier] {
         switch self {
         case .dockerContainers:
