@@ -1,7 +1,7 @@
 /dts-v1/;
 
 / {
-	compatible = "orbstack,virt";
+	compatible = "hello,world";
 	#address-cells = <0x02>;
 	#size-cells = <0x02>;
 	interrupt-parent = <0x01>;
