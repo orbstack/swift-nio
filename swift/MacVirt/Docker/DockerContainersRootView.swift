@@ -232,7 +232,7 @@ struct DockerContainersRootView: View {
                     container.image.localizedCaseInsensitiveContains(searchQuery) ||
                     container.imageId.localizedCaseInsensitiveContains(searchQuery) ||
                     container.names.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
-            }.sort(accordingTo: vmModel.dockerSortingMethod, model: vmModel)
+            }.sort(accordingTo: .none, model: vmModel)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(filteredContainers: filteredContainers)
