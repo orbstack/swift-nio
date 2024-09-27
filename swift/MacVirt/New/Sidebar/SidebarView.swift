@@ -28,20 +28,22 @@ class SidebarViewController: NSViewController {
 struct SidebarView: View {
     @EnvironmentObject var model: VmViewModel
 
-    @Default(.selectedTab) private var selectedTab
+    @Default(.selectedTab) private var defaultsSelectedTab
+
+    // macOS <13 requires nullable selection
+    @State private var selectedTab: NavTabId? = Defaults[.selectedTab]
 
     var body: some View {
-        // macOS <13 requires nullable selection
-        let selBinding = Binding<NavTabId?>(get: {
-            selectedTab
-        }, set: {
-            if let sel = $0, sel != selectedTab {
-                selectedTab = sel
-            }
-        })
-
-        List(selection: selBinding) {
+        List(selection: $selectedTab) {
             listContents
+        }
+        .onChange(of: defaultsSelectedTab) {
+            selectedTab = $0
+        }
+        .onChange(of: selectedTab) {
+            if let sel = $0, sel != Defaults[.selectedTab] {
+                Defaults[.selectedTab] = sel
+            }
         }
         .listStyle(.sidebar)
         // "Personal use only" subheadline
