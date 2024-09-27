@@ -75,6 +75,8 @@ private struct K8SPodsList: View {
 struct K8SPodsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
+    @Default(.k8sFilterShowSystemNs) private var k8sFilterShowSystemNs
+
     @State private var selection: Set<K8SResourceId> = []
 
     var body: some View {
@@ -91,7 +93,7 @@ struct K8SPodsView: View {
 
             let listItems = K8SResourceLists.groupItems(
                 filteredPods,
-                showSystemNs: vmModel.k8sFilterShowSystemNs
+                showSystemNs: k8sFilterShowSystemNs
             )
 
             // 0 spacing to fix bg color gap between list and getting started hint

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UserNotifications
+import Defaults
 
 struct NewMainView: View {
     @EnvironmentObject var model: VmViewModel
@@ -15,6 +16,8 @@ struct NewMainView: View {
     // must be StateObject to share this initial instance
     // otherwise it's different at NewMainViewControllerRepresentable() init time and at later .environmentObject time
     @StateObject private var navModel = MainNavViewModel()
+
+    @Default(.selectedTab) var selectedTab
 
     var body: some View {
         GeometryReader { geometry in
@@ -66,7 +69,7 @@ struct NewMainView: View {
                url.pathComponents[1] == "containers" || url.pathComponents[1] == "projects"
             {
                 model.initialDockerContainerSelection = [.container(id: url.pathComponents[2])]
-                model.selectedTab = .dockerContainers
+                selectedTab = .dockerContainers
             }
         }
         // error dialog

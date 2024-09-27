@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Defaults
 
 class PrincipalViewController: NSViewController {
     var onTabChange: ((NavTabId) -> Void)?
@@ -33,11 +34,13 @@ struct PrincipalView: View {
     @EnvironmentObject var model: VmViewModel
     @EnvironmentObject var navModel: MainNavViewModel
 
+    @Default(.selectedTab) private var selectedTab
+
     var onTabChange: (NavTabId) -> Void
 
     var body: some View {
         Group {
-            switch model.selectedTab {
+            switch selectedTab {
             case .dockerContainers:
                 DockerContainersRootView(selection: model.initialDockerContainerSelection)
             case .dockerVolumes:
@@ -56,9 +59,9 @@ struct PrincipalView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            onTabChange(model.selectedTab)
+            onTabChange(selectedTab)
         }
-        .onChange(of: model.selectedTab) { tab in
+        .onChange(of: selectedTab) { tab in
             onTabChange(tab)
         }
         .onPreferenceChange(InspectorSelectionKey.self) { value in

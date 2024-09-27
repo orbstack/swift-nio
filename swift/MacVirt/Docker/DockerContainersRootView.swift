@@ -215,6 +215,9 @@ private struct DockerContainersList: View {
 
 struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+
+    @Default(.dockerFilterShowStopped) private var dockerFilterShowStopped
+
     @State var selection: Set<DockerContainerId>
 
     var body: some View {
@@ -257,7 +260,7 @@ struct DockerContainersRootView: View {
             listData.append(AKSection(nil, runningItems))
         }
 
-        if vmModel.dockerFilterShowStopped && !stoppedItems.isEmpty {
+        if dockerFilterShowStopped && !stoppedItems.isEmpty {
             listData.append(AKSection("Stopped", stoppedItems))
         }
 

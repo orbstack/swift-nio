@@ -83,6 +83,8 @@ private struct ModeButton: View {
 }
 
 struct OnboardingModeView: View {
+    @Default(.selectedTab) private var selectedTab
+
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var onboardingModel: OnboardingViewModel
 
@@ -109,7 +111,7 @@ struct OnboardingModeView: View {
                     title: "Docker",
                     desc: "Build & run Docker containers",
                     action: {
-                        vmModel.selectedTab = .dockerContainers
+                        selectedTab = .dockerContainers
                         continueWith(.docker)
                     }
                 )
@@ -119,7 +121,7 @@ struct OnboardingModeView: View {
                     title: "Kubernetes",
                     desc: "Test Kubernetes deployments",
                     action: {
-                        vmModel.selectedTab = .k8sPods
+                        selectedTab = .k8sPods
                         continueWith(.k8s)
                     }
                 )
@@ -130,7 +132,7 @@ struct OnboardingModeView: View {
                     // match line count
                     desc: "Use a full Linux system\n ",
                     action: {
-                        vmModel.selectedTab = .machines
+                        selectedTab = .machines
                         continueWith(.linux)
                     }
                 )

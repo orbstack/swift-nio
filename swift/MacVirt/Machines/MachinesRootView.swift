@@ -14,6 +14,8 @@ struct MachinesRootView: View {
     @State private var selection: Set<String> = []
     @State private var creatingOpacity = 0.0
 
+    @Default(.selectedTab) private var selectedTab
+
     var body: some View {
         StateWrapperView {
             if let containers = vmModel.containers {
@@ -58,7 +60,7 @@ struct MachinesRootView: View {
                                     .font(.body)
                                     .padding(.bottom, 8)
                                 Button(action: {
-                                    vmModel.selectedTab = .dockerContainers
+                                    selectedTab = .dockerContainers
                                 }) {
                                     Text("Go to Containers")
                                 }

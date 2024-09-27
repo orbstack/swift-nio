@@ -87,7 +87,7 @@ extension NewMainViewController: NSToolbarDelegate {
     }
 
     @objc func actionDockerContainersFilter1(_: Any?) {
-        model.dockerFilterShowStopped.toggle()
+        Defaults[.dockerFilterShowStopped].toggle()
     }
 
     @objc func actionDockerVolumesOpen(_: NSButton?) {
@@ -110,11 +110,11 @@ extension NewMainViewController: NSToolbarDelegate {
     }
 
     @objc func actionK8sPodsFilter1(_: Any?) {
-        model.k8sFilterShowSystemNs.toggle()
+        Defaults[.k8sFilterShowSystemNs].toggle()
     }
 
     @objc func actionK8sServicesFilter1(_: Any?) {
-        model.k8sFilterShowSystemNs.toggle()
+        Defaults[.k8sFilterShowSystemNs].toggle()
     }
 
     @objc func actionMachinesNew(_: NSButton?) {

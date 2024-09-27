@@ -431,12 +431,6 @@ class VmViewModel: ObservableObject {
 
     // MARK: - New
 
-    @Default(.selectedTab) var selectedTab {
-        willSet {
-            if newValue == .dockerContainers, dockerSortingMethod == .size { dockerSortingMethod = .none }
-        }
-    }
-    
     @Published var searchText = ""
     @Published var initialDockerContainerSelection: Set<DockerContainerId> = []
     @Published var presentAuth = false
@@ -449,11 +443,6 @@ class VmViewModel: ObservableObject {
     // when pressing sidebar when super small
     var collapsedPanelOverride: Panel?
     var menuActionRouter = PassthroughSubject<MenuActionRouter, Never>()
-
-    // MARK: - Filter defaults
-
-    @Default(.dockerMigrationDismissed) var dockerFilterShowStopped
-    @Default(.k8sFilterShowSystemNs) var k8sFilterShowSystemNs
 
     // TODO: fix state machine to deal with restarting
     @Published private(set) var isVmRestarting = false

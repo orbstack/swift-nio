@@ -114,6 +114,8 @@ struct MacVirtApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
+    @Default(.selectedTab) private var selectedTab
+
     private let delegate: UpdateDelegate
     private let updaterController: SPUStandardUpdaterController
 
@@ -190,7 +192,7 @@ struct MacVirtApp: App {
                         NSWorkspace.openSubwindow("docker/migration")
                     }
 
-                    switch vmModel.selectedTab {
+                    switch selectedTab {
                     case .dockerVolumes:
                         Divider()
                         Button("New Volume") {
@@ -261,17 +263,17 @@ struct MacVirtApp: App {
                         .disabled(true)
 
                     Button("Containers") {
-                        vmModel.selectedTab = .dockerContainers
+                        selectedTab = .dockerContainers
                     }
                     .keyboardShortcut("1", modifiers: [.command])
 
                     Button("Volumes") {
-                        vmModel.selectedTab = .dockerVolumes
+                        selectedTab = .dockerVolumes
                     }
                     .keyboardShortcut("2", modifiers: [.command])
 
                     Button("Images") {
-                        vmModel.selectedTab = .dockerImages
+                        selectedTab = .dockerImages
                     }
                     .keyboardShortcut("3", modifiers: [.command])
                 }
@@ -283,12 +285,12 @@ struct MacVirtApp: App {
                         .disabled(true)
 
                     Button("Pods") {
-                        vmModel.selectedTab = .k8sPods
+                        selectedTab = .k8sPods
                     }
                     .keyboardShortcut("4", modifiers: [.command])
 
                     Button("Services") {
-                        vmModel.selectedTab = .k8sServices
+                        selectedTab = .k8sServices
                     }
                     .keyboardShortcut("5", modifiers: [.command])
                 }
@@ -298,7 +300,7 @@ struct MacVirtApp: App {
                 Button("Linux") {}.disabled(true)
 
                 Button("Machines") {
-                    vmModel.selectedTab = .machines
+                    selectedTab = .machines
                 }.keyboardShortcut("6", modifiers: [.command])
 
                 Divider()
@@ -306,7 +308,7 @@ struct MacVirtApp: App {
                 Button("Help") {}.disabled(true)
 
                 Button("Commands") {
-                    vmModel.selectedTab = .cli
+                    selectedTab = .cli
                 }.keyboardShortcut("7", modifiers: [.command])
             }
 

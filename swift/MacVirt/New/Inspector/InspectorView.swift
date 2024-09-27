@@ -5,6 +5,7 @@
 //  Created by Andrew Zheng on 12/1/23.
 //
 
+import Defaults
 import SwiftUI
 
 class InspectorViewController: NSViewController {
@@ -64,9 +65,11 @@ struct InspectorView: View {
     @EnvironmentObject var model: VmViewModel
     @EnvironmentObject var navModel: MainNavViewModel
 
+    @Default(.selectedTab) private var selectedTab
+
     var body: some View {
         VStack {
-            switch model.selectedTab {
+            switch selectedTab {
             case .dockerContainers:
                 let selection = navModel.inspectorSelection
 

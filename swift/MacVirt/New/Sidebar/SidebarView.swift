@@ -28,13 +28,15 @@ class SidebarViewController: NSViewController {
 struct SidebarView: View {
     @EnvironmentObject var model: VmViewModel
 
+    @Default(.selectedTab) private var selectedTab
+
     var body: some View {
         // macOS <13 requires nullable selection
         let selBinding = Binding<NavTabId?>(get: {
-            model.selectedTab
+            selectedTab
         }, set: {
-            if let sel = $0 {
-                model.selectedTab = sel
+            if let sel = $0, sel != selectedTab {
+                selectedTab = sel
             }
         })
 

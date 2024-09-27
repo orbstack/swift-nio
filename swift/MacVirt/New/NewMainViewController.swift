@@ -341,11 +341,6 @@ extension NewMainViewController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         guard menu.identifier == .sortListItemMenu else { return }
         for item in menu.items {
-            if item.tag == DockerSortMethod.size.rawValue {
-                // Disable "size" sorting option if we're in dockerContainers
-                item.isEnabled = (model.selectedTab != .dockerContainers)
-            }
-            
             item.state = (model.dockerSortingMethod.rawValue == item.tag) ? .on : .off
         }
     }
