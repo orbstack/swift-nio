@@ -26,6 +26,7 @@ use libc::{
 };
 use model::WormholeConfig;
 use mounts::with_remount_rw;
+use nix::sys::termios::{cfmakeraw, tcgetattr, tcsetattr, LocalFlags, SetArg, Termios};
 use nix::{
     errno::Errno,
     fcntl::{
@@ -1029,7 +1030,7 @@ fn spawn_payload(
     shell_cmd: &str,
     cstr_envs: &Vec<CString>,
 ) -> anyhow::Result<()> {
-    let pty_result = openpty(
+    let pty = openpty(
         Some(&Winsize {
             ws_row: 24,
             ws_col: 80,
@@ -1039,12 +1040,19 @@ fn spawn_payload(
         None,
     )?;
 
-    let master_fd = pty_result.master.as_raw_fd();
-    let slave_fd = pty_result.slave.as_raw_fd();
+    let master_fd = pty.master.as_raw_fd();
+    let slave_fd = pty.slave.as_raw_fd();
 
     match unsafe { fork()? } {
         // child: payload
         ForkResult::Child => {
+            let mut termios = tcgetattr(&pty.slave)?;
+            // termios.local_flags.remove(LocalFlags::ECHO);
+            // termios.local_flags.remove(LocalFlags::ICANON);
+            tcsetattr(&pty.slave, SetArg::TCSANOW, &termios)?;
+
+            trace!("termios local: {:?}", termios.local_flags);
+
             setsid()?;
             dup2(slave_fd, libc::STDIN_FILENO)?;
             dup2(slave_fd, libc::STDOUT_FILENO)?;
@@ -1073,7 +1081,7 @@ fn spawn_payload(
             let mut client_reader = unsafe { File::from_raw_fd(client_fd) };
             let mut client_writer = client_reader.try_clone()?;
 
-            set_non_blocking(&master_reader)?;
+            // set_non_blocking(&master_reader)?;
 
             let shutdown_load = Arc::new(AtomicBool::new(false));
             let shutdown_store = shutdown_load.clone();
@@ -1124,6 +1132,10 @@ fn spawn_payload(
                             trace!("shutting down client->pty");
                             break;
                         }
+                        trace!(
+                            "received {n} bytes, {:?}",
+                            &buffer[..n] // String::from_utf8_lossy(&buffer[..n])
+                        );
                         master_writer.write_all(&buffer[..n])?;
                         master_writer.flush()?;
                     }
