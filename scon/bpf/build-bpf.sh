@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -eufo pipefail
+set -euf
 
 cd "$(dirname "$0")"
 
@@ -18,3 +18,7 @@ go run ../cmd/btfstrip lfwd_bpfel.o
 go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel -cflags "$BPF_CFLAGS" pmon src/pmon.c
 # strip source line info
 go run ../cmd/btfstrip pmon_bpfel.o
+
+go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel -cflags "$BPF_CFLAGS" tproxy src/tproxy.c
+# strip source line info
+go run ../cmd/btfstrip tproxy_bpfel.o

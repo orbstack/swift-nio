@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -15,11 +16,11 @@ import (
 	"github.com/armon/go-radix"
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/agent"
-	"github.com/orbstack/macvirt/scon/agent/tlsutil"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/templates"
+	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
@@ -59,9 +60,12 @@ const (
 var (
 	nat64Prefix              = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
 	domainproxySubnet4Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet4Cidr)
+	domainproxySubnet6Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet6Cidr)
 
 	sconHostBridgeIp4 = net.ParseIP(netconf.SconHostBridgeIP4)
 	sconHostBridgeIp6 = net.ParseIP(netconf.SconHostBridgeIP6)
+
+	conbr0LinkIndex int = -1
 )
 
 func mustParseCIDR(s string) *net.IPNet {
@@ -124,7 +128,8 @@ const (
 
 type domainproxyInfo struct {
 	// maps domainproxy ips to container ips. we call container ips values
-	ipMap map[netip.Addr]net.IP
+	ipMap     map[netip.Addr]net.IP
+	dockerSet map[netip.Addr]struct{}
 
 	// maps mdns-ids (concatenation of sorted hosts with ,) to domainproxy ips
 	idMap4     map[string]netip.Addr
@@ -148,15 +153,22 @@ func mustAddrFromSlice(ip net.IP) netip.Addr {
 	return addr
 }
 
-func newDomainproxyInfo(subnet netip.Prefix, lowest netip.Addr) domainproxyInfo {
+func newDomainproxyInfo(subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) domainproxyInfo {
 	return domainproxyInfo{
-		ipMap: make(map[netip.Addr]net.IP),
+		ipMap:     make(map[netip.Addr]net.IP),
+		dockerSet: make(map[netip.Addr]struct{}),
 
 		idMap4:     make(map[string]netip.Addr),
 		ipsFull4:   false,
-		subnet4:    subnet.Masked(),
-		lowest4:    lowest,
-		lastAlloc4: lowest,
+		subnet4:    subnet4.Masked(),
+		lowest4:    lowest4,
+		lastAlloc4: lowest4,
+
+		idMap6:     make(map[string]netip.Addr),
+		ipsFull6:   false,
+		subnet6:    subnet6.Masked(),
+		lowest6:    lowest6,
+		lastAlloc6: lowest6,
 	}
 }
 
@@ -166,27 +178,87 @@ func (d *domainproxyInfo) setAddr(ip netip.Addr, val net.IP) {
 		return
 	}
 
+	var err error
 	if ip.Is4() {
-		nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v : %v }", ip, val))
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v : %v }", ip, val))
 	}
 	if ip.Is6() {
-		nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v : %v }", ip, val))
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v : %v }", ip, val))
+
+		go func() {
+			if conbr0LinkIndex == -1 {
+				conbr0, err := netlink.LinkByName("conbr0")
+				if err != nil {
+					logrus.Debug("unable to get conbr0 link: %w", err)
+					return
+				}
+				conbr0LinkIndex = conbr0.Attrs().Index
+			}
+			err := netlink.NeighAdd(&netlink.Neigh{Family: unix.AF_INET6, Flags: netlink.NTF_PROXY, State: netlink.NUD_PERMANENT, Type: unix.RTN_UNSPEC, LinkIndex: conbr0LinkIndex, IP: ip.AsSlice()})
+			if err != nil && !errors.Is(err, unix.EEXIST) {
+				logrus.Debug("failed to add neighbor: %w", err)
+			}
+		}()
+	}
+	if err != nil {
+		logrus.WithError(err).Debug("could not add to domainproxy map.")
 	}
 
 	d.ipMap[ip] = val
 	logrus.WithFields(logrus.Fields{"ip": ip, "val": val}).Debug("emmie | set addr.")
 }
 
+func (d *domainproxyInfo) setAddrDocker(ip netip.Addr, val bool) {
+	if _, has := d.ipMap[ip]; !has {
+		return
+	}
+
+	if val {
+		d.dockerSet[ip] = struct{}{}
+
+		// try to add to docker set, okay if this fails
+		var err error
+		if ip.Is4() {
+			err = nft.Run("add", "element", "inet", "vm", "domainproxy4_docker", fmt.Sprintf("{ %v }", ip))
+		}
+		if ip.Is6() {
+			err = nft.Run("add", "element", "inet", "vm", "domainproxy6_docker", fmt.Sprintf("{ %v }", ip))
+		}
+		if err != nil {
+			logrus.WithError(err).Debug("could not add to domainproxy_docker")
+		}
+	} else {
+		delete(d.dockerSet, ip)
+
+		// try to remove from the docker set, okay if this fails
+		var err error
+		if ip.Is4() {
+			err = nft.Run("remove", "element", "inet", "vm", "domainproxy4_docker", fmt.Sprintf("{ %v }", ip))
+		}
+		if ip.Is6() {
+			err = nft.Run("remove", "element", "inet", "vm", "domainproxy6_docker", fmt.Sprintf("{ %v }", ip))
+		}
+		if err != nil {
+			logrus.WithError(err).Debug("could not remove from domainproxy_docker set, probably normal")
+		}
+	}
+}
+
 func (d *domainproxyInfo) setAddrFreeable(ip netip.Addr) {
 	if _, has := d.ipMap[ip]; has {
 		d.ipMap[ip] = nil
 
+		var err error
 		if ip.Is4() {
-			nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v }", ip))
+			err = nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v }", ip))
 		}
 		if ip.Is6() {
-			nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v }", ip))
+			err = nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v }", ip))
 		}
+		if err != nil {
+			logrus.WithError(err).Debug("could not remove from domainproxy map.")
+		}
+		d.setAddrDocker(ip, false)
 
 		logrus.WithField("ip", ip).Debug("emmie | set addr freeable.")
 	}
@@ -194,6 +266,10 @@ func (d *domainproxyInfo) setAddrFreeable(ip netip.Addr) {
 
 func (d *domainproxyInfo) setIp(ip net.IP, val net.IP) {
 	d.setAddr(mustAddrFromSlice(ip), val)
+}
+
+func (d *domainproxyInfo) setIpDocker(ip net.IP, val bool) {
+	d.setAddrDocker(mustAddrFromSlice(ip), val)
 }
 
 func (d *domainproxyInfo) setIpFreeable(ip net.IP) {
@@ -294,7 +370,7 @@ func (d *domainproxyInfo) claimNextAvailableIp6(id string, val net.IP) (ip netip
 
 	if nextAddr, ok := nextAvailableIp(d.ipMap, d.subnet6, d.lowest6, &d.lastAlloc6, &d.ipsFull6); ok {
 		d.setAddr(nextAddr, val)
-		d.idMap4[id] = nextAddr
+		d.idMap6[id] = nextAddr
 
 		logrus.WithFields(logrus.Fields{"id": id, "ip": nextAddr, "val": val}).Debug("emmie | claimed available ip.")
 		return nextAddr, true
@@ -382,62 +458,52 @@ func setupDomainProxyInterface(mtu int) error {
 		return err
 	}
 
+	_, domainproxySubnet6, err := net.ParseCIDR(netconf.DomainproxySubnet6Cidr)
+	if err != nil {
+		return err
+	}
+
 	lo, err := netlink.LinkByName("lo")
 	if err != nil {
 		return err
 	}
 
-	route := netlink.Route{LinkIndex: lo.Attrs().Index, Dst: domainproxySubnet4, Type: unix.RTN_LOCAL, Scope: unix.RT_SCOPE_HOST, Table: 255}
-	err = netlink.RouteAdd(&route)
+	route4 := netlink.Route{LinkIndex: lo.Attrs().Index, Dst: domainproxySubnet4, Type: unix.RTN_LOCAL, Scope: unix.RT_SCOPE_HOST, Table: 255}
+	err = netlink.RouteAdd(&route4)
 	if err != nil && errors.Is(err, unix.EEXIST) {
-		logrus.Debug("route already exists, readding it")
-		err = netlink.RouteDel(&route)
+		logrus.Debug("route4 already exists, readding it")
+		err = netlink.RouteDel(&route4)
 		if err != nil {
 			return err
 		}
-		err = netlink.RouteAdd(&route)
+		err = netlink.RouteAdd(&route4)
 		if err != nil {
 			return err
 		}
 	} else if err != nil {
-		return fmt.Errorf("error adding route: %w", err)
+		return fmt.Errorf("adding route: %w", err)
 	}
 
-	//logrus.Debug("creating domainproxy dummy interface and enabling proxy_arp")
+	route6 := netlink.Route{LinkIndex: lo.Attrs().Index, Dst: domainproxySubnet6, Type: unix.RTN_LOCAL, Scope: unix.RT_SCOPE_HOST, Table: 255}
+	err = netlink.RouteAdd(&route6)
+	if err != nil && errors.Is(err, unix.EEXIST) {
+		logrus.Debug("route6 already exists, readding it")
+		err = netlink.RouteDel(&route6)
+		if err != nil {
+			return err
+		}
+		err = netlink.RouteAdd(&route6)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return fmt.Errorf("adding route: %w", err)
+	}
 
-	//link := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: netconf.DomainproxyDummyName}}
-	//err := netlink.LinkAdd(link)
-	//if err != nil && errors.Is(err, unix.EEXIST) {
-	//	logrus.Debug("domainproxy dummy already exists, recreating")
-	//	err = netlink.LinkDel(link)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	err = netlink.LinkAdd(link)
-	//} else if err != nil {
-	//	return fmt.Errorf("error adding link: %v", err)
-	//}
-
-	//err = netlink.LinkSetUp(link)
-	//if err != nil {
-	//	return err
-	//}
-
-	// _, domainproxySubnet, err := net.ParseCIDR(netconf.DomainproxySubnet4Cidr)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// route := &netlink.Route{LinkIndex: link.Index, Dst: domainproxySubnet}
-	// netlink.RouteAdd(route)
-	// if err != nil {
-	// 	return err
-	// }
-
-	//err = os.WriteFile("/proc/sys/net/ipv4/conf/"+netconf.DomainproxyDummyName+"/proxy_arp", []byte("1"), 0)
-	//if err != nil {
-	//	return err
-	//}
+	err = os.WriteFile("/proc/sys/net/ipv6/conf/conbr0/proxy_ndp", []byte("1"), 0)
+	if err != nil {
+		return fmt.Errorf("enable proxy ndp: %w", err)
+	}
 
 	return nil
 }
@@ -464,6 +530,8 @@ type mdnsRegistry struct {
 	db      *Database
 
 	httpServer *http.Server
+
+	tlsProxy *tlsProxy
 }
 
 func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *mdnsRegistry {
@@ -472,6 +540,8 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		domainproxy: newDomainproxyInfo(domainproxySubnet4Prefix,
 			// reserve an ip for the error page
 			domainproxySubnet4Prefix.Masked().Addr().Next(),
+			domainproxySubnet6Prefix,
+			domainproxySubnet6Prefix.Masked().Addr().Next(),
 		),
 		pendingFlushes: make(map[string]struct{}),
 		host:           host,
@@ -516,6 +586,13 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		ip4:        k8sIP4,
 		ip6:        mapToNat64(k8sIP4),
 	})
+
+	proxy, err := newTlsProxy(host, r)
+	if err != nil {
+		logrus.Debug("emmie | tlsProxy error")
+	}
+
+	r.tlsProxy = proxy
 
 	return r
 }
@@ -582,6 +659,10 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 			return err
 		}
 		return r.httpServer.ServeTLS(l, "", "")
+	})
+
+	go runOne("start tls proxy", func() error {
+		return r.tlsProxy.Start()
 	})
 
 	return nil
@@ -1008,10 +1089,12 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 	// jank way of getting the first network
 	for _, network := range ctr.NetworkSettings.Networks {
 		if ip, ok := r.domainproxy.claimNextAvailableIp4(mdnsId, net.ParseIP(network.IPAddress)); ok {
+			r.domainproxy.setAddrDocker(ip, true)
 			ip4 = ip.AsSlice()
 		}
 
 		if ip, ok := r.domainproxy.claimNextAvailableIp6(mdnsId, net.ParseIP(network.GlobalIPv6Address)); ok {
+			r.domainproxy.setAddrDocker(ip, true)
 			ip6 = ip.AsSlice()
 		}
 
@@ -1355,10 +1438,8 @@ func (r *mdnsRegistry) queryKubeDns(q dns.Question) []dns.RR {
 	return rrs
 }
 
-// the idea: we return NSEC if not found AND we know we're in control of the name
-// that means we either got a tree match but rejected it, or it's under our suffix
-func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV6 bool) []dns.RR {
-	treeKey := toTreeKey(q.Name)
+func (r *mdnsRegistry) getEntryForNameLocked(name string) (*mdnsEntry, bool) {
+	treeKey := toTreeKey(name)
 	matchedKey, _entry, ok := r.tree.LongestPrefix(treeKey)
 	if verboseDebug {
 		logrus.WithFields(logrus.Fields{
@@ -1372,10 +1453,10 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 		// no match at all.
 		// return NSEC only if it's under our main suffix
 		// otherwise we can't take responsibility for this name
-		if strings.HasSuffix(q.Name, mdnsContainerSuffixes[0]) {
-			return nxdomain(q, mdnsTTLSeconds)
+		if strings.HasSuffix(name, mdnsContainerSuffixes[0]) {
+			return nil, true
 		} else {
-			return nil
+			return nil, false
 		}
 	}
 	entry := _entry.(*mdnsEntry)
@@ -1385,14 +1466,14 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 		// this was a wildcard match. is that allowed?
 		// allow any number of wildcard components (*.*)
 		if !entry.IsWildcard {
-			return nxdomain(q, mdnsTTLSeconds)
+			return nil, true
 		}
 
 		// make sure we're matching on a component boundary:
 		// check that the next character is a dot
 		// e.g. stack.local shouldn't match orbstack.local
 		if len(treeKey) > len(matchedKey) && treeKey[len(matchedKey)] != '.' {
-			return nxdomain(q, mdnsTTLSeconds)
+			return nil, true
 		}
 
 		// note: we do *NOT* check whether the matched key was a leaf node (i.e. has no children)
@@ -1402,6 +1483,34 @@ func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV
 		// no need to use a shorter cache TTL for initial wildcard queries.
 		// we handle it by flushing cache
 		// Chrome caches DNS anyway so the short TTL doesn't help
+	}
+
+	return entry, false
+}
+
+func (r *mdnsRegistry) getIpsForName(name string) (net.IP, net.IP) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry, _ := r.getEntryForNameLocked(name)
+	if entry == nil {
+		logrus.Debugf("could not find entry for %s", name)
+		return nil, nil
+	}
+
+	entry.ensureDnatCorrect()
+
+	return entry.ip4, entry.ip6
+}
+
+// the idea: we return NSEC if not found AND we know we're in control of the name
+// that means we either got a tree match but rejected it, or it's under our suffix
+func (r *mdnsRegistry) getRecordsLocked(q dns.Question, includeV4 bool, includeV6 bool) []dns.RR {
+	entry, isNxdomain := r.getEntryForNameLocked(q.Name)
+	if isNxdomain {
+		return nxdomain(q, mdnsTTLSeconds)
+	}
+	if entry == nil {
+		return nil
 	}
 
 	records := entry.ToRecords(q.Name, includeV4, includeV6, mdnsTTLSeconds)

@@ -24,9 +24,7 @@ use netlink_packet_core::{
     NetlinkMessage, NetlinkPayload, NLM_F_ACK, NLM_F_CREATE, NLM_F_REPLACE, NLM_F_REQUEST,
 };
 use netlink_packet_route::{
-    rule::RuleAction,
-    tc::{TcAttribute, TcHandle, TcMessage},
-    RouteNetlinkMessage,
+    route::{RouteScope, RouteType}, rule::RuleAction, tc::{TcAttribute, TcHandle, TcMessage}, RouteNetlinkMessage
 };
 use nix::{
     libc::{self, RLIM_INFINITY, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO},
@@ -74,7 +72,10 @@ const VNET_NEIGHBORS: &[&str] = &[
 const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x54, 0xe1, 0x02];
 const NAT64_SOURCE_ADDR: &str = "10.183.233.241";
 
-const DOCKER_ROUTE_FWMARK: u32 = 0xe97bd031;
+// must match netconf
+const FWMARK_DOCKER_ROUTE: u32 = 0x1;
+const FWMARK_TPROXY_OUTBOUND_DOCKER: u32 = 0x5;
+const FWMARK_LOCAL_ROUTE: u32 = 0x8;
 
 const FS_CORRUPTED_MSG: &str = r#"
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -461,6 +462,41 @@ async fn setup_network() -> anyhow::Result<()> {
         .unwrap();
     ip_link.set(lo.header.index).up().execute().await?;
 
+    ip_rule
+        .add()
+        .v4()
+        .table_id(32)
+        .fw_mark(FWMARK_LOCAL_ROUTE)
+        .action(RuleAction::ToTable)
+        .execute()
+        .await?;
+    ip_rule
+        .add()
+        .v6()
+        .table_id(32)
+        .fw_mark(FWMARK_LOCAL_ROUTE)
+        .action(RuleAction::ToTable)
+        .execute()
+        .await?;
+    ip_route
+        .add()
+        .v4()
+        .table_id(32)
+        .kind(RouteType::Local)
+        .scope(RouteScope::Host)
+        .output_interface(lo.header.index)
+        .execute()
+        .await?;
+    ip_route
+        .add()
+        .v6()
+        .table_id(32)
+        .kind(RouteType::Local)
+        .scope(RouteScope::Host)
+        .output_interface(lo.header.index)
+        .execute()
+        .await?;
+
     // main gvisor NAT network
     let eth0 = ip_link
         .get()
@@ -537,21 +573,7 @@ async fn setup_network() -> anyhow::Result<()> {
         .execute()
         .await
         .unwrap();
-    // ingress route from translated IPv4 source address to Docker machine (which does IP forward to containers)
-    // create ip rule for fwmark from BPF clsact program
-    // ip rule add fwmark 0xe97bd031 table 64
-    ip_rule
-        .add()
-        .v4()
-        .table_id(64) // table ID is not exposed to BPF
-        .fw_mark(DOCKER_ROUTE_FWMARK)
-        .action(RuleAction::ToTable)
-        .execute()
-        .await?;
-    // ip route add default via 198.19.249.2 table 64
-    // ip_route.add().v4()
-    //     .gateway(NAT64_DOCKER_MACHINE_IP4.parse().unwrap())
-    //     .table(64).execute().await.unwrap();
+
     // egress route from Docker machine back to BPF eth1
     // ip route add 10.183.233.241 dev eth1
     ip_route
@@ -562,6 +584,37 @@ async fn setup_network() -> anyhow::Result<()> {
         .execute()
         .await
         .unwrap();
+
+    // ip rules for fwmark to docker route table
+    // ingress route from translated IPv4 source address to Docker machine (which does IP forward to containers)
+    // create ip rule for fwmark from BPF clsact program
+    // ip rule add fwmark 0x1 table 64
+    ip_rule
+        .add()
+        .v4()
+        .table_id(64) // table ID is not exposed to BPF
+        .fw_mark(FWMARK_DOCKER_ROUTE)
+        .action(RuleAction::ToTable)
+        .execute()
+        .await?;
+
+    // these make docker domainproxy use the right route instead of looping
+    ip_rule
+        .add()
+        .v4()
+        .table_id(64)
+        .fw_mark(FWMARK_TPROXY_OUTBOUND_DOCKER)
+        .action(RuleAction::ToTable)
+        .execute()
+        .await?;
+    ip_rule
+        .add()
+        .v6()
+        .table_id(64)
+        .fw_mark(FWMARK_TPROXY_OUTBOUND_DOCKER)
+        .action(RuleAction::ToTable)
+        .execute()
+        .await?;
 
     // docker vlan router
     // scon deals with the rest

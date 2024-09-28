@@ -100,7 +100,7 @@ static const __be32 XLAT_SRC_IP6[4] =
 // da:9b:d0:54:e0:02 (GuestMACSconBridge)
 static const __u8 BRIDGE_GUEST_MAC[ETH_ALEN] = "\xda\x9b\xd0\x54\xe0\x02";
 
-#define MARK_DOCKER_ROUTE 0xe97bd031
+#define FWMARK_DOCKER_ROUTE 0x1
 
 #define IP_DF 0x4000 // Flag: "Don't Fragment"
 
@@ -418,11 +418,7 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
     }
 
     // mark and re-inject
-<<<<<<< HEAD
-    skb->mark = MARK_NAT64; // route to docker machine (via ip rule)
-    return bpf_redirect(skb->ifindex, BPF_F_INGRESS);
-=======
-    skb->mark = MARK_DOCKER_ROUTE; // route to docker machine (via ip rule)
+    skb->mark = FWMARK_DOCKER_ROUTE; // route to docker machine (via ip rule)
 	return bpf_redirect(skb->ifindex, BPF_F_INGRESS);
 >>>>>>> 120d10cc8 (emmie | temp: working dnat)
 }

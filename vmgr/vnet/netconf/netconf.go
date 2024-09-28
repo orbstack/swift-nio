@@ -23,7 +23,7 @@ const (
 	VnetHostNatIP6    = VnetSubnet6 + ":fe"
 )
 
-// host bridge is scon subnet + proxdomain subnet
+// host bridge is scon subnet + domainproxy subnet
 // 198.19.248.0/23
 const (
 	HostBridgeSubnet4Mask = "255.255.254.0"
@@ -61,8 +61,8 @@ const (
 
 // 198.19.249.0/24
 const (
-	DomainproxyDummyName   = "domaindummy0"
 	DomainproxySubnet4Cidr = "198.19.248.0/24"
+	DomainproxySubnet6Cidr = "fd07:b51a:cc66:0:a834:cdb8:ee73::/112"
 )
 
 // static ARP/neighbors to save CPU
@@ -187,14 +187,18 @@ const (
 	DockerMarkTlsProxyLocalRouteStr = "0xb3c60000"
 )
 
+const (
+	VmRouteTableDocker = 64
+)
+
 // marks used in VM
 // value doesn't matter
 const (
-	VmMarkNat64    = 1
-	VmMarkIsolated = 2
-)
-
-// interface groups used in VM
-const (
 	VmIfGroupIsolated = 1
+
+	VmFwmarkDockerRoute          = 0x1
+	VmFwmarkTproxy               = 0x2
+	VmFwmarkTproxyOutbound       = 0x4
+	VmFwmarkTproxyOutboundDocker = 0x5
+	VmFwmarkLocalRoute           = 0x8
 )

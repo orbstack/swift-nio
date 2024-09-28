@@ -102,6 +102,18 @@ func (n *Network) Start() error {
 		return n.hostClient.RefreshHostBridge(false)
 	})
 
+	// add docker table route
+	// this routes both tproxy_docker and docker_route fwmarks
+	// ip route add default via 198.19.249.2 dev conbr0 table 64
+	err = netlink.RouteAdd(&netlink.Route{
+		LinkIndex: bridge.Index,
+		Gw:        sconDocker4,
+		Table:     netconf.VmRouteTableDocker,
+	})
+	if err != nil && !errors.Is(err, unix.EEXIST) {
+		return err
+	}
+
 	// start dnsmasq
 	logrus.Debug("starting dnsmasq")
 	proc, err := n.spawnDnsmasq()
@@ -122,6 +134,9 @@ func (n *Network) Start() error {
 		"MAC_DOCKER":                        MACAddrDocker,
 		"VNET_SECURE_SVC_IP4":               netconf.VnetSecureSvcIP4,
 		"PORT_SECURE_SVC_DOCKER_REMOTE_CTX": strconv.Itoa(ports.SecureSvcDockerRemoteCtx),
+		"VNET_TLS_PROXY_IP4":                netconf.VnetTlsProxyIP4,
+		"VNET_TLS_PROXY_IP6":                netconf.VnetTlsProxyIP6,
+		"PORT_GUEST_TLS_PROXY":              strconv.Itoa(ports.GuestTlsProxy),
 		"SCON_SUBNET4":                      netconf.SconSubnet4CIDR,
 		"SCON_SUBNET6":                      netconf.SconSubnet6CIDR,
 		"VNET_SUBNET4":                      netconf.VnetSubnet4CIDR,
@@ -129,8 +144,12 @@ func (n *Network) Start() error {
 
 		"IFGROUP_ISOLATED": strconv.Itoa(netconf.VmIfGroupIsolated),
 
-		"MARK_NAT64":    strconv.Itoa(netconf.VmMarkNat64),
-		"MARK_ISOLATED": strconv.Itoa(netconf.VmMarkIsolated),
+		"MARK_ISOLATED":                 strconv.Itoa(netconf.VmMarkIsolated),
+		"FWMARK_DOCKER_ROUTE":           strconv.Itoa(netconf.VmFwmarkDockerRoute),
+		"FWMARK_TPROXY":                 strconv.Itoa(netconf.VmFwmarkTproxy),
+		"FWMARK_TPROXY_OUTBOUND":        strconv.Itoa(netconf.VmFwmarkTproxyOutbound),
+		"FWMARK_TPROXY_OUTBOUND_DOCKER": strconv.Itoa(netconf.VmFwmarkTproxyOutboundDocker),
+		"FWMARK_LOCAL_ROUTE":            strconv.Itoa(netconf.VmFwmarkLocalRoute),
 
 		// port forward dest
 		"INTERNAL_LISTEN_IP4": netconf.VnetGuestIP4,
@@ -150,17 +169,6 @@ func (n *Network) Start() error {
 		toMachineIP:  sconDocker4,
 	})
 	if err != nil {
-		return err
-	}
-
-	// add nat64 route:
-	// ip route add default via 198.19.249.2 dev conbr0 table 64
-	err = netlink.RouteAdd(&netlink.Route{
-		LinkIndex: bridge.Index,
-		Gw:        sconDocker4,
-		Table:     64,
-	})
-	if err != nil && !errors.Is(err, unix.EEXIST) {
 		return err
 	}
 

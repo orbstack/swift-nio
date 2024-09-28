@@ -21,7 +21,10 @@ bpf/lfwd_%: bpf/src/lfwd.c bpf/src/cfwd.h
 bpf/pmon_%: bpf/src/pmon.c
 	@go generate ./bpf
 
-bpfgen: bpf/bnat_bpfel.o bpf/bnat_bpfel.go bpf/lfwd_bpfel.o bpf/lfwd_bpfel.go bpf/pmon_bpfel.o bpf/pmon_bpfel.go
+bpf/tproxy_%: bpf/src/tproxy.c
+	@go generate ./bpf
+
+bpfgen: bpf/bnat_bpfel.o bpf/bnat_bpfel.go bpf/lfwd_bpfel.o bpf/lfwd_bpfel.go bpf/pmon_bpfel.o bpf/pmon_bpfel.go bpf/tproxy_bpfel.o bpf/tproxy_bpfel.go
 
 run:
 	ssh -t ovm "cd /mnt/mac/$(shell pwd); killall scon; ./build.sh && ./run.sh"

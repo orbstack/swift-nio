@@ -12,6 +12,7 @@ import (
 type GlobalBpfManager struct {
 	closers []io.Closer
 
+	bnatObjs     *bnatObjects
 	bnatQdisc    *netlink.GenericQdisc
 	bnatIngress6 *netlink.BpfFilter
 	bnatEgress4  *netlink.BpfFilter
@@ -43,17 +44,18 @@ func (b *GlobalBpfManager) Close() error {
 }
 
 func (b *GlobalBpfManager) Load(ifVmnetMachine string) error {
-	spec, err := loadBnat()
+	bnatSpec, err := loadBnat()
 	if err != nil {
 		return fmt.Errorf("load bnat: %w", err)
 	}
 
-	objs := &bnatObjects{}
-	err = spec.LoadAndAssign(objs, nil)
+	bnatObjs := &bnatObjects{}
+	err = bnatSpec.LoadAndAssign(bnatObjs, nil)
 	if err != nil {
 		return fmt.Errorf("load and assign: %w", err)
 	}
-	b.closers = append(b.closers, objs)
+	b.closers = append(b.closers, bnatObjs)
+	b.bnatObjs = bnatObjs
 
 	// add clsact qdisc to eth1
 	iface, err := netlink.LinkByName(ifVmnetMachine)
@@ -86,7 +88,7 @@ func (b *GlobalBpfManager) Load(ifVmnetMachine string) error {
 			Protocol:  unix.ETH_P_IPV6,
 			Priority:  1,
 		},
-		Fd:           objs.SchedClsIngress6Nat6.FD(),
+		Fd:           bnatObjs.SchedClsIngress6Nat6.FD(),
 		Name:         "nat64",
 		DirectAction: true,
 	}
@@ -104,7 +106,7 @@ func (b *GlobalBpfManager) Load(ifVmnetMachine string) error {
 			Protocol:  unix.ETH_P_IP,
 			Priority:  1,
 		},
-		Fd:           objs.SchedClsEgress4Nat4.FD(),
+		Fd:           bnatObjs.SchedClsEgress4Nat4.FD(),
 		Name:         "nat46",
 		DirectAction: true,
 	}
