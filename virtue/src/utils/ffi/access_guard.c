@@ -7,6 +7,7 @@
 
 #include <orb_sigstack.h>
 #include "utils/debug.h"
+#include "utils/format.h"
 #include "utils/rcu.h"
 
 // === State Definitions === //
@@ -138,14 +139,13 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
     return SIGNAL_VERDICT_HANDLED;
 
 abort:
-    fprintf(
-        stderr,
-        "detected invalid memory operation in protected region at relative address 0x%zX (region starts at 0x%zX): %s\n",
-        fault_addr - region->base,
-        region->base,
-        region->abort_msg
+    APRINTF(
+        aprintf_writer_stderr(),
+        "detected invalid memory operation in protected region at relative address 0x% (region starts at 0x%): %\n",
+        aprintf_fmt_hex_upper(fault_addr - region->base, false),
+        aprintf_fmt_hex_upper(region->base, false),
+        aprintf_fmt_str(region->abort_msg)
     );
-
 
     // Let the default SIGBUS handler dump the process. We intentionally skip over Go's default handler.
     //

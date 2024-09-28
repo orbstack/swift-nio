@@ -4,6 +4,7 @@ fn main() {
     cc::Build::new()
         .include(sigstack::FFI_INCLUDE_DIR)
         .file("ffi/access_guard.c")
+        .file("ffi/utils/format.c")
         .file("ffi/utils/rcu.c")
         .compile("utils");
 }

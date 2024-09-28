@@ -3,7 +3,6 @@
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 typedef struct signal_handler {
@@ -113,7 +112,10 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
         //
         // We certainly shouldn't just ignore the signal since that could just cause the handler to
         // repeatedly re-fault and would obscure the actual issue.
-        fprintf(stderr, "malformed signal chain descriptor: missing fallback handler for signal %d\n", signum);
+
+        // TODO: Use `APRINTF`
+        // fprintf(stderr, "malformed signal chain descriptor: missing fallback handler for signal %d\n", signum);
+
         _Exit(EXIT_FAILURE);
     }
 
