@@ -998,19 +998,24 @@ func validateName(name string) (bool, string) {
 	return true, ""
 }
 
-func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) []netip.Addr {
-	ips := make([]netip.Addr, 0, len(ctr.NetworkSettings.Networks))
+func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
+	var ip4 net.IP = nil
+	var ip6 net.IP = nil
 	for _, netSettings := range ctr.NetworkSettings.Networks {
-		ip4 := netSettings.IPAddress
-		if ip, err := netip.ParseAddr(ip4); err == nil {
-			ips = append(ips, ip)
+		if ip4 == nil {
+			ip4 = net.ParseIP(netSettings.IPAddress)
 		}
-		ip6 := netSettings.GlobalIPv6Address
-		if ip, err := netip.ParseAddr(ip6); err == nil {
-			ips = append(ips, ip)
+
+		if ip6 == nil {
+			ip6 = net.ParseIP(netSettings.GlobalIPv6Address)
+		}
+
+		if ip4 != nil && ip6 != nil {
+			break
 		}
 	}
-	return ips
+
+	return ip4, ip6
 }
 
 // flush cache of all reused names that were queried
@@ -1075,7 +1080,8 @@ func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) 
 	}
 }
 
-func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
+// returns upstream ips
+func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
 	names := r.containerToMdnsNames(ctr, true /*notifyInvalid*/)
 	mdnsId := mdnsNamesToMdnsId(names)
 
@@ -1083,22 +1089,21 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 	defer r.mu.Unlock()
 	now := time.Now()
 
+	ctrIp4, ctrIp6 := containerToMdnsIPs(ctr)
 	var ip4 net.IP
 	var ip6 net.IP
 	// we're protected by the mdnsRegistry mutex
-	// jank way of getting the first network
-	for _, network := range ctr.NetworkSettings.Networks {
-		if ip, ok := r.domainproxy.claimNextAvailableIp4(mdnsId, net.ParseIP(network.IPAddress)); ok {
+	if ctrIp4 != nil {
+		if ip, ok := r.domainproxy.claimNextAvailableIp4(mdnsId, ctrIp4); ok {
 			r.domainproxy.setAddrDocker(ip, true)
 			ip4 = ip.AsSlice()
 		}
-
-		if ip, ok := r.domainproxy.claimNextAvailableIp6(mdnsId, net.ParseIP(network.GlobalIPv6Address)); ok {
+	}
+	if ctrIp6 != nil {
+		if ip, ok := r.domainproxy.claimNextAvailableIp6(mdnsId, ip6); ok {
 			r.domainproxy.setAddrDocker(ip, true)
 			ip6 = ip.AsSlice()
 		}
-
-		break
 	}
 
 	logrus.WithFields(logrus.Fields{
@@ -1140,6 +1145,8 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) {
 		// need to flush any caches? what names were we queried under? (wildcard)
 		r.maybeFlushCacheLocked(now, name.Name)
 	}
+
+	return ip4, ip6
 }
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {

@@ -172,11 +172,17 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 		s.m.net.mdnsRegistry.RemoveContainer(&ctr)
 
 		if dockerBpf != nil {
-			ctrIPs := containerToMdnsIPs(&ctr)
-			for _, ctrIP := range ctrIPs {
-				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP.AsSlice())
+			ctrIp4, ctrIp6 := containerToMdnsIPs(&ctr)
+			if ctrIp4 != nil {
+				err := dockerBpf.CfwdRemoveContainerMeta(ctrIp4)
 				if err != nil {
-					logrus.WithError(err).WithField("ip", ctrIP).Error("failed to remove container from cfwd")
+					logrus.WithError(err).WithField("ip", ctrIp4).Error("failed to remove container from cfwd")
+				}
+			}
+			if ctrIp6 != nil {
+				err := dockerBpf.CfwdRemoveContainerMeta(ctrIp4)
+				if err != nil {
+					logrus.WithError(err).WithField("ip", ctrIp6).Error("failed to remove container from cfwd")
 				}
 			}
 		}
@@ -214,9 +220,23 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 	}
 	for i, ctr := range diff.Added {
 		s.dockerContainersCache[ctr.ID] = ctr
-		s.m.net.mdnsRegistry.AddContainer(&ctr)
+		ctrIp4, ctrIp6 := s.m.net.mdnsRegistry.AddContainer(&ctr)
 
-		if s.dockerMachine.Running() {
+		if dockerBpf != nil {
+			meta := containerToCfwdMeta(&ctr)
+			if ctrIp4 != nil {
+				err := dockerBpf.CfwdAddContainerMeta(ctrIp4, meta)
+				if err != nil {
+					logrus.WithError(err).Error("failed to add container ipv4 to cfwd")
+				}
+			}
+			if ctrIp6 != nil {
+				err := dockerBpf.CfwdAddContainerMeta(ctrIp6, meta)
+				if err != nil {
+					logrus.WithError(err).Error("failed to add container ipv6 to cfwd")
+				}
+			}
+
 			// mount nfs in shadow dir
 			// this is under bpf check because that checks whether the machine is running
 			fdxSeq := diff.AddedRootfsFdxSeqs[i]
