@@ -3,6 +3,8 @@ use std::{cell::{Ref, RefCell}, cmp::min, ffi::CStr, fs::File, io::{Read, Write}
 use anyhow::anyhow;
 use bytemuck::{Pod, Zeroable};
 use nix::{errno::Errno, fcntl::{openat, readlinkat, OFlag}, sys::stat::Mode};
+use numtoa::NumToA;
+use smallvec::SmallVec;
 use starry::sys::for_each_dir_entry;
 use zstd::Encoder;
 
@@ -120,31 +122,31 @@ impl UstarHeader {
     }
 
     pub fn set_mode(&mut self, mode: u32) {
-        write!(SliceBuf::new(&mut self.data.mode), "{:08o}", mode).unwrap();
+        write_left_padded(&mut self.data.mode, mode, 8, 8);
     }
 
     pub fn set_uid(&mut self, uid: u32) {
-        write!(SliceBuf::new(&mut self.data.uid), "{:08o}", uid).unwrap();
+        write_left_padded(&mut self.data.uid, uid, 8, 8);
     }
 
     pub fn set_gid(&mut self, gid: u32) {
-        write!(SliceBuf::new(&mut self.data.gid), "{:08o}", gid).unwrap();
+        write_left_padded(&mut self.data.gid, gid, 8, 8);
     }
 
     pub fn set_size(&mut self, size: u64) {
-        write!(SliceBuf::new(&mut self.data.size), "{:012o}", size).unwrap();
+        write_left_padded(&mut self.data.size, size, 8, 12);
     }
 
     pub fn set_mtime(&mut self, mtime: u64) {
-        write!(SliceBuf::new(&mut self.data.mtime), "{:012o}", mtime).unwrap();
+        write_left_padded(&mut self.data.mtime, mtime, 8, 12);
     }
 
     pub fn set_device_major(&mut self, major: u32) {
-        write!(SliceBuf::new(&mut self.data.devmajor), "{:08o}", major).unwrap();
+        write_left_padded(&mut self.data.devmajor, major, 8, 8);
     }
 
     pub fn set_device_minor(&mut self, minor: u32) {
-        write!(SliceBuf::new(&mut self.data.devminor), "{:08o}", minor).unwrap();
+        write_left_padded(&mut self.data.devminor, minor, 8, 8);
     }
 
     fn set_checksum(&mut self) {
@@ -156,7 +158,7 @@ impl UstarHeader {
         for b in bytemuck::bytes_of(&self.data) {
             sum += *b as u32;
         }
-        write!(SliceBuf::new(&mut self.data.chksum), "{:08o}", sum).unwrap();
+        write_left_padded(&mut self.data.chksum, sum, 8, 8);
     }
 
     pub fn as_bytes(&mut self) -> &[u8] {
@@ -165,6 +167,18 @@ impl UstarHeader {
 
         bytemuck::bytes_of(&self.data)
     }
+}
+
+fn write_left_padded<T: NumToA<T>>(out_buf: &mut [u8], val: T, base: T, target_len: usize) {
+    // stack array for max possible length
+    let mut unpadded_buf: [u8; 32] = [0; 32];
+    let formatted = val.numtoa(base, &mut unpadded_buf);
+
+    // fill leading space with zeros
+    let target_buf = &mut out_buf[..target_len];
+    let padding_len = target_len - formatted.len();
+    target_buf[padding_len..].copy_from_slice(formatted);
+    target_buf[..padding_len].fill(b'0');
 }
 
 struct SliceBuf<'a> {
@@ -337,10 +351,17 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
         // nsecs mtime (skip invalid nsecs)
         if st.st_mtime_nsec != 0 && st.st_mtime_nsec < 1_000_000_000 {
             // "18446744073709551616.000000000" (u64::MAX + 9 digits for nanoseconds)
-            let mut _time_buf: [u8; 30] = [0; 30];
-            let mut time_buf = SliceBuf::new(&mut _time_buf);
-            write!(time_buf, "{}.{:0>9}", st.st_mtime, st.st_mtime_nsec).unwrap();
-            pax_header.add_field("mtime", time_buf.get_used());
+            let mut time_buf = SmallVec::<[u8; 30]>::new();
+            let mut dec_buf = itoa::Buffer::new();
+            let seconds = dec_buf.format(st.st_mtime);
+            time_buf.extend_from_slice(seconds.as_bytes());
+            time_buf.push(b'.');
+
+            let nanos_start = time_buf.len();
+            time_buf.resize(nanos_start + 9, 0);
+            write_left_padded(&mut time_buf[nanos_start..], st.st_mtime_nsec as u64, 10, 9);
+
+            pax_header.add_field("mtime", &time_buf);
         }
 
         if header.set_path(path.get().as_slice()).is_err() {
