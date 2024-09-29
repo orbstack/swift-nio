@@ -1,0 +1,82 @@
+use std::{ffi::{c_void, CStr}, mem::MaybeUninit, os::fd::AsRawFd};
+
+use libc::{DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_LNK, DT_REG, DT_SOCK, DT_UNKNOWN};
+use nix::errno::Errno;
+
+extern "C" {
+    pub fn getdents64(fd: i32, dirp: *mut c_void, count: usize) -> isize;
+}
+
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+struct LinuxDirent64 {
+    d_ino: u64,
+    d_off: u64,
+    d_reclen: u16,
+    d_type: u8,
+
+    // zero-sized array: d_reclen - sizeof(fields above)
+    //d_name: [u8; ...],
+}
+
+#[derive(Debug, Clone)]
+pub struct DirEntry<'a> {
+    pub inode: u64,
+    pub file_type: FileType,
+    pub name: &'a CStr,
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone)]
+pub enum FileType {
+    Unknown = DT_UNKNOWN,
+    Fifo = DT_FIFO,
+    Char = DT_CHR,
+    Directory = DT_DIR,
+    Block = DT_BLK,
+    File = DT_REG,
+    Symlink = DT_LNK,
+    Socket = DT_SOCK,
+}
+
+pub fn for_each_dir_entry<'a, F: AsRawFd>(fd: &F, mut f: impl FnMut(DirEntry<'a>) -> anyhow::Result<()>) -> anyhow::Result<()> {
+    loop {
+        // TODO: big buffer without stack overflow or malloc
+        let mut buf: MaybeUninit<[u8; 32768]> = MaybeUninit::uninit();
+        let n = unsafe { getdents64(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, size_of_val(&buf)) };
+        if n == 0 {
+            break;
+        } else if n == -1 {
+            return Err(Errno::last().into());
+        }
+
+        let mut p = buf.as_ptr() as *const u8;
+        let endp = unsafe { p.add(n as usize) };
+        loop {
+            if p >= endp {
+                break;
+            }
+
+            let d = unsafe { (p as *const LinuxDirent64).read_unaligned() };
+            let name_bytes = unsafe { std::slice::from_raw_parts(p.add(size_of::<LinuxDirent64>()), d.d_reclen as usize - size_of::<LinuxDirent64>()) };
+            let name = CStr::from_bytes_until_nul(name_bytes).unwrap();
+
+            // safe: we trust kernel to return valid data
+            p = unsafe { p.add(d.d_reclen as usize) };
+
+            if name == c"." || name == c".." {
+                continue;
+            }
+
+            let entry = DirEntry {
+                inode: d.d_ino,
+                // safe: we trust kernel to return valid data
+                file_type: unsafe { std::mem::transmute::<u8, FileType>(d.d_type) },
+                name,
+            };
+            f(entry)?;
+        }
+    }
+
+    Ok(())
+}
