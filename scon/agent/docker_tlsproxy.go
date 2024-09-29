@@ -18,7 +18,6 @@ import (
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
-	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
@@ -156,9 +155,9 @@ func (t *tlsProxy) Start() error {
 	}
 
 	// wrap with dispatcher callback
-	ln4dispatch := NewDispatchedListener(ln4, t.dispatchConn)
+	ln4dispatch := util.NewDispatchedListener(ln4, t.dispatchConn)
 	go ln4dispatch.Run()
-	ln6dispatch := NewDispatchedListener(ln6, t.dispatchConn)
+	ln6dispatch := util.NewDispatchedListener(ln6, t.dispatchConn)
 	go ln6dispatch.Run()
 
 	// we *could* do a raw TLS proxy, but I did it this way for flexibility.
@@ -342,6 +341,7 @@ func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.
 }
 
 // single-threaded, so no lock needed
+/*
 func (d *DockerAgent) OnVmconfigUpdate(config *vmconfig.VmConfig) error {
 	// TLS change?
 	old := d.tlsProxyEnabled
@@ -367,3 +367,4 @@ func (d *DockerAgent) OnVmconfigUpdate(config *vmconfig.VmConfig) error {
 	d.tlsProxyEnabled = new
 	return nil
 }
+*/

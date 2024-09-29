@@ -77,10 +77,8 @@ type DockerAgent struct {
 	dirSyncListener net.Listener
 	dirSyncJobs     map[uint64]chan error
 
-	k8s             *K8sAgent
-	pstub           *PstubServer
-	tlsProxy        *tlsProxy
-	tlsProxyEnabled bool
+	k8s   *K8sAgent
+	pstub *PstubServer
 }
 
 func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
@@ -104,8 +102,6 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 
 		containerBinds: make(map[string][]string),
 		dirSyncJobs:    make(map[uint64]chan error),
-
-		tlsProxyEnabled: isTls,
 	}
 
 	dockerAgent.containerRefreshDebounce = *syncx.NewLeadingFuncDebounce(dockerRefreshDebounce, func() {
@@ -180,16 +176,6 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 		return nil, err
 	}
 	dockerAgent.host, err = hclient.New(hConn)
-	if err != nil {
-		return nil, err
-	}
-
-	// start tls proxy
-	dockerAgent.tlsProxy, err = newTLSProxy(dockerAgent.host)
-	if err != nil {
-		return nil, err
-	}
-	err = dockerAgent.tlsProxy.Start()
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +550,8 @@ func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
 }
 
 func (a *AgentServer) DockerOnVmconfigUpdate(config *vmconfig.VmConfig, _ *None) error {
-	return a.docker.OnVmconfigUpdate(config)
+	// return a.docker.OnVmconfigUpdate(config)
+	return nil
 }
 
 // mini freezer refcount tracker

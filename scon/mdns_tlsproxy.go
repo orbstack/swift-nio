@@ -17,7 +17,9 @@ import (
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/tlsutil"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -68,45 +70,19 @@ func (t *tlsProxy) Start() error {
 		return err
 	}
 
-	go func() {
-		lcfg := net.ListenConfig{
-			// set IP_TRANSPARENT to accept TPROXY connections
-			Control: func(network, address string, c syscall.RawConn) error {
-				var err2 error
-				err := c.Control(func(fd uintptr) {
-					// Go sets SO_REUSEADDR by default
-					err2 = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
-				})
-				if err != nil {
-					return err
-				}
-
-				return err2
-			},
-		}
-
-		ln, err := lcfg.Listen(context.TODO(), "tcp", "127.0.0.1:55655")
-		if err != nil {
-			logrus.Error("failed to transparent listen")
-		}
-		for {
-			_, err := ln.Accept()
-			if err != nil {
-				logrus.Error("emmie | failed to accept transparent connection")
-			} else {
-				logrus.Debug("emmie | acceptted connection")
-			}
-		}
-	}()
-
-	ln4, err := net.Listen("tcp", net.JoinHostPort(netconf.VnetTlsProxyIP4, "443"))
+	ln4, err := net.Listen("tcp", net.JoinHostPort(netconf.VnetTlsProxyIP4, "0"))
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
-	ln6, err := net.Listen("tcp", net.JoinHostPort(netconf.VnetTlsProxyIP6, "443"))
+	ln6, err := net.Listen("tcp", net.JoinHostPort(netconf.VnetTlsProxyIP6, "0"))
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
+
+	dispatchedLn4 := util.NewDispatchedListener(ln4, t.dispatchIncomingConn)
+	go dispatchedLn4.Run()
+	dispatchedLn6 := util.NewDispatchedListener(ln6, t.dispatchIncomingConn)
+	go dispatchedLn6.Run()
 
 	httpProxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
@@ -140,13 +116,13 @@ func (t *tlsProxy) Start() error {
 	}
 
 	go func() {
-		err := httpServer.ServeTLS(ln4, "", "")
+		err := httpServer.ServeTLS(dispatchedLn4, "", "")
 		if err != nil {
 			logrus.WithError(err).Error("emmie | serve tls failed")
 		}
 	}()
 	go func() {
-		err := httpServer.ServeTLS(ln6, "", "")
+		err := httpServer.ServeTLS(dispatchedLn6, "", "")
 		if err != nil {
 			logrus.WithError(err).Error("emmie | serve tls failed")
 		}
@@ -228,6 +204,85 @@ func dialerForTransparentBind(bindIp net.IP, mark int) *net.Dialer {
 	}
 }
 
+func (t *tlsProxy) getMark(proxyAddr netip.Addr) int {
+	mark := netconf.VmFwmarkTproxyOutboundBit
+	if _, has := t.registry.domainproxy.dockerSet[proxyAddr]; has {
+		mark |= netconf.VmFwmarkDockerRouteBit
+	}
+
+	return mark
+}
+
+// returns proxy addr, upstream ip, error
+func (t *tlsProxy) getUpstream(host string, v4 bool) (netip.Addr, net.IP, error) {
+	proxyAddr := netip.Addr{}
+	if proxyAddrVal, err := netip.ParseAddr(host); err == nil {
+		proxyAddr = proxyAddrVal
+	} else {
+		proxyIp4, proxyIp6 := t.registry.getIpsForName(strings.TrimSuffix(host, ".") + ".")
+
+		if v4 && proxyIp4 != nil {
+			if proxyAddr4, ok := netip.AddrFromSlice(proxyIp4); ok {
+				proxyAddr = proxyAddr4
+			}
+		}
+		if !v4 && proxyIp6 != nil {
+			if proxyAddr6, ok := netip.AddrFromSlice(proxyIp6); ok {
+				proxyAddr = proxyAddr6
+			}
+		}
+	}
+
+	if proxyAddr == (netip.Addr{}) {
+		return netip.Addr{}, nil, errors.New("could not find proxyaddr")
+	}
+
+	upstreamIp, has := t.registry.domainproxy.ipMap[proxyAddr]
+	if !has {
+		return netip.Addr{}, nil, errors.New("could not find backend in mdns registry")
+	}
+
+	return proxyAddr, upstreamIp, nil
+}
+
+func (t *tlsProxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
+	// this function just lets us directly passthrough to an existing ssl server. this should be removed soon in favor of port probing
+
+	downstreamIp := conn.RemoteAddr().(*net.TCPAddr).IP
+	is4 := downstreamIp.To4() != nil
+
+	// this works because we never change the dest, only hook sk_assign (like tproxy but sillier)
+	destHost, destPort, err := net.SplitHostPort(conn.LocalAddr().String())
+	if err != nil {
+		return false, fmt.Errorf("couldn't split %s into host and port", conn.LocalAddr().String())
+	}
+
+	proxyAddr, upstreamIp, err := t.getUpstream(destHost, is4)
+	if err != nil {
+		return false, err
+	}
+	mark := t.getMark(proxyAddr)
+
+	// always attempt to make a direct connection and dial orig port on orig IP first
+	// since these are local containers, connection should fail fast and return RST (-ECONNREFUSED)
+	// EXCEPT: if dest is a machine and user installed ufw, then ufw will drop the packet and we'll get a timeout
+	//   * workaround: short connection timeout
+	//     * this works: if load test is causing listen backlog to be full, we will get immediate RST because port is open in firewall
+	// still need to bind to host to get correct cfwd behavior, especially for 443->8443 or 443->https_port case
+	// TODO: how can we do this in kernel, without userspace proxying? is SOCKMAP good?
+	dialer := dialerForTransparentBind(downstreamIp, mark)
+	dialer.Timeout = 500 * time.Millisecond
+	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstreamIp.String(), destPort))
+	if err == nil {
+		defer upstreamConn.Close()
+		defer conn.Close()
+		tcppump.Pump2SpTcpTcp(conn.(*net.TCPConn), upstreamConn.(*net.TCPConn))
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func (t *tlsProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	host := r.In.Host
 	if host == "" {
@@ -275,48 +330,17 @@ func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.
 		is4 = downstreamIp.(net.IP).To4() != nil
 	}
 
-	proxyAddr := netip.Addr{}
-	if proxyAddrVal, err := netip.ParseAddr(dialHost); err == nil {
-		logrus.WithFields(logrus.Fields{"addr": addr}).Debug("emmie | dialUpstream ip")
-
-		proxyAddr = proxyAddrVal
-	} else {
-		proxyIp4, proxyIp6 := t.registry.getIpsForName(strings.TrimSuffix(dialHost, ".") + ".")
-
-		logrus.WithFields(logrus.Fields{"proxyIp4": proxyIp4, "proxyIp6": proxyIp6}).Debug("emmie | dialUpstream")
-
-		if is4 && proxyIp4 != nil {
-			if proxyAddr4, ok := netip.AddrFromSlice(proxyIp4); ok {
-				proxyAddr = proxyAddr4
-			}
-		}
-		if !is4 && proxyIp6 != nil {
-			if proxyAddr6, ok := netip.AddrFromSlice(proxyIp6); ok {
-				proxyAddr = proxyAddr6
-			}
-		}
-	}
-
-	if proxyAddr == (netip.Addr{}) {
-		return nil, errors.New("could not find proxyaddr")
-	}
-
-	upstreamIp, has := t.registry.domainproxy.ipMap[proxyAddr]
-	if !has {
-		return nil, errors.New("could not find backend in mdns registry")
+	proxyAddr, upstreamIp, err := t.getUpstream(dialHost, is4)
+	if err != nil {
+		return nil, err
 	}
 
 	logrus.WithFields(logrus.Fields{"downstreamIp": downstreamIp, "upstreamIp": upstreamIp}).Debug("emmie | dialUpstream")
 
-	mark := netconf.VmFwmarkTproxyOutboundBit
-	if _, has = t.registry.domainproxy.dockerSet[proxyAddr]; has {
-		mark |= netconf.VmFwmarkDockerRouteBit
-	}
-
 	// fall back to normal dialer
 	dialer := &net.Dialer{}
 	if downstreamIp != nil {
-		dialer = dialerForTransparentBind(downstreamIp.(net.IP), mark)
+		dialer = dialerForTransparentBind(downstreamIp.(net.IP), t.getMark(proxyAddr))
 	}
 
 	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstreamIp.String(), dialPort))

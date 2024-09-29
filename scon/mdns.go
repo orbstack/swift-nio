@@ -515,7 +515,7 @@ type mdnsRegistry struct {
 	tree *radix.Tree
 
 	// this maps container/machine ips to domainproxy ips. the domainproxy ip is what orb.local domains *actually* points to, and lets us do tls interception in an elegant way
-	// it makes sense to not have the tree map straight to domainproxy ips because each container has multiple domains, so it would make  juggling the associations more difficult if, say, one domain ended up pointed elsewhere but not the others
+	// it makes sense to not have the tree map straight to domainproxy ips because each container has multiple domains, so it would make juggling the associations more difficult if, say, one domain ended up pointed elsewhere but not the others
 	domainproxy domainproxyInfo
 
 	server             *mdns.Server

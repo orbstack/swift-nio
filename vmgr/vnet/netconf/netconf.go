@@ -200,4 +200,5 @@ const (
 	VmFwmarkLocalRouteBit     = 1 << 1
 	VmFwmarkTproxyBit         = 1 << 2
 	VmFwmarkTproxyOutboundBit = 1 << 3
+	VmFwmarkIsolatedBit       = 1 << 4
 )

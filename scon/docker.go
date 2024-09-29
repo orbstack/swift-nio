@@ -60,9 +60,6 @@ var (
 		},
 		Builtin: true,
 		State:   types.ContainerStateRunning,
-		Config: types.MachineConfig{
-			DefaultUsername: "root",
-		},
 	}
 )
 
@@ -76,15 +73,6 @@ var dockerInitCommands = [][]string{
 
 	// compat for kruise expecting containerd OR docker+dockershim: https://github.com/openkruise/kruise/blob/4e80be556726e60f54abaa3e8ba133ce114c4f64/pkg/daemon/criruntime/factory.go#L200
 	{"ln", "-sf", "/var/run/k3s/cri-dockerd/cri-dockerd.sock", "/var/run/dockershim.sock"},
-
-	// TLS proxy: special listener address for TPROXY redirect
-	{"ip", "addr", "add", netconf.VnetTlsProxyIP4 + "/32", "dev", "lo"},
-	{"ip", "addr", "add", netconf.VnetTlsProxyIP6 + "/128", "dev", "lo"},
-
-	// TLS proxy: loopback routing for connection to TLS proxy
-	// busybox only supports table ID < 1024 but kernel can do 32-bit(? or is it just string?)
-	{"ip", "rule", "add", "fwmark", netconf.DockerMarkTlsProxyLocalRouteStr, "table", "984"},
-	{"ip", "route", "add", "local", "default", "dev", "lo", "table", "984"},
 
 	{"nft", nft.FormatConfig(nft.ConfigDocker, map[string]string{
 		"IF_SCON":                           "eth0",
