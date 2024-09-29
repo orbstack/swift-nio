@@ -1,4 +1,4 @@
-use std::{cmp::min, ffi::CStr, fs::File, io::{Read, Write}, mem::MaybeUninit, os::{fd::{AsRawFd, FromRawFd, OwnedFd}, unix::ffi::OsStrExt}, path::Path};
+use std::{cell::{Ref, RefCell}, cmp::min, ffi::CStr, fs::File, io::{Read, Write}, mem::MaybeUninit, os::{fd::{AsRawFd, FromRawFd, OwnedFd}, unix::ffi::OsStrExt}, path::Path};
 
 use anyhow::anyhow;
 use bytemuck::{Pod, Zeroable};
@@ -253,6 +253,45 @@ impl PaxHeader {
     }
 }
 
+struct PathStack {
+    inner: RefCell<Vec<u8>>,
+}
+
+impl PathStack {
+    fn new() -> Self {
+        Self {
+            inner: RefCell::new(Vec::with_capacity(1024)),
+        }
+    }
+
+    fn push(&self, segment: &[u8]) -> PathStackGuard {
+        let mut buf = self.inner.borrow_mut();
+        let old_len = buf.len();
+        if !buf.is_empty() {
+            buf.push(b'/');
+        }
+        buf.extend_from_slice(segment);
+        PathStackGuard { stack: self, old_len }
+    }
+}
+
+struct PathStackGuard<'a> {
+    stack: &'a PathStack,
+    old_len: usize,
+}
+
+impl<'a> PathStackGuard<'a> {
+    pub fn get(&self) -> Ref<'_, Vec<u8>> {
+        self.stack.inner.borrow()
+    }
+}
+
+impl<'a> Drop for PathStackGuard<'a> {
+    fn drop(&mut self) {
+        self.stack.inner.borrow_mut().truncate(self.old_len);
+    }
+}
+
 fn add_regular_file(w: &mut impl Write, file: &mut File, st: &libc::stat) -> anyhow::Result<()> {
     // we must never write more than the size written to the header
     let buf: MaybeUninit<[u8; 65536]> = MaybeUninit::uninit();
@@ -279,10 +318,10 @@ fn add_regular_file(w: &mut impl Write, file: &mut File, st: &libc::stat) -> any
     Ok(())
 }
 
-fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> anyhow::Result<()> {
+fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack) -> anyhow::Result<()> {
     for_each_dir_entry(dirfd, |entry| {
-        // TODO: this is slow
-        let path = path_prefix.join(entry.name.to_str().unwrap());
+        let path = path_stack.push(entry.name.to_bytes());
+
         // TODO: minor optimization: we will open regular files and dirs anyway, so can fstat after open, instead of using a string here
         let st = fstatat(dirfd, entry.name, libc::AT_SYMLINK_NOFOLLOW)?;
 
@@ -297,9 +336,9 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> 
             pax_header.add_field("mtime", format!("{}.{:0>9}", st.st_mtime, st.st_mtime_nsec).as_bytes());
         }
 
-        if header.set_path(path.as_os_str().as_bytes()).is_err() {
+        if header.set_path(path.get().as_slice()).is_err() {
             // PAX long name extension
-            pax_header.add_field("path", path.as_os_str().as_bytes());
+            pax_header.add_field("path", path.get().as_slice());
         }
 
         let typ = st.st_mode & libc::S_IFMT;
@@ -326,7 +365,7 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> 
 
         if typ == libc::S_IFDIR {
             let child_dirfd = unsafe { OwnedFd::from_raw_fd(openat(Some(dirfd.as_raw_fd()), entry.name, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_NOCTTY, Mode::empty())?) };
-            add_dir_children(w, &child_dirfd, &path)?;
+            add_dir_children(w, &child_dirfd, path_stack)?;
         } else if typ == libc::S_IFREG {
             // O_NONBLOCK: avoid hang if we race and end up opening a fifo
             // O_NOCTTY: avoid hang if we race and end up opening a tty
@@ -406,7 +445,8 @@ fn main() -> anyhow::Result<()> {
     writer.write_all(header.as_bytes())?;
 
     // walk dirs
-    add_dir_children(&mut writer, &root_dir, Path::new(""))?;
+    let path_stack = PathStack::new();
+    add_dir_children(&mut writer, &root_dir, &path_stack)?;
 
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;
