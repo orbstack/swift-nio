@@ -308,11 +308,9 @@ func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.
 
 	logrus.WithFields(logrus.Fields{"downstreamIp": downstreamIp, "upstreamIp": upstreamIp}).Debug("emmie | dialUpstream")
 
-	var mark int
+	mark := netconf.VmFwmarkTproxyOutboundBit
 	if _, has = t.registry.domainproxy.dockerSet[proxyAddr]; has {
-		mark = netconf.VmFwmarkTproxyOutboundDocker
-	} else {
-		mark = netconf.VmFwmarkTproxyOutbound
+		mark |= netconf.VmFwmarkDockerRouteBit
 	}
 
 	// fall back to normal dialer

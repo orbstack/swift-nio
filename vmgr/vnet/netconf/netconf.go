@@ -196,9 +196,8 @@ const (
 const (
 	VmIfGroupIsolated = 1
 
-	VmFwmarkDockerRoute          = 0x1
-	VmFwmarkTproxy               = 0x2
-	VmFwmarkTproxyOutbound       = 0x4
-	VmFwmarkTproxyOutboundDocker = 0x5
-	VmFwmarkLocalRoute           = 0x8
+	VmFwmarkDockerRouteBit    = 1 << 0
+	VmFwmarkLocalRouteBit     = 1 << 1
+	VmFwmarkTproxyBit         = 1 << 2
+	VmFwmarkTproxyOutboundBit = 1 << 3
 )

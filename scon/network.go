@@ -144,12 +144,11 @@ func (n *Network) Start() error {
 
 		"IFGROUP_ISOLATED": strconv.Itoa(netconf.VmIfGroupIsolated),
 
-		"MARK_ISOLATED":                 strconv.Itoa(netconf.VmMarkIsolated),
-		"FWMARK_DOCKER_ROUTE":           strconv.Itoa(netconf.VmFwmarkDockerRoute),
-		"FWMARK_TPROXY":                 strconv.Itoa(netconf.VmFwmarkTproxy),
-		"FWMARK_TPROXY_OUTBOUND":        strconv.Itoa(netconf.VmFwmarkTproxyOutbound),
-		"FWMARK_TPROXY_OUTBOUND_DOCKER": strconv.Itoa(netconf.VmFwmarkTproxyOutboundDocker),
-		"FWMARK_LOCAL_ROUTE":            strconv.Itoa(netconf.VmFwmarkLocalRoute),
+		"MARK_ISOLATED":              strconv.Itoa(netconf.VmMarkIsolated),
+		"FWMARK_DOCKER_ROUTE_BIT":    strconv.Itoa(netconf.VmFwmarkDockerRouteBit),
+		"FWMARK_LOCAL_ROUTE_BIT":     strconv.Itoa(netconf.VmFwmarkLocalRouteBit),
+		"FWMARK_TPROXY_BIT":          strconv.Itoa(netconf.VmFwmarkTproxyBit),
+		"FWMARK_TPROXY_OUTBOUND_BIT": strconv.Itoa(netconf.VmFwmarkTproxyOutboundBit),
 
 		// port forward dest
 		"INTERNAL_LISTEN_IP4": netconf.VnetGuestIP4,

@@ -24,7 +24,10 @@ use netlink_packet_core::{
     NetlinkMessage, NetlinkPayload, NLM_F_ACK, NLM_F_CREATE, NLM_F_REPLACE, NLM_F_REQUEST,
 };
 use netlink_packet_route::{
-    route::{RouteScope, RouteType}, rule::RuleAction, tc::{TcAttribute, TcHandle, TcMessage}, RouteNetlinkMessage
+    route::{RouteHeader, RouteScope, RouteType},
+    rule::{RuleAction, RuleAttribute, RuleMessage},
+    tc::{TcAttribute, TcHandle, TcMessage},
+    AddressFamily, RouteNetlinkMessage,
 };
 use nix::{
     libc::{self, RLIM_INFINITY, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO},
@@ -73,9 +76,8 @@ const NAT64_SOURCE_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x54, 0xe1, 0x02];
 const NAT64_SOURCE_ADDR: &str = "10.183.233.241";
 
 // must match netconf
-const FWMARK_DOCKER_ROUTE: u32 = 0x1;
-const FWMARK_TPROXY_OUTBOUND_DOCKER: u32 = 0x5;
-const FWMARK_LOCAL_ROUTE: u32 = 0x8;
+const FWMARK_DOCKER_ROUTE_BIT: u32 = 1 << 0;
+const FWMARK_LOCAL_ROUTE_BIT: u32 = 1 << 1;
 
 const FS_CORRUPTED_MSG: &str = r#"
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -462,22 +464,6 @@ async fn setup_network() -> anyhow::Result<()> {
         .unwrap();
     ip_link.set(lo.header.index).up().execute().await?;
 
-    ip_rule
-        .add()
-        .v4()
-        .table_id(32)
-        .fw_mark(FWMARK_LOCAL_ROUTE)
-        .action(RuleAction::ToTable)
-        .execute()
-        .await?;
-    ip_rule
-        .add()
-        .v6()
-        .table_id(32)
-        .fw_mark(FWMARK_LOCAL_ROUTE)
-        .action(RuleAction::ToTable)
-        .execute()
-        .await?;
     ip_route
         .add()
         .v4()
@@ -496,6 +482,33 @@ async fn setup_network() -> anyhow::Result<()> {
         .output_interface(lo.header.index)
         .execute()
         .await?;
+
+    {
+        let mut rule_add = ip_rule
+            .add()
+            .v4()
+            .table_id(32)
+            .fw_mark(FWMARK_LOCAL_ROUTE_BIT)
+            .action(RuleAction::ToTable);
+        rule_add
+            .message_mut()
+            .attributes
+            .push(RuleAttribute::FwMask(FWMARK_LOCAL_ROUTE_BIT));
+        rule_add.execute().await?;
+    }
+    {
+        let mut rule_add = ip_rule
+            .add()
+            .v6()
+            .table_id(32)
+            .fw_mark(FWMARK_LOCAL_ROUTE_BIT)
+            .action(RuleAction::ToTable);
+        rule_add
+            .message_mut()
+            .attributes
+            .push(RuleAttribute::FwMask(FWMARK_LOCAL_ROUTE_BIT));
+        rule_add.execute().await?;
+    }
 
     // main gvisor NAT network
     let eth0 = ip_link
@@ -589,32 +602,32 @@ async fn setup_network() -> anyhow::Result<()> {
     // ingress route from translated IPv4 source address to Docker machine (which does IP forward to containers)
     // create ip rule for fwmark from BPF clsact program
     // ip rule add fwmark 0x1 table 64
-    ip_rule
-        .add()
-        .v4()
-        .table_id(64) // table ID is not exposed to BPF
-        .fw_mark(FWMARK_DOCKER_ROUTE)
-        .action(RuleAction::ToTable)
-        .execute()
-        .await?;
-
-    // these make docker domainproxy use the right route instead of looping
-    ip_rule
-        .add()
-        .v4()
-        .table_id(64)
-        .fw_mark(FWMARK_TPROXY_OUTBOUND_DOCKER)
-        .action(RuleAction::ToTable)
-        .execute()
-        .await?;
-    ip_rule
-        .add()
-        .v6()
-        .table_id(64)
-        .fw_mark(FWMARK_TPROXY_OUTBOUND_DOCKER)
-        .action(RuleAction::ToTable)
-        .execute()
-        .await?;
+    {
+        let mut rule_add = ip_rule
+            .add()
+            .v4()
+            .table_id(64) // table ID is not exposed to BPF
+            .fw_mark(FWMARK_DOCKER_ROUTE_BIT)
+            .action(RuleAction::ToTable);
+        rule_add
+            .message_mut()
+            .attributes
+            .push(RuleAttribute::FwMask(FWMARK_DOCKER_ROUTE_BIT));
+        rule_add.execute().await?;
+    }
+    {
+        let mut rule_add = ip_rule
+            .add()
+            .v6()
+            .table_id(64) // table ID is not exposed to BPF
+            .fw_mark(FWMARK_DOCKER_ROUTE_BIT)
+            .action(RuleAction::ToTable);
+        rule_add
+            .message_mut()
+            .attributes
+            .push(RuleAttribute::FwMask(FWMARK_DOCKER_ROUTE_BIT));
+        rule_add.execute().await?;
+    }
 
     // docker vlan router
     // scon deals with the rest

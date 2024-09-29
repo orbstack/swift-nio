@@ -44,7 +44,11 @@
 #include <bpf/bpf_helpers.h>
 
 // warning: this makes it GPL
+<<<<<<< HEAD
 // #define DEBUG
+=======
+#define DEBUG
+>>>>>>> fc427b14e (emmie | temp: use bits for marks)
 
 #ifndef DEBUG
 #ifdef bpf_printk
@@ -418,9 +422,8 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
     }
 
     // mark and re-inject
-    skb->mark = FWMARK_DOCKER_ROUTE; // route to docker machine (via ip rule)
+    //skb->mark = FWMARK_DOCKER_ROUTE; // route to docker machine (via ip rule)
 	return bpf_redirect(skb->ifindex, BPF_F_INGRESS);
->>>>>>> 120d10cc8 (emmie | temp: working dnat)
 }
 
 // no address checking in this path. non-translated packet can't get here b/c routing
