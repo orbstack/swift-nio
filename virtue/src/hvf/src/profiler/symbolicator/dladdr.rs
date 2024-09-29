@@ -5,9 +5,12 @@ use std::{
     ops::Range,
 };
 
+use anyhow::anyhow;
 use libc::{dladdr, dlsym, Dl_info, RTLD_NEXT};
 use smallvec::smallvec;
 use tracing::error;
+
+use crate::profiler::{arch, dyld};
 
 use super::{SymbolFunc, SymbolResult, SymbolResults, Symbolicator};
 
@@ -20,6 +23,68 @@ impl DladdrSymbolicator {
         Ok(Self {
             _private: PhantomData,
         })
+    }
+
+    /*
+     * dlsym only works on exported symbols.
+     * symtab isn't in __TEXT, so it's not mapped by dyld.
+     * HVF is in the dyld shared cache, so it's hard to load the symtab from Mach-O directly.
+     *
+     * however, dladdr can resolve addresses to unexported symbols, and HVF is a small library,
+     * so we can just brute-force every possible address in the mapped image __TEXT segment
+     * to find the start and end of an unexported symbol.
+     */
+    pub fn symbol_range_in_image(
+        &self,
+        image: &str,
+        name: &str,
+    ) -> anyhow::Result<Option<Range<usize>>> {
+        let img = dyld::get_loaded_images()?
+            .into_iter()
+            .find(|img| img.path.rsplit_once('/').unwrap().1 == image)
+            .ok_or(anyhow!("image not found: {}", image))?;
+
+        // scan from image start to end
+        let mut symbol_start = None;
+        for addr in
+            (img.addr_range.start..img.addr_range.end).step_by(arch::ARM64_INSN_SIZE as usize)
+        {
+            let mut info = MaybeUninit::<Dl_info>::uninit();
+            let ret = unsafe { dladdr(addr as *const _, info.as_mut_ptr()) };
+            if ret == 0 {
+                continue;
+            }
+
+            let info = unsafe { info.assume_init() };
+            if info.dli_sname.is_null() {
+                // no longer in the target symbol
+                if let Some(start) = symbol_start {
+                    return Ok(Some(start..addr));
+                }
+                continue;
+            }
+
+            let symbol = unsafe { CStr::from_ptr(info.dli_sname) }.to_string_lossy();
+            if symbol != name {
+                // no longer in the target symbol
+                if let Some(start) = symbol_start {
+                    return Ok(Some(start..addr));
+                }
+                continue;
+            }
+
+            if symbol_start.is_none() {
+                // found start of symbol!
+                symbol_start = Some(addr);
+            }
+        }
+
+        // fallthrough = target symbol extends to end of image
+        if let Some(start) = symbol_start {
+            Ok(Some(start..img.addr_range.end))
+        } else {
+            Ok(None)
+        }
     }
 }
 

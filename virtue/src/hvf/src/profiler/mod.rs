@@ -427,7 +427,12 @@ impl Profiler {
         // find "hv_vcpu_run" for guest stack sampling
         let mut symbolicator = DladdrSymbolicator::new()?;
         // for unwinder perf, just use a range that matches nothing if the symbol can't be found
-        let hv_vcpu_run = symbolicator.symbol_range("hv_vcpu_run")?.unwrap_or(0..0);
+        // takes ~30ms to scan full HVF image. surprisingly not bad!
+        let hv_vcpu_run = symbolicator
+            .symbol_range_in_image("Hypervisor", "_ZN2Hv4Vcpu3runEv") // macOS 15
+            .ok()
+            .unwrap_or_else(|| symbolicator.symbol_range("hv_vcpu_run").ok().flatten()) // macOS 14
+            .unwrap_or(0..0);
 
         let mut host_unwinder = FramePointerUnwinder {};
 

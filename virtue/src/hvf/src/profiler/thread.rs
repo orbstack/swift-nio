@@ -361,7 +361,6 @@ impl ProfileeThread {
         if in_syscall
             && regs.syscall_num == HostSyscallTransform::SYSCALL_MACH_HV_TRAP_ARM64
             // LR=hv_vcpu_run because PC=hv_trap
-            // TODO: on macOS 15, we'll have to eat the cost of scanning many stack frames, because hv_vcpu_run calls C++ code, and x0 is clobbered with the return value
             && hv_vcpu_run.contains(&(regs.lr as usize))
         {
             if let Some(vcpu) = &self.vcpu {
