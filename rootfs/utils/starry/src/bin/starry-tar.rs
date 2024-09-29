@@ -176,6 +176,10 @@ impl<'a> SliceBuf<'a> {
     fn new(buf: &'a mut [u8]) -> Self {
         Self { buf, off: 0 }
     }
+
+    pub fn get_used(&self) -> &[u8] {
+        &self.buf[..self.off]
+    }
 }
 
 impl<'a> Write for SliceBuf<'a> {
@@ -330,10 +334,13 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
         // PAX header
         let mut pax_header = PaxHeader::new();
 
-        // nsecs mtime
-        // TODO: remove malloc
-        if st.st_mtime_nsec != 0 {
-            pax_header.add_field("mtime", format!("{}.{:0>9}", st.st_mtime, st.st_mtime_nsec).as_bytes());
+        // nsecs mtime (skip invalid nsecs)
+        if st.st_mtime_nsec != 0 && st.st_mtime_nsec < 1_000_000_000 {
+            // "18446744073709551616.000000000" (u64::MAX + 9 digits for nanoseconds)
+            let mut _time_buf: [u8; 30] = [0; 30];
+            let mut time_buf = SliceBuf::new(&mut _time_buf);
+            write!(time_buf, "{}.{:0>9}", st.st_mtime, st.st_mtime_nsec).unwrap();
+            pax_header.add_field("mtime", time_buf.get_used());
         }
 
         if header.set_path(path.get().as_slice()).is_err() {
