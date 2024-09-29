@@ -1,6 +1,7 @@
-use std::{cell::{Ref, RefCell}, cmp::min, ffi::CStr, fs::File, io::{Read, Write}, mem::MaybeUninit, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path};
+use std::{cell::{Ref, RefCell}, cmp::min, ffi::CStr, fs::File, io::Write, mem::MaybeUninit, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path};
 
 use anyhow::anyhow;
+use bitflags::bitflags;
 use bytemuck::{Pod, Zeroable};
 use nix::{errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode};
 use numtoa::NumToA;
@@ -282,17 +283,20 @@ impl<'a> Drop for PathStackGuard<'a> {
     }
 }
 
-fn add_regular_file(w: &mut impl Write, file: &mut File, st: &libc::stat) -> anyhow::Result<()> {
+fn add_regular_file(w: &mut impl Write, file: &OwnedFd, st: &libc::stat) -> anyhow::Result<()> {
     // we must never write more than the size written to the header
-    let buf: MaybeUninit<[u8; 65536]> = MaybeUninit::uninit();
-    let mut buf = unsafe { buf.assume_init() };
+    let mut buf: MaybeUninit<[u8; 65536]> = MaybeUninit::uninit();
     let mut rem = st.st_size as usize;
     loop {
-        let n = file.read(&mut buf[..std::cmp::min(rem, 65536)])?;
+        let limit = std::cmp::min(rem, 65536);
+        let ret = unsafe { libc::read(file.as_raw_fd(), buf.as_mut_ptr() as *mut _, limit) };
+        let n = Errno::result(ret)? as usize;
         if n == 0 {
             break;
         }
-        w.write_all(&buf[..n])?;
+
+        let data = unsafe { std::slice::from_raw_parts(buf.as_mut_ptr() as *const u8, n) };
+        w.write_all(data)?;
         rem -= n;
         if rem == 0 {
             break;
@@ -309,12 +313,14 @@ fn add_regular_file(w: &mut impl Write, file: &mut File, st: &libc::stat) -> any
 }
 
 fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack) -> anyhow::Result<()> {
+    // TODO: error handling on a per-entry basis?
     for_each_dir_entry(dirfd, |entry| {
         let path = path_stack.push(entry.name.to_bytes());
 
         // TODO: minor optimization: we will open regular files and dirs anyway, so can fstat after open, instead of using a string here
         let st = fstatat(dirfd, entry.name, libc::AT_SYMLINK_NOFOLLOW)?;
-        if st.st_mode & libc::S_IFMT == libc::S_IFSOCK {
+        let typ = st.st_mode & libc::S_IFMT;
+        if typ == libc::S_IFSOCK {
             // skip sockets
             return Ok(());
         }
@@ -344,7 +350,6 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
             pax_header.add_field("path", path.get().as_slice());
         }
 
-        let typ = st.st_mode & libc::S_IFMT;
         if typ == libc::S_IFLNK {
             with_readlinkat(dirfd, entry.name, |link_name| {
                 if header.set_link_path(link_name).is_err() {
@@ -354,9 +359,30 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
             })?;
         }
 
+        let open_flags = match typ {
+            libc::S_IFREG => OFlag::empty(),
+            libc::S_IFDIR => OFlag::O_DIRECTORY,
+            _ => OFlag::O_PATH,
+        };
+
+        // O_NONBLOCK: avoid hang if we race and end up opening a fifo
+        // O_NOCTTY: avoid hang if we race and end up opening a tty
+        let fd = unsafe { OwnedFd::from_raw_fd(openat(Some(dirfd.as_raw_fd()), entry.name, OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_NOCTTY | open_flags, Mode::empty())?) };
+
         // TODO: sparse files
 
-        // TODO: fflags
+        // fflags
+        if typ == libc::S_IFREG || typ == libc::S_IFDIR {
+            let flags = InodeFlags::from_file(&fd)?;
+            let flag_names = flags.names();
+            match flag_names.len() {
+                0 => {}
+                // fastpath for common 1-flag case
+                1 => pax_header.add_field("SCHILY.fflags", flag_names[0].as_bytes()),
+                // multiple flags are rare
+                _ => pax_header.add_field("SCHILY.fflags", flag_names.join(",").as_bytes()),
+            }
+        }
 
         // TODO: xattrs
 
@@ -366,13 +392,9 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
         w.write_all(header.as_bytes())?;
 
         if typ == libc::S_IFDIR {
-            let child_dirfd = unsafe { OwnedFd::from_raw_fd(openat(Some(dirfd.as_raw_fd()), entry.name, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_NOCTTY, Mode::empty())?) };
-            add_dir_children(w, &child_dirfd, path_stack)?;
+            add_dir_children(w, &fd, path_stack)?;
         } else if typ == libc::S_IFREG {
-            // O_NONBLOCK: avoid hang if we race and end up opening a fifo
-            // O_NOCTTY: avoid hang if we race and end up opening a tty
-            let mut file = unsafe { File::from_raw_fd(openat(Some(dirfd.as_raw_fd()), entry.name, OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_NOCTTY, Mode::empty())?) };
-            add_regular_file(w, &mut file, &st)?;
+            add_regular_file(w, &fd, &st)?;
         }
 
         Ok(())
@@ -452,6 +474,85 @@ fn header_from_stat(st: &libc::stat) -> UstarHeader {
     }
 
     header
+}
+
+bitflags! {
+    #[repr(transparent)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    struct InodeFlags: u32 {
+        // FS_<FLAG>_FL
+        const SECRM = 0x00000001;
+        const UNRM = 0x00000002;
+        const COMPR = 0x00000004;
+        const SYNC = 0x00000008;
+        const IMMUTABLE = 0x00000010;
+        const APPEND = 0x00000020;
+        const NODUMP = 0x00000040;
+        const NOATIME = 0x00000080;
+        const DIRTY = 0x00000100;
+        const COMPRBLK = 0x00000200;
+        const NOCOMP = 0x00000400;
+        const ENCRYPT = 0x00000800;
+        //const BTREE = 0x00001000;
+        const INDEX = 0x00001000;
+        const IMAGIC = 0x00002000;
+        const JOURNAL_DATA = 0x00004000;
+        const NOTAIL = 0x00008000;
+        const DIRSYNC = 0x00010000;
+        const TOPDIR = 0x00020000;
+        const HUGE_FILE = 0x00040000;
+        const EXTENT = 0x00080000;
+        const VERITY = 0x00100000;
+        const EA_INODE = 0x00200000;
+        const EOFBLOCKS = 0x00400000;
+        const NOCOW = 0x00800000;
+        const DAX = 0x02000000;
+        const INLINE_DATA = 0x10000000;
+        const PROJINHERIT = 0x20000000;
+        const CASEFOLD = 0x40000000;
+        const RESERVED = 0x80000000;
+    }
+}
+
+impl InodeFlags {
+    fn from_file<F: AsRawFd>(fd: &F) -> nix::Result<Self> {
+        let mut flags = Self::empty();
+        let ret = unsafe { libc::ioctl(fd.as_raw_fd(), libc::FS_IOC_GETFLAGS, &mut flags) };
+        Errno::result(ret)?;
+        Ok(flags)
+    }
+
+    #[inline]
+    fn add_name(&self, names: &mut SmallVec<[&'static str; 1]>, name: &'static str, flag: InodeFlags) {
+        if self.contains(flag) {
+            names.push(name);
+        }
+    }
+
+    // returning a SmallVec is more efficient for the common 1-flag case: no string joining/allocation required
+    fn names(&self) -> SmallVec<[&'static str; 1]> {
+        let mut names = SmallVec::<[&'static str; 1]>::new();
+
+        // only include flags supported by bsdtar
+        // https://github.com/libarchive/libarchive/blob/4b6dd229c6a931c641bc40ee6d59e99af15a9432/libarchive/archive_entry.c#L1885
+        self.add_name(&mut names, "sappnd", InodeFlags::APPEND);
+        self.add_name(&mut names, "noatime", InodeFlags::NOATIME);
+        // btrfs flags that are usually enabled globally on a FS level
+        self.add_name(&mut names, "compress", InodeFlags::COMPR);
+        self.add_name(&mut names, "nocow", InodeFlags::NOCOW);
+        self.add_name(&mut names, "nodump", InodeFlags::NODUMP);
+        self.add_name(&mut names, "dirsync", InodeFlags::DIRSYNC);
+        self.add_name(&mut names, "schg", InodeFlags::IMMUTABLE);
+        self.add_name(&mut names, "journal", InodeFlags::JOURNAL_DATA);
+        self.add_name(&mut names, "projinherit", InodeFlags::PROJINHERIT);
+        self.add_name(&mut names, "securedeletion", InodeFlags::SECRM);
+        self.add_name(&mut names, "sync", InodeFlags::SYNC);
+        self.add_name(&mut names, "tail", InodeFlags::NOTAIL);
+        self.add_name(&mut names, "topdir", InodeFlags::TOPDIR);
+        self.add_name(&mut names, "undel", InodeFlags::UNRM);
+
+        names
+    }
 }
 
 fn main() -> anyhow::Result<()> {

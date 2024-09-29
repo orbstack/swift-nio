@@ -206,6 +206,7 @@ name = "starry"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bitflags",
  "bytemuck",
  "itoa",
  "libc",
