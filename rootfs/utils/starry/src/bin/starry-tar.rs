@@ -18,10 +18,10 @@ struct PaxHeader {
 }
 
 impl PaxHeader {
-    fn new(file_header: &Header) -> Self {
+    fn new() -> Self {
         // more compressible?
         // TODO: zeros instead?
-        let mut header = file_header.clone();
+        let mut header = Header::new_ustar();
         header.set_entry_type(EntryType::XHeader);
         // name="@PaxHeader": doesn't match bsdtar or GNU tar behavior, but is compliant and faster
         header.as_ustar_mut().unwrap().name[..PAX_HEADER_NAME.len()].copy_from_slice(PAX_HEADER_NAME.as_bytes());
@@ -77,7 +77,7 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> 
         let mut header = header_from_stat(&st).unwrap();
 
         // PAX header
-        let mut pax_header = PaxHeader::new(&header);
+        let mut pax_header = PaxHeader::new();
 
         // nsecs mtime
         pax_header.add_field("mtime", format!("{}.{:0>9}", st.st_mtime, st.st_mtime_nsec).as_bytes());
