@@ -2,7 +2,7 @@ use std::{ffi::CStr, fs::File, io::{Read, Write}, mem::MaybeUninit, os::{fd::{As
 
 use anyhow::anyhow;
 use nix::{errno::Errno, fcntl::{openat, readlinkat, OFlag}, sys::stat::Mode};
-use starry::sys::{for_each_dir_entry};
+use starry::sys::for_each_dir_entry;
 use tar::{EntryType, Header};
 use zstd::Encoder;
 
@@ -67,6 +67,32 @@ impl PaxHeader {
     }
 }
 
+fn add_regular_file(w: &mut impl Write, file: &mut File, st: &libc::stat) -> anyhow::Result<()> {
+    // we must never write more than the size written to the header
+    let buf: MaybeUninit<[u8; 65536]> = MaybeUninit::uninit();
+    let mut buf = unsafe { buf.assume_init() };
+    let mut rem = st.st_size as usize;
+    loop {
+        let n = file.read(&mut buf[..std::cmp::min(rem, 65536)])?;
+        if n == 0 {
+            break;
+        }
+        w.write_all(&buf[..n])?;
+        rem -= n;
+        if rem == 0 {
+            break;
+        }
+    }
+
+    // pad tar to 512 byte block
+    let pad = 512 - (st.st_size % 512);
+    if pad != 512 {
+        w.write_all(&TAR_PADDING[..pad as usize])?;
+    }
+
+    Ok(())
+}
+
 fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> anyhow::Result<()> {
     for_each_dir_entry(dirfd, |entry| {
         // TODO: this is slow
@@ -115,28 +141,7 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> 
             // O_NONBLOCK: avoid hang if we race and end up opening a fifo
             // O_NOCTTY: avoid hang if we race and end up opening a tty
             let mut file = unsafe { File::from_raw_fd(openat(Some(dirfd.as_raw_fd()), entry.name, OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_NOCTTY, Mode::empty())?) };
-
-            // we must never write more than the size written to the header
-            let buf: MaybeUninit<[u8; 65536]> = MaybeUninit::uninit();
-            let mut buf = unsafe { buf.assume_init() };
-            let mut rem = st.st_size as usize;
-            loop {
-                let n = file.read(&mut buf[..std::cmp::min(rem, 65536)])?;
-                if n == 0 {
-                    break;
-                }
-                w.write_all(&buf[..n])?;
-                rem -= n;
-                if rem == 0 {
-                    break;
-                }
-            }
-
-            // pad tar to 512 byte block
-            let pad = 512 - (st.st_size % 512);
-            if pad != 512 {
-                w.write_all(&TAR_PADDING[..pad as usize])?;
-            }
+            add_regular_file(w, &mut file, &st)?;
         }
 
         Ok(())
