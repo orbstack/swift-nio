@@ -1,8 +1,8 @@
-use std::{cell::{Ref, RefCell}, cmp::min, ffi::CStr, fs::File, io::{Read, Write}, mem::MaybeUninit, os::{fd::{AsRawFd, FromRawFd, OwnedFd}, unix::ffi::OsStrExt}, path::Path};
+use std::{cell::{Ref, RefCell}, cmp::min, ffi::CStr, fs::File, io::{Read, Write}, mem::MaybeUninit, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path};
 
 use anyhow::anyhow;
 use bytemuck::{Pod, Zeroable};
-use nix::{errno::Errno, fcntl::{openat, readlinkat, OFlag}, sys::stat::Mode};
+use nix::{errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode};
 use numtoa::NumToA;
 use smallvec::SmallVec;
 use starry::sys::for_each_dir_entry;
@@ -66,8 +66,9 @@ impl Default for UstarHeader {
         let mut header = Self {
             data: UstarHeaderSerialized::zeroed(),
         };
+
         header.data.magic = *b"ustar\0";
-        header.data.version = *b"00";
+        header.data.version = [b'0'; 2];
         header
     }
 }
@@ -89,7 +90,10 @@ impl UstarHeader {
 
                 // special case: if path[155] = '/', then it's already split
                 if path.len() > 155 && path[155] == b'/' {
-                    // TODO
+                    self.data.prefix.copy_from_slice(&path[..155]);
+                    let rem = &path[156..];
+                    self.data.name[..rem.len()].copy_from_slice(rem);
+                    return Ok(());
                 }
 
                 // get the prefix part of the string
@@ -181,38 +185,6 @@ fn write_left_padded<T: NumToA<T>>(out_buf: &mut [u8], val: T, base: T, target_l
     target_buf[..padding_len].fill(b'0');
 }
 
-struct SliceBuf<'a> {
-    buf: &'a mut [u8],
-    off: usize,
-}
-
-impl<'a> SliceBuf<'a> {
-    fn new(buf: &'a mut [u8]) -> Self {
-        Self { buf, off: 0 }
-    }
-
-    pub fn get_used(&self) -> &[u8] {
-        &self.buf[..self.off]
-    }
-}
-
-impl<'a> Write for SliceBuf<'a> {
-    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        let len = data.len();
-        let p = &mut self.buf[self.off..];
-        if p.len() < len {
-            return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "SliceBuf overflow"));
-        }
-        p[..len].copy_from_slice(data);
-        self.off += len;
-        Ok(len)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 // TODO: extension for sockets
 
 struct PaxHeader {
@@ -278,7 +250,7 @@ struct PathStack {
 impl PathStack {
     fn new() -> Self {
         Self {
-            inner: RefCell::new(Vec::with_capacity(1024)),
+            inner: RefCell::new(Vec::with_capacity(libc::PATH_MAX as usize)),
         }
     }
 
@@ -342,10 +314,13 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
 
         // TODO: minor optimization: we will open regular files and dirs anyway, so can fstat after open, instead of using a string here
         let st = fstatat(dirfd, entry.name, libc::AT_SYMLINK_NOFOLLOW)?;
+        if st.st_mode & libc::S_IFMT == libc::S_IFSOCK {
+            // skip sockets
+            return Ok(());
+        }
 
-        let mut header = header_from_stat(&st).unwrap();
-
-        // PAX header
+        // PAX and normal header
+        let mut header = header_from_stat(&st);
         let mut pax_header = PaxHeader::new();
 
         // nsecs mtime (skip invalid nsecs)
@@ -371,12 +346,12 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
 
         let typ = st.st_mode & libc::S_IFMT;
         if typ == libc::S_IFLNK {
-            // TODO: remove malloc
-            let link_name = readlinkat(Some(dirfd.as_raw_fd()), entry.name)?;
-            if header.set_link_path(link_name.as_bytes()).is_err() {
-                // PAX long name extension
-                pax_header.add_field("linkpath", link_name.as_bytes());
-            }
+            with_readlinkat(dirfd, entry.name, |link_name| {
+                if header.set_link_path(link_name).is_err() {
+                    // PAX long name extension
+                    pax_header.add_field("linkpath", link_name);
+                }
+            })?;
         }
 
         // TODO: sparse files
@@ -388,7 +363,6 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
         if !pax_header.is_empty() {
             pax_header.write_to(w)?;
         }
-
         w.write_all(header.as_bytes())?;
 
         if typ == libc::S_IFDIR {
@@ -421,13 +395,37 @@ fn fstatat<F: AsRawFd>(dirfd: &F, path: &CStr, flags: i32) -> nix::Result<libc::
     Errno::result(ret).map(|_| unsafe { st.assume_init() })
 }
 
-fn header_from_stat(st: &libc::stat) -> Option<UstarHeader> {
+fn with_readlinkat<F: AsRawFd, T>(dirfd: &F, path: &CStr, f: impl FnOnce(&[u8]) -> T) -> nix::Result<T> {
+    let mut buf = MaybeUninit::<[u8; libc::PATH_MAX as usize]>::uninit();
+
+    let ret = unsafe { libc::readlinkat(dirfd.as_raw_fd(), path.as_ptr(), buf.as_mut_ptr() as *mut _, libc::PATH_MAX as usize) };
+    if Errno::result(ret)? < libc::PATH_MAX as isize {
+        // path fits in stack buffer
+        let path = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, ret as usize) };
+        Ok(f(path))
+    } else {
+        // truncated
+        // stat to figure out how many bytes to allocate, then do it on heap
+        let st = fstatat(dirfd, path, libc::AT_SYMLINK_NOFOLLOW)?;
+        let size = st.st_size as usize;
+        let mut buf = Vec::with_capacity(size);
+        let ret = unsafe { libc::readlinkat(dirfd.as_raw_fd(), path.as_ptr(), buf.as_mut_ptr() as *mut _, size) };
+        match Errno::result(ret) {
+            Ok(n) => {
+                unsafe { buf.set_len(n as usize) };
+                Ok(f(&buf))
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
+fn header_from_stat(st: &libc::stat) -> UstarHeader {
     let typ = st.st_mode & libc::S_IFMT;
 
     // PAX base is ustar format
     let mut header = UstarHeader::default();
-    // TODO: not supposed to include S_IFMT
-    header.set_mode(st.st_mode);
+    header.set_mode(st.st_mode & !libc::S_IFMT);
     // TODO: large uid
     header.set_uid(st.st_uid);
     // TODO: large gid
@@ -439,7 +437,7 @@ fn header_from_stat(st: &libc::stat) -> Option<UstarHeader> {
         libc::S_IFCHR => TypeFlag::Char,
         libc::S_IFBLK => TypeFlag::Block,
         libc::S_IFIFO => TypeFlag::Fifo,
-        _ => return None,
+        _ => panic!("unsupported file type: {}", typ),
     });
     header.set_mtime(st.st_mtime as u64);
 
@@ -453,13 +451,13 @@ fn header_from_stat(st: &libc::stat) -> Option<UstarHeader> {
         header.set_size(st.st_size as u64);
     }
 
-    Some(header)
+    header
 }
 
 fn main() -> anyhow::Result<()> {
     let file = unsafe { File::from_raw_fd(1) };
     // let mut writer = Encoder::new(file, 0)?;
-    // writer.multithread(1)?;
+    // writer.multithread(2)?;
     let mut writer = file;
 
     // add root dir
@@ -468,7 +466,7 @@ fn main() -> anyhow::Result<()> {
     let root_dir_st = fstat(&root_dir)?;
 
     // add entry for root dir
-    let mut header = header_from_stat(&root_dir_st).unwrap();
+    let mut header = header_from_stat(&root_dir_st);
     header.set_path(".".as_bytes()).unwrap();
     writer.write_all(header.as_bytes())?;
 
