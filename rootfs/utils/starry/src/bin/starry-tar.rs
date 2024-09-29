@@ -1,30 +1,213 @@
-use std::{ffi::CStr, fs::File, io::{Read, Write}, mem::MaybeUninit, os::{fd::{AsRawFd, FromRawFd, OwnedFd}, unix::ffi::OsStrExt}, path::Path};
+use std::{cmp::min, ffi::CStr, fs::File, io::{Read, Write}, mem::MaybeUninit, os::{fd::{AsRawFd, FromRawFd, OwnedFd}, unix::ffi::OsStrExt}, path::Path};
 
 use anyhow::anyhow;
+use bytemuck::{Pod, Zeroable};
 use nix::{errno::Errno, fcntl::{openat, readlinkat, OFlag}, sys::stat::Mode};
 use starry::sys::for_each_dir_entry;
-use tar::{EntryType, Header};
 use zstd::Encoder;
 
 const TAR_PADDING: [u8; 1024] = [0; 1024];
 
 const PAX_HEADER_NAME: &str = "@PaxHeader";
 
+#[repr(C)]
+#[derive(Pod, Zeroable, Clone, Copy)]
+struct UstarHeaderSerialized {
+    // https://pubs.opengroup.org/onlinepubs/007904975/utilities/pax.html#tag_04_100_13_06
+    name: [u8; 100],
+    mode: [u8; 8],
+    uid: [u8; 8],
+    gid: [u8; 8],
+    size: [u8; 12],
+    mtime: [u8; 12],
+    chksum: [u8; 8],
+    typeflag: [u8; 1],
+    linkname: [u8; 100],
+    magic: [u8; 6],
+    version: [u8; 2],
+    uname: [u8; 32],
+    gname: [u8; 32],
+    devmajor: [u8; 8],
+    devminor: [u8; 8],
+    prefix: [u8; 155],
+
+    // up to 512 bytes
+    _padding: [u8; 12],
+}
+
+#[repr(u8)]
+pub enum TypeFlag {
+    Regular = b'0', // or '\0' for legacy reasons
+    HardLink = b'1',
+    Symlink = b'2',
+    Char = b'3',
+    Block = b'4',
+    Directory = b'5',
+    Fifo = b'6',
+    HighPerformance = b'7', // = Regular
+    PaxExtendedHeader = b'x',
+    PaxGlobalHeader = b'g',
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TarError {
+    #[error("path too long")]
+    PathTooLong,
+}
+
+pub struct UstarHeader {
+    data: UstarHeaderSerialized,
+}
+
+impl Default for UstarHeader {
+    fn default() -> Self {
+        let mut header = Self {
+            data: UstarHeaderSerialized::zeroed(),
+        };
+        header.data.magic = *b"ustar\0";
+        header.data.version = *b"00";
+        header
+    }
+}
+
+impl UstarHeader {
+    pub fn set_entry_type(&mut self, typ: TypeFlag) {
+        self.data.typeflag = [typ as u8; 1];
+    }
+
+    pub fn set_path(&mut self, path: &[u8]) -> Result<(), TarError> {
+        match path.len() {
+            // standard tar: up to 100 bytes
+            0..=100 => {
+                self.data.name[..path.len()].copy_from_slice(path);
+            }
+            // ustar prefix: 155 + 100 bytes
+            101..=255 => {
+                // final path = prefix + '/' + path, so we have to find a / to split on
+
+                // special case: if path[155] = '/', then it's already split
+                if path.len() > 155 && path[155] == b'/' {
+                    // TODO
+                }
+
+                // get the prefix part of the string
+                let prefix_path = &path[..min(path.len(), 155)];
+                // split at last / in prefix
+                let mut split_iter = prefix_path.rsplitn(2, |&c| c == b'/');
+                let name = split_iter.next().ok_or(TarError::PathTooLong)?;
+                let prefix = split_iter.next().ok_or(TarError::PathTooLong)?;
+                if prefix.len() > 155 || name.len() > 100 {
+                    // not splittable: path component is too long
+                    return Err(TarError::PathTooLong);
+                }
+                // copy prefix
+                self.data.prefix[..prefix.len()].copy_from_slice(prefix);
+                // copy path
+                self.data.name[..name.len()].copy_from_slice(name);
+            }
+            _ => return Err(TarError::PathTooLong),
+        }
+        Ok(())
+    }
+
+    pub fn set_link_path(&mut self, path: &[u8]) -> Result<(), TarError> {
+        if path.len() > 100 {
+            return Err(TarError::PathTooLong);
+        }
+
+        self.data.linkname[..path.len()].copy_from_slice(path);
+        Ok(())
+    }
+
+    pub fn set_mode(&mut self, mode: u32) {
+        write!(SliceBuf::new(&mut self.data.mode), "{:08o}", mode).unwrap();
+    }
+
+    pub fn set_uid(&mut self, uid: u32) {
+        write!(SliceBuf::new(&mut self.data.uid), "{:08o}", uid).unwrap();
+    }
+
+    pub fn set_gid(&mut self, gid: u32) {
+        write!(SliceBuf::new(&mut self.data.gid), "{:08o}", gid).unwrap();
+    }
+
+    pub fn set_size(&mut self, size: u64) {
+        write!(SliceBuf::new(&mut self.data.size), "{:012o}", size).unwrap();
+    }
+
+    pub fn set_mtime(&mut self, mtime: u64) {
+        write!(SliceBuf::new(&mut self.data.mtime), "{:012o}", mtime).unwrap();
+    }
+
+    pub fn set_device_major(&mut self, major: u32) {
+        write!(SliceBuf::new(&mut self.data.devmajor), "{:08o}", major).unwrap();
+    }
+
+    pub fn set_device_minor(&mut self, minor: u32) {
+        write!(SliceBuf::new(&mut self.data.devminor), "{:08o}", minor).unwrap();
+    }
+
+    fn set_checksum(&mut self) {
+        // checksum = sum of all octets, with checksum field set to spaces
+        self.data.chksum = [b' '; 8];
+
+        // spec: must be at least 17 bits
+        let mut sum: u32 = 0;
+        for b in bytemuck::bytes_of(&self.data) {
+            sum += *b as u32;
+        }
+        write!(SliceBuf::new(&mut self.data.chksum), "{:08o}", sum).unwrap();
+    }
+
+    pub fn as_bytes(&mut self) -> &[u8] {
+        // calculate checksum
+        self.set_checksum();
+
+        bytemuck::bytes_of(&self.data)
+    }
+}
+
+struct SliceBuf<'a> {
+    buf: &'a mut [u8],
+    off: usize,
+}
+
+impl<'a> SliceBuf<'a> {
+    fn new(buf: &'a mut [u8]) -> Self {
+        Self { buf, off: 0 }
+    }
+}
+
+impl<'a> Write for SliceBuf<'a> {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        let len = data.len();
+        let p = &mut self.buf[self.off..];
+        if p.len() < len {
+            return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "SliceBuf overflow"));
+        }
+        p[..len].copy_from_slice(data);
+        self.off += len;
+        Ok(len)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 // TODO: extension for sockets
 
 struct PaxHeader {
-    header: Header,
+    header: UstarHeader,
     data: Vec<u8>,
 }
 
 impl PaxHeader {
     fn new() -> Self {
-        // more compressible?
-        // TODO: zeros instead?
-        let mut header = Header::new_ustar();
-        header.set_entry_type(EntryType::XHeader);
-        // name="@PaxHeader": doesn't match bsdtar or GNU tar behavior, but is compliant and faster
-        header.as_ustar_mut().unwrap().name[..PAX_HEADER_NAME.len()].copy_from_slice(PAX_HEADER_NAME.as_bytes());
+        let mut header = UstarHeader::default();
+        header.set_entry_type(TypeFlag::PaxExtendedHeader);
+        // name="@PaxHeader": doesn't match bsdtar or GNU tar behavior, but spec doesn't care and this is faster
+        header.set_path(PAX_HEADER_NAME.as_bytes()).unwrap();
 
         Self {
             header,
@@ -53,7 +236,6 @@ impl PaxHeader {
 
     fn write_to(mut self, w: &mut impl Write) -> anyhow::Result<()> {
         self.header.set_size(self.data.len() as u64);
-        self.header.set_cksum();
         w.write_all(self.header.as_bytes())?;
         w.write_all(&self.data)?;
 
@@ -106,18 +288,19 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> 
         let mut pax_header = PaxHeader::new();
 
         // nsecs mtime
+        // TODO: remove malloc
         pax_header.add_field("mtime", format!("{}.{:0>9}", st.st_mtime, st.st_mtime_nsec).as_bytes());
 
-        // TODO: set_path is slow internally
-        if header.set_path(&path).is_err() {
+        if header.set_path(path.as_os_str().as_bytes()).is_err() {
             // PAX long name extension
             pax_header.add_field("path", path.as_os_str().as_bytes());
         }
 
         let typ = st.st_mode & libc::S_IFMT;
         if typ == libc::S_IFLNK {
+            // TODO: remove malloc
             let link_name = readlinkat(Some(dirfd.as_raw_fd()), entry.name)?;
-            if header.set_link_name_literal(link_name.as_bytes()).is_err() {
+            if header.set_link_path(link_name.as_bytes()).is_err() {
                 // PAX long name extension
                 pax_header.add_field("linkpath", link_name.as_bytes());
             }
@@ -131,7 +314,6 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> 
 
         pax_header.write_to(w)?;
 
-        header.set_cksum();
         w.write_all(header.as_bytes())?;
 
         if typ == libc::S_IFDIR {
@@ -164,29 +346,33 @@ fn fstatat<F: AsRawFd>(dirfd: &F, path: &CStr, flags: i32) -> nix::Result<libc::
     Errno::result(ret).map(|_| unsafe { st.assume_init() })
 }
 
-fn header_from_stat(st: &libc::stat) -> Option<Header> {
+fn header_from_stat(st: &libc::stat) -> Option<UstarHeader> {
     let typ = st.st_mode & libc::S_IFMT;
 
     // PAX base is ustar format
-    let mut header = Header::new_ustar();
+    let mut header = UstarHeader::default();
+    // TODO: not supposed to include S_IFMT
     header.set_mode(st.st_mode);
-    header.set_uid(st.st_uid as u64);
-    header.set_gid(st.st_gid as u64);
+    // TODO: large uid
+    header.set_uid(st.st_uid);
+    // TODO: large gid
+    header.set_gid(st.st_gid);
     header.set_entry_type(match typ {
-        libc::S_IFDIR => EntryType::Directory,
-        libc::S_IFREG => EntryType::Regular,
-        libc::S_IFLNK => EntryType::Symlink,
-        libc::S_IFCHR => EntryType::Char,
-        libc::S_IFBLK => EntryType::Block,
-        libc::S_IFIFO => EntryType::Fifo,
+        libc::S_IFDIR => TypeFlag::Directory,
+        libc::S_IFREG => TypeFlag::Regular,
+        libc::S_IFLNK => TypeFlag::Symlink,
+        libc::S_IFCHR => TypeFlag::Char,
+        libc::S_IFBLK => TypeFlag::Block,
+        libc::S_IFIFO => TypeFlag::Fifo,
         _ => return None,
     });
     header.set_mtime(st.st_mtime as u64);
 
     if typ == libc::S_IFBLK || typ == libc::S_IFCHR {
         // only fails if not supported by archive format
-        header.set_device_major(unsafe { libc::major(st.st_rdev) }).unwrap();
-        header.set_device_minor(unsafe { libc::minor(st.st_rdev) }).unwrap();
+        // TODO: large dev
+        header.set_device_major(unsafe { libc::major(st.st_rdev) });
+        header.set_device_minor(unsafe { libc::minor(st.st_rdev) });
     } else if typ == libc::S_IFREG {
         // only regular files have a size
         header.set_size(st.st_size as u64);
@@ -208,8 +394,7 @@ fn main() -> anyhow::Result<()> {
 
     // add entry for root dir
     let mut header = header_from_stat(&root_dir_st).unwrap();
-    header.set_path(Path::new("."))?;
-    header.set_cksum();
+    header.set_path(".".as_bytes()).unwrap();
     writer.write_all(header.as_bytes())?;
 
     // walk dirs
