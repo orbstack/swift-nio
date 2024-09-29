@@ -391,9 +391,9 @@ fn header_from_stat(st: &libc::stat) -> Option<UstarHeader> {
 
 fn main() -> anyhow::Result<()> {
     let file = unsafe { File::from_raw_fd(1) };
-    let mut writer = Encoder::new(file, 0)?;
-    writer.multithread(1)?;
-    // let mut writer = file;
+    // let mut writer = Encoder::new(file, 0)?;
+    // writer.multithread(1)?;
+    let mut writer = file;
 
     // add root dir
     let src_dir = std::env::args().nth(1).ok_or_else(|| anyhow!("missing src dir"))?;
@@ -411,7 +411,7 @@ fn main() -> anyhow::Result<()> {
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;
 
-    writer.finish()?;
+    // writer.finish()?;
 
     Ok(())
 }
