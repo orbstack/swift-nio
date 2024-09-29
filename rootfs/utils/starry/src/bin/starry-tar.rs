@@ -234,6 +234,10 @@ impl PaxHeader {
         self.data.push(b'\n');
     }
 
+    fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     fn write_to(mut self, w: &mut impl Write) -> anyhow::Result<()> {
         self.header.set_size(self.data.len() as u64);
         w.write_all(self.header.as_bytes())?;
@@ -289,7 +293,9 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> 
 
         // nsecs mtime
         // TODO: remove malloc
-        pax_header.add_field("mtime", format!("{}.{:0>9}", st.st_mtime, st.st_mtime_nsec).as_bytes());
+        if st.st_mtime_nsec != 0 {
+            pax_header.add_field("mtime", format!("{}.{:0>9}", st.st_mtime, st.st_mtime_nsec).as_bytes());
+        }
 
         if header.set_path(path.as_os_str().as_bytes()).is_err() {
             // PAX long name extension
@@ -312,7 +318,9 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_prefix: &Path) -> 
 
         // TODO: xattrs
 
-        pax_header.write_to(w)?;
+        if !pax_header.is_empty() {
+            pax_header.write_to(w)?;
+        }
 
         w.write_all(header.as_bytes())?;
 
