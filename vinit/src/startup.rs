@@ -1039,25 +1039,25 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> anyhow::Result<()> {
         // then register real rosetta with comm=rvk1 key '('
         // '.' to make it hidden
         env::set_current_dir("/mnt/rv").unwrap();
+        let _cwd_guard = scopeguard::guard((), |_| env::set_current_dir("/").unwrap());
         // use zero-width spaces to make it hard to inspect
-        let real_res = add_binfmt(
+        add_binfmt(
             "rosetta\u{200b}",
             ELF_MAGIC_X86_64,
             Some(ELF_MASK_X86_64),
             "[rosetta]",
             &rosetta_flags,
-        );
+        )
+        .unwrap();
         // rvk3 variant without preserve-argv0 flag, to work around bug for swift-driver
-        let real_res2 = add_binfmt(
+        add_binfmt(
             "rosetta\u{200b}\u{200b}",
             ELF_MAGIC_X86_64,
             Some(ELF_MASK_X86_64),
             "[rosetta]",
             "CF[",
-        );
-        env::set_current_dir("/").unwrap();
-        real_res.unwrap();
-        real_res2.unwrap();
+        )
+        .unwrap();
     } else {
         // qemu
         println!("  -  Using QEMU");

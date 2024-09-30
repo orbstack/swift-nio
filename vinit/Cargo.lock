@@ -1209,6 +1209,7 @@ dependencies = [
  "once_cell",
  "qbsdiff",
  "rtnetlink",
+ "scopeguard",
  "serde",
  "serde_json",
  "signal-hook",
