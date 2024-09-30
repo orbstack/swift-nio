@@ -5,13 +5,16 @@ use bitflags::bitflags;
 use bytemuck::{Pod, Zeroable};
 use nix::{errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode};
 use numtoa::NumToA;
-use smallvec::SmallVec;
+use smallvec::{SmallVec, ToSmallVec};
 use starry::sys::for_each_dir_entry;
 use zstd::Encoder;
 
 const TAR_PADDING: [u8; 1024] = [0; 1024];
 
 const PAX_HEADER_NAME: &str = "@PaxHeader";
+
+const PATH_STACK_MAX: usize = 1024;
+const XATTR_VALUE_STACK_MAX: usize = 512;
 
 #[repr(C)]
 #[derive(Pod, Zeroable, Clone, Copy)]
@@ -52,10 +55,15 @@ pub enum TypeFlag {
     PaxGlobalHeader = b'g',
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum TarError {
-    #[error("path too long")]
-    PathTooLong,
+#[derive(Debug)]
+pub struct OverflowError {}
+
+impl std::error::Error for OverflowError {}
+
+impl std::fmt::Display for OverflowError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "value too large for field")
+    }
 }
 
 pub struct UstarHeader {
@@ -79,7 +87,7 @@ impl UstarHeader {
         self.data.typeflag = [typ as u8; 1];
     }
 
-    pub fn set_path(&mut self, path: &[u8]) -> Result<(), TarError> {
+    pub fn set_path(&mut self, path: &[u8]) -> Result<(), OverflowError> {
         match path.len() {
             // standard tar: up to 100 bytes
             0..=100 => {
@@ -101,57 +109,57 @@ impl UstarHeader {
                 let prefix_path = &path[..min(path.len(), 155)];
                 // split at last / in prefix
                 let mut split_iter = prefix_path.rsplitn(2, |&c| c == b'/');
-                let name = split_iter.next().ok_or(TarError::PathTooLong)?;
-                let prefix = split_iter.next().ok_or(TarError::PathTooLong)?;
+                let name = split_iter.next().ok_or(OverflowError {})?;
+                let prefix = split_iter.next().ok_or(OverflowError {})?;
                 if prefix.len() > 155 || name.len() > 100 {
                     // not splittable: path component is too long
-                    return Err(TarError::PathTooLong);
+                    return Err(OverflowError {});
                 }
                 // copy prefix
                 self.data.prefix[..prefix.len()].copy_from_slice(prefix);
                 // copy path
                 self.data.name[..name.len()].copy_from_slice(name);
             }
-            _ => return Err(TarError::PathTooLong),
+            _ => return Err(OverflowError {}),
         }
         Ok(())
     }
 
-    pub fn set_link_path(&mut self, path: &[u8]) -> Result<(), TarError> {
+    pub fn set_link_path(&mut self, path: &[u8]) -> Result<(), OverflowError> {
         if path.len() > 100 {
-            return Err(TarError::PathTooLong);
+            return Err(OverflowError {});
         }
 
         self.data.linkname[..path.len()].copy_from_slice(path);
         Ok(())
     }
 
-    pub fn set_mode(&mut self, mode: u32) {
-        write_left_padded(&mut self.data.mode, mode, 8, 8);
+    pub fn set_mode(&mut self, mode: u32) -> Result<(), OverflowError> {
+        write_left_padded(&mut self.data.mode, mode, 8, 8)
     }
 
-    pub fn set_uid(&mut self, uid: u32) {
-        write_left_padded(&mut self.data.uid, uid, 8, 8);
+    pub fn set_uid(&mut self, uid: u32) -> Result<(), OverflowError> {
+        write_left_padded(&mut self.data.uid, uid, 8, 8)
     }
 
-    pub fn set_gid(&mut self, gid: u32) {
-        write_left_padded(&mut self.data.gid, gid, 8, 8);
+    pub fn set_gid(&mut self, gid: u32) -> Result<(), OverflowError> {
+        write_left_padded(&mut self.data.gid, gid, 8, 8)
     }
 
-    pub fn set_size(&mut self, size: u64) {
-        write_left_padded(&mut self.data.size, size, 8, 12);
+    pub fn set_size(&mut self, size: u64) -> Result<(), OverflowError> {
+        write_left_padded(&mut self.data.size, size, 8, 12)
     }
 
-    pub fn set_mtime(&mut self, mtime: u64) {
-        write_left_padded(&mut self.data.mtime, mtime, 8, 12);
+    pub fn set_mtime(&mut self, mtime: u64) -> Result<(), OverflowError> {
+        write_left_padded(&mut self.data.mtime, mtime, 8, 12)
     }
 
-    pub fn set_device_major(&mut self, major: u32) {
-        write_left_padded(&mut self.data.devmajor, major, 8, 8);
+    pub fn set_device_major(&mut self, major: u32) -> Result<(), OverflowError> {
+        write_left_padded(&mut self.data.devmajor, major, 8, 8)
     }
 
-    pub fn set_device_minor(&mut self, minor: u32) {
-        write_left_padded(&mut self.data.devminor, minor, 8, 8);
+    pub fn set_device_minor(&mut self, minor: u32) -> Result<(), OverflowError> {
+        write_left_padded(&mut self.data.devminor, minor, 8, 8)
     }
 
     fn set_checksum(&mut self) {
@@ -163,7 +171,7 @@ impl UstarHeader {
         for b in bytemuck::bytes_of(&self.data) {
             sum += *b as u32;
         }
-        write_left_padded(&mut self.data.chksum, sum, 8, 8);
+        write_left_padded(&mut self.data.chksum, sum, 8, 8).unwrap();
     }
 
     pub fn as_bytes(&mut self) -> &[u8] {
@@ -174,16 +182,20 @@ impl UstarHeader {
     }
 }
 
-fn write_left_padded<T: NumToA<T>>(out_buf: &mut [u8], val: T, base: T, target_len: usize) {
+fn write_left_padded<T: NumToA<T>>(out_buf: &mut [u8], val: T, base: T, target_len: usize) -> Result<(), OverflowError> {
     // stack array for max possible length
     let mut unpadded_buf: [u8; 32] = [0; 32];
     let formatted = val.numtoa(base, &mut unpadded_buf);
 
     // fill leading space with zeros
     let target_buf = &mut out_buf[..target_len];
+    if formatted.len() > target_len {
+        return Err(OverflowError {});
+    }
     let padding_len = target_len - formatted.len();
     target_buf[padding_len..].copy_from_slice(formatted);
     target_buf[..padding_len].fill(b'0');
+    Ok(())
 }
 
 // TODO: extension for sockets
@@ -206,8 +218,9 @@ impl PaxHeader {
         }
     }
 
-    fn add_field(&mut self, key: &str, value: &[u8]) {
+    fn add_field<K: AsRef<[u8]> + ?Sized>(&mut self, key: &K, value: &[u8]) {
         // +3: space, equals, newline
+        let key = key.as_ref();
         let payload_len = key.len() + value.len() + 3;
 
         // how many digits are in the length?
@@ -220,7 +233,14 @@ impl PaxHeader {
             total_len += 1;
         }
 
-        write!(self.data, "{} {}=", total_len, key).unwrap();
+        let mut itoa_buf = itoa::Buffer::new();
+        let len_str = itoa_buf.format(total_len);
+
+        // {len_str} {key}={value}\n
+        self.data.extend_from_slice(len_str.as_bytes());
+        self.data.push(b' ');
+        self.data.extend_from_slice(key);
+        self.data.push(b'=');
         self.data.extend_from_slice(value);
         self.data.push(b'\n');
     }
@@ -230,7 +250,7 @@ impl PaxHeader {
     }
 
     fn write_to(mut self, w: &mut impl Write) -> anyhow::Result<()> {
-        self.header.set_size(self.data.len() as u64);
+        self.header.set_size(self.data.len() as u64).unwrap();
         w.write_all(self.header.as_bytes())?;
         w.write_all(&self.data)?;
 
@@ -284,6 +304,10 @@ impl<'a> Drop for PathStackGuard<'a> {
 }
 
 fn add_regular_file(w: &mut impl Write, file: &OwnedFd, st: &libc::stat) -> anyhow::Result<()> {
+    if st.st_blocks < st.st_size / 512 {
+        // TODO: sparse file
+    }
+
     // we must never write more than the size written to the header
     let mut buf: MaybeUninit<[u8; 65536]> = MaybeUninit::uninit();
     let mut rem = st.st_size as usize;
@@ -300,6 +324,19 @@ fn add_regular_file(w: &mut impl Write, file: &OwnedFd, st: &libc::stat) -> anyh
         rem -= n;
         if rem == 0 {
             break;
+        }
+    }
+
+    // pad with zeros if we didn't write enough (file size truncated)
+    if rem > 0 {
+        eprintln!("file truncated; padding with {} bytes", rem);
+        loop {
+            let limit = std::cmp::min(rem, 512);
+            w.write_all(&TAR_PADDING[..limit])?;
+            rem -= limit;
+            if rem == 0 {
+                break;
+            }
         }
     }
 
@@ -340,7 +377,8 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
 
             let nanos_start = time_buf.len();
             time_buf.resize(nanos_start + 9, 0);
-            write_left_padded(&mut time_buf[nanos_start..], st.st_mtime_nsec as u64, 10, 9);
+            // can't overflow: we checked that nsec < 1e9
+            write_left_padded(&mut time_buf[nanos_start..], st.st_mtime_nsec as u64, 10, 9).unwrap();
 
             pax_header.add_field("mtime", &time_buf);
         }
@@ -366,10 +404,8 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
         };
 
         // O_NONBLOCK: avoid hang if we race and end up opening a fifo
-        // O_NOCTTY: avoid hang if we race and end up opening a tty
+        // O_NOCTTY: avoid kill if we race and end up opening a tty
         let fd = unsafe { OwnedFd::from_raw_fd(openat(Some(dirfd.as_raw_fd()), entry.name, OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_NOCTTY | open_flags, Mode::empty())?) };
-
-        // TODO: sparse files
 
         // fflags
         if typ == libc::S_IFREG || typ == libc::S_IFDIR {
@@ -384,7 +420,21 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
             }
         }
 
-        // TODO: xattrs
+        // xattrs
+        // TODO: /proc/self/fd/ llistxattr for other types
+        if typ == libc::S_IFREG || typ == libc::S_IFDIR {
+            for_each_xattr(&fd, |name| {
+                with_fgetxattr(&fd, name, |value| {
+                    // SCHILY.xattr is a violation of the PAX spec: PAX headers must be UTF-8
+                    // LIBARCHIVE.xattr uses base64 to fix that, but it's not supported by GNU tar
+                    // we use SCHILY: it works fine because PAX fields are length-prefixed
+                    let mut pax_key: SmallVec<[u8; 64]> = b"SCHILY.xattr.".to_smallvec();
+                    pax_key.extend_from_slice(name.to_bytes());
+                    pax_header.add_field(&pax_key, value);
+                })?;
+                Ok(())
+            })?;
+        }
 
         if !pax_header.is_empty() {
             pax_header.write_to(w)?;
@@ -418,27 +468,126 @@ fn fstatat<F: AsRawFd>(dirfd: &F, path: &CStr, flags: i32) -> nix::Result<libc::
 }
 
 fn with_readlinkat<F: AsRawFd, T>(dirfd: &F, path: &CStr, f: impl FnOnce(&[u8]) -> T) -> nix::Result<T> {
-    let mut buf = MaybeUninit::<[u8; libc::PATH_MAX as usize]>::uninit();
+    let mut buf = MaybeUninit::<[u8; PATH_STACK_MAX]>::uninit();
 
-    let ret = unsafe { libc::readlinkat(dirfd.as_raw_fd(), path.as_ptr(), buf.as_mut_ptr() as *mut _, libc::PATH_MAX as usize) };
-    if Errno::result(ret)? < libc::PATH_MAX as isize {
+    let ret = unsafe { libc::readlinkat(dirfd.as_raw_fd(), path.as_ptr(), buf.as_mut_ptr() as *mut _, PATH_STACK_MAX) };
+    let n = Errno::result(ret)? as usize;
+    if n < PATH_STACK_MAX {
         // path fits in stack buffer
         let path = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, ret as usize) };
         Ok(f(path))
     } else {
         // truncated
         // stat to figure out how many bytes to allocate, then do it on heap
-        let st = fstatat(dirfd, path, libc::AT_SYMLINK_NOFOLLOW)?;
-        let size = st.st_size as usize;
-        let mut buf = Vec::with_capacity(size);
-        let ret = unsafe { libc::readlinkat(dirfd.as_raw_fd(), path.as_ptr(), buf.as_mut_ptr() as *mut _, size) };
-        match Errno::result(ret) {
-            Ok(n) => {
-                unsafe { buf.set_len(n as usize) };
-                Ok(f(&buf))
+        let mut buf = Vec::new();
+        loop {
+            let st = fstatat(dirfd, path, libc::AT_SYMLINK_NOFOLLOW)?;
+            let expected_len = st.st_size as usize;
+            // +1 so we can tell whether it was truncated or not
+            buf.reserve(expected_len + 1);
+            let ret = unsafe { libc::readlinkat(dirfd.as_raw_fd(), path.as_ptr(), buf.as_mut_ptr() as *mut _, buf.capacity()) };
+            match Errno::result(ret) {
+                Ok(n) => {
+                    if n as usize <= expected_len {
+                        unsafe { buf.set_len(n as usize) };
+                        return Ok(f(&buf));
+                    }
+
+                    // truncated due to race (symlink dest changed)
+                    // try again
+                }
+                Err(e) => return Err(e),
             }
-            Err(e) => Err(e),
         }
+    }
+}
+
+fn for_each_cstr(data: &[u8], mut f: impl FnMut(&CStr) -> nix::Result<()>) -> nix::Result<()> {
+    let mut slice = data;
+    while let Ok(cstr) = CStr::from_bytes_until_nul(slice) {
+        f(cstr)?;
+        slice = &slice[cstr.count_bytes() + 1..];
+    }
+    Ok(())
+}
+
+fn for_each_xattr<F: AsRawFd>(fd: &F, f: impl FnMut(&CStr) -> nix::Result<()>) -> nix::Result<()> {
+    let mut buf = MaybeUninit::<[u8; XATTR_VALUE_STACK_MAX]>::uninit();
+
+    let ret = unsafe { libc::flistxattr(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, XATTR_VALUE_STACK_MAX) };
+    match Errno::result(ret) {
+        Ok(n) => {
+            if n > 0 {
+                let data = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, n as usize) };
+                for_each_cstr(data, f)?;
+            }
+            Ok(())
+        }
+
+        Err(Errno::ERANGE) => {
+            let mut buf = Vec::new();
+
+            // loop in case of race (xattr added between calls)
+            loop {
+                // get requested size
+                let ret = unsafe { libc::flistxattr(fd.as_raw_fd(), std::ptr::null_mut(), 0) };
+                let expected_len = Errno::result(ret)? as usize;
+                buf.reserve_exact(expected_len);
+
+                // get xattr list again
+                let ret = unsafe { libc::flistxattr(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, buf.capacity()) };
+                match Errno::result(ret) {
+                    Ok(n) => {
+                        if n > 0 {
+                            unsafe { buf.set_len(n as usize) };
+                            for_each_cstr(&buf, f)?;
+                        }
+                        return Ok(());
+                    }
+
+                    // raced, try again
+                    Err(Errno::ERANGE) => continue,
+
+                    // other error
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+
+        Err(e) => Err(e),
+    }
+}
+
+fn with_fgetxattr<T, F: AsRawFd>(fd: &F, name: &CStr, f: impl FnOnce(&[u8]) -> T) -> nix::Result<T> {
+    let mut buf = MaybeUninit::<[u8; PATH_STACK_MAX]>::uninit();
+
+    let ret = unsafe { libc::fgetxattr(fd.as_raw_fd(), name.as_ptr(), buf.as_mut_ptr() as *mut _, PATH_STACK_MAX) };
+    match Errno::result(ret) {
+        Ok(n) => {
+            let data = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, n as usize) };
+            Ok(f(data))
+        }
+        Err(Errno::ERANGE) => {
+            let mut buf = Vec::new();
+            loop {
+                // get requested size
+                let ret = unsafe { libc::fgetxattr(fd.as_raw_fd(), name.as_ptr(), std::ptr::null_mut(), 0) };
+                let expected_len = Errno::result(ret)? as usize;
+                buf.reserve_exact(expected_len);
+
+                // get xattr again
+                let ret = unsafe { libc::fgetxattr(fd.as_raw_fd(), name.as_ptr(), buf.as_mut_ptr() as *mut _, buf.capacity()) };
+                match Errno::result(ret) {
+                    Ok(n) => {
+                        unsafe { buf.set_len(n as usize) };
+                        return Ok(f(&buf));
+                    }
+                    Err(Errno::ERANGE) => continue,
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+        Err(e) => Err(e),
     }
 }
 
@@ -447,11 +596,11 @@ fn header_from_stat(st: &libc::stat) -> UstarHeader {
 
     // PAX base is ustar format
     let mut header = UstarHeader::default();
-    header.set_mode(st.st_mode & !libc::S_IFMT);
+    header.set_mode(st.st_mode & !libc::S_IFMT).unwrap();
     // TODO: large uid
-    header.set_uid(st.st_uid);
+    header.set_uid(st.st_uid).unwrap();
     // TODO: large gid
-    header.set_gid(st.st_gid);
+    header.set_gid(st.st_gid).unwrap();
     header.set_entry_type(match typ {
         libc::S_IFDIR => TypeFlag::Directory,
         libc::S_IFREG => TypeFlag::Regular,
@@ -461,16 +610,16 @@ fn header_from_stat(st: &libc::stat) -> UstarHeader {
         libc::S_IFIFO => TypeFlag::Fifo,
         _ => panic!("unsupported file type: {}", typ),
     });
-    header.set_mtime(st.st_mtime as u64);
+    header.set_mtime(st.st_mtime as u64).unwrap();
 
     if typ == libc::S_IFBLK || typ == libc::S_IFCHR {
         // only fails if not supported by archive format
         // TODO: large dev
-        header.set_device_major(unsafe { libc::major(st.st_rdev) });
-        header.set_device_minor(unsafe { libc::minor(st.st_rdev) });
+        header.set_device_major(unsafe { libc::major(st.st_rdev) }).unwrap();
+        header.set_device_minor(unsafe { libc::minor(st.st_rdev) }).unwrap();
     } else if typ == libc::S_IFREG {
         // only regular files have a size
-        header.set_size(st.st_size as u64);
+        header.set_size(st.st_size as u64).unwrap();
     }
 
     header
@@ -537,9 +686,9 @@ impl InodeFlags {
         // https://github.com/libarchive/libarchive/blob/4b6dd229c6a931c641bc40ee6d59e99af15a9432/libarchive/archive_entry.c#L1885
         self.add_name(&mut names, "sappnd", InodeFlags::APPEND);
         self.add_name(&mut names, "noatime", InodeFlags::NOATIME);
-        // btrfs flags that are usually enabled globally on a FS level
-        self.add_name(&mut names, "compress", InodeFlags::COMPR);
-        self.add_name(&mut names, "nocow", InodeFlags::NOCOW);
+        // btrfs flags that are usually enabled globally on a FS level, so almost every file will have them
+        // self.add_name(&mut names, "compress", InodeFlags::COMPR);
+        // self.add_name(&mut names, "nocow", InodeFlags::NOCOW);
         self.add_name(&mut names, "nodump", InodeFlags::NODUMP);
         self.add_name(&mut names, "dirsync", InodeFlags::DIRSYNC);
         self.add_name(&mut names, "schg", InodeFlags::IMMUTABLE);
