@@ -169,11 +169,11 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	if err != nil {
 		return err
 	}
-	// debugFile, err := os.Create("tmp.txt")
-	// if err != nil {
-	// 	return err
-	// }
-	// defer debugFile.Close()
+	debugFile, err := os.Create("abcd.txt")
+	if err != nil {
+		return err
+	}
+	defer debugFile.Close()
 
 	// send initial termios state and window size
 	if err = WriteTermiosState(termios, stdin); err != nil {
@@ -227,7 +227,9 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 			if rpcResponse.Type == StdDataType {
 				os.Stdout.Write(rpcResponse.Payload)
 			} else if rpcResponse.Type == ExitType {
-				// fmt.Fprintf(debugFile, "exit code %d", rpcResponse.Payload[0])
+				fmt.Fprintf(debugFile, "exit code %d", rpcResponse.Payload[0])
+				term.Restore(0, originalState)
+				os.Exit(int(rpcResponse.Payload[0]))
 			}
 		}
 	}()
@@ -257,6 +259,8 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 		return errors.New("error when executing starting client")
 	}
 
+	// wait until we receive an exit code.. which calls os.Exit
+	// cmd.Wait will always happen after, so we can leave this for now
 	if err := cmd.Wait(); err != nil {
 		return errors.New("error when waiting client")
 	}

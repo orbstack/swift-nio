@@ -18,14 +18,12 @@ use nix::sys::{
 };
 use tracing::trace;
 pub fn set_termios_to_host(fd: RawFd, termios: &mut Termios) -> anyhow::Result<()> {
-    trace!("waiting for length");
     let len = {
         let mut len_bytes = [0_u8; size_of::<u32>()];
         recv(fd, &mut len_bytes, MsgFlags::MSG_WAITALL)?;
         u32::from_be_bytes(len_bytes) as usize
     };
 
-    trace!("waiting for buf");
     let mut termios_buf = vec![0_u8; len];
     recv(fd, &mut termios_buf, MsgFlags::MSG_WAITALL)?;
     parse_termios(&termios_buf, termios)
@@ -105,19 +103,17 @@ pub fn parse_termios(buf: &[u8], termios: &mut Termios) -> anyhow::Result<()> {
 
     let mut idx = 0;
 
-    trace!("reading control chars");
+    // trace!("reading control chars");
     for cc in control_chars {
         let val = read_u8(buf, &mut idx)?;
-        trace!("setting {cc} to {val}");
         termios.control_chars[cc] = val;
     }
 
-    trace!("intr {:?}", termios.control_chars);
+    // trace!("intr {:?}", termios.control_chars);
 
-    trace!("reading input flags");
+    // trace!("reading input flags");
     for flag in input_flags {
         let val = read_u8(buf, &mut idx)?;
-        trace!("flag: {:?}, val: {val}", flag);
         assert!(val == 0 || val == 1);
         termios.input_flags.set(flag, val != 0);
     }
@@ -141,8 +137,6 @@ pub fn parse_termios(buf: &[u8], termios: &mut Termios) -> anyhow::Result<()> {
 
     let ispeed = read_u32(buf, &mut idx)?;
     let ospeed = read_u32(buf, &mut idx)?;
-
-    trace!("ispeed, ospeed {ispeed} {ospeed}");
 
     cfsetispeed(termios, map_speed(ispeed)?)?;
     cfsetospeed(termios, map_speed(ospeed)?)?;

@@ -979,14 +979,7 @@ fn main() -> anyhow::Result<()> {
                         // child 2 = payload
                         ForkResult::Child => {
                             let _span = span!(Level::TRACE, "payload");
-                            // let mut buf = [0u8; 1024];
-                            // let n = recv(
-                            //     recv_client_socket_fd.as_raw_fd(),
-                            //     &mut buf,
-                            //     MsgFlags::empty(),
-                            // )?;
 
-                            // trace!("received {n} bytes: {:?}", &buf[..n]);
                             let rpc_client_fd = recv_rpc_client(recv_client_socket_fd.as_raw_fd())?;
 
                             trace!("received rpc client fd {}", rpc_client_fd);
@@ -1002,20 +995,6 @@ fn main() -> anyhow::Result<()> {
                                 config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
 
                             spawn_payload(rpc_client_fd, exit_code_reader, &shell_cmd, &cstr_envs)?;
-                            // dup2(rpc_client_fd, stdin().as_raw_fd())?;
-                            // dup2(rpc_client_fd, stdout().as_raw_fd())?;
-                            // dup2(rpc_client_fd, stderr().as_raw_fd())?;
-                            // // send(rpc_client_fd, &[1, 5, 9, 13], MsgFlags::empty())?;
-                            // execve(
-                            //     &CString::new("/nix/orb/sys/bin/dctl")?,
-                            //     &[
-                            //         CString::new("dctl")?,
-                            //         CString::new("__entrypoint")?,
-                            //         CString::new("--")?,
-                            //         CString::new(shell_cmd)?,
-                            //     ],
-                            //     &cstr_envs,
-                            // )?;
                             unreachable!();
                         }
                     }
@@ -1057,6 +1036,7 @@ fn spawn_payload(
     trace!("waiting for termios host read");
     let mut termios = tcgetattr(&pty.slave)?;
     set_termios_to_host(client_fd, &mut termios)?;
+    termios.local_flags.remove(LocalFlags::ECHO);
     tcsetattr(&pty.slave, SetArg::TCSANOW, &termios)?;
     trace!("finished reading host");
 
@@ -1064,7 +1044,8 @@ fn spawn_payload(
     let slave_fd = pty.slave.as_raw_fd();
     match unsafe { fork()? } {
         // child: payload
-        ForkResult::Child => {
+        ForkResult::Parent { child } => {
+            close(master_fd)?;
             setsid()?;
             dup2(slave_fd, libc::STDIN_FILENO)?;
             dup2(slave_fd, libc::STDOUT_FILENO)?;
@@ -1073,7 +1054,6 @@ fn spawn_payload(
             if slave_fd > libc::STDERR_FILENO {
                 close(slave_fd).ok();
             }
-
             execve(
                 &CString::new("/nix/orb/sys/bin/dctl")?,
                 &[
@@ -1084,10 +1064,10 @@ fn spawn_payload(
                 ],
                 &cstr_envs,
             )?;
-            trace!("finished execve");
             unreachable!();
         }
-        ForkResult::Parent { child } => {
+        ForkResult::Child => {
+            close(slave_fd)?;
             let mut master_reader = unsafe { File::from_raw_fd(master_fd) };
             let mut master_writer = master_reader.try_clone()?;
             let mut client_reader = unsafe { File::from_raw_fd(client_fd) };
@@ -1104,10 +1084,15 @@ fn spawn_payload(
                             break;
                         }
                         Ok(n) => {
+                            trace!("rpc: response data {:?}", &buffer[..n]);
                             RpcOutputMessage::StdData(&buffer[..n]).write_to(&mut client_writer)?;
+                            client_writer.flush()?;
                         }
 
-                        _ => {}
+                        Err(e) => {
+                            trace!("rpc: got error {:?}", e);
+                            break;
+                        }
                     }
                 }
                 Ok(())
@@ -1120,7 +1105,7 @@ fn spawn_payload(
                             Ok(RpcInputMessage::StdinData(data)) => {
                                 trace!("rpc: stdin data {:?}", data);
                                 master_writer.write_all(&data)?;
-                                master_writer.flush()?;
+                                master_writer.flush()?
                             }
                             Ok(RpcInputMessage::TerminalResize(w, h)) => {
                                 trace!("rpc: resizing terminal {w} {h}");
@@ -1131,7 +1116,7 @@ fn spawn_payload(
                                     ws_ypixel: 0, // Not used, can be set to 0
                                 };
                                 unsafe {
-                                    nix::libc::ioctl(slave_fd, TIOCSWINSZ, &ws);
+                                    nix::libc::ioctl(master_fd, TIOCSWINSZ, &ws);
                                 }
                             }
                             Ok(RpcInputMessage::TermiosSettings()) => {
@@ -1150,10 +1135,22 @@ fn spawn_payload(
             thread::spawn(move || -> anyhow::Result<()> {
                 let mut exit_code = [0u8];
                 exit_code_reader.read_exact(&mut exit_code)?;
+                trace!("read exit code {}", exit_code[0]);
                 RpcOutputMessage::Exit(exit_code[0]).write_to(&mut client_writer2)?;
                 Ok(())
             });
 
+            trace!("waiting for child (payload)");
+            // waitpid(child, None)?;
+            // close(slave_fd)?;
+
+            match fcntl(slave_fd, FcntlArg::F_GETFD) {
+                Ok(_) => trace!("slave fd still open"),
+                Err(Errno::EBADF) => trace!("closed / invalid"),
+                Err(e) => trace!("error {:?}", e),
+            };
+
+            trace!("child payload exited");
             let _ = client_to_pty.join();
             trace!("finished reading from client -> sending to pty");
             let _ = pty_to_client.join();

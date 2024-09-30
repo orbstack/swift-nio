@@ -423,6 +423,7 @@ fn cmd_entrypoint(cmd: &str) -> anyhow::Result<()> {
         args.push(CString::new(cmd)?);
     }
 
+    println!("calling dctl with args {:?}", args);
     execv(&CString::new("/nix/orb/sys/bin/zsh")?, &args)?;
     unreachable!();
 }
