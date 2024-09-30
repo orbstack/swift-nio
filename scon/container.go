@@ -311,6 +311,17 @@ func UseAgentRet[T any](c *Container, fn func(*agent.Client) (T, error)) (T, err
 	return ret, err
 }
 
+func UseAgentRet2[T, U any](c *Container, fn func(*agent.Client) (T, U, error)) (T, U, error) {
+	var ret1 T
+	var ret2 U
+	err := c.UseAgent(func(agent *agent.Client) error {
+		var err error
+		ret1, ret2, err = fn(agent)
+		return err
+	})
+	return ret1, ret2, err
+}
+
 func withContainerNetns[T any](c *Container, fn func() (T, error)) (T, error) {
 	var zero T
 	initPidF := c.initPidFile
