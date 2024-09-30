@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 
 	"github.com/fatih/color"
@@ -19,6 +21,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 )
 
 var (
@@ -138,6 +141,168 @@ type WormholeParams struct {
 	ShellCmd   string   `json:"entry_shell_cmd"`
 }
 
+type TermiosParams struct {
+	Iflag int     `json:"input_flags"`
+	Oflag int     `json:"output_flags"`
+	Cflag int     `json:"control_flags"`
+	Lflag int     `json:"local_flags"`
+	Cc    [32]int `json:"control_chars"`
+	// Ispeed int     `json:"c_ispeed"`
+	// Ospeed int     `json:"c_ospeed"`
+}
+
+func GetTermiosParams() (string, error) {
+	// use TIOCGETA on mac instead of TCGETS2 (only on linux)?
+	termios, err := unix.IoctlGetTermios(0, unix.TIOCGETA)
+	if err != nil {
+		return "", err
+	}
+
+	var cc [32]int
+	for i, val := range termios.Cc {
+		cc[i] = int(val)
+	}
+
+	termiosParams, err := json.Marshal(TermiosParams{
+		Iflag: int(termios.Iflag),
+		Oflag: int(termios.Oflag),
+		Cflag: int(termios.Cflag),
+		Lflag: int(termios.Lflag),
+		Cc:    cc,
+		// Ispeed: int(termios.Ispeed),
+		// Ospeed: int(termios.Ospeed),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return string(termiosParams), nil
+}
+
+func startRpcConnection(containerId string, dockerHostEnv []string) error {
+	dockerBin := conf.FindXbin("docker")
+	_, err := GetTermiosParams()
+	if err != nil {
+		return errors.New("failed to get termios params")
+	}
+	fmt.Println("setting raw terminal")
+	originalState, err := term.MakeRaw(0)
+	// originalState, err := term.GetState(0) // just for debugging so terminal doesn't get annoying
+	if err != nil {
+		return errors.New("could not set pty to raw mode")
+	}
+	defer func() {
+		fmt.Println("restoring raw terminal")
+		term.Restore(0, originalState)
+	}()
+
+	cmd := exec.Command(dockerBin, "exec", "-i", containerId, "/wormhole-client")
+	cmd.Env = dockerHostEnv
+
+	// cmd.Stderr = os.Stderr
+	// cmd.Stdout = os.Stdout
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return errors.New("could not create stdin pipe")
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return errors.New("could not create stdout pipe")
+	}
+
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, err := os.Stdin.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				fmt.Printf("read request: %w", err)
+				return
+			}
+
+			if n > 0 {
+				payload, err := SerializeMessage(CreateStdinDataMessage(buf[:n]))
+				if err != nil {
+					fmt.Printf("could not create rpc stdin message")
+					return
+				}
+				stdin.Write(payload)
+			} else {
+				fmt.Printf("read 0 bytes???")
+			}
+		}
+	}()
+	debugFile, err := os.Create("tmp.txt")
+	if err != nil {
+		return err
+	}
+	defer debugFile.Close()
+
+	go func() {
+		for {
+			rpcResponse, err := DeserializeMessage(stdout)
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				return
+			}
+
+			fmt.Fprintf(debugFile, "rpc response: %+v\n", rpcResponse)
+			if rpcResponse.Type == StdDataType {
+				os.Stdout.Write(rpcResponse.Payload)
+			} else if rpcResponse.Type == ExitType {
+				fmt.Fprintf(debugFile, "exit code %d", rpcResponse.Payload[0])
+			}
+		}
+	}()
+
+	// handle window change
+	winchChan := make(chan os.Signal, 1)
+	signal.Notify(winchChan, unix.SIGWINCH)
+
+	go func() {
+		for {
+			select {
+			case <-winchChan:
+				w, h, err := term.GetSize(0)
+				if err != nil {
+					fmt.Printf("could not get terminal size", err)
+					return
+				}
+				fmt.Printf("got terminal resize event %d %d\n", w, h)
+				rpcMessage, err := CreateTerminalResizeMessage(w, h)
+				if err != nil {
+					fmt.Printf("could not create rpc resize message %+v\n", err)
+					return
+				}
+				payload, err := SerializeMessage(rpcMessage)
+				if err != nil {
+					fmt.Printf("could not create serialize rpc resize message")
+					return
+				}
+				stdin.Write(payload)
+			}
+		}
+	}()
+
+	fmt.Println("running docker exec")
+	err = cmd.Start()
+	if err != nil {
+		return errors.New("error when executing starting client")
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return errors.New("error when waiting client")
+	}
+
+	fmt.Println("rpc wormhole connection finished")
+	return nil
+}
+
 func debugRemote(containerID string) error {
 	containerID, context, ok := strings.Cut(containerID, "@")
 	dockerBin := conf.FindXbin("docker")
@@ -201,8 +366,8 @@ func debugRemote(containerID string) error {
 
 	remoteContainerID := strings.TrimSpace(string(output))
 	fmt.Println("remote container id: " + remoteContainerID)
-	unix.Exec(dockerBin, []string{"docker", "exec", "-it", remoteContainerID, "/wormhole-client", string(wormholeParams)}, dockerHostEnv)
 
+	startRpcConnection(remoteContainerID, dockerHostEnv)
 	return nil
 }
 

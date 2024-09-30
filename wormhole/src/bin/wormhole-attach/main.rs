@@ -20,13 +20,16 @@ use std::{
 
 use anyhow::{anyhow, Error};
 use libc::{
-    prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, OPEN_TREE_CLONE,
+    prlimit, ptrace, sock_filter, sock_fprog, syscall, tcflag_t, SYS_capset, SYS_seccomp,
     PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
     PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE, STDIN_FILENO, STDOUT_FILENO,
 };
 use model::WormholeConfig;
 use mounts::with_remount_rw;
-use nix::sys::termios::{cfmakeraw, tcgetattr, tcsetattr, LocalFlags, SetArg, Termios};
+use nix::sys::termios::{
+    cfmakeraw, cfsetispeed, tcgetattr, tcsetattr, BaudRate, ControlFlags, InputFlags, LocalFlags,
+    OutputFlags, SetArg, Termios,
+};
 use nix::{
     errno::Errno,
     fcntl::{
@@ -54,14 +57,16 @@ use nix::{
     },
 };
 use pidfd::PidFd;
+use rpc::{RpcInputMessage, RpcOutputMessage};
 use signals::{mask_sigset, SigSet, SignalFd};
+use termios::read_termios;
 use tracing::{debug, span, trace, warn, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
     flock::{Flock, FlockMode, FlockWait},
-    newmount::{move_mount, open_tree},
-    paths,
+    newmount::{mount_setattr, move_mount, open_tree, MountAttr, MOUNT_ATTR_RDONLY},
+    paths, TermiosParams,
 };
 
 mod drm;
@@ -70,9 +75,11 @@ mod monitor;
 mod mounts;
 mod pidfd;
 mod proc;
+mod rpc;
 mod signals;
 mod subreaper;
 mod subreaper_protocol;
+mod termios;
 
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
 const PTRACE_LOCK: &str = "/dev/shm/.orb-wormhole-p.lock";
@@ -446,7 +453,7 @@ fn main() -> anyhow::Result<()> {
 
     // stdin, stdout, stderr are expected to be 0,1,2 and will be propagated to the child
     // usage: wormhole-attach <config json>
-    let config = parse_config()?;
+    let mut config = parse_config()?;
     let rootfs_fd = config
         .rootfs_fd
         .map(|fd| unsafe { OwnedFd::from_raw_fd(fd) });
@@ -456,6 +463,10 @@ fn main() -> anyhow::Result<()> {
     trace!("entry shell cmd: {:?}", config.entry_shell_cmd);
     trace!("drm token: {:?}", config.drm_token);
     drm::verify_token(&config.drm_token)?;
+
+    // kevin: for remote wormhole, we want to send the exit code back to main process via rpc
+    let (mut exit_code_writer, mut exit_code_reader) = UnixStream::pair()?;
+    config.exit_code_pipe_write_fd = exit_code_writer.as_raw_fd();
 
     // set cloexec on extra files passed to us
     if let Some(ref rootfs_fd) = rootfs_fd {
@@ -989,7 +1000,7 @@ fn main() -> anyhow::Result<()> {
                             let shell_cmd =
                                 config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
 
-                            spawn_payload(rpc_client_fd, &shell_cmd, &cstr_envs)?;
+                            spawn_payload(rpc_client_fd, exit_code_reader, &shell_cmd, &cstr_envs)?;
                             // dup2(rpc_client_fd, stdin().as_raw_fd())?;
                             // dup2(rpc_client_fd, stdout().as_raw_fd())?;
                             // dup2(rpc_client_fd, stderr().as_raw_fd())?;
@@ -1027,9 +1038,12 @@ fn main() -> anyhow::Result<()> {
 
 fn spawn_payload(
     client_fd: RawFd,
+    mut exit_code_reader: UnixStream,
     shell_cmd: &str,
     cstr_envs: &Vec<CString>,
 ) -> anyhow::Result<()> {
+    // set up host termios before forking and handling rpc
+    let host_termios = read_termios(client_fd)?;
     let pty = openpty(
         Some(&Winsize {
             ws_row: 24,
@@ -1037,21 +1051,45 @@ fn spawn_payload(
             ws_xpixel: 0,
             ws_ypixel: 0,
         }),
-        None,
+        &host_termios,
     )?;
 
     let master_fd = pty.master.as_raw_fd();
     let slave_fd = pty.slave.as_raw_fd();
-
     match unsafe { fork()? } {
         // child: payload
         ForkResult::Child => {
             let mut termios = tcgetattr(&pty.slave)?;
+
+            // cfsetispeed(&mut termios, 32 as BaudRate);
+            // termios.control_flags = 0x0048 as ControlFlags;
+            // termios.control_flags.set(other, value);
+            // termios.c_ifl
+            // termios.c_iflag = 0x00 as nix::libc::tcflag_t;
+            // termios.control_flags = ControlFlags::from_bits_retain(host_termios.control_flags);
+            // termios.input_flags = InputFlags::from_bits_truncate(host_termios.input_flags);
+            // termios.output_flags = OutputFlags::from_bits_truncate(host_termios.output_flags);
+            // termios.local_flags = LocalFlags::from_bits_truncate(host_termios.local_flags);
+            // termios.control_chars = host_termios.control_chars;
+
+            // termios.control_flags.set(, value);
+            termios.local_flags.remove(LocalFlags::ECHOK);
+            termios.local_flags.insert(LocalFlags::PENDIN);
+            termios.input_flags.insert(InputFlags::IXANY);
+            termios.input_flags.insert(InputFlags::IMAXBEL);
+            termios.input_flags.insert(InputFlags::IUTF8);
+            termios.input_flags.insert(InputFlags::BRKINT);
+            termios.control_flags.remove(ControlFlags::CS6);
+            termios.control_flags.remove(ControlFlags::CS7);
+            termios.control_flags.insert(ControlFlags::HUPCL);
+            termios.control_flags.insert(ControlFlags::CS8);
+
             // termios.local_flags.remove(LocalFlags::ECHO);
             // termios.local_flags.remove(LocalFlags::ICANON);
-            tcsetattr(&pty.slave, SetArg::TCSANOW, &termios)?;
+            // tcsetattr(&pty.slave, SetArg::TCSANOW, &termios)?;
 
-            trace!("termios local: {:?}", termios.local_flags);
+            // let mut termios = tcgetattr(&pty.slave)?;
+            // trace!("termios input flags: {:?}", termios);
 
             setsid()?;
             dup2(slave_fd, libc::STDIN_FILENO)?;
@@ -1080,39 +1118,21 @@ fn spawn_payload(
             let mut master_writer = master_reader.try_clone()?;
             let mut client_reader = unsafe { File::from_raw_fd(client_fd) };
             let mut client_writer = client_reader.try_clone()?;
-
-            // set_non_blocking(&master_reader)?;
-
-            let shutdown_load = Arc::new(AtomicBool::new(false));
-            let shutdown_store = shutdown_load.clone();
-
+            let mut client_writer2 = client_writer.try_clone()?;
             trace!("creating fork parent");
 
             let pty_to_client = thread::spawn(move || -> anyhow::Result<()> {
                 let mut buffer = [0u8; 1024];
                 loop {
-                    {
-                        if shutdown_load.load(atomic::Ordering::Relaxed) {
-                            drop(client_writer);
-                            drop(master_reader);
-                            trace!("shutting down pty_to_client");
-                            break;
-                        }
-                    }
                     match master_reader.read(&mut buffer) {
                         Ok(0) => {
-                            drop(client_writer);
-                            drop(master_reader);
                             trace!("shutting down pty_to_client");
                             break;
                         }
                         Ok(n) => {
-                            client_writer.write_all(&buffer[..n])?;
-                            client_writer.flush()?;
+                            RpcOutputMessage::StdData(&buffer[..n]).write_to(&mut client_writer)?;
                         }
-                        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                            thread::sleep(Duration::from_millis(100));
-                        }
+
                         _ => {}
                     }
                 }
@@ -1121,52 +1141,43 @@ fn spawn_payload(
 
             let client_to_pty = {
                 thread::spawn(move || -> anyhow::Result<()> {
-                    let mut buffer = [0u8; 1024];
                     loop {
-                        let n = client_reader.read(&mut buffer)?;
-                        if n == 0 {
-                            drop(master_writer);
-                            drop(client_reader);
-
-                            shutdown_store.store(true, atomic::Ordering::Relaxed);
-                            trace!("shutting down client->pty");
-                            break;
-                        }
-                        trace!(
-                            "received {n} bytes, {:?}",
-                            &buffer[..n] // String::from_utf8_lossy(&buffer[..n])
-                        );
-                        master_writer.write_all(&buffer[..n])?;
-                        master_writer.flush()?;
+                        match RpcInputMessage::read_from(&mut client_reader) {
+                            Ok(RpcInputMessage::StdinData(data)) => {
+                                trace!("rpc: stdin data {:?}", data);
+                                master_writer.write_all(&data)?;
+                                master_writer.flush()?;
+                            }
+                            Ok(RpcInputMessage::TerminalResize(w, h)) => {
+                                trace!("rpc: resizing terminal {w} {h}")
+                            }
+                            Ok(RpcInputMessage::TermiosSettings()) => {
+                                trace!("rpc: set termios settings")
+                            }
+                            Err(_) => {
+                                trace!("rpc: failed to read");
+                                break;
+                            }
+                        };
                     }
                     Ok(())
                 })
             };
 
+            thread::spawn(move || -> anyhow::Result<()> {
+                let mut exit_code = [0u8];
+                exit_code_reader.read_exact(&mut exit_code)?;
+                RpcOutputMessage::Exit(exit_code[0]).write_to(&mut client_writer2)?;
+                Ok(())
+            });
+
             let _ = client_to_pty.join();
             trace!("finished reading from client -> sending to pty");
-
             let _ = pty_to_client.join();
             trace!("finished reading from pty -> sending to client");
-
             trace!("waiting for payload");
-
-            kill(child, Signal::SIGKILL)?;
-            waitpid(child, None)?;
-            trace!("finished waiting for payload");
 
             Ok(())
         }
     }
-}
-
-fn set_non_blocking(file: &File) -> anyhow::Result<()> {
-    use nix::fcntl::{fcntl, FcntlArg, OFlag};
-    use std::os::unix::io::AsRawFd;
-
-    let fd = file.as_raw_fd();
-    let flags = fcntl(fd, FcntlArg::F_GETFL)?;
-    let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
-    fcntl(fd, FcntlArg::F_SETFL(new_flags))?;
-    Ok(())
 }
