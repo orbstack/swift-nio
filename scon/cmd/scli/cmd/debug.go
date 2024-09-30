@@ -153,7 +153,9 @@ type TermiosParams struct {
 
 func GetTermiosParams() (string, error) {
 	// use TIOCGETA on mac instead of TCGETS2 (only on linux)?
-	termios, err := unix.IoctlGetTermios(0, unix.TIOCGETA)
+	termios, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TIOCGETA)
+
+	// termios, err := term.Tcgetattr
 	if err != nil {
 		return "", err
 	}
@@ -176,15 +178,19 @@ func GetTermiosParams() (string, error) {
 		return "", err
 	}
 
+	fmt.Println("termios params " + string(termiosParams))
 	return string(termiosParams), nil
 }
 
 func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	dockerBin := conf.FindXbin("docker")
-	// _, err := GetTermiosParams()
-	// if err != nil {
-	// 	return errors.New("failed to get termios params")
-	// }
+	termios, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TIOCGETA)
+	// params, err := GetTermiosParams()
+	if err != nil {
+		return errors.New("failed to get termios params")
+	}
+	// fmt.Println("get termios params: %+v\n", params)
+	fmt.Println("termios settings: %+v\n", termios)
 	fmt.Println("setting raw terminal")
 	originalState, err := term.MakeRaw(0)
 	// originalState, err := term.GetState(0) // just for debugging so terminal doesn't get annoying
@@ -198,9 +204,6 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 
 	cmd := exec.Command(dockerBin, "exec", "-i", containerId, "/wormhole-client")
 	cmd.Env = dockerHostEnv
-
-	// cmd.Stderr = os.Stderr
-	// cmd.Stdout = os.Stdout
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -216,7 +219,7 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	}
 	defer debugFile.Close()
 
-	err = WriteTermiosState(stdin)
+	err = WriteTermiosState(termios, stdin)
 	if err != nil {
 		return err
 	}

@@ -96,8 +96,8 @@ pub fn parse_termios(buf: &[u8], termios: &mut Termios) -> anyhow::Result<()> {
     ];
 
     let control_flags = [
-        // ControlFlags::CS5,
-        // ControlFlags::CS6,
+        ControlFlags::CS5,
+        ControlFlags::CS6,
         ControlFlags::CS7,
         ControlFlags::CS8,
         ControlFlags::PARENB,
@@ -109,12 +109,16 @@ pub fn parse_termios(buf: &[u8], termios: &mut Termios) -> anyhow::Result<()> {
     trace!("reading control chars");
     for cc in control_chars {
         let val = read_u8(buf, &mut idx)?;
+        trace!("setting {cc} to {val}");
         termios.control_chars[cc] = val;
     }
+
+    trace!("intr {:?}", termios.control_chars);
 
     trace!("reading input flags");
     for flag in input_flags {
         let val = read_u8(buf, &mut idx)?;
+        trace!("flag: {:?}, val: {val}", flag);
         assert!(val == 0 || val == 1);
         termios.input_flags.set(flag, val != 0);
     }
@@ -138,6 +142,8 @@ pub fn parse_termios(buf: &[u8], termios: &mut Termios) -> anyhow::Result<()> {
 
     let ispeed = read_u32(buf, &mut idx)?;
     let ospeed = read_u32(buf, &mut idx)?;
+
+    trace!("ispeed, ospeed {ispeed} {ospeed}");
 
     cfsetispeed(termios, map_speed(ispeed)?)?;
     cfsetospeed(termios, map_speed(ospeed)?)?;

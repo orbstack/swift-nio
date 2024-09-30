@@ -14,8 +14,8 @@ func mFlag[T uint64 | uint32](n T) byte {
 	return 0
 }
 
-func WriteTermiosState(writer io.Writer) error {
-	buf, err := makeTermiosBuf()
+func WriteTermiosState(termios *unix.Termios, writer io.Writer) error {
+	buf, err := makeTermiosBuf(termios)
 	if err != nil {
 		return err
 	}
@@ -30,13 +30,7 @@ func WriteTermiosState(writer io.Writer) error {
 	return nil
 }
 
-func makeTermiosBuf() ([]byte, error) {
-	var buf []byte
-
-	termios, err := unix.IoctlGetTermios(0, unix.TIOCGETA)
-	if err != nil {
-		return nil, err
-	}
+func makeTermiosBuf(termios *unix.Termios) ([]byte, error) {
 	var control_chars = [...]int{
 		unix.VINTR,
 		unix.VQUIT,
@@ -99,15 +93,23 @@ func makeTermiosBuf() ([]byte, error) {
 	}
 
 	var controlFlags = []uint64{
-		// unix.CS5,
-		// unix.CS6,
+		unix.CS5,
+		unix.CS6,
 		unix.CS7,
 		unix.CS8,
 		unix.PARENB,
 		unix.PARODD,
 	}
 
-	for cc := range control_chars {
+	// debugFile, err := os.Create("tmp2.txt")
+	// defer debugFile.Close()
+	// fmt.Fprintf(debugFile, "control chars: %+v\n", termios.Cc)
+	// fmt.Fprintf(debugFile, "interrupt: %+v\n", unix.VINTR)
+	// fmt.Fprintf(debugFile, "input flag: %+v\n", termios.Iflag)
+
+	var buf []byte
+
+	for _, cc := range control_chars {
 		buf = append(buf, termios.Cc[cc])
 	}
 
@@ -124,6 +126,7 @@ func makeTermiosBuf() ([]byte, error) {
 
 	for _, item := range flags {
 		for _, mask := range item.masks {
+			// fmt.Fprintf(debugFile, "flag: %+v, mask %+v, result %+v\n", item.host_flag, mask, mFlag(item.host_flag&mask))
 			buf = append(buf, mFlag(item.host_flag&mask))
 		}
 	}
