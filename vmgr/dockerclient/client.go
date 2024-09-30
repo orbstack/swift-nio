@@ -32,6 +32,20 @@ type Options struct {
 	Unversioned bool
 }
 
+type APIError struct {
+	Message    string
+	ShowStatus bool
+	HTTPStatus int
+}
+
+func (e *APIError) Error() string {
+	if e.ShowStatus {
+		return fmt.Sprintf("[Docker] %s (%d)", e.Message, e.HTTPStatus)
+	} else {
+		return fmt.Sprintf("[Docker] %s", e.Message)
+	}
+}
+
 func NewWithHTTP(httpC *http.Client, options *Options) *Client {
 	baseURL := "http://docker/v1.43"
 	if options != nil {
@@ -86,10 +100,19 @@ func ReadError(resp *http.Response) error {
 	err = json.Unmarshal(errBody, &jsonError)
 	if err != nil {
 		// fallback: plain text
-		return fmt.Errorf("[Docker] %s (%s)", string(errBody), resp.Status)
+		return &APIError{
+			Message: string(errBody),
+			// include HTTP status code if error isn't JSON
+			ShowStatus: true,
+			HTTPStatus: resp.StatusCode,
+		}
 	}
 
-	return fmt.Errorf("[Docker] %s", jsonError.Message)
+	return &APIError{
+		Message:    jsonError.Message,
+		ShowStatus: false,
+		HTTPStatus: resp.StatusCode,
+	}
 }
 
 func (c *Client) newRequest(method, path string, body any) (*http.Request, error) {
