@@ -9,6 +9,7 @@ use std::{
         unix::net::{UnixListener, UnixStream},
     },
     path::Path,
+    process,
     ptr::{null, null_mut},
     sync::{
         atomic::{self, AtomicBool},
@@ -764,13 +765,11 @@ fn main() -> anyhow::Result<()> {
                 proc_fd,
                 nix_flock_ref,
                 monitor_socket_fd,
-                send_client_socket_fd,
+                // send_client_socket_fd,
                 cgroup_path,
                 intermediate,
                 monitor_sfd,
             )?;
-
-            trace!("monitor finished!!");
         }
 
         // child 1 = intermediate
@@ -1011,7 +1010,6 @@ fn main() -> anyhow::Result<()> {
             }
         }
     }
-    trace!("everything finished...");
 
     Ok(())
 }
@@ -1136,19 +1134,13 @@ fn spawn_payload(
                 let mut exit_code = [0u8];
                 exit_code_reader.read_exact(&mut exit_code)?;
                 trace!("read exit code {}", exit_code[0]);
+
                 RpcOutputMessage::Exit(exit_code[0]).write_to(&mut client_writer2)?;
-                Ok(())
+
+                trace!("exiting process");
+                process::exit(exit_code[0].into());
+                trace!("exited process");
             });
-
-            trace!("waiting for child (payload)");
-            // waitpid(child, None)?;
-            // close(slave_fd)?;
-
-            match fcntl(slave_fd, FcntlArg::F_GETFD) {
-                Ok(_) => trace!("slave fd still open"),
-                Err(Errno::EBADF) => trace!("closed / invalid"),
-                Err(e) => trace!("error {:?}", e),
-            };
 
             trace!("child payload exited");
             let _ = client_to_pty.join();

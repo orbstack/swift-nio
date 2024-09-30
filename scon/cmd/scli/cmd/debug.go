@@ -238,35 +238,25 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	winchChan := make(chan os.Signal, 1)
 	signal.Notify(winchChan, unix.SIGWINCH)
 
-	go func() {
-		for {
-			select {
-			case <-winchChan:
-				w, h, err := term.GetSize(0)
-				if err != nil {
-					return
-				}
-				if err := RpcTerminalResize(stdin, w, h); err != nil {
-					return
-				}
-			}
-		}
-	}()
-
 	fmt.Println("running docker exec")
 	err = cmd.Start()
 	if err != nil {
 		return errors.New("error when executing starting client")
 	}
 
-	// wait until we receive an exit code.. which calls os.Exit
-	// cmd.Wait will always happen after, so we can leave this for now
-	if err := cmd.Wait(); err != nil {
-		return errors.New("error when waiting client")
+	// run repeatedly until we receive an exit code.. which calls os.Exit
+	for {
+		select {
+		case <-winchChan:
+			w, h, err := term.GetSize(0)
+			if err != nil {
+				return err
+			}
+			if err := RpcTerminalResize(stdin, w, h); err != nil {
+				return err
+			}
+		}
 	}
-
-	fmt.Println("rpc wormhole connection finished")
-	return nil
 }
 
 func debugRemote(containerID string) error {

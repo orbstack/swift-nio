@@ -228,14 +228,10 @@ fn main() -> anyhow::Result<()> {
                     CString::new(serialized)?,
                 ],
             )?;
-            std::process::exit(0);
+            unreachable!();
         }
         ForkResult::Parent { child } => {
             waitpid(child, None)?;
-            let mut buffer = [0u8; mem::size_of::<i32>()]; // Buffer to hold 4 bytes (i32)
-            read(exit_code_pipe_read_fd, &mut buffer)?;
-            let num = i32::from_ne_bytes(buffer);
-            trace!("wormhole-attach exit code: {}", num);
             shutdown()?;
         }
     }
