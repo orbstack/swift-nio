@@ -205,7 +205,6 @@ func (d *domainproxyInfo) setAddr(ip netip.Addr, val net.IP) {
 	}
 
 	d.ipMap[ip] = val
-	logrus.WithFields(logrus.Fields{"ip": ip, "val": val}).Debug("emmie | set addr.")
 }
 
 func (d *domainproxyInfo) setAddrDocker(ip netip.Addr, val bool) {
@@ -259,8 +258,6 @@ func (d *domainproxyInfo) setAddrFreeable(ip netip.Addr) {
 			logrus.WithError(err).Debug("could not remove from domainproxy map.")
 		}
 		d.setAddrDocker(ip, false)
-
-		logrus.WithField("ip", ip).Debug("emmie | set addr freeable.")
 	}
 }
 
@@ -336,10 +333,10 @@ func (d *domainproxyInfo) claimNextAvailableIp4(id string, val net.IP) (ip netip
 		if preferredAddrVal, has := d.getAddr(preferredAddr); has && preferredAddrVal == nil {
 			d.setAddr(preferredAddr, val)
 			// id map already has the right value
-			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("emmie | claimed preferred ip.")
+			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("mdns domainproxy: claimed preferred ip")
 			return preferredAddr, true
 		} else {
-			logrus.WithField("preferredAddr", preferredAddr).Debug("could not assign preferred ip.")
+			logrus.WithField("preferredAddr", preferredAddr).Debug("mdns domainproxy: could not assign preferred ip")
 		}
 	}
 
@@ -347,11 +344,11 @@ func (d *domainproxyInfo) claimNextAvailableIp4(id string, val net.IP) (ip netip
 		d.setAddr(nextAddr, val)
 		d.idMap4[id] = nextAddr
 
-		logrus.WithFields(logrus.Fields{"id": id, "ip": nextAddr, "val": val}).Debug("emmie | claimed available ip.")
+		logrus.WithFields(logrus.Fields{"id": id, "ip": nextAddr, "val": val}).Debug("mdns domainproxy: claimed available ip.")
 		return nextAddr, true
 	}
 
-	logrus.WithFields(logrus.Fields{"id": id, "val": val}).Debug("emmie | failed to claim an ip")
+	logrus.WithFields(logrus.Fields{"id": id, "val": val}).Warn("mdns domainproxy: failed to claim an ip")
 	return netip.Addr{}, false
 }
 
@@ -361,10 +358,10 @@ func (d *domainproxyInfo) claimNextAvailableIp6(id string, val net.IP) (ip netip
 		if preferredAddrVal, has := d.getAddr(preferredAddr); has && preferredAddrVal == nil {
 			d.setAddr(preferredAddr, val)
 			// id map already has the right value
-			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("emmie | claimed preferred ip.")
+			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("mdns domainproxy: claimed preferred ip.")
 			return preferredAddr, true
 		} else {
-			logrus.WithFields(logrus.Fields{"id": id, "preferredAddr": preferredAddr, "val": val}).Debug("emmie | could not assign preferred ip.")
+			logrus.WithFields(logrus.Fields{"id": id, "preferredAddr": preferredAddr, "val": val}).Debug("mdns domainproxy: could not assign preferred ip.")
 		}
 	}
 
@@ -372,18 +369,16 @@ func (d *domainproxyInfo) claimNextAvailableIp6(id string, val net.IP) (ip netip
 		d.setAddr(nextAddr, val)
 		d.idMap6[id] = nextAddr
 
-		logrus.WithFields(logrus.Fields{"id": id, "ip": nextAddr, "val": val}).Debug("emmie | claimed available ip.")
+		logrus.WithFields(logrus.Fields{"id": id, "ip": nextAddr, "val": val}).Debug("mdns domainproxy: claimed available ip.")
 		return nextAddr, true
 	}
 
-	logrus.WithFields(logrus.Fields{"id": id, "val": val}).Debug("emmie | failed to claim an ip")
+	logrus.WithFields(logrus.Fields{"id": id, "val": val}).Warn("mdns domainproxy: failed to claim an ip")
 	return netip.Addr{}, false
 }
 
 // needs mutex
 func (d *domainproxyInfo) ensureMachineDomainproxyCorrect(id string, machine *Container) (ip4 net.IP, ip6 net.IP) {
-	logrus.WithFields(logrus.Fields{"id": id, "machine": machine}).Debug("emmie | ensure machine domainproxy correct.")
-
 	// prevent us from trying to do stuff with ids that don't make sense
 	if id == "" {
 		return
@@ -423,18 +418,14 @@ func (d *domainproxyInfo) ensureMachineDomainproxyCorrect(id string, machine *Co
 					}
 
 					if !currentVal.Equal(val) {
-						logrus.WithFields(logrus.Fields{"id": id, "machine": machine, "currentVal": currentVal, "val": val}).Debug("emmie | domainproxy entry wrong.")
+						logrus.WithFields(logrus.Fields{"id": id, "machine": machine, "currentVal": currentVal, "val": val}).Debug("mdns domainproxy: entry wrong")
 						d.setAddr(addr, val)
-					} else {
-						logrus.WithFields(logrus.Fields{"id": id, "machine": machine, "currentVal": currentVal, "val": val}).Debug("emmie | domainproxy all good")
 					}
 					continue
 				}
 			}
 
-			// if we didn't continue, there we didnt have an ip
-			logrus.WithFields(logrus.Fields{"id": id, "machine": machine, "val": val}).Debug("emmie | domainproxy has no corresponding ip.")
-
+			// if we didn't hit the continue, then we didnt have an ip
 			if is4 {
 				if ip, ok := d.claimNextAvailableIp4(id, val); ok {
 					ip4 = ip.AsSlice()
@@ -589,7 +580,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 
 	proxy, err := newTlsProxy(host, r)
 	if err != nil {
-		logrus.Debug("emmie | tlsProxy error")
+		logrus.Debug("faled to create mdns tlsproxy")
 	}
 
 	r.tlsProxy = proxy
@@ -661,7 +652,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		return r.httpServer.ServeTLS(l, "", "")
 	})
 
-	go runOne("start tls proxy", func() error {
+	go runOne("start mdns tls proxy", func() error {
 		return r.tlsProxy.Start()
 	})
 

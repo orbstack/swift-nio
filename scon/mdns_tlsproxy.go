@@ -118,19 +118,19 @@ func (t *tlsProxy) Start() error {
 	go func() {
 		err := httpServer.ServeTLS(dispatchedLn4, "", "")
 		if err != nil {
-			logrus.WithError(err).Error("emmie | serve tls failed")
+			logrus.WithError(err).Error("mdns tlsproxy: serve tls failed")
 		}
 	}()
 	go func() {
 		err := httpServer.ServeTLS(dispatchedLn6, "", "")
 		if err != nil {
-			logrus.WithError(err).Error("emmie | serve tls failed")
+			logrus.WithError(err).Error("mdns tlsproxy: serve tls failed")
 		}
 	}()
 
 	tproxy, err := bpf.NewTproxy(domainproxySubnet4Prefix, domainproxySubnet6Prefix, 443)
 	if err != nil {
-		return fmt.Errorf("emmie | failed to create tproxy: %w", err)
+		return fmt.Errorf("mdns tlsproxy: failed to create tproxy bpf: %w", err)
 	}
 
 	ln4File, err := ln4.(*net.TCPListener).File()
@@ -153,7 +153,7 @@ func (t *tlsProxy) Start() error {
 
 	t.tproxy = tproxy
 
-	logrus.Debug("emmie | tls proxy started")
+	logrus.Debug("mdns tls proxy started")
 	return nil
 }
 
@@ -334,8 +334,6 @@ func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.
 	if err != nil {
 		return nil, err
 	}
-
-	logrus.WithFields(logrus.Fields{"downstreamIp": downstreamIp, "upstreamIp": upstreamIp}).Debug("emmie | dialUpstream")
 
 	// fall back to normal dialer
 	dialer := &net.Dialer{}

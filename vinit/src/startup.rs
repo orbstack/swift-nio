@@ -79,6 +79,10 @@ const NAT64_SOURCE_ADDR: &str = "10.183.233.241";
 const FWMARK_DOCKER_ROUTE_BIT: u32 = 1 << 0;
 const FWMARK_LOCAL_ROUTE_BIT: u32 = 1 << 1;
 
+// also must match netconf
+const ROUTE_TABLE_LOCAL: u32 = 32;
+const ROUTE_TABLE_DOCKER: u32 = 64;
+
 const FS_CORRUPTED_MSG: &str = r#"
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! DATA IS LIKELY CORRUPTED.
@@ -436,6 +440,7 @@ async fn setup_network() -> anyhow::Result<()> {
     sysctl("net.ipv6.conf.default.accept_ra", "0")?;
     // and fix tentative IPv6 delay
     sysctl("net.ipv6.conf.eth0.accept_dad", "0")?;
+    sysctl("net.ipv6.conf.lo.accept_dad", "0")?;
     // on all interfaces, e.g. conbr0 too
     // TODO consider optimistic dad
     sysctl("net.ipv6.conf.all.accept_dad", "0")?;
@@ -464,10 +469,11 @@ async fn setup_network() -> anyhow::Result<()> {
         .unwrap();
     ip_link.set(lo.header.index).up().execute().await?;
 
+    // ip route add local default dev lo table 32
     ip_route
         .add()
         .v4()
-        .table_id(32)
+        .table_id(ROUTE_TABLE_LOCAL)
         .kind(RouteType::Local)
         .scope(RouteScope::Host)
         .output_interface(lo.header.index)
@@ -476,18 +482,19 @@ async fn setup_network() -> anyhow::Result<()> {
     ip_route
         .add()
         .v6()
-        .table_id(32)
+        .table_id(ROUTE_TABLE_LOCAL)
         .kind(RouteType::Local)
         .scope(RouteScope::Host)
         .output_interface(lo.header.index)
         .execute()
         .await?;
 
+    // ip rule add fwmark 0x2 fwmask 0x2 table 32
     {
         let mut rule_add = ip_rule
             .add()
             .v4()
-            .table_id(32)
+            .table_id(ROUTE_TABLE_LOCAL)
             .fw_mark(FWMARK_LOCAL_ROUTE_BIT)
             .action(RuleAction::ToTable);
         rule_add
@@ -500,7 +507,7 @@ async fn setup_network() -> anyhow::Result<()> {
         let mut rule_add = ip_rule
             .add()
             .v6()
-            .table_id(32)
+            .table_id(ROUTE_TABLE_LOCAL)
             .fw_mark(FWMARK_LOCAL_ROUTE_BIT)
             .action(RuleAction::ToTable);
         rule_add
@@ -592,6 +599,17 @@ async fn setup_network() -> anyhow::Result<()> {
     ip_route
         .add()
         .v4()
+        .destination_prefix(NAT64_SOURCE_ADDR.parse().unwrap(), 32)
+        .output_interface(eth1.header.index)
+        .execute()
+        .await
+        .unwrap();
+    // egress route from Docker machine back to BPF eth1
+    // ip route add 10.183.233.241 dev eth1 table 64
+    ip_route
+        .add()
+        .v4()
+        .table_id(ROUTE_TABLE_DOCKER)
         .destination_prefix(NAT64_SOURCE_ADDR.parse().unwrap(), 32)
         .output_interface(eth1.header.index)
         .execute()
