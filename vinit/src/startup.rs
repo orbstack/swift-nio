@@ -1058,16 +1058,17 @@ fn setup_arch_emulators(sys_info: &SystemInfo) -> anyhow::Result<()> {
         env::set_current_dir("/").unwrap();
         real_res.unwrap();
         real_res2.unwrap();
-
-        // write a fake x86 /proc/cpuinfo
-        rosetta::write_cpuinfo("/run/rosetta-cpuinfo")?;
-        // make it read-only
-        fs::set_permissions("/run/rosetta-cpuinfo", Permissions::from_mode(0o444))?;
-        seal_read_only("/run/rosetta-cpuinfo")?;
     } else {
         // qemu
         println!("  -  Using QEMU");
     }
+
+    // write a fake x86 /proc/cpuinfo
+    // applies to both qemu and rosetta
+    rosetta::write_cpuinfo("/run/rosetta-cpuinfo")?;
+    // make it read-only
+    fs::set_permissions("/run/rosetta-cpuinfo", Permissions::from_mode(0o444))?;
+    seal_read_only("/run/rosetta-cpuinfo")?;
 
     // always register qemu x86_64
     // if Rosetta mode: RVFS wrapper may choose to invoke it via task comm=rvk2 key (we add ')' flag)
