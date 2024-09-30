@@ -158,25 +158,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         NSWindow.allowsAutomaticWindowTabbing = false
 
-        for arg in CommandLine.arguments {
-            // only show menu bar if started by CLI as background app
-            // but if we haven't done onboarding, then do it now
-            // can happen if users' first-run is via CLI
-            if (arg == "--internal-cli-background" || debugAlwaysCliBackground) && Defaults[.onboardingCompleted] {
-                // don't steal focus
-                NSApp.setActivationPolicy(.accessory)
+        // only show menu bar if started by CLI as background app, or as a login item
+        // but if we haven't done onboarding, then do it now
+        // can happen if users' first-run is via CLI
+        let internalCliBackground = CommandLine.arguments.contains("--internal-cli-background")
+        if Defaults[.onboardingCompleted] && (internalCliBackground || debugAlwaysCliBackground || launchedAsLoginItem()) {
+            // don't steal focus
+            NSApp.setActivationPolicy(.accessory)
 
-                // close all user-facing windows, regardless of menu bar
-                // this means that w/o menubar, we'll get an empty app in the Dock
-                for window in NSApp.windows {
-                    if window.isUserFacing {
-                        window.close()
-                    }
+            // close all user-facing windows, regardless of menu bar
+            // this means that w/o menubar, we'll get an empty app in the Dock
+            for window in NSApp.windows {
+                if window.isUserFacing {
+                    window.close()
                 }
-
-                NSApp.hide(nil)
-                NSApp.deactivate()
             }
+
+            NSApp.hide(nil)
+            NSApp.deactivate()
         }
 
         // Menu bar status item
@@ -345,4 +344,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                                          keyCode: 0)!
         NSApp.mainMenu?.performKeyEquivalent(with: fakeEvent)
     }
+}
+
+// https://stackoverflow.com/a/74733681
+private func launchedAsLoginItem() -> Bool {
+    let event = NSAppleEventManager.shared().currentAppleEvent
+    return event?.eventID == kAEOpenApplication &&
+        event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
 }
