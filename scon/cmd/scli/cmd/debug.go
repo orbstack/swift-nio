@@ -181,10 +181,10 @@ func GetTermiosParams() (string, error) {
 
 func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	dockerBin := conf.FindXbin("docker")
-	_, err := GetTermiosParams()
-	if err != nil {
-		return errors.New("failed to get termios params")
-	}
+	// _, err := GetTermiosParams()
+	// if err != nil {
+	// 	return errors.New("failed to get termios params")
+	// }
 	fmt.Println("setting raw terminal")
 	originalState, err := term.MakeRaw(0)
 	// originalState, err := term.GetState(0) // just for debugging so terminal doesn't get annoying
@@ -210,7 +210,18 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	if err != nil {
 		return errors.New("could not create stdout pipe")
 	}
+	debugFile, err := os.Create("tmp.txt")
+	if err != nil {
+		return err
+	}
+	defer debugFile.Close()
 
+	err = WriteTermiosState(stdin)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(debugFile, "finished writing termios")
 	go func() {
 		buf := make([]byte, 1024)
 		for {
@@ -235,11 +246,6 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 			}
 		}
 	}()
-	debugFile, err := os.Create("tmp.txt")
-	if err != nil {
-		return err
-	}
-	defer debugFile.Close()
 
 	go func() {
 		for {

@@ -16,22 +16,23 @@ use nix::sys::{
         OutputFlags, Termios,
     },
 };
+use tracing::trace;
 
-pub fn read_termios(fd: RawFd) -> anyhow::Result<Termios> {
+pub fn set_termios_to_host(fd: RawFd, termios: &mut Termios) -> anyhow::Result<()> {
+    trace!("waiting for length");
     let len = {
         let mut len_bytes = [0_u8; size_of::<u32>()];
         recv(fd, &mut len_bytes, MsgFlags::MSG_WAITALL)?;
         u32::from_be_bytes(len_bytes) as usize
     };
 
+    trace!("waiting for buf");
     let mut termios_buf = vec![0_u8; len];
     recv(fd, &mut termios_buf, MsgFlags::MSG_WAITALL)?;
-    parse_termios(&termios_buf)
+    parse_termios(&termios_buf, termios)
 }
 
-pub fn parse_termios(buf: &[u8]) -> anyhow::Result<Termios> {
-    let mut termios = termios::tcgetattr(io::stdin())?;
-
+pub fn parse_termios(buf: &[u8], termios: &mut Termios) -> anyhow::Result<()> {
     //   there are a couple of control chars that don't exist.. maybe just arch?
     let control_chars = [
         libc::VINTR,
@@ -105,37 +106,42 @@ pub fn parse_termios(buf: &[u8]) -> anyhow::Result<Termios> {
 
     let mut idx = 0;
 
+    trace!("reading control chars");
     for cc in control_chars {
         let val = read_u8(buf, &mut idx)?;
         termios.control_chars[cc] = val;
     }
 
+    trace!("reading input flags");
     for flag in input_flags {
         let val = read_u8(buf, &mut idx)?;
+        assert!(val == 0 || val == 1);
         termios.input_flags.set(flag, val != 0);
     }
 
     for flag in local_flags {
         let val = read_u8(buf, &mut idx)?;
+        assert!(val == 0 || val == 1);
         termios.local_flags.set(flag, val != 0);
     }
 
     for flag in output_flags {
         let val = read_u8(buf, &mut idx)?;
+        assert!(val == 0 || val == 1);
         termios.output_flags.set(flag, val != 0);
     }
     for flag in control_flags {
         let val = read_u8(buf, &mut idx)?;
+        assert!(val == 0 || val == 1);
         termios.control_flags.set(flag, val != 0);
     }
 
     let ispeed = read_u32(buf, &mut idx)?;
     let ospeed = read_u32(buf, &mut idx)?;
 
-    cfsetispeed(&mut termios, map_speed(ispeed)?)?;
-    cfsetospeed(&mut termios, map_speed(ospeed)?)?;
-
-    Ok(termios)
+    cfsetispeed(termios, map_speed(ispeed)?)?;
+    cfsetospeed(termios, map_speed(ospeed)?)?;
+    Ok(())
 }
 
 fn read_u8(buf: &[u8], idx: &mut usize) -> anyhow::Result<u8> {

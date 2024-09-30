@@ -59,8 +59,8 @@ use nix::{
 use pidfd::PidFd;
 use rpc::{RpcInputMessage, RpcOutputMessage};
 use signals::{mask_sigset, SigSet, SignalFd};
-use termios::read_termios;
-use tracing::{debug, span, trace, warn, Level};
+use termios::set_termios_to_host;
+use tracing::{debug, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
@@ -1043,7 +1043,6 @@ fn spawn_payload(
     cstr_envs: &Vec<CString>,
 ) -> anyhow::Result<()> {
     // set up host termios before forking and handling rpc
-    let host_termios = read_termios(client_fd)?;
     let pty = openpty(
         Some(&Winsize {
             ws_row: 24,
@@ -1051,46 +1050,20 @@ fn spawn_payload(
             ws_xpixel: 0,
             ws_ypixel: 0,
         }),
-        &host_termios,
+        None,
     )?;
+
+    trace!("waiting for termios host read");
+    let mut termios = tcgetattr(&pty.slave)?;
+    set_termios_to_host(client_fd, &mut termios)?;
+    tcsetattr(&pty.slave, SetArg::TCSANOW, &termios)?;
+    trace!("finished reading host");
 
     let master_fd = pty.master.as_raw_fd();
     let slave_fd = pty.slave.as_raw_fd();
     match unsafe { fork()? } {
         // child: payload
         ForkResult::Child => {
-            let mut termios = tcgetattr(&pty.slave)?;
-
-            // cfsetispeed(&mut termios, 32 as BaudRate);
-            // termios.control_flags = 0x0048 as ControlFlags;
-            // termios.control_flags.set(other, value);
-            // termios.c_ifl
-            // termios.c_iflag = 0x00 as nix::libc::tcflag_t;
-            // termios.control_flags = ControlFlags::from_bits_retain(host_termios.control_flags);
-            // termios.input_flags = InputFlags::from_bits_truncate(host_termios.input_flags);
-            // termios.output_flags = OutputFlags::from_bits_truncate(host_termios.output_flags);
-            // termios.local_flags = LocalFlags::from_bits_truncate(host_termios.local_flags);
-            // termios.control_chars = host_termios.control_chars;
-
-            // termios.control_flags.set(, value);
-            termios.local_flags.remove(LocalFlags::ECHOK);
-            termios.local_flags.insert(LocalFlags::PENDIN);
-            termios.input_flags.insert(InputFlags::IXANY);
-            termios.input_flags.insert(InputFlags::IMAXBEL);
-            termios.input_flags.insert(InputFlags::IUTF8);
-            termios.input_flags.insert(InputFlags::BRKINT);
-            termios.control_flags.remove(ControlFlags::CS6);
-            termios.control_flags.remove(ControlFlags::CS7);
-            termios.control_flags.insert(ControlFlags::HUPCL);
-            termios.control_flags.insert(ControlFlags::CS8);
-
-            // termios.local_flags.remove(LocalFlags::ECHO);
-            // termios.local_flags.remove(LocalFlags::ICANON);
-            // tcsetattr(&pty.slave, SetArg::TCSANOW, &termios)?;
-
-            // let mut termios = tcgetattr(&pty.slave)?;
-            // trace!("termios input flags: {:?}", termios);
-
             setsid()?;
             dup2(slave_fd, libc::STDIN_FILENO)?;
             dup2(slave_fd, libc::STDOUT_FILENO)?;
