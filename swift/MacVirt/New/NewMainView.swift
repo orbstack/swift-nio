@@ -86,7 +86,8 @@ struct NewMainView: View {
             case VmError.spawnExit:
                 content.scrollableText = true
             default:
-                content.scrollableText = false
+                // always use scrollable text box for long errors
+                content.scrollableText = error.recoverySuggestion?.count ?? 0 > 1000
             }
             
             switch error {
