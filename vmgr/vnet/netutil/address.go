@@ -4,8 +4,33 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
+
+var (
+	vnetSubnet4IpNet *net.IPNet
+	vnetSubnet6IpNet *net.IPNet
+
+	vnetHostNatIP4 net.IP
+	vnetHostNatIP6 net.IP
+)
+
+func init() {
+	var err error
+	_, vnetSubnet4IpNet, err = net.ParseCIDR(netconf.VnetSubnet4CIDR)
+	if err != nil {
+		panic(err)
+	}
+
+	_, vnetSubnet6IpNet, err = net.ParseCIDR(netconf.VnetSubnet6CIDR)
+	if err != nil {
+		panic(err)
+	}
+
+	vnetHostNatIP4 = net.ParseIP(netconf.VnetHostNatIP4)
+	vnetHostNatIP6 = net.ParseIP(netconf.VnetHostNatIP6)
+}
 
 // IPv4 or IPv6, properly sized
 func ParseTcpipAddress(ip string) tcpip.Address {
@@ -44,6 +69,15 @@ func ShouldForward(addr tcpip.Address) bool {
 	// IPv4 broadcast (DHCP)
 	if ip.Equal(net.IPv4bcast) {
 		return false
+	}
+
+	// vnet: block all except host NAT IPs (which do go through forward path)
+	if vnetSubnet4IpNet.Contains(ip) {
+		return vnetHostNatIP4.Equal(ip)
+	}
+
+	if vnetSubnet6IpNet.Contains(ip) {
+		return vnetHostNatIP6.Equal(ip)
 	}
 
 	return true

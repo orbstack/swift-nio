@@ -175,6 +175,11 @@ func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 		return false
 	}
 
+	if !netutil.ShouldForward(dstAddrGv) {
+		logrus.Trace("discarding ICMP packet: shouldn't forward")
+		return false
+	}
+
 	dstAddr := &net.UDPAddr{
 		IP: net.IP(dstAddrGv.AsSlice()),
 	}
