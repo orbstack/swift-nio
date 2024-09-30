@@ -90,3 +90,14 @@ func CreateTerminalResizeMessage(width, height int) (RpcInputMessage, error) {
 		Payload: buf.Bytes(),
 	}, nil
 }
+
+func RpcTerminalResize(writer io.Writer, width, height int) error {
+	writer.Write([]byte{byte(TerminalResizeType)})
+	if err := binary.Write(writer, binary.BigEndian, uint16(width)); err != nil {
+		return err
+	}
+	if err := binary.Write(writer, binary.BigEndian, uint16(height)); err != nil {
+		return err
+	}
+	return nil
+}

@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 )
 
 func mFlag[T uint64 | uint32](n T) byte {
@@ -14,7 +15,23 @@ func mFlag[T uint64 | uint32](n T) byte {
 	return 0
 }
 
+func WriteWindowSize(writer io.Writer) error {
+	w, h, err := term.GetSize(0)
+	if err != nil {
+		return err
+	}
+
+	if err := binary.Write(writer, binary.BigEndian, uint32(w)); err != nil {
+		return err
+	}
+	if err := binary.Write(writer, binary.BigEndian, uint32(h)); err != nil {
+		return err
+	}
+	return nil
+}
+
 func WriteTermiosState(termios *unix.Termios, writer io.Writer) error {
+
 	buf, err := makeTermiosBuf(termios)
 	if err != nil {
 		return err

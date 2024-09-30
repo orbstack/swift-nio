@@ -49,7 +49,7 @@ impl<'a> RpcOutputMessage<'a> {
 
 pub enum RpcInputMessage {
     StdinData(Vec<u8>),
-    TerminalResize(u32, u32),
+    TerminalResize(u16, u16),
     TermiosSettings(),
 }
 
@@ -60,24 +60,26 @@ impl RpcInputMessage {
             stream.read_exact(&mut rpc_type_byte)?;
             RpcType::from_const(rpc_type_byte[0])
         };
-        let len = {
-            let mut len_bytes = [0_u8; size_of::<u32>()];
-            stream.read_exact(&mut len_bytes)?;
-            u32::from_be_bytes(len_bytes) as usize
-        };
-
-        let mut data = vec![0_u8; len];
-        stream.read_exact(&mut data)?;
-
         match rpc_type {
-            RpcType::StdinData => Ok(RpcInputMessage::StdinData(data)),
+            RpcType::StdinData => {
+                let len = {
+                    let mut len_bytes = [0_u8; size_of::<u32>()];
+                    stream.read_exact(&mut len_bytes)?;
+                    u32::from_be_bytes(len_bytes) as usize
+                };
+
+                let mut data = vec![0_u8; len];
+                stream.read_exact(&mut data)?;
+
+                Ok(RpcInputMessage::StdinData(data))
+            }
             RpcType::TerminalResize => {
-                let mut buf = [0_u8; size_of::<u32>()];
+                let mut buf = [0_u8; size_of::<u16>()];
                 stream.read_exact(&mut buf)?;
-                let w = u32::from_be_bytes(buf);
+                let w = u16::from_be_bytes(buf);
 
                 stream.read_exact(&mut buf)?;
-                let h = u32::from_be_bytes(buf);
+                let h = u16::from_be_bytes(buf);
                 Ok(RpcInputMessage::TerminalResize(w, h))
             }
             RpcType::TermiosSettings => {

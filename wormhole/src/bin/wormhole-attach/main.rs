@@ -22,7 +22,8 @@ use anyhow::{anyhow, Error};
 use libc::{
     prlimit, ptrace, sock_filter, sock_fprog, syscall, tcflag_t, SYS_capset, SYS_seccomp,
     PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
-    PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE, STDIN_FILENO, STDOUT_FILENO,
+    PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE, STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ,
+    TIOCSWINSZ,
 };
 use model::WormholeConfig;
 use mounts::with_remount_rw;
@@ -1122,7 +1123,16 @@ fn spawn_payload(
                                 master_writer.flush()?;
                             }
                             Ok(RpcInputMessage::TerminalResize(w, h)) => {
-                                trace!("rpc: resizing terminal {w} {h}")
+                                trace!("rpc: resizing terminal {w} {h}");
+                                let ws = Winsize {
+                                    ws_row: h,
+                                    ws_col: w,
+                                    ws_xpixel: 0, // Not used, can be set to 0
+                                    ws_ypixel: 0, // Not used, can be set to 0
+                                };
+                                unsafe {
+                                    nix::libc::ioctl(slave_fd, TIOCSWINSZ, &ws);
+                                }
                             }
                             Ok(RpcInputMessage::TermiosSettings()) => {
                                 trace!("rpc: set termios settings")

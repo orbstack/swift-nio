@@ -17,7 +17,6 @@ use nix::sys::{
     },
 };
 use tracing::trace;
-
 pub fn set_termios_to_host(fd: RawFd, termios: &mut Termios) -> anyhow::Result<()> {
     trace!("waiting for length");
     let len = {

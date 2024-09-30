@@ -133,7 +133,6 @@ type ContextData struct {
 		}
 	}
 }
-
 type WormholeParams struct {
 	Pid        int      `json:"init_pid"`
 	Env        []string `json:"container_env"`
@@ -141,56 +140,13 @@ type WormholeParams struct {
 	ShellCmd   string   `json:"entry_shell_cmd"`
 }
 
-type TermiosParams struct {
-	Iflag int     `json:"input_flags"`
-	Oflag int     `json:"output_flags"`
-	Cflag int     `json:"control_flags"`
-	Lflag int     `json:"local_flags"`
-	Cc    [32]int `json:"control_chars"`
-	// Ispeed int     `json:"c_ispeed"`
-	// Ospeed int     `json:"c_ospeed"`
-}
-
-func GetTermiosParams() (string, error) {
-	// use TIOCGETA on mac instead of TCGETS2 (only on linux)?
-	termios, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TIOCGETA)
-
-	// termios, err := term.Tcgetattr
-	if err != nil {
-		return "", err
-	}
-
-	var cc [32]int
-	for i, val := range termios.Cc {
-		cc[i] = int(val)
-	}
-
-	termiosParams, err := json.Marshal(TermiosParams{
-		Iflag: int(termios.Iflag),
-		Oflag: int(termios.Oflag),
-		Cflag: int(termios.Cflag),
-		Lflag: int(termios.Lflag),
-		Cc:    cc,
-		// Ispeed: int(termios.Ispeed),
-		// Ospeed: int(termios.Ospeed),
-	})
-	if err != nil {
-		return "", err
-	}
-
-	fmt.Println("termios params " + string(termiosParams))
-	return string(termiosParams), nil
-}
-
 func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	dockerBin := conf.FindXbin("docker")
 	termios, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TIOCGETA)
-	// params, err := GetTermiosParams()
 	if err != nil {
 		return errors.New("failed to get termios params")
 	}
-	// fmt.Println("get termios params: %+v\n", params)
-	fmt.Println("termios settings: %+v\n", termios)
+
 	fmt.Println("setting raw terminal")
 	originalState, err := term.MakeRaw(0)
 	// originalState, err := term.GetState(0) // just for debugging so terminal doesn't get annoying
@@ -207,24 +163,31 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return errors.New("could not create stdin pipe")
+		return err
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return errors.New("could not create stdout pipe")
+		return err
 	}
-	debugFile, err := os.Create("tmp.txt")
+	// debugFile, err := os.Create("tmp.txt")
+	// if err != nil {
+	// 	return err
+	// }
+	// defer debugFile.Close()
+
+	// send initial termios state and window size
+	if err = WriteTermiosState(termios, stdin); err != nil {
+		return err
+	}
+	w, h, err := term.GetSize(0)
 	if err != nil {
 		return err
 	}
-	defer debugFile.Close()
-
-	err = WriteTermiosState(termios, stdin)
-	if err != nil {
+	if err = RpcTerminalResize(stdin, w, h); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(debugFile, "finished writing termios")
+	// fmt.Fprintf(debugFile, "finished writing termios")
 	go func() {
 		buf := make([]byte, 1024)
 		for {
@@ -260,11 +223,11 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 				return
 			}
 
-			fmt.Fprintf(debugFile, "rpc response: %+v\n", rpcResponse)
+			// fmt.Fprintf(debugFile, "rpc response: %+v\n", rpcResponse)
 			if rpcResponse.Type == StdDataType {
 				os.Stdout.Write(rpcResponse.Payload)
 			} else if rpcResponse.Type == ExitType {
-				fmt.Fprintf(debugFile, "exit code %d", rpcResponse.Payload[0])
+				// fmt.Fprintf(debugFile, "exit code %d", rpcResponse.Payload[0])
 			}
 		}
 	}()
@@ -279,21 +242,11 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 			case <-winchChan:
 				w, h, err := term.GetSize(0)
 				if err != nil {
-					fmt.Printf("could not get terminal size", err)
 					return
 				}
-				fmt.Printf("got terminal resize event %d %d\n", w, h)
-				rpcMessage, err := CreateTerminalResizeMessage(w, h)
-				if err != nil {
-					fmt.Printf("could not create rpc resize message %+v\n", err)
+				if err := RpcTerminalResize(stdin, w, h); err != nil {
 					return
 				}
-				payload, err := SerializeMessage(rpcMessage)
-				if err != nil {
-					fmt.Printf("could not create serialize rpc resize message")
-					return
-				}
-				stdin.Write(payload)
 			}
 		}
 	}()
