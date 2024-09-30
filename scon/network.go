@@ -102,12 +102,20 @@ func (n *Network) Start() error {
 		return n.hostClient.RefreshHostBridge(false)
 	})
 
-	// add docker table route
-	// this routes both tproxy_docker and docker_route fwmarks
+	// add docker table route, used for docker route bit
 	// ip route add default via 198.19.249.2 dev conbr0 table 64
 	err = netlink.RouteAdd(&netlink.Route{
 		LinkIndex: bridge.Index,
 		Gw:        sconDocker4,
+		Table:     netconf.VmRouteTableDocker,
+	})
+	if err != nil && !errors.Is(err, unix.EEXIST) {
+		return err
+	}
+	// ip route add default via fd07:b51a:cc66:0::2 dev conbr0 table 64
+	err = netlink.RouteAdd(&netlink.Route{
+		LinkIndex: bridge.Index,
+		Gw:        sconDocker6,
 		Table:     netconf.VmRouteTableDocker,
 	})
 	if err != nil && !errors.Is(err, unix.EEXIST) {
@@ -141,6 +149,8 @@ func (n *Network) Start() error {
 		"SCON_SUBNET6":                      netconf.SconSubnet6CIDR,
 		"VNET_SUBNET4":                      netconf.VnetSubnet4CIDR,
 		"VNET_SUBNET6":                      netconf.VnetSubnet6CIDR,
+		"DOMAINPROXY_SUBNET4":               netconf.DomainproxySubnet4Cidr,
+		"DOMAINPROXY_SUBNET6":               netconf.DomainproxySubnet6Cidr,
 
 		"IFGROUP_ISOLATED": strconv.Itoa(netconf.VmIfGroupIsolated),
 

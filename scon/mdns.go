@@ -174,8 +174,28 @@ func newDomainproxyInfo(subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.
 
 func (d *domainproxyInfo) setAddr(ip netip.Addr, val net.IP) {
 	if val == nil {
-		d.setAddrFreeable(ip)
+		if _, has := d.ipMap[ip]; has {
+			d.ipMap[ip] = nil
+
+			var err error
+			if ip.Is4() {
+				err = nft.Run("remove", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v }", ip))
+			}
+			if ip.Is6() {
+				err = nft.Run("remove", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v }", ip))
+			}
+			if err != nil {
+				logrus.WithError(err).Debug("could not remove from domainproxy map.")
+			}
+
+			d.setAddrDocker(ip, false)
+		}
 		return
+	}
+
+	// make sure the element gets removed before we change it to something else
+	if currVal, has := d.ipMap[ip]; has && !currVal.Equal(val) {
+		d.setAddr(ip, nil)
 	}
 
 	var err error
@@ -201,7 +221,7 @@ func (d *domainproxyInfo) setAddr(ip netip.Addr, val net.IP) {
 		}()
 	}
 	if err != nil {
-		logrus.WithError(err).Debug("could not add to domainproxy map.")
+		logrus.WithError(err).Debug("could not add to domainproxy map")
 	}
 
 	d.ipMap[ip] = val
@@ -213,6 +233,11 @@ func (d *domainproxyInfo) setAddrDocker(ip netip.Addr, val bool) {
 	}
 
 	if val {
+		// don't try to add again if it's already there
+		if _, has := d.dockerSet[ip]; has {
+			return
+		}
+
 		d.dockerSet[ip] = struct{}{}
 
 		// try to add to docker set, okay if this fails
@@ -227,6 +252,11 @@ func (d *domainproxyInfo) setAddrDocker(ip netip.Addr, val bool) {
 			logrus.WithError(err).Debug("could not add to domainproxy_docker")
 		}
 	} else {
+		// don't try to remove again if it's already not there
+		if _, has := d.dockerSet[ip]; !has {
+			return
+		}
+
 		delete(d.dockerSet, ip)
 
 		// try to remove from the docker set, okay if this fails
@@ -238,26 +268,8 @@ func (d *domainproxyInfo) setAddrDocker(ip netip.Addr, val bool) {
 			err = nft.Run("remove", "element", "inet", "vm", "domainproxy6_docker", fmt.Sprintf("{ %v }", ip))
 		}
 		if err != nil {
-			logrus.WithError(err).Debug("could not remove from domainproxy_docker set, probably normal")
+			logrus.WithError(err).Debug("could not remove from domainproxy_docker")
 		}
-	}
-}
-
-func (d *domainproxyInfo) setAddrFreeable(ip netip.Addr) {
-	if _, has := d.ipMap[ip]; has {
-		d.ipMap[ip] = nil
-
-		var err error
-		if ip.Is4() {
-			err = nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v }", ip))
-		}
-		if ip.Is6() {
-			err = nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v }", ip))
-		}
-		if err != nil {
-			logrus.WithError(err).Debug("could not remove from domainproxy map.")
-		}
-		d.setAddrDocker(ip, false)
 	}
 }
 
@@ -267,10 +279,6 @@ func (d *domainproxyInfo) setIp(ip net.IP, val net.IP) {
 
 func (d *domainproxyInfo) setIpDocker(ip net.IP, val bool) {
 	d.setAddrDocker(mustAddrFromSlice(ip), val)
-}
-
-func (d *domainproxyInfo) setIpFreeable(ip net.IP) {
-	d.setAddrFreeable(mustAddrFromSlice(ip))
 }
 
 func (d *domainproxyInfo) getAddr(ip netip.Addr) (val net.IP, has bool) {
@@ -329,6 +337,10 @@ func nextAvailableIp(ipMap map[netip.Addr]net.IP, subnet netip.Prefix, lowest ne
 
 // needs mutex
 func (d *domainproxyInfo) claimNextAvailableIp4(id string, val net.IP) (ip netip.Addr, ok bool) {
+	if val == nil {
+		return netip.Addr{}, false
+	}
+
 	if preferredAddr, has := d.idMap4[id]; has {
 		if preferredAddrVal, has := d.getAddr(preferredAddr); has && preferredAddrVal == nil {
 			d.setAddr(preferredAddr, val)
@@ -344,7 +356,7 @@ func (d *domainproxyInfo) claimNextAvailableIp4(id string, val net.IP) (ip netip
 		d.setAddr(nextAddr, val)
 		d.idMap4[id] = nextAddr
 
-		logrus.WithFields(logrus.Fields{"id": id, "ip": nextAddr, "val": val}).Debug("mdns domainproxy: claimed available ip.")
+		logrus.WithFields(logrus.Fields{"id": id, "ip": nextAddr, "val": val}).Debug("mdns domainproxy: claimed available ip")
 		return nextAddr, true
 	}
 
@@ -354,14 +366,18 @@ func (d *domainproxyInfo) claimNextAvailableIp4(id string, val net.IP) (ip netip
 
 // needs mutex
 func (d *domainproxyInfo) claimNextAvailableIp6(id string, val net.IP) (ip netip.Addr, ok bool) {
+	if val == nil {
+		return netip.Addr{}, false
+	}
+
 	if preferredAddr, has := d.idMap6[id]; has {
 		if preferredAddrVal, has := d.getAddr(preferredAddr); has && preferredAddrVal == nil {
 			d.setAddr(preferredAddr, val)
 			// id map already has the right value
-			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("mdns domainproxy: claimed preferred ip.")
+			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("mdns domainproxy: claimed preferred ip")
 			return preferredAddr, true
 		} else {
-			logrus.WithFields(logrus.Fields{"id": id, "preferredAddr": preferredAddr, "val": val}).Debug("mdns domainproxy: could not assign preferred ip.")
+			logrus.WithFields(logrus.Fields{"id": id, "preferredAddr": preferredAddr, "val": val}).Debug("mdns domainproxy: could not assign preferred ip")
 		}
 	}
 
@@ -960,7 +976,7 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 }
 
 func mdnsNamesToMdnsId(dnsNames []dnsName) string {
-	names := make([]string, len(dnsNames))
+	names := make([]string, 0, len(dnsNames))
 	for _, dnsName := range dnsNames {
 		names = append(names, dnsName.Name)
 	}
@@ -1091,7 +1107,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 		}
 	}
 	if ctrIp6 != nil {
-		if ip, ok := r.domainproxy.claimNextAvailableIp6(mdnsId, ip6); ok {
+		if ip, ok := r.domainproxy.claimNextAvailableIp6(mdnsId, ctrIp6); ok {
 			r.domainproxy.setAddrDocker(ip, true)
 			ip6 = ip.AsSlice()
 		}
@@ -1149,10 +1165,10 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	defer r.mu.Unlock()
 
 	if ip, has := r.domainproxy.idMap4[mdnsId]; has {
-		r.domainproxy.setAddrFreeable(ip)
+		r.domainproxy.setAddr(ip, nil)
 	}
 	if ip, has := r.domainproxy.idMap6[mdnsId]; has {
-		r.domainproxy.setAddrFreeable(ip)
+		r.domainproxy.setAddr(ip, nil)
 	}
 
 	now := time.Now()
@@ -1221,10 +1237,10 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	defer r.mu.Unlock()
 
 	if ip, has := r.domainproxy.idMap4[name]; has {
-		r.domainproxy.setAddrFreeable(ip)
+		r.domainproxy.setAddr(ip, nil)
 	}
 	if ip, has := r.domainproxy.idMap6[name]; has {
-		r.domainproxy.setAddrFreeable(ip)
+		r.domainproxy.setAddr(ip, nil)
 	}
 
 	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
