@@ -320,6 +320,16 @@ func (d *DockerAgent) PostStart() error {
 		}
 	}()
 
+	// use policy accept on FORWARD
+	go func() {
+		util.WaitForApiRunning(dockerAPISocketUpstream)
+
+		err := util.Run("ip6tables", "-P", "FORWARD", "ACCEPT")
+		if err != nil {
+			logrus.WithError(err).Error("failed to change ip6 tables forward chain policy to accept")
+		}
+	}()
+
 	// send kubeconfig to host
 	if d.k8s != nil {
 		err = d.k8s.PostStart()

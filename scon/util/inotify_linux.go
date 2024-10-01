@@ -3,9 +3,11 @@
 package util
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -110,6 +112,36 @@ func WaitForSocketConnectible(path string) error {
 
 		if time.Since(start) > runPollTimeout {
 			return fmt.Errorf("timeout waiting for socket %s", path)
+		}
+	}
+}
+
+func WaitForApiRunning(path string) error {
+	start := time.Now()
+
+	httpc := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", path)
+			},
+		},
+	}
+
+	for {
+		resp, err := httpc.Get("http://unix/_ping")
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == 200 {
+			return nil
+		}
+
+		time.Sleep(runPollInterval)
+
+		if time.Since(start) > runPollTimeout {
+			return fmt.Errorf("timeout waiting for docker on socket %s", path)
 		}
 	}
 }

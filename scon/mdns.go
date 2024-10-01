@@ -179,13 +179,13 @@ func (d *domainproxyInfo) setAddr(ip netip.Addr, val net.IP) {
 
 			var err error
 			if ip.Is4() {
-				err = nft.Run("remove", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v }", ip))
+				err = nft.Run("delete", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v }", ip))
 			}
 			if ip.Is6() {
-				err = nft.Run("remove", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v }", ip))
+				err = nft.Run("delete", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v }", ip))
 			}
 			if err != nil {
-				logrus.WithError(err).Debug("could not remove from domainproxy map.")
+				logrus.WithError(err).Debug("could not remove from domainproxy map")
 			}
 
 			d.setAddrDocker(ip, false)
@@ -262,10 +262,10 @@ func (d *domainproxyInfo) setAddrDocker(ip netip.Addr, val bool) {
 		// try to remove from the docker set, okay if this fails
 		var err error
 		if ip.Is4() {
-			err = nft.Run("remove", "element", "inet", "vm", "domainproxy4_docker", fmt.Sprintf("{ %v }", ip))
+			err = nft.Run("delete", "element", "inet", "vm", "domainproxy4_docker", fmt.Sprintf("{ %v }", ip))
 		}
 		if ip.Is6() {
-			err = nft.Run("remove", "element", "inet", "vm", "domainproxy6_docker", fmt.Sprintf("{ %v }", ip))
+			err = nft.Run("delete", "element", "inet", "vm", "domainproxy6_docker", fmt.Sprintf("{ %v }", ip))
 		}
 		if err != nil {
 			logrus.WithError(err).Debug("could not remove from domainproxy_docker")
@@ -1153,7 +1153,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 		r.maybeFlushCacheLocked(now, name.Name)
 	}
 
-	return ip4, ip6
+	return ctrIp4, ctrIp6
 }
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {

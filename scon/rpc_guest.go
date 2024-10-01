@@ -228,12 +228,16 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 				err := dockerBpf.CfwdAddContainerMeta(ctrIp4, meta)
 				if err != nil {
 					logrus.WithError(err).Error("failed to add container ipv4 to cfwd")
+				} else {
+					logrus.WithField("ip", ctrIp4).Debug("added container to cfwd")
 				}
 			}
 			if ctrIp6 != nil {
 				err := dockerBpf.CfwdAddContainerMeta(ctrIp6, meta)
 				if err != nil {
 					logrus.WithError(err).Error("failed to add container ipv6 to cfwd")
+				} else {
+					logrus.WithField("ip", ctrIp6).Debug("added container to cfwd")
 				}
 			}
 
