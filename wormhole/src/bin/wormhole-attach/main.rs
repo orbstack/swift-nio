@@ -394,15 +394,12 @@ fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
     )
 }
 
-/*
- * minimum kernel req: 6.1 (latest stable debian 12 bookworm)
- */
-fn recv_rpc_client(recv_client_socket_fd: RawFd) -> anyhow::Result<RawFd> {
+fn recv_rpc_client(recv_client_socket_fd: OwnedFd) -> anyhow::Result<RawFd> {
     let mut cmsgspace = nix::cmsg_space!([RawFd; 1]);
     let mut data = [0u8];
     let mut iov = [IoSliceMut::new(&mut data)];
     let msg = recvmsg::<()>(
-        recv_client_socket_fd,
+        recv_client_socket_fd.as_raw_fd(),
         &mut iov,
         Some(&mut cmsgspace),
         MsgFlags::empty(),
@@ -417,14 +414,14 @@ fn recv_rpc_client(recv_client_socket_fd: RawFd) -> anyhow::Result<RawFd> {
 }
 
 // send the rpc client fd connection to the payload process so that they can communicate directly
-fn send_rpc_client(send_client_socket_fd: RawFd, client_fd: RawFd) -> anyhow::Result<()> {
+fn send_rpc_client(send_client_socket_fd: OwnedFd, client_fd: RawFd) -> anyhow::Result<()> {
     // send(send_client_socket_fd, &[1, 10, 11, 13], MsgFlags::empty())?;
     let fds = [client_fd];
     let cmsg = ControlMessage::ScmRights(&fds);
     // must send at least 1 byte of data along with ancillary data
     let iov = [IoSlice::new(&[0u8])];
     sendmsg::<()>(
-        send_client_socket_fd,
+        send_client_socket_fd.as_raw_fd(),
         &iov,
         &[cmsg],
         MsgFlags::empty(),
@@ -548,8 +545,17 @@ fn main() -> anyhow::Result<()> {
         )?)
     };
 
-    trace!("waiting for rpc client");
+    // this pipe lets us pass the rpc client fd from monitor to payload
+    let (send_client_socket_fd, recv_client_socket_fd) = socketpair(
+        AddressFamily::Unix,
+        SockType::Stream,
+        None,
+        SockFlag::SOCK_CLOEXEC,
+    )?;
+
     let rpc_client_stream = wait_for_rpc_client()?;
+    send_rpc_client(send_client_socket_fd, rpc_client_stream.as_raw_fd())?;
+    trace!("sent rpc client fd {}", rpc_client_stream.as_raw_fd());
 
     trace!("attach most namespaces");
     setns(
@@ -732,20 +738,6 @@ fn main() -> anyhow::Result<()> {
         SockFlag::SOCK_CLOEXEC,
     )?;
 
-    // this pipe lets us pass the rpc client fd from monitor to payload
-    let (send_client_socket_fd, recv_client_socket_fd) = socketpair(
-        AddressFamily::Unix,
-        SockType::Stream,
-        None,
-        SockFlag::SOCK_CLOEXEC,
-    )?;
-
-    send_rpc_client(
-        send_client_socket_fd.as_raw_fd(),
-        rpc_client_stream.as_raw_fd(),
-    )?;
-    trace!("sent rpc client fd {}", rpc_client_stream.as_raw_fd());
-
     trace!("fork into intermediate");
     // SAFE: we're single-threaded so malloc and locks after fork are ok
     match unsafe { fork()? } {
@@ -758,6 +750,7 @@ fn main() -> anyhow::Result<()> {
             // close unnecessary fds
             drop(subreaper_socket_fd);
             drop(pidfd);
+            drop(recv_client_socket_fd);
 
             trace!("running monitor");
             monitor::run(
@@ -979,7 +972,7 @@ fn main() -> anyhow::Result<()> {
                         ForkResult::Child => {
                             let _span = span!(Level::TRACE, "payload");
 
-                            let rpc_client_fd = recv_rpc_client(recv_client_socket_fd.as_raw_fd())?;
+                            let rpc_client_fd = recv_rpc_client(recv_client_socket_fd)?;
 
                             trace!("received rpc client fd {}", rpc_client_fd);
 
@@ -1139,16 +1132,10 @@ fn spawn_payload(
 
                 trace!("exiting process");
                 process::exit(exit_code[0].into());
-                trace!("exited process");
             });
 
-            trace!("child payload exited");
             let _ = client_to_pty.join();
-            trace!("finished reading from client -> sending to pty");
             let _ = pty_to_client.join();
-            trace!("finished reading from pty -> sending to client");
-            trace!("waiting for payload");
-
             Ok(())
         }
     }

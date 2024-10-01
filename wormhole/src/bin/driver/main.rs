@@ -4,6 +4,7 @@
 
 use libc::{DIR, FD_CLOEXEC};
 use nix::{
+    errno::Errno,
     fcntl::{
         fcntl,
         FcntlArg::{self, F_GETFD},
@@ -11,7 +12,7 @@ use nix::{
     },
     mount::{self, mount, umount2, MntFlags, MsFlags},
     sys::wait::waitpid,
-    unistd::{execve, execvp, fork, pipe, read, ForkResult, ROOT},
+    unistd::{execve, execvp, execvpe, fork, pipe, read, ForkResult, ROOT},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -60,14 +61,19 @@ const REFCOUNT_LOCK: &str = "/data/refcount.lock";
 const NIX_RW_DIRS: [&str; 3] = ["store", "var", "orb/data"];
 
 fn unmount_wormhole() -> anyhow::Result<()> {
-    // sometimes gets EINVAL = not mounted (??)
-    // println!("unmounting unified/nix/store");
-    // umount2("/mnt/wormhole-unified/nix/store",  MntFlags::MNT_DETACH)?;
-    // println!("unmounting unified/nix/var");
-    // umount2("/mnt/wormhole-unified/nix/var",  MntFlags::MNT_DETACH)?;
-    // println!("unmounting unified/nix/orb/data");
-    // umount2("/mnt/wormhole-unified/nix/orb/data", MntFlags::MNT_DETACH)?;
-    println!("unmounting wormhole-unified");
+    for path in [
+        "/mnt/wormhole-unified/nix/store",
+        "/mnt/wormhole-unified/nix/var",
+        "/mnt/wormhole-unified/nix/orb/data",
+    ] {
+        match umount2(path, MntFlags::MNT_DETACH) {
+            Ok(_) => {}
+            // ignore EINVAL, which happens if delete_nix_dir already unmounted the submount
+            Err(Errno::EINVAL) => {}
+            Err(err) => trace!("could not unmount {:?}", err),
+        };
+    }
+
     umount2("/mnt/wormhole-unified", MntFlags::empty())?;
     Ok(())
 }
@@ -221,12 +227,13 @@ fn main() -> anyhow::Result<()> {
         ForkResult::Child => {
             trace!("starting wormhole-attach");
 
-            execvp(
+            execvpe(
                 &CString::new("./wormhole-attach")?,
                 &[
                     CString::new("./wormhole-attach")?,
                     CString::new(serialized)?,
                 ],
+                &[CString::new("RUST_BACKTRACE=1")?],
             )?;
             unreachable!();
         }
