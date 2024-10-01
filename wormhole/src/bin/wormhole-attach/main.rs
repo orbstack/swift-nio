@@ -1054,6 +1054,10 @@ fn spawn_payload(
 
     let master_fd = pty.master.as_raw_fd();
     let slave_fd = pty.slave.as_raw_fd();
+
+    /*
+    let stdin_Write, stdin_read = pipe()
+    ... */
     match unsafe { fork()? } {
         // child: payload
         ForkResult::Parent { child } => {

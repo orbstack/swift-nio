@@ -1,103 +1,92 @@
 package cmd
 
 import (
-	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 )
 
-type InputMessageType byte
-type OutputMessageType byte
+type RpcInputType byte
+type RpcOutputType byte
 
 const (
-	StdinDataType       InputMessageType = 0x01
-	TerminalResizeType  InputMessageType = 0x02
-	TermiosSettingsType InputMessageType = 0x03
+	WriteStdinType     RpcInputType = 0x01
+	ResizeTerminalType RpcInputType = 0x02
+	InitTermiosType    RpcInputType = 0x03
 )
 
 const (
-	StdDataType OutputMessageType = 0x01
-	ExitType    OutputMessageType = 0x02
+	ReadStdioType RpcOutputType = 0x01
+	ExitCodeType  RpcOutputType = 0x02
 )
 
 type RpcInputMessage struct {
-	Type    InputMessageType
+	Type    RpcInputType
 	Payload []byte
 }
 
 type RpcOutputMessage struct {
-	Type    OutputMessageType
+	Type    RpcOutputType
 	Payload []byte
 }
 
-func DeserializeMessage(reader io.Reader) (RpcOutputMessage, error) {
-	var typeByte [1]byte
-	if _, err := io.ReadFull(reader, typeByte[:]); err != nil {
-		return RpcOutputMessage{}, fmt.Errorf("failed to read RPC type: %w", err)
+type RpcServer struct {
+	reader io.ReadCloser
+	writer io.WriteCloser
+}
+
+func (server RpcServer) Start() error {
+	return nil
+}
+
+func (server RpcServer) RpcResizeTerminal(width, height int) error {
+	if _, err := server.writer.Write([]byte{byte(ResizeTerminalType)}); err != nil {
+		return err
 	}
-	rpcType := OutputMessageType(typeByte[0])
+	if err := binary.Write(server.writer, binary.BigEndian, uint16(width)); err != nil {
+		return err
+	}
+	if err := binary.Write(server.writer, binary.BigEndian, uint16(height)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (server RpcServer) RpcWriteStdin(data []byte) error {
+	if _, err := server.writer.Write([]byte{byte(WriteStdinType)}); err != nil {
+		return err
+	}
+	if err := binary.Write(server.writer, binary.BigEndian, uint32(len(data))); err != nil {
+		return err
+	}
+	if _, err := server.writer.Write(data); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (server RpcServer) RpcRead() (RpcOutputType, []byte, error) {
+	var typeByte [1]byte
+	if _, err := io.ReadFull(server.reader, typeByte[:]); err != nil {
+		return 0, nil, err
+	}
+	rpcType := RpcOutputType(typeByte[0])
 
 	var data []byte
-
-	if rpcType == StdDataType {
-
+	if rpcType == ReadStdioType {
 		var lenBytes [4]byte
-		if _, err := io.ReadFull(reader, lenBytes[:]); err != nil {
-			return RpcOutputMessage{}, fmt.Errorf("failed to read length: %w", err)
+		if _, err := io.ReadFull(server.reader, lenBytes[:]); err != nil {
+			return 0, nil, err
 		}
 		length := binary.BigEndian.Uint32(lenBytes[:])
 		data = make([]byte, length)
 
-	} else if rpcType == ExitType {
+	} else if rpcType == ExitCodeType {
 		data = make([]byte, 1)
 	}
 
-	if _, err := io.ReadFull(reader, data); err != nil {
-		return RpcOutputMessage{}, fmt.Errorf("failed to read data: %w", err)
+	if _, err := io.ReadFull(server.reader, data); err != nil {
+		return 0, nil, err
 	}
-	return RpcOutputMessage{Type: rpcType, Payload: data}, nil
-}
+	return rpcType, data, nil
 
-func SerializeMessage(msg RpcInputMessage) ([]byte, error) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(msg.Type))
-	payloadLength := uint32(len(msg.Payload))
-	if err := binary.Write(buf, binary.BigEndian, payloadLength); err != nil {
-		return nil, err
-	}
-	buf.Write(msg.Payload)
-	return buf.Bytes(), nil
-}
-
-func CreateStdinDataMessage(data []byte) RpcInputMessage {
-	return RpcInputMessage{
-		Type:    StdinDataType,
-		Payload: data,
-	}
-}
-
-func CreateTerminalResizeMessage(width, height int) (RpcInputMessage, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.BigEndian, uint32(width)); err != nil {
-		return RpcInputMessage{}, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, uint32(height)); err != nil {
-		return RpcInputMessage{}, err
-	}
-	return RpcInputMessage{
-		Type:    TerminalResizeType,
-		Payload: buf.Bytes(),
-	}, nil
-}
-
-func RpcTerminalResize(writer io.Writer, width, height int) error {
-	writer.Write([]byte{byte(TerminalResizeType)})
-	if err := binary.Write(writer, binary.BigEndian, uint16(width)); err != nil {
-		return err
-	}
-	if err := binary.Write(writer, binary.BigEndian, uint16(height)); err != nil {
-		return err
-	}
-	return nil
 }

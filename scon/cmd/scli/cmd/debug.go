@@ -30,6 +30,12 @@ var (
 	flagReset    bool
 )
 
+const (
+	fdStdin  = 0
+	fdStdout = 1
+	fdStderr = 2
+)
+
 func init() {
 	rootCmd.AddCommand(debugCmd)
 	debugCmd.Flags().StringVarP(&flagWorkdir, "workdir", "w", "", "Set the working directory")
@@ -152,87 +158,126 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func startRpcConnection(containerId string, dockerHostEnv []string) error {
-	dockerBin := conf.FindXbin("docker")
-	termios, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TIOCGETA)
-	if err != nil {
-		return errors.New("failed to get termios params")
+func RequestNoPty(writer io.Writer) {
+
+}
+func RequestPty(writer io.Writer, h int, w int, termios *unix.Termios, termEnv string) error {
+	// send initial termios state and window size
+	// 1: set pty
+	// writer.Write([]byte{1})
+
+	if err := WriteTermiosState(writer, termios); err != nil {
+		return err
 	}
 
-	fmt.Println("setting raw terminal")
-	originalState, err := term.MakeRaw(0)
-	// originalState, err := term.GetState(0) // just for debugging so terminal doesn't get annoying
-	if err != nil {
-		return errors.New("could not set pty to raw mode")
+	if err := WriteTermEnv(writer, termEnv); err != nil {
+		return err
 	}
-	defer func() {
-		fmt.Println("restoring raw terminal")
-		term.Restore(0, originalState)
-	}()
+
+	if err := RpcTerminalResize(writer, w, h); err != nil {
+		return err
+	}
+	return nil
+}
+
+func startRpcConnection(containerId string, dockerHostEnv []string) error {
+	dockerBin := conf.FindXbin("docker")
+
+	var originalState *term.State
 
 	cmd := exec.Command(dockerBin, "exec", "-i", containerId, "/wormhole-client")
 	cmd.Env = dockerHostEnv
 
-	stdin, err := cmd.StdinPipe()
+	sessionStdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
 	}
-	stdout, err := cmd.StdoutPipe()
+	// we frame all stdout/stderr data from the main wormhole-attach process
+	// (attaching a single byte at the start of the length-prefix message to denote stdout/stderr),
+	// and send all of these rpc messages over stdout of docker exec -it ...
+	// nothing passes through stderr of the docker exec process.
+	sessionStdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
+	server := RpcServer{reader: sessionStdout, writer: sessionStdin}
+
 	debugFile, err := os.Create("abcd.txt")
 	if err != nil {
 		return err
 	}
 	defer debugFile.Close()
 
-	// send initial termios state and window size
-	if err = WriteTermiosState(stdin, termios); err != nil {
-		return err
+	// see scli/shell/ssh.go
+	ptyFd := -1
+	ptyStdin, ptyStdout, ptyStderr := false, false, false
+	if term.IsTerminal(fdStdin) {
+		ptyStdin = true
+		ptyFd = fdStdin
+	}
+	if term.IsTerminal(fdStdout) {
+		ptyStdout = true
+		ptyFd = fdStdout
+	}
+	if term.IsTerminal(fdStderr) {
+		ptyStderr = true
+		ptyFd = fdStderr
+	}
+	// need a pty?
+	if ptyStdin || ptyStdout || ptyStderr {
+		fmt.Println("requesting pty")
+		termEnv := os.Getenv("TERM")
+		w, h, err := term.GetSize(ptyFd)
+		if err != nil {
+			return err
+		}
+
+		// snapshot the flags
+		termios, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TIOCGETA)
+		if err != nil {
+			return errors.New("failed to get termios params")
+		}
+
+		// raw mode if both outputs are ptys
+		if ptyStdout && ptyStderr {
+			originalState, err = term.MakeRaw(ptyFd)
+			if err != nil {
+				return err
+			}
+			defer term.Restore(ptyFd, originalState)
+		}
+
+		// request pty
+		err = RequestPty(sessionStdin, h, w, termios, termEnv)
+		if err != nil {
+			return err
+		}
+	} else {
+		// err = RequestNoPty(sessionStdin)
 	}
 
-	if err = WriteTermEnv(stdin, os.Getenv("TERM")); err != nil {
-		return err
-	}
-
-	w, h, err := term.GetSize(0)
-	if err != nil {
-		return err
-	}
-	if err = RpcTerminalResize(stdin, w, h); err != nil {
-		return err
-	}
-
-	// fmt.Fprintf(debugFile, "finished writing termios")
 	go func() {
 		buf := make([]byte, 1024)
 		for {
 			n, err := os.Stdin.Read(buf)
 			if err != nil {
+				// todo: some special handling for errors?
 				if err == io.EOF {
 					return
 				}
-				fmt.Printf("read request: %w", err)
 				return
 			}
 
-			if n > 0 {
-				payload, err := SerializeMessage(CreateStdinDataMessage(buf[:n]))
-				if err != nil {
-					fmt.Printf("could not create rpc stdin message")
-					return
-				}
-				stdin.Write(payload)
-			} else {
-				fmt.Printf("read 0 bytes???")
+			if err := server.RpcWriteStdin(buf[:n]); err != nil {
+				return
 			}
 		}
 	}()
 
 	go func() {
 		for {
-			rpcResponse, err := DeserializeMessage(stdout)
+			rpcType, data, err := server.RpcRead()
+			// todo: handle errors specially (?)
 			if err != nil {
 				if err == io.EOF {
 					return
@@ -240,13 +285,12 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 				return
 			}
 
-			// fmt.Fprintf(debugFile, "rpc response: %+v\n", rpcResponse)
-			if rpcResponse.Type == StdDataType {
-				os.Stdout.Write(rpcResponse.Payload)
-			} else if rpcResponse.Type == ExitType {
-				fmt.Fprintf(debugFile, "exit code %d", rpcResponse.Payload[0])
+			switch rpcType {
+			case ReadStdioType:
+				os.Stdout.Write(data)
+			case ExitCodeType:
 				term.Restore(0, originalState)
-				os.Exit(int(rpcResponse.Payload[0]))
+				os.Exit(int(data[0]))
 			}
 		}
 	}()
@@ -255,10 +299,13 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	winchChan := make(chan os.Signal, 1)
 	signal.Notify(winchChan, unix.SIGWINCH)
 
-	fmt.Println("running docker exec")
-	err = cmd.Start()
-	if err != nil {
-		return errors.New("error when executing starting client")
+	// start docker rpc client
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// start wormhole-attach payload
+	if err := server.Start(); err != nil {
+		return err
 	}
 
 	// run repeatedly until we receive an exit code.. which calls os.Exit
@@ -269,7 +316,7 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 			if err != nil {
 				return err
 			}
-			if err := RpcTerminalResize(stdin, w, h); err != nil {
+			if err := server.RpcResizeTerminal(w, h); err != nil {
 				return err
 			}
 		}
