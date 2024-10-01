@@ -158,28 +158,6 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func RequestNoPty(writer io.Writer) {
-
-}
-func RequestPty(writer io.Writer, h int, w int, termios *unix.Termios, termEnv string) error {
-	// send initial termios state and window size
-	// 1: set pty
-	// writer.Write([]byte{1})
-
-	if err := WriteTermiosState(writer, termios); err != nil {
-		return err
-	}
-
-	if err := WriteTermEnv(writer, termEnv); err != nil {
-		return err
-	}
-
-	if err := RpcTerminalResize(writer, w, h); err != nil {
-		return err
-	}
-	return nil
-}
-
 func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	dockerBin := conf.FindXbin("docker")
 
@@ -208,6 +186,11 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	}
 	defer debugFile.Close()
 
+	// start docker rpc client
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
 	// see scli/shell/ssh.go
 	ptyFd := -1
 	ptyStdin, ptyStdout, ptyStderr := false, false, false
@@ -225,7 +208,6 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	}
 	// need a pty?
 	if ptyStdin || ptyStdout || ptyStderr {
-		fmt.Println("requesting pty")
 		termEnv := os.Getenv("TERM")
 		w, h, err := term.GetSize(ptyFd)
 		if err != nil {
@@ -248,13 +230,20 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 		}
 
 		// request pty
-		err = RequestPty(sessionStdin, h, w, termios, termEnv)
+		fmt.Println("requesting pty")
+		err = server.RpcRequestPty(termEnv, h, w, termios)
 		if err != nil {
 			return err
 		}
-	} else {
-		// err = RequestNoPty(sessionStdin)
+		fmt.Println("finished setting pty")
 	}
+
+	// start wormhole-attach payload
+	fmt.Println(" starting server")
+	if err := server.RpcStart(); err != nil {
+		return err
+	}
+	fmt.Println("finished starting server")
 
 	go func() {
 		buf := make([]byte, 1024)
@@ -299,15 +288,6 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	winchChan := make(chan os.Signal, 1)
 	signal.Notify(winchChan, unix.SIGWINCH)
 
-	// start docker rpc client
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	// start wormhole-attach payload
-	if err := server.Start(); err != nil {
-		return err
-	}
-
 	// run repeatedly until we receive an exit code.. which calls os.Exit
 	for {
 		select {
@@ -316,7 +296,7 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 			if err != nil {
 				return err
 			}
-			if err := server.RpcResizeTerminal(w, h); err != nil {
+			if err := server.RpcWindowChange(h, w); err != nil {
 				return err
 			}
 		}

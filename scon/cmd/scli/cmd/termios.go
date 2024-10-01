@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"encoding/binary"
-	"io"
 
 	"golang.org/x/sys/unix"
-	"golang.org/x/term"
 )
 
 func mFlag[T uint64 | uint32](n T) byte {
@@ -15,39 +13,7 @@ func mFlag[T uint64 | uint32](n T) byte {
 	return 0
 }
 
-func WriteWindowSize(writer io.Writer) error {
-	w, h, err := term.GetSize(0)
-	if err != nil {
-		return err
-	}
-
-	if err := binary.Write(writer, binary.BigEndian, uint32(w)); err != nil {
-		return err
-	}
-	if err := binary.Write(writer, binary.BigEndian, uint32(h)); err != nil {
-		return err
-	}
-	return nil
-}
-
-func WriteTermiosState(writer io.Writer, termios *unix.Termios) error {
-
-	buf, err := makeTermiosBuf(termios)
-	if err != nil {
-		return err
-	}
-
-	if err := binary.Write(writer, binary.BigEndian, uint32(len(buf))); err != nil {
-		return err
-	}
-	_, err = writer.Write(buf)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func makeTermiosBuf(termios *unix.Termios) ([]byte, error) {
+func SerializeTermios(termios *unix.Termios) ([]byte, error) {
 	var control_chars = [...]int{
 		unix.VINTR,
 		unix.VQUIT,

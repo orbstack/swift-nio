@@ -59,10 +59,18 @@ use nix::{
         setresuid, setsid, AccessFlags, ForkResult, Gid, Pid, Uid,
     },
 };
+use nix::{libc::ioctl, unistd::pipe};
+use nix::{
+    sys::termios::{
+        cfmakeraw, cfsetispeed, tcgetattr, tcsetattr, BaudRate, ControlFlags, InputFlags,
+        LocalFlags, OutputFlags, SetArg, Termios,
+    },
+    unistd::dup,
+};
 use pidfd::PidFd;
 use rpc::{RpcInputMessage, RpcOutputMessage};
 use signals::{mask_sigset, SigSet, SignalFd};
-use termios::set_termios_to_host;
+use termios::set_termios;
 use tracing::{debug, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
@@ -1026,53 +1034,67 @@ fn spawn_payload(
     shell_cmd: &str,
     env_map: &mut HashMap<String, String>,
 ) -> anyhow::Result<()> {
-    // set up host termios before forking and handling rpc
-    let pty = openpty(
-        Some(&Winsize {
-            ws_row: 24,
-            ws_col: 80,
-            ws_xpixel: 0,
-            ws_ypixel: 0,
-        }),
-        None,
-    )?;
+    let mut client = unsafe { File::from_raw_fd(client_fd) };
+    let mut pty: Option<OpenptyResult> = None;
 
-    let mut termios = tcgetattr(&pty.slave)?;
-    trace!("reading termios settings");
-    set_termios_to_host(client_fd, &mut termios)?;
-    termios.local_flags.remove(LocalFlags::ECHO);
-    tcsetattr(&pty.slave, SetArg::TCSANOW, &termios)?;
+    let mut stdin_pipe = (-1, -1);
+    let mut stdout_pipe = (-1, -1);
+    let mut stderr_pipe = (-1, -1);
 
-    trace!("reading term env");
-    env_map.insert("TERM".to_string(), read_term_env(client_fd)?);
-    let cstr_envs = env_map
-        .iter()
-        .map(|(k, v)| CString::new(format!("{}={}", k, v)))
-        .collect::<anyhow::Result<Vec<_>, _>>()?;
+    // wait until user calls start before proceeding
+    loop {
+        match RpcInputMessage::read_from(&mut client) {
+            Ok(RpcInputMessage::RequestPty(pty_config)) => {
+                pty = Some(pty_config.pty);
+                let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
+                let master_fd = pty.as_ref().unwrap().master.as_raw_fd();
+
+                trace!("got pty: {slave_fd} {master_fd}");
+
+                // give each pipe ownership over its own master and slave so that it can drop them
+                stdin_pipe = (dup(slave_fd)?, dup(master_fd)?);
+                stdout_pipe = (dup(master_fd)?, dup(slave_fd)?);
+                stderr_pipe = (dup(master_fd)?, dup(slave_fd)?);
+
+                env_map.insert("TERM".to_string(), pty_config.term_env);
+                trace!("env map")
+            }
+            Ok(RpcInputMessage::Start()) => break,
+            _ => {}
+        };
+    }
+
+    if pty.is_none() {
+        stdin_pipe = pipe()?;
+        stdout_pipe = pipe()?;
+        stderr_pipe = pipe()?;
+    }
 
     trace!("finished reading host");
 
-    let master_fd = pty.master.as_raw_fd();
-    let slave_fd = pty.slave.as_raw_fd();
-
-    /*
-    let stdin_Write, stdin_read = pipe()
-    ... */
     match unsafe { fork()? } {
         // child: payload
         ForkResult::Parent { child } => {
-            close(master_fd)?;
-            setsid()?;
-            unsafe {
-                ioctl(slave_fd, TIOCSCTTY, 1);
-            }
-            dup2(slave_fd, libc::STDIN_FILENO)?;
-            dup2(slave_fd, libc::STDOUT_FILENO)?;
-            dup2(slave_fd, libc::STDERR_FILENO)?;
+            close(stdin_pipe.1)?;
+            close(stdout_pipe.0)?;
+            close(stderr_pipe.0)?;
 
-            if slave_fd > libc::STDERR_FILENO {
-                close(slave_fd).ok();
+            if pty.is_some() {
+                setsid()?;
+                unsafe {
+                    ioctl(stdin_pipe.0, TIOCSCTTY, 1);
+                }
             }
+            // read from stdin and write to stdout/stderr
+            dup2(stdin_pipe.0, libc::STDIN_FILENO)?;
+            dup2(stdout_pipe.1, libc::STDOUT_FILENO)?;
+            dup2(stderr_pipe.1, libc::STDERR_FILENO)?;
+
+            let cstr_envs = env_map
+                .iter()
+                .map(|(k, v)| CString::new(format!("{}={}", k, v)))
+                .collect::<anyhow::Result<Vec<_>, _>>()?;
+
             execve(
                 &CString::new("/nix/orb/sys/bin/dctl")?,
                 &[
@@ -1086,9 +1108,15 @@ fn spawn_payload(
             unreachable!();
         }
         ForkResult::Child => {
-            close(slave_fd)?;
-            let mut master_reader = unsafe { File::from_raw_fd(master_fd) };
-            let mut master_writer = master_reader.try_clone()?;
+            close(stdin_pipe.0)?;
+            close(stdout_pipe.1)?;
+            close(stderr_pipe.1)?;
+
+            // write to payload stdin and read from stdout/stderr
+            let mut payload_stdin = unsafe { File::from_raw_fd(stdin_pipe.1) };
+            let mut payload_stdout = unsafe { File::from_raw_fd(stdout_pipe.0) };
+            let mut payload_stderr = unsafe { File::from_raw_fd(stderr_pipe.0) };
+
             let mut client_reader = unsafe { File::from_raw_fd(client_fd) };
             let mut client_writer = client_reader.try_clone()?;
             let mut client_writer2 = client_writer.try_clone()?;
@@ -1097,7 +1125,8 @@ fn spawn_payload(
             let pty_to_client = thread::spawn(move || -> anyhow::Result<()> {
                 let mut buffer = [0u8; 1024];
                 loop {
-                    match master_reader.read(&mut buffer) {
+                    // todo: read from both stdout and stderr
+                    match payload_stdout.read(&mut buffer) {
                         Ok(0) => {
                             trace!("shutting down pty_to_client");
                             break;
@@ -1107,7 +1136,8 @@ fn spawn_payload(
                                 "rpc: response data {:?}",
                                 String::from_utf8_lossy(&buffer[..n])
                             );
-                            RpcOutputMessage::StdData(&buffer[..n]).write_to(&mut client_writer)?;
+                            RpcOutputMessage::StdioData(&buffer[..n])
+                                .write_to(&mut client_writer)?;
                             client_writer.flush()?;
                         }
 
@@ -1126,11 +1156,13 @@ fn spawn_payload(
                         match RpcInputMessage::read_from(&mut client_reader) {
                             Ok(RpcInputMessage::StdinData(data)) => {
                                 trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&data));
-                                master_writer.write_all(&data)?;
-                                master_writer.flush()?
+                                payload_stdin.write_all(&data)?;
+                                payload_stdin.flush()?
                             }
                             Ok(RpcInputMessage::TerminalResize(w, h)) => {
-                                trace!("rpc: resizing terminal {w} {h}");
+                                if pty.is_none() {
+                                    panic!("cannot resize terminal for non-tty ")
+                                }
                                 let ws = Winsize {
                                     ws_row: h,
                                     ws_col: w,
@@ -1138,11 +1170,14 @@ fn spawn_payload(
                                     ws_ypixel: 0, // Not used, can be set to 0
                                 };
                                 unsafe {
-                                    nix::libc::ioctl(master_fd, TIOCSWINSZ, &ws);
+                                    nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
                                 }
                             }
-                            Ok(RpcInputMessage::TermiosSettings()) => {
-                                trace!("rpc: set termios settings")
+                            Ok(RpcInputMessage::RequestPty(_pty)) => {
+                                todo!();
+                            }
+                            Ok(RpcInputMessage::Start()) => {
+                                todo!();
                             }
                             Err(_) => {
                                 trace!("rpc: failed to read");

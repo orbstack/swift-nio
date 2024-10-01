@@ -1,35 +1,35 @@
-use std::{
-    io,
-    os::{
-        self,
-        fd::{AsRawFd, RawFd},
-    },
-};
-
 use anyhow::anyhow;
-use colored::control;
-use libc::VINTR;
-use nix::sys::{
-    socket::{recv, MsgFlags},
-    termios::{
-        self, cfsetispeed, cfsetospeed, BaudRate, ControlFlags, InputFlags, LocalFlags,
-        OutputFlags, Termios,
+use nix::{
+    pty::{openpty, OpenptyResult, Winsize},
+    sys::{
+        socket::{recv, MsgFlags},
+        termios::{
+            self, cfsetispeed, cfsetospeed, tcgetattr, tcsetattr, BaudRate, ControlFlags,
+            InputFlags, LocalFlags, OutputFlags, SetArg, Termios,
+        },
     },
 };
-use tracing::trace;
-pub fn set_termios_to_host(fd: RawFd, termios: &mut Termios) -> anyhow::Result<()> {
-    let len = {
-        let mut len_bytes = [0_u8; size_of::<u32>()];
-        recv(fd, &mut len_bytes, MsgFlags::MSG_WAITALL)?;
-        u32::from_be_bytes(len_bytes) as usize
-    };
 
-    let mut termios_buf = vec![0_u8; len];
-    recv(fd, &mut termios_buf, MsgFlags::MSG_WAITALL)?;
-    parse_termios(&termios_buf, termios)
+pub fn create_pty(w: u16, h: u16, termios_config: Vec<u8>) -> anyhow::Result<OpenptyResult> {
+    let pty = openpty(
+        Some(&Winsize {
+            ws_row: h,
+            ws_col: w,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
+        }),
+        None,
+    )?;
+
+    // read and set termios
+    let mut termios = tcgetattr(&pty.slave)?;
+    set_termios(&mut termios, &termios_config)?;
+    tcsetattr(&pty.slave, SetArg::TCSANOW, &termios)?;
+
+    Ok(pty)
 }
 
-pub fn parse_termios(buf: &[u8], termios: &mut Termios) -> anyhow::Result<()> {
+pub fn set_termios(termios: &mut Termios, buf: &[u8]) -> anyhow::Result<()> {
     //   there are a couple of control chars that don't exist.. maybe just arch?
     let control_chars = [
         libc::VINTR,
