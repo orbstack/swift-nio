@@ -24,10 +24,11 @@ use libc::{
     prlimit, ptrace, sock_filter, sock_fprog, syscall, tcflag_t, SYS_capset, SYS_seccomp,
     PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
     PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE, STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ,
-    TIOCSWINSZ,
+    TIOCSCTTY, TIOCSWINSZ,
 };
 use model::WormholeConfig;
 use mounts::with_remount_rw;
+use nix::libc::ioctl;
 use nix::sys::termios::{
     cfmakeraw, cfsetispeed, tcgetattr, tcsetattr, BaudRate, ControlFlags, InputFlags, LocalFlags,
     OutputFlags, SetArg, Termios,
@@ -696,11 +697,6 @@ fn main() -> anyhow::Result<()> {
     }
     // set SHELL
     env_map.insert("SHELL".to_string(), paths::SHELL.to_string());
-    // convert back to CStrings
-    let cstr_envs = env_map
-        .iter()
-        .map(|(k, v)| CString::new(format!("{}={}", k, v)))
-        .collect::<anyhow::Result<Vec<_>, _>>()?;
 
     // close unnecessary fds
     drop(wormhole_mount_fd);
@@ -986,7 +982,12 @@ fn main() -> anyhow::Result<()> {
                             let shell_cmd =
                                 config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
 
-                            spawn_payload(rpc_client_fd, exit_code_reader, &shell_cmd, &cstr_envs)?;
+                            spawn_payload(
+                                rpc_client_fd,
+                                exit_code_reader,
+                                &shell_cmd,
+                                &mut env_map,
+                            )?;
                             unreachable!();
                         }
                     }
@@ -1007,11 +1008,23 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn read_term_env(fd: RawFd) -> anyhow::Result<(String)> {
+    let len = {
+        let mut len_bytes = [0_u8; size_of::<u32>()];
+        recv(fd, &mut len_bytes, MsgFlags::MSG_WAITALL)?;
+        u32::from_be_bytes(len_bytes) as usize
+    };
+
+    let mut buf = vec![0_u8; len];
+    recv(fd, &mut buf, MsgFlags::MSG_WAITALL)?;
+    Ok(String::from_utf8(buf)?)
+}
+
 fn spawn_payload(
     client_fd: RawFd,
     mut exit_code_reader: UnixStream,
     shell_cmd: &str,
-    cstr_envs: &Vec<CString>,
+    env_map: &mut HashMap<String, String>,
 ) -> anyhow::Result<()> {
     // set up host termios before forking and handling rpc
     let pty = openpty(
@@ -1024,11 +1037,19 @@ fn spawn_payload(
         None,
     )?;
 
-    trace!("waiting for termios host read");
     let mut termios = tcgetattr(&pty.slave)?;
+    trace!("reading termios settings");
     set_termios_to_host(client_fd, &mut termios)?;
     termios.local_flags.remove(LocalFlags::ECHO);
     tcsetattr(&pty.slave, SetArg::TCSANOW, &termios)?;
+
+    trace!("reading term env");
+    env_map.insert("TERM".to_string(), read_term_env(client_fd)?);
+    let cstr_envs = env_map
+        .iter()
+        .map(|(k, v)| CString::new(format!("{}={}", k, v)))
+        .collect::<anyhow::Result<Vec<_>, _>>()?;
+
     trace!("finished reading host");
 
     let master_fd = pty.master.as_raw_fd();
@@ -1038,6 +1059,9 @@ fn spawn_payload(
         ForkResult::Parent { child } => {
             close(master_fd)?;
             setsid()?;
+            unsafe {
+                ioctl(slave_fd, TIOCSCTTY, 1);
+            }
             dup2(slave_fd, libc::STDIN_FILENO)?;
             dup2(slave_fd, libc::STDOUT_FILENO)?;
             dup2(slave_fd, libc::STDERR_FILENO)?;
@@ -1075,7 +1099,10 @@ fn spawn_payload(
                             break;
                         }
                         Ok(n) => {
-                            trace!("rpc: response data {:?}", &buffer[..n]);
+                            trace!(
+                                "rpc: response data {:?}",
+                                String::from_utf8_lossy(&buffer[..n])
+                            );
                             RpcOutputMessage::StdData(&buffer[..n]).write_to(&mut client_writer)?;
                             client_writer.flush()?;
                         }
@@ -1094,7 +1121,7 @@ fn spawn_payload(
                     loop {
                         match RpcInputMessage::read_from(&mut client_reader) {
                             Ok(RpcInputMessage::StdinData(data)) => {
-                                trace!("rpc: stdin data {:?}", data);
+                                trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&data));
                                 master_writer.write_all(&data)?;
                                 master_writer.flush()?
                             }

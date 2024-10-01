@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -140,6 +141,17 @@ type WormholeParams struct {
 	ShellCmd   string   `json:"entry_shell_cmd"`
 }
 
+func WriteTermEnv(writer io.Writer, term string) error {
+	if err := binary.Write(writer, binary.BigEndian, uint32(len(term))); err != nil {
+		return err
+	}
+	if _, err := writer.Write([]byte(term)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	dockerBin := conf.FindXbin("docker")
 	termios, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TIOCGETA)
@@ -176,9 +188,14 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	defer debugFile.Close()
 
 	// send initial termios state and window size
-	if err = WriteTermiosState(termios, stdin); err != nil {
+	if err = WriteTermiosState(stdin, termios); err != nil {
 		return err
 	}
+
+	if err = WriteTermEnv(stdin, os.Getenv("TERM")); err != nil {
+		return err
+	}
+
 	w, h, err := term.GetSize(0)
 	if err != nil {
 		return err

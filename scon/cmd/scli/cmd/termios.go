@@ -30,7 +30,7 @@ func WriteWindowSize(writer io.Writer) error {
 	return nil
 }
 
-func WriteTermiosState(termios *unix.Termios, writer io.Writer) error {
+func WriteTermiosState(writer io.Writer, termios *unix.Termios) error {
 
 	buf, err := makeTermiosBuf(termios)
 	if err != nil {
