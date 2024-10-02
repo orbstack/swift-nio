@@ -705,14 +705,6 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 		return ErrStopping
 	}
 
-	if !c.lxcConfigured {
-		err := c.configureLxc()
-		if err != nil {
-			return fmt.Errorf("configure LXC: %w", err)
-		}
-		c.lxcConfigured = true
-	}
-
 	oldState, err := c.transitionStateInternalLocked(types.ContainerStateStarting, isInternal)
 	if err != nil {
 		return err
@@ -724,6 +716,14 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 	}()
 
 	logrus.WithField("container", c.Name).Info("starting container")
+
+	if !c.lxcConfigured {
+		err := c.configureLxc()
+		if err != nil {
+			return fmt.Errorf("configure LXC: %w", err)
+		}
+		c.lxcConfigured = true
+	}
 
 	// clean logs (truncate - otherwise logs are gone because they're opened when creating lxc container)
 	err = os.WriteFile(c.logPath(), nil, 0644)
