@@ -35,7 +35,7 @@ use bitflags::bitflags;
 use derive_more::{Display, From, Into};
 use libc::{AT_FDCWD, MAXPATHLEN, SEEK_DATA, SEEK_HOLE};
 use nix::errno::Errno;
-use nix::fcntl::{AtFlags, OFlag};
+use nix::fcntl::{open, AtFlags, OFlag};
 use nix::sys::stat::fchmod;
 use nix::sys::stat::{futimens, utimensat, Mode, UtimensatFlags};
 use nix::sys::statfs::{fstatfs, statfs, Statfs};
@@ -2237,6 +2237,18 @@ impl FileSystem for PassthroughFs {
             // since we run as a normal user, we can't call mknod() to create chr/blk devices
             // TODO: once we support mode overrides, represent them with empty files / sockets
             match mode as u16 & libc::S_IFMT {
+                0 | libc::S_IFREG => {
+                    // on Linux, mknod can be used to create regular files using fmt = S_IFREG or 0
+                    unsafe {
+                        OwnedFd::from_raw_fd(open(
+                            c_path.as_ref(),
+                            // match mknod behavior: EEXIST if already exists
+                            OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_CLOEXEC,
+                            // permissions only
+                            Mode::from_bits_truncate(mode as u16),
+                        )?);
+                    }
+                }
                 libc::S_IFIFO => {
                     // FIFOs are actually safe because Linux just treats them as a device node, and will never issue VFS read call because they can't have data on real filesystems
                     // read/write blocking is all handled by the kernel
