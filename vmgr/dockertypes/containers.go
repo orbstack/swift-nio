@@ -12,6 +12,15 @@ const (
 	MountTypeCluster   MountType = "cluster"
 )
 
+type MountConsistency string
+
+const (
+	MountConsistencyDefault    MountConsistency = "default"
+	MountConsistencyConsistent MountConsistency = "consistent"
+	MountConsistencyCached     MountConsistency = "cached"
+	MountConsistencyDelegated  MountConsistency = "delegated"
+)
+
 type MountPropagation string
 
 const (
@@ -125,7 +134,9 @@ type NetworkEndpointSettings struct {
 	// Configurations
 	IPAMConfig *EndpointIPAMConfig
 	Links      []string
+	MacAddress string
 	Aliases    []string
+	DriverOpts map[string]string
 	// Operational data
 	NetworkID           string
 	EndpointID          string
@@ -135,8 +146,7 @@ type NetworkEndpointSettings struct {
 	IPv6Gateway         string
 	GlobalIPv6Address   string
 	GlobalIPv6PrefixLen int
-	MacAddress          string
-	DriverOpts          map[string]string
+	DNSNames            []string
 }
 
 type NetworkDisconnectRequest struct {
@@ -149,24 +159,158 @@ type NetworkConnectRequest struct {
 	EndpointConfig *NetworkEndpointSettings
 }
 
-type ContainerCreateRequest struct {
-	Image        string
-	Cmd          []string
-	ExposedPorts map[string]struct{}
-	HostConfig   *ContainerHostConfig
-}
-
 type ContainerCreateResponse struct {
 	ID       string `json:"Id"`
 	Warnings []string
 }
 
+type ContainerBlkdevWeight struct {
+	Path   string
+	Weight int
+}
+
+type ContainerBlkdevRate struct {
+	Path string
+	Rate int64
+}
+
+type ContainerDeviceMapping struct {
+	PathOnHost        string
+	PathInContainer   string
+	CgroupPermissions string
+}
+
+type ContainerDeviceRequest struct {
+	Driver       string
+	Count        int
+	DeviceIDs    []string
+	Capabilities []string
+	Options      map[string]string
+}
+
+type ContainerUlimit struct {
+	Name string
+	Soft int
+	Hard int
+}
+
+type ContainerLogConfig struct {
+	Type   string
+	Config map[string]string
+}
+
+type ContainerRestartPolicy struct {
+	Name              string
+	MaximumRetryCount int
+}
+
+type ContainerVolumeDriverConfig struct {
+	Name    string
+	Options map[string]string
+}
+
+type ContainerMountBindOptions struct {
+	Propagation            MountPropagation `json:",omitempty"`
+	NonRecursive           bool             `json:",omitempty"`
+	CreateMountpoint       bool             `json:",omitempty"`
+	ReadOnlyNonRecursive   bool             `json:",omitempty"`
+	ReadOnlyForceRecursive bool             `json:",omitempty"`
+}
+
+type ContainerMountVolumeOptions struct {
+	NoCopy       bool                         `json:",omitempty"`
+	Labels       map[string]string            `json:",omitempty"`
+	DriverConfig *ContainerVolumeDriverConfig `json:",omitempty"`
+}
+
+type ContainerMountTmpfsOptions struct {
+	SizeBytes int64
+	Mode      int
+	Options   [][]string
+}
+
+type ContainerMount struct {
+	Target        string                       `json:",omitempty"`
+	Source        string                       `json:",omitempty"`
+	Type          MountType                    `json:",omitempty"`
+	ReadOnly      bool                         `json:",omitempty"`
+	Consistency   MountConsistency             `json:",omitempty"`
+	BindOptions   *ContainerMountBindOptions   `json:",omitempty"`
+	VolumeOptions *ContainerMountVolumeOptions `json:",omitempty"`
+	TmpfsOptions  *ContainerMountTmpfsOptions  `json:",omitempty"`
+}
+
 type ContainerHostConfig struct {
-	Privileged   bool
-	AutoRemove   bool
-	NetworkMode  string
-	PortBindings map[string][]PortBinding
-	Binds        []string
+	CpuShares            int
+	Memory               int64
+	CgroupParent         string
+	BlkioWeight          int
+	BlkioWeightDevice    []ContainerBlkdevWeight
+	BlkioDeviceReadBps   []ContainerBlkdevRate
+	BlkioDeviceWriteBps  []ContainerBlkdevRate
+	BlkioDeviceReadIOps  []ContainerBlkdevRate
+	BlkioDeviceWriteIOps []ContainerBlkdevRate
+	CpuPeriod            int64
+	CpuQuota             int64
+	CpuRealtimePeriod    int64
+	CpuRealtimeRuntime   int64
+	CpusetCpus           string
+	CpusetMems           string
+	Devices              []ContainerDeviceMapping
+	DeviceCgroupRules    []string
+	DeviceRequests       []ContainerDeviceRequest
+	KernelMemoryTCP      int64
+	MemoryReservation    int64
+	MemorySwap           int64
+	MemorySwappiness     int64
+	NanoCpus             int64
+	OomKillDisable       bool
+	Init                 *bool
+	PidsLimit            *int64
+	Ulimits              []ContainerUlimit
+	CpuCount             int64
+	CpuPercent           int64
+	IOMaximumIOps        int64
+	IOMaximumBandwidth   int64
+	Binds                []string
+	ContainerIDFile      string
+	LogConfig            *ContainerLogConfig
+	NetworkMode          string
+	PortBindings         map[string][]PortBinding
+	RestartPolicy        *ContainerRestartPolicy
+	AutoRemove           bool
+	VolumeDriver         string
+	VolumesFrom          []string
+	Mounts               []ContainerMount
+	ConsoleSize          []int
+	Annotations          map[string]any
+	CapAdd               []string
+	CapDrop              []string
+	CgroupnsMode         string
+	Dns                  []string
+	DnsOptions           []string
+	DnsSearch            []string
+	ExtraHosts           []string
+	GroupAdd             []string
+	IpcMode              string
+	Cgroup               string
+	Links                []string
+	OomScoreAdj          int
+	PidMode              string
+	Privileged           bool
+	PublishAllPorts      bool
+	ReadonlyRootfs       bool
+	SecurityOpt          []string
+	StorageOpt           map[string]string
+	Tmpfs                map[string]string
+	UTSMode              string
+	UsernsMode           string
+	ShmSize              int64
+	Sysctls              map[string]string
+	Runtime              string
+	Isolation            string
+	MaskedPaths          []string
+	ReadonlyPaths        []string
 }
 
 type PortBinding struct {
@@ -266,11 +410,10 @@ type ContainerJSONBase struct {
 	ProcessLabel    string
 	AppArmorProfile string
 	ExecIDs         []string
-	// too complex
-	HostConfig  map[string]any
-	GraphDriver GraphDriverData
-	SizeRw      *int64 `json:",omitempty"`
-	SizeRootFs  *int64 `json:",omitempty"`
+	HostConfig      *ContainerHostConfig
+	GraphDriver     GraphDriverData
+	SizeRw          *int64 `json:",omitempty"`
+	SizeRootFs      *int64 `json:",omitempty"`
 }
 
 // string | []string
@@ -278,32 +421,36 @@ type strSlice = any
 type NatPortSet map[string]struct{}
 
 type ContainerConfig struct {
-	Hostname        string              // Hostname
-	Domainname      string              // Domainname
-	User            string              // User that will run the command(s) inside the container, also support user:group
-	AttachStdin     bool                // Attach the standard input, makes possible user interaction
-	AttachStdout    bool                // Attach the standard output
-	AttachStderr    bool                // Attach the standard error
-	ExposedPorts    NatPortSet          `json:",omitempty"` // List of exposed ports
-	Tty             bool                // Attach standard streams to a tty, including stdin if it is not closed.
-	OpenStdin       bool                // Open stdin
-	StdinOnce       bool                // If true, close stdin after the 1 attached client disconnects.
-	Env             []string            // List of environment variable to set in the container
-	Cmd             strSlice            // Command to run when starting the container
-	Healthcheck     *HealthConfig       `json:",omitempty"` // Healthcheck describes how to check the container is healthy
-	ArgsEscaped     bool                `json:",omitempty"` // True if command is already escaped (meaning treat as a command line) (Windows specific).
-	Image           string              // Name of the image as it was passed by the operator (e.g. could be symbolic)
-	Volumes         map[string]struct{} // List of volumes (mounts) used for the container
-	WorkingDir      string              // Current directory (PWD) in the command will be launched
-	Entrypoint      strSlice            // Entrypoint to run when starting the container
-	NetworkDisabled bool                `json:",omitempty"` // Is network disabled
-	MacAddress      string              `json:",omitempty"` // Mac Address of the container
-	OnBuild         []string            // ONBUILD metadata that were defined on the image Dockerfile
-	Labels          map[string]string   // List of labels set to this container
-	StopSignal      string              `json:",omitempty"` // Signal to stop a container
-	StopTimeout     *int                `json:",omitempty"` // Timeout (in seconds) to stop a container
-	Shell           strSlice            `json:",omitempty"` // Shell for shell-form of RUN, CMD, ENTRYPOINT
+	Hostname         string                   // Hostname
+	Domainname       string                   // Domainname
+	User             string                   // User that will run the command(s) inside the container, also support user:group
+	AttachStdin      bool                     // Attach the standard input, makes possible user interaction
+	AttachStdout     bool                     // Attach the standard output
+	AttachStderr     bool                     // Attach the standard error
+	ExposedPorts     NatPortSet               `json:",omitempty"` // List of exposed ports
+	Tty              bool                     // Attach standard streams to a tty, including stdin if it is not closed.
+	OpenStdin        bool                     // Open stdin
+	StdinOnce        bool                     // If true, close stdin after the 1 attached client disconnects.
+	Env              []string                 // List of environment variable to set in the container
+	Cmd              strSlice                 // Command to run when starting the container
+	Healthcheck      *HealthConfig            `json:",omitempty"` // Healthcheck describes how to check the container is healthy
+	ArgsEscaped      bool                     `json:",omitempty"` // True if command is already escaped (meaning treat as a command line) (Windows specific).
+	Image            string                   // Name of the image as it was passed by the operator (e.g. could be symbolic)
+	Volumes          map[string]struct{}      // List of volumes (mounts) used for the container
+	WorkingDir       string                   // Current directory (PWD) in the command will be launched
+	Entrypoint       strSlice                 // Entrypoint to run when starting the container
+	NetworkDisabled  bool                     `json:",omitempty"` // Is network disabled
+	MacAddress       string                   `json:",omitempty"` // Mac Address of the container
+	OnBuild          []string                 // ONBUILD metadata that were defined on the image Dockerfile
+	Labels           map[string]string        // List of labels set to this container
+	StopSignal       string                   `json:",omitempty"` // Signal to stop a container
+	StopTimeout      *int                     `json:",omitempty"` // Timeout (in seconds) to stop a container
+	Shell            strSlice                 `json:",omitempty"` // Shell for shell-form of RUN, CMD, ENTRYPOINT
+	HostConfig       *ContainerHostConfig     `json:",omitempty"`
+	NetworkingConfig *NetworkNetworkingConfig `json:",omitempty"`
 }
+
+type ContainerCreateRequest = ContainerConfig
 
 type ContainerJSON struct {
 	*ContainerJSONBase
@@ -324,6 +471,6 @@ type NetworkNetworkingConfig struct {
 
 type FullContainerCreateRequest struct {
 	*ContainerConfig
-	HostConfig       map[string]any
+	HostConfig       *ContainerHostConfig
 	NetworkingConfig *NetworkNetworkingConfig
 }

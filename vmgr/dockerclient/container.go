@@ -20,17 +20,19 @@ func splitRepoTag(repoTag string) (string, string) {
 	return repoPart, tagPart
 }
 
-func (c *Client) RunContainer(req *dockertypes.ContainerCreateRequest) (string, error) {
-	// need to pull image first
-	repoPart, tagPart := splitRepoTag(req.Image)
-	err := c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
-	if err != nil {
-		return "", fmt.Errorf("pull image: %w", err)
+func (c *Client) RunContainer(req *dockertypes.ContainerCreateRequest, pullImage bool) (string, error) {
+	if pullImage {
+		// need to pull image first
+		repoPart, tagPart := splitRepoTag(req.Image)
+		err := c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
+		if err != nil {
+			return "", fmt.Errorf("pull image: %w", err)
+		}
 	}
 
 	// create --rm container
 	var containerResp dockertypes.ContainerCreateResponse
-	err = c.Call("POST", "/containers/create", req, &containerResp)
+	err := c.Call("POST", "/containers/create", req, &containerResp)
 	if err != nil {
 		return "", fmt.Errorf("create container: %w", err)
 	}
