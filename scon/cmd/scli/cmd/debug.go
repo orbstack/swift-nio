@@ -230,20 +230,16 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 		}
 
 		// request pty
-		fmt.Println("requesting pty")
 		err = server.RpcRequestPty(termEnv, h, w, termios)
 		if err != nil {
 			return err
 		}
-		fmt.Println("finished setting pty")
 	}
 
 	// start wormhole-attach payload
-	fmt.Println(" starting server")
 	if err := server.RpcStart(); err != nil {
 		return err
 	}
-	fmt.Println("finished starting server")
 
 	go func() {
 		buf := make([]byte, 1024)
@@ -276,7 +272,13 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 
 			switch rpcType {
 			case ReadStdioType:
-				os.Stdout.Write(data)
+				if data[0] == 1 {
+					os.Stdout.Write(data)
+				} else if data[0] == 2 {
+					os.Stderr.Write(data)
+				} else {
+					return
+				}
 			case ExitCodeType:
 				term.Restore(0, originalState)
 				os.Exit(int(data[0]))

@@ -50,14 +50,14 @@ impl RpcType {
 }
 
 pub enum RpcOutputMessage<'a> {
-    StdioData(&'a [u8]),
+    StdioData(u8, &'a [u8]),
     Exit(u8),
 }
 
 impl<'a> RpcOutputMessage<'a> {
     pub fn to_const(&self) -> u8 {
         match self {
-            Self::StdioData(_) => 1,
+            Self::StdioData(_, _) => 1,
             Self::Exit(_) => 2,
         }
     }
@@ -66,9 +66,10 @@ impl<'a> RpcOutputMessage<'a> {
         stream.write_all(&[self.to_const()])?;
 
         match self {
-            Self::StdioData(data) => {
-                let len_bytes = u32::try_from(data.len())?.to_be_bytes();
+            Self::StdioData(fd, data) => {
+                let len_bytes = u32::try_from(data.len() + 1)?.to_be_bytes();
                 stream.write_all(&len_bytes)?;
+                stream.write(&[*fd]);
                 stream.write_all(data)?;
             }
             Self::Exit(exit_code) => stream.write_all(&[*exit_code])?,
@@ -295,7 +296,7 @@ pub fn run(
                                         "rpc: response data {:?}",
                                         String::from_utf8_lossy(&buffer[..n])
                                     );
-                                    RpcOutputMessage::StdioData(&buffer[..n])
+                                    RpcOutputMessage::StdioData(data as u8, &buffer[..n])
                                         .write_to(&mut client_writer)?;
                                     client_writer.flush()?;
                                 }
