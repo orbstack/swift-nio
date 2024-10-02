@@ -187,6 +187,7 @@ kernel/drivers/block/loop.ko
 kernel/drivers/block/nbd.ko
 kernel/drivers/block/virtio_blk.ko
 kernel/drivers/block/zram/zram.ko
+kernel/drivers/block/ublk_drv.ko
 kernel/drivers/misc/eeprom/eeprom_93cx6.ko
 kernel/drivers/misc/pvpanic/pvpanic.ko
 kernel/drivers/misc/pvpanic/pvpanic-mmio.ko
@@ -244,6 +245,10 @@ kernel/drivers/usb/common/usb-common.ko
 kernel/drivers/usb/core/usbcore.ko
 kernel/drivers/usb/storage/uas.ko
 kernel/drivers/usb/storage/usb-storage.ko
+kernel/drivers/usb/serial/usbserial.ko
+kernel/drivers/usb/serial/ftdi_sio.ko
+kernel/drivers/usb/serial/pl2303.ko
+kernel/drivers/usb/serial/usb-serial-simple.ko
 kernel/drivers/usb/usbip/usbip-core.ko
 kernel/drivers/usb/usbip/vhci-hcd.ko
 kernel/drivers/input/serio/serio.ko
