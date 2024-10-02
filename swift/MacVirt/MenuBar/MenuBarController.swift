@@ -610,7 +610,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
         let running = record.running // TODO: check restartingMachines?
 
         let machineItem = newActionItem(record.name, icon: icon) {
-            await record.openInTerminal()
+            if record.state != .creating {
+                await record.openInTerminal()
+            }
         }
         let submenu = machineItem.newSubmenu()
 
@@ -646,11 +648,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addSeparator()
 
-        submenu.addActionItem("Terminal", icon: systemImage("terminal")) {
+        submenu.addActionItem("Terminal", icon: systemImage("terminal"), disabled: record.state == .creating) {
             await record.openInTerminal()
         }
 
-        submenu.addActionItem("Files", icon: systemImage("folder")) {
+        submenu.addActionItem("Files", icon: systemImage("folder"), disabled: record.state == .creating) {
             record.openNfsDirectory()
         }
 

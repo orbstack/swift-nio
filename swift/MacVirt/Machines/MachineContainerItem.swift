@@ -108,11 +108,14 @@ struct MachineContainerItem: View {
                 }) {
                     Label("Open Terminal", systemImage: "terminal")
                 }
+                .disabled(record.state == .creating)
+                
                 Button(action: {
                     record.openNfsDirectory()
                 }) {
                     Label("Open Files", systemImage: "folder")
                 }
+                .disabled(record.state == .creating)
             }
 
             Divider()
@@ -165,8 +168,10 @@ struct MachineContainerItem: View {
             RenameContainerView(name: record.name, record: record, isPresented: $presentRename)
         }
         .akListOnDoubleClick {
-            Task {
-                await record.openInTerminal()
+            if record.state != .creating {
+                Task {
+                    await record.openInTerminal()
+                }
             }
         }
     }
