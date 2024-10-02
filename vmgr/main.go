@@ -55,7 +55,7 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 
-	_ "github.com/orbstack/macvirt/vmgr/netpose"
+	_ "github.com/orbstack/macvirt/vmgr/prelude"
 )
 
 const (

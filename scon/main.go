@@ -26,6 +26,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+
+	_ "github.com/orbstack/macvirt/vmgr/prelude"
 )
 
 const (

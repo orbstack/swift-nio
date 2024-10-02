@@ -251,7 +251,8 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// use real tmp
 	cm.set("lxc.environment", "TMPDIR=/realtmp")
 	// disable Go SIGURG preemption to reduce wakeups
-	cm.set("lxc.environment", "GODEBUG=asyncpreemptoff=1")
+	// allow negative serial numbers in TLS certs to support bad MITM proxies: https://github.com/orbstack/orbstack/issues/1490
+	cm.set("lxc.environment", "GODEBUG=asyncpreemptoff=1,x509negativeserial=1")
 
 	cm.set("lxc.init.cmd", "/opt/orbstack-guest/simplevisor")
 
