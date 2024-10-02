@@ -36,7 +36,9 @@ var (
 		"loop",
 		"nbd",
 		"zram",
-		"vdc", // allow swapoff
+		"vdc",   // allow swapoff
+		"ublkc", // ublk char device
+		"ublkb", // ublk block device
 	}
 
 	// unfortunately we CANNOT exclude zram0 for non-isolated machines,
@@ -294,6 +296,7 @@ func (c *Container) configureLxc() error {
 		if !c.config.Isolated {
 			addDevOptional("/dev/kmsg")
 			addDevOptional("/dev/loop-control")
+			addDevOptional("/dev/ublk-control")
 			addDevOptional("/dev/autofs") // TODO security
 			addDevOptional("/dev/userfaultfd")
 			addDevOptional("/dev/btrfs-control")
