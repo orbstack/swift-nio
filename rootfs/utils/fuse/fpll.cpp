@@ -146,10 +146,15 @@ static struct lo_data *lo_data(fuse_req_t req)
 
 static struct lo_inode *lo_inode(fuse_req_t req, fuse_ino_t ino)
 {
-	if (ino == FUSE_ROOT_ID)
+	if (ino == FUSE_ROOT_ID) {
 		return &lo_data(req)->root;
-	else
-		return ino_to_ptr[ino];
+	} else {
+		auto it = ino_to_ptr.find(ino);
+		if (it != ino_to_ptr.end()) {
+			return it->second;
+		}
+		return NULL;
+	}
 }
 
 static uint64_t hash_st_ino(dev_t dev, ino_t ino) {
@@ -308,12 +313,13 @@ out_err:
 static struct lo_inode *lo_find(struct lo_data *lo, struct stat *st)
 {
 	pthread_mutex_lock(&lo->mutex);
-	struct lo_inode *ret = ino_to_ptr[hash_st_ino(st->st_dev, st->st_ino)];
-	if (ret) {
-		assert(ret->refcount > 0);
-		ret->refcount++;
+	auto it = ino_to_ptr.find(hash_st_ino(st->st_dev, st->st_ino));
+	if (it != ino_to_ptr.end()) {
+		auto inode = it->second;
+		assert(inode->refcount > 0);
+		inode->refcount++;
 		pthread_mutex_unlock(&lo->mutex);
-		return ret;
+		return inode;
 	}
 
 	pthread_mutex_unlock(&lo->mutex);
@@ -338,9 +344,10 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 	int parent_fd = lo_fd(req, parent);
 	if (parent_fd == -1) {
 		// only check forgotten and recover if parent is not found
-		auto forgotten = forgotten_inodes[parent];
-		if (forgotten != "") {
+		auto it = forgotten_inodes.find(parent);
+		if (it != forgotten_inodes.end()) {
 			// cases are '.' and '..' (or other path)
+			auto forgotten = it->second;
 			if (!strcmp(name, ".")) {
 				trace_printf("recovering [file, %s] fd %lu from %s\n", name, parent, forgotten.c_str());
 				newfd = openat(AT_FDCWD, forgotten.c_str(), O_PATH | O_NOFOLLOW);
