@@ -39,6 +39,10 @@ var (
 		"vdc",   // allow swapoff
 		"ublkc", // ublk char device
 		"ublkb", // ublk block device
+
+		"sd",     // USB Mass Storage, UAS (SCSI)
+		"ttyUSB", // USB serial
+		"hidraw", // HID
 	}
 
 	// unfortunately we CANNOT exclude zram0 for non-isolated machines,
