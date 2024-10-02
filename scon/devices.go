@@ -15,7 +15,7 @@ func (m *ConManager) addDeviceNodeAll(src string, dst string) error {
 
 	errs := make([]error, 0)
 	for _, c := range m.containersByID {
-		if !c.Running() {
+		if c.config.Isolated || !c.Running() {
 			continue
 		}
 
@@ -40,7 +40,7 @@ func (m *ConManager) removeDeviceNodeAll(dst string) error {
 
 	errs := make([]error, 0)
 	for _, c := range m.containersByID {
-		if !c.Running() {
+		if c.config.Isolated || !c.Running() {
 			continue
 		}
 
