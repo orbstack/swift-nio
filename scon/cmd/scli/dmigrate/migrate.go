@@ -506,7 +506,7 @@ outer:
 				"/var/run/docker.sock:/var/run/docker.sock",
 			},
 		},
-	})
+	}, true)
 	if err != nil {
 		return fmt.Errorf("run src agent: %w", err)
 	}
