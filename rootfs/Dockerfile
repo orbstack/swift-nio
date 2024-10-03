@@ -105,6 +105,7 @@ RUN apk add --no-cache alpine-sdk linux-headers fuse3-dev
 FROM c-base AS c-build
 COPY rootfs/utils/*.c /build/
 COPY rootfs/utils/fuse /build/fuse
+COPY wormhole/wormhole-stub.c /build/
 COPY --from=runc-build /out/runc /build/
 RUN <<EOT sh -eux
 mkdir /out /out-guest
@@ -115,6 +116,7 @@ gcc -O2 -Wall -static -o /out/rstub /build/rvfs-wrapper.c
 gcc -O2 -Wall -static -o /out/rinit /build/rinit.c
 gcc -O2 -Wall -static -o /out-guest/pstub /build/pstub.c
 gcc -O2 -Wall -static -o /out-guest/runc-wrapper /build/runc-wrapper.c
+gcc -O2 -Wall -static -o /out-guest/wormhole-stub /build/wormhole-stub.c
 strip /out/* /out-guest/*
 
 # append runc.arm64 to rvfs-wrapper
