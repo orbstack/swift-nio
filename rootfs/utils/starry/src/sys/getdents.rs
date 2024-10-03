@@ -39,7 +39,7 @@ pub enum FileType {
     Socket = DT_SOCK,
 }
 
-pub fn for_each_dir_entry<'a, F: AsRawFd>(fd: &F, mut f: impl FnMut(DirEntry<'a>) -> anyhow::Result<()>) -> anyhow::Result<()> {
+pub fn for_each_getdents<'a, F: AsRawFd>(fd: &F, mut f: impl FnMut(DirEntry<'a>) -> anyhow::Result<()>) -> anyhow::Result<()> {
     loop {
         // TODO: big buffer without stack overflow or malloc
         let mut buf: MaybeUninit<[u8; 32768]> = MaybeUninit::uninit();

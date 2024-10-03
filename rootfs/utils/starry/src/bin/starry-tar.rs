@@ -1,20 +1,15 @@
-use std::{cell::{Ref, RefCell}, cmp::min, ffi::CStr, fs::File, io::Write, mem::MaybeUninit, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path};
+use std::{cell::{Ref, RefCell}, cmp::min, fs::File, io::Write, mem::MaybeUninit, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path};
 
 use anyhow::anyhow;
-use bitflags::bitflags;
 use bytemuck::{Pod, Zeroable};
 use nix::{errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode};
 use numtoa::NumToA;
 use smallvec::{SmallVec, ToSmallVec};
-use starry::sys::for_each_dir_entry;
+use starry::sys::{getdents::for_each_getdents, inode_flags::InodeFlags, link::with_readlinkat, stat::{fstat, fstatat}, xattr::{for_each_flistxattr, with_fgetxattr}};
 use zstd::Encoder;
 
 const TAR_PADDING: [u8; 1024] = [0; 1024];
-
 const PAX_HEADER_NAME: &str = "@PaxHeader";
-
-const PATH_STACK_MAX: usize = 1024;
-const XATTR_VALUE_STACK_MAX: usize = 512;
 
 #[repr(C)]
 #[derive(Pod, Zeroable, Clone, Copy)]
@@ -349,9 +344,9 @@ fn add_regular_file(w: &mut impl Write, file: &OwnedFd, st: &libc::stat) -> anyh
     Ok(())
 }
 
-fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack) -> anyhow::Result<()> {
+fn walk_dir(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack) -> anyhow::Result<()> {
     // TODO: error handling on a per-entry basis?
-    for_each_dir_entry(dirfd, |entry| {
+    for_each_getdents(dirfd, |entry| {
         let path = path_stack.push(entry.name.to_bytes());
 
         // TODO: minor optimization: we will open regular files and dirs anyway, so can fstat after open, instead of using a string here
@@ -423,7 +418,7 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
         // xattrs
         // TODO: /proc/self/fd/ llistxattr for other types
         if typ == libc::S_IFREG || typ == libc::S_IFDIR {
-            for_each_xattr(&fd, |name| {
+            for_each_flistxattr(&fd, |name| {
                 with_fgetxattr(&fd, name, |value| {
                     // SCHILY.xattr is a violation of the PAX spec: PAX headers must be UTF-8
                     // LIBARCHIVE.xattr uses base64 to fix that, but it's not supported by GNU tar
@@ -442,7 +437,7 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
         w.write_all(header.as_bytes())?;
 
         if typ == libc::S_IFDIR {
-            add_dir_children(w, &fd, path_stack)?;
+            walk_dir(w, &fd, path_stack)?;
         } else if typ == libc::S_IFREG {
             add_regular_file(w, &fd, &st)?;
         }
@@ -451,144 +446,6 @@ fn add_dir_children(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack)
     })?;
 
     Ok(())
-}
-
-fn fstat<F: AsRawFd>(fd: &F) -> nix::Result<libc::stat> {
-    let fd = fd.as_raw_fd();
-    let mut st = MaybeUninit::uninit();
-    let ret = unsafe { libc::fstat(fd, st.as_mut_ptr()) };
-    Errno::result(ret).map(|_| unsafe { st.assume_init() })
-}
-
-fn fstatat<F: AsRawFd>(dirfd: &F, path: &CStr, flags: i32) -> nix::Result<libc::stat> {
-    let dirfd = dirfd.as_raw_fd();
-    let mut st = MaybeUninit::uninit();
-    let ret = unsafe { libc::fstatat(dirfd, path.as_ptr(), st.as_mut_ptr(), flags) };
-    Errno::result(ret).map(|_| unsafe { st.assume_init() })
-}
-
-fn with_readlinkat<F: AsRawFd, T>(dirfd: &F, path: &CStr, f: impl FnOnce(&[u8]) -> T) -> nix::Result<T> {
-    let mut buf = MaybeUninit::<[u8; PATH_STACK_MAX]>::uninit();
-
-    let ret = unsafe { libc::readlinkat(dirfd.as_raw_fd(), path.as_ptr(), buf.as_mut_ptr() as *mut _, PATH_STACK_MAX) };
-    let n = Errno::result(ret)? as usize;
-    if n < PATH_STACK_MAX {
-        // path fits in stack buffer
-        let path = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, ret as usize) };
-        Ok(f(path))
-    } else {
-        // truncated
-        // stat to figure out how many bytes to allocate, then do it on heap
-        let mut buf = Vec::new();
-        loop {
-            let st = fstatat(dirfd, path, libc::AT_SYMLINK_NOFOLLOW)?;
-            let expected_len = st.st_size as usize;
-            // +1 so we can tell whether it was truncated or not
-            buf.reserve(expected_len + 1);
-            let ret = unsafe { libc::readlinkat(dirfd.as_raw_fd(), path.as_ptr(), buf.as_mut_ptr() as *mut _, buf.capacity()) };
-            match Errno::result(ret) {
-                Ok(n) => {
-                    if n as usize <= expected_len {
-                        unsafe { buf.set_len(n as usize) };
-                        return Ok(f(&buf));
-                    }
-
-                    // truncated due to race (symlink dest changed)
-                    // try again
-                }
-                Err(e) => return Err(e),
-            }
-        }
-    }
-}
-
-fn for_each_cstr(data: &[u8], mut f: impl FnMut(&CStr) -> nix::Result<()>) -> nix::Result<()> {
-    let mut slice = data;
-    while let Ok(cstr) = CStr::from_bytes_until_nul(slice) {
-        f(cstr)?;
-        slice = &slice[cstr.count_bytes() + 1..];
-    }
-    Ok(())
-}
-
-fn for_each_xattr<F: AsRawFd>(fd: &F, f: impl FnMut(&CStr) -> nix::Result<()>) -> nix::Result<()> {
-    let mut buf = MaybeUninit::<[u8; XATTR_VALUE_STACK_MAX]>::uninit();
-
-    let ret = unsafe { libc::flistxattr(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, XATTR_VALUE_STACK_MAX) };
-    match Errno::result(ret) {
-        Ok(n) => {
-            if n > 0 {
-                let data = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, n as usize) };
-                for_each_cstr(data, f)?;
-            }
-            Ok(())
-        }
-
-        Err(Errno::ERANGE) => {
-            let mut buf = Vec::new();
-
-            // loop in case of race (xattr added between calls)
-            loop {
-                // get requested size
-                let ret = unsafe { libc::flistxattr(fd.as_raw_fd(), std::ptr::null_mut(), 0) };
-                let expected_len = Errno::result(ret)? as usize;
-                buf.reserve_exact(expected_len);
-
-                // get xattr list again
-                let ret = unsafe { libc::flistxattr(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, buf.capacity()) };
-                match Errno::result(ret) {
-                    Ok(n) => {
-                        if n > 0 {
-                            unsafe { buf.set_len(n as usize) };
-                            for_each_cstr(&buf, f)?;
-                        }
-                        return Ok(());
-                    }
-
-                    // raced, try again
-                    Err(Errno::ERANGE) => continue,
-
-                    // other error
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-
-        Err(e) => Err(e),
-    }
-}
-
-fn with_fgetxattr<T, F: AsRawFd>(fd: &F, name: &CStr, f: impl FnOnce(&[u8]) -> T) -> nix::Result<T> {
-    let mut buf = MaybeUninit::<[u8; PATH_STACK_MAX]>::uninit();
-
-    let ret = unsafe { libc::fgetxattr(fd.as_raw_fd(), name.as_ptr(), buf.as_mut_ptr() as *mut _, PATH_STACK_MAX) };
-    match Errno::result(ret) {
-        Ok(n) => {
-            let data = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u8, n as usize) };
-            Ok(f(data))
-        }
-        Err(Errno::ERANGE) => {
-            let mut buf = Vec::new();
-            loop {
-                // get requested size
-                let ret = unsafe { libc::fgetxattr(fd.as_raw_fd(), name.as_ptr(), std::ptr::null_mut(), 0) };
-                let expected_len = Errno::result(ret)? as usize;
-                buf.reserve_exact(expected_len);
-
-                // get xattr again
-                let ret = unsafe { libc::fgetxattr(fd.as_raw_fd(), name.as_ptr(), buf.as_mut_ptr() as *mut _, buf.capacity()) };
-                match Errno::result(ret) {
-                    Ok(n) => {
-                        unsafe { buf.set_len(n as usize) };
-                        return Ok(f(&buf));
-                    }
-                    Err(Errno::ERANGE) => continue,
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-        Err(e) => Err(e),
-    }
 }
 
 fn header_from_stat(st: &libc::stat) -> UstarHeader {
@@ -625,52 +482,13 @@ fn header_from_stat(st: &libc::stat) -> UstarHeader {
     header
 }
 
-bitflags! {
-    #[repr(transparent)]
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    struct InodeFlags: u32 {
-        // FS_<FLAG>_FL
-        const SECRM = 0x00000001;
-        const UNRM = 0x00000002;
-        const COMPR = 0x00000004;
-        const SYNC = 0x00000008;
-        const IMMUTABLE = 0x00000010;
-        const APPEND = 0x00000020;
-        const NODUMP = 0x00000040;
-        const NOATIME = 0x00000080;
-        const DIRTY = 0x00000100;
-        const COMPRBLK = 0x00000200;
-        const NOCOMP = 0x00000400;
-        const ENCRYPT = 0x00000800;
-        //const BTREE = 0x00001000;
-        const INDEX = 0x00001000;
-        const IMAGIC = 0x00002000;
-        const JOURNAL_DATA = 0x00004000;
-        const NOTAIL = 0x00008000;
-        const DIRSYNC = 0x00010000;
-        const TOPDIR = 0x00020000;
-        const HUGE_FILE = 0x00040000;
-        const EXTENT = 0x00080000;
-        const VERITY = 0x00100000;
-        const EA_INODE = 0x00200000;
-        const EOFBLOCKS = 0x00400000;
-        const NOCOW = 0x00800000;
-        const DAX = 0x02000000;
-        const INLINE_DATA = 0x10000000;
-        const PROJINHERIT = 0x20000000;
-        const CASEFOLD = 0x40000000;
-        const RESERVED = 0x80000000;
-    }
+trait InodeFlagsExt {
+    fn add_name(&self, names: &mut SmallVec<[&'static str; 1]>, name: &'static str, flag: InodeFlags);
+
+    fn names(&self) -> SmallVec<[&'static str; 1]>;
 }
 
-impl InodeFlags {
-    fn from_file<F: AsRawFd>(fd: &F) -> nix::Result<Self> {
-        let mut flags = Self::empty();
-        let ret = unsafe { libc::ioctl(fd.as_raw_fd(), libc::FS_IOC_GETFLAGS, &mut flags) };
-        Errno::result(ret)?;
-        Ok(flags)
-    }
-
+impl InodeFlagsExt for InodeFlags {
     #[inline]
     fn add_name(&self, names: &mut SmallVec<[&'static str; 1]>, name: &'static str, flag: InodeFlags) {
         if self.contains(flag) {
@@ -722,7 +540,7 @@ fn main() -> anyhow::Result<()> {
 
     // walk dirs
     let path_stack = PathStack::new();
-    add_dir_children(&mut writer, &root_dir, &path_stack)?;
+    walk_dir(&mut writer, &root_dir, &path_stack)?;
 
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;
