@@ -474,3 +474,7 @@ type FullContainerCreateRequest struct {
 	HostConfig       *ContainerHostConfig
 	NetworkingConfig *NetworkNetworkingConfig
 }
+
+type ContainerCommitResponse struct {
+	ID string `json:"Id"`
+}

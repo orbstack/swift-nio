@@ -3,6 +3,7 @@ package dockerclient
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
@@ -55,4 +56,12 @@ func (c *Client) ListImagesFull() ([]Image, error) {
 	}
 
 	return res, nil
+}
+
+func (c *Client) RemoveImage(imageID string, force bool) error {
+	err := c.Call("DELETE", "/images/"+imageID+"?force="+strconv.FormatBool(force), nil, nil)
+	if err != nil {
+		return fmt.Errorf("remove image %s: %w", imageID, err)
+	}
+	return nil
 }

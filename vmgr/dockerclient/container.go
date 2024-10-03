@@ -78,3 +78,13 @@ func (c *Client) InspectContainer(cid string) (*dockertypes.ContainerJSON, error
 
 	return &fullCtr, nil
 }
+
+func (c *Client) CommitContainer(containerID string) (string, error) {
+	var resp dockertypes.ContainerCommitResponse
+	err := c.Call("POST", "/commit?container="+containerID, nil, &resp)
+	if err != nil {
+		return "", fmt.Errorf("commit container: %w", err)
+	}
+
+	return resp.ID, nil
+}
