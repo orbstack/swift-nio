@@ -89,55 +89,60 @@ const DockerBIP = "192.168.215.1/24"
 
 // change default addrs to minimize conflicts with other networks
 var DockerDefaultAddressPools = []map[string]any{
-	// custom: first 32 from script (25 - 2)
+	// custom: first 32 from least-used github code search script (25 - 2)
+	// these used to be sorted by least used in order to minimize conflicts, but dockerd v27's pool allocator sorts by IP (ascending), so match it for clarity
+
+	// removed: < 100 even number is probably common
+	//{"base": "192.168.94.0/24", "size": 24},
+	{"base": "192.168.97.0/24", "size": 24},
+	{"base": "192.168.107.0/24", "size": 24},
+	{"base": "192.168.117.0/24", "size": 24},
+	// reserved for k8s
+	//{"base": "192.168.138.0/24", "size": 24},
+	{"base": "192.168.147.0/24", "size": 24},
+	{"base": "192.168.148.0/24", "size": 24},
+	{"base": "192.168.155.0/24", "size": 24},
+	{"base": "192.168.156.0/24", "size": 24},
+	{"base": "192.168.158.0/24", "size": 24},
+	{"base": "192.168.163.0/24", "size": 24},
+	{"base": "192.168.164.0/24", "size": 24},
+	{"base": "192.168.165.0/24", "size": 24},
+	{"base": "192.168.166.0/24", "size": 24},
+	{"base": "192.168.167.0/24", "size": 24},
+	{"base": "192.168.171.0/24", "size": 24},
+	{"base": "192.168.172.0/24", "size": 24},
+	{"base": "192.168.181.0/24", "size": 24},
+	{"base": "192.168.183.0/24", "size": 24},
+	{"base": "192.168.186.0/24", "size": 24},
+	// reserved for k8s
+	//{"base": "192.168.194.0/24", "size": 24},
+	{"base": "192.168.207.0/24", "size": 24},
+	{"base": "192.168.214.0/24", "size": 24},
+	// used for default bridge (bip)
 	{"base": "192.168.215.0/24", "size": 24},
+	{"base": "192.168.216.0/24", "size": 24},
+	{"base": "192.168.223.0/24", "size": 24},
+	{"base": "192.168.227.0/24", "size": 24},
 	{"base": "192.168.228.0/24", "size": 24},
+	{"base": "192.168.229.0/24", "size": 24},
+	{"base": "192.168.237.0/24", "size": 24},
+	{"base": "192.168.239.0/24", "size": 24},
+	{"base": "192.168.242.0/24", "size": 24},
 	// reserved for possible future machines use
 	//{"base": "192.168.243.0/24", "size": 24},
 	{"base": "192.168.247.0/24", "size": 24},
-	{"base": "192.168.207.0/24", "size": 24},
-	{"base": "192.168.167.0/24", "size": 24},
-	{"base": "192.168.107.0/24", "size": 24},
-	{"base": "192.168.237.0/24", "size": 24},
-	{"base": "192.168.148.0/24", "size": 24},
-	{"base": "192.168.214.0/24", "size": 24},
-	{"base": "192.168.165.0/24", "size": 24},
-	{"base": "192.168.227.0/24", "size": 24},
-	{"base": "192.168.181.0/24", "size": 24},
-	{"base": "192.168.158.0/24", "size": 24},
-	{"base": "192.168.117.0/24", "size": 24},
-	{"base": "192.168.155.0/24", "size": 24},
-	// reserved for k8s
-	//{"base": "192.168.194.0/24", "size": 24},
-	{"base": "192.168.147.0/24", "size": 24},
-	{"base": "192.168.229.0/24", "size": 24},
-	{"base": "192.168.183.0/24", "size": 24},
-	{"base": "192.168.156.0/24", "size": 24},
-	{"base": "192.168.97.0/24", "size": 24},
-	{"base": "192.168.171.0/24", "size": 24},
-	{"base": "192.168.186.0/24", "size": 24},
-	// removed: < 100 even number is prob common
-	//{"base": "192.168.94.0/24", "size": 24},
-	{"base": "192.168.216.0/24", "size": 24},
-	{"base": "192.168.242.0/24", "size": 24},
-	{"base": "192.168.166.0/24", "size": 24},
-	{"base": "192.168.239.0/24", "size": 24},
-	{"base": "192.168.223.0/24", "size": 24},
-	{"base": "192.168.164.0/24", "size": 24},
-	{"base": "192.168.163.0/24", "size": 24},
-	{"base": "192.168.172.0/24", "size": 24},
-	// reserved for k8s
-	//{"base": "192.168.138.0/24", "size": 24},
 
-	// Docker defaults for overflow (and compat, if explicit subnet is specified for a network)
-	{"base": "172.17.0.0/16", "size": 16},
-	{"base": "172.18.0.0/16", "size": 16},
-	{"base": "172.19.0.0/16", "size": 16},
-	{"base": "172.20.0.0/14", "size": 16},
-	{"base": "172.24.0.0/14", "size": 16},
-	{"base": "172.28.0.0/14", "size": 16},
-	// remove the 192.168 pool to avoid conflicts
-	//{"base": "192.168.0.0/16", "size": 20},
+	// Docker defaults for overflow
+	// no longer included for dockerd v27+: sorting by ascending IP means that these will be preferred
+	/*
+		{"base": "172.17.0.0/16", "size": 16},
+		{"base": "172.18.0.0/16", "size": 16},
+		{"base": "172.19.0.0/16", "size": 16},
+		{"base": "172.20.0.0/14", "size": 16},
+		{"base": "172.24.0.0/14", "size": 16},
+		{"base": "172.28.0.0/14", "size": 16},
+		{"base": "192.168.0.0/16", "size": 20},
+	*/
 }
 
 // default max pods is 110, so we can fit it in here
