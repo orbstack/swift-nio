@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
@@ -132,14 +133,6 @@ type ContainerData struct {
 	}
 }
 
-type ContextData struct {
-	Name      string
-	Endpoints struct {
-		Docker struct {
-			Host string
-		}
-	}
-}
 type WormholeParams struct {
 	Pid        int      `json:"init_pid"`
 	Env        []string `json:"container_env"`
@@ -306,20 +299,26 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 }
 
 func debugRemote(containerID string) error {
-	containerID, context, ok := strings.Cut(containerID, "@")
+	containerID, hostName, ok := strings.Cut(containerID, "@")
+	// todo handle orbstack docker host specially
+	client, err := GetDockerClient(hostName)
+	if err != nil {
+		return err
+	}
+
 	dockerBin := conf.FindXbin("docker")
 
 	if !ok {
 		return errors.New("invalid remote context " + containerID)
 	}
 
-	cmd := exec.Command(dockerBin, "context", "inspect", context)
+	cmd := exec.Command(dockerBin, "context", "inspect", hostName)
 	output, err := cmd.Output()
 	if err != nil {
 		return errors.New("failed to inspect context")
 	}
 
-	var contextInfo []ContextData
+	var contextInfo []ContextMetadata
 	err = json.Unmarshal(output, &contextInfo)
 	if err != nil {
 		return errors.New("failed to unmarshal context")
@@ -332,26 +331,16 @@ func debugRemote(containerID string) error {
 	dockerHostEnv := append(os.Environ(), "DOCKER_HOST="+dockerHost)
 	fmt.Println("using dockerhost: " + dockerHost)
 
-	cmd = exec.Command(dockerBin, "inspect", containerID)
-	cmd.Env = dockerHostEnv
-	output, err = cmd.Output()
-	if err != nil {
-		return errors.New("failed to inspect container " + containerID)
-	}
-	var containerInfo []ContainerData
-	err = json.Unmarshal(output, &containerInfo)
+	containerInfo, err := client.InspectContainer(containerID)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("%+v\n", containerInfo)
-
-	REGISTRY_IMAGE := "198.19.249.3:5000/wormhole-rootfs"
-
+	REGISTRY_IMAGE := "198.19.249.3:5000/wormhole-rootfs:latest"
 	wormholeParams, err := json.Marshal(WormholeParams{
-		Pid:        containerInfo[0].State.Pid,
-		WorkingDir: containerInfo[0].Config.WorkingDir,
-		Env:        containerInfo[0].Config.Env,
+		Pid:        containerInfo.State.Pid,
+		WorkingDir: containerInfo.Config.WorkingDir,
+		Env:        containerInfo.Config.Env,
 		ShellCmd:   "",
 	})
 	if err != nil {
@@ -359,15 +348,21 @@ func debugRemote(containerID string) error {
 	}
 
 	fmt.Println("wormhole params: " + string(wormholeParams))
-	cmd = exec.Command(dockerBin, "run", "-d", "--privileged", "--pid=host", "--net=host", "--cgroupns=host", "-v", "wormhole-data:/data", "-v", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared", REGISTRY_IMAGE, string(wormholeParams))
-	cmd.Env = dockerHostEnv
-	output, err = cmd.Output()
-	if err != nil {
-		return errors.New("failed to start remote wormhole container ")
-	}
+	remoteContainerID, err := client.RunContainer(&dockertypes.ContainerCreateRequest{
+		Image: REGISTRY_IMAGE,
+		HostConfig: &dockertypes.ContainerHostConfig{
+			Privileged:   true,
+			Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
+			CgroupnsMode: "host",
+			PidMode:      "host",
+			NetworkMode:  "host",
+		},
+		Cmd: []string{string(wormholeParams)},
+	}, false)
 
-	remoteContainerID := strings.TrimSpace(string(output))
-	fmt.Println("remote container id: " + remoteContainerID)
+	if err != nil {
+		return err
+	}
 
 	startRpcConnection(remoteContainerID, dockerHostEnv)
 	return nil
