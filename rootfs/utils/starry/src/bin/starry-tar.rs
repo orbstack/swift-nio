@@ -1,11 +1,11 @@
-use std::{cell::{Ref, RefCell}, cmp::min, fs::File, io::Write, mem::MaybeUninit, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path};
+use std::{cmp::min, fs::File, io::Write, mem::MaybeUninit, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path};
 
 use anyhow::anyhow;
 use bytemuck::{Pod, Zeroable};
 use nix::{errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode};
 use numtoa::NumToA;
 use smallvec::{SmallVec, ToSmallVec};
-use starry::sys::{getdents::for_each_getdents, inode_flags::InodeFlags, link::with_readlinkat, stat::{fstat, fstatat}, xattr::{for_each_flistxattr, with_fgetxattr}};
+use starry::{path_stack::PathStack, sys::{getdents::for_each_getdents, inode_flags::InodeFlags, link::with_readlinkat, stat::{fstat, fstatat}, xattr::{for_each_flistxattr, with_fgetxattr}}};
 use zstd::Encoder;
 
 const TAR_PADDING: [u8; 1024] = [0; 1024];
@@ -259,45 +259,6 @@ impl PaxHeader {
     }
 }
 
-struct PathStack {
-    inner: RefCell<Vec<u8>>,
-}
-
-impl PathStack {
-    fn new() -> Self {
-        Self {
-            inner: RefCell::new(Vec::with_capacity(libc::PATH_MAX as usize)),
-        }
-    }
-
-    fn push(&self, segment: &[u8]) -> PathStackGuard {
-        let mut buf = self.inner.borrow_mut();
-        let old_len = buf.len();
-        if !buf.is_empty() {
-            buf.push(b'/');
-        }
-        buf.extend_from_slice(segment);
-        PathStackGuard { stack: self, old_len }
-    }
-}
-
-struct PathStackGuard<'a> {
-    stack: &'a PathStack,
-    old_len: usize,
-}
-
-impl<'a> PathStackGuard<'a> {
-    pub fn get(&self) -> Ref<'_, Vec<u8>> {
-        self.stack.inner.borrow()
-    }
-}
-
-impl<'a> Drop for PathStackGuard<'a> {
-    fn drop(&mut self) {
-        self.stack.inner.borrow_mut().truncate(self.old_len);
-    }
-}
-
 fn add_regular_file(w: &mut impl Write, file: &OwnedFd, st: &libc::stat) -> anyhow::Result<()> {
     if st.st_blocks < st.st_size / 512 {
         // TODO: sparse file
@@ -539,7 +500,7 @@ fn main() -> anyhow::Result<()> {
     writer.write_all(header.as_bytes())?;
 
     // walk dirs
-    let path_stack = PathStack::new();
+    let path_stack = PathStack::default();
     walk_dir(&mut writer, &root_dir, &path_stack)?;
 
     // terminate with 1024 zero bytes (2 zero blocks)
