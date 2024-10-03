@@ -656,14 +656,10 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		return
 	}
 	defer func() {
-		if !container.Running() {
-			return
-		}
-
 		err := container.UseAgent(func(a *agent.Client) error {
 			return a.EndUserSession(user)
 		})
-		if err != nil {
+		if err != nil && !errors.Is(err, ErrMachineNotRunning) {
 			logrus.WithError(err).Error("end user session failed")
 		}
 	}()
