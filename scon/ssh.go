@@ -335,11 +335,7 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 		return printErr, err
 	}
 	wormholeMountFile := os.NewFile(uintptr(wormholeMountFd), "wormhole mount")
-	defer func() {
-		if retErr != nil {
-			wormholeMountFile.Close()
-		}
-	}()
+	defer wormholeMountFile.Close()
 
 	workDir := wormholeResp.WorkingDir
 	if meta.Pwd != "" {
