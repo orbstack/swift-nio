@@ -414,7 +414,6 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 		for sshSig := range sigChan {
 			sig, ok := sshWormholeSigMap[sshSig]
 			if !ok {
-				logrus.WithField("sig", sshSig).Error("unknown ssh signal")
 				continue
 			}
 
@@ -691,7 +690,6 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		for sshSig := range fwdSigChan {
 			sig, ok := sshSigMap[sshSig]
 			if !ok {
-				logrus.WithField("sig", sshSig).Error("unknown SSH signal")
 				continue
 			}
 
