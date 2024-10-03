@@ -284,11 +284,11 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	}
 }
 
-func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, container *Container, user string, wormholeTarget string, shellCmd string, meta *sshtypes.SshMeta) (_printErr bool, retErr error) {
+func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, container *Container, wormholeTarget string, shellCmd string, meta *sshtypes.SshMeta) (_printErr bool, retErr error) {
 	runOnHost := false
 	printErr := true
 
-	var wormholeResp *agent.PrepWormholeResponse
+	var wormholeResp *agent.StartWormholeResponse
 	var rootfsFile *os.File
 	if conf.Debug() && wormholeTarget == sshtypes.WormholeIDHost {
 		// debug only: wormhole for VM host (ovm)
@@ -299,21 +299,31 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 		rootfsFile = os.NewFile(uintptr(rootfsFd), "rootfs")
 
 		runOnHost = true
-		wormholeResp = &agent.PrepWormholeResponse{
+		wormholeResp = &agent.StartWormholeResponse{
 			InitPid:    1,
 			WorkingDir: "/",
 		}
 	} else {
 		// standard path: for docker containers
 		var err error
-		wormholeResp, rootfsFile, err = UseAgentRet2(container, func(a *agent.Client) (*agent.PrepWormholeResponse, *os.File, error) {
-			return a.DockerPrepWormhole(agent.PrepWormholeArgs{
-				ContainerID: wormholeTarget,
+		wormholeResp, rootfsFile, err = UseAgentRet2(container, func(a *agent.Client) (*agent.StartWormholeResponse, *os.File, error) {
+			return a.DockerStartWormhole(agent.StartWormholeArgs{
+				Target: wormholeTarget,
 			})
 		})
 		if err != nil {
 			return printErr, err
 		}
+		defer func() {
+			err := container.UseAgent(func(a *agent.Client) error {
+				return a.DockerEndWormhole(agent.EndWormholeArgs{
+					State: wormholeResp.State,
+				})
+			})
+			if err != nil {
+				logrus.WithError(err).Error("end remote wormhole session failed")
+			}
+		}()
 	}
 	defer rootfsFile.Close()
 
@@ -433,16 +443,7 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 
 		err = sv.m.wormhole.OnSessionEnd()
 		if err != nil {
-			logrus.WithError(err).Error("end wormhole session failed")
-		}
-
-		if container.Running() {
-			err := container.UseAgent(func(a *agent.Client) error {
-				return a.EndUserSession(user)
-			})
-			if err != nil {
-				logrus.WithError(err).Error("end user session failed")
-			}
+			logrus.WithError(err).Error("end host wormhole session failed")
 		}
 	}()
 
@@ -455,8 +456,8 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 		err = fmt.Errorf("could not read exitcode from pipe")
 		return printErr, err
 	}
-	status := int(statusBytes[0])
 
+	status := int(statusBytes[0])
 	if status != 0 {
 		err = &ExitError{status: status}
 	}
@@ -646,7 +647,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	cmd.CombinedArgs = combinedArgs
 
 	if isWormhole {
-		return sv.handleWormhole(s, cmd, container, user, wormholeTarget, shellCmd, &meta)
+		return sv.handleWormhole(s, cmd, container, wormholeTarget, shellCmd, &meta)
 	}
 
 	err = container.UseAgent(func(a *agent.Client) error {

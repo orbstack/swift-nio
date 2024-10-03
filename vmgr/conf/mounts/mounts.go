@@ -15,6 +15,7 @@ const (
 	Opt             = "/opt/orbstack-guest"
 	Pstub           = Opt + "/pstub"
 	WormholeAttach  = Opt + "/wormhole-attach"
+	WormholeStub    = Opt + "/wormhole-stub"
 	Bin             = Opt + "/bin"
 	Macctl          = Bin + "/macctl"
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"

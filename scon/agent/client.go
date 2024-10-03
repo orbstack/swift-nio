@@ -311,10 +311,10 @@ func (c *Client) DockerFastDf() (*dockertypes.SystemDf, error) {
 	return &df, nil
 }
 
-func (c *Client) DockerPrepWormhole(args PrepWormholeArgs) (*PrepWormholeResponse, *os.File, error) {
-	var reply PrepWormholeResponse
-	err := c.rpc.Call("a.DockerPrepWormhole", PrepWormholeArgs{
-		ContainerID: args.ContainerID,
+func (c *Client) DockerStartWormhole(args StartWormholeArgs) (*StartWormholeResponse, *os.File, error) {
+	var reply StartWormholeResponse
+	err := c.rpc.Call("a.DockerStartWormhole", StartWormholeArgs{
+		Target: args.Target,
 	}, &reply)
 	if err != nil {
 		return nil, nil, err
@@ -326,6 +326,16 @@ func (c *Client) DockerPrepWormhole(args PrepWormholeArgs) (*PrepWormholeRespons
 	}
 
 	return &reply, rootfsFile, nil
+}
+
+func (c *Client) DockerEndWormhole(args EndWormholeArgs) error {
+	var none None
+	err := c.rpc.Call("a.DockerEndWormhole", args, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {
