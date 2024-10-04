@@ -14,6 +14,7 @@ type ContainerExecCreateRequest struct {
 
 type ContainerExecStartRequest struct {
 	Detach bool
+	Tty    bool
 }
 
 type ContainerExecInspect struct {

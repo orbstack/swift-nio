@@ -19,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
+	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/spf13/cobra"
@@ -151,26 +152,28 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func startRpcConnection(containerId string, dockerHostEnv []string) error {
-	dockerBin := conf.FindXbin("docker")
-
-	var originalState *term.State
-
-	cmd := exec.Command(dockerBin, "exec", "-i", containerId, "/wormhole-client")
-	cmd.Env = dockerHostEnv
-
-	sessionStdin, err := cmd.StdinPipe()
+func startRpcConnection(client *dockerclient.Client, containerId string, dockerHostEnv []string) error {
+	conn, err := client.InteractiveExec(containerId, &dockertypes.ContainerExecCreateRequest{
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          []string{"/wormhole-client"},
+	})
 	if err != nil {
 		return err
 	}
-	// we frame all stdout/stderr data from the main wormhole-attach process
-	// (attaching a single byte at the start of the length-prefix message to denote stdout/stderr),
-	// and send all of these rpc messages over stdout of docker exec -it ...
-	// nothing passes through stderr of the docker exec process.
-	sessionStdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
+	defer conn.Close()
+
+	demuxReader, demuxWriter := io.Pipe()
+	go func() {
+		defer demuxReader.Close()
+		defer demuxWriter.Close()
+		dockerclient.DemuxOutput(conn, demuxWriter)
+	}()
+
+	sessionStdin := conn
+	sessionStdout := demuxReader
+
 	server := RpcServer{reader: sessionStdout, writer: sessionStdin}
 
 	debugFile, err := os.Create("abcd.txt")
@@ -179,10 +182,7 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	}
 	defer debugFile.Close()
 
-	// start docker rpc client
-	if err := cmd.Start(); err != nil {
-		return err
-	}
+	var originalState *term.State
 
 	// see scli/shell/ssh.go
 	ptyFd := -1
@@ -215,6 +215,7 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 
 		// raw mode if both outputs are ptys
 		if ptyStdout && ptyStderr {
+			// fmt.Println("setting raw mode")
 			originalState, err = term.MakeRaw(ptyFd)
 			if err != nil {
 				return err
@@ -255,7 +256,6 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 	go func() {
 		for {
 			rpcType, data, err := server.RpcRead()
-			// todo: handle errors specially (?)
 			if err != nil {
 				if err == io.EOF {
 					return
@@ -270,7 +270,7 @@ func startRpcConnection(containerId string, dockerHostEnv []string) error {
 				} else if data[0] == 2 {
 					os.Stderr.Write(data)
 				} else {
-					return
+					// return
 				}
 			case ExitCodeType:
 				term.Restore(0, originalState)
@@ -364,7 +364,7 @@ func debugRemote(containerID string) error {
 		return err
 	}
 
-	startRpcConnection(remoteContainerID, dockerHostEnv)
+	startRpcConnection(client, remoteContainerID, dockerHostEnv)
 	return nil
 }
 

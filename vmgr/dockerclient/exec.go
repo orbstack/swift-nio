@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
-func demuxOutput(r io.Reader, w io.Writer) error {
+func DemuxOutput(r io.Reader, w io.Writer) error {
 	// decode multiplexed
 	for {
 		hdr := make([]byte, 8)
@@ -44,15 +45,30 @@ func demuxOutput(r io.Reader, w io.Writer) error {
 	}
 }
 
-func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateRequest) (string, error) {
+func (c *Client) ExecCreate(cid string, execReq *dockertypes.ContainerExecCreateRequest) (*dockertypes.ContainerExecCreateResponse, error) {
 	var execResp dockertypes.ContainerExecCreateResponse
-	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/exec", execReq, &execResp)
+	if err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/exec", execReq, &execResp); err != nil {
+		return nil, err
+	}
+	return &execResp, nil
+}
+
+func (c *Client) ExecInspect(execID string) (*dockertypes.ContainerExecInspect, error) {
+	var inspectResp dockertypes.ContainerExecInspect
+	if err := c.Call("POST", "/containers/"+execID+"/json", nil, &inspectResp); err != nil {
+		return nil, err
+	}
+	return &inspectResp, nil
+}
+
+func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateRequest) (string, error) {
+	execCreate, err := c.ExecCreate(cid, execReq)
 	if err != nil {
 		return "", fmt.Errorf("create exec: %w", err)
 	}
 
 	// run the tar
-	reader, err := c.StreamRead("POST", "/exec/"+url.PathEscape(execResp.ID)+"/start", dockertypes.ContainerExecStartRequest{
+	reader, err := c.StreamRead("POST", "/exec/"+url.PathEscape(execCreate.ID)+"/start", dockertypes.ContainerExecStartRequest{
 		Detach: false,
 	})
 	if err != nil {
@@ -61,14 +77,13 @@ func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateReques
 	defer reader.Close()
 
 	var output bytes.Buffer
-	err = demuxOutput(reader, &output)
+	err = DemuxOutput(reader, &output)
 	if err != nil {
 		return "", fmt.Errorf("demux output: %w", err)
 	}
 
 	// check exec exit status
-	var execInspect dockertypes.ContainerExecInspect
-	err = c.Call("GET", "/exec/"+url.PathEscape(execResp.ID)+"/json", nil, &execInspect)
+	execInspect, err := c.ExecInspect(execCreate.ID)
 	if err != nil {
 		return "", fmt.Errorf("inspect exec: %w", err)
 	}
@@ -79,4 +94,21 @@ func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateReques
 
 	// success
 	return output.String(), nil
+}
+
+func (c *Client) InteractiveExec(cid string, execReq *dockertypes.ContainerExecCreateRequest) (net.Conn, error) {
+	execCreate, err := c.ExecCreate(cid, execReq)
+	if err != nil {
+		return nil, fmt.Errorf("create exec: %w", err)
+	}
+	// upgrade to tcp
+	conn, err := c.StreamHijack("POST", "/exec/"+execCreate.ID+"/start", dockertypes.ContainerExecStartRequest{
+		Detach: false,
+		Tty:    false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("start exec: %w", err)
+	}
+
+	return conn, nil
 }

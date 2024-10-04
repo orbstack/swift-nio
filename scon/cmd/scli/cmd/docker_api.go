@@ -7,12 +7,9 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/docker/cli/cli/connhelper"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 )
 
@@ -71,49 +68,6 @@ func createUnixSocketClient(addr string) *http.Client {
 	}
 }
 
-func getHttpClient(addr string) (*http.Client, error) {
-	proto, _, _ := strings.Cut(addr, "://")
-
-	switch proto {
-	case "tcp":
-		return nil, fmt.Errorf("unsupported npipe")
-	case "unix":
-		return createUnixSocketClient(addr), nil
-		// return parseSimpleProtoAddr(proto, host, defaultUnixSocket)
-	case "npipe":
-		return nil, fmt.Errorf("unsupported npipe")
-	case "fd":
-		return nil, fmt.Errorf("unsupported fd")
-	case "ssh":
-		return nil, fmt.Errorf("unsupported npipe")
-	default:
-		return nil, fmt.Errorf("invalid bind address format: %s", addr)
-	}
-}
-
-func getClient(dockerHost string) (*dockerclient.Client, error) {
-	parsedURL, err := url.Parse(dockerHost)
-	if err != nil {
-		return nil, err
-	}
-	opts := &dockerclient.Options{Unversioned: true}
-
-	switch parsedURL.Scheme {
-	case "ssh":
-		helper, err := connhelper.GetConnectionHelper(dockerHost)
-		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker host via ssh")
-		}
-
-		return dockerclient.NewWithDialer(helper.Dialer, opts)
-	case "unix":
-		return dockerclient.NewWithUnixSocket(parsedURL.Path, opts)
-	default:
-		return nil, fmt.Errorf("unsupported scheme %s", parsedURL.Scheme)
-		// return client.NewClientWithOpts(client.WithHost(dockerHost), client.FromEnv, client.WithAPIVersionNegotiation())
-	}
-}
-
 func GetDockerClient(context string) (*dockerclient.Client, error) {
 	root := filepath.Join(getDockerConfigDir(), "contexts", "meta")
 	fis, err := os.ReadDir(root)
@@ -142,7 +96,7 @@ func GetDockerClient(context string) (*dockerclient.Client, error) {
 				continue
 			}
 
-			return getClient(metadata.Endpoints.Docker.Host)
+			return dockerclient.NewClient(metadata.Endpoints.Docker.Host)
 		}
 	}
 	return nil, nil

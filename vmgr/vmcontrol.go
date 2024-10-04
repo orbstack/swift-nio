@@ -376,7 +376,7 @@ func makeDockerClient() *dockerclient.Client {
 		},
 	}
 
-	return dockerclient.NewWithHTTP(httpClient, nil)
+	return dockerclient.NewWithHTTP(nil, httpClient, nil)
 }
 
 func (s *VmControlServer) Serve() (func() error, error) {

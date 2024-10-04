@@ -1,6 +1,7 @@
 package dockerclient
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -10,16 +11,21 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/docker/cli/cli/connhelper"
 	"github.com/sirupsen/logrus"
 )
 
 const verboseDebug = false
 
 type Client struct {
+	dialer  func(ctx context.Context, network, addr string) (net.Conn, error)
 	http    *http.Client
+	proto   string
+	addr    string
 	baseURL string
 }
 
@@ -46,7 +52,71 @@ func (e *APIError) Error() string {
 	}
 }
 
-func NewWithHTTP(httpC *http.Client, options *Options) *Client {
+// https://github.com/moby/moby/blob/master/client/client.go#L403
+func ParseHostURL(host string) (*url.URL, error) {
+	proto, addr, ok := strings.Cut(host, "://")
+	if !ok || addr == "" {
+		return nil, fmt.Errorf("unable to parse docker host `%s`", host)
+	}
+
+	var basePath string
+	if proto == "tcp" {
+		parsed, err := url.Parse("tcp://" + addr)
+		if err != nil {
+			return nil, err
+		}
+		addr = parsed.Host
+		basePath = parsed.Path
+	}
+	return &url.URL{
+		Scheme: proto,
+		Host:   addr,
+		Path:   basePath,
+	}, nil
+}
+
+func NewClient(dockerHost string) (*Client, error) {
+	hostURL, err := ParseHostURL(dockerHost)
+	if err != nil {
+		return nil, err
+	}
+
+	var c *Client
+	opts := &Options{Unversioned: true}
+
+	switch hostURL.Scheme {
+	case "ssh":
+		helper, err := connhelper.GetConnectionHelper(dockerHost)
+		if err != nil {
+			return nil, fmt.Errorf("could not connect to docker host via ssh")
+		}
+		c, err = NewWithDialer(helper.Dialer, opts)
+		if err != nil {
+			return nil, fmt.Errorf("could not connect to docker host via ssh")
+		}
+	case "unix":
+		c, err = NewWithUnixSocket(hostURL.Path, opts)
+		if err != nil {
+			return nil, fmt.Errorf("could not connect to docker host via ssh")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported scheme %s", hostURL.Scheme)
+	}
+
+	c.proto = hostURL.Scheme
+	c.addr = hostURL.Host
+	return c, nil
+
+}
+
+func (c *Client) Dial(ctx context.Context) (net.Conn, error) {
+	if c.dialer == nil {
+		return nil, fmt.Errorf("client does not have a dialer")
+	}
+	return c.dialer(ctx, c.proto, c.addr)
+}
+
+func NewWithHTTP(dialer func(ctx context.Context, network, addr string) (net.Conn, error), httpC *http.Client, options *Options) *Client {
 	baseURL := "http://docker/v1.43"
 	if options != nil {
 		if options.Unversioned {
@@ -56,6 +126,7 @@ func NewWithHTTP(httpC *http.Client, options *Options) *Client {
 
 	return &Client{
 		http:    httpC,
+		dialer:  dialer,
 		baseURL: baseURL,
 	}
 }
@@ -67,9 +138,10 @@ func NewWithDialer(dialer func(ctx context.Context, network, addr string) (net.C
 			// idle conns ok usually
 			MaxIdleConns:    3,
 			IdleConnTimeout: 5 * time.Second,
+			// TLSClientConfig: ,
 		},
 	}
-	return NewWithHTTP(httpClient, options), nil
+	return NewWithHTTP(dialer, httpClient, options), nil
 }
 
 func NewWithUnixSocket(path string, options *Options) (*Client, error) {
@@ -216,6 +288,40 @@ func (c *Client) CallDiscard(method, path string, body any) error {
 
 	io.Copy(io.Discard, resp.Body)
 	return nil
+}
+
+func (c *Client) StreamHijack(method, path string, body any) (net.Conn, error) {
+	req, err := c.newRequest(method, path, body)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := req.Context()
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "tcp")
+
+	conn, err := c.Dial(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to docker daemon")
+	}
+
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(30 * time.Second)
+	}
+
+	if err = req.Write(conn); err != nil {
+		return nil, err
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("could not upgrade request")
+	}
+	return conn, nil
 }
 
 func (c *Client) StreamRead(method, path string, body any) (io.ReadCloser, error) {

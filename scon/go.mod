@@ -24,7 +24,6 @@ require (
 	github.com/briandowns/spinner v1.20.0
 	github.com/cilium/ebpf v0.13.2
 	github.com/creachadair/jrpc2 v1.1.2
-	github.com/docker/cli v27.3.1+incompatible
 	github.com/docker/docker-credential-helpers v0.8.0
 	github.com/docker/libkv v0.2.1
 	github.com/fatih/color v1.16.0
@@ -52,6 +51,7 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.10.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/docker/cli v27.3.1+incompatible // indirect
 	github.com/docker/docker v27.3.1+incompatible // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

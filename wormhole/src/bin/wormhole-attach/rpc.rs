@@ -67,9 +67,11 @@ impl<'a> RpcOutputMessage<'a> {
 
         match self {
             Self::StdioData(fd, data) => {
+                trace!("writing {} bytes", data.len() + 1);
                 let len_bytes = u32::try_from(data.len() + 1)?.to_be_bytes();
+                trace!("len bytes {:?} bytes", len_bytes);
                 stream.write_all(&len_bytes)?;
-                stream.write(&[*fd]);
+                stream.write(&[*fd])?;
                 stream.write_all(data)?;
             }
             Self::Exit(exit_code) => stream.write_all(&[*exit_code])?,
