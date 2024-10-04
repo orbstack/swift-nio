@@ -47,7 +47,7 @@ impl DladdrSymbolicator {
         // scan from image start to end
         let mut symbol_start = None;
         for addr in
-            (img.addr_range.start..img.addr_range.end).step_by(arch::ARM64_INSN_SIZE as usize)
+            (img.addr_range.start..img.addr_range.end).step_by(arch::MIN_INSN_SIZE as usize)
         {
             let mut info = MaybeUninit::<Dl_info>::uninit();
             let ret = unsafe { dladdr(addr as *const _, info.as_mut_ptr()) };

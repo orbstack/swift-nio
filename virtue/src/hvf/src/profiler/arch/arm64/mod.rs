@@ -3,6 +3,8 @@ use utils::extract_bits_32;
 pub const ARM64_INSN_SIZE: u64 = 4;
 pub const ARM64_INSN_SVC_0X80: u32 = 0xd4001001;
 
+pub const MIN_INSN_SIZE: u64 = ARM64_INSN_SIZE;
+
 const ARM64_INSN_HVC_OP2_LL: u32 = 0b00010;
 const ARM64_INSN_HVC_OPC_HI: u32 = 0b11010100000;
 
