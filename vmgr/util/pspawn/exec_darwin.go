@@ -322,6 +322,9 @@ type Cmd struct {
 	// See https://go.dev/blog/path-security
 	// and https://go.dev/issue/43724 for more context.
 	lookPathErr error
+
+	// PspawnAttr is the pspawn-specific attributes to pass to StartProcess.
+	PspawnAttr *PspawnAttr
 }
 
 // A ctxResult reports the result of watching the Context associated with a
@@ -646,7 +649,7 @@ func (c *Cmd) Start() error {
 		Files: childFiles,
 		Env:   env,
 		Sys:   c.SysProcAttr,
-	})
+	}, c.PspawnAttr)
 	if err != nil {
 		return err
 	}

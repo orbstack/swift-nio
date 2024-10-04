@@ -21,6 +21,18 @@ package pspawn
 #include <spawn.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdio.h>
+
+extern int responsibility_spawnattrs_setdisclaim(posix_spawnattr_t *attrs, int disclaim) __attribute__((weak_import));
+
+int orb_pspawn_setdisclaim(posix_spawnattr_t *attrs, int disclaim) {
+	if (responsibility_spawnattrs_setdisclaim) {
+		return responsibility_spawnattrs_setdisclaim(attrs, disclaim);
+	} else {
+		fprintf(stderr, "[WARN] responsibility_spawnattrs_setdisclaim not found\n");
+		return 0;
+	}
+}
 */
 import "C"
 import (
@@ -32,7 +44,13 @@ import (
 	"unsafe"
 )
 
-func StartProcess(exe string, argv []string, attr *os.ProcAttr) (*os.Process, error) {
+type PspawnAttr struct {
+	// DisclaimTCC gives the child process a new TCC context based on its
+	// signing ID, disclaiming responsibility for its syscalls. (pspawn-specific)
+	DisclaimTCC bool
+}
+
+func StartProcess(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *PspawnAttr) (*os.Process, error) {
 	// don't close files
 	defer runtime.KeepAlive(attr)
 
@@ -106,6 +124,15 @@ func StartProcess(exe string, argv []string, attr *os.ProcAttr) (*os.Process, er
 	ret = C.posix_spawnattr_setflags(&spawnattr, C.short(spawnFlags))
 	if ret != 0 {
 		return nil, fmt.Errorf("posix_spawnattr_setflags: %w", syscall.Errno(ret))
+	}
+
+	if pspawnAttr != nil {
+		if pspawnAttr.DisclaimTCC {
+			ret = C.orb_pspawn_setdisclaim(&spawnattr, 1)
+			if ret != 0 {
+				return nil, fmt.Errorf("responsibility_spawnattrs_setdisclaim: %w", syscall.Errno(ret))
+			}
+		}
 	}
 
 	// reset all signal actions to default, and unmask all signals
