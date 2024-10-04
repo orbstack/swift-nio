@@ -12,9 +12,10 @@ struct DockerStateWrapperView<Content: View, Entity: Codable>: View {
     let keyPath: KeyPath<VmViewModel, [Entity]?>
     let content: ([Entity], ContainerRecord) -> Content
 
-    init(_ keyPath: KeyPath<VmViewModel, [Entity]?>,
-         @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content)
-    {
+    init(
+        _ keyPath: KeyPath<VmViewModel, [Entity]?>,
+        @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content
+    ) {
         self.keyPath = keyPath
         self.content = content
     }
@@ -23,16 +24,17 @@ struct DockerStateWrapperView<Content: View, Entity: Codable>: View {
         // TODO: return verdict as enum and use switch{} to fix loading flicker
         StateWrapperView {
             if let machines = vmModel.containers,
-               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker })
+                let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker })
             {
                 Group {
                     if let entities = vmModel[keyPath: keyPath],
-                       dockerRecord.state != .stopped
+                        dockerRecord.state != .stopped
                     {
                         content(entities, dockerRecord)
                     } else if dockerRecord.state == .stopped {
-                        VStack(spacing: 16) { // match ContentUnavailableViewCompat desc padding
-                            ContentUnavailableViewCompat("Docker Disabled", systemImage: "shippingbox.fill")
+                        VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
+                            ContentUnavailableViewCompat(
+                                "Docker Disabled", systemImage: "shippingbox.fill")
 
                             Button(action: {
                                 Task {

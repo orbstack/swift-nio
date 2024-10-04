@@ -58,7 +58,8 @@ struct DiagReporterView: View {
         .task {
             do {
                 // quiet mode: don't copy to clipboard or print extra stuff
-                let output = try await runProcessChecked(AppConfig.ctlExe, isBugReport ? ["report", "-q"] : ["report"])
+                let output = try await runProcessChecked(
+                    AppConfig.ctlExe, isBugReport ? ["report", "-q"] : ["report"])
                 if isBugReport {
                     // open bug report and close immediately
                     var urlComps = URLComponents(string: "https://orbstack.dev/issues/bug")!

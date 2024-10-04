@@ -20,7 +20,8 @@ struct ComposeGroup: Hashable, Equatable {
         if !windowTracker.openDockerLogWindowIds.contains(.compose(project: project)) {
             // workaround: url can't contain "domain"???
             let projectB64URL = project.data(using: .utf8)!.base64URLEncodedString()
-            if let url = URL(string: "orbstack://docker/project-logs/\(projectB64URL)?base64=true") {
+            if let url = URL(string: "orbstack://docker/project-logs/\(projectB64URL)?base64=true")
+            {
                 NSWorkspace.shared.open(url)
             }
         } else {
@@ -85,7 +86,10 @@ private struct MigrationHintBox: View {
             .buttonStyle(.plain)
             .padding(8)
         }
-        .background(colorScheme == .dark ? .ultraThickMaterial : .thickMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .background(
+            colorScheme == .dark ? .ultraThickMaterial : .thickMaterial,
+            in: RoundedRectangle(cornerRadius: 8)
+        )
         .background(Color(.systemPurple), in: RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -105,10 +109,12 @@ private struct DockerContainerListItemView: View {
             DockerContainerItem(container: container, isFirstInList: isFirstInList)
                 .equatable()
         case let .compose(group, children):
-            DockerComposeGroupItem(composeGroup: group,
-                                   children: children,
-                                   isFirstInList: isFirstInList)
-                .equatable()
+            DockerComposeGroupItem(
+                composeGroup: group,
+                children: children,
+                isFirstInList: isFirstInList
+            )
+            .equatable()
         case let .k8sGroup(group, _):
             DockerK8sGroupItem(group: group)
                 .equatable()
@@ -141,14 +147,19 @@ private struct DockerContainersList: View {
                 // icon = 32, + vertical 8 padding from item VStack = 48
                 // (we used to do padding(4) + SwiftUI's auto list row padding of 4 = total 8 vertical padding, but that breaks double click region)
                 // combined 4+4 padding is in DockerContainerListItemView to fix context menu bounds
-                AKList(listData, selection: $selection, rowHeight: 32 + 8 + 8, flat: false, autosaveName: Defaults.Keys.docker_autosaveOutline) { item in
+                AKList(
+                    listData, selection: $selection, rowHeight: 32 + 8 + 8, flat: false,
+                    autosaveName: Defaults.Keys.docker_autosaveOutline
+                ) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
-                    DockerContainerListItemView(item: item,
-                                                isFirstInList: item.id == flatList.first?.id)
-                        // environment must be re-injected across boundary
-                        .environmentObject(vmModel)
-                        .environmentObject(windowTracker)
-                        .environmentObject(actionTracker)
+                    DockerContainerListItemView(
+                        item: item,
+                        isFirstInList: item.id == flatList.first?.id
+                    )
+                    // environment must be re-injected across boundary
+                    .environmentObject(vmModel)
+                    .environmentObject(windowTracker)
+                    .environmentObject(actionTracker)
                 }
                 .navigationSubtitle(runningCount == 0 ? "None running" : "\(runningCount) running")
             } else {
@@ -171,14 +182,13 @@ private struct DockerContainersList: View {
                     HStack {
                         Spacer()
                         // migration not previously done or dismissed
-                        let isMigration = !dockerMigrationDismissed &&
+                        let isMigration =
+                            !dockerMigrationDismissed
                             // docker desktop recently used
-                            InstalledApps.dockerDesktopRecentlyUsed &&
+                            && InstalledApps.dockerDesktopRecentlyUsed
                             // containers, images, volumes all empty
-                            allContainers.isEmpty &&
-                            dockerImages?.isEmpty == true &&
-                            dockerVolumes?.isEmpty == true &&
-                            !filterIsSearch // not searching
+                            && allContainers.isEmpty && dockerImages?.isEmpty == true
+                            && dockerVolumes?.isEmpty == true && !filterIsSearch  // not searching
                         if isMigration {
                             MigrationHintBox()
                         } else {
@@ -195,8 +205,8 @@ private struct DockerContainersList: View {
             // special case: show example http://localhost if only visible container is getting-started
             // getting started hint box moves to bottom in this case
             if flatList.count == 1,
-               case let .container(container) = flatList[0],
-               container.image == "docker/getting-started"
+                case let .container(container) = flatList[0],
+                container.image == "docker/getting-started"
             {
                 VStack {
                     Spacer()
@@ -227,15 +237,17 @@ struct DockerContainersRootView: View {
             let runningCount = containers.filter { $0.running }.count
 
             let filteredContainers = containers.filter { container in
-                searchQuery.isEmpty ||
-                    container.id.localizedCaseInsensitiveContains(searchQuery) ||
-                    container.image.localizedCaseInsensitiveContains(searchQuery) ||
-                    container.imageId.localizedCaseInsensitiveContains(searchQuery) ||
-                    container.names.first(where: { $0.localizedCaseInsensitiveContains(searchQuery) }) != nil
+                searchQuery.isEmpty || container.id.localizedCaseInsensitiveContains(searchQuery)
+                    || container.image.localizedCaseInsensitiveContains(searchQuery)
+                    || container.imageId.localizedCaseInsensitiveContains(searchQuery)
+                    || container.names.first(where: {
+                        $0.localizedCaseInsensitiveContains(searchQuery)
+                    }) != nil
             }.sort(accordingTo: .none, model: vmModel)
 
             // 0 spacing to fix bg color gap between list and getting started hint
-            let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(filteredContainers: filteredContainers)
+            let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(
+                filteredContainers: filteredContainers)
             let listData = makeListData(runningItems: runningItems, stoppedItems: stoppedItems)
 
             DockerContainersList(
@@ -253,7 +265,9 @@ struct DockerContainersRootView: View {
         .navigationTitle("Containers")
     }
 
-    private func makeListData(runningItems: [DockerListItem], stoppedItems: [DockerListItem]) -> [AKSection<DockerListItem>] {
+    private func makeListData(runningItems: [DockerListItem], stoppedItems: [DockerListItem])
+        -> [AKSection<DockerListItem>]
+    {
         var listData = [AKSection<DockerListItem>]()
 
         if !runningItems.isEmpty {

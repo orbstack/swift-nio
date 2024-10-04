@@ -1,39 +1,41 @@
 // needed for environ
 #define _GNU_SOURCE
 
-#include <stdio.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <elf.h>
-#include <string.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <sys/prctl.h>
-#include <sys/auxv.h>
-#include <sys/resource.h>
-#include <sys/syscall.h>
-#include <sys/sendfile.h>
-#include <sys/mman.h>
-#include <sched.h>
-#include <time.h>
 #include <limits.h>
+#include <sched.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/auxv.h>
+#include <sys/mman.h>
+#include <sys/prctl.h>
+#include <sys/resource.h>
+#include <sys/sendfile.h>
+#include <sys/syscall.h>
+#include <time.h>
+#include <unistd.h>
 
 #define DEBUG false
 #define PASSTHROUGH false
 
 // new in kernel 6.3
-#define MFD_EXEC		0x0010U
+#define MFD_EXEC 0x0010U
 
 // task comm keys used to select either rosetta or qemu as real binfmt_misc interpreter
-static const char rvk1_data[16] = "\x03\x47\x20\xe0\xe4\x79\x3f\xbe\xae\xeb\xc7\xd6\x66\xe9\x09\x00";
-static const char rvk2_data[16] = "\x20\xc2\xdc\x2b\xc5\x1f\xfe\x6b\x73\x73\x96\xee\x69\x1a\x93\x00";
-static const char rvk3_data[16] = "\x41\xba\x68\x70\x7c\x66\x31\xec\x80\xe3\x2a\x30\x31\x3b\xd4\x00";
+static const char rvk1_data[16] =
+    "\x03\x47\x20\xe0\xe4\x79\x3f\xbe\xae\xeb\xc7\xd6\x66\xe9\x09\x00";
+static const char rvk2_data[16] =
+    "\x20\xc2\xdc\x2b\xc5\x1f\xfe\x6b\x73\x73\x96\xee\x69\x1a\x93\x00";
+static const char rvk3_data[16] =
+    "\x41\xba\x68\x70\x7c\x66\x31\xec\x80\xe3\x2a\x30\x31\x3b\xd4\x00";
 
 // config variables
 #define RSTUB_FLAG_TSO_WORKAROUND (1 << 0)
-__attribute__((section(".c0")))
-const volatile uint32_t config_flags = 0;
+__attribute__((section(".c0"))) const volatile uint32_t config_flags = 0;
 
 struct elf_info {
     // interpreter (dynamic linker) path
@@ -76,9 +78,11 @@ static bool argv_contains(char **argv, char *what) {
     return false;
 }
 
-static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, struct elf_info *elf_info) {
-    // milvusdb assumes AVX. QEMU 7.2+ supports AVX, but not Rosetta. https://github.com/orbstack/orbstack/issues/482
-    // we don't use new QEMU due to segfaults so we can't run this anyway
+static enum emu_provider select_emulator(int argc, char **argv, char *exe_name,
+                                         struct elf_info *elf_info) {
+    // milvusdb assumes AVX. QEMU 7.2+ supports AVX, but not Rosetta.
+    // https://github.com/orbstack/orbstack/issues/482 we don't use new QEMU due to segfaults so we
+    // can't run this anyway
 
     // vsce-sign also breaks in qemu so no point in switching
 
@@ -105,13 +109,18 @@ static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, 
     }
 
     // "runc init" fails because
-    //    1. it tries to bind mount /proc/self/exe as read-only. this doesn't work b/c rosetta rvfs isn't visible to machine mount ns
-    //    2. it makes a CLOEXEC memfd. doesn't work even if we unset cloexec because it fails to reopen for reading
-    //       * TODO: why doesn't unsetting CLOEXEC fix it? Rosetta can read the fd but runc fails to reopen itself for reading: "you have no read access to runc" when opening /proc/self/exe
-    //    3. docker wants libnetwork-setkey as a Prestart OCI hook, with exec path = /proc/<pid of dockerd>/exe.
+    //    1. it tries to bind mount /proc/self/exe as read-only. this doesn't work b/c rosetta rvfs
+    //    isn't visible to machine mount ns
+    //    2. it makes a CLOEXEC memfd. doesn't work even if we unset cloexec because it fails to
+    //    reopen for reading
+    //       * TODO: why doesn't unsetting CLOEXEC fix it? Rosetta can read the fd but runc fails to
+    //       reopen itself for reading: "you have no read access to runc" when opening
+    //       /proc/self/exe
+    //    3. docker wants libnetwork-setkey as a Prestart OCI hook, with exec path = /proc/<pid of
+    //    dockerd>/exe.
     //       since dockerd is running under Rosetta, exe = rosetta, and it fails.
-    //       we use a patched static arm64 build of runc that checks /proc/<pid>/cmdline to find real exe for rosetta.
-    //       alternative would require either kernel hack or OCI pipe filter
+    //       we use a patched static arm64 build of runc that checks /proc/<pid>/cmdline to find
+    //       real exe for rosetta. alternative would require either kernel hack or OCI pipe filter
     //
     // args = [rvfs-wrapper /usr/bin/runc runc init]
     // https://github.com/opencontainers/runc/blob/main/libcontainer/nsenter/cloned_binary.c
@@ -126,22 +135,30 @@ static enum emu_provider select_emulator(int argc, char **argv, char *exe_name, 
     // we intercept 3 commands:
     //    runc init
     //      * because of #1 and #2
-    //    runc --root /var/run/docker/runtime-runc/moby --log /run/containerd/io.containerd.runtime.v2.task/moby/31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c/log.json --log-format json --systemd-cgroup create --bundle /run/containerd/io.containerd.runtime.v2.task/moby/31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c --pid-file /run/containerd/io.containerd.runtime.v2.task/moby/31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c/init.pid --console-socket /tmp/pty1310364487/pty.sock 31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c
+    //    runc --root /var/run/docker/runtime-runc/moby --log
+    //    /run/containerd/io.containerd.runtime.v2.task/moby/31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c/log.json
+    //    --log-format json --systemd-cgroup create --bundle
+    //    /run/containerd/io.containerd.runtime.v2.task/moby/31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c
+    //    --pid-file
+    //    /run/containerd/io.containerd.runtime.v2.task/moby/31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c/init.pid
+    //    --console-socket /tmp/pty1310364487/pty.sock
+    //    31fefad1a9ca5dc6f3f6236e0806377d934fc80b638f0c9026b44ac0ad9fcd6c
     //      * because of #3
-    //   runc --log /var/lib/docker/buildkit/executor/runc-log.json --log-format json run --bundle /var/lib/docker/buildkit/executor/m66aufx3xv7s2yq91dzxtemvm m66aufx3xv7s2yq91dzxtemvm
+    //   runc --log /var/lib/docker/buildkit/executor/runc-log.json --log-format json run --bundle
+    //   /var/lib/docker/buildkit/executor/m66aufx3xv7s2yq91dzxtemvm m66aufx3xv7s2yq91dzxtemvm
     //      * because of #3, when building docker image
-    if (argc >= 1+1+2 && strcmp(exe_name, "runc") == 0 &&
+    if (argc >= 1 + 1 + 2 && strcmp(exe_name, "runc") == 0 &&
         (strcmp(argv[3], "init") == 0 || argv_contains(argv, "--bundle"))) {
         if (DEBUG) fprintf(stderr, "selecting runc override\n");
         return EMU_OVERRIDE_RUNC;
     }
 
     // use QEMU for UPX-packed exes
-    // QEMU can handle it, Rosetta segfaults on new UPX bins and fails with "bss_size overflow" on old ones
-    // these executables are really weird: only PT_LOAD, no sections
-    // 3 options:
+    // QEMU can handle it, Rosetta segfaults on new UPX bins and fails with "bss_size overflow" on
+    // old ones these executables are really weird: only PT_LOAD, no sections 3 options:
     //   1. custom loader for PT_LOAD-only bins
-    //   2. append upx+runc to our wrapper exe as zip, then extract upx as memfd, and "upx -d -f -o /proc/self/fd/# <exepath>" to new memfd. (extraction = ~11 ms)
+    //   2. append upx+runc to our wrapper exe as zip, then extract upx as memfd, and "upx -d -f -o
+    //   /proc/self/fd/# <exepath>" to new memfd. (extraction = ~11 ms)
     //   3. use qemu
     // we're going with the last one for simplicity, unless it turns out to be an issue
     if (elf_info->is_upx) {
@@ -180,14 +197,14 @@ static int read_elf_info(int fd, struct elf_info *out) {
 
     Elf64_Ehdr *ehdr = file;
     for (int i = 0; i < ehdr->e_phnum; i++) {
-        Elf64_Phdr *phdr = file + (ehdr->e_phoff + i * ehdr->e_phentsize); //TODO check bounds
+        Elf64_Phdr *phdr = file + (ehdr->e_phoff + i * ehdr->e_phentsize); // TODO check bounds
         if (phdr->p_type == PT_INTERP) {
             if (phdr->p_filesz > sizeof(out->interpreter)) {
                 return orb_perror("interp path too long");
             }
 
             // copy & null terminate
-            memcpy(out->interpreter, file + phdr->p_offset, phdr->p_filesz);//TODO check bounds
+            memcpy(out->interpreter, file + phdr->p_offset, phdr->p_filesz); // TODO check bounds
             out->has_interp = true;
             out->interpreter[phdr->p_filesz] = '\0';
             if (DEBUG) fprintf(stderr, "interp: %s\n", out->interpreter);
@@ -195,14 +212,16 @@ static int read_elf_info(int fd, struct elf_info *out) {
             // find string table (STRTAB)
             char *strtab = NULL;
             for (int j = 0; j < phdr->p_filesz / sizeof(Elf64_Dyn); j++) {
-                Elf64_Dyn *dyn = file + (phdr->p_offset + j * sizeof(Elf64_Dyn)); //TODO check bounds
+                Elf64_Dyn *dyn =
+                    file + (phdr->p_offset + j * sizeof(Elf64_Dyn)); // TODO check bounds
                 if (dyn->d_tag == DT_STRTAB) {
                     // dyn->d_un.d_ptr is the loaded virtual address, not file offset
                     // find PT_LOAD segment to translate it
                     Elf64_Phdr *load_phdr = NULL;
                     for (int k = 0; k < ehdr->e_phnum; k++) {
                         Elf64_Phdr *tmp_phdr = file + (ehdr->e_phoff + k * ehdr->e_phentsize);
-                        if (tmp_phdr->p_type == PT_LOAD && dyn->d_un.d_ptr >= tmp_phdr->p_vaddr && dyn->d_un.d_ptr < (tmp_phdr->p_vaddr + tmp_phdr->p_memsz)) {
+                        if (tmp_phdr->p_type == PT_LOAD && dyn->d_un.d_ptr >= tmp_phdr->p_vaddr &&
+                            dyn->d_un.d_ptr < (tmp_phdr->p_vaddr + tmp_phdr->p_memsz)) {
                             load_phdr = tmp_phdr;
                             break;
                         }
@@ -221,7 +240,8 @@ static int read_elf_info(int fd, struct elf_info *out) {
 
             // check DT_NEEDED tags
             for (int j = 0; j < phdr->p_filesz / sizeof(Elf64_Dyn); j++) {
-                Elf64_Dyn *dyn = file + (phdr->p_offset + j * sizeof(Elf64_Dyn)); //TODO check bounds
+                Elf64_Dyn *dyn =
+                    file + (phdr->p_offset + j * sizeof(Elf64_Dyn)); // TODO check bounds
                 if (dyn->d_tag == DT_NEEDED) {
                     char libname[PATH_MAX];
                     strncpy(libname, strtab + dyn->d_un.d_val, sizeof(libname) - 1);
@@ -251,7 +271,7 @@ static int read_elf_info(int fd, struct elf_info *out) {
 // TODO: use miniz in the future if we add more appended files
 static int run_override_runc(char **argv) {
     // open our own executable
-    int exefd = open("/proc/self/exe", O_RDONLY|O_CLOEXEC);
+    int exefd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
     if (exefd == -1) {
         return orb_perror("open");
     }
@@ -312,7 +332,10 @@ static int run_override_runc(char **argv) {
 // our wrapper's purpose is to make a decision about which emulator to use
 int main(int argc, char **argv) {
     if (argc == 1) {
-        fprintf(stderr, "Please be mindful of the end-user license agreement.\nhttps://go.orbstack.dev/terms\nCopyright 2023 Orbital Labs, LLC. All rights reserved.\n\nHaving fun? Say hi at secret@orbstack.dev :)\n");
+        fprintf(stderr,
+                "Please be mindful of the end-user license "
+                "agreement.\nhttps://go.orbstack.dev/terms\nCopyright 2023 Orbital Labs, LLC. All "
+                "rights reserved.\n\nHaving fun? Say hi at secret@orbstack.dev :)\n");
         return 0;
     }
 
@@ -348,25 +371,30 @@ int main(int argc, char **argv) {
         // check for interp if ELF parser succeeded
         if (elf_info.has_interp && access(elf_info.interpreter, F_OK) != 0) {
             // Docker container or scon/LXC machine?
-            const char* env_type = access("/.dockerenv", F_OK) == 0 ? "container" : "machine";
+            const char *env_type = access("/.dockerenv", F_OK) == 0 ? "container" : "machine";
             // missing interpreter
-            fprintf(stderr, "OrbStack ERROR: Dynamic loader not found: %s\n"
-                            "\n"
-                            "This usually means that you're running an x86 program on an arm64 OS without multi-arch libraries.\n"
-                            "To fix this, you can:\n"
-                            "  1. Use an Intel (amd64) %s to run this program; or\n"
-                            "  2. Install multi-arch libraries in this %s.\n"
-                            "\n"
-                            "This can also be caused by running a glibc executable in a musl distro (e.g. Alpine), or vice versa.\n"
-                            "\n"
-                            "For more details and instructions, see https://go.orbstack.dev/multiarch\n"
-                            "", elf_info.interpreter, env_type, env_type);
+            fprintf(stderr,
+                    "OrbStack ERROR: Dynamic loader not found: %s\n"
+                    "\n"
+                    "This usually means that you're running an x86 program on an arm64 OS without "
+                    "multi-arch libraries.\n"
+                    "To fix this, you can:\n"
+                    "  1. Use an Intel (amd64) %s to run this program; or\n"
+                    "  2. Install multi-arch libraries in this %s.\n"
+                    "\n"
+                    "This can also be caused by running a glibc executable in a musl distro (e.g. "
+                    "Alpine), or vice versa.\n"
+                    "\n"
+                    "For more details and instructions, see https://go.orbstack.dev/multiarch\n"
+                    "",
+                    elf_info.interpreter, env_type, env_type);
             return 255;
         }
 
-        // if using Rosetta and running "node" or "nvim", set UV_USE_IO_URING=0 if not already set in environ
-        // we check DT_NEEDED libraries but node.js might be statically linked
-        // this is a crude way to detect libuv and avoid 100% CPU on io_uring: https://github.com/orbstack/orbstack/issues/377
+        // if using Rosetta and running "node" or "nvim", set UV_USE_IO_URING=0 if not already set
+        // in environ we check DT_NEEDED libraries but node.js might be statically linked this is a
+        // crude way to detect libuv and avoid 100% CPU on io_uring:
+        // https://github.com/orbstack/orbstack/issues/377
         if (!PASSTHROUGH && (elf_info.needs_libuv || !strcmp(exe_name, "node"))) {
             if (DEBUG) fprintf(stderr, "setting UV_USE_IO_URING=0\n");
             setenv("UV_USE_IO_URING", "0", /*overwrite*/ 0);
@@ -374,11 +402,13 @@ int main(int argc, char **argv) {
     }
 
     // select emulator
-    enum emu_provider emu = PASSTHROUGH ? EMU_ROSETTA : select_emulator(argc, argv, exe_name, &elf_info);
+    enum emu_provider emu =
+        PASSTHROUGH ? EMU_ROSETTA : select_emulator(argc, argv, exe_name, &elf_info);
 
     // ok, decision made.
     // prepare to execute.
-    if (DEBUG) fprintf(stderr, "using %s for '%s'\n", emu == EMU_ROSETTA ? "rosetta" : "qemu", exe_name);
+    if (DEBUG)
+        fprintf(stderr, "using %s for '%s'\n", emu == EMU_ROSETTA ? "rosetta" : "qemu", exe_name);
 
     // exec overrides instead
     if (emu == EMU_OVERRIDE_RUNC) {
@@ -396,8 +426,9 @@ int main(int argc, char **argv) {
         // add arguments:
         // Fix Node.js programs hanging
         // "pnpm install" with large packages.json/pkgs, e.g. TypeScript, locks up with TurboFan JIT
-        // webpack also freezes so it could be anything, really: https://github.com/orbstack/orbstack/issues/390
-        // this is still way faster than qemu without TurboFan, and we still have Sparkplug compiler
+        // webpack also freezes so it could be anything, really:
+        // https://github.com/orbstack/orbstack/issues/390 this is still way faster than qemu
+        // without TurboFan, and we still have Sparkplug compiler
         // --jitless works too but disables expose-wasm and requires Node 12+
         if (strcmp(exe_name, "node") == 0) {
             if (DEBUG) fprintf(stderr, "disabling Node.js TurboFan JIT\n");
@@ -413,7 +444,7 @@ int main(int argc, char **argv) {
             node_argv_buf[1] = "--no-opt";
             node_argv_buf[2] = "-r"; // --require
             node_argv_buf[3] = "/proc/.p";
-            memcpy(&node_argv_buf[4], &exe_argv[1], (exe_argc - 1) * sizeof(char*));
+            memcpy(&node_argv_buf[4], &exe_argv[1], (exe_argc - 1) * sizeof(char *));
             node_argv_buf[exe_argc + 3] = NULL;
             exe_argv = node_argv_buf;
         }
@@ -425,7 +456,8 @@ int main(int argc, char **argv) {
             return orb_perror("getrlimit");
         }
         if (stack_lim.rlim_cur == RLIM_INFINITY && stack_lim.rlim_max == RLIM_INFINITY) {
-            // TODO: a syscall-hook shim would intercept getrlimit instead, so that application sees the correct value?
+            // TODO: a syscall-hook shim would intercept getrlimit instead, so that application sees
+            // the correct value?
             if (DEBUG) fprintf(stderr, "setting stack rlimit to 1 GiB\n");
             // 1 GiB (virtual memory)
             stack_lim.rlim_cur = 1024 * 1024 * 1024;
@@ -436,7 +468,8 @@ int main(int argc, char **argv) {
 
         // workaround: macOS 14.0 (23A344) is missing TSO
         // limit rosetta processes to 1 cpu
-        // TODO: check and respect existing mask if multiple cpus are in it. if only 1, then pick a new cpu (likely inherited from other rosetta).
+        // TODO: check and respect existing mask if multiple cpus are in it. if only 1, then pick a
+        // new cpu (likely inherited from other rosetta).
         if (config_flags & RSTUB_FLAG_TSO_WORKAROUND) {
             // seed rng
             struct timespec ts;
@@ -461,9 +494,10 @@ int main(int argc, char **argv) {
             }
             if (DEBUG) fprintf(stderr, "nproc: %d\n", nproc);
 
-            // select random cpu. current (sched_getcpu) would be nice to prevent overload, but it has problems with inheriting
-            // core scheduling can't do the job.
-            // TODO: syscall-hook can reset affinity on fork if we changed it, and user program has not modified it
+            // select random cpu. current (sched_getcpu) would be nice to prevent overload, but it
+            // has problems with inheriting core scheduling can't do the job.
+            // TODO: syscall-hook can reset affinity on fork if we changed it, and user program has
+            // not modified it
             int cur_cpu = rand() % nproc;
             if (DEBUG) fprintf(stderr, "affine to cpu %d\n", cur_cpu);
 
@@ -507,7 +541,9 @@ int main(int argc, char **argv) {
     // run 'swift'
     //
     // openat(AT_FDCWD, "/tmp/rosetta.11.0", O_RDWR|O_CREAT|O_EXCL, 0444) = 10
-    // pwrite64(10, "/usr/bin/swift-driver\0/usr/bin/swift-driver\0--driver-mode=swift\0-Xfrontend\0-new-driver-path\0-Xfrontend\0/usr/bin/swift-driver\0", 125, 0) = 125
+    // pwrite64(10,
+    // "/usr/bin/swift-driver\0/usr/bin/swift-driver\0--driver-mode=swift\0-Xfrontend\0-new-driver-path\0-Xfrontend\0/usr/bin/swift-driver\0",
+    // 125, 0) = 125
     //
     // swift-help breaks too: Error: The value '/usr/bin/swift-help' is invalid for '<topic>'
     // TODO: move to userspace ELF loader instead

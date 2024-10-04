@@ -86,9 +86,9 @@ struct K8SPodsView: View {
             let runningCount = pods.filter { $0.uiState == .running }.count
 
             let filteredPods = pods.filter { pod in
-                searchQuery.isEmpty ||
-                    pod.metadata.name.localizedCaseInsensitiveContains(searchQuery) ||
-                    pod.metadata.namespace.localizedCaseInsensitiveContains(searchQuery)
+                searchQuery.isEmpty
+                    || pod.metadata.name.localizedCaseInsensitiveContains(searchQuery)
+                    || pod.metadata.namespace.localizedCaseInsensitiveContains(searchQuery)
             }
 
             let listItems = K8SResourceLists.groupItems(
@@ -97,11 +97,13 @@ struct K8SPodsView: View {
             )
 
             // 0 spacing to fix bg color gap between list and getting started hint
-            K8SPodsList(filterIsSearch: !searchQuery.isEmpty,
-                        runningCount: runningCount,
-                        listItems: listItems,
-                        selection: $selection)
-                .inspectorSelection(selection)
+            K8SPodsList(
+                filterIsSearch: !searchQuery.isEmpty,
+                runningCount: runningCount,
+                listItems: listItems,
+                selection: $selection
+            )
+            .inspectorSelection(selection)
         }
         .navigationTitle("Pods")
     }

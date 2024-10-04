@@ -1,17 +1,18 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <errno.h>
-#include <string.h>
 #include <poll.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 
-// stub program that sends arguments to a unix socket, reads 2-byte return value, writes it to fd3, and then waits for SIGINT/SIGTERM
-int main(int argc, char** argv) {
+// stub program that sends arguments to a unix socket, reads 2-byte return value, writes it to fd3,
+// and then waits for SIGINT/SIGTERM
+int main(int argc, char **argv) {
     int outfd = 3;
-    int connfd = socket(AF_UNIX, SOCK_STREAM|SOCK_CLOEXEC, 0);
+    int connfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (connfd == -1) {
         write(outfd, "1\n", 2);
         write(outfd, strerror(errno), strlen(strerror(errno)));
@@ -22,7 +23,7 @@ int main(int argc, char** argv) {
         .sun_family = AF_UNIX,
         .sun_path = "/run/pstub.sock",
     };
-    if (connect(connfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+    if (connect(connfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
         write(outfd, "1\n", 2);
         write(outfd, strerror(errno), strlen(strerror(errno)));
         return 1;

@@ -33,10 +33,11 @@ struct SplitViewAccessor: NSViewRepresentable {
             }
             guard let sview = sview as? NSSplitView else { return }
 
-            controller = sview.delegate as? NSSplitViewController // delegate is our controller
-            if let sideBar = controller?.splitViewItems.first { // now observe for state
+            controller = sview.delegate as? NSSplitViewController  // delegate is our controller
+            if let sideBar = controller?.splitViewItems.first {  // now observe for state
                 publishValue(sideBar.isCollapsed)
-                observer = sideBar.observe(\.isCollapsed, options: [.new]) { [weak self] _, change in
+                observer = sideBar.observe(\.isCollapsed, options: [.new]) {
+                    [weak self] _, change in
                     if let value = change.newValue {
                         self?.publishValue(value)
                     }

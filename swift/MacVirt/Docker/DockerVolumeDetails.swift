@@ -14,17 +14,19 @@ struct DockerVolumeDetails: View {
     var body: some View {
         DetailsStack {
             DetailsSection("Info") {
-                let showMountpoint = volume.mountpoint != "/var/lib/docker/volumes/\(volume.name)/_data"
+                let showMountpoint =
+                    volume.mountpoint != "/var/lib/docker/volumes/\(volume.name)/_data"
                 SimpleKvTable(longestLabel: showMountpoint ? "Mountpoint" : "Created") {
                     SimpleKvTableRow("Created") {
                         Text(volume.formattedCreatedAt)
                     }
 
                     if let dockerDf = vmModel.dockerSystemDf,
-                       let dfVolume = dockerDf.volumes.first(where: { $0.name == volume.name }),
-                       let usageData = dfVolume.usageData
+                        let dfVolume = dockerDf.volumes.first(where: { $0.name == volume.name }),
+                        let usageData = dfVolume.usageData
                     {
-                        let fmtSize = ByteCountFormatter.string(fromByteCount: usageData.size, countStyle: .file)
+                        let fmtSize = ByteCountFormatter.string(
+                            fromByteCount: usageData.size, countStyle: .file)
                         SimpleKvTableRow("Size") {
                             Text(fmtSize)
                         }
@@ -52,10 +54,12 @@ struct DockerVolumeDetails: View {
 
             let usedByContainers = vmModel.dockerContainers?
                 .lazy
-                .filter { $0.mounts.contains(where: { $0.type == .volume && $0.name == volume.name }) }
+                .filter {
+                    $0.mounts.contains(where: { $0.type == .volume && $0.name == volume.name })
+                }
                 .sorted { $0.userName < $1.userName }
             if let usedByContainers,
-               !usedByContainers.isEmpty
+                !usedByContainers.isEmpty
             {
                 DetailsSection("Used By") {
                     VStack(alignment: .leading, spacing: 4) {
@@ -67,7 +71,7 @@ struct DockerVolumeDetails: View {
             }
 
             if let labels = volume.labels,
-               !labels.isEmpty
+                !labels.isEmpty
             {
                 ScrollableDetailsSection("Labels") {
                     AlignedSimpleKvTable {
@@ -82,7 +86,7 @@ struct DockerVolumeDetails: View {
             }
 
             if let options = volume.options,
-               !options.isEmpty
+                !options.isEmpty
             {
                 ScrollableDetailsSection("Options") {
                     AlignedSimpleKvTable {

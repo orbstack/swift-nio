@@ -25,93 +25,105 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // don't allow opening duplicate app instance - just activate old one
         // skip vmgr executables because there used to be a bug where it would open with same bundle id as GUI
         // need to keep the fix around for a long time due to update
-        if !CommandLine.arguments.contains("--allow-duplicate"), let existingApp = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
-            .first(where: { $0 != NSRunningApplication.current && $0.executableURL?.lastPathComponent != AppConfig.vmgrExeName })
+        if !CommandLine.arguments.contains("--allow-duplicate"),
+            let existingApp = NSRunningApplication.runningApplications(
+                withBundleIdentifier: Bundle.main.bundleIdentifier!
+            )
+            .first(where: {
+                $0 != NSRunningApplication.current
+                    && $0.executableURL?.lastPathComponent != AppConfig.vmgrExeName
+            })
         {
             print("App is already running")
             // activate first
             existingApp.activate(options: .activateIgnoringOtherApps)
 
             // send reopen event to open main window if necessary
-            let targetDescriptor = NSAppleEventDescriptor(processIdentifier: existingApp.processIdentifier)
+            let targetDescriptor = NSAppleEventDescriptor(
+                processIdentifier: existingApp.processIdentifier)
             AppleEvents.sendReopen(targetDescriptor: targetDescriptor)
 
             // NSApp.terminate doesn't work until applicationDidFinishLaunching,
             // but we want to avoid creating SwiftUI windows at all in order to avoid triggering .onAppear initLaunch
             exit(0)
         }
-        
+
         // Current running instance does not reside in /Applications
         // Ask the user if they want to move it
         if shouldPromptToMoveApplication() {
             let alert = NSAlert()
-            
+
             alert.messageText = "Move to Applications?"
             alert.informativeText = "I can move myself to the Applications folder if you'd like."
-            
+
             alert.addButton(withTitle: "Move")
             alert.addButton(withTitle: "Don't Move")
-            
-            Defaults[.showMoveToApplications] = false // no matter the choice, this'll be set to false. let's just do it here
-            
+
+            Defaults[.showMoveToApplications] = false  // no matter the choice, this'll be set to false. let's just do it here
+
             if alert.runModal() == .alertFirstButtonReturn {
                 moveToApplicationsButtonClicked()
             }
         }
-      
+
         vmModel.initLaunch()
     }
-    
+
     func shouldPromptToMoveApplication() -> Bool {
-        return !Bundle.main.bundlePath.hasPrefix("/Applications/") && Defaults[.showMoveToApplications]
+        return !Bundle.main.bundlePath.hasPrefix("/Applications/")
+            && Defaults[.showMoveToApplications]
     }
-    
+
     @MainActor
-    func moveToApplicationsButtonClicked() { // Handles replacements, too
+    func moveToApplicationsButtonClicked() {  // Handles replacements, too
         Task {
             do {
                 if vmModel.state == .running {
                     do {
                         try await vmModel.stop()
                     } catch {
-#if DEBUG
-                        throw StringError("Can't move app while background service is running (\(error))")
-#else
-                        throw StringError("Can't move app while background service is running")
-#endif
+                        #if DEBUG
+                            throw StringError(
+                                "Can't move app while background service is running (\(error))")
+                        #else
+                            throw StringError("Can't move app while background service is running")
+                        #endif
                     }
                 }
-                
+
                 let fm = FileManager.default
                 let newAppURL = URL(fileURLWithPath: "/Applications/OrbStack.app")
-                
-                let needDestAuth = fm.fileExists(atPath: newAppURL.path) /* if it already exists, then we'll just need permissions anyway (from testing.. :/) */
+
+                let needDestAuth = fm.fileExists(
+                    atPath: newAppURL.path) /* if it already exists, then we'll just need permissions anyway (from testing.. :/) */
                 let needAuth = needDestAuth || !fm.isWritableFile(atPath: "/Applications")
-                
+
                 if needAuth {
                     let deleteCommand = "rm -rf \(escapeShellArg(newAppURL.path))"
-                    let copyCommand = "cp -pR \(escapeShellArg(Bundle.main.bundlePath)) \(escapeShellArg(newAppURL.path))"
-                    
+                    let copyCommand =
+                        "cp -pR \(escapeShellArg(Bundle.main.bundlePath)) \(escapeShellArg(newAppURL.path))"
+
                     // Update LaunchServicesDB, touch can be used to update an app: https://github.com/sparkle-project/Sparkle/blob/3a9734538a38b35107962d6e8c5975cdabaeb56d/Sparkle/SUFileManager.m#L483
                     let touchCommand = "touch \(escapeShellArg(newAppURL.path))"
-                    try runAsAdmin(script: "\(deleteCommand) && \(copyCommand) && \(touchCommand)", prompt: "OrbStack wants to move itself to the Applications folder")
+                    try runAsAdmin(
+                        script: "\(deleteCommand) && \(copyCommand) && \(touchCommand)",
+                        prompt: "OrbStack wants to move itself to the Applications folder")
                 } else {
                     do {
                         try FileManager.default.moveItem(at: Bundle.main.bundleURL, to: newAppURL)
                     } catch {
                         try FileManager.default.copyItem(at: Bundle.main.bundleURL, to: newAppURL)
                     }
-                    
+
                     // update LaunchServicesDB (Sparkle does this, we're also using open+futimes to follow symlinks)
                     let fd = open(newAppURL.path, O_RDONLY | O_SYMLINK | O_CLOEXEC)
                     defer { close(fd) }
-                    
+
                     if fd != -1 {
                         futimes(fd, nil)
                     }
                 }
-                
-                
+
                 launchNewInstance(atURL: newAppURL)
             } catch {
                 let alert = NSAlert()
@@ -119,7 +131,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 alert.informativeText = error.localizedDescription
                 alert.addButton(withTitle: "OK")
                 alert.window.isRestorable = false
-                
+
                 alert.runModal()
             }
         }
@@ -128,31 +140,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func launchNewInstance(atURL url: URL) {
         // to stop any wonky behaviour (because Bundle.main would point to the old location)
         // We re-launch the app from the /Applications path
-        
+
         let conf = NSWorkspace.OpenConfiguration()
         conf.createsNewApplicationInstance = true
         conf.activates = true
-        
+
         // OrbStack eliminates any duplicate instances, however, when re-launching the app,
         // we will have 2 instances just for a split second, before we terminate the old instance
         // so we pass this flag to keep the new instance happy
         conf.arguments = ["--allow-duplicate"]
         NSWorkspace.shared.openApplication(at: url, configuration: conf) { _, _ in
-            exit(EXIT_SUCCESS) // exit once the new app is launched
+            exit(EXIT_SUCCESS)  // exit once the new app is launched
         }
     }
-    
+
     @objc func noThanksButtonWasClicked(sender: NSButton) {
         sender.window?.close()
     }
-    
+
     func applicationDidFinishLaunching(_: Notification) {
         if !AppConfig.debug {
             SentrySDK.start { options in
-                options.dsn = "https://fc975a3abcaa9803fc2405d8b4bb3b62@o120089.ingest.sentry.io/4504665519554560"
+                options.dsn =
+                    "https://fc975a3abcaa9803fc2405d8b4bb3b62@o120089.ingest.sentry.io/4504665519554560"
                 options.tracesSampleRate = 0.0
                 options.enableAppHangTracking = false
-                options.appHangTimeoutInterval = 60 // 1 minute
+                options.appHangTimeoutInterval = 60  // 1 minute
             }
         }
 
@@ -162,7 +175,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // but if we haven't done onboarding, then do it now
         // can happen if users' first-run is via CLI
         let internalCliBackground = CommandLine.arguments.contains("--internal-cli-background")
-        if Defaults[.onboardingCompleted] && (internalCliBackground || debugAlwaysCliBackground || launchedAsLoginItem()) {
+        if Defaults[.onboardingCompleted]
+            && (internalCliBackground || debugAlwaysCliBackground || launchedAsLoginItem())
+        {
             // don't steal focus
             NSApp.setActivationPolicy(.accessory)
 
@@ -179,17 +194,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
 
         // Menu bar status item
-        menuBar = MenuBarController(updaterController: updaterController!,
-                                    actionTracker: actionTracker, windowTracker: windowTracker,
-                                    vmModel: vmModel)
+        menuBar = MenuBarController(
+            updaterController: updaterController!,
+            actionTracker: actionTracker, windowTracker: windowTracker,
+            vmModel: vmModel)
         windowTracker.menuBar = menuBar
 
         // launch at login: close all windows. works with SMAppService
         // only if menu bar enabled. otherwise there will be no windows
         let launchEvent = NSAppleEventManager.shared().currentAppleEvent
-        if launchEvent?.eventID == kAEOpenApplication &&
-            launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem &&
-            Defaults[.globalShowMenubarExtra]
+        if launchEvent?.eventID == kAEOpenApplication
+            && launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue
+                == keyAELaunchedAsLogInItem
+            && Defaults[.globalShowMenubarExtra]
         {
             for window in NSApp.windows {
                 if window.isUserFacing {
@@ -303,8 +320,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 NSApp.activate(ignoringOtherApps: true)
 
                 if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-                   let queryItems = components.queryItems,
-                   let token = queryItems.first(where: { $0.name == "token" })?.value
+                    let queryItems = components.queryItems,
+                    let token = queryItems.first(where: { $0.name == "token" })?.value
                 {
                     let state = vmModel.drmState
                     state.refreshToken = token
@@ -323,7 +340,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     // notification
-    func userNotificationCenter(_: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    func userNotificationCenter(
+        _: UNUserNotificationCenter, didReceive response: UNNotificationResponse
+    ) async {
         if let url = (response.notification.request.content.userInfo["url"] as? String)?.toURL() {
             NSWorkspace.shared.open(url)
         }
@@ -332,16 +351,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     static func showSettingsWindow() {
         // macOS 14 breaks the "showSettingsWindow" private API, so we have to do this...
         // simulate Cmd-, shortcut
-        let fakeEvent = NSEvent.keyEvent(with: .keyDown,
-                                         location: .zero,
-                                         modifierFlags: [.command],
-                                         timestamp: 0,
-                                         windowNumber: 0,
-                                         context: nil,
-                                         characters: ",",
-                                         charactersIgnoringModifiers: ",",
-                                         isARepeat: false,
-                                         keyCode: 0)!
+        let fakeEvent = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: ",",
+            charactersIgnoringModifiers: ",",
+            isARepeat: false,
+            keyCode: 0)!
         NSApp.mainMenu?.performKeyEquivalent(with: fakeEvent)
     }
 }
@@ -349,6 +369,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 // https://stackoverflow.com/a/74733681
 private func launchedAsLoginItem() -> Bool {
     let event = NSAppleEventManager.shared().currentAppleEvent
-    return event?.eventID == kAEOpenApplication &&
-        event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+    return event?.eventID == kAEOpenApplication
+        && event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue
+            == keyAELaunchedAsLogInItem
 }

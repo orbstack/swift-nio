@@ -30,12 +30,14 @@ struct RenameContainerView: View {
 
             Form {
                 Section {
-                    let nameBinding = Binding<String>(get: { name }, set: {
-                        if $0 != name {
-                            self.nameChanged = true
-                        }
-                        self.name = $0
-                    })
+                    let nameBinding = Binding<String>(
+                        get: { name },
+                        set: {
+                            if $0 != name {
+                                self.nameChanged = true
+                            }
+                            self.name = $0
+                        })
 
                     TextField("Name", text: nameBinding)
                         .onSubmit {
@@ -86,7 +88,7 @@ struct RenameContainerView: View {
 
     private func checkName(_ newName: String, animate: Bool = true) {
         if let containers = vmModel.containers,
-           containers.contains(where: { $0.name == newName && $0.id != record.id })
+            containers.contains(where: { $0.name == newName && $0.id != record.id })
         {
             // renaming to same isn't considered duplicate
             isNameDuplicate = true
@@ -95,8 +97,10 @@ struct RenameContainerView: View {
         }
 
         // regex
-        let isValid = containerNameRegex.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) != nil &&
-            !containerNameBlacklist.contains(newName)
+        let isValid =
+            containerNameRegex.firstMatch(
+                in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count))
+            != nil && !containerNameBlacklist.contains(newName)
         if !newName.isEmpty && !isValid {
             isNameInvalid = true
         } else {

@@ -21,7 +21,7 @@ struct MachineDetails: View {
                     }
                     SimpleKvTableRow("Domain") {
                         CopyableText("\(record.name).orb.local")
-                        .lineLimit(nil)
+                            .lineLimit(nil)
                     }
                 }
             }
@@ -29,7 +29,9 @@ struct MachineDetails: View {
             DetailsSection("Image") {
                 SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("Distro") {
-                        Text(Distro.allCases.first(where: { $0.rawValue == record.image.distro })?.friendlyName ?? record.image.distro)
+                        Text(
+                            Distro.allCases.first(where: { $0.rawValue == record.image.distro })?
+                                .friendlyName ?? record.image.distro)
                     }
                     SimpleKvTableRow("Version") {
                         Text(record.image.version)

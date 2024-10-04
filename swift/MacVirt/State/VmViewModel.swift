@@ -5,14 +5,14 @@
 import Combine
 import Defaults
 import Foundation
+import SecureXPC
 import Sentry
 import SwiftUI
 import Virtualization
-import SecureXPC
 
-private let startPollInterval: UInt64 = 100 * 1000 * 1000 // 100 ms
-private let dockerSystemDfRatelimit = 1.0 * 60 * 60 // 1 hour
-private let maxAdminDismissCount = 2 // auto-disable
+private let startPollInterval: UInt64 = 100 * 1000 * 1000  // 100 ms
+private let dockerSystemDfRatelimit = 1.0 * 60 * 60  // 1 hour
+private let maxAdminDismissCount = 2  // auto-disable
 
 enum MenuActionRouter {
     case newVolume
@@ -48,7 +48,7 @@ enum VmState: Int, Comparable {
     }
 }
 
-private let startTimeout = 3 * 60 * 1000 * 1000 * 1000 // 3 minutes
+private let startTimeout = 3 * 60 * 1000 * 1000 * 1000  // 3 minutes
 
 enum VmError: LocalizedError, CustomNSError, Equatable {
     // VM
@@ -216,35 +216,36 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             switch reason {
             case .drm:
                 return """
+                    To fix this:
+                        • Check your internet connection
+                        • Make sure api-license.orbstack.dev isn't blocked
+                        • Check your proxy in Settings > Network
+                        • Make sure your date and time are correct
+                    """
+            case .dataCorruption:
+                return """
+                    OrbStack data is corrupted and cannot be recovered.
+
+                    To fix this, run "orb reset" in Terminal to delete your old data and start fresh.
+
+                    In the future, avoid unclean shutdowns to prevent this from happening again. This can also happen when Migration Assistant corrupts the data while it's being copied.
+                    """
+            default:
+                return output
+            }
+        case let .drmWarning(event):
+            return """
+                \(event.lastError)
+
                 To fix this:
                     • Check your internet connection
                     • Make sure api-license.orbstack.dev isn't blocked
                     • Check your proxy in Settings > Network
                     • Make sure your date and time are correct
                 """
-            case .dataCorruption:
-                return """
-                OrbStack data is corrupted and cannot be recovered.
-
-                To fix this, run "orb reset" in Terminal to delete your old data and start fresh.
-
-                In the future, avoid unclean shutdowns to prevent this from happening again. This can also happen when Migration Assistant corrupts the data while it's being copied.
-                """
-            default:
-                return output
-            }
-        case let .drmWarning(event):
-            return """
-            \(event.lastError)
-
-            To fix this:
-                • Check your internet connection
-                • Make sure api-license.orbstack.dev isn't blocked
-                • Check your proxy in Settings > Network
-                • Make sure your date and time are correct
-            """
         case .setupError(XPCError.connectionInvalid):
-            return "Privileged helper failed to start. Please enable it or disable admin privileges in Settings > System."
+            return
+                "Privileged helper failed to start. Please enable it or disable admin privileges in Settings > System."
         default:
             if let cause {
                 return fmtRpc(cause)
@@ -265,7 +266,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .virtUnsupported:
             return "OrbStack cannot run because your computer does not support virtualization."
         case .killswitchExpired:
-            return "This beta version of OrbStack is too old. Please update to continue.\n\nStable versions will not require updates."
+            return
+                "This beta version of OrbStack is too old. Please update to continue.\n\nStable versions will not require updates."
 
         default:
             return nil
@@ -374,13 +376,13 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return true
         case let .dockerVolumeActionError(action, cause):
             if action == "delete",
-               fmtRpc(cause) == "volume in use"
+                fmtRpc(cause) == "volume in use"
             {
                 return true
             }
         case let .dockerImageActionError(action, cause):
             if action == "delete",
-               fmtRpc(cause) == "image in use"
+                fmtRpc(cause) == "image in use"
             {
                 return true
             }
@@ -476,7 +478,7 @@ class VmViewModel: ObservableObject {
     @Published var error: VmError?
 
     // vmgr basic state
-    @Published private(set) var appliedConfig: VmConfig? // usually from last start
+    @Published private(set) var appliedConfig: VmConfig?  // usually from last start
     @Published private(set) var config: VmConfig?
     private(set) var reachedRunning = false
 
@@ -497,7 +499,8 @@ class VmViewModel: ObservableObject {
         entitlementTier: .none,
         entitlementType: .none,
         entitlementMessage: nil
-    ) {
+    )
+    {
         didSet {
             Defaults[.drmLastState] = drmState
         }
@@ -591,7 +594,9 @@ class VmViewModel: ObservableObject {
                         self.dockerSystemDf = nil
 
                         if exitEvent.status != 0 {
-                            self.setError(.dockerExitError(status: exitEvent.status, message: exitEvent.message))
+                            self.setError(
+                                .dockerExitError(
+                                    status: exitEvent.status, message: exitEvent.message))
                         }
                     }
                 }
@@ -638,7 +643,7 @@ class VmViewModel: ObservableObject {
 
     private func setError(_ error: VmError) {
         if let cause = error.cause,
-           case let cause as CancellationError = cause
+            case let cause as CancellationError = cause
         {
             NSLog("Ignoring cancellation error: \(cause)")
             return
@@ -677,16 +682,18 @@ class VmViewModel: ObservableObject {
         if !ignoreState {
             state = .spawning
         }
-        
+
         return Task {
             do {
                 // resolve symlinks in path to fix bundle ID resolution on launch
-                let vmgrExePath = URL(fileURLWithPath: AppConfig.vmgrExe).resolvingSymlinksInPath().path
+                let vmgrExePath = URL(fileURLWithPath: AppConfig.vmgrExe).resolvingSymlinksInPath()
+                    .path
 
                 let newPidStr = try await runProcessChecked(vmgrExePath, ["spawn-daemon"])
                 let newPid = Int(newPidStr.trimmingCharacters(in: .whitespacesAndNewlines))
                 guard let newPid else {
-                    throw VmError.spawnError(cause: ProcessError(status: 0, output: "Invalid pid: \(newPidStr)"))
+                    throw VmError.spawnError(
+                        cause: ProcessError(status: 0, output: "Invalid pid: \(newPidStr)"))
                 }
 
                 advanceStateAsync(.starting)
@@ -696,7 +703,8 @@ class VmViewModel: ObservableObject {
             } catch let processError as ProcessError {
                 DispatchQueue.main.async {
                     self.state = .stopped
-                    self.setError(.spawnExit(status: processError.status, output: processError.output))
+                    self.setError(
+                        .spawnExit(status: processError.status, output: processError.output))
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -732,8 +740,9 @@ class VmViewModel: ObservableObject {
         let runningContainers = allContainers.filter { $0.running }
         let stoppedContainers = allContainers.filter { !$0.running }
         // sort alphabetically by name within each group
-        containers = runningContainers.sorted { $0.name < $1.name } +
-            stoppedContainers.sorted { $0.name < $1.name }
+        containers =
+            runningContainers.sorted { $0.name < $1.name }
+            + stoppedContainers.sorted { $0.name < $1.name }
 
         // first new scon containers = scon is now running
         if isFirstContainers {
@@ -757,11 +766,15 @@ class VmViewModel: ObservableObject {
 
                 // remove 127.0.0.1 if ::1 exists
                 if origPort.ip == "127.0.0.1" {
-                    return !container.ports.contains(where: { $0.ip == "::1" && $0.publicPortInt == origPort.publicPortInt })
+                    return !container.ports.contains(where: {
+                        $0.ip == "::1" && $0.publicPortInt == origPort.publicPortInt
+                    })
                 }
                 // remove 0.0.0.0 if :: exists
                 if origPort.ip == "0.0.0.0" {
-                    return !container.ports.contains(where: { $0.ip == "::" && $0.publicPortInt == origPort.publicPortInt })
+                    return !container.ports.contains(where: {
+                        $0.ip == "::" && $0.publicPortInt == origPort.publicPortInt
+                    })
                 }
                 return true
             }
@@ -770,7 +783,9 @@ class VmViewModel: ObservableObject {
             container.ports.sort { $0.publicPortInt < $1.publicPortInt }
 
             // sort mounts
-            container.mounts.sort { "\($0.source)\($0.destination)" < "\($1.source)\($1.destination)" }
+            container.mounts.sort {
+                "\($0.source)\($0.destination)" < "\($1.source)\($1.destination)"
+            }
 
             return container
         }
@@ -798,8 +813,8 @@ class VmViewModel: ObservableObject {
     @MainActor
     func isDockerRunning() -> Bool {
         if let containers,
-           let dockerContainer = containers.first(where: { $0.id == ContainerIds.docker }),
-           dockerContainer.state == .running || dockerContainer.state == .starting
+            let dockerContainer = containers.first(where: { $0.id == ContainerIds.docker }),
+            dockerContainer.state == .running || dockerContainer.state == .starting
         {
             return true
         }
@@ -866,7 +881,9 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    private func _trySpawnDaemon(ignoreState: Bool = false) -> (spawned: Bool, task: Task<Void, Never>?) {
+    private func _trySpawnDaemon(ignoreState: Bool = false) -> (
+        spawned: Bool, task: Task<Void, Never>?
+    ) {
         do {
             return try (true, spawnDaemon(ignoreState: ignoreState))
         } catch VmError.wrongArch {
@@ -1048,23 +1065,34 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    func createContainer(name: String, distro: Distro, version: String, arch: String, cloudInitUserData: URL?, defaultUsername: String?) async throws {
+    func createContainer(
+        name: String, distro: Distro, version: String, arch: String, cloudInitUserData: URL?,
+        defaultUsername: String?
+    ) async throws {
         let userData = try cloudInitUserData.flatMap { try String(contentsOf: $0) }
 
-        try await scon.create(CreateRequest(name: name,
-                                            image: ImageSpec(distro: distro.imageKey,
-                                                             version: version,
-                                                             arch: arch,
-                                                             variant: ""),
-                                            config: MachineConfig(isolated: false, defaultUsername: defaultUsername),
-                                            userPassword: nil,
-                                            cloudInitUserData: userData))
+        try await scon.create(
+            CreateRequest(
+                name: name,
+                image: ImageSpec(
+                    distro: distro.imageKey,
+                    version: version,
+                    arch: arch,
+                    variant: ""),
+                config: MachineConfig(isolated: false, defaultUsername: defaultUsername),
+                userPassword: nil,
+                cloudInitUserData: userData))
     }
 
     @MainActor
-    func tryCreateContainer(name: String, distro: Distro, version: String, arch: String, cloudInitUserData: URL? = nil, defaultUsername: String? = nil) async {
+    func tryCreateContainer(
+        name: String, distro: Distro, version: String, arch: String, cloudInitUserData: URL? = nil,
+        defaultUsername: String? = nil
+    ) async {
         do {
-            try await createContainer(name: name, distro: distro, version: version, arch: arch, cloudInitUserData: cloudInitUserData, defaultUsername: defaultUsername)
+            try await createContainer(
+                name: name, distro: distro, version: version, arch: arch,
+                cloudInitUserData: cloudInitUserData, defaultUsername: defaultUsername)
         } catch {
             setError(.containerCreateError(cause: error))
         }
@@ -1103,7 +1131,9 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    func trySetConfigKeyAsync<T: Equatable>(_ keyPath: WritableKeyPath<VmConfig, T>, _ newValue: T) async {
+    func trySetConfigKeyAsync<T: Equatable>(_ keyPath: WritableKeyPath<VmConfig, T>, _ newValue: T)
+        async
+    {
         if var config = config {
             config[keyPath: keyPath] = newValue
             await trySetConfig(config)
@@ -1155,7 +1185,9 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    private func doTryDockerContainerAction(_ label: String, _ action: () async throws -> Void) async {
+    private func doTryDockerContainerAction(_ label: String, _ action: () async throws -> Void)
+        async
+    {
         do {
             try await action()
         } catch {
@@ -1206,16 +1238,17 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    private func doTryDockerComposeAction(_ label: String, cid: DockerContainerId,
-                                          args: [String], requiresConfig: Bool = false,
-                                          ignoreError: Bool = false) async
-    {
+    private func doTryDockerComposeAction(
+        _ label: String, cid: DockerContainerId,
+        args: [String], requiresConfig: Bool = false,
+        ignoreError: Bool = false
+    ) async {
         if case let .compose(project) = cid {
             // find working dir from containers
             if let containers = dockerContainers,
-               let container = containers.first(where: { container in
-                   container.composeProject == project
-               })
+                let container = containers.first(where: { container in
+                    container.composeProject == project
+                })
             {
                 // only pass configs and working dir if needed for action
                 // otherwise skip for robustness
@@ -1225,7 +1258,8 @@ class VmViewModel: ObservableObject {
                 var configArgs = [String]()
                 if requiresConfig {
                     // handle multiple compose files
-                    let configFiles = container.labels?[DockerLabels.composeConfigFiles] ?? "docker-compose.yml"
+                    let configFiles =
+                        container.labels?[DockerLabels.composeConfigFiles] ?? "docker-compose.yml"
                     for configFile in configFiles.split(separator: ",") {
                         configArgs.append("-f")
                         configArgs.append(String(configFile))
@@ -1233,7 +1267,7 @@ class VmViewModel: ObservableObject {
 
                     // pass working dir if we have it
                     if let workingDir = container.labels?[DockerLabels.composeWorkingDir],
-                       FileManager.default.fileExists(atPath: workingDir)
+                        FileManager.default.fileExists(atPath: workingDir)
                     {
                         configArgs.append("--project-directory")
                         configArgs.append(workingDir)
@@ -1241,9 +1275,10 @@ class VmViewModel: ObservableObject {
                 }
 
                 do {
-                    try await runProcessChecked(AppConfig.dockerComposeExe,
-                                                ["-p", project] + configArgs + args,
-                                                env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
+                    try await runProcessChecked(
+                        AppConfig.dockerComposeExe,
+                        ["-p", project] + configArgs + args,
+                        env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
                 } catch {
                     if !ignoreError {
                         setError(.dockerComposeActionError(action: "\(label)", cause: error))
@@ -1253,7 +1288,9 @@ class VmViewModel: ObservableObject {
         } else {
             // should never happen
             if !ignoreError {
-                setError(.dockerComposeActionError(action: "\(label)", cause: DockerComposeError.composeCidExpected))
+                setError(
+                    .dockerComposeActionError(
+                        action: "\(label)", cause: DockerComposeError.composeCidExpected))
             }
         }
     }
@@ -1291,7 +1328,8 @@ class VmViewModel: ObservableObject {
 
     func tryDockerVolumeCreate(_ name: String) async {
         await doTryDockerVolumeAction("create") {
-            try await vmgr.dockerVolumeCreate(DKVolumeCreateOptions(name: name, labels: nil, driver: nil, driverOpts: nil))
+            try await vmgr.dockerVolumeCreate(
+                DKVolumeCreateOptions(name: name, labels: nil, driver: nil, driverOpts: nil))
         }
     }
 
@@ -1318,10 +1356,13 @@ class VmViewModel: ObservableObject {
 
     func tryLoadDockerConfig() {
         do {
-            let jsonText = try String(contentsOf: URL(fileURLWithPath: Files.dockerDaemonConfig), encoding: .utf8)
+            let jsonText = try String(
+                contentsOf: URL(fileURLWithPath: Files.dockerDaemonConfig), encoding: .utf8)
             dockerConfigJson = jsonText
             // can we parse it and grab ipv6?
-            let json = try JSONSerialization.jsonObject(with: jsonText.data(using: .utf8)!, options: []) as! [String: Any]
+            let json =
+                try JSONSerialization.jsonObject(with: jsonText.data(using: .utf8)!, options: [])
+                as! [String: Any]
             if let ipv6 = json["ipv6"] as? Bool {
                 dockerEnableIPv6 = ipv6
             }
@@ -1340,7 +1381,9 @@ class VmViewModel: ObservableObject {
         do {
             // parse and update the json for ipv6
             // this breaks formatting, but better than regex
-            var json = try JSONSerialization.jsonObject(with: configJsonStr.data(using: .utf8)!, options: []) as! [String: Any]
+            var json =
+                try JSONSerialization.jsonObject(
+                    with: configJsonStr.data(using: .utf8)!, options: []) as! [String: Any]
             // don't add "ipv6" key if not needed
             let oldIpv6 = json["ipv6"] as? Bool ?? false
             if oldIpv6 != enableIpv6 {
@@ -1469,8 +1512,7 @@ class VmViewModel: ObservableObject {
 
         return containers.first { container in
             container.mounts.contains { mount in
-                mount.type == .volume &&
-                    mount.name == volume.name
+                mount.type == .volume && mount.name == volume.name
             }
         } != nil
     }
@@ -1484,9 +1526,10 @@ class VmViewModel: ObservableObject {
     }
 
     // intermediate Binding that only calls `vmModel.trySetConfigKey` when the user manually drags the slider
-    func bindingForConfig<T: Equatable>(_ keyPath: WritableKeyPath<VmConfig, T>,
-                                        state: Binding<T>) -> Binding<T>
-    {
+    func bindingForConfig<T: Equatable>(
+        _ keyPath: WritableKeyPath<VmConfig, T>,
+        state: Binding<T>
+    ) -> Binding<T> {
         Binding<T> {
             state.wrappedValue
         } set: { [self] newValue in

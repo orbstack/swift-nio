@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "GoVZF",
     platforms: [
-        .macOS("12.3"),
+        .macOS("12.3")
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
@@ -14,7 +14,7 @@ let package = Package(
             name: "GoVZF",
             type: .static,
             targets: ["GoVZF"]
-        ),
+        )
     ],
     dependencies: [
         .package(url: "https://github.com/trilemma-dev/Blessed.git", from: "0.6.0"),

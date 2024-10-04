@@ -37,7 +37,10 @@ extension NewMainViewController: NSToolbarDelegate {
         return items
     }
 
-    func toolbar(_: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar _: Bool) -> NSToolbarItem? {
+    func toolbar(
+        _: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar _: Bool
+    ) -> NSToolbarItem? {
         switch itemIdentifier {
         case .toggleInspectorButton:
             return toggleInspectorButton
@@ -67,7 +70,9 @@ extension NewMainViewController: NSToolbarDelegate {
         case .searchItem:
             return searchItem
         case .inspectorTrackingSeparatorCompat:
-            return NSTrackingSeparatorToolbarItem(identifier: itemIdentifier, splitView: splitViewController.splitView, dividerIndex: 1)
+            return NSTrackingSeparatorToolbarItem(
+                identifier: itemIdentifier, splitView: splitViewController.splitView,
+                dividerIndex: 1)
 
         case .licenseBadge:
             return licenseBadgeItem

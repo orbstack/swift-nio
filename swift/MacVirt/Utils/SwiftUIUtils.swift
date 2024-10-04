@@ -192,7 +192,9 @@ extension View {
     ///   - condition: The condition to evaluate.
     ///   - transform: The transform to apply to the source `View`.
     /// - Returns: Either the original `View` or the modified `View` if the condition is `true`.
-    @ViewBuilder func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+    @ViewBuilder func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content)
+        -> some View
+    {
         if condition {
             transform(self)
         } else {
@@ -244,19 +246,25 @@ extension Text {
 }
 
 extension Slider {
-    init<V: BinaryInteger>(value: Binding<V>, in bounds: ClosedRange<V>, step: V = 1, @ViewBuilder label: () -> Label, @ViewBuilder minimumValueLabel: () -> ValueLabel, @ViewBuilder maximumValueLabel: () -> ValueLabel, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
+    init<V: BinaryInteger>(
+        value: Binding<V>, in bounds: ClosedRange<V>, step: V = 1, @ViewBuilder label: () -> Label,
+        @ViewBuilder minimumValueLabel: () -> ValueLabel,
+        @ViewBuilder maximumValueLabel: () -> ValueLabel,
+        onEditingChanged: @escaping (Bool) -> Void = { _ in }
+    ) {
         let binding = Binding<Double>(
             get: { Double(value.wrappedValue) },
             set: { value.wrappedValue = V($0) }
         )
 
-        self.init(value: binding,
-                  in: Double(bounds.lowerBound) ... Double(bounds.upperBound),
-                  step: Double(step),
-                  label: label,
-                  minimumValueLabel: minimumValueLabel,
-                  maximumValueLabel: maximumValueLabel,
-                  onEditingChanged: onEditingChanged)
+        self.init(
+            value: binding,
+            in: Double(bounds.lowerBound)...Double(bounds.upperBound),
+            step: Double(step),
+            label: label,
+            minimumValueLabel: minimumValueLabel,
+            maximumValueLabel: maximumValueLabel,
+            onEditingChanged: onEditingChanged)
     }
 }
 
@@ -301,7 +309,8 @@ struct SimpleKvTable<Content: View>: View {
     private let longestLabel: String
     @ViewBuilder private let content: () -> Content
 
-    init(spacing: CGFloat = 4, longestLabel: String, @ViewBuilder content: @escaping () -> Content) {
+    init(spacing: CGFloat = 4, longestLabel: String, @ViewBuilder content: @escaping () -> Content)
+    {
         self.spacing = spacing
         self.longestLabel = longestLabel
         self.content = content

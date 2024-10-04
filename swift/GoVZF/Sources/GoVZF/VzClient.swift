@@ -35,7 +35,9 @@ struct VzSpec: Codable {
     var sound: Bool
 }
 
-func asyncifyResult<T>(_ fn: @escaping (@escaping (Result<T, Error>) -> Void) -> Void) async throws -> T {
+func asyncifyResult<T>(_ fn: @escaping (@escaping (Result<T, Error>) -> Void) -> Void) async throws
+    -> T
+{
     return try await withCheckedThrowingContinuation { continuation in
         vzQueue.async {
             fn { result in
@@ -107,7 +109,10 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
         NSLog("[VZF] Guest stopped with error: \(error)")
     }
 
-    func virtualMachine(_: VZVirtualMachine, networkDevice: VZNetworkDevice, attachmentWasDisconnectedWithError error: Error) {
+    func virtualMachine(
+        _: VZVirtualMachine, networkDevice: VZNetworkDevice,
+        attachmentWasDisconnectedWithError error: Error
+    ) {
         NSLog("[VZF] Network device \(networkDevice) disconnected: \(error)")
     }
 
@@ -177,7 +182,12 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
         defer {
             try? FileManager.default.removeItem(at: tmpFile)
         }
-        try await runProcessChecked("/usr/bin/open", ["-W", "-o", tmpFile.path, "--stderr", tmpFile.path, "/System/Library/CoreServices/Rosetta 2 Updater.app"])
+        try await runProcessChecked(
+            "/usr/bin/open",
+            [
+                "-W", "-o", tmpFile.path, "--stderr", tmpFile.path,
+                "/System/Library/CoreServices/Rosetta 2 Updater.app",
+            ])
         let output = try String(contentsOf: tmpFile)
         NSLog("[VZF] Rosetta install result: \(output)")
 
@@ -211,8 +221,10 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
     // console
     if let consoleSpec = spec.console {
         let attachment = VZFileHandleSerialPortAttachment(
-            fileHandleForReading: FileHandle(fileDescriptor: consoleSpec.readFd, closeOnDealloc: false),
-            fileHandleForWriting: FileHandle(fileDescriptor: consoleSpec.writeFd, closeOnDealloc: false)
+            fileHandleForReading: FileHandle(
+                fileDescriptor: consoleSpec.readFd, closeOnDealloc: false),
+            fileHandleForWriting: FileHandle(
+                fileDescriptor: consoleSpec.writeFd, closeOnDealloc: false)
         )
         let console = VZVirtioConsoleDeviceSerialPortConfiguration()
         console.attachment = attachment
@@ -230,7 +242,8 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
     }
     for (index, networkVnetFd) in spec.networkFds.enumerated() {
         // Go keeps ownership
-        let attachment = VZFileHandleNetworkDeviceAttachment(fileHandle: FileHandle(fileDescriptor: networkVnetFd, closeOnDealloc: false))
+        let attachment = VZFileHandleNetworkDeviceAttachment(
+            fileHandle: FileHandle(fileDescriptor: networkVnetFd, closeOnDealloc: false))
         if #available(macOS 13, *) {
             attachment.maximumTransmissionUnit = spec.mtu
         }
@@ -238,7 +251,8 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
         device.attachment = attachment
         // starting at :01
         let lastByte = UInt8(1 + index)
-        device.macAddress = VZMACAddress(string: spec.macAddressPrefix + ":" + String(format: "%02x", lastByte))!
+        device.macAddress = VZMACAddress(
+            string: spec.macAddressPrefix + ":" + String(format: "%02x", lastByte))!
         netDevices.append(device)
     }
     config.networkDevices = netDevices
@@ -252,23 +266,26 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
     var disks: [VZStorageDeviceConfiguration] = []
     // 1. rootfs
     if let diskRootfs = spec.diskRootfs {
-        let attachment = try VZDiskImageStorageDeviceAttachment(url: URL(fileURLWithPath: diskRootfs),
-                                                                readOnly: true, cachingMode: .cached, synchronizationMode: .none)
+        let attachment = try VZDiskImageStorageDeviceAttachment(
+            url: URL(fileURLWithPath: diskRootfs),
+            readOnly: true, cachingMode: .cached, synchronizationMode: .none)
         let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
         disks.append(device)
     }
     // 2. data
     if let diskData = spec.diskData {
-        let attachment = try VZDiskImageStorageDeviceAttachment(url: URL(fileURLWithPath: diskData),
-                                                                readOnly: false, cachingMode: .cached, synchronizationMode: .full)
+        let attachment = try VZDiskImageStorageDeviceAttachment(
+            url: URL(fileURLWithPath: diskData),
+            readOnly: false, cachingMode: .cached, synchronizationMode: .full)
         let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
         disks.append(device)
     }
     // 3. swap
     if let diskSwap = spec.diskSwap {
         // no fsync needed for swap
-        let attachment = try VZDiskImageStorageDeviceAttachment(url: URL(fileURLWithPath: diskSwap),
-                                                                readOnly: false, cachingMode: .cached, synchronizationMode: .none)
+        let attachment = try VZDiskImageStorageDeviceAttachment(
+            url: URL(fileURLWithPath: diskSwap),
+            readOnly: false, cachingMode: .cached, synchronizationMode: .none)
         let device = VZVirtioBlockDeviceConfiguration(attachment: attachment)
         disks.append(device)
     }
@@ -295,14 +312,14 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
 
     // Rosetta
     #if arch(arm64)
-    if #available(macOS 13, *) {
-        if spec.rosetta {
-            let dir = try VZLinuxRosettaDirectoryShare()
-            let fs = VZVirtioFileSystemDeviceConfiguration(tag: "rosetta")
-            fs.share = dir
-            fsDevices.append(fs)
+        if #available(macOS 13, *) {
+            if spec.rosetta {
+                let dir = try VZLinuxRosettaDirectoryShare()
+                let fs = VZVirtioFileSystemDeviceConfiguration(tag: "rosetta")
+                fs.share = dir
+                fsDevices.append(fs)
+            }
         }
-    }
     #endif
     config.directorySharingDevices = fsDevices
 
@@ -326,27 +343,27 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
 @_cdecl("swext_install_rosetta")
 func post_installRosetta() -> GResultIntErr {
     #if arch(arm64)
-    if #available(macOS 13, *) {
-        return doGenericErrInt {
-            do {
-                switch VZLinuxRosettaDirectoryShare.availability {
-                case .notSupported:
-                    return 0
-                case .notInstalled:
-                    try await installRosetta()
-                    return 1
-                case .installed:
-                    return 1
-                @unknown default:
-                    return 0
+        if #available(macOS 13, *) {
+            return doGenericErrInt {
+                do {
+                    switch VZLinuxRosettaDirectoryShare.availability {
+                    case .notSupported:
+                        return 0
+                    case .notInstalled:
+                        try await installRosetta()
+                        return 1
+                    case .installed:
+                        return 1
+                    @unknown default:
+                        return 0
+                    }
+                } catch GovzfError.rosettaInstallCanceled {
+                    return 2
+                } catch {
+                    throw error
                 }
-            } catch GovzfError.rosettaInstallCanceled {
-                return 2
-            } catch {
-                throw error
             }
         }
-    }
     #endif
 
     // notSupported

@@ -22,17 +22,21 @@ struct K8SSettingsView: View {
     var body: some View {
         SettingsStateWrapperView {
             Form {
-                Toggle("Enable Kubernetes cluster",
-                       isOn: vmModel.bindingForConfig(\.k8sEnable, state: $k8sEnable))
-                Text("Lightweight local cluster with UI & network integration. [Learn more](https://go.orbstack.dev/k8s)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                Toggle(
+                    "Enable Kubernetes cluster",
+                    isOn: vmModel.bindingForConfig(\.k8sEnable, state: $k8sEnable))
+                Text(
+                    "Lightweight local cluster with UI & network integration. [Learn more](https://go.orbstack.dev/k8s)"
+                )
+                .font(.subheadline)
+                .foregroundColor(.secondary)
 
                 Spacer()
                     .frame(height: 32)
 
-                Toggle("Expose services to local network devices",
-                       isOn: vmModel.bindingForConfig(\.k8sExposeServices, state: $k8sExposeServices))
+                Toggle(
+                    "Expose services to local network devices",
+                    isOn: vmModel.bindingForConfig(\.k8sExposeServices, state: $k8sExposeServices))
                 Text("Includes NodePorts, LoadBalancers, and the Kubernetes API.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -70,18 +74,22 @@ struct K8SSettingsView: View {
         }
         .padding()
         .background(WindowAccessor(holder: windowHolder))
-        .akAlert("Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData,
-                desc: "All Kubernetes deployments, pods, services, and other data will be permanently lost.",
-                button1Label: "Reset",
-                button1Action: {
-                    Task {
-                        if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
-                            await vmModel.tryInternalDeleteK8s()
-                            await vmModel.tryStartContainer(dockerRecord)
-                        }
+        .akAlert(
+            "Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData,
+            desc:
+                "All Kubernetes deployments, pods, services, and other data will be permanently lost.",
+            button1Label: "Reset",
+            button1Action: {
+                Task {
+                    if let dockerRecord = vmModel.containers?.first(where: {
+                        $0.id == ContainerIds.docker
+                    }) {
+                        await vmModel.tryInternalDeleteK8s()
+                        await vmModel.tryStartContainer(dockerRecord)
                     }
-                },
-                button2Label: "Cancel")
+                }
+            },
+            button2Label: "Cancel")
     }
 
     private func updateFrom(_ config: VmConfig) {

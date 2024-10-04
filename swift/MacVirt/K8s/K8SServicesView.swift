@@ -83,9 +83,9 @@ struct K8SServicesView: View {
 
         K8SStateWrapperView(\.k8sServices) { services, _ in
             let filteredServices = services.filter { service in
-                searchQuery.isEmpty ||
-                    service.metadata.name.localizedCaseInsensitiveContains(searchQuery) ||
-                    service.metadata.namespace.localizedCaseInsensitiveContains(searchQuery)
+                searchQuery.isEmpty
+                    || service.metadata.name.localizedCaseInsensitiveContains(searchQuery)
+                    || service.metadata.namespace.localizedCaseInsensitiveContains(searchQuery)
             }
 
             let listItems = K8SResourceLists.groupItems(

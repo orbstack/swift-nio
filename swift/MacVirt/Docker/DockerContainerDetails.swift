@@ -22,7 +22,7 @@ struct DockerContainerDetails: View {
 
                     SimpleKvTableRow("Status") {
                         Text(container.status)
-                        .lineLimit(nil)
+                            .lineLimit(nil)
                     }
 
                     SimpleKvTableRow("ID") {
@@ -38,8 +38,8 @@ struct DockerContainerDetails: View {
 
                     // needs to be running w/ ip to have domain
                     if let ipAddress,
-                       let domain,
-                       let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
+                        let domain,
+                        let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
                     {
                         SimpleKvTableRow("Domain") {
                             if vmModel.netBridgeAvailable {

@@ -25,9 +25,9 @@ private let firefoxBundleIds = [
 private func isFirefoxRecentlyUsed() -> Bool {
     return firefoxBundleIds.contains { bundleId in
         if let bundleUrl = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
-           let attributes = NSMetadataItem(url: bundleUrl),
-           let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date,
-           date.timeIntervalSinceNow < 365 * 24 * 60 * 60
+            let attributes = NSMetadataItem(url: bundleUrl),
+            let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date,
+            date.timeIntervalSinceNow < 365 * 24 * 60 * 60
         {
             return true
         } else {
@@ -60,11 +60,12 @@ private enum Keychain {
     private static let accessGroup = "HUAQ24HBR6.dev.orbstack"
 
     private static func deleteGenericItem(service: String, account: String) {
-        SecItemDelete([
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account,
-        ] as [CFString: Any] as CFDictionary)
+        SecItemDelete(
+            [
+                kSecClass: kSecClassGenericPassword,
+                kSecAttrService: service,
+                kSecAttrAccount: account,
+            ] as [CFString: Any] as CFDictionary)
     }
 
     static func deleteToken() {
@@ -74,25 +75,27 @@ private enum Keychain {
     static func setToken(_ token: String) {
         deleteToken()
 
-        SecItemAdd([
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: accountDrm,
-            kSecValueData: token.data(using: .utf8)!,
-            kSecAttrLabel: label,
-            kSecAttrAccessGroup: accessGroup,
-        ] as [CFString: Any] as CFDictionary, nil)
+        SecItemAdd(
+            [
+                kSecClass: kSecClassGenericPassword,
+                kSecAttrService: service,
+                kSecAttrAccount: accountDrm,
+                kSecValueData: token.data(using: .utf8)!,
+                kSecAttrLabel: label,
+                kSecAttrAccessGroup: accessGroup,
+            ] as [CFString: Any] as CFDictionary, nil)
     }
 
     static func getToken() -> String? {
         var result: CFTypeRef?
-        let status = SecItemCopyMatching([
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: accountDrm,
-            kSecReturnData: true,
-            kSecAttrAccessGroup: accessGroup,
-        ] as [CFString: Any] as CFDictionary, &result)
+        let status = SecItemCopyMatching(
+            [
+                kSecClass: kSecClassGenericPassword,
+                kSecAttrService: service,
+                kSecAttrAccount: accountDrm,
+                kSecReturnData: true,
+                kSecAttrAccessGroup: accessGroup,
+            ] as [CFString: Any] as CFDictionary, &result)
         guard status == errSecSuccess else {
             return nil
         }
@@ -131,16 +134,20 @@ private enum Keychain {
         }
 
         // mark as trusted but only for SSL and X509 basic policy
-        status = SecTrustSettingsSetTrustSettings(cert, .user, [
+        status = SecTrustSettingsSetTrustSettings(
+            cert, .user,
             [
-                kSecTrustSettingsResult: NSNumber(value: SecTrustSettingsResult.trustRoot.rawValue),
-                kSecTrustSettingsPolicy: SecPolicyCreateSSL(true, nil),
-            ] as [String: Any] as CFDictionary,
-            [
-                kSecTrustSettingsResult: NSNumber(value: SecTrustSettingsResult.trustRoot.rawValue),
-                kSecTrustSettingsPolicy: SecPolicyCreateBasicX509(),
-            ] as [String: Any] as CFDictionary,
-        ] as CFArray)
+                [
+                    kSecTrustSettingsResult: NSNumber(
+                        value: SecTrustSettingsResult.trustRoot.rawValue),
+                    kSecTrustSettingsPolicy: SecPolicyCreateSSL(true, nil),
+                ] as [String: Any] as CFDictionary,
+                [
+                    kSecTrustSettingsResult: NSNumber(
+                        value: SecTrustSettingsResult.trustRoot.rawValue),
+                    kSecTrustSettingsPolicy: SecPolicyCreateBasicX509(),
+                ] as [String: Any] as CFDictionary,
+            ] as CFArray)
         guard status == errSecSuccess else {
             throw KeychainFFIError.setTrustSettingsFailed(status)
         }

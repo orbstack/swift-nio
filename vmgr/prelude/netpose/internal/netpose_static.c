@@ -27,15 +27,15 @@
  * https://github.com/golang/go/issues/61060
  */
 
-#include <unistd.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <sys/uio.h>
-#include <sys/syscall.h>
-#include <sys/socket.h>
-#include <stdio.h>
 #include <dlfcn.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/syscall.h>
+#include <sys/uio.h>
+#include <unistd.h>
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
@@ -56,8 +56,7 @@
 #define DEFINE_FN(ret_type, fn, ...) \
     typedef ret_type (*_real_##fn##_t)(__VA_ARGS__); \
     static _real_##fn##_t _real_##fn = NULL; \
-    __attribute__((visibility("default"))) \
-    ret_type fn(__VA_ARGS__)
+    __attribute__((visibility("default"))) ret_type fn(__VA_ARGS__)
 
 #define FIND_FN(fn) \
     _real_##fn = (_real_##fn##_t)dlsym(RTLD_NEXT, #fn); \
@@ -76,7 +75,7 @@ static inline bool maybe_ejustreturn(int sys_nr, int ret, int arg1) {
     // arm64 syscall ABI: x0 = arg1; x0 = return value; x16 = syscall number (no BSD mask)
     return ret == arg1;
 #else
-    #error "Unsupported architecture"
+#error "Unsupported architecture"
 #endif
 }
 
@@ -89,7 +88,8 @@ static inline bool maybe_ejustreturn(int sys_nr, int ret, int arg1) {
  *  ret == x0/rax: maybe EJUSTRETURN
  *    - clamp to nbyte. valid for both EJUSTRETURN and success cases
  *
- * returning success is correct, as the kernel intended to return success and drop the packet silently. EHOSTUNREACH is for the other branch in pf_af_hook.
+ * returning success is correct, as the kernel intended to return success and drop the packet
+ * silently. EHOSTUNREACH is for the other branch in pf_af_hook.
  */
 DEFINE_FN(ssize_t, write, int fd, const void *buf, size_t nbyte) {
     ssize_t ret = _real_write(fd, buf, nbyte);
@@ -118,7 +118,8 @@ DEFINE_FN(ssize_t, writev, int fd, const struct iovec *iovs, int iovcnt) {
 
 // pwritev: not used on sockets
 
-DEFINE_FN(ssize_t, sendto, int socket, const void *buffer, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len) {
+DEFINE_FN(ssize_t, sendto, int socket, const void *buffer, size_t length, int flags,
+          const struct sockaddr *dest_addr, socklen_t dest_len) {
     ssize_t ret = _real_sendto(socket, buffer, length, flags, dest_addr, dest_len);
     if (unlikely(maybe_ejustreturn(SYS_sendto, ret, socket))) {
         return min(ret, length);
@@ -149,8 +150,7 @@ DEFINE_FN(ssize_t, sendmsg, int socket, const struct msghdr *message, int flags)
 
 // sendmsg_x: private, not used by Go or Rust code
 
-__attribute__((constructor))
-void netpose_init(void) {
+__attribute__((constructor)) void netpose_init(void) {
     FIND_FN(write);
     FIND_FN(writev);
     FIND_FN(send);

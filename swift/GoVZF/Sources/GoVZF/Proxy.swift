@@ -97,8 +97,8 @@ private func getProxyPassword(proto: String, server: String, port: Int) -> Strin
     var result: AnyObject?
     let status = SecItemCopyMatching(query as CFDictionary, &result)
     if status == errSecSuccess,
-       let dict = result as? [String: Any],
-       let data = dict[kSecValueData as String] as? Data
+        let dict = result as? [String: Any],
+        let data = dict[kSecValueData as String] as? Data
     {
         return String(data: data, encoding: .utf8)
     }
@@ -128,7 +128,7 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
     let extraCaCerts = certs.filter { certificate in
         // skip Avast trusted CA as workaround for >800 certs. checking trust settings doesn't work properly
         if let summary = SecCertificateCopySubjectSummary(certificate) as String?,
-           summary == "Avast trusted CA"
+            summary == "Avast trusted CA"
         {
             return false
         }
@@ -169,11 +169,11 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
 
         let base64EncodedData = data.base64EncodedString(options: .lineLength64Characters)
         return """
-        -----BEGIN CERTIFICATE-----
-        \(base64EncodedData)
-        -----END CERTIFICATE-----
+            -----BEGIN CERTIFICATE-----
+            \(base64EncodedData)
+            -----END CERTIFICATE-----
 
-        """
+            """
     }
 }
 

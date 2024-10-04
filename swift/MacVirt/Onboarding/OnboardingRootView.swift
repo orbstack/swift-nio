@@ -11,10 +11,11 @@ struct VisualEffectView: NSViewRepresentable {
     let state: NSVisualEffectView.State
     let material: NSVisualEffectView.Material
 
-    init(blendingMode: NSVisualEffectView.BlendingMode = .behindWindow,
-         state: NSVisualEffectView.State = .followsWindowActiveState,
-         material: NSVisualEffectView.Material = .underWindowBackground)
-    {
+    init(
+        blendingMode: NSVisualEffectView.BlendingMode = .behindWindow,
+        state: NSVisualEffectView.State = .followsWindowActiveState,
+        material: NSVisualEffectView.Material = .underWindowBackground
+    ) {
         self.blendingMode = blendingMode
         self.state = state
         self.material = material

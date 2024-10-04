@@ -39,7 +39,8 @@ struct DebugSettingsView: View {
                 Task {
                     vmModel.privHelper.installReason = "Test?"
                     do {
-                        try await vmModel.privHelper.symlink(src: Files.dockerSocket, dest: "/var/run/docker.sock")
+                        try await vmModel.privHelper.symlink(
+                            src: Files.dockerSocket, dest: "/var/run/docker.sock")
                     } catch {
                         print(error)
                     }

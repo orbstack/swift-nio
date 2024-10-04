@@ -115,7 +115,10 @@ private func printDebugEvent(path: String, flags: Int) {
     }
 }
 
-private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePointer<FSEventStreamEventFlags>, _ numEvents: Int) -> [String: FSEventStreamEventFlags] {
+private func dedupeEvents(
+    _ paths: UnsafeMutableRawPointer, _ flags: UnsafePointer<FSEventStreamEventFlags>,
+    _ numEvents: Int
+) -> [String: FSEventStreamEventFlags] {
     if debugPrintEvents {
         print("---begin---")
         print("# of events: \(numEvents)")
@@ -124,7 +127,7 @@ private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePoint
 
     // dedupe and coalesce flags by path
     var pathsAndFlags = [String: FSEventStreamEventFlags]()
-    for i in 0 ..< numEvents {
+    for i in 0..<numEvents {
         let path = String(cString: paths[i])
         var flags = flags[i]
         var flagsInt = Int(flags)
@@ -142,8 +145,8 @@ private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePoint
         // differentiate: real modification always has (inode meta mod)
         // the weird events have all set: [created] [inode meta mod] [modified] [is file]
         if flagsInt & kFSEventStreamEventFlagItemCreated != 0,
-           flagsInt & kFSEventStreamEventFlagItemModified != 0,
-           flagsInt & kFSEventStreamEventFlagItemInodeMetaMod != 0
+            flagsInt & kFSEventStreamEventFlagItemModified != 0,
+            flagsInt & kFSEventStreamEventFlagItemInodeMetaMod != 0
         {
             flags = FSEventStreamEventFlags(flagsInt & ~kFSEventStreamEventFlagItemCreated)
             flagsInt = Int(flags)
@@ -170,7 +173,9 @@ private func dedupeEvents(_ paths: UnsafeMutableRawPointer, _ flags: UnsafePoint
 }
 
 // krpc
-private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], isDirChange: Bool) -> (UnsafeMutablePointer<UInt8>, Int) {
+private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], isDirChange: Bool)
+    -> (UnsafeMutablePointer<UInt8>, Int)
+{
     var totalPathLen = 0
     for (path, _) in pathsAndFlags {
         // with null terminator
@@ -264,7 +269,11 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
 
 @_cdecl("swext_fsevents_monitor_dirs")
 func swext_fsevents_monitor_dirs() -> UnsafeMutablePointer<CChar> {
-    func callback(stream _: ConstFSEventStreamRef, info _: UnsafeMutableRawPointer?, numEvents: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>, ids _: UnsafePointer<FSEventStreamEventId>) {
+    func callback(
+        stream _: ConstFSEventStreamRef, info _: UnsafeMutableRawPointer?, numEvents: Int,
+        paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>,
+        ids _: UnsafePointer<FSEventStreamEventId>
+    ) {
         let pathsAndFlags = dedupeEvents(paths, flags, numEvents)
 
         // send to krpc
@@ -277,9 +286,10 @@ func swext_fsevents_monitor_dirs() -> UnsafeMutablePointer<CChar> {
     // otherwise docker bind mounted dir could disappear, then we'd have problems for 2 hours (until cache expiry)
     // not to mention machines
     let paths = ["/"] as CFArray
-    let stream = FSEventStreamCreate(nil, callback, nil, paths,
-                                     UInt64(kFSEventStreamEventIdSinceNow), dirChangeDebounce,
-                                     UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer))
+    let stream = FSEventStreamCreate(
+        nil, callback, nil, paths,
+        UInt64(kFSEventStreamEventIdSinceNow), dirChangeDebounce,
+        UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer))
     guard let stream else {
         return strdup("FSEventStreamCreate failed")
     }
@@ -314,8 +324,14 @@ private class VmNotifier {
         try newStream(paths: ["/.__non_existent_path__/.xyz"])
     }
 
-    private func newStream(paths: [String], lastEventId: UInt64 = UInt64(kFSEventStreamEventIdSinceNow)) throws {
-        func callback(stream _: ConstFSEventStreamRef, info _: UnsafeMutableRawPointer?, numEvents: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>, ids _: UnsafePointer<FSEventStreamEventId>) {
+    private func newStream(
+        paths: [String], lastEventId: UInt64 = UInt64(kFSEventStreamEventIdSinceNow)
+    ) throws {
+        func callback(
+            stream _: ConstFSEventStreamRef, info _: UnsafeMutableRawPointer?, numEvents: Int,
+            paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>,
+            ids _: UnsafePointer<FSEventStreamEventId>
+        ) {
             let pathsAndFlags = dedupeEvents(paths, flags, numEvents)
 
             // send to krpc
@@ -324,10 +340,12 @@ private class VmNotifier {
             buf.deallocate()
         }
 
-        let stream = FSEventStreamCreate(nil, callback, nil, paths as CFArray,
-                                         lastEventId, fileWatchDebounce,
-                                         UInt32(kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer |
-                                             kFSEventStreamCreateFlagFileEvents))
+        let stream = FSEventStreamCreate(
+            nil, callback, nil, paths as CFArray,
+            lastEventId, fileWatchDebounce,
+            UInt32(
+                kFSEventStreamCreateFlagIgnoreSelf | kFSEventStreamCreateFlagNoDefer
+                    | kFSEventStreamCreateFlagFileEvents))
         guard let stream else {
             throw SwextFseventsError.createFail
         }
@@ -391,9 +409,12 @@ func swext_fsevents_VmNotifier_new() -> UnsafeMutableRawPointer? {
 }
 
 @_cdecl("swext_fsevents_VmNotifier_updatePaths")
-func swext_fsevents_VmNotifier_updatePaths(ptr: UnsafeMutableRawPointer, _ paths: UnsafeMutablePointer<UnsafeMutablePointer<CChar>>, _ numPaths: Int) -> GResultErr {
+func swext_fsevents_VmNotifier_updatePaths(
+    ptr: UnsafeMutableRawPointer, _ paths: UnsafeMutablePointer<UnsafeMutablePointer<CChar>>,
+    _ numPaths: Int
+) -> GResultErr {
     var newPaths: [String] = []
-    for i in 0 ..< numPaths {
+    for i in 0..<numPaths {
         newPaths.append(String(cString: paths[i]))
     }
 

@@ -36,12 +36,14 @@ struct DockerImageItem: View, Equatable {
                         .truncationMode(.tail)
                         .lineLimit(1)
 
-                    Text("\(image.summary.formattedSize), created \(image.summary.formattedCreated)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    Text(
+                        "\(image.summary.formattedSize), created \(image.summary.formattedCreated)"
+                    )
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
                 }
             }
-            
+
             Spacer()
 
             if !AppConfig.nativeArchs.contains(image.full.architecture) {
@@ -88,7 +90,7 @@ struct DockerImageItem: View, Equatable {
                         }
                     }
                     .padding(20)
-                    .overlay(alignment: .topLeading) { // opposite side of arrow edge
+                    .overlay(alignment: .topLeading) {  // opposite side of arrow edge
                         Button(action: {
                             tipsImageMountsShow = false
                         }) {
@@ -103,10 +105,11 @@ struct DockerImageItem: View, Equatable {
                 }
             }
 
-            ProgressIconButton(systemImage: "trash.fill",
-                               actionInProgress: actionInProgress,
-                               role: .destructive)
-            {
+            ProgressIconButton(
+                systemImage: "trash.fill",
+                actionInProgress: actionInProgress,
+                role: .destructive
+            ) {
                 finishDelete()
             }
             .disabled(actionInProgress || isInUse)

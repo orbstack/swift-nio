@@ -38,11 +38,14 @@ struct CtaButton: View {
                 Text(label)
                     .font(.title3)
                     .fontWeight(.medium)
-                    .foregroundColor(colorScheme == .light && controlActiveState == .key ? .white : .primary)
+                    .foregroundColor(
+                        colorScheme == .light && controlActiveState == .key ? .white : .primary)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 16)
-            .background(Color(NSColor.controlAccentColor), in: RoundedRectangle(cornerRadius: Self.radius))
+            .background(
+                Color(NSColor.controlAccentColor), in: RoundedRectangle(cornerRadius: Self.radius)
+            )
             .cornerRadius(Self.radius)
             .overlay(
                 RoundedRectangle(cornerRadius: Self.radius)

@@ -19,7 +19,8 @@ struct K8SServiceDetails: View {
                     // redundant. our external ip is always the same as node
                     // let externalIP = service.externalIP
                     let address = service.wrapURL(host: domain) ?? service.preferredDomainAndPort
-                    let addressVisible = service.wrapURLNoScheme(host: domain) ?? service.preferredDomainAndPort
+                    let addressVisible =
+                        service.wrapURLNoScheme(host: domain) ?? service.preferredDomainAndPort
                     let isWebService = service.isWebService
 
                     SimpleKvTableRow("Type") {
@@ -55,7 +56,9 @@ struct K8SServiceDetails: View {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(service.spec.ports ?? []) { port in
                             // TODO: dedupe logic
-                            let portNumber = service.spec.type == .loadBalancer ? port.port : (port.nodePort ?? port.port)
+                            let portNumber =
+                                service.spec.type == .loadBalancer
+                                ? port.port : (port.nodePort ?? port.port)
                             // avoid pretty commas num format
                             if port.proto != "TCP" {
                                 CopyableText("\(String(portNumber))/\(port.proto ?? "TCP")")

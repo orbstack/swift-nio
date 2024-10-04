@@ -11,7 +11,10 @@ private struct CommandSection<Content: View>: View {
     let desc: String?
     let content: () -> Content
 
-    init(systemImage: String? = nil, title: String? = nil, desc: String? = nil, @ViewBuilder content: @escaping () -> Content) {
+    init(
+        systemImage: String? = nil, title: String? = nil, desc: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
         self.systemImage = systemImage
         self.title = title
         self.desc = desc
@@ -109,12 +112,17 @@ struct CommandsRootView: View {
                     CommandSection(systemImage: "info.circle.fill", title: "Get started") {
                         CommandBox(
                             title: "All-purpose command: orb",
-                            desc: "Manage OrbStack and its machines, start a shell, or run a Linux command.",
+                            desc:
+                                "Manage OrbStack and its machines, start a shell, or run a Linux command.",
                             command: "orb"
                         )
                     }
 
-                    CommandSection(systemImage: "shippingbox.fill", title: "Docker", desc: "Use the included Docker commands directly from macOS. No Linux machines needed.") {
+                    CommandSection(
+                        systemImage: "shippingbox.fill", title: "Docker",
+                        desc:
+                            "Use the included Docker commands directly from macOS. No Linux machines needed."
+                    ) {
                         CommandBox(
                             title: "Main command",
                             desc: "Build and run containers, and more.",
@@ -129,15 +137,20 @@ struct CommandsRootView: View {
 
                         CommandBox(
                             title: "Run a container",
-                            desc: "Start an example server and access it at [localhost](http://localhost/).",
+                            desc:
+                                "Start an example server and access it at [localhost](http://localhost/).",
                             command: "docker run -it -p 80:80 docker/getting-started"
                         )
                     }
 
-                    CommandSection(systemImage: "terminal.fill", title: "Command line", desc: "Environment variables and SSH agent are forwarded by default.") {
+                    CommandSection(
+                        systemImage: "terminal.fill", title: "Command line",
+                        desc: "Environment variables and SSH agent are forwarded by default."
+                    ) {
                         CommandBox(
                             title: "Start a shell",
-                            desc: "Log in as the default user in the machine you used most recently.",
+                            desc:
+                                "Log in as the default user in the machine you used most recently.",
                             command: "orb"
                         )
 
@@ -154,8 +167,15 @@ struct CommandsRootView: View {
                         )
                     }
 
-                    let sshConfigMsg = vmModel.isSshConfigWritable ? "" : "\nSee “orb ssh” for instructions to add OrbStack to your SSH config."
-                    CommandSection(systemImage: "network", title: "SSH", desc: "SSH is also supported. You can use this with apps like Visual Studio Code.\(sshConfigMsg)") {
+                    let sshConfigMsg =
+                        vmModel.isSshConfigWritable
+                        ? ""
+                        : "\nSee “orb ssh” for instructions to add OrbStack to your SSH config."
+                    CommandSection(
+                        systemImage: "network", title: "SSH",
+                        desc:
+                            "SSH is also supported. You can use this with apps like Visual Studio Code.\(sshConfigMsg)"
+                    ) {
                         CommandBox(
                             title: "Log in",
                             desc: "Run a command or log in to the default machine.",
@@ -170,13 +190,14 @@ struct CommandsRootView: View {
 
                         CommandBox(
                             title: "Connection details for other apps",
-                            desc: "For apps that don’t use OpenSSH, you can use the following details.",
+                            desc:
+                                "For apps that don’t use OpenSSH, you can use the following details.",
                             command: """
-                            Host: localhost
-                            Port: 32222
-                            User: default (or root@ubuntu)
-                            Private key: ~/.orbstack/ssh/id_ed25519
-                            """,
+                                Host: localhost
+                                Port: 32222
+                                User: default (or root@ubuntu)
+                                Private key: ~/.orbstack/ssh/id_ed25519
+                                """,
                             selectable: true
                         )
                     }
@@ -195,7 +216,11 @@ struct CommandsRootView: View {
                         )
                     }
 
-                    CommandSection(systemImage: "folder.fill", title: "File transfer", desc: "You can also use shared folders at ~/\(Folders.nfsName) and /Users to transfer files.") {
+                    CommandSection(
+                        systemImage: "folder.fill", title: "File transfer",
+                        desc:
+                            "You can also use shared folders at ~/\(Folders.nfsName) and /Users to transfer files."
+                    ) {
                         CommandBox(
                             title: "Copy files from Mac to Linux",
                             desc: "Push from Mac to the default Linux machine's home folder.",

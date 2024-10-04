@@ -23,7 +23,8 @@ struct MachinesRootView: View {
                     if containers.contains(where: { !$0.builtin }) {
                         let filteredContainers = containers.filter { !$0.builtin }
                         // see DockerContainerItem for rowHeight calculation
-                        AKList(filteredContainers, selection: $selection, rowHeight: 48) { container in
+                        AKList(filteredContainers, selection: $selection, rowHeight: 48) {
+                            container in
                             MachineContainerItem(record: container)
                                 .environmentObject(vmModel)
                                 .environmentObject(windowTracker)
@@ -35,7 +36,8 @@ struct MachinesRootView: View {
                         HStack {
                             Spacer()
                             VStack {
-                                ContentUnavailableViewCompat("No Linux machines", systemImage: "desktopcomputer")
+                                ContentUnavailableViewCompat(
+                                    "No Linux machines", systemImage: "desktopcomputer")
 
                                 Button(action: {
                                     vmModel.presentCreateMachine = true
@@ -74,18 +76,20 @@ struct MachinesRootView: View {
                         .padding(.bottom, 48)
                     }
                 }
-                .overlay(alignment: .bottomTrailing, content: {
-                    HStack {
-                        Text("Creating")
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .frame(width: 16, height: 16)
-                    }
-                    .padding(8)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    .opacity(creatingOpacity)
-                    .padding(16)
-                })
+                .overlay(
+                    alignment: .bottomTrailing,
+                    content: {
+                        HStack {
+                            Text("Creating")
+                            ProgressView()
+                                .scaleEffect(0.5)
+                                .frame(width: 16, height: 16)
+                        }
+                        .padding(8)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .opacity(creatingOpacity)
+                        .padding(16)
+                    })
             } else {
                 ProgressView(label: {
                     Text("Loading")

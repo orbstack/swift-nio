@@ -36,7 +36,7 @@ class VlanRouter: NetCallbacks {
 
     init(config: VlanRouterConfig) {
         macPrefix = config.macPrefix
-    
+
         interfaces = [BridgeNetwork?](repeating: nil, count: config.maxVlanInterfaces)
 
         // we only *read* packets from the guest, and dispatch them to BridgeNetworks
@@ -48,9 +48,11 @@ class VlanRouter: NetCallbacks {
             // just register the handle for that
             NetworkHandles.setCallbacks(index: NetworkHandles.handleVlanRouter, cb: self)
         case .fd(let fd):
-            guestReader = GuestReader(guestFd: fd, maxPacketSize: maxPossiblePacketSize, onPacket: { [self] iovs, numIovs, len in
-                let _ = writePacket(iovs: iovs, numIovs: numIovs, len: len)
-            })
+            guestReader = GuestReader(
+                guestFd: fd, maxPacketSize: maxPossiblePacketSize,
+                onPacket: { [self] iovs, numIovs, len in
+                    let _ = writePacket(iovs: iovs, numIovs: numIovs, len: len)
+                })
         }
 
         // monitor route for renewal
@@ -72,7 +74,8 @@ class VlanRouter: NetCallbacks {
     func writePacket(iovs: UnsafePointer<iovec>, numIovs: Int, len: Int) -> Int32 {
         let pkt = Packet(iovs: iovs, len: len)
         do {
-            let ifi = try PacketProcessor.extractInterfaceIndexToHost(pkt: pkt, macPrefix: self.macPrefix)
+            let ifi = try PacketProcessor.extractInterfaceIndexToHost(
+                pkt: pkt, macPrefix: self.macPrefix)
             if ifi == ifiBroadcast {
                 // broadcast to all interfaces
                 for bridge in interfaces {
@@ -183,7 +186,9 @@ func swext_vlanrouter_new(configJsonStr: UnsafePointer<CChar>) -> UnsafeMutableR
 }
 
 @_cdecl("swext_vlanrouter_addBridge")
-func swext_vlanrouter_addBridge(ptr: UnsafeMutableRawPointer, configJsonStr: UnsafePointer<CChar>) -> GResultIntErr {
+func swext_vlanrouter_addBridge(ptr: UnsafeMutableRawPointer, configJsonStr: UnsafePointer<CChar>)
+    -> GResultIntErr
+{
     let config: BridgeNetworkConfig = decodeJson(configJsonStr)
     return doGenericErrInt(ptr) { (router: VlanRouter) in
         try Int64(router.addBridge(config: config))
@@ -191,14 +196,18 @@ func swext_vlanrouter_addBridge(ptr: UnsafeMutableRawPointer, configJsonStr: Uns
 }
 
 @_cdecl("swext_vlanrouter_removeBridge")
-func swext_vlanrouter_removeBridge(ptr: UnsafeMutableRawPointer, index: BrnetInterfaceIndex) -> GResultErr {
+func swext_vlanrouter_removeBridge(ptr: UnsafeMutableRawPointer, index: BrnetInterfaceIndex)
+    -> GResultErr
+{
     doGenericErr(ptr) { (router: VlanRouter) in
         try router.removeBridge(index: index)
     }
 }
 
 @_cdecl("swext_vlanrouter_renewBridge")
-func swext_vlanrouter_renewBridge(ptr: UnsafeMutableRawPointer, index: BrnetInterfaceIndex) -> GResultErr {
+func swext_vlanrouter_renewBridge(ptr: UnsafeMutableRawPointer, index: BrnetInterfaceIndex)
+    -> GResultErr
+{
     doGenericErr(ptr) { (router: VlanRouter) in
         try router.renewBridge(index: index)
     }

@@ -34,24 +34,28 @@ struct OnboardingCreateView: View {
                 .font(.largeTitle.weight(.semibold))
                 .padding(.bottom, 4)
                 .padding(.top, 16)
-            Text("This is a Linux machine that integrates with macOS. You can use it to build code, run services, and more.")
-                .multilineTextAlignment(.center)
-                .font(.title3)
-                .foregroundColor(.secondary)
-                .padding(.bottom, 8)
-                .frame(maxWidth: 450)
+            Text(
+                "This is a Linux machine that integrates with macOS. You can use it to build code, run services, and more."
+            )
+            .multilineTextAlignment(.center)
+            .font(.title3)
+            .foregroundColor(.secondary)
+            .padding(.bottom, 8)
+            .frame(maxWidth: 450)
 
             Spacer()
 
             HStack {
                 Spacer()
                 VStack(alignment: .center) {
-                    let nameBinding = Binding<String>(get: { name }, set: {
-                        if $0 != name {
-                            self.nameChanged = true
-                        }
-                        self.name = $0
-                    })
+                    let nameBinding = Binding<String>(
+                        get: { name },
+                        set: {
+                            if $0 != name {
+                                self.nameChanged = true
+                            }
+                            self.name = $0
+                        })
 
                     Form {
                         TextField("Name", text: nameBinding)
@@ -91,7 +95,8 @@ struct OnboardingCreateView: View {
                         .onChange(of: isNameDuplicate || isNameInvalid) { hasError in
                             if hasError {
                                 withAnimation(.spring()) {
-                                    duplicateHeight = NSFont.preferredFont(forTextStyle: .caption1).pointSize
+                                    duplicateHeight =
+                                        NSFont.preferredFont(forTextStyle: .caption1).pointSize
                                 }
                             } else {
                                 withAnimation(.spring()) {
@@ -138,9 +143,12 @@ struct OnboardingCreateView: View {
                 }
                 .buttonStyle(.borderless)
                 Spacer()
-                CtaButton(label: "Create", action: {
-                    create()
-                })
+                CtaButton(
+                    label: "Create",
+                    action: {
+                        create()
+                    }
+                )
                 // empty is disabled but not error
                 .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
                 Spacer()
@@ -150,7 +158,7 @@ struct OnboardingCreateView: View {
 
     private func checkName(_ newName: String) {
         if let containers = vmModel.containers,
-           containers.contains(where: { $0.name == newName })
+            containers.contains(where: { $0.name == newName })
         {
             isNameDuplicate = true
         } else {
@@ -158,8 +166,10 @@ struct OnboardingCreateView: View {
         }
 
         // regex
-        let isValid = containerNameRegex.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) != nil &&
-            !containerNameBlacklist.contains(newName)
+        let isValid =
+            containerNameRegex.firstMatch(
+                in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count))
+            != nil && !containerNameBlacklist.contains(newName)
         if !newName.isEmpty && !isValid {
             isNameInvalid = true
         } else {
@@ -179,13 +189,14 @@ struct OnboardingCreateView: View {
 
             // user picked linux, so stop docker container to save memory
             if let machines = vmModel.containers,
-               let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker })
+                let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker })
             {
                 await vmModel.tryStopContainer(dockerRecord)
             }
 
             // then create
-            await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch)
+            await vmModel.tryCreateContainer(
+                name: name, distro: distro, version: version, arch: arch)
         }
         onboardingController.finish()
     }

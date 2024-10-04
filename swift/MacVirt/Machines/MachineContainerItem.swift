@@ -22,9 +22,7 @@ struct MachineContainerItem: View {
         let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
         let running = record.running || vmModel.restartingMachines.contains(record.id)
         let deletionList = resolveActionList()
-        let deleteConfirmMsg = deletionList.count > 1 ?
-            "Delete machines?" :
-            "Delete machine?"
+        let deleteConfirmMsg = deletionList.count > 1 ? "Delete machines?" : "Delete machine?"
 
         HStack {
             Image("distro_\(record.image.distro)")
@@ -56,16 +54,18 @@ struct MachineContainerItem: View {
             .help("Open Files")
 
             if running {
-                ProgressIconButton(systemImage: "stop.fill",
-                                   actionInProgress: actionInProgress || record.state == .creating)
-                {
+                ProgressIconButton(
+                    systemImage: "stop.fill",
+                    actionInProgress: actionInProgress || record.state == .creating
+                ) {
                     finishStop()
                 }
                 .help("Stop \(record.name)")
             } else {
-                ProgressIconButton(systemImage: "play.fill",
-                                   actionInProgress: actionInProgress || record.state == .creating)
-                {
+                ProgressIconButton(
+                    systemImage: "play.fill",
+                    actionInProgress: actionInProgress || record.state == .creating
+                ) {
                     finishStart()
                 }
                 .help("Start \(record.name)")
@@ -109,7 +109,7 @@ struct MachineContainerItem: View {
                     Label("Open Terminal", systemImage: "terminal")
                 }
                 .disabled(record.state == .creating)
-                
+
                 Button(action: {
                     record.openNfsDirectory()
                 }) {
@@ -135,13 +135,16 @@ struct MachineContainerItem: View {
                     }
                 }
 
-                Button(role: .destructive, action: {
-                    if CGKeyCode.optionKeyPressed {
-                        finishDelete()
-                    } else {
-                        self.presentConfirmDelete = true
+                Button(
+                    role: .destructive,
+                    action: {
+                        if CGKeyCode.optionKeyPressed {
+                            finishDelete()
+                        } else {
+                            self.presentConfirmDelete = true
+                        }
                     }
-                }) {
+                ) {
                     Label("Delete", systemImage: "trash")
                 }
                 .disabled(actionInProgress)
@@ -155,9 +158,10 @@ struct MachineContainerItem: View {
                 }.disabled(!running || !vmModel.netBridgeAvailable)
             }
         }
-        .confirmationDialog(deleteConfirmMsg,
-                            isPresented: $presentConfirmDelete)
-        {
+        .confirmationDialog(
+            deleteConfirmMsg,
+            isPresented: $presentConfirmDelete
+        ) {
             Button("Delete", role: .destructive) {
                 finishDelete()
             }

@@ -69,13 +69,16 @@ class WindowTracker: ObservableObject {
     }
 
     private func updateState(closingWindow: NSWindow? = nil, isWindowAppearing: Bool = false) {
-        let newPolicy = derivePolicy(closingWindow: closingWindow, isWindowAppearing: isWindowAppearing)
+        let newPolicy = derivePolicy(
+            closingWindow: closingWindow, isWindowAppearing: isWindowAppearing)
         setPolicyDebounce.call { [self] in
             setPolicy(newPolicy)
         }
     }
 
-    private func derivePolicy(closingWindow: NSWindow?, isWindowAppearing: Bool) -> NSApplication.ActivationPolicy {
+    private func derivePolicy(closingWindow: NSWindow?, isWindowAppearing: Bool)
+        -> NSApplication.ActivationPolicy
+    {
         // if no menu bar app, always act like normal
         if !Defaults[.globalShowMenubarExtra] {
             return .regular
@@ -83,7 +86,8 @@ class WindowTracker: ObservableObject {
 
         // this is for when we have a menu bar app:
         // check windows
-        let windowCount = NSApp.windows
+        let windowCount =
+            NSApp.windows
             .filter { $0.isUserFacing && $0 != closingWindow }
             // onAppear is *before* window created
             .count + (isWindowAppearing ? 1 : 0)

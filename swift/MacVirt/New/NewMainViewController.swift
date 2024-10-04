@@ -7,8 +7,8 @@
 
 import AppKit
 import Combine
-import SwiftUI
 import Defaults
+import SwiftUI
 
 enum Panel {
     case sidebar
@@ -43,7 +43,9 @@ class NewMainViewController: NSViewController {
     )
 
     lazy var containersFilterMenu = {
-        let menuItem1 = NSMenuItem(title: "Show Stopped Containers", action: #selector(actionDockerContainersFilter1), keyEquivalent: "")
+        let menuItem1 = NSMenuItem(
+            title: "Show Stopped Containers", action: #selector(actionDockerContainersFilter1),
+            keyEquivalent: "")
         menuItem1.target = self
 
         let item = makeMenuToolbarItem(
@@ -99,7 +101,9 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var podsFilterMenu = {
-        let menuItem1 = NSMenuItem(title: "Show System Namespace", action: #selector(actionK8sPodsFilter1), keyEquivalent: "")
+        let menuItem1 = NSMenuItem(
+            title: "Show System Namespace", action: #selector(actionK8sPodsFilter1),
+            keyEquivalent: "")
         menuItem1.target = self
 
         let item = makeMenuToolbarItem(
@@ -117,7 +121,9 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var servicesFilterMenu = {
-        let menuItem1 = NSMenuItem(title: "Show System Namespace", action: #selector(actionK8sServicesFilter1), keyEquivalent: "")
+        let menuItem1 = NSMenuItem(
+            title: "Show System Namespace", action: #selector(actionK8sServicesFilter1),
+            keyEquivalent: "")
         menuItem1.target = self
 
         menuItem1.state = .on
@@ -155,13 +161,15 @@ class NewMainViewController: NSViewController {
         item.searchField.delegate = self
         return item
     }()
-    
-    func makeIndividualSortingNSMenuItem(method sortMethod: DockerSortMethod, menu: NSMenu) -> NSMenuItem {
+
+    func makeIndividualSortingNSMenuItem(method sortMethod: DockerSortMethod, menu: NSMenu)
+        -> NSMenuItem
+    {
         let item = ClosureMenuItem(title: sortMethod.description) {
             self.model.dockerSortingMethod = sortMethod
-            
-            menu.items = self.makeAllSortingNSMenuItems(forMenu: menu) // refresh item states
-            
+
+            menu.items = self.makeAllSortingNSMenuItems(forMenu: menu)  // refresh item states
+
             // for some reason after clicking on an item it'll automatically hide just the first one????? so
             // this is why we need this workaround (wtf appkit??)
             for item in menu.items { item.isHidden = false }
@@ -173,23 +181,25 @@ class NewMainViewController: NSViewController {
         item.tag = sortMethod.rawValue
         return item
     }
-    
+
     func makeAllSortingNSMenuItems(forMenu menu: NSMenu) -> [NSMenuItem] {
         let menuItems = DockerSortMethod.allCases.map { method in
             makeIndividualSortingNSMenuItem(method: method, menu: menu)
         }
-        
+
         return menuItems
     }
-    
+
     lazy var sortListItem = {
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.delegate = self
         menu.identifier = .sortListItemMenu
         menu.items = makeAllSortingNSMenuItems(forMenu: menu)
-        
-        return self.makeMenuToolbarItem(itemIdentifier: .sortList, icon: "arrow.up.arrow.down", title: "Sort", requiresVmRunning: false, menu: menu)
+
+        return self.makeMenuToolbarItem(
+            itemIdentifier: .sortList, icon: "arrow.up.arrow.down", title: "Sort",
+            requiresVmRunning: false, menu: menu)
     }()
 
     lazy var licenseBadgeItem = {
@@ -289,7 +299,7 @@ extension NewMainViewController {
         item.isBordered = true
         item.target = self
         item.action = action
-        item.label = title // won't be shown actually because toolbar is `.iconOnly`
+        item.label = title  // won't be shown actually because toolbar is `.iconOnly`
         item.toolTip = title
 
         if requiresVmRunning {
@@ -322,7 +332,7 @@ extension NewMainViewController {
 
         return item
     }
-    
+
     func makeMenuToolbarItem(
         itemIdentifier: NSToolbarItem.Identifier,
         icon: String,
@@ -333,7 +343,9 @@ extension NewMainViewController {
         let menu = NSMenu(title: title)
         menu.items = menuItems
 
-        return self.makeMenuToolbarItem(itemIdentifier: itemIdentifier, icon: icon, title: title, requiresVmRunning: requiresVmRunning, menu: menu)
+        return self.makeMenuToolbarItem(
+            itemIdentifier: itemIdentifier, icon: icon, title: title,
+            requiresVmRunning: requiresVmRunning, menu: menu)
     }
 }
 

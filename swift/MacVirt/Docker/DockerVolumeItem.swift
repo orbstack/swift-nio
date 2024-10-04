@@ -22,9 +22,9 @@ struct DockerVolumeItem: View {
         let isMounted = vmModel.volumeIsMounted(volume)
 
         let deletionList = resolveActionList()
-        let deleteConfirmMsg = deletionList.count > 1 ?
-            "Delete \(deletionList.count) volumes?" :
-            "Delete \(deletionList.joined())?"
+        let deleteConfirmMsg =
+            deletionList.count > 1
+            ? "Delete \(deletionList.count) volumes?" : "Delete \(deletionList.joined())?"
 
         HStack {
             HStack {
@@ -44,10 +44,11 @@ struct DockerVolumeItem: View {
 
                     // can we find the size from system df?
                     if let dockerDf = vmModel.dockerSystemDf,
-                       let dfVolume = dockerDf.volumes.first(where: { $0.name == volume.name }),
-                       let usageData = dfVolume.usageData
+                        let dfVolume = dockerDf.volumes.first(where: { $0.name == volume.name }),
+                        let usageData = dfVolume.usageData
                     {
-                        let fmtSize = ByteCountFormatter.string(fromByteCount: usageData.size, countStyle: .file)
+                        let fmtSize = ByteCountFormatter.string(
+                            fromByteCount: usageData.size, countStyle: .file)
                         Text("\(fmtSize)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
@@ -67,9 +68,10 @@ struct DockerVolumeItem: View {
             .disabled(actionInProgress)
             .help("Open volume")
 
-            ProgressIconButton(systemImage: "trash.fill",
-                               actionInProgress: actionInProgress)
-            {
+            ProgressIconButton(
+                systemImage: "trash.fill",
+                actionInProgress: actionInProgress
+            ) {
                 // skip confirmation if Option pressed
                 if CGKeyCode.optionKeyPressed {
                     finishDelete()
@@ -84,9 +86,10 @@ struct DockerVolumeItem: View {
         .akListOnDoubleClick {
             openFolder()
         }
-        .confirmationDialog(deleteConfirmMsg,
-                            isPresented: $presentConfirmDelete)
-        {
+        .confirmationDialog(
+            deleteConfirmMsg,
+            isPresented: $presentConfirmDelete
+        ) {
             Button("Delete", role: .destructive) {
                 finishDelete()
             }

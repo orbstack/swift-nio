@@ -142,7 +142,8 @@ class SconService {
     }
 
     func containerRename(_ record: ContainerRecord, newName: String) async throws {
-        try await c.call("ContainerRename", args: ContainerRenameRequest(container: record, newName: newName))
+        try await c.call(
+            "ContainerRename", args: ContainerRenameRequest(container: record, newName: newName))
     }
 
     func internalDockerFastDf() async throws -> DKSystemDf {

@@ -55,10 +55,12 @@ struct OnboardingWelcomeView: View {
 
             Spacer()
 
-            Text("By continuing, you agree to our [terms](https://orbstack.dev/terms) and [privacy policy](https://orbstack.dev/privacy).")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .padding(.bottom, 16)
+            Text(
+                "By continuing, you agree to our [terms](https://orbstack.dev/terms) and [privacy policy](https://orbstack.dev/privacy)."
+            )
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            .padding(.bottom, 16)
 
             HStack(alignment: .bottom) {
                 HStack {
@@ -66,9 +68,11 @@ struct OnboardingWelcomeView: View {
                 }
                 .frame(maxWidth: .infinity)
                 VStack(alignment: .center) {
-                    CtaButton(label: "Next", action: {
-                        onboardingModel.advance(to: .mode)
-                    })
+                    CtaButton(
+                        label: "Next",
+                        action: {
+                            onboardingModel.advance(to: .mode)
+                        })
                 }
                 .frame(maxWidth: .infinity)
                 VStack {

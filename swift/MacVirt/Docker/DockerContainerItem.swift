@@ -32,11 +32,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     var body: some View {
         let isRunning = container.running
         let actionInProgress = actionTracker.ongoingFor(selfId)
-        
+
         let deletionList = resolveActionList()
-        let deleteConfirmMsg = deletionList.count > 1 ?
-            "Delete containers?" :
-            "Delete container?"
+        let deleteConfirmMsg = deletionList.count > 1 ? "Delete containers?" : "Delete container?"
 
         HStack {
             HStack {
@@ -78,7 +76,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             HStack {
                 if isRunning, let domain = container.preferredDomain {
                     ProgressIconButton(systemImage: "link", actionInProgress: false) {
-                        if let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)") {
+                        if let url = URL(
+                            string: "\(container.getPreferredProto(vmModel))://\(domain)")
+                        {
                             NSWorkspace.shared.open(url)
                         }
                     }
@@ -102,7 +102,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                 }
                             }
                             .padding(20)
-                            .overlay(alignment: .topLeading) { // opposite side of arrow edge
+                            .overlay(alignment: .topLeading) {  // opposite side of arrow edge
                                 Button(action: {
                                     tipsContainerDomainsShow = false
                                 }) {
@@ -144,7 +144,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                                 }
                             }
                             .padding(20)
-                            .overlay(alignment: .topLeading) { // opposite side of arrow edge
+                            .overlay(alignment: .topLeading) {  // opposite side of arrow edge
                                 Button(action: {
                                     tipsContainerFilesShow = false
                                 }) {
@@ -161,26 +161,29 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 if isRunning {
-                    ProgressIconButton(systemImage: "stop.fill",
-                                       actionInProgress: actionInProgress?.isStartStop == true)
-                    {
+                    ProgressIconButton(
+                        systemImage: "stop.fill",
+                        actionInProgress: actionInProgress?.isStartStop == true
+                    ) {
                         finishStop()
                     }
                     .disabled(actionInProgress != nil)
                     .help("Stop container")
                 } else {
-                    ProgressIconButton(systemImage: "play.fill",
-                                       actionInProgress: actionInProgress?.isStartStop == true)
-                    {
+                    ProgressIconButton(
+                        systemImage: "play.fill",
+                        actionInProgress: actionInProgress?.isStartStop == true
+                    ) {
                         finishStart()
                     }
                     .disabled(actionInProgress != nil)
                     .help("Start container")
                 }
 
-                ProgressIconButton(systemImage: "trash.fill",
-                                   actionInProgress: actionInProgress == .delete)
-                {
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress == .delete
+                ) {
                     presentConfirmDelete = true
                 }
                 .disabled(actionInProgress != nil)
@@ -188,9 +191,10 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             }
         }
         .padding(.vertical, 8)
-        .confirmationDialog(deleteConfirmMsg,
-                            isPresented: $presentConfirmDelete)
-        {
+        .confirmationDialog(
+            deleteConfirmMsg,
+            isPresented: $presentConfirmDelete
+        ) {
             Button("Delete", role: .destructive) {
                 finishDelete()
             }
@@ -277,7 +281,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 let preferredDomain = container.preferredDomain
                 Button(action: {
                     if let preferredDomain,
-                       let url = URL(string: "\(container.getPreferredProto(vmModel))://\(preferredDomain)")
+                        let url = URL(
+                            string: "\(container.getPreferredProto(vmModel))://\(preferredDomain)")
                     {
                         NSWorkspace.shared.open(url)
                     }
@@ -501,8 +506,9 @@ extension BaseDockerContainerItem {
                 return selection.filter { sel in
                     switch sel {
                     case let .container(id):
-                        if let container = containers.first(where: { container in container.id == id }),
-                           let composeProject = container.composeProject
+                        if let container = containers.first(where: { container in container.id == id
+                            }),
+                            let composeProject = container.composeProject
                         {
                             return !selection.contains(.compose(project: composeProject))
                         } else {

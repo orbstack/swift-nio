@@ -68,8 +68,9 @@ class PHClient {
 
     private func update() async throws {
         do {
-            try await xpcClient.sendMessage(PHUpdateRequest(helperURL: PHShared.bundledURL),
-                                            to: PHShared.updateRoute)
+            try await xpcClient.sendMessage(
+                PHUpdateRequest(helperURL: PHShared.bundledURL),
+                to: PHShared.updateRoute)
         } catch XPCError.connectionInterrupted {
             // ignore: normal
             NSLog("updated privhelper")
@@ -96,8 +97,9 @@ class PHClient {
 
     func symlink(src: String, dest: String) async throws {
         try await ensureReady()
-        try await xpcClient.sendMessage(PHSymlinkRequest(src: src, dest: dest),
-                                        to: PHShared.symlinkRoute)
+        try await xpcClient.sendMessage(
+            PHSymlinkRequest(src: src, dest: dest),
+            to: PHShared.symlinkRoute)
     }
 
     private func checkInstalled() async -> Bool {

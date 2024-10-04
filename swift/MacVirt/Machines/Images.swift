@@ -83,9 +83,17 @@ enum Distro: String, CaseIterable {
         case .alma: return [v("8"), v("9")]
         case .alpine: return [v("edge"), v("3.17"), v("3.18"), v("3.20")]
         case .arch: return [v("current", as: "Latest")]
-        case .centos: return [ /* v("7"), */ v("9-Stream", as: "9 (Stream)")]
-        case .debian: return [v("buster", as: "10 (Buster)"), v("bullseye", as: "11 (Bullseye)"), v("trixie", as: "13 (Trixie, testing)"), v("bookworm", as: "12 (Bookworm)")]
-        case .devuan: return [v("beowulf", as: "Beowulf"), v("chimaera", as: "Chimaera"), v("daedalus", as: "Daedalus")]
+        case .centos: return [ /* v("7"), */v("9-Stream", as: "9 (Stream)")]
+        case .debian:
+            return [
+                v("buster", as: "10 (Buster)"), v("bullseye", as: "11 (Bullseye)"),
+                v("trixie", as: "13 (Trixie, testing)"), v("bookworm", as: "12 (Bookworm)"),
+            ]
+        case .devuan:
+            return [
+                v("beowulf", as: "Beowulf"), v("chimaera", as: "Chimaera"),
+                v("daedalus", as: "Daedalus"),
+            ]
         case .fedora: return [v("39"), v("40")]
         case .gentoo: return [v("current", as: "Latest")]
         case .kali: return [v("current", as: "Latest")]
@@ -94,7 +102,8 @@ enum Distro: String, CaseIterable {
         case .opensuse: return [v("tumbleweed", as: "Tumbleweed"), v("15.5"), v("15.6")]
         case .oracle: return [v("8"), v("9")]
         case .rocky: return [v("8"), v("9")]
-        case .ubuntu: return [
+        case .ubuntu:
+            return [
                 v("focal", as: "20.04 LTS (Focal Fossa)"),
                 v("jammy", as: "22.04 LTS (Jammy Jellyfish)"),
                 v("noble", as: "24.04 LTS (Noble Numbat)"),

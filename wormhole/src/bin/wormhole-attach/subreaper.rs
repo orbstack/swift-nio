@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use anyhow::{anyhow};
+use anyhow::anyhow;
 use nix::{
     errno::Errno,
     sys::{

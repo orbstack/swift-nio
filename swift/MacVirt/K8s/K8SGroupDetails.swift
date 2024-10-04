@@ -21,7 +21,9 @@ struct K8SGroupDetails: View {
                                 .lineLimit(1)
                         } icon: {
                             // icon = red/green status dot
-                            Image(nsImage: SystemImages.statusDot(isRunning: pod.statusStr == "Running"))
+                            Image(
+                                nsImage: SystemImages.statusDot(
+                                    isRunning: pod.statusStr == "Running"))
                         }
                     }
                 }

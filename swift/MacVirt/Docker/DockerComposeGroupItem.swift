@@ -11,7 +11,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var actionTracker: ActionTracker
     @EnvironmentObject var windowTracker: WindowTracker
     @EnvironmentObject var listModel: AKListModel
-    
+
     @State private var presentConfirmDelete = false
 
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
@@ -31,11 +31,12 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     var body: some View {
         let isRunning = composeGroup.anyRunning
         let actionInProgress = actionTracker.ongoingFor(selfId)
-        let firstChild = if case let .container(container) = children.first {
-            container
-        } else {
-            DKContainer?(nil)
-        }
+        let firstChild =
+            if case let .container(container) = children.first {
+                container
+            } else {
+                DKContainer?(nil)
+            }
 
         HStack {
             HStack {
@@ -96,26 +97,29 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
             // 0.7 scale also crashes - 0.75 is ok
             HStack {
                 if isRunning {
-                    ProgressIconButton(systemImage: "stop.fill",
-                                       actionInProgress: actionInProgress?.isStartStop == true)
-                    {
+                    ProgressIconButton(
+                        systemImage: "stop.fill",
+                        actionInProgress: actionInProgress?.isStartStop == true
+                    ) {
                         finishStop()
                     }
                     .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
                     .help("Stop project")
                 } else {
-                    ProgressIconButton(systemImage: "play.fill",
-                                       actionInProgress: actionInProgress?.isStartStop == true)
-                    {
+                    ProgressIconButton(
+                        systemImage: "play.fill",
+                        actionInProgress: actionInProgress?.isStartStop == true
+                    ) {
                         finishStart()
                     }
                     .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
                     .help("Start project")
                 }
 
-                ProgressIconButton(systemImage: "trash.fill",
-                                   actionInProgress: actionInProgress == .delete)
-                {
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress == .delete
+                ) {
                     presentConfirmDelete = true
                 }
                 .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
@@ -124,9 +128,10 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
         }
         .padding(.vertical, 8)
         // projects are always multiple containers, so no need to change msg
-        .confirmationDialog("Delete containers?",
-                            isPresented: $presentConfirmDelete)
-        {
+        .confirmationDialog(
+            "Delete containers?",
+            isPresented: $presentConfirmDelete
+        ) {
             Button("Delete", role: .destructive) {
                 finishDelete()
             }
@@ -153,7 +158,9 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
                 Button("Kill") {
                     finishKill()
-                }.disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning || !composeGroup.isFullCompose)
+                }.disabled(
+                    (actionInProgress != nil && actionInProgress != .stop) || !isRunning
+                        || !composeGroup.isFullCompose)
             }
 
             Divider()
@@ -179,8 +186,10 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                     }
 
                     Button(action: {
-                        let parentDir = URL(fileURLWithPath: projectPath).deletingLastPathComponent().path
-                        NSWorkspace.shared.selectFile(projectPath, inFileViewerRootedAtPath: parentDir)
+                        let parentDir = URL(fileURLWithPath: projectPath)
+                            .deletingLastPathComponent().path
+                        NSWorkspace.shared.selectFile(
+                            projectPath, inFileViewerRootedAtPath: parentDir)
                     }) {
                         Label("Show in Finder", systemImage: "")
                     }

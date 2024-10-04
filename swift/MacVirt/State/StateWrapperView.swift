@@ -23,8 +23,9 @@ struct StateWrapperView<Content: View>: View {
         } else {
             switch vmModel.state {
             case .stopped:
-                VStack(spacing: 16) { // match ContentUnavailableViewCompat desc padding
-                    ContentUnavailableViewCompat("Service Not Running", systemImage: "moon.zzz.fill")
+                VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
+                    ContentUnavailableViewCompat(
+                        "Service Not Running", systemImage: "moon.zzz.fill")
 
                     Button(action: {
                         Task {

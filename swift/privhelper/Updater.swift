@@ -41,7 +41,8 @@ enum Updater {
         }
 
         try NSLog("current \(CodeInfo.currentCodeLocation())")
-        try Data(contentsOf: req.helperURL).write(to: CodeInfo.currentCodeLocation(), options: .atomicWrite)
+        try Data(contentsOf: req.helperURL).write(
+            to: CodeInfo.currentCodeLocation(), options: .atomicWrite)
         // can't self-reexec. needs to be started by launchd for mach service
         NSLog("updated, restarting")
         exit(0)
@@ -54,7 +55,7 @@ enum Updater {
     }
 
     private static func checkLaunchdPlistMatches(helperUrl: URL) throws -> Bool {
-        try EmbeddedPropertyListReader.launchd.readInternal() ==
-            EmbeddedPropertyListReader.launchd.readExternal(from: helperUrl)
+        try EmbeddedPropertyListReader.launchd.readInternal()
+            == EmbeddedPropertyListReader.launchd.readExternal(from: helperUrl)
     }
 }

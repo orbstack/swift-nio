@@ -11,8 +11,8 @@ enum ExitReason: Equatable, CustomStringConvertible {
     case signal(Int)
 
     // from exit code
-    case logFatal // 1
-    case goPanic // 2
+    case logFatal  // 1
+    case goPanic  // 2
     // stop codes
     case kernelPanic
     case drm
@@ -284,7 +284,7 @@ class DaemonManager {
             if waitStatus & 0x7F != 0 {
                 let signal = waitStatus & 0x7F
                 switch signal {
-                case 9: // SIGKILL
+                case 9:  // SIGKILL
                     reason = .killed
                 default:
                     reason = .signal(signal)
@@ -317,7 +317,9 @@ class DaemonManager {
 
         let nc = DistributedNotificationCenter.default()
         // TODO: security
-        nc.addObserver(forName: .init("\(getuid()).dev.orbstack.vmgr.private.UIEvent"), object: nil, queue: nil) { notification in
+        nc.addObserver(
+            forName: .init("\(getuid()).dev.orbstack.vmgr.private.UIEvent"), object: nil, queue: nil
+        ) { notification in
             guard let eventJson = notification.userInfo?["event"] as? String else {
                 NSLog("Notification is missing data: \(notification)")
                 return

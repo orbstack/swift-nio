@@ -4,7 +4,7 @@ import sys
 
 hashes = collections.defaultdict(list)
 
-with open(sys.argv[1], 'r') as f:
+with open(sys.argv[1], "r") as f:
     for l in f.read().splitlines():
         hash, path = l.split(maxsplit=2)
         hashes[hash].append(path)
@@ -13,7 +13,7 @@ for hash, paths in hashes.items():
     if len(paths) > 1:
         # prefer uid/gid/mode from */nix/* copy, if any
         for src_path in paths:
-            if '/nix/' in src_path:
+            if "/nix/" in src_path:
                 break
         else:
             src_path = paths[0]

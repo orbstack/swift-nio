@@ -46,12 +46,14 @@ struct CreateContainerView: View {
 
             Form {
                 Section {
-                    let nameBinding = Binding<String>(get: { name }, set: {
-                        if $0 != name {
-                            self.nameChanged = true
-                        }
-                        self.name = $0
-                    })
+                    let nameBinding = Binding<String>(
+                        get: { name },
+                        set: {
+                            if $0 != name {
+                                self.nameChanged = true
+                            }
+                            self.name = $0
+                        })
 
                     TextField("Name", text: nameBinding)
                         .onSubmit {
@@ -117,7 +119,8 @@ struct CreateContainerView: View {
                                 Text("None").tag(FileItem.none)
                                 Divider()
                                 if let cloudInitFile {
-                                    Text(cloudInitFile.lastPathComponent).tag(FileItem.file(cloudInitFile))
+                                    Text(cloudInitFile.lastPathComponent).tag(
+                                        FileItem.file(cloudInitFile))
                                 }
                                 Divider()
                                 Text("Select User Data…").tag(FileItem.other)
@@ -194,7 +197,7 @@ struct CreateContainerView: View {
         let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
         panel.beginSheetModal(for: window) { result in
             if result == .OK,
-               let url = panel.url
+                let url = panel.url
             {
                 cloudInitFile = url
             }
@@ -203,7 +206,7 @@ struct CreateContainerView: View {
 
     private func checkName(_ newName: String, animate: Bool = true) {
         if let containers = vmModel.containers,
-           containers.contains(where: { $0.name == newName })
+            containers.contains(where: { $0.name == newName })
         {
             isNameDuplicate = true
         } else {
@@ -211,8 +214,10 @@ struct CreateContainerView: View {
         }
 
         // regex
-        let isValid = containerNameRegex.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) != nil &&
-            !containerNameBlacklist.contains(newName)
+        let isValid =
+            containerNameRegex.firstMatch(
+                in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count))
+            != nil && !containerNameBlacklist.contains(newName)
         if !newName.isEmpty && !isValid {
             isNameInvalid = true
         } else {
@@ -239,9 +244,10 @@ struct CreateContainerView: View {
         }
 
         Task { @MainActor in
-            await vmModel.tryCreateContainer(name: name, distro: distro, version: version, arch: arch,
-                                             cloudInitUserData: cloudInitFile,
-                                             defaultUsername: defaultUsername.isEmpty ? nil : defaultUsername)
+            await vmModel.tryCreateContainer(
+                name: name, distro: distro, version: version, arch: arch,
+                cloudInitUserData: cloudInitFile,
+                defaultUsername: defaultUsername.isEmpty ? nil : defaultUsername)
         }
         isPresented = false
     }

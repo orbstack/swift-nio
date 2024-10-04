@@ -16,9 +16,11 @@ struct DockerSettingsView: View {
     var body: some View {
         Form {
             Group {
-                Toggle(isOn: $enableIPv6, label: {
-                    Text("Enable IPv6")
-                })
+                Toggle(
+                    isOn: $enableIPv6,
+                    label: {
+                        Text("Enable IPv6")
+                    })
             }
 
             Spacer()
@@ -34,15 +36,17 @@ struct DockerSettingsView: View {
                     .frame(minHeight: 150)
                     .autocorrectionDisabled()
 
-                Text("You can also [edit the config file](https://go.orbstack.dev/docker-config) directly.\nInvalid configs will prevent Docker from starting.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
-                    .padding(.bottom, 8)
+                Text(
+                    "You can also [edit the config file](https://go.orbstack.dev/docker-config) directly.\nInvalid configs will prevent Docker from starting."
+                )
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
 
                 if vmModel.state == .running,
-                   let machines = vmModel.containers,
-                   let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker })
+                    let machines = vmModel.containers,
+                    let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker })
                 {
                     Button("Apply") {
                         Task.detached {

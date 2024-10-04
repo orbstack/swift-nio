@@ -14,7 +14,9 @@ struct ProcessError: Error {
     let output: String
 }
 
-func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]) async throws -> ProcessResult {
+func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]) async throws
+    -> ProcessResult
+{
     let task = Process()
     task.launchPath = command
     task.arguments = args
@@ -30,7 +32,8 @@ func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]
     task.standardOutput = outPipe
     task.standardError = outPipe
     let readOutputTask = Task.detached {
-        let output = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)!
+        let output = String(
+            data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)!
         return output
     }
 
@@ -41,10 +44,11 @@ func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]
         task.terminationHandler = { process in
             let status = process.terminationStatus
             Task {
-                continuation.resume(returning: ProcessResult(
-                    output: await readOutputTask.value,
-                    status: status
-                ))
+                continuation.resume(
+                    returning: ProcessResult(
+                        output: await readOutputTask.value,
+                        status: status
+                    ))
             }
         }
 
@@ -57,7 +61,9 @@ func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]
 }
 
 @discardableResult
-func runProcessChecked(_ command: String, _ args: [String], env: [String: String] = [:]) async throws -> String {
+func runProcessChecked(_ command: String, _ args: [String], env: [String: String] = [:])
+    async throws -> String
+{
     let result = try await runProcess(command, args, env: env)
     if result.status != 0 {
         throw ProcessError(status: result.status, output: result.output)

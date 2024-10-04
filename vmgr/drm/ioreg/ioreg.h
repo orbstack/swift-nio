@@ -1,5 +1,5 @@
 #include <stdlib.h>
 
-char* ReadSerialNumber(void);
-char* ReadPlatformUUID(void);
-char* ReadMacAddress(void);
+char *ReadSerialNumber(void);
+char *ReadPlatformUUID(void);
+char *ReadMacAddress(void);

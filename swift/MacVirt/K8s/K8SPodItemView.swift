@@ -93,9 +93,10 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
             // WA: crash on macOS 12 without nested HStack
             HStack {
-                ProgressIconButton(systemImage: "trash.fill",
-                                   actionInProgress: actionInProgress == .delete)
-                {
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress == .delete
+                ) {
                     finishDelete()
                 }
                 .disabled(actionInProgress != nil)

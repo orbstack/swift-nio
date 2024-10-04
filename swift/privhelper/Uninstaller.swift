@@ -58,8 +58,8 @@ enum Uninstaller {
         // When passing 0 as the second argument, no signal is sent, but existence and permission checks are still
         // performed. This checks for the existence of a process ID. If 0 is returned the process still exists, so loop
         // until 0 is no longer returned.
-        while kill(pid, 0) == 0 { // in practice this condition almost always evaluates to false on its first check
-            usleep(50 * 1000) // sleep for 50ms
+        while kill(pid, 0) == 0 {  // in practice this condition almost always evaluates to false on its first check
+            usleep(50 * 1000)  // sleep for 50ms
             NSLog("waiting for parent \(pid) to exit")
         }
         NSLog("parent exited, uninstalling")

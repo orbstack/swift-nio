@@ -11,7 +11,12 @@ extension DKContainer {
         Task {
             do {
                 // prefer bash, otherwise use sh
-                try await openTerminal(AppConfig.dockerExe, ["--context", "orbstack", "exec", "-it", id, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"])
+                try await openTerminal(
+                    AppConfig.dockerExe,
+                    [
+                        "--context", "orbstack", "exec", "-it", id, "sh", "-c",
+                        "command -v bash > /dev/null && exec bash || exec sh",
+                    ])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }
@@ -59,9 +64,10 @@ extension DKContainer {
 
     func copyRunCommand() async {
         do {
-            let runCmd = try await runProcessChecked(AppConfig.dockerExe,
-                                                     ["inspect", "--format", DKInspectRunCommandTemplate, id],
-                                                     env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
+            let runCmd = try await runProcessChecked(
+                AppConfig.dockerExe,
+                ["inspect", "--format", DKInspectRunCommandTemplate, id],
+                env: ["DOCKER_HOST": "unix://\(Files.dockerSocket)"])
 
             NSPasteboard.copy(runCmd)
         } catch {
@@ -86,7 +92,9 @@ extension DKPort {
     func openUrl() {
         let ctrPort = privatePort
         let localPort = publicPort ?? privatePort
-        let httpProto = (ctrPort == 443 || ctrPort == 8443 || localPort == 443 || localPort == 8443) ? "https" : "http"
+        let httpProto =
+            (ctrPort == 443 || ctrPort == 8443 || localPort == 443 || localPort == 8443)
+            ? "https" : "http"
         if let url = URL(string: "\(httpProto)://localhost:\(localPort)") {
             NSWorkspace.shared.open(url)
         }
@@ -101,7 +109,7 @@ extension DKMountPoint {
 
     func getOpenPath() -> String {
         if let volName = name,
-           type == .volume
+            type == .volume
         {
             return "\(Folders.nfsDockerVolumes)/\(volName)"
         } else {
@@ -227,7 +235,9 @@ enum DockerListItem: Identifiable, Equatable, AKListItem {
 }
 
 enum DockerContainerLists {
-    static func makeListItems(filteredContainers: [DKContainer]) -> (running: [DockerListItem], stopped: [DockerListItem]) {
+    static func makeListItems(filteredContainers: [DKContainer]) -> (
+        running: [DockerListItem], stopped: [DockerListItem]
+    ) {
         var runningItems: [DockerListItem] = []
         var stoppedItems: [DockerListItem] = []
 
@@ -296,7 +306,7 @@ enum DockerContainerLists {
             }
             return a.containerName < b.containerName
         }
-        
+
         stoppedItems.sort { a, b in
             if a.isGroup != b.isGroup {
                 return a.isGroup

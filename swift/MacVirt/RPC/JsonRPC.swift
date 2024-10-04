@@ -120,7 +120,9 @@ class JsonRPCClient {
         }
     }
 
-    func call<Args: Codable, Result: Codable>(_ method: String, args: Args? = nil) async throws -> Result {
+    func call<Args: Codable, Result: Codable>(_ method: String, args: Args? = nil) async throws
+        -> Result
+    {
         var req = HTTPClientRequest(url: baseURL)
         req.method = .POST
         // Go refuses reqs with unix socket as host
@@ -129,10 +131,12 @@ class JsonRPCClient {
         req.headers.add(name: "Accept", value: "application/json")
         req.headers.add(name: "User-Agent", value: "OrbStack-GUI")
         do {
-            let body = try encoder.encode(JsonRPCRequest(jsonrpc: "2.0",
-                                                         id: nextReqId(),
-                                                         method: method,
-                                                         params: args))
+            let body = try encoder.encode(
+                JsonRPCRequest(
+                    jsonrpc: "2.0",
+                    id: nextReqId(),
+                    method: method,
+                    params: args))
             req.body = .bytes(body)
         } catch {
             throw RPCError.encode(cause: error)
@@ -154,7 +158,7 @@ class JsonRPCClient {
 
         var respData: ByteBuffer
         do {
-            respData = try await response.body.collect(upTo: 1024 * 1024) // 1 MiB
+            respData = try await response.body.collect(upTo: 1024 * 1024)  // 1 MiB
         } catch let e as HTTPClientError where e == .remoteConnectionClosed {
             throw RPCError.eof
         } catch {
@@ -163,7 +167,8 @@ class JsonRPCClient {
 
         var respJson: JsonRPCResponse<Result>
         do {
-            respJson = try decoder.decode(JsonRPCResponse<Result>.self, from: Data(buffer: respData))
+            respJson = try decoder.decode(
+                JsonRPCResponse<Result>.self, from: Data(buffer: respData))
         } catch {
             throw RPCError.decode(cause: error)
         }

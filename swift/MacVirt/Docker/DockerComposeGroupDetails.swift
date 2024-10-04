@@ -13,7 +13,8 @@ struct DockerComposeGroupDetails: View {
 
     var body: some View {
         DetailsStack {
-            let containers = vmModel.dockerContainers?
+            let containers =
+                vmModel.dockerContainers?
                 .filter { $0.composeProject == project } ?? []
 
             DetailsSection("Containers in Group") {
@@ -33,8 +34,10 @@ struct DockerComposeGroupDetails: View {
             if let projectPath = containers.first?.composeConfigFiles?.first {
                 DividedButtonStack {
                     DividedRowButton {
-                        let parentDir = URL(fileURLWithPath: projectPath).deletingLastPathComponent().path
-                        NSWorkspace.shared.selectFile(projectPath, inFileViewerRootedAtPath: parentDir)
+                        let parentDir = URL(fileURLWithPath: projectPath)
+                            .deletingLastPathComponent().path
+                        NSWorkspace.shared.selectFile(
+                            projectPath, inFileViewerRootedAtPath: parentDir)
                     } label: {
                         Label("Show in Finder", systemImage: "folder")
                     }

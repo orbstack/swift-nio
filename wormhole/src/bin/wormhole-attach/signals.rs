@@ -4,7 +4,7 @@ use std::{
         fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd},
         raw::c_int,
     },
-    ptr::{null_mut},
+    ptr::null_mut,
 };
 
 use libc::{signalfd_siginfo, sigset_t};
@@ -65,9 +65,7 @@ impl SignalFd {
                 siginfo.as_mut_ptr() as *mut libc::c_void,
                 size_of::<signalfd_siginfo>(),
             ) {
-                x if x == size_of::<signalfd_siginfo>() as isize => {
-                    Ok(Some(siginfo.assume_init()))
-                }
+                x if x == size_of::<signalfd_siginfo>() as isize => Ok(Some(siginfo.assume_init())),
                 x if x < 0
                     && std::io::Error::last_os_error().raw_os_error().unwrap() == libc::EAGAIN =>
                 {

@@ -5,7 +5,7 @@
 import Foundation
 
 let activityTracker = ActivityTracker()
-private let idleDelay: TimeInterval = 15 // seconds
+private let idleDelay: TimeInterval = 15  // seconds
 
 private class FuncDebounce {
     private var timer: DispatchSourceTimer?

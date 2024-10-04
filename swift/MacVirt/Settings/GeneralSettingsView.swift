@@ -22,8 +22,10 @@ struct GeneralSettingsView: View {
             Defaults.Toggle("Show in menu bar", key: .globalShowMenubarExtra)
             // ZStack to avoid layout shift
             ZStack(alignment: .leading) {
-                Defaults.Toggle("Keep running when menu bar app is quit", key: .globalStayInBackground)
-                    .opacity(showMenubarExtra ? 1 : 0)
+                Defaults.Toggle(
+                    "Keep running when menu bar app is quit", key: .globalStayInBackground
+                )
+                .opacity(showMenubarExtra ? 1 : 0)
                 Defaults.Toggle("Keep running when app is quit", key: .globalStayInBackground)
                     .opacity(showMenubarExtra ? 0 : 1)
             }

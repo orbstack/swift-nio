@@ -34,7 +34,7 @@ struct K8SPodDetails: View {
 
                     // needs to be running w/ ip to have domain
                     if let ipAddress,
-                       let url = URL(string: "http://\(domain)")
+                        let url = URL(string: "http://\(domain)")
                     {
                         SimpleKvTableRow("Domain") {
                             if vmModel.netBridgeAvailable {
@@ -75,7 +75,9 @@ struct K8SPodDetails: View {
                                     CopyableText(name)
                                 } icon: {
                                     // icon = red/green status dot
-                                    Image(nsImage: SystemImages.statusDot(isRunning: container.ready ?? false))
+                                    Image(
+                                        nsImage: SystemImages.statusDot(
+                                            isRunning: container.ready ?? false))
                                 }
                             }
                         }
@@ -93,7 +95,9 @@ struct K8SPodDetails: View {
                                     CopyableText(name)
                                 } icon: {
                                     // icon = red/green status dot
-                                    Image(nsImage: SystemImages.statusDot(isRunning: container.ready ?? false))
+                                    Image(
+                                        nsImage: SystemImages.statusDot(
+                                            isRunning: container.ready ?? false))
                                 }
                             }
                         }

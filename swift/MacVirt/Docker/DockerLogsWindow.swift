@@ -8,7 +8,7 @@ import Foundation
 import SwiftUI
 
 private let maxLines = 5000
-private let maxChars = maxLines * 150 // avg line len - easier to do it like this
+private let maxChars = maxLines * 150  // avg line len - easier to do it like this
 private let bottomScrollThreshold = 256.0
 private let fontSize = 12.5
 private let terminalLineHeight = 1.2
@@ -17,23 +17,27 @@ private let terminalFont = NSFont.monospacedSystemFont(ofSize: fontSize, weight:
 private let terminalFontBold = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
 private let terminalColor = NSColor.textColor
 
-private let urlRegex = try! NSRegularExpression(pattern: #"http(s)?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}(\.[a-z]{2,6})?\b([-a-zA-Z0-9@:%_\+.~#?&\/\/=]*)"#)
+private let urlRegex = try! NSRegularExpression(
+    pattern:
+        #"http(s)?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}(\.[a-z]{2,6})?\b([-a-zA-Z0-9@:%_\+.~#?&\/\/=]*)"#
+)
 private let ansiColorRegex = try! NSRegularExpression(pattern: #"\u001B\[([0-9]{1,2};?)*?m"#)
-private let unsupportedAnsiRegex = try! NSRegularExpression(pattern: #"\u001B\[(?:[=?].+[a-zA-Z]|\d+[a-zA-Z])"#)
+private let unsupportedAnsiRegex = try! NSRegularExpression(
+    pattern: #"\u001B\[(?:[=?].+[a-zA-Z]|\d+[a-zA-Z])"#)
 
 private let ansiColorPalette: [NSColor] = [
     // keep in mind that ansi colors are meant for white-on-black
-    .textBackgroundColor, // black
+    .textBackgroundColor,  // black
     .systemRed,
     .systemGreen,
-    .systemOrange, // systemYellow has bad contrast in light
+    .systemOrange,  // systemYellow has bad contrast in light
     .systemBlue,
     .systemPurple,
     .systemCyan,
-    .textColor, // white
+    .textColor,  // white
 
     // bright colors
-    .systemGray, // "bright black" is used for dim text: echo -e '\e[90m2023-09-01T00:48:52.163\e[0m Starting'
+    .systemGray,  // "bright black" is used for dim text: echo -e '\e[90m2023-09-01T00:48:52.163\e[0m Starting'
     // TODO: blend 0.4 with textColor, for light and dark
     .systemRed,
     .systemGreen,
@@ -41,7 +45,7 @@ private let ansiColorPalette: [NSColor] = [
     .systemBlue,
     .systemPurple,
     .systemCyan,
-    .textColor, // white
+    .textColor,  // white
 ]
 
 private struct AnsiState: Equatable {
@@ -122,14 +126,14 @@ private class AsyncPipeReader {
     private func onReadable(handle: FileHandle) {
         for ch in handle.availableData {
             // \r for pty logs
-            if ch == 10 || ch == 13 { // \n or \r
+            if ch == 10 || ch == 13 {  // \n or \r
                 if lastCh == 13 {
                     // skip \n after \r
                     lastCh = ch
                     continue
                 }
 
-                buf.append(10) // \n
+                buf.append(10)  // \n
                 callback(String(decoding: buf, as: UTF8.self))
                 buf.removeAll(keepingCapacity: true)
             } else {
@@ -173,7 +177,7 @@ private class LogsViewModel: ObservableObject {
     private var lastLineDate: Date?
 
     private var cancellables: Set<AnyCancellable> = []
-    @Published var lastContainerName: String? // saved once we get id
+    @Published var lastContainerName: String?  // saved once we get id
 
     @MainActor
     func monitorContainers(vmModel: VmViewModel, cid: DockerContainerId) {
@@ -191,15 +195,15 @@ private class LogsViewModel: ObservableObject {
             }
 
             if case let .container(containerId) = cid,
-               containers.contains(where: { $0.id == containerId && $0.running })
+                containers.contains(where: { $0.id == containerId && $0.running })
             {
                 self.restart()
             } else if let lastContainerName,
-                      containers.contains(where: { $0.names.contains(lastContainerName) && $0.running })
+                containers.contains(where: { $0.names.contains(lastContainerName) && $0.running })
             {
                 self.restart()
             } else if case let .compose(composeProject) = cid,
-                      containers.contains(where: { $0.composeProject == composeProject && $0.running })
+                containers.contains(where: { $0.composeProject == composeProject && $0.running })
             {
                 self.restart()
             }
@@ -260,7 +264,7 @@ private class LogsViewModel: ObservableObject {
 
         // env is more robust, user can mess with context
         var newEnv = ProcessInfo.processInfo.environment
-        newEnv["TERM"] = "xterm" // 16 color only
+        newEnv["TERM"] = "xterm"  // 16 color only
         newEnv["DOCKER_HOST"] = "unix://\(Files.dockerSocket)"
         task.environment = newEnv
 
@@ -275,7 +279,7 @@ private class LogsViewModel: ObservableObject {
             // if gui is slow it'll update less often but won't block the reader
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                lastLineDate = Date() // for restart
+                lastLineDate = Date()  // for restart
                 add(terminalLine: line)
             }
         }
@@ -335,19 +339,24 @@ private class LogsViewModel: ObservableObject {
     private func add(terminalLine: String) {
         let attributedStr = NSMutableAttributedString(string: terminalLine)
         // font
-        attributedStr.addAttribute(.font, value: terminalFont, range: NSRange(location: 0, length: attributedStr.length))
+        attributedStr.addAttribute(
+            .font, value: terminalFont, range: NSRange(location: 0, length: attributedStr.length))
         // color
-        attributedStr.addAttribute(.foregroundColor, value: terminalColor, range: NSRange(location: 0, length: attributedStr.length))
+        attributedStr.addAttribute(
+            .foregroundColor, value: terminalColor,
+            range: NSRange(location: 0, length: attributedStr.length))
 
         // parse links first, before indexes change
-        var matches = urlRegex.matches(in: terminalLine, range: NSRange(location: 0, length: terminalLine.utf16.count))
+        var matches = urlRegex.matches(
+            in: terminalLine, range: NSRange(location: 0, length: terminalLine.utf16.count))
         for match in matches {
             let url = (terminalLine as NSString).substring(with: match.range)
             attributedStr.addAttribute(.link, value: url, range: match.range)
         }
 
         // parse colors from ANSI escapes - state machine
-        matches = ansiColorRegex.matches(in: terminalLine, range: NSRange(location: 0, length: terminalLine.utf16.count))
+        matches = ansiColorRegex.matches(
+            in: terminalLine, range: NSRange(location: 0, length: terminalLine.utf16.count))
         var state = AnsiState()
         var lastI = 0
         for match in matches {
@@ -376,19 +385,19 @@ private class LogsViewModel: ObservableObject {
                     state.bold = true
                 case 4:
                     state.underline = true
-                case 30 ... 37:
+                case 30...37:
                     state.colorFg = code - 30
                 case 39:
                     state.colorFg = nil
-                case 40 ... 47:
+                case 40...47:
                     state.colorBg = code - 40
                 case 49:
                     state.colorBg = nil
                 // bright = bold + color
-                case 90 ... 97:
+                case 90...97:
                     state.colorFg = 8 + code - 90
                     state.bold = true
-                case 100 ... 107:
+                case 100...107:
                     state.colorBg = 8 + code - 100
                     state.bold = true
                 default:
@@ -398,13 +407,17 @@ private class LogsViewModel: ObservableObject {
 
             // state updated. add last mark
             if state != lastAnsiState {
-                lastAnsiState.addAttribute(to: attributedStr, range: NSRange(location: lastI, length: match.range.location - lastI))
+                lastAnsiState.addAttribute(
+                    to: attributedStr,
+                    range: NSRange(location: lastI, length: match.range.location - lastI))
                 lastAnsiState = state
                 lastI = match.range.location
             }
         }
         // add terminating mark
-        state.addAttribute(to: attributedStr, range: NSRange(location: lastI, length: terminalLine.utf16.count - lastI))
+        state.addAttribute(
+            to: attributedStr,
+            range: NSRange(location: lastI, length: terminalLine.utf16.count - lastI))
         lastAnsiState = state
         // then delete escapes
         for match in matches.reversed() {
@@ -413,7 +426,8 @@ private class LogsViewModel: ObservableObject {
 
         // delete unsupported escapes (like ESC[?25l used by nextjs, and ESC[4D [move cursor by columns])
         let newStr = attributedStr.string
-        matches = unsupportedAnsiRegex.matches(in: newStr, range: NSRange(location: 0, length: newStr.utf16.count))
+        matches = unsupportedAnsiRegex.matches(
+            in: newStr, range: NSRange(location: 0, length: newStr.utf16.count))
         for match in matches.reversed() {
             attributedStr.deleteCharacters(in: match.range)
         }
@@ -430,7 +444,8 @@ private class LogsViewModel: ObservableObject {
         if contents.length > maxChars {
             let truncateRange = NSRange(location: 0, length: contents.length - maxChars)
             contents.deleteCharacters(in: truncateRange)
-            updateEvent.send(.replace(range: truncateRange, replacementString: NSAttributedString()))
+            updateEvent.send(
+                .replace(range: truncateRange, replacementString: NSAttributedString()))
         }
     }
 
@@ -438,19 +453,26 @@ private class LogsViewModel: ObservableObject {
     private func add(error: String) {
         let str = NSMutableAttributedString(string: error + "\n")
         // bold font
-        str.addAttribute(.font, value: terminalFontBold, range: NSRange(location: 0, length: str.length))
+        str.addAttribute(
+            .font, value: terminalFontBold, range: NSRange(location: 0, length: str.length))
         // red
-        str.addAttribute(.foregroundColor, value: NSColor.systemRed, range: NSRange(location: 0, length: str.length))
+        str.addAttribute(
+            .foregroundColor, value: NSColor.systemRed,
+            range: NSRange(location: 0, length: str.length))
         add(attributedString: str)
     }
 
     @MainActor
     private func addDelimiter() {
-        let str = NSMutableAttributedString(string: "\n─────────────────── restarted ──────────────────\n\n")
+        let str = NSMutableAttributedString(
+            string: "\n─────────────────── restarted ──────────────────\n\n")
         // font (bold causes overlapping box chars)
-        str.addAttribute(.font, value: terminalFont, range: NSRange(location: 0, length: str.length))
+        str.addAttribute(
+            .font, value: terminalFont, range: NSRange(location: 0, length: str.length))
         // secondary gray (secondaryLabelColor also causes overlap bleed)
-        str.addAttribute(.foregroundColor, value: NSColor.systemGray, range: NSRange(location: 0, length: str.length))
+        str.addAttribute(
+            .foregroundColor, value: NSColor.systemGray,
+            range: NSRange(location: 0, length: str.length))
         add(attributedString: str)
     }
 
@@ -488,7 +510,8 @@ private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
         forGlyphRange _: NSRange
     ) -> Bool {
         let lineHeight = fontLineHeight * terminalLineHeight
-        let baselineNudge = (lineHeight - fontLineHeight)
+        let baselineNudge =
+            (lineHeight - fontLineHeight)
             // The following factor is a result of experimentation:
             * 0.6
 
@@ -496,7 +519,7 @@ private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
         rect.size.height = lineHeight
 
         var usedRect = lineFragmentUsedRect.pointee
-        usedRect.size.height = max(lineHeight, usedRect.size.height) // keep emoji sizes
+        usedRect.size.height = max(lineHeight, usedRect.size.height)  // keep emoji sizes
 
         lineFragmentRect.pointee = rect
         lineFragmentUsedRect.pointee = usedRect
@@ -533,12 +556,14 @@ private struct LogsTextView: NSViewRepresentable {
         // enable horizontal scroll for non-wrapped case
         textView.isHorizontallyResizable = true
         scrollView.hasHorizontalScroller = true
-        textView.maxSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.maxSize = CGSize(
+            width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
 
         // textView.font and textView.isAutomaticLinkDetectionEnabled don't work
         if let layoutManager = textView.layoutManager {
             // keep strong ref (layoutManager.delegate = weak)
-            context.coordinator.layoutManagerDelegate = LineHeightDelegate(layoutManager: layoutManager)
+            context.coordinator.layoutManagerDelegate = LineHeightDelegate(
+                layoutManager: layoutManager)
             layoutManager.delegate = context.coordinator.layoutManagerDelegate
         }
         textView.textContainerInset = NSSize(width: 8, height: 8)
@@ -546,7 +571,8 @@ private struct LogsTextView: NSViewRepresentable {
         textView.isIncrementalSearchingEnabled = true
 
         // char wrap, line height
-        let paragraphStyle = NSMutableParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
+        let paragraphStyle =
+            NSMutableParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
         paragraphStyle.lineBreakMode = .byCharWrapping
         textView.defaultParagraphStyle = paragraphStyle
 
@@ -555,12 +581,13 @@ private struct LogsTextView: NSViewRepresentable {
 
         let debouncedScrollToEnd = Debouncer(delay: 0.05) {
             if let clipView = textView.enclosingScrollView?.contentView,
-               let layoutManager = textView.layoutManager,
-               let textContainer = textView.textContainer
+                let layoutManager = textView.layoutManager,
+                let textContainer = textView.textContainer
             {
                 layoutManager.ensureLayout(for: textContainer)
                 let userRect = layoutManager.usedRect(for: textContainer)
-                clipView.bounds.origin = CGPoint(x: textView.textContainerInset.width / 2, y: userRect.maxY)
+                clipView.bounds.origin = CGPoint(
+                    x: textView.textContainerInset.width / 2, y: userRect.maxY)
             }
         }
 
@@ -618,11 +645,13 @@ private struct LogsTextView: NSViewRepresentable {
         if wrap {
             let sz = scrollView.contentSize
             textView.frame = CGRect(x: 0, y: 0, width: sz.width, height: 0)
-            textView.textContainer?.containerSize = CGSize(width: sz.width, height: CGFloat.greatestFiniteMagnitude)
+            textView.textContainer?.containerSize = CGSize(
+                width: sz.width, height: CGFloat.greatestFiniteMagnitude)
             textView.textContainer?.widthTracksTextView = true
         } else {
             textView.textContainer?.widthTracksTextView = false
-            textView.textContainer?.containerSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            textView.textContainer?.containerSize = CGSize(
+                width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         }
 
         // otherwise it scrolls to top when re-enabling word wrap
@@ -673,7 +702,10 @@ private struct DockerLogsContentView: View {
     let extraComposeArgs: [String]
     let allDisabled: Bool
 
-    init(cid: DockerContainerId?, standalone: Bool, extraComposeArgs: [String] = [], allDisabled: Bool = false) {
+    init(
+        cid: DockerContainerId?, standalone: Bool, extraComposeArgs: [String] = [],
+        allDisabled: Bool = false
+    ) {
         self.cid = cid
         self.standalone = standalone
         self.extraComposeArgs = extraComposeArgs
@@ -683,41 +715,52 @@ private struct DockerLogsContentView: View {
     var body: some View {
         DockerStateWrapperView(\.dockerContainers) { containers, _ in
             if allDisabled {
-                ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
+                ContentUnavailableViewCompat(
+                    "Container Removed", systemImage: "trash", desc: "No logs available.")
             } else if case let .container(containerId) = cid,
-                      let container = containers.first(where: { $0.id == containerId })
+                let container = containers.first(where: { $0.id == containerId })
             {
-                LogsView(cmdExe: AppConfig.dockerExe,
-                         args: ["logs", "-f", "-n", String(maxLines), containerId],
-                         extraArgs: [],
-                         // trigger restart on start/stop state change
-                         // don't trigger on starting/stopping/deleting/...
-                         extraState: [container.state == "running" ? "running" : "not_running"],
-                         model: model)
-                    .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
-                    .onAppear {
-                        // save name so we can keep going after container is recreated
-                        model.lastContainerName = container.names.first
-                    }
+                LogsView(
+                    cmdExe: AppConfig.dockerExe,
+                    args: ["logs", "-f", "-n", String(maxLines), containerId],
+                    extraArgs: [],
+                    // trigger restart on start/stop state change
+                    // don't trigger on starting/stopping/deleting/...
+                    extraState: [container.state == "running" ? "running" : "not_running"],
+                    model: model
+                )
+                .if(standalone) {
+                    $0.navigationTitle(WindowTitles.containerLogs(container.userName))
+                }
+                .onAppear {
+                    // save name so we can keep going after container is recreated
+                    model.lastContainerName = container.names.first
+                }
             } else if let containerName = model.lastContainerName,
-                      let container = containers.first(where: { $0.names.contains(containerName) })
+                let container = containers.first(where: { $0.names.contains(containerName) })
             {
                 // if restarted, use name
                 // don't update id - it'll cause unnecessary logs restart
-                LogsView(cmdExe: AppConfig.dockerExe,
-                         args: ["logs", "-f", "-n", String(maxLines), container.id],
-                         extraArgs: [],
-                         extraState: [],
-                         model: model)
-                    .if(standalone) { $0.navigationTitle(WindowTitles.containerLogs(container.userName)) }
+                LogsView(
+                    cmdExe: AppConfig.dockerExe,
+                    args: ["logs", "-f", "-n", String(maxLines), container.id],
+                    extraArgs: [],
+                    extraState: [],
+                    model: model
+                )
+                .if(standalone) {
+                    $0.navigationTitle(WindowTitles.containerLogs(container.userName))
+                }
             } else if case let .compose(composeProject) = cid {
-                LogsView(cmdExe: AppConfig.dockerComposeExe,
-                         args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
-                         extraArgs: extraComposeArgs,
-                         extraState: [],
-                         model: model)
+                LogsView(
+                    cmdExe: AppConfig.dockerComposeExe,
+                    args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
+                    extraArgs: extraComposeArgs,
+                    extraState: [],
+                    model: model)
             } else {
-                ContentUnavailableViewCompat("Container Removed", systemImage: "trash", desc: "No logs available.")
+                ContentUnavailableViewCompat(
+                    "Container Removed", systemImage: "trash", desc: "No logs available.")
             }
         }
         .onAppear {
@@ -776,56 +819,68 @@ struct DockerComposeLogsWindow: View {
     @SceneStorage("DockerComposeLogs_selection") private var savedSelection = "all"
 
     var body: some View {
-        let children = vmModel.dockerContainers?
+        let children =
+            vmModel.dockerContainers?
             .filter { $0.composeProject == composeProject }
             .sorted { $0.userName < $1.userName } ?? []
 
         NavigationView {
             List {
-                let selBinding = Binding<String?>(get: {
-                    selection
-                }, set: {
-                    if let sel = $0 {
-                        selection = sel
-                    }
-                })
+                let selBinding = Binding<String?>(
+                    get: {
+                        selection
+                    },
+                    set: {
+                        if let sel = $0 {
+                            selection = sel
+                        }
+                    })
 
                 if let composeProject {
-                    let projectLogArgs = disabledChildren.isEmpty ? [] : // all
+                    let projectLogArgs =
+                        disabledChildren.isEmpty
+                        ? []
+                        :  // all
                         children
-                        .map { $0.userName }
-                        .filter { !disabledChildren.contains($0) }
+                            .map { $0.userName }
+                            .filter { !disabledChildren.contains($0) }
                     let allDisabled = disabledChildren.count == children.count && !children.isEmpty
 
                     NavigationLink(tag: "all", selection: selBinding) {
-                        DockerLogsContentView(cid: .compose(project: composeProject),
-                                              standalone: false, extraComposeArgs: projectLogArgs,
-                                              allDisabled: allDisabled)
+                        DockerLogsContentView(
+                            cid: .compose(project: composeProject),
+                            standalone: false, extraComposeArgs: projectLogArgs,
+                            allDisabled: allDisabled)
                     } label: {
                         Label("All", systemImage: "square.stack.3d.up")
                     }
                     .onAppear {
-                        windowTracker.openDockerLogWindowIds.insert(.compose(project: composeProject))
+                        windowTracker.openDockerLogWindowIds.insert(
+                            .compose(project: composeProject))
                     }
                     .onDisappear {
-                        windowTracker.openDockerLogWindowIds.remove(.compose(project: composeProject))
+                        windowTracker.openDockerLogWindowIds.remove(
+                            .compose(project: composeProject))
                     }
 
                     Section("Services") {
                         ForEach(children, id: \.id) { container in
-                            NavigationLink(tag: "container:\(container.id)", selection: selBinding) {
+                            NavigationLink(tag: "container:\(container.id)", selection: selBinding)
+                            {
                                 DockerLogsContentView(cid: container.cid, standalone: false)
                             } label: {
                                 let serviceName = container.userName
-                                let enabledBinding = Binding<Bool>(get: {
-                                    !disabledChildren.contains(serviceName)
-                                }, set: {
-                                    if $0 {
-                                        disabledChildren.remove(serviceName)
-                                    } else {
-                                        disabledChildren.insert(serviceName)
-                                    }
-                                })
+                                let enabledBinding = Binding<Bool>(
+                                    get: {
+                                        !disabledChildren.contains(serviceName)
+                                    },
+                                    set: {
+                                        if $0 {
+                                            disabledChildren.remove(serviceName)
+                                        } else {
+                                            disabledChildren.insert(serviceName)
+                                        }
+                                    })
 
                                 HStack {
                                     Label {
@@ -855,14 +910,15 @@ struct DockerComposeLogsWindow: View {
             .listStyle(.sidebar)
             .background(SplitViewAccessor(sideCollapsed: $collapsed))
 
-            ContentUnavailableViewCompat("No Service Selected", systemImage: "questionmark.app.fill")
+            ContentUnavailableViewCompat(
+                "No Service Selected", systemImage: "questionmark.app.fill")
         }
         .environmentObject(commandModel)
         .onOpenURL { url in
             // check "base64" query param
             // for backward compat with restored state URLs, this is query-gated
             if url.query?.contains("base64") == true,
-               let decoded = Data(base64URLEncoded: url.lastPathComponent)
+                let decoded = Data(base64URLEncoded: url.lastPathComponent)
             {
                 composeProject = String(data: decoded, encoding: .utf8)
             } else {
@@ -880,8 +936,10 @@ struct DockerComposeLogsWindow: View {
     }
 }
 
-private extension View {
-    func toolbar(forCommands commandModel: CommandViewModel, standalone: Bool) -> some View {
+extension View {
+    fileprivate func toolbar(forCommands commandModel: CommandViewModel, standalone: Bool)
+        -> some View
+    {
         toolbar {
             ToolbarItem(placement: .navigation) {
                 // unlike main window, we never use NavigationSplitView b/c sidebar button bug
@@ -936,16 +994,22 @@ private struct K8SLogsContentView: View {
     var body: some View {
         K8SStateWrapperView(\.k8sPods) { pods, _ in
             if case let .pod(namespace, name) = kid,
-               pods.contains(where: { $0.id == kid })
+                pods.contains(where: { $0.id == kid })
             {
-                LogsView(cmdExe: AppConfig.kubectlExe,
-                         args: ["logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)", "-f", "--all-containers=true"],
-                         extraArgs: [],
-                         extraState: [],
-                         model: model)
-                    .navigationTitle(WindowTitles.podLogs(name))
+                LogsView(
+                    cmdExe: AppConfig.kubectlExe,
+                    args: [
+                        "logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)",
+                        "-f", "--all-containers=true",
+                    ],
+                    extraArgs: [],
+                    extraState: [],
+                    model: model
+                )
+                .navigationTitle(WindowTitles.podLogs(name))
             } else {
-                ContentUnavailableViewCompat("Pod Removed", systemImage: "trash", desc: "No logs available.")
+                ContentUnavailableViewCompat(
+                    "Pod Removed", systemImage: "trash", desc: "No logs available.")
             }
         }
         .onAppear {
@@ -966,7 +1030,7 @@ struct K8SPodLogsWindow: View {
     var body: some View {
         Group {
             if let namespaceAndName,
-               let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName)
+                let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName)
             {
                 K8SLogsContentView(kid: kid)
                     .onAppear {
@@ -984,7 +1048,7 @@ struct K8SPodLogsWindow: View {
         .environmentObject(commandModel)
         .onOpenURL { url in
             if let decoded = Data(base64URLEncoded: url.lastPathComponent),
-               let namespaceAndName = String(data: decoded, encoding: .utf8)
+                let namespaceAndName = String(data: decoded, encoding: .utf8)
             {
                 self.namespaceAndName = namespaceAndName
             }
@@ -1007,7 +1071,7 @@ private class Debouncer {
         if timer == nil {
             self.handler()
         }
-        
+
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             self?.handler()

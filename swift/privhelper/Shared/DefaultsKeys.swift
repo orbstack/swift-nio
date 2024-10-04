@@ -3,6 +3,7 @@
 //
 
 import Defaults
+// https://stackoverflow.com/questions/39075043/how-to-convert-data-to-hex-string-in-swift
 import Foundation
 import SwiftUI
 
@@ -51,10 +52,11 @@ class DrmState: Codable, Defaults.Serializable {
     // TODO: deal with mutation
     private lazy var claims: [String: Any] = decodeClaims() ?? [:]
 
-    init(refreshToken: String? = nil, entitlementTier: EntitlementTier = .none,
-         entitlementType: EntitlementType = .none, entitlementMessage: String? = nil,
-         entitlementStatus: EntitlementStatus = .red)
-    {
+    init(
+        refreshToken: String? = nil, entitlementTier: EntitlementTier = .none,
+        entitlementType: EntitlementType = .none, entitlementMessage: String? = nil,
+        entitlementStatus: EntitlementStatus = .red
+    ) {
         self.refreshToken = refreshToken
         self.entitlementTier = entitlementTier
         self.entitlementType = entitlementType
@@ -92,7 +94,7 @@ class DrmState: Codable, Defaults.Serializable {
         } else if let email = claims["_uem"] as? String {
             // fallback to email. not all users have name
             return email.components(separatedBy: "@").first
-                    ?? "(no name)"
+                ?? "(no name)"
         } else {
             // nothing
             return "Sign In"
@@ -145,8 +147,7 @@ class DrmState: Codable, Defaults.Serializable {
             return .green
         case nil:
             // fallback for version upgrade w/ old token
-            return entitlementType == .trial ? .yellow :
-                    (entitlementTier == .none ? .red : .green)
+            return entitlementType == .trial ? .yellow : (entitlementTier == .none ? .red : .green)
         }
     }
 
@@ -174,37 +175,48 @@ extension Defaults.Keys {
     // shared with swext in vmgr, which may have diff bundle ID
     private static let suite = getDefaultsSuite()
 
-    static let selectedTab = Key<NavTabId>("selectedTab", default: NavTabId.dockerContainers, suite: suite)
+    static let selectedTab = Key<NavTabId>(
+        "selectedTab", default: NavTabId.dockerContainers, suite: suite)
 
-    static let dockerFilterShowStopped = Key<Bool>("dockerFilterShowStopped", default: true, suite: suite)
-    static let dockerMigrationDismissed = Key<Bool>("docker_migrationDismissed", default: false, suite: suite)
+    static let dockerFilterShowStopped = Key<Bool>(
+        "dockerFilterShowStopped", default: true, suite: suite)
+    static let dockerMigrationDismissed = Key<Bool>(
+        "docker_migrationDismissed", default: false, suite: suite)
     // for AKList autosaveName
     static let docker_autosaveOutline = "docker_autosaveOutline"
 
     static let logsWordWrap = Key<Bool>("logs_wordWrap", default: true, suite: suite)
 
-    static let k8sFilterShowSystemNs = Key<Bool>("k8sFilterShowSystemNs", default: false, suite: suite)
+    static let k8sFilterShowSystemNs = Key<Bool>(
+        "k8sFilterShowSystemNs", default: false, suite: suite)
 
     static let onboardingCompleted = Key<Bool>("onboardingCompleted", default: false, suite: suite)
 
     // key changed because initial release was flaky
     static let tipsMenubarBgShown = Key<Bool>("tips_menubarBgShown2", default: false, suite: suite)
-    static let tipsContainerDomainsShow = Key<Bool>("tips_containerDomainsShow", default: true, suite: suite)
-    static let tipsContainerFilesShow = Key<Bool>("tips_containerFilesShow", default: true, suite: suite)
+    static let tipsContainerDomainsShow = Key<Bool>(
+        "tips_containerDomainsShow", default: true, suite: suite)
+    static let tipsContainerFilesShow = Key<Bool>(
+        "tips_containerFilesShow", default: true, suite: suite)
     static let tipsImageMountsShow = Key<Bool>("tips_imageMountsShow", default: true, suite: suite)
 
-    static let globalShowMenubarExtra = Key<Bool>("global_showMenubarExtra", default: true, suite: suite)
+    static let globalShowMenubarExtra = Key<Bool>(
+        "global_showMenubarExtra", default: true, suite: suite)
     // changed key in v0.14.0: setting was renamed and people enabled it due to misunderstanding in prev versions
-    static let globalStayInBackground = Key<Bool>("global_stayInBackground2", default: false, suite: suite)
+    static let globalStayInBackground = Key<Bool>(
+        "global_stayInBackground2", default: false, suite: suite)
 
     static let adminDismissCount = Key<Int>("admin_dismissCount", default: 0, suite: suite)
 
-    static let updatesOptinChannel = Key<String>("updates_optinChannel", default: "stable", suite: suite)
+    static let updatesOptinChannel = Key<String>(
+        "updates_optinChannel", default: "stable", suite: suite)
 
-    static let showMoveToApplications = Key<Bool>("onboarding_showMoveToApplicationsPopup", default: true, suite: suite)
-    
+    static let showMoveToApplications = Key<Bool>(
+        "onboarding_showMoveToApplicationsPopup", default: true, suite: suite)
+
     // set to -1 if user has
-    static let networkHttpsDismissCount = Key<Int>("network_httpsDismissCount", default: 0, suite: suite)
+    static let networkHttpsDismissCount = Key<Int>(
+        "network_httpsDismissCount", default: 0, suite: suite)
 
     // login
     static let drmLastState = Key<DrmState?>("drm_lastState", default: nil, suite: suite)
@@ -220,9 +232,6 @@ extension Defaults.Keys {
         }
     }
 }
-
-// https://stackoverflow.com/questions/39075043/how-to-convert-data-to-hex-string-in-swift
-import Foundation
 
 /// Extension for making base64 representations of `Data` safe for
 /// transmitting via URL query parameters
@@ -243,8 +252,8 @@ extension Data {
     }
 }
 
-private extension String {
-    func base64ToBase64URL() -> String {
+extension String {
+    fileprivate func base64ToBase64URL() -> String {
         // Make base64 string safe for passing into URL query params
         let base64url = replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "-")
@@ -252,7 +261,7 @@ private extension String {
         return base64url
     }
 
-    func base64URLToBase64() -> String {
+    fileprivate func base64URLToBase64() -> String {
         // Return to base64 encoding
         var base64 = replacingOccurrences(of: "_", with: "/")
             .replacingOccurrences(of: "-", with: "+")

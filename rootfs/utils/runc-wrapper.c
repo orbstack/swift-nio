@@ -1,18 +1,18 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <errno.h>
-#include <string.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
 #include <sys/uio.h>
+#include <sys/un.h>
+#include <unistd.h>
 
 // very simple/flaky runc arg parser:
 // for --* that contains =, don't skip
 // for --* that doesn't contain =, skip next arg, unless next arg also starts with --
 // save first and second (if any) positional args
-void parse_args(int argc, char** argv, char** pfirst, char** psecond) {
+void parse_args(int argc, char **argv, char **pfirst, char **psecond) {
     *pfirst = NULL;
     *psecond = NULL;
 
@@ -28,7 +28,7 @@ void parse_args(int argc, char** argv, char** pfirst, char** psecond) {
             } else {
                 // doesn't contain =. that means next arg is probably a value
                 // skip next, if it's not past the end, and it's not a --
-                if (i+1 < argc && argv[i+1][0] != '-') {
+                if (i + 1 < argc && argv[i + 1][0] != '-') {
                     i++;
                 }
                 continue;
@@ -45,19 +45,18 @@ void parse_args(int argc, char** argv, char** pfirst, char** psecond) {
     }
 }
 
-// stub program that connects to a unix socket, waits for the conn to be closed, and then execs arguments
-int main(int argc, char** argv) {
+// stub program that connects to a unix socket, waits for the conn to be closed, and then execs
+// arguments
+int main(int argc, char **argv) {
     // parse args:
     char *runc_command = NULL;
     char *cid = NULL;
     parse_args(argc, argv, &runc_command, &cid);
-    
+
     // bail out if not command="start", arg2=<64-char container ID>
-    if (runc_command != NULL &&
-            strcmp(runc_command, "start") == 0 &&
-            cid != NULL &&
-            strlen(cid) == 64) {
-        int connfd = socket(AF_UNIX, SOCK_STREAM|SOCK_CLOEXEC, 0);
+    if (runc_command != NULL && strcmp(runc_command, "start") == 0 && cid != NULL &&
+        strlen(cid) == 64) {
+        int connfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
         if (connfd == -1) {
             perror("socket");
             return 1;
@@ -67,7 +66,7 @@ int main(int argc, char** argv) {
             .sun_family = AF_UNIX,
             .sun_path = "/run/rc.sock",
         };
-        if (connect(connfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        if (connect(connfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
             perror("connect");
             return 1;
         }

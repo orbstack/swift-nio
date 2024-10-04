@@ -60,11 +60,13 @@ struct FrozenEnvKey<Object: ObservableObject, Value>: DynamicProperty {
         $keyObserver.value
     }
 
-    init(_ valueKeyPath: KeyPath<Object, Value>,
-         _ publisherKeyPath: KeyPath<Object, Published<Value>.Publisher>)
-    {
-        keyObserver.setup(initialValue: frozenObj.obj[keyPath: valueKeyPath],
-                          publisher: frozenObj.obj[keyPath: publisherKeyPath])
+    init(
+        _ valueKeyPath: KeyPath<Object, Value>,
+        _ publisherKeyPath: KeyPath<Object, Published<Value>.Publisher>
+    ) {
+        keyObserver.setup(
+            initialValue: frozenObj.obj[keyPath: valueKeyPath],
+            publisher: frozenObj.obj[keyPath: publisherKeyPath])
     }
 
     private class KeyMirror: ObservableObject {

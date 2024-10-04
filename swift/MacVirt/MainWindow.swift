@@ -83,9 +83,12 @@ struct UserSwitcherButton: View {
                                 let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
 
                                 Circle()
-                                .frame(width: CGFloat(statusMarginRadius), height: CGFloat(statusMarginRadius))
-                                .position(x: CGFloat(x), y: CGFloat(y))
-                                .blendMode(.destinationOut)
+                                    .frame(
+                                        width: CGFloat(statusMarginRadius),
+                                        height: CGFloat(statusMarginRadius)
+                                    )
+                                    .position(x: CGFloat(x), y: CGFloat(y))
+                                    .blendMode(.destinationOut)
                             }
                         }
                 }
@@ -97,9 +100,11 @@ struct UserSwitcherButton: View {
                         let y = avatarRadius * sin(Float.pi / 4) + (statusDotRadius / 2)
 
                         Circle()
-                        .fill(drmState.statusDotColor.opacity(0.85))
-                        .frame(width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius))
-                        .position(x: CGFloat(x), y: CGFloat(y))
+                            .fill(drmState.statusDotColor.opacity(0.85))
+                            .frame(
+                                width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius)
+                            )
+                            .position(x: CGFloat(x), y: CGFloat(y))
                     }
                 }
                 .padding(.trailing, 8)
@@ -112,7 +117,7 @@ struct UserSwitcherButton: View {
                     // shown in badge
                     if showStatusDotAndSubtitle {
                         Text(drmState.subtitle)
-                        .font(.subheadline)
+                            .font(.subheadline)
                     }
                 }
 
@@ -157,7 +162,9 @@ struct UserSwitcherButton: View {
 }
 
 extension View {
-    func toolbarMacOS13<Content: CustomizableToolbarContent>(id: String, @ToolbarContentBuilder content: () -> Content) -> some View {
+    func toolbarMacOS13<Content: CustomizableToolbarContent>(
+        id: String, @ToolbarContentBuilder content: () -> Content
+    ) -> some View {
         if #available(macOS 13.0, *) {
             return self.toolbar(id: id, content: content)
         } else {

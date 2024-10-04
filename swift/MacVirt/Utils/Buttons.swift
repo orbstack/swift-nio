@@ -11,7 +11,10 @@ struct ProgressIconButton: View {
     let role: ButtonRole?
     let action: () -> Void
 
-    init(systemImage: String, actionInProgress: Bool, role: ButtonRole? = nil, action: @escaping () -> Void) {
+    init(
+        systemImage: String, actionInProgress: Bool, role: ButtonRole? = nil,
+        action: @escaping () -> Void
+    ) {
         self.systemImage = systemImage
         self.actionInProgress = actionInProgress
         self.role = role

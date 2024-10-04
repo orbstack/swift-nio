@@ -11,29 +11,31 @@
 //   - Traefik + CoreDNS in Docker Compose net=host
 //   - dig and curl DNS clients
 
-#include <string.h>
 #include <stdbool.h>
+#include <string.h>
 
-#include <linux/stddef.h>
+#include <errno.h>
 #include <linux/bpf.h>
+#include <linux/if.h>
 #include <linux/in.h>
 #include <linux/in6.h>
-#include <linux/if.h>
-#include <errno.h>
+#include <linux/stddef.h>
 #include <time.h>
 
-#include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
+#include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
 // warning: this makes it GPL
-//#define DEBUG
+// #define DEBUG
 
 #ifndef DEBUG
 #ifdef bpf_printk
 #undef bpf_printk
 #endif
-#define bpf_printk(fmt, ...) do { } while (0)
+#define bpf_printk(fmt, ...) \
+    do { \
+    } while (0)
 #endif
 
 enum {
@@ -48,7 +50,8 @@ enum {
 };
 
 #define IP4(a, b, c, d) (bpf_htonl((a << 24) | (b << 16) | (c << 8) | d))
-#define IP6(a,b,c,d,e,f,g,h) {bpf_htonl(a << 16 | b), bpf_htonl(c << 16 | d), bpf_htonl(e << 16 | f), bpf_htonl(g << 16 | h)}
+#define IP6(a, b, c, d, e, f, g, h) \
+    {bpf_htonl(a << 16 | b), bpf_htonl(c << 16 | d), bpf_htonl(e << 16 | f), bpf_htonl(g << 16 | h)}
 
 #define LOCALHOST_IP4 IP4(127, 0, 0, 1)
 static const __be32 LOCALHOST_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 1);
@@ -84,15 +87,15 @@ struct notify_event {
 
 // sk storage to indicate a tracked socket
 struct {
-	__uint(type, BPF_MAP_TYPE_SK_STORAGE);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
-	__type(key, int);
-	__type(value, struct fwd_meta);
+    __uint(type, BPF_MAP_TYPE_SK_STORAGE);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+    __type(key, int);
+    __type(value, struct fwd_meta);
 } sk_meta_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
     __uint(max_entries, 1024);
     __type(key, __u64);
     __type(value, struct udp_meta);
@@ -186,7 +189,8 @@ static bool postbind_common(struct bpf_sock *sk) {
 
     // save to map
     struct fwd_meta init_meta = {};
-    struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, sk, &init_meta, BPF_SK_STORAGE_GET_F_CREATE);
+    struct fwd_meta *meta =
+        bpf_sk_storage_get(&sk_meta_map, sk, &init_meta, BPF_SK_STORAGE_GET_F_CREATE);
     if (meta == NULL) {
         bpf_printk("failed to save meta");
         return true;
@@ -291,7 +295,8 @@ int pmon_post_bind4(struct bpf_sock *sk) {
 SEC("cgroup/connect4")
 int pmon_connect4(struct bpf_sock_addr *ctx) {
     if (connect_common(ctx)) {
-        bpf_printk("connect4: delete sk %x:%d", bpf_ntohl(ctx->user_ip4), bpf_ntohs(ctx->user_port));
+        bpf_printk("connect4: delete sk %x:%d", bpf_ntohl(ctx->user_ip4),
+                   bpf_ntohs(ctx->user_port));
     }
     return VERDICT_PROCEED;
 }
@@ -313,7 +318,8 @@ int pmon_sendmsg4(struct bpf_sock_addr *ctx) {
  */
 static bool check_ip6(struct bpf_sock *sk) {
     if (memcmp(sk->src_ip6, LOCALHOST_IP6, 16) != 0 && memcmp(sk->src_ip6, UNSPEC_IP6, 16) != 0) {
-        bpf_printk("not localhost or unspec %08x%08x%08x%08x", bpf_ntohl(sk->src_ip6[0]), bpf_ntohl(sk->src_ip6[1]), bpf_ntohl(sk->src_ip6[2]), bpf_ntohl(sk->src_ip6[3]));
+        bpf_printk("not localhost or unspec %08x%08x%08x%08x", bpf_ntohl(sk->src_ip6[0]),
+                   bpf_ntohl(sk->src_ip6[1]), bpf_ntohl(sk->src_ip6[2]), bpf_ntohl(sk->src_ip6[3]));
         return false;
     }
 
@@ -328,7 +334,9 @@ int pmon_post_bind6(struct bpf_sock *sk) {
     }
 
     if (postbind_common(sk)) {
-        bpf_printk("post_bind6: %08x%08x%08x%08x:%d", bpf_ntohl(sk->src_ip6[0]), bpf_ntohl(sk->src_ip6[1]), bpf_ntohl(sk->src_ip6[2]), bpf_ntohl(sk->src_ip6[3]), sk->src_port);
+        bpf_printk("post_bind6: %08x%08x%08x%08x:%d", bpf_ntohl(sk->src_ip6[0]),
+                   bpf_ntohl(sk->src_ip6[1]), bpf_ntohl(sk->src_ip6[2]), bpf_ntohl(sk->src_ip6[3]),
+                   sk->src_port);
     }
     return VERDICT_PROCEED;
 }
@@ -336,20 +344,26 @@ int pmon_post_bind6(struct bpf_sock *sk) {
 SEC("cgroup/connect6")
 int pmon_connect6(struct bpf_sock_addr *ctx) {
     if (connect_common(ctx)) {
-        bpf_printk("connect6: deleted sk %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
+        bpf_printk("connect6: deleted sk %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]),
+                   bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]),
+                   bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     }
     return VERDICT_PROCEED;
 }
 
 SEC("cgroup/recvmsg6")
 int pmon_recvmsg6(struct bpf_sock_addr *ctx) {
-    bpf_printk("recvmsg6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
+    bpf_printk("recvmsg6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]),
+               bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]),
+               bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     return recvmsg_common(ctx);
 }
 
 SEC("cgroup/sendmsg6")
 int pmon_sendmsg6(struct bpf_sock_addr *ctx) {
-    bpf_printk("sendmsg6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]), bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]), bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
+    bpf_printk("sendmsg6: %08x%08x%08x%08x:%d", bpf_ntohl(ctx->user_ip6[0]),
+               bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]),
+               bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     return sendmsg_common(ctx);
 }
 
@@ -371,8 +385,8 @@ static int nft_change_common(void) {
 }
 
 // nft_trans_rule_add is generic, but we use kretprobe to be safe - guaranteed that it's done
-// use kretprobe instead of fexit (which is faster) because cilium ebpf loads entire vmlinux BTF and uses ~70M memory to link fexit
-// maybe we should use C libbpf instead...
+// use kretprobe instead of fexit (which is faster) because cilium ebpf loads entire vmlinux BTF and
+// uses ~70M memory to link fexit maybe we should use C libbpf instead...
 SEC("kretprobe/nf_tables_newrule")
 int nf_tables_newrule(void) {
     return nft_change_common();

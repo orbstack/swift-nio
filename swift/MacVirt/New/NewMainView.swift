@@ -5,9 +5,9 @@
 //  Created by Andrew Zheng on 11/23/23.
 //
 
+import Defaults
 import SwiftUI
 import UserNotifications
-import Defaults
 
 struct NewMainView: View {
     @EnvironmentObject var model: VmViewModel
@@ -41,7 +41,9 @@ struct NewMainView: View {
             Task { @MainActor in
                 let center = UNUserNotificationCenter.current()
                 do {
-                    let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                    let granted = try await center.requestAuthorization(options: [
+                        .alert, .sound, .badge,
+                    ])
                     NSLog("notification request granted: \(granted)")
                 } catch {
                     NSLog("notification request failed: \(error)")
@@ -66,7 +68,7 @@ struct NewMainView: View {
             // for menu bar
             // TODO: unstable
             if url.pathComponents.count >= 2,
-               url.pathComponents[1] == "containers" || url.pathComponents[1] == "projects"
+                url.pathComponents[1] == "containers" || url.pathComponents[1] == "projects"
             {
                 model.initialDockerContainerSelection = [.container(id: url.pathComponents[2])]
                 selectedTab = .dockerContainers
@@ -74,22 +76,19 @@ struct NewMainView: View {
         }
         // error dialog
         .akAlert(presentedValue: $model.error) { error in
-            var content = AKAlertContent(title: error.errorDescription ?? "Error",
-                    desc: error.recoverySuggestion,
-                    style: .critical)
+            var content = AKAlertContent(
+                title: error.errorDescription ?? "Error",
+                desc: error.recoverySuggestion,
+                style: .critical)
 
             switch error {
-            case VmError.dockerExitError:
-                fallthrough
-            case VmError.vmgrExit:
-                fallthrough
-            case VmError.spawnExit:
+            case VmError.dockerExitError, VmError.vmgrExit, VmError.spawnExit:
                 content.scrollableText = true
             default:
                 // always use scrollable text box for long errors
                 content.scrollableText = error.recoverySuggestion?.count ?? 0 > 1000
             }
-            
+
             switch error {
             case VmError.killswitchExpired:
                 content.addButton("Update") {
@@ -132,43 +131,53 @@ struct NewMainView: View {
 
             return content
         }
-        .onReceive(model.$error, perform: { error in
-            if error == VmError.killswitchExpired {
-                // trigger updater as well
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                    NSWorkspace.openSubwindow("update")
+        .onReceive(
+            model.$error,
+            perform: { error in
+                if error == VmError.killswitchExpired {
+                    // trigger updater as well
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                        NSWorkspace.openSubwindow("update")
+                    }
                 }
             }
-        })
+        )
         .akAlert(presentedValue: $model.presentProfileChanged) { info in
-            AKAlertContent(title: "Shell profile changed",
-                    desc: """
-                          \(Constants.userAppName)’s command-line tools have been added to your PATH.
-                          To use them in existing shells, run the following command:
+            AKAlertContent(
+                title: "Shell profile changed",
+                desc: """
+                    \(Constants.userAppName)’s command-line tools have been added to your PATH.
+                    To use them in existing shells, run the following command:
 
-                          source \(info.profileRelPath)
-                          """)
+                    source \(info.profileRelPath)
+                    """)
         }
         .akAlert(presentedValue: $model.presentAddPaths) { info in
-            AKAlertContent(title: "Add tools to PATH",
-                    desc: """
-                          To use \(Constants.userAppName)’s command-line tools, add the following directories to your PATH:
+            AKAlertContent(
+                title: "Add tools to PATH",
+                desc: """
+                    To use \(Constants.userAppName)’s command-line tools, add the following directories to your PATH:
 
-                          \(info.paths.joined(separator: "\n"))
-                          """)
+                    \(info.paths.joined(separator: "\n"))
+                    """)
         }
-        .akAlert("Sign in", isPresented: $model.presentForceSignIn,
-                desc: { "Your organization requires you to sign in to \(Constants.userAppName)." },
-                button1Label: "Sign In",
-                button1Action: { model.presentAuth = true },
-                button2Label: "Quit",
-                // clean shutdown flow
-                button2Action: { NSApp.terminate(nil) })
-        .akAlert("Pro license required", isPresented: $model.presentRequiresLicense,
-                desc: "To use OrbStack Debug Shell, purchase a Pro license.",
-                button1Label: "Get Pro",
-                button1Action: { NSWorkspace.shared.open(URL(string: "https://orbstack.dev/pricing")!) },
-                button2Label: "Cancel")
+        .akAlert(
+            "Sign in", isPresented: $model.presentForceSignIn,
+            desc: { "Your organization requires you to sign in to \(Constants.userAppName)." },
+            button1Label: "Sign In",
+            button1Action: { model.presentAuth = true },
+            button2Label: "Quit",
+            // clean shutdown flow
+            button2Action: { NSApp.terminate(nil) }
+        )
+        .akAlert(
+            "Pro license required", isPresented: $model.presentRequiresLicense,
+            desc: "To use OrbStack Debug Shell, purchase a Pro license.",
+            button1Label: "Get Pro",
+            button1Action: {
+                NSWorkspace.shared.open(URL(string: "https://orbstack.dev/pricing")!)
+            },
+            button2Label: "Cancel")
     }
 }
 
@@ -179,8 +188,10 @@ struct NewMainViewControllerRepresentable: NSViewControllerRepresentable {
 
     func makeNSViewController(context _: Context) -> NewMainViewController {
         let controller = NewMainViewController(model: model, navModel: navModel)
-        controller.horizontalConstraint = controller.view.widthAnchor.constraint(equalToConstant: size.width)
-        controller.verticalConstraint = controller.view.heightAnchor.constraint(equalToConstant: size.height)
+        controller.horizontalConstraint = controller.view.widthAnchor.constraint(
+            equalToConstant: size.width)
+        controller.verticalConstraint = controller.view.heightAnchor.constraint(
+            equalToConstant: size.height)
         NSLayoutConstraint.activate([
             controller.horizontalConstraint,
             controller.verticalConstraint,

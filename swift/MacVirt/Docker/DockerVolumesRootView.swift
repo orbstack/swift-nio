@@ -19,8 +19,7 @@ struct DockerVolumesRootView: View {
 
         DockerStateWrapperView(\.dockerVolumes) { volumes, _ in
             let filteredVolumes = volumes.filter { volume in
-                searchQuery.isEmpty ||
-                    volume.name.localizedCaseInsensitiveContains(searchQuery)
+                searchQuery.isEmpty || volume.name.localizedCaseInsensitiveContains(searchQuery)
             }.sort(accordingTo: vmModel.dockerSortingMethod, model: vmModel)
 
             // 0 spacing to fix bg color gap between list and getting started hint
@@ -29,7 +28,8 @@ struct DockerVolumesRootView: View {
                     let totalSizeFormatted = calcTotalSize(filteredVolumes)
                     let listData = [
                         AKSection("In Use", filteredVolumes.filter { vmModel.volumeIsMounted($0) }),
-                        AKSection("Unused", filteredVolumes.filter { !vmModel.volumeIsMounted($0) }),
+                        AKSection(
+                            "Unused", filteredVolumes.filter { !vmModel.volumeIsMounted($0) }),
                     ]
 
                     AKList(listData, selection: $selection, rowHeight: 48) { volume in
@@ -80,14 +80,15 @@ struct DockerVolumesRootView: View {
         if let dockerDf = vmModel.dockerSystemDf {
             let totalSize = filteredVolumes.reduce(Int64(0)) { acc, vol in
                 if let dfVolume = dockerDf.volumes.first(where: { $0.name == vol.name }),
-                   let usageData = dfVolume.usageData
+                    let usageData = dfVolume.usageData
                 {
                     return acc + usageData.size
                 } else {
                     return acc
                 }
             }
-            let totalSizeFormatted = ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)
+            let totalSizeFormatted = ByteCountFormatter.string(
+                fromByteCount: totalSize, countStyle: .file)
 
             return "\(totalSizeFormatted) total"
         }
@@ -98,10 +99,10 @@ struct DockerVolumesRootView: View {
     private func maybeRefreshDf() {
         // only refresh if we're missing df info for some volumes
         if let volumes = vmModel.dockerVolumes,
-           volumes.contains(where: { vol in
-               vmModel.dockerSystemDf?.volumes
-                   .first(where: { $0.name == vol.name }) == nil
-           })
+            volumes.contains(where: { vol in
+                vmModel.dockerSystemDf?.volumes
+                    .first(where: { $0.name == vol.name }) == nil
+            })
         {
             Task { @MainActor in
                 await vmModel.tryDockerSystemDf()

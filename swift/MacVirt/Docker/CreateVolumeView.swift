@@ -6,7 +6,8 @@ import Foundation
 import SwiftUI
 
 // min 2 chars, disallows hidden files (^.)
-private let dockerRestrictedNamePattern = (try? NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"))!
+private let dockerRestrictedNamePattern =
+    (try? NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"))!
 
 struct CreateVolumeView: View {
     @EnvironmentObject private var vmModel: VmViewModel
@@ -26,9 +27,11 @@ struct CreateVolumeView: View {
 
             Form {
                 Section {
-                    let nameBinding = Binding<String>(get: { name }, set: {
-                        self.name = $0
-                    })
+                    let nameBinding = Binding<String>(
+                        get: { name },
+                        set: {
+                            self.name = $0
+                        })
 
                     TextField("Name", text: nameBinding)
                         .onSubmit {
@@ -77,7 +80,7 @@ struct CreateVolumeView: View {
 
     private func checkName(_ newName: String, animate: Bool = true) {
         if let volumes = vmModel.dockerVolumes,
-           volumes.contains(where: { $0.name == newName })
+            volumes.contains(where: { $0.name == newName })
         {
             isNameDuplicate = true
         } else {
@@ -85,7 +88,11 @@ struct CreateVolumeView: View {
         }
 
         // regex
-        if !newName.isEmpty && dockerRestrictedNamePattern.firstMatch(in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count)) == nil {
+        if !newName.isEmpty
+            && dockerRestrictedNamePattern.firstMatch(
+                in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count))
+                == nil
+        {
             isNameInvalid = true
         } else {
             isNameInvalid = false

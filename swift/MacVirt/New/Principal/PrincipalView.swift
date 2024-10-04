@@ -5,8 +5,8 @@
 //  Created by Andrew Zheng on 12/1/23.
 //
 
-import SwiftUI
 import Defaults
+import SwiftUI
 
 class PrincipalViewController: NSViewController {
     var onTabChange: ((NavTabId) -> Void)?

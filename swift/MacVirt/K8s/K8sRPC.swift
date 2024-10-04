@@ -208,7 +208,7 @@ struct K8SPodStatus: Codable, Equatable, Hashable {
     let phase: String
     let hostIP: String?
     let podIP: String?
-    let podIPs: [K8SPodIP]? // v6
+    let podIPs: [K8SPodIP]?  // v6
     let startTime: Date?
     let containerStatuses: [K8SContainerStatus]?
     let ephemeralContainerStatuses: [K8SContainerStatus]?
@@ -311,7 +311,8 @@ struct K8SService: K8SResource, Codable, Equatable, Hashable {
     }
 
     func wrapURL(host _: String) -> String? {
-        let tcpPort = spec.ports?.first(where: { $0.match(proto: "TCP", port: 443, name: "https") })
+        let tcpPort =
+            spec.ports?.first(where: { $0.match(proto: "TCP", port: 443, name: "https") })
             ?? spec.ports?.first(where: { $0.match(proto: "TCP", port: 80, name: "http") })
         guard let tcpPort else { return nil }
 
@@ -341,9 +342,9 @@ struct K8SService: K8SResource, Codable, Equatable, Hashable {
 
     var isWebService: Bool {
         spec.ports?.contains { port in
-            port.proto == "TCP" &&
-                (port.match(proto: "TCP", port: 443, name: "https") ||
-                    port.match(proto: "TCP", port: 80, name: "http"))
+            port.proto == "TCP"
+                && (port.match(proto: "TCP", port: 443, name: "https")
+                    || port.match(proto: "TCP", port: 80, name: "http"))
         } ?? false
     }
 
@@ -403,9 +404,8 @@ struct K8SServicePort: Codable, Equatable, Hashable, Identifiable {
     }
 
     func match(proto: String, port: Int, name: String) -> Bool {
-        self.proto == proto &&
-            (self.port == port || nodePort == port ||
-                appProtocol == name || self.name == name)
+        self.proto == proto
+            && (self.port == port || nodePort == port || appProtocol == name || self.name == name)
     }
 
     enum CodingKeys: String, CodingKey {

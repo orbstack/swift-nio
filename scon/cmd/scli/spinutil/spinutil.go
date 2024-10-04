@@ -1,4 +1,3 @@
-
 package spinutil
 
 import (

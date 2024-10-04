@@ -27,8 +27,9 @@ struct HelperToolInfoPlist: Decodable {
     /// An immutable in memory representation of the property list by attempting to read it from the helper tool.
     static var main: HelperToolInfoPlist {
         get throws {
-            try PropertyListDecoder().decode(HelperToolInfoPlist.self,
-                                             from: EmbeddedPropertyListReader.info.readInternal())
+            try PropertyListDecoder().decode(
+                HelperToolInfoPlist.self,
+                from: EmbeddedPropertyListReader.info.readInternal())
         }
     }
 
@@ -36,7 +37,8 @@ struct HelperToolInfoPlist: Decodable {
     ///
     /// - Parameter url: Location of the helper tool on disk.
     init(from url: URL) throws {
-        self = try PropertyListDecoder().decode(HelperToolInfoPlist.self,
-                                                from: EmbeddedPropertyListReader.info.readExternal(from: url))
+        self = try PropertyListDecoder().decode(
+            HelperToolInfoPlist.self,
+            from: EmbeddedPropertyListReader.info.readExternal(from: url))
     }
 }

@@ -62,9 +62,10 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
             // WA: crash on macOS 12 without nested HStack
             HStack {
                 if let urlStr = service.wrapURL(host: service.preferredDomain) {
-                    ProgressIconButton(systemImage: "link",
-                                       actionInProgress: false)
-                    {
+                    ProgressIconButton(
+                        systemImage: "link",
+                        actionInProgress: false
+                    ) {
                         if let url = URL(string: urlStr) {
                             NSWorkspace.shared.open(url)
                         }
@@ -72,9 +73,10 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                     .help("Open in Browser")
                 }
 
-                ProgressIconButton(systemImage: "trash.fill",
-                                   actionInProgress: actionInProgress == .delete)
-                {
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress == .delete
+                ) {
                     finishDelete()
                 }
                 .disabled(actionInProgress != nil)
@@ -100,14 +102,15 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
             Group {
                 Button(action: {
                     if let urlStr = service.wrapURL(host: service.preferredDomain),
-                       let url = URL(string: urlStr)
+                        let url = URL(string: urlStr)
                     {
                         NSWorkspace.shared.open(url)
                     }
                 }) {
                     Label("Open in Browser", systemImage: "")
                 }
-                .disabled(!(service.canOpen && (service.hasLocalhost || vmModel.netBridgeAvailable)))
+                .disabled(
+                    !(service.canOpen && (service.hasLocalhost || vmModel.netBridgeAvailable)))
             }
 
             Divider()
@@ -121,8 +124,9 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                     }
 
                     Button(action: {
-                        NSPasteboard.copy(service.wrapURL(host: service.preferredDomain) ??
-                            service.preferredDomainAndPort)
+                        NSPasteboard.copy(
+                            service.wrapURL(host: service.preferredDomain)
+                                ?? service.preferredDomainAndPort)
                     }) {
                         Label("Domain", systemImage: "")
                     }.disabled(vmModel.config?.networkBridge == false)

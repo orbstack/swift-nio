@@ -57,8 +57,14 @@ private struct ModeButton: View {
             }
             .padding(16)
             .frame(width: 175, height: 175)
-            .background(Color.primary.opacity(hoverOpacity * 0.025), in: RoundedRectangle(cornerRadius: Self.radius))
-            .background(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5), in: RoundedRectangle(cornerRadius: Self.radius))
+            .background(
+                Color.primary.opacity(hoverOpacity * 0.025),
+                in: RoundedRectangle(cornerRadius: Self.radius)
+            )
+            .background(
+                Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5),
+                in: RoundedRectangle(cornerRadius: Self.radius)
+            )
             .cornerRadius(Self.radius)
             /* .overlay(
                  RoundedRectangle(cornerRadius: Self.radius)

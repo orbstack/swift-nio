@@ -6,7 +6,7 @@ import Defaults
 import Foundation
 
 private let relativeDateFormatter = RelativeDateTimeFormatter()
-private let nowTimeThreshold: TimeInterval = 5 // sec
+private let nowTimeThreshold: TimeInterval = 5  // sec
 
 struct IDRequest: Codable {
     let id: String
@@ -72,7 +72,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
     var userName: String {
         // prefer compose service label first (because we'll be grouped if it's compose)
         if let k8sType = labels?[DockerLabels.k8sType],
-           let k8sPodName = labels?[DockerLabels.k8sPodName]
+            let k8sPodName = labels?[DockerLabels.k8sPodName]
         {
             return "\(k8sPodName) (\(k8sType))"
         } else if let composeService {
@@ -125,7 +125,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
         }
 
         if let label = labels?[DockerLabels.customDomains],
-           let _domain = label.split(separator: ",").first
+            let _domain = label.split(separator: ",").first
         {
             // remove wildcard
             let domain = String(_domain)
@@ -135,7 +135,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
             return String(domain.deletingPrefix("*."))
                 .replacingOccurrences(of: "_", with: "-")
         } else if let project = composeProject,
-                  let service = composeService
+            let service = composeService
         {
             var optNum = ""
             if let composeNumber, composeNumber != "1" {

@@ -63,13 +63,14 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
     private var autosaveName: String? = nil
 
     // hierarchical OR flat, with sections, multiple selection
-    init(_ sections: [AKSection<Item>],
-         selection: Binding<Set<Item.ID>>,
-         rowHeight: CGFloat? = nil,
-         flat: Bool = true,
-         autosaveName: String? = nil,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
-    {
+    init(
+        _ sections: [AKSection<Item>],
+        selection: Binding<Set<Item.ID>>,
+        rowHeight: CGFloat? = nil,
+        flat: Bool = true,
+        autosaveName: String? = nil,
+        @ViewBuilder makeRowView: @escaping (Item) -> ItemView
+    ) {
         self.sections = sections
         _selection = selection
         self.rowHeight = rowHeight
@@ -79,31 +80,34 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
     }
 
     var body: some View {
-        AKTreeListImpl(envModel: envModel,
-                       sections: sections,
-                       rowHeight: rowHeight,
-                       singleSelection: singleSelection,
-                       isFlat: flat,
-                       autosaveName: autosaveName,
-                       makeRowView: makeRowView)
-            // fix toolbar color and blur (fullSizeContentView)
-            .ignoresSafeArea()
-            .onReceive(envModel.$selection) { selection in
-                self.selection = selection as! Set<Item.ID>
-            }
+        AKTreeListImpl(
+            envModel: envModel,
+            sections: sections,
+            rowHeight: rowHeight,
+            singleSelection: singleSelection,
+            isFlat: flat,
+            autosaveName: autosaveName,
+            makeRowView: makeRowView
+        )
+        // fix toolbar color and blur (fullSizeContentView)
+        .ignoresSafeArea()
+        .onReceive(envModel.$selection) { selection in
+            self.selection = selection as! Set<Item.ID>
+        }
     }
 }
 
 // structs can't have convenience init, so use an extension
 extension AKList {
     // hierarchical OR flat, with sections, single selection
-    init(_ sections: [AKSection<Item>],
-         selection singleBinding: Binding<Item.ID?>,
-         rowHeight: CGFloat? = nil,
-         flat: Bool = true,
-         autosaveName: String? = nil,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
-    {
+    init(
+        _ sections: [AKSection<Item>],
+        selection singleBinding: Binding<Item.ID?>,
+        rowHeight: CGFloat? = nil,
+        flat: Bool = true,
+        autosaveName: String? = nil,
+        @ViewBuilder makeRowView: @escaping (Item) -> ItemView
+    ) {
         let selBinding = Binding<Set<Item.ID>>(
             get: {
                 if let id = singleBinding.wrappedValue {
@@ -116,45 +120,50 @@ extension AKList {
                 singleBinding.wrappedValue = $0.first
             }
         )
-        self.init(sections,
-                  selection: selBinding,
-                  rowHeight: rowHeight,
-                  flat: flat,
-                  autosaveName: autosaveName,
-                  makeRowView: makeRowView)
+        self.init(
+            sections,
+            selection: selBinding,
+            rowHeight: rowHeight,
+            flat: flat,
+            autosaveName: autosaveName,
+            makeRowView: makeRowView)
         singleSelection = true
     }
 
     // hierarchical OR flat, no sections, multiple selection
-    init(_ items: [Item],
-         selection: Binding<Set<Item.ID>>,
-         rowHeight: CGFloat? = nil,
-         flat: Bool = true,
-         autosaveName: String? = nil,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
-    {
-        self.init(AKSection.single(items),
-                  selection: selection,
-                  rowHeight: rowHeight,
-                  flat: flat,
-                  autosaveName: autosaveName,
-                  makeRowView: makeRowView)
+    init(
+        _ items: [Item],
+        selection: Binding<Set<Item.ID>>,
+        rowHeight: CGFloat? = nil,
+        flat: Bool = true,
+        autosaveName: String? = nil,
+        @ViewBuilder makeRowView: @escaping (Item) -> ItemView
+    ) {
+        self.init(
+            AKSection.single(items),
+            selection: selection,
+            rowHeight: rowHeight,
+            flat: flat,
+            autosaveName: autosaveName,
+            makeRowView: makeRowView)
     }
 
     // hierarchical OR flat, no sections, single selection
-    init(_ items: [Item],
-         selection singleBinding: Binding<Item.ID?>,
-         rowHeight: CGFloat? = nil,
-         flat: Bool = true,
-         autosaveName: String? = nil,
-         @ViewBuilder makeRowView: @escaping (Item) -> ItemView)
-    {
-        self.init(AKSection.single(items),
-                  selection: singleBinding,
-                  rowHeight: rowHeight,
-                  flat: flat,
-                  autosaveName: autosaveName,
-                  makeRowView: makeRowView)
+    init(
+        _ items: [Item],
+        selection singleBinding: Binding<Item.ID?>,
+        rowHeight: CGFloat? = nil,
+        flat: Bool = true,
+        autosaveName: String? = nil,
+        @ViewBuilder makeRowView: @escaping (Item) -> ItemView
+    ) {
+        self.init(
+            AKSection.single(items),
+            selection: singleBinding,
+            rowHeight: rowHeight,
+            flat: flat,
+            autosaveName: autosaveName,
+            makeRowView: makeRowView)
         singleSelection = true
     }
 }
@@ -175,7 +184,7 @@ private class AKOutlineView: NSOutlineView {
 
         // find the clicked view
         if targetRow != -1,
-           let view = view(atColumn: 0, row: targetRow, makeIfNecessary: false)
+            let view = view(atColumn: 0, row: targetRow, makeIfNecessary: false)
         {
             // make a fake event for its center
             let center = CGPointMake(NSMidX(view.frame), NSMidY(view.frame))
@@ -188,7 +197,7 @@ private class AKOutlineView: NSOutlineView {
                 modifierFlags: event.modifierFlags,
                 timestamp: event.timestamp,
                 windowNumber: event.windowNumber,
-                context: nil, // deprecated
+                context: nil,  // deprecated
                 eventNumber: event.eventNumber,
                 clickCount: event.clickCount,
                 pressure: event.pressure
@@ -412,7 +421,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         /*
          * delegate
          */
-        private func getOrCreateItemView(outlineView: NSOutlineView, itemId: Item.ID) -> CachedView {
+        private func getOrCreateItemView(outlineView: NSOutlineView, itemId: Item.ID) -> CachedView
+        {
             // 1. cached for ID, to preserve identity
             if let holder = viewCache[itemId] {
                 return holder
@@ -428,9 +438,10 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             // 3. make a new one
             let itemModel = AKListItemModel(itemId: itemId as AnyHashable)
             // doing .environmentObject in the SwiftUI view lets us avoid AnyView here
-            let hostedView = HostedItemView(envModel: parent.envModel,
-                                            itemModel: itemModel,
-                                            makeRowView: parent.makeRowView)
+            let hostedView = HostedItemView(
+                envModel: parent.envModel,
+                itemModel: itemModel,
+                makeRowView: parent.makeRowView)
             let nsView = AKHostingView(rootView: hostedView)
             nsView.outlineParent = (outlineView as! AKOutlineView)
 
@@ -454,7 +465,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         }
 
         // make views
-        func outlineView(_ outlineView: NSOutlineView, viewFor _: NSTableColumn?, item: Any) -> NSView? {
+        func outlineView(_ outlineView: NSOutlineView, viewFor _: NSTableColumn?, item: Any)
+            -> NSView?
+        {
             let node = item as! AKNode
             if node.type == .item {
                 let value = node.value as! Item
@@ -474,7 +487,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 // pixel-perfect match of SwiftUI default section header
                 let cellView = NSTableCellView()
                 let field = NSTextField(labelWithString: node.value as! String)
-                field.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
+                field.font = NSFont.systemFont(
+                    ofSize: NSFont.smallSystemFontSize, weight: .semibold)
                 field.textColor = .secondaryLabelColor
                 field.isEditable = false
                 cellView.addSubview(field)
@@ -511,7 +525,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
         }
 
-        func outlineView(_: NSOutlineView, typeSelectStringFor _: NSTableColumn?, item: Any) -> String? {
+        func outlineView(_: NSOutlineView, typeSelectStringFor _: NSTableColumn?, item: Any)
+            -> String?
+        {
             let item = item as! AKNode
             if item.type == .item {
                 return (item.value as! Item).textLabel
@@ -531,7 +547,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
         }
 
-        func outlineView(_ outlineView: NSOutlineView, itemForPersistentObject object: Any) -> Any? {
+        func outlineView(_ outlineView: NSOutlineView, itemForPersistentObject object: Any) -> Any?
+        {
             guard let stringId = object as? String else { return nil }
 
             // scan root nodes for matching id hashValue

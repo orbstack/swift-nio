@@ -128,13 +128,17 @@ class ActionTracker: ObservableObject {
         ongoingK8sActions[k8s] = nil
     }
 
-    func with(cid: DockerContainerId, action: DKContainerAction, _ block: () throws -> Void) rethrows {
+    func with(cid: DockerContainerId, action: DKContainerAction, _ block: () throws -> Void)
+        rethrows
+    {
         begin(cid, action: action)
         defer { end(cid) }
         try block()
     }
 
-    func with(cid: DockerContainerId, action: DKContainerAction, _ block: () async throws -> Void) async rethrows {
+    func with(cid: DockerContainerId, action: DKContainerAction, _ block: () async throws -> Void)
+        async rethrows
+    {
         begin(cid, action: action)
         defer { end(cid) }
         try await block()
@@ -146,7 +150,9 @@ class ActionTracker: ObservableObject {
         try block()
     }
 
-    func with(volumeId: String, action: DKVolumeAction, _ block: () async throws -> Void) async rethrows {
+    func with(volumeId: String, action: DKVolumeAction, _ block: () async throws -> Void)
+        async rethrows
+    {
         beginVolume(volumeId, action: action)
         defer { endVolume(volumeId) }
         try await block()
@@ -158,19 +164,24 @@ class ActionTracker: ObservableObject {
         try block()
     }
 
-    func with(imageId: String, action: DKImageAction, _ block: () async throws -> Void) async rethrows {
+    func with(imageId: String, action: DKImageAction, _ block: () async throws -> Void)
+        async rethrows
+    {
         beginImage(imageId, action: action)
         defer { endImage(imageId) }
         try await block()
     }
 
-    func with(machine: ContainerRecord, action: MachineAction, _ block: () throws -> Void) rethrows {
+    func with(machine: ContainerRecord, action: MachineAction, _ block: () throws -> Void) rethrows
+    {
         beginMachine(machine.id, action: action)
         defer { endMachine(machine.id) }
         try block()
     }
 
-    func with(machine: ContainerRecord, action: MachineAction, _ block: () async throws -> Void) async rethrows {
+    func with(machine: ContainerRecord, action: MachineAction, _ block: () async throws -> Void)
+        async rethrows
+    {
         beginMachine(machine.id, action: action)
         defer { endMachine(machine.id) }
         try await block()
@@ -182,7 +193,9 @@ class ActionTracker: ObservableObject {
         try block()
     }
 
-    func with(k8s: K8SResourceId, action: K8SResourceAction, _ block: () async throws -> Void) async rethrows {
+    func with(k8s: K8SResourceId, action: K8SResourceAction, _ block: () async throws -> Void)
+        async rethrows
+    {
         begin(k8s, action: action)
         defer { end(k8s) }
         try await block()

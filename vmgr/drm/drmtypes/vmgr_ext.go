@@ -10,5 +10,4 @@ type PersistentState struct {
 }
 
 type AppDrmMeta struct {
-	
 }

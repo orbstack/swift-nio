@@ -5,23 +5,23 @@
 //  Created by Danny Lin on 3/3/23.
 //
 
-#include <stdlib.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <sys/uio.h>
 
 struct GResultCreate {
-    void* ptr;
-    char* err;
+    void *ptr;
+    char *err;
 };
 
 struct GResultErr {
-    char* err;
+    char *err;
 };
 
 struct GResultIntErr {
     int64_t value;
-    char* err;
+    char *err;
 };
 
 struct krpc_header {
@@ -29,7 +29,7 @@ struct krpc_header {
     uint32_t typ;
 } __attribute__((packed));
 
-struct krpc_notifyproxy_inject  {
+struct krpc_notifyproxy_inject {
     uint64_t count;
 } __attribute__((packed));
 
@@ -52,10 +52,11 @@ struct two_iovecs {
 void govzf_event_Machine_deinit(uintptr_t vmHandle);
 void govzf_event_Machine_onStateChange(uintptr_t vmHandle, int state);
 
-int rsvm_network_write_packet(uintptr_t handle, const struct iovec *iovs, size_t num_iovs, size_t total_len);
+int rsvm_network_write_packet(uintptr_t handle, const struct iovec *iovs, size_t num_iovs,
+                              size_t total_len);
 
 void swext_proxy_cb_changed(void);
-void swext_fsevents_cb_krpc_events(uint8_t* krpc_buf, size_t krpc_buf_len);
+void swext_fsevents_cb_krpc_events(uint8_t *krpc_buf, size_t krpc_buf_len);
 
 void swext_net_cb_path_changed(void);
 #endif

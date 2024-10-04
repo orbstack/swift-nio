@@ -20,7 +20,7 @@ private let maxPacketsPerRead = 64
 
 // sometimes hangs for unknown reasons
 // short timeout because vmnet_start_interface already returned; just hasn't run block yet
-private let vmnetControlTimeout: TimeInterval = 8 // sec
+private let vmnetControlTimeout: TimeInterval = 8  // sec
 
 private enum VmnetError: Error {
     case generalFailure
@@ -110,7 +110,9 @@ enum GuestWriteError: Error {
     case errno(Int32)
 }
 
-private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) throws -> (interface_ref, xpc_object_t) {
+private func vmnetStartInterface(ifDesc: xpc_object_t, queue: DispatchQueue) throws -> (
+    interface_ref, xpc_object_t
+) {
     let sem = DispatchSemaphore(value: 0)
     var outIfParam: xpc_object_t?
     var outStatus: vmnet_return_t = .VMNET_FAILURE
@@ -147,8 +149,8 @@ struct BridgeNetworkConfig: Codable {
     // always /64
     let ip6Address: String?
 
-    var hostOverrideMac: [UInt8] // for vlans: template, filled in by addBridge
-    var guestMac: [UInt8] // for vlans: template, filled in by addBridge
+    var hostOverrideMac: [UInt8]  // for vlans: template, filled in by addBridge
+    var guestMac: [UInt8]  // for vlans: template, filled in by addBridge
     let ndpReplyPrefix: [UInt8]?
     let allowMulticast: Bool
 
@@ -168,13 +170,15 @@ class BridgeNetwork: NetCallbacks {
 
     init(config: BridgeNetworkConfig) throws {
         self.config = config
-        processor = PacketProcessor(hostOverrideMac: config.hostOverrideMac,
-                                    allowMulticast: config.allowMulticast,
-                                    ndpReplyPrefix: config.ndpReplyPrefix,
-                                    guestMac: config.guestMac)
+        processor = PacketProcessor(
+            hostOverrideMac: config.hostOverrideMac,
+            allowMulticast: config.allowMulticast,
+            ndpReplyPrefix: config.ndpReplyPrefix,
+            guestMac: config.guestMac)
 
         let ifDesc = xpc_dictionary_create(nil, nil, 0)
-        xpc_dictionary_set_uint64(ifDesc, vmnet_operation_mode_key, UInt64(operating_modes_t.VMNET_HOST_MODE.rawValue))
+        xpc_dictionary_set_uint64(
+            ifDesc, vmnet_operation_mode_key, UInt64(operating_modes_t.VMNET_HOST_MODE.rawValue))
         // macOS max MTU = 16384, but we use TSO instead and match VM bridge MTU
         xpc_dictionary_set_uint64(ifDesc, vmnet_mtu_key, 1500)
 
@@ -218,25 +222,29 @@ class BridgeNetwork: NetCallbacks {
         pktDescs.reserveCapacity(maxPacketsPerRead)
 
         // update iov pointers
-        for i in 0 ..< maxPacketsPerRead {
+        for i in 0..<maxPacketsPerRead {
             // allocate buf and set in iov
-            hostReadIovs[i].iov_base = UnsafeMutableRawPointer.allocate(byteCount: Int(maxPacketSize), alignment: 1)
+            hostReadIovs[i].iov_base = UnsafeMutableRawPointer.allocate(
+                byteCount: Int(maxPacketSize), alignment: 1)
             hostReadIovs[i].iov_len = Int(maxPacketSize)
 
             // set in pktDesc
-            let pktDesc = vmpktdesc(vm_pkt_size: Int(maxPacketSize),
-                                    vm_pkt_iov: hostReadIovs.advanced(by: i),
-                                    vm_pkt_iovcnt: 1,
-                                    vm_flags: 0)
+            let pktDesc = vmpktdesc(
+                vm_pkt_size: Int(maxPacketSize),
+                vm_pkt_iov: hostReadIovs.advanced(by: i),
+                vm_pkt_iovcnt: 1,
+                vm_flags: 0)
             pktDescs.append(pktDesc)
         }
 
         // must keep self ref to prevent deinit while referenced
-        let ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, vmnetPktQueue) { [self] _, _ in
+        let ret = vmnet_interface_set_event_callback(
+            ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, vmnetPktQueue
+        ) { [self] _, _ in
             // print("num packets: \(xpc_dictionary_get_uint64(event, vmnet_estimated_packets_available_key))")
 
             // read as many packets as we can
-            var pktsRead = Int32(maxPacketsPerRead) // max
+            var pktsRead = Int32(maxPacketsPerRead)  // max
             let ret = vmnet_read(ifRef, &pktDescs, &pktsRead)
             guard ret == .VMNET_SUCCESS else {
                 NSLog("[brnet] read error: \(VmnetError.from(ret))")
@@ -244,7 +252,7 @@ class BridgeNetwork: NetCallbacks {
             }
 
             // send packets to tap
-            for i in 0 ..< Int(pktsRead) {
+            for i in 0..<Int(pktsRead) {
                 let pktDesc = pktDescs[i]
 
                 // sanity: never write a packet > 65535 bytes. that breaks the network, so just drop it
@@ -277,19 +285,22 @@ class BridgeNetwork: NetCallbacks {
                     }
                     continue
                 }
-                
+
                 let totalLen = pkt.totalLen + vnetHdrSize
                 do {
                     try withUnsafeMutableBytes(of: &vnetHdr) { vnetHdrPtr in
-                        var iovs = two_iovecs(iovs: (
-                            iovec(iov_base: vnetHdrPtr.baseAddress, iov_len: vnetHdrSize),
-                            iovec(iov_base: pkt.data, iov_len: pkt.accessibleLen)
-                        ))
+                        var iovs = two_iovecs(
+                            iovs: (
+                                iovec(iov_base: vnetHdrPtr.baseAddress, iov_len: vnetHdrSize),
+                                iovec(iov_base: pkt.data, iov_len: pkt.accessibleLen)
+                            ))
                         // we only create 1-iovec packet buffers here
                         assert(pkt.accessibleLen == pkt.totalLen)
                         try withUnsafeMutablePointer(to: &iovs.iovs) { iovsPtr in
                             try iovsPtr.withMemoryRebound(to: iovec.self, capacity: 2) { iovsPtr in
-                                try self.writeToGuest(handle: guestHandle, iovs: iovsPtr, numIovs: 2, totalLen: totalLen)
+                                try self.writeToGuest(
+                                    handle: guestHandle, iovs: iovsPtr, numIovs: 2,
+                                    totalLen: totalLen)
                             }
                         }
                     }
@@ -311,7 +322,7 @@ class BridgeNetwork: NetCallbacks {
             }
 
             // reset descs
-            for i in 0 ..< Int(pktsRead) {
+            for i in 0..<Int(pktsRead) {
                 pktDescs[i].vm_pkt_size = Int(maxPacketSize)
                 pktDescs[i].vm_pkt_iovcnt = 1
                 pktDescs[i].vm_flags = 0
@@ -319,7 +330,7 @@ class BridgeNetwork: NetCallbacks {
         }
         guard ret == .VMNET_SUCCESS else {
             // dealloc
-            for i in 0 ..< maxPacketsPerRead {
+            for i in 0..<maxPacketsPerRead {
                 hostReadIovs[i].iov_base?.deallocate()
             }
             hostReadIovs.deallocate()
@@ -334,10 +345,11 @@ class BridgeNetwork: NetCallbacks {
             case .rsvm:
                 NetworkHandles.setCallbacks(index: NetworkHandles.handleSconBridge, cb: self)
             case .fd(let fd):
-                guestReader = GuestReader(guestFd: fd, maxPacketSize: maxPacketSize,
-                                        onPacket: { [self] iovs, numIovs, len in
-                                            _ = writePacket(iovs: iovs, numIovs: numIovs, len: len)
-                                        })
+                guestReader = GuestReader(
+                    guestFd: fd, maxPacketSize: maxPacketSize,
+                    onPacket: { [self] iovs, numIovs, len in
+                        _ = writePacket(iovs: iovs, numIovs: numIovs, len: len)
+                    })
             }
         }
     }
@@ -354,11 +366,12 @@ class BridgeNetwork: NetCallbacks {
         }
 
         // write to vmnet
-        var pktDesc = vmpktdesc(vm_pkt_size: len,
-                                // shouldn't be written
-                                vm_pkt_iov: UnsafeMutablePointer(mutating: iovs),
-                                vm_pkt_iovcnt: UInt32(numIovs),
-                                vm_flags: 0)
+        var pktDesc = vmpktdesc(
+            vm_pkt_size: len,
+            // shouldn't be written
+            vm_pkt_iov: UnsafeMutablePointer(mutating: iovs),
+            vm_pkt_iovcnt: UInt32(numIovs),
+            vm_flags: 0)
         var pktsWritten: Int32 = 1
         let ret2 = vmnet_write(ifRef, &pktDesc, &pktsWritten)
         guard ret2 == .VMNET_SUCCESS else {
@@ -378,13 +391,16 @@ class BridgeNetwork: NetCallbacks {
         return 0
     }
 
-    func writeToGuest(handle: NetHandle, iovs: UnsafePointer<iovec>, numIovs: Int, totalLen: Int) throws {
-        let ret = switch handle {
-        case .rsvm(let handle):
-            rsvm_network_write_packet(handle, iovs, numIovs, totalLen)
-        case .fd(let fd):
-            writev(fd, iovs, Int32(numIovs)) == -1 ? -errno : 0
-        }
+    func writeToGuest(handle: NetHandle, iovs: UnsafePointer<iovec>, numIovs: Int, totalLen: Int)
+        throws
+    {
+        let ret =
+            switch handle {
+            case .rsvm(let handle):
+                rsvm_network_write_packet(handle, iovs, numIovs, totalLen)
+            case .fd(let fd):
+                writev(fd, iovs, Int32(numIovs)) == -1 ? -errno : 0
+            }
 
         guard ret >= 0 else {
             switch ret {
@@ -411,7 +427,8 @@ class BridgeNetwork: NetCallbacks {
         if let guestReader {
             guestReader.close()
         }
-        var ret = vmnet_interface_set_event_callback(ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, nil, nil)
+        var ret = vmnet_interface_set_event_callback(
+            ifRef, .VMNET_INTERFACE_PACKETS_AVAILABLE, nil, nil)
         if ret != .VMNET_SUCCESS {
             NSLog("[brnet] remove callback error: \(VmnetError.from(ret))")
         }
@@ -441,7 +458,7 @@ class BridgeNetwork: NetCallbacks {
     deinit {
         // guestReader will get deinited too
         // safe to deallocate now that refs from callbacks are gone
-        for i in 0 ..< maxPacketsPerRead {
+        for i in 0..<maxPacketsPerRead {
             hostReadIovs[i].iov_base.deallocate()
         }
         hostReadIovs.deallocate()

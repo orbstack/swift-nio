@@ -109,7 +109,8 @@ struct FeedbackView: View {
                     Task {
                         sendInProgress = true
                         do {
-                            try await feedbackModel.apiClient.sendFeedback(text: feedbackText, email: email)
+                            try await feedbackModel.apiClient.sendFeedback(
+                                text: feedbackText, email: email)
                             windowHolder.window?.close()
                         } catch {
                             sendError = error
@@ -118,7 +119,8 @@ struct FeedbackView: View {
                     }
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(feedbackText.count < 5 || feedbackText.count > charLimit || sendInProgress)
+                .disabled(
+                    feedbackText.count < 5 || feedbackText.count > charLimit || sendInProgress)
             }
         }
         .background(WindowAccessor(holder: windowHolder))

@@ -8,10 +8,10 @@ import Foundation
 
 private let client = PHClient()
 
-private let maxAdminDismissCount = 2 // auto-disable
+private let maxAdminDismissCount = 2  // auto-disable
 
 private enum PHFFIError: Error {
-    case canceledAndReachedMaxDismissCount // name exposed to FFI
+    case canceledAndReachedMaxDismissCount  // name exposed to FFI
 }
 
 @_cdecl("swext_privhelper_set_install_reason")
@@ -21,7 +21,8 @@ func swext_privhelper_set_install_reason(reasonC: UnsafePointer<CChar>) {
 }
 
 @_cdecl("swext_privhelper_symlink")
-func swext_privhelper_symlink(srcC: UnsafePointer<CChar>, destC: UnsafePointer<CChar>) -> GResultErr {
+func swext_privhelper_symlink(srcC: UnsafePointer<CChar>, destC: UnsafePointer<CChar>) -> GResultErr
+{
     let src = String(cString: srcC)
     let dest = String(cString: destC)
     NSLog("symlink: \(src) -> \(dest)")

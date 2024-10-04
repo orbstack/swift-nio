@@ -2,9 +2,9 @@
 // Created by Danny Lin on 3/7/24.
 //
 
+import AppKit
 import Foundation
 import SwiftUI
-import AppKit
 
 private let MAX_INLINE_DESC_CHARS = 500
 
@@ -99,14 +99,16 @@ struct AKAlertContent {
     var button2Label: String? = nil
     var button2Action: (() -> Void)? = nil
 
-    init(title: String,
-         desc: String? = nil,
-         scrollableText: Bool = false,
-         style: NSAlert.Style = .warning,
-         button1Label: String? = nil,
-         button1Action: (() -> Void)? = nil,
-         button2Label: String? = nil,
-         button2Action: (() -> Void)? = nil) {
+    init(
+        title: String,
+        desc: String? = nil,
+        scrollableText: Bool = false,
+        style: NSAlert.Style = .warning,
+        button1Label: String? = nil,
+        button1Action: (() -> Void)? = nil,
+        button2Label: String? = nil,
+        button2Action: (() -> Void)? = nil
+    ) {
         self.title = title
         self.desc = desc
         // always use scrollable if text is too long
@@ -118,7 +120,7 @@ struct AKAlertContent {
         self.button2Action = button2Action
     }
 
-    mutating func addButton(_ title: String, _ action: @escaping () -> Void = { }) {
+    mutating func addButton(_ title: String, _ action: @escaping () -> Void = {}) {
         if button1Label == nil {
             button1Label = title
         } else if button2Label == nil {
@@ -133,47 +135,56 @@ struct AKAlertContent {
 }
 
 extension View {
-    func akAlert<T: Equatable>(presentedValue: Binding<T?>,
-                 contentBuilder: @escaping (T) -> AKAlertContent) -> some View {
+    func akAlert<T: Equatable>(
+        presentedValue: Binding<T?>,
+        contentBuilder: @escaping (T) -> AKAlertContent
+    ) -> some View {
         self.modifier(AKAlert(presentedData: presentedValue, contentBuilder: contentBuilder))
     }
 
-    func akAlert(_ title: String,
-                 isPresented: Binding<Bool>,
-                 desc: (() -> String)? = nil,
-                 scrollableText: Bool = false,
-                 button1Label: String? = nil,
-                 button1Action: (() -> Void)? = nil,
-                 button2Label: String? = nil,
-                 button2Action: (() -> Void)? = nil) -> some View {
-        let binding = Binding<Bool?>(get: { isPresented.wrappedValue ? true : nil },
-                                      set: { isPresented.wrappedValue = $0 != nil })
+    func akAlert(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        desc: (() -> String)? = nil,
+        scrollableText: Bool = false,
+        button1Label: String? = nil,
+        button1Action: (() -> Void)? = nil,
+        button2Label: String? = nil,
+        button2Action: (() -> Void)? = nil
+    ) -> some View {
+        let binding = Binding<Bool?>(
+            get: { isPresented.wrappedValue ? true : nil },
+            set: { isPresented.wrappedValue = $0 != nil })
         return self.akAlert(presentedValue: binding) { _ in
-            AKAlertContent(title: title,
-                           desc: desc?(),
-                           scrollableText: scrollableText,
-                           button1Label: button1Label,
-                           button1Action: button1Action,
-                           button2Label: button2Label,
-                           button2Action: button2Action)
+            AKAlertContent(
+                title: title,
+                desc: desc?(),
+                scrollableText: scrollableText,
+                button1Label: button1Label,
+                button1Action: button1Action,
+                button2Label: button2Label,
+                button2Action: button2Action)
         }
     }
 
-    func akAlert(_ title: String,
-                 isPresented: Binding<Bool>,
-                 desc: String? = nil,
-                 scrollableText: Bool = false,
-                 button1Label: String? = nil,
-                 button1Action: (() -> Void)? = nil,
-                 button2Label: String? = nil,
-                 button2Action: (() -> Void)? = nil) -> some View {
-        self.akAlert(title,
-                     isPresented: isPresented,
-                     desc: desc == nil ? nil : { desc! },
-                     scrollableText: scrollableText,
-                     button1Label: button1Label,
-                     button1Action: button1Action,
-                     button2Label: button2Label,
-                     button2Action: button2Action)
+    func akAlert(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        desc: String? = nil,
+        scrollableText: Bool = false,
+        button1Label: String? = nil,
+        button1Action: (() -> Void)? = nil,
+        button2Label: String? = nil,
+        button2Action: (() -> Void)? = nil
+    ) -> some View {
+        self.akAlert(
+            title,
+            isPresented: isPresented,
+            desc: desc == nil ? nil : { desc! },
+            scrollableText: scrollableText,
+            button1Label: button1Label,
+            button1Action: button1Action,
+            button2Label: button2Label,
+            button2Action: button2Action)
     }
 }

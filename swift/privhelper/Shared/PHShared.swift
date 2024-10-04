@@ -17,7 +17,8 @@ enum PHShared {
     // lazy init
     // = bundle ID = signing ID = binary name = XPC service name
     static let helperID = "dev.orbstack.OrbStack.privhelper"
-    static let bundledURL = URL(fileURLWithPath: "\(Bundle.main.bundlePath)/Contents/Library/LaunchServices/\(helperID)")
+    static let bundledURL = URL(
+        fileURLWithPath: "\(Bundle.main.bundlePath)/Contents/Library/LaunchServices/\(helperID)")
     static let installedURL = URL(fileURLWithPath: "/Library/PrivilegedHelperTools/\(helperID)")
     static let installedPlistURL = URL(fileURLWithPath: "/Library/LaunchDaemons/\(helperID).plist")
 }
@@ -33,7 +34,7 @@ enum PHSymlinkError: Error, Codable {
 }
 
 enum PHError: Error, Codable {
-    case canceled // name exposed to FFI
+    case canceled  // name exposed to FFI
 }
 
 struct PHUpdateRequest: Codable {

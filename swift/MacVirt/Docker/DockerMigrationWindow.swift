@@ -19,7 +19,9 @@ private class MigrationViewModel: ObservableObject {
             var exitStatus = -1
             defer {
                 if done && !errors.isEmpty {
-                    SentrySDK.capture(error: VmError.dockerMigrationError(status: exitStatus, output: errors.joined(separator: "\n")))
+                    SentrySDK.capture(
+                        error: VmError.dockerMigrationError(
+                            status: exitStatus, output: errors.joined(separator: "\n")))
                 }
             }
 
@@ -50,7 +52,9 @@ private class MigrationViewModel: ObservableObject {
                 for try await line in pipe.fileHandleForReading.bytes.lines {
                     print("[Migration] \(line)")
                     // failed to parse lines = error
-                    if let json = try? JSONSerialization.jsonObject(with: line.data(using: .utf8)!, options: []) as? [String: Any] {
+                    if let json = try? JSONSerialization.jsonObject(
+                        with: line.data(using: .utf8)!, options: []) as? [String: Any]
+                    {
                         let level = json["level"] as? String ?? ""
                         let msg = json["msg"] as? String ?? ""
                         if let progress = json["progress"] as? Double {
@@ -59,7 +63,9 @@ private class MigrationViewModel: ObservableObject {
                             entityMigrationStarted = true
 
                             // try to refocus us and hide docker desktop window
-                            if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.electron.dockerdesktop").first {
+                            if let runningApp = NSRunningApplication.runningApplications(
+                                withBundleIdentifier: "com.electron.dockerdesktop"
+                            ).first {
                                 runningApp.hide()
                             }
                             NSApp.activate(ignoringOtherApps: true)
@@ -104,8 +110,8 @@ struct DockerMigrationWindow: View {
             }
 
             if vmModel.dockerContainers?.isEmpty ?? true,
-               vmModel.dockerImages?.isEmpty ?? true,
-               vmModel.dockerVolumes?.isEmpty ?? true
+                vmModel.dockerImages?.isEmpty ?? true,
+                vmModel.dockerVolumes?.isEmpty ?? true
             {
                 // empty = OK to start
                 model.start()
@@ -133,27 +139,33 @@ struct DockerMigrationWindow: View {
                 }
             }
         }
-        .akAlert(model.entityMigrationStarted ? "Some data couldn’t be migrated" : "Failed to start migration",
-               isPresented: $presentErrors,
-                desc: { truncateError(description: model.errors.joined(separator: "\n")) },
-                button1Label: "OK",
-                button1Action: {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        windowHolder.window?.close()
-                    }
-                })
-        .akAlert("Replace existing data?", isPresented: $presentConfirmExisting,
-                desc: "You already have Docker containers, volumes, or images in OrbStack. Migrating data from Docker Desktop may lead to unexpected results.",
-                button1Label: "Migrate",
-                button1Action: {
-                    model.start()
-                },
-                button2Label: "Cancel",
-                button2Action: {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        windowHolder.window?.close()
-                    }
-                })
+        .akAlert(
+            model.entityMigrationStarted
+                ? "Some data couldn’t be migrated" : "Failed to start migration",
+            isPresented: $presentErrors,
+            desc: { truncateError(description: model.errors.joined(separator: "\n")) },
+            button1Label: "OK",
+            button1Action: {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    windowHolder.window?.close()
+                }
+            }
+        )
+        .akAlert(
+            "Replace existing data?", isPresented: $presentConfirmExisting,
+            desc:
+                "You already have Docker containers, volumes, or images in OrbStack. Migrating data from Docker Desktop may lead to unexpected results.",
+            button1Label: "Migrate",
+            button1Action: {
+                model.start()
+            },
+            button2Label: "Cancel",
+            button2Action: {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    windowHolder.window?.close()
+                }
+            }
+        )
         .frame(width: 450)
     }
 }

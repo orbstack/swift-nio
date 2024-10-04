@@ -28,8 +28,9 @@ struct MachineSettingsView: View {
                 #if arch(arm64)
                     Group {
                         if #available(macOS 13, *) {
-                            Toggle("Use Rosetta to run Intel code",
-                                   isOn: vmModel.bindingForConfig(\.rosetta, state: $enableRosetta))
+                            Toggle(
+                                "Use Rosetta to run Intel code",
+                                isOn: vmModel.bindingForConfig(\.rosetta, state: $enableRosetta))
 
                             Text("Faster. Only disable if you run into compatibility issues.")
                                 .font(.subheadline)
@@ -55,7 +56,7 @@ struct MachineSettingsView: View {
                     let maxMemoryMib = max(systemMemMib * 80 / 100, systemMemMib - 4096)
 
                     let memoryMibBinding = vmModel.bindingForConfig(\.memoryMib, state: $memoryMib)
-                    Slider(value: memoryMibBinding, in: 1024 ... maxMemoryMib, step: 1024) {
+                    Slider(value: memoryMibBinding, in: 1024...maxMemoryMib, step: 1024) {
                         VStack(alignment: .trailing) {
                             Text("Memory limit")
                             Text("\(memoryMibBinding.wrappedValue / 1024) GiB")
@@ -71,7 +72,7 @@ struct MachineSettingsView: View {
                     let maxCpu = UInt(ProcessInfo.processInfo.processorCount)
 
                     let cpuBinding = vmModel.bindingForConfig(\.cpu, state: $cpu)
-                    Slider(value: cpuBinding, in: 1 ... maxCpu, step: 1) {
+                    Slider(value: cpuBinding, in: 1...maxCpu, step: 1) {
                         VStack(alignment: .trailing) {
                             Text("CPU limit")
                             let curCpu = cpuBinding.wrappedValue
@@ -86,16 +87,19 @@ struct MachineSettingsView: View {
                         Text("None")
                     }
 
-                    Text("Resources are used on demand, up to these limits. [Learn more](https://go.orbstack.dev/res-limits)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    Text(
+                        "Resources are used on demand, up to these limits. [Learn more](https://go.orbstack.dev/res-limits)"
+                    )
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
                 }
 
                 Spacer()
                     .frame(height: 32)
 
-                Toggle("Switch Docker & Kubernetes context automatically",
-                       isOn: vmModel.bindingForConfig(\.dockerSetContext, state: $dockerSetContext))
+                Toggle(
+                    "Switch Docker & Kubernetes context automatically",
+                    isOn: vmModel.bindingForConfig(\.dockerSetContext, state: $dockerSetContext))
 
                 let adminBinding = Binding<Bool>(
                     get: { Users.hasAdmin && setupUseAdmin },
@@ -111,10 +115,12 @@ struct MachineSettingsView: View {
                 )
 
                 Toggle("Use admin privileges for enhanced features", isOn: adminBinding)
-                    .disabled(!Users.hasAdmin) // disabled + false if no admin
-                Text("This can improve performance and compatibility. [Learn more](https://go.orbstack.dev/admin)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .disabled(!Users.hasAdmin)  // disabled + false if no admin
+                Text(
+                    "This can improve performance and compatibility. [Learn more](https://go.orbstack.dev/admin)"
+                )
+                .font(.subheadline)
+                .foregroundColor(.secondary)
 
                 Spacer()
                     .frame(height: 32)
@@ -143,15 +149,16 @@ struct MachineSettingsView: View {
         }
         .padding()
         .background(WindowAccessor(holder: windowHolder))
-        .akAlert("Disable privileged features?", isPresented: $presentDisableAdmin,
-                desc: """
-                      This will disable performance improvements, better Docker compatibility, and potentially more features in the future.
+        .akAlert(
+            "Disable privileged features?", isPresented: $presentDisableAdmin,
+            desc: """
+                This will disable performance improvements, better Docker compatibility, and potentially more features in the future.
 
-                      We recommend keeping this on.
-                      """,
-                button1Label: "Disable",
-                button1Action: { vmModel.trySetConfigKey(\.setupUseAdmin, false) },
-                button2Label: "Cancel")
+                We recommend keeping this on.
+                """,
+            button1Label: "Disable",
+            button1Action: { vmModel.trySetConfigKey(\.setupUseAdmin, false) },
+            button2Label: "Cancel")
     }
 
     private func updateFrom(_ config: VmConfig) {

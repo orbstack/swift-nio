@@ -3,7 +3,7 @@ use std::{
     mem::size_of,
 };
 
-use anyhow::{Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]

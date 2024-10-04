@@ -1,5 +1,6 @@
-@testable import GoVZF
 import XCTest
+
+@testable import GoVZF
 
 final class GoVZFTests: XCTestCase {
     func testExample() throws {

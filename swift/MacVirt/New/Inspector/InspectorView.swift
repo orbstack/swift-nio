@@ -31,11 +31,12 @@ private struct InspectorSelectionList<Item: Identifiable, ID: Hashable, Content:
     private let key: KeyPath<Item, ID>
     @ViewBuilder private let content: (Item) -> Content
 
-    init(_ items: [Item]?,
-         key: KeyPath<Item, ID>,
-         selection: Set<AnyHashable>,
-         @ViewBuilder content: @escaping (Item) -> Content)
-    {
+    init(
+        _ items: [Item]?,
+        key: KeyPath<Item, ID>,
+        selection: Set<AnyHashable>,
+        @ViewBuilder content: @escaping (Item) -> Content
+    ) {
         self.items = items
         self.key = key
         self.selection = selection
@@ -77,7 +78,7 @@ struct InspectorView: View {
                     // empty, or selections not in data source
                     ContentUnavailableViewCompat("No Selection")
                 } else if selection.count == 1,
-                          let selItem = selection.first as? DockerContainerId
+                    let selItem = selection.first as? DockerContainerId
                 {
                     // single selection
                     ScrollView {
@@ -100,23 +101,33 @@ struct InspectorView: View {
                     ContentUnavailableViewCompat("\(selection.count) Selected")
                 }
             case .dockerVolumes:
-                InspectorSelectionList(model.dockerVolumes, key: \.id, selection: navModel.inspectorSelection) {
+                InspectorSelectionList(
+                    model.dockerVolumes, key: \.id, selection: navModel.inspectorSelection
+                ) {
                     DockerVolumeDetails(volume: $0)
                 }
             case .dockerImages:
-                InspectorSelectionList(model.dockerImages, key: \.id, selection: navModel.inspectorSelection) {
+                InspectorSelectionList(
+                    model.dockerImages, key: \.id, selection: navModel.inspectorSelection
+                ) {
                     DockerImageDetails(image: $0)
                 }
             case .k8sPods:
-                InspectorSelectionList(model.k8sPods, key: \.id, selection: navModel.inspectorSelection) {
+                InspectorSelectionList(
+                    model.k8sPods, key: \.id, selection: navModel.inspectorSelection
+                ) {
                     K8SPodDetails(pod: $0)
                 }
             case .k8sServices:
-                InspectorSelectionList(model.k8sServices, key: \.id, selection: navModel.inspectorSelection) {
+                InspectorSelectionList(
+                    model.k8sServices, key: \.id, selection: navModel.inspectorSelection
+                ) {
                     K8SServiceDetails(service: $0)
                 }
             case .machines:
-                InspectorSelectionList(model.containers, key: \.id, selection: navModel.inspectorSelection) {
+                InspectorSelectionList(
+                    model.containers, key: \.id, selection: navModel.inspectorSelection
+                ) {
                     MachineDetails(record: $0)
                 }
             default:

@@ -50,8 +50,9 @@ struct StorageSettingsView: View {
                     }
                 }
 
-                Toggle("Hide OrbStack volume (shared Docker & Linux files)",
-                       isOn: vmModel.bindingForConfig(\.mountHideShared, state: $mountHideShared))
+                Toggle(
+                    "Hide OrbStack volume (shared Docker & Linux files)",
+                    isOn: vmModel.bindingForConfig(\.mountHideShared, state: $mountHideShared))
 
                 Spacer()
                     .frame(height: 32)
@@ -69,8 +70,9 @@ struct StorageSettingsView: View {
                     }
                 }
                 .frame(maxWidth: 256)
-                Toggle("Include data in Time Machine backups",
-                       isOn: vmModel.bindingForConfig(\.dataAllowBackup, state: $dataAllowBackup))
+                Toggle(
+                    "Include data in Time Machine backups",
+                    isOn: vmModel.bindingForConfig(\.dataAllowBackup, state: $dataAllowBackup))
 
                 Spacer()
                     .frame(height: 32)
@@ -112,39 +114,52 @@ struct StorageSettingsView: View {
                 }
             }
         }
-        .akAlert("Reset Docker data?", isPresented: $presentConfirmResetDockerData,
-                desc: "All Docker containers, images, volumes, and other data will be permanently lost.\n\nKubernetes data will also be deleted.",
-                button1Label: "Reset",
-                button1Action: {
-                    Task {
-                        if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
-                            await vmModel.tryDeleteContainer(dockerRecord)
-                            await vmModel.tryStartContainer(dockerRecord)
-                        }
+        .akAlert(
+            "Reset Docker data?", isPresented: $presentConfirmResetDockerData,
+            desc:
+                "All Docker containers, images, volumes, and other data will be permanently lost.\n\nKubernetes data will also be deleted.",
+            button1Label: "Reset",
+            button1Action: {
+                Task {
+                    if let dockerRecord = vmModel.containers?.first(where: {
+                        $0.id == ContainerIds.docker
+                    }) {
+                        await vmModel.tryDeleteContainer(dockerRecord)
+                        await vmModel.tryStartContainer(dockerRecord)
                     }
-                },
-                button2Label: "Cancel")
-        .akAlert("Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData,
-                desc: "All Kubernetes deployments, pods, services, and other data will be permanently lost.",
-                button1Label: "Reset",
-                button1Action: {
-                    Task {
-                        if let dockerRecord = vmModel.containers?.first(where: { $0.id == ContainerIds.docker }) {
-                            await vmModel.tryInternalDeleteK8s()
-                            await vmModel.tryStartContainer(dockerRecord)
-                        }
+                }
+            },
+            button2Label: "Cancel"
+        )
+        .akAlert(
+            "Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData,
+            desc:
+                "All Kubernetes deployments, pods, services, and other data will be permanently lost.",
+            button1Label: "Reset",
+            button1Action: {
+                Task {
+                    if let dockerRecord = vmModel.containers?.first(where: {
+                        $0.id == ContainerIds.docker
+                    }) {
+                        await vmModel.tryInternalDeleteK8s()
+                        await vmModel.tryStartContainer(dockerRecord)
                     }
-                },
-                button2Label: "Cancel")
-        .akAlert("Reset all data?", isPresented: $presentConfirmResetAllData,
-                desc: "All Docker data (containers, images, volumes, etc.) and Linux machines will be permanently lost.",
-                button1Label: "Reset",
-                button1Action: {
-                    Task {
-                        await vmModel.tryResetData()
-                    }
-                },
-                button2Label: "Cancel")
+                }
+            },
+            button2Label: "Cancel"
+        )
+        .akAlert(
+            "Reset all data?", isPresented: $presentConfirmResetAllData,
+            desc:
+                "All Docker data (containers, images, volumes, etc.) and Linux machines will be permanently lost.",
+            button1Label: "Reset",
+            button1Action: {
+                Task {
+                    await vmModel.tryResetData()
+                }
+            },
+            button2Label: "Cancel"
+        )
         .padding()
         .background(WindowAccessor(holder: windowHolder))
     }
@@ -162,7 +177,7 @@ struct StorageSettingsView: View {
         let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
         panel.beginSheetModal(for: window) { result in
             if result == .OK,
-               let url = panel.url
+                let url = panel.url
             {
                 if url.path == Folders.userData {
                     vmModel.trySetConfigKey(\.dataDir, nil)

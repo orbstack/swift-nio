@@ -8,8 +8,9 @@ enum HelperServer {
         NSLog("symlink: \(req.src) -> \(req.dest)")
 
         // security: only allow dest to /usr/local/bin/* and /var/run/docker.sock
-        guard req.dest == "/var/run/docker.sock" ||
-            (req.dest.starts(with: "/usr/local/bin/") && !req.dest.contains(".."))
+        guard
+            req.dest == "/var/run/docker.sock"
+                || (req.dest.starts(with: "/usr/local/bin/") && !req.dest.contains(".."))
         else {
             throw PHSymlinkError.pathNotAllowed
         }
@@ -34,8 +35,10 @@ enum HelperServer {
         // create dir (mkdir -p)
         let destDir = URL(fileURLWithPath: req.dest).deletingLastPathComponent().path
         do {
-            try FileManager.default.createDirectory(atPath: destDir, withIntermediateDirectories: true, attributes: nil)
-            try FileManager.default.createSymbolicLink(atPath: req.dest, withDestinationPath: req.src)
+            try FileManager.default.createDirectory(
+                atPath: destDir, withIntermediateDirectories: true, attributes: nil)
+            try FileManager.default.createSymbolicLink(
+                atPath: req.dest, withDestinationPath: req.src)
         } catch CocoaError.fileWriteFileExists {
             // already exists
             // probably raced with another setup instance somehow? (app vs. cli background)

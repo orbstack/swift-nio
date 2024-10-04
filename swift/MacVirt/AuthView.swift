@@ -3,9 +3,9 @@
 //
 
 import Combine
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 private enum AuthState {
     case loading

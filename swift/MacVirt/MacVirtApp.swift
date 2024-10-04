@@ -67,10 +67,9 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
         // installID % 100
         let uuidBytes = readInstallID().uuid
         // take a big endian uint32 of the first 4 bytes
-        let id4 = (UInt32(uuidBytes.0) << 24) |
-            (UInt32(uuidBytes.1) << 16) |
-            (UInt32(uuidBytes.2) << 8) |
-            UInt32(uuidBytes.3)
+        let id4 =
+            (UInt32(uuidBytes.0) << 24) | (UInt32(uuidBytes.1) << 16) | (UInt32(uuidBytes.2) << 8)
+            | UInt32(uuidBytes.3)
         let bucket = id4 % 100
 
         #if arch(arm64)
@@ -91,7 +90,8 @@ class UpdateDelegate: NSObject, SPUUpdaterDelegate {
         // run post-update script if needed to repair
         if let script = Bundle.main.path(forAuxiliaryExecutable: "hooks/_postupdate") {
             do {
-                let task = try Process.run(URL(fileURLWithPath: script), arguments: [Bundle.main.bundlePath])
+                let task = try Process.run(
+                    URL(fileURLWithPath: script), arguments: [Bundle.main.bundlePath])
                 task.waitUntilExit()
             } catch {
                 print("Failed to run post-update script: \(error)")
@@ -121,7 +121,8 @@ struct MacVirtApp: App {
 
     init() {
         delegate = UpdateDelegate()
-        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
         // SUEnableSystemProfiling doesn't work?
         updaterController.updater.sendsSystemProfile = true
 
@@ -155,7 +156,10 @@ struct MacVirtApp: App {
                 .environmentObject(actionTracker)
                 // workaround: default size uses min height on macOS 12, so this fixes default window size
                 // on macOS 13+ we can set smaller min and use windowDefaultSize
-                .frame(minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(), maxHeight: .infinity)
+                .frame(
+                    minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(),
+                    maxHeight: .infinity
+                )
                 .onAppear {
                     windowTracker.onWindowAppear()
                 }
@@ -394,7 +398,7 @@ struct MacVirtApp: App {
                 }
         }
         .handlesExternalEvents(matching: ["docker/project-logs/"])
-        .windowDefaultSize(width: 875, height: 625) // extra side for sidebar
+        .windowDefaultSize(width: 875, height: 625)  // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup(WindowTitles.podLogsBase, id: "k8s-pod-logs") {
@@ -406,7 +410,7 @@ struct MacVirtApp: App {
                 }
         }
         .handlesExternalEvents(matching: ["k8s/pod-logs/"])
-        .windowDefaultSize(width: 875, height: 625) // extra side for sidebar
+        .windowDefaultSize(width: 875, height: 625)  // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup("Migrate from Docker Desktop", id: "docker-migration") {

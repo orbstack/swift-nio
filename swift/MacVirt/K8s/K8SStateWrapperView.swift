@@ -12,15 +12,16 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
     let keyPath: KeyPath<VmViewModel, [Entity]?>
     let content: ([Entity], ContainerRecord) -> Content
 
-    init(_ keyPath: KeyPath<VmViewModel, [Entity]?>,
-         @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content)
-    {
+    init(
+        _ keyPath: KeyPath<VmViewModel, [Entity]?>,
+        @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content
+    ) {
         self.keyPath = keyPath
         self.content = content
     }
 
     private var disabledView: some View {
-        VStack(spacing: 16) { // match ContentUnavailableViewCompat desc padding
+        VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
             ContentUnavailableViewCompat("Kubernetes Disabled", systemImage: "helm")
 
             Button(action: {
@@ -50,15 +51,17 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
         StateWrapperView {
             // TODO: return verdict as enum and use switch{} to fix loading flicker
             if let machines = vmModel.containers,
-               let k8sRecord = machines.first(where: { $0.id == ContainerIds.k8s }),
-               let config = vmModel.appliedConfig
-            { // applied config, not current
+                let k8sRecord = machines.first(where: { $0.id == ContainerIds.k8s }),
+                let config = vmModel.appliedConfig
+            {  // applied config, not current
                 if let entities = vmModel[keyPath: keyPath],
-                   k8sRecord.state != .stopped,
-                   !isK8sClusterCreating
+                    k8sRecord.state != .stopped,
+                    !isK8sClusterCreating
                 {
                     content(entities, k8sRecord)
-                } else if (k8sRecord.state == .stopped || !config.k8sEnable) && !vmModel.restartingMachines.contains(ContainerIds.k8s) {
+                } else if (k8sRecord.state == .stopped || !config.k8sEnable)
+                    && !vmModel.restartingMachines.contains(ContainerIds.k8s)
+                {
                     disabledView
                 } else if isK8sClusterCreating {
                     ProgressView(label: {

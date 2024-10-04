@@ -35,7 +35,7 @@ struct DockerImageDetails: View {
             }
 
             if let tags = image.summary.repoTags,
-               !tags.isEmpty
+                !tags.isEmpty
             {
                 DetailsSection("Tags") {
                     VStack(alignment: .leading, spacing: 4) {
@@ -51,7 +51,7 @@ struct DockerImageDetails: View {
                 .filter { $0.imageId == image.id }
                 .sorted { $0.userName < $1.userName }
             if let usedByContainers,
-               !usedByContainers.isEmpty
+                !usedByContainers.isEmpty
             {
                 DetailsSection("Used By") {
                     VStack(alignment: .leading, spacing: 4) {
@@ -63,7 +63,7 @@ struct DockerImageDetails: View {
             }
 
             if let labels = image.summary.labels,
-               !labels.isEmpty
+                !labels.isEmpty
             {
                 ScrollableDetailsSection("Labels") {
                     AlignedSimpleKvTable {

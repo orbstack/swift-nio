@@ -6,19 +6,23 @@ import AppKit
 import Foundation
 
 enum K8SResourceLists {
-    static func groupItems<Resource: K8SResource>(_ resources: [Resource],
-                                                  showSystemNs: Bool = false) -> [AKSection<Resource>]
-    {
+    static func groupItems<Resource: K8SResource>(
+        _ resources: [Resource],
+        showSystemNs: Bool = false
+    ) -> [AKSection<Resource>] {
         let grouped = Dictionary(grouping: resources, by: { $0.namespace })
         return grouped
             .lazy
-            .map { AKSection($0.key,
-                             $0.value
-                                 .lazy
-                                 // k8s API service is always there. consider it system so we can show empty state
-                                 .filter { showSystemNs || ($0.id != K8sConstants.apiResId) }
-                                 // sort items within section
-                                 .sorted { $0.name < $1.name }) }
+            .map {
+                AKSection(
+                    $0.key,
+                    $0.value
+                        .lazy
+                        // k8s API service is always there. consider it system so we can show empty state
+                        .filter { showSystemNs || ($0.id != K8sConstants.apiResId) }
+                        // sort items within section
+                        .sorted { $0.name < $1.name })
+            }
             // remove empty groups caused by filtering above
             .filter { !$0.items.isEmpty && (showSystemNs || ($0.title != "kube-system")) }
             // sort sections
@@ -48,7 +52,12 @@ extension K8SPod {
     func openInTerminal() {
         Task {
             do {
-                try await openTerminal(AppConfig.kubectlExe, ["exec", "--context", K8sConstants.context, "-it", "-n", namespace, "pod/\(name)", "--", "sh"])
+                try await openTerminal(
+                    AppConfig.kubectlExe,
+                    [
+                        "exec", "--context", K8sConstants.context, "-it", "-n", namespace,
+                        "pod/\(name)", "--", "sh",
+                    ])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }
@@ -63,7 +72,8 @@ extension K8SPod {
             return .loading
         case "Completed":
             return .completed
-        case "Error", "ImagePullBackOff", "CrashLoopBackOff", "CreateContainerConfigError", "InvalidImageName":
+        case "Error", "ImagePullBackOff", "CrashLoopBackOff", "CreateContainerConfigError",
+            "InvalidImageName":
             return .error
         default:
             // neutral state

@@ -11,7 +11,9 @@ extension NSImage {
         return NSImage(size: size, flipped: false) { rect -> Bool in
             color.set()
             rect.fill()
-            self.draw(in: rect, from: NSRect(origin: .zero, size: self.size), operation: .destinationIn, fraction: 1.0)
+            self.draw(
+                in: rect, from: NSRect(origin: .zero, size: self.size), operation: .destinationIn,
+                fraction: 1.0)
             return true
         }
     }
@@ -23,8 +25,11 @@ extension NSImage {
         let image = NSImage(size: size)
         image.lockFocus()
         // vertically center
-        let aRect = NSRect(x: 0, y: (height - a.size.height) / 2, width: a.size.width, height: a.size.height)
-        let bRect = NSRect(x: a.size.width + xPadding, y: (height - b.size.height) / 2, width: b.size.width, height: b.size.height)
+        let aRect = NSRect(
+            x: 0, y: (height - a.size.height) / 2, width: a.size.width, height: a.size.height)
+        let bRect = NSRect(
+            x: a.size.width + xPadding, y: (height - b.size.height) / 2, width: b.size.width,
+            height: b.size.height)
         a.draw(in: aRect)
         b.draw(in: bRect)
         image.unlockFocus()
