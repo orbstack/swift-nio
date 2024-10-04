@@ -111,6 +111,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	isDocker := slices.Contains(os.Args, "-docker")
 	isK8s := slices.Contains(os.Args, "-k8s")
 	isTls := slices.Contains(os.Args, "-tls")
+	enableColors := slices.Contains(os.Args, "-color")
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -167,6 +168,9 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
+		DisableColors:   !enableColors,
+		// required since we output to vport, so logrus disables formatting as it thinks output isn't going to a tty
+		ForceColors: enableColors,
 	}, logPrefix))
 	// set prefix for default logger (used by httputil) as well
 	log.Default().SetPrefix(logPrefix)

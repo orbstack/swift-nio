@@ -226,6 +226,7 @@ func runContainerManager() {
 	// create container manager
 	mgr, err := NewConManager(conf.C().SconDataDir, hostClient, initConfig)
 	check(err)
+	mgr.enableColorLogging = !disableColors
 
 	// system init tasks
 	err = doSystemInitTasksLate(mgr, hostClient)

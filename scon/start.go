@@ -887,6 +887,11 @@ func (c *Container) startAgentLocked() error {
 		args = append(args, "-k8s")
 	}
 
+	// logging to a file is more likely than not, so only add an arg if we want color
+	if c.manager.enableColorLogging {
+		args = append(args, "-color")
+	}
+
 	cmd := &LxcCommand{
 		CombinedArgs: args,
 		Dir:          "/",

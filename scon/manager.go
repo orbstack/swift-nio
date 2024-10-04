@@ -84,6 +84,8 @@ type ConManager struct {
 
 	// network
 	net *Network
+
+	enableColorLogging bool
 }
 
 func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitConfig) (*ConManager, error) {
