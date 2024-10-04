@@ -507,7 +507,7 @@ extension BaseDockerContainerItem {
                     switch sel {
                     case let .container(id):
                         if let container = containers.first(where: { container in container.id == id
-                            }),
+                        }),
                             let composeProject = container.composeProject
                         {
                             return !selection.contains(.compose(project: composeProject))
