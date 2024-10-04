@@ -71,6 +71,126 @@ func (d *DockerAgent) createWormholeImageContainer(image string) (string, error)
 	return id, nil
 }
 
+func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJSON) (string, string, error) {
+	// first, commit the container's FS changes to an image so that they show up
+	imageID, err := d.client.CommitContainer(ctr.ID)
+	if err != nil {
+		return "", "", err
+	}
+
+	// make a new container that copies most properties from the original container
+	containerID, err := d.client.RunContainer(&dockertypes.ContainerConfig{
+		// exact SHA256 of committed image
+		Image: imageID,
+
+		// copy relevant config properties
+		Hostname:        ctr.Config.Hostname,
+		Domainname:      ctr.Config.Domainname,
+		User:            ctr.Config.User,
+		Env:             ctr.Config.Env,
+		WorkingDir:      ctr.Config.WorkingDir,
+		NetworkDisabled: ctr.Config.NetworkDisabled,
+		OnBuild:         ctr.Config.OnBuild,
+
+		// wormhole stub properties
+		Entrypoint: []string{
+			"/dev/shm/.orb-wormhole-stub",
+		},
+		Labels: map[string]string{
+			"dev.orbstack.wormhole.type": "temp-container",
+		},
+		StopSignal: "SIGKILL",
+		HostConfig: &dockertypes.ContainerHostConfig{
+			// overrides
+			AutoRemove: true,
+			Binds:      []string{mounts.WormholeStub + ":/dev/shm/.orb-wormhole-stub"},
+
+			// inherit Binds and Mounts (but add nocopy)
+			// we don't copy VolumesFrom because the old container's MountPoints will also include its inherited MountPoints
+			VolumesFrom: []string{ctr.ID},
+
+			// copy relevant host config properties
+			// TODO: consider fallback if Net/IPC/*Mode fails due to dependent container being stopped too
+			CpuShares:            ctr.HostConfig.CpuShares,
+			Memory:               ctr.HostConfig.Memory,
+			CgroupParent:         ctr.HostConfig.CgroupParent,
+			BlkioWeight:          ctr.HostConfig.BlkioWeight,
+			BlkioWeightDevice:    ctr.HostConfig.BlkioWeightDevice,
+			BlkioDeviceReadBps:   ctr.HostConfig.BlkioDeviceReadBps,
+			BlkioDeviceWriteBps:  ctr.HostConfig.BlkioDeviceWriteBps,
+			BlkioDeviceReadIOps:  ctr.HostConfig.BlkioDeviceReadIOps,
+			BlkioDeviceWriteIOps: ctr.HostConfig.BlkioDeviceWriteIOps,
+			CpuPeriod:            ctr.HostConfig.CpuPeriod,
+			CpuQuota:             ctr.HostConfig.CpuQuota,
+			CpuRealtimePeriod:    ctr.HostConfig.CpuRealtimePeriod,
+			CpuRealtimeRuntime:   ctr.HostConfig.CpuRealtimeRuntime,
+			CpusetCpus:           ctr.HostConfig.CpusetCpus,
+			CpusetMems:           ctr.HostConfig.CpusetMems,
+			Devices:              ctr.HostConfig.Devices,
+			DeviceCgroupRules:    ctr.HostConfig.DeviceCgroupRules,
+			DeviceRequests:       ctr.HostConfig.DeviceRequests,
+			KernelMemoryTCP:      ctr.HostConfig.KernelMemoryTCP,
+			MemoryReservation:    ctr.HostConfig.MemoryReservation,
+			MemorySwap:           ctr.HostConfig.MemorySwap,
+			MemorySwappiness:     ctr.HostConfig.MemorySwappiness,
+			NanoCpus:             ctr.HostConfig.NanoCpus,
+			OomKillDisable:       ctr.HostConfig.OomKillDisable,
+			PidsLimit:            ctr.HostConfig.PidsLimit,
+			Ulimits:              ctr.HostConfig.Ulimits,
+			CpuCount:             ctr.HostConfig.CpuCount,
+			CpuPercent:           ctr.HostConfig.CpuPercent,
+			IOMaximumIOps:        ctr.HostConfig.IOMaximumIOps,
+			IOMaximumBandwidth:   ctr.HostConfig.IOMaximumBandwidth,
+			NetworkMode:          ctr.HostConfig.NetworkMode,
+			VolumeDriver:         ctr.HostConfig.VolumeDriver,
+			ConsoleSize:          ctr.HostConfig.ConsoleSize,
+			CapAdd:               ctr.HostConfig.CapAdd,
+			CapDrop:              ctr.HostConfig.CapDrop,
+			CgroupnsMode:         ctr.HostConfig.CgroupnsMode,
+			Dns:                  ctr.HostConfig.Dns,
+			DnsOptions:           ctr.HostConfig.DnsOptions,
+			DnsSearch:            ctr.HostConfig.DnsSearch,
+			ExtraHosts:           ctr.HostConfig.ExtraHosts,
+			GroupAdd:             ctr.HostConfig.GroupAdd,
+			IpcMode:              ctr.HostConfig.IpcMode,
+			Cgroup:               ctr.HostConfig.Cgroup,
+			Links:                ctr.HostConfig.Links,
+			OomScoreAdj:          ctr.HostConfig.OomScoreAdj,
+			PidMode:              ctr.HostConfig.PidMode,
+			Privileged:           ctr.HostConfig.Privileged,
+			PublishAllPorts:      ctr.HostConfig.PublishAllPorts,
+			ReadonlyRootfs:       ctr.HostConfig.ReadonlyRootfs,
+			SecurityOpt:          ctr.HostConfig.SecurityOpt,
+			StorageOpt:           ctr.HostConfig.StorageOpt,
+			Tmpfs:                ctr.HostConfig.Tmpfs,
+			UTSMode:              ctr.HostConfig.UTSMode,
+			UsernsMode:           ctr.HostConfig.UsernsMode,
+			ShmSize:              ctr.HostConfig.ShmSize,
+			Sysctls:              ctr.HostConfig.Sysctls,
+			Runtime:              ctr.HostConfig.Runtime,
+			Isolation:            ctr.HostConfig.Isolation,
+			MaskedPaths:          ctr.HostConfig.MaskedPaths,
+			ReadonlyPaths:        ctr.HostConfig.ReadonlyPaths,
+
+			// don't pollute logs in case engine has a fancy logging setup
+			LogConfig: &dockertypes.ContainerLogConfig{
+				Type: "none",
+			},
+
+			// not included: Init, ContainerIDFile, PortBindings (could conflict), RestartPolicy, AutoRemove, Annotations, Mounts (handled by VolumesFrom)
+		},
+
+		// not included: Volumes (handled by Volumes From), MacAddress (deprecated; moved to NetworkingConfig)
+
+		// TODO: NetworkingConfig
+	}, false)
+	if err != nil {
+		return "", "", err
+	}
+
+	return containerID, imageID, nil
+}
+
 // prep: get container's init pid and open its rootfs dirfd
 func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartWormholeResponse) error {
 	var initPid int
@@ -117,7 +237,16 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 				return fmt.Errorf("newly-created container %s crashed", ctr.ID)
 			}
 
-			return ErrContainerNotRunning
+			// not running. clone the container to allow debugging stopped containers
+			state.CreatedContainerID, state.CreatedImageID, err = a.docker.createWormholeStoppedContainer(ctr)
+			if err != nil {
+				return err
+			}
+
+			ctr, err = a.docker.client.InspectContainer(state.CreatedContainerID)
+			if err != nil {
+				return err
+			}
 		}
 
 		initPid = ctr.State.Pid
