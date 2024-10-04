@@ -35,6 +35,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/keybase/go-keychain v0.0.0-20230523030712-b5615109f100
 	github.com/sasha-s/go-deadlock v0.3.1
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.29.2
 	k8s.io/apimachinery v0.29.2
@@ -45,7 +46,6 @@ require (
 	github.com/briandowns/spinner v1.20.0 // indirect
 	github.com/creachadair/mds v0.10.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/docker/cli v27.3.1+incompatible // indirect
 	github.com/emicklei/go-restful/v3 v3.11.2 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect
@@ -66,8 +66,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/petermattis/goid v0.0.0-20231207134359-e60b3f734c67 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/oauth2 v0.17.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
