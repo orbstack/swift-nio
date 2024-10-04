@@ -146,8 +146,7 @@ func startRpcConnection(client *dockerclient.Client, containerId string) error {
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		// Cmd:          []string{"/wormhole-client"},
-		Cmd: []string{"socat", "UNIX-CONNECT:/rpc.sock", "-"},
+		Cmd:          []string{"/wormhole-client"},
 	})
 	if err != nil {
 		return err
@@ -281,14 +280,8 @@ func startRpcConnection(client *dockerclient.Client, containerId string) error {
 	}
 }
 
-func debugRemote(containerID string) error {
-	containerID, hostName, ok := strings.Cut(containerID, "@")
-	if !ok {
-		return errors.New("invalid remote context " + containerID)
-	}
-
-	// todo handle orbstack docker host specially
-	client, err := GetDockerClient(hostName)
+func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args []string) error {
+	client, err := dockerclient.NewClient(daemon.Host)
 	if err != nil {
 		return err
 	}
@@ -329,6 +322,81 @@ func debugRemote(containerID string) error {
 	return nil
 }
 
+func debugLocal(containerID string, args []string) error {
+	var err error
+
+	scli.EnsureSconVMWithSpinner()
+
+	// don't use default (host) workdir,
+	// unless this for ovm or docker machine on a debug build
+	workdir := ""
+	if conf.Debug() {
+		if containerID == sshtypes.WormholeIDDocker {
+			workdir, err = os.Getwd()
+			check(err)
+		} else if containerID == sshtypes.WormholeIDHost {
+			workdir, err = os.Getwd()
+			check(err)
+			workdir = mounts.Virtiofs + workdir // includes leading /
+		}
+	}
+
+	if flagWorkdir != "" {
+		workdir = flagWorkdir
+	}
+
+	exitCode, err := shell.RunSSH(shell.CommandOpts{
+		CombinedArgs:     args,
+		ContainerName:    types.ContainerDocker,
+		Dir:              &workdir,
+		User:             "wormhole:" + containerID,
+		WormholeFallback: flagFallback,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\n%v\n", err)
+		os.Exit(1)
+	}
+
+	if exitCode == sshenv.ExitCodeNeedsProLicense {
+		if flagFallback {
+			fmt.Fprintln(os.Stderr, color.New(color.FgBlue).Sprintf(`%s making it easy to debug any container (even minimal/distroless).
+It also allows installing over 80,000 packages.
+
+To use Debug Shell, get a Pro license: https://orbstack.dev/pricing
+
+Learn more: https://go.orbstack.dev/debug
+`, color.New(color.Bold).Sprint("NEW: OrbStack Debug Shell provides useful commands & tools,")))
+
+			// fallback to docker exec
+			err = fallbackDockerExec(containerID)
+			checkCLI(err)
+		} else {
+			fmt.Fprintln(os.Stderr, color.New(color.FgRed).Sprintf(`A Pro license is required to use OrbStack Debug Shell.
+%s making it easy to debug any container (even minimal/distroless).
+It also allows installing over 80,000 packages.
+
+Learn more: https://go.orbstack.dev/debug
+Get a license: https://orbstack.dev/pricing
+`, color.New(color.Bold).Sprint("Debug Shell provides useful commands & tools,")))
+		}
+	}
+
+	// 124 = requested fallback mode, and container is Nix
+	if exitCode == sshenv.ExitCodeNixDebugUnsupported {
+		fmt.Fprintln(os.Stderr, color.New(color.FgYellow).Sprint(`OrbStack Debug Shell does not yet support Nix containers.
+Falling back to 'docker exec'.
+Learn more: https://go.orbstack.dev/debug
+`))
+
+		// fallback to docker exec
+		err = fallbackDockerExec(containerID)
+		checkCLI(err)
+	}
+
+	os.Exit(exitCode)
+	return nil
+}
+
 var debugCmd = &cobra.Command{
 	Use:     "debug [flags] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"wormhole"},
@@ -351,10 +419,7 @@ Pro only: requires an OrbStack Pro license.
 		if err != nil {
 			return err
 		}
-		if (containerIDp == nil && !flagReset) || FlagWantHelp {
-			cmd.Help()
-			return nil
-		}
+
 		if flagReset {
 			scli.EnsureSconVMWithSpinner()
 
@@ -370,82 +435,45 @@ Pro only: requires an OrbStack Pro license.
 
 			return nil
 		}
+
+		if (containerIDp == nil && !flagReset) || FlagWantHelp {
+			cmd.Help()
+			return nil
+		}
 		containerID := *containerIDp
 
+		// Read the docker daemon address in the following order:
+		// 1. Host specified by context in command `orb debug container@context`
+		// 2. DOCKER_CONTEXT (overrides DOCKER_HOST)
+		// 3. DOCKER_HOST env
+		// 4. Host specified by currentContext in `~/.docker/config.json`
+		// 5. "default" context (unix:///var/run/docker.sock)
+		var daemon *dockerclient.DockerConnection
+
 		if strings.Contains(containerID, "@") {
-			// remote debug
-			return debugRemote(containerID)
-		}
+			var context string
+			var ok bool
 
-		scli.EnsureSconVMWithSpinner()
-
-		// don't use default (host) workdir,
-		// unless this for ovm or docker machine on a debug build
-		workdir := ""
-		if conf.Debug() {
-			if containerID == sshtypes.WormholeIDDocker {
-				workdir, err = os.Getwd()
-				check(err)
-			} else if containerID == sshtypes.WormholeIDHost {
-				workdir, err = os.Getwd()
-				check(err)
-				workdir = mounts.Virtiofs + workdir // includes leading /
+			containerID, context, ok = strings.Cut(containerID, "@")
+			if !ok {
+				fmt.Fprintln(os.Stderr, "Could not parse docker context")
+				os.Exit(1)
 			}
-		}
 
-		if flagWorkdir != "" {
-			workdir = flagWorkdir
-		}
-
-		exitCode, err := shell.RunSSH(shell.CommandOpts{
-			CombinedArgs:     args,
-			ContainerName:    types.ContainerDocker,
-			Dir:              &workdir,
-			User:             "wormhole:" + containerID,
-			WormholeFallback: flagFallback,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "\n%v\n", err)
-			os.Exit(1)
-		}
-
-		if exitCode == sshenv.ExitCodeNeedsProLicense {
-			if flagFallback {
-				fmt.Fprintln(os.Stderr, color.New(color.FgBlue).Sprintf(`%s making it easy to debug any container (even minimal/distroless).
-It also allows installing over 80,000 packages.
-
-To use Debug Shell, get a Pro license: https://orbstack.dev/pricing
-
-Learn more: https://go.orbstack.dev/debug
-`, color.New(color.Bold).Sprint("NEW: OrbStack Debug Shell provides useful commands & tools,")))
-
-				// fallback to docker exec
-				err = fallbackDockerExec(containerID)
-				checkCLI(err)
-			} else {
-				fmt.Fprintln(os.Stderr, color.New(color.FgRed).Sprintf(`A Pro license is required to use OrbStack Debug Shell.
-%s making it easy to debug any container (even minimal/distroless).
-It also allows installing over 80,000 packages.
-
-Learn more: https://go.orbstack.dev/debug
-Get a license: https://orbstack.dev/pricing
-`, color.New(color.Bold).Sprint("Debug Shell provides useful commands & tools,")))
+			if daemon, err = dockerclient.GetContext(context); err != nil {
+				return err
 			}
+		} else {
+			// return debugRemote(containerID)
 		}
 
-		// 124 = requested fallback mode, and container is Nix
-		if exitCode == sshenv.ExitCodeNixDebugUnsupported {
-			fmt.Fprintln(os.Stderr, color.New(color.FgYellow).Sprint(`OrbStack Debug Shell does not yet support Nix containers.
-Falling back to 'docker exec'.
-Learn more: https://go.orbstack.dev/debug
-`))
-
-			// fallback to docker exec
-			err = fallbackDockerExec(containerID)
-			checkCLI(err)
+		fmt.Println("reading from host ", daemon)
+		if orbContext, err := dockerclient.GetContext("orbstack"); err == nil && orbContext.Host == daemon.Host {
+			debugLocal(containerID, args)
+		} else {
+			debugRemote(containerID, daemon, args)
 		}
 
-		os.Exit(exitCode)
 		return nil
 	},
 }

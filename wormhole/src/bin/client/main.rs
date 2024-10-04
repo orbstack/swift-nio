@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
 
     // println!("host termios settings {:?}", host_termios_params);
 
-    let rpc_server_socket = "/rpc_server.sock";
+    let rpc_server_socket = "/rpc.sock";
 
     let mut socket = match UnixStream::connect(rpc_server_socket) {
         Ok(sock) => sock,
