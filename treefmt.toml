@@ -1,5 +1,5 @@
 [global]
-excludes = [ "exp/*", "rootfs/utils/fuse/vendor/*", "virtue/*", "vendor/*" ]
+excludes = [ "exp/*", "rootfs/utils/fuse/vendor/*", "virtue/*", "vendor/*", "rootfs/utils/fuse/fpll.cpp", "scon/bpf/src/cfwd.h" ]
 
 [formatter.go]
 command = "gofmt"
