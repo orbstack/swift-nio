@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 
@@ -124,16 +123,6 @@ func fallbackDockerExec(containerID string) error {
 	return unix.Exec(conf.FindXbin("docker"), []string{"docker", "--context", "orbstack", "exec", "-it", containerID, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"}, os.Environ())
 }
 
-type ContainerData struct {
-	State struct {
-		Pid int
-	}
-	Config struct {
-		WorkingDir string
-		Env        []string
-	}
-}
-
 type WormholeParams struct {
 	Pid        int      `json:"init_pid"`
 	Env        []string `json:"container_env"`
@@ -152,12 +141,13 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func startRpcConnection(client *dockerclient.Client, containerId string, dockerHostEnv []string) error {
+func startRpcConnection(client *dockerclient.Client, containerId string) error {
 	conn, err := client.InteractiveExec(containerId, &dockertypes.ContainerExecCreateRequest{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		Cmd:          []string{"/wormhole-client"},
+		// Cmd:          []string{"/wormhole-client"},
+		Cmd: []string{"socat", "UNIX-CONNECT:/rpc.sock", "-"},
 	})
 	if err != nil {
 		return err
@@ -173,14 +163,7 @@ func startRpcConnection(client *dockerclient.Client, containerId string, dockerH
 
 	sessionStdin := conn
 	sessionStdout := demuxReader
-
 	server := RpcServer{reader: sessionStdout, writer: sessionStdin}
-
-	debugFile, err := os.Create("abcd.txt")
-	if err != nil {
-		return err
-	}
-	defer debugFile.Close()
 
 	var originalState *term.State
 
@@ -300,36 +283,15 @@ func startRpcConnection(client *dockerclient.Client, containerId string, dockerH
 
 func debugRemote(containerID string) error {
 	containerID, hostName, ok := strings.Cut(containerID, "@")
+	if !ok {
+		return errors.New("invalid remote context " + containerID)
+	}
+
 	// todo handle orbstack docker host specially
 	client, err := GetDockerClient(hostName)
 	if err != nil {
 		return err
 	}
-
-	dockerBin := conf.FindXbin("docker")
-
-	if !ok {
-		return errors.New("invalid remote context " + containerID)
-	}
-
-	cmd := exec.Command(dockerBin, "context", "inspect", hostName)
-	output, err := cmd.Output()
-	if err != nil {
-		return errors.New("failed to inspect context")
-	}
-
-	var contextInfo []ContextMetadata
-	err = json.Unmarshal(output, &contextInfo)
-	if err != nil {
-		return errors.New("failed to unmarshal context")
-	}
-
-	if len(contextInfo) == 0 {
-		return errors.New("no context found")
-	}
-	dockerHost := contextInfo[0].Endpoints.Docker.Host
-	dockerHostEnv := append(os.Environ(), "DOCKER_HOST="+dockerHost)
-	fmt.Println("using dockerhost: " + dockerHost)
 
 	containerInfo, err := client.InspectContainer(containerID)
 	if err != nil {
@@ -347,7 +309,6 @@ func debugRemote(containerID string) error {
 		return errors.New("failed to serialize wormhole params")
 	}
 
-	fmt.Println("wormhole params: " + string(wormholeParams))
 	remoteContainerID, err := client.RunContainer(&dockertypes.ContainerCreateRequest{
 		Image: REGISTRY_IMAGE,
 		HostConfig: &dockertypes.ContainerHostConfig{
@@ -364,7 +325,7 @@ func debugRemote(containerID string) error {
 		return err
 	}
 
-	startRpcConnection(client, remoteContainerID, dockerHostEnv)
+	startRpcConnection(client, remoteContainerID)
 	return nil
 }
 
@@ -414,7 +375,6 @@ Pro only: requires an OrbStack Pro license.
 		if strings.Contains(containerID, "@") {
 			// remote debug
 			return debugRemote(containerID)
-			// return nil
 		}
 
 		scli.EnsureSconVMWithSpinner()

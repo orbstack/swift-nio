@@ -440,7 +440,7 @@ fn send_rpc_client(send_client_socket_fd: OwnedFd, client_fd: RawFd) -> anyhow::
 }
 
 fn wait_for_rpc_client() -> anyhow::Result<UnixStream> {
-    let rpc_server_socket = "/rpc_server.sock";
+    let rpc_server_socket = "/rpc.sock";
     trace!("binding rpc server to {}", rpc_server_socket);
     let listener = UnixListener::bind(rpc_server_socket)?;
 
