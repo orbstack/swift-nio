@@ -89,6 +89,11 @@ func maybeStopOld(canRecurse bool) (string, error) {
 }
 
 func runSpawnDaemon() {
+	if os.Getuid() == 0 {
+		fmt.Println("Can't run OrbStack as root. This will cause problems with file permissions and other system state.")
+		os.Exit(1)
+	}
+
 	buildID, err := maybeStopOld(true)
 	check(err)
 
