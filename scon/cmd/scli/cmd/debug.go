@@ -296,6 +296,12 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args
 		os.Exit(1)
 	}
 
+	// remote debug does not yet support running of stopped containers
+	if !containerInfo.State.Running {
+		fmt.Fprintf(os.Stderr, "container %s is not running\n", containerID)
+		os.Exit(1)
+	}
+
 	REGISTRY_IMAGE := "198.19.249.3:5000/wormhole-rootfs:latest"
 	workingDir := containerInfo.Config.WorkingDir
 	shellCmd := ""
