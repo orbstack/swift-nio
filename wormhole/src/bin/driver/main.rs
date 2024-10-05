@@ -165,9 +165,14 @@ fn startup() -> anyhow::Result<()> {
         contents.trim().parse()?
     };
 
-    if refcount == 0 {
+    // sometimes the refcount is non-zero even though the nix directory is not mounted. this can
+    // happen when a wormhole session increments the refcount, but is killed before it has
+    // the chance to decrement.
+    if refcount == 0 || !Path::new(&format!("{WORMHOLE_UNIFIED}/nix")).exists() {
         mount_wormhole()?;
+        refcount = 0;
     }
+
     refcount += 1;
     trace!("updated refcount from {} to {}", refcount - 1, refcount);
 
@@ -182,7 +187,7 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     startup()?;
-    println!("running driver");
+
     let config_str = std::env::args().nth(1).unwrap();
     let mut config = serde_json::from_str::<WormholeConfig>(&config_str)?;
 
@@ -226,7 +231,6 @@ fn main() -> anyhow::Result<()> {
     match unsafe { fork()? } {
         ForkResult::Child => {
             trace!("starting wormhole-attach");
-
             execvpe(
                 &CString::new("./wormhole-attach")?,
                 &[
@@ -239,20 +243,9 @@ fn main() -> anyhow::Result<()> {
         }
         ForkResult::Parent { child } => {
             waitpid(child, None)?;
+            // todo: shutdown even if processs is killed
             shutdown()?;
         }
     }
     Ok(())
 }
-
-/*
-locally:
-kevin@orbstack macvirt % docker build --ssh default -t localhost:5000/wormhole-rootfs -f wormhole/remote/Dockerfile .
-kevin@orbstack macvirt % docker push localhost:5000/wormhole-rootfs
-
-
-on remote:
-kevin@testremote:~$ docker pull 198.19.249.3:5000/wormhole-rootfs
-kevin@testremote:~$ docker run -d --privileged --pid host --net host --cgroupns host -v wormhole-data:/data 198.19.249.3:5000/wormhole-rootfs
-
-*/
