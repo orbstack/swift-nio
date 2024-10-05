@@ -66,7 +66,7 @@ func GetContext(context string) (*DockerConnection, error) {
 
 		}
 	}
-	return nil, fmt.Errorf("could not find context %s", context)
+	return nil, fmt.Errorf("no such context: %s", context)
 }
 
 func GetCurrentContext() (*DockerConnection, error) {
@@ -82,7 +82,7 @@ func GetCurrentContext() (*DockerConnection, error) {
 	}
 
 	if err := json.Unmarshal(bytes, &config); err != nil {
-		return nil, fmt.Errorf("could not get context from docker config")
+		return nil, fmt.Errorf("could not parse docker config")
 	}
 
 	if config.CurrentContext == "" {

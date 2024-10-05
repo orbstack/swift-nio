@@ -55,7 +55,7 @@ func (e *APIError) Error() string {
 func ParseHostURL(host string) (*url.URL, error) {
 	proto, addr, ok := strings.Cut(host, "://")
 	if !ok || addr == "" {
-		return nil, fmt.Errorf("unable to parse docker host `%s`", host)
+		return nil, fmt.Errorf("could not parse docker host `%s`", host)
 	}
 
 	var basePath string

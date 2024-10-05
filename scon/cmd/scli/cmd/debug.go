@@ -143,15 +143,16 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func startRpcConnection(client *dockerclient.Client, containerId string) error {
-	conn, err := client.InteractiveExec(containerId, &dockertypes.ContainerExecCreateRequest{
+func startRpcConnection(client *dockerclient.Client, containerID string) error {
+	conn, err := client.InteractiveExec(containerID, &dockertypes.ContainerExecCreateRequest{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
 		Cmd:          []string{"/wormhole-client"},
 	})
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
 	}
 	defer conn.Close()
 
@@ -285,12 +286,14 @@ func startRpcConnection(client *dockerclient.Client, containerId string) error {
 func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args []string) error {
 	client, err := dockerclient.NewClient(daemon.Host)
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
 	}
 
 	containerInfo, err := client.InspectContainer(containerID)
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
 	}
 
 	REGISTRY_IMAGE := "198.19.249.3:5000/wormhole-rootfs:latest"
@@ -312,7 +315,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args
 		ShellCmd:   shellCmd,
 	})
 	if err != nil {
-		return errors.New("failed to serialize wormhole params")
+		return err
 	}
 
 	remoteContainerID, err := client.RunContainer(&dockertypes.ContainerCreateRequest{
@@ -328,7 +331,8 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args
 	}, false)
 
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
 	}
 
 	startRpcConnection(client, remoteContainerID)
@@ -501,7 +505,7 @@ Pro only: requires an OrbStack Pro license.
 			}
 		}
 
-		fmt.Println("reading from host ", daemon)
+		// fmt.Println("reading from host ", daemon)
 		if orbContext, err := dockerclient.GetContext("orbstack"); err == nil && orbContext.Host == daemon.Host {
 			debugLocal(containerID, args)
 		} else {
