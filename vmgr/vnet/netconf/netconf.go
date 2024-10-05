@@ -181,10 +181,9 @@ const K8sCorednsIP4 = "192.168.194.138"
 // should be random to avoid conflict with user programs
 const (
 	// avoid conflict with flannel masquerade rule for 0x2000/0x2000
-	DockerMarkTlsProxyUpstream    = 0x9f7a0000
-	DockerMarkTlsProxyUpstreamStr = "0x9f7a0000"
-
-	DockerMarkTlsProxyLocalRouteStr = "0xb3c60000"
+	DockerFwmarkTproxy         = 0x7d8a0000
+	DockerFwmarkTproxyOutbound = 0x9f7a0000
+	DockerFwmarkLocalRoute     = 0xb3c60000
 )
 
 const (

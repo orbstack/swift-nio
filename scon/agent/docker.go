@@ -15,6 +15,7 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/hclient"
 	_ "github.com/orbstack/macvirt/scon/mdns/mdnsgob"
 	"github.com/orbstack/macvirt/scon/sgclient"
@@ -77,8 +78,9 @@ type DockerAgent struct {
 	dirSyncListener net.Listener
 	dirSyncJobs     map[uint64]chan error
 
-	k8s   *K8sAgent
-	pstub *PstubServer
+	k8s          *K8sAgent
+	pstub        *PstubServer
+	domaintproxy *domainproxy.Domaintproxy
 }
 
 func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
@@ -327,6 +329,13 @@ func (d *DockerAgent) PostStart() error {
 		err := util.Run("ip6tables", "-P", "FORWARD", "ACCEPT")
 		if err != nil {
 			logrus.WithError(err).Error("failed to change ip6 tables forward chain policy to accept")
+		}
+	}()
+
+	go func() {
+		err := d.startDomaintproxy()
+		if err != nil {
+			logrus.WithError(err).Error("unable to start docker tls domaintproxy")
 		}
 	}()
 

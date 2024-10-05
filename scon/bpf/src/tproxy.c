@@ -81,6 +81,7 @@ int tproxy_sk_lookup(struct bpf_sk_lookup *ctx) {
         return SK_PASS;
     }
 
+    bpf_printk("tproxy | assigning sk");
     int ret = bpf_sk_assign(ctx, sk, 0);
     if (ret) {
         bpf_printk("tproxy | failed to assign sk: %d", ret);

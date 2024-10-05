@@ -11,8 +11,8 @@ import (
 )
 
 type Tproxy struct {
-	objs *tproxyObjects
-	link *link.NetNsLink
+	objs  *tproxyObjects
+	links []*link.NetNsLink
 }
 
 const TPROXY_SOCKET_KEY4 uint32 = 0
@@ -82,21 +82,30 @@ func NewTproxy(subnet4 netip.Prefix, subnet6 netip.Prefix, port uint16) (*Tproxy
 		return nil, fmt.Errorf("load tproxy: %w", err)
 	}
 
-	nsFd, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	return &Tproxy{
+		objs:  tproxyObjs,
+		links: make([]*link.NetNsLink, 0),
+	}, nil
+}
+
+func (t *Tproxy) AttachNetNs(nsFd int) error {
+	l, err := link.AttachNetNs(nsFd, t.objs.TproxySkLookup)
 	if err != nil {
-		return nil, fmt.Errorf("open netns: %w", err)
+		return fmt.Errorf("attach tproxy: %w", err)
+	}
+
+	t.links = append(t.links, l)
+	return nil
+}
+
+func (t *Tproxy) AttachNetNsFromPath(path string) error {
+	nsFd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("open netns: %w", err)
 	}
 	defer unix.Close(nsFd)
 
-	l, err := link.AttachNetNs(nsFd, tproxyObjs.TproxySkLookup)
-	if err != nil {
-		return nil, fmt.Errorf("attach tproxy: %w", err)
-	}
-
-	return &Tproxy{
-		objs: tproxyObjs,
-		link: l,
-	}, nil
+	return t.AttachNetNs(nsFd)
 }
 
 func (t *Tproxy) SetSock4(fd uint64) error {

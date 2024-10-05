@@ -1,4 +1,4 @@
-package main
+package domainproxy
 
 import (
 	"context"
@@ -15,42 +15,47 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/scon/bpf"
+	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util"
-	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
-type mdnsContextKey int
+type MdnsContextKey int
 
 const (
-	mdnsContextKeyDownstreamIp = iota
+	MdnsContextKeyDownstream = MdnsContextKey(iota)
 )
 
-type tlsProxy struct {
+type GetUpstreamFunc func(host string, v4 bool) (netip.Addr, domainproxytypes.DomainproxyUpstream, error)
+type GetMarkFunc func(upstream domainproxytypes.DomainproxyUpstream) int
+type Domaintproxy struct {
+	getUpstream GetUpstreamFunc
+	getMark     GetMarkFunc
+
 	tlsController *tlsutil.TLSController
-	registry      *mdnsRegistry
 	tproxy        *bpf.Tproxy
 }
 
-func newTlsProxy(host *hclient.Client, registry *mdnsRegistry) (*tlsProxy, error) {
+func NewDomaintproxy(host *hclient.Client, getUpstream GetUpstreamFunc, getMark GetMarkFunc) (*Domaintproxy, error) {
 	tlsController, err := tlsutil.NewTLSController(host)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tls controller: %w", err)
+		return nil, err
 	}
 
-	return &tlsProxy{
+	return &Domaintproxy{
 		tlsController: tlsController,
-		registry:      registry,
+		getUpstream:   getUpstream,
+		getMark:       getMark,
 	}, nil
 }
 
-func (t *tlsProxy) Start() error {
-	err := t.tlsController.LoadRoot()
+func (p *Domaintproxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) error {
+	err := p.tlsController.LoadRoot()
 	if err != nil {
 		return err
 	}
@@ -59,78 +64,44 @@ func (t *tlsProxy) Start() error {
 	if err != nil {
 		return err
 	}
-	loTlsProxyAddr4, err := netlink.ParseAddr(netconf.VnetTlsProxyIP4 + "/32")
+	loTlsProxyAddr4, err := netlink.ParseAddr(ip4 + "/32")
 	err = netlink.AddrAdd(lo, loTlsProxyAddr4)
 	if err != nil && !errors.Is(err, unix.EEXIST) {
 		return err
 	}
-	loTlsProxyAddr6, err := netlink.ParseAddr(netconf.VnetTlsProxyIP6 + "/128")
+	loTlsProxyAddr6, err := netlink.ParseAddr(ip6 + "/128")
 	err = netlink.AddrAdd(lo, loTlsProxyAddr6)
 	if err != nil && !errors.Is(err, unix.EEXIST) {
 		return err
 	}
 
-	ln4, err := net.Listen("tcp", net.JoinHostPort(netconf.VnetTlsProxyIP4, "0"))
-	if err != nil {
-		return fmt.Errorf("failed to listen: %w", err)
-	}
-	ln6, err := net.Listen("tcp", net.JoinHostPort(netconf.VnetTlsProxyIP6, "0"))
-	if err != nil {
-		return fmt.Errorf("failed to listen: %w", err)
-	}
-
-	dispatchedLn4 := util.NewDispatchedListener(ln4, t.dispatchIncomingConn)
-	go dispatchedLn4.Run()
-	dispatchedLn6 := util.NewDispatchedListener(ln6, t.dispatchIncomingConn)
-	go dispatchedLn6.Run()
-
-	httpProxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			err := t.rewriteRequest(r)
+	lcfg := net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			var err2 error
+			err := c.Control(func(fd uintptr) {
+				// Go sets SO_REUSEADDR by default
+				err2 = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
+			})
 			if err != nil {
-				logrus.WithError(err).Error("failed to rewrite request")
+				return err
 			}
-		},
-		Transport: &http.Transport{
-			DialContext: t.dialUpstream,
-			// establishing conns is cheap locally
-			// do not limit MaxConnsPerHost in case of load testing
-			IdleConnTimeout: 5 * time.Second,
-			// allow more idle conns to avoid TIME_WAIT hogging all ports under load test (default 2)
-			// otherwise we get "connect: cannot assign requested address" after too long
-			MaxIdleConnsPerHost: 200,
+
+			return err2
 		},
 	}
 
-	httpServer := &http.Server{
-		Handler: httpProxy,
-		TLSConfig: &tls.Config{
-			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				if !strings.HasSuffix(hlo.ServerName, ".local") {
-					return nil, nil
-				}
-
-				return t.tlsController.MakeCertForHost(hlo.ServerName)
-			},
-		},
-	}
-
-	go func() {
-		err := httpServer.ServeTLS(dispatchedLn4, "", "")
-		if err != nil {
-			logrus.WithError(err).Error("mdns tlsproxy: serve tls failed")
-		}
-	}()
-	go func() {
-		err := httpServer.ServeTLS(dispatchedLn6, "", "")
-		if err != nil {
-			logrus.WithError(err).Error("mdns tlsproxy: serve tls failed")
-		}
-	}()
-
-	tproxy, err := bpf.NewTproxy(domainproxySubnet4Prefix, domainproxySubnet6Prefix, 443)
+	ln4, err := lcfg.Listen(context.TODO(), "tcp", net.JoinHostPort(ip4, "0"))
 	if err != nil {
-		return fmt.Errorf("mdns tlsproxy: failed to create tproxy bpf: %w", err)
+		return fmt.Errorf("failed to listen: %w", err)
+	}
+	ln6, err := lcfg.Listen(context.TODO(), "tcp", net.JoinHostPort(ip6, "0"))
+	if err != nil {
+		return fmt.Errorf("failed to listen: %w", err)
+	}
+
+	tproxy, err := bpf.NewTproxy(subnet4, subnet6, 443)
+	if err != nil {
+		return fmt.Errorf("tls domainproxy: failed to create tproxy bpf: %w", err)
 	}
 
 	ln4File, err := ln4.(*net.TCPListener).File()
@@ -151,9 +122,62 @@ func (t *tlsProxy) Start() error {
 		return fmt.Errorf("failed to set tproxy socket: %w", err)
 	}
 
-	t.tproxy = tproxy
+	err = tproxy.AttachNetNsFromPath("/proc/thread-self/ns/net")
+	if err != nil {
+		return fmt.Errorf("failed to attach tproxy to netns: %w", err)
+	}
 
-	logrus.Debug("mdns tls proxy started")
+	p.tproxy = tproxy
+
+	dispatchedLn4 := util.NewDispatchedListener(ln4, p.dispatchIncomingConn)
+	go dispatchedLn4.Run()
+	dispatchedLn6 := util.NewDispatchedListener(ln6, p.dispatchIncomingConn)
+	go dispatchedLn6.Run()
+
+	httpProxy := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			err := p.rewriteRequest(r)
+			if err != nil {
+				logrus.WithError(err).Error("failed to rewrite request")
+			}
+		},
+		Transport: &http.Transport{
+			DialContext: p.dialUpstream,
+			// establishing conns is cheap locally
+			// do not limit MaxConnsPerHost in case of load testing
+			IdleConnTimeout: 5 * time.Second,
+			// allow more idle conns to avoid TIME_WAIT hogging all ports under load test (default 2)
+			// otherwise we get "connect: cannot assign requested address" after too long
+			MaxIdleConnsPerHost: 200,
+		},
+	}
+
+	httpServer := &http.Server{
+		Handler: httpProxy,
+		TLSConfig: &tls.Config{
+			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				if !strings.HasSuffix(hlo.ServerName, ".local") {
+					return nil, nil
+				}
+
+				return p.tlsController.MakeCertForHost(hlo.ServerName)
+			},
+		},
+	}
+
+	go func() {
+		err := httpServer.ServeTLS(dispatchedLn4, "", "")
+		if err != nil {
+			logrus.WithError(err).Error("domaintproxy: serve tls failed")
+		}
+	}()
+	go func() {
+		err := httpServer.ServeTLS(dispatchedLn6, "", "")
+		if err != nil {
+			logrus.WithError(err).Error("domaintproxy: serve tls failed")
+		}
+	}()
+
 	return nil
 }
 
@@ -204,48 +228,7 @@ func dialerForTransparentBind(bindIp net.IP, mark int) *net.Dialer {
 	}
 }
 
-func (t *tlsProxy) getMark(proxyAddr netip.Addr) int {
-	mark := netconf.VmFwmarkTproxyOutboundBit
-	if _, has := t.registry.domainproxy.dockerSet[proxyAddr]; has {
-		mark |= netconf.VmFwmarkDockerRouteBit
-	}
-
-	return mark
-}
-
-// returns proxy addr, upstream ip, error
-func (t *tlsProxy) getUpstream(host string, v4 bool) (netip.Addr, net.IP, error) {
-	proxyAddr := netip.Addr{}
-	if proxyAddrVal, err := netip.ParseAddr(host); err == nil {
-		proxyAddr = proxyAddrVal
-	} else {
-		proxyIp4, proxyIp6 := t.registry.getIpsForName(strings.TrimSuffix(host, ".") + ".")
-
-		if v4 && proxyIp4 != nil {
-			if proxyAddr4, ok := netip.AddrFromSlice(proxyIp4); ok {
-				proxyAddr = proxyAddr4
-			}
-		}
-		if !v4 && proxyIp6 != nil {
-			if proxyAddr6, ok := netip.AddrFromSlice(proxyIp6); ok {
-				proxyAddr = proxyAddr6
-			}
-		}
-	}
-
-	if proxyAddr == (netip.Addr{}) {
-		return netip.Addr{}, nil, errors.New("could not find proxyaddr")
-	}
-
-	upstreamIp, has := t.registry.domainproxy.ipMap[proxyAddr]
-	if !has {
-		return netip.Addr{}, nil, errors.New("could not find backend in mdns registry")
-	}
-
-	return proxyAddr, upstreamIp, nil
-}
-
-func (t *tlsProxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
+func (p *Domaintproxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 	// this function just lets us directly passthrough to an existing ssl server. this should be removed soon in favor of port probing
 
 	downstreamIp := conn.RemoteAddr().(*net.TCPAddr).IP
@@ -254,14 +237,18 @@ func (t *tlsProxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 	// this works because we never change the dest, only hook sk_assign (like tproxy but sillier)
 	destHost, destPort, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
-		return false, fmt.Errorf("couldn't split %s into host and port", conn.LocalAddr().String())
+		logrus.WithError(err).Errorf("couldn't split %s into host and port", conn.LocalAddr().String())
+		return false, nil
 	}
 
-	proxyAddr, upstreamIp, err := t.getUpstream(destHost, is4)
+	logrus.WithFields(logrus.Fields{"destHost": destHost, "downstreamIp": downstreamIp}).Debug("emmie | got connection")
+
+	_, upstream, err := p.getUpstream(destHost, is4)
 	if err != nil {
-		return false, err
+		logrus.WithError(err).Error("failed to get upstream")
+		return false, nil
 	}
-	mark := t.getMark(proxyAddr)
+	mark := p.getMark(upstream)
 
 	// always attempt to make a direct connection and dial orig port on orig IP first
 	// since these are local containers, connection should fail fast and return RST (-ECONNREFUSED)
@@ -272,7 +259,7 @@ func (t *tlsProxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 	// TODO: how can we do this in kernel, without userspace proxying? is SOCKMAP good?
 	dialer := dialerForTransparentBind(downstreamIp, mark)
 	dialer.Timeout = 500 * time.Millisecond
-	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstreamIp.String(), destPort))
+	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstream.Ip.String(), destPort))
 	if err == nil {
 		defer upstreamConn.Close()
 		defer conn.Close()
@@ -283,7 +270,7 @@ func (t *tlsProxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 	return true, nil
 }
 
-func (t *tlsProxy) rewriteRequest(r *httputil.ProxyRequest) error {
+func (p *Domaintproxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	host := r.In.Host
 	if host == "" {
 		host = r.In.TLS.ServerName
@@ -312,25 +299,28 @@ func (t *tlsProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 		return fmt.Errorf("could not parse as ip: %s", downstreamAddrStr)
 	}
 
-	newContext := context.WithValue(r.Out.Context(), mdnsContextKeyDownstreamIp, downstreamIp)
+	newContext := context.WithValue(r.Out.Context(), MdnsContextKeyDownstream, downstreamIp)
 	r.Out = r.Out.WithContext(newContext)
+
+	logrus.WithFields(logrus.Fields{"downstreamIP": downstreamIp, "host": host}).Debug("emmie | rewriteRequest")
 
 	return nil
 }
 
-func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
+func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
 	dialHost, dialPort, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
 
-	downstreamIp := ctx.Value(mdnsContextKeyDownstreamIp)
+	downstreamIp := ctx.Value(MdnsContextKeyDownstream)
+	logrus.WithFields(logrus.Fields{"downstreamIp": downstreamIp}).Debug("emmie | dialUpstream")
 	is4 := true
 	if downstreamIp != nil {
 		is4 = downstreamIp.(net.IP).To4() != nil
 	}
 
-	proxyAddr, upstreamIp, err := t.getUpstream(dialHost, is4)
+	_, upstream, err := p.getUpstream(dialHost, is4)
 	if err != nil {
 		return nil, err
 	}
@@ -338,8 +328,8 @@ func (t *tlsProxy) dialUpstream(ctx context.Context, network, addr string) (net.
 	// fall back to normal dialer
 	dialer := &net.Dialer{}
 	if downstreamIp != nil {
-		dialer = dialerForTransparentBind(downstreamIp.(net.IP), t.getMark(proxyAddr))
+		dialer = dialerForTransparentBind(downstreamIp.(net.IP), p.getMark(upstream))
 	}
 
-	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstreamIp.String(), dialPort))
+	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.Ip.String(), dialPort))
 }

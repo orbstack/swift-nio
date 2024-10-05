@@ -74,19 +74,24 @@ var dockerInitCommands = [][]string{
 	// compat for kruise expecting containerd OR docker+dockershim: https://github.com/openkruise/kruise/blob/4e80be556726e60f54abaa3e8ba133ce114c4f64/pkg/daemon/criruntime/factory.go#L200
 	{"ln", "-sf", "/var/run/k3s/cri-dockerd/cri-dockerd.sock", "/var/run/dockershim.sock"},
 
+	{"ip", "rule", "add", "fwmark", strconv.Itoa(netconf.DockerFwmarkLocalRoute), "table", "984"},
+	{"ip", "route", "add", "local", "default", "dev", "lo", "table", "984"},
+
+	{"sysctl", "-q", "net.ipv6.conf.lo.accept_dad=0"},
+
 	{"nft", nft.FormatConfig(nft.ConfigDocker, map[string]string{
-		"IF_SCON":                           "eth0",
-		"DOCKER_MARK_TLS_PROXY_UPSTREAM":    netconf.DockerMarkTlsProxyUpstreamStr,
-		"DOCKER_MARK_TLS_PROXY_LOCAL_ROUTE": netconf.DockerMarkTlsProxyLocalRouteStr,
-		"VNET_TLS_PROXY_IP4":                netconf.VnetTlsProxyIP4,
-		"VNET_TLS_PROXY_IP6":                netconf.VnetTlsProxyIP6,
-		"PORT_DOCKER_MACHINE_TLS_PROXY":     ports.DockerMachineTlsProxyStr,
-		"VNET_GATEWAY_IP4":                  netconf.VnetGatewayIP4,
-		"VNET_GATEWAY_IP6":                  netconf.VnetGatewayIP6,
-		"SCON_SUBNET6_CIDR":                 netconf.SconSubnet6CIDR,
-		"NAT64_SOURCE_IP4":                  netconf.NAT64SourceIP4,
-		"K8S_MERGED_CIDR4":                  netconf.K8sMergedCIDR4,
-		"K8S_MERGED_CIDR6":                  netconf.K8sMergedCIDR6,
+		"IF_SCON":                       "eth0",
+		"DOCKER_FWMARK_LOCAL_ROUTE":     strconv.Itoa(netconf.DockerFwmarkLocalRoute),
+		"DOCKER_FWMARK_TPROXY":          strconv.Itoa(netconf.DockerFwmarkTproxy),
+		"DOCKER_FWMARK_TPROXY_OUTBOUND": strconv.Itoa(netconf.DockerFwmarkTproxyOutbound),
+		"VNET_TLS_PROXY_IP4":            netconf.VnetTlsProxyIP4,
+		"VNET_TLS_PROXY_IP6":            netconf.VnetTlsProxyIP6,
+		"VNET_GATEWAY_IP4":              netconf.VnetGatewayIP4,
+		"VNET_GATEWAY_IP6":              netconf.VnetGatewayIP6,
+		"SCON_SUBNET6_CIDR":             netconf.SconSubnet6CIDR,
+		"NAT64_SOURCE_IP4":              netconf.NAT64SourceIP4,
+		"K8S_MERGED_CIDR4":              netconf.K8sMergedCIDR4,
+		"K8S_MERGED_CIDR6":              netconf.K8sMergedCIDR6,
 	})},
 }
 
@@ -551,10 +556,6 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			"docker": {"dockerd", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
 		},
 		DepServices: map[string][]string{},
-	}
-	// add TLS proxy nftables rules
-	if c.manager.vmConfig.NetworkHttps {
-		svConfig.InitCommands = append(svConfig.InitCommands, agent.DockerTlsAddCommand)
 	}
 	// add k8s service
 	if c.manager.k8sEnabled {

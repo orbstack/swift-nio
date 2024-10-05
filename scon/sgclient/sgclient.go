@@ -2,8 +2,10 @@ package sgclient
 
 import (
 	"net"
+	"net/netip"
 	"net/rpc"
 
+	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
@@ -57,4 +59,13 @@ func (c *Client) OnDockerVolumesChanged(diff sgtypes.Diff[*dockertypes.Volume]) 
 func (c *Client) OnDockerRefsChanged() error {
 	var noResult None
 	return c.rpc.Call("scg.OnDockerRefsChanged", None{}, &noResult)
+}
+
+func (c *Client) GetProxyUpstream(host string, v4 bool) (netip.Addr, domainproxytypes.DomainproxyUpstream, error) {
+	var reply sgtypes.GetProxyUpstreamReply
+	err := c.rpc.Call("scg.GetProxyUpstream", sgtypes.GetProxyUpstreamArgs{Host: host, V4: v4}, &reply)
+	if err != nil {
+		return netip.Addr{}, domainproxytypes.DomainproxyUpstream{}, err
+	}
+	return reply.Addr, reply.Upstream, nil
 }
