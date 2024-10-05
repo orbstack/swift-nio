@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/alessio/shellescape"
 	"github.com/fatih/color"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
@@ -293,11 +294,22 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args
 	}
 
 	REGISTRY_IMAGE := "198.19.249.3:5000/wormhole-rootfs:latest"
+	workingDir := containerInfo.Config.WorkingDir
+	shellCmd := ""
+
+	if flagWorkdir != "" {
+		workingDir = flagWorkdir
+	}
+
+	if len(args) > 0 {
+		shellCmd = shellescape.QuoteCommand(args)
+	}
+
 	wormholeParams, err := json.Marshal(WormholeParams{
 		Pid:        containerInfo.State.Pid,
-		WorkingDir: containerInfo.Config.WorkingDir,
+		WorkingDir: workingDir,
 		Env:        containerInfo.Config.Env,
-		ShellCmd:   "",
+		ShellCmd:   shellCmd,
 	})
 	if err != nil {
 		return errors.New("failed to serialize wormhole params")
