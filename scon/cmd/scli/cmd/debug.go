@@ -284,7 +284,7 @@ func startRpcConnection(client *dockerclient.Client, containerID string) error {
 }
 
 func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args []string) error {
-	client, err := dockerclient.NewClient(daemon.Host)
+	client, err := dockerclient.NewClient(daemon)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
@@ -492,9 +492,11 @@ Pro only: requires an OrbStack Pro license.
 				daemon.Host = hostOverride
 			}
 			if path := os.Getenv("DOCKER_CERT"); path != "" {
-				daemon.TLSData.CA = filepath.Join(path, "ca.pem")
-				daemon.TLSData.Key = filepath.Join(path, "key.pem")
-				daemon.TLSData.Cert = filepath.Join(path, "cert.pem")
+				daemon.TLSData = &dockerclient.TLSData{
+					CA:   filepath.Join(path, "ca.pem"),
+					Key:  filepath.Join(path, "key.pem"),
+					Cert: filepath.Join(path, "cert.pem"),
+				}
 			}
 			if tlsVerify := os.Getenv("TLS_VERIFY"); tlsVerify != "" {
 				if tlsVerify == "1" {

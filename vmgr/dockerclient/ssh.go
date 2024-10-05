@@ -339,3 +339,21 @@ func (sp *Spec) Args(add ...string) []string {
 	args = append(args, add...)
 	return args
 }
+
+// https://github.com/docker/cli/blob/dac7319f10d7cc22bc9e031dd930114e4b3d5111/cli/connhelper/connhelper.go#L25
+func GetSSHDialer(dockerHost string) (func(ctx context.Context, network, addr string) (net.Conn, error), error) {
+	sp, err := ParseSshURL(dockerHost)
+	// disable pty allocation
+	sshFlags := []string{"-T"}
+	if err != nil {
+		return nil, fmt.Errorf("ssh host connection is not valid")
+	}
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		args := []string{"docker"}
+		if sp.Path != "" {
+			args = append(args, "--host", "unix://"+sp.Path)
+		}
+		args = append(args, "system", "dial-stdio")
+		return NewCommandConn(ctx, "ssh", append(sshFlags, sp.Args(args...)...)...)
+	}, nil
+}

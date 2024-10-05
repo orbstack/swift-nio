@@ -9,14 +9,16 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 )
 
+type TLSData struct {
+	CA   string
+	Key  string
+	Cert string
+}
+
 type DockerConnection struct {
 	Host          string
 	SkipTLSVerify bool
-	TLSData       *struct {
-		CA   string
-		Key  string
-		Cert string
-	}
+	TLSData       *TLSData
 }
 
 type ContextMetadata struct {

@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -12,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -74,26 +77,8 @@ func ParseHostURL(host string) (*url.URL, error) {
 	}, nil
 }
 
-// https://github.com/docker/cli/blob/dac7319f10d7cc22bc9e031dd930114e4b3d5111/cli/connhelper/connhelper.go#L25
-func GetSSHDialer(dockerHost string) (func(ctx context.Context, network, addr string) (net.Conn, error), error) {
-	sp, err := ParseSshURL(dockerHost)
-	// disable pty allocation
-	sshFlags := []string{"-T"}
-	if err != nil {
-		return nil, fmt.Errorf("ssh host connection is not valid")
-	}
-	return func(ctx context.Context, network, addr string) (net.Conn, error) {
-		args := []string{"docker"}
-		if sp.Path != "" {
-			args = append(args, "--host", "unix://"+sp.Path)
-		}
-		args = append(args, "system", "dial-stdio")
-		return NewCommandConn(ctx, "ssh", append(sshFlags, sp.Args(args...)...)...)
-	}, nil
-}
-
-func NewClient(dockerHost string) (*Client, error) {
-	hostURL, err := ParseHostURL(dockerHost)
+func NewClient(daemon *DockerConnection) (*Client, error) {
+	hostURL, err := ParseHostURL(daemon.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +88,7 @@ func NewClient(dockerHost string) (*Client, error) {
 
 	switch hostURL.Scheme {
 	case "ssh":
-		dialer, err := GetSSHDialer(dockerHost)
+		dialer, err := GetSSHDialer(daemon.Host)
 		if err != nil {
 			return nil, fmt.Errorf("could not connect to docker host via ssh")
 		}
@@ -114,7 +99,12 @@ func NewClient(dockerHost string) (*Client, error) {
 	case "unix":
 		c, err = NewWithUnixSocket(hostURL.Path, opts)
 		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker host via ssh")
+			return nil, fmt.Errorf("could not connect to docker host via unix")
+		}
+	case "tcp":
+		c, err = NewWithTCP(hostURL.Host, daemon, opts)
+		if err != nil {
+			return nil, fmt.Errorf("could not connect to docker host via tcp")
 		}
 	default:
 		return nil, fmt.Errorf("unsupported scheme %s", hostURL.Scheme)
@@ -155,7 +145,62 @@ func NewWithDialer(dialer func(ctx context.Context, network, addr string) (net.C
 			// idle conns ok usually
 			MaxIdleConns:    3,
 			IdleConnTimeout: 5 * time.Second,
-			// TLSClientConfig: ,
+		},
+	}
+	return NewWithHTTP(dialer, httpClient, options), nil
+}
+
+func GetTLSConfig(tlsData *TLSData, skipTLSVerify bool) (*tls.Config, error) {
+	caCert, err := os.ReadFile(tlsData.CA)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA certificate: %w", err)
+	}
+
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to append CA certificate")
+	}
+
+	cert, err := tls.LoadX509KeyPair(tlsData.CA, tlsData.Key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load client certificate/key: %w", err)
+	}
+
+	return &tls.Config{
+		InsecureSkipVerify: skipTLSVerify,
+		RootCAs:            caCertPool,
+		Certificates:       []tls.Certificate{cert},
+	}, nil
+}
+
+func NewWithTCP(address string, daemon *DockerConnection, options *Options) (*Client, error) {
+	var tlsConfig *tls.Config
+	var err error
+	var dialer func(ctx context.Context, _, _ string) (net.Conn, error)
+
+	if daemon.TLSData != nil {
+		tlsConfig, err = GetTLSConfig(daemon.TLSData, daemon.SkipTLSVerify)
+		if err != nil {
+			return nil, err
+		}
+
+		dialer = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return tls.Dial("tcp", address, tlsConfig)
+		}
+	} else {
+		tlsConfig = nil
+		dialer = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return net.Dial("tcp", address)
+		}
+	}
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: dialer,
+			// idle conns ok usually
+			MaxIdleConns:    3,
+			IdleConnTimeout: 5 * time.Second,
+			TLSClientConfig: tlsConfig,
 		},
 	}
 	return NewWithHTTP(dialer, httpClient, options), nil
