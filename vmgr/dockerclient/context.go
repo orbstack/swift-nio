@@ -68,3 +68,26 @@ func GetContext(context string) (*DockerConnection, error) {
 	}
 	return nil, fmt.Errorf("could not find context %s", context)
 }
+
+func GetCurrentContext() (*DockerConnection, error) {
+	configFile := filepath.Join(conf.UserDockerDir(), "config.json")
+	bytes, err := os.ReadFile(configFile)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var config struct {
+		CurrentContext string `json:"currentContext"`
+	}
+
+	if err := json.Unmarshal(bytes, &config); err != nil {
+		return nil, fmt.Errorf("could not get context from docker config")
+	}
+
+	if config.CurrentContext == "" {
+		return GetContext("default")
+	} else {
+		return GetContext(config.CurrentContext)
+	}
+}

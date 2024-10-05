@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
@@ -448,7 +449,10 @@ Pro only: requires an OrbStack Pro license.
 		// 3. DOCKER_HOST env
 		// 4. Host specified by currentContext in `~/.docker/config.json`
 		// 5. "default" context (unix:///var/run/docker.sock)
-		var daemon *dockerclient.DockerConnection
+		daemon, err := dockerclient.GetCurrentContext()
+		if err != nil {
+			return err
+		}
 
 		if strings.Contains(containerID, "@") {
 			var context string
@@ -463,8 +467,26 @@ Pro only: requires an OrbStack Pro license.
 			if daemon, err = dockerclient.GetContext(context); err != nil {
 				return err
 			}
+		} else if context := os.Getenv("DOCKER_CONTEXT"); context != "" {
+			if daemon, err = dockerclient.GetContext(context); err != nil {
+				return err
+			}
 		} else {
-			// return debugRemote(containerID)
+			if hostOverride := os.Getenv("DOCKER_HOST"); hostOverride != "" {
+				daemon.Host = hostOverride
+			}
+			if path := os.Getenv("DOCKER_CERT"); path != "" {
+				daemon.TLSData.CA = filepath.Join(path, "ca.pem")
+				daemon.TLSData.Key = filepath.Join(path, "key.pem")
+				daemon.TLSData.Cert = filepath.Join(path, "cert.pem")
+			}
+			if tlsVerify := os.Getenv("TLS_VERIFY"); tlsVerify != "" {
+				if tlsVerify == "1" {
+					daemon.SkipTLSVerify = false
+				} else if tlsVerify == "0" {
+					daemon.SkipTLSVerify = true
+				}
+			}
 		}
 
 		fmt.Println("reading from host ", daemon)
