@@ -125,7 +125,8 @@ func fallbackDockerExec(containerID string) error {
 	return unix.Exec(conf.FindXbin("docker"), []string{"docker", "--context", "orbstack", "exec", "-it", containerID, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"}, os.Environ())
 }
 
-type WormholeParams struct {
+type WormholeRemoteServerParams struct {
+	IsLocal    bool     `json:"is_local"`
 	Pid        int      `json:"init_pid"`
 	Env        []string `json:"container_env"`
 	WorkingDir string   `json:"container_workdir"`
@@ -314,7 +315,8 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args
 		shellCmd = shellescape.QuoteCommand(args)
 	}
 
-	wormholeParams, err := json.Marshal(WormholeParams{
+	wormholeParams, err := json.Marshal(WormholeRemoteServerParams{
+		IsLocal:    false,
 		Pid:        containerInfo.State.Pid,
 		WorkingDir: workingDir,
 		Env:        containerInfo.Config.Env,

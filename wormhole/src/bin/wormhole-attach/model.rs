@@ -25,4 +25,7 @@ pub struct WormholeConfig {
 
     #[serde(rename = "h")]
     pub entry_shell_cmd: Option<String>,
+
+    #[serde(rename = "i")]
+    pub is_local: bool,
 }

@@ -518,7 +518,11 @@ fn main() -> anyhow::Result<()> {
         )?)
     };
 
-    let rpc_client_stream = wait_for_rpc_client()?;
+    let rpc_client = if !config.is_local {
+        Some(wait_for_rpc_client()?)
+    } else {
+        None
+    };
 
     trace!("attach most namespaces");
     setns(
@@ -934,9 +938,33 @@ fn main() -> anyhow::Result<()> {
                             // die when subreaper dies
                             proc::prctl_death_sig()?;
 
-                            trace!("rpc server");
+                            let entry_shell_cmd = config.entry_shell_cmd.clone();
+                            let shell_cmd = entry_shell_cmd.as_deref().unwrap_or("");
+                            let mut cstr_envs = env_map
+                                .iter()
+                                .map(|(k, v)| CString::new(format!("{}={}", k, v)))
+                                .collect::<anyhow::Result<Vec<_>, _>>()?;
 
-                            rpc::run(config, rpc_client_stream, exit_code_reader, &mut env_map)?;
+                            if let Some(rpc_client) = rpc_client {
+                                rpc::run(
+                                    config,
+                                    rpc_client,
+                                    exit_code_reader,
+                                    shell_cmd,
+                                    cstr_envs,
+                                )?;
+                            } else {
+                                execve(
+                                    &CString::new("/nix/orb/sys/bin/dctl")?,
+                                    &[
+                                        CString::new("dctl")?,
+                                        CString::new("__entrypoint")?,
+                                        CString::new("--")?,
+                                        CString::new(shell_cmd)?,
+                                    ],
+                                    &cstr_envs,
+                                )?;
+                            }
                             unreachable!();
                         }
                     }

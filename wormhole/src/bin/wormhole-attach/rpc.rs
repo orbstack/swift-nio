@@ -155,13 +155,14 @@ pub fn run(
     config: WormholeConfig,
     mut client: UnixStream,
     mut exit_code_reader: UnixStream,
-    env_map: &mut HashMap<String, String>,
+    shell_cmd: &str,
+    mut cstr_envs: Vec<CString>, // env_map: &mut HashMap<String, String>,
 ) -> anyhow::Result<()> {
     // dup2(config.log_fd, stdout().as_raw_fd())?;
     // dup2(config.log_fd, stderr().as_raw_fd())?;
 
-    let shell_cmd = config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
-    // let mut client = unsafe { File::from_raw_fd(client_fd) };
+    trace!("rpc server");
+
     let mut pty: Option<OpenptyResult> = None;
 
     let mut stdin_pipe = (-1, -1);
@@ -185,8 +186,7 @@ pub fn run(
                 stdout_pipe = (dup(master_fd)?, dup(slave_fd)?);
                 stderr_pipe = (dup(master_fd)?, dup(slave_fd)?);
 
-                env_map.insert("TERM".to_string(), pty_config.term_env);
-                trace!("env map")
+                cstr_envs.push(CString::new(format!("TERM={}", pty_config.term_env))?);
             }
             Ok(RpcInputMessage::Start()) => break,
             _ => {}
@@ -198,15 +198,16 @@ pub fn run(
         stdout_pipe = pipe()?;
         stderr_pipe = pipe()?;
     }
+    // add owned fd here
 
     trace!("finished reading host");
 
     match unsafe { fork()? } {
         // child: payload
         ForkResult::Parent { child: _ } => {
-            close(stdin_pipe.1)?;
-            close(stdout_pipe.0)?;
-            close(stderr_pipe.0)?;
+            // close(stdin_pipe.1)?;
+            // close(stdout_pipe.0)?;
+            // close(stderr_pipe.0)?;
 
             if pty.is_some() {
                 setsid()?;
@@ -218,11 +219,6 @@ pub fn run(
             dup2(stdin_pipe.0, libc::STDIN_FILENO)?;
             dup2(stdout_pipe.1, libc::STDOUT_FILENO)?;
             dup2(stderr_pipe.1, libc::STDERR_FILENO)?;
-
-            let cstr_envs = env_map
-                .iter()
-                .map(|(k, v)| CString::new(format!("{}={}", k, v)))
-                .collect::<anyhow::Result<Vec<_>, _>>()?;
 
             execve(
                 &CString::new("/nix/orb/sys/bin/dctl")?,
@@ -237,9 +233,9 @@ pub fn run(
             unreachable!();
         }
         ForkResult::Child => {
-            close(stdin_pipe.0)?;
-            close(stdout_pipe.1)?;
-            close(stderr_pipe.1)?;
+            // close(stdin_pipe.0)?;
+            // close(stdout_pipe.1)?;
+            // close(stderr_pipe.1)?;
 
             // write to payload stdin and read from stdout/stderr
             let mut payload_stdin = unsafe { File::from_raw_fd(stdin_pipe.1) };

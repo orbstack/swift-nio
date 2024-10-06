@@ -34,6 +34,7 @@ use wormhole::{
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WormholeConfig {
+    pub is_local: bool,
     pub init_pid: i32,
     #[serde(default)]
     pub wormhole_mount_tree_fd: i32,
@@ -223,7 +224,6 @@ fn main() -> anyhow::Result<()> {
     config.wormhole_mount_tree_fd = wormhole_mount_fd.as_raw_fd();
     config.exit_code_pipe_write_fd = exit_code_pipe_write_fd;
     config.drm_token = String::from("eyJhbGciOiJFZERTQSIsImtpZCI6IjEiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiIiLCJlbnQiOjEsImV0cCI6MiwiZW1nIjpudWxsLCJlc3QiOm51bGwsImF1ZCI6Im1hY3ZpcnQiLCJ2ZXIiOnsiY29kZSI6MTA3MDEwMCwiZ2l0IjoiNWQyODNjMjcxYzhjOWEwOGJmYTkwMTliNmFhZWNiZDI5NmYxZjIzMCJ9LCJkaWQiOiI3YmE5ZjA1ZDBlMGY2NTI3MjVkYzA3NjM5Y2VmYTg2NTM2ZWVlMmU5NTc4NDk2OWVlODcwZWMyZDY2YjEzMDI0IiwiaWlkIjoiYzdlYzY1M2FmZDljMDIxNjZlZjY2Nzc2MGVkYWNmODA0ZDc4OTlhZDE3YmQ1YWIxYzU4YzE4OGVjOGYxZTExYiIsImNpZCI6ImU1NjZiZjRiNmExNjNjYTM1NGU2OGQzYmU2ZjAzZDlmNzFkMzYxZTdhMmIxNjMzZDcwMzE0MmE2ODIwNmNjNDciLCJpc3MiOiJkcm1zZXJ2ZXIiLCJpYXQiOjE3MjgwMjM5MzIsImV4cCI6MTcyODYyODczMiwibmJmIjoxNzI4MDIzOTMyLCJkdnIiOjEsIndhciI6MTcyOTU2MzM3MiwibHhwIjoxNzMwMTY4MTcyfQ.wWgdJiSPRCd1gkFGt2CbpJF1NFeOXoy-9qtD3-b9u-mbIWDCTsCnA67em5gd7T13OzzvTZuJunzIhAn2f3TjDA");
-
     config.log_fd = log_pipe_write_fd;
 
     let serialized = serde_json::to_string(&config)?;
