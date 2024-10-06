@@ -79,8 +79,7 @@ pub fn run(
 
                         payload_pid = None;
 
-                        trace!("process exiting");
-                        if let Err(err) = return_exit_code(&mut exit_code_pipe_write, status) {
+                        if let Err(err) = return_exit_code(&mut exit_code_writer, status) {
                             trace!(?err, "error returning exit code");
                         }
                     };

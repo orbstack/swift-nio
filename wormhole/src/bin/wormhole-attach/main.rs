@@ -436,10 +436,6 @@ fn main() -> anyhow::Result<()> {
     trace!("drm token: {:?}", config.drm_token);
     drm::verify_token(&config.drm_token)?;
 
-    // kevin: for remote wormhole, we want to send the exit code back to main process via rpc
-    let (mut exit_code_writer, mut exit_code_reader) = UnixStream::pair()?;
-    config.exit_code_pipe_write_fd = exit_code_writer.as_raw_fd();
-
     // set cloexec on extra files passed to us
     if let Some(ref rootfs_fd) = rootfs_fd {
         set_cloexec(rootfs_fd.as_raw_fd())?;
@@ -447,6 +443,15 @@ fn main() -> anyhow::Result<()> {
     set_cloexec(config.exit_code_pipe_write_fd)?;
     set_cloexec(log_fd.as_raw_fd())?;
     set_cloexec(wormhole_mount_fd.as_raw_fd())?;
+
+    let (mut exit_code_writer, mut exit_code_reader) = if !config.is_local {
+        // for remote wormhole, set up a local pipe to send exit codes from subreaper process to rpc server process
+        let (mut w, mut r) = UnixStream::pair()?;
+        (Box::new(w) as Box<dyn Write>, Some(r))
+    } else {
+        let file = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
+        (Box::new(file) as Box<dyn Write>, None)
+    };
 
     // set sigpipe
     {
@@ -949,7 +954,7 @@ fn main() -> anyhow::Result<()> {
                                 rpc::run(
                                     config,
                                     rpc_client,
-                                    exit_code_reader,
+                                    exit_code_reader.unwrap(),
                                     shell_cmd,
                                     cstr_envs,
                                 )?;
