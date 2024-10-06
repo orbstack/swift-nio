@@ -403,42 +403,6 @@ fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
     )
 }
 
-fn recv_rpc_client(recv_client_socket_fd: OwnedFd) -> anyhow::Result<RawFd> {
-    let mut cmsgspace = nix::cmsg_space!([RawFd; 1]);
-    let mut data = [0u8];
-    let mut iov = [IoSliceMut::new(&mut data)];
-    let msg = recvmsg::<()>(
-        recv_client_socket_fd.as_raw_fd(),
-        &mut iov,
-        Some(&mut cmsgspace),
-        MsgFlags::empty(),
-    )?;
-    for cmsg in msg.cmsgs() {
-        if let ControlMessageOwned::ScmRights(fds) = cmsg {
-            return Ok(fds[0]);
-        }
-    }
-
-    Err(anyhow!("did not receive client fd from socket"))
-}
-
-// send the rpc client fd connection to the payload process so that they can communicate directly
-fn send_rpc_client(send_client_socket_fd: OwnedFd, client_fd: RawFd) -> anyhow::Result<()> {
-    // send(send_client_socket_fd, &[1, 10, 11, 13], MsgFlags::empty())?;
-    let fds = [client_fd];
-    let cmsg = ControlMessage::ScmRights(&fds);
-    // must send at least 1 byte of data along with ancillary data
-    let iov = [IoSlice::new(&[0u8])];
-    sendmsg::<()>(
-        send_client_socket_fd.as_raw_fd(),
-        &iov,
-        &[cmsg],
-        MsgFlags::empty(),
-        None,
-    )?;
-    Ok(())
-}
-
 fn wait_for_rpc_client() -> anyhow::Result<UnixStream> {
     let rpc_server_socket = "/rpc.sock";
     trace!("binding rpc server to {}", rpc_server_socket);
@@ -554,17 +518,7 @@ fn main() -> anyhow::Result<()> {
         )?)
     };
 
-    // this pipe lets us pass the rpc client fd from monitor to payload
-    let (send_client_socket_fd, recv_client_socket_fd) = socketpair(
-        AddressFamily::Unix,
-        SockType::Stream,
-        None,
-        SockFlag::SOCK_CLOEXEC,
-    )?;
-
     let rpc_client_stream = wait_for_rpc_client()?;
-    send_rpc_client(send_client_socket_fd, rpc_client_stream.as_raw_fd())?;
-    trace!("sent rpc client fd {}", rpc_client_stream.as_raw_fd());
 
     trace!("attach most namespaces");
     setns(
@@ -754,7 +708,6 @@ fn main() -> anyhow::Result<()> {
             // close unnecessary fds
             drop(subreaper_socket_fd);
             drop(pidfd);
-            drop(recv_client_socket_fd);
 
             trace!("running monitor");
             monitor::run(
@@ -762,7 +715,6 @@ fn main() -> anyhow::Result<()> {
                 proc_fd,
                 nix_flock_ref,
                 monitor_socket_fd,
-                // send_client_socket_fd,
                 cgroup_path,
                 intermediate,
                 monitor_sfd,
@@ -976,10 +928,6 @@ fn main() -> anyhow::Result<()> {
                         ForkResult::Child => {
                             let _span = span!(Level::TRACE, "payload");
 
-                            let rpc_client_fd = recv_rpc_client(recv_client_socket_fd)?;
-
-                            trace!("received rpc client fd {}", rpc_client_fd);
-
                             // clear our masked signals
                             mask_sigset(&SigSet::empty()?, libc::SIG_SETMASK)?;
 
@@ -988,7 +936,7 @@ fn main() -> anyhow::Result<()> {
 
                             trace!("rpc server");
 
-                            rpc::run(config, rpc_client_fd, exit_code_reader, &mut env_map)?;
+                            rpc::run(config, rpc_client_stream, exit_code_reader, &mut env_map)?;
                             unreachable!();
                         }
                     }

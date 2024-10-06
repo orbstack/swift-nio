@@ -9,7 +9,7 @@ use nix::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
         termios::{tcgetattr, tcsetattr, SetArg, Termios},
     },
-    unistd::{close, dup, dup2, execve, fork, pipe, setsid, ForkResult},
+    unistd::{close, dup, dup2, execve, fork, pipe, setsid, sleep, ForkResult},
 };
 use std::{
     collections::HashMap,
@@ -20,6 +20,7 @@ use std::{
         fd::{AsRawFd, FromRawFd, RawFd},
         unix::net::UnixStream,
     },
+    path::Path,
     process,
 };
 use tracing::trace;
@@ -152,7 +153,7 @@ fn set_nonblocking(fd: RawFd) -> nix::Result<()> {
 
 pub fn run(
     config: WormholeConfig,
-    client_fd: RawFd,
+    mut client: UnixStream,
     mut exit_code_reader: UnixStream,
     env_map: &mut HashMap<String, String>,
 ) -> anyhow::Result<()> {
@@ -160,7 +161,7 @@ pub fn run(
     // dup2(config.log_fd, stderr().as_raw_fd())?;
 
     let shell_cmd = config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
-    let mut client = unsafe { File::from_raw_fd(client_fd) };
+    // let mut client = unsafe { File::from_raw_fd(client_fd) };
     let mut pty: Option<OpenptyResult> = None;
 
     let mut stdin_pipe = (-1, -1);
@@ -245,9 +246,9 @@ pub fn run(
             let mut payload_stdout = unsafe { File::from_raw_fd(stdout_pipe.0) };
             let mut payload_stderr = unsafe { File::from_raw_fd(stderr_pipe.0) };
 
-            let mut client_reader = unsafe { File::from_raw_fd(client_fd) };
-            let mut client_writer = client_reader.try_clone()?;
-            let mut client_writer2 = client_writer.try_clone()?;
+            let mut client_reader = client.try_clone()?;
+            let mut client_writer = client.try_clone()?;
+            let mut client_writer2 = client.try_clone()?;
 
             set_nonblocking(payload_stdout.as_raw_fd())?;
             set_nonblocking(payload_stderr.as_raw_fd())?;

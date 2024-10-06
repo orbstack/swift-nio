@@ -88,7 +88,7 @@ type DockerAgent struct {
 func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 	dockerAgent := &DockerAgent{
 		// use default unix socket
-		client: dockerclient.NewWithHTTP(&http.Client{
+		client: dockerclient.NewWithHTTP(nil, &http.Client{
 			// no timeout - we do event monitoring
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
