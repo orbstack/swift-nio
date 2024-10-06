@@ -226,6 +226,8 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 			// TODO: index could change from virtio2
 			// port index = 2 (0 = console, 1 = stdin, 2 = stdout)
 			seedData.ConsolePath = "/dev/vport2p2"
+		} else {
+			seedData.ConsolePath = "/dev/hvc0"
 		}
 	}
 
