@@ -78,6 +78,13 @@ impl VcpuHandleInner {
         #[cfg(not(target_arch = "aarch64"))]
         tracing::error!("dump_debug not supported on this architecture");
     }
+
+    pub fn kick_pvlock(&self) {
+        #[cfg(target_arch = "aarch64")]
+        self.signal.assert(VcpuSignalMask::PVLOCK);
+        #[cfg(not(target_arch = "aarch64"))]
+        panic!("kick_pvlock not supported on this architecture");
+    }
 }
 
 pub type ArcVcpuHandle = Arc<VcpuHandleInner>;
@@ -96,4 +103,6 @@ pub trait VcpuRegistry: Send + Sync {
     fn vcpu_handle_park(&self, park_task: StartupTask) -> Result<StartupTask, StartupAbortedError>;
 
     fn dump_debug(&self);
+
+    fn kick_vcpu_pvlock(&self, id: u8);
 }

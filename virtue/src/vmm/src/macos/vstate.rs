@@ -19,15 +19,14 @@ use hvf::ArcVcpuHandle;
 use hvf::HvVcpuRef;
 use hvf::MemoryFlags;
 use hvf::VcpuProfilerState;
-use std::collections::BTreeMap;
 use std::io;
 use std::result;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::thread::{self, Thread};
 use std::time::Duration;
 use sysx::mach::time::MachAbsoluteTime;
 use sysx::sync::parker::ParkResult;
-use utils::Mutex;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
 
@@ -116,10 +115,9 @@ pub struct Vm {
     irqchip_handle: Option<Box<dyn GICDevice>>,
 }
 
-#[derive(Default)]
 pub struct VcpuRegistryImpl {
     // TODO: merge with the old VcpuHandle
-    vcpus: Mutex<BTreeMap<u8, ArcVcpuHandle>>,
+    vcpus: Box<[OnceLock<ArcVcpuHandle>]>,
 
     /// Tasks here represent vCPUs which have yet to park.
     park_signal: StartupSignal,
@@ -128,9 +126,21 @@ pub struct VcpuRegistryImpl {
     unpark_signal: StartupSignal,
 }
 
+impl VcpuRegistryImpl {
+    pub fn new(vcpu_count: u8) -> Self {
+        VcpuRegistryImpl {
+            vcpus: vec![OnceLock::new(); vcpu_count as usize].into_boxed_slice(),
+            park_signal: StartupSignal::default(),
+            unpark_signal: StartupSignal::default(),
+        }
+    }
+}
+
 impl VcpuRegistry for VcpuRegistryImpl {
     fn register_vcpu(&self, id: u8, handle: ArcVcpuHandle) -> StartupTask {
-        self.vcpus.lock().unwrap().insert(id, handle);
+        if self.vcpus[id as usize].set(handle).is_err() {
+            panic!("vcpu {} already registered", id);
+        }
 
         // Won't panic: `park_signal` is only ever used in a panic-less context
         self.park_signal.resurrect_cloned().unwrap()
@@ -146,8 +156,8 @@ impl VcpuRegistry for VcpuRegistryImpl {
 
         // Let's send a pause signal to every vCPU. They will receive and honor this since this
         // signal is never asserted outside of `park` (or when the signal is aborted)
-        for cpu in self.vcpus.lock().unwrap().values() {
-            cpu.pause();
+        for cpu in &self.vcpus {
+            cpu.get().unwrap().pause();
         }
 
         // Now, wait for every vCPU to enter the parked state. If a shutdown occurs, this signal will
@@ -179,17 +189,21 @@ impl VcpuRegistry for VcpuRegistryImpl {
     }
 
     fn dump_debug(&self) {
-        for cpu in self.vcpus.lock().unwrap().values() {
-            cpu.dump_debug();
+        for cpu in &self.vcpus {
+            cpu.get().unwrap().dump_debug();
         }
     }
 
     fn num_vcpus(&self) -> usize {
-        self.vcpus.lock().unwrap().len()
+        self.vcpus.len()
     }
 
     fn get_vcpu(&self, id: u8) -> Option<ArcVcpuHandle> {
-        self.vcpus.lock().unwrap().get(&id).cloned()
+        self.vcpus[id as usize].get().cloned()
+    }
+
+    fn kick_vcpu_pvlock(&self, id: u8) {
+        self.vcpus[id as usize].get().unwrap().kick_pvlock();
     }
 }
 
@@ -200,7 +214,7 @@ impl Vm {
 
         Ok(Vm {
             hvf_vm: Arc::new(hvf_vm),
-            vcpu_registry: Arc::new(VcpuRegistryImpl::default()),
+            vcpu_registry: Arc::new(VcpuRegistryImpl::new(vcpu_count)),
             #[cfg(target_arch = "aarch64")]
             irqchip_handle: None,
         })
@@ -949,7 +963,7 @@ impl Vcpu {
                     self.wait_for_pvlock(&signal, &mut *intc_vcpu_handle, &mut hvf_vcpu, deadline);
                 }
                 VcpuEmulation::PvlockUnpark(vcpuid) => {
-                    self.intc.kick_vcpu_for_pvlock(vcpuid);
+                    registry.kick_vcpu_pvlock(vcpuid as u8);
                 }
             }
         }

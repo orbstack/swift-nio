@@ -109,13 +109,6 @@ impl GicImpl for UserspaceGicV3 {
             self.gic.pe_state(PeId(vcpuid)).int_state.clone(),
         ))
     }
-
-    fn kick_vcpu_for_pvlock(&self, vcpuid: u64) {
-        HvfGicEventHandler {
-            wfe_threads: &self.wfe_threads,
-        }
-        .kick_vcpu_for_pvlock(PeId(vcpuid));
-    }
 }
 
 struct HvfGicEventHandler<'a> {
@@ -131,12 +124,6 @@ impl HvfGicEventHandler<'_> {
 impl GicV3EventHandler for HvfGicEventHandler<'_> {
     fn kick_vcpu_for_irq(&mut self, pe: PeId) {
         self.get_thread(pe).signal.assert(VcpuSignalMask::IRQ);
-
-        COUNT_VCPU_KICK.count();
-    }
-
-    fn kick_vcpu_for_pvlock(&mut self, pe: PeId) {
-        self.get_thread(pe).signal.assert(VcpuSignalMask::PVLOCK);
 
         COUNT_VCPU_KICK.count();
     }

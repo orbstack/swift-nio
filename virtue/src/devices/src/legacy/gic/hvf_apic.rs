@@ -47,8 +47,4 @@ impl GicImpl for HvfApic {
     fn get_vcpu_handle(&self, _vcpuid: u64) -> Box<dyn super::GicVcpuHandle> {
         unimplemented!()
     }
-
-    fn kick_vcpu_for_pvlock(&self, _vcpuid: u64) {
-        unimplemented!()
-    }
 }

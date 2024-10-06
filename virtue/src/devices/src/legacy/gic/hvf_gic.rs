@@ -49,10 +49,6 @@ impl GicImpl for HvfGic {
     fn get_vcpu_handle(&self, _vcpuid: u64) -> Box<dyn super::GicVcpuHandle> {
         Box::new(HvfGicHandle {})
     }
-
-    fn kick_vcpu_for_pvlock(&self, _vcpuid: u64) {
-        unimplemented!()
-    }
 }
 
 struct HvfGicHandle {}

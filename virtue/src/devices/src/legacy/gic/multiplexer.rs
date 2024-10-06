@@ -71,10 +71,6 @@ impl Gic {
     pub fn get_vcpu_handle(&self, vcpuid: u64) -> Box<dyn GicVcpuHandle> {
         self.inner.get_vcpu_handle(vcpuid)
     }
-
-    pub fn kick_vcpu_for_pvlock(&self, vcpuid: u64) {
-        self.inner.kick_vcpu_for_pvlock(vcpuid);
-    }
 }
 
 #[derive(Clone)]
@@ -144,9 +140,6 @@ pub trait GicImpl: 'static + Send + Sync {
     fn register_vcpu(&self, vcpuid: u64, wfe_thread: WfeThread);
 
     fn get_vcpu_handle(&self, vcpuid: u64) -> Box<dyn GicVcpuHandle>;
-
-    // TODO: This probably shouldn't be here.
-    fn kick_vcpu_for_pvlock(&self, vcpuid: u64);
 }
 
 pub trait GicVcpuHandle: Send + Sync {
