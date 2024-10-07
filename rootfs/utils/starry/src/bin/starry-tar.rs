@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use nix::{errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode};
 use numtoa::NumToA;
 use smallvec::{SmallVec, ToSmallVec};
-use starry::{path_stack::PathStack, sys::{getdents::for_each_getdents, inode_flags::InodeFlags, link::with_readlinkat, stat::{fstat, fstatat}, xattr::{for_each_flistxattr, with_fgetxattr}}};
+use starry::{path_stack::PathStack, sys::{getdents::for_each_getdents, inode_flags::InodeFlags, link::with_readlinkat, file::{fstat, fstatat}, xattr::{for_each_flistxattr, with_fgetxattr}}};
 use zstd::Encoder;
 
 const TAR_PADDING: [u8; 1024] = [0; 1024];

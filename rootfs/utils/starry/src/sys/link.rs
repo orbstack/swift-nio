@@ -2,7 +2,7 @@ use std::{ffi::CStr, mem::MaybeUninit, os::fd::AsRawFd};
 
 use nix::errno::Errno;
 
-use super::{path::PATH_STACK_MAX, stat::fstatat};
+use super::{path::PATH_STACK_MAX, file::fstatat};
 
 pub fn with_readlinkat<F: AsRawFd, T>(dirfd: &F, path: &CStr, f: impl FnOnce(&[u8]) -> T) -> nix::Result<T> {
     let mut buf = MaybeUninit::<[u8; PATH_STACK_MAX]>::uninit();

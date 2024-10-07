@@ -48,4 +48,12 @@ impl InodeFlags {
         Errno::result(ret)?;
         Ok(flags)
     }
+
+    pub fn apply<F: AsRawFd>(&self, fd: &F) -> nix::Result<()> {
+        let mut flags = self.bits();
+        let ret = unsafe { libc::ioctl(fd.as_raw_fd(), libc::FS_IOC_SETFLAGS, &mut flags) };
+        Errno::result(ret)?;
+
+        Ok(())
+    }
 }
