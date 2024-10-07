@@ -27,7 +27,7 @@ pub struct DirEntry<'a> {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileType {
     Unknown = DT_UNKNOWN,
     Fifo = DT_FIFO,

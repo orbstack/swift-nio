@@ -2,9 +2,9 @@ use std::{ffi::CStr, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path};
 
 use anyhow::anyhow;
 use nix::{errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode};
-use starry::sys::{file::{fstatat, unlinkat}, getdents::{for_each_getdents, DirEntry}, inode_flags::InodeFlags};
+use starry::sys::{file::{fstatat, unlinkat}, getdents::{for_each_getdents, DirEntry, FileType}, inode_flags::InodeFlags};
 
-fn clear_flags(fd: &OwnedFd) -> anyhow::Result<bool> {
+fn clear_flags(fd: &OwnedFd) -> nix::Result<bool> {
     let mut flags = InodeFlags::from_file(fd)?;
     if flags.intersects(InodeFlags::IMMUTABLE | InodeFlags::APPEND) {
         flags.remove(InodeFlags::IMMUTABLE | InodeFlags::APPEND);
@@ -15,46 +15,63 @@ fn clear_flags(fd: &OwnedFd) -> anyhow::Result<bool> {
     }
 }
 
-fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> anyhow::Result<()> {
+fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> nix::Result<()> {
     // common case: try plain unlink first
     match unlinkat(dirfd, path, unlink_flags) {
         Ok(_) => Ok(()),
         Err(Errno::EPERM) => {
             // on EPERM (not EACCES), try to clear flags and remove again
-            let parent_cleared = clear_flags(dirfd)?;
+            let parent_cleared = match clear_flags(dirfd) {
+                Ok(cleared) => cleared,
+                Err(e) => {
+                    eprintln!("failed to clear flags from parent dir: {}", e);
+                    return Err(e);
+                },
+            };
 
             // both parent and child flags will prevent deletion
             // O_PATH doesn't work and returns EBADF :(
             let fd = unsafe { OwnedFd::from_raw_fd(openat(Some(dirfd.as_raw_fd()), path, OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK | OFlag::O_NOCTTY, Mode::empty())?) };
-            let child_cleared = clear_flags(&fd)?;
+            let child_cleared = match clear_flags(&fd) {
+                Ok(cleared) => cleared,
+                Err(e) => {
+                    eprintln!("failed to clear flags from file: {}", e);
+                    return Err(e);
+                },
+            };
             drop(fd);
 
             if child_cleared || parent_cleared {
                 unlinkat(dirfd, path, unlink_flags)?;
                 Ok(())
             } else {
-                Err(Errno::EPERM.into())
+                Err(Errno::EPERM)
             }
         },
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
 fn do_one_entry(dirfd: &OwnedFd, entry: &DirEntry) -> anyhow::Result<()> {
-    // TODO: minor optimization: we will open dirs anyway, so can fstat after open
-    let st = fstatat(dirfd, entry.name, libc::AT_SYMLINK_NOFOLLOW)?;
-    let typ = st.st_mode & libc::S_IFMT;
-    if typ == libc::S_IFDIR {
-        // dir
-        let child_dirfd = unsafe { OwnedFd::from_raw_fd(openat(Some(dirfd.as_raw_fd()), entry.name, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK | OFlag::O_NOCTTY, Mode::empty())?) };
-        walk_dir(&child_dirfd)?;
-
-        unlinkat_and_clear_flags(dirfd, entry.name, libc::AT_REMOVEDIR)?;
-    } else {
-        // file, symlink, fifo, chr, blk, socket
-        unlinkat_and_clear_flags(dirfd, entry.name, 0)?;
+    // assume file/symlink/fifo/chr/blk/socket, unless we know it's definitely a dir
+    // this is always correct on filesystems that populate d_type
+    // with DT_UNKNOWN, it's still faster because we just replace the fstatat() call with unlinkat(), and avoid fstatat() in the common case (there are usually more files than dirs)
+    if entry.file_type != FileType::Directory {
+        match unlinkat_and_clear_flags(dirfd, entry.name, 0) {
+            Ok(_) => return Ok(()),
+            // guessed wrong: it's a dir
+            Err(Errno::EISDIR) => (),
+            Err(e) => return Err(e.into()),
+        }
     }
 
+    // assumption is wrong (or FS provides d_type=DT_DIR): it's a dir
+    // recursively unlink children, then unlink dir
+    let child_dirfd = unsafe { OwnedFd::from_raw_fd(openat(Some(dirfd.as_raw_fd()), entry.name, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK | OFlag::O_NOCTTY, Mode::empty())?) };
+    walk_dir(&child_dirfd)?;
+    drop(child_dirfd);
+
+    unlinkat_and_clear_flags(dirfd, entry.name, libc::AT_REMOVEDIR)?;
     Ok(())
 }
 
