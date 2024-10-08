@@ -13,11 +13,6 @@ const (
 	verboseDebug = false
 )
 
-func prefixIntersects(a, b netip.Prefix) bool {
-	// check first IPs
-	return a.Contains(b.Masked().Addr()) || b.Contains(a.Masked().Addr())
-}
-
 func getRoutingTable() ([]route.Message, error) {
 	// must check the entire routing table so we can ignore HOST routes
 	// RTM_GET gives us any matching route, including host
@@ -74,7 +69,20 @@ func HasValidRoute(routingTable []route.Message, targetSubnet netip.Prefix) (boo
 				return false, fmt.Errorf("prefix: %w", err)
 			}
 
-			if prefixIntersects(prefix, targetSubnet) {
+			if prefix.Bits() <= 1 {
+				// /0 = default route (should be caught by RTF_GLOBAL check)
+				// /1 = OpenVPN trick to set more specific default routes: 0.0.0.0/1 and 128.0.0.0/1 (lower and upper half of IP space)
+				// we could catch the OpenVPN case by merging same-interface ranges, but flag merging is messy (could have differing flags, even ignoring RTF_GLOBAL)
+				// this is more fragile but works for this one edge case that we're trying to handle.
+				// no reasonable subnet should be /1. (we only check up to /1 because there's no reason for "more specific default route" hacks to use anything wider, and WireGuard's "exclude private IPs" CIDRs start getting into /3 range)
+				// range merging doesn't change anything in other cases because it'd overlap regardless of whether it's merged or not
+				if verboseDebug {
+					fmt.Println("skipping tiny prefix:", dstIP, netmaskIP, prefix, msg.Flags)
+				}
+				continue
+			}
+
+			if prefix.Overlaps(targetSubnet) {
 				// found a route that matches our subnet/IP
 				if verboseDebug {
 					fmt.Println("consider matching route:", dstIP, netmaskIP, prefix, msg.Flags)
