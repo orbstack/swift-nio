@@ -19,7 +19,7 @@ class PHClient {
     private var ready = false
     private var canceledInstall = false
 
-    var installReason = "Allow using admin to improve compatibility?"
+    var installReason = "Allow admin privileges to improve compatibility?"
 
     private func ensureReady() async throws {
         if canceledInstall {
