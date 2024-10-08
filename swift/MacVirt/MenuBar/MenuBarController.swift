@@ -344,9 +344,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addActionItem("Settings…", shortcut: ",") {
             AppDelegate.showSettingsWindow()
-
-            // focus app
-            NSApp.activate(ignoringOtherApps: true)
         }
 
         menu.addActionItem("Quit", shortcut: "q") { [self] in
@@ -355,7 +352,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
                 AppLifecycle.forceTerminate = true
             }
 
-            // activate in case terminate is blocked by an alert
+            // activate in case terminate is blocked by an alert (and so that users can see progress if main window is open)
             NSApp.activate(ignoringOtherApps: true)
 
             NSApp.terminate(self)
@@ -718,7 +715,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // open main window
         NSWorkspace.openSubwindow(WindowID.main)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     func onTransitionToBackground() {

@@ -318,8 +318,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 updaterController?.updater.checkForUpdates()
 
             case WindowURL.completeAuth:
-                NSApp.activate(ignoringOtherApps: true)
-
                 if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                     let queryItems = components.queryItems,
                     let token = queryItems.first(where: { $0.name == "token" })?.value
