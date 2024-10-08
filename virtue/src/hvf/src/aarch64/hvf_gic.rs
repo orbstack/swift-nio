@@ -82,8 +82,8 @@ impl GicConfig {
             return None;
         }
 
-        if let Some(hvf_optional) = OPTIONAL15.as_ref() {
-            let ptr = unsafe { hvf_optional.hv_gic_config_create() };
+        if let Some(opt) = OPTIONAL15.as_ref() {
+            let ptr = unsafe { opt.hv_gic_config_create() };
             Some(Self { ptr })
         } else {
             // TODO: fail with None when macOS 15 is stable

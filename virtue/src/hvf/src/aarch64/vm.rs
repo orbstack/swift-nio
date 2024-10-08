@@ -15,11 +15,11 @@ use crate::aarch64::weak_link::OPTIONAL15;
 use crate::{call_optional, Error, HvfError};
 
 use super::bindings::{
-    hv_memory_flags_t, hv_vcpu_t, hv_vcpus_exit, hv_vm_destroy, hv_vm_map, hv_vm_unmap,
-    HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE,
+    hv_memory_flags_t, hv_vcpu_t, hv_vcpus_exit, hv_vm_config_get_default_ipa_size,
+    hv_vm_config_get_max_ipa_size, hv_vm_destroy, hv_vm_map, hv_vm_unmap, HV_MEMORY_EXEC,
+    HV_MEMORY_READ, HV_MEMORY_WRITE,
 };
 use super::hvf_gic::{FdtGic, GicProps};
-use super::weak_link::OPTIONAL13;
 
 // macOS 15 knobs
 pub const USE_HVF_GIC: bool = false;
@@ -58,9 +58,6 @@ impl HvfVm {
             if ipa_bits > Self::get_max_ipa_size()? {
                 return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
             }
-            let Some(ref config) = config else {
-                return Err(Error::VmConfigIpaSizeLimit(ipa_bits));
-            };
 
             // it's supported. set it
             config.set_ipa_size(ipa_bits)?;
@@ -72,7 +69,7 @@ impl HvfVm {
             // our GIC impl doesn't support EL2
             // we'd also need a custom HVC interface to set ICH regs for injection
             assert!(USE_HVF_GIC);
-            config.as_ref().unwrap().set_el2_enabled(true)?;
+            config.set_el2_enabled(true)?;
         }
 
         let gic_config = GicConfig::new();
@@ -97,14 +94,7 @@ impl HvfVm {
             None
         };
 
-        let ret = unsafe {
-            hv_vm_create(
-                config
-                    .as_ref()
-                    .map(|c| c.as_ptr())
-                    .unwrap_or(std::ptr::null_mut()),
-            )
-        };
+        let ret = unsafe { hv_vm_create(config.as_ptr()) };
         HvfError::result(ret).map_err(Error::VmCreate)?;
 
         // GIC must be created after VM
@@ -177,26 +167,17 @@ impl HvfVm {
     }
 
     fn get_default_ipa_size() -> Result<u32, Error> {
-        if let Some(hvf_optional) = OPTIONAL13.as_ref() {
-            let mut ipa_bit_length: u32 = 0;
-            let ret =
-                unsafe { hvf_optional.hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
-            HvfError::result(ret).map_err(Error::VmConfigGetDefaultIpaSize)?;
-            Ok(ipa_bit_length)
-        } else {
-            Ok(36)
-        }
+        let mut ipa_bit_length: u32 = 0;
+        let ret = unsafe { hv_vm_config_get_default_ipa_size(&mut ipa_bit_length) };
+        HvfError::result(ret).map_err(Error::VmConfigGetDefaultIpaSize)?;
+        Ok(ipa_bit_length)
     }
 
     fn get_max_ipa_size() -> Result<u32, Error> {
-        if let Some(hvf_optional) = OPTIONAL13.as_ref() {
-            let mut ipa_bit_length: u32 = 0;
-            let ret = unsafe { hvf_optional.hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
-            HvfError::result(ret).map_err(Error::VmConfigGetMaxIpaSize)?;
-            Ok(ipa_bit_length)
-        } else {
-            Ok(36)
-        }
+        let mut ipa_bit_length: u32 = 0;
+        let ret = unsafe { hv_vm_config_get_max_ipa_size(&mut ipa_bit_length) };
+        HvfError::result(ret).map_err(Error::VmConfigGetMaxIpaSize)?;
+        Ok(ipa_bit_length)
     }
 
     pub fn max_ram_size() -> Result<u64, Error> {

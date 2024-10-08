@@ -5,23 +5,9 @@ use dlopen::wrapper::{Container, WrapperApi};
 
 use super::bindings::{hv_gic_config_t, hv_gic_intid_t, hv_ipa_t, hv_return_t, hv_vm_config_t};
 
-// macOS 13+ APIs
-pub static OPTIONAL13: Lazy<Option<Container<HvfOptional13>>> =
-    Lazy::new(|| unsafe { Container::load_self() }.ok());
-
 // macOS 15+ APIs
 pub static OPTIONAL15: Lazy<Option<Container<HvfOptional15>>> =
     Lazy::new(|| unsafe { Container::load_self() }.ok());
-
-#[derive(WrapperApi)]
-pub struct HvfOptional13 {
-    hv_vm_config_create: unsafe extern "C" fn() -> hv_vm_config_t,
-    hv_vm_config_get_max_ipa_size: unsafe extern "C" fn(ipa_bit_length: *mut u32) -> hv_return_t,
-    hv_vm_config_get_default_ipa_size:
-        unsafe extern "C" fn(ipa_bit_length: *mut u32) -> hv_return_t,
-    hv_vm_config_set_ipa_size:
-        unsafe extern "C" fn(config: hv_vm_config_t, ipa_bit_length: u32) -> hv_return_t,
-}
 
 #[derive(WrapperApi)]
 pub struct HvfOptional15 {
