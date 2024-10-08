@@ -13,7 +13,6 @@ import UserNotifications
 private let debugAlwaysCliBackground = false
 
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
-    var openWindow: OpenWindowAction!
     var updaterController: SPUStandardUpdaterController?
     var actionTracker: ActionTracker!
     var windowTracker: WindowTracker!
@@ -219,7 +218,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // open onboarding and close other windows (e.g. main) if needed
         // vmgr will still start - onAppear already fired for main
-        OnboardingManager.maybeStartOnboarding(openWindow: openWindow)
+        OnboardingManager.maybeStartOnboarding()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -298,7 +297,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // if onboarding not completed, then open it
         if !Defaults[.onboardingCompleted] {
-            OnboardingManager.maybeStartOnboarding(openWindow: openWindow)
+            OnboardingManager.maybeStartOnboarding()
             return false
         }
 

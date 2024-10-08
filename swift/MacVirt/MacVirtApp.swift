@@ -100,7 +100,6 @@ struct MacVirtApp: App {
         // SUEnableSystemProfiling doesn't work?
         updaterController.updater.sendsSystemProfile = true
 
-        appDelegate.openWindow = openWindow
         appDelegate.updaterController = updaterController
         appDelegate.actionTracker = actionTracker
         appDelegate.windowTracker = windowTracker
@@ -348,6 +347,8 @@ struct MacVirtApp: App {
                 }
             // .frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
         }
+        // opened by AppDelegate, which doesn't have OpenWindowAction
+        .handlesExternalEvents(matching: [WindowID.onboarding])
         // remove entry point from Window menu
         .commandsRemoved()
         .commands {

@@ -8,7 +8,7 @@ import Foundation
 import SwiftUI
 
 enum OnboardingManager {
-    static func maybeStartOnboarding(openWindow: OpenWindowAction) {
+    static func maybeStartOnboarding() {
         if !Defaults[.onboardingCompleted] {
             // to avoid confusion, disable menu bar until onboarding is completed
             Defaults[.globalShowMenubarExtra] = false
@@ -21,7 +21,7 @@ enum OnboardingManager {
                 }
             }
 
-            openWindow(id: WindowID.onboarding)
+            NSWorkspace.openSubwindow(WindowID.onboarding)
         }
     }
 }
