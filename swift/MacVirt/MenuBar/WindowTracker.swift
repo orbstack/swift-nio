@@ -13,7 +13,6 @@ private let policyDebounce = 0.1
 
 private class FuncDebounce {
     private let duration: TimeInterval
-    private var lastAction: (() -> Void)?
 
     private var timer: Timer?
 
@@ -23,10 +22,8 @@ private class FuncDebounce {
 
     func call(fn: @escaping () -> Void) {
         timer?.invalidate()
-        lastAction = fn
-        timer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
-            self?.lastAction?()
-            self?.lastAction = nil
+        timer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { _ in
+            fn()
         }
     }
 
@@ -37,7 +34,6 @@ private class FuncDebounce {
 
 @MainActor
 class WindowTracker: ObservableObject {
-    private var lastPolicy = NSApplication.ActivationPolicy.regular
     private var cancellables = Set<AnyCancellable>()
     private let setPolicyDebounce = FuncDebounce(duration: policyDebounce)
 
@@ -45,39 +41,16 @@ class WindowTracker: ObservableObject {
     var openK8sLogWindowIds: Set<K8SResourceId> = []
 
     // TODO: fix reference cycle
-    var menuBar: MenuBarController!
+    var menuBar: MenuBarController?
 
-    init() {
-        // monitor close notifications
-        // no equivalent for open, so rely on SwiftUI .onAppear callbacks
-        NotificationCenter.default
-            // nil = all windows
-            .publisher(for: NSWindow.willCloseNotification, object: nil)
-            .sink { [weak self] notification in
-                self?.onWindowDisappear(closingWindow: notification.object as? NSWindow)
-            }
-            .store(in: &cancellables)
-    }
-
-    func onWindowAppear() {
-        updateState(isWindowAppearing: true)
-    }
-
-    private func onWindowDisappear(closingWindow: NSWindow?) {
-        updateState(closingWindow: closingWindow)
-    }
-
-    private func updateState(closingWindow: NSWindow? = nil, isWindowAppearing: Bool = false) {
-        let newPolicy = derivePolicy(
-            closingWindow: closingWindow, isWindowAppearing: isWindowAppearing)
+    func updateState() {
+        let newPolicy = derivePolicy()
         setPolicyDebounce.call { [self] in
             setPolicy(newPolicy)
         }
     }
 
-    private func derivePolicy(closingWindow: NSWindow?, isWindowAppearing: Bool)
-        -> NSApplication.ActivationPolicy
-    {
+    private func derivePolicy() -> NSApplication.ActivationPolicy {
         // if no menu bar app, always act like normal
         if !Defaults[.globalShowMenubarExtra] {
             return .regular
@@ -87,9 +60,8 @@ class WindowTracker: ObservableObject {
         // check windows
         let windowCount =
             NSApp.windows
-            .filter { $0.isUserFacing && $0 != closingWindow }
-            // onAppear is *before* window created
-            .count + (isWindowAppearing ? 1 : 0)
+            .filter { $0.isUserFacing }
+            .count
         if windowCount == 0 {
             return .accessory
         } else {
@@ -98,10 +70,10 @@ class WindowTracker: ObservableObject {
     }
 
     func setPolicy(_ newPolicy: NSApplication.ActivationPolicy) {
-        if newPolicy != lastPolicy {
-            NSLog("changing policy from \(lastPolicy) to \(newPolicy)")
+        let currentPolicy = NSApp.activationPolicy()
+        if newPolicy != currentPolicy {
+            NSLog("changing policy from \(currentPolicy) to \(newPolicy)")
             NSApp.setActivationPolicy(newPolicy)
-            lastPolicy = newPolicy
 
             // activate if -> regular
             if newPolicy == .regular {
@@ -110,7 +82,7 @@ class WindowTracker: ObservableObject {
 
             // hide if -> accessory
             if newPolicy == .accessory {
-                menuBar.onTransitionToBackground()
+                menuBar?.onTransitionToBackground()
 
                 // don't hide - breaks popover animation, and not necessary
                 NSApp.deactivate()

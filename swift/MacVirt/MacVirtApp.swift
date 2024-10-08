@@ -118,11 +118,6 @@ struct MacVirtApp: App {
     }
 
     var body: some Scene {
-        /*
-         * IMPORTANT:
-         * ALL windows MUST report to WindowTracker in .onAppear!!!
-         */
-
         // adds "About" command to menu
         Window("OrbStack", id: "main") {
             NewMainView()
@@ -133,9 +128,6 @@ struct MacVirtApp: App {
                     minWidth: 550, maxWidth: .infinity, minHeight: 300,
                     maxHeight: .infinity
                 )
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
         }
         .commands {
             Group {
@@ -342,9 +334,6 @@ struct MacVirtApp: App {
         Window("Setup", id: WindowID.onboarding) {
             OnboardingRootView()
                 .environmentObject(vmModel)
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
             // .frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
         }
         // opened by AppDelegate, which doesn't have OpenWindowAction
@@ -361,9 +350,6 @@ struct MacVirtApp: App {
             DockerLogsWindow()
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
         }
         // remove entry point from Window menu
         .commandsRemoved()
@@ -381,9 +367,6 @@ struct MacVirtApp: App {
             DockerComposeLogsWindow()
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
         }
         // remove entry point from Window menu
         .commandsRemoved()
@@ -395,9 +378,6 @@ struct MacVirtApp: App {
             K8SPodLogsWindow()
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
         }
         // remove entry point from Window menu
         .commandsRemoved()
@@ -408,9 +388,6 @@ struct MacVirtApp: App {
         Window("Migrate from Docker Desktop", id: WindowID.migrateDocker) {
             DockerMigrationWindow()
                 .environmentObject(vmModel)
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
         }
         // remove entry point from Window menu
         .commandsRemoved()
@@ -420,9 +397,6 @@ struct MacVirtApp: App {
         Group {
             Window("Diagnostic Report", id: WindowID.diagReport) {
                 DiagReporterView(isBugReport: false)
-                    .onAppear {
-                        windowTracker.onWindowAppear()
-                    }
             }
             // remove entry point from Window menu
             .commandsRemoved()
@@ -434,9 +408,6 @@ struct MacVirtApp: App {
 
             Window("Report Bug", id: WindowID.bugReport) {
                 DiagReporterView(isBugReport: true)
-                    .onAppear {
-                        windowTracker.onWindowAppear()
-                    }
             }
             // remove entry point from Window menu
             .commandsRemoved()
@@ -449,9 +420,6 @@ struct MacVirtApp: App {
 
         Window("Sign In", id: WindowID.signIn) {
             AuthView(sheetPresented: nil)
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
         }
         // remove entry point from Window menu
         .commandsRemoved()
@@ -463,9 +431,6 @@ struct MacVirtApp: App {
 
         Window("Send Feedback", id: WindowID.feedback) {
             FeedbackView()
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
         }
         // remove entry point from Window menu
         .commandsRemoved()
@@ -478,9 +443,6 @@ struct MacVirtApp: App {
         Settings {
             AppSettings(updaterController: updaterController)
                 .environmentObject(vmModel)
-                .onAppear {
-                    windowTracker.onWindowAppear()
-                }
         }
     }
 }

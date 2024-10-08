@@ -292,9 +292,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             return true
         }
 
-        // enter regular mode if we're exiting menu bar mode
-        windowTracker.setPolicy(.regular)
-
         // if onboarding not completed, then open it
         if !Defaults[.onboardingCompleted] {
             OnboardingManager.maybeStartOnboarding()
@@ -336,6 +333,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 break
             }
         }
+    }
+
+    // called after new .windows is applied
+    func applicationDidUpdate(_: Notification) {
+        windowTracker.updateState()
     }
 
     // notification
