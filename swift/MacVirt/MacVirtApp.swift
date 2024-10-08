@@ -9,34 +9,6 @@ import Defaults
 import Sparkle
 import SwiftUI
 
-extension Scene {
-    func windowResizabilityContentSize() -> some Scene {
-        if #available(macOS 13, *) {
-            return windowResizability(.contentSize)
-        } else {
-            return self
-        }
-    }
-
-    func windowDefaultSize(width: CGFloat, height: CGFloat) -> some Scene {
-        if #available(macOS 13, *) {
-            return defaultSize(CGSize(width: width, height: height))
-        } else {
-            return self
-        }
-    }
-}
-
-extension View {
-    func formStyleGrouped() -> some View {
-        if #available(macOS 13, *) {
-            return formStyle(.grouped)
-        } else {
-            return self
-        }
-    }
-}
-
 class UpdateDelegate: NSObject, SPUUpdaterDelegate {
     private func readInstallID() -> UUID {
         // match file like vmgr drm/device.go
@@ -352,7 +324,7 @@ struct MacVirtApp: App {
             }
         }
         .handlesExternalEvents(matching: ["main", "docker/containers/", "docker/projects/"])
-        .windowDefaultSize(width: 975, height: 650)
+        .defaultSize(width: 975, height: 650)
 
         WindowGroup("Setup", id: "onboarding") {
             OnboardingRootView()
@@ -367,7 +339,7 @@ struct MacVirtApp: App {
         }
         .handlesExternalEvents(matching: ["onboarding"])
         .windowStyle(.hiddenTitleBar)
-        .windowResizabilityContentSize()
+        .windowResizability(.contentSize)
 
         WindowGroup(WindowTitles.containerLogsBase, id: "docker-container-logs") {
             DockerLogsWindow()
@@ -384,7 +356,7 @@ struct MacVirtApp: App {
             }
         }
         .handlesExternalEvents(matching: ["docker/container-logs/"])
-        .windowDefaultSize(width: 800, height: 600)
+        .defaultSize(width: 800, height: 600)
         .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup(WindowTitles.projectLogsBase, id: "docker-compose-logs") {
@@ -396,7 +368,7 @@ struct MacVirtApp: App {
                 }
         }
         .handlesExternalEvents(matching: ["docker/project-logs/"])
-        .windowDefaultSize(width: 875, height: 625)  // extra side for sidebar
+        .defaultSize(width: 875, height: 625)  // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup(WindowTitles.podLogsBase, id: "k8s-pod-logs") {
@@ -408,7 +380,7 @@ struct MacVirtApp: App {
                 }
         }
         .handlesExternalEvents(matching: ["k8s/pod-logs/"])
-        .windowDefaultSize(width: 875, height: 625)  // extra side for sidebar
+        .defaultSize(width: 875, height: 625)  // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup("Migrate from Docker Desktop", id: "docker-migration") {
@@ -420,7 +392,7 @@ struct MacVirtApp: App {
         }
         .handlesExternalEvents(matching: ["docker/migration"])
         .windowStyle(.hiddenTitleBar)
-        .windowResizabilityContentSize()
+        .windowResizability(.contentSize)
 
         Group {
             WindowGroup("Diagnostic Report", id: "diagreport") {
@@ -434,7 +406,7 @@ struct MacVirtApp: App {
             }
             .handlesExternalEvents(matching: ["diagreport"])
             .windowStyle(.hiddenTitleBar)
-            .windowResizabilityContentSize()
+            .windowResizability(.contentSize)
 
             WindowGroup("Report Bug", id: "bugreport") {
                 DiagReporterView(isBugReport: true)
@@ -447,7 +419,7 @@ struct MacVirtApp: App {
             }
             .handlesExternalEvents(matching: ["bugreport"])
             .windowStyle(.hiddenTitleBar)
-            .windowResizabilityContentSize()
+            .windowResizability(.contentSize)
         }
 
         WindowGroup("Sign In", id: "auth") {
@@ -462,7 +434,7 @@ struct MacVirtApp: App {
         // workaround for complete_auth matching this
         .handlesExternalEvents(matching: ["authwindow"])
         .windowStyle(.hiddenTitleBar)
-        .windowResizabilityContentSize()
+        .windowResizability(.contentSize)
 
         WindowGroup("Send Feedback", id: "feedback") {
             FeedbackView()
@@ -475,7 +447,7 @@ struct MacVirtApp: App {
         }
         .handlesExternalEvents(matching: ["feedback"])
         .windowStyle(.hiddenTitleBar)
-        .windowResizabilityContentSize()
+        .windowResizability(.contentSize)
 
         Settings {
             AppSettings(updaterController: updaterController)

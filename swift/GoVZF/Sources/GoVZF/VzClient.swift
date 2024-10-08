@@ -244,9 +244,7 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
         // Go keeps ownership
         let attachment = VZFileHandleNetworkDeviceAttachment(
             fileHandle: FileHandle(fileDescriptor: networkVnetFd, closeOnDealloc: false))
-        if #available(macOS 13, *) {
-            attachment.maximumTransmissionUnit = spec.mtu
-        }
+        attachment.maximumTransmissionUnit = spec.mtu
         let device = VZVirtioNetworkDeviceConfiguration()
         device.attachment = attachment
         // starting at :01
@@ -312,13 +310,11 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
 
     // Rosetta
     #if arch(arm64)
-        if #available(macOS 13, *) {
-            if spec.rosetta {
-                let dir = try VZLinuxRosettaDirectoryShare()
-                let fs = VZVirtioFileSystemDeviceConfiguration(tag: "rosetta")
-                fs.share = dir
-                fsDevices.append(fs)
-            }
+        if spec.rosetta {
+            let dir = try VZLinuxRosettaDirectoryShare()
+            let fs = VZVirtioFileSystemDeviceConfiguration(tag: "rosetta")
+            fs.share = dir
+            fsDevices.append(fs)
         }
     #endif
     config.directorySharingDevices = fsDevices
@@ -343,31 +339,29 @@ private func createVm(goHandle: uintptr_t, spec: VzSpec) async throws -> VmWrapp
 @_cdecl("swext_install_rosetta")
 func post_installRosetta() -> GResultIntErr {
     #if arch(arm64)
-        if #available(macOS 13, *) {
-            return doGenericErrInt {
-                do {
-                    switch VZLinuxRosettaDirectoryShare.availability {
-                    case .notSupported:
-                        return 0
-                    case .notInstalled:
-                        try await installRosetta()
-                        return 1
-                    case .installed:
-                        return 1
-                    @unknown default:
-                        return 0
-                    }
-                } catch GovzfError.rosettaInstallCanceled {
-                    return 2
-                } catch {
-                    throw error
+        return doGenericErrInt {
+            do {
+                switch VZLinuxRosettaDirectoryShare.availability {
+                case .notSupported:
+                    return 0
+                case .notInstalled:
+                    try await installRosetta()
+                    return 1
+                case .installed:
+                    return 1
+                @unknown default:
+                    return 0
                 }
+            } catch GovzfError.rosettaInstallCanceled {
+                return 2
+            } catch {
+                throw error
             }
         }
+    #else
+        // notSupported
+        return GResultIntErr(value: 0, err: nil)
     #endif
-
-    // notSupported
-    return GResultIntErr(value: 0, err: nil)
 }
 
 @_cdecl("govzf_run_NewMachine")

@@ -27,21 +27,12 @@ struct MachineSettingsView: View {
             Form {
                 #if arch(arm64)
                     Group {
-                        if #available(macOS 13, *) {
-                            Toggle(
-                                "Use Rosetta to run Intel code",
-                                isOn: vmModel.bindingForConfig(\.rosetta, state: $enableRosetta))
-
-                            Text("Faster. Only disable if you run into compatibility issues.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Toggle("Use Rosetta to run Intel code", isOn: .constant(false))
-                                .disabled(true)
-                            Text("Requires macOS 13 or newer")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
+                        Toggle(
+                            "Use Rosetta to run Intel code",
+                            isOn: vmModel.bindingForConfig(\.rosetta, state: $enableRosetta))
+                        Text("Faster. Only disable if you run into compatibility issues.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
 
                         Spacer()
                             .frame(height: 32)

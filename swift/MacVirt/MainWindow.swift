@@ -161,18 +161,6 @@ struct UserSwitcherButton: View {
     }
 }
 
-extension View {
-    func toolbarMacOS13<Content: CustomizableToolbarContent>(
-        id: String, @ToolbarContentBuilder content: () -> Content
-    ) -> some View {
-        if #available(macOS 13.0, *) {
-            return self.toolbar(id: id, content: content)
-        } else {
-            return self
-        }
-    }
-}
-
 func truncateError(description: String) -> String {
     if description.count > 2500 {
         return String(description.prefix(1250)) + "…" + String(description.suffix(1250))
