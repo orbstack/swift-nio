@@ -78,6 +78,8 @@ enum AppLifecycle {
 
 @main
 struct MacVirtApp: App {
+    @Environment(\.openWindow) private var openWindow
+
     // with StateObject, SwiftUI and AppDelegate get different instances
     // we need singleton so use ObservedObject
     @ObservedObject var vmModel = VmViewModel()
@@ -121,7 +123,7 @@ struct MacVirtApp: App {
          * ALL windows MUST report to WindowTracker in .onAppear!!!
          */
 
-        WindowGroup {
+        Window("OrbStack", id: "main") {
             NewMainView()
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
@@ -134,14 +136,25 @@ struct MacVirtApp: App {
                     windowTracker.onWindowAppear()
                 }
         }
+        // remove default entry point from Window menu
+        .commandsRemoved()
         .commands {
             Group {
                 SidebarCommands()
                 ToolbarCommands()
                 TextEditingCommands()
+
                 CommandGroup(after: .appInfo) {
                     CheckForUpdatesView(updater: updaterController.updater)
                 }
+
+                // Window() only shows up in the menu if there are multiple singleton windows
+                CommandGroup(before: .singleWindowList) {
+                    Button("OrbStack") {
+                        openWindow(id: "main")
+                    }
+                }
+
                 CommandGroup(before: .systemServices) {
                     Button("Invite a Friend") {
                         NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
@@ -161,6 +174,7 @@ struct MacVirtApp: App {
                     }
                     Divider()
                 }
+
                 CommandGroup(before: .importExport) {
                     Button("Migrate Docker Data…") {
                         NSWorkspace.openSubwindow("docker/migration")
@@ -326,7 +340,7 @@ struct MacVirtApp: App {
         .handlesExternalEvents(matching: ["main", "docker/containers/", "docker/projects/"])
         .defaultSize(width: 975, height: 650)
 
-        WindowGroup("Setup", id: "onboarding") {
+        Window("Setup", id: "onboarding") {
             OnboardingRootView()
                 .environmentObject(vmModel)
                 .onAppear {
@@ -334,6 +348,8 @@ struct MacVirtApp: App {
                 }
             // .frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
         }
+        // remove entry point from Window menu
+        .commandsRemoved()
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
@@ -349,6 +365,8 @@ struct MacVirtApp: App {
                     windowTracker.onWindowAppear()
                 }
         }
+        // remove entry point from Window menu
+        .commandsRemoved()
         // globally visible across all scenes!
         .commands {
             CommandGroup(after: .toolbar) {
@@ -367,6 +385,8 @@ struct MacVirtApp: App {
                     windowTracker.onWindowAppear()
                 }
         }
+        // remove entry point from Window menu
+        .commandsRemoved()
         .handlesExternalEvents(matching: ["docker/project-logs/"])
         .defaultSize(width: 875, height: 625)  // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
@@ -379,28 +399,34 @@ struct MacVirtApp: App {
                     windowTracker.onWindowAppear()
                 }
         }
+        // remove entry point from Window menu
+        .commandsRemoved()
         .handlesExternalEvents(matching: ["k8s/pod-logs/"])
         .defaultSize(width: 875, height: 625)  // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
-        WindowGroup("Migrate from Docker Desktop", id: "docker-migration") {
+        Window("Migrate from Docker Desktop", id: "docker-migration") {
             DockerMigrationWindow()
                 .environmentObject(vmModel)
                 .onAppear {
                     windowTracker.onWindowAppear()
                 }
         }
+        // remove entry point from Window menu
+        .commandsRemoved()
         .handlesExternalEvents(matching: ["docker/migration"])
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
         Group {
-            WindowGroup("Diagnostic Report", id: "diagreport") {
+            Window("Diagnostic Report", id: "diagreport") {
                 DiagReporterView(isBugReport: false)
                     .onAppear {
                         windowTracker.onWindowAppear()
                     }
             }
+            // remove entry point from Window menu
+            .commandsRemoved()
             .commands {
                 CommandGroup(replacing: .newItem) {}
             }
@@ -408,12 +434,14 @@ struct MacVirtApp: App {
             .windowStyle(.hiddenTitleBar)
             .windowResizability(.contentSize)
 
-            WindowGroup("Report Bug", id: "bugreport") {
+            Window("Report Bug", id: "bugreport") {
                 DiagReporterView(isBugReport: true)
                     .onAppear {
                         windowTracker.onWindowAppear()
                     }
             }
+            // remove entry point from Window menu
+            .commandsRemoved()
             .commands {
                 CommandGroup(replacing: .newItem) {}
             }
@@ -422,12 +450,14 @@ struct MacVirtApp: App {
             .windowResizability(.contentSize)
         }
 
-        WindowGroup("Sign In", id: "auth") {
+        Window("Sign In", id: "auth") {
             AuthView(sheetPresented: nil)
                 .onAppear {
                     windowTracker.onWindowAppear()
                 }
         }
+        // remove entry point from Window menu
+        .commandsRemoved()
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
@@ -436,12 +466,14 @@ struct MacVirtApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
-        WindowGroup("Send Feedback", id: "feedback") {
+        Window("Send Feedback", id: "feedback") {
             FeedbackView()
                 .onAppear {
                     windowTracker.onWindowAppear()
                 }
         }
+        // remove entry point from Window menu
+        .commandsRemoved()
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
