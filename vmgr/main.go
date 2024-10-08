@@ -522,8 +522,8 @@ func runVmManager() {
 	// before sentry, so we don't report dummy CLI panic error to sentry
 	defer errorx.RecoverCLI()
 
-	if !osver.IsAtLeast("v12.3") {
-		errorx.Fatalf("macOS too old - min 12.3")
+	if !osver.IsAtLeast("v13.0") {
+		errorx.Fatalf("unsupported OS: macOS 13.0 or later is required")
 	}
 
 	// done signal for shutdown process

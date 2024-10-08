@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "GoVZF",
     platforms: [
-        .macOS("12.3")
+        .macOS("13.0")
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
