@@ -154,7 +154,7 @@ struct BridgeNetworkConfig: Codable {
     let ndpReplyPrefix: [UInt8]?
     let allowMulticast: Bool
 
-    // 65535 on macOS 12+
+    // 1500 on VZF, 65535 on virtue
     let maxLinkMtu: Int
 }
 

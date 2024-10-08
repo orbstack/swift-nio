@@ -72,123 +72,120 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             Spacer()
 
-            // crash on macOS 12 without nested HStack
-            HStack {
-                if isRunning, let domain = container.preferredDomain {
-                    ProgressIconButton(systemImage: "link", actionInProgress: false) {
-                        if let url = URL(
-                            string: "\(container.getPreferredProto(vmModel))://\(domain)")
-                        {
-                            NSWorkspace.shared.open(url)
-                        }
+            if isRunning, let domain = container.preferredDomain {
+                ProgressIconButton(systemImage: "link", actionInProgress: false) {
+                    if let url = URL(
+                        string: "\(container.getPreferredProto(vmModel))://\(domain)")
+                    {
+                        NSWorkspace.shared.open(url)
                     }
-                    .help("Open in Browser")
-                    .if(isFirstInList) {
-                        $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .leading) {
-                            HStack {
-                                Image(systemName: "network")
+                }
+                .help("Open in Browser")
+                .if(isFirstInList) {
+                    $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .leading) {
+                        HStack {
+                            Image(systemName: "network")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                                .foregroundColor(.accentColor)
+                                .padding(.trailing, 4)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("New: Domain names for services")
+                                    .font(.headline)
+
+                                Text("See all containers at [orb.local](http://orb.local)")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(20)
+                        .overlay(alignment: .topLeading) {  // opposite side of arrow edge
+                            Button(action: {
+                                tipsContainerDomainsShow = false
+                            }) {
+                                Image(systemName: "xmark")
                                     .resizable()
-                                    .frame(width: 32, height: 32)
-                                    .foregroundColor(.accentColor)
-                                    .padding(.trailing, 4)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("New: Domain names for services")
-                                        .font(.headline)
-
-                                    Text("See all containers at [orb.local](http://orb.local)")
-                                        .font(.body)
-                                        .foregroundColor(.secondary)
-                                }
+                                    .frame(width: 8, height: 8)
+                                    .foregroundColor(.secondary)
                             }
-                            .padding(20)
-                            .overlay(alignment: .topLeading) {  // opposite side of arrow edge
-                                Button(action: {
-                                    tipsContainerDomainsShow = false
-                                }) {
-                                    Image(systemName: "xmark")
-                                        .resizable()
-                                        .frame(width: 8, height: 8)
-                                        .foregroundColor(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .padding(8)
-                            }
+                            .buttonStyle(.plain)
+                            .padding(8)
                         }
                     }
                 }
+            }
 
-                if isRunning {
-                    ProgressIconButton(systemImage: "folder.fill", actionInProgress: false) {
-                        container.openFolder()
-                    }
-                    .help("Open Files")
-                    // show domains first, then files
-                    .if(isFirstInList && !tipsContainerDomainsShow) {
-                        // TODO: fix code dupe
-                        $0.popover(isPresented: $tipsContainerFilesShow, arrowEdge: .leading) {
-                            HStack {
-                                Image(systemName: "folder.circle")
+            if isRunning {
+                ProgressIconButton(systemImage: "folder.fill", actionInProgress: false) {
+                    container.openFolder()
+                }
+                .help("Open Files")
+                // show domains first, then files
+                .if(isFirstInList && !tipsContainerDomainsShow) {
+                    // TODO: fix code dupe
+                    $0.popover(isPresented: $tipsContainerFilesShow, arrowEdge: .leading) {
+                        HStack {
+                            Image(systemName: "folder.circle")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                                .foregroundColor(.accentColor)
+                                .padding(.trailing, 4)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("New: Container files in Finder & terminal")
+                                    .font(.headline)
+
+                                Text("Easily edit and copy files natively")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(20)
+                        .overlay(alignment: .topLeading) {  // opposite side of arrow edge
+                            Button(action: {
+                                tipsContainerFilesShow = false
+                            }) {
+                                Image(systemName: "xmark")
                                     .resizable()
-                                    .frame(width: 32, height: 32)
-                                    .foregroundColor(.accentColor)
-                                    .padding(.trailing, 4)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("New: Container files in Finder & terminal")
-                                        .font(.headline)
-
-                                    Text("Easily edit and copy files natively")
-                                        .font(.body)
-                                        .foregroundColor(.secondary)
-                                }
+                                    .frame(width: 8, height: 8)
+                                    .foregroundColor(.secondary)
                             }
-                            .padding(20)
-                            .overlay(alignment: .topLeading) {  // opposite side of arrow edge
-                                Button(action: {
-                                    tipsContainerFilesShow = false
-                                }) {
-                                    Image(systemName: "xmark")
-                                        .resizable()
-                                        .frame(width: 8, height: 8)
-                                        .foregroundColor(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .padding(8)
-                            }
+                            .buttonStyle(.plain)
+                            .padding(8)
                         }
                     }
                 }
+            }
 
-                if isRunning {
-                    ProgressIconButton(
-                        systemImage: "stop.fill",
-                        actionInProgress: actionInProgress?.isStartStop == true
-                    ) {
-                        finishStop()
-                    }
-                    .disabled(actionInProgress != nil)
-                    .help("Stop container")
-                } else {
-                    ProgressIconButton(
-                        systemImage: "play.fill",
-                        actionInProgress: actionInProgress?.isStartStop == true
-                    ) {
-                        finishStart()
-                    }
-                    .disabled(actionInProgress != nil)
-                    .help("Start container")
-                }
-
+            if isRunning {
                 ProgressIconButton(
-                    systemImage: "trash.fill",
-                    actionInProgress: actionInProgress == .delete
+                    systemImage: "stop.fill",
+                    actionInProgress: actionInProgress?.isStartStop == true
                 ) {
-                    presentConfirmDelete = true
+                    finishStop()
                 }
                 .disabled(actionInProgress != nil)
-                .help("Delete container")
+                .help("Stop container")
+            } else {
+                ProgressIconButton(
+                    systemImage: "play.fill",
+                    actionInProgress: actionInProgress?.isStartStop == true
+                ) {
+                    finishStart()
+                }
+                .disabled(actionInProgress != nil)
+                .help("Start container")
             }
+
+            ProgressIconButton(
+                systemImage: "trash.fill",
+                actionInProgress: actionInProgress == .delete
+            ) {
+                presentConfirmDelete = true
+            }
+            .disabled(actionInProgress != nil)
+            .help("Delete container")
         }
         .padding(.vertical, 8)
         .confirmationDialog(

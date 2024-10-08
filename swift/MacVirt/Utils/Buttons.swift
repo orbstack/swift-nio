@@ -23,7 +23,6 @@ struct ProgressIconButton: View {
 
     var body: some View {
         Button(role: role, action: action) {
-            // 0.7 scale crashes on macOS 12 - 0.75 is ok
             ZStack {
                 if actionInProgress {
                     ProgressView()

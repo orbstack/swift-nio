@@ -59,29 +59,26 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
 
             Spacer()
 
-            // WA: crash on macOS 12 without nested HStack
-            HStack {
-                if let urlStr = service.wrapURL(host: service.preferredDomain) {
-                    ProgressIconButton(
-                        systemImage: "link",
-                        actionInProgress: false
-                    ) {
-                        if let url = URL(string: urlStr) {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .help("Open in Browser")
-                }
-
+            if let urlStr = service.wrapURL(host: service.preferredDomain) {
                 ProgressIconButton(
-                    systemImage: "trash.fill",
-                    actionInProgress: actionInProgress == .delete
+                    systemImage: "link",
+                    actionInProgress: false
                 ) {
-                    finishDelete()
+                    if let url = URL(string: urlStr) {
+                        NSWorkspace.shared.open(url)
+                    }
                 }
-                .disabled(actionInProgress != nil)
-                .help("Delete Service")
+                .help("Open in Browser")
             }
+
+            ProgressIconButton(
+                systemImage: "trash.fill",
+                actionInProgress: actionInProgress == .delete
+            ) {
+                finishDelete()
+            }
+            .disabled(actionInProgress != nil)
+            .help("Delete Service")
         }
         .padding(.vertical, 8)
         .akListOnDoubleClick {

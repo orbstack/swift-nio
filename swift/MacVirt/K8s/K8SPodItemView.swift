@@ -91,17 +91,14 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
             Spacer()
 
-            // WA: crash on macOS 12 without nested HStack
-            HStack {
-                ProgressIconButton(
-                    systemImage: "trash.fill",
-                    actionInProgress: actionInProgress == .delete
-                ) {
-                    finishDelete()
-                }
-                .disabled(actionInProgress != nil)
-                .help("Delete Pod")
+            ProgressIconButton(
+                systemImage: "trash.fill",
+                actionInProgress: actionInProgress == .delete
+            ) {
+                finishDelete()
             }
+            .disabled(actionInProgress != nil)
+            .help("Delete Pod")
         }
         .padding(.vertical, 8)
         .akListOnDoubleClick {

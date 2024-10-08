@@ -695,15 +695,14 @@ private struct DockerLogsContentView: View {
     @EnvironmentObject private var commandModel: CommandViewModel
     @StateObject private var model = LogsViewModel()
 
-    // allows nil for macOS 12 window workaround
-    let cid: DockerContainerId?
+    let cid: DockerContainerId
     // individual container, not compose
     let standalone: Bool
     let extraComposeArgs: [String]
     let allDisabled: Bool
 
     init(
-        cid: DockerContainerId?, standalone: Bool, extraComposeArgs: [String] = [],
+        cid: DockerContainerId, standalone: Bool, extraComposeArgs: [String] = [],
         allDisabled: Bool = false
     ) {
         self.cid = cid
@@ -766,9 +765,7 @@ private struct DockerLogsContentView: View {
         .onAppear {
             // TODO: why doesn't for-await + .task() work? (that way we get auto-cancel)
             model.monitorCommands(commandModel: commandModel)
-            if let cid {
-                model.monitorContainers(vmModel: vmModel, cid: cid)
-            }
+            model.monitorContainers(vmModel: vmModel, cid: cid)
         }
         .frame(minWidth: 400, minHeight: 200)
     }
@@ -790,17 +787,13 @@ struct DockerLogsWindow: View {
                     .onDisappear {
                         windowTracker.openDockerLogWindowIds.remove(.container(id: containerId))
                     }
-            } else {
-                // must always have a view, or the window doesn't open on macOS 12{ url in  }
-                // EmptyView and Spacer don't work
-                DockerLogsContentView(cid: nil, standalone: true)
             }
         }
         .environmentObject(commandModel)
         .onOpenURL { url in
             containerId = url.lastPathComponent
         }
-        .toolbar(forCommands: commandModel, standalone: true)
+        .toolbar(forCommands: commandModel)
     }
 }
 
@@ -932,20 +925,19 @@ struct DockerComposeLogsWindow: View {
             savedSelection = $0
         }
         .navigationTitle(WindowTitles.projectLogs(composeProject))
-        .toolbar(forCommands: commandModel, standalone: false)
+        .toolbar(forCommands: commandModel, hasSidebar: true)
     }
 }
 
 extension View {
-    fileprivate func toolbar(forCommands commandModel: CommandViewModel, standalone: Bool)
+    fileprivate func toolbar(forCommands commandModel: CommandViewModel, hasSidebar: Bool = false)
         -> some View
     {
         toolbar {
             ToolbarItem(placement: .navigation) {
                 // unlike main window, we never use NavigationSplitView b/c sidebar button bug
                 // only show sidebar
-                // it must be here b/c macOS 12 bug where multiple .toolbar doesn't work
-                if !standalone {
+                if hasSidebar {
                     ToggleSidebarButton()
                 }
             }
@@ -988,8 +980,7 @@ private struct K8SLogsContentView: View {
     @EnvironmentObject private var commandModel: CommandViewModel
     @StateObject private var model = LogsViewModel()
 
-    // allows nil for macOS 12 window workaround
-    let kid: K8SResourceId?
+    let kid: K8SResourceId
 
     var body: some View {
         K8SStateWrapperView(\.k8sPods) { pods, _ in
@@ -1039,10 +1030,6 @@ struct K8SPodLogsWindow: View {
                     .onDisappear {
                         windowTracker.openK8sLogWindowIds.remove(kid)
                     }
-            } else {
-                // must always have a view, or the window doesn't open on macOS 12{ url in  }
-                // EmptyView and Spacer don't work
-                K8SLogsContentView(kid: nil)
             }
         }
         .environmentObject(commandModel)
@@ -1053,7 +1040,7 @@ struct K8SPodLogsWindow: View {
                 self.namespaceAndName = namespaceAndName
             }
         }
-        .toolbar(forCommands: commandModel, standalone: true)
+        .toolbar(forCommands: commandModel)
     }
 }
 

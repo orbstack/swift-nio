@@ -154,10 +154,8 @@ struct MacVirtApp: App {
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
                 .environmentObject(actionTracker)
-                // workaround: default size uses min height on macOS 12, so this fixes default window size
-                // on macOS 13+ we can set smaller min and use windowDefaultSize
                 .frame(
-                    minWidth: 550, maxWidth: .infinity, minHeight: getMinHeight(),
+                    minWidth: 550, maxWidth: .infinity, minHeight: 300,
                     maxHeight: .infinity
                 )
                 .onAppear {
@@ -485,14 +483,6 @@ struct MacVirtApp: App {
                 .onAppear {
                     windowTracker.onWindowAppear()
                 }
-        }
-    }
-
-    private func getMinHeight() -> CGFloat {
-        if #available(macOS 13, *) {
-            return 300
-        } else {
-            return 500
         }
     }
 }

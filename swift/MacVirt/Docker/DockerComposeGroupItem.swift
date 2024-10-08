@@ -93,38 +93,34 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
             Spacer()
 
-            // crash on macOS 12 without nested HStack
-            // 0.7 scale also crashes - 0.75 is ok
-            HStack {
-                if isRunning {
-                    ProgressIconButton(
-                        systemImage: "stop.fill",
-                        actionInProgress: actionInProgress?.isStartStop == true
-                    ) {
-                        finishStop()
-                    }
-                    .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
-                    .help("Stop project")
-                } else {
-                    ProgressIconButton(
-                        systemImage: "play.fill",
-                        actionInProgress: actionInProgress?.isStartStop == true
-                    ) {
-                        finishStart()
-                    }
-                    .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
-                    .help("Start project")
-                }
-
+            if isRunning {
                 ProgressIconButton(
-                    systemImage: "trash.fill",
-                    actionInProgress: actionInProgress == .delete
+                    systemImage: "stop.fill",
+                    actionInProgress: actionInProgress?.isStartStop == true
                 ) {
-                    presentConfirmDelete = true
+                    finishStop()
                 }
                 .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
-                .help("Delete project")
+                .help("Stop project")
+            } else {
+                ProgressIconButton(
+                    systemImage: "play.fill",
+                    actionInProgress: actionInProgress?.isStartStop == true
+                ) {
+                    finishStart()
+                }
+                .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
+                .help("Start project")
             }
+
+            ProgressIconButton(
+                systemImage: "trash.fill",
+                actionInProgress: actionInProgress == .delete
+            ) {
+                presentConfirmDelete = true
+            }
+            .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
+            .help("Delete project")
         }
         .padding(.vertical, 8)
         // projects are always multiple containers, so no need to change msg

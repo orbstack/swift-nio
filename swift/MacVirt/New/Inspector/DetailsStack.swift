@@ -21,8 +21,7 @@ struct DetailsStack<Content: View>: View {
 
             Spacer()
         }
-        // ideally only horizontal on macOS 14, but on macOS 12 toolbar is opaque,
-        // so no vertical padding is ugly
+        // toolbar is transparent, but border appears on scroll
         .padding(20)
     }
 }
