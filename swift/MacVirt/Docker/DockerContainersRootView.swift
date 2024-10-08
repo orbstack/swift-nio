@@ -66,7 +66,7 @@ private struct MigrationHintBox: View {
                 .font(.body)
                 .padding(.bottom, 12)
             Button(action: {
-                NSWorkspace.openSubwindow("docker/migration")
+                NSWorkspace.openSubwindow(WindowID.migrateDocker)
             }) {
                 Text("Migrate")
                     .padding(6)

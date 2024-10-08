@@ -10,6 +10,7 @@ import SwiftUI
 import UserNotifications
 
 struct NewMainView: View {
+    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject var model: VmViewModel
     @EnvironmentObject var windowTracker: WindowTracker
 
@@ -34,8 +35,6 @@ struct NewMainView: View {
             CreateContainerView(isPresented: $model.presentCreateMachine)
         }
         .onAppear {
-            windowTracker.openMainWindowCount += 1
-
             // DO NOT use .task{} here.
             // start tasks should NOT be canceled
             Task { @MainActor in
@@ -49,9 +48,6 @@ struct NewMainView: View {
                     NSLog("notification request failed: \(error)")
                 }
             }
-        }
-        .onDisappear {
-            windowTracker.openMainWindowCount -= 1
         }
         .sheet(isPresented: $model.presentAuth) {
             AuthView(sheetPresented: $model.presentAuth)
@@ -92,7 +88,7 @@ struct NewMainView: View {
             switch error {
             case VmError.killswitchExpired:
                 content.addButton("Update") {
-                    NSWorkspace.openSubwindow("update")
+                    NSWorkspace.openSubwindow(WindowURL.update)
                 }
 
                 content.addButton("Quit") {
@@ -119,7 +115,7 @@ struct NewMainView: View {
 
                 if error.shouldShowLogs {
                     content.addButton("Report") {
-                        openBugReport()
+                        openWindow(id: WindowID.bugReport)
 
                         // quit if the error is fatal
                         if model.state == .stopped && !model.reachedRunning {
@@ -137,7 +133,7 @@ struct NewMainView: View {
                 if error == VmError.killswitchExpired {
                     // trigger updater as well
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                        NSWorkspace.openSubwindow("update")
+                        NSWorkspace.openSubwindow(WindowURL.update)
                     }
                 }
             }

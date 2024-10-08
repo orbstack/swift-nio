@@ -7,11 +7,13 @@ import Defaults
 import Foundation
 import Sentry
 import Sparkle
+import SwiftUI
 import UserNotifications
 
 private let debugAlwaysCliBackground = false
 
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    var openWindow: OpenWindowAction!
     var updaterController: SPUStandardUpdaterController?
     var actionTracker: ActionTracker!
     var windowTracker: WindowTracker!
@@ -217,7 +219,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // open onboarding and close other windows (e.g. main) if needed
         // vmgr will still start - onAppear already fired for main
-        OnboardingManager.maybeStartOnboarding()
+        OnboardingManager.maybeStartOnboarding(openWindow: openWindow)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -296,7 +298,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // if onboarding not completed, then open it
         if !Defaults[.onboardingCompleted] {
-            OnboardingManager.maybeStartOnboarding()
+            OnboardingManager.maybeStartOnboarding(openWindow: openWindow)
             return false
         }
 
@@ -313,10 +315,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             // CLI, to trigger GUI to update
             // orbstack://update
             switch url.host {
-            case "update":
+            case WindowURL.update:
                 updaterController?.updater.checkForUpdates()
 
-            case "complete_auth":
+            case WindowURL.completeAuth:
                 NSApp.activate(ignoringOtherApps: true)
 
                 if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -330,7 +332,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     // auth CLI will update token in vmgr
                 }
 
-            case "settings":
+            case WindowURL.settings:
                 Self.showSettingsWindow()
 
             default:

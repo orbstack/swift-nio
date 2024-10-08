@@ -306,13 +306,13 @@ class MenuBarController: NSObject, NSMenuDelegate {
         helpMenu.addSeparator()
 
         helpMenu.addActionItem("Report Bug", icon: systemImage("exclamationmark.triangle.fill")) {
-            openBugReport()
+            NSWorkspace.openSubwindow(WindowID.bugReport)
         }
         helpMenu.addActionItem("Request Feature", icon: systemImage("lightbulb.fill")) {
             NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
         }
         helpMenu.addActionItem("Send Feedback", icon: systemImage("paperplane.fill")) {
-            openFeedbackWindow()
+            NSWorkspace.openSubwindow(WindowID.feedback)
         }
 
         helpMenu.addSeparator()
@@ -326,7 +326,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         helpMenu.addActionItem("Upload Diagnostics") {
-            openDiagReporter()
+            NSWorkspace.openSubwindow(WindowID.diagReport)
         }
 
         helpMenu.addSeparator()
@@ -338,7 +338,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         if !vmModel.drmState.isSignedIn {
             menu.addActionItem("Sign In…") {
-                NSWorkspace.openSubwindow("authwindow")
+                NSWorkspace.openSubwindow(WindowID.signIn)
             }
         }
 
@@ -716,20 +716,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // reappear in dock and trigger workaround
         windowTracker.setPolicy(.regular)
 
-        // open main window if needed, as if user clicked on dock
-        // but always open main so users can get back to main, not e.g. logs
-        // must have both because onDisappear (count) is called lazily
-        if !NSApp.windows.contains(where: { $0.isUserFacing })
-            || windowTracker.openMainWindowCount == 0
-        {
-            // if we just opened window, then activate later to work around focus menubar bug
-            NSLog("open main")
-            NSWorkspace.openSubwindow("main")
-        } else {
-            // already have a window, so activate now, no workaround needed
-            NSLog("activate main")
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        // open main window
+        NSWorkspace.openSubwindow(WindowID.main)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     func onTransitionToBackground() {

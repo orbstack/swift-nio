@@ -39,7 +39,9 @@ protocol OnboardingController {
 }
 
 struct OnboardingRootView: View, OnboardingController {
+    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var vmModel: VmViewModel
+
     @StateObject var onboardingModel = OnboardingViewModel()
     @Default(.onboardingCompleted) var onboardingCompleted
     @StateObject private var windowHolder = WindowHolder()
@@ -82,7 +84,7 @@ struct OnboardingRootView: View, OnboardingController {
     func finish() {
         onboardingCompleted = true
         windowHolder.window?.close()
-        NSWorkspace.openSubwindow("main")
+        openWindow(id: WindowID.main)
 
         // ok to re-enable menu bar now
         Defaults[.globalShowMenubarExtra] = true

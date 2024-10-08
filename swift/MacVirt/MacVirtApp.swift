@@ -100,6 +100,7 @@ struct MacVirtApp: App {
         // SUEnableSystemProfiling doesn't work?
         updaterController.updater.sendsSystemProfile = true
 
+        appDelegate.openWindow = openWindow
         appDelegate.updaterController = updaterController
         appDelegate.actionTracker = actionTracker
         appDelegate.windowTracker = windowTracker
@@ -123,6 +124,7 @@ struct MacVirtApp: App {
          * ALL windows MUST report to WindowTracker in .onAppear!!!
          */
 
+        // adds "About" command to menu
         Window("OrbStack", id: "main") {
             NewMainView()
                 .environmentObject(vmModel)
@@ -136,8 +138,6 @@ struct MacVirtApp: App {
                     windowTracker.onWindowAppear()
                 }
         }
-        // remove default entry point from Window menu
-        .commandsRemoved()
         .commands {
             Group {
                 SidebarCommands()
@@ -164,20 +164,20 @@ struct MacVirtApp: App {
                     }
                     Divider()
                     Button("Report Bug") {
-                        openBugReport()
+                        openWindow(id: WindowID.bugReport)
                     }
                     Button("Request Feature") {
                         NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                     }
                     Button("Send Feedback") {
-                        openFeedbackWindow()
+                        openWindow(id: WindowID.feedback)
                     }
                     Divider()
                 }
 
                 CommandGroup(before: .importExport) {
                     Button("Migrate Docker Data…") {
-                        NSWorkspace.openSubwindow("docker/migration")
+                        openWindow(id: WindowID.migrateDocker)
                     }
 
                     switch selectedTab {
@@ -214,7 +214,7 @@ struct MacVirtApp: App {
 
             CommandMenu("Account") {
                 Button("Sign In…") {
-                    NSWorkspace.openSubwindow("authwindow")
+                    openWindow(id: WindowID.signIn)
                 }
                 .disabled(vmModel.drmState.isSignedIn)
 
@@ -232,7 +232,7 @@ struct MacVirtApp: App {
                 }
 
                 Button("Switch Organization…") {
-                    NSWorkspace.openSubwindow("authwindow")
+                    openWindow(id: WindowID.signIn)
                 }
 
                 Divider()
@@ -320,27 +320,27 @@ struct MacVirtApp: App {
 
                 Group {
                     Button("Report Bug") {
-                        openBugReport()
+                        openWindow(id: WindowID.bugReport)
                     }
                     Button("Request Feature") {
                         NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                     }
                     Button("Send Feedback") {
-                        openFeedbackWindow()
+                        openWindow(id: WindowID.feedback)
                     }
                 }
 
                 Divider()
 
                 Button("Upload Diagnostics") {
-                    openDiagReporter()
+                    openWindow(id: WindowID.diagReport)
                 }
             }
         }
         .handlesExternalEvents(matching: ["main", "docker/containers/", "docker/projects/"])
         .defaultSize(width: 975, height: 650)
 
-        Window("Setup", id: "onboarding") {
+        Window("Setup", id: WindowID.onboarding) {
             OnboardingRootView()
                 .environmentObject(vmModel)
                 .onAppear {
@@ -353,7 +353,6 @@ struct MacVirtApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
-        .handlesExternalEvents(matching: ["onboarding"])
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
@@ -405,7 +404,7 @@ struct MacVirtApp: App {
         .defaultSize(width: 875, height: 625)  // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
-        Window("Migrate from Docker Desktop", id: "docker-migration") {
+        Window("Migrate from Docker Desktop", id: WindowID.migrateDocker) {
             DockerMigrationWindow()
                 .environmentObject(vmModel)
                 .onAppear {
@@ -414,12 +413,11 @@ struct MacVirtApp: App {
         }
         // remove entry point from Window menu
         .commandsRemoved()
-        .handlesExternalEvents(matching: ["docker/migration"])
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
         Group {
-            Window("Diagnostic Report", id: "diagreport") {
+            Window("Diagnostic Report", id: WindowID.diagReport) {
                 DiagReporterView(isBugReport: false)
                     .onAppear {
                         windowTracker.onWindowAppear()
@@ -430,11 +428,10 @@ struct MacVirtApp: App {
             .commands {
                 CommandGroup(replacing: .newItem) {}
             }
-            .handlesExternalEvents(matching: ["diagreport"])
             .windowStyle(.hiddenTitleBar)
             .windowResizability(.contentSize)
 
-            Window("Report Bug", id: "bugreport") {
+            Window("Report Bug", id: WindowID.bugReport) {
                 DiagReporterView(isBugReport: true)
                     .onAppear {
                         windowTracker.onWindowAppear()
@@ -445,12 +442,11 @@ struct MacVirtApp: App {
             .commands {
                 CommandGroup(replacing: .newItem) {}
             }
-            .handlesExternalEvents(matching: ["bugreport"])
             .windowStyle(.hiddenTitleBar)
             .windowResizability(.contentSize)
         }
 
-        Window("Sign In", id: "auth") {
+        Window("Sign In", id: WindowID.signIn) {
             AuthView(sheetPresented: nil)
                 .onAppear {
                     windowTracker.onWindowAppear()
@@ -461,12 +457,10 @@ struct MacVirtApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
-        // workaround for complete_auth matching this
-        .handlesExternalEvents(matching: ["authwindow"])
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
-        Window("Send Feedback", id: "feedback") {
+        Window("Send Feedback", id: WindowID.feedback) {
             FeedbackView()
                 .onAppear {
                     windowTracker.onWindowAppear()
@@ -477,7 +471,6 @@ struct MacVirtApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
-        .handlesExternalEvents(matching: ["feedback"])
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
@@ -491,19 +484,25 @@ struct MacVirtApp: App {
     }
 }
 
+enum WindowID {
+    static let main = "main"
+    static let signIn = "signin"
+    static let feedback = "feedback"
+    static let migrateDocker = "migratedocker"
+    static let onboarding = "onboarding"
+    static let diagReport = "diagreport"
+    static let bugReport = "bugreport"
+}
+
+enum WindowURL {
+    // fake windows opened by URL handler in AppDelegate
+    // some are used by vmgr
+    static let update = "update"
+    static let completeAuth = "complete_auth"
+    static let settings = "settings"
+}
+
 func getConfigDir() -> String {
     let home = FileManager.default.homeDirectoryForCurrentUser.path
     return home + "/.orbstack"
-}
-
-func openDiagReporter() {
-    NSWorkspace.openSubwindow("diagreport")
-}
-
-func openBugReport() {
-    NSWorkspace.openSubwindow("bugreport")
-}
-
-func openFeedbackWindow() {
-    NSWorkspace.openSubwindow("feedback")
 }
