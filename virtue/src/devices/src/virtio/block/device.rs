@@ -142,7 +142,7 @@ impl DiskProperties {
         })
     }
 
-    fn file(&self) -> &File {
+    pub(super) fn file(&self) -> &File {
         self.mapped_file.file()
     }
 
@@ -160,7 +160,13 @@ impl DiskProperties {
 
     pub fn read_to_iovec(&self, offset: usize, iov: &Iovec) -> io::Result<usize> {
         // mapped_file does bounds check
-        self.mapped_file.read(offset, iov.as_std_mut())
+        let res = self.mapped_file.read(offset, iov.as_std_mut());
+        if res.is_ok() {
+            // (failure case is handled by caller, no need to add any additional logging)
+            self.hook_disk_read(offset, iov);
+        }
+
+        res
     }
 
     pub fn write_iovecs(&self, offset: u64, iovecs: &[Iovec]) -> io::Result<usize> {

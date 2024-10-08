@@ -1,13 +1,14 @@
 // Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use vm_memory::GuestMemoryError;
+
+mod debug;
 pub mod device;
 mod hvc;
 mod worker;
 
 pub use self::device::{Block, CacheType};
-
-use vm_memory::GuestMemoryError;
 
 pub const CONFIG_SPACE_SIZE: usize = 8;
 pub const SECTOR_SHIFT: u8 = 9;
