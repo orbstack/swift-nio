@@ -88,7 +88,7 @@ pub(crate) struct DiskProperties {
     nsectors: u64,
     image_id: Vec<u8>,
     read_only: bool,
-    fs_block_size: u64,
+    pub(crate) fs_block_size: u64,
 
     last_flushed_at: AtomicU64,
 }

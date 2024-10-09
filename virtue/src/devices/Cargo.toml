@@ -56,6 +56,7 @@ parking_lot = "0.12.3"
 arc-swap = "1.7.1"
 filemap = { version = "0.1.0", path = "../filemap" }
 sysx = { version = "0.1.0", path = "../sysx" }
+base64 = "0.22.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }
