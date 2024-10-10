@@ -86,7 +86,10 @@ func TestNfsContainerWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer util.Run("docker", "rm", "-f", "otest-nfs")
+	cleanup(t, func() error {
+		_, err := util.Run("docker", "rm", "-f", "otest-nfs")
+		return err
+	})
 
 	// wait for start
 	time.Sleep(3 * time.Second)

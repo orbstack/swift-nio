@@ -7,8 +7,6 @@ import (
 func TestScliCreateStopStartDelete(t *testing.T) {
 	t.Parallel()
 
-	defer runScli("delete", "otest2")
-
 	// create
 	_, err := runScli("orbctl", "create", "alpine", "otest2")
 	checkT(t, err)
@@ -46,8 +44,6 @@ func TestScliCreateStopStartDelete(t *testing.T) {
 
 func TestScliCloudInit(t *testing.T) {
 	t.Parallel()
-
-	defer runScli("delete", "otest3")
 
 	// create with cloud-init
 	_, err := runScli("orbctl", "create", "ubuntu", "otest3", "--user-data", "cloud-init.yml")

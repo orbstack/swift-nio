@@ -345,7 +345,10 @@ func TestDockerDindPrivileged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer util.Run("docker", "rm", "-f", "otest-dind")
+	cleanup(t, func() error {
+		_, err := util.Run("docker", "rm", "-f", "otest-dind")
+		return err
+	})
 
 	// wait for start
 	time.Sleep(3 * time.Second)
@@ -370,7 +373,10 @@ func TestDockerPortForward(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer util.Run("docker", "rm", "-f", "otest-nginx")
+	cleanup(t, func() error {
+		_, err := util.Run("docker", "rm", "-f", "otest-nginx")
+		return err
+	})
 
 	// wait for start
 	time.Sleep(3 * time.Second)

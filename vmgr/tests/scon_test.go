@@ -127,7 +127,10 @@ func TestSconMachines(t *testing.T) {
 
 		err := testMachineSem.Acquire(context.TODO(), 1)
 		checkT(t, err)
-		defer testMachineSem.Release(1)
+		cleanup(t, func() error {
+			testMachineSem.Release(1)
+			return nil
+		})
 
 		container, err := scli.Client().Create(types.CreateRequest{
 			Name: machineName,
@@ -233,7 +236,9 @@ func TestSconMachines(t *testing.T) {
 					checkT(t, err)
 				}
 			}
-			defer scli.Client().ContainerDelete(container)
+			cleanup(t, func() error {
+				return scli.Client().ContainerDelete(container)
+			})
 
 			// check file
 			out, err := runScli("orbctl", "run", "-m", machineName, "cat", "/etc/cltest")

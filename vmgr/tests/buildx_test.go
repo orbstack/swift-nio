@@ -10,8 +10,6 @@ import (
 func TestBuildxContainerDriver(t *testing.T) {
 	t.Parallel()
 
-	defer util.Run("docker", "buildx", "rm", "otest")
-
 	// create
 	_, err := util.Run("docker", "buildx", "create", "--name", "otest")
 	checkT(t, err)
