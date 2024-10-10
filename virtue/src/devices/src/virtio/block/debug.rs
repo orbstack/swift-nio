@@ -6,23 +6,15 @@ use super::device::DiskProperties;
 
 impl DiskProperties {
     fn validated_regions(&self) -> impl Iterator<Item = Range<u64>> {
-        let logical_block_size = self.fs_block_size;
-
-        // We only want to validate the GPT regions since we've found that, if this bug occurs, it
-        // immediately occurs for GPT region and immediately causes a crash.
-        //
-        // See https://uefi.org/specs/UEFI/2.10/05_GUID_Partition_Table_Format.html for details on
-        // GPT layout.
-        [
-            // First two logical blocks
-            0..logical_block_size * 2,
-            // Last logical block
-            (self.size() - logical_block_size)..self.size(),
-        ]
-        .into_iter()
+        [0..2 << 20, (self.size() - 2 << 20)..self.size()].into_iter()
     }
 
     pub(super) fn hook_disk_read(&self, offset: usize, iovec: &Iovec) {
+        // "vdb" is our only data disk
+        if self.friendly_name != "vdb" {
+            return;
+        }
+
         // Check whether this region requires validation
         let Some(range_overlap) = self.validated_regions().find(|r| {
             range_overlap(
@@ -48,7 +40,7 @@ impl DiskProperties {
         if res != iovec.len() as isize {
             tracing::error!(
                 "failed to re-run read for access id={:?} offset={}, iov_len={}: got read len {}",
-                self.image_id(),
+                self.friendly_name,
                 offset,
                 iovec.len(),
                 res,
@@ -81,20 +73,26 @@ impl DiskProperties {
         if mmap != pread {
             tracing::error!(
                 "failed to re-run read for access id={:?} offset={}, iov_len={}: \
-                 discrepancy between GPT reads\nmmap=\n{}\n\npread=\n{}",
-                self.image_id(),
+                 discrepancy between GPT reads\n\
+                 mmap_hash={}, pread_hash={}
+                 \n\n\
+                 mmap=\n{}\
+                 \n\npread=\n{}",
+                self.friendly_name,
                 offset,
                 iovec.len(),
+                hash_buf(mmap),
+                hash_buf(pread),
                 DumpBuf(mmap),
                 DumpBuf(pread),
             );
         } else {
             tracing::info!(
-                "GPT region read id={:?} offset={}, iov_len={}, data=\n{}",
-                self.image_id(),
+                "GPT region read id={:?} offset={}, iov_len={}, data_hash={}",
+                self.friendly_name,
                 offset,
                 iovec.len(),
-                DumpBuf(mmap),
+                hash_buf(mmap),
             )
         }
     }
@@ -106,6 +104,20 @@ fn range_overlap(x: Range<u64>, y: Range<u64>) -> bool {
 
 fn range_intersection(a: Range<u64>, b: Range<u64>) -> Range<u64> {
     a.start.max(b.start)..a.end.min(b.end)
+}
+
+fn hash_buf(buf: &[u8]) -> u64 {
+    let mut hash = 0u64;
+
+    for b in buf {
+        hash = 31u64.wrapping_mul(hash).wrapping_add(*b as u64);
+    }
+
+    hash
+}
+
+fn is_entirely_zeroes(v: &[u8]) -> bool {
+    v.iter().all(|&v| v == 0)
 }
 
 struct DumpBuf<'a>(&'a [u8]);
@@ -149,8 +161,4 @@ impl fmt::Display for DumpBuf<'_> {
 
         Ok(())
     }
-}
-
-fn is_entirely_zeroes(v: &[u8]) -> bool {
-    v.iter().all(|&v| v == 0)
 }

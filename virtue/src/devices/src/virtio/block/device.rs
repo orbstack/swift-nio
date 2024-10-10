@@ -83,6 +83,7 @@ pub enum CacheType {
 
 /// Helper object for setting up all `Block` fields derived from its backing file.
 pub(crate) struct DiskProperties {
+    pub(crate) friendly_name: String,
     cache_type: CacheType,
     mapped_file: MappedFile,
     nsectors: u64,
@@ -95,6 +96,7 @@ pub(crate) struct DiskProperties {
 
 impl DiskProperties {
     pub fn new(
+        friendly_name: String,
         disk_image_path: String,
         is_disk_read_only: bool,
         cache_type: CacheType,
@@ -131,6 +133,7 @@ impl DiskProperties {
         let mapped_file = MappedFile::new(disk_image, disk_size as usize)?;
 
         Ok(Self {
+            friendly_name,
             cache_type,
             nsectors: disk_size >> SECTOR_SHIFT,
             image_id,
@@ -378,8 +381,12 @@ impl Block {
         is_disk_read_only: bool,
         vcpu_count: usize,
     ) -> io::Result<Block> {
-        let disk_properties =
-            DiskProperties::new(disk_image_path.clone(), is_disk_read_only, cache_type)?;
+        let disk_properties = DiskProperties::new(
+            id.clone(),
+            disk_image_path.clone(),
+            is_disk_read_only,
+            cache_type,
+        )?;
 
         let mut avail_features = (1u64 << VIRTIO_F_VERSION_1)
             | (1u64 << VIRTIO_BLK_F_FLUSH)
