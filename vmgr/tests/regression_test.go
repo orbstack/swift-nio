@@ -43,7 +43,7 @@ func TestWormholeWaitpid1HangRegression(t *testing.T) {
 	}
 	defer util.Run("docker", "stop", "rr")
 
-	out, err := util.Run("orbctl", "debug", "rr", "echo", "meow 🏳️‍⚧️")
+	out, err := runScli("orbctl", "debug", "rr", "echo", "meow 🏳️‍⚧️")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestRemountWormholeNfsRwRegression(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := util.Run("orbctl", "debug", "uwu", "echo", "nyaa~")
+	out, err := runScli("orbctl", "debug", "uwu", "echo", "nyaa~")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestK8sContainersRegression(t *testing.T) {
 	}
 	defer util.Run("docker", "stop", "owo")
 
-	out, err := util.Run("orbctl", "debug", "owo", "echo", "a cringe string to put into this test")
+	out, err := runScli("orbctl", "debug", "owo", "echo", "a cringe string to put into this test")
 	if err != nil {
 		t.Fatal(err)
 	}

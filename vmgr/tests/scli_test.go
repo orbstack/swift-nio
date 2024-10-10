@@ -2,33 +2,37 @@ package tests
 
 import (
 	"testing"
-
-	"github.com/orbstack/macvirt/vmgr/util"
 )
 
 func TestScliCreateStopStartDelete(t *testing.T) {
 	t.Parallel()
 
-	defer util.Run("orb", "delete", "otest2")
+	defer runScli("delete", "otest2")
 
 	// create
-	_, err := util.Run("orb", "create", "alpine", "otest2")
+	_, err := runScli("orbctl", "create", "alpine", "otest2")
 	checkT(t, err)
 
 	// stop
-	_, err = util.Run("orb", "stop", "otest2")
+	_, err = runScli("orbctl", "stop", "otest2")
 	checkT(t, err)
 
 	// start
-	_, err = util.Run("orb", "start", "otest2")
+	_, err = runScli("orbctl", "start", "otest2")
 	checkT(t, err)
 
 	// restart
-	_, err = util.Run("orb", "restart", "otest2")
+	_, err = runScli("orbctl", "restart", "otest2")
 	checkT(t, err)
 
 	// run command
-	out, err := util.Run("orb", "-m", "otest2", "true")
+	out, err := runScli("orb", "-m", "otest2", "true")
+	checkT(t, err)
+	// make sure output is empty, no spinner
+	if out != "" {
+		t.Fatalf("expected empty output, got: %s", out)
+	}
+	out, err = runScli("orbctl", "run", "-m", "otest2", "true")
 	checkT(t, err)
 	// make sure output is empty, no spinner
 	if out != "" {
@@ -36,27 +40,27 @@ func TestScliCreateStopStartDelete(t *testing.T) {
 	}
 
 	// delete
-	_, err = util.Run("orb", "delete", "otest2")
+	_, err = runScli("orbctl", "delete", "otest2")
 	checkT(t, err)
 }
 
 func TestScliCloudInit(t *testing.T) {
 	t.Parallel()
 
-	defer util.Run("orb", "delete", "otest3")
+	defer runScli("delete", "otest3")
 
 	// create with cloud-init
-	_, err := util.Run("orb", "create", "ubuntu", "otest3", "--user-data", "cloud-init.yml")
+	_, err := runScli("orbctl", "create", "ubuntu", "otest3", "--user-data", "cloud-init.yml")
 	checkT(t, err)
 
 	// check file
-	out, err := util.Run("orb", "-m", "otest3", "cat", "/etc/cltest")
+	out, err := runScli("orbctl", "run", "-m", "otest3", "cat", "/etc/cltest")
 	checkT(t, err)
 	if out != "it works!\n" {
 		t.Fatalf("expected test, got: %s", out)
 	}
 
 	// delete
-	_, err = util.Run("orb", "delete", "otest3")
+	_, err = runScli("orbctl", "delete", "otest3")
 	checkT(t, err)
 }

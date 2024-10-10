@@ -17,7 +17,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/vmgr/util"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -178,7 +177,7 @@ func TestSconMachines(t *testing.T) {
 			err := scli.Client().ContainerRename(container, newName)
 			checkT(t, err)
 
-			cmd := exec.Command("orb", "-m", newName)
+			args := []string{"orbctl", "run", "-m", newName}
 
 			hostnameCmd := []string{"hostname"}
 			if distro == "oracle" {
@@ -186,10 +185,9 @@ func TestSconMachines(t *testing.T) {
 				hostnameCmd = []string{"hostnamectl", "hostname"}
 			}
 
-			// since exec.Command("orb", "-m", machineName, hostnameCmd...) or other variations doesn't work
-			cmd.Args = append(cmd.Args, hostnameCmd...)
+			args = append(args, hostnameCmd...)
 
-			output, err := cmd.Output()
+			output, err := runScli(args...)
 			checkT(t, err)
 
 			if strings.TrimSpace(string(output)) != newName {
@@ -238,7 +236,7 @@ func TestSconMachines(t *testing.T) {
 			defer scli.Client().ContainerDelete(container)
 
 			// check file
-			out, err := util.Run("orb", "-m", machineName, "cat", "/etc/cltest")
+			out, err := runScli("orbctl", "run", "-m", machineName, "cat", "/etc/cltest")
 			checkT(t, err)
 			if out != "it works!\n" {
 				t.Fatalf("expected test, got: %s", out)
