@@ -10,13 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/util"
-)
-
-const (
-	//TODO
-	singleTestMachine = "ubuntu"
 )
 
 func hostUsername(t *testing.T) string {
@@ -37,28 +35,47 @@ func TestNfsReadOnlyRoot(t *testing.T) {
 	}
 }
 
-func TestNfsMachineRootPermissions(t *testing.T) {
+func TestNfsMachinePermissions(t *testing.T) {
 	t.Parallel()
 
-	err := os.WriteFile(fmt.Sprintf("%s/%s/root/testfile", coredir.EnsureNfsMountpoint(), singleTestMachine), []byte("test"), 0644)
-	if !errors.Is(err, syscall.EACCES) {
-		t.Fatal(err)
-	}
-}
-
-func TestNfsMachineUserPermissions(t *testing.T) {
-	t.Parallel()
-
-	err := os.WriteFile(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), singleTestMachine, hostUsername(t)), []byte("test"), 0644)
+	name := testPrefix() + "-nfs"
+	container, err := scli.Client().Create(types.CreateRequest{
+		Name: name,
+		Image: types.ImageSpec{
+			Distro: images.DistroAlpine,
+		},
+		InternalForTesting: true,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// delete file
-	err = os.Remove(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), singleTestMachine, hostUsername(t)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Cleanup(func() {
+		err := scli.Client().ContainerDelete(container)
+		if err != nil {
+			fmt.Printf("failed to cleanup nfs container: %v", err)
+		}
+	})
+
+	t.Run("root", func(t *testing.T) {
+		err := os.WriteFile(fmt.Sprintf("%s/%s/root/testfile", coredir.EnsureNfsMountpoint(), name), []byte("test"), 0644)
+		if !errors.Is(err, syscall.EACCES) {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("user", func(t *testing.T) {
+		err := os.WriteFile(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), name, hostUsername(t)), []byte("test"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// delete file
+		err = os.Remove(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), name, hostUsername(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestNfsContainerWrite(t *testing.T) {
