@@ -70,31 +70,48 @@ impl DiskProperties {
         let pread = &pread[trim_start..][..trim_len];
 
         // Log the GPT entry
-        if mmap != pread {
-            tracing::error!(
-                "failed to re-run read for access id={:?} offset={}, iov_len={}: \
-                 discrepancy between GPT reads\n\
-                 mmap_hash={}, pread_hash={}
-                 \n\n\
-                 mmap=\n{}\
-                 \n\npread=\n{}",
+        let prefix = FmtFn(|f| {
+            write!(
+                f,
+                "GPT region read id={:?} offset={}, iov_len={}, isect_start={}, isect_end={}",
                 self.friendly_name,
                 offset,
                 iovec.len(),
-                hash_buf(mmap),
-                hash_buf(pread),
-                DumpBuf(mmap),
-                DumpBuf(pread),
+                range_intersect.start,
+                range_intersect.end,
+            )
+        });
+
+        if mmap != pread {
+            tracing::error!(
+                "{prefix} failed: discrepancy between GPT reads\n\
+                 mmap=\n{}\n\
+                 pread=\n{}\n",
+                dump_buf(mmap),
+                dump_buf(pread),
             );
         } else {
             tracing::info!(
-                "GPT region read id={:?} offset={}, iov_len={}, data_hash={}",
-                self.friendly_name,
-                offset,
-                iovec.len(),
-                hash_buf(mmap),
-            )
+                "{prefix} succeeded:\n\
+                 sector_hashes={:?}",
+                mmap.chunks(512).map(hash_buf).collect::<Vec<_>>(),
+            );
         }
+    }
+}
+
+// === Helpers === //
+
+struct FmtFn<F>(F)
+where
+    F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result;
+
+impl<F> fmt::Display for FmtFn<F>
+where
+    F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0(f)
     }
 }
 
@@ -120,16 +137,14 @@ fn is_entirely_zeroes(v: &[u8]) -> bool {
     v.iter().all(|&v| v == 0)
 }
 
-struct DumpBuf<'a>(&'a [u8]);
-
-impl fmt::Display for DumpBuf<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+fn dump_buf(bytes: &[u8]) -> impl fmt::Display + '_ {
+    FmtFn(|f| {
         use base64::{display::Base64Display, engine::general_purpose::STANDARD_NO_PAD};
 
         // 6*64 is divisible by 8 so we don't need any padding.
         let line_byte_count = 64;
 
-        let mut lines = self.0.chunks(line_byte_count).peekable();
+        let mut lines = bytes.chunks(line_byte_count).peekable();
 
         loop {
             // Skip until the first line that's not entirely zeroes
@@ -160,5 +175,5 @@ impl fmt::Display for DumpBuf<'_> {
         }
 
         Ok(())
-    }
+    })
 }
