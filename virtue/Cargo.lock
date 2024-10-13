@@ -833,6 +833,7 @@ dependencies = [
  "rand",
  "rustc-hash",
  "rutabaga_gfx",
+ "scopeguard",
  "serde",
  "smallbox",
  "smallvec",

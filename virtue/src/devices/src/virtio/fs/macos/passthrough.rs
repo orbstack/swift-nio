@@ -45,6 +45,8 @@ use nix::sys::uio::pwrite;
 use nix::unistd::{access, lseek, truncate, Whence};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
+use parking_lot::lock_api::RawRwLock;
+use parking_lot::RwLock;
 use smol_str::SmolStr;
 use utils::hypercalls::{HVC_DEVICE_VIRTIOFS_ROOT, HVC_DEVICE_VIRTIOFS_ROSETTA};
 use utils::qos::{set_thread_qos, QosClass};
@@ -490,15 +492,20 @@ impl Default for Config {
 }
 
 #[derive(Debug)]
+struct NodeLocation {
+    parent: Option<Arc<NodeData>>,
+    // TODO: normalize
+    name: SmolStr,
+}
+
+#[derive(Debug)]
 struct NodeData {
     // TODO: can we get away without this?
     nodeid: NodeId,
 
-    parent: Option<Arc<NodeData>>,
-    // TODO: normalize
-    name: SmolStr,
-
     flags: NodeFlags, // for flags propagated to children
+
+    loc: RwLock<NodeLocation>,
 
     // TODO: update this, or don't keep it here
     nlink: u16, // for getattrlistbulk buffer size
@@ -520,6 +527,7 @@ impl NodeData {
         if path.is_empty() {
             path.push('/');
         }
+        debug!(nodeid = ?self.nodeid, path, "built NODE path");
         CString::new(path).unwrap()
     }
 
@@ -533,7 +541,19 @@ impl NodeData {
         self._build_path(&mut path);
         path.push('/');
         path.push_str(name);
+
+        debug!(nodeid = ?self.nodeid, path, "built CHILD path");
         CString::new(path).unwrap()
+    }
+
+    fn get_child(&self, name: &str) -> io::Result<Arc<NodeData>> {
+        let smol_name = SmolStr::from(name);
+        let child = self.children.get(&smol_name).and_then(|w| w.upgrade());
+        if let Some(child) = child {
+            Ok(child)
+        } else {
+            Err(Errno::ENOENT.into())
+        }
     }
 
     fn owned_ref(&self) -> OwnedFileRef<HandleData> {
@@ -541,9 +561,10 @@ impl NodeData {
     }
 
     fn _build_path(&self, buf: &mut String) {
-        buf.insert_str(0, &self.name);
+        let loc = self.loc.read();
+        buf.insert_str(0, &loc.name);
 
-        if let Some(ref parent) = self.parent {
+        if let Some(ref parent) = loc.parent {
             buf.insert(0, '/');
             parent._build_path(buf);
         }
@@ -592,13 +613,14 @@ impl NodeData {
 
 impl Drop for NodeData {
     fn drop(&mut self) {
-        if let Some(ref parent) = self.parent {
+        let loc = self.loc.get_mut();
+        if let Some(ref parent) = loc.parent {
             // TODO: remove clone
             if let dashmap::mapref::entry::Entry::Occupied(mut e) =
-                parent.children.entry(self.name.clone())
+                parent.children.entry(loc.name.clone())
             {
                 if e.get().upgrade().is_none() {
-                    debug!("drop stale entry: {}", self.name);
+                    debug!("drop stale entry: {}", loc.name);
                     e.remove();
                 }
             }
@@ -663,12 +685,14 @@ impl PassthroughFs {
             Arc::new(NodeData {
                 nodeid: NodeId(fuse::ROOT_ID),
 
-                parent: None,
-                name: if cfg.root_dir == "/" {
-                    SmolStr::new("")
-                } else {
-                    SmolStr::new(&cfg.root_dir)
-                },
+                loc: RwLock::new(NodeLocation {
+                    parent: None,
+                    name: if cfg.root_dir == "/" {
+                        SmolStr::new("")
+                    } else {
+                        SmolStr::new(&cfg.root_dir)
+                    },
+                }),
 
                 // refcount 2 so it can never be dropped
                 refcount: AtomicU32::new(2),
@@ -797,7 +821,7 @@ impl PassthroughFs {
         Ok(entry)
     }
 
-    fn filter_stat(&self, st: &mut bindings::stat64) {
+    fn filter_stat(&self, st: &mut bindings::stat64, nodeid: NodeId) {
         // root generation must be zero
         // for other inodes, we ignore st_gen because getattrlistbulk doesn't support it, so returning it here would break revalidate
         st.st_gen = 0;
@@ -811,7 +835,8 @@ impl PassthroughFs {
         }
 
         // st_ino must not be nodeid (as nodeid is per-dentry), and must not collide across host filesystems
-        st.st_ino = st.dev_ino().hash();
+        //st.st_ino = st.dev_ino().hash();
+        st.st_ino = nodeid.0;
     }
 
     fn get_or_insert_node(
@@ -825,6 +850,7 @@ impl PassthroughFs {
         if let Some(node) = parent.children.get(&smol_name) {
             if let Some(node) = node.upgrade() {
                 if node.inc_ref().is_ok() {
+                    debug!(?parent, ?name, nodeid = ?node.nodeid, "existing node");
                     return Ok((node.nodeid, node.flags));
                 }
             }
@@ -833,14 +859,17 @@ impl PassthroughFs {
         // this (parent, name) is new
         // create a new nodeid and return it
         let mut new_nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed).into();
+        debug!(?parent, ?name, ?new_nodeid, "new node");
 
         let dev_info = self.get_dev_info(st.st_dev, || Ok(file_ref))?;
 
         let mut node = NodeData {
             nodeid: new_nodeid,
 
-            parent: Some(parent.clone()),
-            name: SmolStr::from(name),
+            loc: RwLock::new(NodeLocation {
+                parent: Some(parent.clone()),
+                name: SmolStr::from(name),
+            }),
 
             refcount: AtomicU32::new(1),
             last_open_ctime: AtomicI64::new(st.ctime_ns()),
@@ -869,6 +898,7 @@ impl PassthroughFs {
                 e.insert(weak);
             }
             dashmap::mapref::entry::Entry::Occupied(mut e) => {
+                debug!(?parent, ?name, "raced with another thread");
                 // we raced with another thread, which added a nodeid for this (parent, name)
                 // does the old nodeid still exist?
                 if let Some(old_node) = e.get().upgrade() {
@@ -906,7 +936,7 @@ impl PassthroughFs {
             st.st_dev, st.st_ino, file_ref, nodeid
         );
 
-        self.filter_stat(&mut st);
+        self.filter_stat(&mut st, nodeid);
 
         Ok((
             Entry {
@@ -1173,17 +1203,26 @@ impl PassthroughFs {
         Err(Errno::EBADF.into())
     }
 
-    fn do_getattr(&self, file_ref: FileRef) -> io::Result<(bindings::stat64, Duration)> {
+    fn do_getattr(
+        &self,
+        file_ref: FileRef,
+        nodeid: NodeId,
+    ) -> io::Result<(bindings::stat64, Duration)> {
         let st = match file_ref {
             FileRef::Path(c_path) => lstat(c_path, false)?,
             FileRef::Fd(fd) => fstat(fd, false)?,
         };
 
-        self.finish_getattr(st)
+        self.finish_getattr(st, nodeid)
     }
 
-    fn finish_getattr(&self, mut st: bindings::stat64) -> io::Result<(bindings::stat64, Duration)> {
-        self.filter_stat(&mut st);
+    fn finish_getattr(
+        &self,
+        mut st: bindings::stat64,
+        nodeid: NodeId,
+    ) -> io::Result<(bindings::stat64, Duration)> {
+        self.filter_stat(&mut st, nodeid);
+        st.st_ino = nodeid.0;
         Ok((st, self.cfg.attr_timeout))
     }
 
@@ -1280,7 +1319,7 @@ impl PassthroughFs {
             }?;
         }
 
-        self.do_getattr(file_ref.as_ref())
+        self.do_getattr(file_ref.as_ref(), nodeid)
     }
 
     fn do_unlink(
@@ -1827,7 +1866,7 @@ impl FileSystem for PassthroughFs {
     ) -> io::Result<(bindings::stat64, Duration)> {
         debug!("getattr: nodeid={} handle={:?}", nodeid, handle);
         let file_ref = self.get_file_ref(nodeid, handle)?;
-        self.do_getattr(file_ref.as_ref())
+        self.do_getattr(file_ref.as_ref(), nodeid)
     }
 
     fn setattr(
@@ -1869,9 +1908,27 @@ impl FileSystem for PassthroughFs {
             return Err(Errno::EINVAL.into());
         }
 
+        let oldname = oldname.to_string_lossy();
         let newname = newname.to_string_lossy();
-        let old_cpath = self.get_node(olddir)?.subpath(&oldname.to_string_lossy());
-        let new_cpath = self.get_node(newdir)?.subpath(&newname);
+        let old_dir = self.get_node(olddir)?;
+        let new_dir = self.get_node(newdir)?;
+        let old_cpath = old_dir.subpath(&oldname);
+        let new_cpath = new_dir.subpath(&newname);
+
+        // lock old dir, old node, new dir, and (if exists) new node
+        // prevents race where stale path is used for open, pointing to wrong file
+        let old_node = old_dir.get_child(&oldname)?;
+        let new_node = new_dir.get_child(&newname).ok();
+
+        //let _old_dir_loc = old_dir.loc.write();
+        let mut old_node_loc = old_node.loc.write();
+
+        //let _new_dir_loc = new_dir.loc.write();
+        // if let Some(ref new_node) = new_node {
+        //     unsafe { new_node.loc.raw().lock_exclusive() };
+        //     let _guard =
+        //         scopeguard::guard((), |_| unsafe { new_node.loc.raw().unlock_exclusive() });
+        // }
 
         let mut res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
         // ENOTSUP = not supported by FS (e.g. NFS). retry and simulate if only flag is RENAME_EXCL
@@ -1889,18 +1946,24 @@ impl FileSystem for PassthroughFs {
         }
 
         if res == 0 {
-            if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0 {
-                if let Ok(fd) = nix::fcntl::open(
-                    old_cpath.as_ref(),
-                    OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
-                    Mode::from_bits_truncate(0o600),
-                ) {
-                    set_xattr_stat(
-                        FileRef::Fd(fd.as_fd()),
-                        None,
-                        Some((libc::S_IFCHR | 0o600) as u32),
-                    )?;
-                }
+            // make the change in our FS tree
+            // after rename returns, Linux updates its dentry tree to reflect the rename, using old inode/nodeid
+            if mflags & libc::RENAME_SWAP != 0 {
+                // swap
+                // TODO
+            } else {
+                // rename
+                let old_name_smol = SmolStr::from(oldname);
+                let new_name_smol = SmolStr::from(newname);
+                *old_node_loc = NodeLocation {
+                    parent: Some(new_dir.clone()),
+                    name: new_name_smol.clone(),
+                };
+                drop(old_node_loc);
+                new_dir
+                    .children
+                    .insert(new_name_smol, Arc::downgrade(&old_node));
+                old_dir.children.remove(&old_name_smol);
             }
 
             Ok(())
