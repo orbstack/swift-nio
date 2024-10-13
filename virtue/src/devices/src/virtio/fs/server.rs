@@ -35,9 +35,7 @@ const FUSE_PAGE_SIZE: u32 = 4096;
 pub const MAX_PAGES: u32 = ((MAX_BUFFER_SIZE - 1) / FUSE_PAGE_SIZE) + 1;
 
 #[derive(Debug, Clone, Copy)]
-pub struct HostContext {
-    pub is_sync_call: bool,
-}
+pub struct HostContext {}
 
 struct ZCReader<'a>(Reader<'a>);
 

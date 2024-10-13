@@ -137,7 +137,7 @@ impl FsHvcDevice {
 
         debug!(?args, "hvc req");
 
-        let hctx = HostContext { is_sync_call: true };
+        let hctx = HostContext {};
         if let Err(e) = self.server.handle_message(hctx, reader, writer) {
             error!("error handling message: {:?}", e);
         }

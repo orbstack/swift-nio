@@ -96,9 +96,7 @@ impl FsWorker {
     }
 
     fn process_queue(&mut self, queue_index: usize) {
-        let hctx = HostContext {
-            is_sync_call: false,
-        };
+        let hctx = HostContext {};
 
         let queue = &mut self.queues[queue_index];
         while let Some(head) = queue.pop(&self.mem) {
