@@ -57,7 +57,6 @@ use super::super::filesystem::{
     OpenOptions, SetattrValid, ZeroCopyReader, ZeroCopyWriter,
 };
 use super::super::fuse;
-use super::sys::fsgetpath_exists;
 use super::vnode_poll::VnodePoller;
 
 // disabled because Linux doesn't FORGET everything on unmount
@@ -566,7 +565,7 @@ pub struct PassthroughFs {
     // we get away with it because:
     // - nodeids are always unique and never reused or replaced, due to atomic u64 key
     // - duplicate nodeids for a single DevIno will be fixed by finish_lookup
-    nodeids: MultikeyFxDashMap<NodeId, DevIno, NodeData>,
+    nodeids: MultikeyFxDashMap<NodeId, DevIno, Arc<NodeData>>,
     next_nodeid: AtomicU64,
 
     handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
@@ -593,7 +592,7 @@ impl PassthroughFs {
         nodeids.insert(
             NodeId(fuse::ROOT_ID),
             st.dev_ino(),
-            NodeData {
+            Arc::new(NodeData {
                 dev_ino: st.dev_ino(),
 
                 // refcount 2 so it can never be dropped
@@ -605,7 +604,7 @@ impl PassthroughFs {
 
                 parent_nodeid: None,
                 name: SmolStr::new(""),
-            },
+            }),
         );
 
         let dev_info = FxDashMap::default();
@@ -915,7 +914,7 @@ impl PassthroughFs {
 
             // deadlock OK: we're not holding a ref, since lookup returned None
             let node_flags = node.flags;
-            let inserted_nodeid = self.nodeids.insert(new_nodeid, dev_ino, node);
+            let inserted_nodeid = self.nodeids.insert(new_nodeid, dev_ino, Arc::new(node));
             if inserted_nodeid != new_nodeid {
                 // we raced with another thread, which added a nodeid for this (dev, ino)
                 // does the old nodeid still exist?
@@ -1374,159 +1373,6 @@ impl PassthroughFs {
             Ok(OwnedFileRef::Path(path))
         }
     }
-
-    // this can't return EBADF, or any error, to the caller:
-    // any errors are replaced with the original error, as this would've been a failed recovery attempt
-    fn refresh_nodeid(&self, ctx: &Context, nodeid: NodeId) -> io::Result<()> {
-        // try to look up new dev/ino at /.vol/$PARENT/$NAME
-        // very uncommon case, so we release lock before access(2) and re-acquire it here
-        //
-        // instead of just using /.vol/$PARENT/$NAME as the new path, we resolve it to a new dev/ino because
-        //   - more generic: don't need to pass path to with_nodeid_refresh closures
-        //   - rename safety: it'll continue to refer to the correct file
-        //   - plays well with other calls that might see the new dev/ino (will be recognized as same nodeid)
-        // the one problem case is if the nodeid file was renamed, but that's ok:
-        //   - linux should not be trying to access it by old name. that wouldn't work anyway
-        //   - stale dev/ino is not possible if accessing by new name
-        //   - if linux renamed it, we'll update the name
-        // TODO: this breaks down with hard links. fix by storing SmallVec of links ((parent,name)) in NodeData
-        let node = self.nodeids.get(&nodeid).ok_or_else(|| ebadf(nodeid))?;
-        let old_devino = node.dev_ino;
-        let parent = node.parent_nodeid.ok_or(Errno::ENOENT)?.get().into();
-        // prevent deadlock with get_mut later, and with with_nodeid_refresh
-        drop(node);
-
-        // this can't recurse forever because root nodeid has no parent, and circular links are impossible
-        self.with_nodeid_refresh(ctx, parent, || {
-            // if this is a retry after refreshing parent, path_in_parent needs to be re-resolved
-            // this is inefficient, but we need to get *another* read lock
-            // can't get write lock yet: it could deadlock with name_to_path's read lock for parent (if same shard)
-            // doesn't matter -- this path is an uncommon error recovery case
-            let node = self.nodeids.get(&nodeid).ok_or_else(|| ebadf(nodeid))?;
-            node.check_io(ctx)?;
-            let path_in_parent = self.name_to_path(ctx, parent, &node.name)?;
-            // we'll have to re-acquire the node ref later to get a write lock, so drop it to avoid doing I/O (lstat) with the lock held
-            drop(node);
-
-            debug!(?nodeid, ?old_devino, ?path_in_parent, "refresh_nodeid");
-            let st = lstat(&path_in_parent, true)?;
-
-            let new_devino = st.dev_ino();
-            if new_devino == old_devino {
-                // this could happen if two threads race on the ENOENT handling path:
-                // one finishes refresh_nodeid before the other one starts and reads old_devino
-                // this counts as a success, which is OK and can't loop forever because
-                return Ok(());
-            }
-
-            // we got a new dev/ino
-            // now begins the ritual of updating it
-
-            // remove from alt map
-            // race OK: since the old dev/ino doesn't currently exist on disk, no lookup/readdir can return it, so it doesn't need to be in alt map (and if it somehow does, it needs to be a new nodeid)
-            // to avoid potential lock ordering issue with main map, do this without main lock held
-            self.nodeids.remove_alt(&old_devino);
-
-            // if another thread is racing on the same path, that's OK: it should get the same dev/ino result
-            debug!(?new_devino, "refresh_nodeid: updating dev/ino");
-            let mut node = self.nodeids.get_mut(&nodeid).ok_or_else(|| ebadf(nodeid))?;
-            // no check_io: same node as above, and no IO after this point
-            // update dev/ino used for deleting from alt map
-            // no one else can read it right now
-            node.dev_ino = new_devino;
-            // avoid lock ordering issue with main map
-            drop(node);
-
-            // reinsert into alt map
-            // race OK: another thread racing on this path will insert the same dev/ino
-            let inserted_nodeid = self.nodeids.insert_alt(nodeid, new_devino);
-            if inserted_nodeid != nodeid {
-                // uh oh: someone else saw the new dev/ino in lookup/readdir
-                // Linux now has the new nodeid in dcache, and old nodeid was marked as stale
-                // stale means that FUSE will fail all future I/O on the old nodeid, so fail here too
-                // TODO: any better way to handle this?
-                error!(
-                    ?nodeid,
-                    ?inserted_nodeid,
-                    "refresh_nodeid: race with new lookup"
-                );
-                return Err(Errno::EAGAIN.into());
-            }
-
-            Ok(())
-        })
-    }
-
-    // if a "dentry swap" occurs, where the inode at a path/name changes, we get ENOENT
-    // FSEvents monitor is racy and won't always notify us fast enough
-    // example: rm -fr a; mkdir a; echo $RANDOM > a/F; orb cat a/F
-    //
-    // to fix it, we wrap all calls that can fail with ENOENT due to stale nodeid dev/ino
-    // to disambiguate real ENOENT from stale dev/ino, we check whether the dev/ino still exists
-    // (fsgetpath would eliminate ambiguity, but it's slower than even volfs str format + access)
-    //
-    // faster and more reliable to implement this on host side:
-    // - ideally we get linux to revalidate it before open/..., but cache inval events will always be racy
-    // - propagating a special error code to trigger revalidate = nasty core VFS hacks
-    // - too expensive for FUSE to revalidate on every call
-    fn with_nodeid_refresh<F, R>(&self, ctx: &Context, nodeid: NodeId, f: F) -> io::Result<R>
-    where
-        F: Fn() -> io::Result<R>,
-    {
-        match f() {
-            Ok(r) => Ok(r),
-            Err(e) if e.raw_os_error() == Some(libc::ENOENT) => {
-                // ENOENT: this could be caused by
-                //   - (if nodeid = parent) child name doesn't exist
-                //   - (if nodeid = file) file was unlinked
-                //   - dev/ino is stale
-                //     - could be caused by parent, or file unlinked+replaced
-                // to disambiguate, check whether the current dev/ino still exists
-                let (DevIno(dev, ino), _, fd) = self.get_nodeid(ctx, nodeid)?;
-
-                // stale dev/ino does not apply to fd-based nodeids, at least not in the same way: we'd have to reopen the fd
-                // fsgetpath also won't work on such filesystems (ENOTSUP), so don't try
-                if fd.is_some() {
-                    return Err(e);
-                }
-
-                let dev_info = self.get_dev_info(dev, || self.nodeid_to_file_ref(ctx, nodeid))?;
-                match fsgetpath_exists(dev_info.fsid, ino) {
-                    Ok(true) => {
-                        // dev/ino still exists:
-                        // this is a real ENOENT, from child
-                        // return the original error
-                        Err(e)
-                    }
-
-                    Ok(false) => {
-                        // dev/ino doesn't exist:
-                        // this is a stale nodeid
-                        // refresh it
-                        match self.refresh_nodeid(ctx, nodeid) {
-                            // retry if refreshed successfully
-                            Ok(_) => {
-                                debug!("retrying after refresh_nodeid");
-                                f()
-                            }
-                            Err(e2) => {
-                                // refresh failed: return the *original* error (ENOENT)
-                                debug!(?e2, "refresh_nodeid failed");
-                                Err(e)
-                            }
-                        }
-                    }
-
-                    // for any other error, ignore and return the original error
-                    Err(e2) => {
-                        debug!("failed to check if dev/ino exists: {:?}", e2);
-                        Err(e)
-                    }
-                }
-            }
-            Err(e) => Err(e),
-        }
-    }
 }
 
 fn set_secctx(file: FileRef, secctx: &SecContext, symlink: bool) -> io::Result<()> {
@@ -1625,18 +1471,14 @@ impl FileSystem for PassthroughFs {
     }
 
     fn statfs(&self, ctx: Context, nodeid: NodeId) -> io::Result<Statvfs> {
-        self.with_nodeid_refresh(&ctx, nodeid, || {
-            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
-            let stv = statvfs(c_path.as_ref())?;
-            Ok(stv)
-        })
+        let c_path = self.nodeid_to_path(&ctx, nodeid)?;
+        let stv = statvfs(c_path.as_ref())?;
+        Ok(stv)
     }
 
     fn lookup(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<Entry> {
-        self.with_nodeid_refresh(&ctx, parent, || {
-            debug!("lookup: {:?}", name);
-            self.do_lookup(parent, &name.to_string_lossy(), &ctx)
-        })
+        debug!("lookup: {:?}", name);
+        self.do_lookup(parent, &name.to_string_lossy(), &ctx)
     }
 
     fn forget(&self, _ctx: Context, _nodeid: NodeId, _count: u64) {
@@ -1656,9 +1498,7 @@ impl FileSystem for PassthroughFs {
         nodeid: NodeId,
         flags: u32,
     ) -> io::Result<(Option<HandleId>, OpenOptions)> {
-        self.with_nodeid_refresh(&ctx, nodeid, || {
-            self.do_open(&ctx, nodeid, flags | libc::O_DIRECTORY as u32)
-        })
+        self.do_open(&ctx, nodeid, flags | libc::O_DIRECTORY as u32)
     }
 
     fn releasedir(
@@ -1681,34 +1521,30 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        self.with_nodeid_refresh(&ctx, parent, || {
-            let name = &name.to_string_lossy();
-            let c_path = self.name_to_path(&ctx, parent, name)?;
+        let name = &name.to_string_lossy();
+        let c_path = self.name_to_path(&ctx, parent, name)?;
 
-            // Safe because this doesn't modify any memory and we check the return value.
-            let res = unsafe { libc::mkdir(c_path.as_ptr(), (mode & !umask) as u16) };
-            if res == 0 {
-                // Set security context
-                if let Some(secctx) = &extensions.secctx {
-                    set_secctx(FileRef::Path(&c_path), secctx, false)?
-                };
+        // Safe because this doesn't modify any memory and we check the return value.
+        let res = unsafe { libc::mkdir(c_path.as_ptr(), (mode & !umask) as u16) };
+        if res == 0 {
+            // Set security context
+            if let Some(secctx) = &extensions.secctx {
+                set_secctx(FileRef::Path(&c_path), secctx, false)?
+            };
 
-                set_xattr_stat(
-                    FileRef::Path(&c_path),
-                    Some((ctx.uid, ctx.gid)),
-                    Some(mode & !umask),
-                )?;
-                self.do_lookup(parent, name, &ctx)
-            } else {
-                Err(io::Error::last_os_error())
-            }
-        })
+            set_xattr_stat(
+                FileRef::Path(&c_path),
+                Some((ctx.uid, ctx.gid)),
+                Some(mode & !umask),
+            )?;
+            self.do_lookup(parent, name, &ctx)
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
 
     fn rmdir(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<()> {
-        self.with_nodeid_refresh(&ctx, parent, || {
-            self.do_unlink(ctx, parent, name, libc::AT_REMOVEDIR)
-        })
+        self.do_unlink(ctx, parent, name, libc::AT_REMOVEDIR)
     }
 
     fn readdir<F>(
@@ -1959,7 +1795,7 @@ impl FileSystem for PassthroughFs {
         nodeid: NodeId,
         flags: u32,
     ) -> io::Result<(Option<HandleId>, OpenOptions)> {
-        self.with_nodeid_refresh(&ctx, nodeid, || self.do_open(&ctx, nodeid, flags))
+        self.do_open(&ctx, nodeid, flags)
     }
 
     fn release(
@@ -1986,43 +1822,41 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<(Entry, Option<HandleId>, OpenOptions)> {
-        self.with_nodeid_refresh(&ctx, parent, || {
-            let name = &name.to_string_lossy();
-            let (c_path, _, parent_flags) = self.name_to_path_and_data(&ctx, parent, name)?;
+        let name = &name.to_string_lossy();
+        let (c_path, _, parent_flags) = self.name_to_path_and_data(&ctx, parent, name)?;
 
-            let flags = self.convert_open_flags(flags as i32);
+        let flags = self.convert_open_flags(flags as i32);
 
-            // Safe because this doesn't modify any memory and we check the return value. We don't
-            // really check `flags` because if the kernel can't handle poorly specified flags then we
-            // have much bigger problems.
-            let fd = File::from(nix::fcntl::open(
-                c_path.as_ref(),
-                flags | OFlag::O_CREAT,
-                Mode::from_bits_retain(mode as u16),
-            )?);
+        // Safe because this doesn't modify any memory and we check the return value. We don't
+        // really check `flags` because if the kernel can't handle poorly specified flags then we
+        // have much bigger problems.
+        let fd = File::from(nix::fcntl::open(
+            c_path.as_ref(),
+            flags | OFlag::O_CREAT,
+            Mode::from_bits_retain(mode as u16),
+        )?);
 
-            set_xattr_stat(
-                FileRef::Fd(fd.as_fd()),
-                Some((ctx.uid, ctx.gid)),
-                Some(libc::S_IFREG as u32 | (mode & !(umask & 0o777))),
-            )?;
+        set_xattr_stat(
+            FileRef::Fd(fd.as_fd()),
+            Some((ctx.uid, ctx.gid)),
+            Some(libc::S_IFREG as u32 | (mode & !(umask & 0o777))),
+        )?;
 
-            // Set security context
-            if let Some(secctx) = &extensions.secctx {
-                set_secctx(FileRef::Fd(fd.as_fd()), secctx, false)?
-            };
+        // Set security context
+        if let Some(secctx) = &extensions.secctx {
+            set_secctx(FileRef::Fd(fd.as_fd()), secctx, false)?
+        };
 
-            let st = fstat(&fd, false)?;
-            let (entry, node_flags) =
-                self.finish_lookup(parent, parent_flags, name, st, FileRef::Fd(fd.as_fd()))?;
+        let st = fstat(&fd, false)?;
+        let (entry, node_flags) =
+            self.finish_lookup(parent, parent_flags, name, st, FileRef::Fd(fd.as_fd()))?;
 
-            let (handle, opts) = self.finish_open(fd, flags, entry.nodeid, node_flags, st)?;
-            Ok((entry, Some(handle), opts))
-        })
+        let (handle, opts) = self.finish_open(fd, flags, entry.nodeid, node_flags, st)?;
+        Ok((entry, Some(handle), opts))
     }
 
     fn unlink(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<()> {
-        self.with_nodeid_refresh(&ctx, parent, || self.do_unlink(ctx, parent, name, 0))
+        self.do_unlink(ctx, parent, name, 0)
     }
 
     fn read<W: io::Write + ZeroCopyWriter>(
@@ -2077,19 +1911,8 @@ impl FileSystem for PassthroughFs {
         handle: Option<HandleId>,
     ) -> io::Result<(bindings::stat64, Duration)> {
         debug!("getattr: nodeid={} handle={:?}", nodeid, handle);
-
-        // this is an unusual call: it can be on a handle OR nodeid
-        // if it's on nodeid, we *do* need with_nodeid_refresh
-        // if not, we don't
-        if handle.is_some() {
-            let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
-            self.do_getattr(file_ref.as_ref(), nodeid)
-        } else {
-            self.with_nodeid_refresh(&ctx, nodeid, || {
-                let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
-                self.do_getattr(file_ref.as_ref(), nodeid)
-            })
-        }
+        let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
+        self.do_getattr(file_ref.as_ref(), nodeid)
     }
 
     fn setattr(
@@ -2100,14 +1923,7 @@ impl FileSystem for PassthroughFs {
         handle: Option<HandleId>,
         valid: SetattrValid,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        // this is another unusual mixed handle/nodeid call
-        if handle.is_some() {
-            self.do_setattr(ctx, nodeid, attr, handle, valid)
-        } else {
-            self.with_nodeid_refresh(&ctx, nodeid, || {
-                self.do_setattr(ctx, nodeid, attr, handle, valid)
-            })
-        }
+        self.do_setattr(ctx, nodeid, attr, handle, valid)
     }
 
     fn rename(
@@ -2119,77 +1935,63 @@ impl FileSystem for PassthroughFs {
         newname: &CStr,
         flags: u32,
     ) -> io::Result<()> {
-        // this is ugly: we have two parent nodeids, and either one could be ENOENT
-        self.with_nodeid_refresh(&ctx, olddir, || {
-            self.with_nodeid_refresh(&ctx, newdir, || {
-                // whiteout is not supported until we implement set_xattr_stat
-                if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0 {
-                    return Err(Errno::EINVAL.into());
+        // whiteout is not supported until we implement set_xattr_stat
+        if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0 {
+            return Err(Errno::EINVAL.into());
+        }
+
+        let mut mflags: u32 = 0;
+        if ((flags as i32) & bindings::LINUX_RENAME_NOREPLACE) != 0 {
+            mflags |= libc::RENAME_EXCL;
+        }
+        if ((flags as i32) & bindings::LINUX_RENAME_EXCHANGE) != 0 {
+            mflags |= libc::RENAME_SWAP;
+        }
+
+        if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0
+            && ((flags as i32) & bindings::LINUX_RENAME_EXCHANGE) != 0
+        {
+            return Err(Errno::EINVAL.into());
+        }
+
+        let newname = newname.to_string_lossy();
+        let old_cpath = self.name_to_path(&ctx, olddir, &oldname.to_string_lossy())?;
+        let new_cpath = self.name_to_path(&ctx, newdir, &newname)?;
+
+        let mut res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
+        // ENOTSUP = not supported by FS (e.g. NFS). retry and simulate if only flag is RENAME_EXCL
+        // GNU coreutils 'mv' uses RENAME_EXCL so this is common
+        // (hard to simulate RENAME_SWAP)
+        if res == -1 && Errno::last() == Errno::ENOTSUP && mflags == libc::RENAME_EXCL {
+            // EXCL means that target must not exist, so check it
+            match access(new_cpath.as_ref(), AccessFlags::F_OK) {
+                Ok(_) => return Err(Errno::EEXIST.into()),
+                Err(Errno::ENOENT) => {}
+                Err(e) => return Err(e.into()),
+            }
+
+            res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), 0) }
+        }
+
+        if res == 0 {
+            if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0 {
+                if let Ok(fd) = nix::fcntl::open(
+                    old_cpath.as_ref(),
+                    OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
+                    Mode::from_bits_truncate(0o600),
+                ) {
+                    set_xattr_stat(
+                        FileRef::Fd(fd.as_fd()),
+                        None,
+                        Some((libc::S_IFCHR | 0o600) as u32),
+                    )?;
                 }
+            }
 
-                let mut mflags: u32 = 0;
-                if ((flags as i32) & bindings::LINUX_RENAME_NOREPLACE) != 0 {
-                    mflags |= libc::RENAME_EXCL;
-                }
-                if ((flags as i32) & bindings::LINUX_RENAME_EXCHANGE) != 0 {
-                    mflags |= libc::RENAME_SWAP;
-                }
-
-                if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0
-                    && ((flags as i32) & bindings::LINUX_RENAME_EXCHANGE) != 0
-                {
-                    return Err(Errno::EINVAL.into());
-                }
-
-                let newname = newname.to_string_lossy();
-                let old_cpath = self.name_to_path(&ctx, olddir, &oldname.to_string_lossy())?;
-                let new_cpath = self.name_to_path(&ctx, newdir, &newname)?;
-
-                let mut res =
-                    unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
-                // ENOTSUP = not supported by FS (e.g. NFS). retry and simulate if only flag is RENAME_EXCL
-                // GNU coreutils 'mv' uses RENAME_EXCL so this is common
-                // (hard to simulate RENAME_SWAP)
-                if res == -1 && Errno::last() == Errno::ENOTSUP && mflags == libc::RENAME_EXCL {
-                    // EXCL means that target must not exist, so check it
-                    match access(new_cpath.as_ref(), AccessFlags::F_OK) {
-                        Ok(_) => return Err(Errno::EEXIST.into()),
-                        Err(Errno::ENOENT) => {}
-                        Err(e) => return Err(e.into()),
-                    }
-
-                    res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), 0) }
-                }
-
-                if res == 0 {
-                    if ((flags as i32) & bindings::LINUX_RENAME_WHITEOUT) != 0 {
-                        if let Ok(fd) = nix::fcntl::open(
-                            old_cpath.as_ref(),
-                            OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
-                            Mode::from_bits_truncate(0o600),
-                        ) {
-                            set_xattr_stat(
-                                FileRef::Fd(fd.as_fd()),
-                                None,
-                                Some((libc::S_IFCHR | 0o600) as u32),
-                            )?;
-                        }
-                    }
-
-                    // update parent info
-                    // TODO: avoid stat
-                    let st = lstat(new_cpath.as_ref(), true)?;
-                    if let Some(mut node) = self.nodeids.get_alt_mut(&st.dev_ino()) {
-                        node.parent_nodeid = newdir.option();
-                        node.name = SmolStr::new(newname);
-                    }
-
-                    Ok(())
-                } else {
-                    Err(io::Error::last_os_error())
-                }
-            })
-        })
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
 
     fn mknod(
@@ -2202,58 +2004,56 @@ impl FileSystem for PassthroughFs {
         umask: u32,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        self.with_nodeid_refresh(&ctx, parent, || {
-            debug!(
-                "mknod: parent={} name={:?} mode={:x} rdev={} umask={:x}",
-                parent, name, mode, rdev, umask
-            );
+        debug!(
+            "mknod: parent={} name={:?} mode={:x} rdev={} umask={:x}",
+            parent, name, mode, rdev, umask
+        );
 
-            let name = &name.to_string_lossy();
-            let c_path = self.name_to_path(&ctx, parent, name)?;
+        let name = &name.to_string_lossy();
+        let c_path = self.name_to_path(&ctx, parent, name)?;
 
-            // since we run as a normal user, we can't call mknod() to create chr/blk devices
-            // TODO: once we support mode overrides, represent them with empty files / sockets
-            match mode as u16 & libc::S_IFMT {
-                0 | libc::S_IFREG => {
-                    // on Linux, mknod can be used to create regular files using fmt = S_IFREG or 0
-                    open(
-                        c_path.as_ref(),
-                        // match mknod behavior: EEXIST if already exists
-                        OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_CLOEXEC,
-                        // permissions only
-                        Mode::from_bits_truncate(mode as u16),
-                    )?;
-                }
-                libc::S_IFIFO => {
-                    // FIFOs are actually safe because Linux just treats them as a device node, and will never issue VFS read call because they can't have data on real filesystems
-                    // read/write blocking is all handled by the kernel
-                    mkfifo(c_path.as_ref(), Mode::from_bits_truncate(mode as u16))?;
-                }
-                libc::S_IFSOCK => {
-                    // we use datagram because it doesn't call listen
-                    let _ = UnixDatagram::bind(OsStr::from_bytes(c_path.to_bytes()))?;
-                }
-                libc::S_IFCHR | libc::S_IFBLK => {
-                    return Err(Errno::EPERM.into());
-                }
-                _ => {
-                    return Err(Errno::EINVAL.into());
-                }
+        // since we run as a normal user, we can't call mknod() to create chr/blk devices
+        // TODO: once we support mode overrides, represent them with empty files / sockets
+        match mode as u16 & libc::S_IFMT {
+            0 | libc::S_IFREG => {
+                // on Linux, mknod can be used to create regular files using fmt = S_IFREG or 0
+                open(
+                    c_path.as_ref(),
+                    // match mknod behavior: EEXIST if already exists
+                    OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_CLOEXEC,
+                    // permissions only
+                    Mode::from_bits_truncate(mode as u16),
+                )?;
             }
+            libc::S_IFIFO => {
+                // FIFOs are actually safe because Linux just treats them as a device node, and will never issue VFS read call because they can't have data on real filesystems
+                // read/write blocking is all handled by the kernel
+                mkfifo(c_path.as_ref(), Mode::from_bits_truncate(mode as u16))?;
+            }
+            libc::S_IFSOCK => {
+                // we use datagram because it doesn't call listen
+                let _ = UnixDatagram::bind(OsStr::from_bytes(c_path.to_bytes()))?;
+            }
+            libc::S_IFCHR | libc::S_IFBLK => {
+                return Err(Errno::EPERM.into());
+            }
+            _ => {
+                return Err(Errno::EINVAL.into());
+            }
+        }
 
-            // Set security context
-            if let Some(secctx) = &extensions.secctx {
-                set_secctx(FileRef::Path(&c_path), secctx, false)?
-            };
+        // Set security context
+        if let Some(secctx) = &extensions.secctx {
+            set_secctx(FileRef::Path(&c_path), secctx, false)?
+        };
 
-            set_xattr_stat(
-                FileRef::Path(&c_path),
-                Some((ctx.uid, ctx.gid)),
-                Some(mode & !umask),
-            )?;
+        set_xattr_stat(
+            FileRef::Path(&c_path),
+            Some((ctx.uid, ctx.gid)),
+            Some(mode & !umask),
+        )?;
 
-            self.do_lookup(parent, name, &ctx)
-        })
+        self.do_lookup(parent, name, &ctx)
     }
 
     fn link(
@@ -2263,46 +2063,41 @@ impl FileSystem for PassthroughFs {
         newparent: NodeId,
         newname: &CStr,
     ) -> io::Result<Entry> {
-        // this is also tricky -- we have two nodeids: one file, one dir
-        self.with_nodeid_refresh(&ctx, nodeid, || {
-            self.with_nodeid_refresh(&ctx, newparent, || {
-                let orig_c_path = self.nodeid_to_path(&ctx, nodeid)?;
-                let newname = &newname.to_string_lossy();
-                let (link_c_path, _, parent_flags) =
-                    self.name_to_path_and_data(&ctx, newparent, newname)?;
+        let orig_c_path = self.nodeid_to_path(&ctx, nodeid)?;
+        let newname = &newname.to_string_lossy();
+        let (link_c_path, _, parent_flags) =
+            self.name_to_path_and_data(&ctx, newparent, newname)?;
 
-                // Safe because this doesn't modify any memory and we check the return value.
-                if parent_flags.contains(NodeFlags::LINK_AS_CLONE) {
-                    // translate link to clonefile as a workaround for slow hardlinking on APFS, and because ioctl(FICLONE) semantics don't fit macOS well
-                    let res = unsafe {
-                        libc::clonefile(orig_c_path.as_ptr(), link_c_path.as_ptr(), CLONE_NOFOLLOW)
-                    };
-                    if res == -1 && Errno::last() == Errno::ENOTSUP {
-                        // only APFS supports clonefile. fall back to link
-                        nix::unistd::linkat(
-                            fcntl::AT_FDCWD,
-                            orig_c_path.as_ref(),
-                            fcntl::AT_FDCWD,
-                            link_c_path.as_ref(),
-                            // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
-                            AtFlags::empty(),
-                        )?;
-                    }
-                } else {
-                    // only APFS supports clonefile. fall back to link
-                    nix::unistd::linkat(
-                        fcntl::AT_FDCWD,
-                        orig_c_path.as_ref(),
-                        fcntl::AT_FDCWD,
-                        link_c_path.as_ref(),
-                        // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
-                        AtFlags::empty(),
-                    )?;
-                }
+        // Safe because this doesn't modify any memory and we check the return value.
+        if parent_flags.contains(NodeFlags::LINK_AS_CLONE) {
+            // translate link to clonefile as a workaround for slow hardlinking on APFS, and because ioctl(FICLONE) semantics don't fit macOS well
+            let res = unsafe {
+                libc::clonefile(orig_c_path.as_ptr(), link_c_path.as_ptr(), CLONE_NOFOLLOW)
+            };
+            if res == -1 && Errno::last() == Errno::ENOTSUP {
+                // only APFS supports clonefile. fall back to link
+                nix::unistd::linkat(
+                    fcntl::AT_FDCWD,
+                    orig_c_path.as_ref(),
+                    fcntl::AT_FDCWD,
+                    link_c_path.as_ref(),
+                    // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
+                    AtFlags::empty(),
+                )?;
+            }
+        } else {
+            // only APFS supports clonefile. fall back to link
+            nix::unistd::linkat(
+                fcntl::AT_FDCWD,
+                orig_c_path.as_ref(),
+                fcntl::AT_FDCWD,
+                link_c_path.as_ref(),
+                // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
+                AtFlags::empty(),
+            )?;
+        }
 
-                self.do_lookup(newparent, newname, &ctx)
-            })
-        })
+        self.do_lookup(newparent, newname, &ctx)
     }
 
     fn symlink(
@@ -2313,52 +2108,48 @@ impl FileSystem for PassthroughFs {
         name: &CStr,
         extensions: Extensions,
     ) -> io::Result<Entry> {
-        self.with_nodeid_refresh(&ctx, parent, || {
-            let name = &name.to_string_lossy();
-            let c_path = self.name_to_path(&ctx, parent, name)?;
+        let name = &name.to_string_lossy();
+        let c_path = self.name_to_path(&ctx, parent, name)?;
 
-            // Safe because this doesn't modify any memory and we check the return value.
-            symlinkat(linkname, fcntl::AT_FDCWD, c_path.as_ref())?;
+        // Safe because this doesn't modify any memory and we check the return value.
+        symlinkat(linkname, fcntl::AT_FDCWD, c_path.as_ref())?;
 
-            // Set security context
-            if let Some(secctx) = &extensions.secctx {
-                set_secctx(FileRef::Path(&c_path), secctx, true)?
-            };
+        // Set security context
+        if let Some(secctx) = &extensions.secctx {
+            set_secctx(FileRef::Path(&c_path), secctx, true)?
+        };
 
-            let mut entry = self.do_lookup(parent, name, &ctx)?;
+        let mut entry = self.do_lookup(parent, name, &ctx)?;
 
-            // update xattr stat, and make sure it's reflected by current stat
-            let mode = libc::S_IFLNK | 0o777;
-            set_xattr_stat(
-                FileRef::Path(&c_path),
-                Some((ctx.uid, ctx.gid)),
-                Some(mode as u32),
-            )?;
-            entry.attr.st_mode = mode;
+        // update xattr stat, and make sure it's reflected by current stat
+        let mode = libc::S_IFLNK | 0o777;
+        set_xattr_stat(
+            FileRef::Path(&c_path),
+            Some((ctx.uid, ctx.gid)),
+            Some(mode as u32),
+        )?;
+        entry.attr.st_mode = mode;
 
-            Ok(entry)
-        })
+        Ok(entry)
     }
 
     fn readlink(&self, ctx: Context, nodeid: NodeId) -> io::Result<Vec<u8>> {
-        self.with_nodeid_refresh(&ctx, nodeid, || {
-            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
+        let c_path = self.nodeid_to_path(&ctx, nodeid)?;
 
-            let mut buf = vec![0; libc::PATH_MAX as usize];
-            let res = unsafe {
-                libc::readlink(
-                    c_path.as_ptr(),
-                    buf.as_mut_ptr() as *mut libc::c_char,
-                    buf.len(),
-                )
-            };
-            if res == -1 {
-                return Err(io::Error::last_os_error());
-            }
+        let mut buf = vec![0; libc::PATH_MAX as usize];
+        let res = unsafe {
+            libc::readlink(
+                c_path.as_ptr(),
+                buf.as_mut_ptr() as *mut libc::c_char,
+                buf.len(),
+            )
+        };
+        if res == -1 {
+            return Err(io::Error::last_os_error());
+        }
 
-            buf.resize(res as usize, 0);
-            Ok(buf)
-        })
+        buf.resize(res as usize, 0);
+        Ok(buf)
     }
 
     fn flush(
@@ -2419,47 +2210,45 @@ impl FileSystem for PassthroughFs {
         value: &[u8],
         flags: u32,
     ) -> io::Result<()> {
-        self.with_nodeid_refresh(&ctx, nodeid, || {
-            debug!(
-                "setxattr: nodeid={} name={:?} value={:?}",
-                nodeid, name, value
-            );
+        debug!(
+            "setxattr: nodeid={} name={:?} value={:?}",
+            nodeid, name, value
+        );
 
-            if !self.cfg.xattr {
-                return Err(Errno::ENOSYS.into());
-            }
+        if !self.cfg.xattr {
+            return Err(Errno::ENOSYS.into());
+        }
 
-            if name.to_bytes() == STAT_XATTR_KEY {
-                return Err(Errno::EACCES.into());
-            }
+        if name.to_bytes() == STAT_XATTR_KEY {
+            return Err(Errno::EACCES.into());
+        }
 
-            let mut mflags: i32 = 0;
-            if (flags as i32) & bindings::LINUX_XATTR_CREATE != 0 {
-                mflags |= libc::XATTR_CREATE;
-            }
-            if (flags as i32) & bindings::LINUX_XATTR_REPLACE != 0 {
-                mflags |= libc::XATTR_REPLACE;
-            }
+        let mut mflags: i32 = 0;
+        if (flags as i32) & bindings::LINUX_XATTR_CREATE != 0 {
+            mflags |= libc::XATTR_CREATE;
+        }
+        if (flags as i32) & bindings::LINUX_XATTR_REPLACE != 0 {
+            mflags |= libc::XATTR_REPLACE;
+        }
 
-            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
+        let c_path = self.nodeid_to_path(&ctx, nodeid)?;
 
-            // Safe because this doesn't modify any memory and we check the return value.
-            let res = unsafe {
-                libc::setxattr(
-                    c_path.as_ptr(),
-                    name.as_ptr(),
-                    value.as_ptr() as *const libc::c_void,
-                    value.len(),
-                    0,
-                    mflags as libc::c_int,
-                )
-            };
-            if res == 0 {
-                Ok(())
-            } else {
-                Err(io::Error::last_os_error())
-            }
-        })
+        // Safe because this doesn't modify any memory and we check the return value.
+        let res = unsafe {
+            libc::setxattr(
+                c_path.as_ptr(),
+                name.as_ptr(),
+                value.as_ptr() as *const libc::c_void,
+                value.len(),
+                0,
+                mflags as libc::c_int,
+            )
+        };
+        if res == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
 
     fn getxattr(
@@ -2469,102 +2258,97 @@ impl FileSystem for PassthroughFs {
         name: &CStr,
         size: u32,
     ) -> io::Result<GetxattrReply> {
-        self.with_nodeid_refresh(&ctx, nodeid, || {
-            debug!("getxattr: nodeid={} name={:?}, size={}", nodeid, name, size);
+        debug!("getxattr: nodeid={} name={:?}, size={}", nodeid, name, size);
 
-            if !self.cfg.xattr {
-                return Err(Errno::ENOSYS.into());
-            }
+        if !self.cfg.xattr {
+            return Err(Errno::ENOSYS.into());
+        }
 
-            if name.to_bytes() == STAT_XATTR_KEY {
-                return Err(Errno::EACCES.into());
-            }
+        if name.to_bytes() == STAT_XATTR_KEY {
+            return Err(Errno::EACCES.into());
+        }
 
-            if size > MAX_XATTR_SIZE as u32 {
-                return Err(Errno::E2BIG.into());
-            }
+        if size > MAX_XATTR_SIZE as u32 {
+            return Err(Errno::E2BIG.into());
+        }
 
-            let mut buf = vec![0; size as usize];
+        let mut buf = vec![0; size as usize];
 
-            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
+        let c_path = self.nodeid_to_path(&ctx, nodeid)?;
 
-            // Safe because this will only modify the contents of `buf`
-            let res = unsafe {
-                if size == 0 {
-                    libc::getxattr(
-                        c_path.as_ptr(),
-                        name.as_ptr(),
-                        std::ptr::null_mut(),
-                        0,
-                        0,
-                        0,
-                    )
-                } else {
-                    libc::getxattr(
-                        c_path.as_ptr(),
-                        name.as_ptr(),
-                        buf.as_mut_ptr() as *mut libc::c_void,
-                        size as libc::size_t,
-                        0,
-                        0,
-                    )
-                }
-            };
-            if res == -1 {
-                return Err(io::Error::last_os_error());
-            }
-
+        // Safe because this will only modify the contents of `buf`
+        let res = unsafe {
             if size == 0 {
-                Ok(GetxattrReply::Count(res as u32))
+                libc::getxattr(
+                    c_path.as_ptr(),
+                    name.as_ptr(),
+                    std::ptr::null_mut(),
+                    0,
+                    0,
+                    0,
+                )
             } else {
-                buf.resize(res as usize, 0);
-                Ok(GetxattrReply::Value(buf))
+                libc::getxattr(
+                    c_path.as_ptr(),
+                    name.as_ptr(),
+                    buf.as_mut_ptr() as *mut libc::c_void,
+                    size as libc::size_t,
+                    0,
+                    0,
+                )
             }
-        })
+        };
+        if res == -1 {
+            return Err(io::Error::last_os_error());
+        }
+
+        if size == 0 {
+            Ok(GetxattrReply::Count(res as u32))
+        } else {
+            buf.resize(res as usize, 0);
+            Ok(GetxattrReply::Value(buf))
+        }
     }
 
     fn listxattr(&self, ctx: Context, nodeid: NodeId, size: u32) -> io::Result<ListxattrReply> {
-        self.with_nodeid_refresh(&ctx, nodeid, || {
-            if !self.cfg.xattr {
-                return Err(Errno::ENOSYS.into());
+        if !self.cfg.xattr {
+            return Err(Errno::ENOSYS.into());
+        }
+
+        let c_path = self.nodeid_to_path(&ctx, nodeid)?;
+
+        // Safe because this will only modify the contents of `buf`.
+        let buf = listxattr(&c_path)?;
+
+        if size == 0 {
+            let mut clean_size = buf.len();
+
+            for attr in buf.split(|c| *c == 0) {
+                if attr.starts_with(&STAT_XATTR_KEY[..STAT_XATTR_KEY.len() - 1]) {
+                    clean_size -= STAT_XATTR_KEY.len();
+                }
             }
 
-            let c_path = self.nodeid_to_path(&ctx, nodeid)?;
+            Ok(ListxattrReply::Count(clean_size as u32))
+        } else {
+            let mut clean_buf = Vec::new();
 
-            // Safe because this will only modify the contents of `buf`.
-            let buf = listxattr(&c_path)?;
-
-            if size == 0 {
-                let mut clean_size = buf.len();
-
-                for attr in buf.split(|c| *c == 0) {
-                    if attr.starts_with(&STAT_XATTR_KEY[..STAT_XATTR_KEY.len() - 1]) {
-                        clean_size -= STAT_XATTR_KEY.len();
-                    }
+            for attr in buf.split(|c| *c == 0) {
+                if attr.is_empty() || attr.starts_with(&STAT_XATTR_KEY[..STAT_XATTR_KEY.len() - 1])
+                {
+                    continue;
                 }
 
-                Ok(ListxattrReply::Count(clean_size as u32))
+                clean_buf.extend_from_slice(attr);
+                clean_buf.push(0);
+            }
+
+            if clean_buf.len() > size as usize {
+                Err(Errno::ERANGE.into())
             } else {
-                let mut clean_buf = Vec::new();
-
-                for attr in buf.split(|c| *c == 0) {
-                    if attr.is_empty()
-                        || attr.starts_with(&STAT_XATTR_KEY[..STAT_XATTR_KEY.len() - 1])
-                    {
-                        continue;
-                    }
-
-                    clean_buf.extend_from_slice(attr);
-                    clean_buf.push(0);
-                }
-
-                if clean_buf.len() > size as usize {
-                    Err(Errno::ERANGE.into())
-                } else {
-                    Ok(ListxattrReply::Names(clean_buf))
-                }
+                Ok(ListxattrReply::Names(clean_buf))
             }
-        })
+        }
     }
 
     fn removexattr(&self, ctx: Context, nodeid: NodeId, name: &CStr) -> io::Result<()> {
