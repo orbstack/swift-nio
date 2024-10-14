@@ -1,4 +1,4 @@
-package main
+package vmgr
 
 import (
 	"github.com/orbstack/macvirt/vmgr/vzf"

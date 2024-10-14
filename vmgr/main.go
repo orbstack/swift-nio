@@ -1,4 +1,4 @@
-package main
+package vmgr
 
 import (
 	"bytes"
@@ -1055,7 +1055,7 @@ func runVmManager() {
 	}
 }
 
-func main() {
+func Main() {
 	cmd := ""
 	if len(os.Args) > 1 {
 		cmd = os.Args[1]
