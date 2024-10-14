@@ -10,7 +10,7 @@ import (
 func TestRosettaSwiftDriver(t *testing.T) {
 	t.Parallel()
 
-	out, err := util.Run("docker", "run", "--platform", "linux/x86_64", "swift:5.8-amazonlinux2", "bash", "-cl", "swift", "build", "-c", "release", "--show-bin-path")
+	out, err := util.Run("docker", "run", "--platform", "linux/x86_64", "--rm", "swift:5.8-amazonlinux2", "bash", "-cl", "swift", "build", "-c", "release", "--show-bin-path")
 	if err != nil {
 		t.Fatal(err)
 	}

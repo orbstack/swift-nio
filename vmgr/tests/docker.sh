@@ -7,8 +7,9 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 docker run -i --rm alpine ls
-docker run --rm alpine ls
-docker run alpine ls
+docker run --name itest-alpine-ls --rm alpine ls
+docker run --name itest-alpine-ls alpine ls
+docker rm -f itest-alpine-ls
 docker ps
 docker ps -a
 docker run -d --name testa alpine sleep 1000
