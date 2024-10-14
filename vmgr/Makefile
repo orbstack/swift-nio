@@ -122,6 +122,7 @@ VMGR_NAME := OrbStack\ Helper
 VMGR_BUNDLE := $(OUT)/$(VMGR_NAME).app
 VMGR_BIN_DIR := $(VMGR_BUNDLE)/Contents/MacOS
 VMGR_BIN := $(VMGR_BIN_DIR)/$(VMGR_NAME)
+VMGR_DSYM := $(VMGR_BIN_DIR)/$(VMGR_NAME).dSYM
 
 # parallelism
 MAKEFLAGS := -j$(J)
@@ -196,6 +197,9 @@ $(VMGR_BIN): $(BUILD_ENV_DEPS) $(SWIFT_LIB) $(GO_LIB) $(RUST_LIB) Makefile sign.
 	$(GO_LIB) \
 	$(RUST_LIB) \
 	-o $(VMGR_BIN)
+
+# depends on linked executable, must run before strip
+	dsymutil $(VMGR_BIN) --linker parallel --num-threads $(J) -o $(VMGR_DSYM)
 
 	GO_BUILD_TYPE=$(GO_BUILD_TYPE) VMGR_BUNDLE=$(VMGR_BUNDLE) VMGR_BIN=$(VMGR_BIN) ./sign.sh
 
