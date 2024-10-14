@@ -8,6 +8,9 @@ BUILD_TYPE ?= debug
 # ASAN: none (default), rust, swift
 ASAN ?= none
 
+# parallel jobs
+J ?= $(shell sysctl -n hw.ncpu)
+
 
 #
 # VARIABLES
@@ -105,7 +108,6 @@ endif
 OUT ?= ../out
 ARCH_OUT := $(OUT)/$(GOARCH)
 
-# TODO: parallelism
 SWIFT_LIB := ../swift/GoVZF/.build/$(SWIFT_ARCH)-apple-macosx/$(SWIFT_BUILD_TYPE)/libGoVZF.a
 GO_LIB := $(ARCH_OUT)/libvmgr.a
 # specifying a target triple explicitly always makes a target/ subdir, even for native builds
@@ -120,6 +122,9 @@ VMGR_NAME := OrbStack\ Helper
 VMGR_BUNDLE := $(OUT)/$(VMGR_NAME).app
 VMGR_BIN_DIR := $(VMGR_BUNDLE)/Contents/MacOS
 VMGR_BIN := $(VMGR_BIN_DIR)/$(VMGR_NAME)
+
+# parallelism
+MAKEFLAGS += -j$(J)
 
 
 # 
