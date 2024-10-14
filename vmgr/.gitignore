@@ -5,3 +5,5 @@ vnet/cmd/gvnetclient/gvnetclient
 /conf/appver/version.txt
 
 /drm/killswitch/ksconst_release.go
+
+.buildenv*

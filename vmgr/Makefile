@@ -59,7 +59,7 @@ else
 RUST_NATIVE_TARGET := x86_64-apple-darwin
 endif
 ifneq ($(RUST_TARGET),$(RUST_NATIVE_TARGET))
-CARGO_FLAGS += --target $(RUST_TARGET)
+CARGO_FLAGS := --target $(RUST_TARGET)
 endif
 
 # for running vmgr
@@ -69,8 +69,8 @@ export RUST_LOG ?= info
 # minimumn macOS version
 MACOS_VERSION_ARG := -mmacosx-version-min=13.0
 # for Cgo
-export CGO_CFLAGS += $(MACOS_VERSION_ARG)
-export CGO_LDFLAGS += $(MACOS_VERSION_ARG)
+export CGO_CFLAGS := $(MACOS_VERSION_ARG)
+export CGO_LDFLAGS := $(MACOS_VERSION_ARG)
 
 DEVELOPER_DIR := $(shell xcode-select --print-path)
 
@@ -82,22 +82,22 @@ CARGO ?= cargo
 
 # ASAN
 ifeq ($(ASAN),rust)
-export RUSTFLAGS += -Zsanitizer=address
+export RUSTFLAGS := -Zsanitizer=address
 CARGO := $(CARGO) +nightly
 # need to rebuild std with ASAN
-CARGO_FLAGS += -Zbuild-std
+CARGO_FLAGS := -Zbuild-std
 # always specify --target: fix proc macros being built with ASAN and loaded into rustc
-CARGO_FLAGS += --target $(RUST_TARGET)
+CARGO_FLAGS := --target $(RUST_TARGET)
 
 # link ASAN runtime
 ASAN_DIR := $(HOME)/.rustup/toolchains/nightly-$(RUST_TARGET)/lib/rustlib/$(RUST_TARGET)/lib
-LDFLAGS += -rpath $(ASAN_DIR) $(ASAN_DIR)/librustc-nightly_rt.asan.dylib
+LDFLAGS := -rpath $(ASAN_DIR) $(ASAN_DIR)/librustc-nightly_rt.asan.dylib
 
 else ifeq ($(ASAN),swift)
-export SWIFT_FLAGS += -sanitize address
+export SWIFT_FLAGS := -sanitize address
 # link ASAN runtime
 ASAN_DIR := $(wildcard $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/*/lib/darwin)
-LDFLAGS += -rpath $(ASAN_DIR) $(ASAN_DIR)/libclang_rt.asan_osx_dynamic.dylib
+LDFLAGS := -rpath $(ASAN_DIR) $(ASAN_DIR)/libclang_rt.asan_osx_dynamic.dylib
 
 else ifeq ($(ASAN),none)
 
@@ -124,7 +124,10 @@ VMGR_BIN_DIR := $(VMGR_BUNDLE)/Contents/MacOS
 VMGR_BIN := $(VMGR_BIN_DIR)/$(VMGR_NAME)
 
 # parallelism
-MAKEFLAGS += -j$(J)
+MAKEFLAGS := -j$(J)
+
+# environment-related dependencies
+BUILD_ENV_DEPS := .buildenv $(shell which $(SWIFT) $(CC) $(GO) $(CARGO)) $(DEVELOPER_DIR) ../config.sh ../config.local.sh
 
 
 # 
@@ -142,12 +145,21 @@ rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(su
 .PHONY: vmgr
 vmgr: $(VMGR_BIN)
 
+# build env vars and configs
+.PHONY: _always
+.buildenv: _always
+# our main source of overhead is "cargo version" taking ~25ms
+	@echo BUILD_TYPE=$(BUILD_TYPE) ASAN=$(ASAN) CC_VERSION="$$($(CC) -v 2>&1)" GO_VERSION="$$($(GO) version)" CARGO_VERSION="$$($(CARGO) version)" > $@.tmp
+	@cmp $@ $@.tmp > /dev/null || mv $@.tmp $@
+	@rm -f $@.tmp
+
 # Swift static library: GoVZF, swext
-$(SWIFT_LIB): $(call rwildcard,../swift/GoVZF/Sources,*) ../swift/GoVZF/Package.swift
-	cd ../swift; make lib-$(SWIFT_BUILD_TYPE)
+$(SWIFT_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,../swift/GoVZF/Sources,*) ../swift/GoVZF/Package.swift
+	cd ../swift/GoVZF; $(SWIFT) build -c $(SWIFT_BUILD_TYPE) --arch $(SWIFT_ARCH) $(SWIFT_FLAGS)
+	@touch $@
 
 # Go static library: vmgr (including main function)
-$(GO_LIB): $(call rwildcard,./,*.go *.c *.h *.cpp) go.mod go.sum
+$(GO_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,./,*.go *.c *.h *.cpp) go.mod go.sum
 # generate env-dependent Go code
 	$(GO) generate ./conf/appver ./drm/killswitch
 
@@ -156,14 +168,17 @@ $(GO_LIB): $(call rwildcard,./,*.go *.c *.h *.cpp) go.mod go.sum
 	$(GO) build -buildmode=c-archive -o $(OUT)/$(GOARCH)/libvmgr.a ./cgostub
 
 # Rust static library: virtue
-$(RUST_LIB): $(call rwildcard,../virtue/src,*) ../virtue/Cargo.toml ../virtue/Cargo.lock
+$(RUST_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,../virtue/src,*) ../virtue/Cargo.toml ../virtue/Cargo.lock
 # workaround for Cargo .cargo/config.toml bug: https://github.com/rust-lang/cargo/issues/14350
 	cd ../virtue; CXXFLAGS=$(MACOS_VERSION_ARG) $(CARGO) build --profile $(CARGO_BUILD_TYPE) $(RUST_CARGO_TARGET) $(CARGO_FLAGS) --package krun
+# .buildenv and other changes may not trigger a rebuild
+# Cargo doesn't update output in that case, causing make to act like nothing changed, so it keeps reinvoking cargo
+	@touch $@
 
 # vmgr binary: Swift, Go, Rust objects
 # include scripts in dependency list to rebuild on command change
 # also rebuild on Go/Swift/Rust updates and Xcode changes
-$(VMGR_BIN): $(SWIFT_LIB) $(GO_LIB) $(RUST_LIB) Makefile sign.sh $(shell which $(CC)) $(shell which $(GO)) $(shell which $(CARGO)) $(shell which $(SWIFT)) $(DEVELOPER_DIR)
+$(VMGR_BIN): $(BUILD_ENV_DEPS) $(SWIFT_LIB) $(GO_LIB) $(RUST_LIB) Makefile sign.sh
 	@mkdir -p $(VMGR_BIN_DIR)
 
 # link.
@@ -191,7 +206,7 @@ $(VMGR_BIN): $(SWIFT_LIB) $(GO_LIB) $(RUST_LIB) Makefile sign.sh $(shell which $
 
 .PHONY: clean
 clean:
-	rm -rf $(OUT) ../swift/GoVZF/.build ../virtue/target
+	rm -rf $(OUT) ../swift/GoVZF/.build ../virtue/target .buildenv .buildenv.tmp
 	$(GO) clean -cache
 
 .PHONY: run
