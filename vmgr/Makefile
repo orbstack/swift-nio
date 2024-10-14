@@ -189,6 +189,11 @@ $(VMGR_BIN): $(SWIFT_LIB) $(GO_LIB) $(RUST_LIB) Makefile sign.sh $(shell which $
 # COMMANDS
 #
 
+.PHONY: clean
+clean:
+	rm -rf $(OUT) ../swift/GoVZF/.build ../virtue/target
+	$(GO) clean -cache
+
 .PHONY: run
 run: vmgr
 	orb stop || :
