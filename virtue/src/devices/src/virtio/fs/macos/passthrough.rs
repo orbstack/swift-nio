@@ -613,18 +613,18 @@ impl NodeData {
 
 impl Drop for NodeData {
     fn drop(&mut self) {
-        let loc = self.loc.get_mut();
-        if let Some(ref parent) = loc.parent {
-            // TODO: remove clone
-            if let dashmap::mapref::entry::Entry::Occupied(mut e) =
-                parent.children.entry(loc.name.clone())
-            {
-                if e.get().upgrade().is_none() {
-                    debug!("drop stale entry: {}", loc.name);
-                    e.remove();
-                }
-            }
-        }
+        // let loc = self.loc.get_mut();
+        // if let Some(ref parent) = loc.parent {
+        //     // TODO: remove clone
+        //     if let dashmap::mapref::entry::Entry::Occupied(mut e) =
+        //         parent.children.entry(loc.name.clone())
+        //     {
+        //         if e.get().upgrade().is_none() {
+        //             debug!("drop stale entry: {}", loc.name);
+        //             e.remove();
+        //         }
+        //     }
+        // }
     }
 }
 
@@ -850,7 +850,7 @@ impl PassthroughFs {
         if let Some(node) = parent.children.get(&smol_name) {
             if let Some(node) = node.upgrade() {
                 if node.inc_ref().is_ok() {
-                    debug!(?parent, ?name, nodeid = ?node.nodeid, "existing node");
+                    debug!(?name, nodeid = ?node.nodeid, "existing node");
                     return Ok((node.nodeid, node.flags));
                 }
             }
@@ -859,7 +859,7 @@ impl PassthroughFs {
         // this (parent, name) is new
         // create a new nodeid and return it
         let mut new_nodeid = self.next_nodeid.fetch_add(1, Ordering::Relaxed).into();
-        debug!(?parent, ?name, ?new_nodeid, "new node");
+        debug!(?name, ?new_nodeid, "new node");
 
         let dev_info = self.get_dev_info(st.st_dev, || Ok(file_ref))?;
 
@@ -898,7 +898,7 @@ impl PassthroughFs {
                 e.insert(weak);
             }
             dashmap::mapref::entry::Entry::Occupied(mut e) => {
-                debug!(?parent, ?name, "raced with another thread");
+                debug!(?name, "raced with another thread");
                 // we raced with another thread, which added a nodeid for this (parent, name)
                 // does the old nodeid still exist?
                 if let Some(old_node) = e.get().upgrade() {
@@ -1951,6 +1951,7 @@ impl FileSystem for PassthroughFs {
             if mflags & libc::RENAME_SWAP != 0 {
                 // swap
                 // TODO
+                todo!();
             } else {
                 // rename
                 let old_name_smol = SmolStr::from(oldname);
