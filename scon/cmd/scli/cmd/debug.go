@@ -126,11 +126,11 @@ func fallbackDockerExec(containerID string) error {
 }
 
 type WormholeRemoteServerParams struct {
-	IsLocal    bool     `json:"is_local"`
-	Pid        int      `json:"init_pid"`
-	Env        []string `json:"container_env"`
-	WorkingDir string   `json:"container_workdir"`
-	ShellCmd   string   `json:"entry_shell_cmd"`
+	InitPid          int      `json:"a"`
+	ContainerWorkdir string   `json:"f"`
+	ContainerEnv     []string `json:"g"`
+	EntryShellCmd    string   `json:"h"`
+	IsLocal          bool     `json:"i"`
 }
 
 func WriteTermEnv(writer io.Writer, term string) error {
@@ -316,11 +316,11 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args
 	}
 
 	wormholeParams, err := json.Marshal(WormholeRemoteServerParams{
-		IsLocal:    false,
-		Pid:        containerInfo.State.Pid,
-		WorkingDir: workingDir,
-		Env:        containerInfo.Config.Env,
-		ShellCmd:   shellCmd,
+		IsLocal:          false,
+		InitPid:          containerInfo.State.Pid,
+		ContainerWorkdir: workingDir,
+		ContainerEnv:     containerInfo.Config.Env,
+		EntryShellCmd:    shellCmd,
 	})
 	if err != nil {
 		return err
