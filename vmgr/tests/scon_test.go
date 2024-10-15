@@ -141,7 +141,11 @@ func TestSconMachines(t *testing.T) {
 			},
 			InternalForTesting: true,
 		})
-		checkT(t, err)
+		if err != nil && strings.Contains(err.Error(), "image not found") {
+			t.Skip("image not found")
+		} else {
+			checkT(t, err)
+		}
 
 		t.Run("GetByName", func(t *testing.T) {
 			containers, err := scli.Client().ListContainers()
