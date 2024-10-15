@@ -84,6 +84,11 @@ func forEachDistroArchVer(t *testing.T, f func(t *testing.T, distro, ver, arch, 
 				testVersions = append(testVersions, oldestVer)
 			}
 
+			// handle cases where oldest == latest, e.g. CentOS 9 Stream
+			if len(testVersions) == 2 && testVersions[0] == testVersions[1] {
+				testVersions = []string{testVersions[0]}
+			}
+
 			for _, ver := range testVersions {
 				ver := ver
 				t.Run(ver, func(t *testing.T) {
