@@ -247,7 +247,8 @@ struct DockerContainersRootView: View {
 
             // 0 spacing to fix bg color gap between list and getting started hint
             let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(
-                filteredContainers: filteredContainers)
+                filteredContainers: filteredContainers,
+                dockerFilterShowStopped: dockerFilterShowStopped)
             let listData = makeListData(runningItems: runningItems, stoppedItems: stoppedItems)
 
             DockerContainersList(

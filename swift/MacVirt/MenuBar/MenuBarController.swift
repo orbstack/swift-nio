@@ -235,7 +235,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if let dockerContainers = vmModel.dockerContainers {
             menu.addSectionHeader("Containers")
             let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(
-                filteredContainers: dockerContainers)
+                filteredContainers: dockerContainers, dockerFilterShowStopped: false)
 
             // placeholder if no containers
             if runningItems.isEmpty

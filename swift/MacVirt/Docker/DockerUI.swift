@@ -235,7 +235,7 @@ enum DockerListItem: Identifiable, Equatable, AKListItem {
 }
 
 enum DockerContainerLists {
-    static func makeListItems(filteredContainers: [DKContainer]) -> (
+    static func makeListItems(filteredContainers: [DKContainer], dockerFilterShowStopped: Bool) -> (
         running: [DockerListItem], stopped: [DockerListItem]
     ) {
         var runningItems: [DockerListItem] = []
@@ -279,12 +279,30 @@ enum DockerContainerLists {
         // add k8s items
         if !k8sContainers.isEmpty {
             let anyRunning = k8sContainers.contains(where: { $0.running })
-            let children = k8sContainers.map { DockerListItem.container($0) }
-            let group = DockerK8sGroup(anyRunning: anyRunning)
-            let item = DockerListItem.k8sGroup(group, children: children)
             if anyRunning {
-                runningItems.append(item)
+                let anyStopped = k8sContainers.contains(where: { !$0.running })
+                let group = DockerK8sGroup(anyRunning: anyRunning)
+
+                if anyStopped {
+                    // started, then stopped
+                    // ideally we'd have a "Stopped" AKSection or something but that's somewhat annoying at this point
+                    // so this is better than nothing
+                    var children = k8sContainers.filter({ $0.running })
+                    if dockerFilterShowStopped {
+                        children.append(contentsOf: k8sContainers.filter({ !$0.running }))
+                    }
+                    let item = DockerListItem.k8sGroup(
+                        group, children: children.map { DockerListItem.container($0) })
+                    runningItems.append(item)
+                } else {
+                    let children = k8sContainers.map { DockerListItem.container($0) }
+                    let item = DockerListItem.k8sGroup(group, children: children)
+                    runningItems.append(item)
+                }
             } else {
+                let children = k8sContainers.map { DockerListItem.container($0) }
+                let group = DockerK8sGroup(anyRunning: anyRunning)
+                let item = DockerListItem.k8sGroup(group, children: children)
                 stoppedItems.append(item)
             }
         }
