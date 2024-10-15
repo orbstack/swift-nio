@@ -1,12 +1,23 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
 
+func use() string {
+	if filepath.Base(os.Args[0]) == appid.ShortCmd {
+		return appid.ShortCmd
+	}
+
+	return appid.ShortCtl
+}
+
 var rootCmd = &cobra.Command{
-	Use:   appid.ShortCmd,
+	Use:   use(),
 	Short: "Linux integration utilities for " + appid.UserAppName,
 	Long: `Use and manage ` + appid.UserAppName + ` and its machines.
 
