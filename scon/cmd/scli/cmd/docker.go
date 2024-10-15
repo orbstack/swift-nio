@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +22,7 @@ This includes building and running Docker containers, as well as using Docker Co
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
-		fmt.Print(strings.Replace(`The "orb" and "orbctl" commands are for managing OrbStack and its machines.
+		fmt.Print(`The "orb" and "orbctl" commands are for managing OrbStack and its machines.
 
 To build and run containers and manage anything related to Docker, use the "docker" command directly from macOS:
     docker
@@ -46,7 +44,7 @@ To prevent OrbStack from changing the active Docker context automatically:
 	orb config set docker.set_context false
 
 For more info: https://go.orbstack.dev/docker
-`, "<HOST>", appid.AppName, -1))
+`)
 
 		return nil
 	},
