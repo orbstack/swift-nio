@@ -4,7 +4,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -26,7 +25,7 @@ var stopCmd = &cobra.Command{
 
 If no arguments are provided, this command will stop the entire OrbStack service, including Docker and all machines.
 `,
-	Example: "  " + appid.ShortCmd + " stop ubuntu",
+	Example: "  " + rootCmd.Use + " stop ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	// compat with legacy syntax
 	Aliases: []string{"shutdown"},

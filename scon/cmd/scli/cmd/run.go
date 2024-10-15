@@ -132,7 +132,7 @@ To pass environment variables, set ORBENV to a colon-separated list of variables
 Paths are translated automatically when safe.
 To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac.
 `,
-	Example: "  " + appid.ShortCmd + " run ls",
+	Example: "  " + rootCmd.Use + " run ls",
 	Args:    cobra.ArbitraryArgs,
 
 	// custom flag parsing - so we don't rely on --

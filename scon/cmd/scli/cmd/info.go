@@ -5,7 +5,6 @@ import (
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/cliutil"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +19,7 @@ var infoCmd = &cobra.Command{
 	Short:   "Get info about a machine",
 	Long: `Get info about the specified machine, by ID or name.
 `,
-	Example: "  " + appid.ShortCmd + " list",
+	Example: "  " + rootCmd.Use + " list",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

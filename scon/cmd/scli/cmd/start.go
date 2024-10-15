@@ -4,7 +4,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -25,7 +24,7 @@ var startCmd = &cobra.Command{
 
 If no machines are specified, the command will start all machines that were running when it was last stopped.
 `,
-	Example: "  " + appid.ShortCmd + " start ubuntu",
+	Example: "  " + rootCmd.Use + " start ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var containerNames []string

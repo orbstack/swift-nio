@@ -10,7 +10,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +27,7 @@ See "orb config show" for a list of options.
 
 Some options will only take effect after restarting the virtual machine.
 `,
-	Example: "  " + appid.ShortCmd + " set memory_mib 4096",
+	Example: "  " + rootCmd.Use + " set memory_mib 4096",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureVMWithSpinner()
@@ -137,7 +136,7 @@ Some options will only take effect after restarting the virtual machine.
 		checkCLI(err)
 
 		if rebootRequired {
-			cmd.Println(`Restart OrbStack with "` + appid.ShortCmd + ` stop" to apply changes.`)
+			cmd.Println(`Restart OrbStack with "` + rootCmd.Use + ` stop" to apply changes.`)
 		}
 		if key == "network_bridge" && config.NetworkBridge != oldConfig.NetworkBridge {
 			// restart docker machine if changed and already running

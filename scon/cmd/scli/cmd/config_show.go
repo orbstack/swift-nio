@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -21,7 +20,7 @@ var configShowCmd = &cobra.Command{
 	Short: "Show current configuration",
 	Long: `Show the current configuration for the Linux virtual machine.
 `,
-	Example: "  " + appid.ShortCmd + " show",
+	Example: "  " + rootCmd.Use + " show",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

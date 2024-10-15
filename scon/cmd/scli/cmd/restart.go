@@ -6,7 +6,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -21,7 +20,7 @@ var restartCmd = &cobra.Command{
 	Short: "Restart a machine",
 	Long: `Restart the specified machine(s), by ID or name.
 `,
-	Example: "  " + appid.ShortCmd + " restart ubuntu",
+	Example: "  " + rootCmd.Use + " restart ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !vmclient.IsRunning() {

@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +20,7 @@ var unlinkCmd = &cobra.Command{
 
 No commands are linked by default.
 `,
-	Example: "  " + appid.ShortCmd + " unlink-cmd code",
+	Example: "  " + rootCmd.Use + " unlink-cmd code",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := shell.UnlinkCmd(args[0])

@@ -7,7 +7,6 @@ import (
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +28,7 @@ var resetCmd = &cobra.Command{
 This resets OrbStack to its initial state, but configuration is preserved.
 All machines will be stopped immediately.
 `,
-	Example: "  " + appid.ShortCmd + " reset",
+	Example: "  " + rootCmd.Use + " reset",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// confirm

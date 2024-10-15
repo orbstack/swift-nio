@@ -9,7 +9,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -26,7 +25,7 @@ var configDockerCmd = &cobra.Command{
 This will open ~/.orbstack/config/docker.json in your default command line text editor ($EDITOR).
 If changes are made, the Docker engine will be restarted.
 `,
-	Example: "  " + appid.ShortCmd + " docker",
+	Example: "  " + rootCmd.Use + " docker",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configPath := conf.DockerDaemonConfig()

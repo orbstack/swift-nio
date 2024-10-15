@@ -6,7 +6,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +20,7 @@ var logsCmd = &cobra.Command{
 	Short:   "Show logs for a machine",
 	Long: `Show the unified logs for the specified machine, by ID or name.
 `,
-	Example: "  " + appid.ShortCmd + " logs ubuntu",
+	Example: "  " + rootCmd.Use + " logs ubuntu",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

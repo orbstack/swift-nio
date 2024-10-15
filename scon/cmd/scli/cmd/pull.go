@@ -6,7 +6,6 @@ import (
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/sshpath"
 	"github.com/spf13/cobra"
 )
@@ -25,10 +24,10 @@ Source paths are relative to the Linux user's home directory.
 If destination is not specified, the current directory is used.
 
 This is provided for convenience, but you can also use shared folders. For example:
-    ` + appid.ShortCmd + ` pull code/example.txt .
+    ` + rootCmd.Use + ` pull code/example.txt .
 is equivalent to:
 	cp ~/OrbStack/ubuntu/home/$USER/code/example.txt .`,
-	Example: "  " + appid.ShortCmd + " pull code/example.txt .",
+	Example: "  " + rootCmd.Use + " pull code/example.txt .",
 	Args:    cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()

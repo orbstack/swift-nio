@@ -12,7 +12,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/bugreport"
 	"github.com/orbstack/macvirt/scon/cmd/scli/osutil"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/orbstack/macvirt/vmgr/conf/mem"
 	"github.com/spf13/cobra"
@@ -34,7 +33,7 @@ Privacy policy (including what info is collected): https://orbstack.dev/privacy#
 
 You can review the generated report at ~/.orbstack/diag.
 `,
-	Example: "  " + appid.ShortCmd + " report",
+	Example: "  " + rootCmd.Use + " report",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var buffer bytes.Buffer

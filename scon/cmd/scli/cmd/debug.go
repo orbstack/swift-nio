@@ -12,7 +12,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
@@ -121,7 +120,7 @@ You can also use 'dctl' in the debug shell to install and remove packages.
 
 Pro only: requires an OrbStack Pro license.
 `,
-	Example: "  " + appid.ShortCmd + " debug mysql1",
+	Example: "  " + rootCmd.Use + " debug mysql1",
 	Args:    cobra.ArbitraryArgs,
 
 	// custom flag parsing - so we don't rely on --

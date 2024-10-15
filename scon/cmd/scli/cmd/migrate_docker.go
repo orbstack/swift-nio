@@ -41,7 +41,7 @@ var migrateDockerCmd = &cobra.Command{
 	Short: "Migrate containers, volumes, and images from Docker Desktop",
 	Long: `Migrate containers, volumes, images, and other data from Docker Desktop to OrbStack.
 `,
-	Example: "  " + appid.ShortCmd + " docker migrate",
+	Example: "  " + rootCmd.Use + " docker migrate",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if flagFormat == "json" {

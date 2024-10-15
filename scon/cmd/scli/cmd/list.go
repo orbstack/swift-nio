@@ -8,7 +8,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/cliutil"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -31,7 +30,7 @@ var listCmd = &cobra.Command{
 	Short: "List machines",
 	Long: `List machines and their respective status.
 `,
-	Example: "  " + appid.ShortCmd + " list",
+	Example: "  " + rootCmd.Use + " list",
 	Args:    cobra.NoArgs,
 	// no "ps" alias because of conflict with short cmd
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -89,7 +88,7 @@ var listCmd = &cobra.Command{
 			}
 
 			if len(containers) == 0 {
-				fmt.Fprintln(os.Stderr, `\nUse "`+appid.ShortCmd+`" create to create a machine.`)
+				fmt.Fprintln(os.Stderr, `\nUse "`+rootCmd.Use+`" create to create a machine.`)
 			}
 		}
 

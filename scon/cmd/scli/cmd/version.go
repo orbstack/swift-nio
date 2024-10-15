@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/spf13/cobra"
 )
@@ -17,7 +16,7 @@ var versionCmd = &cobra.Command{
 	Short: "Show OrbStack version",
 	Long: `Show OrbStack version information.
 `,
-	Example: "  " + appid.ShortCmd + " version",
+	Example: "  " + rootCmd.Use + " version",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ver := appver.Get()

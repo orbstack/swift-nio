@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -18,14 +17,14 @@ var configResetCmd = &cobra.Command{
 
 Some options will only take effect after restarting the virtual machine.
 `,
-	Example: "  " + appid.ShortCmd + " reset",
+	Example: "  " + rootCmd.Use + " reset",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureVMWithSpinner()
 		err := vmclient.Client().ResetConfig()
 		checkCLI(err)
 
-		cmd.Println(`Restart OrbStack with "` + appid.ShortCmd + ` stop" to apply all changes.`)
+		cmd.Println(`Restart OrbStack with "` + rootCmd.Use + ` stop" to apply all changes.`)
 
 		return nil
 	},

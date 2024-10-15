@@ -12,7 +12,6 @@ import (
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -42,7 +41,7 @@ var createCmd = &cobra.Command{
 	Long: `Create a new machine with the specified distribution.
 
 Version is optional; the latest stable version will be used if not specified.
-To remove a machine, use "` + appid.ShortCmd + ` delete".
+To remove a machine, use "` + rootCmd.Use + ` delete".
 
 By default, a Linux user will be created with the same name as your macOS user. Use "--user" to change the name, and "--set-password" to set a password for both this user and root.
 

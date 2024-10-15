@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -23,7 +22,7 @@ Returns one of the following statuses and exit codes:
   Starting: status 2
   Stopped: status 1
 `,
-	Example: "  " + appid.ShortCmd + " status",
+	Example: "  " + rootCmd.Use + " status",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if vmclient.IsRunning() {

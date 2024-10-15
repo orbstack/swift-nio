@@ -10,7 +10,6 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -30,7 +29,7 @@ var deleteCmd = &cobra.Command{
 The machine will be stopped if it is running.
 All files stored in the machine will be PERMANENTLY LOST without warning!
 `,
-	Example: "  " + appid.ShortCmd + " delete ubuntu",
+	Example: "  " + rootCmd.Use + " delete ubuntu",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var containerNames []string

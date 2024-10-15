@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
@@ -26,7 +25,7 @@ var authCmd = &cobra.Command{
 
 If you are already logged in, this command will do nothing unless you add --force.
 `,
-	Example: "  " + appid.ShortCmd + " login",
+	Example: "  " + rootCmd.Use + " login",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// login CLI is in vmgr so we get the right keychain access group

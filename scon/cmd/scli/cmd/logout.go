@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
@@ -18,7 +17,7 @@ var logoutCmd = &cobra.Command{
 	Short: "Log out of your OrbStack account",
 	Long: `Log out of your OrbStack account, if logged in.
 `,
-	Example: "  " + appid.ShortCmd + " logout",
+	Example: "  " + rootCmd.Use + " logout",
 	Args:    cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// shell out to vmgr, like login
