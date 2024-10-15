@@ -185,13 +185,19 @@ func TestSconMachines(t *testing.T) {
 			hostnameCmd := []string{"hostname"}
 			if distro == "oracle" {
 				// Oracle Linux doesn't ship a `hostname` binary, lol
-				hostnameCmd = []string{"hostnamectl", "hostname"}
+				// Update from two months later: `hostnamectl hostname` no longer works?!
+				// WTF is Oracle doing?
+				hostnameCmd = []string{"bash", "-c", `hostnamectl | grep "Static hostname:"`}
 			}
 
 			args = append(args, hostnameCmd...)
 
 			output, err := runScli(args...)
 			checkT(t, err)
+
+			if distro == "oracle" {
+				output = strings.TrimPrefix(strings.TrimSpace(string(output)), "Static hostname: ")
+			}
 
 			if strings.TrimSpace(string(output)) != newName {
 				t.Fatalf("expected machine's hostname to be %s, got %s", newName, strings.TrimSpace(string(output)))
