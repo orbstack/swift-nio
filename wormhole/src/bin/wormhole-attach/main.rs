@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     ffi::{c_int, CString},
     fs::File,
-    io::{self, stderr, stdin, stdout, IoSlice, IoSliceMut, Read, Write},
+    io::{self, stderr, stdin, stdout, IoSlice, IoSliceMut, Read, Stdout, Write},
     os::{
         fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
         unix::net::{UnixListener, UnixStream},
@@ -403,15 +403,41 @@ fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
     )
 }
 
-fn wait_for_rpc_client() -> anyhow::Result<UnixStream> {
+fn wait_for_rpc_client() -> anyhow::Result<(File, File)> {
     let rpc_server_socket = "/rpc.sock";
-    trace!("binding rpc server to {}", rpc_server_socket);
     let listener = UnixListener::bind(rpc_server_socket)?;
 
-    trace!("waiting for client");
-    match listener.accept() {
-        Ok((client_socket, addr)) => Ok(client_socket),
-        Err(e) => Err(anyhow!("error accepting rpc client {:?}", e)),
+    let (stream, _) = listener.accept()?;
+    let mut buf = [0u8; 1];
+    let mut cmsgspace = nix::cmsg_space!([RawFd; 2]);
+
+    let mut iov = [std::io::IoSliceMut::new(&mut buf)];
+    let msg = recvmsg::<()>(
+        stream.as_raw_fd(),
+        &mut iov,
+        Some(&mut cmsgspace),
+        MsgFlags::empty(),
+    )?;
+
+    let mut stdin_fd: Option<RawFd> = None;
+    let mut stdout_fd: Option<RawFd> = None;
+
+    for cmsg in msg.cmsgs() {
+        if let ControlMessageOwned::ScmRights(fds) = cmsg {
+            if fds.len() == 2 {
+                stdin_fd = Some(fds[0]);
+                stdout_fd = Some(fds[1]);
+            }
+        }
+    }
+    match (stdin_fd, stdout_fd) {
+        (Some(stdin_fd), Some(stdout_fd)) => {
+            trace!("got rpc client: {stdin_fd}, {stdout_fd}");
+            let client_stdin = unsafe { File::from_raw_fd(stdin_fd) };
+            let client_stdout = unsafe { File::from_raw_fd(stdout_fd) };
+            Ok((client_stdin, client_stdout))
+        }
+        _ => Err(anyhow!("did not get client stdin and stdout")),
     }
 }
 

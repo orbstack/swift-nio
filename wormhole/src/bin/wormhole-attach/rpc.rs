@@ -153,7 +153,7 @@ fn set_nonblocking(fd: RawFd) -> nix::Result<()> {
 
 pub fn run(
     config: WormholeConfig,
-    mut client: UnixStream,
+    mut client: (File, File),
     mut exit_code_reader: UnixStream,
     shell_cmd: &str,
     mut cstr_envs: Vec<CString>, // env_map: &mut HashMap<String, String>,
@@ -169,9 +169,11 @@ pub fn run(
     let mut stdout_pipe = (-1, -1);
     let mut stderr_pipe = (-1, -1);
 
+    let (mut client_stdin, mut client_stdout) = client;
+
     // wait until user calls start before proceeding
     loop {
-        match RpcInputMessage::read_from(&mut client) {
+        match RpcInputMessage::read_from(&mut client_stdin) {
             Ok(RpcInputMessage::RequestPty(pty_config)) => {
                 pty = Some(pty_config.pty);
                 let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
@@ -242,9 +244,9 @@ pub fn run(
             let mut payload_stdout = unsafe { File::from_raw_fd(stdout_pipe.0) };
             let mut payload_stderr = unsafe { File::from_raw_fd(stderr_pipe.0) };
 
-            let mut client_reader = client.try_clone()?;
-            let mut client_writer = client.try_clone()?;
-            let mut client_writer2 = client.try_clone()?;
+            let mut client_reader = client_stdin.try_clone()?;
+            let mut client_writer = client_stdout.try_clone()?;
+            let mut client_writer2 = client_stdout.try_clone()?;
 
             set_nonblocking(payload_stdout.as_raw_fd())?;
             set_nonblocking(payload_stderr.as_raw_fd())?;
