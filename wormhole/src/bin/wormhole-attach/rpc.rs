@@ -22,9 +22,11 @@ use std::{
     },
     path::Path,
     process,
+    sync::Arc,
 };
 use tokio::{
     io::{unix::AsyncFd, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    sync::Mutex,
     task::{self, JoinHandle},
 };
 use tracing::trace;
@@ -206,7 +208,7 @@ async fn run_rpc_server(
     payload_stdout: RawFd,
     payload_stderr: RawFd,
     client: (File, File),
-    mut exit_code_reader: UnixStream,
+    exit_code_reader: File,
     is_pty: bool,
 ) -> anyhow::Result<()> {
     // note: we must create the AsyncFile within a Tokio context, since it relies on AsyncFd
@@ -214,43 +216,53 @@ async fn run_rpc_server(
     let mut payload_stdout = AsyncFile::new(payload_stdout)?;
     let mut payload_stderr = AsyncFile::new(payload_stderr)?;
 
-    let mut client_reader = AsyncFile::from(client.0)?;
-    let mut client_writer_stdout = AsyncFile::from(client.1)?;
-    let mut client_writer_stderr = client_writer_stdout.try_clone()?;
-    let mut client_writer_exit = client_writer_stdout.try_clone()?;
+    let mut exit_code_reader = AsyncFile::from(exit_code_reader)?;
 
-    let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
-        let mut buf = [0u8; 1024];
-        loop {
-            match payload_stdout.read(&mut buf).await {
-                Ok(0) => break,
-                Ok(n) => {
-                    let _ = RpcOutputMessage::StdioData(1, &buf[..n])
-                        .write_to(&mut client_writer_stdout)
-                        .await
-                        .map_err(|e| trace!("error writing to client {e}"));
+    let mut client_reader = AsyncFile::from(client.0)?;
+    let client_writer = AsyncFile::from(client.1)?;
+    let client_writer_m = Arc::new(Mutex::new(client_writer));
+
+    {
+        let client_writer_m = Arc::clone(&client_writer_m);
+        let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
+            let mut buf = [0u8; 1024];
+            loop {
+                match payload_stdout.read(&mut buf).await {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let mut client_writer = client_writer_m.lock().await;
+                        let _ = RpcOutputMessage::StdioData(1, &buf[..n])
+                            .write_to(&mut client_writer)
+                            .await
+                            .map_err(|e| trace!("error writing to client {e}"));
+                    }
+                    Err(e) => trace!("got error reading from payload stdout: {e}"),
                 }
-                Err(e) => trace!("got error reading from payload stdout: {e}"),
             }
-        }
-        Ok(())
-    });
-    let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
-        let mut buf = [0u8; 1024];
-        loop {
-            match payload_stderr.read(&mut buf).await {
-                Ok(0) => break,
-                Ok(n) => {
-                    let _ = RpcOutputMessage::StdioData(2, &buf[..n])
-                        .write_to(&mut client_writer_stderr)
-                        .await
-                        .map_err(|e| trace!("error writing to client {e}"));
+            Ok(())
+        });
+    }
+
+    {
+        let client_writer_m = Arc::clone(&client_writer_m);
+        let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
+            let mut buf = [0u8; 1024];
+            loop {
+                match payload_stderr.read(&mut buf).await {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let mut client_writer = client_writer_m.lock().await;
+                        let _ = RpcOutputMessage::StdioData(2, &buf[..n])
+                            .write_to(&mut client_writer)
+                            .await
+                            .map_err(|e| trace!("error writing to client {e}"));
+                    }
+                    Err(e) => trace!("got error reading from payload stdout: {e}"),
                 }
-                Err(e) => trace!("got error reading from payload stdout: {e}"),
             }
-        }
-        Ok(())
-    });
+            Ok(())
+        });
+    }
 
     let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
         loop {
@@ -289,14 +301,14 @@ async fn run_rpc_server(
         }
     });
 
-    let mut exit_code_reader = AsyncFile::new(dup(exit_code_reader.as_raw_fd())?)?;
     task::spawn(async move {
         let mut exit_code = [0u8];
         let _ = exit_code_reader.read_exact(&mut exit_code).await;
         trace!("read exit code {}", exit_code[0]);
 
+        let mut client_writer = client_writer_m.lock().await;
         let _ = RpcOutputMessage::Exit(exit_code[0])
-            .write_to(&mut client_writer_exit)
+            .write_to(&mut client_writer)
             .await
             .map_err(|e| trace!("error sending exit code {e}"));
 
@@ -310,9 +322,9 @@ async fn run_rpc_server(
 pub fn run(
     config: WormholeConfig,
     mut client: (File, File),
-    mut exit_code_reader: UnixStream,
+    mut exit_code_reader: File,
     shell_cmd: &str,
-    mut cstr_envs: Vec<CString>, // env_map: &mut HashMap<String, String>,
+    mut cstr_envs: Vec<CString>,
 ) -> anyhow::Result<()> {
     // dup2(config.log_fd, stdout().as_raw_fd())?;
     // dup2(config.log_fd, stderr().as_raw_fd())?;
@@ -324,9 +336,6 @@ pub fn run(
     let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
     let mut stdout_pipe: (RawFd, RawFd) = (-1, -1);
     let mut stderr_pipe: (RawFd, RawFd) = (-1, -1);
-
-    // let mut client_reader = AsyncFile::from(client_stdin.try_clone()?)?;
-    // let mut client_writer = AsyncFile::from(client_stdout.try_clone()?)?;
 
     // wait until user calls start before proceeding
     loop {
@@ -358,25 +367,10 @@ pub fn run(
         stderr_pipe = pipe()?;
     }
 
-    // let stdin_pipe = (unsafe { OwnedFd::from_raw_fd(stdin_pipe.0) }, unsafe {
-    //     OwnedFd::from_raw_fd(stdin_pipe.1)
-    // });
-    // let stdout_pipe = (unsafe { OwnedFd::from_raw_fd(stdout_pipe.0) }, unsafe {
-    //     OwnedFd::from_raw_fd(stdout_pipe.1)
-    // });
-    // let stderr_pipe = (unsafe { OwnedFd::from_raw_fd(stderr_pipe.0) }, unsafe {
-    //     OwnedFd::from_raw_fd(stderr_pipe.1)
-    // });
-
-    trace!("finished reading host");
-
+    trace!("starting rpc server");
     match unsafe { fork()? } {
         // child: payload
         ForkResult::Parent { child: _ } => {
-            // close(stdin_pipe.1)?;
-            // close(stdout_pipe.0)?;
-            // close(stderr_pipe.0)?;
-
             if pty.is_some() {
                 setsid()?;
                 unsafe {
