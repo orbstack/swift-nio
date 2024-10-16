@@ -17,13 +17,18 @@ use std::{
     fs::File,
     io::{self, Read, Write},
     os::{
-        fd::{AsRawFd, FromRawFd, RawFd},
+        fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
         unix::net::UnixStream,
     },
     path::Path,
     process,
 };
+use tokio::{
+    io::{unix::AsyncFd, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    task::{self, JoinHandle},
+};
 use tracing::trace;
+use wormhole::asyncfile::AsyncFile;
 
 use crate::{
     model::WormholeConfig,
@@ -63,19 +68,19 @@ impl<'a> RpcOutputMessage<'a> {
         }
     }
 
-    pub fn write_to(&self, stream: &mut impl Write) -> anyhow::Result<()> {
-        stream.write_all(&[self.to_const()])?;
+    pub async fn write_to(&self, stream: &mut AsyncFile) -> anyhow::Result<()> {
+        stream.write(&[self.to_const()]).await?;
 
         match self {
             Self::StdioData(fd, data) => {
                 trace!("writing {} bytes", data.len() + 1);
                 let len_bytes = u32::try_from(data.len() + 1)?.to_be_bytes();
                 trace!("len bytes {:?} bytes", len_bytes);
-                stream.write_all(&len_bytes)?;
-                stream.write(&[*fd])?;
-                stream.write_all(data)?;
+                stream.write(&len_bytes).await?;
+                stream.write(&[*fd]).await?;
+                stream.write(data).await?
             }
-            Self::Exit(exit_code) => stream.write_all(&[*exit_code])?,
+            Self::Exit(exit_code) => stream.write(&[*exit_code]).await?,
         };
 
         Ok(())
@@ -95,7 +100,9 @@ pub enum RpcInputMessage {
     Start(),
 }
 
-fn read_bytes(stream: &mut impl Read) -> anyhow::Result<Vec<u8>> {
+impl RpcInputMessage {}
+
+fn read_bytes_sync(stream: &mut impl Read) -> anyhow::Result<Vec<u8>> {
     let len = {
         let mut len_bytes = [0_u8; size_of::<u32>()];
         stream.read_exact(&mut len_bytes)?;
@@ -107,14 +114,32 @@ fn read_bytes(stream: &mut impl Read) -> anyhow::Result<Vec<u8>> {
     Ok(data)
 }
 
-fn read_u16(stream: &mut impl Read) -> anyhow::Result<u16> {
+fn read_u16_sync(stream: &mut impl Read) -> anyhow::Result<u16> {
     let mut buf = [0_u8; size_of::<u16>()];
     stream.read_exact(&mut buf)?;
     Ok(u16::from_be_bytes(buf))
 }
 
+async fn read_bytes(stream: &mut AsyncFile) -> anyhow::Result<Vec<u8>> {
+    let len = {
+        let mut len_bytes = [0_u8; size_of::<u32>()];
+        stream.read_exact(&mut len_bytes).await?;
+        u32::from_be_bytes(len_bytes) as usize
+    };
+
+    let mut data = vec![0_u8; len];
+    stream.read_exact(&mut data).await?;
+    Ok(data)
+}
+
+async fn read_u16(stream: &mut AsyncFile) -> anyhow::Result<u16> {
+    let mut buf = [0_u8; size_of::<u16>()];
+    stream.read_exact(&mut buf).await?;
+    Ok(u16::from_be_bytes(buf))
+}
+
 impl RpcInputMessage {
-    pub fn read_from(stream: &mut impl Read) -> anyhow::Result<Self> {
+    pub fn read_from_sync(stream: &mut impl Read) -> anyhow::Result<Self> {
         let rpc_type = {
             let mut rpc_type_byte = [0u8];
             stream.read_exact(&mut rpc_type_byte)?;
@@ -122,19 +147,51 @@ impl RpcInputMessage {
         };
         match rpc_type {
             RpcType::ReadStdin => {
-                let data = read_bytes(stream)?;
+                let data = read_bytes_sync(stream)?;
                 Ok(RpcInputMessage::StdinData(data))
             }
             RpcType::WindowChange => {
-                let h = read_u16(stream)?;
-                let w = read_u16(stream)?;
+                let h = read_u16_sync(stream)?;
+                let w = read_u16_sync(stream)?;
                 Ok(RpcInputMessage::TerminalResize(w, h))
             }
             RpcType::RequestPty => {
-                let term_env = String::from_utf8(read_bytes(stream)?)?;
-                let h = read_u16(stream)?;
-                let w = read_u16(stream)?;
-                let termios_config = read_bytes(stream)?;
+                let term_env = String::from_utf8(read_bytes_sync(stream)?)?;
+                let h = read_u16_sync(stream)?;
+                let w = read_u16_sync(stream)?;
+                let termios_config = read_bytes_sync(stream)?;
+                let pty = create_pty(w, h, termios_config)?;
+
+                Ok(RpcInputMessage::RequestPty(PtyConfig { pty, term_env }))
+            }
+            RpcType::Start => Ok(RpcInputMessage::Start()),
+        }
+    }
+
+    pub async fn read_from(stream: &mut AsyncFile) -> anyhow::Result<Self> {
+        trace!("reading from client");
+        // Ok(())
+        let rpc_type = {
+            let mut rpc_type_byte = [0u8];
+            stream.read_exact(&mut rpc_type_byte).await?;
+            RpcType::from_const(rpc_type_byte[0])
+        };
+        trace!("got rpc type {:?}", rpc_type);
+        match rpc_type {
+            RpcType::ReadStdin => {
+                let data = read_bytes(stream).await?;
+                Ok(RpcInputMessage::StdinData(data))
+            }
+            RpcType::WindowChange => {
+                let h = read_u16(stream).await?;
+                let w = read_u16(stream).await?;
+                Ok(RpcInputMessage::TerminalResize(w, h))
+            }
+            RpcType::RequestPty => {
+                let term_env = String::from_utf8(read_bytes(stream).await?)?;
+                let h = read_u16(stream).await?;
+                let w = read_u16(stream).await?;
+                let termios_config = read_bytes(stream).await?;
                 let pty = create_pty(w, h, termios_config)?;
 
                 Ok(RpcInputMessage::RequestPty(PtyConfig { pty, term_env }))
@@ -144,10 +201,109 @@ impl RpcInputMessage {
     }
 }
 
-fn set_nonblocking(fd: RawFd) -> nix::Result<()> {
-    let flags = fcntl(fd, FcntlArg::F_GETFL)?;
-    let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
-    fcntl(fd, FcntlArg::F_SETFL(new_flags))?;
+async fn run_rpc_server(
+    payload_stdin: RawFd,
+    payload_stdout: RawFd,
+    payload_stderr: RawFd,
+    client: (File, File),
+    mut exit_code_reader: UnixStream,
+    is_pty: bool,
+) -> anyhow::Result<()> {
+    // note: we must create the AsyncFile within a Tokio context, since it relies on AsyncFd
+    let mut payload_stdin = AsyncFile::new(payload_stdin)?;
+    let mut payload_stdout = AsyncFile::new(payload_stdout)?;
+    let mut payload_stderr = AsyncFile::new(payload_stderr)?;
+
+    let mut client_reader = AsyncFile::from(client.0)?;
+    let mut client_writer_stdout = AsyncFile::from(client.1)?;
+    let mut client_writer_stderr = client_writer_stdout.try_clone()?;
+    let mut client_writer_exit = client_writer_stdout.try_clone()?;
+
+    let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
+        let mut buf = [0u8; 1024];
+        loop {
+            match payload_stdout.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    let _ = RpcOutputMessage::StdioData(1, &buf[..n])
+                        .write_to(&mut client_writer_stdout)
+                        .await
+                        .map_err(|e| trace!("error writing to client {e}"));
+                }
+                Err(e) => trace!("got error reading from payload stdout: {e}"),
+            }
+        }
+        Ok(())
+    });
+    let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
+        let mut buf = [0u8; 1024];
+        loop {
+            match payload_stderr.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    let _ = RpcOutputMessage::StdioData(2, &buf[..n])
+                        .write_to(&mut client_writer_stderr)
+                        .await
+                        .map_err(|e| trace!("error writing to client {e}"));
+                }
+                Err(e) => trace!("got error reading from payload stdout: {e}"),
+            }
+        }
+        Ok(())
+    });
+
+    let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
+        loop {
+            match RpcInputMessage::read_from(&mut client_reader).await {
+                Ok(RpcInputMessage::StdinData(data)) => {
+                    trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&data));
+                    let _ = payload_stdin
+                        .write(&data)
+                        .await
+                        .map_err(|e| trace!("error writing to payload {e}"));
+                }
+                Ok(RpcInputMessage::TerminalResize(w, h)) => {
+                    if !is_pty {
+                        panic!("cannot resize terminal for non-tty ")
+                    }
+                    let ws = Winsize {
+                        ws_row: h,
+                        ws_col: w,
+                        ws_xpixel: 0,
+                        ws_ypixel: 0,
+                    };
+                    unsafe {
+                        nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
+                    }
+                }
+                Ok(RpcInputMessage::RequestPty(_pty)) => {
+                    trace!("cannot request pty after payload already started");
+                }
+                Ok(RpcInputMessage::Start()) => {
+                    trace!("already started");
+                }
+                Err(_) => {
+                    trace!("rpc: failed to read");
+                }
+            }
+        }
+    });
+
+    let mut exit_code_reader = AsyncFile::new(dup(exit_code_reader.as_raw_fd())?)?;
+    task::spawn(async move {
+        let mut exit_code = [0u8];
+        let _ = exit_code_reader.read_exact(&mut exit_code).await;
+        trace!("read exit code {}", exit_code[0]);
+
+        let _ = RpcOutputMessage::Exit(exit_code[0])
+            .write_to(&mut client_writer_exit)
+            .await
+            .map_err(|e| trace!("error sending exit code {e}"));
+
+        trace!("exiting process");
+        process::exit(exit_code[0].into());
+    })
+    .await?;
     Ok(())
 }
 
@@ -165,15 +321,16 @@ pub fn run(
 
     let mut pty: Option<OpenptyResult> = None;
 
-    let mut stdin_pipe = (-1, -1);
-    let mut stdout_pipe = (-1, -1);
-    let mut stderr_pipe = (-1, -1);
+    let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
+    let mut stdout_pipe: (RawFd, RawFd) = (-1, -1);
+    let mut stderr_pipe: (RawFd, RawFd) = (-1, -1);
 
-    let (mut client_stdin, mut client_stdout) = client;
+    // let mut client_reader = AsyncFile::from(client_stdin.try_clone()?)?;
+    // let mut client_writer = AsyncFile::from(client_stdout.try_clone()?)?;
 
     // wait until user calls start before proceeding
     loop {
-        match RpcInputMessage::read_from(&mut client_stdin) {
+        match RpcInputMessage::read_from_sync(&mut client.0) {
             Ok(RpcInputMessage::RequestPty(pty_config)) => {
                 pty = Some(pty_config.pty);
                 let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
@@ -200,7 +357,16 @@ pub fn run(
         stdout_pipe = pipe()?;
         stderr_pipe = pipe()?;
     }
-    // add owned fd here
+
+    // let stdin_pipe = (unsafe { OwnedFd::from_raw_fd(stdin_pipe.0) }, unsafe {
+    //     OwnedFd::from_raw_fd(stdin_pipe.1)
+    // });
+    // let stdout_pipe = (unsafe { OwnedFd::from_raw_fd(stdout_pipe.0) }, unsafe {
+    //     OwnedFd::from_raw_fd(stdout_pipe.1)
+    // });
+    // let stderr_pipe = (unsafe { OwnedFd::from_raw_fd(stderr_pipe.0) }, unsafe {
+    //     OwnedFd::from_raw_fd(stderr_pipe.1)
+    // });
 
     trace!("finished reading host");
 
@@ -235,136 +401,18 @@ pub fn run(
             unreachable!();
         }
         ForkResult::Child => {
-            // close(stdin_pipe.0)?;
-            // close(stdout_pipe.1)?;
-            // close(stderr_pipe.1)?;
-
-            // write to payload stdin and read from stdout/stderr
-            let mut payload_stdin = unsafe { File::from_raw_fd(stdin_pipe.1) };
-            let mut payload_stdout = unsafe { File::from_raw_fd(stdout_pipe.0) };
-            let mut payload_stderr = unsafe { File::from_raw_fd(stderr_pipe.0) };
-
-            let mut client_reader = client_stdin.try_clone()?;
-            let mut client_writer = client_stdout.try_clone()?;
-            let mut client_writer2 = client_stdout.try_clone()?;
-
-            set_nonblocking(payload_stdout.as_raw_fd())?;
-            set_nonblocking(payload_stderr.as_raw_fd())?;
-            set_nonblocking(client_reader.as_raw_fd())?;
-            set_nonblocking(exit_code_reader.as_raw_fd())?;
-
-            let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
-            epoll.add(&payload_stdout, EpollEvent::new(EpollFlags::EPOLLIN, 1))?;
-            epoll.add(&payload_stderr, EpollEvent::new(EpollFlags::EPOLLIN, 2))?;
-            epoll.add(&client_reader, EpollEvent::new(EpollFlags::EPOLLIN, 3))?;
-            epoll.add(&exit_code_reader, EpollEvent::new(EpollFlags::EPOLLIN, 4))?;
-
-            let mut events = [EpollEvent::empty(); 10];
-            let mut buffer = [0u8; 1024];
-            loop {
-                let n = epoll.wait(&mut events, -1);
-                match n {
-                    Ok(n) if n < 1 => {
-                        return Err(anyhow!("expected an event on epoll return"));
-                    }
-                    Err(Errno::EINTR) => continue,
-                    Err(err) => {
-                        return Err(anyhow!("error while epolling: {}", err));
-                    }
-                    Ok(_) => {}
-                }
-                let n = n?;
-                trace!("got {n} events");
-                for event in &events[..n] {
-                    let data = event.data();
-
-                    // write payload stdout and stderr to client
-                    match data {
-                        1 | 2 => {
-                            let source_fd = if data == 1 {
-                                &mut payload_stdout
-                            } else {
-                                &mut payload_stderr
-                            };
-                            // Handle reading from payload_stdout
-                            match source_fd.read(&mut buffer) {
-                                Ok(0) => {
-                                    trace!("could not read from payload stdout/stderr ({data})");
-                                    epoll.delete(source_fd)?;
-                                }
-                                Ok(n) => {
-                                    trace!(
-                                        "rpc: response data {:?}",
-                                        String::from_utf8_lossy(&buffer[..n])
-                                    );
-                                    RpcOutputMessage::StdioData(data as u8, &buffer[..n])
-                                        .write_to(&mut client_writer)?;
-                                    client_writer.flush()?;
-                                }
-                                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                                    trace!("would block");
-                                    // No data available right now
-                                    continue;
-                                }
-                                Err(e) => {
-                                    trace!("reading from stdout/stderr ({data}): {:?}", e);
-                                    epoll.delete(source_fd)?;
-                                }
-                            }
-                        }
-                        3 => {
-                            trace!("reading from client");
-                            match RpcInputMessage::read_from(&mut client_reader) {
-                                Ok(RpcInputMessage::StdinData(data)) => {
-                                    trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&data));
-                                    payload_stdin.write_all(&data)?;
-                                    payload_stdin.flush()?
-                                }
-                                Ok(RpcInputMessage::TerminalResize(w, h)) => {
-                                    if pty.is_none() {
-                                        panic!("cannot resize terminal for non-tty ")
-                                    }
-                                    let ws = Winsize {
-                                        ws_row: h,
-                                        ws_col: w,
-                                        ws_xpixel: 0, // Not used, can be set to 0
-                                        ws_ypixel: 0, // Not used, can be set to 0
-                                    };
-                                    unsafe {
-                                        nix::libc::ioctl(
-                                            payload_stdin.as_raw_fd(),
-                                            TIOCSWINSZ,
-                                            &ws,
-                                        );
-                                    }
-                                }
-                                Ok(RpcInputMessage::RequestPty(_pty)) => {
-                                    trace!("cannot request pty after payload already started");
-                                }
-                                Ok(RpcInputMessage::Start()) => {
-                                    trace!("already started");
-                                }
-                                Err(_) => {
-                                    trace!("rpc: failed to read");
-                                }
-                            };
-                        }
-                        4 => {
-                            let mut exit_code = [0u8];
-                            exit_code_reader.read_exact(&mut exit_code)?;
-                            trace!("read exit code {}", exit_code[0]);
-
-                            RpcOutputMessage::Exit(exit_code[0]).write_to(&mut client_writer2)?;
-
-                            trace!("exiting process");
-                            process::exit(exit_code[0].into());
-                        }
-                        _ => {
-                            trace!("unknown epoll data {data}")
-                        }
-                    }
-                }
-            }
+            // we should only start the tokio runtime after the fork, otherwise may cause undefined tokio behaviour
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?;
+            rt.block_on(run_rpc_server(
+                stdin_pipe.1,
+                stdout_pipe.0,
+                stderr_pipe.0,
+                client,
+                exit_code_reader,
+                pty.is_some(),
+            ))
         }
     }
 }

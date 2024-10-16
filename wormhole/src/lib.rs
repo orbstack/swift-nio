@@ -2,6 +2,7 @@ use nix::errno::Errno;
 use nix::libc::{cc_t, tcflag_t, NCCS};
 use serde::{Deserialize, Serialize};
 
+pub mod asyncfile;
 pub mod flock;
 pub mod newmount;
 pub mod paths;
