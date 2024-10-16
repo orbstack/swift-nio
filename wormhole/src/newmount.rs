@@ -6,7 +6,8 @@ use std::{
 };
 
 use libc::{
-    syscall, SYS_fsconfig, SYS_fsmount, SYS_fsopen, SYS_fspick, SYS_mount_setattr, SYS_move_mount, SYS_open_tree, SYS_umount2, AT_FDCWD
+    syscall, SYS_fsconfig, SYS_fsmount, SYS_fsopen, SYS_fspick, SYS_mount_setattr, SYS_move_mount,
+    SYS_open_tree, SYS_umount2, AT_FDCWD,
 };
 
 use crate::err;
