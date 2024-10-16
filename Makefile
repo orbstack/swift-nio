@@ -20,6 +20,7 @@ r2:
 	cp -c updates/old/arm64/OrbStack_v1*.dmg*  updates/pub/arm64/
 	cp -c updates/old/amd64/OrbStack_v1*.dmg*  updates/pub/amd64/
 	rclone sync -P updates/pub --order-by modtime,ascending r2:orbstack-updates
+	rclone sync -P updates/dsym --order-by modtime,ascending r2:orbstack-dsym
 
 cdn:
 	rclone sync -P updates/cdn --order-by modtime,ascending r2:orbstack-web

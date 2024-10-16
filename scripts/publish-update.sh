@@ -5,20 +5,24 @@ set -euxo pipefail
 cd "$(dirname "$0")/.."
 source config.sh
 
-pushd swift/out
-built_dmgs=(*/*.dmg)
-popd
+# get version from arm64 dmg name
+VERSION=$(ls swift/out/arm64/*.dmg | sed -E 's/.*OrbStack_v([0-9.]+.*)_arm64.dmg/\1/')
 
 # updates
-mkdir -p updates/pub/{arm64,amd64}
+mkdir -p updates/pub/{arm64,amd64} updates/dsym
 cp swift/out/arm64/*.dmg updates/pub/arm64/ || :
 cp swift/out/amd64/*.dmg updates/pub/amd64/ || :
 
-# upload dsyms
-function upload_dsyms() {
+# upload dsyms to sentry
+function upload_sentry_dsyms() {
     sentry-cli upload-dif --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" "$@"
 }
-upload_dsyms swift/out/*/dsym/OrbStack.app.dSYM &
+upload_sentry_dsyms swift/out/*/dsym/OrbStack.app.dSYM &
+
+# package all dsyms for internal use
+pushd swift/out
+tar --zstd -cf ../../updates/dsym/$VERSION.tar.zst */dsym
+popd
 
 # skip delta generation for canary
 VERSION_TAG="$(git describe --tag --abbrev=0)"
@@ -41,6 +45,3 @@ scripts/update-appcast.py updates/pub/amd64/appcast.xml
 mkdir -p updates/old/{arm64,amd64}
 mv updates/pub/arm64/old_updates/* updates/old/arm64/ || :
 mv updates/pub/amd64/old_updates/* updates/old/amd64/ || :
-
-# upload to cloudflare
-#rclone sync -P updates/pub r2:orbstack-updates
