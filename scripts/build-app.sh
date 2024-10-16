@@ -48,36 +48,13 @@ function build_one() {
     rm -fr "$OUT"
     mkdir -p "$OUT"
 
-    # build swift lib
-    pushd swift
-    SWIFT_ARCH="$arch_mac" make lib-release
-    popd
-
-    # build rust lib
-    pushd virtue
-    # hide source code paths
-    # $HOME is for ~/.cargo/registry/...
-    RUSTFLAGS="--remap-path-prefix $HOME=/Users/build --remap-path-prefix $PWD=/src" \
-        cargo build --package krun --release --target $arch_rust
-    popd
-
-    # build go (vmgr and scon)
+    # build go (vmgr), rust (virtue), and swift (swext)
     export GOARCH=$arch_go
-    export CGO_ENABLED=1
-
-    BUNDLE_OUT="$OUT/$VMGR_BIN.app"
-
     pushd vmgr
-    go generate ./conf/appver ./drm/killswitch
     BUILD_TYPE=release \
-        EXTRA_LDFLAGS="-s -w" \
-        BUNDLE_OUT="$OUT/$VMGR_BIN.app" \
         SIGNING_CERT_OVERRIDE="$SIGNING_CERT" \
-        RUST_TARGET="$arch_rust" \
-        RUST_BUILD_TYPE="release" \
-        ./build.sh -tags release -trimpath
+        make
     popd
-
 
     pushd scon
     rm -f $OUT/scon
@@ -87,7 +64,7 @@ function build_one() {
     codesign -f --timestamp --options=runtime -i dev.orbstack.OrbStack.scli -s "$SIGNING_CERT" $OUT/scli
     popd
 
-    # build swift
+    # build swift app
     pushd swift
 
     rm -fr build
@@ -103,6 +80,11 @@ function build_one() {
     cat data.img.tar | base64 > data.img.tar.b64
     rm -f data.img.tar
     popd
+
+    # move vmgr dsym out of vmgr bundle
+    rm -fr out/$arch_go
+    mkdir -p out/$arch_go/dsym
+    mv "$OUT/$VMGR_BIN.app/Contents/MacOS/$VMGR_BIN.dSYM" out/$arch_go/dsym/
 
     # copy bins
     cp -rc ../bins/out/$arch_go build/bins
@@ -122,11 +104,8 @@ function build_one() {
         -exportOptionsPlist export-options.plist \
         -exportPath build/$arch_go
 
-    rm -fr out/$arch_go
-    mkdir -p out/$arch_go
     mv build/$arch_go/OrbStack.app out/$arch_go/
-    
-    mkdir -p out/$arch_go/dsym
+
     cp -r build/app.xcarchive/dSYMs/*.dSYM out/$arch_go/dsym/
 
     popd

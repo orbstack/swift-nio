@@ -2,6 +2,9 @@
 # CONFIG
 #
 
+# GOARCH is the main architecture knob
+export GOARCH ?= arm64
+
 # 3 build types: debug (default), release, profiling
 BUILD_TYPE ?= debug
 
@@ -35,12 +38,14 @@ RUST_BUILD_TYPE := release
 CARGO_BUILD_TYPE := release
 SWIFT_BUILD_TYPE := release
 GO_BUILD_TYPE := release
+# hide source code paths
+# $HOME is for ~/.cargo/registry/...
+export RUSTFLAGS += --remap-path-prefix $(HOME)=/Users/build --remap-path-prefix $(shell dirname $(shell pwd))/virtue=/src
+GO_FLAGS += -tags release -trimpath
 else
 $(error invalid BUILD_TYPE: $(BUILD_TYPE))
 endif
 
-# GOARCH is the main architecture knob
-export GOARCH ?= arm64
 # Apple M1 is ARMv8.4 + most v8.5 extensions (SB, SSBS, CCDP, FRINT3264, SPECRESTRICT, ALTERNATIVENZCV)
 # just use v8.4 for simplicity -- we mainly care about specializing for LSE atomics
 export GOARM64 := v8.4
@@ -82,7 +87,7 @@ CARGO ?= cargo
 
 # ASAN
 ifeq ($(ASAN),rust)
-export RUSTFLAGS := -Zsanitizer=address
+export RUSTFLAGS += -Zsanitizer=address
 CARGO := $(CARGO) +nightly
 # need to rebuild std with ASAN
 CARGO_FLAGS := -Zbuild-std
@@ -150,7 +155,7 @@ vmgr: $(VMGR_BIN)
 .PHONY: _always
 .buildenv: _always
 # our main source of overhead is "cargo version" taking ~25ms
-	@echo BUILD_TYPE=$(BUILD_TYPE) ASAN=$(ASAN) CC_VERSION="$$($(CC) -v 2>&1)" GO_VERSION="$$($(GO) version)" CARGO_VERSION="$$($(CARGO) version)" > $@.tmp
+	@echo GOARCH=$(GOARCH) BUILD_TYPE=$(BUILD_TYPE) ASAN=$(ASAN) RUSTFLAGS=$(RUSTFLAGS) CFLAGS=$(CFLAGS) CXXFLAGS=$(CXXFLAGS) LDFLAGS=$(LDFLAGS) CC_VERSION="$$($(CC) -v 2>&1)" GO_VERSION="$$($(GO) version)" CARGO_VERSION="$$($(CARGO) version)" > $@.tmp
 	@cmp $@ $@.tmp > /dev/null || mv $@.tmp $@
 	@rm -f $@.tmp
 
@@ -166,7 +171,7 @@ $(GO_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,./,*.go *.c *.h *.cpp) go.mod go.s
 
 	@mkdir -p $(OUT)/$(GOARCH)
 # build ./cgostub package to get the right main function
-	$(GO) build -buildmode=c-archive -o $(OUT)/$(GOARCH)/libvmgr.a ./cgostub
+	$(GO) build -buildmode=c-archive -o $(OUT)/$(GOARCH)/libvmgr.a $(GO_FLAGS) ./cgostub
 
 # Rust static library: virtue
 $(RUST_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,../virtue/src,*) ../virtue/Cargo.toml ../virtue/Cargo.lock
