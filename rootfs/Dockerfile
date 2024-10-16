@@ -563,22 +563,12 @@ LABEL type=$TYPE
 # Final images
 FROM --platform=${HOST_ARCH} debian AS packer
 RUN apt-get update && \
-    apt-get install -y btrfs-progs libarchive-tools qemu-utils fdisk python3 curl
+    apt-get install -y erofs-utils btrfs-progs libarchive-tools qemu-utils fdisk python3 curl
 RUN mkdir /images
 
 # rootfs
 FROM packer AS pack-images
 ARG TYPE=release
-RUN <<EOT bash -eux
-# mkfs.erofs v1.8 has a regression that corrupts data: https://lore.kernel.org/all/20240916073835.77470-1-danny@orbstack.dev/
-ARCH=amd64
-if [ "\$(uname -m)" = "aarch64" ]; then
-    ARCH=arm64
-fi
-
-curl -Lo erofs-utils.deb https://snapshot.debian.org/archive/debian/20240807T204422Z/pool/main/e/erofs-utils/erofs-utils_1.7.1-1%2Bb1_\$ARCH.deb
-apt-get install -y -f ./erofs-utils.deb
-EOT
 COPY rootfs/utils/dedupe-files.py /
 COPY --from=rootfs / /rootfs
 RUN <<EOT bash -eux
