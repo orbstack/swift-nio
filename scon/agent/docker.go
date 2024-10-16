@@ -37,6 +37,9 @@ const (
 	// matches mDNSResponder timeout
 	mdnsProxyTimeout = 5 * time.Second
 	kubeDnsUpstream  = netconf.K8sCorednsIP4 + ":53"
+
+	// excluding wrapper
+	runcPath = "/usr/bin/.runc"
 )
 
 type DockerAgent struct {
@@ -277,9 +280,16 @@ func (a *AgentServer) DockerQueryKubeDns(q dns.Question, rrs *[]dns.RR) error {
  */
 
 func (d *DockerAgent) PostStart() error {
+	// bind mount runc with sealed memfd
+	// doesn't really matter when we do this; container startup gets faster for anything after it
+	err := bindMountRuncMemfd()
+	if err != nil {
+		return err
+	}
+
 	// wait for Docker API to start
 	// TODO: this works, but should replace with sd-notify
-	err := util.WaitForRunPathExist(dockerAPISocketUpstream)
+	err = util.WaitForRunPathExist(dockerAPISocketUpstream)
 	if err != nil {
 		return err
 	}
