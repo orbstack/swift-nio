@@ -33,7 +33,6 @@ prctl errno 22 [0,65,SCMP_CMP_EQ]
 // no comments in policy because it ends up in strings
 
 // block FAN_MARK_MOUNT and FAN_MARK_FILESYSTEM: reports events from outside machine
-// open_by_handle_at allows escape via inode opening
 // lsm_set_self_attr: not sure
 const seccompPolicyIsolated = `
 init_module errno 38
@@ -46,7 +45,6 @@ fanotify_mark errno 1 [1,0x100,SCMP_CMP_MASKED_EQ,0x100]
 kexec_file_load errno 1
 kexec_load errno 1
 
-open_by_handle_at errno 1
 quotactl errno 1
 quotactl_fd errno 1
 
