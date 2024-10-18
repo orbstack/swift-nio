@@ -22,6 +22,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/drm/drmcore"
+	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
@@ -129,6 +131,7 @@ func fallbackDockerExec(containerID string) error {
 
 type WormholeRemoteServerParams struct {
 	InitPid          int      `json:"a"`
+	DrmToken         string   `json:"e"`
 	ContainerWorkdir string   `json:"f"`
 	ContainerEnv     []string `json:"g"`
 	EntryShellCmd    string   `json:"h"`
@@ -286,7 +289,7 @@ func startRpcConnection(client *dockerclient.Client, containerID string) error {
 	}
 }
 
-func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args []string) error {
+func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmToken string, args []string) error {
 	client, err := dockerclient.NewClient(daemon)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -322,6 +325,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args
 		ContainerWorkdir: workingDir,
 		ContainerEnv:     containerInfo.Config.Env,
 		EntryShellCmd:    shellCmd,
+		DrmToken:         drmToken,
 	})
 	if err != nil {
 		return err
@@ -504,6 +508,18 @@ Pro only: requires an OrbStack Pro license.
 			return err
 		}
 
+		keychainData, err := drmcore.ReadKeychainDrmState()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Could not get DRM token")
+			os.Exit(1)
+		}
+
+		var keychainState drmtypes.PersistentState
+		err = json.Unmarshal(keychainData, &keychainState)
+		if err != nil {
+			return err
+		}
+
 		// Read the docker daemon address in the following order:
 		// 1. Host specified by context in command `orb debug container@context` (overriden below)
 		// 2. DOCKER_CONTEXT (overrides DOCKER_HOST)
@@ -586,7 +602,7 @@ Pro only: requires an OrbStack Pro license.
 		if orbContext, err := dockerclient.GetContext("orbstack"); err == nil && orbContext.Host == daemon.Host {
 			debugLocal(containerID, args)
 		} else {
-			debugRemote(containerID, daemon, args)
+			debugRemote(containerID, daemon, keychainState.EntitlementToken, args)
 		}
 
 		return nil

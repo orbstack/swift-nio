@@ -43,7 +43,7 @@ pub struct WormholeConfig {
     pub exit_code_pipe_write_fd: RawFd,
     #[serde(rename = "d", default)]
     pub log_fd: RawFd,
-    #[serde(rename = "e", default)]
+    #[serde(rename = "e")]
     pub drm_token: String,
 
     #[serde(rename = "f")]
@@ -236,8 +236,6 @@ fn main() -> anyhow::Result<()> {
 
     config.wormhole_mount_tree_fd = wormhole_mount_fd.as_raw_fd();
     config.exit_code_pipe_write_fd = exit_code_pipe_write_fd;
-
-    config.drm_token = String::from(    "eyJhbGciOiJFZERTQSIsImtpZCI6IjEiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiIiLCJlbnQiOjEsImV0cCI6MiwiZW1nIjpudWxsLCJlc3QiOm51bGwsImF1ZCI6Im1hY3ZpcnQiLCJ2ZXIiOnsiY29kZSI6MTA3MDQwMCwiZ2l0IjoiOGQ4NDQyMjYyMjIzMDRjZjUwM2Q3OWViNTAyY2IwNGVmODgyMmY5YSJ9LCJkaWQiOiI3YmE5ZjA1ZDBlMGY2NTI3MjVkYzA3NjM5Y2VmYTg2NTM2ZWVlMmU5NTc4NDk2OWVlODcwZWMyZDY2YjEzMDI0IiwiaWlkIjoiYzdlYzY1M2FmZDljMDIxNjZlZjY2Nzc2MGVkYWNmODA0ZDc4OTlhZDE3YmQ1YWIxYzU4YzE4OGVjOGYxZTExYiIsImNpZCI6ImU1NjZiZjRiNmExNjNjYTM1NGU2OGQzYmU2ZjAzZDlmNzFkMzYxZTdhMmIxNjMzZDcwMzE0MmE2ODIwNmNjNDciLCJpc3MiOiJkcm1zZXJ2ZXIiLCJpYXQiOjE3Mjg5NDc2NzIsImV4cCI6MTcyOTU1MjQ3MiwibmJmIjoxNzI4OTQ3NjcyLCJkdnIiOjEsIndhciI6MTcyOTU2MzM3MiwibHhwIjoxNzMwMTY4MTcyfQ.pwSyfgo3YepqHECNxDUnVn42-nbCGbeiHDwLHqzJJ15aOSTrZE8abhccAJmeeiL0jlhJYpDhRz2a1WXq99IiDQ");
     config.log_fd = log_pipe_write_fd;
 
     let serialized = serde_json::to_string(&config)?;
