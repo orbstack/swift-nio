@@ -196,8 +196,14 @@ fn main() -> anyhow::Result<()> {
 
     startup()?;
 
-    let config_str = std::env::args().nth(1).unwrap();
-    let mut config = serde_json::from_str::<WormholeConfig>(&config_str)?;
+    let param = std::env::args().nth(1).unwrap();
+
+    if param == "--nuke" {
+        trace!("nuking remote wormhole data;");
+        return Ok(());
+    }
+
+    let mut config = serde_json::from_str::<WormholeConfig>(&param)?;
 
     // see `doWormhole` in scon/ssh.go (~L300)
     let wormhole_mount = open_tree(

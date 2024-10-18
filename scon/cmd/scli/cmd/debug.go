@@ -39,6 +39,8 @@ const (
 	fdStderr = 2
 )
 
+const registryImage = "198.19.249.3:5000/wormhole-rootfs:latest"
+
 func init() {
 	rootCmd.AddCommand(debugCmd)
 	debugCmd.Flags().StringVarP(&flagWorkdir, "workdir", "w", "", "Set the working directory")
@@ -71,7 +73,7 @@ func ParseDebugFlags(args []string) ([]string, *string, error) {
 				continue
 			case "--reset", "-reset":
 				flagReset = true
-				return nil, nil, nil
+				continue
 			}
 
 			// 2. look for a pair
@@ -303,7 +305,6 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args
 		os.Exit(1)
 	}
 
-	REGISTRY_IMAGE := "198.19.249.3:5000/wormhole-rootfs:latest"
 	workingDir := containerInfo.Config.WorkingDir
 	shellCmd := ""
 
@@ -327,7 +328,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, args
 	}
 
 	remoteContainerID, err := client.RunContainer(&dockertypes.ContainerCreateRequest{
-		Image: REGISTRY_IMAGE,
+		Image: registryImage,
 		HostConfig: &dockertypes.ContainerHostConfig{
 			Privileged:   true,
 			Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
@@ -422,6 +423,64 @@ Learn more: https://go.orbstack.dev/debug
 	return nil
 }
 
+func nukeLocalData(cmd *cobra.Command) error {
+	scli.EnsureSconVMWithSpinner()
+
+	spinner := spinutil.Start("blue", "Resetting Debug Shell data")
+	err := scli.Client().WormholeNukeData()
+	spinner.Stop()
+	if err != nil {
+		cmd.SilenceUsage = true
+		return err
+	}
+
+	fmt.Fprintln(os.Stderr, "Debug Shell data reset!")
+	return nil
+}
+
+func nukeRemoteData(cmd *cobra.Command, daemon *dockerclient.DockerConnection) error {
+	spinner := spinutil.Start("blue", "Resetting (Remote) Debug Shell data")
+	client, err := dockerclient.NewClient(daemon)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+
+	remoteContainerID, err := client.RunContainer(&dockertypes.ContainerCreateRequest{
+		Image: registryImage,
+		HostConfig: &dockertypes.ContainerHostConfig{
+			Privileged: true,
+			Binds:      []string{"wormhole-data:/data"},
+			// CgroupnsMode: "host",
+			// PidMode:      "host",
+			// NetworkMode:  "host",
+		},
+		Cmd: []string{string("--nuke")},
+	}, false)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+
+	containerInfo, err := client.InspectContainer(remoteContainerID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("%+v\n", containerInfo)
+
+	spinner.Stop()
+	if err != nil {
+		cmd.SilenceUsage = true
+		return err
+	}
+
+	fmt.Fprintln(os.Stderr, "(Remote) Debug Shell data reset!")
+
+	return nil
+}
+
 var debugCmd = &cobra.Command{
 	Use:     "debug [flags] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"wormhole"},
@@ -445,30 +504,8 @@ Pro only: requires an OrbStack Pro license.
 			return err
 		}
 
-		if flagReset {
-			scli.EnsureSconVMWithSpinner()
-
-			spinner := spinutil.Start("blue", "Resetting Debug Shell data")
-			err = scli.Client().WormholeNukeData()
-			spinner.Stop()
-			if err != nil {
-				cmd.SilenceUsage = true
-				return err
-			}
-
-			fmt.Fprintln(os.Stderr, "Debug Shell data reset!")
-
-			return nil
-		}
-
-		if (containerIDp == nil && !flagReset) || FlagWantHelp {
-			cmd.Help()
-			return nil
-		}
-		containerID := *containerIDp
-
 		// Read the docker daemon address in the following order:
-		// 1. Host specified by context in command `orb debug container@context`
+		// 1. Host specified by context in command `orb debug container@context` (overriden below)
 		// 2. DOCKER_CONTEXT (overrides DOCKER_HOST)
 		// 3. DOCKER_HOST env
 		// 4. Host specified by currentContext in `~/.docker/config.json`
@@ -478,20 +515,7 @@ Pro only: requires an OrbStack Pro license.
 			return err
 		}
 
-		if strings.Contains(containerID, "@") {
-			var context string
-			var ok bool
-
-			containerID, context, ok = strings.Cut(containerID, "@")
-			if !ok {
-				fmt.Fprintln(os.Stderr, "Could not parse docker context")
-				os.Exit(1)
-			}
-
-			if daemon, err = dockerclient.GetContext(context); err != nil {
-				return err
-			}
-		} else if context := os.Getenv("DOCKER_CONTEXT"); context != "" {
+		if context := os.Getenv("DOCKER_CONTEXT"); context != "" {
 			if daemon, err = dockerclient.GetContext(context); err != nil {
 				return err
 			}
@@ -515,7 +539,50 @@ Pro only: requires an OrbStack Pro license.
 			}
 		}
 
-		// fmt.Println("reading from host ", daemon)
+		if flagReset {
+			// the context was explicitly passed as a param (orb debug remote --reset)
+			if containerIDp != nil {
+				daemon, err = dockerclient.GetContext(*containerIDp)
+				if err != nil {
+					return err
+				}
+			}
+
+			orbContext, err := dockerclient.GetContext("orbstack")
+			isLocal := err == nil && orbContext.Host == daemon.Host
+			if isLocal {
+				err = nukeLocalData(cmd)
+			} else {
+				err = nukeRemoteData(cmd, daemon)
+			}
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+
+		if (containerIDp == nil && !flagReset) || FlagWantHelp {
+			cmd.Help()
+			return nil
+		}
+		containerID := *containerIDp
+
+		// explicit docker context overrides any context set via environment variables
+		if containerIDp != nil && strings.Contains(*containerIDp, "@") {
+			var context string
+			var ok bool
+
+			containerID, context, ok = strings.Cut(containerID, "@")
+			if !ok {
+				fmt.Fprintln(os.Stderr, "Could not parse docker context")
+				os.Exit(1)
+			}
+
+			if daemon, err = dockerclient.GetContext(context); err != nil {
+				return err
+			}
+		}
+
 		if orbContext, err := dockerclient.GetContext("orbstack"); err == nil && orbContext.Host == daemon.Host {
 			debugLocal(containerID, args)
 		} else {
