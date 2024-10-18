@@ -450,7 +450,7 @@ func nukeRemoteData(cmd *cobra.Command, daemon *dockerclient.DockerConnection) e
 		os.Exit(1)
 	}
 
-	remoteContainerID, err := client.RunContainer(&dockertypes.ContainerCreateRequest{
+	_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
 		Image: registryImage,
 		HostConfig: &dockertypes.ContainerHostConfig{
 			Privileged: true,
@@ -466,13 +466,6 @@ func nukeRemoteData(cmd *cobra.Command, daemon *dockerclient.DockerConnection) e
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-
-	containerInfo, err := client.InspectContainer(remoteContainerID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("%+v\n", containerInfo)
 
 	spinner.Stop()
 	if err != nil {

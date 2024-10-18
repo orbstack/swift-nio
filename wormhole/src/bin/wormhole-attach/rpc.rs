@@ -326,8 +326,8 @@ pub fn run(
     shell_cmd: &str,
     mut cstr_envs: Vec<CString>,
 ) -> anyhow::Result<()> {
-    dup2(config.log_fd, stdout().as_raw_fd())?;
-    dup2(config.log_fd, stderr().as_raw_fd())?;
+    // dup2(config.log_fd, stdout().as_raw_fd())?;
+    // dup2(config.log_fd, stderr().as_raw_fd())?;
 
     trace!("rpc server");
 

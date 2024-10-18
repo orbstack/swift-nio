@@ -1,8 +1,5 @@
-// driver for wormhole-attach that opens the mount and gets container info
+// ./driver (<config json> | --nuke) . --> runs wormhole-attach with the proper mount / fds
 
-// ./driver <pid> <container env> ... --> runs wormhole-attach with the proper mount / fds
-
-use libc::{DIR, FD_CLOEXEC};
 use nix::{
     errno::Errno,
     fcntl::{
@@ -189,16 +186,19 @@ fn main() -> anyhow::Result<()> {
         .with_max_level(Level::TRACE)
         .init();
 
-    startup()?;
-
     let param = std::env::args().nth(1).unwrap();
 
     if param == "--nuke" {
-        trace!("nuking remote wormhole data;");
+        match fs::remove_dir_all(UPPERDIR) {
+            Ok(_) => trace!("nuked remote data"),
+            Err(e) => return Err(anyhow::anyhow!("error nuking data {:?}", e)),
+        }
         return Ok(());
     }
 
     let mut config = serde_json::from_str::<WormholeConfig>(&param)?;
+
+    startup()?;
 
     // see `doWormhole` in scon/ssh.go (~L300)
     let wormhole_mount = open_tree(
