@@ -373,8 +373,9 @@ pub fn run(
         ForkResult::Parent { child: _ } => {
             if pty.is_some() {
                 setsid()?;
-                unsafe {
-                    ioctl(stdin_pipe.0, TIOCSCTTY, 1);
+                let res = unsafe { ioctl(stdin_pipe.0, TIOCSCTTY, 1) };
+                if res != 0 {
+                    return Err(anyhow!("could not set controlling TTY"));
                 }
             }
             // read from stdin and write to stdout/stderr
