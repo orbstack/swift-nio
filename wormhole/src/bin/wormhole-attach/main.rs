@@ -470,15 +470,15 @@ fn main() -> anyhow::Result<()> {
     set_cloexec(log_fd.as_raw_fd())?;
     set_cloexec(wormhole_mount_fd.as_raw_fd())?;
 
-    let (exit_code_writer, exit_code_reader) = if !config.is_local {
+    let (exit_code_writer, exit_code_reader) = if config.is_local {
+        let file = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
+        (Box::new(file) as Box<dyn Write>, None)
+    } else {
         // for remote wormhole, set up a local pipe to send exit codes from subreaper process to rpc server process
         let (r, w) = pipe()?;
         let write = unsafe { File::from_raw_fd(w) };
         let read = unsafe { File::from_raw_fd(r) };
         (Box::new(write) as Box<dyn Write>, Some(read))
-    } else {
-        let file = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
-        (Box::new(file) as Box<dyn Write>, None)
     };
 
     // set sigpipe

@@ -205,8 +205,7 @@ fn main() -> anyhow::Result<()> {
         "/mnt/wormhole-unified/nix",
         libc::OPEN_TREE_CLOEXEC as i32 | libc::OPEN_TREE_CLONE as i32 | libc::AT_RECURSIVE,
     )?;
-    let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe()?;
-    let (log_pipe_read_fd, log_pipe_write_fd) = pipe()?;
+    let (_, log_pipe_write_fd) = pipe()?;
     let wormhole_mount_fd = wormhole_mount.as_raw_fd();
 
     // disable cloexec for fd that we pass to wormhole-attach
@@ -217,21 +216,15 @@ fn main() -> anyhow::Result<()> {
         ),
     )?;
     fcntl(
-        exit_code_pipe_write_fd,
-        FcntlArg::F_SETFD(
-            FdFlag::from_bits_truncate(fcntl(wormhole_mount_fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC,
-        ),
-    )?;
-    fcntl(
         log_pipe_write_fd,
         FcntlArg::F_SETFD(
-            FdFlag::from_bits_truncate(fcntl(wormhole_mount_fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC,
+            FdFlag::from_bits_truncate(fcntl(log_pipe_write_fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC,
         ),
     )?;
 
     config.wormhole_mount_tree_fd = wormhole_mount_fd.as_raw_fd();
-    config.exit_code_pipe_write_fd = exit_code_pipe_write_fd;
     config.log_fd = log_pipe_write_fd;
+    config.exit_code_pipe_write_fd = -1;
 
     let serialized = serde_json::to_string(&config)?;
     trace!("wormhole config: {}", serialized);
