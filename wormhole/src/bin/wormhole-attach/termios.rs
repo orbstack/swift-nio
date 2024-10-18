@@ -1,3 +1,5 @@
+use std::os::fd::AsRawFd;
+
 use anyhow::anyhow;
 use nix::{
     pty::{openpty, OpenptyResult, Winsize},
@@ -6,6 +8,7 @@ use nix::{
         LocalFlags, OutputFlags, SetArg, Termios,
     },
 };
+use wormhole::set_cloexec;
 
 pub fn create_pty(w: u16, h: u16, termios_config: Vec<u8>) -> anyhow::Result<OpenptyResult> {
     let pty = openpty(
@@ -17,6 +20,8 @@ pub fn create_pty(w: u16, h: u16, termios_config: Vec<u8>) -> anyhow::Result<Ope
         }),
         None,
     )?;
+
+    set_cloexec(pty.master.as_raw_fd())?;
 
     // read and set termios
     let mut termios = tcgetattr(&pty.slave)?;

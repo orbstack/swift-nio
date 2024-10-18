@@ -77,7 +77,7 @@ use wormhole::{
     err,
     flock::{Flock, FlockMode, FlockWait},
     newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY},
-    paths,
+    paths, set_cloexec,
 };
 
 mod drm;
@@ -394,13 +394,6 @@ fn parse_config() -> anyhow::Result<WormholeConfig> {
     let config_str = std::env::args().nth(1).unwrap();
     let config = serde_json::from_str(&config_str)?;
     Ok(config)
-}
-
-fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
-    fcntl(
-        fd,
-        FcntlArg::F_SETFD(FdFlag::from_bits_retain(fcntl(fd, F_GETFD)?) | FdFlag::FD_CLOEXEC),
-    )
 }
 
 fn wait_for_rpc_client() -> anyhow::Result<(File, File)> {

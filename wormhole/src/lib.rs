@@ -1,4 +1,14 @@
-use nix::errno::Errno;
+use std::os::fd::RawFd;
+
+use libc::c_int;
+use nix::{
+    errno::Errno,
+    fcntl::{
+        fcntl,
+        FcntlArg::{self, F_GETFD},
+        FdFlag,
+    },
+};
 
 pub mod asyncfile;
 pub mod flock;
@@ -42,4 +52,11 @@ impl IsMinusOne for isize {
     fn is_minus_one(&self) -> bool {
         *self == -1
     }
+}
+
+pub fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
+    fcntl(
+        fd,
+        FcntlArg::F_SETFD(FdFlag::from_bits_retain(fcntl(fd, F_GETFD)?) | FdFlag::FD_CLOEXEC),
+    )
 }
