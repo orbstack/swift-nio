@@ -1,12 +1,9 @@
 use anyhow::anyhow;
 use nix::{
     pty::{openpty, OpenptyResult, Winsize},
-    sys::{
-        socket::{recv, MsgFlags},
-        termios::{
-            self, cfsetispeed, cfsetospeed, tcgetattr, tcsetattr, BaudRate, ControlFlags,
-            InputFlags, LocalFlags, OutputFlags, SetArg, Termios,
-        },
+    sys::termios::{
+        cfsetispeed, cfsetospeed, tcgetattr, tcsetattr, BaudRate, ControlFlags, InputFlags,
+        LocalFlags, OutputFlags, SetArg, Termios,
     },
 };
 

@@ -76,8 +76,8 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
     flock::{Flock, FlockMode, FlockWait},
-    newmount::{mount_setattr, move_mount, open_tree, MountAttr, MOUNT_ATTR_RDONLY},
-    paths, TermiosParams,
+    newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY},
+    paths,
 };
 
 mod drm;

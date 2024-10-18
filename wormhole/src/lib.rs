@@ -1,6 +1,4 @@
 use nix::errno::Errno;
-use nix::libc::{cc_t, tcflag_t, NCCS};
-use serde::{Deserialize, Serialize};
 
 pub mod asyncfile;
 pub mod flock;
@@ -44,13 +42,4 @@ impl IsMinusOne for isize {
     fn is_minus_one(&self) -> bool {
         *self == -1
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TermiosParams {
-    pub input_flags: tcflag_t,
-    pub output_flags: tcflag_t,
-    pub control_flags: tcflag_t,
-    pub local_flags: tcflag_t,
-    pub control_chars: [cc_t; NCCS],
 }
