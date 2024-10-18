@@ -27,7 +27,6 @@ pub fn create_pty(w: u16, h: u16, termios_config: Vec<u8>) -> anyhow::Result<Ope
 }
 
 pub fn set_termios(termios: &mut Termios, buf: &[u8]) -> anyhow::Result<()> {
-    //   there are a couple of control chars that don't exist.. maybe just arch?
     let control_chars = [
         libc::VINTR,
         libc::VQUIT,
@@ -100,15 +99,11 @@ pub fn set_termios(termios: &mut Termios, buf: &[u8]) -> anyhow::Result<()> {
 
     let mut idx = 0;
 
-    // trace!("reading control chars");
     for cc in control_chars {
         let val = read_u8(buf, &mut idx)?;
         termios.control_chars[cc] = val;
     }
 
-    // trace!("intr {:?}", termios.control_chars);
-
-    // trace!("reading input flags");
     for flag in input_flags {
         let val = read_u8(buf, &mut idx)?;
         assert!(val == 0 || val == 1);
