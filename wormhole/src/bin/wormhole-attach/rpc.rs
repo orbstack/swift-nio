@@ -15,7 +15,7 @@ use std::{
     collections::HashMap,
     ffi::CString,
     fs::File,
-    io::{self, Read, Write},
+    io::{self, stderr, stdout, Read, Write},
     os::{
         fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
         unix::net::UnixStream,

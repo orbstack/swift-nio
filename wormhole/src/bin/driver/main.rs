@@ -155,11 +155,6 @@ fn startup() -> anyhow::Result<()> {
         .create(true)
         .write(true)
         .append(true)
-        .open(REFCOUNT_LOCK)?;
-    OpenOptions::new()
-        .create(true)
-        .write(true)
-        .append(true)
         .open(REFCOUNT_FILE)?;
     let _flock = Flock::new_ofd(
         File::create(REFCOUNT_LOCK)?,
