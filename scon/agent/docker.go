@@ -503,7 +503,7 @@ func (d *DockerAgent) monitorEvents() error {
 		switch event.Type {
 		case "container":
 			switch event.Action {
-			case "create", "start", "die", "destroy":
+			case "create", "start", "die", "destroy", "rename":
 				d.triggerUIEvent(uitypes.DockerEntityContainer)
 				d.containerRefreshDebounce.Call()
 				// also need to trigger networks refresh, because networks depends on active containers
