@@ -4,15 +4,21 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/appapi"
+	"github.com/orbstack/macvirt/scon/cmd/scli/osutil"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
+	"github.com/orbstack/macvirt/vmgr/conf/mem"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/sirupsen/logrus"
@@ -211,32 +217,73 @@ func (r *ReportPackage) Upload() (string, error) {
 	return resp.DownloadURL, nil
 }
 
-func BuildAndUpload(infoTxt []byte) (string, error) {
+func FromZip(path string) (*ReportPackage, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read report: %w", err)
+	}
+
+	return &ReportPackage{
+		Name: filepath.Base(path),
+		Data: data,
+	}, nil
+}
+
+func Build(infoTxt []byte) (string, *ReportPackage, error) {
 	pkg, err := BuildZip(infoTxt)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	// clear saved dir
 	err = os.RemoveAll(conf.DiagDir())
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	// save to disk
 	err = os.MkdirAll(conf.DiagDir(), 0755)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	err = os.WriteFile(conf.DiagDir()+"/"+pkg.Name, pkg.Data, 0644)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	downloadURL, err := pkg.Upload()
+	return conf.DiagDir() + "/" + pkg.Name, pkg, nil
+}
+
+func GenerateInfo(w io.Writer) error {
+	fmt.Fprintln(w, "OrbStack info:")
+	ver := appver.Get()
+	fmt.Fprintf(w, "  Version: %s\n", ver.Short)
+	fmt.Fprintf(w, "  Commit: %s (%s)\n", ver.GitCommit, ver.GitDescribe)
+	fmt.Fprintln(w, "")
+
+	fmt.Fprintln(w, "System info:")
+	osVerCode, err := osutil.OsVersionCode()
 	if err != nil {
-		return "", err
+		return err
 	}
+	osProductVer, err := osutil.OsProductVersion()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "  macOS: %s (%s)\n", osProductVer, osVerCode)
+	fmt.Fprintf(w, "  CPU: %s, %d cores\n", runtime.GOARCH, runtime.NumCPU())
+	cpuModel, err := osutil.CpuModel()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "  CPU model: %s\n", cpuModel)
+	machineModel, err := osutil.MachineModel()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "  Model: %s\n", machineModel)
+	fmt.Fprintf(w, "  Memory: %d GiB\n", mem.PhysicalMemory()/1024/1024/1024)
+	fmt.Fprintln(w, "")
 
-	return downloadURL, nil
+	return nil
 }

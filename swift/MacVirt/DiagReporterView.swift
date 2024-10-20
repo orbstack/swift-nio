@@ -6,9 +6,16 @@ import Combine
 import Foundation
 import SwiftUI
 
+private struct GeneratedDiagReport: Decodable {
+    let zipPath: String
+    let info: String
+}
+
 private enum DiagReporterState {
     case loading
     case error(String)
+    case confirmation(GeneratedDiagReport)
+    case uploading
     case done
 }
 
@@ -38,6 +45,82 @@ struct DiagReporterView: View {
                         .foregroundColor(.red)
                     Text(message)
                 }
+            case let .confirmation(report):
+                VStack(spacing: 16) {
+                    Image(systemName: "questionmark.circle.fill")
+                        .resizable()
+                        .frame(width: 32, height: 32)
+
+                    Text(
+                        "A diagnostic report has been generated. You can review its contents before uploading it to our servers for review."
+                    )
+                    .multilineTextAlignment(.center)
+                    .padding()
+
+                    HStack {
+                        Button(action: {
+                            Task {
+                                do {
+                                    try await runProcessChecked(
+                                        "/usr/bin/open",
+                                        ["-b", "com.apple.archiveutility", report.zipPath])
+                                } catch let processError as ProcessError {
+                                    diagModel.state = .error(
+                                        "(status \(processError.status)) \(processError.output)")
+                                } catch {
+                                    diagModel.state = .error(error.localizedDescription)
+                                }
+                            }
+                        }) {
+                            Text("Review")
+                        }
+
+                        Button(action: {
+                            diagModel.state = .uploading
+
+                            Task {
+                                do {
+                                    let output =
+                                        (try await runProcessChecked(
+                                            AppConfig.ctlExe,
+                                            ["_internal", "upload-diag-report", report.zipPath]))
+                                        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                                    let reportSummary = report.info + "Full report: \(output)"
+
+                                    if isBugReport {
+                                        var urlComps = URLComponents(
+                                            string: "https://orbstack.dev/issues/bug")!
+                                        urlComps.queryItems = [
+                                            URLQueryItem(name: "diag", value: reportSummary)
+                                        ]
+                                        NSWorkspace.shared.open(urlComps.url!)
+                                        windowHolder.window?.close()
+                                    } else {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(
+                                            reportSummary,
+                                            forType: NSPasteboard.PasteboardType.string)
+                                        diagModel.state = .done
+                                    }
+                                } catch let processError as ProcessError {
+                                    diagModel.state = .error(
+                                        "(status \(processError.status)) \(processError.output)")
+                                } catch {
+                                    diagModel.state = .error(error.localizedDescription)
+                                }
+                            }
+                        }) {
+                            Text("Upload")
+                        }
+                    }
+
+                }
+            case .uploading:
+                VStack(spacing: 16) {
+                    ProgressView()
+                    Text("Uploading report…")
+                }
             case .done:
                 VStack(spacing: 16) {
                     Image(systemName: "checkmark.circle.fill")
@@ -57,20 +140,17 @@ struct DiagReporterView: View {
         .frame(width: 300, height: 300)
         .task {
             do {
-                // quiet mode: don't copy to clipboard or print extra stuff
                 let output = try await runProcessChecked(
-                    AppConfig.ctlExe, isBugReport ? ["report", "-q"] : ["report"])
-                if isBugReport {
-                    // open bug report and close immediately
-                    var urlComps = URLComponents(string: "https://orbstack.dev/issues/bug")!
-                    urlComps.queryItems = [URLQueryItem(name: "diag", value: output)]
-                    NSWorkspace.shared.open(urlComps.url!)
+                    AppConfig.ctlExe, ["_internal", "generate-diag-report"])
 
-                    windowHolder.window?.close()
-                } else {
-                    // show success and close later
-                    diagModel.state = .done
-                }
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                let generated = try decoder.decode(
+                    GeneratedDiagReport.self,
+                    from: output.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8)!
+                )
+
+                diagModel.state = .confirmation(generated)
             } catch let processError as ProcessError {
                 diagModel.state = .error("(status \(processError.status)) \(processError.output)")
             } catch {
