@@ -261,9 +261,15 @@ impl Balloon {
 
         // simplify and merge ranges
         let before = MachAbsoluteTime::now();
-        let mut prdescs = prdescs.into_iter().map(|v| v.read()).collect::<Box<[_]>>();
 
-        for_each_merge_range(&mut prdescs, req.guest_page_size as u64, |range| {
+        let prdescs = unsafe {
+            // FIXME: This is really unsafe. If the guest modifies this slice while we're sorting it,
+            // we'll get instant UB. To fix this, though, we'll need to hand-roll a sorting routine
+            // that works on guest memory and that seems quite tricky to optimize.
+            &mut *prdescs.as_ptr()
+        };
+
+        for_each_merge_range(prdescs, req.guest_page_size as u64, |range| {
             // bounds check
             let guest_addr = GuestAddress(range.0);
             let size = (range.1 - range.0) as usize;
