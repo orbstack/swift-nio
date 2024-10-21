@@ -275,7 +275,7 @@ impl Balloon {
                         hvf::memory::free_range(
                             &self.hvf_vm,
                             guest_addr,
-                            host_addr.as_ptr().as_ptr().cast(),
+                            host_addr.as_ptr().cast(),
                             size,
                         )?
                     };

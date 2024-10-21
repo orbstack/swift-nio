@@ -229,7 +229,7 @@ impl Vm {
             unsafe {
                 self.hvf_vm
                     .map_memory(
-                        guest_slice.as_ptr().cast::<u8>().as_ptr(),
+                        guest_slice.as_ptr().cast::<u8>(),
                         base,
                         len,
                         MemoryFlags::RWX,

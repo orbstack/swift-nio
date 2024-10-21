@@ -237,7 +237,7 @@ pub struct GuestMemory(Arc<GuestMemoryInner>);
 impl fmt::Debug for GuestMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("GuestMemory")
-            .field(&self.as_ptr())
+            .field(&self.as_non_null())
             .field(&self.0.provider)
             .finish()
     }
@@ -281,8 +281,12 @@ impl GuestMemory {
         }))
     }
 
-    pub fn as_ptr(&self) -> NonNull<[u8]> {
+    pub fn as_non_null(&self) -> NonNull<[u8]> {
         self.0.reserved
+    }
+
+    pub fn as_ptr(&self) -> *mut [u8] {
+        self.as_non_null().as_ptr()
     }
 
     pub fn provider(&self) -> &Arc<dyn GuestMemoryProvider> {
@@ -306,7 +310,7 @@ impl GuestMemory {
     }
 
     pub fn as_slice(&self) -> GuestSlice<'_, u8> {
-        unsafe { GuestSlice::new_unchecked(self.as_ptr()) }
+        unsafe { GuestSlice::new_unchecked(self.as_non_null()) }
     }
 
     pub fn byte_range(
@@ -349,7 +353,12 @@ impl GuestMemory {
 
         if addr <= max_addr {
             Ok(unsafe {
-                GuestRef::new_unchecked(self.as_ptr().cast::<u8>().add(addr.usize()).cast::<T>())
+                GuestRef::new_unchecked(
+                    self.as_non_null()
+                        .cast::<u8>()
+                        .add(addr.usize())
+                        .cast::<T>(),
+                )
             })
         } else {
             Err(InvalidGuestAddress)
@@ -361,8 +370,8 @@ impl GuestMemory {
             return true;
         }
 
-        let reserved_base = self.as_ptr().as_ptr().cast::<u8>() as usize;
-        let ptr_base = ptr.as_ptr().as_ptr() as usize;
+        let reserved_base = self.as_non_null().as_ptr().cast::<u8>() as usize;
+        let ptr_base = ptr.as_non_null().as_ptr() as usize;
 
         (reserved_base..(reserved_base + self.len())).contains(&ptr_base)
     }
@@ -372,8 +381,8 @@ impl GuestMemory {
             return true;
         }
 
-        let reserved_base = self.as_ptr().as_ptr().cast::<u8>() as usize;
-        let ptr_base = slice.as_ptr().as_ptr().cast::<u8>() as usize;
+        let reserved_base = self.as_non_null().as_ptr().cast::<u8>() as usize;
+        let ptr_base = slice.as_non_null().as_ptr().cast::<u8>() as usize;
         (reserved_base..(reserved_base + self.len())).contains(&ptr_base)
     }
 
@@ -401,8 +410,8 @@ impl GuestMemory {
 
         assert!(NotZst::<T>::IS_NOT_ZST);
 
-        let reserved_base = self.as_ptr().as_ptr().cast::<u8>() as usize;
-        let ptr_base = ptr.as_ptr().as_ptr() as usize;
+        let reserved_base = self.as_non_null().as_ptr().cast::<u8>() as usize;
+        let ptr_base = ptr.as_non_null().as_ptr() as usize;
 
         GuestAddress::from_usize(ptr_base - reserved_base)
     }
@@ -511,12 +520,16 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
         }
     }
 
-    pub fn as_ptr(self) -> NonNull<[T]> {
+    pub fn as_non_null(self) -> NonNull<[T]> {
         self.ptr
     }
 
+    pub fn as_ptr(self) -> *mut [T] {
+        self.as_non_null().as_ptr()
+    }
+
     pub unsafe fn erase_lifetime(self) -> GuestSlice<'static, T> {
-        GuestSlice::new_unchecked(self.as_ptr())
+        GuestSlice::new_unchecked(self.as_non_null())
     }
 
     pub fn as_owned(self, memory: GuestMemory) -> OwnedGuestSlice<T> {
@@ -544,7 +557,7 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
 
         unsafe {
             GuestSlice::new_unchecked(NonNull::slice_from_raw_parts(
-                self.as_ptr().cast::<V>(),
+                self.as_non_null().cast::<V>(),
                 len,
             ))
         }
@@ -560,7 +573,7 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
 
         Some(unsafe {
             GuestSlice::new_unchecked(NonNull::slice_from_raw_parts(
-                self.as_ptr().cast::<V>(),
+                self.as_non_null().cast::<V>(),
                 len,
             ))
         })
@@ -577,21 +590,21 @@ impl<'a, T: bytemuck::Pod> GuestSlice<'a, T> {
     #[track_caller]
     pub fn copy_from_slice(self, slice: &[T]) {
         wrap_volatile_operation(|| unsafe {
-            self.as_ptr().as_mut().copy_from_slice(slice);
+            self.as_non_null().as_mut().copy_from_slice(slice);
         })
     }
 
     #[track_caller]
     pub fn copy_to_slice(self, slice: &mut [T]) {
         wrap_volatile_operation(|| unsafe {
-            slice.copy_from_slice(self.as_ptr().as_ref());
+            slice.copy_from_slice(self.as_non_null().as_ref());
         })
     }
 
     #[track_caller]
     pub fn fill(self, value: T) {
         wrap_volatile_operation(|| unsafe {
-            self.as_ptr().as_mut().fill(value);
+            self.as_non_null().as_mut().fill(value);
         })
     }
 
@@ -664,7 +677,7 @@ impl<'a, T: bytemuck::Pod> Iterator for GuestSliceIter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         (self.cursor != self.end).then(|| {
             let curr = self.cursor;
-            self.cursor = unsafe { GuestRef::new_unchecked(self.cursor.as_ptr().add(1)) };
+            self.cursor = unsafe { GuestRef::new_unchecked(self.cursor.as_non_null().add(1)) };
 
             curr
         })
@@ -842,7 +855,7 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for Range<usize> {
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
         let new_len = self.end.unchecked_sub(self.start);
         GuestSlice::new_unchecked(NonNull::slice_from_raw_parts(
-            target.as_ptr().cast::<T>().add(self.start),
+            target.as_non_null().cast::<T>().add(self.start),
             new_len,
         ))
     }
@@ -999,7 +1012,7 @@ impl<'a, T: bytemuck::Pod> GuestSliceIndex<GuestSlice<'a, T>> for RangeSized {
     #[track_caller]
     unsafe fn get_unchecked(self, target: &GuestSlice<'a, T>) -> Self::Output {
         GuestSlice::new_unchecked(NonNull::slice_from_raw_parts(
-            target.as_ptr().cast::<T>().add(self.base),
+            target.as_non_null().cast::<T>().add(self.base),
             self.len,
         ))
     }
@@ -1039,12 +1052,16 @@ impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
         }
     }
 
-    pub fn as_ptr(self) -> NonNull<T> {
+    pub fn as_non_null(self) -> NonNull<T> {
         self.ptr
     }
 
+    pub fn as_ptr(self) -> *mut T {
+        self.as_non_null().as_ptr()
+    }
+
     pub unsafe fn erase_lifetime(self) -> GuestRef<'static, T> {
-        GuestRef::new_unchecked(self.as_ptr())
+        GuestRef::new_unchecked(self.as_non_null())
     }
 
     pub fn as_owned(self, memory: GuestMemory) -> OwnedGuestRef<T> {
@@ -1052,7 +1069,7 @@ impl<'a, T: bytemuck::Pod> GuestRef<'a, T> {
     }
 
     pub fn as_mono_slice(self) -> GuestSlice<'a, T> {
-        unsafe { GuestSlice::new_unchecked(NonNull::slice_from_raw_parts(self.as_ptr(), 1)) }
+        unsafe { GuestSlice::new_unchecked(NonNull::slice_from_raw_parts(self.as_non_null(), 1)) }
     }
 
     pub fn write(self, value: T) {
@@ -1214,7 +1231,7 @@ impl<T: bytemuck::Pod> WriteFromGuest<T> for Vec<T> {
     type Result = ();
 
     fn write_from_guest(&mut self, src: GuestSlice<T>) {
-        wrap_volatile_operation(|| unsafe { self.extend_from_slice(src.as_ptr().as_ref()) })
+        wrap_volatile_operation(|| unsafe { self.extend_from_slice(src.as_non_null().as_ref()) })
     }
 }
 
@@ -1226,7 +1243,7 @@ impl<F: AsRawFd> WriteFromGuest<u8> for WritePartialFd<F> {
     fn write_from_guest(&mut self, src: GuestSlice<u8>) -> Self::Result {
         let fd = self.0.as_raw_fd();
 
-        let start = src.as_ptr().as_ptr().cast::<libc::c_void>();
+        let start = src.as_non_null().as_ptr().cast::<libc::c_void>();
 
         let bytes_written = unsafe { libc::write(fd, start, src.len()) };
 

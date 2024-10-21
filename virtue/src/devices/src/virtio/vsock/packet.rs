@@ -192,11 +192,7 @@ fn get_host_address(
     guest_addr: GuestAddress,
     size: usize,
 ) -> result::Result<*mut u8, InvalidGuestAddress> {
-    Ok(mem
-        .range_sized::<u8>(guest_addr, size)?
-        .as_ptr()
-        .as_ptr()
-        .cast())
+    Ok(mem.range_sized::<u8>(guest_addr, size)?.as_ptr().cast())
 }
 
 impl VsockPacket {

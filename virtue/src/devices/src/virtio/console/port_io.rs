@@ -70,7 +70,7 @@ impl PortInput for PortInputFd {
         // the original code would does not handle handle EWOULDBLOCK
 
         let fd = self.as_raw_fd();
-        let dst = buf.as_ptr().cast::<libc::c_void>().as_ptr();
+        let dst = buf.as_ptr().cast::<libc::c_void>();
 
         // SAFETY: We got a valid file descriptor from `AsRawFd`. The memory pointed to by `dst` is
         // valid for writes of length `buf.len() by the invariants upheld by the constructor

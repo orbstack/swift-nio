@@ -111,7 +111,7 @@ impl<'a> From<GuestSlice<'a, u8>> for Iovec<'a> {
     fn from(slice: GuestSlice<'a, u8>) -> Self {
         Iovec {
             iov: libc::iovec {
-                iov_base: slice.as_ptr().as_ptr().cast(),
+                iov_base: slice.as_ptr().cast(),
                 iov_len: slice.len(),
             },
             _phantom: PhantomData,
