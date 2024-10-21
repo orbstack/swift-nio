@@ -25,6 +25,7 @@ pub fn prctl_death_sig() -> anyhow::Result<()> {
 
 pub enum ExitResult {
     Code(i32),
+    #[allow(dead_code)]
     Signal(Signal),
 }
 

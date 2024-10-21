@@ -416,7 +416,9 @@ fn main() -> anyhow::Result<()> {
         + 1;
 
     // prevent tracing
+    // also helps with CVE-2019-5736: affects /proc/pid/exe permissions
     prctl::set_dumpable(false)?;
+
     // prevent write-execute maps
     unsafe {
         libc::prctl(
