@@ -40,7 +40,7 @@ fail:
 }
 
 void _orb_rcu_destroy(rcu_t* rcu) {
-    MACH_CHECK_WARN(semaphore_destroy(rcu->sema, current_task()));
+    MACH_CHECK_FATAL(semaphore_destroy(rcu->sema, current_task()));
     free(rcu);
 }
 

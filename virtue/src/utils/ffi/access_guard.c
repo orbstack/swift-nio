@@ -6,8 +6,8 @@
 #include <Mach/Mach.h>
 
 #include <orb_sigstack.h>
+#include "utils/aprintf.h"
 #include "utils/debug.h"
-#include "utils/format.h"
 #include "utils/rcu.h"
 
 // === State Definitions === //
@@ -72,12 +72,17 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
     global_state_t *global_state = state_global();
     local_state_t *local_state = state_tls();
 
+    // Acquire a reader lock on the RCU. This will be held for the duration of the signal handler
+    // because the error logging at the end may need the `abort_msg` allocated by the header.
+    //
+    // This RCU is unlocked in `end`. Do not early return!
+    signal_verdict_t result;
+    rcu_side_t side = rcu_begin_read(global_state->rcu);
+
     // First, let's ensure that the faulting address is protected.
     guarded_region_t *region;
     size_t fault_addr = (size_t) info->si_addr;
     {
-        rcu_side_t side = rcu_begin_read(global_state->rcu);
-
         // This load is paired with a `release` write in `register_guarded_region`. We need this
         // ordering to ensure that the writes to the concurrently chained descriptor in
         // `register_guarded_region` is fully initialized before we traverse to it.
@@ -94,10 +99,9 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
         }
 
         // The address is not protected!
-        return SIGNAL_VERDICT_CONTINUE;
-
-    addr_in_range:
-        rcu_end_read(global_state->rcu, side);
+        result = SIGNAL_VERDICT_CONTINUE;
+        goto end;
+addr_in_range:;
     }
 
     // Now, let's see if anyone has declared interest in recovering from this error.
@@ -106,7 +110,7 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
         goto abort;
     }
 
-    // Time to patch `ucontext`!
+    // Let's try to patch `ucontext`!
     //
     // Rust does not seem to like pointers to `ucontext_t` because it thinks they contain `u128`s
     // which have super iffy ABIs so we just keep it as a `void*` and downcast it here.
@@ -136,15 +140,15 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
         local_state->first_fault = fault;
     }
 
-    return SIGNAL_VERDICT_HANDLED;
+    result = SIGNAL_VERDICT_HANDLED;
+    goto end;
 
 abort:
-    APRINTF(
-        aprintf_writer_stderr(),
-        "detected invalid memory operation in protected region at relative address 0x% (region starts at 0x%): %\n",
-        aprintf_fmt_hex_upper(fault_addr - region->base, false),
-        aprintf_fmt_hex_upper(region->base, false),
-        aprintf_fmt_str(region->abort_msg)
+    aprintf(
+        "detected invalid memory operation in protected region at relative address 0x%zu (region starts at 0x%zu): %s\n",
+        fault_addr - region->base,
+        region->base,
+        region->abort_msg
     );
 
     // Let the default SIGBUS handler dump the process. We intentionally skip over Go's default handler.
@@ -152,7 +156,11 @@ abort:
     // Go's default handlers seem to just dump the state of all its goroutines under the presumption
     // that this could help debug an issue triggered by unsafe cgo usage but, in this case, the bug
     // is purely `libkrun`'s fault so let's not spam the logs with unnecessary details.
-    return SIGNAL_VERDICT_FORCE_DEFAULT;
+    result = SIGNAL_VERDICT_FORCE_DEFAULT;
+    // (fallthrough)
+end:
+    rcu_end_read(global_state->rcu, side);
+    return result;
 }
 
 // === Public API === //
