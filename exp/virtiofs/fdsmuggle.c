@@ -6,6 +6,8 @@
 #include <errno.h>
 #include <pthread.h>
 #include <mach/mach.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 typedef __darwin_mach_port_t fileport_t;
 int     fileport_makeport(int, fileport_t *);
@@ -46,18 +48,42 @@ int main(int argc, char **argv) {
     // smugglee_fd is the fd to smuggle
     int smugglee_fd = pfd[1];
 
-    mach_port_t smugglee_port;
-    ret = fileport_makeport(smugglee_fd, &smugglee_port);
+    int sfds[2];
+    ret = socketpair(AF_UNIX, SOCK_STREAM, 0, sfds);
     if (ret == -1) {
-        perror("fileport_makeport");
+        perror("socketpair");
+        return 1;
+    }
+
+    // SCM_RIGHTS cmsg
+    struct {
+        struct cmsghdr cmsg;
+        int fd;
+    } cmsg_data;
+    cmsg_data.cmsg.cmsg_level = SOL_SOCKET;
+    cmsg_data.cmsg.cmsg_type = SCM_RIGHTS;
+    cmsg_data.cmsg.cmsg_len = CMSG_LEN(sizeof(int) * 1);
+    cmsg_data.fd = smugglee_fd;
+
+    struct iovec iov = { .iov_base = "", .iov_len = 0 };
+    struct msghdr msg = { 0 };
+    msg.msg_control = &cmsg_data;
+    msg.msg_controllen = sizeof(cmsg_data);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    ret = sendmsg(sfds[0], &msg, 0);
+    if (ret == -1) {
+        perror("sendmsg");
         return 1;
     }
     close(smugglee_fd);
+    close(sfds[0]);
 
     sleep(1);
     printf("closing holder\n");
 
-    mach_port_deallocate(mach_task_self(), smugglee_port);
+    close(sfds[1]);
 
     sleep(1);
     printf("exiting\n");
