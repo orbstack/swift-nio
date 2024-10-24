@@ -118,7 +118,8 @@ impl Machine {
         .map_err(to_anyhow_error)?;
 
         // kernel
-        let kernel_data = std::fs::read(&spec.kernel).map_err(|e| anyhow!("read kernel: {}", e))?;
+        let kernel_data = std::fs::read(&spec.kernel)
+            .map_err(|e| anyhow!("read kernel '{}': {}", spec.kernel, e))?;
         #[cfg(target_arch = "aarch64")]
         {
             vmr.set_kernel_bundle(KernelBundle {
