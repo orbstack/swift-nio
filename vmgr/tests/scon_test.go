@@ -4,14 +4,12 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"runtime"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -52,10 +50,6 @@ func init() {
 	// don't try to spawn daemon
 	scli.Conf().ControlVM = false
 }
-
-var testPrefix = sync.OnceValue(func() string {
-	return fmt.Sprintf("itest-%d", rand.Uint64())
-})
 
 func checkT(t *testing.T, err error) {
 	t.Helper()
@@ -109,7 +103,7 @@ func forEachDistroArchVer(t *testing.T, f func(t *testing.T, distro, ver, arch, 
 						t.Run(arch, func(t *testing.T) {
 							t.Parallel()
 
-							machineName := fmt.Sprintf("%s-%s-%s-%s", testPrefix(), distro, strings.Replace(ver, ".", "d", -1), arch)
+							machineName := name(fmt.Sprintf("%s-%s-%s", distro, strings.Replace(ver, ".", "d", -1), arch))
 							f(t, distro, ver, arch, machineName)
 						})
 					}

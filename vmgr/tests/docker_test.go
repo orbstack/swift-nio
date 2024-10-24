@@ -330,7 +330,7 @@ func TestDockerCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = util.Run(cwd + "/docker.sh")
+	_, err = util.Run(cwd+"/docker.sh", testPrefix())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,12 +341,13 @@ func TestDockerDindPrivileged(t *testing.T) {
 	t.Parallel()
 
 	// start dind
-	_, err := util.Run("docker", "run", "--privileged", "--rm", "-d", "--name", "otest-dind", "docker:dind")
+	n := name("dind")
+	_, err := util.Run("docker", "run", "--privileged", "--rm", "-d", "--name", n, "docker:dind")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanup(t, func() error {
-		_, err := util.Run("docker", "rm", "-f", "otest-dind")
+		_, err := util.Run("docker", "rm", "-f", n)
 		return err
 	})
 
@@ -354,7 +355,7 @@ func TestDockerDindPrivileged(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	// attempt to run a privileged container
-	out, err := util.Run("docker", "exec", "otest-dind", "docker", "run", "--privileged", "--rm", "alpine", "uname")
+	out, err := util.Run("docker", "exec", n, "docker", "run", "--privileged", "--rm", "alpine", "uname")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,12 +370,13 @@ func TestDockerPortForward(t *testing.T) {
 	t.Parallel()
 
 	// start nginx
-	_, err := util.Run("docker", "run", "--rm", "-d", "--name", "otest-nginx", "-p", "8934:80", "nginx")
+	n := name("nginx")
+	_, err := util.Run("docker", "run", "--rm", "-d", "--name", n, "-p", "8934:80", "nginx")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanup(t, func() error {
-		_, err := util.Run("docker", "rm", "-f", "otest-nginx")
+		_, err := util.Run("docker", "rm", "-f", n)
 		return err
 	})
 

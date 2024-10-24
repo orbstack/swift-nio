@@ -7,35 +7,35 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 docker run -i --rm alpine ls
-docker run --name itest-alpine-ls --rm alpine ls
-docker run --name itest-alpine-ls alpine ls
-docker rm -f itest-alpine-ls
+docker run --name "$1"alpine-ls --rm alpine ls
+docker run --name "$1"alpine-ls  alpine ls
+docker rm -f "$1"alpine-ls 
 docker ps
 docker ps -a
-docker run -d --name testa alpine sleep 1000
+docker run -d --name "$1"testa alpine sleep 1000
 docker ps
 docker ps -a
-docker stop testa
+docker stop "$1"testa
 docker ps
 docker ps -a
-docker exec -i testa ls && exit 1 || :
-docker start testa
-docker exec -i testa ls
-docker exec testa ls
+docker exec -i "$1"testa ls && exit 1 || :
+docker start "$1"testa
+docker exec -i "$1"testa ls
+docker exec "$1"testa ls
 docker ps
 docker ps -a
-docker cp testa:/etc/hostname $TMP/
-docker cp $TMP/hostname testa:/tmp/
-docker exec testa cat /tmp/hostname
+docker cp "$1"testa:/etc/hostname $TMP/
+docker cp $TMP/hostname "$1"testa:/tmp/
+docker exec "$1"testa cat /tmp/hostname
 
-docker commit testa testb
+docker commit "$1"testa "$1"testb
 docker images
-docker run --rm testb cat /tmp/hostname
-docker export testa > $TMP/testb.tar
-docker import $TMP/testb.tar testc
+docker run --rm "$1"testb cat /tmp/hostname
+docker export "$1"testa > $TMP/testb.tar
+docker import $TMP/testb.tar "$1"testc
 docker images
-docker run --rm testc cat /tmp/hostname
-docker rm -f testa
+docker run --rm "$1"testc cat /tmp/hostname
+docker rm -f "$1"testa
 
 docker version
 docker info
@@ -44,34 +44,34 @@ docker images
 docker pull ubuntu
 docker search ubuntu
 docker ps
-docker run -d --name test nginx
-docker exec test ls -l /usr/share/nginx/html
-docker cp test:/usr/share/nginx/html/index.html $TMP/
-docker cp $TMP/index.html test:/usr/share/nginx/html/index.html-1
-docker inspect test
+docker run -d --name "$1"testd nginx
+docker exec "$1"testd ls -l /usr/share/nginx/html
+docker cp "$1"testd:/usr/share/nginx/html/index.html $TMP/
+docker cp $TMP/index.html "$1"testd:/usr/share/nginx/html/index.html-1
+docker inspect "$1"testd
 docker network list
 #docker events
 docker history nginx
-docker logs test
-docker port test
+docker logs "$1"testd
+docker port "$1"testd
 docker stats -a --no-stream
-docker top test ps
-docker tag ubuntu:latest ubuntu:test
-docker restart test
-docker commit test dockertest:test
-docker save -o $TMP/dockertest.tar dockertest:test
+docker top "$1"testd ps
+docker tag ubuntu:latest ubuntu:"$1"test
+docker restart "$1"testd
+docker commit "$1"testd "$1"dockertest:test
+docker save -o $TMP/dockertest.tar "$1"dockertest:test
 docker load -i $TMP/dockertest.tar
-docker export test > $TMP/test.tar
-docker import $TMP/test.tar dockertest:test2
-docker rename test test1
-docker pause test1
-docker unpause test1
-docker stop test1
-docker start test1
-docker kill test1
-docker rm test1
-docker rmi ubuntu:test
-docker rmi dockertest:test dockertest:test2
+docker export "$1"testd > $TMP/test.tar
+docker import $TMP/test.tar "$1"dockertest:test2
+docker rename "$1"testd "$1"testd1
+docker pause "$1"testd1
+docker unpause "$1"testd1
+docker stop "$1"testd1
+docker start "$1"testd1
+docker kill "$1"testd1
+docker rm "$1"testd1
+docker rmi ubuntu:"$1"test
+docker rmi "$1"dockertest:test "$1"dockertest:test2
 docker volume ls
 
 

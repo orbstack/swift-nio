@@ -11,13 +11,14 @@ func TestBuildxContainerDriver(t *testing.T) {
 	t.Parallel()
 
 	// create
-	_, err := util.Run("docker", "buildx", "create", "--name", "otest")
+	n := name("buildx-cd")
+	_, err := util.Run("docker", "buildx", "create", "--name", n)
 	checkT(t, err)
 
 	// build
-	_, err = util.Run("docker", "buildx", "build", "--builder", "otest", "--platform", "linux/arm/v7,linux/arm64/v8,linux/amd64", "-t", "otest", "--load", ".")
+	_, err = util.Run("docker", "buildx", "build", "--builder", n, "--platform", "linux/arm/v7,linux/arm64/v8,linux/amd64", "-t", "otest", "--load", ".")
 
 	// delete
-	_, err = util.Run("docker", "buildx", "rm", "otest")
+	_, err = util.Run("docker", "buildx", "rm", n)
 	checkT(t, err)
 }

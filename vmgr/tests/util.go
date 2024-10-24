@@ -1,9 +1,20 @@
 package tests
 
 import (
+	"fmt"
+	"math/rand/v2"
 	"os/exec"
+	"sync"
 	"testing"
 )
+
+var testPrefix = sync.OnceValue(func() string {
+	return fmt.Sprintf("itest-%d-", rand.Uint64())
+})
+
+func name(n string) string {
+	return testPrefix() + n
+}
 
 // this function exists because we always want to use debug even if prod links are in /usr/local/bin
 func runScli(args ...string) (string, error) {

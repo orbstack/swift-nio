@@ -38,9 +38,9 @@ func TestNfsReadOnlyRoot(t *testing.T) {
 func TestNfsMachinePermissions(t *testing.T) {
 	t.Parallel()
 
-	name := testPrefix() + "-nfs"
+	n := name("nfs-perms")
 	container, err := scli.Client().Create(types.CreateRequest{
-		Name: name,
+		Name: n,
 		Image: types.ImageSpec{
 			Distro: images.DistroAlpine,
 		},
@@ -58,20 +58,20 @@ func TestNfsMachinePermissions(t *testing.T) {
 	})
 
 	t.Run("root", func(t *testing.T) {
-		err := os.WriteFile(fmt.Sprintf("%s/%s/root/testfile", coredir.EnsureNfsMountpoint(), name), []byte("test"), 0644)
+		err := os.WriteFile(fmt.Sprintf("%s/%s/root/testfile", coredir.EnsureNfsMountpoint(), n), []byte("test"), 0644)
 		if !errors.Is(err, syscall.EACCES) {
 			t.Fatal(err)
 		}
 	})
 
 	t.Run("user", func(t *testing.T) {
-		err := os.WriteFile(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), name, hostUsername(t)), []byte("test"), 0644)
+		err := os.WriteFile(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), n, hostUsername(t)), []byte("test"), 0644)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// delete file
-		err = os.Remove(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), name, hostUsername(t)))
+		err = os.Remove(fmt.Sprintf("%s/%s/home/%s/testfile", coredir.EnsureNfsMountpoint(), n, hostUsername(t)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,12 +82,13 @@ func TestNfsContainerWrite(t *testing.T) {
 	t.Parallel()
 
 	// start container
-	_, err := util.Run("docker", "run", "--rm", "-d", "--name", "otest-nfs", "alpine", "sleep", "infinity")
+	n := name("nfs-w")
+	_, err := util.Run("docker", "run", "--rm", "-d", "--name", n, "alpine", "sleep", "infinity")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanup(t, func() error {
-		_, err := util.Run("docker", "rm", "-f", "otest-nfs")
+		_, err := util.Run("docker", "rm", "-f", n)
 		return err
 	})
 
@@ -95,13 +96,14 @@ func TestNfsContainerWrite(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	// write file via nfs
-	err = os.WriteFile(coredir.EnsureNfsMountpoint()+"/docker/containers/otest-nfs/etc/testfile", []byte("test"), 0644)
+	testFilePath := fmt.Sprintf("%s/docker/containers/%s/etc/testfile", coredir.EnsureNfsMountpoint(), n)
+	err = os.WriteFile(testFilePath, []byte("test"), 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// read file via container
-	out, err := util.Run("docker", "exec", "otest-nfs", "cat", "/etc/testfile")
+	out, err := util.Run("docker", "exec", n, "cat", "/etc/testfile")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,19 +113,19 @@ func TestNfsContainerWrite(t *testing.T) {
 	}
 
 	// delete file
-	err = os.Remove(coredir.EnsureNfsMountpoint() + "/docker/containers/otest-nfs/etc/testfile")
+	err = os.Remove(testFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// read file via container
-	out, err = util.Run("docker", "exec", "otest-nfs", "cat", "/etc/testfile")
+	out, err = util.Run("docker", "exec", n, "cat", "/etc/testfile")
 	if err == nil || !strings.Contains(err.Error(), "No such file or directory") {
 		t.Fatal(err)
 	}
 
 	// read file via nfs
-	data, err := os.ReadFile(coredir.EnsureNfsMountpoint() + "/docker/containers/otest-nfs/etc/passwd")
+	data, err := os.ReadFile(fmt.Sprintf("%s/docker/containers/%s/etc/passwd", coredir.EnsureNfsMountpoint(), n))
 	if err != nil {
 		t.Fatal(err)
 	}

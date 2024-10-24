@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -37,16 +38,17 @@ func findLine(s string, want string) bool {
 func TestWormholeWaitpid1HangRegression(t *testing.T) {
 	t.Parallel()
 
-	_, err := util.Run("docker", "run", "-d", "--name", "rr", "--rm", "--platform", "linux/amd64", "ghcr.io/r-hub/containers/gcc14:latest", "R", "-q", "-e", "TRUE")
+	n := name("regr-pid1")
+	_, err := util.Run("docker", "run", "-d", "--name", n, "--rm", "--platform", "linux/amd64", "ghcr.io/r-hub/containers/gcc14:latest", "R", "-q", "-e", "TRUE")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanup(t, func() error {
-		_, err := util.Run("docker", "stop", "rr")
+		_, err := util.Run("docker", "stop", n)
 		return err
 	})
 
-	out, err := runScli("orbctl", "debug", "rr", "echo", "meow 🏳️‍⚧️")
+	out, err := runScli("orbctl", "debug", n, "echo", "meow 🏳️‍⚧️")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,23 +62,24 @@ func TestWormholeWaitpid1HangRegression(t *testing.T) {
 func TestRemountWormholeNfsRwRegression(t *testing.T) {
 	t.Parallel()
 
-	_, err := util.Run("docker", "run", "--read-only", "-d", "--name", "uwu", "--rm", "alpine:latest", "sleep", "1000000000000")
+	n := name("regr-nfs-rw")
+	_, err := util.Run("docker", "run", "--read-only", "-d", "--name", n, "--rm", "alpine:latest", "sleep", "1000000000000")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanup(t, func() error {
-		_, err := util.Run("docker", "stop", "uwu")
+		_, err := util.Run("docker", "stop", n)
 		return err
 	})
 
 	time.Sleep(time.Second)
 
-	_, err = os.Lstat(coredir.NfsMountpoint() + "/docker/containers/uwu/bin/ls")
+	_, err = os.Lstat(fmt.Sprintf("%s/docker/containers/%s/bin/ls", coredir.NfsMountpoint(), n))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := runScli("orbctl", "debug", "uwu", "echo", "nyaa~")
+	out, err := runScli("orbctl", "debug", n, "echo", "nyaa~")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,16 +92,17 @@ func TestRemountWormholeNfsRwRegression(t *testing.T) {
 func TestK8sContainersRegression(t *testing.T) {
 	t.Parallel()
 
-	_, err := util.Run("docker", "run", "--cap-drop", "all", "-d", "--name", "owo", "--rm", "alpine:latest", "sleep", "1000000000000")
+	n := name("regr-k8s-containers")
+	_, err := util.Run("docker", "run", "--cap-drop", "all", "-d", "--name", n, "--rm", "alpine:latest", "sleep", "1000000000000")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanup(t, func() error {
-		_, err := util.Run("docker", "stop", "owo")
+		_, err := util.Run("docker", "stop", n)
 		return err
 	})
 
-	out, err := runScli("orbctl", "debug", "owo", "echo", "a cringe string to put into this test")
+	out, err := runScli("orbctl", "debug", n, "echo", "a cringe string to put into this test")
 	if err != nil {
 		t.Fatal(err)
 	}
