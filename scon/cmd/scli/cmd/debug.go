@@ -43,6 +43,9 @@ const (
 
 const registryImage = "198.19.249.3:5000/wormhole-rootfs:latest"
 
+// drm server
+// const registryImage = "198.19.249.3:8400/wormhole:latest"
+
 func init() {
 	rootCmd.AddCommand(debugCmd)
 	debugCmd.Flags().StringVarP(&flagWorkdir, "workdir", "w", "", "Set the working directory")
