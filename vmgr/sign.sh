@@ -28,3 +28,6 @@ codesign "${codesign_flags[@]}" --options=runtime --entitlements "vmgr.$GO_BUILD
 
 # for xcode app debug build - assets loaded from symlinked debug bundle
 mkdir -p ../swift/build/assets
+
+# for running release in debug app layout
+ln -sf ../../../../assets "$VMGR_BUNDLE/Contents/Resources/"
