@@ -48,13 +48,14 @@ func TestWormholeWaitpid1HangRegression(t *testing.T) {
 		return err
 	})
 
-	out, err := runScli("orbctl", "debug", n, "echo", "meow 🏳️‍⚧️")
+	testCase := randStr()
+	out, err := runScli("orbctl", "debug", n, "echo", testCase)
 	if err != nil {
 		t.Fatal(err)
 	}
 	out = strings.TrimSpace(out)
 
-	if !findLine(out, "meow 🏳️‍⚧️") {
+	if !findLine(out, testCase) {
 		t.Fatal("didn't get expected output")
 	}
 }
@@ -79,12 +80,13 @@ func TestRemountWormholeNfsRwRegression(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := runScli("orbctl", "debug", n, "echo", "nyaa~")
+	testCase := randStr()
+	out, err := runScli("orbctl", "debug", n, "echo", testCase)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !findLine(out, "nyaa~") {
+	if !findLine(out, testCase) {
 		t.Fatal("didn't get expected output")
 	}
 }
@@ -102,12 +104,13 @@ func TestK8sContainersRegression(t *testing.T) {
 		return err
 	})
 
-	out, err := runScli("orbctl", "debug", n, "echo", "a cringe string to put into this test")
+	testCase := randStr()
+	out, err := runScli("orbctl", "debug", n, "echo", testCase)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !findLine(out, "a cringe string to put into this test") {
+	if !findLine(out, testCase) {
 		t.Fatal("didn't get expected output")
 	}
 }

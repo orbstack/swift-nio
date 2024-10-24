@@ -16,6 +16,10 @@ func name(n string) string {
 	return testPrefix() + n
 }
 
+func randStr() string {
+	return fmt.Sprintf("%d%d", rand.Uint64(), rand.Uint32())
+}
+
 // this function exists because we always want to use debug even if prod links are in /usr/local/bin
 func runScli(args ...string) (string, error) {
 	// (tests run from vmgr/tests)
