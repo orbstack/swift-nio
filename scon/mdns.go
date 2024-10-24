@@ -248,6 +248,15 @@ func (d *domainproxyInfo) setAddr(ip netip.Addr, val domainproxytypes.Domainprox
 			if err != nil {
 				logrus.WithError(err).Debug("could not remove from domainproxy map")
 			}
+
+			if ip.Is4() {
+				err = nft.Run("delete", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", upstream.Ip, upstream.Ip))
+			} else if ip.Is6() {
+				err = nft.Run("delete", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", upstream.Ip, upstream.Ip))
+			}
+			if err != nil {
+				logrus.WithError(err).Debug("could not remove from domainproxy map")
+			}
 		}
 		return
 	}
@@ -288,6 +297,23 @@ func (d *domainproxyInfo) setAddr(ip netip.Addr, val domainproxytypes.Domainprox
 	}
 	if err != nil {
 		logrus.WithError(err).Debug("could not add to domainproxy map")
+	}
+
+	if ip.Is4() {
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", val.Ip, val.Ip))
+	} else if ip.Is6() {
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", val.Ip, val.Ip))
+	}
+	if err != nil {
+		logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
+	}
+	if ip.Is4() {
+		err = nft.Run("add", "element", "bridge", "vm_bridge", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.Ip))
+	} else if ip.Is6() {
+		err = nft.Run("add", "element", "bridge", "vm_bridge", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.Ip))
+	}
+	if err != nil {
+		logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
 	}
 
 	d.ipMap[ip] = val
@@ -794,7 +820,7 @@ func (r *mdnsRegistry) StopServer() error {
 	return nil
 }
 
-func (e *mdnsEntry) ensureDnatCorrect() {
+func (e *mdnsEntry) ensureDomainproxyCorrect() {
 	if e.id == "" {
 		return
 	}
@@ -808,7 +834,7 @@ func (e *mdnsEntry) ensureDnatCorrect() {
 
 func (e mdnsEntry) ToRecords(qName string, includeV4 bool, includeV6 bool, ttl uint32) []dns.RR {
 	var records []dns.RR
-	e.ensureDnatCorrect()
+	e.ensureDomainproxyCorrect()
 
 	// A
 	if includeV4 {
@@ -1248,7 +1274,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 		ip6: nil,
 	}
 
-	entry.ensureDnatCorrect()
+	entry.ensureDomainproxyCorrect()
 
 	r.tree.Insert(treeKey, entry)
 
@@ -1538,7 +1564,7 @@ func (r *mdnsRegistry) getIpsForName(name string) (net.IP, net.IP) {
 		return nil, nil
 	}
 
-	entry.ensureDnatCorrect()
+	entry.ensureDomainproxyCorrect()
 
 	return entry.ip4, entry.ip6
 }
