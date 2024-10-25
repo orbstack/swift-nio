@@ -196,7 +196,7 @@ func (d *domainproxyInfo) getDockerMachine() *Container {
 
 func (d *domainproxyInfo) addNeighbor(ip netip.Addr) {
 	if d.conbr0LinkIndex < 0 {
-		conbr0, err := netlink.LinkByName("conbr0")
+		conbr0, err := netlink.LinkByName(ifBridge)
 		if err != nil {
 			logrus.Debug("unable to get conbr0 link: %w", err)
 			return

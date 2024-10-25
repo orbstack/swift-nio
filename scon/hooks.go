@@ -27,7 +27,7 @@ func runLxcPostStop(cid string) {
 	os.Exit(0)
 }
 
-func runLxcNetIfUp() {
+func runLxcNetIfUp(isIsolated bool) {
 	ifName := os.Getenv("LXC_NET_PEER")
 	if ifName == "" {
 		panic("LXC_NET_PEER not set")
@@ -36,8 +36,13 @@ func runLxcNetIfUp() {
 	link, err := netlink.LinkByName(ifName)
 	check(err)
 
-	err = netlink.LinkSetGroup(link, netconf.VmIfGroupIsolated)
+	err = netlink.LinkSetHairpin(link, true)
 	check(err)
+
+	if isIsolated {
+		err = netlink.LinkSetGroup(link, netconf.VmIfGroupIsolated)
+		check(err)
+	}
 }
 
 func runLxcHook() {
@@ -48,7 +53,8 @@ func runLxcHook() {
 	case lxcHookPostStop:
 		runLxcPostStop(cid)
 	case lxcHookNetIfUp:
-		runLxcNetIfUp()
+		isIsolated := os.Args[4] == "true"
+		runLxcNetIfUp(isIsolated)
 	default:
 		panic("unknown hook: " + hook)
 	}
