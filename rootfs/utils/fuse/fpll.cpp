@@ -854,6 +854,11 @@ static void lo_create(fuse_req_t req, fuse_ino_t parent, const char *name,
 		fuse_log(FUSE_LOG_DEBUG, "lo_create(parent=%" PRIu64 ", name=%s)\n",
 			parent, name);
 
+	// workaround: Finder creates files with mode 000, then opens and fchmods to 644
+	// but we can't open files with mode 000 on virtiofs, so clamp to 600
+	if (mode == 0)
+		mode = 0600;
+
 	fd = openat(lo_fd(req, parent), name,
 		    (fi->flags | O_CREAT) & ~O_NOFOLLOW, mode);
 	if (fd == -1)
