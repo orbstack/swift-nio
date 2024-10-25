@@ -98,7 +98,7 @@ enum Distro: String, CaseIterable {
         case .gentoo: return [v("current", as: "Latest")]
         case .kali: return [v("current", as: "Latest")]
         case .nixos: return [v("unstable", as: "Unstable"), v("24.05")]
-        case .openeuler: return [v("20.03"), v("22.03"), v("24.03")]
+        case .openeuler: return [v("20.03"), v("22.03"), v("24.03"), v("24.09")]
         case .opensuse: return [v("tumbleweed", as: "Tumbleweed"), v("15.5"), v("15.6")]
         case .oracle: return [v("8"), v("9")]
         case .rocky: return [v("8"), v("9")]

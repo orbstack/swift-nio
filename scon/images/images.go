@@ -110,7 +110,7 @@ var (
 		ImageGentoo:    "current",
 		ImageKali:      "current",
 		ImageNixos:     "24.05",
-		ImageOpeneuler: "24.03",
+		ImageOpeneuler: "24.09",
 		ImageOpensuse:  "15.6",
 		ImageOracle:    "9",
 		ImageRocky:     "9",
