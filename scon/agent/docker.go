@@ -552,8 +552,13 @@ func (d *DockerAgent) monitorEvents() error {
 
 		case "network":
 			switch event.Action {
+			case "connect":
+				if event.Actor.Attributes.Type == "bridge" {
+					d.networkRefreshDebounce.Call()
+					d.onNetworkConnected(event.Actor.ID)
+				}
 			// "connect" and "disconnect" for dynamic bridge creation depending on active containers
-			case "create", "destroy", "connect", "disconnect":
+			case "create", "destroy", "disconnect":
 				// we only care about bridges
 				if event.Actor.Attributes.Type == "bridge" {
 					d.networkRefreshDebounce.Call()

@@ -36,13 +36,19 @@ func runLxcNetIfUp(isIsolated bool) {
 	link, err := netlink.LinkByName(ifName)
 	check(err)
 
-	err = netlink.LinkSetHairpin(link, true)
-	check(err)
-
 	if isIsolated {
 		err = netlink.LinkSetGroup(link, netconf.VmIfGroupIsolated)
 		check(err)
 	}
+
+	err = netlink.LinkSetHairpin(link, true)
+	check(err)
+
+	err = os.WriteFile("/proc/sys/net/ipv6/conf/"+ifName+"/addr_gen_mode", []byte("1"), 0)
+	check(err)
+
+	err = os.WriteFile("/proc/sys/net/ipv6/conf/"+ifName+"/disable_ipv6", []byte("0"), 0)
+	check(err)
 }
 
 func runLxcHook() {

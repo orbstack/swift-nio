@@ -30,6 +30,16 @@ func (a *AgentServer) DockerAddDomainproxy(args DockerAddDomainproxyArgs, reply 
 		return err
 	}
 
+	if args.Ip.Is4() {
+		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", args.Val, args.Val))
+	}
+	if args.Ip.Is6() {
+		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", args.Val, args.Val))
+	}
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

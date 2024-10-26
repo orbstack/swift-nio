@@ -312,6 +312,11 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		}
 	}
 
+	err = setAllBridgeportHairpin(dockerNetworkToInterfaceName(&network))
+	if err != nil {
+		logrus.WithError(err).Error("unable to set all bridgeports to hairpin")
+	}
+
 	return nil
 }
 
@@ -360,4 +365,41 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 	}
 
 	return nil
+}
+
+func setAllBridgeportHairpin(bridgeName string) error {
+	links, err := netlink.LinkList()
+	if err != nil {
+		return fmt.Errorf("unable to get links: %w", err)
+	}
+
+	bridgeIndex := findLink(links, bridgeName).Attrs().Index
+
+	for _, link := range links {
+		attrs := link.Attrs()
+		if attrs.MasterIndex == bridgeIndex && !strings.HasPrefix(attrs.Name, DockerBridgeMirrorPrefix) {
+			err = netlink.LinkSetHairpin(link, true)
+			if err != nil {
+				return fmt.Errorf("unable to set link hairpin: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (d *DockerAgent) onNetworkConnected(id string) {
+	var network dockertypes.Network
+	err := d.client.Call("GET", fmt.Sprintf("/networks/%s", id), nil, &network)
+	if err != nil {
+		logrus.WithError(err).Error("unable to get network")
+		return
+	}
+
+	logrus.Debugf("emmie | onNetworkConnected: %+v", network)
+
+	err = setAllBridgeportHairpin(dockerNetworkToInterfaceName(&network))
+	if err != nil {
+		logrus.WithError(err).Error("unable to set all bridgeports to hairpin")
+	}
 }
