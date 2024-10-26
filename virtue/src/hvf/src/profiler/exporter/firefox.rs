@@ -691,7 +691,8 @@ impl<'a> FirefoxExporter<'a> {
                 })
             });
 
-            for (i, symbol) in sframe.iter_symbols().enumerate() {
+            let num_inlined = sframe.len_symbols() - 1;
+            for (i, symbol) in sframe.iter_symbols().rev().enumerate() {
                 // find frame for this (category, addr)
                 let ff_frame = thread.frames.get_or_insert_with((frame, i), || {
                     let func_name = symbol
@@ -714,7 +715,7 @@ impl<'a> FirefoxExporter<'a> {
 
                     FirefoxFrame {
                         address,
-                        inline_depth: i as u32,
+                        inline_depth: num_inlined as u32 - i as u32,
                         category: Some(self.categories.get(&frame.category).unwrap().1),
                         subcategory: Some(0),
                         func: func.1,

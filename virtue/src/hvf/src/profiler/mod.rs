@@ -223,13 +223,18 @@ impl SymbolicatedFrame {
     }
 
     // iterator that always includes at least one element (None) if not symbolicated
-    pub fn iter_symbols(&self) -> impl Iterator<Item = Option<&SymbolResult>> {
+    pub fn iter_symbols(&self) -> impl DoubleEndedIterator<Item = Option<&SymbolResult>> {
         let none_count = if self.symbols.is_empty() { 1 } else { 0 };
 
         self.symbols
             .iter()
+            .rev()
             .map(Some)
             .chain(std::iter::once(None).take(none_count))
+    }
+
+    pub fn len_symbols(&self) -> usize {
+        self.symbols.len().max(1)
     }
 }
 
