@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use libc::{winsize, TIOCSCTTY, TIOCSWINSZ};
 use rpc::{RpcInputMessage, RpcOutputMessage};
 use std::{
     ffi::CString,
@@ -27,10 +28,11 @@ use wormhole::{
 };
 
 use nix::{
+    libc::ioctl,
     mount::{mount, MsFlags},
-    pty::OpenptyResult,
+    pty::{OpenptyResult, Winsize},
     sys::socket::{recvmsg, ControlMessageOwned, MsgFlags},
-    unistd::{dup, pipe, sleep},
+    unistd::{dup, dup2, pipe, setsid, sleep},
 };
 use tracing::{trace, Level};
 
@@ -196,6 +198,8 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
         client_stdout.as_raw_fd()
     );
 
+    // todo: let user set this via rpc
+
     let mut client_stdin = AsyncFile::from(client_stdin)?;
     let mut client_stdout = AsyncFile::from(client_stdout)?;
 
@@ -240,6 +244,7 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
         stdout_pipe = pipe()?;
         stderr_pipe = pipe()?;
     }
+    let is_pty = pty.is_some();
 
     let wormhole_mount = open_tree(
         "/mnt/wormhole-unified/nix",
@@ -251,6 +256,7 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
     unset_cloexec(wormhole_mount_fd)?;
     unset_cloexec(exit_code_pipe_write_fd)?;
     unset_cloexec(log_pipe_write_fd)?;
+    let mut exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd)?;
 
     let mut config = serde_json::from_str::<WormholeConfig>(&wormhole_param)?;
     config.wormhole_mount_tree_fd = wormhole_mount_fd;
@@ -258,41 +264,35 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
     config.exit_code_pipe_write_fd = exit_code_pipe_write_fd;
 
     trace!("spawning wormhole-attach");
-    let mut payload = Command::new("/wormhole-attach")
-        .arg(serde_json::to_string(&config)?)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        // .pre_exec(|| Ok(()))
-        .spawn()?;
+    let mut payload = unsafe {
+        Command::new("/wormhole-attach")
+            .arg(serde_json::to_string(&config)?)
+            // .stdin(std::process::Stdio::piped())
+            // .stdout(std::process::Stdio::piped())
+            // .stderr(std::process::Stdio::piped())
+            .pre_exec(move || {
+                if pty.is_some() {
+                    setsid()?;
+                    let res = ioctl(stdin_pipe.0, TIOCSCTTY, 1);
+                    if res != 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                }
 
-    let mut payload_stdin = payload.stdin.take().unwrap();
-    let mut payload_stdout = payload.stdout.take().unwrap();
-    let mut payload_stderr = payload.stderr.take().unwrap();
-    // if let Some(mut stdout) = payload.stdout.take() {
-    //     // Spawn a separate task to forward stderr
-    //     tokio::spawn(async move {
-    //         io::copy(&mut stdout, &mut tokio::io::stdout())
-    //             .await
-    //             .expect("Failed to forward stderr");
-    //     });
-    // }
-    // if let Some(mut stderr) = payload.stderr.take() {
-    //     // Spawn a separate task to forward stderr
-    //     tokio::spawn(async move {
-    //         io::copy(&mut stderr, &mut io::stderr())
-    //             .await
-    //             .expect("Failed to forward stderr");
-    //     });
-    // }
+                dup2(stdin_pipe.0, libc::STDIN_FILENO)?;
+                dup2(stdout_pipe.1, libc::STDOUT_FILENO)?;
+                dup2(stderr_pipe.1, libc::STDERR_FILENO)?;
 
-    // payload.stdin(cfg.stdin);
-    // payload.arg("some_arg"); // Add necessary arguments
+                Ok(())
+            })
+            .spawn()?
+    };
 
-    // payload.spawn()?;
+    let mut payload_stdin = AsyncFile::new(stdin_pipe.1)?;
+    let mut payload_stdout = AsyncFile::new(stdout_pipe.0)?;
+    let mut payload_stderr = AsyncFile::new(stderr_pipe.0)?;
 
     trace!("starting payload");
-    // loop {}
     {
         let client_writer_m = Arc::clone(&client_writer_m);
         let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
@@ -347,23 +347,23 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
                         .map_err(|e| trace!("error writing to payload {e}"));
                 }
                 Ok(RpcInputMessage::TerminalResize(w, h)) => {
-                    // if !is_pty {
-                    //     panic!("cannot resize terminal for non-tty ")
-                    // }
-                    // let ws = Winsize {
-                    //     ws_row: h,
-                    //     ws_col: w,
-                    //     ws_xpixel: 0,
-                    //     ws_ypixel: 0,
-                    // };
-                    // unsafe {
-                    //     nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
-                    // }
+                    if !is_pty {
+                        panic!("cannot resize terminal for non-tty ")
+                    }
+                    let ws = Winsize {
+                        ws_row: h,
+                        ws_col: w,
+                        ws_xpixel: 0,
+                        ws_ypixel: 0,
+                    };
+                    unsafe {
+                        nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
+                    }
                 }
                 Ok(RpcInputMessage::RequestPty(_pty)) => {
                     trace!("cannot request pty after payload already started");
                 }
-                Ok(RpcInputMessage::Start(param)) => {
+                Ok(RpcInputMessage::Start(_param)) => {
                     trace!("already started");
                 }
                 Err(_) => {
@@ -372,6 +372,21 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
             }
         }
     });
+
+    task::spawn(async move {
+        let mut exit_code = [0u8];
+        let _ = exit_code_pipe_reader.read_exact(&mut exit_code).await;
+
+        let mut client_writer = client_writer_m.lock().await;
+        let _ = RpcOutputMessage::Exit(exit_code[0])
+            .write_to(&mut client_writer)
+            .await
+            .map_err(|e| trace!("error sending exit code {e}"));
+
+        // todo: kill all async server tasks belonging to the current connection
+        trace!("exiting process with exit code {}", exit_code[0]);
+    })
+    .await?;
 
     // loop {
     //     match RpcInputMessage::read_from(&mut client_stdin).await {

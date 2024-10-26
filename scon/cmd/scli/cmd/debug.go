@@ -203,7 +203,7 @@ func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) erro
 	// io.Copy(os.Stdout, sessionStdout)
 	// os.Exit(0)
 
-	var originalState *term.State
+	// var originalState *term.State
 
 	// see scli/shell/ssh.go
 	ptyFd := -1
@@ -236,12 +236,11 @@ func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) erro
 
 		// raw mode if both outputs are ptys
 		if ptyStdout && ptyStderr {
-			// fmt.Println("setting raw mode")
 			// originalState, err = term.MakeRaw(ptyFd)
 			if err != nil {
 				return err
 			}
-			defer term.Restore(ptyFd, originalState)
+			// defer term.Restore(ptyFd, originalState)
 		}
 
 		// request pty
@@ -294,7 +293,8 @@ func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) erro
 					// return
 				}
 			case ExitCodeType:
-				term.Restore(0, originalState)
+				fmt.Println("exiting code", data[0])
+				// term.Restore(ptyFd, originalState)
 				os.Exit(int(data[0]))
 			}
 		}
