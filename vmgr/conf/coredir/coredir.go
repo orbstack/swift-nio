@@ -71,6 +71,10 @@ func VmConfigFileDebug() string {
 	return AppDir() + "/vmconfig.debug.json"
 }
 
+func VmConfigFileTest() string {
+	return AppDir() + "/vmconfig.test.json"
+}
+
 func VmStateFile() string {
 	return AppDir() + "/vmstate.json"
 }

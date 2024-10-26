@@ -153,6 +153,14 @@ func Get() *VmConfig {
 		}
 	}
 
+	// apply test overlay on test builds
+	if os.Getenv("ORB_TEST") == "1" {
+		data, err := os.ReadFile(coredir.VmConfigFileTest())
+		if err == nil {
+			err = json.Unmarshal(data, &config)
+		}
+	}
+
 	err = config.Validate()
 	if err != nil {
 		errorx.Fatalf("Invalid config: %w", err)
