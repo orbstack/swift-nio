@@ -73,7 +73,7 @@ impl DiskProperties {
         let prefix = FmtFn(|f| {
             write!(
                 f,
-                "GPT region read id={:?} offset={}, iov_len={}, isect_start={}, isect_end={}",
+                "read id={:?} offset={}, len={}, isect_start={}, isect_end={}",
                 self.friendly_name,
                 offset,
                 iovec.len(),
@@ -92,8 +92,7 @@ impl DiskProperties {
             );
         } else {
             tracing::info!(
-                "{prefix} succeeded:\n\
-                 sector_hashes={:?}",
+                "{prefix} ok: sector_hashes={:?}",
                 mmap.chunks(512).map(hash_buf).collect::<Vec<_>>(),
             );
         }
