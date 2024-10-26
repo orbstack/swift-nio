@@ -60,3 +60,10 @@ pub fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
         FcntlArg::F_SETFD(FdFlag::from_bits_retain(fcntl(fd, F_GETFD)?) | FdFlag::FD_CLOEXEC),
     )
 }
+
+pub fn unset_cloexec(fd: RawFd) -> Result<c_int, Errno> {
+    fcntl(
+        fd,
+        FcntlArg::F_SETFD(FdFlag::from_bits_truncate(fcntl(fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC),
+    )
+}

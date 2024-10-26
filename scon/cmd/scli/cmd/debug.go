@@ -41,7 +41,8 @@ const (
 	fdStderr = 2
 )
 
-const registryImage = "198.19.249.3:5000/wormhole-rootfs:latest"
+const serverImage = "198.19.249.3:5000/wormhole-server:latest"
+const clientImage = "198.19.249.3:5000/wormhole-client:latest"
 
 // drm server
 // const registryImage = "198.19.249.3:8400/wormhole:latest"
@@ -152,13 +153,25 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func startRpcConnection(client *dockerclient.Client, containerID string) error {
-	conn, err := client.InteractiveExec(containerID, &dockertypes.ContainerExecCreateRequest{
+func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) error {
+	conn, err := client.InteractiveRunContainer(&dockertypes.ContainerCreateRequest{
+		Tty:          false,
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		Cmd:          []string{"/wormhole-client"},
-	})
+		OpenStdin:    true,
+
+		// just for local development, to avoid compiling both server and client images,
+		// just use the serverImage and change the entrypoint
+		// Image: clientImage,
+		Image:      serverImage,
+		Entrypoint: []string{"/wormhole-client"},
+
+		HostConfig: &dockertypes.ContainerHostConfig{
+			Binds: []string{"wormhole-data:/data"},
+		},
+	}, true)
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
@@ -174,7 +187,21 @@ func startRpcConnection(client *dockerclient.Client, containerID string) error {
 
 	sessionStdin := conn
 	sessionStdout := demuxReader
+
+	// sessionStdin.Write([]byte("hello from scli\n"))
+	// go func() {
+	// 	io.Copy(sessionStdin, os.Stdin)
+	// }()
+	// io.Copy(os.Stdout, sessionStdout)
+	// os.Exit(0)
+
 	server := RpcServer{reader: sessionStdout, writer: sessionStdin}
+	// server.RpcStart()
+	// go func() {
+	// 	io.Copy(sessionStdin, os.Stdin)
+	// }()
+	// io.Copy(os.Stdout, sessionStdout)
+	// os.Exit(0)
 
 	var originalState *term.State
 
@@ -210,7 +237,7 @@ func startRpcConnection(client *dockerclient.Client, containerID string) error {
 		// raw mode if both outputs are ptys
 		if ptyStdout && ptyStderr {
 			// fmt.Println("setting raw mode")
-			originalState, err = term.MakeRaw(ptyFd)
+			// originalState, err = term.MakeRaw(ptyFd)
 			if err != nil {
 				return err
 			}
@@ -225,7 +252,7 @@ func startRpcConnection(client *dockerclient.Client, containerID string) error {
 	}
 
 	// start wormhole-attach payload
-	if err := server.RpcStart(); err != nil {
+	if err := server.RpcStart(wormholeParams); err != nil {
 		return err
 	}
 
@@ -334,8 +361,8 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		return err
 	}
 
-	remoteContainerID, err := client.RunContainer(&dockertypes.ContainerCreateRequest{
-		Image: registryImage,
+	_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
+		Image: serverImage,
 		HostConfig: &dockertypes.ContainerHostConfig{
 			Privileged:   true,
 			Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
@@ -343,15 +370,11 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 			PidMode:      "host",
 			NetworkMode:  "host",
 		},
-		Cmd: []string{string(wormholeParams)},
-	}, false)
+		// Cmd: []string{string(wormholeParams)},
+	}, true)
+	// fmt.Printf("running wormholeserver: %v\n", wormholeServerID)
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-
-	startRpcConnection(client, remoteContainerID)
+	startRpcConnection(client, wormholeParams)
 	return nil
 }
 
@@ -454,7 +477,7 @@ func nukeRemoteData(cmd *cobra.Command, daemon *dockerclient.DockerConnection) e
 	}
 
 	_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
-		Image: registryImage,
+		Image: serverImage,
 		HostConfig: &dockertypes.ContainerHostConfig{
 			Privileged: true,
 			Binds:      []string{"wormhole-data:/data"},

@@ -463,16 +463,17 @@ fn main() -> anyhow::Result<()> {
     set_cloexec(log_fd.as_raw_fd())?;
     set_cloexec(wormhole_mount_fd.as_raw_fd())?;
 
-    let (exit_code_writer, exit_code_reader) = if config.is_local {
-        let file = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
-        (Box::new(file) as Box<dyn Write>, None)
-    } else {
-        // for remote wormhole, set up a local pipe to send exit codes from subreaper process to rpc server process
-        let (r, w) = pipe()?;
-        let write = unsafe { File::from_raw_fd(w) };
-        let read = unsafe { File::from_raw_fd(r) };
-        (Box::new(write) as Box<dyn Write>, Some(read))
-    };
+    let exit_code_writer = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
+    // let (exit_code_writer, exit_code_reader) = if config.is_local {
+    //     let file = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
+    //     (Box::new(file) as Box<dyn Write>, None)
+    // } else {
+    //     // for remote wormhole, set up a local pipe to send exit codes from subreaper process to rpc server process
+    //     let (r, w) = pipe()?;
+    //     let write = unsafe { File::from_raw_fd(w) };
+    //     let read = unsafe { File::from_raw_fd(r) };
+    //     (Box::new(write) as Box<dyn Write>, Some(read))
+    // };
 
     // set sigpipe
     {
@@ -544,11 +545,11 @@ fn main() -> anyhow::Result<()> {
         )?)
     };
 
-    let rpc_client = if !config.is_local {
-        Some(wait_for_rpc_client()?)
-    } else {
-        None
-    };
+    // let rpc_client = if !config.is_local {
+    //     Some(wait_for_rpc_client()?)
+    // } else {
+    //     None
+    // };
 
     trace!("attach most namespaces");
     setns(
@@ -602,6 +603,13 @@ fn main() -> anyhow::Result<()> {
     // bind mount wormhole mount tree onto /nix
     trace!("mounts: bind mount wormhole mount tree onto /nix");
     move_mount(Some(&wormhole_mount_fd), None, None, Some("/nix"))?;
+
+    // list folders in /nix
+    let nix_dirs = std::fs::read_dir("/nix")?
+        .map(|entry| entry.unwrap().path())
+        .collect::<Vec<_>>();
+
+    trace!("{:?}", nix_dirs);
 
     trace!("set umask");
     umask(Mode::from_bits(0o022).unwrap());
@@ -689,6 +697,10 @@ fn main() -> anyhow::Result<()> {
     }
     // set SHELL
     env_map.insert("SHELL".to_string(), paths::SHELL.to_string());
+
+    // set TERM
+    // edit PATH (append and prepend)
+    env_map.insert("TERM".to_string(), "tmux-256color".to_string());
 
     // close unnecessary fds
     drop(wormhole_mount_fd);
@@ -966,31 +978,32 @@ fn main() -> anyhow::Result<()> {
 
                             let entry_shell_cmd = config.entry_shell_cmd.clone();
                             let shell_cmd = entry_shell_cmd.as_deref().unwrap_or("");
-                            let mut cstr_envs = env_map
+                            let cstr_envs = env_map
                                 .iter()
                                 .map(|(k, v)| CString::new(format!("{}={}", k, v)))
                                 .collect::<anyhow::Result<Vec<_>, _>>()?;
 
-                            if let Some(rpc_client) = rpc_client {
-                                rpc::run(
-                                    config,
-                                    rpc_client,
-                                    exit_code_reader.unwrap(),
-                                    shell_cmd,
-                                    cstr_envs,
-                                )?;
-                            } else {
-                                execve(
-                                    &CString::new("/nix/orb/sys/bin/dctl")?,
-                                    &[
-                                        CString::new("dctl")?,
-                                        CString::new("__entrypoint")?,
-                                        CString::new("--")?,
-                                        CString::new(shell_cmd)?,
-                                    ],
-                                    &cstr_envs,
-                                )?;
-                            }
+                            // if let Some(rpc_client) = rpc_client {
+                            //     rpc::run(
+                            //         config,
+                            //         rpc_client,
+                            //         exit_code_reader.unwrap(),
+                            //         shell_cmd,
+                            //         cstr_envs,
+                            //     )?;
+                            // } else {
+                            trace!("execve {shell_cmd}");
+                            execve(
+                                &CString::new("/nix/orb/sys/bin/dctl")?,
+                                &[
+                                    CString::new("dctl")?,
+                                    CString::new("__entrypoint")?,
+                                    CString::new("--")?,
+                                    CString::new(shell_cmd)?,
+                                ],
+                                &cstr_envs,
+                            )?;
+                            // }
                             unreachable!();
                         }
                     }

@@ -95,8 +95,11 @@ func (server RpcServer) RpcRequestPty(termEnv string, h, w int, termios *unix.Te
 	return nil
 }
 
-func (server RpcServer) RpcStart() error {
+func (server RpcServer) RpcStart(wormholeParams []byte) error {
 	_, err := server.writer.Write([]byte{byte(StartType)})
+	if err := server.writeBytes(wormholeParams); err != nil {
+		return err
+	}
 	return err
 }
 

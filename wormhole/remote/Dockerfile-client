@@ -1,0 +1,30 @@
+FROM alpine:20240807 AS base
+FROM rust:1.80-alpine3.20 AS rust-base
+
+# build wormhole-attach and dctl
+FROM rust-base AS rust-build
+RUN apk add --no-cache musl-dev
+COPY vinit /build/vinit
+ARG ARCH=arm64
+ARG TYPE=debug
+# wormhole
+COPY wormhole /build/wormhole
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/build/wormhole/target,id=${ARCH} \
+    --mount=type=ssh,required=true \
+    <<EOT sh -eux
+cd /build/wormhole
+if [[ "$TYPE" == "debug" ]]; then
+    cargo build
+else
+    cargo build --release
+fi
+mkdir /out
+cp  target/${TYPE}/client /out/
+EOT
+
+
+FROM base AS rootfs
+COPY --from=rust-build /out/client /wormhole-client
+
+ENTRYPOINT ["/wormhole-client"]

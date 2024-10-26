@@ -24,7 +24,7 @@ else
     cargo build --release
 fi
 mkdir /out
-cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach target/${TYPE}/client target/${TYPE}/driver /out/
+cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach target/${TYPE}/client target/${TYPE}/server target/${TYPE}/driver /out/
 EOT
 
 # build wormhole-rootfs
@@ -98,10 +98,11 @@ COPY --from=nix-build /out /wormhole-rootfs
 COPY --from=rust-build /out/wormhole-attach /wormhole-attach
 COPY --from=rust-build /out/driver /wormhole-start
 COPY --from=rust-build /out/client /wormhole-client
+COPY --from=rust-build /out/server /wormhole-server
 
 
 # ENV WORMHOLE_PARAMS ""
-ENTRYPOINT ["./wormhole-start"]
+ENTRYPOINT ["./wormhole-server"]
 # CMD ["./wormhole-start", ${WORMHOLE_PARAMS}]
 
 

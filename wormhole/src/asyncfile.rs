@@ -8,6 +8,7 @@ use std::pin::Pin;
 use std::task::{ready, Context, Poll};
 use tokio::io::unix::AsyncFd;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tracing::trace;
 
 fn set_nonblocking(fd: RawFd) -> nix::Result<()> {
     let flags = fcntl(fd, FcntlArg::F_GETFL)?;
@@ -30,7 +31,9 @@ impl AsyncFile {
     }
 
     pub fn from(file: File) -> std::io::Result<Self> {
+        trace!("from file");
         set_nonblocking(file.as_raw_fd())?;
+        trace!("set nonblocking");
         Ok(Self {
             inner: AsyncFd::new(file)?,
         })
