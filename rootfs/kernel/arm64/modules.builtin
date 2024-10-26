@@ -548,6 +548,8 @@ kernel/net/sunrpc/auth_gss/auth_rpcgss.ko
 kernel/net/sunrpc/auth_gss/rpcsec_gss_krb5.ko
 kernel/net/l2tp/l2tp_core.ko
 kernel/net/8021q/8021q.ko
+kernel/net/sctp/sctp.ko
+kernel/net/sctp/sctp_diag.ko
 kernel/net/wireless/cfg80211.ko
 kernel/net/mac80211/mac80211.ko
 kernel/net/tipc/tipc.ko
