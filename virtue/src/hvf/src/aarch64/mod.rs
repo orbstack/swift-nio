@@ -9,6 +9,7 @@ mod bindings;
 
 mod error;
 mod hvf_gic;
+mod polyfill;
 mod private;
 mod pvgic;
 mod vcpu;

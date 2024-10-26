@@ -1,8 +1,31 @@
-use std::{ffi::CString, sync::OnceLock};
+use std::{
+    ffi::{CStr, CString},
+    sync::LazyLock,
+};
 
 use nix::errno::Errno;
 
-static OS_MAJOR_VERSION: OnceLock<u32> = OnceLock::new();
+pub static OS_VERSION: LazyLock<OsVersion> = LazyLock::new(|| {
+    let str = sysctl_string("kern.osproductversion").expect("failed to get OS version");
+    let mut split = str.split('.');
+
+    let major = split
+        .next()
+        .and_then(|s| s.parse().ok())
+        .expect("failed to parse OS major version");
+    let minor = split
+        .next()
+        .and_then(|s| s.parse().ok())
+        .expect("failed to parse OS minor version");
+
+    OsVersion { major, minor }
+});
+
+#[derive(Debug, Clone, Copy)]
+pub struct OsVersion {
+    pub major: u32,
+    pub minor: u32,
+}
 
 pub fn sysctl_string(name: &str) -> nix::Result<String> {
     let name = CString::new(name).unwrap();
@@ -31,17 +54,8 @@ pub fn sysctl_string(name: &str) -> nix::Result<String> {
     };
     Errno::result(ret)?;
 
-    Ok(String::from_utf8_lossy(&buf).to_string())
-}
-
-pub fn os_major_version() -> u32 {
-    *OS_MAJOR_VERSION.get_or_init(|| {
-        sysctl_string("kern.osproductversion")
-            .expect("failed to get OS version")
-            .split('.')
-            .next()
-            .expect("failed to parse OS major version")
-            .parse()
-            .expect("failed to parse OS major version")
-    })
+    Ok(CStr::from_bytes_with_nul(&buf)
+        .unwrap()
+        .to_string_lossy()
+        .to_string())
 }

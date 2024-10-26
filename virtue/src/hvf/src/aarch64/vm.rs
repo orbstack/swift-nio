@@ -8,7 +8,7 @@ use vm_memory::{Address, GuestAddress};
 
 use tracing::{debug, error};
 
-use crate::aarch64::bindings::{hv_vm_create, hv_vm_protect};
+use crate::aarch64::bindings::hv_vm_create;
 use crate::aarch64::hvf_gic::GicConfig;
 use crate::aarch64::vm_config::VmConfig;
 use crate::aarch64::weak_link::OPTIONAL15;
@@ -16,10 +16,10 @@ use crate::{call_optional, Error, HvfError};
 
 use super::bindings::{
     hv_memory_flags_t, hv_vcpu_t, hv_vcpus_exit, hv_vm_config_get_default_ipa_size,
-    hv_vm_config_get_max_ipa_size, hv_vm_destroy, hv_vm_map, hv_vm_unmap, HV_MEMORY_EXEC,
-    HV_MEMORY_READ, HV_MEMORY_WRITE,
+    hv_vm_config_get_max_ipa_size, hv_vm_destroy, HV_MEMORY_EXEC, HV_MEMORY_READ, HV_MEMORY_WRITE,
 };
 use super::hvf_gic::{FdtGic, GicProps};
+use super::polyfill;
 
 // macOS 15 knobs
 pub const USE_HVF_GIC: bool = false;
@@ -128,7 +128,7 @@ impl HvfVm {
         flags: MemoryFlags,
     ) -> Result<(), Error> {
         let ret = unsafe {
-            hv_vm_map(
+            polyfill::vm_map(
                 host_start_addr as *mut c_void,
                 guest_start_addr.raw_value(),
                 size,
@@ -139,7 +139,7 @@ impl HvfVm {
     }
 
     pub fn unmap_memory(&self, guest_start_addr: GuestAddress, size: usize) -> Result<(), Error> {
-        let ret = unsafe { hv_vm_unmap(guest_start_addr.raw_value(), size) };
+        let ret = unsafe { polyfill::vm_unmap(guest_start_addr.raw_value(), size) };
         HvfError::result(ret).map_err(Error::MemoryUnmap)
     }
 
@@ -149,7 +149,7 @@ impl HvfVm {
         size: usize,
         flags: MemoryFlags,
     ) -> Result<(), Error> {
-        let ret = unsafe { hv_vm_protect(guest_start_addr.raw_value(), size, flags.bits()) };
+        let ret = unsafe { polyfill::vm_protect(guest_start_addr.raw_value(), size, flags.bits()) };
         HvfError::result(ret).map_err(Error::MemoryProtect)
     }
 
