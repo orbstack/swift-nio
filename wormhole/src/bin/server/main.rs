@@ -266,6 +266,7 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
         // .pre_exec(|| Ok(()))
         .spawn()?;
 
+    let mut payload_stdin = payload.stdin.take().unwrap();
     let mut payload_stdout = payload.stdout.take().unwrap();
     let mut payload_stderr = payload.stderr.take().unwrap();
     // if let Some(mut stdout) = payload.stdout.take() {
@@ -334,6 +335,43 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
             Ok(())
         });
     }
+
+    let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
+        loop {
+            match RpcInputMessage::read_from(&mut client_stdin).await {
+                Ok(RpcInputMessage::StdinData(data)) => {
+                    trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&data));
+                    let _ = payload_stdin
+                        .write(&data)
+                        .await
+                        .map_err(|e| trace!("error writing to payload {e}"));
+                }
+                Ok(RpcInputMessage::TerminalResize(w, h)) => {
+                    // if !is_pty {
+                    //     panic!("cannot resize terminal for non-tty ")
+                    // }
+                    // let ws = Winsize {
+                    //     ws_row: h,
+                    //     ws_col: w,
+                    //     ws_xpixel: 0,
+                    //     ws_ypixel: 0,
+                    // };
+                    // unsafe {
+                    //     nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
+                    // }
+                }
+                Ok(RpcInputMessage::RequestPty(_pty)) => {
+                    trace!("cannot request pty after payload already started");
+                }
+                Ok(RpcInputMessage::Start(param)) => {
+                    trace!("already started");
+                }
+                Err(_) => {
+                    trace!("rpc: failed to read");
+                }
+            }
+        }
+    });
 
     // loop {
     //     match RpcInputMessage::read_from(&mut client_stdin).await {

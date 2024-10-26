@@ -976,8 +976,10 @@ fn main() -> anyhow::Result<()> {
                             // die when subreaper dies
                             proc::prctl_death_sig()?;
 
-                            let entry_shell_cmd = config.entry_shell_cmd.clone();
-                            let shell_cmd = entry_shell_cmd.as_deref().unwrap_or("");
+                            // let entry_shell_cmd = config.entry_shell_cmd.clone();
+                            // let shell_cmd = entry_shell_cmd.as_deref().unwrap_or("");
+                            let shell_cmd =
+                                config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
                             let cstr_envs = env_map
                                 .iter()
                                 .map(|(k, v)| CString::new(format!("{}={}", k, v)))
@@ -1003,6 +1005,16 @@ fn main() -> anyhow::Result<()> {
                                 ],
                                 &cstr_envs,
                             )?;
+                            // execve(
+                            //     &CString::new("/nix/orb/sys/bin/dctl")?,
+                            //     &[
+                            //         CString::new("dctl")?,
+                            //         CString::new("__entrypoint")?,
+                            //         CString::new("--")?,
+                            //         CString::new(shell_cmd)?,
+                            //     ],
+                            //     &cstr_envs,
+                            // )?;
                             // }
                             unreachable!();
                         }
