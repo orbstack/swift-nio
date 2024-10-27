@@ -179,7 +179,7 @@ impl ShutdownSignal {
             task();
         }
 
-        if !guard.tasks.is_empty() {
+        while !guard.tasks.is_empty() {
             guard = self.0.condvar.wait(guard).unwrap();
         }
 
