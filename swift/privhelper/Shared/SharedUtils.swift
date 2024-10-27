@@ -36,11 +36,7 @@ func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]
             data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)!
         return output
     }
-
-    // compiling with Xcode 16 causes withCheckedThrowingContinuation to segfault on some early macOS 15 betas (24B5009l, 24A5298h)
-    // segfaults in backdeployment thunk because withCheckedThrowingContinuation is now @backDeployed(before: macOS 15.0)
-    // withUnsafeThrowingContinuation fixes this because it's not @backDeployed
-    return try await withUnsafeThrowingContinuation { continuation in
+    return try await withCheckedThrowingContinuation { continuation in
         task.terminationHandler = { process in
             let status = process.terminationStatus
             Task {
