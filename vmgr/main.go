@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -70,6 +71,21 @@ const (
 	// we use a small swap file for emergency OOM cases
 	swapSize = 1024 * 1024 * 1024 // 1 GiB
 )
+
+/*
+ * macOS 15.0 beta 1–4 has a mismatching ABI for actor-isolated Swift Concurrency APIs.
+ * The new isolated APIs are used when compiling with Xcode 16+ (swiftc 6.0+).
+ *
+ * Betas are considered 15.0 for @backDeployed version checks, causing the mismatching ABI to be used.
+ * This causes segfaults in swext.
+ */
+var badMacOS15Betas = []string{
+	"24A5264n", // 15.0 beta 1
+	"24A5279h", // 15.0 beta 2
+	"24A5289g", // 15.0 beta 3
+	"24A5289h", // 15.0 beta 3 hotfix
+	"24A5298h", // 15.0 beta 4
+}
 
 var errDataPermission = errors.New(`Permission denied while opening data image. This is usually caused by Migration Assistant changing its owner to root. To fix it, run: "sudo chown -R $USER ~/.orbstack/data"`)
 
@@ -523,7 +539,11 @@ func runVmManager() {
 	defer errorx.RecoverCLI()
 
 	if !osver.IsAtLeast("v13.0") {
-		errorx.Fatalf("unsupported OS: macOS 13.0 or later is required")
+		errorx.Fatalf("unsupported OS: macOS 13.0 or newer is required")
+	}
+
+	if osver.Major() == 15 && slices.Contains(badMacOS15Betas, osver.Build()) {
+		errorx.Fatalf("unsupported OS: macOS 15.0 beta 1–4 has a bug that prevents OrbStack from working. Please update to stable macOS 15.0 or newer.")
 	}
 
 	// done signal for shutdown process

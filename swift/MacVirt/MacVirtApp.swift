@@ -94,6 +94,11 @@ struct MacVirtApp: App {
     private let updaterController: SPUStandardUpdaterController
 
     init() {
+        // check OS version before any async code can run
+        // unfortunately, this is a bit too early, causing the "Update" button to be blue (AppColor not loaded from asset catalog yet)
+        // but applicationWillFinishLaunching is too late and shows unrendered state-restored SwiftUI windows in the background
+        VersionGate.maybeShowMacOS15BetaAlert()
+
         delegate = UpdateDelegate()
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)

@@ -152,6 +152,7 @@
 		D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8212A2B22A0002CF279 /* Proxy.swift */; };
 		D880D8262A2B22A0002CF279 /* DefaultsFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */; };
 		D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8292A2B40C7002CF279 /* VlanRouter.swift */; };
+		D88AAF782CCE0BBD00C37028 /* VersionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D88AAF772CCE0BBB00C37028 /* VersionGate.swift */; };
 		D88F08232AC12F5200454098 /* CachedAsyncImage in Frameworks */ = {isa = PBXBuildFile; productRef = D88F08222AC12F5200454098 /* CachedAsyncImage */; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D88F4EDC299A131B00419B5C /* docker in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -407,6 +408,7 @@
 		D880D8212A2B22A0002CF279 /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
 		D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DefaultsFFI.swift; sourceTree = "<group>"; };
 		D880D8292A2B40C7002CF279 /* VlanRouter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VlanRouter.swift; sourceTree = "<group>"; };
+		D88AAF772CCE0BBB00C37028 /* VersionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionGate.swift; sourceTree = "<group>"; };
 		D88F4EB82998D81A00419B5C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = build/assets; sourceTree = "<group>"; };
 		D88F4ED9299A131B00419B5C /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = build/bins/docker; sourceTree = "<group>"; };
 		D88F4EDA299A131B00419B5C /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "build/bins/docker-compose"; sourceTree = "<group>"; };
@@ -776,20 +778,23 @@
 		D8A32B90296F839100E56EEF /* MacVirt */ = {
 			isa = PBXGroup;
 			children = (
-				D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */,
 				D80443D72A1B404E00ED59C5 /* ActionTracker.swift */,
 				D80443B32A1B404E00ED59C5 /* AppConfig.swift */,
 				D80443CE2A1B404E00ED59C5 /* AppDelegate.swift */,
 				D8A32B95296F839100E56EEF /* Assets.xcassets */,
+				B118B6BD06B6D2DF4AE4C794 /* AuthView.swift */,
 				D80443BD2A1B404E00ED59C5 /* CommandsRootView.swift */,
-				D80443CF2A1B404E00ED59C5 /* MacVirtApp.swift */,
-				D80443D02A1B404E00ED59C5 /* MainWindow.swift */,
-				3CD16B6D2B108643002FBB00 /* New */,
+				D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */,
 				D80443BE2A1B404E00ED59C5 /* Docker */,
+				B118B1DCE616676E483BB2BB /* FeedbackView.swift */,
 				D8694A372991EC5A0046B6B6 /* Info.plist */,
+				B118BC30D178CF936018341C /* K8s */,
 				D80443A52A1B404E00ED59C5 /* Machines */,
 				D8A32B9A296F839100E56EEF /* MacVirt.entitlements */,
+				D80443CF2A1B404E00ED59C5 /* MacVirtApp.swift */,
+				D80443D02A1B404E00ED59C5 /* MainWindow.swift */,
 				D80443BA2A1B404E00ED59C5 /* MenuBar */,
+				3CD16B6D2B108643002FBB00 /* New */,
 				D804439F2A1B404E00ED59C5 /* Onboarding */,
 				D80443DE2A1B404E00ED59C5 /* Preview Content */,
 				D8A32B97296F839100E56EEF /* Preview Content */,
@@ -797,9 +802,7 @@
 				D80443D12A1B404E00ED59C5 /* Settings */,
 				D80443AF2A1B404E00ED59C5 /* State */,
 				D80443B42A1B404E00ED59C5 /* Utils */,
-				B118B1DCE616676E483BB2BB /* FeedbackView.swift */,
-				B118BC30D178CF936018341C /* K8s */,
-				B118B6BD06B6D2DF4AE4C794 /* AuthView.swift */,
+				D88AAF772CCE0BBB00C37028 /* VersionGate.swift */,
 			);
 			path = MacVirt;
 			sourceTree = "<group>";
@@ -1189,6 +1192,7 @@
 				B118B8D281CB560AA13AD3FB /* K8SPodsView.swift in Sources */,
 				B118B81365EA43CD9BD5FFF1 /* K8sRPC.swift in Sources */,
 				B118B242A992055158331DBA /* K8SStateWrapperView.swift in Sources */,
+				D88AAF782CCE0BBD00C37028 /* VersionGate.swift in Sources */,
 				B118BC0C08A918A48F447E2D /* K8SPodItemView.swift in Sources */,
 				B118B2587E45023C13156AE5 /* K8SUIHelpers.swift in Sources */,
 				B118BD1656CDA2FBAE025120 /* K8SServicesView.swift in Sources */,
