@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/util"
 )
@@ -112,5 +115,27 @@ func TestK8sContainersRegression(t *testing.T) {
 
 	if !findLine(out, testCase) {
 		t.Fatal("didn't get expected output")
+	}
+}
+
+func TestTarXzRootfsRegression(t *testing.T) {
+	t.Parallel()
+
+	n := name("regr-tar.xz-rootfs")
+	c, err := scli.Client().Create(types.CreateRequest{
+		Name: n,
+		Image: types.ImageSpec{
+			Distro:  images.DistroNixos,
+			Version: "23.05",
+		},
+		InternalForTesting: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = scli.Client().ContainerDelete(c)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

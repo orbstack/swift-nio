@@ -406,6 +406,11 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	var cmd *exec.Cmd
 	switch img.RootfsFormat {
 	case ImageFormatTarXz:
+		// unsquashfs creates destination directory by default, but tar doesn't
+		err = os.MkdirAll(rootfsDir, 0755)
+		if err != nil {
+			return err
+		}
 		cmd = exec.Command("tar", "-xJf", rootfsFile, "-C", rootfsDir, "--numeric-owner", "--xattrs", "--xattrs-include=*")
 	case ImageFormatSquashfs:
 		// limit parallelism
