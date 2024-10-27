@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use libc::{winsize, TIOCSCTTY, TIOCSWINSZ};
-use rpc::{RpcInputMessage, RpcOutputMessage};
 use std::{
     ffi::CString,
     fs::{self, File, OpenOptions},
@@ -24,6 +23,7 @@ use wormhole::{
     asyncfile::AsyncFile,
     flock::{Flock, FlockMode, FlockWait},
     newmount::open_tree,
+    rpc::{RpcInputMessage, RpcOutputMessage},
     unset_cloexec,
 };
 
@@ -37,8 +37,6 @@ use nix::{
 use tracing::{trace, Level};
 
 mod model;
-mod rpc;
-mod termios;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -198,15 +196,21 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
         client_stdout.as_raw_fd()
     );
 
+    // todo: increment connection count
+
     // todo: let user set this via rpc
 
     let mut client_stdin = AsyncFile::from(client_stdin)?;
     let mut client_stdout = AsyncFile::from(client_stdout)?;
 
-    let mut client_writer_m = Arc::new(Mutex::new(client_stdout));
+    // acknowledge
+    let _ = RpcOutputMessage::ConnectServerAck()
+        .write_to(&mut client_stdout)
+        .await;
 
+    let mut client_writer_m = Arc::new(Mutex::new(client_stdout));
     let mut pty: Option<OpenptyResult> = None;
-    let mut wormhole_param = String::new();
+    let wormhole_param;
 
     let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
     let mut stdout_pipe: (RawFd, RawFd) = (-1, -1);
@@ -231,7 +235,7 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
 
                 // cstr_envs.push(CString::new(format!("TERM={}", pty_config.term_env))?);
             }
-            Ok(RpcInputMessage::Start(params)) => {
+            Ok(RpcInputMessage::StartPayload(params)) => {
                 wormhole_param = params;
                 break;
             }
@@ -267,9 +271,6 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
     let mut payload = unsafe {
         Command::new("/wormhole-attach")
             .arg(serde_json::to_string(&config)?)
-            // .stdin(std::process::Stdio::piped())
-            // .stdout(std::process::Stdio::piped())
-            // .stderr(std::process::Stdio::piped())
             .pre_exec(move || {
                 if pty.is_some() {
                     setsid()?;
@@ -363,12 +364,13 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
                 Ok(RpcInputMessage::RequestPty(_pty)) => {
                     trace!("cannot request pty after payload already started");
                 }
-                Ok(RpcInputMessage::Start(_param)) => {
+                Ok(RpcInputMessage::StartPayload(_param)) => {
                     trace!("already started");
                 }
                 Err(_) => {
                     trace!("rpc: failed to read");
                 }
+                _ => {}
             }
         }
     });

@@ -14,6 +14,8 @@ pub mod asyncfile;
 pub mod flock;
 pub mod newmount;
 pub mod paths;
+pub mod rpc;
+pub mod termios;
 
 fn _err<T: IsMinusOne>(ret: T) -> nix::Result<T> {
     if ret.is_minus_one() {

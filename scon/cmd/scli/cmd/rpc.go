@@ -15,11 +15,14 @@ const (
 	WindowChangeType RpcInputType = 0x02
 	RequestPtyType   RpcInputType = 0x03
 	StartType        RpcInputType = 0x04
+	StartServerAck   RpcInputType = 0x5
 )
 
 const (
-	ReadStdioType RpcOutputType = 0x01
-	ExitCodeType  RpcOutputType = 0x02
+	ReadStdioType     RpcOutputType = 0x01
+	StartServerType   RpcOutputType = 0x02
+	ExitCodeType      RpcOutputType = 0x03
+	ConnectServerType RpcInputType  = 0x04
 )
 
 type RpcInputMessage struct {
@@ -66,6 +69,13 @@ func (server RpcServer) RpcWriteStdin(data []byte) error {
 		return err
 	}
 	if err := server.writeBytes(data); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (server RpcServer) RpcStartServerAck() error {
+	if _, err := server.writer.Write([]byte{byte(StartServerAck)}); err != nil {
 		return err
 	}
 	return nil

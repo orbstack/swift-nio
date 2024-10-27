@@ -30,11 +30,12 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use tracing::trace;
-use wormhole::asyncfile::AsyncFile;
 
 use crate::{
-    model::WormholeConfig,
-    termios::{create_pty, set_termios},
+    asyncfile::AsyncFile,
+    termios::create_pty,
+    // model::WormholeConfig,
+    // termios::{create_pty, set_termios},
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -43,6 +44,7 @@ pub enum RpcType {
     WindowChange = 2,
     RequestPty = 3,
     Start = 4,
+    StartServerAck = 5,
 }
 
 impl RpcType {
@@ -52,6 +54,7 @@ impl RpcType {
             2 => Self::WindowChange,
             3 => Self::RequestPty,
             4 => Self::Start,
+            5 => Self::StartServerAck,
             _ => panic!("invalid rpc type {rpc_type}"),
         }
     }
@@ -59,15 +62,39 @@ impl RpcType {
 
 pub enum RpcOutputMessage<'a> {
     StdioData(u8, &'a [u8]),
+    StartServer(),
     Exit(u8),
+    ConnectServerAck(),
 }
 
 impl<'a> RpcOutputMessage<'a> {
     pub fn to_const(&self) -> u8 {
         match self {
             Self::StdioData(_, _) => 1,
-            Self::Exit(_) => 2,
+            Self::StartServer() => 2,
+            Self::Exit(_) => 3,
+            Self::ConnectServerAck() => 4,
         }
+    }
+
+    pub fn write_to_sync(&self, stream: &mut impl Write) -> anyhow::Result<()> {
+        stream.write(&[self.to_const()])?;
+
+        match self {
+            Self::StdioData(fd, data) => {
+                let len_bytes = u32::try_from(data.len() + 1)?.to_be_bytes();
+                stream.write(&len_bytes)?;
+                stream.write(&[*fd])?;
+                stream.write(data)?;
+            }
+            Self::StartServer() => {}
+            Self::Exit(exit_code) => {
+                stream.write(&[*exit_code])?;
+            }
+            Self::ConnectServerAck() => {}
+        };
+
+        Ok(())
     }
 
     pub async fn write_to(&self, stream: &mut AsyncFile) -> anyhow::Result<()> {
@@ -80,9 +107,13 @@ impl<'a> RpcOutputMessage<'a> {
                 trace!("len bytes {:?} bytes", len_bytes);
                 stream.write(&len_bytes).await?;
                 stream.write(&[*fd]).await?;
-                stream.write(data).await?
+                stream.write(data).await?;
             }
-            Self::Exit(exit_code) => stream.write(&[*exit_code]).await?,
+            Self::StartServer() => {}
+            Self::Exit(exit_code) => {
+                stream.write(&[*exit_code]).await?;
+            }
+            Self::ConnectServerAck() => {}
         };
 
         Ok(())
@@ -99,7 +130,9 @@ pub enum RpcInputMessage {
     StdinData(Vec<u8>),
     TerminalResize(u16, u16),
     RequestPty(PtyConfig),
-    Start(String),
+    StartPayload(String),
+    StartServerAck(),
+    ConnectServerAck(),
 }
 
 impl RpcInputMessage {}
@@ -168,8 +201,9 @@ impl RpcInputMessage {
             }
             RpcType::Start => {
                 let data = read_bytes_sync(stream)?;
-                Ok(RpcInputMessage::Start(String::from_utf8(data)?))
+                Ok(RpcInputMessage::StartPayload(String::from_utf8(data)?))
             }
+            RpcType::StartServerAck => Ok(RpcInputMessage::StartServerAck()),
         }
     }
 
@@ -200,8 +234,9 @@ impl RpcInputMessage {
             }
             RpcType::Start => {
                 let data = read_bytes(stream).await?;
-                Ok(RpcInputMessage::Start(String::from_utf8(data)?))
+                Ok(RpcInputMessage::StartPayload(String::from_utf8(data)?))
             }
+            RpcType::StartServerAck => Ok(RpcInputMessage::StartServerAck()),
         }
     }
 }

@@ -8,7 +8,8 @@ use nix::{
         LocalFlags, OutputFlags, SetArg, Termios,
     },
 };
-use wormhole::set_cloexec;
+
+use crate::set_cloexec;
 
 pub fn create_pty(w: u16, h: u16, termios_config: Vec<u8>) -> anyhow::Result<OpenptyResult> {
     let pty = openpty(

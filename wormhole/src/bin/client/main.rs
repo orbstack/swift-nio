@@ -1,28 +1,52 @@
-use anyhow::{anyhow, Result};
-use libc::EBADF;
-use nix::fcntl::fcntl;
-use nix::fcntl::FcntlArg::F_GETFL;
-use nix::sys::socket::{self, sendmsg, ControlMessage, MsgFlags, UnixAddr};
-use nix::sys::uio;
-use nix::unistd::sleep;
-use std::io::{stdin, stdout, IoSlice, Read, Write};
-use std::os::fd::{AsFd, AsRawFd};
+use anyhow::anyhow;
+use nix::sys::socket::{sendmsg, ControlMessage, MsgFlags, UnixAddr};
+use std::fs::{self, File};
+use std::io::{stdin, stdout, IoSlice};
+use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
+use std::path::Path;
+use wormhole::flock::{Flock, FlockMode, FlockWait};
+use wormhole::rpc::{RpcInputMessage, RpcOutputMessage};
 
-fn main() -> Result<()> {
-    // sleep(3);
-    println!("starting client");
-    let mut stream = UnixStream::connect("/data/rpc.sock")
-        .map_err(|e| anyhow!("Could not connect to RPC socket: {}", e))?;
+const LOCK: &str = "/data/.lock";
+
+fn connect_to_server() -> anyhow::Result<UnixStream> {
+    let _flock = Flock::new_ofd(
+        File::create(LOCK)?,
+        FlockMode::Exclusive,
+        FlockWait::Blocking,
+    )?;
+
+    if !Path::new("/data/rpc.sock").exists() {
+        RpcOutputMessage::StartServer().write_to_sync(&mut stdout())?;
+
+        // wait until server starts
+        match RpcInputMessage::read_from_sync(&mut stdin())? {
+            RpcInputMessage::StartServerAck() => {}
+            _ => return Err(anyhow!("expected StartServerAck")),
+        };
+    }
+
+    let stream = UnixStream::connect("/data/rpc.sock")
+        .map_err(|e| anyhow!("could not connect to RPC socket: {}", e))?;
+
+    // write connect server
+
+    match RpcInputMessage::read_from_sync(&mut stdin())? {
+        RpcInputMessage::ConnectServerAck() => {}
+        _ => return Err(anyhow!("expected ConnectServerAck")),
+    };
+
+    Ok(stream)
+}
+
+fn main() -> anyhow::Result<()> {
+    let stream = connect_to_server()?;
 
     let fds = [stdin().as_raw_fd(), stdout().as_raw_fd()];
     let cmsgs = [ControlMessage::ScmRights(&fds)];
     let iov = [IoSlice::new(&[0u8])];
     sendmsg::<()>(stream.as_raw_fd(), &iov, &cmsgs, MsgFlags::empty(), None)?;
 
-    // stdout().write_all(b"hello from client")?;
-
-    // TODO: listen to server eof?
-    // todo: don't spin?
     loop {}
 }
