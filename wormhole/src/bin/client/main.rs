@@ -6,7 +6,7 @@ use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use wormhole::flock::{Flock, FlockMode, FlockWait};
-use wormhole::rpc::{RpcInputMessage, RpcOutputMessage};
+use wormhole::rpc::RpcInputMessage;
 
 const LOCK: &str = "/data/.lock";
 
@@ -17,25 +17,25 @@ fn connect_to_server() -> anyhow::Result<UnixStream> {
         FlockWait::Blocking,
     )?;
 
-    if !Path::new("/data/rpc.sock").exists() {
-        RpcOutputMessage::StartServer().write_to_sync(&mut stdout())?;
+    // if !Path::new("/data/rpc.sock").exists() {
+    //     RpcOutputMessage::StartServer().write_to_sync(&mut stdout())?;
 
-        // wait until server starts
-        match RpcInputMessage::read_from_sync(&mut stdin())? {
-            RpcInputMessage::StartServerAck() => {}
-            _ => return Err(anyhow!("expected StartServerAck")),
-        };
-    }
+    //     // wait until server starts
+    //     match RpcInputMessage::read_from_sync(&mut stdin())? {
+    //         RpcInputMessage::StartServerAck() => {}
+    //         _ => return Err(anyhow!("expected StartServerAck")),
+    //     };
+    // }
 
     let stream = UnixStream::connect("/data/rpc.sock")
         .map_err(|e| anyhow!("could not connect to RPC socket: {}", e))?;
 
     // write connect server
 
-    match RpcInputMessage::read_from_sync(&mut stdin())? {
-        RpcInputMessage::ConnectServerAck() => {}
-        _ => return Err(anyhow!("expected ConnectServerAck")),
-    };
+    // match RpcInputMessage::read_from_sync(&mut stdin())? {
+    //     RpcInputMessage::ConnectServerAck() => {}
+    //     _ => return Err(anyhow!("expected ConnectServerAck")),
+    // };
 
     Ok(stream)
 }

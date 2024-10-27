@@ -28,6 +28,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
+
+	pb "github.com/orbstack/macvirt/scon/cmd/scli/generated"
 )
 
 var (
@@ -208,7 +210,7 @@ func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) erro
 
 	go func() {
 		for {
-			rpcType, data, err := server.RpcRead()
+			message, err := server.ReadMessage()
 			if err != nil {
 				if err == io.EOF {
 					return
@@ -216,34 +218,71 @@ func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) erro
 				return
 			}
 
-			switch rpcType {
-			case ReadStdioType:
-				if data[0] == 1 {
-					os.Stdout.Write(data)
-				} else if data[0] == 2 {
-					os.Stderr.Write(data)
-				} else {
-					// return
-				}
-			case ExitCodeType:
+			switch v := message.ServerMessage.(type) {
+			case *pb.RpcServerMessage_StdoutData:
+				os.Stdout.Write(v.StdoutData.Data)
+			case *pb.RpcServerMessage_StderrData:
+				os.Stdout.Write(v.StderrData.Data)
+			case *pb.RpcServerMessage_ExitStatus:
 				term.Restore(ptyFd, originalState)
-				os.Exit(int(data[0]))
-			case StartServerType:
-				_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
-					Image: serverImage,
-					HostConfig: &dockertypes.ContainerHostConfig{
-						Privileged:   true,
-						Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
-						CgroupnsMode: "host",
-						PidMode:      "host",
-						NetworkMode:  "host",
-					},
-				}, true)
-				fmt.Println("starting container")
-				server.RpcStartServerAck()
+				os.Exit(int(v.ExitStatus.ExitCode))
 			}
+
+			// case StartServerType:
+			// 	_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
+			// 		Image: serverImage,
+			// 		HostConfig: &dockertypes.ContainerHostConfig{
+			// 			Privileged:   true,
+			// 			Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
+			// 			CgroupnsMode: "host",
+			// 			PidMode:      "host",
+			// 			NetworkMode:  "host",
+			// 		},
+			// 	}, true)
+			// 	fmt.Println("starting container")
+			// 	// server.RpcStartServerAck()
+			// }
 		}
 	}()
+
+	// go func() {
+	// 	for {
+	// 		rpcType, data, err := server.RpcRead()
+	// 		if err != nil {
+	// 			if err == io.EOF {
+	// 				return
+	// 			}
+	// 			return
+	// 		}
+
+	// 		switch rpcType {
+	// 		case ReadStdioType:
+	// 			if data[0] == 1 {
+	// 				os.Stdout.Write(data)
+	// 			} else if data[0] == 2 {
+	// 				os.Stderr.Write(data)
+	// 			} else {
+	// 				// return
+	// 			}
+	// 		case ExitCodeType:
+	// 			term.Restore(ptyFd, originalState)
+	// 			os.Exit(int(data[0]))
+	// 		case StartServerType:
+	// 			_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
+	// 				Image: serverImage,
+	// 				HostConfig: &dockertypes.ContainerHostConfig{
+	// 					Privileged:   true,
+	// 					Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
+	// 					CgroupnsMode: "host",
+	// 					PidMode:      "host",
+	// 					NetworkMode:  "host",
+	// 				},
+	// 			}, true)
+	// 			fmt.Println("starting container")
+	// 			// server.RpcStartServerAck()
+	// 		}
+	// 	}
+	// }()
 
 	// need a pty?
 	if ptyStdin || ptyStdout || ptyStderr {
@@ -359,16 +398,16 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		return err
 	}
 
-	// _, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
-	// 	Image: serverImage,
-	// 	HostConfig: &dockertypes.ContainerHostConfig{
-	// 		Privileged:   true,
-	// 		Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
-	// 		CgroupnsMode: "host",
-	// 		PidMode:      "host",
-	// 		NetworkMode:  "host",
-	// 	},
-	// }, true)
+	_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
+		Image: serverImage,
+		HostConfig: &dockertypes.ContainerHostConfig{
+			Privileged:   true,
+			Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
+			CgroupnsMode: "host",
+			PidMode:      "host",
+			NetworkMode:  "host",
+		},
+	}, true)
 
 	startRpcConnection(client, wormholeParams)
 	return nil

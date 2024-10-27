@@ -44,7 +44,7 @@ require (
 	go.etcd.io/bbolt v1.3.8
 	golang.org/x/net v0.30.0
 	golang.org/x/term v0.25.0
-	google.golang.org/protobuf v1.33.0
+	google.golang.org/protobuf v1.35.1
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 )
@@ -53,8 +53,6 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.10.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/docker/cli v27.3.1+incompatible // indirect
-	github.com/docker/docker v27.3.1+incompatible // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect

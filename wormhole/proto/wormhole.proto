@@ -1,14 +1,59 @@
 syntax = "proto3";
 package wormhole;
 
-service Wormhole {
-    rpc SendCommand(stream InputMessage) returns (stream OutputMessage);
+option go_package = "cmd/scli/generated";
+
+
+// message created by server, sent to client
+message RpcServerMessage {
+    oneof server_message {
+        StdoutData stdout_data = 1;
+        StderrData stderr_data = 2;
+        ExitStatus exit_status = 3;
+    }
 }
 
-message InputMessage {
-    string input = 1;
+// message created by client, sent to server
+message RpcClientMessage {
+    oneof client_message {
+        StdinData stdin_data = 1;
+        TerminalResize terminal_reisze = 2;
+        RequestPty request_pty = 3;
+        StartPayload start_payload = 4;
+    }
 }
 
-message OutputMessage {
-    string output = 1;
+// server messages
+message StdinData {
+    bytes data = 11;
+}
+
+message TerminalResize {
+    uint32 cols = 12;
+    uint32 rows = 13;
+}
+
+message RequestPty {
+    string term_env = 14;
+    string rows = 15;
+    string cols = 16;
+    bytes termios = 17;
+}
+
+message StartPayload {
+    string wormhole_config = 18;
+}
+
+
+// client messages
+message StdoutData {
+    bytes data = 11;
+}
+
+message StderrData {
+    bytes data = 12;
+}
+
+message ExitStatus {
+    uint32 exit_code = 13;
 }

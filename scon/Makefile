@@ -4,6 +4,7 @@ all: scli
 
 scli:
 	@mkdir -p ../out
+	@protoc --proto_path=../wormhole/proto --go_out=.  ../wormhole/proto/wormhole.proto
 # force cgo when cross-compiling to amd64
 	@CGO_ENABLED=1 go build -o ../out/scli ./cmd/scli
 	@bash -c 'source ../config.sh; codesign -f --timestamp --options=runtime --entitlements scli.entitlements -i dev.kdrag0n.MacVirt.scli -s "$$SIGNING_CERT_DEV" ../out/scli || :'

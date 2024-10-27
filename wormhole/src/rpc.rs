@@ -11,6 +11,7 @@ use nix::{
     },
     unistd::{close, dup, dup2, execve, fork, pipe, setsid, sleep, ForkResult},
 };
+use prost::{bytes::BytesMut, Message};
 use std::{
     collections::HashMap,
     ffi::CString,
@@ -30,6 +31,7 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use tracing::trace;
+use wormhole::{rpc_client_message, rpc_server_message, StdoutData};
 
 use crate::{
     asyncfile::AsyncFile,
@@ -37,6 +39,12 @@ use crate::{
     // model::WormholeConfig,
     // termios::{create_pty, set_termios},
 };
+
+pub mod wormhole {
+    include!(concat!(env!("OUT_DIR"), "/wormhole.rs"));
+}
+
+// ideal interface
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RpcType {
@@ -60,65 +68,105 @@ impl RpcType {
     }
 }
 
-pub enum RpcOutputMessage<'a> {
-    StdioData(u8, &'a [u8]),
-    StartServer(),
-    Exit(u8),
-    ConnectServerAck(),
-}
+impl rpc_server_message::ServerMessage {
+    pub async fn write(self, stream: &mut AsyncFile) -> anyhow::Result<()> {
+        let mut buf = BytesMut::with_capacity(self.encoded_len());
+        self.encode(&mut buf);
 
-impl<'a> RpcOutputMessage<'a> {
-    pub fn to_const(&self) -> u8 {
-        match self {
-            Self::StdioData(_, _) => 1,
-            Self::StartServer() => 2,
-            Self::Exit(_) => 3,
-            Self::ConnectServerAck() => 4,
-        }
-    }
+        let len_bytes = u32::try_from(buf.len())?.to_be_bytes();
 
-    pub fn write_to_sync(&self, stream: &mut impl Write) -> anyhow::Result<()> {
-        stream.write(&[self.to_const()])?;
-
-        match self {
-            Self::StdioData(fd, data) => {
-                let len_bytes = u32::try_from(data.len() + 1)?.to_be_bytes();
-                stream.write(&len_bytes)?;
-                stream.write(&[*fd])?;
-                stream.write(data)?;
-            }
-            Self::StartServer() => {}
-            Self::Exit(exit_code) => {
-                stream.write(&[*exit_code])?;
-            }
-            Self::ConnectServerAck() => {}
-        };
-
-        Ok(())
-    }
-
-    pub async fn write_to(&self, stream: &mut AsyncFile) -> anyhow::Result<()> {
-        stream.write(&[self.to_const()]).await?;
-
-        match self {
-            Self::StdioData(fd, data) => {
-                trace!("writing {} bytes", data.len() + 1);
-                let len_bytes = u32::try_from(data.len() + 1)?.to_be_bytes();
-                trace!("len bytes {:?} bytes", len_bytes);
-                stream.write(&len_bytes).await?;
-                stream.write(&[*fd]).await?;
-                stream.write(data).await?;
-            }
-            Self::StartServer() => {}
-            Self::Exit(exit_code) => {
-                stream.write(&[*exit_code]).await?;
-            }
-            Self::ConnectServerAck() => {}
-        };
-
+        stream.write_all(&len_bytes).await?;
+        stream.write_all(&buf).await?;
         Ok(())
     }
 }
+// fn write_message( rpc_client_message::Message){
+
+// }
+
+// fn write_to_sync(message: rpc_client_message::Message) {
+//     let mut buf = BytesMut::with_capacity(greeting.encoded_len());
+//     greeting.encode(&mut buf).expect("Failed to encode greeting");
+
+//     // Get the length of the serialized message
+//     let msg_len = buf.len() as u32;
+
+//     // Create a buffer for the length prefix
+//     let mut len_buf = [0u8; 4];
+//     len_buf.copy_from_slice(&msg_len.to_be_bytes());
+
+//     // Write the length prefix to the stream
+//     stream.write_all(&len_buf).await?;
+
+//     // Write the serialized message to the stream
+//     stream.write_all(&buf).await?;
+
+//     Ok(())
+
+//     rpc_client_message::Message::StdoutData(StdoutData {
+//         data: vec![1, 2, 3],
+//     });
+// }
+
+// pub enum RpcOutputMessage<'a> {
+//     StdioData(u8, &'a [u8]),
+//     StartServer(),
+//     Exit(u8),
+//     ConnectServerAck(),
+// }
+
+// impl<'a> RpcOutputMessage<'a> {
+//     pub fn to_const(&self) -> u8 {
+//         match self {
+//             Self::StdioData(_, _) => 1,
+//             Self::StartServer() => 2,
+//             Self::Exit(_) => 3,
+//             Self::ConnectServerAck() => 4,
+//         }
+//     }
+
+//     pub fn write_to_sync(&self, stream: &mut impl Write) -> anyhow::Result<()> {
+//         stream.write(&[self.to_const()])?;
+
+//         match self {
+//             Self::StdioData(fd, data) => {
+//                 let len_bytes = u32::try_from(data.len() + 1)?.to_be_bytes();
+//                 stream.write(&len_bytes)?;
+//                 stream.write(&[*fd])?;
+//                 stream.write(data)?;
+//             }
+//             Self::StartServer() => {}
+//             Self::Exit(exit_code) => {
+//                 stream.write(&[*exit_code])?;
+//             }
+//             Self::ConnectServerAck() => {}
+//         };
+
+//         Ok(())
+//     }
+
+//     pub async fn write_to(&self, stream: &mut AsyncFile) -> anyhow::Result<()> {
+//         stream.write(&[self.to_const()]).await?;
+
+//         match self {
+//             Self::StdioData(fd, data) => {
+//                 trace!("writing {} bytes", data.len() + 1);
+//                 let len_bytes = u32::try_from(data.len() + 1)?.to_be_bytes();
+//                 trace!("len bytes {:?} bytes", len_bytes);
+//                 stream.write(&len_bytes).await?;
+//                 stream.write(&[*fd]).await?;
+//                 stream.write(data).await?;
+//             }
+//             Self::StartServer() => {}
+//             Self::Exit(exit_code) => {
+//                 stream.write(&[*exit_code]).await?;
+//             }
+//             Self::ConnectServerAck() => {}
+//         };
+
+//         Ok(())
+//     }
+// }
 
 #[derive(Debug)]
 pub struct PtyConfig {
@@ -240,212 +288,3 @@ impl RpcInputMessage {
         }
     }
 }
-
-// async fn run_rpc_server(
-//     payload_stdin: RawFd,
-//     payload_stdout: RawFd,
-//     payload_stderr: RawFd,
-//     client: (File, File),
-//     exit_code_reader: File,
-//     is_pty: bool,
-// ) -> anyhow::Result<()> {
-//     // note: we must create the AsyncFile within a Tokio context, since it relies on AsyncFd
-//     let mut payload_stdin = AsyncFile::new(payload_stdin)?;
-//     let mut payload_stdout = AsyncFile::new(payload_stdout)?;
-//     let mut payload_stderr = AsyncFile::new(payload_stderr)?;
-
-//     let mut exit_code_reader = AsyncFile::from(exit_code_reader)?;
-
-//     let mut client_reader = AsyncFile::from(client.0)?;
-//     let client_writer = AsyncFile::from(client.1)?;
-//     let client_writer_m = Arc::new(Mutex::new(client_writer));
-
-//     {
-//         let client_writer_m = Arc::clone(&client_writer_m);
-//         let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
-//             let mut buf = [0u8; 1024];
-//             loop {
-//                 match payload_stdout.read(&mut buf).await {
-//                     Ok(0) => break,
-//                     Ok(n) => {
-//                         let mut client_writer = client_writer_m.lock().await;
-//                         let _ = RpcOutputMessage::StdioData(1, &buf[..n])
-//                             .write_to(&mut client_writer)
-//                             .await
-//                             .map_err(|e| trace!("error writing to client {e}"));
-//                     }
-//                     Err(e) => trace!("got error reading from payload stdout: {e}"),
-//                 }
-//             }
-//             Ok(())
-//         });
-//     }
-
-//     {
-//         let client_writer_m = Arc::clone(&client_writer_m);
-//         let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
-//             let mut buf = [0u8; 1024];
-//             loop {
-//                 match payload_stderr.read(&mut buf).await {
-//                     Ok(0) => break,
-//                     Ok(n) => {
-//                         let mut client_writer = client_writer_m.lock().await;
-//                         let _ = RpcOutputMessage::StdioData(2, &buf[..n])
-//                             .write_to(&mut client_writer)
-//                             .await
-//                             .map_err(|e| trace!("error writing to client {e}"));
-//                     }
-//                     Err(e) => trace!("got error reading from payload stdout: {e}"),
-//                 }
-//             }
-//             Ok(())
-//         });
-//     }
-
-//     let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
-//         loop {
-//             match RpcInputMessage::read_from(&mut client_reader).await {
-//                 Ok(RpcInputMessage::StdinData(data)) => {
-//                     trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&data));
-//                     let _ = payload_stdin
-//                         .write(&data)
-//                         .await
-//                         .map_err(|e| trace!("error writing to payload {e}"));
-//                 }
-//                 Ok(RpcInputMessage::TerminalResize(w, h)) => {
-//                     if !is_pty {
-//                         panic!("cannot resize terminal for non-tty ")
-//                     }
-//                     let ws = Winsize {
-//                         ws_row: h,
-//                         ws_col: w,
-//                         ws_xpixel: 0,
-//                         ws_ypixel: 0,
-//                     };
-//                     unsafe {
-//                         nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
-//                     }
-//                 }
-//                 Ok(RpcInputMessage::RequestPty(_pty)) => {
-//                     trace!("cannot request pty after payload already started");
-//                 }
-//                 Ok(RpcInputMessage::Start()) => {
-//                     trace!("already started");
-//                 }
-//                 Err(_) => {
-//                     trace!("rpc: failed to read");
-//                 }
-//             }
-//         }
-//     });
-
-//     task::spawn(async move {
-//         let mut exit_code = [0u8];
-//         let _ = exit_code_reader.read_exact(&mut exit_code).await;
-//         trace!("read exit code {}", exit_code[0]);
-
-//         let mut client_writer = client_writer_m.lock().await;
-//         let _ = RpcOutputMessage::Exit(exit_code[0])
-//             .write_to(&mut client_writer)
-//             .await
-//             .map_err(|e| trace!("error sending exit code {e}"));
-
-//         trace!("exiting process");
-//         process::exit(exit_code[0].into());
-//     })
-//     .await?;
-//     Ok(())
-// }
-
-// pub fn run(
-//     config: WormholeConfig,
-//     mut client: (File, File),
-//     mut exit_code_reader: File,
-//     shell_cmd: &str,
-//     mut cstr_envs: Vec<CString>,
-// ) -> anyhow::Result<()> {
-//     // dup2(config.log_fd, stdout().as_raw_fd())?;
-//     // dup2(config.log_fd, stderr().as_raw_fd())?;
-
-//     trace!("rpc server");
-
-//     let mut pty: Option<OpenptyResult> = None;
-
-//     let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
-//     let mut stdout_pipe: (RawFd, RawFd) = (-1, -1);
-//     let mut stderr_pipe: (RawFd, RawFd) = (-1, -1);
-
-//     // wait until user calls start before proceeding
-//     loop {
-//         match RpcInputMessage::read_from_sync(&mut client.0) {
-//             Ok(RpcInputMessage::RequestPty(pty_config)) => {
-//                 pty = Some(pty_config.pty);
-//                 let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
-//                 let master_fd = pty.as_ref().unwrap().master.as_raw_fd();
-
-//                 trace!("got pty: {slave_fd} {master_fd}");
-
-//                 // give each pipe ownership over its own master and slave so that it can drop them
-//                 // for stdin: write to master and read from slave
-//                 // for stdout/stderr: read from master and write to slave
-//                 stdin_pipe = (dup(slave_fd)?, dup(master_fd)?);
-//                 stdout_pipe = (dup(master_fd)?, dup(slave_fd)?);
-//                 stderr_pipe = (dup(master_fd)?, dup(slave_fd)?);
-
-//                 cstr_envs.push(CString::new(format!("TERM={}", pty_config.term_env))?);
-//             }
-//             Ok(RpcInputMessage::Start()) => break,
-//             _ => {}
-//         };
-//     }
-
-//     if pty.is_none() {
-//         stdin_pipe = pipe()?;
-//         stdout_pipe = pipe()?;
-//         stderr_pipe = pipe()?;
-//     }
-
-//     trace!("starting rpc server");
-//     match unsafe { fork()? } {
-//         // child: payload
-//         ForkResult::Parent { child: _ } => {
-//             if pty.is_some() {
-//                 setsid()?;
-//                 let res = unsafe { ioctl(stdin_pipe.0, TIOCSCTTY, 1) };
-//                 if res != 0 {
-//                     return Err(anyhow!("could not set controlling TTY"));
-//                 }
-//             }
-//             // read from stdin and write to stdout/stderr
-//             dup2(stdin_pipe.0, libc::STDIN_FILENO)?;
-//             dup2(stdout_pipe.1, libc::STDOUT_FILENO)?;
-//             dup2(stderr_pipe.1, libc::STDERR_FILENO)?;
-
-//             execve(
-//                 &CString::new("/nix/orb/sys/bin/dctl")?,
-//                 &[
-//                     CString::new("dctl")?,
-//                     CString::new("__entrypoint")?,
-//                     CString::new("--")?,
-//                     CString::new(shell_cmd)?,
-//                 ],
-//                 &cstr_envs,
-//             )?;
-//             unreachable!();
-//         }
-//         ForkResult::Child => {
-//             // we should only start the tokio runtime after the fork, otherwise may cause undefined tokio behaviour
-//             let rt = tokio::runtime::Builder::new_current_thread()
-//                 .enable_all()
-//                 .build()?;
-//             rt.block_on(run_rpc_server(
-//                 stdin_pipe.1,
-//                 stdout_pipe.0,
-//                 stderr_pipe.0,
-//                 client,
-//                 exit_code_reader,
-//                 pty.is_some(),
-//             ))
-//         }
-//     }
-// }

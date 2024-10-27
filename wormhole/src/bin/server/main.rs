@@ -23,7 +23,13 @@ use wormhole::{
     asyncfile::AsyncFile,
     flock::{Flock, FlockMode, FlockWait},
     newmount::open_tree,
-    rpc::{RpcInputMessage, RpcOutputMessage},
+    rpc::{
+        wormhole::{
+            rpc_client_message::ClientMessage, rpc_server_message::ServerMessage, ExitStatus,
+            StderrData, StdoutData,
+        },
+        RpcInputMessage,
+    },
     unset_cloexec,
 };
 
@@ -204,9 +210,9 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
     let mut client_stdout = AsyncFile::from(client_stdout)?;
 
     // acknowledge
-    let _ = RpcOutputMessage::ConnectServerAck()
-        .write_to(&mut client_stdout)
-        .await;
+    // let _ = RpcOutputMessage::ConnectServerAck()
+    //     .write_to(&mut client_stdout)
+    //     .await;
 
     let mut client_writer_m = Arc::new(Mutex::new(client_stdout));
     let mut pty: Option<OpenptyResult> = None;
@@ -303,11 +309,11 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
                     Ok(0) => break,
                     Ok(n) => {
                         let mut client_writer = client_writer_m.lock().await;
-                        // let mut client_writer = client_stdout.lock().await;
-                        let _ = RpcOutputMessage::StdioData(1, &buf[..n])
-                            .write_to(&mut client_writer)
-                            .await
-                            .map_err(|e| trace!("error writing to client {e}"));
+                        ServerMessage::StdoutData(StdoutData {
+                            data: buf[..n].to_vec(),
+                        })
+                        .write(&mut client_writer)
+                        .await?;
                     }
                     Err(e) => trace!("got error reading from payload stdout: {e}"),
                 }
@@ -325,10 +331,11 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
                     Ok(0) => break,
                     Ok(n) => {
                         let mut client_writer = client_writer_m.lock().await;
-                        let _ = RpcOutputMessage::StdioData(2, &buf[..n])
-                            .write_to(&mut client_writer)
-                            .await
-                            .map_err(|e| trace!("error writing to client {e}"));
+                        ServerMessage::StderrData(StderrData {
+                            data: buf[..n].to_vec(),
+                        })
+                        .write(&mut client_writer)
+                        .await?;
                     }
                     Err(e) => trace!("got error reading from payload stderr: {e}"),
                 }
@@ -380,57 +387,16 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
         let _ = exit_code_pipe_reader.read_exact(&mut exit_code).await;
 
         let mut client_writer = client_writer_m.lock().await;
-        let _ = RpcOutputMessage::Exit(exit_code[0])
-            .write_to(&mut client_writer)
-            .await
-            .map_err(|e| trace!("error sending exit code {e}"));
+        ServerMessage::ExitStatus(ExitStatus {
+            exit_code: exit_code[0] as u32,
+        })
+        .write(&mut client_writer)
+        .await;
 
         // todo: kill all async server tasks belonging to the current connection
         trace!("exiting process with exit code {}", exit_code[0]);
     })
     .await?;
-
-    // loop {
-    //     match RpcInputMessage::read_from(&mut client_stdin).await {
-    //         Ok(RpcInputMessage::StdinData(data)) => {
-    //             trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&data));
-    //             // let _ =
-    //             //     .write(&data)
-    //             //     .await
-    //             //     .map_err(|e| trace!("error writing to payload {e}"));
-    //         }
-    //         Ok(RpcInputMessage::TerminalResize(w, h)) => {
-    //             // if !is_pty {
-    //             //     panic!("cannot resize terminal for non-tty ")
-    //             // }
-    //             // let ws = Winsize {
-    //             //     ws_row: h,
-    //             //     ws_col: w,
-    //             //     ws_xpixel: 0,
-    //             //     ws_ypixel: 0,
-    //             // };
-    //             // unsafe {
-    //             //     nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
-    //             // }
-    //         }
-    //         Ok(RpcInputMessage::RequestPty(_pty)) => {
-    //             trace!("cannot request pty after payload already started");
-    //         }
-    //         Ok(RpcInputMessage::Start()) => {
-    //             trace!("already started");
-    //         }
-    //         Err(e) => {
-    //             trace!("{:?}", e);
-    //             // break;
-    //             // trace!("rpc: failed to read");
-    //         }
-    //     }
-    // }
-    // if connect, then fork and exec into wormhole-attach process with
-
-    // otherwise, rpc traffic should be directed to wormhole-attach
-
-    // spawn async tasks to handle io from client
     Ok(())
 }
 

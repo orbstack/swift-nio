@@ -7,7 +7,7 @@ FROM nixos/nix:2.24.2 AS nix-base
 
 # build wormhole-attach and dctl
 FROM rust-base AS rust-build
-RUN apk add --no-cache musl-dev
+RUN apk add --no-cache musl-dev protoc
 COPY vinit /build/vinit
 ARG ARCH=arm64
 ARG TYPE=debug
