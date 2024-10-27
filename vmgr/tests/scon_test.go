@@ -83,6 +83,13 @@ func forEachDistroArchVer(t *testing.T, f func(t *testing.T, distro, ver, arch, 
 				testVersions = []string{testVersions[0]}
 			}
 
+			// always test unstable on NixOS
+			// we do this instead of just flip-flopping between having unstable be "latest" and supported stable be "oldest"
+			// becaue there is a rare time of year that two stable releases will be supported at once
+			if distro == images.DistroNixos {
+				testVersions = append(testVersions, "unstable")
+			}
+
 			for _, ver := range testVersions {
 				ver := ver
 				t.Run(ver, func(t *testing.T) {
