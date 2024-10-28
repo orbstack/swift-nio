@@ -114,7 +114,7 @@ var (
 		ImageOpensuse:  "15.6",
 		ImageOracle:    "9",
 		ImageRocky:     "9",
-		ImageUbuntu:    "noble",
+		ImageUbuntu:    "oracular",
 		ImageVoid:      "current",
 	}
 
