@@ -10,6 +10,7 @@ message RpcServerMessage {
         StdoutData stdout_data = 1;
         StderrData stderr_data = 2;
         ExitStatus exit_status = 3;
+        ClientConnectAck client_connect_ack = 4;
     }
 }
 
@@ -21,6 +22,14 @@ message RpcClientMessage {
         RequestPty request_pty = 3;
         StartPayload start_payload = 4;
     }
+}
+
+message RpcClientInit {
+    bool start_server = 1;
+}
+
+message RpcClientInitAck {
+
 }
 
 // server messages
@@ -56,4 +65,8 @@ message StderrData {
 
 message ExitStatus {
     uint32 exit_code = 13;
+}
+
+message ClientConnectAck {
+
 }

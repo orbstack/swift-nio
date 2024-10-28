@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"io"
 
-	pb "github.com/orbstack/macvirt/scon/cmd/scli/generated"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -13,28 +12,25 @@ type RpcServer struct {
 	writer io.WriteCloser
 }
 
-func (server RpcServer) ReadMessage() (*pb.RpcServerMessage, error) {
+// todo: refactor
+func (server RpcServer) ReadMessage(msg proto.Message) error {
 	var lenBytes [4]byte
 	if _, err := io.ReadFull(server.reader, lenBytes[:]); err != nil {
-		return nil, err
+		return err
 	}
 	length := binary.BigEndian.Uint32(lenBytes[:])
 	data := make([]byte, length)
 
 	if _, err := io.ReadFull(server.reader, data); err != nil {
-		return nil, err
+		return err
 	}
-
-	message := &pb.RpcServerMessage{}
-	if err := proto.Unmarshal(data, message); err != nil {
-		return nil, err
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return err
 	}
-
-	return message, nil
+	return nil
 }
-
-func (server RpcServer) WriteMessage(message *pb.RpcClientMessage) error {
-	data, err := proto.Marshal(message)
+func (server RpcServer) WriteMessage(msg proto.Message) error {
+	data, err := proto.Marshal(msg)
 	if err != nil {
 		return err
 	}

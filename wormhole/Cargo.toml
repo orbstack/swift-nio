@@ -27,6 +27,7 @@ jwt-simple = { version = "0.12.9", default-features = false, features = ["pure-r
 bincode = "1.3.3"
 tokio = { version = "1.40", features = ["full"] }
 prost = "0.13.3"
+async-trait = "0.1.83"
 
 [profile.release]
 strip = true

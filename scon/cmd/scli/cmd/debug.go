@@ -190,8 +190,33 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 	sessionStdout := demuxReader
 
 	server := RpcServer{reader: sessionStdout, writer: sessionStdin}
-	var originalState *term.State
 
+	// wait until the client process in the remote container sends an init request
+	// start a wormhole server container if required
+	clientInit := &pb.RpcClientInit{}
+	if err := server.ReadMessage(clientInit); err != nil {
+		return err
+	}
+
+	if clientInit.StartServer {
+		_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
+			Image: serverImage,
+			HostConfig: &dockertypes.ContainerHostConfig{
+				Privileged:   true,
+				Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
+				CgroupnsMode: "host",
+				PidMode:      "host",
+				NetworkMode:  "host",
+			},
+		}, true)
+	}
+
+	// acknowledge to the client that the server has started
+	if err := server.WriteMessage(&pb.RpcClientInitAck{}); err != nil {
+		return err
+	}
+
+	var originalState *term.State
 	// see scli/shell/ssh.go
 	ptyFd := -1
 	ptyStdin, ptyStdout, ptyStderr := false, false, false
@@ -207,43 +232,6 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 		ptyStderr = true
 		ptyFd = fdStderr
 	}
-
-	go func() {
-		for {
-			message, err := server.ReadMessage()
-			if err != nil {
-				if err == io.EOF {
-					return
-				}
-				return
-			}
-
-			switch v := message.ServerMessage.(type) {
-			case *pb.RpcServerMessage_StdoutData:
-				os.Stdout.Write(v.StdoutData.Data)
-			case *pb.RpcServerMessage_StderrData:
-				os.Stdout.Write(v.StderrData.Data)
-			case *pb.RpcServerMessage_ExitStatus:
-				term.Restore(ptyFd, originalState)
-				os.Exit(int(v.ExitStatus.ExitCode))
-			}
-
-			// case StartServerType:
-			// 	_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
-			// 		Image: serverImage,
-			// 		HostConfig: &dockertypes.ContainerHostConfig{
-			// 			Privileged:   true,
-			// 			Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
-			// 			CgroupnsMode: "host",
-			// 			PidMode:      "host",
-			// 			NetworkMode:  "host",
-			// 		},
-			// 	}, true)
-			// 	fmt.Println("starting container")
-			// 	// server.RpcStartServerAck()
-			// }
-		}
-	}()
 
 	// need a pty?
 	if ptyStdin || ptyStdout || ptyStderr {
@@ -296,6 +284,28 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 	}); err != nil {
 		return err
 	}
+
+	go func() {
+		for {
+			message := &pb.RpcServerMessage{}
+			if err := server.ReadMessage(message); err != nil {
+				if err == io.EOF {
+					return
+				}
+				return
+			}
+
+			switch v := message.ServerMessage.(type) {
+			case *pb.RpcServerMessage_StdoutData:
+				os.Stdout.Write(v.StdoutData.Data)
+			case *pb.RpcServerMessage_StderrData:
+				os.Stdout.Write(v.StderrData.Data)
+			case *pb.RpcServerMessage_ExitStatus:
+				term.Restore(ptyFd, originalState)
+				os.Exit(int(v.ExitStatus.ExitCode))
+			}
+		}
+	}()
 
 	go func() {
 		buf := make([]byte, 1024)
@@ -381,16 +391,16 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		return err
 	}
 
-	_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
-		Image: serverImage,
-		HostConfig: &dockertypes.ContainerHostConfig{
-			Privileged:   true,
-			Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
-			CgroupnsMode: "host",
-			PidMode:      "host",
-			NetworkMode:  "host",
-		},
-	}, true)
+	// _, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
+	// 	Image: serverImage,
+	// 	HostConfig: &dockertypes.ContainerHostConfig{
+	// 		Privileged:   true,
+	// 		Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
+	// 		CgroupnsMode: "host",
+	// 		PidMode:      "host",
+	// 		NetworkMode:  "host",
+	// 	},
+	// }, true)
 
 	startRpcConnection(client, wormholeParam)
 	return nil

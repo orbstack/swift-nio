@@ -82,7 +82,7 @@ func (c *Client) InteractiveRunContainer(req *dockertypes.ContainerCreateRequest
 
 	// upgrade to tcp
 	fmt.Println("hijacking")
-	conn, err := c.StreamHijack("POST", "/containers/"+containerResp.ID+"/attach?stream=true&stdin=true&stdout=true&stderr=true", nil)
+	conn, err := c.StreamHijack("POST", "/containers/"+containerResp.ID+"/attach?logs=true&stream=true&stdin=true&stdout=true&stderr=true", nil)
 	if err != nil {
 		return nil, fmt.Errorf("attach container: %w", err)
 	}

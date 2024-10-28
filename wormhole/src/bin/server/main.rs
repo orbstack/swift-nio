@@ -25,10 +25,10 @@ use wormhole::{
     newmount::open_tree,
     rpc::{
         wormhole::{
-            rpc_client_message::ClientMessage, rpc_server_message::ServerMessage, ExitStatus,
-            RpcClientMessage, RpcServerMessage, StderrData, StdoutData,
+            rpc_client_message::ClientMessage, rpc_server_message::ServerMessage, ClientConnectAck,
+            ExitStatus, RpcClientMessage, RpcServerMessage, StderrData, StdoutData,
         },
-        RpcRead, RpcWrite,
+        RpcRead, RpcWrite, RpcWriteSync,
     },
     termios::create_pty,
     unset_cloexec,
@@ -193,7 +193,14 @@ fn startup() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
+async fn handle_client(mut stream: UnixStream) -> anyhow::Result<()> {
+    // increment refcount and acknowledge client
+    trace!("sent client stream");
+    RpcServerMessage {
+        server_message: Some(ServerMessage::ClientConnectAck(ClientConnectAck {})),
+    }
+    .write_sync(&mut stream)?;
+
     trace!("waiting for rpc client fds");
     // get client fds via scm_rights over the stream
     let (client_stdin, client_stdout) = recv_rpc_client(&stream)?;
@@ -415,7 +422,7 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         match listener.accept() {
-            Ok((mut stream, _)) => {
+            Ok((stream, _)) => {
                 tokio::spawn(async move {
                     let _ = handle_client(stream).await;
                 });
