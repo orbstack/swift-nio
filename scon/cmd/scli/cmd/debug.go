@@ -155,7 +155,7 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) error {
+func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error {
 	conn, err := client.InteractiveRunContainer(&dockertypes.ContainerCreateRequest{
 		Tty:          false,
 		AttachStdin:  true,
@@ -245,45 +245,6 @@ func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) erro
 		}
 	}()
 
-	// go func() {
-	// 	for {
-	// 		rpcType, data, err := server.RpcRead()
-	// 		if err != nil {
-	// 			if err == io.EOF {
-	// 				return
-	// 			}
-	// 			return
-	// 		}
-
-	// 		switch rpcType {
-	// 		case ReadStdioType:
-	// 			if data[0] == 1 {
-	// 				os.Stdout.Write(data)
-	// 			} else if data[0] == 2 {
-	// 				os.Stderr.Write(data)
-	// 			} else {
-	// 				// return
-	// 			}
-	// 		case ExitCodeType:
-	// 			term.Restore(ptyFd, originalState)
-	// 			os.Exit(int(data[0]))
-	// 		case StartServerType:
-	// 			_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
-	// 				Image: serverImage,
-	// 				HostConfig: &dockertypes.ContainerHostConfig{
-	// 					Privileged:   true,
-	// 					Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
-	// 					CgroupnsMode: "host",
-	// 					PidMode:      "host",
-	// 					NetworkMode:  "host",
-	// 				},
-	// 			}, true)
-	// 			fmt.Println("starting container")
-	// 			// server.RpcStartServerAck()
-	// 		}
-	// 	}
-	// }()
-
 	// need a pty?
 	if ptyStdin || ptyStdout || ptyStderr {
 		termEnv := os.Getenv("TERM")
@@ -307,15 +268,32 @@ func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) erro
 			defer term.Restore(ptyFd, originalState)
 		}
 
-		// request pty
-		err = server.RpcRequestPty(termEnv, h, w, termios)
+		serializedTermios, err := SerializeTermios(termios)
 		if err != nil {
+			return err
+		}
+
+		// request pty
+		if err := server.WriteMessage(&pb.RpcClientMessage{
+			ClientMessage: &pb.RpcClientMessage_RequestPty{
+				RequestPty: &pb.RequestPty{
+					TermEnv: termEnv,
+					Rows:    uint32(h),
+					Cols:    uint32(w),
+					Termios: serializedTermios,
+				},
+			},
+		}); err != nil {
 			return err
 		}
 	}
 
 	// start wormhole-attach payload
-	if err := server.RpcStart(wormholeParams); err != nil {
+	if err := server.WriteMessage(&pb.RpcClientMessage{
+		ClientMessage: &pb.RpcClientMessage_StartPayload{
+			StartPayload: &pb.StartPayload{WormholeParam: string(wormholeParam)},
+		},
+	}); err != nil {
 		return err
 	}
 
@@ -331,7 +309,11 @@ func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) erro
 				return
 			}
 
-			if err := server.RpcWriteStdin(buf[:n]); err != nil {
+			if err := server.WriteMessage(&pb.RpcClientMessage{
+				ClientMessage: &pb.RpcClientMessage_StdinData{
+					StdinData: &pb.StdinData{Data: buf[:n]},
+				},
+			}); err != nil {
 				return
 			}
 		}
@@ -349,7 +331,8 @@ func startRpcConnection(client *dockerclient.Client, wormholeParams []byte) erro
 			if err != nil {
 				return err
 			}
-			if err := server.RpcWindowChange(h, w); err != nil {
+
+			if err := server.WriteMessage(&pb.RpcClientMessage{ClientMessage: &pb.RpcClientMessage_TerminalResize{TerminalResize: &pb.TerminalResize{Rows: uint32(h), Cols: uint32(w)}}}); err != nil {
 				return err
 			}
 		}
@@ -386,7 +369,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		shellCmd = shellescape.QuoteCommand(args)
 	}
 
-	wormholeParams, err := json.Marshal(WormholeRemoteServerParams{
+	wormholeParam, err := json.Marshal(WormholeRemoteServerParams{
 		IsLocal:          false,
 		InitPid:          containerInfo.State.Pid,
 		ContainerWorkdir: workingDir,
@@ -409,7 +392,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		},
 	}, true)
 
-	startRpcConnection(client, wormholeParams)
+	startRpcConnection(client, wormholeParam)
 	return nil
 }
 

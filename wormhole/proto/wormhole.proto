@@ -17,7 +17,7 @@ message RpcServerMessage {
 message RpcClientMessage {
     oneof client_message {
         StdinData stdin_data = 1;
-        TerminalResize terminal_reisze = 2;
+        TerminalResize terminal_resize = 2;
         RequestPty request_pty = 3;
         StartPayload start_payload = 4;
     }
@@ -35,13 +35,13 @@ message TerminalResize {
 
 message RequestPty {
     string term_env = 14;
-    string rows = 15;
-    string cols = 16;
+    uint32 rows = 15;
+    uint32 cols = 16;
     bytes termios = 17;
 }
 
 message StartPayload {
-    string wormhole_config = 18;
+    string wormhole_param = 18;
 }
 
 

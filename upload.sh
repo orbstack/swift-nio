@@ -1,10 +1,10 @@
-docker build --ssh default -t localhost:5000/wormhole-rootfs -f wormhole/remote/Dockerfile . 
+docker build --ssh default -t localhost:5000/wormhole-rootfs -f wormhole/remote/Dockerfile-server . 
 
 rm -rf out/wormhole
 mkdir -p out/wormhole
 echo "exporting docker image"
-docker save localhost:5000/wormhole-rootfs:latest -o out/wormhole/wormhole-rootfs.tar
-# docker save hello-world:latest -o out/wormhole/wormhole-rootfs.tar
+#docker save localhost:5000/wormhole-rootfs:latest -o out/wormhole/wormhole-rootfs.tar
+docker save alpine:latest -o out/wormhole/wormhole-rootfs.tar
 
 cd out/wormhole
 tar -xf wormhole-rootfs.tar

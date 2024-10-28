@@ -4,9 +4,7 @@ use std::fs::{self, File};
 use std::io::{stdin, stdout, IoSlice};
 use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
-use std::path::Path;
 use wormhole::flock::{Flock, FlockMode, FlockWait};
-use wormhole::rpc::RpcInputMessage;
 
 const LOCK: &str = "/data/.lock";
 
