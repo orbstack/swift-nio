@@ -61,4 +61,5 @@ springdalelinux:9
 ubuntu:focal
 ubuntu:jammy
 ubuntu:noble
+ubuntu:oracular
 voidlinux:current
