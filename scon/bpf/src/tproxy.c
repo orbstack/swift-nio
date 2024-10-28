@@ -9,7 +9,7 @@
 #include <bpf/bpf_endian.h>
 
 // warning: this makes it GPL
-#define DEBUG
+// #define DEBUG
 
 #ifndef DEBUG
 #ifdef bpf_printk

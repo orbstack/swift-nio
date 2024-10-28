@@ -327,8 +327,9 @@ func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (
 
 	// fall back to normal dialer
 	dialer := &net.Dialer{}
-	if downstreamIp != nil {
-		dialer = dialerForTransparentBind(downstreamIp.(net.IP), p.getMark(upstream))
+	if downstreamIp, ok := downstreamIp.(net.IP); ok && downstreamIp != nil && !downstreamIp.Equal(upstream.Ip) {
+		logrus.WithFields(logrus.Fields{"upstream.Ip": upstream.Ip}).Debug("emmie | spoofing source ip for outbound dial")
+		dialer = dialerForTransparentBind(downstreamIp, p.getMark(upstream))
 	}
 
 	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.Ip.String(), dialPort))

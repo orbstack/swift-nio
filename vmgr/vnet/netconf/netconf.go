@@ -195,9 +195,10 @@ const (
 const (
 	VmIfGroupIsolated = 1
 
-	VmFwmarkDockerRouteBit    = 1 << 0
-	VmFwmarkLocalRouteBit     = 1 << 1
-	VmFwmarkTproxyBit         = 1 << 2
-	VmFwmarkTproxyOutboundBit = 1 << 3
-	VmFwmarkIsolatedBit       = 1 << 4
+	VmFwmarkDockerRouteBit       = 1 << 0
+	VmFwmarkLocalRouteBit        = 1 << 1
+	VmFwmarkTproxyBit            = 1 << 2
+	VmFwmarkTproxyOutboundBit    = 1 << 3
+	VmFwmarkIsolatedBit          = 1 << 4
+	VmFwmarkHairpinMasqueradeBit = 1 << 5
 )

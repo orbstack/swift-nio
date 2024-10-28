@@ -44,11 +44,7 @@
 #include <bpf/bpf_helpers.h>
 
 // warning: this makes it GPL
-<<<<<<< HEAD
 // #define DEBUG
-=======
-#define DEBUG
->>>>>>> fc427b14e (emmie | temp: use bits for marks)
 
 #ifndef DEBUG
 #ifdef bpf_printk

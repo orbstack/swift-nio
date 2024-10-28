@@ -250,18 +250,18 @@ func (d *domainproxyInfo) setAddr(ip netip.Addr, val domainproxytypes.Domainprox
 			}
 
 			if ip.Is4() {
-				err = nft.Run("delete", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", upstream.Ip, upstream.Ip))
+				err = nft.Run("delete", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.Ip))
 			} else if ip.Is6() {
-				err = nft.Run("delete", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", upstream.Ip, upstream.Ip))
+				err = nft.Run("delete", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.Ip))
 			}
 			if err != nil {
 				logrus.WithError(err).Debug("could not remove from domainproxy_masquerade map")
 			}
 
 			if ip.Is4() {
-				err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy4_masquerade_bridge", fmt.Sprintf("{ %v . %v }", upstream.Ip, upstream.Ip))
+				err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy4_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.Ip))
 			} else if ip.Is6() {
-				err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy6_masquerade_bridge", fmt.Sprintf("{ %v . %v }", upstream.Ip, upstream.Ip))
+				err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy6_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.Ip))
 			}
 			if err != nil {
 				logrus.WithError(err).Debug("could not remove from domainproxy_masquerade_bridge map")
@@ -309,9 +309,9 @@ func (d *domainproxyInfo) setAddr(ip netip.Addr, val domainproxytypes.Domainprox
 	}
 
 	if ip.Is4() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", val.Ip, val.Ip))
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.Ip))
 	} else if ip.Is6() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", val.Ip, val.Ip))
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.Ip))
 	}
 	if err != nil {
 		logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
