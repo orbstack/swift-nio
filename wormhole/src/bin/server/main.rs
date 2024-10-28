@@ -23,9 +23,12 @@ use wormhole::{
     asyncfile::AsyncFile,
     flock::{Flock, FlockMode, FlockWait},
     newmount::open_tree,
-    rpc::wormhole::{
-        rpc_client_message::ClientMessage, rpc_server_message::ServerMessage, ExitStatus,
-        RpcClientMessage, RpcServerMessage, StderrData, StdoutData,
+    rpc::{
+        wormhole::{
+            rpc_client_message::ClientMessage, rpc_server_message::ServerMessage, ExitStatus,
+            RpcClientMessage, RpcServerMessage, StderrData, StdoutData,
+        },
+        RpcRead, RpcWrite,
     },
     termios::create_pty,
     unset_cloexec,
@@ -222,8 +225,10 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
 
     // wait until user calls start before proceeding
     loop {
-        match RpcClientMessage::read(&mut client_stdin).await {
-            Ok(ClientMessage::RequestPty(msg)) => {
+        let message = RpcClientMessage::read(&mut client_stdin).await?;
+
+        match message.client_message {
+            Some(ClientMessage::RequestPty(msg)) => {
                 pty = Some(create_pty(msg.cols as u16, msg.rows as u16, msg.termios)?);
 
                 let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
@@ -237,7 +242,7 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
                 stdout_pipe = (dup(master_fd)?, dup(slave_fd)?);
                 stderr_pipe = (dup(master_fd)?, dup(slave_fd)?);
             }
-            Ok(ClientMessage::StartPayload(msg)) => {
+            Some(ClientMessage::StartPayload(msg)) => {
                 wormhole_param = msg.wormhole_param;
                 break;
             }
@@ -346,15 +351,16 @@ async fn handle_client(stream: UnixStream) -> anyhow::Result<()> {
 
     let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
         loop {
-            match RpcClientMessage::read(&mut client_stdin).await {
-                Ok(ClientMessage::StdinData(msg)) => {
+            let message = RpcClientMessage::read(&mut client_stdin).await?;
+            match message.client_message {
+                Some(ClientMessage::StdinData(msg)) => {
                     trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&msg.data));
                     let _ = payload_stdin
                         .write(&msg.data)
                         .await
                         .map_err(|e| trace!("error writing to payload {e}"));
                 }
-                Ok(ClientMessage::TerminalResize(msg)) => {
+                Some(ClientMessage::TerminalResize(msg)) => {
                     if !is_pty {
                         panic!("cannot resize terminal for non-tty ")
                     }
