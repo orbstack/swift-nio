@@ -68,9 +68,7 @@ use nix::{
     unistd::dup,
 };
 use pidfd::PidFd;
-use rpc::{RpcInputMessage, RpcOutputMessage};
 use signals::{mask_sigset, SigSet, SignalFd};
-use termios::set_termios;
 use tracing::{debug, span, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
@@ -86,11 +84,9 @@ mod monitor;
 mod mounts;
 mod pidfd;
 mod proc;
-mod rpc;
 mod signals;
 mod subreaper;
 mod subreaper_protocol;
-mod termios;
 
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
 const PTRACE_LOCK: &str = "/dev/shm/.orb-wormhole-p.lock";
@@ -396,44 +392,6 @@ fn parse_config() -> anyhow::Result<WormholeConfig> {
     Ok(config)
 }
 
-fn wait_for_rpc_client() -> anyhow::Result<(File, File)> {
-    let rpc_server_socket = "/rpc.sock";
-    let listener = UnixListener::bind(rpc_server_socket)?;
-
-    let (stream, _) = listener.accept()?;
-    let mut buf = [0u8; 1];
-    let mut cmsgspace = nix::cmsg_space!([RawFd; 2]);
-
-    let mut iov = [std::io::IoSliceMut::new(&mut buf)];
-    let msg = recvmsg::<()>(
-        stream.as_raw_fd(),
-        &mut iov,
-        Some(&mut cmsgspace),
-        MsgFlags::empty(),
-    )?;
-
-    let mut stdin_fd: Option<RawFd> = None;
-    let mut stdout_fd: Option<RawFd> = None;
-
-    for cmsg in msg.cmsgs() {
-        if let ControlMessageOwned::ScmRights(fds) = cmsg {
-            if fds.len() == 2 {
-                stdin_fd = Some(fds[0]);
-                stdout_fd = Some(fds[1]);
-            }
-        }
-    }
-    match (stdin_fd, stdout_fd) {
-        (Some(stdin_fd), Some(stdout_fd)) => {
-            trace!("got rpc client: {stdin_fd}, {stdout_fd}");
-            let client_stdin = unsafe { File::from_raw_fd(stdin_fd) };
-            let client_stdout = unsafe { File::from_raw_fd(stdout_fd) };
-            Ok((client_stdin, client_stdout))
-        }
-        _ => Err(anyhow!("did not get client stdin and stdout")),
-    }
-}
-
 // this is 75% of a container runtime, but a bit more complex... since it has to clone attributes of another process instead of just knowing what to set
 // this does *not* include ALL process attributes like sched affinity, dumpable, securebits, etc. that docker doesn't set
 fn main() -> anyhow::Result<()> {
@@ -464,16 +422,6 @@ fn main() -> anyhow::Result<()> {
     set_cloexec(wormhole_mount_fd.as_raw_fd())?;
 
     let exit_code_writer = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
-    // let (exit_code_writer, exit_code_reader) = if config.is_local {
-    //     let file = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
-    //     (Box::new(file) as Box<dyn Write>, None)
-    // } else {
-    //     // for remote wormhole, set up a local pipe to send exit codes from subreaper process to rpc server process
-    //     let (r, w) = pipe()?;
-    //     let write = unsafe { File::from_raw_fd(w) };
-    //     let read = unsafe { File::from_raw_fd(r) };
-    //     (Box::new(write) as Box<dyn Write>, Some(read))
-    // };
 
     // set sigpipe
     {
@@ -544,12 +492,6 @@ fn main() -> anyhow::Result<()> {
             Mode::empty(),
         )?)
     };
-
-    // let rpc_client = if !config.is_local {
-    //     Some(wait_for_rpc_client()?)
-    // } else {
-    //     None
-    // };
 
     trace!("attach most namespaces");
     setns(
@@ -976,8 +918,6 @@ fn main() -> anyhow::Result<()> {
                             // die when subreaper dies
                             proc::prctl_death_sig()?;
 
-                            // let entry_shell_cmd = config.entry_shell_cmd.clone();
-                            // let shell_cmd = entry_shell_cmd.as_deref().unwrap_or("");
                             let shell_cmd =
                                 config.entry_shell_cmd.unwrap_or_else(|| "".to_string());
                             let cstr_envs = env_map
@@ -985,15 +925,6 @@ fn main() -> anyhow::Result<()> {
                                 .map(|(k, v)| CString::new(format!("{}={}", k, v)))
                                 .collect::<anyhow::Result<Vec<_>, _>>()?;
 
-                            // if let Some(rpc_client) = rpc_client {
-                            //     rpc::run(
-                            //         config,
-                            //         rpc_client,
-                            //         exit_code_reader.unwrap(),
-                            //         shell_cmd,
-                            //         cstr_envs,
-                            //     )?;
-                            // } else {
                             trace!("execve {shell_cmd}");
                             execve(
                                 &CString::new("/nix/orb/sys/bin/dctl")?,
@@ -1005,17 +936,6 @@ fn main() -> anyhow::Result<()> {
                                 ],
                                 &cstr_envs,
                             )?;
-                            // execve(
-                            //     &CString::new("/nix/orb/sys/bin/dctl")?,
-                            //     &[
-                            //         CString::new("dctl")?,
-                            //         CString::new("__entrypoint")?,
-                            //         CString::new("--")?,
-                            //         CString::new(shell_cmd)?,
-                            //     ],
-                            //     &cstr_envs,
-                            // )?;
-                            // }
                             unreachable!();
                         }
                     }

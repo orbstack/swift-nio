@@ -1,7 +1,5 @@
 use std::{
     fs::File,
-    io::{stderr, stdout, Read, Write},
-    net::{TcpListener, TcpStream},
     os::{
         fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd, RawFd},
         unix::net::{UnixListener, UnixStream},
@@ -17,7 +15,6 @@ use nix::{
     sys::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
         signal::{kill, Signal},
-        socket::{sendmsg, ControlMessage, MsgFlags},
         stat::{fstatat, Mode},
     },
     unistd::{dup2, getpid, Pid},
@@ -145,12 +142,7 @@ pub fn run(
     // wait until child (intermediate) exits
     trace!("waitpid");
     if let ExitResult::Code(0) = wait_for_exit(intermediate)? {
-        if let Err(err) = monitor(
-            forward_signal_socket,
-            // send_client_socket_fd,
-            intermediate,
-            sfd,
-        ) {
+        if let Err(err) = monitor(forward_signal_socket, intermediate, sfd) {
             trace!(?err, "monitoring errored");
         }
         trace!("monitoring finished");
@@ -165,7 +157,6 @@ pub fn run(
 
 fn monitor(
     forward_signal_socket: UnixStream,
-    // send_client_socket_fd: OwnedFd,
     intermediate: Pid,
     mut sfd: SignalFd,
 ) -> anyhow::Result<()> {
