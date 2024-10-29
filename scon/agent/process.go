@@ -582,6 +582,11 @@ type PidfdProcess struct {
 	a   *Client
 }
 
+// agentless pidfd process
+func WrapPidfdFile(f *os.File) *PidfdProcess {
+	return wrapPidfdProcess(f, 0, nil)
+}
+
 func wrapPidfdProcess(f *os.File, pid int, a *Client) *PidfdProcess {
 	return &PidfdProcess{
 		f:   f,

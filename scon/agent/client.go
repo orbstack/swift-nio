@@ -311,21 +311,30 @@ func (c *Client) DockerFastDf() (*dockertypes.SystemDf, error) {
 	return &df, nil
 }
 
-func (c *Client) DockerStartWormhole(args StartWormholeArgs) (*StartWormholeResponse, *os.File, error) {
+func (c *Client) DockerStartWormhole(args StartWormholeArgs) (*StartWormholeResponseClient, error) {
 	var reply StartWormholeResponse
 	err := c.rpc.Call("a.DockerStartWormhole", StartWormholeArgs{
 		Target: args.Target,
 	}, &reply)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	rootfsFile, err := c.fdx.RecvFile(reply.RootfsSeq)
+	files, err := c.fdx.RecvFiles(reply.FdxSeq)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return &reply, rootfsFile, nil
+	resp := &StartWormholeResponseClient{
+		StartWormholeResponse: reply,
+		InitPidfdFile:         files[0],
+		RootfsFile:            files[1],
+	}
+	if len(files) >= 3 {
+		resp.FanotifyFile = files[2]
+	}
+
+	return resp, nil
 }
 
 func (c *Client) DockerEndWormhole(args EndWormholeArgs) error {

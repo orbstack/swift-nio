@@ -3,6 +3,7 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/conf"
@@ -25,12 +26,21 @@ type StartWormholeArgs struct {
 
 type StartWormholeResponse struct {
 	InitPid    int
-	RootfsSeq  uint64
 	WorkingDir string
 	Env        []string
 
 	// if we created a container/image, return ID so caller can clean up
 	State WormholeSessionState
+
+	FdxSeq uint64
+}
+
+type StartWormholeResponseClient struct {
+	StartWormholeResponse
+
+	InitPidfdFile *os.File
+	RootfsFile    *os.File
+	FanotifyFile  *os.File
 }
 
 type EndWormholeArgs struct {
@@ -69,6 +79,27 @@ func (d *DockerAgent) createWormholeImageContainer(image string) (string, error)
 	}
 
 	return id, nil
+}
+
+func makeContainerStartFanotify(workDir string) (int, error) {
+	dirFd, err := unix.Open(workDir, unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return -1, fmt.Errorf("open workdir: %w", err)
+	}
+	defer unix.Close(dirFd)
+
+	fanFd, err := unix.FanotifyInit(unix.FAN_CLASS_PRE_CONTENT|unix.FAN_CLOEXEC|unix.FAN_UNLIMITED_MARKS|unix.FAN_NONBLOCK, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOATIME)
+	if err != nil {
+		return -1, fmt.Errorf("fanotify_init: %w", err)
+	}
+
+	// TODO: FAN_DELETE? needs to be another fanotify mark
+	err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD|unix.FAN_MARK_ONLYDIR, unix.FAN_OPEN_PERM|unix.FAN_ONDIR, dirFd, "" /*nil*/)
+	if err != nil {
+		return -1, fmt.Errorf("fanotify_mark: %w", err)
+	}
+
+	return fanFd, nil
 }
 
 func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJSON) (string, string, error) {
@@ -197,6 +228,8 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 	var workingDir string
 	var env []string
 	var state WormholeSessionState
+	rootfsFd := -1
+	fanotifyFd := -1
 	if conf.Debug() && args.Target == sshtypes.WormholeIDDocker {
 		// debug only: wormhole for docker machine (ovm)
 		initPid = 1
@@ -243,6 +276,12 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 				return err
 			}
 
+			fanotifyFd, err = makeContainerStartFanotify(ctr.GraphDriver.Data["WorkDir"])
+			if err != nil {
+				return fmt.Errorf("make fanotify: %w", err)
+			}
+			defer unix.Close(fanotifyFd)
+
 			ctr, err = a.docker.client.InspectContainer(state.CreatedContainerID)
 			if err != nil {
 				return err
@@ -258,23 +297,36 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 		return ErrContainerNotRunning
 	}
 
-	fd, err := unix.Open(fmt.Sprintf("/proc/%d/root", initPid), unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	var err error
+	if rootfsFd == -1 {
+		rootfsFd, err = unix.Open(fmt.Sprintf("/proc/%d/root", initPid), unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return err
+		}
+		defer unix.Close(rootfsFd)
+	}
+
+	initPidfd, err := unix.PidfdOpen(initPid, 0)
 	if err != nil {
 		return err
 	}
-	defer unix.Close(fd)
+	defer unix.Close(initPidfd)
 
-	seq, err := a.fdx.SendFdInt(fd)
+	fds := []int{initPidfd, rootfsFd}
+	if fanotifyFd != -1 {
+		fds = append(fds, fanotifyFd)
+	}
+	fdxSeq, err := a.fdx.SendFdsInt(fds...)
 	if err != nil {
 		return err
 	}
 
 	*reply = StartWormholeResponse{
-		RootfsSeq:  seq,
 		InitPid:    initPid,
 		WorkingDir: workingDir,
 		Env:        env,
 		State:      state,
+		FdxSeq:     fdxSeq,
 	}
 
 	return nil
