@@ -230,6 +230,11 @@ run: vmgr
 scli:
 	cd ../scon; make
 
+.PHONY: test
+test: scli vmgr
+	../out/scli _internal test-setup pre
+	$(GO) test ./tests -count 1 -short
+	../out/scli _internal test-setup post
 
 
 .PHONY: app

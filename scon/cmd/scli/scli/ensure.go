@@ -106,7 +106,7 @@ func updateVmgr() bool {
 }
 
 var ensureOnce = sync.OnceValue(func() bool {
-	if vmclient.IsRunning() {
+	if vmclient.IsRunning() && os.Getenv("ORB_TEST") != "1" {
 		if !updateVmgr() {
 			return true
 		}

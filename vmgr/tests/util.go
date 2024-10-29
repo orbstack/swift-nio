@@ -25,6 +25,7 @@ func runScli(args ...string) (string, error) {
 	// (tests run from vmgr/tests)
 	cmd := exec.Command("../../out/scli")
 	cmd.Args = args
+	cmd.Env = append(cmd.Environ(), "ORB_TEST=1")
 	o, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
