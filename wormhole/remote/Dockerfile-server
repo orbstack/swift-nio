@@ -24,7 +24,7 @@ else
     cargo build --release
 fi
 mkdir /out
-cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach target/${TYPE}/client target/${TYPE}/server target/${TYPE}/driver /out/
+cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach target/${TYPE}/client target/${TYPE}/server /out/
 EOT
 
 # build wormhole-rootfs
@@ -96,24 +96,7 @@ COPY --from=rust-build /out/dctl /out/nix/orb/sys/bin/
 FROM base AS rootfs
 COPY --from=nix-build /out /wormhole-rootfs
 COPY --from=rust-build /out/wormhole-attach /wormhole-attach
-COPY --from=rust-build /out/driver /wormhole-start
 COPY --from=rust-build /out/client /wormhole-client
 COPY --from=rust-build /out/server /wormhole-server
 
-
-# ENV WORMHOLE_PARAMS ""
 ENTRYPOINT ["./wormhole-server"]
-# CMD ["./wormhole-start", ${WORMHOLE_PARAMS}]
-
-
-# kevin@orbstack macvirt % docker build --ssh default -t localhost:5000/wormhole-rootfs -f wormhole/remote/Dockerfile .
-
-
-
-# kevin@orbstack macvirt % docker build --ssh default -t localhost:5000/wormhole-rootfs -f wormhole/remote/Dockerfile .
-# kevin@orbstack macvirt % docker run -it --privileged --pid host --net host --cgroupns=host -v wormhole-data:/data 198.19.249.3:5000/wormhole-rootfs /bin/sh
-# docker volume create wormhole-data
-# docker run -v wormhole-data:/data
-
-
-# docker run -d --privileged --pid=host --net=host --cgroupns=host -v wormhole-data:/data 198.19.249.3:5000/wormhole-rootfs
