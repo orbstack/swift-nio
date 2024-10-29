@@ -234,6 +234,10 @@ func TestSconMachines(t *testing.T) {
 		})
 
 		t.Run("CloudInit", func(t *testing.T) {
+			if distro == "openeuler" {
+				t.Skip("skipping because of a bug, see https://github.com/orbstack/macvirt/pull/178#discussion_r1819387621")
+			}
+
 			machineName := machineName + "-cinit"
 			container, err := scli.Client().Create(types.CreateRequest{
 				Name: machineName,
