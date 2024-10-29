@@ -640,10 +640,6 @@ fn main() -> anyhow::Result<()> {
     // set SHELL
     env_map.insert("SHELL".to_string(), paths::SHELL.to_string());
 
-    // set TERM
-    // edit PATH (append and prepend)
-    env_map.insert("TERM".to_string(), "tmux-256color".to_string());
-
     // close unnecessary fds
     drop(wormhole_mount_fd);
 

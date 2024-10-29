@@ -129,7 +129,6 @@ pub fn run(
     proc_fd: OwnedFd,
     nix_flock_ref: Flock,
     forward_signal_fd: OwnedFd,
-    // send_client_socket_fd: OwnedFd,
     cgroup_path: &str,
     intermediate: Pid,
     sfd: SignalFd,

@@ -175,6 +175,8 @@ impl WormholeServer {
 
         let mut client_writer_m = Arc::new(Mutex::new(client_stdout));
         let mut pty: Option<OpenptyResult> = None;
+        let mut term_env: Option<String> = None;
+
         let wormhole_param;
 
         let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
@@ -188,6 +190,7 @@ impl WormholeServer {
             match message.client_message {
                 Some(ClientMessage::RequestPty(msg)) => {
                     pty = Some(create_pty(msg.cols as u16, msg.rows as u16, msg.termios)?);
+                    term_env = Some(msg.term_env);
 
                     let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
                     let master_fd = pty.as_ref().unwrap().master.as_raw_fd();
@@ -236,6 +239,7 @@ impl WormholeServer {
         let _ = unsafe {
             Command::new("/wormhole-attach")
                 .arg(serde_json::to_string(&config)?)
+                .env("TERM", term_env.unwrap_or(String::from("")))
                 .pre_exec(move || {
                     if pty.is_some() {
                         setsid()?;
