@@ -31,9 +31,7 @@ impl AsyncFile {
     }
 
     pub fn from(file: File) -> std::io::Result<Self> {
-        trace!("from file");
         set_nonblocking(file.as_raw_fd())?;
-        trace!("set nonblocking");
         Ok(Self {
             inner: AsyncFd::new(file)?,
         })

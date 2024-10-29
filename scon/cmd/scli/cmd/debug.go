@@ -156,7 +156,7 @@ func WriteTermEnv(writer io.Writer, term string) error {
 }
 
 func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error {
-	conn, err := client.InteractiveRunContainer(&dockertypes.ContainerCreateRequest{
+	conn, wormhole_client_cid, err := client.InteractiveRunContainer(&dockertypes.ContainerCreateRequest{
 		Tty:          false,
 		AttachStdin:  true,
 		AttachStdout: true,
@@ -302,6 +302,13 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 				os.Stdout.Write(v.StderrData.Data)
 			case *pb.RpcServerMessage_ExitStatus:
 				term.Restore(ptyFd, originalState)
+
+				fmt.Println("stopping containers...")
+				// shutdown client container
+				if err = client.StopContainer(wormhole_client_cid); err != nil {
+					fmt.Fprintf(os.Stderr, "%v\n", err)
+				}
+
 				os.Exit(int(v.ExitStatus.ExitCode))
 			}
 		}
@@ -342,7 +349,11 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 				return err
 			}
 
-			if err := server.WriteMessage(&pb.RpcClientMessage{ClientMessage: &pb.RpcClientMessage_TerminalResize{TerminalResize: &pb.TerminalResize{Rows: uint32(h), Cols: uint32(w)}}}); err != nil {
+			if err := server.WriteMessage(&pb.RpcClientMessage{
+				ClientMessage: &pb.RpcClientMessage_TerminalResize{
+					TerminalResize: &pb.TerminalResize{Rows: uint32(h), Cols: uint32(w)},
+				},
+			}); err != nil {
 				return err
 			}
 		}

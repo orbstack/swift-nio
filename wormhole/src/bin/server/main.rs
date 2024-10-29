@@ -9,6 +9,7 @@ use std::{
         unix::net::{UnixListener, UnixStream},
     },
     path::Path,
+    process::exit,
     sync::Arc,
     thread,
 };
@@ -19,6 +20,7 @@ use tokio::{
     task::{self, JoinHandle},
 };
 use tracing_subscriber::fmt::format::FmtSpan;
+use util::{mount_wormhole, unmount_wormhole};
 use wormhole::{
     asyncfile::AsyncFile,
     flock::{Flock, FlockMode, FlockWait},
@@ -44,7 +46,10 @@ use nix::{
 use tracing::{trace, Level};
 
 mod model;
+mod util;
 use serde::{Deserialize, Serialize};
+
+use crate::util::WORMHOLE_UNIFIED;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WormholeConfig {
@@ -72,15 +77,8 @@ pub struct WormholeConfig {
     pub is_local: bool,
 }
 
-const ROOTFS: &str = "/wormhole-rootfs";
-const UPPERDIR: &str = "/data/upper";
-const WORKDIR: &str = "/data/work";
-const WORMHOLE_OVERLAY: &str = "/mnt/wormhole-overlay";
-const WORMHOLE_UNIFIED: &str = "/mnt/wormhole-unified";
 const REFCOUNT_FILE: &str = "/data/refcount";
 const REFCOUNT_LOCK: &str = "/data/refcount.lock";
-
-const NIX_RW_DIRS: [&str; 3] = ["store", "var", "orb/data"];
 
 // receives client stdin and stdout fds  with SCM_RIGHTS
 fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(File, File)> {
@@ -108,7 +106,6 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(File, File)> {
     }
     match (stdin_fd, stdout_fd) {
         (Some(stdin_fd), Some(stdout_fd)) => {
-            trace!("got rpc client: {stdin_fd}, {stdout_fd}");
             let client_stdin = unsafe { File::from_raw_fd(stdin_fd) };
             let client_stdout = unsafe { File::from_raw_fd(stdout_fd) };
             Ok((client_stdin, client_stdout))
@@ -117,296 +114,260 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(File, File)> {
     }
 }
 
-fn mount_wormhole() -> anyhow::Result<()> {
-    // create upper, work, and overlay if they do not exist
-    fs::create_dir_all(UPPERDIR)?;
-    fs::create_dir_all(WORKDIR)?;
-    fs::create_dir_all(WORMHOLE_OVERLAY)?;
-
-    trace!("mounting overlayfs");
-    let options = format!(
-        "lowerdir={},upperdir={},workdir={}",
-        ROOTFS, UPPERDIR, WORKDIR
-    );
-    mount(
-        Some("overlay"),
-        WORMHOLE_OVERLAY,
-        Some("overlay"),
-        MsFlags::empty(),
-        Some(options.as_str()),
-    )?;
-
-    trace!("creating ro wormhole-unified mount");
-    mount::<str, str, Path, Path>(Some(ROOTFS), WORMHOLE_UNIFIED, None, MsFlags::MS_BIND, None)?;
-    mount::<str, str, Path, Path>(
-        Some(ROOTFS),
-        WORMHOLE_UNIFIED,
-        None,
-        MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
-        None,
-    )?;
-
-    for nix_dir in NIX_RW_DIRS {
-        trace!("mount bind from overlay to unified: {}", nix_dir);
-        mount::<str, str, Path, Path>(
-            Some(format!("{}/nix/{}", WORMHOLE_OVERLAY, nix_dir).as_str()),
-            format!("{}/nix/{}", WORMHOLE_UNIFIED, nix_dir).as_str(),
-            None,
-            MsFlags::MS_BIND,
-            None,
-        )?;
-    }
-    Ok(())
+// #[derive(Copy)]
+struct WormholeServer {
+    conn: Mutex<u32>,
 }
 
-fn startup() -> anyhow::Result<()> {
-    trace!("startup");
-    OpenOptions::new()
-        .create(true)
-        .write(true)
-        .append(true)
-        .open(REFCOUNT_FILE)?;
-    let _flock = Flock::new_ofd(
-        File::create(REFCOUNT_LOCK)?,
-        FlockMode::Exclusive,
-        FlockWait::Blocking,
-    )?;
-    let contents = fs::read_to_string(REFCOUNT_FILE)?;
-    let mut refcount: i32 = if contents.is_empty() {
-        0
-    } else {
-        contents.trim().parse()?
-    };
-
-    // sometimes the refcount is non-zero even though the nix directory is not mounted. this can
-    // happen when a wormhole session increments the refcount, but is killed before it has
-    // the chance to decrement.
-    if refcount == 0 || !Path::new(&format!("{WORMHOLE_UNIFIED}/nix")).exists() {
-        mount_wormhole()?;
-        refcount = 0;
+impl WormholeServer {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            conn: Mutex::new(0),
+        })
     }
 
-    refcount += 1;
-    trace!("updated refcount from {} to {}", refcount - 1, refcount);
-
-    fs::write(REFCOUNT_FILE, refcount.to_string())?;
-    Ok(())
-}
-
-async fn handle_client(mut stream: UnixStream) -> anyhow::Result<()> {
-    // increment refcount and acknowledge client
-    trace!("sent client stream");
-    RpcServerMessage {
-        server_message: Some(ServerMessage::ClientConnectAck(ClientConnectAck {})),
+    fn init(self: &Arc<Self>) -> anyhow::Result<()> {
+        trace!("initializing wormhole");
+        mount_wormhole()
     }
-    .write_sync(&mut stream)?;
 
-    trace!("waiting for rpc client fds");
-    // get client fds via scm_rights over the stream
-    let (client_stdin, client_stdout) = recv_rpc_client(&stream)?;
-    trace!(
-        "got rpc client fds {} {}",
-        client_stdin.as_raw_fd(),
-        client_stdout.as_raw_fd()
-    );
+    fn listen(self: &Arc<Self>) -> anyhow::Result<()> {
+        let listener = UnixListener::bind("/data/rpc.sock")?;
 
-    // todo: increment connection count
-
-    // todo: let user set this via rpc
-
-    let mut client_stdin = AsyncFile::from(client_stdin)?;
-    let mut client_stdout = AsyncFile::from(client_stdout)?;
-
-    // acknowledge
-    // let _ = RpcOutputMessage::ConnectServerAck()
-    //     .write_to(&mut client_stdout)
-    //     .await;
-
-    let mut client_writer_m = Arc::new(Mutex::new(client_stdout));
-    let mut pty: Option<OpenptyResult> = None;
-    let wormhole_param;
-
-    let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
-    let mut stdout_pipe: (RawFd, RawFd) = (-1, -1);
-    let mut stderr_pipe: (RawFd, RawFd) = (-1, -1);
-
-    // wait until user calls start before proceeding
-    loop {
-        let message = RpcClientMessage::read(&mut client_stdin).await?;
-
-        match message.client_message {
-            Some(ClientMessage::RequestPty(msg)) => {
-                pty = Some(create_pty(msg.cols as u16, msg.rows as u16, msg.termios)?);
-
-                let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
-                let master_fd = pty.as_ref().unwrap().master.as_raw_fd();
-
-                trace!("got pty: {slave_fd} {master_fd}");
-
-                // for stdin: write to master and read from slave
-                // for stdout/stderr: read from master and write to slave
-                stdin_pipe = (dup(slave_fd)?, dup(master_fd)?);
-                stdout_pipe = (dup(master_fd)?, dup(slave_fd)?);
-                stderr_pipe = (dup(master_fd)?, dup(slave_fd)?);
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    let server = self.clone();
+                    tokio::spawn(async move {
+                        let _ = server.handle_client(stream).await;
+                    });
+                }
+                Err(e) => {
+                    trace!("error accepting connection: {:?}", e);
+                }
             }
-            Some(ClientMessage::StartPayload(msg)) => {
-                wormhole_param = msg.wormhole_param;
-                break;
-            }
-            _ => {}
         }
     }
 
-    if pty.is_none() {
-        stdin_pipe = pipe()?;
-        stdout_pipe = pipe()?;
-        stderr_pipe = pipe()?;
-    }
-    let is_pty = pty.is_some();
+    async fn handle_client(self: Arc<Self>, mut stream: UnixStream) -> anyhow::Result<()> {
+        // increment refcount and acknowledge client
+        {
+            let mut lock = self.conn.lock().await;
+            *lock += 1;
+            trace!("new connection; refcount is now {}", *lock);
+        }
+        RpcServerMessage {
+            server_message: Some(ServerMessage::ClientConnectAck(ClientConnectAck {})),
+        }
+        .write_sync(&mut stream)?;
 
-    let wormhole_mount = open_tree(
-        "/mnt/wormhole-unified/nix",
-        libc::OPEN_TREE_CLOEXEC as i32 | libc::OPEN_TREE_CLONE as i32 | libc::AT_RECURSIVE,
-    )?;
-    let (_, log_pipe_write_fd) = pipe()?;
-    let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe()?;
-    let wormhole_mount_fd = wormhole_mount.as_raw_fd();
-    unset_cloexec(wormhole_mount_fd)?;
-    unset_cloexec(exit_code_pipe_write_fd)?;
-    unset_cloexec(log_pipe_write_fd)?;
-    let mut exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd)?;
+        // get client fds via scm_rights over the stream
+        trace!("waiting for rpc client fds");
+        let (client_stdin, client_stdout) = recv_rpc_client(&stream)?;
+        trace!(
+            "got rpc client fds {} {}",
+            client_stdin.as_raw_fd(),
+            client_stdout.as_raw_fd()
+        );
 
-    let mut config = serde_json::from_str::<WormholeConfig>(&wormhole_param)?;
-    config.wormhole_mount_tree_fd = wormhole_mount_fd;
-    config.log_fd = log_pipe_write_fd;
-    config.exit_code_pipe_write_fd = exit_code_pipe_write_fd;
+        let mut client_stdin = AsyncFile::from(client_stdin)?;
+        let mut client_stdout = AsyncFile::from(client_stdout)?;
 
-    trace!("spawning wormhole-attach");
-    let _ = unsafe {
-        Command::new("/wormhole-attach")
-            .arg(serde_json::to_string(&config)?)
-            .pre_exec(move || {
-                if pty.is_some() {
-                    setsid()?;
-                    let res = ioctl(stdin_pipe.0, TIOCSCTTY, 1);
-                    if res != 0 {
-                        return Err(std::io::Error::last_os_error());
-                    }
-                }
+        let mut client_writer_m = Arc::new(Mutex::new(client_stdout));
+        let mut pty: Option<OpenptyResult> = None;
+        let wormhole_param;
 
-                dup2(stdin_pipe.0, libc::STDIN_FILENO)?;
-                dup2(stdout_pipe.1, libc::STDOUT_FILENO)?;
-                dup2(stderr_pipe.1, libc::STDERR_FILENO)?;
+        let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
+        let mut stdout_pipe: (RawFd, RawFd) = (-1, -1);
+        let mut stderr_pipe: (RawFd, RawFd) = (-1, -1);
 
-                Ok(())
-            })
-            .spawn()?
-    };
-
-    let mut payload_stdin = AsyncFile::new(stdin_pipe.1)?;
-    let mut payload_stdout = AsyncFile::new(stdout_pipe.0)?;
-    let mut payload_stderr = AsyncFile::new(stderr_pipe.0)?;
-
-    trace!("starting payload");
-    {
-        let client_writer_m = Arc::clone(&client_writer_m);
-        let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
-            let mut buf = [0u8; 1024];
-            loop {
-                match payload_stdout.read(&mut buf).await {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        let mut client_writer = client_writer_m.lock().await;
-                        RpcServerMessage {
-                            server_message: Some(ServerMessage::StdoutData(StdoutData {
-                                data: buf[..n].to_vec(),
-                            })),
-                        }
-                        .write(&mut client_writer)
-                        .await?;
-                    }
-                    Err(e) => trace!("got error reading from payload stdout: {e}"),
-                }
-            }
-            Ok(())
-        });
-    }
-
-    {
-        let client_writer_m = Arc::clone(&client_writer_m);
-        let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
-            let mut buf = [0u8; 1024];
-            loop {
-                match payload_stderr.read(&mut buf).await {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        let mut client_writer = client_writer_m.lock().await;
-                        RpcServerMessage {
-                            server_message: Some(ServerMessage::StderrData(StderrData {
-                                data: buf[..n].to_vec(),
-                            })),
-                        }
-                        .write(&mut client_writer)
-                        .await?;
-                    }
-                    Err(e) => trace!("got error reading from payload stderr: {e}"),
-                }
-            }
-            Ok(())
-        });
-    }
-
-    let _: JoinHandle<anyhow::Result<()>> = task::spawn(async move {
+        // wait until user calls start before proceeding
         loop {
             let message = RpcClientMessage::read(&mut client_stdin).await?;
+
             match message.client_message {
-                Some(ClientMessage::StdinData(msg)) => {
-                    trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&msg.data));
-                    let _ = payload_stdin
-                        .write(&msg.data)
-                        .await
-                        .map_err(|e| trace!("error writing to payload {e}"));
+                Some(ClientMessage::RequestPty(msg)) => {
+                    pty = Some(create_pty(msg.cols as u16, msg.rows as u16, msg.termios)?);
+
+                    let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
+                    let master_fd = pty.as_ref().unwrap().master.as_raw_fd();
+
+                    trace!("got pty: {slave_fd} {master_fd}");
+
+                    // for stdin: write to master and read from slave
+                    // for stdout/stderr: read from master and write to slave
+                    stdin_pipe = (dup(slave_fd)?, dup(master_fd)?);
+                    stdout_pipe = (dup(master_fd)?, dup(slave_fd)?);
+                    stderr_pipe = (dup(master_fd)?, dup(slave_fd)?);
                 }
-                Some(ClientMessage::TerminalResize(msg)) => {
-                    if !is_pty {
-                        panic!("cannot resize terminal for non-tty ")
-                    }
-                    let ws = Winsize {
-                        ws_row: msg.rows as u16,
-                        ws_col: msg.cols as u16,
-                        ws_xpixel: 0,
-                        ws_ypixel: 0,
-                    };
-                    unsafe {
-                        nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
-                    }
+                Some(ClientMessage::StartPayload(msg)) => {
+                    wormhole_param = msg.wormhole_param;
+                    break;
                 }
                 _ => {}
             }
         }
-    });
 
-    task::spawn(async move {
-        let mut exit_code = [0u8];
-        let _ = exit_code_pipe_reader.read_exact(&mut exit_code).await;
-
-        let mut client_writer = client_writer_m.lock().await;
-        let _ = RpcServerMessage {
-            server_message: Some(ServerMessage::ExitStatus(ExitStatus {
-                exit_code: exit_code[0] as u32,
-            })),
+        if pty.is_none() {
+            stdin_pipe = pipe()?;
+            stdout_pipe = pipe()?;
+            stderr_pipe = pipe()?;
         }
-        .write(&mut client_writer)
-        .await;
+        let is_pty = pty.is_some();
 
-        // todo: kill all async server tasks belonging to the current connection
-        trace!("exiting process with exit code {}", exit_code[0]);
-    })
-    .await?;
-    Ok(())
+        let wormhole_mount = open_tree(
+            "/mnt/wormhole-unified/nix",
+            libc::OPEN_TREE_CLOEXEC as i32 | libc::OPEN_TREE_CLONE as i32 | libc::AT_RECURSIVE,
+        )?;
+        let (_, log_pipe_write_fd) = pipe()?;
+        let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe()?;
+        let wormhole_mount_fd = wormhole_mount.as_raw_fd();
+        unset_cloexec(wormhole_mount_fd)?;
+        unset_cloexec(exit_code_pipe_write_fd)?;
+        unset_cloexec(log_pipe_write_fd)?;
+        let mut exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd)?;
+
+        let mut config = serde_json::from_str::<WormholeConfig>(&wormhole_param)?;
+        config.wormhole_mount_tree_fd = wormhole_mount_fd;
+        config.log_fd = log_pipe_write_fd;
+        config.exit_code_pipe_write_fd = exit_code_pipe_write_fd;
+
+        trace!("spawning wormhole-attach");
+        let _ = unsafe {
+            Command::new("/wormhole-attach")
+                .arg(serde_json::to_string(&config)?)
+                .pre_exec(move || {
+                    if pty.is_some() {
+                        setsid()?;
+                        let res = ioctl(stdin_pipe.0, TIOCSCTTY, 1);
+                        if res != 0 {
+                            return Err(std::io::Error::last_os_error());
+                        }
+                    }
+
+                    dup2(stdin_pipe.0, libc::STDIN_FILENO)?;
+                    dup2(stdout_pipe.1, libc::STDOUT_FILENO)?;
+                    dup2(stderr_pipe.1, libc::STDERR_FILENO)?;
+
+                    Ok(())
+                })
+                .spawn()?
+        };
+
+        let mut payload_stdin = AsyncFile::new(stdin_pipe.1)?;
+        let mut payload_stdout = AsyncFile::new(stdout_pipe.0)?;
+        let mut payload_stderr = AsyncFile::new(stderr_pipe.0)?;
+
+        {
+            let client_writer_m = Arc::clone(&client_writer_m);
+            let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+                let mut buf = [0u8; 1024];
+                loop {
+                    match payload_stdout.read(&mut buf).await {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let mut client_writer = client_writer_m.lock().await;
+                            RpcServerMessage {
+                                server_message: Some(ServerMessage::StdoutData(StdoutData {
+                                    data: buf[..n].to_vec(),
+                                })),
+                            }
+                            .write(&mut client_writer)
+                            .await?;
+                        }
+                        Err(e) => trace!("got error reading from payload stdout: {e}"),
+                    }
+                }
+                Ok(())
+            });
+        }
+
+        {
+            let client_writer_m = Arc::clone(&client_writer_m);
+            let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+                let mut buf = [0u8; 1024];
+                loop {
+                    match payload_stderr.read(&mut buf).await {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let mut client_writer = client_writer_m.lock().await;
+                            RpcServerMessage {
+                                server_message: Some(ServerMessage::StderrData(StderrData {
+                                    data: buf[..n].to_vec(),
+                                })),
+                            }
+                            .write(&mut client_writer)
+                            .await?;
+                        }
+                        Err(e) => trace!("got error reading from payload stderr: {e}"),
+                    }
+                }
+                Ok(())
+            });
+        }
+
+        let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+            loop {
+                let message = RpcClientMessage::read(&mut client_stdin).await?;
+                match message.client_message {
+                    Some(ClientMessage::StdinData(msg)) => {
+                        // trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&msg.data));
+                        let _ = payload_stdin
+                            .write(&msg.data)
+                            .await
+                            .map_err(|e| trace!("error writing to payload {e}"));
+                    }
+                    Some(ClientMessage::TerminalResize(msg)) => {
+                        if !is_pty {
+                            panic!("cannot resize terminal for non-tty ")
+                        }
+                        let ws = Winsize {
+                            ws_row: msg.rows as u16,
+                            ws_col: msg.cols as u16,
+                            ws_xpixel: 0,
+                            ws_ypixel: 0,
+                        };
+                        unsafe {
+                            nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        tokio::spawn(async move {
+            let mut exit_code = [0u8];
+            let _ = exit_code_pipe_reader.read_exact(&mut exit_code).await;
+
+            trace!("received exit code {}", exit_code[0]);
+            let mut client_writer = client_writer_m.lock().await;
+            let _ = RpcServerMessage {
+                server_message: Some(ServerMessage::ExitStatus(ExitStatus {
+                    exit_code: exit_code[0] as u32,
+                })),
+            }
+            .write(&mut client_writer)
+            .await;
+
+            // under flock: decrement connection refcount; if there are no more connections left, begin shutdown
+            let mut lock = self.conn.lock().await;
+            *lock -= 1;
+            trace!("remaining connections: {}", *lock);
+            if *lock == 0 {
+                trace!("shutting down");
+                let _ = std::fs::remove_file("/data/rpc.sock");
+                let _ = unmount_wormhole();
+                exit(0);
+            }
+
+            // todo: kill all async server tasks belonging to the current connection
+        })
+        .await?;
+        Ok(())
+    }
 }
 
-// todo: keep track of active connections and shutdown server (and delete /rpc.sock) if no active connections
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -414,24 +375,9 @@ async fn main() -> anyhow::Result<()> {
         .with_max_level(Level::TRACE)
         .init();
 
-    let _ = std::fs::remove_file("/data/rpc.sock");
-    let listener = UnixListener::bind("/data/rpc.sock")?;
-
-    trace!("wormhole setup");
-    startup()?;
-
-    loop {
-        match listener.accept() {
-            Ok((stream, _)) => {
-                tokio::spawn(async move {
-                    let _ = handle_client(stream).await;
-                });
-            }
-            Err(e) => {
-                trace!("error accepting connection: {:?}", e);
-            }
-        }
-    }
+    let server = WormholeServer::new();
+    server.init()?;
+    server.listen()?;
 
     Ok(())
 }

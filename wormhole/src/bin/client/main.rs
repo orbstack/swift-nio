@@ -1,5 +1,8 @@
 use anyhow::anyhow;
+use nix::sys::signal::{SigSet, Signal};
+use nix::sys::signalfd::SignalFd;
 use nix::sys::socket::{sendmsg, ControlMessage, MsgFlags, UnixAddr};
+use nix::unistd::sleep;
 use std::fs::{self, File};
 use std::io::{stdin, stdout, IoSlice, Write};
 use std::os::fd::AsRawFd;
@@ -13,25 +16,29 @@ use wormhole::rpc::wormhole::{RpcClientInit, RpcClientInitAck, RpcServerMessage}
 use wormhole::rpc::{RpcReadSync, RpcWriteSync};
 
 const LOCK: &str = "/data/.lock";
+const RPC_SOCKET: &str = "/data/rpc.sock";
 
 fn connect_to_server() -> anyhow::Result<UnixStream> {
-    // let _flock = Flock::new_ofd(
-    //     File::create(LOCK)?,
-    //     FlockMode::Exclusive,
-    //     FlockWait::Blocking,
-    // )?;
+    let _flock = Flock::new_ofd(
+        File::create(LOCK)?,
+        FlockMode::Exclusive,
+        FlockWait::Blocking,
+    )?;
 
     // tell scli process to start wormhole server if rpc socket does not exist
-    let start_server = !Path::new("/data/rpc.sock").exists();
-    RpcClientInit { start_server: true }.write_sync(&mut stdout())?;
+    let start_server = !Path::new(RPC_SOCKET).exists();
+    RpcClientInit { start_server }.write_sync(&mut stdout())?;
     RpcClientInitAck::read_sync(&mut stdin())?;
 
-    // trace!("connecting to stream");
-    let mut stream = UnixStream::connect("/data/rpc.sock")
+    // wait for server to fully initialize and bind to socket
+    while !Path::new(RPC_SOCKET).exists() {
+        // sleep(1);
+    }
+
+    let mut stream = UnixStream::connect(RPC_SOCKET)
         .map_err(|e| anyhow!("could not connect to RPC socket: {}", e))?;
 
-    // trace!("waiting for server ack");
-    // wait until the server increments its connection refcount and acknowledges our connection
+    // wait until the server increments its connection  and acknowledges our connection
     let message = RpcServerMessage::read_sync(&mut stream)?;
     match message.server_message {
         Some(ServerMessage::ClientConnectAck(_)) => {}
@@ -54,5 +61,17 @@ fn main() -> anyhow::Result<()> {
     let iov = [IoSlice::new(&[0u8])];
     sendmsg::<()>(stream.as_raw_fd(), &iov, &cmsgs, MsgFlags::empty(), None)?;
 
-    loop {}
+    let mut mask = SigSet::empty();
+    mask.add(Signal::SIGTERM);
+    mask.thread_block()?;
+
+    let mut sfd = SignalFd::new(&mask)?;
+    match sfd.read_signal()? {
+        Some(siginfo) => {
+            trace!("got sigterm");
+        }
+        _ => {}
+    }
+
+    Ok(())
 }

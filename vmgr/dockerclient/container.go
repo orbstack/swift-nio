@@ -60,45 +60,47 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 	return containerResp.ID, nil
 }
 
-func (c *Client) InteractiveRunContainer(req *dockertypes.ContainerCreateRequest, pullImage bool) (net.Conn, error) {
+func (c *Client) InteractiveRunContainer(req *dockertypes.ContainerCreateRequest, pullImage bool) (net.Conn, string, error) {
 	if pullImage {
 		// need to pull image first
 		repoPart, tagPart := splitRepoTag(req.Image)
-		fmt.Println("Pulling image")
 		err := c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
 		if err != nil {
-			return nil, fmt.Errorf("pull image: %w", err)
+			return nil, "", fmt.Errorf("pull image: %w", err)
 		}
-		fmt.Println("Pulled image")
 	}
 
 	// create --rm container
-	fmt.Println("Creating container")
 	var containerResp dockertypes.ContainerCreateResponse
 	err := c.Call("POST", "/containers/create", req, &containerResp)
 	if err != nil {
-		return nil, fmt.Errorf("create container: %w", err)
+		return nil, "", fmt.Errorf("create container: %w", err)
 	}
 
 	// upgrade to tcp
-	fmt.Println("hijacking")
 	conn, err := c.StreamHijack("POST", "/containers/"+containerResp.ID+"/attach?logs=true&stream=true&stdin=true&stdout=true&stderr=true", nil)
 	if err != nil {
-		return nil, fmt.Errorf("attach container: %w", err)
+		return nil, "", fmt.Errorf("attach container: %w", err)
 	}
-	fmt.Println("hijacked")
 
 	// start container
-	fmt.Println("Starting container")
 	err = c.Call("POST", "/containers/"+containerResp.ID+"/start", nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("start container: %w", err)
+		return nil, "", fmt.Errorf("start container: %w", err)
 	}
-	return conn, nil
+	return conn, containerResp.ID, nil
 }
 
 func (c *Client) KillContainer(cid string) error {
 	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/kill", nil, nil)
+	if err != nil {
+		return fmt.Errorf("kill container: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) StopContainer(cid string) error {
+	err := c.Call("POST", "/containers/"+cid+"/stop", nil, nil)
 	if err != nil {
 		return fmt.Errorf("kill container: %w", err)
 	}
