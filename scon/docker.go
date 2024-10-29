@@ -74,8 +74,13 @@ var dockerInitCommands = [][]string{
 	// compat for kruise expecting containerd OR docker+dockershim: https://github.com/openkruise/kruise/blob/4e80be556726e60f54abaa3e8ba133ce114c4f64/pkg/daemon/criruntime/factory.go#L200
 	{"ln", "-sf", "/var/run/k3s/cri-dockerd/cri-dockerd.sock", "/var/run/dockershim.sock"},
 
-	{"ip", "rule", "add", "fwmark", strconv.Itoa(netconf.DockerFwmarkLocalRoute), "table", "984"},
-	{"ip", "route", "add", "local", "default", "dev", "lo", "table", "984"},
+	// tproxy: loopback routing for connection to tproxy
+	// we hijack connections to lo in order to intercept with
+	// busybox only supports table ID < 1024 but kernel can do 32-bit(? or is it just string?)
+	{"ip", "-4", "rule", "add", "fwmark", strconv.Itoa(netconf.DockerFwmarkLocalRoute), "table", "984"},
+	{"ip", "-6", "rule", "add", "fwmark", strconv.Itoa(netconf.DockerFwmarkLocalRoute), "table", "984"},
+	{"ip", "-4", "route", "add", "local", "default", "dev", "lo", "table", "984"},
+	{"ip", "-6", "route", "add", "local", "default", "dev", "lo", "table", "984"},
 
 	{"sysctl", "-q", "net.ipv6.conf.lo.accept_dad=0"},
 

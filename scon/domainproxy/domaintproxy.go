@@ -314,7 +314,6 @@ func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (
 	}
 
 	downstreamIp := ctx.Value(MdnsContextKeyDownstream)
-	logrus.WithFields(logrus.Fields{"downstreamIp": downstreamIp}).Debug("emmie | dialUpstream")
 	is4 := true
 	if downstreamIp != nil {
 		is4 = downstreamIp.(net.IP).To4() != nil
@@ -324,6 +323,8 @@ func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (
 	if err != nil {
 		return nil, err
 	}
+
+	logrus.WithFields(logrus.Fields{"downstreamIp": downstreamIp, "upstream.Ip": upstream.Ip}).Debug("emmie | dialUpstream")
 
 	// fall back to normal dialer
 	dialer := &net.Dialer{}
