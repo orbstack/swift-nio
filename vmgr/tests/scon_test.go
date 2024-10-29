@@ -233,6 +233,7 @@ func TestSconMachines(t *testing.T) {
 			}
 		})
 
+		// TODO: separate from the main subtest without making #1s appear
 		t.Run("CloudInit", func(t *testing.T) {
 			if distro == "openeuler" {
 				t.Skip("skipping because of a bug, see https://github.com/orbstack/macvirt/pull/178#discussion_r1819387621")
