@@ -4,7 +4,7 @@ use nix::sys::signalfd::SignalFd;
 use nix::sys::socket::{sendmsg, ControlMessage, MsgFlags, UnixAddr};
 use nix::unistd::sleep;
 use std::fs::{self, File};
-use std::io::{stdin, stdout, IoSlice, Write};
+use std::io::{stdin, stdout, IoSlice, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
@@ -54,24 +54,30 @@ fn main() -> anyhow::Result<()> {
         .with_max_level(Level::TRACE)
         .init();
 
-    let stream = connect_to_server()?;
+    let mut stream = connect_to_server()?;
 
     let fds = [stdin().as_raw_fd(), stdout().as_raw_fd()];
     let cmsgs = [ControlMessage::ScmRights(&fds)];
     let iov = [IoSlice::new(&[0u8])];
     sendmsg::<()>(stream.as_raw_fd(), &iov, &cmsgs, MsgFlags::empty(), None)?;
 
-    let mut mask = SigSet::empty();
-    mask.add(Signal::SIGTERM);
-    mask.thread_block()?;
+    // `docker stop <container>` still hangs, even when listening to SIGTERM... (?)
+    // let mut mask = SigSet::empty();
+    // mask.add(Signal::SIGTERM);
+    // mask.thread_block()?;
 
-    let mut sfd = SignalFd::new(&mask)?;
-    match sfd.read_signal()? {
-        Some(siginfo) => {
-            trace!("got sigterm");
-        }
-        _ => {}
-    }
+    // let mut sfd = SignalFd::new(&mask)?;
+    // loop {
+    //     match sfd.read_signal()? {
+    //         Some(siginfo) => {
+    //             trace!("got sigterm");
+    //             break;
+    //         }
+    //         _ => {}
+    //     }
+    // }
 
+    // server drops the rpc socket connection when wormhole-attach exits
+    stream.read(&mut [])?;
     Ok(())
 }

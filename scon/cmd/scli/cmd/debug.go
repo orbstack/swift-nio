@@ -156,7 +156,7 @@ func WriteTermEnv(writer io.Writer, term string) error {
 }
 
 func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error {
-	conn, wormhole_client_cid, err := client.InteractiveRunContainer(&dockertypes.ContainerCreateRequest{
+	conn, _, err := client.InteractiveRunContainer(&dockertypes.ContainerCreateRequest{
 		Tty:          false,
 		AttachStdin:  true,
 		AttachStdout: true,
@@ -302,13 +302,6 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 				os.Stdout.Write(v.StderrData.Data)
 			case *pb.RpcServerMessage_ExitStatus:
 				term.Restore(ptyFd, originalState)
-
-				fmt.Println("stopping containers...")
-				// shutdown client container
-				if err = client.StopContainer(wormhole_client_cid); err != nil {
-					fmt.Fprintf(os.Stderr, "%v\n", err)
-				}
-
 				os.Exit(int(v.ExitStatus.ExitCode))
 			}
 		}

@@ -355,6 +355,12 @@ impl WormholeServer {
             .await;
 
             // under flock: decrement connection refcount; if there are no more connections left, begin shutdown
+            let _flock = Flock::new_ofd(
+                File::create("/data/.lock").unwrap(),
+                FlockMode::Exclusive,
+                FlockWait::Blocking,
+            );
+
             let mut lock = self.conn.lock().await;
             *lock -= 1;
             trace!("remaining connections: {}", *lock);
