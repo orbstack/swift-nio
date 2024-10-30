@@ -14,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/dns/dnssd"
 	"github.com/sirupsen/logrus"
@@ -29,7 +30,17 @@ var (
 	ipToNameLruSize = 100
 
 	errNoNetwork = errors.New("no network")
+
+	nat64Subnet *net.IPNet
 )
+
+func init() {
+	var err error
+	_, nat64Subnet, err = net.ParseCIDR(netconf.NAT64Subnet6CIDR)
+	if err != nil {
+		panic("failed to parse nat64 subnet")
+	}
+}
 
 type StaticHost struct {
 	IP4 string
@@ -230,6 +241,12 @@ func (h *DnsServer) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool)
 			if err != nil {
 				logrus.Error("mapToRR() =", err)
 				continue
+			}
+			if aaaa, ok := rr.(*dns.AAAA); ok {
+				if nat64Subnet.Contains(aaaa.AAAA) {
+					// skip nat64 ips because they don't work from machines or containers
+					continue
+				}
 			}
 			msg.Answer = append(msg.Answer, rr)
 
