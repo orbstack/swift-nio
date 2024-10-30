@@ -899,6 +899,7 @@ func runVmManager() {
 		"unix:" + conf.DockerSocket():  "tcp:" + str(ports.GuestDocker),
 		"unix:" + conf.SconSSHSocket(): "tcp:" + str(ports.GuestSconSSH),
 		"unix:" + conf.SconRPCSocket(): "tcp:" + str(ports.GuestScon),
+		"unix:" + conf.NfsSocket():     "tcp:" + str(ports.GuestNFS),
 		// NFS is special, handled below
 	}
 	vnetwork.VsockDialer = func(port uint32) (net.Conn, error) {
@@ -928,19 +929,20 @@ func runVmManager() {
 		}
 	}
 
-	// special NFS forward
-	// tcp is faster and probably more stable
-	nfsFwdSpec := vnet.ForwardSpec{
-		// dynamically assigned port
-		Host:  "tcp:127.0.0.1:0",
-		Guest: "tcp:" + str(ports.GuestNFS),
+	// special NFS forward: dynamic TCP port for legacy macOS where we can't use unix sockets
+	if !nfsmnt.SupportsUnixSocket() {
+		nfsFwdSpec := vnet.ForwardSpec{
+			// dynamically assigned port
+			Host:  "tcp:127.0.0.1:0",
+			Guest: "tcp:" + str(ports.GuestNFS),
+		}
+		nfsFwd, err := vnetwork.StartForward(nfsFwdSpec)
+		if err != nil {
+			errorx.Fatalf("host forward failed: %w", err)
+		}
+		nfsPort := nfsFwd.(*tcpfwd.TcpHostForward).TcpPort()
+		services.Hcontrol.NfsPort = nfsPort
 	}
-	nfsFwd, err := vnetwork.StartForward(nfsFwdSpec)
-	if err != nil {
-		errorx.Fatalf("host forward failed: %w", err)
-	}
-	nfsPort := nfsFwd.(*tcpfwd.TcpHostForward).TcpPort()
-	services.Hcontrol.NfsPort = nfsPort
 
 	defer os.Remove(conf.DockerSocket())
 	defer os.Remove(conf.SconRPCSocket())

@@ -60,12 +60,16 @@ type Spec struct {
 	TargetPath string
 }
 
-func SupportsUnixSocket() (bool, error) {
+func SupportsUnixSocket() bool {
+	if !preferUnixSocket {
+		return false
+	}
+
 	osMajor, osMinor, osDaily, err := getMacOSBuildVersion()
 	if err != nil {
-		return false, err
+		return false
 	}
-	return osMajor > 22 || (osMajor == 22 && (osMinor > 'E' || (osMinor == 'E' && osDaily >= 118))), nil
+	return osMajor > 22 || (osMajor == 22 && (osMinor > 'E' || (osMinor == 'E' && osDaily >= 118)))
 }
 
 func doMount(spec Spec) error {

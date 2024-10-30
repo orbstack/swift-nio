@@ -422,10 +422,6 @@ func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
 		logrus.WithError(err).Error("failed to chmod NFS dir")
 	}
 
-	if h.NfsPort == 0 {
-		return errors.New("nfs port forward not available")
-	}
-
 	logrus.Info("Mounting NFS...")
 	err = nfsmnt.MountNfs(h.NfsPort)
 	if err != nil {
