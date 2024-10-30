@@ -105,7 +105,8 @@ func doMount(spec Spec) error {
 				1<<nfs_sys_prot.NFS_MFLAG_INTR |
 				1<<nfs_sys_prot.NFS_MFLAG_NFC |
 				1<<nfs_sys_prot.NFS_MFLAG_MUTEJUKEBOX |
-				1<<nfs_sys_prot.NFS_MFLAG_MNTQUICK,
+				1<<nfs_sys_prot.NFS_MFLAG_MNTQUICK |
+				1<<nfs_sys_prot.NFS_MFLAG_SKIP_RENEW,
 		},
 		Value: []uint32{
 			1<<nfs_sys_prot.NFS_MFLAG_NOCALLBACK |
@@ -113,7 +114,8 @@ func doMount(spec Spec) error {
 				1<<nfs_sys_prot.NFS_MFLAG_INTR |
 				1<<nfs_sys_prot.NFS_MFLAG_NFC |
 				1<<nfs_sys_prot.NFS_MFLAG_MUTEJUKEBOX |
-				1<<nfs_sys_prot.NFS_MFLAG_MNTQUICK,
+				1<<nfs_sys_prot.NFS_MFLAG_MNTQUICK |
+				1<<nfs_sys_prot.NFS_MFLAG_SKIP_RENEW,
 		},
 	}
 	flags.WriteTo(&attrVals)
