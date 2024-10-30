@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     ffi::{c_int, CString},
     fs::File,
-    os::fd::{FromRawFd, OwnedFd, RawFd},
+    os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
     path::Path,
     ptr::{null, null_mut},
 };
@@ -208,7 +208,8 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
     trace!("seccomp: ptrace get filter size");
     let insn_count = unsafe {
         err(ptrace(
-            PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(),
+            // cast needed to fix musl type mismatch
+            PTRACE_SECCOMP_GET_FILTER as _,
             pid,
             index,
             null::<sock_filter>(),
@@ -228,7 +229,8 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
     ];
     unsafe {
         err(ptrace(
-            PTRACE_SECCOMP_GET_FILTER.try_into().unwrap(),
+            // cast needed to fix musl type mismatch
+            PTRACE_SECCOMP_GET_FILTER as _,
             pid,
             index,
             filter.as_mut_ptr(),
@@ -379,6 +381,8 @@ fn main() -> anyhow::Result<()> {
     // stdin, stdout, stderr are expected to be 0,1,2 and will be propagated to the child
     // usage: wormhole-attach <config json>
     let config = parse_config()?;
+    // exit_code_pipe_write_fd needs to be leaked in monitor and subreaper to avoid closing on panic, which causes immediate SIGPWR
+    let log_fd = unsafe { OwnedFd::from_raw_fd(config.log_fd) };
     let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(config.wormhole_mount_tree_fd) };
     trace!("entry shell cmd: {:?}", config.entry_shell_cmd);
     trace!("drm token: {:?}", config.drm_token);
@@ -386,8 +390,8 @@ fn main() -> anyhow::Result<()> {
 
     // set cloexec on extra files passed to us
     set_cloexec(config.exit_code_pipe_write_fd)?;
-    set_cloexec(config.log_fd)?;
-    set_cloexec(config.wormhole_mount_tree_fd)?;
+    set_cloexec(log_fd.as_raw_fd())?;
+    set_cloexec(wormhole_mount_fd.as_raw_fd())?;
 
     // set sigpipe
     {
@@ -834,7 +838,13 @@ fn main() -> anyhow::Result<()> {
                         ForkResult::Parent { child } => {
                             // subreaper helps us deal with zsh's zombie processes in any container where init is not a shell (e.g. distroless)
 
-                            subreaper::run(&config, subreaper_socket_fd, subreaper_sfd, child)?;
+                            subreaper::run(
+                                config.exit_code_pipe_write_fd,
+                                log_fd,
+                                subreaper_socket_fd,
+                                subreaper_sfd,
+                                child,
+                            )?;
                             trace!("subreaper exited");
                         }
 

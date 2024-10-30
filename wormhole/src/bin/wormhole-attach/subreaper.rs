@@ -2,7 +2,7 @@ use std::{
     fs::File,
     io::{stderr, stdout, Write},
     os::{
-        fd::{AsRawFd, FromRawFd as _, OwnedFd},
+        fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
         unix::net::UnixStream,
     },
 };
@@ -18,9 +18,7 @@ use nix::{
 };
 use tracing::trace;
 
-use crate::{
-    model::WormholeConfig, proc::reap_children, signals::SignalFd, subreaper_protocol::Message,
-};
+use crate::{proc::reap_children, signals::SignalFd, subreaper_protocol::Message};
 
 fn return_exit_code(mut stream: impl Write, exit_code: i32) -> anyhow::Result<()> {
     stream.write_all(&[exit_code as u8])?; // should be fine since exit codes can only be 0-255
@@ -32,16 +30,18 @@ const EPOLL_SFD_DATA: u64 = 1;
 const EPOLL_SOCKET_DATA: u64 = 2;
 
 pub fn run(
-    config: &WormholeConfig,
+    exit_code_pipe_write_fd: RawFd,
+    log_fd: OwnedFd,
     socket_fd: OwnedFd,
     mut sfd: SignalFd,
     payload_pid: Pid,
 ) -> anyhow::Result<()> {
     // switch over to using the log_fd. if we don't switch, logging will crash the application when stout and stderr closes!
-    dup2(config.log_fd, stdout().as_raw_fd())?;
-    dup2(config.log_fd, stderr().as_raw_fd())?;
+    dup2(log_fd.as_raw_fd(), stdout().as_raw_fd())?;
+    dup2(log_fd.as_raw_fd(), stderr().as_raw_fd())?;
+    drop(log_fd);
 
-    let mut exit_code_pipe_write = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
+    let mut exit_code_pipe_write = unsafe { File::from_raw_fd(exit_code_pipe_write_fd) };
     let socket = UnixStream::from(socket_fd);
 
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;

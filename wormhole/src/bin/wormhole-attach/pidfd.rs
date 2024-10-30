@@ -17,6 +17,7 @@ impl PidFd {
         Ok(Self(fd))
     }
 
+    #[allow(dead_code)]
     pub fn wait(&self) -> std::io::Result<()> {
         let pollfd = PollFd::new(&self.0, PollFlags::POLLIN);
         poll(&mut [pollfd], -1)?;
