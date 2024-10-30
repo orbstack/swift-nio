@@ -92,7 +92,7 @@ func (d *DockerAgent) startDomaintproxy() error {
 	}
 	d.domaintproxy = proxy
 
-	err = proxy.Start(netconf.VnetTlsProxyIP4, netconf.VnetTlsProxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix)
+	err = proxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix)
 	if err != nil {
 		return err
 	}

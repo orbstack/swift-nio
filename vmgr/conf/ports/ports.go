@@ -17,9 +17,8 @@ const (
 	GuestNFS             = 2049 // vsock
 	GuestKrpc            = 9000
 	// outside of ephemeral range
-	GuestDocker   = 2375
-	GuestK8s      = 6443
-	GuestTlsProxy = 30818
+	GuestDocker = 2375
+	GuestK8s    = 6443
 
 	// host services for guest
 	ServiceDNS  = 53

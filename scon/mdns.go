@@ -283,7 +283,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	})
 
 	go runOne("start domaintproxy", func() error {
-		err := r.domaintproxy.Start(netconf.VnetTlsProxyIP4, netconf.VnetTlsProxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix)
+		err := r.domaintproxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix)
 		if err != nil {
 			return err
 		}
