@@ -2,60 +2,13 @@ package agent
 
 import (
 	"fmt"
-	"net"
 	"net/netip"
 
 	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
-	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 )
-
-type DockerAddDomainproxyArgs struct {
-	IP  netip.Addr
-	Val net.IP
-}
-
-func (a *AgentServer) DockerAddDomainproxy(args DockerAddDomainproxyArgs, reply *None) error {
-	var err error
-	if args.IP.Is4() {
-		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v : %v }", args.IP, args.Val))
-	}
-	if args.IP.Is6() {
-		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v : %v }", args.IP, args.Val))
-	}
-	if err != nil {
-		return err
-	}
-
-	if args.IP.Is4() {
-		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", args.Val, args.Val))
-	}
-	if args.IP.Is6() {
-		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", args.Val, args.Val))
-	}
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (a *AgentServer) DockerRemoveDomainproxy(ip netip.Addr, reply *None) error {
-	var err error
-	if ip.Is4() {
-		err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v }", ip))
-	}
-	if ip.Is6() {
-		err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v }", ip))
-	}
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
 
 func replaceIPBase(ip netip.Addr, base netip.Prefix) netip.Addr {
 	ipSlice := ip.AsSlice()

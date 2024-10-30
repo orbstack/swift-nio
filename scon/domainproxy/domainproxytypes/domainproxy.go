@@ -4,6 +4,6 @@ import "net"
 
 type DomainproxyUpstream struct {
 	IP     net.IP
-	Id     string
+	Names  []string
 	Docker bool
 }

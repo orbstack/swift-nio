@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/netip"
 	"net/rpc"
 	"os"
 	"sync/atomic"
@@ -341,26 +340,6 @@ func (c *Client) DockerStartWormhole(args StartWormholeArgs) (*StartWormholeResp
 func (c *Client) DockerEndWormhole(args EndWormholeArgs) error {
 	var none None
 	err := c.rpc.Call("a.DockerEndWormhole", args, &none)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Client) DockerAddDomainproxy(args DockerAddDomainproxyArgs) error {
-	var none None
-	err := c.rpc.Call("a.DockerAddDomainproxy", args, &none)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Client) DockerRemoveDomainproxy(ip netip.Addr) error {
-	var none None
-	err := c.rpc.Call("a.DockerRemoveDomainproxy", ip, &none)
 	if err != nil {
 		return err
 	}

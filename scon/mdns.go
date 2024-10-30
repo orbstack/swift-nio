@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"slices"
 	"strings"
 	"time"
 
@@ -75,8 +74,8 @@ func mustParseCIDR(s string) *net.IPNet {
 type mdnsEntry struct {
 	r *mdnsRegistry
 
-	// should match the one for mdns
-	id string
+	// used for domainproxy
+	names []string
 
 	// allow *. suffix match? (false for index)
 	IsWildcard bool
@@ -386,12 +385,8 @@ func (r *mdnsRegistry) StopServer() error {
 }
 
 func (e *mdnsEntry) ensureDomainproxyCorrectLocked() {
-	if e.id == "" {
-		return
-	}
-
 	if e.owningMachine != nil {
-		ip4, ip6 := e.r.domainproxy.ensureMachineDomainproxyCorrectLocked(e.id, e.owningMachine)
+		ip4, ip6 := e.r.domainproxy.ensureMachineDomainproxyCorrectLocked(e.names, e.owningMachine)
 		e.ip4 = ip4
 		e.ip6 = ip6
 	}
@@ -595,13 +590,12 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 	return names
 }
 
-func mdnsNamesToMdnsId(dnsNames []dnsName) string {
-	names := make([]string, 0, len(dnsNames))
-	for _, dnsName := range dnsNames {
-		names = append(names, dnsName.Name)
+func dnsNamesToStrings(names []dnsName) []string {
+	strings := make([]string, len(names))
+	for i, name := range names {
+		strings[i] = name.Name
 	}
-	slices.Sort(names)
-	return strings.Join(names, ",")
+	return strings
 }
 
 // string so gofmt doesn't complain about capital
@@ -710,7 +704,7 @@ func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) 
 // returns upstream ips
 func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
 	names := r.containerToMdnsNames(ctr, true /*notifyInvalid*/)
-	mdnsId := mdnsNamesToMdnsId(names)
+	nameStrings := dnsNamesToStrings(names)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -721,12 +715,12 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 	var ip6 net.IP
 	// we're protected by the mdnsRegistry mutex
 	if ctrIP4 != nil {
-		if ip, ok := r.domainproxy.claimNextAvailableIP4Locked(mdnsId, domainproxytypes.DomainproxyUpstream{IP: ctrIP4, Id: mdnsId, Docker: true}); ok {
+		if ip, ok := r.domainproxy.claimOrUpdateIP4Locked(domainproxytypes.DomainproxyUpstream{IP: ctrIP4, Names: nameStrings, Docker: true}); ok {
 			ip4 = ip.AsSlice()
 		}
 	}
 	if ctrIP6 != nil {
-		if ip, ok := r.domainproxy.claimNextAvailableIP6Locked(mdnsId, domainproxytypes.DomainproxyUpstream{IP: ctrIP6, Id: mdnsId, Docker: true}); ok {
+		if ip, ok := r.domainproxy.claimOrUpdateIP6Locked(domainproxytypes.DomainproxyUpstream{IP: ctrIP6, Names: nameStrings, Docker: true}); ok {
 			ip6 = ip.AsSlice()
 		}
 	}
@@ -753,7 +747,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 		entry := &mdnsEntry{
 			r: r,
 
-			id: mdnsId,
+			names: nameStrings,
 
 			Type:       MdnsEntryContainer,
 			IsWildcard: name.Wildcard,
@@ -776,18 +770,13 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	names := r.containerToMdnsNames(ctr, false /*notifyInvalid*/)
-	mdnsId := mdnsNamesToMdnsId(names)
+	nameStrings := dnsNamesToStrings(names)
 	logrus.WithField("names", names).Debug("dns: remove container")
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if ip, has := r.domainproxy.idMap4[mdnsId]; has {
-		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
-	}
-	if ip, has := r.domainproxy.idMap6[mdnsId]; has {
-		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
-	}
+	r.domainproxy.freeNamesLocked(nameStrings)
 
 	now := time.Now()
 	for _, name := range names {
@@ -827,7 +816,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	entry := &mdnsEntry{
 		r: r,
 
-		id: name,
+		names: []string{name},
 
 		Type:       MdnsEntryMachine,
 		IsWildcard: true,
@@ -854,10 +843,10 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if ip, has := r.domainproxy.idMap4[name]; has {
+	if ip, has := r.domainproxy.nameMap4[name]; has {
 		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
 	}
-	if ip, has := r.domainproxy.idMap6[name]; has {
+	if ip, has := r.domainproxy.nameMap6[name]; has {
 		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
 	}
 

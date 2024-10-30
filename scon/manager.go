@@ -289,6 +289,7 @@ func (m *ConManager) Start() error {
 	go runOne("RPC server", func() error {
 		return ListenScon(m, dockerMachine)
 	})
+	m.net.mdnsRegistry.domainproxy.dockerMachine = dockerMachine
 
 	// RPC guest server must be started synchronously:
 	// docker machine bind mounts /run/rc.sock (runc wrap server) which depends on scon guest
