@@ -1,8 +1,9 @@
 package netconf
 
-// 0.0.250.0/24
+// 0.250.250.0/24
+// fd07:b5a:cc6:f0::/64
 const (
-	VnetSubnet4       = "0.0.250"
+	VnetSubnet4       = "0.250.250"
 	VnetSubnet4CIDR   = VnetSubnet4 + ".0/24"
 	VnetGatewayIP4    = VnetSubnet4 + ".1"
 	VnetGuestIP4      = VnetSubnet4 + ".2"
@@ -30,6 +31,7 @@ const (
 )
 
 // 198.19.249.0/24
+// fd07:b5a:cc66:0::/64
 const (
 	SconSubnet4       = "198.19.249"
 	SconSubnet4CIDR   = SconSubnet4 + ".0/24"
@@ -60,6 +62,7 @@ const (
 )
 
 // 198.19.249.0/24
+// fd07:b5a:cc66:0:a834:cdb8:ee73::/112
 const (
 	DomainproxySubnet4Cidr = "198.19.248.0/24"
 	DomainproxySubnet6Cidr = "fd07:b51a:cc66:0:a834:cdb8:ee73::/112"

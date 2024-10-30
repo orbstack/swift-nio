@@ -61,11 +61,11 @@ use crate::{
 // da:9b:d0:64:e1:01
 const VNET_LLADDR: &[u8] = &[0xda, 0x9b, 0xd0, 0x64, 0xe1, 0x01];
 const VNET_NEIGHBORS: &[&str] = &[
-    "0.0.250.1",
-    "0.0.250.200",
-    "0.0.250.201",
-    "0.0.250.253",
-    "0.0.250.254",
+    "0.250.250.1",
+    "0.250.250.200",
+    "0.250.250.201",
+    "0.250.250.253",
+    "0.250.250.254",
     // only one IPv6: others are on ext subnet (to avoid NDP)
     "fd07:b51a:cc66:f0::1",
 ];
@@ -545,7 +545,7 @@ async fn setup_network() -> anyhow::Result<()> {
 
     // add IP addresses
     ip_addr
-        .add(eth0.header.index, "0.0.250.2".parse()?, 24)
+        .add(eth0.header.index, "0.250.250.2".parse()?, 24)
         .execute()
         .await?;
     // to avoid NDP, use /126 so only ::1 and ::2 are on the network
@@ -558,7 +558,7 @@ async fn setup_network() -> anyhow::Result<()> {
     ip_route
         .add()
         .v4()
-        .gateway("0.0.250.1".parse()?)
+        .gateway("0.250.250.1".parse()?)
         .execute()
         .await?;
     ip_route
@@ -691,7 +691,7 @@ pub fn sync_clock(allow_backward: bool) -> anyhow::Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_read_timeout(Some(Duration::from_secs(10)))?;
     let host_time =
-        sntpc::simple_get_time("0.0.250.200:123", socket).map_err(InitError::NtpGetTime)?;
+        sntpc::simple_get_time("0.250.250.200:123", socket).map_err(InitError::NtpGetTime)?;
 
     let sec = host_time.sec() as i64;
     let nsec = sntpc::fraction_to_nanoseconds(host_time.sec_fraction()) as i64;
