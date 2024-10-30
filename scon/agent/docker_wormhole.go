@@ -1,8 +1,11 @@
 package agent
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"strings"
 
@@ -52,8 +55,16 @@ type WormholeSessionState struct {
 	CreatedImageID     string
 }
 
+func randomContainerName() string {
+	buf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, rand.Uint32())
+	return fmt.Sprintf("orb-wormhole-temp-%s", hex.EncodeToString(buf))
+}
+
 func (d *DockerAgent) createWormholeImageContainer(image string) (string, error) {
-	id, err := d.client.RunContainer(&dockertypes.ContainerConfig{
+	id, err := d.client.RunContainer(dockerclient.RunContainerOptions{
+		Name: randomContainerName(),
+	}, &dockertypes.ContainerConfig{
 		Image: image,
 		Entrypoint: []string{
 			"/dev/shm/.orb-wormhole-stub",
@@ -68,7 +79,7 @@ func (d *DockerAgent) createWormholeImageContainer(image string) (string, error)
 				mounts.WormholeStub + ":/dev/shm/.orb-wormhole-stub",
 			},
 		},
-	}, false)
+	})
 	if err != nil {
 		var apiErr *dockerclient.APIError
 		if errors.As(err, &apiErr) && strings.HasPrefix(apiErr.Message, "No such image:") {
@@ -110,7 +121,9 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 	}
 
 	// make a new container that copies most properties from the original container
-	containerID, err := d.client.RunContainer(&dockertypes.ContainerConfig{
+	containerID, err := d.client.RunContainer(dockerclient.RunContainerOptions{
+		Name: randomContainerName(),
+	}, &dockertypes.ContainerConfig{
 		// exact SHA256 of committed image
 		Image: imageID,
 
@@ -214,7 +227,7 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 		// not included: Volumes (handled by Volumes From), MacAddress (deprecated; moved to NetworkingConfig)
 
 		// TODO: NetworkingConfig
-	}, false)
+	})
 	if err != nil {
 		return "", "", err
 	}

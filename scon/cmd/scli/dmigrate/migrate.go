@@ -487,7 +487,12 @@ outer:
 
 	// [src] start agent
 	logrus.Debug("Starting migration agent")
-	srcAgentCid, err := m.srcClient.RunContainer(&dockertypes.ContainerCreateRequest{
+	// delete conflicting container if exists
+	_ = m.srcClient.RemoveContainer("orbstack-migration-agent", true)
+	srcAgentCid, err := m.srcClient.RunContainer(dockerclient.RunContainerOptions{
+		Name:      "orbstack-migration-agent",
+		PullImage: true,
+	}, &dockertypes.ContainerCreateRequest{
 		Image: migrationAgentImage,
 		Cmd:   []string{"sleep", "1h"},
 		HostConfig: &dockertypes.ContainerHostConfig{
@@ -501,7 +506,7 @@ outer:
 				"/var/run/docker.sock:/var/run/docker.sock",
 			},
 		},
-	}, true)
+	})
 	if err != nil {
 		return fmt.Errorf("run src agent: %w", err)
 	}

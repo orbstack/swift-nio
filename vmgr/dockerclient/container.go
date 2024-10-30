@@ -3,6 +3,7 @@ package dockerclient
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -20,8 +21,13 @@ func splitRepoTag(repoTag string) (string, string) {
 	return repoPart, tagPart
 }
 
-func (c *Client) RunContainer(req *dockertypes.ContainerCreateRequest, pullImage bool) (string, error) {
-	if pullImage {
+type RunContainerOptions struct {
+	Name      string
+	PullImage bool
+}
+
+func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.ContainerCreateRequest) (string, error) {
+	if opts.PullImage {
 		// need to pull image first
 		repoPart, tagPart := splitRepoTag(req.Image)
 		err := c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
@@ -30,9 +36,14 @@ func (c *Client) RunContainer(req *dockertypes.ContainerCreateRequest, pullImage
 		}
 	}
 
+	path := "/containers/create"
+	if opts.Name != "" {
+		path += "?name=" + url.QueryEscape(opts.Name)
+	}
+
 	// create --rm container
 	var containerResp dockertypes.ContainerCreateResponse
-	err := c.Call("POST", "/containers/create", req, &containerResp)
+	err := c.Call("POST", path, req, &containerResp)
 	if err != nil {
 		return "", fmt.Errorf("create container: %w", err)
 	}
@@ -87,4 +98,12 @@ func (c *Client) CommitContainer(containerID string) (string, error) {
 	}
 
 	return resp.ID, nil
+}
+
+func (c *Client) RemoveContainer(cid string, force bool) error {
+	err := c.Call("DELETE", "/containers/"+cid+"?force="+strconv.FormatBool(force), nil, nil)
+	if err != nil {
+		return fmt.Errorf("remove container: %w", err)
+	}
+	return nil
 }
