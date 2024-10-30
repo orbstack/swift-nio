@@ -241,8 +241,6 @@ func (p *Domaintproxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 		return false, nil
 	}
 
-	logrus.WithFields(logrus.Fields{"destHost": destHost, "downstreamIp": downstreamIp}).Debug("emmie | got connection")
-
 	_, upstream, err := p.getUpstream(destHost, is4)
 	if err != nil {
 		logrus.WithError(err).Error("failed to get upstream")
@@ -302,8 +300,6 @@ func (p *Domaintproxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	newContext := context.WithValue(r.Out.Context(), MdnsContextKeyDownstream, downstreamIp)
 	r.Out = r.Out.WithContext(newContext)
 
-	logrus.WithFields(logrus.Fields{"downstreamIP": downstreamIp, "host": host}).Debug("emmie | rewriteRequest")
-
 	return nil
 }
 
@@ -324,12 +320,9 @@ func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (
 		return nil, err
 	}
 
-	logrus.WithFields(logrus.Fields{"downstreamIp": downstreamIp, "upstream.Ip": upstream.Ip}).Debug("emmie | dialUpstream")
-
 	// fall back to normal dialer
 	dialer := &net.Dialer{}
 	if downstreamIp, ok := downstreamIp.(net.IP); ok && downstreamIp != nil && !downstreamIp.Equal(upstream.Ip) {
-		logrus.WithFields(logrus.Fields{"upstream.Ip": upstream.Ip}).Debug("emmie | spoofing source ip for outbound dial")
 		dialer = dialerForTransparentBind(downstreamIp, p.getMark(upstream))
 	}
 

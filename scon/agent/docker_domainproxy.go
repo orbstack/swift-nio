@@ -18,7 +18,6 @@ type DockerAddDomainproxyArgs struct {
 }
 
 func (a *AgentServer) DockerAddDomainproxy(args DockerAddDomainproxyArgs, reply *None) error {
-	logrus.WithFields(logrus.Fields{"ip": args.Ip, "val": args.Val}).Debug("emmie | DockerAddDomainproxy")
 	var err error
 	if args.Ip.Is4() {
 		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v : %v }", args.Ip, args.Val))
@@ -44,7 +43,6 @@ func (a *AgentServer) DockerAddDomainproxy(args DockerAddDomainproxyArgs, reply 
 }
 
 func (a *AgentServer) DockerRemoveDomainproxy(ip netip.Addr, reply *None) error {
-	logrus.WithFields(logrus.Fields{"ip": ip}).Debug("emmie | DockerRemoveDomainproxy")
 	var err error
 	if ip.Is4() {
 		err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v }", ip))

@@ -396,8 +396,6 @@ func (d *DockerAgent) onNetworkConnected(id string) {
 		return
 	}
 
-	logrus.Debugf("emmie | onNetworkConnected: %+v", network)
-
 	err = setAllBridgeportHairpin(dockerNetworkToInterfaceName(&network))
 	if err != nil {
 		logrus.WithError(err).Error("unable to set all bridgeports to hairpin")
