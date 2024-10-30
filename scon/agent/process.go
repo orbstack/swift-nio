@@ -63,7 +63,7 @@ type ResolveSSHDirArgs struct {
 }
 
 func (a *AgentServer) GetAgentPidFd(_ None, reply *uint64) error {
-	pidfd, err := unix.PidfdOpen(os.Getpid(), 0)
+	pidfd, err := unix.PidfdOpen(os.Getpid(), unix.PIDFD_NONBLOCK)
 	if err != nil {
 		return err
 	}
@@ -389,7 +389,7 @@ func SpawnProcessImpl(a *AgentServer, args *SpawnProcessArgs, childFiles []*os.F
 	defer proc.Release()
 
 	// open pidfd
-	pidfd, err := unix.PidfdOpen(proc.Pid, 0)
+	pidfd, err := unix.PidfdOpen(proc.Pid, unix.PIDFD_NONBLOCK)
 	if err != nil {
 		return 0, 0, err
 	}

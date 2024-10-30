@@ -110,7 +110,7 @@ func handleSshAgentProxyConn(conn *net.UnixConn) error {
 	}
 
 	// past this point, we switch to the pid's mount ns to do stat, readlink, dial
-	pidFd, err := unix.PidfdOpen(int(cred.Pid), 0)
+	pidFd, err := unix.PidfdOpen(int(cred.Pid), unix.PIDFD_NONBLOCK)
 	if err != nil {
 		return fmt.Errorf("pidfd open: %w", err)
 	}

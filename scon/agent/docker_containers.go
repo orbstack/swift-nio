@@ -20,7 +20,7 @@ import (
 var errContainerExited = errors.New("container exited")
 
 func openPidRootfsAndSend(pid int, fdx *Fdx) (uint64, error) {
-	pidfd, err := unix.PidfdOpen(pid, 0) // cloexec safe
+	pidfd, err := unix.PidfdOpen(pid, unix.PIDFD_NONBLOCK) // cloexec safe
 	if err != nil {
 		// EINVAL means the pid is invalid, i.e. container is no longer running (exited quickly)
 		if err == unix.EINVAL {

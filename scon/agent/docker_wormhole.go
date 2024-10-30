@@ -306,7 +306,7 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 		defer unix.Close(rootfsFd)
 	}
 
-	initPidfd, err := unix.PidfdOpen(initPid, 0)
+	initPidfd, err := unix.PidfdOpen(initPid, unix.PIDFD_NONBLOCK)
 	if err != nil {
 		return err
 	}
