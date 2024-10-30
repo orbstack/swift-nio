@@ -614,9 +614,7 @@ func (p *PidfdProcess) Signal(sig os.Signal) error {
 }
 
 func (p *PidfdProcess) Wait() error {
-	return util.UseFile(p.f, func(fd int) error {
-		return sysx.PollFd(fd, unix.POLLIN)
-	})
+	return sysx.RuntimePollFileRead(p.f)
 }
 
 func (p *PidfdProcess) WaitStatus() (int, error) {
