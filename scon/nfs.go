@@ -62,7 +62,7 @@ func newNfsMirror(dir string, controlsExports bool) *NfsMirrorManager {
 
 func (m *NfsMirrorManager) StartNfsdRpcServers() error {
 	// order in which kernel/client hits these
-	go runOne("rpc/auth.unix.ip", serveAuthUnixIp)
+	go runOne("rpc/auth.unix.ip", serveAuthUnixIP)
 	go runOne("rpc/nfsd.fh", m.serveNfsdFh)
 	go runOne("rpc/nfsd.export", m.serveNfsdExports)
 	return nil

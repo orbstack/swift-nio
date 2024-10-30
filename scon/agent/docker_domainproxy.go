@@ -13,26 +13,26 @@ import (
 )
 
 type DockerAddDomainproxyArgs struct {
-	Ip  netip.Addr
+	IP  netip.Addr
 	Val net.IP
 }
 
 func (a *AgentServer) DockerAddDomainproxy(args DockerAddDomainproxyArgs, reply *None) error {
 	var err error
-	if args.Ip.Is4() {
-		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v : %v }", args.Ip, args.Val))
+	if args.IP.Is4() {
+		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v : %v }", args.IP, args.Val))
 	}
-	if args.Ip.Is6() {
-		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v : %v }", args.Ip, args.Val))
+	if args.IP.Is6() {
+		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v : %v }", args.IP, args.Val))
 	}
 	if err != nil {
 		return err
 	}
 
-	if args.Ip.Is4() {
+	if args.IP.Is4() {
 		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", args.Val, args.Val))
 	}
-	if args.Ip.Is6() {
+	if args.IP.Is6() {
 		err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", args.Val, args.Val))
 	}
 	if err != nil {
@@ -57,7 +57,7 @@ func (a *AgentServer) DockerRemoveDomainproxy(ip netip.Addr, reply *None) error 
 	return nil
 }
 
-func replaceIpBase(ip netip.Addr, base netip.Prefix) netip.Addr {
+func replaceIPBase(ip netip.Addr, base netip.Prefix) netip.Addr {
 	ipSlice := ip.AsSlice()
 	baseSlice := base.Masked().Addr().AsSlice()
 	bits := base.Bits()

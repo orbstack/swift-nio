@@ -60,8 +60,8 @@ var (
 	domainproxySubnet4Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet4Cidr)
 	domainproxySubnet6Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet6Cidr)
 
-	sconHostBridgeIp4 = net.ParseIP(netconf.SconHostBridgeIP4)
-	sconHostBridgeIp6 = net.ParseIP(netconf.SconHostBridgeIP6)
+	sconHostBridgeIP4 = net.ParseIP(netconf.SconHostBridgeIP4)
+	sconHostBridgeIP6 = net.ParseIP(netconf.SconHostBridgeIP6)
 )
 
 func mustParseCIDR(s string) *net.IPNet {
@@ -716,17 +716,17 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 	defer r.mu.Unlock()
 	now := time.Now()
 
-	ctrIp4, ctrIp6 := containerToMdnsIPs(ctr)
+	ctrIP4, ctrIP6 := containerToMdnsIPs(ctr)
 	var ip4 net.IP
 	var ip6 net.IP
 	// we're protected by the mdnsRegistry mutex
-	if ctrIp4 != nil {
-		if ip, ok := r.domainproxy.claimNextAvailableIp4Locked(mdnsId, domainproxytypes.DomainproxyUpstream{Ip: ctrIp4, Id: mdnsId, Docker: true}); ok {
+	if ctrIP4 != nil {
+		if ip, ok := r.domainproxy.claimNextAvailableIP4Locked(mdnsId, domainproxytypes.DomainproxyUpstream{IP: ctrIP4, Id: mdnsId, Docker: true}); ok {
 			ip4 = ip.AsSlice()
 		}
 	}
-	if ctrIp6 != nil {
-		if ip, ok := r.domainproxy.claimNextAvailableIp6Locked(mdnsId, domainproxytypes.DomainproxyUpstream{Ip: ctrIp6, Id: mdnsId, Docker: true}); ok {
+	if ctrIP6 != nil {
+		if ip, ok := r.domainproxy.claimNextAvailableIP6Locked(mdnsId, domainproxytypes.DomainproxyUpstream{IP: ctrIP6, Id: mdnsId, Docker: true}); ok {
 			ip6 = ip.AsSlice()
 		}
 	}
@@ -771,7 +771,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 		r.maybeFlushCacheLocked(now, name.Name)
 	}
 
-	return ctrIp4, ctrIp6
+	return ctrIP4, ctrIP6
 }
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
@@ -783,10 +783,10 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	defer r.mu.Unlock()
 
 	if ip, has := r.domainproxy.idMap4[mdnsId]; has {
-		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{Ip: nil})
+		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
 	}
 	if ip, has := r.domainproxy.idMap6[mdnsId]; has {
-		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{Ip: nil})
+		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
 	}
 
 	now := time.Now()
@@ -855,10 +855,10 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	defer r.mu.Unlock()
 
 	if ip, has := r.domainproxy.idMap4[name]; has {
-		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{Ip: nil})
+		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
 	}
 	if ip, has := r.domainproxy.idMap6[name]; has {
-		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{Ip: nil})
+		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
 	}
 
 	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
@@ -932,7 +932,7 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	//     translates source IPs to known v6, not link local
 	// - from a machine: handle as reflector
 	fromAddr := from.(*net.UDPAddr)
-	if fromAddr.IP.Equal(sconHostBridgeIp4) || fromAddr.IP.Equal(sconHostBridgeIp6) {
+	if fromAddr.IP.Equal(sconHostBridgeIP4) || fromAddr.IP.Equal(sconHostBridgeIP6) {
 		return r.handleQuery(q)
 	} else {
 		return r.proxyToHost(q)
@@ -1120,7 +1120,7 @@ func (r *mdnsRegistry) getEntryForNameLocked(name string) (*mdnsEntry, bool) {
 	return entry, false
 }
 
-func (r *mdnsRegistry) getIpsForName(name string) (net.IP, net.IP) {
+func (r *mdnsRegistry) getIPsForName(name string) (net.IP, net.IP) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	entry, _ := r.getEntryForNameLocked(name)
@@ -1196,15 +1196,15 @@ func registryGetProxyUpstream(r *mdnsRegistry, host string, v4 bool) (netip.Addr
 	if proxyAddrVal, err := netip.ParseAddr(host); err == nil {
 		proxyAddr = proxyAddrVal
 	} else {
-		proxyIp4, proxyIp6 := r.getIpsForName(strings.TrimSuffix(host, ".") + ".")
+		proxyIP4, proxyIP6 := r.getIPsForName(strings.TrimSuffix(host, ".") + ".")
 
-		if v4 && proxyIp4 != nil {
-			if proxyAddr4, ok := netip.AddrFromSlice(proxyIp4); ok {
+		if v4 && proxyIP4 != nil {
+			if proxyAddr4, ok := netip.AddrFromSlice(proxyIP4); ok {
 				proxyAddr = proxyAddr4
 			}
 		}
-		if !v4 && proxyIp6 != nil {
-			if proxyAddr6, ok := netip.AddrFromSlice(proxyIp6); ok {
+		if !v4 && proxyIP6 != nil {
+			if proxyAddr6, ok := netip.AddrFromSlice(proxyIP6); ok {
 				proxyAddr = proxyAddr6
 			}
 		}
@@ -1214,12 +1214,12 @@ func registryGetProxyUpstream(r *mdnsRegistry, host string, v4 bool) (netip.Addr
 		return netip.Addr{}, domainproxytypes.DomainproxyUpstream{}, errors.New("could not find proxyaddr")
 	}
 
-	upstreamIp, has := r.domainproxy.getAddrLocked(proxyAddr)
+	upstreamIP, has := r.domainproxy.getAddrLocked(proxyAddr)
 	if !has {
 		return netip.Addr{}, domainproxytypes.DomainproxyUpstream{}, errors.New("could not find backend in mdns registry")
 	}
 
-	return proxyAddr, upstreamIp, nil
+	return proxyAddr, upstreamIP, nil
 }
 
 func (s *SconGuestServer) GetProxyUpstream(args sgtypes.GetProxyUpstreamArgs, reply *sgtypes.GetProxyUpstreamReply) error {

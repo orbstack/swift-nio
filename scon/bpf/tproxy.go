@@ -54,21 +54,21 @@ func NewTproxy(subnet4 netip.Prefix, subnet6 netip.Prefix, port uint16) (*Tproxy
 
 	// these are already big endian so we do native endian to keep them that way. if we specified big endian it would make it into host order
 	subnet4Enabled := subnet4 != netip.Prefix{}
-	subnet4Ip := ipv4AddrToUint32(subnet4.Addr())
+	subnet4IP := ipv4AddrToUint32(subnet4.Addr())
 	subnet4Mask := ipv4BitsToMaskUint32(subnet4.Bits())
 
 	subnet6Enabled := subnet6 != netip.Prefix{}
-	subnet6Ip := ipv6AddrToUint32Array(subnet6.Addr())
+	subnet6IP := ipv6AddrToUint32Array(subnet6.Addr())
 	subnet6Mask := ipv6BitsToMaskUint32Array(subnet6.Bits())
 
 	err = spec.RewriteConstants(map[string]any{
 		"config_tproxy_port":            port,
 		"config_tproxy_subnet4_enabled": subnet4Enabled,
-		"config_tproxy_subnet4_ip":      subnet4Ip,
+		"config_tproxy_subnet4_ip":      subnet4IP,
 		"config_tproxy_subnet4_mask":    subnet4Mask,
 		"config_tproxy_socket_key4":     TPROXY_SOCKET_KEY4,
 		"config_tproxy_subnet6_enabled": subnet6Enabled,
-		"config_tproxy_subnet6_ip":      subnet6Ip,
+		"config_tproxy_subnet6_ip":      subnet6IP,
 		"config_tproxy_subnet6_mask":    subnet6Mask,
 		"config_tproxy_socket_key6":     TPROXY_SOCKET_KEY6,
 	})

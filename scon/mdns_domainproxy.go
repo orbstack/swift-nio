@@ -103,9 +103,9 @@ func (d *domainproxyInfo) addNeighbor(ip netip.Addr) {
 }
 
 func (d *domainproxyInfo) setAddrLocked(ip netip.Addr, val domainproxytypes.DomainproxyUpstream) {
-	if val.Ip == nil {
-		if upstream, has := d.ipMap[ip]; has && upstream.Ip != nil {
-			d.ipMap[ip] = domainproxytypes.DomainproxyUpstream{Ip: nil}
+	if val.IP == nil {
+		if upstream, has := d.ipMap[ip]; has && upstream.IP != nil {
+			d.ipMap[ip] = domainproxytypes.DomainproxyUpstream{IP: nil}
 
 			if upstream.Docker {
 				if dockerMachine := d.getDockerMachine(); dockerMachine != nil {
@@ -139,18 +139,18 @@ func (d *domainproxyInfo) setAddrLocked(ip netip.Addr, val domainproxytypes.Doma
 			}
 
 			if ip.Is4() {
-				err = nft.Run("delete", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.Ip))
+				err = nft.Run("delete", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
 			} else if ip.Is6() {
-				err = nft.Run("delete", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.Ip))
+				err = nft.Run("delete", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
 			}
 			if err != nil {
 				logrus.WithError(err).Debug("could not remove from domainproxy_masquerade map")
 			}
 
 			if ip.Is4() {
-				err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy4_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.Ip))
+				err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy4_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
 			} else if ip.Is6() {
-				err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy6_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.Ip))
+				err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy6_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
 			}
 			if err != nil {
 				logrus.WithError(err).Debug("could not remove from domainproxy_masquerade_bridge map")
@@ -160,14 +160,14 @@ func (d *domainproxyInfo) setAddrLocked(ip netip.Addr, val domainproxytypes.Doma
 	}
 
 	// make sure the element gets removed before we change it to something else
-	if currVal, has := d.ipMap[ip]; has && !currVal.Ip.Equal(val.Ip) {
-		d.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{Ip: nil})
+	if currVal, has := d.ipMap[ip]; has && !currVal.IP.Equal(val.IP) {
+		d.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
 	}
 
 	if val.Docker {
 		if dockerMachine := d.getDockerMachine(); dockerMachine != nil {
 			err := dockerMachine.UseAgent(func(a *agent.Client) error {
-				return a.DockerAddDomainproxy(agent.DockerAddDomainproxyArgs{Ip: ip, Val: val.Ip})
+				return a.DockerAddDomainproxy(agent.DockerAddDomainproxyArgs{IP: ip, Val: val.IP})
 			})
 			if err != nil {
 				logrus.WithError(err).Debug("failed to add domainproxy to docker machine")
@@ -189,26 +189,26 @@ func (d *domainproxyInfo) setAddrLocked(ip netip.Addr, val domainproxytypes.Doma
 
 	var err error
 	if ip.Is4() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v : %v }", ip, val.Ip))
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v : %v }", ip, val.IP))
 	} else if ip.Is6() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v : %v }", ip, val.Ip))
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v : %v }", ip, val.IP))
 	}
 	if err != nil {
 		logrus.WithError(err).Debug("could not add to domainproxy map")
 	}
 
 	if ip.Is4() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.Ip))
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.IP))
 	} else if ip.Is6() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.Ip))
+		err = nft.Run("add", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.IP))
 	}
 	if err != nil {
 		logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
 	}
 	if ip.Is4() {
-		err = nft.Run("add", "element", "bridge", "vm_bridge", "domainproxy4_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, val.Ip))
+		err = nft.Run("add", "element", "bridge", "vm_bridge", "domainproxy4_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, val.IP))
 	} else if ip.Is6() {
-		err = nft.Run("add", "element", "bridge", "vm_bridge", "domainproxy6_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, val.Ip))
+		err = nft.Run("add", "element", "bridge", "vm_bridge", "domainproxy6_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, val.IP))
 	}
 	if err != nil {
 		logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
@@ -217,7 +217,7 @@ func (d *domainproxyInfo) setAddrLocked(ip netip.Addr, val domainproxytypes.Doma
 	d.ipMap[ip] = val
 }
 
-func (d *domainproxyInfo) setIpLocked(ip net.IP, val domainproxytypes.DomainproxyUpstream) {
+func (d *domainproxyInfo) setIPLocked(ip net.IP, val domainproxytypes.DomainproxyUpstream) {
 	d.setAddrLocked(mustAddrFromSlice(ip), val)
 }
 
@@ -230,11 +230,11 @@ func (d *domainproxyInfo) Locked(ip net.IP) (domainproxytypes.DomainproxyUpstrea
 	return d.getAddrLocked(mustAddrFromSlice(ip))
 }
 
-func nextAvailableIpLocked(ipMap map[netip.Addr]domainproxytypes.DomainproxyUpstream, subnet netip.Prefix, lowest netip.Addr, lastAlloc *netip.Addr, ipsFull *bool) (ip netip.Addr, ok bool) {
+func nextAvailableIPLocked(ipMap map[netip.Addr]domainproxytypes.DomainproxyUpstream, subnet netip.Prefix, lowest netip.Addr, lastAlloc *netip.Addr, ipsFull *bool) (ip netip.Addr, ok bool) {
 	ip = *lastAlloc
 
-	var freeableIp netip.Addr
-	foundFreeableIp := false
+	var freeableIP netip.Addr
+	foundFreeableIP := false
 
 	for {
 		ip = ip.Next()
@@ -251,9 +251,9 @@ func nextAvailableIpLocked(ipMap map[netip.Addr]domainproxytypes.DomainproxyUpst
 		}
 
 		// freeable ips are zero ips. they can be reclaimed but we're hoping to reuse them for the domain they were used for originally
-		if !foundFreeableIp && val.Ip == nil {
-			freeableIp = ip
-			foundFreeableIp = true
+		if !foundFreeableIP && val.IP == nil {
+			freeableIP = ip
+			foundFreeableIP = true
 			// we already know that we're not gonna find any free spots. take our freeable and run!
 			if *ipsFull {
 				break
@@ -267,20 +267,20 @@ func nextAvailableIpLocked(ipMap map[netip.Addr]domainproxytypes.DomainproxyUpst
 		}
 	}
 
-	if foundFreeableIp {
-		return freeableIp, true
+	if foundFreeableIP {
+		return freeableIP, true
 	} else {
 		return ip, false
 	}
 }
 
-func (d *domainproxyInfo) claimNextAvailableIp4Locked(id string, val domainproxytypes.DomainproxyUpstream) (ip netip.Addr, ok bool) {
-	if val.Ip == nil {
+func (d *domainproxyInfo) claimNextAvailableIP4Locked(id string, val domainproxytypes.DomainproxyUpstream) (ip netip.Addr, ok bool) {
+	if val.IP == nil {
 		return netip.Addr{}, false
 	}
 
 	if preferredAddr, has := d.idMap4[id]; has {
-		if preferredAddrVal, has := d.getAddrLocked(preferredAddr); has && preferredAddrVal.Ip == nil {
+		if preferredAddrVal, has := d.getAddrLocked(preferredAddr); has && preferredAddrVal.IP == nil {
 			d.setAddrLocked(preferredAddr, val)
 			// id map already has the right value
 			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("mdns domainproxy: claimed preferred ip")
@@ -290,7 +290,7 @@ func (d *domainproxyInfo) claimNextAvailableIp4Locked(id string, val domainproxy
 		}
 	}
 
-	if nextAddr, ok := nextAvailableIpLocked(d.ipMap, d.subnet4, d.lowest4, &d.lastAlloc4, &d.ipsFull4); ok {
+	if nextAddr, ok := nextAvailableIPLocked(d.ipMap, d.subnet4, d.lowest4, &d.lastAlloc4, &d.ipsFull4); ok {
 		d.setAddrLocked(nextAddr, val)
 		d.idMap4[id] = nextAddr
 
@@ -302,13 +302,13 @@ func (d *domainproxyInfo) claimNextAvailableIp4Locked(id string, val domainproxy
 	return netip.Addr{}, false
 }
 
-func (d *domainproxyInfo) claimNextAvailableIp6Locked(id string, val domainproxytypes.DomainproxyUpstream) (ip netip.Addr, ok bool) {
-	if val.Ip == nil {
+func (d *domainproxyInfo) claimNextAvailableIP6Locked(id string, val domainproxytypes.DomainproxyUpstream) (ip netip.Addr, ok bool) {
+	if val.IP == nil {
 		return netip.Addr{}, false
 	}
 
 	if preferredAddr, has := d.idMap6[id]; has {
-		if preferredAddrVal, has := d.getAddrLocked(preferredAddr); has && preferredAddrVal.Ip == nil {
+		if preferredAddrVal, has := d.getAddrLocked(preferredAddr); has && preferredAddrVal.IP == nil {
 			d.setAddrLocked(preferredAddr, val)
 			// id map already has the right value
 			logrus.WithFields(logrus.Fields{"id": id, "ip": preferredAddr, "val": val}).Debug("mdns domainproxy: claimed preferred ip")
@@ -318,7 +318,7 @@ func (d *domainproxyInfo) claimNextAvailableIp6Locked(id string, val domainproxy
 		}
 	}
 
-	if nextAddr, ok := nextAvailableIpLocked(d.ipMap, d.subnet6, d.lowest6, &d.lastAlloc6, &d.ipsFull6); ok {
+	if nextAddr, ok := nextAvailableIPLocked(d.ipMap, d.subnet6, d.lowest6, &d.lastAlloc6, &d.ipsFull6); ok {
 		d.setAddrLocked(nextAddr, val)
 		d.idMap6[id] = nextAddr
 
@@ -369,9 +369,9 @@ func (d *domainproxyInfo) ensureMachineDomainproxyCorrectLocked(id string, machi
 						ip6 = addr.AsSlice()
 					}
 
-					if !currentVal.Ip.Equal(valip) {
+					if !currentVal.IP.Equal(valip) {
 						logrus.WithFields(logrus.Fields{"id": id, "machine": machine, "currentVal": currentVal, "val": valip}).Debug("mdns domainproxy: entry wrong")
-						d.setAddrLocked(addr, domainproxytypes.DomainproxyUpstream{Ip: valip, Id: id, Docker: false})
+						d.setAddrLocked(addr, domainproxytypes.DomainproxyUpstream{IP: valip, Id: id, Docker: false})
 					}
 					continue
 				}
@@ -379,11 +379,11 @@ func (d *domainproxyInfo) ensureMachineDomainproxyCorrectLocked(id string, machi
 
 			// if we didn't hit the continue, then we didnt have an ip
 			if is4 {
-				if ip, ok := d.claimNextAvailableIp4Locked(id, domainproxytypes.DomainproxyUpstream{Ip: valip, Id: id, Docker: false}); ok {
+				if ip, ok := d.claimNextAvailableIP4Locked(id, domainproxytypes.DomainproxyUpstream{IP: valip, Id: id, Docker: false}); ok {
 					ip4 = ip.AsSlice()
 				}
 			} else {
-				if ip, ok := d.claimNextAvailableIp6Locked(id, domainproxytypes.DomainproxyUpstream{Ip: valip, Id: id, Docker: false}); ok {
+				if ip, ok := d.claimNextAvailableIP6Locked(id, domainproxytypes.DomainproxyUpstream{IP: valip, Id: id, Docker: false}); ok {
 					ip6 = ip.AsSlice()
 				}
 			}

@@ -172,17 +172,17 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 		s.m.net.mdnsRegistry.RemoveContainer(&ctr)
 
 		if dockerBpf != nil {
-			ctrIp4, ctrIp6 := containerToMdnsIPs(&ctr)
-			if ctrIp4 != nil {
-				err := dockerBpf.CfwdRemoveContainerMeta(ctrIp4)
+			ctrIP4, ctrIP6 := containerToMdnsIPs(&ctr)
+			if ctrIP4 != nil {
+				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP4)
 				if err != nil {
-					logrus.WithError(err).WithField("ip", ctrIp4).Error("failed to remove container from cfwd")
+					logrus.WithError(err).WithField("ip", ctrIP4).Error("failed to remove container from cfwd")
 				}
 			}
-			if ctrIp6 != nil {
-				err := dockerBpf.CfwdRemoveContainerMeta(ctrIp4)
+			if ctrIP6 != nil {
+				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP4)
 				if err != nil {
-					logrus.WithError(err).WithField("ip", ctrIp6).Error("failed to remove container from cfwd")
+					logrus.WithError(err).WithField("ip", ctrIP6).Error("failed to remove container from cfwd")
 				}
 			}
 		}
@@ -220,24 +220,24 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 	}
 	for i, ctr := range diff.Added {
 		s.dockerContainersCache[ctr.ID] = ctr
-		ctrIp4, ctrIp6 := s.m.net.mdnsRegistry.AddContainer(&ctr)
+		ctrIP4, ctrIP6 := s.m.net.mdnsRegistry.AddContainer(&ctr)
 
 		if dockerBpf != nil {
 			meta := containerToCfwdMeta(&ctr)
-			if ctrIp4 != nil {
-				err := dockerBpf.CfwdAddContainerMeta(ctrIp4, meta)
+			if ctrIP4 != nil {
+				err := dockerBpf.CfwdAddContainerMeta(ctrIP4, meta)
 				if err != nil {
 					logrus.WithError(err).Error("failed to add container ipv4 to cfwd")
 				} else {
-					logrus.WithField("ip", ctrIp4).Debug("added container to cfwd")
+					logrus.WithField("ip", ctrIP4).Debug("added container to cfwd")
 				}
 			}
-			if ctrIp6 != nil {
-				err := dockerBpf.CfwdAddContainerMeta(ctrIp6, meta)
+			if ctrIP6 != nil {
+				err := dockerBpf.CfwdAddContainerMeta(ctrIP6, meta)
 				if err != nil {
 					logrus.WithError(err).Error("failed to add container ipv6 to cfwd")
 				} else {
-					logrus.WithField("ip", ctrIp6).Debug("added container to cfwd")
+					logrus.WithField("ip", ctrIP6).Debug("added container to cfwd")
 				}
 			}
 

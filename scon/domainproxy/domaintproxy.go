@@ -181,15 +181,15 @@ func (p *Domaintproxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) err
 	return nil
 }
 
-func dialerForTransparentBind(bindIp net.IP, mark int) *net.Dialer {
+func dialerForTransparentBind(bindIP net.IP, mark int) *net.Dialer {
 	var sa unix.Sockaddr
-	if ip4 := bindIp.To4(); ip4 != nil {
+	if ip4 := bindIP.To4(); ip4 != nil {
 		sa4 := &unix.SockaddrInet4{Port: 0}
 		copy(sa4.Addr[:], ip4)
 		sa = sa4
 	} else {
 		sa6 := &unix.SockaddrInet6{Port: 0}
-		copy(sa6.Addr[:], bindIp)
+		copy(sa6.Addr[:], bindIP)
 		sa = sa6
 	}
 
@@ -217,7 +217,7 @@ func dialerForTransparentBind(bindIp net.IP, mark int) *net.Dialer {
 				err = unix.Bind(int(fd), sa)
 				if err != nil {
 					// just a warning. continue but with wrong src IP
-					logrus.WithError(err).WithFields(logrus.Fields{"ip": bindIp, "sa": sa}).Warn("failed to bind to laddr")
+					logrus.WithError(err).WithFields(logrus.Fields{"ip": bindIP, "sa": sa}).Warn("failed to bind to laddr")
 				}
 			})
 			if err2 != nil {
@@ -231,8 +231,8 @@ func dialerForTransparentBind(bindIp net.IP, mark int) *net.Dialer {
 func (p *Domaintproxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 	// this function just lets us directly passthrough to an existing ssl server. this should be removed soon in favor of port probing
 
-	downstreamIp := conn.RemoteAddr().(*net.TCPAddr).IP
-	is4 := downstreamIp.To4() != nil
+	downstreamIP := conn.RemoteAddr().(*net.TCPAddr).IP
+	is4 := downstreamIP.To4() != nil
 
 	// this works because we never change the dest, only hook sk_assign (like tproxy but sillier)
 	destHost, destPort, err := net.SplitHostPort(conn.LocalAddr().String())
@@ -255,9 +255,9 @@ func (p *Domaintproxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 	//     * this works: if load test is causing listen backlog to be full, we will get immediate RST because port is open in firewall
 	// still need to bind to host to get correct cfwd behavior, especially for 443->8443 or 443->https_port case
 	// TODO: how can we do this in kernel, without userspace proxying? is SOCKMAP good?
-	dialer := dialerForTransparentBind(downstreamIp, mark)
+	dialer := dialerForTransparentBind(downstreamIP, mark)
 	dialer.Timeout = 500 * time.Millisecond
-	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstream.Ip.String(), destPort))
+	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstream.IP.String(), destPort))
 	if err == nil {
 		defer upstreamConn.Close()
 		defer conn.Close()
@@ -292,12 +292,12 @@ func (p *Domaintproxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	if err != nil {
 		return err
 	}
-	downstreamIp := net.ParseIP(downstreamAddrStr)
-	if downstreamIp == nil {
+	downstreamIP := net.ParseIP(downstreamAddrStr)
+	if downstreamIP == nil {
 		return fmt.Errorf("could not parse as ip: %s", downstreamAddrStr)
 	}
 
-	newContext := context.WithValue(r.Out.Context(), MdnsContextKeyDownstream, downstreamIp)
+	newContext := context.WithValue(r.Out.Context(), MdnsContextKeyDownstream, downstreamIP)
 	r.Out = r.Out.WithContext(newContext)
 
 	return nil
@@ -309,10 +309,10 @@ func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (
 		return nil, err
 	}
 
-	downstreamIp := ctx.Value(MdnsContextKeyDownstream)
+	downstreamIP := ctx.Value(MdnsContextKeyDownstream)
 	is4 := true
-	if downstreamIp != nil {
-		is4 = downstreamIp.(net.IP).To4() != nil
+	if downstreamIP != nil {
+		is4 = downstreamIP.(net.IP).To4() != nil
 	}
 
 	_, upstream, err := p.getUpstream(dialHost, is4)
@@ -322,9 +322,9 @@ func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (
 
 	// fall back to normal dialer
 	dialer := &net.Dialer{}
-	if downstreamIp, ok := downstreamIp.(net.IP); ok && downstreamIp != nil && !downstreamIp.Equal(upstream.Ip) {
-		dialer = dialerForTransparentBind(downstreamIp, p.getMark(upstream))
+	if downstreamIP, ok := downstreamIP.(net.IP); ok && downstreamIP != nil && !downstreamIP.Equal(upstream.IP) {
+		dialer = dialerForTransparentBind(downstreamIP, p.getMark(upstream))
 	}
 
-	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.Ip.String(), dialPort))
+	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), dialPort))
 }

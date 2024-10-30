@@ -8,7 +8,7 @@ func assertEqual(t *testing.T, message string, val any, expected any) {
 	}
 }
 
-func TestIpv6BitsToMaskUint32Array(t *testing.T) {
+func TestIPv6BitsToMaskUint32Array(t *testing.T) {
 	expecteds := map[int][4]uint32{
 		0:   [4]uint32{0x0},
 		1:   [4]uint32{0x80},

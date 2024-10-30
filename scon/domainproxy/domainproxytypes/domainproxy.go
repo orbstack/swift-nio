@@ -3,7 +3,7 @@ package domainproxytypes
 import "net"
 
 type DomainproxyUpstream struct {
-	Ip     net.IP
+	IP     net.IP
 	Id     string
 	Docker bool
 }

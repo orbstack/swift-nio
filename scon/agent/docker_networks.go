@@ -22,9 +22,9 @@ const (
 
 const (
 	NfsetBridgeSubnets4 = "docker_bridge_subnets4"
-	NfsetBridgeHostIps4 = "docker_bridge_host_ips4"
+	NfsetBridgeHostIPs4 = "docker_bridge_host_ips4"
 	NfsetBridgeSubnets6 = "docker_bridge_subnets6"
-	NfsetBridgeHostIps6 = "docker_bridge_host_ips6"
+	NfsetBridgeHostIPs6 = "docker_bridge_host_ips6"
 )
 
 func compareNetworks(a, b dockertypes.Network) int {
@@ -294,7 +294,7 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		}
 
 		hostIP := config.HostIP4().IP
-		err = editNftablesSet("add", NfsetBridgeHostIps4, hostIP.String())
+		err = editNftablesSet("add", NfsetBridgeHostIPs4, hostIP.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
 		}
@@ -306,7 +306,7 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		}
 
 		hostIP := config.HostIP6().IP
-		err = editNftablesSet("add", NfsetBridgeHostIps6, hostIP.String())
+		err = editNftablesSet("add", NfsetBridgeHostIPs6, hostIP.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
 		}
@@ -346,7 +346,7 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 		}
 
 		hostIP := config.HostIP4().IP
-		err = editNftablesSet("delete", NfsetBridgeHostIps4, hostIP.String())
+		err = editNftablesSet("delete", NfsetBridgeHostIPs4, hostIP.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove gateway ip from set")
 		}
@@ -358,7 +358,7 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 		}
 
 		hostIP := config.HostIP6().IP
-		err = editNftablesSet("delete", NfsetBridgeHostIps6, hostIP.String())
+		err = editNftablesSet("delete", NfsetBridgeHostIPs6, hostIP.String())
 		if err != nil {
 			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove gateway ip from set")
 		}

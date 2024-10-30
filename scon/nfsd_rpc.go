@@ -99,7 +99,7 @@ func startNfsd() error {
 	return nil
 }
 
-func serveAuthUnixIp() error {
+func serveAuthUnixIP() error {
 	file, err := os.OpenFile("/proc/net/rpc/auth.unix.ip/channel", os.O_RDWR, 0)
 	if err != nil {
 		return err
