@@ -15,10 +15,9 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 )
 
-const nfsdRpcBufSize = 16384
+const nfsdRpcBufSize = 4096
 
 const (
 	// mappings to /etc/exports
@@ -109,7 +108,7 @@ func serveAuthUnixIp() error {
 
 	var buf [nfsdRpcBufSize]byte
 	for {
-		err = sysx.PollFd(int(file.Fd()), unix.POLLIN)
+		err = sysx.RuntimePollFileRead(file)
 		if err != nil {
 			return err
 		}
@@ -181,7 +180,9 @@ func (m *NfsMirrorManager) serveNfsdExports() error {
 
 	var buf [nfsdRpcBufSize]byte
 	for {
-		err = sysx.PollFd(int(file.Fd()), unix.POLLIN)
+		// due to a weird (broken?) ABI, we have to poll because reading first returns EOF instead of -EAGAIN...
+		// Go (*os.File).Read() always attempts to read first and only polls on -EAGAIN
+		err = sysx.RuntimePollFileRead(file)
 		if err != nil {
 			return err
 		}
@@ -241,7 +242,7 @@ func (m *NfsMirrorManager) serveNfsdFh() error {
 
 	var buf [nfsdRpcBufSize]byte
 	for {
-		err = sysx.PollFd(int(file.Fd()), unix.POLLIN)
+		err = sysx.RuntimePollFileRead(file)
 		if err != nil {
 			return err
 		}
