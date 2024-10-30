@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use libc::{winsize, TIOCSCTTY, TIOCSWINSZ};
+use libc::{winsize, MS_PRIVATE, TIOCSCTTY, TIOCSWINSZ};
 use std::{
     ffi::CString,
     fs::{self, File, OpenOptions},
@@ -12,19 +12,22 @@ use std::{
     process::exit,
     sync::Arc,
     thread,
+    time::Duration,
 };
 use tokio::{
     io::{self, AsyncReadExt, AsyncWriteExt},
     process::Command,
     sync::Mutex,
     task::{self, JoinHandle},
+    time::sleep,
 };
+use tokio_util::sync::CancellationToken;
 use tracing_subscriber::fmt::format::FmtSpan;
 use util::{mount_wormhole, unmount_wormhole};
 use wormhole::{
     asyncfile::AsyncFile,
     flock::{Flock, FlockMode, FlockWait},
-    newmount::open_tree,
+    newmount::{mount_setattr, open_tree, MountAttr},
     rpc::{
         wormhole::{
             rpc_client_message::ClientMessage, rpc_server_message::ServerMessage, ClientConnectAck,
@@ -41,15 +44,13 @@ use nix::{
     mount::{mount, MsFlags},
     pty::{OpenptyResult, Winsize},
     sys::socket::{recvmsg, ControlMessageOwned, MsgFlags},
-    unistd::{dup, dup2, pipe, setsid, sleep},
+    unistd::{dup, dup2, pipe, setsid},
 };
 use tracing::{trace, Level};
 
 mod model;
 mod util;
 use serde::{Deserialize, Serialize};
-
-use crate::util::WORMHOLE_UNIFIED;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WormholeConfig {
@@ -81,7 +82,7 @@ const REFCOUNT_FILE: &str = "/data/refcount";
 const REFCOUNT_LOCK: &str = "/data/refcount.lock";
 
 // receives client stdin and stdout fds  with SCM_RIGHTS
-fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(File, File)> {
+fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)> {
     let mut buf = [0u8; 1];
     let mut cmsgspace = nix::cmsg_space!([RawFd; 2]);
 
@@ -106,8 +107,8 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(File, File)> {
     }
     match (stdin_fd, stdout_fd) {
         (Some(stdin_fd), Some(stdout_fd)) => {
-            let client_stdin = unsafe { File::from_raw_fd(stdin_fd) };
-            let client_stdout = unsafe { File::from_raw_fd(stdout_fd) };
+            let client_stdin = AsyncFile::new(stdin_fd)?;
+            let client_stdout = AsyncFile::new(stdout_fd)?;
             Ok((client_stdin, client_stdout))
         }
         _ => Err(anyhow!("did not get client stdin and stdout")),
@@ -139,7 +140,12 @@ impl WormholeServer {
                 Ok((stream, _)) => {
                     let server = self.clone();
                     tokio::spawn(async move {
-                        let _ = server.handle_client(stream).await;
+                        match server.handle_client(stream).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                trace!("error handling client: {:?}", e);
+                            }
+                        }
                     });
                 }
                 Err(e) => {
@@ -163,17 +169,14 @@ impl WormholeServer {
 
         // get client fds via scm_rights over the stream
         trace!("waiting for rpc client fds");
-        let (client_stdin, client_stdout) = recv_rpc_client(&stream)?;
+        let (mut client_stdin, client_stdout) = recv_rpc_client(&stream)?;
         trace!(
             "got rpc client fds {} {}",
             client_stdin.as_raw_fd(),
             client_stdout.as_raw_fd()
         );
 
-        let mut client_stdin = AsyncFile::from(client_stdin)?;
-        let mut client_stdout = AsyncFile::from(client_stdout)?;
-
-        let mut client_writer_m = Arc::new(Mutex::new(client_stdout));
+        let client_writer_m = Arc::new(Mutex::new(client_stdout));
         let mut pty: Option<OpenptyResult> = None;
         let mut term_env: Option<String> = None;
 
@@ -218,10 +221,22 @@ impl WormholeServer {
         }
         let is_pty = pty.is_some();
 
+        mount_setattr(
+            None,
+            "/mnt/wormhole-unified",
+            libc::AT_RECURSIVE as u32,
+            &MountAttr {
+                attr_set: 0,
+                attr_clr: 0,
+                propagation: MS_PRIVATE,
+                userns_fd: 0,
+            },
+        )?;
         let wormhole_mount = open_tree(
             "/mnt/wormhole-unified/nix",
             libc::OPEN_TREE_CLOEXEC as i32 | libc::OPEN_TREE_CLONE as i32 | libc::AT_RECURSIVE,
         )?;
+
         let (_, log_pipe_write_fd) = pipe()?;
         let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe()?;
         let wormhole_mount_fd = wormhole_mount.as_raw_fd();
@@ -262,24 +277,73 @@ impl WormholeServer {
         let mut payload_stdout = AsyncFile::new(stdout_pipe.0)?;
         let mut payload_stderr = AsyncFile::new(stderr_pipe.0)?;
 
+        let cancel_token = CancellationToken::new();
         {
+            let cancel_token = cancel_token.clone();
+            let client_writer_m = Arc::clone(&client_writer_m);
+            let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+                trace!("starting reading payload stdout");
+                let mut buf = [0u8; 1024];
+                loop {
+                    tokio::select! {
+                        _ = cancel_token.cancelled() => {
+                            trace!("cancelled stdout");
+                            break;
+                        }
+                        result = payload_stdout.read(&mut buf) => {
+                            match result {
+                                Ok(0) => {
+                                    trace!("got eof reading from payload stdout");
+                                    break;
+                                }
+                                Ok(n) => {
+                                    // trace!("writing");
+                                    let mut client_writer = client_writer_m.lock().await;
+                                    RpcServerMessage {
+                                        server_message: Some(ServerMessage::StdoutData(StdoutData {
+                                            data: buf[..n].to_vec(),
+                                        })),
+                                    }
+                                    .write(&mut client_writer)
+                                    .await?;
+                                }
+                                Err(e) => trace!("got error reading from payload stdout: {e}"),
+                            }
+                        }
+                    }
+                }
+                trace!("finished reading payload stdout");
+                Ok(())
+            });
+        }
+
+        {
+            let cancel_token = cancel_token.clone();
             let client_writer_m = Arc::clone(&client_writer_m);
             let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
                 let mut buf = [0u8; 1024];
                 loop {
-                    match payload_stdout.read(&mut buf).await {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            let mut client_writer = client_writer_m.lock().await;
-                            RpcServerMessage {
-                                server_message: Some(ServerMessage::StdoutData(StdoutData {
-                                    data: buf[..n].to_vec(),
-                                })),
-                            }
-                            .write(&mut client_writer)
-                            .await?;
+                    tokio::select! {
+                        _ = cancel_token.cancelled() => {
+                            trace!("cancelled stderr");
+                            break;
                         }
-                        Err(e) => trace!("got error reading from payload stdout: {e}"),
+                        result = payload_stderr.read(&mut buf) => {
+                            match result {
+                                Ok(0) => break,
+                                Ok(n) => {
+                                    let mut client_writer = client_writer_m.lock().await;
+                                    RpcServerMessage {
+                                        server_message: Some(ServerMessage::StderrData(StderrData {
+                                            data: buf[..n].to_vec(),
+                                        })),
+                                    }
+                                    .write(&mut client_writer)
+                                    .await?;
+                                }
+                                Err(e) => trace!("got error reading from payload stderr: {e}"),
+                            }
+                        }
                     }
                 }
                 Ok(())
@@ -287,64 +351,55 @@ impl WormholeServer {
         }
 
         {
-            let client_writer_m = Arc::clone(&client_writer_m);
+            let cancel_token = cancel_token.clone();
             let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
-                let mut buf = [0u8; 1024];
                 loop {
-                    match payload_stderr.read(&mut buf).await {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            let mut client_writer = client_writer_m.lock().await;
-                            RpcServerMessage {
-                                server_message: Some(ServerMessage::StderrData(StderrData {
-                                    data: buf[..n].to_vec(),
-                                })),
-                            }
-                            .write(&mut client_writer)
-                            .await?;
+                    tokio::select! {
+                        _ = cancel_token.cancelled() => {
+                            trace!("cancelled read");
+                            break;
                         }
-                        Err(e) => trace!("got error reading from payload stderr: {e}"),
+                        message = RpcClientMessage::read(&mut client_stdin) => {
+                            match message?.client_message {
+                                Some(ClientMessage::StdinData(msg)) => {
+                                    // trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&msg.data));
+                                    let _ = payload_stdin
+                                        .write(&msg.data)
+                                        .await
+                                        .map_err(|e| trace!("error writing to payload {e}"));
+                                }
+                                Some(ClientMessage::TerminalResize(msg)) => {
+                                    if !is_pty {
+                                        panic!("cannot resize terminal for non-tty ")
+                                    }
+                                    let ws = Winsize {
+                                        ws_row: msg.rows as u16,
+                                        ws_col: msg.cols as u16,
+                                        ws_xpixel: 0,
+                                        ws_ypixel: 0,
+                                    };
+                                    unsafe {
+                                        nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
                     }
                 }
                 Ok(())
             });
         }
-
-        let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
-            loop {
-                let message = RpcClientMessage::read(&mut client_stdin).await?;
-                match message.client_message {
-                    Some(ClientMessage::StdinData(msg)) => {
-                        // trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&msg.data));
-                        let _ = payload_stdin
-                            .write(&msg.data)
-                            .await
-                            .map_err(|e| trace!("error writing to payload {e}"));
-                    }
-                    Some(ClientMessage::TerminalResize(msg)) => {
-                        if !is_pty {
-                            panic!("cannot resize terminal for non-tty ")
-                        }
-                        let ws = Winsize {
-                            ws_row: msg.rows as u16,
-                            ws_col: msg.cols as u16,
-                            ws_xpixel: 0,
-                            ws_ypixel: 0,
-                        };
-                        unsafe {
-                            nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        });
 
         tokio::spawn(async move {
             let mut exit_code = [0u8];
             let _ = exit_code_pipe_reader.read_exact(&mut exit_code).await;
 
             trace!("received exit code {}", exit_code[0]);
+            // sleep(Duration::from_secs(5)).await;
+
+            cancel_token.cancel();
+            // sleep(Duration::from_secs(1)).await;
             let mut client_writer = client_writer_m.lock().await;
             let _ = RpcServerMessage {
                 server_message: Some(ServerMessage::ExitStatus(ExitStatus {
@@ -355,12 +410,14 @@ impl WormholeServer {
             .await;
 
             // under flock: decrement connection refcount; if there are no more connections left, begin shutdown
+            trace!("waiting for flock");
             let _flock = Flock::new_ofd(
                 File::create("/data/.lock").unwrap(),
                 FlockMode::Exclusive,
                 FlockWait::Blocking,
             );
 
+            trace!("waiting for lock");
             let mut lock = self.conn.lock().await;
             *lock -= 1;
             trace!("remaining connections: {}", *lock);
@@ -374,6 +431,9 @@ impl WormholeServer {
             // todo: kill all async server tasks belonging to the current connection
         })
         .await?;
+        trace!("exiting");
+
+        // drop(stream);
         Ok(())
     }
 }
