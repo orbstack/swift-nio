@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -41,7 +42,7 @@ func (r *ReportWriter) AddFileLocal(src, dest string) error {
 	return r.addFileBytes(dest, b)
 }
 
-func (r *ReportWriter) AddDirLocal(src, dest string) error {
+func (r *ReportWriter) AddDirLocal(src, dest string, filenamePrefix string) error {
 	entries, err := os.ReadDir(src)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -52,8 +53,12 @@ func (r *ReportWriter) AddDirLocal(src, dest string) error {
 	}
 
 	for _, entry := range entries {
+		if filenamePrefix != "" && !strings.HasPrefix(entry.Name(), filenamePrefix) {
+			continue
+		}
+
 		if entry.IsDir() {
-			err = r.AddDirLocal(src+"/"+entry.Name(), dest+"/"+entry.Name())
+			err = r.AddDirLocal(src+"/"+entry.Name(), dest+"/"+entry.Name(), filenamePrefix)
 		} else {
 			err = r.AddFileLocal(src+"/"+entry.Name(), dest+"/"+entry.Name())
 		}

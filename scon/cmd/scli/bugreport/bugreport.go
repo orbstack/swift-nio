@@ -103,7 +103,7 @@ func BuildZip(infoTxt []byte) (*ReportPackage, error) {
 	}
 
 	// add vmgr logs
-	err = r.AddDirLocal(conf.LogDir(), "vmgr_logs")
+	err = r.AddDirLocal(conf.LogDir(), "vmgr_logs", "")
 	if err != nil {
 		logrus.WithError(err).Error("failed to add vmgr logs")
 	}
@@ -146,6 +146,12 @@ func BuildZip(infoTxt []byte) (*ReportPackage, error) {
 		if err != nil {
 			logrus.WithError(err).Error("failed to add stat")
 		}
+	}
+
+	// add macOS crash reports for vmgr and GUI
+	err = r.AddDirLocal(conf.HomeDir()+"/Library/Logs/DiagnosticReports", "crash_reports", "OrbStack")
+	if err != nil {
+		logrus.WithError(err).Error("failed to add crash reports")
 	}
 
 	return r.Finish()
