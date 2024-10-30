@@ -14,8 +14,6 @@ replace github.com/gliderlabs/ssh => ../vendor/glider-ssh-macvirt
 
 replace github.com/fsnotify/fsnotify => github.com/orbstack/fsnotify-macvirt v0.0.0-20240424004612-788a996df377
 
-replace github.com/buildbarn/go-xdr => github.com/kdrag0n/go-xdr-macvirt v0.0.0-20230326123001-605de85becc7
-
 replace github.com/keybase/go-keychain => github.com/orbstack/go-keychain v0.0.0-20230922005607-1d526cf2beed
 
 require (
@@ -29,7 +27,7 @@ require (
 require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 
 require (
-	github.com/buildbarn/go-xdr v0.0.0-20230105161020-895955dd8771
+	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
 	github.com/fatih/color v1.16.0
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/getsentry/sentry-go v0.27.0
