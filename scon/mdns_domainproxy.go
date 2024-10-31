@@ -338,8 +338,12 @@ func (d *domainproxyInfo) claimOrUpdateIP4Locked(val domainproxytypes.Domainprox
 			} else {
 				// our preferred address is already claimed. is that us or is that a different upstream?
 				if slicesEqualUnordered(preferredAddrVal.Names, val.Names) {
+					if preferredAddrVal.IP.Equal(val.IP) && preferredAddrVal.Docker == val.Docker {
+						return preferredAddr, true
+					}
 					d.setAddrLocked(preferredAddr, val)
 					logrus.WithFields(logrus.Fields{"addr": preferredAddr, "val": val}).Debug("mdns domainproxy: updated addr upstream")
+					return preferredAddr, true
 				} else {
 					logrus.WithField("preferredAddr", preferredAddr).Debug("mdns domainproxy: could not assign preferred ip")
 				}
@@ -379,8 +383,12 @@ func (d *domainproxyInfo) claimOrUpdateIP6Locked(val domainproxytypes.Domainprox
 			} else {
 				// our preferred address is already claimed. is that us or is that a different upstream?
 				if slicesEqualUnordered(preferredAddrVal.Names, val.Names) {
+					if preferredAddrVal.IP.Equal(val.IP) && preferredAddrVal.Docker == val.Docker {
+						return preferredAddr, true
+					}
 					d.setAddrLocked(preferredAddr, val)
 					logrus.WithFields(logrus.Fields{"addr": preferredAddr, "val": val}).Debug("mdns domainproxy: updated addr upstream")
+					return preferredAddr, true
 				} else {
 					logrus.WithField("preferredAddr", preferredAddr).Debug("mdns domainproxy: could not assign preferred ip")
 				}
