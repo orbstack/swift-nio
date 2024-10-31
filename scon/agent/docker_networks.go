@@ -375,7 +375,11 @@ func setAllBridgeportHairpin(bridgeName string) error {
 		return fmt.Errorf("unable to get links: %w", err)
 	}
 
-	bridgeIndex := findLink(links, bridgeName).Attrs().Index
+	bridgeLink := findLink(links, bridgeName)
+	if bridgeLink == nil {
+		return fmt.Errorf("unable to find bridge index")
+	}
+	bridgeIndex := bridgeLink.Attrs().Index
 
 	for _, link := range links {
 		attrs := link.Attrs()
