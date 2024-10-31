@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -19,6 +20,35 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
+
+const wormholeImageWriteWarning = `WARNING: You are debugging an image, not a container.
+Images are read-only. You can make changes in this session, but they will NOT be saved.
+
+`
+
+const wormholeImageDiffWarning = `
+
+Image changes have been discarded.
+`
+
+const wormholeContainerWriteWarning = `WARNING: Support for containerd image store is experimental.
+You can debug stopped containers, but saving changes is NOT yet supported.
+
+`
+
+const wormholeContainerDiffWarning = `
+
+Container changes have been discarded.
+`
+
+func ptyWarning(isPty bool, message string) string {
+	if isPty {
+		// for PTY: wrap with yellow escape codes, and translate \n to \r\n for raw mode pty
+		return "\033[33m" + strings.ReplaceAll(message, "\n", "\r\n") + "\033[0m"
+	} else {
+		return message
+	}
+}
 
 func handleFanotify(fanFile *os.File, event *unix.FanotifyEventMetadata, accessCb func()) (bool, error) {
 	defer unix.Close(int(event.Fd))
@@ -229,7 +259,7 @@ func (sv *SshServer) startWormholeProcess(s ssh.Session, cmd *agent.AgentCommand
 	return exitCodePipeRead, nil
 }
 
-func (sv *SshServer) waitForWormholeProcess(s ssh.Session, cmd *agent.AgentCommand, initPidfd *agent.PidfdProcess, exitCodePipeRead *os.File, fanotifyFile *os.File) error {
+func (sv *SshServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeTarget string, cmd *agent.AgentCommand, initPidfd *agent.PidfdProcess, exitCodePipeRead *os.File, fanotifyFile *os.File) error {
 	// process spawned. start monitoring fanotify
 	var processWg sync.WaitGroup
 	processWg.Add(1)
@@ -238,6 +268,7 @@ func (sv *SshServer) waitForWormholeProcess(s ssh.Session, cmd *agent.AgentComma
 			logrus.Debug("waiting for container start access")
 			err := waitForAccess(fanotifyFile, func() {
 				logrus.Info("container start detected, killing wormhole session")
+				_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, fmt.Sprintf("\n\nContainer '%s' is starting or being deleted.\nEnding Debug Shell session.\n", wormholeTarget)))
 
 				// killing pid 1 kills everything in the container
 				// kernel waits for other processes in the pidns to exit before reaping the pid 1
@@ -258,7 +289,6 @@ func (sv *SshServer) waitForWormholeProcess(s ssh.Session, cmd *agent.AgentComma
 				// this makes sure that *all* mount refs have been released
 				processWg.Wait()
 
-				// TODO write a message to pty
 				logrus.Debug("container start granted")
 			})
 			if err != nil {
@@ -325,7 +355,7 @@ func (sv *SshServer) waitForWormholeProcess(s ssh.Session, cmd *agent.AgentComma
 	return nil
 }
 
-func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, container *Container, wormholeTarget string, shellCmd string, meta *sshtypes.SshMeta) (bool, error) {
+func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, container *Container, wormholeTarget string, shellCmd string, meta *sshtypes.SshMeta, isPty bool) (bool, error) {
 	params, err := sv.prepareWormhole(container, wormholeTarget)
 	if err != nil {
 		return true /*printErr*/, err
@@ -333,9 +363,36 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 	if params.resp.FanotifyFile != nil {
 		defer params.resp.FanotifyFile.Close()
 	}
+	defer func() {
+		resp, err := UseAgentRet(container, func(a *agent.Client) (*agent.EndWormholeResponse, error) {
+			return a.DockerEndWormhole(agent.EndWormholeArgs{
+				State: params.resp.State,
+			})
+		})
+		if err != nil {
+			logrus.WithError(err).Error("end wormhole session failed")
+			return
+		}
+
+		if resp.HasDiff {
+			if params.resp.WarnImageWrite {
+				_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, wormholeImageDiffWarning))
+			}
+			if params.resp.WarnContainerWrite {
+				_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, wormholeContainerDiffWarning))
+			}
+		}
+	}()
 
 	initPidfd := agent.WrapPidfdFile(params.resp.InitPidfdFile)
 	defer initPidfd.Close()
+
+	if params.resp.WarnImageWrite {
+		_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, wormholeImageWriteWarning))
+	}
+	if params.resp.WarnContainerWrite {
+		_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, wormholeContainerWriteWarning))
+	}
 
 	exitCodePipeRead, err := sv.startWormholeProcess(s, cmd, container, params, shellCmd, meta)
 	params.resp.RootfsFile.Close()
@@ -345,6 +402,6 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 
 	// no printing errors to terminal once process has started
 
-	err = sv.waitForWormholeProcess(s, cmd, initPidfd, exitCodePipeRead, params.resp.FanotifyFile)
+	err = sv.waitForWormholeProcess(s, isPty, wormholeTarget, cmd, initPidfd, exitCodePipeRead, params.resp.FanotifyFile)
 	return false /*printErr*/, err
 }

@@ -466,7 +466,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	cmd.CombinedArgs = combinedArgs
 
 	if isWormhole {
-		return sv.handleWormhole(s, cmd, container, wormholeTarget, shellCmd, &meta)
+		return sv.handleWormhole(s, cmd, container, wormholeTarget, shellCmd, &meta, isPty)
 	}
 
 	err = container.UseAgent(func(a *agent.Client) error {

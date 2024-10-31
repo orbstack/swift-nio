@@ -337,14 +337,14 @@ func (c *Client) DockerStartWormhole(args StartWormholeArgs) (*StartWormholeResp
 	return resp, nil
 }
 
-func (c *Client) DockerEndWormhole(args EndWormholeArgs) error {
-	var none None
-	err := c.rpc.Call("a.DockerEndWormhole", args, &none)
+func (c *Client) DockerEndWormhole(args EndWormholeArgs) (*EndWormholeResponse, error) {
+	var reply EndWormholeResponse
+	err := c.rpc.Call("a.DockerEndWormhole", args, &reply)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &reply, nil
 }
 
 func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {

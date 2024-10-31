@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"net/http"
 	"os"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -36,6 +38,9 @@ type StartWormholeResponse struct {
 	State      WormholeSessionState
 	SwitchRoot bool
 
+	WarnImageWrite     bool
+	WarnContainerWrite bool
+
 	FdxSeq uint64
 }
 
@@ -49,6 +54,10 @@ type StartWormholeResponseClient struct {
 
 type EndWormholeArgs struct {
 	State WormholeSessionState
+}
+
+type EndWormholeResponse struct {
+	HasDiff bool
 }
 
 type WormholeSessionState struct {
@@ -105,7 +114,7 @@ func makeContainerStartFanotify(workDir string) (int, error) {
 		return -1, fmt.Errorf("fanotify_init: %w", err)
 	}
 
-	// TODO: FAN_DELETE? needs to be another fanotify mark
+	// docker opens before delete too, so we only need FAN_OPEN_PERM
 	err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD|unix.FAN_MARK_ONLYDIR, unix.FAN_OPEN_PERM|unix.FAN_ONDIR, dirFd, "" /*nil*/)
 	if err != nil {
 		return -1, fmt.Errorf("fanotify_mark: %w", err)
@@ -318,6 +327,8 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 	rootfsFd := -1
 	fanotifyFd := -1
 	switchRoot := false
+	warnImageWrite := false
+	warnContainerWrite := false
 	if conf.Debug() && args.Target == sshtypes.WormholeIDDocker {
 		// debug only: wormhole for docker machine (ovm)
 		initPid = 1
@@ -327,10 +338,8 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 		// standard path: for docker containers
 		ctr, err := a.docker.client.InspectContainer(args.Target)
 		if err != nil {
-			var apiErr *dockerclient.APIError
-			if errors.As(err, &apiErr) && apiErr.HTTPStatus == 404 {
+			if dockerclient.IsStatusError(err, http.StatusNotFound) {
 				// container not found. try interpreting target as an image and creating a container from it
-				// TODO: warn that img writes won't persist. if diff=true, print warning at exit too
 				state.CreatedContainerID, err = a.docker.createWormholeImageContainer(args.Target)
 				if err != nil {
 					if errors.Is(err, errNoSuchImage) {
@@ -344,6 +353,8 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 				if err != nil {
 					return err
 				}
+
+				warnImageWrite = true
 			} else {
 				return err
 			}
@@ -390,8 +401,8 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 				}
 				defer unix.Close(fanotifyFd)
 			} else {
-				// TODO: warn that changes won't persist
 				// TODO: fallback using diff + tar (for remote)
+				warnContainerWrite = true
 			}
 
 			ctr, err = a.docker.client.InspectContainer(state.CreatedContainerID)
@@ -440,25 +451,47 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 		State:      state,
 		SwitchRoot: switchRoot,
 		FdxSeq:     fdxSeq,
+
+		WarnImageWrite:     warnImageWrite,
+		WarnContainerWrite: warnContainerWrite,
 	}
 
 	return nil
 }
 
-func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *None) error {
+func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *EndWormholeResponse) error {
 	var errs []error
+	logrus.WithField("state", args.State).Debug("ending agent wormhole session")
 
 	// delete container using auto-remove
 	if args.State.CreatedContainerID != "" {
-		err := a.docker.client.KillContainer(args.State.CreatedContainerID)
+		// if it still exists, diff it
+		diff, err := a.docker.client.DiffContainer(args.State.CreatedContainerID)
 		if err != nil {
+			// 404 = already exited (and removed due to auto-remove)
+			if !dockerclient.IsStatusError(err, http.StatusNotFound) {
+				errs = append(errs, err)
+			}
+		} else if len(diff) > 0 {
+			reply.HasDiff = true
+		}
+
+		err = a.docker.client.KillContainer(args.State.CreatedContainerID)
+		if err != nil && !dockerclient.IsStatusError(err, http.StatusNotFound) {
 			errs = append(errs, err)
 		}
 	}
 
 	// delete image
 	if args.State.CreatedImageID != "" {
-		err := a.docker.client.RemoveImage(args.State.CreatedImageID, true)
+		// if we need to delete an image, then synchronously wait for the container to exit, so that its reference is gone
+		// we only need to wait for stopped state, not removed, because removing an image with force=true will also remove stopped containers
+		err := a.docker.client.WaitContainer(args.State.CreatedContainerID)
+		if err != nil && !dockerclient.IsStatusError(err, http.StatusNotFound) {
+			errs = append(errs, err)
+		}
+
+		err = a.docker.client.RemoveImage(args.State.CreatedImageID, true)
 		if err != nil {
 			errs = append(errs, err)
 		}

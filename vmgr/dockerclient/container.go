@@ -107,3 +107,21 @@ func (c *Client) RemoveContainer(cid string, force bool) error {
 	}
 	return nil
 }
+
+func (c *Client) DiffContainer(cid string) ([]dockertypes.ContainerDiffEntry, error) {
+	var diffs []dockertypes.ContainerDiffEntry
+	err := c.Call("GET", "/containers/"+cid+"/changes", nil, &diffs)
+	if err != nil {
+		return nil, fmt.Errorf("diff container: %w", err)
+	}
+
+	return diffs, nil
+}
+
+func (c *Client) WaitContainer(cid string) error {
+	err := c.Call("POST", "/containers/"+cid+"/wait", nil, nil)
+	if err != nil {
+		return fmt.Errorf("wait container: %w", err)
+	}
+	return nil
+}

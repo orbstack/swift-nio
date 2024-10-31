@@ -478,3 +478,8 @@ type FullContainerCreateRequest struct {
 type ContainerCommitResponse struct {
 	ID string `json:"Id"`
 }
+
+type ContainerDiffEntry struct {
+	Kind int
+	Path string
+}
