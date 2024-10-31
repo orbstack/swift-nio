@@ -1,6 +1,7 @@
 package domainproxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -150,6 +151,7 @@ func (p *Domaintproxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) err
 			// otherwise we get "connect: cannot assign requested address" after too long
 			MaxIdleConnsPerHost: 200,
 		},
+		ErrorHandler: p.handleError,
 	}
 
 	httpServer := &http.Server{
@@ -327,4 +329,14 @@ func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (
 	}
 
 	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), dialPort))
+}
+
+// the default action with no handler is to send a 502 with no content and to log
+func (p *Domaintproxy) handleError(w http.ResponseWriter, r *http.Request, err error) {
+	// debug log so no spamming for users
+	logrus.WithError(err).Debug("domaintproxy failed to dial upstream")
+	w.WriteHeader(http.StatusBadGateway)
+	http.ServeContent(w, r, "", time.UnixMilli(0), bytes.NewReader(
+		[]byte(fmt.Sprintf("502 Bad Gateway\nOrbStack proxy error: %v\n", err)),
+	))
 }

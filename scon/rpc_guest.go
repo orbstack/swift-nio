@@ -180,7 +180,7 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 				}
 			}
 			if ctrIP6 != nil {
-				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP4)
+				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP6)
 				if err != nil {
 					logrus.WithError(err).WithField("ip", ctrIP6).Error("failed to remove container from cfwd")
 				}
