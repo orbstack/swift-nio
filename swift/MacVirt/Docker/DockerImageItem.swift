@@ -62,7 +62,7 @@ struct DockerImageItem: View, Equatable {
             }
 
             Button(action: {
-                openFolder()
+                image.summary.openFolder()
             }) {
                 Image(systemName: "folder.fill")
                     // match ProgressIconButton size
@@ -118,15 +118,25 @@ struct DockerImageItem: View, Equatable {
         .padding(.vertical, 8)
         .akListOnDoubleClick {
             if image.summary.repoTags?.isEmpty == false {
-                openFolder()
+                image.summary.openFolder()
             }
         }
         .akListContextMenu {
             Button(action: {
-                openFolder()
+                image.summary.openFolder()
             }) {
                 Label("Open", systemImage: "folder")
             }.disabled(actionInProgress || (image.summary.repoTags?.isEmpty != false))
+
+            Button(action: {
+                if vmModel.isLicensed {
+                    image.summary.openDebugShell()
+                } else {
+                    vmModel.presentRequiresLicense = true
+                }
+            }) {
+                Label("Debug Shell", systemImage: "")
+            }.disabled(actionInProgress)
 
             Divider()
 
@@ -194,9 +204,5 @@ struct DockerImageItem: View, Equatable {
         } else {
             return [image.id]
         }
-    }
-
-    private func openFolder() {
-        NSWorkspace.openFolder("\(Folders.nfsDockerImages)/\(image.summary.userTag)")
     }
 }

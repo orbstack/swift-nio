@@ -33,6 +33,24 @@ struct DockerImageDetails: View {
                     }
                 }
             }
+            
+            DividedButtonStack {
+                DividedRowButton {
+                    image.summary.openFolder()
+                } label: {
+                    Label("Files", systemImage: "folder")
+                }.disabled(image.summary.repoTags?.isEmpty != false)
+
+                DividedRowButton {
+                    if vmModel.isLicensed {
+                        image.summary.openDebugShell()
+                    } else {
+                        vmModel.presentRequiresLicense = true
+                    }
+                } label: {
+                    Label("Debug Shell", systemImage: "ladybug")
+                }
+            }
 
             if let tags = image.summary.repoTags,
                 !tags.isEmpty

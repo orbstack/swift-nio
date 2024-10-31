@@ -69,6 +69,8 @@ struct DividedVStackLayout: _VariadicView_UnaryViewRoot {
 }
 
 struct DividedRowButton<Label: View>: View {
+    @Environment(\.isEnabled) private var isEnabled
+
     private let action: () -> Void
     @ViewBuilder private let label: () -> Label
 
@@ -83,6 +85,7 @@ struct DividedRowButton<Label: View>: View {
                 .labelStyle(ItemRowLabelStyle())
         }
         .buttonStyle(ItemRowButtonStyle())
+        .opacity(isEnabled ? 1 : 0.75)
     }
 }
 

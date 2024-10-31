@@ -251,20 +251,19 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 Button(action: {
-                    container.openDebugShellFallback()
-                }) {
-                    Label("Open Terminal", systemImage: "")
-                }
-                .disabled(!isRunning)
-
-                Button(action: {
                     if vmModel.isLicensed {
                         container.openDebugShell()
                     } else {
                         vmModel.presentRequiresLicense = true
                     }
                 }) {
-                    Label("Debug", systemImage: "")
+                    Label("Debug Shell", systemImage: "")
+                }
+                
+                Button(action: {
+                    container.openDebugShellFallback()
+                }) {
+                    Label("Open Terminal", systemImage: "")
                 }
                 .disabled(!isRunning)
 

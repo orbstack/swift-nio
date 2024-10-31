@@ -76,6 +76,22 @@ extension DKContainer {
     }
 }
 
+extension DKImage {
+    func openFolder() {
+        NSWorkspace.openFolder("\(Folders.nfsDockerImages)/\(userTag)")
+    }
+
+    func openDebugShell() {
+        Task {
+            do {
+                try await openTerminal(AppConfig.ctlExe, ["debug", id])
+            } catch {
+                NSLog("Open terminal failed: \(error)")
+            }
+        }
+    }
+}
+
 extension DKPort {
     var formatted: String {
         let ctrPort = privatePort

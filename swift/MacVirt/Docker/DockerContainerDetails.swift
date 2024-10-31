@@ -61,21 +61,21 @@ struct DockerContainerDetails: View {
                     Label("Logs", systemImage: "doc.text.magnifyingglass")
                 }
 
+                DividedRowButton {
+                    if vmModel.isLicensed {
+                        container.openDebugShell()
+                    } else {
+                        vmModel.presentRequiresLicense = true
+                    }
+                } label: {
+                    Label("Debug", systemImage: "ladybug")
+                }
+
                 if isRunning {
                     DividedRowButton {
                         container.openDebugShellFallback()
                     } label: {
                         Label("Terminal", systemImage: "terminal")
-                    }
-
-                    DividedRowButton {
-                        if vmModel.isLicensed {
-                            container.openDebugShell()
-                        } else {
-                            vmModel.presentRequiresLicense = true
-                        }
-                    } label: {
-                        Label("Debug", systemImage: "ladybug")
                     }
 
                     DividedRowButton {
