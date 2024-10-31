@@ -56,10 +56,6 @@ type EndWormholeArgs struct {
 	State WormholeSessionState
 }
 
-type EndWormholeResponse struct {
-	HasDiff bool
-}
-
 type WormholeSessionState struct {
 	CreatedContainerID string
 	CreatedImageID     string
@@ -199,7 +195,7 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 
 	newCfg := &dockertypes.ContainerConfig{
 		// exact SHA256 of committed image
-		Image: imageID,
+		Image: ctr.Image,
 
 		// copy relevant config properties
 		Domainname:      ctr.Config.Domainname,
@@ -464,25 +460,14 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 	return nil
 }
 
-func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *EndWormholeResponse) error {
+func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *None) error {
 	var errs []error
 	logrus.WithField("state", args.State).Debug("ending agent wormhole session")
 
 	// delete container using auto-remove
 	if args.State.CreatedContainerID != "" {
-		// if it still exists, diff it
-		diff, err := a.docker.client.DiffContainer(args.State.CreatedContainerID)
-		if err != nil {
-			// 404 = already exited (and removed due to auto-remove)
-			if !dockerclient.IsStatusError(err, http.StatusNotFound) {
-				errs = append(errs, err)
-			}
-		} else if len(diff) > 0 {
-			reply.HasDiff = true
-		}
-
-		err = a.docker.client.KillContainer(args.State.CreatedContainerID)
-		if err != nil && !dockerclient.IsStatusError(err, http.StatusNotFound) {
+		err := a.docker.client.KillContainer(args.State.CreatedContainerID)
+		if err != nil && !dockerclient.IsStatusError(err, http.StatusNotFound) && !strings.Contains(err.Error(), "is not running") {
 			errs = append(errs, err)
 		}
 	}
@@ -492,7 +477,7 @@ func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *EndWormhol
 		// if we need to delete an image, then synchronously wait for the container to exit, so that its reference is gone
 		// we only need to wait for stopped state, not removed, because removing an image with force=true will also remove stopped containers
 		err := a.docker.client.WaitContainer(args.State.CreatedContainerID)
-		if err != nil && !dockerclient.IsStatusError(err, http.StatusNotFound) {
+		if err != nil && !dockerclient.IsStatusError(err, http.StatusNotFound) && !strings.Contains(err.Error(), "is not running") {
 			errs = append(errs, err)
 		}
 

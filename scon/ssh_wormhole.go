@@ -26,19 +26,9 @@ Images are read-only. You can make changes in this session, but they will NOT be
 
 `
 
-const wormholeImageDiffWarning = `
-
-Image changes have been discarded.
-`
-
 const wormholeContainerWriteWarning = `WARNING: Support for containerd image store is experimental.
 You can debug stopped containers, but saving changes is NOT yet supported.
 
-`
-
-const wormholeContainerDiffWarning = `
-
-Container changes have been discarded.
 `
 
 func ptyWarning(isPty bool, message string) string {
@@ -364,7 +354,7 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 		defer params.resp.FanotifyFile.Close()
 	}
 	defer func() {
-		resp, err := UseAgentRet(container, func(a *agent.Client) (*agent.EndWormholeResponse, error) {
+		err := container.UseAgent(func(a *agent.Client) error {
 			return a.DockerEndWormhole(agent.EndWormholeArgs{
 				State: params.resp.State,
 			})
@@ -372,15 +362,6 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 		if err != nil {
 			logrus.WithError(err).Error("end wormhole session failed")
 			return
-		}
-
-		if resp.HasDiff {
-			if params.resp.WarnImageWrite {
-				_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, wormholeImageDiffWarning))
-			}
-			if params.resp.WarnContainerWrite {
-				_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, wormholeContainerDiffWarning))
-			}
 		}
 	}()
 
