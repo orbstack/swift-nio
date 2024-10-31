@@ -3,6 +3,7 @@ use std::{fs, path::Path};
 use nix::{
     errno::Errno,
     mount::{mount, umount2, MntFlags, MsFlags},
+    unistd::ROOT,
 };
 use tracing::trace;
 
@@ -55,6 +56,23 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     mount::<str, str, Path, Path>(
         Some(ROOTFS),
         WORMHOLE_UNIFIED,
+        None,
+        MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
+        None,
+    )?;
+
+    // copy over the initial wormhole-rootfs nix store containing base packges into .base
+    trace!("creating ro nix store mount");
+    mount::<str, str, Path, Path>(
+        Some(format!("{}/nix/store", ROOTFS).as_str()),
+        format!("{}/nix/orb/sys/.base", WORMHOLE_UNIFIED).as_str(),
+        None,
+        MsFlags::MS_BIND,
+        None,
+    )?;
+    mount::<str, str, Path, Path>(
+        Some(format!("{}/nix/store", ROOTFS).as_str()),
+        format!("{}/nix/orb/sys/.base", WORMHOLE_UNIFIED).as_str(),
         None,
         MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
         None,
