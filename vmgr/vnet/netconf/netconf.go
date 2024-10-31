@@ -64,8 +64,8 @@ const (
 // 198.19.249.0/24
 // fd07:b5a:cc66:0:a834:cdb8:ee73::/112
 const (
-	DomainproxySubnet4Cidr = "198.19.248.0/24"
-	DomainproxySubnet6Cidr = "fd07:b51a:cc66:0:a834:cdb8:ee73::/112"
+	DomainproxySubnet4CIDR = "198.19.248.0/24"
+	DomainproxySubnet6CIDR = "fd07:b51a:cc66:0:a834:cdb8:ee73::/112"
 )
 
 // static ARP/neighbors to save CPU

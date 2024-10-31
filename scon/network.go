@@ -146,8 +146,8 @@ func (n *Network) Start() error {
 		"SCON_SUBNET6":                      netconf.SconSubnet6CIDR,
 		"VNET_SUBNET4":                      netconf.VnetSubnet4CIDR,
 		"VNET_SUBNET6":                      netconf.VnetSubnet6CIDR,
-		"DOMAINPROXY_SUBNET4":               netconf.DomainproxySubnet4Cidr,
-		"DOMAINPROXY_SUBNET6":               netconf.DomainproxySubnet6Cidr,
+		"DOMAINPROXY_SUBNET4":               netconf.DomainproxySubnet4CIDR,
+		"DOMAINPROXY_SUBNET6":               netconf.DomainproxySubnet6CIDR,
 
 		"IFGROUP_ISOLATED": strconv.Itoa(netconf.VmIfGroupIsolated),
 

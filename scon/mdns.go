@@ -56,8 +56,8 @@ const (
 
 var (
 	nat64Prefix              = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
-	domainproxySubnet4Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet4Cidr)
-	domainproxySubnet6Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet6Cidr)
+	domainproxySubnet4Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
+	domainproxySubnet6Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
 
 	sconHostBridgeIP4 = net.ParseIP(netconf.SconHostBridgeIP4)
 	sconHostBridgeIP6 = net.ParseIP(netconf.SconHostBridgeIP6)

@@ -440,12 +440,12 @@ func (d *domainproxyInfo) ensureMachineDomainproxyCorrectLocked(names []string, 
 }
 
 func setupDomainProxyInterface(mtu int) error {
-	_, domainproxySubnet4, err := net.ParseCIDR(netconf.DomainproxySubnet4Cidr)
+	_, domainproxySubnet4, err := net.ParseCIDR(netconf.DomainproxySubnet4CIDR)
 	if err != nil {
 		return err
 	}
 
-	_, domainproxySubnet6, err := net.ParseCIDR(netconf.DomainproxySubnet6Cidr)
+	_, domainproxySubnet6, err := net.ParseCIDR(netconf.DomainproxySubnet6CIDR)
 	if err != nil {
 		return err
 	}

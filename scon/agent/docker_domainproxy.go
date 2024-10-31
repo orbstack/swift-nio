@@ -32,8 +32,8 @@ func replaceIPBase(ip netip.Addr, base netip.Prefix) netip.Addr {
 }
 
 func (d *DockerAgent) startDomaintproxy() error {
-	domainproxySubnet4Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet4Cidr)
-	domainproxySubnet6Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet6Cidr)
+	domainproxySubnet4Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
+	domainproxySubnet6Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
 
 	getMark := func(upstream domainproxytypes.DomainproxyUpstream) int {
 		return netconf.DockerFwmarkTproxyOutbound
