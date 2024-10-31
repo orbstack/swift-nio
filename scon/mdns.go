@@ -841,12 +841,7 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if ip, has := r.domainproxy.nameMap4[name]; has {
-		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
-	}
-	if ip, has := r.domainproxy.nameMap6[name]; has {
-		r.domainproxy.setAddrLocked(ip, domainproxytypes.DomainproxyUpstream{IP: nil})
-	}
+	r.domainproxy.freeNamesLocked([]string{name})
 
 	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
 	treeKey := toTreeKey(name)

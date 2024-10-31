@@ -100,22 +100,24 @@ func (d *domainproxyInfo) setAddrLocked(ip netip.Addr, val domainproxytypes.Doma
 
 						if ip.Is4() {
 							err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v }", ip))
-						}
-						if ip.Is6() {
-							err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v }", ip))
-						}
-						if err != nil {
-							return struct{}{}, err
+							if err != nil {
+								return struct{}{}, err
+							}
+							err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
+							if err != nil {
+								return struct{}{}, err
+							}
 						}
 
-						if ip.Is4() {
-							err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
-						}
 						if ip.Is6() {
+							err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v }", ip))
+							if err != nil {
+								return struct{}{}, err
+							}
 							err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
-						}
-						if err != nil {
-							return struct{}{}, err
+							if err != nil {
+								return struct{}{}, err
+							}
 						}
 
 						return struct{}{}, nil
@@ -179,22 +181,24 @@ func (d *domainproxyInfo) setAddrLocked(ip netip.Addr, val domainproxytypes.Doma
 				var err error
 				if ip.Is4() {
 					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v : %v }", ip, val.IP))
-				}
-				if ip.Is6() {
-					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v : %v }", ip, val.IP))
-				}
-				if err != nil {
-					return struct{}{}, err
+					if err != nil {
+						return struct{}{}, err
+					}
+					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
+					if err != nil {
+						return struct{}{}, err
+					}
 				}
 
-				if ip.Is4() {
-					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
-				}
 				if ip.Is6() {
+					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v : %v }", ip, val.IP))
+					if err != nil {
+						return struct{}{}, err
+					}
 					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
-				}
-				if err != nil {
-					return struct{}{}, err
+					if err != nil {
+						return struct{}{}, err
+					}
 				}
 
 				return struct{}{}, nil
