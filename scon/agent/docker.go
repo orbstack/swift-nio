@@ -324,6 +324,11 @@ func (d *DockerAgent) PostStart() error {
 
 	// use policy accept on FORWARD
 	go func() {
+		// docker sets ipv6 forward policy to drop here: <https://github.com/moby/moby/blob/b186261b8458f862c2e23b458284bfcbe5329229/cmd/dockerd/daemon.go#L255>
+		// we need ipv6 forward policy to be accept for domainproxy, so we set it back to accept
+		// we need to make sure we don't race with docker. docker starts accepting on the unix socket too early for us to use WaitForSocketConnectible
+		// another way would be using sdnotify, but we don't currently have any way to forward that from simplevisor to the agent
+		// but this also works, because docker only starts actually handling api requests late enough
 		util.WaitForApiRunning(dockerAPISocketUpstream)
 
 		err := util.Run("ip6tables", "-P", "FORWARD", "ACCEPT")
@@ -552,16 +557,16 @@ func (d *DockerAgent) monitorEvents() error {
 
 		case "network":
 			switch event.Action {
-			case "connect":
-				if event.Actor.Attributes.Type == "bridge" {
-					d.networkRefreshDebounce.Call()
-					d.onNetworkConnected(event.Actor.ID)
-				}
 			// "connect" and "disconnect" for dynamic bridge creation depending on active containers
 			case "create", "destroy", "disconnect":
 				// we only care about bridges
 				if event.Actor.Attributes.Type == "bridge" {
 					d.networkRefreshDebounce.Call()
+				}
+			case "connect":
+				if event.Actor.Attributes.Type == "bridge" {
+					d.networkRefreshDebounce.Call()
+					d.onNetworkConnected(event.Actor.ID)
 				}
 			}
 		}
@@ -574,7 +579,7 @@ func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
 }
 
 func (a *AgentServer) DockerOnVmconfigUpdate(config *vmconfig.VmConfig, _ *None) error {
-	// return a.docker.OnVmconfigUpdate(config)
+	// this used to be a hook for docker_tlsproxy, but is no longer needed
 	return nil
 }
 

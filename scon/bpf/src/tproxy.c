@@ -20,10 +20,6 @@
 
 #define IP4(a, b, c, d) (bpf_htonl((a << 24) | (b << 16) | (c << 8) | d))
 
-// 198.19.248.0
-#define DOMAINPROXY_SUBNET4 IP4(198, 19, 248, 0)
-#define DOMAINPROXY_SUBNET4_MASK bpf_htonl(0xffffff00)
-
 const volatile __u8  config_tproxy_subnet4_enabled = 0; // bool
 const volatile __u32 config_tproxy_subnet4_ip = 0; // network order
 const volatile __u32 config_tproxy_subnet4_mask = 0xffffffff; // network order
@@ -31,6 +27,7 @@ const volatile __u8  config_tproxy_subnet6_enabled = 0; // bool
 const volatile __u32 config_tproxy_subnet6_ip[4] = {0, 0, 0, 0}; // network order
 const volatile __u32 config_tproxy_subnet6_mask[4] = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff}; // network order
 
+// 0 port means any port
 const volatile __u16 config_tproxy_port = 0; // host order
 
 const volatile __u32 config_tproxy_socket_key4 = 0;
@@ -75,7 +72,6 @@ int tproxy_sk_lookup(struct bpf_sk_lookup *ctx) {
 
         sk = bpf_map_lookup_elem(&tproxy_socket, (const void*) &config_tproxy_socket_key6);
     }
-
 
     if (!sk) {
         return SK_PASS;

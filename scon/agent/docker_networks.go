@@ -312,6 +312,8 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		}
 	}
 
+	// if we only have this run on network connect, we miss containers that were attached on startup
+	// this sets the bridges to allow hairpin so that domainproxy works from the same container to itself
 	err = setAllBridgeportHairpin(dockerNetworkToInterfaceName(&network))
 	if err != nil {
 		logrus.WithError(err).Error("unable to set all bridgeports to hairpin")
@@ -396,6 +398,7 @@ func (d *DockerAgent) onNetworkConnected(id string) {
 		return
 	}
 
+	// this sets the bridges to allow hairpin so that domainproxy works from the same container to itself
 	err = setAllBridgeportHairpin(dockerNetworkToInterfaceName(&network))
 	if err != nil {
 		logrus.WithError(err).Error("unable to set all bridgeports to hairpin")

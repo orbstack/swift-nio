@@ -41,12 +41,17 @@ func runLxcNetIfUp(isIsolated bool) {
 		check(err)
 	}
 
+	// we need hairpin on bridges so that domainproxy works from a machine to itself
 	err = netlink.LinkSetHairpin(link, true)
 	check(err)
 
+	// we don't want to generate any link local addresses on the bridgeports
 	err = os.WriteFile("/proc/sys/net/ipv6/conf/"+ifName+"/addr_gen_mode", []byte("1"), 0)
 	check(err)
 
+	// we need ipv6 enabled on the bridgeports because broute means iif gets attributed to the bridgeports
+	// broute is needed to make hairpin work
+	// if ipv6 is disabled, ipv6 packets automatically get dropped
 	err = os.WriteFile("/proc/sys/net/ipv6/conf/"+ifName+"/disable_ipv6", []byte("0"), 0)
 	check(err)
 }

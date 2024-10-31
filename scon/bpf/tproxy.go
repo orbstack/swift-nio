@@ -46,6 +46,7 @@ func ipv6BitsToMaskUint32Array(bits int) [4]uint32 {
 	}
 }
 
+// 0 port means any port, invalid netip.Prefix means disabled
 func NewTproxy(subnet4 netip.Prefix, subnet6 netip.Prefix, port uint16) (*Tproxy, error) {
 	spec, err := loadTproxy()
 	if err != nil {
@@ -53,11 +54,11 @@ func NewTproxy(subnet4 netip.Prefix, subnet6 netip.Prefix, port uint16) (*Tproxy
 	}
 
 	// these are already big endian so we do native endian to keep them that way. if we specified big endian it would make it into host order
-	subnet4Enabled := subnet4 != netip.Prefix{}
+	subnet4Enabled := subnet4.IsValid()
 	subnet4IP := ipv4AddrToUint32(subnet4.Addr())
 	subnet4Mask := ipv4BitsToMaskUint32(subnet4.Bits())
 
-	subnet6Enabled := subnet6 != netip.Prefix{}
+	subnet6Enabled := subnet6.IsValid()
 	subnet6IP := ipv6AddrToUint32Array(subnet6.Addr())
 	subnet6Mask := ipv6BitsToMaskUint32Array(subnet6.Bits())
 

@@ -469,6 +469,7 @@ async fn setup_network() -> anyhow::Result<()> {
         .unwrap();
     ip_link.set(lo.header.index).up().execute().await?;
 
+    // this table lets us do src spoofing for tproxy. we use this table to hijack response packets to localhost so we can receive them.
     // ip route add local default dev lo table 32
     ip_route
         .add()

@@ -426,11 +426,7 @@ func (c *Container) configureLxc() error {
 		set("lxc.net.0.hwaddr", mac)
 		set("lxc.net.0.flags", "up")
 		// set nat hairpin and set interface group for isolated containers
-		isIsolatedString := "false"
-		if c.config.Isolated {
-			isIsolatedString = "true"
-		}
-		set("lxc.net.0.script.up", fmt.Sprintf("%s %s %s %s %s", exePath, cmdLxcHook, lxcHookNetIfUp, c.ID, isIsolatedString))
+		set("lxc.net.0.script.up", fmt.Sprintf("%s %s %s %s %s", exePath, cmdLxcHook, lxcHookNetIfUp, c.ID, strconv.FormatBool(c.config.Isolated)))
 
 		// rlimit
 		// lower soft limit to avoid slowing down programs that iterate through and close full fd range, but not so low (1024)

@@ -437,10 +437,11 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
     }
 
     // mark and re-inject
+    // we exempt traffic destined for the domainproxy subnet because that gets dnat'd and marked in ovm nftables
     if (!matches_subnet4(ip.daddr, DOMAINPROXY_SUBNET4, DOMAINPROXY_SUBNET4_MASK)) {
         skb->mark = FWMARK_DOCKER_ROUTE; // route to docker machine (via ip rule)
     }
-	return bpf_redirect(skb->ifindex, BPF_F_INGRESS);
+    return bpf_redirect(skb->ifindex, BPF_F_INGRESS);
 }
 
 // no address checking in this path. non-translated packet can't get here b/c routing
