@@ -33,7 +33,8 @@ type StartWormholeResponse struct {
 	Env        []string
 
 	// if we created a container/image, return ID so caller can clean up
-	State WormholeSessionState
+	State      WormholeSessionState
+	SwitchRoot bool
 
 	FdxSeq uint64
 }
@@ -113,22 +114,82 @@ func makeContainerStartFanotify(workDir string) (int, error) {
 	return fanFd, nil
 }
 
-func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJSON) (string, string, error) {
+// TODO: port to old mount API (need v6.7+ to append lowerdirs)
+func makeOverlayMount(lowerDir, upperDir, workDir string) (retFd int, retErr error) {
+	fsFd, err := unix.Fsopen("overlay", unix.FSOPEN_CLOEXEC)
+	if err != nil {
+		return 0, fmt.Errorf("fsopen: %w", err)
+	}
+	defer unix.Close(fsFd)
+
+	err = unix.FsconfigSetString(fsFd, "source", "overlay")
+	if err != nil {
+		return 0, fmt.Errorf("set source: %w", err)
+	}
+
+	// set all in order
+	// FSCONFIG_SET_STRING is limited to 256 bytes per value, so add dirs one by one
+	for _, lower := range strings.Split(lowerDir, ":") {
+		err = unix.FsconfigSetString(fsFd, "lowerdir+", lower)
+		if err != nil {
+			return 0, fmt.Errorf("set lowerdir: %w", err)
+		}
+	}
+
+	err = unix.FsconfigSetString(fsFd, "upperdir", upperDir)
+	if err != nil {
+		return 0, fmt.Errorf("set upperdir: %w", err)
+	}
+
+	err = unix.FsconfigSetString(fsFd, "workdir", workDir)
+	if err != nil {
+		return 0, fmt.Errorf("set workdir: %w", err)
+	}
+
+	err = unix.FsconfigCreate(fsFd)
+	if err != nil {
+		return 0, fmt.Errorf("create overlay: %w", err)
+	}
+
+	// docker doesn't use any mount attrs (default = rw,relatime)
+	mountFd, err := unix.Fsmount(fsFd, unix.FSMOUNT_CLOEXEC, 0)
+	if err != nil {
+		return 0, fmt.Errorf("fsmount: %w", err)
+	}
+
+	return mountFd, nil
+}
+
+func (d *DockerAgent) maybeSetContainerMode(mode string) string {
+	if strings.HasPrefix(mode, "container:") {
+		netCID := strings.TrimPrefix(mode, "container:")
+		if netCtr, err := d.client.InspectContainer(netCID); err == nil && netCtr.State.Running {
+			return mode
+		}
+	}
+	return ""
+}
+
+func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJSON) (_containerID string, _imageID string, retErr error) {
 	// first, commit the container's FS changes to an image so that they show up
 	imageID, err := d.client.CommitContainer(ctr.ID)
 	if err != nil {
 		return "", "", err
 	}
+	defer func() {
+		if retErr != nil {
+			err := d.client.RemoveImage(imageID, true)
+			if err != nil {
+				retErr = errors.Join(retErr, err)
+			}
+		}
+	}()
 
-	// make a new container that copies most properties from the original container
-	containerID, err := d.client.RunContainer(dockerclient.RunContainerOptions{
-		Name: randomContainerName(),
-	}, &dockertypes.ContainerConfig{
+	newCfg := &dockertypes.ContainerConfig{
 		// exact SHA256 of committed image
 		Image: imageID,
 
 		// copy relevant config properties
-		Hostname:        ctr.Config.Hostname,
 		Domainname:      ctr.Config.Domainname,
 		User:            ctr.Config.User,
 		Env:             ctr.Config.Env,
@@ -154,7 +215,6 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 			VolumesFrom: []string{ctr.ID},
 
 			// copy relevant host config properties
-			// TODO: consider fallback if Net/IPC/*Mode fails due to dependent container being stopped too
 			CpuShares:            ctr.HostConfig.CpuShares,
 			Memory:               ctr.HostConfig.Memory,
 			CgroupParent:         ctr.HostConfig.CgroupParent,
@@ -185,30 +245,24 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 			CpuPercent:           ctr.HostConfig.CpuPercent,
 			IOMaximumIOps:        ctr.HostConfig.IOMaximumIOps,
 			IOMaximumBandwidth:   ctr.HostConfig.IOMaximumBandwidth,
-			NetworkMode:          ctr.HostConfig.NetworkMode,
 			VolumeDriver:         ctr.HostConfig.VolumeDriver,
 			ConsoleSize:          ctr.HostConfig.ConsoleSize,
 			CapAdd:               ctr.HostConfig.CapAdd,
 			CapDrop:              ctr.HostConfig.CapDrop,
-			CgroupnsMode:         ctr.HostConfig.CgroupnsMode,
 			Dns:                  ctr.HostConfig.Dns,
 			DnsOptions:           ctr.HostConfig.DnsOptions,
 			DnsSearch:            ctr.HostConfig.DnsSearch,
 			ExtraHosts:           ctr.HostConfig.ExtraHosts,
 			GroupAdd:             ctr.HostConfig.GroupAdd,
-			IpcMode:              ctr.HostConfig.IpcMode,
 			Cgroup:               ctr.HostConfig.Cgroup,
 			Links:                ctr.HostConfig.Links,
 			OomScoreAdj:          ctr.HostConfig.OomScoreAdj,
-			PidMode:              ctr.HostConfig.PidMode,
 			Privileged:           ctr.HostConfig.Privileged,
 			PublishAllPorts:      ctr.HostConfig.PublishAllPorts,
 			ReadonlyRootfs:       ctr.HostConfig.ReadonlyRootfs,
 			SecurityOpt:          ctr.HostConfig.SecurityOpt,
 			StorageOpt:           ctr.HostConfig.StorageOpt,
 			Tmpfs:                ctr.HostConfig.Tmpfs,
-			UTSMode:              ctr.HostConfig.UTSMode,
-			UsernsMode:           ctr.HostConfig.UsernsMode,
 			ShmSize:              ctr.HostConfig.ShmSize,
 			Sysctls:              ctr.HostConfig.Sysctls,
 			Runtime:              ctr.HostConfig.Runtime,
@@ -227,7 +281,27 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 		// not included: Volumes (handled by Volumes From), MacAddress (deprecated; moved to NetworkingConfig)
 
 		// TODO: NetworkingConfig
-	})
+	}
+
+	// only copy NetworkMode if the netns source container is running
+	// can't attach to netns of a stopped container
+	newCfg.HostConfig.NetworkMode = d.maybeSetContainerMode(ctr.HostConfig.NetworkMode)
+	// same applies to CgroupnsMode, IpcMode, PidMode, UTSMode, UsernsMode
+	newCfg.HostConfig.CgroupnsMode = d.maybeSetContainerMode(ctr.HostConfig.CgroupnsMode)
+	newCfg.HostConfig.IpcMode = d.maybeSetContainerMode(ctr.HostConfig.IpcMode)
+	newCfg.HostConfig.PidMode = d.maybeSetContainerMode(ctr.HostConfig.PidMode)
+	newCfg.HostConfig.UTSMode = d.maybeSetContainerMode(ctr.HostConfig.UTSMode)
+	newCfg.HostConfig.UsernsMode = d.maybeSetContainerMode(ctr.HostConfig.UsernsMode)
+
+	// Hostname is not allowed if NetworkMode is set to another container
+	if !strings.HasPrefix(newCfg.HostConfig.NetworkMode, "container:") {
+		newCfg.Hostname = ctr.Config.Hostname
+	}
+
+	// make a new container that copies most properties from the original container
+	containerID, err := d.client.RunContainer(dockerclient.RunContainerOptions{
+		Name: randomContainerName(),
+	}, newCfg)
 	if err != nil {
 		return "", "", err
 	}
@@ -236,13 +310,14 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 }
 
 // prep: get container's init pid and open its rootfs dirfd
-func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartWormholeResponse) error {
+func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartWormholeResponse) (retErr error) {
 	var initPid int
 	var workingDir string
 	var env []string
 	var state WormholeSessionState
 	rootfsFd := -1
 	fanotifyFd := -1
+	switchRoot := false
 	if conf.Debug() && args.Target == sshtypes.WormholeIDDocker {
 		// debug only: wormhole for docker machine (ovm)
 		initPid = 1
@@ -255,6 +330,7 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 			var apiErr *dockerclient.APIError
 			if errors.As(err, &apiErr) && apiErr.HTTPStatus == 404 {
 				// container not found. try interpreting target as an image and creating a container from it
+				// TODO: warn that img writes won't persist. if diff=true, print warning at exit too
 				state.CreatedContainerID, err = a.docker.createWormholeImageContainer(args.Target)
 				if err != nil {
 					if errors.Is(err, errNoSuchImage) {
@@ -288,12 +364,35 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 			if err != nil {
 				return err
 			}
+			defer func() {
+				if retErr != nil {
+					err := a.DockerEndWormhole(&EndWormholeArgs{State: state}, nil)
+					if err != nil {
+						retErr = errors.Join(retErr, err)
+					}
+				}
+			}()
 
-			fanotifyFd, err = makeContainerStartFanotify(ctr.GraphDriver.Data["WorkDir"])
-			if err != nil {
-				return fmt.Errorf("make fanotify: %w", err)
+			// with overlay2 graph driver, we can use the real overlay dirs for live read and write
+			if ctr.GraphDriver.Name == "overlay2" {
+				// create overlay mount
+				rootfsFd, err = makeOverlayMount(ctr.GraphDriver.Data["LowerDir"], ctr.GraphDriver.Data["UpperDir"], ctr.GraphDriver.Data["WorkDir"])
+				if err != nil {
+					return fmt.Errorf("mount overlay: %w", err)
+				}
+				defer unix.Close(rootfsFd)
+				switchRoot = true
+
+				// TODO: fix tiny race by creating fanotify first. requires that we start monitoring immediately to avoid deadlock on overlay mount
+				fanotifyFd, err = makeContainerStartFanotify(ctr.GraphDriver.Data["WorkDir"])
+				if err != nil {
+					return fmt.Errorf("make fanotify: %w", err)
+				}
+				defer unix.Close(fanotifyFd)
+			} else {
+				// TODO: warn that changes won't persist
+				// TODO: fallback using diff + tar (for remote)
 			}
-			defer unix.Close(fanotifyFd)
 
 			ctr, err = a.docker.client.InspectContainer(state.CreatedContainerID)
 			if err != nil {
@@ -339,6 +438,7 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 		WorkingDir: workingDir,
 		Env:        env,
 		State:      state,
+		SwitchRoot: switchRoot,
 		FdxSeq:     fdxSeq,
 	}
 
@@ -346,11 +446,13 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 }
 
 func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *None) error {
+	var errs []error
+
 	// delete container using auto-remove
 	if args.State.CreatedContainerID != "" {
 		err := a.docker.client.KillContainer(args.State.CreatedContainerID)
 		if err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 
@@ -358,9 +460,9 @@ func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *None) erro
 	if args.State.CreatedImageID != "" {
 		err := a.docker.client.RemoveImage(args.State.CreatedImageID, true)
 		if err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }

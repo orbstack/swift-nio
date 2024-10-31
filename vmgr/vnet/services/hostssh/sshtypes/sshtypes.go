@@ -20,6 +20,7 @@ type SshMeta struct {
 type WormholeConfig struct {
 	// renamed for obfuscation, as this may be user-visible
 	InitPid             int    `json:"a"`
+	RootfsFd            int    `json:"i,omitempty"`
 	WormholeMountTreeFd int    `json:"b"`
 	ExitCodePipeWriteFd int    `json:"c"`
 	LogFd               int    `json:"d"`

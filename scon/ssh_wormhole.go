@@ -23,6 +23,7 @@ import (
 func handleFanotify(fanFile *os.File, event *unix.FanotifyEventMetadata, accessCb func()) (bool, error) {
 	defer unix.Close(int(event.Fd))
 
+	// works for both
 	isDocker := false
 	if event.Mask&unix.FAN_OPEN_PERM != 0 {
 		// if requester is dockerd, call access callback
@@ -196,15 +197,20 @@ func (sv *SshServer) startWormholeProcess(s ssh.Session, cmd *agent.AgentCommand
 
 		EntryShellCmd: shellCmd,
 	}
-	configBytes, err := json.Marshal(config)
-	if err != nil {
-		return nil, err
-	}
 
 	cmd.User = ""
 	cmd.DoLogin = false
 	cmd.ReplaceShell = false
 	cmd.ExtraFiles = []*os.File{wormholeMountFile, exitCodePipeWrite, logPipeWrite}
+	if params.resp.SwitchRoot {
+		cmd.ExtraFiles = append(cmd.ExtraFiles, params.resp.RootfsFile)
+		config.RootfsFd = 6 // starting at 3
+	}
+
+	configBytes, err := json.Marshal(config)
+	if err != nil {
+		return nil, err
+	}
 	cmd.CombinedArgs = []string{mounts.WormholeAttach, string(configBytes)}
 	// for debugging (not passed through to payload)
 	cmd.Env.SetPair("RUST_BACKTRACE=full")
@@ -252,6 +258,7 @@ func (sv *SshServer) waitForWormholeProcess(s ssh.Session, cmd *agent.AgentComma
 				// this makes sure that *all* mount refs have been released
 				processWg.Wait()
 
+				// TODO write a message to pty
 				logrus.Debug("container start granted")
 			})
 			if err != nil {
@@ -323,7 +330,9 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 	if err != nil {
 		return true /*printErr*/, err
 	}
-	defer params.resp.FanotifyFile.Close()
+	if params.resp.FanotifyFile != nil {
+		defer params.resp.FanotifyFile.Close()
+	}
 
 	initPidfd := agent.WrapPidfdFile(params.resp.InitPidfdFile)
 	defer initPidfd.Close()
