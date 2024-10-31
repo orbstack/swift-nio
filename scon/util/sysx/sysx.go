@@ -5,6 +5,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/orbstack/macvirt/scon/util"
 	"golang.org/x/sys/unix"
 )
 
@@ -64,4 +65,14 @@ func Swapoff(path string) error {
 	}
 
 	return nil
+}
+
+func DupFile(f *os.File) (*os.File, error) {
+	return util.UseFile1(f, func(fd int) (*os.File, error) {
+		fd2, err := unix.FcntlInt(uintptr(fd), unix.F_DUPFD_CLOEXEC, 3) // skip stdio
+		if err != nil {
+			return nil, err
+		}
+		return os.NewFile(uintptr(fd2), f.Name()), nil
+	})
 }

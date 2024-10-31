@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"unsafe"
@@ -14,6 +16,7 @@ import (
 	"github.com/gliderlabs/ssh"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/util/sysx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
@@ -76,20 +79,60 @@ func handleFanotify(fanFile *os.File, event *unix.FanotifyEventMetadata, accessC
 	return isDocker, nil
 }
 
-func waitForAccess(fanFile *os.File, accessCb func()) error {
-	// as long as all fd usage is pfd-wrapped, we can use Close() to cancel the nonblocking read(), and double close (by defer Close() in handleWormhole) is ok
+func waitForAccess(ctx context.Context, fanFile *os.File, accessCb func()) error {
 	defer fanFile.Close()
+
+	// pipe for stop signal
+	r, w, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	defer w.Close()
+
+	go func() {
+		<-ctx.Done()
+		_ = w.Close()
+	}()
 
 	var buf [1024]byte
 	for {
+		for {
+			fds := [...]unix.PollFd{
+				{
+					Fd:     int32(w.Fd()),
+					Events: unix.POLLIN,
+				},
+				{
+					Fd:     int32(fanFile.Fd()),
+					Events: unix.POLLIN,
+				},
+			}
+			n, err := unix.Poll(fds[:], -1)
+			runtime.KeepAlive(w)
+			runtime.KeepAlive(fanFile)
+			if err != nil {
+				if err == unix.EINTR {
+					continue
+				} else {
+					return fmt.Errorf("poll: %w", err)
+				}
+			}
+			for _, fd := range fds[:n] {
+				if fd.Revents&unix.POLLHUP != 0 {
+					// stopped
+					return nil
+				}
+			}
+			if n > 0 {
+				// data
+				break
+			}
+		}
+
 		n, err := fanFile.Read(buf[:])
 		if err != nil {
-			if errors.Is(err, os.ErrClosed) {
-				// race with session end
-				return nil
-			} else {
-				return fmt.Errorf("fanotify read: %w", err)
-			}
+			return fmt.Errorf("fanotify read: %w", err)
 		}
 
 		// parse events
@@ -254,9 +297,15 @@ func (sv *SshServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeT
 	var processWg sync.WaitGroup
 	processWg.Add(1)
 	if fanotifyFile != nil {
+		// make an owned copy here so this is unaffected by the deferred close
+		ownedFanFile, err := sysx.DupFile(fanotifyFile)
+		if err != nil {
+			return fmt.Errorf("dup fanotify: %w", err)
+		}
+
 		go func() {
 			logrus.Debug("waiting for container start access")
-			err := waitForAccess(fanotifyFile, func() {
+			err := waitForAccess(s.Context(), ownedFanFile, func() {
 				logrus.Info("container start detected, killing wormhole session")
 				_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, fmt.Sprintf("\n\nContainer '%s' is starting or being deleted.\nEnding Debug Shell session.\n", wormholeTarget)))
 
