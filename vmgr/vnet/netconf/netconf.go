@@ -184,9 +184,13 @@ const K8sCorednsIP4 = "192.168.194.138"
 // should be random to avoid conflict with user programs
 const (
 	// avoid conflict with flannel masquerade rule for 0x2000/0x2000
-	DockerFwmarkTproxy         = 0x7d8a0000
+	// packets that should be directed are ctmarked with this so we can hijack them to lo with local route
+	DockerFwmarkTproxy = 0x7d8a0000
+	// this mark is set with SO_MARK on outbound connections made by tlsproxy
+	// this lets us hijack the response packets back to us
 	DockerFwmarkTproxyOutbound = 0x9f7a0000
-	DockerFwmarkLocalRoute     = 0xb3c60000
+	// packets with this mark are hijcked to lo
+	DockerFwmarkLocalRoute = 0xb3c60000
 )
 
 const (
@@ -198,10 +202,18 @@ const (
 const (
 	VmIfGroupIsolated = 1
 
-	VmFwmarkDockerRouteBit       = 1 << 0
-	VmFwmarkLocalRouteBit        = 1 << 1
-	VmFwmarkTproxyBit            = 1 << 2
-	VmFwmarkTproxyOutboundBit    = 1 << 3
-	VmFwmarkIsolatedBit          = 1 << 4
+	// packets with this mark bit are routed to the docker machine
+	VmFwmarkDockerRouteBit = 1 << 0
+	// packets with this mark bit are hijacked to lo
+	VmFwmarkLocalRouteBit = 1 << 1
+	// packets with this ctmark bit are accepted. used to identify traffic headed to tlsproxy
+	VmFwmarkTproxyBit = 1 << 2
+	// this mark bit is set with SO_MARK on outbound connections made by tlsproxy
+	// this lets us hijack the response packets back to us
+	VmFwmarkTproxyOutboundBit = 1 << 3
+	// this mark bit is used to identify traffic from isolated machines
+	VmFwmarkIsolatedBit = 1 << 4
+	// this bit is set when traffic from a machine needs to be routed back to that machine
+	// it needs to be masqueraded so that replies will pass back through ovm
 	VmFwmarkHairpinMasqueradeBit = 1 << 5
 )

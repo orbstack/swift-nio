@@ -606,6 +606,9 @@ async fn setup_network() -> anyhow::Result<()> {
         .await
         .unwrap();
     // egress route from Docker machine back to BPF eth1
+    // return packets from docker keep the docker route mark because it's stored using conntrack
+    // so, this needs to be in the docker routing table
+    // in the future, the docker routing table should pass through all non-docker ips and only route real docker ips to docker machine
     // ip route add 10.183.233.241 dev eth1 table 64
     ip_route
         .add()
