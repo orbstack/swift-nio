@@ -490,6 +490,7 @@ async fn setup_network() -> anyhow::Result<()> {
         .execute()
         .await?;
 
+    // this table lets us hijack traffic to lo. used for tproxy
     // ip rule add fwmark 0x2 fwmask 0x2 table 32
     {
         let mut rule_add = ip_rule
