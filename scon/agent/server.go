@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"net/rpc"
@@ -209,7 +210,11 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// catch and ignore signals, so children exit first and rpc wait works better
 	sigCh := make(chan os.Signal, 1)
 	// TODO: catch SIGTERM and kill child processes so scon ssh can call wait() and read exit codes
-	signal.Notify(sigCh, unix.SIGINT, unix.SIGQUIT, stopWarningSignal)
+	listenSignals := []os.Signal{unix.SIGINT, unix.SIGQUIT, stopWarningSignal}
+	if conf.Debug() {
+		listenSignals = append(listenSignals, unix.SIGUSR1)
+	}
+	signal.Notify(sigCh, listenSignals...)
 	go func() {
 		for signal := range sigCh {
 			switch signal {
@@ -221,6 +226,12 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 						logrus.WithError(err).Error("docker on-stop failed")
 					}
 				}
+
+			// debug mode: dump goroutine stacks
+			case unix.SIGUSR1:
+				buf := make([]byte, 1048576)
+				n := runtime.Stack(buf, true)
+				fmt.Printf("\n------------CUT------------\n%s\n------------CUT------------\n", string(buf[:n]))
 			}
 		}
 	}()
