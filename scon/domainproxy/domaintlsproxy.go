@@ -29,7 +29,7 @@ import (
 type MdnsContextKey int
 
 const (
-	MdnsContextKeyDownstream = MdnsContextKey(iota)
+	MdnsContextKeyDownstream MdnsContextKey = iota
 )
 
 type GetUpstreamFunc func(host string, v4 bool) (netip.Addr, domainproxytypes.DomainproxyUpstream, error)
@@ -81,6 +81,7 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) e
 			var err2 error
 			err := c.Control(func(fd uintptr) {
 				// Go sets SO_REUSEADDR by default
+				// we need IP_TRANSPARENT to be able to receive packets destined to a non-local ip, even though we're assigning this socket with bpf
 				err2 = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
 			})
 			if err != nil {
@@ -105,20 +106,24 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) e
 		return fmt.Errorf("tls domainproxy: failed to create tproxy bpf: %w", err)
 	}
 
-	ln4File, err := ln4.(*net.TCPListener).File()
+	ln4RawConn, err := ln4.(syscall.Conn).SyscallConn()
 	if err != nil {
-		return fmt.Errorf("failed to get file from listener: %w", err)
+		return fmt.Errorf("failed to get rawconn from listener: %w", err)
 	}
-	err = tproxy.SetSock4(uint64(ln4File.Fd()))
+	err = util.UseRawConn(ln4RawConn, func(fd int) error {
+		return tproxy.SetSock4(uint64(fd))
+	})
 	if err != nil {
 		return fmt.Errorf("failed to set tproxy socket: %w", err)
 	}
 
-	ln6File, err := ln6.(*net.TCPListener).File()
+	ln6RawConn, err := ln6.(syscall.Conn).SyscallConn()
 	if err != nil {
 		return fmt.Errorf("failed to get file from listener: %w", err)
 	}
-	err = tproxy.SetSock6(uint64(ln6File.Fd()))
+	err = util.UseRawConn(ln6RawConn, func(fd int) error {
+		return tproxy.SetSock6(uint64(fd))
+	})
 	if err != nil {
 		return fmt.Errorf("failed to set tproxy socket: %w", err)
 	}
@@ -323,6 +328,7 @@ func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string)
 	}
 
 	// fall back to normal dialer
+	// namely, this is used for hairpin, ie when a machine makes a request to its own domainproxy ip
 	dialer := &net.Dialer{}
 	if downstreamIP, ok := downstreamIP.(net.IP); ok && downstreamIP != nil && !downstreamIP.Equal(upstream.IP) {
 		dialer = dialerForTransparentBind(downstreamIP, p.getMark(upstream))

@@ -424,23 +424,21 @@ func (e mdnsEntry) ToRecordsLocked(qName string, includeV4 bool, includeV6 bool,
 				},
 				AAAA: e.ip6,
 			})
-		} else {
 			// if we got none, use NAT64 address derived from IPv4
 			// this helps for several reasons:
 			//   - Safari (Network.framework) uses interface scoped-address for v4 mDNS response so it can't connect, but it doesn't do scope for v6
 			//   - scon machine IPv6 isn't going to conflict with anything, unlike IPv4 and Docker bridges
 			//   - we get multi-second delays when returning NSEC for AAAA (due to some unknown changes). returning both is fine
-			if e.ip4 != nil {
-				records = append(records, &dns.AAAA{
-					Hdr: dns.RR_Header{
-						Name:   qName,
-						Rrtype: dns.TypeAAAA,
-						Class:  dns.ClassINET | mdnsCacheFlushRrclass,
-						Ttl:    ttl,
-					},
-					AAAA: mapToNat64(e.ip4),
-				})
-			}
+		} else if e.ip4 != nil {
+			records = append(records, &dns.AAAA{
+				Hdr: dns.RR_Header{
+					Name:   qName,
+					Rrtype: dns.TypeAAAA,
+					Class:  dns.ClassINET | mdnsCacheFlushRrclass,
+					Ttl:    ttl,
+				},
+				AAAA: mapToNat64(e.ip4),
+			})
 		}
 
 	}
@@ -620,8 +618,8 @@ func validateName(name string) (bool, string) {
 }
 
 func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
-	var ip4 net.IP = nil
-	var ip6 net.IP = nil
+	var ip4 net.IP
+	var ip6 net.IP
 	for _, netSettings := range ctr.NetworkSettings.Networks {
 		if ip4 == nil {
 			ip4 = net.ParseIP(netSettings.IPAddress)
@@ -708,7 +706,6 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	now := time.Now()
 
 	ctrIP4, ctrIP6 := containerToMdnsIPs(ctr)
 	var ip4 net.IP
@@ -762,6 +759,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 		r.tree.Insert(treeKey, entry)
 
 		// need to flush any caches? what names were we queried under? (wildcard)
+		now := time.Now()
 		r.maybeFlushCacheLocked(now, name.Name)
 	}
 
