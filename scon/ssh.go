@@ -284,9 +284,9 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	}
 }
 
-func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string, isWormhole bool) (printErr bool, err error) {
+func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string, isWormhole bool) (bool, error) {
 	ptyReq, winCh, isPty := s.Pty()
-	printErr = isPty
+	printErr := isPty
 
 	// new empty env (agent adds basics)
 	env := envutil.NewMap()
@@ -297,9 +297,9 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		env.SetPair(kv)
 	}
 	if metaStr, ok := env[sshtypes.KeyMeta]; ok {
-		err = json.Unmarshal([]byte(metaStr), &meta)
+		err := json.Unmarshal([]byte(metaStr), &meta)
 		if err != nil {
-			return
+			return printErr, err
 		}
 		delete(env, sshtypes.KeyMeta)
 	} else {
@@ -323,8 +323,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 
 		// check for Pro license
 		if !sv.m.drm.isLicensed() {
-			err = &ExitError{status: sshenv.ExitCodeNeedsProLicense}
-			return
+			return printErr, &ExitError{status: sshenv.ExitCodeNeedsProLicense}
 		}
 	}
 
@@ -336,7 +335,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		})
 	})
 	if err != nil {
-		return
+		return printErr, err
 	}
 
 	// env: set TERM and PWD
@@ -350,7 +349,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	// forward ssh agent
 	sshAgentSocks, err := sv.m.host.GetSSHAgentSockets()
 	if err != nil {
-		return
+		return printErr, err
 	}
 	if sshAgentSocks.Preferred != "" {
 		env["SSH_AUTH_SOCK"] = mounts.SshAgentSocket
@@ -365,10 +364,9 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	}
 
 	if isPty {
-		ptyF, ttyF, err2 := container.OpenPty()
-		err = err2
+		ptyF, ttyF, err := container.OpenPty()
 		if err != nil {
-			return
+			return printErr, err
 		}
 		// acts as keepalive
 		defer ptyF.Close()
@@ -380,19 +378,18 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 			Cols: uint16(ptyReq.Window.Width),
 		})
 		if err != nil {
-			return
+			return printErr, err
 		}
 
 		// set term modes
-		tflags, err2 := termios.GetTermios(ptyF.Fd())
-		err = err2
+		tflags, err := termios.GetTermios(ptyF.Fd())
 		if err != nil {
-			return
+			return printErr, err
 		}
 		termios.ApplySSHToTermios(ptyReq.TerminalModes, tflags)
 		err = termios.SetTermiosNow(ptyF.Fd(), tflags)
 		if err != nil {
-			return
+			return printErr, err
 		}
 
 		go func() {
@@ -451,7 +448,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		var rawArgs []string
 		err = json.Unmarshal([]byte(s.RawCommand()), &rawArgs)
 		if err != nil {
-			return
+			return printErr, err
 		}
 		// still go through shell to get PATH
 		shellCmd = shellescape.QuoteCommand(rawArgs)
@@ -473,7 +470,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		return cmd.Start(a)
 	})
 	if err != nil {
-		return
+		return printErr, err
 	}
 	defer func() {
 		err := container.UseAgent(func(a *agent.Client) error {
@@ -525,17 +522,15 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	// write-side pipes will be closed on EOF
 	status, err := cmd.Process.WaitStatus()
 	if err != nil {
-		logrus.Error("wait err: ", err)
-		return
+		logrus.Error("wait failed: ", err)
+		return printErr, err
 	}
 
 	if status != 0 {
-		err = &ExitError{status: status}
-		return
+		return printErr, &ExitError{status: status}
 	}
 
-	err = nil
-	return
+	return printErr, nil
 }
 
 func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string) error {
