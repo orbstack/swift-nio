@@ -10,27 +10,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func replaceIPBase(ip netip.Addr, base netip.Prefix) netip.Addr {
-	ipSlice := ip.AsSlice()
-	baseSlice := base.Masked().Addr().AsSlice()
-	bits := base.Bits()
-	for i, _ := range ipSlice {
-		ipSlice[i] &= ^uint8(0) >> min(bits, 8)
-		ipSlice[i] |= baseSlice[i]
-		bits -= 8
-		if bits <= 0 {
-			break
-		}
-	}
-	// we got ipSlice from .AsSlice so it must be either 4 or 16 bits in length, so we expect ok to be true
-	ip, ok := netip.AddrFromSlice(ipSlice)
-	if !ok {
-		panic("unexpected length of slice from netip.Addr.AsSlice")
-	}
-
-	return ip
-}
-
 func (d *DockerAgent) startDomaintproxy() error {
 	domainproxySubnet4Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
 	domainproxySubnet6Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
