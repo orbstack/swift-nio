@@ -18,7 +18,7 @@
   users.users.{{.UsernameAttr}} = {
     uid = {{.UID}};{{if .Password}}
     hashedPassword = "{{.Password}}";{{end}}
-    extraGroups = [ "wheel" "orbstack" ];
+    extraGroups = [ "wheel" ];
 
     # simulate isNormalUser, but with an arbitrary UID
     isSystemUser = true;

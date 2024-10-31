@@ -9,10 +9,6 @@ const (
 	// currently same
 	ContainerK8s   = "k8s"
 	ContainerIDK8s = "01GQQVF6C60000000000DOCKER"
-
-	// "ORBS" in E.161 notation (https://en.wikipedia.org/wiki/E.161)
-	OrbSocketGid    = "67278"
-	OrbSocketGidInt = 67278
 )
 
 var (
