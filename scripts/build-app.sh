@@ -129,20 +129,23 @@ function package_one() {
 
     name="$(basename $arch/*.dmg .dmg)"
     mv $arch/*.dmg "$arch/OrbStack_${LONG_VER}_${COMMITS}_$arch.dmg"
+}
 
-    if $NOTARIZE; then
-        # notarize
-        xcrun notarytool submit $arch/*.dmg --keychain-profile main --wait
-
-        # staple
-        xcrun stapler staple $arch/*.dmg
-    fi
+function notarize_one() {
+    local arch="$1"
+    xcrun notarytool submit $arch/*.dmg --keychain-profile main --wait
+    xcrun stapler staple $arch/*.dmg
 }
 
 pushd swift/out
 
 for arch in "${ARCHS[@]}"; do
-    package_one $arch &
+    # can't be parallel: may race and fail with "hdiutil: create failed - Resource busy"
+    package_one $arch
+
+    if $NOTARIZE; then
+        notarize_one $arch &
+    fi
 done
 wait
 
