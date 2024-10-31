@@ -9,6 +9,7 @@ tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
 7z x -y -o"$tmpdir" "$from_pkg"
+7z x -y -o"$tmpdir" "$tmpdir/RosettaUpdateAuto.pkg/Payload"
 7z x -y -o"$tmpdir" "$tmpdir/Payload~"
 from_exe="$tmpdir/Library/Apple/usr/libexec/oah/RosettaLinux/rosetta"
 
