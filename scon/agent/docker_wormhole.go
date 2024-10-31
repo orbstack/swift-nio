@@ -124,7 +124,7 @@ func makeContainerStartFanotify(workDir string) (int, error) {
 }
 
 // TODO: port to old mount API (need v6.7+ to append lowerdirs)
-func makeOverlayMount(lowerDir, upperDir, workDir string) (retFd int, retErr error) {
+func makeOverlayMount(lowerDir, upperDir, workDir string, readOnly bool) (retFd int, retErr error) {
 	fsFd, err := unix.Fsopen("overlay", unix.FSOPEN_CLOEXEC)
 	if err != nil {
 		return 0, fmt.Errorf("fsopen: %w", err)
@@ -160,8 +160,11 @@ func makeOverlayMount(lowerDir, upperDir, workDir string) (retFd int, retErr err
 		return 0, fmt.Errorf("create overlay: %w", err)
 	}
 
-	// docker doesn't use any mount attrs (default = rw,relatime)
-	mountFd, err := unix.Fsmount(fsFd, unix.FSMOUNT_CLOEXEC, 0)
+	var attrs int
+	if readOnly {
+		attrs |= unix.MOUNT_ATTR_RDONLY
+	}
+	mountFd, err := unix.Fsmount(fsFd, unix.FSMOUNT_CLOEXEC, attrs)
 	if err != nil {
 		return 0, fmt.Errorf("fsmount: %w", err)
 	}
@@ -223,6 +226,9 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 			// we don't copy VolumesFrom because the old container's MountPoints will also include its inherited MountPoints
 			VolumesFrom: []string{ctr.ID},
 
+			// need to be able to create /mnttmp if we'll be using raw overlayfs
+			ReadonlyRootfs: ctr.HostConfig.ReadonlyRootfs && ctr.GraphDriver.Name != "overlay2",
+
 			// copy relevant host config properties
 			CpuShares:            ctr.HostConfig.CpuShares,
 			Memory:               ctr.HostConfig.Memory,
@@ -268,7 +274,6 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 			OomScoreAdj:          ctr.HostConfig.OomScoreAdj,
 			Privileged:           ctr.HostConfig.Privileged,
 			PublishAllPorts:      ctr.HostConfig.PublishAllPorts,
-			ReadonlyRootfs:       ctr.HostConfig.ReadonlyRootfs,
 			SecurityOpt:          ctr.HostConfig.SecurityOpt,
 			StorageOpt:           ctr.HostConfig.StorageOpt,
 			Tmpfs:                ctr.HostConfig.Tmpfs,
@@ -387,7 +392,7 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 			// with overlay2 graph driver, we can use the real overlay dirs for live read and write
 			if ctr.GraphDriver.Name == "overlay2" {
 				// create overlay mount
-				rootfsFd, err = makeOverlayMount(ctr.GraphDriver.Data["LowerDir"], ctr.GraphDriver.Data["UpperDir"], ctr.GraphDriver.Data["WorkDir"])
+				rootfsFd, err = makeOverlayMount(ctr.GraphDriver.Data["LowerDir"], ctr.GraphDriver.Data["UpperDir"], ctr.GraphDriver.Data["WorkDir"], ctr.HostConfig.ReadonlyRootfs)
 				if err != nil {
 					return fmt.Errorf("mount overlay: %w", err)
 				}

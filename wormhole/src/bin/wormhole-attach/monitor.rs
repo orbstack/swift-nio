@@ -21,14 +21,11 @@ use nix::{
     unistd::{dup2, getpid, Pid},
 };
 use tracing::trace;
-use wormhole::{
-    flock::{Flock, FlockMode, FlockWait},
-    newmount::{mount_setattr, MountAttr, MOUNT_ATTR_RDONLY},
-};
+use wormhole::flock::{Flock, FlockMode, FlockWait};
 
 use crate::{
-    is_root_readonly,
     model::WormholeConfig,
+    mounts::with_remount_rw,
     parse_proc_mounts,
     proc::{
         get_ns_of_pid_from_dirfd, iter_pids_from_dirfd, reap_children, wait_for_exit, ExitResult,
@@ -105,40 +102,13 @@ fn delete_nix_dir(
     // - we created it (according to xattr)
     // - no remaining refs (according to flock)
 
-    // check attributes of '/' mount to deal with read-only containers
-    let is_root_readonly = is_root_readonly(&proc_mounts);
-    if is_root_readonly {
-        trace!("mounts: remount / as rw");
-        mount_setattr(
-            None,
-            "/",
-            0,
-            &MountAttr {
-                attr_set: 0,
-                attr_clr: MOUNT_ATTR_RDONLY,
-                propagation: 0,
-                userns_fd: 0,
-            },
-        )?;
-    }
-
     trace!("delete_nix_dir: deleting /nix");
-    std::fs::remove_dir("/nix")?;
-
-    if is_root_readonly {
-        trace!("mounts: remount / as ro");
-        mount_setattr(
-            None,
-            "/",
-            0,
-            &MountAttr {
-                attr_set: MOUNT_ATTR_RDONLY,
-                attr_clr: 0,
-                propagation: 0,
-                userns_fd: 0,
-            },
-        )?;
-    }
+    with_remount_rw(|| match std::fs::remove_dir("/nix") {
+        Ok(_) => Ok(()),
+        // raced with another process
+        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+    })?;
 
     Ok(DeleteNixDirResult::Success)
 }

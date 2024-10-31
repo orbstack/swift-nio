@@ -15,6 +15,7 @@ use libc::{
     PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE,
 };
 use model::WormholeConfig;
+use mounts::with_remount_rw;
 use nix::{
     errno::Errno,
     fcntl::{
@@ -44,13 +45,14 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
     flock::{Flock, FlockMode, FlockWait},
-    newmount::{mount_setattr, move_mount, open_tree, MountAttr, MOUNT_ATTR_RDONLY},
+    newmount::{move_mount, open_tree},
     paths,
 };
 
 mod drm;
 mod model;
 mod monitor;
+mod mounts;
 mod pidfd;
 mod proc;
 mod signals;
@@ -262,7 +264,6 @@ fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {
 
 struct Mount {
     dest: String,
-    flags: Vec<String>,
 }
 
 fn parse_proc_mounts(proc_mounts: &str) -> anyhow::Result<Vec<Mount>> {
@@ -274,24 +275,12 @@ fn parse_proc_mounts(proc_mounts: &str) -> anyhow::Result<Vec<Mount>> {
         .map(|line| {
             let mut iter = line.split_ascii_whitespace();
             let dest = iter.nth(1).unwrap().to_string();
-            let flags = iter
-                .nth(1)
-                .unwrap()
-                .split(',')
-                .map(|s| s.to_string())
-                .collect();
-            Mount { dest, flags }
+            Mount { dest }
         })
         .collect())
 }
 
-fn is_root_readonly(proc_mounts: &[Mount]) -> bool {
-    proc_mounts
-        .iter()
-        .any(|m| m.dest == "/" && m.flags.contains(&"ro".to_string()))
-}
-
-fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<Flock> {
+fn create_nix_dir() -> anyhow::Result<Flock> {
     trace!("create_nix_dir: wait for lock");
     let _flock = Flock::new_ofd(
         File::create(DIR_CREATE_LOCK)?,
@@ -304,45 +293,19 @@ fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<Flock> {
             trace!("create_nix_dir: already exists");
         }
         Err(Errno::ENOENT) => {
-            // check attributes of '/' mount to deal with read-only containers
-            let is_root_readonly = is_root_readonly(proc_mounts);
-            if is_root_readonly {
-                trace!("mounts: remount / as rw");
-                mount_setattr(
-                    None,
-                    "/",
-                    0,
-                    &MountAttr {
-                        attr_set: 0,
-                        attr_clr: MOUNT_ATTR_RDONLY,
-                        propagation: 0,
-                        userns_fd: 0,
-                    },
-                )?;
-            }
-
-            // use create_dir_all to avoid race with another cattach
             trace!("mounts: create /nix directory");
-            std::fs::create_dir_all("/nix")?;
 
-            // set xattr so we know to delete it later (i.e. we created it)
-            trace!("mounts: set xattr on /nix");
-            xattr::set("/nix", "user.orbstack.wormhole", b"1")?;
+            with_remount_rw(|| {
+                // use create_dir_all to avoid races with other attachers
+                std::fs::create_dir_all("/nix")?;
 
-            if is_root_readonly {
-                trace!("mounts: remount / as ro");
-                mount_setattr(
-                    None,
-                    "/",
-                    0,
-                    &MountAttr {
-                        attr_set: MOUNT_ATTR_RDONLY,
-                        attr_clr: 0,
-                        propagation: 0,
-                        userns_fd: 0,
-                    },
-                )?;
-            }
+                // set xattr so we know to delete it later (i.e. we created it)
+                // do this even if EEXIST, in case we exit and delete it before the other attacher sets xattr
+                trace!("mounts: set xattr on /nix");
+                xattr::set("/nix", "user.orbstack.wormhole", b"1")?;
+
+                Ok(())
+            })?;
         }
         Err(e) => return Err(e.into()),
     }
@@ -539,7 +502,7 @@ fn main() -> anyhow::Result<()> {
     drop(rootfs_fd);
 
     // need to create /nix?
-    let nix_flock_ref = create_nix_dir(&proc_mounts)?;
+    let nix_flock_ref = create_nix_dir()?;
 
     // bind mount wormhole mount tree onto /nix
     trace!("mounts: bind mount wormhole mount tree onto /nix");
