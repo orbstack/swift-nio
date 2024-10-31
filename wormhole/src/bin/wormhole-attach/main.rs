@@ -10,8 +10,8 @@ use std::{
 
 use anyhow::anyhow;
 use libc::{
-    prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, PR_CAPBSET_DROP,
-    PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
+    prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, OPEN_TREE_CLONE,
+    PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
     PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE,
 };
 use model::WormholeConfig;
@@ -33,18 +33,18 @@ use nix::{
         wait::{waitpid, WaitStatus},
     },
     unistd::{
-        access, chdir, execve, fchown, fork, getpid, setgroups, setresgid, setresuid, AccessFlags,
-        ForkResult, Gid, Pid, Uid,
+        access, chdir, chroot, execve, fchown, fork, getpid, setgroups, setresgid, setresuid,
+        AccessFlags, ForkResult, Gid, Pid, Uid,
     },
 };
 use pidfd::PidFd;
 use signals::{mask_sigset, SigSet, SignalFd};
-use tracing::{debug, span, trace, Level};
+use tracing::{debug, span, trace, warn, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
     flock::{Flock, FlockMode, FlockWait},
-    newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY},
+    newmount::{mount_setattr, move_mount, open_tree, MountAttr, MOUNT_ATTR_RDONLY},
     paths,
 };
 
@@ -357,6 +357,43 @@ fn create_nix_dir(proc_mounts: &[Mount]) -> anyhow::Result<Flock> {
     Ok(ref_lock)
 }
 
+fn switch_rootfs(rootfs_fd: &OwnedFd, proc_mounts: &[Mount]) -> anyhow::Result<()> {
+    // in writable temp container rootfs, make a temp dir for mounting
+    std::fs::create_dir_all("/mnttmp")?;
+
+    // mount new rootfs at /mnttmp
+    trace!("mounts: mount new rootfs on /mnttmp");
+    move_mount(Some(rootfs_fd), None, None, Some("/mnttmp"))?;
+
+    // move all mounts over to new rootfs
+    for mount in proc_mounts {
+        if mount.dest == "/" {
+            continue;
+        }
+
+        trace!("mounts: move {:?}", &mount.dest);
+        let tree_fd = open_tree(&mount.dest, OPEN_TREE_CLONE)?;
+        match move_mount(
+            Some(&tree_fd),
+            None,
+            Some(rootfs_fd),
+            Some(&("/mnttmp/".to_string() + mount.dest.strip_prefix("/").unwrap())),
+        ) {
+            Ok(_) => {}
+            Err(e) => {
+                warn!("move_mount failed: {}", e);
+            }
+        }
+    }
+
+    // pivot to new rootfs
+    trace!("mounts: pivot");
+    chroot("/mnttmp")?;
+    chdir("/")?;
+
+    Ok(())
+}
+
 fn parse_config() -> anyhow::Result<WormholeConfig> {
     let config_str = std::env::args().nth(1).unwrap();
     let config = serde_json::from_str(&config_str)?;
@@ -370,6 +407,9 @@ fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
     )
 }
 
+/*
+ * minimum kernel req: 6.1 (latest stable debian 12 bookworm)
+ */
 // this is 75% of a container runtime, but a bit more complex... since it has to clone attributes of another process instead of just knowing what to set
 // this does *not* include ALL process attributes like sched affinity, dumpable, securebits, etc. that docker doesn't set
 fn main() -> anyhow::Result<()> {
@@ -381,6 +421,9 @@ fn main() -> anyhow::Result<()> {
     // stdin, stdout, stderr are expected to be 0,1,2 and will be propagated to the child
     // usage: wormhole-attach <config json>
     let config = parse_config()?;
+    let rootfs_fd = config
+        .rootfs_fd
+        .map(|fd| unsafe { OwnedFd::from_raw_fd(fd) });
     // exit_code_pipe_write_fd needs to be leaked in monitor and subreaper to avoid closing on panic, which causes immediate SIGPWR
     let log_fd = unsafe { OwnedFd::from_raw_fd(config.log_fd) };
     let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(config.wormhole_mount_tree_fd) };
@@ -389,6 +432,9 @@ fn main() -> anyhow::Result<()> {
     drm::verify_token(&config.drm_token)?;
 
     // set cloexec on extra files passed to us
+    if let Some(ref rootfs_fd) = rootfs_fd {
+        set_cloexec(rootfs_fd.as_raw_fd())?;
+    }
     set_cloexec(config.exit_code_pipe_write_fd)?;
     set_cloexec(log_fd.as_raw_fd())?;
     set_cloexec(wormhole_mount_fd.as_raw_fd())?;
@@ -486,12 +532,18 @@ fn main() -> anyhow::Result<()> {
     trace!("mounts: set propagation to private");
     mount_common("/", "/", None, MsFlags::MS_REC | MsFlags::MS_PRIVATE, None)?;
 
+    // switch rootfs if needed
+    if let Some(ref rootfs_fd) = rootfs_fd {
+        switch_rootfs(rootfs_fd, &proc_mounts)?;
+    }
+    drop(rootfs_fd);
+
     // need to create /nix?
     let nix_flock_ref = create_nix_dir(&proc_mounts)?;
 
     // bind mount wormhole mount tree onto /nix
     trace!("mounts: bind mount wormhole mount tree onto /nix");
-    move_mount(&wormhole_mount_fd, None, "/nix")?;
+    move_mount(Some(&wormhole_mount_fd), None, None, Some("/nix"))?;
 
     trace!("set umask");
     umask(Mode::from_bits(0o022).unwrap());

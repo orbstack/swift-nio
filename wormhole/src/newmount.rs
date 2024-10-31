@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     ffi::CString,
     mem::size_of,
     os::fd::{AsRawFd, FromRawFd, OwnedFd},
@@ -28,6 +29,7 @@ pub const MOUNT_ATTR_RDONLY: u64 = 1;
 
 // musl is missing this
 const MOVE_MOUNT_F_EMPTY_PATH: libc::c_uint = 0x00000004;
+const MOVE_MOUNT_T_EMPTY_PATH: libc::c_uint = 0x00000040;
 
 #[repr(C)]
 #[derive(Debug, Default, Clone, Copy)]
@@ -92,19 +94,39 @@ pub fn fsmount(sb_fd: &OwnedFd, flags: u32, attrs: u32) -> anyhow::Result<OwnedF
     Ok(unsafe { OwnedFd::from_raw_fd(fd as i32) })
 }
 
-pub fn move_mount(tree_fd: &OwnedFd, dest_fd: Option<&OwnedFd>, dest: &str) -> anyhow::Result<()> {
-    let dest = CString::new(dest)?;
-    let empty_cstring = CString::new("")?;
+pub fn move_mount(
+    src_fd: Option<&OwnedFd>,
+    src_path: Option<&str>,
+    dest_fd: Option<&OwnedFd>,
+    dest_path: Option<&str>,
+) -> anyhow::Result<()> {
+    let mut flags = 0;
+    let dest_path = match dest_path {
+        Some(d) => Cow::Owned(CString::new(d).unwrap()),
+        None => {
+            flags |= MOVE_MOUNT_T_EMPTY_PATH;
+            Cow::Borrowed(c"")
+        }
+    };
+    let src_path = match src_path {
+        Some(s) => Cow::Owned(CString::new(s).unwrap()),
+        None => {
+            flags |= MOVE_MOUNT_F_EMPTY_PATH;
+            Cow::Borrowed(c"")
+        }
+    };
+
     unsafe {
         err(syscall(
             SYS_move_mount,
-            tree_fd.as_raw_fd(),
-            empty_cstring.into_raw(),
+            src_fd.map(|d| d.as_raw_fd()).unwrap_or(AT_FDCWD),
+            src_path.as_ptr(),
             dest_fd.map(|d| d.as_raw_fd()).unwrap_or(AT_FDCWD),
-            dest.into_raw(),
-            MOVE_MOUNT_F_EMPTY_PATH,
+            dest_path.as_ptr(),
+            flags,
         ))?
     };
+
     Ok(())
 }
 
