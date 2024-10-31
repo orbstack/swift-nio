@@ -42,11 +42,11 @@ struct {
     __type(value, __u64);
 } tproxy_socket SEC(".maps");
 
-static inline __u8 matches_subnet4(__u32 ip, volatile __u32 subnet, volatile __u32 mask) {
+static __always_inline __u8 matches_subnet4(volatile __u32 ip, volatile __u32 subnet, volatile __u32 mask) {
     return (ip & mask) == subnet;
 }
 
-static inline __u8 matches_subnet6(__u32 *ip, volatile __u32 *subnet, volatile __u32 *mask) {
+static __always_inline __u8 matches_subnet6(volatile __u32 *ip, volatile __u32 *subnet, volatile __u32 *mask) {
     #pragma clang loop unroll(enable)
     for (__u8 i = 0; i < 4; i++) {
         if ((ip[i] & mask[i]) != subnet[i]) {

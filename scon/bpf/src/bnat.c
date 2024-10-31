@@ -68,9 +68,14 @@
 // falls under scon machine /64
 // (always leave standard form of IP here for searching if we change it later)
 // chosen to be checksum-neutral for stateless NAT64 w/o L4 (TCP/UDP) checksum update: this prefix
-// adds up to 0 fd07:b51a:cc66:0:a617:db5e/96
+// adds up to 0
+// fd07:b51a:cc66:0:a617:db5e/96
 static const __be32 XLAT_PREFIX6[4] =
     IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617, 0xdb5e, 0x0000, 0x0000);
+
+// 198.19.248.0/24
+#define DOMAINPROXY_SUBNET4 IP4(198, 19, 248, 0)
+#define DOMAINPROXY_SUBNET4_MASK IP4(255, 255, 255, 0)
 
 // source ip after translation
 // we use this ip, outside of machine bridge, so that docker machine routes the reply via default
@@ -113,6 +118,20 @@ static __always_inline __wsum csum_add(__wsum csum, __wsum addend) {
 
 static __always_inline __wsum csum_sub(__wsum csum, __wsum addend) {
     return csum_add(csum, ~addend);
+}
+
+static __always_inline __u8 matches_subnet4(volatile __u32 ip, volatile __u32 subnet, volatile __u32 mask) {
+    return (ip & mask) == subnet;
+}
+
+static __always_inline __u8 matches_subnet6(volatile __u32 *ip, volatile __u32 *subnet, volatile __u32 *mask) {
+    #pragma clang loop unroll(enable)
+    for (__u8 i = 0; i < 4; i++) {
+        if ((ip[i] & mask[i]) != subnet[i]) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static __always_inline __be32 ipv6_pseudohdr_checksum(struct ipv6hdr *hdr, __u8 next_hdr,
@@ -418,7 +437,9 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
     }
 
     // mark and re-inject
-    //skb->mark = FWMARK_DOCKER_ROUTE; // route to docker machine (via ip rule)
+    if (!matches_subnet4(ip.daddr, DOMAINPROXY_SUBNET4, DOMAINPROXY_SUBNET4_MASK)) {
+        skb->mark = FWMARK_DOCKER_ROUTE; // route to docker machine (via ip rule)
+    }
 	return bpf_redirect(skb->ifindex, BPF_F_INGRESS);
 }
 
