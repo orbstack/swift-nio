@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/conf"
@@ -98,22 +99,37 @@ func (d *DockerAgent) createWormholeImageContainer(image string) (string, error)
 	return id, nil
 }
 
-func makeContainerStartFanotify(workDir string) (int, error) {
-	dirFd, err := unix.Open(workDir, unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return -1, fmt.Errorf("open workdir: %w", err)
-	}
-	defer unix.Close(dirFd)
-
+func makeContainerStartFanotify(workDir string) (_fanFd int, retErr error) {
 	fanFd, err := unix.FanotifyInit(unix.FAN_CLASS_PRE_CONTENT|unix.FAN_CLOEXEC|unix.FAN_UNLIMITED_MARKS|unix.FAN_NONBLOCK, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOATIME)
 	if err != nil {
 		return -1, fmt.Errorf("fanotify_init: %w", err)
 	}
+	defer func() {
+		if retErr != nil {
+			unix.Close(fanFd)
+		}
+	}()
 
-	// docker opens before delete too, so we only need FAN_OPEN_PERM
-	err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD|unix.FAN_MARK_ONLYDIR, unix.FAN_OPEN_PERM|unix.FAN_ONDIR, dirFd, "" /*nil*/)
+	// monitor everything in the workdir's parent to be safe
+	// /lower is used for container start (overlay2 reads it first before mounting: https://github.com/moby/moby/blob/7b0ef10a9a28ac69c4fd89d82ae71f548b5c7edd/daemon/graphdriver/overlay2/overlay.go#L526)
+	// /work is used for deletion (which doesn't trigger /lower)
+	// mount doesn't trigger /work; it's the chown that triggers it afterwards
+	parentDir := filepath.Dir(workDir)
+	entries, err := os.ReadDir(parentDir)
 	if err != nil {
-		return -1, fmt.Errorf("fanotify_mark: %w", err)
+		return -1, fmt.Errorf("readdir: %w", err)
+	}
+
+	for _, entry := range entries {
+		childPath := parentDir + "/" + entry.Name()
+		var mask uint64
+		if entry.IsDir() {
+			mask |= unix.FAN_ONDIR
+		}
+		err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD, unix.FAN_OPEN_PERM|unix.FAN_ACCESS_PERM|mask, unix.AT_FDCWD, childPath)
+		if err != nil {
+			return -1, fmt.Errorf("fanotify_mark: %w", err)
+		}
 	}
 
 	return fanFd, nil
@@ -180,6 +196,7 @@ func (d *DockerAgent) maybeSetContainerMode(mode string) string {
 
 func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJSON) (_containerID string, _imageID string, retErr error) {
 	// first, commit the container's FS changes to an image so that they show up
+	// this is also used as the rootfs if graph driver != overlay2
 	imageID, err := d.client.CommitContainer(ctr.ID)
 	if err != nil {
 		return "", "", err

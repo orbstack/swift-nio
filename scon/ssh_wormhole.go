@@ -48,7 +48,7 @@ func handleFanotify(fanFile *os.File, event *unix.FanotifyEventMetadata, accessC
 
 	// works for both
 	isDocker := false
-	if event.Mask&unix.FAN_OPEN_PERM != 0 {
+	if event.Mask != 0 {
 		// if requester is dockerd, call access callback
 
 		// read cmdline of pid
