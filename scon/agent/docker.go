@@ -338,7 +338,7 @@ func (d *DockerAgent) PostStart() error {
 	}()
 
 	go func() {
-		err := d.startDomaintproxy()
+		err := d.startDomainTLSProxy()
 		if err != nil {
 			logrus.WithError(err).Error("unable to start docker tls domaintproxy")
 		}
