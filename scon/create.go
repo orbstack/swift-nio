@@ -66,6 +66,15 @@ func (m *ConManager) beginCreate(args *types.CreateRequest) (*Container, *types.
 		image.Arch = images.NativeArch()
 	}
 
+	// apply version alias
+	versionKey := images.ImageVersion{
+		Image:   image.Distro,
+		Version: image.Version,
+	}
+	if version, ok := images.ImageVersionAliases[versionKey]; ok {
+		image.Version = version
+	}
+
 	id := ulid.Make().String()
 	logrus.WithFields(logrus.Fields{
 		"id":   id,

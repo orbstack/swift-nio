@@ -53,6 +53,11 @@ const (
 	DistroNixos = "nixos"
 )
 
+type ImageVersion struct {
+	Image   string
+	Version string
+}
+
 var (
 	DistroToImage = map[string]string{
 		DistroAlpine:    ImageAlpine,
@@ -116,6 +121,23 @@ var (
 		ImageRocky:     "9",
 		ImageUbuntu:    "oracular",
 		ImageVoid:      "current",
+	}
+
+	// version number -> codename (preferred by lxc-images)
+	ImageVersionAliases = map[ImageVersion]string{
+		{ImageDebian, "10"}: "buster",
+		{ImageDebian, "11"}: "bullseye",
+		{ImageDebian, "12"}: "bookworm",
+		{ImageDebian, "13"}: "trixie",
+
+		{ImageDevuan, "3"}: "beowulf",
+		{ImageDevuan, "4"}: "chimaera",
+		{ImageDevuan, "5"}: "daedalus",
+
+		{ImageUbuntu, "20.04"}: "focal",
+		{ImageUbuntu, "22.04"}: "jammy",
+		{ImageUbuntu, "24.04"}: "noble",
+		{ImageUbuntu, "24.10"}: "oracular",
 	}
 
 	// everything else is "default"
