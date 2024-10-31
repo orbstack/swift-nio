@@ -39,7 +39,7 @@ func (d *DockerAgent) startDomaintproxy() error {
 		return netconf.DockerFwmarkTproxyOutbound
 	}
 
-	proxy, err := domainproxy.NewDomaintproxy(d.host, d.scon.GetProxyUpstream, getMark)
+	proxy, err := domainproxy.NewDomainTLSProxy(d.host, d.scon.GetProxyUpstream, getMark)
 	if err != nil {
 		return fmt.Errorf("create tls domainproxy: %w", err)
 	}

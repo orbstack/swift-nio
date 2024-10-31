@@ -80,7 +80,7 @@ type DockerAgent struct {
 
 	k8s          *K8sAgent
 	pstub        *PstubServer
-	domaintproxy *domainproxy.Domaintproxy
+	domaintproxy *domainproxy.DomainTLSProxy
 }
 
 func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {

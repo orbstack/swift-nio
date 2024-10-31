@@ -144,7 +144,7 @@ type mdnsRegistry struct {
 
 	httpServer *http.Server
 
-	domaintproxy *domainproxy.Domaintproxy
+	domaintproxy *domainproxy.DomainTLSProxy
 }
 
 func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *mdnsRegistry {
@@ -207,7 +207,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 	getUpstream := func(host string, v4 bool) (netip.Addr, domainproxytypes.DomainproxyUpstream, error) {
 		return registryGetProxyUpstream(r, host, v4)
 	}
-	proxy, err := domainproxy.NewDomaintproxy(host, getUpstream, ovmGetProxyMark)
+	proxy, err := domainproxy.NewDomainTLSProxy(host, getUpstream, ovmGetProxyMark)
 	if err != nil {
 		logrus.Debug("failed to create tls domainproxy")
 	}

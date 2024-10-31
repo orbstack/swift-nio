@@ -34,7 +34,7 @@ const (
 
 type GetUpstreamFunc func(host string, v4 bool) (netip.Addr, domainproxytypes.DomainproxyUpstream, error)
 type GetMarkFunc func(upstream domainproxytypes.DomainproxyUpstream) int
-type Domaintproxy struct {
+type DomainTLSProxy struct {
 	getUpstream GetUpstreamFunc
 	getMark     GetMarkFunc
 
@@ -42,20 +42,20 @@ type Domaintproxy struct {
 	tproxy        *bpf.Tproxy
 }
 
-func NewDomaintproxy(host *hclient.Client, getUpstream GetUpstreamFunc, getMark GetMarkFunc) (*Domaintproxy, error) {
+func NewDomainTLSProxy(host *hclient.Client, getUpstream GetUpstreamFunc, getMark GetMarkFunc) (*DomainTLSProxy, error) {
 	tlsController, err := tlsutil.NewTLSController(host)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Domaintproxy{
+	return &DomainTLSProxy{
 		tlsController: tlsController,
 		getUpstream:   getUpstream,
 		getMark:       getMark,
 	}, nil
 }
 
-func (p *Domaintproxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) error {
+func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) error {
 	err := p.tlsController.LoadRoot()
 	if err != nil {
 		return err
@@ -230,7 +230,7 @@ func dialerForTransparentBind(bindIP net.IP, mark int) *net.Dialer {
 	}
 }
 
-func (p *Domaintproxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
+func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 	// this function just lets us directly passthrough to an existing ssl server. this should be removed soon in favor of port probing
 
 	downstreamIP := conn.RemoteAddr().(*net.TCPAddr).IP
@@ -270,7 +270,7 @@ func (p *Domaintproxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 	return true, nil
 }
 
-func (p *Domaintproxy) rewriteRequest(r *httputil.ProxyRequest) error {
+func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	host := r.In.Host
 	if host == "" {
 		host = r.In.TLS.ServerName
@@ -305,7 +305,7 @@ func (p *Domaintproxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	return nil
 }
 
-func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
+func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
 	dialHost, dialPort, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -332,7 +332,7 @@ func (p *Domaintproxy) dialUpstream(ctx context.Context, network, addr string) (
 }
 
 // the default action with no handler is to send a 502 with no content and to log
-func (p *Domaintproxy) handleError(w http.ResponseWriter, r *http.Request, err error) {
+func (p *DomainTLSProxy) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	// debug log so no spamming for users
 	logrus.WithError(err).Debug("domaintproxy failed to dial upstream")
 	w.WriteHeader(http.StatusBadGateway)
