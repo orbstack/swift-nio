@@ -16,7 +16,6 @@ import (
 	"github.com/gliderlabs/ssh"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/conf"
-	"github.com/orbstack/macvirt/scon/util/sysx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
@@ -297,15 +296,9 @@ func (sv *SshServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeT
 	var processWg sync.WaitGroup
 	processWg.Add(1)
 	if fanotifyFile != nil {
-		// make an owned copy here so this is unaffected by the deferred close
-		ownedFanFile, err := sysx.DupFile(fanotifyFile)
-		if err != nil {
-			return fmt.Errorf("dup fanotify: %w", err)
-		}
-
 		go func() {
 			logrus.Debug("waiting for container start access")
-			err := waitForAccess(s.Context(), ownedFanFile, func() {
+			err := waitForAccess(s.Context(), fanotifyFile, func() {
 				logrus.Info("container start detected, killing wormhole session")
 				_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, fmt.Sprintf("\n\nContainer '%s' is starting or being deleted.\nEnding Debug Shell session.\n", wormholeTarget)))
 
@@ -376,6 +369,18 @@ func (sv *SshServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeT
 			logrus.WithError(err).Error("end host wormhole session failed")
 		}
 	}()
+
+	// for stopped containers: to avoid closing fanotify too early (before process is done and response is sent),
+	// wait for monitor to exit before returning and letting the deferred close happen.
+	// this will always finish soon because we kill the container
+	if fanotifyFile != nil {
+		defer func() {
+			// kill for good measure, in case this was a clean exit with background processes left, and not a fanotify-triggered exit
+			// normally DockerEndWormhole() does this, but we won't hit it until the monitor exits
+			_ = initPidfd.Kill()
+			processWg.Wait()
+		}()
+	}
 
 	statusBytes := make([]byte, 1) // exit codes only range from 0-255 so it should be able to fit into a single byte
 	n, err := exitCodePipeRead.Read(statusBytes)
