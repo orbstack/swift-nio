@@ -77,6 +77,9 @@ MACOS_VERSION_ARG := -mmacosx-version-min=13.0
 export CGO_CFLAGS := $(MACOS_VERSION_ARG)
 export CGO_LDFLAGS := $(MACOS_VERSION_ARG)
 
+# force Cgo when cross-compiling to amd64
+export CGO_ENABLED := 1
+
 DEVELOPER_DIR := $(shell xcode-select --print-path)
 
 # allow replacing tools
