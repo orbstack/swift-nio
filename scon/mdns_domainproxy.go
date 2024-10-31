@@ -298,6 +298,7 @@ func nextAvailableIPLocked(ipMap map[netip.Addr]domainproxytypes.DomainproxyUpst
 	}
 
 	if foundFreeableIP {
+		*lastAlloc = freeableIP
 		return freeableIP, true
 	} else {
 		return ip, false

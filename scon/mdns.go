@@ -160,9 +160,9 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		newDomainproxyInfo(r,
 			domainproxySubnet4Prefix,
 			// reserve an ip for the error page
-			domainproxySubnet4Prefix.Masked().Addr().Next(),
+			domainproxySubnet4Prefix.Masked().Addr().Next().Next(),
 			domainproxySubnet6Prefix,
-			domainproxySubnet6Prefix.Masked().Addr().Next(),
+			domainproxySubnet6Prefix.Masked().Addr().Next().Next(),
 		)
 
 	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
