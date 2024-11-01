@@ -10,6 +10,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
+	"github.com/sirupsen/logrus"
 )
 
 type SconInternalServer struct {
@@ -32,7 +33,10 @@ func (s *SconInternalServer) OnVmconfigUpdate(config *vmconfig.VmConfig, _ *None
 	dlog("on vmconfig update reported")
 	s.m.vmConfig = config
 
-	s.m.net.mdnsRegistry.updateTLSProxyNftables(false, config.NetworkHttps)
+	err := s.m.net.mdnsRegistry.updateTLSProxyNftables(false, config.NetworkHttps)
+	if err != nil {
+		logrus.WithError(err).Error("failed to update tls proxy nft")
+	}
 
 	// if needed, update docker agent state
 	if s.dockerMachine.Running() {
