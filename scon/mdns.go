@@ -726,7 +726,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 		}
 	}
 	if ctrIP6 != nil {
-		if ip, ok := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{IP: ctrIP4, Names: nameStrings, Docker: true}); ok {
+		if ip, ok := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{IP: ctrIP6, Names: nameStrings, Docker: true}); ok {
 			ip6 = ip.AsSlice()
 		}
 	}
