@@ -39,6 +39,13 @@ int main(int argc, char **argv) {
     }
     strcpy(argv[0], "(run `entrypoint` to start container)");
 
+    // partial CVE-2019-5736 mitigation (and /proc/1/exe obscurity)
+    ret = prctl(PR_SET_DUMPABLE, 0);
+    if (ret != 0) {
+        perror("prctl");
+        exit(1);
+    }
+
     // block forever
     while (1) {
         poll(NULL, 0, -1);

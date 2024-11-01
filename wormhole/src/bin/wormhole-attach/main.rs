@@ -23,7 +23,7 @@ use nix::{
         FcntlArg::{self, F_GETFD},
         FdFlag, OFlag,
     },
-    mount::MsFlags,
+    mount::{umount2, MntFlags, MsFlags},
     sched::{setns, unshare, CloneFlags},
     sys::{
         prctl,
@@ -489,6 +489,14 @@ fn main() -> anyhow::Result<()> {
         proc::set_cmdline_name(&format!("orb-wormhole: container {}", hostname))?;
     }
 
+    // unmount wormhole stub bind mount in ephemeral container ns
+    if rootfs_fd.is_some() {
+        trace!("unmount wormhole stub bind mount in container ns");
+        if let Err(e) = umount2("/dev/shm/.orb-wormhole-stub", MntFlags::MNT_DETACH) {
+            debug!("unmount wormhole stub bind mount failed: {}", e);
+        }
+    }
+
     trace!("unshare mount ns");
     unshare(CloneFlags::CLONE_NEWNS)?;
 
@@ -499,6 +507,15 @@ fn main() -> anyhow::Result<()> {
     if let Some(ref rootfs_fd) = rootfs_fd {
         switch_rootfs(rootfs_fd, &proc_mounts)?;
     }
+
+    // unmount wormhole stub bind mount entirely in wormhole ns
+    if rootfs_fd.is_some() {
+        trace!("unmount wormhole stub bind mount in new ns");
+        if let Err(e) = umount2("/dev/shm/.orb-wormhole-stub", MntFlags::MNT_DETACH) {
+            debug!("unmount wormhole stub bind mount failed: {}", e);
+        }
+    }
+
     drop(rootfs_fd);
 
     // need to create /nix?
