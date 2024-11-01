@@ -49,7 +49,7 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 	}
 
 	// start container
-	err = c.Call("POST", "/containers/"+containerResp.ID+"/start", nil, nil)
+	err = c.Call("POST", "/containers/"+url.PathEscape(containerResp.ID)+"/start", nil, nil)
 	if err != nil {
 		return "", fmt.Errorf("start container: %w", err)
 	}
@@ -58,7 +58,7 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 }
 
 func (c *Client) KillContainer(cid string) error {
-	err := c.Call("POST", "/containers/"+cid+"/kill", nil, nil)
+	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/kill", nil, nil)
 	if err != nil {
 		return fmt.Errorf("kill container: %w", err)
 	}
@@ -82,7 +82,7 @@ func (c *Client) ListContainers(all bool) ([]*dockertypes.ContainerSummary, erro
 
 func (c *Client) InspectContainer(cid string) (*dockertypes.ContainerJSON, error) {
 	var fullCtr dockertypes.ContainerJSON
-	err := c.Call("GET", "/containers/"+cid+"/json", nil, &fullCtr)
+	err := c.Call("GET", "/containers/"+url.PathEscape(cid)+"/json", nil, &fullCtr)
 	if err != nil {
 		return nil, fmt.Errorf("get container: %w", err)
 	}
@@ -92,7 +92,7 @@ func (c *Client) InspectContainer(cid string) (*dockertypes.ContainerJSON, error
 
 func (c *Client) CommitContainer(containerID string) (string, error) {
 	var resp dockertypes.ContainerCommitResponse
-	err := c.Call("POST", "/commit?container="+containerID, nil, &resp)
+	err := c.Call("POST", "/commit?container="+url.QueryEscape(containerID), nil, &resp)
 	if err != nil {
 		return "", fmt.Errorf("commit container: %w", err)
 	}
@@ -101,7 +101,7 @@ func (c *Client) CommitContainer(containerID string) (string, error) {
 }
 
 func (c *Client) RemoveContainer(cid string, force bool) error {
-	err := c.Call("DELETE", "/containers/"+cid+"?force="+strconv.FormatBool(force), nil, nil)
+	err := c.Call("DELETE", "/containers/"+url.PathEscape(cid)+"?force="+strconv.FormatBool(force), nil, nil)
 	if err != nil {
 		return fmt.Errorf("remove container: %w", err)
 	}
@@ -110,7 +110,7 @@ func (c *Client) RemoveContainer(cid string, force bool) error {
 
 func (c *Client) DiffContainer(cid string) ([]dockertypes.ContainerDiffEntry, error) {
 	var diffs []dockertypes.ContainerDiffEntry
-	err := c.Call("GET", "/containers/"+cid+"/changes", nil, &diffs)
+	err := c.Call("GET", "/containers/"+url.PathEscape(cid)+"/changes", nil, &diffs)
 	if err != nil {
 		return nil, fmt.Errorf("diff container: %w", err)
 	}
@@ -119,7 +119,7 @@ func (c *Client) DiffContainer(cid string) ([]dockertypes.ContainerDiffEntry, er
 }
 
 func (c *Client) WaitContainer(cid string) error {
-	err := c.Call("POST", "/containers/"+cid+"/wait", nil, nil)
+	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/wait", nil, nil)
 	if err != nil {
 		return fmt.Errorf("wait container: %w", err)
 	}

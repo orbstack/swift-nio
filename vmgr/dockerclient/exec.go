@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
@@ -45,13 +46,13 @@ func demuxOutput(r io.Reader, w io.Writer) error {
 
 func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateRequest) (string, error) {
 	var execResp dockertypes.ContainerExecCreateResponse
-	err := c.Call("POST", "/containers/"+cid+"/exec", execReq, &execResp)
+	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/exec", execReq, &execResp)
 	if err != nil {
 		return "", fmt.Errorf("create exec: %w", err)
 	}
 
 	// run the tar
-	reader, err := c.StreamRead("POST", "/exec/"+execResp.ID+"/start", dockertypes.ContainerExecStartRequest{
+	reader, err := c.StreamRead("POST", "/exec/"+url.PathEscape(execResp.ID)+"/start", dockertypes.ContainerExecStartRequest{
 		Detach: false,
 	})
 	if err != nil {
@@ -67,7 +68,7 @@ func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateReques
 
 	// check exec exit status
 	var execInspect dockertypes.ContainerExecInspect
-	err = c.Call("GET", "/exec/"+execResp.ID+"/json", nil, &execInspect)
+	err = c.Call("GET", "/exec/"+url.PathEscape(execResp.ID)+"/json", nil, &execInspect)
 	if err != nil {
 		return "", fmt.Errorf("inspect exec: %w", err)
 	}

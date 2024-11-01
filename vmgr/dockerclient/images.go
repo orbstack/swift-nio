@@ -2,6 +2,7 @@ package dockerclient
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -24,7 +25,7 @@ func (c *Client) ListImages() ([]*dockertypes.ImageSummary, error) {
 
 func (c *Client) InspectImage(imageID string) (*dockertypes.FullImageWithConfig, error) {
 	var full *dockertypes.FullImageWithConfig
-	err := c.Call("GET", "/images/"+imageID+"/json", nil, &full)
+	err := c.Call("GET", "/images/"+url.PathEscape(imageID)+"/json", nil, &full)
 	if err != nil {
 		return nil, fmt.Errorf("inspect image %s: %w", imageID, err)
 	}
@@ -57,7 +58,7 @@ func (c *Client) ListImagesFull() ([]Image, error) {
 }
 
 func (c *Client) RemoveImage(imageID string, force bool) error {
-	err := c.Call("DELETE", "/images/"+imageID+"?force="+strconv.FormatBool(force), nil, nil)
+	err := c.Call("DELETE", "/images/"+url.PathEscape(imageID)+"?force="+strconv.FormatBool(force), nil, nil)
 	if err != nil {
 		return fmt.Errorf("remove image %s: %w", imageID, err)
 	}

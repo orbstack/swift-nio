@@ -2,6 +2,7 @@ package dockerclient
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
@@ -19,7 +20,7 @@ func (c *Client) ListVolumes() ([]*dockertypes.Volume, error) {
 
 func (c *Client) GetVolume(name string) (*dockertypes.Volume, error) {
 	var volume dockertypes.Volume
-	err := c.Call("GET", "/volumes/"+name, nil, &volume)
+	err := c.Call("GET", "/volumes/"+url.PathEscape(name), nil, &volume)
 	if err != nil {
 		return nil, fmt.Errorf("get volume: %w", err)
 	}
