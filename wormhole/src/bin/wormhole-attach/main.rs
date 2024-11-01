@@ -845,9 +845,9 @@ fn main() -> anyhow::Result<()> {
             };
 
             // fork again...
-            match unsafe { fork()? } {
+            match unsafe { fork() } {
                 // parent 2 = intermediate (waiter)
-                ForkResult::Parent { child: _ } => {
+                Ok(ForkResult::Parent { child: _ }) => {
                     trace!("intermediate dying");
 
                     // this process has no reason to keep existing.
@@ -857,7 +857,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 // child 2 = subreaper
-                ForkResult::Child => {
+                Ok(ForkResult::Child) => {
                     let _span = span!(Level::TRACE, "subreaper").entered();
 
                     // become subreaper, so children get a subreaper flag at fork time
@@ -907,6 +907,15 @@ fn main() -> anyhow::Result<()> {
                         }
                     }
                 }
+
+                Err(Errno::ENOMEM) => {
+                    // ENOMEM = forked into dying pid ns (pid 1 exited)
+                    // this means we raced with a stopping container
+                    eprintln!("Container stopped.\nEnding Debug Shell session.");
+                    std::process::exit(0);
+                }
+
+                Err(e) => return Err(e.into()),
             }
         }
     }
