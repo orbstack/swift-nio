@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -507,10 +508,19 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 				names[i].Hidden = true
 			}
 
-			for _, name := range strings.Split(extraNames, ",") {
+			for _, nameAndFlags := range strings.Split(extraNames, ",") {
+				parts := strings.SplitN(nameAndFlags, ":", 2)
+				name := parts[0]
+
+				var flags []string
+				if len(parts) > 1 {
+					flags = strings.Split(parts[1], ",")
+				}
+
 				if !strings.HasSuffix(name, ".") {
 					name += "."
 				}
+
 				// wildcard?
 				// default off due to ambiguous cases that cause problems depending on service startup order,
 				// e.g. orbstack.local and docs.orbstack.local
@@ -541,7 +551,8 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 					continue
 				}
 
-				names = append(names, dnsName{Name: name, Hidden: false, Wildcard: isWildcard})
+				isHidden := slices.Contains(flags, "hidden")
+				names = append(names, dnsName{Name: name, Hidden: isHidden, Wildcard: isWildcard})
 			}
 		}
 	}
