@@ -110,26 +110,21 @@ func makeContainerStartFanotify(workDir string) (_fanFd int, retErr error) {
 		}
 	}()
 
-	// monitor everything in the workdir's parent to be safe
-	// /lower is used for container start (overlay2 reads it first before mounting: https://github.com/moby/moby/blob/7b0ef10a9a28ac69c4fd89d82ae71f548b5c7edd/daemon/graphdriver/overlay2/overlay.go#L526)
+	// monitor two nodes:
 	// /work is used for deletion (which doesn't trigger /lower)
 	// mount doesn't trigger /work; it's the chown that triggers it afterwards
-	parentDir := filepath.Dir(workDir)
-	entries, err := os.ReadDir(parentDir)
+	err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD|unix.FAN_MARK_ONLYDIR, unix.FAN_OPEN_PERM|unix.FAN_ACCESS_PERM|unix.FAN_ONDIR, unix.AT_FDCWD, workDir)
 	if err != nil {
-		return -1, fmt.Errorf("readdir: %w", err)
+		return -1, fmt.Errorf("fanotify_mark: %w", err)
 	}
 
-	for _, entry := range entries {
-		childPath := parentDir + "/" + entry.Name()
-		var mask uint64
-		if entry.IsDir() {
-			mask |= unix.FAN_ONDIR
-		}
-		err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD, unix.FAN_OPEN_PERM|unix.FAN_ACCESS_PERM|mask, unix.AT_FDCWD, childPath)
-		if err != nil {
-			return -1, fmt.Errorf("fanotify_mark: %w", err)
-		}
+	// /lower is used for container start (overlay2 reads it first before mounting: https://github.com/moby/moby/blob/7b0ef10a9a28ac69c4fd89d82ae71f548b5c7edd/daemon/graphdriver/overlay2/overlay.go#L526)
+	// /work is too late for the mounting case
+	parentDir := filepath.Dir(workDir)
+	lowerListFile := parentDir + "/lower"
+	err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD, unix.FAN_OPEN_PERM|unix.FAN_ACCESS_PERM, unix.AT_FDCWD, lowerListFile)
+	if err != nil {
+		return -1, fmt.Errorf("fanotify_mark: %w", err)
 	}
 
 	return fanFd, nil
