@@ -223,6 +223,7 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 		},
 		Labels: map[string]string{
 			"dev.orbstack.wormhole.type": "temp-container",
+			// TODO: race-free dev.orbstack.domains synthesizing -- release it before original container starts
 		},
 		StopSignal: "SIGKILL",
 		HostConfig: &dockertypes.ContainerHostConfig{
@@ -302,7 +303,27 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 
 		// not included: Volumes (handled by Volumes From), MacAddress (deprecated; moved to NetworkingConfig)
 
-		// TODO: NetworkingConfig
+		// only copy NetworkingConfig from the original container
+		// if target NetworkMode container is stopped, copying its config can result in confusing behavior (e.g. k8s pod sandbox has no networks, relying on k8s to configure them instead, and no networks = broken nix package installation)
+		// it could also result in conflicts if users are trying to debug multiple containers attached to the same netns
+		NetworkingConfig: &dockertypes.NetworkNetworkingConfig{
+			EndpointsConfig: ctr.NetworkSettings.Networks,
+		},
+	}
+
+	// copy orbstack domain port mappings
+	if val, ok := ctr.Config.Labels["dev.orbstack.http-port"]; ok {
+		newCfg.Labels["dev.orbstack.http-port"] = val
+	}
+	if val, ok := ctr.Config.Labels["dev.orbstack.https-port"]; ok {
+		newCfg.Labels["dev.orbstack.https-port"] = val
+	}
+
+	// clear explicit IP assignments: can race and conflict because overlay2 start hook can run after network checks
+	for _, n := range newCfg.NetworkingConfig.EndpointsConfig {
+		n.IPAddress = ""
+		n.GlobalIPv6Address = ""
+		n.IPAMConfig = nil
 	}
 
 	// only copy NetworkMode if the netns source container is running
