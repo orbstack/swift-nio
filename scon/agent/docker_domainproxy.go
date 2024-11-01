@@ -14,7 +14,7 @@ func (d *DockerAgent) startDomainTLSProxy() error {
 	domainproxySubnet4Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
 	domainproxySubnet6Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
 
-	getMark := func(upstream domainproxytypes.DomainproxyUpstream) int {
+	getMark := func(upstream domainproxytypes.Upstream) int {
 		return netconf.DockerFwmarkTproxyOutbound
 	}
 

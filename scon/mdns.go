@@ -129,7 +129,7 @@ type mdnsRegistry struct {
 
 	// this maps container/machine ips to domainproxy ips. the domainproxy ip is what orb.local domains *actually* points to, and lets us do tls interception in an elegant way
 	// it makes sense to not have the tree map straight to domainproxy ips because each container has multiple domains, so it would make juggling the associations more difficult if, say, one domain ended up pointed elsewhere but not the others
-	domainproxy domainproxyInfo
+	domainproxy domainproxyRegistry
 
 	server             *mdns.Server
 	cacheFlushDebounce syncx.FuncDebounce
@@ -144,7 +144,7 @@ type mdnsRegistry struct {
 
 	httpServer *http.Server
 
-	domaintproxy *domainproxy.DomainTLSProxy
+	domainTLSProxy *domainproxy.DomainTLSProxy
 }
 
 func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *mdnsRegistry {
@@ -157,9 +157,9 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 	}
 
 	r.domainproxy =
-		newDomainproxyInfo(r,
+		newDomainproxyRegistry(r,
 			domainproxySubnet4Prefix,
-			// reserve an ip for the error page
+			// reserve an ip for the index page
 			domainproxySubnet4Prefix.Masked().Addr().Next().Next(),
 			domainproxySubnet6Prefix,
 			domainproxySubnet6Prefix.Masked().Addr().Next().Next(),
@@ -204,7 +204,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		ip6:        mapToNat64(k8sIP4),
 	})
 
-	getUpstream := func(host string, v4 bool) (netip.Addr, domainproxytypes.DomainproxyUpstream, error) {
+	getUpstream := func(host string, v4 bool) (domainproxytypes.Upstream, error) {
 		return registryGetProxyUpstream(r, host, v4)
 	}
 	proxy, err := domainproxy.NewDomainTLSProxy(host, getUpstream, ovmGetProxyMark)
@@ -212,7 +212,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		logrus.Debug("failed to create tls domainproxy")
 	}
 
-	r.domaintproxy = proxy
+	r.domainTLSProxy = proxy
 
 	return r
 }
@@ -282,7 +282,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	})
 
 	go runOne("start domaintproxy", func() error {
-		err := r.domaintproxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix)
+		err := r.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix)
 		if err != nil {
 			return err
 		}
@@ -386,20 +386,19 @@ func (r *mdnsRegistry) StopServer() error {
 
 func (e *mdnsEntry) ensureDomainproxyCorrectLocked() {
 	if e.owningMachine != nil {
-		ip4, ip6 := e.r.domainproxy.ensureMachineDomainproxyCorrectLocked(e.names, e.owningMachine)
+		ip4, ip6 := e.r.domainproxy.ensureMachineIPsCorrectLocked(e.names, e.owningMachine)
 		e.ip4 = ip4
 		e.ip6 = ip6
 	}
 }
 
-func (e mdnsEntry) ToRecordsLocked(qName string, includeV4 bool, includeV6 bool, ttl uint32) []dns.RR {
+func (e *mdnsEntry) ToRecordsLocked(qName string, includeV4 bool, includeV6 bool, ttl uint32) []dns.RR {
 	var records []dns.RR
 	e.ensureDomainproxyCorrectLocked()
 
 	// A
 	if includeV4 {
 		if e.ip4 != nil {
-			// can't combine check bexcause v4 .To16() works
 			records = append(records, &dns.A{
 				Hdr: dns.RR_Header{
 					Name:   qName,
@@ -712,12 +711,12 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 	var ip6 net.IP
 	// we're protected by the mdnsRegistry mutex
 	if ctrIP4 != nil {
-		if ip, ok := r.domainproxy.claimOrUpdateIP4Locked(domainproxytypes.DomainproxyUpstream{IP: ctrIP4, Names: nameStrings, Docker: true}); ok {
+		if ip, ok := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{IP: ctrIP4, Names: nameStrings, Docker: true}); ok {
 			ip4 = ip.AsSlice()
 		}
 	}
 	if ctrIP6 != nil {
-		if ip, ok := r.domainproxy.claimOrUpdateIP6Locked(domainproxytypes.DomainproxyUpstream{IP: ctrIP6, Names: nameStrings, Docker: true}); ok {
+		if ip, ok := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{IP: ctrIP4, Names: nameStrings, Docker: true}); ok {
 			ip6 = ip.AsSlice()
 		}
 	}
@@ -730,6 +729,8 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 
 	// we still *add* records if empty IPs (i.e. no netns, like k8s pods) to give them immediate NXDOMAIN in case people do $CONTAINER.orb.local, but hide them to avoid cluttering index
 	allHidden := ip4 == nil && ip6 == nil
+
+	now := time.Now()
 
 	for _, name := range names {
 		treeKey := toTreeKey(name.Name)
@@ -759,7 +760,6 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 		r.tree.Insert(treeKey, entry)
 
 		// need to flush any caches? what names were we queried under? (wildcard)
-		now := time.Now()
 		r.maybeFlushCacheLocked(now, name.Name)
 	}
 
@@ -1164,7 +1164,7 @@ func (r *mdnsRegistry) proxyToHost(q dns.Question) []dns.RR {
 	return reply.Answer
 }
 
-func ovmGetProxyMark(upstream domainproxytypes.DomainproxyUpstream) int {
+func ovmGetProxyMark(upstream domainproxytypes.Upstream) int {
 	mark := netconf.VmFwmarkTproxyOutboundBit
 	if upstream.Docker {
 		mark |= netconf.VmFwmarkDockerRouteBit
@@ -1173,8 +1173,9 @@ func ovmGetProxyMark(upstream domainproxytypes.DomainproxyUpstream) int {
 	return mark
 }
 
-func registryGetProxyUpstream(r *mdnsRegistry, host string, v4 bool) (netip.Addr, domainproxytypes.DomainproxyUpstream, error) {
-	proxyAddr := netip.Addr{}
+func registryGetProxyUpstream(r *mdnsRegistry, host string, v4 bool) (domainproxytypes.Upstream, error) {
+	var proxyAddr netip.Addr
+
 	if proxyAddrVal, err := netip.ParseAddr(host); err == nil {
 		proxyAddr = proxyAddrVal
 	} else {
@@ -1192,23 +1193,23 @@ func registryGetProxyUpstream(r *mdnsRegistry, host string, v4 bool) (netip.Addr
 		}
 	}
 
-	if proxyAddr == (netip.Addr{}) {
-		return netip.Addr{}, domainproxytypes.DomainproxyUpstream{}, errors.New("could not find proxyaddr")
+	if !proxyAddr.IsValid() {
+		return domainproxytypes.Upstream{}, errors.New("could not find proxyaddr")
 	}
 
-	upstreamIP, has := r.domainproxy.getAddrLocked(proxyAddr)
-	if !has {
-		return netip.Addr{}, domainproxytypes.DomainproxyUpstream{}, errors.New("could not find backend in mdns registry")
+	upstreamIP, ok := r.domainproxy.ipMap[proxyAddr]
+	if !ok {
+		return domainproxytypes.Upstream{}, errors.New("could not find backend in mdns registry")
 	}
 
-	return proxyAddr, upstreamIP, nil
+	return upstreamIP, nil
 }
 
-func (s *SconGuestServer) GetProxyUpstream(args sgtypes.GetProxyUpstreamArgs, reply *sgtypes.GetProxyUpstreamReply) error {
-	addr, upstream, err := registryGetProxyUpstream(s.m.net.mdnsRegistry, args.Host, args.V4)
+func (s *SconGuestServer) GetProxyUpstream(args sgtypes.GetProxyUpstreamArgs, reply *domainproxytypes.Upstream) error {
+	upstream, err := registryGetProxyUpstream(s.m.net.mdnsRegistry, args.Host, args.V4)
 	if err != nil {
 		return err
 	}
-	*reply = sgtypes.GetProxyUpstreamReply{Addr: addr, Upstream: upstream}
+	*reply = upstream
 	return nil
 }

@@ -64,7 +64,8 @@ func runLxcHook() {
 	case lxcHookPostStop:
 		runLxcPostStop(cid)
 	case lxcHookNetIfUp:
-		isIsolated := os.Args[4] == "true"
+		isIsolated, err := strconv.ParseBool(os.Args[4])
+		check(err)
 		runLxcNetIfUp(isIsolated)
 	default:
 		panic("unknown hook: " + hook)

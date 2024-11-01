@@ -329,9 +329,13 @@ func (d *DockerAgent) PostStart() error {
 		// we need to make sure we don't race with docker. docker starts accepting on the unix socket too early for us to use WaitForSocketConnectible
 		// another way would be using sdnotify, but we don't currently have any way to forward that from simplevisor to the agent
 		// but this also works, because docker only starts actually handling api requests late enough
-		util.WaitForApiRunning(dockerAPISocketUpstream)
+		err := util.WaitForApiRunning(dockerAPISocketUpstream)
+		if err != nil {
+			// even if this fails, we can still attempt to change the policy to forward, so no early return
+			logrus.WithError(err).Error("failed to wait for docker api to come up")
+		}
 
-		err := util.Run("ip6tables", "-P", "FORWARD", "ACCEPT")
+		err = util.Run("ip6tables", "-P", "FORWARD", "ACCEPT")
 		if err != nil {
 			logrus.WithError(err).Error("failed to change ip6 tables forward chain policy to accept")
 		}

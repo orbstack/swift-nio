@@ -206,14 +206,12 @@ const (
 	VmFwmarkDockerRouteBit = 1 << 0
 	// packets with this mark bit are hijacked to lo
 	VmFwmarkLocalRouteBit = 1 << 1
-	// packets with this ctmark bit are accepted. used to identify traffic headed to tlsproxy
-	VmFwmarkTproxyBit = 1 << 2
 	// this mark bit is set with SO_MARK on outbound connections made by tlsproxy
 	// this lets us hijack the response packets back to us
-	VmFwmarkTproxyOutboundBit = 1 << 3
+	VmFwmarkTproxyOutboundBit = 1 << 2
 	// this mark bit is used to identify traffic from isolated machines
-	VmFwmarkIsolatedBit = 1 << 4
+	VmFwmarkIsolatedBit = 1 << 3
 	// this bit is set when traffic from a machine needs to be routed back to that machine
 	// it needs to be masqueraded so that replies will pass back through ovm
-	VmFwmarkHairpinMasqueradeBit = 1 << 5
+	VmFwmarkHairpinMasqueradeBit = 1 << 4
 )

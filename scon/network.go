@@ -153,7 +153,6 @@ func (n *Network) Start() error {
 
 		"FWMARK_DOCKER_ROUTE_BIT":       strconv.Itoa(netconf.VmFwmarkDockerRouteBit),
 		"FWMARK_LOCAL_ROUTE_BIT":        strconv.Itoa(netconf.VmFwmarkLocalRouteBit),
-		"FWMARK_TPROXY_BIT":             strconv.Itoa(netconf.VmFwmarkTproxyBit),
 		"FWMARK_TPROXY_OUTBOUND_BIT":    strconv.Itoa(netconf.VmFwmarkTproxyOutboundBit),
 		"FWMARK_ISOLATED_BIT":           strconv.Itoa(netconf.VmFwmarkIsolatedBit),
 		"FWMARK_HAIRPIN_MASQUERADE_BIT": strconv.Itoa(netconf.VmFwmarkHairpinMasqueradeBit),

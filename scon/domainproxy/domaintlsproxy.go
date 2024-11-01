@@ -32,8 +32,8 @@ const (
 	MdnsContextKeyDownstream MdnsContextKey = iota
 )
 
-type GetUpstreamFunc func(host string, v4 bool) (netip.Addr, domainproxytypes.DomainproxyUpstream, error)
-type GetMarkFunc func(upstream domainproxytypes.DomainproxyUpstream) int
+type GetUpstreamFunc func(host string, v4 bool) (domainproxytypes.Upstream, error)
+type GetMarkFunc func(upstream domainproxytypes.Upstream) int
 type DomainTLSProxy struct {
 	getUpstream GetUpstreamFunc
 	getMark     GetMarkFunc
@@ -248,7 +248,7 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 		return false, nil
 	}
 
-	_, upstream, err := p.getUpstream(destHost, is4)
+	upstream, err := p.getUpstream(destHost, is4)
 	if err != nil {
 		logrus.WithError(err).Error("failed to get upstream")
 		return false, nil
@@ -322,7 +322,7 @@ func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string)
 		is4 = downstreamIP.(net.IP).To4() != nil
 	}
 
-	_, upstream, err := p.getUpstream(dialHost, is4)
+	upstream, err := p.getUpstream(dialHost, is4)
 	if err != nil {
 		return nil, err
 	}
