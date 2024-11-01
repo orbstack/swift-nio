@@ -20,6 +20,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const LabelWormholeType = "dev.orbstack.wormhole.type"
+const LabelWormholeEphemeral = "dev.orbstack.wormhole.ephemeral"
+
 var (
 	ErrContainerNotRunning = errors.New("container is not running")
 
@@ -77,7 +80,8 @@ func (d *DockerAgent) createWormholeImageContainer(image string) (string, error)
 			"/dev/shm/.orb-wormhole-stub",
 		},
 		Labels: map[string]string{
-			"dev.orbstack.wormhole.type": "temp-image",
+			LabelWormholeType:      "temp-image",
+			LabelWormholeEphemeral: "1",
 		},
 		StopSignal: "SIGKILL",
 		HostConfig: &dockertypes.ContainerHostConfig{
@@ -190,6 +194,11 @@ func (d *DockerAgent) maybeSetContainerMode(mode string) string {
 }
 
 func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJSON) (_containerID string, _imageID string, retErr error) {
+	// no recursion!
+	if _, ok := ctr.Config.Labels[LabelWormholeEphemeral]; ok {
+		return "", "", fmt.Errorf("cannot create wormhole from ephemeral container")
+	}
+
 	// first, commit the container's FS changes to an image so that they show up
 	// this is also used as the rootfs if graph driver != overlay2
 	imageID, err := d.client.CommitContainer(ctr.ID)
@@ -222,8 +231,8 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 			"/dev/shm/.orb-wormhole-stub",
 		},
 		Labels: map[string]string{
-			"dev.orbstack.wormhole.type": "temp-container",
-			// TODO: race-free dev.orbstack.domains synthesizing -- release it before original container starts
+			LabelWormholeType:      "temp-container",
+			LabelWormholeEphemeral: "1",
 		},
 		StopSignal: "SIGKILL",
 		HostConfig: &dockertypes.ContainerHostConfig{
