@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
 	"unsafe"
@@ -16,6 +15,7 @@ import (
 	"github.com/gliderlabs/ssh"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
@@ -86,7 +86,7 @@ func waitForAccess(ctx context.Context, fanFile *os.File, accessCb func()) error
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer r.Close() // doubles as keepalive
 	defer w.Close()
 
 	go func() {
@@ -94,65 +94,63 @@ func waitForAccess(ctx context.Context, fanFile *os.File, accessCb func()) error
 		_ = w.Close()
 	}()
 
-	var buf [1024]byte
+	var event unix.FanotifyEventMetadata
 	for {
 		for {
 			fds := [...]unix.PollFd{
 				{
-					Fd:     int32(w.Fd()),
+					Fd:     int32(r.Fd()),
 					Events: unix.POLLIN,
 				},
 				{
-					Fd:     int32(fanFile.Fd()),
+					// placeholder -- replaced in UseFile callback below
+					Fd:     0,
 					Events: unix.POLLIN,
 				},
 			}
-			n, err := unix.Poll(fds[:], -1)
-			runtime.KeepAlive(w)
-			runtime.KeepAlive(fanFile)
+			_, err := util.UseFile1(fanFile, func(fd int) (int, error) {
+				fds[1].Fd = int32(fd)
+				return unix.Poll(fds[:], -1)
+			})
 			if err != nil {
 				if err == unix.EINTR {
 					continue
+				} else if errors.Is(err, os.ErrClosed) {
+					return errors.New("fan file closed (misuse)")
 				} else {
 					return fmt.Errorf("poll: %w", err)
 				}
 			}
-			for _, fd := range fds[:n] {
-				if fd.Revents&unix.POLLHUP != 0 {
-					// stopped
-					return nil
-				}
+			if fds[0].Revents != 0 {
+				// stopped
+				return nil
 			}
-			if n > 0 {
+			if fds[1].Revents&unix.POLLIN != 0 {
 				// data
 				break
 			}
 		}
 
-		n, err := fanFile.Read(buf[:])
+		// read one event at a time for safety
+		n, err := fanFile.Read(unsafe.Slice((*byte)(unsafe.Pointer(&event)), unsafe.Sizeof(event)))
 		if err != nil {
 			return fmt.Errorf("fanotify read: %w", err)
 		}
+		if n != int(unsafe.Sizeof(event)) {
+			return errors.New("fanotify read: short read")
+		}
 
-		// parse events
-		p := buf[:n]
-		for len(p) > 0 {
-			event := (*unix.FanotifyEventMetadata)(unsafe.Pointer(&p[0]))
+		if event.Vers != unix.FANOTIFY_METADATA_VERSION {
+			return fmt.Errorf("unsupported fanotify version: %d", event.Vers)
+		}
 
-			if event.Vers != unix.FANOTIFY_METADATA_VERSION {
-				return fmt.Errorf("unsupported fanotify version: %d", event.Vers)
-			}
-
-			isDocker, err := handleFanotify(fanFile, event, accessCb)
-			if err != nil {
-				return err
-			}
-			if isDocker {
-				// we've done our job: dockerd has started this container
-				return nil
-			}
-
-			p = p[event.Event_len:]
+		isDocker, err := handleFanotify(fanFile, &event, accessCb)
+		if err != nil {
+			return err
+		}
+		if isDocker {
+			// we've done our job: dockerd has started this container
+			return nil
 		}
 	}
 }
@@ -296,9 +294,20 @@ func (sv *SshServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeT
 	var processWg sync.WaitGroup
 	processWg.Add(1)
 	if fanotifyFile != nil {
+		// wait for fanotify to exit before returning, so that the deferred fanotifyFile.Close() doesn't happen while it's still in use
+		var fanotifyWg sync.WaitGroup
+		fanotifyWg.Add(1)
+		defer fanotifyWg.Wait()
+
+		// cancel context to stop waitForAccess when we're done
+		ctx, cancel := context.WithCancel(s.Context())
+		defer cancel()
+
 		go func() {
+			defer fanotifyWg.Done()
+
 			logrus.Debug("waiting for container start access")
-			err := waitForAccess(s.Context(), fanotifyFile, func() {
+			err := waitForAccess(ctx, fanotifyFile, func() {
 				logrus.Info("container start detected, killing wormhole session")
 				_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, fmt.Sprintf("\n\nContainer '%s' is starting or being deleted.\nEnding Debug Shell session.\n", wormholeTarget)))
 
