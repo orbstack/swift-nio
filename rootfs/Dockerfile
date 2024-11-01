@@ -14,7 +14,7 @@ FROM nixos/nix:2.24.2 AS nix-base
 # Build Go and eBPF (C) - scon + eBPF, macctl
 FROM base AS go-base
 RUN apk add --no-cache go alpine-sdk lxc-dev bash \
-    llvm clang linux-headers libbpf-dev
+    llvm clang linux-headers libbpf-dev protoc
 # must build vmgr and scon together because they depend on each other
 FROM go-base AS go-build
 ENV GOTOOLCHAIN=auto
@@ -50,7 +50,7 @@ EOT
 # Build Rust - vinit, wormhole-attach, dctl
 # workaround for Rosetta bug: use Rust image to avoid patchelf
 FROM rust-base AS rust-build
-RUN apk add --no-cache musl-dev
+RUN apk add --no-cache musl-dev protoc
 COPY vinit /build/vinit
 ARG ARCH=arm64
 ARG TYPE=release

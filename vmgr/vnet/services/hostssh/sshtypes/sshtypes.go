@@ -30,5 +30,4 @@ type WormholeConfig struct {
 	ContainerEnv     []string `json:"g"`
 
 	EntryShellCmd string `json:"h,omitempty"`
-	IsLocal       bool   `json:"i"`
 }

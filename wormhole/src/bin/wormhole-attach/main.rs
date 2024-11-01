@@ -22,9 +22,9 @@ use std::{
 use anyhow::{anyhow, Error};
 use libc::{
     prlimit, ptrace, sock_filter, sock_fprog, syscall, tcflag_t, SYS_capset, SYS_seccomp,
-    PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
-    PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE, STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ,
-    TIOCSCTTY, TIOCSWINSZ,
+    OPEN_TREE_CLONE, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL,
+    PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE,
+    STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ, TIOCSCTTY, TIOCSWINSZ,
 };
 use model::WormholeConfig;
 use mounts::with_remount_rw;
@@ -59,22 +59,15 @@ use nix::{
         setresuid, setsid, AccessFlags, ForkResult, Gid, Pid, Uid,
     },
 };
-use nix::{libc::ioctl, unistd::pipe};
-use nix::{
-    sys::termios::{
-        cfmakeraw, cfsetispeed, tcgetattr, tcsetattr, BaudRate, ControlFlags, InputFlags,
-        LocalFlags, OutputFlags, SetArg, Termios,
-    },
-    unistd::dup,
-};
+
 use pidfd::PidFd;
 use signals::{mask_sigset, SigSet, SignalFd};
-use tracing::{debug, span, trace, Level};
+use tracing::{debug, span, trace, warn, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
     flock::{Flock, FlockMode, FlockWait},
-    newmount::{mount_setattr, move_mount, MountAttr, MOUNT_ATTR_RDONLY},
+    newmount::{mount_setattr, move_mount, open_tree, MountAttr, MOUNT_ATTR_RDONLY},
     paths, set_cloexec,
 };
 
@@ -420,8 +413,6 @@ fn main() -> anyhow::Result<()> {
     set_cloexec(config.exit_code_pipe_write_fd)?;
     set_cloexec(log_fd.as_raw_fd())?;
     set_cloexec(wormhole_mount_fd.as_raw_fd())?;
-
-    let exit_code_writer = unsafe { File::from_raw_fd(config.exit_code_pipe_write_fd) };
 
     // set sigpipe
     {

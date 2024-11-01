@@ -169,7 +169,7 @@ impl WormholeServer {
 
         // get client fds via scm_rights over the stream
         trace!("waiting for rpc client fds");
-        let (mut client_stdin, client_stdout) = recv_rpc_client(&stream)?;
+        let (mut client_stdin, mut client_stdout) = recv_rpc_client(&stream)?;
         trace!(
             "got rpc client fds {} {}",
             client_stdin.as_raw_fd(),
@@ -234,7 +234,7 @@ impl WormholeServer {
         )?;
         let wormhole_mount = open_tree(
             "/mnt/wormhole-unified/nix",
-            libc::OPEN_TREE_CLOEXEC as i32 | libc::OPEN_TREE_CLONE as i32 | libc::AT_RECURSIVE,
+            libc::OPEN_TREE_CLOEXEC | libc::OPEN_TREE_CLONE | libc::AT_RECURSIVE as u32,
         )?;
 
         let (_, log_pipe_write_fd) = pipe()?;
