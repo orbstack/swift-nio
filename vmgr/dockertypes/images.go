@@ -26,6 +26,12 @@ type FullImage struct {
 	}
 }
 
+type FullImageWithConfig struct {
+	FullImage
+	// can't be serialized with gob due to strSlice=any
+	Config *ContainerConfig
+}
+
 func (img *FullImage) Identifier() string {
 	return img.ID
 }

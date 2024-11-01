@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/alessio/shellescape"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
@@ -71,14 +72,23 @@ func randomContainerName() string {
 	return fmt.Sprintf("orb-wormhole-temp-%s", hex.EncodeToString(buf))
 }
 
-func (d *DockerAgent) createWormholeImageContainer(image string) (string, error) {
+func (d *DockerAgent) createWormholeImageContainer(imageID string) (string, error) {
+	image, err := d.client.InspectImage(imageID)
+	if err != nil {
+		return "", err
+	}
+
+	// generate entrypoint script
+	env := generateEntrypointEnv(image.Config)
+
 	id, err := d.client.RunContainer(dockerclient.RunContainerOptions{
 		Name: randomContainerName(),
 	}, &dockertypes.ContainerConfig{
-		Image: image,
+		Image: image.ID,
 		Entrypoint: []string{
 			"/dev/shm/.orb-wormhole-stub",
 		},
+		Env: env,
 		Labels: map[string]string{
 			LabelWormholeType:      "temp-image",
 			LabelWormholeEphemeral: "1",
@@ -193,6 +203,35 @@ func (d *DockerAgent) maybeSetContainerMode(mode string) string {
 	return ""
 }
 
+func parseStrSlice(strSlice any) []string {
+	if slice, ok := strSlice.([]any); ok {
+		result := []string{}
+		for _, str := range slice {
+			if str, ok := str.(string); ok {
+				result = append(result, str)
+			}
+		}
+		return result
+	} else if str, ok := strSlice.(string); ok {
+		return []string{"/bin/sh", "-c", str}
+	}
+
+	return nil
+}
+
+func generateEntrypointEnv(config *dockertypes.ContainerConfig) []string {
+	// generate entrypoint script
+	// entrypoint + cmd = argv for run/exec
+	entrypointArgv := append(parseStrSlice(config.Entrypoint), parseStrSlice(config.Cmd)...)
+	entrypointCmd := shellescape.QuoteCommand(entrypointArgv)
+	if entrypointCmd != "" {
+		entrypointCmd += ` "$@"`
+	}
+	env := config.Env
+	env = append(env, "_ORB_WORMHOLE_ENTRYPOINT="+entrypointCmd)
+	return env
+}
+
 func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJSON) (_containerID string, _imageID string, retErr error) {
 	// no recursion!
 	if _, ok := ctr.Config.Labels[LabelWormholeEphemeral]; ok {
@@ -214,6 +253,9 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 		}
 	}()
 
+	// generate entrypoint script
+	env := generateEntrypointEnv(ctr.Config)
+
 	newCfg := &dockertypes.ContainerConfig{
 		// exact SHA256 of committed image
 		Image: ctr.Image,
@@ -221,7 +263,7 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 		// copy relevant config properties
 		Domainname:      ctr.Config.Domainname,
 		User:            ctr.Config.User,
-		Env:             ctr.Config.Env,
+		Env:             env,
 		WorkingDir:      ctr.Config.WorkingDir,
 		NetworkDisabled: ctr.Config.NetworkDisabled,
 		OnBuild:         ctr.Config.OnBuild,

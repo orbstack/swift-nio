@@ -220,4 +220,13 @@ echo "This shell provides useful commands & tools, making it easy to debug any c
 echo "Use 'dctl' to install and remove packages."
 echo
 echo "Learn more: https://go.orbstack.dev/debug"
+
+if [[ ! -z "$_ORB_WORMHOLE_ENTRYPOINT" ]]; then
+    entrypoint() {
+        eval "$_ORB_WORMHOLE_ENTRYPOINT"
+    }
+
+    echo
+    echo "=> Use 'entrypoint' to run the container's entrypoint."
+fi
 # blank line added by prompt
