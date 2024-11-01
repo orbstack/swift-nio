@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
+	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/templates"
 	"github.com/orbstack/macvirt/scon/tlsutil"
@@ -144,7 +146,8 @@ type mdnsRegistry struct {
 
 	httpServer *http.Server
 
-	domainTLSProxy *domainproxy.DomainTLSProxy
+	domainTLSProxy       *domainproxy.DomainTLSProxy
+	domainTLSProxyActive bool
 }
 
 func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *mdnsRegistry {
@@ -213,6 +216,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 	}
 
 	r.domainTLSProxy = proxy
+	r.domainTLSProxyActive = false
 
 	return r
 }
@@ -280,6 +284,11 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		}
 		return r.httpServer.ServeTLS(l, "", "")
 	})
+
+	err = r.updateTLSProxyNftables(true, r.manager.vmConfig.NetworkHttps)
+	if err != nil {
+		logrus.WithError(err).Error("unable to update tls proxy nftables")
+	}
 
 	go runOne("start domaintproxy", func() error {
 		err := r.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix)
@@ -584,6 +593,7 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 		}
 	}
 
+	slices.Reverse(names)
 	return names
 }
 
@@ -1211,5 +1221,27 @@ func (s *SconGuestServer) GetProxyUpstream(args sgtypes.GetProxyUpstreamArgs, re
 		return err
 	}
 	*reply = upstream
+	return nil
+}
+
+func (r *mdnsRegistry) updateTLSProxyNftables(locked bool, enabled bool) error {
+	if !locked {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+	}
+
+	var err error
+	if !r.domainTLSProxyActive && enabled {
+		// we need to activate it
+		err = nft.Run("add", "rule", "inet", "vm", "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
+	} else if r.domainTLSProxyActive && !enabled {
+		// we need to deactivate it
+		err = nft.Run("flush", "chain", "inet", "vm", "prerouting-dynamic-tlsproxy")
+	}
+	if err != nil {
+		return err
+	}
+
+	r.domainTLSProxyActive = enabled
 	return nil
 }

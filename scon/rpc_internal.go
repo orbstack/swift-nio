@@ -32,6 +32,8 @@ func (s *SconInternalServer) OnVmconfigUpdate(config *vmconfig.VmConfig, _ *None
 	dlog("on vmconfig update reported")
 	s.m.vmConfig = config
 
+	s.m.net.mdnsRegistry.updateTLSProxyNftables(false, config.NetworkHttps)
+
 	// if needed, update docker agent state
 	if s.dockerMachine.Running() {
 		err := s.dockerMachine.UseAgent(func(a *agent.Client) error {

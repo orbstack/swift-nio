@@ -78,9 +78,11 @@ type DockerAgent struct {
 	dirSyncListener net.Listener
 	dirSyncJobs     map[uint64]chan error
 
-	k8s          *K8sAgent
-	pstub        *PstubServer
-	domaintproxy *domainproxy.DomainTLSProxy
+	k8s   *K8sAgent
+	pstub *PstubServer
+
+	domainTLSProxy       *domainproxy.DomainTLSProxy
+	domainTLSProxyActive bool
 }
 
 func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
@@ -104,6 +106,8 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 
 		containerBinds: make(map[string][]string),
 		dirSyncJobs:    make(map[uint64]chan error),
+
+		domainTLSProxyActive: false,
 	}
 
 	dockerAgent.containerRefreshDebounce = *syncx.NewLeadingFuncDebounce(dockerRefreshDebounce, func() {
@@ -180,6 +184,11 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 	dockerAgent.host, err = hclient.New(hConn)
 	if err != nil {
 		return nil, err
+	}
+
+	err = dockerAgent.updateTLSProxyNftables(isTls)
+	if err != nil {
+		logrus.WithError(err).Error("unable to update tls proxy nftables")
 	}
 
 	return dockerAgent, nil
@@ -583,8 +592,7 @@ func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
 }
 
 func (a *AgentServer) DockerOnVmconfigUpdate(config *vmconfig.VmConfig, _ *None) error {
-	// this used to be a hook for docker_tlsproxy, but is no longer needed
-	return nil
+	return a.docker.updateTLSProxyNftables(config.NetworkHttps)
 }
 
 // mini freezer refcount tracker
