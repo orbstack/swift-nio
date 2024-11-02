@@ -197,7 +197,7 @@ func (sv *SshServer) prepareWormhole(container *Container, wormholeTarget string
 	}, nil
 }
 
-func (sv *SshServer) startWormholeProcess(s ssh.Session, cmd *agent.AgentCommand, container *Container, params *wormholeSessionParams, shellCmd string, meta *sshtypes.SshMeta) (_exitCodePipeRead *os.File, retErr error) {
+func (sv *SshServer) startWormholeProcess(cmd *agent.AgentCommand, container *Container, params *wormholeSessionParams, shellCmd string, meta *sshtypes.SshMeta) (_exitCodePipeRead *os.File, retErr error) {
 	isNix, err := isNixContainer(params.resp.RootfsFile)
 	if err != nil {
 		return nil, err
@@ -438,7 +438,7 @@ func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, cont
 		_, _ = io.WriteString(s.Stderr(), ptyWarning(isPty, wormholeContainerWriteWarning))
 	}
 
-	exitCodePipeRead, err := sv.startWormholeProcess(s, cmd, container, params, shellCmd, meta)
+	exitCodePipeRead, err := sv.startWormholeProcess(cmd, container, params, shellCmd, meta)
 	params.resp.RootfsFile.Close()
 	if err != nil {
 		return true /*printErr*/, err
