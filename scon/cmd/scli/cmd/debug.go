@@ -199,7 +199,7 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 	}
 
 	if clientInit.StartServer {
-		_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
+		_, err = client.RunContainer(dockerclient.RunContainerOptions{PullImage: true}, &dockertypes.ContainerCreateRequest{
 			Image: serverImage,
 			HostConfig: &dockertypes.ContainerHostConfig{
 				Privileged:   true,
@@ -208,7 +208,7 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 				PidMode:      "host",
 				NetworkMode:  "host",
 			},
-		}, true)
+		})
 	}
 
 	// acknowledge to the client that the server has started
@@ -508,7 +508,7 @@ func nukeRemoteData(cmd *cobra.Command, daemon *dockerclient.DockerConnection) e
 		os.Exit(1)
 	}
 
-	_, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
+	_, err = client.RunContainer(dockerclient.RunContainerOptions{PullImage: true}, &dockertypes.ContainerCreateRequest{
 		Image: serverImage,
 		HostConfig: &dockertypes.ContainerHostConfig{
 			Privileged: true,
@@ -518,7 +518,7 @@ func nukeRemoteData(cmd *cobra.Command, daemon *dockerclient.DockerConnection) e
 			// NetworkMode:  "host",
 		},
 		Cmd: []string{string("--nuke")},
-	}, false)
+	})
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
