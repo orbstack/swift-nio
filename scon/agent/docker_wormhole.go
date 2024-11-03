@@ -113,6 +113,8 @@ func (d *DockerAgent) createWormholeImageContainer(imageID string) (string, erro
 	return id, nil
 }
 
+const FAN_MOUNT_PERM = 0x00800000
+
 func makeContainerStartFanotify(workDir string) (_fanFd int, retErr error) {
 	fanFd, err := unix.FanotifyInit(unix.FAN_CLASS_PRE_CONTENT|unix.FAN_CLOEXEC|unix.FAN_UNLIMITED_MARKS|unix.FAN_NONBLOCK, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOATIME)
 	if err != nil {
@@ -127,16 +129,17 @@ func makeContainerStartFanotify(workDir string) (_fanFd int, retErr error) {
 	// monitor two nodes:
 	// /work is used for deletion (which doesn't trigger /lower)
 	// mount doesn't trigger /work; it's the chown that triggers it afterwards
-	err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD|unix.FAN_MARK_ONLYDIR, unix.FAN_OPEN_PERM|unix.FAN_ACCESS_PERM|unix.FAN_ONDIR, unix.AT_FDCWD, workDir)
-	if err != nil {
-		return -1, fmt.Errorf("fanotify_mark: %w", err)
-	}
+	// err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD|unix.FAN_MARK_ONLYDIR, unix.FAN_OPEN_PERM|unix.FAN_ACCESS_PERM|unix.FAN_ONDIR, unix.AT_FDCWD, workDir)
+	// if err != nil {
+	// 	return -1, fmt.Errorf("fanotify_mark: %w", err)
+	// }
 
 	// /lower is used for container start (overlay2 reads it first before mounting: https://github.com/moby/moby/blob/7b0ef10a9a28ac69c4fd89d82ae71f548b5c7edd/daemon/graphdriver/overlay2/overlay.go#L526)
 	// /work is too late for the mounting case
 	parentDir := filepath.Dir(workDir)
-	lowerListFile := parentDir + "/lower"
-	err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD, unix.FAN_OPEN_PERM|unix.FAN_ACCESS_PERM, unix.AT_FDCWD, lowerListFile)
+	mergedDir := parentDir + "/merged"
+	_ = unix.Mkdir(mergedDir, 0o755)
+	err = unix.FanotifyMark(fanFd, unix.FAN_MARK_ADD, FAN_MOUNT_PERM|unix.FAN_ONDIR, unix.AT_FDCWD, mergedDir)
 	if err != nil {
 		return -1, fmt.Errorf("fanotify_mark: %w", err)
 	}
