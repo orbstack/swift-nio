@@ -3,127 +3,17 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3C00901E2B26CBD30000DFFA /* NewMainVC+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */; };
-		3C0090232B26D7B80000DFFA /* NavTabId.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090222B26D7B80000DFFA /* NavTabId.swift */; };
-		3C0090252B2723E10000DFFA /* NewMainVC+Listen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */; };
-		3C1935F22B313034009D2929 /* NewMainVC+SplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */; };
-		3C1935F42B31325D009D2929 /* SplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1935F32B31325D009D2929 /* SplitViewController.swift */; };
-		3CA2669E2B43C8C900D4DA28 /* DividedVStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA2669D2B43C8C900D4DA28 /* DividedVStack.swift */; };
-		3CBBBF8C2B1AC38A00BDBC87 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF8B2B1AC38A00BDBC87 /* SidebarView.swift */; };
-		3CBBBF8E2B1AC38D00BDBC87 /* PrincipalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF8D2B1AC38D00BDBC87 /* PrincipalView.swift */; };
-		3CBBBF902B1AC39100BDBC87 /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF8F2B1AC39100BDBC87 /* InspectorView.swift */; };
-		3CBBBF922B1AC3E400BDBC87 /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CBBBF912B1AC3E400BDBC87 /* Utilities.swift */; };
-		3CD16B6F2B10864E002FBB00 /* NewMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD16B6E2B10864E002FBB00 /* NewMainView.swift */; };
-		3CD16B712B108654002FBB00 /* NewMainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD16B702B108654002FBB00 /* NewMainViewController.swift */; };
-		B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */; };
 		B118B05969CAC4497636F8DE /* FFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF90FB580B56419D1472 /* FFI.swift */; };
-		B118B059B171800F250B42CD /* PHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHClient.swift */; };
-		B118B05A4822E6D2CE27AE32 /* CustomLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4E4BEA14F3804B048B1 /* CustomLink.swift */; };
-		B118B076E8CB7033926025A7 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1DCE616676E483BB2BB /* FeedbackView.swift */; };
-		B118B0B04390F03CD1EAA096 /* AKAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC7076F4FB6E3224B434 /* AKAlert.swift */; };
-		B118B0B45C5275390C73E211 /* RenameContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BE46918C0AB595ADE247 /* RenameContainerView.swift */; };
-		B118B0D2AFA041304026BC2B /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
-		B118B0FC989BF42C8A2B6EE2 /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
-		B118B1D666CB270A1C79F4E6 /* LicenseBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B88E1E11478CF5ABAAC4 /* LicenseBadgeView.swift */; };
-		B118B209F240A8036216EC04 /* DockerMigrationWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */; };
-		B118B242A992055158331DBA /* K8SStateWrapperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BDCE479E491B624AC373 /* K8SStateWrapperView.swift */; };
-		B118B2587E45023C13156AE5 /* K8SUIHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B065CF24496A8E43EC03 /* K8SUIHelpers.swift */; };
-		B118B2AA7196819BB8584BE7 /* DetailsStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF9EECAAD96ED8ACFB10 /* DetailsStack.swift */; };
 		B118B30635EF5873545E0BE1 /* KeychainFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BEDAA62E1455A02C177D /* KeychainFFI.swift */; };
-		B118B3B76CA225F4062B10D1 /* NSImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BABDE1F02C8A54DB011F /* NSImage.swift */; };
-		B118B3BEA18481697E1EB21E /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
 		B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB2A7BF402695260775E /* IPC.swift */; };
-		B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B30219F10B44000AE05A /* OnboardingManager.swift */; };
-		B118B43B007C2829095646FE /* Data+Base64URL.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B103C2DE982C1219D12E /* Data+Base64URL.swift */; };
-		B118B4653B70C49EAB1B1094 /* DockerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B82B52FEEB467CDA5C7A /* DockerSettingsView.swift */; };
-		B118B4DC48A219728BE68C4F /* K8SServiceItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B37A6E9BB62F82BD7354 /* K8SServiceItemView.swift */; };
-		B118B52864D6F64B6436CDE3 /* K8SServiceDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B3AAEC4D69D6E7940241 /* K8SServiceDetails.swift */; };
 		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
-		B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */; };
 		B118B55A04BDC43EB62C4F9B /* Locks.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B67B66A855D49B729379 /* Locks.swift */; };
-		B118B582B55A083B244C8B74 /* K8SPodDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B329773504BB3337D9ED /* K8SPodDetails.swift */; };
-		B118B5BB973EBC5FD60C865B /* K8SSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BA158D66536A2AA036FB /* K8SSettingsView.swift */; };
-		B118B662209189FEF0B61F9F /* CursorRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BEBDA570BE498B231235 /* CursorRegion.swift */; };
-		B118B68B99927A5EF567C5D9 /* DockerVolumeDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B716BC8E29CD3CD6AE40 /* DockerVolumeDetails.swift */; };
-		B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */; };
-		B118B6C34CBA6697634108B6 /* MainNavViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B8CEB4860DFE6B9BEFBD /* MainNavViewModel.swift */; };
-		B118B6EB7323A6023E5EE791 /* K8SGroupDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B58F6EED602C33432FD4 /* K8SGroupDetails.swift */; };
-		B118B77119F338910D52B7D2 /* DockerImageDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2CA5B8F56A911E3B0DA /* DockerImageDetails.swift */; };
-		B118B773879397647B754ADE /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6BD06B6D2DF4AE4C794 /* AuthView.swift */; };
-		B118B81365EA43CD9BD5FFF1 /* K8sRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B1E2A991085A29F40FB3 /* K8sRPC.swift */; };
 		B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */; };
-		B118B8D281CB560AA13AD3FB /* K8SPodsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B530786FB12B0A422003 /* K8SPodsView.swift */; };
-		B118B908C12CA46A45B5EF1F /* CopyableText.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B56B2F68D469F76481FD /* CopyableText.swift */; };
-		B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */; };
-		B118B93284799ABB4471A456 /* DockerContainerDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B7B8CD27FB009544DE36 /* DockerContainerDetails.swift */; };
-		B118B99BAE17848A3498056C /* DockerK8sGroupItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B0395DD7516D3F705FBC /* DockerK8sGroupItem.swift */; };
-		B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */; };
-		B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */; };
-		B118BB872576F6CD4404591E /* MachineDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B6CB68E05FE126B7A4DF /* MachineDetails.swift */; };
-		B118BBA93DEC265B133001E3 /* ThinEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B06A59C6893760E5F9AA /* ThinEnvironment.swift */; };
-		B118BBABE0D99C6164F748AF /* AKList.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9305764473F5CD0B8A4 /* AKList.swift */; };
-		B118BC05CE1D4F11DDD3EF4F /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B300D94CA37572036935 /* Buttons.swift */; };
-		B118BC0C08A918A48F447E2D /* K8SPodItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BBF4988AABF0AB93C4EA /* K8SPodItemView.swift */; };
-		B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */; };
 		B118BD0025A6757805924195 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD52B15443D1329C832A /* Packets.swift */; };
-		B118BD1656CDA2FBAE025120 /* K8SServicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BAE7880AF024BB63CA95 /* K8SServicesView.swift */; };
-		B118BD7881459134B77DE5FB /* ActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B9E8A7A9D0BF383D0906 /* ActivityTracker.swift */; };
-		B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */; };
-		B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B88B9296701977A1F286 /* CodeInfo.swift */; };
-		B118BF9432DE5B82D325A31E /* DockerComposeGroupDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BC5ED0519B7B337DA8D6 /* DockerComposeGroupDetails.swift */; };
-		CE44F2D72C259BA600965CC2 /* DockerSortMethod.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE44F2D62C259BA600965CC2 /* DockerSortMethod.swift */; };
-		D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */; };
-		D80443E12A1B404E00ED59C5 /* OnboardingWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */; };
-		D80443E22A1B404E00ED59C5 /* OnboardingRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A22A1B404E00ED59C5 /* OnboardingRootView.swift */; };
-		D80443E32A1B404E00ED59C5 /* OnboardingModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A32A1B404E00ED59C5 /* OnboardingModeView.swift */; };
-		D80443E42A1B404E00ED59C5 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A42A1B404E00ED59C5 /* OnboardingViewModel.swift */; };
-		D80443E82A1B404E00ED59C5 /* MachineContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443A92A1B404E00ED59C5 /* MachineContainerItem.swift */; };
-		D80443EA2A1B404E00ED59C5 /* CreateContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443AB2A1B404E00ED59C5 /* CreateContainerView.swift */; };
-		D80443EB2A1B404E00ED59C5 /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443AC2A1B404E00ED59C5 /* Images.swift */; };
-		D80443EC2A1B404E00ED59C5 /* MachinesUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443AD2A1B404E00ED59C5 /* MachinesUI.swift */; };
-		D80443ED2A1B404E00ED59C5 /* MachinesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443AE2A1B404E00ED59C5 /* MachinesRootView.swift */; };
-		D80443EE2A1B404E00ED59C5 /* StateWrapperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443B02A1B404E00ED59C5 /* StateWrapperView.swift */; };
-		D80443EF2A1B404E00ED59C5 /* DaemonManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443B12A1B404E00ED59C5 /* DaemonManager.swift */; };
-		D80443F02A1B404E00ED59C5 /* VmViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443B22A1B404E00ED59C5 /* VmViewModel.swift */; };
-		D80443F12A1B404E00ED59C5 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443B32A1B404E00ED59C5 /* AppConfig.swift */; };
-		D80443F22A1B404E00ED59C5 /* SwiftUIUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443B52A1B404E00ED59C5 /* SwiftUIUtils.swift */; };
-		D80443F42A1B404E00ED59C5 /* Operators.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443B72A1B404E00ED59C5 /* Operators.swift */; };
-		D80443F52A1B404E00ED59C5 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443B82A1B404E00ED59C5 /* Utils.swift */; };
-		D80443F62A1B404E00ED59C5 /* SplitViewAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443B92A1B404E00ED59C5 /* SplitViewAccessor.swift */; };
-		D80443F72A1B404E00ED59C5 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443BB2A1B404E00ED59C5 /* MenuBarController.swift */; };
-		D80443F82A1B404E00ED59C5 /* WindowTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443BC2A1B404E00ED59C5 /* WindowTracker.swift */; };
-		D80443F92A1B404E00ED59C5 /* CommandsRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443BD2A1B404E00ED59C5 /* CommandsRootView.swift */; };
-		D80443FA2A1B404E00ED59C5 /* DockerStateWrapperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443BF2A1B404E00ED59C5 /* DockerStateWrapperView.swift */; };
-		D80443FB2A1B404E00ED59C5 /* DockerLogsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C02A1B404E00ED59C5 /* DockerLogsWindow.swift */; };
-		D80443FC2A1B404E00ED59C5 /* DockerImagesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C12A1B404E00ED59C5 /* DockerImagesRootView.swift */; };
-		D80443FD2A1B404E00ED59C5 /* DockerImageItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C22A1B404E00ED59C5 /* DockerImageItem.swift */; };
-		D80443FE2A1B404E00ED59C5 /* DockerContainerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C32A1B404E00ED59C5 /* DockerContainerItem.swift */; };
-		D80443FF2A1B404E00ED59C5 /* CreateVolumeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C42A1B404E00ED59C5 /* CreateVolumeView.swift */; };
-		D80444002A1B404E00ED59C5 /* DockerComposeGroupItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C52A1B404E00ED59C5 /* DockerComposeGroupItem.swift */; };
-		D80444022A1B404E00ED59C5 /* DockerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C72A1B404E00ED59C5 /* DockerViewModel.swift */; };
-		D80444032A1B404E00ED59C5 /* DockerVolumeItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443C82A1B404E00ED59C5 /* DockerVolumeItem.swift */; };
-		D80444052A1B404E00ED59C5 /* DockerVolumesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443CA2A1B404E00ED59C5 /* DockerVolumesRootView.swift */; };
-		D80444062A1B404E00ED59C5 /* DockerUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443CB2A1B404E00ED59C5 /* DockerUI.swift */; };
-		D80444072A1B404E00ED59C5 /* DockerContainersRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443CC2A1B404E00ED59C5 /* DockerContainersRootView.swift */; };
-		D80444082A1B404E00ED59C5 /* DockerInspect.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443CD2A1B404E00ED59C5 /* DockerInspect.swift */; };
-		D80444092A1B404E00ED59C5 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443CE2A1B404E00ED59C5 /* AppDelegate.swift */; };
-		D804440A2A1B404E00ED59C5 /* MacVirtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443CF2A1B404E00ED59C5 /* MacVirtApp.swift */; };
-		D804440B2A1B404E00ED59C5 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D02A1B404E00ED59C5 /* MainWindow.swift */; };
-		D804440C2A1B404E00ED59C5 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D22A1B404E00ED59C5 /* AppSettings.swift */; };
-		D804440D2A1B404E00ED59C5 /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D32A1B404E00ED59C5 /* Updater.swift */; };
-		D804440E2A1B404E00ED59C5 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D42A1B404E00ED59C5 /* GeneralSettingsView.swift */; };
-		D804440F2A1B404E00ED59C5 /* NetworkSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D52A1B404E00ED59C5 /* NetworkSettingsView.swift */; };
-		D80444112A1B404E00ED59C5 /* ActionTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D72A1B404E00ED59C5 /* ActionTracker.swift */; };
-		D80444122A1B404E00ED59C5 /* DoubleClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443D82A1B404E00ED59C5 /* DoubleClick.swift */; };
-		D80444132A1B404E00ED59C5 /* JsonRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DA2A1B404E00ED59C5 /* JsonRPC.swift */; };
-		D80444142A1B404E00ED59C5 /* SconRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DB2A1B404E00ED59C5 /* SconRPC.swift */; };
-		D80444152A1B404E00ED59C5 /* VmRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DC2A1B404E00ED59C5 /* VmRPC.swift */; };
-		D80444162A1B404E00ED59C5 /* DockerRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80443DD2A1B404E00ED59C5 /* DockerRPC.swift */; };
-		D81E7850299CC4F200A1D8AC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81E784F299CC4F200A1D8AC /* main.swift */; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
@@ -133,17 +23,14 @@
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */; };
-		D8715C572A1FEF260047A9BE /* CBridge.h in Headers */ = {isa = PBXBuildFile; fileRef = D8715C562A1FEF260047A9BE /* CBridge.h */; };
 		D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8715CC12A208C640047A9BE /* scli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8715CC02A208C640047A9BE /* scli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8715CC32A208C750047A9BE /* OrbStack Helper.app in Embed Go VM helper bundle */ = {isa = PBXBuildFile; fileRef = D8715CC22A208C750047A9BE /* OrbStack Helper.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D87596F62CE738B200CEEE98 /* Blessed in Frameworks */ = {isa = PBXBuildFile; productRef = D87596F52CE738B200CEEE98 /* Blessed */; };
+		D87596F82CE738B500CEEE98 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D87596F72CE738B500CEEE98 /* Defaults */; };
 		D87745FC2A7CBB1800739040 /* Blessed in Frameworks */ = {isa = PBXBuildFile; productRef = D87745FB2A7CBB1800739040 /* Blessed */; };
 		D87745FF2A7CBB2000739040 /* EmbeddedPropertyList in Frameworks */ = {isa = PBXBuildFile; productRef = D87745FE2A7CBB2000739040 /* EmbeddedPropertyList */; };
 		D87746022A7CBB2E00739040 /* SecureXPC in Frameworks */ = {isa = PBXBuildFile; productRef = D87746012A7CBB2E00739040 /* SecureXPC */; };
-		D87746152A7CC0B700739040 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87746142A7CC0B700739040 /* main.swift */; };
-		D877461A2A7CC6F600739040 /* Uninstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87746192A7CC6F600739040 /* Uninstaller.swift */; };
-		D877461C2A7CC70000739040 /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = D877461B2A7CC70000739040 /* Updater.swift */; };
-		D877461E2A7CC89800739040 /* HelperServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D877461D2A7CC89800739040 /* HelperServer.swift */; };
 		D87746212A7CD12400739040 /* dev.orbstack.OrbStack.privhelper in Embed privileged helper tool */ = {isa = PBXBuildFile; fileRef = D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D87D98652A7DF26600EB7C63 /* SecureXPC in Frameworks */ = {isa = PBXBuildFile; productRef = D87D98642A7DF26600EB7C63 /* SecureXPC */; };
 		D87D98672A7DF26900EB7C63 /* EmbeddedPropertyList in Frameworks */ = {isa = PBXBuildFile; productRef = D87D98662A7DF26900EB7C63 /* EmbeddedPropertyList */; };
@@ -152,19 +39,12 @@
 		D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8212A2B22A0002CF279 /* Proxy.swift */; };
 		D880D8262A2B22A0002CF279 /* DefaultsFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */; };
 		D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8292A2B40C7002CF279 /* VlanRouter.swift */; };
-		D88AAF782CCE0BBD00C37028 /* VersionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D88AAF772CCE0BBB00C37028 /* VersionGate.swift */; };
+		D88AB0D02CD732DE00C37028 /* NetworkHandle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D88AB0CF2CD732DE00C37028 /* NetworkHandle.swift */; };
 		D88F08232AC12F5200454098 /* CachedAsyncImage in Frameworks */ = {isa = PBXBuildFile; productRef = D88F08222AC12F5200454098 /* CachedAsyncImage */; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D88F4EDC299A131B00419B5C /* docker in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EDD299A131B00419B5C /* docker-compose in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B95296F839100E56EEF /* Assets.xcassets */; };
-		D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D8A32B98296F839100E56EEF /* Preview Assets.xcassets */; };
-		D8BAAFBE2A60583A00E5637F /* DiagReporterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */; };
-		D8D1EEAF2A8C6E8000C80718 /* PHShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B5B2CF0210C1D968C7AC /* PHShared.swift */; };
-		D8D1EEB02A8C6E8000C80718 /* PHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B2ECDBD9470B8263AE90 /* PHClient.swift */; };
-		D8D1EEB32A8C7EC500C80718 /* DefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */; };
-		D8D1EEB42A8C7EC500C80718 /* DefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */; };
 		D8E1F6972B624D320043B932 /* completions in Copy assets */ = {isa = PBXBuildFile; fileRef = D8E1F6962B624D320043B932 /* completions */; };
 /* End PBXBuildFile section */
 
@@ -262,165 +142,85 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+Toolbar.swift"; sourceTree = "<group>"; };
-		3C0090222B26D7B80000DFFA /* NavTabId.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavTabId.swift; sourceTree = "<group>"; };
-		3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+Listen.swift"; sourceTree = "<group>"; };
-		3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewMainVC+SplitView.swift"; sourceTree = "<group>"; };
-		3C1935F32B31325D009D2929 /* SplitViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitViewController.swift; sourceTree = "<group>"; };
-		3CA2669D2B43C8C900D4DA28 /* DividedVStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DividedVStack.swift; sourceTree = "<group>"; };
-		3CBBBF8B2B1AC38A00BDBC87 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
-		3CBBBF8D2B1AC38D00BDBC87 /* PrincipalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrincipalView.swift; sourceTree = "<group>"; };
-		3CBBBF8F2B1AC39100BDBC87 /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
-		3CBBBF912B1AC3E400BDBC87 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
-		3CD16B6E2B10864E002FBB00 /* NewMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewMainView.swift; sourceTree = "<group>"; };
-		3CD16B702B108654002FBB00 /* NewMainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewMainViewController.swift; sourceTree = "<group>"; };
-		B118B0395DD7516D3F705FBC /* DockerK8sGroupItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerK8sGroupItem.swift; sourceTree = "<group>"; };
-		B118B065CF24496A8E43EC03 /* K8SUIHelpers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SUIHelpers.swift; sourceTree = "<group>"; };
-		B118B06A59C6893760E5F9AA /* ThinEnvironment.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ThinEnvironment.swift; sourceTree = "<group>"; };
-		B118B103C2DE982C1219D12E /* Data+Base64URL.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Data+Base64URL.swift"; sourceTree = "<group>"; };
-		B118B1DCE616676E483BB2BB /* FeedbackView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
-		B118B1E2A991085A29F40FB3 /* K8sRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8sRPC.swift; sourceTree = "<group>"; };
-		B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineSettingsView.swift; sourceTree = "<group>"; };
-		B118B2CA5B8F56A911E3B0DA /* DockerImageDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerImageDetails.swift; sourceTree = "<group>"; };
-		B118B2ECDBD9470B8263AE90 /* PHClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHClient.swift; sourceTree = "<group>"; };
-		B118B300D94CA37572036935 /* Buttons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
-		B118B30219F10B44000AE05A /* OnboardingManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingManager.swift; sourceTree = "<group>"; };
-		B118B329773504BB3337D9ED /* K8SPodDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SPodDetails.swift; sourceTree = "<group>"; };
-		B118B37A6E9BB62F82BD7354 /* K8SServiceItemView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SServiceItemView.swift; sourceTree = "<group>"; };
-		B118B3AAEC4D69D6E7940241 /* K8SServiceDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SServiceDetails.swift; sourceTree = "<group>"; };
 		B118B4A5DDC711F7EF2AE61B /* GUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GUI.swift; sourceTree = "<group>"; };
-		B118B4E4BEA14F3804B048B1 /* CustomLink.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CustomLink.swift; sourceTree = "<group>"; };
-		B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HelperToolInfoPlist.swift; sourceTree = "<group>"; };
-		B118B530786FB12B0A422003 /* K8SPodsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SPodsView.swift; sourceTree = "<group>"; };
-		B118B56B2F68D469F76481FD /* CopyableText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CopyableText.swift; sourceTree = "<group>"; };
-		B118B58F6EED602C33432FD4 /* K8SGroupDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SGroupDetails.swift; sourceTree = "<group>"; };
-		B118B5B2CF0210C1D968C7AC /* PHShared.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PHShared.swift; sourceTree = "<group>"; };
-		B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerMigrationWindow.swift; sourceTree = "<group>"; };
 		B118B67B66A855D49B729379 /* Locks.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Locks.swift; sourceTree = "<group>"; };
-		B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SharedUtils.swift; sourceTree = "<group>"; };
-		B118B6BD06B6D2DF4AE4C794 /* AuthView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
-		B118B6CB68E05FE126B7A4DF /* MachineDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineDetails.swift; sourceTree = "<group>"; };
-		B118B716BC8E29CD3CD6AE40 /* DockerVolumeDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerVolumeDetails.swift; sourceTree = "<group>"; };
-		B118B7B8CD27FB009544DE36 /* DockerContainerDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerContainerDetails.swift; sourceTree = "<group>"; };
-		B118B82B52FEEB467CDA5C7A /* DockerSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerSettingsView.swift; sourceTree = "<group>"; };
-		B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentUnavailableViewCompat.swift; sourceTree = "<group>"; };
-		B118B88B9296701977A1F286 /* CodeInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CodeInfo.swift; sourceTree = "<group>"; };
-		B118B88E1E11478CF5ABAAC4 /* LicenseBadgeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LicenseBadgeView.swift; sourceTree = "<group>"; };
-		B118B8CEB4860DFE6B9BEFBD /* MainNavViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainNavViewModel.swift; sourceTree = "<group>"; };
-		B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingUI.swift; sourceTree = "<group>"; };
-		B118B9305764473F5CD0B8A4 /* AKList.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AKList.swift; sourceTree = "<group>"; };
-		B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarTipView.swift; sourceTree = "<group>"; };
-		B118B9E8A7A9D0BF383D0906 /* ActivityTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActivityTracker.swift; sourceTree = "<group>"; };
-		B118BA158D66536A2AA036FB /* K8SSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SSettingsView.swift; sourceTree = "<group>"; };
-		B118BABDE1F02C8A54DB011F /* NSImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NSImage.swift; sourceTree = "<group>"; };
-		B118BAE7880AF024BB63CA95 /* K8SServicesView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SServicesView.swift; sourceTree = "<group>"; };
 		B118BB2A7BF402695260775E /* IPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IPC.swift; sourceTree = "<group>"; };
-		B118BBF4988AABF0AB93C4EA /* K8SPodItemView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SPodItemView.swift; sourceTree = "<group>"; };
-		B118BC5ED0519B7B337DA8D6 /* DockerComposeGroupDetails.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerComposeGroupDetails.swift; sourceTree = "<group>"; };
-		B118BC7076F4FB6E3224B434 /* AKAlert.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AKAlert.swift; sourceTree = "<group>"; };
-		B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
 		B118BD52B15443D1329C832A /* Packets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Packets.swift; sourceTree = "<group>"; };
 		B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PrivHelperFFI.swift; sourceTree = "<group>"; };
-		B118BDCE479E491B624AC373 /* K8SStateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = K8SStateWrapperView.swift; sourceTree = "<group>"; };
-		B118BE46918C0AB595ADE247 /* RenameContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameContainerView.swift; sourceTree = "<group>"; };
-		B118BEBDA570BE498B231235 /* CursorRegion.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CursorRegion.swift; sourceTree = "<group>"; };
 		B118BEDAA62E1455A02C177D /* KeychainFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeychainFFI.swift; sourceTree = "<group>"; };
 		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
-		B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugSettingsView.swift; sourceTree = "<group>"; };
-		B118BF9EECAAD96ED8ACFB10 /* DetailsStack.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DetailsStack.swift; sourceTree = "<group>"; };
-		CE44F2D62C259BA600965CC2 /* DockerSortMethod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerSortMethod.swift; sourceTree = "<group>"; };
-		D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingCreateView.swift; sourceTree = "<group>"; };
-		D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeView.swift; sourceTree = "<group>"; };
-		D80443A22A1B404E00ED59C5 /* OnboardingRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
-		D80443A32A1B404E00ED59C5 /* OnboardingModeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingModeView.swift; sourceTree = "<group>"; };
-		D80443A42A1B404E00ED59C5 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
-		D80443A92A1B404E00ED59C5 /* MachineContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachineContainerItem.swift; sourceTree = "<group>"; };
-		D80443AB2A1B404E00ED59C5 /* CreateContainerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CreateContainerView.swift; sourceTree = "<group>"; };
-		D80443AC2A1B404E00ED59C5 /* Images.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
-		D80443AD2A1B404E00ED59C5 /* MachinesUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachinesUI.swift; sourceTree = "<group>"; };
-		D80443AE2A1B404E00ED59C5 /* MachinesRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MachinesRootView.swift; sourceTree = "<group>"; };
-		D80443B02A1B404E00ED59C5 /* StateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StateWrapperView.swift; sourceTree = "<group>"; };
-		D80443B12A1B404E00ED59C5 /* DaemonManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DaemonManager.swift; sourceTree = "<group>"; };
-		D80443B22A1B404E00ED59C5 /* VmViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VmViewModel.swift; sourceTree = "<group>"; };
-		D80443B32A1B404E00ED59C5 /* AppConfig.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
-		D80443B52A1B404E00ED59C5 /* SwiftUIUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUIUtils.swift; sourceTree = "<group>"; };
-		D80443B72A1B404E00ED59C5 /* Operators.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Operators.swift; sourceTree = "<group>"; };
-		D80443B82A1B404E00ED59C5 /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
-		D80443B92A1B404E00ED59C5 /* SplitViewAccessor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SplitViewAccessor.swift; sourceTree = "<group>"; };
-		D80443BB2A1B404E00ED59C5 /* MenuBarController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
-		D80443BC2A1B404E00ED59C5 /* WindowTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WindowTracker.swift; sourceTree = "<group>"; };
-		D80443BD2A1B404E00ED59C5 /* CommandsRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CommandsRootView.swift; sourceTree = "<group>"; };
-		D80443BF2A1B404E00ED59C5 /* DockerStateWrapperView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerStateWrapperView.swift; sourceTree = "<group>"; };
-		D80443C02A1B404E00ED59C5 /* DockerLogsWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerLogsWindow.swift; sourceTree = "<group>"; };
-		D80443C12A1B404E00ED59C5 /* DockerImagesRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerImagesRootView.swift; sourceTree = "<group>"; };
-		D80443C22A1B404E00ED59C5 /* DockerImageItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerImageItem.swift; sourceTree = "<group>"; };
-		D80443C32A1B404E00ED59C5 /* DockerContainerItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerContainerItem.swift; sourceTree = "<group>"; };
-		D80443C42A1B404E00ED59C5 /* CreateVolumeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CreateVolumeView.swift; sourceTree = "<group>"; };
-		D80443C52A1B404E00ED59C5 /* DockerComposeGroupItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerComposeGroupItem.swift; sourceTree = "<group>"; };
-		D80443C72A1B404E00ED59C5 /* DockerViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerViewModel.swift; sourceTree = "<group>"; };
-		D80443C82A1B404E00ED59C5 /* DockerVolumeItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerVolumeItem.swift; sourceTree = "<group>"; };
-		D80443CA2A1B404E00ED59C5 /* DockerVolumesRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerVolumesRootView.swift; sourceTree = "<group>"; };
-		D80443CB2A1B404E00ED59C5 /* DockerUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerUI.swift; sourceTree = "<group>"; };
-		D80443CC2A1B404E00ED59C5 /* DockerContainersRootView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerContainersRootView.swift; sourceTree = "<group>"; };
-		D80443CD2A1B404E00ED59C5 /* DockerInspect.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerInspect.swift; sourceTree = "<group>"; };
-		D80443CE2A1B404E00ED59C5 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		D80443CF2A1B404E00ED59C5 /* MacVirtApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MacVirtApp.swift; sourceTree = "<group>"; };
-		D80443D02A1B404E00ED59C5 /* MainWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
-		D80443D22A1B404E00ED59C5 /* AppSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
-		D80443D32A1B404E00ED59C5 /* Updater.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
-		D80443D42A1B404E00ED59C5 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
-		D80443D52A1B404E00ED59C5 /* NetworkSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NetworkSettingsView.swift; sourceTree = "<group>"; };
-		D80443D72A1B404E00ED59C5 /* ActionTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActionTracker.swift; sourceTree = "<group>"; };
-		D80443D82A1B404E00ED59C5 /* DoubleClick.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DoubleClick.swift; path = ../DoubleClick.swift; sourceTree = "<group>"; };
-		D80443DA2A1B404E00ED59C5 /* JsonRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = JsonRPC.swift; sourceTree = "<group>"; };
-		D80443DB2A1B404E00ED59C5 /* SconRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SconRPC.swift; sourceTree = "<group>"; };
-		D80443DC2A1B404E00ED59C5 /* VmRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VmRPC.swift; sourceTree = "<group>"; };
-		D80443DD2A1B404E00ED59C5 /* DockerRPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DockerRPC.swift; sourceTree = "<group>"; };
-		D80443DF2A1B404E00ED59C5 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "OrbStack Helper (UI)"; sourceTree = BUILT_PRODUCTS_DIR; };
-		D81E784F299CC4F200A1D8AC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		D81E7858299CD27F00A1D8AC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
 		D81E785E29A4CEEF00A1D8AC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		D81E786229A4CF0E00A1D8AC /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		D81E786429A7012900A1D8AC /* docker-buildx */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-buildx"; path = "build/bins/docker-buildx"; sourceTree = "<group>"; };
 		D85EC4632A9CEBA800300ABE /* kubectl */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = kubectl; path = build/bins/kubectl; sourceTree = "<group>"; };
-		D8694A372991EC5A0046B6B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../vmgr/xbin/docker; sourceTree = "<group>"; };
 		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../vmgr/xbin/docker-compose"; sourceTree = "<group>"; };
 		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../vmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
 		D870292029B316A700A4CFD9 /* GoVZF.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = GoVZF.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BridgeNet.swift; sourceTree = "<group>"; };
-		D8715C562A1FEF260047A9BE /* CBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CBridge.h; path = ../CBridge/CBridge.h; sourceTree = "<group>"; };
 		D8715CC02A208C640047A9BE /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../out/scli; sourceTree = "<group>"; };
 		D8715CC22A208C750047A9BE /* OrbStack Helper.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = "OrbStack Helper.app"; path = "../out/OrbStack Helper.app"; sourceTree = "<group>"; };
-		D87745F92A7CB84C00739040 /* guihelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = guihelper.entitlements; sourceTree = "<group>"; };
 		D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = dev.orbstack.OrbStack.privhelper; sourceTree = BUILT_PRODUCTS_DIR; };
-		D87746142A7CC0B700739040 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		D87746192A7CC6F600739040 /* Uninstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Uninstaller.swift; sourceTree = "<group>"; };
-		D877461B2A7CC70000739040 /* Updater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
-		D877461D2A7CC89800739040 /* HelperServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperServer.swift; sourceTree = "<group>"; };
-		D877461F2A7CCB6400739040 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		D87D98682A7E057B00EB7C63 /* launchd.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = launchd.plist; sourceTree = "<group>"; };
 		D880D81F2A2B22A0002CF279 /* VzClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VzClient.swift; sourceTree = "<group>"; };
 		D880D8202A2B22A0002CF279 /* FsNotify.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FsNotify.swift; sourceTree = "<group>"; };
 		D880D8212A2B22A0002CF279 /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
 		D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DefaultsFFI.swift; sourceTree = "<group>"; };
 		D880D8292A2B40C7002CF279 /* VlanRouter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VlanRouter.swift; sourceTree = "<group>"; };
-		D88AAF772CCE0BBB00C37028 /* VersionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionGate.swift; sourceTree = "<group>"; };
+		D88AB0CF2CD732DE00C37028 /* NetworkHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkHandle.swift; sourceTree = "<group>"; };
 		D88F4EB82998D81A00419B5C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = build/assets; sourceTree = "<group>"; };
 		D88F4ED9299A131B00419B5C /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = build/bins/docker; sourceTree = "<group>"; };
 		D88F4EDA299A131B00419B5C /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "build/bins/docker-compose"; sourceTree = "<group>"; };
 		D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "build/bins/docker-credential-osxkeychain"; sourceTree = "<group>"; };
 		D8A32B8E296F839100E56EEF /* OrbStack.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OrbStack.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D8A32B95296F839100E56EEF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		D8A32B98296F839100E56EEF /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		D8A32B9A296F839100E56EEF /* MacVirt.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacVirt.entitlements; sourceTree = "<group>"; };
-		D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DiagReporterView.swift; sourceTree = "<group>"; };
-		D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DefaultsKeys.swift; sourceTree = "<group>"; };
 		D8E1F6962B624D320043B932 /* completions */ = {isa = PBXFileReference; lastKnownFileType = folder; name = completions; path = ../bins/out/completions; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D87596F92CE738E600CEEE98 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D8A32B8D296F839100E56EEF /* MacVirt */;
+		};
+		D88AB0632CD7092900C37028 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				main.swift,
+			);
+			target = D81E784C299CC4F200A1D8AC /* guihelper */;
+		};
+		D88AB0BF2CD7096700C37028 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Shared/DefaultsKeys.swift,
+				Shared/PHClient.swift,
+				Shared/PHShared.swift,
+				Shared/SharedUtils.swift,
+			);
+			target = D8A32B8D296F839100E56EEF /* MacVirt */;
+		};
+		D88AB0C02CD7096700C37028 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Shared/DefaultsKeys.swift,
+				Shared/PHClient.swift,
+				Shared/PHShared.swift,
+				Shared/SharedUtils.swift,
+			);
+			target = D870291F29B316A700A4CFD9 /* GoVZF */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		D847FAF22CE737F000D2B556 /* CBridge */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = CBridge; path = GoVZF/Sources/CBridge; sourceTree = "<group>"; };
+		D88AAFF22CD7092100C37028 /* MacVirt */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D87596F92CE738E600CEEE98 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MacVirt; sourceTree = "<group>"; };
+		D88AB0612CD7092900C37028 /* guihelper */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D88AB0632CD7092900C37028 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = guihelper; sourceTree = "<group>"; };
+		D88AB0832CD7095800C37028 /* privhelper */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D88AB0BF2CD7096700C37028 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D88AB0C02CD7096700C37028 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = privhelper; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		D81E784A299CC4F200A1D8AC /* Frameworks */ = {
@@ -441,6 +241,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D87596F82CE738B500CEEE98 /* Defaults in Frameworks */,
+				D87596F62CE738B200CEEE98 /* Blessed in Frameworks */,
 				D87D98652A7DF26600EB7C63 /* SecureXPC in Frameworks */,
 				D87D98672A7DF26900EB7C63 /* EmbeddedPropertyList in Frameworks */,
 			);
@@ -465,223 +267,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		3CBBBF882B1AC37700BDBC87 /* Sidebar */ = {
-			isa = PBXGroup;
-			children = (
-				3CBBBF8B2B1AC38A00BDBC87 /* SidebarView.swift */,
-			);
-			path = Sidebar;
-			sourceTree = "<group>";
-		};
-		3CBBBF892B1AC37A00BDBC87 /* Principal */ = {
-			isa = PBXGroup;
-			children = (
-				3CBBBF8D2B1AC38D00BDBC87 /* PrincipalView.swift */,
-			);
-			path = Principal;
-			sourceTree = "<group>";
-		};
-		3CBBBF8A2B1AC37F00BDBC87 /* Inspector */ = {
-			isa = PBXGroup;
-			children = (
-				3CBBBF8F2B1AC39100BDBC87 /* InspectorView.swift */,
-				B118BF9EECAAD96ED8ACFB10 /* DetailsStack.swift */,
-			);
-			path = Inspector;
-			sourceTree = "<group>";
-		};
-		3CD16B6D2B108643002FBB00 /* New */ = {
-			isa = PBXGroup;
-			children = (
-				3CD16B6E2B10864E002FBB00 /* NewMainView.swift */,
-				3CD16B702B108654002FBB00 /* NewMainViewController.swift */,
-				3C0090222B26D7B80000DFFA /* NavTabId.swift */,
-				3C0090242B2723E10000DFFA /* NewMainVC+Listen.swift */,
-				3C1935F12B313034009D2929 /* NewMainVC+SplitView.swift */,
-				3C00901D2B26CBD30000DFFA /* NewMainVC+Toolbar.swift */,
-				3C1935F32B31325D009D2929 /* SplitViewController.swift */,
-				3CBBBF912B1AC3E400BDBC87 /* Utilities.swift */,
-				3CBBBF882B1AC37700BDBC87 /* Sidebar */,
-				3CBBBF892B1AC37A00BDBC87 /* Principal */,
-				3CBBBF8A2B1AC37F00BDBC87 /* Inspector */,
-				B118B8CEB4860DFE6B9BEFBD /* MainNavViewModel.swift */,
-				B118B88E1E11478CF5ABAAC4 /* LicenseBadgeView.swift */,
-			);
-			path = New;
-			sourceTree = "<group>";
-		};
-		B118B5A454DB12F33008959E /* Shared */ = {
-			isa = PBXGroup;
-			children = (
-				B118B5B2CF0210C1D968C7AC /* PHShared.swift */,
-				B118B2ECDBD9470B8263AE90 /* PHClient.swift */,
-				D8D1EEB22A8C7EC500C80718 /* DefaultsKeys.swift */,
-				B118B6AD9B62FBA63E20F6B8 /* SharedUtils.swift */,
-			);
-			name = Shared;
-			path = privhelper/Shared;
-			sourceTree = "<group>";
-		};
-		B118BC30D178CF936018341C /* K8s */ = {
-			isa = PBXGroup;
-			children = (
-				B118B530786FB12B0A422003 /* K8SPodsView.swift */,
-				B118B1E2A991085A29F40FB3 /* K8sRPC.swift */,
-				B118BDCE479E491B624AC373 /* K8SStateWrapperView.swift */,
-				B118BBF4988AABF0AB93C4EA /* K8SPodItemView.swift */,
-				B118B065CF24496A8E43EC03 /* K8SUIHelpers.swift */,
-				B118BAE7880AF024BB63CA95 /* K8SServicesView.swift */,
-				B118B37A6E9BB62F82BD7354 /* K8SServiceItemView.swift */,
-				B118B329773504BB3337D9ED /* K8SPodDetails.swift */,
-				B118B3AAEC4D69D6E7940241 /* K8SServiceDetails.swift */,
-				B118B58F6EED602C33432FD4 /* K8SGroupDetails.swift */,
-			);
-			path = K8s;
-			sourceTree = "<group>";
-		};
-		D804439F2A1B404E00ED59C5 /* Onboarding */ = {
-			isa = PBXGroup;
-			children = (
-				D80443A02A1B404E00ED59C5 /* OnboardingCreateView.swift */,
-				D80443A12A1B404E00ED59C5 /* OnboardingWelcomeView.swift */,
-				D80443A22A1B404E00ED59C5 /* OnboardingRootView.swift */,
-				D80443A32A1B404E00ED59C5 /* OnboardingModeView.swift */,
-				D80443A42A1B404E00ED59C5 /* OnboardingViewModel.swift */,
-				B118B92CEC43388E7D6B23AA /* OnboardingUI.swift */,
-				B118B30219F10B44000AE05A /* OnboardingManager.swift */,
-			);
-			path = Onboarding;
-			sourceTree = "<group>";
-		};
-		D80443A52A1B404E00ED59C5 /* Machines */ = {
-			isa = PBXGroup;
-			children = (
-				D80443A92A1B404E00ED59C5 /* MachineContainerItem.swift */,
-				D80443AB2A1B404E00ED59C5 /* CreateContainerView.swift */,
-				D80443AC2A1B404E00ED59C5 /* Images.swift */,
-				D80443AD2A1B404E00ED59C5 /* MachinesUI.swift */,
-				D80443AE2A1B404E00ED59C5 /* MachinesRootView.swift */,
-				B118BE46918C0AB595ADE247 /* RenameContainerView.swift */,
-				B118B6CB68E05FE126B7A4DF /* MachineDetails.swift */,
-			);
-			path = Machines;
-			sourceTree = "<group>";
-		};
-		D80443AF2A1B404E00ED59C5 /* State */ = {
-			isa = PBXGroup;
-			children = (
-				D80443B02A1B404E00ED59C5 /* StateWrapperView.swift */,
-				D80443B12A1B404E00ED59C5 /* DaemonManager.swift */,
-				D80443B22A1B404E00ED59C5 /* VmViewModel.swift */,
-			);
-			path = State;
-			sourceTree = "<group>";
-		};
-		D80443B42A1B404E00ED59C5 /* Utils */ = {
-			isa = PBXGroup;
-			children = (
-				D80443D82A1B404E00ED59C5 /* DoubleClick.swift */,
-				D80443B72A1B404E00ED59C5 /* Operators.swift */,
-				3CA2669D2B43C8C900D4DA28 /* DividedVStack.swift */,
-				D80443B92A1B404E00ED59C5 /* SplitViewAccessor.swift */,
-				D80443B52A1B404E00ED59C5 /* SwiftUIUtils.swift */,
-				D80443B82A1B404E00ED59C5 /* Utils.swift */,
-				B118BABDE1F02C8A54DB011F /* NSImage.swift */,
-				B118B300D94CA37572036935 /* Buttons.swift */,
-				B118B86AFBDCAFA13AB07FCB /* ContentUnavailableViewCompat.swift */,
-				B118B103C2DE982C1219D12E /* Data+Base64URL.swift */,
-				B118B4E4BEA14F3804B048B1 /* CustomLink.swift */,
-				CE44F2D62C259BA600965CC2 /* DockerSortMethod.swift */,
-				B118B9305764473F5CD0B8A4 /* AKList.swift */,
-				B118B06A59C6893760E5F9AA /* ThinEnvironment.swift */,
-				B118B56B2F68D469F76481FD /* CopyableText.swift */,
-				B118BEBDA570BE498B231235 /* CursorRegion.swift */,
-				B118BC7076F4FB6E3224B434 /* AKAlert.swift */,
-			);
-			path = Utils;
-			sourceTree = "<group>";
-		};
-		D80443BA2A1B404E00ED59C5 /* MenuBar */ = {
-			isa = PBXGroup;
-			children = (
-				D80443BB2A1B404E00ED59C5 /* MenuBarController.swift */,
-				D80443BC2A1B404E00ED59C5 /* WindowTracker.swift */,
-				B118B9D28FD34BD37D6158AA /* MenuBarTipView.swift */,
-			);
-			path = MenuBar;
-			sourceTree = "<group>";
-		};
-		D80443BE2A1B404E00ED59C5 /* Docker */ = {
-			isa = PBXGroup;
-			children = (
-				D80443C42A1B404E00ED59C5 /* CreateVolumeView.swift */,
-				B118BC5ED0519B7B337DA8D6 /* DockerComposeGroupDetails.swift */,
-				D80443C52A1B404E00ED59C5 /* DockerComposeGroupItem.swift */,
-				B118B7B8CD27FB009544DE36 /* DockerContainerDetails.swift */,
-				D80443C32A1B404E00ED59C5 /* DockerContainerItem.swift */,
-				D80443CC2A1B404E00ED59C5 /* DockerContainersRootView.swift */,
-				B118B2CA5B8F56A911E3B0DA /* DockerImageDetails.swift */,
-				D80443C22A1B404E00ED59C5 /* DockerImageItem.swift */,
-				D80443C12A1B404E00ED59C5 /* DockerImagesRootView.swift */,
-				D80443CD2A1B404E00ED59C5 /* DockerInspect.swift */,
-				B118B0395DD7516D3F705FBC /* DockerK8sGroupItem.swift */,
-				D80443C02A1B404E00ED59C5 /* DockerLogsWindow.swift */,
-				B118B66618E0582FE367AFEF /* DockerMigrationWindow.swift */,
-				D80443BF2A1B404E00ED59C5 /* DockerStateWrapperView.swift */,
-				D80443CB2A1B404E00ED59C5 /* DockerUI.swift */,
-				D80443C72A1B404E00ED59C5 /* DockerViewModel.swift */,
-				B118B716BC8E29CD3CD6AE40 /* DockerVolumeDetails.swift */,
-				D80443C82A1B404E00ED59C5 /* DockerVolumeItem.swift */,
-				D80443CA2A1B404E00ED59C5 /* DockerVolumesRootView.swift */,
-			);
-			path = Docker;
-			sourceTree = "<group>";
-		};
-		D80443D12A1B404E00ED59C5 /* Settings */ = {
-			isa = PBXGroup;
-			children = (
-				D80443D22A1B404E00ED59C5 /* AppSettings.swift */,
-				D80443D32A1B404E00ED59C5 /* Updater.swift */,
-				D80443D42A1B404E00ED59C5 /* GeneralSettingsView.swift */,
-				D80443D52A1B404E00ED59C5 /* NetworkSettingsView.swift */,
-				B118B290120F0EDF1C00C2E8 /* MachineSettingsView.swift */,
-				B118BF97C1A03BAAA13B26F2 /* DebugSettingsView.swift */,
-				B118BC8CC573364B38EA30D2 /* StorageSettingsView.swift */,
-				B118B82B52FEEB467CDA5C7A /* DockerSettingsView.swift */,
-				B118BA158D66536A2AA036FB /* K8SSettingsView.swift */,
-			);
-			path = Settings;
-			sourceTree = "<group>";
-		};
-		D80443D92A1B404E00ED59C5 /* RPC */ = {
-			isa = PBXGroup;
-			children = (
-				D80443DA2A1B404E00ED59C5 /* JsonRPC.swift */,
-				D80443DB2A1B404E00ED59C5 /* SconRPC.swift */,
-				D80443DC2A1B404E00ED59C5 /* VmRPC.swift */,
-				D80443DD2A1B404E00ED59C5 /* DockerRPC.swift */,
-			);
-			path = RPC;
-			sourceTree = "<group>";
-		};
-		D80443DE2A1B404E00ED59C5 /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				D80443DF2A1B404E00ED59C5 /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
-			sourceTree = "<group>";
-		};
-		D81E784E299CC4F200A1D8AC /* guihelper */ = {
-			isa = PBXGroup;
-			children = (
-				D87745F92A7CB84C00739040 /* guihelper.entitlements */,
-				D81E784F299CC4F200A1D8AC /* main.swift */,
-				D81E7858299CD27F00A1D8AC /* Info.plist */,
-			);
-			path = guihelper;
-			sourceTree = "<group>";
-		};
 		D81E785D29A4CEEF00A1D8AC /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -696,19 +281,19 @@
 			isa = PBXGroup;
 			children = (
 				D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */,
-				D8715C562A1FEF260047A9BE /* CBridge.h */,
 				D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */,
+				B118BF90FB580B56419D1472 /* FFI.swift */,
 				D880D8202A2B22A0002CF279 /* FsNotify.swift */,
+				B118B4A5DDC711F7EF2AE61B /* GUI.swift */,
+				B118BB2A7BF402695260775E /* IPC.swift */,
+				B118BEDAA62E1455A02C177D /* KeychainFFI.swift */,
+				B118B67B66A855D49B729379 /* Locks.swift */,
+				D88AB0CF2CD732DE00C37028 /* NetworkHandle.swift */,
+				B118BD52B15443D1329C832A /* Packets.swift */,
+				B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */,
 				D880D8212A2B22A0002CF279 /* Proxy.swift */,
 				D880D8292A2B40C7002CF279 /* VlanRouter.swift */,
 				D880D81F2A2B22A0002CF279 /* VzClient.swift */,
-				B118BD52B15443D1329C832A /* Packets.swift */,
-				B118BF90FB580B56419D1472 /* FFI.swift */,
-				B118B4A5DDC711F7EF2AE61B /* GUI.swift */,
-				B118BB2A7BF402695260775E /* IPC.swift */,
-				B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */,
-				B118BEDAA62E1455A02C177D /* KeychainFFI.swift */,
-				B118B67B66A855D49B729379 /* Locks.swift */,
 			);
 			name = GoVZF;
 			path = GoVZF/Sources/GoVZF;
@@ -733,32 +318,16 @@
 			name = External;
 			sourceTree = "<group>";
 		};
-		D87746132A7CC0B700739040 /* privhelper */ = {
-			isa = PBXGroup;
-			children = (
-				B118B88B9296701977A1F286 /* CodeInfo.swift */,
-				D877461D2A7CC89800739040 /* HelperServer.swift */,
-				B118B5167A810054DB00E65C /* HelperToolInfoPlist.swift */,
-				D877461F2A7CCB6400739040 /* Info.plist */,
-				D87D98682A7E057B00EB7C63 /* launchd.plist */,
-				D87746142A7CC0B700739040 /* main.swift */,
-				D87746192A7CC6F600739040 /* Uninstaller.swift */,
-				D877461B2A7CC70000739040 /* Updater.swift */,
-				B118B9E8A7A9D0BF383D0906 /* ActivityTracker.swift */,
-			);
-			path = privhelper;
-			sourceTree = "<group>";
-		};
 		D8A32B85296F839100E56EEF = {
 			isa = PBXGroup;
 			children = (
 				D8E1F6962B624D320043B932 /* completions */,
 				D8715CC42A208EB80047A9BE /* External */,
-				B118B5A454DB12F33008959E /* Shared */,
-				D8A32B90296F839100E56EEF /* MacVirt */,
-				D81E784E299CC4F200A1D8AC /* guihelper */,
+				D88AAFF22CD7092100C37028 /* MacVirt */,
+				D88AB0612CD7092900C37028 /* guihelper */,
+				D847FAF22CE737F000D2B556 /* CBridge */,
 				D870292129B316A700A4CFD9 /* GoVZF */,
-				D87746132A7CC0B700739040 /* privhelper */,
+				D88AB0832CD7095800C37028 /* privhelper */,
 				D8A32B8F296F839100E56EEF /* Products */,
 				D81E785D29A4CEEF00A1D8AC /* Frameworks */,
 			);
@@ -775,46 +344,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		D8A32B90296F839100E56EEF /* MacVirt */ = {
-			isa = PBXGroup;
-			children = (
-				D80443D72A1B404E00ED59C5 /* ActionTracker.swift */,
-				D80443B32A1B404E00ED59C5 /* AppConfig.swift */,
-				D80443CE2A1B404E00ED59C5 /* AppDelegate.swift */,
-				D8A32B95296F839100E56EEF /* Assets.xcassets */,
-				B118B6BD06B6D2DF4AE4C794 /* AuthView.swift */,
-				D80443BD2A1B404E00ED59C5 /* CommandsRootView.swift */,
-				D8BAAFBD2A60583A00E5637F /* DiagReporterView.swift */,
-				D80443BE2A1B404E00ED59C5 /* Docker */,
-				B118B1DCE616676E483BB2BB /* FeedbackView.swift */,
-				D8694A372991EC5A0046B6B6 /* Info.plist */,
-				B118BC30D178CF936018341C /* K8s */,
-				D80443A52A1B404E00ED59C5 /* Machines */,
-				D8A32B9A296F839100E56EEF /* MacVirt.entitlements */,
-				D80443CF2A1B404E00ED59C5 /* MacVirtApp.swift */,
-				D80443D02A1B404E00ED59C5 /* MainWindow.swift */,
-				D80443BA2A1B404E00ED59C5 /* MenuBar */,
-				3CD16B6D2B108643002FBB00 /* New */,
-				D804439F2A1B404E00ED59C5 /* Onboarding */,
-				D80443DE2A1B404E00ED59C5 /* Preview Content */,
-				D8A32B97296F839100E56EEF /* Preview Content */,
-				D80443D92A1B404E00ED59C5 /* RPC */,
-				D80443D12A1B404E00ED59C5 /* Settings */,
-				D80443AF2A1B404E00ED59C5 /* State */,
-				D80443B42A1B404E00ED59C5 /* Utils */,
-				D88AAF772CCE0BBB00C37028 /* VersionGate.swift */,
-			);
-			path = MacVirt;
-			sourceTree = "<group>";
-		};
-		D8A32B97296F839100E56EEF /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				D8A32B98296F839100E56EEF /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -822,7 +351,6 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D8715C572A1FEF260047A9BE /* CBridge.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -859,6 +387,9 @@
 			);
 			dependencies = (
 			);
+			fileSystemSynchronizedGroups = (
+				D847FAF22CE737F000D2B556 /* CBridge */,
+			);
 			name = GoVZF;
 			productName = GoVZF;
 			productReference = D870292029B316A700A4CFD9 /* GoVZF.framework */;
@@ -876,10 +407,15 @@
 			);
 			dependencies = (
 			);
+			fileSystemSynchronizedGroups = (
+				D88AB0832CD7095800C37028 /* privhelper */,
+			);
 			name = privhelper;
 			packageProductDependencies = (
 				D87D98642A7DF26600EB7C63 /* SecureXPC */,
 				D87D98662A7DF26900EB7C63 /* EmbeddedPropertyList */,
+				D87596F52CE738B200CEEE98 /* Blessed */,
+				D87596F72CE738B500CEEE98 /* Defaults */,
 			);
 			productName = privhelper;
 			productReference = D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */;
@@ -905,6 +441,9 @@
 			);
 			dependencies = (
 				D81E7855299CC53400A1D8AC /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D88AAFF22CD7092100C37028 /* MacVirt */,
 			);
 			name = MacVirt;
 			packageProductDependencies = (
@@ -993,8 +532,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D8A32B99296F839100E56EEF /* Preview Assets.xcassets in Resources */,
-				D8A32B96296F839100E56EEF /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1065,7 +602,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D81E7850299CC4F200A1D8AC /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1073,20 +609,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D8D1EEAF2A8C6E8000C80718 /* PHShared.swift in Sources */,
-				D8D1EEB42A8C7EC500C80718 /* DefaultsKeys.swift in Sources */,
-				D8D1EEB02A8C6E8000C80718 /* PHClient.swift in Sources */,
 				D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */,
 				D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */,
 				D880D8232A2B22A0002CF279 /* VzClient.swift in Sources */,
 				D880D8262A2B22A0002CF279 /* DefaultsFFI.swift in Sources */,
 				D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */,
+				D88AB0D02CD732DE00C37028 /* NetworkHandle.swift in Sources */,
 				D880D8242A2B22A0002CF279 /* FsNotify.swift in Sources */,
 				B118BD0025A6757805924195 /* Packets.swift in Sources */,
 				B118B05969CAC4497636F8DE /* FFI.swift in Sources */,
 				B118B53B9175CE61544C8B2A /* GUI.swift in Sources */,
 				B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */,
-				B118B0D2AFA041304026BC2B /* SharedUtils.swift in Sources */,
 				B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */,
 				B118B30635EF5873545E0BE1 /* KeychainFFI.swift in Sources */,
 				B118B55A04BDC43EB62C4F9B /* Locks.swift in Sources */,
@@ -1097,14 +630,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D877461E2A7CC89800739040 /* HelperServer.swift in Sources */,
-				D87746152A7CC0B700739040 /* main.swift in Sources */,
-				D877461A2A7CC6F600739040 /* Uninstaller.swift in Sources */,
-				D877461C2A7CC70000739040 /* Updater.swift in Sources */,
-				B118BF5F65B823029E3C9040 /* CodeInfo.swift in Sources */,
-				B118BC8D4F143DF1F3A46825 /* HelperToolInfoPlist.swift in Sources */,
-				B118B0FC989BF42C8A2B6EE2 /* PHShared.swift in Sources */,
-				B118BD7881459134B77DE5FB /* ActivityTracker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1112,113 +637,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3C0090232B26D7B80000DFFA /* NavTabId.swift in Sources */,
-				D80443F92A1B404E00ED59C5 /* CommandsRootView.swift in Sources */,
-				D80443F42A1B404E00ED59C5 /* Operators.swift in Sources */,
-				D80444122A1B404E00ED59C5 /* DoubleClick.swift in Sources */,
-				3CA2669E2B43C8C900D4DA28 /* DividedVStack.swift in Sources */,
-				D80443EB2A1B404E00ED59C5 /* Images.swift in Sources */,
-				D80443FD2A1B404E00ED59C5 /* DockerImageItem.swift in Sources */,
-				D80443FE2A1B404E00ED59C5 /* DockerContainerItem.swift in Sources */,
-				D80444142A1B404E00ED59C5 /* SconRPC.swift in Sources */,
-				D80443EA2A1B404E00ED59C5 /* CreateContainerView.swift in Sources */,
-				D80443E42A1B404E00ED59C5 /* OnboardingViewModel.swift in Sources */,
-				D80443F52A1B404E00ED59C5 /* Utils.swift in Sources */,
-				D80444022A1B404E00ED59C5 /* DockerViewModel.swift in Sources */,
-				3C1935F22B313034009D2929 /* NewMainVC+SplitView.swift in Sources */,
-				D80444032A1B404E00ED59C5 /* DockerVolumeItem.swift in Sources */,
-				D80444132A1B404E00ED59C5 /* JsonRPC.swift in Sources */,
-				3CBBBF8E2B1AC38D00BDBC87 /* PrincipalView.swift in Sources */,
-				D80443E12A1B404E00ED59C5 /* OnboardingWelcomeView.swift in Sources */,
-				D80443FB2A1B404E00ED59C5 /* DockerLogsWindow.swift in Sources */,
-				3C0090252B2723E10000DFFA /* NewMainVC+Listen.swift in Sources */,
-				D80443EE2A1B404E00ED59C5 /* StateWrapperView.swift in Sources */,
-				D80443ED2A1B404E00ED59C5 /* MachinesRootView.swift in Sources */,
-				D80444092A1B404E00ED59C5 /* AppDelegate.swift in Sources */,
-				D804440E2A1B404E00ED59C5 /* GeneralSettingsView.swift in Sources */,
-				D80443FC2A1B404E00ED59C5 /* DockerImagesRootView.swift in Sources */,
-				D8D1EEB32A8C7EC500C80718 /* DefaultsKeys.swift in Sources */,
-				D80443FA2A1B404E00ED59C5 /* DockerStateWrapperView.swift in Sources */,
-				3CD16B6F2B10864E002FBB00 /* NewMainView.swift in Sources */,
-				D804440C2A1B404E00ED59C5 /* AppSettings.swift in Sources */,
-				D80443F12A1B404E00ED59C5 /* AppConfig.swift in Sources */,
-				D80443E82A1B404E00ED59C5 /* MachineContainerItem.swift in Sources */,
-				D80443F62A1B404E00ED59C5 /* SplitViewAccessor.swift in Sources */,
-				D80444002A1B404E00ED59C5 /* DockerComposeGroupItem.swift in Sources */,
-				D80444112A1B404E00ED59C5 /* ActionTracker.swift in Sources */,
-				D80443F72A1B404E00ED59C5 /* MenuBarController.swift in Sources */,
-				3C00901E2B26CBD30000DFFA /* NewMainVC+Toolbar.swift in Sources */,
-				3CBBBF902B1AC39100BDBC87 /* InspectorView.swift in Sources */,
-				3CBBBF8C2B1AC38A00BDBC87 /* SidebarView.swift in Sources */,
-				D804440A2A1B404E00ED59C5 /* MacVirtApp.swift in Sources */,
-				D80443E02A1B404E00ED59C5 /* OnboardingCreateView.swift in Sources */,
-				D80443FF2A1B404E00ED59C5 /* CreateVolumeView.swift in Sources */,
-				D80443E32A1B404E00ED59C5 /* OnboardingModeView.swift in Sources */,
-				D80444162A1B404E00ED59C5 /* DockerRPC.swift in Sources */,
-				D80443EF2A1B404E00ED59C5 /* DaemonManager.swift in Sources */,
-				D804440B2A1B404E00ED59C5 /* MainWindow.swift in Sources */,
-				D80443F22A1B404E00ED59C5 /* SwiftUIUtils.swift in Sources */,
-				3CBBBF922B1AC3E400BDBC87 /* Utilities.swift in Sources */,
-				D80443E22A1B404E00ED59C5 /* OnboardingRootView.swift in Sources */,
-				D80444052A1B404E00ED59C5 /* DockerVolumesRootView.swift in Sources */,
-				D80444062A1B404E00ED59C5 /* DockerUI.swift in Sources */,
-				D80443EC2A1B404E00ED59C5 /* MachinesUI.swift in Sources */,
-				CE44F2D72C259BA600965CC2 /* DockerSortMethod.swift in Sources */,
-				D804440F2A1B404E00ED59C5 /* NetworkSettingsView.swift in Sources */,
-				D80443F82A1B404E00ED59C5 /* WindowTracker.swift in Sources */,
-				D80444072A1B404E00ED59C5 /* DockerContainersRootView.swift in Sources */,
-				3C1935F42B31325D009D2929 /* SplitViewController.swift in Sources */,
-				D80443F02A1B404E00ED59C5 /* VmViewModel.swift in Sources */,
-				D80444082A1B404E00ED59C5 /* DockerInspect.swift in Sources */,
-				D80444152A1B404E00ED59C5 /* VmRPC.swift in Sources */,
-				D804440D2A1B404E00ED59C5 /* Updater.swift in Sources */,
-				B118BD9584DD2252613E8448 /* OnboardingUI.swift in Sources */,
-				B118B03AE6A9C28FFD7389B5 /* MenuBarTipView.swift in Sources */,
-				B118B91F705FD95B02929167 /* MachineSettingsView.swift in Sources */,
-				B118BA8ED0254FD89CDF5ECE /* DebugSettingsView.swift in Sources */,
-				B118B418A887C7AB3F84E21F /* OnboardingManager.swift in Sources */,
-				B118B3B76CA225F4062B10D1 /* NSImage.swift in Sources */,
-				B118BC05CE1D4F11DDD3EF4F /* Buttons.swift in Sources */,
-				B118B0B45C5275390C73E211 /* RenameContainerView.swift in Sources */,
-				D8BAAFBE2A60583A00E5637F /* DiagReporterView.swift in Sources */,
-				B118B076E8CB7033926025A7 /* FeedbackView.swift in Sources */,
-				B118B209F240A8036216EC04 /* DockerMigrationWindow.swift in Sources */,
-				B118B558BF1A53E2533A5C03 /* ContentUnavailableViewCompat.swift in Sources */,
-				B118B6A6FEC53A22E616891C /* StorageSettingsView.swift in Sources */,
-				B118B3BEA18481697E1EB21E /* PHShared.swift in Sources */,
-				B118B059B171800F250B42CD /* PHClient.swift in Sources */,
-				B118BA1587545DACF59CA24C /* SharedUtils.swift in Sources */,
-				B118B43B007C2829095646FE /* Data+Base64URL.swift in Sources */,
-				B118B8D281CB560AA13AD3FB /* K8SPodsView.swift in Sources */,
-				B118B81365EA43CD9BD5FFF1 /* K8sRPC.swift in Sources */,
-				B118B242A992055158331DBA /* K8SStateWrapperView.swift in Sources */,
-				D88AAF782CCE0BBD00C37028 /* VersionGate.swift in Sources */,
-				B118BC0C08A918A48F447E2D /* K8SPodItemView.swift in Sources */,
-				B118B2587E45023C13156AE5 /* K8SUIHelpers.swift in Sources */,
-				B118BD1656CDA2FBAE025120 /* K8SServicesView.swift in Sources */,
-				B118B05A4822E6D2CE27AE32 /* CustomLink.swift in Sources */,
-				B118B4653B70C49EAB1B1094 /* DockerSettingsView.swift in Sources */,
-				B118B5BB973EBC5FD60C865B /* K8SSettingsView.swift in Sources */,
-				3CD16B712B108654002FBB00 /* NewMainViewController.swift in Sources */,
-				B118B4DC48A219728BE68C4F /* K8SServiceItemView.swift in Sources */,
-				B118B99BAE17848A3498056C /* DockerK8sGroupItem.swift in Sources */,
-				B118BBABE0D99C6164F748AF /* AKList.swift in Sources */,
-				B118BBA93DEC265B133001E3 /* ThinEnvironment.swift in Sources */,
-				B118B908C12CA46A45B5EF1F /* CopyableText.swift in Sources */,
-				B118B662209189FEF0B61F9F /* CursorRegion.swift in Sources */,
-				B118B773879397647B754ADE /* AuthView.swift in Sources */,
-				B118B6C34CBA6697634108B6 /* MainNavViewModel.swift in Sources */,
-				B118B93284799ABB4471A456 /* DockerContainerDetails.swift in Sources */,
-				B118B582B55A083B244C8B74 /* K8SPodDetails.swift in Sources */,
-				B118B52864D6F64B6436CDE3 /* K8SServiceDetails.swift in Sources */,
-				B118B68B99927A5EF567C5D9 /* DockerVolumeDetails.swift in Sources */,
-				B118B2AA7196819BB8584BE7 /* DetailsStack.swift in Sources */,
-				B118BF9432DE5B82D325A31E /* DockerComposeGroupDetails.swift in Sources */,
-				B118BB872576F6CD4404591E /* MachineDetails.swift in Sources */,
-				B118B77119F338910D52B7D2 /* DockerImageDetails.swift in Sources */,
-				B118B6EB7323A6023E5EE791 /* K8SGroupDetails.swift in Sources */,
-				B118B1D666CB270A1C79F4E6 /* LicenseBadgeView.swift in Sources */,
-				B118B0B04390F03CD1EAA096 /* AKAlert.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1739,6 +1157,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D8694A47299464810046B6B6 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		D87596F52CE738B200CEEE98 /* Blessed */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D87745FA2A7CBB1800739040 /* XCRemoteSwiftPackageReference "Blessed" */;
+			productName = Blessed;
+		};
+		D87596F72CE738B500CEEE98 /* Defaults */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D86614162A38061700EA0995 /* XCRemoteSwiftPackageReference "defaults" */;
+			productName = Defaults;
 		};
 		D87745FB2A7CBB1800739040 /* Blessed */ = {
 			isa = XCSwiftPackageProductDependency;
