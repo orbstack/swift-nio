@@ -141,7 +141,6 @@ type WormholeRemoteServerParams struct {
 	ContainerWorkdir string   `json:"f"`
 	ContainerEnv     []string `json:"g"`
 	EntryShellCmd    string   `json:"h"`
-	IsLocal          bool     `json:"i"`
 }
 
 func WriteTermEnv(writer io.Writer, term string) error {
@@ -384,7 +383,6 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 	}
 
 	wormholeParam, err := json.Marshal(WormholeRemoteServerParams{
-		IsLocal:          false,
 		InitPid:          containerInfo.State.Pid,
 		ContainerWorkdir: workingDir,
 		ContainerEnv:     containerInfo.Config.Env,

@@ -20,10 +20,12 @@ use nix::{
     unistd::{dup2, getpid, Pid},
 };
 use tracing::trace;
-use wormhole::flock::{Flock, FlockMode, FlockWait};
+use wormhole::{
+    flock::{Flock, FlockMode, FlockWait},
+    model::WormholeConfig,
+};
 
 use crate::{
-    model::WormholeConfig,
     mounts::with_remount_rw,
     parse_proc_mounts,
     proc::{

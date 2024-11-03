@@ -26,7 +26,6 @@ use libc::{
     PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE,
     STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ, TIOCSCTTY, TIOCSWINSZ,
 };
-use model::WormholeConfig;
 use mounts::with_remount_rw;
 use nix::libc::ioctl;
 use nix::sys::termios::{
@@ -67,12 +66,12 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
     flock::{Flock, FlockMode, FlockWait},
+    model::WormholeConfig,
     newmount::{mount_setattr, move_mount, open_tree, MountAttr, MOUNT_ATTR_RDONLY},
     paths, set_cloexec,
 };
 
 mod drm;
-mod model;
 mod monitor;
 mod mounts;
 mod pidfd;

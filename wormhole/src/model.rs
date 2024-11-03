@@ -7,11 +7,13 @@ pub struct WormholeConfig {
     // renamed for obfuscation, as this may be user-visible
     #[serde(rename = "a")]
     pub init_pid: i32,
-    #[serde(rename = "b")]
+    #[serde(rename = "i")]
+    pub rootfs_fd: Option<RawFd>,
+    #[serde(rename = "b", default)]
     pub wormhole_mount_tree_fd: RawFd,
-    #[serde(rename = "c")]
+    #[serde(rename = "c", default)]
     pub exit_code_pipe_write_fd: RawFd,
-    #[serde(rename = "d")]
+    #[serde(rename = "d", default)]
     pub log_fd: RawFd,
     #[serde(rename = "e")]
     pub drm_token: String,

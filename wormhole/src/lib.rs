@@ -12,6 +12,7 @@ use nix::{
 
 pub mod asyncfile;
 pub mod flock;
+pub mod model;
 pub mod newmount;
 pub mod paths;
 pub mod rpc;

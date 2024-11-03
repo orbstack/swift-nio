@@ -31,6 +31,7 @@ type RpcServerMessage struct {
 	//	*RpcServerMessage_StdoutData
 	//	*RpcServerMessage_StderrData
 	//	*RpcServerMessage_ExitStatus
+	//	*RpcServerMessage_ClientConnectAck
 	ServerMessage isRpcServerMessage_ServerMessage `protobuf_oneof:"server_message"`
 }
 
@@ -92,7 +93,6 @@ func (x *RpcServerMessage) GetExitStatus() *ExitStatus {
 	return nil
 }
 
-<<<<<<< HEAD
 func (x *RpcServerMessage) GetClientConnectAck() *ClientConnectAck {
 	if x, ok := x.GetServerMessage().(*RpcServerMessage_ClientConnectAck); ok {
 		return x.ClientConnectAck
@@ -100,8 +100,6 @@ func (x *RpcServerMessage) GetClientConnectAck() *ClientConnectAck {
 	return nil
 }
 
-=======
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 type isRpcServerMessage_ServerMessage interface {
 	isRpcServerMessage_ServerMessage()
 }
@@ -118,24 +116,18 @@ type RpcServerMessage_ExitStatus struct {
 	ExitStatus *ExitStatus `protobuf:"bytes,3,opt,name=exit_status,json=exitStatus,proto3,oneof"`
 }
 
-<<<<<<< HEAD
 type RpcServerMessage_ClientConnectAck struct {
 	ClientConnectAck *ClientConnectAck `protobuf:"bytes,4,opt,name=client_connect_ack,json=clientConnectAck,proto3,oneof"`
 }
 
-=======
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 func (*RpcServerMessage_StdoutData) isRpcServerMessage_ServerMessage() {}
 
 func (*RpcServerMessage_StderrData) isRpcServerMessage_ServerMessage() {}
 
 func (*RpcServerMessage_ExitStatus) isRpcServerMessage_ServerMessage() {}
 
-<<<<<<< HEAD
 func (*RpcServerMessage_ClientConnectAck) isRpcServerMessage_ServerMessage() {}
 
-=======
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 // message created by client, sent to server
 type RpcClientMessage struct {
 	state         protoimpl.MessageState
@@ -145,15 +137,7 @@ type RpcClientMessage struct {
 	// Types that are assignable to ClientMessage:
 	//
 	//	*RpcClientMessage_StdinData
-<<<<<<< HEAD
-<<<<<<< HEAD
 	//	*RpcClientMessage_TerminalResize
-=======
-	//	*RpcClientMessage_TerminalReisze
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-	//	*RpcClientMessage_TerminalResize
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 	//	*RpcClientMessage_RequestPty
 	//	*RpcClientMessage_StartPayload
 	ClientMessage isRpcClientMessage_ClientMessage `protobuf_oneof:"client_message"`
@@ -203,21 +187,9 @@ func (x *RpcClientMessage) GetStdinData() *StdinData {
 	return nil
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 func (x *RpcClientMessage) GetTerminalResize() *TerminalResize {
 	if x, ok := x.GetClientMessage().(*RpcClientMessage_TerminalResize); ok {
 		return x.TerminalResize
-=======
-func (x *RpcClientMessage) GetTerminalReisze() *TerminalResize {
-	if x, ok := x.GetClientMessage().(*RpcClientMessage_TerminalReisze); ok {
-		return x.TerminalReisze
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-func (x *RpcClientMessage) GetTerminalResize() *TerminalResize {
-	if x, ok := x.GetClientMessage().(*RpcClientMessage_TerminalResize); ok {
-		return x.TerminalResize
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 	}
 	return nil
 }
@@ -244,18 +216,8 @@ type RpcClientMessage_StdinData struct {
 	StdinData *StdinData `protobuf:"bytes,1,opt,name=stdin_data,json=stdinData,proto3,oneof"`
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 type RpcClientMessage_TerminalResize struct {
 	TerminalResize *TerminalResize `protobuf:"bytes,2,opt,name=terminal_resize,json=terminalResize,proto3,oneof"`
-=======
-type RpcClientMessage_TerminalReisze struct {
-	TerminalReisze *TerminalResize `protobuf:"bytes,2,opt,name=terminal_reisze,json=terminalReisze,proto3,oneof"`
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-type RpcClientMessage_TerminalResize struct {
-	TerminalResize *TerminalResize `protobuf:"bytes,2,opt,name=terminal_resize,json=terminalResize,proto3,oneof"`
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 }
 
 type RpcClientMessage_RequestPty struct {
@@ -268,21 +230,12 @@ type RpcClientMessage_StartPayload struct {
 
 func (*RpcClientMessage_StdinData) isRpcClientMessage_ClientMessage() {}
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 func (*RpcClientMessage_TerminalResize) isRpcClientMessage_ClientMessage() {}
-=======
-func (*RpcClientMessage_TerminalReisze) isRpcClientMessage_ClientMessage() {}
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-func (*RpcClientMessage_TerminalResize) isRpcClientMessage_ClientMessage() {}
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 
 func (*RpcClientMessage_RequestPty) isRpcClientMessage_ClientMessage() {}
 
 func (*RpcClientMessage_StartPayload) isRpcClientMessage_ClientMessage() {}
 
-<<<<<<< HEAD
 type RpcClientInit struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -364,8 +317,6 @@ func (*RpcClientInitAck) Descriptor() ([]byte, []int) {
 	return file_wormhole_proto_rawDescGZIP(), []int{3}
 }
 
-=======
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 // server messages
 type StdinData struct {
 	state         protoimpl.MessageState
@@ -377,11 +328,7 @@ type StdinData struct {
 
 func (x *StdinData) Reset() {
 	*x = StdinData{}
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[4]
-=======
-	mi := &file_wormhole_proto_msgTypes[2]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -393,11 +340,7 @@ func (x *StdinData) String() string {
 func (*StdinData) ProtoMessage() {}
 
 func (x *StdinData) ProtoReflect() protoreflect.Message {
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[4]
-=======
-	mi := &file_wormhole_proto_msgTypes[2]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -410,11 +353,7 @@ func (x *StdinData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StdinData.ProtoReflect.Descriptor instead.
 func (*StdinData) Descriptor() ([]byte, []int) {
-<<<<<<< HEAD
 	return file_wormhole_proto_rawDescGZIP(), []int{4}
-=======
-	return file_wormhole_proto_rawDescGZIP(), []int{2}
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 }
 
 func (x *StdinData) GetData() []byte {
@@ -435,11 +374,7 @@ type TerminalResize struct {
 
 func (x *TerminalResize) Reset() {
 	*x = TerminalResize{}
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[5]
-=======
-	mi := &file_wormhole_proto_msgTypes[3]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -451,11 +386,7 @@ func (x *TerminalResize) String() string {
 func (*TerminalResize) ProtoMessage() {}
 
 func (x *TerminalResize) ProtoReflect() protoreflect.Message {
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[5]
-=======
-	mi := &file_wormhole_proto_msgTypes[3]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -468,11 +399,7 @@ func (x *TerminalResize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalResize.ProtoReflect.Descriptor instead.
 func (*TerminalResize) Descriptor() ([]byte, []int) {
-<<<<<<< HEAD
 	return file_wormhole_proto_rawDescGZIP(), []int{5}
-=======
-	return file_wormhole_proto_rawDescGZIP(), []int{3}
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 }
 
 func (x *TerminalResize) GetCols() uint32 {
@@ -495,28 +422,14 @@ type RequestPty struct {
 	unknownFields protoimpl.UnknownFields
 
 	TermEnv string `protobuf:"bytes,14,opt,name=term_env,json=termEnv,proto3" json:"term_env,omitempty"`
-<<<<<<< HEAD
-<<<<<<< HEAD
 	Rows    uint32 `protobuf:"varint,15,opt,name=rows,proto3" json:"rows,omitempty"`
 	Cols    uint32 `protobuf:"varint,16,opt,name=cols,proto3" json:"cols,omitempty"`
-=======
-	Rows    string `protobuf:"bytes,15,opt,name=rows,proto3" json:"rows,omitempty"`
-	Cols    string `protobuf:"bytes,16,opt,name=cols,proto3" json:"cols,omitempty"`
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-	Rows    uint32 `protobuf:"varint,15,opt,name=rows,proto3" json:"rows,omitempty"`
-	Cols    uint32 `protobuf:"varint,16,opt,name=cols,proto3" json:"cols,omitempty"`
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 	Termios []byte `protobuf:"bytes,17,opt,name=termios,proto3" json:"termios,omitempty"`
 }
 
 func (x *RequestPty) Reset() {
 	*x = RequestPty{}
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[6]
-=======
-	mi := &file_wormhole_proto_msgTypes[4]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -528,11 +441,7 @@ func (x *RequestPty) String() string {
 func (*RequestPty) ProtoMessage() {}
 
 func (x *RequestPty) ProtoReflect() protoreflect.Message {
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[6]
-=======
-	mi := &file_wormhole_proto_msgTypes[4]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -545,11 +454,7 @@ func (x *RequestPty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestPty.ProtoReflect.Descriptor instead.
 func (*RequestPty) Descriptor() ([]byte, []int) {
-<<<<<<< HEAD
 	return file_wormhole_proto_rawDescGZIP(), []int{6}
-=======
-	return file_wormhole_proto_rawDescGZIP(), []int{4}
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 }
 
 func (x *RequestPty) GetTermEnv() string {
@@ -559,8 +464,6 @@ func (x *RequestPty) GetTermEnv() string {
 	return ""
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 func (x *RequestPty) GetRows() uint32 {
 	if x != nil {
 		return x.Rows
@@ -573,27 +476,6 @@ func (x *RequestPty) GetCols() uint32 {
 		return x.Cols
 	}
 	return 0
-=======
-func (x *RequestPty) GetRows() string {
-=======
-func (x *RequestPty) GetRows() uint32 {
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
-	if x != nil {
-		return x.Rows
-	}
-	return 0
-}
-
-func (x *RequestPty) GetCols() uint32 {
-	if x != nil {
-		return x.Cols
-	}
-<<<<<<< HEAD
-	return ""
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-	return 0
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 }
 
 func (x *RequestPty) GetTermios() []byte {
@@ -608,24 +490,12 @@ type StartPayload struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 	WormholeParam string `protobuf:"bytes,18,opt,name=wormhole_param,json=wormholeParam,proto3" json:"wormhole_param,omitempty"`
-=======
-	WormholeConfig string `protobuf:"bytes,18,opt,name=wormhole_config,json=wormholeConfig,proto3" json:"wormhole_config,omitempty"`
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-	WormholeParam string `protobuf:"bytes,18,opt,name=wormhole_param,json=wormholeParam,proto3" json:"wormhole_param,omitempty"`
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 }
 
 func (x *StartPayload) Reset() {
 	*x = StartPayload{}
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[7]
-=======
-	mi := &file_wormhole_proto_msgTypes[5]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -637,11 +507,7 @@ func (x *StartPayload) String() string {
 func (*StartPayload) ProtoMessage() {}
 
 func (x *StartPayload) ProtoReflect() protoreflect.Message {
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[7]
-=======
-	mi := &file_wormhole_proto_msgTypes[5]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -654,25 +520,12 @@ func (x *StartPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartPayload.ProtoReflect.Descriptor instead.
 func (*StartPayload) Descriptor() ([]byte, []int) {
-<<<<<<< HEAD
 	return file_wormhole_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *StartPayload) GetWormholeParam() string {
 	if x != nil {
 		return x.WormholeParam
-=======
-	return file_wormhole_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *StartPayload) GetWormholeParam() string {
-	if x != nil {
-<<<<<<< HEAD
-		return x.WormholeConfig
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-		return x.WormholeParam
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 	}
 	return ""
 }
@@ -688,11 +541,7 @@ type StdoutData struct {
 
 func (x *StdoutData) Reset() {
 	*x = StdoutData{}
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[8]
-=======
-	mi := &file_wormhole_proto_msgTypes[6]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -704,11 +553,7 @@ func (x *StdoutData) String() string {
 func (*StdoutData) ProtoMessage() {}
 
 func (x *StdoutData) ProtoReflect() protoreflect.Message {
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[8]
-=======
-	mi := &file_wormhole_proto_msgTypes[6]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -721,11 +566,7 @@ func (x *StdoutData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StdoutData.ProtoReflect.Descriptor instead.
 func (*StdoutData) Descriptor() ([]byte, []int) {
-<<<<<<< HEAD
 	return file_wormhole_proto_rawDescGZIP(), []int{8}
-=======
-	return file_wormhole_proto_rawDescGZIP(), []int{6}
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 }
 
 func (x *StdoutData) GetData() []byte {
@@ -745,11 +586,7 @@ type StderrData struct {
 
 func (x *StderrData) Reset() {
 	*x = StderrData{}
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[9]
-=======
-	mi := &file_wormhole_proto_msgTypes[7]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -761,11 +598,7 @@ func (x *StderrData) String() string {
 func (*StderrData) ProtoMessage() {}
 
 func (x *StderrData) ProtoReflect() protoreflect.Message {
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[9]
-=======
-	mi := &file_wormhole_proto_msgTypes[7]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -778,11 +611,7 @@ func (x *StderrData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StderrData.ProtoReflect.Descriptor instead.
 func (*StderrData) Descriptor() ([]byte, []int) {
-<<<<<<< HEAD
 	return file_wormhole_proto_rawDescGZIP(), []int{9}
-=======
-	return file_wormhole_proto_rawDescGZIP(), []int{7}
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 }
 
 func (x *StderrData) GetData() []byte {
@@ -802,11 +631,7 @@ type ExitStatus struct {
 
 func (x *ExitStatus) Reset() {
 	*x = ExitStatus{}
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[10]
-=======
-	mi := &file_wormhole_proto_msgTypes[8]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -818,11 +643,7 @@ func (x *ExitStatus) String() string {
 func (*ExitStatus) ProtoMessage() {}
 
 func (x *ExitStatus) ProtoReflect() protoreflect.Message {
-<<<<<<< HEAD
 	mi := &file_wormhole_proto_msgTypes[10]
-=======
-	mi := &file_wormhole_proto_msgTypes[8]
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -835,11 +656,7 @@ func (x *ExitStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExitStatus.ProtoReflect.Descriptor instead.
 func (*ExitStatus) Descriptor() ([]byte, []int) {
-<<<<<<< HEAD
 	return file_wormhole_proto_rawDescGZIP(), []int{10}
-=======
-	return file_wormhole_proto_rawDescGZIP(), []int{8}
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 }
 
 func (x *ExitStatus) GetExitCode() uint32 {
@@ -849,7 +666,6 @@ func (x *ExitStatus) GetExitCode() uint32 {
 	return 0
 }
 
-<<<<<<< HEAD
 type ClientConnectAck struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -886,17 +702,11 @@ func (*ClientConnectAck) Descriptor() ([]byte, []int) {
 	return file_wormhole_proto_rawDescGZIP(), []int{11}
 }
 
-=======
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 var File_wormhole_proto protoreflect.FileDescriptor
 
 var file_wormhole_proto_rawDesc = []byte{
 	0x0a, 0x0e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-<<<<<<< HEAD
 	0x12, 0x08, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x22, 0x9b, 0x02, 0x0a, 0x10, 0x52,
-=======
-	0x12, 0x08, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x22, 0xcf, 0x01, 0x0a, 0x10, 0x52,
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 	0x70, 0x63, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12,
 	0x37, 0x0a, 0x0b, 0x73, 0x74, 0x64, 0x6f, 0x75, 0x74, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x2e,
@@ -908,7 +718,6 @@ var file_wormhole_proto_rawDesc = []byte{
 	0x61, 0x12, 0x37, 0x0a, 0x0b, 0x65, 0x78, 0x69, 0x74, 0x5f, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73,
 	0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c,
 	0x65, 0x2e, 0x45, 0x78, 0x69, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x48, 0x00, 0x52, 0x0a,
-<<<<<<< HEAD
 	0x65, 0x78, 0x69, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x4a, 0x0a, 0x12, 0x63, 0x6c,
 	0x69, 0x65, 0x6e, 0x74, 0x5f, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x5f, 0x61, 0x63, 0x6b,
 	0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c,
@@ -964,69 +773,6 @@ var file_wormhole_proto_rawDesc = []byte{
 	0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x41, 0x63, 0x6b, 0x42, 0x14, 0x5a, 0x12, 0x63, 0x6d,
 	0x64, 0x2f, 0x73, 0x63, 0x6c, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x64,
 	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
-=======
-	0x65, 0x78, 0x69, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x42, 0x10, 0x0a, 0x0e, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x5f, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x97, 0x02, 0x0a,
-	0x10, 0x52, 0x70, 0x63, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67,
-	0x65, 0x12, 0x34, 0x0a, 0x0a, 0x73, 0x74, 0x64, 0x69, 0x6e, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x13, 0x2e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65,
-	0x2e, 0x53, 0x74, 0x64, 0x69, 0x6e, 0x44, 0x61, 0x74, 0x61, 0x48, 0x00, 0x52, 0x09, 0x73, 0x74,
-	0x64, 0x69, 0x6e, 0x44, 0x61, 0x74, 0x61, 0x12, 0x43, 0x0a, 0x0f, 0x74, 0x65, 0x72, 0x6d, 0x69,
-	0x6e, 0x61, 0x6c, 0x5f, 0x72, 0x65, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b,
-	0x32, 0x18, 0x2e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x2e, 0x54, 0x65, 0x72, 0x6d,
-	0x69, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x73, 0x69, 0x7a, 0x65, 0x48, 0x00, 0x52, 0x0e, 0x74, 0x65,
-	0x72, 0x6d, 0x69, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x73, 0x69, 0x7a, 0x65, 0x12, 0x37, 0x0a, 0x0b,
-	0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x5f, 0x70, 0x74, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28,
-	0x0b, 0x32, 0x14, 0x2e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x2e, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x50, 0x74, 0x79, 0x48, 0x00, 0x52, 0x0a, 0x72, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x50, 0x74, 0x79, 0x12, 0x3d, 0x0a, 0x0d, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f, 0x70,
-	0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x16, 0x2e, 0x77,
-	0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x50, 0x61, 0x79,
-	0x6c, 0x6f, 0x61, 0x64, 0x48, 0x00, 0x52, 0x0c, 0x73, 0x74, 0x61, 0x72, 0x74, 0x50, 0x61, 0x79,
-	0x6c, 0x6f, 0x61, 0x64, 0x42, 0x10, 0x0a, 0x0e, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x5f, 0x6d,
-	0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x1f, 0x0a, 0x09, 0x53, 0x74, 0x64, 0x69, 0x6e, 0x44,
-	0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x0b, 0x20, 0x01, 0x28,
-	0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x38, 0x0a, 0x0e, 0x54, 0x65, 0x72, 0x6d, 0x69,
-	0x6e, 0x61, 0x6c, 0x52, 0x65, 0x73, 0x69, 0x7a, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x63, 0x6f, 0x6c,
-	0x73, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x63, 0x6f, 0x6c, 0x73, 0x12, 0x12, 0x0a,
-	0x04, 0x72, 0x6f, 0x77, 0x73, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x72, 0x6f, 0x77,
-	0x73, 0x22, 0x69, 0x0a, 0x0a, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x50, 0x74, 0x79, 0x12,
-	0x19, 0x0a, 0x08, 0x74, 0x65, 0x72, 0x6d, 0x5f, 0x65, 0x6e, 0x76, 0x18, 0x0e, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x45, 0x6e, 0x76, 0x12, 0x12, 0x0a, 0x04, 0x72, 0x6f,
-	0x77, 0x73, 0x18, 0x0f, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x72, 0x6f, 0x77, 0x73, 0x12, 0x12,
-	0x0a, 0x04, 0x63, 0x6f, 0x6c, 0x73, 0x18, 0x10, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x63, 0x6f,
-	0x6c, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6f, 0x73, 0x18, 0x11, 0x20,
-<<<<<<< HEAD
-	0x01, 0x28, 0x0c, 0x52, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6f, 0x73, 0x22, 0x37, 0x0a, 0x0c,
-	0x53, 0x74, 0x61, 0x72, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x27, 0x0a, 0x0f,
-	0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x18,
-	0x12, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x43,
-	0x6f, 0x6e, 0x66, 0x69, 0x67, 0x22, 0x20, 0x0a, 0x0a, 0x53, 0x74, 0x64, 0x6f, 0x75, 0x74, 0x44,
-	0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x0b, 0x20, 0x01, 0x28,
-	0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x20, 0x0a, 0x0a, 0x53, 0x74, 0x64, 0x65, 0x72,
-	0x72, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x0c, 0x20,
-	0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x29, 0x0a, 0x0a, 0x45, 0x78, 0x69,
-	0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x1b, 0x0a, 0x09, 0x65, 0x78, 0x69, 0x74, 0x5f,
-	0x63, 0x6f, 0x64, 0x65, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x08, 0x65, 0x78, 0x69, 0x74,
-	0x43, 0x6f, 0x64, 0x65, 0x42, 0x14, 0x5a, 0x12, 0x63, 0x6d, 0x64, 0x2f, 0x73, 0x63, 0x6c, 0x69,
-	0x2f, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x64, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-	0x01, 0x28, 0x0c, 0x52, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6f, 0x73, 0x22, 0x35, 0x0a, 0x0c,
-	0x53, 0x74, 0x61, 0x72, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x25, 0x0a, 0x0e,
-	0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x5f, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x18, 0x12,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x50, 0x61,
-	0x72, 0x61, 0x6d, 0x22, 0x20, 0x0a, 0x0a, 0x53, 0x74, 0x64, 0x6f, 0x75, 0x74, 0x44, 0x61, 0x74,
-	0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x0c, 0x52,
-	0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x20, 0x0a, 0x0a, 0x53, 0x74, 0x64, 0x65, 0x72, 0x72, 0x44,
-	0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x0c, 0x20, 0x01, 0x28,
-	0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x29, 0x0a, 0x0a, 0x45, 0x78, 0x69, 0x74, 0x53,
-	0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x1b, 0x0a, 0x09, 0x65, 0x78, 0x69, 0x74, 0x5f, 0x63, 0x6f,
-	0x64, 0x65, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x08, 0x65, 0x78, 0x69, 0x74, 0x43, 0x6f,
-	0x64, 0x65, 0x42, 0x14, 0x5a, 0x12, 0x63, 0x6d, 0x64, 0x2f, 0x73, 0x63, 0x6c, 0x69, 0x2f, 0x67,
-	0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x64, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 }
 
 var (
@@ -1041,7 +787,6 @@ func file_wormhole_proto_rawDescGZIP() []byte {
 	return file_wormhole_proto_rawDescData
 }
 
-<<<<<<< HEAD
 var file_wormhole_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_wormhole_proto_goTypes = []any{
 	(*RpcServerMessage)(nil), // 0: wormhole.RpcServerMessage
@@ -1071,33 +816,6 @@ var file_wormhole_proto_depIdxs = []int32{
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
-=======
-var file_wormhole_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
-var file_wormhole_proto_goTypes = []any{
-	(*RpcServerMessage)(nil), // 0: wormhole.RpcServerMessage
-	(*RpcClientMessage)(nil), // 1: wormhole.RpcClientMessage
-	(*StdinData)(nil),        // 2: wormhole.StdinData
-	(*TerminalResize)(nil),   // 3: wormhole.TerminalResize
-	(*RequestPty)(nil),       // 4: wormhole.RequestPty
-	(*StartPayload)(nil),     // 5: wormhole.StartPayload
-	(*StdoutData)(nil),       // 6: wormhole.StdoutData
-	(*StderrData)(nil),       // 7: wormhole.StderrData
-	(*ExitStatus)(nil),       // 8: wormhole.ExitStatus
-}
-var file_wormhole_proto_depIdxs = []int32{
-	6, // 0: wormhole.RpcServerMessage.stdout_data:type_name -> wormhole.StdoutData
-	7, // 1: wormhole.RpcServerMessage.stderr_data:type_name -> wormhole.StderrData
-	8, // 2: wormhole.RpcServerMessage.exit_status:type_name -> wormhole.ExitStatus
-	2, // 3: wormhole.RpcClientMessage.stdin_data:type_name -> wormhole.StdinData
-	3, // 4: wormhole.RpcClientMessage.terminal_resize:type_name -> wormhole.TerminalResize
-	4, // 5: wormhole.RpcClientMessage.request_pty:type_name -> wormhole.RequestPty
-	5, // 6: wormhole.RpcClientMessage.start_payload:type_name -> wormhole.StartPayload
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 }
 
 func init() { file_wormhole_proto_init() }
@@ -1109,22 +827,11 @@ func file_wormhole_proto_init() {
 		(*RpcServerMessage_StdoutData)(nil),
 		(*RpcServerMessage_StderrData)(nil),
 		(*RpcServerMessage_ExitStatus)(nil),
-<<<<<<< HEAD
 		(*RpcServerMessage_ClientConnectAck)(nil),
 	}
 	file_wormhole_proto_msgTypes[1].OneofWrappers = []any{
 		(*RpcClientMessage_StdinData)(nil),
 		(*RpcClientMessage_TerminalResize)(nil),
-=======
-	}
-	file_wormhole_proto_msgTypes[1].OneofWrappers = []any{
-		(*RpcClientMessage_StdinData)(nil),
-<<<<<<< HEAD
-		(*RpcClientMessage_TerminalReisze)(nil),
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
-=======
-		(*RpcClientMessage_TerminalResize)(nil),
->>>>>>> 9170c3c22 (feat: migrate rpc to protobuf)
 		(*RpcClientMessage_RequestPty)(nil),
 		(*RpcClientMessage_StartPayload)(nil),
 	}
@@ -1134,11 +841,7 @@ func file_wormhole_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_wormhole_proto_rawDesc,
 			NumEnums:      0,
-<<<<<<< HEAD
 			NumMessages:   12,
-=======
-			NumMessages:   9,
->>>>>>> ae2d2750d (tmp: protobuf for server messages)
 			NumExtensions: 0,
 			NumServices:   0,
 		},
