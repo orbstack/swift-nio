@@ -80,9 +80,13 @@ class VlanRouter: NetCallbacks {
                 // broadcast to all interfaces
                 for bridge in interfaces {
                     if let bridge {
-                        return bridge.writePacket(iovs: iovs, numIovs: numIovs, len: len)
+                        let err = bridge.writePacket(iovs: iovs, numIovs: numIovs, len: len)
+                        guard err == 0 else {
+                            return err
+                        }
                     }
                 }
+                return 0
             } else {
                 // unicast
                 let bridge = try interfaceAt(index: ifi)
@@ -98,8 +102,6 @@ class VlanRouter: NetCallbacks {
                 return -EINVAL
             }
         }
-
-        return 0
     }
 
     func addBridge(config: BridgeNetworkConfig) throws -> BrnetInterfaceIndex {
