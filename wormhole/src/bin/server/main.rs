@@ -49,6 +49,7 @@ use nix::{
 };
 use tracing::{trace, Level};
 
+mod server;
 mod util;
 use serde::{Deserialize, Serialize};
 
@@ -107,6 +108,7 @@ impl WormholeServer {
     }
 
     fn listen(self: &Arc<Self>) -> anyhow::Result<()> {
+        let _ = std::fs::remove_file("/data/rpc.sock");
         let listener = UnixListener::bind("/data/rpc.sock")?;
 
         loop {
@@ -136,10 +138,6 @@ impl WormholeServer {
             *lock += 1;
             trace!("new connection; refcount is now {}", *lock);
         }
-        RpcServerMessage {
-            server_message: Some(ServerMessage::ClientConnectAck(ClientConnectAck {})),
-        }
-        .write_sync(&mut stream)?;
 
         // get client fds via scm_rights over the stream
         trace!("waiting for rpc client fds");
@@ -149,6 +147,11 @@ impl WormholeServer {
             client_stdin.as_raw_fd(),
             client_stdout.as_raw_fd()
         );
+        RpcServerMessage {
+            server_message: Some(ServerMessage::ClientConnectAck(ClientConnectAck {})),
+        }
+        .write(&mut client_stdout)
+        .await?;
 
         let client_writer_m = Arc::new(Mutex::new(client_stdout));
         let mut pty: Option<OpenptyResult> = None;
@@ -159,6 +162,10 @@ impl WormholeServer {
         let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
         let mut stdout_pipe: (RawFd, RawFd) = (-1, -1);
         let mut stderr_pipe: (RawFd, RawFd) = (-1, -1);
+
+        // start the rpc server that accepts commands like sendPayloadStdin
+
+        // get the client capability, so that we can send back payload stdout, etc.
 
         // wait until user calls start before proceeding
         loop {

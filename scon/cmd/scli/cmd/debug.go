@@ -45,6 +45,7 @@ const (
 
 const serverImage = "198.19.249.3:5000/wormhole-server:latest"
 const clientImage = "198.19.249.3:5000/wormhole-client:latest"
+const maxRetries = 3
 
 // drm server
 // const registryImage = "198.19.249.3:8400/wormhole:latest"
@@ -154,28 +155,66 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error {
-	conn, _, err := client.InteractiveRunContainer(&dockertypes.ContainerCreateRequest{
-		Tty:          false,
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		OpenStdin:    true,
+func startRemoteWormhole(client *dockerclient.Client, wormholeParam string, retries int) error {
+	if retries == 0 {
+		return errors.New("failed to start wormhole client")
+	}
 
-		// just for local development, to avoid compiling both server and client images,
-		// just use the serverImage and change the entrypoint
-		// Image: clientImage,
-		Image:      serverImage,
-		Entrypoint: []string{"/wormhole-client"},
-		HostConfig: &dockertypes.ContainerHostConfig{
-			Binds: []string{"wormhole-data:/data"},
-		},
-	}, true)
-
+	containers, err := client.ListContainers(true)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
+
+	var serverContainerId string = ""
+	for _, c := range containers {
+		fmt.Printf("state: %v, status: %v, names: %v\n", c.State, c.Status, c.Names)
+		// container name is prepended with an extra forward slash
+		if c.Names[0] == "/orbstack-wormhole" {
+
+			if c.State == "running" {
+				serverContainerId = c.ID
+				continue
+			}
+
+			// remove the server container if it's not running
+			if err := client.RemoveContainer(c.ID, true); err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
+		}
+	}
+	fmt.Println("server container id: ", serverContainerId)
+	if serverContainerId == "" {
+		// note: start server container with a constant name so that at most one server container exists
+		serverContainerId, err = client.RunContainer(dockerclient.RunContainerOptions{Name: "orbstack-wormhole", PullImage: true},
+			&dockertypes.ContainerCreateRequest{
+				Image: serverImage,
+				HostConfig: &dockertypes.ContainerHostConfig{
+					Privileged:   true,
+					Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
+					CgroupnsMode: "host",
+					PidMode:      "host",
+					NetworkMode:  "host",
+					AutoRemove:   true,
+				},
+			})
+		if err != nil {
+			return startRemoteWormhole(client, wormholeParam, retries-1)
+		}
+	}
+
+	conn, err := client.InteractiveExec(serverContainerId, &dockertypes.ContainerExecCreateRequest{
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          []string{"/wormhole-client"},
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return startRemoteWormhole(client, wormholeParam, retries-1)
+	}
+
 	defer conn.Close()
 
 	demuxReader, demuxWriter := io.Pipe()
@@ -190,29 +229,23 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 
 	server := RpcServer{reader: sessionStdout, writer: sessionStdin}
 
-	// wait until the client process in the remote container sends an init request
-	// start a wormhole server container if required
-	clientInit := &pb.RpcClientInit{}
-	if err := server.ReadMessage(clientInit); err != nil {
+	// wait for server to acknowledge client.
+	message := &pb.RpcServerMessage{}
+	if err := server.ReadMessage(message); err != nil {
+		// EOF means that the client attach session was abruptly closed. This may happen
+		// if the `docker exec client` connects to the server container right before the
+		// container is about to shut down. In this case, we should retry.
+		if err == io.EOF {
+			return startRemoteWormhole(client, wormholeParam, retries-1)
+		}
 		return err
 	}
-
-	if clientInit.StartServer {
-		_, err = client.RunContainer(dockerclient.RunContainerOptions{PullImage: true}, &dockertypes.ContainerCreateRequest{
-			Image: serverImage,
-			HostConfig: &dockertypes.ContainerHostConfig{
-				Privileged:   true,
-				Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
-				CgroupnsMode: "host",
-				PidMode:      "host",
-				NetworkMode:  "host",
-			},
-		})
-	}
-
-	// acknowledge to the client that the server has started
-	if err := server.WriteMessage(&pb.RpcClientInitAck{}); err != nil {
-		return err
+	switch message.ServerMessage.(type) {
+	case *pb.RpcServerMessage_ClientConnectAck:
+		// at this point, the server has incremented the connection refcount and we can safely continue
+		break
+	default:
+		return errors.New("could not connect to wormhole server")
 	}
 
 	var originalState *term.State
@@ -285,36 +318,10 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 	}
 
 	go func() {
-		for {
-			message := &pb.RpcServerMessage{}
-			if err := server.ReadMessage(message); err != nil {
-				if err == io.EOF {
-					return
-				}
-				return
-			}
-
-			switch v := message.ServerMessage.(type) {
-			case *pb.RpcServerMessage_StdoutData:
-				os.Stdout.Write(v.StdoutData.Data)
-			case *pb.RpcServerMessage_StderrData:
-				os.Stdout.Write(v.StderrData.Data)
-			case *pb.RpcServerMessage_ExitStatus:
-				term.Restore(ptyFd, originalState)
-				os.Exit(int(v.ExitStatus.ExitCode))
-			}
-		}
-	}()
-
-	go func() {
 		buf := make([]byte, 1024)
 		for {
 			n, err := os.Stdin.Read(buf)
 			if err != nil {
-				// todo: some special handling for errors?
-				if err == io.EOF {
-					return
-				}
 				return
 			}
 
@@ -332,22 +339,43 @@ func startRpcConnection(client *dockerclient.Client, wormholeParam []byte) error
 	winchChan := make(chan os.Signal, 1)
 	signal.Notify(winchChan, unix.SIGWINCH)
 
-	// run repeatedly until we receive an exit code.. which calls os.Exit
-	for {
-		select {
-		case <-winchChan:
-			w, h, err := term.GetSize(0)
-			if err != nil {
-				return err
-			}
+	go func() {
+		for {
+			select {
+			case <-winchChan:
+				w, h, err := term.GetSize(0)
+				if err != nil {
+					return
+				}
 
-			if err := server.WriteMessage(&pb.RpcClientMessage{
-				ClientMessage: &pb.RpcClientMessage_TerminalResize{
-					TerminalResize: &pb.TerminalResize{Rows: uint32(h), Cols: uint32(w)},
-				},
-			}); err != nil {
+				if err := server.WriteMessage(&pb.RpcClientMessage{
+					ClientMessage: &pb.RpcClientMessage_TerminalResize{
+						TerminalResize: &pb.TerminalResize{Rows: uint32(h), Cols: uint32(w)},
+					},
+				}); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	for {
+		message := &pb.RpcServerMessage{}
+		if err := server.ReadMessage(message); err != nil {
+			if err == io.EOF {
 				return err
 			}
+			return err
+		}
+
+		switch v := message.ServerMessage.(type) {
+		case *pb.RpcServerMessage_StdoutData:
+			os.Stdout.Write(v.StdoutData.Data)
+		case *pb.RpcServerMessage_StderrData:
+			os.Stdout.Write(v.StderrData.Data)
+		case *pb.RpcServerMessage_ExitStatus:
+			term.Restore(ptyFd, originalState)
+			os.Exit(int(v.ExitStatus.ExitCode))
 		}
 	}
 }
@@ -393,18 +421,10 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		return err
 	}
 
-	// _, err = client.RunContainer(&dockertypes.ContainerCreateRequest{
-	// 	Image: serverImage,
-	// 	HostConfig: &dockertypes.ContainerHostConfig{
-	// 		Privileged:   true,
-	// 		Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
-	// 		CgroupnsMode: "host",
-	// 		PidMode:      "host",
-	// 		NetworkMode:  "host",
-	// 	},
-	// }, true)
-
-	startRpcConnection(client, wormholeParam)
+	if err := startRemoteWormhole(client, string(wormholeParam), maxRetries); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
 	return nil
 }
 

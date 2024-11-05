@@ -54,7 +54,10 @@ fn main() -> anyhow::Result<()> {
         .with_max_level(Level::TRACE)
         .init();
 
-    let mut stream = connect_to_server()?;
+    // let mut stream = connect_to_server()?;
+
+    let mut stream = UnixStream::connect(RPC_SOCKET)
+        .map_err(|e| anyhow!("could not connect to RPC socket: {}", e))?;
 
     let fds = [stdin().as_raw_fd(), stdout().as_raw_fd()];
     let cmsgs = [ControlMessage::ScmRights(&fds)];
@@ -78,6 +81,7 @@ fn main() -> anyhow::Result<()> {
     // }
 
     // server drops the rpc socket connection when wormhole-attach exits
-    stream.read(&mut [])?;
+    // stream.read(&mut [])?;
+    loop {}
     Ok(())
 }
