@@ -49,7 +49,6 @@ use nix::{
 };
 use tracing::{trace, Level};
 
-mod server;
 mod util;
 use serde::{Deserialize, Serialize};
 

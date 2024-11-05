@@ -168,7 +168,6 @@ func startRemoteWormhole(client *dockerclient.Client, wormholeParam string, retr
 
 	var serverContainerId string = ""
 	for _, c := range containers {
-		fmt.Printf("state: %v, status: %v, names: %v\n", c.State, c.Status, c.Names)
 		// container name is prepended with an extra forward slash
 		if c.Names[0] == "/orbstack-wormhole" {
 
