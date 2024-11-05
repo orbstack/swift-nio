@@ -1,7 +1,7 @@
-.PHONY: upload
+.PHONY: publish
 
-upload:
-	@cd .. && ./upload.sh
+publish:
+	@./publish.sh
 
 # can't replace cattach because alpine rust links dynamically
 replace:

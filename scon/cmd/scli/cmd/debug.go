@@ -43,12 +43,11 @@ const (
 	fdStderr = 2
 )
 
-const serverImage = "198.19.249.3:5000/wormhole-server:latest"
-const clientImage = "198.19.249.3:5000/wormhole-client:latest"
 const maxRetries = 3
 
 // drm server
-// const registryImage = "198.19.249.3:8400/wormhole:latest"
+// const registryImage = "198.19.249.3:5000/wormhole-server:latest"
+const registryImage = "host.orb.internal:8400/wormhole:latest"
 
 func init() {
 	rootCmd.AddCommand(debugCmd)
@@ -155,7 +154,7 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func startRemoteWormhole(client *dockerclient.Client, wormholeParam string, retries int) error {
+func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeParam string, retries int) error {
 	if retries == 0 {
 		return errors.New("failed to start wormhole client")
 	}
@@ -188,7 +187,7 @@ func startRemoteWormhole(client *dockerclient.Client, wormholeParam string, retr
 		// note: start server container with a constant name so that at most one server container exists
 		serverContainerId, err = client.RunContainer(dockerclient.RunContainerOptions{Name: "orbstack-wormhole", PullImage: true},
 			&dockertypes.ContainerCreateRequest{
-				Image: serverImage,
+				Image: registryImage,
 				HostConfig: &dockertypes.ContainerHostConfig{
 					Privileged:   true,
 					Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
@@ -199,7 +198,7 @@ func startRemoteWormhole(client *dockerclient.Client, wormholeParam string, retr
 				},
 			})
 		if err != nil {
-			return startRemoteWormhole(client, wormholeParam, retries-1)
+			return startRemoteWormhole(client, drmToken, wormholeParam, retries-1)
 		}
 	}
 
@@ -211,7 +210,7 @@ func startRemoteWormhole(client *dockerclient.Client, wormholeParam string, retr
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return startRemoteWormhole(client, wormholeParam, retries-1)
+		return startRemoteWormhole(client, drmToken, wormholeParam, retries-1)
 	}
 
 	defer conn.Close()
@@ -235,7 +234,7 @@ func startRemoteWormhole(client *dockerclient.Client, wormholeParam string, retr
 		// if the `docker exec client` connects to the server container right before the
 		// container is about to shut down. In this case, we should retry.
 		if err == io.EOF {
-			return startRemoteWormhole(client, wormholeParam, retries-1)
+			return startRemoteWormhole(client, drmToken, wormholeParam, retries-1)
 		}
 		return err
 	}
@@ -380,7 +379,7 @@ func startRemoteWormhole(client *dockerclient.Client, wormholeParam string, retr
 }
 
 func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmToken string, args []string) error {
-	client, err := dockerclient.NewClient(daemon)
+	client, err := dockerclient.NewClientWithDrmAuth(daemon, drmToken)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
@@ -420,7 +419,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		return err
 	}
 
-	if err := startRemoteWormhole(client, string(wormholeParam), maxRetries); err != nil {
+	if err := startRemoteWormhole(client, drmToken, string(wormholeParam), maxRetries); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
@@ -526,7 +525,7 @@ func nukeRemoteData(cmd *cobra.Command, daemon *dockerclient.DockerConnection) e
 	}
 
 	_, err = client.RunContainer(dockerclient.RunContainerOptions{PullImage: true}, &dockertypes.ContainerCreateRequest{
-		Image: serverImage,
+		Image: registryImage,
 		HostConfig: &dockertypes.ContainerHostConfig{
 			Privileged: true,
 			Binds:      []string{"wormhole-data:/data"},

@@ -24,11 +24,12 @@ import (
 const verboseDebug = false
 
 type Client struct {
-	dialer  func(ctx context.Context, network, addr string) (net.Conn, error)
-	http    *http.Client
-	proto   string
-	addr    string
-	baseURL string
+	dialer            func(ctx context.Context, network, addr string) (net.Conn, error)
+	http              *http.Client
+	proto             string
+	addr              string
+	baseURL           string
+	registryAuthToken string
 }
 
 type statusRecord struct {
@@ -110,10 +111,22 @@ func NewClient(daemon *DockerConnection) (*Client, error) {
 		return nil, fmt.Errorf("unsupported scheme %s", hostURL.Scheme)
 	}
 
+	if c.registryAuthToken == "" {
+		c.registryAuthToken = base64.URLEncoding.EncodeToString([]byte("{}"))
+	}
 	c.proto = hostURL.Scheme
 	c.addr = hostURL.Host
 	return c, nil
+}
 
+func NewClientWithDrmAuth(daemon *DockerConnection, drmToken string) (*Client, error) {
+	c, err := NewClient(daemon)
+	if err != nil {
+		return nil, err
+	}
+	authDetails := fmt.Sprintf(`{"username": "orbstack", "password": %q}`, drmToken)
+	c.registryAuthToken = base64.URLEncoding.EncodeToString([]byte(authDetails))
+	return c, nil
 }
 
 func (c *Client) Dial(ctx context.Context) (net.Conn, error) {
@@ -280,7 +293,7 @@ func (c *Client) newRequest(method, path string, body any) (*http.Request, error
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if strings.HasPrefix(path, "/images/") {
-		req.Header.Set("X-Registry-Auth", base64.URLEncoding.EncodeToString([]byte("{}")))
+		req.Header.Set("X-Registry-Auth", c.registryAuthToken)
 	}
 
 	return req, nil
