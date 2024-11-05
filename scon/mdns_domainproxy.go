@@ -182,9 +182,15 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 		return
 	}
 
-	// make sure the element gets removed before we change it to something else
-	if currVal, ok := d.ipMap[ip]; ok && !currVal.IP.Equal(val.IP) {
-		d.freeAddrLocked(ip)
+	currVal, ok := d.ipMap[ip]
+	if ok {
+		if currVal.ValEqual(val) {
+			// we don't need to make any changes
+			return
+		} else {
+			// make sure the element gets removed before we change it to something else
+			d.freeAddrLocked(ip)
+		}
 	}
 
 	if val.Docker {
@@ -344,23 +350,7 @@ func (d *domainproxyRegistry) findNamesUpstreamLocked(allocator *domainproxyAllo
 
 func (d *domainproxyRegistry) assignUpstreamLocked(allocator *domainproxyAllocator, val domainproxytypes.Upstream) (addr netip.Addr, ok bool) {
 	addr, currUpstream, ok := d.findNamesUpstreamLocked(allocator, val.Names)
-	if ok {
-		if currUpstream.IsValid() {
-			// we found our upstream
-			// update if needed
-			if !currUpstream.ValEqual(val) {
-				d.setAddrUpstreamLocked(addr, val)
-			}
-			return addr, true
-		} else {
-			// we found a reclaimable ip, take it
-			d.setAddrUpstreamLocked(addr, val)
-			for _, name := range val.Names {
-				allocator.nameMap[name] = addr
-			}
-			return addr, true
-		}
-	} else {
+	if !ok {
 		// couldn't find a reclaimable ip or our upstream, allocate
 		nextAddr, ok := d.nextAvailableIPLocked(allocator)
 		if !ok {
@@ -374,6 +364,16 @@ func (d *domainproxyRegistry) assignUpstreamLocked(allocator *domainproxyAllocat
 
 		return nextAddr, true
 	}
+
+	if !currUpstream.IsValid() {
+		// we found a reclaimable ip and are taking it, so set names
+		for _, name := range val.Names {
+			allocator.nameMap[name] = addr
+		}
+	}
+	d.setAddrUpstreamLocked(addr, val)
+
+	return addr, true
 }
 
 func (d *domainproxyRegistry) freeNamesLocked(names []string) {
