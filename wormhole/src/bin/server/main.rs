@@ -311,93 +311,99 @@ impl WormholeServer {
         let mut payload_stdin = AsyncFile::new(stdin_pipe.1)?;
         let mut payload_stdout = AsyncFile::new(stdout_pipe.0)?;
         let mut payload_stderr = AsyncFile::new(stderr_pipe.0)?;
-
         let cancel_token = CancellationToken::new();
+
         {
             let cancel_token = cancel_token.clone();
             let client_writer_m = Arc::clone(&client_writer_m);
-            let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
-                trace!("starting reading payload stdout");
+            tokio::spawn(async move {
                 let mut buf = [0u8; 1024];
                 loop {
                     tokio::select! {
                         _ = cancel_token.cancelled() => {
-                            trace!("cancelled stdout");
-                            break;
+                            return;
                         }
                         result = payload_stdout.read(&mut buf) => {
                             match result {
-                                Ok(0) => {
-                                    trace!("got eof reading from payload stdout");
-                                    break;
-                                }
+                                Ok(0) => break,
                                 Ok(n) => {
-                                    // trace!("writing");
                                     let mut client_writer = client_writer_m.lock().await;
-                                    RpcServerMessage {
+                                    let res = RpcServerMessage {
                                         server_message: Some(ServerMessage::StdoutData(StdoutData {
                                             data: buf[..n].to_vec(),
                                         })),
                                     }
                                     .write(&mut client_writer)
-                                    .await?;
+                                    .await;
+
+                                    // break early if we cannot write to client anymore
+                                    if res.is_err() {
+                                        cancel_token.cancel();
+                                        return;
+                                    }
                                 }
                                 Err(e) => trace!("got error reading from payload stdout: {e}"),
                             }
                         }
                     }
                 }
-                trace!("finished reading payload stdout");
-                Ok(())
             });
         }
 
         {
             let cancel_token = cancel_token.clone();
             let client_writer_m = Arc::clone(&client_writer_m);
-            let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+            tokio::spawn(async move {
                 let mut buf = [0u8; 1024];
                 loop {
                     tokio::select! {
                         _ = cancel_token.cancelled() => {
-                            trace!("cancelled stderr");
-                            break;
+                            return;
                         }
                         result = payload_stderr.read(&mut buf) => {
                             match result {
                                 Ok(0) => break,
                                 Ok(n) => {
                                     let mut client_writer = client_writer_m.lock().await;
-                                    RpcServerMessage {
+                                    let res = RpcServerMessage {
                                         server_message: Some(ServerMessage::StderrData(StderrData {
                                             data: buf[..n].to_vec(),
                                         })),
                                     }
                                     .write(&mut client_writer)
-                                    .await?;
+                                    .await;
+
+                                    // break early if we cannot write to client anymore
+                                    if res.is_err() {
+                                        cancel_token.cancel();
+                                        return;
+                                    }
                                 }
                                 Err(e) => trace!("got error reading from payload stderr: {e}"),
                             }
                         }
                     }
                 }
-                Ok(())
             });
         }
 
         {
             let cancel_token = cancel_token.clone();
-            let _: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+            tokio::spawn(async move {
                 loop {
                     tokio::select! {
                         _ = cancel_token.cancelled() => {
-                            trace!("cancelled read");
-                            break;
+                            return;
                         }
                         message = RpcClientMessage::read(&mut client_stdin) => {
-                            match message?.client_message {
+                            // break early if we cannot read from client side
+                            if message.is_err() {
+                                cancel_token.cancel();
+                                return;
+                            }
+
+                            match message.unwrap().client_message {
                                 Some(ClientMessage::StdinData(msg)) => {
-                                    // trace!("rpc: stdin data {:?}", String::from_utf8_lossy(&msg.data));
                                     let _ = payload_stdin
                                         .write(&msg.data)
                                         .await
@@ -405,7 +411,8 @@ impl WormholeServer {
                                 }
                                 Some(ClientMessage::TerminalResize(msg)) => {
                                     if !is_pty {
-                                        panic!("cannot resize terminal for non-tty ")
+                                        cancel_token.cancel();
+                                        return;
                                     }
                                     let ws = Winsize {
                                         ws_row: msg.rows as u16,
@@ -422,27 +429,28 @@ impl WormholeServer {
                         }
                     }
                 }
-                Ok(())
             });
         }
 
         // tokio::spawn(async move {
         let mut exit_code = [0u8];
-        let _ = exit_code_pipe_reader.read_exact(&mut exit_code).await;
-
-        trace!("received exit code {}", exit_code[0]);
-        // sleep(Duration::from_secs(5)).await;
-
-        cancel_token.cancel();
-        // sleep(Duration::from_secs(1)).await;
-        let mut client_writer = client_writer_m.lock().await;
-        let _ = RpcServerMessage {
-            server_message: Some(ServerMessage::ExitStatus(ExitStatus {
-                exit_code: exit_code[0] as u32,
-            })),
+        tokio::select! {
+            _ = cancel_token.cancelled() => {
+                trace!("cancelled read");
+            }
+            _ = exit_code_pipe_reader.read_exact(&mut exit_code) => {
+                trace!("received exit code {}", exit_code[0]);
+                cancel_token.cancel();
+                let mut client_writer = client_writer_m.lock().await;
+                let _ = RpcServerMessage {
+                    server_message: Some(ServerMessage::ExitStatus(ExitStatus {
+                        exit_code: exit_code[0] as u32,
+                    })),
+                }
+                .write(&mut client_writer)
+                .await;
+            }
         }
-        .write(&mut client_writer)
-        .await;
 
         Ok(())
     }
