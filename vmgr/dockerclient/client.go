@@ -174,7 +174,7 @@ func GetTLSConfig(tlsData *TLSData, skipTLSVerify bool) (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to append CA certificate")
 	}
 
-	cert, err := tls.LoadX509KeyPair(tlsData.CA, tlsData.Key)
+	cert, err := tls.LoadX509KeyPair(tlsData.Cert, tlsData.Key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load client certificate/key: %w", err)
 	}
