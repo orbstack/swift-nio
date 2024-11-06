@@ -659,8 +659,8 @@ Pro only: requires an OrbStack Pro license.
 		}
 
 		if flagReset {
-			// the context was explicitly passed as a param (orb debug remote --reset)
 			if containerIDp != nil {
+				// the context was explicitly passed as a param (orb debug remote --reset)
 				daemon, err = dockerclient.GetContext(*containerIDp)
 				if err != nil {
 					return err

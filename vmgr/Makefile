@@ -207,8 +207,7 @@ $(VMGR_BIN): $(BUILD_ENV_DEPS) $(SWIFT_LIB) $(GO_LIB) $(RUST_LIB) Makefile sign.
 	-o $(VMGR_BIN)
 
 # depends on linked executable, must run before strip
-	# dsymutil $(VMGR_BIN) --linker parallel --num-threads $(J) -o $(VMGR_DSYM)
-	dsymutil $(VMGR_BIN) --num-threads $(J) -o $(VMGR_DSYM)
+	dsymutil $(VMGR_BIN) --linker parallel --num-threads $(J) -o $(VMGR_DSYM)
 
 	GO_BUILD_TYPE=$(GO_BUILD_TYPE) VMGR_BUNDLE=$(VMGR_BUNDLE) VMGR_BIN=$(VMGR_BIN) ./sign.sh
 

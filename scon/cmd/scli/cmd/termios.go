@@ -84,19 +84,12 @@ func SerializeTermios(termios *unix.Termios) ([]byte, error) {
 		unix.PARODD,
 	}
 
-	// debugFile, err := os.Create("tmp2.txt")
-	// defer debugFile.Close()
-	// fmt.Fprintf(debugFile, "control chars: %+v\n", termios.Cc)
-	// fmt.Fprintf(debugFile, "interrupt: %+v\n", unix.VINTR)
-	// fmt.Fprintf(debugFile, "input flag: %+v\n", termios.Iflag)
-
 	var buf []byte
 
 	for _, cc := range control_chars {
 		buf = append(buf, termios.Cc[cc])
 	}
 
-	// todo: fix uint32 / uint64 behaviour
 	flags := []struct {
 		host_flag uint64
 		masks     []uint64
@@ -109,7 +102,6 @@ func SerializeTermios(termios *unix.Termios) ([]byte, error) {
 
 	for _, item := range flags {
 		for _, mask := range item.masks {
-			// fmt.Fprintf(debugFile, "flag: %+v, mask %+v, result %+v\n", item.host_flag, mask, mFlag(item.host_flag&mask))
 			buf = append(buf, mFlag(item.host_flag&mask))
 		}
 	}
