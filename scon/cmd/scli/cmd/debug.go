@@ -398,7 +398,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 		case *pb.RpcServerMessage_StdoutData:
 			os.Stdout.Write(v.StdoutData.Data)
 		case *pb.RpcServerMessage_StderrData:
-			os.Stdout.Write(v.StderrData.Data)
+			os.Stderr.Write(v.StderrData.Data)
 		case *pb.RpcServerMessage_ExitStatus:
 			term.Restore(ptyFd, originalState)
 			os.Exit(int(v.ExitStatus.ExitCode))
