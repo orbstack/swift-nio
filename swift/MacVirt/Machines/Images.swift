@@ -94,7 +94,7 @@ enum Distro: String, CaseIterable {
                 v("beowulf", as: "Beowulf"), v("chimaera", as: "Chimaera"),
                 v("daedalus", as: "Daedalus"),
             ]
-        case .fedora: return [v("39"), v("40")]
+        case .fedora: return [v("39"), v("40"), v("41")]
         case .gentoo: return [v("current", as: "Latest")]
         case .kali: return [v("current", as: "Latest")]
         case .nixos: return [v("unstable", as: "Unstable"), v("24.05")]
