@@ -140,6 +140,7 @@ type RpcClientMessage struct {
 	//	*RpcClientMessage_TerminalResize
 	//	*RpcClientMessage_RequestPty
 	//	*RpcClientMessage_StartPayload
+	//	*RpcClientMessage_NukeData
 	ClientMessage isRpcClientMessage_ClientMessage `protobuf_oneof:"client_message"`
 }
 
@@ -208,6 +209,13 @@ func (x *RpcClientMessage) GetStartPayload() *StartPayload {
 	return nil
 }
 
+func (x *RpcClientMessage) GetNukeData() *NukeData {
+	if x, ok := x.GetClientMessage().(*RpcClientMessage_NukeData); ok {
+		return x.NukeData
+	}
+	return nil
+}
+
 type isRpcClientMessage_ClientMessage interface {
 	isRpcClientMessage_ClientMessage()
 }
@@ -228,6 +236,10 @@ type RpcClientMessage_StartPayload struct {
 	StartPayload *StartPayload `protobuf:"bytes,4,opt,name=start_payload,json=startPayload,proto3,oneof"`
 }
 
+type RpcClientMessage_NukeData struct {
+	NukeData *NukeData `protobuf:"bytes,5,opt,name=nuke_data,json=nukeData,proto3,oneof"`
+}
+
 func (*RpcClientMessage_StdinData) isRpcClientMessage_ClientMessage() {}
 
 func (*RpcClientMessage_TerminalResize) isRpcClientMessage_ClientMessage() {}
@@ -236,86 +248,7 @@ func (*RpcClientMessage_RequestPty) isRpcClientMessage_ClientMessage() {}
 
 func (*RpcClientMessage_StartPayload) isRpcClientMessage_ClientMessage() {}
 
-type RpcClientInit struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	StartServer bool `protobuf:"varint,1,opt,name=start_server,json=startServer,proto3" json:"start_server,omitempty"`
-}
-
-func (x *RpcClientInit) Reset() {
-	*x = RpcClientInit{}
-	mi := &file_wormhole_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RpcClientInit) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RpcClientInit) ProtoMessage() {}
-
-func (x *RpcClientInit) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RpcClientInit.ProtoReflect.Descriptor instead.
-func (*RpcClientInit) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *RpcClientInit) GetStartServer() bool {
-	if x != nil {
-		return x.StartServer
-	}
-	return false
-}
-
-type RpcClientInitAck struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-}
-
-func (x *RpcClientInitAck) Reset() {
-	*x = RpcClientInitAck{}
-	mi := &file_wormhole_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RpcClientInitAck) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RpcClientInitAck) ProtoMessage() {}
-
-func (x *RpcClientInitAck) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RpcClientInitAck.ProtoReflect.Descriptor instead.
-func (*RpcClientInitAck) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{3}
-}
+func (*RpcClientMessage_NukeData) isRpcClientMessage_ClientMessage() {}
 
 // server messages
 type StdinData struct {
@@ -328,7 +261,7 @@ type StdinData struct {
 
 func (x *StdinData) Reset() {
 	*x = StdinData{}
-	mi := &file_wormhole_proto_msgTypes[4]
+	mi := &file_wormhole_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -340,7 +273,7 @@ func (x *StdinData) String() string {
 func (*StdinData) ProtoMessage() {}
 
 func (x *StdinData) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[4]
+	mi := &file_wormhole_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -353,7 +286,7 @@ func (x *StdinData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StdinData.ProtoReflect.Descriptor instead.
 func (*StdinData) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{4}
+	return file_wormhole_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *StdinData) GetData() []byte {
@@ -374,7 +307,7 @@ type TerminalResize struct {
 
 func (x *TerminalResize) Reset() {
 	*x = TerminalResize{}
-	mi := &file_wormhole_proto_msgTypes[5]
+	mi := &file_wormhole_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -386,7 +319,7 @@ func (x *TerminalResize) String() string {
 func (*TerminalResize) ProtoMessage() {}
 
 func (x *TerminalResize) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[5]
+	mi := &file_wormhole_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -399,7 +332,7 @@ func (x *TerminalResize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalResize.ProtoReflect.Descriptor instead.
 func (*TerminalResize) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{5}
+	return file_wormhole_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TerminalResize) GetCols() uint32 {
@@ -429,7 +362,7 @@ type RequestPty struct {
 
 func (x *RequestPty) Reset() {
 	*x = RequestPty{}
-	mi := &file_wormhole_proto_msgTypes[6]
+	mi := &file_wormhole_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -441,7 +374,7 @@ func (x *RequestPty) String() string {
 func (*RequestPty) ProtoMessage() {}
 
 func (x *RequestPty) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[6]
+	mi := &file_wormhole_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -454,7 +387,7 @@ func (x *RequestPty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestPty.ProtoReflect.Descriptor instead.
 func (*RequestPty) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{6}
+	return file_wormhole_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *RequestPty) GetTermEnv() string {
@@ -495,7 +428,7 @@ type StartPayload struct {
 
 func (x *StartPayload) Reset() {
 	*x = StartPayload{}
-	mi := &file_wormhole_proto_msgTypes[7]
+	mi := &file_wormhole_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -507,7 +440,7 @@ func (x *StartPayload) String() string {
 func (*StartPayload) ProtoMessage() {}
 
 func (x *StartPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[7]
+	mi := &file_wormhole_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -520,7 +453,7 @@ func (x *StartPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartPayload.ProtoReflect.Descriptor instead.
 func (*StartPayload) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{7}
+	return file_wormhole_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *StartPayload) GetWormholeParam() string {
@@ -528,6 +461,42 @@ func (x *StartPayload) GetWormholeParam() string {
 		return x.WormholeParam
 	}
 	return ""
+}
+
+type NukeData struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *NukeData) Reset() {
+	*x = NukeData{}
+	mi := &file_wormhole_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NukeData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NukeData) ProtoMessage() {}
+
+func (x *NukeData) ProtoReflect() protoreflect.Message {
+	mi := &file_wormhole_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NukeData.ProtoReflect.Descriptor instead.
+func (*NukeData) Descriptor() ([]byte, []int) {
+	return file_wormhole_proto_rawDescGZIP(), []int{6}
 }
 
 // client messages
@@ -541,7 +510,7 @@ type StdoutData struct {
 
 func (x *StdoutData) Reset() {
 	*x = StdoutData{}
-	mi := &file_wormhole_proto_msgTypes[8]
+	mi := &file_wormhole_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -553,7 +522,7 @@ func (x *StdoutData) String() string {
 func (*StdoutData) ProtoMessage() {}
 
 func (x *StdoutData) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[8]
+	mi := &file_wormhole_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -566,7 +535,7 @@ func (x *StdoutData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StdoutData.ProtoReflect.Descriptor instead.
 func (*StdoutData) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{8}
+	return file_wormhole_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *StdoutData) GetData() []byte {
@@ -586,7 +555,7 @@ type StderrData struct {
 
 func (x *StderrData) Reset() {
 	*x = StderrData{}
-	mi := &file_wormhole_proto_msgTypes[9]
+	mi := &file_wormhole_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -598,7 +567,7 @@ func (x *StderrData) String() string {
 func (*StderrData) ProtoMessage() {}
 
 func (x *StderrData) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[9]
+	mi := &file_wormhole_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -611,7 +580,7 @@ func (x *StderrData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StderrData.ProtoReflect.Descriptor instead.
 func (*StderrData) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{9}
+	return file_wormhole_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *StderrData) GetData() []byte {
@@ -631,7 +600,7 @@ type ExitStatus struct {
 
 func (x *ExitStatus) Reset() {
 	*x = ExitStatus{}
-	mi := &file_wormhole_proto_msgTypes[10]
+	mi := &file_wormhole_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -643,7 +612,7 @@ func (x *ExitStatus) String() string {
 func (*ExitStatus) ProtoMessage() {}
 
 func (x *ExitStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[10]
+	mi := &file_wormhole_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -656,7 +625,7 @@ func (x *ExitStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExitStatus.ProtoReflect.Descriptor instead.
 func (*ExitStatus) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{10}
+	return file_wormhole_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ExitStatus) GetExitCode() uint32 {
@@ -674,7 +643,7 @@ type ClientConnectAck struct {
 
 func (x *ClientConnectAck) Reset() {
 	*x = ClientConnectAck{}
-	mi := &file_wormhole_proto_msgTypes[11]
+	mi := &file_wormhole_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -686,7 +655,7 @@ func (x *ClientConnectAck) String() string {
 func (*ClientConnectAck) ProtoMessage() {}
 
 func (x *ClientConnectAck) ProtoReflect() protoreflect.Message {
-	mi := &file_wormhole_proto_msgTypes[11]
+	mi := &file_wormhole_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -699,7 +668,7 @@ func (x *ClientConnectAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientConnectAck.ProtoReflect.Descriptor instead.
 func (*ClientConnectAck) Descriptor() ([]byte, []int) {
-	return file_wormhole_proto_rawDescGZIP(), []int{11}
+	return file_wormhole_proto_rawDescGZIP(), []int{10}
 }
 
 var File_wormhole_proto protoreflect.FileDescriptor
@@ -724,7 +693,7 @@ var file_wormhole_proto_rawDesc = []byte{
 	0x65, 0x2e, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x41,
 	0x63, 0x6b, 0x48, 0x00, 0x52, 0x10, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x6e,
 	0x65, 0x63, 0x74, 0x41, 0x63, 0x6b, 0x42, 0x10, 0x0a, 0x0e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x5f, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x97, 0x02, 0x0a, 0x10, 0x52, 0x70, 0x63,
+	0x5f, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0xca, 0x02, 0x0a, 0x10, 0x52, 0x70, 0x63,
 	0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x34, 0x0a,
 	0x0a, 0x73, 0x74, 0x64, 0x69, 0x6e, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x0b, 0x32, 0x13, 0x2e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x2e, 0x53, 0x74, 0x64,
@@ -741,38 +710,37 @@ var file_wormhole_proto_rawDesc = []byte{
 	0x61, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x16, 0x2e, 0x77, 0x6f, 0x72, 0x6d, 0x68,
 	0x6f, 0x6c, 0x65, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64,
 	0x48, 0x00, 0x52, 0x0c, 0x73, 0x74, 0x61, 0x72, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64,
-	0x42, 0x10, 0x0a, 0x0e, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x5f, 0x6d, 0x65, 0x73, 0x73, 0x61,
-	0x67, 0x65, 0x22, 0x32, 0x0a, 0x0d, 0x52, 0x70, 0x63, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x49,
-	0x6e, 0x69, 0x74, 0x12, 0x21, 0x0a, 0x0c, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0b, 0x73, 0x74, 0x61, 0x72, 0x74,
-	0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x22, 0x12, 0x0a, 0x10, 0x52, 0x70, 0x63, 0x43, 0x6c, 0x69,
-	0x65, 0x6e, 0x74, 0x49, 0x6e, 0x69, 0x74, 0x41, 0x63, 0x6b, 0x22, 0x1f, 0x0a, 0x09, 0x53, 0x74,
-	0x64, 0x69, 0x6e, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18,
-	0x0b, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x38, 0x0a, 0x0e, 0x54,
-	0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x73, 0x69, 0x7a, 0x65, 0x12, 0x12, 0x0a,
-	0x04, 0x63, 0x6f, 0x6c, 0x73, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x63, 0x6f, 0x6c,
-	0x73, 0x12, 0x12, 0x0a, 0x04, 0x72, 0x6f, 0x77, 0x73, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x0d, 0x52,
-	0x04, 0x72, 0x6f, 0x77, 0x73, 0x22, 0x69, 0x0a, 0x0a, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x50, 0x74, 0x79, 0x12, 0x19, 0x0a, 0x08, 0x74, 0x65, 0x72, 0x6d, 0x5f, 0x65, 0x6e, 0x76, 0x18,
-	0x0e, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x45, 0x6e, 0x76, 0x12, 0x12,
-	0x0a, 0x04, 0x72, 0x6f, 0x77, 0x73, 0x18, 0x0f, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x72, 0x6f,
-	0x77, 0x73, 0x12, 0x12, 0x0a, 0x04, 0x63, 0x6f, 0x6c, 0x73, 0x18, 0x10, 0x20, 0x01, 0x28, 0x0d,
-	0x52, 0x04, 0x63, 0x6f, 0x6c, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6f,
-	0x73, 0x18, 0x11, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6f, 0x73,
-	0x22, 0x35, 0x0a, 0x0c, 0x53, 0x74, 0x61, 0x72, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64,
-	0x12, 0x25, 0x0a, 0x0e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x5f, 0x70, 0x61, 0x72,
-	0x61, 0x6d, 0x18, 0x12, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f,
-	0x6c, 0x65, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x22, 0x20, 0x0a, 0x0a, 0x53, 0x74, 0x64, 0x6f, 0x75,
-	0x74, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x0b, 0x20,
-	0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x20, 0x0a, 0x0a, 0x53, 0x74, 0x64,
-	0x65, 0x72, 0x72, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18,
-	0x0c, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x29, 0x0a, 0x0a, 0x45,
-	0x78, 0x69, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x1b, 0x0a, 0x09, 0x65, 0x78, 0x69,
-	0x74, 0x5f, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x08, 0x65, 0x78,
-	0x69, 0x74, 0x43, 0x6f, 0x64, 0x65, 0x22, 0x12, 0x0a, 0x10, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74,
-	0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x41, 0x63, 0x6b, 0x42, 0x14, 0x5a, 0x12, 0x63, 0x6d,
-	0x64, 0x2f, 0x73, 0x63, 0x6c, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x64,
-	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x12, 0x31, 0x0a, 0x09, 0x6e, 0x75, 0x6b, 0x65, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18, 0x05, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x2e, 0x4e,
+	0x75, 0x6b, 0x65, 0x44, 0x61, 0x74, 0x61, 0x48, 0x00, 0x52, 0x08, 0x6e, 0x75, 0x6b, 0x65, 0x44,
+	0x61, 0x74, 0x61, 0x42, 0x10, 0x0a, 0x0e, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x5f, 0x6d, 0x65,
+	0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x1f, 0x0a, 0x09, 0x53, 0x74, 0x64, 0x69, 0x6e, 0x44, 0x61,
+	0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x0c,
+	0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x38, 0x0a, 0x0e, 0x54, 0x65, 0x72, 0x6d, 0x69, 0x6e,
+	0x61, 0x6c, 0x52, 0x65, 0x73, 0x69, 0x7a, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x63, 0x6f, 0x6c, 0x73,
+	0x18, 0x0c, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x63, 0x6f, 0x6c, 0x73, 0x12, 0x12, 0x0a, 0x04,
+	0x72, 0x6f, 0x77, 0x73, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x72, 0x6f, 0x77, 0x73,
+	0x22, 0x69, 0x0a, 0x0a, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x50, 0x74, 0x79, 0x12, 0x19,
+	0x0a, 0x08, 0x74, 0x65, 0x72, 0x6d, 0x5f, 0x65, 0x6e, 0x76, 0x18, 0x0e, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x45, 0x6e, 0x76, 0x12, 0x12, 0x0a, 0x04, 0x72, 0x6f, 0x77,
+	0x73, 0x18, 0x0f, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x72, 0x6f, 0x77, 0x73, 0x12, 0x12, 0x0a,
+	0x04, 0x63, 0x6f, 0x6c, 0x73, 0x18, 0x10, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x63, 0x6f, 0x6c,
+	0x73, 0x12, 0x18, 0x0a, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6f, 0x73, 0x18, 0x11, 0x20, 0x01,
+	0x28, 0x0c, 0x52, 0x07, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6f, 0x73, 0x22, 0x35, 0x0a, 0x0c, 0x53,
+	0x74, 0x61, 0x72, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x25, 0x0a, 0x0e, 0x77,
+	0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x5f, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x18, 0x12, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x0d, 0x77, 0x6f, 0x72, 0x6d, 0x68, 0x6f, 0x6c, 0x65, 0x50, 0x61, 0x72,
+	0x61, 0x6d, 0x22, 0x0a, 0x0a, 0x08, 0x4e, 0x75, 0x6b, 0x65, 0x44, 0x61, 0x74, 0x61, 0x22, 0x20,
+	0x0a, 0x0a, 0x53, 0x74, 0x64, 0x6f, 0x75, 0x74, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04,
+	0x64, 0x61, 0x74, 0x61, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61,
+	0x22, 0x20, 0x0a, 0x0a, 0x53, 0x74, 0x64, 0x65, 0x72, 0x72, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12,
+	0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61,
+	0x74, 0x61, 0x22, 0x29, 0x0a, 0x0a, 0x45, 0x78, 0x69, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73,
+	0x12, 0x1b, 0x0a, 0x09, 0x65, 0x78, 0x69, 0x74, 0x5f, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x0d, 0x20,
+	0x01, 0x28, 0x0d, 0x52, 0x08, 0x65, 0x78, 0x69, 0x74, 0x43, 0x6f, 0x64, 0x65, 0x22, 0x12, 0x0a,
+	0x10, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x41, 0x63,
+	0x6b, 0x42, 0x14, 0x5a, 0x12, 0x63, 0x6d, 0x64, 0x2f, 0x73, 0x63, 0x6c, 0x69, 0x2f, 0x67, 0x65,
+	0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x64, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -787,35 +755,35 @@ func file_wormhole_proto_rawDescGZIP() []byte {
 	return file_wormhole_proto_rawDescData
 }
 
-var file_wormhole_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_wormhole_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_wormhole_proto_goTypes = []any{
 	(*RpcServerMessage)(nil), // 0: wormhole.RpcServerMessage
 	(*RpcClientMessage)(nil), // 1: wormhole.RpcClientMessage
-	(*RpcClientInit)(nil),    // 2: wormhole.RpcClientInit
-	(*RpcClientInitAck)(nil), // 3: wormhole.RpcClientInitAck
-	(*StdinData)(nil),        // 4: wormhole.StdinData
-	(*TerminalResize)(nil),   // 5: wormhole.TerminalResize
-	(*RequestPty)(nil),       // 6: wormhole.RequestPty
-	(*StartPayload)(nil),     // 7: wormhole.StartPayload
-	(*StdoutData)(nil),       // 8: wormhole.StdoutData
-	(*StderrData)(nil),       // 9: wormhole.StderrData
-	(*ExitStatus)(nil),       // 10: wormhole.ExitStatus
-	(*ClientConnectAck)(nil), // 11: wormhole.ClientConnectAck
+	(*StdinData)(nil),        // 2: wormhole.StdinData
+	(*TerminalResize)(nil),   // 3: wormhole.TerminalResize
+	(*RequestPty)(nil),       // 4: wormhole.RequestPty
+	(*StartPayload)(nil),     // 5: wormhole.StartPayload
+	(*NukeData)(nil),         // 6: wormhole.NukeData
+	(*StdoutData)(nil),       // 7: wormhole.StdoutData
+	(*StderrData)(nil),       // 8: wormhole.StderrData
+	(*ExitStatus)(nil),       // 9: wormhole.ExitStatus
+	(*ClientConnectAck)(nil), // 10: wormhole.ClientConnectAck
 }
 var file_wormhole_proto_depIdxs = []int32{
-	8,  // 0: wormhole.RpcServerMessage.stdout_data:type_name -> wormhole.StdoutData
-	9,  // 1: wormhole.RpcServerMessage.stderr_data:type_name -> wormhole.StderrData
-	10, // 2: wormhole.RpcServerMessage.exit_status:type_name -> wormhole.ExitStatus
-	11, // 3: wormhole.RpcServerMessage.client_connect_ack:type_name -> wormhole.ClientConnectAck
-	4,  // 4: wormhole.RpcClientMessage.stdin_data:type_name -> wormhole.StdinData
-	5,  // 5: wormhole.RpcClientMessage.terminal_resize:type_name -> wormhole.TerminalResize
-	6,  // 6: wormhole.RpcClientMessage.request_pty:type_name -> wormhole.RequestPty
-	7,  // 7: wormhole.RpcClientMessage.start_payload:type_name -> wormhole.StartPayload
-	8,  // [8:8] is the sub-list for method output_type
-	8,  // [8:8] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	7,  // 0: wormhole.RpcServerMessage.stdout_data:type_name -> wormhole.StdoutData
+	8,  // 1: wormhole.RpcServerMessage.stderr_data:type_name -> wormhole.StderrData
+	9,  // 2: wormhole.RpcServerMessage.exit_status:type_name -> wormhole.ExitStatus
+	10, // 3: wormhole.RpcServerMessage.client_connect_ack:type_name -> wormhole.ClientConnectAck
+	2,  // 4: wormhole.RpcClientMessage.stdin_data:type_name -> wormhole.StdinData
+	3,  // 5: wormhole.RpcClientMessage.terminal_resize:type_name -> wormhole.TerminalResize
+	4,  // 6: wormhole.RpcClientMessage.request_pty:type_name -> wormhole.RequestPty
+	5,  // 7: wormhole.RpcClientMessage.start_payload:type_name -> wormhole.StartPayload
+	6,  // 8: wormhole.RpcClientMessage.nuke_data:type_name -> wormhole.NukeData
+	9,  // [9:9] is the sub-list for method output_type
+	9,  // [9:9] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_wormhole_proto_init() }
@@ -834,6 +802,7 @@ func file_wormhole_proto_init() {
 		(*RpcClientMessage_TerminalResize)(nil),
 		(*RpcClientMessage_RequestPty)(nil),
 		(*RpcClientMessage_StartPayload)(nil),
+		(*RpcClientMessage_NukeData)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -841,7 +810,7 @@ func file_wormhole_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_wormhole_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

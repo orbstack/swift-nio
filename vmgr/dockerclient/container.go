@@ -31,12 +31,10 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 	if opts.PullImage {
 		// need to pull image first
 		repoPart, tagPart := splitRepoTag(req.Image)
-		fmt.Println("Pulling image")
 		err := c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
 		if err != nil {
 			return "", fmt.Errorf("pull image: %w", err)
 		}
-		fmt.Println("Pulled image")
 	}
 
 	path := "/containers/create"

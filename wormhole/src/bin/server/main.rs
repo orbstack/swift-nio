@@ -2,15 +2,21 @@ use anyhow::anyhow;
 use libc::{winsize, MS_PRIVATE, TIOCSCTTY, TIOCSWINSZ};
 use std::{
     ffi::CString,
-    fs::{self, File, OpenOptions},
+    fs::{self, File, OpenOptions, Permissions},
     io::{Read, Write},
     os::{
         fd::{AsRawFd, FromRawFd, RawFd},
-        unix::net::{UnixListener, UnixStream},
+        unix::{
+            fs::PermissionsExt,
+            net::{UnixListener, UnixStream},
+        },
     },
     path::Path,
     process::exit,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     thread,
     time::Duration,
 };
@@ -91,13 +97,13 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)
 
 // #[derive(Copy)]
 struct WormholeServer {
-    conn: Mutex<u32>,
+    count: Mutex<u32>,
 }
 
 impl WormholeServer {
     fn new() -> Arc<Self> {
         Arc::new(Self {
-            conn: Mutex::new(0),
+            count: Mutex::new(0),
         })
     }
 
@@ -115,10 +121,26 @@ impl WormholeServer {
                 Ok((stream, _)) => {
                     let server = self.clone();
                     tokio::spawn(async move {
+                        {
+                            let mut lock = server.count.lock().await;
+                            *lock += 1;
+                            trace!("new connection: total {}", *lock);
+                        }
                         match server.handle_client(stream).await {
                             Ok(_) => {}
                             Err(e) => {
                                 trace!("error handling client: {:?}", e);
+                            }
+                        }
+                        {
+                            let mut lock = server.count.lock().await;
+                            *lock -= 1;
+                            trace!("remaining connections: {}", *lock);
+                            if *lock == 0 {
+                                trace!("shutting down");
+                                let _ = std::fs::remove_file("/data/rpc.sock");
+                                let _ = unmount_wormhole();
+                                exit(0);
                             }
                         }
                     });
@@ -130,14 +152,29 @@ impl WormholeServer {
         }
     }
 
-    async fn handle_client(self: Arc<Self>, mut stream: UnixStream) -> anyhow::Result<()> {
-        // increment refcount and acknowledge client
-        {
-            let mut lock = self.conn.lock().await;
-            *lock += 1;
-            trace!("new connection; refcount is now {}", *lock);
-        }
+    async fn nuke_data(self: &Arc<Self>) -> anyhow::Result<()> {
+        trace!("nuking data");
 
+        // nuke data only if there are no other connections present
+        let lock = self.count.lock().await;
+        if *lock == 1 {
+            for entry in fs::read_dir("/data/upper")? {
+                let path = entry?.path();
+                if path.is_dir() {
+                    fs::remove_dir_all(&path)?;
+                } else {
+                    fs::remove_file(&path)?;
+                }
+            }
+        } else {
+            return Err(anyhow!(
+                "could not nuke data with other connections present"
+            ));
+        }
+        Ok(())
+    }
+
+    async fn handle_client(self: &Arc<Self>, mut stream: UnixStream) -> anyhow::Result<()> {
         // get client fds via scm_rights over the stream
         trace!("waiting for rpc client fds");
         let (mut client_stdin, mut client_stdout) = recv_rpc_client(&stream)?;
@@ -189,6 +226,24 @@ impl WormholeServer {
                 Some(ClientMessage::StartPayload(msg)) => {
                     wormhole_param = msg.wormhole_param;
                     break;
+                }
+                Some(ClientMessage::NukeData(_)) => {
+                    let exit_code = match self.nuke_data().await {
+                        Ok(_) => 0,
+                        Err(e) => {
+                            trace!("error nuking data: {:?}", e);
+                            1
+                        }
+                    };
+
+                    let mut client_writer = client_writer_m.lock().await;
+                    RpcServerMessage {
+                        server_message: Some(ServerMessage::ExitStatus(ExitStatus { exit_code })),
+                    }
+                    .write(&mut client_writer)
+                    .await?;
+
+                    return Ok(());
                 }
                 _ => {}
             }
@@ -371,49 +426,24 @@ impl WormholeServer {
             });
         }
 
-        tokio::spawn(async move {
-            let mut exit_code = [0u8];
-            let _ = exit_code_pipe_reader.read_exact(&mut exit_code).await;
+        // tokio::spawn(async move {
+        let mut exit_code = [0u8];
+        let _ = exit_code_pipe_reader.read_exact(&mut exit_code).await;
 
-            trace!("received exit code {}", exit_code[0]);
-            // sleep(Duration::from_secs(5)).await;
+        trace!("received exit code {}", exit_code[0]);
+        // sleep(Duration::from_secs(5)).await;
 
-            cancel_token.cancel();
-            // sleep(Duration::from_secs(1)).await;
-            let mut client_writer = client_writer_m.lock().await;
-            let _ = RpcServerMessage {
-                server_message: Some(ServerMessage::ExitStatus(ExitStatus {
-                    exit_code: exit_code[0] as u32,
-                })),
-            }
-            .write(&mut client_writer)
-            .await;
+        cancel_token.cancel();
+        // sleep(Duration::from_secs(1)).await;
+        let mut client_writer = client_writer_m.lock().await;
+        let _ = RpcServerMessage {
+            server_message: Some(ServerMessage::ExitStatus(ExitStatus {
+                exit_code: exit_code[0] as u32,
+            })),
+        }
+        .write(&mut client_writer)
+        .await;
 
-            // under flock: decrement connection refcount; if there are no more connections left, begin shutdown
-            trace!("waiting for flock");
-            let _flock = Flock::new_ofd(
-                File::create("/data/.lock").unwrap(),
-                FlockMode::Exclusive,
-                FlockWait::Blocking,
-            );
-
-            trace!("waiting for lock");
-            let mut lock = self.conn.lock().await;
-            *lock -= 1;
-            trace!("remaining connections: {}", *lock);
-            if *lock == 0 {
-                trace!("shutting down");
-                let _ = std::fs::remove_file("/data/rpc.sock");
-                let _ = unmount_wormhole();
-                exit(0);
-            }
-
-            // todo: kill all async server tasks belonging to the current connection
-        })
-        .await?;
-        trace!("exiting");
-
-        // drop(stream);
         Ok(())
     }
 }

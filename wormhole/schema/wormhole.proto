@@ -21,16 +21,10 @@ message RpcClientMessage {
         TerminalResize terminal_resize = 2;
         RequestPty request_pty = 3;
         StartPayload start_payload = 4;
+        NukeData nuke_data = 5;
     }
 }
 
-message RpcClientInit {
-    bool start_server = 1;
-}
-
-message RpcClientInitAck {
-
-}
 
 // server messages
 message StdinData {
@@ -51,6 +45,10 @@ message RequestPty {
 
 message StartPayload {
     string wormhole_param = 18;
+}
+
+message NukeData {
+
 }
 
 

@@ -47,7 +47,8 @@ const maxRetries = 3
 
 // drm server
 // const registryImage = "198.19.249.3:5000/wormhole-server:latest"
-const registryImage = "host.orb.internal:8400/wormhole:latest"
+// const registryImage = "host.orb.internal:8400/wormhole:latest"
+const registryImage = "host.orb.internal:5000/wormhole:latest"
 
 func init() {
 	rootCmd.AddCommand(debugCmd)
@@ -154,9 +155,17 @@ func WriteTermEnv(writer io.Writer, term string) error {
 	return nil
 }
 
-func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeParam string, retries int) error {
+func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*RpcServer, error) {
+	// Start wormhole server (if not running) and establish a client connection. There are a few scenarios where a race can occur:
+	//   - two clients start a server container at the same time, resulting in a name conflict. In this case,
+	// the process that experiences the name conflict will retry.
+	//   - server container shuts down before we `docker exec client` into it. Retry.
+	//   - client connects right before the server shuts down. We detect this if we receive an EOF from the server
+	// before we receive an initial ACK message, and retry in this case.
+
 	if retries == 0 {
-		return errors.New("failed to start wormhole client")
+		// we should never actually reach the base case here because we directly return err when retries drops to 1
+		return nil, errors.New("failed to start debug session")
 	}
 
 	containers, err := client.ListContainers(true)
@@ -169,7 +178,6 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 	for _, c := range containers {
 		// container name is prepended with an extra forward slash
 		if c.Names[0] == "/orbstack-wormhole" {
-
 			if c.State == "running" {
 				serverContainerId = c.ID
 				continue
@@ -182,7 +190,6 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 			}
 		}
 	}
-	fmt.Println("server container id: ", serverContainerId)
 	if serverContainerId == "" {
 		// note: start server container with a constant name so that at most one server container exists
 		serverContainerId, err = client.RunContainer(dockerclient.RunContainerOptions{Name: "orbstack-wormhole", PullImage: true},
@@ -198,7 +205,12 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 				},
 			})
 		if err != nil {
-			return startRemoteWormhole(client, drmToken, wormholeParam, retries-1)
+			// potential name conflict (two servers started at the same time), retry
+			if retries == 1 {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
+			return connectRemote(client, drmToken, retries-1)
 		}
 	}
 
@@ -209,16 +221,19 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 		Cmd:          []string{"/wormhole-client"},
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return startRemoteWormhole(client, drmToken, wormholeParam, retries-1)
+		// server container shuts down before we could `docker exec client` into it, retry
+		if retries == 1 {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+		return connectRemote(client, drmToken, retries-1)
 	}
-
-	defer conn.Close()
 
 	demuxReader, demuxWriter := io.Pipe()
 	go func() {
 		defer demuxReader.Close()
 		defer demuxWriter.Close()
+		defer conn.Close()
 		dockerclient.DemuxOutput(conn, demuxWriter)
 	}()
 
@@ -232,18 +247,31 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 	if err := server.ReadMessage(message); err != nil {
 		// EOF means that the client attach session was abruptly closed. This may happen
 		// if the `docker exec client` connects to the server container right before the
-		// container is about to shut down. In this case, we should retry.
+		// container is about to shut down. Retry.
 		if err == io.EOF {
-			return startRemoteWormhole(client, drmToken, wormholeParam, retries-1)
+			if retries == 1 {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
+			return connectRemote(client, drmToken, retries-1)
 		}
-		return err
+		return nil, err
 	}
 	switch message.ServerMessage.(type) {
 	case *pb.RpcServerMessage_ClientConnectAck:
 		// at this point, the server has incremented the connection refcount and we can safely continue
 		break
 	default:
-		return errors.New("could not connect to wormhole server")
+		return nil, errors.New("could not connect to wormhole server")
+	}
+
+	return &server, nil
+}
+
+func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeParam string) error {
+	server, err := connectRemote(client, drmToken, maxRetries)
+	if err != nil {
+		return err
 	}
 
 	var originalState *term.State
@@ -419,7 +447,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		return err
 	}
 
-	if err := startRemoteWormhole(client, drmToken, string(wormholeParam), maxRetries); err != nil {
+	if err := startRemoteWormhole(client, drmToken, string(wormholeParam)); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
@@ -516,32 +544,40 @@ func nukeLocalData(cmd *cobra.Command) error {
 	return nil
 }
 
-func nukeRemoteData(cmd *cobra.Command, daemon *dockerclient.DockerConnection) error {
+func nukeRemoteData(cmd *cobra.Command, daemon *dockerclient.DockerConnection, drmToken string) error {
 	spinner := spinutil.Start("blue", "Resetting (Remote) Debug Shell data")
-	client, err := dockerclient.NewClient(daemon)
+	client, err := dockerclient.NewClientWithDrmAuth(daemon, drmToken)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 
-	_, err = client.RunContainer(dockerclient.RunContainerOptions{PullImage: true}, &dockertypes.ContainerCreateRequest{
-		Image: registryImage,
-		HostConfig: &dockertypes.ContainerHostConfig{
-			Privileged: true,
-			Binds:      []string{"wormhole-data:/data"},
-			// CgroupnsMode: "host",
-			// PidMode:      "host",
-			// NetworkMode:  "host",
-		},
-		Cmd: []string{string("--nuke")},
-	})
-
+	server, err := connectRemote(client, drmToken, maxRetries)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return err
+	}
+
+	// todo: with rpc, directly send NukeData request and get response back
+	server.WriteMessage(&pb.RpcClientMessage{
+		ClientMessage: &pb.RpcClientMessage_NukeData{},
+	})
+	message := &pb.RpcServerMessage{}
+	if err := server.ReadMessage(message); err != nil {
+		return err
+	}
+	var exitCode int
+	switch v := message.ServerMessage.(type) {
+	case *pb.RpcServerMessage_ExitStatus:
+		exitCode = int(v.ExitStatus.ExitCode)
 	}
 
 	spinner.Stop()
+
+	if exitCode == 1 {
+		fmt.Fprintf(os.Stderr, "Please exit all Debug Shell sessions before using this command.")
+		os.Exit(1)
+	}
+
 	if err != nil {
 		cmd.SilenceUsage = true
 		return err
@@ -636,7 +672,7 @@ Pro only: requires an OrbStack Pro license.
 			if isLocal {
 				err = nukeLocalData(cmd)
 			} else {
-				err = nukeRemoteData(cmd, daemon)
+				err = nukeRemoteData(cmd, daemon, keychainState.EntitlementToken)
 			}
 			if err != nil {
 				return err
