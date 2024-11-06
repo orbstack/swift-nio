@@ -302,6 +302,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         return true
     }
 
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        // WA: on macOS 13, app closes after main window is closed
+        // that's consistent with docs because Window(main) is primary scene, but not consistent with macOS 14+ behavior where having additional scenes disables that behavior
+        // https://developer.apple.com/documentation/swiftui/window#Use-a-window-as-the-main-scene
+        false
+    }
+
     func application(_: NSApplication, open urls: [URL]) {
         for url in urls {
             guard url.scheme == "orbstack" else {
