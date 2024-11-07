@@ -97,28 +97,22 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 
 	d.ipMap[ip] = domainproxytypes.Upstream{IP: nil}
 
+	prefix := "domainproxy4"
+	if ip.Is6() {
+		prefix = "domainproxy6"
+	}
+
 	if upstream.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
-				var err error
-				if ip.Is4() {
-					err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v }", ip))
-					if err != nil {
-						return struct{}{}, err
-					}
-					err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
-					if err != nil {
-						return struct{}{}, err
-					}
-				} else if ip.Is6() {
-					err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v }", ip))
-					if err != nil {
-						return struct{}{}, err
-					}
-					err = nft.Run("delete", "element", "inet", "orbstack", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
-					if err != nil {
-						return struct{}{}, err
-					}
+				err := nft.Run("delete", "element", "inet", "orbstack", prefix, fmt.Sprintf("{ %v }", ip))
+				if err != nil {
+					return struct{}{}, err
+				}
+
+				err = nft.Run("delete", "element", "inet", "orbstack", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
+				if err != nil {
+					return struct{}{}, err
 				}
 
 				return struct{}{}, nil
@@ -131,41 +125,23 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 			}
 		}
 
-		var err error
-		if ip.Is4() {
-			err = nft.Run("delete", "element", "inet", "vm", "domainproxy4_docker", fmt.Sprintf("{ %v }", ip))
-		} else if ip.Is6() {
-			err = nft.Run("delete", "element", "inet", "vm", "domainproxy6_docker", fmt.Sprintf("{ %v }", ip))
-		}
+		err := nft.Run("delete", "element", "inet", "vm", prefix+"_docker", fmt.Sprintf("{ %v }", ip))
 		if err != nil {
 			logrus.WithError(err).Error("could not delete from domainproxy_docker")
 		}
 	}
 
-	var err error
-	if ip.Is4() {
-		err = nft.Run("delete", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v }", ip))
-	} else if ip.Is6() {
-		err = nft.Run("delete", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v }", ip))
-	}
+	err := nft.Run("delete", "element", "inet", "vm", prefix, fmt.Sprintf("{ %v }", ip))
 	if err != nil {
 		logrus.WithError(err).Debug("could not remove from domainproxy map")
 	}
 
-	if ip.Is4() {
-		err = nft.Run("delete", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
-	} else if ip.Is6() {
-		err = nft.Run("delete", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
-	}
+	err = nft.Run("delete", "element", "inet", "vm", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
 	if err != nil {
 		logrus.WithError(err).Debug("could not remove from domainproxy_masquerade map")
 	}
 
-	if ip.Is4() {
-		err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy4_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
-	} else if ip.Is6() {
-		err = nft.Run("delete", "element", "bridge", "vm_bridge", "domainproxy6_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
-	}
+	err = nft.Run("delete", "element", "bridge", "vm_bridge", prefix+"_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
 	if err != nil {
 		logrus.WithError(err).Debug("could not remove from domainproxy_masquerade_bridge map")
 	}
@@ -188,28 +164,21 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 		}
 	}
 
+	prefix := "domainproxy4"
+	if ip.Is6() {
+		prefix = "domainproxy6"
+	}
+
 	if val.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
-				var err error
-				if ip.Is4() {
-					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4", fmt.Sprintf("{ %v : %v }", ip, val.IP))
-					if err != nil {
-						return struct{}{}, err
-					}
-					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
-					if err != nil {
-						return struct{}{}, err
-					}
-				} else if ip.Is6() {
-					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6", fmt.Sprintf("{ %v : %v }", ip, val.IP))
-					if err != nil {
-						return struct{}{}, err
-					}
-					err = nft.Run("add", "element", "inet", "orbstack", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
-					if err != nil {
-						return struct{}{}, err
-					}
+				err := nft.Run("add", "element", "inet", "orbstack", prefix, fmt.Sprintf("{ %v : %v }", ip, val.IP))
+				if err != nil {
+					return struct{}{}, err
+				}
+				err = nft.Run("add", "element", "inet", "orbstack", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
+				if err != nil {
+					return struct{}{}, err
 				}
 
 				return struct{}{}, nil
@@ -219,12 +188,7 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 			}
 		}
 
-		var err error
-		if ip.Is4() {
-			err = nft.Run("add", "element", "inet", "vm", "domainproxy4_docker", fmt.Sprintf("{ %v }", ip))
-		} else if ip.Is6() {
-			err = nft.Run("add", "element", "inet", "vm", "domainproxy6_docker", fmt.Sprintf("{ %v }", ip))
-		}
+		err := nft.Run("add", "element", "inet", "vm", prefix+"_docker", fmt.Sprintf("{ %v }", ip))
 		if err != nil {
 			logrus.WithError(err).Error("failed to add to domainproxy_docker")
 		}
@@ -232,31 +196,18 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 
 	d.addNeighbor(ip)
 
-	var err error
-	if ip.Is4() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy4", fmt.Sprintf("{ %v : %v }", ip, val.IP))
-	} else if ip.Is6() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy6", fmt.Sprintf("{ %v : %v }", ip, val.IP))
-	}
+	err := nft.Run("add", "element", "inet", "vm", prefix, fmt.Sprintf("{ %v : %v }", ip, val.IP))
 	if err != nil {
 		logrus.WithError(err).Debug("could not add to domainproxy map")
 	}
 
-	if ip.Is4() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy4_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.IP))
-	} else if ip.Is6() {
-		err = nft.Run("add", "element", "inet", "vm", "domainproxy6_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.IP))
-	}
+	err = nft.Run("add", "element", "inet", "vm", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.IP))
 	if err != nil {
 		logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
 	}
-	if ip.Is4() {
-		err = nft.Run("add", "element", "bridge", "vm_bridge", "domainproxy4_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, val.IP))
-	} else if ip.Is6() {
-		err = nft.Run("add", "element", "bridge", "vm_bridge", "domainproxy6_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, val.IP))
-	}
+	err = nft.Run("add", "element", "bridge", "vm_bridge", prefix+"_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, val.IP))
 	if err != nil {
-		logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
+		logrus.WithError(err).Error("failed to add to domainproxy_masquerade_bridge")
 	}
 
 	d.ipMap[ip] = val
