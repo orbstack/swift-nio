@@ -132,7 +132,10 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 				return struct{}{}, nil
 			})
 			if err != nil {
-				logrus.WithError(err).Error("could not delete from domainproxy in docker")
+				// this will happen if docker is not running -- very possible if the docker machine just shut down
+				if d.dockerMachine.Running() {
+					logrus.WithError(err).Error("could not delete from domainproxy in docker")
+				}
 			}
 		}
 

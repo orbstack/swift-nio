@@ -653,6 +653,11 @@ func (h *DockerHooks) PostStart(c *Container) error {
 		}
 	}
 
+	err := c.manager.net.mdnsRegistry.dockerPostStart()
+	if err != nil {
+		logrus.WithError(err).Error("unable to run mdns registry docker post start hook")
+	}
+
 	// make a freezer
 	freezer := NewContainerFreezer(c, dockerFreezeDebounce, func() (bool, error) {
 		// [predicate, via agent] check docker API to see if any containers are running

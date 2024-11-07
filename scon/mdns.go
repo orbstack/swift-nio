@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
@@ -193,18 +194,6 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		IsHidden:   true, // don't show itself
 		ip4:        net.ParseIP(netconf.SconWebIndexIP4),
 		ip6:        net.ParseIP(netconf.SconWebIndexIP6),
-	})
-
-	// add k8s alias
-	k8sIP4 := net.ParseIP(netconf.SconK8sIP4)
-	r.tree.Insert(toTreeKey("k8s.orb.local."), &mdnsEntry{
-		r: r,
-
-		Type:       MdnsEntryStatic,
-		IsWildcard: true,
-		IsHidden:   false,
-		ip4:        k8sIP4,
-		ip6:        mapToNat64(k8sIP4),
 	})
 
 	getUpstream := func(host string, v4 bool) (domainproxytypes.Upstream, error) {
@@ -875,6 +864,8 @@ func (r *mdnsRegistry) ClearContainers() {
 		// delete all container nodes
 		entry := v.(*mdnsEntry)
 		if entry.Type == MdnsEntryContainer {
+			logrus.Debugf("soweli | ClearContainers: s=%s", s)
+			r.domainproxy.freeNamesLocked(entry.names)
 			r.tree.Delete(s)
 		}
 		return false // continue
@@ -1174,6 +1165,58 @@ func (r *mdnsRegistry) proxyToHost(q dns.Question) []dns.RR {
 	return reply.Answer
 }
 
+func (r *mdnsRegistry) updateTLSProxyNftables(locked bool, enabled bool) error {
+	if !locked {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+	}
+
+	var err error
+	if !r.domainTLSProxyActive && enabled {
+		// we need to activate it
+		err = nft.Run("add", "rule", "inet", "vm", "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
+	} else if r.domainTLSProxyActive && !enabled {
+		// we need to deactivate it
+		err = nft.Run("flush", "chain", "inet", "vm", "prerouting-dynamic-tlsproxy")
+	}
+	if err != nil {
+		return err
+	}
+
+	r.domainTLSProxyActive = enabled
+	return nil
+}
+
+func (r *mdnsRegistry) dockerPostStart() error {
+	// add k8s alias
+	if r.manager.vmConfig.K8sEnable {
+		k8sName := "k8s.orb.local."
+
+		k8sAddr4, ok := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{
+			Names:  []string{k8sName},
+			IP:     net.ParseIP(netconf.SconK8sIP4),
+			Docker: true,
+		})
+		if !ok {
+			return fmt.Errorf("unable to create k8s domainproxy ip")
+		}
+		k8sIP4 := k8sAddr4.AsSlice()
+
+		r.tree.Insert(toTreeKey(k8sName), &mdnsEntry{
+			r:     r,
+			names: []string{k8sName},
+
+			// container type so it gets deleted when docker stops
+			Type:       MdnsEntryContainer,
+			IsWildcard: true,
+			IsHidden:   false,
+			ip4:        k8sIP4,
+			ip6:        mapToNat64(k8sIP4),
+		})
+	}
+	return nil
+}
+
 func ovmGetProxyMark(upstream domainproxytypes.Upstream) int {
 	mark := netconf.VmFwmarkTproxyOutboundBit
 	if upstream.Docker {
@@ -1221,27 +1264,5 @@ func (s *SconGuestServer) GetProxyUpstream(args sgtypes.GetProxyUpstreamArgs, re
 		return err
 	}
 	*reply = upstream
-	return nil
-}
-
-func (r *mdnsRegistry) updateTLSProxyNftables(locked bool, enabled bool) error {
-	if !locked {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-	}
-
-	var err error
-	if !r.domainTLSProxyActive && enabled {
-		// we need to activate it
-		err = nft.Run("add", "rule", "inet", "vm", "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
-	} else if r.domainTLSProxyActive && !enabled {
-		// we need to deactivate it
-		err = nft.Run("flush", "chain", "inet", "vm", "prerouting-dynamic-tlsproxy")
-	}
-	if err != nil {
-		return err
-	}
-
-	r.domainTLSProxyActive = enabled
 	return nil
 }
