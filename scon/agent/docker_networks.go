@@ -11,6 +11,7 @@ import (
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
@@ -175,7 +176,7 @@ func (d *DockerAgent) refreshFlowtable() error {
 	}
 
 	// always add eth0; we forward/NAT to it
-	return nft.RefreshFlowtableBridgePorts("orbstack", "ft", bridges, []string{"eth0"}, nil)
+	return nft.RefreshFlowtableBridgePorts(netconf.DockerNftable, "ft", bridges, []string{"eth0"}, nil)
 }
 
 func dockerNetworkToInterfaceName(n *dockertypes.Network) string {
@@ -258,7 +259,7 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 }
 
 func editNftablesSet(action, setName, element string) error {
-	return nft.Run(action, "element", "inet", "orbstack", setName, "{ "+element+" }")
+	return nft.Run(action, "element", "inet", netconf.DockerNftable, setName, "{ "+element+" }")
 }
 
 func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {

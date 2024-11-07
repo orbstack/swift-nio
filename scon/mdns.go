@@ -1166,10 +1166,10 @@ func (r *mdnsRegistry) updateTLSProxyNftables(locked bool, enabled bool) error {
 	var err error
 	if !r.domainTLSProxyActive && enabled {
 		// we need to activate it
-		err = nft.Run("add", "rule", "inet", "vm", "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
+		err = nft.Run("add", "rule", "inet", netconf.VmNftable, "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
 	} else if r.domainTLSProxyActive && !enabled {
 		// we need to deactivate it
-		err = nft.Run("flush", "chain", "inet", "vm", "prerouting-dynamic-tlsproxy")
+		err = nft.Run("flush", "chain", "inet", netconf.VmNftable, "prerouting-dynamic-tlsproxy")
 	}
 	if err != nil {
 		return err

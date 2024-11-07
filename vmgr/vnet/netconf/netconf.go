@@ -224,3 +224,6 @@ const (
 const (
 	QueueDomainproxyPending = 23478
 )
+
+const VmNftable = "vm"
+const DockerNftable = "orbstack"

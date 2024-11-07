@@ -106,14 +106,14 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 	if upstream.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
-				err := nft.Run("delete", "element", "inet", "orbstack", prefix, fmt.Sprintf("{ %v }", ip))
+				err := nft.Run("delete", "element", "inet", netconf.DockerNftable, prefix, fmt.Sprintf("{ %v }", ip))
 				if err != nil {
 					return struct{}{}, err
 				}
 				// may not exist if already removed due to successful upstream probe
-				_ = nft.Run("delete", "element", "inet", "orbstack", prefix+"_pending", fmt.Sprintf("{ %v }", ip))
+				_ = nft.Run("delete", "element", "inet", netconf.DockerNftable, prefix+"_pending", fmt.Sprintf("{ %v }", ip))
 
-				err = nft.Run("delete", "element", "inet", "orbstack", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
+				err = nft.Run("delete", "element", "inet", netconf.DockerNftable, prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
 				if err != nil {
 					return struct{}{}, err
 				}
@@ -128,20 +128,20 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 			}
 		}
 
-		err := nft.Run("delete", "element", "inet", "vm", prefix+"_docker", fmt.Sprintf("{ %v }", ip))
+		err := nft.Run("delete", "element", "inet", netconf.VmNftable, prefix+"_docker", fmt.Sprintf("{ %v }", ip))
 		if err != nil {
 			logrus.WithError(err).Error("could not delete from domainproxy_docker")
 		}
 	}
 
-	err := nft.Run("delete", "element", "inet", "vm", prefix, fmt.Sprintf("{ %v }", ip))
+	err := nft.Run("delete", "element", "inet", netconf.VmNftable, prefix, fmt.Sprintf("{ %v }", ip))
 	if err != nil {
 		logrus.WithError(err).Debug("could not remove from domainproxy map")
 	}
 	// may not exist if already removed due to successful upstream probe
-	_ = nft.Run("delete", "element", "inet", "vm", prefix+"_pending", fmt.Sprintf("{ %v }", ip))
+	_ = nft.Run("delete", "element", "inet", netconf.VmNftable, prefix+"_pending", fmt.Sprintf("{ %v }", ip))
 
-	err = nft.Run("delete", "element", "inet", "vm", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
+	err = nft.Run("delete", "element", "inet", netconf.VmNftable, prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
 	if err != nil {
 		logrus.WithError(err).Debug("could not remove from domainproxy_masquerade map")
 	}
@@ -177,15 +177,15 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 	if val.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
-				err := nft.Run("add", "element", "inet", "orbstack", prefix, fmt.Sprintf("{ %v : %v }", ip, val.IP))
+				err := nft.Run("add", "element", "inet", netconf.DockerNftable, prefix, fmt.Sprintf("{ %v : %v }", ip, val.IP))
 				if err != nil {
 					return struct{}{}, err
 				}
-				err = nft.Run("add", "element", "inet", "orbstack", prefix+"_pending", fmt.Sprintf("{ %v }", ip))
+				err = nft.Run("add", "element", "inet", netconf.DockerNftable, prefix+"_pending", fmt.Sprintf("{ %v }", ip))
 				if err != nil {
 					return struct{}{}, err
 				}
-				err = nft.Run("add", "element", "inet", "orbstack", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
+				err = nft.Run("add", "element", "inet", netconf.DockerNftable, prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
 				if err != nil {
 					return struct{}{}, err
 				}
@@ -197,7 +197,7 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 			}
 		}
 
-		err := nft.Run("add", "element", "inet", "vm", prefix+"_docker", fmt.Sprintf("{ %v }", ip))
+		err := nft.Run("add", "element", "inet", netconf.VmNftable, prefix+"_docker", fmt.Sprintf("{ %v }", ip))
 		if err != nil {
 			logrus.WithError(err).Error("failed to add to domainproxy_docker")
 		}
@@ -205,16 +205,16 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 
 	d.addNeighbor(ip)
 
-	err := nft.Run("add", "element", "inet", "vm", prefix, fmt.Sprintf("{ %v : %v }", ip, val.IP))
+	err := nft.Run("add", "element", "inet", netconf.VmNftable, prefix, fmt.Sprintf("{ %v : %v }", ip, val.IP))
 	if err != nil {
 		logrus.WithError(err).Debug("could not add to domainproxy map")
 	}
-	err = nft.Run("add", "element", "inet", "vm", prefix+"_pending", fmt.Sprintf("{ %v }", ip))
+	err = nft.Run("add", "element", "inet", netconf.VmNftable, prefix+"_pending", fmt.Sprintf("{ %v }", ip))
 	if err != nil {
 		logrus.WithError(err).Debug("could not add to domainproxy_pending map")
 	}
 
-	err = nft.Run("add", "element", "inet", "vm", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.IP))
+	err = nft.Run("add", "element", "inet", netconf.VmNftable, prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.IP))
 	if err != nil {
 		logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
 	}
@@ -462,7 +462,7 @@ func (c *SconProxyCallbacks) NfqueueMarkReject(mark uint32) uint32 {
 }
 
 func (c *SconProxyCallbacks) NftableName() string {
-	return "vm"
+	return netconf.VmNftable
 }
 
 func (r *mdnsRegistry) getProxyUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error) {

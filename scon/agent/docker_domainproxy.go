@@ -32,7 +32,7 @@ func (cb *DockerProxyCallbacks) NfqueueMarkReject(mark uint32) uint32 {
 }
 
 func (cb *DockerProxyCallbacks) NftableName() string {
-	return "orbstack"
+	return netconf.DockerNftable
 }
 
 func (d *DockerAgent) startDomainTLSProxy() error {
@@ -62,10 +62,10 @@ func (d *DockerAgent) updateTLSProxyNftables(enabled bool) error {
 	var err error
 	if !d.domainTLSProxyActive && enabled {
 		// we need to activate it
-		err = nft.Run("add", "rule", "inet", "orbstack", "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
+		err = nft.Run("add", "rule", "inet", netconf.DockerNftable, "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
 	} else if d.domainTLSProxyActive && !enabled {
 		// we need to deactivate it
-		err = nft.Run("flush", "chain", "inet", "orbstack", "prerouting-dynamic-tlsproxy")
+		err = nft.Run("flush", "chain", "inet", netconf.DockerNftable, "prerouting-dynamic-tlsproxy")
 	}
 	if err != nil {
 		return err
