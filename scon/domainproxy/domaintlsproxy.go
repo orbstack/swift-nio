@@ -104,11 +104,17 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) e
 		return err
 	}
 	loTlsProxyAddr4, err := netlink.ParseAddr(ip4 + "/32")
+	if err != nil {
+		return err
+	}
 	err = netlink.AddrAdd(lo, loTlsProxyAddr4)
 	if err != nil && !errors.Is(err, unix.EEXIST) {
 		return err
 	}
 	loTlsProxyAddr6, err := netlink.ParseAddr(ip6 + "/128")
+	if err != nil {
+		return err
+	}
 	err = netlink.AddrAdd(lo, loTlsProxyAddr6)
 	if err != nil && !errors.Is(err, unix.EEXIST) {
 		return err

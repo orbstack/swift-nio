@@ -46,14 +46,6 @@ type domainproxyRegistry struct {
 	v6 *domainproxyAllocator
 }
 
-func mustAddrFromSlice(ip net.IP) netip.Addr {
-	addr, ok := netip.AddrFromSlice(ip)
-	if !ok {
-		panic("failed to convert net.IP into netip.Addr")
-	}
-	return addr
-}
-
 func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) domainproxyRegistry {
 	return domainproxyRegistry{
 		r:               r,
@@ -422,7 +414,7 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 	return ip4, ip6
 }
 
-func setupDomainProxyInterface(mtu int) error {
+func setupDomainProxyInterface() error {
 	_, domainproxySubnet4, err := net.ParseCIDR(netconf.DomainproxySubnet4CIDR)
 	if err != nil {
 		return err

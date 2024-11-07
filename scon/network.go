@@ -90,7 +90,7 @@ func (n *Network) Start() error {
 	}
 	n.bridge = bridge
 
-	err = setupDomainProxyInterface(mtu)
+	err = setupDomainProxyInterface()
 	if err != nil {
 		return err
 	}
