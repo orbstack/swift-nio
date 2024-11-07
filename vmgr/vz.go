@@ -212,9 +212,14 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 	}
 
 	if params.Console != ConsoleNone {
+		cmdline = append(cmdline, "console=hvc0")
+
 		// quiet kernel boot to reduce log spam when truncated in sentry and GUI
 		// disabled once init starts to preserve any debug info
-		cmdline = append(cmdline, "console=hvc0", "quiet")
+		if !conf.Debug() {
+			cmdline = append(cmdline, "quiet")
+		}
+
 		// disable colors if logging to file
 		if params.Console == ConsoleLog && !term.IsTerminal(int(os.Stdout.Fd())) {
 			seedData.ConsoleIsPipe = true
