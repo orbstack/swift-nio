@@ -93,7 +93,7 @@ struct MachineSettingsView: View {
                     isOn: vmModel.bindingForConfig(\.dockerSetContext, state: $dockerSetContext))
 
                 let adminBinding = Binding<Bool>(
-                    get: { Users.hasAdmin && setupUseAdmin },
+                    get: { setupUseAdmin },
                     set: { newValue in
                         if newValue {
                             vmModel.trySetConfigKey(\.setupUseAdmin, true)
@@ -106,7 +106,6 @@ struct MachineSettingsView: View {
                 )
 
                 Toggle("Use admin privileges for enhanced features", isOn: adminBinding)
-                    .disabled(!Users.hasAdmin)  // disabled + false if no admin
                 Text(
                     "This can improve performance and compatibility. [Learn more](https://go.orbstack.dev/admin)"
                 )

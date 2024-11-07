@@ -6,8 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"sync"
 
 	"golang.org/x/sys/unix"
+)
+
+const (
+	gidAdmin = 80
 )
 
 func validateAPFS(dataDir string) error {
@@ -33,3 +39,12 @@ func validateAPFS(dataDir string) error {
 
 	return nil
 }
+
+var IsAdmin = sync.OnceValue(func() bool {
+	// get current process supplementary groups to avoid querying server for network accounts
+	gids, err := unix.Getgroups()
+	if err != nil {
+		return false
+	}
+	return slices.Contains(gids, gidAdmin)
+})

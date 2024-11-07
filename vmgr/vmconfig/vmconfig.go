@@ -258,7 +258,7 @@ func Defaults() *VmConfig {
 		DataAllowBackup:   false,
 		DockerSetContext:  true,
 		DockerNodeName:    "orbstack",
-		SetupUseAdmin:     true,
+		SetupUseAdmin:     IsAdmin(),
 		K8sEnable:         false,
 		K8sExposeServices: false,
 		SSHExposePort:     false,

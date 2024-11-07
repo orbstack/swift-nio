@@ -28,10 +28,6 @@ import (
 )
 
 const (
-	gidAdmin = 80
-)
-
-const (
 	dataReadmeText = `# OrbStack data
 
 This folder is used to store all OrbStack data, including Docker images, containers, and Linux machines.
@@ -47,10 +43,16 @@ For more details, see https://go.orbstack.dev/data-img
 `
 )
 
+var (
+	binCommands = []string{"orbctl", "orb"}
+	// some people run "docker-compose"
+	xbinCommands  = []string{"docker", "docker-compose", "docker-credential-osxkeychain", "kubectl"}
+	dockerPlugins = []string{"docker-buildx", "docker-compose"}
+)
+
 type UserDetails struct {
-	IsAdmin bool
-	Shell   string
-	Home    string
+	Shell string
+	Home  string
 
 	EnvPATH          string
 	EnvDOCKER_CONFIG string
@@ -63,36 +65,19 @@ type PathInfo struct {
 	RequiresRoot bool
 }
 
-var (
-	binCommands = []string{"orbctl", "orb"}
-	// some people run "docker-compose"
-	xbinCommands  = []string{"docker", "docker-compose", "docker-credential-osxkeychain", "kubectl"}
-	dockerPlugins = []string{"docker-buildx", "docker-compose"}
-)
-
-func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
+func (s *VmControlServer) doGetUserDetails(useAdmin bool) (*UserDetails, error) {
 	logrus.Debug("reading user account info")
 	u, err := user.Current()
 	if err != nil {
 		return nil, err
 	}
-	// get current process supplementary groups to avoid querying server for network accounts
-	gids, err := unix.Getgroups()
-	if err != nil {
-		return nil, err
-	}
-	// check if admin
-	isAdmin := slices.Contains(gids, gidAdmin)
-	if !vmconfig.Get().SetupUseAdmin {
-		// uninstall priv helper if admin is disabled but available
-		if isAdmin {
-			err := vzf.SwextPrivhelperUninstall()
-			if err != nil {
-				logrus.WithError(err).Error("failed to uninstall priv helper")
-			}
-		}
 
-		isAdmin = false
+	// uninstall priv helper if admin is disabled but available
+	if vmconfig.IsAdmin() && !useAdmin {
+		err := vzf.SwextPrivhelperUninstall()
+		if err != nil {
+			logrus.WithError(err).Error("failed to uninstall priv helper")
+		}
 	}
 
 	// look up the user's shell
@@ -126,9 +111,8 @@ func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
 	envMap := envutil.ToMap(envReport.Environ)
 
 	return &UserDetails{
-		IsAdmin: isAdmin,
-		Shell:   shell,
-		Home:    u.HomeDir,
+		Shell: shell,
+		Home:  u.HomeDir,
 
 		EnvPATH:          envMap["PATH"],
 		EnvDOCKER_CONFIG: envMap["DOCKER_CONFIG"],
@@ -139,13 +123,14 @@ func (s *VmControlServer) doGetUserDetails() (*UserDetails, error) {
 
 // we're started under launchd with only this PATH: /usr/bin:/bin:/usr/sbin:/sbin
 func (s *VmControlServer) doGetUserDetailsAndSetupEnv() (*UserDetails, error) {
-	details, err := s.doGetUserDetails()
+	useAdmin := vmconfig.Get().SetupUseAdmin
+	details, err := s.doGetUserDetails(useAdmin)
 	if err != nil {
 		return nil, err
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"admin": details.IsAdmin,
+		"admin": useAdmin,
 		"shell": details.Shell,
 		"home":  details.Home,
 
@@ -179,7 +164,7 @@ func (s *VmControlServer) doGetUserDetailsAndSetupEnv() (*UserDetails, error) {
 3. ZDOTDIR/zprofile or profile IF is default shell + set AlertProfileChanged
 4. ask user + set AlertRequestAddPath
 */
-func findTargetCmdPath(details *UserDetails, pathItems []string) (*PathInfo, error) {
+func findTargetCmdPath(details *UserDetails, pathItems []string, useAdmin bool) (*PathInfo, error) {
 	home := details.Home
 
 	// prefer ~/bin because user probably created it explicitly
@@ -207,7 +192,7 @@ func findTargetCmdPath(details *UserDetails, pathItems []string) (*PathInfo, err
 	}
 
 	// check if root
-	if details.IsAdmin {
+	if useAdmin {
 		return &PathInfo{
 			Dir:          "/usr/local/bin",
 			RequiresRoot: true,
@@ -578,7 +563,8 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	var adminCommands []vmtypes.PHSymlinkRequest
 	adminLinkDocker := false
 	adminLinkCommands := false
-	if details.IsAdmin {
+	useAdmin := vmconfig.Get().SetupUseAdmin
+	if useAdmin {
 		sockDest, err := os.Readlink("/var/run/docker.sock")
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -598,7 +584,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	}
 
 	// figure out where we want to put commands
-	targetCmdPath, err := findTargetCmdPath(details, pathItems)
+	targetCmdPath, err := findTargetCmdPath(details, pathItems, useAdmin)
 	if err != nil {
 		return nil, err
 	}
