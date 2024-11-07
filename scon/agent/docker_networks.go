@@ -20,13 +20,6 @@ const (
 	DockerBridgeMirrorPrefix   = ".orbmirror"
 )
 
-const (
-	NfsetBridgeSubnets4 = "docker_bridge_subnets4"
-	NfsetBridgeHostIPs4 = "docker_bridge_host_ips4"
-	NfsetBridgeSubnets6 = "docker_bridge_subnets6"
-	NfsetBridgeHostIPs6 = "docker_bridge_host_ips6"
-)
-
 func compareNetworks(a, b dockertypes.Network) int {
 	// always rank default bridge network first
 	if a.Name == dockerDefaultBridgeNetwork {
@@ -286,32 +279,6 @@ func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {
 		return err
 	}
 
-	// add host and gateway IPs to nfsets
-	if config.IP4Subnet.IsValid() {
-		err = editNftablesSet("add", NfsetBridgeSubnets4, config.IP4Subnet.String())
-		if err != nil {
-			logrus.WithError(err).WithField("net", config.IP4Subnet).Error("failed to add bridge net to set")
-		}
-
-		hostIP := config.HostIP4().IP
-		err = editNftablesSet("add", NfsetBridgeHostIPs4, hostIP.String())
-		if err != nil {
-			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
-		}
-	}
-	if config.IP6Subnet.IsValid() {
-		err = editNftablesSet("add", NfsetBridgeSubnets6, config.IP6Subnet.String())
-		if err != nil {
-			logrus.WithError(err).WithField("net", config.IP6Subnet).Error("failed to add bridge net to set")
-		}
-
-		hostIP := config.HostIP6().IP
-		err = editNftablesSet("add", NfsetBridgeHostIPs6, hostIP.String())
-		if err != nil {
-			logrus.WithError(err).WithField("ip", hostIP).Error("failed to add host ip to set")
-		}
-	}
-
 	// if we only have this run on network connect, we miss containers that were attached on startup
 	// this sets the bridges to allow hairpin so that domainproxy works from the same container to itself
 	err = setAllBridgeportHairpin(dockerNetworkToInterfaceName(&network))
@@ -338,32 +305,6 @@ func (d *DockerAgent) onNetworkRemove(network dockertypes.Network) error {
 	err = editNftablesSet("delete", "docker_bridges", dockerNetworkToInterfaceName(&network))
 	if err != nil {
 		return err
-	}
-
-	// remove host and gateway IPs from nfsets
-	if config.IP4Subnet.IsValid() {
-		err = editNftablesSet("delete", NfsetBridgeSubnets4, config.IP4Subnet.String())
-		if err != nil {
-			logrus.WithError(err).WithField("ip", config.IP4Subnet).Error("failed to remove bridge net from set")
-		}
-
-		hostIP := config.HostIP4().IP
-		err = editNftablesSet("delete", NfsetBridgeHostIPs4, hostIP.String())
-		if err != nil {
-			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove gateway ip from set")
-		}
-	}
-	if config.IP6Subnet.IsValid() {
-		err = editNftablesSet("delete", NfsetBridgeSubnets6, config.IP6Subnet.String())
-		if err != nil {
-			logrus.WithError(err).WithField("ip", config.IP6Subnet).Error("failed to remove bridge net from set")
-		}
-
-		hostIP := config.HostIP6().IP
-		err = editNftablesSet("delete", NfsetBridgeHostIPs6, hostIP.String())
-		if err != nil {
-			logrus.WithError(err).WithField("ip", hostIP).Error("failed to remove gateway ip from set")
-		}
 	}
 
 	return nil
