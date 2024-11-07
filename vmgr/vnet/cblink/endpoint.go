@@ -298,9 +298,8 @@ func (e *CallbackEndpoint) writePacket(pkt *stack.PacketBuffer) tcpip.Error {
 		errno := syscall.Errno(-ret)
 		if errno != syscall.EPIPE && errno != syscall.EAGAIN {
 			logrus.WithError(errno).Error("failed to write packet to VM")
+			return rawfile.TranslateErrno(errno)
 		}
-
-		return rawfile.TranslateErrno(errno)
 	}
 
 	return nil
