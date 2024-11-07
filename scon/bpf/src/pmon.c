@@ -1,5 +1,5 @@
 // Copyright 2023 Orbital Labs, LLC
-// License: proprietary and confidential.
+// License: GPL.
 
 // Notify scon of bind() and released sockets.
 // UDP cases:
@@ -26,7 +26,6 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
-// warning: this makes it GPL
 // #define DEBUG
 
 #ifndef DEBUG
