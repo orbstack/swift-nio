@@ -316,7 +316,13 @@ func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListen
 	// still need to bind to host to get correct cfwd behavior, especially for 443->8443 or 443->https_port case
 	// TODO: do with probing
 	https := false
-	dialer := dialerForTransparentBind(downstreamIP, mark)
+	// skip for hairpinning (would cause src == dst IP)
+	var dialer *net.Dialer
+	if !downstreamIP.Equal(upstream.IP) {
+		dialer = dialerForTransparentBind(downstreamIP, mark)
+	} else {
+		dialer = &net.Dialer{}
+	}
 	dialer.Timeout = 500 * time.Millisecond
 	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstream.IP.String(), destPort))
 	if err == nil {
