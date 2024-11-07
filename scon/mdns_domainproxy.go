@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
@@ -109,6 +110,8 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 				if err != nil {
 					return struct{}{}, err
 				}
+				// may not exist if already removed due to successful upstream probe
+				_ = nft.Run("delete", "element", "inet", "orbstack", prefix+"_pending", fmt.Sprintf("{ %v }", ip))
 
 				err = nft.Run("delete", "element", "inet", "orbstack", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
 				if err != nil {
@@ -135,6 +138,8 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 	if err != nil {
 		logrus.WithError(err).Debug("could not remove from domainproxy map")
 	}
+	// may not exist if already removed due to successful upstream probe
+	_ = nft.Run("delete", "element", "inet", "vm", prefix+"_pending", fmt.Sprintf("{ %v }", ip))
 
 	err = nft.Run("delete", "element", "inet", "vm", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
 	if err != nil {
@@ -176,6 +181,10 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 				if err != nil {
 					return struct{}{}, err
 				}
+				err = nft.Run("add", "element", "inet", "orbstack", prefix+"_pending", fmt.Sprintf("{ %v }", ip))
+				if err != nil {
+					return struct{}{}, err
+				}
 				err = nft.Run("add", "element", "inet", "orbstack", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
 				if err != nil {
 					return struct{}{}, err
@@ -199,6 +208,10 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 	err := nft.Run("add", "element", "inet", "vm", prefix, fmt.Sprintf("{ %v : %v }", ip, val.IP))
 	if err != nil {
 		logrus.WithError(err).Debug("could not add to domainproxy map")
+	}
+	err = nft.Run("add", "element", "inet", "vm", prefix+"_pending", fmt.Sprintf("{ %v }", ip))
+	if err != nil {
+		logrus.WithError(err).Debug("could not add to domainproxy_pending map")
 	}
 
 	err = nft.Run("add", "element", "inet", "vm", prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.IP))
@@ -421,4 +434,79 @@ func setupDomainProxyInterface() error {
 	}
 
 	return nil
+}
+
+type SconProxyCallbacks struct {
+	r *mdnsRegistry
+}
+
+func (c *SconProxyCallbacks) GetUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error) {
+	return c.r.getProxyUpstreamByName(host, v4)
+}
+
+func (c *SconProxyCallbacks) GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {
+	return c.r.getProxyUpstreamByAddr(addr)
+}
+
+func (c *SconProxyCallbacks) GetMark(upstream domainproxytypes.Upstream) int {
+	mark := netconf.VmFwmarkTproxyOutboundBit
+	if upstream.Docker {
+		mark |= netconf.VmFwmarkDockerRouteBit
+	}
+
+	return mark
+}
+
+func (c *SconProxyCallbacks) NfqueueMarkReject(mark uint32) uint32 {
+	return mark | netconf.VmFwmarkNfqueueRejectBit
+}
+
+func (c *SconProxyCallbacks) NftableName() string {
+	return "vm"
+}
+
+func (r *mdnsRegistry) getProxyUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var proxyAddr netip.Addr
+	if proxyAddrVal, err := netip.ParseAddr(host); err == nil {
+		proxyAddr = proxyAddrVal
+	} else {
+		proxyIP4, proxyIP6 := r.getIPsForNameLocked(strings.TrimSuffix(host, ".") + ".")
+
+		if v4 && proxyIP4 != nil {
+			if proxyAddr4, ok := netip.AddrFromSlice(proxyIP4); ok {
+				proxyAddr = proxyAddr4
+			}
+		}
+		if !v4 && proxyIP6 != nil {
+			if proxyAddr6, ok := netip.AddrFromSlice(proxyIP6); ok {
+				proxyAddr = proxyAddr6
+			}
+		}
+	}
+
+	if !proxyAddr.IsValid() {
+		return domainproxytypes.Upstream{}, errors.New("could not find proxyaddr")
+	}
+
+	upstreamIP, ok := r.domainproxy.ipMap[proxyAddr]
+	if !ok {
+		return domainproxytypes.Upstream{}, errors.New("could not find backend in mdns registry")
+	}
+
+	return upstreamIP, nil
+}
+
+func (r *mdnsRegistry) getProxyUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	upstream, ok := r.domainproxy.ipMap[addr]
+	if !ok {
+		return domainproxytypes.Upstream{}, errors.New("could not find backend in mdns registry")
+	}
+
+	return upstream, nil
 }

@@ -191,6 +191,8 @@ const (
 	DockerFwmarkTproxyOutbound = 0x9f7a0000
 	// packets with this mark are hijcked to lo
 	DockerFwmarkLocalRoute = 0xb3c60000
+	// packets with this mark are rejected by nfqueue
+	DockerFwmarkNfqueueReject = 0xbf7a0000
 )
 
 const (
@@ -214,4 +216,11 @@ const (
 	// this bit is set when traffic from a machine needs to be routed back to that machine
 	// it needs to be masqueraded so that replies will pass back through ovm
 	VmFwmarkHairpinMasqueradeBit = 1 << 4
+	// this mark bit is set when traffic needs to be rejected by nfqueue
+	VmFwmarkNfqueueRejectBit = 1 << 5
+)
+
+// nfqueue IDs, shared between ovm and docker
+const (
+	QueueDomainproxyPending = 23478
 )

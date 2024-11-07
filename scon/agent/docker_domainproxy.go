@@ -11,15 +11,35 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type DockerProxyCallbacks struct {
+	d *DockerAgent
+}
+
+func (cb *DockerProxyCallbacks) GetUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error) {
+	return cb.d.scon.GetProxyUpstreamByName(host, v4)
+}
+
+func (cb *DockerProxyCallbacks) GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {
+	return cb.d.scon.GetProxyUpstreamByAddr(addr)
+}
+
+func (cb *DockerProxyCallbacks) GetMark(upstream domainproxytypes.Upstream) int {
+	return netconf.DockerFwmarkTproxyOutbound
+}
+
+func (cb *DockerProxyCallbacks) NfqueueMarkReject(mark uint32) uint32 {
+	return netconf.DockerFwmarkNfqueueReject
+}
+
+func (cb *DockerProxyCallbacks) NftableName() string {
+	return "orbstack"
+}
+
 func (d *DockerAgent) startDomainTLSProxy() error {
 	domainproxySubnet4Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
 	domainproxySubnet6Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
 
-	getMark := func(upstream domainproxytypes.Upstream) int {
-		return netconf.DockerFwmarkTproxyOutbound
-	}
-
-	proxy, err := domainproxy.NewDomainTLSProxy(d.host, d.scon.GetProxyUpstream, getMark)
+	proxy, err := domainproxy.NewDomainTLSProxy(d.host, &DockerProxyCallbacks{d: d})
 	if err != nil {
 		return fmt.Errorf("create tls domainproxy: %w", err)
 	}

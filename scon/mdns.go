@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -20,7 +19,6 @@ import (
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/nft"
-	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/templates"
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util/netx"
@@ -196,10 +194,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		ip6:        net.ParseIP(netconf.SconWebIndexIP6),
 	})
 
-	getUpstream := func(host string, v4 bool) (domainproxytypes.Upstream, error) {
-		return registryGetProxyUpstream(r, host, v4)
-	}
-	proxy, err := domainproxy.NewDomainTLSProxy(host, getUpstream, ovmGetProxyMark)
+	proxy, err := domainproxy.NewDomainTLSProxy(host, &SconProxyCallbacks{r: r})
 	if err != nil {
 		logrus.Debug("failed to create tls domainproxy")
 	}
@@ -864,7 +859,6 @@ func (r *mdnsRegistry) ClearContainers() {
 		// delete all container nodes
 		entry := v.(*mdnsEntry)
 		if entry.Type == MdnsEntryContainer {
-			logrus.Debugf("soweli | ClearContainers: s=%s", s)
 			r.domainproxy.freeNamesLocked(entry.names)
 			r.tree.Delete(s)
 		}
@@ -1103,9 +1097,7 @@ func (r *mdnsRegistry) getEntryForNameLocked(name string) (*mdnsEntry, bool) {
 	return entry, false
 }
 
-func (r *mdnsRegistry) getIPsForName(name string) (net.IP, net.IP) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (r *mdnsRegistry) getIPsForNameLocked(name string) (net.IP, net.IP) {
 	entry, _ := r.getEntryForNameLocked(name)
 	if entry == nil {
 		logrus.Debugf("could not find entry for %s", name)
@@ -1214,55 +1206,5 @@ func (r *mdnsRegistry) dockerPostStart() error {
 			ip6:        mapToNat64(k8sIP4),
 		})
 	}
-	return nil
-}
-
-func ovmGetProxyMark(upstream domainproxytypes.Upstream) int {
-	mark := netconf.VmFwmarkTproxyOutboundBit
-	if upstream.Docker {
-		mark |= netconf.VmFwmarkDockerRouteBit
-	}
-
-	return mark
-}
-
-func registryGetProxyUpstream(r *mdnsRegistry, host string, v4 bool) (domainproxytypes.Upstream, error) {
-	var proxyAddr netip.Addr
-
-	if proxyAddrVal, err := netip.ParseAddr(host); err == nil {
-		proxyAddr = proxyAddrVal
-	} else {
-		proxyIP4, proxyIP6 := r.getIPsForName(strings.TrimSuffix(host, ".") + ".")
-
-		if v4 && proxyIP4 != nil {
-			if proxyAddr4, ok := netip.AddrFromSlice(proxyIP4); ok {
-				proxyAddr = proxyAddr4
-			}
-		}
-		if !v4 && proxyIP6 != nil {
-			if proxyAddr6, ok := netip.AddrFromSlice(proxyIP6); ok {
-				proxyAddr = proxyAddr6
-			}
-		}
-	}
-
-	if !proxyAddr.IsValid() {
-		return domainproxytypes.Upstream{}, errors.New("could not find proxyaddr")
-	}
-
-	upstreamIP, ok := r.domainproxy.ipMap[proxyAddr]
-	if !ok {
-		return domainproxytypes.Upstream{}, errors.New("could not find backend in mdns registry")
-	}
-
-	return upstreamIP, nil
-}
-
-func (s *SconGuestServer) GetProxyUpstream(args sgtypes.GetProxyUpstreamArgs, reply *domainproxytypes.Upstream) error {
-	upstream, err := registryGetProxyUpstream(s.m.net.mdnsRegistry, args.Host, args.V4)
-	if err != nil {
-		return err
-	}
-	*reply = upstream
 	return nil
 }

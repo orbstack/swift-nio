@@ -25,23 +25,33 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const upstreamDialTimeout = 500 * time.Millisecond
+
+var upstreamProbePorts = [...]int{80, 443}
+
 type MdnsContextKey int
 
 const (
 	MdnsContextKeyDownstream MdnsContextKey = iota
 )
 
-type GetUpstreamFunc func(host string, v4 bool) (domainproxytypes.Upstream, error)
-type GetMarkFunc func(upstream domainproxytypes.Upstream) int
+type ProxyCallbacks interface {
+	GetUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error)
+	GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error)
+	GetMark(upstream domainproxytypes.Upstream) int
+
+	NfqueueMarkReject(mark uint32) uint32
+	NftableName() string
+}
+
 type DomainTLSProxy struct {
-	getUpstream GetUpstreamFunc
-	getMark     GetMarkFunc
+	cb ProxyCallbacks
 
 	tlsController *tlsutil.TLSController
 	tproxy        *bpf.Tproxy
 }
 
-func NewDomainTLSProxy(host *hclient.Client, getUpstream GetUpstreamFunc, getMark GetMarkFunc) (*DomainTLSProxy, error) {
+func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy, error) {
 	tlsController, err := tlsutil.NewTLSController(host)
 	if err != nil {
 		return nil, err
@@ -49,8 +59,7 @@ func NewDomainTLSProxy(host *hclient.Client, getUpstream GetUpstreamFunc, getMar
 
 	return &DomainTLSProxy{
 		tlsController: tlsController,
-		getUpstream:   getUpstream,
-		getMark:       getMark,
+		cb:            cb,
 	}, nil
 }
 
@@ -97,6 +106,11 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) e
 	err := p.tlsController.LoadRoot()
 	if err != nil {
 		return err
+	}
+
+	err = p.startQueue()
+	if err != nil {
+		return fmt.Errorf("start queue: %w", err)
 	}
 
 	lo, err := netlink.LinkByName("lo")
@@ -221,6 +235,7 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) e
 	return nil
 }
 
+// warning: caller must check and skip this in hairpinning cases
 func dialerForTransparentBind(bindIP net.IP, mark int) *net.Dialer {
 	var sa unix.Sockaddr
 	if ip4 := bindIP.To4(); ip4 != nil {
@@ -300,13 +315,13 @@ func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListen
 		return
 	}
 
-	upstream, err := p.getUpstream(destHost, is4)
+	upstream, err := p.cb.GetUpstreamByName(destHost, is4)
 	if err != nil {
 		logrus.WithError(err).Error("failed to get upstream")
 		conn.Close()
 		return
 	}
-	mark := p.getMark(upstream)
+	mark := p.cb.GetMark(upstream)
 
 	// attempt to make a connection to port 443 to do reterm
 	// since these are local containers, connection should fail fast and return RST (-ECONNREFUSED)
@@ -323,7 +338,7 @@ func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListen
 	} else {
 		dialer = &net.Dialer{}
 	}
-	dialer.Timeout = 500 * time.Millisecond
+	dialer.Timeout = upstreamDialTimeout
 	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstream.IP.String(), destPort))
 	if err == nil {
 		upstreamConn.Close()
@@ -395,16 +410,18 @@ func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string)
 		is4 = downstreamIP.(net.IP).To4() != nil
 	}
 
-	upstream, err := p.getUpstream(dialHost, is4)
+	upstream, err := p.cb.GetUpstreamByName(dialHost, is4)
 	if err != nil {
 		return nil, err
 	}
 
 	// fall back to normal dialer
 	// namely, this is used for hairpin, ie when a machine makes a request to its own domainproxy ip
-	dialer := &net.Dialer{}
+	var dialer *net.Dialer
 	if downstreamIP, ok := downstreamIP.(net.IP); ok && downstreamIP != nil && !downstreamIP.Equal(upstream.IP) {
-		dialer = dialerForTransparentBind(downstreamIP, p.getMark(upstream))
+		dialer = dialerForTransparentBind(downstreamIP, p.cb.GetMark(upstream))
+	} else {
+		dialer = &net.Dialer{}
 	}
 
 	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), dialPort))

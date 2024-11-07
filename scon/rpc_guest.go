@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/rpc"
 	"os"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
+	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
@@ -380,6 +382,24 @@ func (s *SconGuestServer) clearDockerContainersCache() {
 	defer s.mu.Unlock()
 
 	clear(s.dockerContainersCache)
+}
+
+func (s *SconGuestServer) GetProxyUpstreamByName(args sgtypes.GetProxyUpstreamByNameArgs, reply *domainproxytypes.Upstream) error {
+	upstream, err := s.m.net.mdnsRegistry.getProxyUpstreamByName(args.Host, args.V4)
+	if err != nil {
+		return err
+	}
+	*reply = upstream
+	return nil
+}
+
+func (s *SconGuestServer) GetProxyUpstreamByAddr(args netip.Addr, reply *domainproxytypes.Upstream) error {
+	upstream, err := s.m.net.mdnsRegistry.getProxyUpstreamByAddr(args)
+	if err != nil {
+		return err
+	}
+	*reply = upstream
+	return nil
 }
 
 func ListenSconGuest(m *ConManager) error {

@@ -156,6 +156,9 @@ func (n *Network) Start() error {
 		"FWMARK_TPROXY_OUTBOUND_BIT":    strconv.Itoa(netconf.VmFwmarkTproxyOutboundBit),
 		"FWMARK_ISOLATED_BIT":           strconv.Itoa(netconf.VmFwmarkIsolatedBit),
 		"FWMARK_HAIRPIN_MASQUERADE_BIT": strconv.Itoa(netconf.VmFwmarkHairpinMasqueradeBit),
+		"FWMARK_NFQUEUE_REJECT_BIT":     strconv.Itoa(netconf.VmFwmarkNfqueueRejectBit),
+
+		"QUEUE_DOMAINPROXY_PENDING": strconv.Itoa(netconf.QueueDomainproxyPending),
 
 		// port forward dest
 		"INTERNAL_LISTEN_IP4": netconf.VnetGuestIP4,
