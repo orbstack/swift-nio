@@ -20,7 +20,6 @@ import (
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util"
-	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -53,6 +52,45 @@ func NewDomainTLSProxy(host *hclient.Client, getUpstream GetUpstreamFunc, getMar
 		getUpstream:   getUpstream,
 		getMark:       getMark,
 	}, nil
+}
+
+func (p *DomainTLSProxy) getReverseProxyServer(https bool) *http.Server {
+	httpProxy := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			err := p.rewriteRequest(r, https)
+			if err != nil {
+				logrus.WithError(err).Error("failed to rewrite request")
+			}
+		},
+		Transport: &http.Transport{
+			DialContext: p.dialUpstream,
+			// establishing conns is cheap locally
+			// do not limit MaxConnsPerHost in case of load testing
+			IdleConnTimeout: 5 * time.Second,
+			// allow more idle conns to avoid TIME_WAIT hogging all ports under load test (default 2)
+			// otherwise we get "connect: cannot assign requested address" after too long
+			MaxIdleConnsPerHost: 200,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+		ErrorHandler: p.handleError,
+	}
+
+	httpServer := &http.Server{
+		Handler: httpProxy,
+		TLSConfig: &tls.Config{
+			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				if !strings.HasSuffix(hlo.ServerName, ".local") {
+					return nil, nil
+				}
+
+				return p.tlsController.MakeCertForHost(hlo.ServerName)
+			},
+		},
+	}
+
+	return httpServer
 }
 
 func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) error {
@@ -135,55 +173,44 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) e
 
 	p.tproxy = tproxy
 
-	dispatchedLn4 := util.NewDispatchedListener(ln4, p.dispatchIncomingConn)
-	go dispatchedLn4.Run()
-	dispatchedLn6 := util.NewDispatchedListener(ln6, p.dispatchIncomingConn)
-	go dispatchedLn6.Run()
+	httpLn4 := util.NewDispatchedListener(ln4.Addr)
+	httpLn6 := util.NewDispatchedListener(ln6.Addr)
 
-	httpProxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			err := p.rewriteRequest(r)
-			if err != nil {
-				logrus.WithError(err).Error("failed to rewrite request")
-			}
-		},
-		Transport: &http.Transport{
-			DialContext: p.dialUpstream,
-			// establishing conns is cheap locally
-			// do not limit MaxConnsPerHost in case of load testing
-			IdleConnTimeout: 5 * time.Second,
-			// allow more idle conns to avoid TIME_WAIT hogging all ports under load test (default 2)
-			// otherwise we get "connect: cannot assign requested address" after too long
-			MaxIdleConnsPerHost: 200,
-		},
-		ErrorHandler: p.handleError,
-	}
-
-	httpServer := &http.Server{
-		Handler: httpProxy,
-		TLSConfig: &tls.Config{
-			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				if !strings.HasSuffix(hlo.ServerName, ".local") {
-					return nil, nil
-				}
-
-				return p.tlsController.MakeCertForHost(hlo.ServerName)
-			},
-		},
-	}
+	httpServer := p.getReverseProxyServer( /*https*/ false)
 
 	go func() {
-		err := httpServer.ServeTLS(dispatchedLn4, "", "")
+		err := httpServer.ServeTLS(httpLn4, "", "")
 		if err != nil {
 			logrus.WithError(err).Error("domaintproxy: serve tls failed")
 		}
 	}()
 	go func() {
-		err := httpServer.ServeTLS(dispatchedLn6, "", "")
+		err := httpServer.ServeTLS(httpLn6, "", "")
 		if err != nil {
 			logrus.WithError(err).Error("domaintproxy: serve tls failed")
 		}
 	}()
+
+	httpsLn4 := util.NewDispatchedListener(ln4.Addr)
+	httpsLn6 := util.NewDispatchedListener(ln6.Addr)
+
+	httpsServer := p.getReverseProxyServer( /*https*/ true)
+
+	go func() {
+		err := httpsServer.ServeTLS(httpsLn4, "", "")
+		if err != nil {
+			logrus.WithError(err).Error("domaintproxy: serve tls failed")
+		}
+	}()
+	go func() {
+		err := httpsServer.ServeTLS(httpsLn6, "", "")
+		if err != nil {
+			logrus.WithError(err).Error("domaintproxy: serve tls failed")
+		}
+	}()
+
+	go p.runConnectionDispatcher(httpLn4, httpsLn4, ln4)
+	go p.runConnectionDispatcher(httpLn6, httpsLn6, ln6)
 
 	return nil
 }
@@ -235,7 +262,25 @@ func dialerForTransparentBind(bindIP net.IP, mark int) *net.Dialer {
 	}
 }
 
-func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
+func (p *DomainTLSProxy) runConnectionDispatcher(httpHandler *util.DispatchedListener, httpsHandler *util.DispatchedListener, listen net.Listener) {
+	for {
+		conn, err := listen.Accept()
+		if err != nil {
+			// pass through errors. don't need to check if this is successful because it's fine if they're already closed
+			httpHandler.SubmitErr(err)
+			httpsHandler.SubmitErr(err)
+			return
+		}
+
+		if httpHandler.Closed() || httpsHandler.Closed() {
+			return
+		}
+
+		go p.dispatchIncomingConn(httpHandler, httpsHandler, conn)
+	}
+}
+
+func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListener, httpsHandler *util.DispatchedListener, conn net.Conn) {
 	// this function just lets us directly passthrough to an existing ssl server. this should be removed soon in favor of port probing
 
 	downstreamIP := conn.RemoteAddr().(*net.TCPAddr).IP
@@ -245,44 +290,60 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (bool, error) {
 	destHost, destPort, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
 		logrus.WithError(err).Errorf("couldn't split %s into host and port", conn.LocalAddr().String())
-		return false, nil
+		conn.Close()
+		return
 	}
 
 	upstream, err := p.getUpstream(destHost, is4)
 	if err != nil {
 		logrus.WithError(err).Error("failed to get upstream")
-		return false, nil
+		conn.Close()
+		return
 	}
 	mark := p.getMark(upstream)
 
-	// always attempt to make a direct connection and dial orig port on orig IP first
+	// attempt to make a connection to port 443 to do reterm
 	// since these are local containers, connection should fail fast and return RST (-ECONNREFUSED)
 	// EXCEPT: if dest is a machine and user installed ufw, then ufw will drop the packet and we'll get a timeout
 	//   * workaround: short connection timeout
 	//     * this works: if load test is causing listen backlog to be full, we will get immediate RST because port is open in firewall
 	// still need to bind to host to get correct cfwd behavior, especially for 443->8443 or 443->https_port case
-	// TODO: how can we do this in kernel, without userspace proxying? is SOCKMAP good?
+	// TODO: do with probing
+	https := false
 	dialer := dialerForTransparentBind(downstreamIP, mark)
 	dialer.Timeout = 500 * time.Millisecond
 	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstream.IP.String(), destPort))
 	if err == nil {
-		defer upstreamConn.Close()
-		defer conn.Close()
-		tcppump.Pump2SpTcpTcp(conn.(*net.TCPConn), upstreamConn.(*net.TCPConn))
-		return false, nil
+		upstreamConn.Close()
+		https = true
 	}
 
-	return true, nil
+	if https {
+		err := httpsHandler.SubmitConn(conn)
+		if err != nil {
+			conn.Close()
+		}
+	} else {
+		err := httpHandler.SubmitConn(conn)
+		if err != nil {
+			conn.Close()
+		}
+	}
 }
 
-func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest) error {
+func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest, https bool) error {
 	host := r.In.Host
 	if host == "" {
 		host = r.In.TLS.ServerName
 	}
 
+	scheme := "http"
+	if https {
+		scheme = "https"
+	}
+
 	r.SetURL(&url.URL{
-		Scheme: "http",
+		Scheme: scheme,
 		// Host is mandatory
 		// always use SNI for upstream, so we can pass through any Host header
 		Host: host,

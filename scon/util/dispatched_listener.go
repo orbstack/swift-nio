@@ -6,53 +6,57 @@ import (
 )
 
 type DispatchedListener struct {
-	orig     net.Listener
-	callback func(net.Conn) (bool, error)
-
 	closed atomic.Bool
 
-	passthruConns  chan net.Conn
-	passthruErrors chan error
+	addrFunc func() net.Addr
+
+	connQueue  chan net.Conn
+	errorQueue chan error
 }
 
-// interface conformance
+// check interface conformance
 var _ net.Listener = &DispatchedListener{}
 
-func NewDispatchedListener(orig net.Listener, callback func(net.Conn) (bool, error)) *DispatchedListener {
+func NewDispatchedListener(addrFunc func() net.Addr) *DispatchedListener {
 	return &DispatchedListener{
-		orig:     orig,
-		callback: callback,
-		// unbuffered in order to preserve listener backlog pressure
-		passthruConns:  make(chan net.Conn),
-		passthruErrors: make(chan error),
+		addrFunc: addrFunc,
+
+		connQueue:  make(chan net.Conn),
+		errorQueue: make(chan error),
 	}
 }
 
-func (l *DispatchedListener) Run() {
+func (l *DispatchedListener) RunCallbackDispatcher(orig net.Listener, callback func(net.Conn) (net.Conn, error)) {
 	for {
-		conn, err := l.orig.Accept()
-		// don't send anything if closed, or we'll get a panic
-		if l.closed.Load() {
-			return
-		}
+		conn, err := orig.Accept()
 		if err != nil {
 			// return error to next accept call
-			l.passthruErrors <- err
+			l.SubmitErr(err) // okay to not check error because it's fine if it's closed
 			return
 		}
 
-		// must use channels and goroutines because callback can take up to 500ms and stall all other conns
+		// must use channels and goroutines so we don't stall other conns for long running callback
 		go func() {
-			cont, err := l.callback(conn)
-			if err != nil {
-				conn.Close()
-				l.passthruErrors <- err
+			if l.Closed() {
+				// don't run callback if closed
 				return
 			}
 
-			if cont {
-				// keep conn alive for Accept
-				l.passthruConns <- conn
+			newConn, err := callback(conn)
+			if err != nil {
+				conn.Close()
+				l.SubmitErr(err)
+				return
+			}
+
+			if newConn != nil {
+				// passthrough
+				err := l.SubmitConn(newConn)
+				if err != nil {
+					// l closed while running callback
+					conn.Close()
+					return
+				}
 			}
 			// swallow conn otherwise. callback is responsible for closing it
 		}()
@@ -65,12 +69,12 @@ func (l *DispatchedListener) Accept() (net.Conn, error) {
 	}
 
 	select {
-	case conn, ok := <-l.passthruConns:
+	case conn, ok := <-l.connQueue:
 		if !ok {
 			return nil, net.ErrClosed
 		}
 		return conn, nil
-	case err, ok := <-l.passthruErrors:
+	case err, ok := <-l.errorQueue:
 		if !ok {
 			return nil, net.ErrClosed
 		}
@@ -83,11 +87,31 @@ func (l *DispatchedListener) Close() error {
 		return net.ErrClosed
 	}
 
-	close(l.passthruConns)
-	close(l.passthruErrors)
-	return l.orig.Close()
+	close(l.connQueue)
+	close(l.errorQueue)
+	return nil
+}
+
+func (l *DispatchedListener) Closed() bool {
+	return l.closed.Load()
 }
 
 func (l *DispatchedListener) Addr() net.Addr {
-	return l.orig.Addr()
+	return l.addrFunc()
+}
+
+func (l *DispatchedListener) SubmitConn(conn net.Conn) error {
+	if l.closed.Load() {
+		return net.ErrClosed
+	}
+	l.connQueue <- conn
+	return nil
+}
+
+func (l *DispatchedListener) SubmitErr(err error) error {
+	if l.closed.Load() {
+		return net.ErrClosed
+	}
+	l.errorQueue <- err
+	return nil
 }
