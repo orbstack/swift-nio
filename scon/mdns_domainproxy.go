@@ -339,12 +339,12 @@ func (d *domainproxyRegistry) freeNamesLocked(names []string) {
 	for _, name := range names {
 		if addr, ok := d.v4.nameMap[name]; ok {
 			if upstream, ok := d.ipMap[addr]; ok && upstream.EqualNames(names) {
-				d.setAddrUpstreamLocked(addr, domainproxytypes.Upstream{IP: nil})
+				d.freeAddrLocked(addr)
 			}
 		}
 		if addr, ok := d.v6.nameMap[name]; ok {
 			if upstream, ok := d.ipMap[addr]; ok && upstream.EqualNames(names) {
-				d.setAddrUpstreamLocked(addr, domainproxytypes.Upstream{IP: nil})
+				d.freeAddrLocked(addr)
 			}
 		}
 	}
