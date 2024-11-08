@@ -239,3 +239,16 @@ func (d *DockerAgent) onContainerStop(ctr dockertypes.ContainerSummaryMin) error
 
 	return nil
 }
+
+func (a *AgentServer) DockerRemoveContainerFromCache(cid string, reply *None) error {
+	newLastContainers := make([]dockertypes.ContainerSummaryMin, 0, max(len(a.docker.lastContainers)-1, 0))
+	for _, ctr := range a.docker.lastContainers {
+		if ctr.ID != cid {
+			newLastContainers = append(newLastContainers, ctr)
+		}
+	}
+
+	a.docker.lastContainers = newLastContainers
+
+	return nil
+}

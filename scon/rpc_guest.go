@@ -144,6 +144,14 @@ func (s *SconGuestServer) onDockerContainerRemovedFromCache(cid string) error {
 	}
 
 	logrus.WithField("cid", cid).Debug("removing container due to restart")
+
+	err := s.dockerMachine.UseAgent(func(c *agent.Client) error {
+		return c.DockerRemoveContainerFromCache(cid)
+	})
+	if err != nil {
+		return err
+	}
+
 	return s.onDockerContainersChangedLocked(sgtypes.ContainersDiff{
 		Diff: sgtypes.Diff[dockertypes.ContainerSummaryMin]{
 			Added:   nil,

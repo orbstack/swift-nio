@@ -455,3 +455,13 @@ func (c *Client) UpdateHostname(oldName string, newName string) error {
 
 	return nil
 }
+
+func (c *Client) DockerRemoveContainerFromCache(cid string) error {
+	var none None
+	err := c.rpc.Call("a.DockerRemoveContainerFromCache", cid, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
