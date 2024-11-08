@@ -200,7 +200,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 
 	// Go sets soft rlimit = hard. bring it back down to avoid perf issues with fd closing in bad processes
 	err = unix.Setrlimit(unix.RLIMIT_NOFILE, &unix.Rlimit{
-		Cur: 20480, // match lxc, and safe margin for ephemeral ports
+		Cur: 1048576,
 		Max: 1048576,
 	})
 	if err != nil {
