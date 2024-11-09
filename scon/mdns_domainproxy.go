@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/nftables"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -106,19 +107,22 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 	if upstream.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
-				err := nft.Run("delete", "element", "inet", netconf.DockerNftable, prefix, fmt.Sprintf("{ %v }", ip))
-				if err != nil {
-					return struct{}{}, err
-				}
-				// may not exist if already removed due to successful upstream probe
-				_ = nft.Run("delete", "element", "inet", netconf.DockerNftable, prefix+"_pending", fmt.Sprintf("{ %v }", ip))
-
-				err = nft.Run("delete", "element", "inet", netconf.DockerNftable, prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", upstream.IP, upstream.IP))
-				if err != nil {
-					return struct{}{}, err
-				}
-
-				return struct{}{}, nil
+				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.DockerNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+					err := nft.MapDeleteByName(conn, table, prefix, nft.IPAddr(ip))
+					if err != nil {
+						return err
+					}
+					// may not exist if already removed due to successful upstream probe
+					err = nft.SetDeleteByName(conn, table, prefix+"_pending", nft.IPAddr(ip))
+					if err != nil && !errors.Is(err, unix.ENOENT) {
+						return err
+					}
+					err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
+					if err != nil {
+						return err
+					}
+					return nil
+				})
 			})
 			if err != nil {
 				// this will happen if docker is not running -- very possible if the docker machine just shut down
@@ -128,27 +132,42 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 			}
 		}
 
-		err := nft.Run("delete", "element", "inet", netconf.VmNftable, prefix+"_docker", fmt.Sprintf("{ %v }", ip))
+		err := nft.WithTable(nft.FamilyInet, netconf.VmNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+			return nft.SetDeleteByName(conn, table, prefix+"_docker", nft.IPAddr(ip))
+		})
 		if err != nil {
 			logrus.WithError(err).Error("could not delete from domainproxy_docker")
 		}
 	}
 
-	err := nft.Run("delete", "element", "inet", netconf.VmNftable, prefix, fmt.Sprintf("{ %v }", ip))
-	if err != nil {
-		logrus.WithError(err).Debug("could not remove from domainproxy map")
-	}
-	// may not exist if already removed due to successful upstream probe
-	_ = nft.Run("delete", "element", "inet", netconf.VmNftable, prefix+"_pending", fmt.Sprintf("{ %v }", ip))
+	err := nft.WithTable(nft.FamilyInet, netconf.VmNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+		err := nft.MapDeleteByName(conn, table, prefix, nft.IPAddr(ip))
+		if err != nil {
+			logrus.WithError(err).Error("could not remove from domainproxy map")
+		}
 
-	err = nft.Run("delete", "element", "inet", netconf.VmNftable, prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
+		// may not exist if already removed due to successful upstream probe
+		err = nft.SetDeleteByName(conn, table, prefix+"_pending", nft.IPAddr(ip))
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			logrus.WithError(err).Error("could not remove from domainproxy_pending map")
+		}
+
+		err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
+		if err != nil {
+			logrus.WithError(err).Error("could not remove from domainproxy_masquerade map")
+		}
+
+		return nil
+	})
 	if err != nil {
-		logrus.WithError(err).Debug("could not remove from domainproxy_masquerade map")
+		logrus.WithError(err).Error("could not remove from domainproxy table 1")
 	}
 
-	err = nft.Run("delete", "element", "bridge", "vm_bridge", prefix+"_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, upstream.IP))
+	err = nft.WithTable(nft.FamilyBridge, netconf.VmBridgeNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+		return nft.SetDeleteByName(conn, table, prefix+"_masquerade_bridge", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
+	})
 	if err != nil {
-		logrus.WithError(err).Debug("could not remove from domainproxy_masquerade_bridge map")
+		logrus.WithError(err).Error("could not remove from domainproxy_masquerade_bridge map")
 	}
 }
 
@@ -177,27 +196,32 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 	if val.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
-				err := nft.Run("add", "element", "inet", netconf.DockerNftable, prefix, fmt.Sprintf("{ %v : %v }", ip, val.IP))
-				if err != nil {
-					return struct{}{}, err
-				}
-				err = nft.Run("add", "element", "inet", netconf.DockerNftable, prefix+"_pending", fmt.Sprintf("{ %v }", ip))
-				if err != nil {
-					return struct{}{}, err
-				}
-				err = nft.Run("add", "element", "inet", netconf.DockerNftable, prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", val.IP, val.IP))
-				if err != nil {
-					return struct{}{}, err
-				}
-
-				return struct{}{}, nil
+				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.DockerNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+					err := nft.MapAddByName(conn, table, prefix, nft.IPAddr(ip), nft.IP(val.IP))
+					if err != nil {
+						return err
+					}
+					// may EEXIST if raced with ECONNREFUSED removal
+					err = nft.SetAddByName(conn, table, prefix+"_pending", nft.IPAddr(ip))
+					if err != nil && !errors.Is(err, unix.EEXIST) {
+						return err
+					}
+					// in docker it's val.IP -> val.IP because it's post-dnat
+					err = nft.SetAddByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IP(val.IP), nft.IP(val.IP)))
+					if err != nil {
+						return err
+					}
+					return nil
+				})
 			})
 			if err != nil {
 				logrus.WithError(err).Error("failed to add to domainproxy in docker")
 			}
 		}
 
-		err := nft.Run("add", "element", "inet", netconf.VmNftable, prefix+"_docker", fmt.Sprintf("{ %v }", ip))
+		err := nft.WithTable(nft.FamilyInet, netconf.VmNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+			return nft.SetAddByName(conn, table, prefix+"_docker", nft.IPAddr(ip))
+		})
 		if err != nil {
 			logrus.WithError(err).Error("failed to add to domainproxy_docker")
 		}
@@ -205,22 +229,34 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 
 	d.addNeighbor(ip)
 
-	err := nft.Run("add", "element", "inet", netconf.VmNftable, prefix, fmt.Sprintf("{ %v : %v }", ip, val.IP))
+	err := nft.WithTable(nft.FamilyInet, netconf.VmNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+		err := nft.MapAddByName(conn, table, prefix, nft.IPAddr(ip), nft.IP(val.IP))
+		if err != nil {
+			logrus.WithError(err).Debug("could not add to domainproxy map")
+		}
+		err = nft.SetAddByName(conn, table, prefix+"_pending", nft.IPAddr(ip))
+		if err != nil && !errors.Is(err, unix.EEXIST) {
+			// may EEXIST if raced with ECONNREFUSED removal
+			logrus.WithError(err).Debug("could not add to domainproxy_pending map")
+		}
+
+		// in machines it's ip -> val.IP because it's pre-dnat
+		err = nft.SetAddByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(val.IP)))
+		if err != nil {
+			logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
+		}
+
+		return nil
+	})
 	if err != nil {
-		logrus.WithError(err).Debug("could not add to domainproxy map")
-	}
-	err = nft.Run("add", "element", "inet", netconf.VmNftable, prefix+"_pending", fmt.Sprintf("{ %v }", ip))
-	if err != nil {
-		logrus.WithError(err).Debug("could not add to domainproxy_pending map")
+		logrus.WithError(err).Error("could not add to domainproxy table 2")
 	}
 
-	err = nft.Run("add", "element", "inet", netconf.VmNftable, prefix+"_masquerade", fmt.Sprintf("{ %v . %v }", ip, val.IP))
+	err = nft.WithTable(nft.FamilyBridge, netconf.VmBridgeNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+		return nft.SetAddByName(conn, table, prefix+"_masquerade_bridge", nft.Concat(nft.IPAddr(ip), nft.IP(val.IP)))
+	})
 	if err != nil {
-		logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
-	}
-	err = nft.Run("add", "element", "bridge", "vm_bridge", prefix+"_masquerade_bridge", fmt.Sprintf("{ %v . %v }", ip, val.IP))
-	if err != nil {
-		logrus.WithError(err).Error("failed to add to domainproxy_masquerade_bridge")
+		logrus.WithError(err).Error("could not add to domainproxy_masquerade_bridge")
 	}
 
 	d.ipMap[ip] = val

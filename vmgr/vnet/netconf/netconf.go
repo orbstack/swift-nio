@@ -226,4 +226,5 @@ const (
 )
 
 const VmNftable = "vm"
+const VmBridgeNftable = "vm_bridge"
 const DockerNftable = "orbstack"

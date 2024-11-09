@@ -12,11 +12,13 @@ import (
 	"github.com/florianl/go-nfqueue"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"github.com/google/nftables"
 	"github.com/mdlayher/netlink"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 func (d *DomainTLSProxy) startQueue() error {
@@ -139,13 +141,18 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 		return false, nil
 	}
 
-	// remove from pending map
-	mapName := "domainproxy4_pending"
+	// remove from pending set
+	setName := "domainproxy4_pending"
 	if dstIP.Is6() {
-		mapName = "domainproxy6_pending"
+		setName = "domainproxy6_pending"
 	}
 	// may fail in case of race with a concurrent probe
-	_ = nft.Run("delete", "element", "inet", d.cb.NftableName(), mapName, fmt.Sprintf("{ %v }", dstIP))
+	err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
+		return nft.SetDeleteByName(conn, table, setName, nft.IPAddr(dstIP))
+	})
+	if err != nil && !errors.Is(err, unix.ENOENT) {
+		logrus.WithError(err).Error("failed to delete from domainproxy set")
+	}
 
 	return true, nil
 }
