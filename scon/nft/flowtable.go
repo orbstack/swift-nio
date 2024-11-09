@@ -9,28 +9,20 @@ import (
 )
 
 func UpdateFlowtable(tableName string, ftName string, interfaces []string) error {
-	conn, err := nftables.New(nftables.AsLasting())
-	if err != nil {
-		return err
-	}
-	defer conn.CloseLasting()
+	return WithTable(FamilyInet, tableName, func(conn *nftables.Conn, table *nftables.Table) error {
+		// returns flowtable
+		_ = conn.AddFlowtable(&nftables.Flowtable{
+			Table: table,
+			Name:  ftName,
+			// hook ingress priority filter;
+			Hooknum:  nftables.FlowtableHookIngress,
+			Priority: nftables.FlowtablePriorityFilter,
+			Devices:  interfaces,
+			Flags:    0,
+		})
 
-	table, err := conn.ListTableOfFamily(tableName, nftables.TableFamilyINet)
-	if err != nil {
-		return err
-	}
-
-	_ = conn.AddFlowtable(&nftables.Flowtable{
-		Table: table,
-		Name:  ftName,
-		// hook ingress priority filter;
-		Hooknum:  nftables.FlowtableHookIngress,
-		Priority: nftables.FlowtablePriorityFilter,
-		Devices:  interfaces,
-		Flags:    0,
+		return nil
 	})
-
-	return conn.Flush()
 }
 
 // RefreshFlowtableBridgePorts updates the flowtable with all ports attached to the given bridges, as well as the forwarding ports.
