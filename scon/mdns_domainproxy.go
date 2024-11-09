@@ -107,7 +107,7 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 	if upstream.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
-				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.DockerNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 					err := nft.MapDeleteByName(conn, table, prefix, nft.IPAddr(ip))
 					if err != nil {
 						return err
@@ -132,7 +132,7 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 			}
 		}
 
-		err := nft.WithTable(nft.FamilyInet, netconf.VmNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+		err := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 			return nft.SetDeleteByName(conn, table, prefix+"_docker", nft.IPAddr(ip))
 		})
 		if err != nil {
@@ -140,7 +140,7 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 		}
 	}
 
-	err := nft.WithTable(nft.FamilyInet, netconf.VmNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+	err := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 		err := nft.MapDeleteByName(conn, table, prefix, nft.IPAddr(ip))
 		if err != nil {
 			logrus.WithError(err).Error("could not remove from domainproxy map")
@@ -163,7 +163,7 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 		logrus.WithError(err).Error("could not remove from domainproxy table 1")
 	}
 
-	err = nft.WithTable(nft.FamilyBridge, netconf.VmBridgeNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+	err = nft.WithTable(nft.FamilyBridge, netconf.NftableBridge, func(conn *nftables.Conn, table *nftables.Table) error {
 		return nft.SetDeleteByName(conn, table, prefix+"_masquerade_bridge", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
 	})
 	if err != nil {
@@ -196,7 +196,7 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 	if val.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
-				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.DockerNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 					err := nft.MapAddByName(conn, table, prefix, nft.IPAddr(ip), nft.IP(val.IP))
 					if err != nil {
 						return err
@@ -219,7 +219,7 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 			}
 		}
 
-		err := nft.WithTable(nft.FamilyInet, netconf.VmNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+		err := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 			return nft.SetAddByName(conn, table, prefix+"_docker", nft.IPAddr(ip))
 		})
 		if err != nil {
@@ -229,7 +229,7 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 
 	d.addNeighbor(ip)
 
-	err := nft.WithTable(nft.FamilyInet, netconf.VmNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+	err := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 		err := nft.MapAddByName(conn, table, prefix, nft.IPAddr(ip), nft.IP(val.IP))
 		if err != nil {
 			logrus.WithError(err).Debug("could not add to domainproxy map")
@@ -252,7 +252,7 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 		logrus.WithError(err).Error("could not add to domainproxy table 2")
 	}
 
-	err = nft.WithTable(nft.FamilyBridge, netconf.VmBridgeNftable, func(conn *nftables.Conn, table *nftables.Table) error {
+	err = nft.WithTable(nft.FamilyBridge, netconf.NftableBridge, func(conn *nftables.Conn, table *nftables.Table) error {
 		return nft.SetAddByName(conn, table, prefix+"_masquerade_bridge", nft.Concat(nft.IPAddr(ip), nft.IP(val.IP)))
 	})
 	if err != nil {
@@ -498,7 +498,7 @@ func (c *SconProxyCallbacks) NfqueueMarkReject(mark uint32) uint32 {
 }
 
 func (c *SconProxyCallbacks) NftableName() string {
-	return netconf.VmNftable
+	return netconf.NftableInet
 }
 
 func (r *mdnsRegistry) getProxyUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error) {

@@ -225,6 +225,5 @@ const (
 	QueueDomainproxyPending = 23478
 )
 
-const VmNftable = "vm"
-const VmBridgeNftable = "vm_bridge"
-const DockerNftable = "orbstack"
+const NftableInet = "orbstack"
+const NftableBridge = "orbstack_bridge"

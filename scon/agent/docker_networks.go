@@ -176,7 +176,7 @@ func (d *DockerAgent) refreshFlowtable() error {
 	}
 
 	// always add eth0; we forward/NAT to it
-	return nft.RefreshFlowtableBridgePorts(netconf.DockerNftable, "ft", bridges, []string{"eth0"}, nil)
+	return nft.RefreshFlowtableBridgePorts(netconf.NftableInet, "ft", bridges, []string{"eth0"}, nil)
 }
 
 func dockerNetworkToInterfaceName(n *dockertypes.Network) string {
@@ -259,7 +259,7 @@ func dockerNetworkToBridgeConfig(n dockertypes.Network) (sgtypes.DockerBridgeCon
 }
 
 func editNftablesSet(action, setName, element string) error {
-	return nft.Run(action, "element", "inet", netconf.DockerNftable, setName, "{ "+element+" }")
+	return nft.Run(action, "element", "inet", netconf.NftableInet, setName, "{ "+element+" }")
 }
 
 func (d *DockerAgent) onNetworkAdd(network dockertypes.Network) error {

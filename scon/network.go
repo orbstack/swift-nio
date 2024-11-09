@@ -276,7 +276,7 @@ func (n *Network) addDelNftablesForward(action string, key sysnet.ListenerKey, m
 		mapFamily = "6"
 	}
 
-	return nft.Run(action, "element", "inet", netconf.VmNftable, mapProto+"_port_forwards"+mapFamily, fmt.Sprintf("{ %d : %v . %d }", meta.internalPort, meta.toMachineIP, key.Port()))
+	return nft.Run(action, "element", "inet", netconf.NftableInet, mapProto+"_port_forwards"+mapFamily, fmt.Sprintf("{ %d : %v . %d }", meta.internalPort, meta.toMachineIP, key.Port()))
 }
 
 func (n *Network) StartNftablesForward(key sysnet.ListenerKey, internalPort uint16, internalListenIP net.IP, toMachineIP net.IP) error {
@@ -323,7 +323,7 @@ func (n *Network) RefreshFlowtable() error {
 	// TODO: fix race if a container stops between netlink list and nftables add
 	// duplicate port = EEXIST
 	// TODO: stop excluding eth1. flowtable breaks NAT64 reply route
-	return nft.RefreshFlowtableBridgePorts(netconf.VmNftable, "ft", []string{ifBridge}, []string{ifVnet}, []string{ifVmnetMachine})
+	return nft.RefreshFlowtableBridgePorts(netconf.NftableInet, "ft", []string{ifBridge}, []string{ifVnet}, []string{ifVmnetMachine})
 }
 
 func (n *Network) Close() error {

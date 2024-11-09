@@ -596,7 +596,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		svConfig.DepServices["k8s"] = k8sCmd
 
 		// add k8s postrouting chain to nftables
-		svConfig.InitCommands = append(svConfig.InitCommands, []string{"nft", "add", "rule", "inet", netconf.DockerNftable, "postrouting", "jump postrouting-dynamic"})
+		svConfig.InitCommands = append(svConfig.InitCommands, []string{"nft", "add", "rule", "inet", netconf.NftableInet, "postrouting", "jump postrouting-dynamic"})
 
 		// remove old config symlink
 		_ = h.rootfs.Remove("/etc/rancher/k3s/k3s.yaml")
