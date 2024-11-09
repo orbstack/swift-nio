@@ -27,7 +27,9 @@ func (d *DomainTLSProxy) startQueue() error {
 		MaxPacketLen: 65536,
 		MaxQueueLen:  512,
 		Copymode:     nfqueue.NfQnlCopyPacket,
-		Logger:       logrus.StandardLogger(),
+		// declare GSO and partial checksum support to prevent reject from failing on macOS-originated packets (which are GSO + partial csum)
+		Flags:  nfqueue.NfQaCfgFlagGSO,
+		Logger: logrus.StandardLogger(),
 	}
 
 	queue, err := nfqueue.Open(&config)
@@ -52,7 +54,8 @@ func (d *DomainTLSProxy) startQueue() error {
 
 			if hasUpstream {
 				// there's an upstream, so accept the connection. (accept = continue nftables)
-				queue.SetVerdict(*a.PacketID, nfqueue.NfAccept)
+				// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
+				queue.SetVerdictModPacket(*a.PacketID, nfqueue.NfAccept, *a.Payload)
 			} else {
 				// no upstream, so reject the connection.
 				// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
@@ -60,7 +63,7 @@ func (d *DomainTLSProxy) startQueue() error {
 				if a.Mark != nil {
 					mark = *a.Mark
 				}
-				queue.SetVerdictWithMark(*a.PacketID, nfqueue.NfRepeat, int(d.cb.NfqueueMarkReject(mark)))
+				queue.SetVerdictModPacketWithMark(*a.PacketID, nfqueue.NfRepeat, int(d.cb.NfqueueMarkReject(mark)), *a.Payload)
 			}
 
 			// 0 = continue, else = stop read loop
