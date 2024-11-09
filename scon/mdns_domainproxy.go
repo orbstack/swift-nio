@@ -131,7 +131,7 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 			if err != nil {
 				// this will happen if docker is not running -- very possible if the docker machine just shut down
 				if d.dockerMachine.Running() {
-					logrus.WithError(err).Error("could not delete from domainproxy in docker")
+					logrus.WithError(err).Error("failed to delete from docker domainproxy")
 				}
 			}
 		}
@@ -140,38 +140,38 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 			return nft.SetDeleteByName(conn, table, prefix+"_docker", nft.IPAddr(ip))
 		})
 		if err != nil {
-			logrus.WithError(err).Error("could not delete from domainproxy_docker")
+			logrus.WithError(err).Error("failed to delete from domainproxy 1")
 		}
 	}
 
 	err := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 		err := nft.MapDeleteByName(conn, table, prefix, nft.IPAddr(ip))
 		if err != nil {
-			logrus.WithError(err).Error("could not remove from domainproxy map")
+			logrus.WithError(err).Error("failed to remove from domainproxy 2")
 		}
 
 		// may not exist if never probed
 		err = nft.SetDeleteByName(conn, table, prefix+"_probed", nft.IPAddr(ip))
 		if err != nil && !errors.Is(err, unix.ENOENT) {
-			logrus.WithError(err).Error("could not remove from domainproxy_probed map")
+			logrus.WithError(err).Error("failed to remove from domainproxy 3")
 		}
 
 		err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
 		if err != nil {
-			logrus.WithError(err).Error("could not remove from domainproxy_masquerade map")
+			logrus.WithError(err).Error("failed to remove from domainproxy 4")
 		}
 
 		return nil
 	})
 	if err != nil {
-		logrus.WithError(err).Error("could not remove from domainproxy table 1")
+		logrus.WithError(err).Error("failed to remove from domainproxy 5")
 	}
 
 	err = nft.WithTable(nft.FamilyBridge, netconf.NftableBridge, func(conn *nftables.Conn, table *nftables.Table) error {
 		return nft.SetDeleteByName(conn, table, prefix+"_masquerade_bridge", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
 	})
 	if err != nil {
-		logrus.WithError(err).Error("could not remove from domainproxy_masquerade_bridge map")
+		logrus.WithError(err).Error("failed to remove from domainproxy 6")
 	}
 }
 
@@ -216,7 +216,7 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 				})
 			})
 			if err != nil {
-				logrus.WithError(err).Error("failed to add to domainproxy in docker")
+				logrus.WithError(err).Error("failed to add to docker domainproxy")
 			}
 		}
 
@@ -224,7 +224,8 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 			return nft.SetAddByName(conn, table, prefix+"_docker", nft.IPAddr(ip))
 		})
 		if err != nil {
-			logrus.WithError(err).Error("failed to add to domainproxy_docker")
+			// obfuscate errors
+			logrus.WithError(err).Error("failed to add to domainproxy 1")
 		}
 	}
 
@@ -233,26 +234,26 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 	err := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 		err := nft.MapAddByName(conn, table, prefix, nft.IPAddr(ip), nft.IP(val.IP))
 		if err != nil {
-			logrus.WithError(err).Debug("could not add to domainproxy map")
+			logrus.WithError(err).Error("failed to add to domainproxy 2")
 		}
 
 		// in machines it's ip -> val.IP because it's pre-dnat
 		err = nft.SetAddByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(val.IP)))
 		if err != nil {
-			logrus.WithError(err).Error("failed to add to domainproxy_masquerade")
+			logrus.WithError(err).Error("failed to add to domainproxy 3")
 		}
 
 		return nil
 	})
 	if err != nil {
-		logrus.WithError(err).Error("could not add to domainproxy table 2")
+		logrus.WithError(err).Error("failed to add to domainproxy 4")
 	}
 
 	err = nft.WithTable(nft.FamilyBridge, netconf.NftableBridge, func(conn *nftables.Conn, table *nftables.Table) error {
 		return nft.SetAddByName(conn, table, prefix+"_masquerade_bridge", nft.Concat(nft.IPAddr(ip), nft.IP(val.IP)))
 	})
 	if err != nil {
-		logrus.WithError(err).Error("could not add to domainproxy_masquerade_bridge")
+		logrus.WithError(err).Error("failed to add to domainproxy 5")
 	}
 
 	d.ipMap[ip] = val

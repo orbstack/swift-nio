@@ -464,8 +464,8 @@ func (p *DomainTLSProxy) handleConnRefused(r *http.Request) error {
 	err2 := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 		return nft.SetDeleteByName(conn, table, setName, nft.IP(domainIP))
 	})
-	// EEXIST = raced with another ECONNREFUSED to add to set
-	if err2 != nil && !errors.Is(err2, unix.EEXIST) {
+	// ENOENT = raced with another ECONNREFUSED to remove from set
+	if err2 != nil && !errors.Is(err2, unix.ENOENT) {
 		return fmt.Errorf("delete from probed set: %w", err2)
 	}
 
