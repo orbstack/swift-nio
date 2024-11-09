@@ -705,12 +705,18 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 	var ip6 net.IP
 	// we're protected by the mdnsRegistry mutex
 	if ctrIP4 != nil {
-		if ip, ok := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{IP: ctrIP4, Names: nameStrings, Docker: true}); ok {
+		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{IP: ctrIP4, Names: nameStrings, Docker: true})
+		if err != nil {
+			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip4 for DNS")
+		} else {
 			ip4 = ip.AsSlice()
 		}
 	}
 	if ctrIP6 != nil {
-		if ip, ok := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{IP: ctrIP6, Names: nameStrings, Docker: true}); ok {
+		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{IP: ctrIP6, Names: nameStrings, Docker: true})
+		if err != nil {
+			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip6 for DNS")
+		} else {
 			ip6 = ip.AsSlice()
 		}
 	}
@@ -819,8 +825,6 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 		ip4: nil,
 		ip6: nil,
 	}
-
-	entry.ensureDomainproxyCorrectLocked()
 
 	r.tree.Insert(treeKey, entry)
 
@@ -1185,13 +1189,13 @@ func (r *mdnsRegistry) dockerPostStart() error {
 	if r.manager.vmConfig.K8sEnable {
 		k8sName := "k8s.orb.local."
 
-		k8sAddr4, ok := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{
+		k8sAddr4, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{
 			Names:  []string{k8sName},
 			IP:     net.ParseIP(netconf.SconK8sIP4),
 			Docker: true,
 		})
-		if !ok {
-			return fmt.Errorf("unable to create k8s domainproxy ip")
+		if err != nil {
+			return fmt.Errorf("unable to create k8s domainproxy ip: %w", err)
 		}
 		k8sIP4 := k8sAddr4.AsSlice()
 

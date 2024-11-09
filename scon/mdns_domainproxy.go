@@ -17,6 +17,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var (
+	errNoMoreIPs = errors.New("no more ips")
+)
+
 type domainproxyAllocator struct {
 	nameMap   map[string]netip.Addr
 	ipsFull   bool
@@ -335,13 +339,13 @@ func (d *domainproxyRegistry) findNamesUpstreamLocked(allocator *domainproxyAllo
 	return netip.Addr{}, domainproxytypes.Upstream{}, false
 }
 
-func (d *domainproxyRegistry) assignUpstreamLocked(allocator *domainproxyAllocator, val domainproxytypes.Upstream) (addr netip.Addr, ok bool) {
+func (d *domainproxyRegistry) assignUpstreamLocked(allocator *domainproxyAllocator, val domainproxytypes.Upstream) (addr netip.Addr, err error) {
 	addr, currUpstream, ok := d.findNamesUpstreamLocked(allocator, val.Names)
 	if !ok {
 		// couldn't find a reclaimable ip or our upstream, allocate
 		nextAddr, ok := d.nextAvailableIPLocked(allocator)
 		if !ok {
-			return netip.Addr{}, false
+			return netip.Addr{}, errNoMoreIPs
 		}
 
 		d.setAddrUpstreamLocked(nextAddr, val)
@@ -349,7 +353,7 @@ func (d *domainproxyRegistry) assignUpstreamLocked(allocator *domainproxyAllocat
 			allocator.nameMap[name] = nextAddr
 		}
 
-		return nextAddr, true
+		return nextAddr, nil
 	}
 
 	if !currUpstream.IsValid() {
@@ -360,7 +364,7 @@ func (d *domainproxyRegistry) assignUpstreamLocked(allocator *domainproxyAllocat
 	}
 	d.setAddrUpstreamLocked(addr, val)
 
-	return addr, true
+	return addr, nil
 }
 
 func (d *domainproxyRegistry) freeNamesLocked(names []string) {
@@ -384,22 +388,29 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 
 	valips, err := machine.GetIPAddrs()
 	if err != nil {
-		logrus.WithError(err).WithField("name", machine.Name).Debug("failed to get machine IPs for DNS.")
+		logrus.WithError(err).WithField("name", machine.Name).Debug("failed to get machine IPs for DNS")
 		return nil, nil
 	}
 
 	for _, valip := range valips {
 		if ip4 == nil && valip.To4() != nil {
-			addr, ok := d.assignUpstreamLocked(d.v4, domainproxytypes.Upstream{IP: valip, Names: names, Docker: false})
-			if ok {
-				ip4 = addr.AsSlice()
+			addr, err := d.assignUpstreamLocked(d.v4, domainproxytypes.Upstream{IP: valip, Names: names, Docker: false})
+			if err != nil {
+				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip4 for DNS")
+				continue
 			}
+
+			ip4 = addr.AsSlice()
 		}
+
 		if ip6 == nil && valip.To4() == nil {
-			addr, ok := d.assignUpstreamLocked(d.v6, domainproxytypes.Upstream{IP: valip, Names: names, Docker: false})
-			if ok {
-				ip6 = addr.AsSlice()
+			addr, err := d.assignUpstreamLocked(d.v6, domainproxytypes.Upstream{IP: valip, Names: names, Docker: false})
+			if err != nil {
+				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip6 for DNS")
+				continue
 			}
+
+			ip6 = addr.AsSlice()
 		}
 	}
 
