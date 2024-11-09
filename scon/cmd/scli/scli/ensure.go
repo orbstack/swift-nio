@@ -107,8 +107,14 @@ func updateVmgr() bool {
 
 var ensureOnce = sync.OnceValue(func() bool {
 	if vmclient.IsRunning() && os.Getenv("ORB_TEST") != "1" {
-		if !updateVmgr() {
-			return true
+		if os.Getenv("ORB_DEV") == "1" {
+			if _, s := shouldUpdateVmgr(); s {
+				color.New(color.FgYellow).Fprintln(os.Stderr, "Note: usually we'd restart vmgr, but since you're special, we're going to ignore it. Here be dragons!\n")
+			}
+		} else {
+			if !updateVmgr() {
+				return true
+			}
 		}
 	}
 
