@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/nftables"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
@@ -170,7 +171,7 @@ func (n *Network) Start() error {
 
 	// start static nftables forward for k8s server
 	// avoid taking a real forward slot - it could interfere with localhost autofwd
-	err = n.addDelNftablesForward("add", sysnet.ListenerKey{
+	err = n.addDelNftablesForward(true, sysnet.ListenerKey{
 		AddrPort: netip.AddrPortFrom(netipIPv4Loopback, ports.DockerMachineK8s),
 		Proto:    sysnet.ProtoTCP,
 	}, nftablesForwardMeta{
@@ -178,7 +179,7 @@ func (n *Network) Start() error {
 		toMachineIP:  sconDocker4,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("add k8s forward: %w", err)
 	}
 
 	// start mDNS server
@@ -265,7 +266,7 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 	return cmd.Process, nil
 }
 
-func (n *Network) addDelNftablesForward(action string, key sysnet.ListenerKey, meta nftablesForwardMeta) error {
+func (n *Network) addDelNftablesForward(add bool, key sysnet.ListenerKey, meta nftablesForwardMeta) error {
 	mapProto := "tcp"
 	if key.Proto == sysnet.ProtoUDP {
 		mapProto = "udp"
@@ -276,7 +277,13 @@ func (n *Network) addDelNftablesForward(action string, key sysnet.ListenerKey, m
 		mapFamily = "6"
 	}
 
-	return nft.Run(action, "element", "inet", netconf.NftableInet, mapProto+"_port_forwards"+mapFamily, fmt.Sprintf("{ %d : %v . %d }", meta.internalPort, meta.toMachineIP, key.Port()))
+	return nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
+		if add {
+			return nft.MapAddByName(conn, table, mapProto+"_port_forwards"+mapFamily, nft.InetService(meta.internalPort), nft.Concat(nft.IP(meta.toMachineIP), nft.InetService(key.Port())))
+		} else {
+			return nft.MapDeleteByName(conn, table, mapProto+"_port_forwards"+mapFamily, nft.InetService(meta.internalPort))
+		}
+	})
 }
 
 func (n *Network) StartNftablesForward(key sysnet.ListenerKey, internalPort uint16, internalListenIP net.IP, toMachineIP net.IP) error {
@@ -291,7 +298,7 @@ func (n *Network) StartNftablesForward(key sysnet.ListenerKey, internalPort uint
 		internalPort: internalPort,
 		toMachineIP:  toMachineIP,
 	}
-	err := n.addDelNftablesForward("add", key, meta)
+	err := n.addDelNftablesForward(true, key, meta)
 	if err != nil {
 		return err
 	}
@@ -310,7 +317,7 @@ func (n *Network) StopNftablesForward(key sysnet.ListenerKey) error {
 		return nil
 	}
 
-	err := n.addDelNftablesForward("delete", key, meta)
+	err := n.addDelNftablesForward(false, key, meta)
 	if err != nil {
 		return err
 	}
