@@ -25,7 +25,7 @@ func (d *DomainTLSProxy) startQueue() error {
 	config := nfqueue.Config{
 		NfQueue:      netconf.QueueDomainproxyProbe,
 		MaxPacketLen: 65536,
-		MaxQueueLen:  512,
+		MaxQueueLen:  1024,
 		Copymode:     nfqueue.NfQnlCopyPacket,
 		// declare GSO and partial checksum support to prevent reject from failing on macOS-originated packets (which are GSO + partial csum)
 		Flags:  nfqueue.NfQaCfgFlagGSO,
