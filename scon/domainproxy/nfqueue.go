@@ -47,24 +47,27 @@ func (d *DomainTLSProxy) startQueue() error {
 
 		ctx := context.Background()
 		err = queue.RegisterWithErrorFunc(ctx, func(a nfqueue.Attribute) int {
-			hasUpstream, err := d.handleNfqueuePacket(a)
-			if err != nil {
-				logrus.WithError(err).Error("failed to handle nfqueue packet")
-			}
-
-			if hasUpstream {
-				// there's an upstream, so accept the connection. (accept = continue nftables)
-				// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
-				queue.SetVerdictModPacket(*a.PacketID, nfqueue.NfAccept, *a.Payload)
-			} else {
-				// no upstream, so reject the connection.
-				// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
-				var mark uint32
-				if a.Mark != nil {
-					mark = *a.Mark
+			// handle packets in parallel to minimize happy eyeballs and load testing delays
+			go func() {
+				hasUpstream, err := d.handleNfqueuePacket(a)
+				if err != nil {
+					logrus.WithError(err).Error("failed to handle nfqueue packet")
 				}
-				queue.SetVerdictModPacketWithMark(*a.PacketID, nfqueue.NfRepeat, int(d.cb.NfqueueMarkReject(mark)), *a.Payload)
-			}
+
+				if hasUpstream {
+					// there's an upstream, so accept the connection. (accept = continue nftables)
+					// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
+					queue.SetVerdictModPacket(*a.PacketID, nfqueue.NfAccept, *a.Payload)
+				} else {
+					// no upstream, so reject the connection.
+					// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
+					var mark uint32
+					if a.Mark != nil {
+						mark = *a.Mark
+					}
+					queue.SetVerdictModPacketWithMark(*a.PacketID, nfqueue.NfRepeat, int(d.cb.NfqueueMarkReject(mark)), *a.Payload)
+				}
+			}()
 
 			// 0 = continue, else = stop read loop
 			return 0
