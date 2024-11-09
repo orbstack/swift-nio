@@ -117,7 +117,7 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 					if err != nil && !errors.Is(err, unix.ENOENT) {
 						return err
 					}
-					err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
+					err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IP(upstream.IP), nft.IP(upstream.IP)))
 					if err != nil {
 						return err
 					}
@@ -476,8 +476,8 @@ type SconProxyCallbacks struct {
 	r *mdnsRegistry
 }
 
-func (c *SconProxyCallbacks) GetUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error) {
-	return c.r.getProxyUpstreamByName(host, v4)
+func (c *SconProxyCallbacks) GetUpstreamByHost(host string, v4 bool) (domainproxytypes.Upstream, error) {
+	return c.r.getProxyUpstreamByHost(host, v4)
 }
 
 func (c *SconProxyCallbacks) GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {
@@ -501,7 +501,7 @@ func (c *SconProxyCallbacks) NftableName() string {
 	return netconf.NftableInet
 }
 
-func (r *mdnsRegistry) getProxyUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error) {
+func (r *mdnsRegistry) getProxyUpstreamByHost(host string, v4 bool) (domainproxytypes.Upstream, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

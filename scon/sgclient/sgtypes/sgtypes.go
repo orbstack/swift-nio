@@ -108,7 +108,7 @@ func lastIPInSubnet(addr net.IP, mask net.IPMask) net.IP {
 	return addr
 }
 
-type GetProxyUpstreamByNameArgs struct {
+type GetProxyUpstreamByHostArgs struct {
 	Host string
 	V4   bool
 }

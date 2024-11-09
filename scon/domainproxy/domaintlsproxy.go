@@ -15,11 +15,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/nftables"
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/hclient"
+	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -36,7 +39,8 @@ const (
 )
 
 type ProxyCallbacks interface {
-	GetUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error)
+	// takes name or IP string
+	GetUpstreamByHost(host string, v4 bool) (domainproxytypes.Upstream, error)
 	GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error)
 	GetMark(upstream domainproxytypes.Upstream) int
 
@@ -297,12 +301,22 @@ func (p *DomainTLSProxy) runConnectionDispatcher(httpHandler *util.DispatchedLis
 			return
 		}
 
-		go p.dispatchIncomingConn(httpHandler, httpsHandler, conn)
+		go func() {
+			err := p.dispatchIncomingConn(httpHandler, httpsHandler, conn)
+			if err != nil {
+				logrus.WithError(err).Error("failed to dispatch incoming conn")
+			}
+		}()
 	}
 }
 
-func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListener, httpsHandler *util.DispatchedListener, conn net.Conn) {
+func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListener, httpsHandler *util.DispatchedListener, conn net.Conn) (retErr error) {
 	// this function just lets us directly passthrough to an existing ssl server. this should be removed soon in favor of port probing
+	defer func() {
+		if retErr != nil {
+			conn.Close()
+		}
+	}()
 
 	downstreamIP := conn.RemoteAddr().(*net.TCPAddr).IP
 	is4 := downstreamIP.To4() != nil
@@ -310,16 +324,12 @@ func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListen
 	// this works because we never change the dest, only hook sk_assign (like tproxy but sillier)
 	destHost, destPort, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
-		logrus.WithError(err).Errorf("couldn't split %s into host and port", conn.LocalAddr().String())
-		conn.Close()
-		return
+		return fmt.Errorf("split host/port: %w", err)
 	}
 
-	upstream, err := p.cb.GetUpstreamByName(destHost, is4)
+	upstream, err := p.cb.GetUpstreamByHost(destHost, is4)
 	if err != nil {
-		logrus.WithError(err).Error("failed to get upstream")
-		conn.Close()
-		return
+		return fmt.Errorf("get upstream: %w", err)
 	}
 	mark := p.cb.GetMark(upstream)
 
@@ -346,15 +356,9 @@ func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListen
 	}
 
 	if https {
-		err := httpsHandler.SubmitConn(conn)
-		if err != nil {
-			conn.Close()
-		}
+		return httpsHandler.SubmitConn(conn)
 	} else {
-		err := httpHandler.SubmitConn(conn)
-		if err != nil {
-			conn.Close()
-		}
+		return httpHandler.SubmitConn(conn)
 	}
 }
 
@@ -383,17 +387,20 @@ func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest, https bool) er
 	r.Out.Header["X-Forwarded-For"] = r.In.Header["X-Forwarded-For"]
 	r.SetXForwarded()
 
+	// downstream = client
 	downstreamAddrStr, _, err := net.SplitHostPort(r.In.RemoteAddr)
 	if err != nil {
 		return err
 	}
 	downstreamIP := net.ParseIP(downstreamAddrStr)
 	if downstreamIP == nil {
-		return fmt.Errorf("could not parse as ip: %s", downstreamAddrStr)
+		return fmt.Errorf("parse ip: %s", downstreamAddrStr)
 	}
 
 	newContext := context.WithValue(r.Out.Context(), MdnsContextKeyDownstream, downstreamIP)
 	r.Out = r.Out.WithContext(newContext)
+
+	// embef local addr in
 
 	return nil
 }
@@ -410,7 +417,7 @@ func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string)
 		is4 = downstreamIP.(net.IP).To4() != nil
 	}
 
-	upstream, err := p.cb.GetUpstreamByName(dialHost, is4)
+	upstream, err := p.cb.GetUpstreamByHost(dialHost, is4)
 	if err != nil {
 		return nil, err
 	}
@@ -435,4 +442,32 @@ func (p *DomainTLSProxy) handleError(w http.ResponseWriter, r *http.Request, err
 	http.ServeContent(w, r, "", time.UnixMilli(0), bytes.NewReader(
 		[]byte(fmt.Sprintf("502 Bad Gateway\nOrbStack proxy error: %v\n", err)),
 	))
+
+	// on ECONNREFUSED, add to pending set, so that nfqueue returns RST again
+	if errors.Is(err, unix.ECONNREFUSED) {
+		err2 := p.handleConnRefused(r)
+		if err2 != nil {
+			logrus.WithError(err2).Error("failed to handle conn refused")
+		}
+	}
+}
+
+func (p *DomainTLSProxy) handleConnRefused(r *http.Request) error {
+	// get domainproxy IP from local addr
+	localAddr := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+	domainIP := localAddr.IP
+
+	setName := "domainproxy4_pending"
+	if domainIP.To4() == nil {
+		setName = "domainproxy6_pending"
+	}
+	err2 := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
+		return nft.SetAddByName(conn, table, setName, nft.IP(domainIP))
+	})
+	// EEXIST = raced with another ECONNREFUSED to add to set
+	if err2 != nil && !errors.Is(err2, unix.EEXIST) {
+		return fmt.Errorf("add to pending set: %w", err2)
+	}
+
+	return nil
 }

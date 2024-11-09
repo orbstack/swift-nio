@@ -15,8 +15,8 @@ type DockerProxyCallbacks struct {
 	d *DockerAgent
 }
 
-func (cb *DockerProxyCallbacks) GetUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error) {
-	return cb.d.scon.GetProxyUpstreamByName(host, v4)
+func (cb *DockerProxyCallbacks) GetUpstreamByHost(host string, v4 bool) (domainproxytypes.Upstream, error) {
+	return cb.d.scon.GetProxyUpstreamByHost(host, v4)
 }
 
 func (cb *DockerProxyCallbacks) GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {

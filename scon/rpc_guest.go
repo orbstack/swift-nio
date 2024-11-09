@@ -392,8 +392,8 @@ func (s *SconGuestServer) clearDockerContainersCache() {
 	clear(s.dockerContainersCache)
 }
 
-func (s *SconGuestServer) GetProxyUpstreamByName(args sgtypes.GetProxyUpstreamByNameArgs, reply *domainproxytypes.Upstream) error {
-	upstream, err := s.m.net.mdnsRegistry.getProxyUpstreamByName(args.Host, args.V4)
+func (s *SconGuestServer) GetProxyUpstreamByHost(args sgtypes.GetProxyUpstreamByHostArgs, reply *domainproxytypes.Upstream) error {
+	upstream, err := s.m.net.mdnsRegistry.getProxyUpstreamByHost(args.Host, args.V4)
 	if err != nil {
 		return err
 	}

@@ -61,9 +61,9 @@ func (c *Client) OnDockerRefsChanged() error {
 	return c.rpc.Call("scg.OnDockerRefsChanged", None{}, &noResult)
 }
 
-func (c *Client) GetProxyUpstreamByName(host string, v4 bool) (domainproxytypes.Upstream, error) {
+func (c *Client) GetProxyUpstreamByHost(host string, v4 bool) (domainproxytypes.Upstream, error) {
 	var reply domainproxytypes.Upstream
-	err := c.rpc.Call("scg.GetProxyUpstreamByName", sgtypes.GetProxyUpstreamByNameArgs{Host: host, V4: v4}, &reply)
+	err := c.rpc.Call("scg.GetProxyUpstreamByHost", sgtypes.GetProxyUpstreamByHostArgs{Host: host, V4: v4}, &reply)
 	if err != nil {
 		return domainproxytypes.Upstream{}, err
 	}
