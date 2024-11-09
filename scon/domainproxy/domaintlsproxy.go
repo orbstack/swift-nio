@@ -443,7 +443,7 @@ func (p *DomainTLSProxy) handleError(w http.ResponseWriter, r *http.Request, err
 		[]byte(fmt.Sprintf("502 Bad Gateway\nOrbStack proxy error: %v\n", err)),
 	))
 
-	// on ECONNREFUSED, add to pending set, so that nfqueue returns RST again
+	// on ECONNREFUSED, delete from probed set, so that nfqueue returns RST again
 	if errors.Is(err, unix.ECONNREFUSED) {
 		err2 := p.handleConnRefused(r)
 		if err2 != nil {
@@ -457,16 +457,16 @@ func (p *DomainTLSProxy) handleConnRefused(r *http.Request) error {
 	localAddr := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
 	domainIP := localAddr.IP
 
-	setName := "domainproxy4_pending"
+	setName := "domainproxy4_probed"
 	if domainIP.To4() == nil {
-		setName = "domainproxy6_pending"
+		setName = "domainproxy6_probed"
 	}
 	err2 := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
-		return nft.SetAddByName(conn, table, setName, nft.IP(domainIP))
+		return nft.SetDeleteByName(conn, table, setName, nft.IP(domainIP))
 	})
 	// EEXIST = raced with another ECONNREFUSED to add to set
 	if err2 != nil && !errors.Is(err2, unix.EEXIST) {
-		return fmt.Errorf("add to pending set: %w", err2)
+		return fmt.Errorf("delete from probed set: %w", err2)
 	}
 
 	return nil

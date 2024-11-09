@@ -222,7 +222,7 @@ const (
 
 // nfqueue IDs, shared between ovm and docker
 const (
-	QueueDomainproxyPending = 23478
+	QueueDomainproxyProbe = 23478
 )
 
 const NftableInet = "orbstack"

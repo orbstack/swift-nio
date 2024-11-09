@@ -112,8 +112,8 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 					if err != nil {
 						return err
 					}
-					// may not exist if already removed due to successful upstream probe
-					err = nft.SetDeleteByName(conn, table, prefix+"_pending", nft.IPAddr(ip))
+					// may not exist if never probed
+					err = nft.SetDeleteByName(conn, table, prefix+"_probed", nft.IPAddr(ip))
 					if err != nil && !errors.Is(err, unix.ENOENT) {
 						return err
 					}
@@ -146,10 +146,10 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 			logrus.WithError(err).Error("could not remove from domainproxy map")
 		}
 
-		// may not exist if already removed due to successful upstream probe
-		err = nft.SetDeleteByName(conn, table, prefix+"_pending", nft.IPAddr(ip))
+		// may not exist if never probed
+		err = nft.SetDeleteByName(conn, table, prefix+"_probed", nft.IPAddr(ip))
 		if err != nil && !errors.Is(err, unix.ENOENT) {
-			logrus.WithError(err).Error("could not remove from domainproxy_pending map")
+			logrus.WithError(err).Error("could not remove from domainproxy_probed map")
 		}
 
 		err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
@@ -201,16 +201,13 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 					if err != nil {
 						return err
 					}
-					// may EEXIST if raced with ECONNREFUSED removal
-					err = nft.SetAddByName(conn, table, prefix+"_pending", nft.IPAddr(ip))
-					if err != nil && !errors.Is(err, unix.EEXIST) {
-						return err
-					}
+
 					// in docker it's val.IP -> val.IP because it's post-dnat
 					err = nft.SetAddByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IP(val.IP), nft.IP(val.IP)))
 					if err != nil {
 						return err
 					}
+
 					return nil
 				})
 			})
@@ -233,11 +230,6 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 		err := nft.MapAddByName(conn, table, prefix, nft.IPAddr(ip), nft.IP(val.IP))
 		if err != nil {
 			logrus.WithError(err).Debug("could not add to domainproxy map")
-		}
-		err = nft.SetAddByName(conn, table, prefix+"_pending", nft.IPAddr(ip))
-		if err != nil && !errors.Is(err, unix.EEXIST) {
-			// may EEXIST if raced with ECONNREFUSED removal
-			logrus.WithError(err).Debug("could not add to domainproxy_pending map")
 		}
 
 		// in machines it's ip -> val.IP because it's pre-dnat

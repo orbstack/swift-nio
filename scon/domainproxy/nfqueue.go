@@ -23,7 +23,7 @@ import (
 
 func (d *DomainTLSProxy) startQueue() error {
 	config := nfqueue.Config{
-		NfQueue:      netconf.QueueDomainproxyPending,
+		NfQueue:      netconf.QueueDomainproxyProbe,
 		MaxPacketLen: 65536,
 		MaxQueueLen:  512,
 		Copymode:     nfqueue.NfQnlCopyPacket,
@@ -141,17 +141,17 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 		return false, nil
 	}
 
-	// remove from pending set
-	setName := "domainproxy4_pending"
+	// add to probed set
+	setName := "domainproxy4_probed"
 	if dstIP.Is6() {
-		setName = "domainproxy6_pending"
+		setName = "domainproxy6_probed"
 	}
 	// may fail in case of race with a concurrent probe
 	err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
-		return nft.SetDeleteByName(conn, table, setName, nft.IPAddr(dstIP))
+		return nft.SetAddByName(conn, table, setName, nft.IPAddr(dstIP))
 	})
-	if err != nil && !errors.Is(err, unix.ENOENT) {
-		logrus.WithError(err).Error("failed to delete from domainproxy set")
+	if err != nil && !errors.Is(err, unix.EEXIST) {
+		logrus.WithError(err).Error("failed to add to domainproxy set")
 	}
 
 	return true, nil
