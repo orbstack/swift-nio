@@ -69,7 +69,10 @@ func (d *DomainTLSProxy) startQueue() error {
 					// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
 					mark = d.cb.NfqueueMarkReject(mark)
 				}
-				queue.SetVerdictModPacketWithMark(*a.PacketID, nfqueue.NfRepeat, int(mark), *a.Payload)
+				err = queue.SetVerdictModPacketWithMark(*a.PacketID, nfqueue.NfRepeat, int(mark), *a.Payload)
+				if err != nil {
+					logrus.WithError(err).Error("failed to set verdict")
+				}
 			}()
 
 			// 0 = continue, else = stop read loop
