@@ -205,13 +205,13 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) e
 	go func() {
 		err := httpServer.ServeTLS(httpLn4, "", "")
 		if err != nil {
-			logrus.WithError(err).Error("domaintproxy: serve tls failed")
+			logrus.WithError(err).Error("domainTLSProxy: serve tls failed")
 		}
 	}()
 	go func() {
 		err := httpServer.ServeTLS(httpLn6, "", "")
 		if err != nil {
-			logrus.WithError(err).Error("domaintproxy: serve tls failed")
+			logrus.WithError(err).Error("domainTLSProxy: serve tls failed")
 		}
 	}()
 
@@ -223,13 +223,13 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) e
 	go func() {
 		err := httpsServer.ServeTLS(httpsLn4, "", "")
 		if err != nil {
-			logrus.WithError(err).Error("domaintproxy: serve tls failed")
+			logrus.WithError(err).Error("domainTLSProxy: serve tls failed")
 		}
 	}()
 	go func() {
 		err := httpsServer.ServeTLS(httpsLn6, "", "")
 		if err != nil {
-			logrus.WithError(err).Error("domaintproxy: serve tls failed")
+			logrus.WithError(err).Error("domainTLSProxy: serve tls failed")
 		}
 	}()
 
@@ -437,7 +437,7 @@ func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string)
 // the default action with no handler is to send a 502 with no content and to log
 func (p *DomainTLSProxy) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	// debug log so no spamming for users
-	logrus.WithError(err).Debug("domaintproxy failed to dial upstream")
+	logrus.WithError(err).Debug("domainTLSProxy failed to dial upstream")
 	w.WriteHeader(http.StatusBadGateway)
 	http.ServeContent(w, r, "", time.UnixMilli(0), bytes.NewReader(
 		[]byte(fmt.Sprintf("502 Bad Gateway\nOrbStack proxy error: %v\n", err)),

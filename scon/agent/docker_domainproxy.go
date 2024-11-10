@@ -50,7 +50,7 @@ func (d *DockerAgent) startDomainTLSProxy() error {
 		return err
 	}
 
-	logrus.Debug("started docker tls domaintproxy")
+	logrus.Debug("started docker tls domainTLSProxy")
 
 	return nil
 }

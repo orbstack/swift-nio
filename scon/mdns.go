@@ -274,12 +274,12 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		logrus.WithError(err).Error("unable to update tls proxy nftables")
 	}
 
-	go runOne("start domaintproxy", func() error {
+	go runOne("start domainTLSProxy", func() error {
 		err := r.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix)
 		if err != nil {
 			return err
 		}
-		logrus.Debug("started mdns domaintproxy")
+		logrus.Debug("started mdns domainTLSProxy")
 
 		return nil
 	})
