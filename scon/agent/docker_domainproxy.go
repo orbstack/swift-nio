@@ -63,10 +63,10 @@ func (d *DockerAgent) updateTLSProxyNftables(enabled bool) error {
 	if !d.domainTLSProxyActive && enabled {
 		// we need to activate it
 		// TODO: migrate to nft library
-		err = nft.Run("add", "rule", "inet", netconf.NftableInet, "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
+		err = nft.Run("add", "rule", "inet", netconf.NftableInet, "dynamic-tlsproxy", "jump tlsproxy")
 	} else if d.domainTLSProxyActive && !enabled {
 		// we need to deactivate it
-		err = nft.FlushChain(nft.FamilyInet, netconf.NftableInet, "prerouting-dynamic-tlsproxy")
+		err = nft.FlushChain(nft.FamilyInet, netconf.NftableInet, "dynamic-tlsproxy")
 	}
 	if err != nil {
 		return err
