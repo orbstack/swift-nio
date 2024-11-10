@@ -31,8 +31,16 @@ func (cb *DockerProxyCallbacks) NfqueueMarkReject(mark uint32) uint32 {
 	return netconf.DockerFwmarkNfqueueReject
 }
 
+func (cb *DockerProxyCallbacks) NfqueueMarkSkip(mark uint32) uint32 {
+	return netconf.DockerFwmarkNfqueueSkip
+}
+
 func (cb *DockerProxyCallbacks) NftableName() string {
 	return netconf.NftableInet
+}
+
+func (cb *DockerProxyCallbacks) NfqueueFlags() uint32 {
+	return 0
 }
 
 func (d *DockerAgent) startDomainTLSProxy() error {

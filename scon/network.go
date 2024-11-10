@@ -157,6 +157,7 @@ func (n *Network) Start() error {
 		"FWMARK_TPROXY_OUTBOUND_BIT":    strconv.Itoa(netconf.VmFwmarkTproxyOutboundBit),
 		"FWMARK_ISOLATED_BIT":           strconv.Itoa(netconf.VmFwmarkIsolatedBit),
 		"FWMARK_HAIRPIN_MASQUERADE_BIT": strconv.Itoa(netconf.VmFwmarkHairpinMasqueradeBit),
+		"FWMARK_NFQUEUE_SKIP_BIT":       strconv.Itoa(netconf.VmFwmarkNfqueueSkipBit),
 		"FWMARK_NFQUEUE_REJECT_BIT":     strconv.Itoa(netconf.VmFwmarkNfqueueRejectBit),
 
 		"QUEUE_DOMAINPROXY_PROBE": strconv.Itoa(netconf.QueueDomainproxyProbe),

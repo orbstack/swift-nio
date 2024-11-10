@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/florianl/go-nfqueue"
 	"github.com/google/nftables"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
@@ -501,8 +502,16 @@ func (c *SconProxyCallbacks) NfqueueMarkReject(mark uint32) uint32 {
 	return mark | netconf.VmFwmarkNfqueueRejectBit
 }
 
+func (c *SconProxyCallbacks) NfqueueMarkSkip(mark uint32) uint32 {
+	return mark | netconf.VmFwmarkNfqueueSkipBit
+}
+
 func (c *SconProxyCallbacks) NftableName() string {
 	return netconf.NftableInet
+}
+
+func (c *SconProxyCallbacks) NfqueueFlags() uint32 {
+	return nfqueue.NfQaCfgFlagGSO
 }
 
 func (r *mdnsRegistry) getProxyUpstreamByHost(host string, v4 bool) (domainproxytypes.Upstream, error) {

@@ -28,7 +28,8 @@ func (d *DomainTLSProxy) startQueue() error {
 		MaxQueueLen:  1024,
 		Copymode:     nfqueue.NfQnlCopyPacket,
 		// declare GSO and partial checksum support to prevent reject from failing on macOS-originated packets (which are GSO + partial csum)
-		Flags:  nfqueue.NfQaCfgFlagGSO,
+		// we only need GSO flag in ovm, and it breaks the docker bridge, so disable it in docker machine and enable it in ovm
+		Flags:  d.cb.NfqueueFlags(),
 		Logger: logrus.StandardLogger(),
 	}
 
@@ -54,19 +55,21 @@ func (d *DomainTLSProxy) startQueue() error {
 					logrus.WithError(err).Error("failed to handle nfqueue packet")
 				}
 
+				var mark uint32
+				if a.Mark != nil {
+					mark = *a.Mark
+				}
+
 				if hasUpstream {
 					// there's an upstream, so accept the connection. (accept = continue nftables)
 					// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
-					queue.SetVerdictModPacket(*a.PacketID, nfqueue.NfAccept, *a.Payload)
+					mark = d.cb.NfqueueMarkSkip(mark)
 				} else {
 					// no upstream, so reject the connection.
 					// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
-					var mark uint32
-					if a.Mark != nil {
-						mark = *a.Mark
-					}
-					queue.SetVerdictModPacketWithMark(*a.PacketID, nfqueue.NfRepeat, int(d.cb.NfqueueMarkReject(mark)), *a.Payload)
+					mark = d.cb.NfqueueMarkReject(mark)
 				}
+				queue.SetVerdictModPacketWithMark(*a.PacketID, nfqueue.NfRepeat, int(mark), *a.Payload)
 			}()
 
 			// 0 = continue, else = stop read loop

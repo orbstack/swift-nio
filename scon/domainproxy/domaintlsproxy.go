@@ -44,8 +44,10 @@ type ProxyCallbacks interface {
 	GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error)
 	GetMark(upstream domainproxytypes.Upstream) int
 
-	NfqueueMarkReject(mark uint32) uint32
 	NftableName() string
+	NfqueueFlags() uint32
+	NfqueueMarkReject(mark uint32) uint32
+	NfqueueMarkSkip(mark uint32) uint32
 }
 
 type DomainTLSProxy struct {
