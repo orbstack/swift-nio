@@ -124,7 +124,7 @@ struct MacVirtApp: App {
 
     var body: some Scene {
         // adds "About" command to menu
-        Window("OrbStack", id: "main") {
+        SingletonWindowGroup("OrbStack", id: "main") {
             NewMainView()
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
@@ -147,7 +147,7 @@ struct MacVirtApp: App {
                 // Window() only shows up in the menu if there are multiple singleton windows
                 CommandGroup(before: .singleWindowList) {
                     Button("OrbStack") {
-                        openWindow(id: "main")
+                        openWindow.call(id: "main")
                     }
                 }
 
@@ -160,20 +160,20 @@ struct MacVirtApp: App {
                     }
                     Divider()
                     Button("Report Bug") {
-                        openWindow(id: WindowID.bugReport)
+                        openWindow.call(id: WindowID.bugReport)
                     }
                     Button("Request Feature") {
                         NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                     }
                     Button("Send Feedback") {
-                        openWindow(id: WindowID.feedback)
+                        openWindow.call(id: WindowID.feedback)
                     }
                     Divider()
                 }
 
                 CommandGroup(before: .importExport) {
                     Button("Migrate Docker Data…") {
-                        openWindow(id: WindowID.migrateDocker)
+                        openWindow.call(id: WindowID.migrateDocker)
                     }
 
                     switch selectedTab {
@@ -210,7 +210,7 @@ struct MacVirtApp: App {
 
             CommandMenu("Account") {
                 Button("Sign In…") {
-                    openWindow(id: WindowID.signIn)
+                    openWindow.call(id: WindowID.signIn)
                 }
                 .disabled(vmModel.drmState.isSignedIn)
 
@@ -228,7 +228,7 @@ struct MacVirtApp: App {
                 }
 
                 Button("Switch Organization…") {
-                    openWindow(id: WindowID.signIn)
+                    openWindow.call(id: WindowID.signIn)
                 }
 
                 Divider()
@@ -316,27 +316,27 @@ struct MacVirtApp: App {
 
                 Group {
                     Button("Report Bug") {
-                        openWindow(id: WindowID.bugReport)
+                        openWindow.call(id: WindowID.bugReport)
                     }
                     Button("Request Feature") {
                         NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
                     }
                     Button("Send Feedback") {
-                        openWindow(id: WindowID.feedback)
+                        openWindow.call(id: WindowID.feedback)
                     }
                 }
 
                 Divider()
 
                 Button("Upload Diagnostics") {
-                    openWindow(id: WindowID.diagReport)
+                    openWindow.call(id: WindowID.diagReport)
                 }
             }
         }
         .handlesExternalEvents(matching: ["main", "docker/containers/", "docker/projects/"])
         .defaultSize(width: 975, height: 650)
 
-        Window("Setup", id: WindowID.onboarding) {
+        SingletonWindowGroup("Setup", id: WindowID.onboarding) {
             OnboardingRootView()
                 .environmentObject(vmModel)
             // .frame(minWidth: 600, maxWidth: 600, minHeight: 400, maxHeight: 400)
@@ -390,7 +390,7 @@ struct MacVirtApp: App {
         .defaultSize(width: 875, height: 625)  // extra side for sidebar
         .windowToolbarStyle(.unifiedCompact)
 
-        Window("Migrate from Docker Desktop", id: WindowID.migrateDocker) {
+        SingletonWindowGroup("Migrate from Docker Desktop", id: WindowID.migrateDocker) {
             DockerMigrationWindow()
                 .environmentObject(vmModel)
         }
@@ -400,7 +400,7 @@ struct MacVirtApp: App {
         .windowResizability(.contentSize)
 
         Group {
-            Window("Diagnostic Report", id: WindowID.diagReport) {
+            SingletonWindowGroup("Diagnostic Report", id: WindowID.diagReport) {
                 DiagReporterView(isBugReport: false)
             }
             // remove entry point from Window menu
@@ -411,7 +411,7 @@ struct MacVirtApp: App {
             .windowStyle(.hiddenTitleBar)
             .windowResizability(.contentSize)
 
-            Window("Report Bug", id: WindowID.bugReport) {
+            SingletonWindowGroup("Report Bug", id: WindowID.bugReport) {
                 DiagReporterView(isBugReport: true)
             }
             // remove entry point from Window menu
@@ -423,7 +423,7 @@ struct MacVirtApp: App {
             .windowResizability(.contentSize)
         }
 
-        Window("Sign In", id: WindowID.signIn) {
+        SingletonWindowGroup("Sign In", id: WindowID.signIn) {
             AuthView(sheetPresented: nil)
         }
         // remove entry point from Window menu
@@ -434,7 +434,7 @@ struct MacVirtApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
-        Window("Send Feedback", id: WindowID.feedback) {
+        SingletonWindowGroup("Send Feedback", id: WindowID.feedback) {
             FeedbackView()
         }
         // remove entry point from Window menu
@@ -474,3 +474,8 @@ func getConfigDir() -> String {
     let home = FileManager.default.homeDirectoryForCurrentUser.path
     return home + "/.orbstack"
 }
+
+// WA: on macOS 13, openWindow() and handlesExternalEvents() don't do anything when opening a Window() from a non-SwiftUI context
+// so we have to use WindowGroup() and avoid opening duplicate windows, in order to simulate singletons
+// this is just a marker type for future migration
+typealias SingletonWindowGroup = WindowGroup

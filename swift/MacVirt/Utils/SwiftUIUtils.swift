@@ -268,13 +268,39 @@ extension Slider {
     }
 }
 
+// WA: (macOS 13) for SingletonWindowGroup
+func shouldOpenNewWindow(_ id: String) -> Bool {
+    let idPrefix = "\(id)-AppWindow-"
+
+    if let window = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix(idPrefix) ?? false }) {
+        window.makeKeyAndOrderFront(nil)
+        return false
+    }
+
+    return true
+}
+
 extension NSWorkspace {
     static func openSubwindow(_ path: String) {
+        if !shouldOpenNewWindow(path) {
+            return
+        }
+
         NSWorkspace.shared.open(URL(string: "orbstack://\(path)")!)
     }
 
     static func openFolder(_ path: String) {
         NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))
+    }
+}
+
+extension OpenWindowAction {
+    func call(id: String) {
+        if !shouldOpenNewWindow(id) {
+            return
+        }
+
+        self(id: id)
     }
 }
 

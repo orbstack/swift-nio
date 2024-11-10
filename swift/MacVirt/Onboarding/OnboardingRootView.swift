@@ -84,7 +84,7 @@ struct OnboardingRootView: View, OnboardingController {
     func finish() {
         onboardingCompleted = true
         windowHolder.window?.close()
-        openWindow(id: WindowID.main)
+        openWindow.call(id: WindowID.main)
 
         // ok to re-enable menu bar now
         Defaults[.globalShowMenubarExtra] = true
