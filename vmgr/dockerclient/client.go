@@ -98,7 +98,7 @@ func NewClient(daemon *DockerConnection) (*Client, error) {
 			return nil, fmt.Errorf("could not connect to docker host via ssh")
 		}
 	case "unix":
-		c, err = NewWithUnixSocket(hostURL.Path, opts)
+		c, err = NewWithUnixSocket(hostURL.Host, opts)
 		if err != nil {
 			return nil, fmt.Errorf("could not connect to docker host via unix")
 		}
