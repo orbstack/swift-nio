@@ -276,6 +276,8 @@ func shouldOpenNewWindow(_ id: String) -> Bool {
         $0.identifier?.rawValue.hasPrefix(idPrefix) ?? false
     }) {
         window.makeKeyAndOrderFront(nil)
+        // e.g. from menu bar, with existing windows open, just not focused
+        NSApp.activate(ignoringOtherApps: true)
         return false
     }
 
