@@ -4,7 +4,7 @@ set -eufo pipefail
 cd "$(dirname "$0")"
 
 export GOPRIVATE='github.com/orbstack/*-macvirt'
-BRANCH=orbstack/1.29
+BRANCH=orbstack/1.30
 
 orb start
 
