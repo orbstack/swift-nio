@@ -389,9 +389,6 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 	for {
 		message := &pb.RpcServerMessage{}
 		if err := server.ReadMessage(message); err != nil {
-			if err == io.EOF {
-				return err
-			}
 			return err
 		}
 
@@ -449,7 +446,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 	}
 
 	if err := startRemoteWormhole(client, drmToken, string(wormholeParam)); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		color.New(color.FgRed).Fprintln(os.Stderr, "\nRemote debug session unexpectedly closed")
 		os.Exit(1)
 	}
 	return nil
