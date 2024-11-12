@@ -10,6 +10,75 @@ use nix::{
 };
 
 use crate::set_cloexec;
+const CONTROL_CHARS: &[usize] = &[
+    libc::VINTR,
+    libc::VQUIT,
+    libc::VERASE,
+    libc::VKILL,
+    libc::VEOF,
+    libc::VEOL,
+    libc::VEOL2,
+    libc::VSTART,
+    libc::VSTOP,
+    libc::VSUSP,
+    // libc::VDSUSP,
+    libc::VREPRINT,
+    libc::VWERASE,
+    libc::VLNEXT,
+    // libc::VFLUSH,
+    // libc::VSWTCH,
+    // libc::VSTATUS,
+    libc::VDISCARD,
+];
+const INPUT_FLAGS: &[InputFlags] = &[
+    InputFlags::IGNPAR,
+    InputFlags::PARMRK,
+    InputFlags::INPCK,
+    InputFlags::ISTRIP,
+    InputFlags::INLCR,
+    InputFlags::IGNCR,
+    InputFlags::ICRNL,
+    // InputFlags::IUCLC,
+    InputFlags::IXON,
+    InputFlags::IXANY,
+    InputFlags::IXOFF,
+    InputFlags::IMAXBEL,
+    InputFlags::IUTF8,
+];
+
+const LOCAL_FLAGS: &[LocalFlags] = &[
+    LocalFlags::ISIG,
+    LocalFlags::ICANON,
+    // LocalFlags::XCASE,
+    LocalFlags::ECHO,
+    LocalFlags::ECHOE,
+    LocalFlags::ECHOK,
+    LocalFlags::ECHONL,
+    LocalFlags::NOFLSH,
+    LocalFlags::TOSTOP,
+    LocalFlags::IEXTEN,
+    LocalFlags::ECHOCTL,
+    LocalFlags::ECHOKE,
+    LocalFlags::PENDIN,
+];
+
+const OUTPUT_FLAGS: &[OutputFlags] = &[
+    OutputFlags::OPOST,
+    // OutputFlags::OLCUC,
+    OutputFlags::ONLCR,
+    OutputFlags::OCRNL,
+    OutputFlags::ONOCR,
+    OutputFlags::ONLRET,
+];
+
+const CONTROL_FLAGS: &[ControlFlags] = &[
+    ControlFlags::CS5,
+    ControlFlags::CS6,
+    ControlFlags::CS7,
+    ControlFlags::CS8,
+    ControlFlags::PARENB,
+    ControlFlags::PARODD,
+];
 
 pub fn create_pty(w: u16, h: u16, termios_config: Vec<u8>) -> anyhow::Result<OpenptyResult> {
     let pty = openpty(
@@ -33,104 +102,34 @@ pub fn create_pty(w: u16, h: u16, termios_config: Vec<u8>) -> anyhow::Result<Ope
 }
 
 pub fn set_termios(termios: &mut Termios, buf: &[u8]) -> anyhow::Result<()> {
-    let control_chars = [
-        libc::VINTR,
-        libc::VQUIT,
-        libc::VERASE,
-        libc::VKILL,
-        libc::VEOF,
-        libc::VEOL,
-        libc::VEOL2,
-        libc::VSTART,
-        libc::VSTOP,
-        libc::VSUSP,
-        // libc::VDSUSP,
-        libc::VREPRINT,
-        libc::VWERASE,
-        libc::VLNEXT,
-        // libc::VFLUSH,
-        // libc::VSWTCH,
-        // libc::VSTATUS,
-        libc::VDISCARD,
-    ];
-    let input_flags = [
-        InputFlags::IGNPAR,
-        InputFlags::PARMRK,
-        InputFlags::INPCK,
-        InputFlags::ISTRIP,
-        InputFlags::INLCR,
-        InputFlags::IGNCR,
-        InputFlags::ICRNL,
-        // InputFlags::IUCLC,
-        InputFlags::IXON,
-        InputFlags::IXANY,
-        InputFlags::IXOFF,
-        InputFlags::IMAXBEL,
-        InputFlags::IUTF8,
-    ];
-
-    let local_flags = [
-        LocalFlags::ISIG,
-        LocalFlags::ICANON,
-        // LocalFlags::XCASE,
-        LocalFlags::ECHO,
-        LocalFlags::ECHOE,
-        LocalFlags::ECHOK,
-        LocalFlags::ECHONL,
-        LocalFlags::NOFLSH,
-        LocalFlags::TOSTOP,
-        LocalFlags::IEXTEN,
-        LocalFlags::ECHOCTL,
-        LocalFlags::ECHOKE,
-        LocalFlags::PENDIN,
-    ];
-
-    let output_flags = [
-        OutputFlags::OPOST,
-        // OutputFlags::OLCUC,
-        OutputFlags::ONLCR,
-        OutputFlags::OCRNL,
-        OutputFlags::ONOCR,
-        OutputFlags::ONLRET,
-    ];
-
-    let control_flags = [
-        ControlFlags::CS5,
-        ControlFlags::CS6,
-        ControlFlags::CS7,
-        ControlFlags::CS8,
-        ControlFlags::PARENB,
-        ControlFlags::PARODD,
-    ];
-
     let mut idx = 0;
 
-    for cc in control_chars {
+    for cc in CONTROL_CHARS {
         let val = read_u8(buf, &mut idx)?;
-        termios.control_chars[cc] = val;
+        termios.control_chars[*cc as usize] = val;
     }
 
-    for flag in input_flags {
+    for flag in INPUT_FLAGS {
         let val = read_u8(buf, &mut idx)?;
         assert!(val == 0 || val == 1);
-        termios.input_flags.set(flag, val != 0);
+        termios.input_flags.set(*flag, val != 0);
     }
 
-    for flag in local_flags {
+    for flag in LOCAL_FLAGS {
         let val = read_u8(buf, &mut idx)?;
         assert!(val == 0 || val == 1);
-        termios.local_flags.set(flag, val != 0);
+        termios.local_flags.set(*flag, val != 0);
     }
 
-    for flag in output_flags {
+    for flag in OUTPUT_FLAGS {
         let val = read_u8(buf, &mut idx)?;
         assert!(val == 0 || val == 1);
-        termios.output_flags.set(flag, val != 0);
+        termios.output_flags.set(*flag, val != 0);
     }
-    for flag in control_flags {
+    for flag in CONTROL_FLAGS {
         let val = read_u8(buf, &mut idx)?;
         assert!(val == 0 || val == 1);
-        termios.control_flags.set(flag, val != 0);
+        termios.control_flags.set(*flag, val != 0);
     }
 
     let ispeed = read_u32(buf, &mut idx)?;

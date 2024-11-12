@@ -1,13 +1,15 @@
-.PHONY: scli bpfgen run
+.PHONY: scli bpfgen run 
 
 all: scli
 
-scli:
+scli: cmd/scli/generated/wormhole.pb.go
 	@mkdir -p ../out
-	@protoc --proto_path=../wormhole/schema --go_out=.  ../wormhole/schema/wormhole.proto
 # force cgo when cross-compiling to amd64
 	@CGO_ENABLED=1 go build -o ../out/scli ./cmd/scli
 	@bash -c 'source ../config.sh; codesign -f --timestamp --options=runtime --entitlements scli.entitlements -i dev.kdrag0n.MacVirt.scli -s "$$SIGNING_CERT_DEV" ../out/scli || :'
+
+cmd/scli/generated/wormhole.pb.go: ../wormhole/schema/wormhole.proto
+	@protoc --proto_path=../wormhole/schema --go_out=. ../wormhole/schema/wormhole.proto
 
 # cat buffering improves speed a lot on virtiofs
 bpf/vmlinux.h: /sys/kernel/btf/vmlinux
