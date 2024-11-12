@@ -79,7 +79,7 @@ if [[ "$TYPE" == "debug" ]]; then
 else
     cargo build --release
 fi
-cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach /out/
+cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach target/${TYPE}/client target/${TYPE}/server /out/
 EOT
 
 # Build Rosetta runc override
@@ -384,6 +384,13 @@ cp /work/qemu/build/qemu-x86_64 /work/qemu/build/qemu-i386 /work/qemu/build/qemu
 strip /out/*
 EOT
 
+##########################################################################
+# Wormhole rootfs
+FROM base AS wormhole
+COPY --from=nix-build /out /wormhole-rootfs
+COPY --from=rust-build /out/wormhole-attach /wormhole-attach
+COPY --from=rust-build /out/client /wormhole-client
+COPY --from=rust-build /out/server /wormhole-server
 
 
 ##########################################################################

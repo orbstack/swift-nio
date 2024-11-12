@@ -1,4 +1,4 @@
-.PHONY: publish
+.PHONY: replace publish
 
 publish:
 	@./publish.sh

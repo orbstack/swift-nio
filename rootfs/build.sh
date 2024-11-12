@@ -36,9 +36,9 @@ fi
 
 rm -fr out
 
-platform="linux/amd64"
+PLATFORM="linux/amd64"
 if [[ "$ARCH" == "arm64" ]]; then
-    platform="linux/arm64"
+    PLATFORM="linux/arm64"
 fi
 
 # detect host varch
@@ -51,20 +51,17 @@ fi
 cp ~/.orbstack/ssh/id_ed25519.pub config/authorized_keys
 
 # build packer and images
-# TODO: migrate to buildx bake
-docker build --build-arg TYPE=$BTYPE --build-arg ARCH=$ARCH --build-arg HOST_ARCH=$HOST_ARCH \
-    --ssh "default=$SSH_AUTH_SOCK" \
-    --platform "$platform" --load \
-    -f Dockerfile --target images .. -t ghcr.io/orbstack/images:$BTYPE
+BTYPE=$BTYPE ARCH=$ARCH HOST_ARCH=$HOST_ARCH PLATFORM=$PLATFORM \
+    docker buildx bake -f docker-bake.hcl rootfs
 
 # extract images
-CID=$(docker create --platform "$platform" ghcr.io/orbstack/images:$BTYPE true)
+CID=$(docker create --platform "$PLATFORM" ghcr.io/orbstack/images:$BTYPE true)
 trap "docker rm $CID" EXIT
 docker cp -q $CID:/images out
 
 # data and swap images
 # can't be part of build due to privileged requirement for mounting images
-docker run -i --rm --privileged --platform "$platform" -v $PWD/out:/out -v /dev:/hostdev ghcr.io/orbstack/images:$BTYPE < make-preseed.sh
+docker run -i --rm --privileged --platform "$PLATFORM" -v $PWD/out:/out -v /dev:/hostdev ghcr.io/orbstack/images:$BTYPE < make-preseed.sh
 
 copy_file() {
 	mkdir -p ../assets/$BTYPE/$ARCH
