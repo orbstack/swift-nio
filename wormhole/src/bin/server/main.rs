@@ -1,46 +1,32 @@
 use anyhow::anyhow;
-use libc::{winsize, MS_PRIVATE, TIOCSCTTY, TIOCSWINSZ};
+use libc::{TIOCSCTTY, TIOCSWINSZ};
 use std::{
-    ffi::CString,
-    fs::{self, File, OpenOptions, Permissions},
-    io::{Read, Write},
+    fs,
     os::{
-        fd::{AsRawFd, FromRawFd, RawFd},
-        unix::{
-            fs::PermissionsExt,
-            net::{UnixListener, UnixStream},
-        },
+        fd::{AsRawFd, RawFd},
+        unix::net::{UnixListener, UnixStream},
     },
-    path::Path,
     process::exit,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    thread,
-    time::Duration,
+    sync::Arc,
 };
 use tokio::{
-    io::{self, AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt},
     process::Command,
     sync::Mutex,
-    task::{self, JoinHandle},
-    time::sleep,
 };
 use tokio_util::sync::CancellationToken;
 use tracing_subscriber::fmt::format::FmtSpan;
 use util::{mount_wormhole, unmount_wormhole};
 use wormhole::{
     asyncfile::AsyncFile,
-    flock::{Flock, FlockMode, FlockWait},
     model::WormholeConfig,
-    newmount::{mount_setattr, open_tree, MountAttr},
+    newmount::open_tree,
     rpc::{
         wormhole::{
             rpc_client_message::ClientMessage, rpc_server_message::ServerMessage, ClientConnectAck,
             ExitStatus, RpcClientMessage, RpcServerMessage, StderrData, StdoutData,
         },
-        RpcRead, RpcWrite, RpcWriteSync,
+        RpcRead, RpcWrite, RPC_SOCKET,
     },
     termios::create_pty,
     unset_cloexec,
@@ -48,7 +34,6 @@ use wormhole::{
 
 use nix::{
     libc::ioctl,
-    mount::{mount, MsFlags},
     pty::{OpenptyResult, Winsize},
     sys::socket::{recvmsg, ControlMessageOwned, MsgFlags},
     unistd::{dup, dup2, pipe, setsid},
@@ -56,7 +41,6 @@ use nix::{
 use tracing::{trace, Level};
 
 mod util;
-use serde::{Deserialize, Serialize};
 
 const REFCOUNT_FILE: &str = "/data/refcount";
 const REFCOUNT_LOCK: &str = "/data/refcount.lock";
@@ -95,7 +79,6 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)
     }
 }
 
-// #[derive(Copy)]
 struct WormholeServer {
     count: Mutex<u32>,
 }
@@ -107,14 +90,14 @@ impl WormholeServer {
         })
     }
 
-    fn init(self: &Arc<Self>) -> anyhow::Result<()> {
+    fn init(&self) -> anyhow::Result<()> {
         trace!("initializing wormhole");
         mount_wormhole()
     }
 
     fn listen(self: &Arc<Self>) -> anyhow::Result<()> {
-        let _ = std::fs::remove_file("/data/rpc.sock");
-        let listener = UnixListener::bind("/data/rpc.sock")?;
+        let _ = std::fs::remove_file(RPC_SOCKET);
+        let listener = UnixListener::bind(RPC_SOCKET)?;
 
         loop {
             match listener.accept() {
@@ -138,7 +121,7 @@ impl WormholeServer {
                             trace!("remaining connections: {}", *lock);
                             if *lock == 0 {
                                 trace!("shutting down");
-                                let _ = std::fs::remove_file("/data/rpc.sock");
+                                let _ = std::fs::remove_file(RPC_SOCKET);
                                 let _ = unmount_wormhole();
                                 exit(0);
                             }
@@ -256,17 +239,6 @@ impl WormholeServer {
         }
         let is_pty = pty.is_some();
 
-        mount_setattr(
-            None,
-            "/mnt/wormhole-unified",
-            libc::AT_RECURSIVE as u32,
-            &MountAttr {
-                attr_set: 0,
-                attr_clr: 0,
-                propagation: MS_PRIVATE,
-                userns_fd: 0,
-            },
-        )?;
         let wormhole_mount = open_tree(
             "/mnt/wormhole-unified/nix",
             libc::OPEN_TREE_CLOEXEC | libc::OPEN_TREE_CLONE | libc::AT_RECURSIVE as u32,

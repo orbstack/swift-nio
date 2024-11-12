@@ -1,11 +1,12 @@
 use std::{fs, path::Path};
 
+use libc::MS_PRIVATE;
 use nix::{
     errno::Errno,
     mount::{mount, umount2, MntFlags, MsFlags},
-    unistd::ROOT,
 };
 use tracing::trace;
+use wormhole::newmount::{mount_setattr, MountAttr};
 
 pub const ROOTFS: &str = "/wormhole-rootfs";
 pub const UPPERDIR: &str = "/data/upper";
@@ -15,20 +16,18 @@ pub const WORMHOLE_UNIFIED: &str = "/mnt/wormhole-unified";
 pub const NIX_RW_DIRS: [&str; 3] = ["store", "var", "orb/data"];
 
 pub fn unmount_wormhole() -> anyhow::Result<()> {
-    for path in [
-        "/mnt/wormhole-unified/nix/store",
-        "/mnt/wormhole-unified/nix/var",
-        "/mnt/wormhole-unified/nix/orb/data",
-    ] {
-        match umount2(path, MntFlags::MNT_DETACH) {
+    for nix_dir in NIX_RW_DIRS {
+        let path = format!("{}/nix/{}", WORMHOLE_UNIFIED, nix_dir);
+        trace!("unmounting {}", path);
+        match umount2(path.as_str(), MntFlags::MNT_DETACH) {
             Ok(_) => {}
             // ignore EINVAL, which happens if delete_nix_dir already unmounted the submount
             Err(Errno::EINVAL) => {}
             Err(err) => trace!("could not unmount {:?}", err),
         };
     }
-
-    umount2("/mnt/wormhole-unified", MntFlags::empty())?;
+    trace!("unmounting {}", WORMHOLE_UNIFIED);
+    umount2(WORMHOLE_UNIFIED, MntFlags::empty())?;
     Ok(())
 }
 
@@ -88,5 +87,17 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
             None,
         )?;
     }
+
+    mount_setattr(
+        None,
+        WORMHOLE_UNIFIED,
+        libc::AT_RECURSIVE as u32,
+        &MountAttr {
+            attr_set: 0,
+            attr_clr: 0,
+            propagation: MS_PRIVATE,
+            userns_fd: 0,
+        },
+    )?;
     Ok(())
 }

@@ -1,5 +1,6 @@
 use std::{
     fs::File,
+    io::{stderr, stdout},
     os::{
         fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd, RawFd},
         unix::net::{UnixListener, UnixStream},
@@ -136,8 +137,8 @@ pub fn run(
     sfd: SignalFd,
 ) -> anyhow::Result<()> {
     // switch over to using the log_fd. if we don't switch, logging will crash the application when stout and stderr closes!
-    // dup2(config.log_fd, stdout().as_raw_fd())?;
-    // dup2(config.log_fd, stderr().as_raw_fd())?;
+    dup2(config.log_fd, stdout().as_raw_fd())?;
+    dup2(config.log_fd, stderr().as_raw_fd())?;
     let forward_signal_socket = UnixStream::from(forward_signal_fd);
 
     // wait until child (intermediate) exits

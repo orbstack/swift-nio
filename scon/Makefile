@@ -1,4 +1,4 @@
-.PHONY: scli bpfgen run 
+.PHONY: scli bpfgen run
 
 all: scli
 

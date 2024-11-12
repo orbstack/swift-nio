@@ -384,6 +384,9 @@ fn parse_config() -> anyhow::Result<WormholeConfig> {
     Ok(config)
 }
 
+/*
+ * minimum kernel req: 6.1 (latest stable debian 12 bookworm)
+ */
 // this is 75% of a container runtime, but a bit more complex... since it has to clone attributes of another process instead of just knowing what to set
 // this does *not* include ALL process attributes like sched affinity, dumpable, securebits, etc. that docker doesn't set
 fn main() -> anyhow::Result<()> {

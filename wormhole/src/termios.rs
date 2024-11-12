@@ -111,24 +111,20 @@ pub fn set_termios(termios: &mut Termios, buf: &[u8]) -> anyhow::Result<()> {
 
     for flag in INPUT_FLAGS {
         let val = read_u8(buf, &mut idx)?;
-        assert!(val == 0 || val == 1);
         termios.input_flags.set(*flag, val != 0);
     }
 
     for flag in LOCAL_FLAGS {
         let val = read_u8(buf, &mut idx)?;
-        assert!(val == 0 || val == 1);
         termios.local_flags.set(*flag, val != 0);
     }
 
     for flag in OUTPUT_FLAGS {
         let val = read_u8(buf, &mut idx)?;
-        assert!(val == 0 || val == 1);
         termios.output_flags.set(*flag, val != 0);
     }
     for flag in CONTROL_FLAGS {
         let val = read_u8(buf, &mut idx)?;
-        assert!(val == 0 || val == 1);
         termios.control_flags.set(*flag, val != 0);
     }
 

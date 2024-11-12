@@ -1,6 +1,8 @@
-# upload wormhole Dockerfile to r2 
-VERSION=1
+#!/bin/sh
 
+set -euxo pipefail
+
+VERSION=1
 cd ..
 rm -rf out/wormhole
 mkdir -p out/wormhole

@@ -10,6 +10,8 @@ pub mod wormhole {
     include!(concat!(env!("OUT_DIR"), "/wormhole.rs"));
 }
 
+pub const RPC_SOCKET: &str = "/data/run/rpc.sock";
+
 #[async_trait]
 pub trait RpcWrite: Message + Sized {
     async fn write(self, stream: &mut AsyncFile) -> anyhow::Result<()>;

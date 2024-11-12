@@ -3,7 +3,7 @@ use nix::sys::socket::{sendmsg, ControlMessage, MsgFlags};
 use std::io::{stdin, stdout, IoSlice, Read};
 use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
-const RPC_SOCKET: &str = "/data/rpc.sock";
+use wormhole::rpc::RPC_SOCKET;
 
 fn main() -> anyhow::Result<()> {
     let mut stream = UnixStream::connect(RPC_SOCKET)
