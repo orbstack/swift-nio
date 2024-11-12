@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 
 	"github.com/alessio/shellescape"
@@ -48,6 +47,8 @@ const maxRetries = 3
 // drm server
 // const registryImage = "198.19.249.3:5000/wormhole-server:latest"
 // const registryImage = "host.orb.internal:8400/wormhole:latest"
+// const registryImage = "localhost:5000/wormhole:latest"
+
 const registryImage = "host.orb.internal:5000/wormhole:latest"
 
 func init() {
@@ -623,52 +624,36 @@ Pro only: requires an OrbStack Pro license.
 			return err
 		}
 
-		// Read the docker daemon address in the following order:
-		// 1. Host specified by context in command `orb debug container@context` (overriden below)
-		// 2. DOCKER_CONTEXT (overrides DOCKER_HOST)
-		// 3. DOCKER_HOST env
-		// 4. Host specified by currentContext in `~/.docker/config.json`
-		// 5. "default" context (unix:///var/run/docker.sock)
-		daemon, err := dockerclient.GetCurrentContext()
+		// Use the explict context if specified (e.g. `orb debug container@mycontext`),
+		// otherwise fallback to standard docker context preference order.
+		var context string
+		var containerID string
+		if containerIDp != nil {
+			if flagReset {
+				// handle explicit context reset (orb debug --reset mycontext)
+				context = *containerIDp
+			} else {
+				// split container param by @ (e.g. `orb debug mycontainer@mycontext`). If
+				// *containerIDp does not contain @, then context will be set to ""
+				containerID, context, _ = strings.Cut(*containerIDp, "@")
+			}
+		}
+		if context == "" {
+			context = dockerclient.GetCurrentContext()
+		}
+
+		daemon, err := dockerclient.GetDockerDaemon(context)
 		if err != nil {
 			return err
 		}
 
-		if context := os.Getenv("DOCKER_CONTEXT"); context != "" {
-			if daemon, err = dockerclient.GetContext(context); err != nil {
-				return err
-			}
-		} else {
-			if hostOverride := os.Getenv("DOCKER_HOST"); hostOverride != "" {
-				daemon.Host = hostOverride
-			}
-			if path := os.Getenv("DOCKER_CERT"); path != "" {
-				daemon.TLSData = &dockerclient.TLSData{
-					CA:   filepath.Join(path, "ca.pem"),
-					Key:  filepath.Join(path, "key.pem"),
-					Cert: filepath.Join(path, "cert.pem"),
-				}
-			}
-			if tlsVerify := os.Getenv("TLS_VERIFY"); tlsVerify != "" {
-				if tlsVerify == "1" {
-					daemon.SkipTLSVerify = false
-				} else if tlsVerify == "0" {
-					daemon.SkipTLSVerify = true
-				}
-			}
+		// check if the context is the local orbstack context
+		isLocal := false
+		if orbContext, err := dockerclient.GetDockerDaemon("orbstack"); err == nil {
+			isLocal = orbContext.Host == daemon.Host
 		}
 
 		if flagReset {
-			if containerIDp != nil {
-				// the context was explicitly passed as a param (orb debug remote --reset)
-				daemon, err = dockerclient.GetContext(*containerIDp)
-				if err != nil {
-					return err
-				}
-			}
-
-			orbContext, err := dockerclient.GetContext("orbstack")
-			isLocal := err == nil && orbContext.Host == daemon.Host
 			if isLocal {
 				err = nukeLocalData(cmd)
 			} else {
@@ -680,29 +665,12 @@ Pro only: requires an OrbStack Pro license.
 			return nil
 		}
 
-		if (containerIDp == nil && !flagReset) || FlagWantHelp {
+		if containerIDp == nil || FlagWantHelp {
 			cmd.Help()
 			return nil
 		}
-		containerID := *containerIDp
 
-		// explicit docker context overrides any context set via environment variables
-		if containerIDp != nil && strings.Contains(*containerIDp, "@") {
-			var context string
-			var ok bool
-
-			containerID, context, ok = strings.Cut(containerID, "@")
-			if !ok {
-				fmt.Fprintln(os.Stderr, "Could not parse docker context")
-				os.Exit(1)
-			}
-
-			if daemon, err = dockerclient.GetContext(context); err != nil {
-				return err
-			}
-		}
-
-		if orbContext, err := dockerclient.GetContext("orbstack"); err == nil && orbContext.Host == daemon.Host {
+		if isLocal {
 			debugLocal(containerID, args)
 		} else {
 			debugRemote(containerID, daemon, keychainState.EntitlementToken, args)
