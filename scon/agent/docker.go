@@ -186,10 +186,18 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 		return nil, err
 	}
 
-	err = dockerAgent.updateTLSProxyNftables(isTls)
-	if err != nil {
-		logrus.WithError(err).Error("unable to update tls proxy nftables")
-	}
+	go func() {
+		// we need to wait for simplevisor to have actually run the commands
+		err := util.WaitForRunPathExist("/run/.boot-complete")
+		if err != nil {
+			logrus.WithError(err).Error(("unable to wait for boot complete file"))
+		}
+
+		err = dockerAgent.updateTLSProxyNftables(isTls)
+		if err != nil {
+			logrus.WithError(err).Error("unable to update tls proxy nftables")
+		}
+	}()
 
 	return dockerAgent, nil
 }

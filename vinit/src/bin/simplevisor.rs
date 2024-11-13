@@ -312,6 +312,10 @@ fn main() -> anyhow::Result<()> {
 
     sv.spawn_init_services()?;
 
+    // agent waits on this to know that the boot was complete
+    // otherwise, agent can race enabling tlsproxy with nftables creation
+    fs::File::create("/run/.boot-complete")?;
+
     sv.monitor_loop()?;
 
     Ok(())
