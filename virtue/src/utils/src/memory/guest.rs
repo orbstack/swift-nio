@@ -2,6 +2,7 @@
 
 use std::{
     any::Any,
+    ffi::CStr,
     fmt, io,
     marker::PhantomData,
     mem,
@@ -274,7 +275,10 @@ impl GuestMemory {
                 GuardedRegion::new(
                     reserved.as_ptr().cast(),
                     reserved.len(),
-                    "host attempted to access non-RAM memory (kernel bug?)",
+                    CStr::from_bytes_with_nul(
+                        b"host attempted to access non-RAM memory (kernel bug?)\0",
+                    )
+                    .unwrap(),
                 )
             },
             provider,

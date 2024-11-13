@@ -8,34 +8,33 @@
 #include <orb_sigstack.h>
 #include "utils/aprintf.h"
 #include "utils/debug.h"
-#include "utils/rcu.h"
+
+typedef __int128 orb_u128_t;
+
+#define GUARDED_REGION_MAX (4)
 
 // === State Definitions === //
 
 // A region of memory guarded through this handler.
 typedef struct guarded_region {
-    // The next `guarded_region` in this list.
-    struct guarded_region * _Atomic next;
+    // An atomic tracking...
+    //
+    // - Low 64 bits: the base address of the region
+    // - High 64 bits: the size of the region
+    //
+    orb_u128_t _Atomic state;
 
-    // The base address of the region.
-    size_t base;
-
-    // The size of this region.
-    size_t len;
-
-    // The abort message printed if we access this memory without a catch scope.
-    char *abort_msg;
+    // The abort message printed if we access this memory without a catch scope. These strings are
+    // never deallocated.
+    char * _Atomic abort_msg;
 } guarded_region_t;
 
 typedef struct global_state {
     // Lock taken by writers to `global_state` (i.e. `register` and `unregister`).
     os_unfair_lock lock;
 
-    // An `rcu` controlling updates to the guarded region list.
-    rcu_t *rcu;
-
-    // The head off the guarded region linked list.
-    guarded_region_t * _Atomic head;
+    // The buffer of guarded regions
+    guarded_region_t regions[GUARDED_REGION_MAX];
 } global_state_t;
 
 typedef struct fault_state {
@@ -72,35 +71,30 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
     global_state_t *global_state = state_global();
     local_state_t *local_state = state_tls();
 
-    // Acquire a reader lock on the RCU. This will be held for the duration of the signal handler
-    // because the error logging at the end may need the `abort_msg` allocated by the header.
-    //
-    // This RCU is unlocked in `end`. Do not early return!
-    signal_verdict_t result;
-    rcu_side_t side = rcu_begin_read(global_state->rcu);
-
     // First, let's ensure that the faulting address is protected.
-    guarded_region_t *region;
+    size_t region_base;
+    size_t region_len;
+    char *region_abort_msg;
     size_t fault_addr = (size_t) info->si_addr;
     {
-        // This load is paired with a `release` write in `register_guarded_region`. We need this
-        // ordering to ensure that the writes to the concurrently chained descriptor in
-        // `register_guarded_region` is fully initialized before we traverse to it.
-        region = atomic_load_explicit(&global_state->head, memory_order_acquire);
+        for (int i = 0; i < GUARDED_REGION_MAX; i++) {
+            guarded_region_t *region = &global_state->regions[i];
 
-        while (region != NULL) {
+            orb_u128_t state = atomic_load_explicit(&region->state, memory_order_relaxed);
+            region_base = (uint64_t)state;
+            region_len = (uint64_t)(state >> 64);
+
+            region_abort_msg = atomic_load_explicit(&region->abort_msg, memory_order_relaxed);
+
             // FIXME: Technically, comparing pointers in C with different provenances is illegal but
             // I don't know how else we could solve this issue.
-            if (fault_addr >= region->base && fault_addr < region->base + region->len) {
+            if (fault_addr >= region_base && fault_addr < region_base + region_len) {
                 goto addr_in_range;
             }
-
-            region = atomic_load_explicit(&region->next, memory_order_acquire);
         }
 
         // The address is not protected!
-        result = SIGNAL_VERDICT_CONTINUE;
-        goto end;
+        return SIGNAL_VERDICT_CONTINUE;
 addr_in_range:;
     }
 
@@ -135,20 +129,19 @@ addr_in_range:;
     // Flag the error so userland can process it.
     fault_state_t fault = local_state->first_fault;
     if (fault.region_base == 0) {
-        fault.region_base = region->base;
+        fault.region_base = region_base;
         fault.fault_addr = fault_addr;
         local_state->first_fault = fault;
     }
 
-    result = SIGNAL_VERDICT_HANDLED;
-    goto end;
+    return SIGNAL_VERDICT_HANDLED;
 
 abort:
     aprintf(
         "detected invalid memory operation in protected region at relative address 0x%zu (region starts at 0x%zu): %s\n",
-        fault_addr - region->base,
-        region->base,
-        region->abort_msg
+        fault_addr - region_base,
+        region_base,
+        region_abort_msg != NULL ? region_abort_msg : "<no abort message supplied>"
     );
 
     // Let the default SIGBUS handler dump the process. We intentionally skip over Go's default handler.
@@ -156,39 +149,33 @@ abort:
     // Go's default handlers seem to just dump the state of all its goroutines under the presumption
     // that this could help debug an issue triggered by unsafe cgo usage but, in this case, the bug
     // is purely `libkrun`'s fault so let's not spam the logs with unnecessary details.
-    result = SIGNAL_VERDICT_FORCE_DEFAULT;
-    // (fallthrough)
-end:
-    rcu_end_read(global_state->rcu, side);
-    return result;
+    return SIGNAL_VERDICT_FORCE_DEFAULT;
 }
 
 // === Public API === //
 
-void orb_access_guard_init() {
-    MACH_CHECK_FATAL(rcu_create(&state_global()->rcu));
-}
-
-void orb_access_guard_register_guarded_region(size_t base, size_t len, char *abort_msg_owned) {
+void orb_access_guard_register_guarded_region(size_t base, size_t len, char *abort_msg) {
     global_state_t *state = state_global();
     os_unfair_lock_lock(&state->lock);
 
-    // Push the region to the front of the list.
-    guarded_region_t *region = calloc(sizeof(guarded_region_t), 1);
-    if (region == NULL) {
-        FATAL("failed to allocated guarded region (OOM?)");
+    // Find a slot in the list.
+    guarded_region_t *region;
+    for (int i = 0; i < GUARDED_REGION_MAX; i++) {
+        region = &state->regions[i];
+        if (atomic_load_explicit(&region->state, memory_order_relaxed) == 0)
+            goto found_free;
     }
+    FATAL("Allocated too many guarded regions!");
 
-    region->base = base;
-    region->len = len;
-    region->abort_msg = abort_msg_owned;
-    region->next = atomic_load_explicit(&state->head, memory_order_relaxed);
+found_free:;
+    // Initialize its state. It's okay if racing fault handlers see the wrong abort message since
+    // it's only diagnostic for end users.
+    orb_u128_t re_state = ((orb_u128_t)base) + (((orb_u128_t)len) << 64);
+    atomic_store_explicit(&region->state, re_state, memory_order_relaxed);
+    atomic_store_explicit(&region->abort_msg, abort_msg, memory_order_relaxed);
 
-    atomic_store_explicit(&state->head, region, memory_order_release);
-
-    // We're not removing anything so there's no need to wait for RCU. We do, however, enforce a
-    // compiler barrier to ensure that this publish doesn't happen after we perform a potentially
-    // faulting guarded memory access.
+    // We enforce a compiler barrier to ensure that this publish doesn't happen after we perform a
+    // potentially faulting guarded memory access.
     atomic_signal_fence(memory_order_seq_cst);
 
     os_unfair_lock_unlock(&state->lock);
@@ -198,28 +185,22 @@ void orb_access_guard_unregister_guarded_region(size_t base) {
     global_state_t *state = state_global();
     os_unfair_lock_lock(&state->lock);
 
-    // Atomically remove the entry from the list.
-    guarded_region_t *region = atomic_load_explicit(&state->head, memory_order_relaxed);
-    guarded_region_t * _Atomic * prev_region_next_ptr = &state->head;
+    for (int i = 0; i < GUARDED_REGION_MAX; i++) {
+        guarded_region_t *region = &state->regions[i];
 
-    while (region != NULL) {
-        if (region->base <= base && base < region->base + region->len) {
-            atomic_store_explicit(
-                prev_region_next_ptr,
-                atomic_load_explicit(&region->next, memory_order_relaxed),
-                memory_order_relaxed
-            );
-            break;
+        orb_u128_t state = atomic_load_explicit(&region->state, memory_order_relaxed);
+        size_t region_base = (uint64_t)state;
+        size_t region_len = (uint64_t)(state >> 64);
+
+        if (region_base <= base && base < region_base + region_len) {
+            atomic_store_explicit(&region->state, 0, memory_order_relaxed);
+            atomic_store_explicit(&region->abort_msg, NULL, memory_order_relaxed);
         }
-
-        prev_region_next_ptr = &region->next;
-        region = atomic_load_explicit(&region->next, memory_order_relaxed);
     }
 
-    // Wait for all readers to forget about `region` before freeing it.
-    rcu_wait_for_forgotten(state->rcu);
-    free(region->abort_msg);
-    free(region);
+    // We enforce a compiler barrier to ensure that this publish doesn't happen after we perform a
+    // potentially faulting *un*guarded memory access.
+    atomic_signal_fence(memory_order_seq_cst);
 
     os_unfair_lock_unlock(&state->lock);
 }

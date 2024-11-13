@@ -5,6 +5,5 @@ fn main() {
         .include(sigstack::FFI_INCLUDE_DIR)
         .file("ffi/access_guard.c")
         .file("ffi/utils/aprintf.c")
-        .file("ffi/utils/rcu.c")
         .compile("utils");
 }

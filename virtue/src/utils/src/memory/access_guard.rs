@@ -1,11 +1,9 @@
 #![allow(clippy::missing_safety_doc)]
 
-use std::{num::NonZeroUsize, ptr, sync::Once};
+use std::{ffi::CStr, num::NonZeroUsize, ptr, sync::Once};
 
 use sigstack::SignalVerdict;
 use thiserror::Error;
-
-use crate::ffi::c_str::malloc_str;
 
 // === FFI === //
 
@@ -17,8 +15,6 @@ struct FaultState {
 
 // Implemented in `utils/ffi/access_guard.c`.
 extern "C" {
-    fn orb_access_guard_init();
-
     fn orb_access_guard_signal_handler(
         signum: i32,
         info: *mut libc::siginfo_t,
@@ -45,8 +41,6 @@ fn orb_access_guard_ensure_init() {
     static LOCK: Once = Once::new();
 
     LOCK.call_once(|| unsafe {
-        orb_access_guard_init();
-
         sigstack::register_handler(
             libc::SIGBUS,
             orb_access_guard_signal_handler,
@@ -64,9 +58,9 @@ pub struct GuardedRegion {
 }
 
 impl GuardedRegion {
-    pub unsafe fn new(base: *const u8, len: usize, abort_msg: &str) -> Self {
+    pub unsafe fn new(base: *const u8, len: usize, abort_msg: &'static CStr) -> Self {
         orb_access_guard_ensure_init();
-        orb_access_guard_register_guarded_region(base as usize, len, malloc_str(abort_msg));
+        orb_access_guard_register_guarded_region(base as usize, len, abort_msg.as_ptr());
 
         Self {
             base: base as usize,
