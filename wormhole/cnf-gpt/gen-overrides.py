@@ -21,6 +21,8 @@ with open(sys.argv[1], "r") as f:
                 # overrides for the overrides:
                 # older kernel versions are deprecated
                 if pkg.startswith("linuxKernel.packages."):
-                    pkg = f"linuxKernel.packagesAliases.linux_latest.{pkg.split('.')[-1]}"
+                    pkg = (
+                        f"linuxKernel.packagesAliases.linux_latest.{pkg.split('.')[-1]}"
+                    )
 
                 writer.writerow([cmd, pkg])

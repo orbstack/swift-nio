@@ -33,7 +33,7 @@ struct DockerImageDetails: View {
                     }
                 }
             }
-            
+
             DividedButtonStack {
                 DividedRowButton {
                     image.summary.openFolder()

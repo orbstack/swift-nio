@@ -272,7 +272,9 @@ extension Slider {
 func shouldOpenNewWindow(_ id: String) -> Bool {
     let idPrefix = "\(id)-AppWindow-"
 
-    if let window = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix(idPrefix) ?? false }) {
+    if let window = NSApp.windows.first(where: {
+        $0.identifier?.rawValue.hasPrefix(idPrefix) ?? false
+    }) {
         window.makeKeyAndOrderFront(nil)
         return false
     }

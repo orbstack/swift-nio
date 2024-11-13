@@ -120,12 +120,14 @@ static __always_inline __wsum csum_sub(__wsum csum, __wsum addend) {
     return csum_add(csum, ~addend);
 }
 
-static __always_inline __u8 matches_subnet4(volatile __u32 ip, volatile __u32 subnet, volatile __u32 mask) {
+static __always_inline __u8 matches_subnet4(volatile __u32 ip, volatile __u32 subnet,
+                                            volatile __u32 mask) {
     return (ip & mask) == subnet;
 }
 
-static __always_inline __u8 matches_subnet6(volatile __u32 *ip, volatile __u32 *subnet, volatile __u32 *mask) {
-    #pragma clang loop unroll(enable)
+static __always_inline __u8 matches_subnet6(volatile __u32 *ip, volatile __u32 *subnet,
+                                            volatile __u32 *mask) {
+#pragma clang loop unroll(enable)
     for (int i = 0; i < 4; i++) {
         if ((ip[i] & mask[i]) != subnet[i]) {
             return 0;
@@ -437,7 +439,8 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
     }
 
     // mark and re-inject
-    // we exempt traffic destined for the domainproxy subnet because that gets dnat'd and marked in ovm nftables
+    // we exempt traffic destined for the domainproxy subnet because that gets dnat'd and marked in
+    // ovm nftables
     if (!matches_subnet4(ip.daddr, DOMAINPROXY_SUBNET4, DOMAINPROXY_SUBNET4_MASK)) {
         skb->mark = FWMARK_DOCKER_ROUTE; // route to docker machine (via ip rule)
     }

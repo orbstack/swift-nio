@@ -259,7 +259,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }) {
                     Label("Debug Shell", systemImage: "")
                 }
-                
+
                 Button(action: {
                     container.openDebugShellFallback()
                 }) {
