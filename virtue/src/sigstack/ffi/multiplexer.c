@@ -27,7 +27,7 @@ struct signal_handler {
     } callback;
 };
 
-static _Atomic(struct signal_handler *) _orb_signal_handler_head;
+static _Atomic(struct signal_handler *) handler_head;
 
 // This is locked externally.
 bool orb_init_signal_multiplexer(int signum, struct sigaction old_action) {
@@ -37,11 +37,11 @@ bool orb_init_signal_multiplexer(int signum, struct sigaction old_action) {
     }
 
     handler->signum = signum;
-    handler->next = atomic_load(&_orb_signal_handler_head);
+    handler->next = atomic_load(&handler_head);
     handler->is_extern_handler = true;
     handler->callback.extern_action = old_action;
 
-    atomic_store(&_orb_signal_handler_head, handler);
+    atomic_store(&handler_head, handler);
     return true;
 }
 
@@ -53,12 +53,12 @@ bool orb_push_signal_multiplexer(int signum, signal_callback_t user_action, void
     }
 
     handler->signum = signum;
-    handler->next = atomic_load(&_orb_signal_handler_head);
+    handler->next = atomic_load(&handler_head);
     handler->is_extern_handler = false;
     handler->callback.user_action.func = user_action;
     handler->callback.user_action.userdata = userdata;
 
-    atomic_store(&_orb_signal_handler_head, handler);
+    atomic_store(&handler_head, handler);
     return true;
 }
 
@@ -72,7 +72,7 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
 
     // Handle multiplexing
     struct sigaction *old_action = NULL;
-    struct signal_handler *handler = atomic_load(&_orb_signal_handler_head);
+    struct signal_handler *handler = atomic_load(&handler_head);
 
     bool force_default_handling = false;
 
