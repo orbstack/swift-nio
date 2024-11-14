@@ -76,26 +76,27 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
     size_t region_len;
     char *region_abort_msg;
     size_t fault_addr = (size_t) info->si_addr;
-    {
-        for (int i = 0; i < GUARDED_REGION_MAX; i++) {
-            struct guarded_region *region = &global_state->regions[i];
+    bool addr_in_range = false;
 
-            orb_u128_t state = atomic_load_explicit(&region->state, memory_order_relaxed);
-            region_base = (uint64_t)state;
-            region_len = (uint64_t)(state >> 64);
+    for (int i = 0; i < GUARDED_REGION_MAX; i++) {
+        struct guarded_region *region = &global_state->regions[i];
 
-            region_abort_msg = atomic_load_explicit(&region->abort_msg, memory_order_relaxed);
+        orb_u128_t state = atomic_load_explicit(&region->state, memory_order_relaxed);
+        region_base = (uint64_t)state;
+        region_len = (uint64_t)(state >> 64);
 
-            // FIXME: Technically, comparing pointers in C with different provenances is illegal but
-            // I don't know how else we could solve this issue.
-            if (fault_addr >= region_base && fault_addr < region_base + region_len) {
-                goto addr_in_range;
-            }
+        region_abort_msg = atomic_load_explicit(&region->abort_msg, memory_order_relaxed);
+
+        // FIXME: Technically, comparing pointers in C with different provenances is illegal but
+        // I don't know how else we could solve this issue.
+        if (fault_addr >= region_base && fault_addr < region_base + region_len) {
+            addr_in_range = true;
         }
+    }
 
+    if (!addr_in_range) {
         // The address is not protected!
         return SIGNAL_VERDICT_CONTINUE;
-addr_in_range:;
     }
 
     // Now, let's see if anyone has declared interest in recovering from this error.
@@ -160,15 +161,18 @@ void orb_access_guard_register_guarded_region(size_t base, size_t len, char *abo
 
     // Find a slot in the list.
     struct guarded_region *region;
+    bool found_free = false;
     for (int i = 0; i < GUARDED_REGION_MAX; i++) {
         region = &state->regions[i];
         if (atomic_load_explicit(&region->state, memory_order_relaxed) == 0) {
-            goto found_free;
+            found_free = true;
         }
     }
-    FATAL("Allocated too many guarded regions!");
 
-found_free:;
+    if (!found_free) {
+        FATAL("Allocated too many guarded regions!");
+    }
+
     // Initialize its state. It's okay if racing fault handlers see the wrong abort message since
     // it's only diagnostic for end users.
     orb_u128_t re_state = ((orb_u128_t)base) + (((orb_u128_t)len) << 64);

@@ -69,10 +69,10 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
 
     bool force_default_handling = false;
 
-    while (handler != NULL) {
+    for (; handler != NULL; handler = handler->next) {
         // We're only interested in descriptors pertaining to our `signum`.
         if (handler->signum != signum) {
-            goto next;
+            continue;
         }
 
         // If userdata is `NULL`, we know this is the last descriptor for `signum`.
@@ -84,7 +84,7 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
         // If a handler has forced default handling, we're just scanning for the `extern_action`.
         if (force_default_handling) {
             // (we're just scanning)
-            goto next;
+            continue;
         }
 
         // Otherwise, we have another callback to process.
@@ -102,9 +102,6 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
             // descriptor.
             force_default_handling = true;
         }
-
-    next:
-        handler = handler->next;
     }
 
     // Handle chaining if the signal was never absorbed.
