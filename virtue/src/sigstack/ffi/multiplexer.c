@@ -1,5 +1,6 @@
 #include "orb_sigstack.h"
 
+#include <errno.h>
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -63,6 +64,12 @@ bool orb_push_signal_multiplexer(int signum, signal_callback_t user_action, void
 
 // This is written in C so that we can use `musttail`.
 void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
+    // Save thread state
+
+    // From errno's manpage: "errno is defined by the ISO C standard to be a modifiable lvalue of
+    // type `int`"
+    int old_errno = errno;
+
     // Handle multiplexing
     struct sigaction *old_action = NULL;
     struct signal_handler *handler = atomic_load(&_orb_signal_handler_head);
@@ -119,6 +126,10 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
         _Exit(EXIT_FAILURE);
     }
 
+    // Restore thread state
+    errno = old_errno;
+
+    // Proceed to the next handler
     if (force_default_handling || old_action->sa_handler == SIG_DFL) {
         // default handler: terminate, but forward to OS to get correct exit status
 
