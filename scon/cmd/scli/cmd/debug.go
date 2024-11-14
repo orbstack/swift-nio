@@ -44,13 +44,10 @@ const (
 
 const maxRetries = 3
 
-// drm server
-// const registryImage = "198.19.249.3:5000/wormhole-server:latest"
-const registryImage = "host.orb.internal:8400/wormhole:latest"
-
-// const registryImage = "localhost:5000/wormhole:latest"
-
-// const registryImage = "host.orb.internal:5000/wormhole:latest"
+// registryImage should point to drm server; for locally testing, it's more convenient to just
+// spin up a registry and push/pull to that registry instead
+// const registryImage = "drmserver.orb.local/wormhole:latest"
+const registryImage = "registry.orb.local/wormhole:latest"
 
 func init() {
 	rootCmd.AddCommand(debugCmd)
@@ -200,7 +197,7 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 				Entrypoint: []string{"/wormhole-server"},
 				HostConfig: &dockertypes.ContainerHostConfig{
 					Privileged:   true,
-					Binds:        []string{"wormhole-data:/data", "/mnt/host-wormhole-unified:/mnt/wormhole-unified:rw,rshared"},
+					Binds:        []string{"wormhole-data:/data"},
 					CgroupnsMode: "host",
 					PidMode:      "host",
 					NetworkMode:  "host",

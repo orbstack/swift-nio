@@ -8,7 +8,6 @@ use std::pin::Pin;
 use std::task::{ready, Context, Poll};
 use tokio::io::unix::AsyncFd;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tracing::trace;
 
 fn set_nonblocking(fd: RawFd) -> nix::Result<()> {
     let flags = fcntl(fd, FcntlArg::F_GETFL)?;
@@ -102,7 +101,7 @@ impl AsyncWrite for AsyncFile {
         }
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 

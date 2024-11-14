@@ -36,6 +36,8 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     fs::create_dir_all(UPPERDIR)?;
     fs::create_dir_all(WORKDIR)?;
     fs::create_dir_all(WORMHOLE_OVERLAY)?;
+    fs::create_dir_all(WORMHOLE_UNIFIED)?;
+    fs::create_dir_all("/data/run")?;
 
     trace!("mounting overlayfs");
     let options = format!(
@@ -51,40 +53,47 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     )?;
 
     trace!("creating ro wormhole-unified mount");
-    mount::<str, str, Path, Path>(Some(ROOTFS), WORMHOLE_UNIFIED, None, MsFlags::MS_BIND, None)?;
-    mount::<str, str, Path, Path>(
+    // note: to get a ro mount we need to first do a bind mount and then remount ro
+    mount(
         Some(ROOTFS),
         WORMHOLE_UNIFIED,
-        None,
+        None::<&Path>,
+        MsFlags::MS_BIND,
+        None::<&Path>,
+    )?;
+    mount(
+        Some(ROOTFS),
+        WORMHOLE_UNIFIED,
+        None::<&Path>,
         MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
-        None,
+        None::<&Path>,
     )?;
 
     // copy over the initial wormhole-rootfs nix store containing base packges into .base
     trace!("creating ro nix store mount");
-    mount::<str, str, Path, Path>(
+    mount(
         Some(format!("{}/nix/store", ROOTFS).as_str()),
         format!("{}/nix/orb/sys/.base", WORMHOLE_UNIFIED).as_str(),
-        None,
+        None::<&Path>,
         MsFlags::MS_BIND,
-        None,
+        None::<&Path>,
     )?;
-    mount::<str, str, Path, Path>(
+    mount(
         Some(format!("{}/nix/store", ROOTFS).as_str()),
         format!("{}/nix/orb/sys/.base", WORMHOLE_UNIFIED).as_str(),
-        None,
+        None::<&Path>,
         MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
-        None,
+        None::<&Path>,
     )?;
 
     for nix_dir in NIX_RW_DIRS {
         trace!("mount bind from overlay to unified: {}", nix_dir);
-        mount::<str, str, Path, Path>(
+        mount(
             Some(format!("{}/nix/{}", WORMHOLE_OVERLAY, nix_dir).as_str()),
             format!("{}/nix/{}", WORMHOLE_UNIFIED, nix_dir).as_str(),
-            None,
+            None::<&Path>,
             MsFlags::MS_BIND,
-            None,
+            None::<&Path>,
         )?;
     }
 
