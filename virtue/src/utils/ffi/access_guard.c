@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <os/lock.h>
-#include <Mach/Mach.h>
+#include <mach/mach.h>
 
 #include <orb_sigstack.h>
 #include "utils/aprintf.h"
@@ -16,60 +16,60 @@ typedef __int128 orb_u128_t;
 // === State Definitions === //
 
 // A region of memory guarded through this handler.
-typedef struct guarded_region {
+struct guarded_region {
     // An atomic tracking...
     //
     // - Low 64 bits: the base address of the region
     // - High 64 bits: the size of the region
     //
-    orb_u128_t _Atomic state;
+    _Atomic(orb_u128_t) state;
 
     // The abort message printed if we access this memory without a catch scope. These strings are
     // never deallocated.
-    char * _Atomic abort_msg;
-} guarded_region_t;
+    _Atomic(char *) abort_msg;
+};
 
-typedef struct global_state {
+struct global_state {
     // Lock taken by writers to `global_state` (i.e. `register` and `unregister`).
     os_unfair_lock lock;
 
     // The buffer of guarded regions
-    guarded_region_t regions[GUARDED_REGION_MAX];
-} global_state_t;
+    struct guarded_region regions[GUARDED_REGION_MAX];
+};
 
-typedef struct fault_state {
+struct fault_state {
     // This value is `0` if no errors have occurred since the last check.
     size_t region_base;
     size_t fault_addr;
-} fault_state_t;
+};
 
-typedef struct local_state {
+struct local_state {
     // The number of abort-absorbing scopes.
     volatile size_t scopes;
 
     // The first fault to have handled by the signal handler.
-    fault_state_t first_fault;
-} local_state_t;
+    struct fault_state first_fault;
+};
 
-static global_state_t orb_access_guard_state_global = {
+static struct global_state orb_access_guard_state_global = {
     .lock = OS_UNFAIR_LOCK_INIT
 };
 
-static __thread local_state_t orb_access_guard_state_tls;
+static __thread struct local_state orb_access_guard_state_tls;
 
-static inline global_state_t *state_global() {
+static inline struct global_state *state_global() {
     return &orb_access_guard_state_global;
 }
 
-static inline local_state_t *state_tls() {
+static inline struct local_state *state_tls() {
     return &orb_access_guard_state_tls;
 }
 
 // === Signal Handler === //
 
 signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, void *uap_raw, void *userdata) {
-    global_state_t *global_state = state_global();
-    local_state_t *local_state = state_tls();
+    struct global_state *global_state = state_global();
+    struct local_state *local_state = state_tls();
 
     // First, let's ensure that the faulting address is protected.
     size_t region_base;
@@ -78,7 +78,7 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
     size_t fault_addr = (size_t) info->si_addr;
     {
         for (int i = 0; i < GUARDED_REGION_MAX; i++) {
-            guarded_region_t *region = &global_state->regions[i];
+            struct guarded_region *region = &global_state->regions[i];
 
             orb_u128_t state = atomic_load_explicit(&region->state, memory_order_relaxed);
             region_base = (uint64_t)state;
@@ -127,7 +127,7 @@ addr_in_range:;
 #endif
 
     // Flag the error so userland can process it.
-    fault_state_t fault = local_state->first_fault;
+    struct fault_state fault = local_state->first_fault;
     if (fault.region_base == 0) {
         fault.region_base = region_base;
         fault.fault_addr = fault_addr;
@@ -155,15 +155,16 @@ abort:
 // === Public API === //
 
 void orb_access_guard_register_guarded_region(size_t base, size_t len, char *abort_msg) {
-    global_state_t *state = state_global();
+    struct global_state *state = state_global();
     os_unfair_lock_lock(&state->lock);
 
     // Find a slot in the list.
-    guarded_region_t *region;
+    struct guarded_region *region;
     for (int i = 0; i < GUARDED_REGION_MAX; i++) {
         region = &state->regions[i];
-        if (atomic_load_explicit(&region->state, memory_order_relaxed) == 0)
+        if (atomic_load_explicit(&region->state, memory_order_relaxed) == 0) {
             goto found_free;
+        }
     }
     FATAL("Allocated too many guarded regions!");
 
@@ -182,11 +183,11 @@ found_free:;
 }
 
 void orb_access_guard_unregister_guarded_region(size_t base) {
-    global_state_t *state = state_global();
+    struct global_state *state = state_global();
     os_unfair_lock_lock(&state->lock);
 
     for (int i = 0; i < GUARDED_REGION_MAX; i++) {
-        guarded_region_t *region = &state->regions[i];
+        struct guarded_region *region = &state->regions[i];
 
         orb_u128_t state = atomic_load_explicit(&region->state, memory_order_relaxed);
         size_t region_base = (uint64_t)state;
@@ -213,12 +214,12 @@ void orb_access_guard_end_catch() {
     state_tls()->scopes -= 1;
 }
 
-fault_state_t orb_access_guard_check_for_errors() {
-    local_state_t *tls = state_tls();
-    fault_state_t state = tls->first_fault;
+struct fault_state orb_access_guard_check_for_errors() {
+    struct local_state *tls = state_tls();
+    struct fault_state state = tls->first_fault;
 
     if (state.region_base != 0) {
-        tls->first_fault = (fault_state_t){0, 0};
+        tls->first_fault = (struct fault_state){0, 0};
     }
 
     return state;

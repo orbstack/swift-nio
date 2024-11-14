@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-typedef struct signal_handler {
+struct signal_handler {
     // The `signum` to which the handler responds.
     int signum;
 
@@ -24,15 +24,16 @@ typedef struct signal_handler {
         // The externally-defined `sigaction`.
         struct sigaction extern_action;
     } callback;
-} signal_handler_t;
+};
 
-static signal_handler_t * _Atomic _orb_signal_handler_head;
+static _Atomic(struct signal_handler *) _orb_signal_handler_head;
 
 // This is locked externally.
 bool orb_init_signal_multiplexer(int signum, struct sigaction old_action) {
-    signal_handler_t *handler = calloc(sizeof(signal_handler_t), 1);
-    if (handler == NULL)
+    struct signal_handler *handler = calloc(sizeof(struct signal_handler), 1);
+    if (handler == NULL) {
         return false;
+    }
 
     handler->signum = signum;
     handler->next = atomic_load(&_orb_signal_handler_head);
@@ -45,9 +46,10 @@ bool orb_init_signal_multiplexer(int signum, struct sigaction old_action) {
 
 // This is locked externally.
 bool orb_push_signal_multiplexer(int signum, signal_callback_t user_action, void *userdata) {
-    signal_handler_t *handler = calloc(sizeof(signal_handler_t), 1);
-    if (handler == NULL)
+    struct signal_handler *handler = calloc(sizeof(struct signal_handler), 1);
+    if (handler == NULL) {
         return false;
+    }
 
     handler->signum = signum;
     handler->next = atomic_load(&_orb_signal_handler_head);
@@ -63,14 +65,15 @@ bool orb_push_signal_multiplexer(int signum, signal_callback_t user_action, void
 void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
     // Handle multiplexing
     struct sigaction *old_action = NULL;
-    signal_handler_t *handler = atomic_load(&_orb_signal_handler_head);
+    struct signal_handler *handler = atomic_load(&_orb_signal_handler_head);
 
     bool force_default_handling = false;
 
     while (handler != NULL) {
         // We're only interested in descriptors pertaining to our `signum`.
-        if (handler->signum != signum)
+        if (handler->signum != signum) {
             goto next;
+        }
 
         // If userdata is `NULL`, we know this is the last descriptor for `signum`.
         if (handler->is_extern_handler) {

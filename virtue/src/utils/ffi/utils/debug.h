@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Mach/Mach.h>
+#include <mach/mach.h>
 #include <stdbool.h>
 #include <stdlib.h>
 

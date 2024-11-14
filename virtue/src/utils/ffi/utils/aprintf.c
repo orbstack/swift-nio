@@ -8,12 +8,12 @@
 #define STB_SPRINTF_NOFLOAT
 #include "stb_sprintf.h"
 
-typedef struct aprintf_ctx {
+struct aprintf_ctx {
     char tmp[STB_SPRINTF_MIN];
-} aprintf_ctx_t;
+};
 
 static char *aprintf_cb(const char *buf, void *user_raw, int len) {
-    aprintf_ctx_t *user = (aprintf_ctx_t *) user_raw;
+    struct aprintf_ctx *user = (struct aprintf_ctx *) user_raw;
     int ret = write(STDERR_FILENO, buf, len);
 
     // Okay, so `buf` and `user->tmp` technically alias, which is a bit suspicious, but
@@ -22,6 +22,6 @@ static char *aprintf_cb(const char *buf, void *user_raw, int len) {
 }
 
 void _orb_aprintf(const char *fmt, va_list args) {
-    aprintf_ctx_t ctx;  // can be uninit, `vsprintfcb` will write to `buf`.
+    struct aprintf_ctx ctx;  // can be uninit, `vsprintfcb` will write to `buf`.
     stbsp_vsprintfcb(aprintf_cb, &ctx, ctx.tmp, fmt, args);
 }
