@@ -7,8 +7,8 @@ use std::{
     marker::PhantomData,
     mem,
     ops::{
-        Add, AddAssign, Bound, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-        RangeToInclusive, Sub, SubAssign,
+        Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Bound, Not,
+        Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Sub, SubAssign,
     },
     os::fd::AsRawFd,
     ptr::NonNull,
@@ -116,6 +116,22 @@ impl GuestAddress {
         Self(self.0 - rhs)
     }
 
+    pub const fn bitand(self, rhs: u64) -> Self {
+        Self(self.0 & rhs)
+    }
+
+    pub const fn bitor(self, rhs: u64) -> Self {
+        Self(self.0 | rhs)
+    }
+
+    pub const fn bitxor(self, rhs: u64) -> Self {
+        Self(self.0 ^ rhs)
+    }
+
+    pub const fn not(self) -> Self {
+        Self(!self.0)
+    }
+
     pub const fn saturating_add(self, rhs: u64) -> Self {
         Self(self.0.saturating_add(rhs))
     }
@@ -203,6 +219,56 @@ impl Sub<u64> for GuestAddress {
 impl SubAssign<u64> for GuestAddress {
     fn sub_assign(&mut self, rhs: u64) {
         *self = *self - rhs;
+    }
+}
+
+impl BitAnd<u64> for GuestAddress {
+    type Output = Self;
+
+    fn bitand(self, rhs: u64) -> Self::Output {
+        self.bitand(rhs)
+    }
+}
+
+impl BitAndAssign<u64> for GuestAddress {
+    fn bitand_assign(&mut self, rhs: u64) {
+        *self = *self & rhs;
+    }
+}
+
+impl BitOr<u64> for GuestAddress {
+    type Output = Self;
+
+    fn bitor(self, rhs: u64) -> Self::Output {
+        self.bitor(rhs)
+    }
+}
+
+impl BitOrAssign<u64> for GuestAddress {
+    fn bitor_assign(&mut self, rhs: u64) {
+        *self = *self | rhs;
+    }
+}
+
+impl BitXor<u64> for GuestAddress {
+    type Output = Self;
+
+    fn bitxor(self, rhs: u64) -> Self::Output {
+        self.bitxor(rhs)
+    }
+}
+
+impl BitXorAssign<u64> for GuestAddress {
+    fn bitxor_assign(&mut self, rhs: u64) {
+        *self = *self ^ rhs;
+    }
+}
+
+impl Not for GuestAddress {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        self.not()
     }
 }
 

@@ -107,7 +107,6 @@ fn vm_allocate(
             VM_INHERIT_NONE,
         )
     };
-
     MachError::result(ret)
         .with_context(|| format!("failed to reserve host memory of size {size}"))?;
 

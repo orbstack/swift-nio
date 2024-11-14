@@ -956,8 +956,8 @@ impl HvfVcpu {
                 // if PC would be returning from a hypercall (PC-4 = HVC), we're in host kernel overhead
                 // need to be careful when reading this because of BPF vmalloc_exec regions
                 if let Ok(gpa) = self.translate_gva(pc - ARM64_INSN_SIZE) {
-                    if let Ok(last_insn) = self.guest_mem.reference::<u32>(gpa) {
-                        if is_hypercall_insn(last_insn.read()) {
+                    if let Ok(last_insn) = self.guest_mem.try_read::<u32>(gpa) {
+                        if is_hypercall_insn(last_insn) {
                             sample.prepend_stack(Frame::new(
                                 FrameCategory::HostKernel,
                                 HostKernelSymbolicator::ADDR_HANDLE_HVC,

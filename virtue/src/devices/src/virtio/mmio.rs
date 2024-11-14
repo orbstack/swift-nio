@@ -300,11 +300,11 @@ impl LocklessBusDevice for MmioTransport {
 
     fn write(&self, vcpuid: u64, offset: u64, data: &[u8]) {
         fn hi(v: &mut GuestAddress, x: u32) {
-            *v = v.map(|v| (v & 0xffff_ffff) | (u64::from(x) << 32))
+            *v = (*v & 0xffff_ffff) | (u64::from(x) << 32);
         }
 
         fn lo(v: &mut GuestAddress, x: u32) {
-            *v = v.map(|v| (v & !0xffff_ffff) | u64::from(x))
+            *v = (*v & !0xffff_ffff) | u64::from(x);
         }
 
         match offset {
