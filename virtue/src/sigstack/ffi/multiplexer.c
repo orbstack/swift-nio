@@ -123,7 +123,7 @@ void orb_signal_multiplexer(int signum, siginfo_t *info, void *uap) {
         // TODO: Use `APRINTF`
         // fprintf(stderr, "malformed signal chain descriptor: missing fallback handler for signal %d\n", signum);
 
-        _Exit(EXIT_FAILURE);
+        _Exit(0xBAD1);
     }
 
     // Restore thread state

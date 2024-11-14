@@ -61,36 +61,38 @@ pub unsafe fn register_handler(
         let mut stack: libc::stack_t = unsafe { mem::zeroed() };
         let ret = unsafe { libc::sigaltstack(ptr::null(), &mut stack) };
         if ret == -1 {
-            anyhow::bail!(
+            return Err(anyhow::anyhow!(
                 "failed to create `sigaltstack`: {}",
                 io::Error::last_os_error(),
-            );
+            ));
         }
 
         if stack.ss_flags & libc::SS_DISABLE != 0 {
-            anyhow::bail!("no sigaltstack");
+            return Err(anyhow::anyhow!("no sigaltstack"));
         }
 
         // fetch old signal handler first
         let mut old_action: libc::sigaction = unsafe { mem::zeroed() };
         let ret = unsafe { libc::sigaction(signum, ptr::null(), &mut old_action) };
         if ret == -1 {
-            anyhow::bail!(
+            return Err(anyhow::anyhow!(
                 "failed to fetch old `sigaction`: {}",
                 io::Error::last_os_error(),
-            );
+            ));
         }
 
         // we can only forward to old handlers that use signal stack
         if !matches!(old_action.sa_sigaction, libc::SIG_DFL | libc::SIG_IGN)
             && old_action.sa_flags & libc::SA_ONSTACK == 0
         {
-            anyhow::bail!("old handler doesn't use signal stack");
+            return Err(anyhow::anyhow!("old handler doesn't use signal stack"));
         }
 
         // Save old handler first to prevent race if new handler fires immediately.
         if unsafe { orb_init_signal_multiplexer(signum, old_action) } == 0 {
-            anyhow::bail!("failed to initialize signal multiplexer (oom?)");
+            return Err(anyhow::anyhow!(
+                "failed to initialize signal multiplexer (oom?)"
+            ));
         }
 
         // install new signal handler
@@ -104,9 +106,11 @@ pub unsafe fn register_handler(
             // copy mask from old handler
             sa_mask: old_action.sa_mask,
         };
-        let ret = unsafe { libc::sigaction(libc::SIGBUS, &new_action, ptr::null_mut()) };
+        let ret = unsafe { libc::sigaction(signum, &new_action, ptr::null_mut()) };
         if ret == -1 {
-            anyhow::bail!("failed to setup `sigaction` for `orb_init_signal_multiplexer`");
+            return Err(anyhow::anyhow!(
+                "failed to setup `sigaction` for `orb_init_signal_multiplexer`"
+            ));
         }
 
         registry.initialized_set.push(signum);
@@ -114,7 +118,9 @@ pub unsafe fn register_handler(
 
     // Now, we just have to push to the list.
     if unsafe { orb_push_signal_multiplexer(signum, user_action, userdata) } == 0 {
-        anyhow::bail!("failed to push to signal multiplexer (oom?)");
+        return Err(anyhow::anyhow!(
+            "failed to push to signal multiplexer (oom?)"
+        ));
     }
 
     Ok(())
