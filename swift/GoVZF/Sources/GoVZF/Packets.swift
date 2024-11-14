@@ -779,6 +779,7 @@ class GuestReader {
 // internet checksum
 private enum Checksum {
     // from gvisor
+    // one's complement addition
     private static func combine(_ a: UInt16, _ b: UInt16) -> UInt16 {
         let sum = UInt32(a) + UInt32(b)
         return UInt16((sum &+ (sum >> 16)) & 0xFFFF)
@@ -799,5 +800,15 @@ private enum Checksum {
             i += 2
         }
         return ~checksum
+    }
+
+    static func checksum<T: Collection<UInt8>>(data: T) -> UInt16 where T.Index == Int {
+        var wsum = UInt32(0)
+        for i in stride(from: 0, to: data.count, by: 2) {
+            wsum += UInt32(data[i]) << 8 + UInt32(data[i+1])
+        }
+        wsum = (wsum >> 16) + (wsum & 0xFFFF)
+        wsum = (wsum >> 16) + (wsum & 0xFFFF) // second iteration because the first could itself cause an overflow
+        return ~UInt16(wsum)
     }
 }
