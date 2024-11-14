@@ -10,6 +10,7 @@ use nix::{
 };
 
 use crate::set_cloexec;
+
 const CONTROL_CHARS: &[usize] = &[
     libc::VINTR,
     libc::VQUIT,

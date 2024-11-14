@@ -1,4 +1,4 @@
-package cmd
+package wormclient
 
 import (
 	"encoding/binary"

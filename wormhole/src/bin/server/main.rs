@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use libc::{TIOCSCTTY, TIOCSWINSZ};
 use std::{
-    fs,
+    fs::{self, OpenOptions},
     os::{
         fd::{AsRawFd, RawFd},
         unix::net::{UnixListener, UnixStream},
@@ -29,7 +29,6 @@ use wormhole::{
         },
         RpcRead, RpcWrite, RPC_SOCKET,
     },
-    set_cloexec,
     termios::create_pty,
     unset_cloexec,
 };
@@ -43,7 +42,7 @@ use nix::{
     libc::ioctl,
     pty::{OpenptyResult, Winsize},
     sys::socket::{recvmsg, ControlMessageOwned, MsgFlags},
-    unistd::{dup, dup2, pipe, pipe2, setsid},
+    unistd::{dup, dup2, pipe2, setsid},
 };
 use tracing::{trace, Level};
 
@@ -342,8 +341,8 @@ impl WormholeServer {
             libc::OPEN_TREE_CLOEXEC | libc::OPEN_TREE_CLONE | libc::AT_RECURSIVE as u32,
         )?;
 
-        let (_, log_pipe_write_fd) = pipe()?;
-        let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe()?;
+        let (_, log_pipe_write_fd) = pipe2(OFlag::O_CLOEXEC)?;
+        let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe2(OFlag::O_CLOEXEC)?;
         let wormhole_mount_fd = wormhole_mount.as_raw_fd();
         let mut exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd)?;
 
@@ -367,33 +366,11 @@ impl WormholeServer {
                     }
 
                     trace!("unsetting cloexec on fds for wormhole-attach");
-                    fcntl(
-                        wormhole_mount_fd,
-                        FcntlArg::F_SETFD(
-                            FdFlag::from_bits_truncate(fcntl(wormhole_mount_fd, F_GETFD)?)
-                                & !FdFlag::FD_CLOEXEC,
-                        ),
-                    )?;
-                    fcntl(
-                        exit_code_pipe_write_fd,
-                        FcntlArg::F_SETFD(
-                            FdFlag::from_bits_truncate(fcntl(exit_code_pipe_write_fd, F_GETFD)?)
-                                & !FdFlag::FD_CLOEXEC,
-                        ),
-                    )?;
-                    fcntl(
-                        log_pipe_write_fd,
-                        FcntlArg::F_SETFD(
-                            FdFlag::from_bits_truncate(fcntl(log_pipe_write_fd, F_GETFD)?)
-                                & !FdFlag::FD_CLOEXEC,
-                        ),
-                    )?;
-
                     unset_cloexec(wormhole_mount_fd)?;
                     unset_cloexec(exit_code_pipe_write_fd)?;
                     unset_cloexec(log_pipe_write_fd)?;
 
-                    // no cloexec because wormhole-attach child should inherit them
+                    // no cloexec because wormhole-attach child should inherit stdio fds
                     dup2(stdin_pipe.0, libc::STDIN_FILENO)?;
                     dup2(stdout_pipe.1, libc::STDOUT_FILENO)?;
                     dup2(stderr_pipe.1, libc::STDERR_FILENO)?;

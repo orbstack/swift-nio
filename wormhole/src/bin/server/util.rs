@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, os::fd::RawFd, path::Path};
 
 use libc::MS_PRIVATE;
 use nix::{
