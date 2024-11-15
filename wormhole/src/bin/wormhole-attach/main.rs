@@ -66,7 +66,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
     flock::{Flock, FlockMode, FlockWait},
-    model::WormholeConfig,
+    model::{WormholeConfig, WormholeRuntimeState},
     mount_common,
     newmount::{mount_setattr, move_mount, open_tree, MountAttr, MOUNT_ATTR_RDONLY},
     paths, set_cloexec,
@@ -368,10 +368,12 @@ fn switch_rootfs(rootfs_fd: &OwnedFd, proc_mounts: &[Mount]) -> anyhow::Result<(
     Ok(())
 }
 
-fn parse_config() -> anyhow::Result<WormholeConfig> {
+fn parse_config() -> anyhow::Result<(WormholeConfig, WormholeRuntimeState)> {
     let config_str = std::env::args().nth(1).unwrap();
+    let runtime_state_str = std::env::args().nth(2).unwrap();
     let config = serde_json::from_str(&config_str)?;
-    Ok(config)
+    let runtime_state = serde_json::from_str(&runtime_state_str)?;
+    Ok((config, runtime_state))
 }
 
 /*
@@ -387,13 +389,15 @@ fn main() -> anyhow::Result<()> {
 
     // stdin, stdout, stderr are expected to be 0,1,2 and will be propagated to the child
     // usage: wormhole-attach <config json>
-    let config = parse_config()?;
-    let rootfs_fd = config
+    let (config, runtime_state) = parse_config()?;
+    let rootfs_fd = runtime_state
         .rootfs_fd
         .map(|fd| unsafe { OwnedFd::from_raw_fd(fd) });
     // exit_code_pipe_write_fd needs to be leaked in monitor and subreaper to avoid closing on panic, which causes immediate SIGPWR
-    let log_fd = unsafe { OwnedFd::from_raw_fd(config.log_fd) };
-    let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(config.wormhole_mount_tree_fd) };
+    let log_fd = unsafe { OwnedFd::from_raw_fd(runtime_state.log_fd) };
+    let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(runtime_state.wormhole_mount_tree_fd) };
+    let exit_code_pipe_write_fd =
+        unsafe { OwnedFd::from_raw_fd(runtime_state.exit_code_pipe_write_fd) };
     trace!("entry shell cmd: {:?}", config.entry_shell_cmd);
     trace!("drm token: {:?}", config.drm_token);
     drm::verify_token(&config.drm_token)?;
@@ -402,7 +406,7 @@ fn main() -> anyhow::Result<()> {
     if let Some(ref rootfs_fd) = rootfs_fd {
         set_cloexec(rootfs_fd.as_raw_fd())?;
     }
-    set_cloexec(config.exit_code_pipe_write_fd)?;
+    set_cloexec(exit_code_pipe_write_fd.as_raw_fd())?;
     set_cloexec(log_fd.as_raw_fd())?;
     set_cloexec(wormhole_mount_fd.as_raw_fd())?;
 
@@ -667,7 +671,7 @@ fn main() -> anyhow::Result<()> {
 
             trace!("running monitor");
             monitor::run(
-                &config,
+                &runtime_state,
                 proc_fd,
                 nix_flock_ref,
                 monitor_socket_fd,
@@ -871,7 +875,7 @@ fn main() -> anyhow::Result<()> {
                             // subreaper helps us deal with zsh's zombie processes in any container where init is not a shell (e.g. distroless)
 
                             subreaper::run(
-                                config.exit_code_pipe_write_fd,
+                                exit_code_pipe_write_fd,
                                 log_fd,
                                 subreaper_socket_fd,
                                 subreaper_sfd,

@@ -49,14 +49,6 @@ const maxRetries = 3
 // const registryImage = "drmserver.orb.local/wormhole:latest"
 const registryImage = "registry.orb.local/wormhole:latest"
 
-type WormholeRemoteServerParams struct {
-	InitPid          int      `json:"a"`
-	DrmToken         string   `json:"e"`
-	ContainerWorkdir string   `json:"f"`
-	ContainerEnv     []string `json:"g"`
-	EntryShellCmd    string   `json:"h"`
-}
-
 func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*RpcServer, error) {
 	// Start wormhole server (if not running) and establish a client connection. There are a few scenarios where a race can occur:
 	//   - two clients start a server container at the same time, resulting in a name conflict. In this case,
@@ -174,13 +166,14 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 	return &server, nil
 }
 
-func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeParam string) error {
+func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeConfig string) error {
 	server, err := connectRemote(client, drmToken, maxRetries)
 	if err != nil {
 		return err
 	}
 
 	var originalState *term.State
+	var ptyConfig *pb.PtyConfig
 
 	// see scli/shell/ssh.go
 	// TODO: merge into a shared path with ssh.go
@@ -228,25 +221,21 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 		}
 
 		// request pty
-		err = server.WriteMessage(&pb.RpcClientMessage{
-			ClientMessage: &pb.RpcClientMessage_RequestPty{
-				RequestPty: &pb.RequestPty{
-					TermEnv: termEnv,
-					Rows:    uint32(h),
-					Cols:    uint32(w),
-					Termios: serializedTermios,
-				},
-			},
-		})
-		if err != nil {
-			return err
+		ptyConfig = &pb.PtyConfig{
+			TermEnv: termEnv,
+			Rows:    uint32(h),
+			Cols:    uint32(w),
+			Termios: serializedTermios,
 		}
 	}
 
 	// start wormhole-attach payload
 	err = server.WriteMessage(&pb.RpcClientMessage{
 		ClientMessage: &pb.RpcClientMessage_StartPayload{
-			StartPayload: &pb.StartPayload{WormholeParam: string(wormholeParam)},
+			StartPayload: &pb.StartPayload{
+				WormholeConfig: string(wormholeConfig),
+				PtyConfig:      ptyConfig,
+			},
 		},
 	})
 	if err != nil {
@@ -351,18 +340,18 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		shellCmd = shellescape.QuoteCommand(args)
 	}
 
-	wormholeParam, err := json.Marshal(WormholeRemoteServerParams{
+	wormholeConfig, err := json.Marshal(&sshtypes.WormholeConfig{
 		InitPid:          containerInfo.State.Pid,
+		DrmToken:         drmToken,
 		ContainerWorkdir: workingDir,
 		ContainerEnv:     containerInfo.Config.Env,
 		EntryShellCmd:    shellCmd,
-		DrmToken:         drmToken,
 	})
 	if err != nil {
 		return 1, err
 	}
 
-	err = startRemoteWormhole(client, drmToken, string(wormholeParam))
+	err = startRemoteWormhole(client, drmToken, string(wormholeConfig))
 	if err != nil {
 		color.New(color.FgRed).Fprintln(os.Stderr, "\nRemote debug session unexpectedly closed")
 		// todo: just return an error, checkcli will handle the red-printing and exit code

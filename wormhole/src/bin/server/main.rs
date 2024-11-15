@@ -17,15 +17,15 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing_subscriber::fmt::format::FmtSpan;
-use util::{mount_wormhole, unmount_wormhole, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED};
+use util::{mount_wormhole, unmount_wormhole, BUF_SIZE, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED};
 use wormhole::{
     asyncfile::AsyncFile,
-    model::WormholeConfig,
+    model::{WormholeConfig, WormholeRuntimeState},
     newmount::open_tree,
     rpc::{
         wormhole::{
             rpc_client_message::ClientMessage, rpc_server_message::ServerMessage, ClientConnectAck,
-            ExitStatus, RpcClientMessage, RpcServerMessage, StderrData, StdoutData,
+            ExitStatus, RpcClientMessage, RpcServerMessage, StartPayload, StderrData, StdoutData,
         },
         RpcRead, RpcWrite, RPC_SOCKET,
     },
@@ -138,19 +138,26 @@ impl WormholeServer {
         })
     }
 
-    async fn reset_data(self: &Self) -> anyhow::Result<()> {
-        trace!("nuking data");
+    async fn reset_data(self: &Self, client_writer: Arc<Mutex<AsyncFile>>) -> anyhow::Result<()> {
+        trace!("resetting data");
+        let mut exit_code = 0;
 
-        // reset data only if there are no other connections present
         let lock = self.count.lock().await;
         if *lock == 1 {
             fs::remove_dir_all(UPPERDIR)?;
             fs::remove_dir_all(WORKDIR)?;
         } else {
-            return Err(anyhow!(
-                "could not reset data with other connections present"
-            ));
+            // other connections are present, so we cannot reset
+            trace!("other connections present, cannot reset");
+            exit_code = 1;
         }
+
+        let mut client_writer = client_writer.lock().await;
+        RpcServerMessage {
+            server_message: Some(ServerMessage::ExitStatus(ExitStatus { exit_code })),
+        }
+        .write(&mut client_writer)
+        .await?;
 
         Ok(())
     }
@@ -212,7 +219,7 @@ impl WormholeServer {
         is_stdout: bool,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
-            let mut buf = [0u8; 1024];
+            let mut buf = [0u8; BUF_SIZE];
             loop {
                 tokio::select! {
                     _ = cancel_token.cancelled() => {
@@ -260,6 +267,11 @@ impl WormholeServer {
             client_stdin.as_raw_fd(),
             client_stdout.as_raw_fd()
         );
+
+        // Send ack to scon client. This is necessary so that the client knows the server refcount
+        // was incremented and the server is not in the middle of exiting. If the client
+        // receives an EOF before this ack, the client will assume the server was shutting down
+        // and will attempt to create a new server.
         RpcServerMessage {
             server_message: Some(ServerMessage::ClientConnectAck(ClientConnectAck {})),
         }
@@ -267,74 +279,67 @@ impl WormholeServer {
         .await?;
 
         let client_writer = Arc::new(Mutex::new(client_stdout));
+
+        loop {
+            let message = RpcClientMessage::read(&mut client_stdin).await?;
+            match message.client_message {
+                Some(ClientMessage::StartPayload(msg)) => {
+                    return self
+                        .start_wormhole_attach(msg, client_stdin, client_writer)
+                        .await;
+                }
+
+                Some(ClientMessage::ResetData(_)) => return self.reset_data(client_writer).await,
+                _ => {}
+            }
+        }
+    }
+
+    async fn start_wormhole_attach(
+        self: &Self,
+        params: StartPayload,
+        client_stdin: AsyncFile,
+        client_writer: Arc<Mutex<AsyncFile>>,
+    ) -> anyhow::Result<()> {
         let mut pty: Option<OpenptyResult> = None;
         let mut term_env: Option<String> = None;
-
-        let wormhole_param;
 
         // (read, write) pipes
         let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
         let mut stdout_pipe: (RawFd, RawFd) = (-1, -1);
         let mut stderr_pipe: (RawFd, RawFd) = (-1, -1);
 
-        // wait until user calls start before proceeding
-        loop {
-            let message = RpcClientMessage::read(&mut client_stdin).await?;
+        if let Some(pty_config) = params.pty_config {
+            pty = Some(create_pty(
+                pty_config.cols as u16,
+                pty_config.rows as u16,
+                pty_config.termios,
+            )?);
+            term_env = Some(pty_config.term_env);
 
-            match message.client_message {
-                Some(ClientMessage::RequestPty(msg)) => {
-                    pty = Some(create_pty(msg.cols as u16, msg.rows as u16, msg.termios)?);
-                    term_env = Some(msg.term_env);
+            let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
+            let master_fd = pty.as_ref().unwrap().master.as_raw_fd();
 
-                    let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
-                    let master_fd = pty.as_ref().unwrap().master.as_raw_fd();
+            trace!("created pty: {slave_fd} {master_fd}");
 
-                    trace!("got pty: {slave_fd} {master_fd}");
-
-                    // for stdin: write to master and read from slave
-                    stdin_pipe.0 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-                    stdin_pipe.1 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-                    // for stdout/stderr: read from master and write to slave
-                    stdout_pipe.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-                    stdout_pipe.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-                    stderr_pipe.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-                    stderr_pipe.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-                    if stdin_pipe.0 < 0
-                        || stdin_pipe.1 < 0
-                        || stdout_pipe.0 < 0
-                        || stdout_pipe.1 < 0
-                        || stderr_pipe.0 < 0
-                        || stderr_pipe.1 < 0
-                    {
-                        return Err(anyhow!("failed to duplicate fds"));
-                    }
-                }
-                Some(ClientMessage::StartPayload(msg)) => {
-                    wormhole_param = msg.wormhole_param;
-                    break;
-                }
-                Some(ClientMessage::ResetData(_)) => {
-                    let exit_code = match self.reset_data().await {
-                        Ok(_) => 0,
-                        Err(e) => {
-                            trace!("error resetting data: {:?}", e);
-                            1
-                        }
-                    };
-
-                    let mut client_writer = client_writer.lock().await;
-                    RpcServerMessage {
-                        server_message: Some(ServerMessage::ExitStatus(ExitStatus { exit_code })),
-                    }
-                    .write(&mut client_writer)
-                    .await?;
-
-                    return Ok(());
-                }
-                _ => {}
+            // for stdin: write to master and read from slave
+            stdin_pipe.0 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdin_pipe.1 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            // for stdout/stderr: read from master and write to slave
+            stdout_pipe.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdout_pipe.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stderr_pipe.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stderr_pipe.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            if stdin_pipe.0 < 0
+                || stdin_pipe.1 < 0
+                || stdout_pipe.0 < 0
+                || stdout_pipe.1 < 0
+                || stderr_pipe.0 < 0
+                || stderr_pipe.1 < 0
+            {
+                return Err(anyhow!("failed to duplicate fds"));
             }
         }
-
         if pty.is_none() {
             stdin_pipe = pipe2(OFlag::O_CLOEXEC)?;
             stdout_pipe = pipe2(OFlag::O_CLOEXEC)?;
@@ -352,15 +357,21 @@ impl WormholeServer {
         let wormhole_mount_fd = wormhole_mount.as_raw_fd();
         let mut exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd)?;
 
-        let mut config = serde_json::from_str::<WormholeConfig>(&wormhole_param)?;
-        config.wormhole_mount_tree_fd = wormhole_mount_fd;
-        config.log_fd = log_pipe_write_fd;
-        config.exit_code_pipe_write_fd = exit_code_pipe_write_fd;
+        let config: WormholeConfig = serde_json::from_str(&params.wormhole_config)?;
+        let runtime_state = WormholeRuntimeState {
+            rootfs_fd: None,
+            wormhole_mount_tree_fd: wormhole_mount_fd,
+            log_fd: log_pipe_write_fd,
+            exit_code_pipe_write_fd: exit_code_pipe_write_fd,
+        };
 
         trace!("spawning wormhole-attach");
         let _ = unsafe {
             Command::new("/wormhole-attach")
-                .arg(serde_json::to_string(&config)?)
+                .args(&[
+                    serde_json::to_string(&config)?,
+                    serde_json::to_string(&runtime_state)?,
+                ])
                 .env("TERM", term_env.unwrap_or(String::from("")))
                 .pre_exec(move || {
                     if is_pty {
@@ -403,12 +414,7 @@ impl WormholeServer {
             payload_stderr,
             false,
         );
-        self.spawn_client_to_payload(
-            cancel_token.clone(),
-            client_stdin,
-            payload_stdin,
-            pty.is_some(),
-        );
+        self.spawn_client_to_payload(cancel_token.clone(), client_stdin, payload_stdin, is_pty);
 
         let mut exit_code = [0u8];
         tokio::select! {
@@ -435,14 +441,14 @@ impl WormholeServer {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let trace_level = if cfg!(debug_assertions) {
+    let level = if cfg!(debug_assertions) {
         Level::TRACE
     } else {
         Level::INFO
     };
     tracing_subscriber::fmt()
         .with_span_events(FmtSpan::CLOSE)
-        .with_max_level(trace_level)
+        .with_max_level(level)
         .init();
 
     trace!("starting wormhole server");

@@ -2,15 +2,19 @@
 
 set -euxo pipefail
 
-VERSION=1
+cd "$(dirname "$0")"
 cd ..
+
+VERSION=1
+
 rm -rf out/wormhole
 mkdir -p out/wormhole
 
 VERSION="$VERSION" docker buildx bake -f rootfs/docker-bake.hcl wormhole
 docker save registry.orb.local/wormhole:$VERSION -o out/wormhole/wormhole.tar
 
-cd out/wormhole && tar -xf wormhole.tar
+cd out/wormhole
+tar -xf wormhole.tar
 manifest="$(jq -r '.manifests[0].digest | split(":")[1]' index.json)"
 
 # note: first upload blobs, then manifest, then delete old blobs last

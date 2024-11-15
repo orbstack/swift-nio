@@ -23,7 +23,7 @@ use nix::{
 use tracing::trace;
 use wormhole::{
     flock::{Flock, FlockMode, FlockWait},
-    model::WormholeConfig,
+    model::{WormholeConfig, WormholeRuntimeState},
 };
 
 use crate::{
@@ -128,7 +128,7 @@ fn map_signal(signal: u32) -> anyhow::Result<Signal> {
 }
 
 pub fn run(
-    config: &WormholeConfig,
+    state: &WormholeRuntimeState,
     proc_fd: OwnedFd,
     nix_flock_ref: Flock,
     forward_signal_fd: OwnedFd,
@@ -137,8 +137,8 @@ pub fn run(
     sfd: SignalFd,
 ) -> anyhow::Result<()> {
     // switch over to using the log_fd. if we don't switch, logging will crash the application when stout and stderr closes!
-    dup2(config.log_fd, stdout().as_raw_fd())?;
-    dup2(config.log_fd, stderr().as_raw_fd())?;
+    dup2(state.log_fd, stdout().as_raw_fd())?;
+    dup2(state.log_fd, stderr().as_raw_fd())?;
     let forward_signal_socket = UnixStream::from(forward_signal_fd);
 
     // wait until child (intermediate) exits

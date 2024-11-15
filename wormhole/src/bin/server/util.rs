@@ -14,6 +14,7 @@ pub const WORKDIR: &str = "/data/work";
 pub const WORMHOLE_OVERLAY: &str = "/mnt/wormhole-overlay";
 pub const WORMHOLE_UNIFIED: &str = "/mnt/wormhole-unified";
 pub const NIX_RW_DIRS: [&str; 3] = ["store", "var", "orb/data"];
+pub const BUF_SIZE: usize = 65536;
 
 pub fn unmount_wormhole() -> anyhow::Result<()> {
     for nix_dir in NIX_RW_DIRS {

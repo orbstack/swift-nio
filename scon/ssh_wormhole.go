@@ -240,11 +240,7 @@ func (sv *SshServer) startWormholeProcess(cmd *agent.AgentCommand, container *Co
 	config := &sshtypes.WormholeConfig{
 		InitPid: params.resp.InitPid,
 
-		// dup starting at fd 3 in child
-		WormholeMountTreeFd: 3,
-		ExitCodePipeWriteFd: 4,
-		LogFd:               5,
-		DrmToken:            sv.m.drm.lastResult.EntitlementToken,
+		DrmToken: sv.m.drm.lastResult.EntitlementToken,
 
 		// instead of launching wormhole-attach process with the container's env, we pass it separately because there are several env priorities:
 		// 1. start with container env (* from scon)
@@ -257,6 +253,12 @@ func (sv *SshServer) startWormholeProcess(cmd *agent.AgentCommand, container *Co
 
 		EntryShellCmd: shellCmd,
 	}
+	runtimeState := &sshtypes.WormholeRuntimeState{
+		// dup starting at fd 3 in child
+		WormholeMountTreeFd: 3,
+		ExitCodePipeWriteFd: 4,
+		LogFd:               5,
+	}
 
 	cmd.User = ""
 	cmd.DoLogin = false
@@ -264,14 +266,18 @@ func (sv *SshServer) startWormholeProcess(cmd *agent.AgentCommand, container *Co
 	cmd.ExtraFiles = []*os.File{wormholeMountFile, exitCodePipeWrite, logPipeWrite}
 	if params.resp.SwitchRoot {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, params.resp.RootfsFile)
-		config.RootfsFd = 6 // starting at 3
+		runtimeState.RootfsFd = 6 // starting at 3
 	}
 
 	configBytes, err := json.Marshal(config)
 	if err != nil {
 		return nil, err
 	}
-	cmd.CombinedArgs = []string{mounts.WormholeAttach, string(configBytes)}
+	runtimeStateBytes, err := json.Marshal(runtimeState)
+	if err != nil {
+		return nil, err
+	}
+	cmd.CombinedArgs = []string{mounts.WormholeAttach, string(configBytes), string(runtimeStateBytes)}
 	// for debugging (not passed through to payload)
 	cmd.Env.SetPair("RUST_BACKTRACE=full")
 

@@ -19,15 +19,18 @@ type SshMeta struct {
 
 type WormholeConfig struct {
 	// renamed for obfuscation, as this may be user-visible
-	InitPid             int    `json:"a"`
-	RootfsFd            int    `json:"i,omitempty"`
-	WormholeMountTreeFd int    `json:"b"`
-	ExitCodePipeWriteFd int    `json:"c"`
-	LogFd               int    `json:"d"`
-	DrmToken            string `json:"e"`
+	InitPid  int    `json:"a"`
+	DrmToken string `json:"b"`
 
-	ContainerWorkdir string   `json:"f,omitempty"`
-	ContainerEnv     []string `json:"g"`
+	ContainerWorkdir string   `json:"c,omitempty"`
+	ContainerEnv     []string `json:"d"`
 
-	EntryShellCmd string `json:"h,omitempty"`
+	EntryShellCmd string `json:"e,omitempty"`
+}
+
+type WormholeRuntimeState struct {
+	RootfsFd            int `json:"a,omitempty"`
+	WormholeMountTreeFd int `json:"b"`
+	ExitCodePipeWriteFd int `json:"c"`
+	LogFd               int `json:"d"`
 }

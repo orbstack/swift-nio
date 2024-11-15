@@ -30,7 +30,7 @@ const EPOLL_SFD_DATA: u64 = 1;
 const EPOLL_SOCKET_DATA: u64 = 2;
 
 pub fn run(
-    exit_code_pipe_write_fd: RawFd,
+    exit_code_pipe_write_fd: OwnedFd,
     log_fd: OwnedFd,
     socket_fd: OwnedFd,
     mut sfd: SignalFd,
@@ -41,7 +41,7 @@ pub fn run(
     dup2(log_fd.as_raw_fd(), stderr().as_raw_fd())?;
     drop(log_fd);
 
-    let mut exit_code_pipe_write = unsafe { File::from_raw_fd(exit_code_pipe_write_fd) };
+    let mut exit_code_pipe_write = File::from(exit_code_pipe_write_fd);
     let socket = UnixStream::from(socket_fd);
 
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;

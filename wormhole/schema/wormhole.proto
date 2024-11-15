@@ -19,9 +19,8 @@ message RpcClientMessage {
     oneof client_message {
         StdinData stdin_data = 1;
         TerminalResize terminal_resize = 2;
-        RequestPty request_pty = 3;
-        StartPayload start_payload = 4;
-        ResetData reset_data = 5;
+        StartPayload start_payload = 3;
+        ResetData reset_data = 4;
     }
 }
 
@@ -36,7 +35,7 @@ message TerminalResize {
     uint32 rows = 2;
 }
 
-message RequestPty {
+message PtyConfig {
     string term_env = 1;
     uint32 rows = 2;
     uint32 cols = 3;
@@ -44,7 +43,8 @@ message RequestPty {
 }
 
 message StartPayload {
-    string wormhole_param = 1;
+    string wormhole_config = 1;
+    optional PtyConfig pty_config = 2;
 }
 
 message ResetData {

@@ -101,6 +101,7 @@ func (c *Client) ExecStream(cid string, execReq *dockertypes.ContainerExecCreate
 	if err != nil {
 		return nil, fmt.Errorf("create exec: %w", err)
 	}
+
 	// upgrade to tcp
 	conn, err := c.StreamHijack("POST", "/exec/"+execCreate.ID+"/start", dockertypes.ContainerExecStartRequest{
 		Detach: false,
