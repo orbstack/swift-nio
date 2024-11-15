@@ -2,7 +2,7 @@ use std::fs;
 
 use libc::MS_PRIVATE;
 use nix::mount::{umount2, MntFlags, MsFlags};
-use tracing::trace;
+use tracing::{debug, trace};
 use wormhole::{
     bind_mount_ro, mount_common,
     newmount::{mount_setattr, MountAttr},
