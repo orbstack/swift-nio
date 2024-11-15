@@ -51,7 +51,7 @@ fi
 cp ~/.orbstack/ssh/id_ed25519.pub config/authorized_keys
 
 # build packer and images
-BTYPE=$BTYPE ARCH=$ARCH HOST_ARCH=$HOST_ARCH PLATFORM=$PLATFORM \
+BTYPE="$BTYPE" ARCH="$ARCH" HOST_ARCH="$HOST_ARCH" PLATFORM="$PLATFORM" \
     docker buildx bake -f docker-bake.hcl rootfs
 
 # extract images

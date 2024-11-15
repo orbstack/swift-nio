@@ -138,24 +138,24 @@ impl WormholeServer {
         })
     }
 
-    async fn nuke_data(self: &Arc<Self>) -> anyhow::Result<()> {
+    async fn reset_data(self: &Self) -> anyhow::Result<()> {
         trace!("nuking data");
 
-        // nuke data only if there are no other connections present
+        // reset data only if there are no other connections present
         let lock = self.count.lock().await;
         if *lock == 1 {
             fs::remove_dir_all(UPPERDIR)?;
             fs::remove_dir_all(WORKDIR)?;
         } else {
             return Err(anyhow!(
-                "could not nuke data with other connections present"
+                "could not reset data with other connections present"
             ));
         }
         Ok(())
     }
 
     fn spawn_client_to_payload(
-        self: &Arc<Self>,
+        self: &Self,
         cancel_token: CancellationToken,
         mut client_stdin: AsyncFile,
         mut payload_stdin: AsyncFile,
@@ -200,7 +200,7 @@ impl WormholeServer {
     }
 
     fn spawn_payload_to_client(
-        self: &Arc<Self>,
+        self: &Self,
         cancel_token: CancellationToken,
         client_writer_mu: Arc<Mutex<AsyncFile>>,
         mut payload_output: AsyncFile,
@@ -246,7 +246,7 @@ impl WormholeServer {
         })
     }
 
-    async fn handle_client(self: &Arc<Self>, mut stream: UnixStream) -> anyhow::Result<()> {
+    async fn handle_client(self: &Self, mut stream: UnixStream) -> anyhow::Result<()> {
         // get client fds via scm_rights over the stream
         trace!("waiting for rpc client fds");
         let (mut client_stdin, mut client_stdout) = recv_rpc_client(&stream)?;
@@ -308,11 +308,11 @@ impl WormholeServer {
                     wormhole_param = msg.wormhole_param;
                     break;
                 }
-                Some(ClientMessage::NukeData(_)) => {
-                    let exit_code = match self.nuke_data().await {
+                Some(ClientMessage::ResetData(_)) => {
+                    let exit_code = match self.reset_data().await {
                         Ok(_) => 0,
                         Err(e) => {
-                            trace!("error nuking data: {:?}", e);
+                            trace!("error resetting data: {:?}", e);
                             1
                         }
                     };

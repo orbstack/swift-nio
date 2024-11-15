@@ -7,8 +7,8 @@ cd ..
 rm -rf out/wormhole
 mkdir -p out/wormhole
 
-VERSION=$VERSION docker buildx bake -f rootfs/docker-bake.hcl wormhole
-docker save wormhole:$VERSION -o out/wormhole/wormhole.tar
+VERSION="$VERSION" docker buildx bake -f rootfs/docker-bake.hcl wormhole
+docker save registry.orb.local/wormhole:$VERSION -o out/wormhole/wormhole.tar
 
 cd out/wormhole && tar -xf wormhole.tar
 manifest="$(jq -r '.manifests[0].digest | split(":")[1]' index.json)"

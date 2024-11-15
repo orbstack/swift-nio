@@ -1,12 +1,12 @@
-use std::{fs, os::fd::RawFd, path::Path};
+use std::fs;
 
 use libc::MS_PRIVATE;
-use nix::{
-    errno::Errno,
-    mount::{mount, umount2, MntFlags, MsFlags},
-};
+use nix::mount::{umount2, MntFlags, MsFlags};
 use tracing::trace;
-use wormhole::newmount::{mount_setattr, MountAttr};
+use wormhole::{
+    bind_mount_ro, mount_common,
+    newmount::{mount_setattr, MountAttr},
+};
 
 pub const ROOTFS: &str = "/wormhole-rootfs";
 pub const UPPERDIR: &str = "/data/upper";
@@ -21,8 +21,6 @@ pub fn unmount_wormhole() -> anyhow::Result<()> {
         trace!("unmounting {}", path);
         match umount2(path.as_str(), MntFlags::MNT_DETACH) {
             Ok(_) => {}
-            // ignore EINVAL, which happens if delete_nix_dir already unmounted the submount
-            Err(Errno::EINVAL) => {}
             Err(err) => trace!("could not unmount {:?}", err),
         };
     }
@@ -44,8 +42,8 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
         "lowerdir={},upperdir={},workdir={}",
         ROOTFS, UPPERDIR, WORKDIR
     );
-    mount(
-        Some("overlay"),
+    mount_common(
+        "overlay",
         WORMHOLE_OVERLAY,
         Some("overlay"),
         MsFlags::empty(),
@@ -53,47 +51,22 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     )?;
 
     trace!("creating ro wormhole-unified mount");
-    // note: to get a ro mount we need to first do a bind mount and then remount ro
-    mount(
-        Some(ROOTFS),
-        WORMHOLE_UNIFIED,
-        None::<&Path>,
-        MsFlags::MS_BIND,
-        None::<&Path>,
-    )?;
-    mount(
-        Some(ROOTFS),
-        WORMHOLE_UNIFIED,
-        None::<&Path>,
-        MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
-        None::<&Path>,
-    )?;
-
-    // copy over the initial wormhole-rootfs nix store containing base packges into .base
-    trace!("creating ro nix store mount");
-    mount(
-        Some(format!("{}/nix/store", ROOTFS).as_str()),
+    // mount a r-o nix to protect /nix/orb/sys and prevent creating files in /nix/.
+    bind_mount_ro(ROOTFS, WORMHOLE_UNIFIED)?;
+    // copy over the initial wormhole-rootfs nix store containing base packages into .base
+    bind_mount_ro(
+        format!("{}/nix/store", ROOTFS).as_str(),
         format!("{}/nix/orb/sys/.base", WORMHOLE_UNIFIED).as_str(),
-        None::<&Path>,
-        MsFlags::MS_BIND,
-        None::<&Path>,
-    )?;
-    mount(
-        Some(format!("{}/nix/store", ROOTFS).as_str()),
-        format!("{}/nix/orb/sys/.base", WORMHOLE_UNIFIED).as_str(),
-        None::<&Path>,
-        MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
-        None::<&Path>,
     )?;
 
     for nix_dir in NIX_RW_DIRS {
         trace!("mount bind from overlay to unified: {}", nix_dir);
-        mount(
-            Some(format!("{}/nix/{}", WORMHOLE_OVERLAY, nix_dir).as_str()),
+        mount_common(
+            format!("{}/nix/{}", WORMHOLE_OVERLAY, nix_dir).as_str(),
             format!("{}/nix/{}", WORMHOLE_UNIFIED, nix_dir).as_str(),
-            None::<&Path>,
+            None,
             MsFlags::MS_BIND,
-            None::<&Path>,
+            None,
         )?;
     }
 
@@ -108,5 +81,6 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
             userns_fd: 0,
         },
     )?;
+
     Ok(())
 }

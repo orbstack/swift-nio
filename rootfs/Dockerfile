@@ -386,7 +386,7 @@ EOT
 
 ##########################################################################
 # Wormhole rootfs
-FROM base AS wormhole
+FROM scratch AS wormhole-remote
 COPY --from=nix-build /out /wormhole-rootfs
 COPY --from=rust-build /out/wormhole-attach /wormhole-attach
 COPY --from=rust-build /out/client /wormhole-client

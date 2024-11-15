@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	pb "github.com/orbstack/macvirt/scon/cmd/scli/generated"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
+	pb "github.com/orbstack/macvirt/scon/wormclient/generated"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 )
 
-func nukeLocalData() error {
+func resetLocalData() error {
 	scli.EnsureSconVMWithSpinner()
 
 	spinner := spinutil.Start("blue", "Resetting Debug Shell data")
@@ -19,7 +19,7 @@ func nukeLocalData() error {
 	return scli.Client().WormholeNukeData()
 }
 
-func nukeRemoteData(daemon *dockerclient.DockerConnection, drmToken string) error {
+func resetRemoteData(daemon *dockerclient.DockerConnection, drmToken string) error {
 	spinner := spinutil.Start("blue", "Resetting (Remote) Debug Shell data")
 	defer spinner.Stop()
 
@@ -35,7 +35,7 @@ func nukeRemoteData(daemon *dockerclient.DockerConnection, drmToken string) erro
 
 	// todo: with rpc, directly send NukeData request and get response back
 	server.WriteMessage(&pb.RpcClientMessage{
-		ClientMessage: &pb.RpcClientMessage_NukeData{},
+		ClientMessage: &pb.RpcClientMessage_ResetData{},
 	})
 	message := &pb.RpcServerMessage{}
 	if err := server.ReadMessage(message); err != nil {
@@ -61,12 +61,12 @@ func WormholeReset(context string) (err error) {
 	}
 
 	if isLocal {
-		return nukeLocalData()
+		return resetLocalData()
 	}
 
 	entitlementToken, err := GetDrmToken()
 	if err != nil {
 		return err
 	}
-	return nukeRemoteData(daemon, entitlementToken)
+	return resetRemoteData(daemon, entitlementToken)
 }

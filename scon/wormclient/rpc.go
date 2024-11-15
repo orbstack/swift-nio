@@ -7,6 +7,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+//go:generate protoc --proto_path=../../wormhole/schema --go_out=. ../../wormhole/schema/wormhole.proto
+
 type RpcServer struct {
 	reader io.ReadCloser
 	writer io.WriteCloser

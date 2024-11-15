@@ -22,7 +22,7 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 
-	pb "github.com/orbstack/macvirt/scon/cmd/scli/generated"
+	pb "github.com/orbstack/macvirt/scon/wormclient/generated"
 )
 
 func check(err error) {
@@ -48,11 +48,6 @@ const maxRetries = 3
 // spin up a registry and push/pull to that registry instead
 // const registryImage = "drmserver.orb.local/wormhole:latest"
 const registryImage = "registry.orb.local/wormhole:latest"
-
-func fallbackDockerExec(containerID string) error {
-	// prefer bash, otherwise use sh
-	return unix.Exec(conf.FindXbin("docker"), []string{"docker", "--context", "orbstack", "exec", "-it", containerID, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"}, os.Environ())
-}
 
 type WormholeRemoteServerParams struct {
 	InitPid          int      `json:"a"`
@@ -98,6 +93,7 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 		}
 	}
 	if serverContainerId == "" {
+		init := true
 		// note: start server container with a constant name so that at most one server container exists
 		serverContainerId, err = client.RunContainer(dockerclient.RunContainerOptions{Name: "orbstack-wormhole", PullImage: true},
 			&dockertypes.ContainerCreateRequest{
@@ -108,8 +104,8 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 					Binds:        []string{"wormhole-data:/data"},
 					CgroupnsMode: "host",
 					PidMode:      "host",
-					NetworkMode:  "host",
 					AutoRemove:   true,
+					Init:         &init,
 				},
 			})
 		if err != nil {

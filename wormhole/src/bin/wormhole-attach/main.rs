@@ -67,6 +67,7 @@ use wormhole::{
     err,
     flock::{Flock, FlockMode, FlockWait},
     model::WormholeConfig,
+    mount_common,
     newmount::{mount_setattr, move_mount, open_tree, MountAttr, MOUNT_ATTR_RDONLY},
     paths, set_cloexec,
 };
@@ -177,17 +178,6 @@ struct CapUserData {
     effective_hi: u32,
     permitted_hi: u32,
     inheritable_hi: u32,
-}
-
-fn mount_common(
-    source: &str,
-    dest: &str,
-    fstype: Option<&str>,
-    flags: MsFlags,
-    data: Option<&str>,
-) -> anyhow::Result<()> {
-    nix::mount::mount(Some(source), dest, fstype, flags, data)?;
-    Ok(())
 }
 
 fn copy_seccomp_filter(pid: i32, index: u32) -> anyhow::Result<()> {

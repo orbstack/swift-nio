@@ -1,10 +1,20 @@
 # set via env variables
-variable "BTYPE" {}
-variable "ARCH" {}
-variable "HOST_ARCH" {}
-variable "PLATFORM" {}
+variable "BTYPE" {
+  default = "debug"
+}
+variable "ARCH" {
+  default = "arm64"
+}
+variable "HOST_ARCH" {
+  default = "arm64"
+}
+variable "PLATFORM" {
+  default = "linux/arm64"
+}
 variable "SSH_AUTH_SOCK" {}
-variable "VERSION" {}
+variable "VERSION" {
+  default = "latest"
+}
 
 target "rootfs" {
   # note: dockerfile is relative to context
@@ -15,7 +25,7 @@ target "rootfs" {
     ARCH      = "${ARCH}"
     HOST_ARCH = "${HOST_ARCH}"
   }
-  ssh      = ["default=${SSH_AUTH_SOCK}"]
+  ssh      = ["default"]
   platform = "${PLATFORM}"
   load     = true
   tags     = ["ghcr.io/orbstack/images:${BTYPE}"]
@@ -26,7 +36,7 @@ target "rootfs" {
 target "wormhole" {
   dockerfile = "./rootfs/Dockerfile"
   context    = "."
-  target     = "wormhole"
-  ssh        = ["default=${SSH_AUTH_SOCK}"]
-  tags       = ["wormhole:${VERSION}"]
+  target     = "wormhole-remote"
+  ssh        = ["default"]
+  tags       = ["registry.orb.local/wormhole:${VERSION}"]
 }

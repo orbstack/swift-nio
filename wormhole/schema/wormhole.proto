@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package wormhole;
 
-option go_package = "cmd/scli/generated";
+option go_package = "generated/";
 
 // message created by server, sent to client
 message RpcServerMessage {
@@ -21,7 +21,7 @@ message RpcClientMessage {
         TerminalResize terminal_resize = 2;
         RequestPty request_pty = 3;
         StartPayload start_payload = 4;
-        NukeData nuke_data = 5;
+        ResetData reset_data = 5;
     }
 }
 
@@ -47,7 +47,7 @@ message StartPayload {
     string wormhole_param = 18;
 }
 
-message NukeData {
+message ResetData {
 
 }
 

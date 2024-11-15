@@ -5,7 +5,7 @@
 /scon-agent
 /scon-forksftp
 /ocitar
-/cmd/scli/generated/
+/wormclient/generated/
 
 /killswitch/ksconst_release.go
 

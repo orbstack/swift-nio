@@ -8,6 +8,7 @@ use nix::{
         FcntlArg::{self, F_GETFD},
         FdFlag,
     },
+    mount::MsFlags,
 };
 
 pub mod asyncfile;
@@ -67,6 +68,34 @@ pub fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
 pub fn unset_cloexec(fd: RawFd) -> Result<c_int, Errno> {
     fcntl(
         fd,
-        FcntlArg::F_SETFD(FdFlag::from_bits_truncate(fcntl(fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC),
+        FcntlArg::F_SETFD(FdFlag::from_bits_retain(fcntl(fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC),
     )
+}
+
+pub fn mount_common(
+    source: &str,
+    dest: &str,
+    fstype: Option<&str>,
+    flags: MsFlags,
+    data: Option<&str>,
+) -> anyhow::Result<()> {
+    nix::mount::mount(Some(source), dest, fstype, flags, data)?;
+    Ok(())
+}
+
+pub fn bind_mount(source: &str, dest: &str, flags: Option<MsFlags>) -> anyhow::Result<()> {
+    mount_common(
+        source,
+        dest,
+        None,
+        flags.unwrap_or(MsFlags::empty()) | MsFlags::MS_BIND,
+        None,
+    )
+}
+
+pub fn bind_mount_ro(source: &str, dest: &str) -> anyhow::Result<()> {
+    bind_mount(source, dest, None)?;
+    // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
+    bind_mount(dest, dest, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY))?;
+    Ok(())
 }
