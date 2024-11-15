@@ -67,7 +67,13 @@ func resolveDockerDaemon(context string) (*DockerConnection, error) {
 	// if a context is explicitly specified, read the corresponding meta.json file
 	root := filepath.Join(conf.UserDockerDir(), "contexts", "meta")
 	contextDir := fmt.Sprintf("%x", sha256.Sum256([]byte(context)))
+
+	// check if the file exists
 	metaFile := filepath.Join(root, contextDir, "meta.json")
+	if _, err := os.Stat(metaFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("context %s not found", context)
+	}
+
 	bytes, err := os.ReadFile(metaFile)
 	if err != nil {
 		return nil, err

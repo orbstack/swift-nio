@@ -42,7 +42,7 @@ use nix::{
     libc::ioctl,
     pty::{OpenptyResult, Winsize},
     sys::socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
-    unistd::{dup, dup2, pipe2, setsid},
+    unistd::{close, dup, dup2, pipe2, setsid},
 };
 use tracing::{debug, info, trace, Level};
 
@@ -227,7 +227,7 @@ impl WormholeServer {
                     .write(&mut client_writer)
                     .await?;
                 }
-                Err(e) => debug!("got error reading from payload stdout: {e}"),
+                Err(e) => return Err(anyhow!("got error reading from payload: {e}")),
             }
         }
     }
@@ -279,7 +279,7 @@ impl WormholeServer {
             match message.client_message {
                 Some(ClientMessage::StartPayload(msg)) => {
                     return self
-                        .start_wormhole_attach(msg, client_stdin, client_writer)
+                        .run_debug_session(msg, client_stdin, client_writer)
                         .await;
                 }
 
@@ -289,7 +289,7 @@ impl WormholeServer {
         }
     }
 
-    async fn start_wormhole_attach(
+    async fn run_debug_session(
         self: &Self,
         params: StartPayload,
         client_stdin: AsyncFile,
@@ -341,6 +341,7 @@ impl WormholeServer {
             stderr_pipe = pipe2(OFlag::O_CLOEXEC)?;
         }
         let is_pty = pty.is_some();
+        drop(pty);
 
         let wormhole_mount = open_tree(
             &format!("{}/nix", WORMHOLE_UNIFIED),
@@ -362,7 +363,8 @@ impl WormholeServer {
         };
 
         debug!("spawning wormhole-attach");
-        let _ = unsafe {
+
+        let mut child = unsafe {
             Command::new("/wormhole-attach")
                 .args(&[
                     serde_json::to_string(&config)?,
@@ -383,7 +385,7 @@ impl WormholeServer {
                     unset_cloexec(exit_code_pipe_write_fd)?;
                     unset_cloexec(log_pipe_write_fd)?;
 
-                    // no cloexec because wormhole-attach child should inherit stdio fds
+                    // no dup cloexec because wormhole-attach child should inherit stdio fds
                     dup2(stdin_pipe.0, libc::STDIN_FILENO)?;
                     dup2(stdout_pipe.1, libc::STDOUT_FILENO)?;
                     dup2(stderr_pipe.1, libc::STDERR_FILENO)?;
@@ -392,6 +394,31 @@ impl WormholeServer {
                 })
                 .spawn()?
         };
+
+        tokio::spawn(async move {
+            match child.wait().await {
+                Ok(_) => {
+                    debug!("wormhole-attach finished");
+                }
+                Err(e) => {
+                    debug!("wormhole-attach failed with error: {:?}", e);
+                }
+            }
+
+            // todo: decrement refcount once wormhole-attach exits, which ensures all background tasks
+            // are finished
+            debug!("wormhole-attach finished, decrementing refcount");
+        });
+
+        // close child stdio pipe ends
+        close(stdin_pipe.0)?;
+        close(stdout_pipe.1)?;
+        close(stderr_pipe.1)?;
+
+        debug!(
+            "pipe ends: {} {} {} {} {} {}",
+            stdin_pipe.0, stdin_pipe.1, stdout_pipe.0, stdout_pipe.1, stderr_pipe.0, stderr_pipe.1
+        );
 
         let payload_stdin = AsyncFile::new(stdin_pipe.1)?;
         let payload_stdout = AsyncFile::new(stdout_pipe.0)?;

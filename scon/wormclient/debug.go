@@ -209,9 +209,9 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		}
 
 		// snapshot the flags
-		termios, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TIOCGETA)
+		termios, err := unix.IoctlGetTermios(ptyFd, unix.TIOCGETA)
 		if err != nil {
-			return 1, errors.New("failed to get termios params")
+			return 1, fmt.Errorf("failed to get termios params: %w", err)
 		}
 
 		// raw mode if both outputs are ptys
@@ -255,6 +255,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		for {
 			n, err := os.Stdin.Read(buf)
 			if err != nil {
+				// todo: notify server that stdin has been closed?
 				return
 			}
 
@@ -298,7 +299,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		message := &pb.RpcServerMessage{}
 		err = server.ReadMessage(message)
 		if err != nil {
-			return 1, err
+			return 1, fmt.Errorf("failed to read from server: %w", err)
 		}
 
 		switch v := message.ServerMessage.(type) {
