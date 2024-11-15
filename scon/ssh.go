@@ -355,6 +355,11 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 		env["SSH_AUTH_SOCK"] = mounts.SshAgentSocket
 	}
 
+	// set up xdg-open to use macOS open
+	// this will only work when users don't have a desktop environment: https://gitlab.freedesktop.org/xdg/xdg-utils/-/blob/0f6385262417f1c0c4d13bc05d95c32578272b64/scripts/xdg-open.in#L477
+	// but i don't think that's a common enough case to care about for now
+	env["BROWSER"] = mounts.Bin + "/open"
+
 	cmd := &agent.AgentCommand{
 		Env:          env,
 		Dir:          cwd,
