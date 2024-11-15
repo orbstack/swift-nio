@@ -171,9 +171,7 @@ fn monitor(
 
     // intermediate succeeded, we assume the subreaper gets reparented to us and that we will receive SIGCHLD when it exits
     loop {
-        let nfds = epoll.wait(&mut events, -1);
-        trace!("got epoll events: {:?}", nfds);
-        match nfds {
+        match epoll.wait(&mut events, -1) {
             Ok(n) if n < 1 => {
                 return Err(anyhow!("expected an event on epoll return"));
             }

@@ -34,11 +34,16 @@ func resetRemoteData(daemon *dockerclient.DockerConnection, drmToken string) err
 	}
 
 	// todo: with rpc, directly send NukeData request and get response back
-	server.WriteMessage(&pb.RpcClientMessage{
+	err = server.WriteMessage(&pb.RpcClientMessage{
 		ClientMessage: &pb.RpcClientMessage_ResetData{},
 	})
+	if err != nil {
+		return err
+	}
+
 	message := &pb.RpcServerMessage{}
-	if err := server.ReadMessage(message); err != nil {
+	err = server.ReadMessage(message)
+	if err != nil {
 		return err
 	}
 	var exitCode int

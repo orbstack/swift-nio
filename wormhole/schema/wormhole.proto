@@ -28,23 +28,23 @@ message RpcClientMessage {
 
 // server messages
 message StdinData {
-    bytes data = 11;
+    bytes data = 1;
 }
 
 message TerminalResize {
-    uint32 cols = 12;
-    uint32 rows = 13;
+    uint32 cols = 1;
+    uint32 rows = 2;
 }
 
 message RequestPty {
-    string term_env = 14;
-    uint32 rows = 15;
-    uint32 cols = 16;
-    bytes termios = 17;
+    string term_env = 1;
+    uint32 rows = 2;
+    uint32 cols = 3;
+    bytes termios = 4;
 }
 
 message StartPayload {
-    string wormhole_param = 18;
+    string wormhole_param = 1;
 }
 
 message ResetData {
@@ -54,15 +54,15 @@ message ResetData {
 
 // client messages
 message StdoutData {
-    bytes data = 11;
+    bytes data = 1;
 }
 
 message StderrData {
-    bytes data = 12;
+    bytes data = 1;
 }
 
 message ExitStatus {
-    uint32 exit_code = 13;
+    uint32 exit_code = 1;
 }
 
 message ClientConnectAck {

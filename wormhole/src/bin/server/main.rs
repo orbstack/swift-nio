@@ -41,7 +41,7 @@ use nix::{
     },
     libc::ioctl,
     pty::{OpenptyResult, Winsize},
-    sys::socket::{recvmsg, ControlMessageOwned, MsgFlags},
+    sys::socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
     unistd::{dup, dup2, pipe2, setsid},
 };
 use tracing::{trace, Level};
@@ -54,7 +54,7 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)
     let mut cmsgspace = nix::cmsg_space!([RawFd; 2]);
 
     let mut iov = [std::io::IoSliceMut::new(&mut buf)];
-    let msg = recvmsg::<()>(
+    let msg: RecvMsg<()> = recvmsg(
         stream.as_raw_fd(),
         &mut iov,
         Some(&mut cmsgspace),
@@ -151,6 +151,7 @@ impl WormholeServer {
                 "could not reset data with other connections present"
             ));
         }
+
         Ok(())
     }
 
@@ -159,6 +160,7 @@ impl WormholeServer {
         cancel_token: CancellationToken,
         mut client_stdin: AsyncFile,
         mut payload_stdin: AsyncFile,
+        is_pty: bool,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
             loop {
@@ -181,14 +183,17 @@ impl WormholeServer {
                                     .map_err(|e| trace!("error writing to payload {e}"));
                             }
                             Some(ClientMessage::TerminalResize(msg)) => {
-                                let ws = Winsize {
-                                    ws_row: msg.rows as u16,
-                                    ws_col: msg.cols as u16,
-                                    ws_xpixel: 0,
-                                    ws_ypixel: 0,
-                                };
-                                unsafe {
-                                    nix::libc::ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws);
+                                if is_pty {
+                                    let ws = Winsize {
+                                        ws_row: msg.rows as u16,
+                                        ws_col: msg.cols as u16,
+                                        ws_xpixel: 0,
+                                        ws_ypixel: 0,
+                                    };
+                                    let res = unsafe { ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws) };
+                                    if res < 0 {
+                                        trace!("error setting winsize: {res}");
+                                    }
                                 }
                             }
                             _ => {}
@@ -202,7 +207,7 @@ impl WormholeServer {
     fn spawn_payload_to_client(
         self: &Self,
         cancel_token: CancellationToken,
-        client_writer_mu: Arc<Mutex<AsyncFile>>,
+        client_writer: Arc<Mutex<AsyncFile>>,
         mut payload_output: AsyncFile,
         is_stdout: bool,
     ) -> JoinHandle<()> {
@@ -217,7 +222,7 @@ impl WormholeServer {
                         match result {
                             Ok(0) => break,
                             Ok(n) => {
-                                let mut client_writer = client_writer_mu.lock().await;
+                                let mut client_writer = client_writer.lock().await;
                                 let res = RpcServerMessage {
                                     server_message: Some(if is_stdout {
                                         ServerMessage::StdoutData(StdoutData {
@@ -261,7 +266,7 @@ impl WormholeServer {
         .write(&mut client_stdout)
         .await?;
 
-        let client_writer_m = Arc::new(Mutex::new(client_stdout));
+        let client_writer = Arc::new(Mutex::new(client_stdout));
         let mut pty: Option<OpenptyResult> = None;
         let mut term_env: Option<String> = None;
 
@@ -287,13 +292,13 @@ impl WormholeServer {
                     trace!("got pty: {slave_fd} {master_fd}");
 
                     // for stdin: write to master and read from slave
-                    stdin_pipe.0 = unsafe { libc::fcntl(slave_fd, libc::F_DUPFD_CLOEXEC, 3) };
-                    stdin_pipe.1 = unsafe { libc::fcntl(master_fd, libc::F_DUPFD_CLOEXEC, 3) };
+                    stdin_pipe.0 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+                    stdin_pipe.1 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
                     // for stdout/stderr: read from master and write to slave
-                    stdout_pipe.0 = unsafe { libc::fcntl(master_fd, libc::F_DUPFD_CLOEXEC, 3) };
-                    stdout_pipe.1 = unsafe { libc::fcntl(slave_fd, libc::F_DUPFD_CLOEXEC, 3) };
-                    stderr_pipe.0 = unsafe { libc::fcntl(master_fd, libc::F_DUPFD_CLOEXEC, 3) };
-                    stderr_pipe.1 = unsafe { libc::fcntl(slave_fd, libc::F_DUPFD_CLOEXEC, 3) };
+                    stdout_pipe.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+                    stdout_pipe.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+                    stderr_pipe.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+                    stderr_pipe.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
                     if stdin_pipe.0 < 0
                         || stdin_pipe.1 < 0
                         || stdout_pipe.0 < 0
@@ -317,7 +322,7 @@ impl WormholeServer {
                         }
                     };
 
-                    let mut client_writer = client_writer_m.lock().await;
+                    let mut client_writer = client_writer.lock().await;
                     RpcServerMessage {
                         server_message: Some(ServerMessage::ExitStatus(ExitStatus { exit_code })),
                     }
@@ -335,6 +340,7 @@ impl WormholeServer {
             stdout_pipe = pipe2(OFlag::O_CLOEXEC)?;
             stderr_pipe = pipe2(OFlag::O_CLOEXEC)?;
         }
+        let is_pty = pty.is_some();
 
         let wormhole_mount = open_tree(
             &format!("{}/nix", WORMHOLE_UNIFIED),
@@ -357,7 +363,7 @@ impl WormholeServer {
                 .arg(serde_json::to_string(&config)?)
                 .env("TERM", term_env.unwrap_or(String::from("")))
                 .pre_exec(move || {
-                    if pty.is_some() {
+                    if is_pty {
                         setsid()?;
                         let res = ioctl(stdin_pipe.0, TIOCSCTTY, 1);
                         if res != 0 {
@@ -387,17 +393,22 @@ impl WormholeServer {
 
         self.spawn_payload_to_client(
             cancel_token.clone(),
-            client_writer_m.clone(),
+            client_writer.clone(),
             payload_stdout,
             true,
         );
         self.spawn_payload_to_client(
             cancel_token.clone(),
-            client_writer_m.clone(),
+            client_writer.clone(),
             payload_stderr,
             false,
         );
-        self.spawn_client_to_payload(cancel_token.clone(), client_stdin, payload_stdin);
+        self.spawn_client_to_payload(
+            cancel_token.clone(),
+            client_stdin,
+            payload_stdin,
+            pty.is_some(),
+        );
 
         let mut exit_code = [0u8];
         tokio::select! {
@@ -407,7 +418,7 @@ impl WormholeServer {
             _ = exit_code_pipe_reader.read_exact(&mut exit_code) => {
                 trace!("received exit code {}", exit_code[0]);
                 cancel_token.cancel();
-                let mut client_writer = client_writer_m.lock().await;
+                let mut client_writer = client_writer.lock().await;
                 let _ = RpcServerMessage {
                     server_message: Some(ServerMessage::ExitStatus(ExitStatus {
                         exit_code: exit_code[0] as u32,

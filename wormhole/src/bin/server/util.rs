@@ -26,6 +26,7 @@ pub fn unmount_wormhole() -> anyhow::Result<()> {
     }
     trace!("unmounting {}", WORMHOLE_UNIFIED);
     umount2(WORMHOLE_UNIFIED, MntFlags::empty())?;
+
     Ok(())
 }
 

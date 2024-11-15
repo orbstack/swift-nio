@@ -29,8 +29,10 @@ func (server RpcServer) ReadMessage(msg proto.Message) error {
 	if err := proto.Unmarshal(data, msg); err != nil {
 		return err
 	}
+
 	return nil
 }
+
 func (server RpcServer) WriteMessage(msg proto.Message) error {
 	data, err := proto.Marshal(msg)
 	if err != nil {
@@ -43,5 +45,6 @@ func (server RpcServer) WriteMessage(msg proto.Message) error {
 	if _, err := server.writer.Write(data); err != nil {
 		return err
 	}
+
 	return nil
 }

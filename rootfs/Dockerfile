@@ -79,7 +79,7 @@ if [[ "$TYPE" == "debug" ]]; then
 else
     cargo build --release
 fi
-cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach target/${TYPE}/client target/${TYPE}/server /out/
+cp target/${TYPE}/dctl target/${TYPE}/wormhole-attach target/${TYPE}/wormhole-proxy target/${TYPE}/server /out/
 EOT
 
 # Build Rosetta runc override
@@ -389,7 +389,7 @@ EOT
 FROM scratch AS wormhole-remote
 COPY --from=nix-build /out /wormhole-rootfs
 COPY --from=rust-build /out/wormhole-attach /wormhole-attach
-COPY --from=rust-build /out/client /wormhole-client
+COPY --from=rust-build /out/wormhole-proxy /wormhole-proxy
 COPY --from=rust-build /out/server /wormhole-server
 
 

@@ -55,7 +55,7 @@ func (c *Client) ExecCreate(cid string, execReq *dockertypes.ContainerExecCreate
 
 func (c *Client) ExecInspect(execID string) (*dockertypes.ContainerExecInspect, error) {
 	var inspectResp dockertypes.ContainerExecInspect
-	if err := c.Call("POST", "/containers/"+execID+"/json", nil, &inspectResp); err != nil {
+	if err := c.Call("POST", "/exec/"+execID+"/json", nil, &inspectResp); err != nil {
 		return nil, err
 	}
 	return &inspectResp, nil
@@ -96,7 +96,7 @@ func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateReques
 	return output.String(), nil
 }
 
-func (c *Client) InteractiveExec(cid string, execReq *dockertypes.ContainerExecCreateRequest) (net.Conn, error) {
+func (c *Client) ExecStream(cid string, execReq *dockertypes.ContainerExecCreateRequest) (net.Conn, error) {
 	execCreate, err := c.ExecCreate(cid, execReq)
 	if err != nil {
 		return nil, fmt.Errorf("create exec: %w", err)

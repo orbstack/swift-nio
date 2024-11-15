@@ -86,7 +86,8 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 			}
 
 			// remove the server container if it's not running
-			if err := client.RemoveContainer(c.ID, true); err != nil {
+			err = client.RemoveContainer(c.ID, true)
+			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
@@ -118,11 +119,11 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 		}
 	}
 
-	conn, err := client.InteractiveExec(serverContainerId, &dockertypes.ContainerExecCreateRequest{
+	conn, err := client.ExecStream(serverContainerId, &dockertypes.ContainerExecCreateRequest{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		Cmd:          []string{"/wormhole-client"},
+		Cmd:          []string{"/wormhole-proxy"},
 	})
 	if err != nil {
 		// server container shuts down before we could `docker exec client` into it, retry
@@ -148,7 +149,8 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 
 	// wait for server to acknowledge client.
 	message := &pb.RpcServerMessage{}
-	if err := server.ReadMessage(message); err != nil {
+	err = server.ReadMessage(message)
+	if err != nil {
 		// EOF means that the client attach session was abruptly closed. This may happen
 		// if the `docker exec client` connects to the server container right before the
 		// container is about to shut down. Retry.
@@ -179,7 +181,9 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 	}
 
 	var originalState *term.State
+
 	// see scli/shell/ssh.go
+	// TODO: merge into a shared path with ssh.go
 	ptyFd := -1
 	ptyStdin, ptyStdout, ptyStderr := false, false, false
 	if term.IsTerminal(fdStdin) {
@@ -224,7 +228,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 		}
 
 		// request pty
-		if err := server.WriteMessage(&pb.RpcClientMessage{
+		err = server.WriteMessage(&pb.RpcClientMessage{
 			ClientMessage: &pb.RpcClientMessage_RequestPty{
 				RequestPty: &pb.RequestPty{
 					TermEnv: termEnv,
@@ -233,17 +237,19 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 					Termios: serializedTermios,
 				},
 			},
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
 	}
 
 	// start wormhole-attach payload
-	if err := server.WriteMessage(&pb.RpcClientMessage{
+	err = server.WriteMessage(&pb.RpcClientMessage{
 		ClientMessage: &pb.RpcClientMessage_StartPayload{
 			StartPayload: &pb.StartPayload{WormholeParam: string(wormholeParam)},
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
@@ -255,11 +261,12 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 				return
 			}
 
-			if err := server.WriteMessage(&pb.RpcClientMessage{
+			err = server.WriteMessage(&pb.RpcClientMessage{
 				ClientMessage: &pb.RpcClientMessage_StdinData{
 					StdinData: &pb.StdinData{Data: buf[:n]},
 				},
-			}); err != nil {
+			})
+			if err != nil {
 				return
 			}
 		}
@@ -273,16 +280,17 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 		for {
 			select {
 			case <-winchChan:
-				w, h, err := term.GetSize(0)
+				w, h, err := term.GetSize(ptyFd)
 				if err != nil {
 					return
 				}
 
-				if err := server.WriteMessage(&pb.RpcClientMessage{
+				err = server.WriteMessage(&pb.RpcClientMessage{
 					ClientMessage: &pb.RpcClientMessage_TerminalResize{
 						TerminalResize: &pb.TerminalResize{Rows: uint32(h), Cols: uint32(w)},
 					},
-				}); err != nil {
+				})
+				if err != nil {
 					return
 				}
 			}
@@ -291,7 +299,8 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeP
 
 	for {
 		message := &pb.RpcServerMessage{}
-		if err := server.ReadMessage(message); err != nil {
+		err = server.ReadMessage(message)
+		if err != nil {
 			return err
 		}
 
@@ -353,11 +362,13 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		return 1, err
 	}
 
-	if err := startRemoteWormhole(client, drmToken, string(wormholeParam)); err != nil {
+	err = startRemoteWormhole(client, drmToken, string(wormholeParam))
+	if err != nil {
 		color.New(color.FgRed).Fprintln(os.Stderr, "\nRemote debug session unexpectedly closed")
 		// todo: just return an error, checkcli will handle the red-printing and exit code
 		return 1, err
 	}
+
 	return 0, nil
 }
 

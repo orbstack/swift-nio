@@ -387,7 +387,7 @@ fn main() -> anyhow::Result<()> {
 
     // stdin, stdout, stderr are expected to be 0,1,2 and will be propagated to the child
     // usage: wormhole-attach <config json>
-    let mut config = parse_config()?;
+    let config = parse_config()?;
     let rootfs_fd = config
         .rootfs_fd
         .map(|fd| unsafe { OwnedFd::from_raw_fd(fd) });
@@ -528,13 +528,6 @@ fn main() -> anyhow::Result<()> {
     // bind mount wormhole mount tree onto /nix
     trace!("mounts: bind mount wormhole mount tree onto /nix");
     move_mount(Some(&wormhole_mount_fd), None, None, Some("/nix"))?;
-
-    // list folders in /nix
-    let nix_dirs = std::fs::read_dir("/nix")?
-        .map(|entry| entry.unwrap().path())
-        .collect::<Vec<_>>();
-
-    trace!("{:?}", nix_dirs);
 
     trace!("set umask");
     umask(Mode::from_bits(0o022).unwrap());

@@ -58,7 +58,7 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 	return containerResp.ID, nil
 }
 
-func (c *Client) InteractiveRunContainer(req *dockertypes.ContainerCreateRequest, pullImage bool) (net.Conn, string, error) {
+func (c *Client) RunContainerStream(req *dockertypes.ContainerCreateRequest, pullImage bool) (net.Conn, string, error) {
 	if pullImage {
 		// need to pull image first
 		repoPart, tagPart := splitRepoTag(req.Image)
@@ -68,7 +68,6 @@ func (c *Client) InteractiveRunContainer(req *dockertypes.ContainerCreateRequest
 		}
 	}
 
-	// create --rm container
 	var containerResp dockertypes.ContainerCreateResponse
 	err := c.Call("POST", "/containers/create", req, &containerResp)
 	if err != nil {
@@ -86,6 +85,7 @@ func (c *Client) InteractiveRunContainer(req *dockertypes.ContainerCreateRequest
 	if err != nil {
 		return nil, "", fmt.Errorf("start container: %w", err)
 	}
+
 	return conn, containerResp.ID, nil
 }
 
