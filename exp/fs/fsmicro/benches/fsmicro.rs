@@ -111,6 +111,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    #[cfg(target_os = "macos")]
     c.bench_function("write+F_BARRIERFSYNC file", |b| {
         b.iter(|| {
             pwrite(file.as_raw_fd(), &buf, 0).unwrap();
@@ -121,6 +122,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    #[cfg(target_os = "macos")]
     c.bench_function("write+F_FULLFSYNC file", |b| {
         b.iter(|| {
             pwrite(file.as_raw_fd(), &buf, 0).unwrap();
