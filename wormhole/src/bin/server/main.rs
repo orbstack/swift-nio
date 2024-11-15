@@ -44,7 +44,7 @@ use nix::{
     sys::socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
     unistd::{dup, dup2, pipe2, setsid},
 };
-use tracing::{debug, trace, Level};
+use tracing::{debug, info, trace, Level};
 
 mod util;
 
@@ -139,7 +139,7 @@ impl WormholeServer {
     }
 
     async fn reset_data(self: &Self, client_writer: Arc<Mutex<AsyncFile>>) -> anyhow::Result<()> {
-        debug!("resetting data");
+        info!("resetting data");
         let mut exit_code = 0;
 
         let lock = self.count.lock().await;
@@ -191,6 +191,7 @@ impl WormholeServer {
                         }
                     }
                 }
+                // todo: add support for forwarding signals
                 _ => {
                     debug!("unknown message from client");
                 }
@@ -294,6 +295,7 @@ impl WormholeServer {
         client_stdin: AsyncFile,
         client_writer: Arc<Mutex<AsyncFile>>,
     ) -> anyhow::Result<()> {
+        info!("starting wormhole-attach");
         let mut pty: Option<OpenptyResult> = None;
         let mut term_env: Option<String> = None;
 
@@ -351,6 +353,7 @@ impl WormholeServer {
         let exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd)?;
 
         let config: WormholeConfig = serde_json::from_str(&params.wormhole_config)?;
+        // todo: rootfs support for stopped containers / images
         let runtime_state = WormholeRuntimeState {
             rootfs_fd: None,
             wormhole_mount_tree_fd: wormhole_mount_fd,

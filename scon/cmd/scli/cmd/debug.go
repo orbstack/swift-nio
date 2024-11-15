@@ -163,6 +163,7 @@ Pro only: requires an OrbStack Pro license.
 			fmt.Fprintln(os.Stderr, "Debug Shell data reset!")
 		} else {
 			exitCode, err = wormclient.WormholeDebug(*containerIDp, flagContext, flagWorkdir, flagFallback, args...)
+			checkCLI(err)
 		}
 
 		if exitCode == sshenv.ExitCodeNeedsProLicense {

@@ -2,7 +2,6 @@ package wormclient
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
@@ -53,8 +52,7 @@ func resetRemoteData(daemon *dockerclient.DockerConnection, drmToken string) err
 	}
 
 	if exitCode == 1 {
-		fmt.Fprintf(os.Stderr, "Please exit all Debug Shell sessions before using this command.")
-		os.Exit(1)
+		return fmt.Errorf("Please exit all Debug Shell sessions before using this command.")
 	}
 
 	return nil

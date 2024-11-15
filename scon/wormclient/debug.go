@@ -9,7 +9,6 @@ import (
 	"os/signal"
 
 	"github.com/alessio/shellescape"
-	"github.com/fatih/color"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
 	"github.com/orbstack/macvirt/scon/types"
@@ -42,14 +41,30 @@ const (
 	fdStderr = 2
 )
 
+const bufSize = 65536
 const maxRetries = 3
+
+var errNeedRetry = errors.New("server stopped on remote host, retrying")
 
 // registryImage should point to drm server; for locally testing, it's more convenient to just
 // spin up a registry and push/pull to that registry instead
 // const registryImage = "drmserver.orb.local/wormhole:latest"
-const registryImage = "registry.orb.local/wormhole:latest"
+const registryImage = "registry.orb.local/wormhole:1"
 
 func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*RpcServer, error) {
+	var server *RpcServer
+	var err error
+
+	for i := 0; i < retries; i++ {
+		server, err = connectRemoteHelper(client, drmToken)
+		if err == nil {
+			return server, nil
+		}
+	}
+	return nil, fmt.Errorf("failed to connect after %d retries: %w", retries, err)
+}
+
+func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServer, error) {
 	// Start wormhole server (if not running) and establish a client connection. There are a few scenarios where a race can occur:
 	//   - two clients start a server container at the same time, resulting in a name conflict. In this case,
 	// the process that experiences the name conflict will retry.
@@ -57,34 +72,25 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 	//   - client connects right before the server shuts down. We detect this if we receive an EOF from the server
 	// before we receive an initial ACK message, and retry in this case.
 
-	if retries == 0 {
-		// we should never actually reach the base case here because we directly return err when retries drops to 1
-		return nil, errors.New("failed to start debug session")
-	}
-
-	containers, err := client.ListContainers(true)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-
 	var serverContainerId string = ""
-	for _, c := range containers {
-		// container name is prepended with an extra forward slash
-		if c.Names[0] == "/orbstack-wormhole" {
-			if c.State == "running" {
-				serverContainerId = c.ID
-				continue
-			}
-
-			// remove the server container if it's not running
-			err = client.RemoveContainer(c.ID, true)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-				os.Exit(1)
+	// If the server container already exists and is running, the client should attach to it. Otherwise,
+	// the client should remove any existing stopped server container and create a new one.
+	containerInfo, err := client.InspectContainer("orbstack-wormhole")
+	if err != nil && !dockerclient.IsStatusError(err, 404) {
+		return nil, fmt.Errorf("failed to inspect container: %w", err)
+	}
+	if containerInfo != nil {
+		if containerInfo.State.Running {
+			serverContainerId = containerInfo.ID
+		} else {
+			err = client.RemoveContainer(containerInfo.ID, true)
+			// the server may have been removed right after we inspected it, so safely ignore 404 no container
+			if err != nil && !dockerclient.IsStatusError(err, 404) {
+				return nil, fmt.Errorf("failed to remove server container: %w", err)
 			}
 		}
 	}
+
 	if serverContainerId == "" {
 		init := true
 		// note: start server container with a constant name so that at most one server container exists
@@ -103,11 +109,11 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 			})
 		if err != nil {
 			// potential name conflict (two servers started at the same time), retry
-			if retries == 1 {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-				os.Exit(1)
+			if dockerclient.IsStatusError(err, 409) {
+				return nil, errNeedRetry
 			}
-			return connectRemote(client, drmToken, retries-1)
+
+			return nil, err
 		}
 	}
 
@@ -118,12 +124,13 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 		Cmd:          []string{"/wormhole-proxy"},
 	})
 	if err != nil {
-		// server container shuts down before we could `docker exec client` into it, retry
-		if retries == 1 {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+		// the server may have been removed or stopped right after we inspected it; retry in those cases
+		// 404: no such container
+		// 409: container is paused
+		if dockerclient.IsStatusError(err, 404) || dockerclient.IsStatusError(err, 409) {
+			return nil, errNeedRetry
 		}
-		return connectRemote(client, drmToken, retries-1)
+		return nil, err
 	}
 
 	demuxReader, demuxWriter := io.Pipe()
@@ -147,11 +154,12 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 		// if the `docker exec client` connects to the server container right before the
 		// container is about to shut down. Retry.
 		if err == io.EOF {
-			if retries == 1 {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-				os.Exit(1)
-			}
-			return connectRemote(client, drmToken, retries-1)
+			// if retries == 1 {
+			// 	fmt.Fprintf(os.Stderr, "%v\n", err)
+			// 	os.Exit(1)
+			// }
+			// return connectRemote(client, drmToken, retries-1)
+			return nil, errNeedRetry
 		}
 		return nil, err
 	}
@@ -160,16 +168,16 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 		// at this point, the server has incremented the connection refcount and we can safely continue
 		break
 	default:
-		return nil, errors.New("could not connect to wormhole server")
+		return nil, errors.New("client did not receive acknowledgement from server")
 	}
 
 	return &server, nil
 }
 
-func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeConfig string) error {
+func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeConfig string) (int, error) {
 	server, err := connectRemote(client, drmToken, maxRetries)
 	if err != nil {
-		return err
+		return 1, err
 	}
 
 	var originalState *term.State
@@ -197,27 +205,27 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		termEnv := os.Getenv("TERM")
 		w, h, err := term.GetSize(ptyFd)
 		if err != nil {
-			return err
+			return 1, err
 		}
 
 		// snapshot the flags
 		termios, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TIOCGETA)
 		if err != nil {
-			return errors.New("failed to get termios params")
+			return 1, errors.New("failed to get termios params")
 		}
 
 		// raw mode if both outputs are ptys
 		if ptyStdout && ptyStderr {
 			originalState, err = term.MakeRaw(ptyFd)
 			if err != nil {
-				return err
+				return 1, err
 			}
 			defer term.Restore(ptyFd, originalState)
 		}
 
 		serializedTermios, err := SerializeTermios(termios)
 		if err != nil {
-			return err
+			return 1, err
 		}
 
 		// request pty
@@ -239,11 +247,11 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		},
 	})
 	if err != nil {
-		return err
+		return 1, err
 	}
 
 	go func() {
-		buf := make([]byte, 1024)
+		buf := make([]byte, bufSize)
 		for {
 			n, err := os.Stdin.Read(buf)
 			if err != nil {
@@ -290,7 +298,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		message := &pb.RpcServerMessage{}
 		err = server.ReadMessage(message)
 		if err != nil {
-			return err
+			return 1, err
 		}
 
 		switch v := message.ServerMessage.(type) {
@@ -299,8 +307,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		case *pb.RpcServerMessage_StderrData:
 			os.Stderr.Write(v.StderrData.Data)
 		case *pb.RpcServerMessage_ExitStatus:
-			term.Restore(ptyFd, originalState)
-			os.Exit(int(v.ExitStatus.ExitCode))
+			return int(v.ExitStatus.ExitCode), nil
 		}
 	}
 }
@@ -313,20 +320,17 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 
 	client, err := dockerclient.NewClientWithDrmAuth(daemon, drmToken)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return 1, fmt.Errorf("failed to create docker client: %w", err)
 	}
 
 	containerInfo, err := client.InspectContainer(containerID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		return 1, fmt.Errorf("failed to inspect container: %w", err)
 	}
 
 	// remote debug does not yet support running of stopped containers
 	if !containerInfo.State.Running {
-		fmt.Fprintf(os.Stderr, "container %s is not running\n", containerID)
-		os.Exit(1)
+		return 1, fmt.Errorf("container %s is not running", containerID)
 	}
 
 	workingDir := containerInfo.Config.WorkingDir
@@ -351,14 +355,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		return 1, err
 	}
 
-	err = startRemoteWormhole(client, drmToken, string(wormholeConfig))
-	if err != nil {
-		color.New(color.FgRed).Fprintln(os.Stderr, "\nRemote debug session unexpectedly closed")
-		// todo: just return an error, checkcli will handle the red-printing and exit code
-		return 1, err
-	}
-
-	return 0, nil
+	return startRemoteWormhole(client, drmToken, string(wormholeConfig))
 }
 
 func debugLocal(containerID string, flagWorkdir string, args []string) (int, error) {
@@ -392,8 +389,7 @@ func debugLocal(containerID string, flagWorkdir string, args []string) (int, err
 		WormholeFallback: flagFallback,
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "\n%v\n", err)
-		os.Exit(1)
+		return 1, err
 	}
 
 	// note: non-zero exit codes are not errors, we handle them explicitly in cmd/debug.go

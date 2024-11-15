@@ -103,7 +103,7 @@ func (c *Client) ExecStream(cid string, execReq *dockertypes.ContainerExecCreate
 	}
 
 	// upgrade to tcp
-	conn, err := c.StreamHijack("POST", "/exec/"+execCreate.ID+"/start", dockertypes.ContainerExecStartRequest{
+	conn, err := c.streamHijack("POST", "/exec/"+execCreate.ID+"/start", dockertypes.ContainerExecStartRequest{
 		Detach: false,
 		Tty:    false,
 	})

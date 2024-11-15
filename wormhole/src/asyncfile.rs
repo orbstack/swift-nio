@@ -29,8 +29,10 @@ impl AsyncFile {
         })
     }
 
+    // AsyncFile assumes that the File is set to nonblocking mode; it
+    // is the callee's responsibility to ensure O_NONBLOCK on the
+    // underlying file descriptor
     pub fn from(file: File) -> std::io::Result<Self> {
-        set_nonblocking(file.as_raw_fd())?;
         Ok(Self {
             inner: AsyncFd::new(file)?,
         })

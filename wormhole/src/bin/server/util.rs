@@ -2,7 +2,7 @@ use std::fs;
 
 use libc::MS_PRIVATE;
 use nix::mount::{umount2, MntFlags, MsFlags};
-use tracing::{debug, trace};
+use tracing::debug;
 use wormhole::{
     bind_mount_ro, mount_common,
     newmount::{mount_setattr, MountAttr},
@@ -37,7 +37,7 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     fs::create_dir_all(WORKDIR)?;
     fs::create_dir_all(WORMHOLE_OVERLAY)?;
     fs::create_dir_all(WORMHOLE_UNIFIED)?;
-    fs::create_dir_all("/data/run")?;
+    fs::create_dir_all("/run")?;
 
     debug!("mounting overlayfs");
     let options = format!(

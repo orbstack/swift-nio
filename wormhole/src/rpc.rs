@@ -10,7 +10,7 @@ pub mod wormhole {
     include!(concat!(env!("OUT_DIR"), "/wormhole.rs"));
 }
 
-pub const RPC_SOCKET: &str = "/data/run/rpc.sock";
+pub const RPC_SOCKET: &str = "/run/wormhole.sock";
 
 #[async_trait]
 pub trait RpcWrite: Message + Sized {

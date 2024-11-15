@@ -27,7 +27,7 @@ func GetDaemon(context string) (*dockerclient.DockerConnection, bool, error) {
 		return nil, false, err
 	}
 
-	isLocal := url.Scheme == "unix" && url.Host == orbSocket
+	isLocal := url.Scheme == "unix" && url.Path == orbSocket
 	return daemon, isLocal, nil
 }
 

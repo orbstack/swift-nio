@@ -75,7 +75,7 @@ func (c *Client) RunContainerStream(req *dockertypes.ContainerCreateRequest, pul
 	}
 
 	// upgrade to tcp
-	conn, err := c.StreamHijack("POST", "/containers/"+containerResp.ID+"/attach?logs=true&stream=true&stdin=true&stdout=true&stderr=true", nil)
+	conn, err := c.streamHijack("POST", "/containers/"+containerResp.ID+"/attach?logs=true&stream=true&stdin=true&stdout=true&stderr=true", nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("attach container: %w", err)
 	}

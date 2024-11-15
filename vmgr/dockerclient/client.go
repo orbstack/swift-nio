@@ -129,7 +129,7 @@ func NewClientWithDrmAuth(daemon *DockerConnection, drmToken string) (*Client, e
 	return c, nil
 }
 
-func (c *Client) Dial(ctx context.Context) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context) (net.Conn, error) {
 	if c.dialer == nil {
 		return nil, fmt.Errorf("client does not have a dialer")
 	}
@@ -365,7 +365,7 @@ func (c *Client) CallDiscard(method, path string, body any) error {
 	return nil
 }
 
-func (c *Client) StreamHijack(method, path string, body any) (net.Conn, error) {
+func (c *Client) streamHijack(method, path string, body any) (net.Conn, error) {
 	req, err := c.newRequest(method, path, body)
 	if err != nil {
 		return nil, err
@@ -375,7 +375,7 @@ func (c *Client) StreamHijack(method, path string, body any) (net.Conn, error) {
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", "tcp")
 
-	conn, err := c.Dial(ctx)
+	conn, err := c.DialContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to docker daemon")
 	}

@@ -11,7 +11,6 @@ variable "HOST_ARCH" {
 variable "PLATFORM" {
   default = "linux/arm64"
 }
-variable "SSH_AUTH_SOCK" {}
 variable "VERSION" {
   default = "latest"
 }
@@ -21,7 +20,7 @@ target "rootfs" {
   dockerfile = "./rootfs/Dockerfile"
   context    = ".."
   args = {
-    BTYPE     = "${BTYPE}"
+    TYPE      = "${BTYPE}"
     ARCH      = "${ARCH}"
     HOST_ARCH = "${HOST_ARCH}"
   }
@@ -36,6 +35,11 @@ target "rootfs" {
 target "wormhole" {
   dockerfile = "./rootfs/Dockerfile"
   context    = "."
+  args = {
+    TYPE      = "${BTYPE}"
+    ARCH      = "${ARCH}"
+    HOST_ARCH = "${HOST_ARCH}"
+  }
   target     = "wormhole-remote"
   ssh        = ["default"]
   tags       = ["registry.orb.local/wormhole:${VERSION}"]
