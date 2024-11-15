@@ -19,13 +19,13 @@ pub const BUF_SIZE: usize = 65536;
 pub fn unmount_wormhole() -> anyhow::Result<()> {
     for nix_dir in NIX_RW_DIRS {
         let path = format!("{}/nix/{}", WORMHOLE_UNIFIED, nix_dir);
-        trace!("unmounting {}", path);
+        debug!("unmounting {}", path);
         match umount2(path.as_str(), MntFlags::MNT_DETACH) {
             Ok(_) => {}
-            Err(err) => trace!("could not unmount {:?}", err),
+            Err(err) => debug!("could not unmount {:?}", err),
         };
     }
-    trace!("unmounting {}", WORMHOLE_UNIFIED);
+    debug!("unmounting {}", WORMHOLE_UNIFIED);
     umount2(WORMHOLE_UNIFIED, MntFlags::empty())?;
 
     Ok(())
@@ -39,7 +39,7 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     fs::create_dir_all(WORMHOLE_UNIFIED)?;
     fs::create_dir_all("/data/run")?;
 
-    trace!("mounting overlayfs");
+    debug!("mounting overlayfs");
     let options = format!(
         "lowerdir={},upperdir={},workdir={}",
         ROOTFS, UPPERDIR, WORKDIR
@@ -52,7 +52,7 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
         Some(options.as_str()),
     )?;
 
-    trace!("creating ro wormhole-unified mount");
+    debug!("creating ro wormhole-unified mount");
     // mount a r-o nix to protect /nix/orb/sys and prevent creating files in /nix/.
     bind_mount_ro(ROOTFS, WORMHOLE_UNIFIED)?;
     // copy over the initial wormhole-rootfs nix store containing base packages into .base
@@ -62,7 +62,7 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     )?;
 
     for nix_dir in NIX_RW_DIRS {
-        trace!("mount bind from overlay to unified: {}", nix_dir);
+        debug!("mount bind from overlay to unified: {}", nix_dir);
         mount_common(
             format!("{}/nix/{}", WORMHOLE_OVERLAY, nix_dir).as_str(),
             format!("{}/nix/{}", WORMHOLE_UNIFIED, nix_dir).as_str(),
