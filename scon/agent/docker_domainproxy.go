@@ -39,10 +39,6 @@ func (cb *DockerProxyCallbacks) NftableName() string {
 	return netconf.NftableInet
 }
 
-func (cb *DockerProxyCallbacks) NfqueueFlags() uint32 {
-	return 0
-}
-
 func (d *DockerAgent) startDomainTLSProxy() error {
 	domainproxySubnet4Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
 	domainproxySubnet6Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
@@ -53,7 +49,7 @@ func (d *DockerAgent) startDomainTLSProxy() error {
 	}
 	d.domainTLSProxy = proxy
 
-	err = proxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix)
+	err = proxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe, netconf.QueueDomainproxyProbeGso)
 	if err != nil {
 		return err
 	}

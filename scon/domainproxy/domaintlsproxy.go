@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/florianl/go-nfqueue"
 	"github.com/google/nftables"
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
@@ -45,7 +46,6 @@ type ProxyCallbacks interface {
 	GetMark(upstream domainproxytypes.Upstream) int
 
 	NftableName() string
-	NfqueueFlags() uint32
 	NfqueueMarkReject(mark uint32) uint32
 	NfqueueMarkSkip(mark uint32) uint32
 }
@@ -108,13 +108,19 @@ func (p *DomainTLSProxy) getReverseProxyServer(https bool) *http.Server {
 	return httpServer
 }
 
-func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix) error {
+func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, nfqueueNum, nfqueueGSONum uint16) error {
 	err := p.tlsController.LoadRoot()
 	if err != nil {
 		return err
 	}
 
-	err = p.startQueue()
+	err = p.startQueue(nfqueueNum, 0)
+	if err != nil {
+		return fmt.Errorf("start queue: %w", err)
+	}
+	// declare GSO and partial checksum support to prevent reject from failing on macOS-originated packets (which are GSO + partial csum)
+	// we only need GSO flag in ovm, and it breaks the docker bridge, so disable it in docker machine and enable it in ovm
+	err = p.startQueue(nfqueueGSONum, nfqueue.NfQaCfgFlagGSO)
 	if err != nil {
 		return fmt.Errorf("start queue: %w", err)
 	}

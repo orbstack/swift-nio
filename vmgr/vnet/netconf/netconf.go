@@ -222,11 +222,14 @@ const (
 	VmFwmarkNfqueueSkipBit = 1 << 5
 	// this mark bit is set when traffic needs to be rejected by nfqueue
 	VmFwmarkNfqueueRejectBit = 1 << 6
+	// this mark bit is set to identify traffic that comes in on ifVmnetMachine (eth1)
+	VmFwmarkIfVmnetMachineBit = 1 << 7
 )
 
 // nfqueue IDs, shared between ovm and docker
 const (
-	QueueDomainproxyProbe = 23478
+	QueueDomainproxyProbe    = 23478
+	QueueDomainproxyProbeGso = 40803
 )
 
 const NftableInet = "orbstack"
