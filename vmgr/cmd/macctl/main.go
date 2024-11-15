@@ -3,8 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/orbstack/macvirt/vmgr/cmd/macctl/cmd"
@@ -70,6 +73,56 @@ func runBinfmtStub() (int, error) {
 }
 
 func runCommandStub(cmd string) (int, error) {
+	if cmd == "xdg-open" {
+		// error codes from man xdg-open
+
+		if len(os.Args) != 2 {
+			fmt.Fprintf(os.Stderr, "xdg-open: expected 1 argument, got %d\n", len(os.Args)-1)
+			return 1, nil
+		}
+
+		target := os.Args[1]
+		definitelyUrl := false
+
+		u, err := url.Parse(target)
+		if err == nil {
+			if u.Scheme != "" && u.Scheme != "file" {
+				definitelyUrl = true
+			} else if u.Scheme == "file" {
+				target = strings.TrimPrefix(target, "file://")
+			}
+		}
+
+		if !definitelyUrl {
+			_, err = os.Stat(target)
+			if err != nil && errors.Is(err, os.ErrNotExist) {
+				fmt.Fprintf(os.Stderr, "xdg-open: could not open %v: file does not exist\n", target)
+				return 2, nil
+			} else if err != nil {
+				fmt.Fprintf(os.Stderr, "xdg-open: could not open %v: %v\n", target, err)
+				return 4, nil
+			}
+
+			syEval, err := filepath.EvalSymlinks(target)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "xdg-open: could not process %v: %v\n", target, err)
+				return 4, nil
+			}
+
+			absPath, err := filepath.Abs(syEval)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "xdg-open: could not process %v: %v\n", syEval, err)
+				return 4, nil
+			}
+
+			os.Args = []string{"open", absPath}
+		} else {
+			os.Args = []string{"open", target}
+		}
+
+		return runCommandStub("open")
+	}
+
 	args := []string{cmd}
 	args = append(args, os.Args[1:]...)
 
