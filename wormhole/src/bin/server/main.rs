@@ -1,9 +1,10 @@
 use anyhow::anyhow;
 use libc::{TIOCSCTTY, TIOCSWINSZ};
 use std::{
+    collections::HashMap,
     fs::{self, OpenOptions},
     os::{
-        fd::{AsRawFd, RawFd},
+        fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
         unix::net::{UnixListener, UnixStream},
     },
     process::exit,
@@ -130,8 +131,13 @@ impl WormholeServer {
                 trace!("remaining connections: {}", *lock);
                 if *lock == 0 {
                     debug!("shutting down");
+
                     let _ = std::fs::remove_file(RPC_SOCKET);
-                    let _ = unmount_wormhole();
+                    // tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    match unmount_wormhole() {
+                        Ok(_) => {}
+                        Err(e) => debug!("error unmounting wormhole: {:?}", e),
+                    }
                     exit(0);
                 }
             }
@@ -158,6 +164,8 @@ impl WormholeServer {
         }
         .write(&mut client_writer)
         .await?;
+        // drop(lock);
+        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
         Ok(())
     }
@@ -297,12 +305,13 @@ impl WormholeServer {
     ) -> anyhow::Result<()> {
         info!("starting wormhole-attach");
         let mut pty: Option<OpenptyResult> = None;
-        let mut term_env: Option<String> = None;
+        let mut env: HashMap<String, String> = HashMap::new();
 
         // (read, write) pipes
-        let mut stdin_pipe: (RawFd, RawFd) = (-1, -1);
-        let mut stdout_pipe: (RawFd, RawFd) = (-1, -1);
-        let mut stderr_pipe: (RawFd, RawFd) = (-1, -1);
+        let mut stdin_pipe_fds: (RawFd, RawFd) = (-1, -1);
+        let mut stdout_pipe_fds: (RawFd, RawFd) = (-1, -1);
+        let mut stderr_pipe_fds: (RawFd, RawFd) = (-1, -1);
+        let is_pty = params.pty_config.is_some();
 
         if let Some(pty_config) = params.pty_config {
             pty = Some(create_pty(
@@ -310,7 +319,9 @@ impl WormholeServer {
                 pty_config.rows as u16,
                 pty_config.termios,
             )?);
-            term_env = Some(pty_config.term_env);
+            env.insert("TERM".to_string(), pty_config.term_env);
+            env.insert("SSH_CONNECTION".to_string(), pty_config.ssh_connection_env);
+            env.insert("SSH_AUTH_SOCK".to_string(), pty_config.ssh_auth_sock_env);
 
             let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
             let master_fd = pty.as_ref().unwrap().master.as_raw_fd();
@@ -318,30 +329,33 @@ impl WormholeServer {
             debug!("created pty: {slave_fd} {master_fd}");
 
             // for stdin: write to master and read from slave
-            stdin_pipe.0 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stdin_pipe.1 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdin_pipe_fds.0 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdin_pipe_fds.1 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
             // for stdout/stderr: read from master and write to slave
-            stdout_pipe.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stdout_pipe.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stderr_pipe.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stderr_pipe.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            if stdin_pipe.0 < 0
-                || stdin_pipe.1 < 0
-                || stdout_pipe.0 < 0
-                || stdout_pipe.1 < 0
-                || stderr_pipe.0 < 0
-                || stderr_pipe.1 < 0
-            {
-                return Err(anyhow!("failed to duplicate fds"));
-            }
+            stdout_pipe_fds.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdout_pipe_fds.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stderr_pipe_fds.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stderr_pipe_fds.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+
+            // drop the original master and slave fds so that there are no additional references
+            // to stdin/stdout/stderr pipes
+            drop(pty);
+        } else {
+            stdin_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
+            stdout_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
+            stderr_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
         }
-        if pty.is_none() {
-            stdin_pipe = pipe2(OFlag::O_CLOEXEC)?;
-            stdout_pipe = pipe2(OFlag::O_CLOEXEC)?;
-            stderr_pipe = pipe2(OFlag::O_CLOEXEC)?;
-        }
-        let is_pty = pty.is_some();
-        drop(pty);
+
+        // we can safely own these fds because we created them via dup/pipe2 above
+        let stdin_pipe = (unsafe { OwnedFd::from_raw_fd(stdin_pipe_fds.0) }, unsafe {
+            OwnedFd::from_raw_fd(stdin_pipe_fds.1)
+        });
+        let stdout_pipe = (unsafe { OwnedFd::from_raw_fd(stdout_pipe_fds.0) }, unsafe {
+            OwnedFd::from_raw_fd(stdout_pipe_fds.1)
+        });
+        let stderr_pipe = (unsafe { OwnedFd::from_raw_fd(stderr_pipe_fds.0) }, unsafe {
+            OwnedFd::from_raw_fd(stderr_pipe_fds.1)
+        });
 
         let wormhole_mount = open_tree(
             &format!("{}/nix", WORMHOLE_UNIFIED),
@@ -370,11 +384,11 @@ impl WormholeServer {
                     serde_json::to_string(&config)?,
                     serde_json::to_string(&runtime_state)?,
                 ])
-                .env("TERM", term_env.unwrap_or(String::from("")))
+                .envs(env)
                 .pre_exec(move || {
                     if is_pty {
                         setsid()?;
-                        let res = ioctl(stdin_pipe.0, TIOCSCTTY, 1);
+                        let res = ioctl(stdin_pipe_fds.0, TIOCSCTTY, 1);
                         if res != 0 {
                             return Err(std::io::Error::last_os_error());
                         }
@@ -386,14 +400,19 @@ impl WormholeServer {
                     unset_cloexec(log_pipe_write_fd)?;
 
                     // no dup cloexec because wormhole-attach child should inherit stdio fds
-                    dup2(stdin_pipe.0, libc::STDIN_FILENO)?;
-                    dup2(stdout_pipe.1, libc::STDOUT_FILENO)?;
-                    dup2(stderr_pipe.1, libc::STDERR_FILENO)?;
+                    dup2(stdin_pipe_fds.0, libc::STDIN_FILENO)?;
+                    dup2(stdout_pipe_fds.1, libc::STDOUT_FILENO)?;
+                    dup2(stderr_pipe_fds.1, libc::STDERR_FILENO)?;
 
                     Ok(())
                 })
                 .spawn()?
         };
+
+        // close child stdio pipe ends
+        drop(stdin_pipe.0);
+        drop(stdout_pipe.1);
+        drop(stderr_pipe.1);
 
         tokio::spawn(async move {
             match child.wait().await {
@@ -410,19 +429,9 @@ impl WormholeServer {
             debug!("wormhole-attach finished, decrementing refcount");
         });
 
-        // close child stdio pipe ends
-        close(stdin_pipe.0)?;
-        close(stdout_pipe.1)?;
-        close(stderr_pipe.1)?;
-
-        debug!(
-            "pipe ends: {} {} {} {} {} {}",
-            stdin_pipe.0, stdin_pipe.1, stdout_pipe.0, stdout_pipe.1, stderr_pipe.0, stderr_pipe.1
-        );
-
-        let payload_stdin = AsyncFile::new(stdin_pipe.1)?;
-        let payload_stdout = AsyncFile::new(stdout_pipe.0)?;
-        let payload_stderr = AsyncFile::new(stderr_pipe.0)?;
+        let payload_stdin = AsyncFile::new(stdin_pipe.1.into_raw_fd())?;
+        let payload_stdout = AsyncFile::new(stdout_pipe.0.into_raw_fd())?;
+        let payload_stderr = AsyncFile::new(stderr_pipe.0.into_raw_fd())?;
 
         let mut join_set = JoinSet::new();
         join_set.spawn(Self::forward_payload_to_client(

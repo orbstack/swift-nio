@@ -37,9 +37,11 @@ message TerminalResize {
 
 message PtyConfig {
     string term_env = 1;
-    uint32 rows = 2;
-    uint32 cols = 3;
-    bytes termios = 4;
+    string ssh_connection_env = 2;
+    string ssh_auth_sock_env = 3;
+    uint32 rows = 4;
+    uint32 cols = 5;
+    bytes termios = 6;
 }
 
 message StartPayload {

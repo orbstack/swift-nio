@@ -24,12 +24,12 @@ import (
 const verboseDebug = false
 
 type Client struct {
-	dialer            func(ctx context.Context, network, addr string) (net.Conn, error)
-	http              *http.Client
-	proto             string
-	addr              string
-	baseURL           string
-	registryAuthToken string
+	dialer               func(ctx context.Context, network, addr string) (net.Conn, error)
+	http                 *http.Client
+	proto                string
+	addr                 string
+	baseURL              string
+	drmRegistryAuthToken string
 }
 
 type statusRecord struct {
@@ -111,9 +111,6 @@ func NewClient(daemon *DockerConnection) (*Client, error) {
 		return nil, fmt.Errorf("unsupported scheme %s", hostURL.Scheme)
 	}
 
-	if c.registryAuthToken == "" {
-		c.registryAuthToken = base64.URLEncoding.EncodeToString([]byte("{}"))
-	}
 	c.proto = hostURL.Scheme
 	c.addr = hostURL.Host
 	return c, nil
@@ -125,7 +122,7 @@ func NewClientWithDrmAuth(daemon *DockerConnection, drmToken string) (*Client, e
 		return nil, err
 	}
 	authDetails := fmt.Sprintf(`{"username": "orbstack", "password": %q}`, drmToken)
-	c.registryAuthToken = base64.URLEncoding.EncodeToString([]byte(authDetails))
+	c.drmRegistryAuthToken = base64.URLEncoding.EncodeToString([]byte(authDetails))
 	return c, nil
 }
 
@@ -293,7 +290,11 @@ func (c *Client) newRequest(method, path string, body any) (*http.Request, error
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if strings.HasPrefix(path, "/images/") {
-		req.Header.Set("X-Registry-Auth", c.registryAuthToken)
+		if c.drmRegistryAuthToken != "" {
+			req.Header.Set("X-Registry-Auth", c.drmRegistryAuthToken)
+		} else {
+			req.Header.Set("X-Registry-Auth", base64.URLEncoding.EncodeToString([]byte("{}")))
+		}
 	}
 
 	return req, nil
@@ -385,17 +386,21 @@ func (c *Client) streamHijack(method, path string, body any) (net.Conn, error) {
 		_ = tcpConn.SetKeepAlivePeriod(30 * time.Second)
 	}
 
-	if err = req.Write(conn); err != nil {
+	err = req.Write(conn)
+	if err != nil {
 		return nil, err
 	}
+
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
+
 	if resp.StatusCode != http.StatusSwitchingProtocols {
-		_ = resp.Body.Close()
-		return nil, fmt.Errorf("could not upgrade request")
+		defer resp.Body.Close()
+		return nil, ReadError(resp)
 	}
+
 	return conn, nil
 }
 

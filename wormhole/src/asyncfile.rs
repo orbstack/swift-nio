@@ -2,7 +2,7 @@ use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::unistd::dup;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, IntoRawFd, OwnedFd};
 use std::os::unix::io::{FromRawFd, RawFd};
 use std::pin::Pin;
 use std::task::{ready, Context, Poll};

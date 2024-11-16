@@ -108,7 +108,7 @@ func (c *Client) ExecStream(cid string, execReq *dockertypes.ContainerExecCreate
 		Tty:    false,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("start exec: %w", err)
+		return nil, fmt.Errorf("exec stream: %w", err)
 	}
 
 	return conn, nil

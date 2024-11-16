@@ -147,7 +147,7 @@ fn read_u8(buf: &[u8], idx: &mut usize) -> anyhow::Result<u8> {
 }
 
 fn read_u32(buf: &[u8], idx: &mut usize) -> anyhow::Result<u32> {
-    if *idx + 3 >= buf.len() {
+    if *idx + 4 > buf.len() {
         return Err(anyhow!("could not read full termios settings"));
     }
     let val = u32::from_be_bytes(buf[*idx..*idx + 4].try_into()?);

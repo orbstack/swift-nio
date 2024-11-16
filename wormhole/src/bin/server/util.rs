@@ -26,6 +26,10 @@ pub fn unmount_wormhole() -> anyhow::Result<()> {
         };
     }
     debug!("unmounting {}", WORMHOLE_UNIFIED);
+    umount2(
+        format!("{}/nix/orb/sys/.base", WORMHOLE_UNIFIED).as_str(),
+        MntFlags::empty(),
+    )?;
     umount2(WORMHOLE_UNIFIED, MntFlags::empty())?;
 
     Ok(())
@@ -72,17 +76,17 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
         )?;
     }
 
-    mount_setattr(
-        None,
-        WORMHOLE_UNIFIED,
-        libc::AT_RECURSIVE as u32,
-        &MountAttr {
-            attr_set: 0,
-            attr_clr: 0,
-            propagation: MS_PRIVATE,
-            userns_fd: 0,
-        },
-    )?;
+    // mount_setattr(
+    //     None,
+    //     WORMHOLE_UNIFIED,
+    //     libc::AT_RECURSIVE as u32,
+    //     &MountAttr {
+    //         attr_set: 0,
+    //         attr_clr: 0,
+    //         propagation: MS_PRIVATE,
+    //         userns_fd: 0,
+    //     },
+    // )?;
 
     Ok(())
 }
