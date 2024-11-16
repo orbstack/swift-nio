@@ -57,20 +57,6 @@ pub unsafe fn register_handler(
     // `O(n)` set implementation because I can't be bothered to bring in `hashbrown` and `rustc_hash`
     // to const-initialize a `HashSet` correctly. The set of `signum`s is very much bounded.
     if !registry.initialized_set.contains(&signum) {
-        // Make sure `sigaltstack` was set up by either Go or Rust
-        let mut stack: libc::stack_t = unsafe { mem::zeroed() };
-        let ret = unsafe { libc::sigaltstack(ptr::null(), &mut stack) };
-        if ret == -1 {
-            return Err(anyhow::anyhow!(
-                "failed to create `sigaltstack`: {}",
-                io::Error::last_os_error(),
-            ));
-        }
-
-        if stack.ss_flags & libc::SS_DISABLE != 0 {
-            return Err(anyhow::anyhow!("no sigaltstack"));
-        }
-
         // fetch old signal handler first
         let mut old_action: libc::sigaction = unsafe { mem::zeroed() };
         let ret = unsafe { libc::sigaction(signum, ptr::null(), &mut old_action) };
