@@ -167,7 +167,7 @@ fn monitor(
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
     epoll.add(&sfd, EpollEvent::new(EpollFlags::EPOLLIN, 1))?;
 
-    let mut events = [EpollEvent::empty(); 1];
+    let mut events = [EpollEvent::empty()];
 
     // intermediate succeeded, we assume the subreaper gets reparented to us and that we will receive SIGCHLD when it exits
     loop {

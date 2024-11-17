@@ -2,7 +2,9 @@ package wormclient
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 
@@ -66,9 +68,11 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		ptyFd = fdStderr
 	}
 
-	// need a pty?
-	if ptyStdin || ptyStdout || ptyStderr {
-		termEnv := os.Getenv("TERM")
+	// only request pty if all stdio are ptys (similar to ssh workaround)
+	// note: this differs from other copies of this pty logic, which request a pty
+	// if **any** of the stdio are ptys
+	// todo: explicitly request which stdio are ptys over rpc
+	if ptyStdin && ptyStdout && ptyStderr {
 		w, h, err := term.GetSize(ptyFd)
 		if err != nil {
 			return 1, err
@@ -80,14 +84,12 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 			return 1, fmt.Errorf("failed to get termios params: %w", err)
 		}
 
-		// raw mode if both outputs are ptys
-		if ptyStdout && ptyStderr {
-			originalState, err = term.MakeRaw(ptyFd)
-			if err != nil {
-				return 1, err
-			}
-			defer term.Restore(ptyFd, originalState)
+		// raw mode if any stdio is a pty
+		originalState, err = term.MakeRaw(ptyFd)
+		if err != nil {
+			return 1, err
 		}
+		defer term.Restore(ptyFd, originalState)
 
 		serializedTermios, err := SerializeTermios(termios)
 		if err != nil {
@@ -96,7 +98,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 
 		// request pty
 		ptyConfig = &pb.PtyConfig{
-			TermEnv:          termEnv,
+			TermEnv:          os.Getenv("TERM"),
 			SshConnectionEnv: os.Getenv("SSH_CONNECTION"),
 			SshAuthSockEnv:   os.Getenv("SSH_AUTH_SOCK"),
 			Rows:             uint32(h),
@@ -123,7 +125,18 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		for {
 			n, err := os.Stdin.Read(buf)
 			if err != nil {
-				// todo: notify server that stdin has been closed?
+				if errors.Is(err, io.EOF) {
+					// notify server of stdin EOF with a zero-byte message
+					fmt.Println("stdin EOF")
+					err = server.WriteMessage(&pb.RpcClientMessage{
+						ClientMessage: &pb.RpcClientMessage_StdinData{
+							StdinData: &pb.StdinData{Data: []byte{}},
+						},
+					})
+					if err != nil {
+						return
+					}
+				}
 				return
 			}
 
@@ -182,6 +195,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 }
 
 func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmToken string, flagWorkdir string, args []string) (int, error) {
+	// todo: also check for entitlement with vmgr/sjwt
 	if drmToken == "" {
 		// todo: explicitly check for pro license as well
 		return sshenv.ExitCodeNeedsProLicense, nil

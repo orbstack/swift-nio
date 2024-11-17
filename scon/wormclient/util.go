@@ -128,7 +128,7 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		}
 	}
 
-	conn, err := client.ExecStream(serverContainerId, &dockertypes.ContainerExecCreateRequest{
+	reader, writer, err := client.ExecStream(serverContainerId, &dockertypes.ContainerExecCreateRequest{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -149,11 +149,11 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 	go func() {
 		defer demuxReader.Close()
 		defer demuxWriter.Close()
-		defer conn.Close()
-		dockerclient.DemuxOutput(conn, demuxWriter)
+		defer writer.Close()
+		dockerclient.DemuxOutput(reader, demuxWriter)
 	}()
 
-	sessionStdin := conn
+	sessionStdin := writer
 	sessionStdout := demuxReader
 
 	server := RpcServer{reader: sessionStdout, writer: sessionStdin}

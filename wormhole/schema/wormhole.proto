@@ -42,6 +42,7 @@ message PtyConfig {
     uint32 rows = 4;
     uint32 cols = 5;
     bytes termios = 6;
+    // todo: specify which stdio are ptys
 }
 
 message StartPayload {

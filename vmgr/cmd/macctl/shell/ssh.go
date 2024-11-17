@@ -131,14 +131,12 @@ func ConnectSSH(opts CommandOpts) (int, error) {
 		}
 		modes := termios.TermiosToSSH(flags)
 
-		// raw mode if both outputs are ptys
-		if meta.PtyStdout && meta.PtyStderr {
-			state, err := term.MakeRaw(ptyFd)
-			if err != nil {
-				return 0, err
-			}
-			defer term.Restore(ptyFd, state)
+		// raw mode if any stdio is a pty
+		state, err := term.MakeRaw(ptyFd)
+		if err != nil {
+			return 0, err
 		}
+		defer term.Restore(ptyFd, state)
 
 		// request pty
 		err = session.RequestPty(termEnv, h, w, modes)

@@ -14,11 +14,11 @@ pub const RPC_SOCKET: &str = "/run/wormhole.sock";
 
 #[async_trait]
 pub trait RpcWrite: Message + Sized {
-    async fn write(self, stream: &mut AsyncFile) -> anyhow::Result<()>;
+    async fn write_all(self, stream: &mut AsyncFile) -> anyhow::Result<()>;
 }
 
 pub trait RpcWriteSync: Message + Sized {
-    fn write_sync(self, stream: &mut impl Write) -> anyhow::Result<()>;
+    fn write_all_sync(self, stream: &mut impl Write) -> anyhow::Result<()>;
 }
 
 #[async_trait]
@@ -35,7 +35,7 @@ impl<T> RpcWrite for T
 where
     T: Message + Send + Sync + 'static,
 {
-    async fn write(self, stream: &mut AsyncFile) -> anyhow::Result<()> {
+    async fn write_all(self, stream: &mut AsyncFile) -> anyhow::Result<()> {
         let mut buf = BytesMut::with_capacity(self.encoded_len());
         self.encode(&mut buf)?;
 
@@ -53,7 +53,7 @@ impl<T> RpcWriteSync for T
 where
     T: Message + Send + Sync + 'static,
 {
-    fn write_sync(self, stream: &mut impl Write) -> anyhow::Result<()> {
+    fn write_all_sync(self, stream: &mut impl Write) -> anyhow::Result<()> {
         let mut buf = BytesMut::with_capacity(self.encoded_len());
         self.encode(&mut buf)?;
 

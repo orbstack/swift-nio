@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, process::exit};
 
 use libc::MS_PRIVATE;
 use nix::mount::{umount2, MntFlags, MsFlags};
@@ -6,6 +6,7 @@ use tracing::debug;
 use wormhole::{
     bind_mount_ro, mount_common,
     newmount::{mount_setattr, MountAttr},
+    rpc::RPC_SOCKET,
 };
 
 pub const ROOTFS: &str = "/wormhole-rootfs";
@@ -89,4 +90,11 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     // )?;
 
     Ok(())
+}
+
+pub fn shutdown() -> anyhow::Result<()> {
+    let _ = std::fs::remove_file(RPC_SOCKET);
+    // tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    unmount_wormhole()?;
+    exit(0);
 }

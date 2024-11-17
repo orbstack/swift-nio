@@ -3,6 +3,7 @@ use libc::{TIOCSCTTY, TIOCSWINSZ};
 use std::{
     collections::HashMap,
     fs::{self, OpenOptions},
+    mem,
     os::{
         fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
         unix::net::{UnixListener, UnixStream},
@@ -13,10 +14,8 @@ use std::{
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     process::Command,
-    sync::Mutex,
     task::{JoinHandle, JoinSet},
 };
-use tokio_util::sync::CancellationToken;
 use tracing_subscriber::fmt::format::FmtSpan;
 use util::{mount_wormhole, unmount_wormhole, BUF_SIZE, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED};
 use wormhole::{
@@ -48,6 +47,39 @@ use nix::{
 use tracing::{debug, info, trace, Level};
 
 mod util;
+
+struct DropGuard {
+    count: Arc<std::sync::Mutex<u32>>,
+}
+
+impl DropGuard {
+    fn new(count: Arc<std::sync::Mutex<u32>>) -> Self {
+        {
+            let mut count = count.lock().unwrap();
+            *count += 1;
+            trace!("incremented, new refcount: {}", *count);
+        }
+
+        DropGuard { count }
+    }
+}
+
+impl Drop for DropGuard {
+    fn drop(&mut self) {
+        let mut count = self.count.lock().unwrap();
+        *count -= 1;
+        trace!("decremented, new refcount: {}", *count);
+
+        if *count == 0 {
+            debug!("shutting down");
+
+            match util::shutdown() {
+                Ok(_) => debug!("shutdown complete"),
+                Err(e) => debug!("error shutting down: {:?}", e),
+            }
+        }
+    }
+}
 
 // receives client stdin and stdout fds with SCM_RIGHTS
 fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)> {
@@ -81,13 +113,18 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)
 }
 
 struct WormholeServer {
-    count: Mutex<u32>,
+    // store the count as std::sync::Mutex since Drop cannot be async. This is fine because
+    // we don't need to ever hold the lock across any await points.
+    count: Arc<std::sync::Mutex<u32>>,
 }
 
 impl WormholeServer {
     fn new() -> Arc<Self> {
         Arc::new(Self {
-            count: Mutex::new(0),
+            // note: we also wrap the count in an Arc so that we can share the count mutex
+            // with the tokio task that spawns wormhole-attach and handles refcount decrement -
+            // otherwise, the wormhole-attach task may outlive its reference to count
+            count: Arc::new(std::sync::Mutex::new(0)),
         })
     }
 
@@ -114,74 +151,35 @@ impl WormholeServer {
 
     fn spawn_client_handler(self: Arc<Self>, stream: UnixStream) -> JoinHandle<()> {
         tokio::spawn(async move {
-            {
-                let mut lock = self.count.lock().await;
-                *lock += 1;
-                trace!("new connection: total {}", *lock);
-            }
             match self.handle_client(stream).await {
                 Ok(_) => {}
                 Err(e) => {
                     debug!("error handling client: {:?}", e);
                 }
             }
-            {
-                let mut lock = self.count.lock().await;
-                *lock -= 1;
-                trace!("remaining connections: {}", *lock);
-                if *lock == 0 {
-                    debug!("shutting down");
-
-                    let _ = std::fs::remove_file(RPC_SOCKET);
-                    // tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                    match unmount_wormhole() {
-                        Ok(_) => {}
-                        Err(e) => debug!("error unmounting wormhole: {:?}", e),
-                    }
-                    exit(0);
-                }
-            }
         })
-    }
-
-    async fn reset_data(self: &Self, client_writer: Arc<Mutex<AsyncFile>>) -> anyhow::Result<()> {
-        info!("resetting data");
-        let mut exit_code = 0;
-
-        let lock = self.count.lock().await;
-        if *lock == 1 {
-            fs::remove_dir_all(UPPERDIR)?;
-            fs::remove_dir_all(WORKDIR)?;
-        } else {
-            // other connections are present, so we cannot reset
-            debug!("other connections present, cannot reset");
-            exit_code = 1;
-        }
-
-        let mut client_writer = client_writer.lock().await;
-        RpcServerMessage {
-            server_message: Some(ServerMessage::ExitStatus(ExitStatus { exit_code })),
-        }
-        .write(&mut client_writer)
-        .await?;
-        // drop(lock);
-        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
-        Ok(())
     }
 
     async fn forward_client_to_payload(
         mut client_stdin: AsyncFile,
-        mut payload_stdin: AsyncFile,
+        payload_stdin: AsyncFile,
+        pty_master_fd: OwnedFd,
         is_pty: bool,
     ) -> anyhow::Result<()> {
+        let mut payload_stdin = Some(payload_stdin);
         loop {
             let message = RpcClientMessage::read(&mut client_stdin).await?;
             match message.client_message {
                 Some(ClientMessage::StdinData(msg)) => {
-                    let n = payload_stdin.write(&msg.data).await?;
-                    if n == 0 {
-                        return Err(anyhow!("payload stdin closed"));
+                    // zero-byte message indicates client stdin EOF; drop the payload stdin
+                    // to forward the EOF to wormhole-attach process
+                    if msg.data.len() == 0 {
+                        payload_stdin = None;
+                        debug!("client stdin EOF, dropping payload stdin");
+                    }
+
+                    if let Some(payload_stdin) = payload_stdin.as_mut() {
+                        payload_stdin.write_all(&msg.data).await?;
                     }
                 }
                 Some(ClientMessage::TerminalResize(msg)) => {
@@ -193,7 +191,7 @@ impl WormholeServer {
                             ws_xpixel: 0,
                             ws_ypixel: 0,
                         };
-                        let res = unsafe { ioctl(payload_stdin.as_raw_fd(), TIOCSWINSZ, &ws) };
+                        let res = unsafe { ioctl(pty_master_fd.as_raw_fd(), TIOCSWINSZ, &ws) };
                         if res < 0 {
                             return Err(anyhow!("error setting winsize: {res}"));
                         }
@@ -208,7 +206,7 @@ impl WormholeServer {
     }
 
     async fn forward_payload_to_client(
-        client_writer: Arc<Mutex<AsyncFile>>,
+        client_writer: Arc<tokio::sync::Mutex<AsyncFile>>,
         mut payload_output: AsyncFile,
         is_stdout: bool,
     ) -> anyhow::Result<()> {
@@ -232,7 +230,7 @@ impl WormholeServer {
                     RpcServerMessage {
                         server_message: Some(server_message),
                     }
-                    .write(&mut client_writer)
+                    .write_all(&mut client_writer)
                     .await?;
                 }
                 Err(e) => return Err(anyhow!("got error reading from payload: {e}")),
@@ -242,7 +240,7 @@ impl WormholeServer {
 
     async fn forward_exit_code(
         mut exit_code_pipe_reader: AsyncFile,
-        client_writer: Arc<Mutex<AsyncFile>>,
+        client_writer: Arc<tokio::sync::Mutex<AsyncFile>>,
     ) -> anyhow::Result<()> {
         let mut exit_code = [0u8];
         exit_code_pipe_reader.read_exact(&mut exit_code).await?;
@@ -254,7 +252,7 @@ impl WormholeServer {
                 exit_code: exit_code[0] as u32,
             })),
         }
-        .write(&mut client_writer)
+        .write_all(&mut client_writer)
         .await?;
 
         Ok(())
@@ -269,6 +267,8 @@ impl WormholeServer {
             client_stdin.as_raw_fd(),
             client_stdout.as_raw_fd()
         );
+        // increment connection refcount through guard and pass ownership to the corresponding handler
+        let guard = DropGuard::new(self.count.clone());
 
         // Send ack to scon client. This is necessary so that the client knows the server refcount
         // was incremented and the server is not in the middle of exiting. If the client
@@ -277,21 +277,23 @@ impl WormholeServer {
         RpcServerMessage {
             server_message: Some(ServerMessage::ClientConnectAck(ClientConnectAck {})),
         }
-        .write(&mut client_stdout)
+        .write_all(&mut client_stdout)
         .await?;
 
-        let client_writer = Arc::new(Mutex::new(client_stdout));
+        let client_writer = Arc::new(tokio::sync::Mutex::new(client_stdout));
 
         loop {
             let message = RpcClientMessage::read(&mut client_stdin).await?;
             match message.client_message {
                 Some(ClientMessage::StartPayload(msg)) => {
                     return self
-                        .run_debug_session(msg, client_stdin, client_writer)
+                        .run_debug_session(msg, client_stdin, client_writer, guard)
                         .await;
                 }
 
-                Some(ClientMessage::ResetData(_)) => return self.reset_data(client_writer).await,
+                Some(ClientMessage::ResetData(_)) => {
+                    return self.reset_data(client_writer, guard).await
+                }
                 _ => {}
             }
         }
@@ -301,7 +303,8 @@ impl WormholeServer {
         self: &Self,
         params: StartPayload,
         client_stdin: AsyncFile,
-        client_writer: Arc<Mutex<AsyncFile>>,
+        client_writer: Arc<tokio::sync::Mutex<AsyncFile>>,
+        guard: DropGuard,
     ) -> anyhow::Result<()> {
         info!("starting wormhole-attach");
         let mut pty: Option<OpenptyResult> = None;
@@ -414,6 +417,7 @@ impl WormholeServer {
         drop(stdout_pipe.1);
         drop(stderr_pipe.1);
 
+        // let guard = Arc::new(guard);
         tokio::spawn(async move {
             match child.wait().await {
                 Ok(_) => {
@@ -427,6 +431,7 @@ impl WormholeServer {
             // todo: decrement refcount once wormhole-attach exits, which ensures all background tasks
             // are finished
             debug!("wormhole-attach finished, decrementing refcount");
+            drop(guard);
         });
 
         let payload_stdin = AsyncFile::new(stdin_pipe.1.into_raw_fd())?;
@@ -436,7 +441,7 @@ impl WormholeServer {
         let mut join_set = JoinSet::new();
         join_set.spawn(Self::forward_payload_to_client(
             client_writer.clone(),
-            payload_stdout,
+            payload_stdout.try_clone()?,
             true,
         ));
         join_set.spawn(Self::forward_payload_to_client(
@@ -447,6 +452,9 @@ impl WormholeServer {
         join_set.spawn(Self::forward_client_to_payload(
             client_stdin,
             payload_stdin,
+            // use payload stdout as the master pty fd for the sake of terminal resize, in case
+            // we close the stdin pipe (e.g. due to client EOF)
+            OwnedFd::from(payload_stdout),
             is_pty,
         ));
         join_set.spawn(Self::forward_exit_code(
@@ -466,7 +474,38 @@ impl WormholeServer {
             join_set.shutdown().await;
         }
 
-        debug!("wormhole-attach finished");
+        // note: this does not necessarily mean the wormhole-attach has finished (due to background tasks)
+        debug!("rpc communication finished");
+        Ok(())
+    }
+
+    async fn reset_data(
+        self: &Self,
+        client_writer: Arc<tokio::sync::Mutex<AsyncFile>>,
+        _guard: DropGuard,
+    ) -> anyhow::Result<()> {
+        info!("resetting data");
+        let mut exit_code = 0;
+
+        {
+            let lock = self.count.lock().unwrap();
+            if *lock == 1 {
+                fs::remove_dir_all(UPPERDIR)?;
+                fs::remove_dir_all(WORKDIR)?;
+            } else {
+                // other connections are present, so we cannot reset
+                debug!("other connections present, cannot reset");
+                exit_code = 1;
+            }
+        }
+
+        let mut client_writer = client_writer.lock().await;
+        RpcServerMessage {
+            server_message: Some(ServerMessage::ExitStatus(ExitStatus { exit_code })),
+        }
+        .write_all(&mut client_writer)
+        .await?;
+
         Ok(())
     }
 }

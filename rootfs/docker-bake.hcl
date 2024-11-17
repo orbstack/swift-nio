@@ -12,7 +12,7 @@ variable "PLATFORM" {
   default = "linux/arm64"
 }
 variable "VERSION" {
-  default = "latest"
+  default = "1"
 }
 
 target "rootfs" {

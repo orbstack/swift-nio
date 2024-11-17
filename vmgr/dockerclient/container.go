@@ -1,6 +1,7 @@
 package dockerclient
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"net/url"
@@ -58,35 +59,35 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 	return containerResp.ID, nil
 }
 
-func (c *Client) RunContainerStream(req *dockertypes.ContainerCreateRequest, pullImage bool) (net.Conn, string, error) {
+func (c *Client) RunContainerStream(req *dockertypes.ContainerCreateRequest, pullImage bool) (*bufio.Reader, net.Conn, string, error) {
 	if pullImage {
 		// need to pull image first
 		repoPart, tagPart := splitRepoTag(req.Image)
 		err := c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
 		if err != nil {
-			return nil, "", fmt.Errorf("pull image: %w", err)
+			return nil, nil, "", fmt.Errorf("pull image: %w", err)
 		}
 	}
 
 	var containerResp dockertypes.ContainerCreateResponse
 	err := c.Call("POST", "/containers/create", req, &containerResp)
 	if err != nil {
-		return nil, "", fmt.Errorf("create container: %w", err)
+		return nil, nil, "", fmt.Errorf("create container: %w", err)
 	}
 
 	// upgrade to tcp
-	conn, err := c.streamHijack("POST", "/containers/"+containerResp.ID+"/attach?logs=true&stream=true&stdin=true&stdout=true&stderr=true", nil)
+	reader, writer, err := c.streamHijack("POST", "/containers/"+containerResp.ID+"/attach?logs=true&stream=true&stdin=true&stdout=true&stderr=true", nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("attach container: %w", err)
+		return nil, nil, "", fmt.Errorf("attach container: %w", err)
 	}
 
 	// start container
 	err = c.Call("POST", "/containers/"+containerResp.ID+"/start", nil, nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("start container: %w", err)
+		return nil, nil, "", fmt.Errorf("start container: %w", err)
 	}
 
-	return conn, containerResp.ID, nil
+	return reader, writer, containerResp.ID, nil
 }
 
 func (c *Client) KillContainer(cid string) error {

@@ -366,10 +366,10 @@ func (c *Client) CallDiscard(method, path string, body any) error {
 	return nil
 }
 
-func (c *Client) streamHijack(method, path string, body any) (net.Conn, error) {
+func (c *Client) streamHijack(method, path string, body any) (*bufio.Reader, net.Conn, error) {
 	req, err := c.newRequest(method, path, body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ctx := req.Context()
@@ -378,7 +378,7 @@ func (c *Client) streamHijack(method, path string, body any) (net.Conn, error) {
 
 	conn, err := c.DialContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("could not connect to docker daemon")
+		return nil, nil, fmt.Errorf("could not connect to docker daemon")
 	}
 
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
@@ -388,20 +388,23 @@ func (c *Client) streamHijack(method, path string, body any) (net.Conn, error) {
 
 	err = req.Write(conn)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	// return bufio reader back to caller so that any additional bytes of the stream
+	// beyond the HTTP response are not lost if consumed in the first read
+	readConn := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(readConn, nil)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return nil, nil, fmt.Errorf("do request: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		defer resp.Body.Close()
-		return nil, ReadError(resp)
+		return nil, nil, ReadError(resp)
 	}
 
-	return conn, nil
+	return readConn, conn, nil
 }
 
 func (c *Client) StreamRead(method, path string, body any) (io.ReadCloser, error) {
