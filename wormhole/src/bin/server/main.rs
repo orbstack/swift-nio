@@ -29,7 +29,7 @@ use wormhole::{
         },
         RpcRead, RpcWrite, RPC_SOCKET,
     },
-    termios::create_pty,
+    termios::{create_pty, resize_pty},
     unset_cloexec,
 };
 
@@ -185,16 +185,7 @@ impl WormholeServer {
                 Some(ClientMessage::TerminalResize(msg)) => {
                     debug!("terminal resize: {} {}", msg.rows, msg.cols);
                     if is_pty {
-                        let ws = Winsize {
-                            ws_row: msg.rows as u16,
-                            ws_col: msg.cols as u16,
-                            ws_xpixel: 0,
-                            ws_ypixel: 0,
-                        };
-                        let res = unsafe { ioctl(pty_master_fd.as_raw_fd(), TIOCSWINSZ, &ws) };
-                        if res < 0 {
-                            return Err(anyhow!("error setting winsize: {res}"));
-                        }
+                        resize_pty(&pty_master_fd, msg.rows as u16, msg.cols as u16)?;
                     }
                 }
                 // todo: add support for forwarding signals
@@ -306,8 +297,7 @@ impl WormholeServer {
         client_writer: Arc<tokio::sync::Mutex<AsyncFile>>,
         guard: DropGuard,
     ) -> anyhow::Result<()> {
-        info!("starting wormhole-attach");
-        let mut pty: Option<OpenptyResult> = None;
+        info!("starting debug session");
         let mut env: HashMap<String, String> = HashMap::new();
 
         // (read, write) pipes
@@ -317,32 +307,34 @@ impl WormholeServer {
         let is_pty = params.pty_config.is_some();
 
         if let Some(pty_config) = params.pty_config {
-            pty = Some(create_pty(
-                pty_config.cols as u16,
-                pty_config.rows as u16,
-                pty_config.termios,
-            )?);
             env.insert("TERM".to_string(), pty_config.term_env);
             env.insert("SSH_CONNECTION".to_string(), pty_config.ssh_connection_env);
             env.insert("SSH_AUTH_SOCK".to_string(), pty_config.ssh_auth_sock_env);
 
-            let slave_fd = pty.as_ref().unwrap().slave.as_raw_fd();
-            let master_fd = pty.as_ref().unwrap().master.as_raw_fd();
-
-            debug!("created pty: {slave_fd} {master_fd}");
+            let (master_fd, slave_fd) = create_pty(
+                pty_config.rows as u16,
+                pty_config.cols as u16,
+                pty_config.termios,
+            )?;
+            debug!(
+                "created pty: {:?} {:?}",
+                master_fd.as_raw_fd(),
+                slave_fd.as_raw_fd()
+            );
 
             // for stdin: write to master and read from slave
-            stdin_pipe_fds.0 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stdin_pipe_fds.1 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdin_pipe_fds.0 = fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdin_pipe_fds.1 = fcntl(master_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
             // for stdout/stderr: read from master and write to slave
-            stdout_pipe_fds.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stdout_pipe_fds.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stderr_pipe_fds.0 = fcntl(master_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stderr_pipe_fds.1 = fcntl(slave_fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdout_pipe_fds.0 = fcntl(master_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdout_pipe_fds.1 = fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stderr_pipe_fds.0 = fcntl(master_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stderr_pipe_fds.1 = fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
 
             // drop the original master and slave fds so that there are no additional references
             // to stdin/stdout/stderr pipes
-            drop(pty);
+            drop(master_fd);
+            drop(slave_fd);
         } else {
             stdin_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
             stdout_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;

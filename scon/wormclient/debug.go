@@ -16,6 +16,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
+	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
+	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
@@ -195,9 +197,10 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 }
 
 func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmToken string, flagWorkdir string, args []string) (int, error) {
-	// todo: also check for entitlement with vmgr/sjwt
-	if drmToken == "" {
-		// todo: explicitly check for pro license as well
+	// exit early with appropriate code if no pro license
+	verifier := sjwt.NewVerifier(nil, drmtypes.AppVersion{})
+	claims, err := verifier.Verify(drmToken, sjwt.TokenVerifyParams{StrictVersion: false})
+	if err != nil || claims == nil || claims.EntitlementTier == drmtypes.EntitlementTierNone {
 		return sshenv.ExitCodeNeedsProLicense, nil
 	}
 
@@ -292,7 +295,7 @@ func WormholeDebug(containerID string, context string, workdir string, fallback 
 	}
 
 	drmToken, err := GetDrmToken()
-	if err != nil {
+	if err != nil || drmToken == "" {
 		return sshenv.ExitCodeNeedsProLicense, err
 	}
 

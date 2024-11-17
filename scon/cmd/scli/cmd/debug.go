@@ -169,24 +169,24 @@ Pro only: requires an OrbStack Pro license.
 		if exitCode == sshenv.ExitCodeNeedsProLicense {
 			if flagFallback {
 				fmt.Fprintln(os.Stderr, color.New(color.FgBlue).Sprintf(`%s making it easy to debug any container (even minimal/distroless).
-	It also allows installing over 80,000 packages.
-	
-	To use Debug Shell, get a Pro license: https://orbstack.dev/pricing
-	
-	Learn more: https://go.orbstack.dev/debug
-	`, color.New(color.Bold).Sprint("NEW: OrbStack Debug Shell provides useful commands & tools,")))
+It also allows installing over 80,000 packages.
+
+To use Debug Shell, get a Pro license: https://orbstack.dev/pricing
+
+Learn more: https://go.orbstack.dev/debug
+`, color.New(color.Bold).Sprint("NEW: OrbStack Debug Shell provides useful commands & tools,")))
 
 				// fallback to docker exec
 				err = fallbackDockerExec(*containerIDp)
 				checkCLI(err)
 			} else {
 				fmt.Fprintln(os.Stderr, color.New(color.FgRed).Sprintf(`A Pro license is required to use OrbStack Debug Shell.
-	%s making it easy to debug any container (even minimal/distroless).
-	It also allows installing over 80,000 packages.
-	
-	Learn more: https://go.orbstack.dev/debug
-	Get a license: https://orbstack.dev/pricing
-	`, color.New(color.Bold).Sprint("Debug Shell provides useful commands & tools,")))
+%s making it easy to debug any container (even minimal/distroless).
+It also allows installing over 80,000 packages.
+
+Learn more: https://go.orbstack.dev/debug
+Get a license: https://orbstack.dev/pricing
+`, color.New(color.Bold).Sprint("Debug Shell provides useful commands & tools,")))
 			}
 		}
 

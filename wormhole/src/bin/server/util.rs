@@ -77,24 +77,10 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
         )?;
     }
 
-    // mount_setattr(
-    //     None,
-    //     WORMHOLE_UNIFIED,
-    //     libc::AT_RECURSIVE as u32,
-    //     &MountAttr {
-    //         attr_set: 0,
-    //         attr_clr: 0,
-    //         propagation: MS_PRIVATE,
-    //         userns_fd: 0,
-    //     },
-    // )?;
-
     Ok(())
 }
 
 pub fn shutdown() -> anyhow::Result<()> {
-    let _ = std::fs::remove_file(RPC_SOCKET);
-    // tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     unmount_wormhole()?;
     exit(0);
 }

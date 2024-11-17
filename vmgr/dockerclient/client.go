@@ -55,7 +55,7 @@ func (e *APIError) Error() string {
 	}
 }
 
-// https://github.com/moby/moby/blob/master/client/client.go#L403
+// https://github.com/moby/moby/blob/be84220f537488c2b031d4a34005883634a4840f/client/client.go#L411
 func ParseHostURL(host string) (*url.URL, error) {
 	proto, addr, ok := strings.Cut(host, "://")
 	if !ok || addr == "" {
