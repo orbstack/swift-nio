@@ -767,6 +767,10 @@ func runVmManager() {
 		runAsyncInitTask("scon host bridge", func() error { return vnetwork.CreateSconMachineHostBridge(true) })
 	}
 
+	// early services (DRM depends on this due to scon internal client)
+	err = services.StartNetServicesEarly(vnetwork)
+	check(err)
+
 	// Start DRM
 	drmClient := drm.Client()
 	// set network
@@ -788,6 +792,7 @@ func runVmManager() {
 	// Services
 	services, err := services.StartNetServices(vnetwork, drmClient)
 	check(err)
+	services.ReadyEvents = vnetwork.ReadyEvents
 
 	// TODO: for LAN mDNS - refresh default interface
 	//vnetwork.SetOnRefreshMdns(services.Hcontrol.HostMdns.UpdateInterfaces)

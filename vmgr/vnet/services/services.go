@@ -56,17 +56,23 @@ type NetServices struct {
 	ReadyEvents *readyevents.Service
 }
 
-func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) (*NetServices, error) {
-	addr := netutil.ParseTcpipAddress(netconf.VnetServicesIP4)
+func StartNetServicesEarly(n *vnet.Network) error {
 	secureAddr := netutil.ParseTcpipAddress(netconf.VnetSecureSvcIP4)
 
 	// Ready events service (8302)
 	readyEvents, err := readyevents.ListenReadyEventsService(n.Stack, secureAddr)
 	if err != nil {
 		logrus.Error("Failed to start ReadyEvents server: ", err)
-		return nil, err
+		return err
 	}
 	n.ReadyEvents = readyEvents
+
+	return nil
+}
+
+func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) (*NetServices, error) {
+	addr := netutil.ParseTcpipAddress(netconf.VnetServicesIP4)
+	secureAddr := netutil.ParseTcpipAddress(netconf.VnetSecureSvcIP4)
 
 	// DNS (53): using system resolver
 	dnsServer, err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts, reverseDnsHosts)
@@ -107,8 +113,7 @@ func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) (*NetServices, 
 
 	n.DockerRemoteCtxForward = dockerCtxForward
 	return &NetServices{
-		Hcontrol:    hcServer,
-		ReadyEvents: readyEvents,
+		Hcontrol: hcServer,
 	}, nil
 }
 
