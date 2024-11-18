@@ -20,6 +20,7 @@ const (
 	Macctl          = Bin + "/macctl"
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"
 	DefaultCmdLinks = Bin
+	LinuxTools      = Opt + "/lib/linux-tools/current"
 
 	Etc          = Opt + "/etc"
 	ProfileEarly = Etc + "/profile-early"

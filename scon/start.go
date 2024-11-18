@@ -351,6 +351,15 @@ func (c *Container) configureLxc() error {
 			bind(conf.C().GuestMountSrc+"/lib/modules/current", kernelVersionPath, "ro")
 		}
 
+		// symlink linux-tools wrappers for Ubuntu
+		if c.Image.Distro == images.ImageUbuntu {
+			_ = securefs.MkdirAll(c.rootfsDir, "/usr/lib/linux-tools", 0755)
+			err := securefs.Symlink(c.rootfsDir, mounts.LinuxTools, "/usr/lib/linux-tools/"+c.manager.kernelVersion)
+			if err != nil {
+				logrus.WithError(err).WithField("machine", c.Name).Error("failed to symlink linux-tools")
+			}
+		}
+
 		// nesting (proc not needed because it's rw)
 		// this is in .lxc not .orbstack because of lxc systemd-generator's conditions
 		// see /etc/systemd/system-generators/lxc - we effectively have security.nesting on

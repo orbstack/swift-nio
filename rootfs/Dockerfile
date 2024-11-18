@@ -458,13 +458,13 @@ ARG ARCH=arm64
 # 0.0.0 = temp name for depmod
 COPY rootfs/kernel/${ARCH} /opt/orbstack-guest/lib/modules/0.0.0
 
-# debug services
 COPY rootfs/config/authorized_keys /root/.ssh/authorized_keys
 RUN <<EOT sh -eux
 # kernel module info for modprobe
 depmod -b /opt/orbstack-guest 0.0.0
 mv /opt/orbstack-guest/lib/modules/0.0.0 /opt/orbstack-guest/lib/modules/current
 
+# debug services
 if [[ "$TYPE" == "debug" ]]; then
     chown 0600 /etc/ssh/*key*
     sed -i 's|/bin/sh|/usr/bin/fish|' /etc/passwd
@@ -478,6 +478,9 @@ else
     apk del apk-tools kmod
 fi
 EOT
+
+# Ubuntu linux-tools wrapper
+COPY rootfs/utils/ubuntu-linux-tools-wrapper.sh /opt/orbstack-guest/lib/linux-tools/current/.wrapper
 
 # misc setup
 RUN <<EOT sh -eux
@@ -506,10 +509,19 @@ ln -s /opt/orbstack-guest/bin/macctl '[mac]'
 # Guest tools
 mkdir -p /opt/orbstack-guest/bin /opt/orbstack-guest/bin-hiprio /opt/orbstack-guest/run /opt/orbstack-guest/data
 ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin/mac
+
+# Ubuntu linux-tools wrappers
+# to avoid having to build and ship linux-tools, we just tell the user to install linux-tools-generic, and call out to those
+# these are all the wrappers that linux-tools-common provides
+for cmd in acpidbg cpupower perf turbostat usbip usbipd x86_energy_perf_policy; do
+    ln -s /opt/orbstack-guest/lib/linux-tools/current/.wrapper /opt/orbstack-guest/lib/linux-tools/current/\$cmd
+done
+
 # default cmd links
 for cmd in open; do
     ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin-hiprio/\$cmd
 done
+
 # control from mac
 for cmd in caffeinate code mdfind mdls open osascript pbcopy pbpaste pmset qlmanage screencapture softwareupdate system_profiler orb orbctl; do
     ln -s /opt/orbstack-guest/bin/macctl /opt/orbstack-guest/bin/\$cmd
