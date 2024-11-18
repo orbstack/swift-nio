@@ -3,6 +3,7 @@ use libc::{TIOCSCTTY, TIOCSWINSZ};
 use std::{
     collections::HashMap,
     fs::{self, OpenOptions},
+    future::pending,
     mem,
     os::{
         fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
@@ -168,6 +169,7 @@ impl WormholeServer {
     ) -> anyhow::Result<()> {
         let mut payload_stdin = Some(payload_stdin);
         loop {
+            // return early and abort all tasks if the client has disconnected
             let message = RpcClientMessage::read(&mut client_stdin).await?;
             match message.client_message {
                 Some(ClientMessage::StdinData(msg)) => {
@@ -179,13 +181,18 @@ impl WormholeServer {
                     }
 
                     if let Some(payload_stdin) = payload_stdin.as_mut() {
-                        payload_stdin.write_all(&msg.data).await?;
+                        if let Err(e) = payload_stdin.write_all(&msg.data).await {
+                            debug!("got error writing to payload stdin: {e}");
+                        }
                     }
                 }
                 Some(ClientMessage::TerminalResize(msg)) => {
                     debug!("terminal resize: {} {}", msg.rows, msg.cols);
                     if is_pty {
-                        resize_pty(&pty_master_fd, msg.rows as u16, msg.cols as u16)?;
+                        if let Err(e) = resize_pty(&pty_master_fd, msg.rows as u16, msg.cols as u16)
+                        {
+                            debug!("got error resizing pty: {e}");
+                        }
                     }
                 }
                 // todo: add support for forwarding signals
@@ -202,9 +209,15 @@ impl WormholeServer {
         is_stdout: bool,
     ) -> anyhow::Result<()> {
         let mut buf = [0u8; BUF_SIZE];
+        let stdio_name = if is_stdout { "stdout" } else { "stderr" };
         loop {
             match payload_output.read(&mut buf).await {
-                Ok(0) => return Err(anyhow!("stdout closed")),
+                Ok(0) => {
+                    // see comments further below; only abort tasks if client disconnects,
+                    // otherwise wait indefinitely until the exit code task finishes
+                    debug!("payload {} closed", stdio_name);
+                    pending().await
+                }
                 Ok(n) => {
                     let server_message = if is_stdout {
                         ServerMessage::StdoutData(StdoutData {
@@ -216,7 +229,7 @@ impl WormholeServer {
                         })
                     };
 
-                    // propagate errors (return early) if we cannot write to client anymore
+                    // return early and abort all tasks if we cannot write to the client
                     let mut client_writer = client_writer.lock().await;
                     RpcServerMessage {
                         server_message: Some(server_message),
@@ -224,7 +237,9 @@ impl WormholeServer {
                     .write_all(&mut client_writer)
                     .await?;
                 }
-                Err(e) => return Err(anyhow!("got error reading from payload: {e}")),
+                Err(e) => {
+                    debug!("got error reading from payload {stdio_name}: {e}");
+                }
             }
         }
     }
@@ -445,7 +460,7 @@ impl WormholeServer {
             client_stdin,
             payload_stdin,
             // use payload stdout as the master pty fd for the sake of terminal resize, in case
-            // we close the stdin pipe (e.g. due to client EOF)
+            // we close the stdin pipe
             OwnedFd::from(payload_stdout),
             is_pty,
         ));
@@ -454,15 +469,21 @@ impl WormholeServer {
             client_writer.clone(),
         ));
 
+        // we should only abort all tasks if either:
+        // - 1. the client disconnects (i.e. reading stdin from client or writing stdout/stderr
+        // to client fails), because then there's no need to communicate stdio and exit code
+        // - 2. the exit code task finishes
+        //
+        // note: if any payload stdio read/write operations fail, we block indefinitely rather
+        // than return early and abort all tasks
         if let Some(res) = join_set.join_next().await {
             // res is either Ok (task completed succesfully) or Err (task panicked or aborted)
             match res {
-                Ok(res) => debug!("server task completed: {:?}", res),
-                Err(e) => debug!("server task panicked or aborted: {:?}", e),
+                Ok(res) => debug!("task completed: {:?}", res),
+                Err(e) => debug!("task panicked or aborted: {:?}", e),
             }
 
-            // abort all tasks once any one of the tasks end
-            debug!("shutting down remaining connection tasks");
+            debug!("shutting down connection tasks");
             join_set.shutdown().await;
         }
 
