@@ -27,7 +27,7 @@ pub struct WormholeRuntimeState {
     #[serde(rename = "b")]
     pub wormhole_mount_tree_fd: RawFd,
     #[serde(rename = "c")]
-    pub log_fd: RawFd,
-    #[serde(rename = "d")]
     pub exit_code_pipe_write_fd: RawFd,
+    #[serde(rename = "d")]
+    pub log_fd: RawFd,
 }

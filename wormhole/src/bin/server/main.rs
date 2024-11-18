@@ -367,8 +367,8 @@ impl WormholeServer {
         let runtime_state = WormholeRuntimeState {
             rootfs_fd: None,
             wormhole_mount_tree_fd: wormhole_mount_fd,
-            log_fd: log_pipe_write_fd,
             exit_code_pipe_write_fd: exit_code_pipe_write_fd,
+            log_fd: log_pipe_write_fd,
         };
 
         debug!("spawning wormhole-attach");

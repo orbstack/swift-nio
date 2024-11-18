@@ -1,5 +1,9 @@
 .PHONY: replace publish
 
+local-publish:
+	cd .. && VERSION=1 docker buildx bake -f rootfs/docker-bake.hcl wormhole
+	docker push registry.orb.local/wormhole:1
+
 publish:
 	@./publish.sh
 
