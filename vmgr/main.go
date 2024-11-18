@@ -57,6 +57,9 @@ import (
 	"golang.org/x/term"
 
 	_ "github.com/orbstack/macvirt/vmgr/prelude"
+
+	// Enforce usage of posix_spawn() instead of fork().
+	_ "github.com/orbstack/macvirt/vmgr/prelude/forkaudit"
 )
 
 const (

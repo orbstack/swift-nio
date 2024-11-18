@@ -5,13 +5,16 @@
 
 package prelude
 
-// Link netpose into all macOS binaries.
-// See netpose docs for why this is necessary.
-// This package is a no-op on other platforms.
 import (
 	"fmt"
 	"os"
 
+	// forkaudit is currently only linked into vmgr.
+	// posix_spawn is a nice-to-have, not a hard requirement, in other binaries, because they don't have a kitchen sink of languages.
+
+	// Link netpose into all macOS binaries.
+	// See netpose docs for why this is necessary.
+	// This package is a no-op on other platforms.
 	_ "github.com/orbstack/macvirt/vmgr/prelude/netpose"
 )
 
