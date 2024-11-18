@@ -1,13 +1,8 @@
 use std::{fs, process::exit};
 
-use libc::MS_PRIVATE;
 use nix::mount::{umount2, MntFlags, MsFlags};
 use tracing::debug;
-use wormhole::{
-    bind_mount_ro, mount_common,
-    newmount::{mount_setattr, MountAttr},
-    rpc::RPC_SOCKET,
-};
+use wormhole::{bind_mount_ro, mount_common};
 
 pub const ROOTFS: &str = "/wormhole-rootfs";
 pub const UPPERDIR: &str = "/data/upper";

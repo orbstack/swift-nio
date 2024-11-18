@@ -1,61 +1,36 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
-    ffi::{c_int, CString},
+    ffi::CString,
     fs::File,
-    io::{self, stderr, stdin, stdout, IoSlice, IoSliceMut, Read, Stdout, Write},
-    os::{
-        fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
-        unix::net::{UnixListener, UnixStream},
-    },
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
     path::Path,
-    process,
     ptr::{null, null_mut},
-    sync::{
-        atomic::{self, AtomicBool},
-        Arc, Mutex,
-    },
-    thread,
-    time::Duration,
 };
 
-use anyhow::{anyhow, Error};
+use anyhow::anyhow;
 use libc::{
-    prlimit, ptrace, sock_filter, sock_fprog, syscall, tcflag_t, SYS_capset, SYS_seccomp,
-    OPEN_TREE_CLONE, PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL,
-    PR_CAP_AMBIENT_RAISE, PTRACE_DETACH, PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE,
-    STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ, TIOCSCTTY, TIOCSWINSZ,
+    prlimit, ptrace, sock_filter, sock_fprog, syscall, SYS_capset, SYS_seccomp, OPEN_TREE_CLONE,
+    PR_CAPBSET_DROP, PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, PR_CAP_AMBIENT_RAISE, PTRACE_DETACH,
+    PTRACE_EVENT_STOP, PTRACE_INTERRUPT, PTRACE_SEIZE,
 };
 use mounts::with_remount_rw;
-use nix::libc::ioctl;
-use nix::sys::termios::{
-    cfmakeraw, cfsetispeed, tcgetattr, tcsetattr, BaudRate, ControlFlags, InputFlags, LocalFlags,
-    OutputFlags, SetArg, Termios,
-};
 use nix::{
     errno::Errno,
-    fcntl::{
-        fcntl, open,
-        FcntlArg::{self, F_GETFD},
-        FdFlag, OFlag,
-    },
+    fcntl::{open, OFlag},
     mount::{umount2, MntFlags, MsFlags},
-    pty::{openpty, OpenptyResult, Winsize},
     sched::{setns, unshare, CloneFlags},
     sys::{
         prctl,
-        signal::{kill, Signal},
-        socket::{
-            recv, recvmsg, send, sendmsg, socketpair, AddressFamily, ControlMessage,
-            ControlMessageOwned, MsgFlags, SockFlag, SockType,
-        },
+        signal::Signal,
+        socket::{socketpair, AddressFamily, SockFlag, SockType},
         stat::{umask, Mode},
         utsname::uname,
         wait::{waitpid, WaitStatus},
     },
     unistd::{
-        access, chdir, chroot, close, dup2, execve, fchown, fork, getpid, setgroups, setresgid,
-        setresuid, setsid, AccessFlags, ForkResult, Gid, Pid, Uid,
+        access, chdir, chroot, execve, fchown, fork, getpid, setgroups, setresgid, setresuid,
+        AccessFlags, ForkResult, Gid, Pid, Uid,
     },
 };
 
@@ -68,7 +43,7 @@ use wormhole::{
     flock::{Flock, FlockMode, FlockWait},
     model::{WormholeConfig, WormholeRuntimeState},
     mount_common,
-    newmount::{mount_setattr, move_mount, open_tree, MountAttr, MOUNT_ATTR_RDONLY},
+    newmount::{move_mount, open_tree},
     paths, set_cloexec,
 };
 

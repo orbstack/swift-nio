@@ -1,15 +1,19 @@
 use anyhow::anyhow;
-use libc::{TIOCSCTTY, TIOCSWINSZ};
+use libc::TIOCSCTTY;
+use nix::{
+    fcntl::{fcntl, FcntlArg, OFlag},
+    libc::ioctl,
+    sys::socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
+    unistd::{dup2, pipe2, setsid},
+};
 use std::{
     collections::HashMap,
-    fs::{self, OpenOptions},
+    fs::{self},
     future::pending,
-    mem,
     os::{
         fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
         unix::net::{UnixListener, UnixStream},
     },
-    process::exit,
     sync::Arc,
 };
 use tokio::{
@@ -17,8 +21,9 @@ use tokio::{
     process::Command,
     task::{JoinHandle, JoinSet},
 };
+use tracing::{debug, info, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
-use util::{mount_wormhole, unmount_wormhole, BUF_SIZE, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED};
+use util::{mount_wormhole, BUF_SIZE, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED};
 use wormhole::{
     asyncfile::AsyncFile,
     model::{WormholeConfig, WormholeRuntimeState},
@@ -33,19 +38,6 @@ use wormhole::{
     termios::{create_pty, resize_pty},
     unset_cloexec,
 };
-
-use nix::{
-    fcntl::{
-        fcntl,
-        FcntlArg::{self, F_GETFD},
-        FdFlag, OFlag,
-    },
-    libc::ioctl,
-    pty::{OpenptyResult, Winsize},
-    sys::socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
-    unistd::{close, dup, dup2, pipe2, setsid},
-};
-use tracing::{debug, info, trace, Level};
 
 mod util;
 

@@ -3,6 +3,7 @@ package dockerclient
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"strconv"
@@ -24,15 +25,23 @@ func splitRepoTag(repoTag string) (string, string) {
 }
 
 type RunContainerOptions struct {
-	Name      string
-	PullImage bool
+	Name        string
+	PullImage   bool
+	ProgressOut io.Writer
+	IsTerminal  bool
+	TerminalFd  uintptr
 }
 
 func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.ContainerCreateRequest) (string, error) {
+	var err error
 	if opts.PullImage {
 		// need to pull image first
 		repoPart, tagPart := splitRepoTag(req.Image)
-		err := c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
+		if opts.ProgressOut != nil {
+			err = c.CallStream("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, opts.ProgressOut, opts.IsTerminal, opts.TerminalFd)
+		} else {
+			err = c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
+		}
 		if err != nil {
 			return "", fmt.Errorf("pull image: %w", err)
 		}
@@ -45,7 +54,7 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 
 	// create --rm container
 	var containerResp dockertypes.ContainerCreateResponse
-	err := c.Call("POST", path, req, &containerResp)
+	err = c.Call("POST", path, req, &containerResp)
 	if err != nil {
 		return "", fmt.Errorf("create container: %w", err)
 	}

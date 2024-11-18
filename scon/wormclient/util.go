@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"strings"
 
 	pb "github.com/orbstack/macvirt/scon/wormclient/generated"
@@ -14,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm/drmcore"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
+	"golang.org/x/term"
 )
 
 var errNeedRetry = errors.New("server stopped on remote host, retrying")
@@ -85,7 +87,14 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 	// Optimistically create server container to potentially save an additional roundtrip request. If the server container
 	// already exists, we can just attach to the current server container ID returned in the error response.
 	init := true
-	serverContainerId, err := client.RunContainer(dockerclient.RunContainerOptions{Name: "orbstack-wormhole", PullImage: true},
+	serverContainerId, err := client.RunContainer(
+		dockerclient.RunContainerOptions{
+			Name:        "orbstack-wormhole",
+			PullImage:   true,
+			ProgressOut: os.Stdout,
+			IsTerminal:  term.IsTerminal(fdStdout),
+			TerminalFd:  fdStdout,
+		},
 		&dockertypes.ContainerCreateRequest{
 			Image:      registryImage,
 			Entrypoint: []string{"/wormhole-server"},

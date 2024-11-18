@@ -34,6 +34,7 @@ type Client struct {
 
 type statusRecord struct {
 	Error  string `json:"error"`
+	Status string `json:"status"`
 	Stream string `json:"stream"`
 }
 
@@ -55,31 +56,8 @@ func (e *APIError) Error() string {
 	}
 }
 
-// https://github.com/moby/moby/blob/be84220f537488c2b031d4a34005883634a4840f/client/client.go#L411
-func ParseHostURL(host string) (*url.URL, error) {
-	proto, addr, ok := strings.Cut(host, "://")
-	if !ok || addr == "" {
-		return nil, fmt.Errorf("could not parse docker host `%s`", host)
-	}
-
-	var basePath string
-	if proto == "tcp" {
-		parsed, err := url.Parse("tcp://" + addr)
-		if err != nil {
-			return nil, err
-		}
-		addr = parsed.Host
-		basePath = parsed.Path
-	}
-	return &url.URL{
-		Scheme: proto,
-		Host:   addr,
-		Path:   basePath,
-	}, nil
-}
-
 func NewClient(daemon *DockerConnection) (*Client, error) {
-	hostURL, err := ParseHostURL(daemon.Host)
+	hostURL, err := url.Parse(daemon.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +76,7 @@ func NewClient(daemon *DockerConnection) (*Client, error) {
 			return nil, fmt.Errorf("could not connect to docker host via ssh")
 		}
 	case "unix":
-		c, err = NewWithUnixSocket(hostURL.Host, opts)
+		c, err = NewWithUnixSocket(hostURL.Path, opts)
 		if err != nil {
 			return nil, fmt.Errorf("could not connect to docker host via unix")
 		}
@@ -329,6 +307,26 @@ func (c *Client) Call(method, path string, body any, out any) error {
 		}
 	}
 
+	return nil
+}
+
+func (c *Client) CallStream(method, path string, body any, out io.Writer, isTerminal bool, terminalFd uintptr) error {
+	req, err := c.newRequest(method, path, body)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return ReadError(resp)
+	}
+
+	DisplayJSONMessagesStream(resp.Body, out, terminalFd, isTerminal, nil)
 	return nil
 }
 

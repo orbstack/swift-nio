@@ -2,8 +2,8 @@ use std::{
     fs::File,
     io::{stderr, stdout},
     os::{
-        fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd, RawFd},
-        unix::net::{UnixListener, UnixStream},
+        fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd},
+        unix::net::UnixStream,
     },
     path::Path,
 };
@@ -23,7 +23,7 @@ use nix::{
 use tracing::trace;
 use wormhole::{
     flock::{Flock, FlockMode, FlockWait},
-    model::{WormholeConfig, WormholeRuntimeState},
+    model::WormholeRuntimeState,
 };
 
 use crate::{
