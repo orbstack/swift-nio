@@ -129,7 +129,6 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					// notify server of stdin EOF with a zero-byte message
-					fmt.Println("stdin EOF")
 					err = server.WriteMessage(&pb.RpcClientMessage{
 						ClientMessage: &pb.RpcClientMessage_StdinData{
 							StdinData: &pb.StdinData{Data: []byte{}},
