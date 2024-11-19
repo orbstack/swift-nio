@@ -91,7 +91,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     <<EOT sh -eux
 mkdir /out
 cd /build
-git clone --depth 1 -b v1.1.12 https://github.com/opencontainers/runc
+git clone --depth 1 -b v1.2.2 https://github.com/opencontainers/runc
 cd runc
 patch -p1 < ../runc.patch
 EXTRA_LDFLAGS="-s -w" make static
@@ -218,30 +218,31 @@ FROM base AS docker
 # removed: xfsprogs e2fsprogs btrfs-progs
 # apk upgrade first to make sure base dep versions match what these new packages expect
 # do it in the same layer to make sure it's always synchronized with apk add
-RUN apk upgrade --no-cache && apk add --no-cache \
-    # docker/k8s require iptables
+RUN <<EOT sh -eux
+# as of writing, x86_64 is on 1.2.2-r0, and arm64 is on 1.2.1-r0
+RUNC_VERSION=1.2.1-r0
+if [[ "\$(uname -m)" == "x86_64" ]]; then
+    RUNC_VERSION=1.2.2-r0
+fi
+
+apk upgrade --no-cache
+apk add --no-cache \
     ip6tables \
     iptables \
-    # ... even though we use nftables
     nftables \
     openssl \
     shadow-uidmap \
     xz \
     pigz \
-    # Docker engine deps
     ca-certificates \
-    # important to pin version for security
-    runc=1.2.1-r0 \
+    runc=\$RUNC_VERSION \
     containerd \
-    # support Docker build from git repos
     git \
     openssh-client-default \
-    # for migration xattrs
     tar \
-    # /etc/localtime for containers
     tzdata \
-    # for kubectl port-forward
     socat
+EOT
 
 # Official Docker engine build
 RUN <<EOT sh -eux
