@@ -298,8 +298,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             return false
         }
 
-        // else let SwiftUI open main
-        return true
+        // else open main (but use our openSubwindow logic to prevent dupes)
+        NSWorkspace.openSubwindow(WindowID.main)
+        return false
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
