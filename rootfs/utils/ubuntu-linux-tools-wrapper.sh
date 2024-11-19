@@ -3,7 +3,7 @@
 set -euo pipefail
 
 cmd="$(basename "$0")"
-real_tool=/usr/lib/linux-tools/*-generic/"$cmd"
+real_tool="$(echo /usr/lib/linux-tools/*-generic/"$cmd")"
 
 if [[ ! -f "$real_tool" ]]; then
     echo "Please install linux-tools-generic to run '$cmd'." >&2
