@@ -291,7 +291,7 @@ class DaemonManager {
                 }
             } else {
                 let status = waitStatus >> 8
-                reason = .status(status)
+                reason = .from(exitCode: status)
             }
             // TODO: may not be right
             if pid == lastPid {
