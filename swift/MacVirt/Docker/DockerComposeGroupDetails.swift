@@ -30,9 +30,15 @@ struct DockerComposeGroupDetails: View {
                     }
                 }
             }
+            
+            DividedButtonStack {
+                DividedRowButton {
+                    ComposeGroup(project: project).showLogs(windowTracker: windowTracker)
+                } label: {
+                    Label("Logs", systemImage: "doc.text.magnifyingglass")
+                }
 
-            if let projectPath = containers.first?.composeConfigFiles?.first {
-                DividedButtonStack {
+                if let projectPath = containers.first?.composeConfigFiles?.first {
                     DividedRowButton {
                         let parentDir = URL(fileURLWithPath: projectPath)
                             .deletingLastPathComponent().path
