@@ -1,11 +1,15 @@
 /*
  * forkaudit: crash on calls to fork(2) in debug builds
  *
- * It's impossible to use fork() safely in vmgr because macOS doesn't provide a way to set O_CLOEXEC atomically on all new fds.
- * The Go runtime can mostly work around this using syscall.ForkLock, but Rust, C, or Swift code can't cooperate with that.
- * So, to prevent security issues, hangs (if signaling/child pipes get leaked), and other bad behavior, all code in the vmgr process must use posix_spawn() instead of fork(). This allows force-defaulting O_CLOEXEC behavior on all fds that aren't explicitly inherited.
+ * It's impossible to use fork() safely in vmgr because macOS doesn't provide a way to set O_CLOEXEC
+ * atomically on all new fds. The Go runtime can mostly work around this using syscall.ForkLock, but
+ * Rust, C, or Swift code can't cooperate with that. So, to prevent security issues, hangs (if
+ * signaling/child pipes get leaked), and other bad behavior, all code in the vmgr process must use
+ * posix_spawn() instead of fork(). This allows force-defaulting O_CLOEXEC behavior on all fds that
+ * aren't explicitly inherited.
  *
- * This provides a way to audit compliance with the process-wide posix_spawn policy by aborting on fork().
+ * This provides a way to audit compliance with the process-wide posix_spawn policy by aborting on
+ * fork().
  */
 
 #include <dlfcn.h>

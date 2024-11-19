@@ -30,7 +30,7 @@ struct DockerComposeGroupDetails: View {
                     }
                 }
             }
-            
+
             DividedButtonStack {
                 DividedRowButton {
                     ComposeGroup(project: project).showLogs(windowTracker: windowTracker)

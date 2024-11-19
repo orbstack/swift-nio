@@ -5,9 +5,9 @@
 //  Created by Danny Lin on 11/19/24.
 //
 
-import SwiftUI
-import Sparkle
 import Defaults
+import Sparkle
+import SwiftUI
 
 private typealias SingletonWindow = SingletonWindowGroup
 

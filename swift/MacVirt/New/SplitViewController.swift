@@ -45,7 +45,7 @@ class SplitViewController: NSSplitViewController {
         }
 
         itemA.canCollapseFromWindowResize = false
-        
+
         if let windowId = splitView.window?.identifier?.rawValue {
             splitView.autosaveName = "\(windowId) : SplitViewController"
         }
