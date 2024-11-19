@@ -286,8 +286,12 @@ func shouldOpenNewWindow(_ id: String) -> Bool {
 
 extension NSWorkspace {
     static func openSubwindow(_ path: String) {
-        if !shouldOpenNewWindow(path) {
-            return
+        if #available(macOS 14, *) {
+            // WA not needed
+        } else {
+            if !shouldOpenNewWindow(path) {
+                return
+            }
         }
 
         NSWorkspace.shared.open(URL(string: "orbstack://\(path)")!)
