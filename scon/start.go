@@ -324,7 +324,7 @@ func (c *Container) configureLxc() error {
 		}
 
 		// Default mounts
-		set("lxc.mount.auto", "proc:rw sys:mixed cgroup:rw:force")
+		set("lxc.mount.auto", "proc:rw sys:rw cgroup:rw:force")
 		set("lxc.mount.entry", "mqueue dev/mqueue mqueue rw,relatime,create=dir,optional 0 0")
 		// don't let people mess with binfmt_misc
 		//set("lxc.mount.entry", "/proc/sys/fs/binfmt_misc proc/sys/fs/binfmt_misc none rbind,create=dir,optional 0 0")
