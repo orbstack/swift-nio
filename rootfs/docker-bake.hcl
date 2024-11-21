@@ -25,8 +25,7 @@ target "rootfs" {
     HOST_ARCH = "${HOST_ARCH}"
   }
   ssh      = ["default"]
-  platform = "${PLATFORM}"
-  load     = true
+  platforms = ["${PLATFORM}"]
   tags     = ["ghcr.io/orbstack/images:${BTYPE}"]
 }
 
@@ -42,5 +41,6 @@ target "wormhole" {
   }
   target     = "wormhole-remote"
   ssh        = ["default"]
-  tags       = ["registry.orb.local/wormhole:${VERSION}"]
+  platforms  = ["${PLATFORM}"]
+  tags       = ["registry.orb.local/wormhole:${ARCH}-${VERSION}"]
 }

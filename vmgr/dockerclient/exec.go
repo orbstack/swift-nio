@@ -1,13 +1,11 @@
 package dockerclient
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -97,7 +95,7 @@ func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateReques
 	return output.String(), nil
 }
 
-func (c *Client) ExecStream(cid string, execReq *dockertypes.ContainerExecCreateRequest) (*bufio.Reader, net.Conn, error) {
+func (c *Client) ExecStream(cid string, execReq *dockertypes.ContainerExecCreateRequest) (io.Reader, io.WriteCloser, error) {
 	execCreate, err := c.ExecCreate(cid, execReq)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create exec: %w", err)

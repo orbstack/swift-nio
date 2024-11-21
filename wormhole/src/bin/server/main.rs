@@ -35,6 +35,7 @@ use wormhole::{
         },
         RpcRead, RpcWrite, RPC_SOCKET,
     },
+    set_nonblocking,
     termios::{create_pty, resize_pty},
     unset_cloexec,
 };
@@ -97,6 +98,8 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)
     }
     match client_fds {
         Some(fds) => {
+            set_nonblocking(fds[0])?;
+            set_nonblocking(fds[1])?;
             let client_stdin = AsyncFile::new(fds[0])?;
             let client_stdout = AsyncFile::new(fds[1])?;
             Ok((client_stdin, client_stdout))
@@ -256,7 +259,7 @@ impl WormholeServer {
         Ok(())
     }
 
-    async fn handle_client(self: &Self, stream: UnixStream) -> anyhow::Result<()> {
+    async fn handle_client(&self, stream: UnixStream) -> anyhow::Result<()> {
         // get client fds via scm_rights over the stream
         debug!("waiting for rpc client fds");
         let (mut client_stdin, mut client_stdout) = recv_rpc_client(&stream)?;
@@ -298,7 +301,7 @@ impl WormholeServer {
     }
 
     async fn run_debug_session(
-        self: &Self,
+        &self,
         params: StartPayload,
         client_stdin: AsyncFile,
         client_writer: Arc<tokio::sync::Mutex<AsyncFile>>,
@@ -308,9 +311,9 @@ impl WormholeServer {
         let mut env: HashMap<String, String> = HashMap::new();
 
         // (read, write) pipes
-        let mut stdin_pipe_fds: (RawFd, RawFd) = (-1, -1);
-        let mut stdout_pipe_fds: (RawFd, RawFd) = (-1, -1);
-        let mut stderr_pipe_fds: (RawFd, RawFd) = (-1, -1);
+        let stdin_pipe: (OwnedFd, OwnedFd);
+        let stdout_pipe: (OwnedFd, OwnedFd);
+        let stderr_pipe: (OwnedFd, OwnedFd);
         let is_pty = params.pty_config.is_some();
 
         if let Some(pty_config) = params.pty_config {
@@ -330,34 +333,46 @@ impl WormholeServer {
             );
 
             // for stdin: write to master and read from slave
-            stdin_pipe_fds.0 = fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stdin_pipe_fds.1 = fcntl(master_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
+            stdin_pipe = (
+                unsafe {
+                    OwnedFd::from_raw_fd(fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?)
+                },
+                unsafe {
+                    OwnedFd::from_raw_fd(fcntl(
+                        master_fd.as_raw_fd(),
+                        FcntlArg::F_DUPFD_CLOEXEC(3),
+                    )?)
+                },
+            );
             // for stdout/stderr: read from master and write to slave
-            stdout_pipe_fds.0 = fcntl(master_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stdout_pipe_fds.1 = fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stderr_pipe_fds.0 = fcntl(master_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
-            stderr_pipe_fds.1 = fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?;
-
-            // drop the original master and slave fds so that there are no additional references
-            // to stdin/stdout/stderr pipes
-            drop(master_fd);
-            drop(slave_fd);
+            stdout_pipe = (
+                unsafe {
+                    OwnedFd::from_raw_fd(fcntl(
+                        master_fd.as_raw_fd(),
+                        FcntlArg::F_DUPFD_CLOEXEC(3),
+                    )?)
+                },
+                unsafe {
+                    OwnedFd::from_raw_fd(fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?)
+                },
+            );
+            // reuse original master and slave fds to save a dup call
+            stderr_pipe = (master_fd, slave_fd);
         } else {
-            stdin_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
-            stdout_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
-            stderr_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
-        }
+            let stdin_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
+            let stdout_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
+            let stderr_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
 
-        // we can safely own these fds because we created them via dup/pipe2 above
-        let stdin_pipe = (unsafe { OwnedFd::from_raw_fd(stdin_pipe_fds.0) }, unsafe {
-            OwnedFd::from_raw_fd(stdin_pipe_fds.1)
-        });
-        let stdout_pipe = (unsafe { OwnedFd::from_raw_fd(stdout_pipe_fds.0) }, unsafe {
-            OwnedFd::from_raw_fd(stdout_pipe_fds.1)
-        });
-        let stderr_pipe = (unsafe { OwnedFd::from_raw_fd(stderr_pipe_fds.0) }, unsafe {
-            OwnedFd::from_raw_fd(stderr_pipe_fds.1)
-        });
+            stdin_pipe = (unsafe { OwnedFd::from_raw_fd(stdin_pipe_fds.0) }, unsafe {
+                OwnedFd::from_raw_fd(stdin_pipe_fds.1)
+            });
+            stdout_pipe = (unsafe { OwnedFd::from_raw_fd(stdout_pipe_fds.0) }, unsafe {
+                OwnedFd::from_raw_fd(stdout_pipe_fds.1)
+            });
+            stderr_pipe = (unsafe { OwnedFd::from_raw_fd(stderr_pipe_fds.0) }, unsafe {
+                OwnedFd::from_raw_fd(stderr_pipe_fds.1)
+            });
+        }
 
         let wormhole_mount = open_tree(
             &format!("{}/nix", WORMHOLE_UNIFIED),
@@ -367,6 +382,7 @@ impl WormholeServer {
         let (_, log_pipe_write_fd) = pipe2(OFlag::O_CLOEXEC)?;
         let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe2(OFlag::O_CLOEXEC)?;
         let wormhole_mount_fd = wormhole_mount.as_raw_fd();
+        set_nonblocking(exit_code_pipe_read_fd)?;
         let exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd)?;
 
         let config: WormholeConfig = serde_json::from_str(&params.wormhole_config)?;
@@ -381,7 +397,7 @@ impl WormholeServer {
         debug!("spawning wormhole-attach");
 
         let mut child = unsafe {
-            Command::new("/wormhole-attach")
+            Command::new("/bin/wormhole-attach")
                 .args(&[
                     serde_json::to_string(&config)?,
                     serde_json::to_string(&runtime_state)?,
@@ -390,7 +406,7 @@ impl WormholeServer {
                 .pre_exec(move || {
                     if is_pty {
                         setsid()?;
-                        let res = ioctl(stdin_pipe_fds.0, TIOCSCTTY, 1);
+                        let res = ioctl(stdin_pipe.0.as_raw_fd(), TIOCSCTTY, 1);
                         if res != 0 {
                             return Err(std::io::Error::last_os_error());
                         }
@@ -402,21 +418,15 @@ impl WormholeServer {
                     unset_cloexec(log_pipe_write_fd)?;
 
                     // no dup cloexec because wormhole-attach child should inherit stdio fds
-                    dup2(stdin_pipe_fds.0, libc::STDIN_FILENO)?;
-                    dup2(stdout_pipe_fds.1, libc::STDOUT_FILENO)?;
-                    dup2(stderr_pipe_fds.1, libc::STDERR_FILENO)?;
+                    dup2(stdin_pipe.0.as_raw_fd(), libc::STDIN_FILENO)?;
+                    dup2(stdout_pipe.1.as_raw_fd(), libc::STDOUT_FILENO)?;
+                    dup2(stderr_pipe.1.as_raw_fd(), libc::STDERR_FILENO)?;
 
                     Ok(())
                 })
                 .spawn()?
         };
 
-        // close child stdio pipe ends
-        drop(stdin_pipe.0);
-        drop(stdout_pipe.1);
-        drop(stderr_pipe.1);
-
-        // let guard = Arc::new(guard);
         tokio::spawn(async move {
             match child.wait().await {
                 Ok(_) => {
@@ -433,6 +443,9 @@ impl WormholeServer {
             drop(guard);
         });
 
+        set_nonblocking(stdin_pipe.1.as_raw_fd())?;
+        set_nonblocking(stdout_pipe.0.as_raw_fd())?;
+        set_nonblocking(stderr_pipe.0.as_raw_fd())?;
         let payload_stdin = AsyncFile::new(stdin_pipe.1.into_raw_fd())?;
         let payload_stdout = AsyncFile::new(stdout_pipe.0.into_raw_fd())?;
         let payload_stderr = AsyncFile::new(stderr_pipe.0.into_raw_fd())?;
@@ -485,7 +498,7 @@ impl WormholeServer {
     }
 
     async fn reset_data(
-        self: &Self,
+        &self,
         client_writer: Arc<tokio::sync::Mutex<AsyncFile>>,
         _guard: DropGuard,
     ) -> anyhow::Result<()> {

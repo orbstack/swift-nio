@@ -1,10 +1,8 @@
 package dockerclient
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -24,24 +22,32 @@ func splitRepoTag(repoTag string) (string, string) {
 	return repoPart, tagPart
 }
 
+type PullImageOptions struct {
+	ProgressOut         io.Writer
+	IsTerminal          bool
+	TerminalFd          uintptr
+	PullingFromOverride *string
+}
+
 type RunContainerOptions struct {
-	Name        string
-	PullImage   bool
-	ProgressOut io.Writer
-	IsTerminal  bool
-	TerminalFd  uintptr
+	Name          string
+	PullImage     bool
+	PullImageOpts *PullImageOptions
+}
+
+func pullImage(c *Client, image string, opts *PullImageOptions) error {
+	repoPart, tagPart := splitRepoTag(image)
+	if opts == nil || opts.ProgressOut == nil {
+		return c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
+	} else {
+		return c.CallStream("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, opts.ProgressOut, opts.IsTerminal, opts.TerminalFd, opts.PullingFromOverride)
+	}
 }
 
 func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.ContainerCreateRequest) (string, error) {
 	var err error
 	if opts.PullImage {
-		// need to pull image first
-		repoPart, tagPart := splitRepoTag(req.Image)
-		if opts.ProgressOut != nil {
-			err = c.CallStream("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, opts.ProgressOut, opts.IsTerminal, opts.TerminalFd)
-		} else {
-			err = c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
-		}
+		err = pullImage(c, req.Image, opts.PullImageOpts)
 		if err != nil {
 			return "", fmt.Errorf("pull image: %w", err)
 		}
@@ -66,37 +72,6 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 	}
 
 	return containerResp.ID, nil
-}
-
-func (c *Client) RunContainerStream(req *dockertypes.ContainerCreateRequest, pullImage bool) (*bufio.Reader, net.Conn, string, error) {
-	if pullImage {
-		// need to pull image first
-		repoPart, tagPart := splitRepoTag(req.Image)
-		err := c.Call("POST", "/images/create?fromImage="+url.QueryEscape(repoPart)+"&tag="+url.QueryEscape(tagPart), nil, nil)
-		if err != nil {
-			return nil, nil, "", fmt.Errorf("pull image: %w", err)
-		}
-	}
-
-	var containerResp dockertypes.ContainerCreateResponse
-	err := c.Call("POST", "/containers/create", req, &containerResp)
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("create container: %w", err)
-	}
-
-	// upgrade to tcp
-	reader, writer, err := c.streamHijack("POST", "/containers/"+containerResp.ID+"/attach?logs=true&stream=true&stdin=true&stdout=true&stderr=true", nil)
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("attach container: %w", err)
-	}
-
-	// start container
-	err = c.Call("POST", "/containers/"+containerResp.ID+"/start", nil, nil)
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("start container: %w", err)
-	}
-
-	return reader, writer, containerResp.ID, nil
 }
 
 func (c *Client) KillContainer(cid string) error {

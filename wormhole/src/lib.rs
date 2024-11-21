@@ -6,7 +6,7 @@ use nix::{
     fcntl::{
         fcntl,
         FcntlArg::{self, F_GETFD},
-        FdFlag,
+        FdFlag, OFlag,
     },
     mount::MsFlags,
 };
@@ -97,5 +97,12 @@ pub fn bind_mount_ro(source: &str, dest: &str) -> anyhow::Result<()> {
     bind_mount(source, dest, None)?;
     // then we have to remount as ro with MS_REMOUNT | MS_BIND | MS_RDONLY
     bind_mount(dest, dest, Some(MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY))?;
+    Ok(())
+}
+
+pub fn set_nonblocking(fd: RawFd) -> nix::Result<()> {
+    let flags = fcntl(fd, FcntlArg::F_GETFL)?;
+    let new_flags = OFlag::from_bits_retain(flags) | OFlag::O_NONBLOCK;
+    fcntl(fd, FcntlArg::F_SETFL(new_flags))?;
     Ok(())
 }

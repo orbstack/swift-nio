@@ -20,10 +20,6 @@ import (
 
 var errNeedRetry = errors.New("server stopped on remote host, retrying")
 
-// registryImage should point to drm server; for locally testing, it's more convenient to just
-
-// spin up a registry and push/pull to that registry instead
-// const registryImage = "drmserver.orb.local/wormhole:latest"
 const registryImage = "registry.orb.local/wormhole:1"
 const maxRetries = 3
 
@@ -71,8 +67,11 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 		server, err = connectRemoteHelper(client, drmToken)
 		if err == nil {
 			return server, nil
+		} else if err != errNeedRetry {
+			return nil, err
 		}
 	}
+
 	return nil, fmt.Errorf("failed to connect after %d retries: %w", retries, err)
 }
 
@@ -87,17 +86,21 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 	// Optimistically create server container to potentially save an additional roundtrip request. If the server container
 	// already exists, we can just attach to the current server container ID returned in the error response.
 	init := true
+	pullingFromOverride := "Pulling remote debug image from OrbStack registry"
 	serverContainerId, err := client.RunContainer(
 		dockerclient.RunContainerOptions{
-			Name:        "orbstack-wormhole",
-			PullImage:   true,
-			ProgressOut: os.Stdout,
-			IsTerminal:  term.IsTerminal(fdStdout),
-			TerminalFd:  fdStdout,
+			Name:      "orbstack-wormhole",
+			PullImage: true,
+			PullImageOpts: &dockerclient.PullImageOptions{
+				ProgressOut:         os.Stderr,
+				IsTerminal:          term.IsTerminal(fdStderr),
+				TerminalFd:          fdStderr,
+				PullingFromOverride: &pullingFromOverride,
+			},
 		},
 		&dockertypes.ContainerCreateRequest{
 			Image:      registryImage,
-			Entrypoint: []string{"/wormhole-server"},
+			Entrypoint: []string{"/bin/wormhole-server"},
 			HostConfig: &dockertypes.ContainerHostConfig{
 				Privileged:   true,
 				Binds:        []string{"wormhole-data:/data"},
@@ -122,7 +125,7 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		Cmd:          []string{"/wormhole-proxy"},
+		Cmd:          []string{"/bin/wormhole-proxy"},
 	})
 	if err != nil {
 		// the server may have been removed or stopped right after we inspected it; retry in those cases
@@ -130,8 +133,9 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		// 409: container is paused
 		if dockerclient.IsStatusError(err, 404) || dockerclient.IsStatusError(err, 409) {
 			return nil, errNeedRetry
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 
 	demuxReader, demuxWriter := io.Pipe()
@@ -159,12 +163,12 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 			// if server no long exists (shutdown after we attached via exec), retry
 			if dockerclient.IsStatusError(inspectErr, 404) {
 				return nil, errNeedRetry
+			} else {
+				return nil, errors.New("client proxy exited unexpectedly")
 			}
-
-			return nil, errors.New("client proxy exited unexpectedly")
+		} else {
+			return nil, err
 		}
-
-		return nil, err
 	}
 	switch message.ServerMessage.(type) {
 	case *pb.RpcServerMessage_ClientConnectAck:

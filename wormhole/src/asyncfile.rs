@@ -1,4 +1,4 @@
-use nix::fcntl::{fcntl, FcntlArg, OFlag};
+use nix::fcntl::{fcntl, FcntlArg};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, OwnedFd};
@@ -8,29 +8,24 @@ use std::task::{ready, Context, Poll};
 use tokio::io::unix::AsyncFd;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-fn set_nonblocking(fd: RawFd) -> nix::Result<()> {
-    let flags = fcntl(fd, FcntlArg::F_GETFL)?;
-    let new_flags = OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK;
-    fcntl(fd, FcntlArg::F_SETFL(new_flags))?;
-    Ok(())
-}
+use crate::set_nonblocking;
 
 pub struct AsyncFile {
     inner: AsyncFd<File>,
 }
 
 impl AsyncFile {
+    // AsyncFile assumes that the resource is set to nonblocking mode; it
+    // is the caller's responsibility to ensure O_NONBLOCK on the
+    // underlying file descriptor
     pub fn new(fd: RawFd) -> std::io::Result<Self> {
-        set_nonblocking(fd)?;
         let file = unsafe { File::from_raw_fd(fd) };
         Ok(Self {
             inner: AsyncFd::new(file)?,
         })
     }
 
-    // AsyncFile assumes that the File is set to nonblocking mode; it
-    // is the callee's responsibility to ensure O_NONBLOCK on the
-    // underlying file descriptor
+    // note: does not set O_NONBLOCK, see above
     pub fn from(file: File) -> std::io::Result<Self> {
         Ok(Self {
             inner: AsyncFd::new(file)?,

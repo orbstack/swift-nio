@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/alessio/shellescape"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -50,7 +51,6 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		return 1, err
 	}
 
-	var originalState *term.State
 	var ptyConfig *pb.PtyConfig
 
 	// see scli/shell/ssh.go
@@ -87,11 +87,11 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		}
 
 		// raw mode if any stdio is a pty
-		originalState, err = term.MakeRaw(ptyFd)
+		state, err := shell.TermMakeRawEintr(ptyFd)
 		if err != nil {
 			return 1, err
 		}
-		defer term.Restore(ptyFd, originalState)
+		defer term.Restore(ptyFd, state)
 
 		serializedTermios, err := SerializeTermios(termios)
 		if err != nil {
@@ -199,7 +199,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 	// exit early with appropriate code if no pro license
 	verifier := sjwt.NewVerifier(nil, drmtypes.AppVersion{})
 	claims, err := verifier.Verify(drmToken, sjwt.TokenVerifyParams{StrictVersion: false})
-	if err != nil || claims == nil || claims.EntitlementTier == drmtypes.EntitlementTierNone {
+	if err != nil || claims == nil || claims.EntitlementTier < drmtypes.EntitlementTierPro {
 		return sshenv.ExitCodeNeedsProLicense, nil
 	}
 
@@ -216,6 +216,10 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 	// remote debug does not yet support running of stopped containers
 	if !containerInfo.State.Running {
 		return 1, fmt.Errorf("container %s is not running", containerID)
+	}
+
+	if strings.Contains(containerInfo.HostConfig.Runtime, "kata") || strings.Contains(containerInfo.HostConfig.Runtime, "gvisor") {
+		return 1, fmt.Errorf("unsupported container runtime: %s", containerInfo.HostConfig.Runtime)
 	}
 
 	workingDir := containerInfo.Config.WorkingDir

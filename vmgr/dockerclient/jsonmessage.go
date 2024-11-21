@@ -269,7 +269,7 @@ func (jm *JSONMessage) Display(out io.Writer, isTerminal bool) error {
 //   - auxCallback allows handling the [JSONMessage.Aux] field. It is
 //     called if a JSONMessage contains an Aux field, in which case
 //     DisplayJSONMessagesStream does not present the JSONMessage.
-func DisplayJSONMessagesStream(in io.Reader, out io.Writer, terminalFd uintptr, isTerminal bool, auxCallback func(JSONMessage)) error {
+func DisplayJSONMessagesStream(in io.Reader, out io.Writer, terminalFd uintptr, isTerminal bool, pullingFromOverride *string, auxCallback func(JSONMessage)) error {
 	var (
 		dec = json.NewDecoder(in)
 		ids = make(map[string]uint)
@@ -283,6 +283,11 @@ func DisplayJSONMessagesStream(in io.Reader, out io.Writer, terminalFd uintptr, 
 				break
 			}
 			return err
+		}
+
+		if strings.HasPrefix(jm.Status, "Pulling from") && pullingFromOverride != nil {
+			jm.Status = *pullingFromOverride
+			jm.ID = ""
 		}
 
 		if jm.Aux != nil {
@@ -346,6 +351,6 @@ type Stream interface {
 
 // DisplayJSONMessagesToStream prints json messages to the output Stream. It is
 // used by the Docker CLI to print JSONMessage streams.
-func DisplayJSONMessagesToStream(in io.Reader, stream Stream, auxCallback func(JSONMessage)) error {
-	return DisplayJSONMessagesStream(in, stream, stream.FD(), stream.IsTerminal(), auxCallback)
+func DisplayJSONMessagesToStream(in io.Reader, stream Stream, statusOverride *string, auxCallback func(JSONMessage)) error {
+	return DisplayJSONMessagesStream(in, stream, stream.FD(), stream.IsTerminal(), statusOverride, auxCallback)
 }

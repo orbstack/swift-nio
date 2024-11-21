@@ -5,13 +5,19 @@ set -euxo pipefail
 cd "$(dirname "$0")"
 cd ..
 
+ARCH="$1"
 VERSION="1"
 BUCKET="orbstack-wormhole"
 
 rm -rf out/wormhole
 mkdir -p out/wormhole
 
-VERSION="$VERSION" docker buildx bake -f rootfs/docker-bake.hcl wormhole
+HOST_ARCH="amd64"
+if [[ "$(uname -m)" == "aarch64" ]] || [[ "$(uname -m)" == "arm64" ]]; then
+    HOST_ARCH="arm64"
+fi
+
+VERSION="$VERSION" ARCH="$ARCH" HOST_ARCH="$HOST_ARCH" docker buildx bake -f rootfs/docker-bake.hcl wormhole
 docker save registry.orb.local/wormhole:$VERSION -o out/wormhole/wormhole.tar
 
 cd out/wormhole

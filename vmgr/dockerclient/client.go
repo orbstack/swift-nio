@@ -310,7 +310,7 @@ func (c *Client) Call(method, path string, body any, out any) error {
 	return nil
 }
 
-func (c *Client) CallStream(method, path string, body any, out io.Writer, isTerminal bool, terminalFd uintptr) error {
+func (c *Client) CallStream(method, path string, body any, out io.Writer, isTerminal bool, terminalFd uintptr, pullingFromOverride *string) error {
 	req, err := c.newRequest(method, path, body)
 	if err != nil {
 		return err
@@ -326,7 +326,7 @@ func (c *Client) CallStream(method, path string, body any, out io.Writer, isTerm
 		return ReadError(resp)
 	}
 
-	DisplayJSONMessagesStream(resp.Body, out, terminalFd, isTerminal, nil)
+	DisplayJSONMessagesStream(resp.Body, out, terminalFd, isTerminal, pullingFromOverride, nil)
 	return nil
 }
 
@@ -364,7 +364,7 @@ func (c *Client) CallDiscard(method, path string, body any) error {
 	return nil
 }
 
-func (c *Client) streamHijack(method, path string, body any) (*bufio.Reader, net.Conn, error) {
+func (c *Client) streamHijack(method, path string, body any) (io.Reader, io.WriteCloser, error) {
 	req, err := c.newRequest(method, path, body)
 	if err != nil {
 		return nil, nil, err

@@ -26,17 +26,10 @@ const (
 	fdStderr = 2
 )
 
-const maxRetries = 3
-
-// registryImage should point to drm server; for locally testing, it's more convenient to just
-// spin up a registry and push/pull to that registry instead
-// const registryImage = "drmserver.orb.local/wormhole:latest"
-const registryImage = "registry.orb.local/wormhole:latest"
-
 func init() {
 	rootCmd.AddCommand(debugCmd)
 	debugCmd.Flags().StringVarP(&flagWorkdir, "workdir", "w", "", "Set the working directory")
-	debugCmd.Flags().StringVarP(&flagContext, "context", "c", "", "Set the Docker context")
+	debugCmd.Flags().StringVarP(&flagContext, "context", "c", "", "Set the Docker context for remote debugging")
 	debugCmd.Flags().BoolVarP(&flagFallback, "fallback", "f", false, "Fallback to 'docker exec' if no Pro license")
 	debugCmd.Flags().BoolVar(&flagReset, "reset", false, "Resets Debug Shell data")
 }
@@ -193,9 +186,9 @@ Get a license: https://orbstack.dev/pricing
 		// 124 = requested fallback mode, and container is Nix
 		if exitCode == sshenv.ExitCodeNixDebugUnsupported {
 			fmt.Fprintln(os.Stderr, color.New(color.FgYellow).Sprint(`OrbStack Debug Shell does not yet support Nix containers.
-	Falling back to 'docker exec'.
-	Learn more: https://go.orbstack.dev/debug
-	`))
+Falling back to 'docker exec'.
+Learn more: https://go.orbstack.dev/debug
+`))
 
 			// fallback to docker exec
 			err = fallbackDockerExec(*containerIDp)

@@ -55,7 +55,7 @@ type CommandOpts struct {
 	WormholeFallback bool
 }
 
-func termMakeRawEintr(fd int) (*term.State, error) {
+func TermMakeRawEintr(fd int) (*term.State, error) {
 	for {
 		state, err := term.MakeRaw(fd)
 		if errors.Is(err, unix.EINTR) {
@@ -132,7 +132,7 @@ func RunSSH(opts CommandOpts) (int, error) {
 		modes := termios.TermiosToSSH(flags)
 
 		// raw mode if any stdio is a pty
-		state, err := termMakeRawEintr(ptyFd)
+		state, err := TermMakeRawEintr(ptyFd)
 		if err != nil {
 			return 0, err
 		}

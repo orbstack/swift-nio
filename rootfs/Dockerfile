@@ -388,9 +388,9 @@ EOT
 # Wormhole rootfs
 FROM scratch AS wormhole-remote
 COPY --from=nix-build /out /wormhole-rootfs
-COPY --from=rust-build /out/wormhole-attach /wormhole-attach
-COPY --from=rust-build /out/wormhole-proxy /wormhole-proxy
-COPY --from=rust-build /out/server /wormhole-server
+COPY --from=rust-build /out/wormhole-attach /bin/wormhole-attach
+COPY --from=rust-build /out/wormhole-proxy /bin/wormhole-proxy
+COPY --from=rust-build /out/server /bin/wormhole-server
 
 
 ##########################################################################
