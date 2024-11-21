@@ -4,7 +4,7 @@ use nix::{
     fcntl::{fcntl, FcntlArg, OFlag},
     libc::ioctl,
     sys::socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
-    unistd::{dup2, pipe2, setsid},
+    unistd::{close, dup2, pipe2, setsid},
 };
 use std::{
     collections::HashMap,
@@ -106,6 +106,18 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)
         }
         _ => Err(anyhow!("did not get client stdin and stdout")),
     }
+}
+
+fn dup_owned(fd: RawFd) -> anyhow::Result<OwnedFd> {
+    let owned_fd = unsafe { OwnedFd::from_raw_fd(fcntl(fd, FcntlArg::F_DUPFD_CLOEXEC(3))?) };
+    Ok(owned_fd)
+}
+
+fn pipe2_owned() -> anyhow::Result<(OwnedFd, OwnedFd)> {
+    let fds = pipe2(OFlag::O_CLOEXEC)?;
+    Ok((unsafe { OwnedFd::from_raw_fd(fds.0) }, unsafe {
+        OwnedFd::from_raw_fd(fds.1)
+    }))
 }
 
 struct WormholeServer {
@@ -233,7 +245,9 @@ impl WormholeServer {
                     .await?;
                 }
                 Err(e) => {
+                    // this happens when client container disconnects during debug session
                     debug!("got error reading from payload {stdio_name}: {e}");
+                    return Err(anyhow!("error reading from payload: {e}"));
                 }
             }
         }
@@ -243,7 +257,7 @@ impl WormholeServer {
         mut exit_code_pipe_reader: AsyncFile,
         client_writer: Arc<tokio::sync::Mutex<AsyncFile>>,
     ) -> anyhow::Result<()> {
-        let mut exit_code = [0u8];
+        let mut exit_code = [1u8];
         exit_code_pipe_reader.read_exact(&mut exit_code).await?;
         debug!("received exit code {}", exit_code[0]);
 
@@ -334,64 +348,39 @@ impl WormholeServer {
 
             // for stdin: write to master and read from slave
             stdin_pipe = (
-                unsafe {
-                    OwnedFd::from_raw_fd(fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?)
-                },
-                unsafe {
-                    OwnedFd::from_raw_fd(fcntl(
-                        master_fd.as_raw_fd(),
-                        FcntlArg::F_DUPFD_CLOEXEC(3),
-                    )?)
-                },
+                dup_owned(slave_fd.as_raw_fd())?,
+                dup_owned(master_fd.as_raw_fd())?,
             );
             // for stdout/stderr: read from master and write to slave
             stdout_pipe = (
-                unsafe {
-                    OwnedFd::from_raw_fd(fcntl(
-                        master_fd.as_raw_fd(),
-                        FcntlArg::F_DUPFD_CLOEXEC(3),
-                    )?)
-                },
-                unsafe {
-                    OwnedFd::from_raw_fd(fcntl(slave_fd.as_raw_fd(), FcntlArg::F_DUPFD_CLOEXEC(3))?)
-                },
+                dup_owned(master_fd.as_raw_fd())?,
+                dup_owned(slave_fd.as_raw_fd())?,
             );
             // reuse original master and slave fds to save a dup call
             stderr_pipe = (master_fd, slave_fd);
         } else {
-            let stdin_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
-            let stdout_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
-            let stderr_pipe_fds = pipe2(OFlag::O_CLOEXEC)?;
-
-            stdin_pipe = (unsafe { OwnedFd::from_raw_fd(stdin_pipe_fds.0) }, unsafe {
-                OwnedFd::from_raw_fd(stdin_pipe_fds.1)
-            });
-            stdout_pipe = (unsafe { OwnedFd::from_raw_fd(stdout_pipe_fds.0) }, unsafe {
-                OwnedFd::from_raw_fd(stdout_pipe_fds.1)
-            });
-            stderr_pipe = (unsafe { OwnedFd::from_raw_fd(stderr_pipe_fds.0) }, unsafe {
-                OwnedFd::from_raw_fd(stderr_pipe_fds.1)
-            });
+            stdin_pipe = pipe2_owned()?;
+            stdout_pipe = pipe2_owned()?;
+            stderr_pipe = pipe2_owned()?;
         }
 
-        let wormhole_mount = open_tree(
+        let wormhole_mount_fd = open_tree(
             &format!("{}/nix", WORMHOLE_UNIFIED),
             libc::OPEN_TREE_CLOEXEC | libc::OPEN_TREE_CLONE | libc::AT_RECURSIVE as u32,
         )?;
 
-        let (_, log_pipe_write_fd) = pipe2(OFlag::O_CLOEXEC)?;
-        let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe2(OFlag::O_CLOEXEC)?;
-        let wormhole_mount_fd = wormhole_mount.as_raw_fd();
-        set_nonblocking(exit_code_pipe_read_fd)?;
-        let exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd)?;
+        let (_log_pipe_read_fd, log_pipe_write_fd) = pipe2_owned()?;
+        let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe2_owned()?;
+        set_nonblocking(exit_code_pipe_read_fd.as_raw_fd())?;
+        let exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd.into_raw_fd())?;
 
         let config: WormholeConfig = serde_json::from_str(&params.wormhole_config)?;
         // todo: rootfs support for stopped containers / images
         let runtime_state = WormholeRuntimeState {
             rootfs_fd: None,
-            wormhole_mount_tree_fd: wormhole_mount_fd,
-            exit_code_pipe_write_fd: exit_code_pipe_write_fd,
-            log_fd: log_pipe_write_fd,
+            wormhole_mount_tree_fd: wormhole_mount_fd.as_raw_fd(),
+            exit_code_pipe_write_fd: exit_code_pipe_write_fd.as_raw_fd(),
+            log_fd: log_pipe_write_fd.as_raw_fd(),
         };
 
         debug!("spawning wormhole-attach");
@@ -413,9 +402,9 @@ impl WormholeServer {
                     }
 
                     debug!("unsetting cloexec on fds for wormhole-attach");
-                    unset_cloexec(wormhole_mount_fd)?;
-                    unset_cloexec(exit_code_pipe_write_fd)?;
-                    unset_cloexec(log_pipe_write_fd)?;
+                    unset_cloexec(runtime_state.wormhole_mount_tree_fd)?;
+                    unset_cloexec(runtime_state.exit_code_pipe_write_fd)?;
+                    unset_cloexec(runtime_state.log_fd)?;
 
                     // no dup cloexec because wormhole-attach child should inherit stdio fds
                     dup2(stdin_pipe.0.as_raw_fd(), libc::STDIN_FILENO)?;
@@ -426,6 +415,10 @@ impl WormholeServer {
                 })
                 .spawn()?
         };
+
+        drop(wormhole_mount_fd);
+        drop(exit_code_pipe_write_fd);
+        drop(log_pipe_write_fd);
 
         tokio::spawn(async move {
             match child.wait().await {

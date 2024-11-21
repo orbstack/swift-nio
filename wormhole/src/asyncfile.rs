@@ -8,8 +8,6 @@ use std::task::{ready, Context, Poll};
 use tokio::io::unix::AsyncFd;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-use crate::set_nonblocking;
-
 pub struct AsyncFile {
     inner: AsyncFd<File>,
 }
