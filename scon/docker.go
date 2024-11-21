@@ -367,6 +367,12 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	baseBuilder := map[string]any{
 		"gc": baseBuilderGC,
 	}
+	// we copy the limit of the local log driver
+	// limit the size of log files. by default, json-file driver has no limit
+	baseLogOpts := map[string]any{
+		"max-size": "20m",
+		"max-file": "5",
+	}
 	config := map[string]any{
 		// just to be safe with legacy clients
 		"features": baseFeatures,
@@ -515,6 +521,19 @@ func (h *DockerHooks) PreStart(c *Container) error {
 
 				config["default-address-pools"] = newPools
 			}
+		}
+	}
+
+	if logDriver, ok := config["log-driver"].(string); !ok || logDriver == "json-file" {
+		if logOpts, ok := config["log-opts"].(map[string]any); ok {
+			if _, ok := logOpts["max-size"]; !ok {
+				logOpts["max-size"] = baseLogOpts["max-size"]
+			}
+			if _, ok := logOpts["max-file"]; !ok {
+				logOpts["max-file"] = baseLogOpts["max-file"]
+			}
+		} else {
+			config["log-opts"] = baseLogOpts
 		}
 	}
 
