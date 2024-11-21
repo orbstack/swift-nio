@@ -15,18 +15,22 @@ pub const BUF_SIZE: usize = 65536;
 pub fn unmount_wormhole() -> anyhow::Result<()> {
     for nix_dir in NIX_RW_DIRS {
         let path = format!("{}/nix/{}", WORMHOLE_UNIFIED, nix_dir);
-        debug!("unmounting {}", path);
         match umount2(path.as_str(), MntFlags::MNT_DETACH) {
-            Ok(_) => {}
-            Err(err) => debug!("could not unmount {:?}", err),
+            Ok(_) => debug!("unmounted {}", path),
+            Err(err) => debug!("could not unmount {}: {:?}", path, err),
         };
     }
-    debug!("unmounting {}", WORMHOLE_UNIFIED);
-    umount2(
+    match umount2(
         format!("{}/nix/orb/sys/.base", WORMHOLE_UNIFIED).as_str(),
         MntFlags::empty(),
-    )?;
-    umount2(WORMHOLE_UNIFIED, MntFlags::empty())?;
+    ) {
+        Ok(_) => debug!("unmounted nix/orb/sys/.base"),
+        Err(err) => debug!("could not unmount nix/orb/sys/.base: {:?}", err),
+    };
+    match umount2(WORMHOLE_UNIFIED, MntFlags::empty()) {
+        Ok(_) => debug!("unmounted {}", WORMHOLE_UNIFIED),
+        Err(err) => debug!("could not unmount {}: {:?}", WORMHOLE_UNIFIED, err),
+    };
 
     Ok(())
 }

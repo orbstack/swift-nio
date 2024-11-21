@@ -24,12 +24,12 @@ func resetRemoteData(daemon *dockerclient.DockerConnection, drmToken string) err
 
 	client, err := dockerclient.NewClientWithDrmAuth(daemon, drmToken)
 	if err != nil {
-		return fmt.Errorf("failed to create docker client: %w", err)
+		return fmt.Errorf("create docker client: %w", err)
 	}
 
 	server, err := connectRemote(client, drmToken, maxRetries)
 	if err != nil {
-		return fmt.Errorf("failed to connect to remote: %w", err)
+		return fmt.Errorf("connect to remote server: %w", err)
 	}
 
 	// todo: with rpc, directly send NukeData request and get response back
@@ -37,13 +37,13 @@ func resetRemoteData(daemon *dockerclient.DockerConnection, drmToken string) err
 		ClientMessage: &pb.RpcClientMessage_ResetData{},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to write reset data message: %w", err)
+		return fmt.Errorf("send reset data request: %w", err)
 	}
 
 	message := &pb.RpcServerMessage{}
 	err = server.ReadMessage(message)
 	if err != nil {
-		return fmt.Errorf("failed to read reset status message: %w", err)
+		return fmt.Errorf("read reset data response: %w", err)
 	}
 	var exitCode int
 	switch v := message.ServerMessage.(type) {
@@ -57,6 +57,7 @@ func resetRemoteData(daemon *dockerclient.DockerConnection, drmToken string) err
 
 	return nil
 }
+
 func WormholeReset(context string) (err error) {
 	daemon, isLocal, err := GetDaemon(context)
 	if err != nil {

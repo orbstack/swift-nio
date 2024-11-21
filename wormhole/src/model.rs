@@ -30,4 +30,6 @@ pub struct WormholeRuntimeState {
     pub exit_code_pipe_write_fd: RawFd,
     #[serde(rename = "d")]
     pub log_fd: RawFd,
+    #[serde(rename = "e")]
+    pub server_pidfd: Option<RawFd>,
 }

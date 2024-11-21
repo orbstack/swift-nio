@@ -1,15 +1,19 @@
 use anyhow::anyhow;
 use libc::TIOCSCTTY;
 use nix::{
-    fcntl::{fcntl, FcntlArg, OFlag},
+    fcntl::{fcntl, open, FcntlArg, OFlag},
     libc::ioctl,
-    sys::socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
-    unistd::{close, dup2, pipe2, setsid},
+    sys::{
+        socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
+        stat::Mode,
+    },
+    unistd::{close, dup2, getpid, pipe2, setsid},
 };
 use std::{
     collections::HashMap,
     fs::{self},
     future::pending,
+    mem,
     os::{
         fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
         unix::net::{UnixListener, UnixStream},
@@ -28,6 +32,7 @@ use wormhole::{
     asyncfile::AsyncFile,
     model::{WormholeConfig, WormholeRuntimeState},
     newmount::open_tree,
+    pidfd::PidFd,
     rpc::{
         wormhole::{
             rpc_client_message::ClientMessage, rpc_server_message::ServerMessage, ClientConnectAck,
@@ -369,10 +374,22 @@ impl WormholeServer {
             libc::OPEN_TREE_CLOEXEC | libc::OPEN_TREE_CLONE | libc::AT_RECURSIVE as u32,
         )?;
 
-        let (_log_pipe_read_fd, log_pipe_write_fd) = pipe2_owned()?;
+        // the log write pipe must exist beyond the lifetime of the server, since if the server
+        // is abruptly killed, the wormhole-attach monitor and subreaper processes must still exist to clean
+        // up any remaining background processes. If the log write pipe is closed alongside the server,
+        // the monitor and subreaper will crash when logging.
+        let log_pipe_write_fd = unsafe {
+            OwnedFd::from_raw_fd(open(
+                "/dev/null",
+                OFlag::O_WRONLY | OFlag::O_CLOEXEC,
+                Mode::empty(),
+            )?)
+        };
         let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe2_owned()?;
         set_nonblocking(exit_code_pipe_read_fd.as_raw_fd())?;
         let exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd.into_raw_fd())?;
+
+        let pidfd = PidFd::open(getpid().into())?;
 
         let config: WormholeConfig = serde_json::from_str(&params.wormhole_config)?;
         // todo: rootfs support for stopped containers / images
@@ -381,6 +398,7 @@ impl WormholeServer {
             wormhole_mount_tree_fd: wormhole_mount_fd.as_raw_fd(),
             exit_code_pipe_write_fd: exit_code_pipe_write_fd.as_raw_fd(),
             log_fd: log_pipe_write_fd.as_raw_fd(),
+            server_pidfd: Some(pidfd.as_raw_fd()),
         };
 
         debug!("spawning wormhole-attach");
@@ -405,6 +423,7 @@ impl WormholeServer {
                     unset_cloexec(runtime_state.wormhole_mount_tree_fd)?;
                     unset_cloexec(runtime_state.exit_code_pipe_write_fd)?;
                     unset_cloexec(runtime_state.log_fd)?;
+                    unset_cloexec(runtime_state.server_pidfd.unwrap())?;
 
                     // no dup cloexec because wormhole-attach child should inherit stdio fds
                     dup2(stdin_pipe.0.as_raw_fd(), libc::STDIN_FILENO)?;
@@ -416,6 +435,7 @@ impl WormholeServer {
                 .spawn()?
         };
 
+        drop(pidfd);
         drop(wormhole_mount_fd);
         drop(exit_code_pipe_write_fd);
         drop(log_pipe_write_fd);

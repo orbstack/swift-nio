@@ -16,6 +16,7 @@ pub mod flock;
 pub mod model;
 pub mod newmount;
 pub mod paths;
+pub mod pidfd;
 pub mod rpc;
 pub mod termios;
 

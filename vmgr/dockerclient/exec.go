@@ -11,7 +11,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
-func DemuxOutput(r io.Reader, w io.Writer) error {
+func DemuxOutput(r io.Reader, stdout io.Writer, stderr io.Writer) error {
 	// decode multiplexed
 	for {
 		hdr := make([]byte, 8)
@@ -39,8 +39,12 @@ func DemuxOutput(r io.Reader, w io.Writer) error {
 			}
 			n += nr
 		}
-		// write out
-		w.Write(buf)
+
+		if hdr[0] == 1 {
+			stdout.Write(buf)
+		} else if hdr[0] == 2 {
+			stderr.Write(buf)
+		}
 	}
 }
 
@@ -76,7 +80,7 @@ func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateReques
 	defer reader.Close()
 
 	var output bytes.Buffer
-	err = DemuxOutput(reader, &output)
+	err = DemuxOutput(reader, &output, &output)
 	if err != nil {
 		return "", fmt.Errorf("demux output: %w", err)
 	}

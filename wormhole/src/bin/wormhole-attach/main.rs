@@ -34,7 +34,6 @@ use nix::{
     },
 };
 
-use pidfd::PidFd;
 use signals::{mask_sigset, SigSet, SignalFd};
 use tracing::{debug, span, trace, warn, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -44,13 +43,14 @@ use wormhole::{
     model::{WormholeConfig, WormholeRuntimeState},
     mount_common,
     newmount::{move_mount, open_tree},
-    paths, set_cloexec,
+    paths,
+    pidfd::PidFd,
+    set_cloexec,
 };
 
 mod drm;
 mod monitor;
 mod mounts;
-mod pidfd;
 mod proc;
 mod signals;
 mod subreaper;
@@ -373,6 +373,9 @@ fn main() -> anyhow::Result<()> {
     let wormhole_mount_fd = unsafe { OwnedFd::from_raw_fd(runtime_state.wormhole_mount_tree_fd) };
     let exit_code_pipe_write_fd =
         unsafe { OwnedFd::from_raw_fd(runtime_state.exit_code_pipe_write_fd) };
+    let server_pidfd = runtime_state
+        .server_pidfd
+        .map(|fd| unsafe { OwnedFd::from_raw_fd(fd) });
     trace!("entry shell cmd: {:?}", config.entry_shell_cmd);
     trace!("drm token: {:?}", config.drm_token);
     drm::verify_token(&config.drm_token)?;
@@ -653,6 +656,7 @@ fn main() -> anyhow::Result<()> {
                 cgroup_path,
                 intermediate,
                 monitor_sfd,
+                server_pidfd,
             )?;
         }
 

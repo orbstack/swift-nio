@@ -85,7 +85,6 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 
 	// Optimistically create server container to potentially save an additional roundtrip request. If the server container
 	// already exists, we can just attach to the current server container ID returned in the error response.
-	init := true
 	pullingFromOverride := "Pulling remote debug image from OrbStack registry"
 	serverContainerId, err := client.RunContainer(
 		dockerclient.RunContainerOptions{
@@ -106,8 +105,8 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 				Binds:        []string{"wormhole-data:/data"},
 				CgroupnsMode: "host",
 				PidMode:      "host",
+				NetworkMode:  "none",
 				AutoRemove:   true,
-				Init:         &init,
 			},
 		})
 	if err != nil {
@@ -143,7 +142,7 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		defer demuxReader.Close()
 		defer demuxWriter.Close()
 		defer writer.Close()
-		dockerclient.DemuxOutput(reader, demuxWriter)
+		dockerclient.DemuxOutput(reader, demuxWriter, nil)
 	}()
 
 	sessionStdin := writer

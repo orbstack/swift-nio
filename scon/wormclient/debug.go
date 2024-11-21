@@ -83,7 +83,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		// snapshot the flags
 		termios, err := unix.IoctlGetTermios(ptyFd, unix.TIOCGETA)
 		if err != nil {
-			return 1, fmt.Errorf("failed to get termios params: %w", err)
+			return 1, fmt.Errorf("get termios params: %w", err)
 		}
 
 		// raw mode if any stdio is a pty
@@ -181,7 +181,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 		message := &pb.RpcServerMessage{}
 		err = server.ReadMessage(message)
 		if err != nil {
-			return 1, fmt.Errorf("failed to read from server: %w", err)
+			return 1, fmt.Errorf("read from server: %w", err)
 		}
 
 		switch v := message.ServerMessage.(type) {
@@ -205,16 +205,16 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 
 	client, err := dockerclient.NewClientWithDrmAuth(daemon, drmToken)
 	if err != nil {
-		return 1, fmt.Errorf("failed to create docker client: %w", err)
+		return 1, fmt.Errorf("create docker client: %w", err)
 	}
 
 	containerInfo, err := client.InspectContainer(containerID)
 	if err != nil {
-		return 1, fmt.Errorf("failed to inspect container: %w", err)
+		return 1, fmt.Errorf("inspect container: %w", err)
 	}
 
 	// remote debug does not yet support running of stopped containers
-	if !containerInfo.State.Running {
+	if containerInfo.State.Pid == 0 {
 		return 1, fmt.Errorf("container %s is not running", containerID)
 	}
 

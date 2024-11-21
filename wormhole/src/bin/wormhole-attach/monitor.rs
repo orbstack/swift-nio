@@ -1,5 +1,5 @@
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{stderr, stdout},
     os::{
         fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd},
@@ -18,7 +18,7 @@ use nix::{
         signal::{kill, Signal},
         stat::{fstatat, Mode},
     },
-    unistd::{dup2, getpid, Pid},
+    unistd::{dup2, getpid, pipe, Pid},
 };
 use tracing::trace;
 use wormhole::{
@@ -135,6 +135,7 @@ pub fn run(
     cgroup_path: &str,
     intermediate: Pid,
     sfd: SignalFd,
+    server_pidfd: Option<OwnedFd>,
 ) -> anyhow::Result<()> {
     // switch over to using the log_fd. if we don't switch, logging will crash the application when stout and stderr closes!
     dup2(state.log_fd, stdout().as_raw_fd())?;
@@ -144,7 +145,7 @@ pub fn run(
     // wait until child (intermediate) exits
     trace!("waitpid");
     if let ExitResult::Code(0) = wait_for_exit(intermediate)? {
-        if let Err(err) = monitor(forward_signal_socket, intermediate, sfd) {
+        if let Err(err) = monitor(forward_signal_socket, intermediate, sfd, server_pidfd) {
             trace!(?err, "monitoring errored");
         }
         trace!("monitoring finished");
@@ -161,56 +162,69 @@ fn monitor(
     forward_signal_socket: UnixStream,
     intermediate: Pid,
     mut sfd: SignalFd,
+    server_pidfd: Option<OwnedFd>,
 ) -> anyhow::Result<()> {
     trace!("entering main event loop");
 
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
     epoll.add(&sfd, EpollEvent::new(EpollFlags::EPOLLIN, 1))?;
+    if let Some(server_pidfd) = server_pidfd {
+        epoll.add(&server_pidfd, EpollEvent::new(EpollFlags::EPOLLIN, 2))?;
+    }
 
-    let mut events = [EpollEvent::empty()];
+    let mut events = [EpollEvent::empty(); 2];
 
     // intermediate succeeded, we assume the subreaper gets reparented to us and that we will receive SIGCHLD when it exits
-    loop {
-        match epoll.wait(&mut events, -1) {
+    'outer: loop {
+        let n = match epoll.wait(&mut events, -1) {
             Ok(n) if n < 1 => {
                 return Err(anyhow!("expected an event on epoll return"));
             }
+            Ok(n) => n,
             Err(Errno::EINTR) => continue,
             Err(err) => {
                 return Err(anyhow!("error while epolling: {}", err));
             }
-            Ok(_) => {}
-        }
+        };
 
-        match sfd.read_signal() {
-            Ok(Some(sig)) if sig.ssi_signo == Signal::SIGCHLD as u32 => {
-                let mut should_break = false;
+        for event in &events[0..n] {
+            if event.data() == 1 {
+                match sfd.read_signal() {
+                    Ok(Some(sig)) if sig.ssi_signo == Signal::SIGCHLD as u32 => {
+                        let mut should_break = false;
 
-                reap_children(|pid, _| {
-                    if pid != intermediate {
-                        should_break = true;
-                    }
-                })?;
-                if should_break {
-                    break;
-                }
-            }
-            Ok(Some(sig)) => {
-                trace!(?sig, "got signal");
-
-                match map_signal(sig.ssi_signo) {
-                    Ok(sig_forward) => {
-                        if let Err(err) = Message::ForwardSignal(sig_forward as i32)
-                            .write_to(&forward_signal_socket)
-                        {
-                            trace!(?err, "couldn't forward signal via socket");
-                            break;
+                        reap_children(|pid, _| {
+                            if pid != intermediate {
+                                should_break = true;
+                            }
+                        })?;
+                        if should_break {
+                            break 'outer;
                         }
                     }
-                    Err(err) => trace!(?err, "couldn't map signal"),
+                    Ok(Some(sig)) => {
+                        trace!(?sig, "got signal");
+
+                        match map_signal(sig.ssi_signo) {
+                            Ok(sig_forward) => {
+                                if let Err(err) = Message::ForwardSignal(sig_forward as i32)
+                                    .write_to(&forward_signal_socket)
+                                {
+                                    trace!(?err, "couldn't forward signal via socket");
+                                    break 'outer;
+                                }
+                            }
+                            Err(err) => trace!(?err, "couldn't map signal"),
+                        }
+                    }
+                    result => trace!(?result, "unexpected read_signal result"),
                 }
+            } else if event.data() == 2 {
+                // if the server is abruptly killed, break out of loop and start background task cleanup
+                break 'outer;
+            } else {
+                trace!("unexpected epoll event {}", event.data());
             }
-            result => trace!(?result, "unexpected read_signal result"),
         }
     }
 
