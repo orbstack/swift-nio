@@ -1,13 +1,13 @@
-use anyhow::anyhow;
 use nix::sys::socket::{sendmsg, ControlMessage, MsgFlags};
 use std::io::{stdin, stdout, IoSlice, Read};
 use std::os::fd::AsRawFd;
-use std::os::unix::net::UnixStream;
+use std::os::linux::net::SocketAddrExt as _;
+use std::os::unix::net::{SocketAddr, UnixStream};
 use wormhole::rpc::RPC_SOCKET;
 
 fn main() -> anyhow::Result<()> {
-    let mut stream = UnixStream::connect(RPC_SOCKET)
-        .map_err(|e| anyhow!("could not connect to RPC socket: {}", e))?;
+    let addr = SocketAddr::from_abstract_name(RPC_SOCKET)?;
+    let mut stream = UnixStream::connect_addr(&addr)?;
 
     // stdin/stdout are used as the RPC pipes between client and server
     let fds = [stdin().as_raw_fd(), stdout().as_raw_fd()];

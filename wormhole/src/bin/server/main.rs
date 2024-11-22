@@ -7,18 +7,17 @@ use nix::{
         socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
         stat::Mode,
     },
-    unistd::{close, dup2, getpid, pipe2, setsid},
+    unistd::{dup2, getpid, pipe2, setsid},
 };
 use std::{
     collections::HashMap,
     fs::{self},
     future::pending,
-    mem,
     os::{
         fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
-        unix::net::{UnixListener, UnixStream},
+        linux::net::SocketAddrExt,
+        unix::net::{SocketAddr, UnixListener, UnixStream},
     },
-    process::exit,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -166,7 +165,8 @@ impl WormholeServer {
 
     fn listen(self: &Arc<Self>) -> anyhow::Result<()> {
         let _ = std::fs::remove_file(RPC_SOCKET);
-        let listener = UnixListener::bind(RPC_SOCKET)?;
+        let addr = SocketAddr::from_abstract_name(RPC_SOCKET)?;
+        let listener = UnixListener::bind_addr(&addr)?;
 
         loop {
             match listener.accept() {

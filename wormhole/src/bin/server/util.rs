@@ -13,7 +13,7 @@ pub const NIX_RW_DIRS: [&str; 3] = ["store", "var", "orb/data"];
 
 pub const BUF_SIZE: usize = 65536;
 
-pub const TIMEOUT: u64 = 15;
+pub const TIMEOUT: u64 = 15 * 60;
 
 pub fn unmount_wormhole() -> anyhow::Result<()> {
     for nix_dir in NIX_RW_DIRS {
@@ -44,7 +44,6 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     fs::create_dir_all(WORKDIR)?;
     fs::create_dir_all(WORMHOLE_OVERLAY)?;
     fs::create_dir_all(WORMHOLE_UNIFIED)?;
-    fs::create_dir_all("/run")?;
 
     debug!("mounting overlayfs");
     let options = format!(

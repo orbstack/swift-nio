@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, File},
+    fs::File,
     io::{stderr, stdout},
     os::{
         fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd},
@@ -18,7 +18,7 @@ use nix::{
         signal::{kill, Signal},
         stat::{fstatat, Mode},
     },
-    unistd::{dup2, getpid, pipe, Pid},
+    unistd::{dup2, getpid, Pid},
 };
 use tracing::trace;
 use wormhole::{
