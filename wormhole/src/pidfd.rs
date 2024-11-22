@@ -1,8 +1,9 @@
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
 
 use nix::{
-    libc::{syscall, SYS_pidfd_open, PIDFD_NONBLOCK},
+    libc::{siginfo_t, syscall, SYS_pidfd_open, SYS_pidfd_send_signal, PIDFD_NONBLOCK},
     poll::{poll, PollFd, PollFlags},
+    sys::signal::Signal,
 };
 
 pub struct PidFd(OwnedFd);
@@ -15,6 +16,23 @@ impl PidFd {
         }
         let fd = unsafe { OwnedFd::from_raw_fd(fd as _) };
         Ok(Self(fd))
+    }
+
+    pub fn kill(&self, signal: Signal) -> nix::Result<()> {
+        let res = unsafe {
+            syscall(
+                SYS_pidfd_send_signal,
+                self.as_raw_fd(),
+                signal,
+                std::ptr::null::<*const siginfo_t>(),
+                0,
+            )
+        };
+        if res < 0 {
+            return Err(nix::Error::last());
+        }
+
+        Ok(())
     }
 
     #[allow(dead_code)]

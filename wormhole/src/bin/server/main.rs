@@ -4,6 +4,7 @@ use nix::{
     fcntl::{fcntl, open, FcntlArg, OFlag},
     libc::ioctl,
     sys::{
+        signal::Signal,
         socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
         stat::Mode,
     },
@@ -193,6 +194,7 @@ impl WormholeServer {
 
     async fn forward_client_to_payload(
         mut client_stdin: AsyncFile,
+        payload_pidfd: Option<PidFd>,
         payload_stdin: AsyncFile,
         pty_master_fd: OwnedFd,
         is_pty: bool,
@@ -225,10 +227,21 @@ impl WormholeServer {
                         }
                     }
                 }
-                // todo: add support for forwarding signals
-                _ => {
-                    debug!("unknown message from client");
+                Some(ClientMessage::Signal(msg)) => {
+                    if let Some(ref payload_pidfd) = payload_pidfd {
+                        let signal = match Signal::try_from(msg.signal as i32) {
+                            Ok(signal) => signal,
+                            Err(e) => {
+                                debug!("invalid signal: {e}");
+                                continue;
+                            }
+                        };
+                        if let Err(e) = payload_pidfd.kill(signal) {
+                            debug!("got error sending signal {signal} to payload: {e}");
+                        }
+                    }
                 }
+                _ => debug!("unknown message from client"),
             }
         }
     }
@@ -409,7 +422,7 @@ impl WormholeServer {
         set_nonblocking(exit_code_pipe_read_fd.as_raw_fd())?;
         let exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd.into_raw_fd())?;
 
-        let pidfd = PidFd::open(getpid().into())?;
+        let server_pidfd = PidFd::open(getpid().into())?;
 
         let config: WormholeConfig = serde_json::from_str(&params.wormhole_config)?;
         // todo: rootfs support for stopped containers / images
@@ -418,7 +431,7 @@ impl WormholeServer {
             wormhole_mount_tree_fd: wormhole_mount_fd.as_raw_fd(),
             exit_code_pipe_write_fd: exit_code_pipe_write_fd.as_raw_fd(),
             log_fd: log_pipe_write_fd.as_raw_fd(),
-            server_pidfd: Some(pidfd.as_raw_fd()),
+            server_pidfd: Some(server_pidfd.as_raw_fd()),
         };
 
         debug!("spawning wormhole-attach");
@@ -455,7 +468,9 @@ impl WormholeServer {
                 .spawn()?
         };
 
-        drop(pidfd);
+        let payload_pidfd = child.id().map(|id| PidFd::open(id as i32)).transpose()?;
+
+        drop(server_pidfd);
         drop(wormhole_mount_fd);
         drop(exit_code_pipe_write_fd);
         drop(log_pipe_write_fd);
@@ -496,6 +511,7 @@ impl WormholeServer {
         ));
         join_set.spawn(Self::forward_client_to_payload(
             client_stdin,
+            payload_pidfd,
             payload_stdin,
             // use payload stdout as the master pty fd for the sake of terminal resize, in case
             // we close the stdin pipe

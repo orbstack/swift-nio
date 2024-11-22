@@ -21,6 +21,7 @@ message RpcClientMessage {
         TerminalResize terminal_resize = 2;
         StartPayload start_payload = 3;
         ResetData reset_data = 4;
+        Signal signal = 5;
     }
 }
 
@@ -52,6 +53,10 @@ message StartPayload {
 
 message ResetData {
 
+}
+
+message Signal {
+    uint32 signal = 1;
 }
 
 

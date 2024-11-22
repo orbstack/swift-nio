@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/alessio/shellescape"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
@@ -35,6 +36,20 @@ func check(err error) {
 var (
 	flagFallback bool
 	flagReset    bool
+)
+
+var (
+	wormholeFwdSignals = []os.Signal{
+		unix.SIGABRT,
+		unix.SIGALRM,
+		unix.SIGHUP,
+		unix.SIGINT,
+		unix.SIGQUIT,
+		unix.SIGTERM,
+		unix.SIGUSR1,
+		unix.SIGUSR2,
+		unix.SIGKILL,
+	}
 )
 
 const (
@@ -156,9 +171,22 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 	winchChan := make(chan os.Signal, 1)
 	signal.Notify(winchChan, unix.SIGWINCH)
 
+	// forward signals
+	fwdSigChan := make(chan os.Signal, 1)
+	signal.Notify(fwdSigChan, wormholeFwdSignals...)
+
 	go func() {
 		for {
 			select {
+			case sig := <-fwdSigChan:
+				err = server.WriteMessage(&pb.RpcClientMessage{
+					ClientMessage: &pb.RpcClientMessage_Signal{
+						Signal: &pb.Signal{Signal: uint32(sig.(syscall.Signal))},
+					},
+				})
+				if err != nil {
+					return
+				}
 			case <-winchChan:
 				w, h, err := term.GetSize(ptyFd)
 				if err != nil {
