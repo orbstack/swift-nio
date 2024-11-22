@@ -33,4 +33,5 @@ type WormholeRuntimeState struct {
 	WormholeMountTreeFd int `json:"b"`
 	ExitCodePipeWriteFd int `json:"c"`
 	LogFd               int `json:"d"`
+	ServerPidfd         int `json:"e,omitempty"`
 }

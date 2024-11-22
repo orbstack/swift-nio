@@ -10,7 +10,10 @@ pub const WORKDIR: &str = "/data/work";
 pub const WORMHOLE_OVERLAY: &str = "/mnt/wormhole-overlay";
 pub const WORMHOLE_UNIFIED: &str = "/mnt/wormhole-unified";
 pub const NIX_RW_DIRS: [&str; 3] = ["store", "var", "orb/data"];
+
 pub const BUF_SIZE: usize = 65536;
+
+pub const TIMEOUT: u64 = 15;
 
 pub fn unmount_wormhole() -> anyhow::Result<()> {
     for nix_dir in NIX_RW_DIRS {
@@ -79,7 +82,10 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn shutdown() -> anyhow::Result<()> {
-    unmount_wormhole()?;
+pub fn shutdown() -> ! {
+    match unmount_wormhole() {
+        Ok(_) => debug!("unmounted wormhole"),
+        Err(e) => debug!("error unmounting wormhole: {:?}", e),
+    }
     exit(0);
 }

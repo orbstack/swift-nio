@@ -18,16 +18,22 @@ use std::{
         fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
         unix::net::{UnixListener, UnixStream},
     },
-    sync::Arc,
+    process::exit,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     process::Command,
     task::{JoinHandle, JoinSet},
+    time::sleep,
 };
 use tracing::{debug, info, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
-use util::{mount_wormhole, BUF_SIZE, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED};
+use util::{mount_wormhole, BUF_SIZE, TIMEOUT, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED};
 use wormhole::{
     asyncfile::AsyncFile,
     model::{WormholeConfig, WormholeRuntimeState},
@@ -71,11 +77,7 @@ impl Drop for DropGuard {
 
         if *count == 0 {
             debug!("shutting down");
-
-            match util::shutdown() {
-                Ok(_) => debug!("shutdown complete"),
-                Err(e) => debug!("error shutting down: {:?}", e),
-            }
+            util::shutdown();
         }
     }
 }
@@ -129,6 +131,9 @@ struct WormholeServer {
     // store the count as std::sync::Mutex since Drop cannot be async. This is fine because
     // we don't need to ever hold the lock across any await points.
     count: Arc<std::sync::Mutex<u32>>,
+
+    // whether any clients have connected yet
+    has_connected: Arc<AtomicBool>,
 }
 
 impl WormholeServer {
@@ -138,12 +143,25 @@ impl WormholeServer {
             // with the tokio task that spawns wormhole-attach and handles refcount decrement -
             // otherwise, the wormhole-attach task may outlive its reference to count
             count: Arc::new(std::sync::Mutex::new(0)),
+            has_connected: Arc::new(AtomicBool::new(false)),
         })
     }
 
     fn init(&self) -> anyhow::Result<()> {
         debug!("initializing wormhole");
-        mount_wormhole()
+        mount_wormhole()?;
+
+        // shutdown server if no clients have connected before timeout
+        let has_connected = self.has_connected.clone();
+        tokio::spawn(async move {
+            sleep(Duration::from_secs(TIMEOUT)).await;
+
+            if !has_connected.load(Ordering::SeqCst) {
+                util::shutdown();
+            }
+        });
+
+        Ok(())
     }
 
     fn listen(self: &Arc<Self>) -> anyhow::Result<()> {
@@ -279,6 +297,8 @@ impl WormholeServer {
     }
 
     async fn handle_client(&self, stream: UnixStream) -> anyhow::Result<()> {
+        self.has_connected.store(true, Ordering::SeqCst);
+
         // get client fds via scm_rights over the stream
         debug!("waiting for rpc client fds");
         let (mut client_stdin, mut client_stdout) = recv_rpc_client(&stream)?;
