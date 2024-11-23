@@ -12,7 +12,7 @@ variable "PLATFORM" {
   default = "linux/arm64"
 }
 variable "VERSION" {
-  default = "1"
+  default = "1.0.0"
 }
 
 target "rootfs" {
@@ -38,9 +38,10 @@ target "wormhole" {
     TYPE      = "${BTYPE}"
     ARCH      = "${ARCH}"
     HOST_ARCH = "${HOST_ARCH}"
+    WORMHOLE_SERVER_VERSION = "${VERSION}"
   }
   target     = "wormhole-remote"
   ssh        = ["default"]
   platforms  = ["${PLATFORM}"]
-  tags       = ["registry.orb.local/wormhole:${ARCH}-${VERSION}"]
+  tags       = ["registry.orb.local/wormhole:${VERSION}-${ARCH}"]
 }

@@ -392,6 +392,9 @@ COPY --from=rust-build /out/wormhole-attach /bin/wormhole-attach
 COPY --from=rust-build /out/wormhole-proxy /bin/wormhole-proxy
 COPY --from=rust-build /out/server /bin/wormhole-server
 
+ARG WORMHOLE_SERVER_VERSION
+ENV WORMHOLE_SERVER_VERSION=${WORMHOLE_SERVER_VERSION}
+
 
 ##########################################################################
 # Main rootfs!

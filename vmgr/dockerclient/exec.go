@@ -58,7 +58,7 @@ func (c *Client) ExecCreate(cid string, execReq *dockertypes.ContainerExecCreate
 
 func (c *Client) ExecInspect(execID string) (*dockertypes.ContainerExecInspect, error) {
 	var inspectResp dockertypes.ContainerExecInspect
-	if err := c.Call("POST", "/exec/"+url.PathEscape(execID)+"/json", nil, &inspectResp); err != nil {
+	if err := c.Call("GET", "/exec/"+url.PathEscape(execID)+"/json", nil, &inspectResp); err != nil {
 		return nil, err
 	}
 	return &inspectResp, nil
@@ -99,10 +99,10 @@ func (c *Client) Exec(cid string, execReq *dockertypes.ContainerExecCreateReques
 	return output.String(), nil
 }
 
-func (c *Client) ExecStream(cid string, execReq *dockertypes.ContainerExecCreateRequest) (io.Reader, io.WriteCloser, error) {
+func (c *Client) ExecStream(cid string, execReq *dockertypes.ContainerExecCreateRequest) (io.Reader, io.WriteCloser, string, error) {
 	execCreate, err := c.ExecCreate(cid, execReq)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create exec: %w", err)
+		return nil, nil, "", fmt.Errorf("create exec: %w", err)
 	}
 
 	// upgrade to tcp
@@ -111,8 +111,8 @@ func (c *Client) ExecStream(cid string, execReq *dockertypes.ContainerExecCreate
 		Tty:    false,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("exec stream: %w", err)
+		return nil, nil, "", fmt.Errorf("exec stream: %w", err)
 	}
 
-	return reader, writer, nil
+	return reader, writer, execCreate.ID, nil
 }

@@ -20,7 +20,10 @@ import (
 
 var errNeedRetry = errors.New("server stopped on remote host, retrying")
 
-const registryImage = "registry.orb.local/wormhole:1"
+const registryImage = "registry.orb.local/wormhole:1.0.0"
+
+const versionMismatchExitCode = 123
+
 const maxRetries = 3
 
 // returns the docker daemon, isLocal, error
@@ -88,8 +91,9 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 	pullingFromOverride := "Pulling remote debug image from OrbStack registry"
 	serverContainerId, err := client.RunContainer(
 		dockerclient.RunContainerOptions{
-			Name:      "orbstack-wormhole",
-			PullImage: true,
+			Name: "orbstack-wormhole",
+			// uncomment to always pull latest images for local dev
+			// PullImage: true,
 			PullImageOpts: &dockerclient.PullImageOptions{
 				ProgressOut:         os.Stderr,
 				IsTerminal:          term.IsTerminal(fdStderr),
@@ -120,11 +124,12 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		}
 	}
 
-	reader, writer, err := client.ExecStream(serverContainerId, &dockertypes.ContainerExecCreateRequest{
+	reader, writer, execId, err := client.ExecStream(serverContainerId, &dockertypes.ContainerExecCreateRequest{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
 		Cmd:          []string{"/bin/wormhole-proxy"},
+		Env:          []string{fmt.Sprintf("WORMHOLE_CLIENT_VERSION=%s", Version)},
 	})
 	if err != nil {
 		// the server may have been removed or stopped right after we inspected it; retry in those cases
@@ -157,11 +162,17 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		// EOF means that the client attach session was abruptly closed. This may happen
 		// due to wormhole-proxy crashing or the server container shutting down (before we've
 		// received an acknowledgement). We should only retry in the latter case.
-		if err == io.EOF {
-			_, inspectErr := client.InspectContainer(serverContainerId)
-			// if server no long exists (shutdown after we attached via exec), retry
-			if dockerclient.IsStatusError(inspectErr, 404) {
-				return nil, errNeedRetry
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
+			execInspect, inspectErr := client.ExecInspect(execId)
+			if inspectErr != nil {
+				// if exec instance no longer exists, i.e. the server shutdown after we attached via exec, retry
+				if dockerclient.IsStatusError(inspectErr, 404) {
+					return nil, errNeedRetry
+				} else {
+					return nil, err
+				}
+			} else if execInspect.ExitCode == versionMismatchExitCode {
+				return nil, errors.New(fmt.Sprintf("client version %s unsupported by debug server", Version))
 			} else {
 				return nil, errors.New("client proxy exited unexpectedly")
 			}

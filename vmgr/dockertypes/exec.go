@@ -8,6 +8,7 @@ type ContainerExecCreateRequest struct {
 	AttachStdin  bool
 	AttachStdout bool
 	AttachStderr bool
+	Env          []string
 	Cmd          []string
 	WorkingDir   string
 }
