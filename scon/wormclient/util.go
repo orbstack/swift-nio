@@ -110,7 +110,7 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 				CgroupnsMode: "host",
 				PidMode:      "host",
 				NetworkMode:  "none",
-				AutoRemove:   true,
+				// AutoRemove:   true,
 			},
 		})
 	if err != nil {

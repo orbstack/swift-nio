@@ -23,4 +23,3 @@ docker manifest create registry.orb.local/wormhole:${VERSION} \
     registry.orb.local/wormhole:${VERSION}-amd64 \
     registry.orb.local/wormhole:${VERSION}-arm64
 docker manifest push registry.orb.local/wormhole:${VERSION}
-

@@ -18,9 +18,6 @@ arm64_manifest = arm64_file["manifests"][0]
 amd64_manifest["platform"] = {"architecture": "amd64", "os": "linux"}
 arm64_manifest["platform"] = {"architecture": "arm64", "os": "linux"}
 
-del arm64_manifest["annotations"]
-del amd64_manifest["annotations"]
-
 manifests = [amd64_manifest, arm64_manifest]
 out = {
     "schemaVersion": 2,
