@@ -61,13 +61,13 @@ func (c *Client) OnDockerRefsChanged() error {
 	return c.rpc.Call("scg.OnDockerRefsChanged", None{}, &noResult)
 }
 
-func (c *Client) GetProxyUpstreamByHost(host string, v4 bool) (domainproxytypes.Upstream, error) {
-	var reply domainproxytypes.Upstream
+func (c *Client) GetProxyUpstreamByHost(host string, v4 bool) (netip.Addr, domainproxytypes.Upstream, error) {
+	var reply sgtypes.GetProxyUpstreamByHostResponse
 	err := c.rpc.Call("scg.GetProxyUpstreamByHost", sgtypes.GetProxyUpstreamByHostArgs{Host: host, V4: v4}, &reply)
 	if err != nil {
-		return domainproxytypes.Upstream{}, err
+		return netip.Addr{}, domainproxytypes.Upstream{}, err
 	}
-	return reply, nil
+	return reply.Addr, reply.Upstream, nil
 }
 
 func (c *Client) GetProxyUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {
@@ -75,6 +75,15 @@ func (c *Client) GetProxyUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstr
 	err := c.rpc.Call("scg.GetProxyUpstreamByAddr", addr, &reply)
 	if err != nil {
 		return domainproxytypes.Upstream{}, err
+	}
+	return reply, nil
+}
+
+func (c *Client) GetMachineOpenPorts(machineID string) (map[uint16]struct{}, error) {
+	var reply map[uint16]struct{}
+	err := c.rpc.Call("scg.GetMachineOpenPorts", machineID, &reply)
+	if err != nil {
+		return nil, err
 	}
 	return reply, nil
 }

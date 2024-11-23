@@ -367,6 +367,16 @@ func (c *Client) DockerEndWormhole(args EndWormholeArgs) error {
 	return nil
 }
 
+func (c *Client) DockerGetContainerOpenPorts(containerID string) (map[uint16]struct{}, error) {
+	var reply map[uint16]struct{}
+	err := c.rpc.Call("a.DockerGetContainerOpenPorts", containerID, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	return reply, nil
+}
+
 func (c *Client) ServeSftp(user string, socket *os.File) (int, error) {
 	seq, err := c.fdx.SendFile(socket)
 	if err != nil {

@@ -3,10 +3,12 @@ package agent
 import (
 	"fmt"
 	"net/netip"
+	"os"
 
 	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 )
@@ -15,7 +17,7 @@ type DockerProxyCallbacks struct {
 	d *DockerAgent
 }
 
-func (cb *DockerProxyCallbacks) GetUpstreamByHost(host string, v4 bool) (domainproxytypes.Upstream, error) {
+func (cb *DockerProxyCallbacks) GetUpstreamByHost(host string, v4 bool) (netip.Addr, domainproxytypes.Upstream, error) {
 	return cb.d.scon.GetProxyUpstreamByHost(host, v4)
 }
 
@@ -37,6 +39,14 @@ func (cb *DockerProxyCallbacks) NfqueueMarkSkip(mark uint32) uint32 {
 
 func (cb *DockerProxyCallbacks) NftableName() string {
 	return netconf.NftableInet
+}
+
+func (cb *DockerProxyCallbacks) GetMachineOpenPorts(machineID string) (map[uint16]struct{}, error) {
+	return cb.d.scon.GetMachineOpenPorts(machineID)
+}
+
+func (cb *DockerProxyCallbacks) GetContainerOpenPorts(containerID string) (map[uint16]struct{}, error) {
+	return cb.d.getDockerContainerOpenPorts(containerID)
 }
 
 func (d *DockerAgent) startDomainTLSProxy() error {
@@ -77,5 +87,55 @@ func (d *DockerAgent) updateTLSProxyNftables(enabled bool) error {
 	}
 
 	d.domainTLSProxyActive = enabled
+	return nil
+}
+
+func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint16]struct{}, error) {
+	ctr, err := d.client.InspectContainer(containerID)
+	if err != nil {
+		return nil, err
+	}
+	pid := ctr.State.Pid
+	if pid == 0 {
+		logrus.Debugf("soweli | no pid for container %v", containerID)
+		return map[uint16]struct{}{}, nil
+	}
+
+	logrus.Debugf("soweli | got pid %d for container %v", pid, containerID)
+
+	openPorts := map[uint16]struct{}{}
+
+	// always grab both v4 and v6 ports because dual stack shows up as ipv6 anyways, so not worth the effort to differentiate
+	// especially when our probing routine should be relatively fast anyways, especially for non-listening ports
+	netTcp4, err := os.ReadFile(fmt.Sprintf("/proc/%d/net/tcp", pid))
+	if err != nil {
+		return nil, err
+	}
+
+	netTcp6, err := os.ReadFile(fmt.Sprintf("/proc/%d/net/tcp6", pid))
+	if err != nil {
+		return nil, err
+	}
+
+	err = util.ParseNetTcpPorts(string(netTcp4), openPorts)
+	if err != nil {
+		return nil, err
+	}
+
+	err = util.ParseNetTcpPorts(string(netTcp6), openPorts)
+	if err != nil {
+		return nil, err
+	}
+
+	return openPorts, nil
+}
+
+func (a *AgentServer) DockerGetContainerOpenPorts(containerID string, reply *map[uint16]struct{}) error {
+	openPorts, err := a.docker.getDockerContainerOpenPorts(containerID)
+	if err != nil {
+		return err
+	}
+
+	*reply = openPorts
 	return nil
 }

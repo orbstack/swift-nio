@@ -13,6 +13,9 @@ type Upstream struct {
 	Names  []string
 	IP     net.IP
 	Docker bool
+
+	// machine id if docker is false, container id if docker is true
+	ContainerID string
 }
 
 func slicesEqualUnordered[T cmp.Ordered](s1 []T, s2 []T) bool {
@@ -41,5 +44,5 @@ func (u Upstream) NamesEqual(other Upstream) bool {
 
 // returns true if two upstream objects have the same routing information
 func (u Upstream) ValEqual(other Upstream) bool {
-	return u.IP.Equal(other.IP) && u.Docker == other.Docker
+	return u.IP.Equal(other.IP) && u.Docker == other.Docker && u.ContainerID == other.ContainerID
 }

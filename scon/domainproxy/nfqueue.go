@@ -2,11 +2,15 @@ package domainproxy
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/netip"
-	"strconv"
+	"sync"
 	"time"
 
 	"github.com/florianl/go-nfqueue"
@@ -18,6 +22,14 @@ import (
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+)
+
+type proto int
+
+const (
+	protoOther proto = iota
+	protoHTTP
+	protoHTTPS
 )
 
 func (d *DomainTLSProxy) startQueue(queueNum uint16, flags uint32) error {
@@ -60,10 +72,12 @@ func (d *DomainTLSProxy) startQueue(queueNum uint16, flags uint32) error {
 				}
 
 				if hasUpstream {
+					logrus.Debug("soweli | skip")
 					// there's an upstream, so accept the connection. (accept = continue nftables)
 					// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
 					mark = d.cb.NfqueueMarkSkip(mark)
 				} else {
+					logrus.Debug("soweli | reject")
 					// no upstream, so reject the connection.
 					// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
 					mark = d.cb.NfqueueMarkReject(mark)
@@ -136,7 +150,6 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 	}
 
 	mark := d.cb.GetMark(upstream)
-	// var dialer *net.Dialer
 	srcIPSlice := srcIP.AsSlice()
 	var dialer *net.Dialer
 	if upstream.IP.Equal(srcIPSlice) {
@@ -148,9 +161,15 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 	dialer.Timeout = upstreamDialTimeout / time.Duration(len(upstreamProbePorts))
 
 	// pessimistically keep probing on every SYN until upstream is ready
-	if !testUpstreamPorts(dialer, upstream) {
+	proxyUp, err := d.probeHost(dialer, upstream)
+	if err != nil {
+		return false, err
+	}
+	if proxyUp == (proxyUpstream{}) {
+		logrus.Debug("soweli | failed to dial")
 		return false, nil
 	}
+	d.probedHosts[dstIP] = proxyUp
 
 	// add to probed set
 	setName := "domainproxy4_probed"
@@ -168,13 +187,145 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 	return true, nil
 }
 
-func testUpstreamPorts(dialer *net.Dialer, upstream domainproxytypes.Upstream) bool {
-	for _, port := range upstreamProbePorts {
-		conn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstream.IP.String(), strconv.Itoa(port)))
-		if err == nil {
-			conn.Close()
-			return true
+func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (proxyUpstream, error) {
+	if upstream.ContainerID == "" {
+		logrus.Error("unable to probe host: upstream has no container id")
+		return proxyUpstream{}, fmt.Errorf("get upstream container id")
+	}
+
+	ports := map[uint16]struct{}{}
+
+	var err error
+	if upstream.Docker {
+		ports, err = d.cb.GetContainerOpenPorts(upstream.ContainerID)
+	} else {
+		ports, err = d.cb.GetMachineOpenPorts(upstream.ContainerID)
+	}
+	if err != nil {
+		return proxyUpstream{}, fmt.Errorf("get open ports: %w", err)
+	}
+	logrus.Debugf("soweli | open ports: %v", ports)
+
+	var httpWg sync.WaitGroup
+	var httpsWg sync.WaitGroup
+
+	httpCtx, httpCancel := context.WithCancel(context.Background())
+	defer httpCancel()
+	httpsCtx, httpsCancel := context.WithCancel(context.Background())
+	defer httpsCancel()
+
+	var proxyUp proxyUpstream
+
+	// we concurrently try to dial every port with tls and http
+	// we prefer a tls connection over an http connection, so we give a 500ms timeout for a response to a tls HELO
+	// if there's no response in 500ms, we pick http (if we found one) or fail
+	for port := range ports {
+		httpsWg.Add(1)
+		go func() {
+			defer httpsWg.Done()
+
+			if testPortHTTPS(httpsCtx, dialer, upstream, port) {
+				// since we prefer https, we can cancel everything
+				logrus.WithFields(logrus.Fields{"port": port}).Debug("soweli | https succeeded")
+				httpsCancel()
+				httpCancel()
+				proxyUp = proxyUpstream{
+					port:  port,
+					https: true,
+				}
+			}
+		}()
+
+		httpWg.Add(1)
+		go func() {
+			defer httpWg.Done()
+
+			if testPortHTTP(httpCtx, dialer, upstream, port) {
+				logrus.WithFields(logrus.Fields{"port": port}).Debug("soweli | http succeeded")
+				httpCancel()
+				// we want to make sure we're not racing with one of the https probes
+				httpsWg.Wait()
+				// then this can only race with http probes, which is fine since no preference for http hosts is guaranteed regardless
+				if proxyUp == (proxyUpstream{}) {
+					proxyUp = proxyUpstream{
+						port:  port,
+						https: false,
+					}
+				}
+			}
+		}()
+	}
+
+	httpsWg.Wait()
+	httpWg.Wait()
+	return proxyUp, nil
+}
+
+func testPortHTTP(ctx context.Context, dialer *net.Dialer, upstream domainproxytypes.Upstream, port uint16) bool {
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
+				return dialer.DialContext(ctx, network, addr)
+			},
+		},
+	}
+
+	_, err := client.Head(fmt.Sprintf("http://%v:%v", upstream.IP, port))
+	if err != nil {
+		logrus.WithError(err).Error("soweli | testPortHTTP")
+		return false
+	} else {
+		return true
+	}
+}
+
+func testPortHTTPS(ctx context.Context, dialer *net.Dialer, upstream domainproxytypes.Upstream, port uint16) bool {
+	serverName := ""
+	if len(upstream.Names) > 0 {
+		serverName = upstream.Names[0]
+	}
+	tlsDialer := &tls.Dialer{
+		NetDialer: dialer,
+		Config: &tls.Config{
+			InsecureSkipVerify: true,
+			ServerName:         serverName,
+			VerifyConnection: func(tls.ConnectionState) error {
+				return fmt.Errorf("abort connection")
+			},
+			VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+				return fmt.Errorf("abort connection")
+			},
+		},
+	}
+	conn, err := tlsDialer.DialContext(ctx, "tcp", fmt.Sprintf("%v:%v", upstream.IP, port))
+	if err == nil {
+		conn.Close()
+	} else {
+		logrus.Debugf("soweli | testPortHTTPS: %v, %T, %T", err, err, errors.Unwrap(err))
+		var recordHeaderErr tls.RecordHeaderError
+		if errors.As(err, &recordHeaderErr) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) || errors.Is(err, unix.ECONNREFUSED) {
+			return false
 		}
 	}
-	return false
+
+	return true
+}
+
+func (p *DomainTLSProxy) getOrProbeHost(dialer *net.Dialer, addr netip.Addr, upstream domainproxytypes.Upstream) (proxyUpstream, error) {
+	proxyUp, ok := p.probedHosts[addr]
+	if !ok {
+		logrus.Debug("probing host outside of nfqueue")
+
+		var err error
+		proxyUp, err = p.probeHost(dialer, upstream)
+		if err != nil {
+			return proxyUpstream{}, fmt.Errorf("probe host: %w", err)
+		}
+		if proxyUp == (proxyUpstream{}) {
+			logrus.Debug("soweli | failed to dial")
+			return proxyUpstream{}, nil
+		}
+	}
+
+	return proxyUp, nil
 }

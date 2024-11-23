@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -31,7 +32,7 @@ import (
 
 const upstreamDialTimeout = 500 * time.Millisecond
 
-var upstreamProbePorts = [...]int{80, 443}
+var upstreamProbePorts = [...]uint16{80, 443}
 
 type MdnsContextKey int
 
@@ -41,13 +42,21 @@ const (
 
 type ProxyCallbacks interface {
 	// takes name or IP string
-	GetUpstreamByHost(host string, v4 bool) (domainproxytypes.Upstream, error)
+	GetUpstreamByHost(host string, v4 bool) (netip.Addr, domainproxytypes.Upstream, error)
 	GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error)
 	GetMark(upstream domainproxytypes.Upstream) int
 
 	NftableName() string
 	NfqueueMarkReject(mark uint32) uint32
 	NfqueueMarkSkip(mark uint32) uint32
+
+	GetMachineOpenPorts(machineID string) (map[uint16]struct{}, error)
+	GetContainerOpenPorts(containerID string) (map[uint16]struct{}, error)
+}
+
+type proxyUpstream struct {
+	port  uint16
+	https bool
 }
 
 type DomainTLSProxy struct {
@@ -55,6 +64,8 @@ type DomainTLSProxy struct {
 
 	tlsController *tlsutil.TLSController
 	tproxy        *bpf.Tproxy
+
+	probedHosts map[netip.Addr]proxyUpstream
 }
 
 func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy, error) {
@@ -66,6 +77,8 @@ func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy
 	return &DomainTLSProxy{
 		tlsController: tlsController,
 		cb:            cb,
+
+		probedHosts: make(map[netip.Addr]proxyUpstream),
 	}, nil
 }
 
@@ -330,40 +343,30 @@ func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListen
 	is4 := downstreamIP.To4() != nil
 
 	// this works because we never change the dest, only hook sk_assign (like tproxy but sillier)
-	destHost, destPort, err := net.SplitHostPort(conn.LocalAddr().String())
+	destHost, _, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
 		return fmt.Errorf("split host/port: %w", err)
 	}
 
-	upstream, err := p.cb.GetUpstreamByHost(destHost, is4)
+	addr, upstream, err := p.cb.GetUpstreamByHost(destHost, is4)
 	if err != nil {
 		return fmt.Errorf("get upstream: %w", err)
 	}
 	mark := p.cb.GetMark(upstream)
 
-	// attempt to make a connection to port 443 to do reterm
-	// since these are local containers, connection should fail fast and return RST (-ECONNREFUSED)
-	// EXCEPT: if dest is a machine and user installed ufw, then ufw will drop the packet and we'll get a timeout
-	//   * workaround: short connection timeout
-	//     * this works: if load test is causing listen backlog to be full, we will get immediate RST because port is open in firewall
-	// still need to bind to host to get correct cfwd behavior, especially for 443->8443 or 443->https_port case
-	// TODO: do with probing
-	https := false
-	// skip for hairpinning (would cause src == dst IP)
 	var dialer *net.Dialer
 	if !downstreamIP.Equal(upstream.IP) {
 		dialer = dialerForTransparentBind(downstreamIP, mark)
 	} else {
 		dialer = &net.Dialer{}
 	}
-	dialer.Timeout = upstreamDialTimeout
-	upstreamConn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(upstream.IP.String(), destPort))
-	if err == nil {
-		upstreamConn.Close()
-		https = true
+
+	proxyUp, err := p.getOrProbeHost(dialer, addr, upstream)
+	if err != nil {
+		return err
 	}
 
-	if https {
+	if proxyUp.https {
 		return httpsHandler.SubmitConn(conn)
 	} else {
 		return httpHandler.SubmitConn(conn)
@@ -414,7 +417,7 @@ func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest, https bool) er
 }
 
 func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
-	dialHost, dialPort, err := net.SplitHostPort(addr)
+	dialHost, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +428,7 @@ func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string)
 		is4 = downstreamIP.(net.IP).To4() != nil
 	}
 
-	upstream, err := p.cb.GetUpstreamByHost(dialHost, is4)
+	domainproxyAddr, upstream, err := p.cb.GetUpstreamByHost(dialHost, is4)
 	if err != nil {
 		return nil, err
 	}
@@ -439,7 +442,10 @@ func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string)
 		dialer = &net.Dialer{}
 	}
 
-	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), dialPort))
+	proxyUp, err := p.getOrProbeHost(dialer, domainproxyAddr, upstream)
+	port := strconv.Itoa(int(proxyUp.port))
+
+	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), port))
 }
 
 // the default action with no handler is to send a 502 with no content and to log

@@ -705,7 +705,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 	var ip6 net.IP
 	// we're protected by the mdnsRegistry mutex
 	if ctrIP4 != nil {
-		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{IP: ctrIP4, Names: nameStrings, Docker: true})
+		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{IP: ctrIP4, Names: nameStrings, Docker: true, ContainerID: ctr.ID})
 		if err != nil {
 			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip4 for DNS")
 		} else {
@@ -713,7 +713,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 		}
 	}
 	if ctrIP6 != nil {
-		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{IP: ctrIP6, Names: nameStrings, Docker: true})
+		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{IP: ctrIP6, Names: nameStrings, Docker: true, ContainerID: ctr.ID})
 		if err != nil {
 			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip6 for DNS")
 		} else {

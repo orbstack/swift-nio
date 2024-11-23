@@ -18,7 +18,7 @@ bpf/vmlinux.h: /sys/kernel/btf/vmlinux
 bpf/bnat_%: bpf/src/bnat.c
 	@go generate ./bpf
 
-bpf/lfwd_%: bpf/src/lfwd.c bpf/src/cfwd.h
+bpf/lfwd_%: bpf/src/lfwd.c
 	@go generate ./bpf
 
 bpf/pmon_%: bpf/src/pmon.c

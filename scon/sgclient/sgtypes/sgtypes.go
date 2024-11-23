@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
@@ -111,4 +112,9 @@ func lastIPInSubnet(addr net.IP, mask net.IPMask) net.IP {
 type GetProxyUpstreamByHostArgs struct {
 	Host string
 	V4   bool
+}
+
+type GetProxyUpstreamByHostResponse struct {
+	Addr     netip.Addr
+	Upstream domainproxytypes.Upstream
 }
