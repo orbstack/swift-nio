@@ -10,7 +10,9 @@ if len(sys.argv) != 3:
 amd64_file = json.loads(open(sys.argv[1], "r").read())
 arm64_file = json.loads(open(sys.argv[2], "r").read())
 
-assert len(amd64_file["manifests"]) == len(arm64_file["manifests"]) == 1, "expected one manifest per architecture"
+assert (
+    len(amd64_file["manifests"]) == len(arm64_file["manifests"]) == 1
+), "expected one manifest per architecture"
 
 amd64_manifest = amd64_file["manifests"][0]
 arm64_manifest = arm64_file["manifests"][0]
@@ -22,7 +24,7 @@ manifests = [amd64_manifest, arm64_manifest]
 out = {
     "schemaVersion": 2,
     "mediaType": "application/vnd.oci.image.index.v1+json",
-    "manifests": manifests
+    "manifests": manifests,
 }
 
 print(json.dumps(out))
