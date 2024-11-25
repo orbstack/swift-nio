@@ -11,8 +11,8 @@ VERSION="$(head -n1 wormhole/version.txt)"
 rm -rf out/wormhole
 mkdir -p out/wormhole
 
-VERSION="$VERSION" TYPE="$BTYPE" PLATFORM="linux/amd64" ARCH="amd64" HOST_ARCH="amd64" docker buildx bake -f rootfs/docker-bake.hcl wormhole
-VERSION="$VERSION" TYPE="$BTYPE" PLATFORM="linux/arm64" ARCH="arm64" HOST_ARCH="arm64" docker buildx bake -f rootfs/docker-bake.hcl wormhole
+VERSION="$VERSION" BTYPE="$BTYPE" PLATFORM="linux/amd64" ARCH="amd64" HOST_ARCH="amd64" docker buildx bake -f rootfs/docker-bake.hcl wormhole
+VERSION="$VERSION" BTYPE="$BTYPE" PLATFORM="linux/arm64" ARCH="arm64" HOST_ARCH="arm64" docker buildx bake -f rootfs/docker-bake.hcl wormhole
 
 # todo: swap version order
 docker push registry.orb.local/wormhole:${VERSION}-amd64
