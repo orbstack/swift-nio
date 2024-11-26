@@ -15,6 +15,7 @@ use std::{
     env,
     fs::{self},
     future::pending,
+    io::stdout,
     os::{
         fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
         linux::net::SocketAddrExt,
@@ -34,7 +35,9 @@ use tokio::{
 };
 use tracing::{debug, error, info, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
-use util::{mount_wormhole, BUF_SIZE, TIMEOUT, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED};
+use util::{
+    map_monitor_signal, mount_wormhole, BUF_SIZE, TIMEOUT, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED,
+};
 use wormhole::{
     asyncfile::AsyncFile,
     model::{WormholeConfig, WormholeRuntimeState},
@@ -241,8 +244,11 @@ impl WormholeServer {
                             continue;
                         }
                     };
-                    if let Err(e) = monitor_pidfd.kill(signal) {
-                        error!("got error sending signal {signal} to payload: {e}");
+
+                    if let Some(mapped_signal) = map_monitor_signal(signal) {
+                        if let Err(e) = monitor_pidfd.kill(mapped_signal) {
+                            error!("got error sending signal {mapped_signal} to payload: {e}");
+                        }
                     }
                 }
                 _ => error!("unknown message from client"),
@@ -411,17 +417,7 @@ impl WormholeServer {
             libc::OPEN_TREE_CLOEXEC | libc::OPEN_TREE_CLONE | libc::AT_RECURSIVE as u32,
         )?;
 
-        // the log write pipe must exist beyond the lifetime of the server, since if the server
-        // is abruptly killed, the wormhole-attach monitor and subreaper processes must still exist to clean
-        // up any remaining background processes. If the log write pipe is closed alongside the server,
-        // the monitor and subreaper will crash when logging.
-        let log_pipe_write_fd = unsafe {
-            OwnedFd::from_raw_fd(open(
-                "/dev/null",
-                OFlag::O_WRONLY | OFlag::O_CLOEXEC,
-                Mode::empty(),
-            )?)
-        };
+        let log_pipe_write_fd = dup_owned(stdout().as_raw_fd())?;
         let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe2_owned()?;
         set_nonblocking(exit_code_pipe_read_fd.as_raw_fd())?;
         let exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd.into_raw_fd())?;

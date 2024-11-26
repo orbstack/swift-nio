@@ -38,10 +38,9 @@ for ARCH in "amd64" "arm64"; do
     VERSION="$VERSION" BTYPE="$BTYPE" PLATFORM="linux/$ARCH" ARCH="$ARCH" HOST_ARCH="$HOST_ARCH" docker buildx bake -f rootfs/docker-bake.hcl wormhole
 done
 
-echo $ENVIRONMENT
 if [[ "$ENVIRONMENT" != "prod" ]]; then
     for ARCH in "amd64" "arm64"; do
-        docker push drmserver-app-1.orb.local/wormhole:$VERSION-$ARCH
+        docker push registry.orb.local/wormhole:$VERSION-$ARCH
     done
 
     docker manifest rm registry.orb.local/wormhole:$VERSION || :

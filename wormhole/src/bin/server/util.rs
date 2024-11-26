@@ -1,6 +1,9 @@
 use std::{fs, process::exit};
 
-use nix::mount::{umount2, MntFlags, MsFlags};
+use nix::{
+    mount::{umount2, MntFlags, MsFlags},
+    sys::signal::Signal,
+};
 use tracing::{debug, error};
 use wormhole::{bind_mount_ro, mount_common};
 
@@ -14,6 +17,21 @@ pub const NIX_RW_DIRS: [&str; 3] = ["store", "var", "orb/data"];
 pub const BUF_SIZE: usize = 65536;
 
 pub const TIMEOUT: u64 = 15 * 60;
+
+pub fn map_monitor_signal(signal: Signal) -> Option<Signal> {
+    match signal {
+        Signal::SIGABRT => Some(Signal::SIGABRT),
+        Signal::SIGALRM => Some(Signal::SIGALRM),
+        Signal::SIGHUP => Some(Signal::SIGHUP),
+        Signal::SIGINT => Some(Signal::SIGINT),
+        Signal::SIGQUIT => Some(Signal::SIGQUIT),
+        Signal::SIGTERM => Some(Signal::SIGTERM),
+        Signal::SIGUSR1 => Some(Signal::SIGUSR1),
+        Signal::SIGUSR2 => Some(Signal::SIGUSR2),
+        Signal::SIGKILL => Some(Signal::SIGPWR),
+        _ => None,
+    }
+}
 
 pub fn unmount_wormhole() -> anyhow::Result<()> {
     for nix_dir in NIX_RW_DIRS {
