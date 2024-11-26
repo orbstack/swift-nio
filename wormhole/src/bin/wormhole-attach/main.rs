@@ -360,6 +360,10 @@ fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_span_events(FmtSpan::CLOSE)
         .with_max_level(Level::TRACE)
+        // if the wormhole server dies and therefore closes the stdout/stderr read pipes for monitor and subreaper,
+        // writing to them will cause an EPIPE. By default, tracing will try to log these errors to stderr,
+        // but stderr is closed as well! So, disable internal error logging to avoid crashing when server exits.
+        .log_internal_errors(false)
         .init();
 
     // stdin, stdout, stderr are expected to be 0,1,2 and will be propagated to the child

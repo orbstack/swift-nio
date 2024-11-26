@@ -158,6 +158,9 @@ pub fn run(
     Ok(())
 }
 
+const SUBREAPER_SIGNAL_EVENT: u64 = 1;
+const SERVER_EVENT: u64 = 2;
+
 fn monitor(
     forward_signal_socket: UnixStream,
     intermediate: Pid,
@@ -167,9 +170,15 @@ fn monitor(
     trace!("entering main event loop");
 
     let epoll = Epoll::new(EpollCreateFlags::EPOLL_CLOEXEC)?;
-    epoll.add(&sfd, EpollEvent::new(EpollFlags::EPOLLIN, 1))?;
+    epoll.add(
+        &sfd,
+        EpollEvent::new(EpollFlags::EPOLLIN, SUBREAPER_SIGNAL_EVENT),
+    )?;
     if let Some(server_pidfd) = server_pidfd {
-        epoll.add(&server_pidfd, EpollEvent::new(EpollFlags::EPOLLIN, 2))?;
+        epoll.add(
+            &server_pidfd,
+            EpollEvent::new(EpollFlags::EPOLLIN, SERVER_EVENT),
+        )?;
     }
 
     let mut events = [EpollEvent::empty(); 2];
@@ -188,8 +197,8 @@ fn monitor(
         };
 
         for event in &events[0..n] {
-            if event.data() == 1 {
-                match sfd.read_signal() {
+            match event.data() {
+                SUBREAPER_SIGNAL_EVENT => match sfd.read_signal() {
                     Ok(Some(sig)) if sig.ssi_signo == Signal::SIGCHLD as u32 => {
                         let mut should_break = false;
 
@@ -218,12 +227,12 @@ fn monitor(
                         }
                     }
                     result => trace!(?result, "unexpected read_signal result"),
+                },
+                SERVER_EVENT => {
+                    // if the server is abruptly killed, break out of loop and start background task cleanup
+                    break 'outer;
                 }
-            } else if event.data() == 2 {
-                // if the server is abruptly killed, break out of loop and start background task cleanup
-                break 'outer;
-            } else {
-                trace!("unexpected epoll event {}", event.data());
+                _ => panic!("unexpected epoll event {}", event.data()),
             }
         }
     }

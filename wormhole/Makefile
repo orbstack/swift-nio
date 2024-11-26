@@ -1,13 +1,13 @@
 .PHONY: publish-local-debug publish-local-release publish replace
 
-publish-local-debug:
-	@./publish-local.sh debug
+publish-dev-debug:
+	@./publish.sh dev debug
 
-publish-local-release:
-	@./publish-local.sh release
+publish-dev-release:
+	@./publish.sh dev release
 
 publish:
-	@./publish.sh
+	@./publish.sh prod release
 
 # can't replace cattach because alpine rust links dynamically
 replace:

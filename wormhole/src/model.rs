@@ -30,6 +30,9 @@ pub struct WormholeRuntimeState {
     pub exit_code_pipe_write_fd: RawFd,
     #[serde(rename = "d")]
     pub log_fd: RawFd,
+
+    // note: the server pidfd is not used by local wormhole for handling abrupt server exits,
+    // since scon will continue to run as long as the machine is running
     #[serde(rename = "e")]
     pub server_pidfd: Option<RawFd>,
 }

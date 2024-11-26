@@ -32,7 +32,7 @@ use tokio::{
     task::{JoinHandle, JoinSet},
     time::sleep,
 };
-use tracing::{debug, info, trace, Level};
+use tracing::{debug, error, info, trace, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use util::{mount_wormhole, BUF_SIZE, TIMEOUT, UPPERDIR, WORKDIR, WORMHOLE_UNIFIED};
 use wormhole::{
@@ -135,6 +135,10 @@ struct WormholeServer {
 
     // whether any clients have connected yet
     has_connected: Arc<AtomicBool>,
+
+    // pidfd of the current server process that wormhole-attach monitor uses to listen
+    // for abrupt server exits
+    server_pidfd: PidFd,
 }
 
 impl WormholeServer {
@@ -145,6 +149,7 @@ impl WormholeServer {
             // otherwise, the wormhole-attach task may outlive its reference to count
             count: Arc::new(std::sync::Mutex::new(0)),
             has_connected: Arc::new(AtomicBool::new(false)),
+            server_pidfd: PidFd::open(getpid().into()).unwrap(),
         })
     }
 
@@ -157,7 +162,7 @@ impl WormholeServer {
         tokio::spawn(async move {
             sleep(Duration::from_secs(TIMEOUT)).await;
 
-            if !has_connected.load(Ordering::SeqCst) {
+            if !has_connected.load(Ordering::Relaxed) {
                 util::shutdown();
             }
         });
@@ -176,7 +181,7 @@ impl WormholeServer {
                     self.clone().spawn_client_handler(stream);
                 }
                 Err(e) => {
-                    debug!("error accepting connection: {:?}", e);
+                    error!("error accepting connection: {:?}", e);
                 }
             }
         }
@@ -187,7 +192,7 @@ impl WormholeServer {
             match self.handle_client(stream).await {
                 Ok(_) => {}
                 Err(e) => {
-                    debug!("error handling client: {:?}", e);
+                    error!("error handling client: {:?}", e);
                 }
             }
         })
@@ -195,7 +200,7 @@ impl WormholeServer {
 
     async fn forward_client_to_payload(
         mut client_stdin: AsyncFile,
-        payload_pidfd: Option<PidFd>,
+        monitor_pidfd: PidFd,
         payload_stdin: AsyncFile,
         pty_master_fd: OwnedFd,
         is_pty: bool,
@@ -215,7 +220,7 @@ impl WormholeServer {
 
                     if let Some(payload_stdin) = payload_stdin.as_mut() {
                         if let Err(e) = payload_stdin.write_all(&msg.data).await {
-                            debug!("got error writing to payload stdin: {e}");
+                            error!("got error writing to payload stdin: {e}");
                         }
                     }
                 }
@@ -224,25 +229,23 @@ impl WormholeServer {
                     if is_pty {
                         if let Err(e) = resize_pty(&pty_master_fd, msg.rows as u16, msg.cols as u16)
                         {
-                            debug!("got error resizing pty: {e}");
+                            error!("got error resizing pty: {e}");
                         }
                     }
                 }
                 Some(ClientMessage::Signal(msg)) => {
-                    if let Some(ref payload_pidfd) = payload_pidfd {
-                        let signal = match Signal::try_from(msg.signal as i32) {
-                            Ok(signal) => signal,
-                            Err(e) => {
-                                debug!("invalid signal: {e}");
-                                continue;
-                            }
-                        };
-                        if let Err(e) = payload_pidfd.kill(signal) {
-                            debug!("got error sending signal {signal} to payload: {e}");
+                    let signal = match Signal::try_from(msg.signal as i32) {
+                        Ok(signal) => signal,
+                        Err(e) => {
+                            error!("invalid signal: {e}");
+                            continue;
                         }
+                    };
+                    if let Err(e) = monitor_pidfd.kill(signal) {
+                        error!("got error sending signal {signal} to payload: {e}");
                     }
                 }
-                _ => debug!("unknown message from client"),
+                _ => error!("unknown message from client"),
             }
         }
     }
@@ -283,7 +286,7 @@ impl WormholeServer {
                 }
                 Err(e) => {
                     // this happens when client container disconnects during debug session
-                    debug!("got error reading from payload {stdio_name}: {e}");
+                    error!("got error reading from payload {stdio_name}: {e}");
                     return Err(anyhow!("error reading from payload: {e}"));
                 }
             }
@@ -294,7 +297,7 @@ impl WormholeServer {
         mut exit_code_pipe_reader: AsyncFile,
         client_writer: Arc<tokio::sync::Mutex<AsyncFile>>,
     ) -> anyhow::Result<()> {
-        let mut exit_code = [1u8];
+        let mut exit_code = [0u8];
         exit_code_pipe_reader.read_exact(&mut exit_code).await?;
         debug!("received exit code {}", exit_code[0]);
 
@@ -311,7 +314,7 @@ impl WormholeServer {
     }
 
     async fn handle_client(&self, stream: UnixStream) -> anyhow::Result<()> {
-        self.has_connected.store(true, Ordering::SeqCst);
+        self.has_connected.store(true, Ordering::Relaxed);
 
         // get client fds via scm_rights over the stream
         debug!("waiting for rpc client fds");
@@ -423,8 +426,6 @@ impl WormholeServer {
         set_nonblocking(exit_code_pipe_read_fd.as_raw_fd())?;
         let exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd.into_raw_fd())?;
 
-        let server_pidfd = PidFd::open(getpid().into())?;
-
         let config: WormholeConfig = serde_json::from_str(&params.wormhole_config)?;
         // todo: rootfs support for stopped containers / images
         let runtime_state = WormholeRuntimeState {
@@ -432,7 +433,7 @@ impl WormholeServer {
             wormhole_mount_tree_fd: wormhole_mount_fd.as_raw_fd(),
             exit_code_pipe_write_fd: exit_code_pipe_write_fd.as_raw_fd(),
             log_fd: log_pipe_write_fd.as_raw_fd(),
-            server_pidfd: Some(server_pidfd.as_raw_fd()),
+            server_pidfd: Some(self.server_pidfd.as_raw_fd()),
         };
 
         debug!("spawning wormhole-attach");
@@ -457,6 +458,7 @@ impl WormholeServer {
                     unset_cloexec(runtime_state.wormhole_mount_tree_fd)?;
                     unset_cloexec(runtime_state.exit_code_pipe_write_fd)?;
                     unset_cloexec(runtime_state.log_fd)?;
+                    // safe to unwrap because remote wormhole will always pass a server pidfd
                     unset_cloexec(runtime_state.server_pidfd.unwrap())?;
 
                     // no dup cloexec because wormhole-attach child should inherit stdio fds
@@ -469,9 +471,9 @@ impl WormholeServer {
                 .spawn()?
         };
 
-        let payload_pidfd = child.id().map(|id| PidFd::open(id as i32)).transpose()?;
+        // safe to unwrap since we have not yet polled the child
+        let monitor_pidfd = PidFd::open(child.id().unwrap() as i32)?;
 
-        drop(server_pidfd);
         drop(wormhole_mount_fd);
         drop(exit_code_pipe_write_fd);
         drop(log_pipe_write_fd);
@@ -482,7 +484,7 @@ impl WormholeServer {
                     debug!("wormhole-attach finished");
                 }
                 Err(e) => {
-                    debug!("wormhole-attach failed with error: {:?}", e);
+                    error!("wormhole-attach failed with error: {:?}", e);
                 }
             }
 
@@ -512,7 +514,7 @@ impl WormholeServer {
         ));
         join_set.spawn(Self::forward_client_to_payload(
             client_stdin,
-            payload_pidfd,
+            monitor_pidfd,
             payload_stdin,
             // use payload stdout as the master pty fd for the sake of terminal resize, in case
             // we close the stdin pipe
@@ -535,7 +537,7 @@ impl WormholeServer {
             // res is either Ok (task completed succesfully) or Err (task panicked or aborted)
             match res {
                 Ok(res) => debug!("task completed: {:?}", res),
-                Err(e) => debug!("task panicked or aborted: {:?}", e),
+                Err(e) => error!("task panicked or aborted: {:?}", e),
             }
 
             debug!("shutting down connection tasks");

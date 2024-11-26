@@ -113,17 +113,17 @@ func GetCurrentContext() string {
 	configFile := filepath.Join(conf.UserDockerDir(), "config.json")
 	bytes, err := os.ReadFile(configFile)
 	if err != nil {
-		return "default"
+		return defaultContextName
 	}
 
 	var config struct {
 		CurrentContext string `json:"currentContext"`
 	}
 	if err := json.Unmarshal(bytes, &config); err != nil {
-		return "default"
+		return defaultContextName
 	}
 	if config.CurrentContext != "" {
 		return config.CurrentContext
 	}
-	return "default"
+	return defaultContextName
 }

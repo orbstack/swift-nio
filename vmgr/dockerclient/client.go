@@ -188,7 +188,7 @@ func NewWithTCP(address string, daemon *DockerConnection, options *Options) (*Cl
 			// idle conns ok usually
 			MaxIdleConns:    3,
 			IdleConnTimeout: 5 * time.Second,
-			TLSClientConfig: tlsConfig,
+			// TLSClientConfig: tlsConfig,
 		},
 	}
 	return NewWithHTTP(dialer, httpClient, options), nil

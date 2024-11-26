@@ -20,7 +20,8 @@ import (
 
 var errNeedRetry = errors.New("server stopped on remote host, retrying")
 
-const registryImage = "registry.orb.local/wormhole:1.0.0"
+// note: we keep the client and server versions in sync (i.e. client 1.0.0 should pull server 1.0.0)
+const registryImage = "registry.orb.local/wormhole:" + Version
 
 const versionMismatchExitCode = 123
 
@@ -70,7 +71,7 @@ func connectRemote(client *dockerclient.Client, drmToken string, retries int) (*
 		server, err = connectRemoteHelper(client, drmToken)
 		if err == nil {
 			return server, nil
-		} else if err != errNeedRetry {
+		} else if !errors.Is(err, errNeedRetry) {
 			return nil, err
 		}
 	}
@@ -91,9 +92,8 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 	pullingFromOverride := "Pulling remote debug image from OrbStack registry"
 	serverContainerId, err := client.RunContainer(
 		dockerclient.RunContainerOptions{
-			Name: "orbstack-wormhole",
-			// uncomment to always pull latest images for local dev
-			// PullImage: true,
+			Name:      "orbstack-wormhole",
+			PullImage: true,
 			PullImageOpts: &dockerclient.PullImageOptions{
 				ProgressOut:         os.Stderr,
 				IsTerminal:          term.IsTerminal(fdStderr),
@@ -110,7 +110,7 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 				CgroupnsMode: "host",
 				PidMode:      "host",
 				NetworkMode:  "none",
-				// AutoRemove:   true,
+				AutoRemove:   true,
 			},
 		})
 	if err != nil {
@@ -136,7 +136,7 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		// 404: no such container
 		// 409: container is paused
 		if dockerclient.IsStatusError(err, 404) || dockerclient.IsStatusError(err, 409) {
-			return nil, errNeedRetry
+			return nil, fmt.Errorf("could not exec to server: %w", errNeedRetry)
 		} else {
 			return nil, err
 		}
@@ -163,11 +163,14 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		// due to wormhole-proxy crashing or the server container shutting down (before we've
 		// received an acknowledgement). We should only retry in the latter case.
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
+			// note: we don't need to inspect the exec instance in the success case because
+			// docker cleans up unused exec instances after a minimum of 5 minutes
+			// https://github.com/moby/moby/blob/5c487368636f7d68bdf7ec6ea74fcba2ed604d94/daemon/exec.go#L326
 			execInspect, inspectErr := client.ExecInspect(execId)
 			if inspectErr != nil {
 				// if exec instance no longer exists, i.e. the server shutdown after we attached via exec, retry
 				if dockerclient.IsStatusError(inspectErr, 404) {
-					return nil, errNeedRetry
+					return nil, fmt.Errorf("server shutdown before acknowledging client: %w", errNeedRetry)
 				} else {
 					return nil, err
 				}

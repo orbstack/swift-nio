@@ -7,8 +7,11 @@ if len(sys.argv) != 3:
     print("usage: make_manifest_index.py <amd64_index_file> <arm64_index_file>")
     sys.exit(1)
 
-amd64_file = json.loads(open(sys.argv[1], "r").read())
-arm64_file = json.loads(open(sys.argv[2], "r").read())
+with open(sys.argv[1], "r") as f:
+    amd64_file = json.loads(f.read())
+
+with open(sys.argv[2], "r") as f:
+    arm64_file = json.loads(f.read())
 
 assert (
     len(amd64_file["manifests"]) == len(arm64_file["manifests"]) == 1

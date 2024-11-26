@@ -14,9 +14,9 @@ fn check_version_compatibility() -> anyhow::Result<()> {
     let client_version = semver::Version::parse(&env::var("WORMHOLE_CLIENT_VERSION")?)?;
     let server_version = semver::Version::parse(&env::var("WORMHOLE_SERVER_VERSION")?)?;
 
-    // server maintains backward compatibility with older client versions. However, forward
-    // compatibility is not guaranteed.
-    if client_version <= server_version {
+    // ensure client and server share the same major version and the minor version is backward compatible
+    if client_version.major == server_version.major && client_version.minor <= server_version.minor
+    {
         Ok(())
     } else {
         Err(anyhow::anyhow!(

@@ -1,7 +1,7 @@
 use std::{fs, process::exit};
 
 use nix::mount::{umount2, MntFlags, MsFlags};
-use tracing::debug;
+use tracing::{debug, error};
 use wormhole::{bind_mount_ro, mount_common};
 
 pub const ROOTFS: &str = "/wormhole-rootfs";
@@ -20,7 +20,7 @@ pub fn unmount_wormhole() -> anyhow::Result<()> {
         let path = format!("{}/nix/{}", WORMHOLE_UNIFIED, nix_dir);
         match umount2(path.as_str(), MntFlags::MNT_DETACH) {
             Ok(_) => debug!("unmounted {}", path),
-            Err(err) => debug!("could not unmount {}: {:?}", path, err),
+            Err(err) => error!("could not unmount {}: {:?}", path, err),
         };
     }
     match umount2(
@@ -28,11 +28,11 @@ pub fn unmount_wormhole() -> anyhow::Result<()> {
         MntFlags::empty(),
     ) {
         Ok(_) => debug!("unmounted nix/orb/sys/.base"),
-        Err(err) => debug!("could not unmount nix/orb/sys/.base: {:?}", err),
+        Err(err) => error!("could not unmount nix/orb/sys/.base: {:?}", err),
     };
     match umount2(WORMHOLE_UNIFIED, MntFlags::empty()) {
         Ok(_) => debug!("unmounted {}", WORMHOLE_UNIFIED),
-        Err(err) => debug!("could not unmount {}: {:?}", WORMHOLE_UNIFIED, err),
+        Err(err) => error!("could not unmount {}: {:?}", WORMHOLE_UNIFIED, err),
     };
 
     Ok(())
@@ -84,7 +84,7 @@ pub fn mount_wormhole() -> anyhow::Result<()> {
 pub fn shutdown() -> ! {
     match unmount_wormhole() {
         Ok(_) => debug!("unmounted wormhole"),
-        Err(e) => debug!("error unmounting wormhole: {:?}", e),
+        Err(e) => error!("error unmounting wormhole: {:?}", e),
     }
     exit(0);
 }

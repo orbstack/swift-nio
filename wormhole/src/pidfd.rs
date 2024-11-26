@@ -1,6 +1,7 @@
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
 
 use nix::{
+    errno::Errno,
     libc::{siginfo_t, syscall, SYS_pidfd_open, SYS_pidfd_send_signal, PIDFD_NONBLOCK},
     poll::{poll, PollFd, PollFlags},
     sys::signal::Signal,
@@ -29,7 +30,7 @@ impl PidFd {
             )
         };
         if res < 0 {
-            return Err(nix::Error::last());
+            return Err(Errno::last());
         }
 
         Ok(())
