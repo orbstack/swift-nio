@@ -219,11 +219,6 @@ FROM base AS docker
 # apk upgrade first to make sure base dep versions match what these new packages expect
 # do it in the same layer to make sure it's always synchronized with apk add
 RUN <<EOT sh -eux
-# as of writing, x86_64 is on 1.2.2-r0, and arm64 is on 1.2.1-r0
-RUNC_VERSION=1.2.1-r0
-if [[ "\$(uname -m)" == "x86_64" ]]; then
-    RUNC_VERSION=1.2.2-r0
-fi
 
 apk upgrade --no-cache
 apk add --no-cache \
@@ -235,7 +230,7 @@ apk add --no-cache \
     xz \
     pigz \
     ca-certificates \
-    runc=\$RUNC_VERSION \
+    runc=1.2.2-r0 \
     containerd \
     git \
     openssh-client-default \
