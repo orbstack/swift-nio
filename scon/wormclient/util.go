@@ -92,8 +92,11 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 	pullingFromOverride := "Pulling remote debug image from OrbStack registry"
 	serverContainerId, err := client.RunContainer(
 		dockerclient.RunContainerOptions{
-			Name:      "orbstack-wormhole",
-			PullImage: true,
+			Name: "orbstack-wormhole",
+			// only pull the image if it doesn't exist. the client can safely assume that
+			// the wormhole server image for any given version will remain static, and any updates
+			// will be pushed in a newer version.
+			PullImage: dockerclient.PullImageIfMissing,
 			PullImageOpts: &dockerclient.PullImageOptions{
 				ProgressOut:         os.Stderr,
 				IsTerminal:          term.IsTerminal(fdStderr),

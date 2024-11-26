@@ -22,6 +22,14 @@ func splitRepoTag(repoTag string) (string, string) {
 	return repoPart, tagPart
 }
 
+type PullImageMode int
+
+const (
+	PullImageNever PullImageMode = iota
+	PullImageIfMissing
+	PullImageAlways
+)
+
 type PullImageOptions struct {
 	ProgressOut         io.Writer
 	IsTerminal          bool
@@ -31,7 +39,7 @@ type PullImageOptions struct {
 
 type RunContainerOptions struct {
 	Name          string
-	PullImage     bool
+	PullImage     PullImageMode
 	PullImageOpts *PullImageOptions
 }
 
@@ -46,7 +54,7 @@ func pullImage(c *Client, image string, opts *PullImageOptions) error {
 
 func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.ContainerCreateRequest) (string, error) {
 	var err error
-	if opts.PullImage {
+	if opts.PullImage == PullImageAlways {
 		err = pullImage(c, req.Image, opts.PullImageOpts)
 		if err != nil {
 			return "", fmt.Errorf("pull image: %w", err)
@@ -61,6 +69,14 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 	// create --rm container
 	var containerResp dockertypes.ContainerCreateResponse
 	err = c.Call("POST", path, req, &containerResp)
+	if IsStatusError(err, 404) && opts.PullImage == PullImageIfMissing {
+		// pull and retry if user requested pull image if missing
+		err = pullImage(c, req.Image, opts.PullImageOpts)
+		if err != nil {
+			return "", fmt.Errorf("pull image: %w", err)
+		}
+		err = c.Call("POST", path, req, &containerResp)
+	}
 	if err != nil {
 		return "", fmt.Errorf("create container: %w", err)
 	}

@@ -491,7 +491,7 @@ outer:
 	_ = m.srcClient.RemoveContainer("orbstack-migration-agent", true)
 	srcAgentCid, err := m.srcClient.RunContainer(dockerclient.RunContainerOptions{
 		Name:      "orbstack-migration-agent",
-		PullImage: true,
+		PullImage: dockerclient.PullImageAlways,
 	}, &dockertypes.ContainerCreateRequest{
 		Image: migrationAgentImage,
 		Cmd:   []string{"sleep", "1h"},
