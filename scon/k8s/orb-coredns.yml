@@ -186,6 +186,13 @@ spec:
   selector:
     k8s-app: kube-dns
   clusterIP: 192.168.194.138
+  clusterIPs:
+  - 192.168.194.138
+  - fd07:b51a:cc66:a:8000::a
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+  - IPv4
+  - IPv6
   ports:
   - name: dns
     port: 53
