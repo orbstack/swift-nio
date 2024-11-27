@@ -231,7 +231,7 @@ func debugRemote(containerID string, endpoint dockerclient.Endpoint, drmToken st
 		return sshenv.ExitCodeNeedsProLicense, nil
 	}
 
-	client, err := dockerclient.NewClientWithDrmAuth(endpoint, drmToken)
+	client, err := dockerclient.NewClientWithDrmAuth(endpoint, drmToken, &dockerclient.Options{CreateSpareConn: true})
 	if err != nil {
 		return 1, fmt.Errorf("create docker client: %w", err)
 	}

@@ -40,9 +40,9 @@ func DemuxOutput(r io.Reader, stdout io.Writer, stderr io.Writer) error {
 			n += nr
 		}
 
-		if hdr[0] == 1 {
+		if hdr[0] == 1 && stdout != nil {
 			stdout.Write(buf)
-		} else if hdr[0] == 2 {
+		} else if hdr[0] == 2 && stderr != nil {
 			stderr.Write(buf)
 		}
 	}

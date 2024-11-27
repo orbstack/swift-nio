@@ -28,6 +28,14 @@ type Client struct {
 	addr                 string
 	baseURL              string
 	drmRegistryAuthToken string
+
+	// establish a spare connection during client initialization to avoid the overhead
+	// of creating the connection at the time of use. This is used for the exec stream hijack
+	// for remote wormhole debug.
+	//
+	// note: use a channel to pass the connection object since we may need to wait for the
+	// connection to be established in the background
+	spareConnChan *chan net.Conn
 }
 
 type statusRecord struct {
@@ -37,7 +45,8 @@ type statusRecord struct {
 }
 
 type Options struct {
-	Unversioned bool
+	Unversioned     bool
+	CreateSpareConn bool
 }
 
 type APIError struct {
@@ -54,14 +63,13 @@ func (e *APIError) Error() string {
 	}
 }
 
-func NewClient(endpoint Endpoint) (*Client, error) {
+func NewClient(endpoint Endpoint, opts *Options) (*Client, error) {
 	hostURL, err := url.Parse(endpoint.Host)
 	if err != nil {
 		return nil, err
 	}
 
 	var c *Client
-	opts := &Options{Unversioned: true}
 
 	switch hostURL.Scheme {
 	case "ssh":
@@ -86,14 +94,28 @@ func NewClient(endpoint Endpoint) (*Client, error) {
 	default:
 		return nil, fmt.Errorf("unsupported scheme %s", hostURL.Scheme)
 	}
-
 	c.proto = hostURL.Scheme
 	c.addr = hostURL.Host
+
+	if opts != nil && opts.CreateSpareConn {
+		go func() {
+			connChan := make(chan net.Conn)
+			c.spareConnChan = &connChan
+			defer close(connChan)
+
+			conn, err := c.createKeepAliveConnection(context.Background())
+			if err != nil {
+				return
+			}
+			connChan <- conn
+		}()
+	}
+
 	return c, nil
 }
 
-func NewClientWithDrmAuth(endpoint Endpoint, drmToken string) (*Client, error) {
-	c, err := NewClient(endpoint)
+func NewClientWithDrmAuth(endpoint Endpoint, drmToken string, opts *Options) (*Client, error) {
+	c, err := NewClient(endpoint, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +185,6 @@ func NewWithTCP(address string, endpoint Endpoint, options *Options) (*Client, e
 			// idle conns ok usually
 			MaxIdleConns:    3,
 			IdleConnTimeout: 5 * time.Second,
-			// TLSClientConfig: tlsConfig,
 		},
 	}
 	return NewWithHTTP(dialer, httpClient, options), nil
@@ -339,6 +360,20 @@ func (c *Client) CallDiscard(method, path string, body any) error {
 	return nil
 }
 
+func (c *Client) createKeepAliveConnection(ctx context.Context) (net.Conn, error) {
+	conn, err := c.DialContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(30 * time.Second)
+	}
+
+	return conn, nil
+}
+
 func (c *Client) streamHijack(method, path string, body any) (io.Reader, io.WriteCloser, error) {
 	req, err := c.newRequest(method, path, body)
 	if err != nil {
@@ -349,14 +384,20 @@ func (c *Client) streamHijack(method, path string, body any) (io.Reader, io.Writ
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", "tcp")
 
-	conn, err := c.DialContext(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not connect to docker endpoint")
-	}
+	var conn net.Conn
+	var ok bool
 
-	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		_ = tcpConn.SetKeepAlive(true)
-		_ = tcpConn.SetKeepAlivePeriod(30 * time.Second)
+	if c.spareConnChan != nil {
+		// if we've pre-created a spare connection, use it
+		conn, ok = <-*c.spareConnChan
+		if !ok {
+			return nil, nil, fmt.Errorf("could not connect to docker endpoint: %w", err)
+		}
+	} else {
+		conn, err = c.createKeepAliveConnection(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not connect to docker endpoint: %w", err)
+		}
 	}
 
 	err = req.Write(conn)
