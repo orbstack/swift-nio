@@ -10,8 +10,8 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"sync"
-	"time"
 
 	"github.com/florianl/go-nfqueue"
 	"github.com/google/gopacket"
@@ -22,14 +22,6 @@ import (
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
-)
-
-type proto int
-
-const (
-	protoOther proto = iota
-	protoHTTP
-	protoHTTPS
 )
 
 func (d *DomainTLSProxy) startQueue(queueNum uint16, flags uint32) error {
@@ -157,8 +149,6 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 	} else {
 		dialer = dialerForTransparentBind(srcIPSlice, mark)
 	}
-	// split timeout between ports
-	dialer.Timeout = upstreamDialTimeout / time.Duration(len(upstreamProbePorts))
 
 	// pessimistically keep probing on every SYN until upstream is ready
 	proxyUp, err := d.probeHost(dialer, upstream)
@@ -193,7 +183,7 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 		return proxyUpstream{}, fmt.Errorf("get upstream container id")
 	}
 
-	ports := map[uint16]struct{}{}
+	var ports map[uint16]struct{}
 
 	var err error
 	if upstream.Docker {
@@ -213,7 +203,6 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 	defer httpCancel()
 	httpsCtx, httpsCancel := context.WithCancel(context.Background())
 	defer httpsCancel()
-
 	var proxyUp proxyUpstream
 
 	// we concurrently try to dial every port with tls and http
@@ -224,7 +213,10 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 		go func() {
 			defer httpsWg.Done()
 
-			if testPortHTTPS(httpsCtx, dialer, upstream, port) {
+			ctx, cancel := context.WithTimeout(httpsCtx, httpsDialTimeout)
+			defer cancel()
+
+			if testPortHTTPS(ctx, dialer, upstream, port) {
 				// since we prefer https, we can cancel everything
 				logrus.WithFields(logrus.Fields{"port": port}).Debug("soweli | https succeeded")
 				httpsCancel()
@@ -297,7 +289,11 @@ func testPortHTTPS(ctx context.Context, dialer *net.Dialer, upstream domainproxy
 			},
 		},
 	}
-	conn, err := tlsDialer.DialContext(ctx, "tcp", fmt.Sprintf("%v:%v", upstream.IP, port))
+
+	host := upstream.IP.String()
+	portStr := strconv.Itoa(int(port))
+
+	conn, err := tlsDialer.DialContext(ctx, "tcp", net.JoinHostPort(host, portStr))
 	if err == nil {
 		conn.Close()
 	} else {

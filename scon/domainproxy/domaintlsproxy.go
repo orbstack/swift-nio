@@ -25,20 +25,31 @@ import (
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
-const upstreamDialTimeout = 500 * time.Millisecond
-
-var upstreamProbePorts = [...]uint16{80, 443}
+const httpsDialTimeout = 500 * time.Millisecond
 
 type MdnsContextKey int
 
 const (
 	MdnsContextKeyDownstream MdnsContextKey = iota
+	MdnsContextKeyUpstream
+	MdnsContextKeyProxyUpstream
 )
+
+var (
+	SconHostBridgeIP4 net.IP
+	SconHostBridgeIP6 net.IP
+)
+
+func init() {
+	SconHostBridgeIP4 = net.ParseIP(netconf.SconHostBridgeIP4)
+	SconHostBridgeIP6 = net.ParseIP(netconf.SconHostBridgeIP6)
+}
 
 type ProxyCallbacks interface {
 	// takes name or IP string
@@ -80,45 +91,6 @@ func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy
 
 		probedHosts: make(map[netip.Addr]proxyUpstream),
 	}, nil
-}
-
-func (p *DomainTLSProxy) getReverseProxyServer(https bool) *http.Server {
-	httpProxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			err := p.rewriteRequest(r, https)
-			if err != nil {
-				logrus.WithError(err).Error("failed to rewrite request")
-			}
-		},
-		Transport: &http.Transport{
-			DialContext: p.dialUpstream,
-			// establishing conns is cheap locally
-			// do not limit MaxConnsPerHost in case of load testing
-			IdleConnTimeout: 5 * time.Second,
-			// allow more idle conns to avoid TIME_WAIT hogging all ports under load test (default 2)
-			// otherwise we get "connect: cannot assign requested address" after too long
-			MaxIdleConnsPerHost: 200,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-		ErrorHandler: p.handleError,
-	}
-
-	httpServer := &http.Server{
-		Handler: httpProxy,
-		TLSConfig: &tls.Config{
-			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				if !strings.HasSuffix(hlo.ServerName, ".local") {
-					return nil, nil
-				}
-
-				return p.tlsController.MakeCertForHost(hlo.ServerName)
-			},
-		},
-	}
-
-	return httpServer
 }
 
 func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, nfqueueNum, nfqueueGSONum uint16) error {
@@ -221,7 +193,40 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, n
 	httpLn4 := util.NewDispatchedListener(ln4.Addr)
 	httpLn6 := util.NewDispatchedListener(ln6.Addr)
 
-	httpServer := p.getReverseProxyServer( /*https*/ false)
+	httpProxy := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			err := p.rewriteRequest(r)
+			if err != nil {
+				logrus.WithError(err).Error("failed to rewrite request")
+			}
+		},
+		Transport: &http.Transport{
+			DialContext: p.dialUpstream,
+			// establishing conns is cheap locally
+			// do not limit MaxConnsPerHost in case of load testing
+			IdleConnTimeout: 5 * time.Second,
+			// allow more idle conns to avoid TIME_WAIT hogging all ports under load test (default 2)
+			// otherwise we get "connect: cannot assign requested address" after too long
+			MaxIdleConnsPerHost: 200,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+		ErrorHandler: p.handleError,
+	}
+
+	httpServer := &http.Server{
+		Handler: httpProxy,
+		TLSConfig: &tls.Config{
+			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				if !strings.HasSuffix(hlo.ServerName, ".local") {
+					return nil, nil
+				}
+
+				return p.tlsController.MakeCertForHost(hlo.ServerName)
+			},
+		},
+	}
 
 	go func() {
 		err := httpServer.ServeTLS(httpLn4, "", "")
@@ -236,26 +241,8 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, n
 		}
 	}()
 
-	httpsLn4 := util.NewDispatchedListener(ln4.Addr)
-	httpsLn6 := util.NewDispatchedListener(ln6.Addr)
-
-	httpsServer := p.getReverseProxyServer( /*https*/ true)
-
-	go func() {
-		err := httpsServer.ServeTLS(httpsLn4, "", "")
-		if err != nil {
-			logrus.WithError(err).Error("domainTLSProxy: serve tls failed")
-		}
-	}()
-	go func() {
-		err := httpsServer.ServeTLS(httpsLn6, "", "")
-		if err != nil {
-			logrus.WithError(err).Error("domainTLSProxy: serve tls failed")
-		}
-	}()
-
-	go p.runConnectionDispatcher(httpLn4, httpsLn4, ln4)
-	go p.runConnectionDispatcher(httpLn6, httpsLn6, ln6)
+	go httpLn4.RunCallbackDispatcher(ln4, p.dispatchIncomingConn)
+	go httpLn6.RunCallbackDispatcher(ln6, p.dispatchIncomingConn)
 
 	return nil
 }
@@ -308,31 +295,7 @@ func dialerForTransparentBind(bindIP net.IP, mark int) *net.Dialer {
 	}
 }
 
-func (p *DomainTLSProxy) runConnectionDispatcher(httpHandler *util.DispatchedListener, httpsHandler *util.DispatchedListener, listen net.Listener) {
-	for {
-		conn, err := listen.Accept()
-		if err != nil {
-			// pass through errors. don't need to check if this is successful because it's fine if they're already closed
-			httpHandler.SubmitErr(err)
-			httpsHandler.SubmitErr(err)
-			return
-		}
-
-		if httpHandler.Closed() || httpsHandler.Closed() {
-			return
-		}
-
-		go func() {
-			err := p.dispatchIncomingConn(httpHandler, httpsHandler, conn)
-			if err != nil {
-				logrus.WithError(err).Error("failed to dispatch incoming conn")
-			}
-		}()
-	}
-}
-
-func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListener, httpsHandler *util.DispatchedListener, conn net.Conn) (retErr error) {
-	// this function just lets us directly passthrough to an existing ssl server. this should be removed soon in favor of port probing
+func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr error) {
 	defer func() {
 		if retErr != nil {
 			conn.Close()
@@ -342,13 +305,74 @@ func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListen
 	downstreamIP := conn.RemoteAddr().(*net.TCPAddr).IP
 	is4 := downstreamIP.To4() != nil
 
-	// this works because we never change the dest, only hook sk_assign (like tproxy but sillier)
+	// don't try passthrough if request doesn't come from mac
+	// in other words, only do reterm if request comes from mac
+	if downstreamIP.Equal(SconHostBridgeIP4) || downstreamIP.Equal(SconHostBridgeIP6) {
+		return conn, nil
+	}
+
 	destHost, _, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
-		return fmt.Errorf("split host/port: %w", err)
+		return nil, fmt.Errorf("split host/port: %w", err)
 	}
 
 	addr, upstream, err := p.cb.GetUpstreamByHost(destHost, is4)
+	if err != nil {
+		return nil, fmt.Errorf("get upstream: %w", err)
+	}
+	mark := p.cb.GetMark(upstream)
+
+	var dialer *net.Dialer
+	if !downstreamIP.Equal(upstream.IP) {
+		dialer = dialerForTransparentBind(downstreamIP, mark)
+	} else {
+		dialer = &net.Dialer{}
+	}
+
+	proxyUp, err := p.getOrProbeHost(dialer, addr, upstream)
+	if err != nil {
+		return nil, err
+	}
+
+	// if it's not https, we can't do tls passthrough anyways
+	if !proxyUp.https {
+		return conn, nil
+	}
+
+	host := upstream.IP.String()
+	port := strconv.Itoa(int(proxyUp.port))
+	ctx, cancel := context.WithTimeout(context.Background(), httpsDialTimeout)
+	defer cancel()
+	passthroughConn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		// if we can't dial, we wouldn't be able to reterm anyways, so just error
+		return nil, fmt.Errorf("dial upstream: %w", err)
+	}
+
+	defer passthroughConn.Close()
+	defer conn.Close()
+	tcppump.Pump2SpTcpTcp(conn.(*net.TCPConn), passthroughConn.(*net.TCPConn))
+
+	// don't let this connection be submitted to http server
+	return nil, nil
+}
+
+func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest) error {
+	headerHost := r.In.Host         // the host that's passed in the host header
+	connHost := r.In.TLS.ServerName // the host that's used for upstream connection
+
+	// downstream = client
+	downstreamAddrStr, _, err := net.SplitHostPort(r.In.RemoteAddr)
+	if err != nil {
+		return err
+	}
+	downstreamIP := net.ParseIP(downstreamAddrStr)
+	if downstreamIP == nil {
+		return fmt.Errorf("parse ip: %s", downstreamAddrStr)
+	}
+	is4 := downstreamIP.To4() != nil
+
+	addr, upstream, err := p.cb.GetUpstreamByHost(connHost, is4)
 	if err != nil {
 		return fmt.Errorf("get upstream: %w", err)
 	}
@@ -363,22 +387,11 @@ func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListen
 
 	proxyUp, err := p.getOrProbeHost(dialer, addr, upstream)
 	if err != nil {
-		return err
+		return fmt.Errorf("get or probe host: %w", err)
 	}
-
-	if proxyUp.https {
-		return httpsHandler.SubmitConn(conn)
-	} else {
-		return httpHandler.SubmitConn(conn)
-	}
-}
-
-func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest, https bool) error {
-	headerHost := r.In.Host         // the host that's passed in the host header
-	connHost := r.In.TLS.ServerName // the host that's used for upstream connection
 
 	scheme := "http"
-	if https {
+	if proxyUp.https {
 		scheme = "https"
 	}
 
@@ -386,7 +399,7 @@ func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest, https bool) er
 		Scheme: scheme,
 		// Host is mandatory
 		// always use SNI for upstream, so we can pass through any Host header
-		Host: connHost,
+		Host: headerHost,
 		// SetURL takes *base* path
 		Path: "/",
 	})
@@ -396,41 +409,24 @@ func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest, https bool) er
 	r.Out.Header["X-Forwarded-For"] = r.In.Header["X-Forwarded-For"]
 	r.SetXForwarded()
 
-	// downstream = client
-	downstreamAddrStr, _, err := net.SplitHostPort(r.In.RemoteAddr)
-	if err != nil {
-		return err
-	}
-	downstreamIP := net.ParseIP(downstreamAddrStr)
-	if downstreamIP == nil {
-		return fmt.Errorf("parse ip: %s", downstreamAddrStr)
-	}
-
+	// embed local addr and proxy upstream in context
+	// proxy upstream is an optimization
 	newContext := context.WithValue(r.Out.Context(), MdnsContextKeyDownstream, downstreamIP)
+	newContext = context.WithValue(newContext, MdnsContextKeyProxyUpstream, proxyUp)
+	newContext = context.WithValue(newContext, MdnsContextKeyUpstream, upstream)
 	r.Out = r.Out.WithContext(newContext)
-
-	// embef local addr in
 
 	return nil
 }
 
 func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
-	dialHost, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
+
+	upstream, ok := ctx.Value(MdnsContextKeyUpstream).(domainproxytypes.Upstream)
+	if !ok {
+		return nil, fmt.Errorf("upstream not found in context")
 	}
 
 	downstreamIP := ctx.Value(MdnsContextKeyDownstream)
-	is4 := true
-	if downstreamIP != nil {
-		is4 = downstreamIP.(net.IP).To4() != nil
-	}
-
-	domainproxyAddr, upstream, err := p.cb.GetUpstreamByHost(dialHost, is4)
-	if err != nil {
-		return nil, err
-	}
-
 	// fall back to normal dialer
 	// namely, this is used for hairpin, ie when a machine makes a request to its own domainproxy ip
 	var dialer *net.Dialer
@@ -440,7 +436,10 @@ func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string)
 		dialer = &net.Dialer{}
 	}
 
-	proxyUp, err := p.getOrProbeHost(dialer, domainproxyAddr, upstream)
+	proxyUp, ok := ctx.Value(MdnsContextKeyProxyUpstream).(proxyUpstream)
+	if !ok {
+		return nil, fmt.Errorf("proxy upstream not found in context")
+	}
 	port := strconv.Itoa(int(proxyUp.port))
 
 	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), port))
