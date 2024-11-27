@@ -43,6 +43,10 @@ openeuler:24.09
 opensuse:15.5
 opensuse:15.6
 opensuse:tumbleweed
+openwrt:21.02
+openwrt:22.03
+openwrt:23.05
+openwrt:snapshot
 oracle:7
 oracle:8
 oracle:9
