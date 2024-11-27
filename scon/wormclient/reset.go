@@ -18,11 +18,11 @@ func resetLocalData() error {
 	return scli.Client().WormholeNukeData()
 }
 
-func resetRemoteData(daemon *dockerclient.DockerConnection, drmToken string) error {
+func resetRemoteData(endpoint dockerclient.Endpoint, drmToken string) error {
 	spinner := spinutil.Start("blue", "Resetting remote Debug Shell data")
 	defer spinner.Stop()
 
-	client, err := dockerclient.NewClientWithDrmAuth(daemon, drmToken)
+	client, err := dockerclient.NewClientWithDrmAuth(endpoint, drmToken)
 	if err != nil {
 		return fmt.Errorf("create docker client: %w", err)
 	}
@@ -59,9 +59,9 @@ func resetRemoteData(daemon *dockerclient.DockerConnection, drmToken string) err
 }
 
 func WormholeReset(context string) (err error) {
-	daemon, isLocal, err := GetDaemon(context)
+	endpoint, isLocal, err := GetDockerEndpoint(context)
 	if err != nil {
-		return fmt.Errorf("failed to get daemon: %w", err)
+		return fmt.Errorf("failed to get docker endpoint: %w", err)
 	}
 
 	if isLocal {
@@ -72,5 +72,5 @@ func WormholeReset(context string) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to get drm token: %w", err)
 	}
-	return resetRemoteData(daemon, entitlementToken)
+	return resetRemoteData(endpoint, entitlementToken)
 }

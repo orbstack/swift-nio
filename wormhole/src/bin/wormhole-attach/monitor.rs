@@ -229,7 +229,10 @@ fn monitor(
                     result => trace!(?result, "unexpected read_signal result"),
                 },
                 SERVER_EVENT => {
-                    // if the server is abruptly killed, break out of loop and start background task cleanup
+                    // if the server is abruptly killed, break out of loop and start background task cleanup.
+                    // note: we do not currently reap the killed background tasks - that would require
+                    // first waiting for the subreaper to exit, which may introduce other problems since
+                    // we should not wait indefinitely for anything after the server dies.
                     break 'outer;
                 }
                 _ => panic!("unexpected epoll event {}", event.data()),

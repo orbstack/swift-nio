@@ -27,25 +27,23 @@ const versionMismatchExitCode = 123
 
 const maxRetries = 3
 
-// returns the docker daemon, isLocal, error
-func GetDaemon(context string) (*dockerclient.DockerConnection, bool, error) {
-	if context == "" {
-		context = dockerclient.GetCurrentContext()
-	}
-	daemon, err := dockerclient.GetDockerDaemon(context)
+// returns the docker endpoint, isLocal, error
+func GetDockerEndpoint(context string) (dockerclient.Endpoint, bool, error) {
+	context = dockerclient.ResolveContextName(context)
+	endpoint, err := dockerclient.GetDockerEndpoint(context)
 	if err != nil {
-		return nil, false, err
+		return dockerclient.Endpoint{}, false, err
 	}
 
-	// check if the daemon is local by comparing with the orbstack socket
+	// check if the docker endpoint is local by comparing with the orbstack socket
 	orbSocket := conf.DockerSocket()
-	url, err := url.Parse(daemon.Host)
+	url, err := url.Parse(endpoint.Host)
 	if err != nil {
-		return nil, false, err
+		return dockerclient.Endpoint{}, false, err
 	}
 
 	isLocal := url.Scheme == "unix" && url.Path == orbSocket
-	return daemon, isLocal, nil
+	return endpoint, isLocal, nil
 }
 
 func GetDrmToken() (string, error) {

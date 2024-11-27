@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -14,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -56,8 +54,8 @@ func (e *APIError) Error() string {
 	}
 }
 
-func NewClient(daemon *DockerConnection) (*Client, error) {
-	hostURL, err := url.Parse(daemon.Host)
+func NewClient(endpoint Endpoint) (*Client, error) {
+	hostURL, err := url.Parse(endpoint.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -67,23 +65,23 @@ func NewClient(daemon *DockerConnection) (*Client, error) {
 
 	switch hostURL.Scheme {
 	case "ssh":
-		dialer, err := GetSSHDialer(daemon.Host)
+		dialer, err := GetSSHDialer(endpoint.Host)
 		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker host via ssh")
+			return nil, fmt.Errorf("could not create ssh dialer: %w", err)
 		}
 		c, err = NewWithDialer(dialer, opts)
 		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker host via ssh")
+			return nil, fmt.Errorf("could not connect to docker host via ssh: %w", err)
 		}
 	case "unix":
 		c, err = NewWithUnixSocket(hostURL.Path, opts)
 		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker host via unix")
+			return nil, fmt.Errorf("could not connect to docker host via unix: %w", err)
 		}
 	case "tcp":
-		c, err = NewWithTCP(hostURL.Host, daemon, opts)
+		c, err = NewWithTCP(hostURL.Host, endpoint, opts)
 		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker host via tcp")
+			return nil, fmt.Errorf("could not connect to docker host via tcp: %w", err)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported scheme %s", hostURL.Scheme)
@@ -94,8 +92,8 @@ func NewClient(daemon *DockerConnection) (*Client, error) {
 	return c, nil
 }
 
-func NewClientWithDrmAuth(daemon *DockerConnection, drmToken string) (*Client, error) {
-	c, err := NewClient(daemon)
+func NewClientWithDrmAuth(endpoint Endpoint, drmToken string) (*Client, error) {
+	c, err := NewClient(endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -138,36 +136,13 @@ func NewWithDialer(dialer func(ctx context.Context, network, addr string) (net.C
 	return NewWithHTTP(dialer, httpClient, options), nil
 }
 
-func GetTLSConfig(tlsData *TLSData, skipTLSVerify bool) (*tls.Config, error) {
-	caCert, err := os.ReadFile(tlsData.CA)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CA certificate: %w", err)
-	}
-
-	caCertPool := x509.NewCertPool()
-	if !caCertPool.AppendCertsFromPEM(caCert) {
-		return nil, fmt.Errorf("failed to append CA certificate")
-	}
-
-	cert, err := tls.LoadX509KeyPair(tlsData.Cert, tlsData.Key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load client certificate/key: %w", err)
-	}
-
-	return &tls.Config{
-		InsecureSkipVerify: skipTLSVerify,
-		RootCAs:            caCertPool,
-		Certificates:       []tls.Certificate{cert},
-	}, nil
-}
-
-func NewWithTCP(address string, daemon *DockerConnection, options *Options) (*Client, error) {
+func NewWithTCP(address string, endpoint Endpoint, options *Options) (*Client, error) {
 	var tlsConfig *tls.Config
 	var err error
 	var dialer func(ctx context.Context, _, _ string) (net.Conn, error)
 
-	if daemon.TLSData != nil {
-		tlsConfig, err = GetTLSConfig(daemon.TLSData, daemon.SkipTLSVerify)
+	if endpoint.TLSData != nil {
+		tlsConfig, err = endpoint.tlsConfig()
 		if err != nil {
 			return nil, err
 		}
@@ -376,7 +351,7 @@ func (c *Client) streamHijack(method, path string, body any) (io.Reader, io.Writ
 
 	conn, err := c.DialContext(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not connect to docker daemon")
+		return nil, nil, fmt.Errorf("could not connect to docker endpoint")
 	}
 
 	if tcpConn, ok := conn.(*net.TCPConn); ok {

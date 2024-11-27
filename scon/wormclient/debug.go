@@ -223,7 +223,7 @@ func startRemoteWormhole(client *dockerclient.Client, drmToken string, wormholeC
 	}
 }
 
-func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmToken string, flagWorkdir string, args []string) (int, error) {
+func debugRemote(containerID string, endpoint dockerclient.Endpoint, drmToken string, flagWorkdir string, args []string) (int, error) {
 	// exit early with appropriate code if no pro license
 	verifier := sjwt.NewVerifier(nil, drmtypes.AppVersion{})
 	claims, err := verifier.Verify(drmToken, sjwt.TokenVerifyParams{StrictVersion: false})
@@ -231,7 +231,7 @@ func debugRemote(containerID string, daemon *dockerclient.DockerConnection, drmT
 		return sshenv.ExitCodeNeedsProLicense, nil
 	}
 
-	client, err := dockerclient.NewClientWithDrmAuth(daemon, drmToken)
+	client, err := dockerclient.NewClientWithDrmAuth(endpoint, drmToken)
 	if err != nil {
 		return 1, fmt.Errorf("create docker client: %w", err)
 	}
@@ -316,7 +316,7 @@ func debugLocal(containerID string, flagWorkdir string, args []string) (int, err
 // maybe instead of returning both exitCode and err, just wrap the exitCode in an error object?
 // the semantics are that exitCode is the actual exit code of the debug session, err is any error that occurred starting the debug session
 func WormholeDebug(containerID string, context string, workdir string, fallback bool, args ...string) (exitCode int, err error) {
-	daemon, isLocal, err := GetDaemon(context)
+	endpoint, isLocal, err := GetDockerEndpoint(context)
 	if err != nil {
 		return 1, err
 	}
@@ -330,5 +330,5 @@ func WormholeDebug(containerID string, context string, workdir string, fallback 
 		return sshenv.ExitCodeNeedsProLicense, err
 	}
 
-	return debugRemote(containerID, daemon, drmToken, workdir, args)
+	return debugRemote(containerID, endpoint, drmToken, workdir, args)
 }
