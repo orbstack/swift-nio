@@ -374,10 +374,8 @@ func (p *DomainTLSProxy) dispatchIncomingConn(httpHandler *util.DispatchedListen
 }
 
 func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest, https bool) error {
-	host := r.In.Host
-	if host == "" {
-		host = r.In.TLS.ServerName
-	}
+	headerHost := r.In.Host         // the host that's passed in the host header
+	connHost := r.In.TLS.ServerName // the host that's used for upstream connection
 
 	scheme := "http"
 	if https {
@@ -388,12 +386,12 @@ func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest, https bool) er
 		Scheme: scheme,
 		// Host is mandatory
 		// always use SNI for upstream, so we can pass through any Host header
-		Host: host,
+		Host: connHost,
 		// SetURL takes *base* path
 		Path: "/",
 	})
 
-	r.Out.Host = host
+	r.Out.Host = headerHost
 	r.Out.Header["Forwarded"] = r.In.Header["Forwarded"]
 	r.Out.Header["X-Forwarded-For"] = r.In.Header["X-Forwarded-For"]
 	r.SetXForwarded()
