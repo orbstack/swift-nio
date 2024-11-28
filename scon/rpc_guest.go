@@ -132,6 +132,13 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 }
 
 func (s *SconGuestServer) onDockerContainerRemovedFromCache(cid string) error {
+	err := s.dockerMachine.UseAgent(func(a *agent.Client) error {
+		return a.DockerRemoveContainerFromCache(cid)
+	})
+	if err != nil {
+		return err
+	}
+
 	// needs mutex! called from both scon guest rpc and from runc wrap server
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -144,13 +151,6 @@ func (s *SconGuestServer) onDockerContainerRemovedFromCache(cid string) error {
 	}
 
 	logrus.WithField("cid", cid).Debug("removing container due to restart")
-
-	err := s.dockerMachine.UseAgent(func(c *agent.Client) error {
-		return c.DockerRemoveContainerFromCache(cid)
-	})
-	if err != nil {
-		return err
-	}
 
 	return s.onDockerContainersChangedLocked(sgtypes.ContainersDiff{
 		Diff: sgtypes.Diff[dockertypes.ContainerSummaryMin]{
