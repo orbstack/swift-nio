@@ -1,11 +1,31 @@
-use std::{cmp::min, fs::File, io::Write, mem::MaybeUninit, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path};
+use std::{
+    cmp::min,
+    fs::File,
+    io::Write,
+    mem::MaybeUninit,
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    path::Path,
+};
 
 use anyhow::anyhow;
 use bytemuck::{Pod, Zeroable};
-use nix::{errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode};
+use nix::{
+    errno::Errno,
+    fcntl::{openat, OFlag},
+    sys::stat::Mode,
+};
 use numtoa::NumToA;
 use smallvec::{SmallVec, ToSmallVec};
-use starry::{path_stack::PathStack, sys::{getdents::for_each_getdents, inode_flags::InodeFlags, link::with_readlinkat, file::{fstat, fstatat}, xattr::{for_each_flistxattr, with_fgetxattr}}};
+use starry::{
+    path_stack::PathStack,
+    sys::{
+        file::{fstat, fstatat},
+        getdents::for_each_getdents,
+        inode_flags::InodeFlags,
+        link::with_readlinkat,
+        xattr::{for_each_flistxattr, with_fgetxattr},
+    },
+};
 use zstd::Encoder;
 
 const TAR_PADDING: [u8; 1024] = [0; 1024];
@@ -177,7 +197,12 @@ impl UstarHeader {
     }
 }
 
-fn write_left_padded<T: NumToA<T>>(out_buf: &mut [u8], val: T, base: T, target_len: usize) -> Result<(), OverflowError> {
+fn write_left_padded<T: NumToA<T>>(
+    out_buf: &mut [u8],
+    val: T,
+    base: T,
+    target_len: usize,
+) -> Result<(), OverflowError> {
     // stack array for max possible length
     let mut unpadded_buf: [u8; 32] = [0; 32];
     let formatted = val.numtoa(base, &mut unpadded_buf);
@@ -334,7 +359,8 @@ fn walk_dir(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack) -> anyh
             let nanos_start = time_buf.len();
             time_buf.resize(nanos_start + 9, 0);
             // can't overflow: we checked that nsec < 1e9
-            write_left_padded(&mut time_buf[nanos_start..], st.st_mtime_nsec as u64, 10, 9).unwrap();
+            write_left_padded(&mut time_buf[nanos_start..], st.st_mtime_nsec as u64, 10, 9)
+                .unwrap();
 
             pax_header.add_field("mtime", &time_buf);
         }
@@ -361,7 +387,19 @@ fn walk_dir(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack) -> anyh
 
         // O_NONBLOCK: avoid hang if we race and end up opening a fifo
         // O_NOCTTY: avoid kill if we race and end up opening a tty
-        let fd = unsafe { OwnedFd::from_raw_fd(openat(Some(dirfd.as_raw_fd()), entry.name, OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_NOCTTY | open_flags, Mode::empty())?) };
+        let fd = unsafe {
+            OwnedFd::from_raw_fd(openat(
+                Some(dirfd.as_raw_fd()),
+                entry.name,
+                OFlag::O_RDONLY
+                    | OFlag::O_CLOEXEC
+                    | OFlag::O_NOFOLLOW
+                    | OFlag::O_NONBLOCK
+                    | OFlag::O_NOCTTY
+                    | open_flags,
+                Mode::empty(),
+            )?)
+        };
 
         // fflags
         if typ == libc::S_IFREG || typ == libc::S_IFDIR {
@@ -433,8 +471,12 @@ fn header_from_stat(st: &libc::stat) -> UstarHeader {
     if typ == libc::S_IFBLK || typ == libc::S_IFCHR {
         // only fails if not supported by archive format
         // TODO: large dev
-        header.set_device_major(unsafe { libc::major(st.st_rdev) }).unwrap();
-        header.set_device_minor(unsafe { libc::minor(st.st_rdev) }).unwrap();
+        header
+            .set_device_major(unsafe { libc::major(st.st_rdev) })
+            .unwrap();
+        header
+            .set_device_minor(unsafe { libc::minor(st.st_rdev) })
+            .unwrap();
     } else if typ == libc::S_IFREG {
         // only regular files have a size
         header.set_size(st.st_size as u64).unwrap();
@@ -444,14 +486,24 @@ fn header_from_stat(st: &libc::stat) -> UstarHeader {
 }
 
 trait InodeFlagsExt {
-    fn add_name(&self, names: &mut SmallVec<[&'static str; 1]>, name: &'static str, flag: InodeFlags);
+    fn add_name(
+        &self,
+        names: &mut SmallVec<[&'static str; 1]>,
+        name: &'static str,
+        flag: InodeFlags,
+    );
 
     fn names(&self) -> SmallVec<[&'static str; 1]>;
 }
 
 impl InodeFlagsExt for InodeFlags {
     #[inline]
-    fn add_name(&self, names: &mut SmallVec<[&'static str; 1]>, name: &'static str, flag: InodeFlags) {
+    fn add_name(
+        &self,
+        names: &mut SmallVec<[&'static str; 1]>,
+        name: &'static str,
+        flag: InodeFlags,
+    ) {
         if self.contains(flag) {
             names.push(name);
         }
@@ -490,8 +542,21 @@ fn main() -> anyhow::Result<()> {
     let mut writer = file;
 
     // add root dir
-    let src_dir = std::env::args().nth(1).ok_or_else(|| anyhow!("missing src dir"))?;
-    let root_dir = unsafe { OwnedFd::from_raw_fd(openat(None, Path::new(&src_dir), OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK | OFlag::O_NOCTTY, Mode::empty())?) };
+    let src_dir = std::env::args()
+        .nth(1)
+        .ok_or_else(|| anyhow!("missing src dir"))?;
+    let root_dir = unsafe {
+        OwnedFd::from_raw_fd(openat(
+            None,
+            Path::new(&src_dir),
+            OFlag::O_RDONLY
+                | OFlag::O_DIRECTORY
+                | OFlag::O_CLOEXEC
+                | OFlag::O_NONBLOCK
+                | OFlag::O_NOCTTY,
+            Mode::empty(),
+        )?)
+    };
     let root_dir_st = fstat(&root_dir)?;
 
     // add entry for root dir

@@ -1,4 +1,8 @@
-use std::{ffi::CStr, mem::MaybeUninit, os::fd::{AsRawFd, RawFd}};
+use std::{
+    ffi::CStr,
+    mem::MaybeUninit,
+    os::fd::{AsRawFd, RawFd},
+};
 
 use nix::errno::Errno;
 

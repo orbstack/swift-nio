@@ -12,7 +12,10 @@ impl PathStack {
             buf.push(b'/');
         }
         buf.extend_from_slice(segment);
-        PathStackGuard { stack: self, old_len }
+        PathStackGuard {
+            stack: self,
+            old_len,
+        }
     }
 }
 

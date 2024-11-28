@@ -1,4 +1,8 @@
-use std::{ffi::{c_void, CStr}, mem::MaybeUninit, os::fd::AsRawFd};
+use std::{
+    ffi::{c_void, CStr},
+    mem::MaybeUninit,
+    os::fd::AsRawFd,
+};
 
 use libc::{DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_LNK, DT_REG, DT_SOCK, DT_UNKNOWN};
 use nix::errno::Errno;
@@ -14,7 +18,6 @@ struct LinuxDirent64 {
     d_off: u64,
     d_reclen: u16,
     d_type: u8,
-
     // zero-sized array: d_reclen - sizeof(fields above)
     //d_name: [u8; ...],
 }
@@ -39,11 +42,20 @@ pub enum FileType {
     Socket = DT_SOCK,
 }
 
-pub fn for_each_getdents<'a, F: AsRawFd>(fd: &F, mut f: impl FnMut(DirEntry<'a>) -> anyhow::Result<()>) -> anyhow::Result<()> {
+pub fn for_each_getdents<'a, F: AsRawFd>(
+    fd: &F,
+    mut f: impl FnMut(DirEntry<'a>) -> anyhow::Result<()>,
+) -> anyhow::Result<()> {
     loop {
         // TODO: big buffer without stack overflow or malloc
         let mut buf: MaybeUninit<[u8; 32768]> = MaybeUninit::uninit();
-        let n = unsafe { getdents64(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, size_of_val(&buf)) };
+        let n = unsafe {
+            getdents64(
+                fd.as_raw_fd(),
+                buf.as_mut_ptr() as *mut _,
+                size_of_val(&buf),
+            )
+        };
         if n == 0 {
             break;
         } else if n == -1 {
@@ -58,7 +70,12 @@ pub fn for_each_getdents<'a, F: AsRawFd>(fd: &F, mut f: impl FnMut(DirEntry<'a>)
             }
 
             let d = unsafe { (p as *const LinuxDirent64).read_unaligned() };
-            let name_bytes = unsafe { std::slice::from_raw_parts(p.add(size_of::<LinuxDirent64>()), d.d_reclen as usize - size_of::<LinuxDirent64>()) };
+            let name_bytes = unsafe {
+                std::slice::from_raw_parts(
+                    p.add(size_of::<LinuxDirent64>()),
+                    d.d_reclen as usize - size_of::<LinuxDirent64>(),
+                )
+            };
             let name = CStr::from_bytes_until_nul(name_bytes).unwrap();
 
             // safe: we trust kernel to return valid data
