@@ -21,9 +21,14 @@ import (
 var errNeedRetry = errors.New("server stopped on remote host, retrying")
 
 // note: we keep the client and server versions in sync (i.e. client 1.0.0 should pull server 1.0.0)
-const registryImage = "registry.orb.local/wormhole:" + Version
+const registryImageDebug = "registry.orb.local/wormhole:" + Version
+const registryImageRelease = "api-license.orbstack.dev/wormhole:" + Version
 
-const versionMismatchExitCode = 123
+const (
+	versionMismatchExitCode = 123
+	// https://docs.docker.com/engine/containers/run/#exit-status
+	commandNotInvokedExitCode = 126
+)
 
 const maxRetries = 3
 
@@ -85,17 +90,28 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 	//   - client connects right before the server shuts down. We detect this if we receive an EOF from the server
 	// before we receive an initial ACK message, and retry in this case.
 
+	pullingFromOverride := "Pulling remote debug image from OrbStack registry"
+	var registryImage string
+	var pullImageMode dockerclient.PullImageMode
+
+	if false {
+		// always pull for development so we can change the wormhole image in-place
+		pullImageMode = dockerclient.PullImageAlways
+		registryImage = registryImageDebug
+	} else {
+		// for prod, only pull the image if it doesn't exist to avoid unnecessary registry requests. the client can safely
+		// assume that the wormhole server image for any given version will remain static, and any updates will be pushed
+		// in a newer version.
+		pullImageMode = dockerclient.PullImageIfMissing
+		registryImage = registryImageRelease
+	}
+
 	// Optimistically create server container to potentially save an additional roundtrip request. If the server container
 	// already exists, we can just attach to the current server container ID returned in the error response.
-	pullingFromOverride := "Pulling remote debug image from OrbStack registry"
 	serverContainerId, err := client.RunContainer(
 		dockerclient.RunContainerOptions{
-			Name: "orbstack-wormhole",
-			// only pull the image if it doesn't exist. the client can safely assume that
-			// the wormhole server image for any given version will remain static, and any updates
-			// will be pushed in a newer version.
-			// note: for local development it maybe easier to set PullImageAlways to update the image in-place
-			PullImage: dockerclient.PullImageIfMissing,
+			Name:      "orbstack-wormhole",
+			PullImage: pullImageMode,
 			PullImageOpts: &dockerclient.PullImageOptions{
 				ProgressOut:         os.Stderr,
 				IsTerminal:          term.IsTerminal(fdStderr),
@@ -138,7 +154,7 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		// 404: no such container
 		// 409: container is paused
 		if dockerclient.IsStatusError(err, 404) || dockerclient.IsStatusError(err, 409) {
-			return nil, fmt.Errorf("could not exec to server: %w", errNeedRetry)
+			return nil, fmt.Errorf("exec to server: %w", errNeedRetry)
 		} else {
 			return nil, err
 		}
@@ -176,6 +192,8 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 				return nil, fmt.Errorf("client proxy exited unexpectedly")
 			} else if execInspect.ExitCode == versionMismatchExitCode {
 				return nil, fmt.Errorf("client version %s unsupported by debug server", Version)
+			} else if execInspect.ExitCode == commandNotInvokedExitCode {
+				return nil, fmt.Errorf("server shutdown before client connected: %w", errNeedRetry)
 			} else {
 				return nil, fmt.Errorf("client proxy exited unexpectedly with exit code %d", execInspect.ExitCode)
 			}

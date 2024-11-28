@@ -223,17 +223,20 @@ func tlsDataFromFiles(caPath, certPath, keyPath string) (*TLSData, error) {
 		err           error
 	)
 	if caPath != "" {
-		if ca, err = os.ReadFile(caPath); err != nil {
+		ca, err = os.ReadFile(caPath)
+		if err != nil {
 			return nil, err
 		}
 	}
 	if certPath != "" {
-		if cert, err = os.ReadFile(certPath); err != nil {
+		cert, err = os.ReadFile(certPath)
+		if err != nil {
 			return nil, err
 		}
 	}
 	if keyPath != "" {
-		if key, err = os.ReadFile(keyPath); err != nil {
+		key, err = os.ReadFile(keyPath)
+		if err != nil {
 			return nil, err
 		}
 	}

@@ -27,6 +27,8 @@ func resetRemoteData(endpoint dockerclient.Endpoint, drmToken string) error {
 		return fmt.Errorf("create docker client: %w", err)
 	}
 
+	defer client.Close()
+
 	server, err := connectRemote(client, drmToken, maxRetries)
 	if err != nil {
 		return fmt.Errorf("connect to remote server: %w", err)

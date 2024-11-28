@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -33,9 +34,10 @@ type Client struct {
 	// of creating the connection at the time of use. This is used for the exec stream hijack
 	// for remote wormhole debug.
 	//
-	// note: use a channel to pass the connection object since we may need to wait for the
-	// connection to be established in the background
-	spareConnChan *chan net.Conn
+	// spareConnChan is nil if there is no spare connection, and a channel if there is
+	// a pending/created spare connection ready to be consumed
+	spareConnChan chan net.Conn
+	spareConnMu   sync.Mutex
 }
 
 type statusRecord struct {
@@ -75,21 +77,21 @@ func NewClient(endpoint Endpoint, opts *Options) (*Client, error) {
 	case "ssh":
 		dialer, err := GetSSHDialer(endpoint.Host)
 		if err != nil {
-			return nil, fmt.Errorf("could not create ssh dialer: %w", err)
+			return nil, fmt.Errorf("create ssh dialer: %w", err)
 		}
 		c, err = NewWithDialer(dialer, opts)
 		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker host via ssh: %w", err)
+			return nil, fmt.Errorf("connect to ssh docker host: %w", err)
 		}
 	case "unix":
 		c, err = NewWithUnixSocket(hostURL.Path, opts)
 		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker host via unix: %w", err)
+			return nil, fmt.Errorf("connect to unix docker host: %w", err)
 		}
 	case "tcp":
 		c, err = NewWithTCP(hostURL.Host, endpoint, opts)
 		if err != nil {
-			return nil, fmt.Errorf("could not connect to docker host via tcp: %w", err)
+			return nil, fmt.Errorf("connect to tcp docker host: %w", err)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported scheme %s", hostURL.Scheme)
@@ -98,17 +100,7 @@ func NewClient(endpoint Endpoint, opts *Options) (*Client, error) {
 	c.addr = hostURL.Host
 
 	if opts != nil && opts.CreateSpareConn {
-		go func() {
-			connChan := make(chan net.Conn)
-			c.spareConnChan = &connChan
-			defer close(connChan)
-
-			conn, err := c.createKeepAliveConnection(context.Background())
-			if err != nil {
-				return
-			}
-			connChan <- conn
-		}()
+		go c.createSpareConnection()
 	}
 
 	return c, nil
@@ -196,8 +188,39 @@ func NewWithUnixSocket(path string, options *Options) (*Client, error) {
 	}, options)
 }
 
+func (c *Client) createSpareConnection() {
+	c.spareConnMu.Lock()
+	defer c.spareConnMu.Unlock()
+
+	// if there's another spare connection (either pending or created), don't create a new one
+	if c.spareConnChan != nil {
+		return
+	}
+
+	c.spareConnChan = make(chan net.Conn, 1)
+	conn, err := c.createKeepAliveConnection(context.Background())
+	if err != nil {
+		c.spareConnChan <- nil
+	} else {
+		c.spareConnChan <- conn
+	}
+}
+
 func (c *Client) Close() error {
 	c.http.CloseIdleConnections()
+
+	c.spareConnMu.Lock()
+	defer c.spareConnMu.Unlock()
+
+	if c.spareConnChan != nil {
+		// wait for channel and close spare connection if exists
+		conn := <-c.spareConnChan
+		if conn != nil {
+			conn.Close()
+		}
+		close(c.spareConnChan)
+	}
+
 	return nil
 }
 
@@ -386,10 +409,13 @@ func (c *Client) streamHijack(method, path string, body any) (io.Reader, io.Writ
 
 	var conn net.Conn
 
+	c.spareConnMu.Lock()
 	if c.spareConnChan != nil {
-		// if the initial spare connection creation fails, try again below
-		conn = <-*c.spareConnChan
+		conn = <-c.spareConnChan
+		// reset channel to nil so that subsequent calls do not expect a spare connection
+		c.spareConnChan = nil
 	}
+	c.spareConnMu.Unlock()
 
 	if conn == nil {
 		conn, err = c.createKeepAliveConnection(ctx)
