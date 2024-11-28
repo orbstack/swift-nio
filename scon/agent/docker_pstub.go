@@ -9,6 +9,8 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/agent/sctpfwd"
+	"github.com/orbstack/macvirt/scon/agent/sctpfwd/sctplib"
 	"github.com/orbstack/macvirt/scon/agent/tcpfwd"
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
 	"github.com/orbstack/macvirt/scon/util"
@@ -141,7 +143,6 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 		ipVer = "4"
 	}
 
-	// we only support TCP and UDP, no SCTP
 	switch proto {
 	case "tcp":
 		l, err := netx.ListenTCP("tcp"+ipVer, &net.TCPAddr{
@@ -192,6 +193,27 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 		}
 
 		go proxy.Run()
+		info := pstubServerInfo{
+			DialIP: dialIP,
+		}
+		return proxy, makeServerKey(proto, hostIP, hostPort), info, nil
+
+	case "sctp":
+		l, err := sctplib.ListenSCTP(&sctplib.SCTPAddr{
+			Addr: hostIP,
+			Port: hostPort,
+		})
+		if err != nil {
+			logrus.Error("SCTP listen failed: ", err)
+			return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+		}
+
+		proxy := sctpfwd.NewSCTPProxy(l, &sctplib.SCTPAddr{
+			Addr: dialIP,
+			Port: containerPort,
+		})
+		go proxy.Run()
+
 		info := pstubServerInfo{
 			DialIP: dialIP,
 		}
