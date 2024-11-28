@@ -168,7 +168,7 @@ $(SWIFT_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,../swift/GoVZF/Sources,*) ../sw
 	@touch $@
 
 # Go static library: vmgr (including main function)
-$(GO_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,./,*.go *.c *.h *.cpp) go.mod go.sum
+$(GO_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,./,*.go *.c *.h *.cpp) $(call rwildcard,../vendor/gvisor,*.go) go.mod go.sum
 # generate env-dependent Go code
 	$(GO) generate ./conf/appver ./drm/killswitch
 
