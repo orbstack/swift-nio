@@ -318,8 +318,11 @@ func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
 
 	// if ip_filters are set, macOS byteswaps 16-bit fields (tlen and frag_offset/flags) in the IP header to host order
 	// swap them back to network order to make it a valid IP header
-	binary.BigEndian.PutUint16(ipHdr[header.IPv4TotalLenOffset:], binary.NativeEndian.Uint16(ipHdr[header.IPv4TotalLenOffset:]))
-	binary.BigEndian.PutUint16(ipHdr[ipv4FlagsFragOffOffset:], binary.NativeEndian.Uint16(ipHdr[ipv4FlagsFragOffOffset:]))
+	// however, this doesn't apply to some interfaces (e.g. lo0), so only do this if the length would be invalid without swapping
+	if ipHdr.TotalLength() > uint16(len(msg)) {
+		binary.BigEndian.PutUint16(ipHdr[header.IPv4TotalLenOffset:], binary.NativeEndian.Uint16(ipHdr[header.IPv4TotalLenOffset:]))
+		binary.BigEndian.PutUint16(ipHdr[ipv4FlagsFragOffOffset:], binary.NativeEndian.Uint16(ipHdr[ipv4FlagsFragOffOffset:]))
+	}
 
 	// validate to avoid panics, now that length is fixed
 	if !ipHdr.IsValid(len(msg)) {
