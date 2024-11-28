@@ -43,6 +43,11 @@ var (
 		// default translated ones below
 	}
 
+	defaultPassEnvPrefixes = []string{
+		// for "mac link docker" use case - DOCKER_CONTEXT, DOCKER_HOST, DOCKER_DEFAULT_PLATFORM, etc.
+		"DOCKER_",
+	}
+
 	// need url host translation
 	proxyEnvKeys = []string{
 		"HTTP_PROXY",

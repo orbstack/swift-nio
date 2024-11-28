@@ -29,6 +29,13 @@ func OSToClientEnv(osEnv envutil.EnvMap, transFns TranslatorFuncs) (envutil.EnvM
 			clientEnv[k] = v
 		}
 	}
+	for _, prefix := range defaultPassEnvPrefixes {
+		for k, v := range osEnv {
+			if strings.HasPrefix(k, prefix) {
+				clientEnv[k] = v
+			}
+		}
+	}
 
 	// include all LC_* to match macOS ssh_config
 	// although we exclude LANG, LC_* is probably OK because the user was more explicit about it,
