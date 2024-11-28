@@ -94,6 +94,7 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 			// only pull the image if it doesn't exist. the client can safely assume that
 			// the wormhole server image for any given version will remain static, and any updates
 			// will be pushed in a newer version.
+			// note: for local development it maybe easier to set PullImageAlways to update the image in-place
 			PullImage: dockerclient.PullImageIfMissing,
 			PullImageOpts: &dockerclient.PullImageOptions{
 				ProgressOut:         os.Stderr,
@@ -164,21 +165,19 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		// due to wormhole-proxy crashing or the server container shutting down (before we've
 		// received an acknowledgement). We should only retry in the latter case.
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
-			// note: we don't need to inspect the exec instance in the success case because
-			// docker cleans up unused exec instances after a minimum of 5 minutes
-			// https://github.com/moby/moby/blob/5c487368636f7d68bdf7ec6ea74fcba2ed604d94/daemon/exec.go#L326
-			execInspect, inspectErr := client.ExecInspect(execId)
-			if inspectErr != nil {
-				// if exec instance no longer exists, i.e. the server shutdown after we attached via exec, retry
-				if dockerclient.IsStatusError(inspectErr, 404) {
-					return nil, fmt.Errorf("server shutdown before acknowledging client: %w", errNeedRetry)
-				} else {
-					return nil, err
-				}
+			serverInspect, serverInspectErr := client.InspectContainer(serverContainerId)
+			if dockerclient.IsStatusError(serverInspectErr, 404) || serverInspect.State.Status == "removing" {
+				return nil, fmt.Errorf("server shutdown before acknowledging client: %w", errNeedRetry)
+			}
+
+			// check client exit status for more information if the server is still up
+			execInspect, execInspectErr := client.ExecInspect(execId)
+			if execInspectErr != nil {
+				return nil, fmt.Errorf("client proxy exited unexpectedly")
 			} else if execInspect.ExitCode == versionMismatchExitCode {
-				return nil, errors.New(fmt.Sprintf("client version %s unsupported by debug server", Version))
+				return nil, fmt.Errorf("client version %s unsupported by debug server", Version)
 			} else {
-				return nil, errors.New("client proxy exited unexpectedly")
+				return nil, fmt.Errorf("client proxy exited unexpectedly with exit code %d", execInspect.ExitCode)
 			}
 		} else {
 			return nil, err

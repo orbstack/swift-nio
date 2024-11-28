@@ -484,8 +484,6 @@ impl WormholeServer {
                 }
             }
 
-            // todo: decrement refcount once wormhole-attach exits, which ensures all background tasks
-            // are finished
             debug!("wormhole-attach finished, decrementing refcount");
             drop(guard);
         });

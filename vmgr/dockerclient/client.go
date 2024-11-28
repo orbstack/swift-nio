@@ -385,15 +385,13 @@ func (c *Client) streamHijack(method, path string, body any) (io.Reader, io.Writ
 	req.Header.Set("Upgrade", "tcp")
 
 	var conn net.Conn
-	var ok bool
 
 	if c.spareConnChan != nil {
-		// if we've pre-created a spare connection, use it
-		conn, ok = <-*c.spareConnChan
-		if !ok {
-			return nil, nil, fmt.Errorf("could not connect to docker endpoint: %w", err)
-		}
-	} else {
+		// if the initial spare connection creation fails, try again below
+		conn = <-*c.spareConnChan
+	}
+
+	if conn == nil {
 		conn, err = c.createKeepAliveConnection(ctx)
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not connect to docker endpoint: %w", err)

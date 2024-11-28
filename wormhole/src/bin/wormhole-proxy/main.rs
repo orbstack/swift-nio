@@ -50,7 +50,5 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    // TODO: forward client signals to server
-
     Ok(())
 }
