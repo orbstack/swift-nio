@@ -355,7 +355,7 @@ func (c *Container) configureLxc() error {
 		if c.Image.Distro == images.ImageUbuntu {
 			_ = securefs.MkdirAll(c.rootfsDir, "/usr/lib/linux-tools", 0755)
 			err := securefs.Symlink(c.rootfsDir, mounts.LinuxTools, "/usr/lib/linux-tools/"+c.manager.kernelVersion)
-			if err != nil {
+			if err != nil && !errors.Is(err, unix.EEXIST) {
 				logrus.WithError(err).WithField("machine", c.Name).Error("failed to symlink linux-tools")
 			}
 		}
