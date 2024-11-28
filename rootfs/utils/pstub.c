@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <poll.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -7,6 +8,27 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+static int g_connfd = -1;
+
+// dockerd kills us with SIGINT to do synchronous cleanup on stop, and expects a clean exit with
+// status 0
+static void sigint_handler(int sig) {
+    // close write side to signal EOF to agent
+    // can't just exit and let kernel clean up our fds, because the real listener is in the agent;
+    // relying on agent to close the listener immediately when our connfd is auto-closed is racy
+    int ret = shutdown(g_connfd, SHUT_WR);
+    if (ret == -1) {
+        _exit(1);
+    }
+
+    // wait for EOF
+    char buf[1];
+    read(g_connfd, buf, sizeof(buf));
+
+    // exit with success
+    _exit(0);
+}
 
 // stub program that sends arguments to a unix socket, reads 2-byte return value, writes it to fd3,
 // and then waits for SIGINT/SIGTERM
@@ -62,14 +84,27 @@ int main(int argc, char **argv) {
         write(outfd, strerror(errno), strlen(strerror(errno)));
         return 1;
     }
-    write(outfd, ret_buf, len);
+
+    // register SIGINT handler early to prevent race if killed now
+    g_connfd = connfd;
+    signal(SIGINT, sigint_handler);
+
+    // return result to dockerd
+    int ret = write(outfd, ret_buf, len);
+    if (ret == -1) {
+        // we're not supposed to be running anymore if the pipe is closed
+        return 1;
+    }
     close(outfd);
     /* leave connfd open for signaling exit */
 
-    // just let default SIGINT/SIGTERM handler kill us
-    // agent listens to our lifetime via pidfd from peercred, so we don't need to do anything
+    // once the proxy is started, we have a few ways to stop:
+    // - SIGINT: sent by dockerd when container stops. this needs synchronous cleanup to prevent
+    // races
+    // - SIGTERM: sent by dockerd PDEATHSIG. this doesn't need sync cleanup
+    // - any other signal: default action
     while (1) {
-        poll(NULL, 0, -1);
+        pause();
     }
 
     return 0;

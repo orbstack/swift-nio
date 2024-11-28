@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -76,7 +75,6 @@ func ListenSCTP(addr *SCTPAddr) (*SCTPListener, error) {
 }
 
 func (l *SCTPListener) Accept() (net.Conn, error) {
-	logrus.Debug("accepting sctp")
 	var cfd int
 	var err2 error
 	err := l.rawConn.Read(func(fd uintptr) bool {
