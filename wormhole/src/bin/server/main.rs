@@ -450,7 +450,6 @@ impl WormholeServer {
                         }
                     }
 
-                    debug!("unsetting cloexec on fds for wormhole-attach");
                     unset_cloexec(runtime_state.wormhole_mount_tree_fd)?;
                     unset_cloexec(runtime_state.exit_code_pipe_write_fd)?;
                     unset_cloexec(runtime_state.log_fd)?;

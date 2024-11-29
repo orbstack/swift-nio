@@ -94,7 +94,7 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 	var registryImage string
 	var pullImageMode dockerclient.PullImageMode
 
-	if false {
+	if conf.Debug() {
 		// always pull for development so we can change the wormhole image in-place
 		pullImageMode = dockerclient.PullImageAlways
 		registryImage = registryImageDebug
