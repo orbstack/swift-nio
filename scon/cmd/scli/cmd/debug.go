@@ -195,6 +195,14 @@ Learn more: https://go.orbstack.dev/debug
 			checkCLI(err)
 		}
 
+		if exitCode == sshenv.ExitCodeCgroupsV1Unsupported {
+			// todo: add remote fallback option
+			fmt.Fprintln(os.Stderr, color.New(color.FgYellow).Sprint(`OrbStack Debug Shell does not yet support remote hosts using cgroups v1.
+Learn more: https://go.orbstack.dev/debug
+`))
+			checkCLI(err)
+		}
+
 		os.Exit(exitCode)
 		return nil
 	},

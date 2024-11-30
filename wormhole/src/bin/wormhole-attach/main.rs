@@ -3,8 +3,10 @@ use std::{
     collections::HashMap,
     ffi::CString,
     fs::File,
+    io::Write,
     os::fd::{AsRawFd, FromRawFd, OwnedFd},
     path::Path,
+    process,
     ptr::{null, null_mut},
 };
 
@@ -23,7 +25,7 @@ use nix::{
     sys::{
         prctl,
         signal::Signal,
-        socket::{socketpair, AddressFamily, SockFlag, SockType},
+        socket::{send, socketpair, AddressFamily, MsgFlags, SockFlag, SockType},
         stat::{umask, Mode},
         utsname::uname,
         wait::{waitpid, WaitStatus},
@@ -35,7 +37,7 @@ use nix::{
 };
 
 use signals::{mask_sigset, SigSet, SignalFd};
-use tracing::{debug, span, trace, warn, Level};
+use tracing::{debug, error, span, trace, warn, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
@@ -55,6 +57,8 @@ mod proc;
 mod signals;
 mod subreaper;
 mod subreaper_protocol;
+
+const EXIT_CODE_CGROUPS_V1_UNSUPPORTED: u8 = 126;
 
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
 const PTRACE_LOCK: &str = "/dev/shm/.orb-wormhole-p.lock";
@@ -343,6 +347,24 @@ fn switch_rootfs(rootfs_fd: &OwnedFd, proc_mounts: &[Mount]) -> anyhow::Result<(
     Ok(())
 }
 
+fn check_cgroups_v2() -> anyhow::Result<()> {
+    let mountinfo = std::fs::read_to_string("/proc/self/mountinfo")?;
+    for line in mountinfo.lines() {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() >= 5 && fields[4] == "/sys/fs/cgroup" {
+            // https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+            // MountID ParentMountID Major:Minor Root MountPoint MountOptions - FSType...
+            if let Some(fstype_idx) = fields.iter().position(|&x| x == "-") {
+                if fields.len() > fstype_idx + 1 && fields[fstype_idx + 1] == "cgroup2" {
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    return Err(anyhow!("cgroups v1 unsupported"));
+}
+
 fn parse_config() -> anyhow::Result<(WormholeConfig, WormholeRuntimeState)> {
     let config_str = std::env::args().nth(1).unwrap();
     let runtime_state_str = std::env::args().nth(2).unwrap();
@@ -391,6 +413,15 @@ fn main() -> anyhow::Result<()> {
     set_cloexec(exit_code_pipe_write_fd.as_raw_fd())?;
     set_cloexec(log_fd.as_raw_fd())?;
     set_cloexec(wormhole_mount_fd.as_raw_fd())?;
+
+    // todo: support cgroups v1
+    trace!("check cgroups v2");
+    if check_cgroups_v2().is_err() {
+        error!("cgroup v1 unsupported, exiting");
+        let mut exit_code_pipe_write = File::from(exit_code_pipe_write_fd);
+        exit_code_pipe_write.write_all(&[EXIT_CODE_CGROUPS_V1_UNSUPPORTED])?;
+        process::exit(1);
+    }
 
     // set sigpipe
     {

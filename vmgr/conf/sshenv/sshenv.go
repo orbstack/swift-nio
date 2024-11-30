@@ -59,6 +59,7 @@ var (
 )
 
 const (
-	ExitCodeNixDebugUnsupported = 124
-	ExitCodeNeedsProLicense     = 125
+	ExitCodeNixDebugUnsupported  = 124
+	ExitCodeNeedsProLicense      = 125
+	ExitCodeCgroupsV1Unsupported = 126
 )
