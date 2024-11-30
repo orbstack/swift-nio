@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	pb "github.com/orbstack/macvirt/scon/wormclient/generated"
 	"github.com/orbstack/macvirt/vmgr/conf"
@@ -31,6 +32,7 @@ const (
 )
 
 const maxRetries = 3
+const execTimeout = 15 * time.Second
 
 // returns the docker endpoint, isLocal, error
 func GetDockerEndpoint(context string) (dockerclient.Endpoint, bool, error) {
@@ -142,21 +144,38 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 		}
 	}
 
-	reader, writer, execId, err := client.ExecStream(serverContainerId, &dockertypes.ContainerExecCreateRequest{
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		Cmd:          []string{"/bin/wormhole-proxy"},
-		Env:          []string{fmt.Sprintf("WORMHOLE_CLIENT_VERSION=%s", Version)},
-	})
-	if err != nil {
-		// the server may have been removed or stopped right after we inspected it; retry in those cases
-		// 404: no such container
-		// 409: container is paused
-		if dockerclient.IsStatusError(err, 404) || dockerclient.IsStatusError(err, 409) {
-			return nil, fmt.Errorf("exec to server: %w", errNeedRetry)
-		} else {
-			return nil, err
+	var reader io.Reader
+	var writer io.WriteCloser
+	var execId string
+	errorCh := make(chan error, 1)
+
+	go func() {
+		reader, writer, execId, err = client.ExecStream(serverContainerId, &dockertypes.ContainerExecCreateRequest{
+			AttachStdin:  true,
+			AttachStdout: true,
+			AttachStderr: true,
+			Cmd:          []string{"/bin/wormhole-proxy"},
+			Env:          []string{fmt.Sprintf("WORMHOLE_CLIENT_VERSION=%s", Version)},
+		})
+		errorCh <- err
+	}()
+
+	select {
+	case <-time.After(execTimeout):
+		// if the exec takes longer than execTimeout, the server may be in a stuck state (e.g. from containerd deadlock bugs). We should
+		// kill the server container to avoid the container running indefinitely on the remote host.
+		client.KillContainer(serverContainerId)
+		return nil, fmt.Errorf("exec stream timeout: %w", errNeedRetry)
+	case err := <-errorCh:
+		if err != nil {
+			// the server may have been removed or stopped right after we inspected it; retry in those cases
+			// 404: no such container
+			// 409: container is paused
+			if dockerclient.IsStatusError(err, 404) || dockerclient.IsStatusError(err, 409) {
+				return nil, fmt.Errorf("exec to server: %w", errNeedRetry)
+			} else {
+				return nil, err
+			}
 		}
 	}
 
