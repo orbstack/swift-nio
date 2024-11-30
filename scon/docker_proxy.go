@@ -8,12 +8,14 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/util/netx"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
@@ -27,17 +29,24 @@ const dockerProxyBufferSize = 65536
 var errCloseConn = errors.New("close conn")
 
 type DockerProxy struct {
-	container *Container
-	manager   *ConManager
-	l         net.Listener
+	container    *Container
+	manager      *ConManager
+	tcpListener  net.Listener
+	unixListener net.Listener
 }
 
 func (m *ConManager) startDockerProxy() error {
-	l, err := netx.ListenTCP("tcp", &net.TCPAddr{
+	tcpListener, err := netx.ListenTCP("tcp", &net.TCPAddr{
 		// NIC interface, port 2375
 		IP:   vnetGuestIP4,
 		Port: ports.GuestDocker,
 	})
+	if err != nil {
+		return err
+	}
+
+	_ = os.Remove(mounts.HostDockerSocket)
+	unixListener, err := netx.ListenUnix(mounts.HostDockerSocket)
 	if err != nil {
 		return err
 	}
@@ -48,13 +57,15 @@ func (m *ConManager) startDockerProxy() error {
 	}
 
 	proxy := &DockerProxy{
-		manager:   m,
-		container: c,
-		l:         l,
+		manager:      m,
+		container:    c,
+		tcpListener:  tcpListener,
+		unixListener: unixListener,
 	}
 	m.dockerProxy = proxy
 
-	go runOne("Docker proxy", proxy.Run)
+	go runOne("Docker proxy (TCP)", proxy.RunTCP)
+	go runOne("Docker proxy (unix)", proxy.RunUnix)
 	return nil
 }
 
@@ -325,9 +336,9 @@ func (p *DockerProxy) kickStart(freezer *Freezer) {
 	freezer.DecRef()
 }
 
-func (p *DockerProxy) Run() error {
+func (p *DockerProxy) RunTCP() error {
 	for {
-		clientConn, err := p.l.Accept()
+		clientConn, err := p.tcpListener.Accept()
 		if err != nil {
 			return err
 		}
@@ -342,6 +353,24 @@ func (p *DockerProxy) Run() error {
 	}
 }
 
+func (p *DockerProxy) RunUnix() error {
+	for {
+		clientConn, err := p.unixListener.Accept()
+		if err != nil {
+			return err
+		}
+
+		go func() {
+			err := p.serveConn(clientConn)
+			if err != nil && !errors.Is(err, unix.EPIPE) {
+				logrus.WithError(err).Error("docker conn failed")
+			}
+		}()
+	}
+}
+
 func (p *DockerProxy) Close() error {
-	return p.l.Close()
+	p.tcpListener.Close()
+	p.unixListener.Close()
+	return nil
 }

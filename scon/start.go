@@ -466,6 +466,13 @@ func (c *Container) configureLxc() error {
 				bind("/mnt/mac"+p, p, "")
 			}
 
+			// special case: make ~/.orbstack/run/docker.sock bind mount work (if people bind mount the docker context socket)
+			// all mounts are optional so it's OK if this fails due to weird/missing host paths
+			// no stat: socket doesn't exist yet at config time
+			// this is mainly useful for docker, but also nice to have in machines (subject to caveats because we don't filter requests by source in the proxy)
+			// however, we have to bind it in simplevisor instead of here: LXC can't bind onto sockets because it uses the old mount API and opens the dest path without O_PATH for /proc/self/fd/N dest
+			//bind(mounts.HostDockerSocket, hostUser.HomeDir+"/.orbstack/run/docker.sock", "nostat")
+
 			// binds for ssh agent sockets (fixes docker $SSH_AUTH_SOCK forward)
 			// anything operation (mount, stat, access) on the /private socket through virtiofs returns EOPNOTSUPP
 			// so we bind the dir to a tmpfs

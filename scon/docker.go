@@ -138,6 +138,7 @@ type SimplevisorConfig struct {
 	InitCommands [][]string          `json:"init_commands"`
 	InitServices map[string][]string `json:"init_services"`
 	DepServices  map[string][]string `json:"dep_services"`
+	HostHome     string              `json:"host_home"`
 }
 
 type SimplevisorStatus struct {
@@ -288,16 +289,6 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// services
 	// no stat: socket doesn't exist yet at config time
 	cm.bind(mounts.DockerRuncWrapSocket, mounts.DockerRuncWrapSocket, "nostat")
-
-	hostUser, err := c.manager.host.GetUser()
-	if err != nil {
-		return "", fmt.Errorf("get user: %w", err)
-	}
-
-	// special case: make ~/.orbstack/run/docker.sock bind mount work (if people bind mount the docker context socket)
-	// all mounts are optional so it's OK if this fails
-	//cm.bind(mounts.DockerSocket, mounts.Virtiofs+hostUser.HomeDir+"/.orbstack/run/docker.sock", "")
-	_ = hostUser
 
 	// configure network statically
 	cm.set("lxc.net.0.flags", "up")
@@ -583,6 +574,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			"docker": {"dockerd", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
 		},
 		DepServices: map[string][]string{},
+		HostHome:    hostUser.HomeDir,
 	}
 	// add k8s service
 	if c.manager.k8sEnabled {

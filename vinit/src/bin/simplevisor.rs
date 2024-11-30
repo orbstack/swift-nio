@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::anyhow;
 use nix::{
+    mount::{mount, MsFlags},
     sys::{
         signal::{kill, Signal},
         wait::{waitid, Id, WaitPidFlag, WaitStatus},
@@ -32,6 +33,7 @@ struct SimplevisorConfig {
     init_commands: Vec<Vec<String>>,
     init_services: HashMap<ServiceName, Vec<String>>,
     dep_services: HashMap<ServiceName, Vec<String>>,
+    host_home: String,
 }
 
 #[derive(Serialize)]
@@ -297,6 +299,19 @@ fn main() -> anyhow::Result<()> {
     // symlink: /var/run/docker.sock -> /var/run/docker.sock.raw
     // compat: https://docs.docker.com/desktop/extensions-sdk/guides/use-docker-socket-from-backend/
     symlink("/var/run/docker.sock", "/var/run/docker.sock.raw")?;
+
+    // LXC can't bind onto sockets (ENXIO due to open(dest) without O_PATH), so we bind docker.sock here to make "-v ~/.orbstack/run/docker.sock:/var/run/docker.sock" work
+    // we don't strictly need the proxy here, but it helps for future path translation (and better matches what machines would get if not for the LXC bug)
+    // this is optional in case the user's host fs is messed up
+    if let Err(e) = mount::<str, str, str, str>(
+        Some("/opt/orbstack-guest/run/docker.sock"),
+        &format!("{}/.orbstack/run/docker.sock", config.host_home),
+        None,
+        MsFlags::MS_BIND,
+        None,
+    ) {
+        eprintln!(" [!] failed to bind docker.sock: {}", e);
+    }
 
     let mut sv = Supervisor {
         services: Arc::new(Mutex::new(HashMap::new())),

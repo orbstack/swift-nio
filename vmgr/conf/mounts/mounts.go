@@ -48,6 +48,7 @@ const (
 	HostHcontrolSocket      = HostRun + "/hcontrol.sock"
 	HostSconGuestSocket     = HostRun + "/scon-guest.sock"
 	HostExtraCerts          = HostRun + "/extra-certs.crt"
+	HostDockerSocket        = HostRun + "/docker.sock"
 
 	// docker guest paths
 	DockerSocket         = "/var/run/docker.sock"
