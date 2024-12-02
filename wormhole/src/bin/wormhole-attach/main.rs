@@ -345,22 +345,24 @@ fn switch_rootfs(rootfs_fd: &OwnedFd, proc_mounts: &[Mount]) -> anyhow::Result<(
     Ok(())
 }
 
-fn check_cgroups_v2() -> anyhow::Result<()> {
+// returns the mountpoint
+fn get_cgroup2_mountpoint() -> anyhow::Result<String> {
     let mountinfo = std::fs::read_to_string("/proc/self/mountinfo")?;
     for line in mountinfo.lines() {
         let fields: Vec<&str> = line.split_whitespace().collect();
-        if fields.len() >= 5 && fields[4] == "/sys/fs/cgroup" {
-            // https://www.kernel.org/doc/Documentation/filesystems/proc.txt
-            // MountID ParentMountID Major:Minor Root MountPoint MountOptions - FSType...
-            if let Some(fstype_idx) = fields.iter().position(|&x| x == "-") {
-                if fields.len() > fstype_idx + 1 && fields[fstype_idx + 1] == "cgroup2" {
-                    return Ok(());
-                }
+        if fields.len() < 5 {
+            continue;
+        }
+
+        // https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+        // MountID ParentMountID Major:Minor Root MountPoint MountOptions - FSType...
+        if let Some(fstype_idx) = fields.iter().position(|&x| x == "-") {
+            if fields.len() > fstype_idx + 1 && fields[fstype_idx + 1] == "cgroup2" {
+                return Ok(fields[4].to_string());
             }
         }
     }
-
-    return Err(anyhow!("cgroups v1 unsupported"));
+    return Err(anyhow!("could not find cgroup2 mountpoint"));
 }
 
 fn parse_config() -> anyhow::Result<(WormholeConfig, WormholeRuntimeState)> {
@@ -411,13 +413,6 @@ fn main() -> anyhow::Result<()> {
     set_cloexec(exit_code_pipe_write_fd.as_raw_fd())?;
     set_cloexec(log_fd.as_raw_fd())?;
     set_cloexec(wormhole_mount_fd.as_raw_fd())?;
-
-    // todo: support cgroups v1
-    trace!("check cgroups v2");
-    if check_cgroups_v2().is_err() {
-        println!("remote debug does not support cgroups v1, exiting");
-        process::exit(1);
-    }
 
     // set sigpipe
     {
@@ -474,9 +469,30 @@ fn main() -> anyhow::Result<()> {
         .split(':')
         .last()
         .unwrap();
+    // todo: support cgroups v1
+    let cgroup2_mountpoint_opt = get_cgroup2_mountpoint();
+    // check that the current process' cgroup path exists at the cgroup2 mount point. This additional check
+    // is required because docker may choose to use cgroup v1 even if the host machine supports both cgroup versions.
+    // all v2 cgroups will have a "cgroup.controllers" file (https://docs.kernel.org/admin-guide/cgroup-v2.html).
+    if cgroup2_mountpoint_opt.is_err()
+        || !Path::new(&format!(
+            "{}/{}/cgroup.controllers",
+            cgroup2_mountpoint_opt.as_ref().unwrap(),
+            cgroup_path
+        ))
+        .exists()
+    {
+        println!("remote debug does not support cgroups v1, exiting");
+        process::exit(1);
+    }
+
     let self_pid: i32 = getpid().into();
     std::fs::write(
-        format!("/sys/fs/cgroup/{}/cgroup.procs", cgroup_path),
+        format!(
+            "{}/{}/cgroup.procs",
+            cgroup2_mountpoint_opt.unwrap(),
+            cgroup_path
+        ),
         format!("{}", self_pid),
     )?;
 
