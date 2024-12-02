@@ -58,8 +58,6 @@ mod signals;
 mod subreaper;
 mod subreaper_protocol;
 
-const EXIT_CODE_CGROUPS_V1_UNSUPPORTED: u8 = 126;
-
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
 const PTRACE_LOCK: &str = "/dev/shm/.orb-wormhole-p.lock";
 
@@ -417,9 +415,7 @@ fn main() -> anyhow::Result<()> {
     // todo: support cgroups v1
     trace!("check cgroups v2");
     if check_cgroups_v2().is_err() {
-        error!("cgroup v1 unsupported, exiting");
-        let mut exit_code_pipe_write = File::from(exit_code_pipe_write_fd);
-        exit_code_pipe_write.write_all(&[EXIT_CODE_CGROUPS_V1_UNSUPPORTED])?;
+        println!("remote debug does not support cgroups v1, exiting");
         process::exit(1);
     }
 

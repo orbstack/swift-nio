@@ -235,7 +235,6 @@ func debugRemote(containerID string, endpoint dockerclient.Endpoint, drmToken st
 	if err != nil {
 		return 1, fmt.Errorf("create docker client: %w", err)
 	}
-
 	defer client.Close()
 
 	containerInfo, err := client.InspectContainer(containerID)

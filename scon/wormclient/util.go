@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	pb "github.com/orbstack/macvirt/scon/wormclient/generated"
@@ -147,8 +148,9 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 	var reader io.Reader
 	var writer io.WriteCloser
 	var execId string
-	errorCh := make(chan error, 1)
+	var hasTimedOut atomic.Bool
 
+	errorCh := make(chan error, 1)
 	go func() {
 		reader, writer, execId, err = client.ExecStream(serverContainerId, &dockertypes.ContainerExecCreateRequest{
 			AttachStdin:  true,
@@ -158,14 +160,35 @@ func connectRemoteHelper(client *dockerclient.Client, drmToken string) (*RpcServ
 			Env:          []string{fmt.Sprintf("WORMHOLE_CLIENT_VERSION=%s", Version)},
 		})
 		errorCh <- err
+
+		// close connection to avoid leaking if we hit the timeout while establishing the stream
+		if hasTimedOut.Load() && writer != nil {
+			writer.Close()
+		}
 	}()
 
 	select {
 	case <-time.After(execTimeout):
+		hasTimedOut.Store(true)
+
+		// handle the possible race condition where the ExecStream goroutine exits right before the
+		// timeout fires, causing a connection leak since `hasTimedOut` is not yet set.
+		select {
+		case <-errorCh:
+			if writer != nil {
+				writer.Close()
+			}
+		default:
+		}
+
 		// if the exec takes longer than execTimeout, the server may be in a stuck state (e.g. from containerd deadlock bugs). We should
 		// kill the server container to avoid the container running indefinitely on the remote host.
-		client.KillContainer(serverContainerId)
-		return nil, fmt.Errorf("exec stream timeout: %w", errNeedRetry)
+		err := client.KillContainer(serverContainerId)
+		if err == nil {
+			return nil, fmt.Errorf("exec stream timeout: %w", errNeedRetry)
+		} else {
+			return nil, fmt.Errorf("exec stream timeout; killing server container: %w", err)
+		}
 	case err := <-errorCh:
 		if err != nil {
 			// the server may have been removed or stopped right after we inspected it; retry in those cases
