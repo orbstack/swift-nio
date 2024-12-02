@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	minMemoryMib     = 500                    // 500 MiB
-	maxDefaultMemory = 8 * 1024 * 1024 * 1024 // 8 GiB
+	minMemoryMib     = 500                     // 500 MiB
+	maxDefaultMemory = 16 * 1024 * 1024 * 1024 // 16 GiB
 
 	ProxyNone = "none"
 	ProxyAuto = "auto"
@@ -254,7 +254,7 @@ func diffJsonMaps(a, b any) (map[string]any, error) {
 
 func calcMemory() uint64 {
 	hostMem := mem.PhysicalMemory()
-	targetMem := hostMem / 3
+	targetMem := hostMem / 2
 	return min(targetMem, maxDefaultMemory)
 }
 
