@@ -114,7 +114,7 @@ var (
 		ImageFedora:    "41",
 		ImageGentoo:    "current",
 		ImageKali:      "current",
-		ImageNixos:     "24.05",
+		ImageNixos:     "24.11",
 		ImageOpeneuler: "24.09",
 		ImageOpensuse:  "15.6",
 		ImageOracle:    "9",
