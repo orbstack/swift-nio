@@ -9,19 +9,19 @@ func TestScliCreateStopStartDelete(t *testing.T) {
 
 	// create
 	n := name("scli")
-	_, err := runScli("orbctl", "create", "alpine", n)
+	_, err := runScli("orb", "create", "alpine", n)
 	checkT(t, err)
 
 	// stop
-	_, err = runScli("orbctl", "stop", n)
+	_, err = runScli("orb", "stop", n)
 	checkT(t, err)
 
 	// start
-	_, err = runScli("orbctl", "start", n)
+	_, err = runScli("orb", "start", n)
 	checkT(t, err)
 
 	// restart
-	_, err = runScli("orbctl", "restart", n)
+	_, err = runScli("orb", "restart", n)
 	checkT(t, err)
 
 	// run command
@@ -31,7 +31,7 @@ func TestScliCreateStopStartDelete(t *testing.T) {
 	if out != "" {
 		t.Fatalf("expected empty output, got: %s", out)
 	}
-	out, err = runScli("orbctl", "run", "-m", n, "true")
+	out, err = runScli("orb", "run", "-m", n, "true")
 	checkT(t, err)
 	// make sure output is empty, no spinner
 	if out != "" {
@@ -39,7 +39,7 @@ func TestScliCreateStopStartDelete(t *testing.T) {
 	}
 
 	// delete
-	_, err = runScli("orbctl", "delete", n)
+	_, err = runScli("orb", "delete", n)
 	checkT(t, err)
 }
 
@@ -48,17 +48,17 @@ func TestScliCloudInit(t *testing.T) {
 
 	// create with cloud-init
 	n := name("cloud-init")
-	_, err := runScli("orbctl", "create", "ubuntu", n, "--user-data", "cloud-init.yml")
+	_, err := runScli("orb", "create", "ubuntu", n, "--user-data", "cloud-init.yml")
 	checkT(t, err)
 
 	// check file
-	out, err := runScli("orbctl", "run", "-m", n, "cat", "/etc/cltest")
+	out, err := runScli("orb", "run", "-m", n, "cat", "/etc/cltest")
 	checkT(t, err)
 	if out != "it works!\n" {
 		t.Fatalf("expected test, got: %s", out)
 	}
 
 	// delete
-	_, err = runScli("orbctl", "delete", n)
+	_, err = runScli("orb", "delete", n)
 	checkT(t, err)
 }

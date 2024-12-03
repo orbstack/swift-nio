@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 	"slices"
 	"strconv"
@@ -24,15 +23,7 @@ var cloudInitUserData string
 func getTestMachineCount() int64 {
 	env, ok := os.LookupEnv("ORB_TEST_MACHINE_COUNT")
 	if !ok {
-		cpuc, err := exec.Command("sysctl", "-n", "hw.ncpu").Output()
-		if err != nil {
-			panic(fmt.Errorf("couldn't get cpu count: %w", err))
-		}
-		n, err := strconv.Atoi(strings.TrimSpace(string(cpuc)))
-		if err != nil {
-			panic(fmt.Errorf("couldn't parse cpu count %v: %w", strings.TrimSpace(string(cpuc)), err))
-		}
-		return int64(n / 2)
+		return int64(runtime.NumCPU() / 2)
 	}
 
 	n, err := strconv.Atoi(env)
@@ -145,7 +136,7 @@ func TestSconMachines(t *testing.T) {
 				Arch:    arch,
 				Version: ver,
 			},
-			InternalForTesting: true,
+			InternalUseTestCache: true,
 		})
 		if err != nil && strings.Contains(err.Error(), "image not found") {
 			t.Skip("image not found")
@@ -174,15 +165,18 @@ func TestSconMachines(t *testing.T) {
 		})
 
 		t.Run("Stop", func(t *testing.T) {
-			checkT(t, scli.Client().ContainerStop(container))
+			err := scli.Client().ContainerStop(container)
+			checkT(t, err)
 		})
 
 		t.Run("Start", func(t *testing.T) {
-			checkT(t, scli.Client().ContainerStart(container))
+			err := scli.Client().ContainerStart(container)
+			checkT(t, err)
 		})
 
 		t.Run("Restart", func(t *testing.T) {
-			checkT(t, scli.Client().ContainerRestart(container))
+			err := scli.Client().ContainerRestart(container)
+			checkT(t, err)
 		})
 
 		t.Run("Rename", func(t *testing.T) {
@@ -190,13 +184,12 @@ func TestSconMachines(t *testing.T) {
 			err := scli.Client().ContainerRename(container, newName)
 			checkT(t, err)
 
-			args := []string{"orbctl", "run", "-m", newName}
+			args := []string{"orb", "run", "-m", newName}
 
 			hostnameCmd := []string{"hostname"}
 			if distro == "oracle" {
 				// Oracle Linux doesn't ship a `hostname` binary, lol
 				// Update from two months later: `hostnamectl hostname` no longer works?!
-				// WTF is Oracle doing?
 				hostnameCmd = []string{"bash", "-c", `hostnamectl | grep "Static hostname:"`}
 			}
 
@@ -247,8 +240,8 @@ func TestSconMachines(t *testing.T) {
 					Arch:    arch,
 					Version: ver,
 				},
-				CloudInitUserData:  cloudInitUserData,
-				InternalForTesting: true,
+				CloudInitUserData:    cloudInitUserData,
+				InternalUseTestCache: true,
 			})
 			if err != nil {
 				if strings.Contains(err.Error(), "cloud-init not supported") || strings.Contains(err.Error(), "image not found") {
@@ -262,7 +255,7 @@ func TestSconMachines(t *testing.T) {
 			})
 
 			// check file
-			out, err := runScli("orbctl", "run", "-m", machineName, "cat", "/etc/cltest")
+			out, err := runScli("orb", "run", "-m", machineName, "cat", "/etc/cltest")
 			checkT(t, err)
 			if out != "it works!\n" {
 				t.Fatalf("expected test, got: %s", out)

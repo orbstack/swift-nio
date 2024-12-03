@@ -18,7 +18,7 @@ func TestK8sControlCLI(t *testing.T) {
 		// stop k8s
 		"stop",
 	} {
-		_, err := runScli("orbctl", action, "k8s")
+		_, err := runScli("orb", action, "k8s")
 		checkT(t, err)
 	}
 }

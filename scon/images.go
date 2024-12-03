@@ -348,9 +348,9 @@ func downloadImage(img RawImage, downloadDir string) (string, string, error) {
 	return rootfsFile, metaFile, nil
 }
 
-func (m *ConManager) getOrDownloadImage(spec types.ImageSpec, img RawImage, testing bool) (rootfsFile string, metaFile string, tempDir string, err error) {
+func (m *ConManager) getOrDownloadImage(spec types.ImageSpec, img RawImage, useTestCache bool) (rootfsFile string, metaFile string, tempDir string, err error) {
 	// TODO: actual image caching, but for now, i just want to speed up tests
-	if testing {
+	if useTestCache {
 		downloadDir := path.Join(m.dataDir, "testing-cache", spec.Distro, spec.Version+"-"+spec.Variant, spec.Arch)
 
 		if _, err = os.Stat(downloadDir + "/rootfs"); err == nil {
@@ -387,13 +387,13 @@ func (m *ConManager) getOrDownloadImage(spec types.ImageSpec, img RawImage, test
 	return
 }
 
-func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName string, rootfsDir string, cloudInitUserData string, testing bool) error {
+func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName string, rootfsDir string, cloudInitUserData string, useTestCache bool) error {
 	img, err := getImageFromSpec(spec)
 	if err != nil {
 		return err
 	}
 
-	rootfsFile, metaFile, tempDir, err := m.getOrDownloadImage(spec, img, testing)
+	rootfsFile, metaFile, tempDir, err := m.getOrDownloadImage(spec, img, useTestCache)
 	if err != nil {
 		return err
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/scon/isclient"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm"
@@ -250,8 +251,8 @@ func (h *VmControlServer) InternalGetEnvPATH(ctx context.Context) (string, error
 	return details.EnvPATH, nil
 }
 
-func (h *VmControlServer) InternalIsRunningForTests(ctx context.Context) (bool, error) {
-	return os.Getenv("ORB_TEST") == "1", nil
+func (h *VmControlServer) InternalIsTestMode(ctx context.Context) (bool, error) {
+	return coredir.TestMode(), nil
 }
 
 func (h *VmControlServer) runEnvReport(shell string, extraArgs ...string) (*vmtypes.EnvReport, error) {
@@ -402,7 +403,7 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"InternalRefreshDrm":             handler.New(s.InternalRefreshDrm),
 		"InternalDumpDebugInfo":          handler.New(s.InternalDumpDebugInfo),
 		"InternalGetEnvPATH":             handler.New(s.InternalGetEnvPATH),
-		"InternalIsRunningForTests":      handler.New(s.InternalIsRunningForTests),
+		"InternalIsTestMode":             handler.New(s.InternalIsTestMode),
 
 		"DockerContainerStart":   handler.New(s.DockerContainerStart),
 		"DockerContainerStop":    handler.New(s.DockerContainerStop),

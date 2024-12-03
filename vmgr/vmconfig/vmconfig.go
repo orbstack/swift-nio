@@ -154,10 +154,15 @@ func Get() *VmConfig {
 	}
 
 	// apply test overlay on test builds
-	if os.Getenv("ORB_TEST") == "1" {
+	if coredir.TestMode() {
+		// default: fresh test data dir
+		config.DataDir = coredir.AppDir() + "/data.test"
+		_ = os.RemoveAll(config.DataDir)
+
 		data, err := os.ReadFile(coredir.VmConfigFileTest())
 		if err == nil {
 			err = json.Unmarshal(data, &config)
+			check(err)
 		}
 	}
 

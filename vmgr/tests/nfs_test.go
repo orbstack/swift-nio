@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/user"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/util"
+	"golang.org/x/sys/unix"
 )
 
 func hostUsername(t *testing.T) string {
@@ -30,7 +30,7 @@ func TestNfsReadOnlyRoot(t *testing.T) {
 	t.Parallel()
 
 	err := os.WriteFile(coredir.EnsureNfsMountpoint()+"/testfile", []byte("test"), 0644)
-	if !errors.Is(err, syscall.EACCES) {
+	if !errors.Is(err, unix.EACCES) {
 		t.Fatal(err)
 	}
 }
@@ -44,7 +44,7 @@ func TestNfsMachinePermissions(t *testing.T) {
 		Image: types.ImageSpec{
 			Distro: images.DistroAlpine,
 		},
-		InternalForTesting: true,
+		InternalUseTestCache: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +59,7 @@ func TestNfsMachinePermissions(t *testing.T) {
 
 	t.Run("root", func(t *testing.T) {
 		err := os.WriteFile(fmt.Sprintf("%s/%s/root/testfile", coredir.EnsureNfsMountpoint(), n), []byte("test"), 0644)
-		if !errors.Is(err, syscall.EACCES) {
+		if !errors.Is(err, unix.EACCES) {
 			t.Fatal(err)
 		}
 	})

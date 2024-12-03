@@ -88,3 +88,7 @@ func NfsMountpoint() string {
 func EnsureNfsMountpoint() string {
 	return ensureDir(NfsMountpoint())
 }
+
+func TestMode() bool {
+	return os.Getenv("ORB_TEST") != ""
+}

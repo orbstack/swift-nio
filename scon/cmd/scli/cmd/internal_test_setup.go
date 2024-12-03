@@ -1,3 +1,5 @@
+//go:build !release
+
 package cmd
 
 import (
@@ -12,6 +14,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
+
+const vmgrStartTimeout = 10 * time.Second
 
 func init() {
 	internalCmd.AddCommand(internalTestSetup)
@@ -28,27 +32,26 @@ func spawnVmgr(path string, withTests bool) error {
 		return fmt.Errorf("spawn vmgr: %w", err)
 	}
 
-	c := 0
-	for c < 5 {
+	start := time.Now()
+	for time.Since(start) < vmgrStartTimeout {
 		if vmclient.IsRunning() {
 			break
 		}
 
-		time.Sleep(time.Second / 2)
-		c++
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	if !vmclient.IsRunning() {
-		return errors.New("vmgr still not running after 5 /2s")
+		return errors.New("vmgr not running after " + vmgrStartTimeout.String())
 	}
 
-	runningWithTestsAfterRespawn, err := vmclient.Client().InternalIsRunningForTests()
+	isTestMode, err := vmclient.Client().InternalIsTestMode()
 	if err != nil {
 		return fmt.Errorf("check vmgr status: %w", err)
 	}
 
-	if runningWithTestsAfterRespawn != withTests {
-		return fmt.Errorf("expected with tests = %v, got %v", withTests, runningWithTestsAfterRespawn)
+	if isTestMode != withTests {
+		return fmt.Errorf("expected with tests = %v, got %v", withTests, isTestMode)
 	}
 
 	return nil
@@ -84,81 +87,75 @@ var internalTestSetup = &cobra.Command{
 			if vmclient.IsRunning() {
 				// NOTE: We use vmgr's vmcontrol client funcs here, so that we don't bump into updateVmgr from scli -- we don't
 				// want to change the running vmgr binary if there is one.
-				runningWithTests, err := vmclient.Client().InternalIsRunningForTests()
+				isTestMode, err := vmclient.Client().InternalIsTestMode()
 				if err != nil {
-					return fmt.Errorf("check vmgr status: %w", err)
+					checkCLI(fmt.Errorf("check vmgr status: %w", err))
 				}
 
-				if runningWithTests {
+				if isTestMode {
 					fmt.Fprintln(os.Stderr, "vmgr already running for tests, doing nothing")
-					os.Remove(execInfoPath)
+					_ = os.Remove(execInfoPath)
 					return nil
 				}
 
 				vmgrExePath, err := vmclient.FindVmgrExe()
 				if err != nil {
-					return fmt.Errorf("find vmgr exe: %w", err)
+					checkCLI(fmt.Errorf("find vmgr exe: %w", err))
 				}
 
 				err = vmclient.Client().Stop()
 				if err != nil {
-					return fmt.Errorf("stop vmgr: %w", err)
+					checkCLI(fmt.Errorf("stop vmgr: %w", err))
 				}
 
 				err = spawnVmgr(vmgrExePath, true)
-				if err != nil {
-					return err
-				}
+				checkCLI(err)
 
 				err = writeExecInfo(vmgrExePath, true)
-				if err != nil {
-					return err
-				}
+				checkCLI(err)
 			} else {
 				vmgrExePath, err := vmclient.FindVmgrExe()
 				if err != nil {
-					return fmt.Errorf("find vmgr exe: %w", err)
+					checkCLI(fmt.Errorf("find vmgr exe: %w", err))
 				}
 
 				err = spawnVmgr(vmgrExePath, true)
-				if err != nil {
-					return err
-				}
+				checkCLI(err)
 
 				err = writeExecInfo(vmgrExePath, false)
-				if err != nil {
-					return err
-				}
+				checkCLI(err)
 			}
+
 		case "post":
 			if _, err := os.Stat(execInfoPath); err == nil {
 				b, err := os.ReadFile(execInfoPath)
 				if err != nil {
-					return fmt.Errorf("read exec info: %w", err)
+					checkCLI(fmt.Errorf("read exec info: %w", err))
 				}
 
 				var execInfo testExecInfo
 				err = json.Unmarshal(b, &execInfo)
 				if err != nil {
-					return fmt.Errorf("unmarshal exec info: %w", err)
+					checkCLI(fmt.Errorf("unmarshal exec info: %w", err))
 				}
 
 				err = vmclient.Client().Stop()
 				if err != nil {
-					return fmt.Errorf("stop vmgr: %w", err)
+					checkCLI(fmt.Errorf("stop vmgr: %w", err))
 				}
 
 				if execInfo.KeepRunning {
 					err = spawnVmgr(execInfo.ExePath, false)
 					if err != nil {
-						return fmt.Errorf("spawn vmgr: %w", err)
+						checkCLI(fmt.Errorf("spawn vmgr: %w", err))
 					}
 				}
 
-				os.Remove(execInfoPath)
+				_ = os.Remove(execInfoPath)
 			}
+
 		default:
-			return fmt.Errorf("unexpected argument %v, expected \"pre\" or \"post\"", args[0])
+			return fmt.Errorf("unexpected argument %v, expected 'pre' or 'post'", args[0])
 		}
 
 		return nil

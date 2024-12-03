@@ -47,12 +47,12 @@ func TestWormholeWaitpid1HangRegression(t *testing.T) {
 		t.Fatal(err)
 	}
 	cleanup(t, func() error {
-		_, err := util.Run("docker", "stop", n)
+		_, err := util.Run("docker", "kill", n)
 		return err
 	})
 
 	testCase := randStr()
-	out, err := runScli("orbctl", "debug", n, "echo", testCase)
+	out, err := runScli("orb", "debug", n, "echo", testCase)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,12 +67,12 @@ func TestRemountWormholeNfsRwRegression(t *testing.T) {
 	t.Parallel()
 
 	n := name("regr-nfs-rw")
-	_, err := util.Run("docker", "run", "--read-only", "-d", "--name", n, "--rm", "alpine:latest", "sleep", "1000000000000")
+	_, err := util.Run("docker", "run", "--read-only", "-d", "--name", n, "--rm", "alpine:latest", "sleep", "inf")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanup(t, func() error {
-		_, err := util.Run("docker", "stop", n)
+		_, err := util.Run("docker", "kill", n)
 		return err
 	})
 
@@ -84,7 +84,7 @@ func TestRemountWormholeNfsRwRegression(t *testing.T) {
 	}
 
 	testCase := randStr()
-	out, err := runScli("orbctl", "debug", n, "echo", testCase)
+	out, err := runScli("orb", "debug", n, "echo", testCase)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,17 +98,17 @@ func TestK8sContainersRegression(t *testing.T) {
 	t.Parallel()
 
 	n := name("regr-k8s-containers")
-	_, err := util.Run("docker", "run", "--cap-drop", "all", "-d", "--name", n, "--rm", "alpine:latest", "sleep", "1000000000000")
+	_, err := util.Run("docker", "run", "--cap-drop", "all", "-d", "--name", n, "--rm", "alpine:latest", "sleep", "inf")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanup(t, func() error {
-		_, err := util.Run("docker", "stop", n)
+		_, err := util.Run("docker", "kill", n)
 		return err
 	})
 
 	testCase := randStr()
-	out, err := runScli("orbctl", "debug", n, "echo", testCase)
+	out, err := runScli("orb", "debug", n, "echo", testCase)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestTarXzRootfsRegression(t *testing.T) {
 			Distro:  images.DistroNixos,
 			Version: "23.05",
 		},
-		InternalForTesting: true,
+		InternalUseTestCache: true,
 	})
 	if err != nil {
 		t.Fatal(err)

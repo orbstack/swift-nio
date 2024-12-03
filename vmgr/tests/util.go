@@ -3,9 +3,10 @@ package tests
 import (
 	"fmt"
 	"math/rand/v2"
-	"os/exec"
 	"sync"
 	"testing"
+
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 )
 
 var testPrefix = sync.OnceValue(func() string {
@@ -23,7 +24,7 @@ func randStr() string {
 // this function exists because we always want to use debug even if prod links are in /usr/local/bin
 func runScli(args ...string) (string, error) {
 	// (tests run from vmgr/tests)
-	cmd := exec.Command("../../out/scli")
+	cmd := pspawn.Command("../../out/scli")
 	cmd.Args = args
 	cmd.Env = append(cmd.Environ(), "ORB_TEST=1")
 	o, err := cmd.CombinedOutput()

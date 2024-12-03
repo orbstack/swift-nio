@@ -10,6 +10,7 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/vmgr/buildid"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"golang.org/x/term"
 )
@@ -106,10 +107,15 @@ func updateVmgr() bool {
 }
 
 var ensureOnce = sync.OnceValue(func() bool {
-	if vmclient.IsRunning() && os.Getenv("ORB_TEST") != "1" {
-		if os.Getenv("ORB_DEV") == "1" {
+	// skip vmgr updates in test mode
+	if coredir.TestMode() {
+		return false
+	}
+
+	if vmclient.IsRunning() {
+		if os.Getenv("ORB_NO_UPDATE_VMGR") == "1" {
 			if _, s := shouldUpdateVmgr(); s {
-				color.New(color.FgYellow).Fprintln(os.Stderr, "Note: usually we'd restart vmgr, but since you're special, we're going to ignore it. Here be dragons!\n")
+				color.New(color.FgYellow).Fprint(os.Stderr, "Note: usually we'd restart vmgr, but since you're special, we're going to ignore it. Here be dragons!\n\n")
 			}
 		} else {
 			if !updateVmgr() {

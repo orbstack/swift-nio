@@ -57,8 +57,8 @@ type CreateRequest struct {
 	Config       MachineConfig `json:"config"`
 	UserPassword string        `json:"user_password,omitempty"`
 
-	CloudInitUserData  string `json:"cloud_init_user_data"`
-	InternalForTesting bool   `json:"internal_for_testing,omitempty"`
+	CloudInitUserData    string `json:"cloud_init_user_data"`
+	InternalUseTestCache bool   `json:"internal_use_test_cache,omitempty"`
 }
 
 type GetByIDRequest struct {

@@ -240,9 +240,9 @@ func (c *VmClient) InternalGetEnvPATH() (string, error) {
 	return path, nil
 }
 
-func (c *VmClient) InternalIsRunningForTests() (bool, error) {
+func (c *VmClient) InternalIsTestMode() (bool, error) {
 	var res bool
-	err := c.rpc.CallResult(context.TODO(), "InternalIsRunningForTests", nil, &res)
+	err := c.rpc.CallResult(context.TODO(), "InternalIsTestMode", nil, &res)
 	if err != nil {
 		return false, err
 	}
