@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/orbstack/macvirt/scon/agent/common"
 	"github.com/orbstack/macvirt/scon/bpf"
@@ -50,7 +51,7 @@ type ConManager struct {
 	containersByID   map[string]*Container
 	containersByName map[string]*Container
 	containersMu     syncx.RWMutex
-	stopping         bool
+	stopping         atomic.Bool
 	dockerProxy      *DockerProxy
 
 	// services
@@ -349,12 +350,11 @@ func (m *ConManager) cleanupCaches() error {
 }
 
 func (m *ConManager) Close() error {
-	// TODO need to lock here
-	if m.stopping {
+	// double channel close = panic, so need to protect this
+	if m.stopping.Swap(true) {
 		return nil
 	}
 
-	m.stopping = true
 	close(m.earlyStopChan) // this acts as broadcast
 	m.stopAll()
 

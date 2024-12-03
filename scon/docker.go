@@ -741,7 +741,7 @@ func (h *DockerHooks) PostStop(c *Container) error {
 	}
 
 	// slow, so use async if stopping (b/c we know it doesn't matter at that point)
-	isAsync := c.manager.stopping
+	isAsync := c.manager.stopping.Load()
 	err = c.manager.host.ClearDockerState(htypes.DockerExitInfo{
 		Async: isAsync,
 		ExitEvent: &uitypes.ExitEvent{

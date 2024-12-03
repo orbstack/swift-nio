@@ -378,7 +378,7 @@ func (c *Container) transitionStateInternalLocked(newState types.ContainerState,
 	c.setState(newState)
 
 	// do not persist state transitions when manager is stopping
-	if !c.manager.stopping {
+	if !c.manager.stopping.Load() {
 		err := c.persist()
 		if err != nil {
 			return "", err

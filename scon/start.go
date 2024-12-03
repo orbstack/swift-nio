@@ -715,7 +715,7 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 		return nil
 	}
 
-	if c.manager.stopping {
+	if c.manager.stopping.Load() {
 		return ErrStopping
 	}
 

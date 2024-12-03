@@ -17,6 +17,7 @@ import (
 	_ "github.com/orbstack/macvirt/scon/earlyinit"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/killswitch"
+	"github.com/orbstack/macvirt/scon/util/debugutil"
 	"github.com/orbstack/macvirt/scon/util/fsops"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
@@ -243,11 +244,23 @@ func runContainerManager() {
 
 	// listen for signals
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM, unix.SIGQUIT)
-	select {
-	case <-sigChan:
-	case <-mgr.stopChan:
-	}
+	signal.Notify(sigChan, unix.SIGINT, unix.SIGTERM, unix.SIGQUIT, unix.SIGUSR1)
+	go func() {
+	outer:
+		for sig := range sigChan {
+			switch sig {
+			case unix.SIGUSR1:
+				debugutil.PrintGoroutines()
+			default:
+				break outer
+			}
+		}
+
+		mgr.Close()
+	}()
+
+	// wait!
+	<-mgr.stopChan
 
 	logrus.Info("shutting down")
 }

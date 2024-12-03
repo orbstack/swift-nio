@@ -122,7 +122,7 @@ func (c *Container) deleteDockerLocked(k8sOnly bool) error {
 
 // internal means this is to clean up a failed creation
 func (c *Container) deleteLocked(isInternal bool) error {
-	if c.manager.stopping {
+	if c.manager.stopping.Load() {
 		return ErrStopping
 	}
 
@@ -200,7 +200,7 @@ func (c *Container) DeleteK8s() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.manager.stopping {
+	if c.manager.stopping.Load() {
 		return ErrStopping
 	}
 

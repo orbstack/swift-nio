@@ -30,7 +30,7 @@ func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState,
 		return oldState, nil
 	}
 
-	if !opts.ManagerIsStopping && c.manager.stopping {
+	if !opts.ManagerIsStopping && c.manager.stopping.Load() {
 		return oldState, ErrStopping
 	}
 

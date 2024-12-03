@@ -27,7 +27,7 @@ func validateContainerName(name string) error {
 }
 
 func (m *ConManager) beginCreate(args *types.CreateRequest) (*Container, *types.ImageSpec, error) {
-	if m.stopping {
+	if m.stopping.Load() {
 		return nil, nil, errors.New("machine manager is stopping")
 	}
 

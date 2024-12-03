@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"net/rpc"
@@ -20,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent/udpfwd"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/debugutil"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/sirupsen/logrus"
@@ -229,9 +229,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 
 			// debug mode: dump goroutine stacks
 			case unix.SIGUSR1:
-				buf := make([]byte, 1048576)
-				n := runtime.Stack(buf, true)
-				fmt.Printf("\n------------CUT------------\n%s\n------------CUT------------\n", string(buf[:n]))
+				debugutil.PrintGoroutines()
 			}
 		}
 	}()
