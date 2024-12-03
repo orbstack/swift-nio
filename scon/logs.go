@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -26,7 +25,8 @@ func (c *Container) readLogsLocked(logType types.LogType) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("machine '%s' has no logs of type %s", c.Name, logType)
+			// return empty log
+			return "", nil
 		} else {
 			return "", err
 		}
