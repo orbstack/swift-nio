@@ -1,6 +1,6 @@
 module github.com/orbstack/macvirt/vmgr
 
-go 1.23.0
+go 1.23.3
 
 replace github.com/orbstack/macvirt/scon => ../scon
 
@@ -28,14 +28,12 @@ require github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 
 require (
 	github.com/buildbarn/go-xdr v0.0.0-20240702182809-236788cf9e89
-	github.com/docker/go-units v0.5.0
 	github.com/fatih/color v1.16.0
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/getsentry/sentry-go v0.27.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/keybase/go-keychain v0.0.0-20231219164618-57a3676c3af6
-	github.com/morikuni/aec v1.0.0
 	github.com/sasha-s/go-deadlock v0.3.1
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6
 	gopkg.in/yaml.v3 v3.0.1
@@ -88,7 +86,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sync v0.8.0
 	golang.org/x/term v0.25.0
 )
 
