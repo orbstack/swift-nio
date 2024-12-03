@@ -8,6 +8,11 @@
  * posix_spawn() instead of fork(). This allows force-defaulting O_CLOEXEC behavior on all fds that
  * aren't explicitly inherited.
  *
+ * Fun fact: it's even more impossible to use fork() safely because the first call to the libc DNS
+ * resolver, getaddrinfo(), will create a non-cloexec com.apple.netctl socket fd. Can't do anything
+ * about that unless you make a dummy call and then scan the fd table at start to mark it as cloexec
+ * (:
+ *
  * This provides a way to audit compliance with the process-wide posix_spawn policy by aborting on
  * fork().
  */
