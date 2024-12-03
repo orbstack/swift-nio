@@ -42,30 +42,38 @@ You can review the generated report at ~/.orbstack/diag.
 		spinner.Stop()
 		checkCLI(err)
 
-		cmd.PrintErrln("Report saved to: " + zipPath)
-		cmd.PrintErr("Would you like to review it before uploading [y/N]? ")
+		cmd.PrintErrln("Diagnostic report saved to: " + zipPath)
+		color.New(color.Bold).Print("Review report contents before uploading [y/N]? ")
 		var resp string
 		_, err = fmt.Scanln(&resp)
-		if err != nil && !errors.Is(err, io.EOF) {
+		if err != nil && !errors.Is(err, io.EOF) && err.Error() != "unexpected newline" {
 			checkCLI(err)
 		}
+
 		lower := strings.ToLower(resp)
-		if lower != "n" && err == nil {
+		if lower != "" && lower != "n" && lower != "no" {
 			err = exec.Command("open", "-b", "com.apple.archiveutility", zipPath).Run()
 			checkCLI(err)
-			cmd.PrintErrln("Opened diagnostics report in a new Finder window.")
-			cmd.PrintErr("Would you like to upload this to our servers [y/N]? ")
+
+			cmd.PrintErrln("\nReport opened in a new Finder window.")
+			color.New(color.Bold).Print("Upload [Y/n]? ")
+
+			// ask for upload confirmation
 			var resp string
 			_, err = fmt.Scanln(&resp)
-			checkCLI(err)
+			if err != nil && !errors.Is(err, io.EOF) && err.Error() != "unexpected newline" {
+				checkCLI(err)
+			}
+
+			cmd.PrintErrln()
+
 			lower := strings.ToLower(resp)
-			if lower != "y" {
-				cmd.PrintErrln("Aborted.")
-				return nil
+			if lower != "" && lower != "y" && lower != "yes" {
+				checkCLI(errors.New("Aborted."))
 			}
 		}
 
-		spinner = spinutil.Start("blue", "Uploading diagnostic report...")
+		spinner = spinutil.Start("blue", "Uploading report...")
 		downloadURL, err := pkg.Upload()
 		spinner.Stop()
 		checkCLI(err)
