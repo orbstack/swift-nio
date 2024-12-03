@@ -37,16 +37,16 @@ func main() {
 	switch cmd {
 	// control-only command mode
 	case appid.ShortCtl, "scli":
-		err = runCtl(false)
+		exitCode, err = runCtl(false)
 	// control or shell, depending on args
 	case appid.ShortCmd:
-		err = runCtl(true)
+		exitCode, err = runCtl(true)
 	// command stub mode
 	default:
 		exitCode, err = runCommandStub(cmd)
 	}
 	if err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 
 	os.Exit(exitCode)
@@ -133,12 +133,17 @@ func shouldCallRunCtl(args []string) bool {
 	return true
 }
 
-func runCtl(fallbackToShell bool) error {
+func runCtl(fallbackToShell bool) (int, error) {
 	if fallbackToShell && shouldCallRunCtl(os.Args[1:]) {
 		// alias to run - so we borrow its arg parsing logic
 		os.Args = append([]string{os.Args[0], "run"}, os.Args[1:]...)
 	}
 
-	cmd.Execute()
-	return nil
+	err := cmd.Execute()
+	if err != nil {
+		// an error here means invalid args. cobra already prints the error and help
+		return 1, nil
+	}
+
+	return 0, nil
 }
