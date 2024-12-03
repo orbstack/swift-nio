@@ -9,6 +9,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/orbstack/macvirt/vmgr/cmd/macctl/cmd"
 	"github.com/orbstack/macvirt/vmgr/cmd/macctl/shell"
+	"github.com/orbstack/macvirt/vmgr/cmd/macctl/xdgopen"
 	"github.com/orbstack/macvirt/vmgr/conf/sshpath"
 	"golang.org/x/sys/unix"
 )
@@ -71,7 +72,7 @@ func runBinfmtStub() (int, error) {
 
 func runCommandStub(cmd string) (int, error) {
 	if cmd == "xdg-open" {
-		return runXdgOpenStub()
+		return xdgopen.RunXdgOpenStub()
 	}
 
 	args := []string{cmd}
