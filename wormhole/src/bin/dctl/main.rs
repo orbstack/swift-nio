@@ -253,7 +253,7 @@ fn cmd_uninstall(attr_paths: &[String]) -> anyhow::Result<()> {
         if installed_builtin && !installed_in_env {
             eprintln!(
                 "{}",
-                format!("cannot uninstall builtin package {}", attr_path).red()
+                format!("cannot uninstall builtin package '{}'", attr_path).red()
             );
             continue;
         } else if !installed_in_env {
@@ -261,11 +261,11 @@ fn cmd_uninstall(attr_paths: &[String]) -> anyhow::Result<()> {
             continue;
         }
 
-        if installed_builtin {
+        if installed_builtin && !HIDE_BUILTIN_PACKAGES.contains(&attr_path.as_str()) {
             eprintln!(
                 "{}",
                 format!(
-                    "package '{}' will still be available via the builtin environment",
+                    "uninstalling package '{}', but the builtin copy will still be available",
                     attr_path
                 )
                 .yellow()
