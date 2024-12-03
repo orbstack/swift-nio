@@ -40,8 +40,11 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"syscall"
 	"unsafe"
+
+	"github.com/orbstack/macvirt/vmgr/conf"
 )
 
 type PspawnAttr struct {
@@ -51,6 +54,22 @@ type PspawnAttr struct {
 }
 
 func StartProcess(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *PspawnAttr) (*os.Process, error) {
+	// use "pstramp" trampoline to handle calls that aren't supported by posix_spawn
+	// this only includes setctty for now
+	if attr != nil && attr.Sys != nil && attr.Sys.Setctty {
+		pstrampExe, err := conf.FindPstrampExe()
+		if err != nil {
+			return nil, err
+		}
+
+		argv = append([]string{pstrampExe, "-setctty", strconv.Itoa(int(attr.Sys.Ctty)), "--", exe}, argv...)
+		exe = pstrampExe
+	}
+
+	return startProcessRaw(exe, argv, attr, pspawnAttr)
+}
+
+func startProcessRaw(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *PspawnAttr) (*os.Process, error) {
 	// don't close files
 	defer runtime.KeepAlive(attr)
 
@@ -109,9 +128,7 @@ func StartProcess(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *Pspa
 			}
 		}
 
-		if attr.Sys.Setctty {
-			return nil, errors.New("setctty not supported")
-		}
+		// Setctty is handled in StartProcess
 
 		if attr.Sys.Noctty {
 			return nil, errors.New("noctty not supported")

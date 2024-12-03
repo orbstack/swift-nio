@@ -14,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent/envutil"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/setup/userutil"
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/sshtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostssh/termios"
@@ -150,8 +151,7 @@ func handleSshConn(s ssh.Session) error {
 			argv0 = &loginArgv0
 		}
 	}
-	// TODO: can't use pspawn because setctty is missing. need re-exec helper
-	cmd := exec.CommandContext(s.Context(), combinedArgs[0], combinedArgs[1:]...)
+	cmd := pspawn.CommandContext(s.Context(), combinedArgs[0], combinedArgs[1:]...)
 	if argv0 != nil {
 		cmd.Args[0] = *argv0
 	}

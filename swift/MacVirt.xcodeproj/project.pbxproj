@@ -14,7 +14,8 @@
 		B118B55A04BDC43EB62C4F9B /* Locks.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B67B66A855D49B729379 /* Locks.swift */; };
 		B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */; };
 		B118BD0025A6757805924195 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD52B15443D1329C832A /* Packets.swift */; };
-		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D805923F2CFF0972005BBB25 /* pstramp in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D805911B2CFEF682005BBB25 /* pstramp */; };
+		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D85EC4642A9CEBA800300ABE /* kubectl in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D85EC4632A9CEBA800300ABE /* kubectl */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -23,8 +24,8 @@
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */; };
-		D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */; };
-		D8715CC12A208C640047A9BE /* scli in Copy Go executables and Swift GUI helper */ = {isa = PBXBuildFile; fileRef = D8715CC02A208C640047A9BE /* scli */; };
+		D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */; };
+		D8715CC12A208C640047A9BE /* scli in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D8715CC02A208C640047A9BE /* scli */; };
 		D8715CC32A208C750047A9BE /* OrbStack Helper.app in Embed Go VM helper bundle */ = {isa = PBXBuildFile; fileRef = D8715CC22A208C750047A9BE /* OrbStack Helper.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D87596F62CE738B200CEEE98 /* Blessed in Frameworks */ = {isa = PBXBuildFile; productRef = D87596F52CE738B200CEEE98 /* Blessed */; };
 		D87596F82CE738B500CEEE98 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D87596F72CE738B500CEEE98 /* Defaults */; };
@@ -59,6 +60,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		D80591192CFEF682005BBB25 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 		D81E784B299CC4F200A1D8AC /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -68,17 +78,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
-		D8694A3E2991F8C70046B6B6 /* Copy Go executables and Swift GUI helper */ = {
+		D8694A3E2991F8C70046B6B6 /* Copy Go executables and other helpers */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
-				D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and Swift GUI helper */,
-				D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and Swift GUI helper */,
-				D8715CC12A208C640047A9BE /* scli in Copy Go executables and Swift GUI helper */,
+				D805923F2CFF0972005BBB25 /* pstramp in Copy Go executables and other helpers */,
+				D8715CBF2A208C540047A9BE /* OrbStack Helper (UI) in Copy Go executables and other helpers */,
+				D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and other helpers */,
+				D8715CC12A208C640047A9BE /* scli in Copy Go executables and other helpers */,
 			);
-			name = "Copy Go executables and Swift GUI helper";
+			name = "Copy Go executables and other helpers";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		D8694A45299224CA0046B6B6 /* Copy xbin executables */ = {
@@ -149,6 +160,7 @@
 		B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PrivHelperFFI.swift; sourceTree = "<group>"; };
 		B118BEDAA62E1455A02C177D /* KeychainFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeychainFFI.swift; sourceTree = "<group>"; };
 		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
+		D805911B2CFEF682005BBB25 /* pstramp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = pstramp; sourceTree = BUILT_PRODUCTS_DIR; };
 		D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "OrbStack Helper (UI)"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
 		D81E785E29A4CEEF00A1D8AC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -216,6 +228,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		D805911C2CFEF682005BBB25 /* pstramp */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = pstramp; sourceTree = "<group>"; };
 		D847FAF22CE737F000D2B556 /* CBridge */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = CBridge; path = GoVZF/Sources/CBridge; sourceTree = "<group>"; };
 		D88AAFF22CD7092100C37028 /* MacVirt */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D87596F92CE738E600CEEE98 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MacVirt; sourceTree = "<group>"; };
 		D88AB0612CD7092900C37028 /* guihelper */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D88AB0632CD7092900C37028 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = guihelper; sourceTree = "<group>"; };
@@ -223,6 +236,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		D80591182CFEF682005BBB25 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D81E784A299CC4F200A1D8AC /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -328,6 +348,7 @@
 				D847FAF22CE737F000D2B556 /* CBridge */,
 				D870292129B316A700A4CFD9 /* GoVZF */,
 				D88AB0832CD7095800C37028 /* privhelper */,
+				D805911C2CFEF682005BBB25 /* pstramp */,
 				D8A32B8F296F839100E56EEF /* Products */,
 				D81E785D29A4CEEF00A1D8AC /* Frameworks */,
 			);
@@ -340,6 +361,7 @@
 				D81E784D299CC4F200A1D8AC /* OrbStack Helper (UI) */,
 				D870292029B316A700A4CFD9 /* GoVZF.framework */,
 				D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */,
+				D805911B2CFEF682005BBB25 /* pstramp */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -357,6 +379,28 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		D805911A2CFEF682005BBB25 /* pstramp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D805911F2CFEF682005BBB25 /* Build configuration list for PBXNativeTarget "pstramp" */;
+			buildPhases = (
+				D80591172CFEF682005BBB25 /* Sources */,
+				D80591182CFEF682005BBB25 /* Frameworks */,
+				D80591192CFEF682005BBB25 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D805911C2CFEF682005BBB25 /* pstramp */,
+			);
+			name = pstramp;
+			packageProductDependencies = (
+			);
+			productName = pstramp;
+			productReference = D805911B2CFEF682005BBB25 /* pstramp */;
+			productType = "com.apple.product-type.tool";
+		};
 		D81E784C299CC4F200A1D8AC /* guihelper */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D81E7853299CC4F200A1D8AC /* Build configuration list for PBXNativeTarget "guihelper" */;
@@ -429,7 +473,7 @@
 				D8A32B8B296F839100E56EEF /* Frameworks */,
 				D8A32B8C296F839100E56EEF /* Resources */,
 				D8694A3B2991F3F80046B6B6 /* Copy “Launch at Login Helper” */,
-				D8694A3E2991F8C70046B6B6 /* Copy Go executables and Swift GUI helper */,
+				D8694A3E2991F8C70046B6B6 /* Copy Go executables and other helpers */,
 				D87746202A7CD0BC00739040 /* Embed privileged helper tool */,
 				D8715CBE2A2087790047A9BE /* Embed Go VM helper bundle */,
 				D8694A45299224CA0046B6B6 /* Copy xbin executables */,
@@ -471,6 +515,9 @@
 				LastSwiftUpdateCheck = 1430;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					D805911A2CFEF682005BBB25 = {
+						CreatedOnToolsVersion = 16.0;
+					};
 					D81E784C299CC4F200A1D8AC = {
 						CreatedOnToolsVersion = 14.2;
 						LastSwiftMigration = 1420;
@@ -516,6 +563,7 @@
 				D81E784C299CC4F200A1D8AC /* guihelper */,
 				D87746112A7CC0B700739040 /* privhelper */,
 				D870291F29B316A700A4CFD9 /* GoVZF */,
+				D805911A2CFEF682005BBB25 /* pstramp */,
 			);
 		};
 /* End PBXProject section */
@@ -598,6 +646,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		D80591172CFEF682005BBB25 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D81E7849299CC4F200A1D8AC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -651,6 +706,38 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		D80591202CFEF682005BBB25 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = HUAQ24HBR6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LAUNCH_CONSTRAINT_PARENT = pstramp/launch_constraints.plist;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		D80591212CFEF682005BBB25 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = HUAQ24HBR6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LAUNCH_CONSTRAINT_PARENT = pstramp/launch_constraints.plist;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 		D81E7851299CC4F200A1D8AC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1012,6 +1099,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		D805911F2CFEF682005BBB25 /* Build configuration list for PBXNativeTarget "pstramp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D80591202CFEF682005BBB25 /* Debug */,
+				D80591212CFEF682005BBB25 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		D81E7853299CC4F200A1D8AC /* Build configuration list for PBXNativeTarget "guihelper" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
