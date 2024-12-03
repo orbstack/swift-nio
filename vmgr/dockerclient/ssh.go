@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -17,14 +16,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/sirupsen/logrus"
 )
 
 // file taken from https://github.com/docker/cli/blob/dac7319f10d7cc22bc9e031dd930114e4b3d5111/cli/connhelper/commandconn/commandconn.go
 // and https://github.com/docker/cli/blob/dac7319f10d7cc22bc9e031dd930114e4b3d5111/cli/connhelper/ssh/ssh.go
-func setPdeathsig(cmd *exec.Cmd) {}
+func setPdeathsig(cmd *pspawn.Cmd) {}
 
-func createSession(cmd *exec.Cmd) {
+func createSession(cmd *pspawn.Cmd) {
 	// for supporting ssh connection helper with ProxyCommand
 	// https://github.com/docker/cli/issues/1707
 	cmd.SysProcAttr.Setsid = true
@@ -35,7 +35,7 @@ func NewCommandConn(_ context.Context, cmd string, args ...string) (net.Conn, er
 		c   commandConn
 		err error
 	)
-	c.cmd = exec.Command(cmd, args...)
+	c.cmd = pspawn.Command(cmd, args...)
 	// we assume that args never contains sensitive information
 	logrus.Debugf("commandconn: starting %s with %v", cmd, args)
 	c.cmd.Env = os.Environ()
@@ -63,7 +63,7 @@ func NewCommandConn(_ context.Context, cmd string, args ...string) (net.Conn, er
 // commandConn implements net.Conn
 type commandConn struct {
 	cmdMutex     sync.Mutex // for cmd, cmdWaitErr
-	cmd          *exec.Cmd
+	cmd          *pspawn.Cmd
 	cmdWaitErr   error
 	cmdExited    atomic.Bool
 	stdin        io.WriteCloser
