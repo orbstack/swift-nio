@@ -47,26 +47,31 @@ struct DiagReporterView: View {
                 }
             case let .confirmation(report):
                 VStack(spacing: 16) {
+                    Spacer()
+
                     Image(systemName: "questionmark.circle.fill")
                         .resizable()
                         .frame(width: 32, height: 32)
 
                     Text(
-                        "A diagnostic report has been generated. You can review its contents before uploading it to our servers for review."
+                        "Diagnostic report generated.\n\nDo you want to review the contents before uploading it?"
                     )
                     .multilineTextAlignment(.center)
                     .padding()
 
+                    Spacer()
+
                     HStack {
                         Button(action: {
                             Task {
+                                // NSWorkspace.shared.openFile(withApplication:) is deprecated :(
                                 do {
                                     try await runProcessChecked(
                                         "/usr/bin/open",
                                         ["-b", "com.apple.archiveutility", report.zipPath])
                                 } catch let processError as ProcessError {
                                     diagModel.state = .error(
-                                        "(status \(processError.status)) \(processError.output)")
+                                        "\(processError.output) (status \(processError.status))")
                                 } catch {
                                     diagModel.state = .error(error.localizedDescription)
                                 }
@@ -74,6 +79,9 @@ struct DiagReporterView: View {
                         }) {
                             Text("Review")
                         }
+                        .controlSize(.large)
+
+                        Spacer()
 
                         Button(action: {
                             diagModel.state = .uploading
@@ -113,9 +121,12 @@ struct DiagReporterView: View {
                         }) {
                             Text("Upload")
                         }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                        .controlSize(.large)
                     }
-
                 }
+                .padding(16)
             case .uploading:
                 VStack(spacing: 16) {
                     ProgressView()
