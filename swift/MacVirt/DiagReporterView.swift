@@ -67,14 +67,17 @@ struct DiagReporterView: View {
                                 // NSWorkspace.shared.openFile(withApplication:) is deprecated :(
                                 do {
                                     try await runProcessChecked(
-                                        "/usr/bin/open",
-                                        ["-b", "com.apple.archiveutility", report.zipPath])
+                                        AppConfig.ctlExe,
+                                        ["_internal", "extract-diag-report", report.zipPath])
                                 } catch let processError as ProcessError {
                                     diagModel.state = .error(
                                         "\(processError.output) (status \(processError.status))")
                                 } catch {
                                     diagModel.state = .error(error.localizedDescription)
                                 }
+
+                                NSWorkspace.openFolder(
+                                    (report.zipPath as NSString).deletingPathExtension)
                             }
                         }) {
                             Text("Review")

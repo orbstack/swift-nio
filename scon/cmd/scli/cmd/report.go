@@ -52,7 +52,10 @@ You can review the generated report at ~/.orbstack/diag.
 
 		lower := strings.ToLower(resp)
 		if lower != "" && lower != "n" && lower != "no" {
-			err = exec.Command("open", "-b", "com.apple.archiveutility", zipPath).Run()
+			err = bugreport.Extract(zipPath)
+			checkCLI(err)
+
+			err = exec.Command("open", strings.TrimSuffix(zipPath, ".zip")).Run()
 			checkCLI(err)
 
 			cmd.PrintErrln("\nReport opened in a new Finder window.")

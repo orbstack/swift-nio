@@ -1,6 +1,7 @@
 package bugreport
 
 import (
+	"archive/zip"
 	"bytes"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/appapi"
 	"github.com/orbstack/macvirt/scon/cmd/scli/osutil"
@@ -284,6 +286,81 @@ func GenerateInfo(w io.Writer) error {
 	fmt.Fprintf(w, "  Model: %s\n", machineModel)
 	fmt.Fprintf(w, "  Memory: %d GiB\n", mem.PhysicalMemory()/1024/1024/1024)
 	fmt.Fprintln(w, "")
+
+	return nil
+}
+
+func Extract(zipPath string) error {
+	destDir := strings.TrimSuffix(zipPath, ".zip")
+	err := os.MkdirAll(destDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	zipFile, err := os.Open(zipPath)
+	if err != nil {
+		return err
+	}
+	// keepalive
+	defer zipFile.Close()
+
+	// prevent us from being abused for sandbox escapes
+	_, err = unix.Fgetxattr(int(zipFile.Fd()), "com.apple.quarantine", nil)
+	if err == unix.ERANGE { // success, but buffer too small
+		return fmt.Errorf("zip is not a valid OrbStack bug report: %w", err)
+	}
+
+	zipStat, err := zipFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	r, err := zip.NewReader(zipFile, zipStat.Size())
+	if err != nil {
+		return err
+	}
+
+	for _, f := range r.File {
+		destPath := filepath.Join(destDir, f.Name)
+
+		if f.FileInfo().IsDir() {
+			err = os.MkdirAll(destPath, 0755)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		// security in case we're given a malicious zip: no ../ escapes
+		if !strings.HasPrefix(destPath, destDir+"/") {
+			return fmt.Errorf("invalid path: %s", destPath)
+		}
+
+		err = os.MkdirAll(filepath.Dir(destPath), 0755)
+		if err != nil {
+			return err
+		}
+
+		err = func() error {
+			destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			if err != nil {
+				return err
+			}
+			defer destFile.Close()
+
+			srcFile, err := f.Open()
+			if err != nil {
+				return err
+			}
+			defer srcFile.Close()
+
+			_, err = io.Copy(destFile, srcFile)
+			return err
+		}()
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
