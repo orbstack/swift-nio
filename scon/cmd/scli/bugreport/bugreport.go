@@ -306,8 +306,8 @@ func Extract(zipPath string) error {
 
 	// prevent us from being abused for sandbox escapes
 	_, err = unix.Fgetxattr(int(zipFile.Fd()), "com.apple.quarantine", nil)
-	if err == unix.ERANGE { // success, but buffer too small
-		return fmt.Errorf("zip is not a valid OrbStack bug report: %w", err)
+	if err == nil || err == unix.ERANGE { // success, but buffer too small
+		return errors.New("zip was not created by OrbStack")
 	}
 
 	zipStat, err := zipFile.Stat()
