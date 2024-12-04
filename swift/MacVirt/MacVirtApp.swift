@@ -5,7 +5,6 @@
 //  Created by Danny Lin on 11/19/24.
 //
 
-@main
 struct MacVirtApp {
     static func main() {
         if #available(macOS 14, *) {
