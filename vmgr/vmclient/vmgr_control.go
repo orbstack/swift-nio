@@ -62,14 +62,14 @@ func FindVmgrExe() (string, error) {
 }
 
 func SpawnDaemon(newBuildID string) (int, error) {
-	// start it. assume executable is next to ours, unless this is debug
-	vmgrExe, err := FindVmgrExe()
+	// start it via Swift GUI trampoline
+	trampolineExe, err := conf.FindGUIExe()
 	if err != nil {
-		return 0, fmt.Errorf("find vmgr exe: %w", err)
+		return 0, fmt.Errorf("find vmgr gui exe: %w", err)
 	}
 
 	// exec self with spawn-daemon
-	args := []string{vmgrExe, "spawn-daemon"}
+	args := []string{trampolineExe, "spawn-daemon"}
 	if newBuildID != "" {
 		args = append(args, newBuildID)
 	}

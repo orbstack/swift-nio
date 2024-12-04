@@ -12,6 +12,10 @@ func findAuxiliaryExe(name string) (string, error) {
 	return exeDir + "/" + name, nil
 }
 
+func FindGUIExe() (string, error) {
+	return findAuxiliaryExe("OrbStack")
+}
+
 func FindSparkleExe() (string, error) {
 	return findAuxiliaryExe("sparkle-cli")
 }
