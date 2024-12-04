@@ -308,7 +308,7 @@ pub fn iovecs_from_iter(
             .ok_or(Error::DescriptorChainOverflow)?;
 
         let vs = mem
-            .range_sized::<u8>(addr, len)
+            .get_slice::<u8>(addr, len)
             .map_err(Error::GuestMemoryError)?;
         Ok(vs.into())
     })
@@ -675,7 +675,7 @@ pub fn create_descriptor_chain(
             .checked_add(u64::from(offset))
             .ok_or(Error::InvalidChain)?;
 
-        let _ = memory.try_write(
+        let _ = memory.write(
             descriptor_array_addr
                 .checked_add(u64::from(index) * std::mem::size_of::<virtq_desc>() as u64)
                 .ok_or(Error::InvalidChain)?,

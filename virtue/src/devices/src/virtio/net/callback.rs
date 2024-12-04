@@ -105,7 +105,7 @@ impl GuestCallbacksInner {
         for desc in head.into_iter() {
             let vs = self
                 .mem
-                .range_sized(desc.addr, desc.len as usize)
+                .get_slice(desc.addr, desc.len as usize)
                 .map_err(|_| Errno::EFAULT)?;
             dest_iovs.push(Iovec::from(vs));
         }

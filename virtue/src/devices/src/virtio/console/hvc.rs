@@ -42,12 +42,12 @@ impl ConsoleHvcDevice {
 
     fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<i64> {
         if let Some(output) = &self.output {
-            let req = self.mem.try_read::<OrbvmConsoleReq>(args_addr)?;
+            let req = self.mem.read::<OrbvmConsoleReq>(args_addr)?;
             if req.type_ != ORBVM_CONSOLE_REQ_WRITE {
                 return Err(anyhow!("invalid request type"));
             }
 
-            let vs = self.mem.range_sized(req.addr, req.len as usize)?;
+            let vs = self.mem.get_slice(req.addr, req.len as usize)?;
             let mut output = output.lock().unwrap();
             match output.write_volatile(vs) {
                 Ok(_) => {}

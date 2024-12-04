@@ -7,5 +7,5 @@ fn main() {
         MachVmGuestMemoryProvider::new(&[(GuestAddress(0x4000), 10)]).unwrap(),
     ));
 
-    memory.try_write(GuestAddress(4), &[4u32]).unwrap();
+    memory.write(GuestAddress(4), &[4u32]).unwrap();
 }

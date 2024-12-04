@@ -54,7 +54,7 @@ impl OrbvmBlkReqHeader {
 
         // read segs
         let descs_addr = args_addr.wrapping_add(size_of::<OrbvmBlkReqHeader>() as u64);
-        let descs = mem.range_sized(descs_addr, self.nr_segs as usize)?;
+        let descs = mem.get_slice(descs_addr, self.nr_segs as usize)?;
 
         for desc in descs {
             f(desc.read())?;
@@ -72,7 +72,7 @@ impl OrbvmBlkReqHeader {
         let mut off = self.start_off as usize;
         self.for_each_desc(args_addr, mem, |desc| {
             let len = desc.len();
-            let vs = mem.range_sized::<u8>(GuestAddress(desc.phys_addr()), len)?;
+            let vs = mem.get_slice::<u8>(GuestAddress(desc.phys_addr()), len)?;
             let iov = Iovec::from(vs);
             f(off, iov)?;
             off += len;
@@ -112,7 +112,7 @@ impl BlockHvcDevice {
     }
 
     fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<()> {
-        let hdr = self.mem.try_read::<OrbvmBlkReqHeader>(args_addr)?;
+        let hdr = self.mem.read::<OrbvmBlkReqHeader>(args_addr)?;
 
         debug!(
             "block hvc: type_: {}, flags: {:?}, nr_segs: {}, start_off: {}",

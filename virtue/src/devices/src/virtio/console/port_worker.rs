@@ -178,7 +178,7 @@ impl PortWorker {
             let head_index = head.index;
             let mut bytes_read = 0;
             for desc in head.into_iter().writable() {
-                let vs = self.mem.range_sized(desc.addr, desc.len as usize)?;
+                let vs = self.mem.get_slice(desc.addr, desc.len as usize)?;
                 match input.read_volatile(vs) {
                     Ok(0) => {
                         // EOF
@@ -240,7 +240,7 @@ impl PortWorker {
             let mut total_desc_len = 0;
             for desc in head.into_iter().readable() {
                 total_desc_len += desc.len as usize;
-                let mut vs = self.mem.range_sized(desc.addr, desc.len as usize)?;
+                let mut vs = self.mem.get_slice(desc.addr, desc.len as usize)?;
 
                 // skip?
                 if desc.len as usize <= skip_bytes {

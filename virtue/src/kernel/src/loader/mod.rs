@@ -82,7 +82,7 @@ pub fn load_cmdline(
     }
 
     guest_mem
-        .try_write(guest_addr, raw_cmdline)
+        .write(guest_addr, raw_cmdline)
         .map_err(|_| CmdlineError::CommandLineCopy)?;
 
     Ok(())

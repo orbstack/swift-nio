@@ -104,7 +104,7 @@ pub fn index_guest_sized_constant_1(
     start: usize,
 ) -> Option<GuestSlice<'_, u8>> {
     guest
-        .range_sized(GuestAddress::from_usize(start), 1010)
+        .get_slice_sized(GuestAddress::from_usize(start), 1010)
         .ok()
 }
 
@@ -118,7 +118,7 @@ pub fn index_guest_sized_constant_2(
 
 #[no_mangle]
 pub fn index_guest_sized_constant_3(v: &GuestMemory, start: usize) -> Option<GuestSlice<'_, u8>> {
-    v.as_slice()
+    v.get_full_slice()
         .try_get(start..)?
         .cast_trunc::<u8>()
         .try_get(..1010)
@@ -138,5 +138,7 @@ pub fn index_guest_sized_runtime(
     start: usize,
     len: usize,
 ) -> Option<GuestSlice<'_, u8>> {
-    guest.range_sized(GuestAddress::from_usize(start), len).ok()
+    guest
+        .get_slice_sized(GuestAddress::from_usize(start), len)
+        .ok()
 }

@@ -219,7 +219,7 @@ impl<'a> DescriptorChain<'a> {
         let desc_head = desc_table.wrapping_add(index as u64 * 16);
 
         // These reads can't fail unless Guest memory is hopelessly broken.
-        let desc = match mem.try_read::<Descriptor>(desc_head) {
+        let desc = match mem.read::<Descriptor>(desc_head) {
             Ok(ret) => ret,
             Err(_) => {
                 // TODO log address
@@ -462,7 +462,7 @@ impl Queue {
         // and virtq rings, so it's safe to unwrap guest memory reads and to use unchecked
         // offsets.
         let desc_index: u16 = mem
-            .try_read(self.avail_ring.wrapping_add(u64::from(index_offset)))
+            .read(self.avail_ring.wrapping_add(u64::from(index_offset)))
             .unwrap();
 
         DescriptorChain::checked_new(mem, self.desc_table, self.actual_size(), desc_index).map(
@@ -493,13 +493,13 @@ impl Queue {
         // to u64::MAX.
         let offset = VIRTQ_USED_RING_HEADER_SIZE + next_used_index * VIRTQ_USED_ELEMENT_SIZE;
         let addr = self.used_ring.wrapping_add(offset);
-        mem.try_write(addr, &[VirtqUsedElem::new(head_index.into(), len)])
+        mem.write(addr, &[VirtqUsedElem::new(head_index.into(), len)])
             .map_err(Error::InvalidGuestAddress)?;
 
         self.next_used += Wrapping(1);
         self.num_added += Wrapping(1);
 
-        mem.try_write_atomic(
+        mem.write_atomic(
             self.used_ring.wrapping_add(2),
             self.next_used.0,
             Ordering::Release,
@@ -527,7 +527,7 @@ impl Queue {
             .checked_add(used_event_offset)
             .ok_or(Error::AddressOverflow)?;
 
-        mem.try_read_atomic(used_event_addr, order)
+        mem.read_atomic(used_event_addr, order)
             .map(Wrapping)
             .map_err(Error::InvalidGuestAddress)
     }
@@ -541,7 +541,7 @@ impl Queue {
             VIRTQ_USED_RING_HEADER_SIZE + VIRTQ_USED_ELEMENT_SIZE * u64::from(self.size);
         let addr = self.used_ring.wrapping_add(avail_event_offset);
 
-        mem.try_write_atomic(addr, val, order)
+        mem.write_atomic(addr, val, order)
             .map_err(Error::InvalidGuestAddress)
     }
 
@@ -556,7 +556,7 @@ impl Queue {
         val: u16,
         order: Ordering,
     ) -> Result<(), Error> {
-        mem.try_write_atomic(self.used_ring, val, order)
+        mem.write_atomic(self.used_ring, val, order)
             .map_err(Error::InvalidGuestAddress)
     }
 
@@ -668,7 +668,7 @@ impl Queue {
     fn avail_idx(&self, mem: &GuestMemory, order: Ordering) -> Result<Wrapping<u16>, Error> {
         let addr = self.avail_ring.wrapping_add(2);
 
-        mem.try_read_atomic(addr, order)
+        mem.read_atomic(addr, order)
             .map(Wrapping)
             .map_err(Error::InvalidGuestAddress)
     }

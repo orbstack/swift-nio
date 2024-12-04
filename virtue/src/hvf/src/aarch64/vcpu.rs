@@ -613,7 +613,7 @@ impl HvfVcpu {
                     let pvgic_state_addr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                     let ptr = self
                         .guest_mem
-                        .reference(GuestAddress::from_u64(pvgic_state_addr))
+                        .get_ref(GuestAddress::from_u64(pvgic_state_addr))
                         .map_err(|_| Error::GetGuestMemory)?
                         .as_owned(self.guest_mem.clone());
                     self.pvgic = Some(ptr);
@@ -766,7 +766,7 @@ impl HvfVcpu {
 
             let descriptor = self
                 .guest_mem
-                .try_read::<u64>(GuestAddress(descaddr))
+                .read::<u64>(GuestAddress(descaddr))
                 .map_err(|_| Error::TranslateVirtualAddress)?;
 
             descaddr = descriptor & descaddrmask;
@@ -906,9 +906,7 @@ impl HvfVcpu {
             }
 
             // mem[FP+8] = frame's LR
-            let frame_lr = self
-                .guest_mem
-                .try_read::<u64>(self.translate_gva(fp + 8)?)?;
+            let frame_lr = self.guest_mem.read::<u64>(self.translate_gva(fp + 8)?)?;
 
             if frame_lr == 0 {
                 // reached end of stack
@@ -927,7 +925,7 @@ impl HvfVcpu {
             }
 
             // mem[FP] = link to last FP
-            fp = self.guest_mem.try_read::<u64>(self.translate_gva(fp)?)?;
+            fp = self.guest_mem.read::<u64>(self.translate_gva(fp)?)?;
         }
 
         Ok(())
@@ -956,7 +954,7 @@ impl HvfVcpu {
                 // if PC would be returning from a hypercall (PC-4 = HVC), we're in host kernel overhead
                 // need to be careful when reading this because of BPF vmalloc_exec regions
                 if let Ok(gpa) = self.translate_gva(pc - ARM64_INSN_SIZE) {
-                    if let Ok(last_insn) = self.guest_mem.try_read::<u32>(gpa) {
+                    if let Ok(last_insn) = self.guest_mem.read::<u32>(gpa) {
                         if is_hypercall_insn(last_insn) {
                             sample.prepend_stack(Frame::new(
                                 FrameCategory::HostKernel,

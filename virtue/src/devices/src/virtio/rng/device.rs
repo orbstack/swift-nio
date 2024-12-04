@@ -105,7 +105,7 @@ impl Rng {
             for desc in head.into_iter() {
                 let mut rand_bytes = vec![0u8; desc.len as usize];
                 OsRng.fill_bytes(&mut rand_bytes);
-                if let Err(e) = mem.try_write(desc.addr, &rand_bytes[..]) {
+                if let Err(e) = mem.write(desc.addr, &rand_bytes[..]) {
                     error!("Failed to write slice: {:?}", e);
                     self.queues[RngQueues::Request].go_to_previous_position();
                     break;

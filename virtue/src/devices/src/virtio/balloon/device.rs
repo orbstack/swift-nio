@@ -229,7 +229,7 @@ impl Balloon {
             return Err(anyhow!("invalid request header length"));
         }
 
-        let req = mem.try_read::<OrbvmFprRequest>(req_desc.addr)?;
+        let req = mem.read::<OrbvmFprRequest>(req_desc.addr)?;
 
         // second descriptor = prdesc buffer
         let prdescs_desc = iter
@@ -241,7 +241,7 @@ impl Balloon {
 
         // iterate through prdescs
         // guest contract *does* allow us to mutate this
-        let prdescs = mem.range_sized(
+        let prdescs = mem.get_slice(
             prdescs_desc.addr,
             prdescs_desc.len as usize / size_of::<PrDesc>(),
         )?;
@@ -273,7 +273,7 @@ impl Balloon {
             // bounds check
             let guest_addr = GuestAddress(range.0);
             let size = (range.1 - range.0) as usize;
-            let host_addr = mem.range_sized::<u8>(guest_addr, size)?;
+            let host_addr = mem.get_slice::<u8>(guest_addr, size)?;
 
             match req.type_ {
                 FPR_TYPE_FREE => {

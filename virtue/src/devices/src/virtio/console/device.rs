@@ -170,7 +170,7 @@ impl Console {
 
         while let Some(head) = self.queues[CONTROL_RXQ_INDEX].pop(mem) {
             if let Some(buf) = self.control.queue_pop() {
-                match mem.try_write(head.addr, &buf) {
+                match mem.write(head.addr, &buf) {
                     Ok(_) => {
                         raise_irq = true;
                         tracing::trace!("process_control_rx wrote {}", buf.len());
@@ -208,7 +208,7 @@ impl Console {
         while let Some(head) = tx_queue.pop(mem) {
             raise_irq = true;
 
-            let cmd = match mem.try_read::<VirtioConsoleControl>(head.addr) {
+            let cmd = match mem.read::<VirtioConsoleControl>(head.addr) {
                 Ok(cmd) => cmd,
                 Err(e) => {
                     tracing::error!(

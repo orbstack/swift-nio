@@ -263,7 +263,7 @@ impl NetWorker {
                     break;
                 }
 
-                match self.mem.range_sized(desc.addr, desc.len as usize) {
+                match self.mem.get_slice(desc.addr, desc.len as usize) {
                     Ok(vs) => {
                         iovecs.push(Iovec::from(vs));
                     }
@@ -335,7 +335,7 @@ impl NetWorker {
 
                 let vs = self
                     .mem
-                    .range_sized(descriptor.addr, descriptor.len as usize)
+                    .get_slice(descriptor.addr, descriptor.len as usize)
                     .map_err(FrontendError::GuestMemory)?;
                 iovecs.push(Iovec::from(vs));
                 total_len += vs.len();

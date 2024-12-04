@@ -379,20 +379,20 @@ impl GuestMemory {
         GuestAddress::from_usize(self.len() - 1)
     }
 
-    pub fn as_slice(&self) -> GuestSlice<'_, u8> {
+    pub fn get_full_slice(&self) -> GuestSlice<'_, u8> {
         unsafe { GuestSlice::new_unchecked(self.as_non_null()) }
     }
 
-    pub fn byte_range(
+    pub fn get_slice_range(
         &self,
         range: Range<GuestAddress>,
     ) -> Result<GuestSlice<'_, u8>, InvalidGuestAddress> {
-        self.as_slice()
+        self.get_full_slice()
             .try_get(range.start.usize()..range.end.usize())
             .ok_or(InvalidGuestAddress)
     }
 
-    pub fn range_sized<T: bytemuck::Pod>(
+    pub fn get_slice<T: bytemuck::Pod>(
         &self,
         base: GuestAddress,
         len: usize,
@@ -411,17 +411,17 @@ impl GuestMemory {
                 .try_get(..len)
         }
 
-        inner(self.as_slice(), base, len).ok_or(InvalidGuestAddress)
+        inner(self.get_full_slice(), base, len).ok_or(InvalidGuestAddress)
     }
 
-    pub fn reference<T: bytemuck::Pod>(
+    pub fn get_ref<T: bytemuck::Pod>(
         &self,
         addr: GuestAddress,
     ) -> Result<GuestRef<'_, T>, InvalidGuestAddress> {
-        // FIXME: Might be unsound for big structures!
-        let max_addr = GuestAddress::from_usize(self.len() - mem::size_of::<T>());
+        let max_addr =
+            GuestAddress::from_usize((self.len() + 1).saturating_sub(mem::size_of::<T>()));
 
-        if addr <= max_addr {
+        if addr < max_addr {
             Ok(unsafe {
                 GuestRef::new_unchecked(
                     self.as_non_null()
@@ -489,34 +489,33 @@ impl GuestMemory {
     // === Forwards === //
 
     #[track_caller]
-    pub fn try_write<T: bytemuck::Pod>(
+    pub fn write<T: bytemuck::Pod>(
         &self,
         base: GuestAddress,
         values: &[T],
     ) -> Result<(), InvalidGuestAddress> {
-        self.range_sized(base, values.len())?
-            .copy_from_slice(values);
+        self.get_slice(base, values.len())?.copy_from_slice(values);
 
         Ok(())
     }
 
     #[track_caller]
-    pub fn try_read<T: bytemuck::Pod>(&self, base: GuestAddress) -> Result<T, InvalidGuestAddress> {
-        Ok(self.reference(base)?.read())
+    pub fn read<T: bytemuck::Pod>(&self, base: GuestAddress) -> Result<T, InvalidGuestAddress> {
+        Ok(self.get_ref(base)?.read())
     }
 
     #[track_caller]
-    pub fn try_read_into_slice<T: bytemuck::Pod>(
+    pub fn read_into_slice<T: bytemuck::Pod>(
         &self,
         base: GuestAddress,
         target: &mut [T],
     ) -> Result<(), InvalidGuestAddress> {
-        self.range_sized(base, target.len())?.copy_to_slice(target);
+        self.get_slice(base, target.len())?.copy_to_slice(target);
         Ok(())
     }
 
     #[track_caller]
-    pub fn try_write_from_guest<T, V>(
+    pub fn write_from_guest<T, V>(
         &self,
         base: GuestAddress,
         len: usize,
@@ -526,11 +525,11 @@ impl GuestMemory {
         T: bytemuck::Pod,
         V: WriteFromGuest<T>,
     {
-        Ok(self.range_sized(base, len)?.write_from_guest(target))
+        Ok(self.get_slice(base, len)?.write_from_guest(target))
     }
 
     #[track_caller]
-    pub fn try_read_into_guest<T, V>(
+    pub fn read_into_guest<T, V>(
         &self,
         base: GuestAddress,
         len: usize,
@@ -540,31 +539,31 @@ impl GuestMemory {
         T: bytemuck::Pod,
         V: ReadIntoGuest<T>,
     {
-        Ok(self.range_sized(base, len)?.read_into_guest(target))
+        Ok(self.get_slice(base, len)?.read_into_guest(target))
     }
 
     #[track_caller]
-    pub fn try_write_atomic<T: AtomicPrimitive>(
+    pub fn write_atomic<T: AtomicPrimitive>(
         &self,
         addr: GuestAddress,
         value: T,
         order: AtomicOrdering,
     ) -> Result<(), InvalidGuestAddress> {
-        self.reference(addr)?.write_atomic(value, order)?;
+        self.get_ref(addr)?.write_atomic(value, order)?;
         Ok(())
     }
 
     #[track_caller]
-    pub fn try_read_atomic<T: AtomicPrimitive>(
+    pub fn read_atomic<T: AtomicPrimitive>(
         &self,
         addr: GuestAddress,
         order: AtomicOrdering,
     ) -> Result<T, InvalidGuestAddress> {
-        self.reference(addr).and_then(|v| v.read_atomic(order))
+        self.get_ref(addr).and_then(|v| v.read_atomic(order))
     }
 
     pub fn address_in_range(&self, addr: GuestAddress) -> bool {
-        self.reference::<u8>(addr).is_ok()
+        self.get_ref::<u8>(addr).is_ok()
     }
 }
 

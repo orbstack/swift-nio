@@ -70,7 +70,7 @@ impl FsHvcDevice {
 
     pub fn handle_hvc(&self, args_addr: GuestAddress) -> anyhow::Result<i64> {
         // read args struct
-        let args = self.mem.try_read::<OrbvmArgs>(args_addr)?;
+        let args = self.mem.read::<OrbvmArgs>(args_addr)?;
 
         if args.in_numargs as usize > args.in_args.len() {
             return Err(anyhow!("too many input args"));
@@ -101,7 +101,7 @@ impl FsHvcDevice {
         } else {
             let in_pages = self
                 .mem
-                .range_sized::<FsDesc>(pages_addr, args.in_pages as usize)?;
+                .get_slice::<FsDesc>(pages_addr, args.in_pages as usize)?;
 
             Reader::new_from_iter(
                 &self.mem,
@@ -122,7 +122,7 @@ impl FsHvcDevice {
         } else {
             let out_pages = self
                 .mem
-                .range_sized::<FsDesc>(pages_addr, args.out_pages as usize)?;
+                .get_slice::<FsDesc>(pages_addr, args.out_pages as usize)?;
 
             Writer::new_from_iter(
                 &self.mem,

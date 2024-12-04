@@ -225,7 +225,7 @@ impl Vm {
         regions: &[(GuestAddress, usize)],
     ) -> Result<()> {
         for &(base, len) in regions {
-            let guest_slice = guest_mem.range_sized::<u8>(base, len).unwrap();
+            let guest_slice = guest_mem.get_slice::<u8>(base, len).unwrap();
             unsafe {
                 self.hvf_vm
                     .map_memory(
