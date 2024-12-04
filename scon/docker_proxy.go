@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -24,6 +27,9 @@ import (
 
 // must have constant size for bufio, but we use EWMA for copying
 const dockerProxyBufferSize = 65536
+
+// JSON request body size limit to prevent memory exhaustion
+const dockerProxyRequestBodyLimit = 15 * 1024 * 1024 // 15 MiB
 
 // sentinel to exit nested func
 var errCloseConn = errors.New("close conn")
@@ -136,6 +142,10 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 		req.Header.Set("Host", req.Host)
 
 		err = func() error {
+			// close req body even if we fail before writing the request out
+			// defer is resolved at call time, so this also works after filterRequest modifies the body
+			defer req.Body.Close()
+
 			// take freezer ref on a per-request level
 			// fixes idle conns from user's tools keeping machine alive
 			// only possible to do it race-free from scon side
@@ -145,6 +155,11 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			}
 			freezer.IncRef()
 			defer freezer.DecRef()
+
+			err := p.filterRequest(req)
+			if err != nil {
+				return fmt.Errorf("filter request: %w", err)
+			}
 
 			// send request
 			logrus.Trace("hp: writing request ", req.Method, req.URL)
@@ -238,7 +253,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 				// must NOT copy body for HEAD requests
 				// it still sends same Content-Length response, but no body, so proxy hangs
 				logrus.Trace("hp: copying body")
-				closeConn, err := copyBody(resp.ContentLength, resp.TransferEncoding, clientConn, upstreamBufReader)
+				closeConn, err := p.copyBody(resp, clientConn, upstreamBufReader)
 				if err != nil {
 					return fmt.Errorf("copy body: %w", err)
 				}
@@ -265,16 +280,68 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 	}
 }
 
+func (p *DockerProxy) filterRequest(req *http.Request) error {
+	// account for versioned and unversioned API paths
+	// TODO: does this normalize double slashes?
+	// TODO: check content type == json or empty (if docker accepts empty)
+	if strings.HasSuffix(req.URL.Path, "/containers/create") {
+		bodyData, err := io.ReadAll(io.LimitReader(req.Body, dockerProxyRequestBodyLimit))
+		if err != nil {
+			return fmt.Errorf("read request body: %w", err)
+		}
+
+		var body dockertypes.FullContainerCreateRequest
+		err = json.Unmarshal(bodyData, &body)
+		if err != nil {
+			return fmt.Errorf("unmarshal request body: %w", err)
+		}
+
+		return p.filterContainerCreate(req, &body)
+	}
+
+	return nil
+}
+
+func (p *DockerProxy) filterContainerCreate(req *http.Request, body *dockertypes.FullContainerCreateRequest) error {
+	// translate all volume paths to host paths
+	if body.HostConfig != nil {
+		for i, bind := range body.HostConfig.Binds {
+			parts := strings.SplitN(bind, ":", 2)
+			if len(parts) < 2 {
+				continue
+			}
+
+			src := parts[0]
+			if !strings.HasPrefix(src, "/") || strings.HasPrefix(src, "/var/run") || strings.HasPrefix(src, "/var/lib") || strings.HasPrefix(src, mounts.Opt) || strings.HasPrefix(src, "/mnt/") {
+				continue
+			}
+
+			body.HostConfig.Binds[i] = mounts.Virtiofs + src + ":" + parts[1]
+		}
+	}
+
+	newData, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal request body: %w", err)
+	}
+
+	// close old request body
+	req.Body.Close()
+	// replace with new buffered data
+	req.Body = io.NopCloser(bytes.NewReader(newData))
+	return nil
+}
+
 // returns: (closeConn, err)
-func copyBody(contentLength int64, transferEncoding []string, dst io.Writer, src io.Reader) (bool, error) {
+func (p *DockerProxy) copyBody(resp *http.Response, dst io.Writer, src io.Reader) (bool, error) {
 	// this does NOT cover 101 case, as that's only for response
-	if slices.Contains(transferEncoding, "chunked") {
+	if slices.Contains(resp.TransferEncoding, "chunked") {
 		// this is the tricky, and slow, part
 		// need chunked reader and writer, plus bufio part
 		logrus.Trace("hp: copyBody: copying TE chunked body")
 		chunkedReader := httputil.NewChunkedReader(src)
 		chunkedWriter := httputil.NewChunkedWriter(dst)
-		_, err := tcppump.CopyBuffer(chunkedWriter, chunkedReader, nil)
+		err := p.filterResponse(resp, chunkedWriter, chunkedReader)
 		if err != nil {
 			return false, fmt.Errorf("copy TE: %w", err)
 		}
@@ -298,11 +365,11 @@ func copyBody(contentLength int64, transferEncoding []string, dst io.Writer, src
 
 		// keep conn open for reuse
 		return false, nil
-	} else if contentLength != -1 {
+	} else if resp.ContentLength != -1 {
 		// TODO: can we use splice here?
 		logrus.Trace("hp: copyBody: copying CL body")
-		limitReader := io.LimitReader(src, contentLength)
-		_, err := tcppump.CopyBuffer(dst, limitReader, nil)
+		limitReader := io.LimitReader(src, resp.ContentLength)
+		err := p.filterResponse(resp, dst, limitReader)
 		if err != nil {
 			return false, fmt.Errorf("copy CL: %w", err)
 		}
@@ -312,13 +379,46 @@ func copyBody(contentLength int64, transferEncoding []string, dst io.Writer, src
 		// single-direction upstream->client copy, then close conns
 		// we already set Connection=close
 		logrus.Trace("hp: copyBody: copying body until EOF")
-		_, err := tcppump.CopyBuffer(dst, src, nil)
+		err := p.filterResponse(resp, dst, src)
 		if err != nil {
 			return false, fmt.Errorf("copy CC: %w", err)
 		}
 		// *CLOSE* conn. impossible to know when it's safe to reuse until FIN
 		return true, nil
 	}
+}
+
+func (p *DockerProxy) filterResponse(resp *http.Response, dst io.Writer, src io.Reader) error {
+	shouldFilter := false
+	if strings.HasSuffix(resp.Request.URL.Path, "/json") {
+		shouldFilter = true
+	}
+
+	if shouldFilter {
+		limitReader := io.LimitReader(src, dockerProxyRequestBodyLimit)
+		bodyData, err := io.ReadAll(limitReader)
+		if err != nil {
+			return fmt.Errorf("read response body: %w", err)
+		}
+
+		// TODO
+		var body any
+		err = json.Unmarshal(bodyData, &body)
+		if err != nil {
+			return fmt.Errorf("unmarshal response body: %w", err)
+		}
+
+		newData, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("marshal response body: %w", err)
+		}
+
+		_, err = dst.Write(newData)
+		return err
+	}
+
+	_, err := tcppump.CopyBuffer(dst, src, nil)
+	return err
 }
 
 func (p *DockerProxy) kickStart(freezer *Freezer) {
