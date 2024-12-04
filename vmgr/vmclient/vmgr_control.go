@@ -73,7 +73,7 @@ func SpawnDaemon(newBuildID string) (int, error) {
 	if newBuildID != "" {
 		args = append(args, newBuildID)
 	}
-	out, err := util.Run(args...)
+	out, err := util.RunDisclaimTCC(args...)
 	if err != nil {
 		return 0, fmt.Errorf("start vmgr: %w", err)
 	}

@@ -11,8 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func Run(combinedArgs ...string) (string, error) {
-	logrus.Tracef("run: %v", combinedArgs)
+func makeRunCmd(combinedArgs ...string) *pspawn.Cmd {
 	cmd := pspawn.Command(combinedArgs[0], combinedArgs[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		// without this, running interactive shell breaks ctrl-c SIGINT
@@ -22,33 +21,20 @@ func Run(combinedArgs ...string) (string, error) {
 	cmd.Env = os.Environ()
 	// avoid triggering iterm2 shell integration
 	cmd.Env = append(cmd.Env, "TERM=dumb")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("run command '%v': %w; output: %s", combinedArgs, err, string(output))
-	}
+	return cmd
+}
 
-	return string(output), nil
+func Run(combinedArgs ...string) (string, error) {
+	cmd := makeRunCmd(combinedArgs...)
+	return finishRun(cmd, combinedArgs)
 }
 
 func RunWithEnv(extraEnv []string, combinedArgs ...string) (string, error) {
-	logrus.Tracef("run: %v", combinedArgs)
-	cmd := pspawn.Command(combinedArgs[0], combinedArgs[1:]...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		// without this, running interactive shell breaks ctrl-c SIGINT
-		Setsid: true,
-	}
-	// inherit env
-	cmd.Env = os.Environ()
-	// avoid triggering iterm2 shell integration
-	cmd.Env = append(cmd.Env, "TERM=dumb")
+	cmd := makeRunCmd(combinedArgs...)
 	// add extra env
 	cmd.Env = append(cmd.Env, extraEnv...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("run command '%v': %w; output: %s", combinedArgs, err, string(output))
-	}
 
-	return string(output), nil
+	return finishRun(cmd, combinedArgs)
 }
 
 func RunLoginShell(ctx context.Context, combinedArgs ...string) error {
@@ -72,4 +58,14 @@ func RunLoginShell(ctx context.Context, combinedArgs ...string) error {
 	}
 
 	return nil
+}
+
+func finishRun(cmd *pspawn.Cmd, combinedArgs []string) (string, error) {
+	logrus.Tracef("run: %v", combinedArgs)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("run command '%v': %w; output: %s", combinedArgs, err, string(output))
+	}
+
+	return string(output), nil
 }
