@@ -1,7 +1,6 @@
 package icmpfwd
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -317,23 +316,20 @@ func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
 	ipHdr := header.IPv4(msg)
 
 	// if ip_filters are set, macOS byteswaps 16-bit fields (tlen and frag_offset/flags) in the IP header to host order
-	// swap them back to network order to make it a valid IP header
-	// however, this doesn't apply to some interfaces (e.g. lo0), so only do this if the length would be invalid without swapping
-	if ipHdr.TotalLength() > uint16(len(msg)) {
-		binary.BigEndian.PutUint16(ipHdr[header.IPv4TotalLenOffset:], binary.NativeEndian.Uint16(ipHdr[header.IPv4TotalLenOffset:]))
-		binary.BigEndian.PutUint16(ipHdr[ipv4FlagsFragOffOffset:], binary.NativeEndian.Uint16(ipHdr[ipv4FlagsFragOffOffset:]))
-	}
-
-	// validate to avoid panics, now that length is fixed
+	// however, this doesn't apply to some interfaces (e.g. lo0), and sometimes only one of the fields is wrong, so byte-swaping is flaky
+	// instead of attempting to fix the broken data that we do have, just make some reasonable assumptions:
+	// - total length can be recovered from the length of the message we got from the kernel
+	// - ICMP packets should be small so they should never be fragmented
+	ipHdr.SetTotalLength(uint16(len(msg)))
+	ipHdr.SetFlagsFragmentOffset(0, 0)
+	// validate after fixing
 	if !ipHdr.IsValid(len(msg)) {
 		return errors.New("invalid IP header")
 	}
 
-	// fix the IP header
-	// (still wrong for UDP, will be fixed below)
+	// fix the dest IP address
+	// (still wrong for embedded UDP packets, which will be fixed below)
 	ipHdr.SetDestinationAddress(i.lastSourceAddr4)
-	// just in case byte swap is wrong on newer macOS
-	ipHdr.SetTotalLength(uint16(len(msg)))
 
 	// Do surgery on packet
 	icmpHdr := header.ICMPv4(ipHdr.Payload())
