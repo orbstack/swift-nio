@@ -2,8 +2,8 @@ just asm
 ---
 _index_guest_non_pow2_runtime:
 Lfunc_beginXX:
-    cmp x1, x2
-    b.ls LBBxx
+    cmp x2, x1
+    b.hs LBBxx
     add x8, x2, x2, lsl #1
     add x8, x0, x8
     ldrb w9, [x8, #2]

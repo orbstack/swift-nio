@@ -3,16 +3,12 @@ just asm
 _index_slice_sized_constant_3:
 Lfunc_beginXX:
     ldr x8, [x0]
-    ldr x9, [x8, #8]
-    subs x9, x9, x1
-    b.hs LBBxx
-    mov x0, #0
-    mov w1, #1010
-    ret
-LBBxx:
-    ldr x8, [x8]
-    add x8, x8, x1
-    cmp x9, #1010
-    csel x0, xzr, x8, lo
+    ldp x9, x8, [x8]
+    subs x10, x8, x1
+    add x9, x9, x1
+    cmp x10, #1009
+    csel x9, x9, xzr, hi
+    cmp x8, x1
+    csel x0, xzr, x9, lo
     mov w1, #1010
     ret
