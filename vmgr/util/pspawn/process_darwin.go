@@ -21,7 +21,7 @@ package pspawn
 #include <spawn.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <stdio.h>
+#include <errno.h>
 
 extern int responsibility_spawnattrs_setdisclaim(posix_spawnattr_t *attrs, int disclaim) __attribute__((weak_import));
 
@@ -29,8 +29,7 @@ int orb_pspawn_setdisclaim(posix_spawnattr_t *attrs, int disclaim) {
 	if (responsibility_spawnattrs_setdisclaim) {
 		return responsibility_spawnattrs_setdisclaim(attrs, disclaim);
 	} else {
-		fprintf(stderr, "[WARN] responsibility_spawnattrs_setdisclaim not found\n");
-		return 0;
+		return ENOTSUP;
 	}
 }
 */
@@ -41,16 +40,17 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"syscall"
 	"unsafe"
 
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 type PspawnAttr struct {
-	// DisclaimTCC gives the child process a new TCC context based on its
+	// DisclaimTCCResponsibility gives the child process a new TCC context based on its
 	// signing ID, disclaiming responsibility for its syscalls. (pspawn-specific)
-	DisclaimTCC bool
+	DisclaimTCCResponsibility bool
 }
 
 func StartProcess(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *PspawnAttr) (*os.Process, error) {
@@ -75,11 +75,11 @@ func startProcessRaw(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *P
 
 	env := attr.Env
 	if env == nil {
-		env = syscall.Environ()
+		env = unix.Environ()
 	}
 
 	// this is safe: cgo implicitly pins args for duration of call, and this only passed to posix_spawn
-	exeC, err := syscall.BytePtrFromString(exe)
+	exeC, err := unix.BytePtrFromString(exe)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func startProcessRaw(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *P
 	var spawnattr C.posix_spawnattr_t
 	ret := C.posix_spawnattr_init(&spawnattr)
 	if ret != 0 {
-		return nil, fmt.Errorf("posix_spawnattr_init: %w", syscall.Errno(ret))
+		return nil, fmt.Errorf("posix_spawnattr_init: %w", unix.Errno(ret))
 	}
 	defer C.posix_spawnattr_destroy(&spawnattr)
 
@@ -124,7 +124,7 @@ func startProcessRaw(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *P
 			spawnFlags |= C.POSIX_SPAWN_SETPGROUP
 			ret := C.posix_spawnattr_setpgroup(&spawnattr, C.int(attr.Sys.Pgid))
 			if ret != 0 {
-				return nil, fmt.Errorf("posix_spawnattr_setpgroup: %w", syscall.Errno(ret))
+				return nil, fmt.Errorf("posix_spawnattr_setpgroup: %w", unix.Errno(ret))
 			}
 		}
 
@@ -140,14 +140,19 @@ func startProcessRaw(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *P
 	}
 	ret = C.posix_spawnattr_setflags(&spawnattr, C.short(spawnFlags))
 	if ret != 0 {
-		return nil, fmt.Errorf("posix_spawnattr_setflags: %w", syscall.Errno(ret))
+		return nil, fmt.Errorf("posix_spawnattr_setflags: %w", unix.Errno(ret))
 	}
 
 	if pspawnAttr != nil {
-		if pspawnAttr.DisclaimTCC {
+		if pspawnAttr.DisclaimTCCResponsibility {
 			ret = C.orb_pspawn_setdisclaim(&spawnattr, 1)
 			if ret != 0 {
-				return nil, fmt.Errorf("responsibility_spawnattrs_setdisclaim: %w", syscall.Errno(ret))
+				err := unix.Errno(ret)
+				if err == unix.ENOTSUP {
+					logrus.Warn("disclaiming TCC responsibility is not supported on this OS version")
+				} else {
+					return nil, fmt.Errorf("responsibility_spawnattrs_setdisclaim: %w", unix.Errno(ret))
+				}
 			}
 		}
 	}
@@ -157,18 +162,18 @@ func startProcessRaw(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *P
 	C.sigfillset(&sigset)
 	ret = C.posix_spawnattr_setsigdefault(&spawnattr, &sigset)
 	if ret != 0 {
-		return nil, fmt.Errorf("posix_spawnattr_setsigdefault: %w", syscall.Errno(ret))
+		return nil, fmt.Errorf("posix_spawnattr_setsigdefault: %w", unix.Errno(ret))
 	}
 	C.sigemptyset(&sigset)
 	ret = C.posix_spawnattr_setsigmask(&spawnattr, &sigset)
 	if ret != 0 {
-		return nil, fmt.Errorf("posix_spawnattr_setsigmask: %w", syscall.Errno(ret))
+		return nil, fmt.Errorf("posix_spawnattr_setsigmask: %w", unix.Errno(ret))
 	}
 
 	var fileActions C.posix_spawn_file_actions_t
 	ret = C.posix_spawn_file_actions_init(&fileActions)
 	if ret != 0 {
-		return nil, fmt.Errorf("posix_spawn_file_actions_init: %w", syscall.Errno(ret))
+		return nil, fmt.Errorf("posix_spawn_file_actions_init: %w", unix.Errno(ret))
 	}
 	defer C.posix_spawn_file_actions_destroy(&fileActions)
 
@@ -180,7 +185,7 @@ func startProcessRaw(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *P
 
 		ret := C.posix_spawn_file_actions_addchdir_np(&fileActions, dirC)
 		if ret != 0 {
-			return nil, fmt.Errorf("posix_spawn_file_actions_addchdir: %w", syscall.Errno(ret))
+			return nil, fmt.Errorf("posix_spawn_file_actions_addchdir: %w", unix.Errno(ret))
 		}
 	}
 
@@ -189,14 +194,14 @@ func startProcessRaw(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *P
 		// .Fd() sets to non-blocking
 		ret := C.posix_spawn_file_actions_adddup2(&fileActions, C.int(file.Fd()), C.int(i))
 		if ret != 0 {
-			return nil, fmt.Errorf("posix_spawn_file_actions_adddup2: %w", syscall.Errno(ret))
+			return nil, fmt.Errorf("posix_spawn_file_actions_adddup2: %w", unix.Errno(ret))
 		}
 	}
 
 	var pid C.pid_t
 	ret = C.posix_spawn(&pid, (*C.char)(unsafe.Pointer(exeC)), &fileActions, &spawnattr, (**C.char)(unsafe.Pointer(&argvC[0])), (**C.char)(unsafe.Pointer(&envvC[0])))
 	if ret != 0 {
-		return nil, fmt.Errorf("posix_spawn: %w", syscall.Errno(ret))
+		return nil, fmt.Errorf("posix_spawn: %w", unix.Errno(ret))
 	}
 
 	return os.FindProcess(int(pid))
