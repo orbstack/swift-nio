@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -35,6 +37,13 @@ var configShowCmd = &cobra.Command{
 		var configMap map[string]any
 		err = json.Unmarshal(jsonData, &configMap)
 		checkCLI(err)
+
+		// add synthetic configs
+		guiExe, err := conf.FindGUIExe()
+		checkCLI(err)
+		out, err := util.RunWithOutput(guiExe, "get-launch-at-login")
+		checkCLI(err)
+		configMap["app.start_at_login"] = strings.TrimSpace(out) == "true"
 
 		// add machine configs
 		containers, err := scli.Client().ListContainers()

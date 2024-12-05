@@ -10,6 +10,8 @@ import (
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
 )
@@ -100,6 +102,13 @@ Some options will only take effect after restarting the virtual machine.
 			checkCLI(err)
 			config.SSHExposePort = val
 			rebootRequired = true
+		case "app.start_at_login":
+			val, err := strconv.ParseBool(value)
+			checkCLI(err)
+			guiExe, err := conf.FindGUIExe()
+			checkCLI(err)
+			err = util.Run(guiExe, "set-launch-at-login", strconv.FormatBool(val))
+			checkCLI(err)
 		default:
 			// machine.* = unified
 			if strings.HasPrefix(key, "machine.") {
