@@ -195,9 +195,9 @@ func (c *Client) WaitPid(pid int) (int, error) {
 	return status, nil
 }
 
-func (c *Client) DockerDialSocket() (net.Conn, error) {
+func (c *Client) DockerDialRealSocket() (net.Conn, error) {
 	var seq uint64
-	err := c.rpc.Call("a.DockerDialSocket", None{}, &seq)
+	err := c.rpc.Call("a.DockerDialRealSocket", None{}, &seq)
 	if err != nil {
 		return nil, err
 	}
@@ -209,6 +209,16 @@ func (c *Client) DockerDialSocket() (net.Conn, error) {
 	defer file.Close()
 
 	return net.FileConn(file)
+}
+
+func (c *Client) DockerAddCertsToContainer(containerID string) error {
+	var none None
+	err := c.rpc.Call("a.DockerAddCertsToContainer", containerID, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Client) DockerCheckIdle() (bool, error) {

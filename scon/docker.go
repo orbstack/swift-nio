@@ -387,6 +387,10 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// default rules are pretty good: https://docs.docker.com/build/cache/garbage-collection/
 		"builder": baseBuilder,
 
+		"hosts": []any{
+			"unix:///var/run/docker.sock.real",
+		},
+
 		"bip":                   netconf.DockerBIP,
 		"default-address-pools": netconf.DockerDefaultAddressPools,
 
@@ -442,10 +446,15 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		config["builder"] = baseBuilder
 	}
 
-	// merge hosts list: make sure /var/run/docker.sock is always there if users add TCP hosts
+	// merge hosts list: make sure /var/run/docker.sock is always there if users add TCP hosts and remove /var/run/docker.sock (our proxy listens on this)
 	if newHosts, ok := config["hosts"].([]any); ok {
-		if !slices.Contains(newHosts, "unix:///var/run/docker.sock") {
-			newHosts = append(newHosts, "unix:///var/run/docker.sock")
+		if !slices.Contains(newHosts, "unix:///var/run/docker.sock.real") {
+			newHosts = append(newHosts, "unix:///var/run/docker.sock.real")
+		}
+		if slices.Contains(newHosts, "unix:///var/run/docker.sock") {
+			newHosts = slices.DeleteFunc(newHosts, func(host any) bool {
+				return host == "unix:///var/run/docker.sock"
+			})
 		}
 		config["hosts"] = newHosts
 	}

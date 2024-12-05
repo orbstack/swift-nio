@@ -34,6 +34,7 @@ import (
 const (
 	dockerRefreshDebounce   = 100 * time.Millisecond
 	dockerAPISocketUpstream = "/var/run/docker.sock"
+	dockerAPISocketReal     = "/var/run/docker.sock.real"
 
 	// matches mDNSResponder timeout
 	mdnsProxyTimeout = 5 * time.Second
@@ -83,6 +84,8 @@ type DockerAgent struct {
 
 	domainTLSProxy       *domainproxy.DomainTLSProxy
 	domainTLSProxyActive bool
+
+	caHackInfo *dockerCACertInjector
 }
 
 func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
@@ -186,6 +189,8 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 		return nil, err
 	}
 
+	dockerAgent.caHackInfo = newDockerCACertInjector(dockerAgent)
+
 	go func() {
 		// we need to wait for simplevisor to have actually run the commands
 		err := util.WaitForRunPathExist("/run/.boot-complete")
@@ -230,12 +235,12 @@ func (a *AgentServer) DockerCheckIdle(_ None, reply *bool) error {
 	return nil
 }
 
-func (a *AgentServer) DockerDialSocket(_ None, reply *uint64) error {
+func (a *AgentServer) DockerDialRealSocket(_ None, reply *uint64) error {
 	// wait for docker
 	a.docker.Running.Wait()
 
 	// dial unix socket
-	dockerConn, err := net.Dial("unix", dockerAPISocketUpstream)
+	dockerConn, err := net.Dial("unix", dockerAPISocketReal)
 	if err != nil {
 		return err
 	}
@@ -544,7 +549,10 @@ func (d *DockerAgent) monitorEvents() error {
 		switch event.Type {
 		case "container":
 			switch event.Action {
-			case "create", "start", "die", "destroy", "rename":
+			case "start":
+				d.caHackInfo.containerNotInProgress(event.Actor.ID)
+				fallthrough
+			case "create", "die", "destroy", "rename":
 				d.triggerUIEvent(uitypes.DockerEntityContainer)
 				d.containerRefreshDebounce.Call()
 				// also need to trigger networks refresh, because networks depends on active containers

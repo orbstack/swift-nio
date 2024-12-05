@@ -115,7 +115,7 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 
 	// open upstream connection
 	upstreamConn, err := UseAgentRet(p.container, func(a *agent.Client) (net.Conn, error) {
-		return a.DockerDialSocket()
+		return a.DockerDialRealSocket()
 	})
 	if err != nil {
 		return fmt.Errorf("dial upstream: %w", err)
@@ -296,7 +296,32 @@ func (p *DockerProxy) filterRequest(req *http.Request) error {
 			return fmt.Errorf("unmarshal request body: %w", err)
 		}
 
-		return p.filterContainerCreate(req, &body)
+		err = p.filterContainerCreate(req, &body)
+		if err != nil {
+			return fmt.Errorf("filter container create: %w", err)
+		}
+	}
+
+	// do ca hack if we're trying to start a container
+	pathComponents := strings.Split(req.URL.Path, "/")
+	pathComponents = slices.DeleteFunc(pathComponents, func(s string) bool {
+		return s == ""
+	})
+	logrus.Debugf("soweli | filterRequest: pathComponents=%#v", pathComponents)
+	// first component is version
+	if len(pathComponents) == 4 && pathComponents[1] == "containers" && (pathComponents[3] == "start" || pathComponents[3] == "restart") {
+		logrus.Debug("soweli | filterRequest: adding certs to container")
+		containerID := pathComponents[2]
+		if containerID != "" {
+			err := p.container.UseAgent(func(a *agent.Client) error {
+				return a.DockerAddCertsToContainer(containerID)
+			})
+			if err != nil {
+				logrus.WithError(err).Error("failed to add certs to container")
+			}
+		} else {
+			logrus.Debug("soweli | filterRequest: containerID is empty")
+		}
 	}
 
 	return nil
@@ -331,6 +356,7 @@ func (p *DockerProxy) filterContainerCreate(req *http.Request, body *dockertypes
 	req.Body.Close()
 	// replace with new buffered data
 	req.Body = io.NopCloser(bytes.NewReader(newData))
+	req.ContentLength = int64(len(newData))
 	return nil
 }
 
@@ -343,7 +369,7 @@ func (p *DockerProxy) copyBody(resp *http.Response, dst io.Writer, src io.Reader
 		logrus.Trace("hp: copyBody: copying TE chunked body")
 		chunkedReader := httputil.NewChunkedReader(src)
 		chunkedWriter := httputil.NewChunkedWriter(dst)
-		err := p.filterResponse(resp, chunkedWriter, chunkedReader)
+		err := p.handleResponse(resp, chunkedWriter, chunkedReader)
 		if err != nil {
 			return false, fmt.Errorf("copy TE: %w", err)
 		}
@@ -371,7 +397,7 @@ func (p *DockerProxy) copyBody(resp *http.Response, dst io.Writer, src io.Reader
 		// TODO: can we use splice here?
 		logrus.Trace("hp: copyBody: copying CL body")
 		limitReader := io.LimitReader(src, resp.ContentLength)
-		err := p.filterResponse(resp, dst, limitReader)
+		err := p.handleResponse(resp, dst, limitReader)
 		if err != nil {
 			return false, fmt.Errorf("copy CL: %w", err)
 		}
@@ -381,7 +407,7 @@ func (p *DockerProxy) copyBody(resp *http.Response, dst io.Writer, src io.Reader
 		// single-direction upstream->client copy, then close conns
 		// we already set Connection=close
 		logrus.Trace("hp: copyBody: copying body until EOF")
-		err := p.filterResponse(resp, dst, src)
+		err := p.handleResponse(resp, dst, src)
 		if err != nil {
 			return false, fmt.Errorf("copy CC: %w", err)
 		}
@@ -390,7 +416,7 @@ func (p *DockerProxy) copyBody(resp *http.Response, dst io.Writer, src io.Reader
 	}
 }
 
-func (p *DockerProxy) filterResponse(resp *http.Response, dst io.Writer, src io.Reader) error {
+func (p *DockerProxy) handleResponse(resp *http.Response, dst io.Writer, src io.Reader) error {
 	shouldFilter := false
 	// if strings.HasSuffix(resp.Request.URL.Path, "/json") {
 	// 	shouldFilter = true

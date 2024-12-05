@@ -303,8 +303,10 @@ fn main() -> anyhow::Result<()> {
     // LXC can't bind onto sockets (ENXIO due to open(dest) without O_PATH), so we bind docker.sock here to make "-v ~/.orbstack/run/docker.sock:/var/run/docker.sock" work
     // we don't strictly need the proxy here, but it helps for future path translation (and better matches what machines would get if not for the LXC bug)
     // this is optional in case the user's host fs is messed up
+    let scon_docker_sock = "/opt/orbstack-guest/run/docker.sock";
+
     if let Err(e) = mount::<str, str, str, str>(
-        Some("/opt/orbstack-guest/run/docker.sock"),
+        Some(scon_docker_sock),
         &format!("{}/.orbstack/run/docker.sock", config.host_home),
         None,
         MsFlags::MS_BIND,
@@ -312,6 +314,8 @@ fn main() -> anyhow::Result<()> {
     ) {
         eprintln!(" [!] failed to bind docker.sock: {}", e);
     }
+
+    symlink(scon_docker_sock, "/var/run/docker.sock")?;
 
     let mut sv = Supervisor {
         services: Arc::new(Mutex::new(HashMap::new())),
