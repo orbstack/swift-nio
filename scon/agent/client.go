@@ -211,9 +211,19 @@ func (c *Client) DockerDialRealSocket() (net.Conn, error) {
 	return net.FileConn(file)
 }
 
-func (c *Client) DockerAddCertsToContainer(containerID string) error {
+func (c *Client) DockerAddCertsToContainer(containerID string) (string, error) {
+	var notifyCtrId string
+	err := c.rpc.Call("a.DockerAddCertsToContainer", containerID, &notifyCtrId)
+	if err != nil {
+		return "", err
+	}
+
+	return notifyCtrId, nil
+}
+
+func (c *Client) DockerNotifyCACertInjectorStartFinished(containerID string) error {
 	var none None
-	err := c.rpc.Call("a.DockerAddCertsToContainer", containerID, &none)
+	err := c.rpc.Call("a.DockerNotifyCACertInjectorStartFinished", containerID, &none)
 	if err != nil {
 		return err
 	}

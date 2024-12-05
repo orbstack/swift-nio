@@ -85,7 +85,7 @@ type DockerAgent struct {
 	domainTLSProxy       *domainproxy.DomainTLSProxy
 	domainTLSProxyActive bool
 
-	caHackInfo *dockerCACertInjector
+	caCertInjector *dockerCACertInjector
 }
 
 func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
@@ -189,7 +189,7 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 		return nil, err
 	}
 
-	dockerAgent.caHackInfo = newDockerCACertInjector(dockerAgent)
+	dockerAgent.caCertInjector = newDockerCACertInjector(dockerAgent)
 
 	go func() {
 		// we need to wait for simplevisor to have actually run the commands
@@ -549,10 +549,7 @@ func (d *DockerAgent) monitorEvents() error {
 		switch event.Type {
 		case "container":
 			switch event.Action {
-			case "start":
-				d.caHackInfo.containerNotInProgress(event.Actor.ID)
-				fallthrough
-			case "create", "die", "destroy", "rename":
+			case "create", "start", "die", "destroy", "rename":
 				d.triggerUIEvent(uitypes.DockerEntityContainer)
 				d.containerRefreshDebounce.Call()
 				// also need to trigger networks refresh, because networks depends on active containers
