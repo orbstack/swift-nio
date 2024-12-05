@@ -392,9 +392,9 @@ func (p *DockerProxy) copyBody(resp *http.Response, dst io.Writer, src io.Reader
 
 func (p *DockerProxy) filterResponse(resp *http.Response, dst io.Writer, src io.Reader) error {
 	shouldFilter := false
-	if strings.HasSuffix(resp.Request.URL.Path, "/json") {
-		shouldFilter = true
-	}
+	// if strings.HasSuffix(resp.Request.URL.Path, "/json") {
+	// 	shouldFilter = true
+	// }
 
 	if shouldFilter {
 		limitReader := io.LimitReader(src, dockerProxyRequestBodyLimit)
