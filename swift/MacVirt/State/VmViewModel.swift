@@ -415,14 +415,6 @@ private func fmtRpc(_ error: Error) -> String {
     }
 }
 
-struct ProfileChangedAlert: Equatable {
-    let profileRelPath: String
-}
-
-struct AddPathsAlert: Equatable {
-    let paths: [String]
-}
-
 @MainActor
 class VmViewModel: ObservableObject {
     private let daemon = DaemonManager()
@@ -508,8 +500,8 @@ class VmViewModel: ObservableObject {
 
     // present bindings
     // TODO: move to MainWindow, pass down by environment?
-    @Published var presentProfileChanged: ProfileChangedAlert?
-    @Published var presentAddPaths: AddPathsAlert?
+    @Published var presentProfileChanged = false
+    @Published var presentAddPaths = false
     @Published var presentCreateMachine = false
     @Published var presentCreateVolume = false
     @Published var presentRequiresLicense = false
@@ -835,12 +827,12 @@ class VmViewModel: ObservableObject {
     func doSetup() async throws {
         let info = try await vmgr.startSetup()
 
-        if let pathCmd = info.alertProfileChanged {
-            presentProfileChanged = ProfileChangedAlert(profileRelPath: pathCmd)
+        if info.alertProfileChanged {
+            presentProfileChanged = true
         }
 
-        if let paths = info.alertRequestAddPaths {
-            presentAddPaths = AddPathsAlert(paths: paths)
+        if info.alertRequestAddPaths {
+            presentAddPaths = true
         }
 
         // need to do anything?

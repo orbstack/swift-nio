@@ -8,8 +8,8 @@ type PHSymlinkRequest struct {
 type SetupInfo struct {
 	AdminSymlinkCommands []PHSymlinkRequest `json:"admin_symlink_commands"`
 	AdminMessage         *string            `json:"admin_message,omitempty"`
-	AlertProfileChanged  *string            `json:"alert_profile_changed"`
-	AlertRequestAddPaths []string           `json:"alert_request_add_paths"`
+	AlertProfileChanged  bool               `json:"alert_profile_changed"`
+	AlertRequestAddPath  bool               `json:"alert_request_add_paths"`
 }
 
 type DebugInfo struct {

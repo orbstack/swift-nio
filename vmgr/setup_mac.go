@@ -1,9 +1,9 @@
 package vmgr
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -58,11 +58,6 @@ type UserDetails struct {
 	EnvDOCKER_CONFIG string
 	EnvZDOTDIR       string
 	EnvSSH_AUTH_SOCK string
-}
-
-type PathInfo struct {
-	Dir          string
-	RequiresRoot bool
 }
 
 func (s *VmControlServer) doGetUserDetails(useAdmin bool) (*UserDetails, error) {
@@ -158,175 +153,54 @@ func (s *VmControlServer) doGetUserDetailsAndSetupEnv() (*UserDetails, error) {
 	return details, nil
 }
 
-/*
-1. ~/bin IF exists AND in path (or ~/.local/bin)
-2. /usr/local/bin IF root
-3. ZDOTDIR/zprofile or profile IF is default shell + set AlertProfileChanged
-4. ask user + set AlertRequestAddPath
-*/
-func findTargetCmdPath(details *UserDetails, pathItems []string, useAdmin bool) (*PathInfo, error) {
-	home := details.Home
-
-	// prefer ~/bin because user probably created it explicitly
-	_, err := os.Stat(home + "/bin")
-	if err == nil {
-		// is it in path?
-		if slices.Contains(pathItems, home+"/bin") {
-			return &PathInfo{
-				Dir:          home + "/bin",
-				RequiresRoot: false,
-			}, nil
-		}
-	}
-
-	// ~/.local/bin is a common alternative
-	_, err = os.Stat(home + "/.local/bin")
-	if err == nil {
-		// is it in path?
-		if slices.Contains(pathItems, home+"/.local/bin") {
-			return &PathInfo{
-				Dir:          home + "/.local/bin",
-				RequiresRoot: false,
-			}, nil
-		}
-	}
-
-	// check if root
-	if useAdmin {
-		return &PathInfo{
-			Dir:          "/usr/local/bin",
-			RequiresRoot: true,
-		}, nil
-	}
-
-	// fall back to our path
-	return nil, nil
-}
-
-func filterSlice[T comparable](s []T, f func(T) bool) []T {
-	var out []T
-	for _, v := range s {
-		if f(v) {
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
-func findExecutable(file string) error {
-	d, err := os.Stat(file)
-	if err != nil {
+func writeFileIfChanged(path string, data []byte, perm os.FileMode) error {
+	existing, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	m := d.Mode()
-	if m.IsDir() {
-		return unix.EISDIR
-	}
-	// MOD: change return value
-	/* // never true with mod
-	err = unix.ENOSYS
-	// ENOSYS means Eaccess is not available or not implemented.
-	// EPERM can be returned by Linux containers employing seccomp.
-	// In both cases, fall back to checking the permission bits.
-	if err == nil || (err != unix.ENOSYS && err != unix.EPERM) {
-		return err
-	}
-	*/
-	if m&0111 != 0 {
+	if bytes.Equal(existing, data) {
 		return nil
 	}
-	return fs.ErrPermission
+	return os.WriteFile(path, data, perm)
 }
 
-// takes custom PATH
-func execLookPath(path string, file string) (string, error) {
-	// NOTE(rsc): I wish we could use the Plan 9 behavior here
-	// (only bypass the path if file begins with / or ./ or ../)
-	// but that would not match all the Unix shells.
-
-	if strings.Contains(file, "/") {
-		err := findExecutable(file)
-		if err == nil {
-			return file, nil
-		}
-		return "", fmt.Errorf("find %s: %w", file, err)
-	}
-	for _, dir := range filepath.SplitList(path) {
-		if dir == "" {
-			// Unix shell semantics: path element "" means "."
-			dir = "."
-		}
-		path := filepath.Join(dir, file)
-		if err := findExecutable(path); err == nil {
-			if !filepath.IsAbs(path) {
-				return path, fmt.Errorf("ErrDot: %s", path)
-			}
-			return path, nil
+func symlinkIfChanged(src, dst string) error {
+	oldSrc, err := os.Readlink(dst)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// ignore: we'll create it
+		} else if errors.Is(err, unix.EINVAL) {
+			// not a symlink: probably placed manually by user, so don't overwrite
+			return nil
+		} else {
+			return err
 		}
 	}
-	return "", fmt.Errorf("ErrNotFound: %s", file)
-}
 
-// XXX: xbin is special - relink if:
-// - is from any .app (Docker Desktop, or ourself)
-// - target doesn't exist
-// so we don't replace homebrew or nix one
-func lookPathXbinRelink(pathEnv string, cmd string) (string, error) {
-	path, err := execLookPath(pathEnv, cmd)
-	if err != nil {
-		return "", err
-	}
-	// resolve link dest
-	path, err = filepath.EvalSymlinks(path)
-	if err != nil {
-		return "", err
-	}
-
-	// cond 1: if .app
-	if strings.Contains(path, ".app/") {
-		return "", fmt.Errorf("is in app: %s", path)
-	}
-	// cond 2: if target doesn't exist
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("target doesn't exist: %s", path)
-	}
-
-	return path, nil
-}
-
-func shouldUpdateSymlink(src, dest string, linkIfNotExists bool) bool {
-	currentSrc, err := os.Readlink(dest)
-	// if doesn't exist, return linkIfNotExists
-	if err != nil && errors.Is(err, os.ErrNotExist) {
-		return linkIfNotExists
-	}
-	if err == nil && currentSrc == src {
-		// already linked
-		return false
-	}
-
-	return true
-}
-
-func symlinkIfNotExists(src, dest string) error {
-	if !shouldUpdateSymlink(src, dest, true) {
-		return nil
-	}
-
-	// link it
-	logrus.WithField("dest", dest).Info("symlinking")
-	_ = os.Remove(dest)
-	err := os.Symlink(src, dest)
-	if err != nil {
-		return err
+	if oldSrc != src {
+		_ = os.Remove(dst)
+		return os.Symlink(src, dst)
 	}
 
 	return nil
 }
 
-func linkToAppBin(src string) error {
-	dest := conf.UserAppBinDir() + "/" + filepath.Base(src)
-	return symlinkIfNotExists(src, dest)
+func shouldSymlinkApp(src, dst string) (bool, error) {
+	oldSrc, err := os.Readlink(dst)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// not found: we'll create it
+			return true, nil
+		} else if errors.Is(err, unix.EINVAL) {
+			// not a symlink: probably placed manually by user, so don't overwrite
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+
+	// different from symlinkIfChanged: only relink if oldSrc is to .app, so we don't override homebrew
+	return oldSrc != src && strings.Contains(oldSrc, ".app/"), nil
 }
 
 func writeShellProfileSnippets() error {
@@ -338,7 +212,7 @@ func writeShellProfileSnippets() error {
 	bashSnippetBase := fmt.Sprintf(`export PATH="$PATH":%s`+"\n", shellescape.Quote(bin))
 	// completions don't work with old macOS bash 3.2, and also require bash-completion
 	bashSnippet := bashSnippetBase
-	err := os.WriteFile(shells+"/init.bash", []byte(bashSnippet), 0644)
+	err := writeFileIfChanged(shells+"/init.bash", []byte(bashSnippet), 0644)
 	if err != nil {
 		return err
 	}
@@ -346,13 +220,13 @@ func writeShellProfileSnippets() error {
 	// zsh loads completions from fpath, but this must be set *before* compinit
 	// people usually put compinit in .zshrc, and init.zsh should be included in .zprofile, so it should work
 	zshSnippet := bashSnippetBase + "\nfpath+=" + shellescape.Quote(conf.CliZshCompletionsDir())
-	err = os.WriteFile(shells+"/init.zsh", []byte(zshSnippet), 0644)
+	err = writeFileIfChanged(shells+"/init.zsh", []byte(zshSnippet), 0644)
 	if err != nil {
 		return err
 	}
 
 	fishSnippet := fmt.Sprintf(`set -gxa PATH %s`+"\n", shellescape.Quote(bin))
-	err = os.WriteFile(shells+"/init.fish", []byte(fishSnippet), 0644)
+	err = writeFileIfChanged(shells+"/init.fish", []byte(fishSnippet), 0644)
 	if err != nil {
 		return err
 	}
@@ -363,8 +237,8 @@ func writeShellProfileSnippets() error {
 		if err := unix.Access(conf.FishCompletionsDir()+"/docker.fish", unix.F_OK); errors.Is(err, unix.ENOENT) {
 			_ = os.Remove(conf.FishCompletionsDir() + "/docker.fish")
 		}
-		err = os.Symlink(conf.CliCompletionsDir()+"/docker.fish", conf.FishCompletionsDir()+"/docker.fish")
-		if err != nil && !errors.Is(err, os.ErrExist) {
+		err = symlinkIfChanged(conf.CliCompletionsDir()+"/docker.fish", conf.FishCompletionsDir()+"/docker.fish")
+		if err != nil {
 			return err
 		}
 
@@ -372,8 +246,8 @@ func writeShellProfileSnippets() error {
 		if err := unix.Access(conf.FishCompletionsDir()+"/kubectl.fish", unix.F_OK); errors.Is(err, unix.ENOENT) {
 			_ = os.Remove(conf.FishCompletionsDir() + "/kubectl.fish")
 		}
-		err = os.Symlink(conf.CliCompletionsDir()+"/kubectl.fish", conf.FishCompletionsDir()+"/kubectl.fish")
-		if err != nil && !errors.Is(err, os.ErrExist) {
+		err = symlinkIfChanged(conf.CliCompletionsDir()+"/kubectl.fish", conf.FishCompletionsDir()+"/kubectl.fish")
+		if err != nil {
 			return err
 		}
 	}
@@ -383,7 +257,7 @@ func writeShellProfileSnippets() error {
 
 func writeDataReadme() error {
 	// write readme
-	return os.WriteFile(conf.DataDir()+"/README.txt", []byte(dataReadmeText), 0644)
+	return writeFileIfChanged(conf.DataDir()+"/README.txt", []byte(dataReadmeText), 0644)
 }
 
 func setDockerConfigEnv(value string) error {
@@ -408,10 +282,8 @@ func setDockerConfigEnv(value string) error {
 	return nil
 }
 
-func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, targetCmdPath *PathInfo, pathItems []string) (bool, *string, error) {
+func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems []string) (bool, *string, error) {
 	// always try to add to profile and/or ask user to add to $PATH
-	// if there's no existing (home/system) path to link to, we *require* a shell $PATH
-	shellPathRequired := targetCmdPath == nil
 	// is the PATH already there?
 	if slices.Contains(pathItems, conf.CliBinDir()) || slices.Contains(pathItems, conf.CliXbinDir()) || slices.Contains(pathItems, conf.UserAppBinDir()) {
 		return false, nil, nil
@@ -438,6 +310,7 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, targetCmdP
 		profilePath = zdotdir + "/.zprofile"
 		initSnippetPath = conf.ShellInitDir() + "/init.zsh"
 		fallthrough
+
 	case "bash":
 		if profilePath == "" {
 			// prefer bash_profile, otherwise use profile
@@ -482,14 +355,10 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, targetCmdP
 					"shell": shellBase,
 					"file":  profilePath,
 				}).Warn("failed to write shell profile")
+				return true, nil, nil
 			} else {
 				// success
 				// not important enough to nag user if we can link to an existing path
-				var alertProfileChangedPath *string
-				if shellPathRequired {
-					relProfilePath := syssetup.MakeHomeRelative(profilePath)
-					alertProfileChangedPath = &relProfilePath
-				}
 				logrus.Info("modified shell profile")
 
 				// record that we have added it
@@ -501,20 +370,24 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, targetCmdP
 					return false, nil, err
 				}
 
-				return false, alertProfileChangedPath, nil
+				relProfilePath := syssetup.MakeHomeRelative(profilePath)
+				return false, &relProfilePath, nil
 			}
 		}
+
 	default:
 		// we don't know how to deal with this.
 		// just ask the user to add it to their path
-		if shellPathRequired {
-			logrus.Info("unknown shell, asking user to add bins to PATH")
-			return true, nil, nil
-		}
-		// if shell path isn't required, it's ok, let it slide. not important
+		logrus.Info("unknown shell, asking user to add bins to PATH")
+		return true, nil, nil
 	}
 
 	return false, nil, nil
+}
+
+type SetupState struct {
+	AdminLinkCommands []vmtypes.PHSymlinkRequest
+	AdminLinkDocker   bool
 }
 
 /*
@@ -560,9 +433,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	pathItems := strings.Split(details.EnvPATH, ":")
 
 	// link docker sock?
-	var adminCommands []vmtypes.PHSymlinkRequest
-	adminLinkDocker := false
-	adminLinkCommands := false
+	setupState := SetupState{}
 	useAdmin := vmconfig.Get().SetupUseAdmin
 	if useAdmin {
 		sockDest, err := os.Readlink("/var/run/docker.sock")
@@ -578,36 +449,47 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		wantDest := conf.DockerSocket()
 		if sockDest != wantDest {
 			logrus.Info("[request admin] link docker socket")
-			adminCommands = append(adminCommands, vmtypes.PHSymlinkRequest{Src: wantDest, Dest: "/var/run/docker.sock"})
-			adminLinkDocker = true
+			setupState.AdminLinkCommands = append(setupState.AdminLinkCommands, vmtypes.PHSymlinkRequest{Src: wantDest, Dest: "/var/run/docker.sock"})
+			setupState.AdminLinkDocker = true
 		}
 	}
 
-	// figure out where we want to put commands
-	targetCmdPath, err := findTargetCmdPath(details, pathItems, useAdmin)
-	if err != nil {
-		return nil, err
-	}
-	if targetCmdPath == nil {
-		logrus.Info("no target command path, using ~/.orbstack/bin")
-	} else {
-		logrus.WithFields(logrus.Fields{
-			"dir":          targetCmdPath.Dir,
-			"requiresRoot": targetCmdPath.RequiresRoot,
-		}).Info("target command path")
-	}
+	// we have a relatively simple policy for command symlinking now:
+	// - always link to ~/.orbstack/bin, and add it to shell profile.
+	// - always link to /usr/local/bin if root, and if old links aren't homebrew (i.e. path includes .app)
+	//   * /etc/paths includes /usr/local/bin by default (even though the dir doesn't actually exist), so apps that don't use the shell PATH (e.g. VS Code dev containers?) or that hard-code /usr/local/bin (e.g. Jetbrains Docker plugin) will still work if we link it there
+	//
+	// it's not worth messing with ~/bin or ~/.local/bin:
+	// - users get mad
+	// - adding an app-specific bin to shell profile is usually accepted: rustup, jetbrains, homebrew, etc. do it
+	// - existing shell sessions that use shell PATH are ok because they probably have a working docker CLI already. user will probably restart the shells before the stale symlinks become a problem.
+	// - always showing "Command-Line Tools Installed" tells the user to restart the terminal to use the new tools.
+	linkCmd := func(cmdSrc string, cmdName string) error {
+		var errs []error
 
-	// first, always put them in ~/.orbstack/bin
+		// 1. always link to ~/.orbstack/bin
+		errs = append(errs, symlinkIfChanged(cmdSrc, conf.UserAppBinDir()+"/"+cmdName))
+
+		// 2. if we have admin, link to /usr/local/bin, unless there's an existing, non-broken link that doesn't point to *.app
+		if useAdmin {
+			shouldLink, err := shouldSymlinkApp(cmdSrc, "/usr/local/bin/"+cmdName)
+			if err != nil {
+				errs = append(errs, err)
+			} else if shouldLink {
+				setupState.AdminLinkCommands = append(setupState.AdminLinkCommands, vmtypes.PHSymlinkRequest{Src: cmdSrc, Dest: "/usr/local/bin/" + cmdName})
+			}
+		}
+
+		return errors.Join(errs...)
+	}
 	for _, cmd := range binCommands {
-		cmdSrc := conf.CliBinDir() + "/" + cmd
-		err = linkToAppBin(cmdSrc)
+		err = linkCmd(conf.CliBinDir()+"/"+cmd, cmd)
 		if err != nil {
 			return nil, err
 		}
 	}
 	for _, cmd := range xbinCommands {
-		cmdSrc := conf.CliXbinDir() + "/" + cmd
-		err = linkToAppBin(cmdSrc)
+		err = linkCmd(conf.CliXbinDir()+"/"+cmd, cmd)
 		if err != nil {
 			return nil, err
 		}
@@ -624,94 +506,9 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		return nil, err
 	}
 
-	askAddPath, alertProfileChangedPath, err := s.tryModifyShellProfile(details, targetCmdPath, pathItems)
+	askAddPath, alertProfileChangedPath, err := s.tryModifyShellProfile(details, pathItems)
 	if err != nil {
 		return nil, err
-	}
-
-	// only add to PATH if ~/.orbstack
-	// so, if people delete it from ~/bin or ~/.local/bin, we're still good
-	// this is no worse than default behavior for most users in that case, because
-	//   - many users will get ~/bin or ~/.local/bin, not /usr/local/bin
-	//   - that's non-default and needs to be added to bashrc/zshrc anyway
-	//   - so, if a tool sees it, that means it already has correct shell PATH
-	// in that case, ~/.orbstack/bin will be in that PATH too
-	// however, we SHOULD update link if it's already there, in case app bundle moved
-	linkIfNotExists := !slices.Contains(pathItems, conf.UserAppBinDir())
-	if targetCmdPath != nil {
-		doLinkCommand := func(src string) error {
-			dest := targetCmdPath.Dir + "/" + filepath.Base(src)
-
-			// skip if link update is not needed
-			if !shouldUpdateSymlink(src, dest, linkIfNotExists) {
-				logrus.WithFields(logrus.Fields{
-					"src": src,
-					"dst": dest,
-				}).Debug("skipping link (no update needed)")
-				return nil
-			}
-
-			// if root isn't required, just link it
-			if !targetCmdPath.RequiresRoot {
-				logrus.WithFields(logrus.Fields{
-					"src": src,
-					"dst": dest,
-				}).Debug("linking command (as user)")
-				err = symlinkIfNotExists(src, dest)
-				if err != nil {
-					return err
-				}
-				return nil
-			}
-
-			// otherwise, we need to add it to adminCommands and set the flag
-			logrus.WithFields(logrus.Fields{
-				"src": src,
-				"dst": dest,
-			}).Info("[request admin] linking command (as root)")
-			adminCommands = append(adminCommands, vmtypes.PHSymlinkRequest{Src: src, Dest: dest})
-			adminLinkCommands = true
-			return nil
-		}
-
-		// check each bin command
-		// to avoid a feedback loop, we ignore our own ~/.orbstack/bin when checking this
-		otherPathItems := filterSlice(pathItems, func(item string) bool {
-			return item != conf.UserAppBinDir()
-		})
-		otherPathEnv := strings.Join(otherPathItems, ":")
-		for _, cmd := range binCommands {
-			cmdSrc := conf.CliBinDir() + "/" + cmd
-			logrus.WithFields(logrus.Fields{
-				"cmd": cmd,
-				"src": cmdSrc,
-			}).Debug("checking bin command")
-
-			// always link our bin
-			err = doLinkCommand(cmdSrc)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		// check each xbin command
-		for _, cmd := range xbinCommands {
-			_, err := lookPathXbinRelink(otherPathEnv, cmd)
-			cmdSrc := conf.CliXbinDir() + "/" + cmd
-			logrus.WithFields(logrus.Fields{
-				"cmd": cmd,
-				"src": cmdSrc,
-			}).Debug("checking xbin command")
-
-			// relink conditions are in lookPathXbinRelink
-			if err != nil {
-				// link it
-				err := doLinkCommand(cmdSrc)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
 	}
 
 	// link docker CLI plugins
@@ -723,12 +520,10 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 			"src": pluginSrc,
 			"dst": pluginDest,
 		}).Debug("linking docker CLI plugin")
-		err = symlinkIfNotExists(pluginSrc, pluginDest)
+		err = symlinkIfChanged(pluginSrc, pluginDest)
 		if err != nil {
 			return nil, err
 		}
-
-		// TODO: /usr/local/lib/docker/cli-plugins
 	}
 
 	// need to fix docker creds store?
@@ -740,35 +535,33 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	}
 
 	info := &vmtypes.SetupInfo{}
-	if len(adminCommands) > 0 {
+	if len(setupState.AdminLinkCommands) > 0 {
 		// join and escape commands
-		info.AdminSymlinkCommands = adminCommands
+		info.AdminSymlinkCommands = setupState.AdminLinkCommands
 
 		// whether macOS appends suffix ~40 chars but not exactly. width based?
 		// so do it for each message: "OrbStack is trying to install a new helper tool."
 		var msg string
-		if adminLinkCommands && adminLinkDocker {
+		if len(setupState.AdminLinkCommands) > 0 && setupState.AdminLinkDocker {
 			msg = "Improve Docker socket compatibility and install command-line tools? Optional; learn more at go.orbstack.dev/admin.\n\n"
-		} else if adminLinkCommands {
+		} else if len(setupState.AdminLinkCommands) > 0 {
 			msg = "Install command-line tools? Optional; learn more at go.orbstack.dev/admin.\n\n"
-		} else if adminLinkDocker {
+		} else if setupState.AdminLinkDocker {
 			msg = "Improve Docker socket compatibility? Optional; learn more at go.orbstack.dev/admin.\n\n"
 		}
 		info.AdminMessage = &msg
 	}
 	if askAddPath {
-		info.AlertRequestAddPaths = []string{
-			conf.UserAppBinDir(),
-		}
+		info.AlertRequestAddPath = true
 	}
 	if alertProfileChangedPath != nil {
-		info.AlertProfileChanged = alertProfileChangedPath
+		info.AlertProfileChanged = true
 	}
 	logrus.WithFields(logrus.Fields{
 		"adminSymlinkCommands": info.AdminSymlinkCommands,
 		"adminMessage":         strp(info.AdminMessage),
-		"alertAddPaths":        info.AlertRequestAddPaths,
-		"alertProfile":         info.AlertProfileChanged,
+		"alertAddPath":         info.AlertRequestAddPath,
+		"alertProfileChanged":  info.AlertProfileChanged,
 	}).Debug("prepare setup info done")
 
 	s.setupDone = true
@@ -779,12 +572,11 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 // for CLI-only, this completes the setup without GUI
 func completeSetupCli(info *vmtypes.SetupInfo) error {
 	// notify profile changed
-	if info.AlertProfileChanged != nil {
-		logrus.WithField("profile", *info.AlertProfileChanged).Info("notifying profile changed")
-		profileRelPath := *info.AlertProfileChanged
+	if info.AlertProfileChanged {
+		logrus.Info("notifying profile changed")
 		err := guihelper.Notify(guitypes.Notification{
-			Title:   "Shell Profile Changed",
-			Message: "Command-line tools added to PATH. To use them, run: source " + profileRelPath,
+			Title:   "Command-Line Tools Installed",
+			Message: "Shell profile (PATH) has been updated. Restart terminal to use new tools.",
 		})
 		if err != nil {
 			return err
@@ -792,12 +584,11 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 	}
 
 	// notify add paths
-	if info.AlertRequestAddPaths != nil {
-		logrus.WithField("paths", info.AlertRequestAddPaths).Info("notifying add paths")
-		paths := strings.Join(info.AlertRequestAddPaths, " and ")
+	if info.AlertRequestAddPath {
+		logrus.Info("notifying add paths")
 		err := guihelper.Notify(guitypes.Notification{
-			Title:   "Add Tools to PATH",
-			Message: "To use command-line tools, add " + paths + " to your PATH.",
+			Title:   "Install Command-Line Tools",
+			Message: "To use command-line tools, add ~/.orbstack/bin to your PATH.",
 		})
 		if err != nil {
 			return err

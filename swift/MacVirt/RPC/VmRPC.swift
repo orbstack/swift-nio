@@ -46,8 +46,8 @@ struct VmConfig: Codable, Equatable {
 struct SetupInfo: Codable {
     var adminSymlinkCommands: [PHSymlinkRequest]?
     var adminMessage: String?
-    var alertProfileChanged: String?
-    var alertRequestAddPaths: [String]?
+    var alertProfileChanged: Bool
+    var alertRequestAddPaths: Bool
 }
 
 private struct K8sNameRequest: Codable {

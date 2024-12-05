@@ -138,25 +138,24 @@ struct NewMainView: View {
                 }
             }
         )
-        .akAlert(presentedValue: $model.presentProfileChanged) { info in
-            AKAlertContent(
-                title: "Shell profile changed",
-                desc: """
-                    \(Constants.userAppName)’s command-line tools have been added to your PATH.
-                    To use them in existing shells, run the following command:
+        .akAlert(
+            "Command-Line Tools Installed", isPresented: $model.presentProfileChanged,
+            desc: {
+                """
+                Your shell profile (PATH) has been updated to add \(Constants.userAppName) tools.
 
-                    source \(info.profileRelPath)
-                    """)
-        }
-        .akAlert(presentedValue: $model.presentAddPaths) { info in
-            AKAlertContent(
-                title: "Add tools to PATH",
-                desc: """
-                    To use \(Constants.userAppName)’s command-line tools, add the following directories to your PATH:
-
-                    \(info.paths.joined(separator: "\n"))
-                    """)
-        }
+                Restart your terminal to use the new tools.
+                """
+            }
+        )
+        .akAlert(
+            "Install Command-Line Tools?", isPresented: $model.presentAddPaths,
+            desc: {
+                """
+                To install \(Constants.userAppName) tools, add ~/.orbstack/bin to your shell's PATH.
+                """
+            }
+        )
         .akAlert(
             "Sign in", isPresented: $model.presentForceSignIn,
             desc: { "Your organization requires you to sign in to \(Constants.userAppName)." },
