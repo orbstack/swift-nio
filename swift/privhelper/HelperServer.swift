@@ -1,5 +1,15 @@
 import Foundation
 
+private func retryEintr(_ fn: () -> Int32) -> Int32 {
+    while true {
+        let ret = fn()
+        if ret == -1 && errno == EINTR {
+            continue
+        }
+        return ret
+    }
+}
+
 enum HelperServer {
     static func symlink(req: PHSymlinkRequest) throws {
         activityTracker.begin()
@@ -15,33 +25,20 @@ enum HelperServer {
             throw PHSymlinkError.pathNotAllowed
         }
 
-        // skip if already exists with correct dest
-        do {
-            let oldSrc = try FileManager.default.destinationOfSymbolicLink(atPath: req.dest)
-            if oldSrc == req.src {
-                return
-            }
-        } catch {
-            // doesn't exist
-        }
+        // delete the old link
+        _ = retryEintr { unlink(req.dest) }
 
-        do {
-            // delete the old one
-            try FileManager.default.removeItem(atPath: req.dest)
-        } catch CocoaError.fileNoSuchFile {
-            // doesn't exist
-        }
+        // create parent dir (no need for recursive)
+        let destDir = (req.dest as NSString).deletingLastPathComponent
+        // EEXIST is ok: already existed, or we raced with another setup instance
+        // any other error = failed to create. we'll find out below when symlink fails with ENOENT
+        _ = retryEintr { mkdir(destDir, 0o755) }
 
-        // create dir (mkdir -p)
-        let destDir = URL(fileURLWithPath: req.dest).deletingLastPathComponent().path
-        do {
-            try FileManager.default.createDirectory(
-                atPath: destDir, withIntermediateDirectories: true, attributes: nil)
-            try FileManager.default.createSymbolicLink(
-                atPath: req.dest, withDestinationPath: req.src)
-        } catch CocoaError.fileWriteFileExists {
-            // already exists
-            // probably raced with another setup instance somehow? (app vs. cli background)
+        // finally, create the link
+        let ret = retryEintr { unistd.symlink(req.src, req.dest) }
+        // EEXIST is ok: we raced with another setup instance
+        if ret == -1 && errno != EEXIST {
+            throw PHSymlinkError.linkError(String(cString: strerror(errno)))
         }
     }
 }

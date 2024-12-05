@@ -30,7 +30,7 @@ struct PHSymlinkRequest: Codable {
 
 enum PHSymlinkError: Error, Codable {
     case pathNotAllowed
-    case existingSocketLink
+    case linkError(String)
 }
 
 enum PHError: Error, Codable {
