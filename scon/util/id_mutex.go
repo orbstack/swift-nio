@@ -9,7 +9,7 @@ import (
 
 type waiterMutex struct {
 	mu      syncx.Mutex
-	waiters atomic.Int32
+	waiters atomic.Uint32
 }
 
 type IDMutex[T comparable] struct {
@@ -17,14 +17,16 @@ type IDMutex[T comparable] struct {
 	mutexes  map[T]*waiterMutex
 }
 
-func NewIDMutex[T comparable]() *IDMutex[T] {
-	return &IDMutex[T]{
-		mutexes: make(map[T]*waiterMutex),
-	}
-}
-
 func (m *IDMutex[T]) Lock(id T) {
+	// replicate the behavior of a global mutex
+	//m.globalMu.Lock()
+	//return
+
 	m.globalMu.Lock()
+
+	if m.mutexes == nil {
+		m.mutexes = make(map[T]*waiterMutex)
+	}
 
 	if waiterMu, ok := m.mutexes[id]; ok {
 		waiterMu.waiters.Add(1)
@@ -32,11 +34,10 @@ func (m *IDMutex[T]) Lock(id T) {
 
 		waiterMu.mu.Lock()
 
-		waiterMu.waiters.Add(-1)
+		waiterMu.waiters.Add(^uint32(0))
 	} else {
 		waiterMu := &waiterMutex{}
 		waiterMu.mu.Lock()
-
 		m.mutexes[id] = waiterMu
 
 		m.globalMu.Unlock()
@@ -44,15 +45,21 @@ func (m *IDMutex[T]) Lock(id T) {
 }
 
 func (m *IDMutex[T]) Unlock(id T) {
+	// replicate the behavior of a global mutex
+	//m.globalMu.Unlock()
+	//return
+
 	m.globalMu.Lock()
 	defer m.globalMu.Unlock()
 
-	if waiterMu, ok := m.mutexes[id]; ok {
-		waiterMu.mu.Unlock()
-		if waiterMu.waiters.Load() == 0 {
-			delete(m.mutexes, id)
-		}
-	} else {
+	waiterMu, ok := m.mutexes[id]
+	if !ok {
 		panic(fmt.Sprintf("no waiter mutex found for id: %v", id))
 	}
+
+	if waiterMu.waiters.Load() == 0 {
+		delete(m.mutexes, id)
+	}
+
+	waiterMu.mu.Unlock()
 }

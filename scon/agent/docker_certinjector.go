@@ -54,7 +54,7 @@ func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
 	return &dockerCACertInjector{
 		d: d,
 
-		inProgressContainersMu: util.NewIDMutex[string](),
+		inProgressContainersMu: &util.IDMutex[string]{},
 	}
 }
 
