@@ -151,15 +151,17 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 	}
 
 	// pessimistically keep probing on every SYN until upstream is ready
-	proxyUp, err := d.probeHost(dialer, upstream)
+	upstreamPort, err := d.probeHost(dialer, upstream)
 	if err != nil {
 		return false, err
 	}
-	if proxyUp == (proxyUpstream{}) {
+	if upstreamPort == (serverPort{}) {
 		logrus.Debug("soweli | failed to dial")
 		return false, nil
 	}
-	d.probedHosts[dstIP] = proxyUp
+	d.probedHostsMu.Lock()
+	d.probedHosts[dstIP] = upstreamPort
+	d.probedHostsMu.Unlock()
 
 	// add to probed set
 	setName := "domainproxy4_probed"
@@ -177,10 +179,10 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 	return true, nil
 }
 
-func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (proxyUpstream, error) {
+func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (serverPort, error) {
 	if upstream.ContainerID == "" {
 		logrus.Error("unable to probe host: upstream has no container id")
-		return proxyUpstream{}, fmt.Errorf("get upstream container id")
+		return serverPort{}, fmt.Errorf("get upstream container id")
 	}
 
 	var ports map[uint16]struct{}
@@ -192,7 +194,7 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 		ports, err = d.cb.GetMachineOpenPorts(upstream.ContainerID)
 	}
 	if err != nil {
-		return proxyUpstream{}, fmt.Errorf("get open ports: %w", err)
+		return serverPort{}, fmt.Errorf("get open ports: %w", err)
 	}
 	logrus.Debugf("soweli | open ports: %v", ports)
 
@@ -203,7 +205,7 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 	defer httpCancel()
 	httpsCtx, httpsCancel := context.WithCancel(context.Background())
 	defer httpsCancel()
-	var proxyUp proxyUpstream
+	var upstreamPort serverPort
 
 	// we concurrently try to dial every port with tls and http
 	// we prefer a tls connection over an http connection, so we give a 500ms timeout for a response to a tls HELO
@@ -221,7 +223,7 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 				logrus.WithFields(logrus.Fields{"port": port}).Debug("soweli | https succeeded")
 				httpsCancel()
 				httpCancel()
-				proxyUp = proxyUpstream{
+				upstreamPort = serverPort{
 					port:  port,
 					https: true,
 				}
@@ -238,8 +240,8 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 				// we want to make sure we're not racing with one of the https probes
 				httpsWg.Wait()
 				// then this can only race with http probes, which is fine since no preference for http hosts is guaranteed regardless
-				if proxyUp == (proxyUpstream{}) {
-					proxyUp = proxyUpstream{
+				if upstreamPort == (serverPort{}) {
+					upstreamPort = serverPort{
 						port:  port,
 						https: false,
 					}
@@ -250,7 +252,7 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 
 	httpsWg.Wait()
 	httpWg.Wait()
-	return proxyUp, nil
+	return upstreamPort, nil
 }
 
 func testPortHTTP(ctx context.Context, dialer *net.Dialer, upstream domainproxytypes.Upstream, port uint16) bool {
@@ -307,21 +309,23 @@ func testPortHTTPS(ctx context.Context, dialer *net.Dialer, upstream domainproxy
 	return true
 }
 
-func (p *DomainTLSProxy) getOrProbeHost(dialer *net.Dialer, addr netip.Addr, upstream domainproxytypes.Upstream) (proxyUpstream, error) {
-	proxyUp, ok := p.probedHosts[addr]
+func (p *DomainTLSProxy) getOrProbeHost(dialer *net.Dialer, addr netip.Addr, upstream domainproxytypes.Upstream) (serverPort, error) {
+	p.probedHostsMu.Lock()
+	upstreamPort, ok := p.probedHosts[addr]
+	p.probedHostsMu.Unlock()
 	if !ok {
 		logrus.Debug("probing host outside of nfqueue")
 
 		var err error
-		proxyUp, err = p.probeHost(dialer, upstream)
+		upstreamPort, err = p.probeHost(dialer, upstream)
 		if err != nil {
-			return proxyUpstream{}, fmt.Errorf("probe host: %w", err)
+			return serverPort{}, fmt.Errorf("probe host: %w", err)
 		}
-		if proxyUp == (proxyUpstream{}) {
+		if upstreamPort == (serverPort{}) {
 			logrus.Debug("soweli | failed to dial")
-			return proxyUpstream{}, nil
+			return serverPort{}, nil
 		}
 	}
 
-	return proxyUp, nil
+	return upstreamPort, nil
 }

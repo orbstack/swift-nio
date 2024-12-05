@@ -1,53 +1,70 @@
 package util
 
 import (
+	"io"
 	"net"
 	"time"
 )
 
-type DataConn struct {
-	Conn net.Conn
-	Data any
+type OSConn interface {
+	net.Conn
+
+	// preserve TCP splice capabilities
+	io.ReaderFrom
+	io.WriterTo
+}
+
+type DataConn[T any] struct {
+	Conn OSConn
+	Data T
 }
 
 // check interface conformance
-var _ net.Conn = &DataConn{}
+var _ OSConn = &DataConn[any]{}
 
-func NewDataConn(conn net.Conn, data any) *DataConn {
-	return &DataConn{
+func NewDataConn[T any](conn OSConn, data T) *DataConn[T] {
+	return &DataConn[T]{
 		Conn: conn,
 		Data: data,
 	}
 }
 
-func (c *DataConn) Read(b []byte) (n int, err error) {
+func (c *DataConn[T]) Read(b []byte) (n int, err error) {
 	return c.Conn.Read(b)
 }
 
-func (c *DataConn) Write(b []byte) (n int, err error) {
+func (c *DataConn[T]) Write(b []byte) (n int, err error) {
 	return c.Conn.Write(b)
 }
 
-func (c *DataConn) Close() error {
+func (c *DataConn[T]) Close() error {
 	return c.Conn.Close()
 }
 
-func (c *DataConn) LocalAddr() net.Addr {
+func (c *DataConn[T]) LocalAddr() net.Addr {
 	return c.Conn.LocalAddr()
 }
 
-func (c *DataConn) RemoteAddr() net.Addr {
+func (c *DataConn[T]) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
-func (c *DataConn) SetDeadline(t time.Time) error {
+func (c *DataConn[T]) SetDeadline(t time.Time) error {
 	return c.Conn.SetDeadline(t)
 }
 
-func (c *DataConn) SetReadDeadline(t time.Time) error {
+func (c *DataConn[T]) SetReadDeadline(t time.Time) error {
 	return c.Conn.SetReadDeadline(t)
 }
 
-func (c *DataConn) SetWriteDeadline(t time.Time) error {
+func (c *DataConn[T]) SetWriteDeadline(t time.Time) error {
 	return c.Conn.SetWriteDeadline(t)
+}
+
+func (c *DataConn[T]) ReadFrom(r io.Reader) (n int64, err error) {
+	return c.Conn.ReadFrom(r)
+}
+
+func (c *DataConn[T]) WriteTo(w io.Writer) (n int64, err error) {
+	return c.Conn.WriteTo(w)
 }
