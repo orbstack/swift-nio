@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 	"os"
@@ -42,7 +43,8 @@ func (cb *DockerProxyCallbacks) NftableName() string {
 }
 
 func (cb *DockerProxyCallbacks) GetMachineOpenPorts(machineID string) (map[uint16]struct{}, error) {
-	return cb.d.scon.GetMachineOpenPorts(machineID)
+	// docker machine should never need to get a machine's ports: machine domains are handled by ovm
+	return nil, errors.New("not implemented")
 }
 
 func (cb *DockerProxyCallbacks) GetContainerOpenPorts(containerID string) (map[uint16]struct{}, error) {

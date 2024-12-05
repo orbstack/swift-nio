@@ -78,12 +78,3 @@ func (c *Client) GetProxyUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstr
 	}
 	return reply, nil
 }
-
-func (c *Client) GetMachineOpenPorts(machineID string) (map[uint16]struct{}, error) {
-	var reply map[uint16]struct{}
-	err := c.rpc.Call("scg.GetMachineOpenPorts", machineID, &reply)
-	if err != nil {
-		return nil, err
-	}
-	return reply, nil
-}

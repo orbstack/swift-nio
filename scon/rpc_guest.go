@@ -338,15 +338,6 @@ func (s *SconGuestServer) GetProxyUpstreamByAddr(args netip.Addr, reply *domainp
 	return nil
 }
 
-func (s *SconGuestServer) GetMachineOpenPorts(machineID string, reply *map[uint16]struct{}) error {
-	ports, err := s.m.net.mdnsRegistry.getMachineOpenPorts(machineID)
-	if err != nil {
-		return err
-	}
-	*reply = ports
-	return nil
-}
-
 func ListenSconGuest(m *ConManager) error {
 	dockerMachine, err := m.GetByID(ContainerIDDocker)
 	if err != nil {
