@@ -52,7 +52,7 @@ cp ~/.orbstack/ssh/id_ed25519.pub config/authorized_keys
 
 # build packer and images
 BTYPE="$BTYPE" ARCH="$ARCH" HOST_ARCH="$HOST_ARCH" PLATFORM="$PLATFORM" \
-    docker buildx bake --load -f docker-bake.hcl rootfs
+    docker buildx bake --load --allow=ssh --allow=fs.read=.. -f docker-bake.hcl rootfs
 
 # extract images
 CID=$(docker create --platform "$PLATFORM" ghcr.io/orbstack/images:$BTYPE true)
