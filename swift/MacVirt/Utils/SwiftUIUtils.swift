@@ -286,15 +286,54 @@ func shouldOpenNewWindow(_ id: String) -> Bool {
 
 extension NSWorkspace {
     static func openSubwindow(_ path: String) {
-        if #available(macOS 14, *) {
-            // WA not needed
-        } else {
-            if !shouldOpenNewWindow(path) {
-                return
+        switch path {
+        case WindowID.migrateDocker:
+            callMenuItem("Migrate Docker Data")
+        case WindowID.bugReport:
+            callMenuItem("Report Bug")
+        case WindowID.feedback:
+            callMenuItem("Send Feedback")
+        case WindowID.diagReport:
+            callMenuItem("Upload Diagnostics")
+        case WindowID.signIn:
+            callMenuItem("Sign In…")
+
+        // these are fine for some reason
+        //        case WindowID.onboarding:
+        //        case WindowID.main:
+
+        default:
+            if #available(macOS 14, *) {
+                // WA not needed
+            } else {
+                if !shouldOpenNewWindow(path) {
+                    return
+                }
             }
+
+            NSWorkspace.shared.open(URL(string: "orbstack://\(path)")!)
+        }
+    }
+
+    private static func callMenuItem(_ name: String) {
+        guard let rootMenus = NSApp.mainMenu?.items else {
+            return
         }
 
-        NSWorkspace.shared.open(URL(string: "orbstack://\(path)")!)
+        for submenuItem in rootMenus {
+            submenuItem.submenu?.items.forEach { item in
+                if item.title == name,
+                    let action = item.action
+                {
+                    if let target = item.target {
+                        _ = target.perform(action, with: item)
+                    } else {
+                        perform(action)
+                    }
+                    return
+                }
+            }
+        }
     }
 
     static func openFolder(_ path: String) {
