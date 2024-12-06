@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/util"
@@ -38,6 +39,8 @@ var (
 		"/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
 		"/etc/ssl/cert.pem",
 	}
+
+	caCertLabelFalseValues = []string{"false", "0", "off"}
 )
 
 type dockerCACertInjector struct {
@@ -191,6 +194,14 @@ func (c *dockerCACertInjector) addCertsToContainer(containerID string) (_ string
 			"container_id": ctr.ID,
 			"status":       ctr.State.Status,
 		}).Debug("container is not in a state to add certs, skipping")
+		return "", nil
+	}
+
+	if label, ok := ctr.Config.Labels["dev.orbstack.add-ca-certificates"]; ok && slices.Contains(caCertLabelFalseValues, label) {
+		logrus.WithFields(logrus.Fields{
+			"container_id": ctr.ID,
+			"label":        label,
+		}).Debug("container has label to skip adding certs, skipping")
 		return "", nil
 	}
 
