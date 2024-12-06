@@ -47,7 +47,7 @@ type dockerCACertInjector struct {
 
 	// stores waitgroups for containers that are in progress of adding certs
 	// uses full length container ID
-	inProgressContainersMu util.IDMutex[string]
+	inProgressContainerTasks *util.ExclusiveIdempotentTaskTracker[string]
 }
 
 func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
@@ -61,7 +61,7 @@ func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
 
 		rootCertPem: []byte(rootCertPem.CertPEM),
 
-		inProgressContainersMu: util.NewIDMutex[string](),
+		inProgressContainerTasks: util.NewExclusiveIdempotentTaskTracker[string](),
 	}
 }
 
@@ -194,7 +194,9 @@ func (c *dockerCACertInjector) addCertsToContainer(containerID string) (_ string
 		return "", nil
 	}
 
-	c.inProgressContainersMu.Lock(ctr.ID)
+	if c.inProgressContainerTasks.TryBegin(ctr.ID) {
+		return "", nil
+	}
 	defer func() {
 		if retErr != nil {
 			c.containerNotInProgress(ctr.ID)
@@ -265,7 +267,7 @@ func (c *dockerCACertInjector) addCertsToContainer(containerID string) (_ string
 // - [2] cert add routine mounts overlay
 // - ub! :D
 func (c *dockerCACertInjector) containerNotInProgress(containerID string) {
-	c.inProgressContainersMu.Unlock(containerID)
+	c.inProgressContainerTasks.MarkComplete(containerID)
 }
 
 func (a *AgentServer) DockerAddCertsToContainer(containerID string, reply *string) error {
