@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"os"
+	"slices"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -35,6 +38,8 @@ type PmonEvent struct {
 	DirtyFlags LtypeFlags
 }
 
+type CfwdContainerMeta = lfwdCfwdContainerMeta
+
 type ContainerBpfManager struct {
 	mu syncx.Mutex
 
@@ -48,6 +53,10 @@ type ContainerBpfManager struct {
 	// keep a port blocked if ANY listeners, v4 OR v6, are using it
 	// protected by ctr.mu
 	lfwdBlockedPortRefs map[uint16]int
+
+	cfwdNetnsProg      *ebpf.Program
+	cfwdContainerMetas *ebpf.Map
+	cfwdAttachedNsKeys map[string]*link.NetNsLink
 }
 
 func NewContainerBpfManager(cgPath string, netnsCookie uint64) (*ContainerBpfManager, error) {
@@ -56,6 +65,7 @@ func NewContainerBpfManager(cgPath string, netnsCookie uint64) (*ContainerBpfMan
 		netnsCookie: netnsCookie,
 
 		lfwdBlockedPortRefs: make(map[uint16]int),
+		cfwdAttachedNsKeys:  make(map[string]*link.NetNsLink),
 	}, nil
 }
 
@@ -66,6 +76,12 @@ func (b *ContainerBpfManager) Close() error {
 	var errs []error
 	for _, c := range b.closers {
 		err := c.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for _, l := range b.cfwdAttachedNsKeys {
+		err := l.Close()
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -192,6 +208,24 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 	}
 
 	b.lfwdBlockedPorts = objs.lfwdMaps.BlockedPorts
+	// cfwd: attached to each docker container netns, but not the machine itself
+	b.cfwdContainerMetas = objs.lfwdMaps.CfwdContainerMetas
+	b.cfwdNetnsProg = objs.CfwdSkLookup
+	return nil
+}
+
+func (b *ContainerBpfManager) attachCfwdNetnsLocked(prog *ebpf.Program, key string) error {
+	nsFd, err := unix.Open("/run/docker/netns/"+key, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("open netns: %w", err)
+	}
+	defer unix.Close(nsFd)
+
+	l, err := link.AttachNetNs(nsFd, prog)
+	if err != nil {
+		return fmt.Errorf("attach: %w", err)
+	}
+	b.cfwdAttachedNsKeys[key] = l
 	return nil
 }
 
@@ -205,6 +239,81 @@ func checkIsNsfs(entry fs.DirEntry) bool {
 
 	_, err = unix.IoctlGetInt(fd, unix.NS_GET_NSTYPE)
 	return err == nil
+}
+
+// NOTE: runs in container mount ns
+func (b *ContainerBpfManager) CfwdUpdateNetNamespaces(entries []fs.DirEntry) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.cfwdNetnsProg == nil {
+		return nil
+	}
+
+	var realKeys []string
+	for _, entry := range entries {
+		if checkIsNsfs(entry) {
+			realKeys = append(realKeys, entry.Name())
+		}
+	}
+
+	for _, nsKey := range realKeys {
+		if _, ok := b.cfwdAttachedNsKeys[nsKey]; ok {
+			// existing
+			continue
+		}
+
+		// this is new
+		logrus.WithField("netns", nsKey).Debug("attach cfwd netns")
+		err := b.attachCfwdNetnsLocked(b.cfwdNetnsProg, nsKey)
+		if err != nil {
+			return err
+		}
+	}
+
+	// detach old entries
+	for k, v := range b.cfwdAttachedNsKeys {
+		if !slices.Contains(realKeys, k) {
+			logrus.WithField("netns", k).Debug("detach cfwd netns")
+			err := v.Close()
+			if err != nil {
+				logrus.WithError(err).Error("close cfwd netns link")
+			}
+			delete(b.cfwdAttachedNsKeys, k)
+		}
+	}
+
+	return nil
+}
+
+func ipToCfwdKey(ip net.IP) lfwdCfwdIpKey {
+	key := lfwdCfwdIpKey{}
+	// reinterpret and copy big endian
+	// also map 4-in-6
+	copy((*[16]byte)(unsafe.Pointer(&key.Ip6or4))[:], ip.To16())
+	return key
+}
+
+func (b *ContainerBpfManager) CfwdAddContainerMeta(ip net.IP, meta CfwdContainerMeta) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.cfwdContainerMetas == nil {
+		return nil
+	}
+
+	return b.cfwdContainerMetas.Put(ipToCfwdKey(ip), meta)
+}
+
+func (b *ContainerBpfManager) CfwdRemoveContainerMeta(ip net.IP) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.cfwdContainerMetas == nil {
+		return nil
+	}
+
+	return b.cfwdContainerMetas.Delete(ipToCfwdKey(ip))
 }
 
 func (b *ContainerBpfManager) AttachPmon(includeNft bool) (*ringbuf.Reader, error) {

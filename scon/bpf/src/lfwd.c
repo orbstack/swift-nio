@@ -11,6 +11,8 @@
 // Doesn't really break anything because you already need route_localnet for NAT on localhost --
 // pretty unlikely.
 
+// (cfwd is also compiled into this program, since both are Docker-specific)
+
 #include <stdbool.h>
 #include <string.h>
 
@@ -95,6 +97,8 @@ static bool check_netns(struct bpf_sock_addr *ctx) {
 
     return true;
 }
+
+#include "cfwd.h"
 
 /*
  * v4
