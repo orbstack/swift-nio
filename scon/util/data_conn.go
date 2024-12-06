@@ -12,6 +12,10 @@ type OSConn interface {
 	// preserve TCP splice capabilities
 	io.ReaderFrom
 	io.WriterTo
+
+	// and TCP half-open
+	CloseWrite() error
+	CloseRead() error
 }
 
 type DataConn[T any] struct {
@@ -67,4 +71,12 @@ func (c *DataConn[T]) ReadFrom(r io.Reader) (n int64, err error) {
 
 func (c *DataConn[T]) WriteTo(w io.Writer) (n int64, err error) {
 	return c.Conn.WriteTo(w)
+}
+
+func (c *DataConn[T]) CloseWrite() error {
+	return c.Conn.CloseWrite()
+}
+
+func (c *DataConn[T]) CloseRead() error {
+	return c.Conn.CloseRead()
 }
