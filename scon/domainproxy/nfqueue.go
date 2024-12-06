@@ -58,12 +58,10 @@ func (d *DomainTLSProxy) startQueue(queueNum uint16, flags uint32) error {
 				}
 
 				if hasUpstream {
-					logrus.Debug("soweli | skip")
 					// there's an upstream, so accept the connection. (accept = continue nftables)
 					// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
 					mark = d.cb.NfqueueMarkSkip(mark)
 				} else {
-					logrus.Debug("soweli | reject")
 					// no upstream, so reject the connection.
 					// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
 					mark = d.cb.NfqueueMarkReject(mark)
@@ -150,7 +148,7 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 		return false, err
 	}
 	if upstreamPort == (serverPort{}) {
-		logrus.Debug("soweli | failed to dial")
+		logrus.Debug("domaintlsproxy: probe did not find a port")
 		return false, nil
 	}
 	d.probedHostsMu.Lock()
@@ -174,9 +172,10 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 }
 
 func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (serverPort, error) {
-	dialer.Timeout = httpsDialTimeout
+	ctx, cancel := context.WithTimeout(context.Background(), httpsDialTimeout)
+	defer cancel()
 
-	upstreamConn, err := dialer.Dial("tcp", net.JoinHostPort(upstream.IP.String(), "443"))
+	upstreamConn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), "443"))
 	if err == nil {
 		upstreamConn.Close()
 		return serverPort{
@@ -335,7 +334,7 @@ func (p *DomainTLSProxy) getOrProbeHost(dialer *net.Dialer, addr netip.Addr, ups
 			return serverPort{}, fmt.Errorf("probe host: %w", err)
 		}
 		if upstreamPort == (serverPort{}) {
-			logrus.Debug("soweli | failed to dial")
+			logrus.Debug("domaintlsproxy: probe did not find a port")
 			return serverPort{}, nil
 		}
 	}

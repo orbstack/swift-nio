@@ -38,7 +38,7 @@ type MdnsContextKey int
 
 const (
 	MdnsContextKeyDownstream MdnsContextKey = iota
-	MdnsContextKeyConnUpstreamInfo
+	MdnsContextKeyConnData
 )
 
 var (
@@ -230,7 +230,7 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, n
 
 		// inject conn upstream info into context
 		ConnContext: func(ctx context.Context, conn net.Conn) context.Context {
-			return context.WithValue(ctx, MdnsContextKeyConnUpstreamInfo, conn.(*tls.Conn).NetConn().(*util.DataConn[connUpstreamInfo]).Data)
+			return context.WithValue(ctx, MdnsContextKeyConnData, conn.(*tls.Conn).NetConn().(*util.DataConn[connData]).Data)
 		},
 	}
 
@@ -301,10 +301,32 @@ func dialerForTransparentBind(bindIP net.IP, mark int) *net.Dialer {
 	}
 }
 
-type connUpstreamInfo struct {
+type connData struct {
+	Dialer           *net.Dialer
+	UpstreamConnInfo upstreamConnInfo
+}
+
+type upstreamConnInfo struct {
 	Addr         netip.Addr
 	Upstream     domainproxytypes.Upstream
 	UpstreamPort serverPort
+}
+
+func (p *DomainTLSProxy) passthroughConn(dialer *net.Dialer, conn net.Conn, info upstreamConnInfo) error {
+	host := info.Upstream.IP.String()
+	port := strconv.Itoa(int(info.UpstreamPort.port))
+	dialer.Timeout = httpsDialTimeout
+	passthroughConn, err := dialer.Dial("tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		// if we can't dial, we wouldn't be able to reterm anyways, so just error
+		return fmt.Errorf("dial upstream: %w", err)
+	}
+
+	defer passthroughConn.Close()
+	defer conn.Close()
+	tcppump.Pump2SpTcpTcp(conn.(*net.TCPConn), passthroughConn.(*net.TCPConn))
+
+	return nil
 }
 
 func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr error) {
@@ -340,57 +362,37 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 		return nil, err
 	}
 
-	info := connUpstreamInfo{
+	if upstreamPort == (serverPort{}) {
+		return nil, fmt.Errorf("get upstream port")
+	}
+
+	info := upstreamConnInfo{
 		Addr:         addr,
 		Upstream:     upstream,
 		UpstreamPort: upstreamPort,
 	}
-	newConn := util.NewDataConn(conn.(*net.TCPConn), info)
 
-	// don't try passthrough if request doesn't come from mac
+	// passthrough the connection if it's not from mac and the upstream supports https
 	// in other words, only do reterm if request comes from mac
-	if downstreamIP.Equal(SconHostBridgeIP4) || downstreamIP.Equal(SconHostBridgeIP6) {
-		return newConn, nil
+	if upstreamPort.https && !downstreamIP.Equal(SconHostBridgeIP4) && !downstreamIP.Equal(SconHostBridgeIP6) {
+		return nil, p.passthroughConn(dialer, conn, info)
 	}
 
-	// if it's not https, we can't do tls passthrough anyways
-	if !upstreamPort.https {
-		return newConn, nil
+	data := connData{
+		Dialer:           dialer,
+		UpstreamConnInfo: info,
 	}
+	newConn := util.NewDataConn(conn.(*net.TCPConn), data)
 
-	host := upstream.IP.String()
-	port := strconv.Itoa(int(upstreamPort.port))
-	dialer.Timeout = httpsDialTimeout
-	passthroughConn, err := dialer.Dial("tcp", net.JoinHostPort(host, port))
-	if err != nil {
-		// if we can't dial, we wouldn't be able to reterm anyways, so just error
-		return nil, fmt.Errorf("dial upstream: %w", err)
-	}
-
-	defer passthroughConn.Close()
-	defer conn.Close()
-	tcppump.Pump2SpTcpTcp(conn.(*net.TCPConn), passthroughConn.(*net.TCPConn))
-
-	// don't let this connection be submitted to http server
-	return nil, nil
+	return newConn, nil
 }
 
 func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 	headerHost := r.In.Host // the host that's passed in the host header
 
-	// downstream = client
-	downstreamAddrStr, _, err := net.SplitHostPort(r.In.RemoteAddr)
-	if err != nil {
-		return err
-	}
-	downstreamIP := net.ParseIP(downstreamAddrStr)
-	if downstreamIP == nil {
-		return fmt.Errorf("parse ip: %s", downstreamAddrStr)
-	}
-
-	info := r.In.Context().Value(MdnsContextKeyConnUpstreamInfo).(connUpstreamInfo)
+	data := r.In.Context().Value(MdnsContextKeyConnData).(connData)
 	scheme := "http"
-	if info.UpstreamPort.https {
+	if data.UpstreamConnInfo.UpstreamPort.https {
 		scheme = "https"
 	}
 
@@ -410,28 +412,18 @@ func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 
 	// embed local addr and proxy upstream in context
 	// proxy upstream is an optimization
-	newContext := context.WithValue(r.Out.Context(), MdnsContextKeyDownstream, downstreamIP)
-	newContext = context.WithValue(newContext, MdnsContextKeyConnUpstreamInfo, info)
+	newContext := context.WithValue(r.Out.Context(), MdnsContextKeyConnData, data)
 	r.Out = r.Out.WithContext(newContext)
 
 	return nil
 }
 
 func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
-	info := ctx.Value(MdnsContextKeyConnUpstreamInfo).(connUpstreamInfo)
+	data := ctx.Value(MdnsContextKeyConnData).(connData)
 
-	// fall back to normal dialer
-	// namely, this is used for hairpin, ie when a machine makes a request to its own domainproxy ip
-	var dialer *net.Dialer
-	downstreamIP := ctx.Value(MdnsContextKeyDownstream).(net.IP)
-	if downstreamIP.Equal(info.Upstream.IP) {
-		dialer = &net.Dialer{}
-	} else {
-		dialer = dialerForTransparentBind(downstreamIP, p.cb.GetMark(info.Upstream))
-	}
-
-	port := strconv.Itoa(int(info.UpstreamPort.port))
-	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(info.Upstream.IP.String(), port))
+	host := data.UpstreamConnInfo.Upstream.IP.String()
+	port := strconv.Itoa(int(data.UpstreamConnInfo.UpstreamPort.port))
+	return data.Dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
 }
 
 // the default action with no handler is to send a 502 with no content and to log

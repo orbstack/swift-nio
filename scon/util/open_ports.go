@@ -10,7 +10,6 @@ import (
 func ParseNetTcpPorts(contents string, openPorts map[uint16]struct{}) error {
 	for _, line := range strings.Split(contents, "\n") {
 		fields := strings.Fields(line)
-		logrus.Debugf("soweli | fields: %+v", fields)
 		if len(fields) < 2 {
 			continue
 		}

@@ -99,11 +99,11 @@ func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint1
 	}
 	pid := ctr.State.Pid
 	if pid == 0 {
-		logrus.Debugf("soweli | no pid for container %v", containerID)
+		logrus.Debugf("getDockerContainerOpenPorts: no pid for container %v", containerID)
 		return map[uint16]struct{}{}, nil
 	}
 
-	logrus.Debugf("soweli | got pid %d for container %v", pid, containerID)
+	logrus.Debugf("getDockerContainerOpenPorts: got pid %d for container %v", pid, containerID)
 
 	openPorts := map[uint16]struct{}{}
 
