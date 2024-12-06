@@ -230,7 +230,7 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, n
 
 		// inject conn upstream info into context
 		ConnContext: func(ctx context.Context, conn net.Conn) context.Context {
-			return context.WithValue(ctx, MdnsContextKeyConnUpstreamInfo, conn.(*util.DataConn[connUpstreamInfo]).Data)
+			return context.WithValue(ctx, MdnsContextKeyConnUpstreamInfo, conn.(*tls.Conn).NetConn().(*util.DataConn[connUpstreamInfo]).Data)
 		},
 	}
 
@@ -317,12 +317,6 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 	downstreamIP := conn.RemoteAddr().(*net.TCPAddr).IP
 	is4 := downstreamIP.To4() != nil
 
-	// don't try passthrough if request doesn't come from mac
-	// in other words, only do reterm if request comes from mac
-	if downstreamIP.Equal(SconHostBridgeIP4) || downstreamIP.Equal(SconHostBridgeIP6) {
-		return conn, nil
-	}
-
 	destHost, _, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
 		return nil, fmt.Errorf("split host/port: %w", err)
@@ -352,6 +346,12 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 		UpstreamPort: upstreamPort,
 	}
 	newConn := util.NewDataConn(conn.(*net.TCPConn), info)
+
+	// don't try passthrough if request doesn't come from mac
+	// in other words, only do reterm if request comes from mac
+	if downstreamIP.Equal(SconHostBridgeIP4) || downstreamIP.Equal(SconHostBridgeIP6) {
+		return newConn, nil
+	}
 
 	// if it's not https, we can't do tls passthrough anyways
 	if !upstreamPort.https {
