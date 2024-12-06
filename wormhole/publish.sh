@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 cd ..
 
 ARCHS=("amd64" "arm64")
-
+R2_ENDPOINT="https://46b92b876b97ec1d51081cf9af4132b9.r2.cloudflarestorage.com"
 
 ENVIRONMENT="$1"
 BTYPE="$2"
@@ -65,16 +65,16 @@ else
     # upload platform-specific manifest image and blobs
     for ARCH in "${ARCHS[@]}"; do
         manifest_digest="$(jq -r '.manifests[0].digest | split(":")[1]' $ARCH/index.json)"
-        aws s3 cp $ARCH/blobs/sha256/$manifest_digest s3://$BUCKET/manifests/sha256:$manifest_digest --metadata "{\"version\": \"$VERSION\"}" --content-type application/vnd.oci.image.manifest.v1+json
+        aws s3 cp --endpoint-url "$R2_ENDPOINT" $ARCH/blobs/sha256/$manifest_digest s3://$BUCKET/manifests/sha256:$manifest_digest --metadata "{\"version\": \"$VERSION\"}" --content-type application/vnd.oci.image.manifest.v1+json
 
         for layer in $ARCH/blobs/sha256/*; do
             hash="${layer##*/}"
-            aws s3 cp $layer s3://$BUCKET/blobs/sha256:$hash --metadata "{\"version\": \"$VERSION\"}" --content-type application/vnd.oci.image.layer.v1.tar
+            aws s3 cp --endpoint-url "$R2_ENDPOINT" $layer s3://$BUCKET/blobs/sha256:$hash --metadata "{\"version\": \"$VERSION\"}" --content-type application/vnd.oci.image.layer.v1.tar
         done
     done
 
     # upload manifest list under both the tag and its sha256 digest
     index_digest="$(shasum -a 256 index.json | awk '{print $1}')"
-    aws s3 cp index.json s3://$BUCKET/manifests/$VERSION --metadata "{\"version\": \"$VERSION\"}" --content-type application/vnd.oci.image.index.v1+json
-    aws s3 cp index.json s3://$BUCKET/manifests/sha256:$index_digest --metadata "{\"version\": \"$VERSION\"}" --content-type application/vnd.oci.image.index.v1+json
+    aws s3 cp --endpoint-url "$R2_ENDPOINT" index.json s3://$BUCKET/manifests/$VERSION --metadata "{\"version\": \"$VERSION\"}" --content-type application/vnd.oci.image.index.v1+json
+    aws s3 cp --endpoint-url "$R2_ENDPOINT" index.json s3://$BUCKET/manifests/sha256:$index_digest --metadata "{\"version\": \"$VERSION\"}" --content-type application/vnd.oci.image.index.v1+json
 fi
