@@ -172,7 +172,7 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 }
 
 func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (serverPort, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), httpsDialTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), httpsDialTimeout/2)
 	defer cancel()
 
 	upstreamConn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), "443"))
@@ -184,10 +184,16 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 		}, nil
 	}
 
-	return serverPort{
-		port:  80,
-		https: false,
-	}, nil
+	upstreamConn, err = dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), "80"))
+	if err == nil {
+		upstreamConn.Close()
+		return serverPort{
+			port:  80,
+			https: false,
+		}, nil
+	}
+
+	return serverPort{}, nil
 }
 
 /*func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (serverPort, error) {
