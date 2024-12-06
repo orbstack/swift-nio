@@ -1,14 +1,16 @@
 //
-//  main.swift
-//  guihelper
+//  notify.swift
+//  MacVirt
 //
-//  Created by Danny Lin on 2/14/23.
+//  Created by Danny Lin on 12/6/24.
 //
 
 import Foundation
 import UserNotifications
 
-func mainNotify(_ args: [String]) -> Int32 {
+func notifyMain() -> Int32 {
+    let args = CommandLine.arguments.dropFirst(2).map { String($0) }
+
     let content = UNMutableNotificationContent()
     content.title = args[0]
     content.body = args[1]
@@ -35,14 +37,4 @@ func mainNotify(_ args: [String]) -> Int32 {
     }
     RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
     return 0
-}
-
-let targetCmd = CommandLine.arguments[1]
-let args = CommandLine.arguments.dropFirst(2).map { String($0) }
-switch targetCmd {
-case "notify":
-    exit(mainNotify(args))
-default:
-    print("Unknown command")
-    exit(1)
 }

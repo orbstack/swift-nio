@@ -9,7 +9,7 @@ import (
 )
 
 func run(args ...string) (string, error) {
-	exe, err := conf.FindGuihelperExe()
+	exe, err := conf.FindGUIExe()
 	if err != nil {
 		return "", err
 	}
@@ -29,6 +29,6 @@ func Notify(n guitypes.Notification) error {
 		soundArg = "--no-sound"
 	}
 
-	_, err := run("notify", n.Title, n.Message, n.Subtitle, soundArg, n.URL)
+	_, err := run("send-notification", n.Title, n.Message, n.Subtitle, soundArg, n.URL)
 	return err
 }

@@ -20,10 +20,6 @@ func FindSparkleExe() (string, error) {
 	return findAuxiliaryExe("sparkle-cli")
 }
 
-func FindGuihelperExe() (string, error) {
-	return findAuxiliaryExe("OrbStack Helper (UI)")
-}
-
 func FindPstrampExe() (string, error) {
 	return findAuxiliaryExe("pstramp")
 }
