@@ -272,7 +272,7 @@ pub fn configure_system(
 
     let zero_page_addr = GuestAddress(layout::ZERO_PAGE_START);
     guest_mem
-        .try_write(zero_page_addr, &[params])
+        .write(zero_page_addr, &[params])
         .map_err(|_| Error::ZeroPageSetup)?;
 
     Ok(())

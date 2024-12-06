@@ -674,7 +674,7 @@ pub fn create_guest_memory(
         .map_err(StartMicrovmError::GuestMemoryMmap)?;
 
     guest_mem
-        .try_write(GuestAddress(kernel_load_addr), kernel_data)
+        .write(GuestAddress(kernel_load_addr), kernel_data)
         .unwrap();
 
     Ok((guest_mem, arch_mem_info))

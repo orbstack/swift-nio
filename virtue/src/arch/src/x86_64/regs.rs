@@ -181,7 +181,7 @@ fn write_gdt_table(table: &[u64], guest_mem: &GuestMemory) -> Result<()> {
             .ok_or(Error::WriteGDT)?;
 
         guest_mem
-            .try_write(addr, &[*entry])
+            .write(addr, &[*entry])
             .map_err(|_| Error::WriteGDT)?;
     }
     Ok(())
@@ -190,7 +190,7 @@ fn write_gdt_table(table: &[u64], guest_mem: &GuestMemory) -> Result<()> {
 fn write_idt_value(val: u64, guest_mem: &GuestMemory) -> Result<()> {
     let boot_idt_addr = GuestAddress(BOOT_IDT_OFFSET);
     guest_mem
-        .try_write(boot_idt_addr, &[val])
+        .write(boot_idt_addr, &[val])
         .map_err(|_| Error::WriteIDT)
 }
 
@@ -237,16 +237,16 @@ fn setup_page_tables(mem: &GuestMemory, sregs: &mut kvm_sregs) -> Result<()> {
     let boot_pde_addr = GuestAddress(PDE_START);
 
     // Entry covering VA [0..512GB)
-    mem.try_write(boot_pml4_addr, &[boot_pdpte_addr.u64() | 0x03])
+    mem.write(boot_pml4_addr, &[boot_pdpte_addr.u64() | 0x03])
         .map_err(|_| Error::WritePML4Address)?;
 
     // Entry covering VA [0..1GB)
-    mem.try_write(boot_pdpte_addr, &[boot_pde_addr.u64() | 0x03])
+    mem.write(boot_pdpte_addr, &[boot_pde_addr.u64() | 0x03])
         .map_err(|_| Error::WritePDPTEAddress)?;
     // 512 2MB entries together covering VA [0..1GB). Note we are assuming
     // CPU supports 2MB pages (/proc/cpuinfo has 'pse'). All modern CPUs do.
     for i in 0..512 {
-        mem.try_write(boot_pde_addr.wrapping_add(i * 8), &[(i << 21) + 0x83u64])
+        mem.write(boot_pde_addr.wrapping_add(i * 8), &[(i << 21) + 0x83u64])
             .map_err(|_| Error::WritePDEAddress)?;
     }
 

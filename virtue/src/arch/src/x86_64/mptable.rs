@@ -165,7 +165,7 @@ pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
         return Err(Error::AddressOverflow);
     }
 
-    mem.range_sized(base_mp, mp_size)
+    mem.get_slice(base_mp, mp_size)
         .map_err(|_| Error::Clear)?
         .fill(0);
 
@@ -177,7 +177,7 @@ pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
         mpf_intel.0.specification = 4;
         mpf_intel.0.physptr = (base_mp.u64() + size) as u32;
         mpf_intel.0.checksum = mpf_intel_compute_checksum(&mpf_intel.0);
-        mem.try_write(base_mp, &[mpf_intel])
+        mem.write(base_mp, &[mpf_intel])
             .map_err(|_| Error::WriteMpfIntel)?;
         base_mp = base_mp.wrapping_add(size);
     }
@@ -202,7 +202,7 @@ pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
                 };
             mpc_cpu.0.cpufeature = CPU_STEPPING;
             mpc_cpu.0.featureflag = CPU_FEATURE_APIC | CPU_FEATURE_FPU;
-            mem.try_write(base_mp, &[mpc_cpu])
+            mem.write(base_mp, &[mpc_cpu])
                 .map_err(|_| Error::WriteMpcCpu)?;
             base_mp = base_mp.wrapping_add(size);
             checksum = checksum.wrapping_add(compute_checksum(&mpc_cpu.0));
@@ -214,7 +214,7 @@ pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
         mpc_bus.0.type_ = mpspec::MP_BUS as u8;
         mpc_bus.0.busid = 0;
         mpc_bus.0.bustype = BUS_TYPE_ISA;
-        mem.try_write(base_mp, &[mpc_bus])
+        mem.write(base_mp, &[mpc_bus])
             .map_err(|_| Error::WriteMpcBus)?;
         base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_bus.0));
@@ -227,7 +227,7 @@ pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
         mpc_ioapic.0.apicver = APIC_VERSION;
         mpc_ioapic.0.flags = mpspec::MPC_APIC_USABLE as u8;
         mpc_ioapic.0.apicaddr = IO_APIC_DEFAULT_PHYS_BASE;
-        mem.try_write(base_mp, &[mpc_ioapic])
+        mem.write(base_mp, &[mpc_ioapic])
             .map_err(|_| Error::WriteMpcIoapic)?;
         base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_ioapic.0));
@@ -243,7 +243,7 @@ pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
         mpc_intsrc.0.srcbusirq = i;
         mpc_intsrc.0.dstapic = ioapicid;
         mpc_intsrc.0.dstirq = i;
-        mem.try_write(base_mp, &[mpc_intsrc])
+        mem.write(base_mp, &[mpc_intsrc])
             .map_err(|_| Error::WriteMpcIntsrc)?;
         base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_intsrc.0));
@@ -258,7 +258,7 @@ pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
         mpc_lintsrc.0.srcbusirq = 0;
         mpc_lintsrc.0.destapic = 0;
         mpc_lintsrc.0.destapiclint = 0;
-        mem.try_write(base_mp, &[mpc_lintsrc])
+        mem.write(base_mp, &[mpc_lintsrc])
             .map_err(|_| Error::WriteMpcLintsrc)?;
         base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_lintsrc.0));
@@ -273,7 +273,7 @@ pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
         mpc_lintsrc.0.srcbusirq = 0;
         mpc_lintsrc.0.destapic = 0xFF; /* to all local APICs */
         mpc_lintsrc.0.destapiclint = 1;
-        mem.try_write(base_mp, &[mpc_lintsrc])
+        mem.write(base_mp, &[mpc_lintsrc])
             .map_err(|_| Error::WriteMpcLintsrc)?;
         base_mp = base_mp.wrapping_add(size);
         checksum = checksum.wrapping_add(compute_checksum(&mpc_lintsrc.0));
@@ -293,7 +293,7 @@ pub fn setup_mptable(mem: &GuestMemory, num_cpus: u8) -> Result<()> {
         mpc_table.0.lapic = APIC_DEFAULT_PHYS_BASE;
         checksum = checksum.wrapping_add(compute_checksum(&mpc_table.0));
         mpc_table.0.checksum = (!checksum).wrapping_add(1) as i8;
-        mem.try_write(table_base, &[mpc_table])
+        mem.write(table_base, &[mpc_table])
             .map_err(|_| Error::WriteMpcTable)?;
     }
 
