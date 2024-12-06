@@ -372,11 +372,19 @@ func (p *DockerProxy) filterRequest(req *http.Request, state *RequestState) erro
 		return s == ""
 	})
 
-	// first component is version
+	var startContainerId string
+
+	// first component can be version
 	if len(pathComponents) == 4 && pathComponents[1] == "containers" && (pathComponents[3] == "start" || pathComponents[3] == "restart") {
-		containerID := pathComponents[2]
+		startContainerId = pathComponents[2]
+	}
+	if len(pathComponents) == 3 && pathComponents[0] == "containers" && (pathComponents[2] == "start" || pathComponents[2] == "restart") {
+		startContainerId = pathComponents[1]
+	}
+
+	if startContainerId != "" {
 		err := p.container.UseAgent(func(a *agent.Client) error {
-			notifyCtrId, err := a.DockerAddCertsToContainer(containerID)
+			notifyCtrId, err := a.DockerAddCertsToContainer(startContainerId)
 			state.notifyCACertInjectorCtrID = notifyCtrId
 			return err
 		})

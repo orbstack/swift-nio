@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fs::File,
     fs::{self, remove_file},
     os::unix::{fs::symlink, net::UnixDatagram},
     process::Command,
@@ -315,7 +316,15 @@ fn main() -> anyhow::Result<()> {
         eprintln!(" [!] failed to bind docker.sock: {}", e);
     }
 
-    symlink(scon_docker_sock, "/var/run/docker.sock")?;
+    File::create("/var/run/docker.sock")?;
+
+    mount::<str, str, str, str>(
+        Some(scon_docker_sock),
+        "/var/run/docker.sock",
+        None,
+        MsFlags::MS_BIND,
+        None,
+    )?;
 
     let mut sv = Supervisor {
         services: Arc::new(Mutex::new(HashMap::new())),

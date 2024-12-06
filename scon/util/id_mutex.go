@@ -17,6 +17,12 @@ type IDMutex[T comparable] struct {
 	mutexes  map[T]*waiterMutex
 }
 
+func NewIDMutex[T comparable]() IDMutex[T] {
+	return IDMutex[T]{
+		mutexes: make(map[T]*waiterMutex),
+	}
+}
+
 func (m *IDMutex[T]) Lock(id T) {
 	// replicate the behavior of a global mutex
 	//m.globalMu.Lock()
@@ -24,16 +30,13 @@ func (m *IDMutex[T]) Lock(id T) {
 
 	m.globalMu.Lock()
 
-	if m.mutexes == nil {
-		m.mutexes = make(map[T]*waiterMutex)
-	}
-
 	if waiterMu, ok := m.mutexes[id]; ok {
 		waiterMu.waiters.Add(1)
 		m.globalMu.Unlock()
 
 		waiterMu.mu.Lock()
 
+		// decrement
 		waiterMu.waiters.Add(^uint32(0))
 	} else {
 		waiterMu := &waiterMutex{}

@@ -47,35 +47,26 @@ type dockerCACertInjector struct {
 
 	// stores waitgroups for containers that are in progress of adding certs
 	// uses full length container ID
-	inProgressContainersMu *util.IDMutex[string]
+	inProgressContainersMu util.IDMutex[string]
 }
 
 func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
+	rootCertPem, err := d.host.GetTLSRootData()
+	if err != nil {
+		logrus.WithError(err).Error("failed to get root cert data")
+	}
+
 	return &dockerCACertInjector{
 		d: d,
 
-		inProgressContainersMu: &util.IDMutex[string]{},
-	}
-}
+		rootCertPem: []byte(rootCertPem.CertPEM),
 
-func (c *dockerCACertInjector) getRootCertPem() ([]byte, error) {
-	if c.rootCertPem != nil {
-		return c.rootCertPem, nil
+		inProgressContainersMu: util.NewIDMutex[string](),
 	}
-
-	certData, err := c.d.host.GetTLSRootData()
-	if err != nil {
-		return nil, fmt.Errorf("get root cert data: %w", err)
-	}
-	c.rootCertPem = []byte(certData.CertPEM)
-	return c.rootCertPem, nil
 }
 
 func (c *dockerCACertInjector) addCertsToFs(fs *securefs.FS) error {
-	rootCertPem, err := c.getRootCertPem()
-	if err != nil {
-		return err
-	}
+	rootCertPem := c.rootCertPem
 
 	for _, dirPath := range caCertDirs {
 		if fi, err := fs.Stat(dirPath); err != nil || !fi.IsDir() {
@@ -83,7 +74,7 @@ func (c *dockerCACertInjector) addCertsToFs(fs *securefs.FS) error {
 			continue
 		}
 
-		err = fs.WriteFile(filepath.Join(dirPath, rootCaCertName), rootCertPem, 0o644)
+		err := fs.WriteFile(filepath.Join(dirPath, rootCaCertName), rootCertPem, 0o644)
 		if err != nil {
 			logrus.WithError(err).WithField("dirPath", dirPath).Error("ca cert injector: failed to write to dir, skipping")
 			continue
@@ -122,7 +113,7 @@ func (c *dockerCACertInjector) addCertsToFs(fs *securefs.FS) error {
 			continue
 		}
 
-		err = fs.MkdirAll(targetDirPath, 0o755)
+		err := fs.MkdirAll(targetDirPath, 0o755)
 		if err != nil {
 			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("ca cert injector: failed to create target dir, skipping")
 			continue
@@ -155,43 +146,33 @@ func (c *dockerCACertInjector) addCertsToContainerImpl(ctr *dockertypes.Containe
 
 	opts := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", lowerDir, upperDir, workDir)
 
-	didCreateDir := false
-	didMount := false
-	var fs *securefs.FS
-	defer func() {
-		if fs != nil {
-			fs.Close()
-		}
-		if didMount {
-			err := unix.Unmount(orbMergedDir, 0)
-			if err != nil {
-				logrus.WithError(err).WithField("mergedDir", orbMergedDir).Error("failed to unmount merged dir after adding certs")
-			}
-		}
-		if didCreateDir {
-			err := os.Remove(orbMergedDir)
-			if err != nil {
-				logrus.WithError(err).WithField("mergedDir", orbMergedDir).Error("failed to remove merged dir after adding certs")
-			}
-		}
-	}()
-
 	err := os.Mkdir(orbMergedDir, 0o755)
 	if err != nil {
 		logrus.WithError(err).WithField("mergedDir", orbMergedDir).Error("failed to create merged dir")
 	}
-	didCreateDir = true
+	defer func() {
+		err := os.Remove(orbMergedDir)
+		if err != nil {
+			logrus.WithError(err).WithField("mergedDir", orbMergedDir).Error("failed to remove merged dir after adding certs")
+		}
+	}()
 
 	err = unix.Mount("orbstack", orbMergedDir, "overlay", unix.MS_NOATIME, opts)
 	if err != nil {
 		return fmt.Errorf("mount: %w", err)
 	}
-	didMount = true
+	defer func() {
+		err := unix.Unmount(orbMergedDir, 0)
+		if err != nil {
+			logrus.WithError(err).WithField("mergedDir", orbMergedDir).Error("failed to unmount merged dir after adding certs")
+		}
+	}()
 
-	fs, err = securefs.NewFromPath(orbMergedDir)
+	fs, err := securefs.NewFromPath(orbMergedDir)
 	if err != nil {
 		return fmt.Errorf("open securefs: %w", err)
 	}
+	defer fs.Close()
 
 	logrus.WithField("container_id", ctr.ID).Debug("ca cert injector: mounted overlay")
 
