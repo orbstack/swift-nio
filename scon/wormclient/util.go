@@ -24,7 +24,7 @@ var errNeedRetry = errors.New("server stopped on remote host, retrying")
 
 // note: we keep the client and server versions in sync (i.e. client 1.0.0 should pull server 1.0.0)
 const registryImageDebug = "registry.orb.local/wormhole:" + Version
-const registryImageRelease = "api-license.orbstack.dev/wormhole:" + Version
+const registryImageRelease = "api-registry.orbstack.dev/wormhole:" + Version
 
 const (
 	versionMismatchExitCode = 123
