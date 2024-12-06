@@ -61,7 +61,7 @@ func (d *DockerAgent) startDomainTLSProxy() error {
 	}
 	d.domainTLSProxy = proxy
 
-	err = proxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe, netconf.QueueDomainproxyProbeGso)
+	err = proxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe)
 	if err != nil {
 		return err
 	}

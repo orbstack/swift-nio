@@ -275,7 +275,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	}
 
 	go runOne("start domainTLSProxy", func() error {
-		err := r.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe, netconf.QueueDomainproxyProbeGso)
+		err := r.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe)
 		if err != nil {
 			return err
 		}

@@ -18,16 +18,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func (d *DomainTLSProxy) startQueue(queueNum uint16, flags uint32) error {
+func (d *DomainTLSProxy) startQueue(queueNum uint16) error {
 	config := nfqueue.Config{
 		NfQueue:      queueNum,
 		MaxPacketLen: 65536,
 		MaxQueueLen:  1024,
 		Copymode:     nfqueue.NfQnlCopyPacket,
-		// declare GSO and partial checksum support to prevent reject from failing on macOS-originated packets (which are GSO + partial csum)
-		// we only need GSO flag in ovm, and it breaks the docker bridge, so disable it in docker machine and enable it in ovm
-		Flags:  flags,
-		Logger: logrus.StandardLogger(),
+		Flags:        0,
+		Logger:       logrus.StandardLogger(),
 	}
 
 	queue, err := nfqueue.Open(&config)

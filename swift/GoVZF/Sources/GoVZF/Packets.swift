@@ -77,7 +77,7 @@ struct Packet {
             throw BrnetError.invalidPacket
         }
 
-        return data.load(fromByteOffset: offset, as: T.self)
+        return data.loadUnaligned(fromByteOffset: offset, as: T.self)
     }
 
     func store<T>(offset: Int, value: T) throws {
@@ -95,6 +95,11 @@ struct Packet {
         }
 
         return data.advanced(by: offset)
+    }
+
+    func sliceBufferPtr(offset: Int, len: Int) throws -> UnsafeBufferPointer<UInt8> {
+        let start = try slicePtr(offset: offset, len: len).assumingMemoryBound(to: UInt8.self)
+        return UnsafeBufferPointer(start: start, count: len)
     }
 
     var etherType: UInt16 {
@@ -574,9 +579,47 @@ class PacketProcessor {
         throw BrnetError.redirectToHost
     }
 
+    static func insertPartialChecksum(
+        pkt: Packet, checksumOffset: Int, ipStartOff: Int, transportStartOff: Int,
+        transportProto: UInt8
+    ) throws {
+        let dataLen = pkt.totalLen - transportStartOff
+
+        // clear checksum field
+        try pkt.store(offset: transportStartOff + checksumOffset, value: UInt16(0).bigEndian)
+
+        if pkt.etherType == ETHTYPE_IPV4 {
+            var srcIp: UInt32 = try pkt.load(offset: ipStartOff + 12)
+            srcIp = srcIp.bigEndian
+            var dstIp: UInt32 = try pkt.load(offset: ipStartOff + 16)
+            dstIp = dstIp.bigEndian
+
+            let pseudoHeaderChecksum =
+                Checksum.checksum(srcIp)
+                + Checksum.checksum(dstIp)
+                + UInt32(transportProto & 0xFF)  // transport proto is the lower byte with the upper byte being 0
+                + UInt32(dataLen & 0xFFFF)  // ipv4 len is an aligned uint16
+            let checksum = ~Checksum.fold(pseudoHeaderChecksum)  // inverted for partial checksum
+
+            try pkt.store(offset: transportStartOff + checksumOffset, value: checksum.bigEndian)
+        } else if pkt.etherType == ETHTYPE_IPV6 {
+            let pseudoHeaderChecksum =
+                Checksum.checksum(
+                    try pkt.sliceBufferPtr(offset: ipStartOff + 8 /*ipv6 source address*/, len: 16)
+                )
+                + Checksum.checksum(
+                    try pkt.sliceBufferPtr(offset: ipStartOff + 24 /*ipv6 dest address*/, len: 16))
+                + UInt32(dataLen >> 16)  // ipv6 length is 32 bits, so add the upper 16 bits first
+                + UInt32(dataLen & 0xFFFF)  // then add the lower 16 bits
+                + UInt32(transportProto & 0xFF)  // transport proto is the lower byte with the upper byte being 0
+            let checksum = ~Checksum.fold(pseudoHeaderChecksum)
+
+            try pkt.store(offset: transportStartOff + checksumOffset, value: checksum.bigEndian)
+        }
+    }
+
     func buildVnetHdr(pkt: Packet) throws -> virtio_net_hdr_v1 {
         var hdr = virtio_net_hdr_v1()
-        hdr.flags = VIRTIO_NET_HDR_F_DATA_VALID
 
         // read ethertype from pkt
         let ipStartOff = 14
@@ -612,29 +655,28 @@ class PacketProcessor {
         var transportHdrLen = 0
         if transportProto == IPPROTO_TCP {
             // print("tcp")
-            hdr.flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM
-            hdr.csum_start = UInt16(transportStartOff)
-            hdr.csum_offset = UInt16(16)
-            // print("csum start: \(hdr.csum_start)")
-            // print("csum offset: \(hdr.csum_offset)")
-        } else if transportProto == IPPROTO_UDP {
-            // print("udp")
-            hdr.flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM
-            hdr.csum_start = UInt16(transportStartOff)
-            hdr.csum_offset = UInt16(6)
-            // print("csum start: \(hdr.csum_start)")
-            // print("csum offset: \(hdr.csum_offset)")
-            transportHdrLen = 8
-        }
+            let checksumOffset = 16
 
-        // gso: if TCP data segment > MSS (1500 - IP - TCP)
-        if transportProto == IPPROTO_TCP {
-            let tcpHdrLen = try ((pkt.load(offset: transportStartOff + 12) as UInt8) >> 4) * 4
-            let tcpDataLen = pkt.totalLen - transportStartOff - Int(tcpHdrLen)
-            let tcpMss = realExternalMtu - ipHdrLen - Int(tcpHdrLen)
+            hdr.flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM
+            hdr.csum_start = UInt16(transportStartOff)
+            hdr.csum_offset = UInt16(checksumOffset)
+            //print("csum start: \(hdr.csum_start)")
+            //print("csum offset: \(hdr.csum_offset)")
+
+            let tcpLen = pkt.totalLen - transportStartOff
+            let tcpHdrLen = try Int((pkt.load(offset: transportStartOff + 12) as UInt8) >> 4) * 4
+            let tcpDataLen = tcpLen - tcpHdrLen
+            let tcpMss = realExternalMtu - ipHdrLen - tcpHdrLen
             // print("tcp hdr len: \(tcpHdrLen)")
             // print("tcp data len: \(tcpDataLen)")
             // print("tcp mss: \(tcpMss)")
+
+            try PacketProcessor.insertPartialChecksum(
+                pkt: pkt, checksumOffset: checksumOffset, ipStartOff: ipStartOff,
+                transportStartOff: transportStartOff,
+                transportProto: transportProto)
+
+            // gso: if TCP data segment > MSS (1500 - IP - TCP)
             if tcpDataLen > tcpMss {
                 // print("tcp GSO > MSS")
                 if etherType == ETHTYPE_IPV4 {
@@ -648,6 +690,22 @@ class PacketProcessor {
             }
 
             transportHdrLen = Int(tcpHdrLen)
+        } else if transportProto == IPPROTO_UDP {
+            // print("udp")
+            let checksumOffset = 6
+
+            hdr.flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM
+            hdr.csum_start = UInt16(transportStartOff)
+            hdr.csum_offset = UInt16(checksumOffset)
+            // print("csum start: \(hdr.csum_start)")
+            // print("csum offset: \(hdr.csum_offset)")
+
+            try PacketProcessor.insertPartialChecksum(
+                pkt: pkt, checksumOffset: checksumOffset, ipStartOff: ipStartOff,
+                transportStartOff: transportStartOff,
+                transportProto: transportProto)
+
+            transportHdrLen = 8
         }
 
         // hdr_size is just a performance hint
@@ -802,11 +860,34 @@ private enum Checksum {
         return ~checksum
     }
 
-    static func checksum<T: Collection<UInt8>>(data: T) -> UInt16 where T.Index == Int {
+    static func checksum(_ data: [UInt8]) -> UInt32 {
+        data.withUnsafeBufferPointer {
+            checksum($0)
+        }
+    }
+
+    static func checksum(_ data: UnsafeBufferPointer<UInt8>) -> UInt32 {
+        guard let ptr = UnsafeRawPointer(data.baseAddress) else {
+            return 0
+        }
+
         var wsum = UInt32(0)
         for i in stride(from: 0, to: data.count, by: 2) {
-            wsum += UInt32(data[i]) << 8 + UInt32(data[i + 1])
+            wsum += UInt32(ptr.loadUnaligned(fromByteOffset: i, as: UInt16.self).bigEndian)
         }
+        if data.count % 2 == 1 {
+            wsum += UInt32(ptr.loadUnaligned(fromByteOffset: data.count - 1, as: UInt8.self)) << 8
+        }
+        return wsum
+    }
+
+    static func checksum(_ data: UInt32) -> UInt32 {
+        // add the upper and lower 16 bits
+        return (data >> 16) + (data & 0xFFFF)
+    }
+
+    static func fold(_ wsum: UInt32) -> UInt16 {
+        var wsum = wsum
         wsum = (wsum >> 16) + (wsum & 0xFFFF)
         wsum = (wsum >> 16) + (wsum & 0xFFFF)  // second iteration because the first could itself cause an overflow
         return ~UInt16(wsum)
