@@ -7,5 +7,5 @@ const (
 )
 
 const (
-	DSN = "https://fc975a3abcaa9803fc2405d8b4bb3b62@o120089.ingest.sentry.io/4504665519554560"
+	DSN = "https://c2ba2ba456ad14d70722cf2652bbca59@o120089.ingest.us.sentry.io/4504665519554560"
 )
