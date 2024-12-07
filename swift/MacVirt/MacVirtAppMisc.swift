@@ -78,12 +78,14 @@ enum AppLifecycle {
 
 enum WindowID {
     static let main = "main"
-    static let signIn = "signin"
-    static let feedback = "feedback"
-    static let migrateDocker = "migratedocker"
-    static let onboarding = "onboarding"
-    static let diagReport = "diagreport"
-    static let bugReport = "bugreport"
+
+    // IDs for non-restorable windows were rotated in v1.9.0 to mitigate SwiftUI Window() reopening bugs from v1.8.x
+    static let signIn = "signin2"
+    static let feedback = "feedback2"
+    static let migrateDocker = "migratedocker2"
+    static let onboarding = "onboarding2"
+    static let diagReport = "diagreport2"
+    static let bugReport = "bugreport2"
 }
 
 enum WindowURL {
