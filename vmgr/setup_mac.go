@@ -301,11 +301,11 @@ func setDockerConfigEnv(value string) error {
 	return nil
 }
 
-func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems []string) (bool, *string, error) {
+func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems []string) (bool, bool, error) {
 	// always try to add to profile and/or ask user to add to $PATH
 	// is the PATH already there?
 	if slices.Contains(pathItems, conf.CliBinDir()) || slices.Contains(pathItems, conf.CliXbinDir()) || slices.Contains(pathItems, conf.UserAppBinDir()) {
-		return false, nil, nil
+		return false, false, nil
 	}
 
 	// do we recognize this shell?
@@ -313,7 +313,7 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems 
 
 	if slices.Contains(vmconfig.GetState().SetupState.EditedShellProfiles, shellBase) {
 		logrus.Infof("not attempting to modify shell profile for %s (%s), as we have already done so once", shellBase, details.Shell)
-		return false, nil, nil
+		return false, false, nil
 	}
 
 	var profilePath string
@@ -347,7 +347,7 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems 
 				// we'll create it
 				profileData = []byte{}
 			} else {
-				return false, nil, err
+				return false, false, err
 			}
 		}
 		profileScript := string(profileData)
@@ -374,7 +374,7 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems 
 					"shell": shellBase,
 					"file":  profilePath,
 				}).Warn("failed to write shell profile")
-				return true, nil, nil
+				return true, false, nil
 			} else {
 				// success
 				// not important enough to nag user if we can link to an existing path
@@ -386,11 +386,10 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems 
 					return nil
 				})
 				if err != nil {
-					return false, nil, err
+					return false, false, err
 				}
 
-				relProfilePath := syssetup.MakeHomeRelative(profilePath)
-				return false, &relProfilePath, nil
+				return false, true, nil
 			}
 		}
 
@@ -398,10 +397,10 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems 
 		// we don't know how to deal with this.
 		// just ask the user to add it to their path
 		logrus.Info("unknown shell, asking user to add bins to PATH")
-		return true, nil, nil
+		return true, false, nil
 	}
 
-	return false, nil, nil
+	return false, false, nil
 }
 
 type SetupState struct {
@@ -534,7 +533,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		return nil, err
 	}
 
-	askAddPath, alertProfileChangedPath, err := s.tryModifyShellProfile(details, pathItems)
+	askAddPath, alertProfileChanged, err := s.tryModifyShellProfile(details, pathItems)
 	if err != nil {
 		return nil, err
 	}
@@ -579,10 +578,20 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		}
 		info.AdminMessage = &msg
 	}
-	if askAddPath {
+	if askAddPath && !vmconfig.GetState().SetupState.PathUpdateRequested {
 		info.AlertRequestAddPath = true
+
+		err = vmconfig.UpdateState(func(state *vmconfig.VmgrState) error {
+			state.SetupState.PathUpdateRequested = true
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
-	if alertProfileChangedPath != nil {
+	// the "profile changed / CLI tools installed" alert tells users to restart terminals for PATH update if we don't have admin
+	// if user has admin, they'll probably allow it, so we'll symlink into /usr/local/bin. that removes the need to restart terminals
+	if alertProfileChanged && len(setupState.AdminLinkCommands) == 0 {
 		info.AlertProfileChanged = true
 	}
 	logrus.WithFields(logrus.Fields{

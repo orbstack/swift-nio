@@ -24,6 +24,7 @@ var (
 )
 
 type VmgrSetupState struct {
+	PathUpdateRequested bool     `json:"pathUpdateRequested"`
 	EditedShellProfiles []string `json:"editedShellProfiles"`
 	SshEdited           bool     `json:"sshEdited"`
 }
