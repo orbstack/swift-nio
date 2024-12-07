@@ -22,7 +22,10 @@ func resetRemoteData(endpoint dockerclient.Endpoint, drmToken string) error {
 	spinner := spinutil.Start("blue", "Resetting remote Debug Shell data")
 	defer spinner.Stop()
 
-	client, err := dockerclient.NewClientWithDrmAuth(endpoint, drmToken, &dockerclient.Options{CreateSpareConn: true})
+	client, err := dockerclient.NewClientWithDrmAuth(endpoint, drmToken, &dockerclient.Options{
+		Unversioned:     true,
+		CreateSpareConn: true,
+	})
 	if err != nil {
 		return fmt.Errorf("create docker client: %w", err)
 	}
