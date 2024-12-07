@@ -185,6 +185,25 @@ func symlinkIfChanged(src, dst string) error {
 	return nil
 }
 
+func symlinkExistingAppIfChanged(src, dst string) error {
+	oldSrc, err := os.Readlink(dst)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.EINVAL) {
+			// not a symlink or doesn't exist, don't overwrite
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	if oldSrc == src || !strings.Contains(oldSrc, ".app/") {
+		return nil
+	}
+
+	_ = os.Remove(dst)
+	return os.Symlink(src, dst)
+}
+
 func shouldSymlinkApp(src, dst string) (bool, error) {
 	oldSrc, err := os.Readlink(dst)
 	if err != nil {
@@ -468,9 +487,18 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		var errs []error
 
 		// 1. always link to ~/.orbstack/bin
-		errs = append(errs, symlinkIfChanged(cmdSrc, conf.UserAppBinDir()+"/"+cmdName))
+		userAppBinDirCmd := conf.UserAppBinDir() + "/" + cmdName
+		errs = append(errs, symlinkIfChanged(cmdSrc, userAppBinDirCmd))
 
-		// 2. if we have admin, link to /usr/local/bin, unless there's an existing, non-broken link that doesn't point to *.app
+		// 2. if there's an old symlink at ~/.local/bin (or ~/bin), change it to point to ~/.orbstack/bin
+		// this fixes old ~/.local/bin symlinks but also lets the user keep symlinks in ~/.local/bin if they want
+		// in the past, we used to create links at ~/.local/bin and ~/bin if they existed, but we no longer do that
+		// instead, we just always create ~/.orbstack/bin links
+		// so we need to change the old links or they'll stop working if the binary is ever moved, etc.
+		errs = append(errs, symlinkExistingAppIfChanged(userAppBinDirCmd, details.Home+"/.local/bin/"+cmdName))
+		errs = append(errs, symlinkExistingAppIfChanged(userAppBinDirCmd, details.Home+"/bin/"+cmdName))
+
+		// 3. if we have admin, link to /usr/local/bin, unless there's an existing, non-broken link that doesn't point to *.app
 		if useAdmin {
 			shouldLink, err := shouldSymlinkApp(cmdSrc, "/usr/local/bin/"+cmdName)
 			if err != nil {
