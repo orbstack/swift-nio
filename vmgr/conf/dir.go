@@ -79,10 +79,14 @@ func ExecutableDir() (string, error) {
 	}
 
 	// find parent app bundle if we're in a nested bundle
-	nestedBundleSuffix := "/Frameworks/" + VmgrExeName + ".app/Contents/MacOS/" + VmgrExeName
-	if strings.HasSuffix(selfExe, nestedBundleSuffix) {
-		rootContentsPath := strings.TrimSuffix(selfExe, nestedBundleSuffix)
+	vmgrBundleSuffix := "/Frameworks/" + VmgrExeName + ".app/Contents/MacOS/" + VmgrExeName
+	if strings.HasSuffix(selfExe, vmgrBundleSuffix) {
+		rootContentsPath := strings.TrimSuffix(selfExe, vmgrBundleSuffix)
 		return rootContentsPath + "/MacOS", nil
+	}
+	scliBundleSuffix := "/scli.app/Contents/MacOS/scli"
+	if strings.HasSuffix(selfExe, scliBundleSuffix) {
+		return strings.TrimSuffix(selfExe, scliBundleSuffix), nil
 	}
 
 	selfDir := filepath.Dir(selfExe)
