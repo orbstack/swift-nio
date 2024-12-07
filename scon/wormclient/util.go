@@ -60,10 +60,14 @@ func GetDrmToken() (string, error) {
 		return "", err
 	}
 
+	if len(keychainData) == 0 {
+		return "", errors.New("Please sign in to OrbStack using 'orb login' to use remote debugging.")
+	}
+
 	var keychainState drmtypes.PersistentState
 	err = json.Unmarshal(keychainData, &keychainState)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("parse DRM state json: %w", err)
 	}
 
 	return keychainState.EntitlementToken, nil
