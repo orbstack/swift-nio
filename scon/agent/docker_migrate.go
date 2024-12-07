@@ -218,7 +218,7 @@ func (a *AgentServer) DockerMigrationRunSyncServer(params types.InternalDockerMi
 
 					// is this a Docker connection?
 					if dest == types.DockerMigrationSyncDirImageLoad {
-						err = a.docker.client.StreamWrite("POST", "/images/load", conn)
+						err = a.docker.realClient.StreamWrite("POST", "/images/load", conn)
 						if err != nil {
 							return fmt.Errorf("load image: %w", err)
 						}

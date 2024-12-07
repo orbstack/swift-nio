@@ -26,7 +26,7 @@ func filterVolumes(vols []*dockertypes.Volume) []*dockertypes.Volume {
 func (d *DockerAgent) refreshVolumes() error {
 	// no mu needed: FuncDebounce has mutex
 
-	newVolumes, err := d.client.ListVolumes()
+	newVolumes, err := d.realClient.ListVolumes()
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (d *DockerAgent) refreshVolumes() error {
 // busybox du is 2-5x faster than docker system df
 // 25 sec -> 8 sec for 2.5M files totaling 120 GB. burns less CPU
 func (a *AgentServer) DockerFastDf(_ None, reply *dockertypes.SystemDf) error {
-	vols, err := a.docker.client.ListVolumes()
+	vols, err := a.docker.realClient.ListVolumes()
 	if err != nil {
 		return err
 	}

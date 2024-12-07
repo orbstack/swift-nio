@@ -37,7 +37,7 @@ func checkIPAMConflict(ipam dockertypes.IPAM, target netip.Prefix) (bool, error)
 
 func (d *DockerAgent) getFullContainers() ([]*dockertypes.ContainerJSON, error) {
 	var minContainers []*dockertypes.ContainerSummaryMin
-	err := d.client.Call("GET", "/containers/json?all=true", nil, &minContainers)
+	err := d.realClient.Call("GET", "/containers/json?all=true", nil, &minContainers)
 	if err != nil {
 		return nil, fmt.Errorf("get containers: %w", err)
 	}
@@ -45,7 +45,7 @@ func (d *DockerAgent) getFullContainers() ([]*dockertypes.ContainerJSON, error) 
 	var containers []*dockertypes.ContainerJSON
 	for _, c := range minContainers {
 		var full dockertypes.ContainerJSON
-		err = d.client.Call("GET", "/containers/"+c.ID+"/json", nil, &full)
+		err = d.realClient.Call("GET", "/containers/"+c.ID+"/json", nil, &full)
 		if err != nil {
 			return nil, fmt.Errorf("get container: %w", err)
 		}
@@ -74,7 +74,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 
 	// get all networks
 	var networks []dockertypes.Network
-	err = d.client.Call("GET", "/networks", nil, &networks)
+	err = d.realClient.Call("GET", "/networks", nil, &networks)
 	if err != nil {
 		return fmt.Errorf("get networks: %w", err)
 	}
@@ -106,7 +106,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 
 		// fetch full info
 		var fullNet dockertypes.Network
-		err = d.client.Call("GET", "/networks/"+minNet.ID, nil, &fullNet)
+		err = d.realClient.Call("GET", "/networks/"+minNet.ID, nil, &fullNet)
 		if err != nil {
 			return fmt.Errorf("get network: %w", err)
 		}
@@ -134,7 +134,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 		logrus.WithField("network", minNet.Name).WithField("count", len(netContainers)).Info("disconnecting containers")
 		for cid := range netContainers {
 			logrus.WithField("cid", cid).Debug("disconnecting container")
-			err = d.client.Call("POST", "/networks/"+minNet.ID+"/disconnect", dockertypes.NetworkDisconnectRequest{
+			err = d.realClient.Call("POST", "/networks/"+minNet.ID+"/disconnect", dockertypes.NetworkDisconnectRequest{
 				Container: cid,
 				Force:     true,
 			}, nil)
@@ -145,7 +145,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 		}
 
 		// delete the network
-		err = d.client.Call("DELETE", "/networks/"+minNet.ID, nil, nil)
+		err = d.realClient.Call("DELETE", "/networks/"+minNet.ID, nil, nil)
 		if err != nil {
 			return fmt.Errorf("delete network: %w", err)
 		}
@@ -175,12 +175,12 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 			newIPAMConfig = append(newIPAMConfig, config)
 		}
 		newNetReq.IPAM.Config = newIPAMConfig
-		err = d.client.Call("POST", "/networks/create", &newNetReq, &newNetResp)
+		err = d.realClient.Call("POST", "/networks/create", &newNetReq, &newNetResp)
 		if err != nil {
 			// oops, we probably ran out of pools...
 			// try to restore the old one
 			logrus.WithError(err).WithField("network", minNet.Name).Error("failed to recreate network, restoring")
-			err = d.client.Call("POST", "/networks/create", &fullNet, &newNetResp)
+			err = d.realClient.Call("POST", "/networks/create", &fullNet, &newNetResp)
 			if err != nil {
 				// fatal: if can't restore then it's broken
 				return fmt.Errorf("restore network: %w", err)
@@ -194,7 +194,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 		logrus.WithField("network", minNet.Name).WithField("count", len(netContainers)).Info("reconnecting containers")
 		for cid, endpointConfig := range netContainers {
 			logrus.WithField("cid", cid).Debug("reconnecting container")
-			err = d.client.Call("POST", "/networks/"+newNetResp.ID+"/connect", dockertypes.NetworkConnectRequest{
+			err = d.realClient.Call("POST", "/networks/"+newNetResp.ID+"/connect", dockertypes.NetworkConnectRequest{
 				Container: cid,
 				EndpointConfig: &dockertypes.NetworkEndpointSettings{
 					// only a few fields, exclude anything IP-related
@@ -211,7 +211,7 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 
 		// fetch new full net to see where it went (for debug)
 		var newFullNet dockertypes.Network
-		err = d.client.Call("GET", "/networks/"+newNetResp.ID, nil, &newFullNet)
+		err = d.realClient.Call("GET", "/networks/"+newNetResp.ID, nil, &newFullNet)
 		if err != nil {
 			return fmt.Errorf("get new network: %w", err)
 		}

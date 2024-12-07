@@ -106,7 +106,7 @@ func (d *DockerAgent) refreshNetworks() error {
 	}
 
 	var newNetworks []dockertypes.Network
-	err = d.client.Call("GET", "/networks", nil, &newNetworks)
+	err = d.realClient.Call("GET", "/networks", nil, &newNetworks)
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func setAllBridgeportHairpin(bridgeName string) error {
 
 func (d *DockerAgent) onNetworkConnected(id string) {
 	var network dockertypes.Network
-	err := d.client.Call("GET", fmt.Sprintf("/networks/%s", id), nil, &network)
+	err := d.realClient.Call("GET", fmt.Sprintf("/networks/%s", id), nil, &network)
 	if err != nil {
 		logrus.WithError(err).Error("unable to get network")
 		return

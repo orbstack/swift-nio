@@ -184,7 +184,7 @@ func (c *dockerCACertInjector) addCertsToContainerImpl(ctr *dockertypes.Containe
 
 func (c *dockerCACertInjector) addCertsToContainer(containerID string) (_ string, retErr error) {
 	// check if container is stopped before we try to acquire the in progress status
-	ctr, err := c.d.client.InspectContainer(containerID)
+	ctr, err := c.d.realClient.InspectContainer(containerID)
 	if err != nil {
 		return "", err
 	}

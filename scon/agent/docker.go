@@ -32,9 +32,9 @@ import (
 )
 
 const (
-	dockerRefreshDebounce   = 100 * time.Millisecond
-	dockerAPISocketUpstream = "/var/run/docker.sock"
-	dockerAPISocketReal     = "/var/run/docker.sock.real"
+	dockerRefreshDebounce  = 100 * time.Millisecond
+	dockerAPISocketProxied = "/var/run/docker.sock"
+	dockerAPISocketReal    = "/var/run/docker.sock.real"
 
 	// matches mDNSResponder timeout
 	mdnsProxyTimeout = 5 * time.Second
@@ -45,8 +45,11 @@ const (
 )
 
 type DockerAgent struct {
-	mu       syncx.Mutex
-	client   *dockerclient.Client
+	mu syncx.Mutex
+
+	realClient    *dockerclient.Client
+	proxiedClient *dockerclient.Client
+
 	Running  syncx.CondBool
 	InitDone syncx.CondBool
 
@@ -91,11 +94,23 @@ type DockerAgent struct {
 func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 	dockerAgent := &DockerAgent{
 		// use default unix socket
-		client: dockerclient.NewWithHTTP(nil, &http.Client{
+		realClient: dockerclient.NewWithHTTP(nil, &http.Client{
 			// no timeout - we do event monitoring
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", dockerAPISocketUpstream)
+					return net.Dial("unix", dockerAPISocketReal)
+				},
+				// idle conns are ok here because we get frozen along with docker
+				MaxIdleConns: 2,
+			},
+		}, nil),
+		// we need two clients because the ui needs to see translated paths when we implement path translation
+		// also so we can hook docker start calls for cert injector (though we currently don't hook any)
+		proxiedClient: dockerclient.NewWithHTTP(nil, &http.Client{
+			// no timeout - we do event monitoring
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial("unix", dockerAPISocketProxied)
 				},
 				// idle conns are ok here because we get frozen along with docker
 				MaxIdleConns: 2,
@@ -220,7 +235,7 @@ func (a *AgentServer) DockerCheckIdle(_ None, reply *bool) error {
 
 	// only includes running
 	var containers []dockertypes.ContainerSummaryMin
-	err := a.docker.client.Call("GET", "/containers/json", nil, &containers)
+	err := a.docker.realClient.Call("GET", "/containers/json", nil, &containers)
 	if err != nil {
 		return err
 	}
@@ -299,14 +314,14 @@ func (d *DockerAgent) PostStart() error {
 
 	// wait for Docker API to start
 	// TODO: this works, but should replace with sd-notify
-	err = util.WaitForRunPathExist(dockerAPISocketUpstream)
+	err = util.WaitForRunPathExist(dockerAPISocketReal)
 	if err != nil {
 		return err
 	}
 
 	// fix very rare race: socket file is created on 'bind' but refuses connections until 'listen', causing event monitor to break
 	// TODO edit json and use docker fd://* syntax instead. zero race and more flexible
-	err = util.WaitForSocketConnectible(dockerAPISocketUpstream)
+	err = util.WaitForSocketConnectible(dockerAPISocketReal)
 	if err != nil {
 		return err
 	}
@@ -351,7 +366,7 @@ func (d *DockerAgent) PostStart() error {
 		// we need to make sure we don't race with docker. docker starts accepting on the unix socket too early for us to use WaitForSocketConnectible
 		// another way would be using sdnotify, but we don't currently have any way to forward that from simplevisor to the agent
 		// but this also works, because docker only starts actually handling api requests late enough
-		err := util.WaitForApiRunning(dockerAPISocketUpstream)
+		err := util.WaitForApiRunning(dockerAPISocketReal)
 		if err != nil {
 			// even if this fails, we can still attempt to change the policy to forward, so no early return
 			logrus.WithError(err).Error("failed to wait for docker api to come up")
@@ -444,7 +459,8 @@ func (d *DockerAgent) doSendUIEvent() error {
 	event := uitypes.DockerEvent{}
 
 	if d.pendingUIEntities[uitypes.DockerEntityContainer] {
-		containers, err := d.client.ListContainers(true /*all*/)
+		// ui: use proxied client to get translated paths
+		containers, err := d.proxiedClient.ListContainers(true /*all*/)
 		if err != nil {
 			return err
 		}
@@ -452,7 +468,8 @@ func (d *DockerAgent) doSendUIEvent() error {
 	}
 
 	if d.pendingUIEntities[uitypes.DockerEntityVolume] {
-		volumes, err := d.client.ListVolumes()
+		// ui: use proxied client to get translated paths
+		volumes, err := d.proxiedClient.ListVolumes()
 		if err != nil {
 			return err
 		}
@@ -460,7 +477,8 @@ func (d *DockerAgent) doSendUIEvent() error {
 	}
 
 	if d.pendingUIEntities[uitypes.DockerEntityImage] {
-		images, err := d.client.ListImagesFull()
+		// ui: use proxied client to get translated paths
+		images, err := d.proxiedClient.ListImagesFull()
 		if err != nil {
 			return err
 		}
@@ -485,7 +503,7 @@ func (d *DockerAgent) deleteK8sContainers() error {
 		return nil
 	}
 
-	containers, err := d.client.ListContainers(true /*all*/)
+	containers, err := d.realClient.ListContainers(true /*all*/)
 	if err != nil {
 		return err
 	}
@@ -495,7 +513,7 @@ func (d *DockerAgent) deleteK8sContainers() error {
 		if c.Labels != nil {
 			if _, ok := c.Labels["io.kubernetes.pod.namespace"]; ok {
 				// delete it
-				err := d.client.Call("DELETE", "/containers/"+c.ID+"?force=true", nil, nil)
+				err := d.realClient.Call("DELETE", "/containers/"+c.ID+"?force=true", nil, nil)
 				if err != nil {
 					logrus.WithError(err).WithField("cid", c.ID).Error("failed to delete k8s container")
 				}
@@ -507,7 +525,7 @@ func (d *DockerAgent) deleteK8sContainers() error {
 }
 
 func (d *DockerAgent) monitorEvents() error {
-	eventsConn, err := d.client.StreamRead("GET", "/events", nil)
+	eventsConn, err := d.realClient.StreamRead("GET", "/events", nil)
 	if err != nil {
 		return err
 	}

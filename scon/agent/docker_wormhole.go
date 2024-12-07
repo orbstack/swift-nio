@@ -73,7 +73,7 @@ func randomContainerName() string {
 }
 
 func (d *DockerAgent) createWormholeImageContainer(imageID string) (string, error) {
-	image, err := d.client.InspectImage(imageID)
+	image, err := d.realClient.InspectImage(imageID)
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +81,7 @@ func (d *DockerAgent) createWormholeImageContainer(imageID string) (string, erro
 	// generate entrypoint script
 	env := generateEntrypointEnv(image.Config)
 
-	id, err := d.client.RunContainer(dockerclient.RunContainerOptions{
+	id, err := d.realClient.RunContainer(dockerclient.RunContainerOptions{
 		Name: randomContainerName(),
 	}, &dockertypes.ContainerConfig{
 		Image: image.ID,
@@ -199,7 +199,7 @@ func makeOverlayMount(lowerDir, upperDir, workDir string, readOnly bool) (retFd 
 func (d *DockerAgent) maybeSetContainerMode(mode string) string {
 	if strings.HasPrefix(mode, "container:") {
 		netCID := strings.TrimPrefix(mode, "container:")
-		if netCtr, err := d.client.InspectContainer(netCID); err == nil && netCtr.State.Running {
+		if netCtr, err := d.realClient.InspectContainer(netCID); err == nil && netCtr.State.Running {
 			return mode
 		}
 	}
@@ -243,13 +243,13 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 
 	// first, commit the container's FS changes to an image so that they show up
 	// this is also used as the rootfs if graph driver != overlay2
-	imageID, err := d.client.CommitContainer(ctr.ID)
+	imageID, err := d.realClient.CommitContainer(ctr.ID)
 	if err != nil {
 		return "", "", err
 	}
 	defer func() {
 		if retErr != nil {
-			err := d.client.RemoveImage(imageID, true)
+			err := d.realClient.RemoveImage(imageID, true)
 			if err != nil {
 				retErr = errors.Join(retErr, err)
 			}
@@ -396,7 +396,7 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 	}
 
 	// make a new container that copies most properties from the original container
-	containerID, err := d.client.RunContainer(dockerclient.RunContainerOptions{
+	containerID, err := d.realClient.RunContainer(dockerclient.RunContainerOptions{
 		Name: randomContainerName(),
 	}, newCfg)
 	if err != nil {
@@ -424,7 +424,7 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 		env = []string{}
 	} else {
 		// standard path: for docker containers
-		ctr, err := a.docker.client.InspectContainer(args.Target)
+		ctr, err := a.docker.realClient.InspectContainer(args.Target)
 		if err != nil {
 			if dockerclient.IsStatusError(err, http.StatusNotFound) {
 				// container not found. try interpreting target as an image and creating a container from it
@@ -437,7 +437,7 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 					}
 				}
 
-				ctr, err = a.docker.client.InspectContainer(state.CreatedContainerID)
+				ctr, err = a.docker.realClient.InspectContainer(state.CreatedContainerID)
 				if err != nil {
 					return err
 				}
@@ -493,7 +493,7 @@ func (a *AgentServer) DockerStartWormhole(args *StartWormholeArgs, reply *StartW
 				warnContainerWrite = true
 			}
 
-			ctr, err = a.docker.client.InspectContainer(state.CreatedContainerID)
+			ctr, err = a.docker.realClient.InspectContainer(state.CreatedContainerID)
 			if err != nil {
 				return err
 			}
@@ -553,7 +553,7 @@ func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *None) erro
 
 	// delete container using auto-remove
 	if args.State.CreatedContainerID != "" {
-		err := a.docker.client.KillContainer(args.State.CreatedContainerID)
+		err := a.docker.realClient.KillContainer(args.State.CreatedContainerID)
 		if err != nil && !dockerclient.IsStatusError(err, http.StatusNotFound) && !strings.Contains(err.Error(), "is not running") {
 			errs = append(errs, err)
 		}
@@ -563,12 +563,12 @@ func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *None) erro
 	if args.State.CreatedImageID != "" {
 		// if we need to delete an image, then synchronously wait for the container to exit, so that its reference is gone
 		// we only need to wait for stopped state, not removed, because removing an image with force=true will also remove stopped containers
-		err := a.docker.client.WaitContainer(args.State.CreatedContainerID)
+		err := a.docker.realClient.WaitContainer(args.State.CreatedContainerID)
 		if err != nil && !dockerclient.IsStatusError(err, http.StatusNotFound) && !strings.Contains(err.Error(), "is not running") {
 			errs = append(errs, err)
 		}
 
-		err = a.docker.client.RemoveImage(args.State.CreatedImageID, true)
+		err = a.docker.realClient.RemoveImage(args.State.CreatedImageID, true)
 		if err != nil {
 			errs = append(errs, err)
 		}

@@ -93,7 +93,7 @@ func (d *DockerAgent) updateTLSProxyNftables(enabled bool) error {
 }
 
 func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint16]struct{}, error) {
-	ctr, err := d.client.InspectContainer(containerID)
+	ctr, err := d.realClient.InspectContainer(containerID)
 	if err != nil {
 		return nil, err
 	}

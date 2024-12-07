@@ -52,7 +52,7 @@ func (d *DockerAgent) refreshContainers() error {
 
 	// only includes running
 	var newContainers []dockertypes.ContainerSummaryMin
-	err := d.client.Call("GET", "/containers/json", nil, &newContainers)
+	err := d.realClient.Call("GET", "/containers/json", nil, &newContainers)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (d *DockerAgent) refreshContainers() error {
 	// fdx seqs can't be 0, so zero = missing
 	rootfsFdxSeqs := make([]uint64, len(added))
 	for i, c := range added {
-		fullCtr, err := d.client.InspectContainer(c.ID)
+		fullCtr, err := d.realClient.InspectContainer(c.ID)
 		if err != nil {
 			logrus.WithError(err).WithField("cid", c.ID).Warn("failed to inspect container")
 			continue
@@ -163,7 +163,7 @@ func (d *DockerAgent) onContainerStart(ctr dockertypes.ContainerSummaryMin) erro
 
 			// get volume info
 			var volInfo dockertypes.Volume
-			err := d.client.Call("GET", "/volumes/"+m.Name, nil, &volInfo)
+			err := d.realClient.Call("GET", "/volumes/"+m.Name, nil, &volInfo)
 			if err != nil {
 				logrus.WithError(err).WithField("cid", cid).WithField("volume", m.Name).Warn("failed to get volume info")
 				continue

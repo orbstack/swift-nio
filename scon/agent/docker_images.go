@@ -19,7 +19,7 @@ func (d *DockerAgent) getFullImage(id string) (*dockertypes.FullImage, error) {
 	}
 
 	var fullImage dockertypes.FullImage
-	err := d.client.Call("GET", "/images/"+id+"/json", nil, &fullImage)
+	err := d.realClient.Call("GET", "/images/"+id+"/json", nil, &fullImage)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func (d *DockerAgent) getFullImage(id string) (*dockertypes.FullImage, error) {
 
 func (d *DockerAgent) refreshImages() error {
 	var newImageSummaries []dockertypes.ImageSummary
-	err := d.client.Call("GET", "/images/json", nil, &newImageSummaries)
+	err := d.realClient.Call("GET", "/images/json", nil, &newImageSummaries)
 	if err != nil {
 		return err
 	}
