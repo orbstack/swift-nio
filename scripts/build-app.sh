@@ -57,12 +57,9 @@ function build_one() {
     popd
 
     pushd scon
-    rm -f $OUT/scon
-    # force cgo when cross-compiling to amd64
-    CGO_ENABLED=1 go build -tags release -trimpath -ldflags="-s -w" -o $OUT/scli ./cmd/scli
-    strip $OUT/scli
-    # this signing ID doesn't matter much
-    codesign -f --timestamp --options=runtime --entitlements scli.entitlements -i dev.kdrag0n.MacVirt.scli -s "$SIGNING_CERT" $OUT/scli
+    go generate ./wormclient
+    SIGNING_CERT_OVERRIDE="$SIGNING_CERT" \
+        ./build-scli.sh -tags release -trimpath -ldflags="-s -w"
     popd
 
     # build swift app

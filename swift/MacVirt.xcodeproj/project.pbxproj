@@ -15,6 +15,7 @@
 		B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */; };
 		B118BD0025A6757805924195 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD52B15443D1329C832A /* Packets.swift */; };
 		D805923F2CFF0972005BBB25 /* pstramp in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D805911B2CFEF682005BBB25 /* pstramp */; };
+		D805B3312D047B2E005BBB25 /* scli.app in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D805B3302D047B2E005BBB25 /* scli.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
@@ -24,7 +25,6 @@
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
 		D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */; };
-		D8715CC12A208C640047A9BE /* scli in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D8715CC02A208C640047A9BE /* scli */; };
 		D8715CC32A208C750047A9BE /* OrbStack Helper.app in Embed Go VM helper bundle */ = {isa = PBXBuildFile; fileRef = D8715CC22A208C750047A9BE /* OrbStack Helper.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D87596F62CE738B200CEEE98 /* Blessed in Frameworks */ = {isa = PBXBuildFile; productRef = D87596F52CE738B200CEEE98 /* Blessed */; };
 		D87596F82CE738B500CEEE98 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D87596F72CE738B500CEEE98 /* Defaults */; };
@@ -64,9 +64,9 @@
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
+				D805B3312D047B2E005BBB25 /* scli.app in Copy Go executables and other helpers */,
 				D805923F2CFF0972005BBB25 /* pstramp in Copy Go executables and other helpers */,
 				D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and other helpers */,
-				D8715CC12A208C640047A9BE /* scli in Copy Go executables and other helpers */,
 			);
 			name = "Copy Go executables and other helpers";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -140,6 +140,7 @@
 		B118BEDAA62E1455A02C177D /* KeychainFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeychainFFI.swift; sourceTree = "<group>"; };
 		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
 		D805911B2CFEF682005BBB25 /* pstramp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = pstramp; sourceTree = BUILT_PRODUCTS_DIR; };
+		D805B3302D047B2E005BBB25 /* scli.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = scli.app; path = ../out/scli.app; sourceTree = "<group>"; };
 		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
 		D81E785E29A4CEEF00A1D8AC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
@@ -297,6 +298,7 @@
 				D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */,
 				D88F4EB82998D81A00419B5C /* assets */,
 				D88F4ED9299A131B00419B5C /* docker */,
+				D805B3302D047B2E005BBB25 /* scli.app */,
 			);
 			name = External;
 			sourceTree = "<group>";
@@ -560,7 +562,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "# symlink assets and binaries in debug\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n    rm -rf \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\n    ln -sf \"$PWD/../assets\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\n    \n    for path in \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/MacOS/xbin\"/*; do\n        rm -f \"$path\"\n        ln -sf \"$PWD/../bins/out/$(uname -m)/$(basename \"$path\")\" \"$path\"\n    done\n    \n    rm -f \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/MacOS/scli\"\n    ln -sf \"$PWD/../out/scli\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/MacOS/scli\"\n\n    rm -fr \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Frameworks/OrbStack Helper.app\"\n    ln -sf \"$PWD/../out/OrbStack Helper.app\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Frameworks/OrbStack Helper.app\"\nfi\n\ncd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\n";
+			shellScript = "# symlink assets and binaries in debug\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n    rm -rf \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\n    ln -sf \"$PWD/../assets\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\n    \n    for path in \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/MacOS/xbin\"/*; do\n        rm -f \"$path\"\n        ln -sf \"$PWD/../bins/out/$(uname -m)/$(basename \"$path\")\" \"$path\"\n    done\n    \n    rm -f \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/MacOS/scli\"\n    ln -sf \"$PWD/../out/scli\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/MacOS/scli\"\n\n    rm -fr \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Frameworks/OrbStack Helper.app\"\n    ln -sf \"$PWD/../out/OrbStack Helper.app\" \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Frameworks/OrbStack Helper.app\"\nfi\n\ncd \"$TARGET_BUILD_DIR\"\nmkdir -p \"$EXECUTABLE_FOLDER_PATH/bin\"\nln -sf ../scli.app/Contents/MacOS/scli \"$EXECUTABLE_FOLDER_PATH/bin/orbctl\"\nln -sf ../scli.app/Contents/MacOS/scli \"$EXECUTABLE_FOLDER_PATH/bin/orb\"\n";
 		};
 		D86F35482997A5B700DADC6F /* Set version from Git */ = {
 			isa = PBXShellScriptBuildPhase;

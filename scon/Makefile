@@ -3,10 +3,7 @@
 all: scli
 
 scli: wormclient/generated/wormhole.pb.go
-	@mkdir -p ../out
-# force cgo when cross-compiling to amd64
-	@CGO_ENABLED=1 go build -o ../out/scli ./cmd/scli
-	@bash -c 'source ../config.sh; codesign -f --timestamp --options=runtime --entitlements scli.entitlements -i dev.kdrag0n.MacVirt.scli -s "$$SIGNING_CERT_DEV" ../out/scli || :'
+	@./build-scli.sh
 
 wormclient/generated/wormhole.pb.go: ../wormhole/schema/wormhole.proto
 	@go generate ./wormclient
