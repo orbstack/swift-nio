@@ -133,10 +133,11 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 		logrus.Trace("hp: reading request")
 		req, err := http.ReadRequest(clientBufReader)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) || errors.Is(err, unix.ECONNRESET) {
 				return nil
+			} else {
+				return fmt.Errorf("read request: %w", err)
 			}
-			return fmt.Errorf("read request: %w", err)
 		}
 		inRequest = true
 
