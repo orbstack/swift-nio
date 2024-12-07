@@ -2,10 +2,16 @@ package domainproxy
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/netip"
+	"strconv"
+	"sync"
 
 	"github.com/florianl/go-nfqueue"
 	"github.com/google/gopacket"
@@ -170,31 +176,6 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 }
 
 func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (serverPort, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), httpsDialTimeout/2)
-	defer cancel()
-
-	upstreamConn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), "443"))
-	if err == nil {
-		upstreamConn.Close()
-		return serverPort{
-			port:  443,
-			https: true,
-		}, nil
-	}
-
-	upstreamConn, err = dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), "80"))
-	if err == nil {
-		upstreamConn.Close()
-		return serverPort{
-			port:  80,
-			https: false,
-		}, nil
-	}
-
-	return serverPort{}, nil
-}
-
-/*func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (serverPort, error) {
 	if upstream.ContainerID == "" {
 		logrus.Error("unable to probe host: upstream has no container id")
 		return serverPort{}, fmt.Errorf("get upstream container id")
@@ -323,7 +304,6 @@ func testPortHTTPS(ctx context.Context, dialer *net.Dialer, upstream domainproxy
 
 	return true
 }
-*/
 
 func (p *DomainTLSProxy) getOrProbeHost(dialer *net.Dialer, addr netip.Addr, upstream domainproxytypes.Upstream) (serverPort, error) {
 	p.probedHostsMu.Lock()

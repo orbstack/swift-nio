@@ -6,12 +6,10 @@ import (
 	"net"
 	"net/netip"
 	"net/rpc"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/agent"
-	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/securefs"
@@ -38,21 +36,6 @@ type SconGuestServer struct {
 
 func (s *SconGuestServer) Ping(_ None, _ *None) error {
 	return nil
-}
-
-func containerToCfwdMeta(ctr *dockertypes.ContainerSummaryMin) bpf.CfwdContainerMeta {
-	meta := bpf.CfwdContainerMeta{}
-	if portStr, ok := ctr.Labels["dev.orbstack.http-port"]; ok {
-		if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
-			meta.HttpPort = uint16(port)
-		}
-	}
-	if portStr, ok := ctr.Labels["dev.orbstack.https-port"]; ok {
-		if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
-			meta.HttpsPort = uint16(port)
-		}
-	}
-	return meta
 }
 
 func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.ContainerSummaryMin, fdxSeq uint64) error {
@@ -172,8 +155,6 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 }
 
 func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.ContainersDiff) error {
-	dockerBpf := s.dockerMachine.bpf // nil if not running anymore
-
 	// IMPORTANT: must not return from this function before reading and closing fds from AddedRootfsFdxSeqs
 
 	// update mDNS registry
@@ -181,22 +162,6 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 	for _, ctr := range diff.Removed {
 		delete(s.dockerContainersCache, ctr.ID)
 		s.m.net.mdnsRegistry.RemoveContainer(&ctr)
-
-		if dockerBpf != nil {
-			ctrIP4, ctrIP6 := containerToMdnsIPs(&ctr)
-			if ctrIP4 != nil {
-				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP4)
-				if err != nil {
-					logrus.WithError(err).WithField("ip", ctrIP4).Error("failed to remove container from cfwd")
-				}
-			}
-			if ctrIP6 != nil {
-				err := dockerBpf.CfwdRemoveContainerMeta(ctrIP6)
-				if err != nil {
-					logrus.WithError(err).WithField("ip", ctrIP6).Error("failed to remove container from cfwd")
-				}
-			}
-		}
 
 		// unmount from nfs (ignore error)
 		prettyName := ctr.ID
@@ -231,29 +196,10 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 	}
 	for i, ctr := range diff.Added {
 		s.dockerContainersCache[ctr.ID] = ctr
-		ctrIP4, ctrIP6 := s.m.net.mdnsRegistry.AddContainer(&ctr)
+		s.m.net.mdnsRegistry.AddContainer(&ctr)
 
-		if dockerBpf != nil {
-			meta := containerToCfwdMeta(&ctr)
-			if ctrIP4 != nil {
-				err := dockerBpf.CfwdAddContainerMeta(ctrIP4, meta)
-				if err != nil {
-					logrus.WithError(err).Error("failed to add container ipv4 to cfwd")
-				} else {
-					logrus.WithField("ip", ctrIP4).Debug("added container to cfwd")
-				}
-			}
-			if ctrIP6 != nil {
-				err := dockerBpf.CfwdAddContainerMeta(ctrIP6, meta)
-				if err != nil {
-					logrus.WithError(err).Error("failed to add container ipv6 to cfwd")
-				} else {
-					logrus.WithField("ip", ctrIP6).Debug("added container to cfwd")
-				}
-			}
-
+		if s.dockerMachine.runningLocked() {
 			// mount nfs in shadow dir
-			// this is under bpf check because that checks whether the machine is running
 			fdxSeq := diff.AddedRootfsFdxSeqs[i]
 			if fdxSeq != 0 {
 				err := s.recvAndMountRootfsFdxLocked(&ctr, fdxSeq)
@@ -261,26 +207,6 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 					logrus.WithError(err).WithField("cid", ctr.ID).Error("failed to mount rootfs")
 				}
 			}
-		}
-	}
-
-	// attach cfwd to container net namespaces
-	if dockerBpf != nil {
-		err := s.dockerMachine.UseMountNs(func() error {
-			// faster than checking container inspect's SandboxKey
-			entries, err := os.ReadDir("/run/docker/netns")
-			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					// does not exist until first container starts
-					entries = nil
-				} else {
-					return err
-				}
-			}
-			return dockerBpf.CfwdUpdateNetNamespaces(entries)
-		})
-		if err != nil {
-			return fmt.Errorf("update cfwd: %w", err)
 		}
 	}
 
