@@ -62,7 +62,7 @@ function build_one() {
     CGO_ENABLED=1 go build -tags release -trimpath -ldflags="-s -w" -o $OUT/scli ./cmd/scli
     strip $OUT/scli
     # this signing ID doesn't matter much
-    codesign -f --timestamp --options=runtime -i dev.orbstack.OrbStack.scli -s "$SIGNING_CERT" $OUT/scli
+    codesign -f --timestamp --options=runtime --entitlements scli.entitlements -i dev.kdrag0n.MacVirt.scli -s "$SIGNING_CERT" $OUT/scli
     popd
 
     # build swift app
