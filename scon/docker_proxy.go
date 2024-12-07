@@ -251,7 +251,13 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 
 				// copy the rest in both directions, then close conns
 				logrus.Trace("hp: copying 101")
-				tcppump.Pump2SpTcpUnix(clientConn.(*net.TCPConn), upstreamConn.(*net.UnixConn))
+				if tcpConn, ok := clientConn.(*net.TCPConn); ok {
+					tcppump.Pump2SpTcpUnix(tcpConn, upstreamConn.(*net.UnixConn))
+				} else if unixConn, ok := clientConn.(*net.UnixConn); ok {
+					tcppump.Pump2SpUnixUnix(unixConn, upstreamConn.(*net.UnixConn))
+				} else {
+					return errors.New("unsupported conn type")
+				}
 				return errCloseConn
 			} else if resp.Body != nil && req.Method != http.MethodHead {
 				// must NOT copy body for HEAD requests
