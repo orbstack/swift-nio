@@ -43,7 +43,12 @@ const (
 
 	// rw,async,fsid=0,crossmnt,insecure,all_squash,no_subtree_check
 	// parts that vary: ro,fsid=%d,anonuid=%d,anongid=%d
-	nfsExpBaseFlags = NFSEXP_INSECURE_PORT | NFSEXP_ROOTSQUASH | NFSEXP_ALLSQUASH | NFSEXP_ASYNC | NFSEXP_GATHERED_WRITES | NFSEXP_NOSUBTREECHECK | NFSEXP_FSID | NFSEXP_CROSSMOUNT | NFSEXP_QFID
+	nfsExpBaseFlags = NFSEXP_INSECURE_PORT | NFSEXP_ROOTSQUASH | NFSEXP_ASYNC | NFSEXP_GATHERED_WRITES | NFSEXP_NOSUBTREECHECK | NFSEXP_FSID | NFSEXP_CROSSMOUNT | NFSEXP_QFID
+	// NFS root and docker/{containers,volumes,images} must NOT have all_squash for security reasons: the root (/Users/*/OrbStack) needs permissions 700 to be enforced so that we only allow matching host uid/gid, because macOS uses 755 for /Users/* by default, making 400/700/700 permissions on NFS files ineffective if we have all_squash and/or 755 on root dir
+	// they're also read-only tmpfs, so we might as well put read-only here too
+	nfsExpRootFlags = nfsExpBaseFlags | NFSEXP_READONLY
+	// all other exports can have all_squash; permission check has already been done, and host uid/gid can already control everything
+	nfsExpNonRootFlags = nfsExpBaseFlags | NFSEXP_ALLSQUASH
 
 	// the only fsid type we use
 	FSID_NUM = 1

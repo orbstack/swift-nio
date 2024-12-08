@@ -1,13 +1,13 @@
 use std::{
     cmp::Ordering,
     env,
-    fs::{self, OpenOptions, Permissions},
+    fs::{self, DirBuilder, OpenOptions, Permissions},
     io::Write,
     net::UdpSocket,
     os::{
         fd::AsRawFd,
         unix::{
-            fs::chroot,
+            fs::{chroot, DirBuilderExt},
             prelude::{FileExt, PermissionsExt},
         },
     },
@@ -843,8 +843,18 @@ fn create_mirror_dir(dir: &str) -> anyhow::Result<(String, String)> {
     let ro_dir = format!("{}/ro", dir);
     let rw_dir = format!("{}/rw", dir);
 
-    fs::create_dir_all(&ro_dir).unwrap();
-    fs::create_dir_all(&rw_dir).unwrap();
+    DirBuilder::new()
+        .recursive(true)
+        // security fix: macOS home dir permissions are 755, and we squash all NFS as root, so NFS file perms like 600/700 are ineffective, allowing all macOS users to access 400/600/700 files via /Users/*/OrbStack
+        // it's also good for cross-machine file access require root in case of UIDs that happen to match but shouldn't
+        .mode(0o700)
+        .create(&ro_dir)
+        .unwrap();
+    DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&rw_dir)
+        .unwrap();
 
     // create noindex flags
     create_noindex_flags(&rw_dir).unwrap();

@@ -348,19 +348,19 @@ func (m *NfsMirrorManager) updateExportsLocked() error {
 	// docker/volumes export has different uid/gid
 	exports := make(map[string]nfsExportEntry)
 	exports[nfsExportRoot] = nfsExportEntry{
-		flags:   nfsExpBaseFlags,
+		flags:   nfsExpRootFlags,
 		anonUid: m.hostUid,
 		anonGid: m.hostUid, // as gid too
 		fsid:    0,
 	}
 	exports["/nfs/root/ro/docker/volumes"] = nfsExportEntry{
-		flags:   nfsExpBaseFlags,
+		flags:   nfsExpRootFlags,
 		anonUid: 0,
 		anonGid: 0,
 		fsid:    1,
 	}
 	exports["/nfs/root/ro/docker/containers"] = nfsExportEntry{
-		flags:   nfsExpBaseFlags,
+		flags:   nfsExpRootFlags,
 		anonUid: 0,
 		anonGid: 0,
 		fsid:    2,
@@ -368,7 +368,7 @@ func (m *NfsMirrorManager) updateExportsLocked() error {
 
 	for path, entry := range m.dests {
 		exp := nfsExportEntry{
-			flags:   nfsExpBaseFlags,
+			flags:   nfsExpNonRootFlags,
 			anonUid: entry.ClientUid,
 			anonGid: entry.ClientGid,
 			fsid:    uint32(entry.Fsid),
