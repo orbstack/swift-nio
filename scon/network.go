@@ -194,7 +194,7 @@ func (n *Network) Start() error {
 		Iface: iface,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("start server: %w", err)
 	}
 
 	return nil

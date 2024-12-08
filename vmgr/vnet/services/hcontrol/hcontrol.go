@@ -253,6 +253,15 @@ func (h *HcontrolServer) GetExtraCaCertificates(_ None, reply *[]string) error {
 		return err
 	}
 
+	// always add OrbStack root CA
+	var rootData htypes.KeychainTLSData
+	err = h.GetTLSRootData(None{}, &rootData)
+	if err != nil {
+		logrus.WithError(err).Error("failed to get dev root CA")
+	} else {
+		certs = append(certs, rootData.CertPEM)
+	}
+
 	*reply = certs
 	return nil
 }

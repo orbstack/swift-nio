@@ -223,7 +223,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 
 	err = tlsController.LoadRoot()
 	if err != nil {
-		return err
+		return fmt.Errorf("load root: %w", err)
 	}
 
 	// start HTTP index server
