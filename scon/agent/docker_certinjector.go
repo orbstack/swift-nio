@@ -77,7 +77,7 @@ func (c *dockerCACertInjector) addCertsToFs(fs *securefs.FS) error {
 			continue
 		}
 
-		err := fs.WriteFile(filepath.Join(dirPath, rootCaCertName), rootCertPem, 0o644)
+		err := fs.WriteFile(dirPath+"/"+rootCaCertName, rootCertPem, 0o644)
 		if err != nil {
 			logrus.WithError(err).WithField("dirPath", dirPath).Error("ca cert injector: failed to write to dir, skipping")
 			continue
@@ -103,7 +103,9 @@ func (c *dockerCACertInjector) addCertsToFs(fs *securefs.FS) error {
 			continue
 		}
 
-		_, err = file.Write(rootCertPem)
+		// add extra \n in case last cert didn't end with one
+		// also add a trailing \n in case some other script adds a cert later
+		_, err = file.Write([]byte("\n" + string(rootCertPem) + "\n"))
 		if err != nil {
 			logrus.WithError(err).WithField("filePath", filePath).Error("ca cert injector: failed to write to file, skipping")
 			continue
@@ -122,7 +124,7 @@ func (c *dockerCACertInjector) addCertsToFs(fs *securefs.FS) error {
 			continue
 		}
 
-		err = fs.WriteFile(filepath.Join(targetDirPath, rootCaCertName), rootCertPem, 0o644)
+		err = fs.WriteFile(targetDirPath+"/"+rootCaCertName, rootCertPem, 0o644)
 		if err != nil {
 			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("ca cert injector: failed to write to target dir, skipping")
 			continue
