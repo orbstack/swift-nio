@@ -78,10 +78,9 @@ func (s *RuncWrapServer) handleConn(conn net.Conn) error {
 		return fmt.Errorf("invalid container ID length: %d", n)
 	}
 
-	// pretend container was removed
-	err = s.sconGuest.onDockerContainerRemovedFromCache(string(cid))
+	err = s.sconGuest.onDockerContainerPreStart(string(cid))
 	if err != nil {
-		return fmt.Errorf("on docker containers changed: %w", err)
+		return fmt.Errorf("on docker container pre start: %w", err)
 	}
 
 	return nil

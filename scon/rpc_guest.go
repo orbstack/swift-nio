@@ -131,9 +131,9 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 	return nil
 }
 
-func (s *SconGuestServer) onDockerContainerRemovedFromCache(cid string) error {
+func (s *SconGuestServer) onDockerContainerPreStart(cid string) error {
 	err := s.dockerMachine.UseAgent(func(a *agent.Client) error {
-		return a.DockerRemoveContainerFromCache(cid)
+		return a.DockerOnContainerPreStart(cid)
 	})
 	if err != nil {
 		return err
@@ -152,6 +152,7 @@ func (s *SconGuestServer) onDockerContainerRemovedFromCache(cid string) error {
 
 	logrus.WithField("cid", cid).Debug("removing container due to restart")
 
+	// pretend container was removed
 	return s.onDockerContainersChangedLocked(sgtypes.ContainersDiff{
 		Diff: sgtypes.Diff[dockertypes.ContainerSummaryMin]{
 			Added:   nil,

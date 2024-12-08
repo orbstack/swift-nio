@@ -240,15 +240,17 @@ func (d *DockerAgent) onContainerStop(ctr dockertypes.ContainerSummaryMin) error
 	return nil
 }
 
-func (a *AgentServer) DockerRemoveContainerFromCache(cid string, reply *None) error {
-	newLastContainers := make([]dockertypes.ContainerSummaryMin, 0, max(len(a.docker.lastContainers)-1, 0))
-	for _, ctr := range a.docker.lastContainers {
-		if ctr.ID != cid {
-			newLastContainers = append(newLastContainers, ctr)
-		}
-	}
+func (a *AgentServer) DockerOnContainerPreStart(cid string, reply *None) error {
+	// pretend that container was removed from cache
+	a.docker.lastContainers = slices.DeleteFunc(a.docker.lastContainers, func(ctr dockertypes.ContainerSummaryMin) bool {
+		return ctr.ID == cid
+	})
 
-	a.docker.lastContainers = newLastContainers
+	// inject certs
+	err := a.docker.certInjector.addToContainer(cid)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

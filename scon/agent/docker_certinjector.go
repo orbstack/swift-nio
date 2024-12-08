@@ -2,15 +2,14 @@ package agent
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"slices"
 
 	"github.com/orbstack/macvirt/scon/securefs"
-	"github.com/orbstack/macvirt/scon/util"
-	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -43,14 +42,21 @@ var (
 	caCertLabelFalseValues = []string{"false", "0", "off"}
 )
 
+type dockerContainerConfigV2 struct {
+	Config struct {
+		Labels map[string]string
+	}
+}
+
+type ociConfig struct {
+	Root struct {
+		Path     string `json:"path"`
+		Readonly bool   `json:"readonly"`
+	} `json:"root"`
+}
+
 type dockerCACertInjector struct {
-	d *DockerAgent
-
 	rootCertPem []byte
-
-	// stores waitgroups for containers that are in progress of adding certs
-	// uses full length container ID
-	inProgressContainerTasks *util.ExclusiveIdempotentTaskTracker[string]
 }
 
 func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
@@ -60,26 +66,34 @@ func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
 	}
 
 	return &dockerCACertInjector{
-		d: d,
-
 		rootCertPem: []byte(rootCertPem.CertPEM),
-
-		inProgressContainerTasks: util.NewExclusiveIdempotentTaskTracker[string](),
 	}
 }
 
-func (c *dockerCACertInjector) addCertsToFs(fs *securefs.FS) error {
-	rootCertPem := c.rootCertPem
+func writeFileIfChanged(fs *securefs.FS, path string, data []byte, perm os.FileMode) error {
+	existing, err := fs.ReadFile(path)
+	if err != nil && !errors.Is(err, unix.ENOENT) {
+		return err
+	}
+	if bytes.Equal(existing, data) {
+		return nil
+	}
+	return fs.WriteFile(path, data, perm)
+}
 
+func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 	for _, dirPath := range caCertDirs {
-		if fi, err := fs.Stat(dirPath); err != nil || !fi.IsDir() {
-			logrus.WithError(err).WithField("dirPath", dirPath).Debug("ca cert injector: dir does not exist or is not a directory, skipping")
-			continue
-		}
-
-		err := fs.WriteFile(dirPath+"/"+rootCaCertName, rootCertPem, 0o644)
+		// just attempt to write as if the dir exists
+		// ENOTDIR = parent exists but is a file, not dir
+		// ENOENT = parent dir does not exist
+		targetPath := dirPath + "/" + rootCaCertName
+		err := writeFileIfChanged(fs, targetPath, c.rootCertPem, 0o644)
 		if err != nil {
-			logrus.WithError(err).WithField("dirPath", dirPath).Error("ca cert injector: failed to write to dir, skipping")
+			if errors.Is(err, unix.ENOENT) || errors.Is(err, unix.ENOTDIR) {
+				logrus.WithField("dirPath", dirPath).Debug("cert injector: dir does not exist, skipping")
+			} else {
+				logrus.WithError(err).WithField("dirPath", dirPath).Error("cert injector: failed to write to dir, skipping")
+			}
 			continue
 		}
 	}
@@ -87,46 +101,48 @@ func (c *dockerCACertInjector) addCertsToFs(fs *securefs.FS) error {
 	for _, filePath := range caCertFiles {
 		file, err := fs.OpenFile(filePath, unix.O_RDWR|unix.O_APPEND, 0)
 		if err != nil {
-			logrus.WithError(err).WithField("filePath", filePath).Debug("ca cert injector: file does not exist, skipping")
+			if !errors.Is(err, unix.ENOENT) {
+				logrus.WithError(err).WithField("filePath", filePath).Debug("cert injector: failed to open file")
+			}
 			continue
 		}
 		defer file.Close()
 
 		contents, err := io.ReadAll(file)
 		if err != nil {
-			logrus.WithError(err).WithField("filePath", filePath).Debug("ca cert injector: failed to read file, skipping")
+			logrus.WithError(err).WithField("filePath", filePath).Debug("cert injector: failed to read file, skipping")
 			continue
 		}
 
-		if bytes.Contains(contents, rootCertPem) {
-			logrus.WithError(err).WithField("filePath", filePath).Debug("ca cert injector: file already contains root cert, skipping")
+		if bytes.Contains(contents, c.rootCertPem) {
+			logrus.WithField("filePath", filePath).Debug("cert injector: file already contains root cert, skipping")
 			continue
 		}
 
 		// add extra \n in case last cert didn't end with one
 		// also add a trailing \n in case some other script adds a cert later
-		_, err = file.Write([]byte("\n" + string(rootCertPem) + "\n"))
+		_, err = file.Write([]byte("\n" + string(c.rootCertPem) + "\n"))
 		if err != nil {
-			logrus.WithError(err).WithField("filePath", filePath).Error("ca cert injector: failed to write to file, skipping")
+			logrus.WithError(err).WithField("filePath", filePath).Error("cert injector: failed to write to file, skipping")
 			continue
 		}
 	}
 
 	for conditionPath, targetDirPath := range conditionalCaCertDirs {
 		if _, err := fs.Stat(conditionPath); err != nil {
-			logrus.WithError(err).WithField("conditionPath", conditionPath).Debug("ca cert injector: condition path does not exist, skipping")
+			logrus.WithError(err).WithField("conditionPath", conditionPath).Debug("cert injector: condition path does not exist, skipping")
 			continue
 		}
 
 		err := fs.MkdirAll(targetDirPath, 0o755)
 		if err != nil {
-			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("ca cert injector: failed to create target dir, skipping")
+			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("cert injector: failed to create target dir, skipping")
 			continue
 		}
 
-		err = fs.WriteFile(targetDirPath+"/"+rootCaCertName, rootCertPem, 0o644)
+		err = writeFileIfChanged(fs, targetDirPath+"/"+rootCaCertName, c.rootCertPem, 0o644)
 		if err != nil {
-			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("ca cert injector: failed to write to target dir, skipping")
+			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("cert injector: failed to write to target dir, skipping")
 			continue
 		}
 	}
@@ -134,165 +150,56 @@ func (c *dockerCACertInjector) addCertsToFs(fs *securefs.FS) error {
 	return nil
 }
 
-func (c *dockerCACertInjector) addCertsToContainerImpl(ctr *dockertypes.ContainerJSON) error {
-	if ctr.GraphDriver.Name != "overlay2" {
-		logrus.WithField("container_id", ctr.ID).Warn("container is not using overlay2, skipping")
+func (c *dockerCACertInjector) addToContainer(containerID string) error {
+	// read labels: if dev.orbstack.add-ca-certificates=false, then skip injection
+	configJson, err := os.ReadFile("/var/lib/docker/containers/" + containerID + "/config.v2.json")
+	if err != nil {
+		return fmt.Errorf("read container config: %w", err)
+	}
+
+	var config dockerContainerConfigV2
+	err = json.Unmarshal(configJson, &config)
+	if err != nil {
+		return fmt.Errorf("unmarshal container config: %w", err)
+	}
+
+	if slices.Contains(caCertLabelFalseValues, config.Config.Labels["dev.orbstack.add-ca-certificates"]) {
 		return nil
 	}
 
-	logrus.WithField("ctr.ID", ctr.ID).Debug("ca cert injector: mounting overlay")
-
-	// these have already been checked
-	lowerDir := ctr.GraphDriver.Data["LowerDir"]
-	upperDir := ctr.GraphDriver.Data["UpperDir"]
-	workDir := ctr.GraphDriver.Data["WorkDir"]
-	mergedDir := ctr.GraphDriver.Data["MergedDir"]
-	orbMergedDir := filepath.Join(filepath.Dir(mergedDir), ".orbstack-merged")
-
-	opts := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", lowerDir, upperDir, workDir)
-
-	err := os.Mkdir(orbMergedDir, 0o755)
+	// read OCI config from containerd to get mounts
+	ociConfigJson, err := os.ReadFile("/var/run/docker/containerd/daemon/io.containerd.runtime.v2.task/moby/" + containerID + "/config.json")
 	if err != nil {
-		logrus.WithError(err).WithField("mergedDir", orbMergedDir).Error("failed to create merged dir")
+		return fmt.Errorf("read OCI config: %w", err)
 	}
-	defer func() {
-		err := os.Remove(orbMergedDir)
-		if err != nil {
-			logrus.WithError(err).WithField("mergedDir", orbMergedDir).Error("failed to remove merged dir after adding certs")
-		}
-	}()
 
-	err = unix.Mount("orbstack", orbMergedDir, "overlay", unix.MS_NOATIME, opts)
+	var ociConfig ociConfig
+	err = json.Unmarshal(ociConfigJson, &ociConfig)
 	if err != nil {
-		return fmt.Errorf("mount: %w", err)
+		return fmt.Errorf("unmarshal OCI config: %w", err)
 	}
-	defer func() {
-		err := unix.Unmount(orbMergedDir, 0)
-		if err != nil {
-			logrus.WithError(err).WithField("mergedDir", orbMergedDir).Error("failed to unmount merged dir after adding certs")
-		}
-	}()
 
-	fs, err := securefs.NewFromPath(orbMergedDir)
+	// we could check ociConfig.Root.Readonly, but users are likely to expect that read-only containers still get certs injected; read-only is a runtime state for security in prod, and it's helpful to simulate that for parity in dev, but why should that affect the state from *before* container code starts running?
+	// the only possible side-effect of that is unexpected changes showing up if the user `commit`s a read-only container, but that action doesn't make sense in the first place
+
+	if ociConfig.Root.Path == "" {
+		return errors.New("missing root path in OCI config")
+	}
+
+	// usually /var/lib/docker/overlay2/.../merged, but this works with containerd snapshotter too
+	fs, err := securefs.NewFromPath(ociConfig.Root.Path)
 	if err != nil {
-		return fmt.Errorf("open securefs: %w", err)
+		return fmt.Errorf("create securefs: %w", err)
 	}
 	defer fs.Close()
 
-	logrus.WithField("container_id", ctr.ID).Debug("ca cert injector: mounted overlay")
-
-	return c.addCertsToFs(fs)
+	return c.addToFS(fs)
 }
 
-func (c *dockerCACertInjector) addCertsToContainer(containerID string) (_ string, retErr error) {
-	// check if container is stopped before we try to acquire the in progress status
-	ctr, err := c.d.realClient.InspectContainer(containerID)
-	if err != nil {
-		return "", err
-	}
-
-	if ctr.State.Status == "running" || ctr.State.Status == "paused" || ctr.State.Status == "restarting" || ctr.State.Status == "removing" {
-		logrus.WithFields(logrus.Fields{
-			"container_id": ctr.ID,
-			"status":       ctr.State.Status,
-		}).Debug("container is not in a state to add certs, skipping")
-		return "", nil
-	}
-
-	if label, ok := ctr.Config.Labels["dev.orbstack.add-ca-certificates"]; ok && slices.Contains(caCertLabelFalseValues, label) {
-		logrus.WithFields(logrus.Fields{
-			"container_id": ctr.ID,
-			"label":        label,
-		}).Debug("container has label to skip adding certs, skipping")
-		return "", nil
-	}
-
-	if c.inProgressContainerTasks.TryBegin(ctr.ID) {
-		return "", nil
-	}
-	defer func() {
-		if retErr != nil {
-			c.containerNotInProgress(ctr.ID)
-		}
-	}()
-
-	// check for all the paths early since we need some of them and then we don't need to check later
-	_, ok := ctr.GraphDriver.Data["LowerDir"]
-	if !ok {
-		return "", fmt.Errorf("container %s is using overlay2 but has no lowerdir", ctr.ID)
-	}
-	_, ok = ctr.GraphDriver.Data["WorkDir"]
-	if !ok {
-		return "", fmt.Errorf("container %s is using overlay2 but has no workdir", ctr.ID)
-	}
-	_, ok = ctr.GraphDriver.Data["UpperDir"]
-	if !ok {
-		return "", fmt.Errorf("container %s is using overlay2 but has no upperdir", ctr.ID)
-	}
-	mergedDir, ok := ctr.GraphDriver.Data["MergedDir"]
-	if !ok {
-		return "", fmt.Errorf("container %s is using overlay2 but has no merged dir", ctr.ID)
-	}
-
-	// check if container is still stopped before we proceed
-	// otherwise, we have a race:
-	// - [1] container start request
-	// - [1] certs are added to container
-	// - [2] container start request
-	// - [2] container running status is checked and passes
-	// - [1] container starts
-	// - [1] container is marked as no longer in progress
-	// - [2] not in progress check passes, cert add routine begins
-	// - [2] overlayfs is mounted again even though container is already running
-	// - ub! :D
-
-	var parentStat unix.Stat_t
-	err = unix.Stat(filepath.Dir(mergedDir), &parentStat)
-	if err != nil {
-		return "", fmt.Errorf("failed to stat merged dir parent: %w", err)
-	}
-	var dirStat unix.Stat_t
-	err = unix.Stat(mergedDir, &dirStat)
-	if err == nil && parentStat.Dev != dirStat.Dev {
-		// dir is already mounted, abort
-		c.containerNotInProgress(ctr.ID)
-		return "", nil
-	}
-
-	err = c.addCertsToContainerImpl(ctr)
-	if err != nil {
-		return "", err
-	}
-
-	// note, container is marked as not in progress after start request finishes
-	return ctr.ID, nil
-}
-
-// we can only mark a container as no longer in progress after it has finished starting
-// otherwise we have a race:
-// - [1] container start request
-// - [1] certs are added to container
-// - [1] container is marked as no longer in progress
-// - [1] start request is allowed to proceed
-// - [2] container start request
-// - [2] not running check passes, cert add routine begins
-// - [1] container start request is processed by docker, docker mounts overlay
-// - [2] cert add routine mounts overlay
-// - ub! :D
-func (c *dockerCACertInjector) containerNotInProgress(containerID string) {
-	c.inProgressContainerTasks.MarkComplete(containerID)
-}
-
-func (a *AgentServer) DockerAddCertsToContainer(containerID string, reply *string) error {
-	notifyCtrId, err := a.docker.caCertInjector.addCertsToContainer(containerID)
+func (a *AgentServer) DockerAddCertsToContainer(containerID string, reply *None) error {
+	err := a.docker.certInjector.addToContainer(containerID)
 	if err != nil {
 		return err
 	}
-	*reply = notifyCtrId
-	return nil
-}
-
-func (a *AgentServer) DockerNotifyCACertInjectorStartFinished(containerID string, reply *None) error {
-	a.docker.caCertInjector.containerNotInProgress(containerID)
 	return nil
 }

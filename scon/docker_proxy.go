@@ -206,8 +206,6 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 				return fmt.Errorf("trailer not supported")
 			}
 
-			p.filterResponse(resp, state)
-
 			// send response *without* body, but with Content-Length and Transfer-Encoding
 			// Response.Write excludes those headers, so roll our own
 			// complicated status text is to preserve original status line w/o duplicate status code
@@ -348,7 +346,6 @@ func (p *DockerProxy) copyBody(resp *http.Response, dst io.Writer, src io.Reader
 }
 
 type RequestState struct {
-	notifyCACertInjectorCtrID string
 }
 
 func (p *DockerProxy) filterRequest(req *http.Request, state *RequestState) error {
@@ -372,33 +369,6 @@ func (p *DockerProxy) filterRequest(req *http.Request, state *RequestState) erro
 	// 		return nil, fmt.Errorf("filter container create: %w", err)
 	// 	}
 	// }
-
-	// do ca hack if we're trying to start a container
-	pathComponents := strings.Split(req.URL.Path, "/")
-	pathComponents = slices.DeleteFunc(pathComponents, func(s string) bool {
-		return s == ""
-	})
-
-	var startContainerId string
-
-	// first component can be version
-	if len(pathComponents) == 4 && pathComponents[1] == "containers" && (pathComponents[3] == "start" || pathComponents[3] == "restart") {
-		startContainerId = pathComponents[2]
-	}
-	if len(pathComponents) == 3 && pathComponents[0] == "containers" && (pathComponents[2] == "start" || pathComponents[2] == "restart") {
-		startContainerId = pathComponents[1]
-	}
-
-	if startContainerId != "" {
-		err := p.container.UseAgent(func(a *agent.Client) error {
-			notifyCtrId, err := a.DockerAddCertsToContainer(startContainerId)
-			state.notifyCACertInjectorCtrID = notifyCtrId
-			return err
-		})
-		if err != nil {
-			logrus.WithError(err).Error("failed to add certs to container")
-		}
-	}
 
 	return nil
 }
@@ -433,19 +403,6 @@ func (p *DockerProxy) filterContainerCreate(req *http.Request, body *dockertypes
 	// replace with new buffered data
 	req.Body = io.NopCloser(bytes.NewReader(newData))
 	req.ContentLength = int64(len(newData))
-	return nil
-}
-
-func (p *DockerProxy) filterResponse(resp *http.Response, state *RequestState) error {
-	if state.notifyCACertInjectorCtrID != "" {
-		err := p.container.UseAgent(func(a *agent.Client) error {
-			return a.DockerNotifyCACertInjectorStartFinished(state.notifyCACertInjectorCtrID)
-		})
-		if err != nil {
-			return fmt.Errorf("notify CA cert injector: %w", err)
-		}
-	}
-
 	return nil
 }
 

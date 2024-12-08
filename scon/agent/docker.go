@@ -88,7 +88,7 @@ type DockerAgent struct {
 	domainTLSProxy       *domainproxy.DomainTLSProxy
 	domainTLSProxyActive bool
 
-	caCertInjector *dockerCACertInjector
+	certInjector *dockerCACertInjector
 }
 
 func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
@@ -204,7 +204,7 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 		return nil, err
 	}
 
-	dockerAgent.caCertInjector = newDockerCACertInjector(dockerAgent)
+	dockerAgent.certInjector = newDockerCACertInjector(dockerAgent)
 
 	go func() {
 		// we need to wait for simplevisor to have actually run the commands
