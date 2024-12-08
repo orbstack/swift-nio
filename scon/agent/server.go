@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	ProcessName = appid.AppName + "-helper: "
+	ProcessName = appid.AppName + "-agent: "
 	// this lets us add the container name to the end of the process name by adding some additional padding
 	ProcessNameExtraPad = 100
 )
