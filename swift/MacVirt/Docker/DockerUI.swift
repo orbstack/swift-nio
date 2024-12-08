@@ -23,10 +23,13 @@ extension DKContainer {
         }
     }
 
+    // for local containers, always force orbstack context in case current context is different
+    // otherwise `orb debug` follows the current default docker context
+    // note: contexts may not always work in GUI because launchd won't set $DOCKER_CONFIG for us, so this works because of a hard-coded override in scli
     func openDebugShellFallback() {
         Task {
             do {
-                try await openTerminal(AppConfig.ctlExe, ["debug", id, "--fallback"])
+                try await openTerminal(AppConfig.ctlExe, ["debug", id, "--fallback", "-c", "orbstack"])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }
@@ -36,7 +39,7 @@ extension DKContainer {
     func openDebugShell() {
         Task {
             do {
-                try await openTerminal(AppConfig.ctlExe, ["debug", id])
+                try await openTerminal(AppConfig.ctlExe, ["debug", id, "-c", "orbstack"])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }
@@ -84,7 +87,7 @@ extension DKImage {
     func openDebugShell() {
         Task {
             do {
-                try await openTerminal(AppConfig.ctlExe, ["debug", id])
+                try await openTerminal(AppConfig.ctlExe, ["debug", id, "-c", "orbstack"])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }

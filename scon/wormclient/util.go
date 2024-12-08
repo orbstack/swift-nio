@@ -13,6 +13,7 @@ import (
 
 	pb "github.com/orbstack/macvirt/scon/wormclient/generated"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm/drmcore"
@@ -35,8 +36,19 @@ const (
 const maxRetries = 3
 const execTimeout = 15 * time.Second
 
+const localContextName = appid.AppName
+
 // returns the docker endpoint, isLocal, error
 func GetDockerEndpoint(context string) (dockerclient.Endpoint, bool, error) {
+	// special case: "orbstack" is always local even if DOCKER_CONFIG dir is misconfigured (e.g. UI is missing DOCKER_CONFIG env, but vmgr has it, so context is in $DOCKER_CONFIG instead)
+	if context == localContextName {
+		return dockerclient.Endpoint{
+			EndpointMeta: dockerclient.EndpointMeta{
+				Host: "unix://" + conf.DockerSocket(),
+			},
+		}, true, nil
+	}
+
 	context = dockerclient.ResolveContextName(context)
 	endpoint, err := dockerclient.GetDockerEndpoint(context)
 	if err != nil {
