@@ -58,6 +58,7 @@ const (
 	LaunchdSshAgentListeners  = "/opt/orb/launchd-ssh-agent-listeners"
 	DockerSshAgentProxySocket = "/run/docker-ssh-agent-proxy.sock"
 	NfsContainers             = "/nfs/containers"
+	WormholeRootfs            = "/opt/wormhole-rootfs"
 	WormholeOverlay           = "/mnt/wormhole-overlay"
 	WormholeOverlayNix        = WormholeOverlay + "/nix"
 	WormholeUnifiedNix        = "/mnt/wormhole-unified/nix"

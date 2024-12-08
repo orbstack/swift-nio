@@ -207,6 +207,22 @@ func runOne(what string, fn func() error) {
 	}
 }
 
+func writeWormholeExtraCerts(bundle string) error {
+	// use securefs for absolute /nix symlink resolution
+	file, err := securefs.OpenFile(mounts.WormholeRootfs, "/nix/orb/sys/etc/ssl/certs/ca-bundle.crt", os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		return fmt.Errorf("open: %w", err)
+	}
+	defer file.Close()
+
+	_, err = file.Write([]byte("\n" + bundle))
+	if err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+
+	return nil
+}
+
 func (m *ConManager) Start() error {
 	// delete leftover image cache
 	// TODO actually cache images
@@ -241,16 +257,22 @@ func (m *ConManager) Start() error {
 	os.Setenv("SSL_CERT_DIR", "/run/certs")
 	err = os.MkdirAll("/run/certs", 0700)
 	if err != nil {
-		return err
+		return fmt.Errorf("mkdir certs: %w", err)
 	}
 	err = common.WriteCaCerts(securefs.Default(), "/run/certs", extraCerts)
 	if err != nil {
 		return fmt.Errorf("write certs: %w", err)
 	}
 	// write bundle too for nixos
-	err = os.WriteFile(mounts.HostExtraCerts, []byte(strings.Join(extraCerts, "\n")), 0644)
+	extraCertsBundle := strings.Join(extraCerts, "\n")
+	err = os.WriteFile(mounts.HostExtraCerts, []byte(extraCertsBundle), 0644)
 	if err != nil {
-		return err
+		return fmt.Errorf("write host certs: %w", err)
+	}
+	// and for wormhole
+	err = writeWormholeExtraCerts(extraCertsBundle)
+	if err != nil {
+		return fmt.Errorf("write wormhole certs: %w", err)
 	}
 
 	// drm monitor
