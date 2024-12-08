@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -1031,7 +1032,9 @@ func (r *mdnsRegistry) queryKubeDns(q dns.Question) []dns.RR {
 		return rrs, nil
 	})
 	if err != nil {
-		logrus.WithError(err).Error("failed to query kubedns")
+		if !errors.Is(err, ErrMachineNotRunning) {
+			logrus.WithError(err).Error("failed to query kubedns")
+		}
 		return nil
 	}
 
