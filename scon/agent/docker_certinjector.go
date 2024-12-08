@@ -17,6 +17,7 @@ import (
 const rootCaCertName = "orbstack-root.crt"
 
 var (
+	// from Go crypto/tls
 	caCertDirs = []string{
 		"/etc/ssl/certs",
 		"/usr/local/share/certs",
@@ -25,6 +26,7 @@ var (
 		"/var/ssl/certs",
 	}
 	// x: y means that directory y is created if path x exists, and the root cert is written to it
+	// allows us to prime certs for the ca-certificates package's postinstall bundle creation script, without polluting distroless containers
 	conditionalCaCertDirs = map[string]string{
 		"/usr/local":           "/usr/local/share/ca-certificates",
 		"/etc/pki":             "/etc/pki/ca-trust/source/anchors",
@@ -70,15 +72,15 @@ func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
 	}
 }
 
-func writeFileIfChanged(fs *securefs.FS, path string, data []byte, perm os.FileMode) error {
+func writeFileIfChanged(fs *securefs.FS, path string, data []byte, perm os.FileMode) (bool, error) {
 	existing, err := fs.ReadFile(path)
 	if err != nil && !errors.Is(err, unix.ENOENT) {
-		return err
+		return false, err
 	}
 	if bytes.Equal(existing, data) {
-		return nil
+		return true, nil
 	}
-	return fs.WriteFile(path, data, perm)
+	return false, fs.WriteFile(path, data, perm)
 }
 
 func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
@@ -87,14 +89,22 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 		// ENOTDIR = parent exists but is a file, not dir
 		// ENOENT = parent dir does not exist
 		targetPath := dirPath + "/" + rootCaCertName
-		err := writeFileIfChanged(fs, targetPath, c.rootCertPem, 0o644)
+		// O_EXCL write would be faster and simpler, but this is more robust if data.img is migrated to a different host, but keychain isn't, so the new host has a different CA
+		existing, err := writeFileIfChanged(fs, targetPath, c.rootCertPem, 0o644)
 		if err != nil {
-			if errors.Is(err, unix.ENOENT) || errors.Is(err, unix.ENOTDIR) {
-				logrus.WithField("dirPath", dirPath).Debug("cert injector: dir does not exist, skipping")
-			} else {
+			if !errors.Is(err, unix.ENOENT) && !errors.Is(err, unix.ENOTDIR) {
 				logrus.WithError(err).WithField("dirPath", dirPath).Error("cert injector: failed to write to dir, skipping")
 			}
 			continue
+		}
+
+		if existing {
+			// existing + matching cert means that we've already added stuff to this container
+			// for perf, skip all other checks
+			logrus.WithField("dirPath", dirPath).Debug("cert injector: file already exists, skipping container")
+			return nil
+		} else {
+			logrus.WithField("dirPath", dirPath).Debug("cert injector: added to dir")
 		}
 	}
 
@@ -115,6 +125,9 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 		}
 
 		if bytes.Contains(contents, c.rootCertPem) {
+			// TODO: also skip rest of the container here?
+			// alpine symlinks /etc/ssl/cert.pem -> /etc/ssl/certs/ca-certificates.crt, so we add the cert the first time around, and think it's duplicate when we hit the symlink
+			// O_NOFOLLOW deals with that but seems like it could be a bit flaky
 			logrus.WithField("filePath", filePath).Debug("cert injector: file already contains root cert, skipping")
 			continue
 		}
@@ -130,7 +143,9 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 
 	for conditionPath, targetDirPath := range conditionalCaCertDirs {
 		if _, err := fs.Stat(conditionPath); err != nil {
-			logrus.WithError(err).WithField("conditionPath", conditionPath).Debug("cert injector: condition path does not exist, skipping")
+			if !errors.Is(err, unix.ENOENT) {
+				logrus.WithError(err).WithField("conditionPath", conditionPath).Debug("cert injector: failed to stat condition path")
+			}
 			continue
 		}
 
@@ -140,10 +155,17 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 			continue
 		}
 
-		err = writeFileIfChanged(fs, targetDirPath+"/"+rootCaCertName, c.rootCertPem, 0o644)
+		existing, err := writeFileIfChanged(fs, targetDirPath+"/"+rootCaCertName, c.rootCertPem, 0o644)
 		if err != nil {
 			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("cert injector: failed to write to target dir, skipping")
 			continue
+		}
+
+		if existing {
+			logrus.WithField("targetDirPath", targetDirPath).Debug("cert injector: file already exists, skipping container")
+			return nil
+		} else {
+			logrus.WithField("targetDirPath", targetDirPath).Debug("cert injector: added to conditional dir")
 		}
 	}
 
