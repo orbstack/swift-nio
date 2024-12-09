@@ -202,12 +202,14 @@ fn monitor(
                     Ok(Some(sig)) if sig.ssi_signo == Signal::SIGCHLD as u32 => {
                         let mut should_break = false;
 
-                        reap_children(|pid, _| {
+                        // if the docker container dies, something else (containerd-shim-runc-v2?) can sometimes reap subreaper before we can.
+                        // so, we should break if we get an ECHILD since that means the subreaper is dead anyways.
+                        let children_still_alive = reap_children(|pid, _| {
                             if pid != intermediate {
                                 should_break = true;
                             }
                         })?;
-                        if should_break {
+                        if should_break || !children_still_alive {
                             break 'outer;
                         }
                     }
