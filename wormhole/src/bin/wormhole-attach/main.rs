@@ -3,8 +3,10 @@ use std::{
     collections::HashMap,
     ffi::CString,
     fs::File,
-    io::Write,
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    os::{
+        fd::{AsRawFd, FromRawFd, OwnedFd},
+        unix::net::UnixStream,
+    },
     path::Path,
     process,
     ptr::{null, null_mut},
@@ -25,7 +27,7 @@ use nix::{
     sys::{
         prctl,
         signal::Signal,
-        socket::{send, socketpair, AddressFamily, MsgFlags, SockFlag, SockType},
+        socket::{socketpair, AddressFamily, SockFlag, SockType},
         stat::{umask, Mode},
         utsname::uname,
         wait::{waitpid, WaitStatus},
@@ -36,8 +38,9 @@ use nix::{
     },
 };
 
+use notify::wait_for_path_exist;
 use signals::{mask_sigset, SigSet, SignalFd};
-use tracing::{debug, error, span, trace, warn, Level};
+use tracing::{debug, span, trace, warn, Level};
 use tracing_subscriber::fmt::format::FmtSpan;
 use wormhole::{
     err,
@@ -53,10 +56,14 @@ use wormhole::{
 mod drm;
 mod monitor;
 mod mounts;
+mod notify;
 mod proc;
 mod signals;
 mod subreaper;
 mod subreaper_protocol;
+
+const STOPPED_STUB_PATH: &str = "/dev/shm/.orb-wormhole-stub";
+const STOPPED_STUB_SOCKET_PATH: &str = "/dev/shm/.orb-wormhole-stub.sock";
 
 const DIR_CREATE_LOCK: &str = "/dev/shm/.orb-wormhole-d.lock";
 const PTRACE_LOCK: &str = "/dev/shm/.orb-wormhole-p.lock";
@@ -362,7 +369,8 @@ fn get_cgroup2_mountpoint() -> anyhow::Result<String> {
             }
         }
     }
-    return Err(anyhow!("could not find cgroup2 mountpoint"));
+
+    Err(anyhow!("could not find cgroup2 mountpoint"))
 }
 
 fn parse_config() -> anyhow::Result<(WormholeConfig, WormholeRuntimeState)> {
@@ -523,9 +531,22 @@ fn main() -> anyhow::Result<()> {
     }
 
     // unmount wormhole stub bind mount in ephemeral container ns
-    if rootfs_fd.is_some() {
+    let stub_path = Path::new(STOPPED_STUB_PATH);
+    let is_stopped = stub_path.exists();
+    let mut stub_socket = None;
+    if is_stopped {
+        // wait for stub to start
+        trace!("wait for stub to start");
+        let socket_path = Path::new(STOPPED_STUB_SOCKET_PATH);
+        wait_for_path_exist(socket_path)?;
+
+        // connect to stub server to signal attach
+        stub_socket = Some(UnixStream::connect(socket_path)?);
+        // leave the connection open so that EOF = monitor exit
+
+        // we have to do the unmount: stub is in the unprivileged container so it can't unmount itself
         trace!("unmount wormhole stub bind mount in container ns");
-        if let Err(e) = umount2("/dev/shm/.orb-wormhole-stub", MntFlags::MNT_DETACH) {
+        if let Err(e) = umount2(STOPPED_STUB_PATH, MntFlags::MNT_DETACH) {
             debug!("unmount wormhole stub bind mount failed: {}", e);
         }
     }
@@ -542,9 +563,9 @@ fn main() -> anyhow::Result<()> {
     }
 
     // unmount wormhole stub bind mount entirely in wormhole ns
-    if rootfs_fd.is_some() {
+    if is_stopped {
         trace!("unmount wormhole stub bind mount in new ns");
-        if let Err(e) = umount2("/dev/shm/.orb-wormhole-stub", MntFlags::MNT_DETACH) {
+        if let Err(e) = umount2(STOPPED_STUB_PATH, MntFlags::MNT_DETACH) {
             debug!("unmount wormhole stub bind mount failed: {}", e);
         }
     }
@@ -720,6 +741,7 @@ fn main() -> anyhow::Result<()> {
             drop(proc_fd);
             drop(monitor_socket_fd);
             drop(monitor_sfd);
+            drop(stub_socket);
 
             // then chdir to requested workdir (must do / first to avoid rel path vuln)
             // can fail (falls back to /)

@@ -19,7 +19,7 @@ static void sigint_handler(int sig) {
     // relying on agent to close the listener immediately when our connfd is auto-closed is racy
     int ret = shutdown(g_connfd, SHUT_WR);
     if (ret == -1) {
-        _exit(1);
+        _Exit(1);
     }
 
     // wait for EOF
@@ -27,7 +27,7 @@ static void sigint_handler(int sig) {
     read(g_connfd, buf, sizeof(buf));
 
     // exit with success
-    _exit(0);
+    _Exit(0);
 }
 
 // stub program that sends arguments to a unix socket, reads 2-byte return value, writes it to fd3,
@@ -90,12 +90,13 @@ int main(int argc, char **argv) {
     signal(SIGINT, sigint_handler);
 
     // return result to dockerd
+    // EINTR handling not needed: SIGINT handler always calls _Exit()
     int ret = write(outfd, ret_buf, len);
     if (ret == -1) {
         // we're not supposed to be running anymore if the pipe is closed
         return 1;
     }
-    close(outfd);
+    close(outfd); // not supposed to retry on EINTR
     /* leave connfd open for signaling exit */
 
     // once the proxy is started, we have a few ways to stop:
