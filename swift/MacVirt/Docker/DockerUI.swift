@@ -29,7 +29,8 @@ extension DKContainer {
     func openDebugShellFallback() {
         Task {
             do {
-                try await openTerminal(AppConfig.ctlExe, ["debug", id, "--fallback", "-c", "orbstack"])
+                try await openTerminal(
+                    AppConfig.ctlExe, ["debug", id, "--fallback", "-c", "orbstack"])
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }
