@@ -67,7 +67,7 @@ enum Distro: String, CaseIterable {
         case .kali: return "Kali"
         case .nixos: return "NixOS"
         case .openeuler: return "openEuler"
-        case .opensuse: return "OpenSUSE"
+        case .opensuse: return "openSUSE"
         case .oracle: return "Oracle"
         case .rocky: return "Rocky"
         case .ubuntu: return "Ubuntu"
