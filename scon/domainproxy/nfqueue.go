@@ -3,7 +3,7 @@ package domainproxy
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/florianl/go-nfqueue"
@@ -19,8 +20,10 @@ import (
 	"github.com/google/nftables"
 	"github.com/mdlayher/netlink"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
+	"github.com/orbstack/macvirt/scon/domainproxy/sillytls"
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/sys/unix"
 )
 
@@ -269,37 +272,118 @@ func testPortHTTP(ctx context.Context, dialer *net.Dialer, upstream domainproxyt
 	}
 }
 
+func writeTLSClientHello(w io.Writer, serverName string) error {
+	hello := &sillytls.Handshake{
+		Message: &sillytls.HandshakeClientHello{
+			Version:   0x0303,
+			Random:    []byte("OrbStackOrbStackOrbStackOrbStack"),
+			SessionID: []byte("OrbStackOrbStackOrbStackOrbStack"),
+			CipherSuites: []uint16{
+				tls.TLS_AES_128_GCM_SHA256,
+				tls.TLS_AES_256_GCM_SHA384,
+				tls.TLS_CHACHA20_POLY1305_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+				tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+				tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+				tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+				tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+				tls.TLS_RSA_WITH_RC4_128_SHA,
+				tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+				tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+			},
+			CompressionMethods:           []uint8{0x00},
+			SupportedVersions:            []uint16{0x0304, 0x0303, 0x0302, 0x0301},
+			ServerName:                   strings.TrimSuffix(serverName, "."),
+			ALPNProtocols:                []string{"h2", "http/1.1"},
+			SupportedGroups:              []sillytls.GroupID{tls.CurveP256, tls.CurveP384, tls.CurveP521, tls.X25519},
+			SupportedSignatureAlgorithms: []tls.SignatureScheme{tls.PKCS1WithSHA256, tls.PKCS1WithSHA384, tls.PKCS1WithSHA512, tls.PSSWithSHA256, tls.PSSWithSHA384, tls.PSSWithSHA512, tls.ECDSAWithP256AndSHA256, tls.ECDSAWithP384AndSHA384, tls.ECDSAWithP521AndSHA512, tls.Ed25519, tls.PKCS1WithSHA1, tls.ECDSAWithSHA1},
+			KeyShares:                    []sillytls.KeyShare{},
+		},
+	}
+
+	var b cryptobyte.Builder
+	hello.Marshal(&b)
+	helloBytes, err := b.Bytes()
+	if err != nil {
+		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to marshal hello")
+		return err
+	}
+
+	record := &sillytls.Record{
+		LegacyVersion: 0x0301,
+		ContentType:   hello.TLSRecordType(),
+		Content:       helloBytes,
+	}
+
+	return record.Write(w)
+}
+
+func jsonPrettyPrint(v any) string {
+	json, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("%+v", v)
+	}
+	return string(json)
+}
+
 func testPortHTTPS(ctx context.Context, dialer *net.Dialer, upstream domainproxytypes.Upstream, port uint16) bool {
 	serverName := ""
 	if len(upstream.Names) > 0 {
 		serverName = upstream.Names[0]
 	}
-	tlsDialer := &tls.Dialer{
-		NetDialer: dialer,
-		Config: &tls.Config{
-			InsecureSkipVerify: true,
-			ServerName:         serverName,
-			VerifyConnection: func(tls.ConnectionState) error {
-				return fmt.Errorf("abort connection")
-			},
-			VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-				return fmt.Errorf("abort connection")
-			},
-		},
+
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), strconv.Itoa(int(port))))
+	if err != nil {
+		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to dial")
+		return false
+	}
+	defer conn.Close()
+
+	err = writeTLSClientHello(conn, serverName)
+	if err != nil {
+		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to write hello")
+		return false
+	}
+	logrus.Debug("soweli | testPortHTTPS: wrote hello")
+
+	response := &sillytls.Record{}
+	err = response.Read(conn)
+	if err != nil {
+		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to read response")
+		return false
+	}
+	logrus.Debug("soweli | testPortHTTPS: read response, type: ", response.ContentType)
+
+	content := sillytls.GetRecordContentType(response.ContentType)
+	if content == nil {
+		logrus.Debug("soweli | testPortHTTPS: unknown content type")
+		return false
 	}
 
-	host := upstream.IP.String()
-	portStr := strconv.Itoa(int(port))
+	contentString := cryptobyte.String(response.Content)
+	err = content.Unmarshal(&contentString)
+	if err != nil {
+		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to unmarshal content")
+		return false
+	}
 
-	conn, err := tlsDialer.DialContext(ctx, "tcp", net.JoinHostPort(host, portStr))
-	if err == nil {
-		conn.Close()
+	if handshake, ok := content.(*sillytls.Handshake); ok {
+		logrus.Debugf("soweli | testPortHTTPS: %T=%s", content, jsonPrettyPrint(handshake))
+	} else if alert, ok := content.(*sillytls.Alert); ok {
+		logrus.Debugf("soweli | testPortHTTPS: %T=%s", content, alert.String())
 	} else {
-		logrus.Debugf("soweli | testPortHTTPS: %v, %T, %T", err, err, errors.Unwrap(err))
-		var recordHeaderErr tls.RecordHeaderError
-		if errors.As(err, &recordHeaderErr) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) || errors.Is(err, unix.ECONNREFUSED) {
-			return false
-		}
+		logrus.Debugf("soweli | testPortHTTPS: %T", content)
 	}
 
 	return true
