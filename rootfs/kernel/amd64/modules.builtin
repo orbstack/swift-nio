@@ -156,6 +156,7 @@ kernel/lib/glob.ko
 kernel/lib/dim/dimlib.ko
 kernel/lib/asn1_decoder.ko
 kernel/lib/oid_registry.ko
+kernel/drivers/leds/led-class.ko
 kernel/drivers/acpi/processor.ko
 kernel/drivers/virtio/virtio.ko
 kernel/drivers/virtio/virtio_ring.ko
@@ -254,7 +255,6 @@ kernel/drivers/pps/pps_core.ko
 kernel/drivers/cpufreq/cpufreq_performance.ko
 kernel/drivers/cpufreq/dummy-cpufreq.ko
 kernel/drivers/cpuidle/cpuidle-haltpoll.ko
-kernel/drivers/leds/led-class.ko
 kernel/drivers/infiniband/core/ib_core.ko
 kernel/drivers/infiniband/core/ib_cm.ko
 kernel/drivers/infiniband/core/iw_cm.ko

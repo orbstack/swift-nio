@@ -156,6 +156,7 @@ kernel/lib/glob.ko
 kernel/lib/dim/dimlib.ko
 kernel/lib/asn1_decoder.ko
 kernel/lib/oid_registry.ko
+kernel/drivers/leds/led-class.ko
 kernel/drivers/pci/controller/pci-host-common.ko
 kernel/drivers/pci/controller/pci-host-generic.ko
 kernel/drivers/clk/clk-scmi.ko
@@ -267,7 +268,6 @@ kernel/drivers/power/reset/reboot-mode.ko
 kernel/drivers/power/reset/syscon-reboot-mode.ko
 kernel/drivers/cpufreq/cpufreq_performance.ko
 kernel/drivers/cpufreq/dummy-cpufreq.ko
-kernel/drivers/leds/led-class.ko
 kernel/drivers/infiniband/core/ib_core.ko
 kernel/drivers/infiniband/core/ib_cm.ko
 kernel/drivers/infiniband/core/iw_cm.ko
@@ -275,6 +275,8 @@ kernel/drivers/infiniband/core/ib_uverbs.ko
 kernel/drivers/infiniband/sw/rxe/rdma_rxe.ko
 kernel/drivers/infiniband/sw/siw/siw.ko
 kernel/drivers/firmware/arm_scpi.ko
+kernel/drivers/firmware/arm_scmi/transports/scmi_transport_smc.ko
+kernel/drivers/firmware/arm_scmi/transports/scmi_transport_mailbox.ko
 kernel/drivers/firmware/arm_scmi/scmi-core.ko
 kernel/drivers/firmware/arm_scmi/scmi-module.ko
 kernel/drivers/hid/hid.ko
