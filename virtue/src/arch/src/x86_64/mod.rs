@@ -78,7 +78,7 @@ pub const MMIO_SHM_SIZE: u64 = 1 << 33;
 
 /// Returns a Vec of the valid memory addresses.
 /// These should be used to configure the GuestMemoryMmap structure for the platform.
-/// Make a hole for the kernel region that will be injected directly from libkrunfw's
+/// Make a hole for the kernel region that will be injected directly from libvirtuefw's
 /// mapping, and reserve an SHM region for virtio-fs.
 #[cfg(not(feature = "tee"))]
 pub fn arch_memory_regions(

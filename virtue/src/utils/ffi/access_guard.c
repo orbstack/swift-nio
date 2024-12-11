@@ -1,13 +1,13 @@
+#include <mach/mach.h>
+#include <os/lock.h>
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <os/lock.h>
-#include <mach/mach.h>
 
-#include <orb_sigstack.h>
 #include "utils/aprintf.h"
 #include "utils/debug.h"
+#include <orb_sigstack.h>
 
 typedef __int128 orb_u128_t;
 
@@ -51,22 +51,21 @@ struct local_state {
     struct fault_state first_fault;
 };
 
-static struct global_state state_global = {
-    .lock = OS_UNFAIR_LOCK_INIT
-};
+static struct global_state state_global = {.lock = OS_UNFAIR_LOCK_INIT};
 
 static __thread struct local_state state_tls;
 
 // === Signal Handler === //
 
-signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, void *uap_raw, void *userdata) {
+signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, void *uap_raw,
+                                                 void *userdata) {
     struct local_state *local_state = &state_tls;
 
     // First, let's ensure that the faulting address is protected.
     size_t region_base;
     size_t region_len;
     char *region_abort_msg;
-    size_t fault_addr = (size_t) info->si_addr;
+    size_t fault_addr = (size_t)info->si_addr;
     bool addr_in_range = false;
 
     for (int i = 0; i < GUARDED_REGION_MAX; i++) {
@@ -101,11 +100,13 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
     // Rust does not seem to like pointers to `ucontext_t` because it thinks they contain `u128`s
     // which have super iffy ABIs so we just keep it as a `void*` and downcast it here.
     ucontext_t *uap = uap_raw;
-    mcontext_t mcx = uap->uc_mcontext;  // `mcontext_t` is a pointer to the actual struct
+    mcontext_t mcx = uap->uc_mcontext; // `mcontext_t` is a pointer to the actual struct
 
-#if defined (__arm64__)
-    // See `/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/arm/_mcontext.h`
-    // and `/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/mach/arm/_structs.h`
+#if defined(__arm64__)
+    // See
+    // `/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/arm/_mcontext.h`
+    // and
+    // `/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/mach/arm/_structs.h`
     // ...for the definitions we're using.
 
     // Patching the return value of these operations could be quite tricky so we avoid it and leave
@@ -129,18 +130,17 @@ signal_verdict_t orb_access_guard_signal_handler(int signum, siginfo_t *info, vo
     return SIGNAL_VERDICT_HANDLED;
 
 abort:
-    aprintf(
-        "detected invalid memory operation in protected region at relative address 0x%zu (region starts at 0x%zu): %s\n",
-        fault_addr - region_base,
-        region_base,
-        region_abort_msg != NULL ? region_abort_msg : "<no abort message supplied>"
-    );
+    aprintf("detected invalid memory operation in protected region at relative address 0x%zu "
+            "(region starts at 0x%zu): %s\n",
+            fault_addr - region_base, region_base,
+            region_abort_msg != NULL ? region_abort_msg : "<no abort message supplied>");
 
-    // Let the default SIGBUS handler dump the process. We intentionally skip over Go's default handler.
+    // Let the default SIGBUS handler dump the process. We intentionally skip over Go's default
+    // handler.
     //
     // Go's default handlers seem to just dump the state of all its goroutines under the presumption
     // that this could help debug an issue triggered by unsafe cgo usage but, in this case, the bug
-    // is purely `libkrun`'s fault so let's not spam the logs with unnecessary details.
+    // is purely `libvirtue`'s fault so let's not spam the logs with unnecessary details.
     return SIGNAL_VERDICT_FORCE_DEFAULT;
 }
 

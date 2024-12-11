@@ -1218,21 +1218,21 @@ fn attach_console_devices(
 
         if !stdin_is_terminal {
             ports.push(PortDescription::InputPipe {
-                name: "krun-stdin".into(),
+                name: "virtue-stdin".into(),
                 input: port_io::stdin().unwrap(),
             })
         }
 
         if !stdout_is_terminal {
             ports.push(PortDescription::OutputPipe {
-                name: "krun-stdout".into(),
+                name: "virtue-stdout".into(),
                 output: port_io::stdout().unwrap(),
             })
         };
 
         if !stderr_is_terminal {
             ports.push(PortDescription::OutputPipe {
-                name: "krun-stderr".into(),
+                name: "virtue-stderr".into(),
                 output: port_io::stderr().unwrap(),
             });
         }

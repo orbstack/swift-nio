@@ -319,7 +319,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 			conRead = os.Stdin
 			conWrite = os.Stdout
 		case ConsoleLog:
-			// libkrun can't register /dev/null with kqueue for read readiness notifications, so make a pipe
+			// libvirtue can't register /dev/null with kqueue for read readiness notifications, so make a pipe
 			var conReadWrite *os.File
 			conRead, conReadWrite, err = os.Pipe()
 			if err != nil {

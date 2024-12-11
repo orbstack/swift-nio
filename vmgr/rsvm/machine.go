@@ -89,14 +89,14 @@ func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machi
 		return nil, fmt.Errorf("only one VM can be created in a process")
 	}
 
-	// to work correctly, krun requires console fds to be non-blocking
+	// to work correctly, virtue requires console fds to be non-blocking
 	if spec.Console != nil {
 		unix.SetNonblock(spec.Console.ReadFd, true)
 		unix.SetNonblock(spec.Console.WriteFd, true)
 	}
 
 	// Rust println and tracing_subscriber (via eprint) panics if writing to stderr fails
-	// libkrun always writes to stdio for logging, so we need to take the fd out of non-blocking
+	// libvirtue always writes to stdio for logging, so we need to take the fd out of non-blocking
 	// (*os.File).Fd() is supposed to do that, but it doesn't seem to work here, so we need to do it manually
 	// at first glance this is bad if we're logging to a file, but nonblock doesn't work on files anyway, so it was already blocking; this only affects debug (pty output)
 	unix.SetNonblock(int(os.Stderr.Fd()), false)

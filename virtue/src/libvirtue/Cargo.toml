@@ -1,12 +1,12 @@
 [package]
-name = "krun"
+name = "libvirtue"
 version = "1.8.1"
 authors = ["Sergio Lopez <slp@redhat.com>"]
 edition = "2021"
 build = "build.rs"
 
 [lib]
-name = "krun"
+name = "virtue"
 crate-type = ["lib", "staticlib"]
 
 [features]

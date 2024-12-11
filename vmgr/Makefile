@@ -121,9 +121,9 @@ GO_LIB := $(ARCH_OUT)/libvmgr.a
 # specifying a target triple explicitly always makes a target/ subdir, even for native builds
 # so only do it for non-native builds
 ifeq ($(RUST_TARGET),$(RUST_NATIVE_TARGET))
-RUST_LIB := ../virtue/target/$(RUST_BUILD_TYPE)/libkrun.a
+RUST_LIB := ../virtue/target/$(RUST_BUILD_TYPE)/libvirtue.a
 else
-RUST_LIB := ../virtue/target/$(RUST_TARGET)/$(RUST_BUILD_TYPE)/libkrun.a
+RUST_LIB := ../virtue/target/$(RUST_TARGET)/$(RUST_BUILD_TYPE)/libvirtue.a
 endif
 
 VMGR_NAME := OrbStack\ Helper
@@ -179,7 +179,7 @@ $(GO_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,./,*.go *.c *.h *.cpp) $(call rwil
 # Rust static library: virtue
 $(RUST_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,../virtue/src,*) ../virtue/Cargo.toml ../virtue/Cargo.lock
 # workaround for Cargo .cargo/config.toml bug: https://github.com/rust-lang/cargo/issues/14350
-	cd ../virtue; CXXFLAGS=$(MACOS_VERSION_ARG) $(CARGO) build --profile $(CARGO_BUILD_TYPE) $(RUST_CARGO_TARGET) $(CARGO_FLAGS) --package krun
+	cd ../virtue; CXXFLAGS=$(MACOS_VERSION_ARG) $(CARGO) build --profile $(CARGO_BUILD_TYPE) $(RUST_CARGO_TARGET) $(CARGO_FLAGS) --package libvirtue
 # .buildenv and other changes may not trigger a rebuild
 # Cargo doesn't update output in that case, causing make to act like nothing changed, so it keeps reinvoking cargo
 	@touch $@

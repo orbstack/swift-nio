@@ -9,7 +9,7 @@
  *   - FD safety: CLOEXEC_DEFAULT means we that don't have to worry about leaking FDs. it's not only about forgetting to set CLOEXEC: it's impossible to do race-free
  *
  * in terms of the entire vmgr process:
- *   - Rust code (libkrun) doesn't currently spawn any processes
+ *   - Rust code (libvirtue) doesn't currently spawn any processes
  *   - Swift code (GoVZF) uses NSTask, which uses posix_spawn
  *   - Not aware of any Go libraries using exec.Command or os.StartProcess (should check this... or better, make it panic somehow?)
  * ... but we must still use syscall.ForkLock for CLOEXEC race safety, because there's one remaining user of exec.Command: hostssh server. It needs setctty, so we could only use posix_spawn if we use a helper executable that handles setctty.

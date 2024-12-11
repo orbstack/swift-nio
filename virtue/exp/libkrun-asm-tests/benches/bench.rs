@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use libkrun_asm_tests::*;
+use libvirtue_asm_tests::*;
 
 fn entry(c: &mut Criterion) {
     c.bench_function("index_slice_sized_runtime_1", |c| {

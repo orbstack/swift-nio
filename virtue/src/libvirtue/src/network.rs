@@ -26,7 +26,7 @@ extern "C" {
     ) -> i32;
 }
 
-// Rust/krun handle -> virtio-net device, for Swift and Go to send packets to the guest (RX path) using rsvm_network_write_packet
+// Rust/virtue handle -> virtio-net device, for Swift and Go to send packets to the guest (RX path) using rsvm_network_write_packet
 // Swift, Go, and Rust each have their own handle namespaces, so a single device may have differing TX and RX handles
 pub static NETDEV_HANDLES: RwLock<HandleRegistry> = RwLock::new(HandleRegistry { handles: vec![] });
 

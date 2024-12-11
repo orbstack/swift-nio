@@ -9,7 +9,7 @@ use std::{
 #[cfg(target_arch = "x86_64")]
 use arch::x86_64::BootParamsWrapper;
 
-/// Data structure holding the attributes read from the `libkrunfw` kernel config.
+/// Data structure holding the attributes read from the `libvirtuefw` kernel config.
 #[derive(Default)]
 pub struct KernelBundle {
     pub data: Vec<u8>,
@@ -21,7 +21,7 @@ pub struct KernelBundle {
     pub params: BootParamsWrapper,
 }
 
-/// Structure used to specify the parameters for the `libkrunfw` kernel bundle.
+/// Structure used to specify the parameters for the `libvirtuefw` kernel bundle.
 #[derive(Debug)]
 pub enum KernelBundleError {
     /// Guest address is not page-aligned.
@@ -46,14 +46,14 @@ impl Display for KernelBundleError {
     }
 }
 
-/// Data structure holding the attributes read from the `libkrunfw` qboot config.
+/// Data structure holding the attributes read from the `libvirtuefw` qboot config.
 #[derive(Debug, Default)]
 pub struct QbootBundle {
     pub host_addr: u64,
     pub size: usize,
 }
 
-/// Structure used to specify the parameters for the `libkrunfw` qboot bundle.
+/// Structure used to specify the parameters for the `libvirtuefw` qboot bundle.
 #[derive(Debug)]
 pub enum QbootBundleError {
     /// Qboot binary is not 64K long.
@@ -69,7 +69,7 @@ impl Display for QbootBundleError {
     }
 }
 
-/// Data structure holding the attributes read from the `libkrunfw` initrd config.
+/// Data structure holding the attributes read from the `libvirtuefw` initrd config.
 #[derive(Debug, Default)]
 pub struct InitrdBundle {
     pub host_addr: u64,

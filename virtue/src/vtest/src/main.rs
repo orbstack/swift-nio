@@ -1,6 +1,6 @@
 use std::{ffi::c_void, process::exit};
 
-use krun::machine::{ConsoleSpec, Machine, VzSpec, MACHINE_STATE_STOPPED};
+use virtue::machine::{ConsoleSpec, Machine, VzSpec, MACHINE_STATE_STOPPED};
 
 #[no_mangle]
 pub extern "C" fn rsvm_go_on_state_change(state: u32) {

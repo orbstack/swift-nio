@@ -240,7 +240,7 @@ fn get_and_store_chain(
         Ok(certs::sev::Chain::decode(&mut file, ()).map_err(|_| Error::DecodeChain)?)
     } else {
         let chain = fetch_chain(fw, curl_agent)?;
-        let mut file = File::create("/tmp/libkrun-sev.chain").map_err(|_| Error::OpenTmpFile)?;
+        let mut file = File::create("/tmp/libvirtue-sev.chain").map_err(|_| Error::OpenTmpFile)?;
         chain
             .encode(&mut file, ())
             .map_err(|_| Error::EncodeChain)?;

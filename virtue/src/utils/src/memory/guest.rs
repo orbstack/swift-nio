@@ -398,7 +398,7 @@ impl GuestMemory {
         len: usize,
     ) -> Result<GuestSlice<'_, T>, InvalidGuestAddress> {
         // Used to avoid an LLVM misoptimization. See `index_slice_sized_constant_1` and
-        // `index_slice_sized_constant_3` under `exp/libkrun-asm-tests` for an MRP of the
+        // `index_slice_sized_constant_3` under `exp/libvirtue-asm-tests` for an MRP of the
         // misoptimization we're trying to avoid.
         fn inner<T: bytemuck::Pod>(
             slice: GuestSlice<'_, u8>,

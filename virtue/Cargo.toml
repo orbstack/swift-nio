@@ -6,8 +6,8 @@ members = [
     "src/filemap",
     "src/gicv3",
     "src/gruel",
-    "src/kruntest",
-    "src/libkrun",
+    "src/vtest",
+    "src/libvirtue",
     "src/memmage",
     "src/newt",
     "src/sysx",
@@ -18,7 +18,7 @@ exclude = ["exp"]
 
 [profile.release]
 lto = "thin"
-# libkrun builds a static library
+# libvirtue builds a static library
 # we strip the final Go binary, so preserve symbols and DWARF here
 strip = false
 # always generate debug info so we can split it (dSYM) for release
