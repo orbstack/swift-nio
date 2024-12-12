@@ -7,15 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		B118B05969CAC4497636F8DE /* FFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BF90FB580B56419D1472 /* FFI.swift */; };
-		B118B30635EF5873545E0BE1 /* KeychainFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BEDAA62E1455A02C177D /* KeychainFFI.swift */; };
-		B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BB2A7BF402695260775E /* IPC.swift */; };
-		B118B53B9175CE61544C8B2A /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B4A5DDC711F7EF2AE61B /* GUI.swift */; };
-		B118B55A04BDC43EB62C4F9B /* Locks.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118B67B66A855D49B729379 /* Locks.swift */; };
-		B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */; };
-		B118BD0025A6757805924195 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B118BD52B15443D1329C832A /* Packets.swift */; };
 		D805923F2CFF0972005BBB25 /* pstramp in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D805911B2CFEF682005BBB25 /* pstramp */; };
 		D805B3312D047B2E005BBB25 /* scli.app in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D805B3302D047B2E005BBB25 /* scli.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D805C1AC2D0ADD21005BBB25 /* FsNotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A12D0ADD21005BBB25 /* FsNotify.swift */; };
+		D805C1AD2D0ADD21005BBB25 /* Defaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C19F2D0ADD21005BBB25 /* Defaults.swift */; };
+		D805C1AE2D0ADD21005BBB25 /* GUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A22D0ADD21005BBB25 /* GUI.swift */; };
+		D805C1AF2D0ADD21005BBB25 /* NetworkHandle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A62D0ADD21005BBB25 /* NetworkHandle.swift */; };
+		D805C1B02D0ADD21005BBB25 /* IPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A32D0ADD21005BBB25 /* IPC.swift */; };
+		D805C1B12D0ADD21005BBB25 /* Locks.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A52D0ADD21005BBB25 /* Locks.swift */; };
+		D805C1B22D0ADD21005BBB25 /* Packets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A72D0ADD21005BBB25 /* Packets.swift */; };
+		D805C1B32D0ADD21005BBB25 /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C19E2D0ADD21005BBB25 /* BridgeNet.swift */; };
+		D805C1B42D0ADD21005BBB25 /* VZF.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1AB2D0ADD21005BBB25 /* VZF.swift */; };
+		D805C1B52D0ADD21005BBB25 /* PrivHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A82D0ADD21005BBB25 /* PrivHelper.swift */; };
+		D805C1B62D0ADD21005BBB25 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A42D0ADD21005BBB25 /* Keychain.swift */; };
+		D805C1B72D0ADD21005BBB25 /* FFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A02D0ADD21005BBB25 /* FFI.swift */; };
+		D805C1B82D0ADD21005BBB25 /* VlanRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1AA2D0ADD21005BBB25 /* VlanRouter.swift */; };
+		D805C1B92D0ADD21005BBB25 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A92D0ADD21005BBB25 /* Proxy.swift */; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
@@ -24,7 +31,6 @@
 		D86637E72AAF4D2B00630A01 /* AsyncHTTPClient in Frameworks */ = {isa = PBXBuildFile; productRef = D86637E62AAF4D2B00630A01 /* AsyncHTTPClient */; };
 		D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A392991F3C10046B6B6 /* LaunchAtLogin */; };
 		D8694A49299464810046B6B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D8694A48299464810046B6B6 /* Sparkle */; };
-		D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */; };
 		D8715CC32A208C750047A9BE /* OrbStack Helper.app in Embed Go VM helper bundle */ = {isa = PBXBuildFile; fileRef = D8715CC22A208C750047A9BE /* OrbStack Helper.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D87596F62CE738B200CEEE98 /* Blessed in Frameworks */ = {isa = PBXBuildFile; productRef = D87596F52CE738B200CEEE98 /* Blessed */; };
 		D87596F82CE738B500CEEE98 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D87596F72CE738B500CEEE98 /* Defaults */; };
@@ -34,12 +40,6 @@
 		D87746212A7CD12400739040 /* dev.orbstack.OrbStack.privhelper in Embed privileged helper tool */ = {isa = PBXBuildFile; fileRef = D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D87D98652A7DF26600EB7C63 /* SecureXPC in Frameworks */ = {isa = PBXBuildFile; productRef = D87D98642A7DF26600EB7C63 /* SecureXPC */; };
 		D87D98672A7DF26900EB7C63 /* EmbeddedPropertyList in Frameworks */ = {isa = PBXBuildFile; productRef = D87D98662A7DF26900EB7C63 /* EmbeddedPropertyList */; };
-		D880D8232A2B22A0002CF279 /* VzClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D81F2A2B22A0002CF279 /* VzClient.swift */; };
-		D880D8242A2B22A0002CF279 /* FsNotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8202A2B22A0002CF279 /* FsNotify.swift */; };
-		D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8212A2B22A0002CF279 /* Proxy.swift */; };
-		D880D8262A2B22A0002CF279 /* DefaultsFFI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */; };
-		D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D880D8292A2B40C7002CF279 /* VlanRouter.swift */; };
-		D88AB0D02CD732DE00C37028 /* NetworkHandle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D88AB0CF2CD732DE00C37028 /* NetworkHandle.swift */; };
 		D88F08232AC12F5200454098 /* CachedAsyncImage in Frameworks */ = {isa = PBXBuildFile; productRef = D88F08222AC12F5200454098 /* CachedAsyncImage */; };
 		D88F4EBD2999C98F00419B5C /* assets in Copy assets */ = {isa = PBXBuildFile; fileRef = D88F4EB82998D81A00419B5C /* assets */; };
 		D88F4EDC299A131B00419B5C /* docker in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -132,15 +132,22 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		B118B4A5DDC711F7EF2AE61B /* GUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GUI.swift; sourceTree = "<group>"; };
-		B118B67B66A855D49B729379 /* Locks.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Locks.swift; sourceTree = "<group>"; };
-		B118BB2A7BF402695260775E /* IPC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IPC.swift; sourceTree = "<group>"; };
-		B118BD52B15443D1329C832A /* Packets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Packets.swift; sourceTree = "<group>"; };
-		B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PrivHelperFFI.swift; sourceTree = "<group>"; };
-		B118BEDAA62E1455A02C177D /* KeychainFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeychainFFI.swift; sourceTree = "<group>"; };
-		B118BF90FB580B56419D1472 /* FFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
 		D805911B2CFEF682005BBB25 /* pstramp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = pstramp; sourceTree = BUILT_PRODUCTS_DIR; };
 		D805B3302D047B2E005BBB25 /* scli.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = scli.app; path = ../out/scli.app; sourceTree = "<group>"; };
+		D805C19E2D0ADD21005BBB25 /* BridgeNet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeNet.swift; sourceTree = "<group>"; };
+		D805C19F2D0ADD21005BBB25 /* Defaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Defaults.swift; sourceTree = "<group>"; };
+		D805C1A02D0ADD21005BBB25 /* FFI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFI.swift; sourceTree = "<group>"; };
+		D805C1A12D0ADD21005BBB25 /* FsNotify.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FsNotify.swift; sourceTree = "<group>"; };
+		D805C1A22D0ADD21005BBB25 /* GUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GUI.swift; sourceTree = "<group>"; };
+		D805C1A32D0ADD21005BBB25 /* IPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPC.swift; sourceTree = "<group>"; };
+		D805C1A42D0ADD21005BBB25 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		D805C1A52D0ADD21005BBB25 /* Locks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Locks.swift; sourceTree = "<group>"; };
+		D805C1A62D0ADD21005BBB25 /* NetworkHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkHandle.swift; sourceTree = "<group>"; };
+		D805C1A72D0ADD21005BBB25 /* Packets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Packets.swift; sourceTree = "<group>"; };
+		D805C1A82D0ADD21005BBB25 /* PrivHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivHelper.swift; sourceTree = "<group>"; };
+		D805C1A92D0ADD21005BBB25 /* Proxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
+		D805C1AA2D0ADD21005BBB25 /* VlanRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VlanRouter.swift; sourceTree = "<group>"; };
+		D805C1AB2D0ADD21005BBB25 /* VZF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VZF.swift; sourceTree = "<group>"; };
 		D81E7859299F059700A1D8AC /* sparkle-cli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "sparkle-cli"; path = "bin/sparkle-cli"; sourceTree = "<group>"; };
 		D81E785E29A4CEEF00A1D8AC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
@@ -151,16 +158,9 @@
 		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../vmgr/xbin/docker-compose"; sourceTree = "<group>"; };
 		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../vmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
 		D870292029B316A700A4CFD9 /* SwExt.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SwExt.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BridgeNet.swift; sourceTree = "<group>"; };
 		D8715CC02A208C640047A9BE /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../out/scli; sourceTree = "<group>"; };
 		D8715CC22A208C750047A9BE /* OrbStack Helper.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = "OrbStack Helper.app"; path = "../out/OrbStack Helper.app"; sourceTree = "<group>"; };
 		D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = dev.orbstack.OrbStack.privhelper; sourceTree = BUILT_PRODUCTS_DIR; };
-		D880D81F2A2B22A0002CF279 /* VzClient.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VzClient.swift; sourceTree = "<group>"; };
-		D880D8202A2B22A0002CF279 /* FsNotify.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FsNotify.swift; sourceTree = "<group>"; };
-		D880D8212A2B22A0002CF279 /* Proxy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Proxy.swift; sourceTree = "<group>"; };
-		D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DefaultsFFI.swift; sourceTree = "<group>"; };
-		D880D8292A2B40C7002CF279 /* VlanRouter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VlanRouter.swift; sourceTree = "<group>"; };
-		D88AB0CF2CD732DE00C37028 /* NetworkHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkHandle.swift; sourceTree = "<group>"; };
 		D88F4EB82998D81A00419B5C /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = build/assets; sourceTree = "<group>"; };
 		D88F4ED9299A131B00419B5C /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = build/bins/docker; sourceTree = "<group>"; };
 		D88F4EDA299A131B00419B5C /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "build/bins/docker-compose"; sourceTree = "<group>"; };
@@ -264,20 +264,20 @@
 		D870292129B316A700A4CFD9 /* SwExt */ = {
 			isa = PBXGroup;
 			children = (
-				D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */,
-				D880D8222A2B22A0002CF279 /* DefaultsFFI.swift */,
-				B118BF90FB580B56419D1472 /* FFI.swift */,
-				D880D8202A2B22A0002CF279 /* FsNotify.swift */,
-				B118B4A5DDC711F7EF2AE61B /* GUI.swift */,
-				B118BB2A7BF402695260775E /* IPC.swift */,
-				B118BEDAA62E1455A02C177D /* KeychainFFI.swift */,
-				B118B67B66A855D49B729379 /* Locks.swift */,
-				D88AB0CF2CD732DE00C37028 /* NetworkHandle.swift */,
-				B118BD52B15443D1329C832A /* Packets.swift */,
-				B118BD5FAE6BEB2F2765D4CD /* PrivHelperFFI.swift */,
-				D880D8212A2B22A0002CF279 /* Proxy.swift */,
-				D880D8292A2B40C7002CF279 /* VlanRouter.swift */,
-				D880D81F2A2B22A0002CF279 /* VzClient.swift */,
+				D805C19E2D0ADD21005BBB25 /* BridgeNet.swift */,
+				D805C19F2D0ADD21005BBB25 /* Defaults.swift */,
+				D805C1A02D0ADD21005BBB25 /* FFI.swift */,
+				D805C1A12D0ADD21005BBB25 /* FsNotify.swift */,
+				D805C1A22D0ADD21005BBB25 /* GUI.swift */,
+				D805C1A32D0ADD21005BBB25 /* IPC.swift */,
+				D805C1A42D0ADD21005BBB25 /* Keychain.swift */,
+				D805C1A52D0ADD21005BBB25 /* Locks.swift */,
+				D805C1A62D0ADD21005BBB25 /* NetworkHandle.swift */,
+				D805C1A72D0ADD21005BBB25 /* Packets.swift */,
+				D805C1A82D0ADD21005BBB25 /* PrivHelper.swift */,
+				D805C1A92D0ADD21005BBB25 /* Proxy.swift */,
+				D805C1AA2D0ADD21005BBB25 /* VlanRouter.swift */,
+				D805C1AB2D0ADD21005BBB25 /* VZF.swift */,
 			);
 			name = SwExt;
 			path = SwExt/Sources/SwExt;
@@ -597,20 +597,20 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D880D8252A2B22A0002CF279 /* Proxy.swift in Sources */,
-				D880D82A2A2B40C7002CF279 /* VlanRouter.swift in Sources */,
-				D880D8232A2B22A0002CF279 /* VzClient.swift in Sources */,
-				D880D8262A2B22A0002CF279 /* DefaultsFFI.swift in Sources */,
-				D8715C542A1F2AC50047A9BE /* BridgeNet.swift in Sources */,
-				D88AB0D02CD732DE00C37028 /* NetworkHandle.swift in Sources */,
-				D880D8242A2B22A0002CF279 /* FsNotify.swift in Sources */,
-				B118BD0025A6757805924195 /* Packets.swift in Sources */,
-				B118B05969CAC4497636F8DE /* FFI.swift in Sources */,
-				B118B53B9175CE61544C8B2A /* GUI.swift in Sources */,
-				B118B3DFEE5D2E8AD73AD538 /* IPC.swift in Sources */,
-				B118B8CE19277C647ABC44E8 /* PrivHelperFFI.swift in Sources */,
-				B118B30635EF5873545E0BE1 /* KeychainFFI.swift in Sources */,
-				B118B55A04BDC43EB62C4F9B /* Locks.swift in Sources */,
+				D805C1AC2D0ADD21005BBB25 /* FsNotify.swift in Sources */,
+				D805C1AD2D0ADD21005BBB25 /* Defaults.swift in Sources */,
+				D805C1AE2D0ADD21005BBB25 /* GUI.swift in Sources */,
+				D805C1AF2D0ADD21005BBB25 /* NetworkHandle.swift in Sources */,
+				D805C1B02D0ADD21005BBB25 /* IPC.swift in Sources */,
+				D805C1B12D0ADD21005BBB25 /* Locks.swift in Sources */,
+				D805C1B22D0ADD21005BBB25 /* Packets.swift in Sources */,
+				D805C1B32D0ADD21005BBB25 /* BridgeNet.swift in Sources */,
+				D805C1B42D0ADD21005BBB25 /* VZF.swift in Sources */,
+				D805C1B52D0ADD21005BBB25 /* PrivHelper.swift in Sources */,
+				D805C1B62D0ADD21005BBB25 /* Keychain.swift in Sources */,
+				D805C1B72D0ADD21005BBB25 /* FFI.swift in Sources */,
+				D805C1B82D0ADD21005BBB25 /* VlanRouter.swift in Sources */,
+				D805C1B92D0ADD21005BBB25 /* Proxy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
