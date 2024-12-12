@@ -2,6 +2,11 @@ package dockertypes
 
 import "strings"
 
+type Image struct {
+	Summary *ImageSummary
+	Full    *FullImage
+}
+
 type ImageSummary struct {
 	ID          string `json:"Id"`
 	Containers  int

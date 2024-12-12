@@ -8,11 +8,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
-type Image struct {
-	Summary *dockertypes.ImageSummary
-	Full    *dockertypes.FullImage
-}
-
 func (c *Client) ListImages() ([]*dockertypes.ImageSummary, error) {
 	var images []*dockertypes.ImageSummary
 	err := c.Call("GET", "/images/json?shared-size=1", nil, &images)
@@ -32,13 +27,13 @@ func (c *Client) InspectImage(imageID string) (*dockertypes.FullImageWithConfig,
 	return full, nil
 }
 
-func (c *Client) ListImagesFull() ([]Image, error) {
+func (c *Client) ListImagesFull() ([]dockertypes.Image, error) {
 	imageSummaries, err := c.ListImages()
 	if err != nil {
 		return nil, err
 	}
 
-	res := make([]Image, 0, len(imageSummaries))
+	res := make([]dockertypes.Image, 0, len(imageSummaries))
 
 	for _, summary := range imageSummaries {
 		full, err := c.InspectImage(summary.ID)
@@ -51,7 +46,7 @@ func (c *Client) ListImagesFull() ([]Image, error) {
 		}
 
 		// not returning a ptr b/c it's just the size of two ptrs
-		res = append(res, Image{Summary: summary, Full: &full.FullImage})
+		res = append(res, dockertypes.Image{Summary: summary, Full: &full.FullImage})
 	}
 
 	return res, nil
