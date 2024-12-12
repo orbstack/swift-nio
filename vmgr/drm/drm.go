@@ -368,7 +368,7 @@ func (c *DrmClient) sendGUIWarning(lastError error) {
 	}
 
 	// send alert to GUI if window is open
-	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.IpcNotifyUIEvent(uitypes.UIEvent{
 		DrmWarning: &uitypes.DrmWarningEvent{
 			LastError: lastError.Error(),
 		},
@@ -634,7 +634,7 @@ func (c *DrmClient) GenerateUIState() *uitypes.DrmState {
 
 func (c *DrmClient) sendUIEventLocked() {
 	state := c.generateUIStateLocked()
-	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.IpcNotifyUIEvent(uitypes.UIEvent{
 		Vmgr: &uitypes.VmgrEvent{
 			DrmState: state,
 		},

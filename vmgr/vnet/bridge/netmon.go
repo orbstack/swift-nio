@@ -115,7 +115,7 @@ func (m *RouteMon) Close() error {
 }
 
 func (m *RouteMon) Monitor() error {
-	for range swext.SwextNetPathChangesChan {
+	for range swext.NetPathChangesChan {
 		m.renewDebounce.Call()
 	}
 

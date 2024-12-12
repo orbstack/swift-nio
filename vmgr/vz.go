@@ -416,7 +416,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 
 	// install Rosetta
 	if params.Rosetta {
-		rosettaStatus, err := swext.SwextInstallRosetta()
+		rosettaStatus, err := swext.InstallRosetta()
 		if err != nil {
 			return nil, nil, fmt.Errorf("install rosetta: %w", err)
 		}

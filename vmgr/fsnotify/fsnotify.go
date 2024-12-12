@@ -45,14 +45,14 @@ func (n *VmNotifier) Run() error {
 
 	client := NewKrpcClient(conn)
 
-	err = swext.SwextFseventsMonitorDirs()
+	err = swext.FseventsMonitorDirs()
 	if err != nil {
 		return fmt.Errorf("start dir monitor: %w", err)
 	}
 
 	for {
 		select {
-		case buf := <-swext.SwextFseventsKrpcEventsChan:
+		case buf := <-swext.FseventsKrpcEventsChan:
 			err := client.WriteRaw(buf)
 			if err != nil {
 				logrus.WithError(err).Error("failed to send fsnotify events")

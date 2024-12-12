@@ -248,7 +248,7 @@ func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMach
 }
 
 func (h *HcontrolServer) GetExtraCaCertificates(_ None, reply *[]string) error {
-	certs, err := swext.SwextSecurityGetExtraCaCerts()
+	certs, err := swext.SecurityGetExtraCaCerts()
 	if err != nil {
 		return err
 	}
@@ -375,7 +375,7 @@ func (h *HcontrolServer) ClearDockerState(info htypes.DockerExitInfo, _ *None) e
 
 	// and clear gui state because k8s is push-only to UI
 	// done on host side
-	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.IpcNotifyUIEvent(uitypes.UIEvent{
 		Docker: &uitypes.DockerEvent{
 			Exited: info.ExitEvent,
 		},
@@ -405,7 +405,7 @@ func (h *HcontrolServer) clearFsnotifyRefs() error {
 }
 
 func (h *HcontrolServer) OnUIEvent(ev string, _ *None) error {
-	swext.SwextIpcNotifyUIEventRaw(ev)
+	swext.IpcNotifyUIEventRaw(ev)
 	return nil
 }
 
@@ -600,7 +600,7 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 			services = []*v1.Service{}
 		}
 
-		swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		swext.IpcNotifyUIEvent(uitypes.UIEvent{
 			K8s: &K8sEvent{
 				CurrentPods:     pods,
 				CurrentServices: services,
@@ -721,7 +721,7 @@ func (h *HcontrolServer) ImportTLSCertificate(_ None, reply *None) error {
 
 	// import to keychain, and open firefox dialog if necessary
 	// careful: this is missing PEM headers. just raw b64
-	err = swext.SwextSecurityImportCertificate(pem)
+	err = swext.SecurityImportCertificate(pem)
 	if err != nil {
 		// tooManyDeclines? auto-disable the config
 		if strings.HasPrefix(err.Error(), "tooManyDeclines") {

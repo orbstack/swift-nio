@@ -76,7 +76,7 @@ func (n *Network) AddHostBridge(handle swext.NetHandle) error {
 
 	if len(n.hostBridgeHandles)-1 == brIndexVlanRouter {
 		// fds[1] = vlan router
-		vlanRouter, err := swext.SwextNewVlanRouter(swext.VlanRouterConfig{
+		vlanRouter, err := swext.NewVlanRouter(swext.VlanRouterConfig{
 			GuestHandle:       handle,
 			MACPrefix:         brMacVlanRouterTemplate[:5], // prefix bytes
 			MaxVlanInterfaces: bridge.MaxVlanInterfaces,
@@ -392,7 +392,7 @@ func (n *Network) closeSconMachineHostBridgeLocked() error {
 }
 
 func (n *Network) createHostBridge(index int, config swext.BridgeNetworkConfig) error {
-	brnet, err := swext.SwextNewBrnet(config)
+	brnet, err := swext.NewBrnet(config)
 	if err != nil {
 		return err
 	}

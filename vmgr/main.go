@@ -610,7 +610,7 @@ func runVmManager() {
 	// everything is set up for spawn-daemon to work properly (build id and pid)
 	// now notify GUI that we've started
 	pid := os.Getpid()
-	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.IpcNotifyUIEvent(uitypes.UIEvent{
 		Vmgr: &uitypes.VmgrEvent{
 			NewDaemonPid: &pid,
 		},
@@ -890,7 +890,7 @@ func runVmManager() {
 	}
 	controlServer.setupUserDetailsOnce = sync.OnceValues(controlServer.doGetUserDetailsAndSetupEnv)
 	controlServer.uiEventDebounce = *syncx.NewLeadingFuncDebounce(uitypes.UIEventDebounce, func() {
-		swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		swext.IpcNotifyUIEvent(uitypes.UIEvent{
 			Vmgr: &uitypes.VmgrEvent{
 				VmConfig: vmconfig.Get(),
 				DrmState: drmClient.GenerateUIState(),
@@ -986,7 +986,7 @@ func runVmManager() {
 	defer enforceStopDeadline()
 
 	// notify GUI that host-side startup is done
-	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.IpcNotifyUIEvent(uitypes.UIEvent{
 		Vmgr: &uitypes.VmgrEvent{
 			StateReady: true,
 			// and give it an initial config

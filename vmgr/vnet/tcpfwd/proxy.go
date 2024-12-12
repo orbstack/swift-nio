@@ -110,7 +110,7 @@ func (p *ProxyManager) monitorChanges() {
 					logrus.WithError(err).Error("failed to refresh proxy settings (config change)")
 				}
 			}
-		case <-swext.SwextProxyChangesChan:
+		case <-swext.ProxyChangesChan:
 			sysRefreshDebounce.Call()
 		case <-p.stopCh:
 			return
@@ -143,7 +143,7 @@ func (p *ProxyManager) excludeProxyHost(hostPort string) error {
 // HTTP/HTTPS: use it for HTTP (special case) and everything
 // http proxies tend to block CONNECT to non-443 ports,
 // but if there's a proxy set, outgoing conns will probably get blocked anyway
-func (p *ProxyManager) updateDialers(settings *swext.SwextProxySettings) (*url.URL, error) {
+func (p *ProxyManager) updateDialers(settings *swext.ProxySettings) (*url.URL, error) {
 	p.dialerMu.Lock()
 	defer p.dialerMu.Unlock()
 
@@ -357,7 +357,7 @@ func (p *ProxyManager) Refresh() error {
 	// don't read from keychain if not needed
 	// it can trigger keychain permission prompt
 	needAuth := vmconfig.Get().NetworkProxy == vmconfig.ProxyAuto
-	settings, err := swext.SwextProxyGetSettings(needAuth)
+	settings, err := swext.ProxyGetSettings(needAuth)
 	if err != nil {
 		return fmt.Errorf("get proxy settings: %w", err)
 	}

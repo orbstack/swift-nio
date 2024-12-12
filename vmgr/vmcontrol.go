@@ -332,7 +332,7 @@ func (s *VmControlServer) onStart() error {
 
 func (s *VmControlServer) openGuiApp() error {
 	// only open gui if menu bar is enabled
-	settings, err := swext.SwextDefaultsGetUserSettings()
+	settings, err := swext.DefaultsGetUserSettings()
 	if err != nil {
 		return fmt.Errorf("get user settings: %w", err)
 	}

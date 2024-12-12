@@ -74,7 +74,7 @@ func NewSparkleCommand(args ...string) (*pspawn.Cmd, error) {
 		sparkleExe = bundlePath + "/Contents/MacOS/sparkle-cli"
 	}
 
-	settings, err := swext.SwextDefaultsGetUserSettings()
+	settings, err := swext.DefaultsGetUserSettings()
 	if err != nil {
 		return nil, fmt.Errorf("get user settings: %w", err)
 	}

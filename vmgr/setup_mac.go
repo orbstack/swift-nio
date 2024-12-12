@@ -69,7 +69,7 @@ func (s *VmControlServer) doGetUserDetails(useAdmin bool) (*UserDetails, error) 
 
 	// uninstall priv helper if admin is disabled but available
 	if vmconfig.IsAdmin() && !useAdmin {
-		err := swext.SwextPrivhelperUninstall()
+		err := swext.PrivhelperUninstall()
 		if err != nil {
 			logrus.WithError(err).Error("failed to uninstall priv helper")
 		}
@@ -636,11 +636,11 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 	if len(info.AdminSymlinkCommands) > 0 {
 		logrus.WithField("cmd", info.AdminSymlinkCommands).Debug("requesting admin symlinks")
 		if info.AdminMessage != nil {
-			swext.SwextPrivhelperSetInstallReason(*info.AdminMessage)
+			swext.PrivhelperSetInstallReason(*info.AdminMessage)
 		}
 
 		for _, cmd := range info.AdminSymlinkCommands {
-			err := swext.SwextPrivhelperSymlink(cmd.Src, cmd.Dest)
+			err := swext.PrivhelperSymlink(cmd.Src, cmd.Dest)
 			if err != nil {
 				if err.Error() == "canceled" {
 					logrus.Info("user canceled privhelper install")

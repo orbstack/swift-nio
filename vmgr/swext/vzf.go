@@ -277,7 +277,7 @@ const (
 	RosettaStatusInstallCanceled
 )
 
-func SwextInstallRosetta() (RosettaStatus, error) {
+func InstallRosetta() (RosettaStatus, error) {
 	res := C.swext_install_rosetta()
 	return RosettaStatus(res.value), errFromC(res.err)
 }
@@ -286,13 +286,13 @@ func SwextInstallRosetta() (RosettaStatus, error) {
  * Proxy
  */
 
-func SwextProxyGetSettings(needAuth bool) (*SwextProxySettings, error) {
+func ProxyGetSettings(needAuth bool) (*ProxySettings, error) {
 	cStr := C.swext_proxy_get_settings(C.bool(needAuth))
 	defer C.free(unsafe.Pointer(cStr))
 	str := C.GoString(cStr)
 
 	// convert to Go
-	var settings SwextProxySettings
+	var settings ProxySettings
 	err := json.Unmarshal([]byte(str), &settings)
 	if err != nil {
 		return nil, err
@@ -306,12 +306,12 @@ func swext_proxy_cb_changed() {
 	logrus.Debug("sys proxy settings changed")
 	// non-blocking send w/ adaptive 1-buf
 	select {
-	case SwextProxyChangesChan <- struct{}{}:
+	case ProxyChangesChan <- struct{}{}:
 	default:
 	}
 }
 
-func SwextProxyMonitorChangesOnRunLoop() error {
+func ProxyMonitorChangesOnRunLoop() error {
 	res := C.swext_proxy_monitor_changes()
 	return errFromResult(res)
 }
@@ -320,7 +320,7 @@ func SwextProxyMonitorChangesOnRunLoop() error {
  * Security / certs
  */
 
-func SwextSecurityGetExtraCaCerts() ([]string, error) {
+func SecurityGetExtraCaCerts() ([]string, error) {
 	cStr := C.swext_security_get_extra_ca_certs()
 	defer C.free(unsafe.Pointer(cStr))
 	str := C.GoString(cStr)
@@ -340,7 +340,7 @@ func SwextSecurityGetExtraCaCerts() ([]string, error) {
 	return certs, nil
 }
 
-func SwextSecurityImportCertificate(certDerB64 string) error {
+func SecurityImportCertificate(certDerB64 string) error {
 	cStr := C.CString(certDerB64)
 	defer C.free(unsafe.Pointer(cStr))
 
@@ -359,10 +359,10 @@ func swext_fsevents_cb_krpc_events(ptr *C.uint8_t, len C.size_t) {
 
 	// send to channel
 	// block if necessary for backpressure
-	SwextFseventsKrpcEventsChan <- data
+	FseventsKrpcEventsChan <- data
 }
 
-func SwextFseventsMonitorDirs() error {
+func FseventsMonitorDirs() error {
 	msgC := C.swext_fsevents_monitor_dirs()
 	defer C.free(unsafe.Pointer(msgC))
 	msgStr := C.GoString(msgC)
@@ -460,18 +460,18 @@ func (n *FsVmNotifier) UpdatePaths(paths []string) error {
  * Notify
  */
 
-func SwextIpcNotifyUIEvent(ev uitypes.UIEvent) {
+func IpcNotifyUIEvent(ev uitypes.UIEvent) {
 	eventJson, err := json.Marshal(ev)
 	if err != nil {
 		logrus.WithError(err).Error("failed to marshal event")
 		return
 	}
 
-	SwextIpcNotifyUIEventRaw(string(eventJson))
+	IpcNotifyUIEventRaw(string(eventJson))
 }
 
 // raw is for more efficient sending from VM, via gob rpc
-func SwextIpcNotifyUIEventRaw(eventJsonStr string) {
+func IpcNotifyUIEventRaw(eventJsonStr string) {
 	logrus.Debug("sending UI event")
 
 	cStr := C.CString(eventJsonStr)
@@ -483,7 +483,7 @@ func SwextIpcNotifyUIEventRaw(eventJsonStr string) {
  * Defaults
  */
 
-func SwextDefaultsGetUserSettings() (*SwextUserSettings, error) {
+func DefaultsGetUserSettings() (*UserSettings, error) {
 	cStr := C.swext_defaults_get_user_settings()
 	defer C.free(unsafe.Pointer(cStr))
 	str := C.GoString(cStr)
@@ -494,7 +494,7 @@ func SwextDefaultsGetUserSettings() (*SwextUserSettings, error) {
 	}
 
 	// convert to Go
-	var settings SwextUserSettings
+	var settings UserSettings
 	err := json.Unmarshal([]byte(str), &settings)
 	if err != nil {
 		return nil, err
@@ -512,7 +512,7 @@ type BridgeNetwork struct {
 	ptr unsafe.Pointer
 }
 
-func SwextNewBrnet(config BridgeNetworkConfig) (*BridgeNetwork, error) {
+func NewBrnet(config BridgeNetworkConfig) (*BridgeNetwork, error) {
 	// encode to json
 	specStr, err := json.Marshal(config)
 	if err != nil {
@@ -562,7 +562,7 @@ type VlanRouter struct {
 	ptr unsafe.Pointer
 }
 
-func SwextNewVlanRouter(config VlanRouterConfig) (*VlanRouter, error) {
+func NewVlanRouter(config VlanRouterConfig) (*VlanRouter, error) {
 	// encode to json
 	configStr, err := json.Marshal(&config)
 	if err != nil {
@@ -663,7 +663,7 @@ func swext_net_cb_path_changed() {
 	logrus.Debug("sys net path changed")
 	// non-blocking send w/ adaptive 1-buf
 	select {
-	case SwextNetPathChangesChan <- struct{}{}:
+	case NetPathChangesChan <- struct{}{}:
 	default:
 	}
 }
@@ -671,7 +671,7 @@ func swext_net_cb_path_changed() {
 /*
  * GUI
  */
-func SwextGuiRunAsAdmin(shellScript string, prompt string) error {
+func GuiRunAsAdmin(shellScript string, prompt string) error {
 	cShellScript := C.CString(shellScript)
 	defer C.free(unsafe.Pointer(cShellScript))
 	cPrompt := C.CString(prompt)
@@ -683,7 +683,7 @@ func SwextGuiRunAsAdmin(shellScript string, prompt string) error {
 /*
  * Priv helper
  */
-func SwextPrivhelperSymlink(src string, dst string) error {
+func PrivhelperSymlink(src string, dst string) error {
 	cSrc := C.CString(src)
 	defer C.free(unsafe.Pointer(cSrc))
 	cDst := C.CString(dst)
@@ -692,12 +692,12 @@ func SwextPrivhelperSymlink(src string, dst string) error {
 	return errFromResult(res)
 }
 
-func SwextPrivhelperUninstall() error {
+func PrivhelperUninstall() error {
 	res := C.swext_privhelper_uninstall()
 	return errFromResult(res)
 }
 
-func SwextPrivhelperSetInstallReason(reason string) {
+func PrivhelperSetInstallReason(reason string) {
 	cReason := C.CString(reason)
 	defer C.free(unsafe.Pointer(cReason))
 	C.swext_privhelper_set_install_reason(cReason)

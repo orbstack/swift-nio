@@ -3,14 +3,14 @@ package swext
 import "golang.org/x/sys/unix"
 
 var (
-	SwextProxyChangesChan = make(chan struct{}, 1)
+	ProxyChangesChan = make(chan struct{}, 1)
 
-	SwextFseventsKrpcEventsChan = make(chan []byte)
+	FseventsKrpcEventsChan = make(chan []byte)
 
-	SwextNetPathChangesChan = make(chan struct{}, 1)
+	NetPathChangesChan = make(chan struct{}, 1)
 )
 
-type SwextProxySettings struct {
+type ProxySettings struct {
 	HTTPEnable   bool   `json:"httpEnable"`
 	HTTPProxy    string `json:"httpProxy,omitempty"`
 	HTTPPort     int    `json:"httpPort,omitempty"`
@@ -32,7 +32,7 @@ type SwextProxySettings struct {
 	ExceptionsList []string `json:"exceptionsList,omitempty"`
 }
 
-type SwextUserSettings struct {
+type UserSettings struct {
 	ShowMenubarExtra    bool   `json:"showMenubarExtra"`
 	UpdatesOptinChannel string `json:"updatesOptinChannel"`
 }

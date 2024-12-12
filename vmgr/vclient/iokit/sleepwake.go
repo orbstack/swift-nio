@@ -77,7 +77,7 @@ func MonitorSleepWake() (*SleepWakeMonitor, error) {
 		C.CFRunLoopAddSource(C.CFRunLoopGetCurrent(), C.IONotificationPortGetRunLoopSource(notifyPortRef), C.kCFRunLoopDefaultMode)
 
 		// also add SC proxy settings notifier to runloop
-		err := swext.SwextProxyMonitorChangesOnRunLoop()
+		err := swext.ProxyMonitorChangesOnRunLoop()
 		if err != nil {
 			logrus.WithError(err).Error("failed to watch proxy settings")
 		}
