@@ -105,7 +105,9 @@ func (d *DockerAgent) refreshContainers() error {
 		logrus.WithError(err).Error("failed to update scon containers")
 	}
 
+	d.lastContainersMu.Lock()
 	d.lastContainers = newContainers
+	d.lastContainersMu.Unlock()
 
 	// we could have new bridge ports now
 	err = d.refreshFlowtable()
@@ -242,9 +244,11 @@ func (d *DockerAgent) onContainerStop(ctr dockertypes.ContainerSummaryMin) error
 
 func (a *AgentServer) DockerOnContainerPreStart(cid string, reply *None) error {
 	// pretend that container was removed from cache
+	a.docker.lastContainersMu.Lock()
 	a.docker.lastContainers = slices.DeleteFunc(a.docker.lastContainers, func(ctr dockertypes.ContainerSummaryMin) bool {
 		return ctr.ID == cid
 	})
+	a.docker.lastContainersMu.Unlock()
 
 	// inject certs
 	err := a.docker.certInjector.addToContainer(cid)

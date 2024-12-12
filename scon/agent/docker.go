@@ -61,10 +61,15 @@ type DockerAgent struct {
 	wakeRefs atomic.Int32
 
 	containerBinds map[string][]string
-	lastContainers []dockertypes.ContainerSummaryMin // minimized struct to save memory
-	lastNetworks   atomic.Pointer[[]dockertypes.Network]
-	lastVolumes    []*dockertypes.Volume
+	// needs lock because debounce can race with runc wrap RPC
+	lastContainersMu syncx.Mutex
+	lastContainers   []dockertypes.ContainerSummaryMin // minimized struct to save memory
+	// doesn't need lock but needs atomic: only written by debounce, but accessed by flowtable
+	lastNetworks atomic.Pointer[[]dockertypes.Network]
+	// doesn't need lock or atomic: only written and accessed by debounce
+	lastVolumes []*dockertypes.Volume
 
+	// doesn't need lock or atomic: only written and accessed by debounce
 	lastImages     []*sgtypes.TaggedImage
 	fullImageCache map[string]cachedImage
 
