@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/google/nftables"
-	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
+	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
@@ -52,6 +52,8 @@ type domainproxyRegistry struct {
 	// maps domain names to domainproxy ips
 	v4 *domainproxyAllocator
 	v6 *domainproxyAllocator
+
+	procDirfds map[domainproxytypes.Host]*os.File
 }
 
 func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) domainproxyRegistry {
@@ -64,6 +66,8 @@ func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip
 
 		v4: newDomainproxyAllocator(subnet4, lowest4),
 		v6: newDomainproxyAllocator(subnet6, lowest6),
+
+		procDirfds: make(map[domainproxytypes.Host]*os.File),
 	}
 }
 
@@ -103,14 +107,14 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 		return
 	}
 
-	d.ipMap[ip] = domainproxytypes.Upstream{IP: nil}
+	d.ipMap[ip] = domainproxytypes.Upstream{}
 
 	prefix := "domainproxy4"
 	if ip.Is6() {
 		prefix = "domainproxy6"
 	}
 
-	if upstream.Docker {
+	if upstream.Host.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
 				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
@@ -199,7 +203,7 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 		prefix = "domainproxy6"
 	}
 
-	if val.Docker {
+	if val.Host.Docker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
 				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
@@ -397,7 +401,7 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 
 	for _, valip := range valips {
 		if ip4 == nil && valip.To4() != nil {
-			addr, err := d.assignUpstreamLocked(d.v4, domainproxytypes.Upstream{IP: valip, Names: names, Docker: false, ContainerID: machine.ID})
+			addr, err := d.assignUpstreamLocked(d.v4, domainproxytypes.NewUpstream(names, valip, domainproxytypes.Host{Docker: false, ID: machine.ID}))
 			if err != nil {
 				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip4 for DNS")
 				continue
@@ -407,7 +411,7 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 		}
 
 		if ip6 == nil && valip.To4() == nil {
-			addr, err := d.assignUpstreamLocked(d.v6, domainproxytypes.Upstream{IP: valip, Names: names, Docker: false, ContainerID: machine.ID})
+			addr, err := d.assignUpstreamLocked(d.v6, domainproxytypes.NewUpstream(names, valip, domainproxytypes.Host{Docker: false, ID: machine.ID}))
 			if err != nil {
 				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip6 for DNS")
 				continue
@@ -492,7 +496,7 @@ func (c *SconProxyCallbacks) GetUpstreamByAddr(addr netip.Addr) (domainproxytype
 
 func (c *SconProxyCallbacks) GetMark(upstream domainproxytypes.Upstream) int {
 	mark := netconf.VmFwmarkTproxyOutboundBit
-	if upstream.Docker {
+	if upstream.Host.Docker {
 		mark |= netconf.VmFwmarkDockerRouteBit
 	}
 
@@ -511,26 +515,8 @@ func (c *SconProxyCallbacks) NftableName() string {
 	return netconf.NftableInet
 }
 
-func (c *SconProxyCallbacks) GetMachineOpenPorts(machineID string) (map[uint16]struct{}, error) {
-	return c.r.getMachineOpenPorts(machineID)
-}
-
-func (c *SconProxyCallbacks) GetContainerOpenPorts(containerID string) (map[uint16]struct{}, error) {
-	if c.r.domainproxy.dockerMachine == nil {
-		return map[uint16]struct{}{}, nil
-	}
-
-	ports := map[uint16]struct{}{}
-	err := c.r.domainproxy.dockerMachine.UseAgent(func(client *agent.Client) error {
-		var err error
-		ports, err = client.DockerGetContainerOpenPorts(containerID)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return ports, nil
+func (c *SconProxyCallbacks) GetHostOpenPorts(host domainproxytypes.Host) (map[uint16]struct{}, error) {
+	return c.r.getHostOpenPorts(host)
 }
 
 func (r *mdnsRegistry) getProxyUpstreamByHost(host string, v4 bool) (netip.Addr, domainproxytypes.Upstream, error) {
@@ -579,46 +565,32 @@ func (r *mdnsRegistry) getProxyUpstreamByAddr(addr netip.Addr) (domainproxytypes
 	return upstream, nil
 }
 
-func (r *mdnsRegistry) getMachineOpenPorts(machineID string) (map[uint16]struct{}, error) {
-	machine, err := r.manager.GetByID(machineID)
+func (r *mdnsRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.Host) (map[uint16]struct{}, error) {
+	fs, err := securefs.NewFromDirfd(r.domainproxy.procDirfds[domainproxyHost])
 	if err != nil {
-		return nil, fmt.Errorf("get machine by id: %w", err)
+		return nil, fmt.Errorf("new from dirfd: %w", err)
 	}
 
 	openPorts := map[uint16]struct{}{}
 
 	// always grab both v4 and v6 ports because dual stack shows up as ipv6 anyways, so not worth the effort to differentiate
 	// especially when our probing routine should be relatively fast anyways, especially for non-listening ports
-	netTcp4, err := withContainerNetns(machine, func() (string, error) {
-		contents, err := os.ReadFile("/proc/thread-self/net/tcp")
-		if err != nil {
-			return "", fmt.Errorf("read tcp4: %w", err)
-		}
-
-		return string(contents), nil
-	})
+	netTcp4, err := fs.ReadFile("net/tcp")
 	if err != nil {
 		return nil, err
 	}
 
-	netTcp6, err := withContainerNetns(machine, func() (string, error) {
-		contents, err := os.ReadFile("/proc/thread-self/net/tcp6")
-		if err != nil {
-			return "", fmt.Errorf("read tcp6: %w", err)
-		}
-
-		return string(contents), nil
-	})
+	netTcp6, err := fs.ReadFile("net/tcp6")
 	if err != nil {
 		return nil, err
 	}
 
-	err = util.ParseNetTcpPorts(netTcp4, openPorts)
+	err = util.ParseNetTcpPorts(string(netTcp4), openPorts)
 	if err != nil {
 		return nil, err
 	}
 
-	err = util.ParseNetTcpPorts(netTcp6, openPorts)
+	err = util.ParseNetTcpPorts(string(netTcp6), openPorts)
 	if err != nil {
 		return nil, err
 	}

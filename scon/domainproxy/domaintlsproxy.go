@@ -62,8 +62,7 @@ type ProxyCallbacks interface {
 	NfqueueMarkReject(mark uint32) uint32
 	NfqueueMarkSkip(mark uint32) uint32
 
-	GetMachineOpenPorts(machineID string) (map[uint16]struct{}, error)
-	GetContainerOpenPorts(containerID string) (map[uint16]struct{}, error)
+	GetHostOpenPorts(host domainproxytypes.Host) (map[uint16]struct{}, error)
 }
 
 type serverPort struct {

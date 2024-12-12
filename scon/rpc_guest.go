@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 	"net/rpc"
+	"os"
 	"strconv"
 	"strings"
 
@@ -196,7 +197,21 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 	}
 	for i, ctr := range diff.Added {
 		s.dockerContainersCache[ctr.ID] = ctr
-		s.m.net.mdnsRegistry.AddContainer(&ctr)
+
+		procDirFdxSeq := diff.AddedProcDirFdxSeqs[i]
+		var procDirfd *os.File
+		if procDirFdxSeq != 0 {
+			err := s.dockerMachine.useAgentLocked(func(a *agent.Client) error {
+				fd, err := a.Fdx().RecvFile(procDirFdxSeq)
+				procDirfd = fd
+				return err
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		s.m.net.mdnsRegistry.AddContainer(&ctr, procDirfd)
 
 		if s.dockerMachine.runningLocked() {
 			// mount nfs in shadow dir

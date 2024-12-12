@@ -42,13 +42,14 @@ func (cb *DockerProxyCallbacks) NftableName() string {
 	return netconf.NftableInet
 }
 
-func (cb *DockerProxyCallbacks) GetMachineOpenPorts(machineID string) (map[uint16]struct{}, error) {
-	// docker machine should never need to get a machine's ports: machine domains are handled by ovm
-	return nil, errors.New("not implemented")
-}
+func (cb *DockerProxyCallbacks) GetHostOpenPorts(host domainproxytypes.Host) (map[uint16]struct{}, error) {
+	// docker machine's domainproxy only proxies other docker containers
+	// so it should never need to get open ports for non-docker containers
+	if !host.Docker {
+		return nil, errors.New("not implemented")
+	}
 
-func (cb *DockerProxyCallbacks) GetContainerOpenPorts(containerID string) (map[uint16]struct{}, error) {
-	return cb.d.getDockerContainerOpenPorts(containerID)
+	return cb.d.getDockerContainerOpenPorts(host.ID)
 }
 
 func (d *DockerAgent) startDomainTLSProxy() error {
@@ -130,14 +131,4 @@ func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint1
 	}
 
 	return openPorts, nil
-}
-
-func (a *AgentServer) DockerGetContainerOpenPorts(containerID string, reply *map[uint16]struct{}) error {
-	openPorts, err := a.docker.getDockerContainerOpenPorts(containerID)
-	if err != nil {
-		return err
-	}
-
-	*reply = openPorts
-	return nil
 }

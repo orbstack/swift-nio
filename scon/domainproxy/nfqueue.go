@@ -179,19 +179,15 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 }
 
 func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (serverPort, error) {
-	if upstream.ContainerID == "" {
-		logrus.Error("unable to probe host: upstream has no container id")
-		return serverPort{}, fmt.Errorf("get upstream container id")
+	if upstream.Host.ID == "" {
+		logrus.Error("unable to probe host: upstream has no host id")
+		return serverPort{}, fmt.Errorf("get upstream host id")
 	}
 
 	var ports map[uint16]struct{}
 
 	var err error
-	if upstream.Docker {
-		ports, err = d.cb.GetContainerOpenPorts(upstream.ContainerID)
-	} else {
-		ports, err = d.cb.GetMachineOpenPorts(upstream.ContainerID)
-	}
+	ports, err = d.cb.GetHostOpenPorts(upstream.Host)
 	if err != nil {
 		return serverPort{}, fmt.Errorf("get open ports: %w", err)
 	}

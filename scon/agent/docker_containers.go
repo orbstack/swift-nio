@@ -6,6 +6,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
@@ -47,6 +48,21 @@ func openPidRootfsAndSend(pid int, fdx *Fdx) (uint64, error) {
 	return seq, nil
 }
 
+func openPidProcDirAndSend(pid int, fdx *Fdx) (uint64, error) {
+	// this is racy, but it's the same amount of racy as opening pidfd from pid
+	procFd, err := unix.Open("/proc/"+strconv.Itoa(pid), unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return 0, fmt.Errorf("open proc net dir: %w", err)
+	}
+	defer unix.Close(procFd)
+
+	seq, err := fdx.SendFdInt(procFd)
+	if err != nil {
+		return 0, fmt.Errorf("send fd: %w", err)
+	}
+	return seq, nil
+}
+
 func (d *DockerAgent) refreshContainers() error {
 	// no mu needed: FuncDebounce has mutex
 
@@ -75,6 +91,7 @@ func (d *DockerAgent) refreshContainers() error {
 	// then add
 	// fdx seqs can't be 0, so zero = missing
 	rootfsFdxSeqs := make([]uint64, len(added))
+	procDirFdxSeqs := make([]uint64, len(added))
 	for i, c := range added {
 		fullCtr, err := d.realClient.InspectContainer(c.ID)
 		if err != nil {
@@ -94,6 +111,11 @@ func (d *DockerAgent) refreshContainers() error {
 			// container exited is normal - just don't mount
 			logrus.WithError(err).Error("failed to send rfd")
 		}
+
+		procDirFdxSeqs[i], err = openPidProcDirAndSend(fullCtr.State.Pid, d.agent.fdx)
+		if err != nil {
+			logrus.WithError(err).Error("failed to send proc dir")
+		}
 	}
 
 	// tell scon
@@ -102,7 +124,8 @@ func (d *DockerAgent) refreshContainers() error {
 			Added:   added,
 			Removed: removed,
 		},
-		AddedRootfsFdxSeqs: rootfsFdxSeqs,
+		AddedRootfsFdxSeqs:  rootfsFdxSeqs,
+		AddedProcDirFdxSeqs: procDirFdxSeqs,
 	})
 	if err != nil {
 		logrus.WithError(err).Error("failed to update scon containers")

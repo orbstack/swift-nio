@@ -63,7 +63,8 @@ type Diff[T any] struct {
 
 type ContainersDiff struct {
 	Diff[dockertypes.ContainerSummaryMin]
-	AddedRootfsFdxSeqs []uint64
+	AddedRootfsFdxSeqs  []uint64
+	AddedProcDirFdxSeqs []uint64
 }
 
 type TaggedImage struct {

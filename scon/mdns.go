@@ -8,7 +8,9 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 // in the future we should add machines using container.IPAddresses() on .orb.local
@@ -694,19 +697,24 @@ func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) 
 }
 
 // returns upstream ips
-func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
+func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDirfd *os.File) (net.IP, net.IP) {
 	names := r.containerToMdnsNames(ctr, true /*notifyInvalid*/)
 	nameStrings := dnsNamesToStrings(names)
+	domainproxyHost := domainproxytypes.Host{Docker: true, ID: ctr.ID}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if procDirfd != nil {
+		r.domainproxy.procDirfds[domainproxyHost] = procDirfd
+	}
 
 	ctrIP4, ctrIP6 := containerToMdnsIPs(ctr)
 	var ip4 net.IP
 	var ip6 net.IP
 	// we're protected by the mdnsRegistry mutex
 	if ctrIP4 != nil {
-		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{IP: ctrIP4, Names: nameStrings, Docker: true, ContainerID: ctr.ID})
+		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.NewUpstream(nameStrings, ctrIP4, domainproxyHost))
 		if err != nil {
 			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip4 for DNS")
 		} else {
@@ -714,7 +722,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin) (net.I
 		}
 	}
 	if ctrIP6 != nil {
-		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{IP: ctrIP6, Names: nameStrings, Docker: true, ContainerID: ctr.ID})
+		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.NewUpstream(nameStrings, ctrIP6, domainproxyHost))
 		if err != nil {
 			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip6 for DNS")
 		} else {
@@ -771,9 +779,15 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	names := r.containerToMdnsNames(ctr, false /*notifyInvalid*/)
 	nameStrings := dnsNamesToStrings(names)
 	logrus.WithField("names", names).Debug("dns: remove container")
+	domainproxyHost := domainproxytypes.Host{Docker: true, ID: ctr.ID}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if dirfd, ok := r.domainproxy.procDirfds[domainproxyHost]; ok {
+		dirfd.Close()
+		delete(r.domainproxy.procDirfds, domainproxyHost)
+	}
 
 	r.domainproxy.freeNamesLocked(nameStrings)
 
@@ -797,9 +811,19 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 func (r *mdnsRegistry) AddMachine(c *Container) {
 	name := c.Name + mdnsMachineSuffix
 	logrus.WithField("name", name).Debug("dns: add machine")
+	domainproxyHost := domainproxytypes.Host{Docker: false, ID: c.ID}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	procPath := "/proc/" + strconv.Itoa(c.initPid)
+	procDirfd, err := unix.Open(procPath, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err == nil {
+		procDirfdFile := os.NewFile(uintptr(procDirfd), procPath)
+		r.domainproxy.procDirfds[domainproxyHost] = procDirfdFile
+	} else {
+		logrus.WithError(err).WithField("procPath", procPath).Error("failed to open proc dirfd")
+	}
 
 	// we don't validate these b/c it's not under the user's control
 	// TODO allow '_' and translate w/ alias to '-' like Docker
@@ -1195,12 +1219,14 @@ func (r *mdnsRegistry) dockerPostStart() error {
 	if r.manager.vmConfig.K8sEnable {
 		k8sName := "k8s.orb.local."
 
-		k8sAddr4, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{
-			Names: []string{k8sName},
-			IP:    net.ParseIP(netconf.SconK8sIP4),
-			// we make k8s.orb.local not count as docker because the ip is the docker ip. this means that hairpinning needs to be done by ovm.
-			Docker: false,
-		})
+		k8sAddr4, err := r.domainproxy.assignUpstreamLocked(
+			r.domainproxy.v4, domainproxytypes.NewUpstream(
+				[]string{k8sName},
+				net.ParseIP(netconf.SconK8sIP4),
+				// we make k8s.orb.local not count as docker because the ip is the docker ip. this means that hairpinning needs to be done by ovm.
+				domainproxytypes.Host{Docker: false, ID: ContainerIDK8s},
+			),
+		)
 		if err != nil {
 			return fmt.Errorf("unable to create k8s domainproxy ip: %w", err)
 		}
