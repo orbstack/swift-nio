@@ -86,7 +86,7 @@ func errFromResult(result C.struct_GResultErr) error {
  * Virtual Machine
  */
 
-type machine struct {
+type vzfMachine struct {
 	mu     sync.RWMutex
 	ptr    atomicUnsafePointer
 	handle cgo.Handle
@@ -98,7 +98,7 @@ type machine struct {
 
 //export swext_vzf_event_Machine_onStateChange
 func swext_vzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state int) {
-	vm := cgo.Handle(vmHandle).Value().(*machine)
+	vm := cgo.Handle(vmHandle).Value().(*vzfMachine)
 
 	// no lock needed: channel never changes
 	ch := vm.stateChan
@@ -114,13 +114,13 @@ func swext_vzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state int) {
 //
 //export swext_vzf_event_Machine_deinit
 func swext_vzf_event_Machine_deinit(vmHandle C.uintptr_t) {
-	vm := cgo.Handle(vmHandle).Value().(*machine)
+	vm := cgo.Handle(vmHandle).Value().(*vzfMachine)
 
 	cgo.Handle(vm.handle).Delete()
 	vm.handle = 0
 }
 
-func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machine, error) {
+func (m vzfMonitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machine, error) {
 	// encode to json
 	specStr, err := json.Marshal(spec)
 	if err != nil {
@@ -128,7 +128,7 @@ func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machi
 	}
 
 	// create Go object
-	vm := &machine{
+	vm := &vzfMachine{
 		stateChan:   make(chan vmm.MachineState, 1),
 		retainFiles: retainFiles,
 	}
@@ -149,16 +149,16 @@ func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machi
 	// set ptr
 	vm.ptr.Store(result.ptr)
 	// ref ok: this just drops Go ref; Swift ref is still held if alive
-	runtime.SetFinalizer(vm, (*machine).Close)
+	runtime.SetFinalizer(vm, (*vzfMachine).Close)
 
 	return vm, nil
 }
 
-func (m *machine) StateChan() <-chan vmm.MachineState {
+func (m *vzfMachine) StateChan() <-chan vmm.MachineState {
 	return m.stateChan
 }
 
-func (m *machine) callGenericErr(fn func(unsafe.Pointer) C.struct_GResultErr) error {
+func (m *vzfMachine) callGenericErr(fn func(unsafe.Pointer) C.struct_GResultErr) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	ptr := m.ptr.Load()
@@ -170,7 +170,7 @@ func (m *machine) callGenericErr(fn func(unsafe.Pointer) C.struct_GResultErr) er
 	return errFromC(res.err)
 }
 
-func (m *machine) callGenericErrInt(fn func(unsafe.Pointer) C.struct_GResultIntErr) (int64, error) {
+func (m *vzfMachine) callGenericErrInt(fn func(unsafe.Pointer) C.struct_GResultIntErr) (int64, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	ptr := m.ptr.Load()
@@ -182,37 +182,37 @@ func (m *machine) callGenericErrInt(fn func(unsafe.Pointer) C.struct_GResultIntE
 	return int64(res.value), errFromC(res.err)
 }
 
-func (m *machine) Start() error {
+func (m *vzfMachine) Start() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.swext_vzf_run_Machine_Start(ptr)
 	})
 }
 
-func (m *machine) ForceStop() error {
+func (m *vzfMachine) ForceStop() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.swext_vzf_run_Machine_Stop(ptr)
 	})
 }
 
-func (m *machine) RequestStop() error {
+func (m *vzfMachine) RequestStop() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.swext_vzf_run_Machine_RequestStop(ptr)
 	})
 }
 
-func (m *machine) Pause() error {
+func (m *vzfMachine) Pause() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.swext_vzf_run_Machine_Pause(ptr)
 	})
 }
 
-func (m *machine) Resume() error {
+func (m *vzfMachine) Resume() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
 		return C.swext_vzf_run_Machine_Resume(ptr)
 	})
 }
 
-func (m *machine) ConnectVsock(port uint32) (net.Conn, error) {
+func (m *vzfMachine) ConnectVsock(port uint32) (net.Conn, error) {
 	fd, err := m.callGenericErrInt(func(ptr unsafe.Pointer) C.struct_GResultIntErr {
 		return C.swext_vzf_run_Machine_ConnectVsock(ptr, C.uint32_t(port))
 	})
@@ -231,19 +231,19 @@ func (m *machine) ConnectVsock(port uint32) (net.Conn, error) {
 	return conn, nil
 }
 
-func (m *machine) DumpDebug() error {
+func (m *vzfMachine) DumpDebug() error {
 	return errors.New("unimplemented")
 }
 
-func (m *machine) StartProfile(params *vmm.ProfilerParams) error {
+func (m *vzfMachine) StartProfile(params *vmm.ProfilerParams) error {
 	return errors.New("unimplemented")
 }
 
-func (m *machine) StopProfile() error {
+func (m *vzfMachine) StopProfile() error {
 	return errors.New("unimplemented")
 }
 
-func (m *machine) Close() error {
+func (m *vzfMachine) Close() error {
 	// if we try to get write lock, and ConnectVsock is hanging b/c VM is frozen,
 	// then we'll wait forever. Instead, CAS the pointer.
 	// Hacky but this seems like the best solution.

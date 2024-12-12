@@ -666,7 +666,7 @@ func runVmManager() {
 	var monitor vmm.Monitor = rsvm.Monitor
 	if conf.Debug() && os.Getenv("ORB_VMM") == "vzf" {
 		// in debug, allow vzf override for testing
-		monitor = swext.Monitor
+		monitor = swext.VzfMonitor
 	}
 
 	// set time machine backup xattr

@@ -96,7 +96,7 @@ func RunRinitVm() (*RinitData, error) {
 		},
 	}
 
-	machine, err := swext.Monitor.NewMachine(&spec, []*os.File{conRead, conWrite})
+	machine, err := swext.VzfMonitor.NewMachine(&spec, []*os.File{conRead, conWrite})
 	if err != nil {
 		return nil, fmt.Errorf("new machine: %w", err)
 	}
@@ -193,7 +193,7 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 		// But on x86, there are too many, just disable it like Docker
 		// Also prevent TSC from being disabled after sleep with tsc=reliable
 		cmdline = append(cmdline, "mitigations=off", "clocksource=tsc", "tsc=reliable")
-		if monitor == swext.Monitor {
+		if monitor == swext.VzfMonitor {
 			// on vzf: disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
 			cmdline = append(cmdline, "hpet=disable")
 		}
@@ -450,7 +450,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 	if params.Rosetta {
 		// if it's not VZF, we need to get rinit data from VZF
 		// takes ~90ms so do it async. not worth caching
-		if monitor != swext.Monitor {
+		if monitor != swext.VzfMonitor {
 			go func() {
 				logrus.Debug("running rinit")
 				rinitData, err := RunRinitVm()

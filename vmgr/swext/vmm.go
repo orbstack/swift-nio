@@ -4,15 +4,15 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/vnettypes"
 )
 
-type monitor struct{}
+type vzfMonitor struct{}
 
-var Monitor = &monitor{}
+var VzfMonitor = &vzfMonitor{}
 
-func (m monitor) NetworkMTU() int {
+func (m vzfMonitor) NetworkMTU() int {
 	// our kernel no longer has double vnet hdr hacks for forcing TSO
 	return vnettypes.BaseMTU
 }
 
-func (m monitor) NetworkWantsVnetHdrV1() bool {
+func (m vzfMonitor) NetworkWantsVnetHdrV1() bool {
 	return false
 }
