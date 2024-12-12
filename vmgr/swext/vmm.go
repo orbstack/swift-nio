@@ -1,4 +1,4 @@
-package vzf
+package swext
 
 import (
 	"github.com/orbstack/macvirt/vmgr/vnet/vnettypes"

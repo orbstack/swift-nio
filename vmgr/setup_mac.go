@@ -19,10 +19,10 @@ import (
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/setup/userutil"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -69,7 +69,7 @@ func (s *VmControlServer) doGetUserDetails(useAdmin bool) (*UserDetails, error) 
 
 	// uninstall priv helper if admin is disabled but available
 	if vmconfig.IsAdmin() && !useAdmin {
-		err := vzf.SwextPrivhelperUninstall()
+		err := swext.SwextPrivhelperUninstall()
 		if err != nil {
 			logrus.WithError(err).Error("failed to uninstall priv helper")
 		}
@@ -636,11 +636,11 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 	if len(info.AdminSymlinkCommands) > 0 {
 		logrus.WithField("cmd", info.AdminSymlinkCommands).Debug("requesting admin symlinks")
 		if info.AdminMessage != nil {
-			vzf.SwextPrivhelperSetInstallReason(*info.AdminMessage)
+			swext.SwextPrivhelperSetInstallReason(*info.AdminMessage)
 		}
 
 		for _, cmd := range info.AdminSymlinkCommands {
-			err := vzf.SwextPrivhelperSymlink(cmd.Src, cmd.Dest)
+			err := swext.SwextPrivhelperSymlink(cmd.Src, cmd.Dest)
 			if err != nil {
 				if err.Error() == "canceled" {
 					logrus.Info("user canceled privhelper install")

@@ -36,6 +36,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/rsvm"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
@@ -51,7 +52,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/services"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
@@ -610,7 +610,7 @@ func runVmManager() {
 	// everything is set up for spawn-daemon to work properly (build id and pid)
 	// now notify GUI that we've started
 	pid := os.Getpid()
-	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 		Vmgr: &uitypes.VmgrEvent{
 			NewDaemonPid: &pid,
 		},
@@ -666,7 +666,7 @@ func runVmManager() {
 	var monitor vmm.Monitor = rsvm.Monitor
 	if conf.Debug() && os.Getenv("ORB_VMM") == "vzf" {
 		// in debug, allow vzf override for testing
-		monitor = vzf.Monitor
+		monitor = swext.Monitor
 	}
 
 	// set time machine backup xattr
@@ -890,7 +890,7 @@ func runVmManager() {
 	}
 	controlServer.setupUserDetailsOnce = sync.OnceValues(controlServer.doGetUserDetailsAndSetupEnv)
 	controlServer.uiEventDebounce = *syncx.NewLeadingFuncDebounce(uitypes.UIEventDebounce, func() {
-		vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 			Vmgr: &uitypes.VmgrEvent{
 				VmConfig: vmconfig.Get(),
 				DrmState: drmClient.GenerateUIState(),
@@ -986,7 +986,7 @@ func runVmManager() {
 	defer enforceStopDeadline()
 
 	// notify GUI that host-side startup is done
-	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 		Vmgr: &uitypes.VmgrEvent{
 			StateReady: true,
 			// and give it an initial config

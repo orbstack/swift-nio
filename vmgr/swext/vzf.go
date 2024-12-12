@@ -1,20 +1,20 @@
-package vzf
+package swext
 
 /*
 #cgo CFLAGS: -mmacosx-version-min=13.0
 #cgo LDFLAGS: -mmacosx-version-min=13.0 -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx
 
 #define CGO
-#include "../../swift/GoVZF/Sources/CBridge/CBridge.h"
+#include "../../swift/SwExt/Sources/CBridge/CBridge.h"
 
-struct GResultCreate govzf_run_NewMachine(uintptr_t handle, const char* config_json_str);
-struct GResultErr govzf_run_Machine_Start(void* ptr);
-struct GResultErr govzf_run_Machine_Stop(void* ptr);
-struct GResultErr govzf_run_Machine_RequestStop(void* ptr);
-struct GResultErr govzf_run_Machine_Pause(void* ptr);
-struct GResultErr govzf_run_Machine_Resume(void* ptr);
-struct GResultIntErr govzf_run_Machine_ConnectVsock(void* ptr, uint32_t port);
-void govzf_run_Machine_finalize(void* ptr);
+struct GResultCreate swext_vzf_run_NewMachine(uintptr_t handle, const char* config_json_str);
+struct GResultErr swext_vzf_run_Machine_Start(void* ptr);
+struct GResultErr swext_vzf_run_Machine_Stop(void* ptr);
+struct GResultErr swext_vzf_run_Machine_RequestStop(void* ptr);
+struct GResultErr swext_vzf_run_Machine_Pause(void* ptr);
+struct GResultErr swext_vzf_run_Machine_Resume(void* ptr);
+struct GResultIntErr swext_vzf_run_Machine_ConnectVsock(void* ptr, uint32_t port);
+void swext_vzf_run_Machine_finalize(void* ptr);
 
 struct GResultIntErr swext_install_rosetta();
 
@@ -96,8 +96,8 @@ type machine struct {
 	stateChan chan vmm.MachineState
 }
 
-//export govzf_event_Machine_onStateChange
-func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state int) {
+//export swext_vzf_event_Machine_onStateChange
+func swext_vzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state int) {
 	vm := cgo.Handle(vmHandle).Value().(*machine)
 
 	// no lock needed: channel never changes
@@ -112,8 +112,8 @@ func govzf_event_Machine_onStateChange(vmHandle C.uintptr_t, state int) {
 //
 // Can't take lock because this can be called during Close().
 //
-//export govzf_event_Machine_deinit
-func govzf_event_Machine_deinit(vmHandle C.uintptr_t) {
+//export swext_vzf_event_Machine_deinit
+func swext_vzf_event_Machine_deinit(vmHandle C.uintptr_t) {
 	vm := cgo.Handle(vmHandle).Value().(*machine)
 
 	cgo.Handle(vm.handle).Delete()
@@ -138,7 +138,7 @@ func (m monitor) NewMachine(spec *vmm.VzSpec, retainFiles []*os.File) (vmm.Machi
 	// call cgo
 	cstr := C.CString(string(specStr))
 	defer C.free(unsafe.Pointer(cstr))
-	result := C.govzf_run_NewMachine(C.uintptr_t(handle), cstr)
+	result := C.swext_vzf_run_NewMachine(C.uintptr_t(handle), cstr)
 
 	// wait for result
 	if result.err != nil {
@@ -184,37 +184,37 @@ func (m *machine) callGenericErrInt(fn func(unsafe.Pointer) C.struct_GResultIntE
 
 func (m *machine) Start() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
-		return C.govzf_run_Machine_Start(ptr)
+		return C.swext_vzf_run_Machine_Start(ptr)
 	})
 }
 
 func (m *machine) ForceStop() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
-		return C.govzf_run_Machine_Stop(ptr)
+		return C.swext_vzf_run_Machine_Stop(ptr)
 	})
 }
 
 func (m *machine) RequestStop() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
-		return C.govzf_run_Machine_RequestStop(ptr)
+		return C.swext_vzf_run_Machine_RequestStop(ptr)
 	})
 }
 
 func (m *machine) Pause() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
-		return C.govzf_run_Machine_Pause(ptr)
+		return C.swext_vzf_run_Machine_Pause(ptr)
 	})
 }
 
 func (m *machine) Resume() error {
 	return m.callGenericErr(func(ptr unsafe.Pointer) C.struct_GResultErr {
-		return C.govzf_run_Machine_Resume(ptr)
+		return C.swext_vzf_run_Machine_Resume(ptr)
 	})
 }
 
 func (m *machine) ConnectVsock(port uint32) (net.Conn, error) {
 	fd, err := m.callGenericErrInt(func(ptr unsafe.Pointer) C.struct_GResultIntErr {
-		return C.govzf_run_Machine_ConnectVsock(ptr, C.uint32_t(port))
+		return C.swext_vzf_run_Machine_ConnectVsock(ptr, C.uint32_t(port))
 	})
 	if err != nil {
 		return nil, err
@@ -254,7 +254,7 @@ func (m *machine) Close() error {
 	// drop our long-lived ref, but don't delete the handle until Swift deinit's
 	ptr := m.ptr.Swap(nil)
 	if ptr != nil {
-		C.govzf_run_Machine_finalize(ptr)
+		C.swext_vzf_run_Machine_finalize(ptr)
 	}
 
 	for _, f := range m.retainFiles {

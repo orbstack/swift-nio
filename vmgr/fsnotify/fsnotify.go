@@ -6,23 +6,23 @@ import (
 	"fmt"
 
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 
 type VmNotifier struct {
 	mu      syncx.Mutex
 	paths   []string
-	swext   *vzf.FsVmNotifier
+	swext   *swext.FsVmNotifier
 	network *vnet.Network
 	stopCh  chan struct{}
 }
 
 func NewVmNotifier(network *vnet.Network) (*VmNotifier, error) {
-	swext, err := vzf.NewFsVmNotifier()
+	swext, err := swext.NewFsVmNotifier()
 	if err != nil {
 		return nil, fmt.Errorf("create swext: %w", err)
 	}
@@ -45,14 +45,14 @@ func (n *VmNotifier) Run() error {
 
 	client := NewKrpcClient(conn)
 
-	err = vzf.SwextFseventsMonitorDirs()
+	err = swext.SwextFseventsMonitorDirs()
 	if err != nil {
 		return fmt.Errorf("start dir monitor: %w", err)
 	}
 
 	for {
 		select {
-		case buf := <-vzf.SwextFseventsKrpcEventsChan:
+		case buf := <-swext.SwextFseventsKrpcEventsChan:
 			err := client.WriteRaw(buf)
 			if err != nil {
 				logrus.WithError(err).Error("failed to send fsnotify events")

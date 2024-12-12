@@ -150,7 +150,7 @@
 		D86F35422997A57E00DADC6F /* docker */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = docker; path = ../vmgr/xbin/docker; sourceTree = "<group>"; };
 		D86F35432997A57E00DADC6F /* docker-compose */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-compose"; path = "../vmgr/xbin/docker-compose"; sourceTree = "<group>"; };
 		D86F35442997A57E00DADC6F /* docker-credential-osxkeychain */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "docker-credential-osxkeychain"; path = "../vmgr/xbin/docker-credential-osxkeychain"; sourceTree = "<group>"; };
-		D870292029B316A700A4CFD9 /* GoVZF.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = GoVZF.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		D870292029B316A700A4CFD9 /* SwExt.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SwExt.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BridgeNet.swift; sourceTree = "<group>"; };
 		D8715CC02A208C640047A9BE /* scli */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = scli; path = ../out/scli; sourceTree = "<group>"; };
 		D8715CC22A208C750047A9BE /* OrbStack Helper.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = "OrbStack Helper.app"; path = "../out/OrbStack Helper.app"; sourceTree = "<group>"; };
@@ -195,13 +195,13 @@
 				Shared/PHShared.swift,
 				Shared/SharedUtils.swift,
 			);
-			target = D870291F29B316A700A4CFD9 /* GoVZF */;
+			target = D870291F29B316A700A4CFD9 /* SwExt */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D805911C2CFEF682005BBB25 /* pstramp */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = pstramp; sourceTree = "<group>"; };
-		D847FAF22CE737F000D2B556 /* CBridge */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = CBridge; path = GoVZF/Sources/CBridge; sourceTree = "<group>"; };
+		D847FAF22CE737F000D2B556 /* CBridge */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = CBridge; path = SwExt/Sources/CBridge; sourceTree = "<group>"; };
 		D88AAFF22CD7092100C37028 /* MacVirt */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D87596F92CE738E600CEEE98 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MacVirt; sourceTree = "<group>"; };
 		D88AB0832CD7095800C37028 /* privhelper */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D88AB0BF2CD7096700C37028 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D88AB0C02CD7096700C37028 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = privhelper; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -261,7 +261,7 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		D870292129B316A700A4CFD9 /* GoVZF */ = {
+		D870292129B316A700A4CFD9 /* SwExt */ = {
 			isa = PBXGroup;
 			children = (
 				D8715C4E2A1F2AC40047A9BE /* BridgeNet.swift */,
@@ -279,8 +279,8 @@
 				D880D8292A2B40C7002CF279 /* VlanRouter.swift */,
 				D880D81F2A2B22A0002CF279 /* VzClient.swift */,
 			);
-			name = GoVZF;
-			path = GoVZF/Sources/GoVZF;
+			name = SwExt;
+			path = SwExt/Sources/SwExt;
 			sourceTree = "<group>";
 		};
 		D8715CC42A208EB80047A9BE /* External */ = {
@@ -310,7 +310,7 @@
 				D8715CC42A208EB80047A9BE /* External */,
 				D88AAFF22CD7092100C37028 /* MacVirt */,
 				D847FAF22CE737F000D2B556 /* CBridge */,
-				D870292129B316A700A4CFD9 /* GoVZF */,
+				D870292129B316A700A4CFD9 /* SwExt */,
 				D88AB0832CD7095800C37028 /* privhelper */,
 				D805911C2CFEF682005BBB25 /* pstramp */,
 				D8A32B8F296F839100E56EEF /* Products */,
@@ -322,7 +322,7 @@
 			isa = PBXGroup;
 			children = (
 				D8A32B8E296F839100E56EEF /* OrbStack.app */,
-				D870292029B316A700A4CFD9 /* GoVZF.framework */,
+				D870292029B316A700A4CFD9 /* SwExt.framework */,
 				D87746122A7CC0B700739040 /* dev.orbstack.OrbStack.privhelper */,
 				D805911B2CFEF682005BBB25 /* pstramp */,
 			);
@@ -364,9 +364,9 @@
 			productReference = D805911B2CFEF682005BBB25 /* pstramp */;
 			productType = "com.apple.product-type.tool";
 		};
-		D870291F29B316A700A4CFD9 /* GoVZF */ = {
+		D870291F29B316A700A4CFD9 /* SwExt */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D870292429B316A700A4CFD9 /* Build configuration list for PBXNativeTarget "GoVZF" */;
+			buildConfigurationList = D870292429B316A700A4CFD9 /* Build configuration list for PBXNativeTarget "SwExt" */;
 			buildPhases = (
 				D870291B29B316A700A4CFD9 /* Headers */,
 				D870291C29B316A700A4CFD9 /* Sources */,
@@ -380,9 +380,9 @@
 			fileSystemSynchronizedGroups = (
 				D847FAF22CE737F000D2B556 /* CBridge */,
 			);
-			name = GoVZF;
-			productName = GoVZF;
-			productReference = D870292029B316A700A4CFD9 /* GoVZF.framework */;
+			name = SwExt;
+			productName = SwExt;
+			productReference = D870292029B316A700A4CFD9 /* SwExt.framework */;
 			productType = "com.apple.product-type.framework";
 		};
 		D87746112A7CC0B700739040 /* privhelper */ = {
@@ -502,7 +502,7 @@
 			targets = (
 				D8A32B8D296F839100E56EEF /* MacVirt */,
 				D87746112A7CC0B700739040 /* privhelper */,
-				D870291F29B316A700A4CFD9 /* GoVZF */,
+				D870291F29B316A700A4CFD9 /* SwExt */,
 				D805911A2CFEF682005BBB25 /* pstramp */,
 			);
 		};
@@ -695,7 +695,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = dev.orbstack.OrbStack.GoVZF;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.orbstack.OrbStack.SwExt;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -732,7 +732,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = dev.orbstack.OrbStack.GoVZF;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.orbstack.OrbStack.SwExt;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -992,7 +992,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D870292429B316A700A4CFD9 /* Build configuration list for PBXNativeTarget "GoVZF" */ = {
+		D870292429B316A700A4CFD9 /* Build configuration list for PBXNativeTarget "SwExt" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D870292529B316A700A4CFD9 /* Debug */,

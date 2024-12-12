@@ -32,6 +32,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
@@ -42,7 +43,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostmdns"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/sshagent"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
@@ -248,7 +248,7 @@ func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMach
 }
 
 func (h *HcontrolServer) GetExtraCaCertificates(_ None, reply *[]string) error {
-	certs, err := vzf.SwextSecurityGetExtraCaCerts()
+	certs, err := swext.SwextSecurityGetExtraCaCerts()
 	if err != nil {
 		return err
 	}
@@ -375,7 +375,7 @@ func (h *HcontrolServer) ClearDockerState(info htypes.DockerExitInfo, _ *None) e
 
 	// and clear gui state because k8s is push-only to UI
 	// done on host side
-	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 		Docker: &uitypes.DockerEvent{
 			Exited: info.ExitEvent,
 		},
@@ -405,7 +405,7 @@ func (h *HcontrolServer) clearFsnotifyRefs() error {
 }
 
 func (h *HcontrolServer) OnUIEvent(ev string, _ *None) error {
-	vzf.SwextIpcNotifyUIEventRaw(ev)
+	swext.SwextIpcNotifyUIEventRaw(ev)
 	return nil
 }
 
@@ -600,7 +600,7 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 			services = []*v1.Service{}
 		}
 
-		vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+		swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 			K8s: &K8sEvent{
 				CurrentPods:     pods,
 				CurrentServices: services,
@@ -721,7 +721,7 @@ func (h *HcontrolServer) ImportTLSCertificate(_ None, reply *None) error {
 
 	// import to keychain, and open firefox dialog if necessary
 	// careful: this is missing PEM headers. just raw b64
-	err = vzf.SwextSecurityImportCertificate(pem)
+	err = swext.SwextSecurityImportCertificate(pem)
 	if err != nil {
 		// tooManyDeclines? auto-disable the config
 		if strings.HasPrefix(err.Error(), "tooManyDeclines") {

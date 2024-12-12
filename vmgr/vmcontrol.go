@@ -27,6 +27,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/earlyinit"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/orbstack/macvirt/vmgr/types"
@@ -37,7 +38,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	hcsrv "github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -332,7 +332,7 @@ func (s *VmControlServer) onStart() error {
 
 func (s *VmControlServer) openGuiApp() error {
 	// only open gui if menu bar is enabled
-	settings, err := vzf.SwextDefaultsGetUserSettings()
+	settings, err := swext.SwextDefaultsGetUserSettings()
 	if err != nil {
 		return fmt.Errorf("get user settings: %w", err)
 	}

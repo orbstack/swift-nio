@@ -116,7 +116,7 @@ endif
 OUT ?= ../out
 ARCH_OUT := $(OUT)/$(GOARCH)
 
-SWIFT_LIB := ../swift/GoVZF/.build/$(SWIFT_ARCH)-apple-macosx/$(SWIFT_BUILD_TYPE)/libGoVZF.a
+SWIFT_LIB := ../swift/SwExt/.build/$(SWIFT_ARCH)-apple-macosx/$(SWIFT_BUILD_TYPE)/libSwExt.a
 GO_LIB := $(ARCH_OUT)/libvmgr.a
 # specifying a target triple explicitly always makes a target/ subdir, even for native builds
 # so only do it for non-native builds
@@ -162,9 +162,9 @@ vmgr: $(VMGR_BIN)
 	@cmp $@ $@.tmp > /dev/null || mv $@.tmp $@
 	@rm -f $@.tmp
 
-# Swift static library: GoVZF, swext
-$(SWIFT_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,../swift/GoVZF/Sources,*) ../swift/GoVZF/Package.swift
-	cd ../swift/GoVZF; $(SWIFT) build -c $(SWIFT_BUILD_TYPE) --arch $(SWIFT_ARCH) $(SWIFT_FLAGS)
+# Swift static library: SwExt, swext
+$(SWIFT_LIB): $(BUILD_ENV_DEPS) $(call rwildcard,../swift/SwExt/Sources,*) ../swift/SwExt/Package.swift
+	cd ../swift/SwExt; $(SWIFT) build -c $(SWIFT_BUILD_TYPE) --arch $(SWIFT_ARCH) $(SWIFT_FLAGS)
 	@touch $@
 
 # Go static library: vmgr (including main function)
@@ -218,7 +218,7 @@ $(VMGR_BIN): $(BUILD_ENV_DEPS) $(SWIFT_LIB) $(GO_LIB) $(RUST_LIB) Makefile sign.
 
 .PHONY: clean
 clean:
-	rm -rf $(OUT) ../swift/GoVZF/.build ../virtue/target .buildenv .buildenv.tmp
+	rm -rf $(OUT) ../swift/SwExt/.build ../virtue/target .buildenv .buildenv.tmp
 	$(GO) clean -cache
 
 .PHONY: run

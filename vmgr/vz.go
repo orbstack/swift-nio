@@ -15,12 +15,12 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/rsvm"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
@@ -96,7 +96,7 @@ func RunRinitVm() (*RinitData, error) {
 		},
 	}
 
-	machine, err := vzf.Monitor.NewMachine(&spec, []*os.File{conRead, conWrite})
+	machine, err := swext.Monitor.NewMachine(&spec, []*os.File{conRead, conWrite})
 	if err != nil {
 		return nil, fmt.Errorf("new machine: %w", err)
 	}
@@ -193,7 +193,7 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 		// But on x86, there are too many, just disable it like Docker
 		// Also prevent TSC from being disabled after sleep with tsc=reliable
 		cmdline = append(cmdline, "mitigations=off", "clocksource=tsc", "tsc=reliable")
-		if monitor == vzf.Monitor {
+		if monitor == swext.Monitor {
 			// on vzf: disable HPET to fix high idle CPU usage & wakeups, especially with high CONFIG_HZ=1000
 			cmdline = append(cmdline, "hpet=disable")
 		}
@@ -387,7 +387,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 
 			// ... and this is now a Rust handle
 			rsvmHandle := rsvm.HandleHostBridgesStart + uintptr(i)
-			err = vnetwork.AddHostBridge(vzf.NetHandleFromRsvmHandle(rsvmHandle))
+			err = vnetwork.AddHostBridge(swext.NetHandleFromRsvmHandle(rsvmHandle))
 			if err != nil {
 				return nil, nil, fmt.Errorf("add host bridge fd: %w", err)
 			}
@@ -403,7 +403,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 			retainFiles = append(retainFiles, file0)
 
 			// keep fd1 for bridge management
-			err = vnetwork.AddHostBridge(vzf.NetHandleFromFd(fd1))
+			err = vnetwork.AddHostBridge(swext.NetHandleFromFd(fd1))
 			if err != nil {
 				return nil, nil, fmt.Errorf("add host bridge fd: %w", err)
 			}
@@ -416,12 +416,12 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 
 	// install Rosetta
 	if params.Rosetta {
-		rosettaStatus, err := vzf.SwextInstallRosetta()
+		rosettaStatus, err := swext.SwextInstallRosetta()
 		if err != nil {
 			return nil, nil, fmt.Errorf("install rosetta: %w", err)
 		}
 
-		if rosettaStatus != vzf.RosettaStatusInstalled {
+		if rosettaStatus != swext.RosettaStatusInstalled {
 			logrus.Info("Rosetta not supported or install canceled; saving preference")
 			err := vmconfig.Update(func(c *vmconfig.VmConfig) {
 				c.Rosetta = false
@@ -450,7 +450,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 	if params.Rosetta {
 		// if it's not VZF, we need to get rinit data from VZF
 		// takes ~90ms so do it async. not worth caching
-		if monitor != vzf.Monitor {
+		if monitor != swext.Monitor {
 			go func() {
 				logrus.Debug("running rinit")
 				rinitData, err := RunRinitVm()

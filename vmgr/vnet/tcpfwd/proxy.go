@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/scon/util/netx"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
@@ -21,7 +22,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy/socks"
 	dnssrv "github.com/orbstack/macvirt/vmgr/vnet/services/dns"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -110,7 +110,7 @@ func (p *ProxyManager) monitorChanges() {
 					logrus.WithError(err).Error("failed to refresh proxy settings (config change)")
 				}
 			}
-		case <-vzf.SwextProxyChangesChan:
+		case <-swext.SwextProxyChangesChan:
 			sysRefreshDebounce.Call()
 		case <-p.stopCh:
 			return
@@ -143,7 +143,7 @@ func (p *ProxyManager) excludeProxyHost(hostPort string) error {
 // HTTP/HTTPS: use it for HTTP (special case) and everything
 // http proxies tend to block CONNECT to non-443 ports,
 // but if there's a proxy set, outgoing conns will probably get blocked anyway
-func (p *ProxyManager) updateDialers(settings *vzf.SwextProxySettings) (*url.URL, error) {
+func (p *ProxyManager) updateDialers(settings *swext.SwextProxySettings) (*url.URL, error) {
 	p.dialerMu.Lock()
 	defer p.dialerMu.Unlock()
 
@@ -357,7 +357,7 @@ func (p *ProxyManager) Refresh() error {
 	// don't read from keychain if not needed
 	// it can trigger keychain permission prompt
 	needAuth := vmconfig.Get().NetworkProxy == vmconfig.ProxyAuto
-	settings, err := vzf.SwextProxyGetSettings(needAuth)
+	settings, err := swext.SwextProxyGetSettings(needAuth)
 	if err != nil {
 		return fmt.Errorf("get proxy settings: %w", err)
 	}

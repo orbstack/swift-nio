@@ -24,13 +24,13 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/updates"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -368,7 +368,7 @@ func (c *DrmClient) sendGUIWarning(lastError error) {
 	}
 
 	// send alert to GUI if window is open
-	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 		DrmWarning: &uitypes.DrmWarningEvent{
 			LastError: lastError.Error(),
 		},
@@ -634,7 +634,7 @@ func (c *DrmClient) GenerateUIState() *uitypes.DrmState {
 
 func (c *DrmClient) sendUIEventLocked() {
 	state := c.generateUIStateLocked()
-	vzf.SwextIpcNotifyUIEvent(uitypes.UIEvent{
+	swext.SwextIpcNotifyUIEvent(uitypes.UIEvent{
 		Vmgr: &uitypes.VmgrEvent{
 			DrmState: state,
 		},

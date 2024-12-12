@@ -1,6 +1,6 @@
 //
-//  GoVZF.h
-//  GoVZF
+//  SwExt.h
+//  SwExt
 //
 //  Created by Danny Lin on 3/3/23.
 //
@@ -49,8 +49,8 @@ struct two_iovecs {
 };
 
 #ifndef CGO
-void govzf_event_Machine_deinit(uintptr_t vmHandle);
-void govzf_event_Machine_onStateChange(uintptr_t vmHandle, int state);
+void swext_vzf_event_Machine_deinit(uintptr_t vmHandle);
+void swext_vzf_event_Machine_onStateChange(uintptr_t vmHandle, int state);
 
 int rsvm_network_write_packet(uintptr_t handle, const struct iovec *iovs, size_t num_iovs,
                               size_t total_len);

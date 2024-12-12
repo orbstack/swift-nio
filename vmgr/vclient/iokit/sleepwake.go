@@ -30,7 +30,7 @@ import (
 	"unsafe"
 
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
-	"github.com/orbstack/macvirt/vmgr/vzf"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/sirupsen/logrus"
 )
 
@@ -77,7 +77,7 @@ func MonitorSleepWake() (*SleepWakeMonitor, error) {
 		C.CFRunLoopAddSource(C.CFRunLoopGetCurrent(), C.IONotificationPortGetRunLoopSource(notifyPortRef), C.kCFRunLoopDefaultMode)
 
 		// also add SC proxy settings notifier to runloop
-		err := vzf.SwextProxyMonitorChangesOnRunLoop()
+		err := swext.SwextProxyMonitorChangesOnRunLoop()
 		if err != nil {
 			logrus.WithError(err).Error("failed to watch proxy settings")
 		}

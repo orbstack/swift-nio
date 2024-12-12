@@ -1,4 +1,4 @@
-package vzf
+package swext
 
 import "golang.org/x/sys/unix"
 

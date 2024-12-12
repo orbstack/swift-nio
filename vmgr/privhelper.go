@@ -1,10 +1,8 @@
 package vmgr
 
-import (
-	"github.com/orbstack/macvirt/vmgr/vzf"
-)
+import "github.com/orbstack/macvirt/vmgr/swext"
 
 func runUninstallPrivhelper() {
-	err := vzf.SwextPrivhelperUninstall()
+	err := swext.SwextPrivhelperUninstall()
 	check(err)
 }

@@ -4,16 +4,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "GoVZF",
+    name: "SwExt",
     platforms: [
         .macOS("13.0")
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
-            name: "GoVZF",
+            name: "SwExt",
             type: .static,
-            targets: ["GoVZF"]
+            targets: ["SwExt"]
         )
     ],
     dependencies: [
@@ -26,14 +26,14 @@ let package = Package(
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "GoVZF",
+            name: "SwExt",
             dependencies: ["CBridge", "Blessed", "EmbeddedPropertyList", "SecureXPC", "Defaults"]
         ),
         .systemLibrary(
             name: "CBridge"),
         .testTarget(
-            name: "GoVZFTests",
-            dependencies: ["GoVZF"]
+            name: "SwExtTests",
+            dependencies: ["SwExt"]
         ),
     ]
 )

@@ -8,10 +8,10 @@ import (
 	"net/netip"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -67,7 +67,7 @@ func slicePrefix6(p netip.Prefix) []uint16 {
 	return bytesToUint16(p.Addr().AsSlice()[:p.Bits()/8])
 }
 
-func (n *Network) AddHostBridge(handle vzf.NetHandle) error {
+func (n *Network) AddHostBridge(handle swext.NetHandle) error {
 	n.hostBridgeMu.Lock()
 	defer n.hostBridgeMu.Unlock()
 
@@ -76,7 +76,7 @@ func (n *Network) AddHostBridge(handle vzf.NetHandle) error {
 
 	if len(n.hostBridgeHandles)-1 == brIndexVlanRouter {
 		// fds[1] = vlan router
-		vlanRouter, err := vzf.SwextNewVlanRouter(vzf.VlanRouterConfig{
+		vlanRouter, err := swext.SwextNewVlanRouter(swext.VlanRouterConfig{
 			GuestHandle:       handle,
 			MACPrefix:         brMacVlanRouterTemplate[:5], // prefix bytes
 			MaxVlanInterfaces: bridge.MaxVlanInterfaces,
@@ -177,7 +177,7 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		return 0, fmt.Errorf("bridges disabled")
 	}
 
-	vmnetConfig := vzf.BridgeNetworkConfig{
+	vmnetConfig := swext.BridgeNetworkConfig{
 		GuestHandle:     n.hostBridgeHandles[brIndexVlanRouter],
 		GuestSconHandle: n.hostBridgeHandles[brIndexSconMachine],
 		OwnsGuestReader: false, // handled by vlan router
@@ -339,7 +339,7 @@ func (n *Network) CreateSconMachineHostBridge(recreate bool) error {
 		// so we'll try again later if the VPN is turned off
 	}
 
-	config := vzf.BridgeNetworkConfig{
+	config := swext.BridgeNetworkConfig{
 		GuestHandle:     n.hostBridgeHandles[brIndexSconMachine],
 		GuestSconHandle: n.hostBridgeHandles[brIndexSconMachine],
 		OwnsGuestReader: true,
@@ -391,8 +391,8 @@ func (n *Network) closeSconMachineHostBridgeLocked() error {
 	return nil
 }
 
-func (n *Network) createHostBridge(index int, config vzf.BridgeNetworkConfig) error {
-	brnet, err := vzf.SwextNewBrnet(config)
+func (n *Network) createHostBridge(index int, config swext.BridgeNetworkConfig) error {
+	brnet, err := swext.SwextNewBrnet(config)
 	if err != nil {
 		return err
 	}

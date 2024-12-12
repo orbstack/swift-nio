@@ -19,8 +19,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/util/pspawn"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -74,7 +74,7 @@ func NewSparkleCommand(args ...string) (*pspawn.Cmd, error) {
 		sparkleExe = bundlePath + "/Contents/MacOS/sparkle-cli"
 	}
 
-	settings, err := vzf.SwextDefaultsGetUserSettings()
+	settings, err := swext.SwextDefaultsGetUserSettings()
 	if err != nil {
 		return nil, fmt.Errorf("get user settings: %w", err)
 	}

@@ -1,8 +1,8 @@
 import XCTest
 
-@testable import GoVZF
+@testable import SwExt
 
-final class GoVZFTests: XCTestCase {
+final class SwExtTests: XCTestCase {
     func testExample() throws {
         // XCTest Documenation
         // https://developer.apple.com/documentation/xctest

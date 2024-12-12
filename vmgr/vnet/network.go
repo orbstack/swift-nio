@@ -11,6 +11,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
+	swext "github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/cblink"
@@ -23,7 +24,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/udpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/vnettypes"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/log"
@@ -71,10 +71,10 @@ type Network struct {
 
 	// bridges
 	hostBridgeMu           syncx.Mutex
-	hostBridgeHandles      []vzf.NetHandle
+	hostBridgeHandles      []swext.NetHandle
 	hostBridges            []HostBridge
 	bridgeRouteMon         *bridge.RouteMon
-	vlanRouter             *vzf.VlanRouter
+	vlanRouter             *swext.VlanRouter
 	vlanIndices            map[sgtypes.DockerBridgeConfig]int
 	disableMachineBridgeV4 bool
 

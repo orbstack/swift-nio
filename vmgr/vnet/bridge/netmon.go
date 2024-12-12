@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/util/simplerate"
-	"github.com/orbstack/macvirt/vmgr/vzf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -115,7 +115,7 @@ func (m *RouteMon) Close() error {
 }
 
 func (m *RouteMon) Monitor() error {
-	for range vzf.SwextNetPathChangesChan {
+	for range swext.SwextNetPathChangesChan {
 		m.renewDebounce.Call()
 	}
 

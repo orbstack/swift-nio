@@ -97,7 +97,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
     }
 
     deinit {
-        govzf_event_Machine_deinit(self.goHandle)
+        swext_vzf_event_Machine_deinit(self.goHandle)
     }
 
     func guestDidStop(_: VZVirtualMachine) {
@@ -163,7 +163,7 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 
     private func dispatchOnStateChange(state: VZVirtualMachine.State) {
         vzQueue.async {
-            govzf_event_Machine_onStateChange(self.goHandle, Int32(state.rawValue))
+            swext_vzf_event_Machine_onStateChange(self.goHandle, Int32(state.rawValue))
         }
     }
 }
@@ -364,7 +364,7 @@ func post_installRosetta() -> GResultIntErr {
     #endif
 }
 
-@_cdecl("govzf_run_NewMachine")
+@_cdecl("swext_vzf_run_NewMachine")
 func post_NewMachine(goHandle: uintptr_t, configJsonStr: UnsafePointer<CChar>) -> GResultCreate {
     let config: VzSpec = decodeJson(configJsonStr)
     let result = ResultWrapper<GResultCreate>()
@@ -382,49 +382,49 @@ func post_NewMachine(goHandle: uintptr_t, configJsonStr: UnsafePointer<CChar>) -
     return result.wait()
 }
 
-@_cdecl("govzf_run_Machine_Start")
+@_cdecl("swext_vzf_run_Machine_Start")
 func post_Machine_Start(ptr: UnsafeMutableRawPointer) -> GResultErr {
     return doGenericErr(ptr) { (wrapper: VmWrapper) in
         try await wrapper.start()
     }
 }
 
-@_cdecl("govzf_run_Machine_Stop")
+@_cdecl("swext_vzf_run_Machine_Stop")
 func run_Machine_Stop(ptr: UnsafeMutableRawPointer) -> GResultErr {
     doGenericErr(ptr) { (wrapper: VmWrapper) in
         try await wrapper.stop()
     }
 }
 
-@_cdecl("govzf_run_Machine_RequestStop")
+@_cdecl("swext_vzf_run_Machine_RequestStop")
 func run_Machine_RequestStop(ptr: UnsafeMutableRawPointer) -> GResultErr {
     doGenericErr(ptr) { (wrapper: VmWrapper) in
         try await wrapper.requestStop()
     }
 }
 
-@_cdecl("govzf_run_Machine_Pause")
+@_cdecl("swext_vzf_run_Machine_Pause")
 func run_Machine_Pause(ptr: UnsafeMutableRawPointer) -> GResultErr {
     doGenericErr(ptr) { (wrapper: VmWrapper) in
         try await wrapper.pause()
     }
 }
 
-@_cdecl("govzf_run_Machine_Resume")
+@_cdecl("swext_vzf_run_Machine_Resume")
 func run_Machine_Resume(ptr: UnsafeMutableRawPointer) -> GResultErr {
     doGenericErr(ptr) { (wrapper: VmWrapper) in
         try await wrapper.resume()
     }
 }
 
-@_cdecl("govzf_run_Machine_ConnectVsock")
+@_cdecl("swext_vzf_run_Machine_ConnectVsock")
 func run_Machine_ConnectVsock(ptr: UnsafeMutableRawPointer, port: UInt32) -> GResultIntErr {
     doGenericErrInt(ptr) { (wrapper: VmWrapper) in
         try Int64(await wrapper.connectVsock(port))
     }
 }
 
-@_cdecl("govzf_run_Machine_finalize")
+@_cdecl("swext_vzf_run_Machine_finalize")
 func run_Machine_finalize(ptr: UnsafeMutableRawPointer) {
     // drop long-lived Go ref
     let _ = Unmanaged<VmWrapper>.fromOpaque(ptr).takeRetainedValue()
