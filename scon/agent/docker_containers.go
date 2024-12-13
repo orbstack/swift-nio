@@ -58,7 +58,10 @@ func (d *DockerAgent) refreshContainers() error {
 	}
 
 	// diff
+	d.lastContainersMu.Lock()
 	removed, added := util.DiffSlicesKey(d.lastContainers, newContainers)
+	d.lastContainers = newContainers
+	d.lastContainersMu.Unlock()
 
 	// remove first
 	// must remove before adding in case of recreate with same name within debounce period
@@ -104,10 +107,6 @@ func (d *DockerAgent) refreshContainers() error {
 	if err != nil {
 		logrus.WithError(err).Error("failed to update scon containers")
 	}
-
-	d.lastContainersMu.Lock()
-	d.lastContainers = newContainers
-	d.lastContainersMu.Unlock()
 
 	// we could have new bridge ports now
 	err = d.refreshFlowtable()
