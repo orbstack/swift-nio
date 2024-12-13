@@ -13,6 +13,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/udpfwd"
 )
 
+const nfsForwardKey = "____nfs____"
+
 type HostForward interface {
 	io.Closer
 }
@@ -111,6 +113,23 @@ func (n *Network) StartForward(spec ForwardSpec) (HostForward, error) {
 
 	n.hostForwards[spec.Host] = fwd
 	return fwd, nil
+}
+
+func (n *Network) StartNFSForward() (int, error) {
+	n.hostForwardMu.Lock()
+	defer n.hostForwardMu.Unlock()
+
+	if _, ok := n.hostForwards[nfsForwardKey]; ok {
+		return 0, fmt.Errorf("nfs forward already exists")
+	}
+
+	fwd, port, err := tcpfwd.ListenHostNFS(n.Stack, n.NIC, n.GuestAddr4)
+	if err != nil {
+		return 0, err
+	}
+
+	n.hostForwards[nfsForwardKey] = fwd
+	return port, nil
 }
 
 func (n *Network) StopForward(spec ForwardSpec) error {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/orbstack/macvirt/scon/util"
 	"golang.org/x/sys/unix"
 )
 
@@ -34,7 +33,7 @@ func SetBackupExclude(path string, exclude bool) error {
 }
 
 func CheckTimeMachineEnabled() bool {
-	output, err := util.RunWithOutput("tmutil", "destinationinfo")
+	output, err := Run("tmutil", "destinationinfo")
 	if err != nil {
 		return false
 	}

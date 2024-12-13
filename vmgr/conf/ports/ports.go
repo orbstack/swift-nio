@@ -14,7 +14,7 @@ const (
 	GuestSconSSH         = 2222
 	GuestSconSSHPublic   = 2223
 	GuestVcontrol        = 103
-	GuestNFS             = 2049 // vsock
+	GuestNFS             = 2049
 	GuestKrpc            = 9000
 	// outside of ephemeral range
 	GuestDocker = 2375

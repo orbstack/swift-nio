@@ -52,7 +52,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/services"
-	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
@@ -1033,16 +1032,10 @@ func runVmManager() {
 
 	// special NFS forward: dynamic TCP port for legacy macOS where we can't use unix sockets
 	if !nfsmnt.SupportsUnixSocket() {
-		nfsFwdSpec := vnet.ForwardSpec{
-			// dynamically assigned port
-			Host:  "tcp:127.0.0.1:0",
-			Guest: "tcp:" + str(ports.GuestNFS),
-		}
-		nfsFwd, err := vnetwork.StartForward(nfsFwdSpec)
+		nfsPort, err := vnetwork.StartNFSForward()
 		if err != nil {
 			errorx.Fatalf("host forward failed: %w", err)
 		}
-		nfsPort := nfsFwd.(*tcpfwd.TcpHostForward).TcpPort()
 		services.Hcontrol.NfsPort = nfsPort
 	}
 
