@@ -58,7 +58,10 @@ function build_one() {
 
     pushd scon
     go generate ./wormclient
+    # swext was already rebuilt by vmgr
     SIGNING_CERT_OVERRIDE="$SIGNING_CERT" \
+        SWIFT_ARCH="$arch_mac" \
+        SWIFT_BUILD_TYPE=release \
         ./build-scli.sh -tags release -trimpath -ldflags="-s -w"
     popd
 

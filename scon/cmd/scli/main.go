@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	_ "github.com/orbstack/macvirt/vmgr/prelude"
+	_ "github.com/orbstack/macvirt/vmgr/swext/stub"
 )
 
 func main() {
