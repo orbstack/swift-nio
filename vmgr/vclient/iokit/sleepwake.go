@@ -30,7 +30,7 @@ import (
 	"unsafe"
 
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/sirupsen/logrus"
 )
 

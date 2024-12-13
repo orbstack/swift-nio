@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"

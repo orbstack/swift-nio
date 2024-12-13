@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/orbstack/macvirt/scon/util/netx"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"

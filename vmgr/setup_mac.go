@@ -19,7 +19,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/setup/userutil"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"

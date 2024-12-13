@@ -8,7 +8,7 @@ import (
 	"net/netip"
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"

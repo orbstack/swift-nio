@@ -27,7 +27,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/earlyinit"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
 	"github.com/orbstack/macvirt/vmgr/types"

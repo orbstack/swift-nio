@@ -15,7 +15,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/rsvm"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"

@@ -24,7 +24,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/updates"
 	"github.com/orbstack/macvirt/vmgr/guihelper"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"

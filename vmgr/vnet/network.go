@@ -11,7 +11,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/cblink"

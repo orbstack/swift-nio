@@ -37,7 +37,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/rsvm"
-	swext "github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
