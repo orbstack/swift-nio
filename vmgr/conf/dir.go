@@ -9,7 +9,9 @@ import (
 
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
+	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -46,12 +48,28 @@ func DiagDir() string {
 	return ensureDir(AppDir() + "/diag")
 }
 
+func GroupContainerDir() string {
+	// created by macOS APIs
+	dir, err := swext.FilesGetContainerDir()
+	if err != nil {
+		panic(err)
+	}
+	if err := unix.Access(dir, unix.W_OK); err != nil {
+		panic(fmt.Errorf("missing TCC permission for data storage directory: %w", err))
+	}
+	return dir
+}
+
+func DefaultDataDir() string {
+	return GroupContainerDir() + "/data"
+}
+
 func DataDir() string {
 	dir := vmconfig.Get().DataDir
 	if dir != "" {
 		return ensureDir(dir)
 	}
-	return ensureDir(AppDir() + "/data")
+	return ensureDir(DefaultDataDir())
 }
 
 func GetDataFile(name string) string {

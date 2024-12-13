@@ -13,7 +13,7 @@ import (
 const (
 	// major = 0, minor = 1-3 matches (0, legacy version)
 	CurrentMajorVersion = 0
-	CurrentMinorVersion = 3
+	CurrentMinorVersion = 4
 
 	LastLegacyVersion = 2
 )

@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
@@ -324,6 +325,90 @@ func migrateStateV2ToV3() error {
 	return nil
 }
 
+func barrierFsyncPath(path string) error {
+	file, err := os.OpenFile(path, os.O_RDONLY|unix.O_DIRECTORY, 0)
+	if err != nil {
+		return err
+	}
+	defer file.Close() // keepalive
+
+	// stdlib fsync uses F_FULLFSYNC, but we don't need such strong guarantees
+	_, err = unix.FcntlInt(file.Fd(), unix.F_FULLFSYNC, 0)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func migrateStateV3ToV4() error {
+	logrus.WithFields(logrus.Fields{
+		"from": "3",
+		"to":   "4",
+	}).Info("migrating state")
+
+	// old default: ~/.orbstack/data
+	// new default: ~/Library/Group Containers/HUAQ24HBR6.dev.orbstack/data
+	oldDataDir := vmconfig.Get().DataDir
+	oldDefaultDataDir := conf.AppDir() + "/data"
+	// DataDir default value is actually "" because it's user-dependent
+	// so also check for whether the default dir got saved explicitly
+	if oldDataDir != "" && oldDataDir != oldDefaultDataDir {
+		// user had a custom data dir, not default
+		// so we don't need to migrate
+		logrus.Info("skipping data dir migration: a custom data dir was set")
+		return nil
+	}
+
+	newDataDir := conf.DefaultDataDir()
+
+	// try to move old data dir to new data dir
+	// this still works if user symlinked ~/.orbstack/data: we'll move the symlink instead, which is probably an absolute path
+	err := os.Rename(oldDefaultDataDir, newDataDir)
+	if err != nil {
+		// ENOENT = old state, but data was deleted after last run
+		// EXDEV = user symlinked ~/.orbstack
+		// EEXIST = new data dir already exists???
+		if errors.Is(err, unix.ENOENT) {
+			// ignore: continue with migration and update state
+			logrus.Warn("data dir migration: old data not found")
+		} else if errors.Is(err, unix.EXDEV) {
+			// update vmconfig to point to old data dir
+			logrus.Warn("data dir migration: old app dir is a symlink")
+			err = vmconfig.Update(func(c *vmconfig.VmConfig) {
+				c.DataDir = oldDefaultDataDir
+			})
+			if err != nil {
+				return err
+			}
+
+			// complete migration
+			return nil
+		} else if errors.Is(err, unix.EEXIST) {
+			// keep new data (???) and update state
+			logrus.Warn("data dir migration: new data dir already exists")
+			return nil
+		} else {
+			return fmt.Errorf("migrate data dir: %w", err)
+		}
+	}
+
+	// fsync new parent dir to save dentry before overriding old dentry
+	err = barrierFsyncPath(filepath.Dir(newDataDir))
+	if err != nil {
+		return err
+	}
+
+	// it worked. for downgrades, symlink to old path
+	err = os.Symlink(newDataDir, oldDefaultDataDir)
+	if err != nil {
+		return err
+	}
+
+	// complete migration and update state (also guarded by upgrade)
+	return nil
+}
+
 func migrateState() error {
 	old := vmconfig.GetState()
 	logrus.Debug("old state: ", old)
@@ -365,6 +450,15 @@ func migrateState() error {
 			}
 
 			minor = 3
+		}
+
+		if minor == 3 {
+			err := migrateStateV3ToV4()
+			if err != nil {
+				return err
+			}
+
+			minor = 4
 		}
 
 		major = vmconfig.CurrentMajorVersion
@@ -633,6 +727,10 @@ func runVmManager() {
 		errorx.Fatalf("%w", err)
 	}
 
+	// state migration
+	err = migrateState()
+	check(err)
+
 	if _, err := os.Stat(conf.DataImage()); errors.Is(err, os.ErrNotExist) {
 		logrus.Info("initializing data")
 		extractSparse(streamObfAssetFile("data.img.tar"))
@@ -644,10 +742,6 @@ func runVmManager() {
 	if err != nil {
 		errorx.Fatalf("failed to lock data: %w", err)
 	}
-
-	// state migration
-	err = migrateState()
-	check(err)
 
 	// create a new empty swap img
 	_ = os.Remove(conf.SwapImage())
