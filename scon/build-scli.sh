@@ -8,7 +8,7 @@ OUT="../out"
 source ../config.sh
 
 SWIFT_ARCH="${SWIFT_ARCH:-arm64}"
-SWIFT_BUILD_TYPE="${SWIFT_BUILD_TYPE:-debug}"
+SWIFT_BUILD_TYPE="${SWIFT_BUILD_TYPE:-release}"
 
 rm -fr $OUT/scli.app
 mkdir -p $OUT/scli.app/Contents/MacOS
