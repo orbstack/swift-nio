@@ -49,6 +49,8 @@ struct GResultErr swext_gui_run_as_admin(char* shell_script, char* prompt);
 struct GResultErr swext_privhelper_symlink(const char* src, const char* dst);
 struct GResultErr swext_privhelper_uninstall(void);
 void swext_privhelper_set_install_reason(const char* reason);
+
+char* swext_files_get_container_dir(void);
 */
 import (
 	"C"
@@ -701,4 +703,17 @@ func PrivhelperSetInstallReason(reason string) {
 	cReason := C.CString(reason)
 	defer C.free(unsafe.Pointer(cReason))
 	C.swext_privhelper_set_install_reason(cReason)
+}
+
+/*
+ * Files
+ */
+func FilesGetContainerDir() (string, error) {
+	cStr := C.swext_files_get_container_dir()
+	defer C.free(unsafe.Pointer(cStr))
+	str := C.GoString(cStr)
+	if str == "" {
+		return "", errors.New("failed to get container dir")
+	}
+	return str, nil
 }
