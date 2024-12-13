@@ -18,7 +18,7 @@ var logoutCmd = &cobra.Command{
 	Long: `Log out of your OrbStack account, if logged in.
 `,
 	Example: "  " + rootCmd.Use + " logout",
-	Args:    cobra.ArbitraryArgs,
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// shell out to vmgr, like login
 		vmgrExe, err := vmclient.FindVmgrExe()

@@ -26,7 +26,7 @@ var authCmd = &cobra.Command{
 If you are already logged in, this command will do nothing unless you add --force.
 `,
 	Example: "  " + rootCmd.Use + " login",
-	Args:    cobra.ArbitraryArgs,
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// login CLI is in vmgr so we get the right keychain access group
 		// otherwise we'd have to give scli its own wrapper app bundle, signing ID, and provisioning profile

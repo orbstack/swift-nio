@@ -23,7 +23,7 @@ Returns one of the following statuses and exit codes:
   Stopped: status 1
 `,
 	Example: "  " + rootCmd.Use + " status",
-	Args:    cobra.ArbitraryArgs,
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if vmclient.IsRunning() {
 			isSconRunning, err := vmclient.IsSconRunning()

@@ -29,7 +29,7 @@ Privacy policy (including what info is collected): https://orbstack.dev/privacy#
 You can review the generated report at ~/.orbstack/diag.
 `,
 	Example: "  " + rootCmd.Use + " report",
-	Args:    cobra.ArbitraryArgs,
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var buffer bytes.Buffer
 
