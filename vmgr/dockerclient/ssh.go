@@ -11,11 +11,11 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/sirupsen/logrus"
 )
@@ -62,13 +62,13 @@ func NewCommandConn(_ context.Context, cmd string, args ...string) (net.Conn, er
 
 // commandConn implements net.Conn
 type commandConn struct {
-	cmdMutex     sync.Mutex // for cmd, cmdWaitErr
+	cmdMutex     syncx.Mutex // for cmd, cmdWaitErr
 	cmd          *pspawn.Cmd
 	cmdWaitErr   error
 	cmdExited    atomic.Bool
 	stdin        io.WriteCloser
 	stdout       io.ReadCloser
-	stderrMu     sync.Mutex // for stderr
+	stderrMu     syncx.Mutex // for stderr
 	stderr       bytes.Buffer
 	stdinClosed  atomic.Bool
 	stdoutClosed atomic.Bool
@@ -269,7 +269,7 @@ func (d dummyAddr) String() string {
 }
 
 type stderrWriter struct {
-	stderrMu    *sync.Mutex
+	stderrMu    *syncx.Mutex
 	stderr      *bytes.Buffer
 	debugPrefix string
 }

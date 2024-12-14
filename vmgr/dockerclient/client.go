@@ -14,9 +14,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 )
 
@@ -37,7 +37,7 @@ type Client struct {
 	// spareConnChan is nil if there is no spare connection, and a channel if there is
 	// a pending/created spare connection ready to be consumed
 	spareConnChan chan net.Conn
-	spareConnMu   sync.Mutex
+	spareConnMu   syncx.Mutex
 }
 
 type statusRecord struct {
