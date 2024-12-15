@@ -332,7 +332,7 @@ func barrierFsyncPath(path string) error {
 	defer file.Close() // keepalive
 
 	// stdlib fsync uses F_FULLFSYNC, but we don't need such strong guarantees
-	_, err = unix.FcntlInt(file.Fd(), unix.F_FULLFSYNC, 0)
+	_, err = unix.FcntlInt(file.Fd(), unix.F_BARRIERFSYNC, 0)
 	if err != nil {
 		return err
 	}
