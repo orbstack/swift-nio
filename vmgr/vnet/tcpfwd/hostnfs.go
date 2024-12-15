@@ -88,7 +88,8 @@ func (f *HostNFSForward) handleConn(conn net.Conn) {
 	*/
 	localAddr := conn.LocalAddr().String()
 	remoteAddr := conn.RemoteAddr().String()
-	if !strings.Contains(out, localAddr) || !strings.Contains(out, remoteAddr) {
+	// search for exact flow (in opposite direction from kernel_task perspective)
+	if !strings.Contains(out, " "+remoteAddr+"<->"+localAddr) {
 		logrus.WithFields(logrus.Fields{
 			"local":  localAddr,
 			"remote": remoteAddr,
