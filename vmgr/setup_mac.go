@@ -169,8 +169,9 @@ func symlinkIfChanged(src, dst string) error {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// ignore: we'll create it
-		} else if errors.Is(err, unix.EINVAL) {
+		} else if errors.Is(err, unix.EINVAL) || errors.Is(err, unix.ENOTDIR) {
 			// not a symlink: probably placed manually by user, so don't overwrite
+			// ENOTDIR: some users have file at ~/.local or ~/.local/bin
 			return nil
 		} else {
 			return err
@@ -188,8 +189,9 @@ func symlinkIfChanged(src, dst string) error {
 func symlinkExistingAppIfChanged(src, dst string) error {
 	oldSrc, err := os.Readlink(dst)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.EINVAL) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.EINVAL) || errors.Is(err, unix.ENOTDIR) {
 			// not a symlink or doesn't exist, don't overwrite
+			// ENOTDIR: some users have file at ~/.local or ~/.local/bin
 			return nil
 		} else {
 			return err
