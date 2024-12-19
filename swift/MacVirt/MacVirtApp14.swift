@@ -332,6 +332,9 @@ struct MacVirtApp14: App {
         .commandsRemoved()
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+        // WA: on unrecognized URL (e.g. orbstack://update), SwiftUI opens the first window with no .handlesExternalEvents
+        // we handle some URLs in the AppKit delegate, so to prevent that behavior, register an empty set of URL matches on every window
+        .handlesExternalEvents(matching: [])
 
         Group {
             SingletonWindow("Diagnostic Report", id: WindowID.diagReport) {
@@ -344,6 +347,7 @@ struct MacVirtApp14: App {
             }
             .windowStyle(.hiddenTitleBar)
             .windowResizability(.contentSize)
+            .handlesExternalEvents(matching: [])
 
             SingletonWindow("Report Bug", id: WindowID.bugReport) {
                 DiagReporterView(isBugReport: true)
@@ -355,6 +359,7 @@ struct MacVirtApp14: App {
             }
             .windowStyle(.hiddenTitleBar)
             .windowResizability(.contentSize)
+            .handlesExternalEvents(matching: [])
         }
 
         SingletonWindow("Sign In", id: WindowID.signIn) {
@@ -367,6 +372,7 @@ struct MacVirtApp14: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+        .handlesExternalEvents(matching: [])
 
         SingletonWindow("Send Feedback", id: WindowID.feedback) {
             FeedbackView()
@@ -378,6 +384,7 @@ struct MacVirtApp14: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+        .handlesExternalEvents(matching: [])
 
         Settings {
             AppSettings(updaterController: updaterController)
