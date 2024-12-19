@@ -154,7 +154,7 @@ struct DockerMigrationWindow: View {
         .akAlert(
             "Replace existing data?", isPresented: $presentConfirmExisting,
             desc:
-                "You already have Docker containers, volumes, or images in OrbStack. Migrating data from Docker Desktop may lead to unexpected results.",
+                "You already have containers, volumes, or images in OrbStack. Migrating data from Docker Desktop may lead to unexpected results.",
             button1Label: "Migrate",
             button1Action: {
                 model.start()
