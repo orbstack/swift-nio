@@ -6,6 +6,7 @@ package proxy
 
 import (
 	"net/netip"
+	"net/url"
 	"strings"
 
 	dnssrv "github.com/orbstack/macvirt/vmgr/vnet/services/dns"
@@ -107,6 +108,9 @@ func (p *PerHost) AddFromString(host string) {
 		host = convertLazyCidr(host)
 		if net, err := netip.ParsePrefix(host); err == nil {
 			p.AddNetwork(net)
+		} else if url, err := url.Parse(host); err == nil {
+			// not sure how standard it is, but I noticed "https://juejin.cn" in a user's noproxy list
+			p.AddZone(url.Host)
 		} else {
 			logrus.WithError(err).WithField("host", host).Warn("failed to parse proxy exclusion CIDR")
 		}
