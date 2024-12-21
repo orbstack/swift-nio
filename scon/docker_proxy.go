@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/agent"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
@@ -52,7 +53,9 @@ func (m *ConManager) startDockerProxy() error {
 	}
 
 	_ = os.Remove(mounts.HostDockerSocket)
-	unixListener, err := netx.ListenUnix(mounts.HostDockerSocket)
+	// listen with 0660 to fix perms for users bind mounting into containers.
+	// 2375 is the gid of the docker group in docker:dind (it's also the port of docker lol) but people seem to expect gid 0 so that's what we'll use
+	unixListener, err := util.ListenUnixWithPerms(mounts.HostDockerSocket, 0660, 0, 0)
 	if err != nil {
 		return err
 	}
