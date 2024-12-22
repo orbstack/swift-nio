@@ -527,6 +527,7 @@ kernel/net/ipv6/netfilter/ip6t_srh.ko
 kernel/net/ipv6/netfilter/ip6t_NPT.ko
 kernel/net/ipv6/netfilter/ip6t_REJECT.ko
 kernel/net/ipv6/netfilter/ip6t_SYNPROXY.ko
+kernel/net/ipv6/sit.ko
 kernel/net/ipv6/ip6_tunnel.ko
 kernel/net/ipv6/fou6.ko
 kernel/net/ipv6/ip6_udp_tunnel.ko
