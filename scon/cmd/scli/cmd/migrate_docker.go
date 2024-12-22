@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/dmigrate"
@@ -57,7 +58,13 @@ var migrateDockerCmd = &cobra.Command{
 		// start docker desktop if needed
 		if !remoteWasRunning {
 			err := util.Run("open", "-g" /*don't activate*/, "-j" /*hide*/, "-b", "com.docker.docker")
-			checkCLI(err)
+			if err != nil {
+				if strings.Contains(err.Error(), "LSCopyApplicationURLsForBundleIdentifier") {
+					checkCLI(errors.New("Docker Desktop is not installed"))
+				} else {
+					checkCLI(err)
+				}
+			}
 
 			// wait for start
 			err = dmigrate.WaitForRemote(srcSocket)
