@@ -17,6 +17,7 @@ private let npFlagStatAttr: UInt64 = 1 << 2
 private let npFlagRemove: UInt64 = 1 << 3
 private let npFlagDirChange: UInt64 = 1 << 4
 private let npFlagRename: UInt64 = 1 << 5
+private let npFlagRecursive: UInt64 = 1 << 6
 
 private let krpcMsgNotifyproxyInject: UInt32 = 1
 
@@ -228,6 +229,11 @@ private func eventsToKrpc(_ pathsAndFlags: [String: FSEventStreamEventFlags], is
             //    -> which we translate as: MODIFY, ATTRIB, CLOSE_WRITE
             // necessary, as we can't tell InodeMetaMod+Modified apart frm other attribute changes
             npFlags |= npFlagStatAttr
+        }
+        // events were lost; need to recursively "rescan" (if we're relying on FSE for changes)
+        // for us, that means we need to invalidate recursively
+        if fseFlags & kFSEventStreamEventFlagMustScanSubDirs != 0 {
+            npFlags |= npFlagRecursive
         }
 
         // if we have other events, then remove ATTRIB, unless it's a remove event
