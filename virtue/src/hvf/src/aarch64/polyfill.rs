@@ -14,7 +14,7 @@ const HV_ID_VM_PROTECT_SPACE: u64 = 5;
 /*
  * memory mapping workaround (FB15459210)
  *
- * on macOS 15, hv_vm_unmap splits ranges but doesn't coalesce on remap, and all ranges are stored in a C++ std::vector.
+ * on macOS 15.0–15.2 beta 1, hv_vm_unmap splits ranges but doesn't coalesce on remap, and all ranges are stored in a C++ std::vector.
  * this causes O(N^2) behavior that burns up to >7 seconds of CPU (worsening with uptime) every time balloon runs.
  *
  * as a workaround, use the raw syscall interface on known-broken macOS versions where the ABI is also known.
@@ -24,7 +24,8 @@ static USE_MEM_MAP_WORKAROUND: LazyLock<bool> = LazyLock::new(|| {
         // HVF GICv3 and EL2 nested virt make use of the userspace memory map, making this workaround unsafe
         false
     } else {
-        // macOS 15.0-15.2 (tested on beta 1 [24C5057p])
+        // macOS 15.0-15.2 beta 1 (24C5057p)
+        // fixed in 15.2 beta 2 but the syscall ABI is known to work up to 15.2 stable, so keep using it to simplify the version check
         OS_VERSION.major == 15 && OS_VERSION.minor <= 2
     }
 });
