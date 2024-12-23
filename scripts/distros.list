@@ -1,6 +1,5 @@
 almalinux:8
 almalinux:9
-alpine:3.17
 alpine:3.18
 alpine:3.19
 alpine:3.20
