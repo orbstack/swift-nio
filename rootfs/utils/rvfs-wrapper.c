@@ -147,8 +147,15 @@ static enum emu_provider select_emulator(int argc, char **argv, char *exe_name,
     //   runc --log /var/lib/docker/buildkit/executor/runc-log.json --log-format json run --bundle
     //   /var/lib/docker/buildkit/executor/m66aufx3xv7s2yq91dzxtemvm m66aufx3xv7s2yq91dzxtemvm
     //      * because of #3, when building docker image
-    if (argc >= 1 + 1 + 2 && strcmp(exe_name, "runc") == 0 &&
-        (strcmp(argv[3], "init") == 0 || argv_contains(argv, "--bundle"))) {
+    //
+    // we used to be more strict about checking for runc + "init" command or argv.contains("--bundle") but that seems to miss some more obscure buildkit cases(?)
+    //
+    // also, for Podman:
+    // Podman uses crun by default, and unlike runc, crun always fails to run (even with no args) because it unconditionally does memfd self-reexec. even if we were to fix that, x86 crun won't work properly under Rosetta because it won't generate the right seccomp profile (wrong syscall numbers)
+    // since runc and crun are both OCI runtimes, we can just use the patched arm64 runc in place of crun
+    // this is not correct by any means but it works, and people are usually trying to use Podman for the features, not for the underlying OCI runtime
+    // note: rootless Podman still doesn't work because slirp4netns uses seccomp
+    if (strcmp(exe_name, "crun") == 0 || strcmp(exe_name, "runc") == 0) {
         if (DEBUG) fprintf(stderr, "selecting runc override\n");
         return EMU_OVERRIDE_RUNC;
     }
