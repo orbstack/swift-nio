@@ -69,9 +69,13 @@ static char *get_basename(char *path) {
     return base + 1;
 }
 
-static bool argv_contains(char **argv, char *what) {
-    for (int i = 0; argv[i] != NULL; i++) {
+static bool argv_filter_remove(char **argv, int *argc, char *what) {
+    for (int i = 0; i < *argc; i++) {
         if (strcmp(argv[i], what) == 0) {
+            // (overlapping) move all args after i to the left, including NULL terminator
+            // remaining items = (*argc - i - 1); +1 for NULL
+            memmove(&argv[i], &argv[i + 1], (*argc - i) * sizeof(char *));
+            *argc -= 1;
             return true;
         }
     }
@@ -154,7 +158,6 @@ static enum emu_provider select_emulator(int argc, char **argv, char *exe_name,
     // Podman uses crun by default, and unlike runc, crun always fails to run (even with no args) because it unconditionally does memfd self-reexec. even if we were to fix that, x86 crun won't work properly under Rosetta because it won't generate the right seccomp profile (wrong syscall numbers)
     // since runc and crun are both OCI runtimes, we can just use the patched arm64 runc in place of crun
     // this is not correct by any means but it works, and people are usually trying to use Podman for the features, not for the underlying OCI runtime
-    // note: rootless Podman still doesn't work because slirp4netns uses seccomp
     if (strcmp(exe_name, "crun") == 0 || strcmp(exe_name, "runc") == 0) {
         if (DEBUG) fprintf(stderr, "selecting runc override\n");
         return EMU_OVERRIDE_RUNC;
@@ -428,8 +431,15 @@ int main(int argc, char **argv) {
         emu = EMU_ROSETTA;
     }
 
+    // disable seccomp for slirp4netns
+    // Rootless Podman uses this
+    if (!PASSTHROUGH && strcmp(exe_name, "slirp4netns") == 0) {
+        if (DEBUG) fprintf(stderr, "disabling seccomp for slirp4netns\n");
+        argv_filter_remove(argv, &argc, "--enable-seccomp");
+    }
+
     char *node_argv_buf[(exe_argc + 3) + 1];
-    if (emu == EMU_ROSETTA && !PASSTHROUGH) {
+    if (!PASSTHROUGH && emu == EMU_ROSETTA) {
         // add arguments:
         // Fix Node.js programs hanging
         // "pnpm install" with large packages.json/pkgs, e.g. TypeScript, locks up with TurboFan JIT
