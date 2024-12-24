@@ -107,6 +107,10 @@ func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.
 			if errors.Is(err, unix.ECONNREFUSED) || errors.Is(err, unix.ECONNRESET) {
 				// connection refused: send RST
 				r.Complete(true)
+			} else if errors.Is(err, unix.EBADF) {
+				// bad file descriptor: this happens when a network filter (e.g. Little Snitch) blocks an outgoing connection
+				// on macOS, the connect call would fail, so propagate that
+				r.Complete(true)
 			} else if errors.Is(err, unix.EHOSTUNREACH) || errors.Is(err, unix.EHOSTDOWN) || errors.Is(err, unix.ENETUNREACH) {
 				logrus.Debug("inject ICMP unreachable")
 
