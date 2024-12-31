@@ -22,7 +22,7 @@ struct MachineContainerItem: View {
         let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
         let running = record.running || vmModel.restartingMachines.contains(record.id)
         let deletionList = resolveActionList()
-        let deleteConfirmMsg = deletionList.count > 1 ? "Delete machines?" : "Delete machine?"
+        let deleteConfirmMsg = deletionList.count > 1 ? "Delete machines?" : "Delete “\(record.name)”?"
 
         HStack {
             Image("distro_\(record.image.distro)")
