@@ -222,6 +222,12 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
                         • Check your proxy in Settings > Network
                         • Make sure your date and time are correct
                     """
+            case .ioError:
+                return """
+                    To fix this:
+                        • Make sure your disk isn't full
+                        • If you're using an external disk for OrbStack data, make sure it's connected reliably
+                    """
             case .dataCorruption:
                 return """
                     OrbStack data is corrupted and cannot be recovered.
