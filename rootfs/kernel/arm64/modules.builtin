@@ -546,6 +546,8 @@ kernel/net/bridge/netfilter/ebt_pkttype.ko
 kernel/net/bridge/netfilter/ebt_mark.ko
 kernel/net/can/can.ko
 kernel/net/can/can-raw.ko
+kernel/net/can/can-bcm.ko
+kernel/net/can/can-gw.ko
 kernel/net/sunrpc/sunrpc.ko
 kernel/net/sunrpc/auth_gss/auth_rpcgss.ko
 kernel/net/sunrpc/auth_gss/rpcsec_gss_krb5.ko
