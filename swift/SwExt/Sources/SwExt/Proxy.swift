@@ -121,7 +121,12 @@ private func getExtraCaCerts(filterRootOnly: Bool = true) throws -> [String] {
     var result: CFTypeRef?
     let status = SecItemCopyMatching(query as CFDictionary, &result)
     guard status == errSecSuccess else {
-        throw SwextError.fetchCertificate(status: status)
+        // errSecItemNotFound = nothing found? https://github.com/orbstack/orbstack/issues/1703
+        if status == errSecItemNotFound {
+            return []
+        } else {
+            throw SwextError.fetchCertificate(status: status)
+        }
     }
 
     let certs = result as! [SecCertificate]
