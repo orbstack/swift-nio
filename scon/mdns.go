@@ -1193,9 +1193,10 @@ func (r *mdnsRegistry) dockerPostStart() error {
 		k8sName := "k8s.orb.local."
 
 		k8sAddr4, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.Upstream{
-			Names:  []string{k8sName},
-			IP:     net.ParseIP(netconf.SconK8sIP4),
-			Docker: true,
+			Names: []string{k8sName},
+			IP:    net.ParseIP(netconf.SconK8sIP4),
+			// we make k8s.orb.local not count as docker because the ip is the docker ip. this means that hairpinning needs to be done by ovm.
+			Docker: false,
 		})
 		if err != nil {
 			return fmt.Errorf("unable to create k8s domainproxy ip: %w", err)
