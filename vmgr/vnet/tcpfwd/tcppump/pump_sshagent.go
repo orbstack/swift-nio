@@ -43,8 +43,6 @@ func pump1SshAgent(errc chan<- error, src, dst FullDuplexConn) {
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()
-	// this is useless, doesn't send anything, but it's a good precaution
-	src.CloseRead()
 
 	if err == io.EOF {
 		err = nil

@@ -9,7 +9,7 @@ import (
 
 type FullDuplexConn interface {
 	net.Conn
-	CloseRead() error
+	// only do CloseWrite. CloseRead is a no-op
 	CloseWrite() error
 }
 
@@ -25,8 +25,6 @@ func pump1(errc chan<- error, src, dst FullDuplexConn) {
 
 	// half-close to allow graceful shutdown
 	dst.CloseWrite()
-	// this is useless, doesn't send anything, but it's a good precaution
-	src.CloseRead()
 
 	errc <- err
 }

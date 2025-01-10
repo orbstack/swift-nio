@@ -78,12 +78,6 @@ func (c *InstrumentedConn) Close() error {
 	return ret
 }
 
-func (c *InstrumentedConn) CloseRead() error {
-	ret := c.FullDuplexConn.CloseRead()
-	logrus.Debugf("%s.CloseRead() = %v", c.tag, ret)
-	return ret
-}
-
 func (c *InstrumentedConn) CloseWrite() error {
 	ret := c.FullDuplexConn.CloseWrite()
 	logrus.Debugf("%s.CloseWrite() = %v", c.tag, ret)
