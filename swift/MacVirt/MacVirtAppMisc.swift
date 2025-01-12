@@ -86,6 +86,9 @@ enum WindowID {
     static let onboarding = "onboarding2"
     static let diagReport = "diagreport2"
     static let bugReport = "bugreport2"
+    
+    // new windows
+    static let resetData = "reset_data"
 }
 
 enum WindowURL {

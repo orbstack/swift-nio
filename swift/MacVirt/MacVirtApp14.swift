@@ -360,6 +360,19 @@ struct MacVirtApp14: App {
             .windowStyle(.hiddenTitleBar)
             .windowResizability(.contentSize)
             .handlesExternalEvents(matching: [])
+            
+            SingletonWindow("Reset Data", id: WindowID.resetData) {
+                ResetDataView()
+                    .environmentObject(vmModel)
+            }
+            // remove entry point from Window menu
+            .commandsRemoved()
+            .commands {
+                CommandGroup(replacing: .newItem) {}
+            }
+            .windowStyle(.hiddenTitleBar)
+            .windowResizability(.contentSize)
+            .handlesExternalEvents(matching: [])
         }
 
         SingletonWindow("Sign In", id: WindowID.signIn) {

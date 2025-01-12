@@ -189,8 +189,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .spawnError:
             return true
         // not .spawnExit. if spawn-daemon exited, it means daemon never even started so we have logs from stderr.
-        case .vmgrExit:
-            return true
+        case .vmgrExit(let reason, _):
+            return !reason.hasCustomDetails
         case .startTimeout:
             return true
         case .stopError:
@@ -199,6 +199,17 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .startError:
             return true
 
+        default:
+            return false
+        }
+    }
+    
+    var shouldShowReset: Bool {
+        switch self {
+        case .vmgrExit(.dataCorruption, _):
+            return true
+        case .vmgrExit(.dataEmpty, _):
+            return true
         default:
             return false
         }
@@ -213,32 +224,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case let .dockerExitError(_, message):
             return message
         case let .vmgrExit(reason, output):
-            switch reason {
-            case .drm:
-                return """
-                    To fix this:
-                        • Check your internet connection
-                        • Make sure api-license.orbstack.dev isn't blocked
-                        • Check your proxy in Settings > Network
-                        • Make sure your date and time are correct
-                    """
-            case .ioError:
-                return """
-                    To fix this:
-                        • Make sure your disk isn't full
-                        • If you're using an external disk for OrbStack data, make sure it's connected reliably
-                    """
-            case .dataCorruption:
-                return """
-                    OrbStack data is corrupted and cannot be recovered.
-
-                    To fix this, run "orb reset" in Terminal to delete your old data and start fresh.
-
-                    In the future, avoid unclean shutdowns to prevent this from happening again. This can also happen when Migration Assistant corrupts the data while it's being copied.
-                    """
-            default:
-                return output
-            }
+            return reason.detailsMessage ?? output
         case let .drmWarning(event):
             return """
                 \(event.lastError)

@@ -89,7 +89,7 @@ enum ExitReason: Equatable, CustomStringConvertible {
         case .initCrash:
             return "failed to initialize"
         case .dataEmpty:
-            return "data image is empty (likely due to Migration Assistant)"
+            return "data is empty"
 
         case .killed:
             return "killed (SIGKILL)"
@@ -97,6 +97,50 @@ enum ExitReason: Equatable, CustomStringConvertible {
         case .unknown:
             return "unknown status"
         }
+    }
+
+    var detailsMessage: String? {
+        switch self {
+        case .drm:
+            return """
+                To fix this:
+                    • Check your internet connection
+                    • Make sure api-license.orbstack.dev isn't blocked
+                    • Check your proxy in Settings > Network
+                    • Make sure your date and time are correct
+                """
+        case .ioError:
+            return """
+                To fix this:
+                    • Make sure your disk isn't full
+                    • If you're using an external disk for OrbStack data, make sure it's connected reliably
+                """
+        case .dataCorruption:
+            return """
+                OrbStack data is corrupted and cannot be recovered.
+
+                This can be caused by Migration Assistant or power loss. To fix it, click “Reset” to delete your old data and start over.
+
+                To prevent this from happening again, avoid unclean shutdowns.
+                """
+        case .dataEmpty:
+            return """
+                OrbStack data has been replaced with an empty file.
+
+                This is usually caused by Migration Assistant. To fix it, click “Reset” to delete your old data and start over.
+                """
+        case .outOfMemory:
+            return """
+                To fix this, increase the memory limit in OrbStack Settings > System.
+                """
+        default:
+            // show logs
+            return nil
+        }
+    }
+
+    var hasCustomDetails: Bool {
+        return detailsMessage != nil
     }
 }
 

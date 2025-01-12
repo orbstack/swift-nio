@@ -78,8 +78,10 @@ struct NewMainView: View {
                 style: .critical)
 
             switch error {
-            case VmError.dockerExitError, VmError.vmgrExit, VmError.spawnExit:
+            case VmError.dockerExitError, VmError.spawnExit:
                 content.scrollableText = true
+            case VmError.vmgrExit(let reason, _):
+                content.scrollableText = !reason.hasCustomDetails
             default:
                 // always use scrollable text box for long errors
                 content.scrollableText = error.recoverySuggestion?.count ?? 0 > 1000
@@ -121,6 +123,12 @@ struct NewMainView: View {
                         if model.state == .stopped && !model.reachedRunning {
                             model.terminateAppNow()
                         }
+                    }
+                }
+
+                if error.shouldShowReset {
+                    content.addButton("Reset") {
+                        openWindow(id: WindowID.resetData)
                     }
                 }
             }

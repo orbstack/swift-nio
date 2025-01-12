@@ -117,7 +117,7 @@ struct StorageSettingsView: View {
         .akAlert(
             "Reset Docker data?", isPresented: $presentConfirmResetDockerData,
             desc:
-                "All Docker containers, images, volumes, and other data will be permanently lost.\n\nKubernetes data will also be deleted.",
+                "All containers, images, volumes, and Kubernetes resources will be permanently lost.",
             button1Label: "Reset",
             button1Action: {
                 Task {
@@ -151,7 +151,7 @@ struct StorageSettingsView: View {
         .akAlert(
             "Reset all data?", isPresented: $presentConfirmResetAllData,
             desc:
-                "All Docker data (containers, images, volumes, etc.) and Linux machines will be permanently lost.",
+                "All containers, images, volumes, Kubernetes resources, and Linux machines will be permanently lost.",
             button1Label: "Reset",
             button1Action: {
                 Task {
