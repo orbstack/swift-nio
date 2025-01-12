@@ -170,7 +170,7 @@ struct DirStreamRef<'a> {
     state: PhantomData<&'a mut DirState>,
 }
 
-impl<'a> DirStreamRef<'a> {
+impl DirStreamRef<'_> {
     fn as_ptr(&self) -> *mut libc::DIR {
         self.dir
     }
@@ -772,7 +772,7 @@ impl PassthroughFs {
         let file_ref = file_ref_fn()?;
         let stf = match file_ref.as_ref() {
             FileRef::Path(c_path) => statfs(c_path),
-            FileRef::Fd(fd) => fstatfs(&fd),
+            FileRef::Fd(fd) => fstatfs(fd),
         }?;
         // transmute type (repr(transparent))
         let stf = unsafe { mem::transmute::<Statfs, libc::statfs>(stf) };
@@ -814,14 +814,12 @@ impl PassthroughFs {
     fn do_lookup(&self, parent: NodeId, name: &str, ctx: &Context) -> io::Result<Entry> {
         let (c_path, parent_flags, st) = self.begin_lookup(ctx, parent, name)?;
         let (entry, _) =
-            self.finish_lookup(parent, parent_flags, name, st, FileRef::Path(&c_path), ctx)?;
+            self.finish_lookup(parent, parent_flags, name, st, FileRef::Path(&c_path))?;
         Ok(entry)
     }
 
-    fn filter_stat(&self, ctx: &Context, nodeid: NodeId, st: &mut bindings::stat64) {
-        // TODO: remove when we add perms support
-        st.st_uid = ctx.uid;
-        st.st_gid = ctx.gid;
+    fn filter_stat(&self, nodeid: NodeId, st: &mut bindings::stat64) {
+        // TODO: xattr stat
 
         // root generation must be zero
         // for other inodes, we ignore st_gen because getattrlistbulk (readdirplus) doesn't support it, so returning it here would break revalidate
@@ -838,7 +836,6 @@ impl PassthroughFs {
         name: &str,
         mut st: bindings::stat64,
         file_ref: FileRef,
-        ctx: &Context,
     ) -> io::Result<(Entry, NodeFlags)> {
         // race OK: if we fail to find a nodeid by (dev,ino), we'll just make a new one, and old one will gradually be forgotten
         let dev_ino = st.dev_ino();
@@ -941,7 +938,7 @@ impl PassthroughFs {
             st.st_dev, st.st_ino, file_ref, nodeid
         );
 
-        self.filter_stat(ctx, nodeid, &mut st);
+        self.filter_stat(nodeid, &mut st);
 
         Ok((
             Entry {
@@ -1206,7 +1203,7 @@ impl PassthroughFs {
         }
 
         let (handle, opts) = self.finish_open(file, flags, nodeid, node_flags, st)?;
-        let attr = self.finish_getattr(ctx, nodeid, st)?;
+        let attr = self.finish_getattr(nodeid, st)?;
         Ok((Some(handle), Some(attr), opts))
     }
 
@@ -1227,7 +1224,6 @@ impl PassthroughFs {
     fn do_getattr(
         &self,
         file_ref: FileRef,
-        ctx: Context,
         nodeid: NodeId,
     ) -> io::Result<(bindings::stat64, Duration)> {
         let st = match file_ref {
@@ -1235,16 +1231,15 @@ impl PassthroughFs {
             FileRef::Fd(fd) => fstat(fd, false)?,
         };
 
-        self.finish_getattr(&ctx, nodeid, st)
+        self.finish_getattr(nodeid, st)
     }
 
     fn finish_getattr(
         &self,
-        ctx: &Context,
         nodeid: NodeId,
         mut st: bindings::stat64,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        self.filter_stat(ctx, nodeid, &mut st);
+        self.filter_stat(nodeid, &mut st);
         Ok((st, self.cfg.attr_timeout))
     }
 
@@ -1337,7 +1332,7 @@ impl PassthroughFs {
             }?;
         }
 
-        self.do_getattr(file_ref.as_ref(), ctx, nodeid)
+        self.do_getattr(file_ref.as_ref(), nodeid)
     }
 
     fn do_unlink(
@@ -1909,15 +1904,8 @@ impl FileSystem for PassthroughFs {
                     }
                 };
 
-                self.finish_lookup(
-                    nodeid,
-                    parent_flags,
-                    &entry.name,
-                    *st,
-                    FileRef::Path(&path),
-                    &ctx,
-                )
-                .map(|(entry, _)| (Some(entry.nodeid), entry))
+                self.finish_lookup(nodeid, parent_flags, &entry.name, *st, FileRef::Path(&path))
+                    .map(|(entry, _)| (Some(entry.nodeid), entry))
             };
 
             // if lookup failed, return no entry, so linux will get the error on lookup
@@ -2029,14 +2017,8 @@ impl FileSystem for PassthroughFs {
             };
 
             let st = fstat(&fd, false)?;
-            let (entry, node_flags) = self.finish_lookup(
-                parent,
-                parent_flags,
-                name,
-                st,
-                FileRef::Fd(fd.as_fd()),
-                &ctx,
-            )?;
+            let (entry, node_flags) =
+                self.finish_lookup(parent, parent_flags, name, st, FileRef::Fd(fd.as_fd()))?;
 
             let (handle, opts) = self.finish_open(fd, flags, entry.nodeid, node_flags, st)?;
             Ok((entry, Some(handle), opts))
@@ -2105,11 +2087,11 @@ impl FileSystem for PassthroughFs {
         // if not, we don't
         if handle.is_some() {
             let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
-            self.do_getattr(file_ref.as_ref(), ctx, nodeid)
+            self.do_getattr(file_ref.as_ref(), nodeid)
         } else {
             self.with_nodeid_refresh(&ctx, nodeid, || {
                 let file_ref = self.get_file_ref(&ctx, nodeid, handle)?;
-                self.do_getattr(file_ref.as_ref(), ctx, nodeid)
+                self.do_getattr(file_ref.as_ref(), nodeid)
             })
         }
     }
@@ -2359,8 +2341,6 @@ impl FileSystem for PassthroughFs {
                 Some((ctx.uid, ctx.gid)),
                 Some(mode as u32),
             )?;
-            entry.attr.st_uid = ctx.uid;
-            entry.attr.st_gid = ctx.gid;
             entry.attr.st_mode = mode;
 
             Ok(entry)
