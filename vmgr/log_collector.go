@@ -279,13 +279,6 @@ func (p *ConsoleProcessor) Start(r *os.File) {
 							err = &InitCrashError{Err: msg}
 							p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonInitCrash}
 							sentry.CaptureException(err)
-						} else if strings.Contains(panicLog, "DATA IS LIKELY CORRUPTED") {
-							err = &DataCorruptionError{Err: msg}
-							p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataCorruption}
-							sentry.CaptureException(err)
-						} else if strings.Contains(panicLog, "missing data partition: No such file or directory (os error 2)") {
-							err = &DataEmptyError{Err: msg}
-							p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataEmpty}
 						} else if strings.Contains(line, "System is deadlocked on memory") {
 							// OOM is normal. don't report to sentry at all
 							err = &OutOfMemoryError{Err: msg}
@@ -341,6 +334,12 @@ func (p *ConsoleProcessor) Start(r *os.File) {
 				// continue to write the log
 				_, _ = io.WriteString(os.Stdout, kernelPrefix+magenta(line))
 				_, _ = io.WriteString(kernelLogWriter, line)
+			} else if strings.Contains(line, "DATA IS LIKELY CORRUPTED") {
+				p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataCorruption}
+				_, _ = io.WriteString(os.Stdout, consolePrefix+yellow(line))
+			} else if strings.Contains(line, "missing data partition: No such file or directory (os error 2)") {
+				p.stopCh <- types.StopRequest{Type: types.StopTypeForce, Reason: types.StopReasonDataEmpty}
+				_, _ = io.WriteString(os.Stdout, consolePrefix+yellow(line))
 			} else {
 				_, _ = io.WriteString(os.Stdout, consolePrefix+yellow(line))
 			}

@@ -1097,7 +1097,10 @@ func runVmManager() {
 
 		case stopReq := <-stopCh:
 			logrus.WithField("reason", stopReq.Reason).Info("stop requested")
-			lastStopReason = stopReq.Reason
+			// don't overwrite reason if we already have one (kernel panic comes after init errors)
+			if lastStopReason == types.StopReasonUnknownCrash {
+				lastStopReason = stopReq.Reason
+			}
 			// attempt to unmount nfs first
 			_ = services.Hcontrol.InternalUnmountNfs()
 
