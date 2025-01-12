@@ -3,19 +3,20 @@ package dmigrate
 import (
 	"fmt"
 	"net/url"
+	"strings"
 
-	"github.com/alitto/pond"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 )
 
-func (m *Migrator) incContainerPauseRef(ctr *dockertypes.ContainerSummary) error {
+func (m *Migrator) incContainerPauseRef(ctr *dockertypes.ContainerJSON) error {
 	m.ctrPauseRefsMu.Lock()
 	defer m.ctrPauseRefsMu.Unlock()
 
 	m.ctrPauseRefs[ctr.ID]++
 	newCount := m.ctrPauseRefs[ctr.ID]
-	if newCount == 1 && ctr.State == "running" {
+	if newCount == 1 && ctr.State.Running {
 		err := m.srcClient.Call("POST", "/containers/"+ctr.ID+"/pause", nil, nil)
 		if err != nil {
 			return fmt.Errorf("pause container: %w", err)
@@ -25,13 +26,13 @@ func (m *Migrator) incContainerPauseRef(ctr *dockertypes.ContainerSummary) error
 	return nil
 }
 
-func (m *Migrator) decContainerPauseRef(ctr *dockertypes.ContainerSummary) error {
+func (m *Migrator) decContainerPauseRef(ctr *dockertypes.ContainerJSON) error {
 	m.ctrPauseRefsMu.Lock()
 	defer m.ctrPauseRefsMu.Unlock()
 
 	m.ctrPauseRefs[ctr.ID]--
 	newCount := m.ctrPauseRefs[ctr.ID]
-	if newCount == 0 && ctr.State == "running" {
+	if newCount == 0 && ctr.State.Running {
 		err := m.srcClient.Call("POST", "/containers/"+ctr.ID+"/unpause", nil, nil)
 		if err != nil {
 			logrus.Warnf("unpause container: %v", err)
@@ -41,7 +42,7 @@ func (m *Migrator) decContainerPauseRef(ctr *dockertypes.ContainerSummary) error
 	return nil
 }
 
-func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerSummary, userName string) error {
+func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName string) error {
 	logrus.Infof("Migrating container %s", userName)
 
 	// [src] fetch full info
@@ -137,23 +138,86 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerSummary, userNa
 	return nil
 }
 
-func (m *Migrator) submitOneContainer(group *pond.TaskGroup, ctr *dockertypes.ContainerSummary) error {
-	var userName string
-	if len(ctr.Names) > 0 {
-		userName = ctr.Names[0]
-	} else {
-		userName = ctr.ID
+func (m *Migrator) getContainerID(nameOrID string) (string, error) {
+	if id, ok := m.srcNameToID[nameOrID]; ok {
+		return id, nil
 	}
 
-	logrus.WithField("container", ctr.Names).Debug("Submitting container")
-	group.Submit(func() {
-		defer m.finishOneEntity(&entitySpec{containerID: ctr.ID})
+	return "", fmt.Errorf("container '%s' not found", nameOrID)
+}
+
+func (m *Migrator) addContainerModeDependency(deps []string, field string) ([]string, error) {
+	if strings.HasPrefix(field, "container:") {
+		id := strings.TrimPrefix(field, "container:")
+		deps = append(deps, id)
+	}
+
+	return deps, nil
+}
+
+func (m *Migrator) getContainerDependencies(ctr *dockertypes.ContainerJSON) ([]string, error) {
+	deps := []string{}
+
+	var err error
+	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.NetworkMode)
+	if err != nil {
+		return nil, fmt.Errorf("add container mode dependency: %w", err)
+	}
+	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.CgroupnsMode)
+	if err != nil {
+		return nil, fmt.Errorf("add container mode dependency: %w", err)
+	}
+	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.IpcMode)
+	if err != nil {
+		return nil, fmt.Errorf("add container mode dependency: %w", err)
+	}
+	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.PidMode)
+	if err != nil {
+		return nil, fmt.Errorf("add container mode dependency: %w", err)
+	}
+	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.UTSMode)
+	if err != nil {
+		return nil, fmt.Errorf("add container mode dependency: %w", err)
+	}
+	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.UsernsMode)
+	if err != nil {
+		return nil, fmt.Errorf("add container mode dependency: %w", err)
+	}
+
+	for _, vol := range ctr.HostConfig.VolumesFrom {
+		id, err := m.getContainerID(strings.SplitN(vol, ":", 2)[0])
+		if err != nil {
+			return nil, fmt.Errorf("get container id: %w", err)
+		}
+
+		deps = append(deps, id)
+	}
+
+	return deps, nil
+}
+
+func (m *Migrator) addOneContainerMigration(runner *util.DependentTaskRunner[string], ctr *dockertypes.ContainerJSON) {
+	userName := ctr.Name
+
+	deps, err := m.getContainerDependencies(ctr)
+	if err != nil {
+		logrus.Errorf("get container dependencies: %v", err)
+	}
+
+	logrus.WithField("container", userName).Debug("Submitting container")
+	runner.AddTask(ctr.ID, func() error {
+		defer m.finishOneEntity()
 
 		err := m.migrateOneContainer(ctr, userName)
 		if err != nil {
-			panic(fmt.Errorf("container %s: %w", userName, err))
+			logrus.Errorf("container %s: %v", userName, err)
 		}
-	})
 
+		return nil
+	}, deps)
+}
+
+func (m *Migrator) submitOneContainerMigration(runner *util.DependentTaskRunner[string], id string) error {
+	runner.Run(id)
 	return nil
 }

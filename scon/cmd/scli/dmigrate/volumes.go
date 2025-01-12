@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (m *Migrator) migrateOneVolume(vol *dockertypes.Volume, depContainers []*dockertypes.ContainerSummary) error {
+func (m *Migrator) migrateOneVolume(vol *dockertypes.Volume, depContainers []*dockertypes.ContainerJSON) error {
 	// create volume on dest
 	logrus.Infof("Migrating volume %s", vol.Name)
 	var newVol dockertypes.Volume
@@ -44,12 +44,12 @@ func (m *Migrator) migrateOneVolume(vol *dockertypes.Volume, depContainers []*do
 	return nil
 }
 
-func (m *Migrator) submitVolumes(group *pond.TaskGroup, volumes []*dockertypes.Volume, containerUsedVolumes map[string][]*dockertypes.ContainerSummary) error {
+func (m *Migrator) submitVolumes(group *pond.TaskGroup, volumes []*dockertypes.Volume, containerUsedVolumes map[string][]*dockertypes.ContainerJSON) error {
 	for _, vol := range volumes {
 		vol := vol
 		logrus.WithField("volume", vol.Name).Debug("submitting volume")
 		group.Submit(func() {
-			defer m.finishOneEntity(&entitySpec{volumeName: vol.Name})
+			defer m.finishOneEntity()
 
 			err := m.migrateOneVolume(vol, containerUsedVolumes[vol.Name])
 			if err != nil {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/alitto/pond"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/slicesx"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockerconf"
@@ -45,14 +46,14 @@ type Migrator struct {
 
 	ctrPauseRefsMu syncx.Mutex
 	ctrPauseRefs   map[string]int
-	entityFinishCh chan struct{}
 
 	srcAgentCid string
 	syncPort    int
 
 	finishedEntities int
-	finishedDeps     []entitySpec // regardless of whether they succeeded
 	totalEntities    int
+
+	srcNameToID map[string]string
 }
 
 type MigrateParams struct {
@@ -64,13 +65,6 @@ type MigrateParams struct {
 	/* networks are implicit by containers */
 
 	ForceIfExisting bool
-}
-
-type entitySpec struct {
-	containerID string
-	volumeName  string
-	networkName string
-	imageID     string
 }
 
 type errorTracker struct {
@@ -108,9 +102,11 @@ func NewMigratorWithClients(srcClient, destClient *dockerclient.Client) (*Migrat
 		srcClient:  srcClient,
 		destClient: destClient,
 
-		networkIDMap:   make(map[string]string),
-		ctrPauseRefs:   make(map[string]int),
-		entityFinishCh: make(chan struct{}, 1),
+		networkIDMap: make(map[string]string),
+
+		srcNameToID: make(map[string]string),
+
+		ctrPauseRefs: make(map[string]int),
 	}, nil
 }
 
@@ -123,19 +119,9 @@ func (m *Migrator) SetRawSrcSocket(rawSrcSocket string) {
 	m.rawSrcSocket = rawSrcSocket
 }
 
-func (m *Migrator) finishOneEntity(spec *entitySpec) {
+func (m *Migrator) finishOneEntity() {
 	m.mu.Lock()
 	m.finishedEntities++
-	logrus.WithField("finished", spec).Debug("Finished entity")
-	if spec != nil {
-		// works as adaptive notifications w/ non-blocking send + 1 buf
-		m.finishedDeps = append(m.finishedDeps, *spec)
-
-		select {
-		case m.entityFinishCh <- struct{}{}:
-		default:
-		}
-	}
 	m.mu.Unlock()
 
 	progress := float64(m.finishedEntities) / float64(m.totalEntities)
@@ -148,7 +134,7 @@ func (m *Migrator) sendProgressEvent(progress float64) {
 
 type engineManifest struct {
 	Images     []*dockertypes.ImageSummary
-	Containers []*dockertypes.ContainerSummary
+	Containers []*dockertypes.ContainerJSON
 	Networks   []dockertypes.Network
 	Volumes    []*dockertypes.Volume
 }
@@ -162,6 +148,14 @@ func enumerateSource(client *dockerclient.Client) (*engineManifest, error) {
 	containers, err := client.ListContainers(true)
 	if err != nil {
 		return nil, fmt.Errorf("get containers: %w", err)
+	}
+	fullContainers := make([]*dockertypes.ContainerJSON, 0, len(containers))
+	for _, c := range containers {
+		fullCtr, err := client.InspectContainer(c.ID)
+		if err != nil {
+			return nil, fmt.Errorf("get container: %w", err)
+		}
+		fullContainers = append(fullContainers, fullCtr)
 	}
 
 	networks, err := client.ListNetworks()
@@ -189,7 +183,7 @@ func enumerateSource(client *dockerclient.Client) (*engineManifest, error) {
 
 	return &engineManifest{
 		Images:     images,
-		Containers: containers,
+		Containers: fullContainers,
 		Networks:   networks,
 		Volumes:    volumes,
 	}, nil
@@ -253,34 +247,28 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 	}
 
 	// FILTER CONTAINERS
-	var filteredContainers []*dockertypes.ContainerSummary
-	containerDeps := make(map[string][]entitySpec)
+	var filteredContainers []*dockertypes.ContainerJSON
 outer:
 	for _, c := range manifest.Containers {
-		logrus.WithField("container", c.Names).Debug("Checking container")
+		logrus.WithField("container", c.Name).Debug("Checking container")
 		// skip migration image ones (won't work b/c migration img is excluded)
 		if c.Image == migrationAgentImage {
-			logrus.WithField("container", c.Names).Debug("Skipping container: migration agent")
+			logrus.WithField("container", c.Name).Debug("Skipping container: migration agent")
 			continue
 		}
 
 		// skip containers not used for >1 month (need to fetch full info)
 		if !params.All {
-			fullCtr, err := m.srcClient.InspectContainer(c.ID)
-			if err != nil {
-				return fmt.Errorf("get src container: %w", err)
-			}
-
-			startedAt, err := time.Parse(time.RFC3339Nano, fullCtr.State.StartedAt)
+			startedAt, err := time.Parse(time.RFC3339Nano, c.State.StartedAt)
 			if err != nil {
 				return fmt.Errorf("parse startedAt: %w", err)
 			}
-			finishedAt, err := time.Parse(time.RFC3339Nano, fullCtr.State.FinishedAt)
+			finishedAt, err := time.Parse(time.RFC3339Nano, c.State.FinishedAt)
 			if err != nil {
 				return fmt.Errorf("parse finishedAt: %w", err)
 			}
 			if time.Since(startedAt) > maxUnusedContainerAge && time.Since(finishedAt) > maxUnusedContainerAge {
-				logrus.WithField("container", c.Names).Debug("Skipping container: old and unused")
+				logrus.WithField("container", c.Name).Debug("Skipping container: old and unused")
 				continue
 			}
 
@@ -288,22 +276,22 @@ outer:
 			if c.NetworkSettings != nil && c.NetworkSettings.Networks != nil {
 				for cnetName := range c.NetworkSettings.Networks {
 					if !slices.Contains(eligibleNetworkNames, cnetName) {
-						logrus.WithField("container", c.Names).Debug("Skipping container: depends on non-existent network")
+						logrus.WithField("container", c.Name).Debug("Skipping container: depends on non-existent network")
 						continue outer
 					}
 				}
 			}
 
 			// exclude k8s. without proper state it won't work
-			if c.Labels != nil {
-				if _, ok := c.Labels["io.kubernetes.pod.namespace"]; ok {
-					logrus.WithField("container", c.Names).Debug("Skipping container: is kubernetes pod")
+			if c.Config.Labels != nil {
+				if _, ok := c.Config.Labels["io.kubernetes.pod.namespace"]; ok {
+					logrus.WithField("container", c.Name).Debug("Skipping container: is kubernetes pod")
 					continue
 				}
 			}
 		}
 
-		logrus.WithField("container", c.Names).Debug("Including container")
+		logrus.WithField("container", c.Name).Debug("Including container")
 		filteredContainers = append(filteredContainers, c)
 	}
 
@@ -312,28 +300,27 @@ outer:
 	containerUsedNets := make(map[string]struct{})
 	for _, c := range filteredContainers {
 		if c.NetworkSettings == nil {
-			logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: no network settings")
+			logrus.WithField("container", c.Name).Debug("[build used map] Skipping container: no network settings")
 			continue
 		}
 		if c.NetworkSettings.Networks == nil {
-			logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: no networks")
+			logrus.WithField("container", c.Name).Debug("[build used map] Skipping container: no networks")
 			continue
 		}
 		// don't trust the name, look through IDs
 		for cnetName, cnet := range c.NetworkSettings.Networks {
 			// if we won't be migrating it, then skip it as a dependency or we'll get deadlock
 			if !slices.Contains(eligibleNetworkNames, cnetName) {
-				logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: depends on non-existent network")
+				logrus.WithField("container", c.Name).Debug("[build used map] Skipping container: depends on non-existent network")
 				continue
 			}
 			if cnetName == "bridge" || cnetName == "host" || cnetName == "none" {
-				logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: depends on default network")
+				logrus.WithField("container", c.Name).Debug("[build used map] Skipping container: depends on default network")
 				continue
 			}
 
-			logrus.WithField("container", c.Names).WithField("network", cnetName).Debug("[build used map] Container uses network")
+			logrus.WithField("container", c.Name).WithField("network", cnetName).Debug("[build used map] Container uses network")
 			containerUsedNets[cnet.NetworkID] = struct{}{}
-			containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{networkName: cnetName})
 		}
 	}
 	// 2. filter networks
@@ -361,22 +348,21 @@ outer:
 
 	// FILTER VOLUMES: exclude anonymous volumes not referenced by any containers; local only
 	// 1. build map of container-referenced volumes
-	containerUsedVolumes := make(map[string][]*dockertypes.ContainerSummary)
+	containerUsedVolumes := make(map[string][]*dockertypes.ContainerJSON)
 	for _, c := range filteredContainers {
 		if c.Mounts == nil {
-			logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: no mounts")
+			logrus.WithField("container", c.Name).Debug("[build used map] Skipping container: no mounts")
 			continue
 		}
 		for _, m := range c.Mounts {
 			// volume mounts only (skip dep if we're not migrating it)
-			logrus.WithField("container", c.Names).WithField("mount", m.Name).Debug("[build used map] Checking mount")
+			logrus.WithField("container", c.Name).WithField("mount", m.Name).Debug("[build used map] Checking mount")
 			if m.Type != "volume" || m.Driver != "local" {
-				logrus.WithField("container", c.Names).Debug("[build used map] Skipping container: non-local volume mount")
+				logrus.WithField("container", c.Name).Debug("[build used map] Skipping container: non-local volume mount")
 				continue
 			}
-			logrus.WithField("container", c.Names).WithField("mount", m.Name).Debug("[build used map] Container uses volume")
+			logrus.WithField("container", c.Name).WithField("mount", m.Name).Debug("[build used map] Container uses volume")
 			containerUsedVolumes[m.Name] = append(containerUsedVolumes[m.Name], c)
-			containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{volumeName: m.Name})
 		}
 	}
 	// 2. filter volumes
@@ -404,8 +390,7 @@ outer:
 	// 1. build map of container-referenced images
 	containerUsedImages := make(map[string]struct{})
 	for _, c := range filteredContainers {
-		containerUsedImages[c.ImageID] = struct{}{}
-		containerDeps[c.ID] = append(containerDeps[c.ID], entitySpec{imageID: c.ImageID})
+		containerUsedImages[c.Image] = struct{}{}
 	}
 	// 2. filter images
 	var filteredImages []*dockertypes.ImageSummary
@@ -587,9 +572,31 @@ outer:
 	// depends on all above, so use a barrier
 	// TODO restore dependency graph
 	group.Wait()
+
+	runner := util.NewDependentTaskRunner[string](func(f func()) error {
+		group.Submit(f)
+		return nil
+	})
+
 	for _, c := range filteredContainers {
-		c := c
-		err = m.submitOneContainer(group, c)
+		m.srcNameToID[strings.TrimPrefix(c.Name, "/")] = c.ID
+		m.srcNameToID[c.ID] = c.ID
+		logrus.WithField("container", c.Name).Debug("Adding container to name map")
+	}
+
+	for _, c := range filteredContainers {
+		m.addOneContainerMigration(runner, c)
+	}
+
+	for _, c := range filteredContainers {
+		err := m.submitOneContainerMigration(runner, c.ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, c := range filteredContainers {
+		err := runner.Wait(c.ID)
 		if err != nil {
 			return err
 		}

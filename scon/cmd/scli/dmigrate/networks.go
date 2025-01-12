@@ -58,7 +58,7 @@ func (m *Migrator) submitNetworks(group *pond.TaskGroup, networks []dockertypes.
 		n := n
 		logrus.WithField("network", n.Name).Debug("submitting network")
 		group.Submit(func() {
-			defer m.finishOneEntity(&entitySpec{networkName: n.Name})
+			defer m.finishOneEntity()
 
 			err := m.migrateOneNetwork(n)
 			if err != nil {
