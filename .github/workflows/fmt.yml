@@ -10,11 +10,11 @@ concurrency:
   group: ${{ github.head_ref || github.run_id }}-${{ github.actor }}
   cancel-in-progress: true
 env:
-  GO_VERSION: '1.23.1'
-  BLACK_MAJOR_VERSION: '24.0'
-  SWIFT_FORMAT_VERSION: '600.0.0'
-  TREEFMT_VERSION: '2.0.5'
-  LLVM_VERSION: '18'
+  GO_VERSION: "1.23.1"
+  BLACK_MAJOR_VERSION: "24.0"
+  SWIFT_FORMAT_VERSION: "600.0.0"
+  TREEFMT_VERSION: "2.0.5"
+  LLVM_VERSION: "18"
 jobs:
   treefmt:
     runs-on: ubuntu-latest
@@ -25,8 +25,8 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       - uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
         with:
-          toolchain: 'nightly'
-          components: 'rustfmt'
+          toolchain: "nightly"
+          components: "rustfmt"
       - uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3
       - name: Install Black
         run: pip install "black~=${{ env.BLACK_MAJOR_VERSION }}"
