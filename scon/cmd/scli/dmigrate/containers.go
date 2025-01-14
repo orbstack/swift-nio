@@ -70,6 +70,11 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 		}
 	}
 
+	// can't specify Hostname when NetworkMode is set
+	if strings.HasPrefix(newCtrReq.HostConfig.NetworkMode, "container:") {
+		newCtrReq.ContainerConfig.Hostname = ""
+	}
+
 	// translate network IDs
 	m.mu.Lock()
 	for _, n := range newCtrReq.NetworkingConfig.EndpointsConfig {
