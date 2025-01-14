@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	migrationAgentImage = "ghcr.io/orbstack/dmigrate-agent:1"
+	migrationAgentImage         = "ghcr.io/orbstack/dmigrate-agent:1"
+	migrationAgentContainerName = "orbstack-migration-agent"
 
 	RemoteStopTimeout = 10 * time.Second
 
@@ -251,8 +252,10 @@ func (m *Migrator) MigrateAll(params MigrateParams) error {
 outer:
 	for _, c := range manifest.Containers {
 		logrus.WithField("container", c.Name).Debug("Checking container")
+
 		// skip migration image ones (won't work b/c migration img is excluded)
-		if c.Image == migrationAgentImage {
+		// (c.Image is "sha256:*")
+		if c.Config.Image == migrationAgentImage {
 			logrus.WithField("container", c.Name).Debug("Skipping container: migration agent")
 			continue
 		}
@@ -473,9 +476,9 @@ outer:
 	// [src] start agent
 	logrus.Debug("Starting migration agent")
 	// delete conflicting container if exists
-	_ = m.srcClient.RemoveContainer("orbstack-migration-agent", true)
+	_ = m.srcClient.RemoveContainer(migrationAgentContainerName, true)
 	srcAgentCid, err := m.srcClient.RunContainer(dockerclient.RunContainerOptions{
-		Name:      "orbstack-migration-agent",
+		Name:      migrationAgentContainerName,
 		PullImage: dockerclient.PullImageAlways,
 	}, &dockertypes.ContainerCreateRequest{
 		Image: migrationAgentImage,
