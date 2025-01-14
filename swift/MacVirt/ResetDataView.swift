@@ -21,7 +21,7 @@ struct ResetDataView: View {
 
     @StateObject private var model = GenericCommandViewModel()
     @StateObject private var windowHolder = WindowHolder()
-    
+
     @State private var presentConfirm = true
 
     var body: some View {
@@ -69,13 +69,14 @@ struct ResetDataView: View {
                         try await runProcessChecked(AppConfig.ctlExe, ["reset", "-y"])
                         model.state = .done
                     } catch let processError as ProcessError {
-                        model.state = .error("(status \(processError.status)) \(processError.output)")
+                        model.state = .error(
+                            "(status \(processError.status)) \(processError.output)")
                         return
                     } catch {
                         model.state = .error(error.localizedDescription)
                         return
                     }
-                    
+
                     // done! now restart vmgr
                     await vmModel.tryStartDaemon()
                 }

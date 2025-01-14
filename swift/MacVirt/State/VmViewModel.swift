@@ -203,7 +203,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return false
         }
     }
-    
+
     var shouldShowReset: Bool {
         switch self {
         case .vmgrExit(.dataCorruption, _):

@@ -360,7 +360,7 @@ struct MacVirtApp13: App {
             .windowStyle(.hiddenTitleBar)
             .windowResizability(.contentSize)
             .handlesExternalEvents(matching: [])
-            
+
             SingletonWindow("Reset Data", id: WindowID.resetData) {
                 ResetDataView()
                     .environmentObject(vmModel)
