@@ -61,6 +61,15 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 		},
 	}
 
+	// translate leaked /host_mnt/* paths
+	if newCtrReq.HostConfig != nil {
+		for _, vol := range newCtrReq.HostConfig.Mounts {
+			if strings.HasPrefix(vol.Source, "/host_mnt/") {
+				vol.Source = "/" + strings.TrimPrefix(vol.Source, "/host_mnt/")
+			}
+		}
+	}
+
 	// translate network IDs
 	m.mu.Lock()
 	for _, n := range newCtrReq.NetworkingConfig.EndpointsConfig {
