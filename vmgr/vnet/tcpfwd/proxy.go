@@ -62,7 +62,7 @@ type ProxyDialError struct {
 }
 
 func (e *ProxyDialError) Error() string {
-	return fmt.Sprintf("via proxy: %v", e.Err)
+	return fmt.Sprintf("via proxy: %s", e.Err.Error())
 }
 
 func (e *ProxyDialError) Unwrap() error {
