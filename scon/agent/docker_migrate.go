@@ -96,7 +96,7 @@ func (a *AgentServer) DockerMigrationLoadImage(params types.InternalDockerMigrat
 	}
 
 	// open local conn
-	localConn, err := netx.Dial("unix", "/var/run/docker.sock")
+	localConn, err := netx.Dial("unix", dockerAPISocketReal)
 	if err != nil {
 		return err
 	}
