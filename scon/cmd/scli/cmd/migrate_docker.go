@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	//flagFromContext string
+	// flagFromContext string
 	flagImages     bool
 	flagContainers bool
 	flagVolumes    bool
@@ -26,7 +26,7 @@ var (
 
 func init() {
 	migrateCmd.AddCommand(migrateDockerCmd)
-	//migrateDockerCmd.Flags().StringVar(&flagFromContext, "from-context", "desktop-linux", "Context to migrate from")
+	// migrateDockerCmd.Flags().StringVar(&flagFromContext, "from-context", "desktop-linux", "Context to migrate from")
 	migrateDockerCmd.Flags().BoolVarP(&flagImages, "images", "i", true, "Migrate images")
 	migrateDockerCmd.Flags().BoolVarP(&flagContainers, "containers", "c", true, "Migrate containers")
 	migrateDockerCmd.Flags().BoolVarP(&flagVolumes, "volumes", "v", true, "Migrate volumes")
@@ -42,7 +42,7 @@ var migrateDockerCmd = &cobra.Command{
 	Short: "Migrate containers, volumes, and images from Docker Desktop",
 	Long: `Migrate containers, volumes, images, and other data from Docker Desktop to OrbStack.
 `,
-	Example: "  " + rootCmd.Use + " docker migrate",
+	Example: "  " + rootCmd.Use + " migrate docker",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if flagFormat == "json" {
