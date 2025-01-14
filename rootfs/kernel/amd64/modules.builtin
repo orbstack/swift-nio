@@ -131,6 +131,7 @@ kernel/lib/crypto/libsha1.ko
 kernel/lib/crypto/libsha256.ko
 kernel/lib/crypto/mpi/mpi.ko
 kernel/lib/bitrev.ko
+kernel/lib/crc-ccitt.ko
 kernel/lib/crc16.ko
 kernel/lib/crc-itu-t.ko
 kernel/lib/crc32.ko
@@ -216,6 +217,7 @@ kernel/drivers/net/vrf.ko
 kernel/drivers/net/can/vcan.ko
 kernel/drivers/net/can/dev/can-dev.ko
 kernel/drivers/net/ppp/ppp_generic.ko
+kernel/drivers/net/ppp/ppp_async.ko
 kernel/drivers/net/ppp/ppp_deflate.ko
 kernel/drivers/net/ppp/ppp_mppe.ko
 kernel/drivers/net/slip/slhc.ko
