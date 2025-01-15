@@ -80,6 +80,7 @@ type InternalReportStoppedRequest struct {
 
 type InternalDockerMigrationLoadImageRequest struct {
 	RemoteImageNames []string `json:"remote_image_id"`
+	RemoteConnFdxSeq uint64   `json:"-"`
 }
 
 type InternalDockerMigrationRunSyncServerRequest struct {

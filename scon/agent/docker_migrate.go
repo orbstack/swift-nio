@@ -12,13 +12,10 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"strconv"
 
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
-	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
-	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 )
@@ -48,7 +45,13 @@ func readUntilResponseEnd(conn io.Reader, trailer string) (io.ReadWriter, error)
 }
 
 func (a *AgentServer) DockerMigrationLoadImage(params types.InternalDockerMigrationLoadImageRequest, _ *None) error {
-	remoteConn, err := netx.Dial("tcp", netconf.VnetSecureSvcIP4+":"+strconv.Itoa(ports.SecureSvcDockerRemoteCtx))
+	remoteConnFile, err := a.fdx.RecvFile(params.RemoteConnFdxSeq)
+	if err != nil {
+		return err
+	}
+
+	remoteConn, err := net.FileConn(remoteConnFile)
+	remoteConnFile.Close()
 	if err != nil {
 		return err
 	}

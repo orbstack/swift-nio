@@ -251,9 +251,21 @@ func (c *Client) DockerQueryKubeDns(q dns.Question) ([]dns.RR, error) {
 	return reply, nil
 }
 
-func (c *Client) DockerMigrationLoadImage(params types.InternalDockerMigrationLoadImageRequest) error {
+func (c *Client) DockerMigrationLoadImage(params types.InternalDockerMigrationLoadImageRequest, remoteConn *net.TCPConn) error {
+	file, err := remoteConn.File()
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	seq, err := c.fdx.SendFile(file)
+	if err != nil {
+		return err
+	}
+	params.RemoteConnFdxSeq = seq
+
 	var none None
-	err := c.rpc.Call("a.DockerMigrationLoadImage", params, &none)
+	err = c.rpc.Call("a.DockerMigrationLoadImage", params, &none)
 	if err != nil {
 		return err
 	}
