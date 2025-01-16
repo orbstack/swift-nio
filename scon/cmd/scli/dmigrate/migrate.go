@@ -42,8 +42,11 @@ type Migrator struct {
 	destClient   *dockerclient.Client
 	rawSrcSocket string
 
-	mu           syncx.Mutex
-	networkIDMap map[string]string
+	mu             syncx.Mutex
+	networkIDMap   map[string]string
+	containerIDMap map[string]string
+
+	srcNameToID map[string]string
 
 	ctrPauseRefsMu syncx.Mutex
 	ctrPauseRefs   map[string]int
@@ -53,8 +56,6 @@ type Migrator struct {
 
 	finishedEntities int
 	totalEntities    int
-
-	srcNameToID map[string]string
 }
 
 type MigrateParams struct {
@@ -103,7 +104,8 @@ func NewMigratorWithClients(srcClient, destClient *dockerclient.Client) (*Migrat
 		srcClient:  srcClient,
 		destClient: destClient,
 
-		networkIDMap: make(map[string]string),
+		networkIDMap:   make(map[string]string),
+		containerIDMap: make(map[string]string),
 
 		srcNameToID: make(map[string]string),
 

@@ -1,11 +1,13 @@
 package dmigrate
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 )
@@ -37,6 +39,23 @@ func (m *Migrator) decContainerPauseRef(ctr *dockertypes.ContainerJSON) error {
 		if err != nil {
 			logrus.Warnf("unpause container: %v", err)
 		}
+	}
+
+	return nil
+}
+
+func (m *Migrator) translateModeContainerId(mode *string) error {
+	if strings.HasPrefix(*mode, "container:") {
+		id := strings.TrimPrefix(*mode, "container:")
+
+		m.mu.Lock()
+		mappedID, ok := m.containerIDMap[id]
+		m.mu.Unlock()
+		if !ok {
+			return fmt.Errorf("map container id: %s", id)
+		}
+
+		*mode = "container:" + mappedID
 	}
 
 	return nil
@@ -82,6 +101,53 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 	}
 	m.mu.Unlock()
 
+	// translate container IDs in mode fields
+	err = m.translateModeContainerId(&newCtrReq.HostConfig.NetworkMode)
+	if err != nil {
+		return fmt.Errorf("translate network mode container id: %w", err)
+	}
+	err = m.translateModeContainerId(&newCtrReq.HostConfig.CgroupnsMode)
+	if err != nil {
+		return fmt.Errorf("translate cgroupns mode container id: %w", err)
+	}
+	err = m.translateModeContainerId(&newCtrReq.HostConfig.IpcMode)
+	if err != nil {
+		return fmt.Errorf("translate ipc mode container id: %w", err)
+	}
+	err = m.translateModeContainerId(&newCtrReq.HostConfig.PidMode)
+	if err != nil {
+		return fmt.Errorf("translate pid mode container id: %w", err)
+	}
+	err = m.translateModeContainerId(&newCtrReq.HostConfig.UTSMode)
+	if err != nil {
+		return fmt.Errorf("translate uts mode container id: %w", err)
+	}
+	err = m.translateModeContainerId(&newCtrReq.HostConfig.UsernsMode)
+	if err != nil {
+		return fmt.Errorf("translate userns mode container id: %w", err)
+	}
+
+	// translate container id in volumesFrom
+	for i, vol := range newCtrReq.HostConfig.VolumesFrom {
+		volParts := strings.SplitN(vol, ":", 2)
+		id, err := m.getSrcContainerID(volParts[0])
+		if err != nil {
+			return fmt.Errorf("get container id: %w", err)
+		}
+
+		m.mu.Lock()
+		mappedID, ok := m.containerIDMap[id]
+		m.mu.Unlock()
+		if !ok {
+			return fmt.Errorf("map container id: %s", id)
+		}
+
+		newCtrReq.HostConfig.VolumesFrom[i] = mappedID
+		if len(volParts) > 1 {
+			newCtrReq.HostConfig.VolumesFrom[i] += ":" + volParts[1]
+		}
+	}
+
 	// can only connect 1 endpoint at creation time
 	// if more, save them for later
 	extraEndpoints := make(map[string]*dockertypes.NetworkEndpointSettings)
@@ -107,8 +173,25 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 
 	err = m.destClient.Call("POST", "/containers/create?name="+url.QueryEscape(fullCtr.Name)+"&platform="+url.QueryEscape(platform), newCtrReq, &newCtrResp)
 	if err != nil {
+		var apiErr *dockerclient.APIError
+		if errors.As(err, &apiErr) && apiErr.HTTPStatus == 409 {
+			// container already exists, we'll grab its id to add to the containerID map
+			newFullCtr, err := m.destClient.InspectContainer(fullCtr.Name)
+			if err != nil {
+				return fmt.Errorf("get existing dest container: %w", err)
+			}
+
+			m.mu.Lock()
+			m.containerIDMap[ctr.ID] = newFullCtr.ID
+			m.mu.Unlock()
+		}
+
 		return fmt.Errorf("create container: %w", err)
 	}
+
+	m.mu.Lock()
+	m.containerIDMap[ctr.ID] = newCtrResp.ID
+	m.mu.Unlock()
 
 	// [dest] connect extra net endpoints
 	for k, v := range extraEndpoints {
@@ -152,12 +235,12 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 	return nil
 }
 
-func (m *Migrator) getContainerID(nameOrID string) (string, error) {
+func (m *Migrator) getSrcContainerID(nameOrID string) (string, error) {
 	if id, ok := m.srcNameToID[nameOrID]; ok {
 		return id, nil
+	} else {
+		return "", fmt.Errorf("container '%s' not found", nameOrID)
 	}
-
-	return "", fmt.Errorf("container '%s' not found", nameOrID)
 }
 
 func (m *Migrator) addContainerModeDependency(deps []string, field string) ([]string, error) {
@@ -175,31 +258,31 @@ func (m *Migrator) getContainerDependencies(ctr *dockertypes.ContainerJSON) ([]s
 	var err error
 	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.NetworkMode)
 	if err != nil {
-		return nil, fmt.Errorf("add container mode dependency: %w", err)
+		return nil, fmt.Errorf("add container network mode dependency: %w", err)
 	}
 	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.CgroupnsMode)
 	if err != nil {
-		return nil, fmt.Errorf("add container mode dependency: %w", err)
+		return nil, fmt.Errorf("add container cgroupns mode dependency: %w", err)
 	}
 	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.IpcMode)
 	if err != nil {
-		return nil, fmt.Errorf("add container mode dependency: %w", err)
+		return nil, fmt.Errorf("add container ipc mode dependency: %w", err)
 	}
 	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.PidMode)
 	if err != nil {
-		return nil, fmt.Errorf("add container mode dependency: %w", err)
+		return nil, fmt.Errorf("add container pid mode dependency: %w", err)
 	}
 	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.UTSMode)
 	if err != nil {
-		return nil, fmt.Errorf("add container mode dependency: %w", err)
+		return nil, fmt.Errorf("add container uts mode dependency: %w", err)
 	}
 	deps, err = m.addContainerModeDependency(deps, ctr.HostConfig.UsernsMode)
 	if err != nil {
-		return nil, fmt.Errorf("add container mode dependency: %w", err)
+		return nil, fmt.Errorf("add container userns mode dependency: %w", err)
 	}
 
 	for _, vol := range ctr.HostConfig.VolumesFrom {
-		id, err := m.getContainerID(strings.SplitN(vol, ":", 2)[0])
+		id, err := m.getSrcContainerID(strings.SplitN(vol, ":", 2)[0])
 		if err != nil {
 			return nil, fmt.Errorf("get container id: %w", err)
 		}
