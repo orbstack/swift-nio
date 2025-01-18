@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/util"
@@ -146,6 +147,63 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 		if len(volParts) > 1 {
 			newCtrReq.HostConfig.VolumesFrom[i] += ":" + volParts[1]
 		}
+	}
+
+	// connect anonymous volumes
+	// these are the volumes in the mountpoints list (ctr.Mounts) but not binds (ctr.HostConfig.Binds) or mounts (ctr.HostConfig.Mounts)
+	// these are also volumes in ctr.HostConfig.Mounts without a source?
+	mountpointsByDestination := make(map[string]dockertypes.MountPoint, len(fullCtr.Mounts))
+	for _, vol := range fullCtr.Mounts {
+		mountpointsByDestination[vol.Destination] = vol
+	}
+	knownVolumes := make([]string, 0, len(newCtrReq.HostConfig.Mounts)+len(newCtrReq.HostConfig.Binds))
+	for i, vol := range newCtrReq.HostConfig.Mounts {
+		if vol.Type != "volume" {
+			continue
+		}
+
+		// if it's a volume type without a source, it's anonymous, so we should patch it to use the corresponding anonymous volume from the mountpoints list
+		if vol.Source == "" {
+			mountpoint, ok := mountpointsByDestination[vol.Target]
+			if !ok {
+				return fmt.Errorf("find corresponding mountpoint for target `%s`", vol.Target)
+			}
+
+			if mountpoint.Type != "volume" {
+				return fmt.Errorf("mountpoint for target `%s` is not a volume, but has a corresponding container mount", vol.Target)
+			}
+
+			newCtrReq.HostConfig.Mounts[i].Source = mountpoint.Name
+		}
+
+		knownVolumes = append(knownVolumes, vol.Source)
+	}
+	for _, vol := range newCtrReq.HostConfig.Binds {
+		volParts := strings.SplitN(vol, ":", 2)
+
+		// skip if bind mount
+		// paths have to be absolute for a bind mount so if this starts with /, it's a bind mount
+		if strings.HasPrefix(volParts[0], "/") {
+			continue
+		}
+
+		knownVolumes = append(knownVolumes, volParts[0])
+	}
+	for _, vol := range fullCtr.Mounts {
+		if vol.Type != "volume" {
+			continue
+		}
+
+		// these volumes are all already handled
+		if slices.Contains(knownVolumes, vol.Name) {
+			continue
+		}
+
+		newCtrReq.HostConfig.Mounts = append(newCtrReq.HostConfig.Mounts, dockertypes.ContainerMount{
+			Type:   "volume",
+			Source: vol.Name,
+			Target: vol.Destination,
+		})
 	}
 
 	// can only connect 1 endpoint at creation time
