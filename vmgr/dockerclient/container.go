@@ -90,6 +90,14 @@ func (c *Client) RunContainer(opts RunContainerOptions, req *dockertypes.Contain
 	return containerResp.ID, nil
 }
 
+func (c *Client) StartContainer(cid string) error {
+	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/start", nil, nil)
+	if err != nil {
+		return fmt.Errorf("start container: %w", err)
+	}
+	return nil
+}
+
 func (c *Client) KillContainer(cid string) error {
 	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/kill", nil, nil)
 	if err != nil {

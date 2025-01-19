@@ -54,6 +54,8 @@ type Migrator struct {
 	srcAgentCid string
 	syncPort    int
 
+	destContainersToStart []string
+
 	finishedEntities int
 	totalEntities    int
 }
@@ -637,6 +639,14 @@ outer:
 	err = vmclient.Client().SetDockerContext()
 	if err != nil {
 		return fmt.Errorf("set docker context: %w", err)
+	}
+
+	// start any containers that were running on src
+	for _, cid := range m.destContainersToStart {
+		err := m.destClient.StartContainer(cid)
+		if err != nil {
+			return fmt.Errorf("start container: %w", err)
+		}
 	}
 
 	// dispatch any earlier errors

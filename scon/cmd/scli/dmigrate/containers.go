@@ -290,6 +290,13 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 		return fmt.Errorf("sync upper dir: %w", err)
 	}
 
+	// mark dest container to be started if src was running
+	if fullCtr.State.Running {
+		m.mu.Lock()
+		m.destContainersToStart = append(m.destContainersToStart, newCtrResp.ID)
+		m.mu.Unlock()
+	}
+
 	return nil
 }
 
