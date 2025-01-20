@@ -375,6 +375,7 @@ fn walk_dir(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack) -> anyh
                 if header.set_link_path(link_name).is_err() {
                     // PAX long name extension
                     pax_header.add_field("linkpath", link_name);
+                    header.set_link_path("././@LongSymLink".as_bytes()).unwrap();
                 }
             })?;
         }
