@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/netip"
 
-	"github.com/alitto/pond"
+	"github.com/alitto/pond/v2"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 )
@@ -53,7 +53,7 @@ func (m *Migrator) migrateOneNetwork(n dockertypes.Network) error {
 	return nil
 }
 
-func (m *Migrator) submitNetworks(group *pond.TaskGroup, networks []dockertypes.Network) error {
+func (m *Migrator) submitNetworks(group pond.TaskGroup, networks []dockertypes.Network) error {
 	for _, n := range networks {
 		n := n
 		logrus.WithField("network", n.Name).Debug("submitting network")

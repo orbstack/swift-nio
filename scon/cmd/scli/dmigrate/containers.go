@@ -358,12 +358,14 @@ func (m *Migrator) getContainerDependencies(ctr *dockertypes.ContainerJSON) ([]s
 	return deps, nil
 }
 
-func (m *Migrator) addOneContainerMigration(runner *util.DependentTaskRunner[string], ctr *dockertypes.ContainerJSON) {
+func (m *Migrator) addOneContainerMigration(runner *util.DependentTaskRunner[string], errTracker *errorTracker, ctr *dockertypes.ContainerJSON) {
 	userName := ctr.Name
 
 	deps, err := m.getContainerDependencies(ctr)
 	if err != nil {
-		logrus.Errorf("get container dependencies: %v", err)
+		logrus.WithError(err).WithField("container", userName).Error("Failed to get container dependencies")
+		errTracker.Add(fmt.Errorf("get container dependencies: %w", err))
+		return
 	}
 
 	logrus.WithField("container", userName).Debug("Submitting container")
@@ -372,7 +374,8 @@ func (m *Migrator) addOneContainerMigration(runner *util.DependentTaskRunner[str
 
 		err := m.migrateOneContainer(ctr, userName)
 		if err != nil {
-			logrus.Errorf("container %s: %v", userName, err)
+			logrus.WithError(err).WithField("container", userName).Error("Failed to migrate container")
+			errTracker.Add(err)
 		}
 
 		return nil
@@ -380,6 +383,5 @@ func (m *Migrator) addOneContainerMigration(runner *util.DependentTaskRunner[str
 }
 
 func (m *Migrator) submitOneContainerMigration(runner *util.DependentTaskRunner[string], id string) error {
-	runner.Run(id)
-	return nil
+	return runner.Run(id)
 }

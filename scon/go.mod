@@ -50,6 +50,7 @@ require (
 )
 
 require (
+	github.com/alitto/pond/v2 v2.1.6 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.10.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

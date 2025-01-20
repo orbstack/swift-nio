@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/alessio/shellescape"
-	"github.com/alitto/pond"
+	"github.com/alitto/pond/v2"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -145,7 +145,7 @@ func (m *Migrator) migrateOneImage(idx int, img *dockertypes.ImageSummary, userN
 	return nil
 }
 
-func (m *Migrator) submitImages(group *pond.TaskGroup, images []*dockertypes.ImageSummary) error {
+func (m *Migrator) submitImages(group pond.TaskGroup, images []*dockertypes.ImageSummary) error {
 	for idx, img := range images {
 		var userName string
 		if len(img.RepoTags) > 0 {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alitto/pond"
+	"github.com/alitto/pond/v2"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/slicesx"
@@ -81,6 +81,12 @@ func (e *errorTracker) Check() error {
 	defer e.mu.Unlock()
 
 	return errors.Join(e.errors...)
+}
+
+func (e *errorTracker) Add(err error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.errors = append(e.errors, err)
 }
 
 func NewMigratorWithUnixSockets(fromSocket, toSocket string) (*Migrator, error) {
@@ -461,21 +467,9 @@ outer:
 	workerCount := min(getPcpuCount()-1, maxWorkers)
 	workerCount = max(workerCount, 1)
 	errTracker := &errorTracker{}
-	pool := pond.New(workerCount, 100, pond.PanicHandler(func(p any) {
-		var err error
-		if e, ok := p.(error); ok {
-			err = e
-		} else {
-			err = fmt.Errorf("panic: %v", p)
-		}
-		logrus.Error(err)
-
-		errTracker.mu.Lock()
-		errTracker.errors = append(errTracker.errors, err)
-		errTracker.mu.Unlock()
-	}))
+	pool := pond.NewPool(workerCount)
 	defer pool.StopAndWait()
-	group := pool.Group()
+	group := pool.NewGroup()
 
 	// [src] start agent
 	logrus.Debug("Starting migration agent")
@@ -592,7 +586,7 @@ outer:
 	}
 
 	for _, c := range filteredContainers {
-		m.addOneContainerMigration(runner, c)
+		m.addOneContainerMigration(runner, errTracker, c)
 	}
 
 	for _, c := range filteredContainers {

@@ -3,7 +3,7 @@ package dmigrate
 import (
 	"fmt"
 
-	"github.com/alitto/pond"
+	"github.com/alitto/pond/v2"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 )
@@ -44,7 +44,7 @@ func (m *Migrator) migrateOneVolume(vol *dockertypes.Volume, depContainers []*do
 	return nil
 }
 
-func (m *Migrator) submitVolumes(group *pond.TaskGroup, volumes []*dockertypes.Volume, containerUsedVolumes map[string][]*dockertypes.ContainerJSON) error {
+func (m *Migrator) submitVolumes(group pond.TaskGroup, volumes []*dockertypes.Volume, containerUsedVolumes map[string][]*dockertypes.ContainerJSON) error {
 	for _, vol := range volumes {
 		vol := vol
 		logrus.WithField("volume", vol.Name).Debug("submitting volume")
