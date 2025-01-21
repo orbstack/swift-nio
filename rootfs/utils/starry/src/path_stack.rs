@@ -32,13 +32,13 @@ pub struct PathStackGuard<'a> {
     old_len: usize,
 }
 
-impl<'a> PathStackGuard<'a> {
+impl PathStackGuard<'_> {
     pub fn get(&self) -> Ref<'_, Vec<u8>> {
         self.stack.inner.borrow()
     }
 }
 
-impl<'a> Drop for PathStackGuard<'a> {
+impl Drop for PathStackGuard<'_> {
     fn drop(&mut self) {
         self.stack.inner.borrow_mut().truncate(self.old_len);
     }

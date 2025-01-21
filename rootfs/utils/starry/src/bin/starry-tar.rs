@@ -17,14 +17,13 @@ use nix::{
 use numtoa::NumToA;
 use smallvec::{SmallVec, ToSmallVec};
 use starry::{
-    path_stack::PathStack,
-    sys::{
+    buffer_stack::BufferStack, path_stack::PathStack, sys::{
         file::{fstat, fstatat},
         getdents::for_each_getdents,
         inode_flags::InodeFlags,
         link::with_readlinkat,
         xattr::{for_each_flistxattr, with_fgetxattr},
-    },
+    }
 };
 use zstd::Encoder;
 
@@ -330,9 +329,9 @@ fn add_regular_file(w: &mut impl Write, file: &OwnedFd, st: &libc::stat) -> anyh
     Ok(())
 }
 
-fn walk_dir(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack) -> anyhow::Result<()> {
+fn walk_dir(w: &mut impl Write, dirfd: &OwnedFd, buffer_stack: &BufferStack, path_stack: &PathStack) -> anyhow::Result<()> {
     // TODO: error handling on a per-entry basis?
-    for_each_getdents(dirfd, |entry| {
+    for_each_getdents(dirfd, buffer_stack, |entry| {
         let path = path_stack.push(entry.name.to_bytes());
 
         // TODO: minor optimization: we will open regular files and dirs anyway, so can fstat after open, instead of using a string here
@@ -437,7 +436,7 @@ fn walk_dir(w: &mut impl Write, dirfd: &OwnedFd, path_stack: &PathStack) -> anyh
         w.write_all(header.as_bytes())?;
 
         if typ == libc::S_IFDIR {
-            walk_dir(w, &fd, path_stack)?;
+            walk_dir(w, &fd, buffer_stack, path_stack)?;
         } else if typ == libc::S_IFREG {
             add_regular_file(w, &fd, &st)?;
         }
@@ -566,8 +565,9 @@ fn main() -> anyhow::Result<()> {
     writer.write_all(header.as_bytes())?;
 
     // walk dirs
+    let buffer_stack = BufferStack::default();
     let path_stack = PathStack::default();
-    walk_dir(&mut writer, &root_dir, &path_stack)?;
+    walk_dir(&mut writer, &root_dir, &buffer_stack, &path_stack)?;
 
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;

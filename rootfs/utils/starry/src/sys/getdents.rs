@@ -1,11 +1,12 @@
 use std::{
     ffi::{c_void, CStr},
-    mem::MaybeUninit,
     os::fd::AsRawFd,
 };
 
 use libc::{DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_LNK, DT_REG, DT_SOCK, DT_UNKNOWN};
 use nix::errno::Errno;
+
+use crate::buffer_stack::BufferStack;
 
 extern "C" {
     pub fn getdents64(fd: i32, dirp: *mut c_void, count: usize) -> isize;
@@ -42,18 +43,19 @@ pub enum FileType {
     Socket = DT_SOCK,
 }
 
-pub fn for_each_getdents<'a, F: AsRawFd>(
+pub fn for_each_getdents<F: AsRawFd>(
     fd: &F,
-    mut f: impl FnMut(DirEntry<'a>) -> anyhow::Result<()>,
+    buffer_stack: &BufferStack,
+    mut f: impl FnMut(DirEntry<'_>) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     loop {
-        // TODO: big buffer without stack overflow or malloc
-        let mut buf: MaybeUninit<[u8; 32768]> = MaybeUninit::uninit();
+        let guard = buffer_stack.next();
+        let mut buf = guard.get();
         let n = unsafe {
             getdents64(
                 fd.as_raw_fd(),
                 buf.as_mut_ptr() as *mut _,
-                size_of_val(&buf),
+                BufferStack::SIZE,
             )
         };
         if n == 0 {
@@ -62,7 +64,9 @@ pub fn for_each_getdents<'a, F: AsRawFd>(
             return Err(Errno::last().into());
         }
 
+        // safe: buffer cannot realloc
         let mut p = buf.as_ptr() as *const u8;
+        drop(buf);
         let endp = unsafe { p.add(n as usize) };
         loop {
             if p >= endp {

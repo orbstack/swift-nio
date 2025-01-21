@@ -11,6 +11,7 @@ use nix::{
     fcntl::{openat, OFlag},
     sys::stat::Mode,
 };
+use starry::buffer_stack::BufferStack;
 use starry::{
     path_stack::PathStack,
     sys::getdents::{for_each_getdents, DirEntry, FileType},
@@ -19,6 +20,7 @@ use starry::{
 fn do_one_entry(
     dirfd: &OwnedFd,
     entry: &DirEntry,
+    buffer_stack: &BufferStack,
     path_stack: &PathStack,
     writer: &mut impl Write,
 ) -> anyhow::Result<()> {
@@ -40,7 +42,8 @@ fn do_one_entry(
             | OFlag::O_DIRECTORY
             | OFlag::O_CLOEXEC
             | OFlag::O_NONBLOCK
-            | OFlag::O_NOCTTY,
+            | OFlag::O_NOCTTY // in case of race (swapped with tty)
+            | OFlag::O_NOFOLLOW, // in case of race (swapped with symlink)
         Mode::empty(),
     ) {
         Ok(fd) => fd,
@@ -48,7 +51,7 @@ fn do_one_entry(
         Err(e) => return Err(e.into()),
     };
     let child_dirfd = unsafe { OwnedFd::from_raw_fd(child_dirfd) };
-    walk_dir(&child_dirfd, path_stack, writer)?;
+    walk_dir(&child_dirfd, buffer_stack, path_stack, writer)?;
     drop(child_dirfd);
 
     Ok(())
@@ -56,11 +59,12 @@ fn do_one_entry(
 
 fn walk_dir(
     dirfd: &OwnedFd,
+    buffer_stack: &BufferStack,
     path_stack: &PathStack,
     writer: &mut impl Write,
 ) -> anyhow::Result<()> {
-    for_each_getdents(dirfd, |entry| {
-        do_one_entry(dirfd, &entry, path_stack, writer).map_err(|e| {
+    for_each_getdents(dirfd, buffer_stack, |entry| {
+        do_one_entry(dirfd, &entry, buffer_stack, path_stack, writer).map_err(|e| {
             if e.is::<nix::Error>() {
                 // nix::Error = root cause
                 // start chain: "PATH: ERROR"
@@ -95,10 +99,11 @@ fn main() -> anyhow::Result<()> {
     };
 
     // walk dirs
+    let buffer_stack = BufferStack::default();
     let path_stack = PathStack::default();
     let _guard = path_stack.push(src_dir.as_bytes());
     let mut writer = BufWriter::new(std::io::stdout());
-    walk_dir(&root_dir, &path_stack, &mut writer).map_err(|e| anyhow!("{}/{}", src_dir, e))?;
+    walk_dir(&root_dir, &buffer_stack, &path_stack, &mut writer).map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 
     Ok(())
 }

@@ -10,11 +10,11 @@ use nix::{
     fcntl::{openat, OFlag},
     sys::stat::Mode,
 };
-use starry::sys::{
-    file::{fstatat, unlinkat},
+use starry::{buffer_stack::BufferStack, sys::{
+    file::unlinkat,
     getdents::{for_each_getdents, DirEntry, FileType},
     inode_flags::InodeFlags,
-};
+}};
 
 fn clear_flags(fd: &OwnedFd) -> nix::Result<bool> {
     let mut flags = InodeFlags::from_file(fd)?;
@@ -47,7 +47,7 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
                 OwnedFd::from_raw_fd(openat(
                     Some(dirfd.as_raw_fd()),
                     path,
-                    OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK | OFlag::O_NOCTTY,
+                    OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK | OFlag::O_NOCTTY | OFlag::O_NOFOLLOW,
                     Mode::empty(),
                 )?)
             };
@@ -71,7 +71,7 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
     }
 }
 
-fn do_one_entry(dirfd: &OwnedFd, entry: &DirEntry) -> anyhow::Result<()> {
+fn do_one_entry(dirfd: &OwnedFd, entry: &DirEntry, buffer_stack: &BufferStack) -> anyhow::Result<()> {
     // assume file/symlink/fifo/chr/blk/socket, unless we know it's definitely a dir
     // this is always correct on filesystems that populate d_type
     // with DT_UNKNOWN, it's still faster because we just replace the fstatat() call with unlinkat(), and avoid fstatat() in the common case (there are usually more files than dirs)
@@ -98,16 +98,16 @@ fn do_one_entry(dirfd: &OwnedFd, entry: &DirEntry) -> anyhow::Result<()> {
             Mode::empty(),
         )?)
     };
-    walk_dir(&child_dirfd)?;
+    walk_dir(&child_dirfd, buffer_stack)?;
     drop(child_dirfd);
 
     unlinkat_and_clear_flags(dirfd, entry.name, libc::AT_REMOVEDIR)?;
     Ok(())
 }
 
-fn walk_dir(dirfd: &OwnedFd) -> anyhow::Result<()> {
-    for_each_getdents(dirfd, |entry| {
-        do_one_entry(dirfd, &entry).map_err(|e| {
+fn walk_dir(dirfd: &OwnedFd, buffer_stack: &BufferStack) -> anyhow::Result<()> {
+    for_each_getdents(dirfd, buffer_stack, |entry| {
+        do_one_entry(dirfd, &entry, buffer_stack).map_err(|e| {
             if e.is::<nix::Error>() {
                 // nix::Error = root cause
                 // start chain: "PATH: ERROR"
@@ -142,7 +142,8 @@ fn main() -> anyhow::Result<()> {
     };
 
     // walk dirs
-    walk_dir(&root_dir).map_err(|e| anyhow!("{}/{}", src_dir, e))?;
+    let buffer_stack = BufferStack::default();
+    walk_dir(&root_dir, &buffer_stack).map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 
     // remove root dir
     std::fs::remove_dir(Path::new(&src_dir))?;
