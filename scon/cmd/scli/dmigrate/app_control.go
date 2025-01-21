@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (m *Migrator) stopDockerDesktop(srcSocket string) error {
+func (m *Migrator) stopSrc(srcSocket string) error {
 	// open a conn to ddesktop socket, so we know when it's stopped
 	desktopConn, err := net.Dial("unix", srcSocket)
 	if err != nil {
@@ -48,6 +48,23 @@ func (m *Migrator) stopDockerDesktop(srcSocket string) error {
 		}
 	} else {
 		logrus.Warnf("Docker Desktop did not stop in time: %v", err)
+	}
+
+	return nil
+}
+
+func (m *Migrator) Finalize() error {
+	err := m.stopSrc(m.srcSocketPath)
+	if err != nil {
+		return fmt.Errorf("stop docker desktop: %w", err)
+	}
+
+	// start any containers that were running on src
+	for _, cid := range m.destContainersToStart {
+		err := m.destClient.StartContainer(cid)
+		if err != nil {
+			return fmt.Errorf("start container: %w", err)
+		}
 	}
 
 	return nil

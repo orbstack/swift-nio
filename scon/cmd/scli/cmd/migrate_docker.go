@@ -88,6 +88,9 @@ var migrateDockerCmd = &cobra.Command{
 			}
 		}
 
+		err = migrator.Finalize()
+		checkCLI(err)
+
 		logrus.Info("Done")
 		return nil
 	},
