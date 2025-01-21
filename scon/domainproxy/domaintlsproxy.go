@@ -41,13 +41,15 @@ const (
 )
 
 var (
-	SconHostBridgeIP4 net.IP
-	SconHostBridgeIP6 net.IP
+	sconHostBridgeIP4 net.IP
+	sconHostBridgeIP6 net.IP
+	nat64SourceIp4    net.IP
 )
 
 func init() {
-	SconHostBridgeIP4 = net.ParseIP(netconf.SconHostBridgeIP4)
-	SconHostBridgeIP6 = net.ParseIP(netconf.SconHostBridgeIP6)
+	sconHostBridgeIP4 = net.ParseIP(netconf.SconHostBridgeIP4)
+	sconHostBridgeIP6 = net.ParseIP(netconf.SconHostBridgeIP6)
+	nat64SourceIp4 = net.ParseIP(netconf.NAT64SourceIP4)
 }
 
 type ProxyCallbacks interface {
@@ -367,7 +369,7 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 
 	// passthrough the connection if it's not from mac and the upstream supports https
 	// in other words, only do reterm if request comes from mac
-	if upstreamPort.https && !downstreamIP.Equal(SconHostBridgeIP4) && !downstreamIP.Equal(SconHostBridgeIP6) {
+	if upstreamPort.https && !downstreamIP.Equal(sconHostBridgeIP4) && !downstreamIP.Equal(sconHostBridgeIP6) && !downstreamIP.Equal(nat64SourceIp4) {
 		return nil, p.passthroughConn(dialer, conn, info)
 	}
 
