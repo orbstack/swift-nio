@@ -17,13 +17,15 @@ use nix::{
 use numtoa::NumToA;
 use smallvec::{SmallVec, ToSmallVec};
 use starry::{
-    buffer_stack::BufferStack, path_stack::PathStack, sys::{
+    buffer_stack::BufferStack,
+    path_stack::PathStack,
+    sys::{
         file::{fstat, fstatat},
         getdents::for_each_getdents,
         inode_flags::InodeFlags,
         link::with_readlinkat,
         xattr::{for_each_flistxattr, with_fgetxattr},
-    }
+    },
 };
 use zstd::Encoder;
 
@@ -329,7 +331,12 @@ fn add_regular_file(w: &mut impl Write, file: &OwnedFd, st: &libc::stat) -> anyh
     Ok(())
 }
 
-fn walk_dir(w: &mut impl Write, dirfd: &OwnedFd, buffer_stack: &BufferStack, path_stack: &PathStack) -> anyhow::Result<()> {
+fn walk_dir(
+    w: &mut impl Write,
+    dirfd: &OwnedFd,
+    buffer_stack: &BufferStack,
+    path_stack: &PathStack,
+) -> anyhow::Result<()> {
     // TODO: error handling on a per-entry basis?
     for_each_getdents(dirfd, buffer_stack, |entry| {
         let path = path_stack.push(entry.name.to_bytes());
@@ -565,7 +572,7 @@ fn main() -> anyhow::Result<()> {
     writer.write_all(header.as_bytes())?;
 
     // walk dirs
-    let buffer_stack = BufferStack::default();
+    let buffer_stack = BufferStack::new()?;
     let path_stack = PathStack::default();
     walk_dir(&mut writer, &root_dir, &buffer_stack, &path_stack)?;
 

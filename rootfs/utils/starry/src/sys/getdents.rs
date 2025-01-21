@@ -49,13 +49,13 @@ pub fn for_each_getdents<F: AsRawFd>(
     mut f: impl FnMut(DirEntry<'_>) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     loop {
-        let guard = buffer_stack.next();
-        let mut buf = guard.get();
+        let mut guard = buffer_stack.next();
+        let buf = guard.get();
         let n = unsafe {
             getdents64(
                 fd.as_raw_fd(),
                 buf.as_mut_ptr() as *mut _,
-                BufferStack::SIZE,
+                BufferStack::BUF_SIZE,
             )
         };
         if n == 0 {
@@ -64,9 +64,7 @@ pub fn for_each_getdents<F: AsRawFd>(
             return Err(Errno::last().into());
         }
 
-        // safe: buffer cannot realloc
         let mut p = buf.as_ptr() as *const u8;
-        drop(buf);
         let endp = unsafe { p.add(n as usize) };
         loop {
             if p >= endp {

@@ -10,11 +10,14 @@ use nix::{
     fcntl::{openat, OFlag},
     sys::stat::Mode,
 };
-use starry::{buffer_stack::BufferStack, sys::{
-    file::unlinkat,
-    getdents::{for_each_getdents, DirEntry, FileType},
-    inode_flags::InodeFlags,
-}};
+use starry::{
+    buffer_stack::BufferStack,
+    sys::{
+        file::unlinkat,
+        getdents::{for_each_getdents, DirEntry, FileType},
+        inode_flags::InodeFlags,
+    },
+};
 
 fn clear_flags(fd: &OwnedFd) -> nix::Result<bool> {
     let mut flags = InodeFlags::from_file(fd)?;
@@ -47,7 +50,11 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
                 OwnedFd::from_raw_fd(openat(
                     Some(dirfd.as_raw_fd()),
                     path,
-                    OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK | OFlag::O_NOCTTY | OFlag::O_NOFOLLOW,
+                    OFlag::O_RDONLY
+                        | OFlag::O_CLOEXEC
+                        | OFlag::O_NONBLOCK
+                        | OFlag::O_NOCTTY
+                        | OFlag::O_NOFOLLOW,
                     Mode::empty(),
                 )?)
             };
@@ -71,7 +78,11 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
     }
 }
 
-fn do_one_entry(dirfd: &OwnedFd, entry: &DirEntry, buffer_stack: &BufferStack) -> anyhow::Result<()> {
+fn do_one_entry(
+    dirfd: &OwnedFd,
+    entry: &DirEntry,
+    buffer_stack: &BufferStack,
+) -> anyhow::Result<()> {
     // assume file/symlink/fifo/chr/blk/socket, unless we know it's definitely a dir
     // this is always correct on filesystems that populate d_type
     // with DT_UNKNOWN, it's still faster because we just replace the fstatat() call with unlinkat(), and avoid fstatat() in the common case (there are usually more files than dirs)
@@ -142,7 +153,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     // walk dirs
-    let buffer_stack = BufferStack::default();
+    let buffer_stack = BufferStack::new()?;
     walk_dir(&root_dir, &buffer_stack).map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 
     // remove root dir

@@ -99,11 +99,12 @@ fn main() -> anyhow::Result<()> {
     };
 
     // walk dirs
-    let buffer_stack = BufferStack::default();
+    let buffer_stack = BufferStack::new()?;
     let path_stack = PathStack::default();
     let _guard = path_stack.push(src_dir.as_bytes());
     let mut writer = BufWriter::new(std::io::stdout());
-    walk_dir(&root_dir, &buffer_stack, &path_stack, &mut writer).map_err(|e| anyhow!("{}/{}", src_dir, e))?;
+    walk_dir(&root_dir, &buffer_stack, &path_stack, &mut writer)
+        .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 
     Ok(())
 }
