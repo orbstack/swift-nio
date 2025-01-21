@@ -2,17 +2,12 @@ package cmd
 
 import (
 	"errors"
-	"io"
-	"net"
 	"strings"
-	"time"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/dmigrate"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/conf/appid"
-	vmgrutil "github.com/orbstack/macvirt/vmgr/util"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -74,7 +69,6 @@ var migrateDockerCmd = &cobra.Command{
 		destSocket := conf.DockerSocket()
 
 		migrator, err := dmigrate.NewMigratorWithUnixSockets(srcSocket, destSocket)
-		migrator.SetRawSrcSocket(conf.DockerRemoteCtxSocket())
 		checkCLI(err)
 
 		err = migrator.MigrateAll(dmigrate.MigrateParams{
@@ -92,35 +86,6 @@ var migrateDockerCmd = &cobra.Command{
 			} else {
 				checkCLI(err)
 			}
-		}
-
-		// open a conn to ddesktop socket, so we know when it's stopped
-		desktopConn, err := net.Dial("unix", srcSocket)
-		checkCLI(err)
-		defer desktopConn.Close()
-
-		// always quit remote so we can change context back after it stops
-		logrus.Info("Stopping Docker Desktop")
-		err = util.Run("osascript", "-e", `quit app "Docker Desktop"`)
-		checkCLI(err)
-
-		// wait for it to stop
-		err = vmgrutil.WithTimeout1(func() error {
-			var buf [1]byte
-			_, err := desktopConn.Read(buf[:])
-			return err
-		}, dmigrate.RemoteStopTimeout)
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			// EOF = stopped
-
-			// wait a bit for any processes to exit
-			time.Sleep(1 * time.Second)
-
-			// restore context for more seamless migration end
-			err = util.Run(conf.FindXbin("docker"), "context", "use", appid.AppName)
-			checkCLI(err)
-		} else {
-			logrus.Warnf("Docker Desktop did not stop in time: %v", err)
 		}
 
 		logrus.Info("Done")

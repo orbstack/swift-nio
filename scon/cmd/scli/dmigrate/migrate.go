@@ -38,9 +38,9 @@ var (
 )
 
 type Migrator struct {
-	srcClient    *dockerclient.Client
-	destClient   *dockerclient.Client
-	rawSrcSocket string
+	srcClient     *dockerclient.Client
+	destClient    *dockerclient.Client
+	srcSocketPath string
 
 	mu             syncx.Mutex
 	networkIDMap   map[string]string
@@ -104,13 +104,14 @@ func NewMigratorWithUnixSockets(fromSocket, toSocket string) (*Migrator, error) 
 		return nil, err
 	}
 
-	return NewMigratorWithClients(srcClient, destClient)
+	return NewMigratorWithClients(srcClient, destClient, fromSocket)
 }
 
-func NewMigratorWithClients(srcClient, destClient *dockerclient.Client) (*Migrator, error) {
+func NewMigratorWithClients(srcClient, destClient *dockerclient.Client, srcSocketPath string) (*Migrator, error) {
 	return &Migrator{
-		srcClient:  srcClient,
-		destClient: destClient,
+		srcClient:     srcClient,
+		destClient:    destClient,
+		srcSocketPath: srcSocketPath,
 
 		networkIDMap:   make(map[string]string),
 		containerIDMap: make(map[string]string),
@@ -124,10 +125,6 @@ func NewMigratorWithClients(srcClient, destClient *dockerclient.Client) (*Migrat
 func (m *Migrator) Close() {
 	m.srcClient.Close()
 	m.destClient.Close()
-}
-
-func (m *Migrator) SetRawSrcSocket(rawSrcSocket string) {
-	m.rawSrcSocket = rawSrcSocket
 }
 
 func (m *Migrator) finishOneEntity() {
@@ -457,7 +454,7 @@ outer:
 	}
 
 	// start docker remote ctx socket proxy
-	err = vmclient.Client().InternalSetDockerRemoteCtxAddr(m.rawSrcSocket) // skip proxy
+	err = vmclient.Client().InternalSetDockerRemoteCtxAddr(m.srcSocketPath) // skip proxy
 	if err != nil {
 		return fmt.Errorf("set docker remote ctx addr: %w", err)
 	}
@@ -633,6 +630,11 @@ outer:
 	err = vmclient.Client().SetDockerContext()
 	if err != nil {
 		return fmt.Errorf("set docker context: %w", err)
+	}
+
+	err = m.stopDockerDesktop(m.srcSocketPath)
+	if err != nil {
+		return fmt.Errorf("stop docker desktop: %w", err)
 	}
 
 	// start any containers that were running on src
