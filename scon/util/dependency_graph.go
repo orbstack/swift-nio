@@ -212,11 +212,12 @@ func (r *DependentTaskRunner[I]) Wait(id I) error {
 		return fmt.Errorf("task not found: %v", id)
 	}
 	r.runTaskLocked(task)
+	doneCh := task.doneChan()
 
 	r.mu.Unlock()
 
 	// waiting occurs without lock held
-	<-task.doneChan()
+	<-doneCh
 
 	// lock til end of function to get result of task
 	r.mu.Lock()
