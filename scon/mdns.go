@@ -1188,6 +1188,9 @@ func (r *mdnsRegistry) updateTLSProxyNftables(locked bool, enabled bool) error {
 }
 
 func (r *mdnsRegistry) dockerPostStart() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	// add k8s alias
 	if r.manager.vmConfig.K8sEnable {
 		k8sName := "k8s.orb.local."
@@ -1203,6 +1206,16 @@ func (r *mdnsRegistry) dockerPostStart() error {
 		}
 		k8sIP4 := k8sAddr4.AsSlice()
 
+		k8sAddr6, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{
+			Names:  []string{k8sName},
+			IP:     net.ParseIP(netconf.SconK8sIP6),
+			Docker: false,
+		})
+		if err != nil {
+			return fmt.Errorf("unable to create k8s domainproxy ip: %w", err)
+		}
+		k8sIP6 := k8sAddr6.AsSlice()
+
 		r.tree.Insert(toTreeKey(k8sName), &mdnsEntry{
 			r:     r,
 			names: []string{k8sName},
@@ -1212,7 +1225,7 @@ func (r *mdnsRegistry) dockerPostStart() error {
 			IsWildcard: true,
 			IsHidden:   false,
 			ip4:        k8sIP4,
-			ip6:        mapToNat64(k8sIP4),
+			ip6:        k8sIP6,
 		})
 	}
 	return nil
