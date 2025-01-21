@@ -277,17 +277,16 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 	defer m.decContainerPauseRef(ctr)
 
 	// if not overlay2, then we're done, can't transfer
-	if fullCtr.GraphDriver.Name != "overlay2" {
-		logrus.Warnf("container %s: graph driver %s not supported", ctr.ID, fullCtr.GraphDriver.Name)
-		return nil
-	}
-
-	// [src] sync the upper dir
-	srcUpper := fullCtr.GraphDriver.Data["UpperDir"]
-	destUpper := newFullCtr.GraphDriver.Data["UpperDir"]
-	err = m.syncDirs(m.srcClient, []string{srcUpper}, m.destClient, destUpper)
-	if err != nil {
-		return fmt.Errorf("sync upper dir: %w", err)
+	if fullCtr.GraphDriver.Name == "overlay2" {
+		// [src] sync the upper dir
+		srcUpper := fullCtr.GraphDriver.Data["UpperDir"]
+		destUpper := newFullCtr.GraphDriver.Data["UpperDir"]
+		err = m.syncDirs(m.srcClient, []string{srcUpper}, m.destClient, destUpper)
+		if err != nil {
+			return fmt.Errorf("sync upper dir: %w", err)
+		}
+	} else {
+		logrus.Warnf("container %s: skipping data: graph driver %s not supported", ctr.ID, fullCtr.GraphDriver.Name)
 	}
 
 	// mark dest container to be started if src was running
