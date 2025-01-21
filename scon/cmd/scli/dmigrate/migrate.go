@@ -25,7 +25,7 @@ const (
 	migrationAgentImage         = "ghcr.io/orbstack/dmigrate-agent:1"
 	migrationAgentContainerName = "orbstack-migration-agent"
 
-	RemoteStopTimeout = 10 * time.Second
+	RemoteStopTimeout = 30 * time.Second
 
 	maxUnusedContainerAge = 1 * 30 * 24 * time.Hour // 1 month
 
