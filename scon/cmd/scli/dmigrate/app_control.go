@@ -61,6 +61,7 @@ func (m *Migrator) Finalize() error {
 
 	// start any containers that were running on src
 	for _, cid := range m.destContainersToStart {
+		logrus.WithField("container", cid).Info("starting container")
 		err := m.destClient.StartContainer(cid)
 		if err != nil {
 			return fmt.Errorf("start container: %w", err)
