@@ -164,7 +164,7 @@ func enumerateSource(client *dockerclient.Client) (*engineManifest, error) {
 	for _, c := range containers {
 		fullCtr, err := client.InspectContainer(c.ID)
 		if err != nil {
-			return nil, fmt.Errorf("get container: %w", err)
+			return nil, err
 		}
 		fullContainers = append(fullContainers, fullCtr)
 	}
