@@ -575,7 +575,7 @@ outer:
 	group.Wait()
 
 	runner := util.NewDependentTaskRunner[string](func(f func()) error {
-		group.Submit(f)
+		pool.Submit(f)
 		return nil
 	})
 
