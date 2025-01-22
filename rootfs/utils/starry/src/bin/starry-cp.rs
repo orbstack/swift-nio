@@ -50,13 +50,6 @@ impl CopyContext {
                 .context("fchown")?;
         }
 
-        // no point in doing this lazily: with nsec, it'll never match src
-        futimens(
-            fd.as_raw_fd(),
-            &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
-            &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
-        ).context("futimens")?;
-
         // suid/sgid gets cleared after chown
         let src_perm = src.permissions();
         if src_perm.contains(Mode::S_ISUID) || src_perm.contains(Mode::S_ISGID) {
@@ -68,6 +61,17 @@ impl CopyContext {
             fsetxattr(fd, key, value, 0)
         }).context("listxattr/setxattr")?;
 
+        // do this last, in case other operations would change mtime
+        // no point in doing this lazily: with nsec, it'll never match src
+        futimens(
+            fd.as_raw_fd(),
+            &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
+            &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
+        ).context("futimens")?;
+
+        // inode flags
+        // must be last due to immutable/append-only flags (which even prevent mtime changes)
+        // this doesn't change mtime, so it's safe to do after utimens()
         if let Some(flags) = src.inode_flags()? {
             // filter to flags that are included in tar archives
             // otherwise we'll be setting flags on every file if btrfs has nocow/compress enabled
@@ -81,7 +85,6 @@ impl CopyContext {
     }
 
     fn copy_metadata_to_dirfd_path(&self, src: &InterrogatedFile, dest_dirfd: &OwnedFd, dest_name: &CStr) -> anyhow::Result<()> {
-        // only call fchown if different from current fsuid/fsgid
         if src.st.st_uid != self.euid || src.st.st_gid != self.egid {
             fchownat(
                 dest_dirfd,
@@ -92,16 +95,6 @@ impl CopyContext {
             ).context("fchownat")?;
         }
 
-        // no point in doing this lazily: with nsec, it'll never match src
-        utimensat(
-            Some(dest_dirfd.as_raw_fd()),
-            dest_name,
-            &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
-            &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
-            UtimensatFlags::NoFollowSymlink,
-        ).context("utimensat")?;
-
-        // suid/sgid gets cleared after chown
         let src_perm = src.permissions();
         if src_perm.contains(Mode::S_ISUID) || src_perm.contains(Mode::S_ISGID) {
             fchmodat(
@@ -118,6 +111,14 @@ impl CopyContext {
                 lsetxattr(path_cstr, key, value, 0)
             })
         }).context("listxattr/setxattr")?;
+
+        utimensat(
+            Some(dest_dirfd.as_raw_fd()),
+            dest_name,
+            &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
+            &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
+            UtimensatFlags::NoFollowSymlink,
+        ).context("utimensat")?;
 
         Ok(())
     }
@@ -216,17 +217,9 @@ impl CopyContext {
             FileType::Unknown => unreachable!(),
         };
 
-        // metadata: uid/gid, atime/mtime, xattrs, inode flags
-        if let Some(ref fd) = dest_fd {
-            // we have an open fd; use it for perf
-            self.copy_metadata_to_fd(&src, fd)?;
-        } else {
-            // don't have fd; fall back to path
-            // TODO: faster to open(O_PATH)?
-            self.copy_metadata_to_dirfd_path(&src, dest_dirfd, entry.name)?;
-        }
-
         // file contents: only support reflinking
+        // must do this before immutable/append-only flags are set
+        // also, must do this before metadata is copied, otherwise we'll break the mtime
         if src.file_type == FileType::Regular {
             copy_regular_file_contents(&src.st, src.fd.as_ref().unwrap(), dest_fd.as_ref().unwrap())?;
         }
@@ -234,6 +227,18 @@ impl CopyContext {
         // recurse into non-empty directories
         if src.has_children() {
             self.walk_dir(src.fd.as_ref().unwrap(), src.nents_hint(), dest_fd.as_ref().unwrap())?;
+        }
+
+        // metadata: uid/gid, atime/mtime, xattrs, inode flags
+        // must be after copying contents/children, because that updates mtime
+        // (and we can't copy files into a directory that's marked immutable, or a dir with no owner write perms)
+        if let Some(ref fd) = dest_fd {
+            // we have an open fd; use it for perf
+            self.copy_metadata_to_fd(&src, fd)?;
+        } else {
+            // don't have fd; fall back to path
+            // TODO: faster to open(O_PATH)?
+            self.copy_metadata_to_dirfd_path(&src, dest_dirfd, entry.name)?;
         }
 
         Ok(())
@@ -327,7 +332,7 @@ fn main() -> anyhow::Result<()> {
         )?)
     };
 
-    // interrogate src and copy metadata
+    // interrogate src and copy early metadata
     let src_file = InterrogatedFile::from_directory_fd(&src_dirfd)?;
     let dest_dir_cstr = CString::new(dest_dir)?;
     mkdirat(None, dest_dir_cstr.as_ref(), src_file.permissions())
@@ -344,12 +349,13 @@ fn main() -> anyhow::Result<()> {
         )?)
     };
 
-    let ctx = CopyContext::new()?;
-    ctx.copy_metadata_to_dirfd_path(&src_file, &dest_dirfd, &dest_dir_cstr)?;
-
     // walk dirs
+    let ctx = CopyContext::new()?;
     ctx.walk_dir(&src_dirfd, None, &dest_dirfd)
         .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
+
+    // to avoid bumping mtime, copy metadata to root dir after recursing
+    ctx.copy_metadata_to_dirfd_path(&src_file, &dest_dirfd, &dest_dir_cstr)?;
 
     Ok(())
 }
