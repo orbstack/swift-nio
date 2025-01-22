@@ -60,7 +60,7 @@ fn walk_dir(
     path_stack: &PathStack,
     writer: &mut impl Write,
 ) -> anyhow::Result<()> {
-    for_each_getdents(dirfd, buffer_stack, |entry| {
+    for_each_getdents(dirfd, None, buffer_stack, |entry| {
         do_one_entry(dirfd, &entry, buffer_stack, path_stack, writer).map_err(|e| {
             if e.is::<nix::Error>() {
                 // nix::Error = root cause

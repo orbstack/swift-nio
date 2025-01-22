@@ -50,8 +50,12 @@ impl InodeFlags {
     pub fn from_file<F: AsRawFd>(fd: &F) -> nix::Result<Self> {
         let mut flags = Self::empty();
         let ret = unsafe { libc::ioctl(fd.as_raw_fd(), libc::FS_IOC_GETFLAGS, &mut flags) };
-        Errno::result(ret)?;
-        Ok(flags)
+        match Errno::result(ret) {
+            Ok(_) => Ok(flags),
+            // ENOTTY = not supported on FS (e.g. virtiofs)
+            Err(Errno::ENOTTY) => Ok(Self::empty()),
+            Err(e) => Err(e),
+        }
     }
 
     pub fn apply<F: AsRawFd>(&self, fd: &F) -> nix::Result<()> {

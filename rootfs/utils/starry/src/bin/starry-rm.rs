@@ -107,7 +107,7 @@ fn do_one_entry(
 }
 
 fn walk_dir(dirfd: &OwnedFd, buffer_stack: &BufferStack) -> anyhow::Result<()> {
-    for_each_getdents(dirfd, buffer_stack, |entry| {
+    for_each_getdents(dirfd, None, buffer_stack, |entry| {
         do_one_entry(dirfd, &entry, buffer_stack).map_err(|e| {
             if e.is::<nix::Error>() {
                 // nix::Error = root cause

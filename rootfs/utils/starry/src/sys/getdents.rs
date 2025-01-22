@@ -60,12 +60,18 @@ impl FileType {
 
 pub fn for_each_getdents<F: AsRawFd>(
     fd: &F,
+    // if caller has stat() output, then it can provide an st_nlink hint to skip the redundant getdents()=0 call on EOF
+    nents_hint: Option<usize>,
     buffer_stack: &BufferStack,
     mut f: impl FnMut(DirEntry<'_>) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
-    loop {
-        let mut guard = buffer_stack.next();
-        let buf = guard.get();
+    let max_nents = nents_hint.unwrap_or(usize::MAX);
+    let mut total_nents = 0;
+
+    let mut guard = buffer_stack.next();
+    let buf = guard.get();
+
+    while total_nents < max_nents {
         let n = unsafe {
             getdents64(
                 fd.as_raw_fd(),
@@ -85,6 +91,8 @@ pub fn for_each_getdents<F: AsRawFd>(
             if p >= endp {
                 break;
             }
+
+            total_nents += 1;
 
             let d = unsafe { (p as *const LinuxDirent64).read_unaligned() };
             let name_bytes = unsafe {

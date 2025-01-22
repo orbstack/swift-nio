@@ -11,10 +11,9 @@ use nix::{
     errno::Errno,
     fcntl::{openat, OFlag},
     sys::{
-        stat::{
+        sendfile::sendfile, stat::{
             fchmod, fchmodat, futimens, mkdirat, mknodat, umask, utimensat, FchmodatFlags, Mode, SFlag, UtimensatFlags
-        },
-        time::TimeSpec,
+        }, time::TimeSpec
     },
     unistd::{mkfifoat, symlinkat},
 };
@@ -25,6 +24,47 @@ use starry::{
         file::fchownat, getdents::{for_each_getdents, DirEntry, FileType}, inode_flags::InodeFlags, xattr::{fsetxattr, lsetxattr}
     },
 };
+
+fn copy_regular_file_contents(src_st: &libc::stat, src_fd: &OwnedFd, dest_fd: &OwnedFd) -> anyhow::Result<()> {
+    // 1. attempt ioctl(FICLONE) for copy-on-write reflink
+    let ret = unsafe {
+        libc::ioctl(
+            dest_fd.as_raw_fd(),
+            libc::FICLONE,
+            src_fd.as_raw_fd(),
+        )
+    };
+    match Errno::result(ret) {
+        Ok(_) => return Ok(()),
+        // various cases of "not supported by FS"
+        // sadly, this is even possible on btrfs due to compression(?) / swapfiles
+        Err(Errno::ENOTTY | Errno::EBADF | Errno::EINVAL | Errno::EOPNOTSUPP | Errno::ETXTBSY | Errno::EXDEV) => {}
+        // don't retry on other errors like ENOSPC: those are real problems
+        Err(e) => return Err(e).context("ioctl(FICLONE)"),
+    }
+
+    // copy_file_range isn't worth trying on btrfs: it also can't copy swapfiles (EXTBSY)
+
+    // fallback doesn't support sparse files
+    if src_st.st_blocks * 512 < src_st.st_size {
+        return Err(anyhow!("sparse files are not supported on non-CoW filesystems"));
+    }
+
+    // 2. fall back to sendfile
+    let mut rem = src_st.st_size;
+    while rem > 0 {
+        let ret = sendfile(dest_fd, src_fd, None, rem as usize)
+            .context("sendfile")?;
+        if ret == 0 {
+            // EOF: race (file got smaller since stat)
+            break;
+        }
+
+        rem -= ret as i64;
+    }
+
+    Ok(())
+}
 
 fn do_one_entry(
     src_dirfd: &OwnedFd,
@@ -194,21 +234,12 @@ fn do_one_entry(
 
     // file contents: only support reflinking
     if src.file_type == FileType::Regular {
-        let ret = unsafe {
-            libc::ioctl(
-                dest_fd.as_ref().unwrap().as_raw_fd(),
-                libc::FICLONE,
-                src.fd.as_ref().unwrap().as_raw_fd(),
-            )
-        };
-        Errno::result(ret).context("ioctl(FICLONE)")?;
+        copy_regular_file_contents(&src.st, src.fd.as_ref().unwrap(), dest_fd.as_ref().unwrap())?;
     }
 
     // recurse into non-empty directories
-    // (on ext4, st_nlink=1 means >65000)
-    if src.file_type == FileType::Directory && src.st.st_nlink != 2 {
-        // TODO: can use st_nlink as EOF hint for getdents
-        walk_dir(&src.fd.unwrap(), &dest_fd.unwrap(), buffer_stack)?;
+    if src.has_children() {
+        walk_dir(src.fd.as_ref().unwrap(), src.nents_hint(), dest_fd.as_ref().unwrap(), buffer_stack)?;
     }
 
     Ok(())
@@ -216,10 +247,11 @@ fn do_one_entry(
 
 fn walk_dir(
     src_dirfd: &OwnedFd,
+    src_nents_hint: Option<usize>,
     dest_dirfd: &OwnedFd,
     buffer_stack: &BufferStack,
 ) -> anyhow::Result<()> {
-    for_each_getdents(src_dirfd, buffer_stack, |entry| {
+    for_each_getdents(src_dirfd, src_nents_hint, buffer_stack, |entry| {
         do_one_entry(src_dirfd, dest_dirfd, &entry, buffer_stack).map_err(|e| {
             if e.is::<nix::Error>() {
                 // nix::Error = root cause
@@ -272,7 +304,8 @@ fn main() -> anyhow::Result<()> {
 
     // walk dirs
     let buffer_stack = BufferStack::new()?;
-    walk_dir(&src_dirfd, &dest_dirfd, &buffer_stack).map_err(|e| anyhow!("{}/{}", src_dir, e))?;
+    walk_dir(&src_dirfd, None, &dest_dirfd, &buffer_stack)
+        .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 
     Ok(())
 }

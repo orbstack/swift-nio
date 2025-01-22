@@ -108,6 +108,25 @@ impl<'a> InterrogatedFile<'a> {
         Ok(Some(flags))
     }
 
+    // valid for any file type
+    pub fn has_children(&self) -> bool {
+        // on ext4, st_nlink=1 means >65000, so check for != 2
+        self.file_type == FileType::Directory && self.st.st_nlink != 2
+    }
+
+    // only for directories
+    pub fn nents_hint(&self) -> Option<usize> {
+        // on ext4, st_nlink is supposed to overflow at 65000 and reset to 1
+        // to be safe, also consider it invalid as a hint if it's > 64998
+        match self.st.st_nlink {
+            0..=1 => None,
+            // # children = minus "." and ".."
+            // however, getdents also returns "." and "..", so we don't subtract 2
+            2..=64998 => Some(self.st.st_nlink as usize),
+            _ => None,
+        }
+    }
+
     // must only be called if file_type == FileType::Symlink
     pub fn with_readlink<T>(&self, f: impl FnOnce(&[u8]) -> T) -> anyhow::Result<T> {
         Ok(with_readlinkat(self.dirfd, self.name, f)?)

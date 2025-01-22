@@ -331,10 +331,11 @@ fn add_regular_file(w: &mut impl Write, file: &OwnedFd, st: &libc::stat) -> anyh
 fn walk_dir(
     w: &mut impl Write,
     dirfd: &OwnedFd,
+    nents_hint: Option<usize>,
     buffer_stack: &BufferStack,
     path_stack: &PathStack,
 ) -> anyhow::Result<()> {
-    for_each_getdents(dirfd, buffer_stack, |entry| {
+    for_each_getdents(dirfd, nents_hint, buffer_stack, |entry| {
         let path = path_stack.push(entry.name.to_bytes());
 
         let file = InterrogatedFile::from_entry(dirfd, &entry)?;
@@ -416,8 +417,8 @@ fn walk_dir(
         }
         w.write_all(header.as_bytes())?;
 
-        if file.file_type == FileType::Directory {
-            walk_dir(w, &file.fd.unwrap(), buffer_stack, path_stack)?;
+        if file.has_children() {
+            walk_dir(w, file.fd.as_ref().unwrap(), file.nents_hint(), buffer_stack, path_stack)?;
         } else if file.file_type == FileType::Regular {
             add_regular_file(w, &file.fd.unwrap(), &file.st)?;
         }
@@ -548,7 +549,7 @@ fn main() -> anyhow::Result<()> {
     // walk dirs
     let buffer_stack = BufferStack::new()?;
     let path_stack = PathStack::default();
-    walk_dir(&mut writer, &root_dir, &buffer_stack, &path_stack)?;
+    walk_dir(&mut writer, &root_dir, None, &buffer_stack, &path_stack)?;
 
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;
