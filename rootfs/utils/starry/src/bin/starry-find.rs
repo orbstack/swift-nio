@@ -38,9 +38,7 @@ fn do_one_entry(
     let child_dirfd = match openat(
         Some(dirfd.as_raw_fd()),
         entry.name,
-        OFlag::O_RDONLY
-            | OFlag::O_DIRECTORY
-            | OFlag::O_CLOEXEC,
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
         Mode::empty(),
     ) {
         Ok(fd) => fd,
@@ -86,9 +84,7 @@ fn main() -> anyhow::Result<()> {
         OwnedFd::from_raw_fd(openat(
             None,
             Path::new(&src_dir),
-            OFlag::O_RDONLY
-                | OFlag::O_DIRECTORY
-                | OFlag::O_CLOEXEC,
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
             Mode::empty(),
         )?)
     };

@@ -1,8 +1,10 @@
 use std::{
-    ffi::{CStr, CString}, os::{
+    ffi::{CStr, CString},
+    os::{
         fd::{AsRawFd, FromRawFd, OwnedFd},
         unix::{fs::fchown, net::UnixListener},
-    }, path::Path
+    },
+    path::Path,
 };
 
 use anyhow::{anyhow, Context};
@@ -11,9 +13,12 @@ use nix::{
     errno::Errno,
     fcntl::{openat, OFlag},
     sys::{
-        sendfile::sendfile, stat::{
-            fchmod, fchmodat, futimens, mkdirat, mknodat, umask, utimensat, FchmodatFlags, Mode, SFlag, UtimensatFlags
-        }, time::TimeSpec
+        sendfile::sendfile,
+        stat::{
+            fchmod, fchmodat, futimens, mkdirat, mknodat, umask, utimensat, FchmodatFlags, Mode,
+            SFlag, UtimensatFlags,
+        },
+        time::TimeSpec,
     },
     unistd::{mkfifoat, symlinkat},
 };
@@ -21,7 +26,10 @@ use starry::{
     buffer_stack::BufferStack,
     interrogate::{with_fd_path, InterrogatedFile},
     sys::{
-        file::fchownat, getdents::{for_each_getdents, DirEntry, FileType}, inode_flags::InodeFlags, xattr::{fsetxattr, lsetxattr}
+        file::fchownat,
+        getdents::{for_each_getdents, DirEntry, FileType},
+        inode_flags::InodeFlags,
+        xattr::{fsetxattr, lsetxattr},
     },
 };
 
@@ -46,20 +54,17 @@ impl CopyContext {
         // only call fchown if different from current fsuid/fsgid
         // TODO: is changing fsuid/fsgid before creation faster?
         if src.st.st_uid != self.euid || src.st.st_gid != self.egid {
-            fchown(fd, Some(src.st.st_uid), Some(src.st.st_gid))
-                .context("fchown")?;
+            fchown(fd, Some(src.st.st_uid), Some(src.st.st_gid)).context("fchown")?;
         }
 
         // suid/sgid gets cleared after chown
         let src_perm = src.permissions();
         if src_perm.contains(Mode::S_ISUID) || src_perm.contains(Mode::S_ISGID) {
-            fchmod(fd.as_raw_fd(), src_perm)
-                .context("fchmod")?;
+            fchmod(fd.as_raw_fd(), src_perm).context("fchmod")?;
         }
 
-        src.for_each_xattr(|key, value| {
-            fsetxattr(fd, key, value, 0)
-        }).context("listxattr/setxattr")?;
+        src.for_each_xattr(|key, value| fsetxattr(fd, key, value, 0))
+            .context("listxattr/setxattr")?;
 
         // do this last, in case other operations would change mtime
         // no point in doing this lazily: with nsec, it'll never match src
@@ -67,7 +72,8 @@ impl CopyContext {
             fd.as_raw_fd(),
             &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
             &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
-        ).context("futimens")?;
+        )
+        .context("futimens")?;
 
         // inode flags
         // must be last due to immutable/append-only flags (which even prevent mtime changes)
@@ -84,7 +90,12 @@ impl CopyContext {
         Ok(())
     }
 
-    fn copy_metadata_to_dirfd_path(&self, src: &InterrogatedFile, dest_dirfd: &OwnedFd, dest_name: &CStr) -> anyhow::Result<()> {
+    fn copy_metadata_to_dirfd_path(
+        &self,
+        src: &InterrogatedFile,
+        dest_dirfd: &OwnedFd,
+        dest_name: &CStr,
+    ) -> anyhow::Result<()> {
         if src.st.st_uid != self.euid || src.st.st_gid != self.egid {
             fchownat(
                 dest_dirfd,
@@ -92,7 +103,8 @@ impl CopyContext {
                 src.st.st_uid,
                 src.st.st_gid,
                 libc::AT_SYMLINK_NOFOLLOW,
-            ).context("fchownat")?;
+            )
+            .context("fchownat")?;
         }
 
         let src_perm = src.permissions();
@@ -102,7 +114,8 @@ impl CopyContext {
                 dest_name,
                 src_perm,
                 FchmodatFlags::NoFollowSymlink,
-            ).context("fchmodat")?;
+            )
+            .context("fchmodat")?;
         }
 
         src.for_each_xattr(|key, value| {
@@ -110,7 +123,8 @@ impl CopyContext {
             with_fd_path(dest_dirfd, dest_name, |path_cstr| {
                 lsetxattr(path_cstr, key, value, 0)
             })
-        }).context("listxattr/setxattr")?;
+        })
+        .context("listxattr/setxattr")?;
 
         utimensat(
             Some(dest_dirfd.as_raw_fd()),
@@ -118,7 +132,8 @@ impl CopyContext {
             &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
             &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
             UtimensatFlags::NoFollowSymlink,
-        ).context("utimensat")?;
+        )
+        .context("utimensat")?;
 
         Ok(())
     }
@@ -136,8 +151,7 @@ impl CopyContext {
         let dest_fd = match src.file_type {
             // simple device types
             FileType::Fifo => {
-                mkfifoat(Some(dest_dirfd.as_raw_fd()), entry.name, src_perm)
-                    .context("mkfifoat")?;
+                mkfifoat(Some(dest_dirfd.as_raw_fd()), entry.name, src_perm).context("mkfifoat")?;
                 None
             }
             FileType::Block => {
@@ -147,7 +161,8 @@ impl CopyContext {
                     SFlag::S_IFBLK,
                     src_perm,
                     src.st.st_rdev,
-                ).context("mknodat")?;
+                )
+                .context("mknodat")?;
                 None
             }
             FileType::Char => {
@@ -157,7 +172,8 @@ impl CopyContext {
                     SFlag::S_IFCHR,
                     src_perm,
                     src.st.st_rdev,
-                ).context("mknodat")?;
+                )
+                .context("mknodat")?;
                 None
             }
 
@@ -165,7 +181,9 @@ impl CopyContext {
             FileType::Symlink => {
                 src.with_readlink(|link_path| {
                     symlinkat(link_path, Some(dest_dirfd.as_raw_fd()), entry.name)
-                }).context("readlink")?.context("symlinkat")?;
+                })
+                .context("readlink")?
+                .context("symlinkat")?;
                 None
             }
             FileType::Socket => {
@@ -183,7 +201,8 @@ impl CopyContext {
                     entry.name,
                     src_perm,
                     FchmodatFlags::NoFollowSymlink,
-                ).context("fchmodat")?;
+                )
+                .context("fchmodat")?;
 
                 None
             }
@@ -195,13 +214,13 @@ impl CopyContext {
                     entry.name,
                     OFlag::O_CREAT | OFlag::O_WRONLY | OFlag::O_CLOEXEC,
                     src_perm,
-                ).context("openat")?;
+                )
+                .context("openat")?;
                 let fd = unsafe { OwnedFd::from_raw_fd(fd) };
                 Some(fd)
             }
             FileType::Directory => {
-                mkdirat(Some(dest_dirfd.as_raw_fd()), entry.name, src_perm)
-                    .context("mkdirat")?;
+                mkdirat(Some(dest_dirfd.as_raw_fd()), entry.name, src_perm).context("mkdirat")?;
 
                 // TODO: empty dirs don't need to be opened if no inode flags
                 let fd = openat(
@@ -209,7 +228,8 @@ impl CopyContext {
                     entry.name,
                     OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
                     src_perm,
-                ).context("openat")?;
+                )
+                .context("openat")?;
                 let fd = unsafe { OwnedFd::from_raw_fd(fd) };
                 Some(fd)
             }
@@ -221,12 +241,20 @@ impl CopyContext {
         // must do this before immutable/append-only flags are set
         // also, must do this before metadata is copied, otherwise we'll break the mtime
         if src.file_type == FileType::Regular {
-            copy_regular_file_contents(&src.st, src.fd.as_ref().unwrap(), dest_fd.as_ref().unwrap())?;
+            copy_regular_file_contents(
+                &src.st,
+                src.fd.as_ref().unwrap(),
+                dest_fd.as_ref().unwrap(),
+            )?;
         }
 
         // recurse into non-empty directories
         if src.has_children() {
-            self.walk_dir(src.fd.as_ref().unwrap(), src.nents_hint(), dest_fd.as_ref().unwrap())?;
+            self.walk_dir(
+                src.fd.as_ref().unwrap(),
+                src.nents_hint(),
+                dest_fd.as_ref().unwrap(),
+            )?;
         }
 
         // metadata: uid/gid, atime/mtime, xattrs, inode flags
@@ -251,37 +279,43 @@ impl CopyContext {
         dest_dirfd: &OwnedFd,
     ) -> anyhow::Result<()> {
         for_each_getdents(src_dirfd, src_nents_hint, &self.buffer_stack, |entry| {
-            self.do_one_entry(src_dirfd, dest_dirfd, &entry).map_err(|e| {
-                if e.is::<nix::Error>() {
-                    // nix::Error = root cause
-                    // start chain: "PATH: ERROR"
-                    anyhow!("{}: {}", entry.name.to_string_lossy(), e)
-                } else {
-                    // as we unwind the directory stack, prepend dirs to error
-                    // chain: "DIR/CHILD: ERROR"
-                    anyhow!("{}/{}", entry.name.to_string_lossy(), e)
-                }
-            })
+            self.do_one_entry(src_dirfd, dest_dirfd, &entry)
+                .map_err(|e| {
+                    if e.is::<nix::Error>() {
+                        // nix::Error = root cause
+                        // start chain: "PATH: ERROR"
+                        anyhow!("{}: {}", entry.name.to_string_lossy(), e)
+                    } else {
+                        // as we unwind the directory stack, prepend dirs to error
+                        // chain: "DIR/CHILD: ERROR"
+                        anyhow!("{}/{}", entry.name.to_string_lossy(), e)
+                    }
+                })
         })?;
 
         Ok(())
     }
 }
 
-fn copy_regular_file_contents(src_st: &libc::stat, src_fd: &OwnedFd, dest_fd: &OwnedFd) -> anyhow::Result<()> {
+fn copy_regular_file_contents(
+    src_st: &libc::stat,
+    src_fd: &OwnedFd,
+    dest_fd: &OwnedFd,
+) -> anyhow::Result<()> {
     // 1. attempt ioctl(FICLONE) for copy-on-write reflink
-    let ret = unsafe {
-        libc::ioctl(
-            dest_fd.as_raw_fd(),
-            libc::FICLONE,
-            src_fd.as_raw_fd(),
-        )
-    };
+    let ret = unsafe { libc::ioctl(dest_fd.as_raw_fd(), libc::FICLONE, src_fd.as_raw_fd()) };
     match Errno::result(ret) {
         Ok(_) => return Ok(()),
         // various cases of "not supported by FS"
         // sadly, this is even possible on btrfs due to compression(?) / swapfiles
-        Err(Errno::ENOTTY | Errno::EBADF | Errno::EINVAL | Errno::EOPNOTSUPP | Errno::ETXTBSY | Errno::EXDEV) => {}
+        Err(
+            Errno::ENOTTY
+            | Errno::EBADF
+            | Errno::EINVAL
+            | Errno::EOPNOTSUPP
+            | Errno::ETXTBSY
+            | Errno::EXDEV,
+        ) => {}
         // don't retry on other errors like ENOSPC: those are real problems
         Err(e) => return Err(e).context("ioctl(FICLONE)"),
     }
@@ -290,14 +324,15 @@ fn copy_regular_file_contents(src_st: &libc::stat, src_fd: &OwnedFd, dest_fd: &O
 
     // fallback doesn't support sparse files
     if src_st.st_blocks * 512 < src_st.st_size {
-        return Err(anyhow!("sparse files are not supported on non-CoW filesystems"));
+        return Err(anyhow!(
+            "sparse files are not supported on non-CoW filesystems"
+        ));
     }
 
     // 2. fall back to sendfile
     let mut rem = src_st.st_size;
     while rem > 0 {
-        let ret = sendfile(dest_fd, src_fd, None, rem as usize)
-            .context("sendfile")?;
+        let ret = sendfile(dest_fd, src_fd, None, rem as usize).context("sendfile")?;
         if ret == 0 {
             // EOF: race (file got smaller since stat)
             break;
@@ -325,9 +360,7 @@ fn main() -> anyhow::Result<()> {
         OwnedFd::from_raw_fd(openat(
             None,
             Path::new(&src_dir),
-            OFlag::O_RDONLY
-                | OFlag::O_DIRECTORY
-                | OFlag::O_CLOEXEC,
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
             Mode::empty(),
         )?)
     };
@@ -335,16 +368,13 @@ fn main() -> anyhow::Result<()> {
     // interrogate src and copy early metadata
     let src_file = InterrogatedFile::from_directory_fd(&src_dirfd)?;
     let dest_dir_cstr = CString::new(dest_dir)?;
-    mkdirat(None, dest_dir_cstr.as_ref(), src_file.permissions())
-        .context("mkdirat")?;
+    mkdirat(None, dest_dir_cstr.as_ref(), src_file.permissions()).context("mkdirat")?;
 
     let dest_dirfd = unsafe {
         OwnedFd::from_raw_fd(openat(
             None,
             dest_dir_cstr.as_ref(),
-            OFlag::O_RDONLY
-                | OFlag::O_DIRECTORY
-                | OFlag::O_CLOEXEC,
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
             Mode::empty(),
         )?)
     };

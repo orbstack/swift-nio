@@ -7,7 +7,6 @@ use nix::{
     fcntl::{openat, OFlag},
     sys::stat::Mode,
 };
-use numtoa::NumToA;
 use smallvec::{SmallVec, ToSmallVec};
 
 use crate::sys::{
@@ -47,7 +46,11 @@ impl<'a> InterrogatedFile<'a> {
         Self::from_name_and_type(dirfd, c".", FileType::Directory)
     }
 
-    pub fn from_name_and_type(dirfd: &'a OwnedFd, name: &'a CStr, file_type: FileType) -> anyhow::Result<Self> {
+    pub fn from_name_and_type(
+        dirfd: &'a OwnedFd,
+        name: &'a CStr,
+        file_type: FileType,
+    ) -> anyhow::Result<Self> {
         // 1. determine file type:
         // do we know the file type for sure? some filesystems populate d_type; many don't
         // if not, we must always start with fstatat, as it's unsafe to try opening char/block/fifo
@@ -152,20 +155,14 @@ impl<'a> InterrogatedFile<'a> {
     ) -> anyhow::Result<()> {
         if let Some(ref fd) = self.fd {
             // if we have an open fd, it's easy
-            for_each_flistxattr(fd, |key| {
-                with_fgetxattr(fd, key, |value| {
-                    f(key, value)
-                })
-            })?;
+            for_each_flistxattr(fd, |key| with_fgetxattr(fd, key, |value| f(key, value)))?;
         } else {
             // otherwise, we have to use /proc/self/fd/<dirfd>/<name>
             // flistxattr/fgetxattr doesn't work on O_PATH fds, so the only alternative would be to use a full absolute path, which is slow and requires keeping track of absolute paths when recursing
 
             with_fd_path(self.dirfd, self.name, |path_cstr| {
                 for_each_llistxattr(path_cstr, |key| {
-                    with_lgetxattr(path_cstr, key, |value| {
-                        f(key, value)
-                    })
+                    with_lgetxattr(path_cstr, key, |value| f(key, value))
                 })
             })?;
         }
@@ -176,12 +173,12 @@ impl<'a> InterrogatedFile<'a> {
 
 pub fn with_fd_path<T, F: AsRawFd>(dirfd: &F, name: &CStr, f: impl FnOnce(&CStr) -> T) -> T {
     // all of this is a fancy zero-allocation way to do format!("/proc/self/fd/{}/{}\0", dirfd, name)
-    let mut fd_buf: [u8; 32] = [0; 32];
-    let formatted_fd = dirfd.as_raw_fd().numtoa(10, &mut fd_buf);
+    let mut num_buf = itoa::Buffer::new();
+    let formatted_fd = num_buf.format(dirfd.as_raw_fd());
 
     // string formating go brrr
     let mut path_buf: SmallVec<[u8; 1024]> = b"/proc/self/fd/".to_smallvec();
-    path_buf.extend_from_slice(formatted_fd);
+    path_buf.extend_from_slice(formatted_fd.as_bytes());
     path_buf.push(b'/');
     path_buf.extend_from_slice(name.to_bytes_with_nul());
 

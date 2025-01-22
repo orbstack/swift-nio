@@ -92,9 +92,7 @@ fn do_one_entry(
         OwnedFd::from_raw_fd(openat(
             Some(dirfd.as_raw_fd()),
             entry.name,
-            OFlag::O_RDONLY
-                | OFlag::O_DIRECTORY
-                | OFlag::O_CLOEXEC,
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
             Mode::empty(),
         )?)
     };
@@ -133,9 +131,7 @@ fn main() -> anyhow::Result<()> {
         OwnedFd::from_raw_fd(openat(
             None,
             Path::new(&src_dir),
-            OFlag::O_RDONLY
-                | OFlag::O_DIRECTORY
-                | OFlag::O_CLOEXEC,
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
             Mode::empty(),
         )?)
     };

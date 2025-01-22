@@ -263,6 +263,11 @@ impl PaxHeader {
         self.data.push(b'\n');
     }
 
+    fn add_integer_field<T: itoa::Integer>(&mut self, key: &str, val: T) {
+        let mut buf = itoa::Buffer::new();
+        self.add_field(key, buf.format(val).as_bytes());
+    }
+
     fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
@@ -347,8 +352,7 @@ fn walk_dir(
         }
 
         // PAX and normal header
-        let mut header = header_from_stat(&file.st);
-        let mut pax_header = PaxHeader::new();
+        let (mut header, mut pax_header) = header_from_stat(&file.st);
 
         // nsecs mtime (skip invalid nsecs)
         if file.st.st_mtime_nsec != 0 && file.st.st_mtime_nsec < 1_000_000_000 {
@@ -418,7 +422,13 @@ fn walk_dir(
         w.write_all(header.as_bytes())?;
 
         if file.has_children() {
-            walk_dir(w, file.fd.as_ref().unwrap(), file.nents_hint(), buffer_stack, path_stack)?;
+            walk_dir(
+                w,
+                file.fd.as_ref().unwrap(),
+                file.nents_hint(),
+                buffer_stack,
+                path_stack,
+            )?;
         } else if file.file_type == FileType::Regular {
             add_regular_file(w, &file.fd.unwrap(), &file.st)?;
         }
@@ -429,16 +439,19 @@ fn walk_dir(
     Ok(())
 }
 
-fn header_from_stat(st: &libc::stat) -> UstarHeader {
+fn header_from_stat(st: &libc::stat) -> (UstarHeader, PaxHeader) {
     let typ = st.st_mode & libc::S_IFMT;
 
     // PAX base is ustar format
     let mut header = UstarHeader::default();
+    let mut pax_header = PaxHeader::new();
     header.set_mode(st.st_mode & !libc::S_IFMT).unwrap();
-    // TODO: large uid
-    header.set_uid(st.st_uid).unwrap();
-    // TODO: large gid
-    header.set_gid(st.st_gid).unwrap();
+    if header.set_uid(st.st_uid).is_err() {
+        pax_header.add_integer_field("uid", st.st_uid);
+    }
+    if header.set_gid(st.st_gid).is_err() {
+        pax_header.add_integer_field("gid", st.st_gid);
+    }
     header.set_entry_type(match typ {
         libc::S_IFDIR => TypeFlag::Directory,
         libc::S_IFREG => TypeFlag::Regular,
@@ -448,23 +461,26 @@ fn header_from_stat(st: &libc::stat) -> UstarHeader {
         libc::S_IFIFO => TypeFlag::Fifo,
         _ => panic!("unsupported file type: {}", typ),
     });
-    header.set_mtime(st.st_mtime as u64).unwrap();
+    // ignore err: we always add mtime to PAX for nsec
+    _ = header.set_mtime(st.st_mtime as u64);
 
     if typ == libc::S_IFBLK || typ == libc::S_IFCHR {
-        // only fails if not supported by archive format
-        // TODO: large dev
-        header
-            .set_device_major(unsafe { libc::major(st.st_rdev) })
-            .unwrap();
-        header
-            .set_device_minor(unsafe { libc::minor(st.st_rdev) })
-            .unwrap();
+        let major = unsafe { libc::major(st.st_rdev) };
+        let minor = unsafe { libc::minor(st.st_rdev) };
+        if header.set_device_major(major).is_err() {
+            pax_header.add_integer_field("SCHILY.devmajor", major);
+        }
+        if header.set_device_minor(minor).is_err() {
+            pax_header.add_integer_field("SCHILY.devminor", minor);
+        }
     } else if typ == libc::S_IFREG {
         // only regular files have a size
-        header.set_size(st.st_size as u64).unwrap();
+        if header.set_size(st.st_size as u64).is_err() {
+            pax_header.add_integer_field("size", st.st_size as u64);
+        }
     }
 
-    header
+    (header, pax_header)
 }
 
 trait InodeFlagsExt {
@@ -533,17 +549,19 @@ fn main() -> anyhow::Result<()> {
         OwnedFd::from_raw_fd(openat(
             None,
             Path::new(&src_dir),
-            OFlag::O_RDONLY
-                | OFlag::O_DIRECTORY
-                | OFlag::O_CLOEXEC,
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
             Mode::empty(),
         )?)
     };
     let root_dir_st = fstat(&root_dir)?;
 
     // add entry for root dir
-    let mut header = header_from_stat(&root_dir_st);
+    let (mut header, pax_header) = header_from_stat(&root_dir_st);
     header.set_path(".".as_bytes()).unwrap();
+    // TODO: mtime, fflags, xattrs
+    if !pax_header.is_empty() {
+        pax_header.write_to(&mut writer)?;
+    }
     writer.write_all(header.as_bytes())?;
 
     // walk dirs
