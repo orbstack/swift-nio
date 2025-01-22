@@ -31,16 +31,31 @@ pub struct DirEntry<'a> {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileType {
     Unknown = DT_UNKNOWN,
     Fifo = DT_FIFO,
     Char = DT_CHR,
     Directory = DT_DIR,
     Block = DT_BLK,
-    File = DT_REG,
+    Regular = DT_REG,
     Symlink = DT_LNK,
     Socket = DT_SOCK,
+}
+
+impl FileType {
+    pub fn from_stat_fmt(fmt: u32) -> Self {
+        match fmt {
+            libc::S_IFSOCK => FileType::Socket,
+            libc::S_IFLNK => FileType::Symlink,
+            libc::S_IFREG => FileType::Regular,
+            libc::S_IFDIR => FileType::Directory,
+            libc::S_IFBLK => FileType::Block,
+            libc::S_IFCHR => FileType::Char,
+            libc::S_IFIFO => FileType::Fifo,
+            _ => panic!("unknown stat fmt: {}", fmt),
+        }
+    }
 }
 
 pub fn for_each_getdents<F: AsRawFd>(

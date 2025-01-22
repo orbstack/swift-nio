@@ -35,3 +35,15 @@ pub fn unlinkat<F: AsRawFd>(dirfd: &F, path: &CStr, flags: i32) -> nix::Result<(
     let ret = unsafe { libc::unlinkat(dirfd, path.as_ptr(), flags) };
     Errno::result(ret).map(drop)
 }
+
+pub fn fchownat<F: AsRawFd>(
+    dirfd: &F,
+    path: &CStr,
+    uid: u32,
+    gid: u32,
+    flags: i32,
+) -> nix::Result<()> {
+    let dirfd = dirfd.as_raw_fd();
+    let ret = unsafe { libc::fchownat(dirfd, path.as_ptr(), uid, gid, flags) };
+    Errno::result(ret).map(drop)
+}

@@ -110,6 +110,7 @@ fn do_one_entry(
         )?)
     };
     walk_dir(&child_dirfd, buffer_stack)?;
+    // close first so that the unlink below can delete structures immediately instead of being deferred
     drop(child_dirfd);
 
     unlinkat_and_clear_flags(dirfd, entry.name, libc::AT_REMOVEDIR)?;

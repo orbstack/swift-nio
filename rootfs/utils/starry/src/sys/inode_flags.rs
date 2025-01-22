@@ -38,6 +38,11 @@ bitflags! {
         const PROJINHERIT = 0x20000000;
         const CASEFOLD = 0x40000000;
         const RESERVED = 0x80000000;
+
+        // btrfs flags that are usually enabled globally on a FS level, so almost every file will have them
+        // so we skip COMPR and NOCOW
+        // other than that, this is the full set of flags supported by bsdtar
+        const ARCHIVE_FLAGS = Self::APPEND.bits() | Self::NOATIME.bits() | Self::NODUMP.bits() | Self::DIRSYNC.bits() | Self::IMMUTABLE.bits() | Self::JOURNAL_DATA.bits() | Self::NOTAIL.bits() | Self::TOPDIR.bits() | Self::UNRM.bits();
     }
 }
 

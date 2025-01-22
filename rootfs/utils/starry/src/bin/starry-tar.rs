@@ -18,13 +18,12 @@ use numtoa::NumToA;
 use smallvec::{SmallVec, ToSmallVec};
 use starry::{
     buffer_stack::BufferStack,
+    interrogate::InterrogatedFile,
     path_stack::PathStack,
     sys::{
-        file::{fstat, fstatat},
-        getdents::for_each_getdents,
+        file::fstat,
+        getdents::{for_each_getdents, FileType},
         inode_flags::InodeFlags,
-        link::with_readlinkat,
-        xattr::{for_each_flistxattr, with_fgetxattr},
     },
 };
 use zstd::Encoder;
@@ -219,8 +218,6 @@ fn write_left_padded<T: NumToA<T>>(
     Ok(())
 }
 
-// TODO: extension for sockets
-
 struct PaxHeader {
     header: UstarHeader,
     data: Vec<u8>,
@@ -337,36 +334,40 @@ fn walk_dir(
     buffer_stack: &BufferStack,
     path_stack: &PathStack,
 ) -> anyhow::Result<()> {
-    // TODO: error handling on a per-entry basis?
     for_each_getdents(dirfd, buffer_stack, |entry| {
         let path = path_stack.push(entry.name.to_bytes());
 
-        // TODO: minor optimization: we will open regular files and dirs anyway, so can fstat after open, instead of using a string here
-        let st = fstatat(dirfd, entry.name, libc::AT_SYMLINK_NOFOLLOW)?;
-        let typ = st.st_mode & libc::S_IFMT;
-        if typ == libc::S_IFSOCK {
-            // skip sockets
+        let file = InterrogatedFile::from_entry(dirfd, &entry)?;
+
+        // skip archiving sockets; tar can't extract it
+        // TODO: non-standard extension for this?
+        if file.file_type == FileType::Socket {
             return Ok(());
         }
 
         // PAX and normal header
-        let mut header = header_from_stat(&st);
+        let mut header = header_from_stat(&file.st);
         let mut pax_header = PaxHeader::new();
 
         // nsecs mtime (skip invalid nsecs)
-        if st.st_mtime_nsec != 0 && st.st_mtime_nsec < 1_000_000_000 {
+        if file.st.st_mtime_nsec != 0 && file.st.st_mtime_nsec < 1_000_000_000 {
             // "18446744073709551616.000000000" (u64::MAX + 9 digits for nanoseconds)
             let mut time_buf = SmallVec::<[u8; 30]>::new();
             let mut dec_buf = itoa::Buffer::new();
-            let seconds = dec_buf.format(st.st_mtime);
+            let seconds = dec_buf.format(file.st.st_mtime);
             time_buf.extend_from_slice(seconds.as_bytes());
             time_buf.push(b'.');
 
             let nanos_start = time_buf.len();
             time_buf.resize(nanos_start + 9, 0);
             // can't overflow: we checked that nsec < 1e9
-            write_left_padded(&mut time_buf[nanos_start..], st.st_mtime_nsec as u64, 10, 9)
-                .unwrap();
+            write_left_padded(
+                &mut time_buf[nanos_start..],
+                file.st.st_mtime_nsec as u64,
+                10,
+                9,
+            )
+            .unwrap();
 
             pax_header.add_field("mtime", &time_buf);
         }
@@ -376,8 +377,8 @@ fn walk_dir(
             pax_header.add_field("path", path.get().as_slice());
         }
 
-        if typ == libc::S_IFLNK {
-            with_readlinkat(dirfd, entry.name, |link_name| {
+        if file.file_type == FileType::Symlink {
+            file.with_readlink(|link_name| {
                 if header.set_link_path(link_name).is_err() {
                     // PAX long name extension
                     pax_header.add_field("linkpath", link_name);
@@ -386,32 +387,9 @@ fn walk_dir(
             })?;
         }
 
-        let open_flags = match typ {
-            libc::S_IFREG => OFlag::empty(),
-            libc::S_IFDIR => OFlag::O_DIRECTORY,
-            _ => OFlag::O_PATH,
-        };
-
-        // O_NONBLOCK: avoid hang if we race and end up opening a fifo
-        // O_NOCTTY: avoid kill if we race and end up opening a tty
-        let fd = unsafe {
-            OwnedFd::from_raw_fd(openat(
-                Some(dirfd.as_raw_fd()),
-                entry.name,
-                OFlag::O_RDONLY
-                    | OFlag::O_CLOEXEC
-                    | OFlag::O_NOFOLLOW
-                    | OFlag::O_NONBLOCK
-                    | OFlag::O_NOCTTY
-                    | open_flags,
-                Mode::empty(),
-            )?)
-        };
-
         // fflags
-        if typ == libc::S_IFREG || typ == libc::S_IFDIR {
-            let flags = InodeFlags::from_file(&fd)?;
-            let flag_names = flags.names();
+        if let Some(flags) = file.inode_flags()? {
+            let flag_names = flags.pax_names();
             match flag_names.len() {
                 0 => {}
                 // fastpath for common 1-flag case
@@ -422,30 +400,26 @@ fn walk_dir(
         }
 
         // xattrs
-        // TODO: /proc/self/fd/ llistxattr for other types
-        if typ == libc::S_IFREG || typ == libc::S_IFDIR {
-            for_each_flistxattr(&fd, |name| {
-                with_fgetxattr(&fd, name, |value| {
-                    // SCHILY.xattr is a violation of the PAX spec: PAX headers must be UTF-8
-                    // LIBARCHIVE.xattr uses base64 to fix that, but it's not supported by GNU tar
-                    // we use SCHILY: it works fine because PAX fields are length-prefixed
-                    let mut pax_key: SmallVec<[u8; 64]> = b"SCHILY.xattr.".to_smallvec();
-                    pax_key.extend_from_slice(name.to_bytes());
-                    pax_header.add_field(&pax_key, value);
-                })?;
-                Ok(())
-            })?;
-        }
+        file.for_each_xattr(|name, value| {
+            // SCHILY.xattr is a violation of the PAX spec: PAX headers must be UTF-8
+            // LIBARCHIVE.xattr uses base64 to fix that, but it's not supported by GNU tar
+            // we use SCHILY: it works fine because PAX fields are length-prefixed
+            let mut pax_key: SmallVec<[u8; 64]> = b"SCHILY.xattr.".to_smallvec();
+            pax_key.extend_from_slice(name.to_bytes());
+            pax_header.add_field(&pax_key, value);
+
+            Ok(())
+        })?;
 
         if !pax_header.is_empty() {
             pax_header.write_to(w)?;
         }
         w.write_all(header.as_bytes())?;
 
-        if typ == libc::S_IFDIR {
-            walk_dir(w, &fd, buffer_stack, path_stack)?;
-        } else if typ == libc::S_IFREG {
-            add_regular_file(w, &fd, &st)?;
+        if file.file_type == FileType::Directory {
+            walk_dir(w, &file.fd.unwrap(), buffer_stack, path_stack)?;
+        } else if file.file_type == FileType::Regular {
+            add_regular_file(w, &file.fd.unwrap(), &file.st)?;
         }
 
         Ok(())
@@ -500,7 +474,7 @@ trait InodeFlagsExt {
         flag: InodeFlags,
     );
 
-    fn names(&self) -> SmallVec<[&'static str; 1]>;
+    fn pax_names(&self) -> SmallVec<[&'static str; 1]>;
 }
 
 impl InodeFlagsExt for InodeFlags {
@@ -517,26 +491,28 @@ impl InodeFlagsExt for InodeFlags {
     }
 
     // returning a SmallVec is more efficient for the common 1-flag case: no string joining/allocation required
-    fn names(&self) -> SmallVec<[&'static str; 1]> {
+    fn pax_names(&self) -> SmallVec<[&'static str; 1]> {
         let mut names = SmallVec::<[&'static str; 1]>::new();
+
+        // filter to flags that should be included in archives
+        let fl = self.intersection(InodeFlags::ARCHIVE_FLAGS);
 
         // only include flags supported by bsdtar
         // https://github.com/libarchive/libarchive/blob/4b6dd229c6a931c641bc40ee6d59e99af15a9432/libarchive/archive_entry.c#L1885
-        self.add_name(&mut names, "sappnd", InodeFlags::APPEND);
-        self.add_name(&mut names, "noatime", InodeFlags::NOATIME);
-        // btrfs flags that are usually enabled globally on a FS level, so almost every file will have them
-        // self.add_name(&mut names, "compress", InodeFlags::COMPR);
-        // self.add_name(&mut names, "nocow", InodeFlags::NOCOW);
-        self.add_name(&mut names, "nodump", InodeFlags::NODUMP);
-        self.add_name(&mut names, "dirsync", InodeFlags::DIRSYNC);
-        self.add_name(&mut names, "schg", InodeFlags::IMMUTABLE);
-        self.add_name(&mut names, "journal", InodeFlags::JOURNAL_DATA);
-        self.add_name(&mut names, "projinherit", InodeFlags::PROJINHERIT);
-        self.add_name(&mut names, "securedeletion", InodeFlags::SECRM);
-        self.add_name(&mut names, "sync", InodeFlags::SYNC);
-        self.add_name(&mut names, "tail", InodeFlags::NOTAIL);
-        self.add_name(&mut names, "topdir", InodeFlags::TOPDIR);
-        self.add_name(&mut names, "undel", InodeFlags::UNRM);
+        fl.add_name(&mut names, "sappnd", InodeFlags::APPEND);
+        fl.add_name(&mut names, "noatime", InodeFlags::NOATIME);
+        fl.add_name(&mut names, "compress", InodeFlags::COMPR);
+        fl.add_name(&mut names, "nocow", InodeFlags::NOCOW);
+        fl.add_name(&mut names, "nodump", InodeFlags::NODUMP);
+        fl.add_name(&mut names, "dirsync", InodeFlags::DIRSYNC);
+        fl.add_name(&mut names, "schg", InodeFlags::IMMUTABLE);
+        fl.add_name(&mut names, "journal", InodeFlags::JOURNAL_DATA);
+        fl.add_name(&mut names, "projinherit", InodeFlags::PROJINHERIT);
+        fl.add_name(&mut names, "securedeletion", InodeFlags::SECRM);
+        fl.add_name(&mut names, "sync", InodeFlags::SYNC);
+        fl.add_name(&mut names, "tail", InodeFlags::NOTAIL);
+        fl.add_name(&mut names, "topdir", InodeFlags::TOPDIR);
+        fl.add_name(&mut names, "undel", InodeFlags::UNRM);
 
         names
     }
@@ -544,9 +520,9 @@ impl InodeFlagsExt for InodeFlags {
 
 fn main() -> anyhow::Result<()> {
     let file = unsafe { File::from_raw_fd(1) };
-    // let mut writer = Encoder::new(file, 0)?;
-    // writer.multithread(2)?;
-    let mut writer = file;
+    let mut writer = Encoder::new(file, 0)?;
+    writer.multithread(2)?;
+    // let mut writer = file;
 
     // add root dir
     let src_dir = std::env::args()
@@ -579,7 +555,7 @@ fn main() -> anyhow::Result<()> {
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;
 
-    // writer.finish()?;
+    writer.finish()?;
 
     Ok(())
 }
