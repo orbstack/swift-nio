@@ -19,15 +19,13 @@ use starry::{
     },
 };
 
-fn clear_flags(fd: &OwnedFd) -> nix::Result<bool> {
+fn clear_flags(fd: &OwnedFd) -> nix::Result<()> {
     let mut flags = InodeFlags::from_file(fd)?;
     if flags.intersects(InodeFlags::IMMUTABLE | InodeFlags::APPEND) {
         flags.remove(InodeFlags::IMMUTABLE | InodeFlags::APPEND);
         flags.apply(fd)?;
-        Ok(true)
-    } else {
-        Ok(false)
     }
+    Ok(())
 }
 
 fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> nix::Result<()> {
@@ -36,22 +34,16 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
         Ok(_) => Ok(()),
         Err(Errno::EPERM) => {
             // on EPERM (not EACCES), try to clear flags and remove again
-            let parent_cleared = match clear_flags(dirfd) {
-                Ok(cleared) => cleared,
-                Err(e) => {
-                    eprintln!("failed to clear flags from parent dir: {}", e);
-                    return Err(e);
-                }
-            };
+            clear_flags(dirfd)?;
 
-            // both parent and child flags will prevent deletion
+            // both parent and child flags will prevent deletion, so clear from child too
             // O_PATH doesn't work and returns EBADF :(
             // before opening, stat to make sure that it's a regular file.
             // if it's a socket/symlink: this will fail the whole operation even if parent dir's flag was cleared
             // if it's a char/block device: this could hang
             // this is a slowpath, so it's fine to stat
             let st = fstatat(dirfd, path, libc::AT_SYMLINK_NOFOLLOW)?;
-            let child_cleared = if st.st_mode & libc::S_IFMT == libc::S_IFREG {
+            if st.st_mode & libc::S_IFMT == libc::S_IFREG {
                 let fd = unsafe {
                     OwnedFd::from_raw_fd(openat(
                         Some(dirfd.as_raw_fd()),
@@ -66,23 +58,12 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
                     )?)
                 };
 
-                match clear_flags(&fd) {
-                    Ok(cleared) => cleared,
-                    Err(e) => {
-                        eprintln!("failed to clear flags from file: {}", e);
-                        return Err(e);
-                    }
-                }
-            } else {
-                // not cleared if it's not a regular file
-                false
-            };
-
-            if child_cleared || parent_cleared {
-                unlinkat(dirfd, path, unlink_flags)
-            } else {
-                Err(Errno::EPERM)
+                clear_flags(&fd)?;
             }
+
+            // retry
+            // no need to skip retry if no flags were cleared: this is already a slowpath and will fail the whole program
+            unlinkat(dirfd, path, unlink_flags)
         }
         Err(e) => Err(e),
     }
