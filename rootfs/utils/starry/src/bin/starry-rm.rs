@@ -103,9 +103,7 @@ fn do_one_entry(
             entry.name,
             OFlag::O_RDONLY
                 | OFlag::O_DIRECTORY
-                | OFlag::O_CLOEXEC
-                | OFlag::O_NONBLOCK
-                | OFlag::O_NOCTTY,
+                | OFlag::O_CLOEXEC,
             Mode::empty(),
         )?)
     };
@@ -146,9 +144,7 @@ fn main() -> anyhow::Result<()> {
             Path::new(&src_dir),
             OFlag::O_RDONLY
                 | OFlag::O_DIRECTORY
-                | OFlag::O_CLOEXEC
-                | OFlag::O_NONBLOCK
-                | OFlag::O_NOCTTY,
+                | OFlag::O_CLOEXEC,
             Mode::empty(),
         )?)
     };
