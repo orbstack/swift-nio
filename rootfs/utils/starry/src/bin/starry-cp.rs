@@ -1,9 +1,8 @@
 use std::{
-    os::{
+    ffi::{CStr, CString}, os::{
         fd::{AsRawFd, FromRawFd, OwnedFd},
         unix::{fs::fchown, net::UnixListener},
-    },
-    path::Path,
+    }, path::Path
 };
 
 use anyhow::{anyhow, Context};
@@ -41,6 +40,88 @@ impl CopyContext {
         })
     }
 
+    fn copy_metadata_to_fd(&self, src: &InterrogatedFile, fd: &OwnedFd) -> anyhow::Result<()> {
+        // we have an open fd; use it for perf
+
+        // only call fchown if different from current fsuid/fsgid
+        // TODO: is changing fsuid/fsgid before creation faster?
+        if src.st.st_uid != self.euid || src.st.st_gid != self.egid {
+            fchown(fd, Some(src.st.st_uid), Some(src.st.st_gid))
+                .context("fchown")?;
+        }
+
+        // no point in doing this lazily: with nsec, it'll never match src
+        futimens(
+            fd.as_raw_fd(),
+            &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
+            &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
+        ).context("futimens")?;
+
+        // suid/sgid gets cleared after chown
+        let src_perm = src.permissions();
+        if src_perm.contains(Mode::S_ISUID) || src_perm.contains(Mode::S_ISGID) {
+            fchmod(fd.as_raw_fd(), src_perm)
+                .context("fchmod")?;
+        }
+
+        src.for_each_xattr(|key, value| {
+            fsetxattr(fd, key, value, 0)
+        }).context("listxattr/setxattr")?;
+
+        if let Some(flags) = src.inode_flags()? {
+            // filter to flags that are included in tar archives
+            // otherwise we'll be setting flags on every file if btrfs has nocow/compress enabled
+            let fl = flags.intersection(InodeFlags::ARCHIVE_FLAGS);
+            if !fl.is_empty() {
+                fl.apply(fd).context("ioctl(FS_IOC_SETFLAGS)")?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn copy_metadata_to_dirfd_path(&self, src: &InterrogatedFile, dest_dirfd: &OwnedFd, dest_name: &CStr) -> anyhow::Result<()> {
+        // only call fchown if different from current fsuid/fsgid
+        if src.st.st_uid != self.euid || src.st.st_gid != self.egid {
+            fchownat(
+                dest_dirfd,
+                dest_name,
+                src.st.st_uid,
+                src.st.st_gid,
+                libc::AT_SYMLINK_NOFOLLOW,
+            ).context("fchownat")?;
+        }
+
+        // no point in doing this lazily: with nsec, it'll never match src
+        utimensat(
+            Some(dest_dirfd.as_raw_fd()),
+            dest_name,
+            &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
+            &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
+            UtimensatFlags::NoFollowSymlink,
+        ).context("utimensat")?;
+
+        // suid/sgid gets cleared after chown
+        let src_perm = src.permissions();
+        if src_perm.contains(Mode::S_ISUID) || src_perm.contains(Mode::S_ISGID) {
+            fchmodat(
+                Some(dest_dirfd.as_raw_fd()),
+                dest_name,
+                src_perm,
+                FchmodatFlags::NoFollowSymlink,
+            ).context("fchmodat")?;
+        }
+
+        src.for_each_xattr(|key, value| {
+            // slowpath: most files only have 0 or 1 xattrs, so need to dedupe fd path creation
+            with_fd_path(dest_dirfd, dest_name, |path_cstr| {
+                lsetxattr(path_cstr, key, value, 0)
+            })
+        }).context("listxattr/setxattr")?;
+
+        Ok(())
+    }
+
     fn do_one_entry(
         &self,
         src_dirfd: &OwnedFd,
@@ -50,11 +131,11 @@ impl CopyContext {
         let src = InterrogatedFile::from_entry(src_dirfd, entry)?;
 
         // create dest
-        let permissions = Mode::from_bits_retain(src.st.st_mode & !libc::S_IFMT);
+        let src_perm = src.permissions();
         let dest_fd = match src.file_type {
             // simple device types
             FileType::Fifo => {
-                mkfifoat(Some(dest_dirfd.as_raw_fd()), entry.name, permissions)
+                mkfifoat(Some(dest_dirfd.as_raw_fd()), entry.name, src_perm)
                     .context("mkfifoat")?;
                 None
             }
@@ -63,7 +144,7 @@ impl CopyContext {
                     Some(dest_dirfd.as_raw_fd()),
                     entry.name,
                     SFlag::S_IFBLK,
-                    permissions,
+                    src_perm,
                     src.st.st_rdev,
                 ).context("mknodat")?;
                 None
@@ -73,7 +154,7 @@ impl CopyContext {
                     Some(dest_dirfd.as_raw_fd()),
                     entry.name,
                     SFlag::S_IFCHR,
-                    permissions,
+                    src_perm,
                     src.st.st_rdev,
                 ).context("mknodat")?;
                 None
@@ -99,7 +180,7 @@ impl CopyContext {
                 fchmodat(
                     Some(dest_dirfd.as_raw_fd()),
                     entry.name,
-                    permissions,
+                    src_perm,
                     FchmodatFlags::NoFollowSymlink,
                 ).context("fchmodat")?;
 
@@ -112,13 +193,13 @@ impl CopyContext {
                     Some(dest_dirfd.as_raw_fd()),
                     entry.name,
                     OFlag::O_CREAT | OFlag::O_WRONLY | OFlag::O_CLOEXEC,
-                    permissions,
+                    src_perm,
                 ).context("openat")?;
                 let fd = unsafe { OwnedFd::from_raw_fd(fd) };
                 Some(fd)
             }
             FileType::Directory => {
-                mkdirat(Some(dest_dirfd.as_raw_fd()), entry.name, permissions)
+                mkdirat(Some(dest_dirfd.as_raw_fd()), entry.name, src_perm)
                     .context("mkdirat")?;
 
                 // TODO: empty dirs don't need to be opened if no inode flags
@@ -126,7 +207,7 @@ impl CopyContext {
                     Some(dest_dirfd.as_raw_fd()),
                     entry.name,
                     OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
-                    permissions,
+                    src_perm,
                 ).context("openat")?;
                 let fd = unsafe { OwnedFd::from_raw_fd(fd) };
                 Some(fd)
@@ -138,79 +219,11 @@ impl CopyContext {
         // metadata: uid/gid, atime/mtime, xattrs, inode flags
         if let Some(ref fd) = dest_fd {
             // we have an open fd; use it for perf
-
-            // only call fchown if different from current fsuid/fsgid
-            // TODO: is changing fsuid/fsgid before creation faster?
-            if src.st.st_uid != self.euid || src.st.st_gid != self.egid {
-                fchown(fd, Some(src.st.st_uid), Some(src.st.st_gid))
-                    .context("fchown")?;
-            }
-
-            // no point in doing this lazily: with nsec, it'll never match src
-            futimens(
-                fd.as_raw_fd(),
-                &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
-                &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
-            ).context("futimens")?;
-
-            // suid/sgid gets cleared after chown
-            if permissions.contains(Mode::S_ISUID) || permissions.contains(Mode::S_ISGID) {
-                fchmod(fd.as_raw_fd(), permissions)
-                    .context("fchmod")?;
-            }
-
-            src.for_each_xattr(|name, value| {
-                fsetxattr(fd, name, value, 0)
-            }).context("listxattr/setxattr")?;
-
-            if let Some(flags) = src.inode_flags()? {
-                // filter to flags that are included in tar archives
-                // otherwise we'll be setting flags on every file if btrfs has nocow/compress enabled
-                let fl = flags.intersection(InodeFlags::ARCHIVE_FLAGS);
-                if !fl.is_empty() {
-                    fl.apply(fd).context("ioctl(FS_IOC_SETFLAGS)")?;
-                }
-            }
+            self.copy_metadata_to_fd(&src, fd)?;
         } else {
             // don't have fd; fall back to path
             // TODO: faster to open(O_PATH)?
-
-            // only call fchown if different from current fsuid/fsgid
-            if src.st.st_uid != self.euid || src.st.st_gid != self.egid {
-                fchownat(
-                    dest_dirfd,
-                    entry.name,
-                    src.st.st_uid,
-                    src.st.st_gid,
-                    libc::AT_SYMLINK_NOFOLLOW,
-                ).context("fchownat")?;
-            }
-
-            // no point in doing this lazily: with nsec, it'll never match src
-            utimensat(
-                Some(dest_dirfd.as_raw_fd()),
-                entry.name,
-                &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
-                &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
-                UtimensatFlags::NoFollowSymlink,
-            ).context("utimensat")?;
-
-            // suid/sgid gets cleared after chown
-            if permissions.contains(Mode::S_ISUID) || permissions.contains(Mode::S_ISGID) {
-                fchmodat(
-                    Some(dest_dirfd.as_raw_fd()),
-                    entry.name,
-                    permissions,
-                    FchmodatFlags::NoFollowSymlink,
-                ).context("fchmodat")?;
-            }
-
-            src.for_each_xattr(|name, value| {
-                // slowpath: most files only have 0 or 1 xattrs, so need to dedupe fd path creation
-                with_fd_path(dest_dirfd, entry.name, |path_cstr| {
-                    lsetxattr(path_cstr, name, value, 0)
-                })
-            }).context("listxattr/setxattr")?;
+            self.copy_metadata_to_dirfd_path(&src, dest_dirfd, entry.name)?;
         }
 
         // file contents: only support reflinking
@@ -313,11 +326,17 @@ fn main() -> anyhow::Result<()> {
             Mode::empty(),
         )?)
     };
-    // TODO: create and set metadata on root dir
+
+    // interrogate src and copy metadata
+    let src_file = InterrogatedFile::from_directory_fd(&src_dirfd)?;
+    let dest_dir_cstr = CString::new(dest_dir)?;
+    mkdirat(None, dest_dir_cstr.as_ref(), src_file.permissions())
+        .context("mkdirat")?;
+
     let dest_dirfd = unsafe {
         OwnedFd::from_raw_fd(openat(
             None,
-            Path::new(&dest_dir),
+            dest_dir_cstr.as_ref(),
             OFlag::O_RDONLY
                 | OFlag::O_DIRECTORY
                 | OFlag::O_CLOEXEC,
@@ -325,8 +344,10 @@ fn main() -> anyhow::Result<()> {
         )?)
     };
 
-    // walk dirs
     let ctx = CopyContext::new()?;
+    ctx.copy_metadata_to_dirfd_path(&src_file, &dest_dirfd, &dest_dir_cstr)?;
+
+    // walk dirs
     ctx.walk_dir(&src_dirfd, None, &dest_dirfd)
         .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 

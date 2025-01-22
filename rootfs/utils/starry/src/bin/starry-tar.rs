@@ -401,12 +401,12 @@ fn walk_dir(
         }
 
         // xattrs
-        file.for_each_xattr(|name, value| {
+        file.for_each_xattr(|key, value| {
             // SCHILY.xattr is a violation of the PAX spec: PAX headers must be UTF-8
             // LIBARCHIVE.xattr uses base64 to fix that, but it's not supported by GNU tar
             // we use SCHILY: it works fine because PAX fields are length-prefixed
             let mut pax_key: SmallVec<[u8; 64]> = b"SCHILY.xattr.".to_smallvec();
-            pax_key.extend_from_slice(name.to_bytes());
+            pax_key.extend_from_slice(key.to_bytes());
             pax_header.add_field(&pax_key, value);
 
             Ok(())

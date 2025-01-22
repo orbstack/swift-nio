@@ -145,6 +145,7 @@ fn main() -> anyhow::Result<()> {
     walk_dir(&root_dir, &buffer_stack).map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 
     // remove root dir
+    drop(root_dir);
     std::fs::remove_dir(Path::new(&src_dir))?;
 
     Ok(())

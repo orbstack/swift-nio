@@ -40,16 +40,24 @@ pub struct InterrogatedFile<'a> {
 impl<'a> InterrogatedFile<'a> {
     // given any dirfd and entry, stat the file and open it if applicable, using the most efficient possible combination of syscalls
     pub fn from_entry(dirfd: &'a OwnedFd, entry: &'a DirEntry<'a>) -> anyhow::Result<Self> {
+        Self::from_name_and_type(dirfd, entry.name, entry.file_type)
+    }
+
+    pub fn from_directory_fd(dirfd: &'a OwnedFd) -> anyhow::Result<Self> {
+        Self::from_name_and_type(dirfd, c".", FileType::Directory)
+    }
+
+    pub fn from_name_and_type(dirfd: &'a OwnedFd, name: &'a CStr, file_type: FileType) -> anyhow::Result<Self> {
         // 1. determine file type:
         // do we know the file type for sure? some filesystems populate d_type; many don't
         // if not, we must always start with fstatat, as it's unsafe to try opening char/block/fifo
         let mut st: Option<libc::stat> = None;
-        let file_type = match entry.file_type {
+        let file_type = match file_type {
             FileType::Unknown => {
-                st = Some(fstatat(dirfd, entry.name, libc::AT_SYMLINK_NOFOLLOW)?);
+                st = Some(fstatat(dirfd, name, libc::AT_SYMLINK_NOFOLLOW)?);
                 FileType::from_stat_fmt(st.as_ref().unwrap().st_mode & libc::S_IFMT)
             }
-            _ => entry.file_type,
+            _ => file_type,
         };
 
         // 2. get remaining info, depending on whether it's regular/dir, or special
@@ -69,7 +77,7 @@ impl<'a> InterrogatedFile<'a> {
             }
 
             // always open
-            let fd = openat(Some(dirfd.as_raw_fd()), entry.name, oflags, Mode::empty())?;
+            let fd = openat(Some(dirfd.as_raw_fd()), name, oflags, Mode::empty())?;
             let fd = unsafe { OwnedFd::from_raw_fd(fd) };
 
             // fstat if not done earlier
@@ -83,17 +91,22 @@ impl<'a> InterrogatedFile<'a> {
 
             // fstatat if not done earlier
             if st.is_none() {
-                st = Some(fstatat(dirfd, entry.name, libc::AT_SYMLINK_NOFOLLOW)?);
+                st = Some(fstatat(dirfd, name, libc::AT_SYMLINK_NOFOLLOW)?);
             }
         }
 
         Ok(Self {
             dirfd,
-            file_type: entry.file_type,
-            name: entry.name,
+            file_type,
+            name,
             st: st.unwrap(),
             fd: opened_fd,
         })
+    }
+
+    // all file types
+    pub fn permissions(&self) -> Mode {
+        Mode::from_bits_retain(self.st.st_mode & !libc::S_IFMT)
     }
 
     // can be called on any file type; returns None for regular files and directories
@@ -139,9 +152,9 @@ impl<'a> InterrogatedFile<'a> {
     ) -> anyhow::Result<()> {
         if let Some(ref fd) = self.fd {
             // if we have an open fd, it's easy
-            for_each_flistxattr(fd, |name| {
-                with_fgetxattr(fd, name, |value| {
-                    f(name, value)
+            for_each_flistxattr(fd, |key| {
+                with_fgetxattr(fd, key, |value| {
+                    f(key, value)
                 })
             })?;
         } else {
@@ -149,9 +162,9 @@ impl<'a> InterrogatedFile<'a> {
             // flistxattr/fgetxattr doesn't work on O_PATH fds, so the only alternative would be to use a full absolute path, which is slow and requires keeping track of absolute paths when recursing
 
             with_fd_path(self.dirfd, self.name, |path_cstr| {
-                for_each_llistxattr(path_cstr, |name| {
-                    with_lgetxattr(path_cstr, name, |value| {
-                        f(name, value)
+                for_each_llistxattr(path_cstr, |key| {
+                    with_lgetxattr(path_cstr, key, |value| {
+                        f(key, value)
                     })
                 })
             })?;
