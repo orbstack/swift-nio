@@ -28,6 +28,8 @@ use starry::{
 };
 use zstd::Encoder;
 
+const READ_BUF_SIZE: usize = 65536;
+
 const TAR_PADDING: [u8; 1024] = [0; 1024];
 const PAX_HEADER_NAME: &str = "@PaxHeader";
 
@@ -287,64 +289,83 @@ impl PaxHeader {
     }
 }
 
-fn add_regular_file(w: &mut impl Write, file: &OwnedFd, st: &libc::stat) -> anyhow::Result<()> {
-    if st.st_blocks < st.st_size / 512 {
-        // TODO: sparse file
+struct OwnedTarContext {
+    buffer_stack: BufferStack,
+    path_stack: PathStack,
+}
+
+impl OwnedTarContext {
+    fn new() -> anyhow::Result<Self> {
+        Ok(Self {
+            buffer_stack: BufferStack::new()?,
+            path_stack: PathStack::default(),
+        })
+    }
+}
+
+struct TarContext<'a, W: Write> {
+    writer: W,
+    // this owned/ref split allows &mut self (for Write) without preventing these from being borrowed
+    buffer_stack: &'a BufferStack,
+    path_stack: &'a PathStack,
+}
+
+impl<'a, W: Write> TarContext<'a, W> {
+    fn new(writer: W, buffer_stack: &'a BufferStack, path_stack: &'a PathStack) -> Self {
+        Self {
+            writer,
+            buffer_stack,
+            path_stack,
+        }
     }
 
-    // we must never write more than the size written to the header
-    let mut buf: MaybeUninit<[u8; 65536]> = MaybeUninit::uninit();
-    let mut rem = st.st_size as usize;
-    loop {
-        let limit = std::cmp::min(rem, 65536);
-        let ret = unsafe { libc::read(file.as_raw_fd(), buf.as_mut_ptr() as *mut _, limit) };
-        let n = Errno::result(ret)? as usize;
-        if n == 0 {
-            break;
+    fn add_regular_file_contents(&mut self, file: &OwnedFd, st: &libc::stat) -> anyhow::Result<()> {
+        if st.st_blocks < st.st_size / 512 {
+            // TODO: sparse file
         }
 
-        let data = unsafe { std::slice::from_raw_parts(buf.as_mut_ptr() as *const u8, n) };
-        w.write_all(data)?;
-        rem -= n;
-        if rem == 0 {
-            break;
-        }
-    }
-
-    // pad with zeros if we didn't write enough (file size truncated)
-    if rem > 0 {
-        eprintln!("file truncated; padding with {} bytes", rem);
+        // we must never write more than the size written to the header
+        let mut buf: MaybeUninit<[u8; READ_BUF_SIZE]> = MaybeUninit::uninit();
+        let mut rem = st.st_size as usize;
         loop {
-            let limit = std::cmp::min(rem, 512);
-            w.write_all(&TAR_PADDING[..limit])?;
-            rem -= limit;
+            let limit = std::cmp::min(rem, READ_BUF_SIZE);
+            let ret = unsafe { libc::read(file.as_raw_fd(), buf.as_mut_ptr() as *mut _, limit) };
+            let n = Errno::result(ret)? as usize;
+            if n == 0 {
+                break;
+            }
+
+            let data = unsafe { std::slice::from_raw_parts(buf.as_mut_ptr() as *const u8, n) };
+            self.writer.write_all(data)?;
+            rem -= n;
             if rem == 0 {
                 break;
             }
         }
+
+        // pad with zeros if we didn't write enough (file size truncated)
+        if rem > 0 {
+            eprintln!("file truncated; padding with {} bytes", rem);
+            loop {
+                let limit = std::cmp::min(rem, 512);
+                self.writer.write_all(&TAR_PADDING[..limit])?;
+                rem -= limit;
+                if rem == 0 {
+                    break;
+                }
+            }
+        }
+
+        // pad tar to 512 byte block
+        let pad = 512 - (st.st_size % 512);
+        if pad != 512 {
+            self.writer.write_all(&TAR_PADDING[..pad as usize])?;
+        }
+
+        Ok(())
     }
 
-    // pad tar to 512 byte block
-    let pad = 512 - (st.st_size % 512);
-    if pad != 512 {
-        w.write_all(&TAR_PADDING[..pad as usize])?;
-    }
-
-    Ok(())
-}
-
-fn walk_dir(
-    w: &mut impl Write,
-    dirfd: &OwnedFd,
-    nents_hint: Option<usize>,
-    buffer_stack: &BufferStack,
-    path_stack: &PathStack,
-) -> anyhow::Result<()> {
-    for_each_getdents(dirfd, nents_hint, buffer_stack, |entry| {
-        let path = path_stack.push(entry.name.to_bytes());
-
-        let file = InterrogatedFile::from_entry(dirfd, &entry)?;
-
+    fn add_one_entry(&mut self, file: &InterrogatedFile, path: &[u8]) -> anyhow::Result<()> {
         // skip archiving sockets; tar can't extract it
         // TODO: non-standard extension for this?
         if file.file_type == FileType::Socket {
@@ -377,9 +398,9 @@ fn walk_dir(
             pax_header.add_field("mtime", &time_buf);
         }
 
-        if header.set_path(path.get().as_slice()).is_err() {
+        if header.set_path(path).is_err() {
             // PAX long name extension
-            pax_header.add_field("path", path.get().as_slice());
+            pax_header.add_field("path", path);
         }
 
         if file.file_type == FileType::Symlink {
@@ -417,26 +438,38 @@ fn walk_dir(
         })?;
 
         if !pax_header.is_empty() {
-            pax_header.write_to(w)?;
+            pax_header.write_to(&mut self.writer)?;
         }
-        w.write_all(header.as_bytes())?;
-
-        if file.has_children() {
-            walk_dir(
-                w,
-                file.fd.as_ref().unwrap(),
-                file.nents_hint(),
-                buffer_stack,
-                path_stack,
-            )?;
-        } else if file.file_type == FileType::Regular {
-            add_regular_file(w, &file.fd.unwrap(), &file.st)?;
-        }
+        self.writer.write_all(header.as_bytes())?;
 
         Ok(())
-    })?;
+    }
 
-    Ok(())
+    fn walk_dir(
+        &mut self,
+        dirfd: &OwnedFd,
+        nents_hint: Option<usize>,
+    ) -> anyhow::Result<()> {
+        for_each_getdents(dirfd, nents_hint, self.buffer_stack, |entry| {
+            let path = self.path_stack.push(entry.name.to_bytes());
+
+            let file = InterrogatedFile::from_entry(dirfd, &entry)?;
+            self.add_one_entry(&file, path.get().as_slice())?;
+
+            if file.has_children() {
+                self.walk_dir(
+                    file.fd.as_ref().unwrap(),
+                    file.nents_hint(),
+                )?;
+            } else if file.file_type == FileType::Regular {
+                self.add_regular_file_contents(&file.fd.unwrap(), &file.st)?;
+            }
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
 }
 
 fn header_from_stat(st: &libc::stat) -> (UstarHeader, PaxHeader) {
@@ -565,9 +598,9 @@ fn main() -> anyhow::Result<()> {
     writer.write_all(header.as_bytes())?;
 
     // walk dirs
-    let buffer_stack = BufferStack::new()?;
-    let path_stack = PathStack::default();
-    walk_dir(&mut writer, &root_dir, None, &buffer_stack, &path_stack)?;
+    let owned_ctx = OwnedTarContext::new()?;
+    let mut ctx = TarContext::new(&mut writer, &owned_ctx.buffer_stack, &owned_ctx.path_stack);
+    ctx.walk_dir(&root_dir, None)?;
 
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;
