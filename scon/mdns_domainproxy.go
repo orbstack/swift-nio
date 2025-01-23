@@ -11,8 +11,7 @@ import (
 	"github.com/google/nftables"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
-	"github.com/orbstack/macvirt/scon/securefs"
-	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -566,33 +565,50 @@ func (r *mdnsRegistry) getProxyUpstreamByAddr(addr netip.Addr) (domainproxytypes
 }
 
 func (r *mdnsRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.Host) (map[uint16]struct{}, error) {
-	fs, err := securefs.NewFromDirfd(r.domainproxy.procDirfds[domainproxyHost])
-	if err != nil {
-		return nil, fmt.Errorf("new from dirfd: %w", err)
+	if domainproxyHost.ID == "" {
+		return nil, errors.New("no host id")
 	}
 
 	openPorts := map[uint16]struct{}{}
 
-	// always grab both v4 and v6 ports because dual stack shows up as ipv6 anyways, so not worth the effort to differentiate
-	// especially when our probing routine should be relatively fast anyways, especially for non-listening ports
-	netTcp4, err := fs.ReadFile("net/tcp")
-	if err != nil {
-		return nil, err
+	if !domainproxyHost.K8s {
+		procDirfd, ok := r.domainproxy.procDirfds[domainproxyHost]
+		if !ok {
+			return nil, fmt.Errorf("no proc dirfd for host: %v", domainproxyHost)
+		}
+
+		// always grab both v4 and v6 ports because dual stack shows up as ipv6 anyways, so not worth the effort to differentiate
+		// especially when our probing routine should be relatively fast anyways, especially for non-listening ports
+		listeners4, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp")
+		if err != nil {
+			return nil, err
+		}
+		listeners6, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp6")
+		if err != nil {
+			return nil, err
+		}
+
+		for _, listener := range listeners4 {
+			openPorts[listener.Port()] = struct{}{}
+		}
+		for _, listener := range listeners6 {
+			openPorts[listener.Port()] = struct{}{}
+		}
 	}
 
-	netTcp6, err := fs.ReadFile("net/tcp6")
-	if err != nil {
-		return nil, err
-	}
+	if !domainproxyHost.Docker || domainproxyHost.K8s {
+		// grab nftables ports
+		machine, err := r.manager.GetByID(domainproxyHost.ID)
+		if err != nil {
+			return nil, err
+		}
 
-	err = util.ParseNetTcpPorts(string(netTcp4), openPorts)
-	if err != nil {
-		return nil, err
-	}
-
-	err = util.ParseNetTcpPorts(string(netTcp6), openPorts)
-	if err != nil {
-		return nil, err
+		_, err = withContainerNetns(machine, func() (struct{}, error) {
+			return struct{}{}, sysnet.GetNftablesPorts(openPorts)
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return openPorts, nil

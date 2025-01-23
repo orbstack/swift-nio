@@ -9,9 +9,10 @@ import (
 	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
-	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 type DockerProxyCallbacks struct {
@@ -106,28 +107,25 @@ func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint1
 
 	logrus.Debugf("getDockerContainerOpenPorts: got pid %d for container %v", pid, containerID)
 
+	procPath := fmt.Sprintf("/proc/%d", pid)
+	procDirfdInt, err := unix.Open(procPath, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
+	if err != nil {
+		return nil, err
+	}
+	defer procDirfd.Close()
+
 	openPorts := map[uint16]struct{}{}
 
 	// always grab both v4 and v6 ports because dual stack shows up as ipv6 anyways, so not worth the effort to differentiate
 	// especially when our probing routine should be relatively fast anyways, especially for non-listening ports
-	netTcp4, err := os.ReadFile(fmt.Sprintf("/proc/%d/net/tcp", pid))
+	listeners, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp")
 	if err != nil {
 		return nil, err
 	}
 
-	netTcp6, err := os.ReadFile(fmt.Sprintf("/proc/%d/net/tcp6", pid))
-	if err != nil {
-		return nil, err
-	}
-
-	err = util.ParseNetTcpPorts(string(netTcp4), openPorts)
-	if err != nil {
-		return nil, err
-	}
-
-	err = util.ParseNetTcpPorts(string(netTcp6), openPorts)
-	if err != nil {
-		return nil, err
+	for _, listener := range listeners {
+		openPorts[listener.Port()] = struct{}{}
 	}
 
 	return openPorts, nil

@@ -2,17 +2,11 @@ package domainproxy
 
 import (
 	"context"
-	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"net/netip"
-	"strconv"
-	"strings"
-	"sync"
+	"slices"
 
 	"github.com/florianl/go-nfqueue"
 	"github.com/google/gopacket"
@@ -20,10 +14,9 @@ import (
 	"github.com/google/nftables"
 	"github.com/mdlayher/netlink"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
-	"github.com/orbstack/macvirt/scon/domainproxy/sillytls"
 	"github.com/orbstack/macvirt/scon/nft"
+	"github.com/orbstack/macvirt/scon/util/portprober"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/sys/unix"
 )
 
@@ -67,10 +60,12 @@ func (d *DomainTLSProxy) startQueue(queueNum uint16) error {
 				if hasUpstream {
 					// there's an upstream, so accept the connection. (accept = continue nftables)
 					// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
+					logrus.Debug("nfqueue: accept")
 					mark = d.cb.NfqueueMarkSkip(mark)
 				} else {
 					// no upstream, so reject the connection.
 					// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
+					logrus.Debug("nfqueue: reject")
 					mark = d.cb.NfqueueMarkReject(mark)
 				}
 				err = queue.SetVerdictModPacketWithMark(*a.PacketID, nfqueue.NfRepeat, int(mark), *a.Payload)
@@ -158,9 +153,6 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 		logrus.Debug("domaintlsproxy: probe did not find a port")
 		return false, nil
 	}
-	d.probedHostsMu.Lock()
-	d.probedHosts[dstIP] = upstreamPort
-	d.probedHostsMu.Unlock()
 
 	// add to probed set
 	setName := "domainproxy4_probed"
@@ -179,229 +171,80 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 }
 
 func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (serverPort, error) {
-	if upstream.Host.ID == "" {
-		logrus.Error("unable to probe host: upstream has no host id")
-		return serverPort{}, fmt.Errorf("get upstream host id")
-	}
-
-	var ports map[uint16]struct{}
-
-	var err error
-	ports, err = d.cb.GetHostOpenPorts(upstream.Host)
+	ports, err := d.cb.GetHostOpenPorts(upstream.Host)
 	if err != nil {
-		return serverPort{}, fmt.Errorf("get open ports: %w", err)
-	}
-	logrus.Debugf("soweli | open ports: %v", ports)
-
-	var httpWg sync.WaitGroup
-	var httpsWg sync.WaitGroup
-
-	httpCtx, httpCancel := context.WithCancel(context.Background())
-	defer httpCancel()
-	httpsCtx, httpsCancel := context.WithCancel(context.Background())
-	defer httpsCancel()
-	var upstreamPort serverPort
-
-	// we concurrently try to dial every port with tls and http
-	// we prefer a tls connection over an http connection, so we give a 500ms timeout for a response to a tls HELO
-	// if there's no response in 500ms, we pick http (if we found one) or fail
-	for port := range ports {
-		httpsWg.Add(1)
-		go func() {
-			defer httpsWg.Done()
-
-			ctx, cancel := context.WithTimeout(httpsCtx, httpsDialTimeout)
-			defer cancel()
-
-			if testPortHTTPS(ctx, dialer, upstream, port) {
-				// since we prefer https, we can cancel everything
-				logrus.WithFields(logrus.Fields{"port": port}).Debug("soweli | https succeeded")
-				httpsCancel()
-				httpCancel()
-				upstreamPort = serverPort{
-					port:  port,
-					https: true,
-				}
-			}
-		}()
-
-		httpWg.Add(1)
-		go func() {
-			defer httpWg.Done()
-
-			if testPortHTTP(httpCtx, dialer, upstream, port) {
-				logrus.WithFields(logrus.Fields{"port": port}).Debug("soweli | http succeeded")
-				httpCancel()
-				// we want to make sure we're not racing with one of the https probes
-				httpsWg.Wait()
-				// then this can only race with http probes, which is fine since no preference for http hosts is guaranteed regardless
-				if upstreamPort == (serverPort{}) {
-					upstreamPort = serverPort{
-						port:  port,
-						https: false,
-					}
-				}
-			}
-		}()
+		return serverPort{}, err
 	}
 
-	httpsWg.Wait()
-	httpWg.Wait()
-	return upstreamPort, nil
-}
-
-func testPortHTTP(ctx context.Context, dialer *net.Dialer, upstream domainproxytypes.Upstream, port uint16) bool {
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
-				return dialer.DialContext(ctx, network, addr)
-			},
-		},
-	}
-
-	_, err := client.Head(fmt.Sprintf("http://%v:%v", upstream.IP, port))
-	if err != nil {
-		logrus.WithError(err).Error("soweli | testPortHTTP")
-		return false
-	} else {
-		return true
-	}
-}
-
-func writeTLSClientHello(w io.Writer, serverName string) error {
-	hello := &sillytls.Handshake{
-		Message: &sillytls.HandshakeClientHello{
-			Version:   0x0303,
-			Random:    []byte("OrbStackOrbStackOrbStackOrbStack"),
-			SessionID: []byte("OrbStackOrbStackOrbStackOrbStack"),
-			CipherSuites: []uint16{
-				tls.TLS_AES_128_GCM_SHA256,
-				tls.TLS_AES_256_GCM_SHA384,
-				tls.TLS_CHACHA20_POLY1305_SHA256,
-				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-				tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-				tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-				tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-				tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-				tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-				tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-				tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
-				tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
-				tls.TLS_RSA_WITH_RC4_128_SHA,
-				tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,
-				tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
-			},
-			CompressionMethods:           []uint8{0x00},
-			SupportedVersions:            []uint16{0x0304, 0x0303, 0x0302, 0x0301},
-			ServerName:                   strings.TrimSuffix(serverName, "."),
-			ALPNProtocols:                []string{"h2", "http/1.1"},
-			SupportedGroups:              []sillytls.GroupID{tls.CurveP256, tls.CurveP384, tls.CurveP521, tls.X25519},
-			SupportedSignatureAlgorithms: []tls.SignatureScheme{tls.PKCS1WithSHA256, tls.PKCS1WithSHA384, tls.PKCS1WithSHA512, tls.PSSWithSHA256, tls.PSSWithSHA384, tls.PSSWithSHA512, tls.ECDSAWithP256AndSHA256, tls.ECDSAWithP384AndSHA384, tls.ECDSAWithP521AndSHA512, tls.Ed25519, tls.PKCS1WithSHA1, tls.ECDSAWithSHA1},
-			KeyShares:                    []sillytls.KeyShare{},
-		},
-	}
-
-	var b cryptobyte.Builder
-	hello.Marshal(&b)
-	helloBytes, err := b.Bytes()
-	if err != nil {
-		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to marshal hello")
-		return err
-	}
-
-	record := &sillytls.Record{
-		LegacyVersion: 0x0301,
-		ContentType:   hello.TLSRecordType(),
-		Content:       helloBytes,
-	}
-
-	return record.Write(w)
-}
-
-func jsonPrettyPrint(v any) string {
-	json, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("%+v", v)
-	}
-	return string(json)
-}
-
-func testPortHTTPS(ctx context.Context, dialer *net.Dialer, upstream domainproxytypes.Upstream, port uint16) bool {
-	serverName := ""
-	if len(upstream.Names) > 0 {
-		serverName = upstream.Names[0]
-	}
-
-	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(upstream.IP.String(), strconv.Itoa(int(port))))
-	if err != nil {
-		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to dial")
-		return false
-	}
-	defer conn.Close()
-
-	err = writeTLSClientHello(conn, serverName)
-	if err != nil {
-		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to write hello")
-		return false
-	}
-	logrus.Debug("soweli | testPortHTTPS: wrote hello")
-
-	response := &sillytls.Record{}
-	err = response.Read(conn)
-	if err != nil {
-		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to read response")
-		return false
-	}
-	logrus.Debug("soweli | testPortHTTPS: read response, type: ", response.ContentType)
-
-	content := sillytls.GetRecordContentType(response.ContentType)
-	if content == nil {
-		logrus.Debug("soweli | testPortHTTPS: unknown content type")
-		return false
-	}
-
-	contentString := cryptobyte.String(response.Content)
-	err = content.Unmarshal(&contentString)
-	if err != nil {
-		logrus.WithError(err).Error("soweli | testPortHTTPS: failed to unmarshal content")
-		return false
-	}
-
-	if handshake, ok := content.(*sillytls.Handshake); ok {
-		logrus.Debugf("soweli | testPortHTTPS: %T=%s", content, jsonPrettyPrint(handshake))
-	} else if alert, ok := content.(*sillytls.Alert); ok {
-		logrus.Debugf("soweli | testPortHTTPS: %T=%s", content, alert.String())
-	} else {
-		logrus.Debugf("soweli | testPortHTTPS: %T", content)
-	}
-
-	return true
-}
-
-func (p *DomainTLSProxy) getOrProbeHost(dialer *net.Dialer, addr netip.Addr, upstream domainproxytypes.Upstream) (serverPort, error) {
-	p.probedHostsMu.Lock()
-	upstreamPort, ok := p.probedHosts[addr]
-	p.probedHostsMu.Unlock()
+	addr, ok := netip.AddrFromSlice(upstream.IP)
 	if !ok {
-		logrus.Debug("probing host outside of nfqueue")
+		return serverPort{}, fmt.Errorf("failed to get addr from slice: %s", upstream.IP)
+	}
 
-		var err error
-		upstreamPort, err = p.probeHost(dialer, upstream)
-		if err != nil {
-			return serverPort{}, fmt.Errorf("probe host: %w", err)
+	d.probeMu.Lock()
+	probe, ok := d.probeTasks[addr]
+	if !ok {
+		serverName := ""
+		if len(upstream.Names) > 0 {
+			serverName = upstream.Names[0]
 		}
-		if upstreamPort == (serverPort{}) {
-			logrus.Debug("domaintlsproxy: probe did not find a port")
-			return serverPort{}, nil
+
+		ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+		defer cancel()
+
+		probe = portprober.NewHostProbe(portprober.HostProbeOptions{
+			ErrFunc: func(err error) {
+				logrus.WithError(err).Error("failed to probe host")
+			},
+			Dialer: dialer,
+
+			Host:       upstream.IP.String(),
+			ServerName: serverName,
+
+			GraceTime: probeGraceTime,
+			Ctx:       ctx,
+		})
+		d.probeTasks[addr] = probe
+	}
+	d.probeMu.Unlock()
+
+	probeResult := probe.Probe(ports)
+
+	d.probeMu.Lock()
+	defer d.probeMu.Unlock()
+
+	if p, ok := d.probeTasks[addr]; ok && p == probe {
+		delete(d.probeTasks, addr)
+	}
+
+	var port serverPort
+
+	if len(probeResult.HTTPSPorts) > 0 {
+		httpPorts := make([]uint16, 0, len(probeResult.HTTPSPorts))
+		for p := range probeResult.HTTPSPorts {
+			httpPorts = append(httpPorts, p)
+		}
+		port = serverPort{
+			// use lowest port
+			port:  slices.Min(httpPorts),
+			https: true,
 		}
 	}
 
-	return upstreamPort, nil
+	if len(probeResult.HTTPPorts) > 0 {
+		httpPorts := make([]uint16, 0, len(probeResult.HTTPPorts))
+		for p := range probeResult.HTTPPorts {
+			httpPorts = append(httpPorts, p)
+		}
+		port = serverPort{
+			port:  slices.Min(httpPorts),
+			https: false,
+		}
+	}
+
+	if port != (serverPort{}) {
+		d.probedHosts[addr] = port
+	}
+
+	return port, nil
 }

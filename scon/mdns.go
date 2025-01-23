@@ -817,10 +817,10 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	defer r.mu.Unlock()
 
 	procPath := "/proc/" + strconv.Itoa(c.initPid)
-	procDirfd, err := unix.Open(procPath, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	procDirfdInt, err := unix.Open(procPath, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_DIRECTORY, 0)
 	if err == nil {
-		procDirfdFile := os.NewFile(uintptr(procDirfd), procPath)
-		r.domainproxy.procDirfds[domainproxyHost] = procDirfdFile
+		procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
+		r.domainproxy.procDirfds[domainproxyHost] = procDirfd
 	} else {
 		logrus.WithError(err).WithField("procPath", procPath).Error("failed to open proc dirfd")
 	}
@@ -1224,7 +1224,7 @@ func (r *mdnsRegistry) dockerPostStart() error {
 				[]string{k8sName},
 				net.ParseIP(netconf.SconK8sIP4),
 				// we make k8s.orb.local not count as docker because the ip is the docker ip. this means that hairpinning needs to be done by ovm.
-				domainproxytypes.Host{Docker: false, ID: ContainerIDK8s},
+				domainproxytypes.Host{Docker: false, ID: ContainerIDK8s, K8s: true},
 			),
 		)
 		if err != nil {
@@ -1232,11 +1232,11 @@ func (r *mdnsRegistry) dockerPostStart() error {
 		}
 		k8sIP4 := k8sAddr4.AsSlice()
 
-		k8sAddr6, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{
-			Names:  []string{k8sName},
-			IP:     net.ParseIP(netconf.SconK8sIP6),
-			Docker: false,
-		})
+		k8sAddr6, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.NewUpstream(
+			[]string{k8sName},
+			net.ParseIP(netconf.SconK8sIP6),
+			domainproxytypes.Host{Docker: false, ID: ContainerIDK8s, K8s: true},
+		))
 		if err != nil {
 			return fmt.Errorf("unable to create k8s domainproxy ip: %w", err)
 		}

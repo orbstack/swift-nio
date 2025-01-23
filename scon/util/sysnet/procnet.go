@@ -3,11 +3,14 @@ package sysnet
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/orbstack/macvirt/scon/securefs"
 )
 
 const (
@@ -179,4 +182,18 @@ func ReadAllProcNet(pid string) ([]ListenerInfo, error) {
 	}
 
 	return listeners, nil
+}
+
+func ReadProcNetFromDirfd(dirfd *os.File, proto string) ([]ListenerInfo, error) {
+	fs, err := securefs.NewFromDirfd(dirfd)
+	if err != nil {
+		return nil, fmt.Errorf("create securefs from dirfd: %w", err)
+	}
+
+	data, err := fs.ReadFile("net/" + proto)
+	if err != nil {
+		return nil, fmt.Errorf("read net/%s: %w", proto, err)
+	}
+
+	return parseProcNet(string(data), proto)
 }

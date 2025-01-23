@@ -23,6 +23,7 @@ import (
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/portprober"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
@@ -32,6 +33,8 @@ import (
 )
 
 const httpsDialTimeout = 500 * time.Millisecond
+const probeGraceTime = 500 * time.Millisecond
+const probeTimeout = 60 * time.Second
 
 type MdnsContextKey int
 
@@ -76,8 +79,9 @@ type DomainTLSProxy struct {
 	tlsController *tlsutil.TLSController
 	tproxy        *bpf.Tproxy
 
-	probedHostsMu syncx.Mutex
-	probedHosts   map[netip.Addr]serverPort
+	probeMu     syncx.Mutex
+	probedHosts map[netip.Addr]serverPort
+	probeTasks  map[netip.Addr]*portprober.HostProbe
 }
 
 func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy, error) {
@@ -91,6 +95,7 @@ func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy
 		cb:            cb,
 
 		probedHosts: make(map[netip.Addr]serverPort),
+		probeTasks:  make(map[netip.Addr]*portprober.HostProbe),
 	}, nil
 }
 
@@ -280,6 +285,13 @@ func dialerForTransparentBind(bindIP net.IP, mark int) *net.Dialer {
 					return
 				}
 
+				// set IP_BIND_ADDRESS_NO_PORT to not bind to port so that ports are tracked by 4-tuple, not 2-tuple
+				err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_BIND_ADDRESS_NO_PORT, 1)
+				if err != nil {
+					retErr = fmt.Errorf("failed to set opt 3: %w", err)
+					return
+				}
+
 				// bind to local address, spoof source IP of client (but not port)
 				err = unix.Bind(int(fd), sa)
 				if err != nil {
@@ -301,7 +313,6 @@ type connData struct {
 }
 
 type upstreamConnInfo struct {
-	Addr         netip.Addr
 	Upstream     domainproxytypes.Upstream
 	UpstreamPort serverPort
 }
@@ -338,7 +349,7 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 		return nil, fmt.Errorf("split host/port: %w", err)
 	}
 
-	addr, upstream, err := p.cb.GetUpstreamByHost(destHost, is4)
+	_, upstream, err := p.cb.GetUpstreamByHost(destHost, is4)
 	if err != nil {
 		return nil, fmt.Errorf("get upstream: %w", err)
 	}
@@ -351,17 +362,19 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 		dialer = &net.Dialer{}
 	}
 
-	upstreamPort, err := p.getOrProbeHost(dialer, addr, upstream)
-	if err != nil {
-		return nil, err
+	upstreamAddr, ok := netip.AddrFromSlice(upstream.IP)
+	if !ok {
+		return nil, fmt.Errorf("get upstream addr: %w", err)
 	}
 
-	if upstreamPort == (serverPort{}) {
+	p.probeMu.Lock()
+	upstreamPort, ok := p.probedHosts[upstreamAddr]
+	p.probeMu.Unlock()
+	if !ok {
 		return nil, fmt.Errorf("get upstream port")
 	}
 
 	info := upstreamConnInfo{
-		Addr:         addr,
 		Upstream:     upstream,
 		UpstreamPort: upstreamPort,
 	}

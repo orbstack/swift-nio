@@ -96,7 +96,7 @@ type RecordContent interface {
 	TLSRecordType() uint8
 }
 
-func GetRecordContentType(contentType uint8) RecordContent {
+func GetRecordContentForType(contentType uint8) RecordContent {
 	var content RecordContent
 
 	switch contentType {

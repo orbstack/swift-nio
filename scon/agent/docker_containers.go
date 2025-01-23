@@ -50,7 +50,7 @@ func openPidRootfsAndSend(pid int, fdx *Fdx) (uint64, error) {
 
 func openPidProcDirAndSend(pid int, fdx *Fdx) (uint64, error) {
 	// this is racy, but it's the same amount of racy as opening pidfd from pid
-	procFd, err := unix.Open("/proc/"+strconv.Itoa(pid), unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	procFd, err := unix.Open("/proc/"+strconv.Itoa(pid), unix.O_RDONLY|unix.O_CLOEXEC|unix.O_DIRECTORY, 0)
 	if err != nil {
 		return 0, fmt.Errorf("open proc net dir: %w", err)
 	}

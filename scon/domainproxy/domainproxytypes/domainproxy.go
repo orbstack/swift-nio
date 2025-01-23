@@ -65,8 +65,9 @@ func (u Upstream) ValEqual(other Upstream) bool {
 type Host struct {
 	ID     string
 	Docker bool
+	K8s    bool
 }
 
 func (h Host) Equal(other Host) bool {
-	return h.ID == other.ID && h.Docker == other.Docker
+	return h.ID == other.ID && h.Docker == other.Docker && h.K8s == other.K8s
 }
