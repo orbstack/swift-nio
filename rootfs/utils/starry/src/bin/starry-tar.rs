@@ -3,6 +3,7 @@ use std::{
 };
 
 use anyhow::anyhow;
+use bumpalo::Bump;
 use bytemuck::{Pod, Zeroable};
 use nix::{
     errno::Errno,
@@ -286,6 +287,7 @@ impl PaxHeader {
 struct OwnedTarContext {
     buffer_stack: BufferStack,
     path_stack: PathStack,
+    bump: Bump,
 }
 
 impl OwnedTarContext {
@@ -293,6 +295,7 @@ impl OwnedTarContext {
         Ok(Self {
             buffer_stack: BufferStack::new()?,
             path_stack: PathStack::default(),
+            bump: Bump::new(),
         })
     }
 }
@@ -301,7 +304,8 @@ struct TarContext<'a, W: Write> {
     writer: W,
 
     // we use [u8] for all paths instead of String because Linux paths technically don't have to be UTF-8. (it also means we can avoid UTF-8 validation overhead)
-    hardlink_paths: BTreeMap<DevIno, Vec<u8>>,
+    hardlink_paths: BTreeMap<DevIno, &'a [u8]>,
+    bump: &'a Bump,
 
     // this owned/ref split allows &mut self (for Write) without preventing these from being borrowed
     buffer_stack: &'a BufferStack,
@@ -309,10 +313,11 @@ struct TarContext<'a, W: Write> {
 }
 
 impl<'a, W: Write> TarContext<'a, W> {
-    fn new(writer: W, buffer_stack: &'a BufferStack, path_stack: &'a PathStack) -> Self {
+    fn new(writer: W, buffer_stack: &'a BufferStack, path_stack: &'a PathStack, bump: &'a Bump) -> Self {
         Self {
             writer,
             hardlink_paths: BTreeMap::new(),
+            bump,
             buffer_stack,
             path_stack,
         }
@@ -378,7 +383,8 @@ impl<'a, W: Write> TarContext<'a, W> {
                 Entry::Vacant(v) => {
                     // this is the first time we've seen this dev/ino
                     // add current path to hardlink map and continue adding file contents to the archive
-                    v.insert(path.to_vec());
+                    // this (sadly) allocates, but it's a slowpath for st_nlink>1: hardlinks are rare, and we optimize it with bump allocation when we do need it
+                    v.insert(self.bump.alloc_slice_copy(path));
                 }
                 Entry::Occupied(o) => {
                     // not the first time! record this as a link
@@ -619,7 +625,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let owned_ctx = OwnedTarContext::new()?;
-    let mut ctx = TarContext::new(&mut writer, &owned_ctx.buffer_stack, &owned_ctx.path_stack);
+    let mut ctx = TarContext::new(&mut writer, &owned_ctx.buffer_stack, &owned_ctx.path_stack, &owned_ctx.bump);
 
     // add entry for root dir
     let root_dir_file = InterrogatedFile::from_directory_fd(&root_dir)?;
