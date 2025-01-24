@@ -128,6 +128,20 @@ func (s *SconServer) ContainerDelete(ctx context.Context, record types.Container
 	return c.Delete()
 }
 
+func (s *SconServer) ContainerClone(ctx context.Context, req types.ContainerCloneRequest) (*types.ContainerRecord, error) {
+	c, err := s.m.GetByID(req.Container.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	newC, err := c.Clone(req.NewName)
+	if err != nil {
+		return nil, err
+	}
+
+	return newC.toRecord(), nil
+}
+
 func (s *SconServer) ContainerRename(ctx context.Context, req types.ContainerRenameRequest) error {
 	if req.Container == nil {
 		return errors.New("container is nil")
@@ -260,6 +274,7 @@ func (s *SconServer) Serve() error {
 		"ContainerStop":                         handler.New(s.ContainerStop),
 		"ContainerRestart":                      handler.New(s.ContainerRestart),
 		"ContainerDelete":                       handler.New(s.ContainerDelete),
+		"ContainerClone":                        handler.New(s.ContainerClone),
 		"ContainerRename":                       handler.New(s.ContainerRename),
 		"ContainerGetLogs":                      handler.New(s.ContainerGetLogs),
 		"ContainerSetConfig":                    handler.New(s.ContainerSetConfig),

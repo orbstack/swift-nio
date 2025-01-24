@@ -61,6 +61,11 @@ type CreateRequest struct {
 	InternalUseTestCache bool   `json:"internal_use_test_cache,omitempty"`
 }
 
+type CloneRequest struct {
+	OldName string `json:"old_name"`
+	NewName string `json:"new_name"`
+}
+
 type GetByIDRequest struct {
 	ID string `json:"id"`
 }
@@ -94,6 +99,11 @@ type InternalDockerMigrationWaitSyncRequest struct {
 type InternalDockerMigrationSyncDirsRequest struct {
 	JobID uint64   `json:"job_id"`
 	Dirs  []string `json:"dirs"`
+}
+
+type ContainerCloneRequest struct {
+	Container *ContainerRecord `json:"container"`
+	NewName   string           `json:"new_name"`
 }
 
 type ContainerRenameRequest struct {

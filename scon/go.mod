@@ -21,7 +21,6 @@ require (
 )
 
 require (
-	github.com/alitto/pond v1.8.3
 	github.com/armon/go-radix v1.0.1-0.20221118154546-54df44f2176c
 	github.com/briandowns/spinner v1.20.0
 	github.com/cilium/ebpf v0.13.2
@@ -50,7 +49,7 @@ require (
 )
 
 require (
-	github.com/alitto/pond/v2 v2.1.6 // indirect
+	github.com/alitto/pond/v2 v2.1.6
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/creachadair/mds v0.10.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

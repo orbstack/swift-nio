@@ -69,7 +69,8 @@ impl<'a, W: Write> TarContext<'a, W> {
         while rem > 0 {
             // pread lets us save lseek calls in sparse files
             let limit = std::cmp::min(rem, READ_BUF_SIZE);
-            let ret = unsafe { libc::pread(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, limit, off) };
+            let ret =
+                unsafe { libc::pread(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, limit, off) };
             let n = Errno::result(ret)? as usize;
             if n == 0 {
                 break;

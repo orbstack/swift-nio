@@ -105,7 +105,6 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 	if err != nil {
 		return
 	}
-
 	defer func() {
 		if err != nil {
 			err2 := c.deleteInternal()

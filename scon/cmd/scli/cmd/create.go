@@ -117,11 +117,7 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 			CloudInitUserData: userData,
 		})
 		spinner.Stop()
-		if err != nil {
-			// print to stderr
-			cmd.PrintErrln(err)
-			os.Exit(1)
-		}
+		checkCLI(err)
 
 		return nil
 	},
