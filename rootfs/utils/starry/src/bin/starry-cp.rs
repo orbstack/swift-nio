@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::{anyhow, Context};
 use bumpalo::Bump;
-use libc::{getegid, geteuid};
+use libc::{close_range, getegid, geteuid};
 use nix::{
     errno::Errno,
     fcntl::{copy_file_range, openat, AtFlags, OFlag},
@@ -337,6 +337,13 @@ impl<'a> CopyContext<'a> {
             self.copy_metadata_to_dirfd_path(&src, dest_dirfd, entry.name)?;
         }
 
+        // close_range for src and dest dir fds
+        if let Some(src_fd) = src.fd {
+            if let Some(dest_fd) = dest_fd {
+                close_fds(src_fd, dest_fd);
+            }
+        }
+
         Ok(())
     }
 
@@ -363,6 +370,26 @@ impl<'a> CopyContext<'a> {
 
         Ok(())
     }
+}
+
+// small optimization: src and dest fd numbers are always contiguous unless we're in a multi-threaded program (which the CLI will never be) or have debug/other code running in between that opens fds
+// so we can use close_range to close them in a single syscall
+fn close_fds(mut a: OwnedFd, mut b: OwnedFd) {
+    if a.as_raw_fd() > b.as_raw_fd() {
+        std::mem::swap(&mut a, &mut b);
+    }
+
+    if a.as_raw_fd() + 1 == b.as_raw_fd() {
+        let ret = unsafe { close_range(a.as_raw_fd() as u32, b.as_raw_fd() as u32, 0) };
+        if ret != 0 {
+            panic!("close_range failed: {}", ret);
+        }
+
+        std::mem::forget(a);
+        std::mem::forget(b);
+    }
+
+    // drops OwnedFd for normal close in non-contiguous case
 }
 
 fn copy_file_region(
@@ -539,7 +566,7 @@ fn main() -> anyhow::Result<()> {
         .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 
     // to avoid bumping mtime, copy metadata to root dir after recursing
-    ctx.copy_metadata_to_dirfd_path(&src_file, &dest_dirfd, &dest_dir_cstr)?;
+    ctx.copy_metadata_to_dirfd_path(&src_file, &dest_dirfd, c".")?;
 
     Ok(())
 }
