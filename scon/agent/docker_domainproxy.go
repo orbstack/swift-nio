@@ -115,12 +115,19 @@ func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint1
 
 	// always grab both v4 and v6 ports because dual stack shows up as ipv6 anyways, so not worth the effort to differentiate
 	// especially when our probing routine should be relatively fast anyways, especially for non-listening ports
-	listeners, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp")
+	listeners4, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp")
+	if err != nil {
+		return nil, err
+	}
+	listeners6, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp6")
 	if err != nil {
 		return nil, err
 	}
 
-	for _, listener := range listeners {
+	for _, listener := range listeners4 {
+		openPorts[listener.Port()] = struct{}{}
+	}
+	for _, listener := range listeners6 {
 		openPorts[listener.Port()] = struct{}{}
 	}
 
