@@ -2,7 +2,10 @@ use std::io::Write;
 
 use smallvec::SmallVec;
 
-use super::{context::TAR_PADDING, ustar::{write_left_padded, TypeFlag, UstarHeader}};
+use super::{
+    context::TAR_PADDING,
+    ustar::{write_left_padded, TypeFlag, UstarHeader},
+};
 
 const PAX_HEADER_NAME: &str = "@PaxHeader";
 
@@ -69,13 +72,7 @@ impl PaxHeader {
         let nanos_start = time_buf.len();
         time_buf.resize(nanos_start + 9, 0);
         // can't overflow: we checked that nsec < 1e9
-        write_left_padded(
-            &mut time_buf[nanos_start..],
-            nanos as u64,
-            10,
-            9,
-        )
-        .unwrap();
+        write_left_padded(&mut time_buf[nanos_start..], nanos as u64, 10, 9).unwrap();
 
         self.add_field(key, &time_buf);
     }

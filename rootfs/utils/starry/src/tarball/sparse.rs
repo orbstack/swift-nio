@@ -1,5 +1,5 @@
-use std::fmt::Write;
 use smallvec::SmallVec;
+use std::fmt::Write;
 
 #[derive(Default)]
 pub struct SparseFileMap {
@@ -17,7 +17,9 @@ impl SparseFileMap {
     // - offset = 0
     // - len = st_size
     pub fn is_contiguous(&self, expected_size: u64) -> bool {
-        self.entries.len() == 1 && self.entries[0].offset == 0 && self.entries[0].len == expected_size
+        self.entries.len() == 1
+            && self.entries[0].offset == 0
+            && self.entries[0].len == expected_size
     }
 
     pub fn serialize(&self) -> String {

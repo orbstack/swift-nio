@@ -185,7 +185,11 @@ impl<'a> InterrogatedFile<'a> {
     }
 }
 
-pub fn with_fd_path<T, F: AsRawFd>(dirfd: &F, name: Option<&CStr>, f: impl FnOnce(&CStr) -> T) -> T {
+pub fn with_fd_path<T, F: AsRawFd>(
+    dirfd: &F,
+    name: Option<&CStr>,
+    f: impl FnOnce(&CStr) -> T,
+) -> T {
     // all of this is a fancy zero-allocation way to do format!("/proc/self/fd/{}/{}\0", dirfd, name)
     let mut num_buf = itoa::Buffer::new();
     let formatted_fd = num_buf.format(dirfd.as_raw_fd());

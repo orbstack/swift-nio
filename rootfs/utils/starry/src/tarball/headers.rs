@@ -1,6 +1,9 @@
 use std::io::Write;
 
-use super::{pax::PaxHeader, ustar::{OverflowError, TypeFlag, UstarHeader}};
+use super::{
+    pax::PaxHeader,
+    ustar::{OverflowError, TypeFlag, UstarHeader},
+};
 
 #[derive(Default)]
 pub struct Headers {

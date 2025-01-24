@@ -1,8 +1,11 @@
 use std::{
-    collections::{btree_map::Entry, BTreeMap}, ffi::{CStr, CString}, os::{
+    collections::{btree_map::Entry, BTreeMap},
+    ffi::{CStr, CString},
+    os::{
         fd::{AsRawFd, FromRawFd, OwnedFd},
         unix::{fs::fchown, net::UnixListener},
-    }, path::Path
+    },
+    path::Path,
 };
 
 use anyhow::{anyhow, Context};
@@ -25,7 +28,11 @@ use starry::{
     buffer_stack::BufferStack,
     interrogate::{with_fd_path, DevIno, InterrogatedFile},
     sys::{
-        file::{fchownat, AT_FDCWD}, getdents::{for_each_getdents, DirEntry, FileType}, inode_flags::InodeFlags, link::with_readlinkat, xattr::{fsetxattr, lsetxattr}
+        file::{fchownat, AT_FDCWD},
+        getdents::{for_each_getdents, DirEntry, FileType},
+        inode_flags::InodeFlags,
+        link::with_readlinkat,
+        xattr::{fsetxattr, lsetxattr},
     },
 };
 
@@ -177,10 +184,13 @@ impl<'a> CopyContext<'a> {
                     with_fd_path(dest_dirfd, None, |fd_path| {
                         with_readlinkat(AT_FDCWD, fd_path, |parent_path| {
                             // concat: parent_path + '/' + entry.name
-                            let file_path = self.bump.alloc_slice_fill_default(parent_path.len() + entry.name.count_bytes() + 1);
+                            let file_path = self.bump.alloc_slice_fill_default(
+                                parent_path.len() + entry.name.count_bytes() + 1,
+                            );
                             file_path[..parent_path.len()].copy_from_slice(parent_path);
                             file_path[parent_path.len()] = b'/';
-                            file_path[parent_path.len() + 1..].copy_from_slice(entry.name.to_bytes());
+                            file_path[parent_path.len() + 1..]
+                                .copy_from_slice(entry.name.to_bytes());
 
                             v.insert(file_path);
                         })

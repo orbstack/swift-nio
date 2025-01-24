@@ -1,12 +1,18 @@
-use std::{ fs::File, io::Write, os::fd::{ FromRawFd, OwnedFd}, path::Path
+use std::{
+    fs::File,
+    io::Write,
+    os::fd::{FromRawFd, OwnedFd},
+    path::Path,
 };
 
 use anyhow::anyhow;
 use nix::{
-    fcntl::{openat, OFlag}, sys::stat::Mode,
+    fcntl::{openat, OFlag},
+    sys::stat::Mode,
 };
 use starry::{
-    interrogate::InterrogatedFile, tarball::context::{OwnedTarContext, TarContext, TAR_PADDING},
+    interrogate::InterrogatedFile,
+    tarball::context::{OwnedTarContext, TarContext, TAR_PADDING},
 };
 use zstd::Encoder;
 
@@ -17,7 +23,10 @@ fn main() -> anyhow::Result<()> {
 
     let mut writer = Encoder::new(file, 0)?;
     // tar is usually bottlenecked on zstd, but let's be conservative to avoid burning CPU
-    let num_threads = std::cmp::min(MAX_COMPRESSION_THREADS, std::thread::available_parallelism()?.get());
+    let num_threads = std::cmp::min(
+        MAX_COMPRESSION_THREADS,
+        std::thread::available_parallelism()?.get(),
+    );
     writer.multithread(num_threads as u32)?;
 
     // add root dir

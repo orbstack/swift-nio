@@ -1,9 +1,9 @@
 use std::collections::btree_map::Entry;
 use std::ffi::OsStr;
+use std::os::fd::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::{collections::BTreeMap, io::Write, mem::MaybeUninit, os::fd::OwnedFd};
-use std::os::fd::AsRawFd;
 
 use bumpalo::Bump;
 use nix::errno::Errno;
@@ -16,8 +16,8 @@ use crate::{buffer_stack::BufferStack, interrogate::DevIno, path_stack::PathStac
 
 use super::headers::Headers;
 use super::inode_flags::InodeFlagsExt;
-use super::ustar::TypeFlag;
 use super::sparse::SparseFileMap;
+use super::ustar::TypeFlag;
 
 const READ_BUF_SIZE: usize = 65536;
 
@@ -144,7 +144,9 @@ impl<'a, W: Write> TarContext<'a, W> {
         headers.pax.add_field("GNU.sparse.major", b"1");
         headers.pax.add_field("GNU.sparse.minor", b"0");
         headers.pax.add_field("GNU.sparse.name", path);
-        headers.pax.add_integer_field("GNU.sparse.realsize", st.st_size);
+        headers
+            .pax
+            .add_integer_field("GNU.sparse.realsize", st.st_size);
 
         // path = $DIR/GNUSparseFile.0/$FILE
         let mut path = PathBuf::from(OsStr::from_bytes(path));
@@ -179,7 +181,13 @@ impl<'a, W: Write> TarContext<'a, W> {
         Ok(true)
     }
 
-    fn finish_regular_file(&mut self, fd: &OwnedFd, path: &[u8], st: &libc::stat, headers: &mut Headers) -> anyhow::Result<()> {
+    fn finish_regular_file(
+        &mut self,
+        fd: &OwnedFd,
+        path: &[u8],
+        st: &libc::stat,
+        headers: &mut Headers,
+    ) -> anyhow::Result<()> {
         // file that uses fewer blocks than it should is either sparse or compressed
         if st.st_blocks < st.st_size / 512 {
             // if not sparse (e.g. compressed), continue to normal path
@@ -256,9 +264,13 @@ impl<'a, W: Write> TarContext<'a, W> {
             match flag_names.len() {
                 0 => {}
                 // fastpath for common 1-flag case
-                1 => headers.pax.add_field("SCHILY.fflags", flag_names[0].as_bytes()),
+                1 => headers
+                    .pax
+                    .add_field("SCHILY.fflags", flag_names[0].as_bytes()),
                 // multiple flags are rare
-                _ => headers.pax.add_field("SCHILY.fflags", flag_names.join(",").as_bytes()),
+                _ => headers
+                    .pax
+                    .add_field("SCHILY.fflags", flag_names.join(",").as_bytes()),
             }
         }
 
@@ -310,11 +322,7 @@ impl<'a, W: Write> TarContext<'a, W> {
         Ok(())
     }
 
-    pub fn walk_dir(
-        &mut self,
-        dirfd: &OwnedFd,
-        nents_hint: Option<usize>,
-    ) -> anyhow::Result<()> {
+    pub fn walk_dir(&mut self, dirfd: &OwnedFd, nents_hint: Option<usize>) -> anyhow::Result<()> {
         for_each_getdents(dirfd, nents_hint, self.buffer_stack, |entry| {
             let path = self.path_stack.push(entry.name.to_bytes());
 
@@ -322,10 +330,7 @@ impl<'a, W: Write> TarContext<'a, W> {
             self.add_one_entry(&file, path.get().as_slice())?;
 
             if file.has_children() {
-                self.walk_dir(
-                    file.fd.as_ref().unwrap(),
-                    file.nents_hint(),
-                )?;
+                self.walk_dir(file.fd.as_ref().unwrap(), file.nents_hint())?;
             }
 
             Ok(())
