@@ -1,17 +1,16 @@
 use std::{
-    ffi::{CStr, CString},
-    os::{
+    collections::{btree_map::Entry, BTreeMap}, ffi::{CStr, CString}, os::{
         fd::{AsRawFd, FromRawFd, OwnedFd},
         unix::{fs::fchown, net::UnixListener},
-    },
-    path::Path,
+    }, path::Path
 };
 
 use anyhow::{anyhow, Context};
+use bumpalo::Bump;
 use libc::{getegid, geteuid};
 use nix::{
     errno::Errno,
-    fcntl::{openat, OFlag},
+    fcntl::{openat, AtFlags, OFlag},
     sys::{
         sendfile::sendfile,
         stat::{
@@ -20,31 +19,51 @@ use nix::{
         },
         time::TimeSpec,
     },
-    unistd::{mkfifoat, symlinkat},
+    unistd::{linkat, mkfifoat, symlinkat},
 };
 use starry::{
     buffer_stack::BufferStack,
-    interrogate::{with_fd_path, InterrogatedFile},
+    interrogate::{with_fd_path, DevIno, InterrogatedFile},
     sys::{
-        file::fchownat,
-        getdents::{for_each_getdents, DirEntry, FileType},
-        inode_flags::InodeFlags,
-        xattr::{fsetxattr, lsetxattr},
+        file::{fchownat, AT_FDCWD}, getdents::{for_each_getdents, DirEntry, FileType}, inode_flags::InodeFlags, link::with_readlinkat, xattr::{fsetxattr, lsetxattr}
     },
 };
 
-struct CopyContext {
-    euid: u32,
-    egid: u32,
+struct OwnedCopyContext {
+    bump: Bump,
     buffer_stack: BufferStack,
 }
 
-impl CopyContext {
+impl OwnedCopyContext {
     fn new() -> anyhow::Result<Self> {
+        Ok(Self {
+            bump: Bump::new(),
+            buffer_stack: BufferStack::new()?,
+        })
+    }
+}
+
+struct CopyContext<'a> {
+    euid: u32,
+    egid: u32,
+
+    // no self-referential lifetimes :(
+    hardlink_paths: BTreeMap<DevIno, &'a [u8]>,
+    bump: &'a Bump,
+
+    buffer_stack: &'a BufferStack,
+}
+
+impl<'a> CopyContext<'a> {
+    fn new(owned: &'a OwnedCopyContext) -> anyhow::Result<Self> {
         Ok(Self {
             euid: unsafe { geteuid() },
             egid: unsafe { getegid() },
-            buffer_stack: BufferStack::new()?,
+
+            hardlink_paths: BTreeMap::new(),
+            bump: &owned.bump,
+
+            buffer_stack: &owned.buffer_stack,
         })
     }
 
@@ -120,7 +139,7 @@ impl CopyContext {
 
         src.for_each_xattr(|key, value| {
             // slowpath: most files only have 0 or 1 xattrs, so need to dedupe fd path creation
-            with_fd_path(dest_dirfd, dest_name, |path_cstr| {
+            with_fd_path(dest_dirfd, Some(dest_name), |path_cstr| {
                 lsetxattr(path_cstr, key, value, 0)
             })
         })
@@ -139,12 +158,51 @@ impl CopyContext {
     }
 
     fn do_one_entry(
-        &self,
+        &mut self,
         src_dirfd: &OwnedFd,
         dest_dirfd: &OwnedFd,
         entry: &DirEntry,
     ) -> anyhow::Result<()> {
         let src = InterrogatedFile::from_entry(src_dirfd, entry)?;
+
+        // handle hard links
+        if src.is_hardlink() {
+            match self.hardlink_paths.entry(src.dev_ino()) {
+                Entry::Vacant(v) => {
+                    // this is the first time we've seen this dev/ino
+                    // add current path to hardlink map and continue adding file contents to the archive
+                    // this (sadly) allocates and uses a syscall to stat /proc/self/fd, but it's a slowpath for st_nlink>1: hardlinks are rare, and we optimize it with bump allocation when we do need it
+                    // keeping track of paths in a PathStack slows down the common case
+
+                    with_fd_path(dest_dirfd, None, |fd_path| {
+                        with_readlinkat(AT_FDCWD, fd_path, |parent_path| {
+                            // concat: parent_path + '/' + entry.name
+                            let file_path = self.bump.alloc_slice_fill_default(parent_path.len() + entry.name.count_bytes() + 1);
+                            file_path[..parent_path.len()].copy_from_slice(parent_path);
+                            file_path[parent_path.len()] = b'/';
+                            file_path[parent_path.len() + 1..].copy_from_slice(entry.name.to_bytes());
+
+                            v.insert(file_path);
+                        })
+                    })?;
+                }
+                Entry::Occupied(o) => {
+                    // not the first time! hard link it and move on
+                    let old_path = o.get();
+
+                    linkat(
+                        None,
+                        *old_path,
+                        Some(dest_dirfd.as_raw_fd()),
+                        entry.name.to_bytes(),
+                        AtFlags::empty(),
+                    )
+                    .context("linkat")?;
+
+                    return Ok(());
+                }
+            }
+        }
 
         // create dest
         let src_perm = src.permissions();
@@ -273,12 +331,12 @@ impl CopyContext {
     }
 
     fn walk_dir(
-        &self,
+        &mut self,
         src_dirfd: &OwnedFd,
         src_nents_hint: Option<usize>,
         dest_dirfd: &OwnedFd,
     ) -> anyhow::Result<()> {
-        for_each_getdents(src_dirfd, src_nents_hint, &self.buffer_stack, |entry| {
+        for_each_getdents(src_dirfd, src_nents_hint, self.buffer_stack, |entry| {
             self.do_one_entry(src_dirfd, dest_dirfd, &entry)
                 .map_err(|e| {
                     if e.is::<nix::Error>() {
@@ -380,7 +438,8 @@ fn main() -> anyhow::Result<()> {
     };
 
     // walk dirs
-    let ctx = CopyContext::new()?;
+    let owned_ctx = OwnedCopyContext::new()?;
+    let mut ctx = CopyContext::new(&owned_ctx)?;
     ctx.walk_dir(&src_dirfd, None, &dest_dirfd)
         .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 

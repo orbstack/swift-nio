@@ -8,7 +8,8 @@ use nix::errno::Errno;
 
 pub struct AtFdcwd {}
 
-pub const AT_FDCWD: AtFdcwd = AtFdcwd {};
+const AT_FDCWD_INSTANCE: AtFdcwd = AtFdcwd {};
+pub static AT_FDCWD: &AtFdcwd = &AT_FDCWD_INSTANCE;
 
 impl AsRawFd for AtFdcwd {
     fn as_raw_fd(&self) -> RawFd {

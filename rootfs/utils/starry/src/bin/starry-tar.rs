@@ -315,13 +315,13 @@ struct TarContext<'a, W: Write> {
 }
 
 impl<'a, W: Write> TarContext<'a, W> {
-    fn new(writer: W, buffer_stack: &'a BufferStack, path_stack: &'a PathStack, bump: &'a Bump) -> Self {
+    fn new(writer: W, owned: &'a OwnedTarContext) -> Self {
         Self {
             writer,
             hardlink_paths: BTreeMap::new(),
-            bump,
-            buffer_stack,
-            path_stack,
+            bump: &owned.bump,
+            buffer_stack: &owned.buffer_stack,
+            path_stack: &owned.path_stack,
         }
     }
 
@@ -628,7 +628,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let owned_ctx = OwnedTarContext::new()?;
-    let mut ctx = TarContext::new(&mut writer, &owned_ctx.buffer_stack, &owned_ctx.path_stack, &owned_ctx.bump);
+    let mut ctx = TarContext::new(&mut writer, &owned_ctx);
 
     // add entry for root dir
     let root_dir_file = InterrogatedFile::from_directory_fd(&root_dir)?;

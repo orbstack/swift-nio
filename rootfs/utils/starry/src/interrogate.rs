@@ -174,7 +174,7 @@ impl<'a> InterrogatedFile<'a> {
             // otherwise, we have to use /proc/self/fd/<dirfd>/<name>
             // flistxattr/fgetxattr doesn't work on O_PATH fds, so the only alternative would be to use a full absolute path, which is slow and requires keeping track of absolute paths when recursing
 
-            with_fd_path(self.dirfd, self.name, |path_cstr| {
+            with_fd_path(self.dirfd, Some(self.name), |path_cstr| {
                 for_each_llistxattr(path_cstr, |key| {
                     with_lgetxattr(path_cstr, key, |value| f(key, value))
                 })
@@ -185,7 +185,7 @@ impl<'a> InterrogatedFile<'a> {
     }
 }
 
-pub fn with_fd_path<T, F: AsRawFd>(dirfd: &F, name: &CStr, f: impl FnOnce(&CStr) -> T) -> T {
+pub fn with_fd_path<T, F: AsRawFd>(dirfd: &F, name: Option<&CStr>, f: impl FnOnce(&CStr) -> T) -> T {
     // all of this is a fancy zero-allocation way to do format!("/proc/self/fd/{}/{}\0", dirfd, name)
     let mut num_buf = itoa::Buffer::new();
     let formatted_fd = num_buf.format(dirfd.as_raw_fd());
@@ -193,8 +193,12 @@ pub fn with_fd_path<T, F: AsRawFd>(dirfd: &F, name: &CStr, f: impl FnOnce(&CStr)
     // string formating go brrr
     let mut path_buf: SmallVec<[u8; 1024]> = b"/proc/self/fd/".to_smallvec();
     path_buf.extend_from_slice(formatted_fd.as_bytes());
-    path_buf.push(b'/');
-    path_buf.extend_from_slice(name.to_bytes_with_nul());
+    if let Some(name) = name {
+        path_buf.push(b'/');
+        path_buf.extend_from_slice(name.to_bytes_with_nul());
+    } else {
+        path_buf.push(b'\0');
+    }
 
     // with &[u8] instead of &CStr, with_nix_path attempts to add a null terminator
     let path_cstr = unsafe { CStr::from_bytes_with_nul_unchecked(&path_buf) };
