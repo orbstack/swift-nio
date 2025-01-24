@@ -10,7 +10,7 @@ use nix::{
 use smallvec::{SmallVec, ToSmallVec};
 
 use crate::sys::{
-    file::{fstat, fstatat},
+    file::statx,
     getdents::{DirEntry, FileType},
     inode_flags::InodeFlags,
     link::with_readlinkat,
@@ -35,7 +35,7 @@ pub struct InterrogatedFile<'a> {
     pub file_type: FileType,
     name: &'a CStr,
 
-    pub st: libc::stat,
+    stx: libc::statx,
     pub fd: Option<OwnedFd>,
 }
 
@@ -57,11 +57,16 @@ impl<'a> InterrogatedFile<'a> {
         // 1. determine file type:
         // do we know the file type for sure? some filesystems populate d_type; many don't
         // if not, we must always start with fstatat, as it's unsafe to try opening char/block/fifo
-        let mut st: Option<libc::stat> = None;
+        let mut stx: Option<libc::statx> = None;
         let file_type = match file_type {
             FileType::Unknown => {
-                st = Some(fstatat(dirfd, name, libc::AT_SYMLINK_NOFOLLOW)?);
-                FileType::from_stat_fmt(st.as_ref().unwrap().st_mode & libc::S_IFMT)
+                stx = Some(statx(
+                    dirfd,
+                    name,
+                    libc::AT_NO_AUTOMOUNT | libc::AT_SYMLINK_NOFOLLOW,
+                    libc::STATX_BASIC_STATS,
+                )?);
+                FileType::from_stat_fmt(stx.as_ref().unwrap().stx_mode as u32 & libc::S_IFMT)
             }
             _ => file_type,
         };
@@ -87,8 +92,13 @@ impl<'a> InterrogatedFile<'a> {
             let fd = unsafe { OwnedFd::from_raw_fd(fd) };
 
             // fstat if not done earlier
-            if st.is_none() {
-                st = Some(fstat(&fd)?);
+            if stx.is_none() {
+                stx = Some(statx(
+                    &fd,
+                    c"",
+                    libc::AT_EMPTY_PATH | libc::AT_NO_AUTOMOUNT | libc::AT_SYMLINK_NOFOLLOW,
+                    libc::STATX_BASIC_STATS,
+                )?);
             }
 
             opened_fd = Some(fd);
@@ -96,8 +106,13 @@ impl<'a> InterrogatedFile<'a> {
             // special: fstatat
 
             // fstatat if not done earlier
-            if st.is_none() {
-                st = Some(fstatat(dirfd, name, libc::AT_SYMLINK_NOFOLLOW)?);
+            if stx.is_none() {
+                stx = Some(statx(
+                    dirfd,
+                    name,
+                    libc::AT_NO_AUTOMOUNT | libc::AT_SYMLINK_NOFOLLOW,
+                    libc::STATX_BASIC_STATS,
+                )?);
             }
         }
 
@@ -105,45 +120,44 @@ impl<'a> InterrogatedFile<'a> {
             dirfd,
             file_type,
             name,
-            st: st.unwrap(),
+            stx: stx.unwrap(),
             fd: opened_fd,
         })
     }
 
     // all file types
     pub fn permissions(&self) -> Mode {
-        Mode::from_bits_retain(self.st.st_mode & !libc::S_IFMT)
+        Mode::from_bits_retain(self.stx.stx_mode as u32 & !libc::S_IFMT)
     }
     pub fn uid(&self) -> u32 {
-        self.st.st_uid
+        self.stx.stx_uid
     }
     pub fn gid(&self) -> u32 {
-        self.st.st_gid
+        self.stx.stx_gid
     }
     pub fn atime(&self) -> (i64, u32) {
-        (self.st.st_atime, self.st.st_atime_nsec as u32)
+        (self.stx.stx_atime.tv_sec, self.stx.stx_atime.tv_nsec)
     }
     pub fn mtime(&self) -> (i64, u32) {
-        (self.st.st_mtime, self.st.st_mtime_nsec as u32)
+        (self.stx.stx_mtime.tv_sec, self.stx.stx_mtime.tv_nsec)
     }
     pub fn apparent_size(&self) -> u64 {
-        self.st.st_size as u64
+        self.stx.stx_size
     }
     pub fn is_maybe_sparse(&self) -> bool {
-        self.st.st_blocks < self.st.st_size / 512
+        self.stx.stx_blocks < self.stx.stx_size / 512
     }
     fn nlink(&self) -> u32 {
-        self.st.st_nlink
+        self.stx.stx_nlink
     }
 
     // char/block
     pub fn device_major_minor(&self) -> (u32, u32) {
-        let major = unsafe { libc::major(self.st.st_rdev) };
-        let minor = unsafe { libc::minor(self.st.st_rdev) };
-        (major, minor)
+        (self.stx.stx_dev_major, self.stx.stx_dev_minor)
     }
     pub fn device_rdev(&self) -> u64 {
-        self.st.st_rdev
+        let (major, minor) = self.device_major_minor();
+        libc::makedev(major, minor)
     }
 
     // can be called on any file type; returns None for regular files and directories
@@ -172,7 +186,8 @@ impl<'a> InterrogatedFile<'a> {
 
     // valid for any file type
     pub fn dev_ino(&self) -> DevIno {
-        DevIno(self.st.st_dev, self.st.st_ino)
+        let dev = libc::makedev(self.stx.stx_dev_major, self.stx.stx_dev_minor);
+        DevIno(dev, self.stx.stx_ino)
     }
 
     // only for directories
