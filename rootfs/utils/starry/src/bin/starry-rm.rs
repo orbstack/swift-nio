@@ -43,7 +43,7 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
             // if it's a char/block device: this could hang
             // this is a slowpath, so it's fine to stat
             let st = fstatat(dirfd, path, libc::AT_SYMLINK_NOFOLLOW)?;
-            if st.st_mode & libc::S_IFMT == libc::S_IFREG {
+            if st.st_mode & libc::S_IFMT == libc::S_IFREG || st.st_mode & libc::S_IFMT == libc::S_IFDIR {
                 let fd = unsafe {
                     OwnedFd::from_raw_fd(openat(
                         Some(dirfd.as_raw_fd()),
