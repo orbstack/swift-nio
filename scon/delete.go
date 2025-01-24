@@ -61,28 +61,16 @@ func (m *ConManager) deleteRootfs(rootfs string) error {
 		return fmt.Errorf("delete subvolumes: %w", err)
 	}
 
-	// delete the entire directory, if it still exists
-	err = os.RemoveAll(rootfs)
-	if err != nil {
-		if errors.Is(err, unix.EPERM) {
-			// remove immutable and append-only flags
-			err = util.WithDefaultOom1(func() error {
-				return util.Run("chattr", "-R", "-ai", rootfs)
-			})
-			if err != nil {
-				return err
-			}
+	// was the entire rootfs a subvolume? if so, it might've been deleted
+	if err := unix.Access(rootfs, unix.F_OK); err == unix.ENOENT {
+		return nil
+	}
 
-			// try again
-			err = os.RemoveAll(rootfs)
-			if err != nil {
-				return fmt.Errorf("remove all x2: %w", err)
-			}
-		} else if errors.Is(err, unix.ENOENT) {
-			// it was a subvolume, and DeleteSubvolumesRecursive deleted the whole thing
-		} else {
-			return fmt.Errorf("remove all: %w", err)
-		}
+	// delete the entire directory
+	// this takes care of immutable and append-only flags
+	err = util.Run("/opt/orb/starry-rm", rootfs)
+	if err != nil {
+		return fmt.Errorf("delete directory: %w", err)
 	}
 
 	return nil
