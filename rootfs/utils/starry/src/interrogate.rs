@@ -114,6 +114,37 @@ impl<'a> InterrogatedFile<'a> {
     pub fn permissions(&self) -> Mode {
         Mode::from_bits_retain(self.st.st_mode & !libc::S_IFMT)
     }
+    pub fn uid(&self) -> u32 {
+        self.st.st_uid
+    }
+    pub fn gid(&self) -> u32 {
+        self.st.st_gid
+    }
+    pub fn atime(&self) -> (i64, u32) {
+        (self.st.st_atime, self.st.st_atime_nsec as u32)
+    }
+    pub fn mtime(&self) -> (i64, u32) {
+        (self.st.st_mtime, self.st.st_mtime_nsec as u32)
+    }
+    pub fn apparent_size(&self) -> u64 {
+        self.st.st_size as u64
+    }
+    pub fn is_maybe_sparse(&self) -> bool {
+        self.st.st_blocks < self.st.st_size / 512
+    }
+    fn nlink(&self) -> u32 {
+        self.st.st_nlink
+    }
+
+    // char/block
+    pub fn device_major_minor(&self) -> (u32, u32) {
+        let major = unsafe { libc::major(self.st.st_rdev) };
+        let minor = unsafe { libc::minor(self.st.st_rdev) };
+        (major, minor)
+    }
+    pub fn device_rdev(&self) -> u64 {
+        self.st.st_rdev
+    }
 
     // can be called on any file type; returns None for regular files and directories
     pub fn inode_flags(&self) -> anyhow::Result<Option<InodeFlags>> {
@@ -130,13 +161,13 @@ impl<'a> InterrogatedFile<'a> {
     // valid for any file type
     pub fn has_children(&self) -> bool {
         // on ext4, st_nlink=1 means >65000, so check for != 2
-        self.file_type == FileType::Directory && self.st.st_nlink != 2
+        self.file_type == FileType::Directory && self.nlink() != 2
     }
 
     // valid for non-directories only
     // (yes, you can hard link a symlink!)
     pub fn is_hardlink(&self) -> bool {
-        self.file_type != FileType::Directory && self.st.st_nlink > 1
+        self.file_type != FileType::Directory && self.nlink() > 1
     }
 
     // valid for any file type
@@ -148,11 +179,11 @@ impl<'a> InterrogatedFile<'a> {
     pub fn nents_hint(&self) -> Option<usize> {
         // on ext4, st_nlink is supposed to overflow at 65000 and reset to 1
         // to be safe, also consider it invalid as a hint if it's > 64998
-        match self.st.st_nlink {
+        match self.nlink() {
             0..=1 => None,
             // # children = minus "." and ".."
             // however, getdents also returns "." and "..", so we don't subtract 2
-            2..=64998 => Some(self.st.st_nlink as usize),
+            2..=64998 => Some(self.nlink() as usize),
             _ => None,
         }
     }

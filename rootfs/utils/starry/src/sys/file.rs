@@ -31,6 +31,18 @@ pub fn fstatat<F: AsRawFd>(dirfd: &F, path: &CStr, flags: i32) -> nix::Result<li
     Errno::result(ret).map(|_| unsafe { st.assume_init() })
 }
 
+pub fn statx<F: AsRawFd>(
+    dirfd: &F,
+    path: &CStr,
+    flags: i32,
+    mask: u32,
+) -> nix::Result<libc::statx> {
+    let dirfd = dirfd.as_raw_fd();
+    let mut st = MaybeUninit::uninit();
+    let ret = unsafe { libc::statx(dirfd, path.as_ptr(), flags, mask, st.as_mut_ptr()) };
+    Errno::result(ret).map(|_| unsafe { st.assume_init() })
+}
+
 pub fn unlinkat<F: AsRawFd>(dirfd: &F, path: &CStr, flags: i32) -> nix::Result<()> {
     let dirfd = dirfd.as_raw_fd();
     let ret = unsafe { libc::unlinkat(dirfd, path.as_ptr(), flags) };

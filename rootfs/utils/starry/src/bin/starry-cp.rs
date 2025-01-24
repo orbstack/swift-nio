@@ -79,8 +79,8 @@ impl<'a> CopyContext<'a> {
 
         // only call fchown if different from current fsuid/fsgid
         // TODO: is changing fsuid/fsgid before creation faster?
-        if src.st.st_uid != self.euid || src.st.st_gid != self.egid {
-            fchown(fd, Some(src.st.st_uid), Some(src.st.st_gid)).context("fchown")?;
+        if src.uid() != self.euid || src.gid() != self.egid {
+            fchown(fd, Some(src.uid()), Some(src.gid())).context("fchown")?;
         }
 
         // suid/sgid gets cleared after chown
@@ -94,10 +94,12 @@ impl<'a> CopyContext<'a> {
 
         // do this last, in case other operations would change mtime
         // no point in doing this lazily: with nsec, it'll never match src
+        let (atime, atime_nsec) = src.atime();
+        let (mtime, mtime_nsec) = src.mtime();
         futimens(
             fd.as_raw_fd(),
-            &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
-            &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
+            &TimeSpec::new(atime, atime_nsec as i64),
+            &TimeSpec::new(mtime, mtime_nsec as i64),
         )
         .context("futimens")?;
 
@@ -122,12 +124,12 @@ impl<'a> CopyContext<'a> {
         dest_dirfd: &OwnedFd,
         dest_name: &CStr,
     ) -> anyhow::Result<()> {
-        if src.st.st_uid != self.euid || src.st.st_gid != self.egid {
+        if src.uid() != self.euid || src.gid() != self.egid {
             fchownat(
                 dest_dirfd,
                 dest_name,
-                src.st.st_uid,
-                src.st.st_gid,
+                src.uid(),
+                src.gid(),
                 libc::AT_SYMLINK_NOFOLLOW,
             )
             .context("fchownat")?;
@@ -152,11 +154,13 @@ impl<'a> CopyContext<'a> {
         })
         .context("listxattr/setxattr")?;
 
+        let (atime, atime_nsec) = src.atime();
+        let (mtime, mtime_nsec) = src.mtime();
         utimensat(
             Some(dest_dirfd.as_raw_fd()),
             dest_name,
-            &TimeSpec::new(src.st.st_atime, src.st.st_atime_nsec),
-            &TimeSpec::new(src.st.st_mtime, src.st.st_mtime_nsec),
+            &TimeSpec::new(atime, atime_nsec as i64),
+            &TimeSpec::new(mtime, mtime_nsec as i64),
             UtimensatFlags::NoFollowSymlink,
         )
         .context("utimensat")?;
@@ -228,7 +232,7 @@ impl<'a> CopyContext<'a> {
                     entry.name,
                     SFlag::S_IFBLK,
                     src_perm,
-                    src.st.st_rdev,
+                    src.device_rdev(),
                 )
                 .context("mknodat")?;
                 None
@@ -239,7 +243,7 @@ impl<'a> CopyContext<'a> {
                     entry.name,
                     SFlag::S_IFCHR,
                     src_perm,
-                    src.st.st_rdev,
+                    src.device_rdev(),
                 )
                 .context("mknodat")?;
                 None
@@ -309,11 +313,7 @@ impl<'a> CopyContext<'a> {
         // must do this before immutable/append-only flags are set
         // also, must do this before metadata is copied, otherwise we'll break the mtime
         if src.file_type == FileType::Regular {
-            copy_regular_file_contents(
-                &src.st,
-                src.fd.as_ref().unwrap(),
-                dest_fd.as_ref().unwrap(),
-            )?;
+            copy_regular_file_contents(&src, src.fd.as_ref().unwrap(), dest_fd.as_ref().unwrap())?;
         }
 
         // recurse into non-empty directories
@@ -396,7 +396,7 @@ fn copy_file_region(
     src_fd: &OwnedFd,
     dest_fd: &OwnedFd,
     off: i64,
-    mut rem: i64,
+    mut rem: u64,
 ) -> nix::Result<()> {
     let mut off_in = off;
     let mut off_out = off;
@@ -414,7 +414,7 @@ fn copy_file_region(
             break;
         }
 
-        rem -= ret as i64;
+        rem -= ret as u64;
     }
 
     Ok(())
@@ -424,7 +424,7 @@ fn copy_file_region_sendfile(
     src_fd: &OwnedFd,
     dest_fd: &OwnedFd,
     mut off: i64,
-    mut rem: i64,
+    mut rem: u64,
 ) -> nix::Result<()> {
     while rem > 0 {
         // syscall increments off for us
@@ -436,14 +436,14 @@ fn copy_file_region_sendfile(
             break;
         }
 
-        rem -= ret as i64;
+        rem -= ret as u64;
     }
 
     Ok(())
 }
 
 fn copy_regular_file_contents(
-    src_st: &libc::stat,
+    src_file: &InterrogatedFile,
     src_fd: &OwnedFd,
     dest_fd: &OwnedFd,
 ) -> anyhow::Result<()> {
@@ -467,24 +467,24 @@ fn copy_regular_file_contents(
 
     // 2. fall back to copy_file_range/sendfile
     // if we know that the file isn't sparse, skip lseek
-    if src_st.st_blocks * 512 >= src_st.st_size {
-        match copy_file_region(src_fd, dest_fd, 0, src_st.st_size) {
+    if !src_file.is_maybe_sparse() {
+        match copy_file_region(src_fd, dest_fd, 0, src_file.apparent_size()) {
             Ok(_) => return Ok(()),
             // not supported
             Err(Errno::EOPNOTSUPP | Errno::ETXTBSY | Errno::EXDEV) => {}
             Err(e) => return Err(e.into()),
         };
 
-        copy_file_region_sendfile(src_fd, dest_fd, 0, src_st.st_size)?;
+        copy_file_region_sendfile(src_fd, dest_fd, 0, src_file.apparent_size())?;
         return Ok(());
     }
 
     // sparse case:
     // - lseek(SEEK_DATA) to find the next data start (file may start with a hole)
     // - lseek(SEEK_HOLE) to find the next hole
-    let mut off = 0;
+    let mut off: i64 = 0;
     let mut use_sendfile = false;
-    while off < src_st.st_size {
+    while off < src_file.apparent_size() as i64 {
         let data_start = match lseek(src_fd.as_raw_fd(), off, Whence::SeekData) {
             Ok(data_start) => data_start,
             // file has no (more) data
@@ -501,13 +501,13 @@ fn copy_regular_file_contents(
 
         // stop attempting copy_file_region if we know it's not supported
         if use_sendfile {
-            copy_file_region_sendfile(src_fd, dest_fd, data_start, data_len)?;
+            copy_file_region_sendfile(src_fd, dest_fd, data_start, data_len as u64)?;
         } else {
-            match copy_file_region(src_fd, dest_fd, data_start, data_len) {
+            match copy_file_region(src_fd, dest_fd, data_start, data_len as u64) {
                 Ok(_) => {}
                 Err(Errno::EOPNOTSUPP | Errno::ETXTBSY | Errno::EXDEV) => {
                     use_sendfile = true;
-                    copy_file_region_sendfile(src_fd, dest_fd, data_start, data_len)?;
+                    copy_file_region_sendfile(src_fd, dest_fd, data_start, data_len as u64)?;
                 }
                 Err(e) => return Err(e.into()),
             }
@@ -517,8 +517,8 @@ fn copy_regular_file_contents(
     }
 
     // set size in case file ends with a big hole
-    if off < src_st.st_size {
-        ftruncate(dest_fd, src_st.st_size)?;
+    if off < src_file.apparent_size() as i64 {
+        ftruncate(dest_fd, src_file.apparent_size() as i64)?;
     }
 
     Ok(())

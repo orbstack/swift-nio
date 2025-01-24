@@ -61,7 +61,7 @@ impl PaxHeader {
         self.add_field(key, buf.format(val).as_bytes());
     }
 
-    pub fn add_time_field(&mut self, key: &str, seconds: i64, nanos: i64) {
+    pub fn add_time_field(&mut self, key: &str, seconds: i64, nanos: u32) {
         // "18446744073709551616.000000000" (u64::MAX + 9 digits for nanoseconds)
         let mut time_buf = SmallVec::<[u8; 30]>::new();
         let mut dec_buf = itoa::Buffer::new();

@@ -48,7 +48,7 @@ impl Headers {
         }
     }
 
-    pub fn set_mtime(&mut self, mtime: i64, mtime_nsec: i64) {
+    pub fn set_mtime(&mut self, mtime: i64, mtime_nsec: u32) {
         // if positive and no nsecs, then try tar header first
         // (skip invalid nsecs to avoid breaking number formatting code)
         if mtime >= 0 && (mtime_nsec == 0 || mtime_nsec >= 1_000_000_000) {

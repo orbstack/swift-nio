@@ -103,7 +103,7 @@ impl<'a, W: Write> TarContext<'a, W> {
         &mut self,
         fd: &OwnedFd,
         path: &[u8],
-        st: &libc::stat,
+        apparent_size: u64,
         headers: &mut Headers,
     ) -> anyhow::Result<bool> {
         // make a sparse map before altering any headers
@@ -111,8 +111,8 @@ impl<'a, W: Write> TarContext<'a, W> {
 
         // construct map by seeking
         // sadly, we have to do two passes: (1) map and (2) copy payload chunks
-        let mut off = 0;
-        while off < st.st_size {
+        let mut off: i64 = 0;
+        while off < apparent_size as i64 {
             off = match lseek(fd.as_raw_fd(), off, Whence::SeekData) {
                 Ok(off) => off,
                 // EOF (raced and st_size has changed?)
@@ -132,13 +132,13 @@ impl<'a, W: Write> TarContext<'a, W> {
         }
 
         // bail if the file actually ended up being contiguous
-        if map.is_contiguous(st.st_size as u64) {
+        if map.is_contiguous(apparent_size) {
             return Ok(false);
         }
 
         // with SEEK_HOLE, there's an empty hole at the end of the file. GNU tar doesn't extract properly without this
-        if off < st.st_size {
-            map.add(st.st_size as u64, 0);
+        if off < apparent_size as i64 {
+            map.add(apparent_size, 0);
         }
 
         // set GNU PAX fields
@@ -147,7 +147,7 @@ impl<'a, W: Write> TarContext<'a, W> {
         headers.pax.add_field("GNU.sparse.name", path);
         headers
             .pax
-            .add_integer_field("GNU.sparse.realsize", st.st_size);
+            .add_integer_field("GNU.sparse.realsize", apparent_size);
 
         // path = $DIR/GNUSparseFile.0/$FILE
         let mut path = PathBuf::from(OsStr::from_bytes(path));
@@ -185,13 +185,13 @@ impl<'a, W: Write> TarContext<'a, W> {
         &mut self,
         fd: &OwnedFd,
         path: &[u8],
-        st: &libc::stat,
+        file: &InterrogatedFile,
         headers: &mut Headers,
     ) -> anyhow::Result<()> {
         // file that uses fewer blocks than it should is either sparse or compressed
-        if st.st_blocks < st.st_size / 512 {
+        if file.is_maybe_sparse() {
             // if not sparse (e.g. compressed), continue to normal path
-            let is_sparse = self.finish_sparse_file(fd, path, st, headers)?;
+            let is_sparse = self.finish_sparse_file(fd, path, file.apparent_size(), headers)?;
             if is_sparse {
                 return Ok(());
             }
@@ -199,14 +199,14 @@ impl<'a, W: Write> TarContext<'a, W> {
 
         // commit headers
         headers.set_path(path);
-        headers.set_size(st.st_size as u64);
+        headers.set_size(file.apparent_size());
         headers.write_to(&mut self.writer)?;
 
         // we must never write more than the expected size in the header
-        self.write_from_fd(fd, 0, st.st_size as usize)?;
+        self.write_from_fd(fd, 0, file.apparent_size() as usize)?;
 
         // pad tar to 512 byte block
-        let pad = 512 - (st.st_size % 512);
+        let pad = 512 - (file.apparent_size() % 512);
         if pad != 512 {
             self.writer.write_all(&TAR_PADDING[..pad as usize])?;
         }
@@ -246,8 +246,7 @@ impl<'a, W: Write> TarContext<'a, W> {
 
         // block/char devices: add major/minor
         if file.file_type == FileType::Block || file.file_type == FileType::Char {
-            let major = unsafe { libc::major(file.st.st_rdev) };
-            let minor = unsafe { libc::minor(file.st.st_rdev) };
+            let (major, minor) = file.device_major_minor();
             headers.set_device_major(major);
             headers.set_device_minor(minor);
         }
@@ -293,8 +292,8 @@ impl<'a, W: Write> TarContext<'a, W> {
         // PAX base is ustar format
         let mut headers = Headers::default();
         headers.set_mode(file.permissions().bits()).unwrap();
-        headers.set_uid(file.st.st_uid);
-        headers.set_gid(file.st.st_gid);
+        headers.set_uid(file.uid());
+        headers.set_gid(file.gid());
         headers.set_entry_type(match file.file_type {
             FileType::Directory => TypeFlag::Directory,
             FileType::Regular => TypeFlag::Regular,
@@ -307,13 +306,14 @@ impl<'a, W: Write> TarContext<'a, W> {
             FileType::Socket => return Ok(()),
             FileType::Unknown => unreachable!(),
         });
-        headers.set_mtime(file.st.st_mtime, file.st.st_mtime_nsec);
+        let (sec, nsec) = file.mtime();
+        headers.set_mtime(sec, nsec);
 
         // everything else only needs to be set on actual inodes, so hardlinks don't need them
         self.populate_inode_entry(file, path, &mut headers)?;
 
         if file.file_type == FileType::Regular {
-            self.finish_regular_file(file.fd.as_ref().unwrap(), path, &file.st, &mut headers)?;
+            self.finish_regular_file(file.fd.as_ref().unwrap(), path, file, &mut headers)?;
         } else {
             headers.set_path(path);
             headers.write_to(&mut self.writer)?;
