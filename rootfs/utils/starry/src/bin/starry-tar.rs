@@ -1,10 +1,5 @@
 use std::{
-    cmp::min,
-    fs::File,
-    io::Write,
-    mem::MaybeUninit,
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
-    path::Path,
+    cmp::min, collections::{btree_map::Entry, BTreeMap}, fs::File, io::Write, mem::MaybeUninit, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path
 };
 
 use anyhow::anyhow;
@@ -18,7 +13,7 @@ use numtoa::NumToA;
 use smallvec::{SmallVec, ToSmallVec};
 use starry::{
     buffer_stack::BufferStack,
-    interrogate::InterrogatedFile,
+    interrogate::{DevIno, InterrogatedFile},
     path_stack::PathStack,
     sys::{
         getdents::{for_each_getdents, FileType},
@@ -304,6 +299,10 @@ impl OwnedTarContext {
 
 struct TarContext<'a, W: Write> {
     writer: W,
+
+    // we use [u8] for all paths instead of String because Linux paths technically don't have to be UTF-8. (it also means we can avoid UTF-8 validation overhead)
+    hardlink_paths: BTreeMap<DevIno, Vec<u8>>,
+
     // this owned/ref split allows &mut self (for Write) without preventing these from being borrowed
     buffer_stack: &'a BufferStack,
     path_stack: &'a PathStack,
@@ -313,6 +312,7 @@ impl<'a, W: Write> TarContext<'a, W> {
     fn new(writer: W, buffer_stack: &'a BufferStack, path_stack: &'a PathStack) -> Self {
         Self {
             writer,
+            hardlink_paths: BTreeMap::new(),
             buffer_stack,
             path_stack,
         }
@@ -364,15 +364,56 @@ impl<'a, W: Write> TarContext<'a, W> {
         Ok(())
     }
 
-    fn add_one_entry(&mut self, file: &InterrogatedFile, path: &[u8]) -> anyhow::Result<()> {
-        // skip archiving sockets; tar can't extract it
-        // TODO: non-standard extension for this?
-        if file.file_type == FileType::Socket {
-            return Ok(());
+    fn populate_inode_entry(
+        &mut self,
+        file: &InterrogatedFile,
+        path: &[u8],
+        header: &mut UstarHeader,
+        pax_header: &mut PaxHeader,
+    ) -> anyhow::Result<()> {
+        // record hard link?
+        // preserving hardlinks to char/block/fifo/symlink files seems useless (doesn't really save space in the tar since it still occupies a full header), but it is actually required for correctness: despite the major/minor/linkpath being immutable, the st_nlink/ctime/mtime/atime/xattrs/mode/uid/gid should still be synced
+        if file.is_hardlink() {
+            match self.hardlink_paths.entry(file.dev_ino()) {
+                Entry::Vacant(v) => {
+                    // this is the first time we've seen this dev/ino
+                    // add current path to hardlink map and continue adding file contents to the archive
+                    v.insert(path.to_vec());
+                }
+                Entry::Occupied(o) => {
+                    // not the first time! record this as a link
+                    header.set_entry_type(TypeFlag::HardLink);
+
+                    // set linkpath
+                    let old_path = o.get();
+                    if header.set_link_path(old_path).is_err() {
+                        pax_header.add_field("linkpath", old_path);
+                        header.set_link_path("././@LongHardLink".as_bytes()).unwrap();
+                    }
+
+                    // skip adding rest of inode data
+                    return Ok(());
+                }
+            }
         }
 
-        // PAX and normal header
-        let (mut header, mut pax_header) = header_from_stat(&file.st);
+        // block/char devices: add major/minor
+        if file.file_type == FileType::Block || file.file_type == FileType::Char {
+            let major = unsafe { libc::major(file.st.st_rdev) };
+            let minor = unsafe { libc::minor(file.st.st_rdev) };
+            if header.set_device_major(major).is_err() {
+                // POSIX doesn't define a field for this, so follow bsdtar
+                pax_header.add_integer_field("SCHILY.devmajor", major);
+            }
+            if header.set_device_minor(minor).is_err() {
+                pax_header.add_integer_field("SCHILY.devminor", minor);
+            }
+        }
+
+        // only regular files have a size
+        if file.file_type == FileType::Regular && header.set_size(file.st.st_size as u64).is_err() {
+            pax_header.add_integer_field("size", file.st.st_size as u64);
+        }
 
         // nsecs mtime (skip invalid nsecs)
         if file.st.st_mtime_nsec != 0 && file.st.st_mtime_nsec < 1_000_000_000 {
@@ -395,11 +436,6 @@ impl<'a, W: Write> TarContext<'a, W> {
             .unwrap();
 
             pax_header.add_field("mtime", &time_buf);
-        }
-
-        if header.set_path(path).is_err() {
-            // PAX long name extension
-            pax_header.add_field("path", path);
         }
 
         if file.file_type == FileType::Symlink {
@@ -436,6 +472,45 @@ impl<'a, W: Write> TarContext<'a, W> {
             Ok(())
         })?;
 
+        Ok(())
+    }
+
+    fn add_one_entry(&mut self, file: &InterrogatedFile, path: &[u8]) -> anyhow::Result<()> {
+        // make PAX and normal header with basic stat info
+        // PAX base is ustar format
+        let mut header = UstarHeader::default();
+        let mut pax_header = PaxHeader::new();
+        header.set_mode(file.permissions().bits()).unwrap();
+        if header.set_uid(file.st.st_uid).is_err() {
+            pax_header.add_integer_field("uid", file.st.st_uid);
+        }
+        if header.set_gid(file.st.st_gid).is_err() {
+            pax_header.add_integer_field("gid", file.st.st_gid);
+        }
+        header.set_entry_type(match file.file_type {
+            FileType::Directory => TypeFlag::Directory,
+            FileType::Regular => TypeFlag::Regular,
+            FileType::Symlink => TypeFlag::Symlink,
+            FileType::Char => TypeFlag::Char,
+            FileType::Block => TypeFlag::Block,
+            FileType::Fifo => TypeFlag::Fifo,
+            // skip archiving sockets; tar can't extract them
+            // TODO: non-standard extension for this?
+            FileType::Socket => return Ok(()),
+            FileType::Unknown => unreachable!(),
+        });
+        // ignore err: we always add mtime to PAX for nsec
+        _ = header.set_mtime(file.st.st_mtime as u64);
+
+        // all entries, including hardlinks, need this
+        if header.set_path(path).is_err() {
+            // PAX long name extension
+            pax_header.add_field("path", path);
+        }
+
+        // everything else only needs to be set on actual inodes, so hardlinks don't need them
+        self.populate_inode_entry(file, path, &mut header, &mut pax_header)?;
+
         // PAX header precedes real tar header
         if !pax_header.is_empty() {
             pax_header.write_to(&mut self.writer)?;
@@ -469,50 +544,6 @@ impl<'a, W: Write> TarContext<'a, W> {
             Ok(())
         })
     }
-}
-
-fn header_from_stat(st: &libc::stat) -> (UstarHeader, PaxHeader) {
-    let typ = st.st_mode & libc::S_IFMT;
-
-    // PAX base is ustar format
-    let mut header = UstarHeader::default();
-    let mut pax_header = PaxHeader::new();
-    header.set_mode(st.st_mode & !libc::S_IFMT).unwrap();
-    if header.set_uid(st.st_uid).is_err() {
-        pax_header.add_integer_field("uid", st.st_uid);
-    }
-    if header.set_gid(st.st_gid).is_err() {
-        pax_header.add_integer_field("gid", st.st_gid);
-    }
-    header.set_entry_type(match typ {
-        libc::S_IFDIR => TypeFlag::Directory,
-        libc::S_IFREG => TypeFlag::Regular,
-        libc::S_IFLNK => TypeFlag::Symlink,
-        libc::S_IFCHR => TypeFlag::Char,
-        libc::S_IFBLK => TypeFlag::Block,
-        libc::S_IFIFO => TypeFlag::Fifo,
-        _ => panic!("unsupported file type: {}", typ),
-    });
-    // ignore err: we always add mtime to PAX for nsec
-    _ = header.set_mtime(st.st_mtime as u64);
-
-    if typ == libc::S_IFBLK || typ == libc::S_IFCHR {
-        let major = unsafe { libc::major(st.st_rdev) };
-        let minor = unsafe { libc::minor(st.st_rdev) };
-        if header.set_device_major(major).is_err() {
-            pax_header.add_integer_field("SCHILY.devmajor", major);
-        }
-        if header.set_device_minor(minor).is_err() {
-            pax_header.add_integer_field("SCHILY.devminor", minor);
-        }
-    } else if typ == libc::S_IFREG {
-        // only regular files have a size
-        if header.set_size(st.st_size as u64).is_err() {
-            pax_header.add_integer_field("size", st.st_size as u64);
-        }
-    }
-
-    (header, pax_header)
 }
 
 trait InodeFlagsExt {

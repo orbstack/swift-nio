@@ -17,6 +17,9 @@ use crate::sys::{
     xattr::{for_each_flistxattr, for_each_llistxattr, with_fgetxattr, with_lgetxattr},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DevIno(u64, u64);
+
 /*
  * fifo/char/block/socket: fstatat, llistxattr/lgetxattr
  *   - can't safely get inode flags: that requires opening without O_PATH
@@ -128,6 +131,17 @@ impl<'a> InterrogatedFile<'a> {
     pub fn has_children(&self) -> bool {
         // on ext4, st_nlink=1 means >65000, so check for != 2
         self.file_type == FileType::Directory && self.st.st_nlink != 2
+    }
+
+    // valid for non-directories only
+    // (yes, you can hard link a symlink!)
+    pub fn is_hardlink(&self) -> bool {
+        self.file_type != FileType::Directory && self.st.st_nlink > 1
+    }
+
+    // valid for any file type
+    pub fn dev_ino(&self) -> DevIno {
+        DevIno(self.st.st_dev, self.st.st_ino)
     }
 
     // only for directories
