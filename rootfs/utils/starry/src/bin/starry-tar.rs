@@ -23,6 +23,8 @@ use starry::{
 };
 use zstd::Encoder;
 
+const MAX_COMPRESSION_THREADS: usize = 2;
+
 const READ_BUF_SIZE: usize = 65536;
 
 const TAR_PADDING: [u8; 1024] = [0; 1024];
@@ -608,8 +610,9 @@ fn main() -> anyhow::Result<()> {
     let file = unsafe { File::from_raw_fd(1) };
 
     let mut writer = Encoder::new(file, 0)?;
-    writer.multithread(2)?;
-    // let mut writer = file;
+    // tar is usually bottlenecked on zstd, but let's be conservative to avoid burning CPU
+    let num_threads = std::cmp::min(MAX_COMPRESSION_THREADS, std::thread::available_parallelism()?.get());
+    writer.multithread(num_threads as u32)?;
 
     // add root dir
     let src_dir = std::env::args()
