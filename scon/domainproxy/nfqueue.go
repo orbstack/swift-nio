@@ -15,82 +15,60 @@ import (
 	"github.com/mdlayher/netlink"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/portprober"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
 func (d *DomainTLSProxy) startQueue(queueNum uint16) error {
-	config := nfqueue.Config{
-		NfQueue:      queueNum,
-		MaxPacketLen: 65536,
-		MaxQueueLen:  1024,
-		Copymode:     nfqueue.NfQnlCopyPacket,
-		Flags:        0,
-		Logger:       logrus.StandardLogger(),
-	}
+	ctx, cancel := context.WithCancel(context.Background())
 
-	queue, err := nfqueue.Open(&config)
-	if err != nil {
-		return err
-	}
+	return util.RunNfqueue(ctx, util.NfqueueConfig{
+		Config: &nfqueue.Config{
+			NfQueue:      queueNum,
+			MaxPacketLen: 65536,
+			MaxQueueLen:  1024,
+			Copymode:     nfqueue.NfQnlCopyPacket,
+			Flags:        0,
+			Logger:       logrus.StandardLogger(),
+		},
+		Options: map[netlink.ConnOption]bool{
+			netlink.NoENOBUFS: true,
+		},
+		AttributeHandler: func(ctx context.Context, queue *nfqueue.Nfqueue, a util.NfqueueLinkedAttribute) {
+			hasUpstream, err := d.handleNfqueuePacket(a.Attribute)
+			if err != nil {
+				logrus.WithError(err).Error("failed to handle nfqueue packet")
+			}
 
-	err = queue.SetOption(netlink.NoENOBUFS, true)
-	if err != nil {
-		return err
-	}
+			var mark uint32
+			if a.Mark != nil {
+				mark = *a.Mark
+			}
 
-	go func() {
-		defer queue.Close()
+			if hasUpstream {
+				// there's an upstream, so accept the connection. (accept = continue nftables)
+				// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
+				logrus.Debug("nfqueue: accept")
+				mark = d.cb.NfqueueMarkSkip(mark)
+			} else {
+				// no upstream, so reject the connection.
+				// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
+				logrus.Debug("nfqueue: reject")
+				mark = d.cb.NfqueueMarkReject(mark)
+			}
+			err = a.SetVerdictModPacketWithMark(nfqueue.NfRepeat, *a.Payload, mark)
+			if err != nil {
+				logrus.WithError(err).Error("failed to set verdict")
+			}
 
-		ctx := context.Background()
-		err = queue.RegisterWithErrorFunc(ctx, func(a nfqueue.Attribute) int {
-			// handle packets in parallel to minimize happy eyeballs and load testing delays
-			go func() {
-				hasUpstream, err := d.handleNfqueuePacket(a)
-				if err != nil {
-					logrus.WithError(err).Error("failed to handle nfqueue packet")
-				}
-
-				var mark uint32
-				if a.Mark != nil {
-					mark = *a.Mark
-				}
-
-				if hasUpstream {
-					// there's an upstream, so accept the connection. (accept = continue nftables)
-					// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
-					logrus.Debug("nfqueue: accept")
-					mark = d.cb.NfqueueMarkSkip(mark)
-				} else {
-					// no upstream, so reject the connection.
-					// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
-					logrus.Debug("nfqueue: reject")
-					mark = d.cb.NfqueueMarkReject(mark)
-				}
-				err = queue.SetVerdictModPacketWithMark(*a.PacketID, nfqueue.NfRepeat, int(mark), *a.Payload)
-				if err != nil {
-					logrus.WithError(err).Error("failed to set verdict")
-				}
-			}()
-
-			// 0 = continue, else = stop read loop
-			return 0
-		}, func(e error) int {
+		},
+		ErrorHandler: func(ctx context.Context, e error) {
 			logrus.WithError(e).Error("nfqueue error")
-			// stop read loop
-			return 1
-		})
-		if err != nil {
-			logrus.WithError(err).Error("failed to register with nfqueue")
-		}
-
-		// wait forever
-		// nothing closes this
-		<-ctx.Done()
-	}()
-
-	return nil
+			cancel()
+		},
+	})
 }
 
 func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) {
