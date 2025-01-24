@@ -18,7 +18,6 @@ const (
 	kmVersion = "version"
 
 	bktState             = "state"
-	ksLastContainerID    = "lastContainerID"
 	ksDefaultContainerID = "defaultContainerID"
 	ksDnsLastQueries     = "dnsLastQueries"
 
@@ -243,14 +242,6 @@ func gobEncode[T any](val T) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
-}
-
-func (db *Database) GetLastContainerID() (string, error) {
-	return db.getSimpleStr(bktState, ksLastContainerID)
-}
-
-func (db *Database) SetLastContainerID(id string) error {
-	return db.setSimpleStr(bktState, ksLastContainerID, id)
 }
 
 func (db *Database) GetDefaultContainerID() (string, error) {

@@ -262,11 +262,6 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 		defer freezer.DecRef()
 	}
 
-	// set as last container
-	if !container.builtin {
-		go sv.m.db.SetLastContainerID(container.ID)
-	}
-
 	// ok, container is up, now handle the request
 	switch s.Subsystem() {
 	case "session", "":

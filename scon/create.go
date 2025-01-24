@@ -164,12 +164,6 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 		return
 	}
 
-	// set as last container
-	err = m.db.SetLastContainerID(c.ID)
-	if err != nil {
-		return
-	}
-
 	// also set as default if this is the first container
 	if m.CountNonBuiltinContainers() <= 1 {
 		err = m.db.SetDefaultContainerID(c.ID)
