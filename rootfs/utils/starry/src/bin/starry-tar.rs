@@ -21,7 +21,6 @@ use starry::{
     interrogate::InterrogatedFile,
     path_stack::PathStack,
     sys::{
-        file::fstat,
         getdents::{for_each_getdents, FileType},
         inode_flags::InodeFlags,
     },
@@ -437,9 +436,11 @@ impl<'a, W: Write> TarContext<'a, W> {
             Ok(())
         })?;
 
+        // PAX header precedes real tar header
         if !pax_header.is_empty() {
             pax_header.write_to(&mut self.writer)?;
         }
+
         self.writer.write_all(header.as_bytes())?;
 
         Ok(())
@@ -466,9 +467,7 @@ impl<'a, W: Write> TarContext<'a, W> {
             }
 
             Ok(())
-        })?;
-
-        Ok(())
+        })
     }
 }
 
@@ -570,6 +569,7 @@ impl InodeFlagsExt for InodeFlags {
 
 fn main() -> anyhow::Result<()> {
     let file = unsafe { File::from_raw_fd(1) };
+
     let mut writer = Encoder::new(file, 0)?;
     writer.multithread(2)?;
     // let mut writer = file;
@@ -586,25 +586,21 @@ fn main() -> anyhow::Result<()> {
             Mode::empty(),
         )?)
     };
-    let root_dir_st = fstat(&root_dir)?;
 
-    // add entry for root dir
-    let (mut header, pax_header) = header_from_stat(&root_dir_st);
-    header.set_path(".".as_bytes()).unwrap();
-    // TODO: mtime, fflags, xattrs
-    if !pax_header.is_empty() {
-        pax_header.write_to(&mut writer)?;
-    }
-    writer.write_all(header.as_bytes())?;
-
-    // walk dirs
     let owned_ctx = OwnedTarContext::new()?;
     let mut ctx = TarContext::new(&mut writer, &owned_ctx.buffer_stack, &owned_ctx.path_stack);
+
+    // add entry for root dir
+    let root_dir_file = InterrogatedFile::from_directory_fd(&root_dir)?;
+    ctx.add_one_entry(&root_dir_file, b".")?;
+
+    // walk dirs
     ctx.walk_dir(&root_dir, None)?;
 
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;
 
+    // end compressed stream
     writer.finish()?;
 
     Ok(())
