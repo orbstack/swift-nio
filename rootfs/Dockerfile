@@ -67,6 +67,16 @@ fi
 mkdir /out
 cp target/${TYPE}/vinit target/${TYPE}/b3enc target/${TYPE}/simplevisor /out/
 EOT
+# starry
+COPY rootfs/utils/starry /build/starry
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/build/starry/target,id=${ARCH} \
+    <<EOT sh -eux
+cd /build/starry
+# always release -- we test this externally
+cargo build --release
+cp target/release/starry-cp target/release/starry-rm target/release/starry-tar /out/
+EOT
 # wormhole
 COPY wormhole /build/wormhole
 RUN --mount=type=cache,target=/root/.cargo/registry \
@@ -556,6 +566,7 @@ COPY --from=c-build /out/* /opt/orb/
 COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 # vinit
 COPY --from=rust-build /out/vinit /opt/orb/
+COPY --from=rust-build /out/starry-* /opt/orb/
 COPY --from=rust-build /out/simplevisor /opt/orbstack-guest/
 # wormhole
 COPY --from=rust-build /out/wormhole-attach /opt/orbstack-guest/
