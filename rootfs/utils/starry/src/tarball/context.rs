@@ -258,7 +258,8 @@ impl<'a, W: Write> TarContext<'a, W> {
         }
 
         // fflags
-        if let Some(flags) = file.inode_flags()? {
+        let flags = file.inode_flags()?;
+        if !flags.is_empty() {
             let flag_names = flags.pax_names();
             match flag_names.len() {
                 0 => {}

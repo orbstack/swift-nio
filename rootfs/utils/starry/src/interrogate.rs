@@ -160,16 +160,20 @@ impl<'a> InterrogatedFile<'a> {
         libc::makedev(major, minor)
     }
 
-    // can be called on any file type; returns None for regular files and directories
-    pub fn inode_flags(&self) -> anyhow::Result<Option<InodeFlags>> {
-        let Some(ref fd) = self.fd else {
-            return Ok(None);
-        };
-
-        // also doesn't work on O_PATH fds :(
-        // so we only support regular files and directories for now
-        let flags = InodeFlags::from_file(fd)?;
-        Ok(Some(flags))
+    // all file types
+    fn attr(&self, bit: i32) -> bool {
+        self.stx.stx_attributes & bit as u64 != 0
+    }
+    pub fn inode_flags(&self) -> anyhow::Result<InodeFlags> {
+        let mut flags = InodeFlags::empty();
+        flags.set(InodeFlags::COMPR, self.attr(libc::STATX_ATTR_COMPRESSED));
+        flags.set(InodeFlags::IMMUTABLE, self.attr(libc::STATX_ATTR_IMMUTABLE));
+        flags.set(InodeFlags::APPEND, self.attr(libc::STATX_ATTR_APPEND));
+        flags.set(InodeFlags::NODUMP, self.attr(libc::STATX_ATTR_NODUMP));
+        flags.set(InodeFlags::ENCRYPT, self.attr(libc::STATX_ATTR_ENCRYPTED));
+        flags.set(InodeFlags::VERITY, self.attr(libc::STATX_ATTR_VERITY));
+        flags.set(InodeFlags::DAX, self.attr(libc::STATX_ATTR_DAX));
+        Ok(flags)
     }
 
     // valid for any file type

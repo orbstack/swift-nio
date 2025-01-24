@@ -106,13 +106,11 @@ impl<'a> CopyContext<'a> {
         // inode flags
         // must be last due to immutable/append-only flags (which even prevent mtime changes)
         // this doesn't change mtime, so it's safe to do after utimens()
-        if let Some(flags) = src.inode_flags()? {
-            // filter to flags that are included in tar archives
-            // otherwise we'll be setting flags on every file if btrfs has nocow/compress enabled
-            let fl = flags.intersection(InodeFlags::ARCHIVE_FLAGS);
-            if !fl.is_empty() {
-                fl.apply(fd).context("ioctl(FS_IOC_SETFLAGS)")?;
-            }
+        // filter to flags that are included in tar archives
+        // otherwise we'll be setting flags on every file if btrfs has nocow/compress enabled
+        let flags = src.inode_flags()?.intersection(InodeFlags::ARCHIVE_FLAGS);
+        if !flags.is_empty() {
+            flags.apply(fd).context("ioctl(FS_IOC_SETFLAGS)")?;
         }
 
         Ok(())
