@@ -371,7 +371,7 @@ fn copy_regular_file_contents(
     dest_fd: &OwnedFd,
 ) -> anyhow::Result<()> {
     // 1. attempt ioctl(FICLONE) for copy-on-write reflink
-    let ret = unsafe { libc::ioctl(dest_fd.as_raw_fd(), libc::FICLONE, src_fd.as_raw_fd()) };
+    let ret = unsafe { libc::ioctl(dest_fd.as_raw_fd(), libc::FICLONE as _, src_fd.as_raw_fd()) };
     match Errno::result(ret) {
         Ok(_) => return Ok(()),
         // various cases of "not supported by FS"
