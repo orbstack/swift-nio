@@ -97,11 +97,8 @@ func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint1
 	}
 	pid := ctr.State.Pid
 	if pid == 0 {
-		logrus.Debugf("getDockerContainerOpenPorts: no pid for container %v", containerID)
 		return map[uint16]struct{}{}, nil
 	}
-
-	logrus.Debugf("getDockerContainerOpenPorts: got pid %d for container %v", pid, containerID)
 
 	procPath := fmt.Sprintf("/proc/%d", pid)
 	procDirfdInt, err := unix.Open(procPath, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
