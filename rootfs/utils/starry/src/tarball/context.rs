@@ -64,11 +64,12 @@ impl<'a, W: Write> TarContext<'a, W> {
 
     // if we've committed to a certain size (in tar header or sparse file map), then we must write exactly that many bytes in order to avoid corrupting the archive
     // so this stops reading early if we reach rem, and pads with zeros if the file got smaller
-    fn write_from_fd(&mut self, fd: &OwnedFd, mut rem: usize) -> anyhow::Result<()> {
+    fn write_from_fd(&mut self, fd: &OwnedFd, mut off: i64, mut rem: usize) -> anyhow::Result<()> {
         let mut buf: MaybeUninit<[u8; READ_BUF_SIZE]> = MaybeUninit::uninit();
-        loop {
+        while rem > 0 {
+            // pread lets us save lseek calls in sparse files
             let limit = std::cmp::min(rem, READ_BUF_SIZE);
-            let ret = unsafe { libc::read(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, limit) };
+            let ret = unsafe { libc::pread(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, limit, off) };
             let n = Errno::result(ret)? as usize;
             if n == 0 {
                 break;
@@ -77,9 +78,8 @@ impl<'a, W: Write> TarContext<'a, W> {
             let data = unsafe { std::slice::from_raw_parts(buf.as_mut_ptr() as *const u8, n) };
             self.writer.write_all(data)?;
             rem -= n;
-            if rem == 0 {
-                break;
-            }
+
+            off += n as i64;
         }
 
         // pad with zeros if we didn't write enough (file size truncated)
@@ -174,8 +174,7 @@ impl<'a, W: Write> TarContext<'a, W> {
 
         // follow the map and write out payload chunks
         for entry in map.iter_entries() {
-            lseek(fd.as_raw_fd(), entry.offset as i64, Whence::SeekSet)?;
-            self.write_from_fd(fd, entry.len as usize)?;
+            self.write_from_fd(fd, entry.offset as i64, entry.len as usize)?;
         }
 
         Ok(true)
@@ -203,7 +202,7 @@ impl<'a, W: Write> TarContext<'a, W> {
         headers.write_to(&mut self.writer)?;
 
         // we must never write more than the expected size in the header
-        self.write_from_fd(fd, st.st_size as usize)?;
+        self.write_from_fd(fd, 0, st.st_size as usize)?;
 
         // pad tar to 512 byte block
         let pad = 512 - (st.st_size % 512);

@@ -13,7 +13,7 @@ use bumpalo::Bump;
 use libc::{getegid, geteuid};
 use nix::{
     errno::Errno,
-    fcntl::{openat, AtFlags, OFlag},
+    fcntl::{copy_file_range, openat, AtFlags, OFlag},
     sys::{
         sendfile::sendfile,
         stat::{
@@ -22,7 +22,7 @@ use nix::{
         },
         time::TimeSpec,
     },
-    unistd::{linkat, mkfifoat, symlinkat},
+    unistd::{ftruncate, linkat, lseek, mkfifoat, symlinkat, Whence},
 };
 use starry::{
     buffer_stack::BufferStack,
@@ -365,6 +365,56 @@ impl<'a> CopyContext<'a> {
     }
 }
 
+fn copy_file_region(
+    src_fd: &OwnedFd,
+    dest_fd: &OwnedFd,
+    off: i64,
+    mut rem: i64,
+) -> nix::Result<()> {
+    let mut off_in = off;
+    let mut off_out = off;
+    while rem > 0 {
+        // syscall increments off for us
+        let ret = copy_file_range(
+            src_fd,
+            Some(&mut off_in),
+            dest_fd,
+            Some(&mut off_out),
+            rem as usize,
+        )?;
+        if ret == 0 {
+            // EOF: race (file got smaller since stat)
+            break;
+        }
+
+        rem -= ret as i64;
+    }
+
+    Ok(())
+}
+
+fn copy_file_region_sendfile(
+    src_fd: &OwnedFd,
+    dest_fd: &OwnedFd,
+    mut off: i64,
+    mut rem: i64,
+) -> nix::Result<()> {
+    while rem > 0 {
+        // syscall increments off for us
+        // however, sendfile only supports a src offset, so we have to seek dest manually
+        lseek(dest_fd.as_raw_fd(), off, Whence::SeekSet)?;
+        let ret = sendfile(dest_fd, src_fd, Some(&mut off), rem as usize)?;
+        if ret == 0 {
+            // EOF: race (file got smaller since stat)
+            break;
+        }
+
+        rem -= ret as i64;
+    }
+
+    Ok(())
+}
+
 fn copy_regular_file_contents(
     src_st: &libc::stat,
     src_fd: &OwnedFd,
@@ -374,7 +424,7 @@ fn copy_regular_file_contents(
     let ret = unsafe { libc::ioctl(dest_fd.as_raw_fd(), libc::FICLONE as _, src_fd.as_raw_fd()) };
     match Errno::result(ret) {
         Ok(_) => return Ok(()),
-        // various cases of "not supported by FS"
+        // various cases of "not supported"
         // sadly, this is even possible on btrfs due to compression(?) / swapfiles
         Err(
             Errno::ENOTTY
@@ -388,25 +438,60 @@ fn copy_regular_file_contents(
         Err(e) => return Err(e).context("ioctl(FICLONE)"),
     }
 
-    // copy_file_range isn't worth trying on btrfs: it also can't copy swapfiles (EXTBSY)
+    // 2. fall back to copy_file_range/sendfile
+    // if we know that the file isn't sparse, skip lseek
+    if src_st.st_blocks * 512 >= src_st.st_size {
+        match copy_file_region(src_fd, dest_fd, 0, src_st.st_size) {
+            Ok(_) => return Ok(()),
+            // not supported
+            Err(Errno::EOPNOTSUPP | Errno::ETXTBSY | Errno::EXDEV) => {}
+            Err(e) => return Err(e.into()),
+        };
 
-    // fallback doesn't support sparse files
-    if src_st.st_blocks * 512 < src_st.st_size {
-        return Err(anyhow!(
-            "sparse files are not supported on non-CoW filesystems"
-        ));
+        copy_file_region_sendfile(src_fd, dest_fd, 0, src_st.st_size)?;
+        return Ok(());
     }
 
-    // 2. fall back to sendfile
-    let mut rem = src_st.st_size;
-    while rem > 0 {
-        let ret = sendfile(dest_fd, src_fd, None, rem as usize).context("sendfile")?;
-        if ret == 0 {
-            // EOF: race (file got smaller since stat)
-            break;
+    // sparse case:
+    // - lseek(SEEK_DATA) to find the next data start (file may start with a hole)
+    // - lseek(SEEK_HOLE) to find the next hole
+    let mut off = 0;
+    let mut use_sendfile = false;
+    while off < src_st.st_size {
+        let data_start = match lseek(src_fd.as_raw_fd(), off, Whence::SeekData) {
+            Ok(data_start) => data_start,
+            // file has no (more) data
+            Err(Errno::ENXIO) => break,
+            Err(e) => return Err(e.into()),
+        };
+        let hole_start = match lseek(src_fd.as_raw_fd(), data_start, Whence::SeekHole) {
+            Ok(hole_start) => hole_start,
+            // file got smaller
+            Err(Errno::ENXIO) => break,
+            Err(e) => return Err(e.into()),
+        };
+        let data_len = hole_start - data_start;
+
+        // stop attempting copy_file_region if we know it's not supported
+        if use_sendfile {
+            copy_file_region_sendfile(src_fd, dest_fd, data_start, data_len)?;
+        } else {
+            match copy_file_region(src_fd, dest_fd, data_start, data_len) {
+                Ok(_) => {}
+                Err(Errno::EOPNOTSUPP | Errno::ETXTBSY | Errno::EXDEV) => {
+                    use_sendfile = true;
+                    copy_file_region_sendfile(src_fd, dest_fd, data_start, data_len)?;
+                }
+                Err(e) => return Err(e.into()),
+            }
         }
 
-        rem -= ret as i64;
+        off = hole_start;
+    }
+
+    // set size in case file ends with a big hole
+    if off < src_st.st_size {
+        ftruncate(dest_fd, src_st.st_size)?;
     }
 
     Ok(())
