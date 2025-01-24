@@ -37,7 +37,7 @@ func (d *DomainTLSProxy) startQueue(queueNum uint16) error {
 			netlink.NoENOBUFS: true,
 		},
 		AttributeHandler: func(ctx context.Context, queue *nfqueue.Nfqueue, a util.NfqueueLinkedAttribute) {
-			hasUpstream, err := d.handleNfqueuePacket(a.Attribute)
+			err := d.handleNfqueuePacket(a.Attribute)
 			if err != nil {
 				logrus.WithError(err).Error("failed to handle nfqueue packet")
 			}
@@ -46,23 +46,13 @@ func (d *DomainTLSProxy) startQueue(queueNum uint16) error {
 			if a.Mark != nil {
 				mark = *a.Mark
 			}
+			// always skip. presence in the probed sets determines whether the packet is accepted or rejected
+			mark = d.cb.NfqueueMarkSkip(mark)
 
-			if hasUpstream {
-				// there's an upstream, so accept the connection. (accept = continue nftables)
-				// with GSO, we must always pass the payload back even if unmodified, or the GSO type breaks
-				logrus.Debug("nfqueue: accept")
-				mark = d.cb.NfqueueMarkSkip(mark)
-			} else {
-				// no upstream, so reject the connection.
-				// "reject" isn't a verdict, so mark the packet and repeat nftables. our nftables rule will reject it
-				logrus.Debug("nfqueue: reject")
-				mark = d.cb.NfqueueMarkReject(mark)
-			}
 			err = a.SetVerdictModPacketWithMark(nfqueue.NfRepeat, *a.Payload, mark)
 			if err != nil {
 				logrus.WithError(err).Error("failed to set verdict")
 			}
-
 		},
 		ErrorHandler: func(ctx context.Context, e error) {
 			logrus.WithError(e).Error("nfqueue error")
@@ -71,11 +61,11 @@ func (d *DomainTLSProxy) startQueue(queueNum uint16) error {
 	})
 }
 
-func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) {
+func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
 	// first 4 bits = IP version
 	payload := *a.Payload
 	if len(payload) < 1 {
-		return false, errors.New("payload too short")
+		return errors.New("payload too short")
 	}
 
 	ipVersion := payload[0] >> 4
@@ -85,7 +75,7 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 	} else if ipVersion == 6 {
 		decoder = layers.LayerTypeIPv6
 	} else {
-		return false, fmt.Errorf("unsupported ip version: %d", ipVersion)
+		return fmt.Errorf("unsupported ip version: %d", ipVersion)
 	}
 
 	packet := gopacket.NewPacket(*a.Payload, decoder, gopacket.Lazy)
@@ -100,17 +90,17 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 		srcIP, ipOk1 = netip.AddrFromSlice(ip6.SrcIP)
 		dstIP, ipOk2 = netip.AddrFromSlice(ip6.DstIP)
 	} else {
-		return false, errors.New("unsupported ip version")
+		return errors.New("unsupported ip version")
 	}
 	if !ipOk1 || !ipOk2 {
-		return false, errors.New("failed to get ip")
+		return errors.New("failed to get ip")
 	}
 
 	logrus.WithField("dst_ip", dstIP).Debug("nfqueue packet")
 
 	upstream, err := d.cb.GetUpstreamByAddr(dstIP)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	mark := d.cb.GetMark(upstream)
@@ -123,13 +113,13 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 	}
 
 	// pessimistically keep probing on every SYN until upstream is ready
-	upstreamPort, err := d.probeHost(dialer, upstream)
+	probedPorts, err := d.probeHost(dialer, upstream)
 	if err != nil {
-		return false, err
+		return err
 	}
-	if upstreamPort == (serverPort{}) {
+	if !probedPorts.HasPort() {
 		logrus.Debug("domaintlsproxy: probe did not find a port")
-		return false, nil
+		return nil
 	}
 
 	// add to probed set
@@ -145,18 +135,18 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) (bool, error) 
 		logrus.WithError(err).Error("failed to add to domainproxy set")
 	}
 
-	return true, nil
+	return nil
 }
 
-func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (serverPort, error) {
+func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (probedHostPorts, error) {
 	ports, err := d.cb.GetHostOpenPorts(upstream.Host)
 	if err != nil {
-		return serverPort{}, err
+		return probedHostPorts{}, err
 	}
 
 	addr, ok := netip.AddrFromSlice(upstream.IP)
 	if !ok {
-		return serverPort{}, fmt.Errorf("failed to get addr from slice: %s", upstream.IP)
+		return probedHostPorts{}, fmt.Errorf("failed to get addr from slice: %s", upstream.IP)
 	}
 
 	d.probeMu.Lock()
@@ -170,7 +160,7 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 		ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 		defer cancel()
 
-		probe = portprober.NewHostProbe(portprober.HostProbeOptions{
+		probe = portprober.NewHostProbe(ctx, portprober.HostProbeOptions{
 			ErrFunc: func(err error) {
 				logrus.WithError(err).Error("failed to probe host")
 			},
@@ -180,7 +170,6 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 			ServerName: serverName,
 
 			GraceTime: probeGraceTime,
-			Ctx:       ctx,
 		})
 		d.probeTasks[addr] = probe
 	}
@@ -195,18 +184,14 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 		delete(d.probeTasks, addr)
 	}
 
-	var port serverPort
+	var probedPorts probedHostPorts
 
 	if len(probeResult.HTTPSPorts) > 0 {
-		httpPorts := make([]uint16, 0, len(probeResult.HTTPSPorts))
+		httpsPorts := make([]uint16, 0, len(probeResult.HTTPSPorts))
 		for p := range probeResult.HTTPSPorts {
-			httpPorts = append(httpPorts, p)
+			httpsPorts = append(httpsPorts, p)
 		}
-		port = serverPort{
-			// use lowest port
-			port:  slices.Min(httpPorts),
-			https: true,
-		}
+		probedPorts.HTTPSPort = slices.Min(httpsPorts)
 	}
 
 	if len(probeResult.HTTPPorts) > 0 {
@@ -214,15 +199,12 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 		for p := range probeResult.HTTPPorts {
 			httpPorts = append(httpPorts, p)
 		}
-		port = serverPort{
-			port:  slices.Min(httpPorts),
-			https: false,
-		}
+		probedPorts.HTTPPort = slices.Min(httpPorts)
 	}
 
-	if port != (serverPort{}) {
-		d.probedHosts[addr] = port
+	if probedPorts.HasPort() {
+		d.probedHosts[addr] = probedPorts
 	}
 
-	return port, nil
+	return probedPorts, nil
 }

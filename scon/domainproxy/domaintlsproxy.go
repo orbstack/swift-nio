@@ -62,15 +62,29 @@ type ProxyCallbacks interface {
 	GetMark(upstream domainproxytypes.Upstream) int
 
 	NftableName() string
-	NfqueueMarkReject(mark uint32) uint32
 	NfqueueMarkSkip(mark uint32) uint32
 
 	GetHostOpenPorts(host domainproxytypes.Host) (map[uint16]struct{}, error)
 }
 
-type serverPort struct {
-	port  uint16
-	https bool
+type probedHostPorts struct {
+	HTTPSPort uint16
+	HTTPPort  uint16
+}
+
+func (p *probedHostPorts) HasPort() bool {
+	return p.HTTPSPort != 0 || p.HTTPPort != 0
+}
+
+func (p *probedHostPorts) PreferredIsHTTPS() bool {
+	return p.HTTPSPort != 0
+}
+
+func (p *probedHostPorts) PreferredPort() uint16 {
+	if p.HTTPSPort != 0 {
+		return p.HTTPSPort
+	}
+	return p.HTTPPort
 }
 
 type DomainTLSProxy struct {
@@ -80,7 +94,7 @@ type DomainTLSProxy struct {
 	tproxy        *bpf.Tproxy
 
 	probeMu     syncx.Mutex
-	probedHosts map[netip.Addr]serverPort
+	probedHosts map[netip.Addr]probedHostPorts
 	probeTasks  map[netip.Addr]*portprober.HostProbe
 }
 
@@ -94,7 +108,7 @@ func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy
 		tlsController: tlsController,
 		cb:            cb,
 
-		probedHosts: make(map[netip.Addr]serverPort),
+		probedHosts: make(map[netip.Addr]probedHostPorts),
 		probeTasks:  make(map[netip.Addr]*portprober.HostProbe),
 	}, nil
 }
@@ -313,13 +327,13 @@ type connData struct {
 }
 
 type upstreamConnInfo struct {
-	Upstream     domainproxytypes.Upstream
-	UpstreamPort serverPort
+	Upstream domainproxytypes.Upstream
+	Ports    probedHostPorts
 }
 
 func (p *DomainTLSProxy) passthroughConn(dialer *net.Dialer, conn net.Conn, info upstreamConnInfo) error {
 	host := info.Upstream.IP.String()
-	port := strconv.Itoa(int(info.UpstreamPort.port))
+	port := strconv.Itoa(int(info.Ports.HTTPSPort))
 	dialer.Timeout = httpsDialTimeout
 	passthroughConn, err := dialer.Dial("tcp", net.JoinHostPort(host, port))
 	if err != nil {
@@ -368,20 +382,20 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 	}
 
 	p.probeMu.Lock()
-	upstreamPort, ok := p.probedHosts[upstreamAddr]
+	ports, ok := p.probedHosts[upstreamAddr]
 	p.probeMu.Unlock()
 	if !ok {
 		return nil, fmt.Errorf("get upstream port")
 	}
 
 	info := upstreamConnInfo{
-		Upstream:     upstream,
-		UpstreamPort: upstreamPort,
+		Upstream: upstream,
+		Ports:    ports,
 	}
 
 	// passthrough the connection if it's not from mac and the upstream supports https
 	// in other words, only do reterm if request comes from mac
-	if upstreamPort.https && !downstreamIP.Equal(sconHostBridgeIP4) && !downstreamIP.Equal(sconHostBridgeIP6) && !downstreamIP.Equal(nat64SourceIp4) {
+	if ports.PreferredIsHTTPS() && !downstreamIP.Equal(sconHostBridgeIP4) && !downstreamIP.Equal(sconHostBridgeIP6) && !downstreamIP.Equal(nat64SourceIp4) {
 		return nil, p.passthroughConn(dialer, conn, info)
 	}
 
@@ -399,7 +413,7 @@ func (p *DomainTLSProxy) rewriteRequest(r *httputil.ProxyRequest) error {
 
 	data := r.In.Context().Value(MdnsContextKeyConnData).(connData)
 	scheme := "http"
-	if data.UpstreamConnInfo.UpstreamPort.https {
+	if data.UpstreamConnInfo.Ports.PreferredIsHTTPS() {
 		scheme = "https"
 	}
 
@@ -429,7 +443,7 @@ func (p *DomainTLSProxy) dialUpstream(ctx context.Context, network, addr string)
 	data := ctx.Value(MdnsContextKeyConnData).(connData)
 
 	host := data.UpstreamConnInfo.Upstream.IP.String()
-	port := strconv.Itoa(int(data.UpstreamConnInfo.UpstreamPort.port))
+	port := strconv.Itoa(int(data.UpstreamConnInfo.Ports.PreferredPort()))
 	return data.Dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
 }
 

@@ -193,8 +193,6 @@ const (
 	DockerFwmarkLocalRoute = 0xb3c60000
 	// packets with this mark will not hit nfqueue
 	DockerFwmarkNfqueueSkip = 0x58ac0000
-	// packets with this mark are rejected by nfqueue
-	DockerFwmarkNfqueueReject = 0xbf7a0000
 )
 
 const (
@@ -220,8 +218,6 @@ const (
 	VmFwmarkHairpinMasqueradeBit = 1 << 4
 	// this mark bit is set when traffic passed nfqueue
 	VmFwmarkNfqueueSkipBit = 1 << 5
-	// this mark bit is set when traffic needs to be rejected by nfqueue
-	VmFwmarkNfqueueRejectBit = 1 << 6
 )
 
 // nfqueue IDs, shared between ovm and docker

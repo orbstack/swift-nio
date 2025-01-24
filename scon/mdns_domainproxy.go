@@ -502,10 +502,6 @@ func (c *SconProxyCallbacks) GetMark(upstream domainproxytypes.Upstream) int {
 	return mark
 }
 
-func (c *SconProxyCallbacks) NfqueueMarkReject(mark uint32) uint32 {
-	return mark | netconf.VmFwmarkNfqueueRejectBit
-}
-
 func (c *SconProxyCallbacks) NfqueueMarkSkip(mark uint32) uint32 {
 	return mark | netconf.VmFwmarkNfqueueSkipBit
 }

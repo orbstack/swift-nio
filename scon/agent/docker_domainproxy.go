@@ -31,10 +31,6 @@ func (cb *DockerProxyCallbacks) GetMark(upstream domainproxytypes.Upstream) int 
 	return netconf.DockerFwmarkTproxyOutbound
 }
 
-func (cb *DockerProxyCallbacks) NfqueueMarkReject(mark uint32) uint32 {
-	return netconf.DockerFwmarkNfqueueReject
-}
-
 func (cb *DockerProxyCallbacks) NfqueueMarkSkip(mark uint32) uint32 {
 	return netconf.DockerFwmarkNfqueueSkip
 }

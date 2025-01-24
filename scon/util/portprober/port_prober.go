@@ -43,11 +43,10 @@ type HostProbeOptions struct {
 	ServerName string
 
 	GraceTime time.Duration
-	Ctx       context.Context
 }
 
-func NewHostProbe(opts HostProbeOptions) *HostProbe {
-	ctx, cancel := context.WithCancel(opts.Ctx)
+func NewHostProbe(ctx context.Context, opts HostProbeOptions) *HostProbe {
+	ctx, cancel := context.WithCancel(ctx)
 
 	return &HostProbe{
 		errFunc: opts.ErrFunc,
