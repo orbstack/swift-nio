@@ -5,7 +5,8 @@ set -euf
 cd "$(dirname "$0")"
 
 # new ISA (requires kernel 6.6 + LLVM 18)
-BPF_CFLAGS="-mcpu=v4"
+# debian has headers in /usr/include/...-linux-gnu
+BPF_CFLAGS="-mcpu=v4 -I/usr/include/$(uname -m)-linux-gnu"
 
 go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel -cflags "$BPF_CFLAGS" bnat src/bnat.c
 # strip source line info
