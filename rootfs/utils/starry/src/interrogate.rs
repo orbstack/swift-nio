@@ -144,8 +144,14 @@ impl<'a> InterrogatedFile<'a> {
     pub fn apparent_size(&self) -> u64 {
         self.stx.stx_size
     }
+    pub fn actual_size(&self) -> u64 {
+        self.stx.stx_blocks * 512
+    }
     pub fn is_maybe_sparse(&self) -> bool {
-        self.stx.stx_blocks < self.stx.stx_size / 512
+        self.actual_size() < self.apparent_size()
+    }
+    pub fn block_size(&self) -> u32 {
+        self.stx.stx_blksize
     }
     fn nlink(&self) -> u32 {
         self.stx.stx_nlink
