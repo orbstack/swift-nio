@@ -470,16 +470,31 @@ func (p *DomainTLSProxy) handleConnRefused(r *http.Request) error {
 	localAddr := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
 	domainIP := localAddr.IP
 
-	setName := "domainproxy4_probed"
+	logrus.WithFields(logrus.Fields{
+		"domainIP": domainIP,
+		"table":    p.cb.NftableName(),
+	}).Debug("deleting from probed set due to ECONNREFUSED")
+
+	nftPrefix := "domainproxy4_probed"
 	if domainIP.To4() == nil {
-		setName = "domainproxy6_probed"
+		nftPrefix = "domainproxy6_probed"
 	}
-	err2 := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
-		return nft.SetDeleteByName(conn, table, setName, nft.IP(domainIP))
+
+	// remove from probed set
+	err := nft.WithTable(nft.FamilyInet, p.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
+		return nft.SetDeleteByName(conn, table, nftPrefix+"_tls", nft.IP(domainIP))
 	})
 	// ENOENT = raced with another ECONNREFUSED to remove from set
-	if err2 != nil && !errors.Is(err2, unix.ENOENT) {
-		return fmt.Errorf("delete from probed set: %w", err2)
+	if err != nil && !errors.Is(err, unix.ENOENT) {
+		return fmt.Errorf("delete from probed set: %w", err)
+	}
+
+	// remove http upstream
+	err = nft.WithTable(nft.FamilyInet, p.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
+		return nft.MapDeleteByName(conn, table, nftPrefix+"_http_upstreams", nft.IP(domainIP))
+	})
+	if err != nil && !errors.Is(err, unix.ENOENT) {
+		logrus.WithError(err).Error("failed to remove http upstream")
 	}
 
 	return nil

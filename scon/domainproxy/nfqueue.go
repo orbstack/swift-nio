@@ -103,6 +103,10 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
 		return err
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"upstream": upstream.IP.String(),
+		"src_ip":   srcIP.String(),
+	}).Debug("upstream")
 	mark := d.cb.GetMark(upstream)
 	srcIPSlice := srcIP.AsSlice()
 	var dialer *net.Dialer
@@ -121,18 +125,40 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
 		logrus.Debug("domaintlsproxy: probe did not find a port")
 		return nil
 	}
+	logrus.WithFields(logrus.Fields{
+		"probedPorts": probedPorts,
+	}).Debug("domaintlsproxy: probe sucessful")
 
 	// add to probed set
-	setName := "domainproxy4_probed"
+	nftPrefix := "domainproxy4_probed"
 	if dstIP.Is6() {
-		setName = "domainproxy6_probed"
+		nftPrefix = "domainproxy6_probed"
 	}
+
 	// may fail in case of race with a concurrent probe
 	err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
-		return nft.SetAddByName(conn, table, setName, nft.IPAddr(dstIP))
+		return nft.SetAddByName(conn, table, nftPrefix+"_tls", nft.IPAddr(dstIP))
 	})
 	if err != nil && !errors.Is(err, unix.EEXIST) {
 		logrus.WithError(err).Error("failed to add to domainproxy set")
+	}
+
+	if probedPorts.HTTPPort != 0 {
+		// set http upstream
+		err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
+			return nft.MapAddByName(conn, table, nftPrefix+"_http_upstreams", nft.IPAddr(dstIP), nft.Concat(nft.IP(upstream.IP), nft.InetService(probedPorts.HTTPPort)))
+		})
+		if err != nil && !errors.Is(err, unix.EEXIST) {
+			logrus.WithError(err).Error("failed to set http upstream")
+		}
+	} else {
+		// remove http upstream
+		err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
+			return nft.MapDeleteByName(conn, table, nftPrefix+"_http_upstreams", nft.IPAddr(dstIP))
+		})
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			logrus.WithError(err).Error("failed to remove http upstream")
+		}
 	}
 
 	return nil
@@ -143,6 +169,11 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 	if err != nil {
 		return probedHostPorts{}, err
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"ports":    ports,
+		"upstream": upstream,
+	}).Debug("probing host")
 
 	addr, ok := netip.AddrFromSlice(upstream.IP)
 	if !ok {

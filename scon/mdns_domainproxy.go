@@ -121,11 +121,18 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 					if err != nil {
 						return err
 					}
-					// may not exist if never probed
-					err = nft.SetDeleteByName(conn, table, prefix+"_probed", nft.IPAddr(ip))
+					// may not exist if never probed successfully
+					err = nft.SetDeleteByName(conn, table, prefix+"_probed_tls", nft.IPAddr(ip))
 					if err != nil && !errors.Is(err, unix.ENOENT) {
 						return err
 					}
+
+					// may not exist if never probed successfully
+					err = nft.MapDeleteByName(conn, table, prefix+"_probed_http_upstreams", nft.IPAddr(ip))
+					if err != nil && !errors.Is(err, unix.ENOENT) {
+						return err
+					}
+
 					err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IP(upstream.IP), nft.IP(upstream.IP)))
 					if err != nil {
 						return err
@@ -155,15 +162,21 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 			logrus.WithError(err).Error("failed to remove from domainproxy 2")
 		}
 
-		// may not exist if never probed
-		err = nft.SetDeleteByName(conn, table, prefix+"_probed", nft.IPAddr(ip))
+		// may not exist if never probed successfully
+		err = nft.SetDeleteByName(conn, table, prefix+"_probed_tls", nft.IPAddr(ip))
 		if err != nil && !errors.Is(err, unix.ENOENT) {
 			logrus.WithError(err).Error("failed to remove from domainproxy 3")
 		}
 
-		err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
-		if err != nil {
+		// also may not exist if never probed successfully
+		err = nft.MapDeleteByName(conn, table, prefix+"_probed_http_upstreams", nft.IPAddr(ip))
+		if err != nil && !errors.Is(err, unix.ENOENT) {
 			logrus.WithError(err).Error("failed to remove from domainproxy 4")
+		}
+
+		err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			logrus.WithError(err).Error("failed to remove from domainproxy 5")
 		}
 
 		return nil
