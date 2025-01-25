@@ -26,7 +26,7 @@ use nix::{
 };
 use starry::{
     buffer_stack::BufferStack,
-    interrogate::{with_fd_path, DevIno, InterrogatedFile},
+    interrogate::{with_fd_path, DevIno, InterrogatedFile, PROC_SELF_FD_PREFIX},
     sys::{
         file::{fchownat, AT_FDCWD},
         getdents::{for_each_getdents, DirEntry, FileType},
@@ -259,7 +259,8 @@ impl<'a> CopyContext<'a> {
             FileType::Socket => {
                 // sockets are uncommon, so this can be slow (String allocation + extra listen syscall)
                 let fd_path = format!(
-                    "/proc/self/fd/{}/{}",
+                    "{}{}/{}",
+                    PROC_SELF_FD_PREFIX,
                     dest_dirfd.as_raw_fd(),
                     entry.name.to_string_lossy()
                 );
@@ -525,6 +526,7 @@ fn copy_regular_file_contents(
 fn main() -> anyhow::Result<()> {
     // we need control over all permissions bits
     umask(Mode::empty());
+    InterrogatedFile::init()?;
 
     // open root dir
     let src_dir = std::env::args()

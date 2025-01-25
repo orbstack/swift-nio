@@ -17,6 +17,10 @@ use crate::sys::{
     xattr::{for_each_flistxattr, for_each_llistxattr, with_fgetxattr, with_lgetxattr},
 };
 
+// TODO: relative path is unsafe if we decide to embed this as a library in another process
+//const PROC_SELF_FD_PREFIX: &str = "/proc/self/fd/";
+pub const PROC_SELF_FD_PREFIX: &str = "";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DevIno(u64, u64);
 
@@ -40,6 +44,12 @@ pub struct InterrogatedFile<'a> {
 }
 
 impl<'a> InterrogatedFile<'a> {
+    pub fn init() -> anyhow::Result<()> {
+        // to reduce path lookup work for fd paths
+        std::env::set_current_dir("/proc/self/fd")?;
+        Ok(())
+    }
+
     // given any dirfd and entry, stat the file and open it if applicable, using the most efficient possible combination of syscalls
     pub fn from_entry(dirfd: &'a OwnedFd, entry: &'a DirEntry<'a>) -> anyhow::Result<Self> {
         Self::from_name_and_type(dirfd, entry.name, entry.file_type)
@@ -251,7 +261,7 @@ pub fn with_fd_path<T, F: AsRawFd>(
     let formatted_fd = num_buf.format(dirfd.as_raw_fd());
 
     // string formating go brrr
-    let mut path_buf: SmallVec<[u8; 1024]> = b"/proc/self/fd/".to_smallvec();
+    let mut path_buf: SmallVec<[u8; 1024]> = PROC_SELF_FD_PREFIX.as_bytes().to_smallvec();
     path_buf.extend_from_slice(formatted_fd.as_bytes());
     if let Some(name) = name {
         path_buf.push(b'/');

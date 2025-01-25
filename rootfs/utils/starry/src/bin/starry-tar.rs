@@ -19,6 +19,8 @@ use zstd::Encoder;
 const MAX_COMPRESSION_THREADS: usize = 2;
 
 fn main() -> anyhow::Result<()> {
+    InterrogatedFile::init()?;
+
     let file = unsafe { File::from_raw_fd(libc::STDOUT_FILENO) };
 
     let mut writer = Encoder::new(file, 0)?;
