@@ -14,8 +14,8 @@ pub fn main() -> anyhow::Result<()> {
         }
 
         "du" => {
-            let src_dir = args.get(2).ok_or_else(|| anyhow!("missing src dir"))?;
-            commands::du::main(src_dir)
+            let src_dirs = &args[2..].iter().map(|s| s.as_str()).collect::<Vec<_>>();
+            commands::du::main(src_dirs)
         }
 
         "find" => {

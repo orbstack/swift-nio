@@ -101,7 +101,7 @@ impl<'a> DuContext<'a> {
     }
 }
 
-pub fn main(src_dir: &str) -> anyhow::Result<()> {
+fn do_one_dir(src_dir: &str) -> anyhow::Result<()> {
     // open root dir
     let root_dirfd = match openat(
         None,
@@ -112,7 +112,7 @@ pub fn main(src_dir: &str) -> anyhow::Result<()> {
         Ok(fd) => fd,
         // ENOENT = race: root dir was deleted
         Err(Errno::ENOENT) => {
-            println!("0 {}", src_dir);
+            println!("0\t{}", src_dir);
             return Ok(());
         },
         Err(e) => return Err(e.into()),
@@ -126,6 +126,14 @@ pub fn main(src_dir: &str) -> anyhow::Result<()> {
         .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 
     // report in KiB
-    println!("{} {}", ctx.total_st_blocks * 512 / 1024, src_dir);
+    println!("{}\t{}", ctx.total_st_blocks * 512 / 1024, src_dir);
+    Ok(())
+}
+
+pub fn main(src_dirs: &[&str]) -> anyhow::Result<()> {
+    for src_dir in src_dirs {
+        do_one_dir(src_dir)?;
+    }
+
     Ok(())
 }
