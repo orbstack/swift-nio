@@ -20,6 +20,8 @@ The new machine will have all the data and settings from the old machine. Change
 Data is snapshotted and copied on demand, so cloning a machine does not result in double the disk usage.
 
 The new machine will be in a stopped state.
+
+To prevent data corruption, the existing machine will be paused while cloning.
 `,
 	Example: `  orb clone ubuntu foo`,
 	Args:    cobra.ExactArgs(2),

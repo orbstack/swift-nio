@@ -161,6 +161,13 @@ func (c *SconClient) ContainerSetConfig(record *types.ContainerRecord, config ty
 	}, &noResult)
 }
 
+func (c *SconClient) ContainerExportToHostPath(record *types.ContainerRecord, hostPath string) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerExportToHostPath", types.ContainerExportRequest{
+		Container: record,
+		HostPath:  hostPath,
+	}, &noResult)
+}
+
 func (c *SconClient) WormholeNukeData() error {
 	return c.rpc.CallResult(context.TODO(), "WormholeNukeData", nil, &noResult)
 }

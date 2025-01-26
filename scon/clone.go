@@ -14,7 +14,7 @@ import (
 
 func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 	if c.builtin {
-		return nil, errors.New("cannot clone builtin container")
+		return nil, errors.New("cannot clone builtin machine")
 	}
 
 	newC, _, err := c.manager.beginCreate(&types.CreateRequest{
@@ -36,7 +36,7 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 
 	if c.Freezer() != nil {
 		// should never happen, as only builtin containers have freezers
-		return nil, errors.New("cannot clone container with freezer")
+		return nil, errors.New("cannot clone machine with freezer")
 	}
 
 	// add a mutation hold to prevent rootfs from changing
@@ -44,7 +44,7 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 	var oldName string
 	err = c.holds.WithHold("clone", func() error {
 		// freeze old container to get a consistent data snapshot
-		err = c.Freeze()
+		err := c.Freeze()
 		if err != nil && !errors.Is(err, ErrMachineNotRunning) {
 			return fmt.Errorf("freeze: %w", err)
 		}

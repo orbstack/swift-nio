@@ -115,3 +115,8 @@ type ContainerSetConfigRequest struct {
 	Container *ContainerRecord `json:"container"`
 	Config    MachineConfig    `json:"config"`
 }
+
+type ContainerExportRequest struct {
+	Container *ContainerRecord `json:"container"`
+	HostPath  string           `json:"host_path"`
+}

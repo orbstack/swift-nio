@@ -181,6 +181,19 @@ func (s *SconServer) ContainerSetConfig(ctx context.Context, req types.Container
 	return c.SetConfig(req.Config)
 }
 
+func (s *SconServer) ContainerExportToHostPath(ctx context.Context, req types.ContainerExportRequest) error {
+	if req.Container == nil {
+		return errors.New("container is nil")
+	}
+
+	c, err := s.m.GetByID(req.Container.ID)
+	if err != nil {
+		return err
+	}
+
+	return c.ExportToHostPath(req.HostPath)
+}
+
 func (s *SconServer) WormholeNukeData(ctx context.Context) error {
 	return s.m.wormhole.NukeData()
 }
@@ -278,6 +291,7 @@ func (s *SconServer) Serve() error {
 		"ContainerRename":                       handler.New(s.ContainerRename),
 		"ContainerGetLogs":                      handler.New(s.ContainerGetLogs),
 		"ContainerSetConfig":                    handler.New(s.ContainerSetConfig),
+		"ContainerExportToHostPath":             handler.New(s.ContainerExportToHostPath),
 		"WormholeNukeData":                      handler.New(s.WormholeNukeData),
 		"InternalReportStopped":                 handler.New(s.InternalReportStopped),
 		"InternalDockerMigrationLoadImage":      handler.New(s.InternalDockerMigrationLoadImage),
