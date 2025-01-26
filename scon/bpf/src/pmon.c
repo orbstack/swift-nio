@@ -11,15 +11,37 @@
 //   - Traefik + CoreDNS in Docker Compose net=host
 //   - dig and curl DNS clients
 
+#include <stdbool.h>
 #include <string.h>
 
-// this is in {time.h, linux/time.h} but we can't include that due to conflicts with BTF types...
-#define CLOCK_MONOTONIC 1
-#include <vmlinux.h>
+#include <errno.h>
+#include <linux/bpf.h>
+#include <linux/if.h>
+#include <linux/in.h>
+#include <linux/in6.h>
+#include <linux/stddef.h>
+#include <time.h>
 
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+
+// vmlinux.h puts CO-RE (preserve_access_index) on `struct bpf_sock`, which causes a verifier fail
+// because clang compiles the relocatable CO-RE accesses to *u8 instead of *u32, and the kernel only
+// allows *u32 on sk->src_ip6 <linux/ptrace.h> breaks cross-compilation so we have to define CO-RE
+// structs manually..
+#if defined(bpf_target_arm64)
+struct user_pt_regs {
+    __u64 regs[31];
+    __u64 sp;
+    __u64 pc;
+    __u64 pstate;
+} __attribute__((preserve_access_index));
+#elif defined(bpf_target_x86)
+struct pt_regs {
+    unsigned long rax;
+} __attribute__((preserve_access_index));
+#endif
 
 // #define DEBUG
 
