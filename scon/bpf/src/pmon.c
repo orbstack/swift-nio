@@ -111,8 +111,8 @@ struct udp_meta {
 };
 
 struct notify_event {
-    __u8 dirty_flags;
     __u64 netns_cookie;
+    __u8 dirty_flags;
 };
 
 // sk storage to indicate a tracked socket
@@ -148,7 +148,7 @@ static bool check_netns(__u64 netns_cookie) {
 }
 
 static void send_notify(__u8 dirty_flags, __u64 netns_cookie) {
-    bpf_printk("*** notify");
+    bpf_printk("*** notify, dirty_flags=%x, netns_cookie=%llu", dirty_flags, netns_cookie);
     struct notify_event event = {
         .dirty_flags = dirty_flags,
         .netns_cookie = netns_cookie,

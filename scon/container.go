@@ -362,7 +362,7 @@ func withContainerNetns[T any](c *Container, fn func() (T, error)) (T, error) {
 		return zero, ErrMachineNotRunning
 	}
 
-	return sysnet.WithNetns(initPidF, fn)
+	return sysnet.WithNetnsFile(initPidF, fn)
 }
 
 func withContainerMountNs[T any](c *Container, fn func() (T, error)) (T, error) {

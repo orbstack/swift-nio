@@ -17,7 +17,7 @@ var getHostNetnsFd = sync.OnceValue(func() int {
 	return fd
 })
 
-func WithNetns[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
+func WithNetnsFile[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 	var zero T
 
 	runtime.LockOSThread()
@@ -35,6 +35,37 @@ func WithNetns[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
 	defer unix.Setns(hostNetnsFd, unix.CLONE_NEWNET)
 
 	return fn()
+}
+
+func WithNetnsFd[T any](newNsFd int, fn func() (T, error)) (T, error) {
+	var zero T
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	// get current ns
+	hostNetnsFd := getHostNetnsFd()
+
+	// set ns
+	err := unix.Setns(newNsFd, unix.CLONE_NEWNET)
+	if err != nil {
+		return zero, err
+	}
+	defer unix.Setns(hostNetnsFd, unix.CLONE_NEWNET)
+
+	return fn()
+}
+
+func WithNetnsProcDirfdFile[T any](procDirfd *os.File, fn func() (T, error)) (T, error) {
+	netnsFd, err := unix.Openat(int(procDirfd.Fd()), "ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	defer unix.Close(netnsFd)
+	defer runtime.KeepAlive(procDirfd)
+
+	return WithNetnsFd(netnsFd, fn)
 }
 
 // used for eBPF

@@ -42,7 +42,7 @@ func (cb *DockerProxyCallbacks) NftableName() string {
 func (cb *DockerProxyCallbacks) GetHostOpenPorts(host domainproxytypes.Host) (map[uint16]struct{}, error) {
 	// docker machine's domainproxy only proxies other docker containers
 	// so it should never need to get open ports for non-docker containers
-	if !host.Docker {
+	if host.Type != domainproxytypes.HostTypeDocker {
 		return nil, errors.New("not implemented")
 	}
 

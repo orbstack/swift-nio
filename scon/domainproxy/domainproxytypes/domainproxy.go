@@ -6,68 +6,50 @@ import (
 )
 
 // represents an upstream of a domainproxy ip
-// these are identified by the set of their domain names. this means order is irrelevant
-// if two upstream objects have the same exact names, they're considered to point to the same thing
+// this is identified by its Host
 type Upstream struct {
-	Names       []string
-	namesSorted []string // used for comparison and map looksups
-
-	IP net.IP
-
 	Host Host
+
+	Names []string
+	IP    net.IP
 }
 
 func NewUpstream(Names []string, IP net.IP, Host Host) Upstream {
 	return Upstream{
-		Names:       Names,
-		namesSorted: slices.Sorted(slices.Values(Names)),
+		Names: Names,
 
 		IP:   IP,
 		Host: Host,
 	}
 }
 
-func (u Upstream) IsValid() bool {
+func (u *Upstream) IsValid() bool {
 	return u.IP != nil
 }
 
-func (u Upstream) NamesSorted() []string {
-	if u.namesSorted == nil {
-		return slices.Sorted(slices.Values(u.Names))
-	}
-
-	return u.namesSorted
-}
-
-func (u Upstream) EqualNames(names []string) bool {
-	if len(u.Names) != len(names) {
-		return false
-	}
-
-	return slices.Equal(u.NamesSorted(), slices.Sorted(slices.Values(names)))
-}
-
-// returns true if two upstream objects refer to the same upstream (compares name arrays as sets)
-func (u Upstream) NamesEqual(other Upstream) bool {
-	if len(u.Names) != len(other.Names) {
-		return false
-	}
-
-	return slices.Equal(u.NamesSorted(), other.NamesSorted())
+func (u *Upstream) Equal(other Upstream) bool {
+	return u.Host.Equal(other.Host)
 }
 
 // returns true if two upstream objects have the same routing information
-func (u Upstream) ValEqual(other Upstream) bool {
-	return u.IP.Equal(other.IP) && u.Host.Equal(other.Host)
+func (u *Upstream) ValEqual(other Upstream) bool {
+	return slices.Equal(u.Names, other.Names) && u.IP.Equal(other.IP)
 }
 
-// represents a container or machine
+type HostType int
+
+const (
+	HostTypeMachine HostType = iota
+	HostTypeDocker
+	HostTypeK8s
+)
+
+// represents a machine or container
 type Host struct {
-	ID     string
-	Docker bool
-	K8s    bool
+	Type HostType
+	ID   string
 }
 
 func (h Host) Equal(other Host) bool {
-	return h.ID == other.ID && h.Docker == other.Docker && h.K8s == other.K8s
+	return h.ID == other.ID && h.Type == other.Type
 }

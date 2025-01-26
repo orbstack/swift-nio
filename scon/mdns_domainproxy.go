@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/nftables"
+	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
@@ -27,7 +28,10 @@ var (
 )
 
 type domainproxyAllocator struct {
-	nameMap   map[string]netip.Addr
+	hostMap map[domainproxytypes.Host]netip.Addr
+
+	nameMap map[string]netip.Addr
+
 	ipsFull   bool
 	subnet    netip.Prefix
 	lowest    netip.Addr
@@ -36,7 +40,10 @@ type domainproxyAllocator struct {
 
 func newDomainproxyAllocator(subnet netip.Prefix, lowest netip.Addr) *domainproxyAllocator {
 	return &domainproxyAllocator{
-		nameMap:   make(map[string]netip.Addr),
+		hostMap: make(map[domainproxytypes.Host]netip.Addr),
+
+		nameMap: make(map[string]netip.Addr),
+
 		ipsFull:   false,
 		subnet:    subnet,
 		lowest:    lowest,
@@ -59,6 +66,8 @@ type domainproxyRegistry struct {
 	domainTLSProxy       *domainproxy.DomainTLSProxy
 	domainTLSProxyActive bool
 	procDirfds           map[domainproxytypes.Host]*os.File
+	netnsCookieToHost    map[uint64]domainproxytypes.Host
+	hostToNetnsCookie    map[domainproxytypes.Host]uint64
 }
 
 func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) domainproxyRegistry {
@@ -80,6 +89,8 @@ func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip
 		domainTLSProxy:       proxy,
 		domainTLSProxyActive: false,
 		procDirfds:           make(map[domainproxytypes.Host]*os.File),
+		netnsCookieToHost:    make(map[uint64]domainproxytypes.Host),
+		hostToNetnsCookie:    make(map[domainproxytypes.Host]uint64),
 	}
 }
 
@@ -117,6 +128,60 @@ func (d *domainproxyRegistry) addNeighbor(ip netip.Addr) {
 	}
 }
 
+func (d *domainproxyRegistry) invalidateAddrProbeLocked(ip netip.Addr) {
+	prefix := "domainproxy4"
+	if ip.Is6() {
+		prefix = "domainproxy6"
+	}
+
+	err := nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
+		// may not exist if never probed successfully
+		err := nft.SetDeleteByName(conn, table, prefix+"_probed_tls", nft.IPAddr(ip))
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			logrus.WithError(err).Error("failed to remove from domainproxy 6")
+		}
+
+		// also may not exist if never probed successfully
+		err = nft.MapDeleteByName(conn, table, prefix+"_probed_http_upstreams", nft.IPAddr(ip))
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			logrus.WithError(err).Error("failed to remove from domainproxy 7")
+		}
+		return nil
+	})
+	if err != nil {
+		logrus.WithError(err).Error("failed to remove from domainproxy 8")
+	}
+
+	// always try to invalidate in docker
+	if d.dockerMachine == nil {
+		return
+	}
+
+	_, err = withContainerNetns(d.dockerMachine, func() (struct{}, error) {
+		return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
+			// may not exist if never probed successfully
+			err = nft.SetDeleteByName(conn, table, prefix+"_probed_tls", nft.IPAddr(ip))
+			if err != nil && !errors.Is(err, unix.ENOENT) {
+				return err
+			}
+
+			// may not exist if never probed successfully
+			err = nft.MapDeleteByName(conn, table, prefix+"_probed_http_upstreams", nft.IPAddr(ip))
+			if err != nil && !errors.Is(err, unix.ENOENT) {
+				return err
+			}
+
+			return nil
+		})
+	})
+	if err != nil {
+		// this will happen if docker is not running -- very possible if the docker machine just shut down
+		if d.dockerMachine.Running() {
+			logrus.WithError(err).Error("failed to delete from docker domainproxy")
+		}
+	}
+}
+
 func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 	upstream, ok := d.ipMap[ip]
 	if !ok || !upstream.IsValid() {
@@ -125,28 +190,23 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 
 	d.ipMap[ip] = domainproxytypes.Upstream{}
 
+	if ip.Is4() {
+		delete(d.v4.hostMap, upstream.Host)
+	} else {
+		delete(d.v6.hostMap, upstream.Host)
+	}
+
 	prefix := "domainproxy4"
 	if ip.Is6() {
 		prefix = "domainproxy6"
 	}
 
-	if upstream.Host.Docker {
+	if upstream.Host.Type == domainproxytypes.HostTypeDocker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
 				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 					err := nft.MapDeleteByName(conn, table, prefix, nft.IPAddr(ip))
 					if err != nil {
-						return err
-					}
-					// may not exist if never probed successfully
-					err = nft.SetDeleteByName(conn, table, prefix+"_probed_tls", nft.IPAddr(ip))
-					if err != nil && !errors.Is(err, unix.ENOENT) {
-						return err
-					}
-
-					// may not exist if never probed successfully
-					err = nft.MapDeleteByName(conn, table, prefix+"_probed_http_upstreams", nft.IPAddr(ip))
-					if err != nil && !errors.Is(err, unix.ENOENT) {
 						return err
 					}
 
@@ -179,35 +239,25 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 			logrus.WithError(err).Error("failed to remove from domainproxy 2")
 		}
 
-		// may not exist if never probed successfully
-		err = nft.SetDeleteByName(conn, table, prefix+"_probed_tls", nft.IPAddr(ip))
-		if err != nil && !errors.Is(err, unix.ENOENT) {
-			logrus.WithError(err).Error("failed to remove from domainproxy 3")
-		}
-
-		// also may not exist if never probed successfully
-		err = nft.MapDeleteByName(conn, table, prefix+"_probed_http_upstreams", nft.IPAddr(ip))
-		if err != nil && !errors.Is(err, unix.ENOENT) {
-			logrus.WithError(err).Error("failed to remove from domainproxy 4")
-		}
-
 		err = nft.SetDeleteByName(conn, table, prefix+"_masquerade", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
 		if err != nil && !errors.Is(err, unix.ENOENT) {
-			logrus.WithError(err).Error("failed to remove from domainproxy 5")
+			logrus.WithError(err).Error("failed to remove from domainproxy 3")
 		}
 
 		return nil
 	})
 	if err != nil {
-		logrus.WithError(err).Error("failed to remove from domainproxy 5")
+		logrus.WithError(err).Error("failed to remove from domainproxy 4")
 	}
 
 	err = nft.WithTable(nft.FamilyBridge, netconf.NftableBridge, func(conn *nftables.Conn, table *nftables.Table) error {
 		return nft.SetDeleteByName(conn, table, prefix+"_masquerade_bridge", nft.Concat(nft.IPAddr(ip), nft.IP(upstream.IP)))
 	})
 	if err != nil {
-		logrus.WithError(err).Error("failed to remove from domainproxy 6")
+		logrus.WithError(err).Error("failed to remove from domainproxy 5")
 	}
+
+	d.invalidateAddrProbeLocked(ip)
 }
 
 func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainproxytypes.Upstream) {
@@ -227,12 +277,18 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 		}
 	}
 
+	if ip.Is4() {
+		d.v4.hostMap[val.Host] = ip
+	} else {
+		d.v6.hostMap[val.Host] = ip
+	}
+
 	prefix := "domainproxy4"
 	if ip.Is6() {
 		prefix = "domainproxy6"
 	}
 
-	if val.Host.Docker {
+	if val.Host.Type == domainproxytypes.HostTypeDocker {
 		if d.dockerMachine != nil {
 			_, err := withContainerNetns(d.dockerMachine, func() (struct{}, error) {
 				return struct{}{}, nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
@@ -339,23 +395,7 @@ func (d *domainproxyRegistry) nextAvailableIPLocked(allocator *domainproxyAlloca
 	}
 }
 
-func (d *domainproxyRegistry) findNamesUpstreamLocked(allocator *domainproxyAllocator, names []string) (addr netip.Addr, upstream domainproxytypes.Upstream, ok bool) {
-	// try to find something already claimed first
-	for _, name := range names {
-		addr, ok := allocator.nameMap[name]
-		if !ok {
-			continue
-		}
-
-		upstream, ok := d.ipMap[addr]
-		if !ok || !upstream.IsValid() || !upstream.EqualNames(names) {
-			// different upstream
-			continue
-		}
-
-		return addr, upstream, true
-	}
-
+func (d *domainproxyRegistry) findReclaimableAddrLocked(allocator *domainproxyAllocator, names []string) (addr netip.Addr, ok bool) {
 	// try to find something we can claim
 	for _, name := range names {
 		addr, ok := allocator.nameMap[name]
@@ -369,52 +409,56 @@ func (d *domainproxyRegistry) findNamesUpstreamLocked(allocator *domainproxyAllo
 			continue
 		}
 
-		return addr, domainproxytypes.Upstream{}, true
+		return addr, true
 	}
 
-	return netip.Addr{}, domainproxytypes.Upstream{}, false
+	return netip.Addr{}, false
 }
 
 func (d *domainproxyRegistry) assignUpstreamLocked(allocator *domainproxyAllocator, val domainproxytypes.Upstream) (addr netip.Addr, err error) {
-	addr, currUpstream, ok := d.findNamesUpstreamLocked(allocator, val.Names)
+	needsClaim := false
+	addr, ok := allocator.hostMap[val.Host]
 	if !ok {
-		// couldn't find a reclaimable ip or our upstream, allocate
-		nextAddr, ok := d.nextAvailableIPLocked(allocator)
-		if !ok {
-			return netip.Addr{}, errNoMoreIPs
+		needsClaim = true
+		var reclaimableAddr netip.Addr
+		reclaimableAddr, ok = d.findReclaimableAddrLocked(allocator, val.Names)
+		if ok {
+			addr = reclaimableAddr
+		} else {
+			// couldn't find a reclaimable ip, allocate
+			addr, ok = d.nextAvailableIPLocked(allocator)
+			if !ok {
+				return netip.Addr{}, errNoMoreIPs
+			}
 		}
-
-		d.setAddrUpstreamLocked(nextAddr, val)
-		for _, name := range val.Names {
-			allocator.nameMap[name] = nextAddr
-		}
-
-		return nextAddr, nil
 	}
 
-	if !currUpstream.IsValid() {
-		// we found a reclaimable ip and are taking it, so set names
+	if needsClaim {
 		for _, name := range val.Names {
 			allocator.nameMap[name] = addr
 		}
 	}
+
 	d.setAddrUpstreamLocked(addr, val)
 
 	return addr, nil
 }
 
-func (d *domainproxyRegistry) freeNamesLocked(names []string) {
-	for _, name := range names {
-		if addr, ok := d.v4.nameMap[name]; ok {
-			if upstream, ok := d.ipMap[addr]; ok && upstream.EqualNames(names) {
-				d.freeAddrLocked(addr)
-			}
-		}
-		if addr, ok := d.v6.nameMap[name]; ok {
-			if upstream, ok := d.ipMap[addr]; ok && upstream.EqualNames(names) {
-				d.freeAddrLocked(addr)
-			}
-		}
+func (d *domainproxyRegistry) freeHostLocked(host domainproxytypes.Host) {
+	if ip, ok := d.v4.hostMap[host]; ok {
+		d.freeAddrLocked(ip)
+	}
+	if ip, ok := d.v6.hostMap[host]; ok {
+		d.freeAddrLocked(ip)
+	}
+}
+
+func (d *domainproxyRegistry) invalidateHostProbeLocked(host domainproxytypes.Host) {
+	if ip, ok := d.v4.hostMap[host]; ok {
+		d.invalidateAddrProbeLocked(ip)
+	}
+	if ip, ok := d.v6.hostMap[host]; ok {
+		d.invalidateAddrProbeLocked(ip)
 	}
 }
 
@@ -430,7 +474,7 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 
 	for _, valip := range valips {
 		if ip4 == nil && valip.To4() != nil {
-			addr, err := d.assignUpstreamLocked(d.v4, domainproxytypes.NewUpstream(names, valip, domainproxytypes.Host{Docker: false, ID: machine.ID}))
+			addr, err := d.assignUpstreamLocked(d.v4, domainproxytypes.NewUpstream(names, valip, domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: machine.ID}))
 			if err != nil {
 				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip4 for DNS")
 				continue
@@ -440,7 +484,7 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 		}
 
 		if ip6 == nil && valip.To4() == nil {
-			addr, err := d.assignUpstreamLocked(d.v6, domainproxytypes.NewUpstream(names, valip, domainproxytypes.Host{Docker: false, ID: machine.ID}))
+			addr, err := d.assignUpstreamLocked(d.v6, domainproxytypes.NewUpstream(names, valip, domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: machine.ID}))
 			if err != nil {
 				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip6 for DNS")
 				continue
@@ -469,6 +513,19 @@ func (d *domainproxyRegistry) updateTLSProxyNftablesLocked(enabled bool) error {
 
 	d.domainTLSProxyActive = enabled
 	return nil
+}
+
+func (d *domainproxyRegistry) refreshHostListenersLocked(c *Container, dirtyFlags bpf.LtypeFlags, netnsCookie uint64) {
+	logrus.WithFields(logrus.Fields{
+		"dirtyFlags":  dirtyFlags,
+		"netnsCookie": netnsCookie,
+	}).Debug("refreshing host listeners")
+
+	d.invalidateHostProbeLocked(domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID})
+
+	if host, ok := d.netnsCookieToHost[netnsCookie]; ok {
+		d.invalidateHostProbeLocked(host)
+	}
 }
 
 func setupDomainProxyInterface() error {
@@ -543,7 +600,7 @@ func (c *SconProxyCallbacks) GetUpstreamByAddr(addr netip.Addr) (domainproxytype
 
 func (c *SconProxyCallbacks) GetMark(upstream domainproxytypes.Upstream) int {
 	mark := netconf.VmFwmarkTproxyOutboundBit
-	if upstream.Host.Docker {
+	if upstream.Host.Type == domainproxytypes.HostTypeDocker {
 		mark |= netconf.VmFwmarkDockerRouteBit
 	}
 
@@ -615,7 +672,7 @@ func (r *mdnsRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.Host) (
 
 	openPorts := map[uint16]struct{}{}
 
-	if !domainproxyHost.K8s {
+	if domainproxyHost.Type != domainproxytypes.HostTypeK8s {
 		procDirfd, ok := r.domainproxy.procDirfds[domainproxyHost]
 		if !ok {
 			return nil, fmt.Errorf("no proc dirfd for host: %v", domainproxyHost)
@@ -640,7 +697,7 @@ func (r *mdnsRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.Host) (
 		}
 	}
 
-	if !domainproxyHost.Docker || domainproxyHost.K8s {
+	if domainproxyHost.Type == domainproxytypes.HostTypeMachine || domainproxyHost.Type == domainproxytypes.HostTypeK8s {
 		// grab nftables ports
 		machine, err := r.manager.GetByID(domainproxyHost.ID)
 		if err != nil {

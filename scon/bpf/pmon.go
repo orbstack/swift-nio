@@ -154,8 +154,8 @@ func (p *Pmon) Attach(cgroupPath string) error {
 
 func (p *Pmon) deserializeRecord(rec *ringbuf.Record) PmonEvent {
 	ev := PmonEvent{
-		DirtyFlags:  LtypeFlags(rec.RawSample[0]),
-		NetnsCookie: binary.LittleEndian.Uint64(rec.RawSample[1:]),
+		DirtyFlags:  LtypeFlags(rec.RawSample[8]),
+		NetnsCookie: binary.NativeEndian.Uint64(rec.RawSample[0:]),
 	}
 	return ev
 }

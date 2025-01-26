@@ -363,7 +363,7 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 		return nil, fmt.Errorf("split host/port: %w", err)
 	}
 
-	_, upstream, err := p.cb.GetUpstreamByHost(destHost, is4)
+	addr, upstream, err := p.cb.GetUpstreamByHost(destHost, is4)
 	if err != nil {
 		return nil, fmt.Errorf("get upstream: %w", err)
 	}
@@ -376,13 +376,8 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 		dialer = &net.Dialer{}
 	}
 
-	upstreamAddr, ok := netip.AddrFromSlice(upstream.IP)
-	if !ok {
-		return nil, fmt.Errorf("get upstream addr: %w", err)
-	}
-
 	p.probeMu.Lock()
-	probed, ok := p.probedHosts[upstreamAddr]
+	probed, ok := p.probedHosts[addr]
 	p.probeMu.Unlock()
 	if !ok {
 		return nil, fmt.Errorf("get upstream port")

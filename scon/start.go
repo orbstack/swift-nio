@@ -1003,7 +1003,13 @@ func (c *Container) attachBpf(initPid int) error {
 	c.bpf = bpfMgr
 
 	// attach pmon
-	pmon, err := bpf.NewPmon(netnsCookie)
+	pmonNetnsCookie := netnsCookie
+	if c.ID == ContainerIDDocker {
+		// get notifications from all netns for docker
+		pmonNetnsCookie = 0
+	}
+
+	pmon, err := bpf.NewPmon(pmonNetnsCookie)
 	if err != nil {
 		return fmt.Errorf("new pmon: %w", err)
 	}
@@ -1016,6 +1022,8 @@ func (c *Container) attachBpf(initPid int) error {
 
 	go runOne("pmon monitor for "+c.Name, func() error {
 		return pmon.Monitor(func(ev bpf.PmonEvent) error {
+			c.manager.net.mdnsRegistry.refreshHostListeners(c, ev.DirtyFlags, ev.NetnsCookie)
+
 			c.triggerListenersUpdate(ev.DirtyFlags)
 			return nil
 		})

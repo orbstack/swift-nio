@@ -17,12 +17,14 @@ import (
 	"github.com/armon/go-radix"
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/agent"
+	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/templates"
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util/netx"
+	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
@@ -258,7 +260,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		return r.httpServer.ServeTLS(l, "", "")
 	})
 
-	err = r.updateTLSProxyNftables(true, r.manager.vmConfig.NetworkHttps)
+	err = r.updateDomainTLSProxyNftables(true, r.manager.vmConfig.NetworkHttps)
 	if err != nil {
 		logrus.WithError(err).Error("unable to update tls proxy nftables")
 	}
@@ -685,12 +687,21 @@ func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) 
 func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDirfd *os.File) (net.IP, net.IP) {
 	names := r.containerToMdnsNames(ctr, true /*notifyInvalid*/)
 	nameStrings := dnsNamesToStrings(names)
-	domainproxyHost := domainproxytypes.Host{Docker: true, ID: ctr.ID}
+	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeDocker, ID: ctr.ID}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if procDirfd != nil {
+		netnsCookie, err := sysnet.WithNetnsProcDirfdFile(procDirfd, func() (uint64, error) {
+			return sysnet.GetNetnsCookie()
+		})
+		if err == nil {
+			r.domainproxy.netnsCookieToHost[netnsCookie] = domainproxyHost
+			r.domainproxy.hostToNetnsCookie[domainproxyHost] = netnsCookie
+		} else {
+			logrus.WithError(err).Error("failed to get netns cookie")
+		}
 		r.domainproxy.procDirfds[domainproxyHost] = procDirfd
 	}
 
@@ -762,9 +773,11 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDi
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	names := r.containerToMdnsNames(ctr, false /*notifyInvalid*/)
-	nameStrings := dnsNamesToStrings(names)
-	logrus.WithField("names", names).Debug("dns: remove container")
-	domainproxyHost := domainproxytypes.Host{Docker: true, ID: ctr.ID}
+	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeDocker, ID: ctr.ID}
+	logrus.WithFields(logrus.Fields{
+		"names": names,
+		"host":  domainproxyHost,
+	}).Debug("dns: remove container")
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -773,8 +786,12 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 		dirfd.Close()
 		delete(r.domainproxy.procDirfds, domainproxyHost)
 	}
+	if netnsCookie, ok := r.domainproxy.hostToNetnsCookie[domainproxyHost]; ok {
+		delete(r.domainproxy.netnsCookieToHost, netnsCookie)
+		delete(r.domainproxy.hostToNetnsCookie, domainproxyHost)
+	}
 
-	r.domainproxy.freeNamesLocked(nameStrings)
+	r.domainproxy.freeHostLocked(domainproxyHost)
 
 	now := time.Now()
 	for _, name := range names {
@@ -796,7 +813,7 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 func (r *mdnsRegistry) AddMachine(c *Container) {
 	name := c.Name + mdnsMachineSuffix
 	logrus.WithField("name", name).Debug("dns: add machine")
-	domainproxyHost := domainproxytypes.Host{Docker: false, ID: c.ID}
+	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -844,12 +861,16 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 
 func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	name := c.Name + mdnsMachineSuffix
-	logrus.WithField("name", name).Debug("dns: remove machine")
+	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID}
+	logrus.WithFields(logrus.Fields{
+		"name": name,
+		"host": domainproxyHost,
+	}).Debug("dns: remove machine")
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.domainproxy.freeNamesLocked([]string{name})
+	r.domainproxy.freeHostLocked(domainproxyHost)
 
 	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
 	treeKey := toTreeKey(name)
@@ -873,7 +894,8 @@ func (r *mdnsRegistry) ClearContainers() {
 		// delete all container nodes
 		entry := v.(*mdnsEntry)
 		if entry.Type == MdnsEntryContainer {
-			r.domainproxy.freeNamesLocked(entry.names)
+			domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeDocker, ID: entry.owningDockerCid}
+			r.domainproxy.freeHostLocked(domainproxyHost)
 			r.tree.Delete(s)
 		}
 		return false // continue
@@ -1173,13 +1195,20 @@ func (r *mdnsRegistry) proxyToHost(q dns.Question) []dns.RR {
 	return reply.Answer
 }
 
-func (r *mdnsRegistry) updateTLSProxyNftables(locked bool, enabled bool) error {
+func (r *mdnsRegistry) updateDomainTLSProxyNftables(locked bool, enabled bool) error {
 	if !locked {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 	}
 
 	return r.domainproxy.updateTLSProxyNftablesLocked(enabled)
+}
+
+func (r *mdnsRegistry) refreshHostListeners(c *Container, dirtyFlags bpf.LtypeFlags, netnsCookie uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.domainproxy.refreshHostListenersLocked(c, dirtyFlags, netnsCookie)
 }
 
 func (r *mdnsRegistry) dockerPostStart() error {
@@ -1195,7 +1224,7 @@ func (r *mdnsRegistry) dockerPostStart() error {
 				[]string{k8sName},
 				net.ParseIP(netconf.SconK8sIP4),
 				// we make k8s.orb.local not count as docker because the ip is the docker ip. this means that hairpinning needs to be done by ovm.
-				domainproxytypes.Host{Docker: false, ID: ContainerIDK8s, K8s: true},
+				domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
 			),
 		)
 		if err != nil {
@@ -1206,7 +1235,7 @@ func (r *mdnsRegistry) dockerPostStart() error {
 		k8sAddr6, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.NewUpstream(
 			[]string{k8sName},
 			net.ParseIP(netconf.SconK8sIP6),
-			domainproxytypes.Host{Docker: false, ID: ContainerIDK8s, K8s: true},
+			domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
 		))
 		if err != nil {
 			return fmt.Errorf("unable to create k8s domainproxy ip: %w", err)

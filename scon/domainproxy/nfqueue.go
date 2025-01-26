@@ -112,11 +112,6 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) err
 		return err
 	}
 
-	upstreamAddr, ok := netip.AddrFromSlice(upstream.IP)
-	if !ok {
-		return fmt.Errorf("failed to get addr from slice: %s", upstream.IP)
-	}
-
 	logrus.WithFields(logrus.Fields{
 		"upstream": upstream.IP.String(),
 		"src_ip":   downstreamIP.String(),
@@ -150,7 +145,7 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) err
 			HTTPPort:  httpPort,
 			HTTPSPort: httpsPort,
 		}
-		d.probedHosts[upstreamAddr] = probed
+		d.probedHosts[addr] = probed
 	}
 
 	// update probed set
