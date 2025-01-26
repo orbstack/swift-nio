@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/cilium/ebpf/link"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -114,6 +115,24 @@ func (b *GlobalBpfManager) Load(ifVmnetMachine string) error {
 	if err != nil {
 		return fmt.Errorf("add filter: %w", err)
 	}
+
+	xlsmSpec, err := loadXlsm()
+	if err != nil {
+		return fmt.Errorf("load xlsm: %w", err)
+	}
+
+	xlsmObjs := &xlsmObjects{}
+	err = xlsmSpec.LoadAndAssign(xlsmObjs, nil)
+	if err != nil {
+		return fmt.Errorf("load and assign: %w", err)
+	}
+	b.closers = append(b.closers, xlsmObjs)
+
+	lsmBpfLink, err := link.AttachLSM(link.LSMOptions{Program: xlsmObjs.XlsmBpf})
+	if err != nil {
+		return fmt.Errorf("attach lsm bpf: %w", err)
+	}
+	b.closers = append(b.closers, lsmBpfLink)
 
 	return nil
 }

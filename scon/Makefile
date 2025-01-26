@@ -33,7 +33,9 @@ bpf/gen/%/vmlinux.h: ../assets/debug/%/kernel.btf
 # prevent auto deletion
 .PRECIOUS: bpf/gen/%/vmlinux.h
 
-BPF_PROGS := bnat lfwd pmon tproxy
+BPF_PROGS := bnat lfwd pmon xlsm tproxy
+# exclude sk_lookup programs from verification: bpftool expects "sk_lookup", cilium/ebpf expects "sk_lookup/"
+BPF_VERIFY_PROGS := bnat pmon xlsm
 BPF_TARGETS := arm64 x86
 
 bpf/%_arm64_bpfel.o: bpf/gen/arm64/vmlinux.h bpf/gen/amd64/vmlinux.h bpf/src/%.c
@@ -49,3 +51,11 @@ bpf: $(foreach prog, $(BPF_PROGS), $(foreach target, $(BPF_TARGETS), bpf/$(prog)
 .PHONY: bpf-clean
 bpf-clean:
 	rm -rf bpf/gen bpf/*_bpfel.o
+
+.PHONY: bpf-verify_%
+bpf-verify_%: bpf/$(*F)_arm64_bpfel.o
+# use bash for $RANDOM
+	bash -c 'sudo bpftool prog load bpf/$(*F)_arm64_bpfel.o /sys/fs/bpf/scon-verify-$$RANDOM$$RANDOM$$RANDOM'
+
+.PHONY: bpf-verify
+bpf-verify: $(foreach prog, $(BPF_VERIFY_PROGS), bpf-verify_$(prog))
