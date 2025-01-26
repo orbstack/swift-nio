@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/nftables"
+	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
@@ -20,6 +21,9 @@ import (
 
 var (
 	errNoMoreIPs = errors.New("no more ips")
+
+	domainproxySubnet4Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
+	domainproxySubnet6Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
 )
 
 type domainproxyAllocator struct {
@@ -52,10 +56,17 @@ type domainproxyRegistry struct {
 	v4 *domainproxyAllocator
 	v6 *domainproxyAllocator
 
-	procDirfds map[domainproxytypes.Host]*os.File
+	domainTLSProxy       *domainproxy.DomainTLSProxy
+	domainTLSProxyActive bool
+	procDirfds           map[domainproxytypes.Host]*os.File
 }
 
 func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) domainproxyRegistry {
+	proxy, err := domainproxy.NewDomainTLSProxy(r.host, &SconProxyCallbacks{r: r})
+	if err != nil {
+		logrus.Debug("failed to create tls domainproxy")
+	}
+
 	return domainproxyRegistry{
 		r:               r,
 		dockerMachine:   nil,
@@ -66,8 +77,14 @@ func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip
 		v4: newDomainproxyAllocator(subnet4, lowest4),
 		v6: newDomainproxyAllocator(subnet6, lowest6),
 
-		procDirfds: make(map[domainproxytypes.Host]*os.File),
+		domainTLSProxy:       proxy,
+		domainTLSProxyActive: false,
+		procDirfds:           make(map[domainproxytypes.Host]*os.File),
 	}
+}
+
+func (d *domainproxyRegistry) startDomainTLSProxy() error {
+	return d.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe)
 }
 
 func (d *domainproxyRegistry) addNeighbor(ip netip.Addr) {
@@ -434,6 +451,24 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 	}
 
 	return ip4, ip6
+}
+
+func (d *domainproxyRegistry) updateTLSProxyNftablesLocked(enabled bool) error {
+	var err error
+	if !d.domainTLSProxyActive && enabled {
+		// we need to activate it
+		// TODO: migrate to nft library
+		err = nft.Run("add", "rule", "inet", netconf.NftableInet, "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
+	} else if d.domainTLSProxyActive && !enabled {
+		// we need to deactivate it
+		err = nft.FlushChain(nft.FamilyInet, netconf.NftableInet, "prerouting-dynamic-tlsproxy")
+	}
+	if err != nil {
+		return err
+	}
+
+	d.domainTLSProxyActive = enabled
+	return nil
 }
 
 func setupDomainProxyInterface() error {

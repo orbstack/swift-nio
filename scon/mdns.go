@@ -17,11 +17,9 @@ import (
 	"github.com/armon/go-radix"
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/agent"
-	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
-	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/templates"
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util/netx"
@@ -60,9 +58,7 @@ const (
 )
 
 var (
-	nat64Prefix              = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
-	domainproxySubnet4Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
-	domainproxySubnet6Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
+	nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
 
 	sconHostBridgeIP4 = net.ParseIP(netconf.SconHostBridgeIP4)
 	sconHostBridgeIP6 = net.ParseIP(netconf.SconHostBridgeIP6)
@@ -148,9 +144,6 @@ type mdnsRegistry struct {
 	db      *Database
 
 	httpServer *http.Server
-
-	domainTLSProxy       *domainproxy.DomainTLSProxy
-	domainTLSProxyActive bool
 }
 
 func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *mdnsRegistry {
@@ -197,14 +190,6 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		ip4:        net.ParseIP(netconf.SconWebIndexIP4),
 		ip6:        net.ParseIP(netconf.SconWebIndexIP6),
 	})
-
-	proxy, err := domainproxy.NewDomainTLSProxy(host, &SconProxyCallbacks{r: r})
-	if err != nil {
-		logrus.Debug("failed to create tls domainproxy")
-	}
-
-	r.domainTLSProxy = proxy
-	r.domainTLSProxyActive = false
 
 	return r
 }
@@ -279,7 +264,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	}
 
 	go runOne("start domainTLSProxy", func() error {
-		err := r.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe)
+		err := r.domainproxy.startDomainTLSProxy()
 		if err != nil {
 			return err
 		}
@@ -1194,21 +1179,7 @@ func (r *mdnsRegistry) updateTLSProxyNftables(locked bool, enabled bool) error {
 		defer r.mu.Unlock()
 	}
 
-	var err error
-	if !r.domainTLSProxyActive && enabled {
-		// we need to activate it
-		// TODO: migrate to nft library
-		err = nft.Run("add", "rule", "inet", netconf.NftableInet, "prerouting-dynamic-tlsproxy", "jump prerouting-tlsproxy")
-	} else if r.domainTLSProxyActive && !enabled {
-		// we need to deactivate it
-		err = nft.FlushChain(nft.FamilyInet, netconf.NftableInet, "prerouting-dynamic-tlsproxy")
-	}
-	if err != nil {
-		return err
-	}
-
-	r.domainTLSProxyActive = enabled
-	return nil
+	return r.domainproxy.updateTLSProxyNftablesLocked(enabled)
 }
 
 func (r *mdnsRegistry) dockerPostStart() error {
