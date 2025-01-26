@@ -13,6 +13,7 @@ use crate::sys::{
     file::statx,
     getdents::{DirEntry, FileType},
     inode_flags::InodeFlags,
+    libc_ext,
     link::with_readlinkat,
     xattr::{for_each_flistxattr, for_each_llistxattr, with_fgetxattr, with_lgetxattr},
 };
@@ -39,7 +40,7 @@ pub struct InterrogatedFile<'a> {
     pub file_type: FileType,
     name: &'a CStr,
 
-    stx: libc::statx,
+    stx: libc_ext::statx,
     pub fd: Option<OwnedFd>,
 }
 
@@ -67,14 +68,14 @@ impl<'a> InterrogatedFile<'a> {
         // 1. determine file type:
         // do we know the file type for sure? some filesystems populate d_type; many don't
         // if not, we must always start with fstatat, as it's unsafe to try opening char/block/fifo
-        let mut stx: Option<libc::statx> = None;
+        let mut stx: Option<libc_ext::statx> = None;
         let file_type = match file_type {
             FileType::Unknown => {
                 stx = Some(statx(
                     dirfd,
                     name,
                     libc::AT_NO_AUTOMOUNT | libc::AT_SYMLINK_NOFOLLOW,
-                    libc::STATX_BASIC_STATS,
+                    libc_ext::STATX_BASIC_STATS,
                 )?);
                 FileType::from_stat_fmt(stx.as_ref().unwrap().stx_mode as u32 & libc::S_IFMT)
             }
@@ -107,7 +108,7 @@ impl<'a> InterrogatedFile<'a> {
                     &fd,
                     c"",
                     libc::AT_EMPTY_PATH | libc::AT_NO_AUTOMOUNT | libc::AT_SYMLINK_NOFOLLOW,
-                    libc::STATX_BASIC_STATS,
+                    libc_ext::STATX_BASIC_STATS,
                 )?);
             }
 
@@ -121,7 +122,7 @@ impl<'a> InterrogatedFile<'a> {
                     dirfd,
                     name,
                     libc::AT_NO_AUTOMOUNT | libc::AT_SYMLINK_NOFOLLOW,
-                    libc::STATX_BASIC_STATS,
+                    libc_ext::STATX_BASIC_STATS,
                 )?);
             }
         }
@@ -182,13 +183,22 @@ impl<'a> InterrogatedFile<'a> {
     }
     pub fn inode_flags(&self) -> anyhow::Result<InodeFlags> {
         let mut flags = InodeFlags::empty();
-        flags.set(InodeFlags::COMPR, self.attr(libc::STATX_ATTR_COMPRESSED));
-        flags.set(InodeFlags::IMMUTABLE, self.attr(libc::STATX_ATTR_IMMUTABLE));
-        flags.set(InodeFlags::APPEND, self.attr(libc::STATX_ATTR_APPEND));
-        flags.set(InodeFlags::NODUMP, self.attr(libc::STATX_ATTR_NODUMP));
-        flags.set(InodeFlags::ENCRYPT, self.attr(libc::STATX_ATTR_ENCRYPTED));
-        flags.set(InodeFlags::VERITY, self.attr(libc::STATX_ATTR_VERITY));
-        flags.set(InodeFlags::DAX, self.attr(libc::STATX_ATTR_DAX));
+        flags.set(
+            InodeFlags::COMPR,
+            self.attr(libc_ext::STATX_ATTR_COMPRESSED),
+        );
+        flags.set(
+            InodeFlags::IMMUTABLE,
+            self.attr(libc_ext::STATX_ATTR_IMMUTABLE),
+        );
+        flags.set(InodeFlags::APPEND, self.attr(libc_ext::STATX_ATTR_APPEND));
+        flags.set(InodeFlags::NODUMP, self.attr(libc_ext::STATX_ATTR_NODUMP));
+        flags.set(
+            InodeFlags::ENCRYPT,
+            self.attr(libc_ext::STATX_ATTR_ENCRYPTED),
+        );
+        flags.set(InodeFlags::VERITY, self.attr(libc_ext::STATX_ATTR_VERITY));
+        flags.set(InodeFlags::DAX, self.attr(libc_ext::STATX_ATTR_DAX));
         Ok(flags)
     }
 

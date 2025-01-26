@@ -1,5 +1,7 @@
 use std::{
-    collections::BTreeSet, os::fd::{AsRawFd, FromRawFd, OwnedFd}, path::Path
+    collections::BTreeSet,
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    path::Path,
 };
 
 use anyhow::anyhow;

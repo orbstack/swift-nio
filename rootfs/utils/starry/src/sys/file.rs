@@ -6,6 +6,8 @@ use std::{
 
 use nix::errno::Errno;
 
+use super::libc_ext;
+
 pub struct AtFdcwd {}
 
 const AT_FDCWD_INSTANCE: AtFdcwd = AtFdcwd {};
@@ -36,10 +38,10 @@ pub fn statx<F: AsRawFd>(
     path: &CStr,
     flags: i32,
     mask: u32,
-) -> nix::Result<libc::statx> {
+) -> nix::Result<libc_ext::statx> {
     let dirfd = dirfd.as_raw_fd();
     let mut st = MaybeUninit::uninit();
-    let ret = unsafe { libc::statx(dirfd, path.as_ptr(), flags, mask, st.as_mut_ptr()) };
+    let ret = unsafe { libc_ext::statx(dirfd, path.as_ptr(), flags, mask, st.as_mut_ptr()) };
     Errno::result(ret).map(|_| unsafe { st.assume_init() })
 }
 

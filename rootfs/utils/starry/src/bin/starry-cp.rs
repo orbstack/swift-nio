@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::{anyhow, Context};
 use bumpalo::Bump;
-use libc::{close_range, getegid, geteuid};
+use libc::{getegid, geteuid};
 use nix::{
     errno::Errno,
     fcntl::{copy_file_range, openat, AtFlags, OFlag},
@@ -31,6 +31,7 @@ use starry::{
         file::{fchownat, AT_FDCWD},
         getdents::{for_each_getdents, DirEntry, FileType},
         inode_flags::InodeFlags,
+        libc_ext,
         link::with_readlinkat,
         xattr::{fsetxattr, lsetxattr},
     },
@@ -379,7 +380,7 @@ fn close_fds(mut a: OwnedFd, mut b: OwnedFd) {
     }
 
     if a.as_raw_fd() + 1 == b.as_raw_fd() {
-        let ret = unsafe { close_range(a.as_raw_fd() as u32, b.as_raw_fd() as u32, 0) };
+        let ret = unsafe { libc_ext::close_range(a.as_raw_fd() as u32, b.as_raw_fd() as u32, 0) };
         if ret != 0 {
             panic!("close_range failed: {}", ret);
         }

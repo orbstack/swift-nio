@@ -1,16 +1,9 @@
-use std::{
-    ffi::{c_void, CStr},
-    os::fd::AsRawFd,
-};
+use std::{ffi::CStr, os::fd::AsRawFd};
 
 use libc::{DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_LNK, DT_REG, DT_SOCK, DT_UNKNOWN};
 use nix::errno::Errno;
 
 use crate::buffer_stack::BufferStack;
-
-extern "C" {
-    pub fn getdents64(fd: i32, dirp: *mut c_void, count: usize) -> isize;
-}
 
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
@@ -73,7 +66,9 @@ pub fn for_each_getdents<F: AsRawFd>(
 
     while total_nents < max_nents {
         let n = unsafe {
-            getdents64(
+            // glibc's wrapper is getdents64; musl's is getdents; neither is really public, so just call the raw syscall
+            libc::syscall(
+                libc::SYS_getdents64,
                 fd.as_raw_fd(),
                 buf.as_mut_ptr() as *mut _,
                 BufferStack::BUF_SIZE,
