@@ -22,6 +22,9 @@ ENV GOTOOLCHAIN=auto
 # just use v8.4 for simplicity -- we mainly care about specializing for LSE atomics
 ENV GOARM64=v8.4
 COPY vendor /build/vendor
+# scon uses relative ../assets path to find BTF
+COPY assets/debug/arm64/kernel.btf /build/assets/debug/arm64/kernel.btf
+COPY assets/debug/amd64/kernel.btf /build/assets/debug/amd64/kernel.btf
 COPY scon /build/scon
 COPY vmgr /build/vmgr
 RUN --mount=type=cache,target=/root/.cache/go-build \
@@ -37,7 +40,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/go/pkg \
     <<EOT sh -eux
 cd /build/scon
-make bpfgen
+make bpf
 EOT
 # Go
 RUN --mount=type=cache,target=/root/.cache/go-build \
@@ -472,7 +475,7 @@ COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf
 # kernel modules
 ARG ARCH=arm64
 # 0.0.0 = temp name for depmod
-COPY rootfs/kernel/${ARCH} /opt/orbstack-guest/lib/modules/0.0.0
+COPY assets/debug/${ARCH}/kernel_modules.builtin /opt/orbstack-guest/lib/modules/0.0.0/modules.builtin
 
 COPY rootfs/config/authorized_keys /root/.ssh/authorized_keys
 RUN <<EOT sh -eux

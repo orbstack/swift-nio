@@ -9,7 +9,7 @@ export GOTOOLCHAIN=auto
 # just use v8.4 for simplicity -- we mainly care about specializing for LSE atomics
 export GOARM64=v8.4
 
-make bpfgen
+make bpf
 
 # must be static
 CGO_ENABLED=0 go build ./cmd/scon-agent
