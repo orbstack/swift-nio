@@ -29,6 +29,7 @@ import (
 
 const (
 	startStopTimeout = 30 * time.Second
+	ChildCgroupName  = "child"
 )
 
 var (
@@ -507,7 +508,7 @@ func (c *Container) configureLxc() error {
 		// works w/ kernel commit: "cgroup: allow root and its grandchildren to mix children and controllers"
 		set("lxc.cgroup.dir.monitor", "scon.monitor."+c.ID)
 		set("lxc.cgroup.dir.container", "scon.container."+c.ID)
-		set("lxc.cgroup.dir.container.inner", bpf.ChildCgroupName)
+		set("lxc.cgroup.dir.container.inner", ChildCgroupName)
 
 		// container hooks, before rootfs is set
 		// this gives it a chance to override the rootfs
@@ -1002,14 +1003,19 @@ func (c *Container) attachBpf(initPid int) error {
 	c.bpf = bpfMgr
 
 	// attach pmon
-	includeNft := c.ID == ContainerIDK8s
-	pmonReader, err := bpfMgr.AttachPmon(includeNft)
+	pmon, err := bpf.NewPmon(netnsCookie)
 	if err != nil {
-		return fmt.Errorf("attach bpf pmon: %w", err)
+		return fmt.Errorf("new pmon: %w", err)
 	}
 
+	err = pmon.Attach(cgPath)
+	if err != nil {
+		return fmt.Errorf("attach pmon: %w", err)
+	}
+	c.pmon = pmon
+
 	go runOne("pmon monitor for "+c.Name, func() error {
-		return bpf.MonitorPmon(pmonReader, func(ev bpf.PmonEvent) error {
+		return pmon.Monitor(func(ev bpf.PmonEvent) error {
 			c.triggerListenersUpdate(ev.DirtyFlags)
 			return nil
 		})

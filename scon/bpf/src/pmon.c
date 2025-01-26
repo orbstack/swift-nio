@@ -25,6 +25,7 @@
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include <bpf/bpf_core_read.h>
 
 // vmlinux.h puts CO-RE (preserve_access_index) on `struct bpf_sock`, which causes a verifier fail
 // because clang compiles the relocatable CO-RE accesses to *u8 instead of *u32, and the kernel only
@@ -78,8 +79,6 @@ static const __be32 UNSPEC_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 0);
 #define UDP_BIND_DEBOUNCE 20 // ms
 
 const volatile __u64 config_netns_cookie = 0;
-// easier to check this in kretprobe hook
-const volatile __u64 config_cgroup_id = 0;
 
 #define copy4(dst, src) \
     dst[0] = src[0]; \
@@ -87,18 +86,33 @@ const volatile __u64 config_cgroup_id = 0;
     dst[2] = src[2]; \
     dst[3] = src[3];
 
+struct task_struct {
+    struct nsproxy *nsproxy;
+} __attribute__((preserve_access_index));
+
+struct nsproxy {
+    struct net *net_ns;
+} __attribute__((preserve_access_index));
+
+struct net {
+    __u64 net_cookie;
+} __attribute__((preserve_access_index));
+
 struct fwd_meta {
     // UDP notification is delayed until first recvmsg
     bool has_udp_meta;
     bool udp_notify_pending;
+    __u64 netns_cookie;
 };
 
 struct udp_meta {
     struct bpf_timer notify_timer;
+    __u64 netns_cookie;
 };
 
 struct notify_event {
     __u8 dirty_flags;
+    __u64 netns_cookie;
 };
 
 // sk storage to indicate a tracked socket
@@ -124,20 +138,20 @@ struct {
     __uint(max_entries, 16384); // min = page size, so be conservative
 } notify_ring SEC(".maps");
 
-static bool check_netns(void *ctx) {
-    __u64 cur_netns = bpf_get_netns_cookie(ctx);
-    if (config_netns_cookie != cur_netns) {
-        bpf_printk("not intended netns tgt=%llu cur=%llu", config_netns_cookie, cur_netns);
+static bool check_netns(__u64 netns_cookie) {
+    if (config_netns_cookie != 0 && config_netns_cookie != netns_cookie) {
+        bpf_printk("not intended netns tgt=%llu cur=%llu", config_netns_cookie, netns_cookie);
         return false;
     }
 
     return true;
 }
 
-static void send_notify(__u8 dirty_flags) {
+static void send_notify(__u8 dirty_flags, __u64 netns_cookie) {
     bpf_printk("*** notify");
     struct notify_event event = {
         .dirty_flags = dirty_flags,
+        .netns_cookie = netns_cookie,
     };
     int ret = bpf_ringbuf_output(&notify_ring, &event, sizeof(event), 0);
     if (ret != 0) {
@@ -159,8 +173,10 @@ static bool cancel_udp_notify(struct fwd_meta *meta, void *ctx) {
 
 SEC("cgroup/sock_release")
 int pmon_sock_release(struct bpf_sock *sk) {
+    __u64 netns_cookie = bpf_get_netns_cookie(sk);
+
     // only intended netns
-    if (!check_netns(sk)) {
+    if (!check_netns(netns_cookie)) {
         return VERDICT_PROCEED;
     }
 
@@ -173,14 +189,14 @@ int pmon_sock_release(struct bpf_sock *sk) {
 
     bpf_printk("sock_release");
     cancel_udp_notify(meta, sk);
-    send_notify(sk->type == SOCK_STREAM ? LTYPE_TCP : LTYPE_UDP);
+    send_notify(sk->type == SOCK_STREAM ? LTYPE_TCP : LTYPE_UDP, netns_cookie);
 
     return VERDICT_PROCEED;
 }
 
 static int udp_timer_cb(void *map, int *key, struct udp_meta *val) {
     bpf_printk("udp debounce fired");
-    send_notify(LTYPE_UDP);
+    send_notify(LTYPE_UDP, val->netns_cookie);
 
     // delete self to clear timer
     int ret = bpf_map_delete_elem(map, key);
@@ -193,8 +209,10 @@ static int udp_timer_cb(void *map, int *key, struct udp_meta *val) {
 
 // returns: whether conditions were met
 static bool postbind_common(struct bpf_sock *sk) {
+    __u64 netns_cookie = bpf_get_netns_cookie(sk);
+
     // only intended netns
-    if (!check_netns(sk)) {
+    if (!check_netns(netns_cookie)) {
         return false;
     }
     // only TCP or UDP
@@ -214,12 +232,12 @@ static bool postbind_common(struct bpf_sock *sk) {
 
     // notify (TCP). UDP delayed until first recvmsg
     if (sk->type == SOCK_STREAM) {
-        send_notify(LTYPE_TCP);
+        send_notify(LTYPE_TCP, netns_cookie);
     } else {
         meta->udp_notify_pending = true;
 
         // start timer
-        struct udp_meta init_udp = {};
+        struct udp_meta init_udp = {.netns_cookie = netns_cookie};
         __u64 cookie = bpf_get_socket_cookie(sk);
         bpf_map_update_elem(&udp_meta_map, &cookie, &init_udp, BPF_ANY);
         struct udp_meta *udp = bpf_map_lookup_elem(&udp_meta_map, &cookie);
@@ -246,7 +264,7 @@ static int recvmsg_common(struct bpf_sock_addr *ctx) {
     if (cancel_udp_notify(meta, ctx)) {
         bpf_printk("recvmsg: first udp notify (is server)");
         // if delete failed, timer already fired, so no need to notify again
-        send_notify(LTYPE_UDP);
+        send_notify(LTYPE_UDP, meta->netns_cookie);
     }
 
     return VERDICT_PROCEED;
@@ -391,17 +409,20 @@ int pmon_sendmsg6(struct bpf_sock_addr *ctx) {
  */
 
 static int nft_change_common(struct pt_regs *ctx) {
-    // only send event on successful change
     if (PT_REGS_RC(ctx) != 0) {
         return 0;
     }
 
-    if (bpf_get_current_cgroup_id() != config_cgroup_id) {
+    struct task_struct *task = (struct task_struct*)bpf_get_current_task();
+    __u64 netns_cookie = BPF_CORE_READ(task, nsproxy, net_ns, net_cookie);
+    bpf_printk("config_netns_cookie: %llu; netns_cookie: %llu", config_netns_cookie, netns_cookie);
+
+    if (!check_netns(netns_cookie)) {
         return 0;
     }
 
     bpf_printk("nft changed");
-    send_notify(LTYPE_IPTABLES);
+    send_notify(LTYPE_IPTABLES, netns_cookie);
     return 0;
 }
 
