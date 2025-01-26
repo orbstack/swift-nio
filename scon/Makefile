@@ -12,19 +12,12 @@ wormclient/generated/wormhole.pb.go: ../wormhole/schema/wormhole.proto
 bpf/vmlinux.h: /sys/kernel/btf/vmlinux
 	@bpftool btf dump file /sys/kernel/btf/vmlinux format c | cat > bpf/vmlinux.h
 
-bpf/bnat_%: bpf/src/bnat.c
+BPF_PROGS := bnat lfwd pmon tproxy
+
+bpf/%_bpfel.o: bpf/src/%.c
 	@go generate ./bpf
 
-bpf/lfwd_%: bpf/src/lfwd.c
-	@go generate ./bpf
-
-bpf/pmon_%: bpf/src/pmon.c
-	@go generate ./bpf
-
-bpf/tproxy_%: bpf/src/tproxy.c
-	@go generate ./bpf
-
-bpfgen: bpf/bnat_bpfel.o bpf/bnat_bpfel.go bpf/lfwd_bpfel.o bpf/lfwd_bpfel.go bpf/pmon_bpfel.o bpf/pmon_bpfel.go bpf/tproxy_bpfel.o bpf/tproxy_bpfel.go
+bpfgen: $(foreach prog, $(BPF_PROGS), bpf/$(prog)_bpfel.o)
 
 run:
 	ssh -t ovm "cd /mnt/mac/$(shell pwd); killall scon; ./build.sh && ./run.sh"
