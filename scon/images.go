@@ -33,7 +33,8 @@ const (
 	RepoUbuntu = "https://cloud-images.ubuntu.com/releases"
 
 	maxSquashfsCpus      = 4
-	imageDownloadTimeout = 15 * time.Minute
+	imageDownloadTimeout = 20 * time.Minute
+	imageRequestTimeout  = 15 * time.Second
 )
 
 // fix growpart and resizefs errors on boot when using cloud-init
@@ -131,8 +132,6 @@ type ImageTemplate struct {
 }
 
 var imagesHttpClient = &http.Client{
-	// includes download time
-	Timeout: 30 * time.Minute,
 	Transport: &http.Transport{
 		MaxIdleConns:    2,
 		IdleConnTimeout: 1 * time.Minute,
@@ -159,6 +158,9 @@ func fetchStreamsImages(ctx context.Context) (map[types.ImageSpec]RawImage, erro
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
+	reqCtx, cancel := context.WithTimeout(ctx, imageRequestTimeout)
+	defer cancel()
+	req = req.WithContext(reqCtx)
 	resp, err := imagesHttpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("get index: %w", err)
