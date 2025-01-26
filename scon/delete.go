@@ -28,6 +28,12 @@ import (
 func (m *ConManager) deleteRootfs(rootfs string) error {
 	logrus.WithField("rootfs", rootfs).Debug("deleting rootfs")
 
+	// skip if already deleted / doesn't exist
+	// can happen if creation was canceled
+	if err := unix.Access(rootfs, unix.F_OK); err == unix.ENOENT {
+		return nil
+	}
+
 	// swapoff on all swapfiles
 	// we can't get full path in /proc/swaps from root ns - it's not translated
 	// shows up as path relative to container mount ns instead
@@ -143,6 +149,9 @@ func (c *Container) deleteLocked(isInternal bool) error {
 	}()
 
 	logrus.WithField("container", c.Name).Info("deleting container")
+
+	// kill and wait for long-running jobs associated with this container
+	c.jobManager.Close()
 
 	// unmount from nfs
 	err = c.manager.onPreDeleteContainer(c)

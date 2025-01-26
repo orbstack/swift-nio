@@ -65,6 +65,8 @@ type Container struct {
 	manager *ConManager
 	mu      syncx.RWMutex
 
+	jobManager *util.EntityJobManager
+
 	// if booted
 	// TODO: move all this into a .rt field (RuntimeState)
 	lastListeners     []sysnet.ListenerInfo
@@ -96,6 +98,8 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		dir:       dir,
 		manager:   m,
 		rootfsDir: dir + "/rootfs",
+
+		jobManager: util.NewEntityJobManager(m.ctx),
 	}
 	// always create in stopped state
 	c.setState(types.ContainerStateStopped)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -100,13 +101,13 @@ func (m *ConManager) beginCreate(args *types.CreateRequest) (*Container, *types.
 	return c, &image, nil
 }
 
-func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error) {
+func (m *ConManager) Create(args *types.CreateRequest) (_ *Container, retErr error) {
 	c, image, err := m.beginCreate(args)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if retErr != nil {
 			err2 := c.deleteInternal()
 			if err2 != nil {
 				logrus.WithError(err2).Error("failed to clean up failed container creation")
@@ -114,10 +115,17 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 		}
 	}()
 
-	err = m.makeRootfsWithImage(*image, c.Name, c.rootfsDir, args.CloudInitUserData, args.InternalUseTestCache)
+	// model this as a long-running task
+	err = c.jobManager.Run(func(ctx context.Context) error {
+		err := m.makeRootfsWithImage(ctx, *image, c.Name, c.rootfsDir, args.CloudInitUserData, args.InternalUseTestCache)
+		if ctx.Err() != nil {
+			// if canceled, just return that instead of the actual error (e.g. unsquashfs killed)
+			return ctx.Err()
+		}
+		return err
+	})
 	if err != nil {
-		err = fmt.Errorf("make rootfs: %w", err)
-		return
+		return nil, fmt.Errorf("make rootfs: %w", err)
 	}
 
 	// start
@@ -125,15 +133,13 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 	err = c.startLocked(true /* isInternal */)
 	c.mu.Unlock()
 	if err != nil {
-		err = fmt.Errorf("start: %w", err)
-		return
+		return nil, fmt.Errorf("start: %w", err)
 	}
 
 	// setup
 	setupArgs, err := c.setupInitial(args)
 	if err != nil {
-		err = fmt.Errorf("setup: %w", err)
-		return
+		return nil, fmt.Errorf("setup: %w", err)
 	}
 
 	// reboot NixOS to not run into weird errors (https://github.com/orbstack/macvirt/pull/111#issuecomment-2155174982)
@@ -142,16 +148,14 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 		_, err = c.stopLocked(StopOptions{KillProcesses: false, ManagerIsStopping: false})
 		c.mu.Unlock()
 		if err != nil {
-			err = fmt.Errorf("stop (nixos reboot): %w", err)
-			return
+			return nil, fmt.Errorf("stop (nixos reboot): %w", err)
 		}
 
 		c.mu.Lock()
 		err = c.startLocked(true /* isInternal */)
 		c.mu.Unlock()
 		if err != nil {
-			err = fmt.Errorf("stop (nixos reboot): %w", err)
-			return
+			return nil, fmt.Errorf("stop (nixos reboot): %w", err)
 		}
 	}
 
@@ -159,15 +163,14 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 		return a.InitialSetupStage2(*setupArgs)
 	})
 	if err != nil {
-		err = fmt.Errorf("setup: %w", err)
-		return
+		return nil, fmt.Errorf("setup: %w", err)
 	}
 
 	// also set as default if this is the first container
 	if m.CountNonBuiltinContainers() <= 1 {
 		err = m.db.SetDefaultContainerID(c.ID)
 		if err != nil {
-			return
+			return nil, fmt.Errorf("set default container: %w", err)
 		}
 	}
 
@@ -179,7 +182,7 @@ func (m *ConManager) Create(args *types.CreateRequest) (c *Container, err error)
 	}
 
 	logrus.WithField("container", c.Name).Info("container created")
-	return
+	return c, nil
 }
 
 func (c *Container) setupInitial(args *types.CreateRequest) (*agent.InitialSetupArgs, error) {

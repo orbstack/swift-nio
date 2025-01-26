@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -53,6 +54,8 @@ type ConManager struct {
 	containersMu     syncx.RWMutex
 	stopping         atomic.Bool
 	dockerProxy      *DockerProxy
+	ctx              context.Context
+	ctxCancel        context.CancelFunc
 
 	// services
 	db   *Database
@@ -146,6 +149,7 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		return nil, fmt.Errorf("new fsops: %w", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	mgr := &ConManager{
 		dataDir:            dataDir,
 		tmpDir:             tmpDir,
@@ -157,6 +161,8 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 
 		containersByID:   make(map[string]*Container),
 		containersByName: make(map[string]*Container),
+		ctx:              ctx,
+		ctxCancel:        cancel,
 
 		db:   db,
 		host: hc,
@@ -376,6 +382,8 @@ func (m *ConManager) Close() error {
 	if m.stopping.Swap(true) {
 		return nil
 	}
+
+	m.ctxCancel()
 
 	close(m.earlyStopChan) // this acts as broadcast
 	m.stopAll()

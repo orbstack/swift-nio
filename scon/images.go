@@ -154,8 +154,12 @@ func findItem(items map[string]StreamsImage, ftype string) (*StreamsImage, bool)
 	return nil, false
 }
 
-func fetchStreamsImages() (map[types.ImageSpec]RawImage, error) {
-	resp, err := imagesHttpClient.Get(RepoOrb + "/streams/v1/images.json")
+func fetchStreamsImages(ctx context.Context) (map[types.ImageSpec]RawImage, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", RepoOrb+"/streams/v1/images.json", nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	resp, err := imagesHttpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("get index: %w", err)
 	}
@@ -239,7 +243,7 @@ func isImageDistroInLxdRepo(image string) bool {
 	return image != images.ImageDocker
 }
 
-func downloadFile(url string, outPath string, expectSha256 string) error {
+func downloadFile(ctx context.Context, url string, outPath string, expectSha256 string) error {
 	// create temp file
 	tmpPath := outPath + ".tmp"
 	out, err := os.Create(tmpPath)
@@ -250,7 +254,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	defer out.Close()
 
 	// download
-	ctx, cancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
+	ctx, cancel := context.WithTimeout(ctx, imageDownloadTimeout)
 	defer cancel()
 
 	logrus.WithField("url", url).Debug("downloading file")
@@ -296,7 +300,7 @@ func downloadFile(url string, outPath string, expectSha256 string) error {
 	return nil
 }
 
-func getImageFromSpec(spec types.ImageSpec) (RawImage, error) {
+func getImageFromSpec(ctx context.Context, spec types.ImageSpec) (RawImage, error) {
 	// fetch index
 	var img RawImage
 	var ok bool
@@ -305,7 +309,7 @@ func getImageFromSpec(spec types.ImageSpec) (RawImage, error) {
 		switch {
 		case isImageDistroInLxdRepo(spec.Distro):
 			logrus.Info("fetching image index")
-			images, err := fetchStreamsImages()
+			images, err := fetchStreamsImages(ctx)
 			if err != nil {
 				return RawImage{}, fmt.Errorf("fetch index: %w", err)
 			}
@@ -320,7 +324,7 @@ func getImageFromSpec(spec types.ImageSpec) (RawImage, error) {
 	return img, nil
 }
 
-func downloadImage(img RawImage, downloadDir string) (string, string, error) {
+func downloadImage(ctx context.Context, img RawImage, downloadDir string) (string, string, error) {
 	// download metadata and rootfs in parallel
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -329,11 +333,11 @@ func downloadImage(img RawImage, downloadDir string) (string, string, error) {
 	metaFile := downloadDir + "/meta"
 	go func() {
 		defer wg.Done()
-		metadataErr = downloadFile(img.MetadataURL, metaFile, img.MetadataSha256)
+		metadataErr = downloadFile(ctx, img.MetadataURL, metaFile, img.MetadataSha256)
 	}()
 	go func() {
 		defer wg.Done()
-		rootfsErr = downloadFile(img.RootfsURL, rootfsFile, img.RootfsSha256)
+		rootfsErr = downloadFile(ctx, img.RootfsURL, rootfsFile, img.RootfsSha256)
 	}()
 	wg.Wait()
 
@@ -348,7 +352,7 @@ func downloadImage(img RawImage, downloadDir string) (string, string, error) {
 	return rootfsFile, metaFile, nil
 }
 
-func (m *ConManager) getOrDownloadImage(spec types.ImageSpec, img RawImage, useTestCache bool) (rootfsFile string, metaFile string, tempDir string, err error) {
+func (m *ConManager) getOrDownloadImage(ctx context.Context, spec types.ImageSpec, img RawImage, useTestCache bool) (rootfsFile string, metaFile string, tempDir string, err error) {
 	// TODO: actual image caching, but for now, i just want to speed up tests
 	if useTestCache {
 		downloadDir := path.Join(m.dataDir, "testing-cache", spec.Distro, spec.Version+"-"+spec.Variant, spec.Arch)
@@ -364,7 +368,7 @@ func (m *ConManager) getOrDownloadImage(spec types.ImageSpec, img RawImage, useT
 				return
 			}
 			logrus.WithField("spec", spec).Debug("downloading image for testing")
-			rootfsFile, metaFile, err = downloadImage(img, downloadDir)
+			rootfsFile, metaFile, err = downloadImage(ctx, img, downloadDir)
 			if err != nil {
 				return
 			}
@@ -378,7 +382,7 @@ func (m *ConManager) getOrDownloadImage(spec types.ImageSpec, img RawImage, useT
 			return
 		}
 
-		rootfsFile, metaFile, err = downloadImage(img, tempDir)
+		rootfsFile, metaFile, err = downloadImage(ctx, img, tempDir)
 		if err != nil {
 			return
 		}
@@ -387,13 +391,13 @@ func (m *ConManager) getOrDownloadImage(spec types.ImageSpec, img RawImage, useT
 	return
 }
 
-func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName string, rootfsDir string, cloudInitUserData string, useTestCache bool) error {
-	img, err := getImageFromSpec(spec)
+func (m *ConManager) makeRootfsWithImage(ctx context.Context, spec types.ImageSpec, containerName string, rootfsDir string, cloudInitUserData string, useTestCache bool) error {
+	img, err := getImageFromSpec(ctx, spec)
 	if err != nil {
 		return err
 	}
 
-	rootfsFile, metaFile, tempDir, err := m.getOrDownloadImage(spec, img, useTestCache)
+	rootfsFile, metaFile, tempDir, err := m.getOrDownloadImage(ctx, spec, img, useTestCache)
 	if err != nil {
 		return err
 	}
@@ -411,11 +415,11 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 		if err != nil {
 			return err
 		}
-		cmd = exec.Command("tar", "-xJf", rootfsFile, "-C", rootfsDir, "--numeric-owner", "--xattrs", "--xattrs-include=*")
+		cmd = exec.CommandContext(ctx, "tar", "-xJf", rootfsFile, "-C", rootfsDir, "--numeric-owner", "--xattrs", "--xattrs-include=*")
 	case ImageFormatSquashfs:
 		// limit parallelism
 		procs := min(runtime.NumCPU(), maxSquashfsCpus)
-		cmd = exec.Command("unsquashfs", "-n", "-f", "-p", strconv.Itoa(procs), "-d", rootfsDir, rootfsFile)
+		cmd = exec.CommandContext(ctx, "unsquashfs", "-n", "-f", "-p", strconv.Itoa(procs), "-d", rootfsDir, rootfsFile)
 	default:
 		return fmt.Errorf("unsupported rootfs format: %v", img.RootfsFormat)
 	}
@@ -434,7 +438,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 	defer os.RemoveAll(metadataDir)
 
 	// extract metadata
-	cmd = exec.Command("tar", "-xf", metaFile, "-C", metadataDir)
+	cmd = exec.CommandContext(ctx, "tar", "-xf", metaFile, "-C", metadataDir)
 	output, err = util.WithDefaultOom2(func() ([]byte, error) {
 		return cmd.CombinedOutput()
 	})
@@ -469,7 +473,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 
 	// apply templates
 	logrus.Info("applying templates")
-	ctx := pongo2.Context{
+	templateCtx := pongo2.Context{
 		"container": map[string]string{
 			"name": hostName,
 		},
@@ -509,7 +513,7 @@ func (m *ConManager) makeRootfsWithImage(spec types.ImageSpec, containerName str
 			return fmt.Errorf("parse template: %w", err)
 		}
 
-		result, err := tpl.Execute(ctx)
+		result, err := tpl.Execute(templateCtx)
 		if err != nil {
 			return fmt.Errorf("execute template: %w", err)
 		}
