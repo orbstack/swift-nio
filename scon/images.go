@@ -45,47 +45,8 @@ growpart:
 `
 
 var (
-	extraImages = map[types.ImageSpec]RawImage{
-		// too much work to keep sha256 and size up to date
-		// [BREAKING] for legacy compat reasons we keep urls for these version combos,
-		// but now we use lxc-ci images because it's much faster than nixos hydra server
-		{Distro: images.ImageNixos, Version: "22.11", Arch: "amd64", Variant: "default"}: {
-			MetadataURL:    "https://hydra.nixos.org/job/nixos/release-22.11/nixos.lxdMeta.x86_64-linux/latest/download-by-type/file/system-tarball",
-			MetadataSha256: "",
-			RootfsFormat:   ImageFormatTarXz,
-			RootfsURL:      "https://hydra.nixos.org/job/nixos/release-22.11/nixos.lxdImage.x86_64-linux/latest/download-by-type/file/system-tarball",
-			RootfsSha256:   "",
-			Size:           0,
-			Revision:       "hydra-latest",
-		},
-		{Distro: images.ImageNixos, Version: "22.11", Arch: "arm64", Variant: "default"}: {
-			MetadataURL:    "https://hydra.nixos.org/job/nixos/release-22.11/nixos.lxdMeta.aarch64-linux/latest/download-by-type/file/system-tarball",
-			MetadataSha256: "",
-			RootfsFormat:   ImageFormatTarXz,
-			RootfsURL:      "https://hydra.nixos.org/job/nixos/release-22.11/nixos.lxdImage.aarch64-linux/latest/download-by-type/file/system-tarball",
-			RootfsSha256:   "",
-			Size:           0,
-			Revision:       "hydra-latest",
-		},
-		{Distro: images.ImageNixos, Version: "23.05", Arch: "amd64", Variant: "default"}: {
-			MetadataURL:    "https://hydra.nixos.org/job/nixos/release-23.05/nixos.lxdMeta.x86_64-linux/latest/download-by-type/file/system-tarball",
-			MetadataSha256: "",
-			RootfsFormat:   ImageFormatTarXz,
-			RootfsURL:      "https://hydra.nixos.org/job/nixos/release-23.05/nixos.lxdImage.x86_64-linux/latest/download-by-type/file/system-tarball",
-			RootfsSha256:   "",
-			Size:           0,
-			Revision:       "hydra-latest",
-		},
-		{Distro: images.ImageNixos, Version: "23.05", Arch: "arm64", Variant: "default"}: {
-			MetadataURL:    "https://hydra.nixos.org/job/nixos/release-23.05/nixos.lxdMeta.aarch64-linux/latest/download-by-type/file/system-tarball",
-			MetadataSha256: "",
-			RootfsFormat:   ImageFormatTarXz,
-			RootfsURL:      "https://hydra.nixos.org/job/nixos/release-23.05/nixos.lxdImage.aarch64-linux/latest/download-by-type/file/system-tarball",
-			RootfsSha256:   "",
-			Size:           0,
-			Revision:       "hydra-latest",
-		},
-	}
+	// currently unused
+	extraImages = map[types.ImageSpec]RawImage{}
 )
 
 type ImageFormat int
