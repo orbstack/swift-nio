@@ -11,16 +11,11 @@
 //   - Traefik + CoreDNS in Docker Compose net=host
 //   - dig and curl DNS clients
 
-#include <stdbool.h>
 #include <string.h>
 
-#include <errno.h>
-#include <linux/bpf.h>
-#include <linux/if.h>
-#include <linux/in.h>
-#include <linux/in6.h>
-#include <linux/stddef.h>
-#include <time.h>
+// this is in {time.h, linux/time.h} but we can't include that due to conflicts with BTF types...
+#define CLOCK_MONOTONIC 1
+#include <vmlinux.h>
 
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
@@ -373,7 +368,12 @@ int pmon_sendmsg6(struct bpf_sock_addr *ctx) {
  * hooking nft works because docker machine uses iptables-nft
  */
 
-static int nft_change_common(void) {
+static int nft_change_common(struct pt_regs *ctx) {
+    // only send event on successful change
+    if (PT_REGS_RC(ctx) != 0) {
+        return 0;
+    }
+
     if (bpf_get_current_cgroup_id() != config_cgroup_id) {
         return 0;
     }
@@ -387,13 +387,14 @@ static int nft_change_common(void) {
 // use kretprobe instead of fexit (which is faster) because cilium ebpf loads entire vmlinux BTF and
 // uses ~70M memory to link fexit maybe we should use C libbpf instead...
 SEC("kretprobe/nf_tables_newrule")
-int nf_tables_newrule(void) {
-    return nft_change_common();
+int nf_tables_newrule(struct pt_regs *ctx) {
+    return nft_change_common(ctx);
 }
 
 SEC("kretprobe/nf_tables_delrule")
-int nf_tables_delrule(void) {
-    return nft_change_common();
+int nf_tables_delrule(struct pt_regs *ctx) {
+    return nft_change_common(ctx);
 }
 
+// required for BPF timer API
 char _license[] SEC("license") = "GPL";
