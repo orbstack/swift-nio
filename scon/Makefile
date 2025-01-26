@@ -1,3 +1,6 @@
+# parallelism
+MAKEFLAGS := -j$(J)
+
 all: scli
 
 .PHONY: scli
