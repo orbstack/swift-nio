@@ -1,3 +1,22 @@
+/*
+ * starry cp
+ * similar to `cp -raf --reflink=auto`
+ *
+ * features:
+ * - supports xattrs (unlike busybox cp), even on symlinks
+ * - supports inode flags/attributes like immutable and append-only (unlike any cp)
+ * - supports hard links (unlike any cp)
+ * - supports sockets (unlike any cp)
+ * - uses reflinks when possible
+ * - supports sparse files
+ * - supports fifos and char/block devices
+ * - safe against symlink races (everything is dirfd/O_NOFOLLOW)
+ *
+ * assumptions:
+ * - source is NOT modified concurrently. if this is violated, the command may fail or produce inconsistent results, but there is no security risk (in the case of symlink races). specifically, deletion races may cause the entire command to fail.
+ * - should be run as root in order to set trusted.* xattrs, inode flags, and other xattrs on symlinks
+ */
+
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     ffi::{CStr, CString},
@@ -8,6 +27,18 @@ use std::{
     path::Path,
 };
 
+use crate::{
+    buffer_stack::BufferStack,
+    interrogate::{with_fd_path, DevIno, InterrogatedFile, PROC_SELF_FD_PREFIX},
+    sys::{
+        file::{fchownat, AT_FDCWD},
+        getdents::{for_each_getdents, DirEntry, FileType},
+        inode_flags::InodeFlags,
+        libc_ext,
+        link::with_readlinkat,
+        xattr::{fsetxattr, lsetxattr},
+    },
+};
 use anyhow::{anyhow, Context};
 use bumpalo::Bump;
 use libc::{getegid, geteuid};
@@ -23,18 +54,6 @@ use nix::{
         time::TimeSpec,
     },
     unistd::{ftruncate, linkat, lseek, mkfifoat, symlinkat, Whence},
-};
-use crate::{
-    buffer_stack::BufferStack,
-    interrogate::{with_fd_path, DevIno, InterrogatedFile, PROC_SELF_FD_PREFIX},
-    sys::{
-        file::{fchownat, AT_FDCWD},
-        getdents::{for_each_getdents, DirEntry, FileType},
-        inode_flags::InodeFlags,
-        libc_ext,
-        link::with_readlinkat,
-        xattr::{fsetxattr, lsetxattr},
-    },
 };
 
 struct OwnedCopyContext {

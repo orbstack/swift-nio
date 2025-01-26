@@ -1,3 +1,25 @@
+/*
+ * starry tar
+ * similar to `bsdtar --zstd -cf --xattrs`
+ *
+ * always uses PAX extensions. no GNU long name extensions. GNU PAX 1.0 for sparse files.
+ * only supports archival. extraction would be a lot of work, because we have to handle arbitrary user inputs: GNU long names, legacy GNU sparse files, GNU binary extended mtimes, etc.
+ * bsdtar is capable of extracting everything in the archives we produce.
+ *
+ * features:
+ * - supports nanosecond mtimes
+ * - supports xattrs, even on symlinks
+ * - supports inode flags/attributes like immutable and append-only
+ * - supports hard links
+ * - supports sparse files
+ * - supports fifos and char/block devices
+ * - safe against symlink races (everything is dirfd/O_NOFOLLOW)
+ *
+ * assumptions:
+ * - source is NOT modified concurrently. if this is violated, the command may fail or produce inconsistent results, but there is no security risk (in the case of symlink races). specifically, deletion races may cause the entire command to fail.
+ * - should be run as root in order to read trusted.* xattrs and other xattrs on symlinks
+ */
+
 use std::{
     fs::File,
     io::Write,
@@ -5,13 +27,13 @@ use std::{
     path::Path,
 };
 
-use nix::{
-    fcntl::{openat, OFlag},
-    sys::stat::Mode,
-};
 use crate::{
     interrogate::InterrogatedFile,
     tarball::context::{OwnedTarContext, TarContext, TAR_PADDING},
+};
+use nix::{
+    fcntl::{openat, OFlag},
+    sys::stat::Mode,
 };
 use zstd::Encoder;
 

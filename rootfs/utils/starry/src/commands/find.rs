@@ -1,3 +1,11 @@
+/*
+ * starry find
+ * similar to `find`
+ *
+ * there's nothing special about this one; please don't use it.
+ * it exists as a benchmark to compare against `find`, Rust `walkdir`, and other implementations.
+ */
+
 use std::io::BufWriter;
 use std::{
     io::Write,
@@ -5,16 +13,16 @@ use std::{
     path::Path,
 };
 
+use crate::buffer_stack::BufferStack;
+use crate::{
+    path_stack::PathStack,
+    sys::getdents::{for_each_getdents, DirEntry, FileType},
+};
 use anyhow::anyhow;
 use nix::{
     errno::Errno,
     fcntl::{openat, OFlag},
     sys::stat::Mode,
-};
-use crate::buffer_stack::BufferStack;
-use crate::{
-    path_stack::PathStack,
-    sys::getdents::{for_each_getdents, DirEntry, FileType},
 };
 
 fn do_one_entry(

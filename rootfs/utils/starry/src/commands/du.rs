@@ -1,19 +1,34 @@
+/*
+ * starry du
+ * similar to `du -s`
+ *
+ * features:
+ * - safe against symlink races (everything is dirfd/O_NOFOLLOW)
+ * - doesn't fail the entire operation on deletion races
+ * - easily parsable output when entire directories fail due to the source dir being deleted entirely
+ *
+ * assumptions:
+ * - source MAY be modified concurrently. if so, results may be inconsistent, but there is no security risk, and the command will return a best-effort result.
+ */
+
 use std::{
     collections::BTreeSet,
     os::fd::{AsRawFd, FromRawFd, OwnedFd},
     path::Path,
 };
 
-use anyhow::anyhow;
-use nix::{
-    errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode
-};
 use crate::{
     buffer_stack::BufferStack,
     sys::{
         file::fstatat,
         getdents::{for_each_getdents, DirEntry, FileType},
     },
+};
+use anyhow::anyhow;
+use nix::{
+    errno::Errno,
+    fcntl::{openat, OFlag},
+    sys::stat::Mode,
 };
 
 struct OwnedDuContext {
@@ -114,7 +129,7 @@ fn do_one_dir(src_dir: &str) -> anyhow::Result<()> {
         Err(Errno::ENOENT) => {
             println!("0\t{}", src_dir);
             return Ok(());
-        },
+        }
         Err(e) => return Err(e.into()),
     };
     let root_dirfd = unsafe { OwnedFd::from_raw_fd(root_dirfd) };

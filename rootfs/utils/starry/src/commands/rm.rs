@@ -1,15 +1,22 @@
+/*
+ * starry rm
+ * similar to `rm -rf`
+ *
+ * features:
+ * - handles inode flags that prevent deletion (immutable, append-only)
+ * - safe against symlink races (everything is dirfd/O_NOFOLLOW)
+ *
+ * assumptions:
+ * - source is NOT modified concurrently. if this is violated, the command may fail, but there is no security risk (in the case of symlink races). specifically, deletion races may cause the entire command to fail.
+ * - should be run as root in order to remove inode flags
+ */
+
 use std::{
     ffi::CStr,
     os::fd::{AsRawFd, FromRawFd, OwnedFd},
     path::Path,
 };
 
-use anyhow::anyhow;
-use nix::{
-    errno::Errno,
-    fcntl::{openat, OFlag},
-    sys::stat::Mode,
-};
 use crate::{
     buffer_stack::BufferStack,
     sys::{
@@ -17,6 +24,12 @@ use crate::{
         getdents::{for_each_getdents, DirEntry, FileType},
         inode_flags::InodeFlags,
     },
+};
+use anyhow::anyhow;
+use nix::{
+    errno::Errno,
+    fcntl::{openat, OFlag},
+    sys::stat::Mode,
 };
 
 fn clear_flags(fd: &OwnedFd) -> nix::Result<()> {
