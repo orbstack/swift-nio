@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,18 @@ import (
 func Run(combinedArgs ...string) error {
 	logrus.Debugf("run: %v", combinedArgs)
 	cmd := exec.Command(combinedArgs[0], combinedArgs[1:]...)
+	// inherits env
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("run command '%v': %w; output: %s", combinedArgs, err, string(output))
+	}
+
+	return nil
+}
+
+func RunContext(ctx context.Context, combinedArgs ...string) error {
+	logrus.Debugf("run: %v", combinedArgs)
+	cmd := exec.CommandContext(ctx, combinedArgs[0], combinedArgs[1:]...)
 	// inherits env
 	output, err := cmd.CombinedOutput()
 	if err != nil {

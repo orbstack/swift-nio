@@ -66,6 +66,7 @@ type Container struct {
 	mu      syncx.RWMutex
 
 	jobManager *util.EntityJobManager
+	holds      *util.MutationHoldManager
 
 	// if booted
 	// TODO: move all this into a .rt field (RuntimeState)
@@ -100,6 +101,7 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		rootfsDir: dir + "/rootfs",
 
 		jobManager: util.NewEntityJobManager(m.ctx),
+		holds:      util.NewMutationHoldManager(),
 	}
 	// always create in stopped state
 	c.setState(types.ContainerStateStopped)

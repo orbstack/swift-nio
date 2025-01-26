@@ -21,10 +21,6 @@ func NewEntityJobManager(ctx context.Context) *EntityJobManager {
 	}
 }
 
-func (m *EntityJobManager) Context() context.Context {
-	return m.ctx
-}
-
 func (m *EntityJobManager) Run(job func(ctx context.Context) error) error {
 	var thisWg sync.WaitGroup
 	thisWg.Add(1)
@@ -40,6 +36,20 @@ func (m *EntityJobManager) Run(job func(ctx context.Context) error) error {
 
 	thisWg.Wait()
 	return err
+}
+
+func (m *EntityJobManager) RunContext(ctx context.Context, job func(ctx context.Context) error) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	return m.Run(func(managerCtx context.Context) error {
+		go func() {
+			<-managerCtx.Done()
+			cancel()
+		}()
+
+		return job(ctx)
+	})
 }
 
 func (m *EntityJobManager) Close() {

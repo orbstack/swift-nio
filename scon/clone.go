@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -38,21 +39,38 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 		return nil, errors.New("cannot clone container with freezer")
 	}
 
-	// freeze old container to get a consistent data snapshot
-	err = c.Freeze()
-	if err != nil && !errors.Is(err, ErrMachineNotRunning) {
-		return nil, fmt.Errorf("freeze: %w", err)
-	}
-	defer c.Unfreeze()
+	// add a mutation hold to prevent rootfs from changing
+	// unlike c.mu.RLock(), this allows cancellation by deleting the source machine, and doesn't inhibit other actions like stopping
+	var oldName string
+	err = c.holds.WithHold("clone", func() error {
+		// freeze old container to get a consistent data snapshot
+		err = c.Freeze()
+		if err != nil && !errors.Is(err, ErrMachineNotRunning) {
+			return fmt.Errorf("freeze: %w", err)
+		}
+		defer c.Unfreeze()
 
-	// also lock old container (for read only) to prevent starting (if stopped), deletion, and name change
-	// TODO: context-based cancellation instead? plus start lock
-	c.mu.RLock()
-	oldName := c.Name // consistent with rootfs copy
-	err = util.Run(mounts.Starry, "cp", c.rootfsDir, newC.rootfsDir)
-	c.mu.RUnlock()
+		oldName = c.Name // consistent with rootfs copy
+
+		// acquire jobs on both old and new containers, for cancellation
+		err = c.jobManager.Run(func(ctx context.Context) error {
+			return newC.jobManager.RunContext(ctx, func(ctx context.Context) error {
+				err := util.RunContext(ctx, mounts.Starry, "cp", c.rootfsDir, newC.rootfsDir)
+				// prefer "context cancelled" over "signal: killed"
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				return err
+			})
+		})
+		if err != nil {
+			return fmt.Errorf("copy rootfs: %w", err)
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("copy rootfs: %w", err)
+		return nil, err
 	}
 
 	// update hostname

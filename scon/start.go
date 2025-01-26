@@ -714,7 +714,7 @@ func (c *Container) startLxcLocked() error {
 	return c.lxc.Start()
 }
 
-func (c *Container) startLocked(isInternal bool) (retErr error) {
+func (c *Container) startLocked(isInternal bool) error {
 	if c.runningLocked() {
 		return nil
 	}
@@ -723,126 +723,127 @@ func (c *Container) startLocked(isInternal bool) (retErr error) {
 		return ErrStopping
 	}
 
-	oldState, err := c.transitionStateInternalLocked(types.ContainerStateStarting, isInternal)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if retErr != nil {
-			logrus.WithError(retErr).WithField("container", c.Name).Error("failed to start container")
-			c.revertStateLocked(oldState)
-		}
-	}()
-
-	logrus.WithField("container", c.Name).Info("starting container")
-
-	if !c.lxcConfigured {
-		err := c.configureLxc()
-		if err != nil {
-			return fmt.Errorf("configure LXC: %w", err)
-		}
-		c.lxcConfigured = true
-	}
-
-	// clean logs (truncate - otherwise logs are gone because they're opened when creating lxc container)
-	err = os.WriteFile(c.logPath(), nil, 0644)
-	if err != nil {
-		return fmt.Errorf("truncate log: %w", err)
-	}
-	_ = os.Remove(c.logPath() + "-console")
-
-	// randomize cgroup paths in case an old one was left behind
-	// usually only happens in dev when scon is killed, so conflict risk is very low in prod
-	// base36 to minimize length
-	// needed because lxc doesn't iterate and append index if we set cgroups explicitly (which we need for inner child cgroup for security)
-	randSuffix := c.ID + "." + strconv.FormatUint(uint64(rand.Uint32()), 36)
-	err = c.setLxcConfig("lxc.cgroup.dir.monitor", "scon.monitor."+randSuffix)
-	if err != nil {
-		return fmt.Errorf("set cgroup: %w", err)
-	}
-	err = c.setLxcConfig("lxc.cgroup.dir.container", "scon.container."+randSuffix)
-	if err != nil {
-		return fmt.Errorf("set cgroup: %w", err)
-	}
-
-	// hook
-	if c.hooks != nil {
-		err := c.hooks.PreStart(c)
+	return c.holds.WithMutation("start", func() (retErr error) {
+		oldState, err := c.transitionStateInternalLocked(types.ContainerStateStarting, isInternal)
 		if err != nil {
 			return err
 		}
-	}
+		defer func() {
+			if retErr != nil {
+				logrus.WithError(retErr).WithField("container", c.Name).Error("failed to start container")
+				c.revertStateLocked(oldState)
+			}
+		}()
 
-	err = c.startLxcLocked()
-	if err != nil {
-		return fmt.Errorf("start '%s': %w", c.Name, err)
-	}
+		logrus.WithField("container", c.Name).Info("starting container")
 
-	// for some reason our process (in addition to monitor) gets moved into lxc monitor cgroup,
-	// so move it back
-	// TODO: file an issue. it's not caused by parent-cgroup kernel hack
-	err = os.WriteFile("/sys/fs/cgroup/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0644)
-	if err != nil {
-		return fmt.Errorf("move process to root cgroup: %w", err)
-	}
-
-	if !c.lxc.Wait(lxc.RUNNING, startStopTimeout) {
-		return fmt.Errorf("machine did not start: %s - %v", c.Name, c.lxc.State())
-	}
-	// after this point: if it failed, attempt to stop lxc
-	defer func() {
-		if retErr != nil {
-			_ = c.lxc.Stop()
+		if !c.lxcConfigured {
+			err := c.configureLxc()
+			if err != nil {
+				return fmt.Errorf("configure LXC: %w", err)
+			}
+			c.lxcConfigured = true
 		}
-	}()
 
-	// TODO: what if it crashed?
-	initPid := c.lxc.InitPid()
-	if initPid == -1 {
-		return fmt.Errorf("machine '%s' failed to start: init crashed", c.Name)
-	}
-	c.initPid = initPid
-	initPidFile, err := c.lxc.InitPidFd()
-	if err != nil {
-		return fmt.Errorf("machine '%s' failed to start: init crashed (%w)", c.Name, err)
-	}
-	c.initPidFile = initPidFile
+		// clean logs (truncate - otherwise logs are gone because they're opened when creating lxc container)
+		err = os.WriteFile(c.logPath(), nil, 0644)
+		if err != nil {
+			return fmt.Errorf("truncate log: %w", err)
+		}
+		_ = os.Remove(c.logPath() + "-console")
 
-	err = c.startAgentLocked()
-	if err != nil {
-		logrus.WithError(err).WithField("container", c.Name).Error("failed to start agent")
-	}
+		// randomize cgroup paths in case an old one was left behind
+		// usually only happens in dev when scon is killed, so conflict risk is very low in prod
+		// base36 to minimize length
+		// needed because lxc doesn't iterate and append index if we set cgroups explicitly (which we need for inner child cgroup for security)
+		randSuffix := c.ID + "." + strconv.FormatUint(uint64(rand.Uint32()), 36)
+		err = c.setLxcConfig("lxc.cgroup.dir.monitor", "scon.monitor."+randSuffix)
+		if err != nil {
+			return fmt.Errorf("set cgroup: %w", err)
+		}
+		err = c.setLxcConfig("lxc.cgroup.dir.container", "scon.container."+randSuffix)
+		if err != nil {
+			return fmt.Errorf("set cgroup: %w", err)
+		}
 
-	// attach loop devices
-	extraDevSrcs, err := listDevExtra()
-	if err != nil {
-		return err
-	}
-	for _, src := range extraDevSrcs {
-		err := c.addDeviceNode(src, src)
+		// hook
+		if c.hooks != nil {
+			err := c.hooks.PreStart(c)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = c.startLxcLocked()
+		if err != nil {
+			return fmt.Errorf("start '%s': %w", c.Name, err)
+		}
+
+		// for some reason our process (in addition to monitor) gets moved into lxc monitor cgroup,
+		// so move it back
+		// TODO: file an issue. it's not caused by parent-cgroup kernel hack
+		err = os.WriteFile("/sys/fs/cgroup/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0644)
+		if err != nil {
+			return fmt.Errorf("move process to root cgroup: %w", err)
+		}
+
+		if !c.lxc.Wait(lxc.RUNNING, startStopTimeout) {
+			return fmt.Errorf("machine did not start: %s - %v", c.Name, c.lxc.State())
+		}
+		// after this point: if it failed, attempt to stop lxc
+		defer func() {
+			if retErr != nil {
+				_ = c.lxc.Stop()
+			}
+		}()
+
+		// TODO: what if it crashed?
+		initPid := c.lxc.InitPid()
+		if initPid == -1 {
+			return fmt.Errorf("machine '%s' failed to start: init crashed", c.Name)
+		}
+		c.initPid = initPid
+		initPidFile, err := c.lxc.InitPidFd()
+		if err != nil {
+			return fmt.Errorf("machine '%s' failed to start: init crashed (%w)", c.Name, err)
+		}
+		c.initPidFile = initPidFile
+
+		err = c.startAgentLocked()
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to start agent")
+		}
+
+		// attach loop devices
+		extraDevSrcs, err := listDevExtra()
 		if err != nil {
 			return err
 		}
-	}
-
-	// add to mDNS registry
-	c.manager.net.mdnsRegistry.AddMachine(c)
-
-	err = c.onStartLocked()
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		err := c.manager.net.RefreshFlowtable()
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to refresh FT")
+		for _, src := range extraDevSrcs {
+			err := c.addDeviceNode(src, src)
+			if err != nil {
+				return err
+			}
 		}
-	}()
 
-	logrus.WithField("container", c.Name).Info("container started")
+		// add to mDNS registry
+		c.manager.net.mdnsRegistry.AddMachine(c)
 
-	return nil
+		err = c.onStartLocked()
+		if err != nil {
+			return err
+		}
+
+		go func() {
+			err := c.manager.net.RefreshFlowtable()
+			if err != nil {
+				logrus.WithError(err).WithField("container", c.Name).Error("failed to refresh FT")
+			}
+		}()
+
+		logrus.WithField("container", c.Name).Info("container started")
+		return nil
+	})
 }
 
 func (c *Container) onStartLocked() error {

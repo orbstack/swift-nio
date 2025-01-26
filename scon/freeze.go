@@ -6,8 +6,7 @@ func (c *Container) IsFrozen() bool {
 	return c.lxc.State() == lxc.FROZEN
 }
 
-// locks removed to prevent issues with freezer's locks
-func (c *Container) Freeze() error {
+func (c *Container) freezeLocked() error {
 	if !c.Running() {
 		return ErrMachineNotRunning
 	}
@@ -15,6 +14,15 @@ func (c *Container) Freeze() error {
 	return c.lxc.Freeze()
 }
 
-func (c *Container) Unfreeze() error {
+// locks removed to prevent issues with freezer's locks, so these are currently the same
+func (c *Container) Freeze() error {
+	return c.freezeLocked()
+}
+
+func (c *Container) unfreezeLocked() error {
 	return c.lxc.Unfreeze()
+}
+
+func (c *Container) Unfreeze() error {
+	return c.unfreezeLocked()
 }
