@@ -24,7 +24,7 @@ use nix::{
     },
     unistd::{ftruncate, linkat, lseek, mkfifoat, symlinkat, Whence},
 };
-use starry::{
+use crate::{
     buffer_stack::BufferStack,
     interrogate::{with_fd_path, DevIno, InterrogatedFile, PROC_SELF_FD_PREFIX},
     sys::{
@@ -524,19 +524,12 @@ fn copy_regular_file_contents(
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
+pub fn main(src_dir: &str, dest_dir: &str) -> anyhow::Result<()> {
     // we need control over all permissions bits
     umask(Mode::empty());
     InterrogatedFile::init()?;
 
     // open root dir
-    let src_dir = std::env::args()
-        .nth(1)
-        .ok_or_else(|| anyhow!("missing src dir"))?;
-    let dest_dir = std::env::args()
-        .nth(2)
-        .ok_or_else(|| anyhow!("missing dst dir"))?;
-
     let src_dirfd = unsafe {
         OwnedFd::from_raw_fd(openat(
             None,

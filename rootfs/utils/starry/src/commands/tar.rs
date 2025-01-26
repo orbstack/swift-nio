@@ -5,12 +5,11 @@ use std::{
     path::Path,
 };
 
-use anyhow::anyhow;
 use nix::{
     fcntl::{openat, OFlag},
     sys::stat::Mode,
 };
-use starry::{
+use crate::{
     interrogate::InterrogatedFile,
     tarball::context::{OwnedTarContext, TarContext, TAR_PADDING},
 };
@@ -18,7 +17,7 @@ use zstd::Encoder;
 
 const MAX_COMPRESSION_THREADS: usize = 2;
 
-fn main() -> anyhow::Result<()> {
+pub fn main(src_dir: &str) -> anyhow::Result<()> {
     InterrogatedFile::init()?;
 
     let file = unsafe { File::from_raw_fd(libc::STDOUT_FILENO) };
@@ -32,9 +31,6 @@ fn main() -> anyhow::Result<()> {
     writer.multithread(num_threads as u32)?;
 
     // add root dir
-    let src_dir = std::env::args()
-        .nth(1)
-        .ok_or_else(|| anyhow!("missing src dir"))?;
     let root_dir = unsafe {
         OwnedFd::from_raw_fd(openat(
             None,

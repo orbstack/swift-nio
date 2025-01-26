@@ -75,7 +75,7 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
 cd /build/starry
 # always release -- we test this externally
 cargo build --release
-cp target/release/starry-cp target/release/starry-rm target/release/starry-tar /out/
+cp target/release/starry /out/
 EOT
 # wormhole
 COPY wormhole /build/wormhole
@@ -566,7 +566,7 @@ COPY --from=c-build /out/* /opt/orb/
 COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 # vinit
 COPY --from=rust-build /out/vinit /opt/orb/
-COPY --from=rust-build /out/starry-* /opt/orb/
+COPY --from=rust-build /out/starry /opt/orb/
 COPY --from=rust-build /out/simplevisor /opt/orbstack-guest/
 # wormhole
 COPY --from=rust-build /out/wormhole-attach /opt/orbstack-guest/

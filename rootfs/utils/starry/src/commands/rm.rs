@@ -10,7 +10,7 @@ use nix::{
     fcntl::{openat, OFlag},
     sys::stat::Mode,
 };
-use starry::{
+use crate::{
     buffer_stack::BufferStack,
     sys::{
         file::{fstatat, unlinkat},
@@ -124,11 +124,8 @@ fn walk_dir(dirfd: &OwnedFd, buffer_stack: &BufferStack) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
+pub fn main(src_dir: &str) -> anyhow::Result<()> {
     // open root dir
-    let src_dir = std::env::args()
-        .nth(1)
-        .ok_or_else(|| anyhow!("missing src dir"))?;
     let root_dir = unsafe {
         OwnedFd::from_raw_fd(openat(
             None,

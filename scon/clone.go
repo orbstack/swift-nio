@@ -48,7 +48,7 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 	// TODO: context-based cancellation instead? plus start lock
 	c.mu.RLock()
 	oldName := c.Name // consistent with rootfs copy
-	err = util.Run("/opt/orb/starry-cp", c.rootfsDir, newC.rootfsDir)
+	err = util.Run("/opt/orb/starry", "cp", c.rootfsDir, newC.rootfsDir)
 	c.mu.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("copy rootfs: %w", err)

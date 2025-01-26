@@ -11,8 +11,8 @@ use nix::{
     fcntl::{openat, OFlag},
     sys::stat::Mode,
 };
-use starry::buffer_stack::BufferStack;
-use starry::{
+use crate::buffer_stack::BufferStack;
+use crate::{
     path_stack::PathStack,
     sys::getdents::{for_each_getdents, DirEntry, FileType},
 };
@@ -75,11 +75,8 @@ fn walk_dir(
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
+pub fn main(src_dir: &str) -> anyhow::Result<()> {
     // open root dir
-    let src_dir = std::env::args()
-        .nth(1)
-        .ok_or_else(|| anyhow!("missing src dir"))?;
     let root_dir = unsafe {
         OwnedFd::from_raw_fd(openat(
             None,

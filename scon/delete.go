@@ -68,7 +68,7 @@ func (m *ConManager) deleteRootfs(rootfs string) error {
 
 	// delete the entire directory
 	// this takes care of immutable and append-only flags
-	err = util.Run("/opt/orb/starry-rm", rootfs)
+	err = util.Run("/opt/orb/starry", "rm", rootfs)
 	if err != nil {
 		return fmt.Errorf("delete directory: %w", err)
 	}
