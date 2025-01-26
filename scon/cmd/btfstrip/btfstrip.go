@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"os/exec"
 )
@@ -51,8 +52,7 @@ func check(err error) {
 	}
 }
 
-func main() {
-	path := os.Args[1]
+func stripOneFile(path string) {
 	origElfF, err := os.Open(path)
 	check(err)
 	defer origElfF.Close()
@@ -163,4 +163,15 @@ func main() {
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	check(err)
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("usage: btfstrip <file...>")
+		os.Exit(1)
+	}
+
+	for _, path := range os.Args[1:] {
+		stripOneFile(path)
+	}
 }
