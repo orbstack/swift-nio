@@ -178,6 +178,12 @@ impl<'a, W: Write> TarContext<'a, W> {
             self.write_from_fd(fd, entry.offset as i64, entry.len as usize)?;
         }
 
+        // pad to 512 byte block
+        let pad = 512 - (total_entry_size % 512);
+        if pad != 512 {
+            self.writer.write_all(&TAR_PADDING[..pad as usize])?;
+        }
+
         Ok(true)
     }
 
