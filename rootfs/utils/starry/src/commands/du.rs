@@ -6,8 +6,7 @@ use std::{
 
 use anyhow::anyhow;
 use nix::{
-    fcntl::{openat, OFlag},
-    sys::stat::Mode,
+    errno::Errno, fcntl::{openat, OFlag}, sys::stat::Mode
 };
 use crate::{
     buffer_stack::BufferStack,
@@ -52,7 +51,12 @@ impl<'a> DuContext<'a> {
         }
 
         if entry.file_type != FileType::Directory {
-            let st = fstatat(dirfd, entry.name, libc::AT_SYMLINK_NOFOLLOW)?;
+            let st = match fstatat(dirfd, entry.name, libc::AT_SYMLINK_NOFOLLOW) {
+                Ok(st) => st,
+                // ENOENT = race: file or dir was deleted
+                Err(Errno::ENOENT) => return Ok(()),
+                Err(e) => return Err(e.into()),
+            };
             self.total_st_blocks += st.st_blocks as u64;
 
             if st.st_mode & libc::S_IFMT != libc::S_IFDIR {
@@ -61,14 +65,18 @@ impl<'a> DuContext<'a> {
         }
 
         // optimization: directories always have st_blocks=0?
-        let child_dirfd = unsafe {
-            OwnedFd::from_raw_fd(openat(
-                Some(dirfd.as_raw_fd()),
-                entry.name,
-                OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
-                Mode::empty(),
-            )?)
+        let child_dirfd = match openat(
+            Some(dirfd.as_raw_fd()),
+            entry.name,
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
+            Mode::empty(),
+        ) {
+            Ok(fd) => fd,
+            // ENOENT = race: file or dir was deleted
+            Err(Errno::ENOENT) => return Ok(()),
+            Err(e) => return Err(e.into()),
         };
+        let child_dirfd = unsafe { OwnedFd::from_raw_fd(child_dirfd) };
         self.walk_dir(&child_dirfd)?;
 
         Ok(())
@@ -95,19 +103,26 @@ impl<'a> DuContext<'a> {
 
 pub fn main(src_dir: &str) -> anyhow::Result<()> {
     // open root dir
-    let root_dir = unsafe {
-        OwnedFd::from_raw_fd(openat(
-            None,
-            Path::new(&src_dir),
-            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
-            Mode::empty(),
-        )?)
+    let root_dirfd = match openat(
+        None,
+        Path::new(&src_dir),
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    ) {
+        Ok(fd) => fd,
+        // ENOENT = race: root dir was deleted
+        Err(Errno::ENOENT) => {
+            println!("0 {}", src_dir);
+            return Ok(());
+        },
+        Err(e) => return Err(e.into()),
     };
+    let root_dirfd = unsafe { OwnedFd::from_raw_fd(root_dirfd) };
 
     // walk dirs
     let owned_ctx = OwnedDuContext::new()?;
     let mut ctx = DuContext::new(&owned_ctx.buffer_stack);
-    ctx.walk_dir(&root_dir)
+    ctx.walk_dir(&root_dirfd)
         .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
 
     // report in KiB
