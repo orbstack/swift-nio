@@ -98,17 +98,32 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
 
 	logrus.WithField("dst_ip", dstIP).Debug("nfqueue packet")
 
-	upstream, err := d.cb.GetUpstreamByAddr(dstIP)
+	err := d.probeHost(dstIP, srcIP)
 	if err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) error {
+	upstream, err := d.cb.GetUpstreamByAddr(addr)
+	if err != nil {
+		return err
+	}
+
+	upstreamAddr, ok := netip.AddrFromSlice(upstream.IP)
+	if !ok {
+		return fmt.Errorf("failed to get addr from slice: %s", upstream.IP)
+	}
+
 	logrus.WithFields(logrus.Fields{
 		"upstream": upstream.IP.String(),
-		"src_ip":   srcIP.String(),
+		"src_ip":   downstreamIP.String(),
 	}).Debug("upstream")
+
 	mark := d.cb.GetMark(upstream)
-	srcIPSlice := srcIP.AsSlice()
+	srcIPSlice := downstreamIP.AsSlice()
 	var dialer *net.Dialer
 	if upstream.IP.Equal(srcIPSlice) {
 		dialer = &net.Dialer{}
@@ -117,36 +132,57 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
 	}
 
 	// pessimistically keep probing on every SYN until upstream is ready
-	probedPorts, err := d.probeHost(dialer, upstream)
+	httpPort, httpsPort, err := d.probeUpstream(dialer, upstream)
 	if err != nil {
 		return err
 	}
-	if !probedPorts.HasPort() {
-		logrus.Debug("domaintlsproxy: probe did not find a port")
-		return nil
-	}
 	logrus.WithFields(logrus.Fields{
-		"probedPorts": probedPorts,
+		"http_port":  httpPort,
+		"https_port": httpsPort,
 	}).Debug("domaintlsproxy: probe sucessful")
 
-	// add to probed set
+	// lock to update probedHosts map and to ensure no concurrent nft operations
+	d.probeMu.Lock()
+	defer d.probeMu.Unlock()
+
+	if httpPort != 0 || httpsPort != 0 {
+		probed := probedHost{
+			HTTPPort:  httpPort,
+			HTTPSPort: httpsPort,
+		}
+		d.probedHosts[upstreamAddr] = probed
+	}
+
+	// update probed set
 	nftPrefix := "domainproxy4_probed"
-	if dstIP.Is6() {
+	if addr.Is6() {
 		nftPrefix = "domainproxy6_probed"
 	}
 
-	// may fail in case of race with a concurrent probe
-	err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
-		return nft.SetAddByName(conn, table, nftPrefix+"_tls", nft.IPAddr(dstIP))
-	})
-	if err != nil && !errors.Is(err, unix.EEXIST) {
-		logrus.WithError(err).Error("failed to add to domainproxy set")
+	// https can use either http or https port
+	if httpPort != 0 || httpsPort != 0 {
+		// may fail in case of race with a concurrent probe
+		err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
+			return nft.SetAddByName(conn, table, nftPrefix+"_tls", nft.IPAddr(addr))
+		})
+		if err != nil && !errors.Is(err, unix.EEXIST) {
+			logrus.WithError(err).Error("failed to add to domainproxy set")
+		}
+	} else {
+		// remove from probed set
+		err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
+			return nft.SetDeleteByName(conn, table, nftPrefix+"_tls", nft.IPAddr(addr))
+		})
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			logrus.WithError(err).Error("failed to remove from domainproxy set")
+		}
 	}
 
-	if probedPorts.HTTPPort != 0 {
+	// http can obviously only use http port
+	if httpPort != 0 {
 		// set http upstream
 		err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
-			return nft.MapAddByName(conn, table, nftPrefix+"_http_upstreams", nft.IPAddr(dstIP), nft.Concat(nft.IP(upstream.IP), nft.InetService(probedPorts.HTTPPort)))
+			return nft.MapAddByName(conn, table, nftPrefix+"_http_upstreams", nft.IPAddr(addr), nft.Concat(nft.IP(upstream.IP), nft.InetService(httpPort)))
 		})
 		if err != nil && !errors.Is(err, unix.EEXIST) {
 			logrus.WithError(err).Error("failed to set http upstream")
@@ -154,7 +190,7 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
 	} else {
 		// remove http upstream
 		err = nft.WithTable(nft.FamilyInet, d.cb.NftableName(), func(conn *nftables.Conn, table *nftables.Table) error {
-			return nft.MapDeleteByName(conn, table, nftPrefix+"_http_upstreams", nft.IPAddr(dstIP))
+			return nft.MapDeleteByName(conn, table, nftPrefix+"_http_upstreams", nft.IPAddr(addr))
 		})
 		if err != nil && !errors.Is(err, unix.ENOENT) {
 			logrus.WithError(err).Error("failed to remove http upstream")
@@ -164,10 +200,10 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
 	return nil
 }
 
-func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes.Upstream) (probedHostPorts, error) {
+func (d *DomainTLSProxy) probeUpstream(dialer *net.Dialer, upstream domainproxytypes.Upstream) (uint16, uint16, error) {
 	ports, err := d.cb.GetHostOpenPorts(upstream.Host)
 	if err != nil {
-		return probedHostPorts{}, err
+		return 0, 0, err
 	}
 
 	logrus.WithFields(logrus.Fields{
@@ -177,7 +213,7 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 
 	addr, ok := netip.AddrFromSlice(upstream.IP)
 	if !ok {
-		return probedHostPorts{}, fmt.Errorf("failed to get addr from slice: %s", upstream.IP)
+		return 0, 0, fmt.Errorf("failed to get addr from slice: %s", upstream.IP)
 	}
 
 	d.probeMu.Lock()
@@ -215,27 +251,24 @@ func (d *DomainTLSProxy) probeHost(dialer *net.Dialer, upstream domainproxytypes
 		delete(d.probeTasks, addr)
 	}
 
-	var probedPorts probedHostPorts
-
-	if len(probeResult.HTTPSPorts) > 0 {
-		httpsPorts := make([]uint16, 0, len(probeResult.HTTPSPorts))
-		for p := range probeResult.HTTPSPorts {
-			httpsPorts = append(httpsPorts, p)
-		}
-		probedPorts.HTTPSPort = slices.Min(httpsPorts)
-	}
+	var httpPort uint16
+	var httpsPort uint16
 
 	if len(probeResult.HTTPPorts) > 0 {
 		httpPorts := make([]uint16, 0, len(probeResult.HTTPPorts))
 		for p := range probeResult.HTTPPorts {
 			httpPorts = append(httpPorts, p)
 		}
-		probedPorts.HTTPPort = slices.Min(httpPorts)
+		httpPort = slices.Min(httpPorts)
 	}
 
-	if probedPorts.HasPort() {
-		d.probedHosts[addr] = probedPorts
+	if len(probeResult.HTTPSPorts) > 0 {
+		httpsPorts := make([]uint16, 0, len(probeResult.HTTPSPorts))
+		for p := range probeResult.HTTPSPorts {
+			httpsPorts = append(httpsPorts, p)
+		}
+		httpsPort = slices.Min(httpsPorts)
 	}
 
-	return probedPorts, nil
+	return httpPort, httpsPort, nil
 }
