@@ -422,7 +422,7 @@ RUN apk upgrade --no-cache && apk add --no-cache \
     # disk
     sfdisk \
     # scon deps
-    lxc-libs tar squashfs-tools ca-certificates dnsmasq nftables xz btrfs-progs \
+    lxc-libs tar squashfs-tools ca-certificates dnsmasq nftables xz btrfs-progs libarchive-tools \
     # even though we use nftables, we need ip(6)tables to list listeners in container netns
     iptables ip6tables \
     # modprobe metadata (UNINSTALLED later in release)

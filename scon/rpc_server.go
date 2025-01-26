@@ -40,6 +40,15 @@ func (s *SconServer) Create(ctx context.Context, req *types.CreateRequest) (*typ
 	return c.toRecord(), nil
 }
 
+func (s *SconServer) ImportContainerFromHostPath(ctx context.Context, req types.ImportContainerFromHostPathRequest) (*types.ContainerRecord, error) {
+	c, err := s.m.ImportContainerFromHostPath(req.NewName, req.HostPath)
+	if err != nil {
+		return nil, fmt.Errorf("import container from host path: %w", err)
+	}
+
+	return c.toRecord(), nil
+}
+
 func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerRecord, error) {
 	containers := s.m.ListContainers()
 	records := make([]types.ContainerRecord, 0, len(containers))
@@ -278,6 +287,7 @@ func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
 		"Ping":                                  handler.New(s.Ping),
 		"Create":                                handler.New(s.Create),
+		"ImportContainerFromHostPath":           handler.New(s.ImportContainerFromHostPath),
 		"ListContainers":                        handler.New(s.ListContainers),
 		"GetByID":                               handler.New(s.GetByID),
 		"GetByName":                             handler.New(s.GetByName),

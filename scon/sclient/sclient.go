@@ -57,6 +57,16 @@ func (c *SconClient) Create(req types.CreateRequest) (*types.ContainerRecord, er
 	return &rec, nil
 }
 
+func (c *SconClient) ImportContainerFromHostPath(req types.ImportContainerFromHostPathRequest) (*types.ContainerRecord, error) {
+	var rec types.ContainerRecord
+	err := c.rpc.CallResult(context.TODO(), "ImportContainerFromHostPath", req, &rec)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rec, nil
+}
+
 func (c *SconClient) ListContainers() ([]types.ContainerRecord, error) {
 	var records []types.ContainerRecord
 	err := c.rpc.CallResult(context.TODO(), "ListContainers", nil, &records)

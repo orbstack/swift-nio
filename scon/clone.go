@@ -76,7 +76,8 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 	// update hostname
 	err = agent.WriteHostnameFiles(newC.rootfsDir, oldName, newName, false /*runCommands*/)
 	if err != nil {
-		return nil, fmt.Errorf("update hostname: %w", err)
+		// soft fail for clone
+		logrus.WithError(err).WithField("container", newC.Name).Error("failed to update hostname")
 	}
 
 	// add to NFS

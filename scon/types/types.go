@@ -61,9 +61,9 @@ type CreateRequest struct {
 	InternalUseTestCache bool   `json:"internal_use_test_cache,omitempty"`
 }
 
-type CloneRequest struct {
-	OldName string `json:"old_name"`
-	NewName string `json:"new_name"`
+type ImportContainerFromHostPathRequest struct {
+	NewName  string `json:"new_name"`
+	HostPath string `json:"host_path"`
 }
 
 type GetByIDRequest struct {
