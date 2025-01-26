@@ -1,16 +1,17 @@
 // Copyright 2024 Orbital Labs, LLC
 // License: GPL (careful!)
 
+// sorting breaks this: bpf/bpf_core_read.h must not come first
+// clang-format off
+#include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
-#include <stdint.h>
-#include <linux/errno.h>
-#include <linux/bpf.h>
+// clang-format on
 
-//#define DEBUG
+// #define DEBUG
 
 #ifndef DEBUG
 #ifdef bpf_printk
@@ -25,8 +26,11 @@
  * hook for bpf(2) syscall
  *
  * This prevents systemd from loading its "restrict_filesystems" eBPF LSM program.
- * The restrict_filesystems program hooks all open() syscalls and adds significant performance overhead, becoming responsible for *most* of the runtime of open() in the kernel.
- * To make things worse, every machine running a modern version of systemd will load one copy of this program, causing overhead to accumulate and affect the performance of all machines (including Docker and ovm/scon).
+ * The restrict_filesystems program hooks all open() syscalls and adds significant performance
+ * overhead, becoming responsible for *most* of the runtime of open() in the kernel. To make things
+ * worse, every machine running a modern version of systemd will load one copy of this program,
+ * causing overhead to accumulate and affect the performance of all machines (including Docker and
+ * ovm/scon).
  */
 SEC("lsm/bpf")
 int BPF_PROG(xlsm_bpf, int cmd, union bpf_attr *attr, unsigned int size, int ret) {
