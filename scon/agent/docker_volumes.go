@@ -6,6 +6,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
 )
@@ -58,25 +59,23 @@ func (a *AgentServer) DockerFastDf(_ None, reply *dockertypes.SystemDf) error {
 		return err
 	}
 
+	duArgs := []string{mounts.Starry, "du"}
 	for _, v := range vols {
 		if v.Driver != "local" || v.Scope != "local" || len(v.Options) > 0 {
 			continue
 		}
 
-		// run one df command per volume
-		// TODO: fix race on concurrent symlink modification (not a security-critical context)
-		// TODO: change cwd to improve perf (less path resolution)
-		out, err := util.RunWithOutput("du", "-s", v.Mountpoint)
+		duArgs = append(duArgs, v.Mountpoint)
+	}
+
+	// only run du if there are eligible volumes
+	if len(duArgs) > 2 {
+		// starry du is safe against symlink races and deletion/ENOENT races, even for the root dir of a volume
+		out, err := util.RunWithOutput(duArgs...)
 		if err != nil {
-			if strings.Contains(err.Error(), ": No such file or directory") {
-				// race: volume was removed
-				continue
-			} else {
-				return err
-			}
+			return err
 		}
 
-		// parse output
 		for _, line := range strings.Split(out, "\n") {
 			// format: size (in 1KiB units) \t path
 			sz, path, ok := strings.Cut(line, "\t")
@@ -90,9 +89,13 @@ func (a *AgentServer) DockerFastDf(_ None, reply *dockertypes.SystemDf) error {
 				continue
 			}
 
-			if path == v.Mountpoint {
-				v.UsageData = &dockertypes.VolumeUsageData{
-					Size: szKib * 1024,
+			// update corresponding volume with the new usage data
+			for _, v := range vols {
+				if path == v.Mountpoint {
+					v.UsageData = &dockertypes.VolumeUsageData{
+						Size: szKib * 1024,
+					}
+					break
 				}
 			}
 		}
