@@ -7,6 +7,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
 )
 
@@ -48,7 +49,7 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 	// TODO: context-based cancellation instead? plus start lock
 	c.mu.RLock()
 	oldName := c.Name // consistent with rootfs copy
-	err = util.Run("/opt/orb/starry", "cp", c.rootfsDir, newC.rootfsDir)
+	err = util.Run(mounts.Starry, "cp", c.rootfsDir, newC.rootfsDir)
 	c.mu.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("copy rootfs: %w", err)

@@ -11,6 +11,7 @@ import (
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/sysx"
+	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -68,7 +69,7 @@ func (m *ConManager) deleteRootfs(rootfs string) error {
 
 	// delete the entire directory
 	// this takes care of immutable and append-only flags
-	err = util.Run("/opt/orb/starry", "rm", rootfs)
+	err = util.Run(mounts.Starry, "rm", rootfs)
 	if err != nil {
 		return fmt.Errorf("delete directory: %w", err)
 	}

@@ -21,6 +21,7 @@ const (
 	UserCmdLinks    = Opt + "/data/bin/cmdlinks"
 	DefaultCmdLinks = Bin
 	LinuxTools      = Opt + "/lib/linux-tools/current"
+	Starry          = Opt + "/starry"
 
 	Etc          = Opt + "/etc"
 	ProfileEarly = Etc + "/profile-early"

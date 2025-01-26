@@ -566,7 +566,7 @@ COPY --from=c-build /out/* /opt/orb/
 COPY --from=c-build /out-guest/* /opt/orbstack-guest/
 # vinit
 COPY --from=rust-build /out/vinit /opt/orb/
-COPY --from=rust-build /out/starry /opt/orb/
+COPY --from=rust-build /out/starry /opt/orbstack-guest/
 COPY --from=rust-build /out/simplevisor /opt/orbstack-guest/
 # wormhole
 COPY --from=rust-build /out/wormhole-attach /opt/orbstack-guest/
