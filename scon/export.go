@@ -11,7 +11,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 )
 
-func (c *Container) ExportToHostPath(hostPath string) error {
+func (c *Container) ExportToHostPath(hostPath string) (retErr error) {
 	if c.builtin {
 		return errors.New("cannot export builtin machine")
 	}
@@ -25,6 +25,12 @@ func (c *Container) ExportToHostPath(hostPath string) error {
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}
+	defer func() {
+		// delete temp file if failed
+		if retErr != nil {
+			_ = securefs.Remove(mounts.Virtiofs, hostPath)
+		}
+	}()
 	defer file.Close()
 
 	err = c.holds.WithHold("export", func() error {
