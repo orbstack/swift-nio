@@ -22,10 +22,10 @@
 #include <linux/stddef.h>
 #include <time.h>
 
+#include <bpf/bpf_core_read.h>
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
-#include <bpf/bpf_core_read.h>
 
 // vmlinux.h puts CO-RE (preserve_access_index) on `struct bpf_sock`, which causes a verifier fail
 // because clang compiles the relocatable CO-RE accesses to *u8 instead of *u32, and the kernel only
@@ -413,7 +413,7 @@ static int nft_change_common(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct task_struct *task = (struct task_struct*)bpf_get_current_task();
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     __u64 netns_cookie = BPF_CORE_READ(task, nsproxy, net_ns, net_cookie);
     bpf_printk("config_netns_cookie: %llu; netns_cookie: %llu", config_netns_cookie, netns_cookie);
 
