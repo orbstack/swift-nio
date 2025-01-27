@@ -9,54 +9,44 @@ import (
 	"k8s.io/utils/inotify"
 )
 
-func (m *ConManager) addDeviceNodeAll(src string, dst string) error {
+func (m *ConManager) addDeviceNodeAll(src string, dst string) {
 	m.containersMu.RLock()
 	defer m.containersMu.RUnlock()
 
-	errs := make([]error, 0)
 	for _, c := range m.containersByID {
-		if c.config.Isolated || !c.Running() {
+		if c.config.Isolated {
 			continue
 		}
 
-		go func(c *Container) {
-			logrus.WithFields(logrus.Fields{
-				"container": c.Name,
-				"dst":       dst,
-			}).Debug("adding device node")
-			err := c.addDeviceNode(src, dst)
-			if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
-				errs = append(errs, err)
-			}
-		}(c)
+		logrus.WithFields(logrus.Fields{
+			"container": c.Name,
+			"dst":       dst,
+		}).Debug("adding device node")
+		err := c.addDeviceNode(src, dst)
+		if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
+			logrus.WithField("container", c.Name).WithError(err).Error("failed to add device node")
+		}
 	}
-
-	return errors.Join(errs...)
 }
 
-func (m *ConManager) removeDeviceNodeAll(dst string) error {
+func (m *ConManager) removeDeviceNodeAll(dst string) {
 	m.containersMu.RLock()
 	defer m.containersMu.RUnlock()
 
-	errs := make([]error, 0)
 	for _, c := range m.containersByID {
-		if c.config.Isolated || !c.Running() {
+		if c.config.Isolated {
 			continue
 		}
 
-		go func(c *Container) {
-			logrus.WithFields(logrus.Fields{
-				"container": c.Name,
-				"dst":       dst,
-			}).Debug("removing device node")
-			err := c.removeDeviceNode(dst)
-			if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
-				errs = append(errs, err)
-			}
-		}(c)
+		logrus.WithFields(logrus.Fields{
+			"container": c.Name,
+			"dst":       dst,
+		}).Debug("removing device node")
+		err := c.removeDeviceNode(dst)
+		if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
+			logrus.WithField("container", c.Name).WithError(err).Error("failed to remove device node")
+		}
 	}
-
-	return errors.Join(errs...)
 }
 
 func (m *ConManager) handleDeviceEvent(event *inotify.Event) {
@@ -66,16 +56,10 @@ func (m *ConManager) handleDeviceEvent(event *inotify.Event) {
 	if MatchesExtraDevice(nodeName) {
 		if event.Mask&inotify.InCreate != 0 {
 			logrus.WithField("path", event.Name).Debug("creating extra device")
-			err := m.addDeviceNodeAll(event.Name, event.Name)
-			if err != nil {
-				logrus.WithError(err).Error("failed to add extra device")
-			}
+			m.addDeviceNodeAll(event.Name, event.Name)
 		} else if event.Mask&inotify.InDelete != 0 {
 			logrus.WithField("path", event.Name).Debug("removing extra device")
-			err := m.removeDeviceNodeAll(event.Name)
-			if err != nil {
-				logrus.WithError(err).Error("failed to remove extra device")
-			}
+			m.removeDeviceNodeAll(event.Name)
 		}
 	}
 }

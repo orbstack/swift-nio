@@ -58,6 +58,7 @@ func (m *ConManager) ImportContainerFromHostPath(newName, hostPath string) (_ *C
 			return fmt.Errorf("create dir: %w", err)
 		}
 
+		// for compression, bsdtar has "--options zstd:threads=N", but there's no zstdmt for decompression
 		cmd := exec.CommandContext(ctx, "bsdtar", "--zstd", "-C", newC.rootfsDir, "--xattrs", "--fflags", "-xf", "-")
 		cmd.Stdin = file
 
