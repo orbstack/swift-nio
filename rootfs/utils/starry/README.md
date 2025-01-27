@@ -45,3 +45,12 @@ All tools are designed to minimize syscalls and use the fastest possible syscall
 When trade-offs are necessary, starry optimizes for common cases over obscure ones, and for btrfs (which is the filesystem used in production in OrbStack).
 
 Another important optimization for `tar` is to do multi-threaded Zstd compression in-process, avoiding the memcpy, syscall, and wakeup overhead of pipes.
+
+## Development
+
+To get correct recursive stack unwinding when profiling (e.g. with `samply`):
+
+```bash
+RUSTFLAGS="-C force-frame-pointers=true" cargo build --profile prof
+sudo ~/.cargo/bin/samply record -r 2000 target/prof/starry ...
+```
