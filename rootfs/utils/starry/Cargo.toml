@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1.0.89", features = ["backtrace"] }
+bincode = "2.0.0-rc.3"
 bitflags = "2.6.0"
 bumpalo = "3.16.0"
 bytemuck = { version = "1.18.0", features = ["derive", "min_const_generics"] }

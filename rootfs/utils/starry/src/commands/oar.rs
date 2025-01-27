@@ -1,0 +1,56 @@
+use std::{
+    fs::File,
+    os::fd::{FromRawFd, OwnedFd},
+    path::Path,
+};
+
+use crate::{
+    interrogate::InterrogatedFile,
+    oarchive::context::{ArchiveContext, OwnedArchiveContext},
+};
+use nix::{
+    fcntl::{openat, OFlag},
+    sys::stat::Mode,
+};
+use zstd::Encoder;
+
+const MAX_COMPRESSION_THREADS: usize = 2;
+
+pub fn main(src_dir: &str) -> anyhow::Result<()> {
+    InterrogatedFile::init()?;
+
+    let file = unsafe { File::from_raw_fd(libc::STDOUT_FILENO) };
+
+    let mut writer = Encoder::new(file, 0)?;
+    // tar is usually bottlenecked on zstd, but let's be conservative to avoid burning CPU
+    let num_threads = std::cmp::min(
+        MAX_COMPRESSION_THREADS,
+        std::thread::available_parallelism()?.get(),
+    );
+    writer.multithread(num_threads as u32)?;
+
+    // add root dir
+    let root_dir = unsafe {
+        OwnedFd::from_raw_fd(openat(
+            None,
+            Path::new(&src_dir),
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
+            Mode::empty(),
+        )?)
+    };
+
+    let owned_ctx = OwnedArchiveContext::new()?;
+    let mut ctx = ArchiveContext::new(&mut writer, &owned_ctx);
+
+    // add entry for root dir
+    let root_dir_file = InterrogatedFile::from_directory_fd(&root_dir)?;
+    ctx.add_one_entry(&root_dir_file, b".")?;
+
+    // walk dirs
+    ctx.walk_dir(&root_dir, None)?;
+
+    // end compressed stream
+    writer.finish()?;
+
+    Ok(())
+}

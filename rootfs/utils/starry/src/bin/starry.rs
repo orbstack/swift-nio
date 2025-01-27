@@ -33,6 +33,11 @@ pub fn main() -> anyhow::Result<()> {
             commands::tar::main(src_dir)
         }
 
+        "oar" => {
+            let src_dir = args.get(2).ok_or_else(|| anyhow!("missing src dir"))?;
+            commands::oar::main(src_dir)
+        }
+
         _ => Err(anyhow!("unknown subcommand: {}", subcommand)),
     }
 }

@@ -11,6 +11,7 @@ Current utilities:
 - [`find`](src/commands/find.rs)
 - [`rm`](src/commands/rm.rs)
 - [`tar`](src/commands/tar.rs)
+- [`oar`](src/commands/oar.rs)
 
 See the respective files for more information.
 
@@ -35,6 +36,10 @@ There are no other utilities capable of preserving so many special file attribut
 ### `rm`
 
 starry removes immutable and append-only inode flags as necessary to allow deletion, instead of having to try once, then run `chattr -R`, then try again.
+
+### `oar`
+
+`oar` ("Orb ARchive") is a testing ground for a custom archive format. It's not currently meaningfully better than `tar` in any way.
 
 ### Performance
 
