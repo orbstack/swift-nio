@@ -16,10 +16,10 @@ type btrfsOps struct {
 
 func (b *btrfsOps) CreateSubvolumeIfNotExists(fsSubpath string) error {
 	// doesn't work properly with our legacy qgroup setup
-	return os.MkdirAll(fsSubpath, 0755)
+	return os.MkdirAll(fsSubpath, 0o755)
 }
 
-func (b *btrfsOps) DeleteSubvolumesRecursive(fsSubpath string) error {
+func (b *btrfsOps) DeleteSubvolumeRecursive(fsSubpath string) error {
 	rawList, err := util.WithDefaultOom2(func() (string, error) {
 		// -o excludes volumes after it
 		return util.RunWithOutput("btrfs", "subvolume", "list", fsSubpath)

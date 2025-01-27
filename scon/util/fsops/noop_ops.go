@@ -12,7 +12,7 @@ func (b *noopOps) CreateSubvolumeIfNotExists(fsSubpath string) error {
 	return os.MkdirAll(fsSubpath, 0755)
 }
 
-func (b *noopOps) DeleteSubvolumesRecursive(fsSubpath string) error {
+func (b *noopOps) DeleteSubvolumeRecursive(fsSubpath string) error {
 	logrus.Warn("unsupported FS operation: DeleteSubvolumesRecursive")
 	return nil
 }

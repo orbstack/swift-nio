@@ -28,7 +28,7 @@ func (b *bcachefsOps) CreateSubvolumeIfNotExists(fsSubpath string) error {
 	return util.Run("bcachefs", "subvolume", "create", fsSubpath)
 }
 
-func (b *bcachefsOps) DeleteSubvolumesRecursive(fsSubpath string) error {
+func (b *bcachefsOps) DeleteSubvolumeRecursive(fsSubpath string) error {
 	// impossible to recurse... there's no command to list subvolumes
 	return util.Run("bcachefs", "subvolume", "delete", fsSubpath)
 }

@@ -63,7 +63,7 @@ func (m *ConManager) deleteRootfs(rootfs string) error {
 
 	// list and delete btrfs subvolumes
 	// lxd can leave read-only subvols:
-	err = m.fsOps.DeleteSubvolumesRecursive(rootfs)
+	err = m.fsOps.DeleteSubvolumeRecursive(rootfs)
 	if err != nil {
 		return fmt.Errorf("delete subvolumes: %w", err)
 	}
