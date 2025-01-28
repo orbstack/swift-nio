@@ -381,7 +381,7 @@ func (m *ConManager) makeRootfsWithImage(ctx context.Context, spec types.ImageSp
 		cmd = exec.CommandContext(ctx, "tar", "-xJf", rootfsFile, "-C", rootfsDir, "--numeric-owner", "--xattrs", "--xattrs-include=*")
 	case ImageFormatSquashfs:
 		// limit parallelism
-		procs := min(runtime.NumCPU(), maxSquashfsCpus)
+		procs := max(1, min(maxSquashfsCpus, runtime.NumCPU()/2))
 		cmd = exec.CommandContext(ctx, "unsquashfs", "-n", "-f", "-p", strconv.Itoa(procs), "-d", rootfsDir, rootfsFile)
 	default:
 		return fmt.Errorf("unsupported rootfs format: %v", img.RootfsFormat)
