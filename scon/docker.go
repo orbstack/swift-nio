@@ -250,7 +250,7 @@ func (h *DockerHooks) symlinkDirs() error {
 	return nil
 }
 
-func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, error) {
+func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) error {
 	// env from Docker
 	cm.set("lxc.environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 	// use real tmp
@@ -263,7 +263,7 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 
 	err := h.createDataDirs()
 	if err != nil {
-		return "", fmt.Errorf("create data: %w", err)
+		return fmt.Errorf("create data dirs: %w", err)
 	}
 
 	// mounts
@@ -315,7 +315,7 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) (string, e
 	// https://github.com/orbstack/orbstack/issues/1317
 	cm.set("lxc.sysctl.kernel.yama.ptrace_scope", "0")
 
-	return conf.C().DockerRootfs, nil
+	return nil
 }
 
 func (h *DockerHooks) PreStart(c *Container) error {

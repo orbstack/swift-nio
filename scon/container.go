@@ -14,6 +14,7 @@ import (
 	"github.com/lxc/go-lxc"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/bpf"
+	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
@@ -38,7 +39,7 @@ type containerConfigMethods struct {
 }
 
 type ContainerHooks interface {
-	Config(*Container, containerConfigMethods) (string, error)
+	Config(*Container, containerConfigMethods) error
 	PreStart(*Container) error
 	PostStart(*Container) error
 	PostStop(*Container) error
@@ -113,6 +114,7 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 			return nil, err
 		}
 		c.hooks = hooks
+		c.rootfsDir = conf.C().DockerRootfs
 	}
 
 	// create lxc

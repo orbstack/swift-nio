@@ -197,39 +197,48 @@ func (c *Container) configureLxcEarly() error {
 // makes scon start faster, and some configs require a valid rootfs
 func (c *Container) configureLxc() error {
 	m := c.manager
+	mac := deriveMacAddress(c.ID)
 
 	// configs
 	rootfs, err := filepath.EvalSymlinks(c.rootfsDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve rootfs path: %w", err)
 	}
-	mac := deriveMacAddress(c.ID)
 
 	secureRootfs, err := securefs.NewFromPath(rootfs)
 	if err != nil {
-		return err
+		return fmt.Errorf("create securefs: %w", err)
 	}
 	defer secureRootfs.Close()
 
+	// symlink linux-tools wrappers for Ubuntu
+	if c.Image.Distro == images.ImageUbuntu {
+		_ = secureRootfs.MkdirAll("/usr/lib/linux-tools", 0755)
+		err := secureRootfs.Symlink("/usr/lib/linux-tools/"+c.manager.kernelVersion, "/usr/lib/linux-tools")
+		if err != nil && !errors.Is(err, unix.EEXIST) {
+			logrus.WithError(err).WithField("machine", c.Name).Error("failed to symlink linux-tools")
+		}
+	}
+
 	exePath, err := os.Executable()
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve exe path: %w", err)
 	}
 
 	hostUser, err := m.host.GetUser()
 	if err != nil {
-		return err
+		return fmt.Errorf("get host user: %w", err)
 	}
 
 	sshAgentSocks, err := c.manager.host.GetSSHAgentSockets()
 	if err != nil {
-		return err
+		return fmt.Errorf("get ssh agent sockets: %w", err)
 	}
 
 	// /sys/block only includes disks. /sys/class/block includes partitions too
 	blockDevs, err := os.ReadDir("/sys/class/block")
 	if err != nil {
-		return err
+		return fmt.Errorf("get block devices: %w", err)
 	}
 
 	// set configs!
@@ -355,15 +364,6 @@ func (c *Container) configureLxc() error {
 			guestPath := strings.TrimPrefix(libModulesPath, c.rootfsDir)
 			kernelVersionPath := guestPath + "/" + c.manager.kernelVersion
 			bind(conf.C().GuestMountSrc+"/lib/modules/current", kernelVersionPath, "ro")
-		}
-
-		// symlink linux-tools wrappers for Ubuntu
-		if c.Image.Distro == images.ImageUbuntu {
-			_ = secureRootfs.MkdirAll("/usr/lib/linux-tools", 0755)
-			err := secureRootfs.Symlink("/usr/lib/linux-tools/"+c.manager.kernelVersion, "/usr/lib/linux-tools")
-			if err != nil && !errors.Is(err, unix.EEXIST) {
-				logrus.WithError(err).WithField("machine", c.Name).Error("failed to symlink linux-tools")
-			}
 		}
 
 		// nesting (proc not needed because it's rw)
@@ -510,16 +510,14 @@ func (c *Container) configureLxc() error {
 		set("lxc.cgroup.dir.container.inner", bpf.ChildCgroupName)
 
 		// container hooks, before rootfs is set
+		// this gives it a chance to override the rootfs
 		if c.hooks != nil {
-			newRootfs, err := c.hooks.Config(c, containerConfigMethods{
+			err := c.hooks.Config(c, containerConfigMethods{
 				set:  set,
 				bind: bind,
 			})
 			if err != nil {
 				panic(err)
-			}
-			if newRootfs != "" {
-				rootfs = newRootfs
 			}
 		}
 
