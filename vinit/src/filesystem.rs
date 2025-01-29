@@ -3,7 +3,7 @@ use std::{
     os::{fd::AsRawFd, unix::fs::FileExt},
 };
 
-use nix::sys::statvfs::statvfs;
+use nix::{errno::Errno, sys::statvfs::statvfs};
 use serde::{Deserialize, Serialize};
 
 use crate::btrfs;
@@ -72,6 +72,8 @@ const MAX_HOST_FS_PERCENT: u64 = 95;
 // can't boot without free space for scon db. leave some - I/O error + R/O remount is better than no boot
 const MIN_FREE_SPACE: u64 = 2 * 1024 * 1024; // 2 MiB
 
+const QGROUP_GLOBAL: u64 = btrfs::make_qgroup_id(1, 1);
+
 #[derive(Debug)]
 pub struct DiskManager {}
 
@@ -83,9 +85,9 @@ impl DiskManager {
     fn update_quota(&self, new_size: u64) -> anyhow::Result<()> {
         let dir_file = File::open("/data")?;
 
-        // sets top-level dir quota
+        // first attempt to set quota on the new global 1/1 qgroup
         let mut args = btrfs::BtrfsIoctlQgroupLimitArgs {
-            qgroupid: 0,
+            qgroupid: QGROUP_GLOBAL,
             lim: btrfs::BtrfsQgroupLimit {
                 flags: btrfs::BTRFS_QGROUP_LIMIT_MAX_RFER as u64,
                 max_rfer: new_size,
@@ -94,9 +96,19 @@ impl DiskManager {
                 rsv_excl: 0,
             },
         };
+        let res = unsafe { btrfs::ioctl::qgroup_limit(dir_file.as_raw_fd(), &mut args) };
+        match res {
+            Ok(_) => return Ok(()),
+            // fallthrough: attempt on legacy 0/5 root subvolume qgroup
+            Err(Errno::ENOENT) => {}
+            Err(e) => return Err(e.into()),
+        }
+
+        // try again on legacy 0/5 root subvolume qgroup
+        args.qgroupid = 0;
         unsafe {
             btrfs::ioctl::qgroup_limit(dir_file.as_raw_fd(), &mut args)?;
-        };
+        }
 
         Ok(())
     }

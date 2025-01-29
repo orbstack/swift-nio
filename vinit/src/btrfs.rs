@@ -30,3 +30,9 @@ pub mod ioctl {
         BtrfsIoctlQgroupLimitArgs
     );
 }
+
+const BTRFS_QGROUP_LEVEL_SHIFT: u64 = 48;
+
+pub const fn make_qgroup_id(level: u64, id: u64) -> u64 {
+    level << BTRFS_QGROUP_LEVEL_SHIFT | id
+}
