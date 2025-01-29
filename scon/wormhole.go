@@ -32,15 +32,27 @@ func (m *WormholeManager) OnSessionStart() (retErr error) {
 	defer m.mu.Unlock()
 
 	m.sessionCount++
-	logrus.WithFields(logrus.Fields{"newCount": m.sessionCount}).Debug("new wormhole session")
+	logrus.WithField("sessionCount", m.sessionCount).Debug("new wormhole session")
 
 	if m.sessionCount != 1 || m.isMounted {
 		return nil
 	}
 
-	logrus.Debug("mounting wormhole")
+	err := m.conManager.fsOps.CreateSubvolumeIfNotExists("/data/wormhole")
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll("/data/wormhole/overlay/upper", 0o755)
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll("/data/wormhole/overlay/work", 0o755)
+	if err != nil {
+		return err
+	}
 
-	err := unix.Mount("wormhole", mounts.WormholeOverlay, "overlay", unix.MS_NOATIME, "lowerdir=/opt/wormhole-rootfs,upperdir=/data/wormhole/overlay/upper,workdir=/data/wormhole/overlay/work")
+	logrus.Debug("mounting wormhole")
+	err = unix.Mount("wormhole", mounts.WormholeOverlay, "overlay", unix.MS_NOATIME, "lowerdir=/opt/wormhole-rootfs,upperdir=/data/wormhole/overlay/upper,workdir=/data/wormhole/overlay/work")
 	if err != nil {
 		return err
 	}
@@ -74,7 +86,7 @@ func (m *WormholeManager) OnSessionEnd() error {
 	defer m.mu.Unlock()
 
 	m.sessionCount--
-	logrus.WithFields(logrus.Fields{"newCount": m.sessionCount}).Debug("discarding wormhole session")
+	logrus.WithField("sessionCount", m.sessionCount).Debug("discarding wormhole session")
 
 	if m.sessionCount != 0 || !m.isMounted {
 		logrus.Debugf("not unmounting wormhole, m.sessionCount: %v, m.isMounted: %v", m.sessionCount, m.isMounted)
@@ -140,12 +152,12 @@ func (m *WormholeManager) NukeData() error {
 		return fmt.Errorf("%s", "Please exit all Debug Shell sessions before using this command.")
 	}
 
-	err := m.conManager.deleteRootfs("/data/wormhole/overlay/upper")
+	err := m.conManager.deleteRootfs("/data/wormhole")
 	if err != nil {
 		return err
 	}
 
-	return os.Mkdir("/data/wormhole/overlay/upper", 0755)
+	return nil
 }
 
 func isNixContainer(rootfsFile *os.File) (bool, error) {

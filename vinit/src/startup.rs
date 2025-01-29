@@ -916,9 +916,6 @@ fn init_data() -> anyhow::Result<()> {
     maybe_set_permissions("/data/guest-state/bin", 0o755)?;
     maybe_set_permissions("/data/guest-state/bin/cmdlinks", 0o755)?;
 
-    // wormhole overlay
-    fs::create_dir_all("/data/wormhole/overlay/upper")?;
-    fs::create_dir_all("/data/wormhole/overlay/work")?;
     // mount a r-o nix to protect /nix/orb/sys and prevent creating files in /nix/.
     bind_mount_ro("/opt/wormhole-rootfs", "/mnt/wormhole-unified")?;
     // expose read-only base store
