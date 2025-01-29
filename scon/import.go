@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 
-	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
@@ -42,6 +40,7 @@ func (m *ConManager) ImportContainerFromHostPath(newName, hostPath string) (_ *C
 	if err != nil {
 		return nil, err
 	}
+	defer newC.holds.EndMutation()
 	defer func() {
 		if retErr != nil {
 			err2 := newC.deleteInternal()
@@ -51,13 +50,15 @@ func (m *ConManager) ImportContainerFromHostPath(newName, hostPath string) (_ *C
 		}
 	}()
 
-	err = newC.jobManager.Run(func(ctx context.Context) error {
-		// create dir for bsdtar to extract into
-		err = os.Mkdir(newC.rootfsDir, 0o755)
-		if err != nil {
-			return fmt.Errorf("create dir: %w", err)
-		}
+	// bsdtar wants an existing dir
+	err = newC.createDataDirs(createDataDirsOptions{
+		includeRootfsDir: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create data dirs: %w", err)
+	}
 
+	err = newC.jobManager.Run(func(ctx context.Context) error {
 		// for compression, bsdtar has "--options zstd:threads=N", but there's no zstdmt for decompression
 		cmd := exec.CommandContext(ctx, "bsdtar", "--zstd", "-C", newC.rootfsDir, "--xattrs", "--fflags", "-xf", "-")
 		cmd.Stdin = file
@@ -82,7 +83,7 @@ func (m *ConManager) ImportContainerFromHostPath(newName, hostPath string) (_ *C
 	}
 
 	// update hostname
-	err = agent.WriteHostnameFiles(newC.rootfsDir, oldName, newName, false /*runCommands*/)
+	err = newC.updateHostnameLocked(oldName, newName)
 	if err != nil {
 		// soft fail for import
 		logrus.WithError(err).WithField("container", newC.Name).Error("failed to update hostname")

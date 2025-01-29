@@ -155,7 +155,7 @@ func (c *Container) setLxcConfig(key, value string) error {
 
 func (c *Container) initLxc() error {
 	m := c.manager
-	lc, err := lxc.NewContainer(c.ID, m.lxcDir)
+	lc, err := lxc.NewContainer(c.ID, m.lxcTmpDir)
 	if err != nil {
 		return err
 	}
@@ -199,15 +199,17 @@ func (c *Container) configureLxc() error {
 	m := c.manager
 
 	// configs
-	err := os.MkdirAll(c.rootfsDir, 0755)
-	if err != nil {
-		return err
-	}
 	rootfs, err := filepath.EvalSymlinks(c.rootfsDir)
 	if err != nil {
 		return err
 	}
 	mac := deriveMacAddress(c.ID)
+
+	secureRootfs, err := securefs.NewFromPath(rootfs)
+	if err != nil {
+		return err
+	}
+	defer secureRootfs.Close()
 
 	exePath, err := os.Executable()
 	if err != nil {
@@ -345,8 +347,8 @@ func (c *Container) configureLxc() error {
 		// people mount it with "-v /lib/modules" so
 		// however, /lib is often a symlink and LXC doesn't allow symlinks in mount dest paths, so we have to resolve it here
 		// match LXC behavior: auto-create /lib/modules
-		_ = securefs.MkdirAll(c.rootfsDir, "/lib/modules", 0755)
-		libModulesPath, err := securefs.ResolvePath(c.rootfsDir, "/lib/modules")
+		_ = secureRootfs.MkdirAll("/lib/modules", 0755)
+		libModulesPath, err := secureRootfs.ResolvePath("/lib/modules")
 		if err != nil {
 			logrus.WithError(err).WithField("machine", c.Name).Error("failed to resolve /lib/modules")
 		} else {
@@ -357,8 +359,8 @@ func (c *Container) configureLxc() error {
 
 		// symlink linux-tools wrappers for Ubuntu
 		if c.Image.Distro == images.ImageUbuntu {
-			_ = securefs.MkdirAll(c.rootfsDir, "/usr/lib/linux-tools", 0755)
-			err := securefs.Symlink(c.rootfsDir, mounts.LinuxTools, "/usr/lib/linux-tools/"+c.manager.kernelVersion)
+			_ = secureRootfs.MkdirAll("/usr/lib/linux-tools", 0755)
+			err := secureRootfs.Symlink("/usr/lib/linux-tools/"+c.manager.kernelVersion, "/usr/lib/linux-tools")
 			if err != nil && !errors.Is(err, unix.EEXIST) {
 				logrus.WithError(err).WithField("machine", c.Name).Error("failed to symlink linux-tools")
 			}
@@ -662,9 +664,15 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, isNew bool)
 		return nil, false, err
 	}
 
-	// restore creating state early to avoid race where user can start it
 	if record.State == types.ContainerStateCreating {
+		// restore creating state early to avoid race where user can start it
 		c.setState(types.ContainerStateCreating)
+
+		// a container in 'creating' state starts with an active mutation that must be released before holds can be added
+		err = c.holds.BeginMutation("creating")
+		if err != nil {
+			return nil, false, fmt.Errorf("begin mutation: %w", err)
+		}
 	}
 
 	err = m.insertContainerLocked(c)

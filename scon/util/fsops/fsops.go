@@ -9,6 +9,7 @@ const BCACHEFS_STATFS_MAGIC = 0xca451a4e
 
 type FSOps interface {
 	CreateSubvolumeIfNotExists(fsSubpath string) error
+	SnapshotSubvolume(srcSubpath, dstSubpath string) error
 	DeleteSubvolumeRecursive(fsSubpath string) error
 
 	ResizeToMax(fsPath string) error
@@ -24,9 +25,7 @@ func NewForFS(fsPath string) (FSOps, error) {
 
 	switch stf.Type {
 	case unix.BTRFS_SUPER_MAGIC:
-		return &btrfsOps{
-			mountpoint: fsPath,
-		}, nil
+		return NewBtrfsOps(fsPath)
 	case BCACHEFS_STATFS_MAGIC:
 		return &bcachefsOps{}, nil
 

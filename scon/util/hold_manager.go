@@ -48,7 +48,7 @@ func (m *MutationHoldManager) WithHold(op string, fn func() error) error {
 	return fn()
 }
 
-func (m *MutationHoldManager) startMutation(op string) error {
+func (m *MutationHoldManager) BeginMutation(op string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -65,16 +65,16 @@ func (m *MutationHoldManager) startMutation(op string) error {
 	return nil
 }
 
-func (m *MutationHoldManager) endMutation() {
+func (m *MutationHoldManager) EndMutation() {
 	m.mutationWg.Done()
 }
 
 func (m *MutationHoldManager) WithMutation(op string, fn func() error) error {
-	err := m.startMutation(op)
+	err := m.BeginMutation(op)
 	if err != nil {
 		return err
 	}
-	defer m.endMutation()
+	defer m.EndMutation()
 
 	return fn()
 }

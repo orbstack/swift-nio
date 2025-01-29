@@ -5,26 +5,27 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/fsops"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
 )
 
-func (c *Container) Clone(newName string) (_ *Container, retErr error) {
-	if c.builtin {
+func (oldC *Container) Clone(newName string) (_ *Container, retErr error) {
+	if oldC.builtin {
 		return nil, errors.New("cannot clone builtin machine")
 	}
 
-	newC, _, err := c.manager.beginCreate(&types.CreateRequest{
+	newC, _, err := oldC.manager.beginCreate(&types.CreateRequest{
 		Name:   newName,
-		Image:  c.Image,
-		Config: c.config,
+		Image:  oldC.Image,
+		Config: oldC.config,
 	})
 	if err != nil {
 		return nil, err
 	}
+	defer newC.holds.EndMutation()
 	defer func() {
 		if retErr != nil {
 			err2 := newC.deleteInternal()
@@ -34,7 +35,7 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 		}
 	}()
 
-	if c.Freezer() != nil {
+	if oldC.Freezer() != nil {
 		// should never happen, as only builtin containers have freezers
 		return nil, errors.New("cannot clone machine with freezer")
 	}
@@ -42,20 +43,47 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 	// add a mutation hold to prevent rootfs from changing
 	// unlike c.mu.RLock(), this allows cancellation by deleting the source machine, and doesn't inhibit other actions like stopping
 	var oldName string
-	err = c.holds.WithHold("clone", func() error {
+	err = oldC.holds.WithHold("clone", func() error {
+		// grab a name that's consistent with our new rootfs copy, in case a rename occurs before updateHostnameLocked
+		oldName = oldC.Name
+
+		// fastpath: first attempt a snapshot
+		err := newC.createDataDirs(createDataDirsOptions{
+			snapshotFromPath: oldC.dataDir,
+		})
+		if err != nil {
+			if errors.Is(err, fsops.ErrUnsupported) {
+				// fallthrough to slowpath
+			} else {
+				return fmt.Errorf("create data snapshot: %w", err)
+			}
+		} else {
+			// success: no copy needed
+			return nil
+		}
+
+		// slowpath: freeze and copy
+
+		// create new data dir
+		err = newC.createDataDirs(createDataDirsOptions{
+			// starry-cp creates dest dir
+			includeRootfsDir: false,
+		})
+		if err != nil {
+			return fmt.Errorf("create data dir: %w", err)
+		}
+
 		// freeze old container to get a consistent data snapshot
-		err := c.Freeze()
+		err = oldC.Freeze()
 		if err != nil && !errors.Is(err, ErrMachineNotRunning) {
 			return fmt.Errorf("freeze: %w", err)
 		}
-		defer c.Unfreeze()
-
-		oldName = c.Name // consistent with rootfs copy
+		defer oldC.Unfreeze()
 
 		// acquire jobs on both old and new containers, for cancellation
-		err = c.jobManager.Run(func(ctx context.Context) error {
+		err = oldC.jobManager.Run(func(ctx context.Context) error {
 			return newC.jobManager.RunContext(ctx, func(ctx context.Context) error {
-				err := util.RunContext(ctx, mounts.Starry, "cp", c.rootfsDir, newC.rootfsDir)
+				err := util.RunContext(ctx, mounts.Starry, "cp", oldC.rootfsDir, newC.rootfsDir)
 				// prefer "context cancelled" over "signal: killed"
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -74,7 +102,7 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 	}
 
 	// update hostname
-	err = agent.WriteHostnameFiles(newC.rootfsDir, oldName, newName, false /*runCommands*/)
+	err = newC.updateHostnameLocked(oldName, newName)
 	if err != nil {
 		// soft fail for clone
 		logrus.WithError(err).WithField("container", newC.Name).Error("failed to update hostname")
@@ -82,7 +110,7 @@ func (c *Container) Clone(newName string) (_ *Container, retErr error) {
 
 	// add to NFS
 	// restoring the container doesn't call this if state=creating
-	err = c.manager.onRestoreContainer(newC)
+	err = oldC.manager.onRestoreContainer(newC)
 	if err != nil {
 		return nil, fmt.Errorf("call restore hook: %w", err)
 	}

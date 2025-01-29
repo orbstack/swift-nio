@@ -220,30 +220,23 @@ func (m *NfsMirrorManager) Close() error {
 }
 
 func (m *ConManager) onRestoreContainer(c *Container) error {
-	// nfs bind mount
-	err := func() error {
-		// docker is special
-		if c.ID == ContainerIDDocker {
-			return nil
-		}
-
-		uid, gid, err := c.getDefaultUidGid()
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to get default uid/gid")
-			uid, gid = -1, -1
-		}
-
-		err = m.nfsForAll.MountBind(c.rootfsDir, c.Name, uid, gid)
-		if err != nil {
-			return err
-		}
-		err = m.nfsForAll.Flush()
-		if err != nil {
-			return err
-		}
-
+	// docker is special
+	if c.ID == ContainerIDDocker {
 		return nil
-	}()
+	}
+
+	uid, gid, err := c.getDefaultUidGid()
+	if err != nil {
+		logrus.WithError(err).WithField("container", c.Name).Error("failed to get default uid/gid")
+		uid, gid = -1, -1
+	}
+
+	// nfs bind mount
+	err = m.nfsForAll.MountBind(c.rootfsDir, c.Name, uid, gid)
+	if err != nil {
+		return err
+	}
+	err = m.nfsForAll.Flush()
 	if err != nil {
 		return err
 	}

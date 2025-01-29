@@ -42,7 +42,7 @@ type ConManager struct {
 	// config
 	dataDir            string
 	tmpDir             string
-	lxcDir             string
+	lxcTmpDir          string
 	seccompPolicyPaths [_seccompPolicyMax]string
 	agentExe           *os.File
 	kernelVersion      string
@@ -153,7 +153,7 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 	mgr := &ConManager{
 		dataDir:            dataDir,
 		tmpDir:             tmpDir,
-		lxcDir:             lxcDir,
+		lxcTmpDir:          lxcDir,
 		seccompPolicyPaths: seccompPolicyPaths,
 		agentExe:           agentExe,
 		kernelVersion:      kernelVersion,

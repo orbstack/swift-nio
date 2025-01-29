@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
+	"os"
 	"slices"
 	"time"
 
@@ -27,6 +28,7 @@ func validateContainerName(name string) error {
 	return nil
 }
 
+// returns a Container with an active mutation that must be released after creation
 func (m *ConManager) beginCreate(args *types.CreateRequest) (*Container, *types.ImageSpec, error) {
 	if m.stopping.Load() {
 		return nil, nil, errors.New("machine manager is stopping")
@@ -106,6 +108,7 @@ func (m *ConManager) Create(args *types.CreateRequest) (_ *Container, retErr err
 	if err != nil {
 		return nil, err
 	}
+	defer c.holds.EndMutation()
 	defer func() {
 		if retErr != nil {
 			err2 := c.deleteInternal()
@@ -117,7 +120,7 @@ func (m *ConManager) Create(args *types.CreateRequest) (_ *Container, retErr err
 
 	// model this as a long-running task
 	err = c.jobManager.Run(func(ctx context.Context) error {
-		err := m.makeRootfsWithImage(ctx, *image, c.Name, c.rootfsDir, args.CloudInitUserData, args.InternalUseTestCache)
+		err := c.makeRootfsWithImage(ctx, *image, c.Name, args.CloudInitUserData, args.InternalUseTestCache)
 		if ctx.Err() != nil {
 			// if canceled, just return that instead of the actual error (e.g. unsquashfs killed)
 			return ctx.Err()
@@ -277,4 +280,32 @@ func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {
 
 		time.Sleep(ipPollInterval)
 	}
+}
+
+type createDataDirsOptions struct {
+	includeRootfsDir bool
+	snapshotFromPath string
+}
+
+func (c *Container) createDataDirs(opts createDataDirsOptions) error {
+	if opts.snapshotFromPath != "" {
+		err := c.manager.fsOps.SnapshotSubvolume(opts.snapshotFromPath, c.dataDir)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := c.manager.fsOps.CreateSubvolumeIfNotExists(c.dataDir)
+		if err != nil {
+			return err
+		}
+	}
+
+	if opts.includeRootfsDir {
+		err := os.Mkdir(c.rootfsDir, 0o755)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -82,6 +82,20 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 	return oldName, nil
 }
 
+func (c *Container) updateHostnameLocked(oldName, newName string) error {
+	if c.runningLocked() {
+		// if running, finish in the agent
+		// more secure than attaching netns and writing files from our side,
+		// because it avoids symlink escape races
+		return c.useAgentLocked(func(a *agent.Client) error {
+			return a.UpdateHostname(oldName, newName)
+		})
+	} else {
+		// if not running, it's safe to update files from our side w/o chroot
+		return agent.WriteHostnameFiles(c.rootfsDir, oldName, newName, false /*runCommands*/)
+	}
+}
+
 func (c *Container) Rename(newName string) error {
 	logrus.WithField("container", c.Name).WithField("to", newName).Info("renaming container")
 
@@ -111,17 +125,7 @@ func (c *Container) Rename(newName string) error {
 			return err
 		}
 
-		if c.runningLocked() {
-			// if running, finish in the agent
-			// more secure than attaching netns and writing files from our side,
-			// because it avoids symlink escape races
-			err = c.useAgentLocked(func(a *agent.Client) error {
-				return a.UpdateHostname(oldName, newName)
-			})
-		} else {
-			// if not running, it's safe to update files from our side w/o chroot
-			err = agent.WriteHostnameFiles(c.rootfsDir, oldName, newName, false /*runCommands*/)
-		}
+		err = c.updateHostnameLocked(oldName, newName)
 		if err != nil {
 			// hmm, try to rename back
 			c.manager.containersMu.Lock() // c.mu is already locked

@@ -354,13 +354,13 @@ func (m *ConManager) getOrDownloadImage(ctx context.Context, spec types.ImageSpe
 	return
 }
 
-func (m *ConManager) makeRootfsWithImage(ctx context.Context, spec types.ImageSpec, containerName string, rootfsDir string, cloudInitUserData string, useTestCache bool) error {
+func (c *Container) makeRootfsWithImage(ctx context.Context, spec types.ImageSpec, containerName string, cloudInitUserData string, useTestCache bool) error {
 	img, err := getImageFromSpec(ctx, spec)
 	if err != nil {
 		return err
 	}
 
-	rootfsFile, metaFile, tempDir, err := m.getOrDownloadImage(ctx, spec, img, useTestCache)
+	rootfsFile, metaFile, tempDir, err := c.manager.getOrDownloadImage(ctx, spec, img, useTestCache)
 	if err != nil {
 		return err
 	}
@@ -374,15 +374,25 @@ func (m *ConManager) makeRootfsWithImage(ctx context.Context, spec types.ImageSp
 	switch img.RootfsFormat {
 	case ImageFormatTarXz:
 		// unsquashfs creates destination directory by default, but tar doesn't
-		err = os.MkdirAll(rootfsDir, 0755)
+		err = c.createDataDirs(createDataDirsOptions{
+			includeRootfsDir: true,
+		})
 		if err != nil {
-			return err
+			return fmt.Errorf("create data dirs: %w", err)
 		}
-		cmd = exec.CommandContext(ctx, "tar", "-xJf", rootfsFile, "-C", rootfsDir, "--numeric-owner", "--xattrs", "--xattrs-include=*")
+
+		cmd = exec.CommandContext(ctx, "tar", "-xJf", rootfsFile, "-C", c.rootfsDir, "--numeric-owner", "--xattrs", "--xattrs-include=*")
 	case ImageFormatSquashfs:
+		err = c.createDataDirs(createDataDirsOptions{
+			includeRootfsDir: false,
+		})
+		if err != nil {
+			return fmt.Errorf("create data dirs: %w", err)
+		}
+
 		// limit parallelism
 		procs := max(1, min(maxSquashfsCpus, runtime.NumCPU()/2))
-		cmd = exec.CommandContext(ctx, "unsquashfs", "-n", "-f", "-p", strconv.Itoa(procs), "-d", rootfsDir, rootfsFile)
+		cmd = exec.CommandContext(ctx, "unsquashfs", "-n", "-f", "-p", strconv.Itoa(procs), "-d", c.rootfsDir, rootfsFile)
 	default:
 		return fmt.Errorf("unsupported rootfs format: %v", img.RootfsFormat)
 	}
@@ -394,7 +404,7 @@ func (m *ConManager) makeRootfsWithImage(ctx context.Context, spec types.ImageSp
 	}
 
 	// make temp dir for metadata
-	metadataDir, err := os.MkdirTemp(m.tmpDir, "metadata")
+	metadataDir, err := os.MkdirTemp(c.manager.tmpDir, "metadata")
 	if err != nil {
 		return err
 	}
@@ -422,9 +432,9 @@ func (m *ConManager) makeRootfsWithImage(ctx context.Context, spec types.ImageSp
 	}
 	logrus.WithField("metadata", meta).Debug("loaded metadata")
 
-	fs, err := securefs.NewFromPath(rootfsDir)
+	fs, err := securefs.NewFromPath(c.rootfsDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("open rootfs: %w", err)
 	}
 	defer fs.Close()
 

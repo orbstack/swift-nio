@@ -3,23 +3,105 @@ package fsops
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/btrfs"
 	"github.com/sirupsen/logrus"
 )
 
+// in btrfs qgroups, higher numbers are higher-level
+// 0/5 is the root subvolume
+// 0/... is each subvolume
+// 1/1 is our global qgroup that contains all subvolumes
+const qgroupGlobal = "1/1"
+
 type btrfsOps struct {
-	mountpoint string
+	mountpoint    string
+	useSubvolumes bool
+}
+
+func NewBtrfsOps(mountpoint string) (FSOps, error) {
+	// use subvolumes if we're on the new qgroup setup (i.e. if 1/1 exists)
+	listOutput, err := util.RunWithOutput("btrfs", "qgroup", "show", mountpoint)
+	if err != nil {
+		return nil, fmt.Errorf("list qg: %w", err)
+	}
+
+	useSubvolumes := false
+	for _, line := range strings.Split(listOutput, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 1 {
+			continue
+		}
+		if fields[0] == "1/1" {
+			useSubvolumes = true
+			break
+		}
+	}
+
+	logrus.WithField("useSubvolumes", useSubvolumes).Debug("detected btrfs")
+	return &btrfsOps{mountpoint: mountpoint, useSubvolumes: useSubvolumes}, nil
 }
 
 func (b *btrfsOps) CreateSubvolumeIfNotExists(fsSubpath string) error {
-	// doesn't work properly with our legacy qgroup setup
-	return os.MkdirAll(fsSubpath, 0o755)
+	// if subvolume already exists, return
+	if _, err := os.Stat(fsSubpath); err == nil {
+		logrus.WithField("subvolume", fsSubpath).Debug("subvolume already exists")
+		return nil
+	}
+
+	if b.useSubvolumes {
+		// -p = equivalent to mkdir -p
+		return util.Run("btrfs", "subvolume", "create", "-p", "-i", qgroupGlobal, fsSubpath)
+	} else {
+		// doesn't work properly with our legacy qgroup setup
+		return os.MkdirAll(fsSubpath, 0o755)
+	}
+}
+
+func btrfsPathIsSubvolume(path string) (bool, error) {
+	// it's a subvolume if st_dev differs from parent
+	stat, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+	parentStat, err := os.Stat(filepath.Dir(path))
+	if err != nil {
+		return false, err
+	}
+	return stat.Sys().(*syscall.Stat_t).Dev != parentStat.Sys().(*syscall.Stat_t).Dev, nil
+}
+
+func (b *btrfsOps) SnapshotSubvolume(srcSubpath, dstSubpath string) error {
+	isSrcSubvol, err := btrfsPathIsSubvolume(srcSubpath)
+	if err != nil {
+		return fmt.Errorf("check if src is subvolume: %w", err)
+	}
+	if !isSrcSubvol {
+		// original path was not a subvolume, so fall back to cp
+		logrus.WithField("src", srcSubpath).WithField("dst", dstSubpath).Debug("skipping snapshot: not a subvolume")
+		return ErrUnsupported
+	}
+
+	return util.Run("btrfs", "subvolume", "snapshot", srcSubpath, dstSubpath)
 }
 
 func (b *btrfsOps) DeleteSubvolumeRecursive(fsSubpath string) error {
+	// if src is a subvolume, then just use btrfs recursive delete
+	isSrcSubvol, err := btrfsPathIsSubvolume(fsSubpath)
+	if err != nil {
+		return fmt.Errorf("check if src is subvolume: %w", err)
+	}
+	if isSrcSubvol {
+		// -c = commit after deleting all subvolumes
+		// container deletion requires this for consistency with db
+		return util.Run("btrfs", "subvolume", "delete", "-c", "-R", fsSubpath)
+	}
+
+	// fallback: src is not a subvolume, but user may have created subvolumes under it, so we need to check and delete those
 	rawList, err := util.WithDefaultOom2(func() (string, error) {
 		// -o excludes volumes after it
 		return util.RunWithOutput("btrfs", "subvolume", "list", fsSubpath)

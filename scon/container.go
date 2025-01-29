@@ -49,7 +49,7 @@ type Container struct {
 	Name      string
 	Aliases   []string
 	Image     types.ImageSpec
-	dir       string
+	dataDir   string
 	rootfsDir string
 
 	builtin bool
@@ -96,7 +96,7 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		Image:     record.Image,
 		builtin:   record.Builtin,
 		config:    record.Config,
-		dir:       dir,
+		dataDir:   dir,
 		manager:   m,
 		rootfsDir: dir + "/rootfs",
 
@@ -115,15 +115,8 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		c.hooks = hooks
 	}
 
-	// create parent as subvolume first
-	err := c.manager.fsOps.CreateSubvolumeIfNotExists(c.dir)
-	if err != nil {
-		return nil, fmt.Errorf("create subvolume: %w", err)
-	}
-
 	// create lxc
-	// this also creates rootfs dir
-	err = c.initLxc()
+	err := c.initLxc()
 	if err != nil {
 		return nil, err
 	}

@@ -160,19 +160,19 @@ func (c *Container) deleteLocked(isInternal bool) error {
 	}
 
 	// delete the entire directory
-	err = c.manager.deleteRootfs(c.dir)
+	err = c.manager.deleteRootfs(c.dataDir)
 	if err != nil {
 		return fmt.Errorf("delete rootfs: %w", err)
 	}
 
 	// sync to make sure it's deleted before deleting from db
-	containingDirFd, err := unix.Open(path.Dir(c.dir), unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	parentFd, err := unix.Open(path.Dir(c.dataDir), unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return fmt.Errorf("open dir: %w", err)
 	}
-	defer unix.Close(containingDirFd)
+	defer unix.Close(parentFd)
 
-	err = unix.Fsync(int(containingDirFd))
+	err = unix.Fsync(int(parentFd))
 	if err != nil {
 		return fmt.Errorf("fsync dir: %w", err)
 	}
