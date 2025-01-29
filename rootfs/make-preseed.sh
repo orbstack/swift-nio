@@ -17,8 +17,13 @@ EOF
 trap 'qemu-nbd -d /dev/nbd0 || :' EXIT
 mkfs.btrfs -L user-data-fs -m single -O block-group-tree,quota,squota /dev/nbd0p1
 
-# copy preseed data
+# mount and initialize the fs
 mount /dev/nbd0p1 /mnt
+# make a global qgroup
+btrfs qgroup create 1/1 /mnt
+# assign root subvolume to global qgroup
+btrfs qgroup assign 0/5 1/1 /mnt
+# copy preseed data
 echo 1 > /mnt/version
 umount /mnt
 qemu-nbd -d /dev/nbd0
