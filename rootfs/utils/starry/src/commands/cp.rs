@@ -222,6 +222,8 @@ impl<'a> CopyContext<'a> {
                     // not the first time! hard link it and move on
                     let old_path = o.get();
 
+                    // this looks potentially racy in the presence of concurrent symlink modifications in the src dir (because linkat() with an absolute/multi-component src path could follow symlinks),
+                    // but it's actually safe because all our hardlink src paths are relative to the *dest* dir, which cp is guaranteed to have exclusive access to. (it fails if mkdirat returns EEXIST.)
                     linkat(
                         None,
                         *old_path,
