@@ -28,18 +28,18 @@ use std::{
 };
 
 use crate::{
-    buffer_stack::BufferStack,
     interrogate::{with_fd_path, DevIno, InterrogatedFile, PROC_SELF_FD_PREFIX},
+    recurse::Recurser,
     sys::{
         file::{fchownat, AT_FDCWD},
-        getdents::{for_each_getdents, DirEntry, FileType},
+        getdents::{DirEntry, FileType},
         inode_flags::InodeFlags,
         libc_ext,
         link::with_readlinkat,
         xattr::{fsetxattr, lsetxattr},
     },
 };
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use bumpalo::Bump;
 use libc::{getegid, geteuid};
 use nix::{
@@ -58,14 +58,14 @@ use nix::{
 
 struct OwnedCopyContext {
     bump: Bump,
-    buffer_stack: BufferStack,
+    recurser: Recurser,
 }
 
 impl OwnedCopyContext {
     fn new() -> anyhow::Result<Self> {
         Ok(Self {
             bump: Bump::new(),
-            buffer_stack: BufferStack::new()?,
+            recurser: Recurser::new()?,
         })
     }
 }
@@ -78,7 +78,7 @@ struct CopyContext<'a> {
     hardlink_paths: BTreeMap<DevIno, &'a [u8]>,
     bump: &'a Bump,
 
-    buffer_stack: &'a BufferStack,
+    recurser: &'a Recurser,
 }
 
 impl<'a> CopyContext<'a> {
@@ -90,7 +90,7 @@ impl<'a> CopyContext<'a> {
             hardlink_paths: BTreeMap::new(),
             bump: &owned.bump,
 
-            buffer_stack: &owned.buffer_stack,
+            recurser: &owned.recurser,
         })
     }
 
@@ -337,11 +337,11 @@ impl<'a> CopyContext<'a> {
 
         // recurse into non-empty directories
         if src.has_children() {
-            self.walk_dir(
-                src.fd.as_ref().unwrap(),
-                src.nents_hint(),
-                dest_fd.as_ref().unwrap(),
-            )?;
+            let src_dirfd = src.fd.as_ref().unwrap();
+            self.recurser
+                .walk_dir(src_dirfd, src.nents_hint(), |entry| {
+                    self.do_one_entry(src_dirfd, dest_dirfd, entry)
+                })?;
         }
 
         // metadata: uid/gid, atime/mtime, xattrs, inode flags
@@ -362,30 +362,6 @@ impl<'a> CopyContext<'a> {
                 close_fds(src_fd, dest_fd);
             }
         }
-
-        Ok(())
-    }
-
-    fn walk_dir(
-        &mut self,
-        src_dirfd: &OwnedFd,
-        src_nents_hint: Option<usize>,
-        dest_dirfd: &OwnedFd,
-    ) -> anyhow::Result<()> {
-        for_each_getdents(src_dirfd, src_nents_hint, self.buffer_stack, |entry| {
-            self.do_one_entry(src_dirfd, dest_dirfd, &entry)
-                .map_err(|e| {
-                    if e.is::<nix::Error>() {
-                        // nix::Error = root cause
-                        // start chain: "PATH: ERROR"
-                        anyhow!("{}: {}", entry.name.to_string_lossy(), e)
-                    } else {
-                        // as we unwind the directory stack, prepend dirs to error
-                        // chain: "DIR/CHILD: ERROR"
-                        anyhow!("{}/{}", entry.name.to_string_lossy(), e)
-                    }
-                })
-        })?;
 
         Ok(())
     }
@@ -546,7 +522,6 @@ fn copy_regular_file_contents(
 pub fn main(src_dir: &str, dest_dir: &str) -> anyhow::Result<()> {
     // we need control over all permissions bits
     umask(Mode::empty());
-    InterrogatedFile::init()?;
 
     // open root dir
     let src_dirfd = unsafe {
@@ -572,11 +547,16 @@ pub fn main(src_dir: &str, dest_dir: &str) -> anyhow::Result<()> {
         )?)
     };
 
+    // only chdir after opening paths, in case they're relative
+    InterrogatedFile::chdir_to_proc()?;
+
     // walk dirs
     let owned_ctx = OwnedCopyContext::new()?;
     let mut ctx = CopyContext::new(&owned_ctx)?;
-    ctx.walk_dir(&src_dirfd, None, &dest_dirfd)
-        .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
+    ctx.recurser
+        .walk_dir_root(&src_dirfd, &dest_dir_cstr, None, |entry| {
+            ctx.do_one_entry(&src_dirfd, &dest_dirfd, entry)
+        })?;
 
     // to avoid bumping mtime, copy metadata to root dir after recursing
     ctx.copy_metadata_to_dirfd_path(&src_file, &dest_dirfd, c".")?;

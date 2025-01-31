@@ -21,6 +21,7 @@
  */
 
 use std::{
+    ffi::CString,
     fs::File,
     io::Write,
     os::fd::{FromRawFd, OwnedFd},
@@ -40,13 +41,14 @@ use zstd::Encoder;
 const MAX_COMPRESSION_THREADS: usize = 4;
 
 pub fn main(src_dir: &str) -> anyhow::Result<()> {
-    InterrogatedFile::init()?;
+    InterrogatedFile::chdir_to_proc()?;
 
     let file = unsafe { File::from_raw_fd(libc::STDOUT_FILENO) };
 
     let mut writer = Encoder::new(file, 0)?;
     // tar is usually bottlenecked on zstd, but let's be conservative to avoid burning CPU
-    let num_threads = (std::thread::available_parallelism()?.get() / 2).clamp(1, MAX_COMPRESSION_THREADS);
+    let num_threads =
+        (std::thread::available_parallelism()?.get() / 2).clamp(1, MAX_COMPRESSION_THREADS);
     writer.multithread(num_threads as u32)?;
 
     // add root dir
@@ -66,8 +68,9 @@ pub fn main(src_dir: &str) -> anyhow::Result<()> {
     let root_dir_file = InterrogatedFile::from_directory_fd(&root_dir)?;
     ctx.add_one_entry(&root_dir_file, b".")?;
 
-    // walk dirs
-    ctx.walk_dir(&root_dir, None)?;
+    // walk dirs using walk_dir_root
+    let src_dir_cstr = CString::new(src_dir.as_bytes())?;
+    ctx.walk_dir_root(&root_dir, &src_dir_cstr, None)?;
 
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;

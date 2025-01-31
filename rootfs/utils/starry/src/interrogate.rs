@@ -45,7 +45,7 @@ pub struct InterrogatedFile<'a> {
 }
 
 impl<'a> InterrogatedFile<'a> {
-    pub fn init() -> anyhow::Result<()> {
+    pub fn chdir_to_proc() -> anyhow::Result<()> {
         // to reduce path lookup work for fd paths
         std::env::set_current_dir("/proc/self/fd")?;
         Ok(())

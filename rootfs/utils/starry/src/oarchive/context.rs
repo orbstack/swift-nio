@@ -7,6 +7,7 @@
  */
 
 use std::collections::btree_map::Entry;
+use std::ffi::CStr;
 use std::os::fd::AsRawFd;
 use std::{collections::BTreeMap, io::Write, mem::MaybeUninit, os::fd::OwnedFd};
 
@@ -15,10 +16,11 @@ use nix::errno::Errno;
 use nix::unistd::{lseek, Whence};
 
 use crate::interrogate::InterrogatedFile;
-use crate::sys::getdents::{for_each_getdents, FileType};
+use crate::recurse::Recurser;
+use crate::sys::getdents::{DirEntry, FileType};
 use crate::sys::inode_flags::InodeFlags;
 use crate::tarball::sparse::SparseFileMap;
-use crate::{buffer_stack::BufferStack, interrogate::DevIno, path_stack::PathStack};
+use crate::{interrogate::DevIno, path_stack::PathStack};
 
 use super::wire::{self, EntryHeader, EntryType};
 
@@ -27,17 +29,17 @@ const READ_BUF_SIZE: usize = 65536;
 pub const ZERO_PADDING: [u8; 1024] = [0; 1024];
 
 pub struct OwnedArchiveContext {
-    buffer_stack: BufferStack,
     path_stack: PathStack,
     bump: Bump,
+    recurser: Recurser,
 }
 
 impl OwnedArchiveContext {
     pub fn new() -> anyhow::Result<Self> {
         Ok(Self {
-            buffer_stack: BufferStack::new()?,
             path_stack: PathStack::default(),
             bump: Bump::new(),
+            recurser: Recurser::new()?,
         })
     }
 }
@@ -50,7 +52,7 @@ pub struct ArchiveContext<'a, W: Write> {
     bump: &'a Bump,
 
     // this owned/ref split allows &mut self (for Write) without preventing these from being borrowed
-    buffer_stack: &'a BufferStack,
+    recurser: &'a Recurser,
     path_stack: &'a PathStack,
 }
 
@@ -60,8 +62,8 @@ impl<'a, W: Write> ArchiveContext<'a, W> {
             writer,
             hardlink_paths: BTreeMap::new(),
             bump: &owned.bump,
-            buffer_stack: &owned.buffer_stack,
             path_stack: &owned.path_stack,
+            recurser: &owned.recurser,
         }
     }
 
@@ -321,18 +323,33 @@ impl<'a, W: Write> ArchiveContext<'a, W> {
         Ok(())
     }
 
+    fn do_one_entry(&mut self, dirfd: &OwnedFd, entry: &DirEntry) -> anyhow::Result<()> {
+        let path = self.path_stack.push(entry.name.to_bytes());
+
+        let file = InterrogatedFile::from_entry(dirfd, entry)?;
+        self.add_one_entry(&file, path.get().as_slice())?;
+
+        if file.has_children() {
+            self.walk_dir(file.fd.as_ref().unwrap(), file.nents_hint())?;
+        }
+
+        Ok(())
+    }
+
     pub fn walk_dir(&mut self, dirfd: &OwnedFd, nents_hint: Option<usize>) -> anyhow::Result<()> {
-        for_each_getdents(dirfd, nents_hint, self.buffer_stack, |entry| {
-            let path = self.path_stack.push(entry.name.to_bytes());
+        self.recurser
+            .walk_dir(dirfd, nents_hint, |entry| self.do_one_entry(dirfd, entry))
+    }
 
-            let file = InterrogatedFile::from_entry(dirfd, &entry)?;
-            self.add_one_entry(&file, path.get().as_slice())?;
-
-            if file.has_children() {
-                self.walk_dir(file.fd.as_ref().unwrap(), file.nents_hint())?;
-            }
-
-            Ok(())
-        })
+    pub fn walk_dir_root(
+        &mut self,
+        dirfd: &OwnedFd,
+        path: &CStr,
+        nents_hint: Option<usize>,
+    ) -> anyhow::Result<()> {
+        self.recurser
+            .walk_dir_root(dirfd, path, nents_hint, |entry| {
+                self.do_one_entry(dirfd, entry)
+            })
     }
 }

@@ -16,7 +16,7 @@ struct LinuxDirent64 {
     //d_name: [u8; ...],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct DirEntry<'a> {
     pub inode: u64,
     pub file_type: FileType,

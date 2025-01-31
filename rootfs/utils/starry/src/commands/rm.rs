@@ -12,20 +12,17 @@
  */
 
 use std::{
-    ffi::CStr,
+    ffi::{CStr, CString},
     os::fd::{AsRawFd, FromRawFd, OwnedFd},
     path::Path,
 };
 
-use crate::{
-    buffer_stack::BufferStack,
-    sys::{
-        file::{fstatat, unlinkat},
-        getdents::{for_each_getdents, DirEntry, FileType},
-        inode_flags::InodeFlags,
-    },
+use crate::recurse::Recurser;
+use crate::sys::{
+    file::{fstatat, unlinkat},
+    getdents::{DirEntry, FileType},
+    inode_flags::InodeFlags,
 };
-use anyhow::anyhow;
 use nix::{
     errno::Errno,
     fcntl::{openat, OFlag},
@@ -84,57 +81,65 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
     }
 }
 
-fn do_one_entry(
-    dirfd: &OwnedFd,
-    entry: &DirEntry,
-    buffer_stack: &BufferStack,
-) -> anyhow::Result<()> {
-    // assume file/symlink/fifo/chr/blk/socket, unless we know it's definitely a dir
-    // this is always correct on filesystems that populate d_type
-    // with DT_UNKNOWN, it's still faster because we just replace the fstatat() call with unlinkat(), and avoid fstatat() in the common case (there are usually more files than dirs)
-    if entry.file_type != FileType::Directory {
-        match unlinkat_and_clear_flags(dirfd, entry.name, 0) {
-            Ok(_) => return Ok(()),
-            // guessed wrong: it's a dir
-            Err(Errno::EISDIR) => (),
-            Err(e) => return Err(e.into()),
+struct OwnedRmContext {
+    recurser: Recurser,
+}
+
+impl OwnedRmContext {
+    fn new() -> anyhow::Result<Self> {
+        Ok(Self {
+            recurser: Recurser::new()?,
+        })
+    }
+}
+
+struct RmContext<'a> {
+    recurser: &'a Recurser,
+}
+
+impl<'a> RmContext<'a> {
+    fn new(owned: &'a OwnedRmContext) -> Self {
+        Self {
+            recurser: &owned.recurser,
         }
     }
 
-    // assumption is wrong (or FS provides d_type=DT_DIR): it's a dir
-    // recursively unlink children, then unlink dir
-    let child_dirfd = unsafe {
-        OwnedFd::from_raw_fd(openat(
-            Some(dirfd.as_raw_fd()),
-            entry.name,
-            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
-            Mode::empty(),
-        )?)
-    };
-    walk_dir(&child_dirfd, buffer_stack)?;
-    // close first so that the unlink below can delete structures immediately instead of being deferred
-    drop(child_dirfd);
-
-    unlinkat_and_clear_flags(dirfd, entry.name, libc::AT_REMOVEDIR)?;
-    Ok(())
-}
-
-fn walk_dir(dirfd: &OwnedFd, buffer_stack: &BufferStack) -> anyhow::Result<()> {
-    for_each_getdents(dirfd, None, buffer_stack, |entry| {
-        do_one_entry(dirfd, &entry, buffer_stack).map_err(|e| {
-            if e.is::<nix::Error>() {
-                // nix::Error = root cause
-                // start chain: "PATH: ERROR"
-                anyhow!("{}: {}", entry.name.to_string_lossy(), e)
-            } else {
-                // as we unwind the directory stack, prepend dirs to error
-                // chain: "DIR/CHILD: ERROR"
-                anyhow!("{}/{}", entry.name.to_string_lossy(), e)
+    fn do_one_entry(&mut self, dirfd: &OwnedFd, entry: &DirEntry) -> anyhow::Result<()> {
+        // assume file/symlink/fifo/chr/blk/socket, unless we know it's definitely a dir
+        // this is always correct on filesystems that populate d_type
+        // with DT_UNKNOWN, it's still faster because we just replace the fstatat() call with unlinkat(), and avoid fstatat() in the common case (there are usually more files than dirs)
+        if entry.file_type != FileType::Directory {
+            match unlinkat_and_clear_flags(dirfd, entry.name, 0) {
+                Ok(_) => return Ok(()),
+                // guessed wrong: it's a dir
+                Err(Errno::EISDIR) => (),
+                Err(e) => return Err(e.into()),
             }
-        })
-    })?;
+        }
 
-    Ok(())
+        // assumption is wrong (or FS provides d_type=DT_DIR): it's a dir
+        // recursively unlink children, then unlink dir
+        let child_dirfd = unsafe {
+            OwnedFd::from_raw_fd(openat(
+                Some(dirfd.as_raw_fd()),
+                entry.name,
+                OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
+                Mode::empty(),
+            )?)
+        };
+        self.walk_dir(&child_dirfd)?;
+        // close first so that the unlink below can delete structures immediately instead of being deferred
+        drop(child_dirfd);
+
+        unlinkat_and_clear_flags(dirfd, entry.name, libc::AT_REMOVEDIR)?;
+        Ok(())
+    }
+
+    fn walk_dir(&mut self, dirfd: &OwnedFd) -> anyhow::Result<()> {
+        self.recurser
+            .walk_dir(dirfd, None, |entry| self.do_one_entry(dirfd, entry))?;
+        Ok(())
+    }
 }
 
 pub fn main(src_dir: &str) -> anyhow::Result<()> {
@@ -149,8 +154,13 @@ pub fn main(src_dir: &str) -> anyhow::Result<()> {
     };
 
     // walk dirs
-    let buffer_stack = BufferStack::new()?;
-    walk_dir(&root_dir, &buffer_stack).map_err(|e| anyhow!("{}/{}", src_dir, e))?;
+    let owned_ctx = OwnedRmContext::new()?;
+    let mut ctx = RmContext::new(&owned_ctx);
+    let src_dir_cstr = CString::new(src_dir.as_bytes())?;
+    ctx.recurser
+        .walk_dir_root(&root_dir, &src_dir_cstr, None, |entry| {
+            ctx.do_one_entry(&root_dir, entry)
+        })?;
 
     // remove root dir
     drop(root_dir);

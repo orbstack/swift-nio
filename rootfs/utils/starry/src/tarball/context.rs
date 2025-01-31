@@ -1,5 +1,5 @@
 use std::collections::btree_map::Entry;
-use std::ffi::OsStr;
+use std::ffi::{CStr, OsStr};
 use std::os::fd::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
@@ -10,9 +10,12 @@ use nix::errno::Errno;
 use nix::unistd::{lseek, Whence};
 use smallvec::{SmallVec, ToSmallVec};
 
-use crate::interrogate::InterrogatedFile;
-use crate::sys::getdents::{for_each_getdents, FileType};
-use crate::{buffer_stack::BufferStack, interrogate::DevIno, path_stack::PathStack};
+use crate::sys::getdents::{DirEntry, FileType};
+use crate::{
+    interrogate::{DevIno, InterrogatedFile},
+    path_stack::PathStack,
+    recurse::Recurser,
+};
 
 use super::headers::Headers;
 use super::inode_flags::InodeFlagsExt;
@@ -24,7 +27,7 @@ const READ_BUF_SIZE: usize = 65536;
 pub const TAR_PADDING: [u8; 1024] = [0; 1024];
 
 pub struct OwnedTarContext {
-    buffer_stack: BufferStack,
+    recurser: Recurser,
     path_stack: PathStack,
     bump: Bump,
 }
@@ -32,7 +35,7 @@ pub struct OwnedTarContext {
 impl OwnedTarContext {
     pub fn new() -> anyhow::Result<Self> {
         Ok(Self {
-            buffer_stack: BufferStack::new()?,
+            recurser: Recurser::new()?,
             path_stack: PathStack::default(),
             bump: Bump::new(),
         })
@@ -45,9 +48,7 @@ pub struct TarContext<'a, W: Write> {
     // we use [u8] for all paths instead of String because Linux paths technically don't have to be UTF-8. (it also means we can avoid UTF-8 validation overhead)
     hardlink_paths: BTreeMap<DevIno, &'a [u8]>,
     bump: &'a Bump,
-
-    // this owned/ref split allows &mut self (for Write) without preventing these from being borrowed
-    buffer_stack: &'a BufferStack,
+    recurser: &'a Recurser,
     path_stack: &'a PathStack,
 }
 
@@ -57,7 +58,7 @@ impl<'a, W: Write> TarContext<'a, W> {
             writer,
             hardlink_paths: BTreeMap::new(),
             bump: &owned.bump,
-            buffer_stack: &owned.buffer_stack,
+            recurser: &owned.recurser,
             path_stack: &owned.path_stack,
         }
     }
@@ -329,19 +330,33 @@ impl<'a, W: Write> TarContext<'a, W> {
         Ok(())
     }
 
+    fn do_one_entry(&mut self, dirfd: &OwnedFd, entry: &DirEntry) -> anyhow::Result<()> {
+        let path = self.path_stack.push(entry.name.to_bytes());
+        let file = InterrogatedFile::from_entry(dirfd, entry)?;
+        self.add_one_entry(&file, path.get().as_slice())?;
+
+        if file.has_children() {
+            self.walk_dir(file.fd.as_ref().unwrap(), file.nents_hint())?;
+        }
+
+        Ok(())
+    }
+
     pub fn walk_dir(&mut self, dirfd: &OwnedFd, nents_hint: Option<usize>) -> anyhow::Result<()> {
-        for_each_getdents(dirfd, nents_hint, self.buffer_stack, |entry| {
-            let path = self.path_stack.push(entry.name.to_bytes());
+        self.recurser
+            .walk_dir(dirfd, nents_hint, |entry| self.do_one_entry(dirfd, entry))
+    }
 
-            let file = InterrogatedFile::from_entry(dirfd, &entry)?;
-            self.add_one_entry(&file, path.get().as_slice())?;
-
-            if file.has_children() {
-                self.walk_dir(file.fd.as_ref().unwrap(), file.nents_hint())?;
-            }
-
-            Ok(())
-        })
+    pub fn walk_dir_root(
+        &mut self,
+        dirfd: &OwnedFd,
+        path: &CStr,
+        nents_hint: Option<usize>,
+    ) -> anyhow::Result<()> {
+        self.recurser
+            .walk_dir_root(dirfd, path, nents_hint, |entry| {
+                self.do_one_entry(dirfd, entry)
+            })
     }
 }
 

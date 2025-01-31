@@ -18,13 +18,12 @@ use std::{
 };
 
 use crate::{
-    buffer_stack::BufferStack,
+    recurse::Recurser,
     sys::{
         file::fstatat,
-        getdents::{for_each_getdents, DirEntry, FileType},
+        getdents::{DirEntry, FileType},
     },
 };
-use anyhow::anyhow;
 use nix::{
     errno::Errno,
     fcntl::{openat, OFlag},
@@ -32,13 +31,13 @@ use nix::{
 };
 
 struct OwnedDuContext {
-    buffer_stack: BufferStack,
+    recurser: Recurser,
 }
 
 impl OwnedDuContext {
     pub fn new() -> anyhow::Result<Self> {
         Ok(Self {
-            buffer_stack: BufferStack::new()?,
+            recurser: Recurser::new()?,
         })
     }
 }
@@ -46,15 +45,15 @@ impl OwnedDuContext {
 struct DuContext<'a> {
     total_st_blocks: u64,
     seen_inodes: BTreeSet<u64>,
-    buffer_stack: &'a BufferStack,
+    recurser: &'a Recurser,
 }
 
 impl<'a> DuContext<'a> {
-    fn new(buffer_stack: &'a BufferStack) -> Self {
+    fn new(owned: &'a OwnedDuContext) -> Self {
         Self {
             total_st_blocks: 0,
             seen_inodes: BTreeSet::new(),
-            buffer_stack,
+            recurser: &owned.recurser,
         }
     }
 
@@ -98,20 +97,8 @@ impl<'a> DuContext<'a> {
     }
 
     fn walk_dir(&mut self, dirfd: &OwnedFd) -> anyhow::Result<()> {
-        for_each_getdents(dirfd, None, self.buffer_stack, |entry| {
-            self.do_one_entry(dirfd, &entry).map_err(|e| {
-                if e.is::<nix::Error>() {
-                    // nix::Error = root cause
-                    // start chain: "PATH: ERROR"
-                    anyhow!("{}: {}", entry.name.to_string_lossy(), e)
-                } else {
-                    // as we unwind the directory stack, prepend dirs to error
-                    // chain: "DIR/CHILD: ERROR"
-                    anyhow!("{}/{}", entry.name.to_string_lossy(), e)
-                }
-            })
-        })?;
-
+        self.recurser
+            .walk_dir(dirfd, None, |entry| self.do_one_entry(dirfd, entry))?;
         Ok(())
     }
 }
@@ -136,9 +123,8 @@ fn do_one_dir(src_dir: &str) -> anyhow::Result<()> {
 
     // walk dirs
     let owned_ctx = OwnedDuContext::new()?;
-    let mut ctx = DuContext::new(&owned_ctx.buffer_stack);
-    ctx.walk_dir(&root_dirfd)
-        .map_err(|e| anyhow!("{}/{}", src_dir, e))?;
+    let mut ctx = DuContext::new(&owned_ctx);
+    ctx.walk_dir(&root_dirfd)?;
 
     // report in KiB
     println!("{}\t{}", ctx.total_st_blocks * 512 / 1024, src_dir);
