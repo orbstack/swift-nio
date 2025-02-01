@@ -777,6 +777,12 @@ fn mount_data(sys_info: &SystemInfo, disk_manager: &Mutex<DiskManager>) -> anyho
                     return Err(e);
                 }
             }
+
+            disk_manager
+                .lock()
+                .unwrap()
+                .update_with_stats(&sys_info.seed.initial_disk_stats)
+                .unwrap();
         }
 
         FsType::Bcachefs => {
@@ -816,12 +822,6 @@ fn mount_data(sys_info: &SystemInfo, disk_manager: &Mutex<DiskManager>) -> anyho
             .unwrap();
         }
     }
-
-    disk_manager
-        .lock()
-        .unwrap()
-        .update_with_stats(&sys_info.seed.initial_disk_stats)
-        .unwrap();
 
     Ok(())
 }
