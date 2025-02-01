@@ -42,7 +42,8 @@ func (c *Container) ExportToHostPath(hostPath string) (retErr error) {
 		defer c.Unfreeze()
 
 		err = c.jobManager.Run(func(ctx context.Context) error {
-			cmd := exec.CommandContext(ctx, mounts.Starry, "tar", c.rootfsDir)
+			// include rootfs/ dir prefix in tar to allow flexibility for future extra data in machines data dirs
+			cmd := exec.CommandContext(ctx, mounts.Starry, "tar", c.dataDir)
 			cmd.Stdout = file
 
 			var stderrOutput bytes.Buffer

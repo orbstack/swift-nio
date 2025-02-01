@@ -50,9 +50,8 @@ func (m *ConManager) ImportContainerFromHostPath(newName, hostPath string) (_ *C
 		}
 	}()
 
-	// bsdtar wants an existing dir
 	err = newC.createDataDirs(createDataDirsOptions{
-		includeRootfsDir: true,
+		includeRootfsDir: false,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create data dirs: %w", err)
@@ -60,7 +59,7 @@ func (m *ConManager) ImportContainerFromHostPath(newName, hostPath string) (_ *C
 
 	err = newC.jobManager.Run(func(ctx context.Context) error {
 		// for compression, bsdtar has "--options zstd:threads=N", but there's no zstdmt for decompression
-		cmd := exec.CommandContext(ctx, "bsdtar", "--zstd", "-C", newC.rootfsDir, "--xattrs", "--fflags", "-xf", "-")
+		cmd := exec.CommandContext(ctx, "bsdtar", "--zstd", "-C", newC.dataDir, "--xattrs", "--fflags", "-xf", "-")
 		cmd.Stdin = file
 
 		var stderrOutput bytes.Buffer
