@@ -41,7 +41,7 @@ pub enum TypeFlag {
     PaxGlobalHeader = b'g',
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct OverflowError {}
 
 impl std::error::Error for OverflowError {}
@@ -83,24 +83,19 @@ impl UstarHeader {
             101..=255 => {
                 // final path = prefix + '/' + path, so we have to find a / to split on
 
-                // special case: if path[155] = '/', then it's already split
-                if path.len() > 155 && path[155] == b'/' {
-                    self.data.prefix.copy_from_slice(&path[..155]);
-                    let rem = &path[156..];
-                    self.data.name[..rem.len()].copy_from_slice(rem);
-                    return Ok(());
-                }
-
                 // get the prefix part of the string
                 let prefix_path = &path[..min(path.len(), 155)];
-                // split at last / in prefix
+                // split at last / in prefix section
                 let mut split_iter = prefix_path.rsplitn(2, |&c| c == b'/');
-                let name = split_iter.next().ok_or(OverflowError {})?;
-                let prefix = split_iter.next().ok_or(OverflowError {})?;
+                let prefix = split_iter.nth(1).ok_or(OverflowError {})?;
+                // take the entire rest of the string as the name
+                let name = path.strip_prefix(prefix).unwrap().strip_prefix(b"/").unwrap();
+
                 if prefix.len() > 155 || name.len() > 100 {
                     // not splittable: path component is too long
                     return Err(OverflowError {});
                 }
+
                 // copy prefix
                 self.data.prefix[..prefix.len()].copy_from_slice(prefix);
                 // copy path
@@ -187,4 +182,79 @@ pub fn write_left_padded<T: NumToA<T>>(
     target_buf[padding_len..].copy_from_slice(formatted);
     target_buf[..padding_len].fill(b'0');
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_tar_string(data: &[u8]) -> &str {
+        std::str::from_utf8(data).unwrap().trim_end_matches('\0')
+    }
+
+    trait HeaderTestExt {
+        fn assert_final_path(&self, expected: &str);
+    }
+
+    impl HeaderTestExt for UstarHeader {
+        fn assert_final_path(&self, expected: &str) {
+            let prefix = parse_tar_string(&self.data.prefix);
+            let name = parse_tar_string(&self.data.name);
+            let final_path = if prefix.is_empty() {
+                name.to_string()
+            } else {
+                format!("{}/{}", prefix, name)
+            };
+            assert_eq!(final_path, expected);
+        }
+    }
+
+    fn test_ustar_path_ok(path: &str) {
+        let mut header = UstarHeader::default();
+        let result = header.set_path(path.as_bytes());
+        assert_eq!(result, Ok(()));
+        header.assert_final_path(path);
+    }
+
+    fn test_ustar_path_fail(path: &str) {
+        let mut header = UstarHeader::default();
+        let result = header.set_path(path.as_bytes());
+        assert_eq!(result, Err(OverflowError {}));
+    }
+
+    #[test]
+    fn test_ustar_path_fail_single_101() {
+        test_ustar_path_fail(&"a".repeat(101));
+    }
+
+    #[test]
+    fn test_ustar_path_ok_single_100() {
+        test_ustar_path_ok(&"a".repeat(100));
+    }
+
+    #[test]
+    fn test_ustar_path_ok_multi_101() {
+        test_ustar_path_ok(&"a/b".repeat(50));
+    }
+
+    #[test]
+    fn test_ustar_path_ok_nix1() {
+        test_ustar_path_ok("stress/rootfs/var/lib/docker/volumes/wormhole-data/_data/upper/nix/store/c05d1sqfhkl93p3j5ykic68mgg1gsrvb-source/pkgs/development/python-modules/hurry-filesize/use-pep-420-implicit-namespace-package.patch");
+    }
+
+    #[test]
+    fn test_ustar_path_ok_nix2() {
+        test_ustar_path_ok("rootfs/var/lib/docker/volumes/wormhole-data/_data/upper/nix/store/c05d1sqfhkl93p3j5ykic68mgg1gsrvb-source/lib/tests/packages-from-directory/my-namespace/my-sub-namespace/g.nix");
+    }
+
+    #[test]
+    fn test_ustar_path_ok_nix3() {
+        test_ustar_path_ok("rootfs/var/lib/docker/volumes/wormhole-data/_data/upper/nix/store/c05d1sqfhkl93p3j5ykic68mgg1gsrvb-source/lib/tests/packages-from-directory/my-namespace/f/");
+    }
+
+    // technically I think this is possible to support (prefix='a'*155, name='') but it's probably an edge case that breaks some extractors, so we don't support it
+    #[test]
+    fn test_ustar_path_ok_155_trailing() {
+        test_ustar_path_ok(&("a".repeat(155) + "/"));
+    }
 }
