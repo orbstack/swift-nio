@@ -226,7 +226,7 @@ impl<'a, W: Write> TarContext<'a, W> {
         file: &InterrogatedFile,
         path: &[u8],
         headers: &mut Headers,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         // record hard link?
         // preserving hardlinks to char/block/fifo/symlink files seems useless (doesn't really save space in the tar since it still occupies a full header), but it is actually required for correctness: despite the major/minor/linkpath being immutable, the st_nlink/ctime/mtime/atime/xattrs/mode/uid/gid should still be synced
         if file.is_hardlink() {
@@ -246,7 +246,7 @@ impl<'a, W: Write> TarContext<'a, W> {
                     headers.set_link_path(old_path);
 
                     // skip adding rest of inode data
-                    return Ok(());
+                    return Ok(true);
                 }
             }
         }
@@ -292,7 +292,7 @@ impl<'a, W: Write> TarContext<'a, W> {
             Ok(())
         })?;
 
-        Ok(())
+        Ok(false)
     }
 
     pub fn add_one_entry(&mut self, file: &InterrogatedFile, path: &[u8]) -> anyhow::Result<()> {
@@ -318,9 +318,10 @@ impl<'a, W: Write> TarContext<'a, W> {
         headers.set_mtime(sec, nsec);
 
         // everything else only needs to be set on actual inodes, so hardlinks don't need them
-        self.populate_inode_entry(file, path, &mut headers)?;
+        let is_hardlink = self.populate_inode_entry(file, path, &mut headers)?;
 
-        if file.file_type == FileType::Regular {
+        // hardlinks have typeflag=hardlink and no data
+        if file.file_type == FileType::Regular && !is_hardlink {
             self.finish_regular_file(file.fd.as_ref().unwrap(), path, file, &mut headers)?;
         } else {
             headers.set_path(path);
