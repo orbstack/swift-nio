@@ -1192,11 +1192,7 @@ impl PassthroughFs {
         ctx: &Context,
         nodeid: NodeId,
         flags: u32,
-    ) -> io::Result<(
-        Option<HandleId>,
-        Option<(bindings::stat64, Duration)>,
-        OpenOptions,
-    )> {
+    ) -> io::Result<(Option<HandleId>, OpenOptions)> {
         let flags = self.convert_open_flags(flags as i32);
         let (c_path, node_flags) = self.nodeid_to_path_and_data(ctx, nodeid)?;
         let file =
@@ -1211,8 +1207,7 @@ impl PassthroughFs {
         }
 
         let (handle, opts) = self.finish_open(file, flags, nodeid, node_flags, st)?;
-        let attr = self.finish_getattr(nodeid, st)?;
-        Ok((Some(handle), Some(attr), opts))
+        Ok((Some(handle), opts))
     }
 
     fn do_release(&self, ctx: &Context, _nodeid: NodeId, handle: HandleId) -> io::Result<()> {
@@ -1234,7 +1229,7 @@ impl PassthroughFs {
         file_ref: FileRef,
         nodeid: NodeId,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        let st = match file_ref {
+        let mut st = match file_ref {
             FileRef::Path(c_path) => lstat(c_path, false)?,
             FileRef::Fd(fd) => fstat(fd, false)?,
         };
@@ -1657,11 +1652,7 @@ impl FileSystem for PassthroughFs {
         ctx: Context,
         nodeid: NodeId,
         flags: u32,
-    ) -> io::Result<(
-        Option<HandleId>,
-        Option<(bindings::stat64, Duration)>,
-        OpenOptions,
-    )> {
+    ) -> io::Result<(Option<HandleId>, OpenOptions)> {
         self.with_nodeid_refresh(&ctx, nodeid, || {
             self.do_open(&ctx, nodeid, flags | libc::O_DIRECTORY as u32)
         })
@@ -1964,11 +1955,7 @@ impl FileSystem for PassthroughFs {
         ctx: Context,
         nodeid: NodeId,
         flags: u32,
-    ) -> io::Result<(
-        Option<HandleId>,
-        Option<(bindings::stat64, Duration)>,
-        OpenOptions,
-    )> {
+    ) -> io::Result<(Option<HandleId>, OpenOptions)> {
         self.with_nodeid_refresh(&ctx, nodeid, || self.do_open(&ctx, nodeid, flags))
     }
 
