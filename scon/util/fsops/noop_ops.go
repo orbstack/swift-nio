@@ -34,4 +34,8 @@ func (b *noopOps) DumpDebugInfo(fsPath string) (string, error) {
 	return "", nil
 }
 
+func (b *noopOps) Name() string {
+	return "unknown"
+}
+
 var _ FSOps = &noopOps{}

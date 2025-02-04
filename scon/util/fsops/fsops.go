@@ -14,6 +14,8 @@ type FSOps interface {
 
 	ResizeToMax(fsPath string) error
 	DumpDebugInfo(fsPath string) (string, error)
+
+	Name() string
 }
 
 func NewForFS(fsPath string) (FSOps, error) {

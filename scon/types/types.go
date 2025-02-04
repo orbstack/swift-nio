@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 const (
 	// sentinel
 	DockerMigrationSyncDirImageLoad = "//..__orb_migrate_docker_image_load__"
@@ -47,6 +49,20 @@ type ContainerRecord struct {
 type MachineConfig struct {
 	Isolated        bool   `json:"isolated"`
 	DefaultUsername string `json:"default_username"`
+}
+
+const ExportVersion = 1
+
+type ExportedMachineV1 struct {
+	Version int `json:"version"`
+
+	Record     ContainerRecord `json:"record"`
+	ExportedAt time.Time       `json:"exported_at"`
+
+	HostUID uint32 `json:"host_uid"`
+	HostGID uint32 `json:"host_gid"`
+
+	SourceFS string `json:"source_fs"`
 }
 
 type CreateRequest struct {

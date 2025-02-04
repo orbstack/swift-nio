@@ -171,4 +171,8 @@ func (b *btrfsOps) DumpDebugInfo(fsPath string) (string, error) {
 	return fmt.Sprintf("Usage:\n%s\n\nQG:\n%s\n\nRecovery: %s", usage, qgroup, balanceOut), nil
 }
 
+func (b *btrfsOps) Name() string {
+	return "btrfs"
+}
+
 var _ FSOps = &btrfsOps{}

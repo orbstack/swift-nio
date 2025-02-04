@@ -46,4 +46,8 @@ func (b *bcachefsOps) DumpDebugInfo(fsPath string) (string, error) {
 	return "", nil
 }
 
+func (b *bcachefsOps) Name() string {
+	return "bcachefs"
+}
+
 var _ FSOps = &bcachefsOps{}

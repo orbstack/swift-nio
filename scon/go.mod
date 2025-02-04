@@ -48,6 +48,8 @@ require (
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 )
 
+require github.com/klauspost/compress v1.17.11
+
 require (
 	github.com/alitto/pond/v2 v2.1.6
 	github.com/boltdb/bolt v1.3.1 // indirect
