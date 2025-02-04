@@ -521,10 +521,14 @@ func (d *domainproxyRegistry) refreshHostListenersLocked(c *Container, dirtyFlag
 		"netnsCookie": netnsCookie,
 	}).Debug("refreshing host listeners")
 
-	d.invalidateHostProbeLocked(domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID})
-
-	if host, ok := d.netnsCookieToHost[netnsCookie]; ok {
-		d.invalidateHostProbeLocked(host)
+	// this is technically incorrect behavior. we should be invalidating the docker machine every single time a port in a docker container changes, since we don't know what's forwarded, but that would be bad and slow so we don't do that.
+	if c.ID == ContainerIDDocker {
+		// docker machine doesn't filter netns cookie in bpf, so we use the netnsCookieToHost map to translate the netnsCookie to the right docker container / the docker machine
+		if host, ok := d.netnsCookieToHost[netnsCookie]; ok {
+			d.invalidateHostProbeLocked(host)
+		}
+	} else {
+		d.invalidateHostProbeLocked(domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID})
 	}
 }
 
