@@ -40,7 +40,9 @@ use zstd::Encoder;
 
 const MAX_COMPRESSION_THREADS: usize = 4;
 
-pub fn main(src_dir: &str) -> anyhow::Result<()> {
+const CONFIG_JSON_PATH: &[u8] = b"_orbstack/v1/config.json";
+
+pub fn main(src_dir: &str, config_json: Option<&str>) -> anyhow::Result<()> {
     InterrogatedFile::chdir_to_proc()?;
 
     let file = unsafe { File::from_raw_fd(libc::STDOUT_FILENO) };
@@ -67,6 +69,11 @@ pub fn main(src_dir: &str) -> anyhow::Result<()> {
     // add entry for root dir
     let root_dir_file = InterrogatedFile::from_directory_fd(&root_dir)?;
     ctx.add_one_entry(&root_dir_file, b".")?;
+
+    // add entry for config
+    if let Some(config_json) = config_json {
+        ctx.add_synthetic_file(CONFIG_JSON_PATH, config_json.as_bytes())?;
+    }
 
     // walk dirs using walk_dir_root
     let src_dir_cstr = CString::new(src_dir.as_bytes())?;

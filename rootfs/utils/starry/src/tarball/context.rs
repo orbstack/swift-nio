@@ -63,6 +63,20 @@ impl<'a, W: Write> TarContext<'a, W> {
         }
     }
 
+    fn write_padding_for_data(&mut self, data_len: u64) -> anyhow::Result<()> {
+        let pad = 512 - (data_len % 512);
+        if pad != 512 {
+            self.writer.write_all(&TAR_PADDING[..pad as usize])?;
+        }
+
+        Ok(())
+    }
+
+    fn write_padded(&mut self, data: &[u8]) -> anyhow::Result<()> {
+        self.writer.write_all(data)?;
+        self.write_padding_for_data(data.len() as u64)
+    }
+
     // if we've committed to a certain size (in tar header or sparse file map), then we must write exactly that many bytes in order to avoid corrupting the archive
     // so this stops reading early if we reach rem, and pads with zeros if the file got smaller
     fn write_from_fd(&mut self, fd: &OwnedFd, mut off: i64, mut rem: usize) -> anyhow::Result<()> {
@@ -167,23 +181,13 @@ impl<'a, W: Write> TarContext<'a, W> {
         headers.write_to(&mut self.writer)?;
 
         // write map
-        self.writer.write_all(serialized_map.as_bytes())?;
-        // pad to 512 byte block
-        let pad = 512 - (serialized_map.len() % 512);
-        if pad != 512 {
-            self.writer.write_all(&TAR_PADDING[..pad])?;
-        }
+        self.write_padded(serialized_map.as_bytes())?;
 
         // follow the map and write out payload chunks
         for entry in map.iter_entries() {
             self.write_from_fd(fd, entry.offset as i64, entry.len as usize)?;
         }
-
-        // pad to 512 byte block
-        let pad = 512 - (total_entry_size % 512);
-        if pad != 512 {
-            self.writer.write_all(&TAR_PADDING[..pad as usize])?;
-        }
+        self.write_padding_for_data(total_entry_size)?;
 
         Ok(true)
     }
@@ -211,12 +215,7 @@ impl<'a, W: Write> TarContext<'a, W> {
 
         // we must never write more than the expected size in the header
         self.write_from_fd(fd, 0, file.apparent_size() as usize)?;
-
-        // pad tar to 512 byte block
-        let pad = 512 - (file.apparent_size() % 512);
-        if pad != 512 {
-            self.writer.write_all(&TAR_PADDING[..pad as usize])?;
-        }
+        self.write_padding_for_data(file.apparent_size())?;
 
         Ok(())
     }
@@ -299,7 +298,7 @@ impl<'a, W: Write> TarContext<'a, W> {
         // make PAX and normal header with basic stat info
         // PAX base is ustar format
         let mut headers = Headers::default();
-        headers.set_mode(file.permissions().bits()).unwrap();
+        headers.set_mode(file.permissions().bits()).expect("mode too large");
         headers.set_uid(file.uid());
         headers.set_gid(file.gid());
         headers.set_entry_type(match file.file_type {
@@ -327,6 +326,32 @@ impl<'a, W: Write> TarContext<'a, W> {
             headers.set_path(path);
             headers.write_to(&mut self.writer)?;
         }
+
+        Ok(())
+    }
+
+    pub fn add_synthetic_file(&mut self, path: &[u8], data: &[u8]) -> anyhow::Result<()> {
+        let mut headers = Headers::default();
+        headers.set_mode(0o644).expect("mode too large");
+        headers.set_uid(0);
+        headers.set_gid(0);
+        headers.set_entry_type(TypeFlag::Regular);
+        headers.set_path(path);
+        headers.set_size(data.len() as u64);
+        headers.write_to(&mut self.writer)?;
+
+        self.write_padded(data)?;
+        Ok(())
+    }
+
+    pub fn add_synthetic_dir(&mut self, path: &[u8]) -> anyhow::Result<()> {
+        let mut headers = Headers::default();
+        headers.set_mode(0o755).expect("mode too large");
+        headers.set_uid(0);
+        headers.set_gid(0);
+        headers.set_entry_type(TypeFlag::Directory);
+        headers.set_path(path);
+        headers.write_to(&mut self.writer)?;
 
         Ok(())
     }

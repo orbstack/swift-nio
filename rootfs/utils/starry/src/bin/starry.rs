@@ -30,7 +30,8 @@ pub fn main() -> anyhow::Result<()> {
 
         "tar" => {
             let src_dir = args.get(2).ok_or_else(|| anyhow!("missing src dir"))?;
-            commands::tar::main(src_dir)
+            let config_json = args.get(3).map(|s| s.as_str());
+            commands::tar::main(src_dir, config_json)
         }
 
         "oar" => {
