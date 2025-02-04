@@ -72,17 +72,22 @@ const MAX_HOST_FS_PERCENT: u64 = 95;
 // can't boot without free space for scon db. leave some - I/O error + R/O remount is better than no boot
 const MIN_FREE_SPACE: u64 = 2 * 1024 * 1024; // 2 MiB
 
+const QGROUP_ROOT: u64 = btrfs::make_qgroup_id(0, 5);
 const QGROUP_GLOBAL: u64 = btrfs::make_qgroup_id(1, 1);
 
 #[derive(Debug)]
-pub struct DiskManager {}
+pub struct DiskManager {
+    old_qgroup_reset: bool,
+}
 
 impl DiskManager {
     pub fn new() -> anyhow::Result<Self> {
-        Ok(Self {})
+        Ok(Self {
+            old_qgroup_reset: false,
+        })
     }
 
-    fn update_quota(&self, new_size: u64) -> anyhow::Result<()> {
+    fn update_quota(&mut self, new_size: u64) -> anyhow::Result<()> {
         let dir_file = File::open("/data")?;
 
         // first attempt to set quota on the new global 1/1 qgroup
@@ -91,21 +96,35 @@ impl DiskManager {
             lim: btrfs::BtrfsQgroupLimit {
                 flags: btrfs::BTRFS_QGROUP_LIMIT_MAX_RFER as u64,
                 max_rfer: new_size,
-                max_excl: 0,
-                rsv_rfer: 0,
-                rsv_excl: 0,
+                max_excl: u64::MAX, // -1 = clear
+                rsv_rfer: u64::MAX,
+                rsv_excl: u64::MAX,
             },
         };
         let res = unsafe { btrfs::ioctl::qgroup_limit(dir_file.as_raw_fd(), &mut args) };
         match res {
-            Ok(_) => return Ok(()),
+            Ok(_) => {
+                // if it worked, *remove* the legacy limit
+                // always need to do this once on boot, in case user downgraded and old vinit changed it
+                if !self.old_qgroup_reset {
+                    args.qgroupid = QGROUP_ROOT;
+                    args.lim.max_rfer = u64::MAX;
+                    unsafe {
+                        btrfs::ioctl::qgroup_limit(dir_file.as_raw_fd(), &mut args)?;
+                    }
+                    self.old_qgroup_reset = true;
+                }
+
+                return Ok(());
+            }
+
             // fallthrough: attempt on legacy 0/5 root subvolume qgroup
             Err(Errno::ENOENT) => {}
             Err(e) => return Err(e.into()),
         }
 
         // try again on legacy 0/5 root subvolume qgroup
-        args.qgroupid = 0;
+        args.qgroupid = QGROUP_ROOT;
         unsafe {
             btrfs::ioctl::qgroup_limit(dir_file.as_raw_fd(), &mut args)?;
         }
@@ -113,7 +132,7 @@ impl DiskManager {
         Ok(())
     }
 
-    pub fn update_with_stats(&self, stats: &HostDiskStats) -> anyhow::Result<()> {
+    pub fn update_with_stats(&mut self, stats: &HostDiskStats) -> anyhow::Result<()> {
         let guest_statfs = statvfs("/data")?;
 
         // (blocks - free) = df
