@@ -822,8 +822,16 @@ impl PassthroughFs {
         // TODO: xattr stat
 
         // root generation must be zero
-        // for other inodes, we ignore st_gen because getattrlistbulk (readdirplus) doesn't support it, so returning it here would break revalidate
+        // for other inodes, we ignore st_gen because getattrlistbulk doesn't support it, so returning it here would break revalidate
         st.st_gen = 0;
+
+        // don't report st_nlink on directories
+        // getattrlistbulk doesn't support st_nlink on dirs: ATTR_FILE_LINKCOUNT is only for files; ATTR_DIR_ENTRYCOUNT is all children, not only subdirs; ATTR_DIR_LINKCOUNT is # of dir hardlinks -- actual hardlinks, because HFS+ supports dir hardlinks
+        // dirs normally have weird st_nlink behavior because st_nlink = 2 (".", "..") + # of subdirs, not # of children
+        // just report 1 ("unknown") to avoid inconsistency between stat and readdirplus. this is acceptable behavior; btrfs always does it
+        if st.st_mode & libc::S_IFDIR != 0 {
+            st.st_nlink = 1;
+        }
 
         // return nodeid as st_ino to avoid collisions across host fileesystems, as st_dev is always the same
         st.st_ino = nodeid.0;

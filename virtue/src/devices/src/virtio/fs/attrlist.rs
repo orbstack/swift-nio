@@ -10,9 +10,9 @@ use libc::{
     ATTR_CMN_ACCTIME, ATTR_CMN_CHGTIME, ATTR_CMN_CRTIME, ATTR_CMN_DEVID, ATTR_CMN_FILEID,
     ATTR_CMN_FLAGS, ATTR_CMN_GRPID, ATTR_CMN_MODTIME, ATTR_CMN_NAME, ATTR_CMN_OBJTYPE,
     ATTR_CMN_OWNERID, ATTR_CMN_RETURNED_ATTRS, ATTR_DIR_ALLOCSIZE, ATTR_DIR_DATALENGTH,
-    ATTR_DIR_ENTRYCOUNT, ATTR_DIR_IOBLOCKSIZE, ATTR_DIR_MOUNTSTATUS, ATTR_FILE_DATAALLOCSIZE,
-    ATTR_FILE_DATALENGTH, ATTR_FILE_DEVTYPE, ATTR_FILE_IOBLOCKSIZE, ATTR_FILE_LINKCOUNT,
-    DIR_MNTSTATUS_MNTPOINT, FSOPT_ATTR_CMN_EXTENDED,
+    ATTR_DIR_IOBLOCKSIZE, ATTR_DIR_MOUNTSTATUS, ATTR_FILE_DATAALLOCSIZE, ATTR_FILE_DATALENGTH,
+    ATTR_FILE_DEVTYPE, ATTR_FILE_IOBLOCKSIZE, ATTR_FILE_LINKCOUNT, DIR_MNTSTATUS_MNTPOINT,
+    FSOPT_ATTR_CMN_EXTENDED,
 };
 use nix::errno::Errno;
 use tracing::{error, trace};
@@ -74,8 +74,7 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
             | ATTR_CMN_FILEID
             | ATTR_CMN_ERROR,
         volattr: 0,
-        dirattr: ATTR_DIR_ENTRYCOUNT
-            | ATTR_DIR_MOUNTSTATUS
+        dirattr: ATTR_DIR_MOUNTSTATUS
             | ATTR_DIR_ALLOCSIZE
             | ATTR_DIR_IOBLOCKSIZE
             | ATTR_DIR_DATALENGTH,
@@ -83,7 +82,7 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
             | ATTR_FILE_IOBLOCKSIZE
             | ATTR_FILE_DEVTYPE
             | ATTR_FILE_DATALENGTH
-            | ATTR_FILE_DATAALLOCSIZE, // st_nlink
+            | ATTR_FILE_DATAALLOCSIZE,
         forkattr: ATTR_CMNEXT_EXT_FLAGS, // E_NO_XATTRS
     };
 
@@ -220,11 +219,6 @@ pub fn list_dir<T: AsRawFd>(dirfd: T, reserve_capacity: usize) -> io::Result<Vec
 
             if returned.commonattr & ATTR_CMN_FILEID != 0 {
                 st.st_ino = unsafe { read_and_advance::<u64>(&mut entry_p) };
-            }
-
-            if returned.dirattr & ATTR_DIR_ENTRYCOUNT != 0 {
-                // add 2 for "." and "..", like st_nlink on most filesystems
-                st.st_nlink = 2 + unsafe { read_and_advance::<u16>(&mut entry_p) };
             }
 
             if returned.dirattr & ATTR_DIR_MOUNTSTATUS != 0 {
