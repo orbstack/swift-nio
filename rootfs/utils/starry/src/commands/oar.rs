@@ -48,7 +48,7 @@ pub fn main(src_dir: &str) -> anyhow::Result<()> {
 
     // walk dirs using walk_dir_root
     let src_dir_cstr = CString::new(src_dir.as_bytes())?;
-    ctx.walk_dir_root(&root_dir, &src_dir_cstr, None)?;
+    ctx.walk_dir_root(&root_dir, &src_dir_cstr)?;
 
     // end compressed stream
     writer.finish()?;

@@ -337,13 +337,12 @@ impl<'a> CopyContext<'a> {
             copy_regular_file_contents(&src, src.fd.as_ref().unwrap(), dest_fd.as_ref().unwrap())?;
         }
 
-        // recurse into non-empty directories
-        if src.has_children() {
+        // recurse into directories
+        if src.file_type == FileType::Directory {
             let src_dirfd = src.fd.as_ref().unwrap();
-            self.recurser
-                .walk_dir(src_dirfd, src.nents_hint(), |entry| {
-                    self.do_one_entry(src_dirfd, dest_dirfd, entry)
-                })?;
+            self.recurser.walk_dir(src_dirfd, |entry| {
+                self.do_one_entry(src_dirfd, dest_dirfd, entry)
+            })?;
         }
 
         // metadata: uid/gid, atime/mtime, xattrs, inode flags
@@ -556,7 +555,7 @@ pub fn main(src_dir: &str, dest_dir: &str) -> anyhow::Result<()> {
     let owned_ctx = OwnedCopyContext::new()?;
     let mut ctx = CopyContext::new(&owned_ctx)?;
     ctx.recurser
-        .walk_dir_root(&src_dirfd, &dest_dir_cstr, None, |entry| {
+        .walk_dir_root(&src_dirfd, &dest_dir_cstr, |entry| {
             ctx.do_one_entry(&src_dirfd, &dest_dirfd, entry)
         })?;
 

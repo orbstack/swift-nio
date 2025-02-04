@@ -40,28 +40,21 @@ impl Recurser {
     pub fn walk_dir(
         &self,
         dirfd: &OwnedFd,
-        nents_hint: Option<usize>,
         mut entry_fn: impl FnMut(&DirEntry) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        for_each_getdents(
-            dirfd,
-            nents_hint,
-            &self.buffer_stack,
-            |entry| match entry_fn(&entry) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(append_path_to_error(entry.name, e)),
-            },
-        )
+        for_each_getdents(dirfd, &self.buffer_stack, |entry| match entry_fn(&entry) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(append_path_to_error(entry.name, e)),
+        })
     }
 
     pub fn walk_dir_root(
         &self,
         dirfd: &OwnedFd,
         path: &CStr,
-        nents_hint: Option<usize>,
         entry_fn: impl FnMut(&DirEntry) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        match self.walk_dir(dirfd, nents_hint, entry_fn) {
+        match self.walk_dir(dirfd, entry_fn) {
             Ok(_) => Ok(()),
             Err(e) => Err(append_path_to_error(path, e)),
         }

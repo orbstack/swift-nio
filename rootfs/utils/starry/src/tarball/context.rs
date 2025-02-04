@@ -298,7 +298,9 @@ impl<'a, W: Write> TarContext<'a, W> {
         // make PAX and normal header with basic stat info
         // PAX base is ustar format
         let mut headers = Headers::default();
-        headers.set_mode(file.permissions().bits()).expect("mode too large");
+        headers
+            .set_mode(file.permissions().bits())
+            .expect("mode too large");
         headers.set_uid(file.uid());
         headers.set_gid(file.gid());
         headers.set_entry_type(match file.file_type {
@@ -361,28 +363,21 @@ impl<'a, W: Write> TarContext<'a, W> {
         let file = InterrogatedFile::from_entry(dirfd, entry)?;
         self.add_one_entry(&file, path.get().as_slice())?;
 
-        if file.has_children() {
-            self.walk_dir(file.fd.as_ref().unwrap(), file.nents_hint())?;
+        if file.file_type == FileType::Directory {
+            self.walk_dir(file.fd.as_ref().unwrap())?;
         }
 
         Ok(())
     }
 
-    pub fn walk_dir(&mut self, dirfd: &OwnedFd, nents_hint: Option<usize>) -> anyhow::Result<()> {
+    pub fn walk_dir(&mut self, dirfd: &OwnedFd) -> anyhow::Result<()> {
         self.recurser
-            .walk_dir(dirfd, nents_hint, |entry| self.do_one_entry(dirfd, entry))
+            .walk_dir(dirfd, |entry| self.do_one_entry(dirfd, entry))
     }
 
-    pub fn walk_dir_root(
-        &mut self,
-        dirfd: &OwnedFd,
-        path: &CStr,
-        nents_hint: Option<usize>,
-    ) -> anyhow::Result<()> {
+    pub fn walk_dir_root(&mut self, dirfd: &OwnedFd, path: &CStr) -> anyhow::Result<()> {
         self.recurser
-            .walk_dir_root(dirfd, path, nents_hint, |entry| {
-                self.do_one_entry(dirfd, entry)
-            })
+            .walk_dir_root(dirfd, path, |entry| self.do_one_entry(dirfd, entry))
     }
 }
 

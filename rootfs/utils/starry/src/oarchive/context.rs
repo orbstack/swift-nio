@@ -329,27 +329,20 @@ impl<'a, W: Write> ArchiveContext<'a, W> {
         let file = InterrogatedFile::from_entry(dirfd, entry)?;
         self.add_one_entry(&file, path.get().as_slice())?;
 
-        if file.has_children() {
-            self.walk_dir(file.fd.as_ref().unwrap(), file.nents_hint())?;
+        if file.file_type == FileType::Directory {
+            self.walk_dir(file.fd.as_ref().unwrap())?;
         }
 
         Ok(())
     }
 
-    pub fn walk_dir(&mut self, dirfd: &OwnedFd, nents_hint: Option<usize>) -> anyhow::Result<()> {
+    pub fn walk_dir(&mut self, dirfd: &OwnedFd) -> anyhow::Result<()> {
         self.recurser
-            .walk_dir(dirfd, nents_hint, |entry| self.do_one_entry(dirfd, entry))
+            .walk_dir(dirfd, |entry| self.do_one_entry(dirfd, entry))
     }
 
-    pub fn walk_dir_root(
-        &mut self,
-        dirfd: &OwnedFd,
-        path: &CStr,
-        nents_hint: Option<usize>,
-    ) -> anyhow::Result<()> {
+    pub fn walk_dir_root(&mut self, dirfd: &OwnedFd, path: &CStr) -> anyhow::Result<()> {
         self.recurser
-            .walk_dir_root(dirfd, path, nents_hint, |entry| {
-                self.do_one_entry(dirfd, entry)
-            })
+            .walk_dir_root(dirfd, path, |entry| self.do_one_entry(dirfd, entry))
     }
 }

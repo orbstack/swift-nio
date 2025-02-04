@@ -53,18 +53,13 @@ impl FileType {
 
 pub fn for_each_getdents<F: AsRawFd>(
     fd: &F,
-    // if caller has stat() output, then it can provide an st_nlink hint to skip the redundant getdents()=0 call on EOF
-    nents_hint: Option<usize>,
     buffer_stack: &BufferStack,
     mut f: impl FnMut(DirEntry<'_>) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
-    let max_nents = nents_hint.unwrap_or(usize::MAX);
-    let mut total_nents = 0;
-
     let mut guard = buffer_stack.next();
     let buf = guard.get();
 
-    while total_nents < max_nents {
+    loop {
         let n = unsafe {
             // glibc's wrapper is getdents64; musl's is getdents; neither is really public, so just call the raw syscall
             libc::syscall(
@@ -86,8 +81,6 @@ pub fn for_each_getdents<F: AsRawFd>(
             if p >= endp {
                 break;
             }
-
-            total_nents += 1;
 
             let d = unsafe { (p as *const LinuxDirent64).read_unaligned() };
             let name_bytes = unsafe {

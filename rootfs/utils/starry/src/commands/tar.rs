@@ -77,7 +77,7 @@ pub fn main(src_dir: &str, config_json: Option<&str>) -> anyhow::Result<()> {
 
     // walk dirs using walk_dir_root
     let src_dir_cstr = CString::new(src_dir.as_bytes())?;
-    ctx.walk_dir_root(&root_dir, &src_dir_cstr, None)?;
+    ctx.walk_dir_root(&root_dir, &src_dir_cstr)?;
 
     // terminate with 1024 zero bytes (2 zero blocks)
     writer.write_all(&TAR_PADDING)?;

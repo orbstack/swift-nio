@@ -98,7 +98,7 @@ impl<'a> DuContext<'a> {
 
     fn walk_dir(&mut self, dirfd: &OwnedFd) -> anyhow::Result<()> {
         self.recurser
-            .walk_dir(dirfd, None, |entry| self.do_one_entry(dirfd, entry))?;
+            .walk_dir(dirfd, |entry| self.do_one_entry(dirfd, entry))?;
         Ok(())
     }
 }

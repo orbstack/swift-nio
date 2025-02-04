@@ -89,7 +89,11 @@ impl UstarHeader {
                 let mut split_iter = prefix_path.rsplitn(2, |&c| c == b'/');
                 let prefix = split_iter.nth(1).ok_or(OverflowError {})?;
                 // take the entire rest of the string as the name
-                let name = path.strip_prefix(prefix).unwrap().strip_prefix(b"/").unwrap();
+                let name = path
+                    .strip_prefix(prefix)
+                    .unwrap()
+                    .strip_prefix(b"/")
+                    .unwrap();
 
                 if prefix.len() > 155 || name.len() > 100 {
                     // not splittable: path component is too long

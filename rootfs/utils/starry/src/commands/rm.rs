@@ -137,7 +137,7 @@ impl<'a> RmContext<'a> {
 
     fn walk_dir(&mut self, dirfd: &OwnedFd) -> anyhow::Result<()> {
         self.recurser
-            .walk_dir(dirfd, None, |entry| self.do_one_entry(dirfd, entry))?;
+            .walk_dir(dirfd, |entry| self.do_one_entry(dirfd, entry))?;
         Ok(())
     }
 }
@@ -158,7 +158,7 @@ pub fn main(src_dir: &str) -> anyhow::Result<()> {
     let mut ctx = RmContext::new(&owned_ctx);
     let src_dir_cstr = CString::new(src_dir.as_bytes())?;
     ctx.recurser
-        .walk_dir_root(&root_dir, &src_dir_cstr, None, |entry| {
+        .walk_dir_root(&root_dir, &src_dir_cstr, |entry| {
             ctx.do_one_entry(&root_dir, entry)
         })?;
 
