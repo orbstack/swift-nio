@@ -7,6 +7,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/btrfs"
 	"github.com/sirupsen/logrus"
@@ -89,6 +90,35 @@ func (b *btrfsOps) SnapshotSubvolume(srcSubpath, dstSubpath string) error {
 	return util.Run("btrfs", "subvolume", "snapshot", srcSubpath, dstSubpath)
 }
 
+func (b *btrfsOps) ListSubvolumes(fsSubpath string) ([]types.ExportedMachineSubvolume, error) {
+	rawList, err := util.WithDefaultOom2(func() (string, error) {
+		// -o excludes volumes after it
+		return util.RunWithOutput("btrfs", "subvolume", "list", fsSubpath)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(rawList, "\n")
+	subvols := make([]types.ExportedMachineSubvolume, 0, len(lines))
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := lines[i]
+		if !strings.HasPrefix(line, "ID") {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		subvolPath := b.mountpoint + "/" + fields[8]
+		if strings.HasPrefix(subvolPath, fsSubpath+"/") {
+			subvols = append(subvols, types.ExportedMachineSubvolume{
+				Path: subvolPath,
+			})
+		}
+	}
+
+	return subvols, nil
+}
+
 func (b *btrfsOps) DeleteSubvolumeRecursive(fsSubpath string) error {
 	// if src is a subvolume, then just use btrfs recursive delete
 	isSrcSubvol, err := btrfsPathIsSubvolume(fsSubpath)
@@ -102,33 +132,19 @@ func (b *btrfsOps) DeleteSubvolumeRecursive(fsSubpath string) error {
 	}
 
 	// fallback: src is not a subvolume, but user may have created subvolumes under it, so we need to check and delete those
-	rawList, err := util.WithDefaultOom2(func() (string, error) {
-		// -o excludes volumes after it
-		return util.RunWithOutput("btrfs", "subvolume", "list", fsSubpath)
-	})
+	subvols, err := b.ListSubvolumes(fsSubpath)
 	if err != nil {
 		return fmt.Errorf("list subvolumes: %w", err)
 	}
 
-	// delete any that fall under this path
-	lines := strings.Split(rawList, "\n")
-	// iterate in reverse order so the order is naturally correct
-	deleteArgs := []string{"btrfs", "subvolume", "delete"}
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := lines[i]
-		if !strings.HasPrefix(line, "ID") {
-			continue
+	if len(subvols) > 0 {
+		// reverse order for correct deletion
+		deleteArgs := []string{"btrfs", "subvolume", "delete", "-c"}
+		for i := len(subvols) - 1; i >= 0; i-- {
+			deleteArgs = append(deleteArgs, subvols[i].Path)
 		}
 
-		fields := strings.Fields(line)
-		subvolPath := b.mountpoint + "/" + fields[8]
-		if strings.HasPrefix(subvolPath, fsSubpath+"/") {
-			deleteArgs = append(deleteArgs, subvolPath)
-		}
-	}
-
-	if len(deleteArgs) > 3 {
-		logrus.WithField("subvols", deleteArgs[3:]).Debug("deleting subvolumes")
+		logrus.WithField("subvols", subvols).Debug("deleting subvolumes")
 		err = util.WithDefaultOom1(func() error {
 			return util.Run(deleteArgs...)
 		})

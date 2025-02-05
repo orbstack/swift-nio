@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/securefs"
@@ -66,6 +67,19 @@ func (c *Container) ExportToHostPath(hostPath string) (retErr error) {
 		}
 		defer c.Unfreeze()
 
+		subvolumes, err := c.manager.fsOps.ListSubvolumes(c.dataDir)
+		if err != nil {
+			return fmt.Errorf("list subvolumes: %w", err)
+		}
+		if len(subvolumes) == 0 {
+			// null -> empty array in json
+			subvolumes = []types.ExportedMachineSubvolume{}
+		}
+		// strip path prefix
+		for i, subvolume := range subvolumes {
+			subvolumes[i].Path = strings.TrimPrefix(subvolume.Path, c.rootfsDir+"/")
+		}
+
 		configJson, err := json.Marshal(types.ExportedMachineV1{
 			Version: types.ExportVersion,
 
@@ -75,7 +89,8 @@ func (c *Container) ExportToHostPath(hostPath string) (retErr error) {
 			HostUID: uint32(hostUser.Uid),
 			HostGID: uint32(hostUser.Gid),
 
-			SourceFS: c.manager.fsOps.Name(),
+			SourceFS:   c.manager.fsOps.Name(),
+			Subvolumes: subvolumes,
 		})
 		if err != nil {
 			return fmt.Errorf("marshal config: %w", err)

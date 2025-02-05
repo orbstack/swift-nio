@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -22,6 +23,11 @@ func (b *noopOps) CreateSubvolumeIfNotExists(fsSubpath string) error {
 
 func (b *noopOps) SnapshotSubvolume(srcSubpath, dstSubpath string) error {
 	return ErrUnsupported
+}
+
+func (b *noopOps) ListSubvolumes(fsSubpath string) ([]types.ExportedMachineSubvolume, error) {
+	// unsupported FS has no subvolumes
+	return nil, nil
 }
 
 func (b *noopOps) DeleteSubvolumeRecursive(fsSubpath string) error {

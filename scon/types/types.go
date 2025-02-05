@@ -62,7 +62,14 @@ type ExportedMachineV1 struct {
 	HostUID uint32 `json:"host_uid"`
 	HostGID uint32 `json:"host_gid"`
 
-	SourceFS string `json:"source_fs"`
+	SourceFS   string                     `json:"source_fs"`
+	Subvolumes []ExportedMachineSubvolume `json:"subvolumes"`
+}
+
+type ExportedMachineSubvolume struct {
+	Path         string `json:"path"`
+	ParentQgroup string `json:"parent_qgroup,omitempty"`
+	ReadOnly     bool   `json:"read_only,omitempty"`
 }
 
 type CreateRequest struct {

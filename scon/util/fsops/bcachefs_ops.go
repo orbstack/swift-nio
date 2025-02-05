@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/sirupsen/logrus"
 )
@@ -30,6 +31,11 @@ func (b *bcachefsOps) CreateSubvolumeIfNotExists(fsSubpath string) error {
 
 func (b *bcachefsOps) SnapshotSubvolume(srcSubpath, dstSubpath string) error {
 	return util.Run("bcachefs", "subvolume", "snapshot", srcSubpath, dstSubpath)
+}
+
+func (b *bcachefsOps) ListSubvolumes(fsSubpath string) ([]types.ExportedMachineSubvolume, error) {
+	// bcachefs subvolumes are just fancy directories, so there's no way to list them
+	return nil, nil
 }
 
 func (b *bcachefsOps) DeleteSubvolumeRecursive(fsSubpath string) error {

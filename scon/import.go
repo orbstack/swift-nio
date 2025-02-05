@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/orbstack/macvirt/scon/securefs"
@@ -102,13 +103,24 @@ func (m *ConManager) ImportContainerFromHostPath(newName, hostPath string) (_ *C
 	}()
 
 	err = newC.createDataDirs(createDataDirsOptions{
-		includeRootfsDir: false,
+		// not strictly needed but this gets created in the subvolumes case, so always do it for consistency
+		// bsdtar will overwrite attributes on existing dirs
+		includeRootfsDir: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create data dirs: %w", err)
 	}
 
 	err = newC.jobManager.Run(func(ctx context.Context) error {
+		// pre-create subvolumes
+		for _, subvolume := range config.Subvolumes {
+			// sanitize path to prevent escape
+			err := m.fsOps.CreateSubvolumeIfNotExists(newC.rootfsDir + "/" + filepath.Clean(subvolume.Path))
+			if err != nil {
+				return fmt.Errorf("create subvolume: %w", err)
+			}
+		}
+
 		// for compression, bsdtar has "--options zstd:threads=N", but there's no zstdmt for decompression
 		cmd := exec.CommandContext(ctx, "bsdtar", "--zstd", "-C", newC.dataDir, "--xattrs", "--fflags", "-xf", "-")
 		cmd.Stdin = file

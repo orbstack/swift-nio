@@ -1,6 +1,7 @@
 package fsops
 
 import (
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -10,6 +11,7 @@ const BCACHEFS_STATFS_MAGIC = 0xca451a4e
 type FSOps interface {
 	CreateSubvolumeIfNotExists(fsSubpath string) error
 	SnapshotSubvolume(srcSubpath, dstSubpath string) error
+	ListSubvolumes(fsSubpath string) ([]types.ExportedMachineSubvolume, error)
 	DeleteSubvolumeRecursive(fsSubpath string) error
 
 	ResizeToMax(fsPath string) error
