@@ -21,7 +21,7 @@ struct MachineDetails: View {
                     }
                     SimpleKvTableRow("Domain") {
                         CopyableText("\(info.record.name).orb.local")
-                            .lineLimit(nil)
+                            .lineLimit(1)
                     }
                 }
             }
@@ -48,6 +48,16 @@ struct MachineDetails: View {
                 SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("Username") {
                         Text(info.record.config.defaultUsername ?? Files.username)
+                    }
+                }
+            }
+
+            if let diskSize = info.diskSize {
+                DetailsSection("Resources") {
+                    SimpleKvTable(longestLabel: "Disk usage") {
+                        SimpleKvTableRow("Disk usage") {
+                            Text(diskSize.formatted(.byteCount(style: .file)))
+                        }
                     }
                 }
             }
