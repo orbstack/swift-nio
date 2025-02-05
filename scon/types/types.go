@@ -51,6 +51,11 @@ type MachineConfig struct {
 	DefaultUsername string `json:"default_username"`
 }
 
+type ContainerInfo struct {
+	Record   *ContainerRecord `json:"record"`
+	DiskSize *uint64          `json:"disk_size"`
+}
+
 const ExportVersion = 1
 
 type ExportedMachineV1 struct {

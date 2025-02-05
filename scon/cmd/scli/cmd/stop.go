@@ -41,7 +41,7 @@ If no arguments are provided, this command will stop the entire OrbStack service
 			checkCLI(err)
 
 			for _, c := range containers {
-				containerNames = append(containerNames, c.Name)
+				containerNames = append(containerNames, c.Record.Name)
 			}
 		} else {
 			if len(args) == 0 {
@@ -76,13 +76,13 @@ If no arguments are provided, this command will stop the entire OrbStack service
 				checkCLI(err)
 
 				spinner := spinutil.Start("red", "Stopping k8s")
-				if c.State == types.ContainerStateRunning {
+				if c.Record.State == types.ContainerStateRunning {
 					// only restart if it was running
 					if wasSet {
-						err = scli.Client().ContainerRestart(c)
+						err = scli.Client().ContainerRestart(c.Record)
 					}
 				} else {
-					err = scli.Client().ContainerStop(c)
+					err = scli.Client().ContainerStop(c.Record)
 				}
 				spinner.Stop()
 				checkCLI(err)
@@ -99,8 +99,8 @@ If no arguments are provided, this command will stop the entire OrbStack service
 			checkCLI(err)
 
 			// spinner
-			spinner := spinutil.Start("red", "Stopping "+c.Name)
-			err = scli.Client().ContainerStop(c)
+			spinner := spinutil.Start("red", "Stopping "+c.Record.Name)
+			err = scli.Client().ContainerStop(c.Record)
 			spinner.Stop()
 			checkCLI(err)
 		}

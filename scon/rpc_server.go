@@ -49,32 +49,36 @@ func (s *SconServer) ImportContainerFromHostPath(ctx context.Context, req types.
 	return c.toRecord(), nil
 }
 
-func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerRecord, error) {
+func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerInfo, error) {
 	containers := s.m.ListContainers()
-	records := make([]types.ContainerRecord, 0, len(containers))
+	records := make([]types.ContainerInfo, 0, len(containers))
 	for _, c := range containers {
-		records = append(records, *c.toRecord())
+		info, err := c.getInfo()
+		if err != nil {
+			return nil, fmt.Errorf("get container info for '%s': %w", c.Name, err)
+		}
+		records = append(records, *info)
 	}
 
 	return records, nil
 }
 
-func (s *SconServer) GetByID(ctx context.Context, req types.GetByIDRequest) (*types.ContainerRecord, error) {
+func (s *SconServer) GetByID(ctx context.Context, req types.GetByIDRequest) (*types.ContainerInfo, error) {
 	c, err := s.m.GetByID(req.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.toRecord(), nil
+	return c.getInfo()
 }
 
-func (s *SconServer) GetByName(ctx context.Context, req types.GetByNameRequest) (*types.ContainerRecord, error) {
+func (s *SconServer) GetByName(ctx context.Context, req types.GetByNameRequest) (*types.ContainerInfo, error) {
 	c, err := s.m.GetByName(req.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.toRecord(), nil
+	return c.getInfo()
 }
 
 func (s *SconServer) GetDefaultContainer(ctx context.Context) (*types.ContainerRecord, error) {

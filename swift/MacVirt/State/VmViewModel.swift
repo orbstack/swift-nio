@@ -458,7 +458,7 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @Published private(set) var containers: [ContainerRecord]?
+    @Published private(set) var containers: [ContainerInfo]?
     @Published var error: VmError?
 
     // vmgr basic state
@@ -717,16 +717,16 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    private func onNewSconMachines(allContainers: [ContainerRecord]) {
+    private func onNewSconMachines(allContainers: [ContainerInfo]) {
         let isFirstContainers = containers == nil
 
         // filter into running and stopped
-        let runningContainers = allContainers.filter { $0.running }
-        let stoppedContainers = allContainers.filter { !$0.running }
+        let runningContainers = allContainers.filter { $0.record.running }
+        let stoppedContainers = allContainers.filter { !$0.record.running }
         // sort alphabetically by name within each group
         containers =
-            runningContainers.sorted { $0.name < $1.name }
-            + stoppedContainers.sorted { $0.name < $1.name }
+            runningContainers.sorted { $0.record.name < $1.record.name }
+            + stoppedContainers.sorted { $0.record.name < $1.record.name }
 
         // first new scon containers = scon is now running
         if isFirstContainers {
@@ -798,7 +798,7 @@ class VmViewModel: ObservableObject {
     func isDockerRunning() -> Bool {
         if let containers,
             let dockerContainer = containers.first(where: { $0.id == ContainerIds.docker }),
-            dockerContainer.state == .running || dockerContainer.state == .starting
+            dockerContainer.record.state == .running || dockerContainer.record.state == .starting
         {
             return true
         }
@@ -1451,7 +1451,7 @@ class VmViewModel: ObservableObject {
         appliedConfig = config
 
         if let dockerRecord = containers?.first(where: { $0.id == ContainerIds.docker }) {
-            await tryRestartContainer(dockerRecord)
+            await tryRestartContainer(dockerRecord.record)
         }
     }
 

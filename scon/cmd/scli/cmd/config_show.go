@@ -49,11 +49,11 @@ var configShowCmd = &cobra.Command{
 		containers, err := scli.Client().ListContainers()
 		checkCLI(err)
 		for _, container := range containers {
-			namePart := container.Name
+			namePart := container.Record.Name
 			if strings.ContainsRune(namePart, '.') {
 				namePart = "\"" + namePart + "\""
 			}
-			configMap["machine."+namePart+".username"] = container.Config.DefaultUsername
+			configMap["machine."+namePart+".username"] = container.Record.Config.DefaultUsername
 		}
 
 		// print keys in sorted order

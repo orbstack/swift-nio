@@ -28,13 +28,14 @@ struct NetworkSettingsView: View {
                     if newValue != vmModel.config?.networkBridge {
                         if vmModel.state == .running,
                             let machines = vmModel.containers,
-                            let dockerRecord = machines.first(where: {
+                            let dockerMachine = machines.first(where: {
                                 $0.id == ContainerIds.docker
                             }),
-                            dockerRecord.state == .starting || dockerRecord.state == .running
+                            dockerMachine.record.state == .starting
+                                || dockerMachine.record.state == .running
                         {
                             Task { @MainActor in
-                                await vmModel.tryRestartContainer(dockerRecord)
+                                await vmModel.tryRestartContainer(dockerMachine.record)
                             }
                         }
                     }

@@ -187,8 +187,8 @@ struct MachineContainerItem: View {
             let container = (vmModel.containers?.first(where: { $0.id == cid }))!
 
             Task { @MainActor in
-                await actionTracker.with(machine: container, action: .delete) {
-                    await vmModel.tryStopContainer(container)
+                await actionTracker.with(machine: container.record, action: .delete) {
+                    await vmModel.tryStopContainer(container.record)
                 }
             }
         }
@@ -200,8 +200,8 @@ struct MachineContainerItem: View {
             let container = (vmModel.containers?.first(where: { $0.id == cid }))!
 
             Task { @MainActor in
-                await actionTracker.with(machine: container, action: .delete) {
-                    await vmModel.tryStartContainer(container)
+                await actionTracker.with(machine: container.record, action: .delete) {
+                    await vmModel.tryStartContainer(container.record)
                 }
             }
         }
@@ -213,8 +213,8 @@ struct MachineContainerItem: View {
             let container = (vmModel.containers?.first(where: { $0.id == cid }))!
 
             Task { @MainActor in
-                await actionTracker.with(machine: container, action: .delete) {
-                    await vmModel.tryRestartContainer(container)
+                await actionTracker.with(machine: container.record, action: .delete) {
+                    await vmModel.tryRestartContainer(container.record)
                 }
             }
         }
@@ -226,8 +226,8 @@ struct MachineContainerItem: View {
             let container = (vmModel.containers?.first(where: { $0.id == cid }))!
 
             Task { @MainActor in
-                await actionTracker.with(machine: container, action: .delete) {
-                    await vmModel.tryDeleteContainer(container)
+                await actionTracker.with(machine: container.record, action: .delete) {
+                    await vmModel.tryDeleteContainer(container.record)
                 }
             }
         }

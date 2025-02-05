@@ -33,7 +33,7 @@ If no machines are specified, the command will start all machines that were runn
 			checkCLI(err)
 
 			for _, c := range containers {
-				containerNames = append(containerNames, c.Name)
+				containerNames = append(containerNames, c.Record.Name)
 			}
 		} else {
 			if len(args) == 0 {
@@ -67,13 +67,13 @@ If no machines are specified, the command will start all machines that were runn
 				checkCLI(err)
 
 				spinner := spinutil.Start("green", "Starting k8s")
-				if c.State == types.ContainerStateRunning {
+				if c.Record.State == types.ContainerStateRunning {
 					// only restart if it wasn't previously set
 					if !wasSet {
-						err = scli.Client().ContainerRestart(c)
+						err = scli.Client().ContainerRestart(c.Record)
 					}
 				} else {
-					err = scli.Client().ContainerStart(c)
+					err = scli.Client().ContainerStart(c.Record)
 				}
 				spinner.Stop()
 				checkCLI(err)
@@ -90,8 +90,8 @@ If no machines are specified, the command will start all machines that were runn
 			checkCLI(err)
 
 			// spinner
-			spinner := spinutil.Start("green", "Starting "+c.Name)
-			err = scli.Client().ContainerStart(c)
+			spinner := spinutil.Start("green", "Starting "+c.Record.Name)
+			err = scli.Client().ContainerStart(c.Record)
 			spinner.Stop()
 			checkCLI(err)
 		}

@@ -46,13 +46,13 @@ struct DockerSettingsView: View {
 
                 if vmModel.state == .running,
                     let machines = vmModel.containers,
-                    let dockerRecord = machines.first(where: { $0.id == ContainerIds.docker })
+                    let dockerMachine = machines.first(where: { $0.id == ContainerIds.docker })
                 {
                     Button("Apply") {
                         Task.detached {
                             let saved = await save()
                             if saved {
-                                await vmModel.tryRestartContainer(dockerRecord)
+                                await vmModel.tryRestartContainer(dockerMachine.record)
                             }
                         }
                     }

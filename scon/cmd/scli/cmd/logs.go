@@ -42,7 +42,7 @@ var logsCmd = &cobra.Command{
 		header := color.New(color.Bold)
 		if flagAll {
 			header.Println("Runtime:")
-			logRuntime, err := scli.Client().ContainerGetLogs(c, types.LogRuntime)
+			logRuntime, err := scli.Client().ContainerGetLogs(c.Record, types.LogRuntime)
 			if err != nil {
 				red.Println(err)
 			} else {
@@ -52,7 +52,7 @@ var logsCmd = &cobra.Command{
 			header.Println("\n\n\nConsole:")
 		}
 
-		logConsole, err := scli.Client().ContainerGetLogs(c, types.LogConsole)
+		logConsole, err := scli.Client().ContainerGetLogs(c.Record, types.LogConsole)
 		if err != nil {
 			red.Println(err)
 		} else {

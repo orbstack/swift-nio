@@ -51,15 +51,15 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
         StateWrapperView {
             // TODO: return verdict as enum and use switch{} to fix loading flicker
             if let machines = vmModel.containers,
-                let k8sRecord = machines.first(where: { $0.id == ContainerIds.k8s }),
+                let k8sMachine = machines.first(where: { $0.id == ContainerIds.k8s }),
                 let config = vmModel.appliedConfig
             {  // applied config, not current
                 if let entities = vmModel[keyPath: keyPath],
-                    k8sRecord.state != .stopped,
+                    k8sMachine.record.state != .stopped,
                     !isK8sClusterCreating
                 {
-                    content(entities, k8sRecord)
-                } else if (k8sRecord.state == .stopped || !config.k8sEnable)
+                    content(entities, k8sMachine.record)
+                } else if (k8sMachine.record.state == .stopped || !config.k8sEnable)
                     && !vmModel.restartingMachines.contains(ContainerIds.k8s)
                 {
                     disabledView

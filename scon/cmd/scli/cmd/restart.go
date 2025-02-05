@@ -34,7 +34,7 @@ var restartCmd = &cobra.Command{
 			checkCLI(err)
 
 			for _, c := range containers {
-				containerNames = append(containerNames, c.Name)
+				containerNames = append(containerNames, c.Record.Name)
 			}
 		} else {
 			if len(args) == 0 {
@@ -58,7 +58,7 @@ var restartCmd = &cobra.Command{
 				checkCLI(err)
 
 				spinner := spinutil.Start("green", "Restarting k8s")
-				err = scli.Client().ContainerRestart(c)
+				err = scli.Client().ContainerRestart(c.Record)
 				spinner.Stop()
 				checkCLI(err)
 
@@ -74,8 +74,8 @@ var restartCmd = &cobra.Command{
 			checkCLI(err)
 
 			// spinner
-			spinner := spinutil.Start("green", "Restarting "+c.Name)
-			err = scli.Client().ContainerRestart(c)
+			spinner := spinutil.Start("green", "Restarting "+c.Record.Name)
+			err = scli.Client().ContainerRestart(c.Record)
 			spinner.Stop()
 			checkCLI(err)
 		}

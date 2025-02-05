@@ -172,7 +172,7 @@ struct UIEvent: Codable {
     let k8s: K8s?
 
     struct Scon: Codable {
-        let currentMachines: [ContainerRecord]?
+        let currentMachines: [ContainerInfo]?
     }
 
     struct Vmgr: Codable {

@@ -40,7 +40,7 @@ struct ImageSpec: Codable, Equatable {
     var variant: String
 }
 
-struct ContainerRecord: AKListItem, Codable, Identifiable, Equatable {
+struct ContainerRecord: Codable, Identifiable, Equatable {
     var id: String
     var name: String
     var image: ImageSpec
@@ -53,9 +53,18 @@ struct ContainerRecord: AKListItem, Codable, Identifiable, Equatable {
     var running: Bool {
         state == .running || state == .stopping
     }
+}
+
+struct ContainerInfo: AKListItem, Codable, Identifiable, Equatable {
+    var record: ContainerRecord
+    var diskSize: UInt64?
+
+    var id: String {
+        record.id
+    }
 
     var textLabel: String? {
-        name
+        record.name
     }
 }
 
@@ -101,15 +110,15 @@ class SconService {
         return try await c.call("Create", args: req)
     }
 
-    func listContainers() async throws -> [ContainerRecord] {
+    func listContainers() async throws -> [ContainerInfo] {
         return try await c.call("ListContainers")
     }
 
-    func getById(_ id: String) async throws -> ContainerRecord {
+    func getById(_ id: String) async throws -> ContainerInfo {
         return try await c.call("GetByID", args: GetByIDRequest(id: id))
     }
 
-    func getByName(_ name: String) async throws -> ContainerRecord {
+    func getByName(_ name: String) async throws -> ContainerInfo {
         return try await c.call("GetByName", args: GetByNameRequest(name: name))
     }
 

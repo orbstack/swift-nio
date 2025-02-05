@@ -187,6 +187,18 @@ func (c *Container) toRecord() *types.ContainerRecord {
 	}
 }
 
+func (c *Container) getInfo() (*types.ContainerInfo, error) {
+	diskSize, err := c.manager.fsOps.GetSubvolumeSize(c.dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("get disk usage: %w", err)
+	}
+
+	return &types.ContainerInfo{
+		Record:   c.toRecord(),
+		DiskSize: diskSize,
+	}, nil
+}
+
 func (c *Container) persist() error {
 	// we do still persist builtin containers, we just ignore most fields when reading
 	record := c.toRecord()

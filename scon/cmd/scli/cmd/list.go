@@ -41,30 +41,30 @@ var listCmd = &cobra.Command{
 
 		if flagQuiet {
 			for _, c := range containers {
-				if c.Builtin {
+				if c.Record.Builtin {
 					continue
 				}
-				if flagRunning && c.State != types.ContainerStateRunning {
+				if flagRunning && c.Record.State != types.ContainerStateRunning {
 					continue
 				}
 
-				fmt.Println(c.Name)
+				fmt.Println(c.Record.Name)
 			}
 			return nil
 		}
 
 		if flagFormat == "json" {
 			// don't print "null" for empty array
-			displayContainers := []types.ContainerRecord{}
+			displayContainers := []*types.ContainerRecord{}
 			for _, c := range containers {
-				if c.Builtin {
+				if c.Record.Builtin {
 					continue
 				}
-				if flagRunning && c.State != types.ContainerStateRunning {
+				if flagRunning && c.Record.State != types.ContainerStateRunning {
 					continue
 				}
 
-				displayContainers = append(displayContainers, c)
+				displayContainers = append(displayContainers, c.Record)
 			}
 
 			cliutil.PrintJSON(displayContainers)
@@ -77,14 +77,14 @@ var listCmd = &cobra.Command{
 				fmt.Fprintf(w, "----\t-----\t------\t-------\t----\n")
 			}
 			for _, c := range containers {
-				if c.Builtin {
+				if c.Record.Builtin {
 					continue
 				}
-				if flagRunning && c.State != types.ContainerStateRunning {
+				if flagRunning && c.Record.State != types.ContainerStateRunning {
 					continue
 				}
 
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Name, c.State, c.Image.Distro, c.Image.Version, c.Image.Arch)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", c.Record.Name, c.Record.State, c.Record.Image.Distro, c.Record.Image.Version, c.Record.Image.Arch)
 			}
 
 			if len(containers) == 0 {

@@ -9,7 +9,7 @@ struct MachineDetails: View {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var windowTracker: WindowTracker
 
-    let record: ContainerRecord
+    let info: ContainerInfo
 
     var body: some View {
         DetailsStack {
@@ -17,10 +17,10 @@ struct MachineDetails: View {
                 // match Image section
                 SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("Status") {
-                        Text(record.state.friendlyName)
+                        Text(info.record.state.friendlyName)
                     }
                     SimpleKvTableRow("Domain") {
-                        CopyableText("\(record.name).orb.local")
+                        CopyableText("\(info.record.name).orb.local")
                             .lineLimit(nil)
                     }
                 }
@@ -30,14 +30,15 @@ struct MachineDetails: View {
                 SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("Distro") {
                         Text(
-                            Distro.allCases.first(where: { $0.rawValue == record.image.distro })?
-                                .friendlyName ?? record.image.distro)
+                            Distro.allCases.first(where: { $0.rawValue == info.record.image.distro }
+                            )?
+                            .friendlyName ?? info.record.image.distro)
                     }
                     SimpleKvTableRow("Version") {
-                        Text(record.image.version)
+                        Text(info.record.image.version)
                     }
                     SimpleKvTableRow("Architecture") {
-                        Text(record.image.arch)
+                        Text(info.record.image.arch)
                     }
                 }
             }
@@ -46,7 +47,7 @@ struct MachineDetails: View {
                 // match Image section
                 SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("Username") {
-                        Text(record.config.defaultUsername ?? Files.username)
+                        Text(info.record.config.defaultUsername ?? Files.username)
                     }
                 }
             }

@@ -119,6 +119,11 @@ func (b *btrfsOps) ListSubvolumes(fsSubpath string) ([]types.ExportedMachineSubv
 	return subvols, nil
 }
 
+func (b *btrfsOps) GetSubvolumeSize(fsSubpath string) (*uint64, error) {
+	// TODO: check qgroup rfer size
+	return nil, nil
+}
+
 func (b *btrfsOps) DeleteSubvolumeRecursive(fsSubpath string) error {
 	// if src is a subvolume, then just use btrfs recursive delete
 	isSrcSubvol, err := btrfsPathIsSubvolume(fsSubpath)

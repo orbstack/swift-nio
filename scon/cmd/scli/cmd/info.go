@@ -35,15 +35,15 @@ var infoCmd = &cobra.Command{
 		if flagFormat == "json" {
 			cliutil.PrintJSON(c)
 		} else {
-			fmt.Printf("ID: %s\n", c.ID)
-			fmt.Printf("Name: %s\n", c.Name)
-			fmt.Printf("State: %s\n", c.State)
+			fmt.Printf("ID: %s\n", c.Record.ID)
+			fmt.Printf("Name: %s\n", c.Record.Name)
+			fmt.Printf("State: %s\n", c.Record.State)
 			fmt.Printf("\n")
-			fmt.Printf("Distro: %s\n", c.Image.Distro)
-			fmt.Printf("Version: %s\n", c.Image.Version)
-			fmt.Printf("Architecture: %s\n", c.Image.Arch)
+			fmt.Printf("Distro: %s\n", c.Record.Image.Distro)
+			fmt.Printf("Version: %s\n", c.Record.Image.Version)
+			fmt.Printf("Architecture: %s\n", c.Record.Image.Arch)
 
-			if c.Builtin {
+			if c.Record.Builtin {
 				fmt.Printf("\nMachine is built-in.\n")
 			}
 		}

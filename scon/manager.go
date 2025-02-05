@@ -187,15 +187,20 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		// wait for initial starts
 		mgr.uiInitContainers.Wait()
 
-		machines := mgr.ListContainers()
-		records := make([]types.ContainerRecord, 0, len(machines))
-		for _, m := range machines {
-			records = append(records, *m.toRecord())
+		containers := mgr.ListContainers()
+		infos := make([]types.ContainerInfo, 0, len(containers))
+		for _, c := range containers {
+			info, err := c.getInfo()
+			if err != nil {
+				logrus.WithError(err).Error("failed to get container info")
+				continue
+			}
+			infos = append(infos, *info)
 		}
 
 		err = mgr.host.OnUIEvent(uitypes.UIEvent{
 			Scon: &uitypes.SconEvent{
-				CurrentMachines: records,
+				CurrentMachines: infos,
 			},
 		})
 	})

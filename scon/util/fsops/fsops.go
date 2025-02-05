@@ -12,6 +12,7 @@ type FSOps interface {
 	CreateSubvolumeIfNotExists(fsSubpath string) error
 	SnapshotSubvolume(srcSubpath, dstSubpath string) error
 	ListSubvolumes(fsSubpath string) ([]types.ExportedMachineSubvolume, error)
+	GetSubvolumeSize(fsSubpath string) (*uint64, error)
 	DeleteSubvolumeRecursive(fsSubpath string) error
 
 	ResizeToMax(fsPath string) error

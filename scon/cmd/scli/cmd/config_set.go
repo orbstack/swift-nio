@@ -128,8 +128,8 @@ Some options will only take effect after restarting the virtual machine.
 				// update config
 				switch machineConfigKey {
 				case "username":
-					machine.Config.DefaultUsername = value
-					err = scli.Client().ContainerSetConfig(machine, machine.Config)
+					machine.Record.Config.DefaultUsername = value
+					err = scli.Client().ContainerSetConfig(machine.Record, machine.Record.Config)
 					checkCLI(err)
 				default:
 					checkCLI(errors.New("Unknown machine config key: " + key))
@@ -150,11 +150,11 @@ Some options will only take effect after restarting the virtual machine.
 		if key == "network_bridge" && config.NetworkBridge != oldConfig.NetworkBridge {
 			// restart docker machine if changed and already running
 			scli.EnsureSconVMWithSpinner()
-			record, err := scli.Client().GetByID(types.ContainerIDDocker)
+			c, err := scli.Client().GetByID(types.ContainerIDDocker)
 			checkCLI(err)
-			if record.State == types.ContainerStateStarting || record.State == types.ContainerStateRunning {
+			if c.Record.State == types.ContainerStateStarting || c.Record.State == types.ContainerStateRunning {
 				spinner := spinutil.Start("green", "Restarting Docker")
-				err = scli.Client().ContainerRestart(record)
+				err = scli.Client().ContainerRestart(c.Record)
 				spinner.Stop()
 				checkCLI(err)
 			}

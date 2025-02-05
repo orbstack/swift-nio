@@ -43,7 +43,7 @@ Use "orb config" to change the default username.
 			}
 			checkCLI(err)
 
-			err = scli.Client().SetDefaultContainer(c)
+			err = scli.Client().SetDefaultContainer(c.Record)
 			checkCLI(err)
 		}
 

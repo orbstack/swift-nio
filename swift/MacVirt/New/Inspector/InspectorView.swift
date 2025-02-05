@@ -128,7 +128,7 @@ struct InspectorView: View {
                 InspectorSelectionList(
                     model.containers, key: \.id, selection: navModel.inspectorSelection
                 ) {
-                    MachineDetails(record: $0)
+                    MachineDetails(info: $0)
                 }
             default:
                 EmptyView()

@@ -67,8 +67,8 @@ func (c *SconClient) ImportContainerFromHostPath(req types.ImportContainerFromHo
 	return &rec, nil
 }
 
-func (c *SconClient) ListContainers() ([]types.ContainerRecord, error) {
-	var records []types.ContainerRecord
+func (c *SconClient) ListContainers() ([]types.ContainerInfo, error) {
+	var records []types.ContainerInfo
 	err := c.rpc.CallResult(context.TODO(), "ListContainers", nil, &records)
 	if err != nil {
 		return nil, err
@@ -77,8 +77,8 @@ func (c *SconClient) ListContainers() ([]types.ContainerRecord, error) {
 	return records, nil
 }
 
-func (c *SconClient) GetByID(id string) (*types.ContainerRecord, error) {
-	var rec types.ContainerRecord
+func (c *SconClient) GetByID(id string) (*types.ContainerInfo, error) {
+	var rec types.ContainerInfo
 	err := c.rpc.CallResult(context.TODO(), "GetByID", types.GetByIDRequest{
 		ID: id,
 	}, &rec)
@@ -89,8 +89,8 @@ func (c *SconClient) GetByID(id string) (*types.ContainerRecord, error) {
 	return &rec, nil
 }
 
-func (c *SconClient) GetByName(name string) (*types.ContainerRecord, error) {
-	var rec types.ContainerRecord
+func (c *SconClient) GetByName(name string) (*types.ContainerInfo, error) {
+	var rec types.ContainerInfo
 	err := c.rpc.CallResult(context.TODO(), "GetByName", types.GetByNameRequest{
 		Name: name,
 	}, &rec)

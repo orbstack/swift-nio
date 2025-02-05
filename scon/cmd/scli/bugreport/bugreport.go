@@ -56,23 +56,23 @@ func addSconParts(r *ReportWriter) {
 
 	// add machine logs
 	for _, c := range containers {
-		logTxt, err := scli.Client().ContainerGetLogs(&c, types.LogConsole)
+		logTxt, err := scli.Client().ContainerGetLogs(c.Record, types.LogConsole)
 		if err != nil {
-			logrus.WithError(err).Errorf("failed to get logs for %s", c.Name)
+			logrus.WithError(err).Errorf("failed to get logs for %s", c.Record.Name)
 		} else {
-			err = r.addFileBytes(fmt.Sprintf("machine_logs/%s.%s.console.log", c.Name, c.ID), []byte(logTxt))
+			err = r.addFileBytes(fmt.Sprintf("machine_logs/%s.%s.console.log", c.Record.Name, c.Record.ID), []byte(logTxt))
 			if err != nil {
-				logrus.WithError(err).Errorf("failed to add logs for %s", c.Name)
+				logrus.WithError(err).Errorf("failed to add logs for %s", c.Record.Name)
 			}
 		}
 
-		logTxt, err = scli.Client().ContainerGetLogs(&c, types.LogRuntime)
+		logTxt, err = scli.Client().ContainerGetLogs(c.Record, types.LogRuntime)
 		if err != nil {
-			logrus.WithError(err).Errorf("failed to get logs for %s", c.Name)
+			logrus.WithError(err).Errorf("failed to get logs for %s", c.Record.Name)
 		} else {
-			err = r.addFileBytes(fmt.Sprintf("machine_logs/%s.%s.runtime.log", c.Name, c.ID), []byte(logTxt))
+			err = r.addFileBytes(fmt.Sprintf("machine_logs/%s.%s.runtime.log", c.Record.Name, c.Record.ID), []byte(logTxt))
 			if err != nil {
-				logrus.WithError(err).Errorf("failed to add logs for %s", c.Name)
+				logrus.WithError(err).Errorf("failed to add logs for %s", c.Record.Name)
 			}
 		}
 	}

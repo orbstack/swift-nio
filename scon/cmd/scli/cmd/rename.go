@@ -30,7 +30,7 @@ var renameCmd = &cobra.Command{
 		}
 		checkCLI(err)
 
-		err = scli.Client().ContainerRename(c, newName)
+		err = scli.Client().ContainerRename(c.Record, newName)
 		checkCLI(err)
 
 		return nil

@@ -44,7 +44,7 @@ To prevent data corruption, the existing machine will be paused while exporting.
 
 		// spinner
 		spinner := spinutil.Start("blue", "Exporting "+oldNameOrID)
-		err = scli.Client().ContainerExportToHostPath(c, outputPath)
+		err = scli.Client().ContainerExportToHostPath(c.Record, outputPath)
 		spinner.Stop()
 		checkCLI(err)
 

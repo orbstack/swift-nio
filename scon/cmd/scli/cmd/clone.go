@@ -41,7 +41,7 @@ To prevent data corruption, the existing machine will be paused while cloning.
 
 		// spinner
 		spinner := spinutil.Start("blue", "Cloning "+oldNameOrID)
-		_, err = scli.Client().ContainerClone(c, newName)
+		_, err = scli.Client().ContainerClone(c.Record, newName)
 		spinner.Stop()
 		checkCLI(err)
 

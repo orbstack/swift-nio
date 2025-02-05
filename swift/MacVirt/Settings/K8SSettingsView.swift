@@ -81,11 +81,11 @@ struct K8SSettingsView: View {
             button1Label: "Reset",
             button1Action: {
                 Task {
-                    if let dockerRecord = vmModel.containers?.first(where: {
+                    if let dockerMachine = vmModel.containers?.first(where: {
                         $0.id == ContainerIds.docker
                     }) {
                         await vmModel.tryInternalDeleteK8s()
-                        await vmModel.tryStartContainer(dockerRecord)
+                        await vmModel.tryStartContainer(dockerMachine.record)
                     }
                 }
             },

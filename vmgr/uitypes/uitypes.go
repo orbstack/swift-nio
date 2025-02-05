@@ -29,7 +29,7 @@ type VmgrEvent struct {
 }
 
 type SconEvent struct {
-	CurrentMachines []stypes.ContainerRecord `json:"currentMachines"`
+	CurrentMachines []stypes.ContainerInfo `json:"currentMachines"`
 }
 
 type DockerEntity int

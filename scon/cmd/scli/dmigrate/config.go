@@ -115,7 +115,7 @@ func (m *Migrator) migrateDaemonConfig(path string) error {
 	if err != nil {
 		return fmt.Errorf("get docker machine: %w", err)
 	}
-	err = scli.Client().ContainerRestart(c)
+	err = scli.Client().ContainerRestart(c.Record)
 	if err != nil {
 		return fmt.Errorf("restart docker machine: %w", err)
 	}

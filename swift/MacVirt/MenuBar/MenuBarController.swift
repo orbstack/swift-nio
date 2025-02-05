@@ -108,7 +108,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     private func deriveSyntheticVmState(
         vmState: VmState,
-        machines: [ContainerRecord]?,
+        machines: [ContainerInfo]?,
         dockerContainers: [DKContainer]?,
         isVmRestarting: Bool
     ) -> VmState {
@@ -269,12 +269,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Machines (exclude docker)
         if let machines = vmModel.containers,
-            machines.contains(where: { !$0.builtin })
+            machines.contains(where: { !$0.record.builtin })
         {
             menu.addSectionHeader("Machines")
 
-            let runningMachines = machines.filter { $0.running && !$0.builtin }
-            let stoppedMachines = machines.filter { !$0.running && !$0.builtin }
+            let runningMachines = machines.filter { $0.record.running && !$0.record.builtin }
+            let stoppedMachines = machines.filter { !$0.record.running && !$0.record.builtin }
 
             // placeholder if no machines
             if runningMachines.isEmpty {
@@ -284,7 +284,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             menu.addTruncatedItems(
                 runningMachines, overflowHeader: "Stopped", overflowItems: stoppedMachines
             ) { machine in
-                makeMachineItem(record: machine)
+                makeMachineItem(record: machine.record)
             }
 
             menu.addSeparator()
