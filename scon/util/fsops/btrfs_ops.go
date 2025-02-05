@@ -1,6 +1,7 @@
 package fsops
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,6 +19,23 @@ import (
 // 0/... is each subvolume
 // 1/1 is our global qgroup that contains all subvolumes
 const qgroupGlobal = "1/1"
+
+type btrfsCommandOutput struct {
+	Header struct {
+		Version string `json:"version"`
+	} `json:"__header"`
+
+	QgroupShow []struct {
+		QgroupID      string   `json:"qgroupid"`
+		Referenced    int64    `json:"referenced"`
+		MaxReferenced string   `json:"max_referenced"`
+		Exclusive     int64    `json:"exclusive"`
+		MaxExclusive  string   `json:"max_exclusive"`
+		Path          string   `json:"path"`
+		Parents       []string `json:"parents"`
+		Children      []string `json:"children"`
+	} `json:"qgroup-show"`
+}
 
 type btrfsOps struct {
 	mountpoint    string
@@ -120,8 +138,30 @@ func (b *btrfsOps) ListSubvolumes(fsSubpath string) ([]types.ExportedMachineSubv
 }
 
 func (b *btrfsOps) GetSubvolumeSize(fsSubpath string) (*uint64, error) {
-	// TODO: check qgroup rfer size
-	return nil, nil
+	// -f = only show qgroups affecting this path, excluding ancestors
+	jsonStr, err := util.RunWithOutput("btrfs", "--format", "json", "qgroup", "show", "-f", fsSubpath)
+	if err != nil {
+		return nil, fmt.Errorf("get subvolume size: %w", err)
+	}
+
+	var output btrfsCommandOutput
+	if err := json.Unmarshal([]byte(jsonStr), &output); err != nil {
+		return nil, fmt.Errorf("unmarshal btrfs output: %w", err)
+	}
+
+	if len(output.QgroupShow) == 0 {
+		// qgroup not found: probably not a subvolume
+		return nil, nil
+	}
+
+	qgroup := output.QgroupShow[0]
+	if qgroup.Path != strings.TrimPrefix(fsSubpath, b.mountpoint+"/") {
+		// wrong path: probably not a subvolume
+		return nil, nil
+	}
+
+	referenced := uint64(qgroup.Referenced)
+	return &referenced, nil
 }
 
 func (b *btrfsOps) DeleteSubvolumeRecursive(fsSubpath string) error {
