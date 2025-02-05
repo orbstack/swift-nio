@@ -5,11 +5,16 @@ import (
 	"os"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
+
+const cZFS_SUPER_MAGIC = 0x2fc12fc1
 
 var ErrUnsupported = errors.New("unsupported FS operation")
 
-type noopOps struct{}
+type noopOps struct {
+	fsMagic int64
+}
 
 func (b *noopOps) CreateSubvolumeIfNotExists(fsSubpath string) error {
 	return os.MkdirAll(fsSubpath, 0755)
@@ -35,7 +40,19 @@ func (b *noopOps) DumpDebugInfo(fsPath string) (string, error) {
 }
 
 func (b *noopOps) Name() string {
-	return "unknown"
+	switch b.fsMagic {
+	case unix.EXT4_SUPER_MAGIC:
+		return "ext4"
+	case unix.XFS_SUPER_MAGIC:
+		return "xfs"
+	case unix.F2FS_SUPER_MAGIC:
+		return "f2fs"
+	case cZFS_SUPER_MAGIC:
+		return "zfs"
+
+	default:
+		return "unknown"
+	}
 }
 
 var _ FSOps = &noopOps{}

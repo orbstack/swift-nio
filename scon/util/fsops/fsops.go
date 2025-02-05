@@ -34,6 +34,6 @@ func NewForFS(fsPath string) (FSOps, error) {
 	// allow other filesystems for dogfooding (ext4, xfs, f2fs, etc.)
 	default:
 		logrus.Warnf("using unsupported filesystem type: %d", stf.Type)
-		return &noopOps{}, nil
+		return &noopOps{fsMagic: stf.Type}, nil
 	}
 }
