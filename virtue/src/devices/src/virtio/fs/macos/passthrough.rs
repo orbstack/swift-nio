@@ -5,6 +5,8 @@
 // Copyright 2024 Orbital Labs, LLC. All rights reserved.
 // Changes to this file are confidential and proprietary, subject to terms in the LICENSE file.
 
+use core::str;
+use std::cell::{RefCell, RefMut};
 use std::ffi::{CStr, CString, OsStr};
 use std::fmt::Debug;
 use std::fs::set_permissions;
@@ -20,7 +22,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixDatagram;
 use std::path::Path;
-use std::ptr::{slice_from_raw_parts, NonNull};
+use std::ptr::{copy, copy_nonoverlapping, slice_from_raw_parts, NonNull};
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::JoinHandle;
@@ -45,7 +47,6 @@ use nix::sys::uio::pwrite;
 use nix::unistd::{access, lseek, truncate, Whence};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
-use parking_lot::lock_api::RawRwLock;
 use parking_lot::RwLock;
 use smol_str::SmolStr;
 use utils::hypercalls::{HVC_DEVICE_VIRTIOFS_ROOT, HVC_DEVICE_VIRTIOFS_ROSETTA};
@@ -520,30 +521,48 @@ struct NodeData {
     children: FxDashMap<SmolStr, Weak<NodeData>>,
 }
 
+thread_local! {
+    static PATH_BUFFERS: [RefCell<Vec<u8>>; 2] = const { [const { RefCell::new(Vec::new()) }; 2] };
+}
+
 impl NodeData {
-    fn path(&self) -> CString {
-        let mut path = String::new();
-        self._build_path(&mut path);
-        if path.is_empty() {
-            path.push('/');
-        }
-        debug!(nodeid = ?self.nodeid, path, "built NODE path");
-        CString::new(path).unwrap()
+    fn with_path<T>(&self, f: impl FnOnce(&CStr) -> T) -> T {
+        self.with_raw_path(f, None)
     }
 
-    fn subpath(&self, name: &str) -> CString {
+    fn with_subpath<T>(&self, name: &str, f: impl FnOnce(&CStr) -> T) -> T {
         // TODO: return error
         if name == ".." || name.contains('/') {
             panic!("invalid subpath: {}", name);
         }
 
-        let mut path = String::new();
-        self._build_path(&mut path);
-        path.push('/');
-        path.push_str(name);
+        self.with_raw_path(f, Some(name))
+    }
 
-        debug!(nodeid = ?self.nodeid, path, "built CHILD path");
-        CString::new(path).unwrap()
+    fn with_raw_path<T>(&self, f: impl FnOnce(&CStr) -> T, subpath: Option<&str>) -> T {
+        PATH_BUFFERS.with(|v| {
+            let mut buf = v
+                .iter()
+                .find_map(|v| v.try_borrow_mut().ok())
+                .expect("out of path buffers");
+            buf.clear();
+
+            self._build_path(&mut buf);
+
+            if let Some(subpath_name) = subpath {
+                buf.push(b'/');
+                buf.extend_from_slice(subpath_name.as_bytes());
+            }
+
+            // Push a null byte as CStrings are null-terminated. Since we're building the string from
+            // a pointer to the slice, we'll keep going until we find a null byte, which otherwise
+            // might not be the correct place if the buffer has been used before.
+            buf.push(b'\0');
+
+            let c_path = unsafe { CStr::from_bytes_with_nul_unchecked(&buf) };
+            debug!("built NODE path nodeid={} path={:?}", self.nodeid, c_path);
+            f(c_path)
+        })
     }
 
     fn get_child(&self, name: &str) -> io::Result<Arc<NodeData>> {
@@ -557,16 +576,20 @@ impl NodeData {
     }
 
     fn owned_ref(&self) -> OwnedFileRef<HandleData> {
-        OwnedFileRef::Path(self.path())
+        self.with_path(|path| OwnedFileRef::Path(path.to_owned()))
     }
 
-    fn _build_path(&self, buf: &mut String) {
+    fn _build_path(&self, buf: &mut Vec<u8>) {
         let loc = self.loc.read();
-        buf.insert_str(0, &loc.name);
-
-        if let Some(ref parent) = loc.parent {
-            buf.insert(0, '/');
-            parent._build_path(buf);
+        match loc.parent {
+            Some(ref parent) => {
+                buf.insert_slice(0, loc.name.as_bytes());
+                buf.insert(0, b'/');
+                parent._build_path(buf);
+            }
+            None => {
+                buf.insert_slice(0, loc.name.as_bytes());
+            }
         }
     }
 
@@ -687,11 +710,7 @@ impl PassthroughFs {
 
                 loc: RwLock::new(NodeLocation {
                     parent: None,
-                    name: if cfg.root_dir == "/" {
-                        SmolStr::new("")
-                    } else {
-                        SmolStr::new(&cfg.root_dir)
-                    },
+                    name: SmolStr::new(&cfg.root_dir),
                 }),
 
                 // refcount 2 so it can never be dropped
@@ -796,9 +815,6 @@ impl PassthroughFs {
         parent: NodeId,
         name: &str,
     ) -> io::Result<(CString, Arc<NodeData>, libc::stat)> {
-        let node = self.get_node(parent)?;
-        let c_path = node.subpath(name);
-        debug!(?c_path, "begin_lookup");
         // looking up nfs mountpoint should return a dummy empty dir
         // for simplicity we can always just use /var/empty
         // TODO: port to pathfs
@@ -810,9 +826,12 @@ impl PassthroughFs {
         //         c_path = CString::new("/var/empty")?;
         //     }
         // }
-
-        let st = lstat(&c_path, false)?;
-        Ok((c_path, node, st))
+        let node = self.get_node(parent)?;
+        self.get_node(parent)?.with_subpath(name, |c_path| {
+            debug!(?c_path, "begin_lookup");
+            let st = lstat(c_path, false)?;
+            Ok((c_path.to_owned(), node, st))
+        })
     }
 
     fn do_lookup(&self, parent: NodeId, name: &str) -> io::Result<Entry> {
@@ -1174,8 +1193,9 @@ impl PassthroughFs {
     ) -> io::Result<(Option<HandleId>, OpenOptions)> {
         let flags = self.convert_open_flags(flags as i32);
         let node = self.get_node(nodeid)?;
-        let c_path = node.path();
-        let file = File::from(nix::fcntl::open(c_path.as_ref(), flags, Mode::empty())?);
+        let file = node.with_path(|c_path| {
+            nix::fcntl::open(c_path, flags, Mode::empty()).map(|f| unsafe { File::from(f) })
+        })?;
         // early stat to avoid broken handle state if it fails
         let st = fstat(&file, false)?;
 
@@ -1329,10 +1349,12 @@ impl PassthroughFs {
         name: &CStr,
         flags: libc::c_int,
     ) -> io::Result<()> {
-        let c_path = self.get_node(parent)?.subpath(&name.to_string_lossy());
-
         // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe { libc::unlinkat(AT_FDCWD, c_path.as_ptr(), flags) };
+        let res = self
+            .get_node(parent)?
+            .with_subpath(&name.to_string_lossy(), |c_path| unsafe {
+                libc::unlinkat(AT_FDCWD, c_path.as_ptr(), flags)
+            });
 
         if res == 0 {
             Ok(())
@@ -1452,9 +1474,7 @@ impl FileSystem for PassthroughFs {
     }
 
     fn statfs(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Statvfs> {
-        let c_path = self.get_node(nodeid)?.path();
-        let stv = statvfs(c_path.as_ref())?;
-        Ok(stv)
+        Ok(self.get_node(nodeid)?.with_path(statvfs)?)
     }
 
     fn lookup(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<Entry> {
@@ -1501,25 +1521,24 @@ impl FileSystem for PassthroughFs {
         extensions: Extensions,
     ) -> io::Result<Entry> {
         let name = &name.to_string_lossy();
-        let c_path = self.get_node(parent)?.subpath(name);
+        self.get_node(parent)?.with_subpath(name, |c_path| {
+            // Safe because this doesn't modify any memory and we check the return value.
+            if unsafe { libc::mkdir(c_path.as_ptr(), (mode & !umask) as u16) } == 0 {
+                // Set security context
+                if let Some(secctx) = &extensions.secctx {
+                    set_secctx(FileRef::Path(c_path), secctx, false)?
+                };
 
-        // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe { libc::mkdir(c_path.as_ptr(), (mode & !umask) as u16) };
-        if res == 0 {
-            // Set security context
-            if let Some(secctx) = &extensions.secctx {
-                set_secctx(FileRef::Path(&c_path), secctx, false)?
-            };
-
-            set_xattr_stat(
-                FileRef::Path(&c_path),
-                Some((ctx.uid, ctx.gid)),
-                Some(mode & !umask),
-            )?;
-            self.do_lookup(parent, name)
-        } else {
-            Err(io::Error::last_os_error())
-        }
+                set_xattr_stat(
+                    FileRef::Path(c_path),
+                    Some((ctx.uid, ctx.gid)),
+                    Some(mode & !umask),
+                )
+            } else {
+                Err(io::Error::last_os_error())
+            }
+        })?;
+        self.do_lookup(parent, name)
     }
 
     fn rmdir(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<()> {
@@ -1698,10 +1717,10 @@ impl FileSystem for PassthroughFs {
             } else {
                 // only do path lookup once
                 // TODO: avoid constantly rebuilding paths
-                let path = node.subpath(&entry.name);
-
-                self.finish_lookup(&node, &entry.name, *st, FileRef::Path(&path))
-                    .map(|(entry, _)| entry)
+                node.with_subpath(&entry.name, |path| {
+                    self.finish_lookup(&node, &entry.name, *st, FileRef::Path(&path))
+                        .map(|(entry, _)| entry)
+                })
             };
 
             // if lookup failed, return no entry, so linux will get the error on lookup
@@ -1780,18 +1799,19 @@ impl FileSystem for PassthroughFs {
     ) -> io::Result<(Entry, Option<HandleId>, OpenOptions)> {
         let name = &name.to_string_lossy();
         let parent = self.get_node(parent)?;
-        let c_path = parent.subpath(name);
-
         let flags = self.convert_open_flags(flags as i32);
 
         // Safe because this doesn't modify any memory and we check the return value. We don't
         // really check `flags` because if the kernel can't handle poorly specified flags then we
         // have much bigger problems.
-        let fd = File::from(nix::fcntl::open(
-            c_path.as_ref(),
-            flags | OFlag::O_CREAT,
-            Mode::from_bits_retain(mode as u16),
-        )?);
+        let fd = parent.with_subpath(name, |c_path| unsafe {
+            nix::fcntl::open(
+                c_path,
+                flags | OFlag::O_CREAT,
+                Mode::from_bits_retain(mode as u16),
+            )
+            .map(|fd| File::from(fd))
+        })?;
 
         set_xattr_stat(
             FileRef::Fd(fd.as_fd()),
@@ -1912,8 +1932,6 @@ impl FileSystem for PassthroughFs {
         let newname = newname.to_string_lossy();
         let old_dir = self.get_node(olddir)?;
         let new_dir = self.get_node(newdir)?;
-        let old_cpath = old_dir.subpath(&oldname);
-        let new_cpath = new_dir.subpath(&newname);
 
         // lock old dir, old node, new dir, and (if exists) new node
         // prevents race where stale path is used for open, pointing to wrong file
@@ -1930,20 +1948,26 @@ impl FileSystem for PassthroughFs {
         //         scopeguard::guard((), |_| unsafe { new_node.loc.raw().unlock_exclusive() });
         // }
 
-        let mut res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
-        // ENOTSUP = not supported by FS (e.g. NFS). retry and simulate if only flag is RENAME_EXCL
-        // GNU coreutils 'mv' uses RENAME_EXCL so this is common
-        // (hard to simulate RENAME_SWAP)
-        if res == -1 && Errno::last() == Errno::ENOTSUP && mflags == libc::RENAME_EXCL {
-            // EXCL means that target must not exist, so check it
-            match access(new_cpath.as_ref(), AccessFlags::F_OK) {
-                Ok(_) => return Err(Errno::EEXIST.into()),
-                Err(Errno::ENOENT) => {}
-                Err(e) => return Err(e.into()),
-            }
+        let res = old_dir.with_subpath(&oldname, |old_cpath| {
+            new_dir.with_subpath(&newname, |new_cpath| {
+                let mut res =
+                    unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
+                // ENOTSUP = not supported by FS (e.g. NFS). retry and simulate if only flag is RENAME_EXCL
+                // GNU coreutils 'mv' uses RENAME_EXCL so this is common
+                // (hard to simulate RENAME_SWAP)
+                if res == -1 && Errno::last() == Errno::ENOTSUP && mflags == libc::RENAME_EXCL {
+                    // EXCL means that target must not exist, so check it
+                    match access(new_cpath, AccessFlags::F_OK) {
+                        Ok(_) => return Err(Errno::EEXIST),
+                        Err(Errno::ENOENT) => {}
+                        Err(e) => return Err(e),
+                    }
 
-            res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), 0) }
-        }
+                    res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), 0) }
+                }
+                Ok(res)
+            })
+        })?;
 
         if res == 0 {
             // make the change in our FS tree
@@ -1989,49 +2013,48 @@ impl FileSystem for PassthroughFs {
         );
 
         let name = &name.to_string_lossy();
-        let c_path = self.get_node(parent)?.subpath(name);
+        self.get_node(parent)?.with_subpath(name, |c_path| {
+            // since we run as a normal user, we can't call mknod() to create chr/blk devices
+            // TODO: once we support mode overrides, represent them with empty files / sockets
+            match mode as u16 & libc::S_IFMT {
+                0 | libc::S_IFREG => {
+                    // on Linux, mknod can be used to create regular files using fmt = S_IFREG or 0
+                    open(
+                        c_path.as_ref(),
+                        // match mknod behavior: EEXIST if already exists
+                        OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_CLOEXEC,
+                        // permissions only
+                        Mode::from_bits_truncate(mode as u16),
+                    )?;
+                }
+                libc::S_IFIFO => {
+                    // FIFOs are actually safe because Linux just treats them as a device node, and will never issue VFS read call because they can't have data on real filesystems
+                    // read/write blocking is all handled by the kernel
+                    mkfifo(c_path, Mode::from_bits_truncate(mode as u16))?;
+                }
+                libc::S_IFSOCK => {
+                    // we use datagram because it doesn't call listen
+                    let _ = UnixDatagram::bind(OsStr::from_bytes(c_path.to_bytes()))?;
+                }
+                libc::S_IFCHR | libc::S_IFBLK => {
+                    return Err(Errno::EPERM.into());
+                }
+                _ => {
+                    return Err(Errno::EINVAL.into());
+                }
+            }
 
-        // since we run as a normal user, we can't call mknod() to create chr/blk devices
-        // TODO: once we support mode overrides, represent them with empty files / sockets
-        match mode as u16 & libc::S_IFMT {
-            0 | libc::S_IFREG => {
-                // on Linux, mknod can be used to create regular files using fmt = S_IFREG or 0
-                open(
-                    c_path.as_ref(),
-                    // match mknod behavior: EEXIST if already exists
-                    OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_CLOEXEC,
-                    // permissions only
-                    Mode::from_bits_truncate(mode as u16),
-                )?;
-            }
-            libc::S_IFIFO => {
-                // FIFOs are actually safe because Linux just treats them as a device node, and will never issue VFS read call because they can't have data on real filesystems
-                // read/write blocking is all handled by the kernel
-                mkfifo(c_path.as_ref(), Mode::from_bits_truncate(mode as u16))?;
-            }
-            libc::S_IFSOCK => {
-                // we use datagram because it doesn't call listen
-                let _ = UnixDatagram::bind(OsStr::from_bytes(c_path.to_bytes()))?;
-            }
-            libc::S_IFCHR | libc::S_IFBLK => {
-                return Err(Errno::EPERM.into());
-            }
-            _ => {
-                return Err(Errno::EINVAL.into());
-            }
-        }
+            // Set security context
+            if let Some(secctx) = &extensions.secctx {
+                set_secctx(FileRef::Path(&c_path), secctx, false)?
+            };
 
-        // Set security context
-        if let Some(secctx) = &extensions.secctx {
-            set_secctx(FileRef::Path(&c_path), secctx, false)?
-        };
-
-        set_xattr_stat(
-            FileRef::Path(&c_path),
-            Some((ctx.uid, ctx.gid)),
-            Some(mode & !umask),
-        )?;
-
+            set_xattr_stat(
+                FileRef::Path(c_path),
+                Some((ctx.uid, ctx.gid)),
+                Some(mode & !umask),
+            )
+        })?;
         self.do_lookup(parent, name)
     }
 
@@ -2042,40 +2065,46 @@ impl FileSystem for PassthroughFs {
         new_parent_id: NodeId,
         new_name: &CStr,
     ) -> io::Result<Entry> {
-        let orig_c_path = self.get_node(nodeid)?.path();
         let new_name = &new_name.to_string_lossy();
         let new_parent = self.get_node(new_parent_id)?;
-        let new_c_path = new_parent.subpath(new_name);
-
-        // Safe because this doesn't modify any memory and we check the return value.
-        if new_parent.flags.contains(NodeFlags::LINK_AS_CLONE) {
-            // translate link to clonefile as a workaround for slow hardlinking on APFS, and because ioctl(FICLONE) semantics don't fit macOS well
-            let res = unsafe {
-                libc::clonefile(orig_c_path.as_ptr(), new_c_path.as_ptr(), CLONE_NOFOLLOW)
-            };
-            if res == -1 && Errno::last() == Errno::ENOTSUP {
-                // only APFS supports clonefile. fall back to link
-                nix::unistd::linkat(
-                    fcntl::AT_FDCWD,
-                    orig_c_path.as_ref(),
-                    fcntl::AT_FDCWD,
-                    new_c_path.as_ref(),
-                    // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
-                    AtFlags::empty(),
-                )?;
-            }
-        } else {
-            // only APFS supports clonefile. fall back to link
-            nix::unistd::linkat(
-                fcntl::AT_FDCWD,
-                orig_c_path.as_ref(),
-                fcntl::AT_FDCWD,
-                new_c_path.as_ref(),
-                // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
-                AtFlags::empty(),
-            )?;
-        }
-
+        self.get_node(nodeid)?.with_path(|orig_c_path| {
+            new_parent.with_subpath(new_name, |new_c_path| {
+                debug!(
+                    "link new_parent={} new_name={} oldpath={:?} newpath={:?}",
+                    new_parent.nodeid, new_name, orig_c_path, new_c_path
+                );
+                // Safe because this doesn't modify any memory and we check the return value.
+                if new_parent.flags.contains(NodeFlags::LINK_AS_CLONE) {
+                    // translate link to clonefile as a workaround for slow hardlinking on APFS, and because ioctl(FICLONE) semantics don't fit macOS well
+                    let res = unsafe {
+                        libc::clonefile(orig_c_path.as_ptr(), new_c_path.as_ptr(), CLONE_NOFOLLOW)
+                    };
+                    if res == -1 && Errno::last() == Errno::ENOTSUP {
+                        // only APFS supports clonefile. fall back to link
+                        nix::unistd::linkat(
+                            fcntl::AT_FDCWD,
+                            orig_c_path,
+                            fcntl::AT_FDCWD,
+                            new_c_path,
+                            // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
+                            AtFlags::empty(),
+                        )
+                    } else {
+                        Ok(())
+                    }
+                } else {
+                    // only APFS supports clonefile. fall back to link
+                    nix::unistd::linkat(
+                        fcntl::AT_FDCWD,
+                        orig_c_path,
+                        fcntl::AT_FDCWD,
+                        new_c_path,
+                        // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
+                        AtFlags::empty(),
+                    )
+                }
+            })
+        })?;
         self.do_lookup(new_parent_id, new_name)
     }
 
@@ -2088,42 +2117,40 @@ impl FileSystem for PassthroughFs {
         extensions: Extensions,
     ) -> io::Result<Entry> {
         let name = &name.to_string_lossy();
-        let c_path = self.get_node(parent)?.subpath(name);
+        self.get_node(parent)?.with_subpath(name, |c_path| {
+            // Safe because this doesn't modify any memory and we check the return value.
+            symlinkat(linkname, fcntl::AT_FDCWD, c_path)?;
 
-        // Safe because this doesn't modify any memory and we check the return value.
-        symlinkat(linkname, fcntl::AT_FDCWD, c_path.as_ref())?;
+            // Set security context
+            if let Some(secctx) = &extensions.secctx {
+                set_secctx(FileRef::Path(c_path), secctx, true)?
+            };
 
-        // Set security context
-        if let Some(secctx) = &extensions.secctx {
-            set_secctx(FileRef::Path(&c_path), secctx, true)?
-        };
+            let entry = self.do_lookup(parent, name)?;
 
-        let mut entry = self.do_lookup(parent, name)?;
+            // update xattr stat, and make sure it's reflected by current stat
+            let mode = libc::S_IFLNK | 0o777;
+            set_xattr_stat(
+                FileRef::Path(c_path),
+                Some((ctx.uid, ctx.gid)),
+                Some(mode as u32),
+            )?;
 
-        // update xattr stat, and make sure it's reflected by current stat
-        let mode = libc::S_IFLNK | 0o777;
-        set_xattr_stat(
-            FileRef::Path(&c_path),
-            Some((ctx.uid, ctx.gid)),
-            Some(mode as u32),
-        )?;
-        entry.attr.st_mode = mode;
-
-        Ok(entry)
+            Ok(entry)
+        })
     }
 
     fn readlink(&self, _ctx: Context, nodeid: NodeId) -> io::Result<Vec<u8>> {
-        let c_path = self.get_node(nodeid)?.path();
-
         let mut buf = vec![0; libc::PATH_MAX as usize];
-        let res = unsafe {
-            libc::readlink(
+        let res = self.get_node(nodeid)?.with_path(|c_path| unsafe {
+            let res = libc::readlink(
                 c_path.as_ptr(),
                 buf.as_mut_ptr() as *mut libc::c_char,
                 buf.len(),
-            )
-        };
-        debug!(?c_path, ?res, "readlink");
+            );
+            debug!(?c_path, ?res, "readlink");
+            res
+        });
         if res == -1 {
             return Err(io::Error::last_os_error());
         }
@@ -2207,10 +2234,8 @@ impl FileSystem for PassthroughFs {
             mflags |= libc::XATTR_REPLACE;
         }
 
-        let c_path = self.get_node(nodeid)?.path();
-
-        // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe {
+        let res = self.get_node(nodeid)?.with_path(|c_path| unsafe {
+            // Safe because this doesn't modify any memory and we check the return value.
             libc::setxattr(
                 c_path.as_ptr(),
                 name.as_ptr(),
@@ -2219,7 +2244,8 @@ impl FileSystem for PassthroughFs {
                 0,
                 mflags as libc::c_int,
             )
-        };
+        });
+
         if res == 0 {
             Ok(())
         } else {
@@ -2250,30 +2276,31 @@ impl FileSystem for PassthroughFs {
 
         let mut buf = vec![0; size as usize];
 
-        let c_path = self.get_node(nodeid)?.path();
-
-        // Safe because this will only modify the contents of `buf`
-        let res = unsafe {
-            if size == 0 {
-                libc::getxattr(
-                    c_path.as_ptr(),
-                    name.as_ptr(),
-                    std::ptr::null_mut(),
-                    0,
-                    0,
-                    0,
-                )
-            } else {
-                libc::getxattr(
-                    c_path.as_ptr(),
-                    name.as_ptr(),
-                    buf.as_mut_ptr() as *mut libc::c_void,
-                    size as libc::size_t,
-                    0,
-                    0,
-                )
+        let res = self.get_node(nodeid)?.with_path(|c_path| {
+            unsafe {
+                // Safe because this will only modify the contents of `buf`
+                if size == 0 {
+                    libc::getxattr(
+                        c_path.as_ptr(),
+                        name.as_ptr(),
+                        std::ptr::null_mut(),
+                        0,
+                        0,
+                        0,
+                    )
+                } else {
+                    libc::getxattr(
+                        c_path.as_ptr(),
+                        name.as_ptr(),
+                        buf.as_mut_ptr() as *mut libc::c_void,
+                        size as libc::size_t,
+                        0,
+                        0,
+                    )
+                }
             }
-        };
+        });
+
         if res == -1 {
             return Err(io::Error::last_os_error());
         }
@@ -2291,10 +2318,8 @@ impl FileSystem for PassthroughFs {
             return Err(Errno::ENOSYS.into());
         }
 
-        let c_path = self.get_node(nodeid)?.path();
-
         // Safe because this will only modify the contents of `buf`.
-        let buf = listxattr(&c_path)?;
+        let buf = self.get_node(nodeid)?.with_path(listxattr)?;
 
         if size == 0 {
             let mut clean_size = buf.len();
@@ -2336,10 +2361,10 @@ impl FileSystem for PassthroughFs {
             return Err(Errno::EACCES.into());
         }
 
-        let c_path = self.get_node(nodeid)?.path();
-
         // Safe because this doesn't modify any memory and we check the return value.
-        let res = unsafe { libc::removexattr(c_path.as_ptr(), name.as_ptr(), 0) };
+        let res = self
+            .get_node(nodeid)?
+            .with_path(|c_path| unsafe { libc::removexattr(c_path.as_ptr(), name.as_ptr(), 0) });
 
         if res == 0 {
             Ok(())
@@ -2533,5 +2558,28 @@ impl FileSystem for PassthroughFs {
         }
 
         Err(Errno::ENOTTY.into())
+    }
+}
+
+trait VecExt {
+    fn insert_slice(&mut self, index: usize, bytes: &[u8]);
+}
+
+impl VecExt for Vec<u8> {
+    // copied from std String::insert_str
+    fn insert_slice(&mut self, index: usize, bytes: &[u8]) {
+        let len = self.len();
+        let amt = bytes.len();
+        self.reserve(amt);
+
+        unsafe {
+            std::ptr::copy(
+                self.as_ptr().add(index),
+                self.as_mut_ptr().add(index + amt),
+                len - index,
+            );
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), self.as_mut_ptr().add(index), amt);
+            self.set_len(len + amt);
+        }
     }
 }
