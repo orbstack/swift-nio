@@ -102,10 +102,10 @@ func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint1
 
 	procPath := fmt.Sprintf("/proc/%d", pid)
 	procDirfdInt, err := unix.Open(procPath, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
-	procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
 	if err != nil {
 		return nil, err
 	}
+	procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
 	defer procDirfd.Close()
 
 	openPorts := map[uint16]struct{}{}
