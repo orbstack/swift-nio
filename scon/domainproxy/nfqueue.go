@@ -132,8 +132,11 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) err
 		return err
 	}
 	logrus.WithFields(logrus.Fields{
-		"http_port":  httpPort,
-		"https_port": httpsPort,
+		"addr":          addr.String(),
+		"upstream.IP":   upstream.IP.String(),
+		"upstream.Host": upstream.Host,
+		"http_port":     httpPort,
+		"https_port":    httpsPort,
 	}).Debug("domaintlsproxy: probe sucessful")
 
 	// lock to update probedHosts map and to ensure no concurrent nft operations
