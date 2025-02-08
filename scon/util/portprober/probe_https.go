@@ -16,8 +16,8 @@ func writeTLSClientHello(w io.Writer, serverName string) (bool, error) {
 	hello := &sillytls.Handshake{
 		Message: &sillytls.HandshakeClientHello{
 			Version:   0x0303,
-			Random:    []byte("OrbStackOrbStackOrbStackOrbStack"),
-			SessionID: []byte("OrbStackOrbStackOrbStackOrbStack"),
+			Random:    []byte(" OrbStack server detection. More"),
+			SessionID: []byte("at: https://orbsta.cc/tlsdetect "),
 			CipherSuites: []uint16{
 				tls.TLS_AES_128_GCM_SHA256,
 				tls.TLS_AES_256_GCM_SHA384,
