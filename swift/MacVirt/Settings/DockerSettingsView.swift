@@ -37,7 +37,7 @@ struct DockerSettingsView: View {
                     .autocorrectionDisabled()
 
                 Text(
-                    "You can also [edit the config file](https://go.orbstack.dev/docker-config) directly.\nInvalid configs will prevent Docker from starting."
+                    "You can also [edit the config file](https://orbsta.cc/docker-config) directly.\nInvalid configs will prevent Docker from starting."
                 )
                 .font(.subheadline)
                 .foregroundColor(.secondary)

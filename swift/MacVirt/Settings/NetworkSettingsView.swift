@@ -47,7 +47,7 @@ struct NetworkSettingsView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 Text(
-                    "This also includes Linux machines. [Learn more](https://go.orbstack.dev/container-domains)"
+                    "This also includes Linux machines. [Learn more](https://orbsta.cc/container-domains)"
                 )
                 .font(.subheadline)
                 .foregroundColor(.secondary)

@@ -35,7 +35,7 @@ You can also find the kubeconfig at ~/.orbstack/k8s/config.yml.
 To prevent OrbStack from changing the active kubectl context automatically:
     %[1]s config set docker.set_context false
 
-For more info: https://go.orbstack.dev/k8s
+For more info: https://orbsta.cc/k8s
 `, rootCmd.Use)
 
 		return nil

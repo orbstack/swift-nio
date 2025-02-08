@@ -5,8 +5,8 @@ When OrbStack is running, this folder contains Docker volumes and Linux machines
 This folder is empty when OrbStack is not running. Do not put files here.
 
 For more details, see:
-    - https://go.orbstack.dev/docker-mount
-    - https://go.orbstack.dev/machine-mount
+    - https://orbsta.cc/docker-mount
+    - https://orbsta.cc/machine-mount
 
 
 ## Docker
@@ -18,7 +18,7 @@ Mount into a container: `docker run -v foo:/bar ...`
     - Use the volume name to mount it. DO NOT use ~/OrbStack here!
 See files from Mac: `open ~/OrbStack/docker/volumes/foo`
 
-Learn more: https://go.orbstack.dev/docker-mount
+Learn more: https://orbsta.cc/docker-mount
 
 
 ---

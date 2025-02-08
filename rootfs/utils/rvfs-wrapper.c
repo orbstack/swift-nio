@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
     if (argc == 1) {
         fprintf(stderr,
                 "Please be mindful of the end-user license "
-                "agreement.\nhttps://go.orbstack.dev/terms\nCopyright 2023 Orbital Labs, LLC. All "
+                "agreement.\nhttps://orbsta.cc/terms\nCopyright 2023 Orbital Labs, LLC. All "
                 "rights reserved.\n\nHaving fun? Say hi at secret@orbstack.dev :)\n");
         return 0;
     }
@@ -399,7 +399,7 @@ int main(int argc, char **argv) {
                     "This can also be caused by running a glibc executable in a musl distro (e.g. "
                     "Alpine), or vice versa.\n"
                     "\n"
-                    "For more details and instructions, see https://go.orbstack.dev/multiarch\n"
+                    "For more details and instructions, see https://orbsta.cc/multiarch\n"
                     "",
                     elf_info.interpreter, env_type, env_type);
             return 255;

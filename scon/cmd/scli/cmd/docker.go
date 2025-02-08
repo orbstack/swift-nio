@@ -43,7 +43,7 @@ OrbStack's cluster is configured as the "orbstack" context.
 To prevent OrbStack from changing the active Docker context automatically:
 	orb config set docker.set_context false
 
-For more info: https://go.orbstack.dev/docker
+For more info: https://orbsta.cc/docker
 `)
 
 		return nil

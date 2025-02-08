@@ -26,7 +26,7 @@ struct K8SSettingsView: View {
                     "Enable Kubernetes cluster",
                     isOn: vmModel.bindingForConfig(\.k8sEnable, state: $k8sEnable))
                 Text(
-                    "Lightweight local cluster with UI & network integration. [Learn more](https://go.orbstack.dev/k8s)"
+                    "Lightweight local cluster with UI & network integration. [Learn more](https://orbsta.cc/k8s)"
                 )
                 .font(.subheadline)
                 .foregroundColor(.secondary)
