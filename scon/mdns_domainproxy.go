@@ -129,6 +129,8 @@ func (d *domainproxyRegistry) addNeighbor(ip netip.Addr) {
 }
 
 func (d *domainproxyRegistry) invalidateAddrProbeLocked(ip netip.Addr) {
+	logrus.WithField("ip", ip).Debug("invalidating addr probe")
+
 	prefix := "domainproxy4"
 	if ip.Is6() {
 		prefix = "domainproxy6"
@@ -191,9 +193,15 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 	d.ipMap[ip] = domainproxytypes.Upstream{}
 
 	if ip.Is4() {
-		delete(d.v4.hostMap, upstream.Host)
+		if hostMapIP, ok := d.v4.hostMap[upstream.Host]; ok && hostMapIP == ip {
+			logrus.WithField("host", upstream.Host).Debug("overwriting hostmap ip")
+			delete(d.v4.hostMap, upstream.Host)
+		}
 	} else {
-		delete(d.v6.hostMap, upstream.Host)
+		if hostMapIP, ok := d.v6.hostMap[upstream.Host]; ok && hostMapIP == ip {
+			logrus.WithField("host", upstream.Host).Debug("overwriting hostmap ip")
+			delete(d.v6.hostMap, upstream.Host)
+		}
 	}
 
 	prefix := "domainproxy4"
@@ -278,8 +286,14 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 	}
 
 	if ip.Is4() {
+		if hostMapIP, ok := d.v4.hostMap[val.Host]; ok && hostMapIP != ip {
+			d.freeAddrLocked(hostMapIP)
+		}
 		d.v4.hostMap[val.Host] = ip
 	} else {
+		if hostMapIP, ok := d.v6.hostMap[val.Host]; ok && hostMapIP != ip {
+			d.freeAddrLocked(hostMapIP)
+		}
 		d.v6.hostMap[val.Host] = ip
 	}
 
@@ -456,9 +470,13 @@ func (d *domainproxyRegistry) freeHostLocked(host domainproxytypes.Host) {
 func (d *domainproxyRegistry) invalidateHostProbeLocked(host domainproxytypes.Host) {
 	if ip, ok := d.v4.hostMap[host]; ok {
 		d.invalidateAddrProbeLocked(ip)
+	} else {
+		logrus.WithField("host", host).Debug("no ipv4 found for host to invalidate")
 	}
 	if ip, ok := d.v6.hostMap[host]; ok {
 		d.invalidateAddrProbeLocked(ip)
+	} else {
+		logrus.WithField("host", host).Debug("no ipv6 found for host to invalidate")
 	}
 }
 
