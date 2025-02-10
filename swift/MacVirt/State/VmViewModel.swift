@@ -983,7 +983,7 @@ class VmViewModel: ObservableObject {
     }
 
     func stopContainer(_ record: ContainerRecord) async throws {
-        try await scon.containerStop(record)
+        try await scon.containerStop(record.id)
     }
 
     @MainActor
@@ -1002,11 +1002,11 @@ class VmViewModel: ObservableObject {
             restartingMachines.remove(record.id)
         }
 
-        try await scon.containerRestart(record)
+        try await scon.containerRestart(record.id)
     }
 
     func startContainer(_ record: ContainerRecord) async throws {
-        try await scon.containerStart(record)
+        try await scon.containerStart(record.id)
     }
 
     @MainActor
@@ -1028,7 +1028,7 @@ class VmViewModel: ObservableObject {
     }
 
     func deleteContainer(_ record: ContainerRecord) async throws {
-        try await scon.containerDelete(record)
+        try await scon.containerDelete(record.id)
     }
 
     @MainActor
@@ -1083,7 +1083,7 @@ class VmViewModel: ObservableObject {
     }
 
     func renameContainer(_ record: ContainerRecord, newName: String) async throws {
-        try await scon.containerRename(record, newName: newName)
+        try await scon.containerRename(record.id, newName: newName)
     }
 
     @MainActor
@@ -1153,7 +1153,7 @@ class VmViewModel: ObservableObject {
     @MainActor
     func trySetDefaultContainer(_ record: ContainerRecord) async {
         do {
-            try await scon.setDefaultContainer(record)
+            try await scon.setDefaultContainer(record.id)
         } catch {
             setError(.defaultError(cause: error))
         }

@@ -81,16 +81,12 @@ struct CreateRequest: Codable {
     var cloudInitUserData: String?
 }
 
-private struct GetByIDRequest: Codable {
-    var id: String
-}
-
-private struct GetByNameRequest: Codable {
-    var name: String
+private struct GenericContainerRequest: Codable {
+    var key: String
 }
 
 private struct ContainerRenameRequest: Codable {
-    var container: ContainerRecord
+    var containerKey: String
     var newName: String
 }
 
@@ -114,45 +110,41 @@ class SconService {
         return try await c.call("ListContainers")
     }
 
-    func getById(_ id: String) async throws -> ContainerInfo {
-        return try await c.call("GetByID", args: GetByIDRequest(id: id))
-    }
-
-    func getByName(_ name: String) async throws -> ContainerInfo {
-        return try await c.call("GetByName", args: GetByNameRequest(name: name))
+    func getByKey(_ key: String) async throws -> ContainerInfo {
+        return try await c.call("GetByKey", args: GenericContainerRequest(key: key))
     }
 
     func getDefaultContainer() async throws -> ContainerRecord {
         return try await c.call("GetDefaultContainer")
     }
 
-    func setDefaultContainer(_ record: ContainerRecord) async throws {
-        try await c.call("SetDefaultContainer", args: record)
+    func setDefaultContainer(_ key: String) async throws {
+        try await c.call("SetDefaultContainer", args: GenericContainerRequest(key: key))
     }
 
     func clearDefaultContainer() async throws {
         try await c.call("ClearDefaultContainer")
     }
 
-    func containerStart(_ record: ContainerRecord) async throws {
-        try await c.call("ContainerStart", args: record)
+    func containerStart(_ key: String) async throws {
+        try await c.call("ContainerStart", args: GenericContainerRequest(key: key))
     }
 
-    func containerStop(_ record: ContainerRecord) async throws {
-        try await c.call("ContainerStop", args: record)
+    func containerStop(_ key: String) async throws {
+        try await c.call("ContainerStop", args: GenericContainerRequest(key: key))
     }
 
-    func containerRestart(_ record: ContainerRecord) async throws {
-        try await c.call("ContainerRestart", args: record)
+    func containerRestart(_ key: String) async throws {
+        try await c.call("ContainerRestart", args: GenericContainerRequest(key: key))
     }
 
-    func containerDelete(_ record: ContainerRecord) async throws {
-        try await c.call("ContainerDelete", args: record)
+    func containerDelete(_ key: String) async throws {
+        try await c.call("ContainerDelete", args: GenericContainerRequest(key: key))
     }
 
-    func containerRename(_ record: ContainerRecord, newName: String) async throws {
+    func containerRename(_ key: String, newName: String) async throws {
         try await c.call(
-            "ContainerRename", args: ContainerRenameRequest(container: record, newName: newName))
+            "ContainerRename", args: ContainerRenameRequest(containerKey: key, newName: newName))
     }
 
     func internalDockerFastDf() async throws -> DKSystemDf {
