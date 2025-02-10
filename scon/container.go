@@ -191,14 +191,21 @@ func (c *Container) toRecord() *types.ContainerRecord {
 }
 
 func (c *Container) getInfo() (*types.ContainerInfo, error) {
-	diskSize, err := c.manager.fsOps.GetSubvolumeSize(c.quotaDir)
-	if err != nil {
-		return nil, fmt.Errorf("get disk usage: %w", err)
+	var sizePtr *uint64
+
+	// if quota dir exists, get size
+	if err := unix.Access(c.quotaDir, unix.F_OK); err != unix.ENOENT {
+		diskSize, err := c.manager.fsOps.GetSubvolumeSize(c.quotaDir)
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to get subvolume size")
+		} else {
+			sizePtr = diskSize
+		}
 	}
 
 	return &types.ContainerInfo{
 		Record:   c.toRecord(),
-		DiskSize: diskSize,
+		DiskSize: sizePtr,
 	}, nil
 }
 
