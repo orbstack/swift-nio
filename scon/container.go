@@ -52,6 +52,7 @@ type Container struct {
 	Image     types.ImageSpec
 	dataDir   string
 	rootfsDir string
+	quotaDir  string
 
 	builtin bool
 	config  types.MachineConfig
@@ -98,6 +99,7 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		builtin:   record.Builtin,
 		config:    record.Config,
 		dataDir:   dir,
+		quotaDir:  dir,
 		manager:   m,
 		rootfsDir: dir + "/rootfs",
 
@@ -115,6 +117,7 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		}
 		c.hooks = hooks
 		c.rootfsDir = conf.C().DockerRootfs
+		c.quotaDir = conf.C().DockerDataDir
 	}
 
 	// create lxc
@@ -188,7 +191,7 @@ func (c *Container) toRecord() *types.ContainerRecord {
 }
 
 func (c *Container) getInfo() (*types.ContainerInfo, error) {
-	diskSize, err := c.manager.fsOps.GetSubvolumeSize(c.dataDir)
+	diskSize, err := c.manager.fsOps.GetSubvolumeSize(c.quotaDir)
 	if err != nil {
 		return nil, fmt.Errorf("get disk usage: %w", err)
 	}

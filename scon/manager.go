@@ -478,7 +478,7 @@ func (m *ConManager) ListContainerInfos() ([]types.ContainerInfo, error) {
 
 	infos := make([]types.ContainerInfo, 0, len(containers))
 	for _, c := range containers {
-		size, ok := subvolumes[c.dataDir]
+		size, ok := subvolumes[c.quotaDir]
 		var sizePtr *uint64
 		if ok {
 			sizePtr = &size
