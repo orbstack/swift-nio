@@ -20,9 +20,9 @@ mkfs.btrfs -L user-data-fs -m single -O block-group-tree,quota,squota /dev/nbd0p
 # mount and initialize the fs
 mount /dev/nbd0p1 /mnt
 # make a global qgroup
-btrfs qgroup create 1/1 /mnt
+btrfs qgroup create 30000/1 /mnt
 # assign root subvolume to global qgroup
-btrfs qgroup assign 0/5 1/1 /mnt
+btrfs qgroup assign 0/5 30000/1 /mnt
 # copy preseed data
 echo 1 > /mnt/version
 umount /mnt

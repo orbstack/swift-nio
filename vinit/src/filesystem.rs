@@ -90,7 +90,7 @@ impl DiskManager {
     fn update_quota(&mut self, new_size: u64) -> anyhow::Result<()> {
         let dir_file = File::open("/data")?;
 
-        // first attempt to set quota on the new global 1/1 qgroup
+        // first attempt to set quota on the new global 30000/1 qgroup
         let mut args = btrfs::BtrfsIoctlQgroupLimitArgs {
             qgroupid: QGROUP_GLOBAL,
             lim: btrfs::BtrfsQgroupLimit {

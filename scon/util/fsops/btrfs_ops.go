@@ -18,7 +18,7 @@ import (
 // 0/5 is the root subvolume
 // 0/... is each subvolume
 // 1/1 is our global qgroup that contains all subvolumes
-const qgroupGlobal = "1/1"
+const qgroupGlobal = "30000/1"
 
 type btrfsCommandOutput struct {
 	Header struct {
@@ -57,7 +57,7 @@ func NewBtrfsOps(mountpoint string) (FSOps, error) {
 		if len(fields) < 1 {
 			continue
 		}
-		if fields[0] == "1/1" {
+		if fields[0] == "30000/1" {
 			useSubvolumes = true
 			break
 		}
