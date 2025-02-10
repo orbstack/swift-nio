@@ -51,6 +51,12 @@ func newDomainproxyAllocator(subnet netip.Prefix, lowest netip.Addr) *domainprox
 	}
 }
 
+type domainproxyHostState struct {
+	procDirfd      *os.File
+	hasNetnsCookie bool
+	netnsCookie    uint64
+}
+
 type domainproxyRegistry struct {
 	r               *mdnsRegistry
 	dockerMachine   *Container
@@ -65,9 +71,9 @@ type domainproxyRegistry struct {
 
 	domainTLSProxy       *domainproxy.DomainTLSProxy
 	domainTLSProxyActive bool
-	procDirfds           map[domainproxytypes.Host]*os.File
-	netnsCookieToHost    map[uint64]domainproxytypes.Host
-	hostToNetnsCookie    map[domainproxytypes.Host]uint64
+
+	hostState          map[domainproxytypes.Host]*domainproxyHostState
+	netnsCookieToHosts map[uint64][]domainproxytypes.Host
 }
 
 func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) domainproxyRegistry {
@@ -88,9 +94,8 @@ func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip
 
 		domainTLSProxy:       proxy,
 		domainTLSProxyActive: false,
-		procDirfds:           make(map[domainproxytypes.Host]*os.File),
-		netnsCookieToHost:    make(map[uint64]domainproxytypes.Host),
-		hostToNetnsCookie:    make(map[domainproxytypes.Host]uint64),
+		hostState:            make(map[domainproxytypes.Host]*domainproxyHostState),
+		netnsCookieToHosts:   make(map[uint64][]domainproxytypes.Host),
 	}
 }
 
@@ -465,6 +470,13 @@ func (d *domainproxyRegistry) freeHostLocked(host domainproxytypes.Host) {
 	if ip, ok := d.v6.hostMap[host]; ok {
 		d.freeAddrLocked(ip)
 	}
+	if hostState, ok := d.hostState[host]; ok {
+		if hostState.procDirfd != nil {
+			hostState.procDirfd.Close()
+		}
+
+		delete(d.hostState, host)
+	}
 }
 
 func (d *domainproxyRegistry) invalidateHostProbeLocked(host domainproxytypes.Host) {
@@ -542,7 +554,7 @@ func (d *domainproxyRegistry) refreshHostListenersLocked(c *Container, dirtyFlag
 	// this is technically incorrect behavior. we should be invalidating the docker machine every single time a port in a docker container changes, since we don't know what's forwarded, but that would be bad and slow so we don't do that.
 	if c.ID == ContainerIDDocker {
 		// docker machine doesn't filter netns cookie in bpf, so we use the netnsCookieToHost map to translate the netnsCookie to the right docker container / the docker machine
-		if host, ok := d.netnsCookieToHost[netnsCookie]; ok {
+		for _, host := range d.netnsCookieToHosts[netnsCookie] {
 			d.invalidateHostProbeLocked(host)
 		}
 	} else {
@@ -695,10 +707,12 @@ func (r *mdnsRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.Host) (
 	openPorts := map[uint16]struct{}{}
 
 	if domainproxyHost.Type != domainproxytypes.HostTypeK8s {
-		procDirfd, ok := r.domainproxy.procDirfds[domainproxyHost]
-		if !ok {
+		hostState, ok := r.domainproxy.hostState[domainproxyHost]
+		if !ok || hostState.procDirfd == nil {
 			return nil, fmt.Errorf("no proc dirfd for host: %v", domainproxyHost)
 		}
+
+		procDirfd := hostState.procDirfd
 
 		// always grab both v4 and v6 ports because dual stack shows up as ipv6 anyways, so not worth the effort to differentiate
 		// especially when our probing routine should be relatively fast anyways, especially for non-listening ports

@@ -692,17 +692,22 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDi
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	hostState := &domainproxyHostState{}
+	r.domainproxy.hostState[domainproxyHost] = hostState
+
 	if procDirfd != nil {
+		hostState.procDirfd = procDirfd
+
 		netnsCookie, err := sysnet.WithNetnsProcDirfdFile(procDirfd, func() (uint64, error) {
 			return sysnet.GetNetnsCookie()
 		})
 		if err == nil {
-			r.domainproxy.netnsCookieToHost[netnsCookie] = domainproxyHost
-			r.domainproxy.hostToNetnsCookie[domainproxyHost] = netnsCookie
+			hostState.netnsCookie = netnsCookie
+			hostState.hasNetnsCookie = true
+			r.domainproxy.netnsCookieToHosts[netnsCookie] = append(r.domainproxy.netnsCookieToHosts[netnsCookie], domainproxyHost)
 		} else {
 			logrus.WithError(err).Error("failed to get netns cookie")
 		}
-		r.domainproxy.procDirfds[domainproxyHost] = procDirfd
 	}
 
 	ctrIP4, ctrIP6 := containerToMdnsIPs(ctr)
@@ -782,13 +787,15 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if dirfd, ok := r.domainproxy.procDirfds[domainproxyHost]; ok {
-		dirfd.Close()
-		delete(r.domainproxy.procDirfds, domainproxyHost)
-	}
-	if netnsCookie, ok := r.domainproxy.hostToNetnsCookie[domainproxyHost]; ok {
-		delete(r.domainproxy.netnsCookieToHost, netnsCookie)
-		delete(r.domainproxy.hostToNetnsCookie, domainproxyHost)
+	if hostState, ok := r.domainproxy.hostState[domainproxyHost]; ok && hostState.hasNetnsCookie {
+		if _, ok := r.domainproxy.netnsCookieToHosts[hostState.netnsCookie]; ok {
+			r.domainproxy.netnsCookieToHosts[hostState.netnsCookie] = slices.DeleteFunc(r.domainproxy.netnsCookieToHosts[hostState.netnsCookie], func(h domainproxytypes.Host) bool {
+				return h == domainproxyHost
+			})
+			if len(r.domainproxy.netnsCookieToHosts[hostState.netnsCookie]) == 0 {
+				delete(r.domainproxy.netnsCookieToHosts, hostState.netnsCookie)
+			}
+		}
 	}
 
 	r.domainproxy.freeHostLocked(domainproxyHost)
@@ -818,20 +825,28 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	hostState := &domainproxyHostState{}
+	r.domainproxy.hostState[domainproxyHost] = hostState
+
 	procPath := "/proc/" + strconv.Itoa(c.initPid)
 	procDirfdInt, err := unix.Open(procPath, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_DIRECTORY, 0)
 	if err == nil {
 		procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
+		hostState.procDirfd = procDirfd
+
 		netnsCookie, err := sysnet.WithNetnsProcDirfdFile(procDirfd, func() (uint64, error) {
 			return sysnet.GetNetnsCookie()
 		})
 		if err == nil {
-			r.domainproxy.netnsCookieToHost[netnsCookie] = domainproxyHost
-			r.domainproxy.hostToNetnsCookie[domainproxyHost] = netnsCookie
+			hostState.netnsCookie = netnsCookie
+			hostState.hasNetnsCookie = true
+			r.domainproxy.netnsCookieToHosts[netnsCookie] = append(r.domainproxy.netnsCookieToHosts[netnsCookie], domainproxyHost)
+			if c.ID == ContainerIDDocker {
+				r.domainproxy.netnsCookieToHosts[netnsCookie] = append(r.domainproxy.netnsCookieToHosts[netnsCookie], domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s})
+			}
 		} else {
 			logrus.WithError(err).Error("failed to get netns cookie")
 		}
-		r.domainproxy.procDirfds[domainproxyHost] = procDirfd
 	} else {
 		logrus.WithError(err).WithField("procPath", procPath).Error("failed to open proc dirfd")
 	}
@@ -879,13 +894,15 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if dirfd, ok := r.domainproxy.procDirfds[domainproxyHost]; ok {
-		dirfd.Close()
-		delete(r.domainproxy.procDirfds, domainproxyHost)
-	}
-	if netnsCookie, ok := r.domainproxy.hostToNetnsCookie[domainproxyHost]; ok {
-		delete(r.domainproxy.netnsCookieToHost, netnsCookie)
-		delete(r.domainproxy.hostToNetnsCookie, domainproxyHost)
+	if hostState, ok := r.domainproxy.hostState[domainproxyHost]; ok && hostState.hasNetnsCookie {
+		if _, ok := r.domainproxy.netnsCookieToHosts[hostState.netnsCookie]; ok {
+			r.domainproxy.netnsCookieToHosts[hostState.netnsCookie] = slices.DeleteFunc(r.domainproxy.netnsCookieToHosts[hostState.netnsCookie], func(h domainproxytypes.Host) bool {
+				return h == domainproxyHost
+			})
+			if len(r.domainproxy.netnsCookieToHosts[hostState.netnsCookie]) == 0 {
+				delete(r.domainproxy.netnsCookieToHosts, hostState.netnsCookie)
+			}
+		}
 	}
 
 	r.domainproxy.freeHostLocked(domainproxyHost)
