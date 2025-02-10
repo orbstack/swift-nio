@@ -26,14 +26,16 @@ type btrfsCommandOutput struct {
 	} `json:"__header"`
 
 	QgroupShow []struct {
-		QgroupID      string   `json:"qgroupid"`
-		Referenced    int64    `json:"referenced"`
-		MaxReferenced string   `json:"max_referenced"`
-		Exclusive     int64    `json:"exclusive"`
-		MaxExclusive  string   `json:"max_exclusive"`
-		Path          string   `json:"path"`
-		Parents       []string `json:"parents"`
-		Children      []string `json:"children"`
+		QgroupID string `json:"qgroupid"`
+		// must be uint64, not int64, in case of btrfs bug where a qgroup overflows and returns 16 EiB
+		Referenced uint64 `json:"referenced"`
+		// can be number or string
+		MaxReferenced json.RawMessage `json:"max_referenced"`
+		Exclusive     uint64          `json:"exclusive"`
+		MaxExclusive  json.RawMessage `json:"max_exclusive"`
+		Path          string          `json:"path"`
+		Parents       []string        `json:"parents"`
+		Children      []string        `json:"children"`
 	} `json:"qgroup-show"`
 }
 
@@ -162,6 +164,28 @@ func (b *btrfsOps) GetSubvolumeSize(fsSubpath string) (*uint64, error) {
 
 	referenced := uint64(qgroup.Referenced)
 	return &referenced, nil
+}
+
+func (b *btrfsOps) GetSubvolumeSizes() (map[string]uint64, error) {
+	jsonStr, err := util.RunWithOutput("btrfs", "--format", "json", "qgroup", "show", b.mountpoint)
+	if err != nil {
+		return nil, fmt.Errorf("get subvolume size: %w", err)
+	}
+
+	var output btrfsCommandOutput
+	if err := json.Unmarshal([]byte(jsonStr), &output); err != nil {
+		return nil, fmt.Errorf("unmarshal btrfs output: %w", err)
+	}
+
+	sizes := make(map[string]uint64, len(output.QgroupShow))
+	for _, qgroup := range output.QgroupShow {
+		if qgroup.Path == "" {
+			continue
+		}
+		sizes[b.mountpoint+"/"+qgroup.Path] = uint64(qgroup.Referenced)
+	}
+
+	return sizes, nil
 }
 
 func (b *btrfsOps) DeleteSubvolumeRecursive(fsSubpath string) error {

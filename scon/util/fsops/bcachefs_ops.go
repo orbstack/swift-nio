@@ -42,6 +42,10 @@ func (b *bcachefsOps) GetSubvolumeSize(fsSubpath string) (*uint64, error) {
 	return nil, nil
 }
 
+func (b *bcachefsOps) GetSubvolumeSizes() (map[string]uint64, error) {
+	return nil, nil
+}
+
 func (b *bcachefsOps) DeleteSubvolumeRecursive(fsSubpath string) error {
 	// impossible to recurse... there's no command to list subvolumes
 	return util.Run("bcachefs", "subvolume", "delete", fsSubpath)

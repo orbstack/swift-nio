@@ -187,15 +187,10 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		// wait for initial starts
 		mgr.uiInitContainers.Wait()
 
-		containers := mgr.ListContainers()
-		infos := make([]types.ContainerInfo, 0, len(containers))
-		for _, c := range containers {
-			info, err := c.getInfo()
-			if err != nil {
-				logrus.WithError(err).Error("failed to get container info")
-				continue
-			}
-			infos = append(infos, *info)
+		infos, err := mgr.ListContainerInfos()
+		if err != nil {
+			logrus.WithError(err).Error("failed to get container infos")
+			return
 		}
 
 		err = mgr.host.OnUIEvent(uitypes.UIEvent{
@@ -472,6 +467,29 @@ func (m *ConManager) ListContainers() []*Container {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	return containers
+}
+
+func (m *ConManager) ListContainerInfos() ([]types.ContainerInfo, error) {
+	containers := m.ListContainers()
+	subvolumes, err := m.fsOps.GetSubvolumeSizes()
+	if err != nil {
+		return nil, fmt.Errorf("get subvolume sizes: %w", err)
+	}
+
+	infos := make([]types.ContainerInfo, 0, len(containers))
+	for _, c := range containers {
+		size, ok := subvolumes[c.dataDir]
+		var sizePtr *uint64
+		if ok {
+			sizePtr = &size
+		}
+
+		infos = append(infos, types.ContainerInfo{
+			Record:   c.toRecord(),
+			DiskSize: sizePtr,
+		})
+	}
+	return infos, nil
 }
 
 func (m *ConManager) CountNonBuiltinContainers() int {

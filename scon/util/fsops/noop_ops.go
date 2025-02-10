@@ -34,6 +34,10 @@ func (b *noopOps) GetSubvolumeSize(fsSubpath string) (*uint64, error) {
 	return nil, nil
 }
 
+func (b *noopOps) GetSubvolumeSizes() (map[string]uint64, error) {
+	return nil, nil
+}
+
 func (b *noopOps) DeleteSubvolumeRecursive(fsSubpath string) error {
 	logrus.Warn("unsupported FS operation: DeleteSubvolumesRecursive")
 	return nil

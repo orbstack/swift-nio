@@ -50,17 +50,7 @@ func (s *SconServer) ImportContainerFromHostPath(ctx context.Context, req types.
 }
 
 func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerInfo, error) {
-	containers := s.m.ListContainers()
-	records := make([]types.ContainerInfo, 0, len(containers))
-	for _, c := range containers {
-		info, err := c.getInfo()
-		if err != nil {
-			return nil, fmt.Errorf("get container info for '%s': %w", c.Name, err)
-		}
-		records = append(records, *info)
-	}
-
-	return records, nil
+	return s.m.ListContainerInfos()
 }
 
 func (s *SconServer) GetByID(ctx context.Context, req types.GetByIDRequest) (*types.ContainerInfo, error) {
