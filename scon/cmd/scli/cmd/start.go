@@ -63,17 +63,17 @@ If no machines are specified, the command will start all machines that were runn
 				err = vmclient.Client().SetConfig(config)
 				checkCLI(err)
 
-				c, err := scli.Client().GetByID(types.ContainerIDDocker)
+				c, err := scli.Client().GetByKey(types.ContainerIDDocker)
 				checkCLI(err)
 
 				spinner := spinutil.Start("green", "Starting k8s")
 				if c.Record.State == types.ContainerStateRunning {
 					// only restart if it wasn't previously set
 					if !wasSet {
-						err = scli.Client().ContainerRestart(c.Record)
+						err = scli.Client().ContainerRestart(c.Record.ID)
 					}
 				} else {
-					err = scli.Client().ContainerStart(c.Record)
+					err = scli.Client().ContainerStart(c.Record.ID)
 				}
 				spinner.Stop()
 				checkCLI(err)
@@ -81,17 +81,9 @@ If no machines are specified, the command will start all machines that were runn
 				continue
 			}
 
-			// try ID first
-			c, err := scli.Client().GetByID(containerName)
-			if err != nil {
-				// try name
-				c, err = scli.Client().GetByName(containerName)
-			}
-			checkCLI(err)
-
 			// spinner
-			spinner := spinutil.Start("green", "Starting "+c.Record.Name)
-			err = scli.Client().ContainerStart(c.Record)
+			spinner := spinutil.Start("green", "Starting "+containerName)
+			err := scli.Client().ContainerStart(containerName)
 			spinner.Stop()
 			checkCLI(err)
 		}

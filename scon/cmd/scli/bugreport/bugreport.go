@@ -56,7 +56,7 @@ func addSconParts(r *ReportWriter) {
 
 	// add machine logs
 	for _, c := range containers {
-		logTxt, err := scli.Client().ContainerGetLogs(c.Record, types.LogConsole)
+		logTxt, err := scli.Client().ContainerGetLogs(c.Record.ID, types.LogConsole)
 		if err != nil {
 			logrus.WithError(err).Errorf("failed to get logs for %s", c.Record.Name)
 		} else {
@@ -66,7 +66,7 @@ func addSconParts(r *ReportWriter) {
 			}
 		}
 
-		logTxt, err = scli.Client().ContainerGetLogs(c.Record, types.LogRuntime)
+		logTxt, err = scli.Client().ContainerGetLogs(c.Record.ID, types.LogRuntime)
 		if err != nil {
 			logrus.WithError(err).Errorf("failed to get logs for %s", c.Record.Name)
 		} else {

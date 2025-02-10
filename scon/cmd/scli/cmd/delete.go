@@ -55,14 +55,8 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 				continue
 			}
 
-			// try ID first
-			c, err := scli.Client().GetByID(name)
-			if err != nil {
-				// try name
-				c, err = scli.Client().GetByName(name)
-			}
+			c, err := scli.Client().GetByKey(name)
 			checkCLI(err)
-
 			recordsForNames[c.Record.Name] = c.Record
 		}
 
@@ -97,7 +91,7 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 		for _, containerName := range containerNames {
 			// k8s special case
 			if containerName == types.ContainerNameK8s {
-				c, err := scli.Client().GetByID(types.ContainerIDDocker)
+				c, err := scli.Client().GetByKey(types.ContainerIDDocker)
 				checkCLI(err)
 
 				if flagAll && c.Record.Builtin {
@@ -122,7 +116,7 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 
 				// restart if docker was running
 				if c.Record.State == types.ContainerStateRunning {
-					err = scli.Client().ContainerStart(c.Record)
+					err = scli.Client().ContainerStart(c.Record.ID)
 					if err != nil {
 						spinner.Stop()
 						checkCLI(err)
@@ -142,7 +136,7 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 			// spinner
 			scli.EnsureSconVMWithSpinner()
 			spinner := spinutil.Start("red", "Deleting "+record.Name)
-			err := scli.Client().ContainerDelete(record)
+			err := scli.Client().ContainerDelete(record.ID)
 			spinner.Stop()
 			checkCLI(err)
 		}

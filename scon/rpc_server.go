@@ -53,17 +53,23 @@ func (s *SconServer) ListContainers(ctx context.Context) ([]types.ContainerInfo,
 	return s.m.ListContainerInfos()
 }
 
-func (s *SconServer) GetByID(ctx context.Context, req types.GetByIDRequest) (*types.ContainerInfo, error) {
-	c, err := s.m.GetByID(req.ID)
-	if err != nil {
-		return nil, err
+// container key = ID or name
+func (s *SconServer) getByKey(key string) (*Container, error) {
+	c, err := s.m.GetByID(key)
+	if err == nil {
+		return c, nil
 	}
 
-	return c.getInfo()
+	c, err = s.m.GetByName(key)
+	if err == nil {
+		return c, nil
+	}
+
+	return nil, fmt.Errorf("machine not found: '%s'", key)
 }
 
-func (s *SconServer) GetByName(ctx context.Context, req types.GetByNameRequest) (*types.ContainerInfo, error) {
-	c, err := s.m.GetByName(req.Name)
+func (s *SconServer) GetByKey(ctx context.Context, req types.GenericContainerRequest) (*types.ContainerInfo, error) {
+	c, err := s.getByKey(req.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -80,12 +86,12 @@ func (s *SconServer) GetDefaultContainer(ctx context.Context) (*types.ContainerR
 	return c.toRecord(), nil
 }
 
-func (s *SconServer) SetDefaultContainer(ctx context.Context, record *types.ContainerRecord) error {
-	if record == nil || record.ID == "" {
+func (s *SconServer) SetDefaultContainer(ctx context.Context, req types.GenericContainerRequest) error {
+	if req.Key == "" {
 		return s.m.SetDefaultContainer(nil)
 	}
 
-	c, err := s.m.GetByID(record.ID)
+	c, err := s.getByKey(req.Key)
 	if err != nil {
 		return err
 	}
@@ -93,8 +99,8 @@ func (s *SconServer) SetDefaultContainer(ctx context.Context, record *types.Cont
 	return s.m.SetDefaultContainer(c)
 }
 
-func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerRecord) error {
-	c, err := s.m.GetByID(record.ID)
+func (s *SconServer) ContainerStart(ctx context.Context, req types.GenericContainerRequest) error {
+	c, err := s.getByKey(req.Key)
 	if err != nil {
 		return err
 	}
@@ -102,8 +108,8 @@ func (s *SconServer) ContainerStart(ctx context.Context, record types.ContainerR
 	return c.Start()
 }
 
-func (s *SconServer) ContainerStop(ctx context.Context, record types.ContainerRecord) error {
-	c, err := s.m.GetByID(record.ID)
+func (s *SconServer) ContainerStop(ctx context.Context, req types.GenericContainerRequest) error {
+	c, err := s.getByKey(req.Key)
 	if err != nil {
 		return err
 	}
@@ -113,8 +119,8 @@ func (s *SconServer) ContainerStop(ctx context.Context, record types.ContainerRe
 	})
 }
 
-func (s *SconServer) ContainerRestart(ctx context.Context, record types.ContainerRecord) error {
-	c, err := s.m.GetByID(record.ID)
+func (s *SconServer) ContainerRestart(ctx context.Context, req types.GenericContainerRequest) error {
+	c, err := s.getByKey(req.Key)
 	if err != nil {
 		return err
 	}
@@ -122,8 +128,8 @@ func (s *SconServer) ContainerRestart(ctx context.Context, record types.Containe
 	return c.Restart()
 }
 
-func (s *SconServer) ContainerDelete(ctx context.Context, record types.ContainerRecord) error {
-	c, err := s.m.GetByID(record.ID)
+func (s *SconServer) ContainerDelete(ctx context.Context, req types.GenericContainerRequest) error {
+	c, err := s.getByKey(req.Key)
 	if err != nil {
 		return err
 	}
@@ -132,7 +138,7 @@ func (s *SconServer) ContainerDelete(ctx context.Context, record types.Container
 }
 
 func (s *SconServer) ContainerClone(ctx context.Context, req types.ContainerCloneRequest) (*types.ContainerRecord, error) {
-	c, err := s.m.GetByID(req.Container.ID)
+	c, err := s.getByKey(req.ContainerKey)
 	if err != nil {
 		return nil, err
 	}
@@ -146,11 +152,7 @@ func (s *SconServer) ContainerClone(ctx context.Context, req types.ContainerClon
 }
 
 func (s *SconServer) ContainerRename(ctx context.Context, req types.ContainerRenameRequest) error {
-	if req.Container == nil {
-		return errors.New("container is nil")
-	}
-
-	c, err := s.m.GetByID(req.Container.ID)
+	c, err := s.getByKey(req.ContainerKey)
 	if err != nil {
 		return err
 	}
@@ -159,11 +161,7 @@ func (s *SconServer) ContainerRename(ctx context.Context, req types.ContainerRen
 }
 
 func (s *SconServer) ContainerGetLogs(ctx context.Context, req types.ContainerGetLogsRequest) (string, error) {
-	if req.Container == nil {
-		return "", errors.New("container is nil")
-	}
-
-	c, err := s.m.GetByID(req.Container.ID)
+	c, err := s.getByKey(req.ContainerKey)
 	if err != nil {
 		return "", err
 	}
@@ -172,11 +170,7 @@ func (s *SconServer) ContainerGetLogs(ctx context.Context, req types.ContainerGe
 }
 
 func (s *SconServer) ContainerSetConfig(ctx context.Context, req types.ContainerSetConfigRequest) error {
-	if req.Container == nil {
-		return errors.New("container is nil")
-	}
-
-	c, err := s.m.GetByID(req.Container.ID)
+	c, err := s.getByKey(req.ContainerKey)
 	if err != nil {
 		return err
 	}
@@ -185,11 +179,7 @@ func (s *SconServer) ContainerSetConfig(ctx context.Context, req types.Container
 }
 
 func (s *SconServer) ContainerExportToHostPath(ctx context.Context, req types.ContainerExportRequest) error {
-	if req.Container == nil {
-		return errors.New("container is nil")
-	}
-
-	c, err := s.m.GetByID(req.Container.ID)
+	c, err := s.getByKey(req.ContainerKey)
 	if err != nil {
 		return err
 	}
@@ -283,8 +273,7 @@ func (s *SconServer) Serve() error {
 		"Create":                                handler.New(s.Create),
 		"ImportContainerFromHostPath":           handler.New(s.ImportContainerFromHostPath),
 		"ListContainers":                        handler.New(s.ListContainers),
-		"GetByID":                               handler.New(s.GetByID),
-		"GetByName":                             handler.New(s.GetByName),
+		"GetByKey":                              handler.New(s.GetByKey),
 		"GetDefaultContainer":                   handler.New(s.GetDefaultContainer),
 		"SetDefaultContainer":                   handler.New(s.SetDefaultContainer),
 		"ContainerStart":                        handler.New(s.ContainerStart),

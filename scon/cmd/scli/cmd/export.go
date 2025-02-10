@@ -34,17 +34,9 @@ To prevent data corruption, the existing machine will be paused while exporting.
 
 		scli.EnsureSconVMWithSpinner()
 
-		// get old container
-		c, err := scli.Client().GetByID(oldNameOrID)
-		if err != nil {
-			// try name
-			c, err = scli.Client().GetByName(oldNameOrID)
-		}
-		checkCLI(err)
-
 		// spinner
 		spinner := spinutil.Start("blue", "Exporting "+oldNameOrID)
-		err = scli.Client().ContainerExportToHostPath(c.Record, outputPath)
+		err = scli.Client().ContainerExportToHostPath(oldNameOrID, outputPath)
 		spinner.Stop()
 		checkCLI(err)
 

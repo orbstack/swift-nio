@@ -57,10 +57,8 @@ If changes are made, the Docker engine will be restarted.
 			scli.EnsureSconVMWithSpinner()
 
 			// restart docker
-			c, err := scli.Client().GetByID(types.ContainerIDDocker)
-			checkCLI(err)
 			spinner := spinutil.Start("green", "Restarting Docker")
-			err = scli.Client().ContainerRestart(c.Record)
+			err = scli.Client().ContainerRestart(types.ContainerIDDocker)
 			spinner.Stop()
 			checkCLI(err)
 		}

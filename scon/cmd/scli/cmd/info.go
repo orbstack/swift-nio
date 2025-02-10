@@ -24,12 +24,7 @@ var infoCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 
-		// try ID first
-		c, err := scli.Client().GetByID(args[0])
-		if err != nil {
-			// try name
-			c, err = scli.Client().GetByName(args[0])
-		}
+		c, err := scli.Client().GetByKey(args[0])
 		checkCLI(err)
 
 		if flagFormat == "json" {

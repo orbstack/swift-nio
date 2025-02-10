@@ -22,15 +22,7 @@ var renameCmd = &cobra.Command{
 		oldNameId := args[0]
 		newName := args[1]
 
-		// try ID first
-		c, err := scli.Client().GetByID(oldNameId)
-		if err != nil {
-			// try name
-			c, err = scli.Client().GetByName(oldNameId)
-		}
-		checkCLI(err)
-
-		err = scli.Client().ContainerRename(c.Record, newName)
+		err := scli.Client().ContainerRename(oldNameId, newName)
 		checkCLI(err)
 
 		return nil

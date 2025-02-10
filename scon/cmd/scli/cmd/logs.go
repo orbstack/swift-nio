@@ -30,19 +30,11 @@ var logsCmd = &cobra.Command{
 			args[0] = types.ContainerIDDocker
 		}
 
-		// try ID first
-		c, err := scli.Client().GetByID(args[0])
-		if err != nil {
-			// try name
-			c, err = scli.Client().GetByName(args[0])
-		}
-		checkCLI(err)
-
 		red := color.New(color.FgRed)
 		header := color.New(color.Bold)
 		if flagAll {
 			header.Println("Runtime:")
-			logRuntime, err := scli.Client().ContainerGetLogs(c.Record, types.LogRuntime)
+			logRuntime, err := scli.Client().ContainerGetLogs(args[0], types.LogRuntime)
 			if err != nil {
 				red.Println(err)
 			} else {
@@ -52,7 +44,7 @@ var logsCmd = &cobra.Command{
 			header.Println("\n\n\nConsole:")
 		}
 
-		logConsole, err := scli.Client().ContainerGetLogs(c.Record, types.LogConsole)
+		logConsole, err := scli.Client().ContainerGetLogs(args[0], types.LogConsole)
 		if err != nil {
 			red.Println(err)
 		} else {

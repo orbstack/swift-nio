@@ -103,8 +103,8 @@ type GetByNameRequest struct {
 }
 
 type ContainerGetLogsRequest struct {
-	Container *ContainerRecord `json:"container"`
-	Type      LogType          `json:"type"`
+	ContainerKey string  `json:"container"`
+	Type         LogType `json:"type"`
 }
 
 type InternalReportStoppedRequest struct {
@@ -130,21 +130,25 @@ type InternalDockerMigrationSyncDirsRequest struct {
 }
 
 type ContainerCloneRequest struct {
-	Container *ContainerRecord `json:"container"`
-	NewName   string           `json:"new_name"`
+	ContainerKey string `json:"container"`
+	NewName      string `json:"new_name"`
 }
 
 type ContainerRenameRequest struct {
-	Container *ContainerRecord `json:"container"`
-	NewName   string           `json:"new_name"`
+	ContainerKey string `json:"container"`
+	NewName      string `json:"new_name"`
 }
 
 type ContainerSetConfigRequest struct {
-	Container *ContainerRecord `json:"container"`
-	Config    MachineConfig    `json:"config"`
+	ContainerKey string        `json:"container"`
+	Config       MachineConfig `json:"config"`
 }
 
 type ContainerExportRequest struct {
-	Container *ContainerRecord `json:"container"`
-	HostPath  string           `json:"host_path"`
+	ContainerKey string `json:"container"`
+	HostPath     string `json:"host_path"`
+}
+
+type GenericContainerRequest struct {
+	Key string `json:"key`
 }

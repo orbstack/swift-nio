@@ -72,17 +72,17 @@ If no arguments are provided, this command will stop the entire OrbStack service
 				err = vmclient.Client().SetConfig(config)
 				checkCLI(err)
 
-				c, err := scli.Client().GetByID(types.ContainerIDDocker)
+				c, err := scli.Client().GetByKey(types.ContainerIDDocker)
 				checkCLI(err)
 
 				spinner := spinutil.Start("red", "Stopping k8s")
 				if c.Record.State == types.ContainerStateRunning {
 					// only restart if it was running
 					if wasSet {
-						err = scli.Client().ContainerRestart(c.Record)
+						err = scli.Client().ContainerRestart(c.Record.ID)
 					}
 				} else {
-					err = scli.Client().ContainerStop(c.Record)
+					err = scli.Client().ContainerStop(c.Record.ID)
 				}
 				spinner.Stop()
 				checkCLI(err)
@@ -90,17 +90,9 @@ If no arguments are provided, this command will stop the entire OrbStack service
 				continue
 			}
 
-			// try ID first
-			c, err := scli.Client().GetByID(containerName)
-			if err != nil {
-				// try name
-				c, err = scli.Client().GetByName(containerName)
-			}
-			checkCLI(err)
-
 			// spinner
-			spinner := spinutil.Start("red", "Stopping "+c.Record.Name)
-			err = scli.Client().ContainerStop(c.Record)
+			spinner := spinutil.Start("red", "Stopping "+containerName)
+			err := scli.Client().ContainerStop(containerName)
 			spinner.Stop()
 			checkCLI(err)
 		}

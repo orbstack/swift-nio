@@ -31,17 +31,9 @@ To prevent data corruption, the existing machine will be paused while cloning.
 
 		scli.EnsureSconVMWithSpinner()
 
-		// get old container
-		c, err := scli.Client().GetByID(oldNameOrID)
-		if err != nil {
-			// try name
-			c, err = scli.Client().GetByName(oldNameOrID)
-		}
-		checkCLI(err)
-
 		// spinner
 		spinner := spinutil.Start("blue", "Cloning "+oldNameOrID)
-		_, err = scli.Client().ContainerClone(c.Record, newName)
+		_, err := scli.Client().ContainerClone(oldNameOrID, newName)
 		spinner.Stop()
 		checkCLI(err)
 

@@ -77,22 +77,10 @@ func (c *SconClient) ListContainers() ([]types.ContainerInfo, error) {
 	return records, nil
 }
 
-func (c *SconClient) GetByID(id string) (*types.ContainerInfo, error) {
+func (c *SconClient) GetByKey(key string) (*types.ContainerInfo, error) {
 	var rec types.ContainerInfo
-	err := c.rpc.CallResult(context.TODO(), "GetByID", types.GetByIDRequest{
-		ID: id,
-	}, &rec)
-	if err != nil {
-		return nil, err
-	}
-
-	return &rec, nil
-}
-
-func (c *SconClient) GetByName(name string) (*types.ContainerInfo, error) {
-	var rec types.ContainerInfo
-	err := c.rpc.CallResult(context.TODO(), "GetByName", types.GetByNameRequest{
-		Name: name,
+	err := c.rpc.CallResult(context.TODO(), "GetByKey", types.GenericContainerRequest{
+		Key: key,
 	}, &rec)
 	if err != nil {
 		return nil, err
@@ -111,31 +99,41 @@ func (c *SconClient) GetDefaultContainer() (*types.ContainerRecord, error) {
 	return &rec, nil
 }
 
-func (c *SconClient) SetDefaultContainer(record *types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "SetDefaultContainer", record, &noResult)
+func (c *SconClient) SetDefaultContainer(key string) error {
+	return c.rpc.CallResult(context.TODO(), "SetDefaultContainer", types.GenericContainerRequest{
+		Key: key,
+	}, &noResult)
 }
 
-func (c *SconClient) ContainerStart(record *types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerStart", record, &noResult)
+func (c *SconClient) ContainerStart(key string) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerStart", types.GenericContainerRequest{
+		Key: key,
+	}, &noResult)
 }
 
-func (c *SconClient) ContainerStop(record *types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerStop", record, &noResult)
+func (c *SconClient) ContainerStop(key string) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerStop", types.GenericContainerRequest{
+		Key: key,
+	}, &noResult)
 }
 
-func (c *SconClient) ContainerRestart(record *types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerRestart", record, &noResult)
+func (c *SconClient) ContainerRestart(key string) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerRestart", types.GenericContainerRequest{
+		Key: key,
+	}, &noResult)
 }
 
-func (c *SconClient) ContainerDelete(record *types.ContainerRecord) error {
-	return c.rpc.CallResult(context.TODO(), "ContainerDelete", record, &noResult)
+func (c *SconClient) ContainerDelete(key string) error {
+	return c.rpc.CallResult(context.TODO(), "ContainerDelete", types.GenericContainerRequest{
+		Key: key,
+	}, &noResult)
 }
 
-func (c *SconClient) ContainerClone(record *types.ContainerRecord, newName string) (*types.ContainerRecord, error) {
+func (c *SconClient) ContainerClone(key string, newName string) (*types.ContainerRecord, error) {
 	var rec types.ContainerRecord
 	err := c.rpc.CallResult(context.TODO(), "ContainerClone", types.ContainerCloneRequest{
-		Container: record,
-		NewName:   newName,
+		ContainerKey: key,
+		NewName:      newName,
 	}, &rec)
 	if err != nil {
 		return nil, err
@@ -144,18 +142,18 @@ func (c *SconClient) ContainerClone(record *types.ContainerRecord, newName strin
 	return &rec, nil
 }
 
-func (c *SconClient) ContainerRename(record *types.ContainerRecord, newName string) error {
+func (c *SconClient) ContainerRename(key string, newName string) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerRename", types.ContainerRenameRequest{
-		Container: record,
-		NewName:   newName,
+		ContainerKey: key,
+		NewName:      newName,
 	}, &noResult)
 }
 
-func (c *SconClient) ContainerGetLogs(record *types.ContainerRecord, logType types.LogType) (string, error) {
+func (c *SconClient) ContainerGetLogs(key string, logType types.LogType) (string, error) {
 	var logs string
 	err := c.rpc.CallResult(context.TODO(), "ContainerGetLogs", types.ContainerGetLogsRequest{
-		Container: record,
-		Type:      logType,
+		ContainerKey: key,
+		Type:         logType,
 	}, &logs)
 	if err != nil {
 		return "", err
@@ -164,17 +162,17 @@ func (c *SconClient) ContainerGetLogs(record *types.ContainerRecord, logType typ
 	return logs, nil
 }
 
-func (c *SconClient) ContainerSetConfig(record *types.ContainerRecord, config types.MachineConfig) error {
+func (c *SconClient) ContainerSetConfig(key string, config types.MachineConfig) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerSetConfig", types.ContainerSetConfigRequest{
-		Container: record,
-		Config:    config,
+		ContainerKey: key,
+		Config:       config,
 	}, &noResult)
 }
 
-func (c *SconClient) ContainerExportToHostPath(record *types.ContainerRecord, hostPath string) error {
+func (c *SconClient) ContainerExportToHostPath(key string, hostPath string) error {
 	return c.rpc.CallResult(context.TODO(), "ContainerExportToHostPath", types.ContainerExportRequest{
-		Container: record,
-		HostPath:  hostPath,
+		ContainerKey: key,
+		HostPath:     hostPath,
 	}, &noResult)
 }
 

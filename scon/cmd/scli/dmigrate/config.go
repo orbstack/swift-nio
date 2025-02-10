@@ -111,11 +111,7 @@ func (m *Migrator) migrateDaemonConfig(path string) error {
 	logrus.Infof("Migrating daemon config: %s", string(newConfigData))
 
 	// restart docker machine
-	c, err := scli.Client().GetByID(types.ContainerIDDocker)
-	if err != nil {
-		return fmt.Errorf("get docker machine: %w", err)
-	}
-	err = scli.Client().ContainerRestart(c.Record)
+	err = scli.Client().ContainerRestart(types.ContainerIDDocker)
 	if err != nil {
 		return fmt.Errorf("restart docker machine: %w", err)
 	}

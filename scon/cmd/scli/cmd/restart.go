@@ -54,28 +54,17 @@ var restartCmd = &cobra.Command{
 				err = vmclient.Client().SetConfig(config)
 				checkCLI(err)
 
-				c, err := scli.Client().GetByID(types.ContainerIDDocker)
-				checkCLI(err)
-
 				spinner := spinutil.Start("green", "Restarting k8s")
-				err = scli.Client().ContainerRestart(c.Record)
+				err = scli.Client().ContainerRestart(types.ContainerIDDocker)
 				spinner.Stop()
 				checkCLI(err)
 
 				continue
 			}
 
-			// try ID first
-			c, err := scli.Client().GetByID(containerName)
-			if err != nil {
-				// try name
-				c, err = scli.Client().GetByName(containerName)
-			}
-			checkCLI(err)
-
 			// spinner
-			spinner := spinutil.Start("green", "Restarting "+c.Record.Name)
-			err = scli.Client().ContainerRestart(c.Record)
+			spinner := spinutil.Start("green", "Restarting "+containerName)
+			err := scli.Client().ContainerRestart(containerName)
 			spinner.Stop()
 			checkCLI(err)
 		}
