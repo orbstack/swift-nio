@@ -106,7 +106,7 @@ struct MacVirtApp13: App {
                 }
 
                 CommandGroup(before: .importExport) {
-                    Button("Migrate Docker Data…") {
+                    Button("Migrate Docker Containers…") {
                         openWindow.call(id: WindowID.migrateDocker)
                     }
 
