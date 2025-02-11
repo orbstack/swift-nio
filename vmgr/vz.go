@@ -205,7 +205,7 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 	// sysctl reports FEAT_ECV as supported on M3+, but HVF masks it out because it's primarily a virtualization feature (CNTPOFF_EL2) and it doesn't support nested virt
 	if supportsECV() {
 		// depends on kernel commit to allow ID_AA64MMFR0_EL1.ECV=1
-		cmdline = append(cmdline, "id_aa64mmfr0.e=1")
+		cmdline = append(cmdline, "id_aa64mmfr0.ecv=1")
 	}
 
 	if params.DiskRootfs != "" {
