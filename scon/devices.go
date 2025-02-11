@@ -4,7 +4,6 @@ import (
 	"errors"
 	"path"
 
-	"github.com/lxc/go-lxc"
 	"github.com/sirupsen/logrus"
 	"k8s.io/utils/inotify"
 )
@@ -23,7 +22,7 @@ func (m *ConManager) addDeviceNodeAll(src string, dst string) {
 			"dst":       dst,
 		}).Debug("adding device node")
 		err := c.addDeviceNode(src, dst)
-		if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
+		if err != nil && !errors.Is(err, ErrMachineNotRunning) {
 			logrus.WithField("container", c.Name).WithError(err).Error("failed to add device node")
 		}
 	}
@@ -43,7 +42,7 @@ func (m *ConManager) removeDeviceNodeAll(dst string) {
 			"dst":       dst,
 		}).Debug("removing device node")
 		err := c.removeDeviceNode(dst)
-		if err != nil && !errors.Is(err, lxc.ErrNotRunning) {
+		if err != nil && !errors.Is(err, ErrMachineNotRunning) {
 			logrus.WithField("container", c.Name).WithError(err).Error("failed to remove device node")
 		}
 	}

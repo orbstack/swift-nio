@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -252,7 +253,12 @@ func (c *Container) refreshState() error {
 func (c *Container) addDeviceNode(src string, dst string) error {
 	err := c.lxc.AddDeviceNode(src, dst)
 	if err != nil {
-		return err
+		// lxc doesn't use %w
+		if strings.HasPrefix(err.Error(), "container is not running:") {
+			return ErrMachineNotRunning
+		} else {
+			return err
+		}
 	}
 
 	return nil
@@ -352,7 +358,7 @@ func withContainerNetns[T any](c *Container, fn func() (T, error)) (T, error) {
 	var zero T
 	initPidF := c.initPidFile
 	if initPidF == nil {
-		return zero, fmt.Errorf("no init pid")
+		return zero, ErrMachineNotRunning
 	}
 
 	return sysnet.WithNetns(initPidF, fn)
@@ -362,7 +368,7 @@ func withContainerMountNs[T any](c *Container, fn func() (T, error)) (T, error) 
 	var zero T
 	initPidF := c.initPidFile
 	if initPidF == nil {
-		return zero, fmt.Errorf("no init pid")
+		return zero, ErrMachineNotRunning
 	}
 	defer runtime.KeepAlive(initPidF)
 
