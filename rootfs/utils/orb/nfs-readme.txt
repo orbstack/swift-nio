@@ -1,10 +1,13 @@
 # OrbStack file sharing
 
-When OrbStack is running, this folder contains Docker volumes and Linux machines. All Docker and Linux files can be found here.
+When OrbStack is running, this folder contains containers, images, volumes, and machines. All Docker and Linux files can be found here.
 
-This folder is empty when OrbStack is not running. Do not put files here.
+This is only a *view* of OrbStack's data; it takes no space on disk, and data is not actually stored here. The default data location is: ~/Library/Group Containers/HUAQ24HBR6.dev.orbstack/data
 
-For more details, see:
+The folder is empty when OrbStack is not running. Do not put files here.
+
+Learn more:
+    - https://orbsta.cc/orbstack-folder
     - https://orbsta.cc/docker-mount
     - https://orbsta.cc/machine-mount
 
@@ -18,9 +21,7 @@ Mount into a container: `docker run -v foo:/bar ...`
     - Use the volume name to mount it. DO NOT use ~/OrbStack here!
 See files from Mac: `open ~/OrbStack/docker/volumes/foo`
 
-Learn more: https://orbsta.cc/docker-mount
-
 
 ---
 
-[OrbStack is RUNNING. Files are available.]
+[OrbStack is currently RUNNING. Files are available.]
