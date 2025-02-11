@@ -14,71 +14,53 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type LtypeFlags uint8
+type zero struct {
+	_ uint8
+}
+
+type ListenerTypeFlags uint8
 
 const (
-	LtypeTCP LtypeFlags = 1 << iota
-	LtypeUDP
-	LtypeIPTables
+	ListenerTypeTCP ListenerTypeFlags = 1 << iota
+	ListenerTypeUDP
+	ListenerTypeIPTables
 
-	LtypeAll = LtypeTCP | LtypeUDP | LtypeIPTables
+	ListenerTypeAll = ListenerTypeTCP | ListenerTypeUDP | ListenerTypeIPTables
 )
 
-type PmonEvent struct {
-	DirtyFlags  LtypeFlags
+type PortMonitorEvent struct {
+	DirtyFlags  ListenerTypeFlags
 	NetnsCookie uint64
 }
 
-type Pmon struct {
+type PortMonitor struct {
 	mu       syncx.Mutex
 	pmonObjs *pmonObjects
 	reader   *ringbuf.Reader
 
 	closers []io.Closer
+
+	netnsCookieInterestedIDs map[uint64]map[string]struct{}
+
+	globalCallbacks map[string]func(PortMonitorEvent)
+
+	netnsCallbacksCookies map[string]uint64
+	netnsCallbacks        map[uint64]map[string]func(PortMonitorEvent)
 }
 
-func (p *Pmon) attachOneCgLocked(typ ebpf.AttachType, prog *ebpf.Program, cgroupPath string) error {
-	l, err := link.AttachCgroup(link.CgroupOptions{
-		Path:    cgroupPath,
-		Attach:  typ,
-		Program: prog,
-	})
-	if err != nil {
-		return fmt.Errorf("attach: %w", err)
+func NewPmon() (*PortMonitor, error) {
+	pmon := &PortMonitor{
+		netnsCookieInterestedIDs: make(map[uint64]map[string]struct{}),
+
+		globalCallbacks: make(map[string]func(PortMonitorEvent)),
+
+		netnsCallbacksCookies: make(map[string]uint64),
+		netnsCallbacks:        make(map[uint64]map[string]func(PortMonitorEvent)),
 	}
-	p.closers = append(p.closers, l)
-	return nil
-}
-
-func (p *Pmon) attachOneKretprobeLocked(prog *ebpf.Program, fnName string) error {
-	l, err := link.Kretprobe(fnName, prog, nil)
-	if err != nil {
-		return fmt.Errorf("attach: %w", err)
-	}
-	p.closers = append(p.closers, l)
-	return nil
-}
-
-func (p *Pmon) Close() error {
-	for _, closer := range p.closers {
-		closer.Close()
-	}
-	return nil
-}
-
-func NewPmon(netnsCookie uint64) (*Pmon, error) {
-	pmon := &Pmon{}
 
 	spec, err := loadPmon()
 	if err != nil {
 		return nil, fmt.Errorf("load spec: %w", err)
-	}
-
-	err = spec.RewriteConstants(map[string]any{
-		"config_netns_cookie": netnsCookie,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("configure: %w", err)
 	}
 
 	objs := pmonObjects{}
@@ -89,10 +71,83 @@ func NewPmon(netnsCookie uint64) (*Pmon, error) {
 	pmon.closers = append(pmon.closers, &objs)
 	pmon.pmonObjs = &objs
 
+	pmon.reader, err = ringbuf.NewReader(pmon.pmonObjs.NotifyRing)
+	if err != nil {
+		return nil, fmt.Errorf("create reader: %w", err)
+	}
+
+	go pmon.monitor()
+
 	return pmon, nil
 }
 
-func (p *Pmon) Attach(cgroupPath string) error {
+func (p *PortMonitor) deserializeRecord(rec *ringbuf.Record) PortMonitorEvent {
+	ev := PortMonitorEvent{
+		DirtyFlags:  ListenerTypeFlags(rec.RawSample[8]),
+		NetnsCookie: binary.NativeEndian.Uint64(rec.RawSample[0:]),
+	}
+	return ev
+}
+
+func (p *PortMonitor) monitor() {
+	var rec ringbuf.Record
+	for {
+		err := p.reader.ReadInto(&rec)
+		if err != nil {
+			if !errors.Is(err, os.ErrClosed) {
+				logrus.WithError(err).Error("pmon read failed")
+			}
+			return
+		}
+
+		ev := p.deserializeRecord(&rec)
+
+		p.mu.Lock()
+		for _, callback := range p.globalCallbacks {
+			go callback(ev)
+		}
+
+		if callbacks, ok := p.netnsCallbacks[ev.NetnsCookie]; ok {
+			for _, callback := range callbacks {
+				go callback(ev)
+			}
+		}
+		p.mu.Unlock()
+	}
+}
+
+func (p *PortMonitor) Close() error {
+	for _, closer := range p.closers {
+		closer.Close()
+	}
+	return nil
+}
+
+func (p *PortMonitor) attachOneCgLocked(typ ebpf.AttachType, prog *ebpf.Program, cgroupPath string) error {
+	l, err := link.AttachCgroup(link.CgroupOptions{
+		Path:    cgroupPath,
+		Attach:  typ,
+		Program: prog,
+	})
+	if err != nil {
+		return fmt.Errorf("attach: %w", err)
+	}
+
+	p.closers = append(p.closers, l)
+	return nil
+}
+
+func (p *PortMonitor) attachOneKretprobeLocked(prog *ebpf.Program, fnName string) error {
+	l, err := link.Kretprobe(fnName, prog, nil)
+	if err != nil {
+		return fmt.Errorf("attach: %w", err)
+	}
+
+	p.closers = append(p.closers, l)
+	return nil
+}
+
+func (p *PortMonitor) AttachCgroup(cgroupPath string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -134,7 +189,14 @@ func (p *Pmon) Attach(cgroupPath string) error {
 		return err
 	}
 
-	err = p.attachOneKretprobeLocked(p.pmonObjs.NfTablesNewrule, "nf_tables_newrule")
+	return nil
+}
+
+func (p *PortMonitor) AttachKretprobe() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	err := p.attachOneKretprobeLocked(p.pmonObjs.NfTablesNewrule, "nf_tables_newrule")
 	if err != nil {
 		return err
 	}
@@ -143,40 +205,140 @@ func (p *Pmon) Attach(cgroupPath string) error {
 		return err
 	}
 
-	reader, err := ringbuf.NewReader(p.pmonObjs.NotifyRing)
-	if err != nil {
-		return fmt.Errorf("create reader: %w", err)
+	return nil
+}
+
+func (p *PortMonitor) addNetns(netnsCookie uint64) error {
+	return p.pmonObjs.NetnsCookies.Put(netnsCookie, zero{})
+}
+
+func (p *PortMonitor) removeNetns(netnsCookie uint64) error {
+	return p.pmonObjs.NetnsCookies.Delete(netnsCookie)
+}
+
+func (p *PortMonitor) registerNetnsInterestLocked(id string, netnsCookie uint64) error {
+	if _, ok := p.netnsCookieInterestedIDs[netnsCookie]; !ok || len(p.netnsCookieInterestedIDs[netnsCookie]) == 0 {
+		// first interest, make a slice and add netns
+		p.netnsCookieInterestedIDs[netnsCookie] = make(map[string]struct{})
+
+		err := p.addNetns(netnsCookie)
+		if err != nil {
+			return err
+		}
 	}
-	p.reader = reader
+	p.netnsCookieInterestedIDs[netnsCookie][id] = struct{}{}
 
 	return nil
 }
 
-func (p *Pmon) deserializeRecord(rec *ringbuf.Record) PmonEvent {
-	ev := PmonEvent{
-		DirtyFlags:  LtypeFlags(rec.RawSample[8]),
-		NetnsCookie: binary.NativeEndian.Uint64(rec.RawSample[0:]),
-	}
-	return ev
+func (p *PortMonitor) RegisterNetnsInterest(id string, netnsCookie uint64) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.registerNetnsInterestLocked(id, netnsCookie)
 }
 
-func (p *Pmon) Monitor(fn func(PmonEvent) error) error {
-	var rec ringbuf.Record
-	for {
-		err := p.reader.ReadInto(&rec)
-		if err != nil {
-			if errors.Is(err, os.ErrClosed) {
-				return nil
-			} else {
-				return fmt.Errorf("read: %w", err)
-			}
-		}
+func (p *PortMonitor) deregisterNetnsInterest(id string, netnsCookie uint64) error {
+	interested, ok := p.netnsCookieInterestedIDs[netnsCookie]
+	if !ok {
+		return fmt.Errorf("interest for netns cookie not found: %v", netnsCookie)
+	}
 
-		ev := p.deserializeRecord(&rec)
+	delete(interested, id)
 
-		err = fn(ev)
+	if len(interested) == 0 {
+		delete(p.netnsCookieInterestedIDs, netnsCookie)
+		return p.removeNetns(netnsCookie)
+	} else {
+		return nil
+	}
+}
+
+func (p *PortMonitor) DeregisterNetnsInterest(id string, netnsCookie uint64) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.deregisterNetnsInterest(id, netnsCookie)
+}
+
+func (p *PortMonitor) AddCallback(id string, netnsCookie uint64, fn func(PortMonitorEvent)) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if _, ok := p.netnsCallbacksCookies[id]; ok {
+		return fmt.Errorf("callback already exists: %v", id)
+	}
+	p.netnsCallbacksCookies[id] = netnsCookie
+
+	if _, ok := p.netnsCallbacks[netnsCookie]; !ok {
+		p.netnsCallbacks[netnsCookie] = make(map[string]func(PortMonitorEvent))
+	}
+	p.netnsCallbacks[netnsCookie][id] = fn
+
+	return p.registerNetnsInterestLocked(id, netnsCookie)
+}
+
+func (p *PortMonitor) RemoveCallback(id string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	netnsCookie, ok := p.netnsCallbacksCookies[id]
+	if !ok {
+		return fmt.Errorf("callback not found: %v", id)
+	}
+	delete(p.netnsCallbacksCookies, id)
+
+	delete(p.netnsCallbacks[netnsCookie], id)
+	if len(p.netnsCallbacks[netnsCookie]) == 0 {
+		delete(p.netnsCallbacks, netnsCookie)
+	}
+
+	return p.deregisterNetnsInterest(id, netnsCookie)
+}
+
+func (p *PortMonitor) ClearCallbacks(netnsCookie uint64) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for id := range p.netnsCallbacks[netnsCookie] {
+		err := p.deregisterNetnsInterest(id, netnsCookie)
 		if err != nil {
-			logrus.WithError(err).Error("pmon callback failed")
+			return err
 		}
 	}
+
+	delete(p.netnsCallbacks, netnsCookie)
+
+	return nil
+}
+
+func (p *PortMonitor) AddGlobalCallback(id string, fn func(PortMonitorEvent)) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if _, ok := p.globalCallbacks[id]; ok {
+		return fmt.Errorf("callback already exists: %v", id)
+	}
+	p.globalCallbacks[id] = fn
+
+	return nil
+}
+
+func (p *PortMonitor) RemoveGlobalCallback(id string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if _, ok := p.globalCallbacks[id]; !ok {
+		return fmt.Errorf("callback not found: %v", id)
+	}
+	delete(p.globalCallbacks, id)
+
+	return nil
+}
+
+func (p *PortMonitor) ClearGlobalCallbacks() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.globalCallbacks = make(map[string]func(PortMonitorEvent))
 }

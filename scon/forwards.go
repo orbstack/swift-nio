@@ -549,7 +549,7 @@ func (c *Container) updateListenersNow() error {
 	return errors.Join(errs...)
 }
 
-func (c *Container) triggerListenersUpdate(dirtyFlags bpf.LtypeFlags) {
+func (c *Container) triggerListenersUpdate(dirtyFlags bpf.ListenerTypeFlags) {
 	syncx.AtomicOrUint32(&c.fwdDirtyFlags, uint32(dirtyFlags))
 	c.autofwdDebounce.Call()
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/nftables"
+	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
@@ -58,6 +59,8 @@ type Network struct {
 	nftablesMu  syncx.Mutex
 	nftForwards map[sysnet.ListenerKey]nftablesForwardMeta
 	nftBlocks   map[netip.Prefix]struct{}
+
+	portMonitor *bpf.PortMonitor
 
 	hostClient *hclient.Client
 }
@@ -180,6 +183,12 @@ func (n *Network) Start() error {
 	if err != nil {
 		return fmt.Errorf("add k8s forward: %w", err)
 	}
+
+	n.portMonitor, err = bpf.NewPmon()
+	if err != nil {
+		return fmt.Errorf("new pmon: %w", err)
+	}
+	n.portMonitor.AttachKretprobe()
 
 	// start mDNS server
 	logrus.Debug("starting mDNS server")

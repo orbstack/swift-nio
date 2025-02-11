@@ -10,7 +10,6 @@ import (
 	"net/netip"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,13 +23,11 @@ import (
 	"github.com/orbstack/macvirt/scon/templates"
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util/netx"
-	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 )
 
 // in the future we should add machines using container.IPAddresses() on .orb.local
@@ -275,6 +272,11 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		return nil
 	})
 
+	err = r.manager.net.portMonitor.AddGlobalCallback("mdns_domainproxy", r.refreshHostListeners)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -454,6 +456,89 @@ func mapToNat64(ip4 net.IP) net.IP {
 	return ip6[:]
 }
 
+// string so gofmt doesn't complain about capital
+func validateName(name string) (bool, string) {
+	if !strings.HasSuffix(name, ".local.") {
+		return false, "Must end with .local"
+	}
+	parts := strings.Split(name, ".")
+	for i, part := range parts {
+		if len(part) > 63 {
+			return false, "Each component must be under 63 characters"
+		}
+		// last part can be empty
+		if len(part) == 0 && i != len(parts)-1 {
+			return false, "Empty component"
+		}
+	}
+	if len(name) > 255 {
+		return false, "Must be under 255 characters"
+	}
+	return true, ""
+}
+
+// flush cache of all reused names that were queried
+// must record queries because of wildcards: we don't know what wildcard subdomains the user may have queried
+// and to prevent overflowing MTU, don't flush every possible name/alias unless it was actually used
+func (r *mdnsRegistry) flushReusedCache() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.server == nil {
+		return
+	}
+
+	// send cache flush: prepopulate cache with new reused names
+	// no point in checking if IPs changed - we're just updating cache with the same values
+	flushRecords := make([]dns.RR, 0, len(r.pendingFlushes))
+	for qName := range r.pendingFlushes {
+		// easy to get correct new records by just querying again
+		// note: macOS doesn't respect NSEC flush to indicate "no longer exists"
+		qRecords := r.getRecordsLocked(dns.Question{
+			Name:   qName,
+			Qtype:  dns.TypeANY,
+			Qclass: dns.ClassINET,
+		}, true, true)
+		flushRecords = append(flushRecords, qRecords...)
+	}
+	if len(flushRecords) > 0 {
+		if verboseDebug {
+			logrus.WithField("records", flushRecords).Debug("dns: sending cache flush")
+		}
+
+		// careful: if any records are invalid, this will fail with rrdata error
+		// but it's ok: cache flushing is based on queried records.
+		// if a name is invalid (>63 component / >255), it's not possible to query it
+		// TODO: for LAN mDNS, call r.host.MdnsSendCacheFlush RPC to send to LAN
+		err := r.server.SendCacheFlush(flushRecords)
+		if err != nil {
+			logrus.WithError(err).Error("failed to flush cache")
+		}
+	}
+
+	// GC: remove records with expired TTL
+	// this is OK from VM's monotonic time perspective, because VM time will never advance faster than host
+	now := time.Now()
+	for qName, qInfo := range r.recentQueries {
+		if now.After(qInfo.ExpiresAt) {
+			delete(r.recentQueries, qName)
+		}
+	}
+
+	// reset pending flushes
+	clear(r.pendingFlushes)
+}
+
+func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) {
+	for qName, qInfo := range r.recentQueries {
+		if now.Before(qInfo.ExpiresAt) && strings.HasSuffix(qName, changedName) {
+			// too hard to figure out what the new records should be at this point, so just use the query code path
+			r.pendingFlushes[qName] = struct{}{}
+			r.cacheFlushDebounce.Call()
+		}
+	}
+}
+
 func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin, notifyInvalid bool) []dnsName {
 	// (3) short ID, names, compose: service.project
 	// full ID is too long for DNS: it's 64 chars, max is 63 per component
@@ -580,161 +665,19 @@ func dnsNamesToStrings(names []dnsName) []string {
 	return strings
 }
 
-// string so gofmt doesn't complain about capital
-func validateName(name string) (bool, string) {
-	if !strings.HasSuffix(name, ".local.") {
-		return false, "Must end with .local"
-	}
-	parts := strings.Split(name, ".")
-	for i, part := range parts {
-		if len(part) > 63 {
-			return false, "Each component must be under 63 characters"
-		}
-		// last part can be empty
-		if len(part) == 0 && i != len(parts)-1 {
-			return false, "Empty component"
-		}
-	}
-	if len(name) > 255 {
-		return false, "Must be under 255 characters"
-	}
-	return true, ""
-}
-
-func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
-	var ip4 net.IP
-	var ip6 net.IP
-	for _, netSettings := range ctr.NetworkSettings.Networks {
-		if ip4 == nil {
-			ip4 = net.ParseIP(netSettings.IPAddress)
-		}
-
-		if ip6 == nil {
-			ip6 = net.ParseIP(netSettings.GlobalIPv6Address)
-		}
-
-		if ip4 != nil && ip6 != nil {
-			break
-		}
-	}
-
-	return ip4, ip6
-}
-
-// flush cache of all reused names that were queried
-// must record queries because of wildcards: we don't know what wildcard subdomains the user may have queried
-// and to prevent overflowing MTU, don't flush every possible name/alias unless it was actually used
-func (r *mdnsRegistry) flushReusedCache() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.server == nil {
-		return
-	}
-
-	// send cache flush: prepopulate cache with new reused names
-	// no point in checking if IPs changed - we're just updating cache with the same values
-	flushRecords := make([]dns.RR, 0, len(r.pendingFlushes))
-	for qName := range r.pendingFlushes {
-		// easy to get correct new records by just querying again
-		// note: macOS doesn't respect NSEC flush to indicate "no longer exists"
-		qRecords := r.getRecordsLocked(dns.Question{
-			Name:   qName,
-			Qtype:  dns.TypeANY,
-			Qclass: dns.ClassINET,
-		}, true, true)
-		flushRecords = append(flushRecords, qRecords...)
-	}
-	if len(flushRecords) > 0 {
-		if verboseDebug {
-			logrus.WithField("records", flushRecords).Debug("dns: sending cache flush")
-		}
-
-		// careful: if any records are invalid, this will fail with rrdata error
-		// but it's ok: cache flushing is based on queried records.
-		// if a name is invalid (>63 component / >255), it's not possible to query it
-		// TODO: for LAN mDNS, call r.host.MdnsSendCacheFlush RPC to send to LAN
-		err := r.server.SendCacheFlush(flushRecords)
-		if err != nil {
-			logrus.WithError(err).Error("failed to flush cache")
-		}
-	}
-
-	// GC: remove records with expired TTL
-	// this is OK from VM's monotonic time perspective, because VM time will never advance faster than host
-	now := time.Now()
-	for qName, qInfo := range r.recentQueries {
-		if now.After(qInfo.ExpiresAt) {
-			delete(r.recentQueries, qName)
-		}
-	}
-
-	// reset pending flushes
-	clear(r.pendingFlushes)
-}
-
-func (r *mdnsRegistry) maybeFlushCacheLocked(now time.Time, changedName string) {
-	for qName, qInfo := range r.recentQueries {
-		if now.Before(qInfo.ExpiresAt) && strings.HasSuffix(qName, changedName) {
-			// too hard to figure out what the new records should be at this point, so just use the query code path
-			r.pendingFlushes[qName] = struct{}{}
-			r.cacheFlushDebounce.Call()
-		}
-	}
-}
-
 // returns upstream ips
-func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDirfd *os.File) (net.IP, net.IP) {
+func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDirfd *os.File) {
 	names := r.containerToMdnsNames(ctr, true /*notifyInvalid*/)
 	nameStrings := dnsNamesToStrings(names)
-	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeDocker, ID: ctr.ID}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	hostState := &domainproxyHostState{}
-	r.domainproxy.hostState[domainproxyHost] = hostState
-
-	if procDirfd != nil {
-		hostState.procDirfd = procDirfd
-
-		netnsCookie, err := sysnet.WithNetnsProcDirfdFile(procDirfd, func() (uint64, error) {
-			return sysnet.GetNetnsCookie()
-		})
-		if err == nil {
-			hostState.netnsCookie = netnsCookie
-			hostState.hasNetnsCookie = true
-			r.domainproxy.netnsCookieToHosts[netnsCookie] = append(r.domainproxy.netnsCookieToHosts[netnsCookie], domainproxyHost)
-		} else {
-			logrus.WithError(err).Error("failed to get netns cookie")
-		}
-	}
-
-	ctrIP4, ctrIP6 := containerToMdnsIPs(ctr)
-	var ip4 net.IP
-	var ip6 net.IP
-	// we're protected by the mdnsRegistry mutex
-	if ctrIP4 != nil {
-		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v4, domainproxytypes.NewUpstream(nameStrings, ctrIP4, domainproxyHost))
-		if err != nil {
-			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip4 for DNS")
-		} else {
-			ip4 = ip.AsSlice()
-		}
-	}
-	if ctrIP6 != nil {
-		ip, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.NewUpstream(nameStrings, ctrIP6, domainproxyHost))
-		if err != nil {
-			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip6 for DNS")
-		} else {
-			ip6 = ip.AsSlice()
-		}
-	}
-
+	ip4, ip6 := r.domainproxy.addContainerLocked(ctr, procDirfd, nameStrings)
 	logrus.WithFields(logrus.Fields{
-		"names": names,
 		"ip4":   ip4,
 		"ip6":   ip6,
+		"names": nameStrings,
 	}).Debug("dns: add container")
 
 	// we still *add* records if empty IPs (i.e. no netns, like k8s pods) to give them immediate NXDOMAIN in case people do $CONTAINER.orb.local, but hide them to avoid cluttering index
@@ -772,8 +715,6 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDi
 		// need to flush any caches? what names were we queried under? (wildcard)
 		r.maybeFlushCacheLocked(now, name.Name)
 	}
-
-	return ctrIP4, ctrIP6
 }
 
 func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
@@ -789,6 +730,8 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 
 	if hostState, ok := r.domainproxy.hostState[domainproxyHost]; ok && hostState.hasNetnsCookie {
 		if _, ok := r.domainproxy.netnsCookieToHosts[hostState.netnsCookie]; ok {
+			r.manager.net.portMonitor.DeregisterNetnsInterest("mdns_domainproxy", hostState.netnsCookie)
+
 			r.domainproxy.netnsCookieToHosts[hostState.netnsCookie] = slices.DeleteFunc(r.domainproxy.netnsCookieToHosts[hostState.netnsCookie], func(h domainproxytypes.Host) bool {
 				return h == domainproxyHost
 			})
@@ -820,35 +763,14 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 func (r *mdnsRegistry) AddMachine(c *Container) {
 	name := c.Name + mdnsMachineSuffix
 	logrus.WithField("name", name).Debug("dns: add machine")
-	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	hostState := &domainproxyHostState{}
-	r.domainproxy.hostState[domainproxyHost] = hostState
-
-	procPath := "/proc/" + strconv.Itoa(c.initPid)
-	procDirfdInt, err := unix.Open(procPath, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_DIRECTORY, 0)
-	if err == nil {
-		procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
-		hostState.procDirfd = procDirfd
-
-		netnsCookie, err := sysnet.WithNetnsProcDirfdFile(procDirfd, func() (uint64, error) {
-			return sysnet.GetNetnsCookie()
-		})
-		if err == nil {
-			hostState.netnsCookie = netnsCookie
-			hostState.hasNetnsCookie = true
-			r.domainproxy.netnsCookieToHosts[netnsCookie] = append(r.domainproxy.netnsCookieToHosts[netnsCookie], domainproxyHost)
-			if c.ID == ContainerIDDocker {
-				r.domainproxy.netnsCookieToHosts[netnsCookie] = append(r.domainproxy.netnsCookieToHosts[netnsCookie], domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s})
-			}
-		} else {
-			logrus.WithError(err).Error("failed to get netns cookie")
-		}
-	} else {
-		logrus.WithError(err).WithField("procPath", procPath).Error("failed to open proc dirfd")
+	err := r.domainproxy.addMachineLocked(c)
+	if err != nil {
+		logrus.WithError(err).Error("failed to add machine to domainproxy")
+		return
 	}
 
 	// we don't validate these b/c it's not under the user's control
@@ -885,27 +807,18 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 
 func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	name := c.Name + mdnsMachineSuffix
-	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID}
 	logrus.WithFields(logrus.Fields{
 		"name": name,
-		"host": domainproxyHost,
 	}).Debug("dns: remove machine")
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if hostState, ok := r.domainproxy.hostState[domainproxyHost]; ok && hostState.hasNetnsCookie {
-		if _, ok := r.domainproxy.netnsCookieToHosts[hostState.netnsCookie]; ok {
-			r.domainproxy.netnsCookieToHosts[hostState.netnsCookie] = slices.DeleteFunc(r.domainproxy.netnsCookieToHosts[hostState.netnsCookie], func(h domainproxytypes.Host) bool {
-				return h == domainproxyHost
-			})
-			if len(r.domainproxy.netnsCookieToHosts[hostState.netnsCookie]) == 0 {
-				delete(r.domainproxy.netnsCookieToHosts, hostState.netnsCookie)
-			}
-		}
+	err := r.domainproxy.removeMachineLocked(c)
+	if err != nil {
+		logrus.WithError(err).Error("failed to remove machine from domainproxy")
+		return
 	}
-
-	r.domainproxy.freeHostLocked(domainproxyHost)
 
 	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
 	treeKey := toTreeKey(name)
@@ -1239,11 +1152,11 @@ func (r *mdnsRegistry) updateDomainTLSProxyNftables(locked bool, enabled bool) e
 	return r.domainproxy.updateTLSProxyNftablesLocked(enabled)
 }
 
-func (r *mdnsRegistry) refreshHostListeners(c *Container, dirtyFlags bpf.LtypeFlags, netnsCookie uint64) {
+func (r *mdnsRegistry) refreshHostListeners(ev bpf.PortMonitorEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.domainproxy.refreshHostListenersLocked(c, dirtyFlags, netnsCookie)
+	r.domainproxy.refreshHostListenersLocked(ev)
 }
 
 func (r *mdnsRegistry) dockerPostStart() error {

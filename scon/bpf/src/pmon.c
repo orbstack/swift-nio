@@ -78,8 +78,6 @@ static const __be32 UNSPEC_IP6[4] = IP6(0, 0, 0, 0, 0, 0, 0, 0);
 
 #define UDP_BIND_DEBOUNCE 20 // ms
 
-const volatile __u64 config_netns_cookie = 0;
-
 #define copy4(dst, src) \
     dst[0] = src[0]; \
     dst[1] = src[1]; \
@@ -138,9 +136,21 @@ struct {
     __uint(max_entries, 16384); // min = page size, so be conservative
 } notify_ring SEC(".maps");
 
+struct zero {
+    __u8 unused;
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+    __uint(max_entries, 65536);
+    __type(key, __u64);
+    __type(value, struct zero);
+} netns_cookies SEC(".maps");
+
 static bool check_netns(__u64 netns_cookie) {
-    if (config_netns_cookie != 0 && config_netns_cookie != netns_cookie) {
-        bpf_printk("not intended netns tgt=%llu cur=%llu", config_netns_cookie, netns_cookie);
+    if (bpf_map_lookup_elem(&netns_cookies, &netns_cookie) == NULL) {
+        bpf_printk("not whitelisted netns: netns_cookie=%llu", netns_cookie);
         return false;
     }
 
@@ -415,7 +425,7 @@ static int nft_change_common(struct pt_regs *ctx) {
 
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     __u64 netns_cookie = BPF_CORE_READ(task, nsproxy, net_ns, net_cookie);
-    bpf_printk("config_netns_cookie: %llu; netns_cookie: %llu", config_netns_cookie, netns_cookie);
+    bpf_printk("nftables update: netns_cookie=%llu", netns_cookie);
 
     if (!check_netns(netns_cookie)) {
         return 0;

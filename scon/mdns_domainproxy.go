@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/google/nftables"
@@ -14,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
+	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -479,19 +482,6 @@ func (d *domainproxyRegistry) freeHostLocked(host domainproxytypes.Host) {
 	}
 }
 
-func (d *domainproxyRegistry) invalidateHostProbeLocked(host domainproxytypes.Host) {
-	if ip, ok := d.v4.hostMap[host]; ok {
-		d.invalidateAddrProbeLocked(ip)
-	} else {
-		logrus.WithField("host", host).Debug("no ipv4 found for host to invalidate")
-	}
-	if ip, ok := d.v6.hostMap[host]; ok {
-		d.invalidateAddrProbeLocked(ip)
-	} else {
-		logrus.WithField("host", host).Debug("no ipv6 found for host to invalidate")
-	}
-}
-
 func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, machine *Container) (net.IP, net.IP) {
 	var ip4 net.IP
 	var ip6 net.IP
@@ -527,6 +517,149 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 	return ip4, ip6
 }
 
+func (d *domainproxyRegistry) setHostStateLocked(host domainproxytypes.Host, procDirfd *os.File) error {
+	hostState := &domainproxyHostState{}
+	d.hostState[host] = hostState
+
+	hostState.procDirfd = procDirfd
+
+	netnsCookie, err := sysnet.WithNetnsProcDirfdFile(procDirfd, func() (uint64, error) {
+		return sysnet.GetNetnsCookie()
+	})
+	if err != nil {
+		return fmt.Errorf("get netns cookie: %w", err)
+	}
+
+	hostState.netnsCookie = netnsCookie
+	hostState.hasNetnsCookie = true
+	d.netnsCookieToHosts[netnsCookie] = append(d.netnsCookieToHosts[netnsCookie], host)
+
+	if host.Type == domainproxytypes.HostTypeMachine && host.ID == ContainerIDDocker {
+		d.netnsCookieToHosts[netnsCookie] = append(d.netnsCookieToHosts[netnsCookie], domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s})
+	}
+
+	d.r.manager.net.portMonitor.RegisterNetnsInterest("mdns_domainproxy", netnsCookie)
+
+	return nil
+}
+
+func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
+	var ip4 net.IP
+	var ip6 net.IP
+	for _, netSettings := range ctr.NetworkSettings.Networks {
+		if ip4 == nil {
+			ip4 = net.ParseIP(netSettings.IPAddress)
+		}
+
+		if ip6 == nil {
+			ip6 = net.ParseIP(netSettings.GlobalIPv6Address)
+		}
+
+		if ip4 != nil && ip6 != nil {
+			break
+		}
+	}
+
+	return ip4, ip6
+}
+
+func (d *domainproxyRegistry) addContainerLocked(ctr *dockertypes.ContainerSummaryMin, procDirfd *os.File, nameStrings []string) (net.IP, net.IP) {
+	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeDocker, ID: ctr.ID}
+
+	hostState := &domainproxyHostState{}
+	d.hostState[domainproxyHost] = hostState
+
+	if procDirfd != nil {
+		err := d.setHostStateLocked(domainproxyHost, procDirfd)
+		if err != nil {
+			logrus.WithError(err).Error("failed to set host state while adding docker container to domainproxy")
+		}
+	}
+
+	ctrIP4, ctrIP6 := containerToMdnsIPs(ctr)
+	var ip4 net.IP
+	var ip6 net.IP
+	// we're protected by the mdnsRegistry mutex
+	if ctrIP4 != nil {
+		ip, err := d.assignUpstreamLocked(d.v4, domainproxytypes.NewUpstream(nameStrings, ctrIP4, domainproxyHost))
+		if err != nil {
+			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip4 for DNS")
+		} else {
+			ip4 = ip.AsSlice()
+		}
+	}
+	if ctrIP6 != nil {
+		ip, err := d.assignUpstreamLocked(d.v6, domainproxytypes.NewUpstream(nameStrings, ctrIP6, domainproxyHost))
+		if err != nil {
+			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip6 for DNS")
+		} else {
+			ip6 = ip.AsSlice()
+		}
+	}
+
+	return ip4, ip6
+}
+
+func (d *domainproxyRegistry) addMachineLocked(c *Container) error {
+	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID}
+
+	procPath := "/proc/" + strconv.Itoa(c.initPid)
+	procDirfdInt, err := unix.Open(procPath, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_DIRECTORY, 0)
+	if err != nil {
+		return fmt.Errorf("open proc dirfd: %w", err)
+	}
+
+	procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
+
+	err = d.setHostStateLocked(domainproxyHost, procDirfd)
+
+	return nil
+}
+
+func (d *domainproxyRegistry) removeMachineLocked(c *Container) error {
+	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID}
+
+	if hostState, ok := d.hostState[domainproxyHost]; ok && hostState.hasNetnsCookie {
+		if _, ok := d.netnsCookieToHosts[hostState.netnsCookie]; ok {
+			d.r.manager.net.portMonitor.DeregisterNetnsInterest("mdns_domainproxy", hostState.netnsCookie)
+
+			d.netnsCookieToHosts[hostState.netnsCookie] = slices.DeleteFunc(d.netnsCookieToHosts[hostState.netnsCookie], func(h domainproxytypes.Host) bool {
+				return h == domainproxyHost
+			})
+			if len(d.netnsCookieToHosts[hostState.netnsCookie]) == 0 {
+				delete(d.netnsCookieToHosts, hostState.netnsCookie)
+			}
+		}
+	}
+
+	d.freeHostLocked(domainproxyHost)
+
+	return nil
+}
+
+func (d *domainproxyRegistry) invalidateHostProbeLocked(host domainproxytypes.Host) {
+	if ip, ok := d.v4.hostMap[host]; ok {
+		d.invalidateAddrProbeLocked(ip)
+	} else {
+		logrus.WithField("host", host).Debug("no ipv4 found for host to invalidate")
+	}
+	if ip, ok := d.v6.hostMap[host]; ok {
+		d.invalidateAddrProbeLocked(ip)
+	} else {
+		logrus.WithField("host", host).Debug("no ipv6 found for host to invalidate")
+	}
+}
+
+func (d *domainproxyRegistry) refreshHostListenersLocked(ev bpf.PortMonitorEvent) {
+	for _, host := range d.netnsCookieToHosts[ev.NetnsCookie] {
+		logrus.WithFields(logrus.Fields{
+			"host":        host,
+			"netnsCookie": ev.NetnsCookie,
+		}).Debug("refreshing host listeners")
+		d.invalidateHostProbeLocked(host)
+	}
+}
+
 func (d *domainproxyRegistry) updateTLSProxyNftablesLocked(enabled bool) error {
 	var err error
 	if !d.domainTLSProxyActive && enabled {
@@ -543,23 +676,6 @@ func (d *domainproxyRegistry) updateTLSProxyNftablesLocked(enabled bool) error {
 
 	d.domainTLSProxyActive = enabled
 	return nil
-}
-
-func (d *domainproxyRegistry) refreshHostListenersLocked(c *Container, dirtyFlags bpf.LtypeFlags, netnsCookie uint64) {
-	logrus.WithFields(logrus.Fields{
-		"dirtyFlags":  dirtyFlags,
-		"netnsCookie": netnsCookie,
-	}).Debug("refreshing host listeners")
-
-	// this is technically incorrect behavior. we should be invalidating the docker machine every single time a port in a docker container changes, since we don't know what's forwarded, but that would be bad and slow so we don't do that.
-	if c.ID == ContainerIDDocker {
-		// docker machine doesn't filter netns cookie in bpf, so we use the netnsCookieToHost map to translate the netnsCookie to the right docker container / the docker machine
-		for _, host := range d.netnsCookieToHosts[netnsCookie] {
-			d.invalidateHostProbeLocked(host)
-		}
-	} else {
-		d.invalidateHostProbeLocked(domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID})
-	}
 }
 
 func setupDomainProxyInterface() error {

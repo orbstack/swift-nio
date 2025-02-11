@@ -146,6 +146,7 @@ func (c *Container) onStopLocked() error {
 		}
 		c.bpf = nil
 	}
+	c.manager.net.portMonitor.RemoveCallback(c.ID)
 
 	// discard init pid
 	if c.initPidFile != nil {

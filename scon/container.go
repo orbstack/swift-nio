@@ -79,7 +79,6 @@ type Container struct {
 	fwdDirtyFlags     uint32
 	agent             atomic.Pointer[agent.Client]
 	bpf               *bpf.ContainerBpfManager
-	pmon              *bpf.Pmon
 	ipAddrsMu         syncx.Mutex
 	ipAddrs           []net.IP
 	initPid           int

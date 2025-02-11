@@ -1002,32 +1002,13 @@ func (c *Container) attachBpf(initPid int) error {
 	}
 	c.bpf = bpfMgr
 
-	// attach pmon
-	pmonNetnsCookie := netnsCookie
-	if c.ID == ContainerIDDocker {
-		// get notifications from all netns for docker
-		pmonNetnsCookie = 0
-	}
-
-	pmon, err := bpf.NewPmon(pmonNetnsCookie)
-	if err != nil {
-		return fmt.Errorf("new pmon: %w", err)
-	}
-
-	err = pmon.Attach(cgPath)
-	if err != nil {
-		return fmt.Errorf("attach pmon: %w", err)
-	}
-	c.pmon = pmon
-
-	go runOne("pmon monitor for "+c.Name, func() error {
-		return pmon.Monitor(func(ev bpf.PmonEvent) error {
-			c.manager.net.mdnsRegistry.refreshHostListeners(c, ev.DirtyFlags, ev.NetnsCookie)
-
-			c.triggerListenersUpdate(ev.DirtyFlags)
-			return nil
-		})
+	c.manager.net.portMonitor.AddCallback(c.ID, netnsCookie, func(ev bpf.PortMonitorEvent) {
+		c.triggerListenersUpdate(ev.DirtyFlags)
 	})
+	err = c.manager.net.portMonitor.AttachCgroup(cgPath)
+	if err != nil {
+		return fmt.Errorf("attach cgroup: %w", err)
+	}
 
 	// attach lfwd for docker
 	if c.ID == ContainerIDDocker {
@@ -1075,7 +1056,7 @@ func (c *Container) postStartAsync(a *agent.Client) error {
 	}
 
 	// kick listener update in case we missed any before agent start
-	c.triggerListenersUpdate(bpf.LtypeAll)
+	c.triggerListenersUpdate(bpf.ListenerTypeAll)
 
 	// get agent's pidfd
 	err = a.MonitorAgentPidFd()
