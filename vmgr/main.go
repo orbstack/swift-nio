@@ -90,7 +90,7 @@ var badMacOS15Betas = []string{
 	"24A5298h", // 15.0 beta 4
 }
 
-var errDataPermission = errors.New(`Permission denied while opening data image. This is usually caused by Migration Assistant changing its owner to root. To fix it, run: "sudo chown -R $USER ~/.orbstack/data"`)
+var errDataPermission = errors.New(`Permission denied while opening data image. This is usually caused by Migration Assistant changing its owner to root. To fix it, run: "sudo chown -R $USER ~/Library/Group\ Containers/HUAQ24HBR6.dev.orbstack/data"`)
 
 // stronger than "defer runtime.KeepAlive": this even survives GC at program exit
 var keepAliveLockFile *os.File
