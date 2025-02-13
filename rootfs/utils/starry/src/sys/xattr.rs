@@ -89,7 +89,7 @@ pub fn for_each_flistxattr<F: AsRawFd>(
 ) -> nix::Result<()> {
     read_xattr_data(
         |buf, size| {
-            let ret = unsafe { libc::flistxattr(fd.as_raw_fd(), buf, size) };
+            let ret = unsafe { libc::flistxattr(fd.as_raw_fd(), buf as *mut _, size) };
             Errno::result(ret)
         },
         |data| {
@@ -109,7 +109,7 @@ pub fn for_each_llistxattr<P: NixPath + ?Sized>(
     path.with_nix_path(|path| {
         read_xattr_data(
             |buf, size| {
-                let ret = unsafe { libc::llistxattr(path.as_ptr(), buf, size) };
+                let ret = unsafe { libc::llistxattr(path.as_ptr(), buf as *mut _, size) };
                 Errno::result(ret)
             },
             |data| {
