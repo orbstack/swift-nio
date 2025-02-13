@@ -240,7 +240,7 @@ impl<'a> CopyContext<'a> {
 
         // create dest
         let src_perm = src.permissions();
-        let dest_fd = match src.file_type {
+        let new_fd = match src.file_type {
             // simple device types
             FileType::Fifo => {
                 mkfifoat(Some(dest_dirfd.as_raw_fd()), entry.name, src_perm).context("mkfifoat")?;
@@ -334,21 +334,21 @@ impl<'a> CopyContext<'a> {
         // must do this before immutable/append-only flags are set
         // also, must do this before metadata is copied, otherwise we'll break the mtime
         if src.file_type == FileType::Regular {
-            copy_regular_file_contents(&src, src.fd.as_ref().unwrap(), dest_fd.as_ref().unwrap())?;
+            copy_regular_file_contents(&src, src.fd.as_ref().unwrap(), new_fd.as_ref().unwrap())?;
         }
 
         // recurse into directories
         if src.file_type == FileType::Directory {
             let src_dirfd = src.fd.as_ref().unwrap();
             self.recurser.walk_dir(src_dirfd, |entry| {
-                self.do_one_entry(src_dirfd, dest_dirfd, entry)
+                self.do_one_entry(src_dirfd, new_fd.as_ref().unwrap(), entry)
             })?;
         }
 
         // metadata: uid/gid, atime/mtime, xattrs, inode flags
         // must be after copying contents/children, because that updates mtime
         // (and we can't copy files into a directory that's marked immutable, or a dir with no owner write perms)
-        if let Some(ref fd) = dest_fd {
+        if let Some(ref fd) = new_fd {
             // we have an open fd; use it for perf
             self.copy_metadata_to_fd(&src, fd)?;
         } else {
@@ -359,7 +359,7 @@ impl<'a> CopyContext<'a> {
 
         // close_range for src and dest dir fds
         if let Some(src_fd) = src.fd {
-            if let Some(dest_fd) = dest_fd {
+            if let Some(dest_fd) = new_fd {
                 close_fds(src_fd, dest_fd);
             }
         }
