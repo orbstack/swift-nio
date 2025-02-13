@@ -26,7 +26,6 @@ import (
 	"github.com/orbstack/macvirt/scon/util/portprober"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
-	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -331,23 +330,6 @@ type upstreamConnInfo struct {
 	Probed   probedHost
 }
 
-func (p *DomainTLSProxy) passthroughConn(dialer *net.Dialer, conn net.Conn, info upstreamConnInfo) error {
-	host := info.Upstream.IP.String()
-	port := strconv.Itoa(int(info.Probed.HTTPSPort))
-	dialer.Timeout = httpsDialTimeout
-	passthroughConn, err := dialer.Dial("tcp", net.JoinHostPort(host, port))
-	if err != nil {
-		// if we can't dial, we wouldn't be able to reterm anyways, so just error
-		return fmt.Errorf("dial upstream: %w", err)
-	}
-
-	defer passthroughConn.Close()
-	defer conn.Close()
-	tcppump.Pump2SpTcpTcp(conn.(*net.TCPConn), passthroughConn.(*net.TCPConn))
-
-	return nil
-}
-
 func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr error) {
 	defer func() {
 		if retErr != nil {
@@ -388,20 +370,12 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 		return nil, nil
 	}
 
-	info := upstreamConnInfo{
-		Upstream: upstream,
-		Probed:   probed,
-	}
-
-	// passthrough the connection if it's not from mac and the upstream supports https
-	// in other words, only do reterm if request comes from mac
-	if probed.PreferredIsHTTPS() && !downstreamIP.Equal(sconHostBridgeIP4) && !downstreamIP.Equal(sconHostBridgeIP6) && !downstreamIP.Equal(nat64SourceIp4) {
-		return nil, p.passthroughConn(dialer, conn, info)
-	}
-
 	data := connData{
-		Dialer:           dialer,
-		UpstreamConnInfo: info,
+		Dialer: dialer,
+		UpstreamConnInfo: upstreamConnInfo{
+			Upstream: upstream,
+			Probed:   probed,
+		},
 	}
 	newConn := util.NewDataConn(conn.(*net.TCPConn), data)
 
