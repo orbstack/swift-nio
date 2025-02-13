@@ -130,25 +130,25 @@ type InternalDockerMigrationSyncDirsRequest struct {
 }
 
 type ContainerCloneRequest struct {
-	ContainerKey string `json:"container"`
+	ContainerKey string `json:"container_key"`
 	NewName      string `json:"new_name"`
 }
 
 type ContainerRenameRequest struct {
-	ContainerKey string `json:"container"`
+	ContainerKey string `json:"container_key"`
 	NewName      string `json:"new_name"`
 }
 
 type ContainerSetConfigRequest struct {
-	ContainerKey string        `json:"container"`
+	ContainerKey string        `json:"container_key"`
 	Config       MachineConfig `json:"config"`
 }
 
 type ContainerExportRequest struct {
-	ContainerKey string `json:"container"`
+	ContainerKey string `json:"container_key"`
 	HostPath     string `json:"host_path"`
 }
 
 type GenericContainerRequest struct {
-	Key string `json:"key`
+	Key string `json:"key"`
 }
