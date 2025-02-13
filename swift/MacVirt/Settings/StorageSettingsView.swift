@@ -173,6 +173,7 @@ struct StorageSettingsView: View {
         panel.canResolveUbiquitousConflicts = false
         // initial directory
         panel.directoryURL = URL(fileURLWithPath: dataDir ?? Folders.userData)
+        panel.message = "Select data location"
 
         let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
         panel.beginSheetModal(for: window) { result in

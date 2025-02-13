@@ -25,18 +25,17 @@ struct NetworkSettingsView: View {
                     vmModel.trySetConfigKey(\.networkBridge, newValue)
 
                     // restart Docker if running
-                    if newValue != vmModel.config?.networkBridge {
-                        if vmModel.state == .running,
-                            let machines = vmModel.containers,
-                            let dockerMachine = machines.first(where: {
-                                $0.id == ContainerIds.docker
-                            }),
-                            dockerMachine.record.state == .starting
-                                || dockerMachine.record.state == .running
-                        {
-                            Task { @MainActor in
-                                await vmModel.tryRestartContainer(dockerMachine.record)
-                            }
+                    if newValue != vmModel.config?.networkBridge,
+                        vmModel.state == .running,
+                        let machines = vmModel.containers,
+                        let dockerMachine = machines.first(where: {
+                            $0.id == ContainerIds.docker
+                        }),
+                        dockerMachine.record.state == .starting
+                            || dockerMachine.record.state == .running
+                    {
+                        Task { @MainActor in
+                            await vmModel.tryRestartContainer(dockerMachine.record)
                         }
                     }
                 }

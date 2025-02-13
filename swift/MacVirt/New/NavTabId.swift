@@ -22,7 +22,7 @@ extension NavTabId {
             return [.k8sServicesFilter, .searchItem]
 
         case .machines:
-            return [.machinesNew]
+            return [.machinesImport, .machinesNew]
 
         case .cli:
             return [.cliHelp]
@@ -43,6 +43,7 @@ extension NSToolbarItem.Identifier {
     static let k8sPodsFilter = NSToolbarItem.Identifier("k8sPodsFilter")
     static let k8sServicesFilter = NSToolbarItem.Identifier("k8sServicesFilter")
 
+    static let machinesImport = NSToolbarItem.Identifier("machinesImport")
     static let machinesNew = NSToolbarItem.Identifier("machinesNew")
 
     static let cliHelp = NSToolbarItem.Identifier("cliHelp")

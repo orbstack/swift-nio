@@ -4,6 +4,7 @@
 
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
 
 // min 2 chars, disallows hidden files (^.)
 private let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9-.]+$")
@@ -190,6 +191,7 @@ struct CreateContainerView: View {
     private func selectCloudInitFile() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
+        panel.allowedContentTypes = [UTType.yaml]
         panel.canChooseDirectories = false
         panel.canCreateDirectories = false
         panel.message = "Select user data file for Cloud-init setup"

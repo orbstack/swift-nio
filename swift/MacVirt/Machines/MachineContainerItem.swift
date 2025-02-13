@@ -15,6 +15,8 @@ struct MachineContainerItem: View {
         listModel.selection as! Set<String>
     }
 
+    @StateObject private var windowHolder = WindowHolder()
+
     @State private var presentConfirmDelete = false
     @State private var presentClone = false
     @State private var presentRename = false
@@ -132,12 +134,18 @@ struct MachineContainerItem: View {
                         Label("Make Default", systemImage: "star")
                     }
 
+                    Button("Rename") {
+                        self.presentRename = true
+                    }
+
+                    Divider()
+
                     Button("Clone") {
                         self.presentClone = true
                     }
 
-                    Button("Rename") {
-                        self.presentRename = true
+                    Button("Export") {
+                        openExportPanel()
                     }
                 }
 
@@ -187,6 +195,7 @@ struct MachineContainerItem: View {
                 }
             }
         }
+        .background(WindowAccessor(holder: windowHolder))
     }
 
     @MainActor
@@ -253,6 +262,26 @@ struct MachineContainerItem: View {
             return selection
         } else {
             return [record.id]
+        }
+    }
+
+    private func openExportPanel() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(record.name).tar.zst"
+        panel.showsTagField = false
+        panel.message = "Export machine “\(record.name)”"
+
+        let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
+        panel.beginSheetModal(for: window) { result in
+            if result == .OK,
+                let url = panel.url
+            {
+                Task {
+                    await actionTracker.withMachineExport(id: self.record.id) {
+                        await vmModel.tryExportContainer(record, hostPath: url.path)
+                    }
+                }
+            }
         }
     }
 }

@@ -142,6 +142,13 @@ class NewMainViewController: NSViewController {
         return item
     }()
 
+    lazy var machinesImportButton = makeToolbarItem(
+        itemIdentifier: .machinesImport,
+        icon: "square.and.arrow.down",
+        title: "Import Machine",
+        action: #selector(actionMachinesImport)
+    )
+
     lazy var machinesPlusButton = makeToolbarItem(
         itemIdentifier: .machinesNew,
         icon: "plus",

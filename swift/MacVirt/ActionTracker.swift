@@ -68,6 +68,8 @@ class ActionTracker: ObservableObject {
     @Published var ongoingMachineActions: [String: MachineAction] = [:]
     @Published var ongoingK8sActions: [K8SResourceId: K8SResourceAction] = [:]
 
+    @Published var ongoingMachineExports: Set<String> = []
+
     func ongoingFor(_ cid: DockerContainerId) -> DKContainerAction? {
         ongoingDockerContainerActions[cid]
     }
@@ -198,6 +200,17 @@ class ActionTracker: ObservableObject {
     {
         begin(k8s, action: action)
         defer { end(k8s) }
+        try await block()
+    }
+
+    func withMachineExport(id: String, _ block: () async throws -> Void) async rethrows {
+        ongoingMachineExports.insert(id)
+        ongoingMachineExports = ongoingMachineExports
+        defer {
+            ongoingMachineExports.remove(id)
+            ongoingMachineExports = ongoingMachineExports
+        }
+
         try await block()
     }
 }

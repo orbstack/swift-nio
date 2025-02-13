@@ -134,6 +134,10 @@ struct MacVirtApp13: App {
                             vmModel.menuActionRouter.send(.newMachine)
                         }
                         .keyboardShortcut("n")
+                        Button("Import Machine") {
+                            vmModel.menuActionRouter.send(.importMachine)
+                        }
+                        .keyboardShortcut("i")
                     default:
                         EmptyView()
                     }

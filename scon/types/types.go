@@ -90,7 +90,7 @@ type CreateRequest struct {
 }
 
 type ImportContainerFromHostPathRequest struct {
-	NewName  string `json:"new_name"`
+	NewName  string `json:"new_name,omitempty"`
 	HostPath string `json:"host_path"`
 }
 

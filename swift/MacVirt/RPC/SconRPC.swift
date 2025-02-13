@@ -95,6 +95,16 @@ private struct ContainerCloneRequest: Codable {
     var newName: String
 }
 
+private struct ContainerExportRequest: Codable {
+    var containerKey: String
+    var hostPath: String
+}
+
+struct ImportContainerFromHostPathRequest: Codable {
+    var newName: String?
+    var hostPath: String
+}
+
 class SconService {
     private let c: JsonRPCClient
 
@@ -109,6 +119,13 @@ class SconService {
     @discardableResult
     func create(_ req: CreateRequest) async throws -> ContainerRecord {
         return try await c.call("Create", args: req)
+    }
+
+    @discardableResult
+    func importContainerFromHostPath(_ req: ImportContainerFromHostPathRequest) async throws
+        -> ContainerRecord
+    {
+        return try await c.call("ImportContainerFromHostPath", args: req)
     }
 
     func listContainers() async throws -> [ContainerInfo] {
@@ -152,8 +169,13 @@ class SconService {
             "ContainerRename", args: ContainerRenameRequest(containerKey: key, newName: newName))
     }
 
+    func containerExport(_ key: String, hostPath: String) async throws {
+        return try await c.call(
+            "ContainerExportToHostPath",
+            args: ContainerExportRequest(containerKey: key, hostPath: hostPath))
+    }
+
     func containerClone(_ key: String, newName: String) async throws {
-        print("\(ContainerCloneRequest(containerKey: key, newName: newName))")
         try await c.call(
             "ContainerClone", args: ContainerCloneRequest(containerKey: key, newName: newName))
     }

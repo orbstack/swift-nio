@@ -18,6 +18,7 @@ enum MenuActionRouter {
     case newVolume
     case openVolumes
     case openImages
+    case importMachine
     case newMachine
 }
 
@@ -93,6 +94,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case containerCreateError(cause: Error)
     case containerRenameError(cause: Error)
     case containerCloneError(cause: Error)
+    case containerImportError(cause: Error)
+    case containerExportError(cause: Error)
 
     // helper
     case privHelperUninstallError(cause: Error)
@@ -176,6 +179,10 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t rename machine"
         case .containerCloneError:
             return "Can’t clone machine"
+        case .containerImportError:
+            return "Can’t import machine"
+        case .containerExportError:
+            return "Can’t export machine"
 
         case .privHelperUninstallError:
             return "Can’t uninstall helper"
@@ -351,6 +358,10 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case let .containerCloneError(cause):
             return cause
+        case let .containerImportError(cause):
+            return cause
+        case let .containerExportError(cause):
+            return cause
 
         case let .privHelperUninstallError(cause):
             return cause
@@ -501,6 +512,7 @@ class VmViewModel: ObservableObject {
     @Published var presentAddPaths = false
     @Published var presentCreateMachine = false
     @Published var presentCreateVolume = false
+    @Published var presentImportMachine: URL? = nil
     @Published var presentRequiresLicense = false
 
     private var cancellables = Set<AnyCancellable>()
@@ -1087,6 +1099,20 @@ class VmViewModel: ObservableObject {
         }
     }
 
+    func importContainer(url: URL, newName: String?) async throws {
+        try await scon.importContainerFromHostPath(
+            ImportContainerFromHostPathRequest(newName: newName, hostPath: url.path))
+    }
+
+    @MainActor
+    func tryImportContainer(url: URL, newName: String? = nil) async {
+        do {
+            try await importContainer(url: url, newName: newName)
+        } catch {
+            setError(.containerImportError(cause: error))
+        }
+    }
+
     func renameContainer(_ record: ContainerRecord, newName: String) async throws {
         try await scon.containerRename(record.id, newName: newName)
     }
@@ -1110,6 +1136,19 @@ class VmViewModel: ObservableObject {
             try await cloneContainer(record, newName: newName)
         } catch {
             setError(.containerCloneError(cause: error))
+        }
+    }
+
+    func exportContainer(_ record: ContainerRecord, hostPath: String) async throws {
+        try await scon.containerExport(record.id, hostPath: hostPath)
+    }
+
+    @MainActor
+    func tryExportContainer(_ record: ContainerRecord, hostPath: String) async {
+        do {
+            try await exportContainer(record, hostPath: hostPath)
+        } catch {
+            setError(.containerExportError(cause: error))
         }
     }
 

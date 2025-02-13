@@ -8,6 +8,7 @@
 import AppKit
 import Defaults
 import SwiftUI
+import UniformTypeIdentifiers
 
 extension NewMainViewController: NSToolbarDelegate {
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -61,6 +62,8 @@ extension NewMainViewController: NSToolbarDelegate {
         case .k8sServicesFilter:
             return servicesFilterMenu
 
+        case .machinesImport:
+            return machinesImportButton
         case .machinesNew:
             return machinesPlusButton
 
@@ -124,6 +127,25 @@ extension NewMainViewController: NSToolbarDelegate {
 
     @objc func actionMachinesNew(_: NSButton?) {
         model.presentCreateMachine = true
+    }
+
+    @objc func actionMachinesImport(_ toolbarItem: NSToolbarItem?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        // ideally we can filter for .tar.zst but that's not possible :(
+        panel.allowedContentTypes = [UTType(filenameExtension: "zst", conformingTo: .data)!]
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+        panel.message = "Select machine (.tar.zst) to import"
+
+        let window = toolbarItem?.view?.window ?? NSApp.keyWindow ?? NSApp.windows.first!
+        panel.beginSheetModal(for: window) { result in
+            if result == .OK,
+                let url = panel.url
+            {
+                self.model.presentImportMachine = url
+            }
+        }
     }
 
     @objc func actionCliHelp(_: NSButton?) {
