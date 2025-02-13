@@ -90,6 +90,11 @@ private struct ContainerRenameRequest: Codable {
     var newName: String
 }
 
+private struct ContainerCloneRequest: Codable {
+    var containerKey: String
+    var newName: String
+}
+
 class SconService {
     private let c: JsonRPCClient
 
@@ -145,6 +150,12 @@ class SconService {
     func containerRename(_ key: String, newName: String) async throws {
         try await c.call(
             "ContainerRename", args: ContainerRenameRequest(containerKey: key, newName: newName))
+    }
+
+    func containerClone(_ key: String, newName: String) async throws {
+        print("\(ContainerCloneRequest(containerKey: key, newName: newName))")
+        try await c.call(
+            "ContainerClone", args: ContainerCloneRequest(containerKey: key, newName: newName))
     }
 
     func internalDockerFastDf() async throws -> DKSystemDf {

@@ -16,6 +16,7 @@ struct MachineContainerItem: View {
     }
 
     @State private var presentConfirmDelete = false
+    @State private var presentClone = false
     @State private var presentRename = false
 
     var body: some View {
@@ -131,6 +132,10 @@ struct MachineContainerItem: View {
                         Label("Make Default", systemImage: "star")
                     }
 
+                    Button("Clone") {
+                        self.presentClone = true
+                    }
+
                     Button("Rename") {
                         self.presentRename = true
                     }
@@ -168,6 +173,9 @@ struct MachineContainerItem: View {
             }
         } message: {
             Text("Data will be permanently lost.")
+        }
+        .sheet(isPresented: $presentClone) {
+            CloneContainerView(name: record.name, record: record, isPresented: $presentClone)
         }
         .sheet(isPresented: $presentRename) {
             RenameContainerView(name: record.name, record: record, isPresented: $presentRename)

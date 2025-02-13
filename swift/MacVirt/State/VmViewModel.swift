@@ -92,6 +92,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case containerDeleteError(cause: Error)
     case containerCreateError(cause: Error)
     case containerRenameError(cause: Error)
+    case containerCloneError(cause: Error)
 
     // helper
     case privHelperUninstallError(cause: Error)
@@ -173,6 +174,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t create machine"
         case .containerRenameError:
             return "Can’t rename machine"
+        case .containerCloneError:
+            return "Can’t clone machine"
 
         case .privHelperUninstallError:
             return "Can’t uninstall helper"
@@ -345,6 +348,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case let .containerCreateError(cause):
             return cause
         case let .containerRenameError(cause):
+            return cause
+        case let .containerCloneError(cause):
             return cause
 
         case let .privHelperUninstallError(cause):
@@ -1092,6 +1097,19 @@ class VmViewModel: ObservableObject {
             try await renameContainer(record, newName: newName)
         } catch {
             setError(.containerRenameError(cause: error))
+        }
+    }
+
+    func cloneContainer(_ record: ContainerRecord, newName: String) async throws {
+        try await scon.containerClone(record.id, newName: newName)
+    }
+
+    @MainActor
+    func tryCloneContainer(_ record: ContainerRecord, newName: String) async {
+        do {
+            try await cloneContainer(record, newName: newName)
+        } catch {
+            setError(.containerCloneError(cause: error))
         }
     }
 
