@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/nftables"
 	"github.com/orbstack/macvirt/scon/bpf"
@@ -17,10 +18,15 @@ import (
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
+)
+
+const (
+	invalidateHostProbeDebounceDuration = 100 * time.Millisecond
 )
 
 var (
@@ -55,9 +61,10 @@ func newDomainproxyAllocator(subnet netip.Prefix, lowest netip.Addr) *domainprox
 }
 
 type domainproxyHostState struct {
-	procDirfd      *os.File
-	hasNetnsCookie bool
-	netnsCookie    uint64
+	procDirfd                   *os.File
+	hasNetnsCookie              bool
+	netnsCookie                 uint64
+	invalidateHostProbeDebounce *syncx.LeadingFuncDebounce
 }
 
 type domainproxyRegistry struct {
@@ -483,6 +490,10 @@ func (d *domainproxyRegistry) updateHostStateFromProcDirfd(host domainproxytypes
 
 	hostState.netnsCookie = netnsCookie
 	hostState.hasNetnsCookie = true
+	hostState.invalidateHostProbeDebounce = syncx.NewLeadingFuncDebounce(invalidateHostProbeDebounceDuration, func() {
+		d.invalidateHostProbeLocked(host)
+	})
+
 	d.netnsCookieToHosts[netnsCookie] = append(d.netnsCookieToHosts[netnsCookie], host)
 
 	err = d.r.manager.net.portMonitor.RegisterNetnsInterest("mdns_domainproxy", netnsCookie)
@@ -660,6 +671,10 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 }
 
 func (d *domainproxyRegistry) invalidateHostProbeLocked(host domainproxytypes.Host) {
+	logrus.WithFields(logrus.Fields{
+		"host": host,
+	}).Debug("invalidating host probe")
+
 	if ip, ok := d.v4.hostMap[host]; ok {
 		d.invalidateAddrProbeLocked(ip)
 	} else {
@@ -674,11 +689,9 @@ func (d *domainproxyRegistry) invalidateHostProbeLocked(host domainproxytypes.Ho
 
 func (d *domainproxyRegistry) refreshHostListenersLocked(ev bpf.PortMonitorEvent) {
 	for _, host := range d.netnsCookieToHosts[ev.NetnsCookie] {
-		logrus.WithFields(logrus.Fields{
-			"host":        host,
-			"netnsCookie": ev.NetnsCookie,
-		}).Debug("refreshing host listeners")
-		d.invalidateHostProbeLocked(host)
+		if hostState, ok := d.hostState[host]; ok && hostState.invalidateHostProbeDebounce != nil {
+			hostState.invalidateHostProbeDebounce.Call()
+		}
 	}
 }
 

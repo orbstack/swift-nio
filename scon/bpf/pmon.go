@@ -14,10 +14,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type zero struct {
-	_ uint8
-}
-
 type ListenerTypeFlags uint8
 
 const (
@@ -63,13 +59,12 @@ func NewPmon() (*PortMonitor, error) {
 		return nil, fmt.Errorf("load spec: %w", err)
 	}
 
-	objs := pmonObjects{}
-	err = spec.LoadAndAssign(&objs, nil)
+	pmon.pmonObjs = &pmonObjects{}
+	err = spec.LoadAndAssign(pmon.pmonObjs, nil)
 	if err != nil {
 		return nil, fmt.Errorf("load objs: %w", err)
 	}
-	pmon.closers = append(pmon.closers, &objs)
-	pmon.pmonObjs = &objs
+	pmon.closers = append(pmon.closers, pmon.pmonObjs)
 
 	pmon.reader, err = ringbuf.NewReader(pmon.pmonObjs.NotifyRing)
 	if err != nil {
@@ -114,13 +109,6 @@ func (p *PortMonitor) monitor() {
 		}
 		p.mu.Unlock()
 	}
-}
-
-func (p *PortMonitor) Close() error {
-	for _, closer := range p.closers {
-		closer.Close()
-	}
-	return nil
 }
 
 func (p *PortMonitor) attachOneCgLocked(typ ebpf.AttachType, prog *ebpf.Program, cgroupPath string) error {
@@ -209,7 +197,7 @@ func (p *PortMonitor) AttachKretprobe() error {
 }
 
 func (p *PortMonitor) addNetns(netnsCookie uint64) error {
-	return p.pmonObjs.NetnsCookies.Put(netnsCookie, zero{})
+	return p.pmonObjs.NetnsCookies.Put(netnsCookie, pmonZero{})
 }
 
 func (p *PortMonitor) removeNetns(netnsCookie uint64) error {
@@ -341,4 +329,11 @@ func (p *PortMonitor) ClearGlobalCallbacks() {
 	defer p.mu.Unlock()
 
 	p.globalCallbacks = make(map[string]func(PortMonitorEvent))
+}
+
+func (p *PortMonitor) Close() error {
+	for _, closer := range p.closers {
+		closer.Close()
+	}
+	return nil
 }
