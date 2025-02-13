@@ -72,8 +72,10 @@ const MAX_HOST_FS_PERCENT: u64 = 95;
 // can't boot without free space for scon db. leave some - I/O error + R/O remount is better than no boot
 const MIN_FREE_SPACE: u64 = 2 * 1024 * 1024; // 2 MiB
 
+// 0/5
 const QGROUP_ROOT: u64 = btrfs::make_qgroup_id(0, 5);
-const QGROUP_GLOBAL: u64 = btrfs::make_qgroup_id(1, 1);
+// 30000/1
+const QGROUP_GLOBAL: u64 = btrfs::make_qgroup_id(30000, 1);
 
 #[derive(Debug)]
 pub struct DiskManager {
