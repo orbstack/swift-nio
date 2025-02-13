@@ -22,6 +22,8 @@ func probePortHTTP(ctx context.Context, dialer *net.Dialer, host string, port ui
 		return false, err
 	}
 
+	req.Header.Set("User-Agent", "OrbStack-Server-Detection/1.0 (https://orbsta.cc/srvdetect)")
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return false, nil
