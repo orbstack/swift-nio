@@ -728,20 +728,7 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if hostState, ok := r.domainproxy.hostState[domainproxyHost]; ok && hostState.hasNetnsCookie {
-		if _, ok := r.domainproxy.netnsCookieToHosts[hostState.netnsCookie]; ok {
-			r.manager.net.portMonitor.DeregisterNetnsInterest("mdns_domainproxy", hostState.netnsCookie)
-
-			r.domainproxy.netnsCookieToHosts[hostState.netnsCookie] = slices.DeleteFunc(r.domainproxy.netnsCookieToHosts[hostState.netnsCookie], func(h domainproxytypes.Host) bool {
-				return h == domainproxyHost
-			})
-			if len(r.domainproxy.netnsCookieToHosts[hostState.netnsCookie]) == 0 {
-				delete(r.domainproxy.netnsCookieToHosts, hostState.netnsCookie)
-			}
-		}
-	}
-
-	r.domainproxy.freeHostLocked(domainproxyHost)
+	r.domainproxy.removeContainerLocked(ctr)
 
 	now := time.Now()
 	for _, name := range names {
@@ -767,11 +754,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	err := r.domainproxy.addMachineLocked(c)
-	if err != nil {
-		logrus.WithError(err).Error("failed to add machine to domainproxy")
-		return
-	}
+	r.domainproxy.addMachineLocked(c)
 
 	// we don't validate these b/c it's not under the user's control
 	// TODO allow '_' and translate w/ alias to '-' like Docker
@@ -814,11 +797,7 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	err := r.domainproxy.removeMachineLocked(c)
-	if err != nil {
-		logrus.WithError(err).Error("failed to remove machine from domainproxy")
-		return
-	}
+	r.domainproxy.removeMachineLocked(c)
 
 	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
 	treeKey := toTreeKey(name)

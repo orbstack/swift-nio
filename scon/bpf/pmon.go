@@ -241,7 +241,7 @@ func (p *PortMonitor) RegisterNetnsInterest(id string, netnsCookie uint64) error
 func (p *PortMonitor) deregisterNetnsInterest(id string, netnsCookie uint64) error {
 	interested, ok := p.netnsCookieInterestedIDs[netnsCookie]
 	if !ok {
-		return fmt.Errorf("interest for netns cookie not found: %v", netnsCookie)
+		return nil
 	}
 
 	delete(interested, id)
