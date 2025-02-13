@@ -188,7 +188,10 @@ func (n *Network) Start() error {
 	if err != nil {
 		return fmt.Errorf("new pmon: %w", err)
 	}
-	n.portMonitor.AttachKretprobe()
+	err = n.portMonitor.AttachKretprobe()
+	if err != nil {
+		return fmt.Errorf("attach kretprobe: %w", err)
+	}
 
 	// start mDNS server
 	logrus.Debug("starting mDNS server")

@@ -124,7 +124,7 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(map_flags, BPF_F_NO_PREALLOC);
-    __uint(max_entries, 1024);
+    __uint(max_entries, 65536);
     __type(key, __u64);
     __type(value, struct udp_meta);
 } udp_meta_map SEC(".maps");

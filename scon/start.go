@@ -1002,9 +1002,12 @@ func (c *Container) attachBpf(initPid int) error {
 	}
 	c.bpf = bpfMgr
 
-	c.manager.net.portMonitor.AddCallback(c.ID, netnsCookie, func(ev bpf.PortMonitorEvent) {
+	err = c.manager.net.portMonitor.AddCallback(c.ID, netnsCookie, func(ev bpf.PortMonitorEvent) {
 		c.triggerListenersUpdate(ev.DirtyFlags)
 	})
+	if err != nil {
+		return fmt.Errorf("add port monitor callback: %w", err)
+	}
 	err = c.manager.net.portMonitor.AttachCgroup(cgPath)
 	if err != nil {
 		return fmt.Errorf("attach cgroup: %w", err)

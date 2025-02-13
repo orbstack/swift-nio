@@ -77,11 +77,10 @@ func NewPmon() (*PortMonitor, error) {
 }
 
 func (p *PortMonitor) deserializeRecord(rec *ringbuf.Record) PortMonitorEvent {
-	ev := PortMonitorEvent{
+	return PortMonitorEvent{
 		DirtyFlags:  ListenerTypeFlags(rec.RawSample[8]),
 		NetnsCookie: binary.NativeEndian.Uint64(rec.RawSample[0:]),
 	}
-	return ev
 }
 
 func (p *PortMonitor) monitor() {

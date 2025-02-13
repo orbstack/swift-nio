@@ -146,7 +146,10 @@ func (c *Container) onStopLocked() error {
 		}
 		c.bpf = nil
 	}
-	c.manager.net.portMonitor.RemoveCallback(c.ID)
+	err := c.manager.net.portMonitor.RemoveCallback(c.ID)
+	if err != nil {
+		logrus.WithError(err).WithField("container", c.Name).Error("failed to remove port monitor callback")
+	}
 
 	// discard init pid
 	if c.initPidFile != nil {
@@ -166,7 +169,7 @@ func (c *Container) onStopLocked() error {
 		agent.Close()
 	}
 
-	_, err := c.transitionStateLocked(types.ContainerStateStopped)
+	_, err = c.transitionStateLocked(types.ContainerStateStopped)
 	if err != nil {
 		return err
 	}
