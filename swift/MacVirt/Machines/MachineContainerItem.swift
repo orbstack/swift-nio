@@ -99,7 +99,7 @@ struct MachineContainerItem: View {
                 .disabled(actionInProgress)
             }
 
-            if selection.count == 1 {
+            if selection.count <= 1 {
                 Divider()
 
                 Button(action: {
@@ -122,7 +122,7 @@ struct MachineContainerItem: View {
             Divider()
 
             Group {
-                if selection.count == 1 {
+                if selection.count <= 1 {
                     Button(action: {
                         Task {
                             await vmModel.trySetDefaultContainer(record)
@@ -151,7 +151,7 @@ struct MachineContainerItem: View {
                 .disabled(actionInProgress)
             }
 
-            if selection.count == 1 {
+            if selection.count <= 1 {
                 Divider()
 
                 Button("Copy Address") {
