@@ -328,6 +328,12 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     }
 
                     Button(action: {
+                        NSPasteboard.copy(container.nameOrId)
+                    }) {
+                        Label("Name", systemImage: "doc.on.doc")
+                    }
+
+                    Button(action: {
                         NSPasteboard.copy(container.image)
                     }) {
                         Label("Image", systemImage: "doc.on.doc")
