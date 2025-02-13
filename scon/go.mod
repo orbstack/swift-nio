@@ -1,6 +1,6 @@
 module github.com/orbstack/macvirt/scon
 
-go 1.23.3
+go 1.24.0
 
 replace github.com/orbstack/macvirt/vmgr => ../vmgr
 
@@ -37,7 +37,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2
 	github.com/miekg/dns v1.1.58
 	github.com/oklog/ulid/v2 v2.1.0
-	github.com/pkg/sftp v1.13.5
+	github.com/pkg/sftp v1.13.7
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/bbolt v1.3.8
