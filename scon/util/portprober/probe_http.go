@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 )
 
 func probePortHTTP(ctx context.Context, dialer *net.Dialer, host string, port uint16, _ string) (bool, error) {
@@ -17,7 +18,8 @@ func probePortHTTP(ctx context.Context, dialer *net.Dialer, host string, port ui
 	}
 
 	// favicon.ico is less likely to trigger any weird behavior?
-	req, err := http.NewRequestWithContext(ctx, "HEAD", fmt.Sprintf("http://%v:%v/favicon.ico", host, port), nil)
+	hostString := net.JoinHostPort(host, strconv.Itoa(int(port)))
+	req, err := http.NewRequestWithContext(ctx, "HEAD", fmt.Sprintf("http://%s/favicon.ico", hostString), nil)
 	if err != nil {
 		return false, err
 	}
@@ -28,7 +30,7 @@ func probePortHTTP(ctx context.Context, dialer *net.Dialer, host string, port ui
 	if err != nil {
 		return false, nil
 	}
-	defer resp.Body.Close()
+	resp.Body.Close()
 
 	return true, nil
 }

@@ -18,23 +18,7 @@ var getHostNetnsFd = sync.OnceValue(func() int {
 })
 
 func WithNetnsFile[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
-	var zero T
-
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	// get current ns
-	hostNetnsFd := getHostNetnsFd()
-
-	// set ns
-	err := unix.Setns(int(newNsF.Fd()), unix.CLONE_NEWNET)
-	runtime.KeepAlive(newNsF)
-	if err != nil {
-		return zero, err
-	}
-	defer unix.Setns(hostNetnsFd, unix.CLONE_NEWNET)
-
-	return fn()
+	return WithNetnsFd(int(newNsF.Fd()), fn)
 }
 
 func WithNetnsFd[T any](newNsFd int, fn func() (T, error)) (T, error) {
@@ -58,12 +42,12 @@ func WithNetnsFd[T any](newNsFd int, fn func() (T, error)) (T, error) {
 
 func WithNetnsProcDirfdFile[T any](procDirfd *os.File, fn func() (T, error)) (T, error) {
 	netnsFd, err := unix.Openat(int(procDirfd.Fd()), "ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	runtime.KeepAlive(procDirfd)
 	if err != nil {
 		var zero T
 		return zero, err
 	}
 	defer unix.Close(netnsFd)
-	defer runtime.KeepAlive(procDirfd)
 
 	return WithNetnsFd(netnsFd, fn)
 }

@@ -14,15 +14,6 @@ type Upstream struct {
 	IP    net.IP
 }
 
-func NewUpstream(Names []string, IP net.IP, Host Host) Upstream {
-	return Upstream{
-		Names: Names,
-
-		IP:   IP,
-		Host: Host,
-	}
-}
-
 func (u *Upstream) IsValid() bool {
 	return u.IP != nil
 }

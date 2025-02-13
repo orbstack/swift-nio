@@ -109,7 +109,7 @@ func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip
 	}
 }
 
-func (d *domainproxyRegistry) startDomainTLSProxy() error {
+func (d *domainproxyRegistry) startTLSProxy() error {
 	return d.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe)
 }
 
@@ -569,7 +569,11 @@ func (d *domainproxyRegistry) addContainerLocked(ctr *dockertypes.ContainerSumma
 	var ip6 net.IP
 	// we're protected by the mdnsRegistry mutex
 	if ctrIP4 != nil {
-		ip, err := d.assignUpstreamLocked(d.v4, domainproxytypes.NewUpstream(nameStrings, ctrIP4, domainproxyHost))
+		ip, err := d.assignUpstreamLocked(d.v4, domainproxytypes.Upstream{
+			Host:  domainproxyHost,
+			Names: nameStrings,
+			IP:    ctrIP4,
+		})
 		if err != nil {
 			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip4 for DNS")
 		} else {
@@ -577,7 +581,11 @@ func (d *domainproxyRegistry) addContainerLocked(ctr *dockertypes.ContainerSumma
 		}
 	}
 	if ctrIP6 != nil {
-		ip, err := d.assignUpstreamLocked(d.v6, domainproxytypes.NewUpstream(nameStrings, ctrIP6, domainproxyHost))
+		ip, err := d.assignUpstreamLocked(d.v6, domainproxytypes.Upstream{
+			Host:  domainproxyHost,
+			Names: nameStrings,
+			IP:    ctrIP6,
+		})
 		if err != nil {
 			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip6 for DNS")
 		} else {
@@ -647,7 +655,11 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 
 	for _, valip := range valips {
 		if ip4 == nil && valip.To4() != nil {
-			addr, err := d.assignUpstreamLocked(d.v4, domainproxytypes.NewUpstream(names, valip, domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: machine.ID}))
+			addr, err := d.assignUpstreamLocked(d.v4, domainproxytypes.Upstream{
+				Host:  domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: machine.ID},
+				Names: names,
+				IP:    valip,
+			})
 			if err != nil {
 				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip4 for DNS")
 				continue
@@ -657,7 +669,11 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 		}
 
 		if ip6 == nil && valip.To4() == nil {
-			addr, err := d.assignUpstreamLocked(d.v6, domainproxytypes.NewUpstream(names, valip, domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: machine.ID}))
+			addr, err := d.assignUpstreamLocked(d.v6, domainproxytypes.Upstream{
+				Host:  domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: machine.ID},
+				Names: names,
+				IP:    valip,
+			})
 			if err != nil {
 				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip6 for DNS")
 				continue

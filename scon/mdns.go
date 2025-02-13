@@ -263,7 +263,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	}
 
 	go runOne("start domainTLSProxy", func() error {
-		err := r.domainproxy.startDomainTLSProxy()
+		err := r.domainproxy.startTLSProxy()
 		if err != nil {
 			return err
 		}
@@ -754,6 +754,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// callers of this function already hold a lock on c
 	r.domainproxy.addMachineLocked(c)
 
 	// we don't validate these b/c it's not under the user's control
@@ -1147,23 +1148,25 @@ func (r *mdnsRegistry) dockerPostStart() error {
 		k8sName := "k8s.orb.local."
 
 		k8sAddr4, err := r.domainproxy.assignUpstreamLocked(
-			r.domainproxy.v4, domainproxytypes.NewUpstream(
-				[]string{k8sName},
-				net.ParseIP(netconf.SconK8sIP4),
+			r.domainproxy.v4, domainproxytypes.Upstream{
 				// we make k8s.orb.local not count as docker because the ip is the docker ip. this means that hairpinning needs to be done by ovm.
-				domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
-			),
+				Host: domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
+
+				Names: []string{k8sName},
+				IP:    net.ParseIP(netconf.SconK8sIP4),
+			},
 		)
 		if err != nil {
 			return fmt.Errorf("unable to create k8s domainproxy ip: %w", err)
 		}
 		k8sIP4 := k8sAddr4.AsSlice()
 
-		k8sAddr6, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.NewUpstream(
-			[]string{k8sName},
-			net.ParseIP(netconf.SconK8sIP6),
-			domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
-		))
+		k8sAddr6, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{
+			Host: domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
+
+			Names: []string{k8sName},
+			IP:    net.ParseIP(netconf.SconK8sIP6),
+		})
 		if err != nil {
 			return fmt.Errorf("unable to create k8s domainproxy ip: %w", err)
 		}

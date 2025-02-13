@@ -149,6 +149,8 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) err
 			HTTPSPort: httpsPort,
 		}
 		d.probedHosts[addr] = probed
+	} else {
+		delete(d.probedHosts, addr)
 	}
 
 	// update probed set

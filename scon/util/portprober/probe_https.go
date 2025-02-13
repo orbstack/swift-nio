@@ -53,7 +53,10 @@ func writeTLSClientHello(w io.Writer, serverName string) (bool, error) {
 	}
 
 	var b cryptobyte.Builder
-	hello.Marshal(&b)
+	err := hello.Marshal(&b)
+	if err != nil {
+		return false, err
+	}
 	helloBytes, err := b.Bytes()
 	if err != nil {
 		return false, err
