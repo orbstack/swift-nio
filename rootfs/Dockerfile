@@ -250,6 +250,11 @@ apk add --no-cache \
     tar \
     tzdata \
     socat
+
+if [[ "$TYPE" == "release" ]]; then
+    # uninstall apk
+    apk del apk-tools
+fi
 EOT
 
 # Official Docker engine build
