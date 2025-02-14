@@ -120,17 +120,22 @@ func (p *HostProbe) startProtocolProbe(port uint16, probeFunc protocolProbeFunc,
 	}()
 }
 
-func (p *HostProbe) startHTTPProbe(port uint16) {
+func (p *HostProbe) StartHTTPProbe(port uint16) {
 	p.startProtocolProbe(port, probePortHTTP, p.activeHTTP, p.probeResult.HTTPPorts)
 }
 
-func (p *HostProbe) startHTTPSProbe(port uint16) {
+func (p *HostProbe) StartHTTPSProbe(port uint16) {
 	p.startProtocolProbe(port, probePortHTTPS, p.activeHTTPS, p.probeResult.HTTPSPorts)
 }
 
 func (p *HostProbe) StartProbe(port uint16) {
-	p.startHTTPProbe(port)
-	p.startHTTPSProbe(port)
+	// to avoid confusing behavior with servers (e.g. Traefik) that accept both HTTP and HTTPS on both 80 and 443, disallow **443 ports for HTTP, and disallow ***80 ports for HTTPS
+	if port%1000 != 443 {
+		p.StartHTTPProbe(port)
+	}
+	if port%1000 != 80 {
+		p.StartHTTPSProbe(port)
+	}
 }
 
 func (p *HostProbe) Probe(ports map[uint16]struct{}) *ProbeResult {
