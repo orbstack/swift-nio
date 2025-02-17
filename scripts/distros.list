@@ -35,7 +35,6 @@ mint:vera
 mint:victoria
 mint:virginia
 mint:wilma
-nixos:24.05
 nixos:24.11
 nixos:unstable
 openeuler:20.03
@@ -48,6 +47,7 @@ opensuse:tumbleweed
 openwrt:21.02
 openwrt:22.03
 openwrt:23.05
+openwrt:24.10
 openwrt:snapshot
 oracle:7
 oracle:8
