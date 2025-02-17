@@ -516,9 +516,6 @@ struct NodeData {
     // for CTO consistency: clear cache on open if ctime has changed
     // must only be updated on open
     last_open_ctime: AtomicI64,
-
-    // TODO: efficient way to store children?
-    children: FxDashMap<SmolStr, Weak<NodeData>>,
 }
 
 thread_local! {
@@ -563,16 +560,6 @@ impl NodeData {
             debug!("built NODE path nodeid={} path={:?}", self.nodeid, c_path);
             f(c_path)
         })
-    }
-
-    fn get_child(&self, name: &str) -> io::Result<Arc<NodeData>> {
-        let smol_name = SmolStr::from(name);
-        let child = self.children.get(&smol_name).and_then(|w| w.upgrade());
-        if let Some(child) = child {
-            Ok(child)
-        } else {
-            Err(Errno::ENOENT.into())
-        }
     }
 
     fn owned_ref(&self) -> OwnedFileRef<HandleData> {
@@ -682,6 +669,8 @@ pub struct PassthroughFs {
     // - duplicate nodeids for a single DevIno will be fixed by finish_lookup
     nodeids: FxDashMap<NodeId, Arc<NodeData>>,
     next_nodeid: AtomicU64,
+    // maps nodes to children - keyed by parent node id + child name
+    node_children: FxDashMap<(NodeId, SmolStr), Weak<NodeData>>,
 
     handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
     next_handle: AtomicU64,
@@ -718,8 +707,6 @@ impl PassthroughFs {
                 last_open_ctime: AtomicI64::new(st.ctime_ns()),
                 flags: NodeFlags::empty(),
                 nlink: st.st_nlink,
-
-                children: FxDashMap::default(),
             }),
         );
 
@@ -730,6 +717,8 @@ impl PassthroughFs {
             Some(callbacks) => Some(Arc::new(VnodePoller::new(callbacks, handles.clone())?)),
             None => None,
         };
+
+        let children_map = FxDashMap::default();
 
         let mut fs = PassthroughFs {
             nodeids,
@@ -746,6 +735,8 @@ impl PassthroughFs {
             // poller is useless if we have no invalidation callbacks
             poller,
             poller_thread: None,
+
+            node_children: children_map,
         };
 
         if let Some(ref poller) = fs.poller {
@@ -866,8 +857,8 @@ impl PassthroughFs {
         file_ref: FileRef,
     ) -> io::Result<(NodeId, NodeFlags)> {
         let smol_name = SmolStr::from(name);
-        if let Some(node) = parent.children.get(&smol_name) {
-            if let Some(node) = node.upgrade() {
+        if let Some(e) = self.node_children.get(&(parent.nodeid, smol_name.clone())) {
+            if let Some(node) = e.upgrade() {
                 if node.inc_ref().is_ok() {
                     debug!(?name, nodeid = ?node.nodeid, "existing node");
                     return Ok((node.nodeid, node.flags));
@@ -894,8 +885,6 @@ impl PassthroughFs {
             last_open_ctime: AtomicI64::new(st.ctime_ns()),
             flags: parent.flags & NodeFlags::INHERITED_FLAGS,
             nlink: st.st_nlink,
-
-            children: FxDashMap::default(),
         };
 
         // flag to use clonefile instead of link, for package managers
@@ -912,7 +901,7 @@ impl PassthroughFs {
         let node = Arc::new(node);
         let weak = Arc::downgrade(&node);
         self.nodeids.insert(new_nodeid, node);
-        match parent.children.entry(smol_name) {
+        match self.node_children.entry((parent.nodeid, smol_name)) {
             dashmap::mapref::entry::Entry::Vacant(e) => {
                 e.insert(weak);
             }
@@ -1041,7 +1030,10 @@ impl PassthroughFs {
             // attempt to resolve (dev, ino) to the right nodeid
             // TODO: optimize
             let smol_name = SmolStr::from(std::str::from_utf8(name).unwrap());
-            let dt_ino = if let Some(node) = node.children.get(&smol_name).and_then(|n| n.upgrade())
+            let dt_ino: u64 = if let Some(node) = self
+                .node_children
+                .get(&(node.nodeid, smol_name))
+                .and_then(|n| n.upgrade())
             {
                 node.nodeid.0
             } else {
@@ -1703,7 +1695,7 @@ impl FileSystem for PassthroughFs {
             );
 
             let smol_name = SmolStr::from(&entry.name);
-            let result = if node.children.get(&smol_name).is_some() {
+            let result = if self.node_children.get(&(node.nodeid, smol_name)).is_some() {
                 // don't return attrs for files with existing nodeids (i.e. inode struct on the linux side)
                 // this prevents a race (cargo build [st_size], rm -rf [st_nlink? not sure]) where Linux is writing to a file that's growing in size, and something else calls readdirplus on its parent dir, causing FUSE to update the existing inode's attributes with a stale size, causing the readable portion of the file to be truncated when the next rustc process tries to read from the previous compilation output
                 // it's OK for perf, because readdirplus covers two cases: (1) providing attrs to avoid lookup for a newly-seen file, and (2) updating invalidated attrs (>2h timeout, or set in inval_mask) on existing files
@@ -1929,14 +1921,22 @@ impl FileSystem for PassthroughFs {
         }
 
         let oldname = oldname.to_string_lossy();
+        let smol_oldname = SmolStr::from(oldname.clone());
         let newname = newname.to_string_lossy();
         let old_dir = self.get_node(olddir)?;
         let new_dir = self.get_node(newdir)?;
 
         // lock old dir, old node, new dir, and (if exists) new node
         // prevents race where stale path is used for open, pointing to wrong file
-        let old_node = old_dir.get_child(&oldname)?;
-        let new_node = new_dir.get_child(&newname).ok();
+        //let old_node = old_dir.get_child(&oldname)?;
+        let old_node: Arc<NodeData> = self
+            .node_children
+            .get(&(olddir, smol_oldname))
+            .unwrap()
+            .upgrade()
+            .unwrap(); // this unwrap() might be risky
+
+        //let new_node = new_dir.get_child(&newname).ok();
 
         //let _old_dir_loc = old_dir.loc.write();
         let mut old_node_loc = old_node.loc.write();
@@ -1985,10 +1985,9 @@ impl FileSystem for PassthroughFs {
                     name: new_name_smol.clone(),
                 };
                 drop(old_node_loc);
-                new_dir
-                    .children
-                    .insert(new_name_smol, Arc::downgrade(&old_node));
-                old_dir.children.remove(&old_name_smol);
+                self.node_children
+                    .insert((new_dir.nodeid, new_name_smol), Arc::downgrade(&old_node));
+                self.node_children.remove(&(old_dir.nodeid, old_name_smol));
             }
 
             Ok(())
