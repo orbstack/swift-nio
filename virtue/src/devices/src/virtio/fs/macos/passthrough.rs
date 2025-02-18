@@ -23,6 +23,7 @@ use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixDatagram;
 use std::path::Path;
 use std::ptr::{copy, copy_nonoverlapping, slice_from_raw_parts, NonNull};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::JoinHandle;
@@ -34,7 +35,7 @@ use crate::virtio::rosetta::get_rosetta_data;
 use crate::virtio::{FsCallbacks, FxDashMap, NfsInfo};
 use bitflags::bitflags;
 use derive_more::{Display, From, Into};
-use libc::{AT_FDCWD, MAXPATHLEN, SEEK_DATA, SEEK_HOLE};
+use libc::{sysdir_search_path_directory_t, AT_FDCWD, MAXPATHLEN, SEEK_DATA, SEEK_HOLE};
 use nix::errno::Errno;
 use nix::fcntl::{self, open, AtFlags, OFlag};
 use nix::sys::stat::fchmod;
@@ -516,6 +517,9 @@ struct NodeData {
     // for CTO consistency: clear cache on open if ctime has changed
     // must only be updated on open
     last_open_ctime: AtomicI64,
+
+    is_mountpoint_parent: bool,
+    is_mountpoint: bool,
 }
 
 thread_local! {
@@ -528,7 +532,6 @@ impl NodeData {
     }
 
     fn with_subpath<T>(&self, name: &str, f: impl FnOnce(&CStr) -> T) -> T {
-        // TODO: return error
         if name == ".." || name.contains('/') {
             panic!("invalid subpath: {}", name);
         }
@@ -537,29 +540,41 @@ impl NodeData {
     }
 
     fn with_raw_path<T>(&self, f: impl FnOnce(&CStr) -> T, subpath: Option<&str>) -> T {
-        PATH_BUFFERS.with(|v| {
-            let mut buf = v
-                .iter()
-                .find_map(|v| v.try_borrow_mut().ok())
-                .expect("out of path buffers");
-            buf.clear();
+        debug!(
+            "with_raw_path is_mountpoint_parent={} is_mountpoint={} subpath={:?}",
+            self.is_mountpoint_parent, self.is_mountpoint, subpath
+        );
+        if self.is_mountpoint
+        // we'd need a reference (here) to nfs_info to check this
+        // || (self.is_mountpoint_parent && subpath == Some("OrbStack"))
+        // instead, check this in begin_lookup
+        {
+            f(&CString::from_str("/var/empty").unwrap())
+        } else {
+            PATH_BUFFERS.with(|v| {
+                let mut buf = v
+                    .iter()
+                    .find_map(|v| v.try_borrow_mut().ok())
+                    .expect("out of path buffers");
+                buf.clear();
 
-            self._build_path(&mut buf);
+                self._build_path(&mut buf);
 
-            if let Some(subpath_name) = subpath {
-                buf.push(b'/');
-                buf.extend_from_slice(subpath_name.as_bytes());
-            }
+                if let Some(subpath_name) = subpath {
+                    buf.push(b'/');
+                    buf.extend_from_slice(subpath_name.as_bytes());
+                }
 
-            // Push a null byte as CStrings are null-terminated. Since we're building the string from
-            // a pointer to the slice, we'll keep going until we find a null byte, which otherwise
-            // might not be the correct place if the buffer has been used before.
-            buf.push(b'\0');
+                // Push a null byte as CStrings are null-terminated. Since we're building the string from
+                // a pointer to the slice, we'll keep going until we find a null byte, which otherwise
+                // might not be the correct place if the buffer has been used before.
+                buf.push(b'\0');
 
-            let c_path = unsafe { CStr::from_bytes_with_nul_unchecked(&buf) };
-            debug!("built NODE path nodeid={} path={:?}", self.nodeid, c_path);
-            f(c_path)
-        })
+                let c_path = unsafe { CStr::from_bytes_with_nul_unchecked(&buf) };
+                debug!("built NODE path nodeid={} path={:?}", self.nodeid, c_path);
+                f(c_path)
+            })
+        }
     }
 
     fn owned_ref(&self) -> OwnedFileRef<HandleData> {
@@ -707,6 +722,8 @@ impl PassthroughFs {
                 last_open_ctime: AtomicI64::new(st.ctime_ns()),
                 flags: NodeFlags::empty(),
                 nlink: st.st_nlink,
+                is_mountpoint_parent: false,
+                is_mountpoint: false,
             }),
         );
 
@@ -806,23 +823,24 @@ impl PassthroughFs {
         parent: NodeId,
         name: &str,
     ) -> io::Result<(CString, Arc<NodeData>, libc::stat)> {
-        // looking up nfs mountpoint should return a dummy empty dir
-        // for simplicity we can always just use /var/empty
-        // TODO: port to pathfs
-        // if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
-        //     if nfs_info.parent_dir_dev == parent_dev
-        //         && nfs_info.parent_dir_inode == parent_ino
-        //         && nfs_info.dir_name == name
-        //     {
-        //         c_path = CString::new("/var/empty")?;
-        //     }
-        // }
         let node = self.get_node(parent)?;
-        self.get_node(parent)?.with_subpath(name, |c_path| {
-            debug!(?c_path, "begin_lookup");
-            let st = lstat(c_path, false)?;
-            Ok((c_path.to_owned(), node, st))
-        })
+        let is_mp_path: bool = self
+            .cfg
+            .nfs_info
+            .as_ref()
+            .map(|nfs_info| node.is_mountpoint_parent && nfs_info.dir_name == name)
+            .unwrap_or(false);
+        let c_path = if is_mp_path {
+            CString::from_str("/var/empty").unwrap()
+        } else {
+            self.get_node(parent)?
+                .with_subpath(name, |c_path| c_path.to_owned())
+        };
+
+        debug!(?c_path, "begin_lookup");
+
+        let st = lstat(&c_path, false)?;
+        Ok((c_path, node, st))
     }
 
     fn do_lookup(&self, parent: NodeId, name: &str) -> io::Result<Entry> {
@@ -873,6 +891,16 @@ impl PassthroughFs {
 
         let dev_info = self.get_dev_info(st.st_dev, || Ok(file_ref))?;
 
+        let (is_mountpoint_parent, is_mountpoint) =
+            if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
+                (
+                    nfs_info.parent_dir_name == name,
+                    parent.is_mountpoint_parent && nfs_info.dir_name == name,
+                )
+            } else {
+                (false, false)
+            };
+
         let mut node = NodeData {
             nodeid: new_nodeid,
 
@@ -885,6 +913,9 @@ impl PassthroughFs {
             last_open_ctime: AtomicI64::new(st.ctime_ns()),
             flags: parent.flags & NodeFlags::INHERITED_FLAGS,
             nlink: st.st_nlink,
+
+            is_mountpoint_parent,
+            is_mountpoint,
         };
 
         // flag to use clonefile instead of link, for package managers
@@ -1018,18 +1049,16 @@ impl PassthroughFs {
                 .to_bytes()
             };
 
-            let mut ino = unsafe { (*dentry).d_ino };
-            // TODO: restore nfs info
-            // if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
-            //     // replace nfs mountpoint ino with /var/empty - that's what lookup returns
-            //     if dev == nfs_info.dir_dev && ino == nfs_info.dir_inode {
-            //         ino = nfs_info.empty_dir_inode;
-            //     }
-            // }
-
-            // attempt to resolve (dev, ino) to the right nodeid
-            // TODO: optimize
             let smol_name = SmolStr::from(std::str::from_utf8(name).unwrap());
+            let mut ino = unsafe { (*dentry).d_ino };
+            if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
+                // replace nfs mountpoint ino with /var/empty - that's what lookup returns
+                if ino == nfs_info.dir_inode {
+                    ino = nfs_info.empty_dir_inode;
+                }
+            }
+
+            // TODO: optimize
             let dt_ino: u64 = if let Some(node) = self
                 .node_children
                 .get(&(node.nodeid, smol_name))
@@ -1633,15 +1662,7 @@ impl FileSystem for PassthroughFs {
 
             // for NFS loop prevention to work, use legacy impl on home dir
             // getattrlistbulk on home can sometimes stat on mount and cause deadlock
-            // TODO: implement NFS loop prevention
-            let use_legacy = false;
-            // let use_legacy = if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
-            //     nfs_info.parent_dir_dev == dev && nfs_info.parent_dir_inode == ino
-            // } else {
-            //     false
-            // };
-
-            let entries = if use_legacy {
+            let entries = if node.is_mountpoint_parent {
                 attrlist::list_dir_legacy(
                     data.readdir_stream(&mut ds)?.as_ptr(),
                     capacity as usize,
@@ -1687,8 +1708,9 @@ impl FileSystem for PassthroughFs {
 
             // we trust kernel to return valid utf-8 names
             debug!(
-                "list_dir: name={} dev={} ino={} offset={}",
+                "list_dir: name={} mountpoint={} dev={} ino={} offset={}",
                 &entry.name,
+                &entry.is_mountpoint,
                 st.st_dev,
                 st.st_ino,
                 offset + 1 + (i as u64)

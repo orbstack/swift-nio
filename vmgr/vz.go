@@ -289,6 +289,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		if err != nil {
 			return nil, nil, err
 		}
+		parentDirName := filepath.Base(parentDirPath)
 		parentDirStatSys := parentDirStat.Sys().(*syscall.Stat_t)
 
 		// also stat /var/empty
@@ -305,6 +306,8 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 			ParentDirDev:   parentDirStatSys.Dev,
 			ParentDirInode: parentDirStatSys.Ino,
 			EmptyDirInode:  emptyDirStatSys.Ino,
+			ParentDirName:  parentDirName,
+			DirPath:        dirPath,
 		}
 	}
 
