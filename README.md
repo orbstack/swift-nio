@@ -18,7 +18,7 @@
 
 **If you're not working on Kubernetes or the Linux kernel, check Slack for prebuilt binaries to speed this up.**
 
-1. `brew install rustup go && rustup-init`
+1. `brew install rustup go protobuf protoc-gen-go && rustup-init`
 1. Install and start a [release build of OrbStack](https://orbstack.dev/download)
 1. Add `export GOPRIVATE=github.com/orbstack/*` to global shell environment (`~/.profile`)
 1. Install GitHub CLI: `brew install gh`
@@ -42,21 +42,21 @@
     - Example: `Apple Development: Danny Lin (A2LS84RQFY)`
 1. Build Kubernetes: `./scripts/build-k8s.sh`
 1. Build debug vmgr: `cd vmgr; make`
-1. Build debug rootfs: `cd rootfs; make`
-1. Build debug CLI (orb command): `cd scon; make`
-1. Download binaries: `cd bins; make`
 1. Build kernel
     1. Create an OrbStack machine. Only Arch and Debian have been tested.
     1. Install dependencies:
-        - Debian: `sudo apt install build-essential bc cpio pahole pixz libjemalloc2 libelf-dev libssl-dev flex bison lz4`
-        - Arch: `sudo pacman -Syu base-devel bc cpio pahole pixz jemalloc`
+        - Debian: `sudo apt install build-essential bc cpio pahole pixz libjemalloc2 libelf-dev libssl-dev flex bison lz4 python3`
+        - Arch: `sudo pacman -Syu base-devel bc cpio pahole pixz jemalloc python`
     1. `git clone git@github.com:orbstack/linux-macvirt-priv`
         - Must be on Linux file system due to case sensitivity (run `cd` — should be in /home, not /Users)
     1. `git checkout mac-6.10.x` (current dev branch)
     1. `source setup.sh`
     1. `restore_config`
-    1. `marm`
+    1. `mall`
     1. `sync_out $PATH_TO_MACVIRT_CLONE` (errors due to missing x86 outputs are OK)
+1. Build debug rootfs: `cd rootfs; make`
+1. Build debug CLI (orb command): `cd scon; make`
+1. Download binaries: `cd bins; make`
 1. Quit the release build of OrbStack
 1. Set Xcode > Settings > Locations > Derived Data to "Relative"
 1. Build and run app in Xcode
