@@ -14,18 +14,19 @@ import (
 )
 
 var (
-	flagUseShell bool
-	flagUsePath  bool
-	flagMachine  string
-	flagUser     string
-	flagWorkdir  string
-	FlagWantHelp bool
+	flagUseShell   bool
+	flagUsePath    bool
+	flagMachine    string
+	flagUser       string
+	flagOptWorkdir *string // ptr so we can differentiate between nil & ""
+	FlagWantHelp   bool
 )
 
 func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Use a specific machine")
 	runCmd.Flags().StringVarP(&flagUser, "user", "u", "", "Run as a specific user")
+	flagWorkdir := "" // this is fake; actual arg parsing happens later.
 	runCmd.Flags().StringVarP(&flagWorkdir, "workdir", "w", "", "Set the working directory")
 	runCmd.Flags().BoolVarP(&flagUseShell, "shell", "s", false, "Use the login shell instead of running command directly")
 	runCmd.Flags().BoolVarP(&flagUsePath, "path", "p", false, "Translate absolute macOS paths to Linux paths")
@@ -68,7 +69,7 @@ func ParseRunFlags(args []string) ([]string, error) {
 				case "-u", "--user", "-user":
 					flagUser = valuePart
 				case "-w", "--workdir", "-workdir":
-					flagWorkdir = valuePart
+					flagOptWorkdir = &valuePart
 				// bools: allow true/false
 				case "-s", "--shell", "-shell":
 					flagUseShell = valuePart == "true"
@@ -85,7 +86,9 @@ func ParseRunFlags(args []string) ([]string, error) {
 			case "-u", "--user", "-user":
 				lastStringFlag = &flagUser
 			case "-w", "--workdir", "-workdir":
-				lastStringFlag = &flagWorkdir
+				emptyStr := ""
+				flagOptWorkdir = &emptyStr
+				lastStringFlag = flagOptWorkdir
 			// don't allow two-part bool
 			default:
 				return nil, errors.New("unknown flag " + arg)
@@ -178,17 +181,12 @@ See "orb create --help" for supported distros and options.
 			})
 		}
 
-		var workdir *string
-		if flagWorkdir != "" {
-			workdir = &flagWorkdir
-		}
-
 		exitCode, err := shell.RunSSH(shell.CommandOpts{
 			CombinedArgs: args,
 			// if use shell, then args are joined by space and passed to shell as script
 			UseShell:      flagUseShell,
 			ContainerName: containerName,
-			Dir:           workdir,
+			Dir:           flagOptWorkdir,
 			User:          flagUser,
 		})
 		if err != nil {

@@ -18,6 +18,7 @@ var (
 	flagFallback bool
 	flagReset    bool
 	flagContext  string
+	flagWorkdir  string
 )
 
 const (
