@@ -50,6 +50,8 @@ require (
 
 require github.com/klauspost/compress v1.17.11
 
+require github.com/google/uuid v1.6.0 // indirect
+
 require (
 	github.com/alitto/pond/v2 v2.1.6
 	github.com/boltdb/bolt v1.3.1 // indirect

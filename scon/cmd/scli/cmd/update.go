@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/orbstack/macvirt/vmgr/drm/updates"
 	"os"
 	"os/exec"
 
@@ -10,8 +11,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	flagCheck bool
+)
+
 func init() {
 	rootCmd.AddCommand(updateCmd)
+	updateCmd.Flags().BoolVarP(&flagCheck, "check", "c", false, "Only check for updates; returns 3 if updates available & 0 if up-to-date.")
 }
 
 var updateCmd = &cobra.Command{
@@ -30,6 +36,19 @@ This includes the Linux kernel, Docker, the CLI, GUI app, and other components.
 	RunE: func(_ *cobra.Command, args []string) error {
 		bundlePath, err := conf.FindAppBundle()
 		checkCLI(err)
+
+		if flagCheck {
+			updateInfo, err := updates.CheckSparkleCLI()
+			checkCLI(err)
+
+			if updateInfo.Available {
+				fmt.Println("An update is available.")
+				os.Exit(3)
+			} else {
+				fmt.Println("OrbStack is up to date.")
+				os.Exit(0)
+			}
+		}
 
 		// TODO: fix sparkle-cli update
 		cmd := exec.Command("open", "-a", bundlePath, appid.UrlUpdate, "--args", "--check-updates")

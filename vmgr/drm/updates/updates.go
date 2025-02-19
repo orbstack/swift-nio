@@ -121,7 +121,7 @@ type UpdateInfo struct {
 		return nil, nil
 	}
 */
-func (u *Updater) checkSparkleCli() (*UpdateInfo, error) {
+func CheckSparkleCLI() (*UpdateInfo, error) {
 	cmd, err := NewSparkleCommand("--probe", "--verbose")
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (u *Updater) checkSparkleCli() (*UpdateInfo, error) {
 }
 
 func (u *Updater) CheckNow() error {
-	info, err := u.checkSparkleCli()
+	info, err := CheckSparkleCLI()
 	if err != nil {
 		return err
 	}
