@@ -129,7 +129,6 @@ struct DiagReporterView: View {
                         .controlSize(.large)
                     }
                 }
-                .padding(16)
             case .uploading:
                 VStack(spacing: 16) {
                     ProgressView()
@@ -151,6 +150,7 @@ struct DiagReporterView: View {
                 }
             }
         }
+        .padding(16)
         .frame(width: 300, height: 300)
         .task {
             do {
