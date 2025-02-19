@@ -117,20 +117,32 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) err
 		"src_ip":   downstreamIP.String(),
 	}).Debug("upstream")
 
-	mark := d.cb.GetMark(upstream)
-	srcIPSlice := downstreamIP.AsSlice()
-	var dialer *net.Dialer
-	if upstream.IP.Equal(srcIPSlice) {
-		dialer = &net.Dialer{}
-	} else {
-		dialer = dialerForTransparentBind(srcIPSlice, mark)
+	var httpPort uint16
+	var httpsPort uint16
+	if upstream.HTTPPortOverride == 0 || upstream.HTTPSPortOverride == 0 {
+		mark := d.cb.GetMark(upstream)
+		srcIPSlice := downstreamIP.AsSlice()
+		var dialer *net.Dialer
+		if upstream.IP.Equal(srcIPSlice) {
+			dialer = &net.Dialer{}
+		} else {
+			dialer = dialerForTransparentBind(srcIPSlice, mark)
+		}
+
+		// pessimistically keep probing on every SYN until upstream is ready
+		httpPort, httpsPort, err = d.probeUpstream(dialer, upstream)
+		if err != nil {
+			return err
+		}
 	}
 
-	// pessimistically keep probing on every SYN until upstream is ready
-	httpPort, httpsPort, err := d.probeUpstream(dialer, upstream)
-	if err != nil {
-		return err
+	if upstream.HTTPPortOverride != 0 {
+		httpPort = upstream.HTTPPortOverride
 	}
+	if upstream.HTTPSPortOverride != 0 {
+		httpsPort = upstream.HTTPSPortOverride
+	}
+
 	logrus.WithFields(logrus.Fields{
 		"addr":          addr.String(),
 		"upstream.IP":   upstream.IP.String(),

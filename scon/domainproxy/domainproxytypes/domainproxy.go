@@ -12,6 +12,9 @@ type Upstream struct {
 
 	Names []string
 	IP    net.IP
+
+	HTTPPortOverride  uint16
+	HTTPSPortOverride uint16
 }
 
 func (u *Upstream) IsValid() bool {

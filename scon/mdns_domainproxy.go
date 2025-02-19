@@ -562,6 +562,25 @@ func (d *domainproxyRegistry) addContainerLocked(ctr *dockertypes.ContainerSumma
 		}
 	}
 
+	var httpPortOverride uint16
+	var httpsPortOverride uint16
+	if port, ok := ctr.Labels["dev.orbstack.https-port"]; ok {
+		if portInt, err := strconv.ParseUint(port, 10, 16); err == nil {
+			logrus.WithField("port", portInt).Debug("setting https port override")
+			httpsPortOverride = uint16(portInt)
+		} else {
+			logrus.WithError(err).WithField("port", port).Error("failed to parse https port override")
+		}
+	}
+	if port, ok := ctr.Labels["dev.orbstack.http-port"]; ok {
+		if portInt, err := strconv.ParseUint(port, 10, 16); err == nil {
+			logrus.WithField("port", portInt).Debug("setting http port override")
+			httpPortOverride = uint16(portInt)
+		} else {
+			logrus.WithError(err).WithField("port", port).Error("failed to parse http port override")
+		}
+	}
+
 	ctrIP4, ctrIP6 := containerToMdnsIPs(ctr)
 	var ip4 net.IP
 	var ip6 net.IP
@@ -571,6 +590,9 @@ func (d *domainproxyRegistry) addContainerLocked(ctr *dockertypes.ContainerSumma
 			Host:  domainproxyHost,
 			Names: nameStrings,
 			IP:    ctrIP4,
+
+			HTTPPortOverride:  httpPortOverride,
+			HTTPSPortOverride: httpsPortOverride,
 		})
 		if err != nil {
 			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip4 for DNS")
@@ -583,6 +605,9 @@ func (d *domainproxyRegistry) addContainerLocked(ctr *dockertypes.ContainerSumma
 			Host:  domainproxyHost,
 			Names: nameStrings,
 			IP:    ctrIP6,
+
+			HTTPPortOverride:  httpPortOverride,
+			HTTPSPortOverride: httpsPortOverride,
 		})
 		if err != nil {
 			logrus.WithError(err).WithField("cid", ctr.ID).Debug("failed to assign ip6 for DNS")
