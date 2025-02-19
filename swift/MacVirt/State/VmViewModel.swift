@@ -414,7 +414,7 @@ private enum DockerComposeError: Error {
 private func fmtRpc(_ error: Error) -> String {
     switch error {
     case let error as ProcessError:
-        return "Exited with status \(error.status):\n\(error.output)"
+        return "Exited with status \(error.status):\n\(error.stderr)"
     case let error as RPCError:
         return error.errorDescription ?? "\(error)"
     default:
@@ -694,7 +694,7 @@ class VmViewModel: ObservableObject {
                 let newPid = Int(newPidStr.trimmingCharacters(in: .whitespacesAndNewlines))
                 guard let newPid else {
                     throw VmError.spawnError(
-                        cause: ProcessError(status: 0, output: "Invalid pid: \(newPidStr)"))
+                        cause: ProcessError(status: 0, stderr: "Invalid pid: \(newPidStr)"))
                 }
 
                 advanceStateAsync(.starting)
@@ -705,7 +705,7 @@ class VmViewModel: ObservableObject {
                 DispatchQueue.main.async {
                     self.state = .stopped
                     self.setError(
-                        .spawnExit(status: processError.status, output: processError.output))
+                        .spawnExit(status: processError.status, output: processError.stderr))
                 }
             } catch {
                 DispatchQueue.main.async {

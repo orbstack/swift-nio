@@ -71,7 +71,7 @@ struct DiagReporterView: View {
                                         ["_internal", "extract-diag-report", report.zipPath])
                                 } catch let processError as ProcessError {
                                     diagModel.state = .error(
-                                        "\(processError.output) (status \(processError.status))")
+                                        "\(processError.stderr) (status \(processError.status))")
                                 } catch {
                                     diagModel.state = .error(error.localizedDescription)
                                 }
@@ -116,7 +116,7 @@ struct DiagReporterView: View {
                                     }
                                 } catch let processError as ProcessError {
                                     diagModel.state = .error(
-                                        "(status \(processError.status)) \(processError.output)")
+                                        "(status \(processError.status)) \(processError.stderr)")
                                 } catch {
                                     diagModel.state = .error(error.localizedDescription)
                                 }
@@ -166,7 +166,7 @@ struct DiagReporterView: View {
 
                 diagModel.state = .confirmation(generated)
             } catch let processError as ProcessError {
-                diagModel.state = .error("(status \(processError.status)) \(processError.output)")
+                diagModel.state = .error("(status \(processError.status)) \(processError.stderr)")
             } catch {
                 diagModel.state = .error(error.localizedDescription)
             }

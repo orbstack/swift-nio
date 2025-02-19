@@ -5,13 +5,14 @@
 import Foundation
 
 struct ProcessResult {
-    let output: String
     let status: Int32
+    let stdout: String
+    let stderr: String
 }
 
 struct ProcessError: Error {
     let status: Int32
-    let output: String
+    let stderr: String
 }
 
 func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]) async throws
@@ -29,21 +30,27 @@ func runProcess(_ command: String, _ args: [String], env: [String: String] = [:]
     task.environment = newEnv
 
     let outPipe = Pipe()
+    // "If file is an NSPipe object, launching the receiver automatically closes the write end of the pipe in the current task."
     task.standardOutput = outPipe
-    task.standardError = outPipe
-    let readOutputTask = Task.detached {
-        let output = String(
-            data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)!
-        return output
+    let stdoutReadTask = Task.detached {
+        return String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)!
     }
+
+    let errPipe = Pipe()
+    task.standardError = errPipe
+    let stderrReadTask = Task.detached {
+        return String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)!
+    }
+
     return try await withCheckedThrowingContinuation { continuation in
         task.terminationHandler = { process in
             let status = process.terminationStatus
             Task {
                 continuation.resume(
                     returning: ProcessResult(
-                        output: await readOutputTask.value,
-                        status: status
+                        status: status,
+                        stdout: await stdoutReadTask.value,
+                        stderr: await stderrReadTask.value
                     ))
             }
         }
@@ -62,7 +69,7 @@ func runProcessChecked(_ command: String, _ args: [String], env: [String: String
 {
     let result = try await runProcess(command, args, env: env)
     if result.status != 0 {
-        throw ProcessError(status: result.status, output: result.output)
+        throw ProcessError(status: result.status, stderr: result.stderr)
     }
-    return result.output
+    return result.stdout
 }

@@ -70,7 +70,7 @@ struct ResetDataView: View {
                         model.state = .done
                     } catch let processError as ProcessError {
                         model.state = .error(
-                            "(status \(processError.status)) \(processError.output)")
+                            "(status \(processError.status)) \(processError.stderr)")
                         return
                     } catch {
                         model.state = .error(error.localizedDescription)

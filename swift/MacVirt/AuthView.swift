@@ -91,7 +91,7 @@ struct AuthView: View {
                 try await runProcessChecked(AppConfig.ctlExe, args)
                 model.state = .done
             } catch let processError as ProcessError {
-                model.state = .error("(status \(processError.status)) \(processError.output)")
+                model.state = .error("(status \(processError.status)) \(processError.stderr)")
             } catch {
                 model.state = .error(error.localizedDescription)
             }
