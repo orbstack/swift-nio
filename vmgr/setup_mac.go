@@ -342,7 +342,14 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems 
 			initSnippetPath = conf.ShellInitDir() + "/init.bash"
 		}
 
-		// common logic for bash and zsh
+		fallthrough
+	case "fish":
+		if profilePath == "" {
+			profilePath = details.Home + "/.config/fish/config.fish"
+		}
+		initSnippetPath = conf.ShellInitDir() + "/init.fish"
+
+		// common logic for bash, zsh, & fish
 		profileData, err := os.ReadFile(profilePath)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
