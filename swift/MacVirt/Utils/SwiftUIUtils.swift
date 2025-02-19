@@ -330,6 +330,7 @@ extension NSWorkspace {
                     } else {
                         perform(action)
                     }
+                    NSApp.activate(ignoringOtherApps: true)
                     return
                 }
             }
