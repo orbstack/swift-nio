@@ -372,6 +372,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             isARepeat: false,
             keyCode: 0)!
         NSApp.mainMenu?.performKeyEquivalent(with: fakeEvent)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
