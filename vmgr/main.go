@@ -1191,10 +1191,6 @@ func Main() {
 		runReportEnv()
 	case "uninstall-privhelper":
 		runUninstallPrivhelper()
-	case "_login":
-		runLogin()
-	case "_logout":
-		runLogout()
 	case "vmgr", "":
 		runVmManager()
 	default:

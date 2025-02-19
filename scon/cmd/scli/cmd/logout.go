@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"os"
-
+	"github.com/orbstack/macvirt/vmgr/drm/drmcore"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
 	"github.com/spf13/cobra"
-	"golang.org/x/sys/unix"
 )
 
 func init() {
@@ -20,13 +18,14 @@ var logoutCmd = &cobra.Command{
 	Example: "  " + rootCmd.Use + " logout",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// shell out to vmgr, like login
-		vmgrExe, err := vmclient.FindVmgrExe()
+		err := drmcore.SaveRefreshToken("")
 		checkCLI(err)
 
-		// multi-threaded exec is safe: it terminates other threads
-		err = unix.Exec(vmgrExe, []string{vmgrExe, "_logout"}, os.Environ())
-		checkCLI(err)
+		// if running, update it in vmgr so it takes effect
+		if vmclient.IsRunning() {
+			err = vmclient.Client().InternalUpdateToken("")
+			checkCLI(err)
+		}
 
 		return nil
 	},
