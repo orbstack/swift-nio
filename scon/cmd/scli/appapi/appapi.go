@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/orbstack/macvirt/scon/conf"
@@ -33,14 +37,91 @@ type Client struct {
 	longTimeoutClient *http.Client
 }
 
+func getProxyForRequest(req *http.Request) (*url.URL, error) {
+	// check env before checking macos proxy
+	envProxy, err := http.ProxyFromEnvironment(req)
+	if err != nil || envProxy != nil {
+		return envProxy, err
+	}
+
+	// doesn't update from vmgr, but this is only used for short-lived commands, so it *should* be fine?
+	configVal := vmconfig.Get().NetworkProxy
+
+	needAuth := configVal == vmconfig.ProxyAuto
+	settings, err := swext.ProxyGetSettings(needAuth)
+	if err != nil {
+		return nil, err
+	}
+
+	// if proxy is set in vmconfig, use it
+	// otherwise, use (in order of precedence) system socks5, {https, http} proxy
+	// some code taken from vmgr/vnet/tcpfwd/proxy.go:updateDialers
+
+	switch configVal {
+	case vmconfig.ProxyAuto:
+		break
+	case vmconfig.ProxyNone:
+		return nil, nil
+	default:
+		u, err := url.Parse(configVal)
+		if err != nil {
+			return nil, err
+		}
+
+		// normalize socks5h -> socks5
+		if u.Scheme == "socks5h" {
+			u.Scheme = "socks5"
+		}
+
+		return u, nil
+	}
+
+	if settings.SOCKSEnable {
+		u := &url.URL{
+			Scheme: "socks5",
+			Host:   net.JoinHostPort(settings.SOCKSProxy, strconv.Itoa(settings.SOCKSPort)),
+		}
+		if settings.SOCKSUser != "" {
+			u.User = url.UserPassword(settings.SOCKSUser, settings.SOCKSPassword)
+		}
+
+		return u, nil
+	}
+
+	if settings.HTTPSEnable && req.TLS != nil {
+		u := &url.URL{
+			Scheme: "http",
+			Host:   net.JoinHostPort(settings.HTTPSProxy, strconv.Itoa(settings.HTTPSPort)),
+		}
+
+		if settings.HTTPSUser != "" {
+			u.User = url.UserPassword(settings.HTTPSUser, settings.HTTPSPassword)
+		}
+
+		return u, nil
+	}
+
+	if settings.HTTPEnable && req.TLS == nil {
+		u := &url.URL{
+			Scheme: "http",
+			Host:   net.JoinHostPort(settings.HTTPProxy, strconv.Itoa(settings.HTTPPort)),
+		}
+
+		if settings.HTTPUser != "" {
+			u.User = url.UserPassword(settings.HTTPUser, settings.HTTPPassword)
+		}
+
+		return u, nil
+	}
+
+	return nil, nil
+}
+
 func NewClient() *Client {
 	transport := &http.Transport{
 		MaxIdleConns:    3,
 		IdleConnTimeout: 60 * time.Second,
-		// TODO this may be the wrong proxy
-		Proxy: func(req *http.Request) (*url.URL, error) {
-			return http.ProxyFromEnvironment(req)
-		},
+		Proxy:           getProxyForRequest,
 	}
 	httpClient := &http.Client{
 		Timeout:   15 * time.Second,
