@@ -31,10 +31,11 @@
 
 								<!--
 								Default OrbStack config (~/.orbstack/vmconfig.json) settings:
+								- Enable local Kubernetes cluster
 								- Memory limit = 12 GiB
 								-->
 								<key>mdm_vmConfig</key>
-								<string>{"memory_mib": 12288}</string>
+								<string>{"k8s.enable": true, "memory_mib": 12288}</string>
 							</dict>
 						</dict>
 					</array>
