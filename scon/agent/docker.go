@@ -26,7 +26,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
-	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 )
@@ -627,7 +627,7 @@ func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
 	return nil
 }
 
-func (a *AgentServer) DockerOnVmconfigUpdate(config *vmconfig.VmConfig, _ *None) error {
+func (a *AgentServer) DockerOnVmconfigUpdate(config *vmtypes.VmConfig, _ *None) error {
 	return a.docker.updateTLSProxyNftables(config.NetworkHttps)
 }
 

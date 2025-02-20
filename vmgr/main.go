@@ -47,6 +47,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/util/pspawn"
 	"github.com/orbstack/macvirt/vmgr/vclient"
 	"github.com/orbstack/macvirt/vmgr/vmclient"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
@@ -314,7 +315,7 @@ func migrateStateV2ToV3() error {
 
 	// old default: set DataAllowBackup to true - IF time machine is enabled
 	// otherwise, set to false
-	err := vmconfig.Update(func(c *vmconfig.VmConfig) {
+	err := vmconfig.Update(func(c *vmtypes.VmConfig) {
 		c.DataAllowBackup = util.CheckTimeMachineEnabled()
 	})
 	if err != nil {
@@ -374,7 +375,7 @@ func migrateStateV3ToV4() error {
 		} else if errors.Is(err, unix.EXDEV) {
 			// update vmconfig to point to old data dir
 			logrus.Warn("data dir migration: old app dir is a symlink")
-			err = vmconfig.Update(func(c *vmconfig.VmConfig) {
+			err = vmconfig.Update(func(c *vmtypes.VmConfig) {
 				c.DataDir = oldDefaultDataDir
 			})
 			if err != nil {

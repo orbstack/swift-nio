@@ -2,7 +2,7 @@ package htypes
 
 import (
 	"github.com/orbstack/macvirt/vmgr/uitypes"
-	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 )
 
 type SSHAgentSockets struct {
@@ -27,7 +27,7 @@ type DockerMachineConfig struct {
 }
 
 type InitConfig struct {
-	VmConfig *vmconfig.VmConfig
+	VmConfig *vmtypes.VmConfig
 }
 
 type DockerExitInfo struct {

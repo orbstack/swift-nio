@@ -38,3 +38,21 @@ func swext_defaults_get_user_settings() -> UnsafeMutablePointer<CChar> {
         return strdup("E\(error)")
     }
 }
+
+@_cdecl("swext_defaults_get_mdm_docker_config")
+func swext_defaults_get_mdm_docker_config() -> UnsafeMutablePointer<CChar>? {
+    if let config = Defaults[.mdmDockerConfig] {
+        return strdup(config)
+    } else {
+        return nil
+    }
+}
+
+@_cdecl("swext_defaults_get_mdm_vm_config")
+func swext_defaults_get_mdm_vm_config() -> UnsafeMutablePointer<CChar>? {
+    if let config = Defaults[.mdmVmConfig] {
+        return strdup(config)
+    } else {
+        return nil
+    }
+}

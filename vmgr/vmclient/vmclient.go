@@ -14,7 +14,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/flock"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
-	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"golang.org/x/sys/unix"
 )
 
@@ -152,8 +151,8 @@ func (c *VmClient) ResetData() error {
 	return c.rpc.CallResult(context.TODO(), "ResetData", nil, &noResult)
 }
 
-func (c *VmClient) GetConfig() (*vmconfig.VmConfig, error) {
-	var config vmconfig.VmConfig
+func (c *VmClient) GetConfig() (*vmtypes.VmConfig, error) {
+	var config vmtypes.VmConfig
 	err := c.rpc.CallResult(context.TODO(), "GetConfig", nil, &config)
 	if err != nil {
 		return nil, err
@@ -162,7 +161,7 @@ func (c *VmClient) GetConfig() (*vmconfig.VmConfig, error) {
 	return &config, nil
 }
 
-func (c *VmClient) SetConfig(patch *vmconfig.VmConfig) error {
+func (c *VmClient) SetConfig(patch *vmtypes.VmConfig) error {
 	return c.rpc.CallResult(context.TODO(), "SetConfig", patch, &noResult)
 }
 

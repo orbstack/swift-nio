@@ -37,6 +37,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vclient"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
@@ -229,7 +230,16 @@ func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMach
 		K8sExposeServices: cfg.K8sExposeServices,
 	}
 
-	data, err := os.ReadFile(conf.DockerDaemonConfig())
+	mdmJSON, err := swext.DefaultsGetMdmDockerConfig()
+	if err != nil {
+		return fmt.Errorf("get mdm config: %w", err)
+	}
+	if mdmJSON == "" {
+		mdmJSON = "{}"
+	}
+	logrus.WithField("json", mdmJSON).Debug("overlaying MDM docker config")
+
+	userJSON, err := os.ReadFile(conf.DockerDaemonConfig())
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// write an empty config for user convenience if it doesn't exist
@@ -238,13 +248,19 @@ func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMach
 				return err
 			}
 
-			return nil
+			userJSON = []byte("{}")
+		} else {
+			return err
 		}
-
-		return err
 	}
 
-	reply.DockerDaemonConfig = string(data)
+	// merge user config onto MDM config
+	merged, err := util.DeepMergeJSONBytes([]byte(mdmJSON), userJSON)
+	if err != nil {
+		return fmt.Errorf("merge docker config: %w", err)
+	}
+
+	reply.DockerDaemonConfig = string(merged)
 	return nil
 }
 
@@ -726,7 +742,7 @@ func (h *HcontrolServer) ImportTLSCertificate(_ None, reply *None) error {
 	if err != nil {
 		// tooManyDeclines? auto-disable the config
 		if strings.HasPrefix(err.Error(), "tooManyDeclines") {
-			err2 := vmconfig.Update(func(cfg *vmconfig.VmConfig) {
+			err2 := vmconfig.Update(func(cfg *vmtypes.VmConfig) {
 				cfg.NetworkHttps = false
 			})
 			if err2 != nil {

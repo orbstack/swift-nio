@@ -36,6 +36,8 @@ struct GResultCreate swext_brnet_create(const char* config_json_str);
 void swext_brnet_close(void* ptr);
 
 char* swext_defaults_get_user_settings(void);
+char* swext_defaults_get_mdm_docker_config(void);
+char* swext_defaults_get_mdm_vm_config(void);
 
 void* swext_vlanrouter_new(const char* config_json_str);
 struct GResultIntErr swext_vlanrouter_addBridge(void* ptr, const char* config_json_str);
@@ -503,6 +505,24 @@ func DefaultsGetUserSettings() (*UserSettings, error) {
 	}
 
 	return &settings, nil
+}
+
+func DefaultsGetMdmDockerConfig() (string, error) {
+	cStr := C.swext_defaults_get_mdm_docker_config()
+	if cStr == nil {
+		return "", nil
+	}
+	defer C.free(unsafe.Pointer(cStr))
+	return C.GoString(cStr), nil
+}
+
+func DefaultsGetMdmVmConfig() (string, error) {
+	cStr := C.swext_defaults_get_mdm_vm_config()
+	if cStr == nil {
+		return "", nil
+	}
+	defer C.free(unsafe.Pointer(cStr))
+	return C.GoString(cStr), nil
 }
 
 /*

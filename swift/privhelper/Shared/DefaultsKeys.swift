@@ -222,6 +222,8 @@ extension Defaults.Keys {
     static let drmLastState = Key<DrmState?>("drm_lastState", default: nil, suite: suite)
 
     static let mdmSsoDomain = Key<String?>("mdm_ssoDomain", default: nil, suite: suite)
+    static let mdmDockerConfig = Key<String?>("mdm_dockerConfig", default: nil, suite: suite)
+    static let mdmVmConfig = Key<String?>("mdm_vmConfig", default: nil, suite: suite)
 
     private static func getDefaultsSuite() -> UserDefaults {
         // vmgr has different bundle id, depending on signing id

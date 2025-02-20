@@ -658,7 +658,7 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 					logrus.Info("user canceled privhelper install too many times, disabling")
 
 					// disable admin
-					err := vmconfig.Update(func(c *vmconfig.VmConfig) {
+					err := vmconfig.Update(func(c *vmtypes.VmConfig) {
 						c.SetupUseAdmin = false
 					})
 					if err != nil {

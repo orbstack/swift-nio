@@ -2,7 +2,11 @@
 
 package vmconfig
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
+)
 
 func validateAPFS(dataDir string) error {
 	return nil
@@ -11,3 +15,7 @@ func validateAPFS(dataDir string) error {
 var IsAdmin = sync.OnceValue(func() bool {
 	return false
 })
+
+func Defaults() (*vmtypes.VmConfig, error) {
+	return BaseDefaults(), nil
+}

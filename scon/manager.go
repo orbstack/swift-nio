@@ -27,7 +27,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
-	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -66,7 +66,7 @@ type ConManager struct {
 	k8sExposeServices bool
 	uiEventDebounce   syncx.LeadingFuncDebounce
 	uiInitContainers  sync.WaitGroup
-	vmConfig          *vmconfig.VmConfig
+	vmConfig          *vmtypes.VmConfig
 	sconGuest         *SconGuestServer
 	drm               *DrmMonitor
 	wormhole          *WormholeManager

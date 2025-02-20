@@ -12,7 +12,7 @@ import (
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
-	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"golang.org/x/sys/unix"
 )
 
@@ -313,7 +313,7 @@ func (c *Client) DockerGuiReportStarted() error {
 	return nil
 }
 
-func (c *Client) DockerOnVmconfigUpdate(config *vmconfig.VmConfig) error {
+func (c *Client) DockerOnVmconfigUpdate(config *vmtypes.VmConfig) error {
 	var none None
 	err := c.rpc.Call("a.DockerOnVmconfigUpdate", config, &none)
 	if err != nil {

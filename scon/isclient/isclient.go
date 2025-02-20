@@ -6,7 +6,7 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
-	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 )
 
 type None struct{}
@@ -35,7 +35,7 @@ func (c *Client) OnDrmResult(result *drmtypes.Result) error {
 	return c.rpc.Call("sci.OnDrmResult", result, &noResult)
 }
 
-func (c *Client) OnVmconfigUpdate(config *vmconfig.VmConfig) error {
+func (c *Client) OnVmconfigUpdate(config *vmtypes.VmConfig) error {
 	var noResult None
 	return c.rpc.Call("sci.OnVmconfigUpdate", config, &noResult)
 }

@@ -3,12 +3,16 @@
 package vmconfig
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"slices"
 	"sync"
 
+	"github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -48,3 +52,24 @@ var IsAdmin = sync.OnceValue(func() bool {
 	}
 	return slices.Contains(gids, gidAdmin)
 })
+
+func Defaults() (*vmtypes.VmConfig, error) {
+	defaults := BaseDefaults()
+
+	// merge with MDM config
+	mdmJSON, err := swext.DefaultsGetMdmVmConfig()
+	if err != nil {
+		return nil, fmt.Errorf("get mdm config: %w", err)
+	}
+
+	// no deep merge needed, just unmarshal into it: we only have 1 level of keys
+	if mdmJSON != "" {
+		logrus.WithField("json", mdmJSON).Debug("overlaying MDM vmconfig")
+		err = json.Unmarshal([]byte(mdmJSON), defaults)
+		if err != nil {
+			return nil, fmt.Errorf("unmarshal mdm config: %w", err)
+		}
+	}
+
+	return defaults, nil
+}

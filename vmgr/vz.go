@@ -18,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/vclient"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
@@ -423,7 +424,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 
 		if rosettaStatus != swext.RosettaStatusInstalled {
 			logrus.Info("Rosetta not supported or install canceled; saving preference")
-			err := vmconfig.Update(func(c *vmconfig.VmConfig) {
+			err := vmconfig.Update(func(c *vmtypes.VmConfig) {
 				c.Rosetta = false
 			})
 			if err != nil {

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadContent</key>
+			<dict>
+				<key>dev.kdrag0n.MacVirt</key>
+				<dict>
+					<key>Forced</key>
+					<array>
+						<dict>
+							<!--
+							This is an example set of OrbStack settings that can be enforced
+							by MDM profiles. Delete any keys that you don't want to enforce.
+							-->
+							<key>mcx_preference_settings</key>
+							<dict>
+								<!-- Require SSO, using @orbstack.dev email domain -->
+								<key>mdm_ssoDomain</key>
+								<string>orbstack.dev</string>
+
+								<!--
+								Default Docker engine (~/.orbstack/config/docker.json) settings:
+								- Use Google Container Registry as a Docker Hub mirror, to bypass rate limits
+								-->
+								<key>mdm_dockerConfig</key>
+								<string>{"registry-mirrors": ["https://mirror.gcr.io"]}</string>
+
+								<!--
+								Default OrbStack config (~/.orbstack/vmconfig.json) settings:
+								- Memory limit = 12 GiB
+								-->
+								<key>mdm_vmConfig</key>
+								<string>{"memory_mib": 12288}</string>
+							</dict>
+						</dict>
+					</array>
+				</dict>
+			</dict>
+			<key>PayloadEnabled</key>
+			<true/>
+			<key>PayloadIdentifier</key>
+			<string>2659E3FC-CDAE-492B-9B35-064249248F1C</string>
+			<key>PayloadType</key>
+			<string>com.apple.ManagedClient.preferences</string>
+			<key>PayloadUUID</key>
+			<string>2659E3FC-CDAE-492B-9B35-064249248F1C</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+		</dict>
+	</array>
+	<key>PayloadDescription</key>
+	<string>OrbStack Settings</string>
+	<key>PayloadDisplayName</key>
+	<string>OrbStack Settings</string>
+	<key>PayloadIdentifier</key>
+	<string>dev.orbstack.mdm.example</string>
+	<key>PayloadOrganization</key>
+	<string></string>
+	<key>PayloadRemovalDisallowed</key>
+	<false/>
+	<key>PayloadScope</key>
+	<string>System</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>48C2F22C-CB50-4500-AFD6-265D5FB464FB</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>

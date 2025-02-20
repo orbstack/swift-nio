@@ -99,12 +99,12 @@ func (s *VmControlServer) ResetData(ctx context.Context) error {
 	return s.ForceStop(ctx)
 }
 
-func (s *VmControlServer) GetConfig(ctx context.Context) (*vmconfig.VmConfig, error) {
+func (s *VmControlServer) GetConfig(ctx context.Context) (*vmtypes.VmConfig, error) {
 	return vmconfig.Get(), nil
 }
 
-func (s *VmControlServer) SetConfig(ctx context.Context, newConfig *vmconfig.VmConfig) error {
-	return vmconfig.Update(func(c *vmconfig.VmConfig) {
+func (s *VmControlServer) SetConfig(ctx context.Context, newConfig *vmtypes.VmConfig) error {
+	return vmconfig.Update(func(c *vmtypes.VmConfig) {
 		*c = *newConfig
 	})
 }

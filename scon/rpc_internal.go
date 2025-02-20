@@ -7,7 +7,7 @@ import (
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/drm/drmtypes"
-	"github.com/orbstack/macvirt/vmgr/vmconfig"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
 	"github.com/sirupsen/logrus"
@@ -29,7 +29,7 @@ func (s *SconInternalServer) OnDrmResult(result drmtypes.Result, _ *None) error 
 	return nil
 }
 
-func (s *SconInternalServer) OnVmconfigUpdate(config *vmconfig.VmConfig, _ *None) error {
+func (s *SconInternalServer) OnVmconfigUpdate(config *vmtypes.VmConfig, _ *None) error {
 	dlog("on vmconfig update reported")
 	s.m.vmConfig = config
 

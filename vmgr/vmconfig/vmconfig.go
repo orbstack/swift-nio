@@ -14,6 +14,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/mem"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/util/errorx"
+	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 )
 
 const (
@@ -25,36 +26,18 @@ const (
 )
 
 var (
-	globalConfig   *VmConfig
+	globalConfig   *vmtypes.VmConfig
 	globalConfigMu syncx.Mutex
 
 	diffBroadcaster = syncx.NewBroadcaster[VmConfigChange]()
 )
 
-type VmConfig struct {
-	MemoryMiB         uint64 `json:"memory_mib"`
-	CPU               int    `json:"cpu"`
-	Rosetta           bool   `json:"rosetta"`
-	NetworkProxy      string `json:"network_proxy"`
-	NetworkBridge     bool   `json:"network_bridge"`
-	NetworkHttps      bool   `json:"network.https"`
-	MountHideShared   bool   `json:"mount_hide_shared"`
-	DataDir           string `json:"data_dir,omitempty"`
-	DataAllowBackup   bool   `json:"data_allow_backup"`
-	DockerSetContext  bool   `json:"docker.set_context"`
-	DockerNodeName    string `json:"docker.node_name"`
-	SetupUseAdmin     bool   `json:"setup.use_admin"`
-	K8sEnable         bool   `json:"k8s.enable"`
-	K8sExposeServices bool   `json:"k8s.expose_services"`
-	SSHExposePort     bool   `json:"ssh.expose_port"`
-}
-
 type VmConfigChange struct {
-	Old *VmConfig `json:"old"`
-	New *VmConfig `json:"new"`
+	Old *vmtypes.VmConfig `json:"old"`
+	New *vmtypes.VmConfig `json:"new"`
 }
 
-func (c *VmConfig) Validate() error {
+func Validate(c *vmtypes.VmConfig) error {
 	if c.MemoryMiB < minMemoryMib {
 		return fmt.Errorf("memory must be at least %d MiB", minMemoryMib)
 	}
@@ -124,7 +107,7 @@ func check(err error) {
 	}
 }
 
-func Get() *VmConfig {
+func Get() *vmtypes.VmConfig {
 	globalConfigMu.Lock()
 	defer globalConfigMu.Unlock()
 
@@ -132,17 +115,24 @@ func Get() *VmConfig {
 		return globalConfig
 	}
 
+	defaults, err := Defaults()
+	if err != nil {
+		panic(err)
+	}
+
 	data, err := os.ReadFile(coredir.VmConfigFile())
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Defaults()
+			return defaults
 		}
 		panic(err)
 	}
 
-	config := Defaults()
-	err = json.Unmarshal(data, &config)
-	check(err)
+	config := defaults
+	err = json.Unmarshal(data, config)
+	if err != nil {
+		return defaults
+	}
 
 	// apply debug overlay on debug builds
 	if coredir.Debug() {
@@ -166,7 +156,7 @@ func Get() *VmConfig {
 		}
 	}
 
-	err = config.Validate()
+	err = Validate(config)
 	if err != nil {
 		errorx.Fatalf("Invalid config: %w", err)
 	}
@@ -175,7 +165,7 @@ func Get() *VmConfig {
 	return globalConfig
 }
 
-func Update(cb func(*VmConfig)) error {
+func Update(cb func(*vmtypes.VmConfig)) error {
 	oldConfig := Get()
 
 	globalConfigMu.Lock()
@@ -185,14 +175,18 @@ func Update(cb func(*VmConfig)) error {
 	newConfig := *oldConfig
 	cb(&newConfig)
 
-	err := newConfig.Validate()
+	err := Validate(&newConfig)
 	if err != nil {
 		return err
 	}
 
 	// generate a patch and only save the patch
 	// this allows us to change defaults without breaking existing configs
-	diffDefault, err := diffJsonMaps(Defaults(), &newConfig)
+	defaults, err := Defaults()
+	if err != nil {
+		return fmt.Errorf("get defaults: %w", err)
+	}
+	diffDefault, err := diffJsonMaps(defaults, &newConfig)
 	if err != nil {
 		return err
 	}
@@ -258,8 +252,8 @@ func calcMemory() uint64 {
 	return min(targetMem, maxDefaultMemory)
 }
 
-func Defaults() *VmConfig {
-	return &VmConfig{
+func BaseDefaults() *vmtypes.VmConfig {
+	return &vmtypes.VmConfig{
 		MemoryMiB:         calcMemory() / 1024 / 1024,
 		CPU:               runtime.NumCPU(),
 		Rosetta:           runtime.GOARCH == "arm64",
@@ -279,8 +273,13 @@ func Defaults() *VmConfig {
 }
 
 func Reset() error {
-	return Update(func(c *VmConfig) {
-		*c = *Defaults()
+	return Update(func(c *vmtypes.VmConfig) {
+		defaults, err := Defaults()
+		if err != nil {
+			panic(err)
+		}
+
+		*c = *defaults
 	})
 }
 
