@@ -209,12 +209,10 @@ func (d *domainproxyRegistry) freeAddrLocked(ip netip.Addr) {
 
 	if ip.Is4() {
 		if hostMapIP, ok := d.v4.hostMap[upstream.Host]; ok && hostMapIP == ip {
-			logrus.WithField("host", upstream.Host).Debug("overwriting hostmap ip")
 			delete(d.v4.hostMap, upstream.Host)
 		}
 	} else {
 		if hostMapIP, ok := d.v6.hostMap[upstream.Host]; ok && hostMapIP == ip {
-			logrus.WithField("host", upstream.Host).Debug("overwriting hostmap ip")
 			delete(d.v6.hostMap, upstream.Host)
 		}
 	}
@@ -300,11 +298,13 @@ func (d *domainproxyRegistry) setAddrUpstreamLocked(ip netip.Addr, val domainpro
 
 	if ip.Is4() {
 		if hostMapIP, ok := d.v4.hostMap[val.Host]; ok && hostMapIP != ip {
+			logrus.WithField("host", val.Host).Debug("overwriting hostmap ip")
 			d.freeAddrLocked(hostMapIP)
 		}
 		d.v4.hostMap[val.Host] = ip
 	} else {
 		if hostMapIP, ok := d.v6.hostMap[val.Host]; ok && hostMapIP != ip {
+			logrus.WithField("host", val.Host).Debug("overwriting hostmap ip")
 			d.freeAddrLocked(hostMapIP)
 		}
 		d.v6.hostMap[val.Host] = ip
