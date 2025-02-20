@@ -303,23 +303,88 @@ func setDockerConfigEnv(value string) error {
 	return nil
 }
 
-func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems []string) (bool, bool, error) {
+type shellProfileEditResult struct {
+	AlertAddPath        bool
+	AlertProfileChanged bool
+}
+
+func editShellProfile(shellBase string, profilePath string, initSnippetPath string) (shellProfileEditResult, error) {
+	// common logic for bash, zsh, & fish
+	profileData, err := os.ReadFile(profilePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// we'll create it
+			profileData = []byte{}
+		} else {
+			return shellProfileEditResult{}, err
+		}
+	}
+	profileScript := string(profileData)
+
+	// is it already there?
+	// no quote: need ~/ to stay intact
+	// we only check for the base (source %s) because:
+	//   - 2>/dev/null was added later
+	//   - user can edit it
+	lineBase := fmt.Sprintf(`source %s`, syssetup.MakeHomeRelative(initSnippetPath))
+	line := fmt.Sprintf(`%s 2>/dev/null || :`, lineBase)
+	logrus.WithFields(logrus.Fields{
+		"shell":    shellBase,
+		"file":     profilePath,
+		"lineBase": lineBase,
+	}).Debug("checking for lineBase in profile")
+	if !strings.Contains(profileScript, lineBase) {
+		// if not, add it
+		profileScript += fmt.Sprintf("\n# Added by %s: command-line tools and integration\n# This won't be added again if you remove it.\n%s\n", appid.UserAppName, line)
+		err = os.WriteFile(profilePath, []byte(profileScript), 0644)
+		if err != nil {
+			// if profile is read-only, e.g. with nix home-manager
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"shell": shellBase,
+				"file":  profilePath,
+			}).Warn("failed to write shell profile")
+			return shellProfileEditResult{
+				AlertAddPath: true,
+			}, nil
+		} else {
+			// success
+			// not important enough to nag user if we can link to an existing path
+			logrus.Info("modified shell profile")
+
+			// record that we have added it
+			err = vmconfig.UpdateState(func(state *vmconfig.VmgrState) error {
+				state.SetupState.EditedShellProfiles = append(state.SetupState.EditedShellProfiles, shellBase)
+				return nil
+			})
+			if err != nil {
+				return shellProfileEditResult{}, err
+			}
+
+			return shellProfileEditResult{
+				AlertProfileChanged: true,
+			}, nil
+		}
+	}
+
+	return shellProfileEditResult{}, nil
+}
+
+func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems []string) (shellProfileEditResult, error) {
 	// always try to add to profile and/or ask user to add to $PATH
 	// is the PATH already there?
 	if slices.Contains(pathItems, conf.CliBinDir()) || slices.Contains(pathItems, conf.CliXbinDir()) || slices.Contains(pathItems, conf.UserAppBinDir()) {
-		return false, false, nil
+		return shellProfileEditResult{}, nil
 	}
 
 	// do we recognize this shell?
 	shellBase := filepath.Base(details.Shell)
 
+	// if we have already done so once, don't do it again
 	if slices.Contains(vmconfig.GetState().SetupState.EditedShellProfiles, shellBase) {
 		logrus.Infof("not attempting to modify shell profile for %s (%s), as we have already done so once", shellBase, details.Shell)
-		return false, false, nil
+		return shellProfileEditResult{}, nil
 	}
 
-	var profilePath string
-	var initSnippetPath string
 	switch shellBase {
 	case "zsh":
 		// what's the ZDOTDIR?
@@ -328,88 +393,33 @@ func (s *VmControlServer) tryModifyShellProfile(details *UserDetails, pathItems 
 		if zdotdir == "" {
 			zdotdir = details.Home
 		}
-		profilePath = zdotdir + "/.zprofile"
-		initSnippetPath = conf.ShellInitDir() + "/init.zsh"
-		fallthrough
+
+		profilePath := zdotdir + "/.zprofile"
+		initSnippetPath := conf.ShellInitDir() + "/init.zsh"
+		return editShellProfile(shellBase, profilePath, initSnippetPath)
 
 	case "bash":
-		if profilePath == "" {
-			// prefer bash_profile, otherwise use profile
-			profilePath = details.Home + "/.bash_profile"
-			if err := unix.Access(profilePath, unix.F_OK); errors.Is(err, os.ErrNotExist) {
-				profilePath = details.Home + "/.profile"
-			}
-			initSnippetPath = conf.ShellInitDir() + "/init.bash"
+		// prefer bash_profile, otherwise use profile
+		profilePath := details.Home + "/.bash_profile"
+		if err := unix.Access(profilePath, unix.F_OK); errors.Is(err, os.ErrNotExist) {
+			profilePath = details.Home + "/.profile"
 		}
+		initSnippetPath := conf.ShellInitDir() + "/init.bash"
+		return editShellProfile(shellBase, profilePath, initSnippetPath)
 
-		fallthrough
 	case "fish":
-		if profilePath == "" {
-			profilePath = details.Home + "/.config/fish/config.fish"
-		}
-		initSnippetPath = conf.ShellInitDir() + "/init.fish"
-
-		// common logic for bash, zsh, & fish
-		profileData, err := os.ReadFile(profilePath)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				// we'll create it
-				profileData = []byte{}
-			} else {
-				return false, false, err
-			}
-		}
-		profileScript := string(profileData)
-
-		// is it already there?
-		// no quote: need ~/ to stay intact
-		// we only check for the base (source %s) because:
-		//   - 2>/dev/null was added later
-		//   - user can edit it
-		lineBase := fmt.Sprintf(`source %s`, syssetup.MakeHomeRelative(initSnippetPath))
-		line := fmt.Sprintf(`%s 2>/dev/null || :`, lineBase)
-		logrus.WithFields(logrus.Fields{
-			"shell":    shellBase,
-			"file":     profilePath,
-			"lineBase": lineBase,
-		}).Debug("checking for lineBase in profile")
-		if !strings.Contains(profileScript, lineBase) {
-			// if not, add it
-			profileScript += fmt.Sprintf("\n# Added by %s: command-line tools and integration\n# This won't be added again if you remove it.\n%s\n", appid.UserAppName, line)
-			err = os.WriteFile(profilePath, []byte(profileScript), 0644)
-			if err != nil {
-				// if profile is read-only, e.g. with nix home-manager
-				logrus.WithError(err).WithFields(logrus.Fields{
-					"shell": shellBase,
-					"file":  profilePath,
-				}).Warn("failed to write shell profile")
-				return true, false, nil
-			} else {
-				// success
-				// not important enough to nag user if we can link to an existing path
-				logrus.Info("modified shell profile")
-
-				// record that we have added it
-				err = vmconfig.UpdateState(func(state *vmconfig.VmgrState) error {
-					state.SetupState.EditedShellProfiles = append(state.SetupState.EditedShellProfiles, shellBase)
-					return nil
-				})
-				if err != nil {
-					return false, false, err
-				}
-
-				return false, true, nil
-			}
-		}
+		profilePath := details.Home + "/.config/fish/config.fish"
+		initSnippetPath := conf.ShellInitDir() + "/init.fish"
+		return editShellProfile(shellBase, profilePath, initSnippetPath)
 
 	default:
 		// we don't know how to deal with this.
 		// just ask the user to add it to their path
 		logrus.Info("unknown shell, asking user to add bins to PATH")
-		return true, false, nil
+		return shellProfileEditResult{
+			AlertAddPath: true,
+		}, nil
 	}
-
-	return false, false, nil
 }
 
 type SetupState struct {
@@ -542,7 +552,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		return nil, err
 	}
 
-	askAddPath, alertProfileChanged, err := s.tryModifyShellProfile(details, pathItems)
+	shellProfileResult, err := s.tryModifyShellProfile(details, pathItems)
 	if err != nil {
 		return nil, err
 	}
@@ -587,7 +597,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		}
 		info.AdminMessage = &msg
 	}
-	if askAddPath && !vmconfig.GetState().SetupState.PathUpdateRequested {
+	if shellProfileResult.AlertAddPath && !vmconfig.GetState().SetupState.PathUpdateRequested {
 		info.AlertRequestAddPath = true
 
 		err = vmconfig.UpdateState(func(state *vmconfig.VmgrState) error {
@@ -600,7 +610,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 	}
 	// the "profile changed / CLI tools installed" alert tells users to restart terminals for PATH update if we don't have admin
 	// if user has admin, they'll probably allow it, so we'll symlink into /usr/local/bin. that removes the need to restart terminals
-	if alertProfileChanged && len(setupState.AdminLinkCommands) == 0 {
+	if shellProfileResult.AlertProfileChanged && len(setupState.AdminLinkCommands) == 0 {
 		info.AlertProfileChanged = true
 	}
 	logrus.WithFields(logrus.Fields{
