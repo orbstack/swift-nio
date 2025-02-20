@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/orbstack/macvirt/vmgr/drm/updates"
 	"os"
 	"os/exec"
 
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
+	"github.com/orbstack/macvirt/vmgr/drm/updates"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +17,7 @@ var (
 
 func init() {
 	rootCmd.AddCommand(updateCmd)
-	updateCmd.Flags().BoolVarP(&flagCheck, "check", "c", false, "Only check for updates; returns 3 if updates available & 0 if up-to-date.")
+	updateCmd.Flags().BoolVarP(&flagCheck, "check", "c", false, "Check for updates, but don't install. Returns exit status 3 if outdated and 0 if not.")
 }
 
 var updateCmd = &cobra.Command{
@@ -42,7 +42,7 @@ This includes the Linux kernel, Docker, the CLI, GUI app, and other components.
 			checkCLI(err)
 
 			if updateInfo.Available {
-				fmt.Println("An update is available.")
+				fmt.Println("Update available!")
 				os.Exit(3)
 			} else {
 				fmt.Println("OrbStack is up to date.")
