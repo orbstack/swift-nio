@@ -247,8 +247,6 @@ func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMach
 			if err != nil {
 				return err
 			}
-
-			userJSON = []byte("{}")
 		} else {
 			return err
 		}

@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // deep merges 'overlay' onto 'base':
@@ -32,11 +33,20 @@ func DeepMergeJSON(base map[string]any, overlay map[string]any) map[string]any {
 
 func DeepMergeJSONBytes(base []byte, overlay []byte) ([]byte, error) {
 	var baseMap, overlayMap map[string]any
-	if err := json.Unmarshal(base, &baseMap); err != nil {
-		return nil, fmt.Errorf("unmarshal base json: %w", err)
+
+	// empty = {}
+	// accept "\n", etc. in case user saves an empty file using code editor
+	if strings.TrimSpace(string(base)) != "" {
+		if err := json.Unmarshal(base, &baseMap); err != nil {
+			return nil, fmt.Errorf("unmarshal base json: %w", err)
+		}
 	}
-	if err := json.Unmarshal(overlay, &overlayMap); err != nil {
-		return nil, fmt.Errorf("unmarshal overlay json: %w", err)
+
+	if strings.TrimSpace(string(overlay)) != "" {
+		if err := json.Unmarshal(overlay, &overlayMap); err != nil {
+			return nil, fmt.Errorf("unmarshal overlay json: %w", err)
+		}
 	}
+
 	return json.Marshal(DeepMergeJSON(baseMap, overlayMap))
 }
