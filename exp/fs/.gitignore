@@ -2,3 +2,6 @@
 apfsmap.csv
 apfsmap.png
 /apfsmap-collect
+/bpftool-writes
+/bpftool-writes.linux
+/run-with-testfile
