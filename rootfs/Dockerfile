@@ -14,7 +14,7 @@ FROM nixos/nix:2.24.2 AS nix-base
 # Build Go and eBPF (C) - scon + eBPF, macctl
 FROM base AS go-base
 RUN apk add --no-cache go alpine-sdk lxc-dev bash \
-    llvm clang linux-headers libbpf-dev protoc
+    llvm clang linux-headers libbpf-dev protoc bpftool
 # must build vmgr and scon together because they depend on each other
 FROM go-base AS go-build
 ENV GOTOOLCHAIN=auto
@@ -444,7 +444,7 @@ RUN apk upgrade --no-cache && apk add --no-cache \
 ARG TYPE=release
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
-    apk add --no-cache neovim iproute2 agetty openssh htop strace tcpdump fish go lxc-dev alpine-sdk llvm clang linux-headers libbpf-dev bcachefs-tools
+    apk add --no-cache neovim iproute2 agetty openssh htop strace tcpdump fish go lxc-dev alpine-sdk llvm clang linux-headers libbpf-dev bcachefs-tools bpftool
 fi
 EOT
 
