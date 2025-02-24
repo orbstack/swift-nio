@@ -1,3 +1,5 @@
+SHELL=/bin/sh -o pipefail
+
 # parallelism
 MAKEFLAGS := -j$(J)
 
