@@ -12,6 +12,7 @@ use std::fmt::Debug;
 use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
+use std::hash::BuildHasherDefault;
 use std::io;
 use std::marker::PhantomData;
 use std::mem::{self, ManuallyDrop, MaybeUninit};
@@ -48,7 +49,7 @@ use nix::sys::uio::pwrite;
 use nix::unistd::{access, lseek, truncate, Whence};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
-use parking_lot::RwLock;
+use parking_lot::{deadlock, RwLock};
 use smol_str::SmolStr;
 use utils::hypercalls::{HVC_DEVICE_VIRTIOFS_ROOT, HVC_DEVICE_VIRTIOFS_ROSETTA};
 use utils::qos::{set_thread_qos, QosClass};
@@ -599,6 +600,7 @@ impl NodeData {
     fn inc_ref(&self) -> Result<(), ()> {
         loop {
             let refcount = self.refcount.load(Ordering::Relaxed);
+            debug!("inc_ref nodeid={}, count={}", self.nodeid, refcount);
             if refcount == 0 {
                 return Err(());
             }
@@ -636,22 +638,35 @@ impl NodeData {
     }
 }
 
-impl Drop for NodeData {
-    fn drop(&mut self) {
-        // let loc = self.loc.get_mut();
-        // if let Some(ref parent) = loc.parent {
-        //     // TODO: remove clone
-        //     if let dashmap::mapref::entry::Entry::Occupied(mut e) =
-        //         parent.children.entry(loc.name.clone())
-        //     {
-        //         if e.get().upgrade().is_none() {
-        //             debug!("drop stale entry: {}", loc.name);
-        //             e.remove();
-        //         }
-        //     }
-        // }
-    }
-}
+// NodeData is referenced by NodeIds for the entirety of it's lifetime, and will only
+// ever be dropped after a forget. Instead of removing entries from the children map
+// when NodeData is dropped, we can do it on forget, and this way NodeData doesn't
+// require a reference to the children map.
+//impl Drop for NodeData {
+//    fn drop(&mut self) {
+//        debug!("going to drop name={}", &self.loc.read().name);
+//        if let Some(parent) = self.loc.read().parent.as_ref() {
+//            debug!(
+//                "drop parent={} name={}",
+//                parent.nodeid,
+//                &self.loc.read().name
+//            );
+//            if let dashmap::mapref::entry::Entry::Occupied(e) = self
+//                .map
+//                .entry((parent.nodeid, self.loc.read().name.clone()))
+//            {
+//                if e.get().upgrade().is_none() {
+//                    debug!(
+//                        "dropped stale entry parent={} name{}",
+//                        parent.nodeid,
+//                        &self.loc.read().name
+//                    );
+//                    e.remove();
+//                }
+//            }
+//        }
+//    }
+//}
 
 #[derive(Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
 #[repr(packed)]
@@ -685,7 +700,7 @@ pub struct PassthroughFs {
     nodeids: FxDashMap<NodeId, Arc<NodeData>>,
     next_nodeid: AtomicU64,
     // maps nodes to children - keyed by parent node id + child name
-    node_children: FxDashMap<(NodeId, SmolStr), Weak<NodeData>>,
+    node_children: Arc<FxDashMap<(NodeId, SmolStr), Weak<NodeData>>>,
 
     handles: Arc<FxDashMap<HandleId, Arc<HandleData>>>,
     next_handle: AtomicU64,
@@ -707,6 +722,9 @@ impl PassthroughFs {
         // init with root nodeid
         let st = nix::sys::stat::stat(Path::new(&cfg.root_dir))?;
         let nodeids = FxDashMap::default();
+        let children_map = Arc::new(FxDashMap::default());
+        //let s = BuildHasherDefault::new();
+        //let children_map = Arc::new(FxDashMap::with_hasher_and_shard_amount(s, 2));
         nodeids.insert(
             NodeId(fuse::ROOT_ID),
             Arc::new(NodeData {
@@ -734,8 +752,6 @@ impl PassthroughFs {
             Some(callbacks) => Some(Arc::new(VnodePoller::new(callbacks, handles.clone())?)),
             None => None,
         };
-
-        let children_map = FxDashMap::default();
 
         let mut fs = PassthroughFs {
             nodeids,
@@ -780,6 +796,19 @@ impl PassthroughFs {
             .clone();
         node.check_io()?;
         Ok(node)
+    }
+
+    fn get_child(&self, nodeid: NodeId, name: &str) -> io::Result<Arc<NodeData>> {
+        let smol_name = SmolStr::from(name);
+        let child = self
+            .node_children
+            .get(&(nodeid, smol_name))
+            .and_then(|w| w.upgrade());
+        if let Some(child) = child {
+            Ok(child)
+        } else {
+            Err(Errno::ENOENT.into())
+        }
     }
 
     fn get_handle(&self, _nodeid: NodeId, handle: HandleId) -> io::Result<Arc<HandleData>> {
@@ -874,13 +903,10 @@ impl PassthroughFs {
         st: &bindings::stat64,
         file_ref: FileRef,
     ) -> io::Result<(NodeId, NodeFlags)> {
-        let smol_name = SmolStr::from(name);
-        if let Some(e) = self.node_children.get(&(parent.nodeid, smol_name.clone())) {
-            if let Some(node) = e.upgrade() {
-                if node.inc_ref().is_ok() {
-                    debug!(?name, nodeid = ?node.nodeid, "existing node");
-                    return Ok((node.nodeid, node.flags));
-                }
+        if let Ok(node) = self.get_child(parent.nodeid, name) {
+            if node.inc_ref().is_ok() {
+                debug!(?name, nodeid = ?node.nodeid, "existing node");
+                return Ok((node.nodeid, node.flags));
             }
         }
 
@@ -931,9 +957,15 @@ impl PassthroughFs {
         let node_flags = node.flags;
         let node = Arc::new(node);
         let weak = Arc::downgrade(&node);
+
+        let smol_name = SmolStr::from(name);
         self.nodeids.insert(new_nodeid, node);
-        match self.node_children.entry((parent.nodeid, smol_name)) {
+        match self.node_children.entry((parent.nodeid, smol_name.clone())) {
             dashmap::mapref::entry::Entry::Vacant(e) => {
+                debug!(
+                    "insert into children map ({} {})",
+                    parent.nodeid, &smol_name
+                );
                 e.insert(weak);
             }
             dashmap::mapref::entry::Entry::Occupied(mut e) => {
@@ -994,11 +1026,29 @@ impl PassthroughFs {
         if let dashmap::mapref::entry::Entry::Occupied(e) = self.nodeids.entry(nodeid) {
             // no check_io: closing a read-only fd is OK and won't trigger flush
 
+            let node = e.get();
             // decrement the refcount
-            if e.get().refcount.fetch_sub(count as u32, Ordering::Relaxed) == count as u32 {
+            if node.refcount.fetch_sub(count as u32, Ordering::Relaxed) == count as u32 {
                 // count - count = 0
                 // this nodeid is no longer in use
+                let node_loc = node.loc.read();
 
+                if let Some(parent) = node_loc.parent.as_ref() {
+                    if let dashmap::mapref::entry::Entry::Occupied(e) = self
+                        .node_children
+                        .entry((parent.nodeid, node_loc.name.clone()))
+                    {
+                        if e.get().upgrade().is_none() {
+                            debug!(
+                                "dropped stale entry parent={} name{}",
+                                parent.nodeid, &node_loc.name
+                            );
+                            e.remove();
+                        }
+                    }
+                }
+
+                drop(node_loc);
                 e.remove();
             }
         }
@@ -1049,7 +1099,6 @@ impl PassthroughFs {
                 .to_bytes()
             };
 
-            let smol_name = SmolStr::from(std::str::from_utf8(name).unwrap());
             let mut ino = unsafe { (*dentry).d_ino };
             if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
                 // replace nfs mountpoint ino with /var/empty - that's what lookup returns
@@ -1059,16 +1108,13 @@ impl PassthroughFs {
             }
 
             // TODO: optimize
-            let dt_ino: u64 = if let Some(node) = self
-                .node_children
-                .get(&(node.nodeid, smol_name))
-                .and_then(|n| n.upgrade())
-            {
-                node.nodeid.0
-            } else {
-                // if we can't find it, just use st_ino
-                ino
-            };
+            let dt_ino: u64 =
+                if let Ok(node) = self.get_child(node.nodeid, std::str::from_utf8(name).unwrap()) {
+                    node.nodeid.0
+                } else {
+                    // if we can't find it, just use st_ino
+                    ino
+                };
 
             let res = unsafe {
                 add_entry(DirEntry {
@@ -1238,6 +1284,7 @@ impl PassthroughFs {
             // We don't need to close the file here because that will happen automatically when
             // the last `Arc` is dropped.
             e.remove();
+            debug!("release nodeid={} handle={}", _nodeid, handle);
             return Ok(());
         }
 
@@ -1377,6 +1424,8 @@ impl PassthroughFs {
                 libc::unlinkat(AT_FDCWD, c_path.as_ptr(), flags)
             });
 
+        // entries are removed from the children_map when forget gets called.
+        debug!("len(self.children_map)={}", self.node_children.len());
         if res == 0 {
             Ok(())
         } else {
@@ -1471,6 +1520,17 @@ impl FileSystem for PassthroughFs {
     }
 
     fn destroy(&self) {
+        let deadlocks = deadlock::check_deadlock();
+        if !deadlocks.is_empty() {
+            println!("{} deadlocks detected", deadlocks.len());
+            for (i, threads) in deadlocks.iter().enumerate() {
+                println!("Deadlock #{}", i);
+                for t in threads {
+                    println!("Thread Id {:#?}", t.thread_id());
+                    println!("{:#?}", t.backtrace());
+                }
+            }
+        }
         if DETECT_REFCOUNT_LEAKS {
             for node in self.nodeids.iter() {
                 if (node.key().0) == fuse::ROOT_ID {
@@ -1484,13 +1544,36 @@ impl FileSystem for PassthroughFs {
                 );
             }
         }
+        let deadlocks = deadlock::check_deadlock();
+        if !deadlocks.is_empty() {
+            println!("{} deadlocks detected", deadlocks.len());
+            for (i, threads) in deadlocks.iter().enumerate() {
+                println!("Deadlock #{}", i);
+                for t in threads {
+                    println!("Thread Id {:#?}", t.thread_id());
+                    println!("{:#?}", t.backtrace());
+                }
+            }
+        }
 
         self.handles.clear();
         self.nodeids.clear();
+        self.node_children.clear();
 
         // TODO: handle remount
         if let Some(ref poller) = self.poller {
             poller.stop().unwrap();
+        }
+        let deadlocks = deadlock::check_deadlock();
+        if !deadlocks.is_empty() {
+            println!("{} deadlocks detected", deadlocks.len());
+            for (i, threads) in deadlocks.iter().enumerate() {
+                println!("Deadlock #{}", i);
+                for t in threads {
+                    println!("Thread Id {:#?}", t.thread_id());
+                    println!("{:#?}", t.backtrace());
+                }
+            }
         }
     }
 
@@ -1716,8 +1799,7 @@ impl FileSystem for PassthroughFs {
                 offset + 1 + (i as u64)
             );
 
-            let smol_name = SmolStr::from(&entry.name);
-            let result = if self.node_children.get(&(node.nodeid, smol_name)).is_some() {
+            let result = if self.get_child(node.nodeid, &entry.name).is_ok() {
                 // don't return attrs for files with existing nodeids (i.e. inode struct on the linux side)
                 // this prevents a race (cargo build [st_size], rm -rf [st_nlink? not sure]) where Linux is writing to a file that's growing in size, and something else calls readdirplus on its parent dir, causing FUSE to update the existing inode's attributes with a stale size, causing the readable portion of the file to be truncated when the next rustc process tries to read from the previous compilation output
                 // it's OK for perf, because readdirplus covers two cases: (1) providing attrs to avoid lookup for a newly-seen file, and (2) updating invalidated attrs (>2h timeout, or set in inval_mask) on existing files
@@ -1732,7 +1814,7 @@ impl FileSystem for PassthroughFs {
                 // only do path lookup once
                 // TODO: avoid constantly rebuilding paths
                 node.with_subpath(&entry.name, |path| {
-                    self.finish_lookup(&node, &entry.name, *st, FileRef::Path(&path))
+                    self.finish_lookup(&node, &entry.name, *st, FileRef::Path(path))
                         .map(|(entry, _)| entry)
                 })
             };
@@ -1958,7 +2040,7 @@ impl FileSystem for PassthroughFs {
             .upgrade()
             .unwrap(); // this unwrap() might be risky
 
-        //let new_node = new_dir.get_child(&newname).ok();
+        let new_node = self.get_child(new_dir.nodeid, &newname).ok();
 
         //let _old_dir_loc = old_dir.loc.write();
         let mut old_node_loc = old_node.loc.write();
