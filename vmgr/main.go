@@ -2,6 +2,7 @@ package vmgr
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"flag"
@@ -92,6 +93,7 @@ var badMacOS15Betas = []string{
 }
 
 var errDataPermission = errors.New(`Permission denied while opening data image. This is usually caused by Migration Assistant changing its owner to root. To fix it, run: "sudo chown -R $USER ~/Library/Group\ Containers/HUAQ24HBR6.dev.orbstack/data"`)
+var errDataImgLockHang = errors.New(`Data image is in use. This is sometimes an issue if the image has been opened in Finder; try opening Disk Utility and ejecting "Apple Disk Image Media" if present`)
 
 // stronger than "defer runtime.KeepAlive": this even survives GC at program exit
 var keepAliveLockFile *os.File
@@ -524,7 +526,15 @@ func ensureDataLock() error {
 		return flock.WaitLock(dataImg)
 	}, handoffWaitLockTimeout)
 	if err != nil {
-		return fmt.Errorf("wait data lock: %w", err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			// we can't return or panic here, because there's a defer on dataImg.Close().
+			// if we exceed the timeout, the routine running the blocking flock call will not be
+			// cancelled, as we can't cancel a thread mid-syscall. as it's operating on the dataImg fd,
+			// dataImg.Close() will wait for it to finish before returning, causing a deadlock.
+			logrus.Fatalf("%s (%s).", errDataImgLockHang, err)
+		} else {
+			return fmt.Errorf("wait data lock: %w", err)
+		}
 	}
 
 	return nil
