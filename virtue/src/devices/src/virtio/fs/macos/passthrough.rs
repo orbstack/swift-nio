@@ -6,13 +6,12 @@
 // Changes to this file are confidential and proprietary, subject to terms in the LICENSE file.
 
 use core::str;
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 use std::ffi::{CStr, CString, OsStr};
 use std::fmt::Debug;
 use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
-use std::hash::BuildHasherDefault;
 use std::io;
 use std::marker::PhantomData;
 use std::mem::{self, ManuallyDrop, MaybeUninit};
@@ -23,7 +22,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixDatagram;
 use std::path::Path;
-use std::ptr::{copy, copy_nonoverlapping, slice_from_raw_parts, NonNull};
+use std::ptr::{slice_from_raw_parts, NonNull};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
@@ -36,7 +35,7 @@ use crate::virtio::rosetta::get_rosetta_data;
 use crate::virtio::{FsCallbacks, FxDashMap, NfsInfo};
 use bitflags::bitflags;
 use derive_more::{Display, From, Into};
-use libc::{sysdir_search_path_directory_t, AT_FDCWD, MAXPATHLEN, SEEK_DATA, SEEK_HOLE};
+use libc::{AT_FDCWD, MAXPATHLEN, SEEK_DATA, SEEK_HOLE};
 use nix::errno::Errno;
 use nix::fcntl::{self, open, AtFlags, OFlag};
 use nix::sys::stat::fchmod;
@@ -638,38 +637,8 @@ impl NodeData {
     }
 }
 
-// NodeData is referenced by NodeIds for the entirety of it's lifetime, and will only
-// ever be dropped after a forget. Instead of removing entries from the children map
-// when NodeData is dropped, we can do it on forget, and this way NodeData doesn't
-// require a reference to the children map.
-//impl Drop for NodeData {
-//    fn drop(&mut self) {
-//        debug!("going to drop name={}", &self.loc.read().name);
-//        if let Some(parent) = self.loc.read().parent.as_ref() {
-//            debug!(
-//                "drop parent={} name={}",
-//                parent.nodeid,
-//                &self.loc.read().name
-//            );
-//            if let dashmap::mapref::entry::Entry::Occupied(e) = self
-//                .map
-//                .entry((parent.nodeid, self.loc.read().name.clone()))
-//            {
-//                if e.get().upgrade().is_none() {
-//                    debug!(
-//                        "dropped stale entry parent={} name{}",
-//                        parent.nodeid,
-//                        &self.loc.read().name
-//                    );
-//                    e.remove();
-//                }
-//            }
-//        }
-//    }
-//}
-
 #[derive(Copy, Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
-#[repr(packed)]
+#[repr(Rust, packed)]
 struct DevIno(pub i32, pub u64);
 
 impl DevIno {
@@ -1254,7 +1223,7 @@ impl PassthroughFs {
 
     fn do_open(
         &self,
-        ctx: &Context,
+        _ctx: &Context,
         nodeid: NodeId,
         flags: u32,
     ) -> io::Result<(Option<HandleId>, OpenOptions)> {
@@ -1316,7 +1285,7 @@ impl PassthroughFs {
 
     fn do_setattr(
         &self,
-        ctx: Context,
+        _ctx: Context,
         nodeid: NodeId,
         attr: bindings::stat64,
         handle: Option<HandleId>,
@@ -1581,7 +1550,7 @@ impl FileSystem for PassthroughFs {
         Ok(self.get_node(nodeid)?.with_path(statvfs)?)
     }
 
-    fn lookup(&self, ctx: Context, parent: NodeId, name: &CStr) -> io::Result<Entry> {
+    fn lookup(&self, _ctx: Context, parent: NodeId, name: &CStr) -> io::Result<Entry> {
         debug!("lookup: {:?}", name);
         self.do_lookup(parent, &name.to_string_lossy())
     }
@@ -1839,6 +1808,7 @@ impl FileSystem for PassthroughFs {
             let lookup_entry = result.unwrap_or(Entry::default());
             let new_nodeid = lookup_entry.nodeid;
             let dir_entry = DirEntry {
+                // TODO(laurazard): why?
                 ino: st.dev_ino().hash(),
                 offset: offset + 1 + (i as u64),
                 // same values on macOS and Linux
@@ -1992,7 +1962,7 @@ impl FileSystem for PassthroughFs {
 
     fn getattr(
         &self,
-        ctx: Context,
+        _ctx: Context,
         nodeid: NodeId,
         handle: Option<HandleId>,
     ) -> io::Result<(bindings::stat64, Duration)> {
@@ -2056,7 +2026,7 @@ impl FileSystem for PassthroughFs {
             .upgrade()
             .unwrap(); // this unwrap() might be risky
 
-        let new_node = self.get_child(new_dir.nodeid, &newname).ok();
+        let _new_node = self.get_child(new_dir.nodeid, &newname).ok();
 
         //let _old_dir_loc = old_dir.loc.write();
         let mut old_node_loc = old_node.loc.write();
@@ -2165,7 +2135,7 @@ impl FileSystem for PassthroughFs {
 
             // Set security context
             if let Some(secctx) = &extensions.secctx {
-                set_secctx(FileRef::Path(&c_path), secctx, false)?
+                set_secctx(FileRef::Path(c_path), secctx, false)?
             };
 
             set_xattr_stat(
@@ -2179,7 +2149,7 @@ impl FileSystem for PassthroughFs {
 
     fn link(
         &self,
-        ctx: Context,
+        _ctx: Context,
         nodeid: NodeId,
         new_parent_id: NodeId,
         new_name: &CStr,
