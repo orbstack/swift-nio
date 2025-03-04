@@ -723,8 +723,6 @@ impl PassthroughFs {
         let st = nix::sys::stat::stat(Path::new(&cfg.root_dir))?;
         let nodeids = FxDashMap::default();
         let children_map = Arc::new(FxDashMap::default());
-        //let s = BuildHasherDefault::new();
-        //let children_map = Arc::new(FxDashMap::with_hasher_and_shard_amount(s, 2));
         nodeids.insert(
             NodeId(fuse::ROOT_ID),
             Arc::new(NodeData {
@@ -1090,14 +1088,14 @@ impl PassthroughFs {
             }
 
             // include "." and ".." - FUSE expects them
-            let name = unsafe {
+            let c_name = unsafe {
                 CStr::from_bytes_until_nul(&*slice_from_raw_parts(
                     (*dentry).d_name.as_ptr() as *const u8,
                     (*dentry).d_name.len(),
                 ))
                 .unwrap()
-                .to_bytes()
             };
+            let name = c_name.to_bytes();
 
             let mut ino = unsafe { (*dentry).d_ino };
             if let Some(nfs_info) = self.cfg.nfs_info.as_ref() {
@@ -1107,12 +1105,14 @@ impl PassthroughFs {
                 }
             }
 
-            // TODO: optimize
+            // TODO: optimize (what to optimize here?)
             let dt_ino: u64 =
                 if let Ok(node) = self.get_child(node.nodeid, std::str::from_utf8(name).unwrap()) {
                     node.nodeid.0
                 } else {
                     // if we can't find it, just use st_ino
+                    // TODO(laurazard): if we don't have the nodeid (and shouldn't
+                    // do lookups) we can't return the correct nodeid here.
                     ino
                 };
 
@@ -1666,7 +1666,7 @@ impl FileSystem for PassthroughFs {
 
     fn readdirplus<F>(
         &self,
-        ctx: Context,
+        _ctx: Context,
         nodeid: NodeId,
         handle: HandleId,
         size: u32,
@@ -1693,8 +1693,7 @@ impl FileSystem for PassthroughFs {
         if offset == 0 {
             match add_entry(
                 DirEntry {
-                    // TODO: this is very wrong
-                    ino: 498207589,
+                    ino: nodeid.0,
                     offset: 1,
                     type_: libc::DT_DIR as u32,
                     name: b".",
@@ -1707,12 +1706,25 @@ impl FileSystem for PassthroughFs {
             }
 
             offset = 1;
+            debug!(
+                "list_dir: name={} mountpoint={} ino={} offset={}",
+                ".", false, nodeid.0, offset,
+            );
         }
         if offset == 1 {
+            let parent_ino = if let Some(parent) = node.loc.read().parent.as_ref() {
+                parent.nodeid.0
+            } else {
+                // on an ext4 fs
+                // root@hilda:/# stat .
+                //  Device: 252,1   Inode: 2           Links: 18
+                //root@hilda:/# stat ..
+                //  Device: 252,1   Inode: 2           Links: 18
+                nodeid.0
+            };
             match add_entry(
                 DirEntry {
-                    // TODO: propagate parent nodeid info?
-                    ino: 12321389314,
+                    ino: parent_ino,
                     offset: 2,
                     type_: libc::DT_DIR as u32,
                     name: b"..",
@@ -1723,8 +1735,12 @@ impl FileSystem for PassthroughFs {
                 Ok(_) => {}
                 Err(e) => error!("failed to add entry: {:?}", e),
             }
-
             offset = 2;
+
+            debug!(
+                "list_dir: name={} mountpoint={} ino={} offset={}",
+                "..", false, parent_ino, offset,
+            );
         }
 
         let mut ds = data.dir.lock().unwrap();
