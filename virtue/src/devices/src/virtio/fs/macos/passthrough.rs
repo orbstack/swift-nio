@@ -12,6 +12,7 @@ use std::fmt::Debug;
 use std::fs::set_permissions;
 use std::fs::File;
 use std::fs::Permissions;
+use std::hash::Hasher;
 use std::io;
 use std::marker::PhantomData;
 use std::mem::{self, ManuallyDrop, MaybeUninit};
@@ -33,6 +34,7 @@ use crate::virtio::fs::attrlist::{self, AttrlistEntry};
 use crate::virtio::fs::filesystem::SecContext;
 use crate::virtio::rosetta::get_rosetta_data;
 use crate::virtio::{FsCallbacks, FxDashMap, NfsInfo};
+use ahash::AHasher;
 use bitflags::bitflags;
 use derive_more::{Display, From, Into};
 use libc::{AT_FDCWD, MAXPATHLEN, SEEK_DATA, SEEK_HOLE};
@@ -643,8 +645,10 @@ struct DevIno(pub i32, pub u64);
 
 impl DevIno {
     fn hash(&self) -> u64 {
-        // TODO: better hash
-        self.1 ^ (((self.0 as u64) << 32).rotate_left(16))
+        let mut hasher = AHasher::default();
+        hasher.write_u64(self.1);
+        hasher.write_i32(self.0);
+        hasher.finish()
     }
 }
 
@@ -845,7 +849,7 @@ impl PassthroughFs {
         Ok(entry)
     }
 
-    fn filter_stat(&self, st: &mut bindings::stat64, nodeid: NodeId) {
+    fn filter_stat(&self, st: &mut bindings::stat64) {
         // root generation must be zero
         // for other inodes, we ignore st_gen because getattrlistbulk doesn't support it, so returning it here would break revalidate
         st.st_gen = 0;
@@ -859,8 +863,7 @@ impl PassthroughFs {
         }
 
         // st_ino must not be nodeid (as nodeid is per-dentry), and must not collide across host filesystems
-        //st.st_ino = st.dev_ino().hash();
-        st.st_ino = nodeid.0;
+        st.st_ino = st.dev_ino().hash();
     }
 
     fn get_or_insert_node(
@@ -974,7 +977,7 @@ impl PassthroughFs {
             st.st_dev, st.st_ino, file_ref, nodeid
         );
 
-        self.filter_stat(&mut st, nodeid);
+        self.filter_stat(&mut st);
 
         Ok((
             Entry {
@@ -1278,8 +1281,7 @@ impl PassthroughFs {
         mut st: bindings::stat64,
         nodeid: NodeId,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        self.filter_stat(&mut st, nodeid);
-        st.st_ino = nodeid.0;
+        self.filter_stat(&mut st);
         Ok((st, self.cfg.attr_timeout))
     }
 
@@ -1808,7 +1810,6 @@ impl FileSystem for PassthroughFs {
             let lookup_entry = result.unwrap_or(Entry::default());
             let new_nodeid = lookup_entry.nodeid;
             let dir_entry = DirEntry {
-                // TODO(laurazard): why?
                 ino: st.dev_ino().hash(),
                 offset: offset + 1 + (i as u64),
                 // same values on macOS and Linux

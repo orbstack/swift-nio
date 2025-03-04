@@ -58,6 +58,7 @@ filemap = { version = "0.1.0", path = "../filemap" }
 sysx = { version = "0.1.0", path = "../sysx" }
 scopeguard = "1.2.0"
 base64 = "0.22.1"
+ahash = "0.8.11"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hvf = { path = "../hvf" }
