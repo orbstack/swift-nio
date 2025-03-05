@@ -50,6 +50,7 @@ use nix::sys::uio::pwrite;
 use nix::unistd::{access, lseek, truncate, Whence};
 use nix::unistd::{ftruncate, symlinkat};
 use nix::unistd::{mkfifo, AccessFlags};
+use parking_lot::lock_api::RawRwLock;
 use parking_lot::{deadlock, RwLock};
 use smol_str::SmolStr;
 use utils::hypercalls::{HVC_DEVICE_VIRTIOFS_ROOT, HVC_DEVICE_VIRTIOFS_ROSETTA};
@@ -2011,36 +2012,36 @@ impl FileSystem for PassthroughFs {
             return Err(Errno::EINVAL.into());
         }
 
-        let oldname = oldname.to_string_lossy();
-        let smol_oldname = SmolStr::from(oldname.clone());
-        let newname = newname.to_string_lossy();
         let old_dir = self.get_node(olddir)?;
+        let oldname = oldname.to_string_lossy();
         let new_dir = self.get_node(newdir)?;
+        let newname = newname.to_string_lossy();
 
-        // lock old dir, old node, new dir, and (if exists) new node
-        // prevents race where stale path is used for open, pointing to wrong file
-        //let old_node = old_dir.get_child(&oldname)?;
-        let old_node: Arc<NodeData> = self
-            .node_children
-            .get(&(olddir, smol_oldname))
-            .unwrap()
-            .upgrade()
-            .unwrap(); // this unwrap() might be risky
+        old_dir.with_subpath(&oldname, |old_cpath| {
+            new_dir.with_subpath(&newname, |new_cpath| -> Result<(), io::Error> {
+                // lock old dir, old node, new dir, and (if exists) new node
+                // prevents race where stale path is used for open, pointing to wrong file
+                let old_node = self.get_child(olddir, &oldname)?;
+                let new_node = self.get_child(new_dir.nodeid, &newname).ok();
+                let _old_dir_loc = old_dir.loc.write();
+                let mut old_node_loc = old_node.loc.write();
 
-        let _new_node = self.get_child(new_dir.nodeid, &newname).ok();
+                // only lock new dir if it's different than old dir
+                let _new_dir_loc = if new_dir.nodeid != old_dir.nodeid {
+                    Some(new_dir.loc.write())
+                } else {
+                    None
+                };
+                // lock new node
+                let _guard = if let Some(ref new_node) = new_node {
+                    unsafe { new_node.loc.raw().lock_exclusive() };
+                    Some(scopeguard::guard((), |_| unsafe {
+                        new_node.loc.raw().unlock_exclusive()
+                    }))
+                } else {
+                    None
+                };
 
-        //let _old_dir_loc = old_dir.loc.write();
-        let mut old_node_loc = old_node.loc.write();
-
-        //let _new_dir_loc = new_dir.loc.write();
-        // if let Some(ref new_node) = new_node {
-        //     unsafe { new_node.loc.raw().lock_exclusive() };
-        //     let _guard =
-        //         scopeguard::guard((), |_| unsafe { new_node.loc.raw().unlock_exclusive() });
-        // }
-
-        let res = old_dir.with_subpath(&oldname, |old_cpath| {
-            new_dir.with_subpath(&newname, |new_cpath| {
                 let mut res =
                     unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), mflags) };
                 // ENOTSUP = not supported by FS (e.g. NFS). retry and simulate if only flag is RENAME_EXCL
@@ -2049,42 +2050,40 @@ impl FileSystem for PassthroughFs {
                 if res == -1 && Errno::last() == Errno::ENOTSUP && mflags == libc::RENAME_EXCL {
                     // EXCL means that target must not exist, so check it
                     match access(new_cpath, AccessFlags::F_OK) {
-                        Ok(_) => return Err(Errno::EEXIST),
-                        Err(Errno::ENOENT) => {}
-                        Err(e) => return Err(e),
+                        Ok(_) => return Err(Errno::EEXIST.into()),
+                        Err(Errno::ENOENT) => unsafe {
+                            res = libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), 0);
+                        },
+                        Err(e) => return Err(e.into()),
                     }
-
-                    res = unsafe { libc::renamex_np(old_cpath.as_ptr(), new_cpath.as_ptr(), 0) }
                 }
-                Ok(res)
+
+                if res == 0 {
+                    // make the change in our FS tree
+                    // after rename returns, Linux updates its dentry tree to reflect the rename, using old inode/nodeid
+                    if mflags & libc::RENAME_SWAP != 0 {
+                        // swap
+                        // TODO
+                        todo!();
+                    } else {
+                        // rename
+                        let old_name_smol = SmolStr::from(oldname.clone());
+                        let new_name_smol = SmolStr::from(newname.clone());
+                        *old_node_loc = NodeLocation {
+                            parent: Some(new_dir.clone()),
+                            name: new_name_smol.clone(),
+                        };
+                        drop(old_node_loc);
+                        self.node_children
+                            .insert((new_dir.nodeid, new_name_smol), Arc::downgrade(&old_node));
+                        self.node_children.remove(&(old_dir.nodeid, old_name_smol));
+                    }
+                    Ok(())
+                } else {
+                    Err(io::Error::last_os_error())
+                }
             })
-        })?;
-
-        if res == 0 {
-            // make the change in our FS tree
-            // after rename returns, Linux updates its dentry tree to reflect the rename, using old inode/nodeid
-            if mflags & libc::RENAME_SWAP != 0 {
-                // swap
-                // TODO
-                todo!();
-            } else {
-                // rename
-                let old_name_smol = SmolStr::from(oldname);
-                let new_name_smol = SmolStr::from(newname);
-                *old_node_loc = NodeLocation {
-                    parent: Some(new_dir.clone()),
-                    name: new_name_smol.clone(),
-                };
-                drop(old_node_loc);
-                self.node_children
-                    .insert((new_dir.nodeid, new_name_smol), Arc::downgrade(&old_node));
-                self.node_children.remove(&(old_dir.nodeid, old_name_smol));
-            }
-
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        }
+        })
     }
 
     fn mknod(
