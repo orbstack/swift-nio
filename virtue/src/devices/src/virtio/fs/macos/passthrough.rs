@@ -6,7 +6,7 @@
 // Changes to this file are confidential and proprietary, subject to terms in the LICENSE file.
 
 use core::str;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::ffi::{CStr, CString, OsStr};
 use std::fmt::Debug;
 use std::fs::set_permissions;
@@ -531,7 +531,18 @@ thread_local! {
 
 impl NodeData {
     fn with_path<T>(&self, f: impl FnOnce(&CStr) -> T) -> T {
-        self.with_raw_path(f, None)
+        self.with_raw_path_mut(
+            |v| {
+                // Push a null byte as CStrings are null-terminated. Since we're building the string from
+                // a pointer to the slice, we'll keep going until we find a null byte, which otherwise
+                // might not be the correct place if the buffer has been used before.
+                v.push(0);
+                let c_path = unsafe { CStr::from_ptr(v.as_ptr() as *const libc::c_char) };
+                debug!("built NODE path nodeid={} path={:?}", self.nodeid, c_path);
+                f(c_path)
+            },
+            None,
+        )
     }
 
     fn with_subpath<T>(&self, name: &str, f: impl FnOnce(&CStr) -> T) -> T {
@@ -539,45 +550,52 @@ impl NodeData {
             panic!("invalid subpath: {}", name);
         }
 
-        self.with_raw_path(f, Some(name))
+        self.with_raw_path_mut(
+            |v| {
+                // Push a null byte as CStrings are null-terminated. Since we're building the string from
+                // a pointer to the slice, we'll keep going until we find a null byte, which otherwise
+                // might not be the correct place if the buffer has been used before.
+                v.push(0);
+                let c_path = unsafe { CStr::from_ptr(v.as_ptr() as *const libc::c_char) };
+                debug!("built NODE path nodeid={} path={:?}", self.nodeid, c_path);
+                f(c_path)
+            },
+            Some(name),
+        )
     }
 
-    fn with_raw_path<T>(&self, f: impl FnOnce(&CStr) -> T, subpath: Option<&str>) -> T {
+    fn with_raw_path_mut<T>(
+        &self,
+        f: impl FnOnce(&mut RefMut<'_, Vec<u8>>) -> T,
+        subpath: Option<&str>,
+    ) -> T {
         debug!(
-            "with_raw_path is_mountpoint_parent={} is_mountpoint={} subpath={:?}",
-            self.is_mountpoint_parent, self.is_mountpoint, subpath
+            "with_raw_path is_mountpoint_parent={} is_mountpoint={}",
+            self.is_mountpoint_parent, self.is_mountpoint
         );
-        if self.is_mountpoint
-        // we'd need a reference (here) to nfs_info to check this
-        // || (self.is_mountpoint_parent && subpath == Some("OrbStack"))
-        // instead, check this in begin_lookup
-        {
-            f(&CString::from_str("/var/empty").unwrap())
-        } else {
-            PATH_BUFFERS.with(|v| {
-                let mut buf = v
-                    .iter()
-                    .find_map(|v| v.try_borrow_mut().ok())
-                    .expect("out of path buffers");
-                buf.clear();
 
+        PATH_BUFFERS.with(|v| {
+            let mut buf = v
+                .iter()
+                .find_map(|v| v.try_borrow_mut().ok())
+                .expect("out of path buffers");
+            buf.clear();
+
+            if self.is_mountpoint
+            // we'd need a reference (here) to nfs_info to check this
+            // || (self.is_mountpoint_parent && subpath == Some("OrbStack"))
+            // instead, check this in begin_lookup
+            {
+                buf.extend_from_slice("/var/empty".as_bytes());
+            } else {
                 self._build_path(&mut buf);
-
                 if let Some(subpath_name) = subpath {
                     buf.push(b'/');
                     buf.extend_from_slice(subpath_name.as_bytes());
                 }
-
-                // Push a null byte as CStrings are null-terminated. Since we're building the string from
-                // a pointer to the slice, we'll keep going until we find a null byte, which otherwise
-                // might not be the correct place if the buffer has been used before.
-                buf.push(b'\0');
-
-                let c_path = unsafe { CStr::from_bytes_with_nul_unchecked(&buf) };
-                debug!("built NODE path nodeid={} path={:?}", self.nodeid, c_path);
-                f(c_path)
-            })
-        }
+            }
+            f(&mut buf)
+        })
     }
 
     fn owned_ref(&self) -> OwnedFileRef<HandleData> {
@@ -1755,96 +1773,107 @@ impl FileSystem for PassthroughFs {
             return Ok(());
         }
 
-        for (i, entry) in entries[ds_offset as usize..].iter().enumerate() {
-            let st = if let Some(ref st) = entry.st {
-                st
-            } else {
-                // on error, fall back to normal readdir response for this entry
-                // linux can get the real error on lookup
-                // unfortunately, on error, getattrlistbulk only returns ATTR_CMN_NAME + ATTR_CMN_ERROR. no inode or type like readdir
-                let dir_entry = DirEntry {
-                    // just can't be 0
-                    ino: offset + 1 + (i as u64),
-                    offset: offset + 1 + (i as u64),
-                    type_: libc::DT_UNKNOWN as u32,
-                    name: entry.name.as_bytes(),
-                };
-                // nodeid=0 means skip readdirplus lookup entry
-                if let Ok(0) = add_entry(dir_entry, Entry::default()) {
-                    break;
-                }
+        node.with_raw_path_mut(
+            |path_v| {
+                path_v.push(b'/');
+                let node_path_len = path_v.len();
+                for (i, entry) in entries[ds_offset as usize..].iter().enumerate() {
+                    let st = if let Some(ref st) = entry.st {
+                        st
+                    } else {
+                        // on error, fall back to normal readdir response for this entry
+                        // linux can get the real error on lookup
+                        // unfortunately, on error, getattrlistbulk only returns ATTR_CMN_NAME + ATTR_CMN_ERROR. no inode or type like readdir
+                        let dir_entry = DirEntry {
+                            // just can't be 0
+                            ino: offset + 1 + (i as u64),
+                            offset: offset + 1 + (i as u64),
+                            type_: libc::DT_UNKNOWN as u32,
+                            name: entry.name.as_bytes(),
+                        };
+                        // nodeid=0 means skip readdirplus lookup entry
+                        if let Ok(0) = add_entry(dir_entry, Entry::default()) {
+                            break;
+                        }
 
-                continue;
-            };
+                        continue;
+                    };
 
-            // we trust kernel to return valid utf-8 names
-            debug!(
-                "list_dir: name={} mountpoint={} dev={} ino={} offset={}",
-                &entry.name,
-                &entry.is_mountpoint,
-                st.st_dev,
-                st.st_ino,
-                offset + 1 + (i as u64)
-            );
+                    // we trust kernel to return valid utf-8 names
+                    debug!(
+                        "list_dir: name={} mountpoint={} dev={} ino={} offset={}",
+                        &entry.name,
+                        &entry.is_mountpoint,
+                        st.st_dev,
+                        st.st_ino,
+                        offset + 1 + (i as u64)
+                    );
 
-            let result = if self.get_child(node.nodeid, &entry.name).is_ok() {
-                // don't return attrs for files with existing nodeids (i.e. inode struct on the linux side)
-                // this prevents a race (cargo build [st_size], rm -rf [st_nlink? not sure]) where Linux is writing to a file that's growing in size, and something else calls readdirplus on its parent dir, causing FUSE to update the existing inode's attributes with a stale size, causing the readable portion of the file to be truncated when the next rustc process tries to read from the previous compilation output
-                // it's OK for perf, because readdirplus covers two cases: (1) providing attrs to avoid lookup for a newly-seen file, and (2) updating invalidated attrs (>2h timeout, or set in inval_mask) on existing files
-                // we only really care about the former case. for the latter case, inval_mask is rarely set in perf-critical contexts, and readdirplus is unlikely to help with the >2h timeout (would the first revalidation call be preceded by readdirplus?)
-                // if the 2h-timeout case turns out to be important, we can record last-attr-update timestamp in NodeData and return attrs if expired. races won't happen 2 hours apart
+                    let result = if self.get_child(node.nodeid, &entry.name).is_ok() {
+                        // don't return attrs for files with existing nodeids (i.e. inode struct on the linux side)
+                        // this prevents a race (cargo build [st_size], rm -rf [st_nlink? not sure]) where Linux is writing to a file that's growing in size, and something else calls readdirplus on its parent dir, causing FUSE to update the existing inode's attributes with a stale size, causing the readable portion of the file to be truncated when the next rustc process tries to read from the previous compilation output
+                        // it's OK for perf, because readdirplus covers two cases: (1) providing attrs to avoid lookup for a newly-seen file, and (2) updating invalidated attrs (>2h timeout, or set in inval_mask) on existing files
+                        // we only really care about the former case. for the latter case, inval_mask is rarely set in perf-critical contexts, and readdirplus is unlikely to help with the >2h timeout (would the first revalidation call be preceded by readdirplus?)
+                        // if the 2h-timeout case turns out to be important, we can record last-attr-update timestamp in NodeData and return attrs if expired. races won't happen 2 hours apart
 
-                Ok(Entry::default())
-            } else if entry.is_mountpoint {
-                // mountpoints must be looked up again. getattrlistbulk returns the orig fs mountpoint dir
-                self.do_lookup(nodeid, &entry.name)
-            } else {
-                // only do path lookup once
-                // TODO: avoid constantly rebuilding paths
-                node.with_subpath(&entry.name, |path| {
-                    self.finish_lookup(&node, &entry.name, *st, FileRef::Path(path))
-                        .map(|(entry, _)| entry)
-                })
-            };
+                        Ok(Entry::default())
+                    } else if entry.is_mountpoint {
+                        // mountpoints must be looked up again. getattrlistbulk returns the orig fs mountpoint dir
+                        self.do_lookup(nodeid, &entry.name)
+                    } else {
+                        // avoid constantly rebuilding paths
+                        path_v.truncate(node_path_len);
+                        path_v.insert_slice(node_path_len, entry.name.as_bytes());
+                        path_v.push(0);
+                        let c_path =
+                            unsafe { CStr::from_ptr(path_v.as_ptr() as *const libc::c_char) };
+                        self.finish_lookup(&node, &entry.name, *st, FileRef::Path(c_path))
+                            .map(|(entry, _)| entry)
+                    };
 
-            // if lookup failed, return no entry, so linux will get the error on lookup
-            let lookup_entry = result.unwrap_or(Entry::default());
-            let new_nodeid = lookup_entry.nodeid;
-            let dir_entry = DirEntry {
-                ino: st.dev_ino().hash(),
-                offset: offset + 1 + (i as u64),
-                // same values on macOS and Linux
-                type_: match st.st_mode & libc::S_IFMT {
-                    libc::S_IFREG => libc::DT_REG,
-                    libc::S_IFDIR => libc::DT_DIR,
-                    libc::S_IFLNK => libc::DT_LNK,
-                    libc::S_IFCHR => libc::DT_CHR,
-                    libc::S_IFBLK => libc::DT_BLK,
-                    libc::S_IFIFO => libc::DT_FIFO,
-                    libc::S_IFSOCK => libc::DT_SOCK,
-                    _ => libc::DT_UNKNOWN,
-                } as u32,
-                name: entry.name.as_bytes(),
-            };
+                    // if lookup failed, return no entry, so linux will get the error on lookup
+                    let lookup_entry = result.unwrap_or(Entry::default());
+                    let new_nodeid = lookup_entry.nodeid;
+                    let dir_entry = DirEntry {
+                        // TODO(laurazard): why are we hashing this?
+                        // it won't match inos reported in other places
+                        ino: st.dev_ino().hash(),
+                        offset: offset + 1 + (i as u64),
+                        // same values on macOS and Linux
+                        type_: match st.st_mode & libc::S_IFMT {
+                            libc::S_IFREG => libc::DT_REG,
+                            libc::S_IFDIR => libc::DT_DIR,
+                            libc::S_IFLNK => libc::DT_LNK,
+                            libc::S_IFCHR => libc::DT_CHR,
+                            libc::S_IFBLK => libc::DT_BLK,
+                            libc::S_IFIFO => libc::DT_FIFO,
+                            libc::S_IFSOCK => libc::DT_SOCK,
+                            _ => libc::DT_UNKNOWN,
+                        } as u32,
+                        name: entry.name.as_bytes(),
+                    };
 
-            debug!(?dir_entry, ?lookup_entry, "readdirplus entry");
+                    debug!(?dir_entry, ?lookup_entry, "readdirplus entry");
 
-            match add_entry(dir_entry, lookup_entry) {
-                Ok(0) => {
-                    // out of space
-                    // forget this entry (only if we looked up a potentially *new* nodeid for it)
-                    if new_nodeid != NodeId(0) {
-                        self.do_forget(new_nodeid, 1);
+                    match add_entry(dir_entry, lookup_entry) {
+                        Ok(0) => {
+                            // out of space
+                            // forget this entry (only if we looked up a potentially *new* nodeid for it)
+                            if new_nodeid != NodeId(0) {
+                                self.do_forget(new_nodeid, 1);
+                            }
+                            break;
+                        }
+                        Ok(_) => {}
+                        Err(e) => {
+                            // continue
+                            error!("failed to add entry: {:?}", e);
+                        }
                     }
-                    break;
                 }
-                Ok(_) => {}
-                Err(e) => {
-                    // continue
-                    error!("failed to add entry: {:?}", e);
-                }
-            }
-        }
+            },
+            None,
+        );
 
         Ok(())
     }
