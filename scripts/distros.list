@@ -6,7 +6,6 @@ alpine:3.20
 alpine:3.21
 alpine:edge
 alt:Sisyphus
-alt:p10
 alt:p11
 amazonlinux:2
 amazonlinux:2023
