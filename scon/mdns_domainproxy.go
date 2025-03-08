@@ -72,6 +72,8 @@ type domainproxyRegistry struct {
 	dockerMachine   *Container
 	bridgeLinkIndex int
 
+	mu syncx.Mutex
+
 	// maps domainproxy ips to container ips. we call container ips values
 	ipMap map[netip.Addr]domainproxytypes.Upstream
 
@@ -109,7 +111,7 @@ func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip
 	}
 }
 
-func (d *domainproxyRegistry) startTLSProxy() error {
+func (d *domainproxyRegistry) StartTLSProxy() error {
 	return d.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe)
 }
 
@@ -471,7 +473,14 @@ func (d *domainproxyRegistry) assignUpstreamLocked(allocator *domainproxyAllocat
 	return addr, nil
 }
 
-func (d *domainproxyRegistry) updateHostStateFromProcDirfd(host domainproxytypes.Host, procDirfd *os.File) error {
+func (d *domainproxyRegistry) AssignUpstream(allocator *domainproxyAllocator, val domainproxytypes.Upstream) (addr netip.Addr, err error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	return d.assignUpstreamLocked(allocator, val)
+}
+
+func (d *domainproxyRegistry) updateHostStateFromProcDirfdLocked(host domainproxytypes.Host, procDirfd *os.File) error {
 	hostState, ok := d.hostState[host]
 	if !ok {
 		return errors.New("host state not found")
@@ -489,7 +498,7 @@ func (d *domainproxyRegistry) updateHostStateFromProcDirfd(host domainproxytypes
 	hostState.netnsCookie = netnsCookie
 	hostState.hasNetnsCookie = true
 	hostState.invalidateHostProbeDebounce = syncx.NewLeadingFuncDebounce(invalidateHostProbeDebounceDuration, func() {
-		d.invalidateHostProbeLocked(host)
+		d.invalidateHostProbe(host)
 	})
 
 	d.netnsCookieToHosts[netnsCookie] = append(d.netnsCookieToHosts[netnsCookie], host)
@@ -529,6 +538,13 @@ func (d *domainproxyRegistry) freeHostLocked(host domainproxytypes.Host) {
 	}
 }
 
+func (d *domainproxyRegistry) FreeHost(host domainproxytypes.Host) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.freeHostLocked(host)
+}
+
 func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
 	var ip4 net.IP
 	var ip6 net.IP
@@ -549,14 +565,17 @@ func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
 	return ip4, ip6
 }
 
-func (d *domainproxyRegistry) addContainerLocked(ctr *dockertypes.ContainerSummaryMin, procDirfd *os.File, nameStrings []string) (net.IP, net.IP) {
+func (d *domainproxyRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDirfd *os.File, nameStrings []string) (net.IP, net.IP) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeDocker, ID: ctr.ID}
 
 	hostState := &domainproxyHostState{}
 	d.hostState[domainproxyHost] = hostState
 
 	if procDirfd != nil {
-		err := d.updateHostStateFromProcDirfd(domainproxyHost, procDirfd)
+		err := d.updateHostStateFromProcDirfdLocked(domainproxyHost, procDirfd)
 		if err != nil {
 			logrus.WithError(err).Error("failed to set host state while adding docker container to domainproxy")
 		}
@@ -619,13 +638,19 @@ func (d *domainproxyRegistry) addContainerLocked(ctr *dockertypes.ContainerSumma
 	return ip4, ip6
 }
 
-func (d *domainproxyRegistry) removeContainerLocked(ctr *dockertypes.ContainerSummaryMin) {
+func (d *domainproxyRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeDocker, ID: ctr.ID}
 
 	d.freeHostLocked(domainproxyHost)
 }
 
-func (d *domainproxyRegistry) addMachineLocked(c *Container) {
+func (d *domainproxyRegistry) AddMachine(c *Container) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID}
 
 	d.hostState[domainproxyHost] = &domainproxyHostState{}
@@ -639,7 +664,7 @@ func (d *domainproxyRegistry) addMachineLocked(c *Container) {
 
 	procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
 
-	err = d.updateHostStateFromProcDirfd(domainproxyHost, procDirfd)
+	err = d.updateHostStateFromProcDirfdLocked(domainproxyHost, procDirfd)
 	if err != nil {
 		logrus.WithError(err).WithField("pid", c.initPid).Error("failed to update host state")
 	}
@@ -648,14 +673,17 @@ func (d *domainproxyRegistry) addMachineLocked(c *Container) {
 		k8sHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s}
 		d.hostState[k8sHost] = &domainproxyHostState{}
 
-		err = d.updateHostStateFromProcDirfd(k8sHost, procDirfd)
+		err = d.updateHostStateFromProcDirfdLocked(k8sHost, procDirfd)
 		if err != nil {
 			logrus.WithError(err).WithField("pid", c.initPid).Error("failed to update host state for k8s")
 		}
 	}
 }
 
-func (d *domainproxyRegistry) removeMachineLocked(c *Container) {
+func (d *domainproxyRegistry) RemoveMachine(c *Container) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: c.ID}
 
 	d.freeHostLocked(domainproxyHost)
@@ -666,7 +694,10 @@ func (d *domainproxyRegistry) removeMachineLocked(c *Container) {
 	}
 }
 
-func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, machine *Container) (net.IP, net.IP) {
+func (d *domainproxyRegistry) EnsureMachineIPsCorrect(names []string, machine *Container) (net.IP, net.IP) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	var ip4 net.IP
 	var ip6 net.IP
 
@@ -709,7 +740,10 @@ func (d *domainproxyRegistry) ensureMachineIPsCorrectLocked(names []string, mach
 	return ip4, ip6
 }
 
-func (d *domainproxyRegistry) invalidateHostProbeLocked(host domainproxytypes.Host) {
+func (d *domainproxyRegistry) invalidateHostProbe(host domainproxytypes.Host) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	logrus.WithFields(logrus.Fields{
 		"host": host,
 	}).Debug("invalidating host probe")
@@ -726,15 +760,23 @@ func (d *domainproxyRegistry) invalidateHostProbeLocked(host domainproxytypes.Ho
 	}
 }
 
-func (d *domainproxyRegistry) refreshHostListenersLocked(ev bpf.PortMonitorEvent) {
+func (d *domainproxyRegistry) RefreshHostListeners(ev bpf.PortMonitorEvent) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	for _, host := range d.netnsCookieToHosts[ev.NetnsCookie] {
 		if hostState, ok := d.hostState[host]; ok && hostState.invalidateHostProbeDebounce != nil {
+			// this won't deadlock because debounce calls in a goroutine
 			hostState.invalidateHostProbeDebounce.Call()
 		}
 	}
+
 }
 
-func (d *domainproxyRegistry) updateTLSProxyNftablesLocked(enabled bool) error {
+func (d *domainproxyRegistry) updateTLSProxyNftables(enabled bool) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	var err error
 	if !d.domainTLSProxyActive && enabled {
 		// we need to activate it

@@ -263,7 +263,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	}
 
 	go runOne("start domainTLSProxy", func() error {
-		err := r.domainproxy.startTLSProxy()
+		err := r.domainproxy.StartTLSProxy()
 		if err != nil {
 			return err
 		}
@@ -370,9 +370,9 @@ func (r *mdnsRegistry) StopServer() error {
 	return nil
 }
 
-func (e *mdnsEntry) ensureDomainproxyCorrectLocked() {
+func (e *mdnsEntry) EnsureDomainproxyCorrect() {
 	if e.owningMachine != nil {
-		ip4, ip6 := e.r.domainproxy.ensureMachineIPsCorrectLocked(e.names, e.owningMachine)
+		ip4, ip6 := e.r.domainproxy.EnsureMachineIPsCorrect(e.names, e.owningMachine)
 		e.ip4 = ip4
 		e.ip6 = ip6
 	}
@@ -380,7 +380,7 @@ func (e *mdnsEntry) ensureDomainproxyCorrectLocked() {
 
 func (e *mdnsEntry) ToRecordsLocked(qName string, includeV4 bool, includeV6 bool, ttl uint32) []dns.RR {
 	var records []dns.RR
-	e.ensureDomainproxyCorrectLocked()
+	e.EnsureDomainproxyCorrect()
 
 	// A
 	if includeV4 {
@@ -673,7 +673,7 @@ func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDi
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	ip4, ip6 := r.domainproxy.addContainerLocked(ctr, procDirfd, nameStrings)
+	ip4, ip6 := r.domainproxy.AddContainer(ctr, procDirfd, nameStrings)
 	logrus.WithFields(logrus.Fields{
 		"ip4":   ip4,
 		"ip6":   ip6,
@@ -728,7 +728,7 @@ func (r *mdnsRegistry) RemoveContainer(ctr *dockertypes.ContainerSummaryMin) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.domainproxy.removeContainerLocked(ctr)
+	r.domainproxy.RemoveContainer(ctr)
 
 	now := time.Now()
 	for _, name := range names {
@@ -755,7 +755,7 @@ func (r *mdnsRegistry) AddMachine(c *Container) {
 	defer r.mu.Unlock()
 
 	// callers of this function already hold a lock on c
-	r.domainproxy.addMachineLocked(c)
+	r.domainproxy.AddMachine(c)
 
 	// we don't validate these b/c it's not under the user's control
 	// TODO allow '_' and translate w/ alias to '-' like Docker
@@ -798,7 +798,7 @@ func (r *mdnsRegistry) RemoveMachine(c *Container) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.domainproxy.removeMachineLocked(c)
+	r.domainproxy.RemoveMachine(c)
 
 	// don't delete if we're not the owner (e.g. if docker or another machine owns it)
 	treeKey := toTreeKey(name)
@@ -823,7 +823,7 @@ func (r *mdnsRegistry) ClearContainers() {
 		entry := v.(*mdnsEntry)
 		if entry.Type == MdnsEntryContainer {
 			domainproxyHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeDocker, ID: entry.owningDockerCid}
-			r.domainproxy.freeHostLocked(domainproxyHost)
+			r.domainproxy.FreeHost(domainproxyHost)
 			r.tree.Delete(s)
 		}
 		return false // continue
@@ -1070,7 +1070,7 @@ func (r *mdnsRegistry) getIPsForNameLocked(name string) (net.IP, net.IP) {
 		return nil, nil
 	}
 
-	entry.ensureDomainproxyCorrectLocked()
+	entry.EnsureDomainproxyCorrect()
 
 	return entry.ip4, entry.ip6
 }
@@ -1129,14 +1129,14 @@ func (r *mdnsRegistry) updateDomainTLSProxyNftables(locked bool, enabled bool) e
 		defer r.mu.Unlock()
 	}
 
-	return r.domainproxy.updateTLSProxyNftablesLocked(enabled)
+	return r.domainproxy.updateTLSProxyNftables(enabled)
 }
 
 func (r *mdnsRegistry) refreshHostListeners(ev bpf.PortMonitorEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.domainproxy.refreshHostListenersLocked(ev)
+	r.domainproxy.RefreshHostListeners(ev)
 }
 
 func (r *mdnsRegistry) dockerPostStart() error {
@@ -1147,7 +1147,7 @@ func (r *mdnsRegistry) dockerPostStart() error {
 	if r.manager.vmConfig.K8sEnable {
 		k8sName := "k8s.orb.local."
 
-		k8sAddr4, err := r.domainproxy.assignUpstreamLocked(
+		k8sAddr4, err := r.domainproxy.AssignUpstream(
 			r.domainproxy.v4, domainproxytypes.Upstream{
 				// we make k8s.orb.local not count as docker because the ip is the docker ip. this means that hairpinning needs to be done by ovm.
 				Host: domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
@@ -1161,7 +1161,7 @@ func (r *mdnsRegistry) dockerPostStart() error {
 		}
 		k8sIP4 := k8sAddr4.AsSlice()
 
-		k8sAddr6, err := r.domainproxy.assignUpstreamLocked(r.domainproxy.v6, domainproxytypes.Upstream{
+		k8sAddr6, err := r.domainproxy.AssignUpstream(r.domainproxy.v6, domainproxytypes.Upstream{
 			Host: domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
 
 			Names: []string{k8sName},
