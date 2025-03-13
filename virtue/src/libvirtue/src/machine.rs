@@ -112,8 +112,11 @@ impl Machine {
             mem_size_mib: Some(mem_size / 1024 / 1024),
             ht_enabled: Some(ht_enabled),
             cpu_template: None,
+
+            // TSO is always exposed, as both Rosetta and our patched qemu use it. guest userspace can use the prctl as well.
+            // we have dynamic TSO so this doesn't affect performance if unused
             #[cfg(target_arch = "aarch64")]
-            enable_tso: spec.rosetta,
+            enable_tso: true,
         })
         .map_err(to_anyhow_error)?;
 
