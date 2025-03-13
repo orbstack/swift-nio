@@ -130,7 +130,7 @@ impl VmResources {
             ht_enabled: self.vm_config().ht_enabled.unwrap(),
             cpu_template: self.vm_config().cpu_template,
             #[cfg(target_arch = "aarch64")]
-            enable_tso: self.vm_config().enable_tso,
+            enable_rosetta: self.vm_config().enable_rosetta,
         }
     }
 
@@ -181,7 +181,7 @@ impl VmResources {
 
     #[cfg(target_arch = "aarch64")]
     fn copy_arch_config(&mut self, machine_config: &VmConfig) {
-        self.vm_config.enable_tso = machine_config.enable_tso;
+        self.vm_config.enable_rosetta = machine_config.enable_rosetta;
     }
 
     #[cfg(target_arch = "x86_64")]

@@ -100,8 +100,6 @@ const SYS_REG_SENTINEL: u64 = 0xb724_5c1e_68e7_5fc5;
 // VZF seems to set either 0x202 (for Rosetta) or 0, but no one knows what 0x200 does
 const ACTLR_EL1_EN_TSO: u64 = 1 << 1;
 const ACTLR_EL1_MYSTERY: u64 = 0x200;
-// only allow guest to set these values
-const ACTLR_EL1_ALLOWED_MASK: u64 = ACTLR_EL1_EN_TSO | ACTLR_EL1_MYSTERY;
 static ACTLR_EL1_OFFSET: AtomicIsize = AtomicIsize::new(-1);
 
 const CNTV_CTL_EL0_ENABLE: u64 = 1 << 0;
@@ -175,7 +173,7 @@ pub struct HvfVcpu {
     pending_mmio_read: Option<MmioRead>,
     pending_advance_pc: bool,
 
-    allow_actlr: bool,
+    actlr_mask: u64,
     actlr_el1_ptr: *mut u64,
 
     guest_mem: GuestMemory,
@@ -205,7 +203,7 @@ impl HvfVcpu {
             pending_mmio_read: None,
             pending_advance_pc: false,
 
-            allow_actlr: false,
+            actlr_mask: ACTLR_EL1_EN_TSO,
             actlr_el1_ptr: std::ptr::null_mut(),
 
             guest_mem,
@@ -220,11 +218,12 @@ impl HvfVcpu {
         entry_addr: u64,
         fdt_addr: u64,
         mpidr: u64,
-        enable_tso: bool,
+        enable_rosetta: bool,
     ) -> Result<(), Error> {
-        // enable TSO first. this breaks after setting CPSR to EL2
-        if enable_tso {
-            self.allow_actlr = true;
+        // write ACTLR first. this breaks after setting CPSR to EL2
+        if enable_rosetta {
+            // set mystery bit for Rosetta, and allow guest to keep it set when it writes to ACTLR
+            self.actlr_mask |= ACTLR_EL1_MYSTERY;
             self.write_actlr_el1(ACTLR_EL1_MYSTERY)?;
         }
 
@@ -624,10 +623,8 @@ impl HvfVcpu {
             ORBVM_SET_ACTLR_EL1 => {
                 COUNT_EXIT_HVC_ACTLR.count();
 
-                if self.allow_actlr {
-                    let value = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
-                    self.write_actlr_el1(value & ACTLR_EL1_ALLOWED_MASK)?;
-                }
+                let value = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                self.write_actlr_el1(value & self.actlr_mask)?;
 
                 return Ok(VcpuExit::HypervisorCall);
             }

@@ -320,7 +320,7 @@ pub struct VcpuConfig {
     /// CPUID template to use.
     pub cpu_template: Option<CpuFeaturesTemplate>,
     #[cfg(target_arch = "aarch64")]
-    pub enable_tso: bool,
+    pub enable_rosetta: bool,
 }
 
 /// A wrapper around creating and using a kvm-based VCPU.
@@ -332,7 +332,7 @@ pub struct Vcpu {
     fdt_addr: u64,
     guest_mem: GuestMemory,
     #[cfg(target_arch = "aarch64")]
-    enable_tso: bool,
+    enable_rosetta: bool,
     mmio_bus: Option<devices::Bus>,
     #[cfg_attr(all(test, target_arch = "aarch64"), allow(unused))]
     exit_evt: EventFd,
@@ -388,7 +388,7 @@ impl Vcpu {
             boot_receiver,
             boot_senders: None,
             fdt_addr: 0,
-            enable_tso: false,
+            enable_rosetta: false,
             mmio_bus: None,
             exit_evt,
             guest_mem,
@@ -464,7 +464,7 @@ impl Vcpu {
 
         self.mpidr = VcpuId(self.id as u64).to_mpidr();
         self.fdt_addr = arch::aarch64::get_fdt_addr(guest_mem);
-        self.enable_tso = vcpu_config.enable_tso;
+        self.enable_rosetta = vcpu_config.enable_rosetta;
         self.vcpu_count = vcpu_config.vcpu_count;
 
         Ok(())
@@ -801,7 +801,7 @@ impl Vcpu {
 
         // Setup the vCPU
         hvf_vcpu
-            .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_tso)
+            .set_initial_state(entry_addr, self.fdt_addr, self.mpidr, self.enable_rosetta)
             .unwrap_or_else(|e| panic!("Can't set HVF vCPU {} initial state: {}", hvf_vcpuid, e));
 
         // Finally, start virtualization!
