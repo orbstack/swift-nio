@@ -1,0 +1,225 @@
+diff --git a/linux-user/fd-trans.h b/linux-user/fd-trans.h
+index 910faaf237..764bd7eed5 100644
+--- a/linux-user/fd-trans.h
++++ b/linux-user/fd-trans.h
+@@ -93,8 +93,6 @@ static inline void internal_fd_trans_register_unsafe(int fd,
+ 
+ static inline void fd_trans_register(int fd, TargetFdTrans *trans)
+ {
+-    QEMU_LOCK_GUARD(&target_fd_trans_lock);
+-    internal_fd_trans_register_unsafe(fd, trans);
+ }
+ 
+ static inline void internal_fd_trans_unregister_unsafe(int fd)
+diff --git a/linux-user/generic/sockbits.h b/linux-user/generic/sockbits.h
+index b3b4a8e44c..c2df5be2c6 100644
+--- a/linux-user/generic/sockbits.h
++++ b/linux-user/generic/sockbits.h
+@@ -12,6 +12,7 @@
+ 
+ /* For setsockopt(2) */
+ #define TARGET_SOL_SOCKET      1
++#define TARGET_SOL_PACKET       263
+ 
+ #define TARGET_SO_DEBUG        1
+ #define TARGET_SO_REUSEADDR    2
+diff --git a/linux-user/main.c b/linux-user/main.c
+index b09af8d436..e662505db7 100644
+--- a/linux-user/main.c
++++ b/linux-user/main.c
+@@ -25,6 +25,7 @@
+ #include <sys/syscall.h>
+ #include <sys/resource.h>
+ #include <sys/shm.h>
++#include <sys/prctl.h>
+ #include <linux/binfmts.h>
+ 
+ #include "qapi/error.h"
+@@ -681,6 +682,54 @@ static int parse_args(int argc, char **argv)
+     return optind;
+ }
+ 
++#define RSV_START_ADDR (1ULL << 47)
++#define RSV_END_ADDR ((~0ULL) >> (64 - 47 - 1))
++
++const uint64_t rsv_sizes[] = {
++    64ULL * 1024 * 1024 * 1024,   // 64 GiB
++    32ULL * 1024 * 1024 * 1024,   // 32 GiB
++    16ULL * 1024 * 1024 * 1024,   // 16 GiB
++    4ULL * 1024 * 1024 * 1024,    // 4 GiB
++    1ULL * 1024 * 1024 * 1024, // 1 GiB
++    512ULL * 1024 * 1024,      // 512 MiB
++    128ULL * 1024 * 1024,      // 128 MiB
++    32ULL * 1024 * 1024,       // 32 MiB
++    1ULL * 1024 * 1024,        // 1 MiB
++    4096ULL                    // 1 page
++};
++
++#define rsv_min(a, b) ((a) < (b) ? (a) : (b))
++
++#define RSV_NUM_SIZES (sizeof(rsv_sizes) / sizeof(rsv_sizes[0]))
++
++static void init_reserve(void)
++{
++    for (uint64_t addr = RSV_START_ADDR; addr < RSV_END_ADDR; ) {
++        uint64_t rem = RSV_END_ADDR - addr;
++        for (size_t i = 0; i < RSV_NUM_SIZES; i++) {
++            uint64_t size = rsv_min(rsv_sizes[i], rem);
++            if (size == 0) {
++                break;
++            }
++
++            void *p = mmap((void *)addr, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE | MAP_NORESERVE, -1, 0);
++            if (p == MAP_FAILED) {
++                if (errno == EEXIST) {
++                    if (i != RSV_NUM_SIZES - 1)  {
++                        continue;
++                    }
++                } else {
++                    perror("init mmap");
++                    exit(1);
++                }
++            }
++
++            addr += size;
++            break;
++        }
++    }
++}
++
+ int main(int argc, char **argv, char **envp)
+ {
+     struct target_pt_regs regs1, *regs = &regs1;
+@@ -700,6 +749,9 @@ int main(int argc, char **argv, char **envp)
+     unsigned long max_reserved_va;
+     bool preserve_argv0;
+ 
++    prctl(0x4d4d444c, 1, 0, 0, 0);
++    init_reserve();
++
+     error_init(argv[0]);
+     module_call_init(MODULE_INIT_TRACE);
+     qemu_init_cpu_list();
+diff --git a/linux-user/syscall.c b/linux-user/syscall.c
+index a407d4a023..2a8eb39401 100644
+--- a/linux-user/syscall.c
++++ b/linux-user/syscall.c
+@@ -2177,6 +2177,7 @@ static abi_long do_setsockopt(int sockfd, int level, int optname,
+         case IPV6_MTU:
+         case IPV6_V6ONLY:
+         case IPV6_RECVPKTINFO:
++        case IPV6_MULTICAST_IF:
+         case IPV6_UNICAST_HOPS:
+         case IPV6_MULTICAST_HOPS:
+         case IPV6_MULTICAST_LOOP:
+@@ -2505,6 +2506,39 @@ static abi_long do_setsockopt(int sockfd, int level, int optname,
+ 	if (get_user_u32(val, optval_addr))
+             return -TARGET_EFAULT;
+ 	ret = get_errno(setsockopt(sockfd, SOL_SOCKET, optname, &val, sizeof(val)));
++        break;
++    case TARGET_SOL_PACKET:
++        switch (optname) {
++        case PACKET_ADD_MEMBERSHIP:
++        {
++            struct packet_mreq mreq;
++
++            if (optlen < sizeof(struct packet_mreq))
++                return -TARGET_EINVAL;
++
++            if (copy_from_user(&mreq, optval_addr, sizeof(struct packet_mreq)))
++                return -TARGET_EFAULT;
++
++            ret = get_errno(setsockopt(sockfd, SOL_PACKET, optname, &mreq, optlen));
++            break;
++        }
++        case PACKET_AUXDATA:
++        {
++            uint32_t val2;
++
++            if (optlen < sizeof(uint32_t))
++                return -TARGET_EINVAL;
++
++            if (get_user_u32(val2, optval_addr))
++                return -TARGET_EFAULT;
++
++            ret = get_errno(setsockopt(sockfd, SOL_PACKET, optname, &val2, optlen));
++            break;
++        }
++        default:
++            goto unimplemented;
++        }
++
+         break;
+ #ifdef SOL_NETLINK
+     case SOL_NETLINK:
+@@ -2835,6 +2869,7 @@ get_timeout:
+         case IPV6_MTU:
+         case IPV6_V6ONLY:
+         case IPV6_RECVPKTINFO:
++        case IPV6_MULTICAST_IF:
+         case IPV6_UNICAST_HOPS:
+         case IPV6_MULTICAST_HOPS:
+         case IPV6_MULTICAST_LOOP:
+@@ -3154,25 +3189,6 @@ static abi_long do_socket(int domain, int type, int protocol)
+     int target_type = type;
+     int ret;
+ 
+-    ret = target_to_host_sock_type(&type);
+-    if (ret) {
+-        return ret;
+-    }
+-
+-    if (domain == PF_NETLINK && !(
+-#ifdef CONFIG_RTNETLINK
+-         protocol == NETLINK_ROUTE ||
+-#endif
+-         protocol == NETLINK_KOBJECT_UEVENT ||
+-         protocol == NETLINK_AUDIT)) {
+-        return -TARGET_EPROTONOSUPPORT;
+-    }
+-
+-    if (domain == AF_PACKET ||
+-        (domain == AF_INET && type == SOCK_PACKET)) {
+-        protocol = tswap16(protocol);
+-    }
+-
+     ret = get_errno(socket(domain, type, protocol));
+     if (ret >= 0) {
+         ret = sock_flags_fixup(ret, target_type);
+@@ -3247,7 +3263,7 @@ static abi_long do_sendrecvmsg_locked(int fd, struct target_msghdr *msgp,
+                                       int flags, int send)
+ {
+     abi_long ret, len;
+-    struct msghdr msg;
++    struct msghdr msg = {0};
+     abi_ulong count;
+     struct iovec *vec;
+     abi_ulong target_vec;
+diff --git a/tcg/aarch64/tcg-target.c.inc b/tcg/aarch64/tcg-target.c.inc
+index ffa8a3e519..fd33d91fce 100644
+--- a/tcg/aarch64/tcg-target.c.inc
++++ b/tcg/aarch64/tcg-target.c.inc
+@@ -1650,6 +1650,10 @@ static inline void tcg_out_mb(TCGContext *s, TCGArg a0)
+         [TCG_MO_LD_ST]                = DMB_ISH | DMB_LD,
+         [TCG_MO_LD_ST | TCG_MO_LD_LD] = DMB_ISH | DMB_LD,
+     };
++
++    if (!(a0 & TCG_MO_ST_LD))
++        return;
++
+     tcg_out32(s, sync[a0 & TCG_MO_ALL]);
+ }
+ 
+diff --git a/tcg/aarch64/tcg-target.h b/tcg/aarch64/tcg-target.h
+index 8bd9e6a5eb..e0f3611b2c 100644
+--- a/tcg/aarch64/tcg-target.h
++++ b/tcg/aarch64/tcg-target.h
+@@ -169,7 +169,7 @@ typedef enum {
+ #define TCG_TARGET_HAS_cmpsel_vec       0
+ #define TCG_TARGET_HAS_tst_vec          1
+ 
+-#define TCG_TARGET_DEFAULT_MO (0)
++#define TCG_TARGET_DEFAULT_MO (TCG_MO_ALL & ~TCG_MO_ST_LD)
+ #define TCG_TARGET_NEED_LDST_LABELS
+ #define TCG_TARGET_NEED_POOL_LABELS
+ 

@@ -330,22 +330,18 @@ RUN apk add --no-cache \
 RUN <<EOT sh -eux
 mkdir /work
 cd /work
-curl -LO https://download.qemu.org/qemu-7.1.0.tar.xz
-echo "c60c5ff8ec99b7552e485768908920658fdd8035ff7a6fa370fb6881957dc8b7e5f18ff1a8f49bd6aa22909ede2a7c084986d8244f12074ccd33ebe40a0c411f  qemu-7.1.0.tar.xz" > checksum
+curl -LO https://download.qemu.org/qemu-9.2.2.tar.xz
+echo "b010876da9f91da01dbb9e06705a1358d5f062d0fdd4ad5c8cd8ce3fd43adcefcf72a61216eb8d415281f6607b945ce1cfb6b5fc5692ada9163e8f05b7fb5533  qemu-9.2.2.tar.xz" > checksum
 sha512sum -c checksum
 
-tar xf qemu-7.1.0.tar.xz
-mv qemu-7.1.0 qemu
-
-mkdir patches
+tar xf qemu-9.2.2.tar.xz
+mv qemu-9.2.2 qemu
 EOT
 
-COPY rootfs/pkgs/qemu/*.patch /work/patches/
+COPY rootfs/pkgs/qemu.patch /work/
 RUN <<EOT sh -eux
 cd /work/qemu
-for p in /work/patches/*.patch; do
-    patch -p1 < \$p
-done
+patch -p1 < /work/qemu.patch
 EOT
 
 # TODO fix cache
@@ -387,18 +383,16 @@ RUN --mount=type=cache,target=/work/qemu/build2 \
 if [[ "\$(uname -m)" != "aarch64" ]]; then
     echo "skip"
     mkdir /out
-    touch /out/qemu-x86_64 /out/qemu-i386
+    touch /out/qemu-x86_64
     exit
 fi
 
 cd /work/qemu
 export CFLAGS="-O2 -flto=auto"
 make -j\$(nproc) ARFLAGS="rc" qemu-x86_64
-make -j\$(nproc) ARFLAGS="rc" qemu-i386
-make -j\$(nproc) ARFLAGS="rc" qemu-arm
 
 mkdir /out
-cp /work/qemu/build/qemu-x86_64 /work/qemu/build/qemu-i386 /work/qemu/build/qemu-arm /out/
+cp /work/qemu/build/qemu-x86_64 /out/
 strip /out/*
 EOT
 
@@ -436,7 +430,7 @@ RUN apk upgrade --no-cache && apk add --no-cache \
     # latest is probably best, esp. for riscv which is less mature
     # also saves build time on arm64
     # no one uses 32-bit ppc for docker (28 images total on docker hub)
-    qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el \
+    qemu-arm qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el \
     # for nfs containers
     fuse3-libs libstdc++
 
@@ -448,20 +442,15 @@ if [[ "$TYPE" == "debug" ]]; then
 fi
 EOT
 
-# qemu for arm64 host
+# custom qemu-x86_64 for arm64 host
 COPY --from=pkgbuild-qemu /out/* /opt/orb/
 
-# qemu for x86_64 host
-# 7.2 breaks openssl rsa verification (for x86_64 on arm64)
-# 8.0 segfaults in rustc/cargo like rosetta vmtracker
+# arch-specific qemu: qemu-i386 for arm64 host, qemu-aarch64 for x86_64 host
 RUN <<EOT sh -eux
 if [[ "\$(uname -m)" == "x86_64" ]]; then
-    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/x86_64/qemu-aarch64-7.1.0-r7.apk
-    wget https://dl-cdn.alpinelinux.org/alpine/v3.17/community/x86_64/qemu-arm-7.1.0-r7.apk
-    apk add --no-cache --no-network ./qemu-aarch64-7.1.0-r7.apk ./qemu-arm-7.1.0-r7.apk
-    rm -f qemu-aarch64-7.1.0-r7.apk qemu-arm-7.1.0-r7.apk
-
-    ln -s /usr/bin/qemu-arm /opt/orb/qemu-arm
+    apk add --no-cache qemu-aarch64
+else
+    apk add --no-cache qemu-i386
 fi
 EOT
 
@@ -521,8 +510,8 @@ mkdir /nfs /data /mnt/mac /mnt/rosetta /mnt/rv /mnt/wormhole-overlay /mnt/wormho
 # binfmt vanity links
 ln -s /tmp/rstub '[rosetta]' # (real rosetta is in rvfs)
 ln -s /opt/orb/qemu-x86_64 '[qemu]'
-ln -s /opt/orb/qemu-i386 '[qemu32]'
-ln -s /opt/orb/qemu-arm '[qemu-arm32]'
+ln -s /usr/bin/qemu-i386 '[qemu-i386]'
+ln -s /usr/bin/qemu-arm '[qemu-arm]'
 ln -s /usr/bin/qemu-aarch64 '[qemu-arm64]'
 ln -s /usr/bin/qemu-riscv64 '[qemu-riscv64]'
 ln -s /usr/bin/qemu-ppc64le '[qemu-ppc64le]'
