@@ -412,8 +412,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.1.31"
-source = "git+https://github.com/rust-lang/cc-rs.git?tag=cc-v1.1.31#c07ab0ea4e0104bfef41eb8621fcc8d06ecd0072"
+version = "1.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be714c154be609ec7f5dad223a33bf1482fff90472de28f7362806e6d4832b8c"
 dependencies = [
  "shlex",
 ]
@@ -1718,7 +1719,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -2763,9 +2764,9 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.17.9"
+version = "0.17.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e75ec5e92c4d8aede845126adc388046234541629e76029599ed35a003c7ed24"
+checksum = "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7"
 dependencies = [
  "cc",
  "cfg-if",
@@ -4381,3 +4382,8 @@ dependencies = [
  "quote 1.0.38",
  "syn 2.0.98",
 ]
+
+[[patch.unused]]
+name = "cc"
+version = "1.1.31"
+source = "git+https://github.com/rust-lang/cc-rs.git?tag=cc-v1.1.31#c07ab0ea4e0104bfef41eb8621fcc8d06ecd0072"
