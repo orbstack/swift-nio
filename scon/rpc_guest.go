@@ -346,7 +346,7 @@ func (s *SconGuestServer) GetProxyUpstreamByHost(args sgtypes.GetProxyUpstreamBy
 }
 
 func (s *SconGuestServer) GetProxyUpstreamByAddr(args netip.Addr, reply *domainproxytypes.Upstream) error {
-	upstream, err := s.m.net.mdnsRegistry.getProxyUpstreamByAddr(args)
+	upstream, err := s.m.net.mdnsRegistry.domainproxy.getProxyUpstreamByAddr(args)
 	if err != nil {
 		return err
 	}

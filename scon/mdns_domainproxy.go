@@ -68,7 +68,7 @@ type domainproxyHostState struct {
 }
 
 type domainproxyRegistry struct {
-	r               *mdnsRegistry
+	manager         *ConManager
 	dockerMachine   *Container
 	bridgeLinkIndex int
 
@@ -88,14 +88,9 @@ type domainproxyRegistry struct {
 	netnsCookieToHosts map[uint64][]domainproxytypes.Host
 }
 
-func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) domainproxyRegistry {
-	proxy, err := domainproxy.NewDomainTLSProxy(r.host, &SconProxyCallbacks{r: r})
-	if err != nil {
-		logrus.Debug("failed to create tls domainproxy")
-	}
-
-	return domainproxyRegistry{
-		r:               r,
+func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) *domainproxyRegistry {
+	d := &domainproxyRegistry{
+		manager:         r.manager,
 		dockerMachine:   nil,
 		bridgeLinkIndex: -1,
 
@@ -104,11 +99,18 @@ func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip
 		v4: newDomainproxyAllocator(subnet4, lowest4),
 		v6: newDomainproxyAllocator(subnet6, lowest6),
 
-		domainTLSProxy:       proxy,
 		domainTLSProxyActive: false,
 		hostState:            make(map[domainproxytypes.Host]*domainproxyHostState),
 		netnsCookieToHosts:   make(map[uint64][]domainproxytypes.Host),
 	}
+
+	proxy, err := domainproxy.NewDomainTLSProxy(r.host, &SconProxyCallbacks{r: r, d: d})
+	if err != nil {
+		logrus.Debug("failed to create tls domainproxy")
+	}
+	d.domainTLSProxy = proxy
+
+	return d
 }
 
 func (d *domainproxyRegistry) StartTLSProxy() error {
@@ -503,7 +505,7 @@ func (d *domainproxyRegistry) updateHostStateFromProcDirfdLocked(host domainprox
 
 	d.netnsCookieToHosts[netnsCookie] = append(d.netnsCookieToHosts[netnsCookie], host)
 
-	err = d.r.manager.net.portMonitor.RegisterNetnsInterest("mdns_domainproxy", netnsCookie)
+	err = d.manager.net.portMonitor.RegisterNetnsInterest("mdns_domainproxy", netnsCookie)
 	if err != nil {
 		return err
 	}
@@ -524,7 +526,7 @@ func (d *domainproxyRegistry) freeHostLocked(host domainproxytypes.Host) {
 		}
 
 		if hostState.hasNetnsCookie {
-			d.r.manager.net.portMonitor.DeregisterNetnsInterest("mdns_domainproxy", hostState.netnsCookie)
+			d.manager.net.portMonitor.DeregisterNetnsInterest("mdns_domainproxy", hostState.netnsCookie)
 
 			d.netnsCookieToHosts[hostState.netnsCookie] = slices.DeleteFunc(d.netnsCookieToHosts[hostState.netnsCookie], func(h domainproxytypes.Host) bool {
 				return h == host
@@ -854,6 +856,7 @@ func setupDomainProxyInterface() error {
 
 type SconProxyCallbacks struct {
 	r *mdnsRegistry
+	d *domainproxyRegistry
 }
 
 func (c *SconProxyCallbacks) GetUpstreamByHost(host string, v4 bool) (netip.Addr, domainproxytypes.Upstream, error) {
@@ -861,7 +864,7 @@ func (c *SconProxyCallbacks) GetUpstreamByHost(host string, v4 bool) (netip.Addr
 }
 
 func (c *SconProxyCallbacks) GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {
-	return c.r.getProxyUpstreamByAddr(addr)
+	return c.d.getProxyUpstreamByAddr(addr)
 }
 
 func (c *SconProxyCallbacks) GetMark(upstream domainproxytypes.Upstream) int {
@@ -882,7 +885,7 @@ func (c *SconProxyCallbacks) NftableName() string {
 }
 
 func (c *SconProxyCallbacks) GetHostOpenPorts(host domainproxytypes.Host) (map[uint16]struct{}, error) {
-	return c.r.getHostOpenPorts(host)
+	return c.d.getHostOpenPorts(host)
 }
 
 func (r *mdnsRegistry) getProxyUpstreamByHost(host string, v4 bool) (netip.Addr, domainproxytypes.Upstream, error) {
@@ -911,19 +914,19 @@ func (r *mdnsRegistry) getProxyUpstreamByHost(host string, v4 bool) (netip.Addr,
 		return netip.Addr{}, domainproxytypes.Upstream{}, errors.New("could not find proxyaddr")
 	}
 
-	upstream, ok := r.domainproxy.ipMap[proxyAddr]
-	if !ok {
-		return proxyAddr, domainproxytypes.Upstream{}, errors.New("could not find backend in mdns registry")
+	upstream, err := r.domainproxy.getProxyUpstreamByAddr(proxyAddr)
+	if err != nil {
+		return proxyAddr, domainproxytypes.Upstream{}, err
 	}
 
 	return proxyAddr, upstream, nil
 }
 
-func (r *mdnsRegistry) getProxyUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (d *domainproxyRegistry) getProxyUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
-	upstream, ok := r.domainproxy.ipMap[addr]
+	upstream, ok := d.ipMap[addr]
 	if !ok {
 		return domainproxytypes.Upstream{}, errors.New("could not find backend in mdns registry")
 	}
@@ -931,7 +934,10 @@ func (r *mdnsRegistry) getProxyUpstreamByAddr(addr netip.Addr) (domainproxytypes
 	return upstream, nil
 }
 
-func (r *mdnsRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.Host) (map[uint16]struct{}, error) {
+func (d *domainproxyRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.Host) (map[uint16]struct{}, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if domainproxyHost.ID == "" {
 		return nil, errors.New("no host id")
 	}
@@ -940,7 +946,7 @@ func (r *mdnsRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.Host) (
 
 	if domainproxyHost.Type == domainproxytypes.HostTypeMachine || domainproxyHost.Type == domainproxytypes.HostTypeK8s {
 		// grab nftables ports
-		machine, err := r.manager.GetByID(domainproxyHost.ID)
+		machine, err := d.manager.GetByID(domainproxyHost.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -953,7 +959,7 @@ func (r *mdnsRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.Host) (
 		}
 	}
 
-	hostState, ok := r.domainproxy.hostState[domainproxyHost]
+	hostState, ok := d.hostState[domainproxyHost]
 	if !ok || hostState.procDirfd == nil {
 		return nil, fmt.Errorf("no proc dirfd for host: %v", domainproxyHost)
 	}
