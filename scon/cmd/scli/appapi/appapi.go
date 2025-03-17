@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/orbstack/macvirt/vmgr/swext"
-	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"io"
 	"net"
 	"net/http"
@@ -13,6 +11,9 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 
 	"github.com/orbstack/macvirt/scon/conf"
 )
@@ -88,7 +89,7 @@ func getProxyForRequest(req *http.Request) (*url.URL, error) {
 		return u, nil
 	}
 
-	if settings.HTTPSEnable && req.TLS != nil {
+	if settings.HTTPSEnable && req.URL.Scheme == "https" {
 		u := &url.URL{
 			Scheme: "http",
 			Host:   net.JoinHostPort(settings.HTTPSProxy, strconv.Itoa(settings.HTTPSPort)),
@@ -101,7 +102,7 @@ func getProxyForRequest(req *http.Request) (*url.URL, error) {
 		return u, nil
 	}
 
-	if settings.HTTPEnable && req.TLS == nil {
+	if settings.HTTPEnable && req.URL.Scheme == "http" {
 		u := &url.URL{
 			Scheme: "http",
 			Host:   net.JoinHostPort(settings.HTTPProxy, strconv.Itoa(settings.HTTPPort)),
