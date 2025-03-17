@@ -2,11 +2,16 @@ package util
 
 import (
 	"net"
+	"sync"
 	"sync/atomic"
+
+	"github.com/sirupsen/logrus"
 )
 
 type DispatchedListener struct {
-	closed atomic.Bool
+	closed     atomic.Bool
+	closedChan chan struct{}
+	closeOnce  sync.Once
 
 	addrFunc func() net.Addr
 
@@ -19,6 +24,8 @@ var _ net.Listener = &DispatchedListener{}
 
 func NewDispatchedListener(addrFunc func() net.Addr) *DispatchedListener {
 	return &DispatchedListener{
+		closedChan: make(chan struct{}),
+
 		addrFunc: addrFunc,
 
 		connQueue:  make(chan net.Conn),
@@ -45,7 +52,7 @@ func (l *DispatchedListener) RunCallbackDispatcher(orig net.Listener, callback f
 			newConn, err := callback(conn)
 			if err != nil {
 				conn.Close()
-				l.SubmitErr(err)
+				logrus.WithError(err).Error("dispatched listener: callback failed")
 				return
 			}
 
@@ -64,32 +71,30 @@ func (l *DispatchedListener) RunCallbackDispatcher(orig net.Listener, callback f
 }
 
 func (l *DispatchedListener) Accept() (net.Conn, error) {
-	if l.closed.Load() {
-		return nil, net.ErrClosed
-	}
-
 	select {
-	case conn, ok := <-l.connQueue:
-		if !ok {
-			return nil, net.ErrClosed
-		}
+	case conn := <-l.connQueue:
 		return conn, nil
-	case err, ok := <-l.errorQueue:
-		if !ok {
-			return nil, net.ErrClosed
-		}
+	case err := <-l.errorQueue:
 		return nil, err
+	case <-l.closedChan:
+		return nil, net.ErrClosed
 	}
 }
 
 func (l *DispatchedListener) Close() error {
-	if l.closed.Swap(true) {
-		return net.ErrClosed
-	}
+	didClose := false
+	l.closeOnce.Do(func() {
+		close(l.connQueue)
+		close(l.errorQueue)
+		l.closed.Store(true)
+		didClose = true
+	})
 
-	close(l.connQueue)
-	close(l.errorQueue)
-	return nil
+	if !didClose {
+		return net.ErrClosed
+	} else {
+		return nil
+	}
 }
 
 func (l *DispatchedListener) Closed() bool {
@@ -101,17 +106,19 @@ func (l *DispatchedListener) Addr() net.Addr {
 }
 
 func (l *DispatchedListener) SubmitConn(conn net.Conn) error {
-	if l.closed.Load() {
+	select {
+	case l.connQueue <- conn:
+		return nil
+	case <-l.closedChan:
 		return net.ErrClosed
 	}
-	l.connQueue <- conn
-	return nil
 }
 
 func (l *DispatchedListener) SubmitErr(err error) error {
-	if l.closed.Load() {
+	select {
+	case l.errorQueue <- err:
+		return nil
+	case <-l.closedChan:
 		return net.ErrClosed
 	}
-	l.errorQueue <- err
-	return nil
 }
