@@ -98,7 +98,7 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
 
 	logrus.WithField("dst_ip", dstIP).Debug("nfqueue packet")
 
-	err := d.probeHost(dstIP, srcIP)
+	_, err := d.probeHost(dstIP, srcIP)
 	if err != nil {
 		return err
 	}
@@ -106,10 +106,10 @@ func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
 	return nil
 }
 
-func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) error {
+func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) (probedHost, error) {
 	upstream, err := d.cb.GetUpstreamByAddr(addr)
 	if err != nil {
-		return err
+		return probedHost{}, err
 	}
 
 	logrus.WithFields(logrus.Fields{
@@ -132,7 +132,7 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) err
 		// pessimistically keep probing on every SYN until upstream is ready
 		httpPort, httpsPort, err = d.probeUpstream(dialer, upstream)
 		if err != nil {
-			return err
+			return probedHost{}, err
 		}
 	}
 
@@ -155,8 +155,9 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) err
 	d.probeMu.Lock()
 	defer d.probeMu.Unlock()
 
+	var probed probedHost
 	if httpPort != 0 || httpsPort != 0 {
-		probed := probedHost{
+		probed = probedHost{
 			HTTPPort:  httpPort,
 			HTTPSPort: httpsPort,
 		}
@@ -209,7 +210,7 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) err
 		}
 	}
 
-	return nil
+	return probed, nil
 }
 
 func (d *DomainTLSProxy) probeUpstream(dialer *net.Dialer, upstream domainproxytypes.Upstream) (uint16, uint16, error) {

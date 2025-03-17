@@ -362,7 +362,15 @@ func (p *DomainTLSProxy) dispatchIncomingConn(conn net.Conn) (_ net.Conn, retErr
 	probed, ok := p.probedHosts[addr]
 	p.probeMu.Unlock()
 	if !ok {
-		return nil, errors.New("get probed host")
+		downstreamAddr, ok := netip.AddrFromSlice(downstreamIP)
+		if !ok {
+			return nil, fmt.Errorf("parse addr")
+		}
+
+		var err error
+		if probed, err = p.probeHost(addr, downstreamAddr); err != nil {
+			return nil, fmt.Errorf("probe host from dispatch: %w", err)
+		}
 	}
 
 	if !probed.HasPort() {
