@@ -2,7 +2,7 @@ package swext
 
 /*
 #cgo CFLAGS: -mmacosx-version-min=13.0
-#cgo LDFLAGS: -mmacosx-version-min=13.0 -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx
+#cgo LDFLAGS: -mmacosx-version-min=13.0
 
 #define CGO
 #include "../../swift/SwExt/Sources/CBridge/CBridge.h"
