@@ -225,6 +225,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 				return tlsController.MakeCertForHost(hlo.ServerName)
 			},
 		},
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
 	go runOne("dns index server (http, v4)", func() error {
 		l, err := netx.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "80"))
