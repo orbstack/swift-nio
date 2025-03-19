@@ -506,8 +506,6 @@ func (c *Container) configureLxc() error {
 
 		// extra cgroup level so container can't remove limits
 		// works w/ kernel commit: "cgroup: allow root and its grandchildren to mix children and controllers"
-		set("lxc.cgroup.dir.monitor", "scon.monitor."+c.ID)
-		set("lxc.cgroup.dir.container", "scon.container."+c.ID)
 		set("lxc.cgroup.dir.container.inner", ChildCgroupName)
 
 		// container hooks, before rootfs is set
@@ -764,11 +762,11 @@ func (c *Container) startLocked(isInternal bool) error {
 		// base36 to minimize length
 		// needed because lxc doesn't iterate and append index if we set cgroups explicitly (which we need for inner child cgroup for security)
 		randSuffix := c.ID + "." + strconv.FormatUint(uint64(rand.Uint32()), 36)
-		err = c.setLxcConfig("lxc.cgroup.dir.monitor", "scon.monitor."+randSuffix)
+		err = c.setLxcConfig("lxc.cgroup.dir.monitor", "scon/monitor/"+randSuffix)
 		if err != nil {
 			return fmt.Errorf("set cgroup: %w", err)
 		}
-		err = c.setLxcConfig("lxc.cgroup.dir.container", "scon.container."+randSuffix)
+		err = c.setLxcConfig("lxc.cgroup.dir.container", "scon/container/"+randSuffix)
 		if err != nil {
 			return fmt.Errorf("set cgroup: %w", err)
 		}
