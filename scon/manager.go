@@ -181,7 +181,10 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		vmConfig: initConfig.VmConfig,
 	}
 	mgr.wormhole = NewWormholeManager(mgr)
-	mgr.net = NewNetwork(mgr.subdir("network"), mgr.host, mgr.db, mgr)
+	mgr.net, err = NewNetwork(mgr.subdir("network"), mgr.host, mgr.db, mgr)
+	if err != nil {
+		return nil, fmt.Errorf("new network: %w", err)
+	}
 	mgr.nfsForAll = NewMultiNfsMirror(mgr.nfsRoot, mgr.nfsForMachines)
 	mgr.uiEventDebounce = *syncx.NewLeadingFuncDebounce(uitypes.UIEventDebounce, func() {
 		// wait for initial starts

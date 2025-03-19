@@ -145,7 +145,7 @@ type mdnsRegistry struct {
 	httpServer *http.Server
 }
 
-func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *mdnsRegistry {
+func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) (*mdnsRegistry, error) {
 	r := &mdnsRegistry{
 		tree:           radix.New(),
 		pendingFlushes: make(map[string]struct{}),
@@ -154,14 +154,17 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		manager:        manager,
 	}
 
-	r.domainproxy =
-		newDomainproxyRegistry(r,
-			domainproxySubnet4Prefix,
-			// reserve an ip for the index page
-			domainproxySubnet4Prefix.Masked().Addr().Next().Next(),
-			domainproxySubnet6Prefix,
-			domainproxySubnet6Prefix.Masked().Addr().Next().Next(),
-		)
+	var err error
+	r.domainproxy, err = newDomainproxyRegistry(r,
+		domainproxySubnet4Prefix,
+		// reserve an ip for the index page
+		domainproxySubnet4Prefix.Masked().Addr().Next().Next(),
+		domainproxySubnet6Prefix,
+		domainproxySubnet6Prefix.Masked().Addr().Next().Next(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("new domainproxy registry: %w", err)
+	}
 
 	r.cacheFlushDebounce = syncx.NewFuncDebounce(mdnsCacheFlushDebounce, r.flushReusedCache)
 
@@ -190,7 +193,7 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) *m
 		ip6:        net.ParseIP(netconf.SconWebIndexIP6),
 	})
 
-	return r
+	return r, nil
 }
 
 func (r *mdnsRegistry) StartServer(config *mdns.Config) error {

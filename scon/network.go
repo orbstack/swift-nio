@@ -70,14 +70,19 @@ type nftablesForwardMeta struct {
 	toMachineIP  net.IP
 }
 
-func NewNetwork(dataDir string, host *hclient.Client, db *Database, manager *ConManager) *Network {
+func NewNetwork(dataDir string, host *hclient.Client, db *Database, manager *ConManager) (*Network, error) {
+	mdnsRegistry, err := newMdnsRegistry(host, db, manager)
+	if err != nil {
+		return nil, fmt.Errorf("new mdns registry: %w", err)
+	}
+
 	return &Network{
 		dataDir:      dataDir,
-		mdnsRegistry: newMdnsRegistry(host, db, manager),
+		mdnsRegistry: mdnsRegistry,
 		nftForwards:  make(map[sysnet.ListenerKey]nftablesForwardMeta),
 		nftBlocks:    make(map[netip.Prefix]struct{}),
 		hostClient:   host,
-	}
+	}, nil
 }
 
 func (n *Network) Start() error {

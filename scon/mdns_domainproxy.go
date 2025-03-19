@@ -88,7 +88,7 @@ type domainproxyRegistry struct {
 	netnsCookieToHosts map[uint64][]domainproxytypes.Host
 }
 
-func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) *domainproxyRegistry {
+func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) (*domainproxyRegistry, error) {
 	d := &domainproxyRegistry{
 		manager:         r.manager,
 		dockerMachine:   nil,
@@ -106,11 +106,11 @@ func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip
 
 	proxy, err := domainproxy.NewDomainTLSProxy(r.host, &SconProxyCallbacks{r: r, d: d})
 	if err != nil {
-		logrus.Debug("failed to create tls domainproxy")
+		return nil, fmt.Errorf("new tls domainproxy: %w", err)
 	}
 	d.domainTLSProxy = proxy
 
-	return d
+	return d, nil
 }
 
 func (d *domainproxyRegistry) StartTLSProxy() error {
