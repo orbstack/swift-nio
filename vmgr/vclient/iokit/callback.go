@@ -12,7 +12,6 @@ package iokit
 */
 import "C"
 import (
-	"time"
 	"unsafe"
 
 	"github.com/orbstack/macvirt/vmgr/drm/timex"
@@ -26,24 +25,33 @@ func go_iokit_sleepwake_callback(refcon unsafe.Pointer, service C.io_service_t, 
 	case C.kIOMessageCanSystemSleep:
 		logrus.Debug("can sleep")
 		C.IOAllowPowerChange(rootPort, C.long(uintptr(messageArgument)))
+
 	case C.kIOMessageSystemWillSleep:
 		logrus.Debug("will sleep")
 		isAsleep = true
+
 		now := timex.NowMonoSleep()
 		LastSleepTime = &now
-		// Never block
-		go func() {
-			sleepChan <- time.Now()
-		}()
+
+		// never block; this is a saturated "change event" channel, not a source of truth
+		select {
+		case stateChangeChan <- struct{}{}:
+		default:
+		}
+
 		C.IOAllowPowerChange(rootPort, C.long(uintptr(messageArgument)))
+
 	case C.kIOMessageSystemWillPowerOn:
 		logrus.Debug("power on")
 		isAsleep = false
+
 		now := timex.NowMonoSleep()
 		LastWakeTime = &now
-		// Never block
-		go func() {
-			wakeChan <- time.Now()
-		}()
+
+		// never block
+		select {
+		case stateChangeChan <- struct{}{}:
+		default:
+		}
 	}
 }

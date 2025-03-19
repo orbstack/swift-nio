@@ -33,6 +33,7 @@ pub async fn server_main(disk_manager: Arc<Mutex<DiskManager>>, action_tx: Sende
     let app = Router::new()
         .route("/ping", get(ping))
         .route("/sys/shutdown", post(sys_shutdown))
+        .route("/sys/sleep", post(sys_sleep))
         .route("/sys/wake", post(sys_wake))
         .route("/disk/report_stats", post(disk_report_stats))
         .layer(
@@ -71,6 +72,12 @@ async fn disk_report_stats(
 ) -> AppResult<impl IntoResponse> {
     debug!("disk_report_stats: {:?}", payload);
     disk_manager.lock().unwrap().update_with_stats(&payload)?;
+    Ok(())
+}
+
+// host is about to sleep
+async fn sys_sleep() -> AppResult<impl IntoResponse> {
+    debug!("sys_sleep");
     Ok(())
 }
 

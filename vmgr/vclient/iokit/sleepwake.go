@@ -35,19 +35,17 @@ import (
 )
 
 var (
-	shouldRun = false
-	sleepChan = make(chan time.Time)
-	wakeChan  = make(chan time.Time)
-	rootPort  C.io_connect_t
-	isAsleep  = false
+	shouldRun       = false
+	stateChangeChan = make(chan struct{}, 1)
+	isAsleep        = false
+	rootPort        C.io_connect_t
 
 	LastSleepTime *timex.MonoSleepTime
 	LastWakeTime  *timex.MonoSleepTime
 )
 
 type SleepWakeMonitor struct {
-	SleepChan chan time.Time
-	WakeChan  chan time.Time
+	StateChangeChan chan struct{}
 }
 
 func runLoop() {
@@ -86,8 +84,7 @@ func MonitorSleepWake() (*SleepWakeMonitor, error) {
 	}()
 
 	return &SleepWakeMonitor{
-		SleepChan: sleepChan,
-		WakeChan:  wakeChan,
+		StateChangeChan: stateChangeChan,
 	}, nil
 }
 

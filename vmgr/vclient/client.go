@@ -169,7 +169,7 @@ func (vc *VClient) StartBackground() error {
 		return fmt.Errorf("register iokit: %w", err)
 	}
 
-	// Report disk stats periodically, sync time on wake
+	// Report disk stats periodically, respond to health check requests
 	go func() {
 		ticker := time.NewTicker(diskStatsInterval)
 		defer ticker.Stop()
@@ -179,37 +179,56 @@ func (vc *VClient) StartBackground() error {
 			case <-vc.signalStopCh:
 				return
 
-			case <-mon.SleepChan:
-				logrus.Info("sleep")
-				// arm doesn't need pause/resume
-				if needsPauseResume {
-					err := vc.vm.Pause()
-					if err != nil {
-						logrus.Error("pause err", err)
-					}
-				}
-
-			case <-mon.WakeChan:
-				logrus.Info("wake")
-				// arm doesn't need pause/resume
-				if needsPauseResume {
-					err := vc.vm.Resume()
-					if err != nil {
-						logrus.Error("resume err", err)
-					}
-				}
-				go func() {
-					err := vc.Post("sys/wake", nil, nil)
-					if err != nil {
-						logrus.WithError(err).Error("failed to notify VM of wakeup")
-					}
-				}()
-
 			case <-ticker.C:
 				vc.healthCheck()
 
 			case <-vc.healthCheckReqCh:
 				vc.healthCheck()
+			}
+		}
+	}()
+
+	// notify VM of sleep and wake
+	// separate goroutine to avoid blocking health check if these requests hang
+	go func() {
+		for {
+			select {
+			case <-vc.signalStopCh:
+				return
+
+			case <-mon.StateChangeChan:
+				// this is a saturated "change event" signal. check the current state
+				if iokit.IsAsleep() {
+					logrus.Info("sleep")
+
+					// notify VM of sleep
+					err := vc.Post("sys/sleep", nil, nil)
+					if err != nil {
+						logrus.WithError(err).Error("failed to notify VM of sleep")
+					}
+
+					if needsPauseResume {
+						err := vc.vm.Pause()
+						if err != nil {
+							logrus.WithError(err).Error("failed to pause VM")
+						}
+					}
+				} else {
+					logrus.Info("wake")
+
+					// notify VM of wake
+					err := vc.Post("sys/wake", nil, nil)
+					if err != nil {
+						logrus.WithError(err).Error("failed to notify VM of wakeup")
+					}
+
+					if needsPauseResume {
+						err := vc.vm.Resume()
+						if err != nil {
+							logrus.WithError(err).Error("failed to resume VM")
+						}
+					}
+				}
 			}
 		}
 	}()
