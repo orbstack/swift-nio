@@ -151,6 +151,10 @@ func handleSshConn(s ssh.Session) error {
 			argv0 = &loginArgv0
 		}
 	}
+
+	// for some reason, disclaiming TCC responsibility here (e.g. to /bin/zsh) doesn't work:
+	// zsh ends up with no permissions, and its children (e.g. lsd) become responsible for everything they do
+	// so this is likely to break many shell setups and cause bad UX
 	cmd := pspawn.CommandContext(s.Context(), combinedArgs[0], combinedArgs[1:]...)
 	if argv0 != nil {
 		cmd.Args[0] = *argv0
