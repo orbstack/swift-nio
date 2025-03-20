@@ -177,8 +177,14 @@ struct NewMainView: View {
             button1Label: "Sign In",
             button1Action: { model.presentAuth = true },
             button2Label: "Quit",
-            // clean shutdown flow
-            button2Action: { NSApp.terminate(nil) }
+            button2Action: {
+                Task {
+                    // stop asynchronously in the background
+                    await model.tryStop()
+                    // quit app immediately so it looks fast
+                    NSApp.terminate(nil)
+                }
+            }
         )
         .akAlert(
             "Pro license required", isPresented: $model.presentRequiresLicense,
