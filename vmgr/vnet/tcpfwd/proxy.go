@@ -18,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/gvaddr"
+	"github.com/orbstack/macvirt/vmgr/vnet/icmpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy"
 	"github.com/orbstack/macvirt/vmgr/vnet/proxy/socks"
 	dnssrv "github.com/orbstack/macvirt/vmgr/vnet/services/dns"
@@ -55,6 +56,7 @@ type ProxyManager struct {
 	httpsProxyUrl *url.URL
 
 	DnsServer *dnssrv.DnsServer
+	icmpMgr   *icmpfwd.IcmpFwd
 }
 
 type ProxyDialError struct {
@@ -78,11 +80,12 @@ func (c *fullDuplexTlsConn) CloseRead() error {
 	return nil
 }
 
-func newProxyManager(hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address) *ProxyManager {
+func newProxyManager(hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address, icmpMgr *icmpfwd.IcmpFwd) *ProxyManager {
 	mgr := &ProxyManager{
 		hostNatIP4: hostNatIP4,
 		hostNatIP6: hostNatIP6,
 		stopCh:     make(chan struct{}),
+		icmpMgr:    icmpMgr,
 	}
 
 	// subscribe to vmconfig
@@ -426,6 +429,7 @@ func (p *ProxyManager) dialContextTCPInternal(ctx context.Context, addr string, 
 				return util.SetConnTTL(rawConn, network == "tcp6", ttl)
 			},
 		}
+		p.icmpMgr.MaybeCreateSockets(ttl) // watch for ICMP time exceeded
 		conn, err := dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, err

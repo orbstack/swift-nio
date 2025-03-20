@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -30,6 +31,8 @@ const (
 	maxIcmp6PktSize = 1280
 
 	ipv4FlagsFragOffOffset = 6
+
+	ttlThreshold = 32
 )
 
 func init() {
@@ -53,6 +56,8 @@ type IcmpFwd struct {
 	lastSourceAddr6 tcpip.Address
 	gatewayAddr4    tcpip.Address
 	gatewayAddr6    tcpip.Address
+
+	createSocketsOnce func() error
 }
 
 func newFlowLabel() uint32 {
@@ -117,30 +122,68 @@ func newIcmpPacketConn6() (*goipv6.PacketConn, error) {
 // we just send all incoming ICMP packets that macOS sends us to Linux, and set the source ip to all the same
 // Linux NAT will discard any replies it didn't send, so scon machines will never see them
 func NewIcmpFwd(s *stack.Stack, nicId tcpip.NICID, initialAddr4, initialAddr6, gatewayAddr4, gatewayAddr6 tcpip.Address) (*IcmpFwd, error) {
-	conn4, err := newIcmpPacketConn4()
-	if err != nil {
-		return nil, err
-	}
-	conn6, err := newIcmpPacketConn6()
-	if err != nil {
-		return nil, err
-	}
-
-	return &IcmpFwd{
+	i := &IcmpFwd{
 		stack:           s,
 		nicId:           nicId,
-		conn4:           conn4,
-		conn6:           conn6,
 		lastSourceAddr4: initialAddr4,
 		lastSourceAddr6: initialAddr6,
 		gatewayAddr4:    gatewayAddr4,
 		gatewayAddr6:    gatewayAddr6,
-	}, nil
+	}
+
+	// macOS 15+ triggers a "Local Network" permission prompt when our wildcard ICMP socket receives a incoming packet from a local IP.
+	// To minimize spurious permission prompts, only create sockets when we know that we're interested in ICMP replies:
+	//   - if we've sent any ICMP echo requests
+	//   - if we're expecting ICMP Time Exceeded replies. The only workload that cares about this is traceroute, which sends low-TTL UDP/TCP packets
+	//
+	// This way, the majority of users that don't use ICMP won't have to deal with the permission prompt.
+	//
+	// https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy#DNS-operations
+	i.createSocketsOnce = sync.OnceValue(func() error {
+		conn4, err := newIcmpPacketConn4()
+		if err != nil {
+			logrus.WithError(err).Error("failed to create icmp4 socket")
+			return fmt.Errorf("create icmp4 socket: %w", err)
+		}
+
+		conn6, err := newIcmpPacketConn6()
+		if err != nil {
+			logrus.WithError(err).Error("failed to create icmp6 socket")
+			return fmt.Errorf("create icmp6 socket: %w", err)
+		}
+		conn6.SetControlMessage(goipv6.FlagTrafficClass, true)
+		conn6.SetControlMessage(goipv6.FlagHopLimit, true)
+		conn6.SetControlMessage(goipv6.FlagDst, true)
+
+		i.conn4 = conn4
+		i.conn6 = conn6
+
+		go func() {
+			err := i.forwardReplies4()
+			if err != nil {
+				logrus.WithError(err).Error("icmp4 reply forwarder failed")
+			}
+		}()
+		go func() {
+			err := i.forwardReplies6()
+			if err != nil {
+				logrus.WithError(err).Error("icmp6 reply forwarder failed")
+			}
+		}()
+
+		return nil
+	})
+
+	return i, nil
 }
 
 func (i *IcmpFwd) Close() error {
-	i.conn4.Close()
-	i.conn6.Close()
+	if i.conn4 != nil {
+		i.conn4.Close()
+	}
+	if i.conn6 != nil {
+		i.conn6.Close()
+	}
 	return nil
 }
 
@@ -200,6 +243,12 @@ func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 			return false
 		}
 
+		err := i.createSocketsOnce()
+		if err != nil {
+			// logged by createSocketsOnce
+			return false
+		}
+
 		// TTL
 		ip4Hdr := ipHdr.(header.IPv4)
 		tos, _ := ip4Hdr.TOS()
@@ -208,7 +257,7 @@ func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 		i.conn4.SetTTL(int(ip4Hdr.TTL()))
 		i.conn4.SetTOS(int(tos))
 
-		_, err := i.conn4.WriteTo(icmpMsg, nil, dstAddr)
+		_, err = i.conn4.WriteTo(icmpMsg, nil, dstAddr)
 		i.conn4Mu.Unlock()
 		if err != nil {
 			if errors.Is(err, unix.ENETUNREACH) {
@@ -243,6 +292,12 @@ func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 			return false
 		}
 
+		err := i.createSocketsOnce()
+		if err != nil {
+			// logged by createSocketsOnce
+			return false
+		}
+
 		// TTL
 		ip6Hdr := ipHdr.(header.IPv6)
 		trafficClass, _ := ip6Hdr.TOS()
@@ -251,7 +306,7 @@ func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 		i.conn6.SetHopLimit(int(ip6Hdr.HopLimit()))
 		i.conn6.SetTrafficClass(int(trafficClass))
 
-		_, err := i.conn6.WriteTo(icmpMsg, nil, dstAddr)
+		_, err = i.conn6.WriteTo(icmpMsg, nil, dstAddr)
 		i.conn6Mu.Unlock()
 		if err != nil {
 			if errors.Is(err, unix.ENETUNREACH) {
@@ -278,9 +333,10 @@ func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 	return false
 }
 
-func (i *IcmpFwd) MonitorReplies() {
-	go i.forwardReplies4()
-	go i.forwardReplies6()
+func (i *IcmpFwd) MaybeCreateSockets(ttl int) {
+	if ttl <= ttlThreshold {
+		i.createSocketsOnce()
+	}
 }
 
 func (i *IcmpFwd) forwardReplies4() error {
@@ -408,10 +464,6 @@ func (i *IcmpFwd) handleReply4(msg []byte) (err error) {
 }
 
 func (i *IcmpFwd) forwardReplies6() error {
-	i.conn6.SetControlMessage(goipv6.FlagTrafficClass, true)
-	i.conn6.SetControlMessage(goipv6.FlagHopLimit, true)
-	i.conn6.SetControlMessage(goipv6.FlagDst, true)
-
 	fullBuf := make([]byte, 65535)
 	for {
 		n, cm, addr, err := i.conn6.ReadFrom(fullBuf)
@@ -430,6 +482,7 @@ func (i *IcmpFwd) forwardReplies6() error {
 	}
 }
 
+// cm may be nil if the packet was received and queued on the socket before we started calling recvmsg
 func (i *IcmpFwd) handleReply6(msg []byte, cm *goipv6.ControlMessage, addr net.Addr) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -524,10 +577,7 @@ func (i *IcmpFwd) InjectDestUnreachable6(pkt *stack.PacketBuffer, code header.IC
 	// Make a new IP header
 	// TODO do this better
 	payload := append(pkt.NetworkHeader().View().ToSlice(), extractPacketPayload(pkt)...)
-	totalLen := header.IPv6MinimumSize + header.ICMPv6MinimumSize + len(payload)
-	if totalLen > maxIcmp6PktSize {
-		totalLen = maxIcmp6PktSize
-	}
+	totalLen := min(maxIcmp6PktSize, header.IPv6MinimumSize+header.ICMPv6MinimumSize+len(payload))
 	payloadLen := totalLen - header.IPv6MinimumSize - header.ICMPv6MinimumSize
 	if len(payload) > payloadLen {
 		payload = payload[:payloadLen]

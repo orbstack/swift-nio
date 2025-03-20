@@ -60,6 +60,7 @@ type UDPProxy struct {
 	connTrackTable connTrackMap
 	connTrackLock  syncx.Mutex
 	trackExtConn   bool
+	icmpSender     icmpSender
 }
 
 // External connection source addr -> local (virtual) source addr
@@ -73,12 +74,13 @@ func LookupExternalConn(localAddr *net.UDPAddr) *net.UDPAddr {
 }
 
 // NewUDPProxy creates a new UDPProxy.
-func NewUDPProxy(listener net.PacketConn, dialer func(*net.UDPAddr) (net.Conn, error), trackExtConn bool) (*UDPProxy, error) {
+func NewUDPProxy(listener net.PacketConn, dialer func(*net.UDPAddr) (net.Conn, error), trackExtConn bool, icmpSender icmpSender) (*UDPProxy, error) {
 	return &UDPProxy{
 		listener:       listener,
 		connTrackTable: make(connTrackMap),
 		dialer:         dialer,
 		trackExtConn:   trackExtConn,
+		icmpSender:     icmpSender,
 	}, nil
 }
 
@@ -176,6 +178,8 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 			if connWrapper, ok := proxy.listener.(*autoStoppingListener); ok {
 				newTtl := connWrapper.UDPConn.LastTTL
 				if newTtl != ext.lastTTL {
+					proxy.icmpSender.MaybeCreateSockets(int(newTtl)) // watch for ICMP time exceeded
+
 					rawConn, err := ext.conn.(*net.UDPConn).SyscallConn()
 					if err != nil {
 						logrus.WithError(err).Error("failed to set UDP TTL")

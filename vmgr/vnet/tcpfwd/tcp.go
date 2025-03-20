@@ -42,7 +42,7 @@ func getPacketTTL(pkt *stack.PacketBuffer) uint8 {
 }
 
 func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.Address, hostNatIP6 tcpip.Address, bridgeRouteMon *bridge.RouteMon) (*tcp.Forwarder, *ProxyManager) {
-	proxyMgr := newProxyManager(hostNatIP4, hostNatIP6)
+	proxyMgr := newProxyManager(hostNatIP4, hostNatIP6, icmpMgr)
 
 	return tcp.NewForwarder(s, 0, listenBacklog, func(r *tcp.ForwarderRequest) {
 		refDec := false

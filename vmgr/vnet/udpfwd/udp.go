@@ -33,6 +33,7 @@ type udpManager struct {
 
 type icmpSender interface {
 	InjectDestUnreachable6(*stack.PacketBuffer, header.ICMPv6Code) error
+	MaybeCreateSockets(ttl int)
 }
 
 // private API
@@ -239,7 +240,7 @@ func (m *udpManager) handleNewPacket(r *udp.ForwarderRequest) {
 		m.srcPortMap.Store(reqSrcPort, conn.LocalAddr().(*net.UDPAddr).Port)
 
 		return conn, nil
-	}, true)
+	}, true, m.i)
 	if err != nil {
 		logrus.Error("NewUDPProxy() =", err)
 		return

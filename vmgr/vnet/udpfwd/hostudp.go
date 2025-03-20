@@ -91,7 +91,7 @@ func StartUDPHostForward(s *stack.Stack, listenAddr, connectAddr4, connectAddr6 
 
 		return gonet.DialUDP(s, nil, &connectAddr, proto)
 	}
-	proxy, err := NewUDPProxy(listener, dialer, false)
+	proxy, err := NewUDPProxy(listener, dialer, false, nil)
 	if err != nil {
 		return nil, err
 	}

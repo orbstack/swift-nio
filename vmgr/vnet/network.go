@@ -373,7 +373,6 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 		return nil, err
 	}
 	go icmpFwd.ProxyRequests()
-	icmpFwd.MonitorReplies()
 
 	// Build NAT table
 	hostNatIP4 := netutil.ParseTcpipAddress(netconf.VnetHostNatIP4)
