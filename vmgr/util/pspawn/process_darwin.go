@@ -62,7 +62,13 @@ func StartProcess(exe string, argv []string, attr *os.ProcAttr, pspawnAttr *Pspa
 			return nil, err
 		}
 
-		argv = append([]string{pstrampExe, "-setctty", strconv.Itoa(int(attr.Sys.Ctty)), "--", exe}, argv...)
+		pstrampCmd := []string{pstrampExe, "-setctty", strconv.Itoa(int(attr.Sys.Ctty))}
+		if pspawnAttr != nil && pspawnAttr.DisclaimTCCResponsibility {
+			pstrampCmd = append(pstrampCmd, "-disclaim")
+		}
+		pstrampCmd = append(pstrampCmd, "--", exe)
+
+		argv = append(pstrampCmd, argv...)
 		exe = pstrampExe
 	}
 
