@@ -14,7 +14,7 @@
 	<key>SMPrivilegedExecutables</key>
 	<dict>
 		<key>dev.orbstack.OrbStack.privhelper</key>
-		<string>anchor apple generic and identifier "dev.orbstack.OrbStack.privhelper" and certificate leaf[subject.OU] = "HUAQ24HBR6"</string>
+		<string>anchor apple generic and identifier &quot;dev.orbstack.OrbStack.privhelper&quot; and certificate leaf[subject.OU] = &quot;HUAQ24HBR6&quot;</string>
 	</dict>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
@@ -26,5 +26,49 @@
 	<string>nuUHoUatJ4OxpNCGb5NJ7s5WQYBG4iiZ6rm8JCk0sNQ=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>14400</integer>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>A container is trying to connect to an orb.local domain or a local network device.</string>
+	<!-- file access is usually triggered by containers/machines -->
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>A container is trying to access files in ~/Desktop.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>A container is trying to access files in ~/Downloads.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>A container is trying to access files in ~/Documents.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>A container is trying to access files on a network volume.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>A container is trying to access files on a removable volume.</string>
+	<key>NSFileProviderDomainUsageDescription</key>
+	<string>A container is trying to access files from this provider.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>A container is trying to access files in ~/Library/Contacts.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>A container is trying to access files in ~/Music.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>A container is trying to access files in ~/Library/Calendars.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>A container is trying to access files in ~/Library/Reminders.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>A container is trying to access files in ~/Pictures.</string>
+	<key>NSAppDataUsageDescription</key>
+	<string>A container is trying to access files in ~/Library/Containers or ~/Library/Group Containers.</string>
+	<!-- we're responsible for hostssh processes, we need all other possible permissions -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>A macOS program started by an OrbStack machine wants to use Bluetooth.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>A macOS program started by an OrbStack machine wants to use the camera.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>A macOS program started by an OrbStack machine wants to use the microphone.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>A macOS program started by an OrbStack machine wants to use location services.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>A macOS program started by an OrbStack machine wants to use motion sensors.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>A macOS program started by an OrbStack machine wants to use AppleScript.</string>
+	<key>NSSystemAdministrationUsageDescription</key>
+	<string>A macOS program started by an OrbStack machine wants to change system settings.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>A macOS program started by an OrbStack machine wants to use speech recognition.</string>
 </dict>
 </plist>
