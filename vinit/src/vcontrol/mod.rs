@@ -78,6 +78,11 @@ async fn disk_report_stats(
 // host is about to sleep
 async fn sys_sleep() -> AppResult<impl IntoResponse> {
     debug!("sys_sleep");
+
+    // freeze all machines
+    std::fs::write("/sys/fs/cgroup/scon/container/cgroup.freeze", "1")
+        .map_err(|e| anyhow!("failed to freeze machines: {}", e))?;
+
     Ok(())
 }
 
@@ -88,6 +93,10 @@ async fn sys_wake() -> AppResult<impl IntoResponse> {
     // fix the time immediately by stepping
     // chrony doesn't like massive time difference
     startup::sync_clock(false).map_err(|e| anyhow!("failed to step clock: {}", e))?;
+
+    // unfreeze all machines
+    std::fs::write("/sys/fs/cgroup/scon/container/cgroup.freeze", "0")
+        .map_err(|e| anyhow!("failed to unfreeze machines: {}", e))?;
 
     // then ask chrony to do a more precise fix
     // #chronyc -m 'burst 4/4' 'makestep 3.0 -1'
