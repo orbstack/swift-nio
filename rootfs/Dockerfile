@@ -243,7 +243,7 @@ apk add --no-cache \
     xz \
     pigz \
     ca-certificates \
-    runc=1.2.5-r0 \
+    runc=1.2.6-r0 \
     containerd \
     git \
     openssh-client-default \

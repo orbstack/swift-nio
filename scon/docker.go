@@ -595,7 +595,11 @@ func (h *DockerHooks) PreStart(c *Container) error {
 			"--https-listen-port", strconv.Itoa(ports.HostKubernetes),
 			"--lb-server-port", strconv.Itoa(ports.HostKubernetes + 1),
 			"--docker",
-			"--container-runtime-endpoint", "/var/run/docker.sock",
+			// RuntimeSocket setting order was changed from v1.31 onward
+			// This arg is not really needed for versions below v1.31
+			// From v1.31 and up --container-runtime-endpoint has the highest precedence
+			// Setting it is actually breaking the cri-dockerd socket path
+			//	"--container-runtime-endpoint", "/var/run/docker.sock",
 			"--protect-kernel-defaults",
 			"--flannel-backend", "host-gw",
 			// breaks networking in some setups due to policy not being applied correctly
