@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -638,7 +639,7 @@ func runVmManager() {
 			// don't panic yet here -- we want to make it to lastStopReason's os.Exit call
 			// log at fatal level but don't exit yet
 			// we've also already lost the stack trace anyway
-			logrus.StandardLogger().Fatalf("panic: %v", err)
+			logrus.StandardLogger().Fatalf("panic: %v\n%s", err, debug.Stack())
 		}
 	}()
 	// recover from fatal-log panic:
