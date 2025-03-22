@@ -13,15 +13,21 @@ echo "Cloning repos"
 cd ../vendor
 if [[ ! -d "k3s" ]]; then
   git clone -b $BRANCH git@github.com:orbstack/k3s
+else
+  (cd k3s; git fetch && git checkout $BRANCH && git pull)
 fi
 
 pushd k3s
 pushd forks
 if [[ ! -d "kubernetes" ]]; then
   git clone -b $BRANCH git@github.com:orbstack/kubernetes
+else
+  (cd kubernetes; git fetch && git checkout $BRANCH && git pull)
 fi
 if [[ ! -d "cri-dockerd" ]]; then
   git clone -b $BRANCH git@github.com:orbstack/cri-dockerd
+else
+  (cd cri-dockerd; git fetch && git checkout $BRANCH && git pull)
 fi
 popd
 
