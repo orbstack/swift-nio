@@ -67,6 +67,11 @@ func (p *DomainSSHProxy) Start(tproxy *bpf.Tproxy, handler SSHHandler) error {
 		return fmt.Errorf("set tproxy socket: %w", err)
 	}
 
+	err = p.startQueue()
+	if err != nil {
+		return fmt.Errorf("start queue: %w", err)
+	}
+
 	go p.serve(ln4)
 	go p.serve(ln6)
 

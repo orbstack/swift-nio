@@ -62,7 +62,7 @@ static __always_inline bool matches_subnet6(const __u32 *ip, const volatile __u3
     return 1;
 }
 
-static __always_inline bool matches_port(__u16 port, int *socket_index) {
+static __always_inline bool matches_port(__u16 port, __u32 *socket_index) {
 #pragma clang loop unroll(enable)
     for (int i = 0; i < MAX_PORTS; i++) {
         if (config_tproxy_ports[i] != 0 && config_tproxy_ports[i] == port) {

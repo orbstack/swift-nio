@@ -9,10 +9,7 @@ import (
 	"slices"
 
 	"github.com/florianl/go-nfqueue"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"github.com/google/nftables"
-	"github.com/mdlayher/netlink"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/util"
@@ -22,22 +19,10 @@ import (
 )
 
 func (d *DomainTLSProxy) startQueue(queueNum uint16) error {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	return util.RunNfqueue(ctx, util.NfqueueConfig{
-		Config: &nfqueue.Config{
-			NfQueue:      queueNum,
-			MaxPacketLen: 65536,
-			MaxQueueLen:  1024,
-			Copymode:     nfqueue.NfQnlCopyPacket,
-			Flags:        0,
-			Logger:       logrus.StandardLogger(),
-		},
-		Options: map[netlink.ConnOption]bool{
-			netlink.NoENOBUFS: true,
-		},
+	return util.RunNfqueue(context.TODO(), util.NfqueueConfig{
+		QueueNum: queueNum,
 		AttributeHandler: func(ctx context.Context, queue *nfqueue.Nfqueue, a util.NfqueueLinkedAttribute) {
-			err := d.handleNfqueuePacket(a.Attribute)
+			err := d.handleNfqueuePacket(a)
 			if err != nil {
 				logrus.WithError(err).Error("failed to handle nfqueue packet")
 			}
@@ -54,51 +39,18 @@ func (d *DomainTLSProxy) startQueue(queueNum uint16) error {
 				logrus.WithError(err).Error("failed to set verdict")
 			}
 		},
-		ErrorHandler: func(ctx context.Context, e error) {
-			logrus.WithError(e).Error("nfqueue error")
-			cancel()
-		},
 	})
 }
 
-func (d *DomainTLSProxy) handleNfqueuePacket(a nfqueue.Attribute) error {
-	// first 4 bits = IP version
-	payload := *a.Payload
-	if len(payload) < 1 {
-		return errors.New("payload too short")
+func (d *DomainTLSProxy) handleNfqueuePacket(a util.NfqueueLinkedAttribute) error {
+	srcIP, dstIP, err := a.ParseIPs()
+	if err != nil {
+		return err
 	}
 
-	ipVersion := payload[0] >> 4
-	var decoder gopacket.Decoder
-	if ipVersion == 4 {
-		decoder = layers.LayerTypeIPv4
-	} else if ipVersion == 6 {
-		decoder = layers.LayerTypeIPv6
-	} else {
-		return fmt.Errorf("unsupported ip version: %d", ipVersion)
-	}
+	logrus.WithField("dst_ip", dstIP).Debug("tls nfqueue packet")
 
-	packet := gopacket.NewPacket(*a.Payload, decoder, gopacket.Lazy)
-	var srcIP netip.Addr
-	var dstIP netip.Addr
-	ipOk1 := false
-	ipOk2 := false
-	if ip4, ok := packet.NetworkLayer().(*layers.IPv4); ok {
-		srcIP, ipOk1 = netip.AddrFromSlice(ip4.SrcIP)
-		dstIP, ipOk2 = netip.AddrFromSlice(ip4.DstIP)
-	} else if ip6, ok := packet.NetworkLayer().(*layers.IPv6); ok {
-		srcIP, ipOk1 = netip.AddrFromSlice(ip6.SrcIP)
-		dstIP, ipOk2 = netip.AddrFromSlice(ip6.DstIP)
-	} else {
-		return errors.New("unsupported ip version")
-	}
-	if !ipOk1 || !ipOk2 {
-		return errors.New("failed to get ip")
-	}
-
-	logrus.WithField("dst_ip", dstIP).Debug("nfqueue packet")
-
-	_, err := d.probeHost(dstIP, srcIP)
+	_, err = d.probeHost(dstIP, srcIP)
 	if err != nil {
 		return err
 	}

@@ -128,7 +128,7 @@ func newDomainproxyRegistry(mdnsRegistry *mdnsRegistry, subnet4 netip.Prefix, lo
 }
 
 func (d *domainproxyRegistry) StartTLSProxy() error {
-	return d.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe, d.tproxy)
+	return d.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyHttpProbe, d.tproxy)
 }
 
 func (d *domainproxyRegistry) StartSSHProxy(handler domainproxy.SSHHandler) error {
@@ -186,9 +186,14 @@ func (d *domainproxyRegistry) invalidateAddrProbeLocked(ip netip.Addr) {
 			logrus.WithError(err).Error("failed to remove from domainproxy 7")
 		}
 
-		err = nft.MapDeleteByName(conn, table, prefix+"_probed_ssh_upstreams", nft.IPAddr(ip))
+		err = nft.SetDeleteByName(conn, table, prefix+"_probed_ssh_upstream", nft.IPAddr(ip))
 		if err != nil && !errors.Is(err, unix.ENOENT) {
 			logrus.WithError(err).Error("failed to remove from domainproxy 9")
+		}
+
+		err = nft.SetDeleteByName(conn, table, prefix+"_probed_ssh_no_upstream", nft.IPAddr(ip))
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			logrus.WithError(err).Error("failed to remove from domainproxy 10")
 		}
 
 		return nil
