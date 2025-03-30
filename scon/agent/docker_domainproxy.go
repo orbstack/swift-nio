@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"os"
 
+	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
@@ -59,7 +60,12 @@ func (d *DockerAgent) startDomainTLSProxy() error {
 	}
 	d.domainTLSProxy = proxy
 
-	err = proxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe)
+	tproxy, err := bpf.NewTproxy(domainproxySubnet4Prefix, domainproxySubnet6Prefix, []uint16{443})
+	if err != nil {
+		return fmt.Errorf("tls domainproxy: create tproxy bpf: %w", err)
+	}
+
+	err = proxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe, tproxy)
 	if err != nil {
 		return err
 	}

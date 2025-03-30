@@ -23,6 +23,7 @@ import (
 	"github.com/orbstack/macvirt/scon/nft"
 	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/portprober"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -112,7 +113,7 @@ func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy
 	}, nil
 }
 
-func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, nfqueueNum uint16) error {
+func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, nfqueueNum uint16, tproxy *bpf.Tproxy) error {
 	err := p.tlsController.LoadRoot()
 	if err != nil {
 		return err
@@ -144,61 +145,40 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, n
 		return err
 	}
 
-	lcfg := net.ListenConfig{
-		Control: func(network, address string, c syscall.RawConn) error {
-			var err2 error
-			err := c.Control(func(fd uintptr) {
-				// Go sets SO_REUSEADDR by default
-				// we need IP_TRANSPARENT to be able to receive packets destined to a non-local ip, even though we're assigning this socket with bpf
-				err2 = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
-			})
-			if err != nil {
-				return err
-			}
-
-			return err2
-		},
-	}
-
-	ln4, err := lcfg.Listen(context.TODO(), "tcp", net.JoinHostPort(ip4, "0"))
+	ln4, err := netx.ListenTransparent(context.TODO(), "tcp", net.JoinHostPort(ip4, "0"))
 	if err != nil {
-		return fmt.Errorf("failed to listen: %w", err)
+		return fmt.Errorf("listen: %w", err)
 	}
-	ln6, err := lcfg.Listen(context.TODO(), "tcp", net.JoinHostPort(ip6, "0"))
+	ln6, err := netx.ListenTransparent(context.TODO(), "tcp", net.JoinHostPort(ip6, "0"))
 	if err != nil {
-		return fmt.Errorf("failed to listen: %w", err)
-	}
-
-	tproxy, err := bpf.NewTproxy(subnet4, subnet6, 443)
-	if err != nil {
-		return fmt.Errorf("tls domainproxy: failed to create tproxy bpf: %w", err)
+		return fmt.Errorf("listen: %w", err)
 	}
 
 	ln4RawConn, err := ln4.(syscall.Conn).SyscallConn()
 	if err != nil {
-		return fmt.Errorf("failed to get rawconn from listener: %w", err)
+		return fmt.Errorf("get rawconn from listener: %w", err)
 	}
 	err = util.UseRawConn(ln4RawConn, func(fd int) error {
-		return tproxy.SetSock4(uint64(fd))
+		return tproxy.SetSock4(0, uint64(fd))
 	})
 	if err != nil {
-		return fmt.Errorf("failed to set tproxy socket: %w", err)
+		return fmt.Errorf("set tproxy socket: %w", err)
 	}
 
 	ln6RawConn, err := ln6.(syscall.Conn).SyscallConn()
 	if err != nil {
-		return fmt.Errorf("failed to get file from listener: %w", err)
+		return fmt.Errorf("get file from listener: %w", err)
 	}
 	err = util.UseRawConn(ln6RawConn, func(fd int) error {
-		return tproxy.SetSock6(uint64(fd))
+		return tproxy.SetSock6(0, uint64(fd))
 	})
 	if err != nil {
-		return fmt.Errorf("failed to set tproxy socket: %w", err)
+		return fmt.Errorf("set tproxy socket: %w", err)
 	}
 
 	err = tproxy.AttachNetNsFromPath("/proc/thread-self/ns/net")
 	if err != nil {
-		return fmt.Errorf("failed to attach tproxy to netns: %w", err)
+		return fmt.Errorf("attach tproxy to netns: %w", err)
 	}
 
 	p.tproxy = tproxy
@@ -286,7 +266,7 @@ func dialerForTransparentBind(bindIP net.IP, mark int) *net.Dialer {
 				// IP_FREEBIND doesn't work for some reason
 				err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
 				if err != nil {
-					retErr = fmt.Errorf("failed to set opt 1: %w", err)
+					retErr = fmt.Errorf("set opt 1: %w", err)
 					return
 				}
 
@@ -294,14 +274,14 @@ func dialerForTransparentBind(bindIP net.IP, mark int) *net.Dialer {
 				// also, this mark provides routing for the return path when we spoof source IP
 				err = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, mark)
 				if err != nil {
-					retErr = fmt.Errorf("failed to set opt 2: %w", err)
+					retErr = fmt.Errorf("set opt 2: %w", err)
 					return
 				}
 
 				// set IP_BIND_ADDRESS_NO_PORT to not bind to port so that ports are tracked by 4-tuple, not 2-tuple
 				err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_BIND_ADDRESS_NO_PORT, 1)
 				if err != nil {
-					retErr = fmt.Errorf("failed to set opt 3: %w", err)
+					retErr = fmt.Errorf("set opt 3: %w", err)
 					return
 				}
 

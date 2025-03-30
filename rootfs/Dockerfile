@@ -439,6 +439,8 @@ ARG TYPE=release
 RUN <<EOT sh -eux
 if [[ "$TYPE" == "debug" ]]; then
     apk add --no-cache neovim iproute2 agetty openssh htop strace tcpdump fish go lxc-dev alpine-sdk llvm clang linux-headers libbpf-dev bcachefs-tools bpftool
+    # don't interfere with tproxy port 22
+    echo "ListenAddress 0.250.250.2" > /etc/ssh/sshd_config.d/orb.conf
 fi
 EOT
 

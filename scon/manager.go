@@ -298,7 +298,7 @@ func (m *ConManager) Start() error {
 
 	// services
 	go runOne("SSH server", func() error {
-		cleanup, err := m.runSSHServer(conf.C().SSHListenIP4, conf.C().SSHListenIP6)
+		cleanup, err := m.startSSHServer(conf.C().SSHListenIP4, conf.C().SSHListenIP6)
 		if err != nil {
 			return err
 		}

@@ -263,18 +263,10 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 
 	err = r.updateDomainTLSProxyNftables(true, r.manager.vmConfig.NetworkHttps)
 	if err != nil {
-		logrus.WithError(err).Error("unable to update tls proxy nftables")
+		return fmt.Errorf("update domain tls proxy nftables: %w", err)
 	}
 
-	go runOne("start domainTLSProxy", func() error {
-		err := r.domainproxy.StartTLSProxy()
-		if err != nil {
-			return err
-		}
-		logrus.Debug("started mdns domainTLSProxy")
-
-		return nil
-	})
+	go runOne("start domain tls proxy", r.domainproxy.StartTLSProxy)
 
 	err = r.manager.net.portMonitor.AddGlobalCallback("mdns_domainproxy", r.refreshHostListeners)
 	if err != nil {

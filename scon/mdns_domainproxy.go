@@ -81,16 +81,25 @@ type domainproxyRegistry struct {
 	v4 *domainproxyAllocator
 	v6 *domainproxyAllocator
 
+	tproxy *bpf.Tproxy
+
 	domainTLSProxy       *domainproxy.DomainTLSProxy
 	domainTLSProxyActive bool
+
+	domainSSHProxy *domainproxy.DomainSSHProxy
 
 	hostState          map[domainproxytypes.Host]*domainproxyHostState
 	netnsCookieToHosts map[uint64][]domainproxytypes.Host
 }
 
-func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) (*domainproxyRegistry, error) {
+func newDomainproxyRegistry(mdnsRegistry *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) (*domainproxyRegistry, error) {
+	tproxy, err := bpf.NewTproxy(domainproxySubnet4Prefix, domainproxySubnet6Prefix, []uint16{443, 22})
+	if err != nil {
+		return nil, fmt.Errorf("new tproxy: %w", err)
+	}
+
 	d := &domainproxyRegistry{
-		manager:         r.manager,
+		manager:         mdnsRegistry.manager,
 		dockerMachine:   nil,
 		bridgeLinkIndex: -1,
 
@@ -99,22 +108,31 @@ func newDomainproxyRegistry(r *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip
 		v4: newDomainproxyAllocator(subnet4, lowest4),
 		v6: newDomainproxyAllocator(subnet6, lowest6),
 
+		tproxy: tproxy,
+
 		domainTLSProxyActive: false,
 		hostState:            make(map[domainproxytypes.Host]*domainproxyHostState),
 		netnsCookieToHosts:   make(map[uint64][]domainproxytypes.Host),
 	}
 
-	proxy, err := domainproxy.NewDomainTLSProxy(r.host, &SconProxyCallbacks{r: r, d: d})
+	cb := &SconProxyCallbacks{mdnsRegistry: mdnsRegistry, dpRegistry: d}
+	tlsProxy, err := domainproxy.NewDomainTLSProxy(mdnsRegistry.host, cb)
 	if err != nil {
 		return nil, fmt.Errorf("new tls domainproxy: %w", err)
 	}
-	d.domainTLSProxy = proxy
+	d.domainTLSProxy = tlsProxy
+
+	d.domainSSHProxy = domainproxy.NewDomainSSHProxy(cb)
 
 	return d, nil
 }
 
 func (d *domainproxyRegistry) StartTLSProxy() error {
-	return d.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe)
+	return d.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyProbe, d.tproxy)
+}
+
+func (d *domainproxyRegistry) StartSSHProxy(handler domainproxy.SSHHandler) error {
+	return d.domainSSHProxy.Start(d.tproxy, handler)
 }
 
 func (d *domainproxyRegistry) addNeighbor(ip netip.Addr) {
@@ -167,6 +185,12 @@ func (d *domainproxyRegistry) invalidateAddrProbeLocked(ip netip.Addr) {
 		if err != nil && !errors.Is(err, unix.ENOENT) {
 			logrus.WithError(err).Error("failed to remove from domainproxy 7")
 		}
+
+		err = nft.MapDeleteByName(conn, table, prefix+"_probed_ssh_upstreams", nft.IPAddr(ip))
+		if err != nil && !errors.Is(err, unix.ENOENT) {
+			logrus.WithError(err).Error("failed to remove from domainproxy 9")
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -855,16 +879,16 @@ func setupDomainProxyInterface() error {
 }
 
 type SconProxyCallbacks struct {
-	r *mdnsRegistry
-	d *domainproxyRegistry
+	mdnsRegistry *mdnsRegistry
+	dpRegistry   *domainproxyRegistry
 }
 
 func (c *SconProxyCallbacks) GetUpstreamByHost(host string, v4 bool) (netip.Addr, domainproxytypes.Upstream, error) {
-	return c.r.getProxyUpstreamByHost(host, v4)
+	return c.mdnsRegistry.getProxyUpstreamByHost(host, v4)
 }
 
 func (c *SconProxyCallbacks) GetUpstreamByAddr(addr netip.Addr) (domainproxytypes.Upstream, error) {
-	return c.d.getProxyUpstreamByAddr(addr)
+	return c.dpRegistry.getProxyUpstreamByAddr(addr)
 }
 
 func (c *SconProxyCallbacks) GetMark(upstream domainproxytypes.Upstream) int {
@@ -885,7 +909,7 @@ func (c *SconProxyCallbacks) NftableName() string {
 }
 
 func (c *SconProxyCallbacks) GetHostOpenPorts(host domainproxytypes.Host) (map[uint16]struct{}, error) {
-	return c.d.getHostOpenPorts(host)
+	return c.dpRegistry.getHostOpenPorts(host)
 }
 
 func (r *mdnsRegistry) getProxyUpstreamByHost(host string, v4 bool) (netip.Addr, domainproxytypes.Upstream, error) {

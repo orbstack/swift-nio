@@ -101,6 +101,10 @@ To create a Linux machine:
 See "orb create --help" for supported distros and options.`
 )
 
+type contextKeyMachine_ struct{}
+
+var contextKeyMachine = contextKeyMachine_{}
+
 var (
 	sshSigMap = map[ssh.Signal]os.Signal{
 		ssh.SIGABRT: unix.SIGABRT,
@@ -150,12 +154,24 @@ func (e *ExitError) Error() string {
 	return fmt.Sprintf("exit status %d", e.status)
 }
 
-type SshServer struct {
+type sshDomainProxyConn struct {
+	net.Conn
+	machine *Container
+}
+
+func (c *sshDomainProxyConn) Close() error {
+	if c.Conn == nil {
+		return nil
+	}
+	return c.Conn.Close()
+}
+
+type SSHServer struct {
 	*ssh.Server
 	m *ConManager
 }
 
-func (sv *SshServer) handleConn(s ssh.Session) {
+func (sv *SSHServer) handleSession(s ssh.Session) {
 	defer s.Close()
 
 	printErr, err := sv.handleSubsystem(s)
@@ -180,7 +196,13 @@ func isDefaultUserComp(user string) bool {
 	return user == "[default]" || user == "default"
 }
 
-func (sv *SshServer) resolveUser(userReq string) (c *Container, user string, isWormhole bool, err error) {
+func (sv *SSHServer) resolveUser(ctx ssh.Context) (c *Container, user string, isWormhole bool, err error) {
+	// if this is a domainproxy connection, use the raw user string + container from dest addr
+	userReq := ctx.User()
+	if machine := ctx.Value(contextKeyMachine); machine != nil {
+		return machine.(*Container), userReq, false, nil
+	}
+
 	// user and container
 	userParts := strings.Split(userReq, "@")
 	if len(userParts) > 2 {
@@ -246,11 +268,11 @@ func (sv *SshServer) resolveUser(userReq string) (c *Container, user string, isW
 	return
 }
 
-func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
+func (sv *SSHServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	_, _, isPty := s.Pty()
 	printErr = isPty
 
-	container, user, isWormhole, err := sv.resolveUser(s.User())
+	container, user, isWormhole, err := sv.resolveUser(s.Context())
 	if err != nil {
 		return
 	}
@@ -279,7 +301,7 @@ func (sv *SshServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 	}
 }
 
-func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, user string, isWormhole bool) (bool, error) {
+func (sv *SSHServer) handleCommandSession(s ssh.Session, container *Container, user string, isWormhole bool) (bool, error) {
 	ptyReq, winCh, isPty := s.Pty()
 	printErr := isPty
 
@@ -533,7 +555,7 @@ func (sv *SshServer) handleCommandSession(s ssh.Session, container *Container, u
 	return printErr, nil
 }
 
-func (sv *SshServer) handleSftp(s ssh.Session, container *Container, user string) error {
+func (sv *SSHServer) handleSftp(s ssh.Session, container *Container, user string) error {
 	// make socketpair
 	socketFds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC|unix.SOCK_NONBLOCK, 0)
 	if err != nil {
@@ -590,8 +612,8 @@ type streamLocalChannelData struct {
 	Reserved2  uint32
 }
 
-func (sv *SshServer) finishProxyChannelOpen(ctx ssh.Context, newChan gossh.NewChannel, network string, addrPort string) {
-	container, _, isWormhole, err := sv.resolveUser(ctx.User())
+func (sv *SSHServer) finishProxyChannelOpen(ctx ssh.Context, newChan gossh.NewChannel, network string, addrPort string) {
+	container, _, isWormhole, err := sv.resolveUser(ctx)
 	if err != nil {
 		newChan.Reject(gossh.ConnectionFailed, err.Error())
 		return
@@ -629,7 +651,7 @@ func (sv *SshServer) finishProxyChannelOpen(ctx ssh.Context, newChan gossh.NewCh
 	}()
 }
 
-func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
+func (sv *SSHServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChan.ExtraData(), &d); err != nil {
 		newChan.Reject(gossh.ConnectionFailed, "parse tcpip forward data: "+err.Error())
@@ -640,7 +662,7 @@ func (sv *SshServer) handleLocalForward(srv *ssh.Server, conn *gossh.ServerConn,
 	sv.finishProxyChannelOpen(ctx, newChan, "tcp", dest)
 }
 
-func (sv *SshServer) handleStreamLocalForward(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
+func (sv *SSHServer) handleStreamLocalForward(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 	d := streamLocalChannelData{}
 	if err := gossh.Unmarshal(newChan.ExtraData(), &d); err != nil {
 		newChan.Reject(gossh.ConnectionFailed, "parse stream local forward data: "+err.Error())
@@ -650,7 +672,7 @@ func (sv *SshServer) handleStreamLocalForward(srv *ssh.Server, conn *gossh.Serve
 	sv.finishProxyChannelOpen(ctx, newChan, "unix", d.SocketPath)
 }
 
-func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, error) {
+func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, error) {
 	listenerInternal, err := netx.Listen("tcp", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSH)))
 	if err != nil {
 		return nil, err
@@ -666,15 +688,15 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 		return nil, err
 	}
 
-	sshServerInt := &SshServer{
+	sshServerInt := &SSHServer{
 		m:      m,
 		Server: &ssh.Server{},
 	}
-	sshServerInt.Handler = sshServerInt.handleConn
+	sshServerInt.Handler = sshServerInt.handleSession
 	sshServerInt.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
 
 	// public supports SFTP, local forward
-	sshServerPub := &SshServer{
+	sshServerPub := &SSHServer{
 		m: m,
 		Server: &ssh.Server{
 			Version: "OrbStack",
@@ -686,10 +708,18 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 			ConnectionFailedCallback: func(conn net.Conn, err error) {
 				logrus.WithError(err).Error("SSH connection failed")
 			},
+			ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
+				if dConn, ok := conn.(*sshDomainProxyConn); ok {
+					ctx.SetValue(contextKeyMachine, dConn.machine)
+					return dConn.Conn
+				} else {
+					return conn
+				}
+			},
 		},
 	}
-	sshServerPub.Handler = sshServerPub.handleConn
-	sshServerPub.SubsystemHandlers["sftp"] = sshServerPub.handleConn
+	sshServerPub.Handler = sshServerPub.handleSession
+	sshServerPub.SubsystemHandlers["sftp"] = sshServerPub.handleSession
 	sshServerPub.ChannelHandlers["direct-tcpip"] = sshServerPub.handleLocalForward
 	sshServerPub.ChannelHandlers["direct-streamlocal@openssh.com"] = sshServerPub.handleStreamLocalForward
 	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
@@ -758,6 +788,24 @@ func (m *ConManager) runSSHServer(listenIP4, listenIP6 string) (func() error, er
 		}
 		return nil
 	})
+
+	// start domain SSH proxy
+	err = m.net.mdnsRegistry.domainproxy.StartSSHProxy(func(conn net.Conn, machineID string) error {
+		container, err := m.GetByID(machineID)
+		if err != nil {
+			return fmt.Errorf("get container: %w", err)
+		}
+
+		wrappedConn := &sshDomainProxyConn{
+			Conn:    conn,
+			machine: container,
+		}
+		sshServerPub.HandleConn(wrappedConn)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("start domain SSH proxy: %w", err)
+	}
 
 	// cleanup func
 	return func() error {

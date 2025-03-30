@@ -18,15 +18,16 @@
  */
 
 #include <errno.h>
+#include <spawn.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <stdbool.h>
-#include <spawn.h>
 
-extern int responsibility_spawnattrs_setdisclaim(posix_spawnattr_t *attrs, int disclaim) __attribute__((weak_import));
+extern int responsibility_spawnattrs_setdisclaim(posix_spawnattr_t *attrs, int disclaim)
+    __attribute__((weak_import));
 extern char **environ;
 
 // Usage: ./pstramp [-setctty fd#] -- <exe> <argv...> (including argv0)

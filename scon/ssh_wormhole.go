@@ -160,7 +160,7 @@ type wormholeSessionParams struct {
 	resp      *agent.StartWormholeResponseClient
 }
 
-func (sv *SshServer) prepareWormhole(container *Container, wormholeTarget string) (_params *wormholeSessionParams, retErr error) {
+func (sv *SSHServer) prepareWormhole(container *Container, wormholeTarget string) (_params *wormholeSessionParams, retErr error) {
 	if conf.Debug() && wormholeTarget == sshtypes.WormholeIDHost {
 		// debug only: wormhole for VM host (ovm)
 		rootfsFd, err := unix.Open("/proc/thread-self/root", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
@@ -197,7 +197,7 @@ func (sv *SshServer) prepareWormhole(container *Container, wormholeTarget string
 	}, nil
 }
 
-func (sv *SshServer) startWormholeProcess(cmd *agent.AgentCommand, container *Container, params *wormholeSessionParams, shellCmd string, meta *sshtypes.SshMeta) (_exitCodePipeRead *os.File, retErr error) {
+func (sv *SSHServer) startWormholeProcess(cmd *agent.AgentCommand, container *Container, params *wormholeSessionParams, shellCmd string, meta *sshtypes.SshMeta) (_exitCodePipeRead *os.File, retErr error) {
 	isNix, err := isNixContainer(params.resp.RootfsFile)
 	if err != nil {
 		return nil, err
@@ -295,7 +295,7 @@ func (sv *SshServer) startWormholeProcess(cmd *agent.AgentCommand, container *Co
 	return exitCodePipeRead, nil
 }
 
-func (sv *SshServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeTarget string, cmd *agent.AgentCommand, initPidfd *agent.PidfdProcess, exitCodePipeRead *os.File, fanotifyFile *os.File) error {
+func (sv *SSHServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeTarget string, cmd *agent.AgentCommand, initPidfd *agent.PidfdProcess, exitCodePipeRead *os.File, fanotifyFile *os.File) error {
 	// process spawned. start monitoring fanotify
 	var processWg sync.WaitGroup
 	processWg.Add(1)
@@ -414,7 +414,7 @@ func (sv *SshServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeT
 	return nil
 }
 
-func (sv *SshServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, container *Container, wormholeTarget string, shellCmd string, meta *sshtypes.SshMeta, isPty bool) (bool, error) {
+func (sv *SSHServer) handleWormhole(s ssh.Session, cmd *agent.AgentCommand, container *Container, wormholeTarget string, shellCmd string, meta *sshtypes.SshMeta, isPty bool) (bool, error) {
 	params, err := sv.prepareWormhole(container, wormholeTarget)
 	if err != nil {
 		return true /*printErr*/, err

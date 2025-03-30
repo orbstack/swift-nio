@@ -15,8 +15,13 @@ type Tproxy struct {
 	links []*link.NetNsLink
 }
 
-const TPROXY_SOCKET_KEY4 uint32 = 0
-const TPROXY_SOCKET_KEY6 uint32 = 1
+const (
+	cMAX_PORTS = 2
+
+	cSOCKET_KEY4    = 0
+	cSOCKET_KEY6    = 1
+	cSOCKET_KEY_MAX = 2
+)
 
 func ipv4AddrToUint32(addr netip.Addr) uint32 {
 	a := addr.As4()
@@ -47,7 +52,17 @@ func ipv6BitsToMaskUint32Array(bits int) [4]uint32 {
 }
 
 // 0 port means any port, invalid netip.Prefix means disabled
-func NewTproxy(subnet4 netip.Prefix, subnet6 netip.Prefix, port uint16) (*Tproxy, error) {
+func NewTproxy(subnet4 netip.Prefix, subnet6 netip.Prefix, ports []uint16) (*Tproxy, error) {
+	if len(ports) > cMAX_PORTS {
+		return nil, fmt.Errorf("too many ports: %d", len(ports))
+	}
+	if len(ports) < cMAX_PORTS {
+		// pad to match bpf port array size
+		paddedPorts := make([]uint16, cMAX_PORTS)
+		copy(paddedPorts, ports)
+		ports = paddedPorts
+	}
+
 	spec, err := loadTproxy()
 	if err != nil {
 		return nil, fmt.Errorf("load tproxy spec: %w", err)
@@ -63,15 +78,15 @@ func NewTproxy(subnet4 netip.Prefix, subnet6 netip.Prefix, port uint16) (*Tproxy
 	subnet6Mask := ipv6BitsToMaskUint32Array(subnet6.Bits())
 
 	err = spec.RewriteConstants(map[string]any{
-		"config_tproxy_port":            port,
 		"config_tproxy_subnet4_enabled": subnet4Enabled,
 		"config_tproxy_subnet4_ip":      subnet4IP,
 		"config_tproxy_subnet4_mask":    subnet4Mask,
-		"config_tproxy_socket_key4":     TPROXY_SOCKET_KEY4,
+
 		"config_tproxy_subnet6_enabled": subnet6Enabled,
 		"config_tproxy_subnet6_ip":      subnet6IP,
 		"config_tproxy_subnet6_mask":    subnet6Mask,
-		"config_tproxy_socket_key6":     TPROXY_SOCKET_KEY6,
+
+		"config_tproxy_ports": ports,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("rewrite constants: %w", err)
@@ -109,10 +124,10 @@ func (t *Tproxy) AttachNetNsFromPath(path string) error {
 	return t.AttachNetNs(nsFd)
 }
 
-func (t *Tproxy) SetSock4(fd uint64) error {
-	return t.objs.TproxySocket.Put(TPROXY_SOCKET_KEY4, fd)
+func (t *Tproxy) SetSock4(portIndex int, fd uint64) error {
+	return t.objs.TproxySocket.Put(uint32(portIndex*cSOCKET_KEY_MAX+cSOCKET_KEY4), fd)
 }
 
-func (t *Tproxy) SetSock6(fd uint64) error {
-	return t.objs.TproxySocket.Put(TPROXY_SOCKET_KEY6, fd)
+func (t *Tproxy) SetSock6(portIndex int, fd uint64) error {
+	return t.objs.TproxySocket.Put(uint32(portIndex*cSOCKET_KEY_MAX+cSOCKET_KEY6), fd)
 }
