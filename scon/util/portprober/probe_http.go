@@ -15,6 +15,11 @@ func probePortHTTP(ctx context.Context, dialer *net.Dialer, host string, port ui
 				return dialer.DialContext(ctx, network, addr)
 			},
 		},
+
+		// don't follow redirects
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
 	// favicon.ico is less likely to trigger any weird behavior?
