@@ -191,14 +191,14 @@ func (c *Client) GetInitConfig() (*htypes.InitConfig, error) {
 	return &config, nil
 }
 
-func (c *Client) GetTLSRootData() (*htypes.KeychainTLSData, error) {
-	var data htypes.KeychainTLSData
-	err := c.rpc.Call("hc.GetTLSRootData", None{}, &data)
+func (c *Client) GenerateTLSCertificate(hostname string) (*htypes.TLSCertificate, error) {
+	var cert htypes.TLSCertificate
+	err := c.rpc.Call("hc.GenerateTLSCertificate", hostname, &cert)
 	if err != nil {
 		return nil, err
 	}
 
-	return &data, nil
+	return &cert, nil
 }
 
 func (c *Client) ImportTLSCertificate() error {

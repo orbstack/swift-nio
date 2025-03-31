@@ -12,7 +12,6 @@ import (
 	"net/netip"
 	"net/url"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/nft"
-	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/portprober"
@@ -90,7 +88,7 @@ func (p *probedHost) PreferredPort() uint16 {
 type DomainTLSProxy struct {
 	cb ProxyCallbacks
 
-	tlsController *tlsutil.TLSController
+	tlsController *TLSController
 	tproxy        *bpf.Tproxy
 
 	probeMu     syncx.Mutex
@@ -99,7 +97,7 @@ type DomainTLSProxy struct {
 }
 
 func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy, error) {
-	tlsController, err := tlsutil.NewTLSController(host)
+	tlsController, err := NewTLSController(host)
 	if err != nil {
 		return nil, err
 	}
@@ -114,12 +112,7 @@ func NewDomainTLSProxy(host *hclient.Client, cb ProxyCallbacks) (*DomainTLSProxy
 }
 
 func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, nfqueueNum uint16, tproxy *bpf.Tproxy) error {
-	err := p.tlsController.LoadRoot()
-	if err != nil {
-		return err
-	}
-
-	err = p.startQueue(nfqueueNum)
+	err := p.startQueue(nfqueueNum)
 	if err != nil {
 		return fmt.Errorf("start queue: %w", err)
 	}
@@ -212,11 +205,7 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, n
 		Handler: httpProxy,
 		TLSConfig: &tls.Config{
 			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				if !strings.HasSuffix(hlo.ServerName, ".local") {
-					return nil, nil
-				}
-
-				return p.tlsController.MakeCertForHost(hlo.ServerName)
+				return p.tlsController.GetCertForHost(hlo.ServerName)
 			},
 		},
 

@@ -1,7 +1,6 @@
-package tlsutil
+package domainproxy
 
 import (
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -26,9 +25,6 @@ const (
 type TLSController struct {
 	certsLRU *lru.Cache[string, *tls.Certificate]
 
-	rootCert *x509.Certificate
-	rootKey  crypto.PrivateKey
-
 	// set in docker.go init
 	host *hclient.Client
 
@@ -47,33 +43,23 @@ func NewTLSController(host *hclient.Client) (*TLSController, error) {
 	}, nil
 }
 
-func (t *TLSController) LoadRoot() error {
-	// TODO move to thread in case it blocks somehow
-	certData, err := t.host.GetTLSRootData()
-	if err != nil {
-		return fmt.Errorf("get root data: %w", err)
-	}
-
-	// load root cert
-	rootCert, rootKey, err := LoadRoot([]byte(certData.CertPEM), []byte(certData.KeyPEM))
-	if err != nil {
-		return fmt.Errorf("load root: %w", err)
-	}
-	t.rootCert = rootCert
-	t.rootKey = rootKey
-
-	return nil
-}
-
-func (t *TLSController) MakeCertForHost(hostname string) (*tls.Certificate, error) {
+func (t *TLSController) GetCertForHost(hostname string) (*tls.Certificate, error) {
 	if cert, ok := t.certsLRU.Get(hostname); ok {
 		return cert, nil
 	}
 
 	// cert generation is fast (~3 ms) but still cache in LRU for consistent cert identity and minor optimization
-	cert, err := GenerateCert(t.rootCert, t.rootKey, hostname)
+	hCert, err := t.host.GenerateTLSCertificate(hostname)
 	if err != nil {
 		return nil, fmt.Errorf("generate cert: %w", err)
+	}
+	privateKey, err := x509.ParseECPrivateKey(hCert.PrivateKeyDER)
+	if err != nil {
+		return nil, fmt.Errorf("parse private key: %w", err)
+	}
+	cert := &tls.Certificate{
+		Certificate: hCert.Certificate,
+		PrivateKey:  privateKey,
 	}
 
 	// add to LRU immediately

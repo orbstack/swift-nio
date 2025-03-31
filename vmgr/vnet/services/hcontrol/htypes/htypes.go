@@ -39,3 +39,8 @@ type KeychainTLSData struct {
 	CertPEM string
 	KeyPEM  string
 }
+
+type TLSCertificate struct {
+	Certificate   [][]byte
+	PrivateKeyDER []byte
+}

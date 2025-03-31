@@ -17,11 +17,11 @@ import (
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/agent"
 	"github.com/orbstack/macvirt/scon/bpf"
+	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/templates"
-	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
@@ -206,14 +206,9 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		return err
 	}
 
-	tlsController, err := tlsutil.NewTLSController(r.host)
+	tlsController, err := domainproxy.NewTLSController(r.host)
 	if err != nil {
 		return err
-	}
-
-	err = tlsController.LoadRoot()
-	if err != nil {
-		return fmt.Errorf("load root: %w", err)
 	}
 
 	// start HTTP index server
@@ -225,7 +220,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 				if !r.manager.vmConfig.Network_Https || hlo.ServerName != mdnsIndexDomain {
 					return nil, nil
 				}
-				return tlsController.MakeCertForHost(hlo.ServerName)
+				return tlsController.GetCertForHost(hlo.ServerName)
 			},
 		},
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),

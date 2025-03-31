@@ -3,7 +3,9 @@ package hcsrv
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -21,7 +23,6 @@ import (
 	"github.com/miekg/dns"
 	"github.com/mikesmitty/edkey"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
-	"github.com/orbstack/macvirt/scon/tlsutil"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/conf/nfsmnt"
@@ -44,6 +45,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hostmdns"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/sshagent"
+	"github.com/orbstack/macvirt/vmgr/vnet/tlsutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
@@ -269,8 +271,7 @@ func (h *HcontrolServer) GetExtraCaCertificates(_ None, reply *[]string) error {
 	}
 
 	// always add OrbStack root CA
-	var rootData htypes.KeychainTLSData
-	err = h.GetTLSRootData(None{}, &rootData)
+	rootData, err := h.getTLSRootData()
 	if err != nil {
 		logrus.WithError(err).Error("failed to get dev root CA")
 	} else {
@@ -689,7 +690,7 @@ func (h *HcontrolServer) GetInitConfig(_ None, reply *htypes.InitConfig) error {
 	return nil
 }
 
-func (h *HcontrolServer) GetTLSRootData(_ None, reply *htypes.KeychainTLSData) error {
+func (h *HcontrolServer) getTLSRootData() (*htypes.KeychainTLSData, error) {
 	// get cert data from keychain
 	// we always need something, so similar to DRM, delete old cert and regenerate if there's somehow an error
 	// (with keychain access groups, though, we should never be getting an error here unless our app has a code signing issue. users can't mess with the perms)
@@ -702,29 +703,61 @@ func (h *HcontrolServer) GetTLSRootData(_ None, reply *htypes.KeychainTLSData) e
 	if certData == nil {
 		certPEM, keyPEM, err := tlsutil.GenerateRoot()
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("generate root: %w", err)
+		}
+
+		// persist it
+		err = drmcore.SetKeychainTLSData(certData)
+		if err != nil {
+			return nil, fmt.Errorf("set keychain TLS data: %w", err)
 		}
 
 		certData = &htypes.KeychainTLSData{
 			CertPEM: certPEM,
 			KeyPEM:  keyPEM,
 		}
-
-		// persist it
-		err = drmcore.SetKeychainTLSData(certData)
-		if err != nil {
-			return err
-		}
 	}
 
-	*reply = *certData
+	return certData, nil
+}
+
+func (h *HcontrolServer) GenerateTLSCertificate(hostname string, reply *htypes.TLSCertificate) error {
+	// restrict hostnames for security
+	if !strings.HasSuffix(hostname, ".local") {
+		return fmt.Errorf("hostname must end in .local")
+	}
+
+	certData, err := h.getTLSRootData()
+	if err != nil {
+		return fmt.Errorf("get TLS root data: %w", err)
+	}
+
+	rootCert, rootKey, err := tlsutil.LoadRoot([]byte(certData.CertPEM), []byte(certData.KeyPEM))
+	if err != nil {
+		return fmt.Errorf("load TLS root data: %w", err)
+	}
+
+	newCert, err := tlsutil.GenerateCert(rootCert, rootKey, hostname)
+	if err != nil {
+		return fmt.Errorf("generate cert: %w", err)
+	}
+
+	keyDER, err := x509.MarshalECPrivateKey(newCert.PrivateKey.(*ecdsa.PrivateKey))
+	if err != nil {
+		return fmt.Errorf("marshal private key: %w", err)
+	}
+
+	*reply = htypes.TLSCertificate{
+		Certificate:   newCert.Certificate,
+		PrivateKeyDER: keyDER,
+	}
+
 	return nil
 }
 
 func (h *HcontrolServer) ImportTLSCertificate(_ None, reply *None) error {
 	// slower, but for security reasons, VM should not be able to import any arbitrary cert
-	var certData htypes.KeychainTLSData
-	err := h.GetTLSRootData(None{}, &certData)
+	certData, err := h.getTLSRootData()
 	if err != nil {
 		return err
 	}
