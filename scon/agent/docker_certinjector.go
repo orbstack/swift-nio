@@ -60,22 +60,25 @@ type ociConfig struct {
 }
 
 type dockerCACertInjector struct {
-	pems []byte
+	pems    [][]byte
+	allPems []byte
 }
 
 func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
-	orbRootCert, err := d.host.GetTLSRootData()
-	if err != nil {
-		logrus.WithError(err).Error("failed to get root cert data")
-	}
-
 	extraCerts, err := d.host.GetExtraCaCertificates()
 	if err != nil {
 		logrus.WithError(err).Error("failed to get extra certs")
+		extraCerts = nil
+	}
+
+	byteCerts := make([][]byte, len(extraCerts))
+	for i, cert := range extraCerts {
+		byteCerts[i] = []byte(cert)
 	}
 
 	return &dockerCACertInjector{
-		pems: []byte(orbRootCert.CertPEM + "\n" + strings.Join(extraCerts, "\n")),
+		pems:    byteCerts,
+		allPems: []byte(strings.Join(extraCerts, "\n")),
 	}
 }
 
@@ -97,6 +100,42 @@ func writeFileIfChanged(fs *securefs.FS, path string, data []byte, perm os.FileM
 	return false, fs.WriteFile(path, data, perm)
 }
 
+func (c *dockerCACertInjector) addAllToFile(fs *securefs.FS, path string) error {
+	file, err := fs.OpenFile(path, unix.O_RDWR|unix.O_APPEND, 0)
+	if err != nil {
+		if errors.Is(err, unix.ENOENT) {
+			return nil
+		} else {
+			return fmt.Errorf("open file: %w", err)
+		}
+	}
+	defer file.Close()
+
+	// limit read size to prevent OOM DoS
+	contents, err := io.ReadAll(io.LimitReader(file, maxPemSize))
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+
+	for _, pem := range c.pems {
+		if bytes.Contains(contents, pem) {
+			// TODO: also skip rest of the container here?
+			// alpine symlinks /etc/ssl/cert.pem -> /etc/ssl/certs/ca-certificates.crt, so we add the cert the first time around, and think it's duplicate when we hit the symlink
+			// O_NOFOLLOW deals with that but seems like it could be a bit flaky
+			return nil
+		}
+
+		// add extra \n in case last cert didn't end with one
+		// also add a trailing \n in case some other script adds a cert later
+		_, err = file.Write([]byte("\n" + string(pem) + "\n"))
+		if err != nil {
+			return fmt.Errorf("write file: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 	for _, dirPath := range caCertDirs {
 		// just attempt to write as if the dir exists
@@ -104,7 +143,7 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 		// ENOENT = parent dir does not exist
 		targetPath := dirPath + "/" + rootCaCertName
 		// O_EXCL write would be faster and simpler, but this is more robust if data.img is migrated to a different host, but keychain isn't, so the new host has a different CA
-		existing, err := writeFileIfChanged(fs, targetPath, c.pems, 0o644)
+		existing, err := writeFileIfChanged(fs, targetPath, c.allPems, 0o644)
 		if err != nil {
 			if !errors.Is(err, unix.ENOENT) && !errors.Is(err, unix.ENOTDIR) {
 				logrus.WithError(err).WithField("dirPath", dirPath).Error("cert injector: failed to write to dir, skipping")
@@ -123,36 +162,9 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 	}
 
 	for _, filePath := range caCertFiles {
-		file, err := fs.OpenFile(filePath, unix.O_RDWR|unix.O_APPEND, 0)
+		err := c.addAllToFile(fs, filePath)
 		if err != nil {
-			if !errors.Is(err, unix.ENOENT) {
-				logrus.WithError(err).WithField("filePath", filePath).Debug("cert injector: failed to open file")
-			}
-			continue
-		}
-		defer file.Close()
-
-		// limit read size to prevent OOM DoS
-		contents, err := io.ReadAll(io.LimitReader(file, maxPemSize))
-		if err != nil {
-			logrus.WithError(err).WithField("filePath", filePath).Debug("cert injector: failed to read file, skipping")
-			continue
-		}
-
-		if bytes.Contains(contents, c.pems) {
-			// TODO: also skip rest of the container here?
-			// alpine symlinks /etc/ssl/cert.pem -> /etc/ssl/certs/ca-certificates.crt, so we add the cert the first time around, and think it's duplicate when we hit the symlink
-			// O_NOFOLLOW deals with that but seems like it could be a bit flaky
-			logrus.WithField("filePath", filePath).Debug("cert injector: file already contains root cert, skipping")
-			continue
-		}
-
-		// add extra \n in case last cert didn't end with one
-		// also add a trailing \n in case some other script adds a cert later
-		_, err = file.Write([]byte("\n" + string(c.pems) + "\n"))
-		if err != nil {
-			logrus.WithError(err).WithField("filePath", filePath).Error("cert injector: failed to write to file, skipping")
-			continue
+			logrus.WithError(err).WithField("filePath", filePath).Error("cert injector: failed to add to file, skipping")
 		}
 	}
 
@@ -166,13 +178,13 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 
 		err := fs.MkdirAll(targetDirPath, 0o755)
 		if err != nil {
-			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("cert injector: failed to create target dir, skipping")
+			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("cert injector: failed to create dir, skipping")
 			continue
 		}
 
-		existing, err := writeFileIfChanged(fs, targetDirPath+"/"+rootCaCertName, c.pems, 0o644)
+		existing, err := writeFileIfChanged(fs, targetDirPath+"/"+rootCaCertName, c.allPems, 0o644)
 		if err != nil {
-			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("cert injector: failed to write to target dir, skipping")
+			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("cert injector: failed to write to dir, skipping")
 			continue
 		}
 
