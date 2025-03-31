@@ -80,8 +80,12 @@ async fn sys_sleep() -> AppResult<impl IntoResponse> {
     debug!("sys_sleep");
 
     // freeze all machines
+    // only freezing the cgroup keeps scon (NFS upcalls), FUSE fpll servers, and the kernel nfsd alive, so that macOS doesn't complain about NFS timeouts during sleep
     std::fs::write("/sys/fs/cgroup/scon/container/cgroup.freeze", "1")
         .map_err(|e| anyhow!("failed to freeze machines: {}", e))?;
+
+    // NOTE: if you add anything here, make sure to update vmgr:vclient/client.go
+    // currently, it only calls this API if pause-on-sleep is enabled
 
     Ok(())
 }
@@ -94,7 +98,7 @@ async fn sys_wake() -> AppResult<impl IntoResponse> {
     // chrony doesn't like massive time difference
     startup::sync_clock(false).map_err(|e| anyhow!("failed to step clock: {}", e))?;
 
-    // unfreeze all machines
+    // always unfreeze all machines, in case they were frozen and then the setting was disabled
     std::fs::write("/sys/fs/cgroup/scon/container/cgroup.freeze", "0")
         .map_err(|e| anyhow!("failed to unfreeze machines: {}", e))?;
 

@@ -18,6 +18,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/util/debugutil"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
+	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
@@ -37,13 +38,6 @@ const (
 	// very liberal to avoid false positive
 	requestTimeout                  = 1 * time.Minute
 	healthCheckSleepWakeGracePeriod = requestTimeout
-
-	// arm: arch timer doesn't advance in sleep, so not needed
-	// x86: tsc advances in sleep; pausing and resuming prevents that, so monotonic clock and timeouts work as expected, and we don't get stalls
-	// but x86 pause/resume is too unstable. it fixes clock, but even on arm64 pausing causes
-	// nfs timeouts during sleep (in ~2 min with vsock and hours with tcp)
-	// TODO figure out how to make pausing work
-	needsPauseResume = false
 
 	// TODO: fix health check
 	// sometimes it fails during sleep on arm64
@@ -190,11 +184,24 @@ func (vc *VClient) StartBackground() error {
 
 	// notify VM of sleep and wake
 	// separate goroutine to avoid blocking health check if these requests hang
+	vmconfigDiffs := vmconfig.SubscribeDiff()
 	go func() {
 		for {
 			select {
 			case <-vc.signalStopCh:
 				return
+
+			case diff := <-vmconfigDiffs:
+				// if pause-on-sleep is being disabled, then unpause the VM if it was paused
+				if diff.New.Power_PauseOnSleep != diff.Old.Power_PauseOnSleep && !diff.New.Power_PauseOnSleep {
+					// if awake, then it must already be unpaused, or will be unpaused soon
+					if iokit.IsAsleep() {
+						err := vc.Post("sys/wake", nil, nil)
+						if err != nil {
+							logrus.WithError(err).Error("failed to notify VM of wakeup")
+						}
+					}
+				}
 
 			case <-mon.StateChangeChan:
 				// this is a saturated "change event" signal. check the current state
@@ -202,15 +209,13 @@ func (vc *VClient) StartBackground() error {
 					logrus.Info("sleep")
 
 					// notify VM of sleep
-					err := vc.Post("sys/sleep", nil, nil)
-					if err != nil {
-						logrus.WithError(err).Error("failed to notify VM of sleep")
-					}
-
-					if needsPauseResume {
-						err := vc.vm.Pause()
+					// currently, this is only responsible for pausing the VM, so only call the API if pause-on-sleep is enabled
+					// this is useful even on arm64 because IOKit's sleep/wake events are higher-level and closely follow lid close/open events. notably, dark wakes and wake-on-LAN don't cause IOKit to report a wake event to us. so this must be configurable in order to support wake-on-LAN server use cases, but for 99% of users it saves power during sleep because high-CPU-usage containers won't burn CPU during dark wakes or other maintenance wakes
+					// to debug: `sudo pmset -g log`
+					if vmconfig.Get().Power_PauseOnSleep {
+						err := vc.Post("sys/sleep", nil, nil)
 						if err != nil {
-							logrus.WithError(err).Error("failed to pause VM")
+							logrus.WithError(err).Error("failed to notify VM of sleep")
 						}
 					}
 				} else {
@@ -220,13 +225,6 @@ func (vc *VClient) StartBackground() error {
 					err := vc.Post("sys/wake", nil, nil)
 					if err != nil {
 						logrus.WithError(err).Error("failed to notify VM of wakeup")
-					}
-
-					if needsPauseResume {
-						err := vc.vm.Resume()
-						if err != nil {
-							logrus.WithError(err).Error("failed to resume VM")
-						}
 					}
 				}
 			}

@@ -254,21 +254,22 @@ func calcMemory() uint64 {
 
 func BaseDefaults() *vmtypes.VmConfig {
 	return &vmtypes.VmConfig{
-		MemoryMiB:         calcMemory() / 1024 / 1024,
-		CPU:               runtime.NumCPU(),
-		Rosetta:           runtime.GOARCH == "arm64",
-		NetworkProxy:      ProxyAuto,
-		NetworkBridge:     true,
-		NetworkHttps:      true,
-		MountHideShared:   false,
-		DataDir:           "",
-		DataAllowBackup:   false,
-		DockerSetContext:  true,
-		DockerNodeName:    "orbstack",
-		SetupUseAdmin:     IsAdmin(),
-		K8sEnable:         false,
-		K8sExposeServices: false,
-		SSHExposePort:     false,
+		MemoryMiB:          calcMemory() / 1024 / 1024,
+		CPU:                runtime.NumCPU(),
+		Rosetta:            runtime.GOARCH == "arm64",
+		NetworkProxy:       ProxyAuto,
+		NetworkBridge:      true,
+		NetworkHttps:       true,
+		MountHideShared:    false,
+		DataDir:            "",
+		DataAllowBackup:    false,
+		DockerSetContext:   true,
+		DockerNodeName:     "orbstack",
+		SetupUseAdmin:      IsAdmin(),
+		K8sEnable:          false,
+		K8sExposeServices:  false,
+		SSHExposePort:      false,
+		Power_PauseOnSleep: true,
 	}
 }
 
