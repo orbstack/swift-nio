@@ -58,8 +58,8 @@ If no machines are specified, the command will start all machines that were runn
 				// enable config
 				config, err := vmclient.Client().GetConfig()
 				checkCLI(err)
-				wasSet := config.K8sEnable
-				config.K8sEnable = true
+				wasSet := config.K8s_Enable
+				config.K8s_Enable = true
 				err = vmclient.Client().SetConfig(config)
 				checkCLI(err)
 

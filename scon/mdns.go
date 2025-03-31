@@ -222,7 +222,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		TLSConfig: &tls.Config{
 			GetCertificate: func(hlo *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				// only allow `orb.local` SNI for this server
-				if !r.manager.vmConfig.NetworkHttps || hlo.ServerName != mdnsIndexDomain {
+				if !r.manager.vmConfig.Network_Https || hlo.ServerName != mdnsIndexDomain {
 					return nil, nil
 				}
 				return tlsController.MakeCertForHost(hlo.ServerName)
@@ -261,7 +261,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		return r.httpServer.ServeTLS(l, "", "")
 	})
 
-	err = r.updateDomainTLSProxyNftables(true, r.manager.vmConfig.NetworkHttps)
+	err = r.updateDomainTLSProxyNftables(true, r.manager.vmConfig.Network_Https)
 	if err != nil {
 		return fmt.Errorf("update domain tls proxy nftables: %w", err)
 	}
@@ -309,7 +309,7 @@ func (r *mdnsRegistry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.TLS == nil {
 		proto = "http"
 
-		if r.manager.vmConfig.NetworkHttps {
+		if r.manager.vmConfig.Network_Https {
 			// attempt to redirect to https:
 			// try to import cert
 			// if fail, don't redirect
@@ -1140,7 +1140,7 @@ func (r *mdnsRegistry) dockerPostStart() error {
 	defer r.mu.Unlock()
 
 	// add k8s alias
-	if r.manager.vmConfig.K8sEnable {
+	if r.manager.vmConfig.K8s_Enable {
 		k8sName := "k8s.orb.local."
 
 		k8sAddr4, err := r.domainproxy.AssignUpstream(

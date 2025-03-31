@@ -225,9 +225,9 @@ func (h *HcontrolServer) GetLastDrmResult(_ None, reply *drmtypes.Result) error 
 func (h *HcontrolServer) GetDockerMachineConfig(_ None, reply *htypes.DockerMachineConfig) error {
 	cfg := vmconfig.Get()
 	*reply = htypes.DockerMachineConfig{
-		DockerNodeName:    cfg.DockerNodeName,
-		K8sEnable:         cfg.K8sEnable,
-		K8sExposeServices: cfg.K8sExposeServices,
+		DockerNodeName:    cfg.Docker_NodeName,
+		K8sEnable:         cfg.K8s_Enable,
+		K8sExposeServices: cfg.K8s_ExposeServices,
 	}
 
 	mdmJSON, err := swext.DefaultsGetMdmDockerConfig()
@@ -327,7 +327,7 @@ func (h *HcontrolServer) RemoveFsnotifyRef(path string, _ *None) error {
 }
 
 func (h *HcontrolServer) RefreshHostBridge(recreate bool, _ *None) error {
-	if !vmconfig.Get().NetworkBridge {
+	if !vmconfig.Get().Network_Bridge {
 		return nil
 	}
 
@@ -533,7 +533,7 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 	}
 
 	// set current context
-	if vmconfig.Get().DockerSetContext {
+	if vmconfig.Get().Docker_SetContext {
 		mergedConfig["current-context"] = conf.K8sContext
 	}
 
@@ -741,7 +741,7 @@ func (h *HcontrolServer) ImportTLSCertificate(_ None, reply *None) error {
 		// tooManyDeclines? auto-disable the config
 		if strings.HasPrefix(err.Error(), "tooManyDeclines") {
 			err2 := vmconfig.Update(func(cfg *vmtypes.VmConfig) {
-				cfg.NetworkHttps = false
+				cfg.Network_Https = false
 			})
 			if err2 != nil {
 				return fmt.Errorf("import cert: disable https: %w (orig: %w)", err2, err)

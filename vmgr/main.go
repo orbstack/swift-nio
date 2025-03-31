@@ -194,7 +194,7 @@ func createEmptySwap() error {
 }
 
 func setupDockerContext() error {
-	if !vmconfig.Get().DockerSetContext {
+	if !vmconfig.Get().Docker_SetContext {
 		logrus.Debug("not setting Docker context")
 		return nil
 	}
@@ -868,7 +868,7 @@ func runVmManager() {
 		vnetwork.MonitorHostBridgeSetting()
 		return nil
 	})
-	if vmconfig.Get().NetworkBridge {
+	if vmconfig.Get().Network_Bridge {
 		runAsyncInitTask("scon host bridge", func() error { return vnetwork.CreateSconMachineHostBridge(true) })
 	}
 
@@ -1031,7 +1031,7 @@ func runVmManager() {
 		}
 	}
 	optionalForwards := optionalForwardsLocalhost
-	if vmconfig.Get().SSHExposePort {
+	if vmconfig.Get().SSH_ExposePort {
 		optionalForwards = optionalForwardsPublic
 	}
 	for fromSpec, toSpec := range optionalForwards {

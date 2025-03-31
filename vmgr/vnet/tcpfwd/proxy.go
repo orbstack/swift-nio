@@ -107,7 +107,7 @@ func (p *ProxyManager) monitorChanges() {
 	for {
 		select {
 		case patch := <-p.vmconfigCh:
-			if patch.New.NetworkProxy != patch.Old.NetworkProxy {
+			if patch.New.Network_Proxy != patch.Old.Network_Proxy {
 				err := p.Refresh()
 				if err != nil {
 					logrus.WithError(err).Error("failed to refresh proxy settings (config change)")
@@ -175,7 +175,7 @@ func (p *ProxyManager) updateDialers(settings *swext.ProxySettings) (*url.URL, e
 	}
 
 	// pick behavior based on config
-	configVal := vmconfig.Get().NetworkProxy
+	configVal := vmconfig.Get().Network_Proxy
 	switch configVal {
 	case vmconfig.ProxyNone:
 		logrus.Info("using proxy: none (override)")
@@ -359,7 +359,7 @@ func (p *ProxyManager) updateDialers(settings *swext.ProxySettings) (*url.URL, e
 func (p *ProxyManager) Refresh() error {
 	// don't read from keychain if not needed
 	// it can trigger keychain permission prompt
-	needAuth := vmconfig.Get().NetworkProxy == vmconfig.ProxyAuto
+	needAuth := vmconfig.Get().Network_Proxy == vmconfig.ProxyAuto
 	settings, err := swext.ProxyGetSettings(needAuth)
 	if err != nil {
 		return fmt.Errorf("get proxy settings: %w", err)

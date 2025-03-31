@@ -33,7 +33,7 @@ func (s *SconInternalServer) OnVmconfigUpdate(config *vmtypes.VmConfig, _ *None)
 	dlog("on vmconfig update reported")
 	s.m.vmConfig = config
 
-	err := s.m.net.mdnsRegistry.updateDomainTLSProxyNftables(false, config.NetworkHttps)
+	err := s.m.net.mdnsRegistry.updateDomainTLSProxyNftables(false, config.Network_Https)
 	if err != nil {
 		logrus.WithError(err).Error("failed to update tls proxy nft")
 	}

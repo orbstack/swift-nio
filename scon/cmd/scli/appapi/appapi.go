@@ -46,7 +46,7 @@ func getProxyForRequest(req *http.Request) (*url.URL, error) {
 	}
 
 	// doesn't update from vmgr, but this is only used for short-lived commands, so it *should* be fine?
-	configVal := vmconfig.Get().NetworkProxy
+	configVal := vmconfig.Get().Network_Proxy
 
 	needAuth := configVal == vmconfig.ProxyAuto
 	settings, err := swext.ProxyGetSettings(needAuth)

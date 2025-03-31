@@ -904,7 +904,7 @@ func (c *Container) startAgentLocked() error {
 	if c.ID == ContainerIDDocker {
 		args = append(args, "-docker")
 		// TODO: fix race if TLS setting changed between container start (initCommands) and agent start
-		if c.manager.vmConfig.NetworkHttps {
+		if c.manager.vmConfig.Network_Https {
 			args = append(args, "-tls")
 		}
 	}

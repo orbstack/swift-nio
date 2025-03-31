@@ -118,7 +118,7 @@ func (s *VmControlServer) doGetUserDetails(useAdmin bool) (*UserDetails, error) 
 
 // we're started under launchd with only this PATH: /usr/bin:/bin:/usr/sbin:/sbin
 func (s *VmControlServer) doGetUserDetailsAndSetupEnv() (*UserDetails, error) {
-	useAdmin := vmconfig.Get().SetupUseAdmin
+	useAdmin := vmconfig.Get().Setup_UseAdmin
 	details, err := s.doGetUserDetails(useAdmin)
 	if err != nil {
 		return nil, err
@@ -475,7 +475,7 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 
 	// link docker sock?
 	setupState := SetupState{}
-	useAdmin := vmconfig.Get().SetupUseAdmin
+	useAdmin := vmconfig.Get().Setup_UseAdmin
 	if useAdmin {
 		sockDest, err := os.Readlink("/var/run/docker.sock")
 		if err != nil {
@@ -673,7 +673,7 @@ func completeSetupCli(info *vmtypes.SetupInfo) error {
 
 					// disable admin
 					err := vmconfig.Update(func(c *vmtypes.VmConfig) {
-						c.SetupUseAdmin = false
+						c.Setup_UseAdmin = false
 					})
 					if err != nil {
 						logrus.WithError(err).Warn("failed to disable admin")

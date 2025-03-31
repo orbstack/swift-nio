@@ -50,7 +50,7 @@ var restartCmd = &cobra.Command{
 				// enable config
 				config, err := vmclient.Client().GetConfig()
 				checkCLI(err)
-				config.K8sEnable = true
+				config.K8s_Enable = true
 				err = vmclient.Client().SetConfig(config)
 				checkCLI(err)
 

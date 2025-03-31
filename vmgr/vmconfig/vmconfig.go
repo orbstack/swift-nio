@@ -54,8 +54,8 @@ func Validate(c *vmtypes.VmConfig) error {
 	c.CPU = max(c.CPU, 1)
 
 	// must be a supported proxy protocol
-	if c.NetworkProxy != ProxyNone && c.NetworkProxy != ProxyAuto {
-		u, err := url.Parse(c.NetworkProxy)
+	if c.Network_Proxy != ProxyNone && c.Network_Proxy != ProxyAuto {
+		u, err := url.Parse(c.Network_Proxy)
 		if err != nil {
 			return err
 		}
@@ -94,8 +94,8 @@ func Validate(c *vmtypes.VmConfig) error {
 		}
 	}
 
-	if !types.ContainerNameRegex.MatchString(c.DockerNodeName) {
-		return fmt.Errorf("invalid docker node name: %s", c.DockerNodeName)
+	if !types.ContainerNameRegex.MatchString(c.Docker_NodeName) {
+		return fmt.Errorf("invalid docker node name: %s", c.Docker_NodeName)
 	}
 
 	return nil
@@ -257,18 +257,18 @@ func BaseDefaults() *vmtypes.VmConfig {
 		MemoryMiB:          calcMemory() / 1024 / 1024,
 		CPU:                runtime.NumCPU(),
 		Rosetta:            runtime.GOARCH == "arm64",
-		NetworkProxy:       ProxyAuto,
-		NetworkBridge:      true,
-		NetworkHttps:       true,
+		Network_Proxy:      ProxyAuto,
+		Network_Bridge:     true,
+		Network_Https:      true,
 		MountHideShared:    false,
 		DataDir:            "",
 		DataAllowBackup:    false,
-		DockerSetContext:   true,
-		DockerNodeName:     "orbstack",
-		SetupUseAdmin:      IsAdmin(),
-		K8sEnable:          false,
-		K8sExposeServices:  false,
-		SSHExposePort:      false,
+		Docker_SetContext:  true,
+		Docker_NodeName:    "orbstack",
+		Setup_UseAdmin:     IsAdmin(),
+		K8s_Enable:         false,
+		K8s_ExposeServices: false,
+		SSH_ExposePort:     false,
 		Power_PauseOnSleep: true,
 	}
 }

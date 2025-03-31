@@ -141,13 +141,13 @@ func (n *Network) disableHostBridges() error {
 func (n *Network) MonitorHostBridgeSetting() {
 	diffCh := vmconfig.SubscribeDiff()
 	for diff := range diffCh {
-		if diff.New.NetworkBridge != diff.Old.NetworkBridge {
+		if diff.New.Network_Bridge != diff.Old.Network_Bridge {
 			logrus.WithFields(logrus.Fields{
-				"old": diff.Old.NetworkBridge,
-				"new": diff.New.NetworkBridge,
+				"old": diff.Old.Network_Bridge,
+				"new": diff.New.Network_Bridge,
 			}).Debug("network bridge setting changed")
 
-			if diff.New.NetworkBridge {
+			if diff.New.Network_Bridge {
 				err := n.enableHostBridges()
 				if err != nil {
 					logrus.WithError(err).Error("failed to enable host bridges")
@@ -173,7 +173,7 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		return 0, fmt.Errorf("bridge already exists for config %+v", config)
 	}
 
-	if !vmconfig.Get().NetworkBridge {
+	if !vmconfig.Get().Network_Bridge {
 		return 0, fmt.Errorf("bridges disabled")
 	}
 

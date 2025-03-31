@@ -67,40 +67,40 @@ Some options will only take effect after restarting the virtual machine.
 			config.Rosetta = val
 			rebootRequired = true
 		case "network_proxy":
-			config.NetworkProxy = value
+			config.Network_Proxy = value
 		case "network_bridge":
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
-			config.NetworkBridge = val
+			config.Network_Bridge = val
 		case "data_dir":
 			config.DataDir = value
 			rebootRequired = true
 		case "docker.set_context":
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
-			config.DockerSetContext = val
+			config.Docker_SetContext = val
 		case "docker.node_name":
-			config.DockerNodeName = value
+			config.Docker_NodeName = value
 			rebootRequired = true
 		case "setup.use_admin":
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
-			config.SetupUseAdmin = val
+			config.Setup_UseAdmin = val
 			rebootRequired = true
 		case "k8s.enable":
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
-			config.K8sEnable = val
+			config.K8s_Enable = val
 			rebootRequired = true
 		case "k8s.expose_services":
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
-			config.K8sExposeServices = val
+			config.K8s_ExposeServices = val
 			rebootRequired = true
 		case "ssh.expose_port":
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
-			config.SSHExposePort = val
+			config.SSH_ExposePort = val
 			rebootRequired = true
 		case "app.start_at_login":
 			val, err := strconv.ParseBool(value)
@@ -147,7 +147,7 @@ Some options will only take effect after restarting the virtual machine.
 		if rebootRequired {
 			cmd.Println(`Restart OrbStack with "` + rootCmd.Use + ` stop" to apply changes.`)
 		}
-		if key == "network_bridge" && config.NetworkBridge != oldConfig.NetworkBridge {
+		if key == "network_bridge" && config.Network_Bridge != oldConfig.Network_Bridge {
 			// restart docker machine if changed and already running
 			scli.EnsureSconVMWithSpinner()
 			c, err := scli.Client().GetByKey(types.ContainerIDDocker)

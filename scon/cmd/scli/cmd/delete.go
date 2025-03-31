@@ -103,7 +103,7 @@ All files stored in the machine will be PERMANENTLY LOST without warning!
 				// disable config
 				config, err := vmclient.Client().GetConfig()
 				checkCLI(err)
-				config.K8sEnable = false
+				config.K8s_Enable = false
 				err = vmclient.Client().SetConfig(config)
 				checkCLI(err)
 

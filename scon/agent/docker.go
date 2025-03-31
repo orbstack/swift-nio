@@ -628,7 +628,7 @@ func (a *AgentServer) DockerGuiReportStarted(_ None, _ *None) error {
 }
 
 func (a *AgentServer) DockerOnVmconfigUpdate(config *vmtypes.VmConfig, _ *None) error {
-	return a.docker.updateTLSProxyNftables(config.NetworkHttps)
+	return a.docker.updateTLSProxyNftables(config.Network_Https)
 }
 
 // mini freezer refcount tracker

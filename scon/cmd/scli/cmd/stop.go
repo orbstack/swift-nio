@@ -67,8 +67,8 @@ If no arguments are provided, this command will stop the entire OrbStack service
 				// disable config
 				config, err := vmclient.Client().GetConfig()
 				checkCLI(err)
-				wasSet := config.K8sEnable
-				config.K8sEnable = false
+				wasSet := config.K8s_Enable
+				config.K8s_Enable = false
 				err = vmclient.Client().SetConfig(config)
 				checkCLI(err)
 
