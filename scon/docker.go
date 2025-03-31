@@ -120,6 +120,9 @@ type DockerDaemonFeatures struct {
 type DockerHooks struct {
 	rootfs  *securefs.FS
 	manager *ConManager
+
+	// updated in PreStart, used in PostStart
+	configHasTCPHost bool
 }
 
 func newDockerHooks(manager *ConManager) (*DockerHooks, error) {
@@ -456,6 +459,17 @@ func (h *DockerHooks) PreStart(c *Container) error {
 				return host == "unix:///var/run/docker.sock"
 			})
 		}
+
+		// if user adds a TCP host, add a permanent freezer ref later
+		if slices.ContainsFunc(newHosts, func(host any) bool {
+			if hostStr, ok := host.(string); ok {
+				return strings.HasPrefix(hostStr, "tcp://")
+			}
+			return false
+		}) {
+			h.configHasTCPHost = true
+		}
+
 		config["hosts"] = newHosts
 	}
 
@@ -706,6 +720,12 @@ func (h *DockerHooks) PostStart(c *Container) error {
 	// prevent freeze if k8s enabled
 	// too complicated to freeze it due to async pod lifecycle
 	if c.manager.k8sEnabled {
+		freezer.IncRef()
+	}
+
+	// prevent freeze if TCP dockerd host is listening
+	// TODO: intercept and proxy it instead of relying on machine port forwards. we can't do it at the TCP proxy level because the proxy runs in the agent and will thus be frozen along with the machine
+	if h.configHasTCPHost {
 		freezer.IncRef()
 	}
 

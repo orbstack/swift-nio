@@ -46,6 +46,9 @@ func (i ListenerInfo) UseNftables() bool {
 	// We can fix this in our managed docker machine by adding MASQUERADE rules by source IP, but it's not possible to do this for whatever docker or k8s people may be running in machines.
 	// if the 198.19 IP goes through, it gets translated to localhost *inside* the container, which is unexpected as it should've been the host's IP.
 	// so disable it until we can do true localhost-like forwarding with raw bpf skbs.
+
+	// (basically: users expect source IP to be localhost if connecting to a localhost server, so we can only do this for docker port forwards because we put MASQUERADE in the machine to fix the source IP when it gets forwarded to a container)
+
 	return i.FromIptables //|| i.AddrPort.Addr().IsUnspecified()
 }
 
