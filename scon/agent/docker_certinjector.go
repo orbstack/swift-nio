@@ -16,6 +16,7 @@ import (
 )
 
 const rootCaCertName = "orbstack-root.crt"
+const maxPemSize = 128 * 1024 * 1024 // 128 MiB
 
 var (
 	// from Go crypto/tls
@@ -79,13 +80,20 @@ func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
 }
 
 func writeFileIfChanged(fs *securefs.FS, path string, data []byte, perm os.FileMode) (bool, error) {
-	existing, err := fs.ReadFile(path)
+	file, err := fs.OpenFile(path, unix.O_RDONLY, 0)
 	if err != nil && !errors.Is(err, unix.ENOENT) {
+		return false, err
+	}
+	defer file.Close()
+
+	existing, err := io.ReadAll(io.LimitReader(file, maxPemSize))
+	if err != nil {
 		return false, err
 	}
 	if bytes.Equal(existing, data) {
 		return true, nil
 	}
+
 	return false, fs.WriteFile(path, data, perm)
 }
 
@@ -124,7 +132,8 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 		}
 		defer file.Close()
 
-		contents, err := io.ReadAll(file)
+		// limit read size to prevent OOM DoS
+		contents, err := io.ReadAll(io.LimitReader(file, maxPemSize))
 		if err != nil {
 			logrus.WithError(err).WithField("filePath", filePath).Debug("cert injector: failed to read file, skipping")
 			continue
