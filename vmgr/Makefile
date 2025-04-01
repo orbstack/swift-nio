@@ -1,3 +1,5 @@
+include ../scripts/Makefile.inc
+
 #
 # CONFIG
 #
@@ -137,14 +139,6 @@ MAKEFLAGS := -j$(J)
 
 # environment-related dependencies
 BUILD_ENV_DEPS := .buildenv $(shell which $(SWIFT) $(CC) $(GO) $(CARGO)) $(DEVELOPER_DIR) ../config.sh ../config.local.sh
-
-
-# 
-# HELPERS
-#
-
-# recursive wildcard: $(call rwildcard,dir,pattern)
-rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
 
 #

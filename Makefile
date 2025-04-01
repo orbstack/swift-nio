@@ -1,9 +1,29 @@
+include scripts/Makefile.inc
+
 .PHONY: all
-all:
+all: rootfs bins vmgr scon k8s
+
+.PHONY: rootfs
+rootfs:
 	cd rootfs; make
+
+.PHONY: bins
+bins:
 	cd bins; make
+
+.PHONY: vmgr
+vmgr:
 	cd vmgr; make
+
+.PHONY: scon
+scon:
 	cd scon; make
+
+.PHONY: k8s
+k8s: rootfs/k8s/k3s-arm64
+
+rootfs/k8s/k3s-arm64: scripts/build-k8s.sh $(call rwildcard,vendor/k3s,*)
+	scripts/build-k8s.sh
 
 .PHONY: release
 release:
