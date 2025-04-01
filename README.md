@@ -40,8 +40,6 @@
 1. Create `config.local.sh` in repo root with `SIGNING_CERT_DEV="..."`
     - Search for "Apple Development" in Keychain Access and copy the full certificate name
     - Example: `Apple Development: Danny Lin (A2LS84RQFY)`
-1. Build Kubernetes: `./scripts/build-k8s.sh`
-1. Build debug vmgr: `cd vmgr; make`
 1. Build kernel
     1. Create an OrbStack machine. Only Arch and Debian have been tested.
     1. Install dependencies:
@@ -54,9 +52,7 @@
     1. `restore_config`
     1. `mall`
     1. `sync_out $PATH_TO_MACVIRT_CLONE` (errors due to missing x86 outputs are OK)
-1. Build debug rootfs: `cd rootfs; make`
-1. Build debug CLI (orb command): `cd scon; make`
-1. Download binaries: `cd bins; make`
+1. Build rootfs, vmgr, CLI (orb command), Kubernetes, and download binaries: `make`
 1. Quit the release build of OrbStack
 1. Set Xcode > Settings > Locations > Derived Data to "Relative"
 1. Build and run app in Xcode
