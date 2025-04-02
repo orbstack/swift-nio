@@ -59,3 +59,7 @@ pub fn sysctl_string(name: &str) -> nix::Result<String> {
         .to_string_lossy()
         .to_string())
 }
+
+pub fn os_version_at_least(major: u32, minor: u32) -> bool {
+    OS_VERSION.major > major || (OS_VERSION.major == major && OS_VERSION.minor >= minor)
+}

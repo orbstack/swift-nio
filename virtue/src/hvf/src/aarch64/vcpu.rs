@@ -6,6 +6,7 @@ use arch::aarch64::layout::DRAM_MEM_START;
 use smallvec::SmallVec;
 use sysx::mach::time::MachAbsoluteTime;
 use utils::kernel_symbols::CompactSystemMap;
+use utils::macos::sysctl::os_version_at_least;
 use utils::memory::{GuestAddress, GuestMemory, OwnedGuestRef};
 use utils::{extract_bits_64, field};
 
@@ -221,7 +222,8 @@ impl HvfVcpu {
         enable_rosetta: bool,
     ) -> Result<(), Error> {
         // write ACTLR first. this breaks after setting CPSR to EL2
-        if enable_rosetta {
+        // NOTE: starting in macOS 15.0 stable (rounded up to 15.1 to weed out early betas), this no longer works for setting the mystery bit. so, to avoid mucking with memory for no reason, don't attempt it on 15.1+.
+        if enable_rosetta && !os_version_at_least(15, 1) {
             // set mystery bit for Rosetta, and allow guest to keep it set when it writes to ACTLR
             self.actlr_mask |= ACTLR_EL1_MYSTERY;
             self.write_actlr_el1(ACTLR_EL1_MYSTERY)?;
