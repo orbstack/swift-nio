@@ -27,12 +27,12 @@ import (
 
 const (
 	// we don't use ssh for security, so hard-code for fast startup
-	hostKeyEd25519 = `-----BEGIN OPENSSH PRIVATE KEY-----
+	internalHostKeyEd25519 = `-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACAgEJD3oK7ddXQktDsupy91mk85nbFM12Y6srQ0ujq4oAAAAKDLA5G2ywOR
-tgAAAAtzc2gtZWQyNTUxOQAAACAgEJD3oK7ddXQktDsupy91mk85nbFM12Y6srQ0ujq4oA
-AAAEAdZQRbxMDW6DaGP2YY8yxby24cwECktHygG1dGxHmuFiAQkPegrt11dCS0Oy6nL3Wa
-TzmdsUzXZjqytDS6OrigAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
+QyNTUxOQAAACAttgW2GBlhevzMN+oTeLxMzHceTiuROhLxCAjXiLelUgAAAKAWOo2gFjqN
+oAAAAAtzc2gtZWQyNTUxOQAAACAttgW2GBlhevzMN+oTeLxMzHceTiuROhLxCAjXiLelUg
+AAAEBNbKxc45CEA2j9i1tfJGtvmYlB4thyraVGe+P1yUno0i22BbYYGWF6/Mw36hN4vEzM
+dx5OK5E6EvEICNeIt6VSAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
 -----END OPENSSH PRIVATE KEY-----`
 )
 
@@ -315,7 +315,7 @@ func ListenHostSSH(stack *stack.Stack, address tcpip.Address) error {
 	}
 
 	go func() {
-		err = ssh.Serve(listener, handler, ssh.HostKeyPEM([]byte(hostKeyEd25519)))
+		err = ssh.Serve(listener, handler, ssh.HostKeyPEM([]byte(internalHostKeyEd25519)))
 		if err != nil && !errors.Is(err, io.EOF) {
 			logrus.Error("hostssh: Serve() =", err)
 		}

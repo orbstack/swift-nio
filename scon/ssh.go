@@ -35,14 +35,22 @@ const (
 
 const (
 	// we don't use ssh for security, so hard-code for fast startup
-	hostKeyEd25519 = `-----BEGIN OPENSSH PRIVATE KEY-----
+	internalHostKeyEd25519 = `-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACCz/pusmPekQmA5K8WkCI53+JZz070Zdl3WYnJYhsZXYQAAAKCLUHiRi1B4
+kQAAAAtzc2gtZWQyNTUxOQAAACCz/pusmPekQmA5K8WkCI53+JZz070Zdl3WYnJYhsZXYQ
+AAAEAQgezEz79CgQ8xAweBepogOpyGwG14zgEUpCfzWwDIDLP+m6yY96RCYDkrxaQIjnf4
+lnPTvRl2XdZicliGxldhAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
+-----END OPENSSH PRIVATE KEY-----`
+
+	oldDefaultHostKeyEd25519 = `-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
 QyNTUxOQAAACAgEJD3oK7ddXQktDsupy91mk85nbFM12Y6srQ0ujq4oAAAAKDLA5G2ywOR
 tgAAAAtzc2gtZWQyNTUxOQAAACAgEJD3oK7ddXQktDsupy91mk85nbFM12Y6srQ0ujq4oA
 AAAEAdZQRbxMDW6DaGP2YY8yxby24cwECktHygG1dGxHmuFiAQkPegrt11dCS0Oy6nL3Wa
 TzmdsUzXZjqytDS6OrigAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
 -----END OPENSSH PRIVATE KEY-----`
-	hostKeyECDSA = `-----BEGIN OPENSSH PRIVATE KEY-----
+	oldDefaultHostKeyECDSA = `-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNlY2RzYS
 1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQSo65hrIeTFpS/ZFiZNzAkPO9zs9GzV
 GbZgYtsv8wJ19AgMR8LrYnGNK3cgYVJWnXe5WXjK8IZwxF/jT9cL4YO0AAAAqJDz+WiQ8/
@@ -655,7 +663,7 @@ func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, 
 		Server: &ssh.Server{},
 	}
 	sshServerInt.Handler = sshServerInt.handleSession
-	sshServerInt.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
+	sshServerInt.SetOption(ssh.HostKeyPEM([]byte(internalHostKeyEd25519)))
 
 	// public supports SFTP, local forward
 	sshServerPub := &SSHServer{
@@ -684,8 +692,8 @@ func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, 
 	sshServerPub.SubsystemHandlers["sftp"] = sshServerPub.handleSession
 	sshServerPub.ChannelHandlers["direct-tcpip"] = sshServerPub.handleLocalForward
 	sshServerPub.ChannelHandlers["direct-streamlocal@openssh.com"] = sshServerPub.handleStreamLocalForward
-	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
-	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyECDSA)))
+	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(oldDefaultHostKeyEd25519)))
+	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(oldDefaultHostKeyECDSA)))
 
 	go runOne("internal SSH server", func() error {
 		err := sshServerInt.Serve(listenerInternal)
