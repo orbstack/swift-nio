@@ -82,22 +82,37 @@ func newDockerCACertInjector(d *DockerAgent) *dockerCACertInjector {
 	}
 }
 
-func writeFileIfChanged(fs *securefs.FS, path string, data []byte, perm os.FileMode) (bool, error) {
-	file, err := fs.OpenFile(path, unix.O_RDONLY, 0)
-	if err != nil && !errors.Is(err, unix.ENOENT) {
-		return false, err
+func writeFileIfChanged(fs *securefs.FS, path string, data []byte, perm os.FileMode) (_written bool, _err error) {
+	file, err := fs.OpenFile(path, unix.O_RDWR|unix.O_CREAT, perm)
+	if err != nil {
+		if errors.Is(err, unix.ENOENT) {
+			return false, nil
+		} else {
+			return false, fmt.Errorf("open: %w", err)
+		}
 	}
 	defer file.Close()
 
 	existing, err := io.ReadAll(io.LimitReader(file, maxPemSize))
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("read: %w", err)
 	}
 	if bytes.Equal(existing, data) {
-		return true, nil
+		return false, nil
 	}
 
-	return false, fs.WriteFile(path, data, perm)
+	// write/rewrite
+	err = file.Truncate(0)
+	if err != nil {
+		return false, fmt.Errorf("truncate: %w", err)
+	}
+
+	_, err = file.Write(data)
+	if err != nil {
+		return false, fmt.Errorf("write: %w", err)
+	}
+
+	return true, nil
 }
 
 func (c *dockerCACertInjector) addAllToFile(fs *securefs.FS, path string) error {
@@ -106,7 +121,7 @@ func (c *dockerCACertInjector) addAllToFile(fs *securefs.FS, path string) error 
 		if errors.Is(err, unix.ENOENT) {
 			return nil
 		} else {
-			return fmt.Errorf("open file: %w", err)
+			return fmt.Errorf("open: %w", err)
 		}
 	}
 	defer file.Close()
@@ -114,7 +129,7 @@ func (c *dockerCACertInjector) addAllToFile(fs *securefs.FS, path string) error 
 	// limit read size to prevent OOM DoS
 	contents, err := io.ReadAll(io.LimitReader(file, maxPemSize))
 	if err != nil {
-		return fmt.Errorf("read file: %w", err)
+		return fmt.Errorf("read: %w", err)
 	}
 
 	for _, pem := range c.pems {
@@ -143,7 +158,7 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 		// ENOENT = parent dir does not exist
 		targetPath := dirPath + "/" + rootCaCertName
 		// O_EXCL write would be faster and simpler, but this is more robust if data.img is migrated to a different host, but keychain isn't, so the new host has a different CA
-		existing, err := writeFileIfChanged(fs, targetPath, c.allPems, 0o644)
+		written, err := writeFileIfChanged(fs, targetPath, c.allPems, 0o644)
 		if err != nil {
 			if !errors.Is(err, unix.ENOENT) && !errors.Is(err, unix.ENOTDIR) {
 				logrus.WithError(err).WithField("dirPath", dirPath).Error("cert injector: failed to write to dir, skipping")
@@ -151,13 +166,13 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 			continue
 		}
 
-		if existing {
+		if written {
+			logrus.WithField("dirPath", dirPath).Debug("cert injector: added to dir")
+		} else {
 			// existing + matching cert means that we've already added stuff to this container
 			// for perf, skip all other checks
 			logrus.WithField("dirPath", dirPath).Debug("cert injector: file already exists, skipping container")
 			return nil
-		} else {
-			logrus.WithField("dirPath", dirPath).Debug("cert injector: added to dir")
 		}
 	}
 
@@ -182,17 +197,17 @@ func (c *dockerCACertInjector) addToFS(fs *securefs.FS) error {
 			continue
 		}
 
-		existing, err := writeFileIfChanged(fs, targetDirPath+"/"+rootCaCertName, c.allPems, 0o644)
+		written, err := writeFileIfChanged(fs, targetDirPath+"/"+rootCaCertName, c.allPems, 0o644)
 		if err != nil {
 			logrus.WithError(err).WithField("targetDirPath", targetDirPath).Error("cert injector: failed to write to dir, skipping")
 			continue
 		}
 
-		if existing {
+		if written {
+			logrus.WithField("targetDirPath", targetDirPath).Debug("cert injector: added to conditional dir")
+		} else {
 			logrus.WithField("targetDirPath", targetDirPath).Debug("cert injector: file already exists, skipping container")
 			return nil
-		} else {
-			logrus.WithField("targetDirPath", targetDirPath).Debug("cert injector: added to conditional dir")
 		}
 	}
 
