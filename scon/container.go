@@ -434,24 +434,24 @@ func (c *Container) revertStateLocked(oldState types.ContainerState) {
 func (c *Container) getDefaultUidGid() (int, int, error) {
 	rootfs, err := securefs.NewFromPath(c.rootfsDir)
 	if err != nil {
-		return -1, -1, fmt.Errorf("open guest rootfs: %w", err)
+		return -1, -1, fmt.Errorf("open rootfs: %w", err)
 	}
 	defer rootfs.Close()
 
 	guestUser, err := cuser.LookupUser(c.config.DefaultUsername, rootfs)
 	if err != nil {
-		return -1, -1, fmt.Errorf("lookup guest user: %w", err)
+		return -1, -1, fmt.Errorf("lookup user: %w", err)
 	}
 
-	uid, err := strconv.Atoi(guestUser.Uid)
+	uid, err := strconv.ParseUint(guestUser.Uid, 10, 32)
 	if err != nil {
-		return -1, -1, fmt.Errorf("parse guest uid: %w", err)
+		return -1, -1, fmt.Errorf("parse uid: %w", err)
 	}
 
-	gid, err := strconv.Atoi(guestUser.Gid)
+	gid, err := strconv.ParseUint(guestUser.Gid, 10, 32)
 	if err != nil {
-		return -1, -1, fmt.Errorf("parse guest gid: %w", err)
+		return -1, -1, fmt.Errorf("parse gid: %w", err)
 	}
 
-	return uid, gid, nil
+	return int(uid), int(gid), nil
 }
