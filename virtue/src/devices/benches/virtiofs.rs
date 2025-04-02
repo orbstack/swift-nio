@@ -23,7 +23,7 @@ fn get_path_by_dev_ino(dev: i32, ino: u64) -> io::Result<String> {
             path_buf.as_mut_ptr() as *mut libc::c_char,
             1024,
             &fsid as *const i32 as *const libc::fsid_t,
-            ino as u64,
+            ino,
         )
     };
     if len == -1 {

@@ -126,7 +126,7 @@ struct SampleNodeRef<'a> {
     symbol: Option<&'a SymbolResult>,
 }
 
-impl<'a> AsTreeKey for SampleNodeRef<'a> {
+impl AsTreeKey for SampleNodeRef<'_> {
     type Key = SymbolTreeKey;
 
     fn as_tree_key(&self, interner: &mut StringInterner<DefaultBackend>) -> SymbolTreeKey {

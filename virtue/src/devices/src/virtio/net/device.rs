@@ -141,15 +141,7 @@ pub struct Net {
 impl Net {
     /// Create a new virtio network device using the backend
     pub fn new(id: String, cfg_backend: VirtioNetBackend, mac: [u8; 6], mtu: u16) -> Result<Self> {
-        let avail_features = 1 << VIRTIO_NET_F_GUEST_CSUM
-            | 1 << VIRTIO_NET_F_CSUM
-            | 1 << VIRTIO_NET_F_GUEST_TSO4
-            | 1 << VIRTIO_NET_F_HOST_TSO4
-            | 1 << VIRTIO_NET_F_GUEST_TSO6
-            | 1 << VIRTIO_NET_F_HOST_TSO6
-            | 1 << VIRTIO_NET_F_MAC
-            | 1 << VIRTIO_NET_F_MTU
-            | 1 << VIRTIO_RING_F_EVENT_IDX
+        let avail_features = (1 << VIRTIO_NET_F_GUEST_CSUM) | (1 << VIRTIO_NET_F_CSUM) | (1 << VIRTIO_NET_F_GUEST_TSO4) | (1 << VIRTIO_NET_F_HOST_TSO4) | (1 << VIRTIO_NET_F_GUEST_TSO6) | (1 << VIRTIO_NET_F_HOST_TSO6) | (1 << VIRTIO_NET_F_MAC) | (1 << VIRTIO_NET_F_MTU) | (1 << VIRTIO_RING_F_EVENT_IDX)
             | 1 << VIRTIO_F_VERSION_1;
 
         let mut queue_evts = Vec::new();

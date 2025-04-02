@@ -289,11 +289,7 @@ pub struct SGI {
 // sysreg encoding in ISR_EL2 masked + shifted format
 const fn sysreg(op0: u8, op1: u8, crn: u8, crm: u8, op2: u8) -> u64 {
     // ARM DDI 0487K.a: Op0, Op2, Op1, CRn, Rt (src/dst GP reg), CRm, [1:0] direction
-    (op0 as u64) << 20
-        | (op2 as u64) << 17
-        | (op1 as u64) << 14
-        | (crn as u64) << 10
-        | (crm as u64) << 1
+    ((op0 as u64) << 20) | ((op2 as u64) << 17) | ((op1 as u64) << 14) | ((crn as u64) << 10) | ((crm as u64) << 1)
 }
 
 crate::c_enum! {

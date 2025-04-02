@@ -341,7 +341,7 @@ struct Symbolicators<'a, HS, HKS, GS> {
     guest: Option<&'a mut GS>,
 }
 
-impl<'a, HS: Symbolicator, HKS: Symbolicator, GS: Symbolicator> Symbolicators<'a, HS, HKS, GS> {
+impl<HS: Symbolicator, HKS: Symbolicator, GS: Symbolicator> Symbolicators<'_, HS, HKS, GS> {
     pub fn symbolicate_frame(&mut self, frame: Frame) -> SymbolicatedFrame {
         let symbols = match frame.category {
             FrameCategory::HostUserspace => self.host.addr_to_symbols(frame.addr),

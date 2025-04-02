@@ -504,7 +504,7 @@ impl<'a, Meta: ?Sized> InterestCtrl<'a, Meta> {
     }
 }
 
-impl<'a, Meta: 'static + Send + Sync> InterestCtrl<'a, Meta> {
+impl<Meta: 'static + Send + Sync> InterestCtrl<'_, Meta> {
     pub fn register(
         &mut self,
         source: &mut impl mio::event::Source,

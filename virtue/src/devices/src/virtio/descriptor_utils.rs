@@ -63,8 +63,8 @@ pub struct Iovec<'a> {
     _phantom: PhantomData<&'a ()>,
 }
 
-unsafe impl<'a> Send for Iovec<'a> {}
-unsafe impl<'a> Sync for Iovec<'a> {}
+unsafe impl Send for Iovec<'_> {}
+unsafe impl Sync for Iovec<'_> {}
 
 impl<'a> Iovec<'a> {
     #[allow(clippy::len_without_is_empty)]
@@ -427,7 +427,7 @@ impl<'a> Reader<'a> {
     }
 }
 
-impl<'a> io::Read for Reader<'a> {
+impl io::Read for Reader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.buffer.consume(buf.len(), |bufs| {
             let mut rem = buf;
@@ -600,7 +600,7 @@ impl<'a> Writer<'a> {
     }
 }
 
-impl<'a> io::Write for Writer<'a> {
+impl io::Write for Writer<'_> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.buffer.consume(buf.len(), |bufs| {
             let mut rem = buf;

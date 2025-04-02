@@ -2,7 +2,6 @@
 
 use std::{
     any::Any,
-    ffi::CStr,
     fmt, io,
     marker::PhantomData,
     mem,
@@ -341,10 +340,7 @@ impl GuestMemory {
                 GuardedRegion::new(
                     reserved.as_ptr().cast(),
                     reserved.len(),
-                    CStr::from_bytes_with_nul(
-                        b"host attempted to access non-RAM memory (kernel bug?)\0",
-                    )
-                    .unwrap(),
+                    c"host attempted to access non-RAM memory (kernel bug?)",
                 )
             },
             provider,
@@ -738,7 +734,7 @@ pub struct GuestSliceIter<'a, T: bytemuck::Pod> {
     len: usize,
 }
 
-impl<'a, T: bytemuck::Pod> ExactSizeIterator for GuestSliceIter<'a, T> {}
+impl<T: bytemuck::Pod> ExactSizeIterator for GuestSliceIter<'_, T> {}
 
 impl<'a, T: bytemuck::Pod> Iterator for GuestSliceIter<'a, T> {
     type Item = GuestRef<'a, T>;
@@ -1107,7 +1103,7 @@ pub struct GuestRef<'a, T: bytemuck::Pod> {
     ptr: NonNull<T>,
 }
 
-impl<'a, T: bytemuck::Pod> fmt::Debug for GuestRef<'a, T> {
+impl<T: bytemuck::Pod> fmt::Debug for GuestRef<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.ptr.fmt(f)
     }

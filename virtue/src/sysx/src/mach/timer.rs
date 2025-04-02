@@ -34,7 +34,7 @@ extern "C" {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[repr(packed(4))]
+#[repr(C, packed(4))]
 #[allow(non_camel_case_types)]
 pub struct mk_timer_expire_msg {
     pub header: mach_msg_header_t,

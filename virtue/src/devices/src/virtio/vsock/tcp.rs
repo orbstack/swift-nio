@@ -455,7 +455,7 @@ impl Proxy for TcpProxy {
 
         let (result, addr, port) = match getpeername::<SockaddrIn>(self.fd.as_raw_fd()) {
             Ok(name) => {
-                let addr = Ipv4Addr::from(name.ip());
+                let addr = name.ip();
                 (0, addr, name.port())
             }
             Err(e) => {

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::net::SocketAddrV4;
 use std::num::Wrapping;
 use std::os::fd::OwnedFd;
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -280,7 +280,7 @@ impl Proxy for UdpProxy {
         debug!("vsock: udp: process_getpeername");
 
         let name = getpeername::<SockaddrIn>(self.fd.as_raw_fd()).unwrap();
-        let addr = Ipv4Addr::from(name.ip());
+        let addr = name.ip();
         let data = TsiGetnameRsp {
             addr,
             port: name.port(),

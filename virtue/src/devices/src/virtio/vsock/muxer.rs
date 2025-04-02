@@ -264,7 +264,7 @@ impl VsockMuxer {
             match req._type {
                 defs::SOCK_STREAM => {
                     debug!("vsock: proxy create stream");
-                    let id = (req.peer_port as u64) << 32 | defs::TSI_PROXY_PORT as u64;
+                    let id = ((req.peer_port as u64) << 32) | defs::TSI_PROXY_PORT as u64;
                     match TcpProxy::new(
                         id,
                         self.cid,
@@ -286,7 +286,7 @@ impl VsockMuxer {
                 }
                 defs::SOCK_DGRAM => {
                     debug!("vsock: proxy create dgram");
-                    let id = (req.peer_port as u64) << 32 | defs::TSI_PROXY_PORT as u64;
+                    let id = ((req.peer_port as u64) << 32) | defs::TSI_PROXY_PORT as u64;
                     match UdpProxy::new(
                         id,
                         self.cid,
@@ -312,7 +312,7 @@ impl VsockMuxer {
     fn process_connect(&self, pkt: &VsockPacket) {
         debug!("vsock: proxy connect request");
         if let Some(req) = pkt.read_connect_req() {
-            let id = (req.peer_port as u64) << 32 | defs::TSI_PROXY_PORT as u64;
+            let id = ((req.peer_port as u64) << 32) | defs::TSI_PROXY_PORT as u64;
             debug!("vsock: proxy connect request: id={}", id);
             let update = self
                 .proxy_map
@@ -330,7 +330,7 @@ impl VsockMuxer {
     fn process_getname(&self, pkt: &VsockPacket) {
         debug!("vsock: new getname request");
         if let Some(req) = pkt.read_getname_req() {
-            let id = (req.peer_port as u64) << 32 | (req.local_port as u64);
+            let id = ((req.peer_port as u64) << 32) | (req.local_port as u64);
             debug!(
                 "vsock: new getname request: id={}, peer_port={}, local_port={}",
                 id, req.peer_port, req.local_port
@@ -345,7 +345,7 @@ impl VsockMuxer {
     fn process_sendto_addr(&self, pkt: &VsockPacket) {
         debug!("vsock: new DGRAM sendto addr: src={}", pkt.src_port());
         if let Some(req) = pkt.read_sendto_addr() {
-            let id = (req.peer_port as u64) << 32 | defs::TSI_PROXY_PORT as u64;
+            let id = ((req.peer_port as u64) << 32) | defs::TSI_PROXY_PORT as u64;
             debug!("vsock: new DGRAM sendto addr: id={}", id);
             let update = self
                 .proxy_map
@@ -361,7 +361,7 @@ impl VsockMuxer {
     }
 
     fn process_sendto_data(&self, pkt: &VsockPacket) {
-        let id = (pkt.src_port() as u64) << 32 | defs::TSI_PROXY_PORT as u64;
+        let id = ((pkt.src_port() as u64) << 32) | defs::TSI_PROXY_PORT as u64;
         debug!("vsock: DGRAM sendto data: id={} src={}", id, pkt.src_port());
         if let Some(proxy) = self.proxy_map.read().unwrap().get(&id) {
             proxy.lock().unwrap().sendto_data(pkt);
@@ -371,7 +371,7 @@ impl VsockMuxer {
     fn process_listen_request(&self, pkt: &VsockPacket) {
         debug!("vsock: DGRAM listen request: src={}", pkt.src_port());
         if let Some(req) = pkt.read_listen_req() {
-            let id = (req.peer_port as u64) << 32 | defs::TSI_PROXY_PORT as u64;
+            let id = ((req.peer_port as u64) << 32) | defs::TSI_PROXY_PORT as u64;
             debug!("vsock: DGRAM listen request: id={}", id);
             let update = self
                 .proxy_map
@@ -389,7 +389,7 @@ impl VsockMuxer {
     fn process_accept_request(&self, pkt: &VsockPacket) {
         debug!("vsock: DGRAM accept request: src={}", pkt.src_port());
         if let Some(req) = pkt.read_accept_req() {
-            let id = (req.peer_port as u64) << 32 | defs::TSI_PROXY_PORT as u64;
+            let id = ((req.peer_port as u64) << 32) | defs::TSI_PROXY_PORT as u64;
             debug!("vsock: DGRAM accept request: id={}", id);
             let update = self
                 .proxy_map
@@ -407,7 +407,7 @@ impl VsockMuxer {
     fn process_proxy_release(&self, pkt: &VsockPacket) {
         debug!("vsock: DGRAM release request: src={}", pkt.src_port());
         if let Some(req) = pkt.read_release_req() {
-            let id = (req.peer_port as u64) << 32 | req.local_port as u64;
+            let id = ((req.peer_port as u64) << 32) | req.local_port as u64;
             debug!(
                 "vsock: DGRAM release request: id={} local_port={} peer_port={}",
                 id, req.local_port, req.peer_port
@@ -435,7 +435,7 @@ impl VsockMuxer {
 
     fn process_dgram_rw(&self, pkt: &VsockPacket) {
         debug!("vsock: DGRAM OP_RW");
-        let id = (pkt.src_port() as u64) << 32 | defs::TSI_PROXY_PORT as u64;
+        let id = ((pkt.src_port() as u64) << 32) | defs::TSI_PROXY_PORT as u64;
 
         if let Some(proxy_lock) = self.proxy_map.read().unwrap().get(&id) {
             debug!("vsock: DGRAM allowing OP_RW for {}", pkt.src_port());
@@ -485,7 +485,7 @@ impl VsockMuxer {
 
     fn process_op_request(&mut self, pkt: &VsockPacket) {
         debug!("vsock: OP_REQUEST");
-        let id: u64 = (pkt.src_port() as u64) << 32 | pkt.dst_port() as u64;
+        let id: u64 = ((pkt.src_port() as u64) << 32) | pkt.dst_port() as u64;
         let mut proxy_map = self.proxy_map.write().unwrap();
 
         if let Some(proxy) = proxy_map.get(&id) {
@@ -522,7 +522,7 @@ impl VsockMuxer {
 
     fn process_op_response(&self, pkt: &VsockPacket) {
         debug!("vsock: OP_RESPONSE");
-        let id: u64 = (pkt.src_port() as u64) << 32 | pkt.dst_port() as u64;
+        let id: u64 = ((pkt.src_port() as u64) << 32) | pkt.dst_port() as u64;
         let update = self
             .proxy_map
             .read()
@@ -547,7 +547,7 @@ impl VsockMuxer {
 
     fn process_op_shutdown(&self, pkt: &VsockPacket) {
         debug!("vsock: OP_SHUTDOWN");
-        let id: u64 = (pkt.src_port() as u64) << 32 | pkt.dst_port() as u64;
+        let id: u64 = ((pkt.src_port() as u64) << 32) | pkt.dst_port() as u64;
         if let Some(proxy) = self.proxy_map.read().unwrap().get(&id) {
             proxy.lock().unwrap().shutdown(pkt);
         }
@@ -555,7 +555,7 @@ impl VsockMuxer {
 
     fn process_op_credit_update(&self, pkt: &VsockPacket) {
         debug!("vsock: OP_CREDIT_UPDATE");
-        let id: u64 = (pkt.src_port() as u64) << 32 | pkt.dst_port() as u64;
+        let id: u64 = ((pkt.src_port() as u64) << 32) | pkt.dst_port() as u64;
         let update = self
             .proxy_map
             .read()
@@ -569,7 +569,7 @@ impl VsockMuxer {
 
     fn process_stream_rw(&self, pkt: &VsockPacket) {
         debug!("vsock: OP_RW");
-        let id: u64 = (pkt.src_port() as u64) << 32 | pkt.dst_port() as u64;
+        let id: u64 = ((pkt.src_port() as u64) << 32) | pkt.dst_port() as u64;
         if let Some(proxy_lock) = self.proxy_map.read().unwrap().get(&id) {
             debug!(
                 "vsock: allowing OP_RW: src={} dst={}",
@@ -607,7 +607,7 @@ impl VsockMuxer {
 
     fn process_stream_rst(&self, pkt: &VsockPacket) {
         debug!("vsock: OP_RST");
-        let id: u64 = (pkt.src_port() as u64) << 32 | pkt.dst_port() as u64;
+        let id: u64 = ((pkt.src_port() as u64) << 32) | pkt.dst_port() as u64;
         if let Some(proxy_lock) = self.proxy_map.read().unwrap().get(&id) {
             debug!(
                 "vsock: allowing OP_RST: id={} src={} dst={}",

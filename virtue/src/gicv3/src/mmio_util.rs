@@ -318,7 +318,7 @@ impl MmioMode for MmioWrite {
     }
 }
 
-impl<'a> MmioWriteRequest<'a> {
+impl MmioWriteRequest<'_> {
     // N.B. it is safe to read endian-dependent values here because the endianess of the guest will
     // always match the MMIO endianess.
     pub fn handle_pod<T: Pod>(

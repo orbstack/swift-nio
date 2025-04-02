@@ -5,11 +5,9 @@ use crate::virtio::Queue;
 use crate::Error as DeviceError;
 
 use super::backend::{NetBackend, ReadError, WriteError};
-use super::callback::CallbackBackend;
 use super::device::{
     FrontendError, NetSignalChannel, NetSignalMask, RxError, TxError, VirtioNetBackend,
 };
-use super::dgram::Dgram;
 
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -321,7 +319,7 @@ impl NetWorker {
         let queue = &mut self.queues[RX_INDEX];
         let head_descriptor = queue
             .pop(&self.mem)
-            .ok_or_else(|| FrontendError::EmptyQueue)?;
+            .ok_or(FrontendError::EmptyQueue)?;
         let head_index = head_descriptor.index;
 
         let result = (|| {
@@ -404,13 +402,13 @@ impl<'a> Deref for IovecsBufferRef<'a> {
     }
 }
 
-impl<'a> DerefMut for IovecsBufferRef<'a> {
+impl DerefMut for IovecsBufferRef<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0
     }
 }
 
-impl<'a> Drop for IovecsBufferRef<'a> {
+impl Drop for IovecsBufferRef<'_> {
     fn drop(&mut self) {
         self.0.clear();
     }

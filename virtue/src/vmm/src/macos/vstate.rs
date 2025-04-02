@@ -29,7 +29,6 @@ use sysx::mach::time::MachAbsoluteTime;
 use sysx::sync::parker::ParkResult;
 use utils::memory::GuestAddress;
 use utils::memory::GuestMemory;
-use utils::Mutex;
 use vmm_ids::VcpuSignalMask;
 use vmm_ids::VmmShutdownSignal;
 

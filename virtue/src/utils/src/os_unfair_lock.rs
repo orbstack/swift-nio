@@ -142,9 +142,9 @@ impl<T: ?Sized> Mutex<T> {
 
 // It's (potentially) Sync but not Send, because os_unfair_lock_unlock must be called from the
 // locking thread.
-unsafe impl<'a, T: ?Sized + Sync> Sync for MutexGuard<'a, T> {}
+unsafe impl<T: ?Sized + Sync> Sync for MutexGuard<'_, T> {}
 
-impl<'a, T: ?Sized> Deref for MutexGuard<'a, T> {
+impl<T: ?Sized> Deref for MutexGuard<'_, T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &T {
@@ -152,14 +152,14 @@ impl<'a, T: ?Sized> Deref for MutexGuard<'a, T> {
     }
 }
 
-impl<'a, T: ?Sized> DerefMut for MutexGuard<'a, T> {
+impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.mutex.cell.get() }
     }
 }
 
-impl<'a, T: ?Sized> Drop for MutexGuard<'a, T> {
+impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
         unsafe {
@@ -201,14 +201,14 @@ impl<T> From<T> for Mutex<T> {
 
 // extra impls: MutexGuard
 
-impl<'a, T: ?Sized + Debug> Debug for MutexGuard<'a, T> {
+impl<T: ?Sized + Debug> Debug for MutexGuard<'_, T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         (**self).fmt(f)
     }
 }
 
-impl<'a, T: ?Sized + Display> Display for MutexGuard<'a, T> {
+impl<T: ?Sized + Display> Display for MutexGuard<'_, T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         (**self).fmt(f)

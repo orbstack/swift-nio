@@ -60,9 +60,7 @@ bitflags! {
 pub(crate) const CONTROL_RXQ_INDEX: usize = 2;
 pub(crate) const CONTROL_TXQ_INDEX: usize = 3;
 
-pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_CONSOLE_F_SIZE as u64
-    | 1 << uapi::VIRTIO_CONSOLE_F_MULTIPORT as u64
-    | 1 << uapi::VIRTIO_F_VERSION_1 as u64;
+pub(crate) const AVAIL_FEATURES: u64 = (1 << uapi::VIRTIO_CONSOLE_F_SIZE as u64) | (1 << uapi::VIRTIO_CONSOLE_F_MULTIPORT as u64) | (1 << uapi::VIRTIO_F_VERSION_1 as u64);
 
 pub(crate) fn get_win_size() -> (u16, u16) {
     #[repr(C)]

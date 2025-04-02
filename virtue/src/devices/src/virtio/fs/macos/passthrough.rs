@@ -69,7 +69,7 @@ const IOC_WRITE: u8 = 1;
 const IOC_READ: u8 = 2;
 
 const fn _ioc(dir: u8, typ: u8, nr: u8, size: u16) -> u32 {
-    (size as u32) << 16 | (dir as u32) << 30 | (typ as u32) << 8 | nr as u32
+    ((size as u32) << 16) | ((dir as u32) << 30) | ((typ as u32) << 8) | nr as u32
 }
 
 const IOCTL_ROSETTA_KEY: u32 = _ioc(IOC_READ, 0x61, 0x22, 0x45);
@@ -1229,7 +1229,7 @@ impl PassthroughFs {
         file_ref: FileRef,
         nodeid: NodeId,
     ) -> io::Result<(bindings::stat64, Duration)> {
-        let mut st = match file_ref {
+        let st = match file_ref {
             FileRef::Path(c_path) => lstat(c_path, false)?,
             FileRef::Fd(fd) => fstat(fd, false)?,
         };

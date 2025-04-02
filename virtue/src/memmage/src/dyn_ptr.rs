@@ -31,7 +31,7 @@ impl<'p, T: ?Sized> DynRef<'p, T> {
     }
 }
 
-impl<'p, T: ?Sized> Deref for DynRef<'p, T> {
+impl<T: ?Sized> Deref for DynRef<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -39,7 +39,7 @@ impl<'p, T: ?Sized> Deref for DynRef<'p, T> {
     }
 }
 
-impl<'p, T: ?Sized + fmt::Debug> fmt::Debug for DynRef<'p, T> {
+impl<T: ?Sized + fmt::Debug> fmt::Debug for DynRef<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         (**self).fmt(f)
     }
@@ -75,13 +75,13 @@ impl<'p, T: ?Sized> CloneDynRef<'p, T> {
     }
 }
 
-impl<'p, T: ?Sized> Clone for CloneDynRef<'p, T> {
+impl<T: ?Sized> Clone for CloneDynRef<'_, T> {
     fn clone(&self) -> Self {
         Self(self.0.clone_boxed())
     }
 }
 
-impl<'p, T: ?Sized> Deref for CloneDynRef<'p, T> {
+impl<T: ?Sized> Deref for CloneDynRef<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -89,7 +89,7 @@ impl<'p, T: ?Sized> Deref for CloneDynRef<'p, T> {
     }
 }
 
-impl<'p, T: ?Sized + fmt::Debug> fmt::Debug for CloneDynRef<'p, T> {
+impl<T: ?Sized + fmt::Debug> fmt::Debug for CloneDynRef<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         (**self).fmt(f)
     }
@@ -126,7 +126,7 @@ impl<'p, T: ?Sized> DynMut<'p, T> {
     }
 }
 
-impl<'p, T: ?Sized> Deref for DynMut<'p, T> {
+impl<T: ?Sized> Deref for DynMut<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -134,13 +134,13 @@ impl<'p, T: ?Sized> Deref for DynMut<'p, T> {
     }
 }
 
-impl<'p, T: ?Sized> DerefMut for DynMut<'p, T> {
+impl<T: ?Sized> DerefMut for DynMut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         DynSmartPtrInner::deref_mut(&mut *self.0)
     }
 }
 
-impl<'p, T: ?Sized + fmt::Debug> fmt::Debug for DynMut<'p, T> {
+impl<T: ?Sized + fmt::Debug> fmt::Debug for DynMut<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         (**self).fmt(f)
     }

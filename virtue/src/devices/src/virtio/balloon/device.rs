@@ -12,7 +12,6 @@ use std::mem::size_of;
 use std::sync::{Arc, Weak};
 use std::thread;
 
-use std::time::Instant;
 use utils::memory::{GuestAddress, GuestMemory, GuestSlice};
 use utils::Mutex;
 
@@ -93,10 +92,7 @@ unsafe impl Zeroable for PrDesc {}
 
 const FPR_TYPE_FREE: u32 = 0;
 
-pub(crate) const AVAIL_FEATURES: u64 = 1 << uapi::VIRTIO_F_VERSION_1 as u64
-    | 1 << uapi::VIRTIO_BALLOON_F_STATS_VQ as u64
-    | 1 << uapi::VIRTIO_BALLOON_F_FREE_PAGE_HINT as u64
-    | 1 << uapi::VIRTIO_BALLOON_F_REPORTING as u64;
+pub(crate) const AVAIL_FEATURES: u64 = (1 << uapi::VIRTIO_F_VERSION_1 as u64) | (1 << uapi::VIRTIO_BALLOON_F_STATS_VQ as u64) | (1 << uapi::VIRTIO_BALLOON_F_FREE_PAGE_HINT as u64) | (1 << uapi::VIRTIO_BALLOON_F_REPORTING as u64);
 
 pub(crate) type BalloonSignal = SignalChannel<BalloonSignalMask, BalloonWakers>;
 

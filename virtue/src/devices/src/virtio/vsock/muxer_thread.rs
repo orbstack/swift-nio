@@ -110,7 +110,7 @@ impl MuxerThread {
 
         if let Some((peer_port, accept_fd)) = update.new_proxy {
             let local_port: u32 = thread_rng.gen_range(1024..u32::MAX);
-            let new_id: u64 = (peer_port as u64) << 32 | local_port as u64;
+            let new_id: u64 = ((peer_port as u64) << 32) | local_port as u64;
             let new_proxy = TcpProxy::new_reverse(
                 new_id,
                 self.cid,
