@@ -83,6 +83,10 @@ export CGO_LDFLAGS := $(MACOS_VERSION_ARG)
 export CGO_ENABLED := 1
 
 DEVELOPER_DIR := $(shell xcode-select --print-path)
+ifeq ($(DEVELOPER_DIR),/Library/Developer/CommandLineTools)
+# technically, Command Line Tools has everything we need to build and link binaries, but the paths within the SDK are different and Xcode is already required for building the GUI. CLT also has older tools.
+$(error "Building with Command Line Tools is not supported. Please install Xcode and run `xcode-select --switch /Applications/Xcode.app` to activate it.")
+endif
 
 # allow replacing tools
 SWIFT ?= swift
