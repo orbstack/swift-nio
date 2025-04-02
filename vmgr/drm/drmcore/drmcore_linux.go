@@ -17,3 +17,7 @@ func ReadKeychainState() ([]byte, error) {
 func SetKeychainState(data []byte) error {
 	return errors.New("unsupported")
 }
+
+func HasRefreshToken() bool {
+	panic("unsupported")
+}
