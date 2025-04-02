@@ -1,6 +1,7 @@
 package tcpfwd
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
@@ -33,13 +34,13 @@ func setExtNodelay(conn *net.TCPConn, otherPort int) error {
 
 	err := conn.SetNoDelay(noDelay)
 	if err != nil {
-		return err
+		return fmt.Errorf("set nodelay: %w", err)
 	}
 
 	// take the chance to set keepalive too
 	err = conn.SetKeepAlive(false)
 	if err != nil {
-		return err
+		return fmt.Errorf("set keepalive: %w", err)
 	}
 
 	return nil
