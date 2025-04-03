@@ -1,7 +1,13 @@
 package main
 
 import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -41,23 +47,6 @@ QyNTUxOQAAACCz/pusmPekQmA5K8WkCI53+JZz070Zdl3WYnJYhsZXYQAAAKCLUHiRi1B4
 kQAAAAtzc2gtZWQyNTUxOQAAACCz/pusmPekQmA5K8WkCI53+JZz070Zdl3WYnJYhsZXYQ
 AAAEAQgezEz79CgQ8xAweBepogOpyGwG14zgEUpCfzWwDIDLP+m6yY96RCYDkrxaQIjnf4
 lnPTvRl2XdZicliGxldhAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
------END OPENSSH PRIVATE KEY-----`
-
-	oldDefaultHostKeyEd25519 = `-----BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACAgEJD3oK7ddXQktDsupy91mk85nbFM12Y6srQ0ujq4oAAAAKDLA5G2ywOR
-tgAAAAtzc2gtZWQyNTUxOQAAACAgEJD3oK7ddXQktDsupy91mk85nbFM12Y6srQ0ujq4oA
-AAAEAdZQRbxMDW6DaGP2YY8yxby24cwECktHygG1dGxHmuFiAQkPegrt11dCS0Oy6nL3Wa
-TzmdsUzXZjqytDS6OrigAAAAFmRyYWdvbkBhbmRyb21lZGEubG9jYWwBAgMEBQYH
------END OPENSSH PRIVATE KEY-----`
-	oldDefaultHostKeyECDSA = `-----BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNlY2RzYS
-1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQSo65hrIeTFpS/ZFiZNzAkPO9zs9GzV
-GbZgYtsv8wJ19AgMR8LrYnGNK3cgYVJWnXe5WXjK8IZwxF/jT9cL4YO0AAAAqJDz+WiQ8/
-loAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBKjrmGsh5MWlL9kW
-Jk3MCQ873Oz0bNUZtmBi2y/zAnX0CAxHwuticY0rdyBhUladd7lZeMrwhnDEX+NP1wvhg7
-QAAAAhALqjXlpenZU0ClqZAG4ypGXwwY0N2/O1uycE8O5Zt7q1AAAACXJvb3RAdWdlbgEC
-AwQFBg==
 -----END OPENSSH PRIVATE KEY-----`
 )
 
@@ -642,6 +631,31 @@ func (sv *SSHServer) handleStreamLocalForward(srv *ssh.Server, conn *gossh.Serve
 	sv.finishProxyChannelOpen(ctx, newChan, "unix", d.SocketPath)
 }
 
+func loadOrGenerateHostKeyPEM(db *Database, dbKey dbKey, generate func() (crypto.PrivateKey, error)) (string, error) {
+	hostKey, err := db.getSimpleStr(dbKey)
+	if err != nil {
+		if errors.Is(err, ErrKeyNotFound) {
+			privKey, err := generate()
+			if err != nil {
+				return "", fmt.Errorf("generate host key: %w", err)
+			}
+			pemBlock, err := gossh.MarshalPrivateKey(privKey, "")
+			if err != nil {
+				return "", fmt.Errorf("marshal host key: %w", err)
+			}
+			hostKey = string(pem.EncodeToMemory(pemBlock))
+			err = db.setSimpleStr(dbKey, hostKey)
+			if err != nil {
+				return "", fmt.Errorf("set host key: %w", err)
+			}
+		} else {
+			return "", fmt.Errorf("get host key: %w", err)
+		}
+	}
+
+	return hostKey, nil
+}
+
 func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, error) {
 	listenerInternal, err := netx.Listen("tcp", net.JoinHostPort(listenIP4, strconv.Itoa(ports.GuestSconSSH)))
 	if err != nil {
@@ -663,6 +677,7 @@ func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, 
 		Server: &ssh.Server{},
 	}
 	sshServerInt.Handler = sshServerInt.handleSession
+	// since this is a hard-coded host key, this SSH server must never be exposed
 	sshServerInt.SetOption(ssh.HostKeyPEM([]byte(internalHostKeyEd25519)))
 
 	// public supports SFTP, local forward
@@ -692,8 +707,25 @@ func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, 
 	sshServerPub.SubsystemHandlers["sftp"] = sshServerPub.handleSession
 	sshServerPub.ChannelHandlers["direct-tcpip"] = sshServerPub.handleLocalForward
 	sshServerPub.ChannelHandlers["direct-streamlocal@openssh.com"] = sshServerPub.handleStreamLocalForward
-	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(oldDefaultHostKeyEd25519)))
-	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(oldDefaultHostKeyECDSA)))
+
+	// load ssh host keys from DB, or generate them if not found
+	// no RSA: takes too long to generate, and is being phased out
+	hostKeyEd25519, err := loadOrGenerateHostKeyPEM(m.db, ksSshHostKeyEd25519, func() (crypto.PrivateKey, error) {
+		_, priv, err := ed25519.GenerateKey(rand.Reader)
+		return priv, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load ed25519 host key: %w", err)
+	}
+	hostKeyECDSA, err := loadOrGenerateHostKeyPEM(m.db, ksSshHostKeyECDSA, func() (crypto.PrivateKey, error) {
+		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load ecdsa host key: %w", err)
+	}
+
+	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
+	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyECDSA)))
 
 	go runOne("internal SSH server", func() error {
 		err := sshServerInt.Serve(listenerInternal)
@@ -734,15 +766,14 @@ func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, 
 		}
 	}
 
-	pubKeyOpt := ssh.PublicKeyAuth(func(ctx ssh.Context, key ssh.PublicKey) bool {
+	sshServerPub.SetOption(ssh.PublicKeyAuth(func(ctx ssh.Context, key ssh.PublicKey) bool {
 		for _, pubKey := range pubKeys {
 			if ssh.KeysEqual(key, pubKey) {
 				return true
 			}
 		}
 		return false
-	})
-	sshServerPub.SetOption(pubKeyOpt)
+	}))
 	go runOne("public SSH server v4", func() error {
 		err := sshServerPub.Serve(listenerPublic4)
 		if err != nil && !errors.Is(err, ssh.ErrServerClosed) {
