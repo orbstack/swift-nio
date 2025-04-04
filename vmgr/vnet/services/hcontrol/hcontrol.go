@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/mikesmitty/edkey"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
@@ -453,7 +452,7 @@ func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
 	// prep: create nfs dir, write readme, make read-only
 	dir := coredir.EnsureNfsMountpoint()
 	// coredir.NfsMountpoint() already calls mkdir
-	err := os.WriteFile(dir+"/README.txt", []byte(nfsReadmeText), 0644)
+	err := util.WriteFileIfChanged(dir+"/README.txt", []byte(nfsReadmeText), 0644)
 	// permission error is normal, that means it's already read only
 	if err != nil && !errors.Is(err, os.ErrPermission) {
 		logrus.WithError(err).Error("failed to write NFS readme")
@@ -563,13 +562,13 @@ func (h *HcontrolServer) OnK8sConfigReady(kubeConfigStr string, _ *None) error {
 		return fmt.Errorf("encode merged config: %w", err)
 	}
 
-	err = os.WriteFile(conf.KubeConfigFile(), buf.Bytes(), 0600)
+	err = util.WriteFileIfChanged(conf.KubeConfigFile(), buf.Bytes(), 0600)
 	if err != nil {
 		return err
 	}
 
 	// write unmerged config out for user convenience
-	err = os.WriteFile(conf.OrbK8sConfigFile(), []byte(kubeConfigStr), 0600)
+	err = util.WriteFileIfChanged(conf.OrbK8sConfigFile(), []byte(kubeConfigStr), 0600)
 	if err != nil {
 		return err
 	}
@@ -817,9 +816,9 @@ func generatePublicSSHKey() error {
 		return err
 	}
 
-	pemKey := &pem.Block{
-		Type:  "OPENSSH PRIVATE KEY",
-		Bytes: edkey.MarshalED25519PrivateKey(sk),
+	pemKey, err := ssh.MarshalPrivateKey(sk, "")
+	if err != nil {
+		return err
 	}
 	sshSkText := pem.EncodeToMemory(pemKey)
 	sshPkText := ssh.MarshalAuthorizedKey(sshPk)
