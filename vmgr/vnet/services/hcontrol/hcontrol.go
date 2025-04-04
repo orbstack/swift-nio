@@ -177,17 +177,16 @@ func (h *HcontrolServer) GetTimezone(_ *None, reply *string) error {
 	return nil
 }
 
-// for publish SSH server
-func (h *HcontrolServer) GetSSHAuthorizedKeys(_ None, reply *string) error {
-	// generate key to avoid race if host setup hasn't run yet
+func (h *HcontrolServer) getSSHAuthorizedKeys() (string, error) {
+	// generate orbstack private key to avoid race if host setup hasn't run yet
 	err := h.InternalEnsurePublicSSHKey()
 	if err != nil {
-		return err
+		return "", fmt.Errorf("ensure orbstack ssh key: %w", err)
 	}
 
 	customKey, err := os.ReadFile(conf.ExtraSshDir() + "/id_ed25519.pub")
 	if err != nil {
-		return err
+		return "", fmt.Errorf("read orbstack ssh key: %w", err)
 	}
 
 	authorizedKeys, err := os.ReadFile(conf.ExtraSshDir() + "/authorized_keys")
@@ -196,7 +195,7 @@ func (h *HcontrolServer) GetSSHAuthorizedKeys(_ None, reply *string) error {
 			// if it doesn't exist, create base one
 			err = os.WriteFile(conf.ExtraSshDir()+"/authorized_keys", customKey, 0644)
 			if err != nil {
-				return err
+				return "", fmt.Errorf("write orbstack ssh key: %w", err)
 			}
 		} else {
 			// otherwise that's fine, just log
@@ -205,7 +204,24 @@ func (h *HcontrolServer) GetSSHAuthorizedKeys(_ None, reply *string) error {
 	}
 
 	// concat base key with authorized
-	*reply = strings.TrimSpace(string(customKey) + "\n" + string(authorizedKeys))
+	return strings.TrimSpace(string(customKey) + "\n" + string(authorizedKeys)), nil
+}
+
+// for public SSH server
+// don't put SSH host keys in ~/.orbstack/ssh: it's readable by all apps. data.img is more secure because it's in Group Containers.
+func (h *HcontrolServer) InitPublicSSH(knownHosts string, reply *string) error {
+	authorizedKeys, err := h.getSSHAuthorizedKeys()
+	if err != nil {
+		return err
+	}
+
+	// write known_hosts
+	err = util.WriteFileIfChanged(conf.ExtraSshDir()+"/known_hosts", []byte(knownHosts), 0644)
+	if err != nil {
+		return fmt.Errorf("write known_hosts: %w", err)
+	}
+
+	*reply = authorizedKeys
 	return nil
 }
 

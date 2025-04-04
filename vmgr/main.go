@@ -709,7 +709,7 @@ func runVmManager() {
 		buildID, err = buildid.CalculateCurrent()
 		check(err)
 	}
-	err = os.WriteFile(conf.VmgrVersionFile(), []byte(buildID), 0644)
+	err = util.WriteFileIfChanged(conf.VmgrVersionFile(), []byte(buildID), 0644)
 	check(err)
 
 	// everything is set up for spawn-daemon to work properly (build id and pid)

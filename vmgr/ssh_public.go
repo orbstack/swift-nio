@@ -50,9 +50,10 @@ Host %s
   IdentityFile %s/id_ed25519
   # only use this key
   IdentitiesOnly yes
+  UserKnownHostsFile %s/known_hosts
   ProxyCommand %s
   ProxyUseFdpass yes
-`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, relHome, relHome, quotedCmd)
+`, appid.ShortAppName, ports.HostSconSSHPublic, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, appid.ShortAppName, relHome, relHome, relHome, quotedCmd)
 
 	// debug VM ssh server
 	if conf.Debug() {

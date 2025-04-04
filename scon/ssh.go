@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -631,29 +632,34 @@ func (sv *SSHServer) handleStreamLocalForward(srv *ssh.Server, conn *gossh.Serve
 	sv.finishProxyChannelOpen(ctx, newChan, "unix", d.SocketPath)
 }
 
-func loadOrGenerateHostKeyPEM(db *Database, dbKey dbKey, generate func() (crypto.PrivateKey, error)) (string, error) {
-	hostKey, err := db.getSimpleStr(dbKey)
+func loadOrGenerateHostKey(db *Database, dbKey dbKey, generate func() (crypto.PrivateKey, error)) (gossh.Signer, error) {
+	pemKey, err := db.getSimpleStr(dbKey)
 	if err != nil {
 		if errors.Is(err, ErrKeyNotFound) {
 			privKey, err := generate()
 			if err != nil {
-				return "", fmt.Errorf("generate host key: %w", err)
+				return nil, fmt.Errorf("generate host key: %w", err)
 			}
 			pemBlock, err := gossh.MarshalPrivateKey(privKey, "")
 			if err != nil {
-				return "", fmt.Errorf("marshal host key: %w", err)
+				return nil, fmt.Errorf("marshal host key: %w", err)
 			}
-			hostKey = string(pem.EncodeToMemory(pemBlock))
-			err = db.setSimpleStr(dbKey, hostKey)
+			pemKey = string(pem.EncodeToMemory(pemBlock))
+			err = db.setSimpleStr(dbKey, pemKey)
 			if err != nil {
-				return "", fmt.Errorf("set host key: %w", err)
+				return nil, fmt.Errorf("set host key: %w", err)
 			}
 		} else {
-			return "", fmt.Errorf("get host key: %w", err)
+			return nil, fmt.Errorf("get host key: %w", err)
 		}
 	}
 
-	return hostKey, nil
+	signer, err := gossh.ParsePrivateKey([]byte(pemKey))
+	if err != nil {
+		return nil, fmt.Errorf("parse key: %w", err)
+	}
+
+	return signer, nil
 }
 
 func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, error) {
@@ -710,22 +716,21 @@ func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, 
 
 	// load ssh host keys from DB, or generate them if not found
 	// no RSA: takes too long to generate, and is being phased out
-	hostKeyEd25519, err := loadOrGenerateHostKeyPEM(m.db, ksSshHostKeyEd25519, func() (crypto.PrivateKey, error) {
+	hostKeyEd25519, err := loadOrGenerateHostKey(m.db, ksSshHostKeyEd25519, func() (crypto.PrivateKey, error) {
 		_, priv, err := ed25519.GenerateKey(rand.Reader)
 		return priv, err
 	})
 	if err != nil {
 		return nil, fmt.Errorf("load ed25519 host key: %w", err)
 	}
-	hostKeyECDSA, err := loadOrGenerateHostKeyPEM(m.db, ksSshHostKeyECDSA, func() (crypto.PrivateKey, error) {
+	hostKeyECDSA, err := loadOrGenerateHostKey(m.db, ksSshHostKeyECDSA, func() (crypto.PrivateKey, error) {
 		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("load ecdsa host key: %w", err)
 	}
-
-	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyEd25519)))
-	sshServerPub.SetOption(ssh.HostKeyPEM([]byte(hostKeyECDSA)))
+	sshServerPub.AddHostKey(hostKeyEd25519)
+	sshServerPub.AddHostKey(hostKeyECDSA)
 
 	go runOne("internal SSH server", func() error {
 		err := sshServerInt.Serve(listenerInternal)
@@ -735,7 +740,10 @@ func (m *ConManager) startSSHServer(listenIP4, listenIP6 string) (func() error, 
 		return nil
 	})
 
-	pubKeysStr, err := m.host.GetSSHAuthorizedKeys()
+	knownHosts := fmt.Sprintf(`[127.0.0.1]:32222 %s %s
+[127.0.0.1]:32222 %s %s
+`, hostKeyEd25519.PublicKey().Type(), base64.StdEncoding.EncodeToString(hostKeyEd25519.PublicKey().Marshal()), hostKeyECDSA.PublicKey().Type(), base64.StdEncoding.EncodeToString(hostKeyECDSA.PublicKey().Marshal()))
+	pubKeysStr, err := m.host.InitPublicSSH(knownHosts)
 	if err != nil {
 		return nil, err
 	}

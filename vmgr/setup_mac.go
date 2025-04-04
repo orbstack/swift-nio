@@ -1,7 +1,6 @@
 package vmgr
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/setup/userutil"
 	"github.com/orbstack/macvirt/vmgr/swext"
 	"github.com/orbstack/macvirt/vmgr/syssetup"
+	"github.com/orbstack/macvirt/vmgr/util"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/sirupsen/logrus"
@@ -153,17 +153,6 @@ func (s *VmControlServer) doGetUserDetailsAndSetupEnv() (*UserDetails, error) {
 	return details, nil
 }
 
-func writeFileIfChanged(path string, data []byte, perm os.FileMode) error {
-	existing, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if bytes.Equal(existing, data) {
-		return nil
-	}
-	return os.WriteFile(path, data, perm)
-}
-
 func symlinkIfChanged(src, dst string) error {
 	oldSrc, err := os.Readlink(dst)
 	if err != nil {
@@ -233,7 +222,7 @@ func writeShellProfileSnippets() error {
 	bashSnippetBase := fmt.Sprintf(`export PATH="$PATH":%s`+"\n", shellescape.Quote(bin))
 	// completions don't work with old macOS bash 3.2, and also require bash-completion
 	bashSnippet := bashSnippetBase
-	err := writeFileIfChanged(shells+"/init.bash", []byte(bashSnippet), 0644)
+	err := util.WriteFileIfChanged(shells+"/init.bash", []byte(bashSnippet), 0644)
 	if err != nil {
 		return err
 	}
@@ -241,7 +230,7 @@ func writeShellProfileSnippets() error {
 	// zsh loads completions from fpath, but this must be set *before* compinit
 	// people usually put compinit in .zshrc, and init.zsh should be included in .zprofile, so it should work
 	zshSnippet := bashSnippetBase + "\nfpath+=" + shellescape.Quote(conf.CliZshCompletionsDir())
-	err = writeFileIfChanged(shells+"/init.zsh", []byte(zshSnippet), 0644)
+	err = util.WriteFileIfChanged(shells+"/init.zsh", []byte(zshSnippet), 0644)
 	if err != nil {
 		return err
 	}
@@ -251,7 +240,7 @@ func writeShellProfileSnippets() error {
 	// which breaks things horribly.
 	fishSnippet := fmt.Sprintf(`set -gxa PATH %s`+"\n", shellescape.Quote(bin))
 	_ = os.Remove(shells + "/init.fish")
-	err = writeFileIfChanged(shells+"/init2.fish", []byte(fishSnippet), 0644)
+	err = util.WriteFileIfChanged(shells+"/init2.fish", []byte(fishSnippet), 0644)
 	if err != nil {
 		return err
 	}
@@ -282,7 +271,7 @@ func writeShellProfileSnippets() error {
 
 func writeDataReadme() error {
 	// write readme
-	return writeFileIfChanged(conf.DataDir()+"/README.txt", []byte(dataReadmeText), 0644)
+	return util.WriteFileIfChanged(conf.DataDir()+"/README.txt", []byte(dataReadmeText), 0644)
 }
 
 func setDockerConfigEnv(value string) error {
