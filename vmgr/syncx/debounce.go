@@ -25,11 +25,11 @@ func (d *FuncDebounce) Call() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.timer != nil {
-		d.timer.Stop()
+	if d.timer == nil {
+		d.timer = time.AfterFunc(d.duration, d.timerCallback)
+	} else {
+		d.timer.Reset(d.duration)
 	}
-
-	d.timer = time.AfterFunc(d.duration, d.timerCallback)
 }
 
 func (d *FuncDebounce) timerCallback() {
@@ -45,7 +45,6 @@ func (d *FuncDebounce) Cancel() {
 
 	if d.timer != nil {
 		d.timer.Stop()
-		d.timer = nil
 	}
 }
 
@@ -55,7 +54,6 @@ func (d *FuncDebounce) CallNow() {
 
 	if d.timer != nil {
 		d.timer.Stop()
-		d.timer = nil
 	}
 
 	d.timerCallback()

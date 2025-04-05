@@ -6,13 +6,17 @@ import (
 
 // leading debounce: call immediately, then ignore calls for duration. DO not reset the timer
 type LeadingFuncDebounce struct {
-	// avoid blocking callers if func is slow
-	mu       Mutex
-	funcMu   Mutex
-	fn       func()
 	duration time.Duration
-	timer    *time.Timer
-	pending  bool
+
+	mu Mutex
+
+	timer           *time.Timer
+	nextCallAt      time.Time
+	nextCallPending bool
+
+	// separate mutex to avoid blocking callers if func is slow
+	funcMu Mutex
+	fn     func()
 }
 
 func NewLeadingFuncDebounce(duration time.Duration, fn func()) *LeadingFuncDebounce {
@@ -26,22 +30,25 @@ func (d *LeadingFuncDebounce) Call() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.timer == nil {
+	if d.nextCallAt.IsZero() {
 		go d.invoke()
-		d.timer = time.AfterFunc(d.duration, func() {
-			d.mu.Lock()
-			// reset
-			d.timer = nil
-			wasPending := d.pending
-			d.pending = false
-			d.mu.Unlock()
-			// call if needed
-			if wasPending {
+		d.nextCallAt = time.Now().Add(d.duration)
+	} else if !d.nextCallPending {
+		timerDuration := time.Until(d.nextCallAt)
+		if d.timer == nil {
+			d.timer = time.AfterFunc(timerDuration, func() {
+				d.mu.Lock()
+				d.nextCallAt = time.Time{}
+				d.nextCallPending = false
+				d.mu.Unlock()
+
 				d.invoke()
-			}
-		})
-	} else {
-		d.pending = true
+			})
+		} else {
+			d.timer.Reset(timerDuration)
+		}
+
+		d.nextCallPending = true
 	}
 }
 
