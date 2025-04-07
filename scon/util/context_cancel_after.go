@@ -34,10 +34,7 @@ func (t *CancelAfter) CancelAt(when time.Time) {
 
 	if t.cancelTime.IsZero() || t.cancelTime.After(when) {
 		t.cancelTime = when
-		go func() {
-			<-time.After(time.Until(when))
-			t.cancel()
-		}()
+		time.AfterFunc(time.Until(when), t.cancel)
 	}
 }
 
