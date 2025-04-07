@@ -15,6 +15,7 @@ import (
 
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
+	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/util/debugutil"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
@@ -43,6 +44,8 @@ const (
 	// sometimes it fails during sleep on arm64
 	// level=error msg="health check failed" error="Post \"http://vcontrol/disk/report_stats\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
 	stopOnHealthCheckFail = false
+
+	pauseDebounceDelay = 60 * time.Second
 )
 
 type VClient struct {
@@ -185,6 +188,14 @@ func (vc *VClient) StartBackground() error {
 	// notify VM of sleep and wake
 	// separate goroutine to avoid blocking health check if these requests hang
 	vmconfigDiffs := vmconfig.SubscribeDiff()
+	pauseDebounce := syncx.NewFuncDebounce(pauseDebounceDelay, func() {
+		if iokit.IsAsleep() {
+			err := vc.Post("sys/sleep", nil, nil)
+			if err != nil {
+				logrus.WithError(err).Error("failed to notify VM of sleep")
+			}
+		}
+	})
 	go func() {
 		for {
 			select {
@@ -213,13 +224,16 @@ func (vc *VClient) StartBackground() error {
 					// this is useful even on arm64 because IOKit's sleep/wake events are higher-level and closely follow lid close/open events. notably, dark wakes and wake-on-LAN don't cause IOKit to report a wake event to us. so this must be configurable in order to support wake-on-LAN server use cases, but for 99% of users it saves power during sleep because high-CPU-usage containers won't burn CPU during dark wakes or other maintenance wakes
 					// to debug: `sudo pmset -g log`
 					if vmconfig.Get().Power_PauseOnSleep {
-						err := vc.Post("sys/sleep", nil, nil)
-						if err != nil {
-							logrus.WithError(err).Error("failed to notify VM of sleep")
-						}
+						// wait for 60s before we pause the VM
+						// if the lid is closed for less than ~30s and there is a broken app not responding to IOKit notifications, then it may take up to 30s for a wake event to arrive
+						// TODO: ideally this would be a timer with timebase=mach_continuous_time/CLOCK_BOOTTIME so that it fires immediately on the next wakeup, instead of requiring 60s of awake time. but Go only has timebase=mach_absolute_time/CLOCK_MONOTONIC timers
+						pauseDebounce.Call()
 					}
 				} else {
 					logrus.Info("wake")
+
+					// cancel any pending pause, and make sure we send the wake event after sleep is sent (if it was already in progress)
+					pauseDebounce.CancelAndWait()
 
 					// notify VM of wake
 					err := vc.Post("sys/wake", nil, nil)

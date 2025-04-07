@@ -11,6 +11,8 @@ type FuncDebounce struct {
 
 	fn   func()
 	fnMu Mutex
+
+	completionChan chan struct{}
 }
 
 // expected behavior: fn() can't run concurrently, but shouldn't block timer kick
@@ -30,13 +32,23 @@ func (d *FuncDebounce) Call() {
 	} else {
 		d.timer.Reset(d.duration)
 	}
+
+	if d.completionChan == nil {
+		d.completionChan = make(chan struct{})
+	}
 }
 
 func (d *FuncDebounce) timerCallback() {
 	d.fnMu.Lock()
-	defer d.fnMu.Unlock()
-
 	d.fn()
+	d.fnMu.Unlock()
+
+	d.mu.Lock()
+	if d.completionChan != nil {
+		close(d.completionChan)
+		d.completionChan = nil
+	}
+	d.mu.Unlock()
 }
 
 func (d *FuncDebounce) Cancel() {
@@ -45,6 +57,19 @@ func (d *FuncDebounce) Cancel() {
 
 	if d.timer != nil {
 		d.timer.Stop()
+	}
+}
+
+func (d *FuncDebounce) CancelAndWait() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.timer != nil {
+		d.timer.Stop()
+	}
+
+	if d.completionChan != nil {
+		<-d.completionChan
 	}
 }
 
