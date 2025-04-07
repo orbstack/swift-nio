@@ -12,6 +12,7 @@ type CancelAfter struct {
 
 	mu         syncx.Mutex
 	cancelTime time.Time
+	lastTimer  *time.Timer
 }
 
 func NewTimedCancelFunc(cancel context.CancelFunc) *CancelAfter {
@@ -34,7 +35,14 @@ func (t *CancelAfter) CancelAt(when time.Time) {
 
 	if t.cancelTime.IsZero() || t.cancelTime.After(when) {
 		t.cancelTime = when
-		time.AfterFunc(time.Until(when), t.cancel)
+		if t.lastTimer != nil {
+			if !t.lastTimer.Stop() {
+				// callback already fired
+				return
+			}
+		}
+
+		t.lastTimer = time.AfterFunc(time.Until(when), t.cancel)
 	}
 }
 
