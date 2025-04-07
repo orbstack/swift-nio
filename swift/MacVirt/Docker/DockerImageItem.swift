@@ -11,6 +11,8 @@ struct DockerImageItem: View, Equatable {
     @EnvironmentObject var actionTracker: ActionTracker
     @EnvironmentObject var listModel: AKListModel
 
+    @State private var showEmulationAlert = false
+
     @Default(.tipsImageMountsShow) private var tipsImageMountsShow
 
     var image: DKSummaryAndFullImage
@@ -47,18 +49,29 @@ struct DockerImageItem: View, Equatable {
             Spacer()
 
             if !AppConfig.nativeArchs.contains(image.full.architecture) {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle")
-                    Text(image.full.architecture)
-                        .font(.subheadline)
+                Button(action: {
+                    showEmulationAlert = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle")
+                        Text(image.full.architecture)
+                            .font(.subheadline)
+                    }
+                    // TODO: this is bad...
+                    .foregroundStyle(.black.opacity(0.8))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    // TODO: composite onto bg so list highlight doesn't affect it
+                    .background(SystemColors.desaturate(Color(.systemYellow)), in: .capsule)
                 }
-                // TODO: this is bad...
-                .foregroundStyle(.black.opacity(0.8))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                // TODO: composite onto bg so list highlight doesn't affect it
-                .background(SystemColors.desaturate(Color(.systemYellow)), in: .capsule)
+                .buttonStyle(.plain)
                 .help("Runs slower due to emulation")
+                .akAlert(
+                    "Runs slower due to emulation", isPresented: $showEmulationAlert,
+                    desc:
+                        "This image was built for a different architecture (\(image.full.architecture)), so it needs to be emulated on your machine. This means it will run slower and may have more bugs.",
+                    button1Label: "OK"
+                )
             }
 
             Button(action: {
