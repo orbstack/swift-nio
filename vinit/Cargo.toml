@@ -29,7 +29,7 @@ serde_json = "1.0.97"
 signal-hook = "0.3.15"
 sntpc = "0.3.6"
 thiserror = "1.0.40"
-tokio = { version = "1.28.2", features = ["full"] }
+tokio = { version = "1.43.1", features = ["full"] }
 tower = "0.4.13"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
