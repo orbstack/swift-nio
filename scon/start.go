@@ -44,6 +44,7 @@ var (
 		"sd",     // USB Mass Storage, UAS (SCSI)
 		"ttyUSB", // USB serial
 		"hidraw", // HID
+		"nvme",   // NVMe (attached via NVMEoF TCP)
 	}
 
 	// unfortunately we CANNOT exclude zram0 for non-isolated machines,
@@ -320,6 +321,7 @@ func (c *Container) configureLxc() error {
 			addDevOptional("/dev/vndbinder")
 			addDevOptional("/dev/hwbinder")
 			addDevOptional("/dev/vhost-vsock")
+			addDevOptional("/dev/nvme-fabrics")
 
 			// add /dev/vdb1 to make k3s happy
 			// it only needs stat, but no harm in letting people access this if they need to for whatever reason
