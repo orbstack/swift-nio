@@ -399,7 +399,8 @@ struct DKImage: Codable, Equatable, Identifiable {
         if let tag = repoTags?.first, tag != "<none>:<none>" {
             return tag
         } else if let repoDigest = repoDigests?.first,
-                  let repoName = repoDigest.split(separator: "@").first {
+            let repoName = repoDigest.split(separator: "@").first
+        {
             // recover part of the tag from images that were pulled from a repo
             return "\(repoName) (\(userId.prefix(12).description))"
         } else {

@@ -23,9 +23,9 @@
 
 #define IP4(a, b, c, d) (bpf_htonl((a << 24) | (b << 16) | (c << 8) | d))
 
-const volatile __u8 config_tproxy_subnet4_enabled = 0;           // bool
-const volatile __u32 config_tproxy_subnet4_ip = 0;               // network order
-const volatile __u32 config_tproxy_subnet4_mask = 0xffffffff;    // network order
+const volatile __u8 config_tproxy_subnet4_enabled = 0;        // bool
+const volatile __u32 config_tproxy_subnet4_ip = 0;            // network order
+const volatile __u32 config_tproxy_subnet4_mask = 0xffffffff; // network order
 
 const volatile __u8 config_tproxy_subnet6_enabled = 0;           // bool
 const volatile __u32 config_tproxy_subnet6_ip[4] = {0, 0, 0, 0}; // network order
@@ -42,7 +42,7 @@ const volatile __u16 config_tproxy_ports[MAX_PORTS] = {0, 0};
 
 struct {
     __uint(type, BPF_MAP_TYPE_SOCKMAP);
-    __uint(max_entries, MAX_PORTS * SOCKET_KEY_MAX);
+    __uint(max_entries, MAX_PORTS *SOCKET_KEY_MAX);
     __type(key, __u32);
     __type(value, __u64);
 } tproxy_socket SEC(".maps");
