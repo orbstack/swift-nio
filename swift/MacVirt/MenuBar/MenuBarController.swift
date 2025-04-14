@@ -676,13 +676,13 @@ class MenuBarController: NSObject, NSMenuDelegate {
         submenu.addSeparator()
 
         submenu.addActionItem(
-            "Terminal", icon: systemImage("terminal"), disabled: record.state == .creating
+            "Terminal", icon: systemImage("terminal"), disabled: record.state.isInitializing
         ) {
             await record.openInTerminal()
         }
 
         submenu.addActionItem(
-            "Files", icon: systemImage("folder"), disabled: record.state == .creating
+            "Files", icon: systemImage("folder"), disabled: record.state.isInitializing
         ) {
             record.openNfsDirectory()
         }

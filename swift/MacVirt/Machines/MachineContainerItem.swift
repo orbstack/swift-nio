@@ -60,7 +60,7 @@ struct MachineContainerItem: View {
             if running {
                 ProgressIconButton(
                     systemImage: "stop.fill",
-                    actionInProgress: actionInProgress || record.state == .creating
+                    actionInProgress: actionInProgress || record.state.isInitializing
                 ) {
                     finishStop()
                 }
@@ -68,7 +68,7 @@ struct MachineContainerItem: View {
             } else {
                 ProgressIconButton(
                     systemImage: "play.fill",
-                    actionInProgress: actionInProgress || record.state == .creating
+                    actionInProgress: actionInProgress || record.state.isInitializing
                 ) {
                     finishStart()
                 }
@@ -112,14 +112,14 @@ struct MachineContainerItem: View {
                 }) {
                     Label("Open Terminal", systemImage: "terminal")
                 }
-                .disabled(record.state == .creating)
+                .disabled(record.state.isInitializing)
 
                 Button(action: {
                     record.openNfsDirectory()
                 }) {
                     Label("Open Files", systemImage: "folder")
                 }
-                .disabled(record.state == .creating)
+                .disabled(record.state.isInitializing)
             }
 
             Divider()
@@ -189,7 +189,7 @@ struct MachineContainerItem: View {
             RenameContainerView(name: record.name, record: record, isPresented: $presentRename)
         }
         .akListOnDoubleClick {
-            if record.state != .creating {
+            if !record.state.isInitializing {
                 Task {
                     await record.openInTerminal()
                 }

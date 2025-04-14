@@ -666,6 +666,7 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, isNew bool)
 	if record.State == types.ContainerStateCreating {
 		// restore creating state early to avoid race where user can start it
 		c.setState(types.ContainerStateCreating)
+		c.isCreating.Store(true)
 
 		// a container in 'creating' state starts with an active mutation that must be released before holds can be added
 		err = c.holds.BeginMutation("creating")
@@ -679,8 +680,8 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, isNew bool)
 		return nil, false, fmt.Errorf("duplicate in database: %w", err)
 	}
 
-	// delete if interrupted during creation
-	if (!isNew && record.State == types.ContainerStateCreating) || record.State == types.ContainerStateDeleting {
+	// delete if interrupted during creation/deletion
+	if !isNew && (record.State.IsInitializing() || record.State == types.ContainerStateDeleting) {
 		go func() {
 			err := c.Delete()
 			if err != nil {
@@ -691,7 +692,7 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, isNew bool)
 
 	// if not creating or deleting, run container restore hooks
 	// this requires rootfs to exist, which may not be the case until creation is done
-	if record.State != types.ContainerStateCreating && record.State != types.ContainerStateDeleting {
+	if !record.State.IsInitializing() && record.State != types.ContainerStateDeleting {
 		go func() {
 			err := m.onRestoreContainer(c)
 			if err != nil {

@@ -9,6 +9,9 @@ const (
 	ContainerStateStopping ContainerState = "stopping"
 	ContainerStateStopped  ContainerState = "stopped"
 	ContainerStateDeleting ContainerState = "deleting"
+
+	// only present in persisted state
+	ContainerStateProvisioning ContainerState = "provisioning"
 )
 
 func (s ContainerState) CanTransitionTo(other ContainerState, isInternal bool) bool {
@@ -32,4 +35,8 @@ func (s ContainerState) CanTransitionTo(other ContainerState, isInternal bool) b
 	default:
 		return false
 	}
+}
+
+func (s ContainerState) IsInitializing() bool {
+	return s == ContainerStateCreating || s == ContainerStateProvisioning
 }

@@ -58,7 +58,8 @@ type Container struct {
 	builtin bool
 	config  types.MachineConfig
 	// state
-	state atomic.Pointer[types.ContainerState]
+	state      atomic.Pointer[types.ContainerState]
+	isCreating atomic.Bool
 
 	hooks ContainerHooks
 
@@ -161,6 +162,21 @@ func (c *Container) RuntimeState() types.ContainerState {
 	return *c.state.Load()
 }
 
+// state reported to DB and GUI; reports 'provisioning' when container is
+// created but not fully initialized. ensures that container isn't accessible
+// in GUI while still initializing, and that 'provisioning' remains reported in the DB
+// so the container is cleaned up if scon is stopped while the machine is being set up.
+func (c *Container) PersistedState() types.ContainerState {
+	state := *c.state.Load()
+	// also report 'provisioning' if it's starting, to prevent scon being stopped while container is starting
+	// after being created -> doesn't get cleaned up afterwards
+	if c.isCreating.Load() && (state == types.ContainerStateRunning || state == types.ContainerStateStarting) {
+		return types.ContainerStateProvisioning
+	} else {
+		return state
+	}
+}
+
 func (c *Container) setState(state types.ContainerState) {
 	c.state.Store(&state)
 }
@@ -187,7 +203,7 @@ func (c *Container) toRecord() *types.ContainerRecord {
 		Config: c.config,
 
 		Builtin: c.builtin,
-		State:   c.RuntimeState(),
+		State:   c.PersistedState(),
 	}
 }
 

@@ -14,6 +14,7 @@ enum ContainerState: String, Codable {
     case stopping
     case stopped
     case deleting
+    case provisioning
 
     var friendlyName: String {
         switch self {
@@ -29,7 +30,13 @@ enum ContainerState: String, Codable {
             return "Stopped"
         case .deleting:
             return "Deleting"
+        case .provisioning:
+            return "Provisioning"
         }
+    }
+
+    var isInitializing: Bool {
+        return self == .creating || self == .provisioning
     }
 }
 

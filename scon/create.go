@@ -184,6 +184,13 @@ func (m *ConManager) Create(args *types.CreateRequest) (_ *Container, retErr err
 		return nil, fmt.Errorf("call restore hook: %w", err)
 	}
 
+	// we're done creating; set IsCreating to false & persist
+	c.isCreating.Store(false)
+	err = c.persist()
+	if err != nil {
+		return nil, fmt.Errorf("finish creation: %w", err)
+	}
+
 	logrus.WithField("container", c.Name).Info("container created")
 	return c, nil
 }
