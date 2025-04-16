@@ -8,7 +8,7 @@ bitflags = "2.5.0"
 bumpalo = "3.16.0"
 cfgenius = "0.1.1"
 counter = { version = "0.1.0", path = "../counter" }
-crossbeam-channel = "0.5.13"
+crossbeam-channel = "0.5.15"
 crossbeam-queue = "0.3.11"
 derive-where = "1.2.7"
 generational-arena = "0.2.9"
