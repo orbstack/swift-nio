@@ -168,7 +168,12 @@ func (c *Container) deleteLocked(isInternal bool) error {
 	// sync to make sure it's deleted before deleting from db
 	parentFd, err := unix.Open(path.Dir(c.dataDir), unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return fmt.Errorf("open dir: %w", err)
+		if errors.Is(err, unix.ENOENT) {
+			// should never happen unless FS gets very corrupted, but we can continue deleting
+			logrus.Error("rootfs parent dir doesn't exist, deleting machine anyway")
+		} else {
+			return fmt.Errorf("open dir: %w", err)
+		}
 	}
 	defer unix.Close(parentFd)
 
