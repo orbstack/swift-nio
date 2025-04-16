@@ -157,7 +157,7 @@ func (c *Container) Exec(cmd []string, opts lxc.AttachOptions, extraFd int) (int
 	return c.lxc.RunCommandNoWait(cmd, opts)
 }
 
-func (c *Container) State() types.ContainerState {
+func (c *Container) RuntimeState() types.ContainerState {
 	return *c.state.Load()
 }
 
@@ -171,7 +171,7 @@ func (c *Container) Running() bool {
 }
 
 func (c *Container) runningLocked() bool {
-	return c.State() == types.ContainerStateRunning
+	return c.RuntimeState() == types.ContainerStateRunning
 }
 
 func (c *Container) lxcRunning() bool {
@@ -187,7 +187,7 @@ func (c *Container) toRecord() *types.ContainerRecord {
 		Config: c.config,
 
 		Builtin: c.builtin,
-		State:   c.State(),
+		State:   c.RuntimeState(),
 	}
 }
 
@@ -389,8 +389,8 @@ func (c *Container) Freezer() *Freezer {
 }
 
 func (c *Container) transitionStateInternalLocked(newState types.ContainerState, isInternal bool) (types.ContainerState, error) {
-	oldState := c.State()
-	if c.State() == newState {
+	oldState := c.RuntimeState()
+	if c.RuntimeState() == newState {
 		return "", nil
 	}
 
@@ -424,7 +424,7 @@ func (c *Container) transitionStateLocked(state types.ContainerState) (types.Con
 func (c *Container) revertStateLocked(oldState types.ContainerState) {
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
-		"from":      c.State(),
+		"from":      c.RuntimeState(),
 		"to":        oldState,
 	}).Debug("reverting container state")
 

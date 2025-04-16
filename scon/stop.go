@@ -25,7 +25,7 @@ type StopOptions struct {
 }
 
 func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState, err error) {
-	oldState = c.State()
+	oldState = c.RuntimeState()
 	if !c.runningLocked() {
 		return oldState, nil
 	}
