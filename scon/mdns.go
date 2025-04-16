@@ -32,8 +32,7 @@ import (
 
 // in the future we should add machines using container.IPAddresses() on .orb.local
 // we don't do .docker.local anymore - no one used it
-var mdnsContainerSuffixes = []string{".orb.local."}
-
+const mdnsContainerSuffix = ".orb.local."
 const mdnsMachineSuffix = ".orb.local."
 
 const mdnsIndexDomain = "orb.local"
@@ -573,20 +572,10 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 		}
 	}
 
-	// all names above should have suffixes appended
-	suffixedNames := make([]dnsName, 0, len(names))
-	for _, name := range names {
-		for j, suffix := range mdnsContainerSuffixes {
-			// reuse existing array element for first suffix
-			suffixedNames = append(suffixedNames, dnsName{
-				Name: name.Name + suffix,
-				// alias suffixes are always hidden
-				Hidden:   name.Hidden || j != 0,
-				Wildcard: true,
-			})
-		}
+	// append .orb.local suffix to each name
+	for i, _ := range names {
+		names[i].Name += mdnsContainerSuffix
 	}
-	names = suffixedNames
 
 	if ctr.Labels != nil {
 		if extraNames, ok := ctr.Labels["dev.orbstack.domains"]; ok && extraNames != "" {
@@ -1019,7 +1008,7 @@ func (r *mdnsRegistry) getEntryForNameLocked(name string) (*mdnsEntry, bool) {
 		// no match at all.
 		// return NSEC only if it's under our main suffix
 		// otherwise we can't take responsibility for this name
-		if strings.HasSuffix(name, mdnsContainerSuffixes[0]) {
+		if strings.HasSuffix(name, mdnsContainerSuffix) {
 			return nil, true
 		} else {
 			return nil, false
