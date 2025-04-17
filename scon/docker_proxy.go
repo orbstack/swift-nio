@@ -381,17 +381,16 @@ func (p *DockerProxy) filterContainerCreate(req *http.Request, body *dockertypes
 	if body.HostConfig != nil {
 		/*
 			for i, bind := range body.HostConfig.Binds {
-				parts := strings.SplitN(bind, ":", 2)
-				if len(parts) < 2 {
+				src, destAndFlags, foundDestAndFlags := strings.Cut(bind, ":")
+				if !foundDestAndFlags {
 					continue
 				}
 
-				src := parts[0]
 				if !strings.HasPrefix(src, "/") || strings.HasPrefix(src, "/var/run") || strings.HasPrefix(src, "/var/lib") || strings.HasPrefix(src, mounts.Opt) || strings.HasPrefix(src, "/mnt/") {
 					continue
 				}
 
-				body.HostConfig.Binds[i] = mounts.Virtiofs + src + ":" + parts[1]
+				body.HostConfig.Binds[i] = mounts.Virtiofs + src + ":" + destAndFlags
 			}
 		*/
 	}

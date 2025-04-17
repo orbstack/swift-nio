@@ -130,8 +130,8 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 
 	// translate container id in volumesFrom
 	for i, vol := range newCtrReq.HostConfig.VolumesFrom {
-		volParts := strings.SplitN(vol, ":", 2)
-		id, err := m.getSrcContainerID(volParts[0])
+		ctrID, flagsStr, foundFlags := strings.Cut(vol, ":")
+		id, err := m.getSrcContainerID(ctrID)
 		if err != nil {
 			return fmt.Errorf("get container id: %w", err)
 		}
@@ -144,8 +144,8 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 		}
 
 		newCtrReq.HostConfig.VolumesFrom[i] = mappedID
-		if len(volParts) > 1 {
-			newCtrReq.HostConfig.VolumesFrom[i] += ":" + volParts[1]
+		if foundFlags {
+			newCtrReq.HostConfig.VolumesFrom[i] += ":" + flagsStr
 		}
 	}
 
@@ -179,15 +179,15 @@ func (m *Migrator) migrateOneContainer(ctr *dockertypes.ContainerJSON, userName 
 		knownVolumes = append(knownVolumes, vol.Source)
 	}
 	for _, vol := range newCtrReq.HostConfig.Binds {
-		volParts := strings.SplitN(vol, ":", 2)
+		volID, _, _ := strings.Cut(vol, ":")
 
 		// skip if bind mount
 		// paths have to be absolute for a bind mount so if this starts with /, it's a bind mount
-		if strings.HasPrefix(volParts[0], "/") {
+		if strings.HasPrefix(volID, "/") {
 			continue
 		}
 
-		knownVolumes = append(knownVolumes, volParts[0])
+		knownVolumes = append(knownVolumes, volID)
 	}
 	for _, vol := range fullCtr.Mounts {
 		if vol.Type != "volume" {
@@ -346,7 +346,8 @@ func (m *Migrator) getContainerDependencies(ctr *dockertypes.ContainerJSON) ([]s
 	}
 
 	for _, vol := range ctr.HostConfig.VolumesFrom {
-		id, err := m.getSrcContainerID(strings.SplitN(vol, ":", 2)[0])
+		ctrID, _, _ := strings.Cut(vol, ":")
+		id, err := m.getSrcContainerID(ctrID)
 		if err != nil {
 			return nil, fmt.Errorf("get container id: %w", err)
 		}

@@ -74,15 +74,13 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 		}
 
 		// split distro
-		parts := strings.SplitN(args[0], ":", 2)
-		distro := parts[0]
+		distro, version, foundVersion := strings.Cut(args[0], ":")
 		image, ok := images.DistroToImage[distro]
 		if !ok {
 			return errors.New("invalid distro: " + distro)
 		}
-		version := images.ImageToLatestVersion[image]
-		if len(parts) > 1 {
-			version = parts[1]
+		if !foundVersion {
+			version = images.ImageToLatestVersion[image]
 		}
 
 		// determine name

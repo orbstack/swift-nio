@@ -588,12 +588,10 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 			}
 
 			for _, nameAndFlags := range strings.Split(extraNames, ",") {
-				parts := strings.SplitN(nameAndFlags, ":", 2)
-				name := parts[0]
-
+				name, flagsStr, foundFlags := strings.Cut(nameAndFlags, ":")
 				var flags []string
-				if len(parts) > 1 {
-					flags = strings.Split(parts[1], ",")
+				if foundFlags {
+					flags = strings.Split(flagsStr, ",")
 				}
 
 				if !strings.HasSuffix(name, ".") {
