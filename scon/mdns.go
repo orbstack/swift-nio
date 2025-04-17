@@ -550,23 +550,26 @@ func (r *mdnsRegistry) containerToMdnsNames(ctr *dockertypes.ContainerSummaryMin
 	if ctr.Labels != nil {
 		if composeProject, ok := ctr.Labels["com.docker.compose.project"]; ok {
 			if composeService, ok := ctr.Labels["com.docker.compose.service"]; ok {
-				// if we have a compose name, mark all the default ones as hidden
-				for i := range names {
-					names[i].Hidden = true
-				}
+				// skip compose name for one-off `docker compose run`; it conflicts with existing <service>.<project>.orb.local
+				if composeOneoff := ctr.Labels["com.docker.compose.oneoff"]; composeOneoff != "True" {
+					// if we have a compose name, mark all the default ones as hidden
+					for i := range names {
+						names[i].Hidden = true
+					}
 
-				// for --scale: if this is not primary container, append the number
-				if composeNum, ok := ctr.Labels["com.docker.compose.container-number"]; ok && composeNum != "1" {
-					composeService += "-" + composeNum
-				}
+					// for --scale: if this is not primary container, append the number
+					if composeNum, ok := ctr.Labels["com.docker.compose.container-number"]; ok && composeNum != "1" {
+						composeService += "-" + composeNum
+					}
 
-				name := composeService + "." + composeProject
-				// translate _ to - for RFC compliance, but keep orig $CONTAINER_NAME for convenience, for apps that don't care
-				if strings.Contains(name, "_") {
-					names = append(names, dnsName{Name: name, Hidden: true, Wildcard: true})
-					names = append(names, dnsName{Name: strings.ReplaceAll(name, "_", "-"), Hidden: false, Wildcard: true})
-				} else {
-					names = append(names, dnsName{Name: name, Hidden: false, Wildcard: true})
+					name := composeService + "." + composeProject
+					// translate _ to - for RFC compliance, but keep orig $CONTAINER_NAME for convenience, for apps that don't care
+					if strings.Contains(name, "_") {
+						names = append(names, dnsName{Name: name, Hidden: true, Wildcard: true})
+						names = append(names, dnsName{Name: strings.ReplaceAll(name, "_", "-"), Hidden: false, Wildcard: true})
+					} else {
+						names = append(names, dnsName{Name: name, Hidden: false, Wildcard: true})
+					}
 				}
 			}
 		}

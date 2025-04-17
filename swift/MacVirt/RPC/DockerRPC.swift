@@ -50,7 +50,13 @@ struct DKContainer: Codable, Identifiable, Hashable {
     }
 
     var composeService: String? {
-        labels?[DockerLabels.composeService]
+        // for oneoff `docker compose run`, hide service name to avoid duplicate/conflict with the service it's based on (for both name and domain)
+        // scon uses the same logic for domains
+        composeOneoff ? nil : labels?[DockerLabels.composeService]
+    }
+    
+    private var composeOneoff: Bool {
+        labels?[DockerLabels.composeOneoff] == "True"
     }
 
     var composeNumber: String? {
@@ -487,6 +493,7 @@ struct DKSystemDf: Codable {
 enum DockerLabels {
     static let composeProject = "com.docker.compose.project"
     static let composeService = "com.docker.compose.service"
+    static let composeOneoff = "com.docker.compose.oneoff"
     static let composeConfigFiles = "com.docker.compose.project.config_files"
     static let composeWorkingDir = "com.docker.compose.project.working_dir"
     // for --scale
