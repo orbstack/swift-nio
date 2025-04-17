@@ -78,7 +78,7 @@ enum Distro: String, CaseIterable {
     // last version is latest stable default
     // systemd cgroupv1 excluded: centos 7, ubuntu bionic, oracle 7
     var versions: [DistroVersion] {
-        // DON'T FORGET TO UPDATE scon/images/images.go!
+        // DON'T FORGET TO UPDATE scon/images/images.go! AND lxc-images mirror script!
         switch self {
         case .alma: return [v("8"), v("9")]
         case .alpine: return [v("edge"), v("3.18"), v("3.20"), v("3.21")]
@@ -94,7 +94,7 @@ enum Distro: String, CaseIterable {
                 v("beowulf", as: "Beowulf"), v("chimaera", as: "Chimaera"),
                 v("daedalus", as: "Daedalus"),
             ]
-        case .fedora: return [v("40"), v("41")]
+        case .fedora: return [v("40"), v("41"), v("42")]
         case .gentoo: return [v("current", as: "Latest")]
         case .kali: return [v("current", as: "Latest")]
         case .nixos: return [v("unstable", as: "Unstable"), v("24.11")]
@@ -111,6 +111,7 @@ enum Distro: String, CaseIterable {
             ]
         case .void: return [v("current", as: "Latest")]
         }
+        // DON'T FORGET TO UPDATE scon/images/images.go! AND lxc-images mirror script!
     }
 
     var hasCloudVariant: Bool {

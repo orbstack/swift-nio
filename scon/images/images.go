@@ -103,6 +103,7 @@ var (
 		//ImageVoid:      "current",
 	}
 
+	// DON'T FORGET TO UPDATE swift/MacVirt/Machines/Images.swift! AND lxc-images mirror script!
 	ImageToLatestVersion = map[string]string{
 		//ImageAmazon: "current",
 		ImageAlma:      "9",
@@ -111,7 +112,7 @@ var (
 		ImageCentos:    "9-Stream",
 		ImageDebian:    "bookworm",
 		ImageDevuan:    "daedalus",
-		ImageFedora:    "41",
+		ImageFedora:    "42",
 		ImageGentoo:    "current",
 		ImageKali:      "current",
 		ImageNixos:     "24.11",
@@ -122,6 +123,7 @@ var (
 		ImageUbuntu:    "oracular",
 		ImageVoid:      "current",
 	}
+	// DON'T FORGET TO UPDATE swift/MacVirt/Machines/Images.swift! AND lxc-images mirror script!
 
 	// version number -> codename (preferred by lxc-images)
 	ImageVersionAliases = map[ImageVersion]string{
