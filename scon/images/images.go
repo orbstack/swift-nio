@@ -120,7 +120,7 @@ var (
 		ImageOpensuse:  "15.6",
 		ImageOracle:    "9",
 		ImageRocky:     "9",
-		ImageUbuntu:    "oracular",
+		ImageUbuntu:    "plucky",
 		ImageVoid:      "current",
 	}
 	// DON'T FORGET TO UPDATE swift/MacVirt/Machines/Images.swift! AND lxc-images mirror script!
@@ -140,6 +140,7 @@ var (
 		{ImageUbuntu, "22.04"}: "jammy",
 		{ImageUbuntu, "24.04"}: "noble",
 		{ImageUbuntu, "24.10"}: "oracular",
+		{ImageUbuntu, "25.04"}: "plucky",
 	}
 
 	// everything else is "default"

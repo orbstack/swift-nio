@@ -108,6 +108,7 @@ enum Distro: String, CaseIterable {
                 v("jammy", as: "22.04 LTS (Jammy Jellyfish)"),
                 v("noble", as: "24.04 LTS (Noble Numbat)"),
                 v("oracular", as: "24.10 (Oracular Oriole)"),
+                v("plucky", as: "25.04 (Plucky Puffin)"),
             ]
         case .void: return [v("current", as: "Latest")]
         }
