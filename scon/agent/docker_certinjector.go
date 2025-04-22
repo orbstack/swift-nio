@@ -86,7 +86,7 @@ func writeFileIfChanged(fs *securefs.FS, path string, data []byte, perm os.FileM
 	file, err := fs.OpenFile(path, unix.O_RDWR|unix.O_CREAT, perm)
 	if err != nil {
 		if errors.Is(err, unix.ENOENT) {
-			return false, nil
+			return false, err
 		} else {
 			return false, fmt.Errorf("open: %w", err)
 		}
