@@ -7,7 +7,7 @@ use std::{
     os::{
         fd::AsRawFd,
         unix::{
-            fs::{chroot, DirBuilderExt},
+            fs::{chown, chroot, DirBuilderExt, MetadataExt},
             prelude::{FileExt, PermissionsExt},
         },
     },
@@ -901,20 +901,27 @@ fn init_nfs() -> anyhow::Result<()> {
 // btrfs COW means that setting perms requires a new metadata block
 // that's not possible if qgroup is set to exactly used, or negative, resulting in ENOSPC on boot
 // so avoid changing perms if not necessary
-fn maybe_set_permissions(path: &str, mode: u32) -> anyhow::Result<()> {
+fn maybe_set_permissions(path: &str, mode: u32, uid: u32, gid: u32) -> anyhow::Result<()> {
     // only set if it's different
-    let current_mode = fs::metadata(path)?.permissions().mode();
+    let metadata = fs::metadata(path)?;
+    let current_mode = metadata.permissions().mode();
+
     if (current_mode & 0o777) != mode {
         fs::set_permissions(path, Permissions::from_mode(mode))?;
     }
+
+    if metadata.uid() != uid || metadata.gid() != gid {
+        chown(path, Some(uid), Some(gid))?;
+    }
+
     Ok(())
 }
 
 fn init_data() -> anyhow::Result<()> {
     // guest tools
     fs::create_dir_all("/data/guest-state/bin/cmdlinks")?;
-    maybe_set_permissions("/data/guest-state/bin", 0o755)?;
-    maybe_set_permissions("/data/guest-state/bin/cmdlinks", 0o755)?;
+    maybe_set_permissions("/data/guest-state/bin", 0o755, 0, 0)?;
+    maybe_set_permissions("/data/guest-state/bin/cmdlinks", 0o755, 0, 0)?;
 
     // mount a r-o nix to protect /nix/orb/sys and prevent creating files in /nix/.
     bind_mount_ro("/opt/wormhole-rootfs", "/mnt/wormhole-unified")?;
@@ -931,8 +938,8 @@ fn init_data() -> anyhow::Result<()> {
             "/root/.ssh/authorized_keys",
             "/data/dev-root-home/.ssh/authorized_keys",
         )?;
-        maybe_set_permissions("/data/dev-root-home/.ssh", 0o700)?;
-        maybe_set_permissions("/data/dev-root-home/.ssh/authorized_keys", 0o600)?;
+        maybe_set_permissions("/data/dev-root-home/.ssh", 0o700, 0, 0)?;
+        maybe_set_permissions("/data/dev-root-home/.ssh/authorized_keys", 0o600, 0, 0)?;
         bind_mount("/data/dev-root-home", "/root", None)?;
     }
 

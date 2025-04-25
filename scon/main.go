@@ -75,12 +75,6 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 		return RunSshAgentProxy(u.Uid, u.Gid)
 	})
 
-	// perms for cmdlinks
-	err = os.Chown(conf.C().CmdLinksDir, u.Uid, u.Gid)
-	if err != nil {
-		return err
-	}
-
 	// setup and start nfs uid
 	if conf.C().StartNfs {
 		// chown nfs roots (perm mode = 700)

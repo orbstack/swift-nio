@@ -211,6 +211,20 @@ func configureSystemStandard(args InitialSetupArgs) error {
 		return err
 	}
 
+	// symlink /opt/orbstack-guest/bin/{mac,macctl} so they're accessible by sudo;
+	// sudo creates a fresh path (secure_path in /etc/sudoers). easier to symlink
+	// than to modify /etc/environment or /etc/security/pam_env.conf (loaded by PAM).
+	// not needed for nix since 'SETENV: ALL' is set for sudo.
+	logrus.Debug("linking mac & macctl")
+	err = os.Symlink(mounts.Bin+"/mac", "/usr/local/bin/mac")
+	if err != nil {
+		return err
+	}
+	err = os.Symlink(mounts.Bin+"/macctl", "/usr/local/bin/macctl")
+	if err != nil {
+		return err
+	}
+
 	// set timezone
 	// don't use systemd timedatectl. it can change the system clock sometimes (+8h for pst)
 	// glibc will reload eventually so it's ok

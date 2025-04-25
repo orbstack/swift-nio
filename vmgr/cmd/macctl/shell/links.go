@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -27,6 +28,8 @@ func LinkCmd(name string) error {
 	if err != nil {
 		if os.IsExist(err) {
 			return fmt.Errorf("already linked: %s", name)
+		} else if os.IsPermission(err) {
+			return errors.New("Permission denied. This command must be run as root. (hint: use sudo?)")
 		} else {
 			return err
 		}
@@ -67,6 +70,8 @@ func UnlinkCmd(name string) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("not linked: %s", name)
+		} else if os.IsPermission(err) {
+			return errors.New("Permission denied. This command must be run as root. (hint: use sudo?)")
 		} else {
 			return err
 		}
