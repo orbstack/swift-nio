@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/orbstack/macvirt/vmgr/cmd/macctl/shell"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"github.com/spf13/cobra"
 )
 
@@ -39,11 +38,7 @@ The following commands are linked by default and cannot be unlinked:
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := shell.LinkCmd(args[0])
-		if err != nil {
-			// print to stderr
-			cmd.PrintErrln(err)
-			os.Exit(1)
-		}
+		errorx.CheckCLI(err)
 
 		return nil
 	},

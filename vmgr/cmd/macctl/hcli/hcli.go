@@ -1,6 +1,7 @@
 package hcli
 
 import (
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"net"
 	"sync"
 
@@ -10,12 +11,10 @@ import (
 
 var Client = sync.OnceValue(func() *hclient.Client {
 	conn, err := net.Dial("unix", mounts.HcontrolSocket)
-	if err != nil {
-		panic(err)
-	}
+	errorx.CheckCLI(err)
+
 	client, err := hclient.New(conn)
-	if err != nil {
-		panic(err)
-	}
+	errorx.CheckCLI(err)
+
 	return client
 })

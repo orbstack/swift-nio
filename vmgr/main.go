@@ -644,7 +644,7 @@ func runVmManager() {
 	}()
 	// recover from fatal-log panic:
 	// before sentry, so we don't report dummy CLI panic error to sentry
-	defer errorx.RecoverCLI()
+	defer errorx.RecoverCLI(1)
 
 	if !osver.IsAtLeast("v13.0") {
 		errorx.Fatalf("unsupported OS: macOS 13.0 or newer is required")

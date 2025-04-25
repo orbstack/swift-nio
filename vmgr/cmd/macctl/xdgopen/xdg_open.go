@@ -3,6 +3,7 @@ package xdgopen
 import (
 	"errors"
 	"fmt"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -62,24 +63,24 @@ This is the OrbStack implementation of xdg-open.
 			_, err = os.Stat(target)
 			if err != nil {
 				if errors.Is(err, os.ErrNotExist) {
-					fmt.Fprintf(os.Stderr, "xdg-open: file '%s' does not exist\n", target)
+					errorx.ErrorfCLI("xdg-open: file '%s' does not exist\n", target)
 					// exit codes from `man xdg-open`
 					os.Exit(2)
 				} else {
-					fmt.Fprintf(os.Stderr, "xdg-open: failed to open '%s': %v\n", target, err)
+					errorx.ErrorfCLI("xdg-open: failed to open '%s': %v\n", target, err)
 					os.Exit(4)
 				}
 			}
 
 			target, err = filepath.EvalSymlinks(target)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "xdg-open: failed to resolve path '%s': %v\n", target, err)
+				errorx.ErrorfCLI("xdg-open: failed to resolve path '%s': %v\n", target, err)
 				os.Exit(4)
 			}
 
 			target, err = filepath.Abs(target)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "xdg-open: failed to resolve path '%s': %v\n", target, err)
+				errorx.ErrorfCLI("xdg-open: failed to resolve path '%s': %v\n", target, err)
 				os.Exit(4)
 			}
 
@@ -91,7 +92,7 @@ This is the OrbStack implementation of xdg-open.
 			CombinedArgs: []string{"open", target},
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "xdg-open: %v\n", err)
+			errorx.ErrorfCLI("xdg-open: %v\n", err)
 			// fallthrough to exit code
 		}
 

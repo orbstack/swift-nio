@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"os"
 	"path"
 
@@ -15,6 +16,11 @@ import (
 )
 
 func main() {
+	// catch anything not caught by the RecoverCLI in runCtl,
+	// and exit with code 2 to differentiate from forwarded exit
+	// codes from stub mode
+	defer errorx.RecoverCLI(2)
+
 	cmd := path.Base(os.Args[0])
 	var err error
 	exitCode := 0
@@ -34,7 +40,7 @@ func main() {
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		errorx.ErrorfCLI("%v\n", err)
 	}
 
 	os.Exit(exitCode)
@@ -59,10 +65,10 @@ func runBinfmtStub() (int, error) {
 		// attempting binfmt in docker or isolated
 		// change err msg based on whether it's docker
 		if unix.Access("/.dockerenv", unix.F_OK) == nil {
-			fmt.Fprintf(os.Stderr, "Cannot run macOS (Mach-O) executable in Docker: Exec format error\n")
+			errorx.ErrorfCLI("Cannot run macOS (Mach-O) executable in Docker: Exec format error\n")
 			return 126, nil
 		} else {
-			fmt.Fprintf(os.Stderr, "Cannot run macOS (Mach-O) executable in isolated machine: Exec format error\n")
+			errorx.ErrorfCLI("Cannot run macOS (Mach-O) executable in isolated machine: Exec format error\n")
 			return 126, nil
 		}
 	}
@@ -147,6 +153,9 @@ func shouldCallRunCtl(args []string) bool {
 }
 
 func runCtl(fallbackToShell bool) error {
+	// clean exit on panic
+	defer errorx.RecoverCLI(1)
+
 	if fallbackToShell && shouldCallRunCtl(os.Args[1:]) {
 		// alias to run - so we borrow its arg parsing logic
 		os.Args = append([]string{os.Args[0], "run"}, os.Args[1:]...)

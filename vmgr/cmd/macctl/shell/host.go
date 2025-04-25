@@ -2,6 +2,7 @@ package shell
 
 import (
 	"errors"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"net"
 	"os"
 	"sync"
@@ -18,20 +19,16 @@ var HostUser = sync.OnceValue(func() string {
 			return ""
 		}
 
-		panic(err)
+		errorx.CheckCLI(err)
 	}
 	defer conn.Close()
 
 	client, err := hclient.New(conn)
-	if err != nil {
-		panic(err)
-	}
+	errorx.CheckCLI(err)
 	defer client.Close()
 
 	u, err := client.GetUser()
-	if err != nil {
-		panic(err)
-	}
+	errorx.CheckCLI(err)
 
 	return u.Username
 })

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"os"
 	"os/exec"
 
@@ -58,7 +59,7 @@ is equivalent to:
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				os.Exit(exitErr.ExitCode())
 			} else {
-				return err
+				errorx.CheckCLI(err)
 			}
 		}
 

@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"os"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"strings"
 
 	"github.com/orbstack/macvirt/vmgr/cmd/macctl/hcli"
@@ -37,10 +37,7 @@ If multiple arguments are provided, they will be joined into a single message wi
 			Subtitle: subtitle,
 			Silent:   silent,
 		})
-		if err != nil {
-			cmd.PrintErrln(err)
-			os.Exit(1)
-		}
+		errorx.CheckCLI(err)
 
 		return nil
 	},

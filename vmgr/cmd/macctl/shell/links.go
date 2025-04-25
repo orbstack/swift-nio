@@ -3,6 +3,7 @@ package shell
 import (
 	"errors"
 	"fmt"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"os"
 	"strings"
 
@@ -31,7 +32,7 @@ func LinkCmd(name string) error {
 		} else if os.IsPermission(err) {
 			return errors.New("Permission denied. This command must be run as root. (hint: use sudo?)")
 		} else {
-			return err
+			errorx.CheckCLI(err)
 		}
 	}
 
@@ -56,9 +57,9 @@ func UnlinkCmd(name string) error {
 	fi, err := os.Lstat(mounts.UserCmdLinks + "/" + name)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("not linked: %s", name)
+			errorx.CheckCLI(fmt.Errorf("not linked: %s", name))
 		} else {
-			return err
+			errorx.CheckCLI(err)
 		}
 	}
 	if fi.Mode()&os.ModeSymlink == 0 {

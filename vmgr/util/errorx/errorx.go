@@ -3,6 +3,7 @@ package errorx
 import (
 	"errors"
 	"fmt"
+	"github.com/fatih/color"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -20,11 +21,11 @@ func Fatalf(format string, args ...interface{}) {
 	panic(errCLIPanic)
 }
 
-func RecoverCLI() {
+func RecoverCLI(exitCode int) {
 	if r := recover(); r != nil {
 		if r == errCLIPanic {
 			// exit after panic propagation
-			os.Exit(1)
+			os.Exit(exitCode)
 		} else {
 			panic(r)
 		}
@@ -38,4 +39,19 @@ func PrintRecursive(err error) {
 
 	fmt.Println(err)
 	PrintRecursive(errors.Unwrap(err))
+}
+
+func CheckCLI(err error) {
+	if err != nil {
+		red := color.New(color.FgRed).FprintlnFunc()
+		red(os.Stderr, err)
+
+		// may need to do cleanup, so don't exit
+		panic(errCLIPanic)
+	}
+}
+
+func ErrorfCLI(format string, args ...interface{}) {
+	red := color.New(color.FgRed).FprintfFunc()
+	red(os.Stderr, format, args...)
 }

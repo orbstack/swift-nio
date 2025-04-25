@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"os"
 	"strings"
 
@@ -115,9 +116,8 @@ To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac
 		// parse flags
 		var err error
 		args, err = ParseRunFlags(args)
-		if err != nil {
-			return err
-		}
+		errorx.CheckCLI(err)
+
 		if FlagWantHelp {
 			cmd.Help()
 			return nil
@@ -134,9 +134,7 @@ To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac
 			// if use shell, then args are joined by space and passed to shell as script
 			UseShell: useShell,
 		})
-		if err != nil {
-			panic(err)
-		}
+		errorx.CheckCLI(err)
 
 		os.Exit(exitCode)
 		return nil
