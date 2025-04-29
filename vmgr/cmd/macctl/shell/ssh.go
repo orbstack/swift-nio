@@ -53,7 +53,7 @@ type CommandOpts struct {
 	Argv0        *string
 }
 
-func getNfsMachineRoot() string {
+func getNfsRoots() (string, string) {
 	user := HostUser()
 	if user == "" {
 		user = os.Getenv("USER")
@@ -65,12 +65,16 @@ func getNfsMachineRoot() string {
 		panic(err)
 	}
 
-	return "/Users/" + user + "/" + mounts.NfsDirName + "/" + hostname
+	nfsRoot := "/Users/" + user + "/" + mounts.NfsDirName
+	return nfsRoot, nfsRoot + "/" + hostname
 }
 
 func MakePathTransOptions() sshpath.ToMacOptions {
+	nfsRoot, nfsMachineRoot := getNfsRoots()
+
 	return sshpath.ToMacOptions{
-		NfsMachineRoot: getNfsMachineRoot(),
+		NfsRoot:        nfsRoot,
+		NfsMachineRoot: nfsMachineRoot,
 	}
 }
 

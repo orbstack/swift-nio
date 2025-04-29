@@ -11,6 +11,7 @@ var (
 const (
 	Virtiofs      = "/mnt/mac"
 	LinuxExplicit = "/mnt/linux"
+	Machines      = "/mnt/machines"
 
 	Opt             = "/opt/orbstack-guest"
 	Pstub           = Opt + "/pstub"

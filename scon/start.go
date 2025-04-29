@@ -491,7 +491,7 @@ func (c *Container) configureLxc() error {
 
 			// bind NFS root at /mnt/machines for access
 			// must be rslave for agent's ~/OrbStack bind to work later
-			bind(nfsDirForMachines+"/ro", "/mnt/machines", "ro,rslave")
+			bind(nfsDirForMachines+"/ro", mounts.Machines, "ro,rslave")
 			// also bind it to ~/OrbStack so paths work correctly
 			// with krun/rsvm VMM, this is OK because we replace the dir with /var/empty, and inode never changes
 			// will break with VZF's virtiofs server!

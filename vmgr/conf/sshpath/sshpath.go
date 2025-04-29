@@ -12,6 +12,7 @@ import (
 type PathTranslatorFunc[T any] func(string, T) string
 
 type ToMacOptions struct {
+	NfsRoot        string
 	NfsMachineRoot string
 	Relaxed        bool
 }
@@ -30,6 +31,15 @@ func ToMac(p string, opts ToMacOptions) string {
 		return "/"
 	} else if strings.HasPrefix(p, mounts.Virtiofs+"/") {
 		return strings.TrimPrefix(p, mounts.Virtiofs)
+	}
+
+	// if path is under machines mount, remove the mount prefix
+	if p == mounts.Machines {
+		// /mnt/machines -> /Users/<user>/OrbStack -- is basically the same
+		return opts.NfsRoot
+	} else if machineAndPath := strings.TrimPrefix(p, mounts.Machines+"/"); machineAndPath != p {
+		// trimmed = machine name + remainder. we can just append that directly to the nfs root path because it follows the same structure
+		return opts.NfsRoot + "/" + machineAndPath
 	}
 
 	// nothing to do for linked paths
