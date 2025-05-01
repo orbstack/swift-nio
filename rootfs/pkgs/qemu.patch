@@ -101,7 +101,7 @@ index b09af8d436..e662505db7 100644
      module_call_init(MODULE_INIT_TRACE);
      qemu_init_cpu_list();
 diff --git a/linux-user/syscall.c b/linux-user/syscall.c
-index a407d4a023..2a8eb39401 100644
+index a407d4a023..220ec13bae 100644
 --- a/linux-user/syscall.c
 +++ b/linux-user/syscall.c
 @@ -2177,6 +2177,7 @@ static abi_long do_setsockopt(int sockfd, int level, int optname,
@@ -160,7 +160,7 @@ index a407d4a023..2a8eb39401 100644
          case IPV6_UNICAST_HOPS:
          case IPV6_MULTICAST_HOPS:
          case IPV6_MULTICAST_LOOP:
-@@ -3154,25 +3189,6 @@ static abi_long do_socket(int domain, int type, int protocol)
+@@ -3154,50 +3189,9 @@ static abi_long do_socket(int domain, int type, int protocol)
      int target_type = type;
      int ret;
  
@@ -186,7 +186,32 @@ index a407d4a023..2a8eb39401 100644
      ret = get_errno(socket(domain, type, protocol));
      if (ret >= 0) {
          ret = sock_flags_fixup(ret, target_type);
-@@ -3247,7 +3263,7 @@ static abi_long do_sendrecvmsg_locked(int fd, struct target_msghdr *msgp,
+-        if (type == SOCK_PACKET) {
+-            /* Manage an obsolete case :
+-             * if socket type is SOCK_PACKET, bind by name
+-             */
+-            fd_trans_register(ret, &target_packet_trans);
+-        } else if (domain == PF_NETLINK) {
+-            switch (protocol) {
+-#ifdef CONFIG_RTNETLINK
+-            case NETLINK_ROUTE:
+-                fd_trans_register(ret, &target_netlink_route_trans);
+-                break;
+-#endif
+-            case NETLINK_KOBJECT_UEVENT:
+-                /* nothing to do: messages are strings */
+-                break;
+-            case NETLINK_AUDIT:
+-                fd_trans_register(ret, &target_netlink_audit_trans);
+-                break;
+-            default:
+-                g_assert_not_reached();
+-            }
+-        }
+     }
+     return ret;
+ }
+@@ -3247,7 +3241,7 @@ static abi_long do_sendrecvmsg_locked(int fd, struct target_msghdr *msgp,
                                        int flags, int send)
  {
      abi_long ret, len;
