@@ -246,8 +246,14 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
                     • Make sure your date and time are correct
                 """
         case .setupError(XPCError.connectionInvalid):
-            return
-                "Privileged helper failed to start. Please enable it or disable admin privileges in Settings > System."
+            return """
+                Privileged helper failed to start.
+
+                To fix this:
+                    • Allow OrbStack in macOS Settings > General > Login Items & Extensions > Allow in the Background. This is recommended for full functionality.
+                    • Make sure that third-party software is not blocking OrbStack's privileged helper.
+                    • Disable admin privileges in OrbStack Settings > System.
+                """
         default:
             if let cause {
                 return fmtRpc(cause)
