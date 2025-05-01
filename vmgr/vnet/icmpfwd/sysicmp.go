@@ -344,10 +344,11 @@ func (i *IcmpFwd) forwardReplies4() error {
 	for {
 		n, _, _, err := i.conn4.ReadFrom(fullBuf)
 		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				logrus.WithError(err).Error("icmp4 socket read failed")
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			} else {
+				return err
 			}
-			return err
 		}
 		msg := fullBuf[:n]
 
@@ -468,10 +469,11 @@ func (i *IcmpFwd) forwardReplies6() error {
 	for {
 		n, cm, addr, err := i.conn6.ReadFrom(fullBuf)
 		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				logrus.Error("error reading from icmp6 socket ", err)
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			} else {
+				return err
 			}
-			return err
 		}
 		msg := fullBuf[:n]
 
