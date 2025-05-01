@@ -512,6 +512,14 @@ func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 			return err
 		}
 	} else {
+		// standard system configuration
+		// do this first to get certs installed before `apk add shadow` later
+		err = configureSystemStandard(args)
+		if err != nil {
+			logrus.WithError(err).Error("standard system configuration failed")
+			return err
+		}
+
 		// find a shell
 		shell, err := selectShell()
 		if err != nil {
@@ -557,13 +565,6 @@ func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 		logrus.WithField("groups", groups).Debug("Adding user to groups")
 		err = addUserToGroups(args.Username, groups)
 		if err != nil {
-			return err
-		}
-
-		// standard system configuration
-		err = configureSystemStandard(args)
-		if err != nil {
-			logrus.WithError(err).Error("standard system configuration failed")
 			return err
 		}
 
