@@ -77,10 +77,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
 
     var userName: String {
         // prefer compose service label first (because we'll be grouped if it's compose)
-        if let k8sType = labels?[DockerLabels.k8sType],
+        if let k8sName = labels?[DockerLabels.k8sContainerName],
             let k8sPodName = labels?[DockerLabels.k8sPodName]
         {
-            return "\(k8sPodName) (\(k8sType))"
+            return "\(k8sPodName) (\(k8sName))"
         } else if let composeService {
             // all containers have numbers, even w/o scale
             if let composeNumber, composeNumber != "1" {
@@ -501,6 +501,7 @@ enum DockerLabels {
 
     static let k8sType = "io.kubernetes.docker.type"
     static let k8sPodName = "io.kubernetes.pod.name"
+    static let k8sContainerName = "io.kubernetes.container.name"
 
     static let customDomains = "dev.orbstack.domains"
 }

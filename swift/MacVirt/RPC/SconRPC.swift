@@ -116,19 +116,6 @@ enum StatsID: Codable, Equatable, Hashable, Comparable {
     // cgroupPath > pid
     case cgroupPath(String)
     case pid(UInt32)
-
-    static func < (lhs: StatsID, rhs: StatsID) -> Bool {
-        switch (lhs, rhs) {
-        case (.cgroupPath(let l), .cgroupPath(let r)):
-            return l < r
-        case (.pid(let l), .pid(let r)):
-            return l < r
-        case (.cgroupPath, .pid):
-            return false
-        case (.pid, .cgroupPath):
-            return true
-        }
-    }
 }
 
 struct GetStatsRequest: Codable {
@@ -139,8 +126,14 @@ struct StatsResponse: Codable {
     var entries: [StatsEntry]
 }
 
+enum StatsEntity: Codable, Equatable {
+    case machine(id: String)
+    case container(id: String)
+}
+
 struct StatsEntry: Codable {
     var id: StatsID
+    var entity: StatsEntity
 
     var cpuUsageUsec: UInt64
     var diskReadBytes: UInt64

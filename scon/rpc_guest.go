@@ -32,7 +32,12 @@ type SconGuestServer struct {
 
 	// only for OnDockerContainersChanged for now
 	mu                    syncx.Mutex
-	dockerContainersCache map[string]dockertypes.ContainerSummaryMin
+	dockerContainersCache map[string]containerWithMeta
+}
+
+type containerWithMeta struct {
+	dockertypes.ContainerSummaryMin
+	CgroupPath string
 }
 
 func (s *SconGuestServer) Ping(_ None, _ *None) error {
@@ -140,9 +145,9 @@ func (s *SconGuestServer) onDockerContainerPreStart(cid string) error {
 	return s.onDockerContainersChangedLocked(sgtypes.ContainersDiff{
 		Diff: sgtypes.Diff[dockertypes.ContainerSummaryMin]{
 			Added:   nil,
-			Removed: []dockertypes.ContainerSummaryMin{ctr},
+			Removed: []dockertypes.ContainerSummaryMin{ctr.ContainerSummaryMin},
 		},
-		AddedRootfsFdxSeqs: nil,
+		AddedContainerMeta: nil,
 	})
 }
 
@@ -196,9 +201,19 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 		}
 	}
 	for i, ctr := range diff.Added {
-		s.dockerContainersCache[ctr.ID] = ctr
+		meta := diff.AddedContainerMeta[i]
 
-		procDirFdxSeq := diff.AddedProcDirFdxSeqs[i]
+		// guest is untrusted. sanitize cgroup path to prevent escape
+		if strings.Contains(meta.CgroupPath, "/../") || strings.HasPrefix(meta.CgroupPath, "../") || strings.HasSuffix(meta.CgroupPath, "/..") || meta.CgroupPath == ".." {
+			return fmt.Errorf("invalid cgroup path: %s", meta.CgroupPath)
+		}
+
+		s.dockerContainersCache[ctr.ID] = containerWithMeta{
+			ContainerSummaryMin: ctr,
+			CgroupPath:          meta.CgroupPath,
+		}
+
+		procDirFdxSeq := meta.ProcDirFdxSeq
 		var procDirfd *os.File
 		if procDirFdxSeq != 0 {
 			err := s.dockerMachine.useAgentLocked(func(a *agent.Client) error {
@@ -215,7 +230,7 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 
 		if s.dockerMachine.runningLocked() {
 			// mount nfs in shadow dir
-			fdxSeq := diff.AddedRootfsFdxSeqs[i]
+			fdxSeq := meta.RootfsFdxSeq
 			if fdxSeq != 0 {
 				err := s.recvAndMountRootfsFdxLocked(&ctr, fdxSeq)
 				if err != nil {
@@ -333,6 +348,20 @@ func (s *SconGuestServer) clearDockerContainersCache() {
 	clear(s.dockerContainersCache)
 }
 
+func (s *SconGuestServer) ForEachDockerContainer(fn func(ctr containerWithMeta) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, ctr := range s.dockerContainersCache {
+		err := fn(ctr)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *SconGuestServer) GetProxyUpstreamByHost(args sgtypes.GetProxyUpstreamByHostArgs, reply *sgtypes.GetProxyUpstreamByHostResponse) error {
 	addr, upstream, err := s.m.net.mdnsRegistry.getProxyUpstreamByHost(args.Host, args.V4)
 	if err != nil {
@@ -375,7 +404,7 @@ func ListenSconGuest(m *ConManager) error {
 		dockerMachine:         dockerMachine,
 		vlanRouterIfi:         vlanRouterIf.Index,
 		vlanMacTemplate:       vlanMacTemplate,
-		dockerContainersCache: make(map[string]dockertypes.ContainerSummaryMin),
+		dockerContainersCache: make(map[string]containerWithMeta),
 	}
 	rpcServer := rpc.NewServer()
 	err = rpcServer.RegisterName("scg", server)

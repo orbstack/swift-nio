@@ -6,6 +6,19 @@ import Defaults
 import Foundation
 import SwiftUI
 
+struct DockerComposeGroupImage: View {
+    let project: String
+
+    var body: some View {
+        let color = SystemColors.forString(project)
+        Image(systemName: "square.stack.3d.up.fill")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 32, height: 32)
+            .foregroundColor(color)
+    }
+}
+
 struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
@@ -40,13 +53,8 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
         HStack {
             HStack {
-                let color = SystemColors.forString(composeGroup.project)
-                Image(systemName: "square.stack.3d.up.fill")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 32, height: 32)
+                DockerComposeGroupImage(project: composeGroup.project)
                     .padding(.trailing, 8)
-                    .foregroundColor(color)
                     .if(isFirstInList) {
                         $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .trailing) {
                             HStack {

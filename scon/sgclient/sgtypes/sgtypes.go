@@ -3,6 +3,7 @@ package sgtypes
 import (
 	"net"
 	"net/netip"
+	"slices"
 
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
@@ -61,10 +62,15 @@ type Diff[T any] struct {
 	Added   []T
 }
 
+type AddedContainerMeta struct {
+	RootfsFdxSeq  uint64
+	ProcDirFdxSeq uint64
+	CgroupPath    string
+}
+
 type ContainersDiff struct {
 	Diff[dockertypes.ContainerSummaryMin]
-	AddedRootfsFdxSeqs  []uint64
-	AddedProcDirFdxSeqs []uint64
+	AddedContainerMeta []AddedContainerMeta
 }
 
 type TaggedImage struct {
@@ -80,7 +86,7 @@ func (t *TaggedImage) Identifier() string {
 func prefixToMask(prefix netip.Prefix) net.IPMask {
 	nBits := prefix.Bits()
 	mask := make(net.IPMask, len(prefix.Addr().AsSlice()))
-	for i := 0; i < len(mask); i++ {
+	for i := range mask {
 		if nBits >= 8 {
 			mask[i] = 0xff
 			nBits -= 8
@@ -97,7 +103,7 @@ func prefixToMask(prefix netip.Prefix) net.IPMask {
 // last IP in range
 func lastIPInSubnet(addr net.IP, mask net.IPMask) net.IP {
 	// copy
-	addr = append([]byte(nil), addr...)
+	addr = slices.Clone(addr)
 
 	// apply mask
 	for i := range addr {

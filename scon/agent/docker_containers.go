@@ -90,8 +90,7 @@ func (d *DockerAgent) refreshContainers() error {
 
 	// then add
 	// fdx seqs can't be 0, so zero = missing
-	rootfsFdxSeqs := make([]uint64, len(added))
-	procDirFdxSeqs := make([]uint64, len(added))
+	addedMeta := make([]sgtypes.AddedContainerMeta, len(added))
 	for i, c := range added {
 		fullCtr, err := d.realClient.InspectContainer(c.ID)
 		if err != nil {
@@ -106,16 +105,26 @@ func (d *DockerAgent) refreshContainers() error {
 
 		// open rootfs (/) mount and send over fdx
 		// do it one at a time to allow for failures, and b/c 16-fd limit
-		rootfsFdxSeqs[i], err = openPidRootfsAndSend(fullCtr.State.Pid, d.agent.fdx)
+		addedMeta[i].RootfsFdxSeq, err = openPidRootfsAndSend(fullCtr.State.Pid, d.agent.fdx)
 		if err != nil && !errors.Is(err, errContainerExited) {
 			// container exited is normal - just don't mount
 			logrus.WithError(err).Error("failed to send rfd")
 		}
 
-		procDirFdxSeqs[i], err = openPidProcDirAndSend(fullCtr.State.Pid, d.agent.fdx)
+		addedMeta[i].ProcDirFdxSeq, err = openPidProcDirAndSend(fullCtr.State.Pid, d.agent.fdx)
 		if err != nil {
 			logrus.WithError(err).Error("failed to send proc dir")
 		}
+
+		var cgroupPath string
+		if fullCtr.HostConfig.CgroupParent != "" {
+			cgroupPath = fullCtr.HostConfig.CgroupParent + "/" + fullCtr.ID
+		} else if fullCtr.HostConfig.Cgroup != "" {
+			cgroupPath = fullCtr.HostConfig.Cgroup
+		} else {
+			cgroupPath = "/docker/" + fullCtr.ID
+		}
+		addedMeta[i].CgroupPath = cgroupPath
 	}
 
 	// tell scon
@@ -124,8 +133,7 @@ func (d *DockerAgent) refreshContainers() error {
 			Added:   added,
 			Removed: removed,
 		},
-		AddedRootfsFdxSeqs:  rootfsFdxSeqs,
-		AddedProcDirFdxSeqs: procDirFdxSeqs,
+		AddedContainerMeta: addedMeta,
 	})
 	if err != nil {
 		logrus.WithError(err).Error("failed to update scon containers")

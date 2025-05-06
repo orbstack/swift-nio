@@ -167,8 +167,24 @@ type StatsIDPID struct {
 	Value uint32 `json:"_0"`
 }
 
+// Swift Codable ADT format
+type StatsEntity struct {
+	Machine   *StatsEntityMachine   `json:"machine,omitempty"`
+	Container *StatsEntityContainer `json:"container,omitempty"`
+}
+
+type StatsEntityMachine struct {
+	ID string `json:"id"`
+}
+
+type StatsEntityContainer struct {
+	ID string `json:"id"`
+}
+
 type StatsEntry struct {
 	ID StatsID `json:"id"`
+
+	Entity StatsEntity `json:"entity"`
 
 	// delta-based metrics; client is responsible for diffing
 	CPUUsageUsec   uint64 `json:"cpu_usage_usec"`
@@ -179,7 +195,7 @@ type StatsEntry struct {
 	MemoryBytes  uint64 `json:"memory_bytes"`
 	NumProcesses uint32 `json:"num_processes"`
 
-	Children []StatsEntry `json:"children"`
+	Children []*StatsEntry `json:"children"`
 }
 
 type StatsRequest struct {
@@ -187,5 +203,5 @@ type StatsRequest struct {
 }
 
 type StatsResponse struct {
-	Entries []StatsEntry `json:"entries"`
+	Entries []*StatsEntry `json:"entries"`
 }

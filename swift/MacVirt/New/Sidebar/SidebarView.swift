@@ -79,12 +79,12 @@ extension SidebarView {
                 .tag(NavTabId.machines)
         }
 
-        Section(header: Text("Help")) {
-            NavTab("Commands", systemImage: "terminal")
-                .tag(NavTabId.cli)
-
+        Section(header: Text("General")) {
             NavTab("Activity Monitor", systemImage: "chart.xyaxis.line")
                 .tag(NavTabId.activityMonitor)
+
+            NavTab("Commands", systemImage: "terminal")
+                .tag(NavTabId.cli)
         }
     }
 }

@@ -825,6 +825,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             // show header
             outlineView.headerView = NSTableHeaderView()
             outlineView.usesAlternatingRowBackgroundColors = true
+            outlineView.columnAutoresizingStyle = .reverseSequentialColumnAutoresizingStyle
+            // outlineView.autosaveTableColumns = true
         } else {
             // hide header
             outlineView.headerView = nil
@@ -840,6 +842,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             let nsColumn = AKTableColumn(spec: column)
             if let title = column.title {
                 nsColumn.title = title
+            }
+            if let width = column.width {
+                nsColumn.width = width
             }
             nsColumn.isEditable = false
             nsColumn.minWidth = 50
@@ -968,6 +973,7 @@ extension View {
 struct AKColumn<Item: AKListItem, ItemView: View> {
     let id: String
     let title: String?
+    let width: CGFloat?
     let alignment: NSTextAlignment
     let makeCellView: (Item) -> ItemView
 }
@@ -976,17 +982,21 @@ extension AKColumn {
     static func single(@ViewBuilder _ makeCellView: @escaping (Item) -> ItemView) -> [AKColumn<
         Item, ItemView
     >] {
-        [AKColumn(id: "column", title: nil, alignment: .left, makeCellView: makeCellView)]
+        [
+            AKColumn(
+                id: "column", title: nil, width: nil, alignment: .left, makeCellView: makeCellView)
+        ]
     }
 }
 
 // TODO: which type can we put this on? AKList and AKColumn don't work because they can't infer ItemView for the static func call
 func akColumn<Item: AKListItem>(
-    id: String, title: String?, alignment: NSTextAlignment = .left,
+    id: String, title: String?, width: CGFloat? = nil, alignment: NSTextAlignment = .left,
     @ViewBuilder _ makeCellView: @escaping (Item) -> some View
 ) -> AKColumn<Item, AnyView> {
     AKColumn<Item, AnyView>(
-        id: id, title: title, alignment: alignment, makeCellView: { AnyView(makeCellView($0)) })
+        id: id, title: title, width: width, alignment: alignment,
+        makeCellView: { AnyView(makeCellView($0)) })
 }
 
 struct AKSortDescriptor: Equatable {
