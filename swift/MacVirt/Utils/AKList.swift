@@ -402,11 +402,6 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     typealias Section = AKSection<Item>
     typealias CachedView = CachedViewHolder<HostedItemView<Item, ItemView>>
 
-    private struct CacheKey: Hashable {
-        let itemId: Item.ID
-        let columnId: String
-    }
-
     @ObservedObject var envModel: AKListModel
 
     let sections: [Section]
@@ -440,6 +435,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     private final class AKTableColumn: NSTableColumn {
         let makeCellView: (Item) -> ItemView
 
+        // preserve view identity to avoid losing state (e.g. popovers)
+        var viewCache = [Item.ID: CachedView]()
+
         // custom reuse queue. hard to use nibs, and we need the identity-preserving cache logic too
         // do this per column to avoid having to switch out the ViewBuilder
         var reuseQueue = [CachedView]()
@@ -471,9 +469,6 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // array is fastest since we just iterate and clear this
         private var objAccessTracker = [Item.ID]()
         private var sectionAccessTracker = [String]()
-
-        // preserve view identity to avoid losing state (e.g. popovers)
-        private var viewCache = [CacheKey: CachedView]()
 
         init(_ parent: AKTreeListImpl) {
             self.parent = parent
@@ -514,17 +509,15 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         private func getOrCreateItemView(
             outlineView: NSOutlineView, itemId: Item.ID, column: AKTableColumn
         ) -> CachedView {
-            let cacheKey = CacheKey(itemId: itemId, columnId: column.identifier.rawValue)
-
             // 1. cached for ID, to preserve identity
-            if let holder = viewCache[cacheKey] {
+            if let holder = column.viewCache[itemId] {
                 return holder
             }
 
             // 2. look for reusable one
             if let holder = column.reuseQueue.popLast() {
                 // a reused view should be added back to the cache once it's been rebound
-                viewCache[cacheKey] = holder
+                column.viewCache[itemId] = holder
                 return holder
             }
 
@@ -538,13 +531,13 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             nsView.outlineParent = (outlineView as! AKOutlineView)
 
             let holder = CachedView(view: nsView, model: itemModel)
-            viewCache[cacheKey] = holder
+            column.viewCache[itemId] = holder
 
             // set releaser
-            nsView.releaser = { [weak self, weak holder] in
-                guard let self, let holder else { return }
+            nsView.releaser = { [weak column, weak holder] in
+                guard let column, let holder else { return }
                 // remove from active cache
-                self.viewCache.removeValue(forKey: cacheKey)
+                column.viewCache.removeValue(forKey: itemId)
                 // add to reuse queue if space is available
                 if column.reuseQueue.count < maxReuseSlots {
                     column.reuseQueue.append(holder)
@@ -563,7 +556,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             -> NSView?
         {
             let node = item as! AKNode
-            if node.type == .item {
+            switch node.type {
+            case .item:
                 let value = node.value as! Item
                 let holder = getOrCreateItemView(
                     outlineView: outlineView, itemId: value.id,
@@ -579,7 +573,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 }
 
                 return holder.view
-            } else if node.type == .section {
+
+            case .section:
                 // pixel-perfect match of SwiftUI default section header
                 let cellView = NSTableCellView()
                 let field = NSTextField(labelWithString: node.value as! String)
@@ -597,8 +592,6 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 ])
 
                 return cellView
-            } else {
-                return nil
             }
         }
 
@@ -771,8 +764,12 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 let nsSortKey = newNsSort.key
             {
                 let newSort = AKSortDescriptor(columnId: nsSortKey, ascending: newNsSort.ascending)
-                if parent.envModel.sort != newSort {
-                    parent.envModel.sort = newSort
+
+                // "publishing changes from within view updates is not allowed"
+                DispatchQueue.main.async { [parent] in
+                    if parent.envModel.sort != newSort {
+                        parent.envModel.sort = newSort
+                    }
                 }
             }
         }
