@@ -1,16 +1,16 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/uio.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <sys/uio.h>
-#include <fcntl.h>
-#include <stdlib.h>
 
 #define OUT_FD 3
 #define LISTEN_SOCK_FD 4
@@ -47,7 +47,8 @@ static void sigint_handler(int sig) {
 // stub program that sends arguments to a unix socket, reads 2-byte return value, writes it to fd3,
 // and then waits for SIGINT/SIGTERM
 int main(int argc, char **argv) {
-    // if fd 4 exists, then it's probably being used as a listen sock fd. send it to the agent. check this before we open any fds
+    // if fd 4 exists, then it's probably being used as a listen sock fd. send it to the agent.
+    // check this before we open any fds
     bool send_fd4 = false;
     if (fcntl(4, F_GETFD) != -1) {
         send_fd4 = true;

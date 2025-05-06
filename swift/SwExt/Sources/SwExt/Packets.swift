@@ -166,7 +166,7 @@ class PacketProcessor {
      --------------------------
      1. rewrite destination MAC address from assigned host MAC to macOS
        - only if it equals the expected MAC for the interface
-    
+
      (see below for MAC routing)
      */
     // warning: can be called concurrently! and multiple times per packet!

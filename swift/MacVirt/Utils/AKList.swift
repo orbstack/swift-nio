@@ -511,8 +511,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         /*
          * delegate
          */
-        private func getOrCreateItemView(outlineView: NSOutlineView, itemId: Item.ID, column: AKTableColumn) -> CachedView
-        {
+        private func getOrCreateItemView(
+            outlineView: NSOutlineView, itemId: Item.ID, column: AKTableColumn
+        ) -> CachedView {
             let cacheKey = CacheKey(itemId: itemId, columnId: column.identifier.rawValue)
 
             // 1. cached for ID, to preserve identity
@@ -556,13 +557,17 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         }
 
         // make views
-        func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any)
+        func outlineView(
+            _ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any
+        )
             -> NSView?
         {
             let node = item as! AKNode
             if node.type == .item {
                 let value = node.value as! Item
-                let holder = getOrCreateItemView(outlineView: outlineView, itemId: value.id, column: tableColumn as! AKTableColumn)
+                let holder = getOrCreateItemView(
+                    outlineView: outlineView, itemId: value.id,
+                    column: tableColumn as! AKTableColumn)
 
                 // update value if needed
                 // updateNSView does async so it's fine to update right here
@@ -758,9 +763,13 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             updateSelection(outlineView: notification.object as! NSOutlineView)
         }
 
-        func outlineView(_ outlineView: NSOutlineView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]
+        ) {
             if let newNsSort = outlineView.sortDescriptors.first,
-               let nsSortKey = newNsSort.key {
+                let nsSortKey = newNsSort.key
+            {
                 let newSort = AKSortDescriptor(columnId: nsSortKey, ascending: newNsSort.ascending)
                 if parent.envModel.sort != newSort {
                     parent.envModel.sort = newSort
@@ -821,7 +830,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             outlineView.headerView = nil
         }
         if let defaultSort {
-            outlineView.sortDescriptors = [NSSortDescriptor(key: defaultSort.columnId, ascending: defaultSort.ascending)]
+            outlineView.sortDescriptors = [
+                NSSortDescriptor(key: defaultSort.columnId, ascending: defaultSort.ascending)
+            ]
         }
 
         // add columns
@@ -962,14 +973,20 @@ struct AKColumn<Item: AKListItem, ItemView: View> {
 }
 
 extension AKColumn {
-    static func single(@ViewBuilder _ makeCellView: @escaping (Item) -> ItemView) -> [AKColumn<Item, ItemView>] {
+    static func single(@ViewBuilder _ makeCellView: @escaping (Item) -> ItemView) -> [AKColumn<
+        Item, ItemView
+    >] {
         [AKColumn(id: "column", title: nil, alignment: .left, makeCellView: makeCellView)]
     }
 }
 
 // TODO: which type can we put this on? AKList and AKColumn don't work because they can't infer ItemView for the static func call
-func akColumn<Item: AKListItem>(id: String, title: String?, alignment: NSTextAlignment = .left, @ViewBuilder _ makeCellView: @escaping (Item) -> some View) -> AKColumn<Item, AnyView> {
-    AKColumn<Item, AnyView>(id: id, title: title, alignment: alignment, makeCellView: { AnyView(makeCellView($0)) })
+func akColumn<Item: AKListItem>(
+    id: String, title: String?, alignment: NSTextAlignment = .left,
+    @ViewBuilder _ makeCellView: @escaping (Item) -> some View
+) -> AKColumn<Item, AnyView> {
+    AKColumn<Item, AnyView>(
+        id: id, title: title, alignment: alignment, makeCellView: { AnyView(makeCellView($0)) })
 }
 
 struct AKSortDescriptor: Equatable {

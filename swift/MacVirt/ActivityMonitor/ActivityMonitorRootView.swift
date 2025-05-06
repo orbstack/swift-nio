@@ -5,21 +5,21 @@
 //  Created by Danny Lin on 4/7/25.
 //
 
-import SwiftUI
 import Defaults
+import SwiftUI
 
 private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
     let id: StatsID
     let cpuPercent: Float?
     let memoryBytes: UInt64
     let diskRwBytes: UInt64?
-    
+
     var listChildren: [any AKListItem]? { nil }
     var textLabel: String? { nil }
 }
 
-private let initialRefreshInterval = 0.5 // seconds
-private let refreshInterval = 1.5 // seconds
+private let initialRefreshInterval = 0.5  // seconds
+private let refreshInterval = 1.5  // seconds
 
 private let nsecPerSec = 1e9
 
@@ -41,37 +41,49 @@ struct ActivityMonitorRootView: View {
 
     var body: some View {
         StateWrapperView {
-            AKList(AKSection.single(model.items), selection: $selection, sort: $sort, rowHeight: 24, flat: false, autosaveName: Defaults.Keys.activityMonitor_autosaveOutline, columns: [
-                akColumn(id: Columns.name, title: "Name", alignment: .left) { item in
-                    if case let .cgroupPath(id) = item.id {
-                        Text(id)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                },
-                akColumn(id: Columns.cpuPercent, title: "CPU %", alignment: .right) { item in
-                    if let cpuPercent = item.cpuPercent {
-                        Text(cpuPercent.formatted(.number.precision(.fractionLength(1))))
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                },
-                akColumn(id: Columns.memoryBytes, title: "Memory", alignment: .right) { item in
-                    Text(ByteCountFormatter.string(fromByteCount: Int64(item.memoryBytes), countStyle: .memory))
+            AKList(
+                AKSection.single(model.items), selection: $selection, sort: $sort, rowHeight: 24,
+                flat: false, autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
+                columns: [
+                    akColumn(id: Columns.name, title: "Name", alignment: .left) { item in
+                        if case let .cgroupPath(id) = item.id {
+                            Text(id)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    },
+                    akColumn(id: Columns.cpuPercent, title: "CPU %", alignment: .right) { item in
+                        if let cpuPercent = item.cpuPercent {
+                            Text(cpuPercent.formatted(.number.precision(.fractionLength(1))))
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    },
+                    akColumn(id: Columns.memoryBytes, title: "Memory", alignment: .right) { item in
+                        Text(
+                            ByteCountFormatter.string(
+                                fromByteCount: Int64(item.memoryBytes), countStyle: .memory)
+                        )
                         .frame(maxWidth: .infinity, alignment: .trailing)
-                },
-                akColumn(id: Columns.diskRwBytes, title: "Disk I/O", alignment: .right) { item in
-                    if let diskRwBytes = item.diskRwBytes {
-                        Text(ByteCountFormatter.string(fromByteCount: Int64(diskRwBytes), countStyle: .file))
+                    },
+                    akColumn(id: Columns.diskRwBytes, title: "Disk I/O", alignment: .right) {
+                        item in
+                        if let diskRwBytes = item.diskRwBytes {
+                            Text(
+                                ByteCountFormatter.string(
+                                    fromByteCount: Int64(diskRwBytes), countStyle: .file)
+                            )
                             .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                },
-            ])
+                        }
+                    },
+                ]
+            )
             .onAppear {
                 Task { @MainActor in
                     await model.refresh(vmModel: vmModel, sort: sort)
 
                     // populate delta-based stats faster at the beginning
                     do {
-                        try await Task.sleep(nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
+                        try await Task.sleep(
+                            nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
                         await model.refresh(vmModel: vmModel, sort: sort)
                     } catch {
                         // ignore
@@ -108,26 +120,34 @@ private class ActivityMonitorViewModel: ObservableObject {
 
         let newItems = newEntries.map {
             let lastEntry = lastEntries[$0.key]
-            let cpuPercent = if let lastEntry {
-                if $0.value.cpuUsageUsec >= lastEntry.cpuUsageUsec {
-                    Float($0.value.cpuUsageUsec - lastEntry.cpuUsageUsec) / Float(refreshInterval * 1_000_000) * 100
+            let cpuPercent =
+                if let lastEntry {
+                    if $0.value.cpuUsageUsec >= lastEntry.cpuUsageUsec {
+                        Float($0.value.cpuUsageUsec - lastEntry.cpuUsageUsec)
+                            / Float(refreshInterval * 1_000_000) * 100
+                    } else {
+                        Float?(nil)
+                    }
                 } else {
                     Float?(nil)
                 }
-            } else {
-                Float?(nil)
-            }
-            let diskRwBytes = if let lastEntry {
-                if $0.value.diskReadBytes >= lastEntry.diskReadBytes && $0.value.diskWriteBytes >= lastEntry.diskWriteBytes {
-                    ($0.value.diskReadBytes - lastEntry.diskReadBytes) + ($0.value.diskWriteBytes - lastEntry.diskWriteBytes)
+            let diskRwBytes =
+                if let lastEntry {
+                    if $0.value.diskReadBytes >= lastEntry.diskReadBytes
+                        && $0.value.diskWriteBytes >= lastEntry.diskWriteBytes
+                    {
+                        ($0.value.diskReadBytes - lastEntry.diskReadBytes)
+                            + ($0.value.diskWriteBytes - lastEntry.diskWriteBytes)
+                    } else {
+                        UInt64?(nil)
+                    }
                 } else {
                     UInt64?(nil)
                 }
-            } else {
-                UInt64?(nil)
-            }
 
-            return ActivityMonitorItem(id: $0.key, cpuPercent: cpuPercent, memoryBytes: $0.value.memoryBytes, diskRwBytes: diskRwBytes)
+            return ActivityMonitorItem(
+                id: $0.key, cpuPercent: cpuPercent, memoryBytes: $0.value.memoryBytes,
+                diskRwBytes: diskRwBytes)
         }
         items = Self.sort(items: newItems, sort: sort)
 
@@ -138,7 +158,9 @@ private class ActivityMonitorViewModel: ObservableObject {
         items = Self.sort(items: items, sort: sort)
     }
 
-    private static func sort(items: [ActivityMonitorItem], sort: AKSortDescriptor) -> [ActivityMonitorItem] {
+    private static func sort(items: [ActivityMonitorItem], sort: AKSortDescriptor)
+        -> [ActivityMonitorItem]
+    {
         return items.sorted {
             switch sort.columnId {
             case Columns.cpuPercent:

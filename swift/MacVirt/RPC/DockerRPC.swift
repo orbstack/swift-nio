@@ -54,7 +54,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
         // scon uses the same logic for domains
         composeOneoff ? nil : labels?[DockerLabels.composeService]
     }
-    
+
     private var composeOneoff: Bool {
         labels?[DockerLabels.composeOneoff] == "True"
     }
