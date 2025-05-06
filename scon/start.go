@@ -769,11 +769,12 @@ func (c *Container) startLocked(isInternal bool) error {
 		if err != nil {
 			return fmt.Errorf("set cgroup: %w", err)
 		}
-		err = c.setLxcConfig("lxc.cgroup.dir.container", "scon/container/"+randSuffix)
+		containerCgroup := "scon/container/" + randSuffix
+		err = c.setLxcConfig("lxc.cgroup.dir.container", containerCgroup)
 		if err != nil {
 			return fmt.Errorf("set cgroup: %w", err)
 		}
-		c.lastCgroupPath = "scon/container/" + randSuffix
+		c.lastCgroupPath = containerCgroup
 
 		// hook
 		if c.hooks != nil {

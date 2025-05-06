@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util"
 )
 
 func readCgroupStats(cgPath string) (types.StatsEntry, error) {
@@ -19,7 +19,7 @@ func readCgroupStats(cgPath string) (types.StatsEntry, error) {
 		},
 	}
 
-	cpuStr, err := os.ReadFile(sysPath + "/cpu.stat")
+	cpuStr, err := util.ReadFileFast(sysPath + "/cpu.stat")
 	if err != nil {
 		return stats, err
 	}
@@ -34,7 +34,7 @@ func readCgroupStats(cgPath string) (types.StatsEntry, error) {
 	}
 	stats.CPUUsageUsec = usageUsecInt
 
-	ioStatStr, err := os.ReadFile(sysPath + "/io.stat")
+	ioStatStr, err := util.ReadFileFast(sysPath + "/io.stat")
 	if err != nil {
 		return stats, err
 	}
@@ -60,7 +60,7 @@ func readCgroupStats(cgPath string) (types.StatsEntry, error) {
 	stats.DiskReadBytes = readBytes
 	stats.DiskWriteBytes = writeBytes
 
-	memoryStr, err := os.ReadFile(sysPath + "/memory.current")
+	memoryStr, err := util.ReadFileFast(sysPath + "/memory.current")
 	if err != nil {
 		return stats, err
 	}
@@ -70,7 +70,7 @@ func readCgroupStats(cgPath string) (types.StatsEntry, error) {
 	}
 	stats.MemoryBytes = memoryCurrent
 
-	pidsStr, err := os.ReadFile(sysPath + "/pids.current")
+	pidsStr, err := util.ReadFileFast(sysPath + "/pids.current")
 	if err != nil {
 		return stats, err
 	}
