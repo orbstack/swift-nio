@@ -57,24 +57,24 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
     private let sections: [AKSection<Item>]
     @Binding private var selection: Set<Item.ID>
     private let rowHeight: CGFloat?
-    private let makeRowView: (Item) -> ItemView
+    private let columns: [AKColumn<Item, ItemView>]
     private var singleSelection = false
     private var flat = false
     private var autosaveName: String? = nil
 
-    // hierarchical OR flat, with sections, multiple selection
+    // hierarchical OR flat, with sections, with columns, multiple selection
     init(
         _ sections: [AKSection<Item>],
         selection: Binding<Set<Item.ID>>,
         rowHeight: CGFloat? = nil,
         flat: Bool = true,
         autosaveName: String? = nil,
-        @ViewBuilder makeRowView: @escaping (Item) -> ItemView
+        columns: [AKColumn<Item, ItemView>]
     ) {
         self.sections = sections
         _selection = selection
         self.rowHeight = rowHeight
-        self.makeRowView = makeRowView
+        self.columns = columns
         self.flat = flat
         self.autosaveName = autosaveName
     }
@@ -87,7 +87,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
             singleSelection: singleSelection,
             isFlat: flat,
             autosaveName: autosaveName,
-            makeRowView: makeRowView
+            columns: columns
         )
         // fix toolbar color and blur (fullSizeContentView)
         .ignoresSafeArea()
@@ -99,14 +99,14 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
 
 // structs can't have convenience init, so use an extension
 extension AKList {
-    // hierarchical OR flat, with sections, single selection
+    // hierarchical OR flat, with sections, with columns, single selection
     init(
         _ sections: [AKSection<Item>],
         selection singleBinding: Binding<Item.ID?>,
         rowHeight: CGFloat? = nil,
         flat: Bool = true,
         autosaveName: String? = nil,
-        @ViewBuilder makeRowView: @escaping (Item) -> ItemView
+        columns: [AKColumn<Item, ItemView>]
     ) {
         let selBinding = Binding<Set<Item.ID>>(
             get: {
@@ -126,8 +126,44 @@ extension AKList {
             rowHeight: rowHeight,
             flat: flat,
             autosaveName: autosaveName,
-            makeRowView: makeRowView)
+            columns: columns)
         singleSelection = true
+    }
+
+    // hierarchical OR flat, with sections, no columns, single selection
+    init(
+        _ sections: [AKSection<Item>],
+        selection singleBinding: Binding<Item.ID?>,
+        rowHeight: CGFloat? = nil,
+        flat: Bool = true,
+        autosaveName: String? = nil,
+        @ViewBuilder makeRowView: @escaping (Item) -> ItemView
+    ) {
+        self.init(
+            sections,
+            selection: singleBinding,
+            rowHeight: rowHeight,
+            flat: flat,
+            autosaveName: autosaveName,
+            columns: AKColumn.single(makeRowView))
+    }
+
+    // hierarchical OR flat, with sections, no columns, multiple selection
+    init(
+        _ sections: [AKSection<Item>],
+        selection: Binding<Set<Item.ID>>,
+        rowHeight: CGFloat? = nil,
+        flat: Bool = true,
+        autosaveName: String? = nil,
+        @ViewBuilder makeRowView: @escaping (Item) -> ItemView
+    ) {
+        self.init(
+            sections,
+            selection: selection,
+            rowHeight: rowHeight,
+            flat: flat,
+            autosaveName: autosaveName,
+            columns: AKColumn.single(makeRowView))
     }
 
     // hierarchical OR flat, no sections, multiple selection
@@ -145,7 +181,7 @@ extension AKList {
             rowHeight: rowHeight,
             flat: flat,
             autosaveName: autosaveName,
-            makeRowView: makeRowView)
+            columns: AKColumn.single(makeRowView))
     }
 
     // hierarchical OR flat, no sections, single selection
@@ -339,11 +375,11 @@ private struct HostedItemView<Item: AKListItem, ItemView: View>: View {
     @ObservedObject var envModel: AKListModel
     @ObservedObject var itemModel: AKListItemModel
 
-    @ViewBuilder let makeRowView: (Item) -> ItemView
+    @ViewBuilder let makeCellView: (Item) -> ItemView
 
     var body: some View {
         if let item = itemModel.item {
-            makeRowView(item as! Item)
+            makeCellView(item as! Item)
                 .environmentObject(envModel)
                 .environmentObject(itemModel)
         } else {
@@ -356,6 +392,11 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     typealias Section = AKSection<Item>
     typealias CachedView = CachedViewHolder<HostedItemView<Item, ItemView>>
 
+    private struct CacheKey: Hashable {
+        let itemId: Item.ID
+        let columnId: String
+    }
+
     @ObservedObject var envModel: AKListModel
 
     let sections: [Section]
@@ -363,7 +404,43 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     let singleSelection: Bool
     let isFlat: Bool
     let autosaveName: String?
-    let makeRowView: (Item) -> ItemView
+    let columns: [AKColumn<Item, ItemView>]
+
+    init(
+        envModel: AKListModel,
+        sections: [Section],
+        rowHeight: CGFloat?,
+        singleSelection: Bool,
+        isFlat: Bool,
+        autosaveName: String?,
+        columns: [AKColumn<Item, ItemView>]
+    ) {
+        self.envModel = envModel
+        self.sections = sections
+        self.rowHeight = rowHeight
+        self.singleSelection = singleSelection
+        self.isFlat = isFlat
+        self.autosaveName = autosaveName
+        self.columns = columns
+    }
+
+    private final class AKTableColumn: NSTableColumn {
+        let makeCellView: (Item) -> ItemView
+
+        // custom reuse queue. hard to use nibs, and we need the identity-preserving cache logic too
+        // do this per column to avoid having to switch out the ViewBuilder
+        var reuseQueue = [CachedView]()
+
+        init(identifier: NSUserInterfaceItemIdentifier, @ViewBuilder makeCellView: @escaping (Item) -> ItemView) {
+            self.makeCellView = makeCellView
+            self.reuseQueue.reserveCapacity(maxReuseSlots)
+            super.init(identifier: identifier)
+        }
+
+        required init(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+    }
 
     final class Coordinator: NSObject, NSOutlineViewDelegate, NSOutlineViewDataSource {
         var parent: AKTreeListImpl
@@ -380,13 +457,10 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         private var sectionAccessTracker = [String]()
 
         // preserve view identity to avoid losing state (e.g. popovers)
-        private var viewCache = [Item.ID: CachedView]()
-        // custom reuse queue. hard to use nibs, and we need the identity-preserving cache logic too
-        private var reuseQueue = [CachedView]()
+        private var viewCache = [CacheKey: CachedView]()
 
         init(_ parent: AKTreeListImpl) {
             self.parent = parent
-            reuseQueue.reserveCapacity(maxReuseSlots)
         }
 
         /*
@@ -421,41 +495,42 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         /*
          * delegate
          */
-        private func getOrCreateItemView(outlineView: NSOutlineView, itemId: Item.ID) -> CachedView
+        private func getOrCreateItemView(outlineView: NSOutlineView, itemId: Item.ID, column: AKTableColumn) -> CachedView
         {
+            let cacheKey = CacheKey(itemId: itemId, columnId: column.identifier.rawValue)
+
             // 1. cached for ID, to preserve identity
-            if let holder = viewCache[itemId] {
+            if let holder = viewCache[cacheKey] {
                 return holder
             }
 
             // 2. look for reusable one
-            if let holder = reuseQueue.popLast() {
+            if let holder = column.reuseQueue.popLast() {
                 // a reused view should be added back to the cache once it's been rebound
-                viewCache[itemId] = holder
+                viewCache[cacheKey] = holder
                 return holder
             }
 
             // 3. make a new one
             let itemModel = AKListItemModel(itemId: itemId as AnyHashable)
-            // doing .environmentObject in the SwiftUI view lets us avoid AnyView here
             let hostedView = HostedItemView(
                 envModel: parent.envModel,
                 itemModel: itemModel,
-                makeRowView: parent.makeRowView)
+                makeCellView: column.makeCellView)
             let nsView = AKHostingView(rootView: hostedView)
             nsView.outlineParent = (outlineView as! AKOutlineView)
 
             let holder = CachedView(view: nsView, model: itemModel)
-            viewCache[itemId] = holder
+            viewCache[cacheKey] = holder
 
             // set releaser
             nsView.releaser = { [weak self, weak holder] in
                 guard let self, let holder else { return }
                 // remove from active cache
-                self.viewCache.removeValue(forKey: holder.model.itemId as! Item.ID)
+                self.viewCache.removeValue(forKey: cacheKey)
                 // add to reuse queue if space is available
-                if self.reuseQueue.count < maxReuseSlots {
-                    self.reuseQueue.append(holder)
+                if column.reuseQueue.count < maxReuseSlots {
+                    column.reuseQueue.append(holder)
                 }
                 // remove item
                 holder.model.item = nil
@@ -465,13 +540,13 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         }
 
         // make views
-        func outlineView(_ outlineView: NSOutlineView, viewFor _: NSTableColumn?, item: Any)
+        func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any)
             -> NSView?
         {
             let node = item as! AKNode
             if node.type == .item {
                 let value = node.value as! Item
-                let holder = getOrCreateItemView(outlineView: outlineView, itemId: value.id)
+                let holder = getOrCreateItemView(outlineView: outlineView, itemId: value.id, column: tableColumn as! AKTableColumn)
 
                 // update value if needed
                 // updateNSView does async so it's fine to update right here
@@ -710,17 +785,28 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // dummy menu to trigger highlight
         outlineView.menu = NSMenu()
 
-        // hide header
-        outlineView.headerView = nil
+        // configure columns
+        if columns.first?.title != nil {
+            // show header
+            outlineView.headerView = NSTableHeaderView()
+        } else {
+            // hide header
+            outlineView.headerView = nil
+        }
+
+        // add columns
+        for column in columns {
+            let tableColumn = AKTableColumn(identifier: NSUserInterfaceItemIdentifier(column.id), makeCellView: column.makeCellView)
+            if let title = column.title {
+                tableColumn.title = title
+            }
+            tableColumn.isEditable = false
+            outlineView.addTableColumn(tableColumn)
+        }
 
         // use outlineView's double click. more reliable than Swift onDoubleClick
         outlineView.target = coordinator
         outlineView.doubleAction = #selector(Coordinator.onDoubleClick)
-
-        // add one column
-        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("column"))
-        column.isEditable = false
-        outlineView.addTableColumn(column)
 
         let scrollView = NSScrollView()
         scrollView.documentView = outlineView
@@ -749,7 +835,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 outlineView.autosaveName = autosaveName
             }
         } else {
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [self] in
                 completeUpdate(coordinator: coordinator, nsView: nsView)
             }
         }
@@ -832,5 +918,17 @@ extension View {
 
     func akListOnDoubleClick(perform action: @escaping () -> Void) -> some View {
         modifier(DoubleClickViewModifier(action: action))
+    }
+}
+
+struct AKColumn<Item: AKListItem, ItemView: View> {
+    let id: String
+    let title: String?
+    let makeCellView: (Item) -> ItemView
+}
+
+extension AKColumn {
+    static func single(@ViewBuilder _ makeCellView: @escaping (Item) -> ItemView) -> [AKColumn<Item, ItemView>] {
+        [AKColumn(id: "column", title: nil, makeCellView: makeCellView)]
     }
 }
