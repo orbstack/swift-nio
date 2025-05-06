@@ -22,6 +22,14 @@ type SCTPAddr struct {
 	Port int
 }
 
+func FileListener(f *os.File) (*SCTPListener, error) {
+	rawConn, err := f.SyscallConn()
+	if err != nil {
+		return nil, err
+	}
+	return &SCTPListener{f: f, rawConn: rawConn}, nil
+}
+
 func ListenSCTP(addr *SCTPAddr) (*SCTPListener, error) {
 	// SEQPACKET is like UDP unbound (one-to-many socket); STREAM is connection-oriented (one-to-one)
 	ip4 := addr.Addr.To4()

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"strings"
 
 	"github.com/orbstack/macvirt/scon/agent/sctpfwd"
@@ -18,6 +19,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 type PstubServer struct {
@@ -61,15 +63,44 @@ func (s *PstubServer) Serve() error {
 	}
 }
 
-func (s *PstubServer) handleConn(conn *net.UnixConn) error {
+func (s *PstubServer) handleConn(conn *net.UnixConn) (retErr error) {
 	defer conn.Close()
 
-	// read length
+	// read length and control message
 	var lenBuf [4]byte
-	_, err := io.ReadFull(conn, lenBuf[:])
+	oob := make([]byte, unix.CmsgSpace(4)) // Space for one fd
+	_, oobn, _, _, err := conn.ReadMsgUnix(lenBuf[:], oob)
 	if err != nil {
 		return fmt.Errorf("read length: %w", err)
 	}
+
+	// Parse control message to get fd if present
+	var listenSockFile *os.File
+	if oobn > 0 {
+		msgs, err := unix.ParseSocketControlMessage(oob[:oobn])
+		if err != nil {
+			return fmt.Errorf("parse control message: %w", err)
+		}
+
+		for _, msg := range msgs {
+			if msg.Header.Level == unix.SOL_SOCKET && msg.Header.Type == unix.SCM_RIGHTS {
+				fds, err := unix.ParseUnixRights(&msg)
+				if err != nil {
+					return fmt.Errorf("parse unix rights: %w", err)
+				}
+
+				if len(fds) > 0 {
+					listenSockFile = os.NewFile(uintptr(fds[0]), "pstub listener")
+					defer func() {
+						if retErr != nil {
+							listenSockFile.Close()
+						}
+					}()
+				}
+			}
+		}
+	}
+
 	argsLen := binary.LittleEndian.Uint32(lenBuf[:])
 	if argsLen > 1024 {
 		return fmt.Errorf("args too long")
@@ -84,7 +115,7 @@ func (s *PstubServer) handleConn(conn *net.UnixConn) error {
 	args := strings.Split(string(argBuf[:n]), "\x00")
 	logrus.WithField("args", args).Debug("start pstub")
 
-	proxy, key, info, err := s.startServer(args)
+	proxy, key, info, err := s.startServer(args, listenSockFile)
 	if err != nil {
 		// send error
 		_, _ = conn.Write([]byte(fmt.Sprintf("1\n%+v", err)))
@@ -104,7 +135,7 @@ func (s *PstubServer) handleConn(conn *net.UnixConn) error {
 	return nil
 }
 
-func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey, pstubServerInfo, error) {
+func (s *PstubServer) startServer(args []string, listenSockFile *os.File) (io.Closer, sysnet.ListenerKey, pstubServerInfo, error) {
 	flags := flag.NewFlagSet("pstub", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.Usage = func() {}
@@ -119,6 +150,8 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 	flags.StringVar(&containerIP, "container-ip", "", "")
 	var containerPort int
 	flags.IntVar(&containerPort, "container-port", 0, "")
+	var useListenFd bool
+	flags.BoolVar(&useListenFd, "use-listen-fd", false, "")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -137,6 +170,12 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 		return nil, sysnet.ListenerKey{}, pstubServerInfo{}, fmt.Errorf("invalid container IP")
 	}
 
+	// close listen sock fd if we weren't told to use it
+	if !useListenFd && listenSockFile != nil {
+		listenSockFile.Close()
+		listenSockFile = nil
+	}
+
 	// don't do tcp46
 	ipVer := "6"
 	if hostIP.To4() != nil {
@@ -145,12 +184,22 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 
 	switch proto {
 	case "tcp":
-		l, err := netx.ListenTCP("tcp"+ipVer, &net.TCPAddr{
-			IP:   hostIP,
-			Port: hostPort,
-		})
-		if err != nil {
-			return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+		var l net.Listener
+		if listenSockFile != nil {
+			l, err = net.FileListener(listenSockFile)
+			if err != nil {
+				return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+			}
+			listenSockFile.Close()
+		} else {
+			// Create new listener
+			l, err = netx.ListenTCP("tcp"+ipVer, &net.TCPAddr{
+				IP:   hostIP,
+				Port: hostPort,
+			})
+			if err != nil {
+				return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+			}
 		}
 
 		var otherDialIP net.IP
@@ -173,12 +222,22 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 		return proxy, thisKey, info, nil
 
 	case "udp":
-		l, err := net.ListenUDP("udp"+ipVer, &net.UDPAddr{
-			IP:   hostIP,
-			Port: hostPort,
-		})
-		if err != nil {
-			return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+		var l *net.UDPConn
+		if useListenFd && listenSockFile != nil {
+			c, err := net.FilePacketConn(listenSockFile)
+			if err != nil {
+				return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+			}
+			listenSockFile.Close()
+			l = c.(*net.UDPConn)
+		} else {
+			l, err = net.ListenUDP("udp"+ipVer, &net.UDPAddr{
+				IP:   hostIP,
+				Port: hostPort,
+			})
+			if err != nil {
+				return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+			}
 		}
 
 		dialer := func(clientAddr *net.UDPAddr) (net.Conn, error) {
@@ -199,13 +258,20 @@ func (s *PstubServer) startServer(args []string) (io.Closer, sysnet.ListenerKey,
 		return proxy, makeServerKey(proto, hostIP, hostPort), info, nil
 
 	case "sctp":
-		l, err := sctplib.ListenSCTP(&sctplib.SCTPAddr{
-			Addr: hostIP,
-			Port: hostPort,
-		})
-		if err != nil {
-			logrus.Error("SCTP listen failed: ", err)
-			return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+		var l *sctplib.SCTPListener
+		if useListenFd && listenSockFile != nil {
+			l, err = sctplib.FileListener(listenSockFile)
+			if err != nil {
+				return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+			}
+		} else {
+			l, err = sctplib.ListenSCTP(&sctplib.SCTPAddr{
+				Addr: hostIP,
+				Port: hostPort,
+			})
+			if err != nil {
+				return nil, sysnet.ListenerKey{}, pstubServerInfo{}, err
+			}
 		}
 
 		proxy := sctpfwd.NewSCTPProxy(l, &sctplib.SCTPAddr{
