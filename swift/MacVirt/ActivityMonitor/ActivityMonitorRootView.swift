@@ -18,7 +18,10 @@ private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
     var textLabel: String? { nil }
 }
 
-private let refreshInterval = 1.5
+private let initialRefreshInterval = 0.5 // seconds
+private let refreshInterval = 1.5 // seconds
+
+private let nsecPerSec = 1e9
 
 private enum Columns {
     static let name = "name"
@@ -29,6 +32,7 @@ private enum Columns {
 
 struct ActivityMonitorRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+
     private let timer = Timer.publish(every: refreshInterval, on: .main, in: .common).autoconnect()
 
     @StateObject private var model = ActivityMonitorViewModel()
@@ -64,6 +68,14 @@ struct ActivityMonitorRootView: View {
             .onAppear {
                 Task { @MainActor in
                     await model.refresh(vmModel: vmModel, sort: sort)
+
+                    // populate delta-based stats faster at the beginning
+                    do {
+                        try await Task.sleep(nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
+                        await model.refresh(vmModel: vmModel, sort: sort)
+                    } catch {
+                        // ignore
+                    }
                 }
             }
             .onChange(of: sort) { newSort in
