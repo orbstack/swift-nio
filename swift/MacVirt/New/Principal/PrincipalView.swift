@@ -55,6 +55,8 @@ struct PrincipalView: View {
                 MachinesRootView()
             case .cli:
                 CommandsRootView()
+            case .activityMonitor:
+                ActivityMonitorRootView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

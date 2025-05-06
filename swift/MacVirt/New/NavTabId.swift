@@ -26,6 +26,9 @@ extension NavTabId {
 
         case .cli:
             return [.cliHelp]
+
+        case .activityMonitor:
+            return []
         }
     }
 }

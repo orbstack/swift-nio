@@ -112,6 +112,46 @@ struct ImportContainerFromHostPathRequest: Codable {
     var hostPath: String
 }
 
+enum StatsID: Codable, Equatable, Hashable, Comparable {
+    // cgroupPath > pid
+    case cgroupPath(String)
+    case pid(UInt32)
+
+    static func < (lhs: StatsID, rhs: StatsID) -> Bool {
+        switch (lhs, rhs) {
+        case (.cgroupPath(let l), .cgroupPath(let r)):
+            return l < r
+        case (.pid(let l), .pid(let r)):
+            return l < r
+        case (.cgroupPath, .pid):
+            return false
+        case (.pid, .cgroupPath):
+            return true
+        }
+    }
+}
+
+struct GetStatsRequest: Codable {
+    var includeProcessCgPaths: [String]
+}
+
+struct StatsResponse: Codable {
+    var entries: [StatsEntry]
+}
+
+struct StatsEntry: Codable {
+    var id: StatsID
+
+    var cpuUsageUsec: UInt64
+    var diskReadBytes: UInt64
+    var diskWriteBytes: UInt64
+
+    var memoryBytes: UInt64
+    var numProcesses: UInt64
+
+    var children: [StatsEntry]?
+}
+
 class SconService {
     private let c: JsonRPCClient
 
@@ -185,6 +225,10 @@ class SconService {
     func containerClone(_ key: String, newName: String) async throws {
         try await c.call(
             "ContainerClone", args: ContainerCloneRequest(containerKey: key, newName: newName))
+    }
+
+    func getStats(_ req: GetStatsRequest) async throws -> StatsResponse {
+        return try await c.call("GetStats", args: req)
     }
 
     func internalDockerFastDf() async throws -> DKSystemDf {

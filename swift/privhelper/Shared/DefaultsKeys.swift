@@ -169,6 +169,8 @@ enum NavTabId: String, Defaults.Serializable {
     case machines = "machines"
 
     case cli = "cli"
+
+    case activityMonitor = "activity-monitor"
 }
 
 extension Defaults.Keys {

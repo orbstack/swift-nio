@@ -932,3 +932,8 @@ extension AKColumn {
         [AKColumn(id: "column", title: nil, makeCellView: makeCellView)]
     }
 }
+
+// TODO: which type can we put this on? AKList and AKColumn don't work because they can't infer ItemView for the static func call
+func akColumn<Item: AKListItem>(id: String, title: String?, @ViewBuilder _ makeCellView: @escaping (Item) -> some View) -> AKColumn<Item, AnyView> {
+    AKColumn<Item, AnyView>(id: id, title: title, makeCellView: { AnyView(makeCellView($0)) })
+}

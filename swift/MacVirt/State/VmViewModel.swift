@@ -96,6 +96,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case containerCloneError(cause: Error)
     case containerImportError(cause: Error)
     case containerExportError(cause: Error)
+    case statsError(cause: Error)
 
     // helper
     case privHelperUninstallError(cause: Error)
@@ -191,6 +192,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t sign out"
         case .refreshDrmError:
             return "Can’t refresh account"
+        case .statsError:
+            return "Can’t get stats"
         }
     }
 
@@ -367,6 +370,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case let .containerImportError(cause):
             return cause
         case let .containerExportError(cause):
+            return cause
+        case let .statsError(cause):
             return cause
 
         case let .privHelperUninstallError(cause):
@@ -1515,6 +1520,15 @@ class VmViewModel: ObservableObject {
 
         if let dockerRecord = containers?.first(where: { $0.id == ContainerIds.docker }) {
             await tryRestartContainer(dockerRecord.record)
+        }
+    }
+
+    func tryGetStats(_ req: GetStatsRequest) async throws -> StatsResponse {
+        do {
+            return try await scon.getStats(req)
+        } catch {
+            setError(.statsError(cause: error))
+            throw error
         }
     }
 
