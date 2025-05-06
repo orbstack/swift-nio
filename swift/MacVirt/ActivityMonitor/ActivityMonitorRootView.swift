@@ -18,7 +18,7 @@ private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
     var textLabel: String? { nil }
 }
 
-private let refreshInterval = 1.0
+private let refreshInterval = 1.5
 
 private enum Columns {
     static let name = "name"
