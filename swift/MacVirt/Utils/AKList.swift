@@ -56,6 +56,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
 
     private let sections: [AKSection<Item>]
     @Binding private var selection: Set<Item.ID>
+    private var sort: Binding<AKSortDescriptor>? = nil
     private let rowHeight: CGFloat?
     private let columns: [AKColumn<Item, ItemView>]
     private var singleSelection = false
@@ -66,6 +67,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
     init(
         _ sections: [AKSection<Item>],
         selection: Binding<Set<Item.ID>>,
+        sort: Binding<AKSortDescriptor>? = nil,
         rowHeight: CGFloat? = nil,
         flat: Bool = true,
         autosaveName: String? = nil,
@@ -73,6 +75,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
     ) {
         self.sections = sections
         _selection = selection
+        self.sort = sort
         self.rowHeight = rowHeight
         self.columns = columns
         self.flat = flat
@@ -87,12 +90,18 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
             singleSelection: singleSelection,
             isFlat: flat,
             autosaveName: autosaveName,
+            defaultSort: sort?.wrappedValue,
             columns: columns
         )
         // fix toolbar color and blur (fullSizeContentView)
         .ignoresSafeArea()
         .onReceive(envModel.$selection) { selection in
             self.selection = selection as! Set<Item.ID>
+        }
+        .onReceive(envModel.$sort) { sort in
+            if let sort {
+                self.sort?.wrappedValue = sort
+            }
         }
     }
 }
@@ -287,6 +296,7 @@ private class AKHostingView<V: View>: NSHostingView<V> {
 class AKListModel: ObservableObject {
     let doubleClicks = PassthroughSubject<AnyHashable, Never>()
     @Published var selection: Set<AnyHashable> = []
+    @Published var sort: AKSortDescriptor? = nil
 }
 
 private class AKListItemModel: ObservableObject {
@@ -404,6 +414,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     let singleSelection: Bool
     let isFlat: Bool
     let autosaveName: String?
+    let defaultSort: AKSortDescriptor?
     let columns: [AKColumn<Item, ItemView>]
 
     init(
@@ -413,6 +424,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         singleSelection: Bool,
         isFlat: Bool,
         autosaveName: String?,
+        defaultSort: AKSortDescriptor?,
         columns: [AKColumn<Item, ItemView>]
     ) {
         self.envModel = envModel
@@ -421,6 +433,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         self.singleSelection = singleSelection
         self.isFlat = isFlat
         self.autosaveName = autosaveName
+        self.defaultSort = defaultSort
         self.columns = columns
     }
 
@@ -431,10 +444,13 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // do this per column to avoid having to switch out the ViewBuilder
         var reuseQueue = [CachedView]()
 
-        init(identifier: NSUserInterfaceItemIdentifier, @ViewBuilder makeCellView: @escaping (Item) -> ItemView) {
-            self.makeCellView = makeCellView
+        init(spec: AKColumn<Item, ItemView>) {
+            self.makeCellView = spec.makeCellView
             self.reuseQueue.reserveCapacity(maxReuseSlots)
-            super.init(identifier: identifier)
+
+            super.init(identifier: NSUserInterfaceItemIdentifier(spec.id))
+
+            self.headerCell.alignment = spec.alignment
         }
 
         required init(coder: NSCoder) {
@@ -742,6 +758,16 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             updateSelection(outlineView: notification.object as! NSOutlineView)
         }
 
+        func outlineView(_ outlineView: NSOutlineView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+            if let newNsSort = outlineView.sortDescriptors.first,
+               let nsSortKey = newNsSort.key {
+                let newSort = AKSortDescriptor(columnId: nsSortKey, ascending: newNsSort.ascending)
+                if parent.envModel.sort != newSort {
+                    parent.envModel.sort = newSort
+                }
+            }
+        }
+
         func updateSelection(outlineView: NSOutlineView) {
             // Publishing changes from within view updates is not allowed, this will cause undefined behavior.
             // however, we only call this from either AppKit click event or .async in case of completeUpdate, so it's ok
@@ -789,19 +815,26 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         if columns.first?.title != nil {
             // show header
             outlineView.headerView = NSTableHeaderView()
+            outlineView.usesAlternatingRowBackgroundColors = true
         } else {
             // hide header
             outlineView.headerView = nil
         }
+        if let defaultSort {
+            outlineView.sortDescriptors = [NSSortDescriptor(key: defaultSort.columnId, ascending: defaultSort.ascending)]
+        }
 
         // add columns
         for column in columns {
-            let tableColumn = AKTableColumn(identifier: NSUserInterfaceItemIdentifier(column.id), makeCellView: column.makeCellView)
+            let nsColumn = AKTableColumn(spec: column)
             if let title = column.title {
-                tableColumn.title = title
+                nsColumn.title = title
             }
-            tableColumn.isEditable = false
-            outlineView.addTableColumn(tableColumn)
+            nsColumn.isEditable = false
+            nsColumn.minWidth = 50
+            // allow clicking to sort
+            nsColumn.sortDescriptorPrototype = NSSortDescriptor(key: column.id, ascending: false)
+            outlineView.addTableColumn(nsColumn)
         }
 
         // use outlineView's double click. more reliable than Swift onDoubleClick
@@ -924,16 +957,30 @@ extension View {
 struct AKColumn<Item: AKListItem, ItemView: View> {
     let id: String
     let title: String?
+    let alignment: NSTextAlignment
     let makeCellView: (Item) -> ItemView
 }
 
 extension AKColumn {
     static func single(@ViewBuilder _ makeCellView: @escaping (Item) -> ItemView) -> [AKColumn<Item, ItemView>] {
-        [AKColumn(id: "column", title: nil, makeCellView: makeCellView)]
+        [AKColumn(id: "column", title: nil, alignment: .left, makeCellView: makeCellView)]
     }
 }
 
 // TODO: which type can we put this on? AKList and AKColumn don't work because they can't infer ItemView for the static func call
-func akColumn<Item: AKListItem>(id: String, title: String?, @ViewBuilder _ makeCellView: @escaping (Item) -> some View) -> AKColumn<Item, AnyView> {
-    AKColumn<Item, AnyView>(id: id, title: title, makeCellView: { AnyView(makeCellView($0)) })
+func akColumn<Item: AKListItem>(id: String, title: String?, alignment: NSTextAlignment = .left, @ViewBuilder _ makeCellView: @escaping (Item) -> some View) -> AKColumn<Item, AnyView> {
+    AKColumn<Item, AnyView>(id: id, title: title, alignment: alignment, makeCellView: { AnyView(makeCellView($0)) })
+}
+
+struct AKSortDescriptor: Equatable {
+    let columnId: String
+    let ascending: Bool
+
+    func compare<C: Comparable>(_ lhs: C, _ rhs: C) -> Bool {
+        if ascending {
+            return lhs < rhs
+        } else {
+            return lhs > rhs
+        }
+    }
 }

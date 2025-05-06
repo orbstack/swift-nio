@@ -186,6 +186,7 @@ extension Defaults.Keys {
         "docker_migrationDismissed", default: false, suite: suite)
     // for AKList autosaveName
     static let docker_autosaveOutline = "docker_autosaveOutline"
+    static let activityMonitor_autosaveOutline = "activityMonitor_autosaveOutline"
 
     static let logsWordWrap = Key<Bool>("logs_wordWrap", default: true, suite: suite)
 

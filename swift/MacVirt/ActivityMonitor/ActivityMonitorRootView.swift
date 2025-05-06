@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Defaults
 
 private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
     let id: StatsID
@@ -19,43 +20,58 @@ private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
 
 private let refreshInterval = 1.0
 
+private enum Columns {
+    static let name = "name"
+    static let cpuPercent = "cpuPercent"
+    static let memoryBytes = "memoryBytes"
+    static let diskRwBytes = "diskRwBytes"
+}
+
 struct ActivityMonitorRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     private let timer = Timer.publish(every: refreshInterval, on: .main, in: .common).autoconnect()
 
     @StateObject private var model = ActivityMonitorViewModel()
-    @State private var selection: StatsID?
+    @State private var selection: Set<StatsID> = []
+    @State private var sort = AKSortDescriptor(columnId: Columns.cpuPercent, ascending: false)
 
     var body: some View {
         StateWrapperView {
-            AKList(AKSection.single(model.items), selection: $selection, rowHeight: 24, columns: [
-                akColumn(id: "id", title: "ID") { item in
+            AKList(AKSection.single(model.items), selection: $selection, sort: $sort, rowHeight: 24, flat: false, autosaveName: Defaults.Keys.activityMonitor_autosaveOutline, columns: [
+                akColumn(id: Columns.name, title: "Name", alignment: .left) { item in
                     if case let .cgroupPath(id) = item.id {
                         Text(id)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 },
-                akColumn(id: "cpuPercent", title: "CPU %") { item in
+                akColumn(id: Columns.cpuPercent, title: "CPU %", alignment: .right) { item in
                     if let cpuPercent = item.cpuPercent {
-                        Text(String(format: "%.1f", cpuPercent))
+                        Text(cpuPercent.formatted(.number.precision(.fractionLength(1))))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 },
-                akColumn(id: "memoryBytes", title: "Memory") { item in
+                akColumn(id: Columns.memoryBytes, title: "Memory", alignment: .right) { item in
                     Text(ByteCountFormatter.string(fromByteCount: Int64(item.memoryBytes), countStyle: .memory))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 },
-                akColumn(id: "diskRwBytes", title: "Disk I/O") { item in
+                akColumn(id: Columns.diskRwBytes, title: "Disk I/O", alignment: .right) { item in
                     if let diskRwBytes = item.diskRwBytes {
                         Text(ByteCountFormatter.string(fromByteCount: Int64(diskRwBytes), countStyle: .file))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 },
             ])
             .onAppear {
                 Task { @MainActor in
-                    await model.refresh(vmModel: vmModel)
+                    await model.refresh(vmModel: vmModel, sort: sort)
                 }
+            }
+            .onChange(of: sort) { newSort in
+                model.reSort(sort: newSort)
             }
             .onReceive(timer) { _ in
                 Task { @MainActor in
-                    await model.refresh(vmModel: vmModel)
+                    await model.refresh(vmModel: vmModel, sort: sort)
                 }
             }
         }
@@ -69,7 +85,7 @@ private class ActivityMonitorViewModel: ObservableObject {
 
     @Published var items: [ActivityMonitorItem] = []
 
-    func refresh(vmModel: VmViewModel) async {
+    func refresh(vmModel: VmViewModel, sort: AKSortDescriptor) async {
         var newStats: StatsResponse!
         do {
             newStats = try await vmModel.tryGetStats(GetStatsRequest(includeProcessCgPaths: []))
@@ -78,7 +94,7 @@ private class ActivityMonitorViewModel: ObservableObject {
         }
         let newEntries = Dictionary(uniqueKeysWithValues: newStats.entries.map { ($0.id, $0) })
 
-        items = newEntries.map {
+        let newItems = newEntries.map {
             let lastEntry = lastEntries[$0.key]
             let cpuPercent = if let lastEntry {
                 if $0.value.cpuUsageUsec >= lastEntry.cpuUsageUsec {
@@ -100,14 +116,38 @@ private class ActivityMonitorViewModel: ObservableObject {
             }
 
             return ActivityMonitorItem(id: $0.key, cpuPercent: cpuPercent, memoryBytes: $0.value.memoryBytes, diskRwBytes: diskRwBytes)
-        }.sorted {
-            if let lhsCpuPercent = $0.cpuPercent, let rhsCpuPercent = $1.cpuPercent {
-                return lhsCpuPercent > rhsCpuPercent
-            } else {
-                return $0.id > $1.id
-            }
         }
+        items = Self.sort(items: newItems, sort: sort)
 
         lastEntries = newEntries
+    }
+
+    func reSort(sort: AKSortDescriptor) {
+        items = Self.sort(items: items, sort: sort)
+    }
+
+    private static func sort(items: [ActivityMonitorItem], sort: AKSortDescriptor) -> [ActivityMonitorItem] {
+        return items.sorted {
+            switch sort.columnId {
+            case Columns.cpuPercent:
+                if let lhs = $0.cpuPercent, let rhs = $1.cpuPercent, lhs != rhs {
+                    return sort.compare(lhs, rhs)
+                }
+            case Columns.memoryBytes:
+                let lhs = $0.memoryBytes
+                let rhs = $1.memoryBytes
+                if lhs != rhs {
+                    return sort.compare(lhs, rhs)
+                }
+            case Columns.diskRwBytes:
+                if let lhs = $0.diskRwBytes, let rhs = $1.diskRwBytes, lhs != rhs {
+                    return sort.compare(lhs, rhs)
+                }
+            default:
+                break
+            }
+
+            return sort.compare($0.id, $1.id)
+        }
     }
 }
