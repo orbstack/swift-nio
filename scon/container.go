@@ -63,8 +63,9 @@ type Container struct {
 
 	hooks ContainerHooks
 
-	lxc           *lxc.Container
-	lxcConfigured bool
+	lxc            *lxc.Container
+	lxcConfigured  bool
+	lastCgroupPath string
 
 	manager *ConManager
 	mu      syncx.RWMutex

@@ -191,6 +191,10 @@ func (s *SconServer) WormholeNukeData(ctx context.Context) error {
 	return s.m.wormhole.NukeData()
 }
 
+func (s *SconServer) GetStats(ctx context.Context, req types.StatsRequest) (types.StatsResponse, error) {
+	return s.m.GetStats(req)
+}
+
 func (s *SconServer) InternalReportStopped(ctx context.Context, req types.InternalReportStoppedRequest) error {
 	// lxc.Stop() blocks until hook exits, so this breaks the deadlock
 	go func() {
@@ -269,23 +273,25 @@ func (s *SconServer) InternalGuiReportStarted(ctx context.Context) error {
 
 func (s *SconServer) Serve() error {
 	bridge := jhttp.NewBridge(handler.Map{
-		"Ping":                                  handler.New(s.Ping),
-		"Create":                                handler.New(s.Create),
-		"ImportContainerFromHostPath":           handler.New(s.ImportContainerFromHostPath),
-		"ListContainers":                        handler.New(s.ListContainers),
-		"GetByKey":                              handler.New(s.GetByKey),
-		"GetDefaultContainer":                   handler.New(s.GetDefaultContainer),
-		"SetDefaultContainer":                   handler.New(s.SetDefaultContainer),
-		"ContainerStart":                        handler.New(s.ContainerStart),
-		"ContainerStop":                         handler.New(s.ContainerStop),
-		"ContainerRestart":                      handler.New(s.ContainerRestart),
-		"ContainerDelete":                       handler.New(s.ContainerDelete),
-		"ContainerClone":                        handler.New(s.ContainerClone),
-		"ContainerRename":                       handler.New(s.ContainerRename),
-		"ContainerGetLogs":                      handler.New(s.ContainerGetLogs),
-		"ContainerSetConfig":                    handler.New(s.ContainerSetConfig),
-		"ContainerExportToHostPath":             handler.New(s.ContainerExportToHostPath),
-		"WormholeNukeData":                      handler.New(s.WormholeNukeData),
+		"Ping":                        handler.New(s.Ping),
+		"Create":                      handler.New(s.Create),
+		"ImportContainerFromHostPath": handler.New(s.ImportContainerFromHostPath),
+		"ListContainers":              handler.New(s.ListContainers),
+		"GetByKey":                    handler.New(s.GetByKey),
+		"GetDefaultContainer":         handler.New(s.GetDefaultContainer),
+		"SetDefaultContainer":         handler.New(s.SetDefaultContainer),
+		"ContainerStart":              handler.New(s.ContainerStart),
+		"ContainerStop":               handler.New(s.ContainerStop),
+		"ContainerRestart":            handler.New(s.ContainerRestart),
+		"ContainerDelete":             handler.New(s.ContainerDelete),
+		"ContainerClone":              handler.New(s.ContainerClone),
+		"ContainerRename":             handler.New(s.ContainerRename),
+		"ContainerGetLogs":            handler.New(s.ContainerGetLogs),
+		"ContainerSetConfig":          handler.New(s.ContainerSetConfig),
+		"ContainerExportToHostPath":   handler.New(s.ContainerExportToHostPath),
+		"WormholeNukeData":            handler.New(s.WormholeNukeData),
+		"GetStats":                    handler.New(s.GetStats),
+
 		"InternalReportStopped":                 handler.New(s.InternalReportStopped),
 		"InternalDockerMigrationLoadImage":      handler.New(s.InternalDockerMigrationLoadImage),
 		"InternalDockerMigrationRunSyncServer":  handler.New(s.InternalDockerMigrationRunSyncServer),

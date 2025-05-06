@@ -152,3 +152,40 @@ type ContainerExportRequest struct {
 type GenericContainerRequest struct {
 	Key string `json:"key"`
 }
+
+// Swift Codable ADT format
+type StatsID struct {
+	CgroupPath *StatsIDCgroup `json:"cgroup_path,omitempty"`
+	PID        *StatsIDPID    `json:"pid,omitempty"`
+}
+
+type StatsIDCgroup struct {
+	Value string `json:"_0"`
+}
+
+type StatsIDPID struct {
+	Value uint32 `json:"_0"`
+}
+
+type StatsEntry struct {
+	ID StatsID `json:"id"`
+
+	// delta-based metrics; client is responsible for diffing
+	CPUUsageUsec   uint64 `json:"cpu_usage_usec"`
+	DiskReadBytes  uint64 `json:"disk_read_bytes"`
+	DiskWriteBytes uint64 `json:"disk_write_bytes"`
+
+	// absolute metrics
+	MemoryBytes  uint64 `json:"memory_bytes"`
+	NumProcesses uint32 `json:"num_processes"`
+
+	Children []StatsEntry `json:"children"`
+}
+
+type StatsRequest struct {
+	IncludeProcessCgPaths []string `json:"include_process_cg_paths"`
+}
+
+type StatsResponse struct {
+	Entries []StatsEntry `json:"entries"`
+}
