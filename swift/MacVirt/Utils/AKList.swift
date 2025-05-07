@@ -264,8 +264,23 @@ private class AKOutlineView: NSOutlineView {
 // forward menu request/open/close events to NSOutlineView so it triggers highlight ring,
 // but *actually* use the menu from SwiftUI
 private class AKHostingView<V: View>: NSHostingView<V> {
+    let itemModel: AKListItemModel
+
     weak var outlineParent: AKOutlineView?
     var releaser: (() -> Void)?
+
+    init(rootView: V, itemModel: AKListItemModel) {
+        self.itemModel = itemModel
+        super.init(rootView: rootView)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    required init(rootView: V) {
+        fatalError("init(rootView:) has not been implemented")
+    }
 
     override func menu(for event: NSEvent) -> NSMenu? {
         // trigger NSOutlineView's highlight
@@ -400,7 +415,7 @@ private struct HostedItemView<Item: AKListItem, ItemView: View>: View {
 
 private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresentable {
     typealias Section = AKSection<Item>
-    typealias CachedView = CachedViewHolder<HostedItemView<Item, ItemView>>
+    typealias HostingView = AKHostingView<HostedItemView<Item, ItemView>>
 
     @ObservedObject var envModel: AKListModel
 
@@ -436,18 +451,11 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         let makeCellView: (Item) -> ItemView
 
         // preserve view identity to avoid losing state (e.g. popovers)
-        var viewCache = [Item.ID: CachedView]()
-
-        // custom reuse queue. hard to use nibs, and we need the identity-preserving cache logic too
-        // do this per column to avoid having to switch out the ViewBuilder
-        var reuseQueue = [CachedView]()
+        var viewCache = [Item.ID: HostingView]()
 
         init(spec: AKColumn<Item, ItemView>) {
             self.makeCellView = spec.makeCellView
-            self.reuseQueue.reserveCapacity(maxReuseSlots)
-
             super.init(identifier: NSUserInterfaceItemIdentifier(spec.id))
-
             self.headerCell.alignment = spec.alignment
         }
 
@@ -508,45 +516,41 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
          */
         private func getOrCreateItemView(
             outlineView: NSOutlineView, itemId: Item.ID, column: AKTableColumn
-        ) -> CachedView {
+        ) -> HostingView {
             // 1. cached for ID, to preserve identity
-            if let holder = column.viewCache[itemId] {
-                return holder
+            if let view = column.viewCache[itemId] {
+                return view
             }
 
-            // 2. look for reusable one
-            if let holder = column.reuseQueue.popLast() {
-                // a reused view should be added back to the cache once it's been rebound
-                column.viewCache[itemId] = holder
-                return holder
+            // 2. AppKit reuse queue
+            // TODO: re-enable reuse (by uncommenting this). requires fixing a bug (especially obvious in Activity Monitor) where rows that frequently move around will cause some reused views to be invisible. I tried view.prepareForReuse(), custom and AppKit reuse queues, view.needsLayout=true, and view.layoutSubtreeIfNeeded(), to no avail.
+            /*
+            if let view = outlineView.makeView(withIdentifier: column.identifier, owner: nil) as? HostingView {
+                return view
             }
+            */
 
             // 3. make a new one
             let itemModel = AKListItemModel(itemId: itemId as AnyHashable)
-            let hostedView = HostedItemView(
+            let swiftuiView = HostedItemView(
                 envModel: parent.envModel,
                 itemModel: itemModel,
                 makeCellView: column.makeCellView)
-            let nsView = AKHostingView(rootView: hostedView)
+            let nsView = AKHostingView(rootView: swiftuiView, itemModel: itemModel)
+            // nsView.identifier = column.identifier // for reuse
             nsView.outlineParent = (outlineView as! AKOutlineView)
-
-            let holder = CachedView(view: nsView, model: itemModel)
-            column.viewCache[itemId] = holder
+            column.viewCache[itemId] = nsView
 
             // set releaser
-            nsView.releaser = { [weak column, weak holder] in
-                guard let column, let holder else { return }
+            nsView.releaser = { [weak column] in
+                guard let column else { return }
                 // remove from active cache
                 column.viewCache.removeValue(forKey: itemId)
-                // add to reuse queue if space is available
-                if column.reuseQueue.count < maxReuseSlots {
-                    column.reuseQueue.append(holder)
-                }
                 // remove item
-                holder.model.item = nil
+                itemModel.item = nil
             }
 
-            return holder
+            return nsView
         }
 
         // make views
@@ -559,20 +563,20 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             switch node.type {
             case .item:
                 let value = node.value as! Item
-                let holder = getOrCreateItemView(
+                let view = getOrCreateItemView(
                     outlineView: outlineView, itemId: value.id,
                     column: tableColumn as! AKTableColumn)
 
                 // update value if needed
                 // updateNSView does async so it's fine to update right here
-                if (holder.model.item as? Item) != value {
-                    holder.model.item = value
+                if (view.itemModel.item as? Item) != value {
+                    view.itemModel.item = value
                 }
-                if (holder.model.itemId as? Item.ID) != value.id {
-                    holder.model.itemId = value.id
+                if (view.itemModel.itemId as? Item.ID) != value.id {
+                    view.itemModel.itemId = value.id
                 }
 
-                return holder.view
+                return view
 
             case .section:
                 // styling is applied by isGroupItem
