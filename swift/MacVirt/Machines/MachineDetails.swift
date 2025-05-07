@@ -61,6 +61,22 @@ struct MachineDetails: View {
                     }
                 }
             }
+
+            DividedButtonStack {
+                DividedRowButton {
+                    info.record.openNfsDirectory()
+                } label: {
+                    Label("Files", systemImage: "folder")
+                }
+
+                DividedRowButton {
+                    Task {
+                        await info.record.openInTerminal()
+                    }
+                } label: {
+                    Label("Terminal", systemImage: "terminal")
+                }
+            }
         }
     }
 }
