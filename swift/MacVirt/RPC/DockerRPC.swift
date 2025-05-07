@@ -75,6 +75,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
         labels?[DockerLabels.k8sType] != nil
     }
 
+    var k8sNamespace: String? {
+        labels?[DockerLabels.k8sNamespace]
+    }
+
     var userName: String {
         // prefer compose service label first (because we'll be grouped if it's compose)
         if let k8sName = labels?[DockerLabels.k8sContainerName],
@@ -502,6 +506,7 @@ enum DockerLabels {
     static let k8sType = "io.kubernetes.docker.type"
     static let k8sPodName = "io.kubernetes.pod.name"
     static let k8sContainerName = "io.kubernetes.container.name"
+    static let k8sNamespace = "io.kubernetes.pod.namespace"
 
     static let customDomains = "dev.orbstack.domains"
 }

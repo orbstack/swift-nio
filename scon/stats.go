@@ -150,6 +150,66 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 				Entries: statEntries,
 			}, err
 		}
+
+		// add a few special cgroups:
+		// $DOCKER/init.scope = dockerd, containerd
+		// $DOCKER/k3s = k3s services
+		// $DOCKER/docker/buildkit = builds
+		entry, err := readCgroupStats(dockerCgBase + "/init.scope")
+		if err != nil {
+			if errors.Is(err, unix.ENOENT) {
+				// ignore: race - stopped
+			} else {
+				return types.StatsResponse{
+					Entries: statEntries,
+				}, err
+			}
+		} else {
+			entry.Entity = types.StatsEntity{
+				Service: &types.StatsEntityService{
+					ID: "dockerd",
+				},
+			}
+			statEntries = append(statEntries, entry)
+		}
+
+		if m.k8sEnabled {
+			entry, err := readCgroupStats(dockerCgBase + "/k3s")
+			if err != nil {
+				if errors.Is(err, unix.ENOENT) {
+					// ignore: race - stopped
+				} else {
+					return types.StatsResponse{
+						Entries: statEntries,
+					}, err
+				}
+			} else {
+				entry.Entity = types.StatsEntity{
+					Service: &types.StatsEntityService{
+						ID: "k8s",
+					},
+				}
+				statEntries = append(statEntries, entry)
+			}
+		}
+
+		entry, err = readCgroupStats(dockerCgBase + "/docker/buildkit")
+		if err != nil {
+			if errors.Is(err, unix.ENOENT) {
+				// ignore: race - stopped
+			} else {
+				return types.StatsResponse{
+					Entries: statEntries,
+				}, err
+			}
+		} else {
+			entry.Entity = types.StatsEntity{
+				Service: &types.StatsEntityService{
+					ID: "buildkit",
+				},
+			}
+			statEntries = append(statEntries, entry)
+		}
 	}
 
 	return types.StatsResponse{

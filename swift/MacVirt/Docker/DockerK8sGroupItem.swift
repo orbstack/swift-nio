@@ -6,6 +6,21 @@ import Defaults
 import Foundation
 import SwiftUI
 
+struct K8sIcon: View {
+    var body: some View {
+        let color = SystemColors.desaturate(Color(.systemBlue))
+        Image(systemName: "helm")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 16, height: 16)
+            .padding(8)
+            .foregroundColor(Color(hex: 0xFAFAFA))
+            .background(Circle().fill(color))
+            // rasterize so opacity works on it as one big image
+            .drawingGroup(opaque: true)
+    }
+}
+
 struct DockerK8sGroupItem: View, Equatable {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
@@ -22,16 +37,7 @@ struct DockerK8sGroupItem: View, Equatable {
 
         HStack {
             HStack {
-                let color = SystemColors.desaturate(Color(.systemBlue))
-                Image(systemName: "helm")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                    .padding(8)
-                    .foregroundColor(Color(hex: 0xFAFAFA))
-                    .background(Circle().fill(color))
-                    // rasterize so opacity works on it as one big image
-                    .drawingGroup(opaque: true)
+                K8sIcon()
                     .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {

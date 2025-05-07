@@ -61,6 +61,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
     private let columns: [AKColumn<Item, ItemView>]
     private var singleSelection = false
     private var flat = false
+    private var expandByDefault = false
     private var autosaveName: String? = nil
 
     // hierarchical OR flat, with sections, with columns, multiple selection
@@ -70,6 +71,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
         sort: Binding<AKSortDescriptor>? = nil,
         rowHeight: CGFloat? = nil,
         flat: Bool = true,
+        expandByDefault: Bool = false,
         autosaveName: String? = nil,
         columns: [AKColumn<Item, ItemView>]
     ) {
@@ -80,6 +82,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
         self.columns = columns
         self.flat = flat
         self.autosaveName = autosaveName
+        self.expandByDefault = expandByDefault
     }
 
     var body: some View {
@@ -89,6 +92,7 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
             rowHeight: rowHeight,
             singleSelection: singleSelection,
             isFlat: flat,
+            expandByDefault: expandByDefault,
             autosaveName: autosaveName,
             defaultSort: sort?.wrappedValue,
             columns: columns
@@ -423,6 +427,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     let rowHeight: CGFloat?
     let singleSelection: Bool
     let isFlat: Bool
+    let expandByDefault: Bool
     let autosaveName: String?
     let defaultSort: AKSortDescriptor?
     let columns: [AKColumn<Item, ItemView>]
@@ -433,6 +438,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         rowHeight: CGFloat?,
         singleSelection: Bool,
         isFlat: Bool,
+        expandByDefault: Bool,
         autosaveName: String?,
         defaultSort: AKSortDescriptor?,
         columns: [AKColumn<Item, ItemView>]
@@ -442,6 +448,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         self.rowHeight = rowHeight
         self.singleSelection = singleSelection
         self.isFlat = isFlat
+        self.expandByDefault = expandByDefault
         self.autosaveName = autosaveName
         self.defaultSort = defaultSort
         self.columns = columns
@@ -469,6 +476,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 
         var rootNodes: [AKNode] = []
         var lastSections: [Section]?
+        var firstContentfulUpdate = true
 
         // preserve objc object identity to avoid losing state
         // overriding isEqual would probably work but this is also good for perf
@@ -583,8 +591,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 // TODO: if we put section items in children, and return isGroupItem=true, then theoretically AppKit should provide a sidebar-like show/hide arrow at the right. but I can't figure out how to make it do that (it just shows the normal disclosure triangle on the left)
                 let cellView = NSTableCellView()
                 let field = NSTextField(labelWithString: node.value as! String)
-                cellView.textField = field // necessary for isGroupItem to apply styling
-                cellView.addSubview(field) // necessary for text to be visible
+                cellView.textField = field  // necessary for isGroupItem to apply styling
+                cellView.addSubview(field)  // necessary for text to be visible
 
                 return cellView
             }
@@ -748,7 +756,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             return item.type == .section
         }
 
-        func outlineView(_ outlineView: NSOutlineView, userCanChangeVisibilityOf column: NSTableColumn) -> Bool {
+        func outlineView(
+            _ outlineView: NSOutlineView, userCanChangeVisibilityOf column: NSTableColumn
+        ) -> Bool {
             // allow customizing all columns, if the header row is visible
             return true
         }
@@ -927,8 +937,13 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
 
         // restore expansion state after initial non-empty update
         // otherwise AppKit discards saved expansion state for items that are not present
-        if !newNodes.isEmpty && autosaveName != nil {
+        if coordinator.firstContentfulUpdate && !newNodes.isEmpty {
+            if expandByDefault {
+                outlineView.expandItem(nil, expandChildren: true)
+            }
+
             outlineView.autosaveExpandedItems = true
+            coordinator.firstContentfulUpdate = false
         }
     }
 

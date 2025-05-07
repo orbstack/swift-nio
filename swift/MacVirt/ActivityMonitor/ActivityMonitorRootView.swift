@@ -9,65 +9,115 @@ import Defaults
 import SwiftUI
 
 private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
-    let id: ActivityMonitorID
-    let entity: ActivityMonitorEntity?
+    let entity: ActivityMonitorEntity
+    var id: ActivityMonitorID { entity.id }
 
-    let cpuPercent: Float?
-    let memoryBytes: UInt64
-    let diskRwBytes: UInt64?
+    var cpuPercent: Float?
+    var memoryBytes: UInt64
+    var diskRwBytes: UInt64?
 
-    let numProcesses: UInt64
+    var numProcesses: UInt64
 
     var children: [ActivityMonitorItem]?
 
     var listChildren: [any AKListItem]? { children }
-    var textLabel: String? {
-        switch entity {
+    var textLabel: String? { entity.displayString }
+
+    static func synthetic(entity: ActivityMonitorEntity, children: [ActivityMonitorItem])
+        -> ActivityMonitorItem
+    {
+        // manual reduce loop to deal with nil reduction
+        var cpuPercent: Float? = nil
+        var memoryBytes: UInt64 = 0
+        var diskRwBytes: UInt64? = nil
+        var numProcesses: UInt64 = 0
+        for item in children {
+            if let newCpuPercent = item.cpuPercent {
+                cpuPercent = cpuPercent.map { $0 + newCpuPercent } ?? newCpuPercent
+            }
+            memoryBytes += item.memoryBytes
+            if let newDiskRwBytes = item.diskRwBytes {
+                diskRwBytes = diskRwBytes.map { $0 + newDiskRwBytes } ?? newDiskRwBytes
+            }
+            numProcesses += item.numProcesses
+        }
+
+        return ActivityMonitorItem(
+            entity: entity, cpuPercent: cpuPercent, memoryBytes: memoryBytes,
+            diskRwBytes: diskRwBytes, numProcesses: numProcesses, children: children)
+    }
+}
+
+private enum ActivityMonitorID: Equatable, Hashable, Comparable {
+    case machine(id: String)
+    case container(id: String)
+    case compose(project: String)
+
+    // synthetics
+    case k8sGroup
+    case k8sNamespace(String)
+    case k8sServices
+    case dockerEngine
+    case buildkit
+}
+
+private enum ActivityMonitorEntity: Identifiable, Comparable {
+    case machine(record: ContainerRecord)
+    case container(container: DKContainer)
+    case compose(project: String)
+
+    // synthetics
+    case k8sGroup
+    case k8sNamespace(String)
+    case k8sServices
+    case dockerEngine
+    case buildkit
+
+    var id: ActivityMonitorID {
+        switch self {
+        case .machine(let record):
+            return .machine(id: record.id)
+        case .container(let container):
+            return .container(id: container.id)
+        case .compose(let project):
+            return .compose(project: project)
+        case .k8sGroup:
+            return .k8sGroup
+        case .k8sNamespace(let ns):
+            return .k8sNamespace(ns)
+        case .k8sServices:
+            return .k8sServices
+        case .dockerEngine:
+            return .dockerEngine
+        case .buildkit:
+            return .buildkit
+        }
+    }
+
+    var displayString: String {
+        switch self {
         case .machine(let record):
             return record.name
         case .container(let container):
             return container.userName
         case .compose(let project):
             return project
-        case nil:
-            return nil
+        case .k8sGroup:
+            return "Kubernetes"
+        case .k8sNamespace(let ns):
+            return ns
+        case .k8sServices:
+            return "Services"
+        case .dockerEngine:
+            return "Engine"
+        case .buildkit:
+            return "Builds"
         }
     }
-}
 
-private enum ActivityMonitorID: Equatable, Hashable, Comparable {
-    // cgroupPath > pid
-    case cgroupPath(String)
-    case pid(UInt32)
-    case composeProject(String)
-
-    static func < (lhs: ActivityMonitorID, rhs: ActivityMonitorID) -> Bool {
-        let lStr: String
-        let rStr: String
-        switch lhs {
-        case .cgroupPath(let path):
-            lStr = path
-        case .pid(let pid):
-            lStr = "\(pid)"
-        case .composeProject(let project):
-            lStr = project
-        }
-        switch rhs {
-        case .cgroupPath(let path):
-            rStr = path
-        case .pid(let pid):
-            rStr = "\(pid)"
-        case .composeProject(let project):
-            rStr = project
-        }
-        return lStr < rStr
+    static func < (lhs: ActivityMonitorEntity, rhs: ActivityMonitorEntity) -> Bool {
+        return lhs.displayString < rhs.displayString
     }
-}
-
-private enum ActivityMonitorEntity: Equatable {
-    case machine(record: ContainerRecord)
-    case container(container: DKContainer)
-    case compose(project: String)
 }
 
 private let initialRefreshInterval = 0.5  // seconds
@@ -96,7 +146,8 @@ struct ActivityMonitorRootView: View {
         StateWrapperView {
             AKList(
                 AKSection.single(model.items), selection: $selection, sort: $sort, rowHeight: 24,
-                flat: false, autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
+                flat: false, expandByDefault: true,
+                autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
                 columns: [
                     akColumn(id: Columns.name, title: "Name", width: 200, alignment: .left) {
                         item in
@@ -114,23 +165,38 @@ struct ActivityMonitorRootView: View {
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
                                         .frame(width: 16, height: 16)
-                                    Text(record.name)
+                                    Text(item.entity.displayString)
                                 }
 
                             case .container(let container):
                                 DockerContainerImage(container: container)
                                     .scaleEffect(0.5)  // 32px -> 16px
                                     .frame(width: 16, height: 16)
-                                Text(container.userName)
+                                Text(item.entity.displayString)
 
                             case .compose(let project):
                                 DockerComposeGroupImage(project: project)
                                     .scaleEffect(0.5)  // 32px -> 16px
                                     .frame(width: 16, height: 16)
-                                Text(project)
+                                Text(item.entity.displayString)
 
-                            case nil:
-                                EmptyView()
+                            case .k8sGroup:
+                                K8sIcon()
+                                    .scaleEffect(0.5)  // 32px -> 16px
+                                    .frame(width: 16, height: 16)
+                                Text(item.entity.displayString)
+
+                            case .k8sNamespace:
+                                Text(item.entity.displayString)
+
+                            case .k8sServices:
+                                Text(item.entity.displayString)
+
+                            case .dockerEngine:
+                                Text(item.entity.displayString)
+
+                            case .buildkit:
+                                Text(item.entity.displayString)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -220,9 +286,15 @@ private class ActivityMonitorViewModel: ObservableObject {
 
         var newRootItems = [ActivityMonitorItem]()
         var newDockerItems = [String?: [ActivityMonitorItem]]()
+        var newK8sItems = [String: [ActivityMonitorItem]]()
         var dockerMachineItem: ActivityMonitorItem?
+        var dockerEngineItem: ActivityMonitorItem?
+        var buildkitItem: ActivityMonitorItem?
+        var k8sServicesItem: ActivityMonitorItem?
         for entry in newEntries.values {
             let item = entryToItem(entry: entry, desc: desc, vmModel: vmModel)
+            guard let item else { continue }
+
             switch item.entity {
             case .machine(let record):
                 if record.id == ContainerIds.docker {
@@ -231,15 +303,19 @@ private class ActivityMonitorViewModel: ObservableObject {
                     newRootItems.append(item)
                 }
             case .container(let container):
-                let projectKey = container.composeProject
-                if var items = newDockerItems[projectKey] {
-                    items.append(item)
-                    newDockerItems[projectKey] = items
+                if let k8sNs = container.k8sNamespace {
+                    newK8sItems[k8sNs, default: []].append(item)
                 } else {
-                    newDockerItems[projectKey] = [item]
+                    newDockerItems[container.composeProject, default: []].append(item)
                 }
+            case .dockerEngine:
+                dockerEngineItem = item
+            case .buildkit:
+                buildkitItem = item
+            case .k8sServices:
+                k8sServicesItem = item
             default:
-                fatalError("unreachable entity")
+                fatalError("Unknown entity: \(item.entity)")
             }
         }
 
@@ -248,36 +324,37 @@ private class ActivityMonitorViewModel: ObservableObject {
             var flatDockerItems = [ActivityMonitorItem]()
             for (project, items) in newDockerItems {
                 if let project {
-                    // manual reduce loop to deal with nil reduction
-                    var cpuPercent: Float? = nil
-                    var memoryBytes: UInt64 = 0
-                    var diskRwBytes: UInt64? = nil
-                    var numProcesses: UInt64 = 0
-                    for item in items {
-                        if let newCpuPercent = item.cpuPercent {
-                            cpuPercent = cpuPercent.map { $0 + newCpuPercent } ?? newCpuPercent
-                        }
-                        memoryBytes += item.memoryBytes
-                        if let newDiskRwBytes = item.diskRwBytes {
-                            diskRwBytes = diskRwBytes.map { $0 + newDiskRwBytes } ?? newDiskRwBytes
-                        }
-                        numProcesses += item.numProcesses
-                    }
-
                     flatDockerItems.append(
-                        ActivityMonitorItem(
-                            id: .composeProject(project),
+                        ActivityMonitorItem.synthetic(
                             entity: .compose(project: project),
-                            cpuPercent: cpuPercent,
-                            memoryBytes: memoryBytes,
-                            diskRwBytes: diskRwBytes,
-                            numProcesses: numProcesses,
                             children: items
                         ))
                 } else {
                     flatDockerItems.append(contentsOf: items)
                 }
             }
+
+            if let dockerEngineItem {
+                flatDockerItems.append(dockerEngineItem)
+            }
+            if let buildkitItem {
+                flatDockerItems.append(buildkitItem)
+            }
+
+            // synthesize a k8s hierarchy
+            var k8sRootItems = [ActivityMonitorItem]()
+            if let k8sServicesItem {
+                k8sRootItems.append(k8sServicesItem)
+            }
+            for (ns, items) in newK8sItems {
+                k8sRootItems.append(
+                    ActivityMonitorItem.synthetic(entity: .k8sNamespace(ns), children: items))
+            }
+            if !k8sRootItems.isEmpty {
+                flatDockerItems.append(
+                    ActivityMonitorItem.synthetic(entity: .k8sGroup, children: k8sRootItems))
+            }
+
             dockerMachineItem.children = flatDockerItems
             newRootItems.append(dockerMachineItem)
         }
@@ -289,7 +366,7 @@ private class ActivityMonitorViewModel: ObservableObject {
     }
 
     private func entryToItem(entry: StatsEntry, desc: AKSortDescriptor, vmModel: VmViewModel)
-        -> ActivityMonitorItem
+        -> ActivityMonitorItem?
     {
         let lastEntry = lastEntries[entry.id]
 
@@ -318,7 +395,8 @@ private class ActivityMonitorViewModel: ObservableObject {
             }
 
         let children =
-            entry.children?.map { entryToItem(entry: $0, desc: desc, vmModel: vmModel) } ?? []
+            entry.children?.compactMap { entryToItem(entry: $0, desc: desc, vmModel: vmModel) }
+            ?? []
 
         var entity: ActivityMonitorEntity?
         switch entry.entity {
@@ -330,18 +408,20 @@ private class ActivityMonitorViewModel: ObservableObject {
             if let container = vmModel.dockerContainers?.first(where: { $0.id == id }) {
                 entity = .container(container: container)
             }
+        case .service("dockerd"):
+            entity = .dockerEngine
+        case .service("buildkit"):
+            entity = .buildkit
+        case .service("k8s"):
+            entity = .k8sServices
+        default:
+            break
         }
-
-        let aid: ActivityMonitorID
-        switch entry.id {
-        case .cgroupPath(let path):
-            aid = .cgroupPath(path)
-        case .pid(let pid):
-            aid = .pid(pid)
+        guard let entity else {
+            return nil
         }
 
         return ActivityMonitorItem(
-            id: aid,
             entity: entity,
             cpuPercent: cpuPercent,
             memoryBytes: entry.memoryBytes,
@@ -357,9 +437,9 @@ private class ActivityMonitorViewModel: ObservableObject {
     }
 }
 
-fileprivate extension [ActivityMonitorItem] {
+extension [ActivityMonitorItem] {
     // recursive
-    mutating func sort(desc: AKSortDescriptor) {
+    fileprivate mutating func sort(desc: AKSortDescriptor) {
         // these are structs so we need to mutate in-place
         for index in self.indices {
             self[index].children?.sort(desc: desc)

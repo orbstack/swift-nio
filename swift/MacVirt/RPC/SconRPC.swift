@@ -129,6 +129,7 @@ struct StatsResponse: Codable {
 enum StatsEntity: Codable, Equatable {
     case machine(id: String)
     case container(id: String)
+    case service(id: String)
 }
 
 struct StatsEntry: Codable {

@@ -171,6 +171,7 @@ type StatsIDPID struct {
 type StatsEntity struct {
 	Machine   *StatsEntityMachine   `json:"machine,omitempty"`
 	Container *StatsEntityContainer `json:"container,omitempty"`
+	Service   *StatsEntityService   `json:"service,omitempty"`
 }
 
 type StatsEntityMachine struct {
@@ -178,6 +179,10 @@ type StatsEntityMachine struct {
 }
 
 type StatsEntityContainer struct {
+	ID string `json:"id"`
+}
+
+type StatsEntityService struct {
 	ID string `json:"id"`
 }
 
