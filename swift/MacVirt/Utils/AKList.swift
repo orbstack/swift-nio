@@ -575,21 +575,12 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                 return holder.view
 
             case .section:
-                // pixel-perfect match of SwiftUI default section header
+                // styling is applied by isGroupItem
+                // TODO: if we put section items in children, and return isGroupItem=true, then theoretically AppKit should provide a sidebar-like show/hide arrow at the right. but I can't figure out how to make it do that (it just shows the normal disclosure triangle on the left)
                 let cellView = NSTableCellView()
                 let field = NSTextField(labelWithString: node.value as! String)
-                field.font = NSFont.systemFont(
-                    ofSize: NSFont.smallSystemFontSize, weight: .semibold)
-                field.textColor = .secondaryLabelColor
-                field.isEditable = false
-                cellView.addSubview(field)
-
-                // center vertically, align to left
-                field.translatesAutoresizingMaskIntoConstraints = false
-                NSLayoutConstraint.activate([
-                    field.leadingAnchor.constraint(equalTo: cellView.leadingAnchor),
-                    field.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-                ])
+                cellView.textField = field // necessary for isGroupItem to apply styling
+                cellView.addSubview(field) // necessary for text to be visible
 
                 return cellView
             }
@@ -752,6 +743,11 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             return item.type == .section
         }
 
+        func outlineView(_ outlineView: NSOutlineView, userCanChangeVisibilityOf column: NSTableColumn) -> Bool {
+            // allow customizing all columns, if the header row is visible
+            return true
+        }
+
         func outlineViewSelectionDidChange(_ notification: Notification) {
             updateSelection(outlineView: notification.object as! NSOutlineView)
         }
@@ -816,6 +812,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         }
         // dummy menu to trigger highlight
         outlineView.menu = NSMenu()
+        // fixes layout of cell-based views (including section headers), doesn't break custom row heights
+        outlineView.rowSizeStyle = .default
 
         // configure columns
         if columns.first?.title != nil {
@@ -823,7 +821,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             outlineView.headerView = NSTableHeaderView()
             outlineView.usesAlternatingRowBackgroundColors = true
             outlineView.columnAutoresizingStyle = .reverseSequentialColumnAutoresizingStyle
-            // outlineView.autosaveTableColumns = true
+            outlineView.autosaveTableColumns = true
         } else {
             // hide header
             outlineView.headerView = nil
