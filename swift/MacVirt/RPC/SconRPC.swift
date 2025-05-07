@@ -141,7 +141,6 @@ struct StatsEntry: Codable {
     var diskWriteBytes: UInt64
 
     var memoryBytes: UInt64
-    var numProcesses: UInt64
 
     var children: [StatsEntry]?
 }

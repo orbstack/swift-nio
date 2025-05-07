@@ -72,16 +72,6 @@ func readCgroupStats(cgPath string) (*types.StatsEntry, error) {
 	}
 	stats.MemoryBytes = memoryCurrent
 
-	pidsStr, err := util.ReadFileFast(sysPath + "/pids.current")
-	if err != nil {
-		return nil, err
-	}
-	pidsCurrent, err := strconv.ParseUint(strings.TrimSpace(string(pidsStr)), 10, 32)
-	if err != nil {
-		return nil, err
-	}
-	stats.NumProcesses = uint32(pidsCurrent)
-
 	return stats, nil
 }
 

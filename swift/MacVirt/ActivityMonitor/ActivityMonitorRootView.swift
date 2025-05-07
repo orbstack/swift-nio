@@ -16,8 +16,6 @@ private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
     var memoryBytes: UInt64
     var diskRwBytes: UInt64?
 
-    var numProcesses: UInt64
-
     var children: [ActivityMonitorItem]?
 
     var listChildren: [any AKListItem]? { children }
@@ -30,7 +28,6 @@ private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
         var cpuPercent: Float? = nil
         var memoryBytes: UInt64 = 0
         var diskRwBytes: UInt64? = nil
-        var numProcesses: UInt64 = 0
         for item in children {
             if let newCpuPercent = item.cpuPercent {
                 cpuPercent = cpuPercent.map { $0 + newCpuPercent } ?? newCpuPercent
@@ -39,12 +36,11 @@ private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
             if let newDiskRwBytes = item.diskRwBytes {
                 diskRwBytes = diskRwBytes.map { $0 + newDiskRwBytes } ?? newDiskRwBytes
             }
-            numProcesses += item.numProcesses
         }
 
         return ActivityMonitorItem(
             entity: entity, cpuPercent: cpuPercent, memoryBytes: memoryBytes,
-            diskRwBytes: diskRwBytes, numProcesses: numProcesses, children: children)
+            diskRwBytes: diskRwBytes, children: children)
     }
 }
 
@@ -130,7 +126,6 @@ private enum Columns {
     static let cpuPercent = "cpuPercent"
     static let memoryBytes = "memoryBytes"
     static let diskRwBytes = "diskRwBytes"
-    static let numProcesses = "numProcesses"
 }
 
 struct ActivityMonitorRootView: View {
@@ -232,12 +227,6 @@ struct ActivityMonitorRootView: View {
                                     .frame(maxWidth: .infinity, alignment: .trailing)
                             }
                         }
-                    },
-                    akColumn(
-                        id: Columns.numProcesses, title: "Processes", width: 85, alignment: .right
-                    ) { item in
-                        Text(item.numProcesses.formatted(.number))
-                            .frame(maxWidth: .infinity, alignment: .trailing)
                     },
                 ]
             )
@@ -426,7 +415,6 @@ private class ActivityMonitorViewModel: ObservableObject {
             cpuPercent: cpuPercent,
             memoryBytes: entry.memoryBytes,
             diskRwBytes: diskRwBytes,
-            numProcesses: entry.numProcesses,
             children: children
         )
     }

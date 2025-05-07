@@ -197,8 +197,7 @@ type StatsEntry struct {
 	DiskWriteBytes uint64 `json:"disk_write_bytes"`
 
 	// absolute metrics
-	MemoryBytes  uint64 `json:"memory_bytes"`
-	NumProcesses uint32 `json:"num_processes"`
+	MemoryBytes uint64 `json:"memory_bytes"`
 
 	Children []*StatsEntry `json:"children"`
 }
