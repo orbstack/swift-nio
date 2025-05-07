@@ -167,34 +167,40 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
             }
 
-            if isRunning {
-                ProgressIconButton(
-                    systemImage: "stop.fill",
-                    actionInProgress: actionInProgress?.isStartStop == true
-                ) {
-                    finishStop()
+            // don't allow messing with k8s containers -- it'll break things
+            if !container.isK8s {
+                if isRunning {
+                    ProgressIconButton(
+                        systemImage: "stop.fill",
+                        actionInProgress: actionInProgress?.isStartStop == true
+                    ) {
+                        finishStop()
+                    }
+                    .disabled(actionInProgress != nil)
+                    .help("Stop container")
+                } else {
+                    ProgressIconButton(
+                        systemImage: "play.fill",
+                        actionInProgress: actionInProgress?.isStartStop == true
+                    ) {
+                        finishStart()
+                    }
+                    .disabled(actionInProgress != nil)
+                    .help("Start container")
                 }
-                .disabled(actionInProgress != nil)
-                .help("Stop container")
-            } else {
-                ProgressIconButton(
-                    systemImage: "play.fill",
-                    actionInProgress: actionInProgress?.isStartStop == true
-                ) {
-                    finishStart()
-                }
-                .disabled(actionInProgress != nil)
-                .help("Start container")
             }
 
-            ProgressIconButton(
-                systemImage: "trash.fill",
-                actionInProgress: actionInProgress == .delete
-            ) {
-                presentConfirmDelete = true
+            // allow deleting stopped k8s containers because cri-dockerd leaves phantom ones
+            if !(container.isK8s && isRunning) {
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress == .delete
+                ) {
+                    presentConfirmDelete = true
+                }
+                .disabled(actionInProgress != nil)
+                .help("Delete container")
             }
-            .disabled(actionInProgress != nil)
-            .help("Delete container")
         }
         .padding(.vertical, 8)
         .confirmationDialog(
@@ -218,16 +224,17 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     }) {
                         Label("Stop", systemImage: "")
                     }
-                    .disabled(actionInProgress != nil)
+                    .disabled(actionInProgress != nil || container.isK8s)
                 } else {
                     Button(action: {
                         finishStart()
                     }) {
                         Label("Start", systemImage: "")
                     }
-                    .disabled(actionInProgress != nil)
+                    .disabled(actionInProgress != nil || container.isK8s)
                 }
 
+                // allow restart for quick k8s crash testing
                 Button(action: {
                     finishRestart()
                 }) {
@@ -240,8 +247,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }) {
                     Label("Delete", systemImage: "")
                 }
-                .disabled(actionInProgress != nil)
+                .disabled(actionInProgress != nil || (container.isK8s && isRunning))
 
+                // allow kill in case k8s container is stuck
                 Button(action: {
                     finishKill()
                 }) {
