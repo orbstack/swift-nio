@@ -177,24 +177,24 @@ struct ActivityMonitorRootView: View {
             )
             .onAppear {
                 Task { @MainActor in
-                    await model.refresh(vmModel: vmModel, sort: sort)
+                    await model.refresh(vmModel: vmModel, desc: sort)
 
                     // populate delta-based stats faster at the beginning
                     do {
                         try await Task.sleep(
                             nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
-                        await model.refresh(vmModel: vmModel, sort: sort)
+                        await model.refresh(vmModel: vmModel, desc: sort)
                     } catch {
                         // ignore
                     }
                 }
             }
             .onChange(of: sort) { newSort in
-                model.reSort(sort: newSort)
+                model.reSort(desc: newSort)
             }
             .onReceive(timer) { _ in
                 Task { @MainActor in
-                    await model.refresh(vmModel: vmModel, sort: sort)
+                    await model.refresh(vmModel: vmModel, desc: sort)
                 }
             }
         }
@@ -208,7 +208,7 @@ private class ActivityMonitorViewModel: ObservableObject {
 
     @Published var items: [ActivityMonitorItem] = []
 
-    func refresh(vmModel: VmViewModel, sort: AKSortDescriptor) async {
+    func refresh(vmModel: VmViewModel, desc: AKSortDescriptor) async {
         var newStats: StatsResponse!
         do {
             newStats = try await vmModel.tryGetStats(GetStatsRequest(includeProcessCgPaths: []))
@@ -222,7 +222,7 @@ private class ActivityMonitorViewModel: ObservableObject {
         var newDockerItems = [String?: [ActivityMonitorItem]]()
         var dockerMachineItem: ActivityMonitorItem?
         for entry in newEntries.values {
-            let item = entryToItem(entry: entry, sort: sort, vmModel: vmModel)
+            let item = entryToItem(entry: entry, desc: desc, vmModel: vmModel)
             switch item.entity {
             case .machine(let record):
                 if record.id == ContainerIds.docker {
@@ -282,13 +282,13 @@ private class ActivityMonitorViewModel: ObservableObject {
             newRootItems.append(dockerMachineItem)
         }
 
-        Self.sort(items: &newRootItems, sort: sort)
+        newRootItems.sort(desc: desc)
         items = newRootItems
 
         lastEntries = newEntries
     }
 
-    private func entryToItem(entry: StatsEntry, sort: AKSortDescriptor, vmModel: VmViewModel)
+    private func entryToItem(entry: StatsEntry, desc: AKSortDescriptor, vmModel: VmViewModel)
         -> ActivityMonitorItem
     {
         let lastEntry = lastEntries[entry.id]
@@ -317,9 +317,8 @@ private class ActivityMonitorViewModel: ObservableObject {
                 UInt64?(nil)
             }
 
-        var children =
-            entry.children?.map { entryToItem(entry: $0, sort: sort, vmModel: vmModel) } ?? []
-        Self.sort(items: &children, sort: sort)
+        let children =
+            entry.children?.map { entryToItem(entry: $0, desc: desc, vmModel: vmModel) } ?? []
 
         var entity: ActivityMonitorEntity?
         switch entry.entity {
@@ -352,13 +351,22 @@ private class ActivityMonitorViewModel: ObservableObject {
         )
     }
 
-    func reSort(sort: AKSortDescriptor) {
-        Self.sort(items: &items, sort: sort)
+    func reSort(desc: AKSortDescriptor) {
+        items.sort(desc: desc)
+        items = items
     }
+}
 
-    private static func sort(items: inout [ActivityMonitorItem], sort: AKSortDescriptor) {
-        items.sort {
-            switch sort.columnId {
+fileprivate extension [ActivityMonitorItem] {
+    // recursive
+    mutating func sort(desc: AKSortDescriptor) {
+        // these are structs so we need to mutate in-place
+        for index in self.indices {
+            self[index].children?.sort(desc: desc)
+        }
+
+        self.sort {
+            switch desc.columnId {
             case Columns.cpuPercent:
                 if let lhs = $0.cpuPercent,
                     let rhs = $1.cpuPercent,
@@ -366,23 +374,23 @@ private class ActivityMonitorViewModel: ObservableObject {
                     // for sorting purposes, clamp cpuPercent < 0.05 to minimize instability
                     !(lhs < 0.05 && rhs < 0.05)
                 {
-                    return sort.compare(lhs, rhs)
+                    return desc.compare(lhs, rhs)
                 }
             case Columns.memoryBytes:
                 let lhs = $0.memoryBytes
                 let rhs = $1.memoryBytes
                 if lhs != rhs {
-                    return sort.compare(lhs, rhs)
+                    return desc.compare(lhs, rhs)
                 }
             case Columns.diskRwBytes:
                 if let lhs = $0.diskRwBytes, let rhs = $1.diskRwBytes, lhs != rhs {
-                    return sort.compare(lhs, rhs)
+                    return desc.compare(lhs, rhs)
                 }
             default:
                 break
             }
 
-            return sort.compare($0.id, $1.id)
+            return desc.compare($0.id, $1.id)
         }
     }
 }

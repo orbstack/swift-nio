@@ -625,6 +625,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             if item.type == .item {
                 // returning swift obj breaks NSOutlineView
                 // HACK: Swift hash values are diff across execs/runs due to seed
+                print("got id = \((item.value as! Item).id)")
                 return "\((item.value as! Item).id)"
             } else {
                 return nil
@@ -876,10 +877,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         // this makes the updating non-atomic but it's fine
         if coordinator.lastSections == nil {
             completeUpdate(coordinator: coordinator, nsView: nsView)
-            // restore after initial update
+            // restore table column state after initial update
             if let autosaveName {
                 let outlineView = nsView.documentView as! NSOutlineView
-                outlineView.autosaveExpandedItems = true
                 outlineView.autosaveName = autosaveName
             }
         } else {
@@ -923,6 +923,12 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                     outlineView.scrollRowToVisible(firstRow)
                 }
             }
+        }
+
+        // restore expansion state after initial non-empty update
+        // otherwise AppKit discards saved expansion state for items that are not present
+        if !newNodes.isEmpty && autosaveName != nil {
+            outlineView.autosaveExpandedItems = true
         }
     }
 
