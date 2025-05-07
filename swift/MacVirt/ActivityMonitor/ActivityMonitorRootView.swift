@@ -257,9 +257,14 @@ struct ActivityMonitorRootView: View {
     }
 }
 
+private struct StatsResult {
+    let entries: [StatsID: StatsEntry]
+    let time: ContinuousClock.Instant
+}
+
 @MainActor
 private class ActivityMonitorViewModel: ObservableObject {
-    private var lastEntries: [StatsID: StatsEntry] = [:]
+    private var lastStats: StatsResult? = nil
 
     @Published var items: [ActivityMonitorItem] = []
 
@@ -273,6 +278,8 @@ private class ActivityMonitorViewModel: ObservableObject {
         let newEntries = Dictionary(
             uniqueKeysWithValues: newStats.entries.makeIterator().map { ($0.id, $0) })
 
+        let now = ContinuousClock.now
+
         var newRootItems = [ActivityMonitorItem]()
         var newDockerItems = [String?: [ActivityMonitorItem]]()
         var newK8sItems = [String: [ActivityMonitorItem]]()
@@ -281,7 +288,7 @@ private class ActivityMonitorViewModel: ObservableObject {
         var buildkitItem: ActivityMonitorItem?
         var k8sServicesItem: ActivityMonitorItem?
         for entry in newEntries.values {
-            let item = entryToItem(entry: entry, desc: desc, vmModel: vmModel)
+            let item = entryToItem(entry: entry, vmModel: vmModel, now: now)
             guard let item else { continue }
 
             switch item.entity {
@@ -351,20 +358,26 @@ private class ActivityMonitorViewModel: ObservableObject {
         newRootItems.sort(desc: desc)
         items = newRootItems
 
-        lastEntries = newEntries
+        lastStats = StatsResult(entries: newEntries, time: now)
     }
 
-    private func entryToItem(entry: StatsEntry, desc: AKSortDescriptor, vmModel: VmViewModel)
+    private func entryToItem(entry: StatsEntry, vmModel: VmViewModel, now: ContinuousClock.Instant)
         -> ActivityMonitorItem?
     {
-        let lastEntry = lastEntries[entry.id]
+        let lastEntry = lastStats?.entries[entry.id]
+        let timeSinceLastRefresh = if let lastStats {
+            (now - lastStats.time).seconds
+        } else {
+            Float?(nil)
+        }
 
         let cpuPercent =
             if let lastEntry,
+                let timeSinceLastRefresh,
                 entry.cpuUsageUsec >= lastEntry.cpuUsageUsec
             {
                 Float(entry.cpuUsageUsec - lastEntry.cpuUsageUsec)
-                    / Float(refreshInterval * 1_000_000) * 100
+                    / Float(timeSinceLastRefresh * 1_000_000) * 100
             } else {
                 Float?(nil)
             }
@@ -384,7 +397,7 @@ private class ActivityMonitorViewModel: ObservableObject {
             }
 
         let children =
-            entry.children?.compactMap { entryToItem(entry: $0, desc: desc, vmModel: vmModel) }
+            entry.children?.compactMap { entryToItem(entry: $0, vmModel: vmModel, now: now) }
             ?? []
 
         var entity: ActivityMonitorEntity?
@@ -425,9 +438,9 @@ private class ActivityMonitorViewModel: ObservableObject {
     }
 }
 
-extension [ActivityMonitorItem] {
+private extension [ActivityMonitorItem] {
     // recursive
-    fileprivate mutating func sort(desc: AKSortDescriptor) {
+    mutating func sort(desc: AKSortDescriptor) {
         // these are structs so we need to mutate in-place
         for index in self.indices {
             self[index].children?.sort(desc: desc)
@@ -460,5 +473,12 @@ extension [ActivityMonitorItem] {
 
             return desc.compare($0.id, $1.id)
         }
+    }
+}
+
+private extension Duration {
+    var seconds: Float {
+        // attoseconds -> femtoseconds -> picoseconds -> nanoseconds (thanks apple)
+        return Float(components.seconds) + Float(components.attoseconds) * 1e-18
     }
 }
