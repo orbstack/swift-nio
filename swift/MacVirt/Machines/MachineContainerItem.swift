@@ -145,7 +145,11 @@ struct MachineContainerItem: View {
                     }
 
                     Button("Export") {
-                        openExportPanel()
+                        record.openExportPanel(
+                            windowHolder: windowHolder,
+                            actionTracker: actionTracker,
+                            vmModel: vmModel
+                        )
                     }
                 }
 
@@ -264,12 +268,16 @@ struct MachineContainerItem: View {
             return [record.id]
         }
     }
+}
 
-    private func openExportPanel() {
+extension ContainerRecord {
+    func openExportPanel(
+        windowHolder: WindowHolder,
+        actionTracker: ActionTracker,
+        vmModel: VmViewModel
+    ) {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "\(record.name).tar.zst"
-        panel.showsTagField = false
-        panel.message = "Export machine “\(record.name)”"
+        panel.nameFieldStringValue = "\(self.name).tar.zst"
 
         let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
         panel.beginSheetModal(for: window) { result in
@@ -277,8 +285,8 @@ struct MachineContainerItem: View {
                 let url = panel.url
             {
                 Task {
-                    await actionTracker.withMachineExport(id: self.record.id) {
-                        await vmModel.tryExportContainer(record, hostPath: url.path)
+                    await actionTracker.withMachineExport(id: self.id) {
+                        await vmModel.tryExportContainer(self, hostPath: url.path)
                     }
                 }
             }

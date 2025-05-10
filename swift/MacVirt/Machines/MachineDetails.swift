@@ -8,6 +8,8 @@ import SwiftUI
 struct MachineDetails: View {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var windowTracker: WindowTracker
+    @EnvironmentObject var actionTracker: ActionTracker
+    @StateObject private var windowHolder = WindowHolder()
 
     let info: ContainerInfo
 
@@ -76,7 +78,18 @@ struct MachineDetails: View {
                 } label: {
                     Label("Terminal", systemImage: "terminal")
                 }
+
+                DividedRowButton {
+                    info.record.openExportPanel(
+                        windowHolder: windowHolder,
+                        actionTracker: actionTracker,
+                        vmModel: vmModel
+                    )
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
             }
         }
+        .background(WindowAccessor(holder: windowHolder))
     }
 }
