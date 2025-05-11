@@ -41,6 +41,16 @@ class NewMainViewController: NSViewController {
         action: #selector(actionToggleInspector),
         requiresVmRunning: false
     )
+    
+    private lazy var containersSortDelegate = EnumMenuDelegate<DockerContainerSortDescriptor>(key: .dockerContainersSortDescriptor)
+    lazy var containersSortMenu = {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.delegate = containersSortDelegate
+        return self.makeMenuToolbarItem(
+            itemIdentifier: .dockerContainersSort, icon: "arrow.up.arrow.down", title: "Sort",
+            requiresVmRunning: false, menu: menu)
+    }()
 
     lazy var containersFilterMenu = {
         let menuItem1 = NSMenuItem(
@@ -75,6 +85,23 @@ class NewMainViewController: NSViewController {
         title: "New Volume",
         action: #selector(actionDockerVolumesNew)
     )
+    
+    private lazy var volumesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(key: .dockerVolumesSortDescriptor)
+    lazy var volumesSortMenu = {
+        let menu = NSMenu()
+        menu.delegate = volumesSortDelegate
+        return self.makeMenuToolbarItem(
+            itemIdentifier: .dockerVolumesSort, icon: "arrow.up.arrow.down", title: "Sort",
+            requiresVmRunning: false, menu: menu)
+//        DockerGenericSortDescriptor.allCases.map { method in
+//            let item = ClosureMenuItem(title: method.description) { [key] in
+//                Defaults[key] = method
+//            }
+//            print("item for \(method.description)")
+//            item.state = (currentValue == method) ? .on : .off
+//            return item
+//        }
+    }()
 
     lazy var imagesFolderButton = makeToolbarItem(
         itemIdentifier: .dockerImagesOpen,
@@ -82,6 +109,15 @@ class NewMainViewController: NSViewController {
         title: "Open Images",
         action: #selector(actionDockerImagesOpen)
     )
+    
+    private lazy var imagesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(key: .dockerImagesSortDescriptor)
+    lazy var imagesSortMenu = {
+        let menu = NSMenu()
+        menu.delegate = imagesSortDelegate
+        return self.makeMenuToolbarItem(
+            itemIdentifier: .dockerImagesSort, icon: "arrow.up.arrow.down", title: "Sort",
+            requiresVmRunning: false, menu: menu)
+    }()
 
     lazy var podsStartToggle = {
         let item = NSToolbarItem(itemIdentifier: .k8sEnable)
@@ -167,46 +203,6 @@ class NewMainViewController: NSViewController {
         let item = NSSearchToolbarItem(itemIdentifier: .searchItem)
         item.searchField.delegate = self
         return item
-    }()
-
-    func makeIndividualSortingNSMenuItem(method sortMethod: DockerSortMethod, menu: NSMenu)
-        -> NSMenuItem
-    {
-        let item = ClosureMenuItem(title: sortMethod.description) {
-            self.model.dockerSortingMethod = sortMethod
-
-            menu.items = self.makeAllSortingNSMenuItems(forMenu: menu)  // refresh item states
-
-            // for some reason after clicking on an item it'll automatically hide just the first one????? so
-            // this is why we need this workaround (wtf appkit??)
-            for item in menu.items { item.isHidden = false }
-        }
-        // Don't set item.state here, it'll be set in menuWillOpen
-        // this is so that, if a user selects "size" in another tab
-        // and switches to one where it's not allowed (Docker Containers)
-        // we'll automatically switch the state for the default one that the app switches to
-        item.tag = sortMethod.rawValue
-        return item
-    }
-
-    func makeAllSortingNSMenuItems(forMenu menu: NSMenu) -> [NSMenuItem] {
-        let menuItems = DockerSortMethod.allCases.map { method in
-            makeIndividualSortingNSMenuItem(method: method, menu: menu)
-        }
-
-        return menuItems
-    }
-
-    lazy var sortListItem = {
-        let menu = NSMenu()
-        menu.autoenablesItems = false
-        menu.delegate = self
-        menu.identifier = .sortListItemMenu
-        menu.items = makeAllSortingNSMenuItems(forMenu: menu)
-
-        return self.makeMenuToolbarItem(
-            itemIdentifier: .sortList, icon: "arrow.up.arrow.down", title: "Sort",
-            requiresVmRunning: false, menu: menu)
     }()
 
     lazy var licenseBadgeItem = {
@@ -356,11 +352,24 @@ extension NewMainViewController {
     }
 }
 
-extension NewMainViewController: NSMenuDelegate {
+private class EnumMenuDelegate<T: CustomStringConvertible & Defaults.Serializable & Equatable & CaseIterable>: NSObject, NSMenuDelegate {
+    let key: Defaults.Key<T>
+
+    init(key: Defaults.Key<T>) {
+        self.key = key
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
-        guard menu.identifier == .sortListItemMenu else { return }
+        let currentValue = Defaults[key]
+        menu.items = T.allCases.map { method in
+            let item = ClosureMenuItem(title: method.description) { [key] in
+                Defaults[key] = method
+            }
+            item.state = (currentValue == method) ? .on : .off
+            return item
+        }
         for item in menu.items {
-            item.state = (model.dockerSortingMethod.rawValue == item.tag) ? .on : .off
+            item.isHidden = false
         }
     }
 }

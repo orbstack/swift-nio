@@ -173,6 +173,46 @@ enum NavTabId: String, Defaults.Serializable {
     case activityMonitor = "activity-monitor"
 }
 
+enum DockerGenericSortDescriptor: String, Defaults.Serializable, CaseIterable, Hashable, CustomStringConvertible {
+    case name = "nameAscending"
+    case size = "sizeAscending"
+    case dateDescending = "dateDescending"
+    case dateAscending = "dateAscending"
+
+    var description: String {
+        switch self {
+        case .name:
+            return "Name"
+        case .size:
+            return "Size"
+        case .dateDescending:
+            return "Newest"
+        case .dateAscending:
+            return "Oldest"
+        }
+    }
+}
+
+enum DockerContainerSortDescriptor: String, Defaults.Serializable, CaseIterable, Hashable, CustomStringConvertible {
+    case name = "nameAscending"
+    case dateDescending = "dateDescending"
+    case dateAscending = "dateAscending"
+    case image = "imageAscending"
+
+    var description: String {
+        switch self {
+        case .name:
+            return "Name"
+        case .dateDescending:
+            return "Newest"
+        case .dateAscending:
+            return "Oldest"
+        case .image:
+            return "Image"
+        }
+    }
+}
+
 extension Defaults.Keys {
     // shared with swext in vmgr, which may have diff bundle ID
     private static let suite = getDefaultsSuite()
@@ -180,8 +220,17 @@ extension Defaults.Keys {
     static let selectedTab = Key<NavTabId>(
         "selectedTab", default: NavTabId.dockerContainers, suite: suite)
 
+    static let dockerContainersSortDescriptor = Key<DockerContainerSortDescriptor>(
+        "dockerContainersSortDescriptor", default: .name, suite: suite)
     static let dockerFilterShowStopped = Key<Bool>(
         "dockerFilterShowStopped", default: true, suite: suite)
+
+    static let dockerVolumesSortDescriptor = Key<DockerGenericSortDescriptor>(
+        "dockerVolumesSortDescriptor", default: .name, suite: suite)
+
+    static let dockerImagesSortDescriptor = Key<DockerGenericSortDescriptor>(
+        "dockerImagesSortDescriptor", default: .name, suite: suite)
+
     static let dockerMigrationDismissed = Key<Bool>(
         "docker_migrationDismissed", default: false, suite: suite)
     // for AKList autosaveName

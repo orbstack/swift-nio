@@ -93,6 +93,7 @@ class JsonRPCClient {
         baseURL = URL(httpURLWithSocketPath: unixSocket, uri: "/")!.absoluteString
 
         encoder.keyEncodingStrategy = .convertToSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
         decoder.keyDecodingStrategy = .convertFromSnakeCase
     }
 

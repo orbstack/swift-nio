@@ -64,6 +64,26 @@ class WindowHolder: ObservableObject {
     }
 }
 
+extension View {
+    func windowHolder(holder: WindowHolder) -> some View {
+        background(WindowAccessor(holder: holder))
+    }
+
+    func onWindowReady(holder: WindowHolder, action: @escaping (NSWindow) -> Void) -> some View {
+        self
+            .onAppear {
+                if let window = holder.window {
+                    action(window)
+                }
+            }
+            .onChange(of: holder.window) { window in
+                if let window {
+                    action(window)
+                }
+            }
+    }
+}
+
 func rectReader(_ binding: Binding<CGRect>, _ space: CoordinateSpace = .global) -> some View {
     GeometryReader { geometry -> Color in
         let rect = geometry.frame(in: space)

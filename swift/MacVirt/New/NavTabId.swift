@@ -11,11 +11,12 @@ extension NavTabId {
     var defaultItemIdentifiers: [NSToolbarItem.Identifier] {
         switch self {
         case .dockerContainers:
-            return [.dockerContainersFilter, .searchItem]
+            return [.dockerContainersSort, .dockerContainersFilter, .searchItem]
         case .dockerVolumes:
-            return [.sortList, .dockerVolumesOpen, .dockerVolumesNew, .searchItem]
+            return [.dockerVolumesSort, .dockerVolumesOpen, .dockerVolumesNew, .searchItem]
         case .dockerImages:
-            return [.sortList, .dockerImagesOpen, .searchItem]
+            return [.dockerImagesSort, .dockerImagesOpen, .searchItem]
+
         case .k8sPods:
             return [.k8sEnable, .k8sPodsFilter, .searchItem]
         case .k8sServices:
@@ -37,10 +38,15 @@ extension NSToolbarItem.Identifier {
     // use custom buttons for more flexibility
     static let toggleInspectorButton = NSToolbarItem.Identifier("toggleInspectorButton")
 
+    static let dockerContainersSort = NSToolbarItem.Identifier("dockerContainersSort")
     static let dockerContainersFilter = NSToolbarItem.Identifier("dockerContainersFilter")
+
     static let dockerVolumesOpen = NSToolbarItem.Identifier("dockerVolumesOpen")
     static let dockerVolumesNew = NSToolbarItem.Identifier("dockerVolumesNew")
+    static let dockerVolumesSort = NSToolbarItem.Identifier("dockerVolumesSort")
+
     static let dockerImagesOpen = NSToolbarItem.Identifier("dockerImagesOpen")
+    static let dockerImagesSort = NSToolbarItem.Identifier("dockerImagesSort")
 
     static let k8sEnable = NSToolbarItem.Identifier("k8sEnable")
     static let k8sPodsFilter = NSToolbarItem.Identifier("k8sPodsFilter")
@@ -54,7 +60,6 @@ extension NSToolbarItem.Identifier {
     static let searchItem = NSToolbarItem.Identifier("searchItem")
 
     static let licenseBadge = NSToolbarItem.Identifier("licenseBadge")
-    static let sortList = NSToolbarItem.Identifier("sortList")
 
     static let inspectorTrackingSeparatorCompat = {
         if #available(macOS 14.0, *) {
@@ -69,8 +74,4 @@ extension NSToolbarItem.Identifier {
     static let trailingItems: [NSToolbarItem.Identifier] =
         // macOS 14 .toggleInspector starts in disabled state, until a selection is made. custom one works
         [.inspectorTrackingSeparatorCompat, .flexibleSpace, .licenseBadge, .toggleInspectorButton]
-}
-
-extension NSUserInterfaceItemIdentifier {
-    static let sortListItemMenu = NSUserInterfaceItemIdentifier("sortListItemMenu")
 }

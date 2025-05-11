@@ -46,14 +46,22 @@ extension NewMainViewController: NSToolbarDelegate {
         case .toggleInspectorButton:
             return toggleInspectorButton
 
+        case .dockerContainersSort:
+            return containersSortMenu
         case .dockerContainersFilter:
             return containersFilterMenu
+
         case .dockerVolumesOpen:
             return volumesFolderButton
         case .dockerVolumesNew:
             return volumesPlusButton
+        case .dockerVolumesSort:
+            return volumesSortMenu
+
         case .dockerImagesOpen:
             return imagesFolderButton
+        case .dockerImagesSort:
+            return imagesSortMenu
 
         case .k8sEnable:
             return podsStartToggle
@@ -80,8 +88,6 @@ extension NewMainViewController: NSToolbarDelegate {
         case .licenseBadge:
             return licenseBadgeItem
 
-        case .sortList:
-            return sortListItem
         default:
             break
         }

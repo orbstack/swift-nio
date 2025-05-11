@@ -447,7 +447,6 @@ class VmViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var initialDockerContainerSelection: Set<DockerContainerId> = []
     @Published var presentAuth = false
-    @Published var dockerSortingMethod: DockerSortMethod = .none
 
     // the user's choice when the window is big enough
     var sidebarPrefersCollapsed = false
@@ -806,15 +805,13 @@ class VmViewModel: ObservableObject {
     @MainActor
     private func onNewDockerVolumes(rawVolumes: [DKVolume]) {
         // sort volumes
-        let volumes = rawVolumes.sorted { $0.name < $1.name }
-        dockerVolumes = volumes
+        dockerVolumes = rawVolumes
     }
 
     @MainActor
     private func onNewDockerImages(rawImages: [DKSummaryAndFullImage]) {
         // sort images
-        let images = rawImages.sorted { $0.summary.userTag < $1.summary.userTag }
-        dockerImages = images
+        dockerImages = rawImages
     }
 
     @MainActor

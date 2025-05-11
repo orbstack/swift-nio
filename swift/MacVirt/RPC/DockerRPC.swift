@@ -315,7 +315,7 @@ struct DKVolumeCreateOptions: Codable {
 }
 
 struct DKVolume: AKListItem, Codable, Identifiable, Equatable {
-    let createdAt: String?
+    let createdAt: Date?
     let driver: String
     let labels: [String: String]?
     let mountpoint: String
@@ -330,14 +330,14 @@ struct DKVolume: AKListItem, Codable, Identifiable, Equatable {
     }
 
     var formattedCreatedAt: String {
-        // ISO 8601
-        let date = ISO8601DateFormatter().date(from: createdAt ?? "") ?? Date()
+        guard let createdAt else { return "unknown" }
+
         // fix "in 0 seconds"
-        if Date().timeIntervalSince(date) < nowTimeThreshold {
+        if Date().timeIntervalSince(createdAt) < nowTimeThreshold {
             return "just now"
         }
 
-        return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+        return relativeDateFormatter.localizedString(for: createdAt, relativeTo: Date())
     }
 
     var textLabel: String? {

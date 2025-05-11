@@ -633,7 +633,6 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             if item.type == .item {
                 // returning swift obj breaks NSOutlineView
                 // HACK: Swift hash values are diff across execs/runs due to seed
-                print("got id = \((item.value as! Item).id)")
                 return "\((item.value as! Item).id)"
             } else {
                 return nil

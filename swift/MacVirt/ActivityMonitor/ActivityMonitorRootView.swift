@@ -19,7 +19,7 @@ private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
     var children: [ActivityMonitorItem]?
 
     var listChildren: [any AKListItem]? { children }
-    var textLabel: String? { entity.displayString }
+    var textLabel: String? { entity.description }
 
     static func synthetic(entity: ActivityMonitorEntity, children: [ActivityMonitorItem])
         -> ActivityMonitorItem
@@ -57,7 +57,7 @@ private enum ActivityMonitorID: Equatable, Hashable, Comparable {
     case buildkit
 }
 
-private enum ActivityMonitorEntity: Identifiable, Comparable {
+private enum ActivityMonitorEntity: Identifiable, Comparable, CustomStringConvertible {
     case machine(record: ContainerRecord)
     case container(container: DKContainer)
     case compose(project: String)
@@ -90,7 +90,7 @@ private enum ActivityMonitorEntity: Identifiable, Comparable {
         }
     }
 
-    var displayString: String {
+    var description: String {
         switch self {
         case .machine(let record):
             return record.name
@@ -112,7 +112,7 @@ private enum ActivityMonitorEntity: Identifiable, Comparable {
     }
 
     static func < (lhs: ActivityMonitorEntity, rhs: ActivityMonitorEntity) -> Bool {
-        return lhs.displayString < rhs.displayString
+        return lhs.description < rhs.description
     }
 }
 
@@ -160,38 +160,38 @@ struct ActivityMonitorRootView: View {
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
                                         .frame(width: 16, height: 16)
-                                    Text(item.entity.displayString)
+                                    Text(item.entity.description)
                                 }
 
                             case .container(let container):
                                 DockerContainerImage(container: container)
                                     .scaleEffect(0.5)  // 32px -> 16px
                                     .frame(width: 16, height: 16)
-                                Text(item.entity.displayString)
+                                Text(item.entity.description)
 
                             case .compose(let project):
                                 DockerComposeGroupImage(project: project)
                                     .scaleEffect(0.5)  // 32px -> 16px
                                     .frame(width: 16, height: 16)
-                                Text(item.entity.displayString)
+                                Text(item.entity.description)
 
                             case .k8sGroup:
                                 K8sIcon()
                                     .scaleEffect(0.5)  // 32px -> 16px
                                     .frame(width: 16, height: 16)
-                                Text(item.entity.displayString)
+                                Text(item.entity.description)
 
                             case .k8sNamespace:
-                                Text(item.entity.displayString)
+                                Text(item.entity.description)
 
                             case .k8sServices:
-                                Text(item.entity.displayString)
+                                Text(item.entity.description)
 
                             case .dockerEngine:
-                                Text(item.entity.displayString)
+                                Text(item.entity.description)
 
                             case .buildkit:
-                                Text(item.entity.displayString)
+                                Text(item.entity.description)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)

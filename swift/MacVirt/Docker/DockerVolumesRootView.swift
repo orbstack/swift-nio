@@ -4,6 +4,7 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 struct DockerVolumesRootView: View {
     @Environment(\.controlActiveState) private var controlActiveState: ControlActiveState
@@ -11,6 +12,8 @@ struct DockerVolumesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
+    
+    @Default(.dockerVolumesSortDescriptor) private var sortDescriptor
 
     @State private var selection: Set<String> = []
 
@@ -18,9 +21,7 @@ struct DockerVolumesRootView: View {
         let searchQuery = vmModel.searchText
 
         DockerStateWrapperView(\.dockerVolumes) { volumes, _ in
-            let filteredVolumes = volumes.filter { volume in
-                searchQuery.isEmpty || volume.name.localizedCaseInsensitiveContains(searchQuery)
-            }.sort(accordingTo: vmModel.dockerSortingMethod, model: vmModel)
+            let filteredVolumes = self.filterVolumes(volumes, searchQuery: searchQuery)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             VStack(spacing: 0) {
@@ -94,6 +95,14 @@ struct DockerVolumesRootView: View {
         }
 
         return nil
+    }
+    
+    private func filterVolumes(_ volumes: [DKVolume], searchQuery: String) -> [DKVolume] {
+        var volumes = volumes.filter { volume in
+            searchQuery.isEmpty || volume.name.localizedCaseInsensitiveContains(searchQuery)
+        }
+        volumes.sort(accordingTo: sortDescriptor, model: vmModel)
+        return volumes
     }
 
     private func maybeRefreshDf() {

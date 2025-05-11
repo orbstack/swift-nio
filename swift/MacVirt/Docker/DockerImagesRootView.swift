@@ -4,11 +4,14 @@
 
 import Foundation
 import SwiftUI
+import Defaults
 
 struct DockerImagesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
+    
+    @Default(.dockerImagesSortDescriptor) private var sortDescriptor
 
     @State private var selection: Set<String> = []
 
@@ -16,12 +19,7 @@ struct DockerImagesRootView: View {
         let searchQuery = vmModel.searchText
 
         DockerStateWrapperView(\.dockerImages) { images, _ in
-            let filteredImages = images.filter { (image: DKSummaryAndFullImage) in
-                searchQuery.isEmpty || image.id.localizedCaseInsensitiveContains(searchQuery)
-                    || image.summary.repoTags?.first(where: {
-                        $0.localizedCaseInsensitiveContains(searchQuery)
-                    }) != nil
-            }.sort(accordingTo: vmModel.dockerSortingMethod, model: vmModel)
+            let filteredImages = self.filterImages(images, searchQuery: searchQuery)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             VStack(spacing: 0) {
@@ -78,5 +76,16 @@ struct DockerImagesRootView: View {
             }
         }
         .navigationTitle("Images")
+    }
+    
+    private func filterImages(_ images: [DKSummaryAndFullImage], searchQuery: String) -> [DKSummaryAndFullImage] {
+        var images = images.filter { (image: DKSummaryAndFullImage) in
+            searchQuery.isEmpty || image.id.localizedCaseInsensitiveContains(searchQuery)
+                || image.summary.repoTags?.first(where: {
+                    $0.localizedCaseInsensitiveContains(searchQuery)
+                }) != nil
+        }
+        images.sort(accordingTo: sortDescriptor, model: vmModel)
+        return images
     }
 }

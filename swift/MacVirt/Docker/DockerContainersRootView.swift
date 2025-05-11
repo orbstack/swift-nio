@@ -227,6 +227,7 @@ struct DockerContainersRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @Default(.dockerFilterShowStopped) private var dockerFilterShowStopped
+    @Default(.dockerContainersSortDescriptor) private var sortDescriptor
 
     @State var selection: Set<DockerContainerId>
 
@@ -236,14 +237,7 @@ struct DockerContainersRootView: View {
         DockerStateWrapperView(\.dockerContainers) { containers, _ in
             let runningCount = containers.filter { $0.running }.count
 
-            let filteredContainers = containers.filter { container in
-                searchQuery.isEmpty || container.id.localizedCaseInsensitiveContains(searchQuery)
-                    || container.image.localizedCaseInsensitiveContains(searchQuery)
-                    || container.imageId.localizedCaseInsensitiveContains(searchQuery)
-                    || container.names.first(where: {
-                        $0.localizedCaseInsensitiveContains(searchQuery)
-                    }) != nil
-            }.sort(accordingTo: .none, model: vmModel)
+            let filteredContainers = filterContainers(containers, searchQuery: searchQuery)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(
@@ -264,6 +258,19 @@ struct DockerContainersRootView: View {
             .inspectorSelection(selection)
         }
         .navigationTitle("Containers")
+    }
+    
+    private func filterContainers(_ containers: [DKContainer], searchQuery: String) -> [DKContainer] {
+        var containers = containers.filter { container in
+            searchQuery.isEmpty || container.id.localizedCaseInsensitiveContains(searchQuery)
+                || container.image.localizedCaseInsensitiveContains(searchQuery)
+                || container.imageId.localizedCaseInsensitiveContains(searchQuery)
+                || container.names.first(where: {
+                    $0.localizedCaseInsensitiveContains(searchQuery)
+                }) != nil
+        }
+        containers.sort(accordingTo: sortDescriptor)
+        return containers
     }
 
     private func makeListData(runningItems: [DockerListItem], stoppedItems: [DockerListItem])
