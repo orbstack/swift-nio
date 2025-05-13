@@ -56,6 +56,7 @@ private enum ActivityMonitorID: Equatable, Hashable, Comparable {
     case dockerGroup
     case dockerEngine
     case buildkit
+    case machinesGroup
 }
 
 private enum ActivityMonitorEntity: Identifiable, Comparable, CustomStringConvertible {
@@ -70,6 +71,7 @@ private enum ActivityMonitorEntity: Identifiable, Comparable, CustomStringConver
     case dockerGroup
     case dockerEngine
     case buildkit
+    case machinesGroup
 
     var id: ActivityMonitorID {
         switch self {
@@ -91,6 +93,8 @@ private enum ActivityMonitorEntity: Identifiable, Comparable, CustomStringConver
             return .dockerEngine
         case .buildkit:
             return .buildkit
+        case .machinesGroup:
+            return .machinesGroup
         }
     }
 
@@ -114,6 +118,8 @@ private enum ActivityMonitorEntity: Identifiable, Comparable, CustomStringConver
             return "Engine"
         case .buildkit:
             return "Builds"
+        case .machinesGroup:
+            return "Machines"
         }
     }
 
@@ -196,6 +202,9 @@ struct ActivityMonitorRootView: View {
                                 Text(item.entity.description)
 
                             case .buildkit:
+                                Text(item.entity.description)
+
+                            case .machinesGroup:
                                 Text(item.entity.description)
                             }
                         }
@@ -288,6 +297,7 @@ private class ActivityMonitorViewModel: ObservableObject {
         var newRootItems = [ActivityMonitorItem]()
         var newDockerItems = [String?: [ActivityMonitorItem]]()
         var newK8sItems = [String: [ActivityMonitorItem]]()
+        var newMachineItems = [ActivityMonitorItem]()
         var dockerMachineItem: ActivityMonitorItem?
         var dockerEngineItem: ActivityMonitorItem?
         var buildkitItem: ActivityMonitorItem?
@@ -298,7 +308,7 @@ private class ActivityMonitorViewModel: ObservableObject {
 
             switch item.entity {
             case .machine:
-                newRootItems.append(item)
+                newMachineItems.append(item)
             case .container(let container):
                 if let k8sNs = container.k8sNamespace {
                     newK8sItems[k8sNs, default: []].append(item)
@@ -372,6 +382,12 @@ private class ActivityMonitorViewModel: ObservableObject {
 
             dockerMachineItem.children = flatDockerItems
             newRootItems.append(dockerMachineItem)
+        }
+
+        // grouping: make synthetic machines group item
+        if !newMachineItems.isEmpty {
+            newRootItems.append(
+                ActivityMonitorItem.synthetic(entity: .machinesGroup, children: newMachineItems))
         }
 
         newRootItems.sort(desc: desc)
