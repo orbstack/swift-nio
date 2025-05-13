@@ -111,9 +111,9 @@ private enum ActivityMonitorEntity: Identifiable, Comparable, CustomStringConver
         case .k8sNamespace(let ns):
             return ns
         case .k8sServices:
-            return "Services"
+            return "System Services"
         case .dockerGroup:
-            return "Docker"
+            return "Containers"
         case .dockerEngine:
             return "Engine"
         case .buildkit:
@@ -158,55 +158,42 @@ struct ActivityMonitorRootView: View {
                 columns: [
                     akColumn(id: Columns.name, title: "Name", width: 200, alignment: .left) {
                         item in
-                        HStack {
+                        HStack(spacing: 0) {
                             switch item.entity {
                             case .machine(let record):
                                 Image("distro_\(record.image.distro)")
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 16, height: 16)
-                                Text(item.entity.description)
 
                             case .container(let container):
                                 DockerContainerImage(container: container)
                                     .scaleEffect(0.5)  // 32px -> 16px
                                     .frame(width: 16, height: 16)
-                                Text(item.entity.description)
 
                             case .compose(let project):
                                 DockerComposeGroupImage(project: project)
                                     .scaleEffect(0.5)  // 32px -> 16px
                                     .frame(width: 16, height: 16)
-                                Text(item.entity.description)
 
                             case .k8sGroup:
                                 K8sIcon()
                                     .scaleEffect(0.5)  // 32px -> 16px
                                     .frame(width: 16, height: 16)
-                                Text(item.entity.description)
-
-                            case .k8sNamespace:
-                                Text(item.entity.description)
-
-                            case .k8sServices:
-                                Text(item.entity.description)
 
                             case .dockerGroup:
                                 Image(systemName: "shippingbox")
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 16, height: 16)
-                                Text("Containers")
 
-                            case .dockerEngine:
-                                Text(item.entity.description)
-
-                            case .buildkit:
-                                Text(item.entity.description)
-
-                            case .machinesGroup:
-                                Text(item.entity.description)
+                            default:
+                                Spacer()
+                                    .frame(width: 16, height: 16)
                             }
+
+                            Text(item.entity.description)
+                                .padding(.leading, 8)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .lineLimit(1)
