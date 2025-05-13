@@ -79,7 +79,7 @@ struct MachineSettingsView: View {
                     }
 
                     Text(
-                        "Resources are used on demand, up to these limits. [Learn more](https://orbsta.cc/res-limits)"
+                        "Resources are used on demand, up to these limits. [Learn more](https://orb.cx/res-limits)"
                     )
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -107,7 +107,7 @@ struct MachineSettingsView: View {
 
                 Toggle("Use admin privileges for enhanced features", isOn: adminBinding)
                 Text(
-                    "This can improve performance and compatibility. [Learn more](https://orbsta.cc/admin)"
+                    "This can improve performance and compatibility. [Learn more](https://orb.cx/admin)"
                 )
                 .font(.subheadline)
                 .foregroundColor(.secondary)

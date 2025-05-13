@@ -219,7 +219,7 @@ echo "Welcome to OrbStack Debug Shell!"
 echo "This shell provides useful commands & tools, making it easy to debug any container (even if minimal)."
 echo "Use 'dctl' to install and remove packages."
 echo
-echo "Learn more: https://orbsta.cc/debug"
+echo "Learn more: https://orb.cx/debug"
 
 if [[ ! -z "$_ORB_WORMHOLE_ENTRYPOINT" ]]; then
     entrypoint() {

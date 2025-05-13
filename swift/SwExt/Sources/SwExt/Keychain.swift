@@ -41,7 +41,7 @@ private func importFirefoxCerts() {
     // this avoids triggering suspicious filesystem accesses (if we check profile dates)
     if isFirefoxRecentlyUsed() {
         // open docs page
-        NSWorkspace.shared.open(URL(string: "https://orbsta.cc/firefox-cert")!)
+        NSWorkspace.shared.open(URL(string: "https://orb.cx/firefox-cert")!)
     }
 }
 

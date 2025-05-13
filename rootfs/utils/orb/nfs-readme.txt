@@ -7,9 +7,9 @@ This is only a *view* of OrbStack's data; it takes no space on disk, and data is
 The folder is empty when OrbStack is not running. Do not put files here.
 
 Learn more:
-    - https://orbsta.cc/orbstack-folder
-    - https://orbsta.cc/docker-mount
-    - https://orbsta.cc/machine-mount
+    - https://orb.cx/orbstack-folder
+    - https://orb.cx/docker-mount
+    - https://orb.cx/machine-mount
 
 
 ## Docker

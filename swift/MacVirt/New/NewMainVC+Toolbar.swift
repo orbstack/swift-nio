@@ -155,6 +155,6 @@ extension NewMainViewController: NSToolbarDelegate {
     }
 
     @objc func actionCliHelp(_: NSButton?) {
-        NSWorkspace.shared.open(URL(string: "https://orbsta.cc/cli")!)
+        NSWorkspace.shared.open(URL(string: "https://orb.cx/cli")!)
     }
 }

@@ -167,7 +167,7 @@ It also allows installing over 80,000 packages.
 
 To use Debug Shell, get a Pro license: https://orbstack.dev/pricing
 
-Learn more: https://orbsta.cc/debug
+Learn more: https://orb.cx/debug
 `, color.New(color.Bold).Sprint("NEW: OrbStack Debug Shell provides useful commands & tools,")))
 
 				// fallback to docker exec
@@ -178,7 +178,7 @@ Learn more: https://orbsta.cc/debug
 %s making it easy to debug any container (even minimal/distroless).
 It also allows installing over 80,000 packages.
 
-Learn more: https://orbsta.cc/debug
+Learn more: https://orb.cx/debug
 Get a license: https://orbstack.dev/pricing
 `, color.New(color.Bold).Sprint("Debug Shell provides useful commands & tools,")))
 			}
@@ -188,7 +188,7 @@ Get a license: https://orbstack.dev/pricing
 		if exitCode == sshenv.ExitCodeNixDebugUnsupported {
 			fmt.Fprintln(os.Stderr, color.New(color.FgYellow).Sprint(`OrbStack Debug Shell does not yet support Nix containers.
 Falling back to 'docker exec'.
-Learn more: https://orbsta.cc/debug
+Learn more: https://orb.cx/debug
 `))
 
 			// fallback to docker exec

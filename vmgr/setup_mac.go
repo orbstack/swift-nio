@@ -39,7 +39,7 @@ To find the real size:
     - Right-click the file and select "Get Info"
       Then look at "size on disk"
 
-For more details, see https://orbsta.cc/data-img
+For more details, see https://orb.cx/data-img
 `
 )
 
@@ -582,11 +582,11 @@ func (s *VmControlServer) doHostSetup() (retSetup *vmtypes.SetupInfo, retErr err
 		// so do it for each message: "OrbStack is trying to install a new helper tool."
 		var msg string
 		if len(setupState.AdminLinkCommands) > 0 && setupState.AdminLinkDocker {
-			msg = "Improve Docker socket compatibility and install command-line tools? Optional; learn more at orbsta.cc/admin.\n\n"
+			msg = "Improve Docker socket compatibility and install command-line tools? Optional; learn more at orb.cx/admin.\n\n"
 		} else if len(setupState.AdminLinkCommands) > 0 {
-			msg = "Install command-line tools? Optional; learn more at orbsta.cc/admin.\n\n"
+			msg = "Install command-line tools? Optional; learn more at orb.cx/admin.\n\n"
 		} else if setupState.AdminLinkDocker {
-			msg = "Improve Docker socket compatibility? Optional; learn more at orbsta.cc/admin.\n\n"
+			msg = "Improve Docker socket compatibility? Optional; learn more at orb.cx/admin.\n\n"
 		}
 		info.AdminMessage = &msg
 	}
