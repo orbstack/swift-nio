@@ -347,8 +347,16 @@ private class ActivityMonitorViewModel: ObservableObject {
                     ActivityMonitorItem.synthetic(entity: .k8sNamespace(ns), children: items))
             }
             if !k8sRootItems.isEmpty {
-                flatDockerItems.append(
-                    ActivityMonitorItem.synthetic(entity: .k8sGroup, children: k8sRootItems))
+                // subtract from containers group
+                let k8sItem = ActivityMonitorItem.synthetic(entity: .k8sGroup, children: k8sRootItems)
+                if dockerMachineItem.cpuPercent != nil, let k8sValue = k8sItem.cpuPercent {
+                    dockerMachineItem.cpuPercent! -= k8sValue
+                }
+                dockerMachineItem.memoryBytes -= k8sItem.memoryBytes
+                if dockerMachineItem.diskRwBytes != nil, let k8sValue = k8sItem.diskRwBytes {
+                    dockerMachineItem.diskRwBytes! -= k8sValue
+                }
+                newRootItems.append(k8sItem)
             }
 
             dockerMachineItem.children = flatDockerItems
