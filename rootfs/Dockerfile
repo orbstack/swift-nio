@@ -257,6 +257,16 @@ if [[ "$TYPE" == "release" ]]; then
 fi
 EOT
 
+# downgrade nftables to fix segfault on 'nft add element inet orbstack host_bridge_ports { .orbmirror1 }'
+RUN <<EOT sh -eux
+mkdir /work
+wget -O nftables.apk https://dl-cdn.alpinelinux.org/alpine/v3.21/main/\$(uname -m)/nftables-1.1.1-r0.apk
+apk add --no-cache -f nftables.apk
+
+cd /
+rm -rf /work
+EOT
+
 # Official Docker engine build
 RUN <<EOT sh -eux
 mkdir /work
@@ -433,6 +443,16 @@ RUN apk upgrade --no-cache && apk add --no-cache \
     qemu-arm qemu-riscv64 qemu-ppc64le qemu-s390x qemu-mips64el \
     # for nfs containers
     fuse3-libs libstdc++
+
+# downgrade nftables to fix segfault on 'nft add element inet orbstack host_bridge_ports { .orbmirror1 }'
+RUN <<EOT sh -eux
+mkdir /work
+wget -O nftables.apk https://dl-cdn.alpinelinux.org/alpine/v3.21/main/\$(uname -m)/nftables-1.1.1-r0.apk
+apk add --no-cache -f nftables.apk
+
+cd /
+rm -rf /work
+EOT
 
 # debug deps
 ARG TYPE=release
