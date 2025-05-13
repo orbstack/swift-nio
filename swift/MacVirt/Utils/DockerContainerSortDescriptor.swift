@@ -1,5 +1,5 @@
-import Foundation
 import Defaults
+import Foundation
 
 extension [DKContainer] {
     mutating func sort(accordingTo descriptor: DockerContainerSortDescriptor) {

@@ -53,6 +53,7 @@ private enum ActivityMonitorID: Equatable, Hashable, Comparable {
     case k8sGroup
     case k8sNamespace(String)
     case k8sServices
+    case dockerGroup
     case dockerEngine
     case buildkit
 }
@@ -66,6 +67,7 @@ private enum ActivityMonitorEntity: Identifiable, Comparable, CustomStringConver
     case k8sGroup
     case k8sNamespace(String)
     case k8sServices
+    case dockerGroup
     case dockerEngine
     case buildkit
 
@@ -83,6 +85,8 @@ private enum ActivityMonitorEntity: Identifiable, Comparable, CustomStringConver
             return .k8sNamespace(ns)
         case .k8sServices:
             return .k8sServices
+        case .dockerGroup:
+            return .dockerGroup
         case .dockerEngine:
             return .dockerEngine
         case .buildkit:
@@ -104,6 +108,8 @@ private enum ActivityMonitorEntity: Identifiable, Comparable, CustomStringConver
             return ns
         case .k8sServices:
             return "Services"
+        case .dockerGroup:
+            return "Docker"
         case .dockerEngine:
             return "Engine"
         case .buildkit:
@@ -149,19 +155,11 @@ struct ActivityMonitorRootView: View {
                         HStack {
                             switch item.entity {
                             case .machine(let record):
-                                if record.id == ContainerIds.docker {
-                                    Image(systemName: "shippingbox")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 16, height: 16)
-                                    Text("Containers")
-                                } else {
-                                    Image("distro_\(record.image.distro)")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 16, height: 16)
-                                    Text(item.entity.description)
-                                }
+                                Image("distro_\(record.image.distro)")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 16, height: 16)
+                                Text(item.entity.description)
 
                             case .container(let container):
                                 DockerContainerImage(container: container)
@@ -186,6 +184,13 @@ struct ActivityMonitorRootView: View {
 
                             case .k8sServices:
                                 Text(item.entity.description)
+
+                            case .dockerGroup:
+                                Image(systemName: "shippingbox")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 16, height: 16)
+                                Text("Containers")
 
                             case .dockerEngine:
                                 Text(item.entity.description)
@@ -292,18 +297,16 @@ private class ActivityMonitorViewModel: ObservableObject {
             guard let item else { continue }
 
             switch item.entity {
-            case .machine(let record):
-                if record.id == ContainerIds.docker {
-                    dockerMachineItem = item
-                } else {
-                    newRootItems.append(item)
-                }
+            case .machine:
+                newRootItems.append(item)
             case .container(let container):
                 if let k8sNs = container.k8sNamespace {
                     newK8sItems[k8sNs, default: []].append(item)
                 } else {
                     newDockerItems[container.composeProject, default: []].append(item)
                 }
+            case .dockerGroup:
+                dockerMachineItem = item
             case .dockerEngine:
                 dockerEngineItem = item
             case .buildkit:
@@ -348,12 +351,20 @@ private class ActivityMonitorViewModel: ObservableObject {
             }
             if !k8sRootItems.isEmpty {
                 // subtract from containers group
-                let k8sItem = ActivityMonitorItem.synthetic(entity: .k8sGroup, children: k8sRootItems)
-                if dockerMachineItem.cpuPercent != nil, let k8sValue = k8sItem.cpuPercent {
+                let k8sItem = ActivityMonitorItem.synthetic(
+                    entity: .k8sGroup, children: k8sRootItems)
+                // sample times are not exactly aligned so this may overflow
+                if let dockerValue = dockerMachineItem.cpuPercent,
+                    let k8sValue = k8sItem.cpuPercent, dockerValue >= k8sValue
+                {
                     dockerMachineItem.cpuPercent! -= k8sValue
                 }
-                dockerMachineItem.memoryBytes -= k8sItem.memoryBytes
-                if dockerMachineItem.diskRwBytes != nil, let k8sValue = k8sItem.diskRwBytes {
+                if dockerMachineItem.memoryBytes >= k8sItem.memoryBytes {
+                    dockerMachineItem.memoryBytes -= k8sItem.memoryBytes
+                }
+                if let dockerValue = dockerMachineItem.diskRwBytes,
+                    let k8sValue = k8sItem.diskRwBytes, dockerValue >= k8sValue
+                {
                     dockerMachineItem.diskRwBytes! -= k8sValue
                 }
                 newRootItems.append(k8sItem)
@@ -373,11 +384,12 @@ private class ActivityMonitorViewModel: ObservableObject {
         -> ActivityMonitorItem?
     {
         let lastEntry = lastStats?.entries[entry.id]
-        let timeSinceLastRefresh = if let lastStats {
-            (now - lastStats.time).seconds
-        } else {
-            Float?(nil)
-        }
+        let timeSinceLastRefresh =
+            if let lastStats {
+                (now - lastStats.time).seconds
+            } else {
+                Float?(nil)
+            }
 
         let cpuPercent =
             if let lastEntry,
@@ -410,6 +422,8 @@ private class ActivityMonitorViewModel: ObservableObject {
 
         var entity: ActivityMonitorEntity?
         switch entry.entity {
+        case .machine(ContainerIds.docker):
+            entity = .dockerGroup
         case .machine(let id):
             if let machine = vmModel.containers?.first(where: { $0.record.id == id }) {
                 entity = .machine(record: machine.record)
@@ -446,9 +460,9 @@ private class ActivityMonitorViewModel: ObservableObject {
     }
 }
 
-private extension [ActivityMonitorItem] {
+extension [ActivityMonitorItem] {
     // recursive
-    mutating func sort(desc: AKSortDescriptor) {
+    fileprivate mutating func sort(desc: AKSortDescriptor) {
         // these are structs so we need to mutate in-place
         for index in self.indices {
             self[index].children?.sort(desc: desc)
@@ -479,13 +493,13 @@ private extension [ActivityMonitorItem] {
                 break
             }
 
-            return desc.compare($0.id, $1.id)
+            return desc.compare($0.textLabel!, $1.textLabel!)
         }
     }
 }
 
-private extension Duration {
-    var seconds: Float {
+extension Duration {
+    fileprivate var seconds: Float {
         // attoseconds -> femtoseconds -> picoseconds -> nanoseconds (thanks apple)
         return Float(components.seconds) + Float(components.attoseconds) * 1e-18
     }

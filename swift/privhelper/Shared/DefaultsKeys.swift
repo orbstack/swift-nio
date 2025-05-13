@@ -173,7 +173,9 @@ enum NavTabId: String, Defaults.Serializable {
     case activityMonitor = "activity-monitor"
 }
 
-enum DockerGenericSortDescriptor: String, Defaults.Serializable, CaseIterable, Hashable, CustomStringConvertible {
+enum DockerGenericSortDescriptor: String, Defaults.Serializable, CaseIterable, Hashable,
+    CustomStringConvertible
+{
     case name = "nameAscending"
     case size = "sizeAscending"
     case dateDescending = "dateDescending"
@@ -193,7 +195,9 @@ enum DockerGenericSortDescriptor: String, Defaults.Serializable, CaseIterable, H
     }
 }
 
-enum DockerContainerSortDescriptor: String, Defaults.Serializable, CaseIterable, Hashable, CustomStringConvertible {
+enum DockerContainerSortDescriptor: String, Defaults.Serializable, CaseIterable, Hashable,
+    CustomStringConvertible
+{
     case name = "nameAscending"
     case dateDescending = "dateDescending"
     case dateAscending = "dateAscending"

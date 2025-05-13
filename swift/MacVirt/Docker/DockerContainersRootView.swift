@@ -259,8 +259,9 @@ struct DockerContainersRootView: View {
         }
         .navigationTitle("Containers")
     }
-    
-    private func filterContainers(_ containers: [DKContainer], searchQuery: String) -> [DKContainer] {
+
+    private func filterContainers(_ containers: [DKContainer], searchQuery: String) -> [DKContainer]
+    {
         var containers = containers.filter { container in
             searchQuery.isEmpty || container.id.localizedCaseInsensitiveContains(searchQuery)
                 || container.image.localizedCaseInsensitiveContains(searchQuery)

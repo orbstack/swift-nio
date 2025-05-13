@@ -4,9 +4,11 @@
 
 import Combine
 import Foundation
+import SwiftUI
 
 class MainNavViewModel: ObservableObject {
     @Published var inspectorSelection = Set<AnyHashable>()
+    @Published var inspectorView = AnyView(EmptyView())
 
     let expandInspector = PassthroughSubject<Void, Never>()
 }

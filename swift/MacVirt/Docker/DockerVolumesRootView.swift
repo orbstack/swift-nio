@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct DockerVolumesRootView: View {
     @Environment(\.controlActiveState) private var controlActiveState: ControlActiveState
@@ -12,7 +12,7 @@ struct DockerVolumesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
-    
+
     @Default(.dockerVolumesSortDescriptor) private var sortDescriptor
 
     @State private var selection: Set<String> = []
@@ -96,7 +96,7 @@ struct DockerVolumesRootView: View {
 
         return nil
     }
-    
+
     private func filterVolumes(_ volumes: [DKVolume], searchQuery: String) -> [DKVolume] {
         var volumes = volumes.filter { volume in
             searchQuery.isEmpty || volume.name.localizedCaseInsensitiveContains(searchQuery)

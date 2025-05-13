@@ -41,8 +41,9 @@ class NewMainViewController: NSViewController {
         action: #selector(actionToggleInspector),
         requiresVmRunning: false
     )
-    
-    private lazy var containersSortDelegate = EnumMenuDelegate<DockerContainerSortDescriptor>(key: .dockerContainersSortDescriptor)
+
+    private lazy var containersSortDelegate = EnumMenuDelegate<DockerContainerSortDescriptor>(
+        key: .dockerContainersSortDescriptor)
     lazy var containersSortMenu = {
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -85,22 +86,23 @@ class NewMainViewController: NSViewController {
         title: "New Volume",
         action: #selector(actionDockerVolumesNew)
     )
-    
-    private lazy var volumesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(key: .dockerVolumesSortDescriptor)
+
+    private lazy var volumesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(
+        key: .dockerVolumesSortDescriptor)
     lazy var volumesSortMenu = {
         let menu = NSMenu()
         menu.delegate = volumesSortDelegate
         return self.makeMenuToolbarItem(
             itemIdentifier: .dockerVolumesSort, icon: "arrow.up.arrow.down", title: "Sort",
             requiresVmRunning: false, menu: menu)
-//        DockerGenericSortDescriptor.allCases.map { method in
-//            let item = ClosureMenuItem(title: method.description) { [key] in
-//                Defaults[key] = method
-//            }
-//            print("item for \(method.description)")
-//            item.state = (currentValue == method) ? .on : .off
-//            return item
-//        }
+        //        DockerGenericSortDescriptor.allCases.map { method in
+        //            let item = ClosureMenuItem(title: method.description) { [key] in
+        //                Defaults[key] = method
+        //            }
+        //            print("item for \(method.description)")
+        //            item.state = (currentValue == method) ? .on : .off
+        //            return item
+        //        }
     }()
 
     lazy var imagesFolderButton = makeToolbarItem(
@@ -109,8 +111,9 @@ class NewMainViewController: NSViewController {
         title: "Open Images",
         action: #selector(actionDockerImagesOpen)
     )
-    
-    private lazy var imagesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(key: .dockerImagesSortDescriptor)
+
+    private lazy var imagesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(
+        key: .dockerImagesSortDescriptor)
     lazy var imagesSortMenu = {
         let menu = NSMenu()
         menu.delegate = imagesSortDelegate
@@ -352,7 +355,9 @@ extension NewMainViewController {
     }
 }
 
-private class EnumMenuDelegate<T: CustomStringConvertible & Defaults.Serializable & Equatable & CaseIterable>: NSObject, NSMenuDelegate {
+private class EnumMenuDelegate<
+    T: CustomStringConvertible & Defaults.Serializable & Equatable & CaseIterable
+>: NSObject, NSMenuDelegate {
     let key: Defaults.Key<T>
 
     init(key: Defaults.Key<T>) {

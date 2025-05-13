@@ -2,15 +2,15 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import Defaults
 import Foundation
 import SwiftUI
-import Defaults
 
 struct DockerImagesRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var windowTracker: WindowTracker
     @EnvironmentObject private var actionTracker: ActionTracker
-    
+
     @Default(.dockerImagesSortDescriptor) private var sortDescriptor
 
     @State private var selection: Set<String> = []
@@ -77,8 +77,10 @@ struct DockerImagesRootView: View {
         }
         .navigationTitle("Images")
     }
-    
-    private func filterImages(_ images: [DKSummaryAndFullImage], searchQuery: String) -> [DKSummaryAndFullImage] {
+
+    private func filterImages(_ images: [DKSummaryAndFullImage], searchQuery: String)
+        -> [DKSummaryAndFullImage]
+    {
         var images = images.filter { (image: DKSummaryAndFullImage) in
             searchQuery.isEmpty || image.id.localizedCaseInsensitiveContains(searchQuery)
                 || image.summary.repoTags?.first(where: {
