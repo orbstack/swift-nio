@@ -412,6 +412,11 @@ fn apply_perf_tuning_late() -> anyhow::Result<()> {
     // lxd net tuning (= ~min tcp_mem)
     sysctl("net.core.netdev_max_backlog", "16384")?;
 
+    // quic net tuning
+    // https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes
+    sysctl("net.core.rmem_max", "7500000")?; // 7.5 MB
+    sysctl("net.core.wmem_max", "7500000")?;
+
     // k8s / k3s
     sysctl("vm.panic_on_oom", "0")?;
     sysctl("kernel.panic_on_oops", "1")?;
