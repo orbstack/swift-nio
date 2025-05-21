@@ -310,6 +310,7 @@ func (c *Container) configureLxc() error {
 		addDevOptional("/dev/ppp")
 		addDevOptional("/dev/vhost-net")
 		addDevOptional("/dev/kvm")
+		addDevOptional("/dev/ntsync")
 		if !c.config.Isolated {
 			addDevOptional("/dev/kmsg")
 			addDevOptional("/dev/loop-control")
