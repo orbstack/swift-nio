@@ -96,6 +96,7 @@ impl FsHvcDevice {
                 &self.mem,
                 args.in_args[..args.in_numargs as usize]
                     .iter()
+                    .filter(|arg| arg.len != 0)
                     .map(Into::into),
             )?
         } else {
@@ -107,6 +108,7 @@ impl FsHvcDevice {
                 &self.mem,
                 args.in_args[..args.in_numargs as usize]
                     .iter()
+                    .filter(|arg| arg.len != 0)
                     .map(Into::into)
                     .chain(in_pages.into_iter().map(|v| (&v.read()).into())),
             )?
