@@ -249,7 +249,7 @@ func (d *DockerAgent) createWormholeStoppedContainer(ctr *dockertypes.ContainerJ
 	}
 	defer func() {
 		if retErr != nil {
-			err := d.realClient.RemoveImage(imageID, true)
+			err := d.realClient.DeleteImage(imageID, true)
 			if err != nil {
 				retErr = errors.Join(retErr, err)
 			}
@@ -568,7 +568,7 @@ func (a *AgentServer) DockerEndWormhole(args *EndWormholeArgs, reply *None) erro
 			errs = append(errs, err)
 		}
 
-		err = a.docker.realClient.RemoveImage(args.State.CreatedImageID, true)
+		err = a.docker.realClient.DeleteImage(args.State.CreatedImageID, true)
 		if err != nil {
 			errs = append(errs, err)
 		}

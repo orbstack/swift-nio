@@ -128,31 +128,31 @@ func (s *VmControlServer) SetDockerContext(ctx context.Context) error {
 }
 
 func (s *VmControlServer) DockerContainerStart(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/start", nil, nil)
+	return s.dockerClient.StartContainer(req.ID)
 }
 
 func (s *VmControlServer) DockerContainerStop(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/stop", nil, nil)
+	return s.dockerClient.StopContainer(req.ID)
 }
 
 func (s *VmControlServer) DockerContainerKill(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/kill", nil, nil)
+	return s.dockerClient.KillContainer(req.ID)
 }
 
 func (s *VmControlServer) DockerContainerRestart(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/restart", nil, nil)
+	return s.dockerClient.RestartContainer(req.ID)
 }
 
 func (s *VmControlServer) DockerContainerPause(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/pause", nil, nil)
+	return s.dockerClient.PauseContainer(req.ID)
 }
 
 func (s *VmControlServer) DockerContainerUnpause(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.Call("POST", "/containers/"+req.ID+"/unpause", nil, nil)
+	return s.dockerClient.UnpauseContainer(req.ID)
 }
 
 func (s *VmControlServer) DockerContainerDelete(ctx context.Context, params vmtypes.IDRequest) error {
-	return s.dockerClient.Call("DELETE", "/containers/"+params.ID+"?force=true", nil, nil)
+	return s.dockerClient.DeleteContainer(params.ID, true)
 }
 
 func (s *VmControlServer) DockerVolumeCreate(ctx context.Context, options dockertypes.VolumeCreateOptions) error {
@@ -160,11 +160,11 @@ func (s *VmControlServer) DockerVolumeCreate(ctx context.Context, options docker
 }
 
 func (s *VmControlServer) DockerVolumeDelete(ctx context.Context, params vmtypes.IDRequest) error {
-	return s.dockerClient.Call("DELETE", "/volumes/"+params.ID, nil, nil)
+	return s.dockerClient.DeleteVolume(params.ID)
 }
 
 func (s *VmControlServer) DockerImageDelete(ctx context.Context, params vmtypes.IDRequest) error {
-	return s.dockerClient.Call("DELETE", "/images/"+params.ID+"?force=true", nil, nil)
+	return s.dockerClient.DeleteImage(params.ID, true)
 }
 
 func (s *VmControlServer) K8sPodDelete(ctx context.Context, params vmtypes.K8sNameRequest) error {

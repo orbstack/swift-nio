@@ -107,9 +107,33 @@ func (c *Client) KillContainer(cid string) error {
 }
 
 func (c *Client) StopContainer(cid string) error {
-	err := c.Call("POST", "/containers/"+cid+"/stop", nil, nil)
+	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/stop", nil, nil)
 	if err != nil {
-		return fmt.Errorf("kill container: %w", err)
+		return fmt.Errorf("stop container: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) RestartContainer(cid string) error {
+	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/restart", nil, nil)
+	if err != nil {
+		return fmt.Errorf("restart container: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) PauseContainer(cid string) error {
+	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/pause", nil, nil)
+	if err != nil {
+		return fmt.Errorf("pause container: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) UnpauseContainer(cid string) error {
+	err := c.Call("POST", "/containers/"+url.PathEscape(cid)+"/unpause", nil, nil)
+	if err != nil {
+		return fmt.Errorf("unpause container: %w", err)
 	}
 	return nil
 }
@@ -149,7 +173,7 @@ func (c *Client) CommitContainer(containerID string) (string, error) {
 	return resp.ID, nil
 }
 
-func (c *Client) RemoveContainer(cid string, force bool) error {
+func (c *Client) DeleteContainer(cid string, force bool) error {
 	err := c.Call("DELETE", "/containers/"+url.PathEscape(cid)+"?force="+strconv.FormatBool(force), nil, nil)
 	if err != nil {
 		return fmt.Errorf("remove container: %w", err)

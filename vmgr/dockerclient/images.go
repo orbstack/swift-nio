@@ -52,7 +52,7 @@ func (c *Client) ListImagesFull() ([]dockertypes.Image, error) {
 	return res, nil
 }
 
-func (c *Client) RemoveImage(imageID string, force bool) error {
+func (c *Client) DeleteImage(imageID string, force bool) error {
 	err := c.Call("DELETE", "/images/"+url.PathEscape(imageID)+"?force="+strconv.FormatBool(force), nil, nil)
 	if err != nil {
 		return fmt.Errorf("remove image %s: %w", imageID, err)

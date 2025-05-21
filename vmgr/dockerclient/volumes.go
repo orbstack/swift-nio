@@ -35,3 +35,7 @@ func (c *Client) CreateVolume(options dockertypes.VolumeCreateRequest) (dockerty
 	}
 	return volume, nil
 }
+
+func (c *Client) DeleteVolume(name string) error {
+	return c.Call("DELETE", "/volumes/"+url.PathEscape(name), nil, nil)
+}

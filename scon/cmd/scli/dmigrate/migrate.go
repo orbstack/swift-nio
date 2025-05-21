@@ -471,7 +471,7 @@ outer:
 	// [src] start agent
 	logrus.Debug("Starting migration agent")
 	// delete conflicting container if exists
-	_ = m.srcClient.RemoveContainer(migrationAgentContainerName, true)
+	_ = m.srcClient.DeleteContainer(migrationAgentContainerName, true)
 	srcAgentCid, err := m.srcClient.RunContainer(dockerclient.RunContainerOptions{
 		Name:      migrationAgentContainerName,
 		PullImage: dockerclient.PullImageAlways,

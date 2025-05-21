@@ -77,9 +77,7 @@ class ActionTracker: ObservableObject {
     }
 
     func ongoingFor(volume: DKVolume) -> DKVolumeAction? {
-        // TODO: de-jankify volume importing so that we don't need to check for name
-        // (ID isn't known yet at the time of import)
-        ongoingDockerVolumeActions[volume.id] ?? ongoingDockerVolumeActions[volume.name]
+        ongoingDockerVolumeActions[volume.id]
     }
 
     func ongoingFor(image: DKSummaryAndFullImage) -> DKImageAction? {
