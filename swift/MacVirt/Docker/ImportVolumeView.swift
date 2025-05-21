@@ -11,6 +11,7 @@ private let dockerRestrictedNamePattern =
 
 struct ImportVolumeView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var actionTracker: ActionTracker
 
     @State private var name = ""
     @State private var isNameDuplicate = false
@@ -112,10 +113,11 @@ struct ImportVolumeView: View {
 
         let url = vmModel.presentImportVolume!
         Task { @MainActor in
-            await vmModel.tryDockerImportVolume(url: url, newName: name)
+            // TODO: figure out how to support changing AKList selection so that we can just select + scroll to the new volume
+            await actionTracker.with(volumeId: name, action: .importing) {
+                await vmModel.tryDockerImportVolume(url: url, newName: name)
+            }
         }
         vmModel.presentImportVolume = nil
-
-        // TODO: progress
     }
 }
