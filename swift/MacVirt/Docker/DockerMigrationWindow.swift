@@ -103,7 +103,7 @@ struct DockerMigrationWindow: View {
             ProgressView(value: model.progress)
         }
         .padding(16)
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
         .onAppear {
             if let window = windowHolder.window {
                 window.isRestorable = false

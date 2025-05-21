@@ -97,7 +97,7 @@ struct AuthView: View {
             }
         }
         .background(VisualEffectView().ignoresSafeArea())
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
         .onAppear {
             if !isSheet, let window = windowHolder.window {
                 window.isRestorable = false

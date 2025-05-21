@@ -17,7 +17,7 @@ struct AKAlert<T: Equatable>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(WindowAccessor(holder: windowHolder))
+            .windowHolder(windowHolder)
             .onChange(of: presentedData) { presentedData in
                 if let presentedData {
                     showAlert(contentBuilder(presentedData))

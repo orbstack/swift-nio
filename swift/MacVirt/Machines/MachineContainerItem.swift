@@ -199,7 +199,7 @@ struct MachineContainerItem: View {
                 }
             }
         }
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
     }
 
     @MainActor

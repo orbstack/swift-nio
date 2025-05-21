@@ -185,7 +185,7 @@ struct CreateContainerView: View {
         .onChange(of: vmModel.containers) { _ in
             checkName(name)
         }
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
     }
 
     private func selectCloudInitFile() {

@@ -73,7 +73,7 @@ struct K8SSettingsView: View {
             }
         }
         .padding()
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
         .akAlert(
             "Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData,
             desc:

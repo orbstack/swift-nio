@@ -172,7 +172,7 @@ struct DiagReporterView: View {
             }
         }
         .background(VisualEffectView().ignoresSafeArea())
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
         .onAppear {
             if let window = windowHolder.window {
                 window.isRestorable = false

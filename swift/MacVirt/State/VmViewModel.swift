@@ -19,6 +19,7 @@ enum MenuActionRouter {
     case openVolumes
     case openImages
     case importMachine
+    case importVolume
     case newMachine
 }
 
@@ -78,6 +79,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case dockerConfigSaveError(cause: Error)
     case dockerExitError(status: Int, message: String?)
     case dockerDfError(cause: Error)
+    case dockerVolumeImportError(cause: Error)
+    case dockerVolumeExportError(cause: Error)
     // migration
     case dockerMigrationError(status: Int, output: String)
 
@@ -158,6 +161,10 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t get volume sizes"
         case .dockerMigrationError:
             return "Can’t migrate Docker data"
+        case .dockerVolumeImportError:
+            return "Can’t import volume"
+        case .dockerVolumeExportError:
+            return "Can’t export volume"
 
         case let .k8sResourceActionError(kid, action, _):
             return "Can’t \(action.userDesc) \(kid.typeDesc)"
@@ -343,6 +350,10 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return nil
         case let .dockerDfError(cause):
             return cause
+        case let .dockerVolumeImportError(cause):
+            return cause
+        case let .dockerVolumeExportError(cause):
+            return cause
         case .dockerMigrationError:
             return nil
 
@@ -524,6 +535,7 @@ class VmViewModel: ObservableObject {
     @Published var presentCreateVolume = false
     @Published var presentImportMachine: URL? = nil
     @Published var presentRequiresLicense = false
+    @Published var presentImportVolume: URL? = nil
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -1230,6 +1242,34 @@ class VmViewModel: ObservableObject {
             isSshConfigWritable = try await vmgr.isSshConfigWritable()
         } catch {
             NSLog("ssh config writable error: \(error)")
+        }
+    }
+
+    func dockerImportVolume(url: URL, newName: String) async throws {
+        try await scon.internalDockerImportVolumeFromHostPath(
+            InternalDockerImportVolumeFromHostPathRequest(newName: newName, hostPath: url.path))
+    }
+
+    @MainActor
+    func tryDockerImportVolume(url: URL, newName: String) async {
+        do {
+            try await dockerImportVolume(url: url, newName: newName)
+        } catch {
+            setError(.dockerVolumeImportError(cause: error))
+        }
+    }
+
+    func dockerExportVolume(volumeId: String, hostPath: String) async throws {
+        try await scon.internalDockerExportVolumeToHostPath(
+            InternalDockerExportVolumeToHostPathRequest(volumeId: volumeId, hostPath: hostPath))
+    }
+
+    @MainActor
+    func tryDockerExportVolume(volumeId: String, hostPath: String) async {
+        do {
+            try await dockerExportVolume(volumeId: volumeId, hostPath: hostPath)
+        } catch {
+            setError(.dockerVolumeExportError(cause: error))
         }
     }
 

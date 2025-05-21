@@ -65,7 +65,7 @@ class WindowHolder: ObservableObject {
 }
 
 extension View {
-    func windowHolder(holder: WindowHolder) -> some View {
+    func windowHolder(_ holder: WindowHolder) -> some View {
         background(WindowAccessor(holder: holder))
     }
 

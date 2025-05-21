@@ -87,6 +87,13 @@ class NewMainViewController: NSViewController {
         action: #selector(actionDockerVolumesNew)
     )
 
+    lazy var volumesImportButton = makeToolbarItem(
+        itemIdentifier: .dockerVolumesImport,
+        icon: "square.and.arrow.down",
+        title: "Import Volume",
+        action: #selector(actionDockerVolumesImport)
+    )
+
     private lazy var volumesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(
         key: .dockerVolumesSortDescriptor)
     lazy var volumesSortMenu = {

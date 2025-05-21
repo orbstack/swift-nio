@@ -53,6 +53,8 @@ extension NewMainViewController: NSToolbarDelegate {
 
         case .dockerVolumesOpen:
             return volumesFolderButton
+        case .dockerVolumesImport:
+            return volumesImportButton
         case .dockerVolumesNew:
             return volumesPlusButton
         case .dockerVolumesSort:
@@ -150,6 +152,25 @@ extension NewMainViewController: NSToolbarDelegate {
                 let url = panel.url
             {
                 self.model.presentImportMachine = url
+            }
+        }
+    }
+
+    @objc func actionDockerVolumesImport(_ toolbarItem: NSToolbarItem?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        // ideally we can filter for .tar.zst but that's not possible :(
+        panel.allowedContentTypes = [UTType(filenameExtension: "zst", conformingTo: .data)!]
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+        panel.message = "Select volume (.tar.zst) to import"
+
+        let window = toolbarItem?.view?.window ?? NSApp.keyWindow ?? NSApp.windows.first!
+        panel.beginSheetModal(for: window) { result in
+            if result == .OK,
+                let url = panel.url
+            {
+                self.model.presentImportVolume = url
             }
         }
     }

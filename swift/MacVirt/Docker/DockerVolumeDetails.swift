@@ -8,6 +8,9 @@ import SwiftUI
 struct DockerVolumeDetails: View {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var windowTracker: WindowTracker
+    @EnvironmentObject var actionTracker: ActionTracker
+
+    @StateObject private var windowHolder = WindowHolder()
 
     let volume: DKVolume
 
@@ -96,6 +99,53 @@ struct DockerVolumeDetails: View {
                                 CopyableText(value)
                             }
                         }
+                    }
+                }
+            }
+
+            DividedButtonStack {
+                DividedRowButton {
+                    volume.openNfsDirectory()
+                } label: {
+                    Label("Files", systemImage: "folder")
+                }
+
+                DividedRowButton {
+                    volume.openExportPanel(
+                        windowHolder: windowHolder,
+                        actionTracker: actionTracker,
+                        vmModel: vmModel
+                    )
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+            }
+        }
+        .windowHolder(windowHolder)
+    }
+}
+
+extension DKVolume {
+    func openNfsDirectory() {
+        NSWorkspace.openFolder("\(Folders.nfsDockerVolumes)/\(name)")
+    }
+
+    func openExportPanel(
+        windowHolder: WindowHolder,
+        actionTracker: ActionTracker,
+        vmModel: VmViewModel
+    ) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(self.name).tar.zst"
+
+        let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
+        panel.beginSheetModal(for: window) { result in
+            if result == .OK,
+                let url = panel.url
+            {
+                Task {
+                    await actionTracker.withVolumeExport(id: self.id) {
+                        await vmModel.tryDockerExportVolume(volumeId: self.id, hostPath: url.path)
                     }
                 }
             }

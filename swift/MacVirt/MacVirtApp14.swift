@@ -122,6 +122,11 @@ struct MacVirtApp14: App {
                             vmModel.menuActionRouter.send(.openVolumes)
                         }
                         .keyboardShortcut("o")
+
+                        Button("Import Volume") {
+                            vmModel.menuActionRouter.send(.importVolume)
+                        }
+                        .keyboardShortcut("i")
                     case .dockerImages:
                         Divider()
                         Button("Open Images") {

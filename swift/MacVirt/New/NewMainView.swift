@@ -41,6 +41,13 @@ struct NewMainView: View {
         ) {
             ImportContainerView()
         }
+        .sheet(
+            isPresented: Binding(
+                get: { model.presentImportVolume != nil },
+                set: { if !$0 { model.presentImportVolume = nil } })
+        ) {
+            ImportVolumeView()
+        }
         .onAppear {
             // DO NOT use .task{} here.
             // start tasks should NOT be canceled

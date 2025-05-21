@@ -123,7 +123,7 @@ struct FeedbackView: View {
                     feedbackText.count < 5 || feedbackText.count > charLimit || sendInProgress)
             }
         }
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
         .frame(width: 450)
         .padding(24)
     }

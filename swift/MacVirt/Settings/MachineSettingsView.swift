@@ -138,7 +138,7 @@ struct MachineSettingsView: View {
             }
         }
         .padding()
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
         .akAlert(
             "Disable privileged features?", isPresented: $presentDisableAdmin,
             desc: """

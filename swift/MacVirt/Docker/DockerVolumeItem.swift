@@ -10,12 +10,14 @@ struct DockerVolumeItem: View {
     @EnvironmentObject var actionTracker: ActionTracker
     @EnvironmentObject var listModel: AKListModel
 
-    var volume: DKVolume
-    var selection: Set<String> {
-        listModel.selection as! Set<String>
-    }
+    @StateObject var windowHolder = WindowHolder()
 
     @State private var presentConfirmDelete = false
+
+    var volume: DKVolume
+    private var selection: Set<String> {
+        listModel.selection as! Set<String>
+    }
 
     var body: some View {
         let actionInProgress = actionTracker.ongoingFor(volume: volume) != nil
@@ -58,7 +60,7 @@ struct DockerVolumeItem: View {
             Spacer()
 
             Button(action: {
-                openFolder()
+                volume.openNfsDirectory()
             }) {
                 Image(systemName: "folder.fill")
                     // match ProgressIconButton size
@@ -84,7 +86,7 @@ struct DockerVolumeItem: View {
         }
         .padding(.vertical, 8)
         .akListOnDoubleClick {
-            openFolder()
+            volume.openNfsDirectory()
         }
         .confirmationDialog(
             deleteConfirmMsg,
@@ -98,9 +100,19 @@ struct DockerVolumeItem: View {
         }
         .akListContextMenu {
             Button(action: {
-                openFolder()
+                volume.openNfsDirectory()
             }) {
                 Label("Open", systemImage: "folder")
+            }
+
+            Button(action: {
+                volume.openExportPanel(
+                    windowHolder: windowHolder,
+                    actionTracker: actionTracker,
+                    vmModel: vmModel
+                )
+            }) {
+                Label("Export", systemImage: "arrow.up.circle")
             }
 
             Divider()
@@ -136,10 +148,6 @@ struct DockerVolumeItem: View {
                 Label("Copy Path", systemImage: "doc.on.doc")
             }
         }
-    }
-
-    private func openFolder() {
-        NSWorkspace.openFolder("\(Folders.nfsDockerVolumes)/\(volume.name)")
     }
 
     private func finishDelete() {

@@ -13,7 +13,7 @@ extension NavTabId {
         case .dockerContainers:
             return [.dockerContainersSort, .dockerContainersFilter, .searchItem]
         case .dockerVolumes:
-            return [.dockerVolumesSort, .dockerVolumesOpen, .dockerVolumesNew, .searchItem]
+            return [.dockerVolumesSort, .dockerVolumesOpen, .dockerVolumesImport, .dockerVolumesNew, .searchItem]
         case .dockerImages:
             return [.dockerImagesSort, .dockerImagesOpen, .searchItem]
 
@@ -43,6 +43,7 @@ extension NSToolbarItem.Identifier {
 
     static let dockerVolumesOpen = NSToolbarItem.Identifier("dockerVolumesOpen")
     static let dockerVolumesNew = NSToolbarItem.Identifier("dockerVolumesNew")
+    static let dockerVolumesImport = NSToolbarItem.Identifier("dockerVolumesImport")
     static let dockerVolumesSort = NSToolbarItem.Identifier("dockerVolumesSort")
 
     static let dockerImagesOpen = NSToolbarItem.Identifier("dockerImagesOpen")

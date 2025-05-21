@@ -16,6 +16,7 @@ struct DockerVolumesRootView: View {
     @Default(.dockerVolumesSortDescriptor) private var sortDescriptor
 
     @State private var selection: Set<String> = []
+    @State private var exportingOpacity = 0.0
 
     var body: some View {
         let searchQuery = vmModel.searchText
@@ -69,11 +70,33 @@ struct DockerVolumesRootView: View {
                     Spacer()
                 }
             }
+            .overlay(
+                alignment: .bottomTrailing,
+                content: {
+                    HStack {
+                        Text("Exporting")
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 16, height: 16)
+                    }
+                    .padding(8)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .opacity(exportingOpacity)
+                    .padding(16)
+                })
         }
         .navigationTitle("Volumes")
         // SwiftUI bug: sheet in button keeps appearing and disappearing when searchable is there
         .sheet(isPresented: $vmModel.presentCreateVolume) {
             CreateVolumeView(isPresented: $vmModel.presentCreateVolume)
+        }
+        .onAppear {
+            exportingOpacity = actionTracker.ongoingVolumeExports.isEmpty ? 0 : 1
+        }
+        .onReceive(actionTracker.$ongoingVolumeExports) { exports in
+            withAnimation {
+                exportingOpacity = exports.isEmpty ? 0 : 1
+            }
         }
     }
 

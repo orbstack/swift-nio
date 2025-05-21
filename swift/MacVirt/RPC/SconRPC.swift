@@ -145,6 +145,16 @@ struct StatsEntry: Codable {
     var children: [StatsEntry]?
 }
 
+struct InternalDockerExportVolumeToHostPathRequest: Codable {
+    var volumeId: String
+    var hostPath: String
+}
+
+struct InternalDockerImportVolumeFromHostPathRequest: Codable {
+    var newName: String
+    var hostPath: String
+}
+
 class SconService {
     private let c: JsonRPCClient
 
@@ -226,6 +236,14 @@ class SconService {
 
     func internalDockerFastDf() async throws -> DKSystemDf {
         try await c.call("InternalDockerFastDf")
+    }
+
+    func internalDockerImportVolumeFromHostPath(_ req: InternalDockerImportVolumeFromHostPathRequest) async throws {
+        try await c.call("InternalDockerImportVolumeFromHostPath", args: req)
+    }
+
+    func internalDockerExportVolumeToHostPath(_ req: InternalDockerExportVolumeToHostPathRequest) async throws {
+        try await c.call("InternalDockerExportVolumeToHostPath", args: req)
     }
 
     func internalDeleteK8s() async throws {

@@ -26,6 +26,8 @@ extension NewMainViewController {
                 self.actionDockerImagesOpen(nil)
             case .importMachine:
                 self.actionMachinesImport(nil)
+            case .importVolume:
+                self.actionDockerVolumesImport(nil)
             case .newMachine:
                 self.actionMachinesNew(nil)
             }

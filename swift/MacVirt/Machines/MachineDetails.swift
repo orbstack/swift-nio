@@ -90,6 +90,6 @@ struct MachineDetails: View {
                 }
             }
         }
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
     }
 }

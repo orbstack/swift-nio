@@ -161,7 +161,7 @@ struct StorageSettingsView: View {
             button2Label: "Cancel"
         )
         .padding()
-        .background(WindowAccessor(holder: windowHolder))
+        .windowHolder(windowHolder)
     }
 
     private func selectFolder() {
