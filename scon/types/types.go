@@ -209,3 +209,13 @@ type StatsRequest struct {
 type StatsResponse struct {
 	Entries []*StatsEntry `json:"entries"`
 }
+
+type InternalDockerExportVolumeToHostPathRequest struct {
+	VolumeID string `json:"volume_id"`
+	HostPath string `json:"host_path"`
+}
+
+type InternalDockerImportVolumeFromHostPathRequest struct {
+	NewName  string `json:"new_name"`
+	HostPath string `json:"host_path"`
+}

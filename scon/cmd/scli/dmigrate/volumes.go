@@ -11,12 +11,11 @@ import (
 func (m *Migrator) migrateOneVolume(vol *dockertypes.Volume, depContainers []*dockertypes.ContainerJSON) error {
 	// create volume on dest
 	logrus.Infof("Migrating volume %s", vol.Name)
-	var newVol dockertypes.Volume
-	err := m.destClient.Call("POST", "/volumes/create", dockertypes.VolumeCreateRequest{
+	newVol, err := m.destClient.CreateVolume(dockertypes.VolumeCreateRequest{
 		Name:       vol.Name,
 		DriverOpts: vol.Options,
 		Labels:     vol.Labels,
-	}, &newVol)
+	})
 	if err != nil {
 		return fmt.Errorf("create volume: %w", err)
 	}

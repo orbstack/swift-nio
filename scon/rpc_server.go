@@ -250,6 +250,18 @@ func (s *SconServer) InternalDockerFastDf(ctx context.Context) (*dockertypes.Sys
 	})
 }
 
+func (s *SconServer) InternalDockerExportVolumeToHostPath(ctx context.Context, req types.InternalDockerExportVolumeToHostPathRequest) error {
+	return s.dockerMachine.UseAgent(func(a *agent.Client) error {
+		return a.DockerExportVolumeToHostPath(req)
+	})
+}
+
+func (s *SconServer) InternalDockerImportVolumeFromHostPath(ctx context.Context, req types.InternalDockerImportVolumeFromHostPathRequest) error {
+	return s.dockerMachine.UseAgent(func(a *agent.Client) error {
+		return a.DockerImportVolumeFromHostPath(req)
+	})
+}
+
 func (s *SconServer) InternalDeleteK8s(ctx context.Context) error {
 	return s.dockerMachine.DeleteK8s()
 }
@@ -292,12 +304,14 @@ func (s *SconServer) Serve() error {
 		"WormholeNukeData":            handler.New(s.WormholeNukeData),
 		"GetStats":                    handler.New(s.GetStats),
 
-		"InternalReportStopped":                 handler.New(s.InternalReportStopped),
-		"InternalDockerMigrationLoadImage":      handler.New(s.InternalDockerMigrationLoadImage),
-		"InternalDockerMigrationRunSyncServer":  handler.New(s.InternalDockerMigrationRunSyncServer),
-		"InternalDockerMigrationWaitSync":       handler.New(s.InternalDockerMigrationWaitSync),
-		"InternalDockerMigrationStopSyncServer": handler.New(s.InternalDockerMigrationStopSyncServer),
-		"InternalDockerFastDf":                  handler.New(s.InternalDockerFastDf),
+		"InternalReportStopped":                  handler.New(s.InternalReportStopped),
+		"InternalDockerMigrationLoadImage":       handler.New(s.InternalDockerMigrationLoadImage),
+		"InternalDockerMigrationRunSyncServer":   handler.New(s.InternalDockerMigrationRunSyncServer),
+		"InternalDockerMigrationWaitSync":        handler.New(s.InternalDockerMigrationWaitSync),
+		"InternalDockerMigrationStopSyncServer":  handler.New(s.InternalDockerMigrationStopSyncServer),
+		"InternalDockerFastDf":                   handler.New(s.InternalDockerFastDf),
+		"InternalDockerExportVolumeToHostPath":   handler.New(s.InternalDockerExportVolumeToHostPath),
+		"InternalDockerImportVolumeFromHostPath": handler.New(s.InternalDockerImportVolumeFromHostPath),
 		// TODO better alias
 		"InternalDeleteK8s":        handler.New(s.InternalDeleteK8s),
 		"InternalGuiReportStarted": handler.New(s.InternalGuiReportStarted),

@@ -26,3 +26,12 @@ func (c *Client) GetVolume(name string) (*dockertypes.Volume, error) {
 	}
 	return &volume, nil
 }
+
+func (c *Client) CreateVolume(options dockertypes.VolumeCreateRequest) (dockertypes.Volume, error) {
+	var volume dockertypes.Volume
+	err := c.Call("POST", "/volumes/create", options, &volume)
+	if err != nil {
+		return dockertypes.Volume{}, fmt.Errorf("create volume: %w", err)
+	}
+	return volume, nil
+}

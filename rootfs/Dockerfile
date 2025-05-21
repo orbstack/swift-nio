@@ -249,7 +249,8 @@ apk add --no-cache \
     openssh-client-default \
     tar \
     tzdata \
-    socat
+    socat \
+    libarchive-tools
 
 if [[ "$TYPE" == "release" ]]; then
     # uninstall apk

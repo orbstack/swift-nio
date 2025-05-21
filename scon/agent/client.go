@@ -333,6 +333,26 @@ func (c *Client) DockerFastDf() (*dockertypes.SystemDf, error) {
 	return &df, nil
 }
 
+func (c *Client) DockerExportVolumeToHostPath(args types.InternalDockerExportVolumeToHostPathRequest) error {
+	var none None
+	err := c.rpc.Call("a.DockerExportVolumeToHostPath", args, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) DockerImportVolumeFromHostPath(args types.InternalDockerImportVolumeFromHostPathRequest) error {
+	var none None
+	err := c.rpc.Call("a.DockerImportVolumeFromHostPath", args, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) DockerStartWormhole(args StartWormholeArgs) (*StartWormholeResponseClient, error) {
 	var reply StartWormholeResponse
 	err := c.rpc.Call("a.DockerStartWormhole", StartWormholeArgs{
