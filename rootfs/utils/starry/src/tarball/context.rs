@@ -45,6 +45,8 @@ impl OwnedTarContext {
 pub struct TarContext<'a, W: Write> {
     writer: W,
 
+    root_mnt_id: u64,
+
     // we use [u8] for all paths instead of String because Linux paths technically don't have to be UTF-8. (it also means we can avoid UTF-8 validation overhead)
     hardlink_paths: BTreeMap<DevIno, &'a [u8]>,
     bump: &'a Bump,
@@ -53,9 +55,10 @@ pub struct TarContext<'a, W: Write> {
 }
 
 impl<'a, W: Write> TarContext<'a, W> {
-    pub fn new(writer: W, owned: &'a OwnedTarContext) -> Self {
+    pub fn new(writer: W, root_dir: &'a InterrogatedFile, owned: &'a OwnedTarContext) -> Self {
         Self {
             writer,
+            root_mnt_id: root_dir.mnt_id(),
             hardlink_paths: BTreeMap::new(),
             bump: &owned.bump,
             recurser: &owned.recurser,
@@ -361,6 +364,14 @@ impl<'a, W: Write> TarContext<'a, W> {
     fn do_one_entry(&mut self, dirfd: &OwnedFd, entry: &DirEntry) -> anyhow::Result<()> {
         let path = self.path_stack.push(entry.name.to_bytes());
         let file = InterrogatedFile::from_entry(dirfd, entry)?;
+
+        // skip if mnt_id is different. we don't cross mount points
+        // btrfs subvolumes have different (dev,ino) but same mnt_id, as long as they haven't been manually mounted as separate mounts
+        // this prevents e.g. recursing into /proc or other volumes if they were bind-mounted into a running docker volume with shared propagation
+        if file.mnt_id() != self.root_mnt_id {
+            return Ok(());
+        }
+
         self.add_one_entry(&file, path.get().as_slice())?;
 
         if file.file_type == FileType::Directory {

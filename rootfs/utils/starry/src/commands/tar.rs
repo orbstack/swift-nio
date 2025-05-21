@@ -63,12 +63,12 @@ pub fn main(src_dir: &str, config_json: Option<&str>) -> anyhow::Result<()> {
             Mode::empty(),
         )?)
     };
+    let root_dir_file = InterrogatedFile::from_directory_fd(&root_dir)?;
 
     let owned_ctx = OwnedTarContext::new()?;
-    let mut ctx = TarContext::new(&mut writer, &owned_ctx);
+    let mut ctx = TarContext::new(&mut writer, &root_dir_file, &owned_ctx);
 
     // add entry for root dir
-    let root_dir_file = InterrogatedFile::from_directory_fd(&root_dir)?;
     ctx.add_one_entry(&root_dir_file, b".")?;
 
     // add entry for config

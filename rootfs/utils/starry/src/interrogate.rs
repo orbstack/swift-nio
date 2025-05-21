@@ -75,7 +75,7 @@ impl<'a> InterrogatedFile<'a> {
                     dirfd,
                     name,
                     libc::AT_NO_AUTOMOUNT | libc::AT_SYMLINK_NOFOLLOW,
-                    libc_ext::STATX_BASIC_STATS,
+                    libc_ext::STATX_BASIC_STATS | libc_ext::STATX_MNT_ID,
                 )?);
                 FileType::from_stat_fmt(stx.as_ref().unwrap().stx_mode as u32 & libc::S_IFMT)
             }
@@ -108,7 +108,7 @@ impl<'a> InterrogatedFile<'a> {
                     &fd,
                     c"",
                     libc::AT_EMPTY_PATH | libc::AT_NO_AUTOMOUNT | libc::AT_SYMLINK_NOFOLLOW,
-                    libc_ext::STATX_BASIC_STATS,
+                    libc_ext::STATX_BASIC_STATS | libc_ext::STATX_MNT_ID,
                 )?);
             }
 
@@ -122,7 +122,7 @@ impl<'a> InterrogatedFile<'a> {
                     dirfd,
                     name,
                     libc::AT_NO_AUTOMOUNT | libc::AT_SYMLINK_NOFOLLOW,
-                    libc_ext::STATX_BASIC_STATS,
+                    libc_ext::STATX_BASIC_STATS | libc_ext::STATX_MNT_ID,
                 )?);
             }
         }
@@ -163,6 +163,9 @@ impl<'a> InterrogatedFile<'a> {
     }
     pub fn block_size(&self) -> u32 {
         self.stx.stx_blksize
+    }
+    pub fn mnt_id(&self) -> u64 {
+        self.stx.stx_mnt_id
     }
     fn nlink(&self) -> u32 {
         self.stx.stx_nlink
