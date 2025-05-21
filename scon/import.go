@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -41,7 +42,11 @@ func readConfigFromExport(file *os.File) (*types.ExportedMachineV1, error) {
 	for i := 0; i < exportedConfigScanEntries; i++ {
 		header, err := tarReader.Next()
 		if err != nil {
-			return nil, fmt.Errorf("read tar entry: %w", err)
+			if errors.Is(err, io.EOF) {
+				break
+			} else {
+				return nil, fmt.Errorf("read tar entry: %w", err)
+			}
 		}
 		if header.Name == exportedConfigPath || header.Name == "./"+exportedConfigPath {
 			// found the json file. decode it

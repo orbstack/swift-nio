@@ -15,7 +15,11 @@ import (
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 
-type exportedVolumeConfig struct {
+const exportedVolumeVersion = 1
+
+type exportedVolumeConfigV1 struct {
+	Version int `json:"version"`
+
 	Name      string `json:"name"`
 	CreatedAt string `json:"created_at"`
 
@@ -51,7 +55,8 @@ func (a *AgentServer) DockerExportVolumeToHostPath(args types.InternalDockerExpo
 
 	// put original name + options + labels in zstd skippable frame
 	// we don't want user-facing files in these tarballs in case they're being used as raw content exports
-	jsonData, err := json.Marshal(exportedVolumeConfig{
+	jsonData, err := json.Marshal(exportedVolumeConfigV1{
+		Version:   exportedVolumeVersion,
 		Name:      volume.Name,
 		CreatedAt: volume.CreatedAt,
 		Labels:    volume.Labels,
@@ -90,7 +95,7 @@ func (a *AgentServer) DockerImportVolumeFromHostPath(args types.InternalDockerIm
 	}
 	defer file.Close()
 
-	var config exportedVolumeConfig
+	var config exportedVolumeConfigV1
 	orbVersion, data, err := zstdframe.ReadSkippable(file)
 	if err == nil && orbVersion == zstdframe.VersionDockerVolumeConfig1 {
 		err = json.Unmarshal(data, &config)

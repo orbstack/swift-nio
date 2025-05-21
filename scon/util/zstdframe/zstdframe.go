@@ -51,16 +51,16 @@ func ReadSkippable(r io.Reader) (uint32, []byte, error) {
 	}
 
 	size := binary.LittleEndian.Uint32(header[4:8])
-	if size > maxSkippableFrameSize {
-		return 0, nil, fmt.Errorf("skippable frame payload too large: %d", size)
+	if size < 8 || size > maxSkippableFrameSize {
+		return 0, nil, fmt.Errorf("skippable frame payload too small or too large: %d", size)
 	}
 
-	data := make([]byte, size-8)
-	_, err = io.ReadFull(r, data)
+	payload := make([]byte, size-8)
+	_, err = io.ReadFull(r, payload)
 	if err != nil {
 		return 0, nil, err
 	}
 
 	orbVersion := binary.LittleEndian.Uint32(header[12:16])
-	return orbVersion, data, nil
+	return orbVersion, payload, nil
 }

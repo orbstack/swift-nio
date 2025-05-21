@@ -65,6 +65,13 @@ struct ImportContainerView: View {
             checkName(newName)
         }
         .onAppear {
+            do {
+                let config: ExportedMachineV1 = try Zstd.readSkippableFrame(url: vmModel.presentImportMachine!, expectedVersion: ZstdFrameVersion.machineConfig1)
+                name = config.record.name
+            } catch {
+                NSLog("Failed to read config from export: \(error)")
+            }
+
             checkName(name, animate: false)
         }
         .onChange(of: vmModel.containers) { _ in

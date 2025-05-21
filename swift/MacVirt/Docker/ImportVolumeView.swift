@@ -65,6 +65,13 @@ struct ImportVolumeView: View {
             checkName(newName)
         }
         .onAppear {
+            do {
+                let config: ExportedVolumeConfigV1 = try Zstd.readSkippableFrame(url: vmModel.presentImportVolume!, expectedVersion: ZstdFrameVersion.dockerVolumeConfig1)
+                name = config.name
+            } catch {
+                NSLog("Failed to read config from export: \(error)")
+            }
+
             checkName(name, animate: false)
         }
         .onChange(of: vmModel.dockerVolumes) { _ in
