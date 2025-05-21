@@ -372,12 +372,22 @@ impl<'a, W: Write> TarContext<'a, W> {
 
     pub fn walk_dir(&mut self, dirfd: &OwnedFd) -> anyhow::Result<()> {
         self.recurser
-            .walk_dir(dirfd, |entry| self.do_one_entry(dirfd, entry))
+            .walk_dir(dirfd, |entry| match self.do_one_entry(dirfd, entry) {
+                Ok(_) => Ok(()),
+                // ignore ENOENT: raced with concurrent deletion
+                Err(e) if e.downcast_ref::<Errno>().is_some_and(|e| *e == Errno::ENOENT) => Ok(()),
+                Err(e) => Err(e),
+            })
     }
 
     pub fn walk_dir_root(&mut self, dirfd: &OwnedFd, path: &CStr) -> anyhow::Result<()> {
         self.recurser
-            .walk_dir_root(dirfd, path, |entry| self.do_one_entry(dirfd, entry))
+            .walk_dir_root(dirfd, path, |entry| match self.do_one_entry(dirfd, entry) {
+                Ok(_) => Ok(()),
+                // ignore ENOENT: raced with concurrent deletion
+                Err(e) if e.downcast_ref::<Errno>().is_some_and(|e| *e == Errno::ENOENT) => Ok(()),
+                Err(e) => Err(e),
+            })
     }
 }
 

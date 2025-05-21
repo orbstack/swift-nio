@@ -16,7 +16,7 @@
  * - safe against symlink races (everything is dirfd/O_NOFOLLOW)
  *
  * assumptions:
- * - source is NOT modified concurrently. if this is violated, the command may fail or produce inconsistent results, but there is no security risk (in the case of symlink races). specifically, deletion races may cause the entire command to fail.
+ * - source is NOT modified concurrently. if this is violated, the command may fail or produce inconsistent results, but there is no security risk (in the case of symlink races).
  * - should be run as root in order to read trusted.* xattrs and other xattrs on symlinks
  * - must be run with CAP_DAC_READ_SEARCH to correctly extract read-only dirs/files (because we set mode at creation time, not afterwards)
  */
