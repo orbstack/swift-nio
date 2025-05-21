@@ -2,15 +2,26 @@ package agent
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util/zstdframe"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
+
+type exportedVolumeConfig struct {
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at"`
+
+	Labels  map[string]string `json:"labels,omitempty"`
+	Options map[string]string `json:"options,omitempty"`
+}
 
 func (a *AgentServer) DockerExportVolumeToHostPath(args types.InternalDockerExportVolumeToHostPathRequest, reply *None) (retErr error) {
 	volume, err := a.docker.realClient.GetVolume(args.VolumeID)
@@ -38,8 +49,23 @@ func (a *AgentServer) DockerExportVolumeToHostPath(args types.InternalDockerExpo
 	}()
 	defer file.Close()
 
-	// TODO: put original name + options + labels in zstd skippable frame
+	// put original name + options + labels in zstd skippable frame
 	// we don't want user-facing files in these tarballs in case they're being used as raw content exports
+	jsonData, err := json.Marshal(exportedVolumeConfig{
+		Name:      volume.Name,
+		CreatedAt: volume.CreatedAt,
+		Labels:    volume.Labels,
+		Options:   volume.Options,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal volume config: %w", err)
+	}
+
+	// write skippable frame
+	err = zstdframe.WriteSkippable(file, zstdframe.VersionDockerVolumeConfig1, jsonData)
+	if err != nil {
+		return fmt.Errorf("write skippable frame: %w", err)
+	}
 
 	// include rootfs/ dir prefix in tar to allow flexibility for future extra data in machines data dirs
 	cmd := exec.Command(mounts.Starry, "tar", volume.Mountpoint)
@@ -64,9 +90,26 @@ func (a *AgentServer) DockerImportVolumeFromHostPath(args types.InternalDockerIm
 	}
 	defer file.Close()
 
+	var config exportedVolumeConfig
+	orbVersion, data, err := zstdframe.ReadSkippable(file)
+	if err == nil && orbVersion == zstdframe.VersionDockerVolumeConfig1 {
+		err = json.Unmarshal(data, &config)
+		if err != nil {
+			return fmt.Errorf("unmarshal volume config: %w", err)
+		}
+	}
+
+	// rewind for bsdtar
+	_, err = file.Seek(0, io.SeekStart)
+	if err != nil {
+		return fmt.Errorf("seek file: %w", err)
+	}
+
 	// attempt to create the new volume by name
 	newVol, err := a.docker.realClient.CreateVolume(dockertypes.VolumeCreateRequest{
-		Name: args.NewName,
+		Name:       args.NewName,
+		Labels:     config.Labels,
+		DriverOpts: config.Options,
 	})
 	if err != nil {
 		return fmt.Errorf("create volume: %w", err)

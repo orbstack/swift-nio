@@ -12,20 +12,13 @@ import (
 
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util/zstdframe"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 )
 
 // OrbStack exports are .tar.zst archives that start with:
 // 1. zstd skippable frame: magic 0x184D2A5C,
 // 2. regular zstd frames with compressed tar contents
-const (
-	// frame magic (little-endian): 18 4D 2A 5C
-	// size (little-endian, 4 bytes): 8
-	// data: orbstack magic (little-endian): 07 b5 1a cc ("orbstack")
-	// data: orbstack version (little-endian, 4 bytes): 1
-	ExportMagicV1 = "\x5c\x2a\x4d\x18\x08\x00\x00\x00\x07\xb5\x1a\xcc\x01\x00\x00\x00"
-)
-
 func (c *Container) ExportToHostPath(hostPath string) (retErr error) {
 	if c.builtin {
 		return errors.New("cannot export builtin machine")
@@ -52,12 +45,6 @@ func (c *Container) ExportToHostPath(hostPath string) (retErr error) {
 		}
 	}()
 	defer file.Close()
-
-	// write magic
-	_, err = file.Write([]byte(ExportMagicV1))
-	if err != nil {
-		return fmt.Errorf("write magic: %w", err)
-	}
 
 	err = c.holds.WithHold("export", func() error {
 		// freeze container to get a consistent data snapshot
@@ -94,6 +81,12 @@ func (c *Container) ExportToHostPath(hostPath string) (retErr error) {
 		})
 		if err != nil {
 			return fmt.Errorf("marshal config: %w", err)
+		}
+
+		// write skippable frame
+		err = zstdframe.WriteSkippable(file, zstdframe.VersionMachineConfig1, configJson)
+		if err != nil {
+			return fmt.Errorf("write skippable frame: %w", err)
 		}
 
 		err = c.jobManager.Run(func(ctx context.Context) error {
