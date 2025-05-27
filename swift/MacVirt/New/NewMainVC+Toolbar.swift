@@ -80,6 +80,9 @@ extension NewMainViewController: NSToolbarDelegate {
         case .cliHelp:
             return commandsHelpButton
 
+        case .activityMonitorStop:
+            return activityMonitorStopButton
+
         case .searchItem:
             return searchItem
         case .inspectorTrackingSeparatorCompat:
@@ -177,5 +180,9 @@ extension NewMainViewController: NSToolbarDelegate {
 
     @objc func actionCliHelp(_: NSButton?) {
         NSWorkspace.shared.open(URL(string: "https://orb.cx/cli")!)
+    }
+
+    @objc func actionActivityMonitorStop(_: NSButton?) {
+        model.toolbarActionRouter.send(.activityMonitorStop)
     }
 }

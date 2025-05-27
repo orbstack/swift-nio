@@ -14,6 +14,8 @@ private let startPollInterval: UInt64 = 100 * 1000 * 1000  // 100 ms
 private let dockerSystemDfRatelimit = 1.0 * 60 * 60  // 1 hour
 private let maxAdminDismissCount = 2  // auto-disable
 
+private let maxConsecutiveStatsErrors = 10
+
 enum MenuActionRouter {
     case newVolume
     case openVolumes
@@ -21,6 +23,10 @@ enum MenuActionRouter {
     case importMachine
     case importVolume
     case newMachine
+}
+
+enum ToolbarAction {
+    case activityMonitorStop
 }
 
 enum VmState: Int, Comparable {
@@ -467,6 +473,10 @@ class VmViewModel: ObservableObject {
     var collapsedPanelOverride: Panel?
     var menuActionRouter = PassthroughSubject<MenuActionRouter, Never>()
 
+    var toolbarActionRouter = PassthroughSubject<ToolbarAction, Never>()
+    // TODO: proper preference-based toolbar system
+    @Published var activityMonitorStopEnabled = false
+
     // TODO: fix state machine to deal with restarting
     @Published private(set) var isVmRestarting = false
     @Published private(set) var restartingMachines = Set<String>()
@@ -546,6 +556,8 @@ class VmViewModel: ObservableObject {
     @Published var dockerConfigJson = "{\n}"
 
     @Published var presentForceSignIn = false
+
+    private var consecutiveStatsErrors = 0
 
     private var dockerSystemDfRunning = false
 
@@ -1564,7 +1576,11 @@ class VmViewModel: ObservableObject {
         do {
             return try await scon.getStats(req)
         } catch {
-            setError(.statsError(cause: error))
+            consecutiveStatsErrors += 1
+            if consecutiveStatsErrors >= maxConsecutiveStatsErrors {
+                setError(.statsError(cause: error))
+                consecutiveStatsErrors = 0
+            }
             throw error
         }
     }

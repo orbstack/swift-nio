@@ -209,6 +209,21 @@ class NewMainViewController: NSViewController {
         action: #selector(actionCliHelp)
     )
 
+    lazy var activityMonitorStopButton = {
+        let item = makeToolbarItem(
+            itemIdentifier: .activityMonitorStop,
+            icon: "xmark.octagon",
+            title: "Stop",
+            action: #selector(actionActivityMonitorStop)
+        )
+
+        model.$activityMonitorStopEnabled.sink { [weak item] enabled in
+            item?.isEnabled = enabled
+        }.store(in: &cancellables)
+
+        return item
+    }()
+
     lazy var searchItem = {
         let item = NSSearchToolbarItem(itemIdentifier: .searchItem)
         item.searchField.delegate = self

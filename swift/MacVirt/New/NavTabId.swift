@@ -32,7 +32,7 @@ extension NavTabId {
             return [.cliHelp]
 
         case .activityMonitor:
-            return []
+            return [.activityMonitorStop]
         }
     }
 }
@@ -60,6 +60,8 @@ extension NSToolbarItem.Identifier {
     static let machinesNew = NSToolbarItem.Identifier("machinesNew")
 
     static let cliHelp = NSToolbarItem.Identifier("cliHelp")
+
+    static let activityMonitorStop = NSToolbarItem.Identifier("activityMonitorStop")
 
     static let searchItem = NSToolbarItem.Identifier("searchItem")
 
