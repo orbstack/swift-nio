@@ -310,21 +310,25 @@ struct ActivityMonitorRootView: View {
                             .font(.headline)
                         Chart(model.cpuHistoryGraph, id: \.self) { item in
                             if let cpuPercent = item.cpuPercent {
-                                LineMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
-                                    .foregroundStyle(.green)
-                                    .lineStyle(StrokeStyle(lineWidth: 1.5))
+                                LineMark(
+                                    x: .value("Time", item.index), y: .value("CPU %", cpuPercent)
+                                )
+                                .foregroundStyle(.green)
+                                .lineStyle(StrokeStyle(lineWidth: 1.5))
 
-                                AreaMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
-                                    .foregroundStyle(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color.green.opacity(0.8),
-                                                Color.green.opacity(0.1),
-                                            ]),
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
+                                AreaMark(
+                                    x: .value("Time", item.index), y: .value("CPU %", cpuPercent)
+                                )
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color.green.opacity(0.8),
+                                            Color.green.opacity(0.1),
+                                        ]),
+                                        startPoint: .top,
+                                        endPoint: .bottom
                                     )
+                                )
                             }
                         }
                         .chartXScale(domain: [0, historyGraphSize - 1])
