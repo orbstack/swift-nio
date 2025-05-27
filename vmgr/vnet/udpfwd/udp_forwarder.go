@@ -199,7 +199,9 @@ func (proxy *UDPProxy) Run(useTtl bool) {
 		_ = ext.conn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
 		written, err := ext.conn.Write(readBuf[:read])
 		if err != nil {
-			logrus.WithError(err).Error("UDP write failed")
+			if !errors.Is(err, unix.ENOBUFS) {
+				logrus.WithError(err).Error("UDP write failed")
+			}
 		} else if written != read {
 			logrus.Error("UDP write failed: short write")
 		}
