@@ -66,7 +66,9 @@ struct ImportContainerView: View {
         }
         .onAppear {
             do {
-                let config: ExportedMachineV1 = try Zstd.readSkippableFrame(url: vmModel.presentImportMachine!, expectedVersion: ZstdFrameVersion.machineConfig1)
+                let config: ExportedMachineV1 = try Zstd.readSkippableFrame(
+                    url: vmModel.presentImportMachine!,
+                    expectedVersion: ZstdFrameVersion.machineConfig1)
                 name = config.record.name
             } catch {
                 NSLog("Failed to read config from export: \(error)")

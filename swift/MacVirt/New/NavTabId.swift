@@ -13,7 +13,10 @@ extension NavTabId {
         case .dockerContainers:
             return [.dockerContainersSort, .dockerContainersFilter, .searchItem]
         case .dockerVolumes:
-            return [.dockerVolumesSort, .dockerVolumesOpen, .dockerVolumesImport, .dockerVolumesNew, .searchItem]
+            return [
+                .dockerVolumesSort, .dockerVolumesOpen, .dockerVolumesImport, .dockerVolumesNew,
+                .searchItem,
+            ]
         case .dockerImages:
             return [.dockerImagesSort, .dockerImagesOpen, .searchItem]
 

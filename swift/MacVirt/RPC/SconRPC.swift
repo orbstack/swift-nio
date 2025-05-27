@@ -238,11 +238,15 @@ class SconService {
         try await c.call("InternalDockerFastDf")
     }
 
-    func internalDockerImportVolumeFromHostPath(_ req: InternalDockerImportVolumeFromHostPathRequest) async throws {
+    func internalDockerImportVolumeFromHostPath(
+        _ req: InternalDockerImportVolumeFromHostPathRequest
+    ) async throws {
         try await c.call("InternalDockerImportVolumeFromHostPath", args: req)
     }
 
-    func internalDockerExportVolumeToHostPath(_ req: InternalDockerExportVolumeToHostPathRequest) async throws {
+    func internalDockerExportVolumeToHostPath(_ req: InternalDockerExportVolumeToHostPathRequest)
+        async throws
+    {
         try await c.call("InternalDockerExportVolumeToHostPath", args: req)
     }
 

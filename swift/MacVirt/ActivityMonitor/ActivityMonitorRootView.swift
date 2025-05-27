@@ -5,8 +5,11 @@
 //  Created by Danny Lin on 4/7/25.
 //
 
+import Charts
 import Defaults
 import SwiftUI
+
+private let cpuHistorySize = 50
 
 private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
     let entity: ActivityMonitorEntity
@@ -140,8 +143,14 @@ private enum Columns {
     static let diskRwBytes = "diskRwBytes"
 }
 
+private struct CpuHistoryGraphItem: Hashable {
+    let index: Int
+    let cpuPercent: Float?
+}
+
 struct ActivityMonitorRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var actionTracker: ActionTracker
 
     private let timer = Timer.publish(every: refreshInterval, on: .main, in: .common).autoconnect()
 
@@ -151,110 +160,297 @@ struct ActivityMonitorRootView: View {
 
     var body: some View {
         StateWrapperView {
-            AKList(
-                AKSection.single(model.items), selection: $selection, sort: $sort, rowHeight: 24,
-                flat: false, expandByDefault: true,
-                autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
-                columns: [
-                    akColumn(id: Columns.name, title: "Name", width: 200, alignment: .left) {
-                        item in
-                        HStack(spacing: 0) {
-                            switch item.entity {
-                            case .machine(let record):
-                                Image("distro_\(record.image.distro)")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 16, height: 16)
+            VStack {
+                AKList(
+                    AKSection.single(model.items), selection: $selection, sort: $sort,
+                    rowHeight: 24,
+                    flat: false, expandByDefault: true,
+                    autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
+                    columns: [
+                        akColumn(id: Columns.name, title: "Name", width: 200, alignment: .left) {
+                            item in
+                            HStack(spacing: 6) {
+                                switch item.entity {
+                                case .machine(let record):
+                                    Image("distro_\(record.image.distro)")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 16, height: 16)
 
-                            case .container(let container):
-                                DockerContainerImage(container: container)
-                                    .scaleEffect(0.5)  // 32px -> 16px
-                                    .frame(width: 16, height: 16)
+                                case .container(let container):
+                                    DockerContainerImage(container: container)
+                                        .scaleEffect(0.5)  // 32px -> 16px
+                                        .frame(width: 16, height: 16)
 
-                            case .compose(let project):
-                                DockerComposeGroupImage(project: project)
-                                    .scaleEffect(0.5)  // 32px -> 16px
-                                    .frame(width: 16, height: 16)
+                                case .compose(let project):
+                                    DockerComposeGroupImage(project: project)
+                                        .scaleEffect(0.5)  // 32px -> 16px
+                                        .frame(width: 16, height: 16)
 
-                            case .k8sGroup:
-                                K8sIcon()
-                                    .scaleEffect(0.5)  // 32px -> 16px
-                                    .frame(width: 16, height: 16)
+                                case .k8sGroup:
+                                    K8sIcon()
+                                        .scaleEffect(0.5)  // 32px -> 16px
+                                        .frame(width: 16, height: 16)
 
-                            case .dockerGroup:
-                                Image(systemName: "shippingbox")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 16, height: 16)
+                                case .dockerGroup:
+                                    Image(systemName: "shippingbox.fill")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 16, height: 16)
 
-                            default:
-                                Spacer()
-                                    .frame(width: 16, height: 16)
+                                case .machinesGroup:
+                                    Image(systemName: "desktopcomputer")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 16, height: 16)
+
+                                case .k8sNamespace:
+                                    Group {}
+
+                                case .k8sServices:
+                                    Group {}
+
+                                case .dockerEngine:
+                                    Group {}
+
+                                default:
+                                    Spacer()
+                                        .frame(width: 16, height: 16)
+                                }
+
+                                Text(item.entity.description)
                             }
+                            .padding(.leading, 2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .lineLimit(1)
+                            .akListContextMenu {
+                                Button("Stop") {
+                                    if selection.contains(item.id) {
+                                        stopOne(id: item.id)
+                                    } else {
+                                        stopAllSelected(stopAction: stopOne)
+                                    }
+                                }
 
-                            Text(item.entity.description)
-                                .padding(.leading, 8)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineLimit(1)
-                    },
-                    akColumn(id: Columns.cpuPercent, title: "CPU %", width: 75, alignment: .right) {
-                        item in
-                        if let cpuPercent = item.cpuPercent {
-                            Text(cpuPercent.formatted(.number.precision(.fractionLength(1))))
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    },
-                    akColumn(id: Columns.memoryBytes, title: "Memory", width: 75, alignment: .right)
-                    { item in
-                        Text(
-                            ByteCountFormatter.string(
-                                fromByteCount: Int64(item.memoryBytes), countStyle: .memory)
-                        )
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    },
-                    akColumn(
-                        id: Columns.diskRwBytes, title: "Disk I/O", width: 75, alignment: .right
-                    ) {
-                        item in
-                        if let diskRwBytes = item.diskRwBytes {
-                            if diskRwBytes > 0 {
-                                let formatted = ByteCountFormatter.string(
-                                    fromByteCount: Int64(diskRwBytes), countStyle: .memory)
-                                Text("\(formatted)/s")
-                                    .frame(maxWidth: .infinity, alignment: .trailing)
-                            } else {
-                                Text("0 b/s")
+                                Button("Kill") {
+                                    if selection.contains(item.id) {
+                                        killOne(id: item.id)
+                                    } else {
+                                        stopAllSelected(stopAction: killOne)
+                                    }
+                                }
+                            }
+                        },
+                        akColumn(
+                            id: Columns.cpuPercent, title: "CPU %", width: 75, alignment: .right
+                        ) {
+                            item in
+                            if let cpuPercent = item.cpuPercent {
+                                Text(cpuPercent.formatted(.number.precision(.fractionLength(1))))
                                     .frame(maxWidth: .infinity, alignment: .trailing)
                             }
-                        }
-                    },
-                ]
-            )
-            .onAppear {
-                Task { @MainActor in
-                    await model.refresh(vmModel: vmModel, desc: sort)
-
-                    // populate delta-based stats faster at the beginning
-                    do {
-                        try await Task.sleep(
-                            nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
+                        },
+                        akColumn(
+                            id: Columns.memoryBytes, title: "Memory", width: 75, alignment: .right
+                        ) { item in
+                            Text(
+                                ByteCountFormatter.string(
+                                    fromByteCount: Int64(item.memoryBytes), countStyle: .memory)
+                            )
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        },
+                        akColumn(
+                            id: Columns.diskRwBytes, title: "Disk I/O", width: 75, alignment: .right
+                        ) {
+                            item in
+                            if let diskRwBytes = item.diskRwBytes {
+                                if diskRwBytes > 0 {
+                                    let formatted = ByteCountFormatter.string(
+                                        fromByteCount: Int64(diskRwBytes), countStyle: .memory)
+                                    Text("\(formatted)/s")
+                                        .frame(maxWidth: .infinity, alignment: .trailing)
+                                } else {
+                                    Text("0 b/s")
+                                        .frame(maxWidth: .infinity, alignment: .trailing)
+                                }
+                            }
+                        },
+                    ]
+                )
+                .onAppear {
+                    Task { @MainActor in
                         await model.refresh(vmModel: vmModel, desc: sort)
-                    } catch {
-                        // ignore
+
+                        // populate delta-based stats faster at the beginning
+                        do {
+                            try await Task.sleep(
+                                nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
+                            await model.refresh(vmModel: vmModel, desc: sort)
+                        } catch {
+                            // ignore
+                        }
                     }
                 }
-            }
-            .onChange(of: sort) { newSort in
-                model.reSort(desc: newSort)
-            }
-            .onReceive(timer) { _ in
-                Task { @MainActor in
-                    await model.refresh(vmModel: vmModel, desc: sort)
+                .onChange(of: sort) { newSort in
+                    model.reSort(desc: newSort)
                 }
+                .onReceive(timer) { _ in
+                    Task { @MainActor in
+                        await model.refresh(vmModel: vmModel, desc: sort)
+                    }
+                }
+
+                HStack {
+                    Chart(model.cpuHistoryGraph, id: \.self) { item in
+                        if let cpuPercent = item.cpuPercent {
+                            LineMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
+                                .foregroundStyle(.green)
+                                .lineStyle(StrokeStyle(lineWidth: 2))
+
+                            AreaMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color.green.opacity(0.8),
+                                            Color.green.opacity(0.3),
+                                            Color.green.opacity(0.1),
+                                        ]),
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        }
+                    }
+                    .chartXScale(domain: [0, 49])
+                    .chartYScale(domain: [
+                        0,
+                        max(
+                            200,
+                            model.cpuHistoryGraph.max(by: {
+                                $0.cpuPercent ?? 0 < $1.cpuPercent ?? 0
+                            })?.cpuPercent ?? 0),
+                    ])
+                    .chartXAxis {
+                    }
+                    .chartYAxis {
+                    }
+                }
+                .frame(height: 200)
             }
         }
         .navigationTitle("Activity Monitor")
+    }
+
+    private func stopOne(id: ActivityMonitorID) {
+        Task {
+            switch id {
+            case .machine(let id):
+                if let machine = vmModel.containers?.first(where: { $0.record.id == id }) {
+                    await vmModel.tryStopContainer(machine.record)
+                }
+            case .container(let id):
+                await vmModel.tryDockerContainerStop(id)
+            case .compose(let project):
+                await vmModel.tryDockerComposeStop(.compose(project: project))
+
+            case .k8sGroup, .k8sServices:
+                await actionTracker.with(cid: .k8sGroup, action: .stop) {
+                    await vmModel.tryStartStopK8s(enable: false)
+                }
+
+            case .dockerGroup, .dockerEngine:
+                if let dockerMachine = vmModel.containers?.first(where: {
+                    $0.id == ContainerIds.docker
+                }) {
+                    await vmModel.tryStopContainer(dockerMachine.record)
+                }
+
+            case .k8sNamespace:
+                // TODO
+                break
+
+            case .machinesGroup:
+                for machine in vmModel.containers ?? [] {
+                    if machine.record.running && !machine.record.builtin {
+                        Task {
+                            await vmModel.tryStopContainer(machine.record)
+                        }
+                    }
+                }
+
+            default:
+                break
+            }
+        }
+    }
+
+    private func killOne(id: ActivityMonitorID) {
+        Task {
+            switch id {
+            case .container(let id):
+                await vmModel.tryDockerContainerKill(id)
+            case .compose(let project):
+                await vmModel.tryDockerComposeKill(.compose(project: project))
+
+            default:
+                return stopOne(id: id)
+            }
+        }
+    }
+
+    private func stopAllSelected(stopAction: (ActivityMonitorID) -> Void) {
+        // some special cases:
+        // - if stopping .dockerGroup or .dockerEngine: skip .container .compose .k8sGroup .k8sServices .k8sNamespace
+        // - if stopping .k8sGroup or .k8sServices: skip .k8sNamespace
+        // - if stopping .machinesGroup: skip .machine
+
+        // that makes it easier to do this in a few passes.
+
+        // 1. docker
+        if selection.contains(.dockerGroup) || selection.contains(.dockerEngine) {
+            stopAction(.dockerGroup)
+        } else {
+            // 2. containers
+            // must do this before k8s because that triggers a restart
+            for id in selection {
+                if case .container = id {
+                    stopAction(id)
+                }
+            }
+
+            // 3. compose
+            // must do this after containers to avoid errors in case some stopped containers are part of a compose group
+            for id in selection {
+                if case .compose = id {
+                    stopAction(id)
+                }
+            }
+
+            // 4. k8s
+            if selection.contains(.k8sGroup) || selection.contains(.k8sServices) {
+                stopAction(.k8sGroup)
+            } else {
+                // 3. k8s namespaces
+                for id in selection {
+                    if case .k8sNamespace = id {
+                        stopAction(id)
+                    }
+                }
+            }
+        }
+
+        // 2. machines
+        if selection.contains(.machinesGroup) {
+            // stop all machines
+            stopAction(.machinesGroup)
+        } else {
+            // 3. machines
+            for id in selection {
+                if case .machine = id {
+                    stopAction(id)
+                }
+            }
+        }
     }
 }
 
@@ -268,6 +464,8 @@ private class ActivityMonitorViewModel: ObservableObject {
     private var lastStats: StatsResult? = nil
 
     @Published var items: [ActivityMonitorItem] = []
+    private var cpuHistory: [Float?] = Array(repeating: nil, count: cpuHistorySize)
+    @Published var cpuHistoryGraph: [CpuHistoryGraphItem] = []
 
     func refresh(vmModel: VmViewModel, desc: AKSortDescriptor) async {
         var newStats: StatsResponse!
@@ -381,6 +579,15 @@ private class ActivityMonitorViewModel: ObservableObject {
         items = newRootItems
 
         lastStats = StatsResult(entries: newEntries, time: now)
+
+        let totalCpuPercent = items.reduce(0) { $0 + ($1.cpuPercent ?? 0) }
+        if cpuHistory.count >= cpuHistorySize {
+            cpuHistory.removeFirst()
+        }
+        cpuHistory.append(totalCpuPercent)
+        cpuHistoryGraph = cpuHistory.enumerated().map {
+            CpuHistoryGraphItem(index: $0, cpuPercent: $1)
+        }
     }
 
     private func entryToItem(entry: StatsEntry, vmModel: VmViewModel, now: ContinuousClock.Instant)

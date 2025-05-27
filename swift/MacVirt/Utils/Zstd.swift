@@ -8,10 +8,12 @@ private let zstdSkippableFrameMagic: Data = Data([0x5c, 0x2a, 0x4d, 0x18])
 private let orbMagic: Data = Data([0xcc, 0x1a, 0xb5, 0x07])
 
 // max size to prevent DoS
-private let maxSkippableFrameSize = 32 * 1024 * 1024 // 32 MiB
+private let maxSkippableFrameSize = 32 * 1024 * 1024  // 32 MiB
 
 enum Zstd {
-    static func readSkippableFrame<T: Decodable>(file: FileHandle, expectedVersion: UInt32) throws -> T {
+    static func readSkippableFrame<T: Decodable>(file: FileHandle, expectedVersion: UInt32) throws
+        -> T
+    {
         guard let header = try file.read(upToCount: 4 + 4 + 4 + 4) else {
             throw ZstdError.emptyRead
         }
@@ -36,7 +38,8 @@ enum Zstd {
         }
 
         let versionBytes = header[12..<16]
-        let version = UInt32(littleEndian: versionBytes.withUnsafeBytes { $0.load(as: UInt32.self) })
+        let version = UInt32(
+            littleEndian: versionBytes.withUnsafeBytes { $0.load(as: UInt32.self) })
         if version != expectedVersion {
             throw ZstdError.invalidFrameVersion
         }

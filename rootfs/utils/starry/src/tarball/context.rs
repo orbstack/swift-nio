@@ -386,7 +386,12 @@ impl<'a, W: Write> TarContext<'a, W> {
             .walk_dir(dirfd, |entry| match self.do_one_entry(dirfd, entry) {
                 Ok(_) => Ok(()),
                 // ignore ENOENT: raced with concurrent deletion
-                Err(e) if e.downcast_ref::<Errno>().is_some_and(|e| *e == Errno::ENOENT) => Ok(()),
+                Err(e)
+                    if e.downcast_ref::<Errno>()
+                        .is_some_and(|e| *e == Errno::ENOENT) =>
+                {
+                    Ok(())
+                }
                 Err(e) => Err(e),
             })
     }
@@ -396,7 +401,12 @@ impl<'a, W: Write> TarContext<'a, W> {
             .walk_dir_root(dirfd, path, |entry| match self.do_one_entry(dirfd, entry) {
                 Ok(_) => Ok(()),
                 // ignore ENOENT: raced with concurrent deletion
-                Err(e) if e.downcast_ref::<Errno>().is_some_and(|e| *e == Errno::ENOENT) => Ok(()),
+                Err(e)
+                    if e.downcast_ref::<Errno>()
+                        .is_some_and(|e| *e == Errno::ENOENT) =>
+                {
+                    Ok(())
+                }
                 Err(e) => Err(e),
             })
     }
