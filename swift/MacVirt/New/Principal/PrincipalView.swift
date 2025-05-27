@@ -64,10 +64,17 @@ struct PrincipalView: View {
             onTabChange(selectedTab)
         }
         .onChange(of: selectedTab) { tab in
+            // clear inspector view when tab changes
+            navModel.inspectorView = nil
+            navModel.inspectorSelection = []
+
             onTabChange(tab)
         }
         .onPreferenceChange(InspectorSelectionKey.self) { value in
             navModel.inspectorSelection = value
+        }
+        .onPreferenceChange(InspectorViewKey.self) { value in
+            navModel.inspectorView = value
         }
     }
 }

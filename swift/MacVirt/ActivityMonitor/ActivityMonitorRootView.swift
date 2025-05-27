@@ -9,7 +9,7 @@ import Charts
 import Defaults
 import SwiftUI
 
-private let cpuHistorySize = 50
+private let historyGraphSize = 50
 
 private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
     let entity: ActivityMonitorEntity
@@ -148,6 +148,11 @@ private struct CpuHistoryGraphItem: Hashable {
     let cpuPercent: Float?
 }
 
+private struct MemoryHistoryGraphItem: Hashable {
+    let index: Int
+    let memoryBytes: UInt64?
+}
+
 struct ActivityMonitorRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var actionTracker: ActionTracker
@@ -160,183 +165,225 @@ struct ActivityMonitorRootView: View {
 
     var body: some View {
         StateWrapperView {
-            VStack {
-                AKList(
-                    AKSection.single(model.items), selection: $selection, sort: $sort,
-                    rowHeight: 24,
-                    flat: false, expandByDefault: true,
-                    autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
-                    columns: [
-                        akColumn(id: Columns.name, title: "Name", width: 200, alignment: .left) {
-                            item in
-                            HStack(spacing: 6) {
-                                switch item.entity {
-                                case .machine(let record):
-                                    Image("distro_\(record.image.distro)")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 16, height: 16)
+            AKList(
+                AKSection.single(model.items), selection: $selection, sort: $sort,
+                rowHeight: 24,
+                flat: false, expandByDefault: true,
+                autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
+                columns: [
+                    akColumn(id: Columns.name, title: "Name", width: 200, alignment: .left) {
+                        item in
+                        HStack(spacing: 6) {
+                            switch item.entity {
+                            case .machine(let record):
+                                Image("distro_\(record.image.distro)")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 16, height: 16)
 
-                                case .container(let container):
-                                    DockerContainerImage(container: container)
-                                        .scaleEffect(0.5)  // 32px -> 16px
-                                        .frame(width: 16, height: 16)
+                            case .container(let container):
+                                DockerContainerImage(container: container)
+                                    .scaleEffect(0.5)  // 32px -> 16px
+                                    .frame(width: 16, height: 16)
 
-                                case .compose(let project):
-                                    DockerComposeGroupImage(project: project)
-                                        .scaleEffect(0.5)  // 32px -> 16px
-                                        .frame(width: 16, height: 16)
+                            case .compose(let project):
+                                DockerComposeGroupImage(project: project)
+                                    .scaleEffect(0.5)  // 32px -> 16px
+                                    .frame(width: 16, height: 16)
 
-                                case .k8sGroup:
-                                    K8sIcon()
-                                        .scaleEffect(0.5)  // 32px -> 16px
-                                        .frame(width: 16, height: 16)
+                            case .k8sGroup:
+                                K8sIcon()
+                                    .scaleEffect(0.5)  // 32px -> 16px
+                                    .frame(width: 16, height: 16)
 
-                                case .dockerGroup:
-                                    Image(systemName: "shippingbox.fill")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 16, height: 16)
+                            case .dockerGroup:
+                                Image(systemName: "shippingbox.fill")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 16, height: 16)
 
-                                case .machinesGroup:
-                                    Image(systemName: "desktopcomputer")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 16, height: 16)
+                            case .machinesGroup:
+                                Image(systemName: "desktopcomputer")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 16, height: 16)
 
-                                case .k8sNamespace:
-                                    Group {}
+                            case .k8sNamespace:
+                                Group {}
 
-                                case .k8sServices:
-                                    Group {}
+                            case .k8sServices:
+                                Group {}
 
-                                case .dockerEngine:
-                                    Group {}
+                            case .dockerEngine:
+                                Group {}
 
-                                default:
-                                    Spacer()
-                                        .frame(width: 16, height: 16)
-                                }
-
-                                Text(item.entity.description)
+                            default:
+                                Spacer()
+                                    .frame(width: 16, height: 16)
                             }
-                            .padding(.leading, 2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .lineLimit(1)
-                            .akListContextMenu {
-                                Button("Stop") {
-                                    if selection.contains(item.id) {
-                                        stopOne(id: item.id)
-                                    } else {
-                                        stopAllSelected(stopAction: stopOne)
-                                    }
-                                }
 
-                                Button("Kill") {
-                                    if selection.contains(item.id) {
-                                        killOne(id: item.id)
-                                    } else {
-                                        stopAllSelected(stopAction: killOne)
-                                    }
+                            Text(item.entity.description)
+                        }
+                        .padding(.leading, 2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(1)
+                        .akListContextMenu {
+                            Button("Stop") {
+                                if selection.contains(item.id) {
+                                    stopOne(id: item.id)
+                                } else {
+                                    stopAllSelected(stopAction: stopOne)
                                 }
                             }
-                        },
-                        akColumn(
-                            id: Columns.cpuPercent, title: "CPU %", width: 75, alignment: .right
-                        ) {
-                            item in
-                            if let cpuPercent = item.cpuPercent {
-                                Text(cpuPercent.formatted(.number.precision(.fractionLength(1))))
+
+                            Button("Kill") {
+                                if selection.contains(item.id) {
+                                    killOne(id: item.id)
+                                } else {
+                                    stopAllSelected(stopAction: killOne)
+                                }
+                            }
+                        }
+                    },
+                    akColumn(
+                        id: Columns.cpuPercent, title: "CPU %", width: 75, alignment: .right
+                    ) {
+                        item in
+                        if let cpuPercent = item.cpuPercent {
+                            Text(cpuPercent.formatted(.number.precision(.fractionLength(1))))
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    },
+                    akColumn(
+                        id: Columns.memoryBytes, title: "Memory", width: 75, alignment: .right
+                    ) { item in
+                        Text(
+                            ByteCountFormatter.string(
+                                fromByteCount: Int64(item.memoryBytes), countStyle: .memory)
+                        )
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    },
+                    akColumn(
+                        id: Columns.diskRwBytes, title: "Disk I/O", width: 75, alignment: .right
+                    ) {
+                        item in
+                        if let diskRwBytes = item.diskRwBytes {
+                            if diskRwBytes > 0 {
+                                let formatted = ByteCountFormatter.string(
+                                    fromByteCount: Int64(diskRwBytes), countStyle: .memory)
+                                Text("\(formatted)/s")
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                            } else {
+                                Text("0 b/s")
                                     .frame(maxWidth: .infinity, alignment: .trailing)
                             }
-                        },
-                        akColumn(
-                            id: Columns.memoryBytes, title: "Memory", width: 75, alignment: .right
-                        ) { item in
-                            Text(
-                                ByteCountFormatter.string(
-                                    fromByteCount: Int64(item.memoryBytes), countStyle: .memory)
-                            )
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                        },
-                        akColumn(
-                            id: Columns.diskRwBytes, title: "Disk I/O", width: 75, alignment: .right
-                        ) {
-                            item in
-                            if let diskRwBytes = item.diskRwBytes {
-                                if diskRwBytes > 0 {
-                                    let formatted = ByteCountFormatter.string(
-                                        fromByteCount: Int64(diskRwBytes), countStyle: .memory)
-                                    Text("\(formatted)/s")
-                                        .frame(maxWidth: .infinity, alignment: .trailing)
-                                } else {
-                                    Text("0 b/s")
-                                        .frame(maxWidth: .infinity, alignment: .trailing)
-                                }
-                            }
-                        },
-                    ]
-                )
-                .onAppear {
-                    Task { @MainActor in
-                        await model.refresh(vmModel: vmModel, desc: sort)
-
-                        // populate delta-based stats faster at the beginning
-                        do {
-                            try await Task.sleep(
-                                nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
-                            await model.refresh(vmModel: vmModel, desc: sort)
-                        } catch {
-                            // ignore
                         }
-                    }
-                }
-                .onChange(of: sort) { newSort in
-                    model.reSort(desc: newSort)
-                }
-                .onReceive(timer) { _ in
-                    Task { @MainActor in
+                    },
+                ]
+            )
+            .onAppear {
+                Task { @MainActor in
+                    await model.refresh(vmModel: vmModel, desc: sort)
+
+                    // populate delta-based stats faster at the beginning
+                    do {
+                        try await Task.sleep(
+                            nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
                         await model.refresh(vmModel: vmModel, desc: sort)
+                    } catch {
+                        // ignore
                     }
                 }
-
-                HStack {
-                    Chart(model.cpuHistoryGraph, id: \.self) { item in
-                        if let cpuPercent = item.cpuPercent {
-                            LineMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
-                                .foregroundStyle(.green)
-                                .lineStyle(StrokeStyle(lineWidth: 2))
-
-                            AreaMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            Color.green.opacity(0.8),
-                                            Color.green.opacity(0.3),
-                                            Color.green.opacity(0.1),
-                                        ]),
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                        }
-                    }
-                    .chartXScale(domain: [0, 49])
-                    .chartYScale(domain: [
-                        0,
-                        max(
-                            200,
-                            model.cpuHistoryGraph.max(by: {
-                                $0.cpuPercent ?? 0 < $1.cpuPercent ?? 0
-                            })?.cpuPercent ?? 0),
-                    ])
-                    .chartXAxis {
-                    }
-                    .chartYAxis {
-                    }
-                }
-                .frame(height: 200)
             }
+            .onChange(of: sort) { newSort in
+                model.reSort(desc: newSort)
+            }
+            .onReceive(timer) { _ in
+                Task { @MainActor in
+                    await model.refresh(vmModel: vmModel, desc: sort)
+                }
+            }
+        }
+        .inspectorView {
+            VStack(alignment: .leading) {
+                Text("CPU")
+                    .font(.headline)
+                Chart(model.cpuHistoryGraph, id: \.self) { item in
+                    if let cpuPercent = item.cpuPercent {
+                        LineMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
+                            .foregroundStyle(.green)
+                            .lineStyle(StrokeStyle(lineWidth: 1.5))
+
+                        AreaMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.green.opacity(0.8),
+                                        Color.green.opacity(0.1),
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    }
+                }
+                .chartXScale(domain: [0, historyGraphSize - 1])
+                .chartYScale(domain: [
+                    0,
+                    max(
+                        200,
+                        model.cpuHistoryGraph.max(by: {
+                            $0.cpuPercent ?? 0 < $1.cpuPercent ?? 0
+                        })?.cpuPercent ?? 0),
+                ])
+                .chartXAxis {
+                }
+                .chartYAxis {
+                }
+                .frame(height: 150)
+                .border(.gray.opacity(0.5))
+
+                Text("Memory")
+                    .font(.headline)
+                    .padding(.top, 20)
+                let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
+                Chart(model.memoryHistoryGraph, id: \.self) { item in
+                    if let memoryBytes = item.memoryBytes {
+                        LineMark(x: .value("Time", item.index), y: .value("Memory", memoryBytes))
+                            .foregroundStyle(.blue)
+                            .lineStyle(StrokeStyle(lineWidth: 1.5))
+
+                        AreaMark(x: .value("Time", item.index), y: .value("Memory", memoryBytes))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.blue.opacity(0.8),
+                                        Color.blue.opacity(0.1),
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    }
+                }
+                .chartXScale(domain: [0, historyGraphSize - 1])
+                .chartYScale(domain: [
+                    0,
+                    max(
+                        memoryLimit,
+                        model.memoryHistoryGraph.max(by: {
+                            $0.memoryBytes ?? 0 < $1.memoryBytes ?? 0
+                        })?.memoryBytes ?? 0),
+                ])
+                .chartXAxis {
+                }
+                .chartYAxis {
+                }
+                .frame(height: 150)
+                .border(.gray.opacity(0.5))
+            }
+            .padding(20)
+            .frame(maxHeight: .infinity, alignment: .leading)
         }
         .navigationTitle("Activity Monitor")
     }
@@ -464,8 +511,12 @@ private class ActivityMonitorViewModel: ObservableObject {
     private var lastStats: StatsResult? = nil
 
     @Published var items: [ActivityMonitorItem] = []
-    private var cpuHistory: [Float?] = Array(repeating: nil, count: cpuHistorySize)
+
+    private var cpuHistory: [Float?] = Array(repeating: nil, count: historyGraphSize)
     @Published var cpuHistoryGraph: [CpuHistoryGraphItem] = []
+
+    private var memoryHistory: [UInt64?] = Array(repeating: nil, count: historyGraphSize)
+    @Published var memoryHistoryGraph: [MemoryHistoryGraphItem] = []
 
     func refresh(vmModel: VmViewModel, desc: AKSortDescriptor) async {
         var newStats: StatsResponse!
@@ -581,12 +632,29 @@ private class ActivityMonitorViewModel: ObservableObject {
         lastStats = StatsResult(entries: newEntries, time: now)
 
         let totalCpuPercent = items.reduce(0) { $0 + ($1.cpuPercent ?? 0) }
-        if cpuHistory.count >= cpuHistorySize {
+        updateCpuHistoryGraph(newSample: totalCpuPercent)
+
+        let totalMemoryBytes = items.reduce(0) { $0 + $1.memoryBytes }
+        updateMemoryHistoryGraph(newSample: totalMemoryBytes)
+    }
+
+    private func updateCpuHistoryGraph(newSample: Float) {
+        if cpuHistory.count >= historyGraphSize {
             cpuHistory.removeFirst()
         }
-        cpuHistory.append(totalCpuPercent)
+        cpuHistory.append(newSample)
         cpuHistoryGraph = cpuHistory.enumerated().map {
             CpuHistoryGraphItem(index: $0, cpuPercent: $1)
+        }
+    }
+
+    private func updateMemoryHistoryGraph(newSample: UInt64) {
+        if memoryHistory.count >= historyGraphSize {
+            memoryHistory.removeFirst()
+        }
+        memoryHistory.append(newSample)
+        memoryHistoryGraph = memoryHistory.enumerated().map {
+            MemoryHistoryGraphItem(index: $0, memoryBytes: $1)
         }
     }
 

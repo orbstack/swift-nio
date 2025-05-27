@@ -130,6 +130,12 @@ struct InspectorView: View {
                 ) {
                     MachineDetails(info: $0)
                 }
+            case .activityMonitor:
+                if let container = navModel.inspectorView {
+                    container.content
+                } else {
+                    EmptyView()
+                }
             default:
                 EmptyView()
             }
@@ -152,8 +158,37 @@ struct InspectorSelectionKey: PreferenceKey {
     }
 }
 
+struct EquatableViewContainer: Equatable {
+    let id = UUID()
+    let content: AnyView
+
+    static func == (lhs: EquatableViewContainer, rhs: EquatableViewContainer) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+struct InspectorViewKey: PreferenceKey {
+    static var defaultValue: EquatableViewContainer?
+
+    static func reduce(
+        value: inout EquatableViewContainer?, nextValue: () -> EquatableViewContainer?
+    ) {
+        let nextVal = nextValue()
+        if let nextVal {
+            value = nextVal
+        }
+    }
+}
+
 extension View {
     func inspectorSelection<ID: Hashable>(_ selection: Set<ID>) -> some View {
         preference(key: InspectorSelectionKey.self, value: selection as Set<AnyHashable>)
+    }
+
+    func inspectorView<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        preference(
+            key: InspectorViewKey.self,
+            value: EquatableViewContainer(content: AnyView(content()))
+        )
     }
 }
