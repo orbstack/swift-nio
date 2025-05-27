@@ -303,93 +303,93 @@ struct ActivityMonitorRootView: View {
                     await model.refresh(vmModel: vmModel, desc: sort)
                 }
             }
-        }
-        .inspectorView {
-            ZStack(alignment: .topLeading) {
-                VStack(alignment: .leading) {
-                    Text("CPU")
-                        .font(.headline)
-                    Chart(model.cpuHistoryGraph, id: \.self) { item in
-                        if let cpuPercent = item.cpuPercent {
-                            LineMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
-                                .foregroundStyle(.green)
+            .inspectorView {
+                ZStack(alignment: .topLeading) {
+                    VStack(alignment: .leading) {
+                        Text("CPU")
+                            .font(.headline)
+                        Chart(model.cpuHistoryGraph, id: \.self) { item in
+                            if let cpuPercent = item.cpuPercent {
+                                LineMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
+                                    .foregroundStyle(.green)
+                                    .lineStyle(StrokeStyle(lineWidth: 1.5))
+
+                                AreaMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                Color.green.opacity(0.8),
+                                                Color.green.opacity(0.1),
+                                            ]),
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                            }
+                        }
+                        .chartXScale(domain: [0, historyGraphSize - 1])
+                        .chartYScale(domain: [
+                            0,
+                            max(
+                                200,
+                                model.cpuHistoryGraph.max(by: {
+                                    $0.cpuPercent ?? 0 < $1.cpuPercent ?? 0
+                                })?.cpuPercent ?? 0),
+                        ])
+                        .chartXAxis {
+                        }
+                        .chartYAxis {
+                        }
+                        .frame(height: 150)
+                        .border(.gray.opacity(0.5))
+
+                        Text("Memory")
+                            .font(.headline)
+                            .padding(.top, 20)
+                        let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
+                        Chart(model.memoryHistoryGraph, id: \.self) { item in
+                            if let memoryBytes = item.memoryBytes {
+                                LineMark(
+                                    x: .value("Time", item.index), y: .value("Memory", memoryBytes)
+                                )
+                                .foregroundStyle(.blue)
                                 .lineStyle(StrokeStyle(lineWidth: 1.5))
 
-                            AreaMark(x: .value("Time", item.index), y: .value("CPU %", cpuPercent))
+                                AreaMark(
+                                    x: .value("Time", item.index), y: .value("Memory", memoryBytes)
+                                )
                                 .foregroundStyle(
                                     LinearGradient(
                                         gradient: Gradient(colors: [
-                                            Color.green.opacity(0.8),
-                                            Color.green.opacity(0.1),
+                                            Color.blue.opacity(0.8),
+                                            Color.blue.opacity(0.1),
                                         ]),
                                         startPoint: .top,
                                         endPoint: .bottom
                                     )
                                 )
+                            }
                         }
-                    }
-                    .chartXScale(domain: [0, historyGraphSize - 1])
-                    .chartYScale(domain: [
-                        0,
-                        max(
-                            200,
-                            model.cpuHistoryGraph.max(by: {
-                                $0.cpuPercent ?? 0 < $1.cpuPercent ?? 0
-                            })?.cpuPercent ?? 0),
-                    ])
-                    .chartXAxis {
-                    }
-                    .chartYAxis {
-                    }
-                    .frame(height: 150)
-                    .border(.gray.opacity(0.5))
-
-                    Text("Memory")
-                        .font(.headline)
-                        .padding(.top, 20)
-                    let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
-                    Chart(model.memoryHistoryGraph, id: \.self) { item in
-                        if let memoryBytes = item.memoryBytes {
-                            LineMark(
-                                x: .value("Time", item.index), y: .value("Memory", memoryBytes)
-                            )
-                            .foregroundStyle(.blue)
-                            .lineStyle(StrokeStyle(lineWidth: 1.5))
-
-                            AreaMark(
-                                x: .value("Time", item.index), y: .value("Memory", memoryBytes)
-                            )
-                            .foregroundStyle(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color.blue.opacity(0.8),
-                                        Color.blue.opacity(0.1),
-                                    ]),
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
+                        .chartXScale(domain: [0, historyGraphSize - 1])
+                        .chartYScale(domain: [
+                            0,
+                            max(
+                                memoryLimit,
+                                model.memoryHistoryGraph.max(by: {
+                                    $0.memoryBytes ?? 0 < $1.memoryBytes ?? 0
+                                })?.memoryBytes ?? 0),
+                        ])
+                        .chartXAxis {
                         }
+                        .chartYAxis {
+                        }
+                        .frame(height: 150)
+                        .border(.gray.opacity(0.5))
                     }
-                    .chartXScale(domain: [0, historyGraphSize - 1])
-                    .chartYScale(domain: [
-                        0,
-                        max(
-                            memoryLimit,
-                            model.memoryHistoryGraph.max(by: {
-                                $0.memoryBytes ?? 0 < $1.memoryBytes ?? 0
-                            })?.memoryBytes ?? 0),
-                    ])
-                    .chartXAxis {
-                    }
-                    .chartYAxis {
-                    }
-                    .frame(height: 150)
-                    .border(.gray.opacity(0.5))
+                    .padding(20)
                 }
-                .padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationTitle("Activity Monitor")
         .onReceive(vmModel.toolbarActionRouter) { action in
@@ -397,6 +397,9 @@ struct ActivityMonitorRootView: View {
             case .activityMonitorStop:
                 stopAllSelected(stopAction: stopOne)
             }
+        }
+        .onAppear {
+            vmModel.activityMonitorStopEnabled = !selection.isEmpty
         }
         .onChange(of: selection) { newSelection in
             vmModel.activityMonitorStopEnabled = !newSelection.isEmpty

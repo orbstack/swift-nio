@@ -10,7 +10,7 @@ import Defaults
 import SwiftUI
 import UniformTypeIdentifiers
 
-extension NewMainViewController: NSToolbarDelegate {
+extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         guard let toolbarIdentifier = NavTabId(rawValue: toolbar.identifier) else {
             NSLog("Allow - no matching toolbar identifier! \(toolbar.identifier)")
@@ -99,6 +99,10 @@ extension NewMainViewController: NSToolbarDelegate {
 
         // non-custom, system toolbar items
         return NSToolbarItem(itemIdentifier: itemIdentifier)
+    }
+
+    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        return item.isEnabled
     }
 
     @objc func actionToggleInspector(_: NSButton?) {

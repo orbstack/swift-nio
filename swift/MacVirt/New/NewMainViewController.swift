@@ -214,7 +214,9 @@ class NewMainViewController: NSViewController {
             itemIdentifier: .activityMonitorStop,
             icon: "xmark.octagon",
             title: "Stop",
-            action: #selector(actionActivityMonitorStop)
+            action: #selector(actionActivityMonitorStop),
+            // will break isEnabled toggle below
+            requiresVmRunning: false
         )
 
         model.$activityMonitorStopEnabled.sink { [weak item] enabled in
