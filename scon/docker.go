@@ -261,6 +261,9 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) error {
 	// disable Go SIGURG preemption to reduce wakeups
 	// allow negative serial numbers in TLS certs to support bad MITM proxies: https://github.com/orbstack/orbstack/issues/1490
 	cm.set("lxc.environment", "GODEBUG=asyncpreemptoff=1,x509negativeserial=1")
+	// temp fix for domainproxy on docker v28
+	// https://www.docker.com/blog/docker-engine-28-hardening-container-networking-by-default/
+	cm.set("lxc.environment", "DOCKER_INSECURE_NO_IPTABLES_RAW=1")
 
 	cm.set("lxc.init.cmd", "/opt/orbstack-guest/simplevisor")
 
@@ -594,7 +597,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// CAN'T MUTATE THIS GLOBAL! make a copy if needed
 		InitCommands: dockerInitCommands,
 		InitServices: map[string][]string{
-			"docker": {"dockerd", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
+			"docker": {"dockerd", "--ip-forward-no-drop", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
 		},
 		DepServices: map[string][]string{},
 		HostHome:    hostUser.HomeDir,
