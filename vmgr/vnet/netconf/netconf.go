@@ -193,6 +193,8 @@ const (
 	DockerFwmarkLocalRoute = 0xb3c60000
 	// packets with this mark will not hit nfqueue
 	DockerFwmarkNfqueueSkip = 0x58ac0000
+	// packets with this mark were dnat'd
+	DockerFwmarkDnat = 0x2b9d0000
 )
 
 const (

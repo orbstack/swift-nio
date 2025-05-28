@@ -90,6 +90,7 @@ var dockerInitCommands = [][]string{
 		"DOCKER_FWMARK_TPROXY":          strconv.Itoa(netconf.DockerFwmarkTproxy),
 		"DOCKER_FWMARK_TPROXY_OUTBOUND": strconv.Itoa(netconf.DockerFwmarkTproxyOutbound),
 		"DOCKER_FWMARK_NFQUEUE_SKIP":    strconv.Itoa(netconf.DockerFwmarkNfqueueSkip),
+		"DOCKER_FWMARK_DNAT":            strconv.Itoa(netconf.DockerFwmarkDnat),
 		"QUEUE_DOMAINPROXY_HTTP_PROBE":  strconv.Itoa(netconf.QueueDomainproxyHttpProbe),
 		"QUEUE_DOMAINPROXY_SSH_PROBE":   strconv.Itoa(netconf.QueueDomainproxySshProbe),
 		"VNET_GATEWAY_IP4":              netconf.VnetGatewayIP4,

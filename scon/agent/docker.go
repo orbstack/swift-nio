@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -380,6 +381,36 @@ func (d *DockerAgent) PostStart() error {
 		err = util.Run("ip6tables", "-P", "FORWARD", "ACCEPT")
 		if err != nil {
 			logrus.WithError(err).Error("failed to change ip6 tables forward chain policy to accept")
+		}
+
+		err = util.Run("iptables", "-I", "DOCKER-USER", "-m", "mark", "--mark", strconv.Itoa(netconf.DockerFwmarkDnat), "-j", "ACCEPT")
+		if err != nil {
+			logrus.WithError(err).Error("failed to add iptables rule")
+		}
+
+		err = util.Run("ip6tables", "-I", "DOCKER-USER", "-m", "mark", "--mark", strconv.Itoa(netconf.DockerFwmarkDnat), "-j", "ACCEPT")
+		if err != nil {
+			logrus.WithError(err).Error("failed to add ip6tables rule")
+		}
+
+		err = util.Run("iptables", "-I", "DOCKER-USER", "-i", "eth0", "-j", "ACCEPT")
+		if err != nil {
+			logrus.WithError(err).Error("failed to add iptables rule")
+		}
+
+		err = util.Run("ip6tables", "-I", "DOCKER-USER", "-i", "eth0", "-j", "ACCEPT")
+		if err != nil {
+			logrus.WithError(err).Error("failed to add ip6tables rule")
+		}
+
+		err = util.Run("iptables", "-I", "DOCKER-USER", "-i", "lo", "-j", "ACCEPT")
+		if err != nil {
+			logrus.WithError(err).Error("failed to add iptables rule")
+		}
+
+		err = util.Run("ip6tables", "-I", "DOCKER-USER", "-i", "lo", "-j", "ACCEPT")
+		if err != nil {
+			logrus.WithError(err).Error("failed to add ip6tables rule")
 		}
 	}()
 
