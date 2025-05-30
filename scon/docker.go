@@ -598,7 +598,7 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// CAN'T MUTATE THIS GLOBAL! make a copy if needed
 		InitCommands: dockerInitCommands,
 		InitServices: map[string][]string{
-			"docker": {"dockerd", "--ip-forward-no-drop", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
+			"docker": {"dockerd", "--ip-forward-no-drop", "--allow-direct-routing", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
 		},
 		DepServices: map[string][]string{},
 		HostHome:    hostUser.HomeDir,
