@@ -715,21 +715,21 @@ func (h *HcontrolServer) getTLSRootData() (*htypes.KeychainTLSData, error) {
 	}
 
 	// generate a new root if nil (or error)
-	if certData == nil {
+	// must keep "" checks because v1.11.0 had a bug where it would persist an empty json
+	if certData == nil || certData.CertPEM == "" || certData.KeyPEM == "" {
 		certPEM, keyPEM, err := tlsutil.GenerateRoot()
 		if err != nil {
 			return nil, fmt.Errorf("generate root: %w", err)
 		}
 
 		// persist it
-		err = drmcore.SetKeychainTLSData(certData)
-		if err != nil {
-			return nil, fmt.Errorf("set keychain TLS data: %w", err)
-		}
-
 		certData = &htypes.KeychainTLSData{
 			CertPEM: certPEM,
 			KeyPEM:  keyPEM,
+		}
+		err = drmcore.SetKeychainTLSData(certData)
+		if err != nil {
+			return nil, fmt.Errorf("set keychain TLS data: %w", err)
 		}
 	}
 
