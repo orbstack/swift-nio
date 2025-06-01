@@ -40,6 +40,8 @@ services:
       "-i", # initialize
       "-s", $PGBENCH_SCALE # scale
     ]
+    depends_on:
+      - wait-for-db
 
   pgbench:
     image: $DOCKER_IMAGE
@@ -58,3 +60,5 @@ services:
       "-P", "1", # show progress every 1 sec
       "pgbench" # database name
     ]
+    depends_on:
+      - pgbench-init
