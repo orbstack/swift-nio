@@ -1,14 +1,10 @@
 package vclient
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -19,6 +15,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/util/debugutil"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
+	"github.com/orbstack/macvirt/vmgr/vclient/vinitclient"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
@@ -29,16 +26,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
 
-var (
-	baseUrl = "http://vcontrol"
-)
-
 const (
 	// match chrony ntp polling interval
-	diskStatsInterval = 128 * time.Second
-	// very liberal to avoid false positive
-	requestTimeout                  = 1 * time.Minute
-	healthCheckSleepWakeGracePeriod = requestTimeout
+	diskStatsInterval               = 128 * time.Second
+	healthCheckSleepWakeGracePeriod = vinitclient.RequestTimeout
 
 	// TODO: fix health check
 	// sometimes it fails during sleep on arm64
@@ -49,7 +40,7 @@ const (
 )
 
 type VClient struct {
-	client    *http.Client
+	*vinitclient.VinitClient
 	lastStats HostDiskStats
 	dataFile  *os.File
 	vm        vmm.Machine
@@ -64,18 +55,15 @@ type HostDiskStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(tr *http.Transport, vm vmm.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
-	httpClient := &http.Client{
-		Transport: tr,
-		Timeout:   requestTimeout,
-	}
+func newWithTransport(dialFunc vinitclient.DialContextFunc, vm vmm.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
+	httpClient := vinitclient.NewVinitClient(dialFunc)
 	dataFile, err := os.OpenFile(conf.DataImage(), os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	return &VClient{
-		client:           httpClient,
+		VinitClient:      httpClient,
 		dataFile:         dataFile,
 		vm:               vm,
 		signalStopCh:     make(chan struct{}),
@@ -85,79 +73,13 @@ func newWithTransport(tr *http.Transport, vm vmm.Machine, requestStopCh chan<- t
 }
 
 func NewWithNetwork(n *vnet.Network, vm vmm.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
-	tr := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
-				Addr: n.GuestAddr4,
-				Port: ports.GuestVcontrol,
-			}, ipv4.ProtocolNumber)
-		},
-		MaxIdleConns: 3,
+	dialFunc := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return gonet.DialContextTCP(ctx, n.Stack, tcpip.FullAddress{
+			Addr: n.GuestAddr4,
+			Port: ports.GuestVcontrol,
+		}, ipv4.ProtocolNumber)
 	}
-	return newWithTransport(tr, vm, requestStopCh, healthCheckReqCh)
-}
-
-func (vc *VClient) Get(endpoint string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", baseUrl+"/"+endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := vc.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-
-	return resp, nil
-}
-
-func (vc *VClient) Post(endpoint string, body any, out any) error {
-	msg, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-
-	reader := bytes.NewReader(msg)
-	req, err := http.NewRequest("POST", baseUrl+"/"+endpoint, reader)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := vc.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return readError(resp)
-	}
-
-	if out != nil {
-		err = json.NewDecoder(resp.Body).Decode(out)
-		if err != nil {
-			return fmt.Errorf("decode resp: %w", err)
-		}
-	} else {
-		io.Copy(io.Discard, resp.Body)
-	}
-
-	return nil
-}
-
-func readError(resp *http.Response) error {
-	// read error message
-	errBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read error body: %s (%s)", err, resp.Status)
-	}
-
-	return fmt.Errorf("[vc] %s (%s)", string(errBody), resp.Status)
+	return newWithTransport(dialFunc, vm, requestStopCh, healthCheckReqCh)
 }
 
 func (vc *VClient) StartBackground() error {
@@ -316,7 +238,7 @@ func (vc *VClient) Close() error {
 	// close OK: used to signal select loop
 	close(vc.signalStopCh)
 
-	vc.client.CloseIdleConnections()
+	vc.VinitClient.Close()
 	vc.dataFile.Close()
 	return nil
 }
