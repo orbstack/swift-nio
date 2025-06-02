@@ -156,9 +156,13 @@ impl MmioTransportLocked {
     }
 
     fn reset(&mut self, transport: &MmioTransport) {
-        if transport.locked_device().is_activated() {
-            warn!("reset device while it's still in active state");
+        {
+            let mut device = transport.locked_device();
+            if device.is_activated() && !device.reset() {
+                warn!("failed to reset device");
+            }
         }
+
         self.features_select = 0;
         self.acked_features_select = 0;
         self.queue_select = 0;
