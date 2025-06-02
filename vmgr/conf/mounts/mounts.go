@@ -64,6 +64,7 @@ const (
 	WormholeOverlay           = "/mnt/wormhole-overlay"
 	WormholeOverlayNix        = WormholeOverlay + "/nix"
 	WormholeUnifiedNix        = "/mnt/wormhole-unified/nix"
+	VinitSocket               = "/run/vinit.sock"
 )
 
 // mac

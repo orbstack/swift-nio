@@ -1,4 +1,4 @@
-package vinitclient
+package vinit
 
 import (
 	"bytes"
@@ -20,12 +20,12 @@ const (
 
 type DialContextFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
-type VinitClient struct {
+type Client struct {
 	http *http.Client
 }
 
-func NewVinitClient(dialContext DialContextFunc) *VinitClient {
-	return &VinitClient{
+func NewClient(dialContext DialContextFunc) *Client {
+	return &Client{
 		http: &http.Client{
 			Transport: &http.Transport{
 				DialContext:  dialContext,
@@ -36,7 +36,7 @@ func NewVinitClient(dialContext DialContextFunc) *VinitClient {
 	}
 }
 
-func (vc *VinitClient) Get(endpoint string) (*http.Response, error) {
+func (vc *Client) Get(endpoint string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", baseURL+"/"+endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func (vc *VinitClient) Get(endpoint string) (*http.Response, error) {
 	return resp, nil
 }
 
-func (vc *VinitClient) Post(endpoint string, body any, out any) error {
+func (vc *Client) Post(endpoint string, body any, out any) error {
 	msg, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (vc *VinitClient) Post(endpoint string, body any, out any) error {
 	return nil
 }
 
-func (vc *VinitClient) Close() error {
+func (vc *Client) Close() error {
 	vc.http.CloseIdleConnections()
 	return nil
 }

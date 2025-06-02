@@ -15,7 +15,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/types"
 	"github.com/orbstack/macvirt/vmgr/util/debugutil"
 	"github.com/orbstack/macvirt/vmgr/vclient/iokit"
-	"github.com/orbstack/macvirt/vmgr/vclient/vinitclient"
+	"github.com/orbstack/macvirt/vmgr/vclient/vinit"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
@@ -29,7 +29,7 @@ import (
 const (
 	// match chrony ntp polling interval
 	diskStatsInterval               = 128 * time.Second
-	healthCheckSleepWakeGracePeriod = vinitclient.RequestTimeout
+	healthCheckSleepWakeGracePeriod = vinit.RequestTimeout
 
 	// TODO: fix health check
 	// sometimes it fails during sleep on arm64
@@ -40,7 +40,7 @@ const (
 )
 
 type VClient struct {
-	*vinitclient.VinitClient
+	*vinit.Client
 	lastStats HostDiskStats
 	dataFile  *os.File
 	vm        vmm.Machine
@@ -55,15 +55,15 @@ type HostDiskStats struct {
 	DataImgSize uint64 `json:"dataImgSize"`
 }
 
-func newWithTransport(dialFunc vinitclient.DialContextFunc, vm vmm.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
-	httpClient := vinitclient.NewVinitClient(dialFunc)
+func newWithTransport(dialFunc vinit.DialContextFunc, vm vmm.Machine, requestStopCh chan<- types.StopRequest, healthCheckReqCh <-chan struct{}) (*VClient, error) {
+	httpClient := vinit.NewClient(dialFunc)
 	dataFile, err := os.OpenFile(conf.DataImage(), os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	return &VClient{
-		VinitClient:      httpClient,
+		Client:           httpClient,
 		dataFile:         dataFile,
 		vm:               vm,
 		signalStopCh:     make(chan struct{}),
@@ -238,7 +238,7 @@ func (vc *VClient) Close() error {
 	// close OK: used to signal select loop
 	close(vc.signalStopCh)
 
-	vc.VinitClient.Close()
+	vc.Client.Close()
 	vc.dataFile.Close()
 	return nil
 }

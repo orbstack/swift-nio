@@ -115,8 +115,25 @@ func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
 		StrictVersion: false,
 	})
 	if err != nil {
-		dlog("fail: verify token:", err)
-		return false
+		dlog("first token verify failed. retrying")
+
+		// strange: if vmgr thinks the token is valid, then scon shouldn't think it's invalid.
+		// usually this is caused by a time sync issue, so force vinit to step the time and retry
+		err2 := m.conManager.vinit.Post("internal/sync_time", nil, nil)
+		if err2 != nil {
+			dlog("fail: step time:", err2, " - verify token:", err)
+			return false
+		}
+
+		// time should now be fixed, so retry verification
+		claimInfo, err = m.verifier.Verify(result.EntitlementToken, sjwt.TokenVerifyParams{
+			StrictVersion: false,
+		})
+		if err != nil {
+			dlog("fail: verify token:", err)
+			return false
+		}
+		dlog("second token verify ok")
 	}
 
 	// update the claim info that we save

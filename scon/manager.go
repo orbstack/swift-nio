@@ -27,6 +27,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/drm/sjwt"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
+	"github.com/orbstack/macvirt/vmgr/vclient/vinit"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/sirupsen/logrus"
@@ -58,9 +59,10 @@ type ConManager struct {
 	ctxCancel        context.CancelFunc
 
 	// services
-	db   *Database
-	host *hclient.Client
-	bpf  *bpf.GlobalBpfManager
+	db    *Database
+	host  *hclient.Client
+	vinit *vinit.Client
+	bpf   *bpf.GlobalBpfManager
 	// TODO make this its own machine?
 	k8sEnabled        bool
 	k8sExposeServices bool
@@ -92,7 +94,7 @@ type ConManager struct {
 	enableColorLogging bool
 }
 
-func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitConfig) (*ConManager, error) {
+func NewConManager(dataDir string, hc *hclient.Client, vinitClient *vinit.Client, initConfig *htypes.InitConfig) (*ConManager, error) {
 	// tmp dir
 	tmpDir, err := os.MkdirTemp("", AppName)
 	if err != nil {
@@ -164,9 +166,10 @@ func NewConManager(dataDir string, hc *hclient.Client, initConfig *htypes.InitCo
 		ctx:              ctx,
 		ctxCancel:        cancel,
 
-		db:   db,
-		host: hc,
-		bpf:  bpfMgr,
+		db:    db,
+		host:  hc,
+		vinit: vinitClient,
+		bpf:   bpfMgr,
 
 		forwards: make(map[sysnet.ListenerKey]ForwardState),
 

@@ -1,9 +1,10 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"github.com/orbstack/macvirt/scon/types"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 	_ "github.com/orbstack/macvirt/scon/earlyinit"
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/killswitch"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util/debugutil"
 	"github.com/orbstack/macvirt/scon/util/fsops"
 	"github.com/orbstack/macvirt/scon/util/netx"
@@ -26,6 +28,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/logutil"
+	"github.com/orbstack/macvirt/vmgr/vclient/vinit"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
@@ -220,8 +223,14 @@ func runContainerManager() {
 	initConfig, err := hostClient.GetInitConfig()
 	check(err)
 
+	// create vinit client
+	vinitClient := vinit.NewClient(func(ctx context.Context, network, addr string) (net.Conn, error) {
+		var dialer net.Dialer
+		return dialer.DialContext(ctx, "unix", mounts.VinitSocket)
+	})
+
 	// create container manager
-	mgr, err := NewConManager(conf.C().SconDataDir, hostClient, initConfig)
+	mgr, err := NewConManager(conf.C().SconDataDir, hostClient, vinitClient, initConfig)
 	check(err)
 	mgr.enableColorLogging = !disableColors
 
