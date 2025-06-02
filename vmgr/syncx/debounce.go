@@ -36,10 +36,14 @@ func (d *FuncDebounce) Call() {
 
 	if d.timer == nil {
 		d.timer = time.AfterFunc(d.duration, d.timerCallback)
+		d.pendingCalls++
 	} else {
-		d.timer.Reset(d.duration)
+		// if Reset()=true, there was already an active timer and it has NOT fired yet, so we can reuse the 1 pending call from the last armed timer
+		// if Reset()=false, the timer has already fired or has already been canceled, so Reset() adds a new pending call
+		if !d.timer.Reset(d.duration) {
+			d.pendingCalls++
+		}
 	}
-	d.pendingCalls++
 }
 
 func (d *FuncDebounce) timerCallback() {
