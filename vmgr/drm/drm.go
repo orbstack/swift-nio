@@ -95,7 +95,7 @@ type DrmClient struct {
 	sconInternalMu  syncx.Mutex
 	sconInternal    *isclient.Client
 	sconHasReported bool
-	restored        syncx.CondBool
+	restored        *syncx.CondBool
 
 	updater *updates.Updater
 

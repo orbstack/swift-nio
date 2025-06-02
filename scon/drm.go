@@ -37,7 +37,7 @@ type DrmMonitor struct {
 	verifier      *sjwt.Verifier
 	deadlineTimer *time.Timer
 
-	initRestored syncx.CondBool
+	initRestored *syncx.CondBool
 }
 
 // scon (VM side) drm:

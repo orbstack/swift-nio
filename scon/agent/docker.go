@@ -50,8 +50,8 @@ type DockerAgent struct {
 	realClient    *dockerclient.Client
 	proxiedClient *dockerclient.Client
 
-	Running  syncx.CondBool
-	InitDone syncx.CondBool
+	Running  *syncx.CondBool
+	InitDone *syncx.CondBool
 
 	agent *AgentServer
 
