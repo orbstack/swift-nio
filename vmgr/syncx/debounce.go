@@ -8,6 +8,7 @@ import (
 type FuncDebounce struct {
 	_ noCopy
 
+	// fewer allocations to embed both Mutex and Cond as values, and have Cond reference mu
 	mu           Mutex
 	timer        *time.Timer
 	duration     time.Duration
@@ -25,7 +26,7 @@ func NewFuncDebounce(duration time.Duration, fn func()) *FuncDebounce {
 		fn:       fn,
 		duration: duration,
 	}
-	d.pendingCond = *sync.NewCond(&d.mu)
+	d.pendingCond.L = &d.mu
 	return d
 }
 
