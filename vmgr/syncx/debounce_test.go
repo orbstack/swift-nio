@@ -231,3 +231,38 @@ func TestDebounceCallsWithPause(t *testing.T) {
 		t.Fatalf("ran %d times", ran.Load())
 	}
 }
+
+// depends on implementation details, not only the end-user contract
+func TestDebounceLongRunningCall(t *testing.T) {
+	t.Parallel()
+
+	var ran atomic.Int32
+	f := NewFuncDebounce(10*time.Millisecond, func() {
+		time.Sleep(1000 * time.Millisecond)
+		ran.Add(1)
+	})
+
+	// start running once
+	f.Call()
+	time.Sleep(50 * time.Millisecond)
+
+	// spam more calls
+	for i := 0; i < 10; i++ {
+		f.Call()
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// after 5 seconds, all calls should have finished
+	time.Sleep(5 * time.Second)
+	if ran.Load() != 2 {
+		t.Fatalf("ran %d times", ran.Load())
+	}
+
+	// make sure no more calls are pending or in-progress
+	if f.callPending {
+		t.Fatal("callPending")
+	}
+	if f.callInProgress {
+		t.Fatal("callInProgress")
+	}
+}
