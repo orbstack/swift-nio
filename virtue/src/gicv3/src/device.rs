@@ -353,6 +353,7 @@ impl GicV3 {
             }
 
             // Otherwise, deliver the SPI!
+            queue.is_active.store(true, Relaxed);
             Self::deliver_interrupt_to_pe(handler, pe, pe_state, int_id, true);
         });
     }
@@ -363,6 +364,7 @@ impl GicV3 {
             deliver_to.pop_front();
 
             let Some(&new_pe) = deliver_to.front() else {
+                queue.is_active.store(false, Relaxed);
                 return;
             };
 
@@ -516,10 +518,15 @@ impl PeInterruptState {
 
         self.pending_interrupts.push_back(int_id);
     }
+
+    pub fn is_interrupt_active(&self, int_id: InterruptId) -> bool {
+        self.active_interrupt == Some(int_id) || self.pending_interrupts.contains(&int_id)
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct GlobalInterruptState {
     // TODO: Do not mutex
     pub deliver_to: Mutex<VecDeque<PeId>>,
+    pub is_active: AtomicBool,
 }

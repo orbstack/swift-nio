@@ -310,7 +310,20 @@ impl GicV3 {
 
         // Handle `GICD_ISACTIVER<n>` (see section 12.9.24 of spec)
         req.handle_pod_array(mmio_range!(GICD, isactiver), |idx| {
-            todo!();
+            write_bit_array(idx, 1, |idx| {
+                let id = InterruptId(idx as u32);
+                let is_active = if id.kind().is_shared() {
+                    self.pe_state(pe)
+                        .int_state
+                        .lock()
+                        .unwrap()
+                        .is_interrupt_active(id)
+                } else {
+                    self.shared_int_queue(id, |state| state.is_active.load(Relaxed))
+                };
+
+                is_active as u32
+            })
         });
 
         // Handle `GICD_ISACTIVER<n>E` (see section 12.9.25 of spec)
