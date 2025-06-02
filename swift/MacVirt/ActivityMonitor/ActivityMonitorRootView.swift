@@ -9,7 +9,7 @@ import Charts
 import Defaults
 import SwiftUI
 
-private let historyGraphSize = 50
+private let historySize = 50
 
 private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
     let entity: ActivityMonitorEntity
@@ -143,15 +143,144 @@ private enum Columns {
     static let diskRwBytes = "diskRwBytes"
 }
 
-private struct CpuHistoryGraphItem: Hashable {
+private struct HistoryGraphItem: Hashable {
     let index: Int
-    let cpuPercent: Float?
+    var value: Float?
+
+    static func += (lhs: inout HistoryGraphItem, rhs: Float?) {
+        if let rhs {
+            if let oldValue = lhs.value {
+                lhs.value = oldValue + rhs
+            } else {
+                lhs.value = rhs
+            }
+        }
+    }
 }
 
-private struct MemoryHistoryGraphItem: Hashable {
-    let index: Int
-    let memoryBytes: UInt64?
+private struct HistoryGraph: View {
+    let trackedEntries: [StatsID: TrackedStatsEntry]
+    let modelItems: [ActivityMonitorItem]
+    let selection: Set<ActivityMonitorID>
+
+    let key: KeyPath<TrackedStatsEntry, [Float?]>
+    let name: String
+    let color: Color
+    let maxValue: Float
+
+    var body: some View {
+        let (graphItems, isTotal) = calculateItems()
+
+        VStack(alignment: .leading) {
+            let title = isTotal ? "Total \(name)" : "\(name) (selected)"
+            Text(title)
+                .font(.headline)
+
+            Chart(graphItems, id: \.self) { item in
+                if let value = item.value {
+                    LineMark(
+                        x: .value("Time", item.index), y: .value(name, value)
+                    )
+                    .foregroundStyle(color)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5))
+
+                    AreaMark(
+                        x: .value("Time", item.index), y: .value(name, value)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                color.opacity(0.8),
+                                color.opacity(0.1),
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                }
+            }
+            .chartXScale(domain: [0, historySize - 1])
+            .chartYScale(domain: [
+                0,
+                max(
+                    maxValue,
+                    graphItems.max(by: {
+                        $0.value ?? 0 < $1.value ?? 0
+                    })?.value ?? 0),
+            ])
+            .chartXAxis {
+            }
+            .chartYAxis {
+            }
+            .frame(height: 150)
+            .border(.gray.opacity(0.5))
+        }
+    }
+
+    private func calculateItems() -> ([HistoryGraphItem], Bool) {
+        var items = (0..<historySize).map { HistoryGraphItem(index: $0, value: nil) }
+        var numItems = 0
+        func addEntry(_ entry: TrackedStatsEntry) {
+            let history = entry[keyPath: key]
+            for (index, value) in history.enumerated() {
+                items[index] += value
+            }
+            numItems += 1
+        }
+
+        // add selections
+        for tracked in trackedEntries.values {
+            switch tracked.entry.entity {
+            case .container(let id):
+                if selection.contains(.container(id: id)) || selection.contains(.dockerGroup) {
+                    addEntry(tracked)
+                    // complicated check for compose children
+                } else if let dockerGroupItem = modelItems.first(where: {
+                    return $0.entity.id == .dockerGroup
+                }), let composeItem = dockerGroupItem.children?.first(where: {
+                    if case .compose = $0.entity {
+                        return $0.children?.contains(where: {
+                            return $0.entity.id == .container(id: id)
+                        }) ?? false
+                    }
+                    return false
+                }) ?? nil, selection.contains(composeItem.id) {
+                    addEntry(tracked)
+                }
+            case .machine(let id):
+                if selection.contains(.machine(id: id)) || selection.contains(.machinesGroup) {
+                    addEntry(tracked)
+                }
+            case .service("dockerd"):
+                if selection.contains(.dockerEngine) || selection.contains(.dockerGroup) {
+                    addEntry(tracked)
+                }
+            case .service("buildkit"):
+                if selection.contains(.buildkit) || selection.contains(.dockerGroup) {
+                    addEntry(tracked)
+                }
+            case .service("k8s"):
+                if selection.contains(.k8sGroup) || selection.contains(.k8sServices) {
+                    addEntry(tracked)
+                }
+            default:
+                break
+            }
+        }
+
+        // empty selection = all
+        // we don't check because there can be IDs in selection that no longer exist
+        let isTotal = numItems == 0
+        if isTotal {
+            for tracked in trackedEntries.values {
+                addEntry(tracked)
+            }
+        }
+
+        return (items, isTotal)
+    }
 }
+
 
 struct ActivityMonitorRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
@@ -305,90 +434,30 @@ struct ActivityMonitorRootView: View {
             }
             .inspectorView {
                 ZStack(alignment: .topLeading) {
-                    VStack(alignment: .leading) {
-                        Text("CPU")
-                            .font(.headline)
-                        Chart(model.cpuHistoryGraph, id: \.self) { item in
-                            if let cpuPercent = item.cpuPercent {
-                                LineMark(
-                                    x: .value("Time", item.index), y: .value("CPU %", cpuPercent)
-                                )
-                                .foregroundStyle(.green)
-                                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                    VStack(alignment: .leading, spacing: 20) {
+                        // AttributeGraph doesn't work across NSHostingView boundaries, so we have to pass these as args
+                        HistoryGraph(
+                            trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                            modelItems: model.items,
 
-                                AreaMark(
-                                    x: .value("Time", item.index), y: .value("CPU %", cpuPercent)
-                                )
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            Color.green.opacity(0.8),
-                                            Color.green.opacity(0.1),
-                                        ]),
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                            }
-                        }
-                        .chartXScale(domain: [0, historyGraphSize - 1])
-                        .chartYScale(domain: [
-                            0,
-                            max(
-                                200,
-                                model.cpuHistoryGraph.max(by: {
-                                    $0.cpuPercent ?? 0 < $1.cpuPercent ?? 0
-                                })?.cpuPercent ?? 0),
-                        ])
-                        .chartXAxis {
-                        }
-                        .chartYAxis {
-                        }
-                        .frame(height: 150)
-                        .border(.gray.opacity(0.5))
+                            selection: selection,
+                            key: \.cpuHistory,
+                            name: "CPU",
+                            color: .green,
+                            maxValue: 100
+                        )
 
-                        Text("Memory")
-                            .font(.headline)
-                            .padding(.top, 20)
                         let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
-                        Chart(model.memoryHistoryGraph, id: \.self) { item in
-                            if let memoryBytes = item.memoryBytes {
-                                LineMark(
-                                    x: .value("Time", item.index), y: .value("Memory", memoryBytes)
-                                )
-                                .foregroundStyle(.blue)
-                                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                        HistoryGraph(
+                            trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                            modelItems: model.items,
 
-                                AreaMark(
-                                    x: .value("Time", item.index), y: .value("Memory", memoryBytes)
-                                )
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            Color.blue.opacity(0.8),
-                                            Color.blue.opacity(0.1),
-                                        ]),
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                            }
-                        }
-                        .chartXScale(domain: [0, historyGraphSize - 1])
-                        .chartYScale(domain: [
-                            0,
-                            max(
-                                memoryLimit,
-                                model.memoryHistoryGraph.max(by: {
-                                    $0.memoryBytes ?? 0 < $1.memoryBytes ?? 0
-                                })?.memoryBytes ?? 0),
-                        ])
-                        .chartXAxis {
-                        }
-                        .chartYAxis {
-                        }
-                        .frame(height: 150)
-                        .border(.gray.opacity(0.5))
+                            selection: selection,
+                            key: \.memoryHistory,
+                            name: "Memory",
+                            color: .blue,
+                            maxValue: Float(memoryLimit)
+                        )
                     }
                     .padding(20)
                 }
@@ -523,22 +592,21 @@ struct ActivityMonitorRootView: View {
     }
 }
 
+private struct TrackedStatsEntry {
+    let entry: StatsEntry
+    var cpuHistory: [Float?]
+    var memoryHistory: [Float?]
+}
+
 private struct StatsResult {
-    let entries: [StatsID: StatsEntry]
-    let time: ContinuousClock.Instant
+    let trackedEntries: [StatsID: TrackedStatsEntry]
+    let time: SuspendingClock.Instant
 }
 
 @MainActor
 private class ActivityMonitorViewModel: ObservableObject {
-    private var lastStats: StatsResult? = nil
-
+    @Published var lastStats: StatsResult? = nil
     @Published var items: [ActivityMonitorItem] = []
-
-    private var cpuHistory: [Float?] = Array(repeating: nil, count: historyGraphSize)
-    @Published var cpuHistoryGraph: [CpuHistoryGraphItem] = []
-
-    private var memoryHistory: [UInt64?] = Array(repeating: nil, count: historyGraphSize)
-    @Published var memoryHistoryGraph: [MemoryHistoryGraphItem] = []
 
     func refresh(vmModel: VmViewModel, desc: AKSortDescriptor) async {
         var newStats: StatsResponse!
@@ -547,10 +615,11 @@ private class ActivityMonitorViewModel: ObservableObject {
         } catch {
             return
         }
-        let newEntries = Dictionary(
-            uniqueKeysWithValues: newStats.entries.makeIterator().map { ($0.id, $0) })
+        var newTrackedEntries = [StatsID: TrackedStatsEntry]()
+        newTrackedEntries.reserveCapacity(newStats.entries.count)
 
-        let now = ContinuousClock.now
+        // CLOCK_MONOTONIC is a better fit than CLOCK_BOOTTIME because the system sleeping in the middle of a refresh won't skew the results
+        let now = SuspendingClock.now
 
         var newRootItems = [ActivityMonitorItem]()
         var newDockerItems = [String?: [ActivityMonitorItem]]()
@@ -560,9 +629,8 @@ private class ActivityMonitorViewModel: ObservableObject {
         var dockerEngineItem: ActivityMonitorItem?
         var buildkitItem: ActivityMonitorItem?
         var k8sServicesItem: ActivityMonitorItem?
-        for entry in newEntries.values {
-            let item = entryToItem(entry: entry, vmModel: vmModel, now: now)
-            guard let item else { continue }
+        for entry in newStats.entries {
+            guard let item = entryToItem(entry: entry, now: now, vmModel: vmModel, newTrackedEntries: &newTrackedEntries) else { continue }
 
             switch item.entity {
             case .machine:
@@ -651,39 +719,13 @@ private class ActivityMonitorViewModel: ObservableObject {
         newRootItems.sort(desc: desc)
         items = newRootItems
 
-        lastStats = StatsResult(entries: newEntries, time: now)
-
-        let totalCpuPercent = items.reduce(0) { $0 + ($1.cpuPercent ?? 0) }
-        updateCpuHistoryGraph(newSample: totalCpuPercent)
-
-        let totalMemoryBytes = items.reduce(0) { $0 + $1.memoryBytes }
-        updateMemoryHistoryGraph(newSample: totalMemoryBytes)
+        lastStats = StatsResult(trackedEntries: newTrackedEntries, time: now)
     }
 
-    private func updateCpuHistoryGraph(newSample: Float) {
-        if cpuHistory.count >= historyGraphSize {
-            cpuHistory.removeFirst()
-        }
-        cpuHistory.append(newSample)
-        cpuHistoryGraph = cpuHistory.enumerated().map {
-            CpuHistoryGraphItem(index: $0, cpuPercent: $1)
-        }
-    }
-
-    private func updateMemoryHistoryGraph(newSample: UInt64) {
-        if memoryHistory.count >= historyGraphSize {
-            memoryHistory.removeFirst()
-        }
-        memoryHistory.append(newSample)
-        memoryHistoryGraph = memoryHistory.enumerated().map {
-            MemoryHistoryGraphItem(index: $0, memoryBytes: $1)
-        }
-    }
-
-    private func entryToItem(entry: StatsEntry, vmModel: VmViewModel, now: ContinuousClock.Instant)
+    private func entryToItem(entry: StatsEntry, now: SuspendingClock.Instant, vmModel: VmViewModel, newTrackedEntries: inout [StatsID: TrackedStatsEntry])
         -> ActivityMonitorItem?
     {
-        let lastEntry = lastStats?.entries[entry.id]
+        let tracked = lastStats?.trackedEntries[entry.id]
         let timeSinceLastRefresh =
             if let lastStats {
                 (now - lastStats.time).seconds
@@ -692,33 +734,33 @@ private class ActivityMonitorViewModel: ObservableObject {
             }
 
         let cpuPercent =
-            if let lastEntry,
+            if let tracked,
                 let timeSinceLastRefresh,
-                entry.cpuUsageUsec >= lastEntry.cpuUsageUsec
+                entry.cpuUsageUsec >= tracked.entry.cpuUsageUsec
             {
-                Float(entry.cpuUsageUsec - lastEntry.cpuUsageUsec)
+                Float(entry.cpuUsageUsec - tracked.entry.cpuUsageUsec)
                     / Float(timeSinceLastRefresh * 1_000_000) * 100
             } else {
                 Float?(nil)
             }
 
         let diskRwBytes =
-            if let lastEntry,
-                entry.diskReadBytes >= lastEntry.diskReadBytes,
-                entry.diskWriteBytes >= lastEntry.diskWriteBytes
+            if let tracked,
+                entry.diskReadBytes >= tracked.entry.diskReadBytes,
+                entry.diskWriteBytes >= tracked.entry.diskWriteBytes
             {
                 // scale by refresh interval to get per-second rate
                 UInt64(
                     Double(
-                        (entry.diskReadBytes - lastEntry.diskReadBytes)
-                            + (entry.diskWriteBytes - lastEntry.diskWriteBytes)) / refreshInterval)
+                        (entry.diskReadBytes - tracked.entry.diskReadBytes)
+                            + (entry.diskWriteBytes - tracked.entry.diskWriteBytes)) / refreshInterval)
             } else {
                 UInt64?(nil)
             }
 
-        let children =
-            entry.children?.compactMap { entryToItem(entry: $0, vmModel: vmModel, now: now) }
-            ?? []
+        let children = entry.children?.compactMap {
+            entryToItem(entry: $0, now: now, vmModel: vmModel, newTrackedEntries: &newTrackedEntries)
+        } ?? []
 
         var entity: ActivityMonitorEntity?
         switch entry.entity {
@@ -744,6 +786,18 @@ private class ActivityMonitorViewModel: ObservableObject {
         guard let entity else {
             return nil
         }
+
+        // update history
+        var historicalEntry = TrackedStatsEntry(
+            entry: entry,
+            cpuHistory: tracked?.cpuHistory ?? [Float?](repeating: nil, count: historySize),
+            memoryHistory: tracked?.memoryHistory ?? [Float?](repeating: nil, count: historySize)
+        )
+        historicalEntry.cpuHistory.removeFirst()
+        historicalEntry.cpuHistory.append(cpuPercent)
+        historicalEntry.memoryHistory.removeFirst()
+        historicalEntry.memoryHistory.append(Float(entry.memoryBytes))
+        newTrackedEntries[entry.id] = historicalEntry
 
         return ActivityMonitorItem(
             entity: entity,
