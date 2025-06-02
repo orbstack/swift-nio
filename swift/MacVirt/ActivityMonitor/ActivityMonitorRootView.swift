@@ -167,6 +167,7 @@ private struct HistoryGraph: View {
     let name: String
     let color: Color
     let maxValue: Float
+    let alignTo: Float
 
     var body: some View {
         let (graphItems, isTotal) = calculateItems()
@@ -444,7 +445,8 @@ struct ActivityMonitorRootView: View {
                             key: \.cpuHistory,
                             name: "CPU",
                             color: .green,
-                            maxValue: 100
+                            maxValue: 100,
+                            alignTo: 100
                         )
 
                         let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
@@ -456,7 +458,8 @@ struct ActivityMonitorRootView: View {
                             key: \.memoryHistory,
                             name: "Memory",
                             color: .blue,
-                            maxValue: Float(memoryLimit)
+                            maxValue: Float(memoryLimit),
+                            alignTo: 512 * 1048576 // 512 MiB
                         )
                     }
                     .padding(20)
@@ -795,8 +798,12 @@ private class ActivityMonitorViewModel: ObservableObject {
         )
         historicalEntry.cpuHistory.removeFirst()
         historicalEntry.cpuHistory.append(cpuPercent)
-        historicalEntry.memoryHistory.removeFirst()
-        historicalEntry.memoryHistory.append(Float(entry.memoryBytes))
+        // memory history is present starting from the first sample, while cpu history is delayed by 1 sample because it needs a delta calculation
+        // to align the graphs, skip adding memory sample if cpu is not present
+        if cpuPercent != nil {
+            historicalEntry.memoryHistory.removeFirst()
+            historicalEntry.memoryHistory.append(Float(entry.memoryBytes))
+        }
         newTrackedEntries[entry.id] = historicalEntry
 
         return ActivityMonitorItem(
@@ -856,5 +863,11 @@ extension Duration {
     fileprivate var seconds: Float {
         // attoseconds -> femtoseconds -> picoseconds -> nanoseconds (thanks apple)
         return Float(components.seconds) + Float(components.attoseconds) * 1e-18
+    }
+}
+
+private extension Float {
+    func alignUp(to alignBy: Float) -> Float {
+        return (self / alignBy).rounded(.up) * alignBy
     }
 }
