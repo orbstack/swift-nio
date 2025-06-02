@@ -36,10 +36,10 @@ func (d *FuncDebounce) Call() {
 
 	if d.timer == nil {
 		d.timer = time.AfterFunc(d.duration, d.timerCallback)
-		d.pendingCalls++
 	} else {
 		d.timer.Reset(d.duration)
 	}
+	d.pendingCalls++
 }
 
 func (d *FuncDebounce) timerCallback() {
