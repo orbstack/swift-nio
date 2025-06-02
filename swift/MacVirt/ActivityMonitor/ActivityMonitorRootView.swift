@@ -171,6 +171,12 @@ private struct HistoryGraph: View {
 
     var body: some View {
         let (graphItems, isTotal) = calculateItems()
+        let graphMaxValue = max(
+            maxValue,
+            graphItems.max(by: {
+                $0.value ?? 0 < $1.value ?? 0
+            })?.value ?? 0
+        ).alignUp(to: alignTo)
 
         VStack(alignment: .leading) {
             let title = isTotal ? "Total \(name)" : "\(name) (selected)"
@@ -203,11 +209,7 @@ private struct HistoryGraph: View {
             .chartXScale(domain: [0, historySize - 1])
             .chartYScale(domain: [
                 0,
-                max(
-                    maxValue,
-                    graphItems.max(by: {
-                        $0.value ?? 0 < $1.value ?? 0
-                    })?.value ?? 0),
+                graphMaxValue,
             ])
             .chartXAxis {
             }
@@ -238,14 +240,16 @@ private struct HistoryGraph: View {
                     // complicated check for compose children
                 } else if let dockerGroupItem = modelItems.first(where: {
                     return $0.entity.id == .dockerGroup
-                }), let composeItem = dockerGroupItem.children?.first(where: {
-                    if case .compose = $0.entity {
-                        return $0.children?.contains(where: {
-                            return $0.entity.id == .container(id: id)
-                        }) ?? false
-                    }
-                    return false
-                }) ?? nil, selection.contains(composeItem.id) {
+                }),
+                    let composeItem = dockerGroupItem.children?.first(where: {
+                        if case .compose = $0.entity {
+                            return $0.children?.contains(where: {
+                                return $0.entity.id == .container(id: id)
+                            }) ?? false
+                        }
+                        return false
+                    }) ?? nil, selection.contains(composeItem.id)
+                {
                     addEntry(tracked)
                 }
             case .machine(let id):
@@ -281,7 +285,6 @@ private struct HistoryGraph: View {
         return (items, isTotal)
     }
 }
-
 
 struct ActivityMonitorRootView: View {
     @EnvironmentObject private var vmModel: VmViewModel
@@ -459,7 +462,7 @@ struct ActivityMonitorRootView: View {
                             name: "Memory",
                             color: .blue,
                             maxValue: Float(memoryLimit),
-                            alignTo: 512 * 1048576 // 512 MiB
+                            alignTo: 512 * 1_048_576  // 512 MiB
                         )
 
                         HistoryGraph(
@@ -470,8 +473,8 @@ struct ActivityMonitorRootView: View {
                             key: \.diskRwBytesHistory,
                             name: "Disk I/O",
                             color: .purple,
-                            maxValue: 32 * 1048576, // 32 MiB
-                            alignTo: 32 * 1048576 // 32 MiB
+                            maxValue: 32 * 1_048_576,  // 32 MiB
+                            alignTo: 32 * 1_048_576  // 32 MiB
                         )
                     }
                     .padding(20)
@@ -646,7 +649,10 @@ private class ActivityMonitorViewModel: ObservableObject {
         var buildkitItem: ActivityMonitorItem?
         var k8sServicesItem: ActivityMonitorItem?
         for entry in newStats.entries {
-            guard let item = entryToItem(entry: entry, now: now, vmModel: vmModel, newTrackedEntries: &newTrackedEntries) else { continue }
+            guard
+                let item = entryToItem(
+                    entry: entry, now: now, vmModel: vmModel, newTrackedEntries: &newTrackedEntries)
+            else { continue }
 
             switch item.entity {
             case .machine:
@@ -738,7 +744,10 @@ private class ActivityMonitorViewModel: ObservableObject {
         lastStats = StatsResult(trackedEntries: newTrackedEntries, time: now)
     }
 
-    private func entryToItem(entry: StatsEntry, now: SuspendingClock.Instant, vmModel: VmViewModel, newTrackedEntries: inout [StatsID: TrackedStatsEntry])
+    private func entryToItem(
+        entry: StatsEntry, now: SuspendingClock.Instant, vmModel: VmViewModel,
+        newTrackedEntries: inout [StatsID: TrackedStatsEntry]
+    )
         -> ActivityMonitorItem?
     {
         let tracked = lastStats?.trackedEntries[entry.id]
@@ -769,14 +778,17 @@ private class ActivityMonitorViewModel: ObservableObject {
                 UInt64(
                     Double(
                         (entry.diskReadBytes - tracked.entry.diskReadBytes)
-                            + (entry.diskWriteBytes - tracked.entry.diskWriteBytes)) / refreshInterval)
+                            + (entry.diskWriteBytes - tracked.entry.diskWriteBytes))
+                        / refreshInterval)
             } else {
                 UInt64?(nil)
             }
 
-        let children = entry.children?.compactMap {
-            entryToItem(entry: $0, now: now, vmModel: vmModel, newTrackedEntries: &newTrackedEntries)
-        } ?? []
+        let children =
+            entry.children?.compactMap {
+                entryToItem(
+                    entry: $0, now: now, vmModel: vmModel, newTrackedEntries: &newTrackedEntries)
+            } ?? []
 
         var entity: ActivityMonitorEntity?
         switch entry.entity {
@@ -808,7 +820,8 @@ private class ActivityMonitorViewModel: ObservableObject {
             entry: entry,
             cpuHistory: tracked?.cpuHistory ?? [Float?](repeating: nil, count: historySize),
             memoryHistory: tracked?.memoryHistory ?? [Float?](repeating: nil, count: historySize),
-            diskRwBytesHistory: tracked?.diskRwBytesHistory ?? [Float?](repeating: nil, count: historySize)
+            diskRwBytesHistory: tracked?.diskRwBytesHistory
+                ?? [Float?](repeating: nil, count: historySize)
         )
         historicalEntry.cpuHistory.removeFirst()
         historicalEntry.cpuHistory.append(cpuPercent)
@@ -884,8 +897,8 @@ extension Duration {
     }
 }
 
-private extension Float {
-    func alignUp(to alignBy: Float) -> Float {
+extension Float {
+    fileprivate func alignUp(to alignBy: Float) -> Float {
         return (self / alignBy).rounded(.up) * alignBy
     }
 }
