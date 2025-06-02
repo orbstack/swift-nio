@@ -221,6 +221,16 @@ extension View {
             self
         }
     }
+
+    func onKeyPressDownCompat(_ key: KeyEquivalent, action: @escaping () -> Bool) -> some View {
+        if #available(macOS 14, *) {
+            return self.onKeyPress(key, phases: .down) { _ in
+                return action() ? .handled : .ignored
+            }
+        } else {
+            return self
+        }
+    }
 }
 
 extension Color {

@@ -21,6 +21,7 @@
  */
 
 import AppKit
+import Carbon
 import Combine
 import SwiftUI
 
@@ -262,6 +263,15 @@ private class AKOutlineView: NSOutlineView {
     // for AKHostingView to trigger highlight
     func injectMenu(for event: NSEvent) {
         super.menu(for: event)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        super.keyDown(with: event)
+
+        if event.keyCode == kVK_Escape {
+            // deselect all
+            self.selectRowIndexes(IndexSet(), byExtendingSelection: false)
+        }
     }
 }
 
