@@ -51,7 +51,7 @@ func TestNfsMachinePermissions(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		err := scli.Client().ContainerDelete(container)
+		err := scli.Client().ContainerDelete(container.ID)
 		if err != nil {
 			fmt.Printf("failed to cleanup nfs container: %v", err)
 		}

@@ -148,40 +148,40 @@ func TestSconMachines(t *testing.T) {
 			containers, err := scli.Client().ListContainers()
 			checkT(t, err)
 
-			if !slices.ContainsFunc(containers, func(c types.ContainerRecord) bool {
-				return c.Name == machineName
+			if !slices.ContainsFunc(containers, func(c types.ContainerInfo) bool {
+				return c.Record.Name == machineName
 			}) {
 				t.Fatalf("container %s not found", machineName)
 			}
 		})
 
 		t.Run("GetByID", func(t *testing.T) {
-			c, err := scli.Client().GetByID(container.ID)
+			c, err := scli.Client().GetByKey(container.ID)
 			checkT(t, err)
 
-			if c.ID != container.ID && c.Name != machineName {
-				t.Fatalf("expected machine named %s with ID %s, got machine named %s with ID %s", machineName, container.ID, c.Name, c.ID)
+			if c.Record.ID != container.ID && c.Record.Name != machineName {
+				t.Fatalf("expected machine named %s with ID %s, got machine named %s with ID %s", machineName, container.ID, c.Record.Name, c.Record.ID)
 			}
 		})
 
 		t.Run("Stop", func(t *testing.T) {
-			err := scli.Client().ContainerStop(container)
+			err := scli.Client().ContainerStop(container.ID)
 			checkT(t, err)
 		})
 
 		t.Run("Start", func(t *testing.T) {
-			err := scli.Client().ContainerStart(container)
+			err := scli.Client().ContainerStart(container.ID)
 			checkT(t, err)
 		})
 
 		t.Run("Restart", func(t *testing.T) {
-			err := scli.Client().ContainerRestart(container)
+			err := scli.Client().ContainerRestart(container.ID)
 			checkT(t, err)
 		})
 
 		t.Run("Rename", func(t *testing.T) {
 			newName := machineName + "-renamed"
-			err := scli.Client().ContainerRename(container, newName)
+			err := scli.Client().ContainerRename(container.ID, newName)
 			checkT(t, err)
 
 			args := []string{"orb", "run", "-m", newName}
@@ -206,12 +206,12 @@ func TestSconMachines(t *testing.T) {
 				t.Fatalf("expected machine's hostname to be %s, got %s", newName, strings.TrimSpace(string(output)))
 			}
 
-			err = scli.Client().ContainerRename(container, machineName)
+			err = scli.Client().ContainerRename(container.ID, machineName)
 			checkT(t, err)
 		})
 
 		t.Run("GetRuntimeLogs", func(t *testing.T) {
-			lxcLogs, err := scli.Client().ContainerGetLogs(container, types.LogRuntime)
+			lxcLogs, err := scli.Client().ContainerGetLogs(container.ID, types.LogRuntime)
 			checkT(t, err)
 			if len(lxcLogs) == 0 {
 				t.Fatal("no logs")
@@ -219,7 +219,7 @@ func TestSconMachines(t *testing.T) {
 		})
 
 		t.Run("GetConsoleLogs", func(t *testing.T) {
-			lxcLogs, err := scli.Client().ContainerGetLogs(container, types.LogConsole)
+			lxcLogs, err := scli.Client().ContainerGetLogs(container.ID, types.LogConsole)
 			checkT(t, err)
 			if len(lxcLogs) == 0 {
 				t.Fatal("no logs")
@@ -251,7 +251,7 @@ func TestSconMachines(t *testing.T) {
 				}
 			}
 			cleanup(t, func() error {
-				return scli.Client().ContainerDelete(container)
+				return scli.Client().ContainerDelete(container.ID)
 			})
 
 			// check file
@@ -262,10 +262,10 @@ func TestSconMachines(t *testing.T) {
 			}
 		})
 
-		err = scli.Client().ContainerDelete(container)
+		err = scli.Client().ContainerDelete(container.ID)
 		checkT(t, err)
 
-		_, err = scli.Client().GetByID(container.ID)
+		_, err = scli.Client().GetByKey(container.ID)
 		if err == nil {
 			t.Fatal("was able to retrieve container by ID after deletion")
 		}

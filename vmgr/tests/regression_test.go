@@ -134,7 +134,7 @@ func TestTarXzRootfsRegression(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = scli.Client().ContainerDelete(c)
+	err = scli.Client().ContainerDelete(c.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
