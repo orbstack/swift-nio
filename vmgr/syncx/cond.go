@@ -3,6 +3,8 @@ package syncx
 import "sync"
 
 type CondBool struct {
+	_ noCopy
+
 	cond  *sync.Cond
 	value bool
 }

@@ -6,6 +6,8 @@ import (
 
 // leading debounce: call immediately, then ignore calls for duration. DO not reset the timer
 type LeadingFuncDebounce struct {
+	_ noCopy
+
 	duration time.Duration
 
 	mu Mutex

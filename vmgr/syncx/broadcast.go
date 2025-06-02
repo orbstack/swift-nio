@@ -1,6 +1,8 @@
 package syncx
 
 type Broadcaster[T any] struct {
+	_ noCopy
+
 	mu          Mutex
 	subscribers []chan T
 }

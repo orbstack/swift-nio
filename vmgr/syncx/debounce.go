@@ -6,6 +6,8 @@ import (
 )
 
 type FuncDebounce struct {
+	_ noCopy
+
 	mu           Mutex
 	timer        *time.Timer
 	duration     time.Duration
@@ -17,6 +19,7 @@ type FuncDebounce struct {
 }
 
 // expected behavior: fn() can't run concurrently, but shouldn't block timer kick
+// returns pointer because it's self-referential (cond references mu)
 func NewFuncDebounce(duration time.Duration, fn func()) *FuncDebounce {
 	d := &FuncDebounce{
 		fn:       fn,
