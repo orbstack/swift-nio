@@ -25,7 +25,7 @@ mod error;
 #[derive(Clone, Debug)]
 struct State {}
 
-pub async fn server_main(disk_manager: Arc<Mutex<DiskManager>>, action_tx: Sender<SystemAction>) {
+pub async fn spawn_server(disk_manager: Arc<Mutex<DiskManager>>, action_tx: Sender<SystemAction>) {
     tracing_subscriber::fmt::init();
 
     let state = State {};
@@ -36,6 +36,8 @@ pub async fn server_main(disk_manager: Arc<Mutex<DiskManager>>, action_tx: Sende
         .route("/sys/sleep", post(sys_sleep))
         .route("/sys/wake", post(sys_wake))
         .route("/disk/report_stats", post(disk_report_stats))
+        // for scon
+        .route("/internal/sync_time", post(sync_time))
         .layer(
             ServiceBuilder::new()
                 .layer(Extension(state))
@@ -43,13 +45,20 @@ pub async fn server_main(disk_manager: Arc<Mutex<DiskManager>>, action_tx: Sende
                 .layer(Extension(action_tx)),
         );
 
-    // 100.115.92.2:103
-    // 0.250.250.2
+    // TCP
+    // 0.250.250.2:103
     let addr = SocketAddr::from(([0, 250, 250, 2], 103));
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    let tcp_listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let app_clone = app.clone();
+    tokio::spawn(async move {
+        axum::serve(tcp_listener, app_clone).await.unwrap();
+    });
+
+    // Unix socket
+    let unix_listener = tokio::net::UnixListener::bind("/run/vinit.sock").unwrap();
+    tokio::spawn(async move {
+        axum::serve(unix_listener, app).await.unwrap();
+    });
 }
 
 async fn ping() -> impl IntoResponse {
@@ -109,5 +118,11 @@ async fn sys_wake() -> AppResult<impl IntoResponse> {
         .await
         .map_err(|e| anyhow!("failed to send command: {}", e))?;
 
+    Ok(())
+}
+
+async fn sync_time() -> AppResult<impl IntoResponse> {
+    debug!("sync_time");
+    startup::sync_clock(false).map_err(|e| anyhow!("failed to step clock: {}", e))?;
     Ok(())
 }

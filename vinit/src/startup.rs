@@ -1451,10 +1451,7 @@ pub async fn main(
     setup_network().await?;
     // start control server
     let disk_manager = Arc::new(Mutex::new(DiskManager::new().unwrap()));
-    tokio::spawn(vcontrol::server_main(
-        disk_manager.clone(),
-        action_tx.clone(),
-    ));
+    vcontrol::spawn_server(disk_manager.clone(), action_tx.clone()).await;
 
     // very fast w/ kernel hack to default to "none" iosched for virtio-blk (150 ms without)
     timeline.begin("Apply system settings");
