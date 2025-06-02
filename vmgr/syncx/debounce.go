@@ -83,18 +83,26 @@ func (d *FuncDebounce) CancelAndWait() {
 	}
 }
 
-// FIXME
+// TODO: test this
 /*
 func (d *FuncDebounce) CallNow() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	// cancel existing run
 	if d.timer != nil {
 		if d.timer.Stop() {
 			d.pendingCalls--
 		}
 	}
 
-	d.timerCallback()
+	d.fnMu.Lock()
+	d.fn()
+	d.fnMu.Unlock()
+
+	// notify a pending CancelAndWait() that we're done, if there are no more pending calls
+	if d.pendingCalls == 0 {
+		d.pendingCond.Broadcast()
+	}
 }
 */
