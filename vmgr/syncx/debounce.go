@@ -1,26 +1,29 @@
 package syncx
 
 import (
+	"sync"
 	"time"
 )
 
 type FuncDebounce struct {
-	mu       Mutex
-	timer    *time.Timer
-	duration time.Duration
+	mu           Mutex
+	timer        *time.Timer
+	duration     time.Duration
+	pendingCalls int32
+	pendingCond  sync.Cond
 
 	fn   func()
 	fnMu Mutex
-
-	completionChan chan struct{}
 }
 
 // expected behavior: fn() can't run concurrently, but shouldn't block timer kick
-func NewFuncDebounce(duration time.Duration, fn func()) FuncDebounce {
-	return FuncDebounce{
+func NewFuncDebounce(duration time.Duration, fn func()) *FuncDebounce {
+	d := &FuncDebounce{
 		fn:       fn,
 		duration: duration,
 	}
+	d.pendingCond = *sync.NewCond(&d.mu)
+	return d
 }
 
 func (d *FuncDebounce) Call() {
@@ -29,12 +32,9 @@ func (d *FuncDebounce) Call() {
 
 	if d.timer == nil {
 		d.timer = time.AfterFunc(d.duration, d.timerCallback)
+		d.pendingCalls++
 	} else {
 		d.timer.Reset(d.duration)
-	}
-
-	if d.completionChan == nil {
-		d.completionChan = make(chan struct{})
 	}
 }
 
@@ -44,9 +44,9 @@ func (d *FuncDebounce) timerCallback() {
 	d.fnMu.Unlock()
 
 	d.mu.Lock()
-	if d.completionChan != nil {
-		close(d.completionChan)
-		d.completionChan = nil
+	d.pendingCalls--
+	if d.pendingCalls == 0 {
+		d.pendingCond.Broadcast()
 	}
 	d.mu.Unlock()
 }
@@ -56,7 +56,9 @@ func (d *FuncDebounce) Cancel() {
 	defer d.mu.Unlock()
 
 	if d.timer != nil {
-		d.timer.Stop()
+		if d.timer.Stop() {
+			d.pendingCalls--
+		}
 	}
 }
 
@@ -65,21 +67,30 @@ func (d *FuncDebounce) CancelAndWait() {
 	defer d.mu.Unlock()
 
 	if d.timer != nil {
-		d.timer.Stop()
+		// if Stop()=true, timer was successfully canceled so there will be one less future run
+		// if Stop()=false, timer has already fired (in which case there will be a future completed run that we can wait for), or timer was already stopped (in which case there will be the same amount of future runs)
+		if d.timer.Stop() {
+			d.pendingCalls--
+		}
 	}
 
-	if d.completionChan != nil {
-		<-d.completionChan
+	for d.pendingCalls > 0 {
+		d.pendingCond.Wait()
 	}
 }
 
+// FIXME
+/*
 func (d *FuncDebounce) CallNow() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	if d.timer != nil {
-		d.timer.Stop()
+		if d.timer.Stop() {
+			d.pendingCalls--
+		}
 	}
 
 	d.timerCallback()
 }
+*/
