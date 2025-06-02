@@ -204,6 +204,10 @@ func NewConManager(dataDir string, hc *hclient.Client, vinitClient *vinit.Client
 				CurrentMachines: infos,
 			},
 		})
+		if err != nil {
+			logrus.WithError(err).Error("failed to send UI event")
+			return
+		}
 	})
 
 	// prevent UI from getting an event

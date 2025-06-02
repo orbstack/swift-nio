@@ -121,7 +121,8 @@ func (m *DrmMonitor) verifyResult(result *drmtypes.Result) bool {
 		// usually this is caused by a time sync issue, so force vinit to step the time and retry
 		err2 := m.conManager.vinit.Post("internal/sync_time", nil, nil)
 		if err2 != nil {
-			dlog("fail: step time:", err2, " - verify token:", err)
+			logrus.WithError(err2).Error("failed to sync time")
+			dlog("fail: step time: ", err2, " - verify token:", err)
 			return false
 		}
 
