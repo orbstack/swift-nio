@@ -36,7 +36,7 @@ func NewContainerFreezer(c *Container, debouncePeriod time.Duration, predicate f
 			logrus.WithError(err).Error("failed to update cfref state")
 		}
 	})
-	f.debounce.Store(&debounce)
+	f.debounce.Store(debounce)
 
 	return f
 }

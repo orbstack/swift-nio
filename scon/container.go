@@ -76,7 +76,7 @@ type Container struct {
 	// if booted
 	// TODO: move all this into a .rt field (RuntimeState)
 	lastListeners     []sysnet.ListenerInfo
-	autofwdDebounce   syncx.FuncDebounce
+	autofwdDebounce   *syncx.FuncDebounce
 	lastAutofwdUpdate time.Time
 	fwdDirtyFlags     uint32
 	agent             atomic.Pointer[agent.Client]

@@ -131,7 +131,7 @@ type mdnsRegistry struct {
 	domainproxy *domainproxyRegistry
 
 	server             *mdns.Server
-	cacheFlushDebounce syncx.FuncDebounce
+	cacheFlushDebounce *syncx.FuncDebounce
 	// must keep track of all queries for cache flushing
 	// otherwise we don't know what wildcard queries there could've been
 	recentQueries  map[string]mdnsQueryInfo

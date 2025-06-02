@@ -98,7 +98,7 @@ type RouteMon struct {
 
 	renewMu       syncx.Mutex // separate mutex to prevent deadlock
 	renewLimiter  *simplerate.Limiter
-	renewDebounce syncx.FuncDebounce
+	renewDebounce *syncx.FuncDebounce
 
 	onRefreshMdns func() error
 }
