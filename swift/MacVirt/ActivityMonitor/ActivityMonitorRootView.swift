@@ -213,7 +213,7 @@ private struct HistoryGraph: View {
             }
             .chartYAxis {
             }
-            .frame(height: 150)
+            .frame(height: 100)
             .border(.gray.opacity(0.5))
         }
     }
@@ -444,7 +444,7 @@ struct ActivityMonitorRootView: View {
                             selection: selection,
                             key: \.cpuHistory,
                             name: "CPU",
-                            color: .green,
+                            color: .red,
                             maxValue: 100,
                             alignTo: 100
                         )
@@ -460,6 +460,18 @@ struct ActivityMonitorRootView: View {
                             color: .blue,
                             maxValue: Float(memoryLimit),
                             alignTo: 512 * 1048576 // 512 MiB
+                        )
+
+                        HistoryGraph(
+                            trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                            modelItems: model.items,
+
+                            selection: selection,
+                            key: \.diskRwBytesHistory,
+                            name: "Disk I/O",
+                            color: .purple,
+                            maxValue: 32 * 1048576, // 32 MiB
+                            alignTo: 32 * 1048576 // 32 MiB
                         )
                     }
                     .padding(20)
@@ -599,6 +611,7 @@ private struct TrackedStatsEntry {
     let entry: StatsEntry
     var cpuHistory: [Float?]
     var memoryHistory: [Float?]
+    var diskRwBytesHistory: [Float?]
 }
 
 private struct StatsResult {
@@ -794,7 +807,8 @@ private class ActivityMonitorViewModel: ObservableObject {
         var historicalEntry = TrackedStatsEntry(
             entry: entry,
             cpuHistory: tracked?.cpuHistory ?? [Float?](repeating: nil, count: historySize),
-            memoryHistory: tracked?.memoryHistory ?? [Float?](repeating: nil, count: historySize)
+            memoryHistory: tracked?.memoryHistory ?? [Float?](repeating: nil, count: historySize),
+            diskRwBytesHistory: tracked?.diskRwBytesHistory ?? [Float?](repeating: nil, count: historySize)
         )
         historicalEntry.cpuHistory.removeFirst()
         historicalEntry.cpuHistory.append(cpuPercent)
@@ -803,6 +817,10 @@ private class ActivityMonitorViewModel: ObservableObject {
         if cpuPercent != nil {
             historicalEntry.memoryHistory.removeFirst()
             historicalEntry.memoryHistory.append(Float(entry.memoryBytes))
+        }
+        if let diskRwBytes {
+            historicalEntry.diskRwBytesHistory.removeFirst()
+            historicalEntry.diskRwBytesHistory.append(Float(diskRwBytes))
         }
         newTrackedEntries[entry.id] = historicalEntry
 
