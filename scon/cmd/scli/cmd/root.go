@@ -64,7 +64,7 @@ In this mode, the default user and machine will be used.`,
 			}
 		}
 
-		return nil, cobra.ShellCompDirectiveDefault
+		return completions.RemoteShellCommand(cmd, args, toComplete)
 	},
 }
 

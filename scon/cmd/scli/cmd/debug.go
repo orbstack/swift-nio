@@ -140,10 +140,17 @@ Pro only: requires an OrbStack Pro license.
 	Args:    cobra.ArbitraryArgs,
 	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 		if len(args) == 0 {
-			return completions.DockerContainers(cmd, args, toComplete)
-		} else if len(args) >= 1 && (args[len(args)-1] == "-c" || args[len(args)-1] == "--context") {
+			containers, _ := completions.DockerContainers(cmd, args, toComplete)
+			images, _ := completions.DockerImages(cmd, args, toComplete)
+			return append(containers, images...), cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveKeepOrder
+		} else if len(args) >= 1 {
 			// DisableFlagParsing, so this is our job
-			return completions.DockerContext(cmd, args, toComplete)
+			lastArg := args[len(args)-1]
+			if lastArg == "-c" || lastArg == "--context" {
+				return completions.DockerContext(cmd, args, toComplete)
+			} else if lastArg == "-w" || lastArg == "--workdir" {
+				return completions.RemoteDirectoryDocker(cmd, args, toComplete)
+			}
 		}
 
 		return nil, cobra.ShellCompDirectiveDefault

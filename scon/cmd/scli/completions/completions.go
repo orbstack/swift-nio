@@ -9,6 +9,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/images"
+	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
 	"github.com/spf13/cobra"
@@ -21,14 +22,23 @@ func Machines(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Com
 	}
 
 	completions := make([]cobra.Completion, 0, len(containers))
+
+	// running first
 	for _, c := range containers {
 		// remove dupes (can't specify same machine twice)
-		if !slices.Contains(args, c.Record.Name) {
-			completions = append(completions, cobra.CompletionWithDesc(c.Record.Name, "machine"))
+		if c.Record.State == types.ContainerStateRunning && !slices.Contains(args, c.Record.Name) {
+			completions = append(completions, cobra.CompletionWithDesc(c.Record.Name, "running"))
 		}
 	}
 
-	return completions, cobra.ShellCompDirectiveNoFileComp
+	// then stopped
+	for _, c := range containers {
+		if c.Record.State == types.ContainerStateStopped && !slices.Contains(args, c.Record.Name) {
+			completions = append(completions, c.Record.Name)
+		}
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveKeepOrder
 }
 
 func MachinesOrAll(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
@@ -56,7 +66,7 @@ func DockerVolumes(cmd *cobra.Command, args []string, toComplete string) ([]cobr
 
 	completions := make([]cobra.Completion, 0, len(volumes))
 	for _, v := range volumes {
-		completions = append(completions, v.Name)
+		completions = append(completions, cobra.CompletionWithDesc(v.Name, "volume"))
 	}
 
 	return completions, cobra.ShellCompDirectiveNoFileComp
@@ -89,7 +99,10 @@ func LocalUsername(cmd *cobra.Command, args []string, toComplete string) ([]cobr
 		return nil, cobra.ShellCompDirectiveError
 	}
 
-	return []cobra.Completion{u.Username, "root"}, cobra.ShellCompDirectiveNoFileComp
+	return []cobra.Completion{
+		cobra.CompletionWithDesc(u.Username, "user"),
+		cobra.CompletionWithDesc("root", "user"),
+	}, cobra.ShellCompDirectiveNoFileComp
 }
 
 func TwoArgs(fn1 cobra.CompletionFunc, fn2 cobra.CompletionFunc) cobra.CompletionFunc {
@@ -115,12 +128,12 @@ func RemoteUsername(cmd *cobra.Command, args []string, toComplete string) ([]cob
 
 func RemoteDirectorySSH(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	// TODO
-	return nil, cobra.ShellCompDirectiveNoFileComp
+	return nil, cobra.ShellCompDirectiveDefault
 }
 
 func RemoteDirectoryDocker(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	// TODO
-	return nil, cobra.ShellCompDirectiveNoFileComp
+	return nil, cobra.ShellCompDirectiveDefault
 }
 
 func RemoteShellCommand(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
@@ -148,7 +161,11 @@ func DockerContext(cmd *cobra.Command, args []string, toComplete string) ([]cobr
 			continue
 		}
 
-		completions = append(completions, meta.Name)
+		host := meta.Endpoints.Docker.Host
+		if host == "" {
+			host = "?"
+		}
+		completions = append(completions, cobra.CompletionWithDesc(meta.Name, host))
 	}
 
 	return completions, cobra.ShellCompDirectiveNoFileComp
@@ -180,7 +197,6 @@ func MachineImage(cmd *cobra.Command, args []string, toComplete string) ([]cobra
 	for k := range completions {
 		keys = append(keys, k)
 	}
-	slices.Sort(keys)
 
 	return keys, cobra.ShellCompDirectiveNoFileComp
 }
@@ -191,17 +207,51 @@ func DockerContainers(cmd *cobra.Command, args []string, toComplete string) ([]c
 		return nil, cobra.ShellCompDirectiveError
 	}
 
-	containers, err := dockerClient.ListContainers(false)
+	containers, err := dockerClient.ListContainers(true)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
 
 	completions := make([]cobra.Completion, 0, len(containers))
+
+	// running containers go first
 	for _, c := range containers {
-		if len(c.Names) == 0 {
-			continue
+		if c.State == "running" {
+			for _, name := range c.Names {
+				completions = append(completions, cobra.CompletionWithDesc(strings.TrimPrefix(name, "/"), "running"))
+			}
 		}
-		completions = append(completions, cobra.CompletionWithDesc(strings.TrimPrefix(c.Names[0], "/"), "container"))
+	}
+
+	// then stopped containers
+	for _, c := range containers {
+		if c.State != "running" {
+			for _, name := range c.Names {
+				completions = append(completions, cobra.CompletionWithDesc(strings.TrimPrefix(name, "/"), "container"))
+			}
+		}
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveKeepOrder
+}
+
+func DockerImages(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	dockerClient, err := dockerClient()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	images, err := dockerClient.ListImages()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	completions := make([]cobra.Completion, 0, len(images))
+	for _, i := range images {
+		// only tagged images
+		for _, tag := range i.RepoTags {
+			completions = append(completions, cobra.CompletionWithDesc(tag, "image"))
+		}
 	}
 
 	return completions, cobra.ShellCompDirectiveNoFileComp
