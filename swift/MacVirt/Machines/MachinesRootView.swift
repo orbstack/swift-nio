@@ -12,7 +12,6 @@ struct MachinesRootView: View {
     @EnvironmentObject private var actionTracker: ActionTracker
 
     @State private var selection: Set<String> = []
-    @State private var exportingOpacity = 0.0
 
     @Default(.selectedTab) private var selectedTab
 
@@ -89,32 +88,13 @@ struct MachinesRootView: View {
                         .padding(.bottom, 48)
                     }
                 }
-                .overlay(
-                    alignment: .bottomTrailing,
-                    content: {
-                        HStack {
-                            Text("Exporting")
-                            ProgressView()
-                                .scaleEffect(0.5)
-                                .frame(width: 16, height: 16)
-                        }
-                        .padding(8)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        .opacity(exportingOpacity)
-                        .padding(16)
-                    })
+                .overlay(alignment: .bottomTrailing) {
+                    StatusOverlayBadge("Exporting", set: actionTracker.ongoingMachineExports, publisher: actionTracker.$ongoingMachineExports)
+                }
             } else {
                 ProgressView(label: {
                     Text("Loading")
                 })
-            }
-        }
-        .onAppear {
-            exportingOpacity = actionTracker.ongoingMachineExports.isEmpty ? 0 : 1
-        }
-        .onReceive(actionTracker.$ongoingMachineExports) { exports in
-            withAnimation {
-                exportingOpacity = exports.isEmpty ? 0 : 1
             }
         }
         .navigationTitle("Machines")

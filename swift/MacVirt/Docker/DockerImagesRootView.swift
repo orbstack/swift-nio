@@ -14,7 +14,6 @@ struct DockerImagesRootView: View {
     @Default(.dockerImagesSortDescriptor) private var sortDescriptor
 
     @State private var selection: Set<String> = []
-    @State private var importingOpacity: Double = 0
 
     var body: some View {
         let searchQuery = vmModel.searchText
@@ -84,28 +83,8 @@ struct DockerImagesRootView: View {
                 }
             }
         }
-        .overlay(
-            alignment: .bottomTrailing,
-            content: {
-                HStack {
-                    Text("Importing")
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 16, height: 16)
-                }
-                .padding(8)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                .opacity(importingOpacity)
-                .padding(16)
-            }
-        )
-        .onAppear {
-            importingOpacity = actionTracker.ongoingImageImports.isEmpty ? 0 : 1
-        }
-        .onReceive(actionTracker.$ongoingImageImports) { exports in
-            withAnimation {
-                importingOpacity = exports.isEmpty ? 0 : 1
-            }
+        .overlay(alignment: .bottomTrailing) {
+            StatusOverlayBadge("Importing", set: actionTracker.ongoingImageImports, publisher: actionTracker.$ongoingImageImports)
         }
     }
 
