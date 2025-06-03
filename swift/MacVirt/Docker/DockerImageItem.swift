@@ -67,12 +67,10 @@ struct DockerImageItem: View, Equatable {
                 }
                 .buttonStyle(.plain)
                 .help("Runs slower due to emulation")
-                .akAlert(
-                    "Runs slower due to emulation", isPresented: $showEmulationAlert,
-                    desc:
-                        "This image was built for a different architecture (\(image.full.architecture)), so it needs to be emulated on your machine. This means it will run slower and may have more bugs.",
-                    button1Label: "OK"
-                )
+                .akAlert(isPresented: $showEmulationAlert) {
+                    "Runs slower due to emulation"
+                    "This image was built for a different architecture (\(image.full.architecture)), so it needs to be emulated on your machine. This means it will run slower and may have more bugs."
+                }
             }
 
             Button(action: {

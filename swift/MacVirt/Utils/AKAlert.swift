@@ -41,7 +41,7 @@ struct AKAlert<T: Equatable>: ViewModifier {
         let alert = NSAlert()
         alert.messageText = content.title
         if let desc = content.desc {
-            if content.scrollableText {
+            if content.scrollable {
                 let scrollView = NSTextView.scrollableTextView()
                 scrollView.frame = NSRect(x: 0, y: 0, width: 650, height: 400)
                 let textView = scrollView.documentView as! NSTextView
@@ -63,128 +63,169 @@ struct AKAlert<T: Equatable>: ViewModifier {
             }
         }
         alert.alertStyle = content.style
-        if let button1Label = content.button1Label {
-            alert.addButton(withTitle: button1Label)
-        } else {
-            // if there are no buttons, add "OK"
-            alert.addButton(withTitle: "OK")
+        for spec in content.buttons {
+            let nsButton = alert.addButton(withTitle: spec.title)
+            nsButton.hasDestructiveAction = spec.destructive
         }
-        if let button2Label = content.button2Label {
-            alert.addButton(withTitle: button2Label)
+        if content.buttons.isEmpty {
+            alert.addButton(withTitle: "OK")
         }
         presented = true
         alert.beginSheetModal(for: window) { response in
-            if response == .alertFirstButtonReturn {
-                if let button1Action = content.button1Action {
-                    button1Action()
-                }
-            } else if response == .alertSecondButtonReturn {
-                if let button2Action = content.button2Action {
-                    button2Action()
-                }
+            if response == .alertFirstButtonReturn,
+               content.buttons.count >= 1 {
+                content.buttons[0].action()
+            } else if response == .alertSecondButtonReturn,
+               content.buttons.count >= 2 {
+                content.buttons[1].action()
+            } else if response == .alertThirdButtonReturn,
+               content.buttons.count >= 3 {
+                content.buttons[2].action()
             }
+
             presentedData = nil
             presented = false
         }
     }
 }
 
+enum AKAlertFlags {
+    case scrollable
+}
+
+struct AKAlertButton {
+    var title: String
+    var destructive: Bool = false
+    var action: () -> Void
+
+    init(
+        _ title: String,
+        destructive: Bool = false,
+        action: @escaping () -> Void = {}
+    ) {
+        self.title = title
+        self.destructive = destructive
+        self.action = action
+    }
+}
+
 struct AKAlertContent {
     var title: String
     var desc: String?
-    var scrollableText: Bool
+    var scrollable: Bool
     var style: NSAlert.Style = .warning
-    var button1Label: String? = nil
-    var button1Action: (() -> Void)? = nil
-    var button2Label: String? = nil
-    var button2Action: (() -> Void)? = nil
+    var buttons: [AKAlertButton] = []
 
     init(
-        title: String,
+        _ title: String,
         desc: String? = nil,
-        scrollableText: Bool = false,
+        scrollable: Bool = false,
         style: NSAlert.Style = .warning,
-        button1Label: String? = nil,
-        button1Action: (() -> Void)? = nil,
-        button2Label: String? = nil,
-        button2Action: (() -> Void)? = nil
+        buttons: [AKAlertButton] = []
     ) {
         self.title = title
         self.desc = desc
         // always use scrollable if text is too long
-        self.scrollableText = scrollableText || (desc?.count ?? 0) > MAX_INLINE_DESC_CHARS
+        self.scrollable = scrollable || (desc?.count ?? 0) > MAX_INLINE_DESC_CHARS
         self.style = style
-        self.button1Label = button1Label
-        self.button1Action = button1Action
-        self.button2Label = button2Label
-        self.button2Action = button2Action
-    }
-
-    mutating func addButton(_ title: String, _ action: @escaping () -> Void = {}) {
-        if button1Label == nil {
-            button1Label = title
-        } else if button2Label == nil {
-            button2Label = title
-        }
-        if button1Action == nil {
-            button1Action = action
-        } else if button2Action == nil {
-            button2Action = action
-        }
+        self.buttons = buttons
     }
 }
 
+struct AKAlertBody {
+    var title: String?
+    var desc: String?
+    var scrollable: Bool
+    var buttons: [AKAlertButton]
+}
+
 extension View {
-    func akAlert<T: Equatable>(
+    private func akAlert<T: Equatable>(
         presentedValue: Binding<T?>,
         contentBuilder: @escaping (T) -> AKAlertContent
     ) -> some View {
         self.modifier(AKAlert(presentedData: presentedValue, contentBuilder: contentBuilder))
     }
 
+    func akAlert<T: Equatable>(
+        presentedValue: Binding<T?>,
+        style: NSAlert.Style = .warning,
+        scrollable: Bool = false,
+        @AKAlertBuilder content: @escaping (T) -> AKAlertBody
+    ) -> some View {
+        return self.akAlert(presentedValue: presentedValue) { value in
+            let body = content(value)
+            return AKAlertContent(
+                body.title ?? "",
+                desc: body.desc,
+                scrollable: scrollable,
+                buttons: body.buttons)
+        }
+    }
+
     func akAlert(
-        _ title: String,
         isPresented: Binding<Bool>,
-        desc: (() -> String)? = nil,
-        scrollableText: Bool = false,
-        button1Label: String? = nil,
-        button1Action: (() -> Void)? = nil,
-        button2Label: String? = nil,
-        button2Action: (() -> Void)? = nil
+        style: NSAlert.Style = .warning,
+        scrollable: Bool = false,
+        @AKAlertBuilder content: @escaping () -> AKAlertBody
     ) -> some View {
         let binding = Binding<Bool?>(
             get: { isPresented.wrappedValue ? true : nil },
             set: { isPresented.wrappedValue = $0 != nil })
         return self.akAlert(presentedValue: binding) { _ in
-            AKAlertContent(
-                title: title,
-                desc: desc?(),
-                scrollableText: scrollableText,
-                button1Label: button1Label,
-                button1Action: button1Action,
-                button2Label: button2Label,
-                button2Action: button2Action)
+            let body = content()
+            return AKAlertContent(
+                body.title ?? "",
+                desc: body.desc,
+                scrollable: scrollable,
+                buttons: body.buttons)
         }
     }
+}
 
-    func akAlert(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        desc: String? = nil,
-        scrollableText: Bool = false,
-        button1Label: String? = nil,
-        button1Action: (() -> Void)? = nil,
-        button2Label: String? = nil,
-        button2Action: (() -> Void)? = nil
-    ) -> some View {
-        self.akAlert(
-            title,
-            isPresented: isPresented,
-            desc: desc == nil ? nil : { desc! },
-            scrollableText: scrollableText,
-            button1Label: button1Label,
-            button1Action: button1Action,
-            button2Label: button2Label,
-            button2Action: button2Action)
+@resultBuilder
+struct AKAlertBuilder {
+    static func buildPartialBlock(first: String) -> AKAlertBody {
+        AKAlertBody(title: first, desc: nil, scrollable: false, buttons: [])
+    }
+
+    static func buildPartialBlock(first: AKAlertFlags) -> AKAlertBody {
+        AKAlertBody(title: nil, desc: nil, scrollable: first == .scrollable, buttons: [])
+    }
+
+    static func buildPartialBlock(first: AKAlertButton) -> AKAlertBody {
+        AKAlertBody(title: nil, desc: nil, scrollable: false, buttons: [first])
+    }
+
+    static func buildPartialBlock(first: AKAlertBody) -> AKAlertBody {
+        first
+    }
+
+    static func buildPartialBlock(accumulated: AKAlertBody, next: AKAlertBody) -> AKAlertBody {
+        AKAlertBody(title: next.title ?? accumulated.title, desc: next.desc ?? accumulated.desc, scrollable: next.scrollable || accumulated.scrollable, buttons: accumulated.buttons + next.buttons)
+    }
+
+    static func buildPartialBlock(accumulated: AKAlertBody, next: AKAlertButton) -> AKAlertBody {
+        AKAlertBody(title: accumulated.title, desc: accumulated.desc, scrollable: accumulated.scrollable, buttons: accumulated.buttons + [next])
+    }
+
+    static func buildPartialBlock(accumulated: AKAlertBody, next: String?) -> AKAlertBody {
+        AKAlertBody(title: accumulated.title, desc: next, scrollable: accumulated.scrollable, buttons: accumulated.buttons)
+    }
+
+    static func buildPartialBlock(accumulated: AKAlertBody, next: AKAlertFlags) -> AKAlertBody {
+        AKAlertBody(title: accumulated.title, desc: accumulated.desc, scrollable: next == .scrollable, buttons: accumulated.buttons)
+    }
+
+    static func buildEither<T>(first: T) -> T {
+        first
+    }
+
+    static func buildEither<T>(second: T) -> T {
+        second
+    }
+
+    static func buildOptional(_ component: AKAlertBody?) -> AKAlertBody {
+        component ?? AKAlertBody(title: nil, desc: nil, scrollable: false, buttons: [])
     }
 }

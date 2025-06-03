@@ -139,33 +139,31 @@ struct DockerMigrationWindow: View {
                 }
             }
         }
-        .akAlert(
+        .akAlert(isPresented: $presentErrors) {
             model.entityMigrationStarted
-                ? "Some data couldn’t be migrated" : "Failed to start migration",
-            isPresented: $presentErrors,
-            desc: { truncateError(description: model.errors.joined(separator: "\n")) },
-            button1Label: "OK",
-            button1Action: {
+                ? "Some data couldn’t be migrated" : "Failed to start migration"
+
+            truncateError(description: model.errors.joined(separator: "\n"))
+
+            AKAlertButton("OK") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     windowHolder.window?.close()
                 }
             }
-        )
-        .akAlert(
-            "Replace existing data?", isPresented: $presentConfirmExisting,
-            desc:
-                "You already have containers, volumes, or images in OrbStack. Migrating data from Docker Desktop may lead to unexpected results.",
-            button1Label: "Migrate",
-            button1Action: {
+        }
+        .akAlert(isPresented: $presentConfirmExisting, style: .critical) {
+            "Replace existing data?"
+            "You already have containers, volumes, or images in OrbStack. Migrating data from Docker Desktop may lead to unexpected results or data loss."
+
+            AKAlertButton("Migrate") {
                 model.start()
-            },
-            button2Label: "Cancel",
-            button2Action: {
+            }
+            AKAlertButton("Cancel") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     windowHolder.window?.close()
                 }
             }
-        )
+        }
         .frame(width: 450)
     }
 }

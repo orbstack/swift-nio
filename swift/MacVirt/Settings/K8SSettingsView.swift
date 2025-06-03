@@ -74,12 +74,11 @@ struct K8SSettingsView: View {
         }
         .navigationTitle("Kubernetes")
         .windowHolder(windowHolder)
-        .akAlert(
-            "Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData,
-            desc:
-                "All Kubernetes deployments, pods, services, and other data will be permanently lost.",
-            button1Label: "Reset",
-            button1Action: {
+        .akAlert(isPresented: $presentConfirmResetK8sData, style: .critical) {
+            "Reset Kubernetes cluster?"
+            "All Kubernetes deployments, pods, services, and other data will be permanently lost."
+
+            AKAlertButton("Reset", destructive: true) {
                 Task {
                     if let dockerMachine = vmModel.containers?.first(where: {
                         $0.id == ContainerIds.docker
@@ -88,8 +87,9 @@ struct K8SSettingsView: View {
                         await vmModel.tryStartContainer(dockerMachine.record)
                     }
                 }
-            },
-            button2Label: "Cancel")
+            }
+            AKAlertButton("Cancel")
+        }
     }
 
     private func updateFrom(_ config: VmConfig) {

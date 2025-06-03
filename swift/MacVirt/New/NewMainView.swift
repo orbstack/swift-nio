@@ -87,52 +87,54 @@ struct NewMainView: View {
             }
         }
         // error dialog
-        .akAlert(presentedValue: $model.error) { error in
-            var content = AKAlertContent(
-                title: error.errorDescription ?? "Error",
-                desc: error.recoverySuggestion,
-                style: .critical)
+        .akAlert(presentedValue: $model.error, style: .critical) { error in
+            error.errorDescription ?? "Error"
+            error.recoverySuggestion
 
             switch error {
             case VmError.dockerExitError, VmError.spawnExit:
-                content.scrollableText = true
+                AKAlertFlags.scrollable
             case VmError.vmgrExit(let reason, _):
-                content.scrollableText = !reason.hasCustomDetails
+                if !reason.hasCustomDetails {
+                    AKAlertFlags.scrollable
+                }
             default:
                 // always use scrollable text box for long errors
-                content.scrollableText = error.recoverySuggestion?.count ?? 0 > 1000
+                if error.recoverySuggestion?.count ?? 0 > 1000 {
+                    AKAlertFlags.scrollable
+                }
             }
 
             switch error {
             case VmError.killswitchExpired:
-                content.addButton("Update") {
+                AKAlertButton("Update") {
                     NSWorkspace.openSubwindow(WindowURL.update)
                 }
 
-                content.addButton("Quit") {
+                AKAlertButton("Quit") {
                     model.terminateAppNow()
                 }
 
             case VmError.wrongArch:
-                content.addButton("Download") {
+                AKAlertButton("Download") {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/download")!)
                 }
 
-                content.addButton("Quit") {
+                AKAlertButton("Quit") {
                     model.terminateAppNow()
                 }
 
             default:
                 if model.state == .stopped && !model.reachedRunning {
-                    content.addButton("Quit") {
+                    AKAlertButton("Quit") {
                         model.terminateAppNow()
                     }
                 } else {
-                    content.addButton("OK")
+                    AKAlertButton("OK")
                 }
 
                 if error.shouldShowLogs {
-                    content.addButton("Report") {
+                    AKAlertButton("Report") {
                         openWindow(id: WindowID.bugReport)
 
                         // quit if the error is fatal
@@ -140,16 +142,12 @@ struct NewMainView: View {
                             model.terminateAppNow()
                         }
                     }
-                }
-
-                if error.shouldShowReset {
-                    content.addButton("Reset") {
+                } else if error.shouldShowReset {
+                    AKAlertButton("Reset") {
                         openWindow(id: WindowID.resetData)
                     }
                 }
             }
-
-            return content
         }
         .onReceive(
             model.$error,
@@ -162,31 +160,26 @@ struct NewMainView: View {
                 }
             }
         )
-        .akAlert(
-            "Command-Line Tools Installed", isPresented: $model.presentProfileChanged,
-            desc: {
-                """
-                Your shell profile (PATH) has been updated to add \(Constants.userAppName) tools.
+        .akAlert(isPresented: $model.presentProfileChanged) {
+            "Command-Line Tools Installed"
+            """
+            Your shell profile (PATH) has been updated to add \(Constants.userAppName) tools.
 
-                Restart your terminal to use the new tools.
-                """
+            Restart your terminal to use the new tools.
+            """
+        }
+        .akAlert(isPresented: $model.presentAddPaths) {
+            "Install Command-Line Tools?"
+            "To install \(Constants.userAppName) tools, add ~/.orbstack/bin to your shell's PATH."
+        }
+        .akAlert(isPresented: $model.presentForceSignIn) {
+            "Sign in"
+            "Your organization requires you to sign in to \(Constants.userAppName)."
+
+            AKAlertButton("Sign In") {
+                model.presentAuth = true
             }
-        )
-        .akAlert(
-            "Install Command-Line Tools?", isPresented: $model.presentAddPaths,
-            desc: {
-                """
-                To install \(Constants.userAppName) tools, add ~/.orbstack/bin to your shell's PATH.
-                """
-            }
-        )
-        .akAlert(
-            "Sign in", isPresented: $model.presentForceSignIn,
-            desc: { "Your organization requires you to sign in to \(Constants.userAppName)." },
-            button1Label: "Sign In",
-            button1Action: { model.presentAuth = true },
-            button2Label: "Quit",
-            button2Action: {
+            AKAlertButton("Quit") {
                 Task {
                     // stop asynchronously in the background
                     await model.tryStop()
@@ -194,15 +187,16 @@ struct NewMainView: View {
                     NSApp.terminate(nil)
                 }
             }
-        )
-        .akAlert(
-            "Pro license required", isPresented: $model.presentRequiresLicense,
-            desc: "To use OrbStack Debug Shell, purchase a Pro license.",
-            button1Label: "Get Pro",
-            button1Action: {
+        }
+        .akAlert(isPresented: $model.presentRequiresLicense) {
+            "Pro license required"
+            "To use OrbStack Debug Shell, purchase a Pro license."
+
+            AKAlertButton("Get Pro") {
                 NSWorkspace.shared.open(URL(string: "https://orbstack.dev/pricing")!)
-            },
-            button2Label: "Cancel")
+            }
+            AKAlertButton("Cancel")
+        }
     }
 }
 

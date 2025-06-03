@@ -121,12 +121,11 @@ struct StorageSettingsView: View {
                 }
             }
         }
-        .akAlert(
-            "Reset Docker data?", isPresented: $presentConfirmResetDockerData,
-            desc:
-                "All containers, images, volumes, and Kubernetes resources will be permanently lost.",
-            button1Label: "Reset",
-            button1Action: {
+        .akAlert(isPresented: $presentConfirmResetDockerData, style: .critical) {
+            "Reset Docker data?"
+            "All containers, images, volumes, and Kubernetes resources will be permanently lost."
+
+            AKAlertButton("Reset", destructive: true) {
                 Task {
                     if let dockerMachine = vmModel.containers?.first(where: {
                         $0.id == ContainerIds.docker
@@ -135,15 +134,14 @@ struct StorageSettingsView: View {
                         await vmModel.tryStartContainer(dockerMachine.record)
                     }
                 }
-            },
-            button2Label: "Cancel"
-        )
-        .akAlert(
-            "Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData,
-            desc:
-                "All Kubernetes deployments, pods, services, and other data will be permanently lost.",
-            button1Label: "Reset",
-            button1Action: {
+            }
+            AKAlertButton("Cancel")
+        }
+        .akAlert(isPresented: $presentConfirmResetK8sData, style: .critical) {
+            "Reset Kubernetes cluster?"
+            "All Kubernetes deployments, pods, services, and other data will be permanently lost."
+
+            AKAlertButton("Reset", destructive: true) {
                 Task {
                     if let dockerMachine = vmModel.containers?.first(where: {
                         $0.id == ContainerIds.docker
@@ -152,21 +150,20 @@ struct StorageSettingsView: View {
                         await vmModel.tryStartContainer(dockerMachine.record)
                     }
                 }
-            },
-            button2Label: "Cancel"
-        )
-        .akAlert(
-            "Reset all data?", isPresented: $presentConfirmResetAllData,
-            desc:
-                "All containers, images, volumes, Kubernetes resources, and Linux machines will be permanently lost.",
-            button1Label: "Reset",
-            button1Action: {
+            }
+            AKAlertButton("Cancel")
+        }
+        .akAlert(isPresented: $presentConfirmResetAllData, style: .critical) {
+            "Reset all data?"
+            "All containers, images, volumes, Kubernetes resources, and Linux machines will be permanently lost."
+
+            AKAlertButton("Reset", destructive: true) {
                 Task {
                     await vmModel.tryResetData()
                 }
-            },
-            button2Label: "Cancel"
-        )
+            }
+            AKAlertButton("Cancel")
+        }
         .windowHolder(windowHolder)
         .navigationTitle("Storage")
     }

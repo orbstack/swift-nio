@@ -57,13 +57,11 @@ struct ResetDataView: View {
             }
         }
         .frame(width: 300, height: 300)
-        .akAlert(
-            "Reset all data?",
-            isPresented: $presentConfirm,
-            desc:
-                "All containers, images, volumes, Kubernetes resources, and Linux machines will be permanently lost.",
-            button1Label: "Reset",
-            button1Action: {
+        .akAlert(isPresented: $presentConfirm, style: .critical) {
+            "Reset all data?"
+            "All containers, images, volumes, Kubernetes resources, and Linux machines will be permanently lost."
+
+            AKAlertButton("Reset", destructive: true) {
                 Task {
                     do {
                         try await runProcessChecked(AppConfig.ctlExe, ["reset", "-y"])
@@ -80,14 +78,14 @@ struct ResetDataView: View {
                     // done! now restart vmgr
                     await vmModel.tryStartDaemon()
                 }
-            },
-            button2Label: "Cancel",
-            button2Action: {
+            }
+
+            AKAlertButton("Cancel") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     windowHolder.window?.close()
                 }
             }
-        )
+        }
         .background(VisualEffectView().ignoresSafeArea())
         .windowHolder(windowHolder)
         .onAppear {

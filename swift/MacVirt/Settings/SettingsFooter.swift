@@ -8,6 +8,7 @@ struct SettingsFooter<Content: View>: View {
     }
 
     var body: some View {
+        // weird but seems to match Settings.app perfectly
         Section {
         } footer: {
             HStack {
