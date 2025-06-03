@@ -11,6 +11,7 @@ struct DockerImageItem: View, Equatable {
     @EnvironmentObject var actionTracker: ActionTracker
     @EnvironmentObject var listModel: AKListModel
 
+    @StateObject private var windowHolder = WindowHolder()
     @State private var showEmulationAlert = false
 
     @Default(.tipsImageMountsShow) private var tipsImageMountsShow
@@ -151,6 +152,14 @@ struct DockerImageItem: View, Equatable {
                 Label("Debug Shell", systemImage: "")
             }.disabled(actionInProgress)
 
+            Button("Export") {
+                image.summary.openExportPanel(
+                    windowHolder: windowHolder,
+                    actionTracker: actionTracker,
+                    vmModel: vmModel
+                )
+            }.disabled(actionInProgress)
+
             Divider()
 
             Button(action: {
@@ -181,6 +190,7 @@ struct DockerImageItem: View, Equatable {
                 NSPasteboard.copy("\(Folders.nfsDockerImages)/\(image.summary.userTag)")
             }
         }
+        .windowHolder(windowHolder)
     }
 
     private func finishDelete() {
@@ -216,6 +226,31 @@ struct DockerImageItem: View, Equatable {
             return selection
         } else {
             return [image.id]
+        }
+    }
+}
+
+extension DKImage {
+    func openExportPanel(
+        windowHolder: WindowHolder,
+        actionTracker: ActionTracker,
+        vmModel: VmViewModel
+    ) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(self.userTag.replacingOccurrences(of: "/", with: "_")).tar"
+
+        let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
+        panel.beginSheetModal(for: window) { result in
+            if result == .OK,
+                let url = panel.url
+            {
+                Task {
+                    await actionTracker.with(imageId: self.id, action: .exporting) {
+                        let identifier = self.hasTag ? self.userTag : self.id
+                        await vmModel.dockerExportImage(imageId: identifier, hostPath: url.path)
+                    }
+                }
+            }
         }
     }
 }

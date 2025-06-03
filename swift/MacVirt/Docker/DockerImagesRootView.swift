@@ -14,6 +14,7 @@ struct DockerImagesRootView: View {
     @Default(.dockerImagesSortDescriptor) private var sortDescriptor
 
     @State private var selection: Set<String> = []
+    @State private var importingOpacity: Double = 0
 
     var body: some View {
         let searchQuery = vmModel.searchText
@@ -76,6 +77,36 @@ struct DockerImagesRootView: View {
             }
         }
         .navigationTitle("Images")
+        .onReceive(vmModel.dockerImageImportRouter) { url in
+            Task {
+                await actionTracker.withImageImport(id: url.path) {
+                    await vmModel.dockerImportImage(url: url)
+                }
+            }
+        }
+        .overlay(
+            alignment: .bottomTrailing,
+            content: {
+                HStack {
+                    Text("Importing")
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 16, height: 16)
+                }
+                .padding(8)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .opacity(importingOpacity)
+                .padding(16)
+            }
+        )
+        .onAppear {
+            importingOpacity = actionTracker.ongoingImageImports.isEmpty ? 0 : 1
+        }
+        .onReceive(actionTracker.$ongoingImageImports) { exports in
+            withAnimation {
+                importingOpacity = exports.isEmpty ? 0 : 1
+            }
+        }
     }
 
     private func filterImages(_ images: [DKSummaryAndFullImage], searchQuery: String)

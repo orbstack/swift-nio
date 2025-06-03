@@ -11,14 +11,14 @@ extension NavTabId {
     var defaultItemIdentifiers: [NSToolbarItem.Identifier] {
         switch self {
         case .dockerContainers:
-            return [.dockerContainersSort, .dockerContainersFilter, .searchItem]
+            return [ /*.dockerContainersSort,*/.dockerContainersFilter, .searchItem]
         case .dockerVolumes:
             return [
                 .dockerVolumesSort, .dockerVolumesOpen, .dockerVolumesImport, .dockerVolumesNew,
                 .searchItem,
             ]
         case .dockerImages:
-            return [.dockerImagesSort, .dockerImagesOpen, .searchItem]
+            return [.dockerImagesSort, .dockerImagesOpen, .dockerImagesImport, .searchItem]
 
         case .k8sPods:
             return [.k8sEnable, .k8sPodsFilter, .searchItem]
@@ -51,6 +51,7 @@ extension NSToolbarItem.Identifier {
 
     static let dockerImagesOpen = NSToolbarItem.Identifier("dockerImagesOpen")
     static let dockerImagesSort = NSToolbarItem.Identifier("dockerImagesSort")
+    static let dockerImagesImport = NSToolbarItem.Identifier("dockerImagesImport")
 
     static let k8sEnable = NSToolbarItem.Identifier("k8sEnable")
     static let k8sPodsFilter = NSToolbarItem.Identifier("k8sPodsFilter")

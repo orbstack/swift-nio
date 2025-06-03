@@ -55,3 +55,12 @@ type InternalSetDockerRemoteCtxAddrRequest struct {
 type InternalUpdateTokenRequest struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
+
+type DockerImageImportFromHostPathRequest struct {
+	HostPath string `json:"host_path"`
+}
+
+type DockerImageExportToHostPathRequest struct {
+	ImageID  string `json:"image_id"`
+	HostPath string `json:"host_path"`
+}

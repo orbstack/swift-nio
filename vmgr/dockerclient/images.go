@@ -2,6 +2,7 @@ package dockerclient
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"strconv"
 
@@ -58,4 +59,25 @@ func (c *Client) DeleteImage(imageID string, force bool) error {
 		return fmt.Errorf("remove image %s: %w", imageID, err)
 	}
 	return nil
+}
+
+func (c *Client) ImportImage(reader io.Reader) error {
+	err := c.Call("POST", "/images/load?quiet=true", reader, nil)
+	if err != nil {
+		return fmt.Errorf("import image: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) ExportImage(imageID string) (io.ReadCloser, error) {
+	resp, err := c.CallRaw("GET", "/images/"+url.PathEscape(imageID)+"/get", nil)
+	if err != nil {
+		return nil, fmt.Errorf("export image %s: %w", imageID, err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, ReadError(resp)
+	}
+
+	return resp.Body, nil
 }

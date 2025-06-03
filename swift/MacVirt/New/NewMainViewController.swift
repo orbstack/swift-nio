@@ -18,6 +18,7 @@ enum Panel {
 class NewMainViewController: NSViewController {
     var model: VmViewModel
     var navModel: MainNavViewModel
+    var actionTracker: ActionTracker
 
     var horizontalConstraint: NSLayoutConstraint!
     var verticalConstraint: NSLayoutConstraint!
@@ -102,14 +103,6 @@ class NewMainViewController: NSViewController {
         return self.makeMenuToolbarItem(
             itemIdentifier: .dockerVolumesSort, icon: "arrow.up.arrow.down", title: "Sort",
             requiresVmRunning: false, menu: menu)
-        //        DockerGenericSortDescriptor.allCases.map { method in
-        //            let item = ClosureMenuItem(title: method.description) { [key] in
-        //                Defaults[key] = method
-        //            }
-        //            print("item for \(method.description)")
-        //            item.state = (currentValue == method) ? .on : .off
-        //            return item
-        //        }
     }()
 
     lazy var imagesFolderButton = makeToolbarItem(
@@ -117,6 +110,13 @@ class NewMainViewController: NSViewController {
         icon: "folder",
         title: "Open Images",
         action: #selector(actionDockerImagesOpen)
+    )
+
+    lazy var imagesImportButton = makeToolbarItem(
+        itemIdentifier: .dockerImagesImport,
+        icon: "square.and.arrow.down",
+        title: "Import Image",
+        action: #selector(actionDockerImagesImport)
     )
 
     private lazy var imagesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(
@@ -240,9 +240,11 @@ class NewMainViewController: NSViewController {
 
     // MARK: - Init
 
-    init(model: VmViewModel, navModel: MainNavViewModel) {
+    init(model: VmViewModel, navModel: MainNavViewModel, actionTracker: ActionTracker) {
         self.model = model
         self.navModel = navModel
+        self.actionTracker = actionTracker
+
         super.init(nibName: nil, bundle: nil)
 
         navModel.expandInspector.sink { [weak self] in

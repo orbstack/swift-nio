@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"net/http"
@@ -165,6 +166,38 @@ func (s *VmControlServer) DockerVolumeDelete(ctx context.Context, params vmtypes
 
 func (s *VmControlServer) DockerImageDelete(ctx context.Context, params vmtypes.IDRequest) error {
 	return s.dockerClient.DeleteImage(params.ID, true)
+}
+
+func (s *VmControlServer) DockerImageImportFromHostPath(ctx context.Context, params vmtypes.DockerImageImportFromHostPathRequest) error {
+	reader, err := os.Open(params.HostPath)
+	if err != nil {
+		return fmt.Errorf("open file: %w", err)
+	}
+	defer reader.Close()
+
+	return s.dockerClient.ImportImage(reader)
+}
+
+func (s *VmControlServer) DockerImageExportToHostPath(ctx context.Context, params vmtypes.DockerImageExportToHostPathRequest) error {
+	// open output file
+	file, err := os.Create(params.HostPath)
+	if err != nil {
+		return fmt.Errorf("create file: %w", err)
+	}
+	defer file.Close()
+
+	reader, err := s.dockerClient.ExportImage(params.ImageID)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	_, err = io.Copy(file, reader)
+	if err != nil {
+		return fmt.Errorf("copy data: %w", err)
+	}
+
+	return nil
 }
 
 func (s *VmControlServer) K8sPodDelete(ctx context.Context, params vmtypes.K8sNameRequest) error {
@@ -416,7 +449,9 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"DockerVolumeCreate": handler.New(s.DockerVolumeCreate),
 		"DockerVolumeDelete": handler.New(s.DockerVolumeDelete),
 
-		"DockerImageDelete": handler.New(s.DockerImageDelete),
+		"DockerImageDelete":             handler.New(s.DockerImageDelete),
+		"DockerImageImportFromHostPath": handler.New(s.DockerImageImportFromHostPath),
+		"DockerImageExportToHostPath":   handler.New(s.DockerImageExportToHostPath),
 
 		"K8sPodDelete":     handler.New(s.K8sPodDelete),
 		"K8sServiceDelete": handler.New(s.K8sServiceDelete),

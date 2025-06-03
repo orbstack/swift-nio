@@ -474,6 +474,9 @@ class VmViewModel: ObservableObject {
     var menuActionRouter = PassthroughSubject<MenuActionRouter, Never>()
 
     var toolbarActionRouter = PassthroughSubject<ToolbarAction, Never>()
+
+    var dockerImageImportRouter = PassthroughSubject<URL, Never>()
+
     // TODO: proper preference-based toolbar system
     @Published var activityMonitorStopEnabled = false
 
@@ -1282,6 +1285,18 @@ class VmViewModel: ObservableObject {
             try await dockerExportVolume(volumeId: volumeId, hostPath: hostPath)
         } catch {
             setError(.dockerVolumeExportError(cause: error))
+        }
+    }
+
+    func dockerImportImage(url: URL) async {
+        await doTryDockerImageAction("import") {
+            try await vmgr.dockerImageImportFromHostPath(url.path)
+        }
+    }
+
+    func dockerExportImage(imageId: String, hostPath: String) async {
+        await doTryDockerImageAction("export") {
+            try await vmgr.dockerImageExportToHostPath(imageId, hostPath)
         }
     }
 

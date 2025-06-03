@@ -8,6 +8,9 @@ import SwiftUI
 struct DockerImageDetails: View {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var windowTracker: WindowTracker
+    @EnvironmentObject var actionTracker: ActionTracker
+
+    @StateObject private var windowHolder = WindowHolder()
 
     let image: DKSummaryAndFullImage
 
@@ -52,6 +55,16 @@ struct DockerImageDetails: View {
                     }
                 } label: {
                     Label("Debug Shell", systemImage: "ladybug")
+                }
+
+                DividedRowButton {
+                    image.summary.openExportPanel(
+                        windowHolder: windowHolder,
+                        actionTracker: actionTracker,
+                        vmModel: vmModel
+                    )
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
                 }
             }
 
@@ -98,5 +111,6 @@ struct DockerImageDetails: View {
                 }
             }
         }
+        .windowHolder(windowHolder)
     }
 }

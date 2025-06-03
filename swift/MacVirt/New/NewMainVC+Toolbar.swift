@@ -64,6 +64,8 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
             return imagesFolderButton
         case .dockerImagesSort:
             return imagesSortMenu
+        case .dockerImagesImport:
+            return imagesImportButton
 
         case .k8sEnable:
             return podsStartToggle
@@ -178,6 +180,24 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
                 let url = panel.url
             {
                 self.model.presentImportVolume = url
+            }
+        }
+    }
+
+    @objc func actionDockerImagesImport(_ toolbarItem: NSToolbarItem?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [UTType(filenameExtension: "tar", conformingTo: .data)!]
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+        panel.message = "Select image (.tar) to import"
+
+        let window = toolbarItem?.view?.window ?? NSApp.keyWindow ?? NSApp.windows.first!
+        panel.beginSheetModal(for: window) { result in
+            if result == .OK,
+                let url = panel.url
+            {
+                self.model.dockerImageImportRouter.send(url)
             }
         }
     }

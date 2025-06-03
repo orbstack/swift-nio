@@ -30,6 +30,7 @@ enum DKVolumeAction {
 
 enum DKImageAction {
     case delete
+    case exporting
 }
 
 enum MachineAction {
@@ -71,6 +72,7 @@ class ActionTracker: ObservableObject {
 
     @Published var ongoingMachineExports: Set<String> = []
     @Published var ongoingVolumeExports: Set<String> = []
+    @Published var ongoingImageImports: Set<String> = []
 
     func ongoingFor(_ cid: DockerContainerId) -> DKContainerAction? {
         ongoingDockerContainerActions[cid]
@@ -222,6 +224,21 @@ class ActionTracker: ObservableObject {
         defer {
             ongoingVolumeExports.remove(id)
             ongoingVolumeExports = ongoingVolumeExports
+        }
+
+        try await block()
+    }
+
+    func withImageImport(id: String, _ block: () async throws -> Void) async rethrows {
+        if ongoingImageImports.contains(id) {
+            return
+        }
+
+        ongoingImageImports.insert(id)
+        ongoingImageImports = ongoingImageImports
+        defer {
+            ongoingImageImports.remove(id)
+            ongoingImageImports = ongoingImageImports
         }
 
         try await block()

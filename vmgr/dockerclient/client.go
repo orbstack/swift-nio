@@ -313,6 +313,9 @@ func (c *Client) Call(method, path string, body any, out any) error {
 		return ReadError(resp)
 	}
 
+	// must drain body to be able to reuse connection. json decode doesn't do that
+	// defer io.Copy(io.Discard, resp.Body)
+
 	if out != nil {
 		err = json.NewDecoder(resp.Body).Decode(out)
 		if err != nil {

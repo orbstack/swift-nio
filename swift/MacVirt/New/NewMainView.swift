@@ -13,6 +13,7 @@ struct NewMainView: View {
     @Environment(\.openWindow) private var openWindow
     @EnvironmentObject var model: VmViewModel
     @EnvironmentObject var windowTracker: WindowTracker
+    @EnvironmentObject var actionTracker: ActionTracker
 
     // must be StateObject to share this initial instance
     // otherwise it's different at NewMainViewControllerRepresentable() init time and at later .environmentObject time
@@ -25,7 +26,8 @@ struct NewMainView: View {
             NewMainViewControllerRepresentable(
                 size: geometry.size,
                 model: model,
-                navModel: navModel
+                navModel: navModel,
+                actionTracker: actionTracker
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .environmentObject(navModel)
@@ -208,9 +210,10 @@ struct NewMainViewControllerRepresentable: NSViewControllerRepresentable {
     var size: CGSize
     var model: VmViewModel
     var navModel: MainNavViewModel
+    var actionTracker: ActionTracker
 
     func makeNSViewController(context _: Context) -> NewMainViewController {
-        let controller = NewMainViewController(model: model, navModel: navModel)
+        let controller = NewMainViewController(model: model, navModel: navModel, actionTracker: actionTracker)
         controller.horizontalConstraint = controller.view.widthAnchor.constraint(
             equalToConstant: size.width)
         controller.verticalConstraint = controller.view.heightAnchor.constraint(
