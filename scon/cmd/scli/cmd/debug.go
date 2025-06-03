@@ -119,6 +119,7 @@ func fallbackDockerExec(containerID string) error {
 }
 
 var debugCmd = &cobra.Command{
+	GroupID: groupContainers,
 	Use:     "debug [flags] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"wormhole"},
 	Short:   "Debug a Docker container with extra commands",

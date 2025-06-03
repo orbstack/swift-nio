@@ -21,8 +21,9 @@ func init() {
 }
 
 var updateCmd = &cobra.Command{
-	Use:   "update",
-	Short: "Update OrbStack",
+	GroupID: groupGeneral,
+	Use:     "update",
+	Short:   "Update OrbStack",
 	Long: `Update OrbStack.
 
 If an update is available, it will be downloaded and installed.

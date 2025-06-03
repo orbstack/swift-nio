@@ -19,8 +19,9 @@ func init() {
 }
 
 var stopCmd = &cobra.Command{
-	Use:   "stop [flags] [ID/NAME]..",
-	Short: "Stop OrbStack or a machine",
+	GroupID: groupGeneral,
+	Use:     "stop [flags] [ID/NAME]..",
+	Short:   "Stop OrbStack or a machine",
 	Long: `Stop the specified machines(s), by ID or name.
 
 If no arguments are provided, this command will stop the entire OrbStack service, including Docker and all machines.

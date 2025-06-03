@@ -22,8 +22,9 @@ func init() {
 }
 
 var deleteCmd = &cobra.Command{
-	Use:   "delete [flags] [ID/NAME]...",
-	Short: "Delete a machine",
+	GroupID: groupMachines,
+	Use:     "delete [flags] [ID/NAME]...",
+	Short:   "Delete a machine",
 	Long: `Delete the specified machine, by ID or name.
 
 The machine will be stopped if it is running.

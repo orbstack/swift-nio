@@ -9,8 +9,9 @@ func init() {
 }
 
 var dockerCmd = &cobra.Command{
-	Use:   "docker",
-	Short: "Extension commands for Docker",
+	GroupID: groupContainers,
+	Use:     "docker",
+	Short:   "Extension commands for Docker",
 	Long: `The "orb" and "orbctl" commands are primarily for managing OrbStack and its Linux machines.
 
 To build and run containers and manage anything related to Docker, use the "docker" command directly from macOS.

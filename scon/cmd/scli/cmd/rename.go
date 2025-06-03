@@ -10,9 +10,10 @@ func init() {
 }
 
 var renameCmd = &cobra.Command{
-	Use:   "rename [old name/ID] [new name]",
-	Short: "Rename a machine",
-	Long: `Rename the specified machine. The old 
+	GroupID: groupMachines,
+	Use:     "rename [old name/ID] [new name]",
+	Short:   "Rename a machine",
+	Long: `Rename the specified machine.
 `,
 	Example: "  " + rootCmd.Use + " rename ubuntu testubuntu",
 	Args:    cobra.ExactArgs(2),

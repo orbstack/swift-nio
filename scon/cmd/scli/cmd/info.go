@@ -14,6 +14,7 @@ func init() {
 }
 
 var infoCmd = &cobra.Command{
+	GroupID: groupMachines,
 	Use:     "info [ID/NAME]",
 	Aliases: []string{"i"},
 	Short:   "Get info about a machine",

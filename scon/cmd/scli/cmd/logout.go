@@ -11,8 +11,9 @@ func init() {
 }
 
 var logoutCmd = &cobra.Command{
-	Use:   "logout",
-	Short: "Log out of your OrbStack account",
+	GroupID: groupGeneral,
+	Use:     "logout",
+	Short:   "Log out of your OrbStack account",
 	Long: `Log out of your OrbStack account, if logged in.
 `,
 	Example: "  " + rootCmd.Use + " logout",

@@ -9,7 +9,8 @@ func init() {
 }
 
 var configCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Change OrbStack settings",
-	Long:  `Change OrbStack settings.`,
+	GroupID: groupGeneral,
+	Use:     "config",
+	Short:   "Change OrbStack settings",
+	Long:    `Change OrbStack settings.`,
 }

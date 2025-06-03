@@ -15,6 +15,7 @@ func init() {
 }
 
 var logsCmd = &cobra.Command{
+	GroupID: groupMachines,
 	Use:     "logs [ID/NAME]",
 	Aliases: []string{"log", "console"},
 	Short:   "Show logs for a machine",

@@ -21,8 +21,9 @@ func init() {
 }
 
 var resetCmd = &cobra.Command{
-	Use:   "reset",
-	Short: "Delete all Linux and Docker data",
+	GroupID: groupGeneral,
+	Use:     "reset",
+	Short:   "Delete all Linux and Docker data",
 	Long: `Delete all Linux machines and Docker data. All data will be permanently lost!
 
 This resets OrbStack to its initial state, but configuration is preserved.

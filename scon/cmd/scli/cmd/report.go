@@ -19,8 +19,9 @@ func init() {
 }
 
 var reportCmd = &cobra.Command{
-	Use:   "report",
-	Short: "Gather info for a bug report",
+	GroupID: groupGeneral,
+	Use:     "report",
+	Short:   "Gather info for a bug report",
 	Long: `Gather OrbStack and system information for reporting bugs.
 
 Issue tracker: https://github.com/orbstack/orbstack/issues

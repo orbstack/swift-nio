@@ -24,8 +24,9 @@ func init() {
 }
 
 var authCmd = &cobra.Command{
-	Use:   "login",
-	Short: "Log in and activate your OrbStack license",
+	GroupID: groupGeneral,
+	Use:     "login",
+	Short:   "Log in and activate your OrbStack license",
 	Long: `Log in to your OrbStack account and activate your license, if any.
 
 If you are already logged in, this command will do nothing unless you add --force.

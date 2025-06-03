@@ -14,8 +14,9 @@ func init() {
 }
 
 var exportCmd = &cobra.Command{
-	Use:   "export [MACHINE_NAME] [OUTPUT_PATH]",
-	Short: "Export a machine to a file",
+	GroupID: groupMachines,
+	Use:     "export [MACHINE_NAME] [OUTPUT_PATH]",
+	Short:   "Export a machine to a file",
 	Long: `Export a machine to a file.
 
 To prevent data corruption, the existing machine will be paused while exporting.

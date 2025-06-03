@@ -113,6 +113,7 @@ func ParseRunFlags(args []string) ([]string, error) {
 }
 
 var runCmd = &cobra.Command{
+	GroupID: groupMachines,
 	Use:     "run [flags] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"exec", "shell"},
 	Short:   "Run command on Linux",

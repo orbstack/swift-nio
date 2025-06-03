@@ -17,8 +17,9 @@ func init() {
 }
 
 var sshCmd = &cobra.Command{
-	Use:   "ssh",
-	Short: "Show SSH details",
+	GroupID: groupMachines,
+	Use:     "ssh",
+	Short:   "Show SSH details",
 	Long: `Show commands and instructions for connecting to Linux via SSH.
 Useful for remote editing (e.g. Visual Studio Code) or for connecting from another device.
 `,

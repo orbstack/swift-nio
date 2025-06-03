@@ -16,8 +16,9 @@ func init() {
 }
 
 var pullCmd = &cobra.Command{
-	Use:   "pull [flags] macOS-source... [Linux-dest]",
-	Short: "Copy files from Linux",
+	GroupID: groupMachines,
+	Use:     "pull [flags] macOS-source... [Linux-dest]",
+	Short:   "Copy files from Linux",
 	Long: `Copy files from Linux to macOS.
 
 Source paths are relative to the Linux user's home directory.

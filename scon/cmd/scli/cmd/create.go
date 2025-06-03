@@ -35,6 +35,7 @@ func init() {
 }
 
 var createCmd = &cobra.Command{
+	GroupID: groupMachines,
 	Use:     "create [flags] DISTRO[:VERSION] [MACHINE_NAME]",
 	Aliases: []string{"add", "new"},
 	Short:   "Create a new machine",

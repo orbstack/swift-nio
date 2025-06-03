@@ -12,6 +12,7 @@ func init() {
 }
 
 var defaultCmd = &cobra.Command{
+	GroupID: groupMachines,
 	Use:     "default [NAME/ID]",
 	Aliases: []string{"set-default", "get-default"},
 	Short:   "Get or set the default machine",

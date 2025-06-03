@@ -13,8 +13,9 @@ func init() {
 }
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Check whether OrbStack is running",
+	GroupID: groupGeneral,
+	Use:     "status",
+	Short:   "Check whether OrbStack is running",
 	Long: `Check whether OrbStack is running.
 
 Returns one of the following statuses and exit codes:

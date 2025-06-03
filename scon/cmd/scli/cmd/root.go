@@ -8,6 +8,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const groupMachines = "machines"
+const groupContainers = "containers"
+const groupGeneral = "general"
+
+func init() {
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    groupMachines,
+		Title: "Linux machines:",
+	}, &cobra.Group{
+		ID:    groupContainers,
+		Title: "Containers:",
+	}, &cobra.Group{
+		ID:    groupGeneral,
+		Title: "General:",
+	})
+}
+
 func use() string {
 	if filepath.Base(os.Args[0]) == appid.ShortCmd {
 		return appid.ShortCmd

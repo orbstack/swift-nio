@@ -9,9 +9,10 @@ func init() {
 }
 
 var migrateCmd = &cobra.Command{
-	Use:   "migrate",
-	Short: "Migrate data to or from OrbStack",
-	Long:  `Migrate data to or from OrbStack.`,
+	GroupID: groupContainers,
+	Use:     "migrate",
+	Short:   "Migrate data to or from OrbStack",
+	Long:    `Migrate data to or from OrbStack.`,
 
 	// deprecated alias
 	Hidden: true,

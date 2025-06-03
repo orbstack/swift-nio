@@ -20,6 +20,7 @@ func init() {
 }
 
 var importCmd = &cobra.Command{
+	GroupID: groupMachines,
 	Use:   "import [INPUT_PATH]",
 	Short: "Import a machine from a file",
 	Long: `Import a machine from a file.

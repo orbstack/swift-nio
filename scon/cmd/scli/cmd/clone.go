@@ -11,8 +11,9 @@ func init() {
 }
 
 var cloneCmd = &cobra.Command{
-	Use:   "clone [OLD_NAME] [NEW_NAME]",
-	Short: "Clone a machine",
+	GroupID: groupMachines,
+	Use:     "clone [OLD_NAME] [NEW_NAME]",
+	Short:   "Clone a machine",
 	Long: `Make a copy of an existing machine.
 
 The new machine will have all the data and settings from the old machine. Changes in the new machine will not affect the old one.
@@ -25,6 +26,9 @@ To prevent data corruption, the existing machine will be paused while cloning.
 `,
 	Example: `  orb clone ubuntu foo`,
 	Args:    cobra.ExactArgs(2),
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		oldNameOrID := args[0]
 		newName := args[1]

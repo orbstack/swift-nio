@@ -16,8 +16,9 @@ func init() {
 }
 
 var pushCmd = &cobra.Command{
-	Use:   "push [flags] macOS-source... [Linux-dest]",
-	Short: "Copy files to Linux",
+	GroupID: groupMachines,
+	Use:     "push [flags] macOS-source... [Linux-dest]",
+	Short:   "Copy files to Linux",
 	Long: `Copy files from macOS to Linux.
 
 Destination path is relative to the Linux user's home directory.

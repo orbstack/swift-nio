@@ -12,8 +12,9 @@ func init() {
 }
 
 var k8sCmd = &cobra.Command{
-	Use:   "k8s",
-	Short: "Show commands for using Kubernetes",
+	GroupID: groupContainers,
+	Use:     "k8s",
+	Short:   "Show commands for using Kubernetes",
 	Long: `Show commands and instructions for using Kubernetes.
 `,
 	Example: "  " + rootCmd.Use + " k8s",
