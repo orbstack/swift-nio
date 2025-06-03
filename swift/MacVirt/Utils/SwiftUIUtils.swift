@@ -103,6 +103,12 @@ extension View {
     func onWindowReady(action: @escaping (NSWindow) -> Void) -> some View {
         background(WindowCallbackAccessor(action: action))
     }
+
+    func windowRestorability(_ restorable: Bool) -> some View {
+        onWindowReady { window in
+            window.isRestorable = restorable
+        }
+    }
 }
 
 func rectReader(_ binding: Binding<CGRect>, _ space: CoordinateSpace = .global) -> some View {

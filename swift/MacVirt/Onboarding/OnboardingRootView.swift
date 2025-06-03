@@ -69,16 +69,7 @@ struct OnboardingRootView: View, OnboardingController {
         .frame(width: 725, height: 550)
         .background(VisualEffectView().ignoresSafeArea())
         .windowHolder(windowHolder)
-        .onChange(of: windowHolder.window) { window in
-            if let window {
-                window.isRestorable = false
-            }
-        }
-        .onAppear {
-            if let window = windowHolder.window {
-                window.isRestorable = false
-            }
-        }
+        .windowRestorability(false)
     }
 
     func finish() {

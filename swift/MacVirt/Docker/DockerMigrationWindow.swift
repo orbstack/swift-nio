@@ -104,11 +104,8 @@ struct DockerMigrationWindow: View {
         }
         .padding(16)
         .windowHolder(windowHolder)
+        .windowRestorability(false)
         .onAppear {
-            if let window = windowHolder.window {
-                window.isRestorable = false
-            }
-
             if vmModel.dockerContainers?.byId.isEmpty ?? true,
                 vmModel.dockerImages?.isEmpty ?? true,
                 vmModel.dockerVolumes?.isEmpty ?? true
@@ -118,12 +115,6 @@ struct DockerMigrationWindow: View {
             } else {
                 // not empty - ask for confirmation
                 presentConfirmExisting = true
-            }
-        }
-        .onChange(of: windowHolder.window) { window in
-            if let window {
-                // unrestorable: is ephemeral, and also restored doesn't preserve url
-                window.isRestorable = false
             }
         }
         .onChange(of: model.done) { done in

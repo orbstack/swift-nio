@@ -98,16 +98,8 @@ struct AuthView: View {
         }
         .background(VisualEffectView().ignoresSafeArea())
         .windowHolder(windowHolder)
-        .onAppear {
-            if !isSheet, let window = windowHolder.window {
-                window.isRestorable = false
-            }
-        }
-        .onChange(of: windowHolder.window) { window in
-            if !isSheet, let window {
-                // unrestorable: is ephemeral, and also restored doesn't preserve url
-                window.isRestorable = false
-            }
+        .if(!isSheet) { view in
+            view.windowRestorability(false)
         }
     }
 

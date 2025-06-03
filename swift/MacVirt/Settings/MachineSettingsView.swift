@@ -12,8 +12,6 @@ import SwiftUI
 struct MachineSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @StateObject private var windowHolder = WindowHolder()
-
     @State private var memoryMib: UInt64 = 0
     @State private var cpu: UInt = 1
     @State private var enableRosetta = true
@@ -128,7 +126,6 @@ struct MachineSettingsView: View {
             }
         }
         .navigationTitle("System")
-        .windowHolder(windowHolder)
         .akAlert(isPresented: $presentDisableAdmin) {
             "Disable privileged features?"
             """

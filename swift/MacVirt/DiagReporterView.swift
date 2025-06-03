@@ -172,17 +172,8 @@ struct DiagReporterView: View {
             }
         }
         .background(VisualEffectView().ignoresSafeArea())
+        // unrestorable: is ephemeral, and also restored doesn't preserve url
+        .windowRestorability(false)
         .windowHolder(windowHolder)
-        .onAppear {
-            if let window = windowHolder.window {
-                window.isRestorable = false
-            }
-        }
-        .onChange(of: windowHolder.window) { window in
-            if let window {
-                // unrestorable: is ephemeral, and also restored doesn't preserve url
-                window.isRestorable = false
-            }
-        }
     }
 }

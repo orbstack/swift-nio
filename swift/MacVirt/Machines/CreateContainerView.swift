@@ -196,7 +196,7 @@ struct CreateContainerView: View {
         panel.canCreateDirectories = false
         panel.message = "Select user data file for Cloud-init setup"
 
-        let window = windowHolder.window ?? NSApp.keyWindow ?? NSApp.windows.first!
+        guard let window = windowHolder.window else { return }
         panel.beginSheetModal(for: window) { result in
             if result == .OK,
                 let url = panel.url

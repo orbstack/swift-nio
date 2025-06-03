@@ -12,8 +12,6 @@ import SwiftUI
 struct K8SSettingsView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @StateObject private var windowHolder = WindowHolder()
-
     @State private var k8sEnable = false
     @State private var k8sExposeServices = false
 
@@ -72,7 +70,6 @@ struct K8SSettingsView: View {
             }
         }
         .navigationTitle("Kubernetes")
-        .windowHolder(windowHolder)
         .akAlert(isPresented: $presentConfirmResetK8sData, style: .critical) {
             "Reset Kubernetes cluster?"
             "All Kubernetes deployments, pods, services, and other data will be permanently lost."
