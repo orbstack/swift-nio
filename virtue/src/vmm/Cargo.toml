@@ -36,7 +36,7 @@ utils = { path = "../utils" }
 
 # Dependencies for amd-sev
 codicon = { version = "3.0.0", optional = true }
-kbs-types = { version = "0.5.1, < 0.5.3", features = [
+kbs-types = { version = "0.11.0", features = [
     "tee-sev",
     "tee-snp",
 ], optional = true }
