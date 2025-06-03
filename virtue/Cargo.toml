@@ -23,12 +23,3 @@ lto = "thin"
 strip = false
 # always generate debug info so we can split it (dSYM) for release
 debug = true
-
-[patch.crates-io.cc]
-git = "https://github.com/rust-lang/cc-rs.git"
-
-# We have to pin `cc` to `v1.1.31` since later versions override `-mmacosx-version-min=12.3` with
-# `--target=arm64-apple-macosx14.2`. This SDK version is unsupported by `symbolic-demangle 12.12.1`.
-#
-# According to `git bisect`, `9c663cae43d2` introduced this issue for us.
-tag = "cc-v1.1.31"
