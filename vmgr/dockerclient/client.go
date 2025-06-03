@@ -313,17 +313,20 @@ func (c *Client) Call(method, path string, body any, out any) error {
 		return ReadError(resp)
 	}
 
-	// must drain body to be able to reuse connection. json decode doesn't do that
-	// defer io.Copy(io.Discard, resp.Body)
-
 	if out != nil {
-		err = json.NewDecoder(resp.Body).Decode(out)
+		// must drain body to be able to reuse connection. json decode doesn't do that
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("read resp: %w", err)
+		}
+		err = json.Unmarshal(body, out)
 		if err != nil {
 			return fmt.Errorf("decode resp: %w", err)
 		}
 	} else {
 		// image pull doesn't work if we don't read the body
 		err = ReadStream(resp.Body)
+		io.Copy(io.Discard, resp.Body)
 		if err != nil {
 			return fmt.Errorf("read resp: %w", err)
 		}
