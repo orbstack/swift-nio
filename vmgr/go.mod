@@ -87,8 +87,8 @@ require (
 	github.com/alessio/shellescape v1.4.2
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/spf13/cobra v1.6.1
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/cobra v1.9.1
+	github.com/spf13/pflag v1.0.6 // indirect
 	golang.org/x/sync v0.12.0
 	golang.org/x/term v0.30.0
 )

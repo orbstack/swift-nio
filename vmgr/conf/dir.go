@@ -221,10 +221,6 @@ func CliXbinDir() string {
 	return MustExecutableDir() + "/xbin"
 }
 
-func CliZshCompletionsDir() string {
-	return ResourcesDir() + "/completions/zsh"
-}
-
 func CliCompletionsDir() string {
 	return ResourcesDir() + "/completions"
 }

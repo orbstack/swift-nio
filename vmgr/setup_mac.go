@@ -213,6 +213,20 @@ func shouldSymlinkApp(src, dst string) (bool, error) {
 	return oldSrc != src && strings.Contains(oldSrc, ".app/"), nil
 }
 
+func updateShellSymlink(srcPath string, destPath string) error {
+	// clear broken symlink but leave files alone
+	if err := unix.Access(destPath, unix.F_OK); errors.Is(err, unix.ENOENT) {
+		_ = os.Remove(destPath)
+	}
+
+	err := symlinkIfChanged(srcPath, destPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func writeShellProfileSnippets() error {
 	shells := conf.ShellInitDir()
 	bin := conf.UserAppBinDir()
@@ -221,7 +235,9 @@ func writeShellProfileSnippets() error {
 	// cmdlinks should probably be prepended but it causes issues with kubectl/docker/etc. overrides
 	bashSnippetBase := fmt.Sprintf(`export PATH="$PATH":%s`+"\n", shellescape.Quote(bin))
 	// completions don't work with old macOS bash 3.2, and also require bash-completion
-	bashSnippet := bashSnippetBase
+	bashSnippet := bashSnippetBase + fmt.Sprintf(`
+[[ -n "$BASH_COMPLETION" ]] && (. %s/bash/*.bash 2>/dev/null || :)
+`, shellescape.Quote(conf.CliCompletionsDir()))
 	err := util.WriteFileIfChanged(shells+"/init.bash", []byte(bashSnippet), 0644)
 	if err != nil {
 		return err
@@ -229,7 +245,7 @@ func writeShellProfileSnippets() error {
 
 	// zsh loads completions from fpath, but this must be set *before* compinit
 	// people usually put compinit in .zshrc, and init.zsh should be included in .zprofile, so it should work
-	zshSnippet := bashSnippetBase + "\nfpath+=" + shellescape.Quote(conf.CliZshCompletionsDir())
+	zshSnippet := bashSnippetBase + "\nfpath+=" + shellescape.Quote(conf.CliCompletionsDir()+"/zsh")
 	err = util.WriteFileIfChanged(shells+"/init.zsh", []byte(zshSnippet), 0644)
 	if err != nil {
 		return err
@@ -247,20 +263,17 @@ func writeShellProfileSnippets() error {
 
 	// install fish completions if ~/.config/fish exists
 	if err := unix.Access(conf.FishCompletionsDir(), unix.W_OK); err == nil {
-		// clear broken symlink but leave files alone
-		if err := unix.Access(conf.FishCompletionsDir()+"/docker.fish", unix.F_OK); errors.Is(err, unix.ENOENT) {
-			_ = os.Remove(conf.FishCompletionsDir() + "/docker.fish")
-		}
-		err = symlinkIfChanged(conf.CliCompletionsDir()+"/docker.fish", conf.FishCompletionsDir()+"/docker.fish")
+		err = updateShellSymlink(conf.CliCompletionsDir()+"/fish/docker.fish", conf.FishCompletionsDir()+"/docker.fish")
 		if err != nil {
 			return err
 		}
 
-		// clear broken symlink but leave files alone
-		if err := unix.Access(conf.FishCompletionsDir()+"/kubectl.fish", unix.F_OK); errors.Is(err, unix.ENOENT) {
-			_ = os.Remove(conf.FishCompletionsDir() + "/kubectl.fish")
+		err = updateShellSymlink(conf.CliCompletionsDir()+"/fish/kubectl.fish", conf.FishCompletionsDir()+"/kubectl.fish")
+		if err != nil {
+			return err
 		}
-		err = symlinkIfChanged(conf.CliCompletionsDir()+"/kubectl.fish", conf.FishCompletionsDir()+"/kubectl.fish")
+
+		err = updateShellSymlink(conf.CliCompletionsDir()+"/fish/orbctl.fish", conf.FishCompletionsDir()+"/orbctl.fish")
 		if err != nil {
 			return err
 		}
