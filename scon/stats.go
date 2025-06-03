@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func readCgroupStats(cgPath string, initPid int) (*types.StatsEntry, error) {
+func readCgroupStats(cgPath string, netDevPath string) (*types.StatsEntry, error) {
 	sysPath := "/sys/fs/cgroup/" + cgPath
 	stats := &types.StatsEntry{
 		ID: types.StatsID{
@@ -80,8 +80,8 @@ func readCgroupStats(cgPath string, initPid int) (*types.StatsEntry, error) {
 	}
 	stats.MemoryBytes = memoryCurrent
 
-	if initPid != 0 {
-		netDev, err := util.ReadFileFast("/proc/" + strconv.Itoa(initPid) + "/net/dev")
+	if netDevPath != "" {
+		netDev, err := util.ReadFileFast(netDevPath)
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +119,11 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 	err := m.ForEachContainer(func(c *Container) error {
 		cgPath := c.lastCgroupPath
 		if c.Running() && cgPath != "" {
-			entry, err := readCgroupStats(cgPath, c.initPid)
+			var netDevPath string
+			if c.initPid != 0 {
+				netDevPath = "/proc/" + strconv.Itoa(c.initPid) + "/net/dev"
+			}
+			entry, err := readCgroupStats(cgPath, netDevPath)
 			if err != nil {
 				if errors.Is(err, unix.ENOENT) {
 					// ignore: race - stopped
@@ -147,11 +151,16 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 
 	// 2. containers
 	dockerCgBase := dockerMachine.lastCgroupPath
+	dockerInitPid := dockerMachine.initPid
 	if dockerCgBase != "" {
 		dockerCgBase += "/" + ChildCgroupName
 		err = m.sconGuest.ForEachDockerContainer(func(ctr containerWithMeta) error {
 			ctrCgPath := dockerCgBase + "/" + ctr.CgroupPath
-			entry, err := readCgroupStats(ctrCgPath, 0)
+			var netDevPath string
+			if dockerInitPid != 0 && ctr.Pid != 0 {
+				netDevPath = "/proc/" + strconv.Itoa(dockerInitPid) + "/root/proc/" + strconv.Itoa(ctr.Pid) + "/net/dev"
+			}
+			entry, err := readCgroupStats(ctrCgPath, netDevPath)
 			if err != nil {
 				if errors.Is(err, unix.ENOENT) {
 					// ignore: race - stopped
@@ -180,7 +189,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 		// $DOCKER/init.scope = dockerd, containerd
 		// $DOCKER/k3s = k3s services
 		// $DOCKER/docker/buildkit = builds
-		entry, err := readCgroupStats(dockerCgBase+"/init.scope", 0)
+		entry, err := readCgroupStats(dockerCgBase+"/init.scope", "")
 		if err != nil {
 			if errors.Is(err, unix.ENOENT) {
 				// ignore: race - stopped
@@ -199,7 +208,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 		}
 
 		if m.k8sEnabled {
-			entry, err := readCgroupStats(dockerCgBase+"/k3s", 0)
+			entry, err := readCgroupStats(dockerCgBase+"/k3s", "")
 			if err != nil {
 				if errors.Is(err, unix.ENOENT) {
 					// ignore: race - stopped
@@ -218,7 +227,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 			}
 		}
 
-		entry, err = readCgroupStats(dockerCgBase+"/docker/buildkit", 0)
+		entry, err = readCgroupStats(dockerCgBase+"/docker/buildkit", "")
 		if err != nil {
 			if errors.Is(err, unix.ENOENT) {
 				// ignore: race - stopped

@@ -38,6 +38,7 @@ type SconGuestServer struct {
 type containerWithMeta struct {
 	dockertypes.ContainerSummaryMin
 	CgroupPath string
+	Pid        int
 }
 
 func (s *SconGuestServer) Ping(_ None, _ *None) error {
@@ -211,6 +212,7 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 		s.dockerContainersCache[ctr.ID] = containerWithMeta{
 			ContainerSummaryMin: ctr,
 			CgroupPath:          meta.CgroupPath,
+			Pid:                 meta.Pid,
 		}
 
 		procDirFdxSeq := meta.ProcDirFdxSeq

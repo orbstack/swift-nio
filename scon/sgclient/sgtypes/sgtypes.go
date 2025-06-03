@@ -66,6 +66,7 @@ type AddedContainerMeta struct {
 	RootfsFdxSeq  uint64
 	ProcDirFdxSeq uint64
 	CgroupPath    string
+	Pid           int
 }
 
 type ContainersDiff struct {

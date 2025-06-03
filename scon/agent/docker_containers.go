@@ -125,6 +125,7 @@ func (d *DockerAgent) refreshContainers() error {
 			cgroupPath = "/docker/" + fullCtr.ID
 		}
 		addedMeta[i].CgroupPath = cgroupPath
+		addedMeta[i].Pid = fullCtr.State.Pid
 	}
 
 	// tell scon
