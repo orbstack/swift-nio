@@ -17,7 +17,8 @@ struct DockerImageDetails: View {
                 // TODO: fix width constraints
                 SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("ID") {
-                        CopyableText(image.id)
+                        CopyableText(String(image.id.trimmingPrefix("sha256:").prefix(12)), copyAs: image.id)
+                            .font(.body.monospaced())
                     }
 
                     SimpleKvTableRow("Created") {
