@@ -1,5 +1,23 @@
 include scripts/Makefile.inc
 
+.PHONY: default
+default:
+	@echo "Targets:"
+	@echo "  release: Build release"
+	@echo "  all: Build all components"
+	@echo "  rootfs: Build rootfs"
+	@echo "  bins: Download binaries"
+	@echo "  vmgr: Build vmgr"
+	@echo "  scon: Build scli"
+	@echo "  k8s: Build k3s"
+	@echo "  clean: Clean all macOS build artifacts except kernel and rootfs"
+	@echo ""
+	@echo "More rarely used targets:"
+	@echo "  serve: Serve updates/ over HTTP for testing"
+	@echo "  pub: Generate Sparkle deltas and appcasts"
+	@echo "  r2: Sync updates/pub/ to R2"
+	@echo "  cdn: Sync updates/cdn/ to R2 web CDN"
+
 .PHONY: all
 all: rootfs bins vmgr scon k8s
 
@@ -30,9 +48,6 @@ release:
 	@cd rootfs; make release
 	@cd bins; make
 	@scripts/build-app.sh
-
-.PHONY: rel
-rel: release
 
 .PHONY: clean
 clean:
