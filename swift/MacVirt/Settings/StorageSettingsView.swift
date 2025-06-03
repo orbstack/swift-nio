@@ -29,7 +29,7 @@ struct StorageSettingsView: View {
 
     var body: some View {
         SettingsStateWrapperView {
-            Form {
+            SettingsForm {
                 Section {
                     Toggle(
                         isOn: vmModel.bindingForConfig(\.mountHideShared, state: $mountHideShared)
@@ -109,7 +109,6 @@ struct StorageSettingsView: View {
                     .keyboardShortcut("s")
                 }
             }
-            .formStyle(.grouped)
             .onChange(of: vmModel.config) { config in
                 if let config {
                     updateFrom(config)

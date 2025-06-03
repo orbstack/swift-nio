@@ -18,7 +18,7 @@ struct NetworkSettingsView: View {
 
     var body: some View {
         SettingsStateWrapperView {
-            Form {
+            SettingsForm {
                 Section {
                     let networkBridgeBinding = Binding {
                         networkBridge
@@ -80,7 +80,6 @@ struct NetworkSettingsView: View {
                     }
                 }
             }
-            .formStyle(.grouped)
             .onChange(of: vmModel.config) { config in
                 if let config {
                     updateFrom(config)

@@ -15,7 +15,7 @@ struct DebugSettingsView: View {
     let updaterController: SPUStandardUpdaterController
 
     var body: some View {
-        Form {
+        SettingsForm {
             Section {
                 Button(action: {
                     Defaults[.onboardingCompleted] = false
@@ -52,7 +52,6 @@ struct DebugSettingsView: View {
                 Text("Privileged Helper")
             }
         }
-        .formStyle(.grouped)
         .navigationTitle("Debug")
     }
 }

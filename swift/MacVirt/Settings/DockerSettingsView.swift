@@ -14,7 +14,7 @@ struct DockerSettingsView: View {
     @State private var configJson = "{\n}"
 
     var body: some View {
-        Form {
+        SettingsForm {
             Section {
                 Toggle(isOn: $enableIPv6) {
                     Text("Enable IPv6")
@@ -54,7 +54,6 @@ struct DockerSettingsView: View {
                 }
             }
         }
-        .formStyle(.grouped)
         .navigationTitle("Docker")
         .onAppear {
             // not MainActor: blocking sync I/O

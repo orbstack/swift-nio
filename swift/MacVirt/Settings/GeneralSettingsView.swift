@@ -15,7 +15,7 @@ struct GeneralSettingsView: View {
     @Default(.globalShowMenubarExtra) private var showMenubarExtra
 
     var body: some View {
-        Form {
+        SettingsForm {
             Section {
                 LaunchAtLogin.Toggle {
                     Text("Start at login")
@@ -38,7 +38,6 @@ struct GeneralSettingsView: View {
                 Text("Updates")
             }
         }
-        .formStyle(.grouped)
         .navigationTitle("General")
     }
 }

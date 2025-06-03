@@ -24,7 +24,7 @@ struct MachineSettingsView: View {
 
     var body: some View {
         SettingsStateWrapperView {
-            Form {
+            SettingsForm {
                 Section {
                     let systemMemMib = ProcessInfo.processInfo.physicalMemory / 1024 / 1024
                     // 80% or (max - 4 GiB), whichever is greater
@@ -116,7 +116,6 @@ struct MachineSettingsView: View {
                     .keyboardShortcut("s")
                 }
             }
-            .formStyle(.grouped)
             .onChange(of: vmModel.config) { config in
                 if let config {
                     updateFrom(config)
