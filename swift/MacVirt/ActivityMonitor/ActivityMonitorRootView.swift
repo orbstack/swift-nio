@@ -189,7 +189,7 @@ private struct HistoryGraph: View {
         ).alignUp(to: alignTo)
 
         VStack(alignment: .leading) {
-            let title = isTotal ? "Total \(name):" : "\(name) (selected):"
+            let title = isTotal ? "\(name):" : "\(name) (selected):"
             HStack(alignment: .center) {
                 Text(title)
                     .font(.headline)
