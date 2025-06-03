@@ -113,41 +113,39 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
             Divider()
 
             Group {
-                Menu("Copy") {
-                    Button(action: {
-                        NSPasteboard.copy(service.name)
-                    }) {
-                        Label("Name", systemImage: "")
+                Button(action: {
+                    NSPasteboard.copy(service.name)
+                }) {
+                    Label("Copy Name", systemImage: "")
+                }
+
+                Button(action: {
+                    NSPasteboard.copy(
+                        service.wrapURL(host: service.preferredDomain)
+                            ?? service.preferredDomainAndPort)
+                }) {
+                    Label("Copy Domain", systemImage: "")
+                }.disabled(vmModel.config?.networkBridge == false)
+
+                let clusterIP = service.spec.clusterIP
+                Button(action: {
+                    if let clusterIP {
+                        NSPasteboard.copy(clusterIP)
                     }
+                }) {
+                    Label("Copy Cluster IP", systemImage: "")
+                }.disabled(clusterIP == nil)
 
+                /*
+                    let externalIP = service.externalIP
                     Button(action: {
-                        NSPasteboard.copy(
-                            service.wrapURL(host: service.preferredDomain)
-                                ?? service.preferredDomainAndPort)
-                    }) {
-                        Label("Domain", systemImage: "")
-                    }.disabled(vmModel.config?.networkBridge == false)
-
-                    let clusterIP = service.spec.clusterIP
-                    Button(action: {
-                        if let clusterIP {
-                            NSPasteboard.copy(clusterIP)
+                        if let externalIP {
+                            NSPasteboard.copy(externalIP)
                         }
                     }) {
-                        Label("Cluster IP", systemImage: "")
-                    }.disabled(clusterIP == nil)
-
-                    /*
-                     let externalIP = service.externalIP
-                     Button(action: {
-                         if let externalIP {
-                             NSPasteboard.copy(externalIP)
-                         }
-                     }) {
-                         Label("External IP", systemImage: "")
-                     }.disabled(externalIP == nil)
-                      */
-                }
+                        Label("Copy External IP", systemImage: "")
+                    }.disabled(externalIP == nil)
+                    */
             }
         }
     }

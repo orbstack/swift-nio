@@ -18,12 +18,25 @@ struct MachineDetails: View {
             DetailsSection("Info") {
                 // match Image section
                 SimpleKvTable(longestLabel: "Architecture") {
+                    SimpleKvTableRow("Name") {
+                        CopyableText(info.record.name)
+                    }
+
                     SimpleKvTableRow("Status") {
                         Text(info.record.state.friendlyName)
                     }
-                    SimpleKvTableRow("Domain") {
-                        CopyableText("\(info.record.name).orb.local")
-                            .lineLimit(1)
+
+                    let domain = "\(info.record.name).orb.local"
+                    if let url = URL(string: "http://\(domain)") {
+                        SimpleKvTableRow("Domain") {
+                            if vmModel.netBridgeAvailable {
+                                CopyableText(copyAs: domain) {
+                                    CustomLink(domain, url: url)
+                                }
+                            } else {
+                                CopyableText(domain)
+                            }
+                        }
                     }
                 }
             }

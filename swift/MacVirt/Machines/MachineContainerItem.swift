@@ -171,7 +171,7 @@ struct MachineContainerItem: View {
             if selection.count <= 1 {
                 Divider()
 
-                Button("Copy Address") {
+                Button("Copy Domain") {
                     NSPasteboard.copy("\(record.name).orb.local")
                 }.disabled(!running || !vmModel.netBridgeAvailable)
             }

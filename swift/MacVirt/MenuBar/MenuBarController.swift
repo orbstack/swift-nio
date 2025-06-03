@@ -479,7 +479,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if let ipAddress = container.ipAddress {
             if vmModel.netBridgeAvailable {
                 if let domain = container.preferredDomain {
-                    submenu.addActionItem("Address: \(domain)", icon: systemImage("doc.on.doc")) {
+                    submenu.addActionItem("Domain: \(domain)", icon: systemImage("doc.on.doc")) {
                         // copy it. Open in Browser is for opening
                         NSPasteboard.copy(domain)
                     }

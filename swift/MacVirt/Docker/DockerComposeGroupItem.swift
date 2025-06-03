@@ -169,8 +169,26 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
             Divider()
 
-            Button("Show Logs") {
-                composeGroup.showLogs(windowTracker: windowTracker)
+            let projectPath = firstChild?.composeConfigFiles?.first
+            Group {
+                Button("Open Logs") {
+                    composeGroup.showLogs(windowTracker: windowTracker)
+                }
+
+                if let projectPath {
+                    Button(action: {
+                        let parentDir = URL(fileURLWithPath: projectPath)
+                            .deletingLastPathComponent().path
+                        NSWorkspace.shared.selectFile(
+                            projectPath, inFileViewerRootedAtPath: parentDir)
+                    }) {
+                        Label("Show in Finder", systemImage: "")
+                    }
+                } else {
+                    Button("Show in Finder") {
+                        // no-op
+                    }.disabled(true)
+                }
             }
 
             Divider()
@@ -182,21 +200,16 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                     Label("Copy Name", systemImage: "")
                 }
 
-                if let projectPath = firstChild?.composeConfigFiles?.first {
+                if let projectPath {
                     Button(action: {
                         NSPasteboard.copy(projectPath)
                     }) {
                         Label("Copy Path", systemImage: "")
                     }
-
-                    Button(action: {
-                        let parentDir = URL(fileURLWithPath: projectPath)
-                            .deletingLastPathComponent().path
-                        NSWorkspace.shared.selectFile(
-                            projectPath, inFileViewerRootedAtPath: parentDir)
-                    }) {
-                        Label("Show in Finder", systemImage: "")
-                    }
+                } else {
+                    Button("Copy Path") {
+                        // no-op
+                    }.disabled(true)
                 }
             }
         }

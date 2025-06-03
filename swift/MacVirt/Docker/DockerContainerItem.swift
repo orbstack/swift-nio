@@ -264,7 +264,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 Button(action: {
                     container.showLogs(windowTracker: windowTracker)
                 }) {
-                    Label("Show Logs", systemImage: "")
+                    Label("Open Logs", systemImage: "")
                 }
 
                 Button(action: {
@@ -337,25 +337,34 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             Divider()
 
             Group {
-                Menu("Copy") {
-                    Button(action: {
-                        NSPasteboard.copy(container.id)
-                    }) {
-                        Label("ID", systemImage: "doc.on.doc")
-                    }
+                Button(action: {
+                    NSPasteboard.copy(container.id)
+                }) {
+                    Label("Copy ID", systemImage: "doc.on.doc")
+                }
 
-                    Button(action: {
-                        NSPasteboard.copy(container.nameOrId)
-                    }) {
-                        Label("Name", systemImage: "doc.on.doc")
-                    }
+                Button(action: {
+                    NSPasteboard.copy(container.nameOrId)
+                }) {
+                    Label("Copy Name", systemImage: "doc.on.doc")
+                }
 
-                    Button(action: {
-                        NSPasteboard.copy(container.image)
-                    }) {
-                        Label("Image", systemImage: "doc.on.doc")
-                    }
+                Button(action: {
+                    NSPasteboard.copy(container.image)
+                }) {
+                    Label("Copy Image", systemImage: "doc.on.doc")
+                }
 
+                let preferredDomain = container.preferredDomain
+                Button(action: {
+                    if let preferredDomain {
+                        NSPasteboard.copy(preferredDomain)
+                    }
+                }) {
+                    Label("Copy Domain", systemImage: "doc.on.doc")
+                }.disabled(!vmModel.netBridgeAvailable || preferredDomain == nil)
+
+                Menu("Copy…") {
                     Button(action: {
                         Task { @MainActor in
                             await container.copyRunCommand()
@@ -363,15 +372,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     }) {
                         Label("Command", systemImage: "doc.on.doc")
                     }
-
-                    let preferredDomain = container.preferredDomain
-                    Button(action: {
-                        if let preferredDomain {
-                            NSPasteboard.copy(preferredDomain)
-                        }
-                    }) {
-                        Label("Domain", systemImage: "doc.on.doc")
-                    }.disabled(!vmModel.netBridgeAvailable || preferredDomain == nil)
 
                     let ipAddress = container.ipAddress
                     Button(action: {

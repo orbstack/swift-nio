@@ -120,7 +120,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                 Button(action: {
                     pod.showLogs(windowTracker: windowTracker)
                 }) {
-                    Label("Show Logs", systemImage: "")
+                    Label("Open Logs", systemImage: "")
                 }
 
                 Button(action: {
@@ -143,28 +143,26 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             Divider()
 
             Group {
-                Menu("Copy") {
-                    Button(action: {
-                        NSPasteboard.copy(pod.name)
-                    }) {
-                        Label("Name", systemImage: "")
-                    }
-
-                    Button(action: {
-                        NSPasteboard.copy(pod.preferredDomain)
-                    }) {
-                        Label("Domain", systemImage: "")
-                    }.disabled(vmModel.config?.networkBridge == false)
-
-                    let ipAddress = pod.status.podIP
-                    Button(action: {
-                        if let ipAddress {
-                            NSPasteboard.copy(ipAddress)
-                        }
-                    }) {
-                        Label("IP", systemImage: "")
-                    }.disabled(ipAddress == nil)
+                Button(action: {
+                    NSPasteboard.copy(pod.name)
+                }) {
+                    Label("Copy Name", systemImage: "")
                 }
+
+                Button(action: {
+                    NSPasteboard.copy(pod.preferredDomain)
+                }) {
+                    Label("Copy Domain", systemImage: "")
+                }.disabled(vmModel.config?.networkBridge == false)
+
+                let ipAddress = pod.status.podIP
+                Button(action: {
+                    if let ipAddress {
+                        NSPasteboard.copy(ipAddress)
+                    }
+                }) {
+                    Label("Copy IP", systemImage: "")
+                }.disabled(ipAddress == nil)
             }
         }
     }

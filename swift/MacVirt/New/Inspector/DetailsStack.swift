@@ -22,7 +22,7 @@ struct DetailsStack<Content: View>: View {
             Spacer()
         }
         // toolbar is transparent, but border appears on scroll
-        .padding(20)
+        .padding(16)
     }
 }
 

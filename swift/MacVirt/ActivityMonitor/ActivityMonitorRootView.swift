@@ -592,7 +592,7 @@ struct ActivityMonitorRootView: View {
                                 formatter: { formatDiskRwBytes(Int64($0)) }
                             )
                         }
-                        .padding(20)
+                        .padding(16)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

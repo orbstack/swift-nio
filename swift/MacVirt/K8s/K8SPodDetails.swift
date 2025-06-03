@@ -36,12 +36,14 @@ struct K8SPodDetails: View {
                     if let ipAddress,
                         let url = URL(string: "http://\(domain)")
                     {
-                        SimpleKvTableRow("Domain") {
-                            if vmModel.netBridgeAvailable {
+                        if vmModel.netBridgeAvailable {
+                            SimpleKvTableRow("IP") {
                                 CopyableText(copyAs: domain) {
                                     CustomLink(domain, url: url)
                                 }
-                            } else {
+                            }
+                        } else {
+                            SimpleKvTableRow("IP") {
                                 CopyableText(ipAddress)
                             }
                         }

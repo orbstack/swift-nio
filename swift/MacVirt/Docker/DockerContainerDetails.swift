@@ -17,17 +17,14 @@ struct DockerContainerDetails: View {
 
             DetailsSection("Info") {
                 SimpleKvTable(longestLabel: "Domain") {
-                    let domain = container.preferredDomain
-                    let ipAddress = container.ipAddress
+                    SimpleKvTableRow("ID") {
+                        CopyableText(String(container.id.prefix(12)), copyAs: container.id)
+                            .font(.body.monospaced())
+                    }
 
                     SimpleKvTableRow("Status") {
                         Text(container.status)
                             .lineLimit(nil)
-                    }
-
-                    SimpleKvTableRow("ID") {
-                        CopyableText(String(container.id.prefix(12)), copyAs: container.id)
-                            .font(.body.monospaced())
                     }
 
                     SimpleKvTableRow("Image") {
@@ -37,16 +34,18 @@ struct DockerContainerDetails: View {
                     }
 
                     // needs to be running w/ ip to have domain
-                    if let ipAddress,
-                        let domain,
+                    if let ipAddress = container.ipAddress,
+                        let domain = container.preferredDomain,
                         let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
                     {
-                        SimpleKvTableRow("Domain") {
-                            if vmModel.netBridgeAvailable {
+                        if vmModel.netBridgeAvailable {
+                            SimpleKvTableRow("Domain") {
                                 CopyableText(copyAs: domain) {
                                     CustomLink(domain, url: url)
                                 }
-                            } else {
+                            }
+                        } else {
+                            SimpleKvTableRow("IP") {
                                 CopyableText(ipAddress)
                             }
                         }
