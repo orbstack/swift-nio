@@ -354,12 +354,7 @@ private struct HistoryGraph: View {
                 }
             }
         }
-        let max = max(
-            maxValue,
-            items.max(by: {
-                $0.value ?? 0 < $1.value ?? 0
-            })?.value ?? 0
-        ).alignUp(to: alignTo)
+
         return (items, isTotal)
     }
 }
@@ -406,9 +401,10 @@ struct ActivityMonitorRootView: View {
                 AKSection.single(model.items), selection: $selection, sort: $sort,
                 rowHeight: 24,
                 flat: false, expandByDefault: true,
-                // autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
+                autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
                 columns: [
-                    akColumn(id: Columns.name, title: "Name", width: 175, alignment: .left) {
+                    // takes all remaining space
+                    akColumn(id: Columns.name, title: "Name", width: 150, alignment: .left) {
                         item in
                         HStack(spacing: 6) {
                             switch item.entity {
