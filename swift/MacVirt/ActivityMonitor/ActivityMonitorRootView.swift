@@ -370,6 +370,7 @@ private let memoryByteCountFormatter = {
     formatter.allowsNonnumericFormatting = false // "Zero KB" -> "0 KB"
     // no "bytes" because it's too long
     formatter.allowedUnits = [.useKB, .useMB, .useGB, .useTB, .usePB, .useEB, .useZB, .useYBOrHigher]
+    formatter.countStyle = .decimal // so we never get 4-digit numbers between 1000-1023 (shorter for UI)
     return formatter
 }()
 
@@ -482,7 +483,7 @@ struct ActivityMonitorRootView: View {
                         }
                     },
                     akColumn(
-                        id: Columns.cpuPercent, title: "CPU %", width: 75, alignment: .right
+                        id: Columns.cpuPercent, title: "CPU %", width: 56, alignment: .right
                     ) {
                         item in
                         if let cpuPercent = item.cpuPercent {
@@ -491,13 +492,13 @@ struct ActivityMonitorRootView: View {
                         }
                     },
                     akColumn(
-                        id: Columns.memoryBytes, title: "Memory", width: 75, alignment: .right
+                        id: Columns.memoryBytes, title: "Memory", width: 72, alignment: .right
                     ) { item in
                         Text(formatMemoryBytes(Int64(item.memoryBytes)))
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     },
                     akColumn(
-                        id: Columns.netRxTxBytes, title: "Network", width: 75, alignment: .right
+                        id: Columns.netRxTxBytes, title: "Network", width: 72, alignment: .right
                     ) { item in
                         if let netRxTxBytes = item.netRxTxBytes {
                             Text(formatNetRxTxBytes(Int64(netRxTxBytes)))
@@ -505,7 +506,7 @@ struct ActivityMonitorRootView: View {
                         }
                     },
                     akColumn(
-                        id: Columns.diskRwBytes, title: "Disk", width: 75, alignment: .right
+                        id: Columns.diskRwBytes, title: "Disk", width: 72, alignment: .right
                     ) {
                         item in
                         if let diskRwBytes = item.diskRwBytes {
@@ -906,9 +907,6 @@ private class ActivityMonitorViewModel: ObservableObject {
             } else {
                 UInt64?(nil)
             }
-        if case .machine = entry.entity {
-            print("machine: \(entry)")
-        }
 
         let diskRwBytes =
             if let tracked,
