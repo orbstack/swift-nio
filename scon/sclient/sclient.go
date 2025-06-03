@@ -209,3 +209,11 @@ func (c *SconClient) InternalDeleteK8s() error {
 func (c *SconClient) InternalGuiReportStarted() error {
 	return c.rpc.CallResult(context.TODO(), "InternalGuiReportStarted", nil, &noResult)
 }
+
+func (c *SconClient) InternalDockerExportVolumeToHostPath(req types.InternalDockerExportVolumeToHostPathRequest) error {
+	return c.rpc.CallResult(context.TODO(), "InternalDockerExportVolumeToHostPath", req, &noResult)
+}
+
+func (c *SconClient) InternalDockerImportVolumeFromHostPath(req types.InternalDockerImportVolumeFromHostPathRequest) error {
+	return c.rpc.CallResult(context.TODO(), "InternalDockerImportVolumeFromHostPath", req, &noResult)
+}
