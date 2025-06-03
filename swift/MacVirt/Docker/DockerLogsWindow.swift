@@ -228,10 +228,10 @@ private class LogsViewModel: ObservableObject {
 
     @MainActor
     func start(cmdExe: String, args: [String], clearAndRestart: Bool = false) {
-        NSLog("Starting log stream: cmdExe=\(cmdExe), args=\(args)")
-
         // reset first
         stop()
+
+        NSLog("Starting log stream: cmdExe=\(cmdExe), args=\(args)")
         lastAnsiState = AnsiState()
         lastCmdExe = cmdExe
         lastArgs = args
@@ -287,13 +287,12 @@ private class LogsViewModel: ObservableObject {
             }
         }
 
-        let spawnedPid = task.processIdentifier
         task.terminationHandler = { process in
             let status = process.terminationStatus
             let reason = process.terminationReason
 
             // mark as exited for restarting on container state change
-            if process.processIdentifier == spawnedPid {
+            if self.process?.processIdentifier == process.processIdentifier {
                 self.process = nil
             }
 
@@ -332,8 +331,8 @@ private class LogsViewModel: ObservableObject {
 
     @MainActor
     func restart() {
+        NSLog("Restarting log stream: cmdExe=\(lastCmdExe), args=\(lastArgs)")
         if let lastCmdExe, let lastArgs {
-            NSLog("Restarting log stream: cmdExe=\(lastCmdExe), args=\(lastArgs)")
             start(cmdExe: lastCmdExe, args: lastArgs)
         }
     }
@@ -717,8 +716,7 @@ private struct DockerLogsContentView: View {
     var body: some View {
         DockerStateWrapperView(\.dockerContainers) { containers, _ in
             if allDisabled {
-                ContentUnavailableViewCompat(
-                    "Container Removed", systemImage: "trash", desc: "No logs available.")
+                ContentUnavailableViewCompat("No Containers Selected", systemImage: "moon.zzz")
             } else if case let .container(containerId) = cid,
                 let container = containers.byId[containerId]
             {
