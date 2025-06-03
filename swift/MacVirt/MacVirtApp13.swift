@@ -133,6 +133,10 @@ struct MacVirtApp13: App {
                             vmModel.menuActionRouter.send(.openImages)
                         }
                         .keyboardShortcut("o")
+                        Button("Import Image") {
+                            vmModel.menuActionRouter.send(.importImage)
+                        }
+                        .keyboardShortcut("i")
                     case .machines:
                         Divider()
                         Button("New Machine") {

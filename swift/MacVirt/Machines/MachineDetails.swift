@@ -29,7 +29,7 @@ struct MachineDetails: View {
                     let domain = "\(info.record.name).orb.local"
                     if let url = URL(string: "http://\(domain)") {
                         SimpleKvTableRow("Domain") {
-                            if vmModel.netBridgeAvailable {
+                            if info.record.running && vmModel.netBridgeAvailable {
                                 CopyableText(copyAs: domain) {
                                     CustomLink(domain, url: url)
                                 }

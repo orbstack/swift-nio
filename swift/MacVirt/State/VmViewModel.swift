@@ -22,6 +22,7 @@ enum MenuActionRouter {
     case openImages
     case importMachine
     case importVolume
+    case importImage
     case newMachine
 }
 

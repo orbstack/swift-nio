@@ -173,7 +173,7 @@ struct MachineContainerItem: View {
 
                 Button("Copy Domain") {
                     NSPasteboard.copy("\(record.name).orb.local")
-                }.disabled(!running || !vmModel.netBridgeAvailable)
+                }
             }
         }
         .confirmationDialog(

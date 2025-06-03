@@ -235,8 +235,8 @@ private struct HistoryGraph: View {
             }
             .frame(height: 100)
             .padding(.bottom, 1)  // fix zero line getting clipped
-            .clipped()  // if values > max, Swift Charts draws out of bounds
-            .border(.gray.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 4))  // if values > max, Swift Charts draws out of bounds
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(.gray.opacity(0.5), lineWidth: 1))
         }
     }
 
