@@ -28,7 +28,7 @@ private class MigrationViewModel: ObservableObject {
             let task = Process()
             task.launchPath = AppConfig.ctlExe
             // force: we do existing-data check in GUI
-            task.arguments = ["migrate", "docker", "--format", "json", "--force"]
+            task.arguments = ["docker", "migrate", "--format", "json", "--force"]
 
             let pipe = Pipe()
             task.standardOutput = pipe

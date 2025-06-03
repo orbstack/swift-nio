@@ -10,6 +10,9 @@ func init() {
 
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
-	Short: "Migrate data from Docker Desktop to OrbStack",
-	Long:  `Migrate data from Docker Desktop to OrbStack.`,
+	Short: "Migrate data to or from OrbStack",
+	Long:  `Migrate data to or from OrbStack.`,
+
+	// deprecated alias
+	Hidden: true,
 }

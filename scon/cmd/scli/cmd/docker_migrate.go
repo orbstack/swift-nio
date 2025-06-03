@@ -12,6 +12,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	// flagFromContext string
+	flagImages     bool
+	flagContainers bool
+	flagVolumes    bool
+)
+
 func init() {
 	dockerCmd.AddCommand(dockerMigrateCmd)
 	// dockerMigrateCmd.Flags().StringVar(&flagFromContext, "from-context", "desktop-linux", "Context to migrate from")
