@@ -17,8 +17,9 @@ var k8sCmd = &cobra.Command{
 	Short:   "Show commands for using Kubernetes",
 	Long: `Show commands and instructions for using Kubernetes.
 `,
-	Example: "  " + rootCmd.Use + " k8s",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " k8s",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/images"
@@ -32,6 +33,14 @@ func init() {
 	if conf.Debug() {
 		createCmd.Flags().BoolVarP(&flagBoxed, "boxed", "b", false, "Create a boxed machine (no integration)")
 	}
+
+	createCmd.RegisterFlagCompletionFunc("user", completions.LocalUsername)
+	createCmd.RegisterFlagCompletionFunc("arch", func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+		return images.Archs(), cobra.ShellCompDirectiveNoFileComp
+	})
+	createCmd.RegisterFlagCompletionFunc("user-data", func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+		return []cobra.Completion{"yaml", "yml", "json"}, cobra.ShellCompDirectiveFilterFileExt
+	})
 }
 
 var createCmd = &cobra.Command{
@@ -51,7 +60,8 @@ Supported CPU architectures: ` + strings.Join(images.Archs(), "  ") + `
 `,
 	Example: `  orb create -a arm64 ubuntu:mantic
   orb create -a amd64 fedora foo`,
-	Args: cobra.RangeArgs(1, 2),
+	Args:              cobra.RangeArgs(1, 2),
+	ValidArgsFunction: completions.TwoArgs(completions.MachineImage, completions.Machines),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// validate arch
 		arch := images.NativeArch()

@@ -16,8 +16,9 @@ var logoutCmd = &cobra.Command{
 	Short:   "Log out of your OrbStack account",
 	Long: `Log out of your OrbStack account, if logged in.
 `,
-	Example: "  " + rootCmd.Use + " logout",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " logout",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := drmcore.SaveRefreshToken("")
 		checkCLI(err)

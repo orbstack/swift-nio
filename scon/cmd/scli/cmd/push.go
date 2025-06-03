@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
 	"github.com/orbstack/macvirt/vmgr/conf/sshpath"
@@ -13,6 +14,7 @@ import (
 func init() {
 	rootCmd.AddCommand(pushCmd)
 	pushCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Copy to a specific machine")
+	pushCmd.RegisterFlagCompletionFunc("machine", completions.Machines)
 }
 
 var pushCmd = &cobra.Command{

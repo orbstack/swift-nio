@@ -32,8 +32,9 @@ If there are no updates, this command will do nothing.
 Updating is important to get the latest improvements, features, and security fixes.
 This includes the Linux kernel, Docker, the CLI, GUI app, and other components.
 `,
-	Example: "  " + rootCmd.Use + " update",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " update",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(_ *cobra.Command, args []string) error {
 		bundlePath, err := conf.FindAppBundle()
 		checkCLI(err)

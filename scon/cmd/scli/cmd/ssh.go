@@ -23,8 +23,9 @@ var sshCmd = &cobra.Command{
 	Long: `Show commands and instructions for connecting to Linux via SSH.
 Useful for remote editing (e.g. Visual Studio Code) or for connecting from another device.
 `,
-	Example: "  " + rootCmd.Use + " ssh",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " ssh",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 

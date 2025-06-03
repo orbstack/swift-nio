@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
@@ -15,8 +16,9 @@ var renameCmd = &cobra.Command{
 	Short:   "Rename a machine",
 	Long: `Rename the specified machine.
 `,
-	Example: "  " + rootCmd.Use + " rename ubuntu testubuntu",
-	Args:    cobra.ExactArgs(2),
+	Example:           "  " + rootCmd.Use + " rename ubuntu testubuntu",
+	Args:              cobra.ExactArgs(2),
+	ValidArgsFunction: completions.Limit(2, completions.Machines),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 

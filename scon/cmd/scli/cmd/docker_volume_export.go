@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
@@ -21,8 +22,9 @@ var dockerVolumeExportCmd = &cobra.Command{
 
 The archive can be imported with the "` + rootCmd.Use + ` docker volume import" command.
 `,
-	Example: "  " + rootCmd.Use + " docker volume export example example.tar.zst",
-	Args:    cobra.ExactArgs(2),
+	Example:           "  " + rootCmd.Use + " docker volume export example example.tar.zst",
+	Args:              cobra.ExactArgs(2),
+	ValidArgsFunction: completions.TwoArgs(completions.DockerVolumes, completions.FileExtensionTarZst),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		volumeName := args[0]
 		outputPath := args[1]

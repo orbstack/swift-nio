@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/wormclient"
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/sshenv"
@@ -33,6 +34,12 @@ func init() {
 	debugCmd.Flags().StringVarP(&flagContext, "context", "c", "", "Set the Docker context for remote debugging")
 	debugCmd.Flags().BoolVarP(&flagFallback, "fallback", "f", false, "Fallback to 'docker exec' if no Pro license")
 	debugCmd.Flags().BoolVar(&flagReset, "reset", false, "Resets Debug Shell data")
+
+	debugCmd.MarkFlagsMutuallyExclusive("reset", "fallback")
+	debugCmd.MarkFlagsMutuallyExclusive("reset", "workdir")
+
+	debugCmd.RegisterFlagCompletionFunc("workdir", completions.RemoteDirectoryDocker)
+	debugCmd.RegisterFlagCompletionFunc("context", completions.DockerContext)
 }
 
 func ParseDebugFlags(args []string) ([]string, *string, error) {
@@ -120,7 +127,7 @@ func fallbackDockerExec(containerID string) error {
 
 var debugCmd = &cobra.Command{
 	GroupID: groupContainers,
-	Use:     "debug [flags] -- [COMMAND] [ARGS]...",
+	Use:     "debug [flags] [CONTAINER_NAME_OR_ID] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"wormhole"},
 	Short:   "Debug a Docker container with extra commands",
 	Long: `Debug a Docker container, with useful commands and tools that make it easy to debug any container (even minimal, distroless, and read-only containers).
@@ -131,6 +138,16 @@ Pro only: requires an OrbStack Pro license.
 `,
 	Example: "  " + rootCmd.Use + " debug mysql1",
 	Args:    cobra.ArbitraryArgs,
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+		if len(args) == 0 {
+			return completions.DockerContainers(cmd, args, toComplete)
+		} else if len(args) >= 1 && (args[len(args)-1] == "-c" || args[len(args)-1] == "--context") {
+			// DisableFlagParsing, so this is our job
+			return completions.DockerContext(cmd, args, toComplete)
+		}
+
+		return nil, cobra.ShellCompDirectiveDefault
+	},
 
 	// custom flag parsing - so we don't rely on --
 	DisableFlagParsing: true,

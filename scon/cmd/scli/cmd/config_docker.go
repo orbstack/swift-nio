@@ -25,8 +25,9 @@ var configDockerCmd = &cobra.Command{
 This will open ~/.orbstack/config/docker.json in your default command line text editor ($EDITOR).
 If changes are made, the Docker engine will be restarted.
 `,
-	Example: "  " + rootCmd.Use + " docker",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " docker",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configPath := conf.DockerDaemonConfig()
 		preferredEditor := os.Getenv("EDITOR")

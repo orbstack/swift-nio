@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
@@ -30,6 +32,10 @@ func init() {
 	runCmd.Flags().StringVarP(&flagWorkdir, "workdir", "w", "", "Set the working directory")
 	runCmd.Flags().BoolVarP(&flagUseShell, "shell", "s", false, "Use the login shell instead of running command directly")
 	runCmd.Flags().BoolVarP(&flagUsePath, "path", "p", false, "Translate absolute macOS paths to Linux paths")
+
+	runCmd.RegisterFlagCompletionFunc("machine", completions.Machines)
+	runCmd.RegisterFlagCompletionFunc("user", completions.RemoteUsername)
+	runCmd.RegisterFlagCompletionFunc("workdir", completions.RemoteDirectorySSH)
 }
 
 func ParseRunFlags(args []string) ([]string, error) {
@@ -138,6 +144,20 @@ To be explicit, prefix Linux paths with /mnt/linux and macOS paths with /mnt/mac
 `,
 	Example: "  " + rootCmd.Use + " run ls",
 	Args:    cobra.ArbitraryArgs,
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+		// DisableFlagParsing, so this is our job
+		if len(args) >= 1 && !slices.Contains(args, "--") {
+			lastArg := args[len(args)-1]
+			if lastArg == "-m" || lastArg == "--machine" {
+				return completions.Machines(cmd, args, toComplete)
+			} else if lastArg == "-u" || lastArg == "--user" {
+				return completions.RemoteUsername(cmd, args, toComplete)
+			} else if lastArg == "-w" || lastArg == "--workdir" {
+				return completions.RemoteDirectorySSH(cmd, args, toComplete)
+			}
+		}
+		return completions.RemoteShellCommand(cmd, args, toComplete)
+	},
 
 	// custom flag parsing - so we don't rely on --
 	DisableFlagParsing: true,

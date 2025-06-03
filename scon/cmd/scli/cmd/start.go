@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
@@ -25,8 +26,9 @@ var startCmd = &cobra.Command{
 
 If no machines are specified, the command will start all machines that were running when it was last stopped.
 `,
-	Example: "  " + rootCmd.Use + " start ubuntu",
-	Args:    cobra.ArbitraryArgs,
+	Example:           "  " + rootCmd.Use + " start ubuntu",
+	Args:              cobra.ArbitraryArgs,
+	ValidArgsFunction: completions.MachinesOrAll,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var containerNames []string
 		if flagAll {

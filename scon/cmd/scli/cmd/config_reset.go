@@ -17,8 +17,9 @@ var configResetCmd = &cobra.Command{
 
 Some options will only take effect after restarting the virtual machine.
 `,
-	Example: "  " + rootCmd.Use + " reset",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " reset",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureVMWithSpinner()
 		err := vmclient.Client().ResetConfig()

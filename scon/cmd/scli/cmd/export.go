@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
@@ -21,8 +22,9 @@ var exportCmd = &cobra.Command{
 
 To prevent data corruption, the existing machine will be paused while exporting.
 `,
-	Example: `  orb export ubuntu foo.tar.zst`,
-	Args:    cobra.ExactArgs(2),
+	Example:           `  orb export ubuntu foo.tar.zst`,
+	Args:              cobra.ExactArgs(2),
+	ValidArgsFunction: completions.TwoArgs(completions.Machines, completions.FileExtensionTarZst),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		oldNameOrID := args[0]
 		outputPath := args[1]

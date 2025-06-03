@@ -23,8 +23,9 @@ Returns one of the following statuses and exit codes:
   Starting: status 2
   Stopped: status 1
 `,
-	Example: "  " + rootCmd.Use + " status",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " status",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if vmclient.IsRunning() {
 			isSconRunning, err := vmclient.IsSconRunning()

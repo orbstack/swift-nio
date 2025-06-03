@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/shell"
 	"github.com/orbstack/macvirt/vmgr/conf/sshpath"
@@ -13,11 +14,12 @@ import (
 func init() {
 	rootCmd.AddCommand(pullCmd)
 	pullCmd.Flags().StringVarP(&flagMachine, "machine", "m", "", "Copy to a specific machine")
+	pullCmd.RegisterFlagCompletionFunc("machine", completions.Machines)
 }
 
 var pullCmd = &cobra.Command{
 	GroupID: groupMachines,
-	Use:     "pull [flags] macOS-source... [Linux-dest]",
+	Use:     "pull [flags] Linux-source... [macOS-dest]",
 	Short:   "Copy files from Linux",
 	Long: `Copy files from Linux to macOS.
 

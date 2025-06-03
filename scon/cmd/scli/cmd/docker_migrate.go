@@ -27,6 +27,7 @@ func init() {
 	dockerMigrateCmd.Flags().BoolVarP(&flagVolumes, "volumes", "v", true, "Migrate volumes")
 	dockerMigrateCmd.Flags().BoolVarP(&flagAll, "all", "a", false, "Disable filters and migrate everything")
 	dockerMigrateCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force migration even if OrbStack already has data")
+
 	// no shorthand, only for gui use
 	dockerMigrateCmd.Flags().StringVar(&flagFormat, "format", "text", "Output format")
 	dockerMigrateCmd.Flags().MarkHidden("format")
@@ -38,8 +39,9 @@ var dockerMigrateCmd = &cobra.Command{
 	Short: "Migrate containers, volumes, and images from Docker Desktop",
 	Long: `Migrate containers, volumes, images, and other data from Docker Desktop to OrbStack.
 `,
-	Example: "  " + rootCmd.Use + " docker migrate",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " docker migrate",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if flagFormat == "json" {
 			logrus.SetFormatter(&logrus.JSONFormatter{})

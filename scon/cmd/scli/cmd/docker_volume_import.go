@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
@@ -13,6 +14,8 @@ import (
 func init() {
 	dockerVolumeCmd.AddCommand(dockerVolumeImportCmd)
 	dockerVolumeImportCmd.Flags().StringVarP(&flagName, "name", "n", "", "Name of the new volume (default: same as original volume)")
+
+	dockerVolumeImportCmd.RegisterFlagCompletionFunc("name", completions.DockerVolumes)
 }
 
 var dockerVolumeImportCmd = &cobra.Command{
@@ -22,8 +25,9 @@ var dockerVolumeImportCmd = &cobra.Command{
 
 The archive must have been created with the "` + rootCmd.Use + ` docker volume export" command.
 `,
-	Example: "  " + rootCmd.Use + " docker volume import my-volume.tar.zst",
-	Args:    cobra.ExactArgs(1),
+	Example:           "  " + rootCmd.Use + " docker volume import my-volume.tar.zst",
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: completions.Limit(1, completions.FileExtensionTarZst),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		inputPath := args[0]
 

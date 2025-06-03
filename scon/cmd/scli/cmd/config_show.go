@@ -22,8 +22,9 @@ var configShowCmd = &cobra.Command{
 	Short: "Show current configuration",
 	Long: `Show the current configuration for the Linux virtual machine.
 `,
-	Example: "  " + rootCmd.Use + " show",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " show",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 		config, err := vmclient.Client().GetConfig()

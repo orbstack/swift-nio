@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
@@ -21,8 +22,9 @@ var restartCmd = &cobra.Command{
 	Short:   "Restart a machine",
 	Long: `Restart the specified machine(s), by ID or name.
 `,
-	Example: "  " + rootCmd.Use + " restart ubuntu",
-	Args:    cobra.ArbitraryArgs,
+	Example:           "  " + rootCmd.Use + " restart ubuntu",
+	Args:              cobra.ArbitraryArgs,
+	ValidArgsFunction: completions.MachinesOrAll,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !vmclient.IsRunning() {
 			cmd.PrintErrln("OrbStack is not running")

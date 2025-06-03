@@ -4,13 +4,18 @@ import (
 	"fmt"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/cliutil"
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
 
 func init() {
 	rootCmd.AddCommand(infoCmd)
-	infoCmd.Flags().StringVarP(&flagFormat, "format", "f", "", "output format (json)")
+	infoCmd.Flags().StringVarP(&flagFormat, "format", "f", "", "output format (text, json)")
+
+	infoCmd.RegisterFlagCompletionFunc("format", func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+		return []cobra.Completion{"text", "json"}, cobra.ShellCompDirectiveNoFileComp
+	})
 }
 
 var infoCmd = &cobra.Command{
@@ -20,8 +25,9 @@ var infoCmd = &cobra.Command{
 	Short:   "Get info about a machine",
 	Long: `Get info about the specified machine, by ID or name.
 `,
-	Example: "  " + rootCmd.Use + " list",
-	Args:    cobra.ExactArgs(1),
+	Example:           "  " + rootCmd.Use + " info ubuntu",
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: completions.Limit(1, completions.Machines),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 

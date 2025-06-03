@@ -21,6 +21,8 @@ func init() {
 	rootCmd.AddCommand(authCmd)
 	authCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force re-login if already logged in")
 	authCmd.Flags().StringVarP(&flagDomain, "domain", "", "", "Domain for SSO")
+
+	authCmd.RegisterFlagCompletionFunc("domain", cobra.NoFileCompletions)
 }
 
 var authCmd = &cobra.Command{
@@ -31,8 +33,9 @@ var authCmd = &cobra.Command{
 
 If you are already logged in, this command will do nothing unless you add --force.
 `,
-	Example: "  " + rootCmd.Use + " login",
-	Args:    cobra.NoArgs,
+	Example:           "  " + rootCmd.Use + " login",
+	Args:              cobra.NoArgs,
+	ValidArgsFunction: cobra.NoFileCompletions,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !flagForce && drmcore.HasRefreshToken() {
 			fmt.Println("Already logged in.")

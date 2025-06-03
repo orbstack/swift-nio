@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
@@ -20,8 +21,9 @@ var defaultCmd = &cobra.Command{
 
 Use "orb config" to change the default username.
 `,
-	Example: "  " + rootCmd.Use + " set-default ubuntu",
-	Args:    cobra.MaximumNArgs(1),
+	Example:           "  " + rootCmd.Use + " set-default ubuntu",
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: completions.Limit(1, completions.Machines),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 

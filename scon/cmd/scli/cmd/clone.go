@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/spf13/cobra"
@@ -24,11 +25,9 @@ The new machine will be in a stopped state.
 
 To prevent data corruption, the existing machine will be paused while cloning.
 `,
-	Example: `  orb clone ubuntu foo`,
-	Args:    cobra.ExactArgs(2),
-	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return []string{}, cobra.ShellCompDirectiveNoFileComp
-	},
+	Example:           `  orb clone ubuntu foo`,
+	Args:              cobra.ExactArgs(2),
+	ValidArgsFunction: completions.Limit(2, completions.Machines),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		oldNameOrID := args[0]
 		newName := args[1]

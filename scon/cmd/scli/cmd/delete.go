@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
@@ -30,8 +31,9 @@ var deleteCmd = &cobra.Command{
 The machine will be stopped if it is running.
 All files stored in the machine will be PERMANENTLY LOST without warning!
 `,
-	Example: "  " + rootCmd.Use + " delete ubuntu",
-	Args:    cobra.ArbitraryArgs,
+	Example:           "  " + rootCmd.Use + " delete ubuntu",
+	Args:              cobra.ArbitraryArgs,
+	ValidArgsFunction: completions.MachinesOrAll,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var containerNames []string
 		if flagAll {
