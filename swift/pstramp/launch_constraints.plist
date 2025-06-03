@@ -8,6 +8,7 @@
 	<dict>
 		<key>$in</key>
 		<array>
+			<string>dev.kdrag0n.MacVirt</string>
 			<string>dev.kdrag0n.MacVirt.vmgr</string>
 			<string>dev.kdrag0n.MacVirt.scli</string>
 		</array>
