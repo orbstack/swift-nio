@@ -48,7 +48,7 @@ where
     ///
     /// The key may be any borrowed form of `K1``, but the ordering on the borrowed form must match
     /// the ordering on `K1`.
-    pub fn get<Q>(&self, key: &Q) -> Option<Ref<K1, V, S>>
+    pub fn get<Q>(&self, key: &Q) -> Option<Ref<K1, V>>
     where
         K1: Borrow<Q>,
         Q: Ord + ?Sized + Hash,
@@ -56,7 +56,7 @@ where
         self.main.get(key)
     }
 
-    pub fn get_mut<Q>(&self, key: &Q) -> Option<RefMut<K1, V, S>>
+    pub fn get_mut<Q>(&self, key: &Q) -> Option<RefMut<K1, V>>
     where
         K1: Borrow<Q>,
         Q: Ord + ?Sized + Hash,
@@ -72,7 +72,7 @@ where
     /// Note that this method performs 2 lookups: one to get the main key and another to get the
     /// value associated with that key. For best performance callers should prefer the `get` method
     /// over this method whenever possible as `get` only needs to perform one lookup.
-    pub fn get_alt<Q2>(&self, key: &Q2) -> Option<Ref<K1, V, S>>
+    pub fn get_alt<Q2>(&self, key: &Q2) -> Option<Ref<K1, V>>
     where
         K2: Borrow<Q2>,
         Q2: Ord + ?Sized + Hash,
@@ -84,7 +84,7 @@ where
         }
     }
 
-    pub fn get_alt_mut<Q2>(&self, key: &Q2) -> Option<RefMut<K1, V, S>>
+    pub fn get_alt_mut<Q2>(&self, key: &Q2) -> Option<RefMut<K1, V>>
     where
         K2: Borrow<Q2>,
         Q2: Ord + ?Sized + Hash,
@@ -121,7 +121,7 @@ where
         self.alt.remove(k2);
     }
 
-    pub fn entry(&self, key: K1) -> dashmap::mapref::entry::Entry<K1, V, S> {
+    pub fn entry(&self, key: K1) -> dashmap::mapref::entry::Entry<K1, V> {
         self.main.entry(key)
     }
 

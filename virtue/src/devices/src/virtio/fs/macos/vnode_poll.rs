@@ -12,7 +12,8 @@ use libc::{
     NOTE_FFCOPY, NOTE_TRIGGER,
 };
 use nix::errno::Errno;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
+use zerocopy_derive::{Immutable, IntoBytes};
 
 use crate::virtio::{FsCallbacks, FxDashMap};
 
@@ -45,7 +46,7 @@ const VIRTIOFS_MOUNTPOINT: &str = "/mnt/mac";
 
 const KRPC_MSG_NOTIFYPROXY_INJECT: u32 = 1;
 
-#[derive(AsBytes)]
+#[derive(IntoBytes, Immutable)]
 #[repr(C)]
 struct KrpcHeader {
     len: u32,
@@ -53,7 +54,7 @@ struct KrpcHeader {
     np: KrpcNotifyproxyInject,
 }
 
-#[derive(AsBytes)]
+#[derive(IntoBytes, Immutable)]
 #[repr(C)]
 struct KrpcNotifyproxyInject {
     count: u64,

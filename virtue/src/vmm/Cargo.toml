@@ -26,8 +26,8 @@ gpu = []
 [dependencies]
 crossbeam-channel = "0.5"
 libc = ">=0.2.39"
-tracing = { version = "0.1.40", features = ["release_max_level_info"] }
-mio = { version = "0.8.11", features = ["os-poll"] }
+tracing = { version = "0.1.41", features = ["release_max_level_info"] }
+mio = { version = "1.0.4", features = ["os-poll"] }
 
 arch = { path = "../arch" }
 devices = { path = "../devices" }
@@ -40,15 +40,15 @@ kbs-types = { version = "0.5.1, < 0.5.3", features = [
     "tee-sev",
     "tee-snp",
 ], optional = true }
-procfs = { version = "0.12", optional = true }
-serde = { version = "1.0.125", optional = true }
-serde_json = { version = "1.0.64", optional = true }
-sev = { version = "1.2.0", features = ["openssl"], optional = true }
+procfs = { version = "0.17", optional = true }
+serde = { version = "1.0.219", optional = true }
+serde_json = { version = "1.0.140", optional = true }
+sev = { version = "6.2.1", features = ["openssl"], optional = true }
 curl = { version = "0.4", optional = true }
-nix = "0.24.1"
+nix = "0.24.3"
 scopeguard = "1.2.0"
-anyhow = "1.0.83"
-thiserror = "1.0.60"
+anyhow = "1.0.98"
+thiserror = "2.0.12"
 gruel = { version = "0.1.0", path = "../gruel" }
 vmm-ids = { version = "0.1.0", path = "../vmm-ids" }
 hvf = { path = "../hvf" }

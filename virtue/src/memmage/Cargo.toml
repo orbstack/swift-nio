@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-smallbox = "0.8.2"
+smallbox = "0.8.6"

@@ -4,23 +4,23 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bitflags = "2.5.0"
-bumpalo = "3.16.0"
+bitflags = "2.9.1"
+bumpalo = "3.17.0"
 cfgenius = "0.1.1"
 counter = { version = "0.1.0", path = "../counter" }
 crossbeam-channel = "0.5.15"
-crossbeam-queue = "0.3.11"
-derive-where = "1.2.7"
+crossbeam-queue = "0.3.12"
+derive-where = "1.4.0"
 generational-arena = "0.2.9"
 memmage = { version = "0.1.0", path = "../memmage" }
-mio = { version = "0.8.11", features = ["os-poll", "os-ext"] }
+mio = { version = "1.0.4", features = ["os-poll", "os-ext"] }
 newt = { version = "0.1.0", path = "../newt" }
-parking_lot = "0.12.3"
+parking_lot = "0.12.4"
 scopeguard = "1.2.0"
-smallbox = "0.8.2"
+smallbox = "0.8.6"
 sysx = { version = "0.1.0", path = "../sysx" }
-thiserror = "1.0.58"
-tracing = "0.1.40"
+thiserror = "2.0.12"
+tracing = "0.1.41"
 
 [target.'cfg(loom)'.dependencies]
 loom = "0.7.2"

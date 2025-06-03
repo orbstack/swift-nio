@@ -11,46 +11,46 @@ profiler-wholesym = ["dep:wholesym"]
 [dependencies]
 crossbeam-channel = "0.5"
 iced-x86 = "1.21.0"
-thiserror = "1.0.59"
-tracing = { version = "0.1.40", features = ["release_max_level_info"] }
-bytemuck = { version = "1.17.1", features = ["derive", "min_const_generics"] }
+thiserror = "2.0.12"
+tracing = { version = "0.1.41", features = ["release_max_level_info"] }
+bytemuck = { version = "1.23.0", features = ["derive", "min_const_generics"] }
 arch_gen = { path = "../arch_gen" }
 arch = { path = "../arch" }
-bitflags = "2.5.0"
-anyhow = "1.0.83"
-rustc-hash = "1.1.0"
-libc = "0.2.153"
+bitflags = "2.9.1"
+anyhow = "1.0.98"
+rustc-hash = "2.1.1"
+libc = "0.2.172"
 nix = { version = "0.28.0", features = ["signal"] }
 counter = { path = "../counter" }
 dlopen = "0.1.8"
 dlopen_derive = "0.1.4"
 gruel = { version = "0.1.0", path = "../gruel" }
 vmm-ids = { version = "0.1.0", path = "../vmm-ids" }
-once_cell = "1.19.0"
+once_cell = "1.21.3"
 mach2 = "0.4.2"
 scopeguard = "1.2.0"
 utils = { path = "../utils" }
-serde = { version = "1.0.204", features = ["derive"] }
-framehop = { version = "0.13.0", optional = true }
-wholesym = { version = "0.7.0", optional = true }
-tokio = { version = "1.39.2", features = ["fs", "rt"] }
-symbolic-demangle = "12.12.1"
-goblin = "0.8.2"
+serde = { version = "1.0.219", features = ["derive"] }
+framehop = { version = "0.13.2", optional = true }
+wholesym = { version = "0.8.1", optional = true }
+tokio = { version = "1.45.1", features = ["fs", "rt"] }
+symbolic-demangle = "12.15.5"
+goblin = "0.10.0"
 arc-swap = "1.7.1"
 crossbeam = { version = "0.8.4", features = ["crossbeam-queue"] }
-smallvec = "1.13.2"
-serde_json = "1.0.121"
-axum = "0.7.5"
+smallvec = "1.15.0"
+serde_json = "1.0.140"
+axum = "0.8.4"
 hdrhistogram = "7.5.4"
-ahash = "0.8.11"
-tokio-util = { version = "0.7.11", features = ["io"] }
-futures = "0.3.30"
-uuid = { version = "1.10.0", features = ["v4"] }
+ahash = "0.8.12"
+tokio-util = { version = "0.7.15", features = ["io"] }
+futures = "0.3.31"
+uuid = { version = "1.17.0", features = ["v4"] }
 urlencoding = "2.1.3"
-tower-http = { version = "0.5.2", features = ["cors"] }
-time = { version = "0.3.36", features = ["formatting"] }
-addr2line = "0.24.1"
-string-interner = "0.17.0"
+tower-http = { version = "0.6.6", features = ["cors"] }
+time = { version = "0.3.41", features = ["formatting"] }
+addr2line = "0.24.2"
+string-interner = "0.19.0"
 sysx = { version = "0.1.0", path = "../sysx" }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]

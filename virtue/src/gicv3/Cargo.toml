@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bitflags = "2.5.0"
-bytemuck = "1.14.3"
-derive-where = "1.2.7"
-tracing = { version = "0.1.40", features = ["release_max_level_info"] }
-num = "0.4.1"
-rustc-hash = "1.1.0"
+bitflags = "2.9.1"
+bytemuck = "1.23.0"
+derive-where = "1.4.0"
+tracing = { version = "0.1.41", features = ["release_max_level_info"] }
+num = "0.4.3"
+rustc-hash = "2.1.1"
 utils = { version = "0.1.0", path = "../utils" }
 counter = { version = "0.1.0", path = "../counter" }

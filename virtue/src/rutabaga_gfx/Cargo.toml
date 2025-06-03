@@ -20,15 +20,15 @@ x = []
 
 [dependencies]
 cfg-if = "1.0.0"
-libc = "0.2.116"
+libc = "0.2.172"
 remain = "0.2"
-thiserror = "1.0.23"
-zerocopy = "0.6"
+thiserror = "2.0.12"
+zerocopy = "0.8"
 log = "0.4"
 utils = { version = "0.1.0", path = "../utils" }
 
 [target.'cfg(unix)'.dependencies]
-nix = "0.26.1"
+nix = "0.26.4"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"
@@ -38,4 +38,4 @@ winapi = "0.3"
 
 [build-dependencies]
 pkg-config = "0.3"
-anyhow = "1.0.57"
+anyhow = "1.0.98"

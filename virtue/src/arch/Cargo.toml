@@ -10,12 +10,12 @@ amd-sev = ["tee"]
 efi = []
 
 [dependencies]
-anyhow = "1.0.83"
+anyhow = "1.0.98"
 arch_gen = { path = "../arch_gen" }
-bytemuck = { version = "1.17.1", features = ["derive", "min_const_generics"] }
+bytemuck = { version = "1.23.0", features = ["derive", "min_const_generics"] }
 gicv3 = { path = "../gicv3" }
 libc = ">=0.2.39"
-rand = "0.8.5"
+rand = "0.9.1"
 utils = { path = "../utils" }
 
 [target.'cfg(target_os = "linux")'.dependencies]

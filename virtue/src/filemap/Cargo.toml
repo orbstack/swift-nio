@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.86"
-libc = "0.2.158"
+anyhow = "1.0.98"
+libc = "0.2.172"
 mach2 = "0.4.2"
 nix = "0.28.0"
 sigstack = { version = "0.1.0", path = "../sigstack" }
 utils = { version = "0.1.0", path = "../utils" }
 
 [build-dependencies]
-cc = "1.0"
+cc = "1.2"
 sigstack = { version = "0.1.0", path = "../sigstack" }

@@ -5,27 +5,27 @@ authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.86"
+anyhow = "1.0.98"
 bincode = "2.0.1"
-bitflags = "2.5.0"
-bytemuck = { version = "1.17.1", features = ["derive", "min_const_generics"] }
-derive-where = "1.2.7"
+bitflags = "2.9.1"
+bytemuck = { version = "1.23.0", features = ["derive", "min_const_generics"] }
+derive-where = "1.4.0"
 gruel = { version = "0.1.0", path = "../gruel" }
 libc = ">=0.2.85"
 mach2 = "0.4.2"
 memchr = "2.7.4"
 memmage = { version = "0.1.0", path = "../memmage" }
-mio = "0.8.11"
+mio = "1.0.4"
 nix = "0.28.0"
 sysx = { version = "0.1.0", path = "../sysx" }
-once_cell = "1.19.0"
+once_cell = "1.21.3"
 scopeguard = "1.2.0"
 sigstack = { version = "0.1.0", path = "../sigstack" }
-smallvec = "1.13.2"
-thiserror = "1.0.63"
-tracing = { version = "0.1.40", features = ["release_max_level_info"] }
+smallvec = "1.15.0"
+thiserror = "2.0.12"
+tracing = { version = "0.1.41", features = ["release_max_level_info"] }
 vmm-sys-util = ">=0.11"
 
 [build-dependencies]
-cc = "1.1.18"
+cc = "1.2.25"
 sigstack = { version = "0.1.0", path = "../sigstack" }

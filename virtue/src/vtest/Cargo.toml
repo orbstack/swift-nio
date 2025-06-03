@@ -5,7 +5,7 @@ authors = ["Sergio Lopez <slp@redhat.com>"]
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.82"
+anyhow = "1.0.98"
 libvirtue = { path = "../libvirtue" }
-libc = "0.2.158"
-tracing-subscriber = "0.3.18"
+libc = "0.2.172"
+tracing-subscriber = "0.3.19"

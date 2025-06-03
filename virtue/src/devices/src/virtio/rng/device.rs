@@ -4,11 +4,12 @@ use gruel::{
     SignalChannel,
 };
 use newt::{define_num_enum, NumEnumMap};
+use rand::TryRngCore;
 use std::result;
 use std::sync::Arc;
 use utils::memory::GuestMemory;
 
-use rand::{rngs::OsRng, RngCore};
+use rand::rngs::OsRng;
 
 use super::super::{ActivateResult, DeviceState, Queue as VirtQueue, VirtioDevice};
 use super::{defs, defs::uapi};
@@ -104,7 +105,7 @@ impl Rng {
             let mut written = 0;
             for desc in head.into_iter() {
                 let mut rand_bytes = vec![0u8; desc.len as usize];
-                OsRng.fill_bytes(&mut rand_bytes);
+                OsRng.try_fill_bytes(&mut rand_bytes).unwrap();
                 if let Err(e) = mem.write(desc.addr, &rand_bytes[..]) {
                     error!("Failed to write slice: {:?}", e);
                     self.queues[RngQueues::Request].go_to_previous_position();
