@@ -22,7 +22,7 @@ struct AppSettings: View {
         case network
         case storage
         #if DEBUG
-        case debug
+            case debug
         #endif
     }
 
@@ -48,10 +48,10 @@ struct AppSettings: View {
                 }
 
                 #if DEBUG
-                Section {
-                    Label("Debug", systemImage: "hammer")
-                        .tag(Tabs.debug)
-                }
+                    Section {
+                        Label("Debug", systemImage: "hammer")
+                            .tag(Tabs.debug)
+                    }
                 #endif
             }
             .navigationSplitViewColumnWidth(150)
@@ -71,8 +71,8 @@ struct AppSettings: View {
                 case .storage:
                     StorageSettingsView()
                 #if DEBUG
-                case .debug:
-                    DebugSettingsView(updaterController: updaterController)
+                    case .debug:
+                        DebugSettingsView(updaterController: updaterController)
                 #endif
                 }
             }

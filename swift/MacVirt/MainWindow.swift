@@ -26,7 +26,6 @@ struct NavTab: View {
 
     var body: some View {
         Label(label, systemImage: systemImage)
-            .padding(.vertical, 4)
     }
 }
 

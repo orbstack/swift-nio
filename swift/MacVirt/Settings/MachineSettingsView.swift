@@ -59,7 +59,9 @@ struct MachineSettingsView: View {
                     }
                 } header: {
                     Text("Resources")
-                    Text("Resources are only used as needed. These are limits, not reservations. [Learn more](https://orb.cx/res-limits)")
+                    Text(
+                        "Resources are only used as needed. These are limits, not reservations. [Learn more](https://orb.cx/res-limits)"
+                    )
                 }
 
                 Section {
@@ -77,12 +79,15 @@ struct MachineSettingsView: View {
                     )
                     Toggle(isOn: adminBinding) {
                         Text("Use admin privileges for enhanced features")
-                        Text("This can improve performance and compatibility. [Learn more](https://orb.cx/admin)")
+                        Text(
+                            "This can improve performance and compatibility. [Learn more](https://orb.cx/admin)"
+                        )
                     }
 
                     Toggle(
                         "Switch Docker & Kubernetes context automatically",
-                        isOn: vmModel.bindingForConfig(\.dockerSetContext, state: $dockerSetContext))
+                        isOn: vmModel.bindingForConfig(\.dockerSetContext, state: $dockerSetContext)
+                    )
                 } header: {
                     Text("Environment")
                 }

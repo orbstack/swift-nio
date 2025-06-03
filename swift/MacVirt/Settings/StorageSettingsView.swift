@@ -31,9 +31,12 @@ struct StorageSettingsView: View {
         SettingsStateWrapperView {
             Form {
                 Section {
-                    Toggle(isOn: vmModel.bindingForConfig(\.mountHideShared, state: $mountHideShared)) {
+                    Toggle(
+                        isOn: vmModel.bindingForConfig(\.mountHideShared, state: $mountHideShared)
+                    ) {
                         Text("Hide OrbStack volume from Finder & Desktop")
-                        Text("This volume makes it easy to access files in containers and machines.")
+                        Text(
+                            "This volume makes it easy to access files in containers and machines.")
                     }
                 } header: {
                     Text("Integration")

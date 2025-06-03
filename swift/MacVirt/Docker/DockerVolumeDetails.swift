@@ -20,7 +20,7 @@ struct DockerVolumeDetails: View {
                 let showMountpoint =
                     volume.mountpoint != "/var/lib/docker/volumes/\(volume.name)/_data"
                 SimpleKvTable(longestLabel: showMountpoint ? "Mountpoint" : "Created") {
-                    SimpleKvTableRow("Name") {  
+                    SimpleKvTableRow("Name") {
                         CopyableText(volume.name)
                     }
 

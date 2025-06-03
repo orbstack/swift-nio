@@ -31,7 +31,9 @@ struct DockerSettingsView: View {
                     .autocorrectionDisabled()
             } header: {
                 Text("Advanced engine configuration")
-                Text("You can also [edit the config file](https://orb.cx/docker-config) directly. Invalid configs will prevent Docker from starting.")
+                Text(
+                    "You can also [edit the config file](https://orb.cx/docker-config) directly. Invalid configs will prevent Docker from starting."
+                )
             }
 
             SettingsFooter {

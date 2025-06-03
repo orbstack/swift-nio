@@ -195,7 +195,8 @@ private struct HistoryGraph: View {
                     .font(.headline)
                 Spacer()
                 if let lastItem = graphItems.last,
-                    let lastValue = lastItem.value {
+                    let lastValue = lastItem.value
+                {
                     Text(formatter(lastValue))
                 }
             }
@@ -233,8 +234,8 @@ private struct HistoryGraph: View {
             .chartYAxis {
             }
             .frame(height: 100)
-            .padding(.bottom, 1) // fix zero line getting clipped
-            .clipped() // if values > max, Swift Charts draws out of bounds
+            .padding(.bottom, 1)  // fix zero line getting clipped
+            .clipped()  // if values > max, Swift Charts draws out of bounds
             .border(.gray.opacity(0.5))
         }
     }
@@ -243,7 +244,9 @@ private struct HistoryGraph: View {
         if let k8sGroupItem = modelItems.first(where: { $0.entity.id == .k8sGroup }) {
             return k8sGroupItem.children?.firstNonNil({ item in
                 if case .k8sNamespace(let ns) = item.entity,
-                    item.children?.contains(where: { $0.entity.id == .container(id: containerId) }) ?? false {
+                    item.children?.contains(where: { $0.entity.id == .container(id: containerId) })
+                        ?? false
+                {
                     return ns
                 }
                 return nil
@@ -282,7 +285,7 @@ private struct HistoryGraph: View {
                     for tracked in trackedEntries.values {
                         switch tracked.entry.entity {
                         case .service("k8s"):
-                                subtractEntry(tracked)
+                            subtractEntry(tracked)
                         case .container(let id):
                             if findK8sNamespace(containerId: id) != nil {
                                 subtractEntry(tracked)
@@ -305,7 +308,9 @@ private struct HistoryGraph: View {
                     if selection.contains(.container(id: id)) {
                         addEntry(tracked)
                         // complicated check for compose children
-                    } else if let dockerGroupItem = modelItems.first(where: { $0.entity.id == .dockerGroup }),
+                    } else if let dockerGroupItem = modelItems.first(where: {
+                        $0.entity.id == .dockerGroup
+                    }),
                         let composeItem = dockerGroupItem.children?.first(where: {
                             if case .compose = $0.entity {
                                 return $0.children?.contains(where: {
@@ -313,11 +318,14 @@ private struct HistoryGraph: View {
                                 }) ?? false
                             }
                             return false
-                        }) ?? nil, selection.contains(composeItem.id) {
-                            addEntry(tracked)
+                        }) ?? nil, selection.contains(composeItem.id)
+                    {
+                        addEntry(tracked)
                         // complicated check for k8s children
                     } else if let k8sNamespace {
-                        if selection.contains(.k8sGroup) || selection.contains(.k8sNamespace(k8sNamespace)) {
+                        if selection.contains(.k8sGroup)
+                            || selection.contains(.k8sNamespace(k8sNamespace))
+                        {
                             addEntry(tracked)
                         }
                     }
@@ -362,10 +370,12 @@ private struct HistoryGraph: View {
 private let memoryByteCountFormatter = {
     let formatter = ByteCountFormatter()
     formatter.countStyle = .memory
-    formatter.allowsNonnumericFormatting = false // "Zero KB" -> "0 KB"
+    formatter.allowsNonnumericFormatting = false  // "Zero KB" -> "0 KB"
     // no "bytes" because it's too long
-    formatter.allowedUnits = [.useKB, .useMB, .useGB, .useTB, .usePB, .useEB, .useZB, .useYBOrHigher]
-    formatter.countStyle = .decimal // so we never get 4-digit numbers between 1000-1023 (shorter for UI)
+    formatter.allowedUnits = [
+        .useKB, .useMB, .useGB, .useTB, .usePB, .useEB, .useZB, .useYBOrHigher,
+    ]
+    formatter.countStyle = .decimal  // so we never get 4-digit numbers between 1000-1023 (shorter for UI)
     return formatter
 }()
 
@@ -491,7 +501,7 @@ struct ActivityMonitorRootView: View {
                         id: Columns.memoryBytes, title: "Memory", width: 72, alignment: .right
                     ) { item in
                         Text(formatMemoryBytes(Int64(item.memoryBytes)))
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     },
                     akColumn(
                         id: Columns.netRxTxBytes, title: "Network", width: 72, alignment: .right

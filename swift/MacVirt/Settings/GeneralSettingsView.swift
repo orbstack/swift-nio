@@ -23,11 +23,12 @@ struct GeneralSettingsView: View {
 
                 Defaults.Toggle("Show in menu bar", key: .globalShowMenubarExtra)
 
-                let bgLabel = if showMenubarExtra {
-                    "Keep running when menu bar app is quit"
-                } else {
-                    "Keep running when app is quit"
-                }
+                let bgLabel =
+                    if showMenubarExtra {
+                        "Keep running when menu bar app is quit"
+                    } else {
+                        "Keep running when app is quit"
+                    }
                 Defaults.Toggle(bgLabel, key: .globalStayInBackground)
             }
 

@@ -42,7 +42,9 @@ struct NetworkSettingsView: View {
                     }
                     Toggle(isOn: networkBridgeBinding) {
                         Text("Allow access to container domains & IPs")
-                        Text("Use domains and IPs to connect to containers and machines without port forwarding. [Learn more](https://orb.cx/container-domains)")
+                        Text(
+                            "Use domains and IPs to connect to containers and machines without port forwarding. [Learn more](https://orb.cx/container-domains)"
+                        )
                     }
 
                     // this one is live-reload
@@ -60,16 +62,21 @@ struct NetworkSettingsView: View {
                         Text("None").tag("none")
                     } label: {
                         Text("Proxy")
-                        Text("Apply an HTTP, HTTPS, or SOCKS proxy to all traffic from containers and machines.")
+                        Text(
+                            "Apply an HTTP, HTTPS, or SOCKS proxy to all traffic from containers and machines."
+                        )
                     }
                     .pickerStyle(.radioGroup)
 
                     if proxyMode == "custom" {
                         // TODO: validate url on our side
-                        TextField("URL", text: $proxyText, prompt: Text("socks5://user:pass@example.com:1080"))
-                            .onSubmit {
-                                commit()
-                            }
+                        TextField(
+                            "URL", text: $proxyText,
+                            prompt: Text("socks5://user:pass@example.com:1080")
+                        )
+                        .onSubmit {
+                            commit()
+                        }
                     }
                 }
             }

@@ -25,12 +25,17 @@ struct K8SSettingsView: View {
                 Section {
                     Toggle(isOn: vmModel.bindingForConfig(\.k8sEnable, state: $k8sEnable)) {
                         Text("Enable Kubernetes cluster")
-                        Text("Lightweight local cluster with UI & network integration. [Learn more](https://orb.cx/k8s)")
+                        Text(
+                            "Lightweight local cluster with UI & network integration. [Learn more](https://orb.cx/k8s)"
+                        )
                     }
                 }
 
                 Section {
-                    Toggle(isOn: vmModel.bindingForConfig(\.k8sExposeServices, state: $k8sExposeServices)) {
+                    Toggle(
+                        isOn: vmModel.bindingForConfig(
+                            \.k8sExposeServices, state: $k8sExposeServices)
+                    ) {
                         Text("Expose services to local network devices")
                         Text("Includes NodePorts, LoadBalancers, and the Kubernetes API.")
                     }
