@@ -5,7 +5,7 @@ ARG HOST_ARCH=amd64
 FROM alpine:20240807 AS base
 FROM alpine:3.20 AS stable-base
 FROM debian:sid-slim AS debian
-FROM rust:1.84-alpine3.21 AS rust-base
+FROM rust:1.87-alpine3.21 AS rust-base
 FROM nixos/nix:2.24.2 AS nix-base
 
 
