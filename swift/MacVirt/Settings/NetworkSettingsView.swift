@@ -28,10 +28,7 @@ struct NetworkSettingsView: View {
                         // restart Docker if running
                         if newValue != vmModel.config?.networkBridge,
                             vmModel.state == .running,
-                            let machines = vmModel.containers,
-                            let dockerMachine = machines.first(where: {
-                                $0.id == ContainerIds.docker
-                            }),
+                            let dockerMachine = vmModel.dockerMachine,
                             dockerMachine.record.state == .starting
                                 || dockerMachine.record.state == .running
                         {

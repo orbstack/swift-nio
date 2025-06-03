@@ -50,8 +50,7 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
     var body: some View {
         StateWrapperView {
             // TODO: return verdict as enum and use switch{} to fix loading flicker
-            if let machines = vmModel.containers,
-                let k8sMachine = machines.first(where: { $0.id == ContainerIds.k8s }),
+            if let k8sMachine = vmModel.k8sMachine,
                 let config = vmModel.appliedConfig
             {  // applied config, not current
                 if let entities = vmModel[keyPath: keyPath],

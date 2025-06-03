@@ -25,14 +25,14 @@ class InspectorViewController: NSViewController {
     }
 }
 
-private struct InspectorSelectionList<Item: Identifiable, ID: Hashable, Content: View>: View {
-    private let items: [Item]?
+private struct InspectorSelectionList<Item, ID: Hashable, Seq: Sequence<Item>, Content: View>: View {
+    private let items: Seq?
     private let selection: Set<AnyHashable>
     private let key: KeyPath<Item, ID>
     @ViewBuilder private let content: (Item) -> Content
 
     init(
-        _ items: [Item]?,
+        _ items: Seq?,
         key: KeyPath<Item, ID>,
         selection: Set<AnyHashable>,
         @ViewBuilder content: @escaping (Item) -> Content
@@ -62,6 +62,16 @@ private struct InspectorSelectionList<Item: Identifiable, ID: Hashable, Content:
     }
 }
 
+private extension InspectorSelectionList where Item: Identifiable, ID == Item.ID {
+    init(
+        _ items: Seq?,
+        selection: Set<AnyHashable>,
+        @ViewBuilder content: @escaping (Item) -> Content
+    ) {
+        self.init(items, key: \.id, selection: selection, content: content)
+    }
+}
+
 struct InspectorView: View {
     @EnvironmentObject var model: VmViewModel
     @EnvironmentObject var navModel: MainNavViewModel
@@ -82,17 +92,19 @@ struct InspectorView: View {
                 {
                     // single selection
                     ScrollView {
-                        if case let .compose(project) = selItem {
+                        switch selItem {
+                        case let .compose(project):
                             DockerComposeGroupDetails(project: project)
-                        } else if case .k8sGroup = selItem {
+                        case .k8sGroup:
                             K8SGroupDetails()
-                        } else {
-                            let container = model.dockerContainers?.first { $0.cid == selItem }
-                            if let container {
+                        case let .container(id):
+                            if let container = model.dockerContainers?.byId[id] {
                                 DockerContainerDetails(container: container)
                             } else {
                                 ContentUnavailableViewCompat("No Container")
                             }
+                        default:
+                            EmptyView()
                         }
                     }
                 } else {
@@ -101,33 +113,23 @@ struct InspectorView: View {
                     ContentUnavailableViewCompat("\(selection.count) Selected")
                 }
             case .dockerVolumes:
-                InspectorSelectionList(
-                    model.dockerVolumes, key: \.id, selection: navModel.inspectorSelection
-                ) {
+                InspectorSelectionList(model.dockerVolumes?.values, selection: navModel.inspectorSelection) {
                     DockerVolumeDetails(volume: $0)
                 }
             case .dockerImages:
-                InspectorSelectionList(
-                    model.dockerImages, key: \.id, selection: navModel.inspectorSelection
-                ) {
+                InspectorSelectionList(model.dockerImages?.values, selection: navModel.inspectorSelection) {
                     DockerImageDetails(image: $0)
                 }
             case .k8sPods:
-                InspectorSelectionList(
-                    model.k8sPods, key: \.id, selection: navModel.inspectorSelection
-                ) {
+                InspectorSelectionList(model.k8sPods, selection: navModel.inspectorSelection) {
                     K8SPodDetails(pod: $0)
                 }
             case .k8sServices:
-                InspectorSelectionList(
-                    model.k8sServices, key: \.id, selection: navModel.inspectorSelection
-                ) {
+                InspectorSelectionList(model.k8sServices, selection: navModel.inspectorSelection) {
                     K8SServiceDetails(service: $0)
                 }
             case .machines:
-                InspectorSelectionList(
-                    model.containers, key: \.id, selection: navModel.inspectorSelection
-                ) {
+                InspectorSelectionList(model.containers?.values, selection: navModel.inspectorSelection) {
                     MachineDetails(info: $0)
                 }
             case .activityMonitor:

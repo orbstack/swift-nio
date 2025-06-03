@@ -79,9 +79,7 @@ struct K8SSettingsView: View {
 
             AKAlertButton("Reset", destructive: true) {
                 Task {
-                    if let dockerMachine = vmModel.containers?.first(where: {
-                        $0.id == ContainerIds.docker
-                    }) {
+                    if let dockerMachine = vmModel.dockerMachine {
                         await vmModel.tryInternalDeleteK8s()
                         await vmModel.tryStartContainer(dockerMachine.record)
                     }

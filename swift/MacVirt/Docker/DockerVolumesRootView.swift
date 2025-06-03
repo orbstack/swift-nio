@@ -22,7 +22,7 @@ struct DockerVolumesRootView: View {
         let searchQuery = vmModel.searchText
 
         DockerStateWrapperView(\.dockerVolumes) { volumes, _ in
-            let filteredVolumes = self.filterVolumes(volumes, searchQuery: searchQuery)
+            let filteredVolumes = self.filterVolumes(volumes.values, searchQuery: searchQuery)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             VStack(spacing: 0) {
@@ -101,11 +101,9 @@ struct DockerVolumesRootView: View {
     }
 
     private func calcTotalSize(_ filteredVolumes: [DKVolume]) -> String? {
-        if let dockerDf = vmModel.dockerSystemDf {
+        if let dockerDf = vmModel.dockerDf {
             let totalSize = filteredVolumes.reduce(Int64(0)) { acc, vol in
-                if let dfVolume = dockerDf.volumes.first(where: { $0.name == vol.name }),
-                    let usageData = dfVolume.usageData
-                {
+                if let usageData = dockerDf.volumes[vol.name]?.usageData {
                     return acc + usageData.size
                 } else {
                     return acc
@@ -120,7 +118,7 @@ struct DockerVolumesRootView: View {
         return nil
     }
 
-    private func filterVolumes(_ volumes: [DKVolume], searchQuery: String) -> [DKVolume] {
+    private func filterVolumes(_ volumes: any Sequence<DKVolume>, searchQuery: String) -> [DKVolume] {
         var volumes = volumes.filter { volume in
             searchQuery.isEmpty || volume.name.localizedCaseInsensitiveContains(searchQuery)
         }
@@ -131,9 +129,8 @@ struct DockerVolumesRootView: View {
     private func maybeRefreshDf() {
         // only refresh if we're missing df info for some volumes
         if let volumes = vmModel.dockerVolumes,
-            volumes.contains(where: { vol in
-                vmModel.dockerSystemDf?.volumes
-                    .first(where: { $0.name == vol.name }) == nil
+           volumes.values.contains(where: { vol in
+                vmModel.dockerDf?.volumes[vol.name] == nil
             })
         {
             Task { @MainActor in

@@ -451,6 +451,16 @@ private func fmtRpc(_ error: Error) -> String {
     }
 }
 
+struct MappedDf: Equatable {
+    let volumes: [String: DKVolume]
+}
+
+struct MappedContainers: Equatable {
+    let byId: [String: DKContainer]
+    let byName: [String: DKContainer]
+    let byComposeProject: [String?: [DKContainer]]
+}
+
 @MainActor
 class VmViewModel: ObservableObject {
     private let daemon = DaemonManager()
@@ -500,7 +510,7 @@ class VmViewModel: ObservableObject {
                 dockerContainers = nil
                 dockerVolumes = nil
                 dockerImages = nil
-                dockerSystemDf = nil
+                dockerDf = nil
 
                 k8sPods = nil
                 k8sServices = nil
@@ -508,7 +518,14 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @Published private(set) var containers: [ContainerInfo]?
+    @Published private(set) var containers: [String: ContainerInfo]?
+    var dockerMachine: ContainerInfo? {
+        containers?[ContainerIds.docker]
+    }
+    var k8sMachine: ContainerInfo? {
+        containers?[ContainerIds.k8s]
+    }
+
     @Published var error: VmError?
 
     // vmgr basic state
@@ -517,10 +534,10 @@ class VmViewModel: ObservableObject {
     private(set) var reachedRunning = false
 
     // Docker
-    @Published private(set) var dockerContainers: [DKContainer]?
-    @Published private(set) var dockerVolumes: [DKVolume]?
-    @Published private(set) var dockerImages: [DKSummaryAndFullImage]?
-    @Published private(set) var dockerSystemDf: DKSystemDf?
+    @Published private(set) var dockerContainers: MappedContainers?
+    @Published private(set) var dockerVolumes: [String: DKVolume]?
+    @Published private(set) var dockerImages: [String: DKSummaryAndFullImage]?
+    @Published private(set) var dockerDf: MappedDf?
 
     // Kubernetes
     @Published private(set) var k8sPods: [K8SPod]?
@@ -629,7 +646,7 @@ class VmViewModel: ObservableObject {
                         self.dockerContainers = nil
                         self.dockerVolumes = nil
                         self.dockerImages = nil
-                        self.dockerSystemDf = nil
+                        self.dockerDf = nil
 
                         if exitEvent.status != 0 {
                             self.setError(
@@ -774,13 +791,9 @@ class VmViewModel: ObservableObject {
     private func onNewSconMachines(allContainers: [ContainerInfo]) {
         let isFirstContainers = containers == nil
 
-        // filter into running and stopped
-        let runningContainers = allContainers.filter { $0.record.running }
-        let stoppedContainers = allContainers.filter { !$0.record.running }
-        // sort alphabetically by name within each group
-        containers =
-            runningContainers.sorted { $0.record.name < $1.record.name }
-            + stoppedContainers.sorted { $0.record.name < $1.record.name }
+        containers = allContainers.mapToDict { container in
+            (container.record.id, container)
+        }
 
         // first new scon containers = scon is now running
         if isFirstContainers {
@@ -791,7 +804,14 @@ class VmViewModel: ObservableObject {
     @MainActor
     private func onNewDockerContainers(containers: [DKContainer]) {
         // preprocess
-        dockerContainers = containers.map { container in
+        var byId = [String: DKContainer]()
+        var byName = [String: DKContainer]()
+        var byComposeProject = [String?: [DKContainer]]()
+        byId.reserveCapacity(containers.count)
+        byName.reserveCapacity(containers.count)
+        byComposeProject.reserveCapacity(containers.count)
+
+        for container in containers {
             var container = container
 
             // filter ports
@@ -825,36 +845,45 @@ class VmViewModel: ObservableObject {
                 "\($0.source)\($0.destination)" < "\($1.source)\($1.destination)"
             }
 
-            return container
+            byId[container.id] = container
+            for name in container.names {
+                byName[name] = container
+            }
+            byComposeProject[container.composeProject, default: []].append(container)
         }
+
+        dockerContainers = MappedContainers(
+            byId: byId, byName: byName, byComposeProject: byComposeProject)
     }
 
     @MainActor
     private func onNewDockerVolumes(rawVolumes: [DKVolume]) {
-        // sort volumes
-        dockerVolumes = rawVolumes
+        dockerVolumes = rawVolumes.mapToDict { volume in
+            (volume.name, volume)
+        }
     }
 
     @MainActor
     private func onNewDockerImages(rawImages: [DKSummaryAndFullImage]) {
-        // sort images
-        dockerImages = rawImages
+        dockerImages = rawImages.mapToDict { image in
+            (image.summary.id, image)
+        }
     }
 
     @MainActor
     private func onNewDockerSystemDf(resp: DKSystemDf) {
-        dockerSystemDf = resp
+        dockerDf = MappedDf(volumes: resp.volumes.mapToDict { volume in
+            (volume.name, volume)
+        })
     }
 
     @MainActor
     func isDockerRunning() -> Bool {
-        if let containers,
-            let dockerContainer = containers.first(where: { $0.id == ContainerIds.docker }),
-            dockerContainer.record.state == .running || dockerContainer.record.state == .starting
+        if let dockerMachine,
+            dockerMachine.record.state == .running || dockerMachine.record.state == .starting
         {
             return true
         }
-
         return false
     }
 
@@ -1361,11 +1390,7 @@ class VmViewModel: ObservableObject {
     ) async {
         if case let .compose(project) = cid {
             // find working dir from containers
-            if let containers = dockerContainers,
-                let container = containers.first(where: { container in
-                    container.composeProject == project
-                })
-            {
+            if let container = dockerContainers?.byComposeProject[project]?.first {
                 // only pass configs and working dir if needed for action
                 // otherwise skip for robustness
                 // to avoid failing on missing working dir, deleted/moved configs, invalid syntax, etc.
@@ -1530,7 +1555,8 @@ class VmViewModel: ObservableObject {
 
         do {
             NSLog("running volume df")
-            dockerSystemDf = try await scon.internalDockerFastDf()
+            let df = try await scon.internalDockerFastDf()
+            onNewDockerSystemDf(resp: df)
         } catch RPCError.eof {
             // ignore: stopped
         } catch {
@@ -1582,8 +1608,8 @@ class VmViewModel: ObservableObject {
         // needs to be set first, or k8s state wrapper doesn't update
         appliedConfig = config
 
-        if let dockerRecord = containers?.first(where: { $0.id == ContainerIds.docker }) {
-            await tryRestartContainer(dockerRecord.record)
+        if let dockerMachine {
+            await tryRestartContainer(dockerMachine.record)
         }
     }
 
@@ -1635,23 +1661,15 @@ class VmViewModel: ObservableObject {
     }
 
     func volumeIsMounted(_ volume: DKVolume) -> Bool {
-        guard let containers = dockerContainers else {
-            return false
-        }
-
-        return containers.first { container in
+        return dockerContainers?.byId.values.contains { container in
             container.mounts.contains { mount in
                 mount.type == .volume && mount.name == volume.name
             }
-        } != nil
+        } ?? false
     }
 
     func usedImageIds() -> Set<String> {
-        guard let containers = dockerContainers else {
-            return []
-        }
-
-        return Set(containers.map { $0.imageId })
+        return Set(dockerContainers?.byId.values.map { $0.imageId } ?? [])
     }
 
     // intermediate Binding that only calls `vmModel.trySetConfigKey` when the user manually drags the slider

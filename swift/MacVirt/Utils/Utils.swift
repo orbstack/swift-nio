@@ -387,3 +387,15 @@ struct StringError: CustomStringConvertible, Error, LocalizedError {
 
     var errorDescription: String? { description }
 }
+
+extension Array {
+    func mapToDict<Key: Hashable, Out>(_ callback: (Element) -> (Key, Out)) -> [Key: Out] {
+        var dict = [Key: Out]()
+        dict.reserveCapacity(count)
+        for element in self {
+            let (key, value) = callback(element)
+            dict[key] = value
+        }
+        return dict
+    }
+}

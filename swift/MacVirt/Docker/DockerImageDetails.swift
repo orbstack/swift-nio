@@ -81,6 +81,8 @@ struct DockerImageDetails: View {
             }
 
             let usedByContainers = vmModel.dockerContainers?
+                .byId
+                .values
                 .lazy
                 .filter { $0.imageId == image.id }
                 .sorted { $0.userName < $1.userName }

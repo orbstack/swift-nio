@@ -627,7 +627,7 @@ struct ActivityMonitorRootView: View {
         Task {
             switch id {
             case .machine(let id):
-                if let machine = vmModel.containers?.first(where: { $0.record.id == id }) {
+                if let machine = vmModel.containers?[id] {
                     await vmModel.tryStopContainer(machine.record)
                 }
             case .container(let id):
@@ -641,9 +641,7 @@ struct ActivityMonitorRootView: View {
                 }
 
             case .dockerGroup, .dockerEngine:
-                if let dockerMachine = vmModel.containers?.first(where: {
-                    $0.id == ContainerIds.docker
-                }) {
+                if let dockerMachine = vmModel.dockerMachine {
                     await vmModel.tryStopContainer(dockerMachine.record)
                 }
 
@@ -652,7 +650,7 @@ struct ActivityMonitorRootView: View {
                 break
 
             case .machinesGroup:
-                for machine in vmModel.containers ?? [] {
+                vmModel.containers?.values.forEach { machine in
                     if machine.record.running && !machine.record.builtin {
                         Task {
                             await vmModel.tryStopContainer(machine.record)
@@ -940,11 +938,11 @@ private class ActivityMonitorViewModel: ObservableObject {
         case .machine(ContainerIds.docker):
             entity = .dockerGroup
         case .machine(let id):
-            if let machine = vmModel.containers?.first(where: { $0.record.id == id }) {
+            if let machine = vmModel.containers?[id] {
                 entity = .machine(record: machine.record)
             }
         case .container(let id):
-            if let container = vmModel.dockerContainers?.first(where: { $0.id == id }) {
+            if let container = vmModel.dockerContainers?.byId[id] {
                 entity = .container(container: container)
             }
         case .service("dockerd"):

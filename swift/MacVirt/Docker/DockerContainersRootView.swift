@@ -131,12 +131,11 @@ private struct DockerContainersList: View {
 
     let filterIsSearch: Bool
     let runningCount: Int
-    let allContainers: [DKContainer]
+    let allContainersEmpty: Bool
     let listData: [AKSection<DockerListItem>]
     @Binding var selection: Set<DockerContainerId>
 
-    let dockerImages: [DKSummaryAndFullImage]?
-    let dockerVolumes: [DKVolume]?
+    let imagesAndVolumesEmpty: Bool
 
     var body: some View {
         // TODO: bad for perf
@@ -178,7 +177,7 @@ private struct DockerContainersList: View {
                 Spacer()
 
                 // don't show getting started hint if empty is caused by filter
-                if allContainers.isEmpty {
+                if allContainersEmpty {
                     HStack {
                         Spacer()
                         // migration not previously done or dismissed
@@ -187,8 +186,7 @@ private struct DockerContainersList: View {
                             // docker desktop recently used
                             && InstalledApps.dockerDesktopRecentlyUsed
                             // containers, images, volumes all empty
-                            && allContainers.isEmpty && dockerImages?.isEmpty == true
-                            && dockerVolumes?.isEmpty == true && !filterIsSearch  // not searching
+                            && allContainersEmpty && imagesAndVolumesEmpty && !filterIsSearch  // not searching
                         if isMigration {
                             MigrationHintBox()
                         } else {
@@ -235,9 +233,9 @@ struct DockerContainersRootView: View {
         let searchQuery = vmModel.searchText
 
         DockerStateWrapperView(\.dockerContainers) { containers, _ in
-            let runningCount = containers.filter { $0.running }.count
+            let runningCount = containers.byId.values.count { $0.running }
 
-            let filteredContainers = filterContainers(containers, searchQuery: searchQuery)
+            let filteredContainers = filterContainers(containers.byId.values, searchQuery: searchQuery)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(
@@ -248,27 +246,25 @@ struct DockerContainersRootView: View {
             DockerContainersList(
                 filterIsSearch: !searchQuery.isEmpty,
                 runningCount: runningCount,
-                allContainers: containers,
+                allContainersEmpty: containers.byId.isEmpty,
                 listData: listData,
                 selection: $selection,
 
-                dockerImages: vmModel.dockerImages,
-                dockerVolumes: vmModel.dockerVolumes
+                imagesAndVolumesEmpty: (vmModel.dockerImages?.isEmpty ?? true) && (vmModel.dockerVolumes?.isEmpty ?? true)
             )
             .inspectorSelection(selection)
         }
         .navigationTitle("Containers")
     }
 
-    private func filterContainers(_ containers: [DKContainer], searchQuery: String) -> [DKContainer]
+    private func filterContainers(_ containers: any Sequence<DKContainer>, searchQuery: String) -> [DKContainer]
     {
         var containers = containers.filter { container in
-            searchQuery.isEmpty || container.id.localizedCaseInsensitiveContains(searchQuery)
+            searchQuery.isEmpty
+                || container.id.localizedCaseInsensitiveContains(searchQuery)
                 || container.image.localizedCaseInsensitiveContains(searchQuery)
                 || container.imageId.localizedCaseInsensitiveContains(searchQuery)
-                || container.names.first(where: {
-                    $0.localizedCaseInsensitiveContains(searchQuery)
-                }) != nil
+                || container.names.contains { $0.localizedCaseInsensitiveContains(searchQuery) }
         }
         containers.sort(accordingTo: sortDescriptor)
         return containers

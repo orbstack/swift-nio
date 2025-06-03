@@ -208,7 +208,7 @@ struct CreateContainerView: View {
 
     private func checkName(_ newName: String, animate: Bool = true) {
         if let containers = vmModel.containers,
-            containers.contains(where: { $0.record.name == newName })
+           containers.values.contains(where: { $0.record.name == newName })
         {
             isNameDuplicate = true
         } else {

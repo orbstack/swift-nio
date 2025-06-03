@@ -79,13 +79,7 @@ struct CreateVolumeView: View {
     }
 
     private func checkName(_ newName: String, animate: Bool = true) {
-        if let volumes = vmModel.dockerVolumes,
-            volumes.contains(where: { $0.name == newName })
-        {
-            isNameDuplicate = true
-        } else {
-            isNameDuplicate = false
-        }
+        isNameDuplicate = vmModel.dockerVolumes?[newName] != nil
 
         // regex
         if !newName.isEmpty

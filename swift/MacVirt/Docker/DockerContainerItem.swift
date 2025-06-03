@@ -519,27 +519,22 @@ extension BaseDockerContainerItem {
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
         if isSelected() {
-            if let containers = vmModel.dockerContainers {
-                // if we're doing a batch action, we could have groups *and* containers selected
-                // in that case, skip containers that are under an existing group to avoid racing
-                return selection.filter { sel in
-                    switch sel {
-                    case let .container(id):
-                        if let container = containers.first(where: { container in container.id == id
-                        }),
-                            let composeProject = container.composeProject
-                        {
-                            return !selection.contains(.compose(project: composeProject))
-                        } else {
-                            // not a compose project
-                            return true
-                        }
-                    default:
+            // if we're doing a batch action, we could have groups *and* containers selected
+            // in that case, skip containers that are under an existing group to avoid racing
+            return selection.filter { sel in
+                switch sel {
+                case let .container(id):
+                    if let container = vmModel.dockerContainers?.byId[id],
+                        let composeProject = container.composeProject
+                    {
+                        return !selection.contains(.compose(project: composeProject))
+                    } else {
+                        // not a compose project
                         return true
                     }
+                default:
+                    return true
                 }
-            } else {
-                return selection
             }
         } else {
             return [selfId]

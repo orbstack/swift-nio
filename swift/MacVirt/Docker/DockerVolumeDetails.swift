@@ -28,10 +28,7 @@ struct DockerVolumeDetails: View {
                         Text(volume.formattedCreatedAt)
                     }
 
-                    if let dockerDf = vmModel.dockerSystemDf,
-                        let dfVolume = dockerDf.volumes.first(where: { $0.name == volume.name }),
-                        let usageData = dfVolume.usageData
-                    {
+                    if let usageData = vmModel.dockerDf?.volumes[volume.name]?.usageData {
                         let fmtSize = ByteCountFormatter.string(
                             fromByteCount: usageData.size, countStyle: .file)
                         SimpleKvTableRow("Size") {
@@ -60,6 +57,8 @@ struct DockerVolumeDetails: View {
             }
 
             let usedByContainers = vmModel.dockerContainers?
+                .byId
+                .values
                 .lazy
                 .filter {
                     $0.mounts.contains(where: { $0.type == .volume && $0.name == volume.name })

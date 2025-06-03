@@ -133,4 +133,10 @@ enum Distro: String, CaseIterable {
         default: return false
         }
     }
+
+    static let map: [String: Distro] = {
+        Self.allCases.mapToDict { distro in
+            (distro.imageKey, distro)
+        }
+    }()
 }

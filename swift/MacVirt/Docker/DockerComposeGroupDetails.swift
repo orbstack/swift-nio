@@ -13,9 +13,7 @@ struct DockerComposeGroupDetails: View {
 
     var body: some View {
         DetailsStack {
-            let containers =
-                vmModel.dockerContainers?
-                .filter { $0.composeProject == project } ?? []
+            let containers = vmModel.dockerContainers?.byComposeProject[project] ?? []
 
             DetailsSection("Containers in Group") {
                 VStack(alignment: .leading, spacing: 4) {

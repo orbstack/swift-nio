@@ -204,12 +204,10 @@ struct MachineContainerItem: View {
 
     @MainActor
     func finishStop() {
-        for cid in resolveActionList() {
-            let container = (vmModel.containers?.first(where: { $0.id == cid }))!
-
+        for machine in resolveActionList() {
             Task { @MainActor in
-                await actionTracker.with(machine: container.record, action: .delete) {
-                    await vmModel.tryStopContainer(container.record)
+                await actionTracker.with(machine: machine.record, action: .delete) {
+                    await vmModel.tryStopContainer(machine.record)
                 }
             }
         }
@@ -217,12 +215,10 @@ struct MachineContainerItem: View {
 
     @MainActor
     func finishStart() {
-        for cid in resolveActionList() {
-            let container = (vmModel.containers?.first(where: { $0.id == cid }))!
-
+        for machine in resolveActionList() {
             Task { @MainActor in
-                await actionTracker.with(machine: container.record, action: .delete) {
-                    await vmModel.tryStartContainer(container.record)
+                await actionTracker.with(machine: machine.record, action: .delete) {
+                    await vmModel.tryStartContainer(machine.record)
                 }
             }
         }
@@ -230,12 +226,10 @@ struct MachineContainerItem: View {
 
     @MainActor
     func finishRestart() {
-        for cid in resolveActionList() {
-            let container = (vmModel.containers?.first(where: { $0.id == cid }))!
-
+        for machine in resolveActionList() {
             Task { @MainActor in
-                await actionTracker.with(machine: container.record, action: .delete) {
-                    await vmModel.tryRestartContainer(container.record)
+                await actionTracker.with(machine: machine.record, action: .delete) {
+                    await vmModel.tryRestartContainer(machine.record)
                 }
             }
         }
@@ -243,12 +237,10 @@ struct MachineContainerItem: View {
 
     @MainActor
     func finishDelete() {
-        for cid in resolveActionList() {
-            let container = (vmModel.containers?.first(where: { $0.id == cid }))!
-
+        for machine in resolveActionList() {
             Task { @MainActor in
-                await actionTracker.with(machine: container.record, action: .delete) {
-                    await vmModel.tryDeleteContainer(container.record)
+                await actionTracker.with(machine: machine.record, action: .delete) {
+                    await vmModel.tryDeleteContainer(machine.record)
                 }
             }
         }
@@ -259,14 +251,16 @@ struct MachineContainerItem: View {
     }
 
     @MainActor
-    func resolveActionList() -> Set<String> {
+    func resolveActionList() -> [ContainerInfo] {
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
-        if isSelected() {
-            return selection
+        let ids: Set<String> = if isSelected() {
+            selection
         } else {
-            return [record.id]
+            [record.id]
         }
+
+        return ids.compactMap { vmModel.containers?[$0] }
     }
 }
 

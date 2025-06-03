@@ -20,7 +20,7 @@ struct DockerImagesRootView: View {
         let searchQuery = vmModel.searchText
 
         DockerStateWrapperView(\.dockerImages) { images, _ in
-            let filteredImages = self.filterImages(images, searchQuery: searchQuery)
+            let filteredImages = self.filterImages(images.values, searchQuery: searchQuery)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             VStack(spacing: 0) {
@@ -109,14 +109,13 @@ struct DockerImagesRootView: View {
         }
     }
 
-    private func filterImages(_ images: [DKSummaryAndFullImage], searchQuery: String)
+    private func filterImages(_ images: any Sequence<DKSummaryAndFullImage>, searchQuery: String)
         -> [DKSummaryAndFullImage]
     {
         var images = images.filter { (image: DKSummaryAndFullImage) in
-            searchQuery.isEmpty || image.id.localizedCaseInsensitiveContains(searchQuery)
-                || image.summary.repoTags?.first(where: {
-                    $0.localizedCaseInsensitiveContains(searchQuery)
-                }) != nil
+            searchQuery.isEmpty
+                || image.id.localizedCaseInsensitiveContains(searchQuery)
+                || image.summary.repoTags?.contains { $0.localizedCaseInsensitiveContains(searchQuery) } ?? false
         }
         images.sort(accordingTo: sortDescriptor, model: vmModel)
         return images

@@ -195,15 +195,18 @@ private class LogsViewModel: ObservableObject {
             }
 
             if case let .container(containerId) = cid,
-                containers.contains(where: { $0.id == containerId && $0.running })
+                let container = containers.byId[containerId],
+                container.running
             {
                 self.restart()
             } else if let lastContainerName,
-                containers.contains(where: { $0.names.contains(lastContainerName) && $0.running })
+                let container = containers.byName[lastContainerName],
+                container.running
             {
                 self.restart()
             } else if case let .compose(composeProject) = cid,
-                containers.contains(where: { $0.composeProject == composeProject && $0.running })
+                let children = containers.byComposeProject[composeProject],
+                children.contains(where: { $0.running })
             {
                 self.restart()
             }
@@ -717,7 +720,7 @@ private struct DockerLogsContentView: View {
                 ContentUnavailableViewCompat(
                     "Container Removed", systemImage: "trash", desc: "No logs available.")
             } else if case let .container(containerId) = cid,
-                let container = containers.first(where: { $0.id == containerId })
+                let container = containers.byId[containerId]
             {
                 LogsView(
                     cmdExe: AppConfig.dockerExe,
@@ -736,7 +739,7 @@ private struct DockerLogsContentView: View {
                     model.lastContainerName = container.names.first
                 }
             } else if let containerName = model.lastContainerName,
-                let container = containers.first(where: { $0.names.contains(containerName) })
+                let container = vmModel.dockerContainers?.byName[containerName]
             {
                 // if restarted, use name
                 // don't update id - it'll cause unnecessary logs restart
@@ -812,10 +815,7 @@ struct DockerComposeLogsWindow: View {
     @SceneStorage("DockerComposeLogs_selection") private var savedSelection = "all"
 
     var body: some View {
-        let children =
-            vmModel.dockerContainers?
-            .filter { $0.composeProject == composeProject }
-            .sorted { $0.userName < $1.userName } ?? []
+        let children = vmModel.dockerContainers?.byComposeProject[composeProject]?.sorted { $0.userName < $1.userName } ?? []
 
         NavigationView {
             List {

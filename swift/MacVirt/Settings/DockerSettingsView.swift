@@ -38,8 +38,7 @@ struct DockerSettingsView: View {
 
             SettingsFooter {
                 if vmModel.state == .running,
-                    let machines = vmModel.containers,
-                    let dockerMachine = machines.first(where: { $0.id == ContainerIds.docker })
+                    let dockerMachine = vmModel.dockerMachine
                 {
                     Button("Apply") {
                         Task.detached {

@@ -20,8 +20,8 @@ struct MachinesRootView: View {
         StateWrapperView {
             if let containers = vmModel.containers {
                 VStack {
-                    if containers.contains(where: { !$0.record.builtin }) {
-                        let filteredContainers = containers.filter { !$0.record.builtin }
+                    if containers.values.contains(where: { !$0.record.builtin }) {
+                        let filteredContainers = containers.values.filter { !$0.record.builtin }
                         // see DockerContainerItem for rowHeight calculation
                         AKList(filteredContainers, selection: $selection, rowHeight: 48) {
                             container in

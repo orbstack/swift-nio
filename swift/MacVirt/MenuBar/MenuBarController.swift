@@ -108,8 +108,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     private func deriveSyntheticVmState(
         vmState: VmState,
-        machines: [ContainerInfo]?,
-        dockerContainers: [DKContainer]?,
+        machines: [String: ContainerInfo]?,
+        dockerContainers: MappedContainers?,
         isVmRestarting: Bool
     ) -> VmState {
         if isVmRestarting {
@@ -235,7 +235,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if let dockerContainers = vmModel.dockerContainers {
             menu.addSectionHeader("Containers")
             let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(
-                filteredContainers: dockerContainers, dockerFilterShowStopped: false)
+                filteredContainers: dockerContainers.byId.values, dockerFilterShowStopped: false)
 
             // placeholder if no containers
             if runningItems.isEmpty
@@ -269,12 +269,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Machines (exclude docker)
         if let machines = vmModel.containers,
-            machines.contains(where: { !$0.record.builtin })
+            machines.values.contains(where: { !$0.record.builtin })
         {
             menu.addSectionHeader("Machines")
 
-            let runningMachines = machines.filter { $0.record.running && !$0.record.builtin }
-            let stoppedMachines = machines.filter { !$0.record.running && !$0.record.builtin }
+            let runningMachines = machines.values.filter { $0.record.running && !$0.record.builtin }
+            let stoppedMachines = machines.values.filter { !$0.record.running && !$0.record.builtin }
 
             // placeholder if no machines
             if runningMachines.isEmpty {

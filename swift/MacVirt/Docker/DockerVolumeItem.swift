@@ -45,10 +45,7 @@ struct DockerVolumeItem: View {
                         .lineLimit(1)
 
                     // can we find the size from system df?
-                    if let dockerDf = vmModel.dockerSystemDf,
-                        let dfVolume = dockerDf.volumes.first(where: { $0.name == volume.name }),
-                        let usageData = dfVolume.usageData
-                    {
+                    if let usageData = vmModel.dockerDf?.volumes[volume.name]?.usageData {
                         let fmtSize = ByteCountFormatter.string(
                             fromByteCount: usageData.size, countStyle: .file)
                         Text("\(fmtSize)")

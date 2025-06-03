@@ -45,9 +45,8 @@ struct MachineDetails: View {
                 SimpleKvTable(longestLabel: "Architecture") {
                     SimpleKvTableRow("Distro") {
                         Text(
-                            Distro.allCases.first(where: { $0.rawValue == info.record.image.distro }
-                            )?
-                            .friendlyName ?? info.record.image.distro)
+                            Distro.map[info.record.image.distro]?.friendlyName
+                            ?? info.record.image.distro)
                     }
                     SimpleKvTableRow("Version") {
                         Text(info.record.image.version)

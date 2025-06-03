@@ -46,10 +46,7 @@ extension DKVolume: DockerItemSortConforming {
 
     @MainActor
     func sortSize(context: VmViewModel) -> Int64? {
-        guard let dockerDf = context.dockerSystemDf,
-            let dfVolume = dockerDf.volumes.first(where: { $0.name == self.name }),
-            let usageData = dfVolume.usageData
-        else { return nil }
+        guard let usageData = context.dockerDf?.volumes[self.name]?.usageData else { return nil }
         return usageData.size
     }
 }

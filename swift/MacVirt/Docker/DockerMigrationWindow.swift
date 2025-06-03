@@ -109,7 +109,7 @@ struct DockerMigrationWindow: View {
                 window.isRestorable = false
             }
 
-            if vmModel.dockerContainers?.isEmpty ?? true,
+            if vmModel.dockerContainers?.byId.isEmpty ?? true,
                 vmModel.dockerImages?.isEmpty ?? true,
                 vmModel.dockerVolumes?.isEmpty ?? true
             {

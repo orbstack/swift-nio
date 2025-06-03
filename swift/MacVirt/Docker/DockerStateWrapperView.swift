@@ -5,16 +5,16 @@
 import Foundation
 import SwiftUI
 
-struct DockerStateWrapperView<Content: View, Entity: Codable>: View {
+struct DockerStateWrapperView<Content: View, T>: View {
     @Environment(\.controlActiveState) private var controlActiveState: ControlActiveState
     @EnvironmentObject private var vmModel: VmViewModel
 
-    let keyPath: KeyPath<VmViewModel, [Entity]?>
-    let content: ([Entity], ContainerRecord) -> Content
+    let keyPath: KeyPath<VmViewModel, T?>
+    let content: (T, ContainerRecord) -> Content
 
     init(
-        _ keyPath: KeyPath<VmViewModel, [Entity]?>,
-        @ViewBuilder content: @escaping ([Entity], ContainerRecord) -> Content
+        _ keyPath: KeyPath<VmViewModel, T?>,
+        @ViewBuilder content: @escaping (T, ContainerRecord) -> Content
     ) {
         self.keyPath = keyPath
         self.content = content
@@ -23,9 +23,7 @@ struct DockerStateWrapperView<Content: View, Entity: Codable>: View {
     var body: some View {
         // TODO: return verdict as enum and use switch{} to fix loading flicker
         StateWrapperView {
-            if let machines = vmModel.containers,
-                let dockerMachine = machines.first(where: { $0.id == ContainerIds.docker })
-            {
+            if let dockerMachine = vmModel.dockerMachine {
                 Group {
                     if let entities = vmModel[keyPath: keyPath],
                         dockerMachine.record.state != .stopped

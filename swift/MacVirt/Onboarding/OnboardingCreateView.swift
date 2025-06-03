@@ -158,7 +158,7 @@ struct OnboardingCreateView: View {
 
     private func checkName(_ newName: String) {
         if let containers = vmModel.containers,
-            containers.contains(where: { $0.record.name == newName })
+           containers.values.contains(where: { $0.record.name == newName })
         {
             isNameDuplicate = true
         } else {
@@ -188,9 +188,7 @@ struct OnboardingCreateView: View {
             await vmModel.waitForStateEquals(.running)
 
             // user picked linux, so stop docker container to save memory
-            if let machines = vmModel.containers,
-                let dockerMachine = machines.first(where: { $0.id == ContainerIds.docker })
-            {
+            if let dockerMachine = vmModel.dockerMachine {
                 await vmModel.tryStopContainer(dockerMachine.record)
             }
 
