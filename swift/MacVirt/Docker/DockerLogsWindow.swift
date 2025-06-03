@@ -235,12 +235,16 @@ private class LogsViewModel: ObservableObject {
         lastAnsiState = AnsiState()
         lastCmdExe = cmdExe
         lastArgs = args
-        var args = args
+        let args = args
         if clearAndRestart {
             // clear for compose checkbox disabledChildren change
             clear()
         } else {
             // append arg to filter since last received line, for restart
+            // we don't do fancy restart continuation logic anymore:
+            // it's not necessary, as the CLI will replay a reasonable amount of logs
+            // this causes a lot of issues that aren't worth fixing
+            /*
             if let lastLineDate {
                 let formatter = ISO8601DateFormatter()
                 formatter.formatOptions.insert(.withFractionalSeconds)
@@ -251,6 +255,10 @@ private class LogsViewModel: ObservableObject {
                     args.append("--since=\(formatter.string(from: lastLineDate))")
                 }
             }
+            */
+
+            // always clear
+            clear()
 
             // if not first start, add delimiter
             if !isFirstStart {
