@@ -26,7 +26,7 @@ extension NavTabId {
             return [.k8sServicesFilter, .searchItem]
 
         case .machines:
-            return [.machinesImport, .machinesNew]
+            return [.machinesImport, .machinesNew, .searchItem]
 
         case .cli:
             return [.cliHelp]

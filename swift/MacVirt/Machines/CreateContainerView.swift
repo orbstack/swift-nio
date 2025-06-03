@@ -182,7 +182,7 @@ struct CreateContainerView: View {
         .onAppear {
             checkName(name, animate: false)
         }
-        .onChange(of: vmModel.containers) { _ in
+        .onChange(of: vmModel.machines) { _ in
             checkName(name)
         }
         .windowHolder(windowHolder)
@@ -207,7 +207,7 @@ struct CreateContainerView: View {
     }
 
     private func checkName(_ newName: String, animate: Bool = true) {
-        if let containers = vmModel.containers,
+        if let containers = vmModel.machines,
            containers.values.contains(where: { $0.record.name == newName })
         {
             isNameDuplicate = true

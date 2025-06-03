@@ -107,7 +107,7 @@ struct OnboardingCreateView: View {
                         .task {
                             checkName(name)
                         }
-                        .onChange(of: vmModel.containers) { _ in
+                        .onChange(of: vmModel.machines) { _ in
                             checkName(name)
                         }
 
@@ -157,7 +157,7 @@ struct OnboardingCreateView: View {
     }
 
     private func checkName(_ newName: String) {
-        if let containers = vmModel.containers,
+        if let containers = vmModel.machines,
            containers.values.contains(where: { $0.record.name == newName })
         {
             isNameDuplicate = true

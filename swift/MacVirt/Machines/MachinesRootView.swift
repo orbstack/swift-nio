@@ -18,26 +18,39 @@ struct MachinesRootView: View {
 
     var body: some View {
         StateWrapperView {
-            if let containers = vmModel.containers {
+            if let machines = vmModel.machines {
                 VStack {
-                    if containers.values.contains(where: { !$0.record.builtin }) {
-                        let filteredContainers = containers.values.filter { !$0.record.builtin }
-                        // see DockerContainerItem for rowHeight calculation
-                        AKList(filteredContainers, selection: $selection, rowHeight: 48) {
-                            container in
-                            MachineContainerItem(record: container.record)
-                                .environmentObject(vmModel)
-                                .environmentObject(windowTracker)
-                                .environmentObject(actionTracker)
+                    let searchQuery = vmModel.searchText
+
+                    if machines.values.contains(where: { !$0.record.builtin }) {
+                        let filteredContainers = filterMachines(machines.values, searchQuery: searchQuery)
+
+                        if !filteredContainers.isEmpty {
+                            // see DockerContainerItem for rowHeight calculation
+                            AKList(filteredContainers, selection: $selection, rowHeight: 48) {
+                                container in
+                                MachineContainerItem(record: container.record)
+                                    .environmentObject(vmModel)
+                                    .environmentObject(windowTracker)
+                                    .environmentObject(actionTracker)
+                            }
+                            .inspectorSelection(selection)
+                        } else {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                ContentUnavailableViewCompat.search
+                                Spacer()
+                            }
+                            Spacer()
                         }
-                        .inspectorSelection(selection)
                     } else {
                         Spacer()
                         HStack {
                             Spacer()
                             VStack {
                                 ContentUnavailableViewCompat(
-                                    "No Linux machines", systemImage: "desktopcomputer")
+                                    "No Machines", systemImage: "desktopcomputer")
 
                                 Button(action: {
                                     vmModel.presentCreateMachine = true
@@ -105,5 +118,18 @@ struct MachinesRootView: View {
             }
         }
         .navigationTitle("Machines")
+    }
+
+    private func filterMachines(_ machines: any Sequence<ContainerInfo>, searchQuery: String) -> [ContainerInfo] {
+        return machines.filter { machine in
+            !machine.record.builtin && (
+                searchQuery.isEmpty
+                    || machine.record.name.localizedCaseInsensitiveContains(searchQuery)
+                    || machine.record.image.distro.localizedCaseInsensitiveContains(searchQuery)
+                    || machine.record.image.variant.localizedCaseInsensitiveContains(searchQuery)
+                    || machine.record.image.version.localizedCaseInsensitiveContains(searchQuery)
+                    || machine.record.image.arch.localizedCaseInsensitiveContains(searchQuery)
+            )
+        }
     }
 }

@@ -260,7 +260,7 @@ struct MachineContainerItem: View {
             [record.id]
         }
 
-        return ids.compactMap { vmModel.containers?[$0] }
+        return ids.compactMap { vmModel.machines?[$0] }
     }
 }
 

@@ -81,13 +81,13 @@ struct CloneContainerView: View {
             name = record.name + "2"
             checkName(name, animate: false)
         }
-        .onChange(of: vmModel.containers) { _ in
+        .onChange(of: vmModel.machines) { _ in
             checkName(name)
         }
     }
 
     private func checkName(_ newName: String, animate: Bool = true) {
-        if let containers = vmModel.containers,
+        if let containers = vmModel.machines,
            containers.values.contains(where: { $0.record.name == newName && $0.record.id != record.id })
         {
             // renaming to same isn't considered duplicate

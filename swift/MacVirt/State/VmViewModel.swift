@@ -503,7 +503,7 @@ class VmViewModel: ObservableObject {
 
             if state == .stopped {
                 // clear state
-                containers = nil
+                machines = nil
                 config = nil
                 appliedConfig = nil
 
@@ -518,12 +518,12 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    @Published private(set) var containers: [String: ContainerInfo]?
+    @Published private(set) var machines: [String: ContainerInfo]?
     var dockerMachine: ContainerInfo? {
-        containers?[ContainerIds.docker]
+        machines?[ContainerIds.docker]
     }
     var k8sMachine: ContainerInfo? {
-        containers?[ContainerIds.k8s]
+        machines?[ContainerIds.k8s]
     }
 
     @Published var error: VmError?
@@ -789,9 +789,9 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     private func onNewSconMachines(allContainers: [ContainerInfo]) {
-        let isFirstContainers = containers == nil
+        let isFirstContainers = machines == nil
 
-        containers = allContainers.mapToDict { container in
+        machines = allContainers.mapToDict { container in
             (container.record.id, container)
         }
 

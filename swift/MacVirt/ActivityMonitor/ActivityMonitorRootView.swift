@@ -627,7 +627,7 @@ struct ActivityMonitorRootView: View {
         Task {
             switch id {
             case .machine(let id):
-                if let machine = vmModel.containers?[id] {
+                if let machine = vmModel.machines?[id] {
                     await vmModel.tryStopContainer(machine.record)
                 }
             case .container(let id):
@@ -650,7 +650,7 @@ struct ActivityMonitorRootView: View {
                 break
 
             case .machinesGroup:
-                vmModel.containers?.values.forEach { machine in
+                vmModel.machines?.values.forEach { machine in
                     if machine.record.running && !machine.record.builtin {
                         Task {
                             await vmModel.tryStopContainer(machine.record)
@@ -938,7 +938,7 @@ private class ActivityMonitorViewModel: ObservableObject {
         case .machine(ContainerIds.docker):
             entity = .dockerGroup
         case .machine(let id):
-            if let machine = vmModel.containers?[id] {
+            if let machine = vmModel.machines?[id] {
                 entity = .machine(record: machine.record)
             }
         case .container(let id):

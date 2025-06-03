@@ -129,7 +129,7 @@ struct InspectorView: View {
                     K8SServiceDetails(service: $0)
                 }
             case .machines:
-                InspectorSelectionList(model.containers?.values, selection: navModel.inspectorSelection) {
+                InspectorSelectionList(model.machines?.values, selection: navModel.inspectorSelection) {
                     MachineDetails(info: $0)
                 }
             case .activityMonitor:

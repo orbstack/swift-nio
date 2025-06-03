@@ -82,7 +82,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // observe relevant states
         vmModel.$state
-            .combineLatest(vmModel.$containers, vmModel.$dockerContainers, vmModel.$isVmRestarting)
+            .combineLatest(vmModel.$machines, vmModel.$dockerContainers, vmModel.$isVmRestarting)
         {
             ($0, $1, $2, $3)
         }
@@ -268,7 +268,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         // Machines (exclude docker)
-        if let machines = vmModel.containers,
+        if let machines = vmModel.machines,
             machines.values.contains(where: { !$0.record.builtin })
         {
             menu.addSectionHeader("Machines")
