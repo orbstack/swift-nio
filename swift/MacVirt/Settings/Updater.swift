@@ -57,12 +57,10 @@ struct UpdaterSettingsView: View {
                     updater.automaticallyDownloadsUpdates = newValue
                 }
 
-            VStack {
-                Picker("Update channel", selection: $updatesOptinChannel) {
-                    Text("Stable").tag("stable")
-                    Text("Canary (faster)").tag("canary")
-                }
-            }.frame(maxWidth: 256)
+            Picker("Update channel", selection: $updatesOptinChannel) {
+                Text("Stable").tag("stable")
+                Text("Canary (faster)").tag("canary")
+            }
         }
     }
 }

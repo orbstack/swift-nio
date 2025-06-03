@@ -16,37 +16,43 @@ struct DebugSettingsView: View {
 
     var body: some View {
         Form {
-            Button(action: {
-                Defaults[.onboardingCompleted] = false
-            }) {
-                Text("reset onboarding")
-            }
-            Button(action: {
-                Defaults[.tipsMenubarBgShown] = false
-                Defaults[.tipsContainerDomainsShow] = true
-                Defaults[.tipsContainerFilesShow] = true
-                Defaults[.tipsImageMountsShow] = true
-                Defaults[.dockerMigrationDismissed] = false
-            }) {
-                Text("reset tips")
+            Section {
+                Button(action: {
+                    Defaults[.onboardingCompleted] = false
+                }) {
+                    Text("reset onboarding")
+                }
+
+                Button(action: {
+                    Defaults[.tipsMenubarBgShown] = false
+                    Defaults[.tipsContainerDomainsShow] = true
+                    Defaults[.tipsContainerFilesShow] = true
+                    Defaults[.tipsImageMountsShow] = true
+                    Defaults[.dockerMigrationDismissed] = false
+                }) {
+                    Text("reset tips")
+                }
+            } header: {
+                Text("UserDefaults")
             }
 
-            Spacer()
-                .frame(height: 32)
-
-            Text("Helper")
-            Button("action: symlink") {
-                Task {
-                    vmModel.privHelper.installReason = "Test?"
-                    do {
-                        try await vmModel.privHelper.symlink(
-                            src: Files.dockerSocket, dest: "/var/run/docker.sock")
-                    } catch {
-                        print(error)
+            Section {
+                Button("action: symlink") {
+                    Task {
+                        vmModel.privHelper.installReason = "Test?"
+                        do {
+                            try await vmModel.privHelper.symlink(
+                                src: Files.dockerSocket, dest: "/var/run/docker.sock")
+                        } catch {
+                            print(error)
+                        }
                     }
                 }
+            } header: {
+                Text("Privileged Helper")
             }
         }
-        .padding()
+        .formStyle(.grouped)
+        .navigationTitle("Debug")
     }
 }

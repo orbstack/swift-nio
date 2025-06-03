@@ -15,35 +15,26 @@ struct DockerSettingsView: View {
 
     var body: some View {
         Form {
-            Group {
-                Toggle(
-                    isOn: $enableIPv6,
-                    label: {
-                        Text("Enable IPv6")
-                    })
+            Section {
+                Toggle(isOn: $enableIPv6) {
+                    Text("Enable IPv6")
+                    Text("May cause compatibility issues with some containers.")
+                }
+            } header: {
+                Text("Network")
             }
 
-            Spacer()
-                .frame(height: 32)
-
-            Group {
-                Text("Advanced engine config")
-                    .font(.headline)
-                    .padding(.bottom, 4)
-
+            Section {
                 TextEditor(text: $configJson)
                     .font(.body.monospaced())
                     .frame(minHeight: 150)
                     .autocorrectionDisabled()
+            } header: {
+                Text("Advanced engine configuration")
+                Text("You can also [edit the config file](https://orb.cx/docker-config) directly. Invalid configs will prevent Docker from starting.")
+            }
 
-                Text(
-                    "You can also [edit the config file](https://orb.cx/docker-config) directly.\nInvalid configs will prevent Docker from starting."
-                )
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
-
+            SettingsFooter {
                 if vmModel.state == .running,
                     let machines = vmModel.containers,
                     let dockerMachine = machines.first(where: { $0.id == ContainerIds.docker })
@@ -61,7 +52,7 @@ struct DockerSettingsView: View {
                 }
             }
         }
-        .padding()
+        .formStyle(.grouped)
         .navigationTitle("Docker")
         .onAppear {
             // not MainActor: blocking sync I/O

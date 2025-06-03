@@ -19,74 +19,61 @@ struct NetworkSettingsView: View {
     var body: some View {
         SettingsStateWrapperView {
             Form {
-                let networkBridgeBinding = Binding {
-                    networkBridge
-                } set: { newValue in
-                    vmModel.trySetConfigKey(\.networkBridge, newValue)
+                Section {
+                    let networkBridgeBinding = Binding {
+                        networkBridge
+                    } set: { newValue in
+                        vmModel.trySetConfigKey(\.networkBridge, newValue)
 
-                    // restart Docker if running
-                    if newValue != vmModel.config?.networkBridge,
-                        vmModel.state == .running,
-                        let machines = vmModel.containers,
-                        let dockerMachine = machines.first(where: {
-                            $0.id == ContainerIds.docker
-                        }),
-                        dockerMachine.record.state == .starting
-                            || dockerMachine.record.state == .running
-                    {
-                        Task { @MainActor in
-                            await vmModel.tryRestartContainer(dockerMachine.record)
+                        // restart Docker if running
+                        if newValue != vmModel.config?.networkBridge,
+                            vmModel.state == .running,
+                            let machines = vmModel.containers,
+                            let dockerMachine = machines.first(where: {
+                                $0.id == ContainerIds.docker
+                            }),
+                            dockerMachine.record.state == .starting
+                                || dockerMachine.record.state == .running
+                        {
+                            Task { @MainActor in
+                                await vmModel.tryRestartContainer(dockerMachine.record)
+                            }
                         }
                     }
-                }
-                Toggle(
-                    "Allow access to container domains & IPs",
-                    isOn: networkBridgeBinding)
-                Text("Use domains and IPs to connect to containers without port forwarding.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Text(
-                    "This also includes Linux machines. [Learn more](https://orb.cx/container-domains)"
-                )
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-                // this one is live-reload
-                Toggle(
-                    "Enable HTTPS for container domains",
-                    isOn: vmModel.bindingForConfig(\.networkHttps, state: $networkHttps)
-                )
-                .disabled(!networkBridge)
-
-                Spacer().frame(height: 32)
-
-                Picker("Proxy", selection: $proxyMode) {
-                    Text("Automatic (system)").tag("auto")
-                    Text("Custom").tag("custom")
-                    Text("None").tag("none")
-                }
-                .pickerStyle(.radioGroup)
-
-                Spacer().frame(height: 20)
-
-                // TODO: validate url on our side
-                TextField("", text: $proxyText)
-                    .onSubmit {
-                        commit()
+                    Toggle(isOn: networkBridgeBinding) {
+                        Text("Allow access to container domains & IPs")
+                        Text("Use domains and IPs to connect to containers and machines without port forwarding. [Learn more](https://orb.cx/container-domains)")
                     }
-                    .disabled(proxyMode != "custom")
 
-                Text("HTTP, HTTPS, or SOCKS proxy for all Docker and Linux traffic.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                // suppress markdown
-                Text(
-                    String(
-                        proxyMode == "custom" ? "Example: socks5://user:pass@example.com:1080" : "")
-                )
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                    // this one is live-reload
+                    Toggle(
+                        "Enable HTTPS for container domains",
+                        isOn: vmModel.bindingForConfig(\.networkHttps, state: $networkHttps)
+                    )
+                    .disabled(!networkBridge)
+                }
+
+                Section {
+                    Picker(selection: $proxyMode) {
+                        Text("Auto (system)").tag("auto")
+                        Text("Custom").tag("custom")
+                        Text("None").tag("none")
+                    } label: {
+                        Text("Proxy")
+                        Text("Apply an HTTP, HTTPS, or SOCKS proxy to all traffic from containers and machines.")
+                    }
+                    .pickerStyle(.radioGroup)
+
+                    if proxyMode == "custom" {
+                        // TODO: validate url on our side
+                        TextField("URL", text: $proxyText, prompt: Text("socks5://user:pass@example.com:1080"))
+                            .onSubmit {
+                                commit()
+                            }
+                    }
+                }
             }
+            .formStyle(.grouped)
             .onChange(of: vmModel.config) { config in
                 if let config {
                     updateFrom(config)
@@ -106,7 +93,7 @@ struct NetworkSettingsView: View {
                 }
             }
         }
-        .padding()
+        .navigationTitle("Network")
     }
 
     private func commit() {

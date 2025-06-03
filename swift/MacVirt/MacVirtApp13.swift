@@ -412,5 +412,7 @@ struct MacVirtApp13: App {
             AppSettings(updaterController: updaterController)
                 .environmentObject(vmModel)
         }
+        .windowToolbarStyle(.unified)
+        .windowStyle(.titleBar)
     }
 }

@@ -30,35 +30,36 @@ struct StorageSettingsView: View {
     var body: some View {
         SettingsStateWrapperView {
             Form {
-                let selBinding = Binding<DirItem> {
-                    if let dataDir {
-                        return DirItem.custom(dataDir)
-                    } else {
-                        return DirItem.def
+                Section {
+                    Toggle(isOn: vmModel.bindingForConfig(\.mountHideShared, state: $mountHideShared)) {
+                        Text("Hide OrbStack volume from Finder & Desktop")
+                        Text("This volume makes it easy to access files in containers and machines.")
                     }
-                } set: { newValue in
-                    switch newValue {
-                    case .def:
-                        // update immediately to avoid picker glitch
-                        dataDir = nil
-                        vmModel.trySetConfigKey(\.dataDir, nil)
-                    case .custom:
-                        // ignore
-                        break
-                    case .other:
-                        selectFolder()
-                    }
+                } header: {
+                    Text("Integration")
                 }
 
-                Toggle(
-                    "Hide OrbStack volume (shared Docker & Linux files)",
-                    isOn: vmModel.bindingForConfig(\.mountHideShared, state: $mountHideShared))
-
-                Spacer()
-                    .frame(height: 32)
-
-                VStack {
-                    Picker(selection: selBinding, label: Text("Data location")) {
+                Section {
+                    let selBinding = Binding<DirItem> {
+                        if let dataDir {
+                            return DirItem.custom(dataDir)
+                        } else {
+                            return DirItem.def
+                        }
+                    } set: { newValue in
+                        switch newValue {
+                        case .def:
+                            // update immediately to avoid picker glitch
+                            dataDir = nil
+                            vmModel.trySetConfigKey(\.dataDir, nil)
+                        case .custom:
+                            // ignore
+                            break
+                        case .other:
+                            selectFolder()
+                        }
+                    }
+                    Picker(selection: selBinding, label: Text("Location")) {
                         Text("Default").tag(DirItem.def)
                         Divider()
                         if let dataDir {
@@ -68,41 +69,44 @@ struct StorageSettingsView: View {
                         Divider()
                         Text("Other…").tag(DirItem.other)
                     }
-                }
-                .frame(maxWidth: 256)
-                Toggle(
-                    "Include data in Time Machine backups",
-                    isOn: vmModel.bindingForConfig(\.dataAllowBackup, state: $dataAllowBackup))
 
-                Spacer()
-                    .frame(height: 32)
-
-                Button("Reset Docker Data", role: .destructive) {
-                    presentConfirmResetDockerData = true
+                    Toggle(
+                        "Include data in Time Machine backups",
+                        isOn: vmModel.bindingForConfig(\.dataAllowBackup, state: $dataAllowBackup))
+                } header: {
+                    Text("Data")
                 }
 
-                Button("Reset Kubernetes Cluster", role: .destructive) {
-                    presentConfirmResetK8sData = true
-                }
-
-                Button("Reset All Data", role: .destructive) {
-                    presentConfirmResetAllData = true
-                }
-
-                Spacer()
-                    .frame(height: 32)
-
-                Button(action: {
-                    Task {
-                        await vmModel.tryRestart()
+                Section {
+                    Button("Reset Docker Data", role: .destructive) {
+                        presentConfirmResetDockerData = true
                     }
-                }) {
-                    Text("Apply")
-                    // TODO: dataAllowBackup doesn't require restart
+
+                    Button("Reset Kubernetes Cluster", role: .destructive) {
+                        presentConfirmResetK8sData = true
+                    }
+
+                    Button("Reset All Data", role: .destructive) {
+                        presentConfirmResetAllData = true
+                    }
+                } header: {
+                    Text("Danger Zone")
                 }
-                .disabled(vmModel.appliedConfig == vmModel.config)
-                .keyboardShortcut("s")
+
+                SettingsFooter {
+                    Button(action: {
+                        Task {
+                            await vmModel.tryRestart()
+                        }
+                    }) {
+                        Text("Apply")
+                        // TODO: dataAllowBackup doesn't require restart
+                    }
+                    .disabled(vmModel.appliedConfig == vmModel.config)
+                    .keyboardShortcut("s")
+                }
             }
+            .formStyle(.grouped)
             .onChange(of: vmModel.config) { config in
                 if let config {
                     updateFrom(config)
@@ -160,8 +164,8 @@ struct StorageSettingsView: View {
             },
             button2Label: "Cancel"
         )
-        .padding()
         .windowHolder(windowHolder)
+        .navigationTitle("Storage")
     }
 
     private func selectFolder() {

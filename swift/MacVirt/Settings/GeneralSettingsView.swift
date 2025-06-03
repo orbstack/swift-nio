@@ -16,25 +16,28 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            LaunchAtLogin.Toggle {
-                Text("Start at login")
-            }
-            Defaults.Toggle("Show in menu bar", key: .globalShowMenubarExtra)
-            // ZStack to avoid layout shift
-            ZStack(alignment: .leading) {
-                Defaults.Toggle(
-                    "Keep running when menu bar app is quit", key: .globalStayInBackground
-                )
-                .opacity(showMenubarExtra ? 1 : 0)
-                Defaults.Toggle("Keep running when app is quit", key: .globalStayInBackground)
-                    .opacity(showMenubarExtra ? 0 : 1)
+            Section {
+                LaunchAtLogin.Toggle {
+                    Text("Start at login")
+                }
+
+                Defaults.Toggle("Show in menu bar", key: .globalShowMenubarExtra)
+
+                let bgLabel = if showMenubarExtra {
+                    "Keep running when menu bar app is quit"
+                } else {
+                    "Keep running when app is quit"
+                }
+                Defaults.Toggle(bgLabel, key: .globalStayInBackground)
             }
 
-            Spacer()
-                .frame(height: 20)
-
-            UpdaterSettingsView(updater: updaterController.updater)
+            Section {
+                UpdaterSettingsView(updater: updaterController.updater)
+            } header: {
+                Text("Updates")
+            }
         }
-        .padding()
+        .formStyle(.grouped)
+        .navigationTitle("General")
     }
 }

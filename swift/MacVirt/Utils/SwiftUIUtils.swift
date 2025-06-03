@@ -64,23 +64,44 @@ class WindowHolder: ObservableObject {
     }
 }
 
+private struct WindowCallbackAccessor: NSViewRepresentable {
+    let action: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        AccessorView(action: action)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+    }
+
+    final class AccessorView: NSView {
+        let action: (NSWindow) -> Void
+
+        init(action: @escaping (NSWindow) -> Void) {
+            self.action = action
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window {
+                action(window)
+            }
+        }
+    }
+}
+
 extension View {
     func windowHolder(_ holder: WindowHolder) -> some View {
         background(WindowAccessor(holder: holder))
     }
 
-    func onWindowReady(holder: WindowHolder, action: @escaping (NSWindow) -> Void) -> some View {
-        self
-            .onAppear {
-                if let window = holder.window {
-                    action(window)
-                }
-            }
-            .onChange(of: holder.window) { window in
-                if let window {
-                    action(window)
-                }
-            }
+    func onWindowReady(action: @escaping (NSWindow) -> Void) -> some View {
+        background(WindowCallbackAccessor(action: action))
     }
 }
 
@@ -227,6 +248,14 @@ extension View {
             return self.onKeyPress(key, phases: .down) { _ in
                 return action() ? .handled : .ignored
             }
+        } else {
+            return self
+        }
+    }
+
+    func toolbarRemovingSidebarToggleCompat() -> some View {
+        if #available(macOS 14, *) {
+            return self.toolbar(removing: .sidebarToggle)
         } else {
             return self
         }

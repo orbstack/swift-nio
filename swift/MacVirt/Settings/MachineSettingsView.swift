@@ -25,21 +25,7 @@ struct MachineSettingsView: View {
     var body: some View {
         SettingsStateWrapperView {
             Form {
-                #if arch(arm64)
-                    Group {
-                        Toggle(
-                            "Use Rosetta to run Intel code",
-                            isOn: vmModel.bindingForConfig(\.rosetta, state: $enableRosetta))
-                        Text("Faster. Only disable if you run into compatibility issues.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        Spacer()
-                            .frame(height: 32)
-                    }
-                #endif
-
-                Group {
+                Section {
                     let systemMemMib = ProcessInfo.processInfo.physicalMemory / 1024 / 1024
                     // 80% or (max - 4 GiB), whichever is greater
                     // e.g. up to 28 GiB on 32 GiB Macs
@@ -48,12 +34,9 @@ struct MachineSettingsView: View {
 
                     let memoryMibBinding = vmModel.bindingForConfig(\.memoryMib, state: $memoryMib)
                     Slider(value: memoryMibBinding, in: 1024...maxMemoryMib, step: 1024) {
-                        VStack(alignment: .trailing) {
-                            Text("Memory limit")
-                            Text("\(memoryMibBinding.wrappedValue / 1024) GiB")
-                                .font(.caption.monospacedDigit())
-                                .foregroundColor(.secondary)
-                        }
+                        Text("Memory limit")
+                        Text("\(memoryMibBinding.wrappedValue / 1024) GiB")
+                            .font(.caption.monospacedDigit())
                     } minimumValueLabel: {
                         Text("1 GiB")
                     } maximumValueLabel: {
@@ -64,68 +47,71 @@ struct MachineSettingsView: View {
 
                     let cpuBinding = vmModel.bindingForConfig(\.cpu, state: $cpu)
                     Slider(value: cpuBinding, in: 1...maxCpu, step: 1) {
-                        VStack(alignment: .trailing) {
-                            Text("CPU limit")
-                            let curCpu = cpuBinding.wrappedValue
-                            let label = (curCpu == maxCpu) ? "None" : "\(curCpu)00%"
-                            Text(label)
-                                .font(.caption.monospacedDigit())
-                                .foregroundColor(.secondary)
-                        }
+                        Text("CPU limit")
+                        let curCpu = cpuBinding.wrappedValue
+                        let label = (curCpu == maxCpu) ? "None" : "\(curCpu)00%"
+                        Text(label)
+                            .font(.caption.monospacedDigit())
                     } minimumValueLabel: {
                         Text("100%")
                     } maximumValueLabel: {
                         Text("None")
                     }
-
-                    Text(
-                        "Resources are used on demand, up to these limits. [Learn more](https://orb.cx/res-limits)"
-                    )
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                } header: {
+                    Text("Resources")
+                    Text("Resources are only used as needed. These are limits, not reservations. [Learn more](https://orb.cx/res-limits)")
                 }
 
-                Spacer()
-                    .frame(height: 32)
-
-                Toggle(
-                    "Switch Docker & Kubernetes context automatically",
-                    isOn: vmModel.bindingForConfig(\.dockerSetContext, state: $dockerSetContext))
-
-                let adminBinding = Binding<Bool>(
-                    get: { setupUseAdmin },
-                    set: { newValue in
-                        if newValue {
-                            vmModel.trySetConfigKey(\.setupUseAdmin, true)
-                            // reset dismiss count
-                            Defaults[.adminDismissCount] = 0
-                        } else {
-                            presentDisableAdmin = true
+                Section {
+                    let adminBinding = Binding<Bool>(
+                        get: { setupUseAdmin },
+                        set: { newValue in
+                            if newValue {
+                                vmModel.trySetConfigKey(\.setupUseAdmin, true)
+                                // reset dismiss count
+                                Defaults[.adminDismissCount] = 0
+                            } else {
+                                presentDisableAdmin = true
+                            }
                         }
+                    )
+                    Toggle(isOn: adminBinding) {
+                        Text("Use admin privileges for enhanced features")
+                        Text("This can improve performance and compatibility. [Learn more](https://orb.cx/admin)")
                     }
-                )
 
-                Toggle("Use admin privileges for enhanced features", isOn: adminBinding)
-                Text(
-                    "This can improve performance and compatibility. [Learn more](https://orb.cx/admin)"
-                )
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-                Spacer()
-                    .frame(height: 32)
-
-                Button(action: {
-                    Task {
-                        await vmModel.tryRestart()
-                    }
-                }) {
-                    Text("Apply")
-                    // TODO: dockerSetContext doesn't require restart
+                    Toggle(
+                        "Switch Docker & Kubernetes context automatically",
+                        isOn: vmModel.bindingForConfig(\.dockerSetContext, state: $dockerSetContext))
+                } header: {
+                    Text("Environment")
                 }
-                .disabled(vmModel.appliedConfig == vmModel.config)
-                .keyboardShortcut("s")
+
+                #if arch(arm64)
+                    Section {
+                        Toggle(isOn: vmModel.bindingForConfig(\.rosetta, state: $enableRosetta)) {
+                            Text("Use Rosetta to run Intel code")
+                            Text("Faster. Only disable if you run into compatibility issues.")
+                        }
+                    } header: {
+                        Text("Compatibility")
+                    }
+                #endif
+
+                SettingsFooter {
+                    Button(action: {
+                        Task {
+                            await vmModel.tryRestart()
+                        }
+                    }) {
+                        Text("Apply")
+                        // TODO: dockerSetContext doesn't require restart
+                    }
+                    .disabled(vmModel.appliedConfig == vmModel.config)
+                    .keyboardShortcut("s")
+                }
             }
+            .formStyle(.grouped)
             .onChange(of: vmModel.config) { config in
                 if let config {
                     updateFrom(config)
@@ -137,7 +123,7 @@ struct MachineSettingsView: View {
                 }
             }
         }
-        .padding()
+        .navigationTitle("System")
         .windowHolder(windowHolder)
         .akAlert(
             "Disable privileged features?", isPresented: $presentDisableAdmin,

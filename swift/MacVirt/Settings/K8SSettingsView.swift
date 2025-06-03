@@ -22,29 +22,23 @@ struct K8SSettingsView: View {
     var body: some View {
         SettingsStateWrapperView {
             Form {
-                Toggle(
-                    "Enable Kubernetes cluster",
-                    isOn: vmModel.bindingForConfig(\.k8sEnable, state: $k8sEnable))
-                Text(
-                    "Lightweight local cluster with UI & network integration. [Learn more](https://orb.cx/k8s)"
-                )
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                Section {
+                    Toggle(isOn: vmModel.bindingForConfig(\.k8sEnable, state: $k8sEnable)) {
+                        Text("Enable Kubernetes cluster")
+                        Text("Lightweight local cluster with UI & network integration. [Learn more](https://orb.cx/k8s)")
+                    }
+                }
 
-                Spacer()
-                    .frame(height: 32)
+                Section {
+                    Toggle(isOn: vmModel.bindingForConfig(\.k8sExposeServices, state: $k8sExposeServices)) {
+                        Text("Expose services to local network devices")
+                        Text("Includes NodePorts, LoadBalancers, and the Kubernetes API.")
+                    }
+                } header: {
+                    Text("Network")
+                }
 
-                Toggle(
-                    "Expose services to local network devices",
-                    isOn: vmModel.bindingForConfig(\.k8sExposeServices, state: $k8sExposeServices))
-                Text("Includes NodePorts, LoadBalancers, and the Kubernetes API.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                Spacer()
-                    .frame(height: 32)
-
-                HStack(spacing: 16) {
+                SettingsFooter {
                     Button(action: {
                         Task {
                             // restart only
@@ -61,6 +55,7 @@ struct K8SSettingsView: View {
                     }
                 }
             }
+            .formStyle(.grouped)
             .onChange(of: vmModel.config) { config in
                 if let config {
                     updateFrom(config)
@@ -72,7 +67,7 @@ struct K8SSettingsView: View {
                 }
             }
         }
-        .padding()
+        .navigationTitle("Kubernetes")
         .windowHolder(windowHolder)
         .akAlert(
             "Reset Kubernetes cluster?", isPresented: $presentConfirmResetK8sData,
