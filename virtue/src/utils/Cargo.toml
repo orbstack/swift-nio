@@ -16,7 +16,7 @@ mach2 = "0.4.2"
 memchr = "2.7.4"
 memmage = { version = "0.1.0", path = "../memmage" }
 mio = "1.0.4"
-nix = "0.28.0"
+nix = "0.30.1"
 sysx = { version = "0.1.0", path = "../sysx" }
 once_cell = "1.21.3"
 scopeguard = "1.2.0"

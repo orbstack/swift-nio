@@ -20,7 +20,7 @@ bitflags = "2.9.1"
 anyhow = "1.0.98"
 rustc-hash = "2.1.1"
 libc = "0.2.172"
-nix = { version = "0.28.0", features = ["signal"] }
+nix = { version = "0.30.1", features = ["signal"] }
 counter = { path = "../counter" }
 dlopen = "0.1.8"
 dlopen_derive = "0.1.4"

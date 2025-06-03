@@ -26,17 +26,16 @@ pub struct Dgram {
 impl Dgram {
     pub fn new(fd: Arc<OwnedFd>) -> Result<Self, ConnectError> {
         // macOS forces us to do this here instead of just using SockFlag::SOCK_NONBLOCK above.
-        let raw_fd = fd.as_raw_fd();
-        match fcntl(raw_fd, FcntlArg::F_GETFL) {
+        match fcntl(&fd, FcntlArg::F_GETFL) {
             Ok(flags) => match OFlag::from_bits(flags) {
                 Some(flags) => {
-                    if let Err(e) = fcntl(raw_fd, FcntlArg::F_SETFL(flags | OFlag::O_NONBLOCK)) {
-                        warn!("error switching to non-blocking: id={}, err={}", raw_fd, e);
+                    if let Err(e) = fcntl(&fd, FcntlArg::F_SETFL(flags | OFlag::O_NONBLOCK)) {
+                        warn!("error switching to non-blocking: err={}", e);
                     }
                 }
-                None => error!("invalid fd flags id={}", raw_fd),
+                None => error!("invalid fd flags"),
             },
-            Err(e) => error!("couldn't obtain fd flags id={}, err={}", raw_fd, e),
+            Err(e) => error!("couldn't obtain fd flags err={}", e),
         };
 
         #[cfg(target_os = "macos")]
@@ -45,7 +44,7 @@ impl Dgram {
             let option_value: libc::c_int = 1;
             unsafe {
                 libc::setsockopt(
-                    raw_fd,
+                    fd.as_raw_fd(),
                     libc::SOL_SOCKET,
                     libc::SO_NOSIGPIPE,
                     &option_value as *const _ as *const libc::c_void,

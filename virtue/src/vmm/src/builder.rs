@@ -10,7 +10,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 #[cfg(target_os = "linux")]
 use std::os::fd::AsRawFd;
-use std::os::fd::RawFd;
+use std::os::fd::{BorrowedFd, RawFd};
 use std::sync::Arc;
 use utils::gruel::SubscriberMutexAdapter;
 use utils::memory::{GuestAddress, GuestMemory};
@@ -1187,9 +1187,12 @@ fn attach_console_devices(
             },
         ]
     } else {
-        let stdin_is_terminal = isatty(STDIN_FILENO).unwrap_or(false);
-        let stdout_is_terminal = isatty(STDOUT_FILENO).unwrap_or(false);
-        let stderr_is_terminal = isatty(STDERR_FILENO).unwrap_or(false);
+        let stdin_is_terminal =
+            isatty(unsafe { BorrowedFd::borrow_raw(STDIN_FILENO) }).unwrap_or(false);
+        let stdout_is_terminal =
+            isatty(unsafe { BorrowedFd::borrow_raw(STDOUT_FILENO) }).unwrap_or(false);
+        let stderr_is_terminal =
+            isatty(unsafe { BorrowedFd::borrow_raw(STDERR_FILENO) }).unwrap_or(false);
 
         let console_input = if stdin_is_terminal {
             Some(port_io::stdin().unwrap())

@@ -69,12 +69,10 @@ impl TcpProxy {
         .map_err(ProxyError::CreatingSocket)?;
 
         // macOS forces us to do this here instead of just using SockFlag::SOCK_NONBLOCK above.
-        match fcntl(fd.as_raw_fd(), FcntlArg::F_GETFL) {
+        match fcntl(&fd, FcntlArg::F_GETFL) {
             Ok(flags) => match OFlag::from_bits(flags) {
                 Some(flags) => {
-                    if let Err(e) =
-                        fcntl(fd.as_raw_fd(), FcntlArg::F_SETFL(flags | OFlag::O_NONBLOCK))
-                    {
+                    if let Err(e) = fcntl(&fd, FcntlArg::F_SETFL(flags | OFlag::O_NONBLOCK)) {
                         warn!("error switching to non-blocking: id={}, err={}", id, e);
                     }
                 }
@@ -362,13 +360,10 @@ impl TcpProxy {
 
     fn switch_to_connected(&mut self) {
         self.status = ProxyStatus::Connected;
-        match fcntl(self.fd.as_raw_fd(), FcntlArg::F_GETFL) {
+        match fcntl(&self.fd, FcntlArg::F_GETFL) {
             Ok(flags) => match OFlag::from_bits(flags) {
                 Some(flags) => {
-                    if let Err(e) = fcntl(
-                        self.fd.as_raw_fd(),
-                        FcntlArg::F_SETFL(flags & !OFlag::O_NONBLOCK),
-                    ) {
+                    if let Err(e) = fcntl(&self.fd, FcntlArg::F_SETFL(flags & !OFlag::O_NONBLOCK)) {
                         warn!("error switching to blocking: id={}, err={}", self.id, e);
                     }
                 }

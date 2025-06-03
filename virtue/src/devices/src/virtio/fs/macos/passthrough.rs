@@ -17,7 +17,7 @@ use std::num::NonZeroU64;
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
-use std::os::unix::io::{AsRawFd, FromRawFd};
+use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixDatagram;
 use std::path::Path;
 use std::ptr::{slice_from_raw_parts, NonNull};
@@ -35,7 +35,7 @@ use bitflags::bitflags;
 use derive_more::{Display, From, Into};
 use libc::{AT_FDCWD, MAXPATHLEN, SEEK_DATA, SEEK_HOLE};
 use nix::errno::Errno;
-use nix::fcntl::{open, AtFlags, OFlag};
+use nix::fcntl::{self, open, AtFlags, OFlag};
 use nix::sys::stat::fchmod;
 use nix::sys::stat::{futimens, utimensat, Mode, UtimensatFlags};
 use nix::sys::statfs::{fstatfs, statfs, Statfs};
@@ -312,7 +312,7 @@ fn set_xattr_stat(
 }
 
 fn fstat<T: AsFd>(fd: T, host: bool) -> io::Result<bindings::stat64> {
-    let mut st = nix::sys::stat::fstat(fd.as_fd().as_raw_fd())?;
+    let mut st = nix::sys::stat::fstat(&fd)?;
 
     if !host {
         if let Some((uid, gid, mode)) = get_xattr_stat(FileRef::Fd(fd.as_fd()))? {
@@ -884,7 +884,7 @@ impl PassthroughFs {
                         nix::fcntl::open(Path::new(&get_path_by_fd(fd)?), oflag, Mode::empty())
                     }
                 }?;
-                Some(Arc::new(unsafe { OwnedFd::from_raw_fd(fd) }))
+                Some(Arc::new(fd))
             } else {
                 debug!("skip open");
                 None
@@ -1195,8 +1195,7 @@ impl PassthroughFs {
     ) -> io::Result<(Option<HandleId>, OpenOptions)> {
         let flags = self.convert_open_flags(flags as i32);
         let (c_path, node_flags) = self.nodeid_to_path_and_data(ctx, nodeid)?;
-        let file =
-            unsafe { File::from_raw_fd(nix::fcntl::open(c_path.as_ref(), flags, Mode::empty())?) };
+        let file = File::from(nix::fcntl::open(c_path.as_ref(), flags, Mode::empty())?);
         // early stat to avoid broken handle state if it fails
         let st = fstat(&file, false)?;
 
@@ -1260,7 +1259,7 @@ impl PassthroughFs {
             // TODO: store sticky bit in xattr. don't allow suid/sgid
             match file_ref.as_ref() {
                 FileRef::Fd(fd) => {
-                    fchmod(fd.as_raw_fd(), Mode::from_bits_truncate(attr.st_mode))?;
+                    fchmod(&fd, Mode::from_bits_truncate(attr.st_mode))?;
                 }
                 FileRef::Path(path) => {
                     set_permissions(
@@ -1328,10 +1327,14 @@ impl PassthroughFs {
             let atime = TimeSpec::from_timespec(atime);
             let mtime = TimeSpec::from_timespec(mtime);
             match file_ref.as_ref() {
-                FileRef::Fd(fd) => futimens(fd.as_raw_fd(), &atime, &mtime),
-                FileRef::Path(path) => {
-                    utimensat(None, path, &atime, &mtime, UtimensatFlags::NoFollowSymlink)
-                }
+                FileRef::Fd(fd) => futimens(&fd, &atime, &mtime),
+                FileRef::Path(path) => utimensat(
+                    fcntl::AT_FDCWD,
+                    path,
+                    &atime,
+                    &mtime,
+                    UtimensatFlags::NoFollowSymlink,
+                ),
             }?;
         }
 
@@ -1802,7 +1805,7 @@ impl FileSystem for PassthroughFs {
         // rewind and re-read dir if necessary (other offsets are vec-based)
         let ds_offset = offset - 2;
         if ds_offset == 0 && ds.offset != 0 {
-            lseek(data.file.as_raw_fd(), 0, Whence::SeekSet)?;
+            lseek(&*data.file, 0, Whence::SeekSet)?;
             ds.offset = 0;
             ds.entries = None;
         }
@@ -1992,13 +1995,11 @@ impl FileSystem for PassthroughFs {
             // Safe because this doesn't modify any memory and we check the return value. We don't
             // really check `flags` because if the kernel can't handle poorly specified flags then we
             // have much bigger problems.
-            let fd = unsafe {
-                File::from_raw_fd(nix::fcntl::open(
-                    c_path.as_ref(),
-                    flags | OFlag::O_CREAT,
-                    Mode::from_bits_retain(mode as u16),
-                )?)
-            };
+            let fd = File::from(nix::fcntl::open(
+                c_path.as_ref(),
+                flags | OFlag::O_CREAT,
+                Mode::from_bits_retain(mode as u16),
+            )?);
 
             set_xattr_stat(
                 FileRef::Fd(fd.as_fd()),
@@ -2167,7 +2168,6 @@ impl FileSystem for PassthroughFs {
                             OFlag::O_CREAT | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
                             Mode::from_bits_truncate(0o600),
                         ) {
-                            let fd = unsafe { OwnedFd::from_raw_fd(fd) };
                             set_xattr_stat(
                                 FileRef::Fd(fd.as_fd()),
                                 None,
@@ -2216,15 +2216,13 @@ impl FileSystem for PassthroughFs {
             match mode as u16 & libc::S_IFMT {
                 0 | libc::S_IFREG => {
                     // on Linux, mknod can be used to create regular files using fmt = S_IFREG or 0
-                    unsafe {
-                        OwnedFd::from_raw_fd(open(
-                            c_path.as_ref(),
-                            // match mknod behavior: EEXIST if already exists
-                            OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_CLOEXEC,
-                            // permissions only
-                            Mode::from_bits_truncate(mode as u16),
-                        )?);
-                    }
+                    open(
+                        c_path.as_ref(),
+                        // match mknod behavior: EEXIST if already exists
+                        OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_CLOEXEC,
+                        // permissions only
+                        Mode::from_bits_truncate(mode as u16),
+                    )?;
                 }
                 libc::S_IFIFO => {
                     // FIFOs are actually safe because Linux just treats them as a device node, and will never issue VFS read call because they can't have data on real filesystems
@@ -2282,9 +2280,9 @@ impl FileSystem for PassthroughFs {
                     if res == -1 && Errno::last() == Errno::ENOTSUP {
                         // only APFS supports clonefile. fall back to link
                         nix::unistd::linkat(
-                            None,
+                            fcntl::AT_FDCWD,
                             orig_c_path.as_ref(),
-                            None,
+                            fcntl::AT_FDCWD,
                             link_c_path.as_ref(),
                             // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
                             AtFlags::empty(),
@@ -2293,9 +2291,9 @@ impl FileSystem for PassthroughFs {
                 } else {
                     // only APFS supports clonefile. fall back to link
                     nix::unistd::linkat(
-                        None,
+                        fcntl::AT_FDCWD,
                         orig_c_path.as_ref(),
-                        None,
+                        fcntl::AT_FDCWD,
                         link_c_path.as_ref(),
                         // NOFOLLOW is default; AT_SYMLINK_FOLLOW is opt-in
                         AtFlags::empty(),
@@ -2320,7 +2318,7 @@ impl FileSystem for PassthroughFs {
             let c_path = self.name_to_path(&ctx, parent, name)?;
 
             // Safe because this doesn't modify any memory and we check the return value.
-            symlinkat(linkname, None, c_path.as_ref())?;
+            symlinkat(linkname, fcntl::AT_FDCWD, c_path.as_ref())?;
 
             // Set security context
             if let Some(secctx) = &extensions.secctx {
