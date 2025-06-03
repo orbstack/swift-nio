@@ -3,7 +3,7 @@ use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
 use nix::{
     errno::Errno,
     libc::{siginfo_t, syscall, SYS_pidfd_open, SYS_pidfd_send_signal, PIDFD_NONBLOCK},
-    poll::{poll, PollFd, PollFlags},
+    poll::{poll, PollFd, PollFlags, PollTimeout},
     sys::signal::Signal,
 };
 
@@ -38,8 +38,8 @@ impl PidFd {
 
     #[allow(dead_code)]
     pub fn wait(&self) -> std::io::Result<()> {
-        let pollfd = PollFd::new(&self.0, PollFlags::POLLIN);
-        poll(&mut [pollfd], -1)?;
+        let pollfd = PollFd::new(self.0.as_fd(), PollFlags::POLLIN);
+        poll(&mut [pollfd], PollTimeout::NONE)?;
         Ok(())
     }
 }

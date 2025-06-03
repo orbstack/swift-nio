@@ -35,7 +35,7 @@ impl AsyncFile {
     }
 
     pub fn try_clone(&self) -> std::io::Result<Self> {
-        let fd = self.inner.get_ref().as_raw_fd();
+        let fd = self.inner.get_ref();
         let fd_dup = fcntl(fd, FcntlArg::F_DUPFD_CLOEXEC(3))?;
         Self::new(fd_dup)
     }

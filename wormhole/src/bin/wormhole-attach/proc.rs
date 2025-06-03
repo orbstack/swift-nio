@@ -1,6 +1,6 @@
 use std::{
     ffi::{c_char, CString},
-    os::fd::{AsRawFd, BorrowedFd},
+    os::fd::BorrowedFd,
     ptr::null_mut,
 };
 
@@ -110,7 +110,7 @@ pub fn iter_pids_from_dirfd(
     proc_fd: BorrowedFd<'_>,
 ) -> Result<impl Iterator<Item = Result<Pid, Errno>>, Errno> {
     Ok(Dir::openat(
-        proc_fd.as_raw_fd(),
+        proc_fd,
         "./",
         OFlag::O_DIRECTORY | OFlag::O_RDONLY,
         Mode::empty(),
@@ -145,7 +145,7 @@ pub fn get_ns_of_pid_from_dirfd(
     ns: &'static str,
 ) -> Result<u64, Errno> {
     Ok(fstatat(
-        proc_fd.as_raw_fd(),
+        proc_fd,
         format!("./{}/ns/{}", pid, ns).as_str(),
         AtFlags::empty(),
     )?

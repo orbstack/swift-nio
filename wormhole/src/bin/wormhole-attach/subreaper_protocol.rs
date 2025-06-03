@@ -4,16 +4,16 @@ use std::{
 };
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Encode, Decode, PartialEq, Eq)]
 pub enum Message {
     ForwardSignal(i32),
 }
 
 impl Message {
     pub fn write_to(&self, mut stream: impl Write) -> Result<()> {
-        let serialized = bincode::serialize(self)?;
+        let serialized = bincode::encode_to_vec(self, bincode::config::standard())?;
         let len_bytes = u32::try_from(serialized.len())?.to_be_bytes();
         stream.write_all(&len_bytes)?;
 
@@ -31,6 +31,7 @@ impl Message {
         let mut serialized = vec![0_u8; len];
         stream.read_exact(&mut serialized)?;
 
-        Ok(bincode::deserialize(&serialized)?)
+        let (message, _) = bincode::decode_from_slice(&serialized, bincode::config::standard())?;
+        Ok(message)
     }
 }

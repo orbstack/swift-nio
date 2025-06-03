@@ -5,7 +5,7 @@ use libc::{O_CLOEXEC, O_NOCTTY, O_RDWR, TIOCGPTPEER, TIOCSPTLCK, TIOCSWINSZ};
 use nix::{
     fcntl::{open, OFlag},
     libc::ioctl,
-    pty::{openpty, OpenptyResult, Winsize},
+    pty::Winsize,
     sys::{
         stat::Mode,
         termios::{
@@ -14,9 +14,6 @@ use nix::{
         },
     },
 };
-use tracing::trace;
-
-use crate::set_cloexec;
 
 const CONTROL_CHARS: &[usize] = &[
     libc::VINTR,
@@ -117,18 +114,23 @@ pub fn create_pty(
     )?;
 
     let mut value = 0;
-    let res = unsafe { ioctl(master, TIOCSPTLCK, &mut value as *mut i32) };
+    let res = unsafe { ioctl(master.as_raw_fd(), TIOCSPTLCK, &mut value as *mut i32) };
     if res < 0 {
         return Err(anyhow!("error unlocking pty"));
     }
 
     // open tty slave peer with cloexec
-    let slave = unsafe { ioctl(master, TIOCGPTPEER, O_RDWR | O_NOCTTY | O_CLOEXEC) };
+    let slave = unsafe {
+        ioctl(
+            master.as_raw_fd(),
+            TIOCGPTPEER,
+            O_RDWR | O_NOCTTY | O_CLOEXEC,
+        )
+    };
     if slave < 0 {
         return Err(anyhow!("error obtaining pty slave fd"));
     }
 
-    let master = unsafe { OwnedFd::from_raw_fd(master) };
     let slave = unsafe { OwnedFd::from_raw_fd(slave) };
 
     // read and set termios
@@ -147,7 +149,7 @@ pub fn set_termios(termios: &mut Termios, buf: &[u8]) -> anyhow::Result<()> {
 
     for cc in CONTROL_CHARS {
         let val = read_u8(buf, &mut idx)?;
-        termios.control_chars[*cc as usize] = val;
+        termios.control_chars[*cc] = val;
     }
 
     for flag in INPUT_FLAGS {

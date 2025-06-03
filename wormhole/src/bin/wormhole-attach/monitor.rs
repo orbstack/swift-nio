@@ -1,8 +1,7 @@
 use std::{
     fs::File,
-    io::{stderr, stdout},
     os::{
-        fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd},
+        fd::{AsFd as _, BorrowedFd, OwnedFd},
         unix::net::UnixStream,
     },
     path::Path,
@@ -13,12 +12,13 @@ use nix::{
     errno::Errno,
     fcntl::{openat, AtFlags, OFlag},
     mount::{umount2, MntFlags},
+    poll::PollTimeout,
     sys::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
         signal::{kill, Signal},
         stat::{fstatat, Mode},
     },
-    unistd::{dup2, getpid, Pid},
+    unistd::{dup2_stderr, dup2_stdout, getpid, Pid},
 };
 use tracing::trace;
 use wormhole::{
@@ -49,14 +49,12 @@ fn delete_nix_dir(
     nix_flock_ref: Flock,
 ) -> anyhow::Result<DeleteNixDirResult> {
     // try to unmount everything on our view of /nix recursively
-    let mounts_file = unsafe {
-        File::from_raw_fd(openat(
-            proc_fd.as_raw_fd(),
-            "thread-self/mounts",
-            OFlag::O_RDONLY | OFlag::O_CLOEXEC,
-            Mode::empty(),
-        )?)
-    };
+    let mounts_file = File::from(openat(
+        proc_fd,
+        "thread-self/mounts",
+        OFlag::O_RDONLY | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?);
     let proc_mounts = parse_proc_mounts(&std::io::read_to_string(mounts_file)?)?;
     for mnt in proc_mounts.iter().rev() {
         if mnt.dest == "/nix" || mnt.dest.starts_with("/nix/") {
@@ -138,8 +136,11 @@ pub fn run(
     server_pidfd: Option<OwnedFd>,
 ) -> anyhow::Result<()> {
     // switch over to using the log_fd. if we don't switch, logging will crash the application when stout and stderr closes!
-    dup2(state.log_fd, stdout().as_raw_fd())?;
-    dup2(state.log_fd, stderr().as_raw_fd())?;
+    {
+        let log_fd = unsafe { BorrowedFd::borrow_raw(state.log_fd) };
+        dup2_stdout(log_fd)?;
+        dup2_stderr(log_fd)?;
+    }
     let forward_signal_socket = UnixStream::from(forward_signal_fd);
 
     // wait until child (intermediate) exits
@@ -185,7 +186,7 @@ fn monitor(
 
     // intermediate succeeded, we assume the subreaper gets reparented to us and that we will receive SIGCHLD when it exits
     'outer: loop {
-        let n = match epoll.wait(&mut events, -1) {
+        let n = match epoll.wait(&mut events, PollTimeout::NONE) {
             Ok(n) if n < 1 => {
                 return Err(anyhow!("expected an event on epoll return"));
             }
@@ -254,7 +255,7 @@ fn cleanup(
     trace!("cleaning up");
 
     // save the mountns so we can check if pids are in it
-    let wormhole_mountns = fstatat(proc_fd.as_raw_fd(), "./self/ns/mnt", AtFlags::empty())?.st_ino;
+    let wormhole_mountns = fstatat(proc_fd, "./self/ns/mnt", AtFlags::empty())?.st_ino;
 
     let self_pid = getpid();
 

@@ -1,20 +1,18 @@
 use std::{
     fs::File,
-    io::{stderr, stdout, Write},
-    os::{
-        fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
-        unix::net::UnixStream,
-    },
+    io::Write,
+    os::{fd::OwnedFd, unix::net::UnixStream},
 };
 
 use anyhow::anyhow;
 use nix::{
     errno::Errno,
+    poll::PollTimeout,
     sys::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
         signal::{self, kill},
     },
-    unistd::{dup2, Pid},
+    unistd::{dup2_stderr, dup2_stdout, Pid},
 };
 use tracing::trace;
 
@@ -37,8 +35,8 @@ pub fn run(
     payload_pid: Pid,
 ) -> anyhow::Result<()> {
     // switch over to using the log_fd. if we don't switch, logging will crash the application when stout and stderr closes!
-    dup2(log_fd.as_raw_fd(), stdout().as_raw_fd())?;
-    dup2(log_fd.as_raw_fd(), stderr().as_raw_fd())?;
+    dup2_stdout(&log_fd)?;
+    dup2_stderr(&log_fd)?;
     drop(log_fd);
 
     let mut exit_code_pipe_write = File::from(exit_code_pipe_write_fd);
@@ -56,7 +54,7 @@ pub fn run(
     let mut payload_pid = Some(payload_pid);
 
     loop {
-        match epoll.wait(&mut events, -1) {
+        match epoll.wait(&mut events, PollTimeout::NONE) {
             Ok(n) if n < 1 => {
                 return Err(anyhow!("expected an event on epoll return"));
             }
@@ -73,7 +71,7 @@ pub fn run(
                     trace!("caught a signal, reaping");
 
                     let mut process_exited_cb = |pid, status| {
-                        if !payload_pid.is_some_and(|payload_pid| payload_pid == pid) {
+                        if payload_pid.is_none_or(|payload_pid| payload_pid != pid) {
                             return;
                         }
 

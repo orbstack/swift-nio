@@ -1,4 +1,4 @@
-use std::os::fd::RawFd;
+use std::os::fd::AsFd;
 
 use libc::c_int;
 use nix::{
@@ -59,14 +59,14 @@ impl IsMinusOne for isize {
     }
 }
 
-pub fn set_cloexec(fd: RawFd) -> Result<c_int, Errno> {
+pub fn set_cloexec<F: AsFd>(fd: &F) -> Result<c_int, Errno> {
     fcntl(
         fd,
         FcntlArg::F_SETFD(FdFlag::from_bits_retain(fcntl(fd, F_GETFD)?) | FdFlag::FD_CLOEXEC),
     )
 }
 
-pub fn unset_cloexec(fd: RawFd) -> Result<c_int, Errno> {
+pub fn unset_cloexec<F: AsFd>(fd: &F) -> Result<c_int, Errno> {
     fcntl(
         fd,
         FcntlArg::F_SETFD(FdFlag::from_bits_retain(fcntl(fd, F_GETFD)?) & !FdFlag::FD_CLOEXEC),
@@ -101,7 +101,7 @@ pub fn bind_mount_ro(source: &str, dest: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn set_nonblocking(fd: RawFd) -> nix::Result<()> {
+pub fn set_nonblocking<F: AsFd>(fd: &F) -> nix::Result<()> {
     let flags = fcntl(fd, FcntlArg::F_GETFL)?;
     let new_flags = OFlag::from_bits_retain(flags) | OFlag::O_NONBLOCK;
     fcntl(fd, FcntlArg::F_SETFL(new_flags))?;

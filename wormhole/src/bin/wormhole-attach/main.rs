@@ -4,7 +4,7 @@ use std::{
     ffi::CString,
     fs::File,
     os::{
-        fd::{AsRawFd, FromRawFd, OwnedFd},
+        fd::{BorrowedFd, FromRawFd, OwnedFd},
         unix::net::UnixStream,
     },
     path::Path,
@@ -416,11 +416,11 @@ fn main() -> anyhow::Result<()> {
 
     // set cloexec on extra files passed to us
     if let Some(ref rootfs_fd) = rootfs_fd {
-        set_cloexec(rootfs_fd.as_raw_fd())?;
+        set_cloexec(&rootfs_fd)?;
     }
-    set_cloexec(exit_code_pipe_write_fd.as_raw_fd())?;
-    set_cloexec(log_fd.as_raw_fd())?;
-    set_cloexec(wormhole_mount_fd.as_raw_fd())?;
+    set_cloexec(&exit_code_pipe_write_fd)?;
+    set_cloexec(&log_fd)?;
+    set_cloexec(&wormhole_mount_fd)?;
 
     // set sigpipe
     {
@@ -475,7 +475,7 @@ fn main() -> anyhow::Result<()> {
         .next()
         .unwrap()
         .split(':')
-        .last()
+        .next_back()
         .unwrap();
     // todo: support cgroups v1
     let cgroup2_mountpoint_opt = get_cgroup2_mountpoint();
@@ -505,13 +505,7 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     // save dirfd of /proc
-    let proc_fd = unsafe {
-        OwnedFd::from_raw_fd(open(
-            "/proc",
-            OFlag::O_PATH | OFlag::O_CLOEXEC,
-            Mode::empty(),
-        )?)
-    };
+    let proc_fd = open("/proc", OFlag::O_PATH | OFlag::O_CLOEXEC, Mode::empty())?;
 
     trace!("attach most namespaces");
     setns(
@@ -603,9 +597,21 @@ fn main() -> anyhow::Result<()> {
     let uid: Uid = uid.parse::<u32>()?.into();
     let gid = init_status.get("Gid:").unwrap().first().unwrap();
     let gid: Gid = gid.parse::<u32>()?.into();
-    fchown(0, Some(uid), Some(gid))?;
-    fchown(1, Some(uid), Some(gid))?;
-    fchown(2, Some(uid), Some(gid))?;
+    fchown(
+        unsafe { BorrowedFd::borrow_raw(libc::STDIN_FILENO) },
+        Some(uid),
+        Some(gid),
+    )?;
+    fchown(
+        unsafe { BorrowedFd::borrow_raw(libc::STDOUT_FILENO) },
+        Some(uid),
+        Some(gid),
+    )?;
+    fchown(
+        unsafe { BorrowedFd::borrow_raw(libc::STDERR_FILENO) },
+        Some(uid),
+        Some(gid),
+    )?;
 
     trace!("copy supplementary groups");
     let groups = init_status.get("Groups:").unwrap();

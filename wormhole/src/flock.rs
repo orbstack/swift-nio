@@ -55,7 +55,7 @@ impl Flock {
             l_pid: 0,
         };
         fcntl(
-            file.as_raw_fd(),
+            &file,
             match wait {
                 FlockWait::Blocking => FcntlArg::F_OFD_SETLKW(&params),
                 FlockWait::NonBlocking => FcntlArg::F_OFD_SETLK(&params),
@@ -72,7 +72,7 @@ impl Flock {
             l_len: 0,
             l_pid: 0,
         };
-        fcntl(file.as_raw_fd(), FcntlArg::F_OFD_GETLK(&mut params))?;
+        fcntl(file, FcntlArg::F_OFD_GETLK(&mut params))?;
         Ok(params.l_type == F_UNLCK as i16)
     }
 }

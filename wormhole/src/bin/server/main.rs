@@ -1,23 +1,21 @@
 use anyhow::anyhow;
 use libc::TIOCSCTTY;
 use nix::{
-    fcntl::{fcntl, open, FcntlArg, OFlag},
+    fcntl::{fcntl, FcntlArg, OFlag},
     libc::ioctl,
     sys::{
         signal::Signal,
         socket::{recvmsg, ControlMessageOwned, MsgFlags, RecvMsg},
-        stat::Mode,
     },
-    unistd::{dup2, getpid, pipe2, setsid},
+    unistd::{dup2_stderr, dup2_stdin, dup2_stdout, getpid, pipe2, setsid},
 };
 use std::{
     collections::HashMap,
-    env,
     fs::{self},
     future::pending,
     io::stdout,
     os::{
-        fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
+        fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, OwnedFd, RawFd},
         linux::net::SocketAddrExt,
         unix::net::{SocketAddr, UnixListener, UnixStream},
     },
@@ -100,7 +98,7 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)
     )?;
 
     let mut client_fds: Option<[RawFd; 2]> = None;
-    for cmsg in msg.cmsgs() {
+    for cmsg in msg.cmsgs()? {
         if let ControlMessageOwned::ScmRights(fds) = cmsg {
             if fds.len() == 2 {
                 client_fds = Some(fds.try_into().unwrap());
@@ -109,8 +107,8 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)
     }
     match client_fds {
         Some(fds) => {
-            set_nonblocking(fds[0])?;
-            set_nonblocking(fds[1])?;
+            set_nonblocking(unsafe { &BorrowedFd::borrow_raw(fds[0]) })?;
+            set_nonblocking(unsafe { &BorrowedFd::borrow_raw(fds[1]) })?;
             let client_stdin = AsyncFile::new(fds[0])?;
             let client_stdout = AsyncFile::new(fds[1])?;
             Ok((client_stdin, client_stdout))
@@ -119,16 +117,9 @@ fn recv_rpc_client(stream: &UnixStream) -> anyhow::Result<(AsyncFile, AsyncFile)
     }
 }
 
-fn dup_owned(fd: RawFd) -> anyhow::Result<OwnedFd> {
+fn dup_owned<F: AsFd>(fd: &F) -> anyhow::Result<OwnedFd> {
     let owned_fd = unsafe { OwnedFd::from_raw_fd(fcntl(fd, FcntlArg::F_DUPFD_CLOEXEC(3))?) };
     Ok(owned_fd)
-}
-
-fn pipe2_owned() -> anyhow::Result<(OwnedFd, OwnedFd)> {
-    let fds = pipe2(OFlag::O_CLOEXEC)?;
-    Ok((unsafe { OwnedFd::from_raw_fd(fds.0) }, unsafe {
-        OwnedFd::from_raw_fd(fds.1)
-    }))
 }
 
 struct WormholeServer {
@@ -216,7 +207,7 @@ impl WormholeServer {
                 Some(ClientMessage::StdinData(msg)) => {
                     // zero-byte message indicates client stdin EOF; drop the payload stdin
                     // to forward the EOF to wormhole-attach process
-                    if msg.data.len() == 0 {
+                    if msg.data.is_empty() {
                         payload_stdin = None;
                         debug!("client stdin EOF, dropping payload stdin");
                     }
@@ -308,7 +299,7 @@ impl WormholeServer {
         debug!("received exit code {}", exit_code[0]);
 
         let mut client_writer = client_writer.lock().await;
-        let _ = RpcServerMessage {
+        RpcServerMessage {
             server_message: Some(ServerMessage::ExitStatus(ExitStatus {
                 exit_code: exit_code[0] as u32,
             })),
@@ -395,21 +386,15 @@ impl WormholeServer {
             );
 
             // for stdin: write to master and read from slave
-            stdin_pipe = (
-                dup_owned(slave_fd.as_raw_fd())?,
-                dup_owned(master_fd.as_raw_fd())?,
-            );
+            stdin_pipe = (dup_owned(&slave_fd)?, dup_owned(&master_fd)?);
             // for stdout/stderr: read from master and write to slave
-            stdout_pipe = (
-                dup_owned(master_fd.as_raw_fd())?,
-                dup_owned(slave_fd.as_raw_fd())?,
-            );
+            stdout_pipe = (dup_owned(&master_fd)?, dup_owned(&slave_fd)?);
             // reuse original master and slave fds to save a dup call
             stderr_pipe = (master_fd, slave_fd);
         } else {
-            stdin_pipe = pipe2_owned()?;
-            stdout_pipe = pipe2_owned()?;
-            stderr_pipe = pipe2_owned()?;
+            stdin_pipe = pipe2(OFlag::O_CLOEXEC)?;
+            stdout_pipe = pipe2(OFlag::O_CLOEXEC)?;
+            stderr_pipe = pipe2(OFlag::O_CLOEXEC)?;
         }
 
         let wormhole_mount_fd = open_tree(
@@ -417,9 +402,10 @@ impl WormholeServer {
             libc::OPEN_TREE_CLOEXEC | libc::OPEN_TREE_CLONE | libc::AT_RECURSIVE as u32,
         )?;
 
-        let log_pipe_write_fd = dup_owned(stdout().as_raw_fd())?;
-        let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe2_owned()?;
-        set_nonblocking(exit_code_pipe_read_fd.as_raw_fd())?;
+        let log_pipe_write_fd =
+            dup_owned(&unsafe { BorrowedFd::borrow_raw(stdout().as_raw_fd()) })?;
+        let (exit_code_pipe_read_fd, exit_code_pipe_write_fd) = pipe2(OFlag::O_CLOEXEC)?;
+        set_nonblocking(&exit_code_pipe_read_fd)?;
         let exit_code_pipe_reader = AsyncFile::new(exit_code_pipe_read_fd.into_raw_fd())?;
 
         let config: WormholeConfig = serde_json::from_str(&params.wormhole_config)?;
@@ -450,16 +436,20 @@ impl WormholeServer {
                         }
                     }
 
-                    unset_cloexec(runtime_state.wormhole_mount_tree_fd)?;
-                    unset_cloexec(runtime_state.exit_code_pipe_write_fd)?;
-                    unset_cloexec(runtime_state.log_fd)?;
+                    unset_cloexec(&BorrowedFd::borrow_raw(
+                        runtime_state.wormhole_mount_tree_fd,
+                    ))?;
+                    unset_cloexec(&BorrowedFd::borrow_raw(
+                        runtime_state.exit_code_pipe_write_fd,
+                    ))?;
+                    unset_cloexec(&BorrowedFd::borrow_raw(runtime_state.log_fd))?;
                     // safe to unwrap because remote wormhole will always pass a server pidfd
-                    unset_cloexec(runtime_state.server_pidfd.unwrap())?;
+                    unset_cloexec(&BorrowedFd::borrow_raw(runtime_state.server_pidfd.unwrap()))?;
 
                     // no dup cloexec because wormhole-attach child should inherit stdio fds
-                    dup2(stdin_pipe.0.as_raw_fd(), libc::STDIN_FILENO)?;
-                    dup2(stdout_pipe.1.as_raw_fd(), libc::STDOUT_FILENO)?;
-                    dup2(stderr_pipe.1.as_raw_fd(), libc::STDERR_FILENO)?;
+                    dup2_stdin(&stdin_pipe.0)?;
+                    dup2_stdout(&stdout_pipe.1)?;
+                    dup2_stderr(&stderr_pipe.1)?;
 
                     Ok(())
                 })
@@ -487,9 +477,9 @@ impl WormholeServer {
             drop(guard);
         });
 
-        set_nonblocking(stdin_pipe.1.as_raw_fd())?;
-        set_nonblocking(stdout_pipe.0.as_raw_fd())?;
-        set_nonblocking(stderr_pipe.0.as_raw_fd())?;
+        set_nonblocking(&stdin_pipe.1)?;
+        set_nonblocking(&stdout_pipe.0)?;
+        set_nonblocking(&stderr_pipe.0)?;
         let payload_stdin = AsyncFile::new(stdin_pipe.1.into_raw_fd())?;
         let payload_stdout = AsyncFile::new(stdout_pipe.0.into_raw_fd())?;
         let payload_stderr = AsyncFile::new(stderr_pipe.0.into_raw_fd())?;
