@@ -22,13 +22,12 @@ struct MachinesRootView: View {
                     let searchQuery = vmModel.searchText
 
                     if machines.values.contains(where: { !$0.record.builtin }) {
-                        let filteredContainers = filterMachines(machines.values, searchQuery: searchQuery)
+                        let listData = filterMachines(machines.values, searchQuery: searchQuery)
 
-                        if !filteredContainers.isEmpty {
+                        if !listData.isEmpty {
                             // see DockerContainerItem for rowHeight calculation
-                            AKList(filteredContainers, selection: $selection, rowHeight: 48) {
-                                container in
-                                MachineContainerItem(record: container.record)
+                            AKList(listData, selection: $selection, rowHeight: 48) { item in
+                                MachineContainerItem(record: item.record)
                                     .environmentObject(vmModel)
                                     .environmentObject(windowTracker)
                                     .environmentObject(actionTracker)
@@ -100,16 +99,40 @@ struct MachinesRootView: View {
         .navigationTitle("Machines")
     }
 
-    private func filterMachines(_ machines: any Sequence<ContainerInfo>, searchQuery: String) -> [ContainerInfo] {
-        return machines.filter { machine in
-            !machine.record.builtin && (
+    private func filterMachines(_ machines: any Sequence<ContainerInfo>, searchQuery: String) -> [AKSection<ContainerInfo>] {
+        var listData = [AKSection<ContainerInfo>]()
+
+        var runningItems: [ContainerInfo] = []  
+        var stoppedItems: [ContainerInfo] = []
+        for machine in machines {
+if !machine.record.builtin && (
                 searchQuery.isEmpty
                     || machine.record.name.localizedCaseInsensitiveContains(searchQuery)
                     || machine.record.image.distro.localizedCaseInsensitiveContains(searchQuery)
                     || machine.record.image.variant.localizedCaseInsensitiveContains(searchQuery)
                     || machine.record.image.version.localizedCaseInsensitiveContains(searchQuery)
                     || machine.record.image.arch.localizedCaseInsensitiveContains(searchQuery)
-            )
+            ) {
+                if machine.record.running {
+                    runningItems.append(machine)
+                } else {
+                    stoppedItems.append(machine)
+                }
+            }
         }
+
+        // sort both
+        runningItems.sort { $0.record.name < $1.record.name }
+        stoppedItems.sort { $0.record.name < $1.record.name }
+
+        if !runningItems.isEmpty {
+            listData.append(AKSection(nil, runningItems))
+        }
+
+        if !stoppedItems.isEmpty {
+            listData.append(AKSection("Stopped", stoppedItems))
+        }
+
+        return listData
     }
 }
