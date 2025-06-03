@@ -43,12 +43,25 @@ popd
 rm -fr completions
 mkdir -p completions
 pushd completions
-curl -L "https://raw.githubusercontent.com/docker/cli/master/contrib/completion/bash/docker" > docker.bash
-curl -L "https://raw.githubusercontent.com/docker/cli/master/contrib/completion/fish/docker.fish" > docker.fish
-mkdir zsh
+mkdir -p zsh fish bash
+curl -L "https://raw.githubusercontent.com/docker/cli/master/contrib/completion/bash/docker" > bash/docker.bash
+curl -L "https://raw.githubusercontent.com/docker/cli/master/contrib/completion/fish/docker.fish" > fish/docker.fish
 curl -L "https://raw.githubusercontent.com/docker/cli/master/contrib/completion/zsh/_docker" > zsh/_docker
 
 # kubectl completions
-../$GO_ARCH/kubectl completion bash > kubectl.bash
+../$GO_ARCH/kubectl completion bash > bash/kubectl.bash
 ../$GO_ARCH/kubectl completion zsh > zsh/_kubectl
-../$GO_ARCH/kubectl completion fish > kubectl.fish
+../$GO_ARCH/kubectl completion fish > fish/kubectl.fish
+
+# also generate orb and orbctl completions (ok if this fails)
+set +e
+(exec -a orbctl ../../../scon/scli completion bash) > bash/orbctl.bash
+(exec -a orbctl ../../../scon/scli completion zsh) > zsh/_orbctl
+(exec -a orbctl ../../../scon/scli completion fish) > fish/orbctl.fish
+
+# only zsh needs a separate file for orb
+(exec -a orb ../../../scon/scli completion zsh) > zsh/_orb
+set -e
+
+# historically we crammed all completions into the same dir except zsh, so symlink them for compatibility
+ln -sf bash/docker.bash bash/kubectl.bash fish/docker.fish fish/kubectl.fish .

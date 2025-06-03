@@ -63,6 +63,8 @@ function build_one() {
         SWIFT_ARCH="$arch_mac" \
         SWIFT_BUILD_TYPE=release \
         ./build-scli.sh -tags release -trimpath -ldflags="-s -w"
+    # update pregenerated completions
+    ./gen-completions.sh
     popd
 
     # build swift app

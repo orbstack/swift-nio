@@ -129,7 +129,7 @@ var debugCmd = &cobra.Command{
 	GroupID: groupContainers,
 	Use:     "debug [flags] [CONTAINER_NAME_OR_ID] -- [COMMAND] [ARGS]...",
 	Aliases: []string{"wormhole"},
-	Short:   "Debug a Docker container with extra commands",
+	Short:   "Debug a Docker container with extra tools",
 	Long: `Debug a Docker container, with useful commands and tools that make it easy to debug any container (even minimal, distroless, and read-only containers).
 
 You can also use 'dctl' in the debug shell to install and remove packages.
