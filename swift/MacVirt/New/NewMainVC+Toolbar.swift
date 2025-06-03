@@ -20,7 +20,9 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
         var items = [NSToolbarItem.Identifier]()
         items += NSToolbarItem.Identifier.leadingItems
         items += toolbarIdentifier.defaultItemIdentifiers
-        items += NSToolbarItem.Identifier.trailingItems
+        items += NSToolbarItem.Identifier.trailingItemsStart
+        items += toolbarIdentifier.trailingItemIdentifiers
+        items += NSToolbarItem.Identifier.trailingItemsEnd
         return items
     }
 
@@ -33,7 +35,9 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
         var items = [NSToolbarItem.Identifier]()
         items += NSToolbarItem.Identifier.leadingItems
         items += toolbarIdentifier.defaultItemIdentifiers
-        items += NSToolbarItem.Identifier.trailingItems
+        items += NSToolbarItem.Identifier.trailingItemsStart
+        items += toolbarIdentifier.trailingItemIdentifiers
+        items += NSToolbarItem.Identifier.trailingItemsEnd
 
         return items
     }
@@ -46,6 +50,8 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
         case .toggleInspectorButton:
             return toggleInspectorButton
 
+        case .dockerContainersOpen:
+            return containersFolderButton
         case .dockerContainersSort:
             return containersSortMenu
         case .dockerContainersFilter:
@@ -74,6 +80,8 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
         case .k8sServicesFilter:
             return servicesFilterMenu
 
+        case .machinesOpen:
+            return machinesFolderButton
         case .machinesImport:
             return machinesImportButton
         case .machinesNew:
@@ -115,6 +123,10 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
         Defaults[.dockerFilterShowStopped].toggle()
     }
 
+    @objc func actionDockerContainersOpen(_: NSButton?) {
+        NSWorkspace.openFolder(Folders.nfsDockerContainers)
+    }
+
     @objc func actionDockerVolumesOpen(_: NSButton?) {
         NSWorkspace.openFolder(Folders.nfsDockerVolumes)
     }
@@ -144,6 +156,10 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
 
     @objc func actionMachinesNew(_: NSButton?) {
         model.presentCreateMachine = true
+    }
+
+    @objc func actionMachinesOpen(_: NSButton?) {
+        NSWorkspace.openFolder(Folders.nfs)
     }
 
     @objc func actionMachinesImport(_ toolbarItem: NSToolbarItem?) {

@@ -14,11 +14,11 @@ extension NavTabId {
             return [ /*.dockerContainersSort,*/.dockerContainersFilter, .searchItem]
         case .dockerVolumes:
             return [
-                .dockerVolumesSort, .dockerVolumesOpen, .dockerVolumesImport, .dockerVolumesNew,
+                .dockerVolumesSort, .dockerVolumesImport, .dockerVolumesNew,
                 .searchItem,
             ]
         case .dockerImages:
-            return [.dockerImagesSort, .dockerImagesOpen, .dockerImagesImport, .searchItem]
+            return [.dockerImagesSort, .dockerImagesImport, .searchItem]
 
         case .k8sPods:
             return [.k8sEnable, .k8sPodsFilter, .searchItem]
@@ -35,12 +35,30 @@ extension NavTabId {
             return [.activityMonitorStop]
         }
     }
+
+    var trailingItemIdentifiers: [NSToolbarItem.Identifier] {
+        switch self {
+        case .dockerContainers:
+            return [.dockerContainersOpen]
+        case .dockerVolumes:
+            return [.dockerVolumesOpen]
+        case .dockerImages:
+            return [.dockerImagesOpen]
+
+        case .machines:
+            return [.machinesOpen]
+
+        default:
+            return []
+        }
+    }
 }
 
 extension NSToolbarItem.Identifier {
     // use custom buttons for more flexibility
     static let toggleInspectorButton = NSToolbarItem.Identifier("toggleInspectorButton")
 
+    static let dockerContainersOpen = NSToolbarItem.Identifier("dockerContainersOpen")
     static let dockerContainersSort = NSToolbarItem.Identifier("dockerContainersSort")
     static let dockerContainersFilter = NSToolbarItem.Identifier("dockerContainersFilter")
 
@@ -57,6 +75,7 @@ extension NSToolbarItem.Identifier {
     static let k8sPodsFilter = NSToolbarItem.Identifier("k8sPodsFilter")
     static let k8sServicesFilter = NSToolbarItem.Identifier("k8sServicesFilter")
 
+    static let machinesOpen = NSToolbarItem.Identifier("machinesOpen")
     static let machinesImport = NSToolbarItem.Identifier("machinesImport")
     static let machinesNew = NSToolbarItem.Identifier("machinesNew")
 
@@ -78,7 +97,9 @@ extension NSToolbarItem.Identifier {
 
     static let leadingItems: [NSToolbarItem.Identifier] =
         [.toggleSidebar, .sidebarTrackingSeparator]
-    static let trailingItems: [NSToolbarItem.Identifier] =
+    static let trailingItemsStart: [NSToolbarItem.Identifier] =
+        [.inspectorTrackingSeparatorCompat, .flexibleSpace]
+    static let trailingItemsEnd: [NSToolbarItem.Identifier] =
         // macOS 14 .toggleInspector starts in disabled state, until a selection is made. custom one works
-        [.inspectorTrackingSeparatorCompat, .flexibleSpace, .licenseBadge, .toggleInspectorButton]
+        [.licenseBadge, .toggleInspectorButton]
 }

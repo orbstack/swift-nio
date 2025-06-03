@@ -43,6 +43,13 @@ class NewMainViewController: NSViewController {
         requiresVmRunning: false
     )
 
+    lazy var containersFolderButton = makeToolbarItem(
+        itemIdentifier: .dockerContainersOpen,
+        icon: "externaldrive",
+        title: "Open Containers",
+        action: #selector(actionDockerContainersOpen)
+    )
+
     private lazy var containersSortDelegate = EnumMenuDelegate<DockerContainerSortDescriptor>(
         key: .dockerContainersSortDescriptor)
     lazy var containersSortMenu = {
@@ -76,7 +83,7 @@ class NewMainViewController: NSViewController {
 
     lazy var volumesFolderButton = makeToolbarItem(
         itemIdentifier: .dockerVolumesOpen,
-        icon: "folder",
+        icon: "externaldrive",
         title: "Open Volumes",
         action: #selector(actionDockerVolumesOpen)
     )
@@ -107,7 +114,7 @@ class NewMainViewController: NSViewController {
 
     lazy var imagesFolderButton = makeToolbarItem(
         itemIdentifier: .dockerImagesOpen,
-        icon: "folder",
+        icon: "externaldrive",
         title: "Open Images",
         action: #selector(actionDockerImagesOpen)
     )
@@ -187,6 +194,13 @@ class NewMainViewController: NSViewController {
 
         return item
     }()
+
+    lazy var machinesFolderButton = makeToolbarItem(
+        itemIdentifier: .machinesOpen,
+        icon: "externaldrive",
+        title: "Open Machines",
+        action: #selector(actionMachinesOpen)
+    )
 
     lazy var machinesImportButton = makeToolbarItem(
         itemIdentifier: .machinesImport,
