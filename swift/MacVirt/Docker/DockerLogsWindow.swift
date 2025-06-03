@@ -810,6 +810,7 @@ struct DockerComposeLogsWindow: View {
     // mirror from SceneStorage to fix flicker
     @State private var selection = "all"
     @State private var disabledChildren = Set<String>()
+    @State private var isHoveringSection = false
 
     @SceneStorage("DockerComposeLogs_composeProject") private var composeProject: String?
     @SceneStorage("DockerComposeLogs_selection") private var savedSelection = "all"
@@ -856,7 +857,21 @@ struct DockerComposeLogsWindow: View {
                             .compose(project: composeProject))
                     }
 
-                    Section("Services") {
+                    let bindings = children.map { container in
+                        let serviceName = container.userName
+                        return Binding<Bool>(
+                            get: {
+                                !disabledChildren.contains(serviceName)
+                            },
+                            set: {
+                                if $0 {
+                                    disabledChildren.remove(serviceName)
+                                } else {
+                                    disabledChildren.insert(serviceName)
+                                }
+                            })
+                    }
+                    Section {
                         ForEach(children, id: \.id) { container in
                             NavigationLink(tag: "container:\(container.id)", selection: selBinding)
                             {
@@ -885,10 +900,12 @@ struct DockerComposeLogsWindow: View {
 
                                     Spacer()
 
-                                    Toggle(isOn: enabledBinding) { EmptyView() }
-                                        .labelsHidden()
-                                        .toggleStyle(.checkbox)
-                                        .help("Show in All")
+                                    Toggle(isOn: enabledBinding) {
+                                        Text("Show in All")
+                                    }
+                                    .labelsHidden()
+                                    .toggleStyle(.checkbox)
+                                    .help("Show in All")
                                 }
                                 .contextMenu {
                                     Toggle(isOn: enabledBinding) {
@@ -897,8 +914,32 @@ struct DockerComposeLogsWindow: View {
                                 }
                             }
                         }
+                    } header: {
+                        HStack {
+                            Text("Services")
+
+                            Spacer()
+
+                            // crude aproximation of macOS 15 .sectionActions
+                            Toggle(sources: bindings, isOn: \.self) {
+                                Text("Show All")
+                            }
+                            .toggleStyle(.checkbox)
+                            .labelsHidden()
+                            .help("Show All")
+                            // lines up with checkboxes
+                            .padding(.trailing, 14)
+                            .opacity(isHoveringSection ? 1 : 0)
+                        }
+                        .frame(height: 28)
                     }
+                    // no point in collapsing: you can just collapse the sidebar if you intend on only seeing All.
+                    // arrow causes checkbox to shift around so this makes it easier
+                    .collapsible(false)
                 }
+            }
+            .onHover {
+                isHoveringSection = $0
             }
             .listStyle(.sidebar)
             .background(SplitViewAccessor(sideCollapsed: $collapsed))

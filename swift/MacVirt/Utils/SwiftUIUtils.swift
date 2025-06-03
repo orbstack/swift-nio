@@ -266,6 +266,14 @@ extension View {
             return self
         }
     }
+
+    func sectionActionsCompat(@ViewBuilder content: () -> some View) -> some View {
+        if #available(macOS 15, *) {
+            return self.sectionActions(content: content)
+        } else {
+            return self
+        }
+    }
 }
 
 extension Color {
