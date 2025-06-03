@@ -10,11 +10,12 @@ use std::ffi::CString;
 use std::io::BufWriter;
 use std::{
     io::Write,
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    os::fd::OwnedFd,
     path::Path,
 };
 
 use crate::recurse::Recurser;
+use crate::sys::file::AT_FDCWD;
 use crate::{
     path_stack::PathStack,
     sys::getdents::{DirEntry, FileType},
@@ -66,7 +67,7 @@ impl<'a, W: Write> FindContext<'a, W> {
 
         // happy path: open as a dir. if fails, then it's not a dir
         let child_dirfd = match openat(
-            Some(dirfd.as_raw_fd()),
+            dirfd,
             entry.name,
             OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
             Mode::empty(),
@@ -75,7 +76,6 @@ impl<'a, W: Write> FindContext<'a, W> {
             Err(Errno::ENOTDIR) => return Ok(()),
             Err(e) => return Err(e.into()),
         };
-        let child_dirfd = unsafe { OwnedFd::from_raw_fd(child_dirfd) };
         self.walk_dir(&child_dirfd)?;
         Ok(())
     }
@@ -89,14 +89,12 @@ impl<'a, W: Write> FindContext<'a, W> {
 
 pub fn main(src_dir: &str) -> anyhow::Result<()> {
     // open root dir
-    let root_dir = unsafe {
-        OwnedFd::from_raw_fd(openat(
-            None,
-            Path::new(&src_dir),
-            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
-            Mode::empty(),
-        )?)
-    };
+    let root_dir = openat(
+        AT_FDCWD,
+        Path::new(&src_dir),
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?;
 
     // walk dirs
     let owned_ctx = OwnedFindContext::new()?;

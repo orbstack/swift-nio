@@ -1,13 +1,10 @@
 use std::{
-    ffi::CString,
-    fs::File,
-    os::fd::{FromRawFd, OwnedFd},
-    path::Path,
+    ffi::CString, fs::File, os::fd::FromRawFd, path::Path
 };
 
 use crate::{
     interrogate::InterrogatedFile,
-    oarchive::context::{ArchiveContext, OwnedArchiveContext},
+    oarchive::context::{ArchiveContext, OwnedArchiveContext}, sys::file::AT_FDCWD,
 };
 use nix::{
     fcntl::{openat, OFlag},
@@ -27,14 +24,12 @@ pub fn main(src_dir: &str) -> anyhow::Result<()> {
     writer.multithread(num_threads as u32)?;
 
     // add root dir
-    let root_dir = unsafe {
-        OwnedFd::from_raw_fd(openat(
-            None,
-            Path::new(&src_dir),
-            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
-            Mode::empty(),
-        )?)
-    };
+    let root_dir = openat(
+        AT_FDCWD,
+        Path::new(&src_dir),
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?;
 
     // only chdir after opening paths, in case they're relative
     InterrogatedFile::chdir_to_proc()?;

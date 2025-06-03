@@ -21,7 +21,7 @@ use std::{
     collections::{btree_map::Entry, BTreeMap},
     ffi::{CStr, CString},
     os::{
-        fd::{AsRawFd, FromRawFd, OwnedFd},
+        fd::{AsRawFd, OwnedFd, AsFd},
         unix::{fs::fchown, net::UnixListener},
     },
     path::Path,
@@ -106,7 +106,7 @@ impl<'a> CopyContext<'a> {
         // suid/sgid gets cleared after chown
         let src_perm = src.permissions();
         if src_perm.contains(Mode::S_ISUID) || src_perm.contains(Mode::S_ISGID) {
-            fchmod(fd.as_raw_fd(), src_perm).context("fchmod")?;
+            fchmod(fd, src_perm).context("fchmod")?;
         }
 
         src.for_each_xattr(|key, value| fsetxattr(fd, key, value, 0))
@@ -117,7 +117,7 @@ impl<'a> CopyContext<'a> {
         let (atime, atime_nsec) = src.atime();
         let (mtime, mtime_nsec) = src.mtime();
         futimens(
-            fd.as_raw_fd(),
+            fd,
             &TimeSpec::new(atime, atime_nsec as i64),
             &TimeSpec::new(mtime, mtime_nsec as i64),
         )
@@ -156,7 +156,7 @@ impl<'a> CopyContext<'a> {
         let src_perm = src.permissions();
         if src_perm.contains(Mode::S_ISUID) || src_perm.contains(Mode::S_ISGID) {
             fchmodat(
-                Some(dest_dirfd.as_raw_fd()),
+                dest_dirfd,
                 dest_name,
                 src_perm,
                 FchmodatFlags::NoFollowSymlink,
@@ -175,7 +175,7 @@ impl<'a> CopyContext<'a> {
         let (atime, atime_nsec) = src.atime();
         let (mtime, mtime_nsec) = src.mtime();
         utimensat(
-            Some(dest_dirfd.as_raw_fd()),
+            dest_dirfd,
             dest_name,
             &TimeSpec::new(atime, atime_nsec as i64),
             &TimeSpec::new(mtime, mtime_nsec as i64),
@@ -225,9 +225,9 @@ impl<'a> CopyContext<'a> {
                     // this looks potentially racy in the presence of concurrent symlink modifications in the src dir (because linkat() with an absolute/multi-component src path could follow symlinks),
                     // but it's actually safe because all our hardlink src paths are relative to the *dest* dir, which cp is guaranteed to have exclusive access to. (it fails if mkdirat returns EEXIST.)
                     linkat(
-                        None,
+                        AT_FDCWD,
                         *old_path,
-                        Some(dest_dirfd.as_raw_fd()),
+                        dest_dirfd,
                         entry.name.to_bytes(),
                         AtFlags::empty(),
                     )
@@ -243,12 +243,12 @@ impl<'a> CopyContext<'a> {
         let new_fd = match src.file_type {
             // simple device types
             FileType::Fifo => {
-                mkfifoat(Some(dest_dirfd.as_raw_fd()), entry.name, src_perm).context("mkfifoat")?;
+                mkfifoat(dest_dirfd, entry.name, src_perm).context("mkfifoat")?;
                 None
             }
             FileType::Block => {
                 mknodat(
-                    Some(dest_dirfd.as_raw_fd()),
+                    dest_dirfd,
                     entry.name,
                     SFlag::S_IFBLK,
                     src_perm,
@@ -259,7 +259,7 @@ impl<'a> CopyContext<'a> {
             }
             FileType::Char => {
                 mknodat(
-                    Some(dest_dirfd.as_raw_fd()),
+                    dest_dirfd,
                     entry.name,
                     SFlag::S_IFCHR,
                     src_perm,
@@ -272,7 +272,7 @@ impl<'a> CopyContext<'a> {
             // more complicated special types: symlink, socket
             FileType::Symlink => {
                 src.with_readlink(|link_path| {
-                    symlinkat(link_path, Some(dest_dirfd.as_raw_fd()), entry.name)
+                    symlinkat(link_path, dest_dirfd, entry.name)
                 })
                 .context("readlink")?
                 .context("symlinkat")?;
@@ -290,7 +290,7 @@ impl<'a> CopyContext<'a> {
 
                 // can't specify mode as part of bind/listen
                 fchmodat(
-                    Some(dest_dirfd.as_raw_fd()),
+                    dest_dirfd,
                     entry.name,
                     src_perm,
                     FchmodatFlags::NoFollowSymlink,
@@ -303,27 +303,25 @@ impl<'a> CopyContext<'a> {
             // regular files and directories
             FileType::Regular => {
                 let fd = openat(
-                    Some(dest_dirfd.as_raw_fd()),
+                    dest_dirfd,
                     entry.name,
                     OFlag::O_CREAT | OFlag::O_WRONLY | OFlag::O_CLOEXEC,
                     src_perm,
                 )
                 .context("openat")?;
-                let fd = unsafe { OwnedFd::from_raw_fd(fd) };
                 Some(fd)
             }
             FileType::Directory => {
-                mkdirat(Some(dest_dirfd.as_raw_fd()), entry.name, src_perm).context("mkdirat")?;
+                mkdirat(dest_dirfd, entry.name, src_perm).context("mkdirat")?;
 
                 // TODO: empty dirs don't need to be opened if no inode flags
                 let fd = openat(
-                    Some(dest_dirfd.as_raw_fd()),
+                    dest_dirfd,
                     entry.name,
                     OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
                     src_perm,
                 )
                 .context("openat")?;
-                let fd = unsafe { OwnedFd::from_raw_fd(fd) };
                 Some(fd)
             }
 
@@ -425,7 +423,7 @@ fn copy_file_region_sendfile(
     while rem > 0 {
         // syscall increments off for us
         // however, sendfile only supports a src offset, so we have to seek dest manually
-        lseek(dest_fd.as_raw_fd(), off, Whence::SeekSet)?;
+        lseek(dest_fd, off, Whence::SeekSet)?;
         let ret = sendfile(dest_fd, src_fd, Some(&mut off), rem as usize)?;
         if ret == 0 {
             // EOF: race (file got smaller since stat)
@@ -481,13 +479,13 @@ fn copy_regular_file_contents(
     let mut off: i64 = 0;
     let mut use_sendfile = false;
     while off < src_file.apparent_size() as i64 {
-        let data_start = match lseek(src_fd.as_raw_fd(), off, Whence::SeekData) {
+        let data_start = match lseek(src_fd, off, Whence::SeekData) {
             Ok(data_start) => data_start,
             // file has no (more) data
             Err(Errno::ENXIO) => break,
             Err(e) => return Err(e.into()),
         };
-        let hole_start = match lseek(src_fd.as_raw_fd(), data_start, Whence::SeekHole) {
+        let hole_start = match lseek(src_fd, data_start, Whence::SeekHole) {
             Ok(hole_start) => hole_start,
             // file got smaller
             Err(Errno::ENXIO) => break,
@@ -525,28 +523,24 @@ pub fn main(src_dir: &str, dest_dir: &str) -> anyhow::Result<()> {
     umask(Mode::empty());
 
     // open root dir
-    let src_dirfd = unsafe {
-        OwnedFd::from_raw_fd(openat(
-            None,
-            Path::new(&src_dir),
-            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
-            Mode::empty(),
-        )?)
-    };
+    let src_dirfd = openat(
+        AT_FDCWD,
+        Path::new(&src_dir),
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?;
 
     // interrogate src and copy early metadata
     let src_file = InterrogatedFile::from_directory_fd(&src_dirfd)?;
     let dest_dir_cstr = CString::new(dest_dir)?;
-    mkdirat(None, dest_dir_cstr.as_ref(), src_file.permissions()).context("mkdirat")?;
+    mkdirat(AT_FDCWD, dest_dir_cstr.as_ref(), src_file.permissions()).context("mkdirat")?;
 
-    let dest_dirfd = unsafe {
-        OwnedFd::from_raw_fd(openat(
-            None,
-            dest_dir_cstr.as_ref(),
-            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
-            Mode::empty(),
-        )?)
-    };
+    let dest_dirfd = openat(
+        AT_FDCWD,
+        dest_dir_cstr.as_ref(),
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?;
 
     // only chdir after opening paths, in case they're relative
     InterrogatedFile::chdir_to_proc()?;

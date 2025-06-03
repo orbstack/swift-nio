@@ -117,14 +117,14 @@ impl<'a, W: Write> ArchiveContext<'a, W> {
         // sadly, we have to do two passes: (1) map and (2) copy payload chunks
         let mut off: i64 = 0;
         while off < apparent_size as i64 {
-            off = match lseek(fd.as_raw_fd(), off, Whence::SeekData) {
+            off = match lseek(fd, off, Whence::SeekData) {
                 Ok(off) => off,
                 // EOF (raced and st_size has changed?)
                 Err(Errno::ENXIO) => break,
                 Err(e) => return Err(e.into()),
             };
 
-            let end_off = match lseek(fd.as_raw_fd(), off, Whence::SeekHole) {
+            let end_off = match lseek(fd, off, Whence::SeekHole) {
                 Ok(off) => off,
                 // EOF (raced and st_size has changed?)
                 Err(Errno::ENXIO) => break,
@@ -149,13 +149,13 @@ impl<'a, W: Write> ArchiveContext<'a, W> {
 
         let mut off: i64 = 0;
         while off < apparent_size as i64 {
-            let data_start = match lseek(fd.as_raw_fd(), off, Whence::SeekData) {
+            let data_start = match lseek(fd, off, Whence::SeekData) {
                 Ok(data_start) => data_start,
                 // file has no (more) data
                 Err(Errno::ENXIO) => break,
                 Err(e) => return Err(e.into()),
             };
-            let hole_start = match lseek(fd.as_raw_fd(), data_start, Whence::SeekHole) {
+            let hole_start = match lseek(fd, data_start, Whence::SeekHole) {
                 Ok(hole_start) => hole_start,
                 // file got smaller
                 Err(Errno::ENXIO) => break,

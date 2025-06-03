@@ -1,6 +1,6 @@
 use std::{
     ffi::CStr,
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    os::fd::{AsRawFd, OwnedFd},
 };
 
 use nix::{
@@ -99,8 +99,7 @@ impl<'a> InterrogatedFile<'a> {
             }
 
             // always open
-            let fd = openat(Some(dirfd.as_raw_fd()), name, oflags, Mode::empty())?;
-            let fd = unsafe { OwnedFd::from_raw_fd(fd) };
+            let fd = openat(dirfd, name, oflags, Mode::empty())?;
 
             // fstat if not done earlier
             if stx.is_none() {

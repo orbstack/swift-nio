@@ -13,14 +13,14 @@
 
 use std::{
     collections::BTreeSet,
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    os::fd::OwnedFd,
     path::Path,
 };
 
 use crate::{
     recurse::Recurser,
     sys::{
-        file::fstatat,
+        file::{fstatat, AT_FDCWD},
         getdents::{DirEntry, FileType},
     },
 };
@@ -80,7 +80,7 @@ impl<'a> DuContext<'a> {
 
         // optimization: directories always have st_blocks=0?
         let child_dirfd = match openat(
-            Some(dirfd.as_raw_fd()),
+            dirfd,
             entry.name,
             OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC | OFlag::O_NOFOLLOW,
             Mode::empty(),
@@ -90,7 +90,6 @@ impl<'a> DuContext<'a> {
             Err(Errno::ENOENT) => return Ok(()),
             Err(e) => return Err(e.into()),
         };
-        let child_dirfd = unsafe { OwnedFd::from_raw_fd(child_dirfd) };
         self.walk_dir(&child_dirfd)?;
 
         Ok(())
@@ -106,7 +105,7 @@ impl<'a> DuContext<'a> {
 fn do_one_dir(src_dir: &str) -> anyhow::Result<()> {
     // open root dir
     let root_dirfd = match openat(
-        None,
+        AT_FDCWD,
         Path::new(&src_dir),
         OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
         Mode::empty(),
@@ -119,7 +118,6 @@ fn do_one_dir(src_dir: &str) -> anyhow::Result<()> {
         }
         Err(e) => return Err(e.into()),
     };
-    let root_dirfd = unsafe { OwnedFd::from_raw_fd(root_dirfd) };
 
     // walk dirs
     let owned_ctx = OwnedDuContext::new()?;

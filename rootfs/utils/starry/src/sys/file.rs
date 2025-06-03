@@ -1,7 +1,7 @@
 use std::{
     ffi::CStr,
     mem::MaybeUninit,
-    os::fd::{AsRawFd, RawFd},
+    os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd},
 };
 
 use nix::errno::Errno;
@@ -16,6 +16,12 @@ pub static AT_FDCWD: &AtFdcwd = &AT_FDCWD_INSTANCE;
 impl AsRawFd for AtFdcwd {
     fn as_raw_fd(&self) -> RawFd {
         libc::AT_FDCWD
+    }
+}
+
+impl AsFd for AtFdcwd {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        unsafe { BorrowedFd::borrow_raw(self.as_raw_fd()) }
     }
 }
 

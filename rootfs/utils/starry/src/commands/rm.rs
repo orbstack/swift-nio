@@ -13,11 +13,11 @@
 
 use std::{
     ffi::{CStr, CString},
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    os::fd::OwnedFd,
     path::Path,
 };
 
-use crate::recurse::Recurser;
+use crate::{recurse::Recurser, sys::file::AT_FDCWD};
 use crate::sys::{
     file::{fstatat, unlinkat},
     getdents::{DirEntry, FileType},
@@ -56,9 +56,8 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
             if st.st_mode & libc::S_IFMT == libc::S_IFREG
                 || st.st_mode & libc::S_IFMT == libc::S_IFDIR
             {
-                let fd = unsafe {
-                    OwnedFd::from_raw_fd(openat(
-                        Some(dirfd.as_raw_fd()),
+                let fd = openat(
+                    dirfd,
                         path,
                         OFlag::O_RDONLY
                             | OFlag::O_CLOEXEC
@@ -67,8 +66,7 @@ fn unlinkat_and_clear_flags(dirfd: &OwnedFd, path: &CStr, unlink_flags: i32) -> 
                             | OFlag::O_NOCTTY
                             | OFlag::O_NOFOLLOW,
                         Mode::empty(),
-                    )?)
-                };
+                    )?;
 
                 clear_flags(&fd)?;
             }
@@ -119,14 +117,12 @@ impl<'a> RmContext<'a> {
 
         // assumption is wrong (or FS provides d_type=DT_DIR): it's a dir
         // recursively unlink children, then unlink dir
-        let child_dirfd = unsafe {
-            OwnedFd::from_raw_fd(openat(
-                Some(dirfd.as_raw_fd()),
+        let child_dirfd = openat(
+            dirfd,
                 entry.name,
                 OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
                 Mode::empty(),
-            )?)
-        };
+        )?;
         self.walk_dir(&child_dirfd)?;
         // close first so that the unlink below can delete structures immediately instead of being deferred
         drop(child_dirfd);
@@ -144,14 +140,12 @@ impl<'a> RmContext<'a> {
 
 pub fn main(src_dir: &str) -> anyhow::Result<()> {
     // open root dir
-    let root_dir = unsafe {
-        OwnedFd::from_raw_fd(openat(
-            None,
+    let root_dir = openat(
+        AT_FDCWD,
             Path::new(&src_dir),
             OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
             Mode::empty(),
-        )?)
-    };
+        )?;
 
     // walk dirs
     let owned_ctx = OwnedRmContext::new()?;

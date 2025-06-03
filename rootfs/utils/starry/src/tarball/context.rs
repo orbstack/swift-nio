@@ -131,14 +131,14 @@ impl<'a, W: Write> TarContext<'a, W> {
         // sadly, we have to do two passes: (1) map and (2) copy payload chunks
         let mut off: i64 = 0;
         while off < apparent_size as i64 {
-            off = match lseek(fd.as_raw_fd(), off, Whence::SeekData) {
+            off = match lseek(fd, off, Whence::SeekData) {
                 Ok(off) => off,
                 // EOF (raced and st_size has changed?)
                 Err(Errno::ENXIO) => break,
                 Err(e) => return Err(e.into()),
             };
 
-            let end_off = match lseek(fd.as_raw_fd(), off, Whence::SeekHole) {
+            let end_off = match lseek(fd, off, Whence::SeekHole) {
                 Ok(off) => off,
                 // EOF (raced and st_size has changed?)
                 Err(Errno::ENXIO) => break,
