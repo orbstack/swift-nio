@@ -439,7 +439,13 @@ func getDefaultMTU() (int, error) {
 	}
 	var defaultRoute *netlink.Route
 	for _, r := range routes {
-		if r.Dst == nil {
+		// consider this the default route if it has (1) no destination or (2) a /0 mask
+		// newer versions of vishvananda/netlink return a /0 mask instead of nil
+		var ones int
+		if r.Dst != nil {
+			ones, _ = r.Dst.Mask.Size()
+		}
+		if ones == 0 {
 			defaultRoute = &r
 			break
 		}
