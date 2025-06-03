@@ -105,7 +105,9 @@ async fn sys_wake() -> AppResult<impl IntoResponse> {
 
     // fix the time immediately by stepping
     // chrony doesn't like massive time difference
-    startup::sync_clock(false).map_err(|e| anyhow!("failed to step clock: {}", e))?;
+    startup::sync_clock(false)
+        .await
+        .map_err(|e| anyhow!("failed to step clock: {}", e))?;
 
     // always unfreeze all machines, in case they were frozen and then the setting was disabled
     std::fs::write("/sys/fs/cgroup/scon/container/cgroup.freeze", "0")
@@ -123,6 +125,8 @@ async fn sys_wake() -> AppResult<impl IntoResponse> {
 
 async fn sync_time() -> AppResult<impl IntoResponse> {
     debug!("sync_time");
-    startup::sync_clock(false).map_err(|e| anyhow!("failed to step clock: {}", e))?;
+    startup::sync_clock(false)
+        .await
+        .map_err(|e| anyhow!("failed to step clock: {}", e))?;
     Ok(())
 }

@@ -1,4 +1,4 @@
-use serde::Serialize;
+use bincode::Encode;
 use tokio::net::UnixDatagram;
 
 const REQ_BURST: u16 = 3;
@@ -6,14 +6,14 @@ const PKT_TYPE_CMD_REQUEST: u8 = 1;
 
 const SERVER_ADDR: &str = "/var/run/chrony/chronyd.sock";
 
-#[derive(Serialize)]
+#[derive(Encode)]
 struct IPAddr {
     addr: [u8; 16],
     family: u16,
     _pad: u16,
 }
 
-#[derive(Serialize)]
+#[derive(Encode)]
 struct RequestBurst {
     version: u8,
     pkt_type: u8,
@@ -62,7 +62,7 @@ pub async fn send_burst_request(n_good_samples: u32, n_total_samples: u32) -> an
         n_good_samples,
         n_total_samples,
     };
-    let buf = bincode::serialize(&request)?;
+    let buf = bincode::encode_to_vec(&request, bincode::config::legacy())?;
 
     // send to unixgram
     // don't bother to read reply

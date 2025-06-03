@@ -3,13 +3,10 @@ use std::{
     env,
     fs::{self, DirBuilder, OpenOptions, Permissions},
     io::Write,
-    net::UdpSocket,
-    os::{
-        fd::AsRawFd,
-        unix::{
-            fs::{chown, chroot, DirBuilderExt, MetadataExt},
-            prelude::{FileExt, PermissionsExt},
-        },
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
+    os::unix::{
+        fs::{chown, chroot, DirBuilderExt, MetadataExt},
+        prelude::{FileExt, PermissionsExt},
     },
     process::{Command, Stdio},
     sync::{Arc, Mutex},
@@ -24,13 +21,13 @@ use netlink_packet_core::{
     NetlinkMessage, NetlinkPayload, NLM_F_ACK, NLM_F_CREATE, NLM_F_REPLACE, NLM_F_REQUEST,
 };
 use netlink_packet_route::{
-    route::{RouteHeader, RouteScope, RouteType},
-    rule::{RuleAction, RuleAttribute, RuleMessage},
+    route::{RouteScope, RouteType},
+    rule::{RuleAction, RuleAttribute},
     tc::{TcAttribute, TcHandle, TcMessage},
-    AddressFamily, RouteNetlinkMessage,
+    RouteNetlinkMessage,
 };
 use nix::{
-    libc::{self, RLIM_INFINITY, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO},
+    libc::{self, RLIM_INFINITY},
     mount::MsFlags,
     sys::{
         resource::{setrlimit, Resource},
@@ -38,8 +35,10 @@ use nix::{
         time::TimeSpec,
     },
     time::{clock_gettime, clock_settime, ClockId},
-    unistd::{dup2, sethostname},
+    unistd::{dup2_stderr, dup2_stdin, dup2_stdout, sethostname},
 };
+use rtnetlink::{LinkMessageBuilder, LinkUnspec, RouteMessageBuilder};
+use sntpc::StdTimestampGen;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex as TMutex;
 use tracing::log::debug;
@@ -472,26 +471,39 @@ async fn setup_network() -> anyhow::Result<()> {
         .try_next()
         .await?
         .unwrap();
-    ip_link.set(lo.header.index).up().execute().await?;
+    ip_link
+        .set(
+            LinkMessageBuilder::<LinkUnspec>::new()
+                .index(lo.header.index)
+                .up()
+                .build(),
+        )
+        .execute()
+        .await?;
 
     // this table lets us do src spoofing for tproxy. we use this table to hijack response packets to localhost so we can receive them.
     // ip route add local default dev lo table 32
     ip_route
-        .add()
-        .v4()
-        .table_id(ROUTE_TABLE_LOCAL)
-        .kind(RouteType::Local)
-        .scope(RouteScope::Host)
-        .output_interface(lo.header.index)
+        .add(
+            RouteMessageBuilder::<Ipv4Addr>::new()
+                .table_id(ROUTE_TABLE_LOCAL)
+                .scope(RouteScope::Host)
+                .kind(RouteType::Local)
+                .output_interface(lo.header.index as u32)
+                .build(),
+        )
         .execute()
         .await?;
+
     ip_route
-        .add()
-        .v6()
-        .table_id(ROUTE_TABLE_LOCAL)
-        .kind(RouteType::Local)
-        .scope(RouteScope::Host)
-        .output_interface(lo.header.index)
+        .add(
+            RouteMessageBuilder::<Ipv6Addr>::new()
+                .table_id(ROUTE_TABLE_LOCAL)
+                .scope(RouteScope::Host)
+                .kind(RouteType::Local)
+                .output_interface(lo.header.index as u32)
+                .build(),
+        )
         .execute()
         .await?;
 
@@ -544,9 +556,13 @@ async fn setup_network() -> anyhow::Result<()> {
 
     // set eth0 mtu, up
     ip_link
-        .set(eth0.header.index)
-        .mtu(1500)
-        .up()
+        .set(
+            LinkMessageBuilder::<LinkUnspec>::new()
+                .index(eth0.header.index)
+                .mtu(1500)
+                .up()
+                .build(),
+        )
         .execute()
         .await?;
 
@@ -563,15 +579,19 @@ async fn setup_network() -> anyhow::Result<()> {
 
     // add default routes
     ip_route
-        .add()
-        .v4()
-        .gateway("0.250.250.1".parse()?)
+        .add(
+            RouteMessageBuilder::<Ipv4Addr>::new()
+                .gateway("0.250.250.1".parse()?)
+                .build(),
+        )
         .execute()
         .await?;
     ip_route
-        .add()
-        .v6()
-        .gateway("fd07:b51a:cc66:f0::1".parse()?)
+        .add(
+            RouteMessageBuilder::<Ipv6Addr>::new()
+                .gateway("fd07:b51a:cc66:f0::1".parse()?)
+                .build(),
+        )
         .execute()
         .await?;
 
@@ -586,9 +606,13 @@ async fn setup_network() -> anyhow::Result<()> {
         .await?
         .unwrap();
     ip_link
-        .set(eth1.header.index)
-        .mtu(1500)
-        .up()
+        .set(
+            LinkMessageBuilder::<LinkUnspec>::new()
+                .index(eth1.header.index)
+                .mtu(1500)
+                .up()
+                .build(),
+        )
         .execute()
         .await?;
 
@@ -604,10 +628,12 @@ async fn setup_network() -> anyhow::Result<()> {
     // egress route from Docker machine back to BPF eth1
     // ip route add 10.183.233.241 dev eth1
     ip_route
-        .add()
-        .v4()
-        .destination_prefix(NAT64_SOURCE_ADDR.parse().unwrap(), 32)
-        .output_interface(eth1.header.index)
+        .add(
+            RouteMessageBuilder::<Ipv4Addr>::new()
+                .destination_prefix(NAT64_SOURCE_ADDR.parse().unwrap(), 32)
+                .output_interface(eth1.header.index)
+                .build(),
+        )
         .execute()
         .await
         .unwrap();
@@ -617,11 +643,13 @@ async fn setup_network() -> anyhow::Result<()> {
     // in the future, the docker routing table should pass through all non-docker ips and only route real docker ips to docker machine
     // ip route add 10.183.233.241 dev eth1 table 64
     ip_route
-        .add()
-        .v4()
-        .table_id(ROUTE_TABLE_DOCKER)
-        .destination_prefix(NAT64_SOURCE_ADDR.parse().unwrap(), 32)
-        .output_interface(eth1.header.index)
+        .add(
+            RouteMessageBuilder::<Ipv4Addr>::new()
+                .table_id(ROUTE_TABLE_DOCKER)
+                .destination_prefix(NAT64_SOURCE_ADDR.parse().unwrap(), 32)
+                .output_interface(eth1.header.index)
+                .build(),
+        )
         .execute()
         .await
         .unwrap();
@@ -667,9 +695,13 @@ async fn setup_network() -> anyhow::Result<()> {
         .await?
         .unwrap();
     ip_link
-        .set(eth2.header.index)
-        .mtu(1500)
-        .up()
+        .set(
+            LinkMessageBuilder::<LinkUnspec>::new()
+                .index(eth2.header.index)
+                .mtu(1500)
+                .up()
+                .build(),
+        )
         .execute()
         .await?;
 
@@ -695,13 +727,17 @@ async fn setup_network() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn sync_clock(allow_backward: bool) -> anyhow::Result<()> {
+pub async fn sync_clock(allow_backward: bool) -> anyhow::Result<()> {
     // sync clock immediately at boot (if RTC is wrong) or on wake (until chrony kicks in)
     // RTC can supposedly be wrong at boot: https://news.ycombinator.com/item?id=36185786
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_read_timeout(Some(Duration::from_secs(10)))?;
-    let host_time =
-        sntpc::simple_get_time("0.250.250.200:123", socket).map_err(InitError::NtpGetTime)?;
+    let context = sntpc::NtpContext::new(StdTimestampGen::default());
+    // 0.250.250.200:123
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 250, 250, 200)), 123);
+    let host_time = sntpc::get_time(addr, &socket, context)
+        .await
+        .map_err(InitError::NtpGetTime)?;
 
     let sec = host_time.sec() as i64;
     let nsec = sntpc::fraction_to_nanoseconds(host_time.sec_fraction()) as i64;
@@ -1413,10 +1449,9 @@ fn switch_console(sys_info: &SystemInfo) -> anyhow::Result<()> {
 
     // replace stdin, stdout, stderr
     // don't set CLOEXEC: these fds should be inherited
-    let console_fd = console.as_raw_fd();
-    dup2(console_fd, STDIN_FILENO)?;
-    dup2(console_fd, STDOUT_FILENO)?;
-    dup2(console_fd, STDERR_FILENO)?;
+    dup2_stdin(&console)?;
+    dup2_stdout(&console)?;
+    dup2_stderr(&console)?;
 
     Ok(())
 }
@@ -1456,7 +1491,7 @@ pub async fn main(
     // very fast w/ kernel hack to default to "none" iosched for virtio-blk (150 ms without)
     timeline.begin("Apply system settings");
     // set clock
-    sync_clock(true)?;
+    sync_clock(true).await?;
     // tune perf
     apply_perf_tuning_late().unwrap();
 

@@ -3,10 +3,10 @@ use std::{
     os::{fd::AsRawFd, unix::fs::FileExt},
 };
 
+use crate::btrfs;
+use bincode::Decode;
 use nix::{errno::Errno, sys::statvfs::statvfs};
 use serde::{Deserialize, Serialize};
-
-use crate::btrfs;
 
 const BCACHEFS_OFFSET: u64 = 0xe00;
 const BCACHEFS_MAGIC: &[u8] = b"\xc6\x85\x73\xf6\x66\xce\x90\xa9\xd9\x6a\x60\xcf\x80\x3d\xf7\xef";
@@ -58,7 +58,7 @@ impl FsType {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Decode)]
 #[serde(rename_all = "camelCase")]
 pub struct HostDiskStats {
     pub host_fs_free: u64,

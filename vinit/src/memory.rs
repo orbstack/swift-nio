@@ -1,5 +1,5 @@
 use std::time::Duration;
-use std::{fs::File, io::Write, os::fd::FromRawFd};
+use std::{fs::File, io::Write};
 
 use nix::{fcntl::OFlag, sys::stat::Mode};
 use tracing::{debug, error};
@@ -11,13 +11,11 @@ const MEMCG_ROOT: u64 = 1;
 
 fn age_and_reclaim() -> anyhow::Result<()> {
     // be as efficient as possible with syscalls here
-    let mut file = unsafe {
-        File::from_raw_fd(nix::fcntl::open(
-            "/sys/kernel/debug/lru_gen",
-            OFlag::O_RDWR,
-            Mode::empty(),
-        )?)
-    };
+    let mut file = File::from(nix::fcntl::open(
+        "/sys/kernel/debug/lru_gen",
+        OFlag::O_RDWR,
+        Mode::empty(),
+    )?);
 
     // reclaim first, then age, so that we keep all 4 gens full
     // u64::MAX = custom hack to ignore seq

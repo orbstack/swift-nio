@@ -18,7 +18,7 @@ use nix::{
 };
 
 mod helpers;
-use serde::Deserialize;
+use bincode::Decode;
 use service::{Service, ServiceTracker, PROCESS_WAIT_LOCK};
 use tokio::{
     signal::unix::{signal, SignalKind},
@@ -93,7 +93,7 @@ struct SystemInfo {
     seed: SeedData,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Decode)]
 struct SeedData {
     data_size_mib: u64,
     initial_disk_stats: HostDiskStats,
@@ -122,7 +122,7 @@ impl SystemInfo {
             .ok_or_else(|| anyhow!("missing seed data"))?;
         let seed_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
             .decode(seed_str.strip_prefix("orb.s=").unwrap())?;
-        let seed = bincode::deserialize(&seed_bytes)?;
+        let (seed, _) = bincode::decode_from_slice(&seed_bytes, bincode::config::legacy())?;
 
         Ok(SystemInfo {
             kernel_version,
