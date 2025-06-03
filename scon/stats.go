@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func readCgroupStats(cgPath string) (*types.StatsEntry, error) {
+func readCgroupStats(cgPath string, initPid int) (*types.StatsEntry, error) {
 	sysPath := "/sys/fs/cgroup/" + cgPath
 	stats := &types.StatsEntry{
 		ID: types.StatsID{
@@ -43,16 +43,24 @@ func readCgroupStats(cgPath string) (*types.StatsEntry, error) {
 	ioStat := strings.Split(string(ioStatStr), "\n")
 	var readBytes, writeBytes uint64
 	for _, line := range ioStat {
-		parts := strings.Split(line, " ")
+		parts := strings.SplitN(line, " ", 4)
 		if len(parts) < 3 {
 			continue
 		}
 
-		rBytes, err := strconv.ParseUint(strings.Split(parts[1], "=")[1], 10, 64)
+		_, rBytesStr, ok := strings.Cut(parts[1], "=")
+		if !ok {
+			continue
+		}
+		rBytes, err := strconv.ParseUint(rBytesStr, 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		wBytes, err := strconv.ParseUint(strings.Split(parts[2], "=")[1], 10, 64)
+		_, wBytesStr, ok := strings.Cut(parts[2], "=")
+		if !ok {
+			continue
+		}
+		wBytes, err := strconv.ParseUint(wBytesStr, 10, 64)
 		if err != nil {
 			return nil, err
 		}
@@ -72,6 +80,33 @@ func readCgroupStats(cgPath string) (*types.StatsEntry, error) {
 	}
 	stats.MemoryBytes = memoryCurrent
 
+	if initPid != 0 {
+		netDev, err := util.ReadFileFast("/proc/" + strconv.Itoa(initPid) + "/net/dev")
+		if err != nil {
+			return nil, err
+		}
+		for line := range strings.SplitSeq(string(netDev), "\n") {
+			parts := strings.Fields(line)
+			if len(parts) < 10 {
+				continue
+			}
+
+			if parts[0] == "eth0:" {
+				rxBytes, err := strconv.ParseUint(parts[1], 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				txBytes, err := strconv.ParseUint(parts[9], 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				stats.NetRxBytes = &rxBytes
+				stats.NetTxBytes = &txBytes
+				break
+			}
+		}
+	}
+
 	return stats, nil
 }
 
@@ -84,7 +119,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 	err := m.ForEachContainer(func(c *Container) error {
 		cgPath := c.lastCgroupPath
 		if c.Running() && cgPath != "" {
-			entry, err := readCgroupStats(cgPath)
+			entry, err := readCgroupStats(cgPath, c.initPid)
 			if err != nil {
 				if errors.Is(err, unix.ENOENT) {
 					// ignore: race - stopped
@@ -116,7 +151,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 		dockerCgBase += "/" + ChildCgroupName
 		err = m.sconGuest.ForEachDockerContainer(func(ctr containerWithMeta) error {
 			ctrCgPath := dockerCgBase + "/" + ctr.CgroupPath
-			entry, err := readCgroupStats(ctrCgPath)
+			entry, err := readCgroupStats(ctrCgPath, 0)
 			if err != nil {
 				if errors.Is(err, unix.ENOENT) {
 					// ignore: race - stopped
@@ -145,7 +180,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 		// $DOCKER/init.scope = dockerd, containerd
 		// $DOCKER/k3s = k3s services
 		// $DOCKER/docker/buildkit = builds
-		entry, err := readCgroupStats(dockerCgBase + "/init.scope")
+		entry, err := readCgroupStats(dockerCgBase+"/init.scope", 0)
 		if err != nil {
 			if errors.Is(err, unix.ENOENT) {
 				// ignore: race - stopped
@@ -164,7 +199,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 		}
 
 		if m.k8sEnabled {
-			entry, err := readCgroupStats(dockerCgBase + "/k3s")
+			entry, err := readCgroupStats(dockerCgBase+"/k3s", 0)
 			if err != nil {
 				if errors.Is(err, unix.ENOENT) {
 					// ignore: race - stopped
@@ -183,7 +218,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 			}
 		}
 
-		entry, err = readCgroupStats(dockerCgBase + "/docker/buildkit")
+		entry, err = readCgroupStats(dockerCgBase+"/docker/buildkit", 0)
 		if err != nil {
 			if errors.Is(err, unix.ENOENT) {
 				// ignore: race - stopped

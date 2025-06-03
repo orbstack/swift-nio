@@ -106,7 +106,7 @@ func ReadFileFast(path string) ([]byte, error) {
 	defer unix.Close(fd)
 
 	// stolen from io.ReadAll
-	b := make([]byte, 0, 512)
+	b := make([]byte, 0, 3072) // /proc/<pid>/net/dev is big
 	for {
 		n, err := unix.Read(fd, b[len(b):cap(b)])
 		b = b[:len(b)+n]

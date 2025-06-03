@@ -192,9 +192,11 @@ type StatsEntry struct {
 	Entity StatsEntity `json:"entity"`
 
 	// delta-based metrics; client is responsible for diffing
-	CPUUsageUsec   uint64 `json:"cpu_usage_usec"`
-	DiskReadBytes  uint64 `json:"disk_read_bytes"`
-	DiskWriteBytes uint64 `json:"disk_write_bytes"`
+	CPUUsageUsec   uint64  `json:"cpu_usage_usec"`
+	DiskReadBytes  uint64  `json:"disk_read_bytes"`
+	DiskWriteBytes uint64  `json:"disk_write_bytes"`
+	NetRxBytes     *uint64 `json:"net_rx_bytes"`
+	NetTxBytes     *uint64 `json:"net_tx_bytes"`
 
 	// absolute metrics
 	MemoryBytes uint64 `json:"memory_bytes"`

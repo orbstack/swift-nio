@@ -17,6 +17,7 @@ private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
 
     var cpuPercent: Float?
     var memoryBytes: UInt64
+    var netRxTxBytes: UInt64?
     var diskRwBytes: UInt64?
 
     var children: [ActivityMonitorItem]?
@@ -30,19 +31,24 @@ private struct ActivityMonitorItem: AKListItem, Equatable, Identifiable {
         // manual reduce loop to deal with nil reduction
         var cpuPercent: Float? = nil
         var memoryBytes: UInt64 = 0
+        var netRxTxBytes: UInt64? = nil
         var diskRwBytes: UInt64? = nil
         for item in children {
             if let newCpuPercent = item.cpuPercent {
-                cpuPercent = cpuPercent.map { $0 + newCpuPercent } ?? newCpuPercent
+                cpuPercent = (cpuPercent ?? 0) + newCpuPercent
             }
             memoryBytes += item.memoryBytes
+            if let newNetRxTxBytes = item.netRxTxBytes {
+                netRxTxBytes = (netRxTxBytes ?? 0) + newNetRxTxBytes
+            }
             if let newDiskRwBytes = item.diskRwBytes {
-                diskRwBytes = diskRwBytes.map { $0 + newDiskRwBytes } ?? newDiskRwBytes
+                diskRwBytes = (diskRwBytes ?? 0) + newDiskRwBytes
             }
         }
 
         return ActivityMonitorItem(
             entity: entity, cpuPercent: cpuPercent, memoryBytes: memoryBytes,
+            netRxTxBytes: netRxTxBytes,
             diskRwBytes: diskRwBytes, children: children)
     }
 }
@@ -140,6 +146,7 @@ private enum Columns {
     static let name = "name"
     static let cpuPercent = "cpuPercent"
     static let memoryBytes = "memoryBytes"
+    static let netRxTxBytes = "netRxTxBytes"
     static let diskRwBytes = "diskRwBytes"
 }
 
@@ -343,9 +350,6 @@ private struct HistoryGraph: View {
             for tracked in trackedEntries.values {
                 // we ONLY need to sum machines to get the total, because all .service and .container are under docker machine
                 if case .machine = tracked.entry.entity {
-                    if self.name == "Memory" {
-                    print("adding machine \(tracked.entry.entity)")
-                    }
                     addEntry(tracked)
                 }
             }
@@ -356,10 +360,6 @@ private struct HistoryGraph: View {
                 $0.value ?? 0 < $1.value ?? 0
             })?.value ?? 0
         ).alignUp(to: alignTo)
-        if self.name == "Memory" {
-            print("calculated max = \(max)")
-            print("items = \(items)")
-        }
         return (items, isTotal)
     }
 }
@@ -379,6 +379,10 @@ private func formatCpuPercent(_ value: Float) -> String {
 
 private func formatMemoryBytes(_ value: Int64) -> String {
     return memoryByteCountFormatter.string(fromByteCount: value)
+}
+
+private func formatNetRxTxBytes(_ value: Int64) -> String {
+    return "\(memoryByteCountFormatter.string(fromByteCount: value))/s"
 }
 
 private func formatDiskRwBytes(_ value: Int64) -> String {
@@ -401,9 +405,9 @@ struct ActivityMonitorRootView: View {
                 AKSection.single(model.items), selection: $selection, sort: $sort,
                 rowHeight: 24,
                 flat: false, expandByDefault: true,
-                autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
+                // autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
                 columns: [
-                    akColumn(id: Columns.name, title: "Name", width: 200, alignment: .left) {
+                    akColumn(id: Columns.name, title: "Name", width: 175, alignment: .left) {
                         item in
                         HStack(spacing: 6) {
                             switch item.entity {
@@ -493,7 +497,15 @@ struct ActivityMonitorRootView: View {
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     },
                     akColumn(
-                        id: Columns.diskRwBytes, title: "Disk I/O", width: 75, alignment: .right
+                        id: Columns.netRxTxBytes, title: "Network", width: 75, alignment: .right
+                    ) { item in
+                        if let netRxTxBytes = item.netRxTxBytes {
+                            Text(formatNetRxTxBytes(Int64(netRxTxBytes)))
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    },
+                    akColumn(
+                        id: Columns.diskRwBytes, title: "Disk", width: 75, alignment: .right
                     ) {
                         item in
                         if let diskRwBytes = item.diskRwBytes {
@@ -526,50 +538,65 @@ struct ActivityMonitorRootView: View {
                 }
             }
             .inspectorView {
-                ZStack(alignment: .topLeading) {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // AttributeGraph doesn't work across NSHostingView boundaries, so we have to pass these as args
-                        HistoryGraph(
-                            trackedEntries: model.lastStats?.trackedEntries ?? [:],
-                            modelItems: model.items,
+                ScrollView {
+                    ZStack(alignment: .topLeading) {
+                        VStack(alignment: .leading, spacing: 20) {
+                            // AttributeGraph doesn't work across NSHostingView boundaries, so we have to pass these as args
+                            HistoryGraph(
+                                trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                                modelItems: model.items,
 
-                            selection: selection,
-                            key: \.cpuHistory,
-                            name: "CPU",
-                            color: .red,
-                            maxValue: 100,
-                            alignTo: 100,
-                            formatter: { "\(formatCpuPercent($0))%" }
-                        )
+                                selection: selection,
+                                key: \.cpuHistory,
+                                name: "CPU",
+                                color: .red,
+                                maxValue: 100,
+                                alignTo: 100,
+                                formatter: { "\(formatCpuPercent($0))%" }
+                            )
 
-                        let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
-                        HistoryGraph(
-                            trackedEntries: model.lastStats?.trackedEntries ?? [:],
-                            modelItems: model.items,
+                            let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
+                            HistoryGraph(
+                                trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                                modelItems: model.items,
 
-                            selection: selection,
-                            key: \.memoryHistory,
-                            name: "Memory",
-                            color: .blue,
-                            maxValue: Float(memoryLimit),
-                            alignTo: 512 * 1_048_576,  // 512 MiB
-                            formatter: { formatMemoryBytes(Int64($0)) }
-                        )
+                                selection: selection,
+                                key: \.memoryHistory,
+                                name: "Memory",
+                                color: .blue,
+                                maxValue: Float(memoryLimit),
+                                alignTo: 512 * 1_048_576,  // 512 MiB
+                                formatter: { formatMemoryBytes(Int64($0)) }
+                            )
 
-                        HistoryGraph(
-                            trackedEntries: model.lastStats?.trackedEntries ?? [:],
-                            modelItems: model.items,
+                            HistoryGraph(
+                                trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                                modelItems: model.items,
 
-                            selection: selection,
-                            key: \.diskRwBytesHistory,
-                            name: "Disk I/O",
-                            color: .purple,
-                            maxValue: 32 * 1_048_576,  // 32 MiB
-                            alignTo: 32 * 1_048_576,  // 32 MiB
-                            formatter: { formatDiskRwBytes(Int64($0)) }
-                        )
+                                selection: selection,
+                                key: \.netRxTxBytesHistory,
+                                name: "Network",
+                                color: .green,
+                                maxValue: 32 * 1_048_576,  // 32 MiB
+                                alignTo: 32 * 1_048_576,  // 32 MiB
+                                formatter: { formatNetRxTxBytes(Int64($0)) }
+                            )
+
+                            HistoryGraph(
+                                trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                                modelItems: model.items,
+
+                                selection: selection,
+                                key: \.diskRwBytesHistory,
+                                name: "Disk",
+                                color: .purple,
+                                maxValue: 32 * 1_048_576,  // 32 MiB
+                                alignTo: 32 * 1_048_576,  // 32 MiB
+                                formatter: { formatDiskRwBytes(Int64($0)) }
+                            )
+                        }
+                        .padding(20)
                     }
-                    .padding(20)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
@@ -706,6 +733,7 @@ private struct TrackedStatsEntry {
     let entry: StatsEntry
     var cpuHistory: [Float?]
     var memoryHistory: [Float?]
+    var netRxTxBytesHistory: [Float?]
     var diskRwBytesHistory: [Float?]
 }
 
@@ -861,6 +889,27 @@ private class ActivityMonitorViewModel: ObservableObject {
                 Float?(nil)
             }
 
+        let netRxTxBytes =
+            if let tracked,
+                let newRx = entry.netRxBytes,
+                let newTx = entry.netTxBytes,
+                let oldRx = tracked.entry.netRxBytes,
+                let oldTx = tracked.entry.netTxBytes,
+                newRx >= oldRx,
+                newTx >= oldTx
+            {
+                // scale by refresh interval to get per-second rate
+                UInt64(
+                    Double(
+                        (newRx - oldRx) + (newTx - oldTx))
+                        / refreshInterval)
+            } else {
+                UInt64?(nil)
+            }
+        if case .machine = entry.entity {
+            print("machine: \(entry)")
+        }
+
         let diskRwBytes =
             if let tracked,
                 entry.diskReadBytes >= tracked.entry.diskReadBytes,
@@ -912,6 +961,8 @@ private class ActivityMonitorViewModel: ObservableObject {
             entry: entry,
             cpuHistory: tracked?.cpuHistory ?? [Float?](repeating: nil, count: historySize),
             memoryHistory: tracked?.memoryHistory ?? [Float?](repeating: nil, count: historySize),
+            netRxTxBytesHistory: tracked?.netRxTxBytesHistory
+                ?? [Float?](repeating: nil, count: historySize),
             diskRwBytesHistory: tracked?.diskRwBytesHistory
                 ?? [Float?](repeating: nil, count: historySize)
         )
@@ -923,6 +974,10 @@ private class ActivityMonitorViewModel: ObservableObject {
             historicalEntry.memoryHistory.removeFirst()
             historicalEntry.memoryHistory.append(Float(entry.memoryBytes))
         }
+        if let netRxTxBytes {
+            historicalEntry.netRxTxBytesHistory.removeFirst()
+            historicalEntry.netRxTxBytesHistory.append(Float(netRxTxBytes))
+        }
         if let diskRwBytes {
             historicalEntry.diskRwBytesHistory.removeFirst()
             historicalEntry.diskRwBytesHistory.append(Float(diskRwBytes))
@@ -933,6 +988,7 @@ private class ActivityMonitorViewModel: ObservableObject {
             entity: entity,
             cpuPercent: cpuPercent,
             memoryBytes: entry.memoryBytes,
+            netRxTxBytes: netRxTxBytes,
             diskRwBytes: diskRwBytes,
             children: children
         )
@@ -967,6 +1023,10 @@ extension [ActivityMonitorItem] {
                 let lhs = $0.memoryBytes
                 let rhs = $1.memoryBytes
                 if lhs != rhs {
+                    return desc.compare(lhs, rhs)
+                }
+            case Columns.netRxTxBytes:
+                if let lhs = $0.netRxTxBytes, let rhs = $1.netRxTxBytes, lhs != rhs {
                     return desc.compare(lhs, rhs)
                 }
             case Columns.diskRwBytes:

@@ -139,6 +139,8 @@ struct StatsEntry: Codable {
     var cpuUsageUsec: UInt64
     var diskReadBytes: UInt64
     var diskWriteBytes: UInt64
+    var netRxBytes: UInt64?
+    var netTxBytes: UInt64?
 
     var memoryBytes: UInt64
 
