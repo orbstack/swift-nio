@@ -1,6 +1,6 @@
 module github.com/orbstack/macvirt/scon
 
-go 1.24.1
+go 1.24.3
 
 replace github.com/orbstack/macvirt/vmgr => ../vmgr
 
