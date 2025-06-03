@@ -213,7 +213,8 @@ struct NewMainViewControllerRepresentable: NSViewControllerRepresentable {
     var actionTracker: ActionTracker
 
     func makeNSViewController(context _: Context) -> NewMainViewController {
-        let controller = NewMainViewController(model: model, navModel: navModel, actionTracker: actionTracker)
+        let controller = NewMainViewController(
+            model: model, navModel: navModel, actionTracker: actionTracker)
         controller.horizontalConstraint = controller.view.widthAnchor.constraint(
             equalToConstant: size.width)
         controller.verticalConstraint = controller.view.heightAnchor.constraint(
