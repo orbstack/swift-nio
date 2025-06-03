@@ -3,7 +3,10 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/spf13/cobra"
 )
@@ -25,13 +28,13 @@ func init() {
 	})
 }
 
-func use() string {
+var use = sync.OnceValue(func() string {
 	if filepath.Base(os.Args[0]) == appid.ShortCmd {
 		return appid.ShortCmd
 	}
 
 	return appid.ShortCtl
-}
+})
 
 var rootCmd = &cobra.Command{
 	Use:   use(),
@@ -46,6 +49,23 @@ will run "uname -a" on macOS, and is equivalent to:
     ` + appid.ShortCtl + ` run uname -a
 
 In this mode, the default user and machine will be used.`,
+
+	DisableFlagParsing: use() == appid.ShortCmd,
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+		// DisableFlagParsing, so this is our job
+		if len(args) >= 1 && !slices.Contains(args, "--") {
+			lastArg := args[len(args)-1]
+			if lastArg == "-m" || lastArg == "--machine" {
+				return completions.Machines(cmd, args, toComplete)
+			} else if lastArg == "-u" || lastArg == "--user" {
+				return completions.RemoteUsername(cmd, args, toComplete)
+			} else if lastArg == "-w" || lastArg == "--workdir" {
+				return completions.RemoteDirectorySSH(cmd, args, toComplete)
+			}
+		}
+
+		return nil, cobra.ShellCompDirectiveDefault
+	},
 }
 
 // Execute executes the root command.
