@@ -10,6 +10,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/util"
+	"github.com/orbstack/macvirt/vmgr/util/sockutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -58,11 +59,19 @@ func ListenHostNFS(s *stack.Stack, nicId tcpip.NICID, guestAddr tcpip.Address) (
 	return f, listener.Addr().(*net.TCPAddr).Port, nil
 }
 
-func (f *HostNFSForward) handleConn(conn net.Conn) {
-	defer conn.Close()
+func (f *HostNFSForward) verifyKernelConn(conn net.Conn) error {
+	// (preferred method) use private API to get TCP peer PID
+	peerPid, err := sockutil.GetTCPPeerPID(conn.(*net.TCPConn))
+	if err == nil {
+		// kernel_task is pid 0
+		if peerPid != 0 {
+			return fmt.Errorf("connection %v->%v is from pid %d", conn.LocalAddr(), conn.RemoteAddr(), peerPid)
+		} else {
+			return nil
+		}
+	}
 
-	// verify that it's the kernel conecting (kernel_task = pid 0), so UIDs can be trusted
-	// otherwise any local process can connect to our NFS server and spoof UIDs
+	// fallback: use nettop if private API breaks
 	// nettop is the SIP-sanctioned interface to the private network statistics API: https://newosxbook.com/bonus/vol1ch16.html
 	// takes ~8 ms
 	//
@@ -74,8 +83,7 @@ func (f *HostNFSForward) handleConn(conn net.Conn) {
 	// -t loopback: loopback interfaces only
 	out, err := util.Run("nettop", "-m", "tcp", "-p", "0", "-L", "1", "-n", "-t", "loopback")
 	if err != nil {
-		logrus.WithError(err).Error("host-nfs forward: nettop failed")
-		return
+		return err
 	}
 
 	// check that the output contains our connection, by looking for both local and remote addresses
@@ -90,16 +98,23 @@ func (f *HostNFSForward) handleConn(conn net.Conn) {
 	remoteAddr := conn.RemoteAddr().String()
 	// search for exact flow (in opposite direction from kernel_task perspective)
 	if !strings.Contains(out, " "+remoteAddr+"<->"+localAddr) {
-		logrus.WithFields(logrus.Fields{
-			"local":  localAddr,
-			"remote": remoteAddr,
-		}).Error("host-nfs forward: blocking unauthorized connection")
+		return fmt.Errorf("connection %s->%s is not owned by kernel", localAddr, remoteAddr)
+	}
+
+	return nil
+}
+
+func (f *HostNFSForward) handleConn(conn net.Conn) {
+	defer conn.Close()
+
+	// verify that it's the kernel conecting (kernel_task = pid 0), so UIDs can be trusted
+	// otherwise any local process can connect to our NFS server and spoof UIDs
+	err := f.verifyKernelConn(conn)
+	if err != nil {
+		logrus.WithError(err).WithField("addr", f.connectAddr).Error("host-nfs forward: blocking unauthorized connection")
 		return
 	} else {
-		logrus.WithFields(logrus.Fields{
-			"local":  localAddr,
-			"remote": remoteAddr,
-		}).Debug("host-nfs forward: allowing connection from kernel")
+		logrus.Debugf("host-nfs forward: allowing connection from kernel")
 	}
 
 	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(tcpConnectTimeout))

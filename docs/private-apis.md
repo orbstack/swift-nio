@@ -8,6 +8,7 @@ Mach APIs are public, but not really documented and less common ones can occasio
 
 - NFS: raw NFS `mount` API, configuration passed as XDR
 - sysctls: `kern.osversion`, `kern.osproductversion`
+- `getsockopt(fd, IPPROTO_TCP, TCP_PEER_PID)`
 
 ## krun
 
