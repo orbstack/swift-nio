@@ -88,7 +88,9 @@ struct RenameContainerView: View {
 
     private func checkName(_ newName: String, animate: Bool = true) {
         if let containers = vmModel.machines,
-           containers.values.contains(where: { $0.record.name == newName && $0.record.id != record.id })
+            containers.values.contains(where: {
+                $0.record.name == newName && $0.record.id != record.id
+            })
         {
             // renaming to same isn't considered duplicate
             isNameDuplicate = true

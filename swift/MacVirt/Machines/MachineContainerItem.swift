@@ -254,11 +254,12 @@ struct MachineContainerItem: View {
     func resolveActionList() -> [ContainerInfo] {
         // if action is performed on a selected item, then use all selections
         // otherwise only use volume
-        let ids: Set<String> = if isSelected() {
-            selection
-        } else {
-            [record.id]
-        }
+        let ids: Set<String> =
+            if isSelected() {
+                selection
+            } else {
+                [record.id]
+            }
 
         return ids.compactMap { vmModel.machines?[$0] }
     }

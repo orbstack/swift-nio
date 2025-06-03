@@ -77,13 +77,16 @@ struct AKAlert<T: Equatable>: ViewModifier {
         presented = true
         alert.beginSheetModal(for: window) { response in
             if response == .alertFirstButtonReturn,
-               content.buttons.count >= 1 {
+                content.buttons.count >= 1
+            {
                 content.buttons[0].action()
             } else if response == .alertSecondButtonReturn,
-               content.buttons.count >= 2 {
+                content.buttons.count >= 2
+            {
                 content.buttons[1].action()
             } else if response == .alertThirdButtonReturn,
-               content.buttons.count >= 3 {
+                content.buttons.count >= 3
+            {
                 content.buttons[2].action()
             }
 
@@ -125,7 +128,7 @@ extension View {
         presentedValue: Binding<T?>,
         style: NSAlert.Style = .warning,
         @AKAlertBuilder content: @escaping (T) -> AKAlertBody
-    ) -> some View {        
+    ) -> some View {
         modifier(AKAlert(presentedData: presentedValue, style: style, contentBuilder: content))
     }
 
@@ -167,12 +170,16 @@ struct AKAlertBuilder {
     }
 
     static func buildPartialBlock(accumulated: AKAlertBody, next: String?) -> AKAlertBody {
-        AKAlertBody(title: accumulated.title, desc: next, scrollable: accumulated.scrollable, buttons: accumulated.buttons)
+        AKAlertBody(
+            title: accumulated.title, desc: next, scrollable: accumulated.scrollable,
+            buttons: accumulated.buttons)
     }
 
     static func buildPartialBlock(accumulated: AKAlertBody, next: AKAlertBody) -> AKAlertBody {
         AKAlertBody(
-            title: next.title ?? accumulated.title, desc: next.desc ?? accumulated.desc, scrollable: next.scrollable || accumulated.scrollable, buttons: accumulated.buttons + next.buttons)
+            title: next.title ?? accumulated.title, desc: next.desc ?? accumulated.desc,
+            scrollable: next.scrollable || accumulated.scrollable,
+            buttons: accumulated.buttons + next.buttons)
     }
 
     static func buildEither<T>(first: T) -> T {

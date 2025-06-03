@@ -88,7 +88,9 @@ struct MachinesRootView: View {
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    StatusOverlayBadge("Exporting", set: actionTracker.ongoingMachineExports, publisher: actionTracker.$ongoingMachineExports)
+                    StatusOverlayBadge(
+                        "Exporting", set: actionTracker.ongoingMachineExports,
+                        publisher: actionTracker.$ongoingMachineExports)
                 }
             } else {
                 ProgressView(label: {
@@ -99,20 +101,22 @@ struct MachinesRootView: View {
         .navigationTitle("Machines")
     }
 
-    private func filterMachines(_ machines: any Sequence<ContainerInfo>, searchQuery: String) -> [AKSection<ContainerInfo>] {
+    private func filterMachines(_ machines: any Sequence<ContainerInfo>, searchQuery: String)
+        -> [AKSection<ContainerInfo>]
+    {
         var listData = [AKSection<ContainerInfo>]()
 
-        var runningItems: [ContainerInfo] = []  
+        var runningItems: [ContainerInfo] = []
         var stoppedItems: [ContainerInfo] = []
         for machine in machines {
-if !machine.record.builtin && (
-                searchQuery.isEmpty
+            if !machine.record.builtin
+                && (searchQuery.isEmpty
                     || machine.record.name.localizedCaseInsensitiveContains(searchQuery)
                     || machine.record.image.distro.localizedCaseInsensitiveContains(searchQuery)
                     || machine.record.image.variant.localizedCaseInsensitiveContains(searchQuery)
                     || machine.record.image.version.localizedCaseInsensitiveContains(searchQuery)
-                    || machine.record.image.arch.localizedCaseInsensitiveContains(searchQuery)
-            ) {
+                    || machine.record.image.arch.localizedCaseInsensitiveContains(searchQuery))
+            {
                 if machine.record.running {
                     runningItems.append(machine)
                 } else {

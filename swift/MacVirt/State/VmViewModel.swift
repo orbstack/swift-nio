@@ -873,9 +873,10 @@ class VmViewModel: ObservableObject {
 
     @MainActor
     private func onNewDockerSystemDf(resp: DKSystemDf) {
-        dockerDf = MappedDf(volumes: resp.volumes.mapToDict { volume in
-            (volume.name, volume)
-        })
+        dockerDf = MappedDf(
+            volumes: resp.volumes.mapToDict { volume in
+                (volume.name, volume)
+            })
     }
 
     @MainActor

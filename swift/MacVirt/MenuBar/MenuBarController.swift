@@ -82,28 +82,27 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // observe relevant states
         vmModel.$state
-            .combineLatest(vmModel.$machines, vmModel.$dockerContainers, vmModel.$isVmRestarting)
-        {
-            ($0, $1, $2, $3)
-        }
-        .sink { [self] state, machines, dockerContainers, isVmRestarting in
-            // we don't need to trigger any Docker refreshes here.
-            // 3 cases:
-            // - already running when GUI started
-            //   - SwiftUI ContentView .onAppear will trigger list refresh
-            // - was started by GUI
-            //   - refresh also triggered by ContentView
-            // - CLI started in the background, GUI already running
-            //   - will dispatch docker UI change event
+            .combineLatest(vmModel.$machines, vmModel.$dockerContainers, vmModel.$isVmRestarting) {
+                ($0, $1, $2, $3)
+            }
+            .sink { [self] state, machines, dockerContainers, isVmRestarting in
+                // we don't need to trigger any Docker refreshes here.
+                // 3 cases:
+                // - already running when GUI started
+                //   - SwiftUI ContentView .onAppear will trigger list refresh
+                // - was started by GUI
+                //   - refresh also triggered by ContentView
+                // - CLI started in the background, GUI already running
+                //   - will dispatch docker UI change event
 
-            let syntheticState = deriveSyntheticVmState(
-                vmState: state,
-                machines: machines,
-                dockerContainers: dockerContainers,
-                isVmRestarting: isVmRestarting)
-            updateSyntheticVmState(syntheticState)
-        }
-        .store(in: &cancellables)
+                let syntheticState = deriveSyntheticVmState(
+                    vmState: state,
+                    machines: machines,
+                    dockerContainers: dockerContainers,
+                    isVmRestarting: isVmRestarting)
+                updateSyntheticVmState(syntheticState)
+            }
+            .store(in: &cancellables)
     }
 
     private func deriveSyntheticVmState(
@@ -274,7 +273,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
             menu.addSectionHeader("Machines")
 
             let runningMachines = machines.values.filter { $0.record.running && !$0.record.builtin }
-            let stoppedMachines = machines.values.filter { !$0.record.running && !$0.record.builtin }
+            let stoppedMachines = machines.values.filter {
+                !$0.record.running && !$0.record.builtin
+            }
 
             // placeholder if no machines
             if runningMachines.isEmpty {

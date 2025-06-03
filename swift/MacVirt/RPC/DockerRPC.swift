@@ -79,6 +79,14 @@ struct DKContainer: Codable, Identifiable, Hashable {
         labels?[DockerLabels.k8sNamespace]
     }
 
+    var k8sPodName: String? {
+        labels?[DockerLabels.k8sPodName]
+    }
+
+    var k8sContainerName: String? {
+        labels?[DockerLabels.k8sContainerName]
+    }
+
     var userName: String {
         // prefer compose service label first (because we'll be grouped if it's compose)
         if let k8sName = labels?[DockerLabels.k8sContainerName],

@@ -255,7 +255,9 @@ enum DockerListItem: Identifiable, Equatable, AKListItem {
 }
 
 enum DockerContainerLists {
-    static func makeListItems(filteredContainers: any Sequence<DKContainer>, dockerFilterShowStopped: Bool) -> (
+    static func makeListItems(
+        filteredContainers: any Sequence<DKContainer>, dockerFilterShowStopped: Bool
+    ) -> (
         running: [DockerListItem], stopped: [DockerListItem]
     ) {
         var runningItems: [DockerListItem] = []

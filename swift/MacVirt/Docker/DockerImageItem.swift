@@ -206,7 +206,9 @@ struct DockerImageItem: View, Equatable {
     // this doesn't count stopped containers
     private func isInUse() -> Bool {
         // we use force image delete, so stopped containers are auto-removed
-        return vmModel.dockerContainers?.byId.values.contains { $0.imageId == image.id && $0.running } ?? false
+        return vmModel.dockerContainers?.byId.values.contains {
+            $0.imageId == image.id && $0.running
+        } ?? false
     }
 
     private func isSelected() -> Bool {

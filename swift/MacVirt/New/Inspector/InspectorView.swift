@@ -25,7 +25,8 @@ class InspectorViewController: NSViewController {
     }
 }
 
-private struct InspectorSelectionList<Item, ID: Hashable, Seq: Sequence<Item>, Content: View>: View {
+private struct InspectorSelectionList<Item, ID: Hashable, Seq: Sequence<Item>, Content: View>: View
+{
     private let items: Seq?
     private let selection: Set<AnyHashable>
     private let key: KeyPath<Item, ID>
@@ -62,8 +63,8 @@ private struct InspectorSelectionList<Item, ID: Hashable, Seq: Sequence<Item>, C
     }
 }
 
-private extension InspectorSelectionList where Item: Identifiable, ID == Item.ID {
-    init(
+extension InspectorSelectionList where Item: Identifiable, ID == Item.ID {
+    fileprivate init(
         _ items: Seq?,
         selection: Set<AnyHashable>,
         @ViewBuilder content: @escaping (Item) -> Content
@@ -113,11 +114,15 @@ struct InspectorView: View {
                     ContentUnavailableViewCompat("\(selection.count) Selected")
                 }
             case .dockerVolumes:
-                InspectorSelectionList(model.dockerVolumes?.values, selection: navModel.inspectorSelection) {
+                InspectorSelectionList(
+                    model.dockerVolumes?.values, selection: navModel.inspectorSelection
+                ) {
                     DockerVolumeDetails(volume: $0)
                 }
             case .dockerImages:
-                InspectorSelectionList(model.dockerImages?.values, selection: navModel.inspectorSelection) {
+                InspectorSelectionList(
+                    model.dockerImages?.values, selection: navModel.inspectorSelection
+                ) {
                     DockerImageDetails(image: $0)
                 }
             case .k8sPods:
@@ -129,7 +134,9 @@ struct InspectorView: View {
                     K8SServiceDetails(service: $0)
                 }
             case .machines:
-                InspectorSelectionList(model.machines?.values, selection: navModel.inspectorSelection) {
+                InspectorSelectionList(
+                    model.machines?.values, selection: navModel.inspectorSelection
+                ) {
                     MachineDetails(info: $0)
                 }
             case .activityMonitor:

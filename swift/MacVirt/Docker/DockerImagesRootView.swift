@@ -84,7 +84,9 @@ struct DockerImagesRootView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            StatusOverlayBadge("Importing", set: actionTracker.ongoingImageImports, publisher: actionTracker.$ongoingImageImports)
+            StatusOverlayBadge(
+                "Importing", set: actionTracker.ongoingImageImports,
+                publisher: actionTracker.$ongoingImageImports)
         }
     }
 
@@ -94,7 +96,9 @@ struct DockerImagesRootView: View {
         var images = images.filter { (image: DKSummaryAndFullImage) in
             searchQuery.isEmpty
                 || image.id.localizedCaseInsensitiveContains(searchQuery)
-                || image.summary.repoTags?.contains { $0.localizedCaseInsensitiveContains(searchQuery) } ?? false
+                || image.summary.repoTags?.contains {
+                    $0.localizedCaseInsensitiveContains(searchQuery)
+                } ?? false
         }
         images.sort(accordingTo: sortDescriptor, model: vmModel)
         return images

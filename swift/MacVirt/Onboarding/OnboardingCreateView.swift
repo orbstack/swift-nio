@@ -158,7 +158,7 @@ struct OnboardingCreateView: View {
 
     private func checkName(_ newName: String) {
         if let containers = vmModel.machines,
-           containers.values.contains(where: { $0.record.name == newName })
+            containers.values.contains(where: { $0.record.name == newName })
         {
             isNameDuplicate = true
         } else {

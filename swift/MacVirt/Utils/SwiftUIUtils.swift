@@ -414,7 +414,8 @@ extension NSWorkspace {
         // attempt to avoid triggering TCC by using the `open` command with TCC disclaimed via pstramp
         Task {
             do {
-                try await runProcessChecked(AppConfig.pstrampExe, ["-disclaim", "--", "/usr/bin/open", "open", path])
+                try await runProcessChecked(
+                    AppConfig.pstrampExe, ["-disclaim", "--", "/usr/bin/open", "open", path])
             } catch {
                 print("Error opening folder via `open`: \(error)")
                 NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))

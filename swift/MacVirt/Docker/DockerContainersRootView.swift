@@ -235,7 +235,8 @@ struct DockerContainersRootView: View {
         DockerStateWrapperView(\.dockerContainers) { containers, _ in
             let runningCount = containers.byId.values.count { $0.running }
 
-            let filteredContainers = filterContainers(containers.byId.values, searchQuery: searchQuery)
+            let filteredContainers = filterContainers(
+                containers.byId.values, searchQuery: searchQuery)
 
             // 0 spacing to fix bg color gap between list and getting started hint
             let (runningItems, stoppedItems) = DockerContainerLists.makeListItems(
@@ -250,14 +251,16 @@ struct DockerContainersRootView: View {
                 listData: listData,
                 selection: $selection,
 
-                imagesAndVolumesEmpty: (vmModel.dockerImages?.isEmpty ?? true) && (vmModel.dockerVolumes?.isEmpty ?? true)
+                imagesAndVolumesEmpty: (vmModel.dockerImages?.isEmpty ?? true)
+                    && (vmModel.dockerVolumes?.isEmpty ?? true)
             )
             .inspectorSelection(selection)
         }
         .navigationTitle("Containers")
     }
 
-    private func filterContainers(_ containers: any Sequence<DKContainer>, searchQuery: String) -> [DKContainer]
+    private func filterContainers(_ containers: any Sequence<DKContainer>, searchQuery: String)
+        -> [DKContainer]
     {
         var containers = containers.filter { container in
             searchQuery.isEmpty

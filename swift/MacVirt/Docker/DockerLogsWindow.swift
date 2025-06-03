@@ -214,6 +214,40 @@ private class LogsViewModel: ObservableObject {
     }
 
     @MainActor
+    func monitorK8sContainers(vmModel: VmViewModel, k8sPodName: String, k8sContainerName: String) {
+        vmModel.$dockerContainers.sink { [weak self] containers in
+            guard let self else { return }
+
+            // if containers list changes,
+            // and process has exited,
+            // and (container ID && it's running) or (containerName && it's running) or (composeProject && any running)
+            if self.process != nil {
+                return
+            }
+            guard let containers else {
+                return
+            }
+
+            if case let .container(containerId) = cid,
+                let container = containers.byId[containerId],
+                container.running
+            {
+                self.restart()
+            } else if let lastContainerName,
+                let container = containers.byName[lastContainerName],
+                container.running
+            {
+                self.restart()
+            } else if case let .compose(composeProject) = cid,
+                let children = containers.byComposeProject[composeProject],
+                children.contains(where: { $0.running })
+            {
+                self.restart()
+            }
+        }.store(in: &cancellables)
+    }
+
+    @MainActor
     func monitorCommands(commandModel: CommandViewModel) {
         commandModel.clearCommand.sink { [weak self] in
             self?.clear()
@@ -822,7 +856,10 @@ struct DockerComposeLogsWindow: View {
     @SceneStorage("DockerComposeLogs_selection") private var savedSelection = "all"
 
     var body: some View {
-        let children = vmModel.dockerContainers?.byComposeProject[composeProject]?.sorted { $0.userName < $1.userName } ?? []
+        let children =
+            vmModel.dockerContainers?.byComposeProject[composeProject]?.sorted {
+                $0.userName < $1.userName
+            } ?? []
 
         NavigationView {
             List {
@@ -1028,6 +1065,7 @@ private struct K8SLogsContentView: View {
     @StateObject private var model = LogsViewModel()
 
     let kid: K8SResourceId
+    let containerName: String?
 
     var body: some View {
         K8SStateWrapperView(\.k8sPods) { pods, _ in
@@ -1038,9 +1076,10 @@ private struct K8SLogsContentView: View {
                     cmdExe: AppConfig.kubectlExe,
                     args: [
                         "logs", "--context", K8sConstants.context, "-n", namespace, "pod/\(name)",
-                        "-f", "--all-containers=true",
+                        "-f",
                     ],
-                    extraArgs: [],
+                    extraArgs: containerName == nil
+                        ? ["--all-containers=true"] : ["-c", containerName!],
                     extraState: [],
                     model: model
                 )
@@ -1061,23 +1100,75 @@ private struct K8SLogsContentView: View {
 
 struct K8SPodLogsWindow: View {
     @EnvironmentObject private var windowTracker: WindowTracker
+    @EnvironmentObject private var vmModel: VmViewModel
     @StateObject private var commandModel = CommandViewModel()
 
+    // for hide sidebar workaround - unused
+    @State private var collapsed = false
+    // mirror from SceneStorage to fix flicker
+    @State private var selection = "all"
+
     @SceneStorage("K8SLogs_namespaceAndName") private var namespaceAndName: String?
+    @SceneStorage("K8SLogs_selection") private var savedSelection = "all"
 
     var body: some View {
-        Group {
-            if let namespaceAndName,
-                let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName)
-            {
-                K8SLogsContentView(kid: kid)
+        NavigationView {
+            List {
+                let selBinding = Binding<String?>(
+                    get: {
+                        selection
+                    },
+                    set: {
+                        if let sel = $0 {
+                            selection = sel
+                        }
+                    })
+
+                if let namespaceAndName,
+                    let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName),
+                    case let .pod(namespace, podName) = kid
+                {
+                    let children =
+                        vmModel.dockerContainers?.byId.values.lazy.filter {
+                            $0.k8sNamespace == namespace && $0.k8sPodName == podName
+                        }.sorted { ($0.k8sContainerName ?? "") < ($1.k8sContainerName ?? "") } ?? []
+
+                    NavigationLink(tag: "all", selection: selBinding) {
+                        K8SLogsContentView(kid: kid, containerName: nil)
+                    } label: {
+                        Label("All", systemImage: "square.stack.3d.up")
+                    }
                     .onAppear {
                         windowTracker.openK8sLogWindowIds.insert(kid)
                     }
                     .onDisappear {
                         windowTracker.openK8sLogWindowIds.remove(kid)
                     }
+
+                    Section("Services") {
+                        ForEach(children, id: \.id) { container in
+                            let k8sContainerName = container.k8sContainerName ?? container.id
+                            NavigationLink(
+                                tag: "container:\(k8sContainerName)", selection: selBinding
+                            ) {
+                                K8SLogsContentView(kid: kid, containerName: k8sContainerName)
+                            } label: {
+                                Label {
+                                    Text(k8sContainerName)
+                                } icon: {
+                                    // icon = red/green status dot
+                                    Image(nsImage: SystemImages.statusDot(container.statusDot))
+                                }
+                            }
+                        }
+                    }
+                }
             }
+            .listStyle(.sidebar)
+            .background(SplitViewAccessor(sideCollapsed: $collapsed))
+
+            ContentUnavailableViewCompat(
+                "No Service Selected", systemImage: "questionmark.app.fill")
         }
         .environmentObject(commandModel)
         .onOpenURL { url in
@@ -1087,7 +1178,13 @@ struct K8SPodLogsWindow: View {
                 self.namespaceAndName = namespaceAndName
             }
         }
-        .toolbar(forCommands: commandModel)
+        .onAppear {
+            selection = savedSelection
+        }
+        .onChange(of: selection) {
+            savedSelection = $0
+        }
+        .toolbar(forCommands: commandModel, hasSidebar: true)
     }
 }
 

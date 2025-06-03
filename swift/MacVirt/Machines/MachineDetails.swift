@@ -46,7 +46,7 @@ struct MachineDetails: View {
                     SimpleKvTableRow("Distro") {
                         Text(
                             Distro.map[info.record.image.distro]?.friendlyName
-                            ?? info.record.image.distro)
+                                ?? info.record.image.distro)
                     }
                     SimpleKvTableRow("Version") {
                         Text(info.record.image.version)

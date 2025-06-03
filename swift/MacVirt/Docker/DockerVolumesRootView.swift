@@ -70,7 +70,9 @@ struct DockerVolumesRootView: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                StatusOverlayBadge("Exporting", set: actionTracker.ongoingVolumeExports, publisher: actionTracker.$ongoingVolumeExports)
+                StatusOverlayBadge(
+                    "Exporting", set: actionTracker.ongoingVolumeExports,
+                    publisher: actionTracker.$ongoingVolumeExports)
             }
         }
         .navigationTitle("Volumes")
@@ -98,7 +100,8 @@ struct DockerVolumesRootView: View {
         return nil
     }
 
-    private func filterVolumes(_ volumes: any Sequence<DKVolume>, searchQuery: String) -> [DKVolume] {
+    private func filterVolumes(_ volumes: any Sequence<DKVolume>, searchQuery: String) -> [DKVolume]
+    {
         var volumes = volumes.filter { volume in
             searchQuery.isEmpty || volume.name.localizedCaseInsensitiveContains(searchQuery)
         }
@@ -109,7 +112,7 @@ struct DockerVolumesRootView: View {
     private func maybeRefreshDf() {
         // only refresh if we're missing df info for some volumes
         if let volumes = vmModel.dockerVolumes,
-           volumes.values.contains(where: { vol in
+            volumes.values.contains(where: { vol in
                 vmModel.dockerDf?.volumes[vol.name] == nil
             })
         {
