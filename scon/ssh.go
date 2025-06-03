@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alessio/shellescape"
+	"al.essio.dev/pkg/shellescape"
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
 	"github.com/orbstack/macvirt/scon/agent"
