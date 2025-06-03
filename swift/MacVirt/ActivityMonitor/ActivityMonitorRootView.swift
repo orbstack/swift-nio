@@ -149,11 +149,13 @@ private struct HistoryGraphItem: Hashable {
 
     static func += (lhs: inout HistoryGraphItem, rhs: Float?) {
         if let rhs {
-            if let oldValue = lhs.value {
-                lhs.value = oldValue + rhs
-            } else {
-                lhs.value = rhs
-            }
+            lhs.value = (lhs.value ?? 0) + rhs
+        }
+    }
+
+    static func -= (lhs: inout HistoryGraphItem, rhs: Float?) {
+        if let rhs {
+            lhs.value = max(0, (lhs.value ?? 0) - rhs)
         }
     }
 }
@@ -168,6 +170,7 @@ private struct HistoryGraph: View {
     let color: Color
     let maxValue: Float
     let alignTo: Float
+    let formatter: (Float) -> String
 
     var body: some View {
         let (graphItems, isTotal) = calculateItems()
@@ -179,9 +182,16 @@ private struct HistoryGraph: View {
         ).alignUp(to: alignTo)
 
         VStack(alignment: .leading) {
-            let title = isTotal ? "Total \(name)" : "\(name) (selected)"
-            Text(title)
-                .font(.headline)
+            let title = isTotal ? "Total \(name):" : "\(name) (selected):"
+            HStack(alignment: .center) {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                if let lastItem = graphItems.last,
+                    let lastValue = lastItem.value {
+                    Text(formatter(lastValue))
+                }
+            }
 
             Chart(graphItems, id: \.self) { item in
                 if let value = item.value {
@@ -216,7 +226,23 @@ private struct HistoryGraph: View {
             .chartYAxis {
             }
             .frame(height: 100)
+            .padding(.bottom, 1) // fix zero line getting clipped
+            .clipped() // if values > max, Swift Charts draws out of bounds
             .border(.gray.opacity(0.5))
+        }
+    }
+
+    private func findK8sNamespace(containerId: String) -> String? {
+        if let k8sGroupItem = modelItems.first(where: { $0.entity.id == .k8sGroup }) {
+            return k8sGroupItem.children?.firstNonNil({ item in
+                if case .k8sNamespace(let ns) = item.entity,
+                    item.children?.contains(where: { $0.entity.id == .container(id: containerId) }) ?? false {
+                    return ns
+                }
+                return nil
+            })
+        } else {
+            return nil
         }
     }
 
@@ -230,44 +256,81 @@ private struct HistoryGraph: View {
             }
             numItems += 1
         }
+        func subtractEntry(_ entry: TrackedStatsEntry) {
+            let history = entry[keyPath: key]
+            for (index, value) in history.enumerated() {
+                items[index] -= value
+            }
+        }
 
         // add selections
         for tracked in trackedEntries.values {
             switch tracked.entry.entity {
-            case .container(let id):
-                if selection.contains(.container(id: id)) || selection.contains(.dockerGroup) {
+            // docker machine is special once again
+            case .machine(ContainerIds.docker):
+                if selection.contains(.dockerGroup) {
                     addEntry(tracked)
-                    // complicated check for compose children
-                } else if let dockerGroupItem = modelItems.first(where: {
-                    return $0.entity.id == .dockerGroup
-                }),
-                    let composeItem = dockerGroupItem.children?.first(where: {
-                        if case .compose = $0.entity {
-                            return $0.children?.contains(where: {
-                                return $0.entity.id == .container(id: id)
-                            }) ?? false
+
+                    // subtract k8s
+                    for tracked in trackedEntries.values {
+                        switch tracked.entry.entity {
+                        case .service("k8s"):
+                                subtractEntry(tracked)
+                        case .container(let id):
+                            if findK8sNamespace(containerId: id) != nil {
+                                subtractEntry(tracked)
+                            }
+                        default:
+                            break
                         }
-                        return false
-                    }) ?? nil, selection.contains(composeItem.id)
-                {
-                    addEntry(tracked)
+                    }
                 }
+            // other machines
             case .machine(let id):
                 if selection.contains(.machine(id: id)) || selection.contains(.machinesGroup) {
                     addEntry(tracked)
                 }
+
+            // included in docker machine, unless it's k8s in which case it was subtracted above
+            case .container(let id):
+                let k8sNamespace = findK8sNamespace(containerId: id)
+                if k8sNamespace != nil || !selection.contains(.dockerGroup) {
+                    if selection.contains(.container(id: id)) {
+                        addEntry(tracked)
+                        // complicated check for compose children
+                    } else if let dockerGroupItem = modelItems.first(where: { $0.entity.id == .dockerGroup }),
+                        let composeItem = dockerGroupItem.children?.first(where: {
+                            if case .compose = $0.entity {
+                                return $0.children?.contains(where: {
+                                    return $0.entity.id == .container(id: id)
+                                }) ?? false
+                            }
+                            return false
+                        }) ?? nil, selection.contains(composeItem.id) {
+                            addEntry(tracked)
+                        // complicated check for k8s children
+                    } else if let k8sNamespace {
+                        if selection.contains(.k8sGroup) || selection.contains(.k8sNamespace(k8sNamespace)) {
+                            addEntry(tracked)
+                        }
+                    }
+                }
+            // included in docker machine
             case .service("dockerd"):
-                if selection.contains(.dockerEngine) || selection.contains(.dockerGroup) {
+                if selection.contains(.dockerEngine) && !selection.contains(.dockerGroup) {
                     addEntry(tracked)
                 }
+            // included in docker machine
             case .service("buildkit"):
-                if selection.contains(.buildkit) || selection.contains(.dockerGroup) {
+                if selection.contains(.buildkit) && !selection.contains(.dockerGroup) {
                     addEntry(tracked)
                 }
+            // included in docker machine
             case .service("k8s"):
                 if selection.contains(.k8sGroup) || selection.contains(.k8sServices) {
                     addEntry(tracked)
                 }
+
             default:
                 break
             }
@@ -278,12 +341,48 @@ private struct HistoryGraph: View {
         let isTotal = numItems == 0
         if isTotal {
             for tracked in trackedEntries.values {
-                addEntry(tracked)
+                // we ONLY need to sum machines to get the total, because all .service and .container are under docker machine
+                if case .machine = tracked.entry.entity {
+                    if self.name == "Memory" {
+                    print("adding machine \(tracked.entry.entity)")
+                    }
+                    addEntry(tracked)
+                }
             }
         }
-
+        let max = max(
+            maxValue,
+            items.max(by: {
+                $0.value ?? 0 < $1.value ?? 0
+            })?.value ?? 0
+        ).alignUp(to: alignTo)
+        if self.name == "Memory" {
+            print("calculated max = \(max)")
+            print("items = \(items)")
+        }
         return (items, isTotal)
     }
+}
+
+private let memoryByteCountFormatter = {
+    let formatter = ByteCountFormatter()
+    formatter.countStyle = .memory
+    formatter.allowsNonnumericFormatting = false // "Zero KB" -> "0 KB"
+    // no "bytes" because it's too long
+    formatter.allowedUnits = [.useKB, .useMB, .useGB, .useTB, .usePB, .useEB, .useZB, .useYBOrHigher]
+    return formatter
+}()
+
+private func formatCpuPercent(_ value: Float) -> String {
+    return value.formatted(.number.precision(.fractionLength(1)))
+}
+
+private func formatMemoryBytes(_ value: Int64) -> String {
+    return memoryByteCountFormatter.string(fromByteCount: value)
+}
+
+private func formatDiskRwBytes(_ value: Int64) -> String {
+    return "\(memoryByteCountFormatter.string(fromByteCount: value))/s"
 }
 
 struct ActivityMonitorRootView: View {
@@ -383,17 +482,14 @@ struct ActivityMonitorRootView: View {
                     ) {
                         item in
                         if let cpuPercent = item.cpuPercent {
-                            Text(cpuPercent.formatted(.number.precision(.fractionLength(1))))
+                            Text(formatCpuPercent(cpuPercent))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                     },
                     akColumn(
                         id: Columns.memoryBytes, title: "Memory", width: 75, alignment: .right
                     ) { item in
-                        Text(
-                            ByteCountFormatter.string(
-                                fromByteCount: Int64(item.memoryBytes), countStyle: .memory)
-                        )
+                        Text(formatMemoryBytes(Int64(item.memoryBytes)))
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     },
                     akColumn(
@@ -401,15 +497,8 @@ struct ActivityMonitorRootView: View {
                     ) {
                         item in
                         if let diskRwBytes = item.diskRwBytes {
-                            if diskRwBytes > 0 {
-                                let formatted = ByteCountFormatter.string(
-                                    fromByteCount: Int64(diskRwBytes), countStyle: .memory)
-                                Text("\(formatted)/s")
-                                    .frame(maxWidth: .infinity, alignment: .trailing)
-                            } else {
-                                Text("0 b/s")
-                                    .frame(maxWidth: .infinity, alignment: .trailing)
-                            }
+                            Text(formatDiskRwBytes(Int64(diskRwBytes)))
+                                .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                     },
                 ]
@@ -449,7 +538,8 @@ struct ActivityMonitorRootView: View {
                             name: "CPU",
                             color: .red,
                             maxValue: 100,
-                            alignTo: 100
+                            alignTo: 100,
+                            formatter: { "\(formatCpuPercent($0))%" }
                         )
 
                         let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
@@ -462,7 +552,8 @@ struct ActivityMonitorRootView: View {
                             name: "Memory",
                             color: .blue,
                             maxValue: Float(memoryLimit),
-                            alignTo: 512 * 1_048_576  // 512 MiB
+                            alignTo: 512 * 1_048_576,  // 512 MiB
+                            formatter: { formatMemoryBytes(Int64($0)) }
                         )
 
                         HistoryGraph(
@@ -474,7 +565,8 @@ struct ActivityMonitorRootView: View {
                             name: "Disk I/O",
                             color: .purple,
                             maxValue: 32 * 1_048_576,  // 32 MiB
-                            alignTo: 32 * 1_048_576  // 32 MiB
+                            alignTo: 32 * 1_048_576,  // 32 MiB
+                            formatter: { formatDiskRwBytes(Int64($0)) }
                         )
                     }
                     .padding(20)
@@ -887,6 +979,18 @@ extension [ActivityMonitorItem] {
 
             return desc.compare($0.textLabel!, $1.textLabel!)
         }
+    }
+
+    fileprivate func findRecursive(id: ActivityMonitorID) -> ActivityMonitorItem? {
+        for item in self {
+            if item.entity.id == id {
+                return item
+            }
+            if let child = item.children?.findRecursive(id: id) {
+                return child
+            }
+        }
+        return nil
     }
 }
 
