@@ -10,6 +10,8 @@ import (
 var completionCmd = &cobra.Command{
 	Use:   "completion [bash|zsh|fish|powershell]",
 	Short: "Generate completion script",
+	// we pregenerate and automatically load completions for all relevant shells now, so this is no longer useful and may confuse users into thinking that they need to set up completions manually
+	Hidden: true,
 	Long: fmt.Sprintf(`To load completions:
 
 Bash:
