@@ -34,7 +34,8 @@
  */
 SEC("lsm/bpf")
 int BPF_PROG(xlsm_bpf, int cmd, union bpf_attr *attr, unsigned int size, int ret) {
-    if (ret) return ret;
+    // since kernel 6.15, we have to check for the [-4096, 0] even though ret?
+    if (ret && ret > -4096 && ret <= 0) return ret;
 
     if (cmd == BPF_PROG_LOAD && attr->prog_type == BPF_PROG_TYPE_LSM) {
         if (__builtin_memcmp(attr->prog_name, "restrict_filesy", BPF_OBJ_NAME_LEN) == 0) {
@@ -43,7 +44,7 @@ int BPF_PROG(xlsm_bpf, int cmd, union bpf_attr *attr, unsigned int size, int ret
         }
     }
 
-    return -0;
+    return 0;
 }
 
 // required for BPF LSM
