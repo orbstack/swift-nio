@@ -62,7 +62,7 @@ impl FirefoxApiServer {
 
     async fn start(self: &Arc<Self>) -> anyhow::Result<()> {
         let app = Router::new()
-            .route("/profile/:profile_id", get(Self::profile_handler))
+            .route("/profile/{profile_id}", get(Self::profile_handler))
             .layer(Extension(self.clone()))
             .layer(
                 CorsLayer::new()
