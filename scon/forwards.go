@@ -483,18 +483,13 @@ func (c *Container) updateListenersNow() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// if scheduled before stop
-	if !c.runningLocked() {
-		return nil
-	}
-
-	initPid := c.lxc.InitPid()
-	if initPid < 0 {
-		return ErrMachineNotRunning
-	}
-
 	// read /proc/net
-	listeners, err := sysnet.ReadAllProcNet(strconv.Itoa(initPid))
+	rt, err := c.RuntimeState()
+	if err != nil {
+		return err
+	}
+
+	listeners, err := sysnet.ReadAllProcNetFromDirfs(rt.InitProcDirfd)
 	if err != nil {
 		return err
 	}

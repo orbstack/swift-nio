@@ -5,11 +5,13 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/orbstack/macvirt/scon/util/dirfs"
 	"golang.org/x/sys/unix"
 )
 
 // opened once, never closed
-var getHostNetnsFd = sync.OnceValue(func() int {
+var GetProcessNetnsFd = sync.OnceValue(func() int {
+	// can't use PIDFD_GET_PID_NAMESPACE: can't ioctl on PIDFD_SELF so we'd have to pidfd_open
 	fd, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		panic(err)
@@ -17,7 +19,9 @@ var getHostNetnsFd = sync.OnceValue(func() int {
 	return fd
 })
 
+// NOT SAFE for pollable fds (i.e. from pidfd_open)
 func WithNetnsFile[T any](newNsF *os.File, fn func() (T, error)) (T, error) {
+	defer runtime.KeepAlive(newNsF)
 	return WithNetnsFd(int(newNsF.Fd()), fn)
 }
 
@@ -28,7 +32,7 @@ func WithNetnsFd[T any](newNsFd int, fn func() (T, error)) (T, error) {
 	defer runtime.UnlockOSThread()
 
 	// get current ns
-	hostNetnsFd := getHostNetnsFd()
+	hostNetnsFd := GetProcessNetnsFd()
 
 	// set ns
 	err := unix.Setns(newNsFd, unix.CLONE_NEWNET)
@@ -40,16 +44,15 @@ func WithNetnsFd[T any](newNsFd int, fn func() (T, error)) (T, error) {
 	return fn()
 }
 
-func WithNetnsProcDirfdFile[T any](procDirfd *os.File, fn func() (T, error)) (T, error) {
-	netnsFd, err := unix.Openat(int(procDirfd.Fd()), "ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
-	runtime.KeepAlive(procDirfd)
+func WithNetnsProcDirfs[T any](procDirfs *dirfs.FS, fn func() (T, error)) (T, error) {
+	nsFd, err := procDirfs.OpenFd("ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		var zero T
 		return zero, err
 	}
-	defer unix.Close(netnsFd)
+	defer unix.Close(nsFd)
 
-	return WithNetnsFd(netnsFd, fn)
+	return WithNetnsFd(nsFd, fn)
 }
 
 // used for eBPF

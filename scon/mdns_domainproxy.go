@@ -16,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
+	"github.com/orbstack/macvirt/scon/util/dirfs"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
@@ -61,7 +62,8 @@ func newDomainproxyAllocator(subnet netip.Prefix, lowest netip.Addr) *domainprox
 }
 
 type domainproxyHostState struct {
-	procDirfd                   *os.File
+	// not owned!
+	procDirfs                   *dirfs.FS
 	hasNetnsCookie              bool
 	netnsCookie                 uint64
 	invalidateHostProbeDebounce *syncx.LeadingFuncDebounce
@@ -511,23 +513,23 @@ func (d *domainproxyRegistry) AssignUpstream(allocator *domainproxyAllocator, va
 	return d.assignUpstreamLocked(allocator, val)
 }
 
-func (d *domainproxyRegistry) updateHostStateFromProcDirfdLocked(host domainproxytypes.Host, procDirfd *os.File) error {
+func (d *domainproxyRegistry) updateHostStateFromProcDirfsLocked(host domainproxytypes.Host, dirfs *dirfs.FS) error {
 	hostState, ok := d.hostState[host]
 	if !ok {
 		return errors.New("host state not found")
 	}
 
-	hostState.procDirfd = procDirfd
+	hostState.procDirfs = dirfs
 
-	netnsCookie, err := sysnet.WithNetnsProcDirfdFile(procDirfd, func() (uint64, error) {
+	netnsCookie, err := sysnet.WithNetnsProcDirfs(dirfs, func() (uint64, error) {
 		return sysnet.GetNetnsCookie()
 	})
 	if err != nil {
 		return fmt.Errorf("get netns cookie: %w", err)
 	}
-
 	hostState.netnsCookie = netnsCookie
 	hostState.hasNetnsCookie = true
+
 	hostState.invalidateHostProbeDebounce = syncx.NewLeadingFuncDebounce(invalidateHostProbeDebounceDuration, func() {
 		d.invalidateHostProbe(host)
 	})
@@ -550,10 +552,6 @@ func (d *domainproxyRegistry) freeHostLocked(host domainproxytypes.Host) {
 		d.freeAddrLocked(ip)
 	}
 	if hostState, ok := d.hostState[host]; ok {
-		if hostState.procDirfd != nil {
-			hostState.procDirfd.Close()
-		}
-
 		if hostState.hasNetnsCookie {
 			d.manager.net.portMonitor.DeregisterNetnsInterest("mdns_domainproxy", hostState.netnsCookie)
 
@@ -596,7 +594,7 @@ func containerToMdnsIPs(ctr *dockertypes.ContainerSummaryMin) (net.IP, net.IP) {
 	return ip4, ip6
 }
 
-func (d *domainproxyRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDirfd *os.File, nameStrings []string) (net.IP, net.IP) {
+func (d *domainproxyRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, dirfs *dirfs.FS, nameStrings []string) (net.IP, net.IP) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -605,8 +603,8 @@ func (d *domainproxyRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin,
 	hostState := &domainproxyHostState{}
 	d.hostState[domainproxyHost] = hostState
 
-	if procDirfd != nil {
-		err := d.updateHostStateFromProcDirfdLocked(domainproxyHost, procDirfd)
+	if dirfs != nil {
+		err := d.updateHostStateFromProcDirfsLocked(domainproxyHost, dirfs)
 		if err != nil {
 			logrus.WithError(err).Error("failed to set host state while adding docker container to domainproxy")
 		}
@@ -686,27 +684,24 @@ func (d *domainproxyRegistry) AddMachine(c *Container) {
 
 	d.hostState[domainproxyHost] = &domainproxyHostState{}
 
-	procPath := "/proc/" + strconv.Itoa(c.initPid)
-	procDirfdInt, err := unix.Open(procPath, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_DIRECTORY, 0)
+	rt, err := c.RuntimeState()
 	if err != nil {
-		logrus.WithError(err).WithField("pid", c.initPid).Error("failed to open proc dirfd")
+		logrus.WithError(err).WithField("container", c.ID).Error("failed to get runtime state")
 		return
 	}
 
-	procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
-
-	err = d.updateHostStateFromProcDirfdLocked(domainproxyHost, procDirfd)
+	err = d.updateHostStateFromProcDirfsLocked(domainproxyHost, rt.InitProcDirfd)
 	if err != nil {
-		logrus.WithError(err).WithField("pid", c.initPid).Error("failed to update host state")
+		logrus.WithError(err).WithField("container", c.ID).Error("failed to update host state")
 	}
 
 	if c.ID == ContainerIDK8s {
 		k8sHost := domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s}
 		d.hostState[k8sHost] = &domainproxyHostState{}
 
-		err = d.updateHostStateFromProcDirfdLocked(k8sHost, procDirfd)
+		err = d.updateHostStateFromProcDirfsLocked(k8sHost, rt.InitProcDirfd)
 		if err != nil {
-			logrus.WithError(err).WithField("pid", c.initPid).Error("failed to update host state for k8s")
+			logrus.WithError(err).WithField("container", c.ID).Error("failed to update host state for k8s")
 		}
 	}
 }
@@ -989,19 +984,17 @@ func (d *domainproxyRegistry) getHostOpenPorts(domainproxyHost domainproxytypes.
 	}
 
 	hostState, ok := d.hostState[domainproxyHost]
-	if !ok || hostState.procDirfd == nil {
+	if !ok || hostState.procDirfs == nil {
 		return nil, fmt.Errorf("no proc dirfd for host: %v", domainproxyHost)
 	}
 
-	procDirfd := hostState.procDirfd
-
 	// always grab both v4 and v6 ports because dual stack shows up as ipv6 anyways, so not worth the effort to differentiate
 	// especially when our probing routine should be relatively fast anyways, especially for non-listening ports
-	listeners4, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp")
+	listeners4, err := sysnet.ReadProcNetFromDirfs(hostState.procDirfs, "tcp")
 	if err != nil {
 		return nil, err
 	}
-	listeners6, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp6")
+	listeners6, err := sysnet.ReadProcNetFromDirfs(hostState.procDirfs, "tcp6")
 	if err != nil {
 		return nil, err
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/portprober"
+	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
@@ -169,7 +170,7 @@ func (p *DomainTLSProxy) Start(ip4, ip6 string, subnet4, subnet6 netip.Prefix, n
 		return fmt.Errorf("set tproxy socket: %w", err)
 	}
 
-	err = tproxy.AttachNetNsFromPath("/proc/thread-self/ns/net")
+	err = tproxy.AttachNetNs(sysnet.GetProcessNetnsFd())
 	if err != nil {
 		return fmt.Errorf("attach tproxy to netns: %w", err)
 	}

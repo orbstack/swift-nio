@@ -143,6 +143,7 @@ type SimplevisorConfig struct {
 	InitServices map[string][]string `json:"init_services"`
 	DepServices  map[string][]string `json:"dep_services"`
 	HostHome     string              `json:"host_home"`
+	OomScoreAdj  string              `json:"oom_score_adj"`
 }
 
 type SimplevisorStatus struct {
@@ -598,10 +599,17 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		// CAN'T MUTATE THIS GLOBAL! make a copy if needed
 		InitCommands: dockerInitCommands,
 		InitServices: map[string][]string{
-			"docker": {"dockerd", "--ip-forward-no-drop", "--allow-direct-routing", "--host-gateway-ip=" + netconf.VnetHostNatIP4, "--userland-proxy-path", mounts.Pstub},
+			"docker": {
+				"dockerd",
+				"--ip-forward-no-drop",
+				"--allow-direct-routing",
+				"--host-gateway-ip=" + netconf.VnetHostNatIP4,
+				"--userland-proxy-path", mounts.Pstub,
+			},
 		},
 		DepServices: map[string][]string{},
 		HostHome:    hostUser.HomeDir,
+		OomScoreAdj: util.OomScoreAdjCriticalGuest,
 	}
 	// add k8s service
 	if c.manager.k8sEnabled {
@@ -688,16 +696,6 @@ func (h *DockerHooks) PreStart(c *Container) error {
 }
 
 func (h *DockerHooks) PostStart(c *Container) error {
-	// docker-init oom score adj
-	// dockerd's score is set via cmdline argument
-	initPid := c.initPid
-	if initPid != 0 {
-		err := os.WriteFile("/proc/"+strconv.Itoa(initPid)+"/oom_score_adj", []byte(util.OomScoreAdjCriticalGuest), 0644)
-		if err != nil {
-			return err
-		}
-	}
-
 	err := c.manager.net.mdnsRegistry.dockerPostStart()
 	if err != nil {
 		logrus.WithError(err).Error("unable to run mdns registry docker post start hook")

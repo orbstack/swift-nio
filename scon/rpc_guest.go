@@ -16,6 +16,8 @@ import (
 	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/dirfs"
+	"github.com/orbstack/macvirt/scon/util/sysns"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
@@ -39,25 +41,14 @@ type containerWithMeta struct {
 	dockertypes.ContainerSummaryMin
 	CgroupPath string
 	Pid        int
+	ProcDirfs  *dirfs.FS
 }
 
 func (s *SconGuestServer) Ping(_ None, _ *None) error {
 	return nil
 }
 
-func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.ContainerSummaryMin, fdxSeq uint64) error {
-	var fd int
-	// locked by caller
-	err := s.dockerMachine.useAgentLocked(func(a *agent.Client) error {
-		var err error
-		fd, err = a.Fdx().RecvFdInt(fdxSeq)
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("receive rootfs fd: %w", err)
-	}
-	defer unix.Close(fd)
-
+func (s *SconGuestServer) mountRootfsLocked(ctr *dockertypes.ContainerSummaryMin, procDirfs *dirfs.FS) error {
 	name := ctr.ID
 	if len(ctr.Names) > 0 {
 		name = strings.TrimPrefix(ctr.Names[0], "/")
@@ -65,13 +56,21 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 
 	// create dir in nfs containers
 	// validate ID to prevent escape - this is untrusted data
-	if strings.Contains(name, "/") {
-		return fmt.Errorf("invalid container ID: %s", name)
+	if strings.Contains(name, "/") || name == ".." {
+		return fmt.Errorf("invalid container name: %s", name)
 	}
+
+	treeFd, err := sysns.WithMountNsProcDirfs1(procDirfs, func() (int, error) {
+		return unix.OpenTree(unix.AT_FDCWD, "/", unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+	})
+	if err != nil {
+		return fmt.Errorf("open tree in mount ns: %w", err)
+	}
+	defer unix.Close(treeFd)
 
 	// move mount
 	err = s.m.nfsContainers.Mount("", name, "", 0, "", 0, 0, func(destPath string) error {
-		err := unix.MoveMount(fd, "", unix.AT_FDCWD, destPath, unix.MOVE_MOUNT_F_EMPTY_PATH)
+		err := unix.MoveMount(treeFd, "", unix.AT_FDCWD, destPath, unix.MOVE_MOUNT_F_EMPTY_PATH)
 		if err != nil {
 			return fmt.Errorf("move mount %s: %w", destPath, err)
 		}
@@ -86,7 +85,7 @@ func (s *SconGuestServer) recvAndMountRootfsFdxLocked(ctr *dockertypes.Container
 		// this is a recursive mount (open_tree was called with AT_RECURSIVE)
 		// now unmount undesired /proc, /dev, /sys recursively
 		// too many files and not very useful
-		// TODO: scan for all pseudo filesystems
+		// TODO: deal with this in FUSE server instead
 		err = unix.Unmount(destPath+"/proc", unix.MNT_DETACH)
 		if err != nil && !errors.Is(err, unix.EINVAL) {
 			// EINVAL = not mounted
@@ -161,84 +160,101 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 	return s.onDockerContainersChangedLocked(diff)
 }
 
+func (s *SconGuestServer) removeOneContainerLocked(ctr *dockertypes.ContainerSummaryMin) error {
+	delete(s.dockerContainersCache, ctr.ID)
+	s.m.net.mdnsRegistry.RemoveContainer(ctr)
+
+	// unmount from nfs (ignore error)
+	prettyName := ctr.ID
+	if len(ctr.Names) > 0 {
+		prettyName = strings.TrimPrefix(ctr.Names[0], "/")
+	}
+
+	// detach fuse mount first to avoid user-facing errors (socket not connected)
+	err := s.m.nfsRoot.Unmount("docker/containers/" + prettyName)
+	if err != nil {
+		logrus.WithError(err).WithField("cname", prettyName).Error("failed to unmount container")
+	}
+
+	// must flush exports immediately for nfsd to close fds
+	err = s.m.nfsRoot.Flush()
+	if err != nil {
+		logrus.WithError(err).Error("failed to flush nfs")
+	}
+
+	// kill fuse server to release fds
+	// note: we may enter this code path even if it was never mounted (i.e. too fast)
+	err = s.m.fpll.StopMount(nfsDirRoot + "/ro/docker/containers/" + prettyName)
+	if err != nil {
+		logrus.WithError(err).WithField("cname", prettyName).Error("failed to stop fs server")
+	}
+
+	// finally unmount underlying overlayfs
+	err = s.m.nfsContainers.Unmount(prettyName)
+	if err != nil {
+		logrus.WithError(err).WithField("cname", prettyName).Error("failed to unmount rootfs")
+	}
+
+	return nil
+}
+
+func (s *SconGuestServer) addOneContainerLocked(ctr *dockertypes.ContainerSummaryMin, meta sgtypes.AddedContainerMeta) error {
+	// guest is untrusted. sanitize cgroup path to prevent escape
+	if strings.Contains(meta.CgroupPath, "/../") || strings.HasPrefix(meta.CgroupPath, "../") || strings.HasSuffix(meta.CgroupPath, "/..") || meta.CgroupPath == ".." {
+		return fmt.Errorf("invalid cgroup path: %s", meta.CgroupPath)
+	}
+
+	var procDirfd *os.File
+	if meta.ProcDirFdxSeq != 0 {
+		err := s.dockerMachine.useAgentLocked(func(a *agent.Client) error {
+			fd, err := a.Fdx().RecvFile(meta.ProcDirFdxSeq)
+			procDirfd = fd
+			return err
+		})
+		if err != nil {
+			return fmt.Errorf("recv proc dirfd: %w", err)
+		}
+	}
+
+	procDirfs, err := dirfs.NewFromDirfd(procDirfd)
+	if err != nil {
+		return fmt.Errorf("new proc dirfs: %w", err)
+	}
+
+	s.dockerContainersCache[ctr.ID] = containerWithMeta{
+		ContainerSummaryMin: *ctr,
+		CgroupPath:          meta.CgroupPath,
+		Pid:                 meta.Pid,
+		ProcDirfs:           procDirfs,
+	}
+
+	s.m.net.mdnsRegistry.AddContainer(ctr, procDirfs)
+
+	// mount nfs in shadow dir
+	err = s.mountRootfsLocked(ctr, procDirfs)
+	if err != nil {
+		logrus.WithError(err).WithField("cid", ctr.ID).Error("failed to mount rootfs")
+	}
+
+	return nil
+}
+
 func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.ContainersDiff) error {
 	// IMPORTANT: must not return from this function before reading and closing fds from AddedRootfsFdxSeqs
 
 	// update mDNS registry
 	// must remove before adding in case of recreate with same IPs/domain
 	for _, ctr := range diff.Removed {
-		delete(s.dockerContainersCache, ctr.ID)
-		s.m.net.mdnsRegistry.RemoveContainer(&ctr)
-
-		// unmount from nfs (ignore error)
-		prettyName := ctr.ID
-		if len(ctr.Names) > 0 {
-			prettyName = strings.TrimPrefix(ctr.Names[0], "/")
-		}
-
-		// detach fuse mount first to avoid user-facing errors (socket not connected)
-		err := s.m.nfsRoot.Unmount("docker/containers/" + prettyName)
+		err := s.removeOneContainerLocked(&ctr)
 		if err != nil {
-			logrus.WithError(err).WithField("cname", prettyName).Error("failed to unmount container")
-		}
-
-		// must flush exports immediately for nfsd to close fds
-		err = s.m.nfsRoot.Flush()
-		if err != nil {
-			logrus.WithError(err).Error("failed to flush nfs")
-		}
-
-		// kill fuse server to release fds
-		// note: we may enter this code path even if it was never mounted (i.e. too fast)
-		err = s.m.fpll.StopMount(nfsDirRoot + "/ro/docker/containers/" + prettyName)
-		if err != nil {
-			logrus.WithError(err).WithField("cname", prettyName).Error("failed to stop fs server")
-		}
-
-		// finally unmount underlying overlayfs
-		err = s.m.nfsContainers.Unmount(prettyName)
-		if err != nil {
-			logrus.WithError(err).WithField("cname", prettyName).Error("failed to unmount rootfs")
+			return fmt.Errorf("remove container: %w", err)
 		}
 	}
 	for i, ctr := range diff.Added {
 		meta := diff.AddedContainerMeta[i]
-
-		// guest is untrusted. sanitize cgroup path to prevent escape
-		if strings.Contains(meta.CgroupPath, "/../") || strings.HasPrefix(meta.CgroupPath, "../") || strings.HasSuffix(meta.CgroupPath, "/..") || meta.CgroupPath == ".." {
-			return fmt.Errorf("invalid cgroup path: %s", meta.CgroupPath)
-		}
-
-		s.dockerContainersCache[ctr.ID] = containerWithMeta{
-			ContainerSummaryMin: ctr,
-			CgroupPath:          meta.CgroupPath,
-			Pid:                 meta.Pid,
-		}
-
-		procDirFdxSeq := meta.ProcDirFdxSeq
-		var procDirfd *os.File
-		if procDirFdxSeq != 0 {
-			err := s.dockerMachine.useAgentLocked(func(a *agent.Client) error {
-				fd, err := a.Fdx().RecvFile(procDirFdxSeq)
-				procDirfd = fd
-				return err
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		s.m.net.mdnsRegistry.AddContainer(&ctr, procDirfd)
-
-		if s.dockerMachine.runningLocked() {
-			// mount nfs in shadow dir
-			fdxSeq := meta.RootfsFdxSeq
-			if fdxSeq != 0 {
-				err := s.recvAndMountRootfsFdxLocked(&ctr, fdxSeq)
-				if err != nil {
-					logrus.WithError(err).WithField("cid", ctr.ID).Error("failed to mount rootfs")
-				}
-			}
+		err := s.addOneContainerLocked(&ctr, meta)
+		if err != nil {
+			return fmt.Errorf("add container: %w", err)
 		}
 	}
 
@@ -293,6 +309,7 @@ func mountVolume(nfs NfsMirror, vol *dockertypes.Volume, fs *securefs.FS) error 
 	}
 	defer unix.Close(fd)
 
+	// TODO[6.15pidfd]: new mount api
 	err = nfs.MountBind("/proc/self/fd/"+strconv.Itoa(fd), "docker/volumes/"+vol.Name, 0, 0)
 	if err != nil {
 		return fmt.Errorf("mount volume: %w", err)

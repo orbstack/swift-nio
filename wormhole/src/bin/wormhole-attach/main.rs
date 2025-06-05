@@ -439,6 +439,7 @@ fn main() -> anyhow::Result<()> {
         std::fs::read_to_string(format!("/proc/{}/oom_score_adj", config.init_pid))?;
     let proc_cgroup = std::fs::read_to_string(format!("/proc/{}/cgroup", config.init_pid))?;
     let proc_env = std::fs::read_to_string(format!("/proc/{}/environ", config.init_pid))?;
+    // TODO[6.15pidfd]: sadly we can't really use listmount because this needs to run on old kernels :(
     let proc_mounts = parse_proc_mounts(&std::fs::read_to_string(format!(
         "/proc/{}/mounts",
         config.init_pid

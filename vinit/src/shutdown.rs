@@ -52,6 +52,7 @@ const PROCESS_SIGKILL_TIMEOUT: Duration = Duration::from_secs(5);
 
 const PF_KTHREAD: u32 = 0x00200000;
 
+// TODO[6.15pidfd]: look over this
 fn is_process_kthread(pid: i32) -> anyhow::Result<bool> {
     // check for PF_KTHREAD flag in /proc/<pid>/stat
     // checking readlink(/proc/<pid>/exe) == ENOENT is unreliable, sometimes skips exiting processes
@@ -106,6 +107,7 @@ fn broadcast_signal(signal: Signal) -> nix::Result<Vec<PidFd>> {
     // can't use kill(-1) because we need to know which PIDs to wait for exit
     // otherwise unmount returns EBUSY
     let mut pidfds = Vec::new();
+    // TODO[6.15pidfd]: look over this
     match fs::read_dir("/proc") {
         Ok(entries) => {
             for entry in entries {
@@ -181,6 +183,7 @@ fn unmount_all_filesystems() -> anyhow::Result<bool> {
     let mut made_progress = false;
 
     // filesystems
+    // TODO[6.15pidfd]: look over this
     let mounts = fs::read_to_string("/proc/mounts")?;
     // unmount in reverse order - more likely to succeed
     for line in mounts.lines().rev() {

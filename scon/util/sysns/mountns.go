@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/orbstack/macvirt/scon/util/dirfs"
 	"golang.org/x/sys/unix"
 )
 
@@ -17,6 +18,7 @@ func init() {
 
 // opened once, never closed
 var getHostMountnsFd = sync.OnceValue(func() int {
+	// can't use PIDFD_GET_PID_NAMESPACE: can't ioctl on PIDFD_SELF so we'd have to pidfd_open
 	fd, err := unix.Open("/proc/thread-self/ns/mnt", unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		panic(err)
@@ -65,4 +67,15 @@ func WithMountNs1(newNsFd int, fn func() error) error {
 		return struct{}{}, fn()
 	})
 	return err
+}
+
+func WithMountNsProcDirfs1[T any](procDirfs *dirfs.FS, fn func() (T, error)) (T, error) {
+	nsFd, err := procDirfs.OpenFd("ns/mnt", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	defer unix.Close(nsFd)
+
+	return WithMountNs(nsFd, fn)
 }

@@ -4,16 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"os"
 
 	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/domainproxy"
 	"github.com/orbstack/macvirt/scon/domainproxy/domainproxytypes"
 	"github.com/orbstack/macvirt/scon/nft"
+	"github.com/orbstack/macvirt/scon/util/dirfs"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 )
 
 type DockerProxyCallbacks struct {
@@ -47,7 +46,7 @@ func (cb *DockerProxyCallbacks) GetHostOpenPorts(host domainproxytypes.Host) (ma
 		return nil, errors.New("not implemented")
 	}
 
-	return cb.d.getDockerContainerOpenPorts(host.ID)
+	return cb.d.getContainerOpenPorts(host.ID)
 }
 
 func (d *DockerAgent) startDomainTLSProxy() error {
@@ -96,7 +95,8 @@ func (d *DockerAgent) updateTLSProxyNftables(enabled bool) error {
 	return nil
 }
 
-func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint16]struct{}, error) {
+func (d *DockerAgent) getContainerOpenPorts(containerID string) (map[uint16]struct{}, error) {
+	// TODO[6.15pidfd]: save dirfds
 	ctr, err := d.realClient.InspectContainer(containerID)
 	if err != nil {
 		return nil, err
@@ -106,23 +106,21 @@ func (d *DockerAgent) getDockerContainerOpenPorts(containerID string) (map[uint1
 		return map[uint16]struct{}{}, nil
 	}
 
-	procPath := fmt.Sprintf("/proc/%d", pid)
-	procDirfdInt, err := unix.Open(procPath, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	dfs, err := dirfs.NewFromPath(fmt.Sprintf("/proc/%d", pid))
 	if err != nil {
 		return nil, err
 	}
-	procDirfd := os.NewFile(uintptr(procDirfdInt), procPath)
-	defer procDirfd.Close()
+	defer dfs.Close()
 
 	openPorts := map[uint16]struct{}{}
 
 	// always grab both v4 and v6 ports because dual stack shows up as ipv6 anyways, so not worth the effort to differentiate
 	// especially when our probing routine should be relatively fast anyways, especially for non-listening ports
-	listeners4, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp")
+	listeners4, err := sysnet.ReadProcNetFromDirfs(dfs, "tcp")
 	if err != nil {
 		return nil, err
 	}
-	listeners6, err := sysnet.ReadProcNetFromDirfd(procDirfd, "tcp6")
+	listeners6, err := sysnet.ReadProcNetFromDirfs(dfs, "tcp6")
 	if err != nil {
 		return nil, err
 	}

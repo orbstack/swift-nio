@@ -63,7 +63,6 @@ type Diff[T any] struct {
 }
 
 type AddedContainerMeta struct {
-	RootfsFdxSeq  uint64
 	ProcDirFdxSeq uint64
 	CgroupPath    string
 	Pid           int

@@ -25,7 +25,7 @@ type StopOptions struct {
 }
 
 func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState, err error) {
-	oldState = c.RuntimeState()
+	oldState = c.RealState()
 	if !c.runningLocked() {
 		return oldState, nil
 	}
@@ -151,12 +151,11 @@ func (c *Container) onStopLocked() error {
 		logrus.WithError(err).WithField("container", c.Name).Error("failed to remove port monitor callback")
 	}
 
-	// discard init pid
-	if c.initPidFile != nil {
-		c.initPidFile.Close()
+	// discard runtime state
+	rt := c.runtimeState.Swap(nil)
+	if rt != nil {
+		rt.Close()
 	}
-	c.initPid = 0
-	c.initPidFile = nil
 
 	// cancel listener update
 	atomic.StoreUint32(&c.fwdDirtyFlags, 0)

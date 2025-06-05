@@ -11,7 +11,6 @@ import (
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/scon/util"
-	"github.com/orbstack/macvirt/scon/util/sysns"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/sirupsen/logrus"
@@ -20,39 +19,15 @@ import (
 
 var errContainerExited = errors.New("container exited")
 
-func openPidRootfsAndSend(pid int, fdx *Fdx) (uint64, error) {
-	pidfd, err := unix.PidfdOpen(pid, unix.PIDFD_NONBLOCK) // cloexec safe
-	if err != nil {
-		// EINVAL means the pid is invalid, i.e. container is no longer running (exited quickly)
-		if err == unix.EINVAL {
-			return 0, errContainerExited
-		} else {
-			return 0, fmt.Errorf("open pidfd: %w", err)
-		}
-	}
-	defer unix.Close(pidfd)
-
-	fd, err := sysns.WithMountNs(pidfd, func() (int, error) {
-		return unix.OpenTree(unix.AT_FDCWD, "/", unix.OPEN_TREE_CLOEXEC|unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
-	})
-	if err != nil {
-		return 0, fmt.Errorf("open rootfs: %w", err)
-	}
-	defer unix.Close(fd)
-
-	seq, err := fdx.SendFdInt(fd)
-	if err != nil {
-		return 0, fmt.Errorf("send fd: %w", err)
-	}
-
-	return seq, nil
-}
-
 func openPidProcDirAndSend(pid int, fdx *Fdx) (uint64, error) {
 	// this is racy, but it's the same amount of racy as opening pidfd from pid
 	procFd, err := unix.Open("/proc/"+strconv.Itoa(pid), unix.O_RDONLY|unix.O_CLOEXEC|unix.O_DIRECTORY, 0)
 	if err != nil {
-		return 0, fmt.Errorf("open proc net dir: %w", err)
+		if errors.Is(err, unix.ENOENT) {
+			return 0, errContainerExited
+		} else {
+			return 0, fmt.Errorf("open proc net dir: %w", err)
+		}
 	}
 	defer unix.Close(procFd)
 
@@ -103,16 +78,11 @@ func (d *DockerAgent) refreshContainers() error {
 			logrus.WithError(err).Error("failed to add container")
 		}
 
-		// open rootfs (/) mount and send over fdx
+		// open /proc/pid and send over fdx
 		// do it one at a time to allow for failures, and b/c 16-fd limit
-		addedMeta[i].RootfsFdxSeq, err = openPidRootfsAndSend(fullCtr.State.Pid, d.agent.fdx)
+		addedMeta[i].ProcDirFdxSeq, err = openPidProcDirAndSend(fullCtr.State.Pid, d.agent.fdx)
 		if err != nil && !errors.Is(err, errContainerExited) {
 			// container exited is normal - just don't mount
-			logrus.WithError(err).Error("failed to send rfd")
-		}
-
-		addedMeta[i].ProcDirFdxSeq, err = openPidProcDirAndSend(fullCtr.State.Pid, d.agent.fdx)
-		if err != nil {
 			logrus.WithError(err).Error("failed to send proc dir")
 		}
 

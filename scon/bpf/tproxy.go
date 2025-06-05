@@ -7,7 +7,6 @@ import (
 
 	"github.com/cilium/ebpf/link"
 	"github.com/orbstack/macvirt/scon/util"
-	"golang.org/x/sys/unix"
 )
 
 type Tproxy struct {
@@ -112,16 +111,6 @@ func (t *Tproxy) AttachNetNs(nsFd int) error {
 
 	t.links = append(t.links, l)
 	return nil
-}
-
-func (t *Tproxy) AttachNetNsFromPath(path string) error {
-	nsFd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return fmt.Errorf("open netns: %w", err)
-	}
-	defer unix.Close(nsFd)
-
-	return t.AttachNetNs(nsFd)
 }
 
 func (t *Tproxy) SetSock4(portIndex int, fd uint64) error {

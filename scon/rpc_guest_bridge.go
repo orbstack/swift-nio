@@ -105,8 +105,8 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	guestMac[5] = byte(vlanId&0x7f) | 0x80
 
 	// make sure we have a valid pid to attach to for ns
-	initPid := s.dockerMachine.initPid
-	if initPid == -1 {
+	rt, err := s.dockerMachine.RuntimeState()
+	if err != nil {
 		return fmt.Errorf("docker machine crashed")
 	}
 
@@ -118,7 +118,8 @@ func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *
 	// guest MAC does matter! we use ip forward + proxy arp/ndp, and NDP responder is in Swift, so it needs to know what to reply with
 	la.HardwareAddr = guestMac
 	// move to container netns (doesn't accept pidfd as nsfd)
-	la.Namespace = netlink.NsPid(initPid)
+	// TODO[6.15pidfd]: stop using pid here
+	la.Namespace = netlink.NsPid(rt.InitPid)
 	macvlan := &netlink.Macvlan{
 		LinkAttrs: la,
 		// filter by source MAC

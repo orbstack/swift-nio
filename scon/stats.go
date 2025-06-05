@@ -8,10 +8,11 @@ import (
 
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/dirfs"
 	"golang.org/x/sys/unix"
 )
 
-func readCgroupStats(cgPath string, netDevPath string) (*types.StatsEntry, error) {
+func readCgroupStats(cgPath string, netDirfs *dirfs.FS, netDevPath string) (*types.StatsEntry, error) {
 	sysPath := "/sys/fs/cgroup/" + cgPath
 	stats := &types.StatsEntry{
 		ID: types.StatsID{
@@ -80,8 +81,8 @@ func readCgroupStats(cgPath string, netDevPath string) (*types.StatsEntry, error
 	}
 	stats.MemoryBytes = memoryCurrent
 
-	if netDevPath != "" {
-		netDev, err := util.ReadFileFast(netDevPath)
+	if netDirfs != nil {
+		netDev, err := netDirfs.ReadFile(netDevPath)
 		if err != nil {
 			return nil, err
 		}
@@ -117,13 +118,15 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 	// 1. machines
 	dockerMachine := m.sconGuest.dockerMachine
 	err := m.ForEachContainer(func(c *Container) error {
+		rt, err := c.RuntimeState()
+		if err != nil {
+			// stopped
+			return nil
+		}
+
 		cgPath := c.lastCgroupPath
-		if c.Running() && cgPath != "" {
-			var netDevPath string
-			if c.initPid != 0 {
-				netDevPath = "/proc/" + strconv.Itoa(c.initPid) + "/net/dev"
-			}
-			entry, err := readCgroupStats(cgPath, netDevPath)
+		if cgPath != "" {
+			entry, err := readCgroupStats(cgPath, rt.InitProcDirfd, "net/dev")
 			if err != nil {
 				if errors.Is(err, unix.ENOENT) {
 					// ignore: race - stopped
@@ -151,16 +154,12 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 
 	// 2. containers
 	dockerCgBase := dockerMachine.lastCgroupPath
-	dockerInitPid := dockerMachine.initPid
-	if dockerCgBase != "" {
+	dockerRt, err := dockerMachine.RuntimeState()
+	if err != nil && dockerCgBase != "" {
 		dockerCgBase += "/" + ChildCgroupName
 		err = m.sconGuest.ForEachDockerContainer(func(ctr containerWithMeta) error {
 			ctrCgPath := dockerCgBase + "/" + ctr.CgroupPath
-			var netDevPath string
-			if dockerInitPid != 0 && ctr.Pid != 0 {
-				netDevPath = "/proc/" + strconv.Itoa(dockerInitPid) + "/root/proc/" + strconv.Itoa(ctr.Pid) + "/net/dev"
-			}
-			entry, err := readCgroupStats(ctrCgPath, netDevPath)
+			entry, err := readCgroupStats(ctrCgPath, dockerRt.InitProcDirfd, "root/proc/"+strconv.Itoa(ctr.Pid)+"/net/dev")
 			if err != nil {
 				if errors.Is(err, unix.ENOENT) {
 					// ignore: race - stopped
@@ -189,7 +188,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 		// $DOCKER/init.scope = dockerd, containerd
 		// $DOCKER/k3s = k3s services
 		// $DOCKER/docker/buildkit = builds
-		entry, err := readCgroupStats(dockerCgBase+"/init.scope", "")
+		entry, err := readCgroupStats(dockerCgBase+"/init.scope", nil, "")
 		if err != nil {
 			if errors.Is(err, unix.ENOENT) {
 				// ignore: race - stopped
@@ -208,7 +207,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 		}
 
 		if m.k8sEnabled {
-			entry, err := readCgroupStats(dockerCgBase+"/k3s", "")
+			entry, err := readCgroupStats(dockerCgBase+"/k3s", nil, "")
 			if err != nil {
 				if errors.Is(err, unix.ENOENT) {
 					// ignore: race - stopped
@@ -227,7 +226,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 			}
 		}
 
-		entry, err = readCgroupStats(dockerCgBase+"/docker/buildkit", "")
+		entry, err = readCgroupStats(dockerCgBase+"/docker/buildkit", nil, "")
 		if err != nil {
 			if errors.Is(err, unix.ENOENT) {
 				// ignore: race - stopped

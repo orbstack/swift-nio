@@ -85,7 +85,7 @@ func dialAsUidGid(uid, gid uint32, network, address string) (net.Conn, error) {
 }
 
 func handleSshAgentProxyConn(conn *net.UnixConn) error {
-	defer conn.Close()
+	defer conn.Close() // keepalive
 
 	// get SO_PEERCRED
 	fd := util.GetConnFd(conn)

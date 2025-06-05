@@ -808,17 +808,10 @@ func (c *Container) startLocked(isInternal bool) error {
 			}
 		}()
 
-		// TODO: what if it crashed?
-		initPid := c.lxc.InitPid()
-		if initPid == -1 {
-			return fmt.Errorf("machine '%s' failed to start: init crashed", c.Name)
-		}
-		c.initPid = initPid
-		initPidFile, err := c.lxc.InitPidFd()
+		err = c.initRuntimeStateLocked()
 		if err != nil {
-			return fmt.Errorf("machine '%s' failed to start: init crashed (%w)", c.Name, err)
+			return fmt.Errorf("init runtime state: %w", err)
 		}
-		c.initPidFile = initPidFile
 
 		err = c.startAgentLocked()
 		if err != nil {
@@ -968,22 +961,7 @@ func (c *Container) startAgentLocked() error {
 	return nil
 }
 
-func findCgroup(pid int) (string, error) {
-	cgList, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/cgroup")
-	if err != nil {
-		return "", fmt.Errorf("read cgroup: %w", err)
-	}
-	for _, line := range strings.Split(string(cgList), "\n") {
-		// only works for cgroup v2 (no controllers list)
-		if strings.HasPrefix(line, "0::") {
-			return line[3:], nil
-		}
-	}
-
-	return "", fmt.Errorf("no cgroup found")
-}
-
-func (c *Container) attachBpf(initPid int) error {
+func (c *Container) attachBpf(cgPath string) error {
 	// netns cookie
 	netnsCookie, err := withContainerNetns(c, func() (uint64, error) {
 		return sysnet.GetNetnsCookie()
@@ -991,14 +969,6 @@ func (c *Container) attachBpf(initPid int) error {
 	if err != nil {
 		return fmt.Errorf("get netns cookie: %w", err)
 	}
-
-	// find cgroup
-	cgGroup, err := findCgroup(initPid)
-	if err != nil {
-		return fmt.Errorf("find cgroup: %w", err)
-	}
-	// only take the first part ("scon.container.") in case systemd created init.scope
-	cgPath := "/sys/fs/cgroup/" + strings.Split(cgGroup, "/")[1]
 
 	bpfMgr, err := bpf.NewContainerBpfManager(cgPath, netnsCookie)
 	if err != nil {
@@ -1038,14 +1008,14 @@ func (c *Container) initNetPostStart() error {
 		return nil
 	}
 
-	// need pid, not pidfd, to open /proc/PID/cgroup
-	initPid := c.initPid
-	if initPid == 0 {
-		return fmt.Errorf("no init pid")
+	// need cgroup path to attach bpf
+	cgPath := c.lastCgroupPath
+	if cgPath == "" {
+		return errors.New("no cgroup path")
 	}
 
 	// attach bpf localhost reverse forward for Docker
-	err := c.attachBpf(initPid)
+	err := c.attachBpf("/sys/fs/cgroup/" + cgPath)
 	if err != nil {
 		return fmt.Errorf("attach bpf: %w", err)
 	}

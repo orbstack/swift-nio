@@ -35,6 +35,7 @@ struct SimplevisorConfig {
     init_services: HashMap<ServiceName, Vec<String>>,
     dep_services: HashMap<ServiceName, Vec<String>>,
     host_home: String,
+    oom_score_adj: String,
 }
 
 #[derive(Serialize)]
@@ -245,7 +246,7 @@ impl Supervisor {
     }
 }
 
-fn init_system() -> anyhow::Result<()> {
+fn init_system(config: &SimplevisorConfig) -> anyhow::Result<()> {
     // create /init.scope cgroup to remove "(containerized)" from `docker system info`
     fs::create_dir_all("/sys/fs/cgroup/init.scope")?;
 
@@ -265,6 +266,9 @@ fn init_system() -> anyhow::Result<()> {
             .join(" "),
     )?;
 
+    // set oom_score_adj
+    fs::write("/proc/self/oom_score_adj", &config.oom_score_adj)?;
+
     Ok(())
 }
 
@@ -281,7 +285,7 @@ fn main() -> anyhow::Result<()> {
     let config: SimplevisorConfig = serde_json::from_str(&config_str)?;
     std::env::remove_var("SIMPLEVISOR_CONFIG");
 
-    init_system()?;
+    init_system(&config)?;
 
     // run init commands
     for init_command in config.init_commands.iter() {

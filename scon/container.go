@@ -83,8 +83,7 @@ type Container struct {
 	bpf               *bpf.ContainerBpfManager
 	ipAddrsMu         syncx.Mutex
 	ipAddrs           []net.IP
-	initPid           int
-	initPidFile       *os.File
+	runtimeState      atomic.Pointer[ContainerRuntimeState]
 
 	// docker
 	freezer atomic.Pointer[Freezer]
@@ -159,7 +158,7 @@ func (c *Container) Exec(cmd []string, opts lxc.AttachOptions, extraFd int) (int
 	return c.lxc.RunCommandNoWait(cmd, opts)
 }
 
-func (c *Container) RuntimeState() types.ContainerState {
+func (c *Container) RealState() types.ContainerState {
 	return *c.state.Load()
 }
 
@@ -188,7 +187,7 @@ func (c *Container) Running() bool {
 }
 
 func (c *Container) runningLocked() bool {
-	return c.RuntimeState() == types.ContainerStateRunning
+	return c.RealState() == types.ContainerStateRunning
 }
 
 func (c *Container) lxcRunning() bool {
@@ -373,25 +372,24 @@ func UseAgentRet2[T, U any](c *Container, fn func(*agent.Client) (T, U, error)) 
 
 func withContainerNetns[T any](c *Container, fn func() (T, error)) (T, error) {
 	var zero T
-	initPidF := c.initPidFile
-	if initPidF == nil {
-		return zero, ErrMachineNotRunning
+	rt, err := c.RuntimeState()
+	if err != nil {
+		return zero, err
 	}
 
-	return sysnet.WithNetnsFile(initPidF, fn)
+	return sysnet.WithNetnsFile(rt.InitPidfd, fn)
 }
 
 func withContainerMountNs[T any](c *Container, fn func() (T, error)) (T, error) {
 	var zero T
-	initPidF := c.initPidFile
-	if initPidF == nil {
-		return zero, ErrMachineNotRunning
+	rt, err := c.RuntimeState()
+	if err != nil {
+		return zero, err
 	}
-	defer runtime.KeepAlive(initPidF)
+	defer runtime.KeepAlive(rt.InitPidfd)
 
-	return util.UseFile1(initPidF, func(fd int) (T, error) {
-		return sysns.WithMountNs(fd, fn)
-	})
+	// .Fd() ok: dirfds are not pollable
+	return sysns.WithMountNs(int(rt.InitPidfd.Fd()), fn)
 }
 
 func (c *Container) UseMountNs(fn func() error) error {
@@ -406,8 +404,8 @@ func (c *Container) Freezer() *Freezer {
 }
 
 func (c *Container) transitionStateInternalLocked(newState types.ContainerState, isInternal bool) (types.ContainerState, error) {
-	oldState := c.RuntimeState()
-	if c.RuntimeState() == newState {
+	oldState := c.RealState()
+	if c.RealState() == newState {
 		return "", nil
 	}
 
@@ -441,7 +439,7 @@ func (c *Container) transitionStateLocked(state types.ContainerState) (types.Con
 func (c *Container) revertStateLocked(oldState types.ContainerState) {
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
-		"from":      c.RuntimeState(),
+		"from":      c.RealState(),
 		"to":        oldState,
 	}).Debug("reverting container state")
 

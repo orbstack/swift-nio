@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"github.com/orbstack/macvirt/scon/hclient"
 	"github.com/orbstack/macvirt/scon/mdns"
 	"github.com/orbstack/macvirt/scon/templates"
+	"github.com/orbstack/macvirt/scon/util/dirfs"
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/guihelper/guitypes"
@@ -647,14 +647,14 @@ func dnsNamesToStrings(names []dnsName) []string {
 }
 
 // returns upstream ips
-func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDirfd *os.File) {
+func (r *mdnsRegistry) AddContainer(ctr *dockertypes.ContainerSummaryMin, procDirfs *dirfs.FS) {
 	names := r.containerToMdnsNames(ctr, true /*notifyInvalid*/)
 	nameStrings := dnsNamesToStrings(names)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	ip4, ip6 := r.domainproxy.AddContainer(ctr, procDirfd, nameStrings)
+	ip4, ip6 := r.domainproxy.AddContainer(ctr, procDirfs, nameStrings)
 	logrus.WithFields(logrus.Fields{
 		"ip4":   ip4,
 		"ip6":   ip6,

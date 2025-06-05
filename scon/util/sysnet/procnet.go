@@ -6,22 +6,21 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"os"
 	"strconv"
 	"strings"
 
-	"github.com/orbstack/macvirt/scon/securefs"
+	"github.com/orbstack/macvirt/scon/util/dirfs"
 )
 
 const (
 	cTCPListen = 10
 	cUDPListen = 7 // ??? don't know where this comes from
 
+	protoTCP4 = "tcp"
 	protoTCP6 = "tcp6"
+	protoUDP4 = "udp"
 	protoUDP6 = "udp6"
 )
-
-var allProcProtos = []string{string(ProtoTCP), protoTCP6, string(ProtoUDP), protoUDP6}
 
 type TransportProtocol string
 
@@ -168,31 +167,37 @@ func parseProcNet(data string, proto string) ([]ListenerInfo, error) {
 	return listeners, nil
 }
 
-func ReadAllProcNet(pid string) ([]ListenerInfo, error) {
+func ReadAllProcNetFromDirfs(fs *dirfs.FS) ([]ListenerInfo, error) {
 	var listeners []ListenerInfo
 
-	for _, proto := range allProcProtos {
-		data, err := os.ReadFile("/proc/" + pid + "/net/" + proto)
-		if err != nil {
-			return nil, err
-		}
-
-		newListeners, err := parseProcNet(string(data), proto)
-		if err != nil {
-			return nil, err
-		}
-		listeners = append(listeners, newListeners...)
+	l, err := ReadProcNetFromDirfs(fs, protoTCP4)
+	if err != nil {
+		return nil, err
 	}
+	listeners = append(listeners, l...)
+
+	l, err = ReadProcNetFromDirfs(fs, protoTCP6)
+	if err != nil {
+		return nil, err
+	}
+	listeners = append(listeners, l...)
+
+	l, err = ReadProcNetFromDirfs(fs, protoUDP4)
+	if err != nil {
+		return nil, err
+	}
+	listeners = append(listeners, l...)
+
+	l, err = ReadProcNetFromDirfs(fs, protoUDP6)
+	if err != nil {
+		return nil, err
+	}
+	listeners = append(listeners, l...)
 
 	return listeners, nil
 }
 
-func ReadProcNetFromDirfd(dirfd *os.File, proto string) ([]ListenerInfo, error) {
-	fs, err := securefs.NewFromDirfd(dirfd)
-	if err != nil {
-		return nil, fmt.Errorf("create securefs from dirfd: %w", err)
-	}
-
+func ReadProcNetFromDirfs(fs *dirfs.FS, proto string) ([]ListenerInfo, error) {
 	data, err := fs.ReadFile("net/" + proto)
 	if err != nil {
 		return nil, fmt.Errorf("read net/%s: %w", proto, err)
