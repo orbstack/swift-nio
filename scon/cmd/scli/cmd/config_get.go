@@ -5,22 +5,25 @@ import (
 	"slices"
 
 	"github.com/orbstack/macvirt/scon/cmd/scli/cliutil"
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	configCmd.AddCommand(configShowCmd)
+	configCmd.AddCommand(configGetCmd)
 }
 
-var configShowCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Show current configuration",
-	Long: `Show the current OrbStack configuration.
+var configGetCmd = &cobra.Command{
+	Use:   "get KEY",
+	Short: "Get a config value",
+	Long: `Get the value of a single OrbStack configuration option.
+
+See "` + rootCmd.Use + ` config show" for a list of options.
 `,
-	Example:           "  " + rootCmd.Use + " show",
-	Args:              cobra.NoArgs,
-	ValidArgsFunction: cobra.NoFileCompletions,
+	Example:           "  " + rootCmd.Use + " get app.start_at_login",
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: completions.ConfigKeys,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureSconVMWithSpinner()
 

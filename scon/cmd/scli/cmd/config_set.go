@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/completions"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/cmd/scli/spinutil"
 	"github.com/orbstack/macvirt/scon/types"
@@ -23,14 +24,15 @@ func init() {
 var configSetCmd = &cobra.Command{
 	Use:   "set KEY VALUE",
 	Short: "Set a config option",
-	Long: `Set a single configuration option for the Linux virtual machine.
+	Long: `Set a single OrbStack configuration option.
 
 See "orb config show" for a list of options.
 
-Some options will only take effect after restarting the virtual machine.
+Some options will only take effect after restarting OrbStack.
 `,
-	Example: "  " + rootCmd.Use + " set memory_mib 4096",
-	Args:    cobra.ExactArgs(2),
+	Example:           "  " + rootCmd.Use + " set memory_mib 4096",
+	Args:              cobra.ExactArgs(2),
+	ValidArgsFunction: completions.TwoArgs(completions.ConfigKeys, completions.ConfigValues),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scli.EnsureVMWithSpinner()
 

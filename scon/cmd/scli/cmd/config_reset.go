@@ -15,7 +15,7 @@ var configResetCmd = &cobra.Command{
 	Short: "Reset config to defaults",
 	Long: `Reset all configuration options to their default values.
 
-Some options will only take effect after restarting the virtual machine.
+Some options will only take effect after restarting OrbStack.
 `,
 	Example:           "  " + rootCmd.Use + " reset",
 	Args:              cobra.NoArgs,

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/orbstack/macvirt/scon/cmd/scli/cliutil"
 	"github.com/orbstack/macvirt/scon/cmd/scli/scli"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
@@ -255,4 +256,38 @@ func DockerImages(cmd *cobra.Command, args []string, toComplete string) ([]cobra
 	}
 
 	return completions, cobra.ShellCompDirectiveNoFileComp
+}
+
+func ConfigKeys(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	configMap, err := cliutil.GetSyntheticVmConfig()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	completions := make([]cobra.Completion, 0, len(configMap))
+	for key := range configMap {
+		completions = append(completions, cobra.CompletionWithDesc(key, "config"))
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp
+}
+
+func ConfigValues(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	configMap, err := cliutil.GetSyntheticVmConfig()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	key := args[0]
+	if strings.HasSuffix(key, ".username") {
+		return RemoteUsername(cmd, args, toComplete)
+	}
+
+	if value, ok := configMap[key]; ok {
+		if _, ok := value.(bool); ok {
+			return []cobra.Completion{cobra.CompletionWithDesc("true", "bool"), cobra.CompletionWithDesc("false", "bool")}, cobra.ShellCompDirectiveNoFileComp
+		}
+	}
+
+	return nil, cobra.ShellCompDirectiveDefault
 }
