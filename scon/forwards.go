@@ -91,7 +91,7 @@ func filterListeners(listeners []sysnet.ListenerInfo, forceK8sLocalhost bool) []
 // so if we look at iptables too soon, rule won't be there
 // and if we do it later after pmon's nft-change trigger, the forward may already have been set up, so we won't check UseIptables again
 func addContainerNftablesForward(c *Container, spec sysnet.ListenerInfo, internalPort uint16, internalListenIP net.IP) error {
-	var toMachineIP net.IP
+	var toMachineIP netip.Addr
 	var err error
 	if spec.Addr().Is4() {
 		toMachineIP, err = c.getIP4()
@@ -102,7 +102,7 @@ func addContainerNftablesForward(c *Container, spec sysnet.ListenerInfo, interna
 		return fmt.Errorf("get container IP: %w", err)
 	}
 
-	err = c.manager.net.StartNftablesForward(spec.ListenerKey, internalPort, internalListenIP, toMachineIP)
+	err = c.manager.net.StartNftablesForward(spec.ListenerKey, internalPort, toMachineIP)
 	if err != nil {
 		return err
 	}
@@ -489,7 +489,7 @@ func (rt *ContainerRuntimeState) updateListenersNow(c *Container) error {
 
 	newListeners, err := sysnet.ReadAllProcNetFromDirfs(rt.InitProcDirfd)
 	if err != nil {
-		if errors.Is(err, unix.ENOENT) || errors.Is(err, os.ErrClosed) {
+		if errors.Is(err, unix.ENOENT) || errors.Is(err, unix.ESRCH) || errors.Is(err, os.ErrClosed) {
 			// normal: machine is no longer running
 			return nil
 		} else {

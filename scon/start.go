@@ -156,8 +156,7 @@ func (c *Container) setLxcConfig(key, value string) error {
 }
 
 func (c *Container) initLxc() error {
-	m := c.manager
-	lc, err := lxc.NewContainer(c.ID, m.lxcTmpDir)
+	lc, err := lxc.NewContainer(c.ID, c.manager.lxcTmpDir)
 	if err != nil {
 		return err
 	}
@@ -170,23 +169,21 @@ func (c *Container) initLxc() error {
 }
 
 func (c *Container) configureLxcEarly() error {
-	lc := c.lxc
-
 	// logging
-	lc.ClearConfig()
-	err := lc.SetLogFile(c.logPath())
+	c.lxc.ClearConfig()
+	err := c.lxc.SetLogFile(c.logPath())
 	if err != nil {
 		return err
 	}
 	if conf.Debug() {
-		lc.SetVerbosity(lxc.Verbose)
-		err = lc.SetLogLevel(lxc.TRACE)
+		c.lxc.SetVerbosity(lxc.Verbose)
+		err = c.lxc.SetLogLevel(lxc.TRACE)
 		if err != nil {
 			return err
 		}
 	} else {
-		lc.SetVerbosity(lxc.Quiet)
-		err = lc.SetLogLevel(lxc.NOTICE)
+		c.lxc.SetVerbosity(lxc.Quiet)
+		err = c.lxc.SetLogLevel(lxc.NOTICE)
 		if err != nil {
 			return err
 		}

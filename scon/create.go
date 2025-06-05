@@ -215,7 +215,7 @@ func (c *Container) setupInitial(args *types.CreateRequest) (*agent.InitialSetup
 	// even if we don't need it for setup, it ensures that resolved has started if necesary,
 	// and systemctl will work
 	logrus.WithField("container", c.Name).Info("waiting for network before setup")
-	var ips []string
+	var ips []netip.Addr
 	ips, err = c.waitIPAddrs(startStopTimeout)
 	if err != nil {
 		return nil, err
@@ -253,39 +253,26 @@ func (c *Container) setupInitial(args *types.CreateRequest) (*agent.InitialSetup
 	return &setupArgs, nil
 }
 
-func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {
+func (c *Container) waitIPAddrs(timeout time.Duration) ([]netip.Addr, error) {
 	start := time.Now()
 	for {
 		if time.Since(start) > timeout {
 			return nil, fmt.Errorf("machine didn't start in %v (missing IP address)", timeout)
 		}
 
-		if !c.Running() {
-			return nil, fmt.Errorf("machine crashed on startup")
+		// wait for both IPv4 and IPv6
+		ip4, err := c.getIP4()
+		if err != nil && errors.Is(err, ErrMachineNotRunning) {
+			return nil, errors.New("machine crashed on startup")
 		}
 
-		ips, err := c.lxc.IPAddresses()
-		if err != nil {
-			continue
+		ip6, err := c.getIP6()
+		if err != nil && errors.Is(err, ErrMachineNotRunning) {
+			return nil, errors.New("machine crashed on startup")
 		}
 
-		// we want both IPv4 and IPv6 to prevent setup failures
-		has4 := false
-		has6 := false
-		for _, ip := range ips {
-			addr, err := netip.ParseAddr(ip)
-			if err != nil {
-				return nil, err
-			}
-
-			if addr.Is4() {
-				has4 = true
-			} else {
-				has6 = true
-			}
-		}
-		if has4 && has6 {
-			return ips, nil
+		if ip4.IsValid() && ip6.IsValid() {
+			return []netip.Addr{ip4, ip6}, nil
 		}
 
 		time.Sleep(ipPollInterval)

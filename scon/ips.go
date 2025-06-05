@@ -1,24 +1,31 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 )
 
 var (
-	sconSubnet4 = mustParseCIDR(netconf.SconSubnet4CIDR)
-	sconSubnet6 = mustParseCIDR(netconf.SconSubnet6CIDR)
+	sconSubnet4 = netip.MustParsePrefix(netconf.SconSubnet4CIDR)
+	sconSubnet6 = netip.MustParsePrefix(netconf.SconSubnet6CIDR)
 
 	sconDocker4 = net.ParseIP(netconf.SconDockerIP4)
 	sconDocker6 = net.ParseIP(netconf.SconDockerIP6)
+
+	sconDocker4Addr = netip.MustParseAddr(netconf.SconDockerIP4)
+	sconDocker6Addr = netip.MustParseAddr(netconf.SconDockerIP6)
+
+	ErrNoIPAddress = errors.New("no IP address found")
 )
 
-func (c *Container) GetIPAddrs() ([]net.IP, error) {
+func (c *Container) GetIPAddrs() ([]netip.Addr, error) {
 	rt, err := c.RuntimeState()
 	if err != nil {
-		return nil, err
+		return []netip.Addr{}, err
 	}
 
 	rt.ipAddrsMu.Lock()
@@ -27,7 +34,7 @@ func (c *Container) GetIPAddrs() ([]net.IP, error) {
 	return rt.getIPAddrsLocked(c)
 }
 
-func (rt *ContainerRuntimeState) getIPAddrsLocked(c *Container) ([]net.IP, error) {
+func (rt *ContainerRuntimeState) getIPAddrsLocked(c *Container) ([]netip.Addr, error) {
 	if rt.ipAddrs != nil {
 		return rt.ipAddrs, nil
 	}
@@ -37,10 +44,10 @@ func (rt *ContainerRuntimeState) getIPAddrsLocked(c *Container) ([]net.IP, error
 		return nil, err
 	}
 
-	newIPs := make([]net.IP, 0, len(ipStrs))
+	newIPs := make([]netip.Addr, 0, len(ipStrs))
 	for _, ipStr := range ipStrs {
-		ip := net.ParseIP(ipStr)
-		if ip == nil {
+		ip, err := netip.ParseAddr(ipStr)
+		if err != nil {
 			return nil, fmt.Errorf("invalid IP address %q", ipStr)
 		}
 		// only return the IPs we issued
@@ -58,42 +65,42 @@ func (rt *ContainerRuntimeState) getIPAddrsLocked(c *Container) ([]net.IP, error
 	return newIPs, nil
 }
 
-func (c *Container) getIP4() (net.IP, error) {
+func (c *Container) getIP4() (netip.Addr, error) {
 	// fastpath for static IPs (nftables forward cares about perf)
 	if c.ID == ContainerIDDocker {
-		return sconDocker4, nil
+		return sconDocker4Addr, nil
 	}
 
 	ips, err := c.GetIPAddrs()
 	if err != nil {
-		return nil, err
+		return netip.Addr{}, err
 	}
 
 	for _, ip := range ips {
-		if ip.To4() != nil {
+		if ip.Is4() {
 			return ip, nil
 		}
 	}
 
-	return nil, fmt.Errorf("no IPv4 address found")
+	return netip.Addr{}, ErrNoIPAddress
 }
 
-func (c *Container) getIP6() (net.IP, error) {
+func (c *Container) getIP6() (netip.Addr, error) {
 	// fastpath for static IPs (nftables forward cares about perf)
 	if c.ID == ContainerIDDocker {
-		return sconDocker6, nil
+		return sconDocker6Addr, nil
 	}
 
 	ips, err := c.GetIPAddrs()
 	if err != nil {
-		return nil, err
+		return netip.Addr{}, err
 	}
 
 	for _, ip := range ips {
-		if ip.To4() == nil {
+		if ip.Is6() {
 			return ip, nil
 		}
 	}
 
-	return nil, fmt.Errorf("no IPv6 address found")
+	return netip.Addr{}, ErrNoIPAddress
 }

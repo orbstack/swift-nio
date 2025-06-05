@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net"
+	"net/netip"
 	"os"
 	"strconv"
 	"sync/atomic"
@@ -43,7 +43,7 @@ type ContainerRuntimeState struct {
 	listenerDirtyFlags atomic.Uint32
 
 	ipAddrsMu syncx.Mutex
-	ipAddrs   []net.IP
+	ipAddrs   []netip.Addr
 }
 
 func (c *Container) RuntimeState() (*ContainerRuntimeState, error) {

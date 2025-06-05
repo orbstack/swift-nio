@@ -67,7 +67,7 @@ type Network struct {
 
 type nftablesForwardMeta struct {
 	internalPort uint16
-	toMachineIP  net.IP
+	toMachineIP  netip.Addr
 }
 
 func NewNetwork(dataDir string, host *hclient.Client, db *Database, manager *ConManager) (*Network, error) {
@@ -184,7 +184,7 @@ func (n *Network) Start() error {
 		Proto:    sysnet.ProtoTCP,
 	}, nftablesForwardMeta{
 		internalPort: ports.GuestK8s,
-		toMachineIP:  sconDocker4,
+		toMachineIP:  sconDocker4Addr,
 	})
 	if err != nil {
 		return fmt.Errorf("add k8s forward: %w", err)
@@ -290,20 +290,20 @@ func (n *Network) addDelNftablesForward(add bool, key sysnet.ListenerKey, meta n
 	}
 
 	mapFamily := "4"
-	if meta.toMachineIP.To4() == nil {
+	if meta.toMachineIP.Is6() {
 		mapFamily = "6"
 	}
 
 	return nft.WithTable(nft.FamilyInet, netconf.NftableInet, func(conn *nftables.Conn, table *nftables.Table) error {
 		if add {
-			return nft.MapAddByName(conn, table, mapProto+"_port_forwards"+mapFamily, nft.InetService(meta.internalPort), nft.Concat(nft.IP(meta.toMachineIP), nft.InetService(key.Port())))
+			return nft.MapAddByName(conn, table, mapProto+"_port_forwards"+mapFamily, nft.InetService(meta.internalPort), nft.Concat(nft.IPAddr(meta.toMachineIP), nft.InetService(key.Port())))
 		} else {
 			return nft.MapDeleteByName(conn, table, mapProto+"_port_forwards"+mapFamily, nft.InetService(meta.internalPort))
 		}
 	})
 }
 
-func (n *Network) StartNftablesForward(key sysnet.ListenerKey, internalPort uint16, internalListenIP net.IP, toMachineIP net.IP) error {
+func (n *Network) StartNftablesForward(key sysnet.ListenerKey, internalPort uint16, toMachineIP netip.Addr) error {
 	n.nftablesMu.Lock()
 	defer n.nftablesMu.Unlock()
 

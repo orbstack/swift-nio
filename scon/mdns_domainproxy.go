@@ -499,7 +499,6 @@ func (d *domainproxyRegistry) assignUpstreamLocked(allocator *domainproxyAllocat
 	}
 
 	d.setAddrUpstreamLocked(addr, val)
-
 	return addr, nil
 }
 
@@ -731,11 +730,11 @@ func (d *domainproxyRegistry) EnsureMachineIPsCorrect(names []string, machine *C
 	}
 
 	for _, valip := range valips {
-		if ip4 == nil && valip.To4() != nil {
+		if ip4 == nil && valip.Is4() {
 			addr, err := d.assignUpstreamLocked(d.v4, domainproxytypes.Upstream{
 				Host:  domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: machine.ID},
 				Names: names,
-				IP:    valip,
+				IP:    net.IP(valip.AsSlice()),
 			})
 			if err != nil {
 				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip4 for DNS")
@@ -745,11 +744,11 @@ func (d *domainproxyRegistry) EnsureMachineIPsCorrect(names []string, machine *C
 			ip4 = addr.AsSlice()
 		}
 
-		if ip6 == nil && valip.To4() == nil {
+		if ip6 == nil && valip.Is6() {
 			addr, err := d.assignUpstreamLocked(d.v6, domainproxytypes.Upstream{
 				Host:  domainproxytypes.Host{Type: domainproxytypes.HostTypeMachine, ID: machine.ID},
 				Names: names,
-				IP:    valip,
+				IP:    net.IP(valip.AsSlice()),
 			})
 			if err != nil {
 				logrus.WithError(err).WithField("name", machine.Name).Debug("failed to assign ip6 for DNS")
