@@ -1,12 +1,16 @@
 package nft
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
 	"github.com/google/nftables"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
+
+const maxNetlinkTries = 5
 
 func UpdateFlowtable(tableName string, ftName string, interfaces []string) error {
 	return WithTable(FamilyInet, tableName, func(conn *nftables.Conn, table *nftables.Table) error {
@@ -29,7 +33,7 @@ func UpdateFlowtable(tableName string, ftName string, interfaces []string) error
 // Needed because flowtables can only act as a fastpath bypass when attached directly to port netdev ingress hooks
 func RefreshFlowtableBridgePorts(tableName string, ftName string, bridges []string, forwardingPorts []string, excludePorts []string) error {
 	// get all interfaces (we need both bridges and ports)
-	links, err := netlink.LinkList()
+	links, err := netlinkLinkList()
 	if err != nil {
 		return fmt.Errorf("list links: %w", err)
 	}
@@ -67,4 +71,28 @@ func RefreshFlowtableBridgePorts(tableName string, ftName string, bridges []stri
 	}
 
 	return nil
+}
+
+// since updating from vishvananda/netlink 1.2.x to 1.3.1, LinkList() will now return "results may be incomplete or inconsistent" (NLM_F_DUMP_INTR)
+// retry a few times, and in the worst case, use the inconsisntent results
+func netlinkLinkList() ([]netlink.Link, error) {
+	var links []netlink.Link
+	var err error
+
+	for i := 0; i < maxNetlinkTries; i++ {
+		links, err = netlink.LinkList()
+		if err != nil {
+			if errors.Is(err, unix.EINTR) {
+				// retry
+				continue
+			} else {
+				return nil, err
+			}
+		}
+
+		break
+	}
+
+	// fallback: use inconsistent results
+	return links, nil
 }
