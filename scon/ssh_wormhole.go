@@ -327,7 +327,7 @@ func (sv *SSHServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeT
 
 				// synchronously wait for pid 1 exit
 				// this ensures that all in-container processes exit
-				err = initPidfd.Wait()
+				err = initPidfd.WaitNoReap()
 				if err != nil {
 					logrus.WithError(err).Error("failed to wait for payload exit")
 				}
@@ -370,7 +370,7 @@ func (sv *SSHServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeT
 	}()
 
 	go func() {
-		_, err := cmd.Process.WaitStatus()
+		_, err := cmd.Process.WaitAndReap()
 		if err != nil {
 			logrus.WithError(err).Error("couldn't wait on wormhole")
 			return

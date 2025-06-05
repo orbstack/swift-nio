@@ -397,23 +397,21 @@ func SpawnProcessImpl(a *AgentServer, args *SpawnProcessArgs, childFiles []*os.F
 	return proc.Pid, pidfd, nil
 }
 
-func WaitPidImpl(pid int) (int, error) {
-	proc, err := os.FindProcess(pid)
+func waitPidImpl(pid int) (int, error) {
+	var status unix.WaitStatus
+	pid, err := sysx.Eintr2(func() (int, error) {
+		// src/os/exec_unix.go
+		return unix.Wait4(pid, &status, 0, nil)
+	})
 	if err != nil {
 		return 0, err
 	}
 
-	// wait for process to exit
-	ps, err := proc.Wait()
-	if err != nil {
-		return 0, err
-	}
-
-	return ps.ExitCode(), nil
+	return status.ExitStatus(), nil
 }
 
 func (a *AgentServer) WaitPid(pid int, reply *int) error {
-	exitCode, err := WaitPidImpl(pid)
+	exitCode, err := waitPidImpl(pid)
 	if err != nil {
 		return err
 	}
@@ -613,13 +611,14 @@ func (p *PidfdProcess) Signal(sig os.Signal) error {
 	})
 }
 
-func (p *PidfdProcess) Wait() error {
+func (p *PidfdProcess) WaitNoReap() error {
 	return sysx.RuntimePollFileRead(p.f)
 }
 
-func (p *PidfdProcess) WaitStatus() (int, error) {
+// if we ever need to get status without reaping, PIDFD_INFO_EXIT supports that on kernel 6.15+
+func (p *PidfdProcess) WaitAndReap() (int, error) {
 	// poll first, only call RPC when necessary
-	err := p.Wait()
+	err := p.WaitNoReap()
 	if err != nil {
 		return 0, err
 	}
@@ -628,7 +627,7 @@ func (p *PidfdProcess) WaitStatus() (int, error) {
 	// it'll stay a zombie until we do
 	var status int
 	if p.a == nil {
-		status, err = WaitPidImpl(p.pid)
+		status, err = waitPidImpl(p.pid)
 		if err != nil {
 			return 0, err
 		}

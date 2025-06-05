@@ -477,7 +477,7 @@ func (c *Client) WaitStop() error {
 		return errors.New("no agent pidfd process")
 	}
 
-	return process.Wait()
+	return process.WaitNoReap()
 }
 
 type UpdateHostnameArgs struct {

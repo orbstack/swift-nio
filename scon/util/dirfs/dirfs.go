@@ -62,8 +62,7 @@ func (fs *FS) OpenFd(name string, flag int, perm os.FileMode) (int, error) {
 		})
 		if err != nil {
 			// need to check for EINTR - Go issues 11180, 39237
-			// also EAGAIN in case of unsafe race
-			if err == unix.EINTR || err == unix.EAGAIN {
+			if err == unix.EINTR {
 				continue
 			} else {
 				return 0, err

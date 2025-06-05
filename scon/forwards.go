@@ -486,7 +486,7 @@ func (c *Container) updateListenersNow() error {
 	// read /proc/net
 	rt, err := c.RuntimeState()
 	if err != nil {
-		return err
+		return nil // not running
 	}
 
 	listeners, err := sysnet.ReadAllProcNetFromDirfs(rt.InitProcDirfd)
