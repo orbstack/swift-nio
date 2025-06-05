@@ -1,9 +1,6 @@
 package util
 
 import (
-	"os"
-	"strings"
-
 	"golang.org/x/sys/unix"
 )
 
@@ -24,23 +21,4 @@ func IsMountpointSimple(path string) bool {
 	return stat.Dev != parentStat.Dev
 }
 
-// slower and more complex, but can detect bind mounts
-func IsMountpointFull(path string) (bool, error) {
-	mountinfo, err := os.ReadFile("/proc/self/mountinfo")
-	if err != nil {
-		return false, err
-	}
-
-	for _, line := range strings.Split(string(mountinfo), "\n") {
-		parts := strings.Split(line, " ")
-		if len(parts) < 5 {
-			continue
-		}
-
-		if parts[4] == path {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
+// if we want to detect bind mounts for some reason, we can use
