@@ -87,17 +87,19 @@ func (s *Service) MarkReady(name string) {
 	defer s.mu.Unlock()
 
 	if state, ok := s.serviceStates[name]; ok {
-		// Mark the service as ready so no new handlers can be added.
-		state.isReady = true
+		if !state.isReady {
+			// Mark the service as ready so no new handlers can be added.
+			state.isReady = true
 
-		// Unblock readers waiting for the service to be ready
-		state.ready.Done()
+			// Unblock readers waiting for the service to be ready
+			state.ready.Done()
 
-		// Call ready callbacks
-		for _, handler := range state.handlers {
-			handler(name)
+			// Call ready callbacks
+			for _, handler := range state.handlers {
+				handler(name)
+			}
+			state.handlers = nil
 		}
-		state.handlers = nil
 	} else {
 		// This is a new service. Let the ready mutex be acquired immediately and mark the
 		// task as ready so new handlers don't get added to it. Everything else can be zero
