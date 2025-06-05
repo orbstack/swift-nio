@@ -44,6 +44,13 @@ type containerWithMeta struct {
 	ProcDirfs  *dirfs.FS
 }
 
+func (m *containerWithMeta) Close() error {
+	if m.ProcDirfs != nil {
+		return m.ProcDirfs.Close()
+	}
+	return nil
+}
+
 func (s *SconGuestServer) Ping(_ None, _ *None) error {
 	return nil
 }
@@ -161,7 +168,10 @@ func (s *SconGuestServer) OnDockerContainersChanged(diff sgtypes.ContainersDiff,
 }
 
 func (s *SconGuestServer) removeOneContainerLocked(ctr *dockertypes.ContainerSummaryMin) error {
-	delete(s.dockerContainersCache, ctr.ID)
+	if meta, ok := s.dockerContainersCache[ctr.ID]; ok {
+		meta.Close()
+		delete(s.dockerContainersCache, ctr.ID)
+	}
 	s.m.net.mdnsRegistry.RemoveContainer(ctr)
 
 	// unmount from nfs (ignore error)
@@ -205,15 +215,13 @@ func (s *SconGuestServer) addOneContainerLocked(ctr *dockertypes.ContainerSummar
 	}
 
 	var procDirfd *os.File
-	if meta.ProcDirFdxSeq != 0 {
-		err := s.dockerMachine.useAgentLocked(func(a *agent.Client) error {
-			fd, err := a.Fdx().RecvFile(meta.ProcDirFdxSeq)
-			procDirfd = fd
-			return err
-		})
-		if err != nil {
-			return fmt.Errorf("recv proc dirfd: %w", err)
-		}
+	err := s.dockerMachine.useAgentLocked(func(a *agent.Client) error {
+		fd, err := a.Fdx().RecvFile(meta.ProcDirFdxSeq)
+		procDirfd = fd
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("recv proc dirfd: %w", err)
 	}
 
 	procDirfs, err := dirfs.NewFromDirfd(procDirfd)
@@ -252,6 +260,11 @@ func (s *SconGuestServer) onDockerContainersChangedLocked(diff sgtypes.Container
 	}
 	for i, ctr := range diff.Added {
 		meta := diff.AddedContainerMeta[i]
+		// don't add containers that raced and don't have proc fds. they'll exit soon anyway and get reported as removed
+		if meta.ProcDirFdxSeq == 0 {
+			continue
+		}
+
 		err := s.addOneContainerLocked(&ctr, meta)
 		if err != nil {
 			return fmt.Errorf("add container: %w", err)
@@ -364,6 +377,9 @@ func (s *SconGuestServer) clearDockerContainersCache() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	for _, ctr := range s.dockerContainersCache {
+		ctr.Close()
+	}
 	clear(s.dockerContainersCache)
 }
 
