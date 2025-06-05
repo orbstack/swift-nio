@@ -55,22 +55,25 @@ BTYPE="$BTYPE" ARCH="$ARCH" HOST_ARCH="$HOST_ARCH" PLATFORM="$PLATFORM" \
     docker buildx bake --load --allow=ssh --allow=fs.read=.. -f docker-bake.hcl rootfs
 
 # extract images
+echo "extracting"
 CID=$(docker create --platform "$PLATFORM" ghcr.io/orbstack/images:$BTYPE true)
 trap "docker rm $CID" EXIT
 docker cp -q $CID:/images out
 
 copy_file() {
+    echo "copying $1 to $2"
 	mkdir -p ../assets/$BTYPE/$ARCH
     # delete and swap file to avoid overwrite
     # overwrite breaks running VM because rootfs.img changes behind its back
     rm -f ../assets/$BTYPE/$ARCH/$2
-	cp "$1" ../assets/$BTYPE/$ARCH/$2
+	cp -c "$1" ../assets/$BTYPE/$ARCH/$2
 }
 
 # data and swap images
 # can't be part of build due to privileged requirement for mounting images
 # makefile-like mtime based cache for preseed
 if [[ make-preseed.sh -nt ../assets/$BTYPE/$ARCH/data.img.tar ]]; then
+    echo "building preseed"
     docker run -i --rm --privileged --platform "$PLATFORM" -v $PWD/out:/out -v /dev:/hostdev ghcr.io/orbstack/images:$BTYPE < make-preseed.sh
     copy_file out/data.img.tar data.img.tar
 fi
