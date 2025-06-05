@@ -364,22 +364,15 @@ func (d *DockerAgent) PostStart() error {
 		}
 	}()
 
-	// use policy accept on FORWARD
+	// fix strict forward policies
 	go func() {
-		// docker sets ipv6 forward policy to drop here: <https://github.com/moby/moby/blob/b186261b8458f862c2e23b458284bfcbe5329229/cmd/dockerd/daemon.go#L255>
-		// we need ipv6 forward policy to be accept for domainproxy, so we set it back to accept
 		// we need to make sure we don't race with docker. docker starts accepting on the unix socket too early for us to use WaitForSocketConnectible
 		// another way would be using sdnotify, but we don't currently have any way to forward that from simplevisor to the agent
 		// but this also works, because docker only starts actually handling api requests late enough
 		err := util.WaitForApiRunning(dockerAPISocketReal)
 		if err != nil {
-			// even if this fails, we can still attempt to change the policy to forward, so no early return
-			logrus.WithError(err).Error("failed to wait for docker api to come up")
-		}
-
-		err = util.Run("ip6tables", "-P", "FORWARD", "ACCEPT")
-		if err != nil {
-			logrus.WithError(err).Error("failed to change ip6 tables forward chain policy to accept")
+			logrus.WithError(err).Error("failed to wait for docker api to start")
+			return
 		}
 
 		// TODO: make this more specific. needs to include source=k8s, source=orbmirror*, source=lo, source=eth0, and mark=dockerFwmarkDnat
