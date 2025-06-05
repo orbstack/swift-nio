@@ -51,9 +51,7 @@ func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState,
 	if err != nil {
 		return oldState, err
 	}
-	if rt.freezer != nil {
-		rt.freezer.Close()
-	}
+	rt.freezer.Close()
 
 	if opts.Kill {
 		err = c.lxc.Stop()

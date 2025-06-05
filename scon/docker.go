@@ -39,7 +39,7 @@ const (
 	ContainerIDK8s = types.ContainerIDK8s
 
 	// takes ~3 ms to unfreeze
-	dockerFreezeDebounce = 2 * time.Second
+	machineFreezeDebounce = 2 * time.Second
 
 	maxBuildCacheSize = 80 * 1024 * 1024 * 1024 // 80 GiB
 )
@@ -695,15 +695,15 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	return nil
 }
 
-func (h *DockerHooks) MakeFreezer(c *Container, rt *ContainerRuntimeState) (*Freezer, error) {
-	// make a freezer
-	freezer := NewContainerFreezer(c, dockerFreezeDebounce, func() (bool, error) {
+func (h *DockerHooks) ConfigureRuntimeState(c *Container, rt *ContainerRuntimeState) error {
+	rt.freezer.Predicate = func() (bool, error) {
 		// [predicate, via agent] check docker API to see if any containers are running
 		// if so, don't freeze
 		// this uses agent directly to bypass freezer (to avoid deadlock)
 		return rt.agent.DockerCheckIdle()
-	})
-	return freezer, nil
+	}
+
+	return nil
 }
 
 func (h *DockerHooks) PostStart(c *Container, rt *ContainerRuntimeState) error {
@@ -715,13 +715,13 @@ func (h *DockerHooks) PostStart(c *Container, rt *ContainerRuntimeState) error {
 	// prevent freeze if k8s enabled
 	// too complicated to freeze it due to async pod lifecycle
 	if c.manager.k8sEnabled {
-		rt.freezer.IncRef()
+		rt.freezer.BeginUse()
 	}
 
 	// prevent freeze if TCP dockerd host is listening
 	// TODO: intercept and proxy it instead of relying on machine port forwards. we can't do it at the TCP proxy level because the proxy runs in the agent and will thus be frozen along with the machine
 	if h.configHasTCPHost {
-		rt.freezer.IncRef()
+		rt.freezer.BeginUse()
 	}
 
 	// trigger an initial freeze once docker starts

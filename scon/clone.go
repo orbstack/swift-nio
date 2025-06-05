@@ -69,11 +69,11 @@ func (oldC *Container) Clone(newName string) (_ *Container, retErr error) {
 		}
 
 		// freeze old container to get a consistent data snapshot
-		err = oldC.Freeze()
-		if err != nil && !errors.Is(err, ErrMachineNotRunning) {
-			return fmt.Errorf("freeze: %w", err)
+		oldRt, err := oldC.RuntimeState()
+		if err == nil {
+			oldRt.freezer.BeginFreeze()
+			defer oldRt.freezer.EndFreeze()
 		}
-		defer oldC.Unfreeze()
 
 		// acquire jobs on both old and new containers, for cancellation
 		err = oldC.jobManager.Run(func(ctx context.Context) error {

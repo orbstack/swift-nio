@@ -28,9 +28,8 @@ type ContainerRuntimeState struct {
 	InitPidfd     *os.File
 	InitProcDirfd *dirfs.FS
 
-	bpf   *bpf.ContainerBpfManager
-	agent *agent.Client
-	// docker
+	bpf     *bpf.ContainerBpfManager
+	agent   *agent.Client
 	freezer *Freezer
 	// --- end ---
 
@@ -90,6 +89,7 @@ func (c *Container) initRuntimeStateLocked(cgroupPath string) (_ *ContainerRunti
 		InitProcDirfd:  initProcDirfdFs,
 		cgroupPath:     cgroupPath,
 		activeForwards: make(map[sysnet.ListenerKey]struct{}),
+		freezer:        NewContainerFreezer(c, machineFreezeDebounce),
 	}
 	rt.listenersDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
 		err := rt.updateListenersNow(c)
@@ -104,10 +104,10 @@ func (c *Container) initRuntimeStateLocked(cgroupPath string) (_ *ContainerRunti
 		}
 	}()
 
-	// must happen immediately after creating rt, because everything assumes that docker machine's rt always has freezer != nil
-	rt.freezer, err = c.hooks.MakeFreezer(c, rt)
+	// early freezer init
+	err = c.hooks.ConfigureRuntimeState(c, rt)
 	if err != nil {
-		return nil, fmt.Errorf("make freezer: %w", err)
+		return nil, fmt.Errorf("configure runtime state: %w", err)
 	}
 
 	rt.agent, err = c.startAgentLocked()
@@ -151,10 +151,9 @@ func (c *Container) initRuntimeStateLocked(cgroupPath string) (_ *ContainerRunti
 }
 
 func (rt *ContainerRuntimeState) UseAgent(f func(a *agent.Client) error) error {
-	if rt.freezer != nil {
-		rt.freezer.IncRef()
-		defer rt.freezer.DecRef()
-	}
+	rt.freezer.BeginUse()
+	defer rt.freezer.EndUse()
+
 	return f(rt.agent)
 }
 
@@ -163,9 +162,7 @@ func (rt *ContainerRuntimeState) Close() error {
 	if rt.agent != nil {
 		rt.agent.Close()
 	}
-	if rt.freezer != nil {
-		rt.freezer.Close()
-	}
+	rt.freezer.Close()
 	if rt.bpf != nil {
 		rt.bpf.Close()
 	}

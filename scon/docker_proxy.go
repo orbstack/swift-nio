@@ -159,8 +159,8 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			if err != nil {
 				return err
 			}
-			rt.freezer.IncRef()
-			defer rt.freezer.DecRef()
+			rt.freezer.BeginUse()
+			defer rt.freezer.EndUse()
 
 			err = p.filterRequest(req, state)
 			if err != nil {
@@ -457,7 +457,7 @@ func (p *DockerProxy) kickStart(freezer *Freezer) {
 	}
 
 	logrus.Debug("docker started, dropping freezer ref")
-	freezer.DecRef()
+	freezer.EndUse()
 }
 
 func (p *DockerProxy) RunTCP() error {

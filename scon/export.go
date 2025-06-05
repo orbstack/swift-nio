@@ -43,11 +43,11 @@ func (c *Container) ExportToHostPath(hostPath string) (retErr error) {
 
 	err = c.holds.WithHold("export", func() error {
 		// freeze container to get a consistent data snapshot
-		err := c.Freeze()
-		if err != nil && !errors.Is(err, ErrMachineNotRunning) {
-			return fmt.Errorf("freeze: %w", err)
+		rt, err := c.RuntimeState()
+		if err == nil {
+			rt.freezer.BeginFreeze()
+			defer rt.freezer.EndFreeze()
 		}
-		defer c.Unfreeze()
 
 		subvolumes, err := c.manager.fsOps.ListSubvolumes(c.dataDir)
 		if err != nil {

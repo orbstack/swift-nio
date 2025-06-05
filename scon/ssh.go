@@ -237,15 +237,13 @@ func (sv *SSHServer) handleSubsystem(s ssh.Session) (printErr bool, err error) {
 		return
 	}
 
-	// for dev+docker: keep a freezer ref
+	// keep a freezer ref
 	rt, err := container.RuntimeState()
 	if err != nil {
 		return
 	}
-	if rt.freezer != nil {
-		rt.freezer.IncRef()
-		defer rt.freezer.DecRef()
-	}
+	rt.freezer.BeginUse()
+	defer rt.freezer.EndUse()
 
 	// ok, container is up, now handle the request
 	switch s.Subsystem() {

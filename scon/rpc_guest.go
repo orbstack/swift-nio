@@ -368,11 +368,8 @@ func (s *SconGuestServer) OnDockerRefsChanged(_ None, _ *None) error {
 	if err != nil {
 		return err
 	}
-	freezer := rt.freezer
-	if freezer != nil {
-		freezer.IncRef()
-		freezer.DecRef()
-	}
+	rt.freezer.BeginUse()
+	rt.freezer.EndUse()
 
 	return nil
 }

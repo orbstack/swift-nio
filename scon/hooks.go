@@ -3,7 +3,7 @@ package main
 type ContainerHooks interface {
 	Config(*Container, containerConfigMethods) error
 	PreStart(*Container) error
-	MakeFreezer(*Container, *ContainerRuntimeState) (*Freezer, error)
+	ConfigureRuntimeState(*Container, *ContainerRuntimeState) error
 	PostStart(*Container, *ContainerRuntimeState) error
 	OnStop(*Container) error
 	PostStop(*Container) error
@@ -19,8 +19,8 @@ func (h *NoopHooks) PreStart(*Container) error {
 	return nil
 }
 
-func (h *NoopHooks) MakeFreezer(*Container, *ContainerRuntimeState) (*Freezer, error) {
-	return nil, nil
+func (h *NoopHooks) ConfigureRuntimeState(*Container, *ContainerRuntimeState) error {
+	return nil
 }
 
 func (h *NoopHooks) PostStart(*Container, *ContainerRuntimeState) error {
