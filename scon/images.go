@@ -21,9 +21,9 @@ import (
 
 	"github.com/flosch/pongo2/v6"
 	"github.com/orbstack/macvirt/scon/images"
-	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/securefs"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )

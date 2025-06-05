@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/orbstack/macvirt/scon/securefs"
+	"github.com/orbstack/macvirt/scon/util/securefs"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"

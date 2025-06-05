@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/util"
+	"github.com/orbstack/macvirt/scon/util/securefs"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orbstack/macvirt/scon/securefs"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util/securefs"
 	"github.com/orbstack/macvirt/scon/util/zstdframe"
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 )

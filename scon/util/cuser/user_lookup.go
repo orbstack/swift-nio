@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/orbstack/macvirt/scon/securefs"
+	"github.com/orbstack/macvirt/scon/util/securefs"
 )
 
 var colon = []byte{':'}

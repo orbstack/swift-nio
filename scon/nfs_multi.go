@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 
-	"github.com/orbstack/macvirt/scon/securefs"
+	"github.com/orbstack/macvirt/scon/util/securefs"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 )
 

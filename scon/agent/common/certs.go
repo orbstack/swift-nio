@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/orbstack/macvirt/scon/securefs"
+	"github.com/orbstack/macvirt/scon/util/securefs"
 )
 
 const (

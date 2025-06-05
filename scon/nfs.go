@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orbstack/macvirt/scon/securefs"
+	"github.com/orbstack/macvirt/scon/util/securefs"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
