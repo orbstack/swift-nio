@@ -55,6 +55,9 @@ struct DockerSettingsView: View {
         }
         .navigationTitle("Docker")
         .onAppear {
+            configJson = vmModel.dockerConfigJson
+            enableIPv6 = vmModel.dockerEnableIPv6
+
             // not MainActor: blocking sync I/O
             Task.detached {
                 await vmModel.tryLoadDockerConfig()
