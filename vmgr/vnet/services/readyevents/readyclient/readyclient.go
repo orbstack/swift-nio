@@ -12,6 +12,7 @@ const (
 	ServiceSconRPC         = "sconrpc"
 	ServiceSconRPCInternal = "sconrpc-internal"
 	ServiceKrpc            = "krpc"
+	ServiceNFS             = "nfs"
 )
 
 func reportReadySync(serverAddr string, serviceName string) error {

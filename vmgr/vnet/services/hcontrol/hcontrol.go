@@ -23,8 +23,6 @@ import (
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/conf/coredir"
-	"github.com/orbstack/macvirt/vmgr/conf/nfsmnt"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/drm/drmcore"
@@ -58,40 +56,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-const nfsUnmountTimeout = 10 * time.Second
-
 const k8sUIEventDebounce = 250 * time.Millisecond
-
-const (
-	nfsReadmeText = `# OrbStack file sharing
-
-When OrbStack is running, this folder contains containers, images, volumes, and machines. All Docker and Linux files can be found here.
-
-This is only a *view* of OrbStack's data; it takes no space on disk, and data is not actually stored here. The default data location is: ~/Library/Group Containers/HUAQ24HBR6.dev.orbstack/data
-
-This folder is empty when OrbStack is not running. Do not put files here.
-
-Learn more:
-    - https://orb.cx/orbstack-folder
-    - https://orb.cx/docker-mount
-    - https://orb.cx/machine-mount
-
-
-## Docker
-
-OrbStack uses standard Docker named volumes.
-
-Create a volume: ` + "`" + `docker volume create foo` + "`" + `
-Mount into a container: ` + "`" + `docker run -v foo:/bar ...` + "`" + `
-    - Use the volume name to mount it. DO NOT use ~/OrbStack here!
-See files from Mac: ` + "`" + `open ~/OrbStack/docker/volumes/foo` + "`" + `
-
-
----
-
-[OrbStack is currently STOPPED. Files are NOT available.]
-`
-)
 
 type K8sEvent struct {
 	CurrentPods     []*v1.Pod     `json:"currentPods"`
@@ -109,9 +74,6 @@ type HcontrolServer struct {
 	fsnotifyMu   syncx.Mutex
 	fsnotifyRefs map[string]int
 	FsNotifier   *fsnotify.VmNotifier
-
-	NfsPort    int
-	nfsMounted bool
 
 	k8sMu             syncx.Mutex
 	k8sClient         *kubernetes.Clientset
@@ -444,37 +406,6 @@ func (h *HcontrolServer) MdnsSendCacheFlush(rrs []dns.RR, _ *None) error {
 	return h.HostMdns.SendCacheFlush(rrs)
 }
 
-func (h *HcontrolServer) OnNfsReady(_ None, _ *None) error {
-	if h.nfsMounted {
-		return nil
-	}
-
-	// prep: create nfs dir, write readme, make read-only
-	dir := coredir.EnsureNfsMountpoint()
-	// coredir.NfsMountpoint() already calls mkdir
-	err := util.WriteFileIfChanged(dir+"/README.txt", []byte(nfsReadmeText), 0644)
-	// permission error is normal, that means it's already read only
-	if err != nil && !errors.Is(err, os.ErrPermission) {
-		logrus.WithError(err).Error("failed to write NFS readme")
-	}
-	err = os.Chmod(dir, 0555)
-	if err != nil {
-		logrus.WithError(err).Error("failed to chmod NFS dir")
-	}
-
-	logrus.Info("Mounting NFS...")
-	err = nfsmnt.MountNfs(h.NfsPort)
-	if err != nil {
-		logrus.WithError(err).Error("NFS mount failed")
-		return err
-	}
-
-	logrus.Info("NFS mounted")
-	h.nfsMounted = true
-
-	return nil
-}
-
 type jsonObject map[string]any
 
 func firstObj(o any) jsonObject {
@@ -676,26 +607,6 @@ func (h *HcontrolServer) K8sReportGuiStarted() {
 	if h.k8sNotifyDebounce != nil {
 		h.k8sNotifyDebounce.CallNow()
 	}
-}
-
-func (h *HcontrolServer) InternalUnmountNfs() error {
-	if !h.nfsMounted {
-		return nil
-	}
-
-	// force unmounting NFS always works on macOS, even if files are open
-	logrus.Info("Unmounting NFS...")
-	err := util.WithTimeout1(func() error {
-		return nfsmnt.UnmountNfs()
-	}, nfsUnmountTimeout)
-	if err != nil {
-		logrus.WithError(err).Error("NFS unmount failed")
-		return err
-	}
-
-	logrus.Info("NFS unmounted")
-	h.nfsMounted = false
-	return nil
 }
 
 func (h *HcontrolServer) GetInitConfig(_ None, reply *htypes.InitConfig) error {

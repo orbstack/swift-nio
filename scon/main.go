@@ -29,6 +29,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/logutil"
 	"github.com/orbstack/macvirt/vmgr/vclient/vinit"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
@@ -125,12 +127,7 @@ func doSystemInitTasksLate(mgr *ConManager, host *hclient.Client) error {
 					return
 				}
 
-				// report nfs ready
-				err = host.OnNfsReady()
-				if err != nil {
-					logrus.WithError(err).Error("failed to mount nfs on host")
-					return
-				}
+				readyclient.ReportReady(netconf.VnetSecureSvcIP4, readyclient.ServiceNFS)
 			}
 		}()
 	}

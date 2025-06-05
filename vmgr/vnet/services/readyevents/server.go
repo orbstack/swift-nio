@@ -19,7 +19,7 @@ import (
 type ReadyHandler func(string)
 
 type Service struct {
-	mutex         syncx.Mutex
+	mu            syncx.Mutex
 	serviceStates map[string]*serviceState
 }
 
@@ -83,17 +83,10 @@ func ListenReadyEventsService(stack *stack.Stack, addr tcpip.Address) (*Service,
 }
 
 func (s *Service) MarkReady(name string) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	state := s.serviceStates[name]
-
-	if state == nil {
-		// This is a new service. Let the ready mutex be acquired immediately and mark the
-		// task as ready so new handlers don't get added to it. Everything else can be zero
-		// initialized.
-		s.serviceStates[name] = &serviceState{isReady: true}
-	} else if !state.isReady {
+	if state, ok := s.serviceStates[name]; ok {
 		// Mark the service as ready so no new handlers can be added.
 		state.isReady = true
 
@@ -104,35 +97,38 @@ func (s *Service) MarkReady(name string) {
 		for _, handler := range state.handlers {
 			handler(name)
 		}
+		state.handlers = nil
+	} else {
+		// This is a new service. Let the ready mutex be acquired immediately and mark the
+		// task as ready so new handlers don't get added to it. Everything else can be zero
+		// initialized.
+		s.serviceStates[name] = &serviceState{isReady: true}
 	}
 }
 
 func (s *Service) getServiceStateForWaitingLocked(name string) *serviceState {
-	state := s.serviceStates[name]
-
-	// If the service doesn't exist, create it.
-	if state == nil {
-		state = &serviceState{}
-		state.ready.Add(1)
-		s.serviceStates[name] = state
+	if state, ok := s.serviceStates[name]; ok {
+		return state
 	}
 
+	// If the service doesn't exist, create it.
+	state := &serviceState{}
+	state.ready.Add(1)
+	s.serviceStates[name] = state
 	return state
 }
 
 func (s *Service) WaitForReady(name string) {
-	state := func() *serviceState {
-		s.mutex.Lock()
-		defer s.mutex.Unlock()
-		return s.getServiceStateForWaitingLocked(name)
-	}()
+	s.mu.Lock()
+	state := s.getServiceStateForWaitingLocked(name)
+	s.mu.Unlock()
 
 	state.ready.Wait()
 }
 
 func (s *Service) PushReadyHandler(name string, handler ReadyHandler) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	state := s.getServiceStateForWaitingLocked(name)
 	if state.isReady {

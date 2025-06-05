@@ -171,11 +171,6 @@ func (c *Client) OnUIEvent(ev uitypes.UIEvent) error {
 	return c.rpc.Call("hc.OnUIEvent", eventJsonStr, &none)
 }
 
-func (c *Client) OnNfsReady() error {
-	var none None
-	return c.rpc.Call("hc.OnNfsReady", None{}, &none)
-}
-
 func (c *Client) OnK8sConfigReady(kubeConfigStr string) error {
 	var none None
 	return c.rpc.Call("hc.OnK8sConfigReady", kubeConfigStr, &none)

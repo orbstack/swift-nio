@@ -27,7 +27,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/conf/appver"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
-	"github.com/orbstack/macvirt/vmgr/conf/nfsmnt"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/conf/sentryconf"
 	"github.com/orbstack/macvirt/vmgr/drm"
@@ -37,6 +36,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/flock"
 	"github.com/orbstack/macvirt/vmgr/fsnotify"
 	"github.com/orbstack/macvirt/vmgr/logutil"
+	"github.com/orbstack/macvirt/vmgr/nfsmnt"
 	"github.com/orbstack/macvirt/vmgr/osver"
 	"github.com/orbstack/macvirt/vmgr/rsvm"
 	"github.com/orbstack/macvirt/vmgr/swext"
@@ -55,6 +55,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/services"
+	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents/readyclient"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
@@ -895,16 +896,16 @@ func runVmManager() {
 	}()
 
 	// Services
-	services, err := services.StartNetServices(vnetwork, drmClient)
+	svc, err := services.StartNetServices(vnetwork, drmClient)
 	check(err)
-	services.ReadyEvents = vnetwork.ReadyEvents
+	svc.ReadyEvents = vnetwork.ReadyEvents
 
 	// TODO: for LAN mDNS - refresh default interface
 	//vnetwork.SetOnRefreshMdns(services.Hcontrol.HostMdns.UpdateInterfaces)
 
 	// VM control server client
 	vc, err := vclient.NewWithNetwork(vnetwork, vm, stopCh, healthCheckCh)
-	services.Hcontrol.Vclient = vc
+	svc.Hcontrol.Vclient = vc
 	check(err)
 	defer vc.Close()
 	err = vc.StartBackground()
@@ -914,7 +915,7 @@ func runVmManager() {
 	fsNotifier, err := fsnotify.NewVmNotifier(vnetwork)
 	check(err)
 	defer fsNotifier.Close()
-	services.Hcontrol.FsNotifier = fsNotifier
+	svc.Hcontrol.FsNotifier = fsNotifier
 	go runOne("fsnotify proxy", fsNotifier.Run)
 
 	if useStdioConsole {
@@ -991,7 +992,7 @@ func runVmManager() {
 		dockerClient: makeDockerClient(),
 		drm:          drmClient,
 		network:      vnetwork,
-		hcontrol:     services.Hcontrol,
+		hcontrol:     svc.Hcontrol,
 	}
 	controlServer.setupUserDetailsOnce = sync.OnceValues(controlServer.doGetUserDetailsAndSetupEnv)
 	controlServer.uiEventDebounce = *syncx.NewLeadingFuncDebounce(uitypes.UIEventDebounce, func() {
@@ -1043,13 +1044,22 @@ func runVmManager() {
 	}
 
 	// special NFS forward: dynamic TCP port for legacy macOS where we can't use unix sockets
-	if !nfsmnt.SupportsUnixSocket() {
+	var nfsMounter *nfsmnt.Mounter
+	if nfsmnt.SupportsUnixSocket() {
+		nfsMounter = nfsmnt.NewMounter(0)
+	} else {
 		nfsPort, err := vnetwork.StartNFSForward()
 		if err != nil {
 			errorx.Fatalf("host forward failed: %w", err)
 		}
-		services.Hcontrol.NfsPort = nfsPort
+		nfsMounter = nfsmnt.NewMounter(nfsPort)
 	}
+	svc.ReadyEvents.PushReadyHandler(readyclient.ServiceNFS, func(name string) {
+		err := nfsMounter.Mount()
+		if err != nil {
+			logrus.WithError(err).Error("failed to mount NFS")
+		}
+	})
 
 	defer os.Remove(conf.DockerSocket())
 	defer os.Remove(conf.SconRPCSocket())
@@ -1079,7 +1089,7 @@ func runVmManager() {
 	defer os.Remove(conf.StatusFileRunning())
 
 	// Mount NFS
-	defer services.Hcontrol.InternalUnmountNfs()
+	defer nfsMounter.Unmount()
 
 	// the last defer: deadlock breaker
 	defer enforceStopDeadline()
@@ -1114,7 +1124,7 @@ func runVmManager() {
 				lastStopReason = stopReq.Reason
 			}
 			// attempt to unmount nfs first
-			_ = services.Hcontrol.InternalUnmountNfs()
+			_ = nfsMounter.Unmount()
 
 			go func() {
 				switch stopReq.Type {
