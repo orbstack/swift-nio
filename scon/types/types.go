@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"net/netip"
+	"time"
+)
 
 const (
 	// sentinel
@@ -52,8 +55,10 @@ type MachineConfig struct {
 }
 
 type ContainerInfo struct {
-	Record   *ContainerRecord `json:"record"`
-	DiskSize *uint64          `json:"disk_size"`
+	Record    *ContainerRecord `json:"record"`
+	DiskUsage *uint64          `json:"disk_size"`
+	IP4       *netip.Addr      `json:"ip4,omitempty"`
+	IP6       *netip.Addr      `json:"ip6,omitempty"`
 }
 
 const ExportVersion = 1

@@ -496,10 +496,20 @@ func (m *ConManager) ListContainerInfos() ([]types.ContainerInfo, error) {
 			sizePtr = &size
 		}
 
-		infos = append(infos, types.ContainerInfo{
-			Record:   c.toRecord(),
-			DiskSize: sizePtr,
-		})
+		info := types.ContainerInfo{
+			Record:    c.toRecord(),
+			DiskUsage: sizePtr,
+		}
+
+		ip4, ip6, _ := c.getIP46()
+		if ip4.IsValid() {
+			info.IP4 = &ip4
+		}
+		if ip6.IsValid() {
+			info.IP6 = &ip6
+		}
+
+		infos = append(infos, info)
 	}
 	return infos, nil
 }

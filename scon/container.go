@@ -190,10 +190,20 @@ func (c *Container) getInfo() (*types.ContainerInfo, error) {
 		}
 	}
 
-	return &types.ContainerInfo{
-		Record:   c.toRecord(),
-		DiskSize: sizePtr,
-	}, nil
+	info := &types.ContainerInfo{
+		Record:    c.toRecord(),
+		DiskUsage: sizePtr,
+	}
+
+	ip4, ip6, _ := c.getIP46()
+	if ip4.IsValid() {
+		info.IP4 = &ip4
+	}
+	if ip6.IsValid() {
+		info.IP6 = &ip6
+	}
+
+	return info, nil
 }
 
 func (c *Container) persist() error {

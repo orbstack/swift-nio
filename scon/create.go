@@ -261,12 +261,7 @@ func (c *Container) waitIPAddrs(timeout time.Duration) ([]netip.Addr, error) {
 		}
 
 		// wait for both IPv4 and IPv6
-		ip4, err := c.getIP4()
-		if err != nil && errors.Is(err, ErrMachineNotRunning) {
-			return nil, errors.New("machine crashed on startup")
-		}
-
-		ip6, err := c.getIP6()
+		ip4, ip6, err := c.getIP46()
 		if err != nil && errors.Is(err, ErrMachineNotRunning) {
 			return nil, errors.New("machine crashed on startup")
 		}

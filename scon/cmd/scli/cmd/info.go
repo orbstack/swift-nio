@@ -45,9 +45,24 @@ var infoCmd = &cobra.Command{
 			fmt.Printf("Version: %s\n", c.Record.Image.Version)
 			fmt.Printf("Architecture: %s\n", c.Record.Image.Arch)
 
-			if c.Record.Builtin {
-				fmt.Printf("\nMachine is built-in.\n")
+			if c.DiskUsage != nil {
+				fmt.Printf("\n")
+				fmt.Printf("Disk usage: %s\n", cliutil.ByteCountSI(int64(*c.DiskUsage)))
 			}
+
+			if c.IP4 != nil {
+				fmt.Printf("\n")
+				fmt.Printf("IPv4: %s\n", c.IP4)
+			}
+			if c.IP6 != nil {
+				fmt.Printf("IPv6: %s\n", c.IP6)
+			}
+
+			if c.Record.Builtin {
+				fmt.Printf("\nMachine is built-in.")
+			}
+
+			fmt.Printf("\n")
 		}
 
 		return nil

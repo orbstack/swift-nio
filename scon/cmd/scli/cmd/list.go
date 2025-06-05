@@ -79,8 +79,8 @@ var listCmd = &cobra.Command{
 			defer w.Flush()
 
 			if term.IsTerminal(int(os.Stdout.Fd())) {
-				fmt.Fprintf(w, "NAME\tSTATE\tDISTRO\tVERSION\tARCH\tSIZE\n")
-				fmt.Fprintf(w, "----\t-----\t------\t-------\t----\t----\n")
+				fmt.Fprintf(w, "NAME\tSTATE\tDISTRO\tVERSION\tARCH\tSIZE\tIP\n")
+				fmt.Fprintf(w, "----\t-----\t------\t-------\t----\t----\t--\n")
 			}
 			for _, c := range containers {
 				if c.Record.Builtin {
@@ -91,11 +91,16 @@ var listCmd = &cobra.Command{
 				}
 
 				formattedDiskSize := ""
-				if c.DiskSize != nil {
-					formattedDiskSize = cliutil.ByteCountSI(int64(*c.DiskSize))
+				if c.DiskUsage != nil {
+					formattedDiskSize = cliutil.ByteCountSI(int64(*c.DiskUsage))
 				}
 
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", c.Record.Name, c.Record.State, c.Record.Image.Distro, c.Record.Image.Version, c.Record.Image.Arch, formattedDiskSize)
+				ip4 := ""
+				if c.IP4 != nil {
+					ip4 = c.IP4.String()
+				}
+
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.Record.Name, c.Record.State, c.Record.Image.Distro, c.Record.Image.Version, c.Record.Image.Arch, formattedDiskSize, ip4)
 			}
 
 			if len(containers) == 0 {

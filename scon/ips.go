@@ -104,3 +104,28 @@ func (c *Container) getIP6() (netip.Addr, error) {
 
 	return netip.Addr{}, ErrNoIPAddress
 }
+
+func (c *Container) getIP46() (netip.Addr, netip.Addr, error) {
+	// fastpath for static IPs (nftables forward cares about perf)
+	if c.ID == ContainerIDDocker {
+		return sconDocker4Addr, sconDocker6Addr, nil
+	}
+
+	ips, err := c.GetIPAddrs()
+	if err != nil {
+		return netip.Addr{}, netip.Addr{}, err
+	}
+
+	var ip4, ip6 netip.Addr
+
+	for _, ip := range ips {
+		if ip.Is4() {
+			ip4 = ip
+		}
+		if ip.Is6() {
+			ip6 = ip
+		}
+	}
+
+	return ip4, ip6, nil
+}
