@@ -215,7 +215,7 @@ func (s *SconGuestServer) addOneContainerLocked(ctr *dockertypes.ContainerSummar
 	}
 
 	var procDirfd *os.File
-	err := s.dockerMachine.useAgentLocked(func(a *agent.Client) error {
+	err := s.dockerMachine.UseAgent(func(a *agent.Client) error {
 		fd, err := a.Fdx().RecvFile(meta.ProcDirFdxSeq)
 		procDirfd = fd
 		return err
@@ -364,7 +364,11 @@ func (s *SconGuestServer) OnDockerVolumesChanged(diff sgtypes.Diff[*dockertypes.
 }
 
 func (s *SconGuestServer) OnDockerRefsChanged(_ None, _ *None) error {
-	freezer := s.dockerMachine.Freezer()
+	rt, err := s.dockerMachine.RuntimeState()
+	if err != nil {
+		return err
+	}
+	freezer := rt.freezer
 	if freezer != nil {
 		freezer.IncRef()
 		freezer.DecRef()

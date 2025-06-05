@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/lxc/go-lxc"
@@ -20,18 +19,13 @@ var (
 )
 
 type StopOptions struct {
-	KillProcesses     bool
-	ManagerIsStopping bool
+	Kill bool
 }
 
 func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState, err error) {
 	oldState = c.RealState()
-	if !c.runningLocked() {
+	if oldState != types.ContainerStateRunning {
 		return oldState, nil
-	}
-
-	if !opts.ManagerIsStopping && c.manager.stopping.Load() {
-		return oldState, ErrStopping
 	}
 
 	logrus.WithField("container", c.Name).Info("stopping container")
@@ -47,37 +41,36 @@ func (c *Container) stopLocked(opts StopOptions) (oldState types.ContainerState,
 		}
 	}()
 
-	// must unfreeze so agent responds
-	freezer := c.Freezer()
-	if freezer != nil {
-		freezer.IncRef()
-		// unfreeze to prevent it from getting stuck in case of error (failed stop)
-		// we close the freezer so it's a no-op if it's not stuck
-		defer freezer.DecRef()
+	err = c.hooks.OnStop(c)
+	if err != nil {
+		logrus.WithError(err).WithField("container", c.Name).Error("failed to run on-stop hook")
 	}
 
-	// tell agent to prepare for stop
-	agent := c.agent.Load()
-	if agent != nil {
-		err := agent.SyntheticWarnStop()
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to send stop warning to agent")
-		}
+	// don't allow any more freezing, and unfreeze if frozen
+	rt, err := c.RuntimeState()
+	if err != nil {
+		return oldState, err
+	}
+	if rt.freezer != nil {
+		rt.freezer.Close()
 	}
 
-	// graceful attempt first; ignore failure
-	if !opts.KillProcesses {
-		err = c.lxc.Shutdown(gracefulShutdownTimeout)
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")
-		}
-	}
-
-	if c.lxc.Running() {
-		// this blocks until hook exits, but keeping lock is ok because we run hook asynchronously
+	if opts.Kill {
 		err = c.lxc.Stop()
 		if err != nil {
 			return oldState, err
+		}
+	} else {
+		// graceful attempt first; ignore failure
+		err = c.lxc.Shutdown(gracefulShutdownTimeout)
+		if err != nil {
+			logrus.WithError(err).WithField("container", c.Name).Warn("graceful shutdown failed")
+
+			// this blocks until hook exits, but keeping lock is ok because we run hook asynchronously
+			err = c.lxc.Stop()
+			if err != nil {
+				return oldState, err
+			}
 		}
 	}
 
@@ -101,71 +94,30 @@ func (c *Container) Stop(opts StopOptions) error {
 	return err
 }
 
-func (c *Container) stopForManagerShutdown() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	_, err := c.stopLocked(StopOptions{
-		ManagerIsStopping: true,
-	})
-	return err
-}
-
 func (c *Container) onStopLocked() error {
-	// discard freezer
-	// we don't need a ref for agent because it's already stopped
-	freezer := c.freezer.Swap(nil)
-	if freezer != nil {
-		freezer.Close()
-	}
-
-	// stop forwards
-	for _, listener := range c.lastListeners {
-		err := c.manager.removeForwardCLocked(c, listener)
-		if err != nil {
-			logrus.WithError(err).WithFields(logrus.Fields{
-				"container": c.Name,
-				"listener":  listener,
-			}).Error("failed to remove forward after stop")
-		}
-	}
-	c.lastListeners = nil
-
 	// remove from mDNS registry
 	c.manager.net.mdnsRegistry.RemoveMachine(c)
-	// discard cached IP addresses
-	c.ipAddrsMu.Lock()
-	c.ipAddrs = nil
-	c.ipAddrsMu.Unlock()
-
-	// stop bpf
-	if c.bpf != nil {
-		err := c.bpf.Close()
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to clean up bpf")
-		}
-		c.bpf = nil
-	}
-	err := c.manager.net.portMonitor.RemoveCallback(c.ID)
-	if err != nil {
-		logrus.WithError(err).WithField("container", c.Name).Error("failed to remove port monitor callback")
-	}
 
 	// discard runtime state
 	rt := c.runtimeState.Swap(nil)
 	if rt != nil {
+		// stop forwards
+		for key := range rt.activeForwards {
+			err := c.manager.removeForward(c, rt, key)
+			if err != nil {
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"container": c.Name,
+					"key":       key,
+				}).Error("failed to remove forward after stop")
+			}
+		}
+
 		rt.Close()
 	}
 
-	// cancel listener update
-	atomic.StoreUint32(&c.fwdDirtyFlags, 0)
-	c.autofwdDebounce.Cancel()
-
-	// stop agent (after listeners removed and processes reaped)
-	agent := c.agent.Swap(nil)
-	if agent != nil {
-		logrus.WithField("container", c.Name).Debug("stopping agent")
-		agent.Close()
+	err := c.manager.net.portMonitor.RemoveCallback(c.ID)
+	if err != nil {
+		logrus.WithError(err).WithField("container", c.Name).Error("failed to remove port monitor callback")
 	}
 
 	_, err = c.transitionStateLocked(types.ContainerStateStopped)
@@ -180,11 +132,9 @@ func (c *Container) onStopLocked() error {
 		}
 	}()
 
-	if c.hooks != nil {
-		err := c.hooks.PostStop(c)
-		if err != nil {
-			return err
-		}
+	err = c.hooks.PostStop(c)
+	if err != nil {
+		logrus.WithError(err).WithField("container", c.Name).Error("failed to run post-stop hook")
 	}
 
 	logrus.WithField("container", c.Name).Info("container stopped")

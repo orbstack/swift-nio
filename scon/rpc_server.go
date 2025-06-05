@@ -115,7 +115,7 @@ func (s *SconServer) ContainerStop(ctx context.Context, req types.GenericContain
 	}
 
 	return c.Stop(StopOptions{
-		KillProcesses: false,
+		Kill: false,
 	})
 }
 

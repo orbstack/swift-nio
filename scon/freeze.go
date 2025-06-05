@@ -1,28 +1,30 @@
 package main
 
-import "github.com/lxc/go-lxc"
-
-func (c *Container) IsFrozen() bool {
-	return c.lxc.State() == lxc.FROZEN
-}
-
-func (c *Container) freezeLocked() error {
-	if !c.Running() {
-		return ErrMachineNotRunning
-	}
-
-	return c.lxc.Freeze()
-}
+import "errors"
 
 // locks removed to prevent issues with freezer's locks, so these are currently the same
 func (c *Container) Freeze() error {
-	return c.freezeLocked()
+	// builtin machines' freezing is controlled by Freezer
+	if c.builtin {
+		return errors.New("builtin machines cannot be frozen")
+	}
+
+	return c.freezeInternal()
 }
 
-func (c *Container) unfreezeLocked() error {
-	return c.lxc.Unfreeze()
+func (c *Container) freezeInternal() error {
+	return c.lxc.Freeze()
 }
 
 func (c *Container) Unfreeze() error {
-	return c.unfreezeLocked()
+	// builtin machines' freezing is controlled by Freezer
+	if c.builtin {
+		return errors.New("builtin machines cannot be frozen")
+	}
+
+	return c.unfreezeInternal()
+}
+
+func (c *Container) unfreezeInternal() error {
+	return c.lxc.Unfreeze()
 }

@@ -35,11 +35,6 @@ func (oldC *Container) Clone(newName string) (_ *Container, retErr error) {
 		}
 	}()
 
-	if oldC.Freezer() != nil {
-		// should never happen, as only builtin containers have freezers
-		return nil, errors.New("cannot clone machine with freezer")
-	}
-
 	// add a mutation hold to prevent rootfs from changing
 	// unlike c.mu.RLock(), this allows cancellation by deleting the source machine, and doesn't inhibit other actions like stopping
 	var oldName string

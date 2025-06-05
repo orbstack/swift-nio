@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/orbstack/macvirt/scon/agent"
@@ -83,17 +84,19 @@ func (c *Container) renameInternalLocked(newName string) (retS string, retErr er
 }
 
 func (c *Container) updateHostnameLocked(oldName, newName string) error {
-	if c.runningLocked() {
-		// if running, finish in the agent
-		// more secure than attaching netns and writing files from our side,
-		// because it avoids symlink escape races
-		return c.useAgentLocked(func(a *agent.Client) error {
-			return a.UpdateHostname(oldName, newName)
-		})
-	} else {
-		// if not running, it's safe to update files from our side w/o chroot
-		return agent.WriteHostnameFiles(c.rootfsDir, oldName, newName, false /*runCommands*/)
+	err := c.UseAgent(func(a *agent.Client) error {
+		return a.UpdateHostname(oldName, newName)
+	})
+	if err != nil {
+		if errors.Is(err, ErrMachineNotRunning) {
+			// if not running, it's safe to update files from our side w/o chroot
+			return agent.WriteHostnameFiles(c.rootfsDir, oldName, newName, false /*runCommands*/)
+		} else {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func (c *Container) Rename(newName string) error {

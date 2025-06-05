@@ -10,7 +10,7 @@ import (
 )
 
 // generic version
-func PollFd(fd int, events int16) error {
+func PollFd(fd int, events int16) (int16, error) {
 	for {
 		fds := [1]unix.PollFd{
 			{
@@ -23,11 +23,11 @@ func PollFd(fd int, events int16) error {
 			if err == unix.EINTR {
 				continue
 			} else {
-				return err
+				return 0, err
 			}
 		}
 		if n >= 1 {
-			return nil
+			return fds[0].Revents, nil
 		}
 	}
 }

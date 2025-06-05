@@ -347,6 +347,7 @@ func (sv *SSHServer) waitForWormholeProcess(s ssh.Session, isPty bool, wormholeT
 	// kill payload if session is closed
 	go func() {
 		<-s.Context().Done()
+		// maps to SIGKILL
 		_ = cmd.Process.Signal(unix.SIGPWR)
 	}()
 

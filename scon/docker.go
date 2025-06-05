@@ -695,46 +695,45 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	return nil
 }
 
-func (h *DockerHooks) PostStart(c *Container) error {
+func (h *DockerHooks) MakeFreezer(c *Container, rt *ContainerRuntimeState) (*Freezer, error) {
+	// make a freezer
+	freezer := NewContainerFreezer(c, dockerFreezeDebounce, func() (bool, error) {
+		// [predicate, via agent] check docker API to see if any containers are running
+		// if so, don't freeze
+		// this uses agent directly to bypass freezer (to avoid deadlock)
+		return rt.agent.DockerCheckIdle()
+	})
+	return freezer, nil
+}
+
+func (h *DockerHooks) PostStart(c *Container, rt *ContainerRuntimeState) error {
 	err := c.manager.net.mdnsRegistry.dockerPostStart()
 	if err != nil {
 		logrus.WithError(err).Error("unable to run mdns registry docker post start hook")
 	}
 
-	// make a freezer
-	freezer := NewContainerFreezer(c, dockerFreezeDebounce, func() (bool, error) {
-		// [predicate, via agent] check docker API to see if any containers are running
-		// if so, don't freeze
-		var isIdle bool
-		// freezer operates under container lock
-		err := c.useAgentInternal(func(a *agent.Client) error {
-			var err error
-			isIdle, err = a.DockerCheckIdle()
-			return err
-		}, /*needFreezerRef*/ false /*needLock*/, false)
-		if err != nil {
-			return false, err
-		}
-		return isIdle, nil
-	})
-	c.freezer.Store(freezer)
-
 	// prevent freeze if k8s enabled
 	// too complicated to freeze it due to async pod lifecycle
 	if c.manager.k8sEnabled {
-		freezer.IncRef()
+		rt.freezer.IncRef()
 	}
 
 	// prevent freeze if TCP dockerd host is listening
 	// TODO: intercept and proxy it instead of relying on machine port forwards. we can't do it at the TCP proxy level because the proxy runs in the agent and will thus be frozen along with the machine
 	if h.configHasTCPHost {
-		freezer.IncRef()
+		rt.freezer.IncRef()
 	}
 
 	// trigger an initial freeze once docker starts
-	go c.manager.dockerProxy.kickStart(freezer)
+	go c.manager.dockerProxy.kickStart(rt.freezer)
 
 	return nil
+}
+
+func (h *DockerHooks) OnStop(c *Container) error {
+	return c.UseAgent(func(a *agent.Client) error {
+		return a.DockerOnStop()
+	})
 }
 
 func (h *DockerHooks) PostStop(c *Container) error {

@@ -100,6 +100,10 @@ func (m *ConManager) beginCreate(args *types.CreateRequest) (*Container, *types.
 		return nil, nil, fmt.Errorf("restore: %w", err)
 	}
 
+	// only this standard create path has a 'provisioning' state
+	// other creation paths (clone, import) go straight from creating -> running
+	c.isProvisioning.Store(true)
+
 	return c, &image, nil
 }
 
@@ -148,13 +152,12 @@ func (m *ConManager) Create(args *types.CreateRequest) (_ *Container, retErr err
 	// reboot NixOS to not run into weird errors (https://github.com/orbstack/macvirt/pull/111#issuecomment-2155174982)
 	if c.Image.Distro == images.DistroNixos {
 		c.mu.Lock()
-		_, err = c.stopLocked(StopOptions{KillProcesses: false, ManagerIsStopping: false})
-		c.mu.Unlock()
+		_, err = c.stopLocked(StopOptions{Kill: false})
 		if err != nil {
+			c.mu.Unlock()
 			return nil, fmt.Errorf("stop (nixos reboot): %w", err)
 		}
 
-		c.mu.Lock()
 		err = c.startLocked(true /* isInternal */)
 		c.mu.Unlock()
 		if err != nil {
@@ -184,8 +187,8 @@ func (m *ConManager) Create(args *types.CreateRequest) (_ *Container, retErr err
 		return nil, fmt.Errorf("call restore hook: %w", err)
 	}
 
-	// we're done creating; set IsCreating to false & persist
-	c.isCreating.Store(false)
+	// we're done creating; set isProvisioning to false & persist
+	c.isProvisioning.Store(false)
 	err = c.persist()
 	if err != nil {
 		return nil, fmt.Errorf("finish creation: %w", err)
@@ -257,7 +260,7 @@ func (c *Container) waitIPAddrs(timeout time.Duration) ([]string, error) {
 			return nil, fmt.Errorf("machine didn't start in %v (missing IP address)", timeout)
 		}
 
-		if !c.lxc.Running() {
+		if !c.Running() {
 			return nil, fmt.Errorf("machine crashed on startup")
 		}
 

@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"net/rpc"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,9 +20,9 @@ import (
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
-	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -39,15 +40,14 @@ var (
 )
 
 type ForwardState struct {
-	Owner           *Container
 	InternalPort    uint16
 	HostForwardSpec hclient.ForwardSpec
 }
 
-func procToAgentSpec(p sysnet.ListenerInfo) agent.ProxySpec {
+func procToAgentSpec(key sysnet.ListenerKey) agent.ProxySpec {
 	return agent.ProxySpec{
-		IsIPv6: p.Addr().Is6(),
-		Port:   p.Port(),
+		IsIPv6: key.Addr().Is6(),
+		Port:   key.Port(),
 	}
 }
 
@@ -94,9 +94,9 @@ func addContainerNftablesForward(c *Container, spec sysnet.ListenerInfo, interna
 	var toMachineIP net.IP
 	var err error
 	if spec.Addr().Is4() {
-		toMachineIP, err = c.getIP4Locked()
+		toMachineIP, err = c.getIP4()
 	} else {
-		toMachineIP, err = c.getIP6Locked()
+		toMachineIP, err = c.getIP6()
 	}
 	if err != nil {
 		return fmt.Errorf("get container IP: %w", err)
@@ -110,7 +110,7 @@ func addContainerNftablesForward(c *Container, spec sysnet.ListenerInfo, interna
 	return nil
 }
 
-func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (retErr error) {
+func (m *ConManager) addForward(c *Container, rt *ContainerRuntimeState, spec sysnet.ListenerInfo) (retErr error) {
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
 		"spec":      spec,
@@ -125,20 +125,20 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 	}
 
 	// block port on container side
-	if c.bpf != nil {
-		err := c.bpf.LfwdBlockPort(spec.Port())
+	if rt.bpf != nil {
+		err := rt.bpf.LfwdBlockPort(spec.Port())
 		if err != nil {
 			return err
 		}
 		defer func() {
 			if retErr != nil {
-				c.bpf.LfwdUnblockPort(spec.Port())
+				rt.bpf.LfwdUnblockPort(spec.Port())
 			}
 		}()
 	}
 
 	targetPort := spec.Port() // container and external macOS port are the same
-	agentSpec := procToAgentSpec(spec)
+	agentSpec := procToAgentSpec(spec.ListenerKey)
 	var internalListenIP net.IP
 	if spec.Addr().Is4() {
 		internalListenIP = vnetGuestIP4
@@ -163,7 +163,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 
 		// pass to agent
 		var agentResult agent.ProxyResult
-		err = c.useAgentLocked(func(a *agent.Client) error {
+		err = rt.UseAgent(func(a *agent.Client) error {
 			r, err := a.StartProxyTCP(agentSpec, listener)
 			agentResult = r
 			return err
@@ -176,7 +176,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 		}
 		defer func() {
 			if retErr != nil {
-				err2 := c.useAgentLocked(func(a *agent.Client) error {
+				err2 := rt.UseAgent(func(a *agent.Client) error {
 					return a.StopProxyTCP(agentSpec)
 				})
 				if err2 != nil {
@@ -226,7 +226,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 
 		// pass to agent
 		var agentResult agent.ProxyResult
-		err = c.useAgentLocked(func(a *agent.Client) error {
+		err = rt.UseAgent(func(a *agent.Client) error {
 			r, err := a.StartProxyUDP(agentSpec, listener)
 			agentResult = r
 			return err
@@ -239,7 +239,7 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 		}
 		defer func() {
 			if retErr != nil {
-				err2 := c.useAgentLocked(func(a *agent.Client) error {
+				err2 := rt.UseAgent(func(a *agent.Client) error {
 					return a.StopProxyUDP(agentSpec)
 				})
 				if err2 != nil {
@@ -279,10 +279,11 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 	}
 
 	m.forwards[spec.ListenerKey] = ForwardState{
-		Owner:           c,
 		InternalPort:    internalPort,
 		HostForwardSpec: hostForwardSpec,
 	}
+	rt.activeForwards[spec.ListenerKey] = struct{}{}
+
 	logrus.WithFields(logrus.Fields{
 		"spec":         spec,
 		"internalPort": internalPort,
@@ -293,38 +294,41 @@ func (m *ConManager) addForwardCLocked(c *Container, spec sysnet.ListenerInfo) (
 	return nil
 }
 
-func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ListenerInfo) error {
-	logrus.WithField("spec", spec).Info("remove forward")
+func (m *ConManager) removeForward(c *Container, rt *ContainerRuntimeState, key sysnet.ListenerKey) error {
+	logrus.WithField("key", key).Info("remove forward")
+
+	// check active forwards
+	if _, ok := rt.activeForwards[key]; !ok {
+		// was not successfully added as a forward, so nothing to remove
+		return nil
+	}
 
 	m.forwardsMu.Lock()
 	defer m.forwardsMu.Unlock()
 
 	// check owner
-	state, ok := m.forwards[spec.ListenerKey]
+	state, ok := m.forwards[key]
 	if !ok {
-		return errors.New("forward does not exist")
-	}
-	if state.Owner != c {
-		return errors.New("forward belongs to another container")
+		return fmt.Errorf("container '%s' owns forward '%v' but it doesn't exist?!", c.Name, key)
 	}
 
 	// tell host
 	err := m.host.StopForward(state.HostForwardSpec)
 	if err != nil {
-		return err
+		return fmt.Errorf("host: %w", err)
 	}
 
 	// remove nftables acceleration
 	// spec.UseIptables / pstub state might change, so look up by key and remove it if it exists
-	err = m.net.StopNftablesForward(spec.ListenerKey)
+	err = m.net.StopNftablesForward(key)
 	if err != nil {
-		return err
+		return fmt.Errorf("nft: %w", err)
 	}
 
 	// tell agent (our side of listener is already closed)
-	agentSpec := procToAgentSpec(spec)
-	err = c.useAgentLocked(func(a *agent.Client) error {
-		switch spec.Proto {
+	agentSpec := procToAgentSpec(key)
+	err = rt.UseAgent(func(a *agent.Client) error {
+		switch key.Proto {
 		case sysnet.ProtoTCP:
 			return a.StopProxyTCP(agentSpec)
 		case sysnet.ProtoUDP:
@@ -339,14 +343,15 @@ func (m *ConManager) removeForwardCLocked(c *Container, spec sysnet.ListenerInfo
 	}
 
 	// unblock port on container side
-	if c.bpf != nil {
-		err := c.bpf.LfwdUnblockPort(spec.Port())
+	if rt.bpf != nil {
+		err = rt.bpf.LfwdUnblockPort(key.Port())
 		if err != nil {
 			logrus.WithField("container", c.Name).WithError(err).Error("failed to unblock port")
 		}
 	}
 
-	delete(m.forwards, spec.ListenerKey)
+	delete(rt.activeForwards, key)
+	delete(m.forwards, key)
 	return nil
 }
 
@@ -478,73 +483,59 @@ func diffSlicesListenerKey(old, new []sysnet.ListenerInfo) (removed, added []sys
 }
 
 // triggered by bpf pmon
-func (c *Container) updateListenersNow() error {
-	// this is to prevent stopping while we're updating listeners
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (rt *ContainerRuntimeState) updateListenersNow(c *Container) error {
+	// TODO: use flags to reduce update work
+	rt.listenerDirtyFlags.Store(0)
 
-	// read /proc/net
-	rt, err := c.RuntimeState()
+	newListeners, err := sysnet.ReadAllProcNetFromDirfs(rt.InitProcDirfd)
 	if err != nil {
-		return nil // not running
-	}
-
-	listeners, err := sysnet.ReadAllProcNetFromDirfs(rt.InitProcDirfd)
-	if err != nil {
-		return err
+		if errors.Is(err, unix.ENOENT) || errors.Is(err, os.ErrClosed) {
+			// normal: machine is no longer running
+			return nil
+		} else {
+			return err
+		}
 	}
 
 	if c.ID == ContainerIDK8s && c.manager.k8sEnabled {
 		// add nodeports from iptables
-		listeners, err = c.readIptablesListeners(listeners, !c.manager.k8sExposeServices /*forceRestrictLocalhost*/)
+		newListeners, err = c.readIptablesListeners(newListeners, !c.manager.k8sExposeServices /*forceRestrictLocalhost*/)
 		if err != nil {
 			return fmt.Errorf("read iptables: %w", err)
 		}
 	}
 
-	listeners = filterListeners(listeners, c.ID == ContainerIDK8s && !c.manager.k8sExposeServices /*forceK8sLocalhost*/)
+	newListeners = filterListeners(newListeners, c.ID == ContainerIDK8s && !c.manager.k8sExposeServices /*forceK8sLocalhost*/)
 	logrus.WithFields(logrus.Fields{
 		"container": c.Name,
-		"listeners": listeners,
+		"listeners": newListeners,
 	}).Debug("update listeners")
 
-	removed, added := diffSlicesListenerKey(c.lastListeners, listeners)
-
-	var errs []error
-	var notAdded []sysnet.ListenerInfo
-	var notRemoved []sysnet.ListenerInfo
+	removed, added := diffSlicesListenerKey(rt.listeners, newListeners)
 
 	// must remove before adding in case of recreate with conflicting IP within debounce period
 	for _, listener := range removed {
-		err := c.manager.removeForwardCLocked(c, listener)
+		err := c.manager.removeForward(c, rt, listener.ListenerKey)
 		if err != nil {
-			errs = append(errs, err)
-			notRemoved = append(notRemoved, listener)
-			continue
+			logrus.WithField("container", c.Name).WithError(err).Error("failed to remove forward")
 		}
 	}
 	for _, listener := range added {
-		err := c.manager.addForwardCLocked(c, listener)
+		err := c.manager.addForward(c, rt, listener)
 		if err != nil {
-			errs = append(errs, err)
-			notAdded = append(notAdded, listener)
-			continue
+			logrus.WithField("container", c.Name).WithError(err).Error("failed to add forward")
 		}
 	}
 
-	if len(notAdded) > 0 || len(notRemoved) > 0 {
-		logrus.WithFields(logrus.Fields{
-			"notAdded":   notAdded,
-			"notRemoved": notRemoved,
-		}).Warn("failed to apply listener changes")
-	}
-
-	c.lastListeners = listeners
-	c.lastAutofwdUpdate = time.Now()
-	return errors.Join(errs...)
+	rt.listeners = newListeners
+	return nil
 }
 
 func (c *Container) triggerListenersUpdate(dirtyFlags bpf.ListenerTypeFlags) {
-	syncx.AtomicOrUint32(&c.fwdDirtyFlags, uint32(dirtyFlags))
-	c.autofwdDebounce.Call()
+	rt, err := c.RuntimeState()
+	if err != nil {
+		return
+	}
+	rt.listenerDirtyFlags.Or(uint32(dirtyFlags))
+	rt.listenersDebounce.Call()
 }

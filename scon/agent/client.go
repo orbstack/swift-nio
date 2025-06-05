@@ -1,41 +1,68 @@
 package agent
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/rpc"
 	"os"
-	"sync/atomic"
 
 	"github.com/miekg/dns"
 	"github.com/orbstack/macvirt/scon/types"
+	"github.com/orbstack/macvirt/scon/util"
 	"github.com/orbstack/macvirt/scon/util/netx"
+	"github.com/orbstack/macvirt/scon/util/sysx"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"golang.org/x/sys/unix"
 )
 
-const (
-	stopWarningSignal = unix.SIGPWR
-)
-
 type Client struct {
-	// process before double fork
-	initialProcess *os.Process
-	// pidfd of real agent process, after double fork
-	// CAREFUL: agent is nil so we can't WaitStatus on it, only signal
-	process atomic.Pointer[PidfdProcess]
-
-	rpc *rpc.Client
-	fdx *Fdx
+	rpc     *rpc.Client
+	rpcConn net.Conn
+	fdx     *Fdx
 }
 
-func NewClient(initialProcess *os.Process, rpcConn net.Conn, fdxConn net.Conn) *Client {
+func NewClient(rpcConn net.Conn, fdxConn net.Conn) *Client {
 	return &Client{
-		initialProcess: initialProcess,
-		rpc:            rpc.NewClient(rpcConn),
-		fdx:            NewFdx(fdxConn),
+		rpc:     rpc.NewClient(rpcConn),
+		rpcConn: rpcConn,
+		fdx:     NewFdx(fdxConn),
+	}
+}
+
+func (c *Client) SyntheticWaitForClose() error {
+	conn := c.rpcConn.(*net.UnixConn)
+
+	// to avoid blocking Close() (due to pfd refcount), use a copy of the fd
+	file, err := conn.File()
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	rawConn, err := file.SyscallConn()
+	if err != nil {
+		return err
+	}
+
+	for {
+		// wait for close
+		closed, err := util.UseRawConn1(rawConn, func(fd int) (bool, error) {
+			revents, err := sysx.PollFd(fd, unix.POLLHUP)
+			if err != nil {
+				return false, err
+			}
+			if revents&unix.POLLHUP != 0 {
+				return true, nil
+			}
+			return false, nil
+		})
+		if err != nil {
+			return err
+		}
+		if closed {
+			return nil
+		}
 	}
 }
 
@@ -46,14 +73,6 @@ func (c *Client) Fdx() *Fdx {
 func (c *Client) Close() error {
 	c.rpc.Close()
 	c.fdx.Close()
-
-	// err doesn't matter, should already be dead from container stop
-	_ = c.initialProcess.Kill()
-	process := c.process.Load()
-	if process != nil {
-		_ = process.Kill()
-		process.Release()
-	}
 	return nil
 }
 
@@ -251,6 +270,16 @@ func (c *Client) DockerQueryKubeDns(q dns.Question) ([]dns.RR, error) {
 	return reply, nil
 }
 
+func (c *Client) DockerOnStop() error {
+	var none None
+	err := c.rpc.Call("a.DockerOnStop", None{}, &none)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) DockerMigrationLoadImage(params types.InternalDockerMigrationLoadImageRequest, remoteConn *net.TCPConn) error {
 	file, err := remoteConn.File()
 	if err != nil {
@@ -438,46 +467,6 @@ func (c *Client) EndUserSession(user string) error {
 	}
 
 	return nil
-}
-
-func (c *Client) MonitorAgentPidFd() error {
-	if c.process.Load() != nil {
-		return errors.New("agent pidfd already set")
-	}
-
-	var seq uint64
-	err := c.rpc.Call("a.GetAgentPidFd", None{}, &seq)
-	if err != nil {
-		return err
-	}
-
-	file, err := c.fdx.RecvFile(seq)
-	if err != nil {
-		return err
-	}
-
-	// update own process reference
-	// agent=nil: doesn't make sense to ask agent to wait on itself
-	c.process.Store(wrapPidfdProcess(file, 0, nil))
-	return nil
-}
-
-func (c *Client) SyntheticWarnStop() error {
-	process := c.process.Load()
-	if process == nil {
-		return errors.New("no agent pidfd process")
-	}
-
-	return process.Signal(stopWarningSignal)
-}
-
-func (c *Client) WaitStop() error {
-	process := c.process.Load()
-	if process == nil {
-		return errors.New("no agent pidfd process")
-	}
-
-	return process.WaitNoReap()
 }
 
 type UpdateHostnameArgs struct {

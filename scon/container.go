@@ -3,18 +3,15 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
-	"time"
 
 	"github.com/lxc/go-lxc"
 	"github.com/orbstack/macvirt/scon/agent"
-	"github.com/orbstack/macvirt/scon/bpf"
 	"github.com/orbstack/macvirt/scon/conf"
 	"github.com/orbstack/macvirt/scon/images"
 	"github.com/orbstack/macvirt/scon/types"
@@ -28,6 +25,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var noopHooks = &NoopHooks{}
+
 var (
 	ErrAgentDead         = errors.New("agent not running")
 	ErrMachineNotRunning = errors.New("machine not running")
@@ -39,54 +38,37 @@ type containerConfigMethods struct {
 	bind func(string, string, string)
 }
 
-type ContainerHooks interface {
-	Config(*Container, containerConfigMethods) error
-	PreStart(*Container) error
-	PostStart(*Container) error
-	PostStop(*Container) error
-}
-
 type Container struct {
-	ID        string
-	Name      string
-	Aliases   []string
-	Image     types.ImageSpec
+	// read-only
+	manager    *ConManager
+	mu         syncx.RWMutex
+	hooks      ContainerHooks
+	jobManager util.EntityJobManager
+	holds      util.MutationHoldManager
+
+	// read-only info
+	ID      string
+	Image   types.ImageSpec
+	builtin bool
+
+	// mutable
+	Name   string
+	config types.MachineConfig
+
 	dataDir   string
 	rootfsDir string
 	quotaDir  string
 
-	builtin bool
-	config  types.MachineConfig
+	// LXC
+	lxc           *lxc.Container
+	lxcConfigured bool
+
 	// state
-	state      atomic.Pointer[types.ContainerState]
-	isCreating atomic.Bool
+	state          atomic.Pointer[types.ContainerState]
+	isProvisioning atomic.Bool
 
-	hooks ContainerHooks
-
-	lxc            *lxc.Container
-	lxcConfigured  bool
-	lastCgroupPath string
-
-	manager *ConManager
-	mu      syncx.RWMutex
-
-	jobManager *util.EntityJobManager
-	holds      *util.MutationHoldManager
-
-	// if booted
-	// TODO: move all this into a .rt field (RuntimeState)
-	lastListeners     []sysnet.ListenerInfo
-	autofwdDebounce   *syncx.FuncDebounce
-	lastAutofwdUpdate time.Time
-	fwdDirtyFlags     uint32
-	agent             atomic.Pointer[agent.Client]
-	bpf               *bpf.ContainerBpfManager
-	ipAddrsMu         syncx.Mutex
-	ipAddrs           []net.IP
-	runtimeState      atomic.Pointer[ContainerRuntimeState]
-
-	// docker
-	freezer atomic.Pointer[Freezer]
+	// if running
+	runtimeState atomic.Pointer[ContainerRuntimeState]
 }
 
 func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Container, error) {
@@ -104,9 +86,10 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 		quotaDir:  dir,
 		manager:   m,
 		rootfsDir: dir + "/rootfs",
+		hooks:     noopHooks,
 
-		jobManager: util.NewEntityJobManager(m.ctx),
-		holds:      util.NewMutationHoldManager(),
+		jobManager: *util.NewEntityJobManager(m.ctx),
+		holds:      *util.NewMutationHoldManager(),
 	}
 	// always create in stopped state
 	c.setState(types.ContainerStateStopped)
@@ -127,15 +110,6 @@ func (m *ConManager) newContainerLocked(record *types.ContainerRecord) (*Contain
 	if err != nil {
 		return nil, err
 	}
-
-	c.autofwdDebounce = syncx.NewFuncDebounce(autoForwardDebounce, func() {
-		// TODO: use flags to reduce update work
-		atomic.SwapUint32(&c.fwdDirtyFlags, 0)
-		err := c.updateListenersNow()
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to update listeners")
-		}
-	})
 
 	return c, nil
 }
@@ -170,7 +144,7 @@ func (c *Container) PersistedState() types.ContainerState {
 	state := *c.state.Load()
 	// also report 'provisioning' if it's starting, to prevent scon being stopped while container is starting
 	// after being created -> doesn't get cleaned up afterwards
-	if c.isCreating.Load() && (state == types.ContainerStateRunning || state == types.ContainerStateStarting) {
+	if c.isProvisioning.Load() && (state == types.ContainerStateRunning || state == types.ContainerStateStarting) {
 		return types.ContainerStateProvisioning
 	} else {
 		return state
@@ -188,10 +162,6 @@ func (c *Container) Running() bool {
 
 func (c *Container) runningLocked() bool {
 	return c.RealState() == types.ContainerStateRunning
-}
-
-func (c *Container) lxcRunning() bool {
-	return c.lxc.Running()
 }
 
 func (c *Container) toRecord() *types.ContainerRecord {
@@ -247,19 +217,10 @@ func (c *Container) refreshState() error {
 	defer c.mu.Unlock()
 
 	logrus.WithField("container", c.Name).Debug("refreshing container state")
-	stateRunning := c.runningLocked()
-	lxcRunning := c.lxcRunning()
-	if lxcRunning != stateRunning {
-		if lxcRunning {
-			err := c.onStartLocked()
-			if err != nil {
-				return err
-			}
-		} else {
-			err := c.onStopLocked()
-			if err != nil {
-				return err
-			}
+	if c.runningLocked() && !c.lxc.Running() {
+		err := c.onStopLocked()
+		if err != nil {
+			return err
 		}
 	}
 
@@ -294,59 +255,13 @@ func (c *Container) removeDeviceNode(dst string) error {
 	return nil
 }
 
-func (c *Container) acquireAgent(needFreezerRef bool, needLock bool) (*Freezer, *agent.Client, error) {
-	// only keep lock for duration of agent acquire
-	if needLock {
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-	}
-
-	if !c.Running() {
-		return nil, nil, ErrMachineNotRunning
-	}
-
-	// we want it to be unfrozen - or call will hang
-	var freezer *Freezer
-	if needFreezerRef {
-		freezer = c.Freezer()
-		if freezer != nil {
-			freezer.IncRef()
-		}
-	}
-
-	agent := c.agent.Load()
-	if agent == nil {
-		if freezer != nil {
-			freezer.DecRef()
-		}
-		return nil, nil, ErrAgentDead
-	}
-
-	return freezer, agent, nil
-}
-
-// must be called with lock held in case container is in the middle of starting,
-// freezer is not yet created but agent is
-func (c *Container) useAgentInternal(fn func(*agent.Client) error, needFreezerRef bool, needLock bool) error {
-	freezer, agent, err := c.acquireAgent(needFreezerRef, needLock)
+func (c *Container) UseAgent(fn func(*agent.Client) error) error {
+	rt, err := c.RuntimeState()
 	if err != nil {
 		return err
 	}
 
-	if freezer != nil {
-		defer freezer.DecRef()
-	}
-
-	// ... so we make the actual agent call outside the lock (if caller isn't locked)
-	return fn(agent)
-}
-
-func (c *Container) useAgentLocked(fn func(*agent.Client) error) error {
-	return c.useAgentInternal(fn /*needFreezerRef*/, true /*needLock*/, false)
-}
-
-func (c *Container) UseAgent(fn func(*agent.Client) error) error {
-	return c.useAgentInternal(fn /*needFreezerRef*/, true /*needLock*/, true)
+	return rt.UseAgent(fn)
 }
 
 func UseAgentRet[T any](c *Container, fn func(*agent.Client) (T, error)) (T, error) {
@@ -397,10 +312,6 @@ func (c *Container) UseMountNs(fn func() error) error {
 		return struct{}{}, fn()
 	})
 	return err
-}
-
-func (c *Container) Freezer() *Freezer {
-	return c.freezer.Load()
 }
 
 func (c *Container) transitionStateInternalLocked(newState types.ContainerState, isInternal bool) (types.ContainerState, error) {

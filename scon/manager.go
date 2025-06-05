@@ -423,7 +423,7 @@ func (m *ConManager) stopAll() {
 		go func(c *Container) {
 			defer wg.Done()
 
-			err := c.stopForManagerShutdown()
+			err := c.Stop(StopOptions{})
 			if err != nil {
 				logrus.WithError(err).Error("failed to stop container for manager shutdown")
 			}
@@ -523,9 +523,6 @@ func (m *ConManager) removeContainer(c *Container) error {
 
 	delete(m.containersByID, c.ID)
 	delete(m.containersByName, c.Name)
-	for _, alias := range c.Aliases {
-		delete(m.containersByName, alias)
-	}
 
 	runtime.SetFinalizer(c, nil)
 	_ = c.lxc.Release()

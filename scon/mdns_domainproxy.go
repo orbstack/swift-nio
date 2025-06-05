@@ -226,11 +226,8 @@ func (d *domainproxyRegistry) invalidateAddrProbeLocked(ip netip.Addr) {
 			return nil
 		})
 	})
-	if err != nil {
-		// this will happen if docker is not running -- very possible if the docker machine just shut down
-		if d.dockerMachine.Running() {
-			logrus.WithError(err).Error("failed to delete from docker domainproxy")
-		}
+	if err != nil && !errors.Is(err, ErrMachineNotRunning) {
+		logrus.WithError(err).Error("failed to delete from docker domainproxy")
 	}
 }
 

@@ -3,13 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"time"
 
-	"github.com/lxc/go-lxc"
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/sirupsen/logrus"
 )
+
+const freezeCountClosed = ^int32(0)
 
 var (
 	ErrFreezerClosed = errors.New("freezer closed")
@@ -18,9 +18,12 @@ var (
 type Freezer struct {
 	mu        syncx.Mutex
 	container *Container
-	count     int
+	debounce  *syncx.FuncDebounce
+	// must not take c.mu
 	predicate func() (bool, error)
-	debounce  atomic.Pointer[syncx.FuncDebounce]
+
+	count  int32
+	frozen bool
 }
 
 func NewContainerFreezer(c *Container, debouncePeriod time.Duration, predicate func() (bool, error)) *Freezer {
@@ -30,13 +33,12 @@ func NewContainerFreezer(c *Container, debouncePeriod time.Duration, predicate f
 		count:     1,
 		predicate: predicate,
 	}
-	debounce := syncx.NewFuncDebounce(debouncePeriod, func() {
+	f.debounce = syncx.NewFuncDebounce(debouncePeriod, func() {
 		err := f.tryFreeze()
 		if err != nil {
 			logrus.WithError(err).Error("failed to update cfref state")
 		}
 	})
-	f.debounce.Store(debounce)
 
 	return f
 }
@@ -45,19 +47,18 @@ func (f *Freezer) IncRef() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	debounce := f.debounce.Load()
-	if debounce == nil {
+	if f.count == freezeCountClosed {
 		return
 	}
 
-	debounce.Cancel()
+	f.debounce.Cancel()
 	f.count++
 	newCount := f.count
 	if verboseDebug {
 		logrus.WithField("count", newCount).Debug("freezer inc ref")
 	}
 
-	if newCount == 1 {
+	if newCount == 1 && f.frozen {
 		logrus.Debug("freezer first ref, unfreezing")
 		err := f.doUnfreezeLocked()
 		if err != nil {
@@ -70,8 +71,7 @@ func (f *Freezer) DecRef() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	debounce := f.debounce.Load()
-	if debounce == nil {
+	if f.count == freezeCountClosed {
 		return
 	}
 
@@ -82,7 +82,7 @@ func (f *Freezer) DecRef() {
 	}
 	if newCount == 0 {
 		logrus.Debug("freezer last ref, freezing")
-		debounce.Call()
+		f.debounce.Call()
 	}
 
 	if newCount < 0 {
@@ -94,24 +94,20 @@ func (f *Freezer) tryFreeze() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if f.frozen {
+		logrus.Debug("freeze blocked: already frozen")
+		return nil
+	}
+	if f.count == freezeCountClosed {
+		logrus.Debug("freeze blocked: closed")
+		return nil
+	}
 	if f.count > 0 {
 		logrus.Debug("freeze blocked: refs >= 1")
 		return nil
 	}
 
-	// in case debounce was scheduled before closed
-	if f.debounce.Load() == nil {
-		return nil
-	}
-
-	c := f.container
-	if c.IsFrozen() {
-		logrus.Debug("freeze blocked: already frozen")
-		return nil
-	}
-
 	if f.predicate != nil {
-		// release lock for the predicate - it could call UseAgent
 		ok, err := f.predicate()
 		if err != nil {
 			return fmt.Errorf("call predicate: %w", err)
@@ -124,31 +120,30 @@ func (f *Freezer) tryFreeze() error {
 	}
 
 	logrus.Debug("freezing")
-	err := c.Freeze()
-	if err != nil && !errors.Is(err, lxc.ErrAlreadyFrozen) {
+	err := f.container.freezeInternal()
+	if err != nil {
 		return err
 	}
 
+	f.frozen = true
 	return nil
 }
 
 func (f *Freezer) doUnfreezeLocked() error {
-	if !f.container.IsFrozen() {
-		return nil
-	}
-
-	err := f.container.Unfreeze()
-	if err != nil && !errors.Is(err, lxc.ErrNotFrozen) {
-		return err
-	}
-
-	return nil
+	return f.container.unfreezeInternal()
 }
 
-// close must be lock-free, or we'll deadlock on stop + tryFreeze predicate (which keeps the lock held)
 func (f *Freezer) Close() {
-	debounce := f.debounce.Swap(nil)
-	if debounce != nil {
-		debounce.Cancel()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.count = freezeCountClosed
+	f.debounce.Cancel()
+
+	if f.frozen {
+		err := f.doUnfreezeLocked()
+		if err != nil {
+			logrus.WithError(err).Error("failed to unfreeze cfref on close")
+		}
 	}
 }

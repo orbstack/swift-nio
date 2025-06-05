@@ -210,7 +210,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// catch and ignore signals, so children exit first and rpc wait works better
 	sigCh := make(chan os.Signal, 1)
 	// TODO: catch SIGTERM and kill child processes so scon ssh can call wait() and read exit codes
-	listenSignals := []os.Signal{unix.SIGINT, unix.SIGQUIT, stopWarningSignal}
+	listenSignals := []os.Signal{unix.SIGINT, unix.SIGQUIT}
 	if conf.Debug() {
 		listenSignals = append(listenSignals, unix.SIGUSR1)
 	}
@@ -218,15 +218,6 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	go func() {
 		for signal := range sigCh {
 			switch signal {
-			case stopWarningSignal:
-				// warn docker about stop
-				if server.docker != nil {
-					err := server.docker.OnStop()
-					if err != nil {
-						logrus.WithError(err).Error("docker on-stop failed")
-					}
-				}
-
 			// debug mode: dump goroutine stacks
 			case unix.SIGUSR1:
 				debugutil.PrintGoroutines()
@@ -257,9 +248,8 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		if err != nil {
 			logrus.WithError(err).Error("docker post-start failed")
 			// well, docker won't work...
-			// just kill everything. nothing else should really be running
-			// can't kill pid 1 with SIGKILL because unlike other procs, it has no handler by default
-			_ = unix.Kill(1, unix.SIGTERM)
+			// just exit so that scon stops our container when it detects agent exit
+			os.Exit(1)
 		}
 	}
 

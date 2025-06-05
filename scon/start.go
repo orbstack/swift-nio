@@ -513,14 +513,12 @@ func (c *Container) configureLxc() error {
 
 		// container hooks, before rootfs is set
 		// this gives it a chance to override the rootfs
-		if c.hooks != nil {
-			err := c.hooks.Config(c, containerConfigMethods{
-				set:  set,
-				bind: bind,
-			})
-			if err != nil {
-				panic(err)
-			}
+		err = c.hooks.Config(c, containerConfigMethods{
+			set:  set,
+			bind: bind,
+		})
+		if err != nil {
+			panic(err)
 		}
 
 		// container
@@ -631,17 +629,9 @@ func (m *ConManager) insertContainerLocked(c *Container) error {
 	if _, ok := m.containersByName[c.Name]; ok {
 		return fmt.Errorf("machine '%q' already exists", c.Name)
 	}
-	for _, alias := range c.Aliases {
-		if _, ok := m.containersByName[alias]; ok {
-			return fmt.Errorf("machine '%q' already exists", alias)
-		}
-	}
 
 	m.containersByID[c.ID] = c
 	m.containersByName[c.Name] = c
-	for _, alias := range c.Aliases {
-		m.containersByName[alias] = c
-	}
 	return nil
 }
 
@@ -667,7 +657,6 @@ func (m *ConManager) restoreOneLocked(record *types.ContainerRecord, isNew bool)
 	if record.State == types.ContainerStateCreating {
 		// restore creating state early to avoid race where user can start it
 		c.setState(types.ContainerStateCreating)
-		c.isCreating.Store(true)
 
 		// a container in 'creating' state starts with an active mutation that must be released before holds can be added
 		err = c.holds.BeginMutation("creating")
@@ -775,14 +764,11 @@ func (c *Container) startLocked(isInternal bool) error {
 		if err != nil {
 			return fmt.Errorf("set cgroup: %w", err)
 		}
-		c.lastCgroupPath = containerCgroup
 
 		// hook
-		if c.hooks != nil {
-			err := c.hooks.PreStart(c)
-			if err != nil {
-				return err
-			}
+		err = c.hooks.PreStart(c)
+		if err != nil {
+			return err
 		}
 
 		err = c.startLxcLocked()
@@ -808,61 +794,57 @@ func (c *Container) startLocked(isInternal bool) error {
 			}
 		}()
 
-		err = c.initRuntimeStateLocked()
-		if err != nil {
-			return fmt.Errorf("init runtime state: %w", err)
-		}
-
-		err = c.startAgentLocked()
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to start agent")
-		}
-
-		// attach loop devices
-		extraDevSrcs, err := listDevExtra()
+		err = c.onStartLocked(containerCgroup)
 		if err != nil {
 			return err
 		}
-		for _, src := range extraDevSrcs {
-			err := c.addDeviceNode(src, src)
-			if err != nil {
-				return err
-			}
-		}
-
-		// add to mDNS registry
-		c.manager.net.mdnsRegistry.AddMachine(c)
-
-		err = c.onStartLocked()
-		if err != nil {
-			return err
-		}
-
-		go func() {
-			err := c.manager.net.RefreshFlowtable()
-			if err != nil {
-				logrus.WithError(err).WithField("container", c.Name).Error("failed to refresh FT")
-			}
-		}()
 
 		logrus.WithField("container", c.Name).Info("container started")
 		return nil
 	})
 }
 
-func (c *Container) onStartLocked() error {
-	_, err := c.transitionStateLocked(types.ContainerStateRunning)
+func (c *Container) onStartLocked(cgroupPath string) error {
+	// attach loop devices
+	extraDevSrcs, err := listDevExtra()
+	if err != nil {
+		return fmt.Errorf("list extra devs: %w", err)
+	}
+	for _, src := range extraDevSrcs {
+		err := c.addDeviceNode(src, src)
+		if err != nil {
+			return fmt.Errorf("add device node: %w", err)
+		}
+	}
+
+	rt, err := c.initRuntimeStateLocked(cgroupPath)
+	if err != nil {
+		return fmt.Errorf("init runtime state: %w", err)
+	}
+
+	// kick listener update in case we missed any before agent start
+	c.triggerListenersUpdate(bpf.ListenerTypeAll)
+
+	// add to mDNS registry
+	c.manager.net.mdnsRegistry.AddMachine(c)
+
+	// hook
+	err = c.hooks.PostStart(c, rt)
+	if err != nil {
+		return fmt.Errorf("post start: %w", err)
+	}
+
+	_, err = c.transitionStateLocked(types.ContainerStateRunning)
 	if err != nil {
 		return err
 	}
 
-	// hook
-	if c.hooks != nil {
-		err := c.hooks.PostStart(c)
+	go func() {
+		err := c.manager.net.RefreshFlowtable()
 		if err != nil {
-			return err
+			logrus.WithError(err).WithField("container", c.Name).Error("failed to refresh FT")
 		}
-	}
+	}()
 
 	return nil
 }
@@ -885,13 +867,13 @@ func padAgentCmd(cmd string) string {
 	return cmd
 }
 
-func (c *Container) startAgentLocked() error {
+func (c *Container) startAgentLocked() (*agent.Client, error) {
 	logrus.WithField("container", c.Name).Debug("starting agent")
 
 	// make agent fds
 	rpcFile, fdxFile, rpcConn, fdxConn, err := agent.MakeAgentFds()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// close our side of the file fds after start
 	defer rpcFile.Close()
@@ -932,142 +914,53 @@ func (c *Container) startAgentLocked() error {
 	}
 	err = cmd.Start(c)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// probably not needed
-	runtime.KeepAlive(c.manager.agentExe)
 
-	// Stop() hangs without this
+	// Stop() hangs if we never reap this
 	go cmd.Process.Wait()
 
-	// agent client
-	client := agent.NewClient(cmd.Process, rpcConn, fdxConn)
-	oldClient := c.agent.Swap(client)
-	// close old client if any
-	if oldClient != nil {
-		oldClient.Close()
-	}
-
-	// async tasks, so we can release the lock
-	// can block if agent is broken
-	// also, we'll close our side of the remote fd so RPC will return ECONNRESET
-	go func() {
-		err := c.postStartAsync(client)
-		if err != nil {
-			logrus.WithError(err).WithField("container", c.Name).Error("failed to init agent")
-		}
-	}()
-
-	return nil
+	return agent.NewClient(rpcConn, fdxConn), nil
 }
 
-func (c *Container) attachBpf(cgPath string) error {
+func (c *Container) attachBpf(rt *ContainerRuntimeState) (_ *bpf.ContainerBpfManager, retErr error) {
 	// netns cookie
-	netnsCookie, err := withContainerNetns(c, func() (uint64, error) {
+	netnsCookie, err := sysnet.WithNetnsFile(rt.InitPidfd, func() (uint64, error) {
 		return sysnet.GetNetnsCookie()
 	})
 	if err != nil {
-		return fmt.Errorf("get netns cookie: %w", err)
+		return nil, fmt.Errorf("get netns cookie: %w", err)
 	}
 
+	cgPath := "/sys/fs/cgroup/" + rt.cgroupPath
 	bpfMgr, err := bpf.NewContainerBpfManager(cgPath, netnsCookie)
 	if err != nil {
-		return fmt.Errorf("new bpf: %w", err)
+		return nil, fmt.Errorf("new bpf: %w", err)
 	}
-	c.bpf = bpfMgr
+	defer func() {
+		if retErr != nil {
+			_ = bpfMgr.Close()
+		}
+	}()
 
 	err = c.manager.net.portMonitor.AddCallback(c.ID, netnsCookie, func(ev bpf.PortMonitorEvent) {
 		c.triggerListenersUpdate(ev.DirtyFlags)
 	})
 	if err != nil {
-		return fmt.Errorf("add port monitor callback: %w", err)
+		return nil, fmt.Errorf("add port monitor callback: %w", err)
 	}
 	err = c.manager.net.portMonitor.AttachCgroup(cgPath)
 	if err != nil {
-		return fmt.Errorf("attach cgroup: %w", err)
+		return nil, fmt.Errorf("attach cgroup: %w", err)
 	}
 
 	// attach lfwd for docker
 	if c.ID == ContainerIDDocker {
 		err := bpfMgr.AttachLfwd()
 		if err != nil {
-			return fmt.Errorf("attach bpf lfwd: %w", err)
+			return nil, fmt.Errorf("attach bpf lfwd: %w", err)
 		}
 	}
 
-	return nil
-}
-
-func (c *Container) initNetPostStart() error {
-	// we set cleanup fields here
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.config.Isolated {
-		// isolated containers don't have auto listener or bpf reverse localhost forward
-		return nil
-	}
-
-	// need cgroup path to attach bpf
-	cgPath := c.lastCgroupPath
-	if cgPath == "" {
-		return errors.New("no cgroup path")
-	}
-
-	// attach bpf localhost reverse forward for Docker
-	err := c.attachBpf("/sys/fs/cgroup/" + cgPath)
-	if err != nil {
-		return fmt.Errorf("attach bpf: %w", err)
-	}
-	logrus.WithField("container", c.Name).Debug("attached bpf")
-
-	return nil
-}
-
-func (c *Container) postStartAsync(a *agent.Client) error {
-	// does not really fit in postStartAsync, but not critical so we do it here
-	// compiling bpf programs is a little slow (3 ms)
-	err := c.initNetPostStart()
-	if err != nil {
-		return fmt.Errorf("init net: %w", err)
-	}
-
-	// kick listener update in case we missed any before agent start
-	c.triggerListenersUpdate(bpf.ListenerTypeAll)
-
-	// get agent's pidfd
-	err = a.MonitorAgentPidFd()
-	if err != nil {
-		return fmt.Errorf("get agent pidfd: %w", err)
-	}
-
-	// postStartAsync runs asynchronously, so we can reuse this goroutine
-
-	// wait for agent to stop
-	_ = a.WaitStop()
-
-	// if agent crashed and container is still running, stop the container
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	err = c.useAgentLocked(func(currentAgent *agent.Client) error {
-		// if this is the current agent, then container is still running and has a reference to this agent
-		if currentAgent == a {
-			logrus.WithField("container", c.Name).Error("agent crashed, stopping container")
-			_, err := c.stopLocked(StopOptions{
-				KillProcesses:     false,
-				ManagerIsStopping: false,
-			})
-			return err
-		} else {
-			return nil
-		}
-	})
-	// if container isn't running, we're fine
-	// otherwise something's wrong
-	if err != nil && !errors.Is(err, ErrMachineNotRunning) {
-		logrus.WithError(err).WithField("container", c.Name).Error("failed to stop container after agent crash")
-	}
-
-	return nil
+	return bpfMgr, nil
 }

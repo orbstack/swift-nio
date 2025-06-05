@@ -155,14 +155,14 @@ func (p *DockerProxy) serveConn(clientConn net.Conn) (retErr error) {
 			// take freezer ref on a per-request level
 			// fixes idle conns from user's tools keeping machine alive
 			// only possible to do it race-free from scon side
-			freezer := p.container.Freezer()
-			if freezer == nil {
-				return fmt.Errorf("docker freezer is nil")
+			rt, err := p.container.RuntimeState()
+			if err != nil {
+				return err
 			}
-			freezer.IncRef()
-			defer freezer.DecRef()
+			rt.freezer.IncRef()
+			defer rt.freezer.DecRef()
 
-			err := p.filterRequest(req, state)
+			err = p.filterRequest(req, state)
 			if err != nil {
 				return fmt.Errorf("filter request: %w", err)
 			}

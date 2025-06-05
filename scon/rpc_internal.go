@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/rpc"
 
 	"github.com/miekg/dns"
@@ -39,13 +40,11 @@ func (s *SconInternalServer) OnVmconfigUpdate(config *vmtypes.VmConfig, _ *None)
 	}
 
 	// if needed, update docker agent state
-	if s.dockerMachine.Running() {
-		err := s.dockerMachine.UseAgent(func(a *agent.Client) error {
-			return a.DockerOnVmconfigUpdate(config)
-		})
-		if err != nil {
-			return err
-		}
+	err = s.dockerMachine.UseAgent(func(a *agent.Client) error {
+		return a.DockerOnVmconfigUpdate(config)
+	})
+	if err != nil && !errors.Is(err, ErrMachineNotRunning) {
+		return err
 	}
 
 	return nil

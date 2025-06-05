@@ -24,11 +24,6 @@ func (c *Container) ExportToHostPath(hostPath string) (retErr error) {
 		return errors.New("cannot export builtin machine")
 	}
 
-	if c.Freezer() != nil {
-		// should never happen, as only builtin containers have freezers
-		return errors.New("cannot export machine with freezer")
-	}
-
 	hostUser, err := c.manager.host.GetUser()
 	if err != nil {
 		return fmt.Errorf("get host user: %w", err)

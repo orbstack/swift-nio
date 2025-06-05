@@ -305,6 +305,24 @@ func (a *AgentServer) DockerQueryKubeDns(q dns.Question, rrs *[]dns.RR) error {
 	return nil
 }
 
+func (a *AgentServer) DockerOnStop(_ None, _ *None) error {
+	// stop listening to events, otherwise we'll try to connect to the sock that no longer exists (to refresh data)
+	if a.docker.eventsConn != nil {
+		a.docker.eventsConn.Close()
+	}
+
+	go func() {
+		// give it some grace time, then kill containers to speed it up
+		time.Sleep(500 * time.Millisecond)
+		err := a.docker.killContainers()
+		if err != nil {
+			logrus.WithError(err).Error("failed to kill containers")
+		}
+	}()
+
+	return nil
+}
+
 /*
  * Private - Docker agent
  */
@@ -420,20 +438,6 @@ func (d *DockerAgent) killContainers() error {
 
 	err = os.WriteFile("/sys/fs/cgroup/kubepods/cgroup.kill", []byte("1"), 0644)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-
-	return nil
-}
-
-func (d *DockerAgent) OnStop() error {
-	logrus.Debug("stopping docker event monitor")
-	if d.eventsConn != nil {
-		d.eventsConn.Close()
-	}
-
-	err := d.killContainers()
-	if err != nil {
 		return err
 	}
 
