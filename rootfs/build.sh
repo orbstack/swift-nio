@@ -59,10 +59,6 @@ CID=$(docker create --platform "$PLATFORM" ghcr.io/orbstack/images:$BTYPE true)
 trap "docker rm $CID" EXIT
 docker cp -q $CID:/images out
 
-# data and swap images
-# can't be part of build due to privileged requirement for mounting images
-docker run -i --rm --privileged --platform "$PLATFORM" -v $PWD/out:/out -v /dev:/hostdev ghcr.io/orbstack/images:$BTYPE < make-preseed.sh
-
 copy_file() {
 	mkdir -p ../assets/$BTYPE/$ARCH
     # delete and swap file to avoid overwrite
@@ -71,6 +67,13 @@ copy_file() {
 	cp "$1" ../assets/$BTYPE/$ARCH/$2
 }
 
+# data and swap images
+# can't be part of build due to privileged requirement for mounting images
+# makefile-like mtime based cache for preseed
+if [[ make-preseed.sh -nt ../assets/$BTYPE/$ARCH/data.img.tar ]]; then
+    docker run -i --rm --privileged --platform "$PLATFORM" -v $PWD/out:/out -v /dev:/hostdev ghcr.io/orbstack/images:$BTYPE < make-preseed.sh
+    copy_file out/data.img.tar data.img.tar
+fi
+
 copy_file out/rootfs.img rootfs.img
-copy_file out/data.img.tar data.img.tar
 copy_file out/ri.cpio rpack
