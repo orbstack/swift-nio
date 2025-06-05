@@ -19,7 +19,7 @@ libc = "0.2.172"
 mkswap = "0.1.1"
 netlink-packet-core = "0.7.0"
 netlink-packet-route = "0.24.0"
-nix = { version = "0.30.1", features = ["resource", "mount", "fs", "time", "hostname", "reboot", "signal", "process", "ioctl"] }
+nix = { version = "0.30.1", features = ["resource", "mount", "fs", "time", "hostname", "reboot", "signal", "process", "ioctl", "feature"] }
 once_cell = "1.21.3"
 qbsdiff = "1.4.3"
 rtnetlink = "0.17.0"

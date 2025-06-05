@@ -1,9 +1,4 @@
-use std::{
-    fs::{self},
-    process::ExitStatus,
-    sync::Arc,
-    time::Instant,
-};
+use std::{process::ExitStatus, sync::Arc, time::Instant};
 
 use anyhow::anyhow;
 use base64::Engine;
@@ -12,6 +7,7 @@ use nix::{
     errno::Errno,
     sys::{
         reboot::{reboot, RebootMode},
+        utsname::uname,
         wait::{waitpid, WaitPidFlag, WaitStatus},
     },
     unistd::{getpid, Pid},
@@ -107,25 +103,13 @@ struct SeedData {
 
 impl SystemInfo {
     fn read() -> anyhow::Result<SystemInfo> {
-        // trim newline
-        let kernel_version = fs::read_to_string("/proc/sys/kernel/osrelease")?
-            .trim()
-            .to_string();
-        let cmdline: Vec<_> = fs::read_to_string("/proc/cmdline")?
-            .trim()
-            .split(' ')
-            .map(|s| s.to_string())
-            .collect();
-        let seed_str = cmdline
-            .iter()
-            .find(|s| s.starts_with("orb.s="))
-            .ok_or_else(|| anyhow!("missing seed data"))?;
-        let seed_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .decode(seed_str.strip_prefix("orb.s=").unwrap())?;
+        let uname = uname()?;
+        let seed_str = std::env::var("ORB_S").map_err(|_| anyhow!("missing seed data"))?;
+        let seed_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(seed_str)?;
         let (seed, _) = bincode::decode_from_slice(&seed_bytes, bincode::config::legacy())?;
 
         Ok(SystemInfo {
-            kernel_version,
+            kernel_version: uname.release().to_string_lossy().to_string(),
             seed,
         })
     }

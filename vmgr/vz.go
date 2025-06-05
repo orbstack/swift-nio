@@ -238,7 +238,8 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 	}
 
 	// userspace seed data
-	cmdline = append(cmdline, "orb.s="+seedData.EncodeToString())
+	// kernel behavior: if contains '=' it goes to environ, else it goes to cmdline. if key contains '.' it gets eaten by kernel
+	cmdline = append(cmdline, "ORB_S="+seedData.EncodeToString())
 
 	return strings.Join(cmdline, " ")
 }
