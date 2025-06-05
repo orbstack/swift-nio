@@ -26,8 +26,8 @@ struct MachinesRootView: View {
 
                         if !listData.isEmpty {
                             // see DockerContainerItem for rowHeight calculation
-                            AKList(listData, selection: $selection, rowHeight: 48) { item in
-                                MachineContainerItem(record: item.record)
+                            AKList(listData, selection: $selection, rowHeight: 48) { info in
+                                MachineContainerItem(info: info)
                                     .environmentObject(vmModel)
                                     .environmentObject(windowTracker)
                                     .environmentObject(actionTracker)

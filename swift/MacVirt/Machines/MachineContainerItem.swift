@@ -10,7 +10,7 @@ struct MachineContainerItem: View {
     @EnvironmentObject var actionTracker: ActionTracker
     @EnvironmentObject var listModel: AKListModel
 
-    var record: ContainerRecord
+    var info: ContainerInfo
     var selection: Set<String> {
         listModel.selection as! Set<String>
     }
@@ -22,23 +22,23 @@ struct MachineContainerItem: View {
     @State private var presentRename = false
 
     var body: some View {
-        let actionInProgress = actionTracker.ongoingFor(machine: record) != nil
-        let running = record.running || vmModel.restartingMachines.contains(record.id)
+        let actionInProgress = actionTracker.ongoingFor(machine: info.record) != nil
+        let running = info.record.running || vmModel.restartingMachines.contains(info.record.id)
         let deletionList = resolveActionList()
         let deleteConfirmMsg =
-            deletionList.count > 1 ? "Delete machines?" : "Delete “\(record.name)”?"
+            deletionList.count > 1 ? "Delete machines?" : "Delete “\(info.record.name)”?"
 
         HStack {
-            Image("distro_\(record.image.distro)")
+            Image("distro_\(info.record.image.distro)")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 32, height: 32)
                 .padding(.trailing, 8)
                 .opacity(running ? 1 : 0.5)
             VStack(alignment: .leading) {
-                Text(record.name)
+                Text(info.record.name)
                     .font(.body)
-                Text("\(record.image.version), \(record.image.arch)")
+                Text("\(info.record.image.version), \(info.record.image.arch)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -47,7 +47,7 @@ struct MachineContainerItem: View {
             Spacer()
 
             Button(action: {
-                record.openNfsDirectory()
+                info.record.openNfsDirectory()
             }) {
                 Image(systemName: "folder.fill")
                     // match ProgressIconButton size
@@ -60,19 +60,19 @@ struct MachineContainerItem: View {
             if running {
                 ProgressIconButton(
                     systemImage: "stop.fill",
-                    actionInProgress: actionInProgress || record.state.isInitializing
+                    actionInProgress: actionInProgress || info.record.state.isInitializing
                 ) {
                     finishStop()
                 }
-                .help("Stop \(record.name)")
+                .help("Stop \(info.record.name)")
             } else {
                 ProgressIconButton(
                     systemImage: "play.fill",
-                    actionInProgress: actionInProgress || record.state.isInitializing
+                    actionInProgress: actionInProgress || info.record.state.isInitializing
                 ) {
                     finishStart()
                 }
-                .help("Start \(record.name)")
+                .help("Start \(info.record.name)")
             }
         }
         .padding(.vertical, 8)
@@ -107,19 +107,19 @@ struct MachineContainerItem: View {
 
                 Button(action: {
                     Task {
-                        await record.openInTerminal()
+                        await info.record.openInTerminal()
                     }
                 }) {
                     Label("Open Terminal", systemImage: "terminal")
                 }
-                .disabled(record.state.isInitializing)
+                .disabled(info.record.state.isInitializing)
 
                 Button(action: {
-                    record.openNfsDirectory()
+                    info.record.openNfsDirectory()
                 }) {
                     Label("Open Files", systemImage: "folder")
                 }
-                .disabled(record.state.isInitializing)
+                .disabled(info.record.state.isInitializing)
             }
 
             Divider()
@@ -128,7 +128,7 @@ struct MachineContainerItem: View {
                 if selection.count <= 1 {
                     Button(action: {
                         Task {
-                            await vmModel.trySetDefaultContainer(record)
+                            await vmModel.trySetDefaultContainer(info.record)
                         }
                     }) {
                         Label("Make Default", systemImage: "star")
@@ -145,7 +145,7 @@ struct MachineContainerItem: View {
                     }
 
                     Button("Export") {
-                        record.openExportPanel(
+                        info.record.openExportPanel(
                             windowHolder: windowHolder,
                             actionTracker: actionTracker,
                             vmModel: vmModel
@@ -172,8 +172,20 @@ struct MachineContainerItem: View {
                 Divider()
 
                 Button("Copy Domain") {
-                    NSPasteboard.copy("\(record.name).orb.local")
+                    NSPasteboard.copy("\(info.record.name).orb.local")
                 }
+
+                Button("Copy IPv4") {
+                    if let ip4 = info.ip4 {
+                        NSPasteboard.copy(ip4)
+                    }
+                }.disabled(info.ip4 == nil)
+
+                Button("Copy IPv6") {
+                    if let ip6 = info.ip6 {
+                        NSPasteboard.copy(ip6)
+                    }
+                }.disabled(info.ip6 == nil)
             }
         }
         .confirmationDialog(
@@ -187,15 +199,15 @@ struct MachineContainerItem: View {
             Text("Data will be permanently lost.")
         }
         .sheet(isPresented: $presentClone) {
-            CloneContainerView(name: record.name, record: record, isPresented: $presentClone)
+            CloneContainerView(name: info.record.name, record: info.record, isPresented: $presentClone)
         }
         .sheet(isPresented: $presentRename) {
-            RenameContainerView(name: record.name, record: record, isPresented: $presentRename)
+            RenameContainerView(name: info.record.name, record: info.record, isPresented: $presentRename)
         }
         .akListOnDoubleClick {
-            if !record.state.isInitializing {
+            if !info.record.state.isInitializing {
                 Task {
-                    await record.openInTerminal()
+                    await info.record.openInTerminal()
                 }
             }
         }
@@ -247,7 +259,7 @@ struct MachineContainerItem: View {
     }
 
     func isSelected() -> Bool {
-        selection.contains(record.id)
+        selection.contains(info.record.id)
     }
 
     @MainActor
@@ -258,7 +270,7 @@ struct MachineContainerItem: View {
             if isSelected() {
                 selection
             } else {
-                [record.id]
+                [info.record.id]
             }
 
         return ids.compactMap { vmModel.machines?[$0] }

@@ -339,7 +339,7 @@ private class LogsViewModel: ObservableObject {
 
     @MainActor
     func restart() {
-        NSLog("Restarting log stream: cmdExe=\(lastCmdExe), args=\(lastArgs)")
+        NSLog("Restarting log stream: cmdExe=\(lastCmdExe ?? ""), args=\(lastArgs ?? [])")
         if let lastCmdExe, let lastArgs {
             start(cmdExe: lastCmdExe, args: lastArgs)
         }
@@ -1091,8 +1091,7 @@ struct K8SPodLogsWindow: View {
                     })
 
                 if let namespaceAndName,
-                    let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName),
-                    case let .pod(namespace, podName) = kid
+                    let kid = K8SResourceId.podFromNamespaceAndName(namespaceAndName)
                 {
                     let children =
                         vmModel.k8sPods?.first { $0.id == kid }?.status.containerStatuses?.sorted {

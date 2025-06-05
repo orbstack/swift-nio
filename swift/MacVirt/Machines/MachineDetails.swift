@@ -38,6 +38,12 @@ struct MachineDetails: View {
                             }
                         }
                     }
+
+                    if let ip4 = info.ip4 { 
+                        SimpleKvTableRow("IP") {
+                            CopyableText(ip4)
+                        }
+                    }
                 }
             }
 

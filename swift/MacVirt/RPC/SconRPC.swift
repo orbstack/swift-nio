@@ -66,6 +66,9 @@ struct ContainerInfo: AKListItem, Codable, Identifiable, Equatable {
     var record: ContainerRecord
     var diskSize: UInt64?
 
+    var ip4: String?
+    var ip6: String?
+
     var id: String {
         record.id
     }
