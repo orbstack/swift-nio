@@ -32,6 +32,7 @@ use nix::{
     sys::{
         resource::{setrlimit, Resource},
         stat::{umask, Mode},
+        sysinfo::sysinfo,
         time::TimeSpec,
     },
     time::{clock_gettime, clock_settime, ClockId},
@@ -1364,17 +1365,10 @@ fn setup_memory() -> anyhow::Result<()> {
     // zram
     // size = 1x RAM
     // no writeback
-    let mem_total_kib = fs::read_to_string("/proc/meminfo")?
-        .lines()
-        .find(|l| l.starts_with("MemTotal:"))
-        .unwrap()
-        .split_whitespace()
-        .nth(1)
-        .unwrap()
-        .parse::<u64>()?;
+    let sinfo = sysinfo()?;
     fs::write(
         "/sys/block/zram0/disksize",
-        format!("{}", mem_total_kib * 1024),
+        format!("{}", sinfo.ram_total()),
     )?;
 
     // create swap on zram
