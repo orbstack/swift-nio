@@ -100,10 +100,6 @@ func (m *ConManager) beginCreate(args *types.CreateRequest) (*Container, *types.
 		return nil, nil, fmt.Errorf("restore: %w", err)
 	}
 
-	// only this standard create path has a 'provisioning' state
-	// other creation paths (clone, import) go straight from creating -> running
-	c.isProvisioning.Store(true)
-
 	return c, &image, nil
 }
 
@@ -121,6 +117,10 @@ func (m *ConManager) Create(args *types.CreateRequest) (_ *Container, retErr err
 			}
 		}
 	}()
+
+	// only this standard create path has a 'provisioning' state
+	// other creation paths (clone, import) go straight from creating -> running
+	c.isProvisioning.Store(true)
 
 	// model this as a long-running task
 	err = c.jobManager.Run(func(ctx context.Context) error {
