@@ -101,7 +101,7 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) (pr
 		"upstream.Host": upstream.Host,
 		"http_port":     httpPort,
 		"https_port":    httpsPort,
-	}).Debug("domaintlsproxy: probe sucessful")
+	}).Debug("domaintlsproxy: probe successful")
 
 	// lock to update probedHosts map and to ensure no concurrent nft operations
 	d.probeMu.Lock()
