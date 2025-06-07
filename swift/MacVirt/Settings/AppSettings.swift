@@ -5,6 +5,7 @@
 import Foundation
 import Sparkle
 import SwiftUI
+import SwiftUIIntrospect
 
 // TODO: remove dep on service
 typealias SettingsStateWrapperView = StateWrapperView
@@ -77,12 +78,15 @@ struct AppSettings: View {
                 }
             }
         }
-        .toolbarRemovingSidebarToggleCompat()
+        .introspect(.navigationSplitView, on: .macOS(.v13, .v14, .v15)) { splitView in
+            if let delegate = splitView.delegate as? NSSplitViewController {
+                delegate.splitViewItems.first?.canCollapse = false
+            }
+        }
         .navigationSplitViewStyle(.prominentDetail)
         .onWindowReady { window in
             window.toolbarStyle = .unified
         }
         .frame(width: 650, height: 600)
-        .navigationTitle("Settings")
     }
 }

@@ -69,7 +69,7 @@ struct K8SSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Kubernetes")
+        .akNavigationTitle("Kubernetes")
         .akAlert(isPresented: $presentConfirmResetK8sData, style: .critical) {
             "Reset Kubernetes cluster?"
             "All Kubernetes deployments, pods, services, and other data will be permanently lost."

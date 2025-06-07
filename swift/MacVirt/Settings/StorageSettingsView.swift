@@ -160,7 +160,7 @@ struct StorageSettingsView: View {
             AKAlertButton("Cancel")
         }
         .windowHolder(windowHolder)
-        .navigationTitle("Storage")
+        .akNavigationTitle("Storage")
     }
 
     private func selectFolder() {

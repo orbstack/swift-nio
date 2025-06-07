@@ -344,7 +344,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         menu.addActionItem("Settings…", shortcut: ",") {
-            AppDelegate.showSettingsWindow()
+            AppDelegate.shared.showSettingsWindow()
         }
 
         menu.addActionItem("Quit", shortcut: "q") { [self] in

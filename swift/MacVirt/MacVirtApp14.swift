@@ -76,6 +76,12 @@ struct MacVirtApp14: App {
 
                 CommandGroup(after: .appInfo) {
                     CheckForUpdatesView(updater: updaterController.updater)
+
+                    Divider()
+
+                    Button("Settings…") {
+                        appDelegate.showSettingsWindow()
+                    }.keyboardShortcut(",")
                 }
 
                 // Window() only shows up in the menu if there are multiple singleton windows
@@ -411,12 +417,5 @@ struct MacVirtApp14: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .handlesExternalEvents(matching: [])
-
-        Settings {
-            AppSettings(updaterController: updaterController)
-                .environmentObject(vmModel)
-        }
-        .windowToolbarStyle(.unified)
-        .windowStyle(.titleBar)
     }
 }

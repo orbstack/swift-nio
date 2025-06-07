@@ -125,7 +125,7 @@ struct MachineSettingsView: View {
                 }
             }
         }
-        .navigationTitle("System")
+        .akNavigationTitle("System")
         .akAlert(isPresented: $presentDisableAdmin) {
             "Disable privileged features?"
             """

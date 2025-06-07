@@ -52,6 +52,6 @@ struct DebugSettingsView: View {
                 Text("Privileged Helper")
             }
         }
-        .navigationTitle("Debug")
+        .akNavigationTitle("Debug")
     }
 }

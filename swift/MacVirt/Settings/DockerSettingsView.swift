@@ -53,7 +53,7 @@ struct DockerSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Docker")
+        .akNavigationTitle("Docker")
         .onAppear {
             configJson = vmModel.dockerConfigJson
             enableIPv6 = vmModel.dockerEnableIPv6

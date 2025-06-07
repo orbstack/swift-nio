@@ -38,6 +38,6 @@ struct GeneralSettingsView: View {
                 Text("Updates")
             }
         }
-        .navigationTitle("General")
+        .akNavigationTitle("General")
     }
 }

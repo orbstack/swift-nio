@@ -20,8 +20,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     private var menuBar: MenuBarController?
 
+    static var shared: AppDelegate!
+
     func applicationWillFinishLaunching(_: Notification) {
         UNUserNotificationCenter.current().delegate = self
+        Self.shared = self
 
         // don't allow opening duplicate app instance - just activate old one
         // skip vmgr executables because there used to be a bug where it would open with same bundle id as GUI
@@ -335,7 +338,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 }
 
             case WindowURL.settings:
-                Self.showSettingsWindow()
+                showSettingsWindow()
 
             default:
                 break
@@ -357,22 +360,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
-    static func showSettingsWindow() {
-        // macOS 14 breaks the "showSettingsWindow" private API, so we have to do this...
-        // simulate Cmd-, shortcut
-        let fakeEvent = NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
-            modifierFlags: [.command],
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            characters: ",",
-            charactersIgnoringModifiers: ",",
-            isARepeat: false,
-            keyCode: 0)!
-        NSApp.mainMenu?.performKeyEquivalent(with: fakeEvent)
-        NSApp.activate(ignoringOtherApps: true)
+    private lazy var settingsWindow = {
+        let contentRect = NSRect(origin: .zero, size: CGSize(width: 650, height: 600))
+        let styleMask: NSWindow.StyleMask = [
+            .titled, .closable, .miniaturizable, .fullSizeContentView, .unifiedTitleAndToolbar,
+        ]
+
+        let window = NSWindow(
+            contentRect: contentRect, styleMask: styleMask, backing: .buffered, defer: false)
+        window.title = "Settings"
+        window.identifier = NSUserInterfaceItemIdentifier("settings2")
+        window.isRestorable = false
+        // required to make titlebar thick
+        window.toolbar = NSToolbar()
+
+        let hostingView = NSHostingView(
+            rootView: AppSettings(updaterController: updaterController!)
+                .environmentObject(vmModel)
+                .onPreferenceChange(AKNavigationTitleKey.self) { title in
+                    window.title = title ?? "Settings"
+                })
+        // match macOS 13 and 14 behavior
+        if #available(macOS 14, *) {
+            hostingView.sceneBridgingOptions = []
+        }
+        window.contentView = hostingView
+        window.isReleasedWhenClosed = false
+
+        return window
+    }()
+
+    func showSettingsWindow() {
+        settingsWindow.makeKeyAndOrderFront(nil)
     }
 }
 

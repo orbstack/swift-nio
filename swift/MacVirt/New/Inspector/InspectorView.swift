@@ -201,3 +201,20 @@ extension View {
         )
     }
 }
+
+struct AKNavigationTitleKey: PreferenceKey {
+    static var defaultValue: String? = nil
+
+    static func reduce(value: inout String?, nextValue: () -> String?) {
+        let nextVal = nextValue()
+        if let nextVal {
+            value = nextVal
+        }
+    }
+}
+
+extension View {
+    func akNavigationTitle(_ title: String?) -> some View {
+        preference(key: AKNavigationTitleKey.self, value: title)
+    }
+}

@@ -96,7 +96,7 @@ struct NetworkSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Network")
+        .akNavigationTitle("Network")
     }
 
     private func commit() {
