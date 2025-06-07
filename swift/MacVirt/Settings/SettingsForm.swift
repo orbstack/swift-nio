@@ -11,8 +11,7 @@ struct SettingsForm<Content: View>: View {
         Form {
             content()
         }
-        // safe area is a bit too big and includes scene padding
-        .padding(.top, -20)
+        // -20 top padding makes it touch, but macOS Settings > Appearance > Show scroll bars > "Automatically based on mouse or trackpad" makes the border and/or lighter-colored toolbar show up and overlap it unless splitViewItem.titlebarSeparatorStyle=.none, which is also not what we want
         .formStyle(.grouped)
     }
 }

@@ -84,9 +84,6 @@ struct AppSettings: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
-        .onWindowReady { window in
-            window.toolbarStyle = .unified
-        }
         .frame(width: 650, height: 600)
     }
 }
